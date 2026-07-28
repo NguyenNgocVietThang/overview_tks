@@ -10,7 +10,8 @@
 # Node modules (nếu dùng clasp local)
 node_modules/
 
-# server/.env is intentionally tracked per user request (contains CLIENT_SECRET)
+# server/.env chứa CLIENT_ID/CLIENT_SECRET của KiotViet — KHÔNG đẩy lên GitHub
+server/.env
 
 # Local development preview (không cần commit)
 dev/
