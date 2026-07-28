@@ -1,0 +1,19 @@
+{
+  "name": "tokosi-dashboard-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Node/Express backend for the TOKOSI dashboard, reading/writing the same Google Sheet the Apps Script project uses.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "sync-initial": "node kiotviet/syncInitial.js",
+    "webhook-admin": "node kiotviet/webhookAdmin.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "googleapis": "^140.0.1"
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.5"
+  }
+}
