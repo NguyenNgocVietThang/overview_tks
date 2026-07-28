@@ -55,12 +55,14 @@
     width:36px; height:36px; border-radius:8px; font-size:16px; cursor:pointer; flex-shrink:0;
   }
   .brand-mark{
-    width:36px;height:36px;border-radius:9px;
-    background:linear-gradient(135deg,var(--amber),#c97e1e);
+    width:44px;height:44px;border-radius:10px;
+    background:#fff;
     display:flex;align-items:center;justify-content:center;
-    font-family:'Sora',sans-serif;font-weight:800;color:#1b1206;font-size:16px;
     flex-shrink:0;
+    box-shadow:0 2px 8px rgba(0,0,0,0.3);
+    padding:3px;
   }
+  .brand-mark svg{ width:100%; height:100%; }
   .brand-text h1{ margin:0; font-family:'Sora',sans-serif; font-weight:700; font-size:17px; }
   .brand-text p{ margin:2px 0 0; font-size:11.5px; color:var(--muted); }
   .status-line{ display:flex; align-items:center; gap:14px; }
@@ -174,9 +176,30 @@
   <div class="receipt-header">
     <div class="brand">
       <button class="menu-btn" id="menuBtn" onclick="toggleSidebar()">☰</button>
-      <div class="brand-mark">CH</div>
+      <div class="brand-mark">
+        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" fill="none">
+          <!-- TOKOSI text -->
+          <text x="50" y="18" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="18" fill="#CC1111" letter-spacing="1">TOKOSI</text>
+          <!-- Roof chevron top -->
+          <polyline points="18,42 50,22 82,42" stroke="#CC1111" stroke-width="6" stroke-linejoin="round" fill="none"/>
+          <!-- Roof chevron bottom -->
+          <polyline points="24,48 50,30 76,48" stroke="#CC1111" stroke-width="5" stroke-linejoin="round" fill="none"/>
+          <!-- House walls -->
+          <polyline points="22,52 22,80 78,80 78,52" stroke="#CC1111" stroke-width="5.5" stroke-linejoin="round" fill="none"/>
+          <!-- Shopping cart body -->
+          <rect x="34" y="58" width="32" height="14" rx="2" stroke="#CC1111" stroke-width="4" fill="none"/>
+          <!-- Cart lines -->
+          <line x1="34" y1="63" x2="66" y2="63" stroke="#CC1111" stroke-width="3"/>
+          <line x1="34" y1="67.5" x2="66" y2="67.5" stroke="#CC1111" stroke-width="3"/>
+          <!-- Cart wheels -->
+          <circle cx="41" cy="76" r="3" fill="#CC1111"/>
+          <circle cx="59" cy="76" r="3" fill="#CC1111"/>
+          <!-- Ground arc -->
+          <path d="M12,86 Q50,96 88,86" stroke="#CC1111" stroke-width="5" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
       <div class="brand-text">
-        <h1>CHbansi · Live Dashboard</h1>
+        <h1>TOKOSI · Live Dashboard</h1>
         <p>Đồng bộ trực tiếp từ KiotViet qua Google Sheets</p>
       </div>
     </div>
@@ -195,7 +218,7 @@
       <div class="nav-item" data-view="products" onclick="switchView('products')"><span class="ic">▣</span> Hàng hóa</div>
       <div class="nav-item" data-view="invoices" onclick="switchView('invoices')"><span class="ic">▤</span> Hóa đơn</div>
       <div class="nav-item" data-view="customers" onclick="switchView('customers')"><span class="ic">◈</span> Khách hàng</div>
-      <div class="sidebar-footer">Dữ liệu từ Google Sheet · bấm Làm mới để cập nhật</div>
+      <div class="sidebar-footer">TOKOSI · Dữ liệu từ Google Sheet · bấm Làm mới để cập nhật</div>
     </div>
 
     <div class="content">

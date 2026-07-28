@@ -11,7 +11,7 @@
  */
 function doGet(e) {
   return HtmlService.createHtmlOutputFromFile('Dashboard')
-    .setTitle('CHbansi · Live Dashboard')
+    .setTitle('TOKOSI · Live Dashboard')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
