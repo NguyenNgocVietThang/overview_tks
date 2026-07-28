@@ -7,7 +7,7 @@ Dựa trên code hiện có (Google Apps Script backend + Dashboard HTML fronten
 | Thành phần | File | Vai trò |
 |---|---|---|
 | Backend | [Code.gs](file:///D:/Web TKS Dashboard/Code.gs) | Google Apps Script — KiotViet API, webhook, `getDashboardData()` |
-| Frontend | [Dashboard.html](file:///D:/Web TKS Dashboard/Dashboard.html | HTML + CSS + JS (Chart.js) — gọi `google.script.run` |
+| Frontend | [Dashboard.html](file:///D:/Web TKS Dashboard/Dashboard.) | HTML + CSS + JS (Chart.js) — gọi `google.script.run` |
 
 > [!NOTE]
 > Backend `Code.gs` **không cần thay đổi** — hàm `getDashboardData()` trả về đúng cấu trúc dữ liệu cần thiết. Chỉ cần nâng cấp file `Dashboard.html`.

@@ -10,6 +10,9 @@
 # Node modules (nếu dùng clasp local)
 node_modules/
 
+# Local development preview (không cần commit)
+dev/
+
 # File tạm của hệ điều hành
 .DS_Store
 Thumbs.db
