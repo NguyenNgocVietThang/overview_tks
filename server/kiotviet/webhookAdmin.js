@@ -9,7 +9,7 @@
 const CONFIG = require('../config');
 const { getKiotVietToken } = require('./auth');
 
-const EVENT_TYPES = ['product.update', 'product.delete', 'stock.update', 'customer.update', 'customer.delete'];
+const EVENT_TYPES = ['product.update', 'product.delete', 'stock.update', 'customer.update', 'customer.delete', 'invoice.update', 'order.update'];
 
 async function authHeaders() {
   const token = await getKiotVietToken();

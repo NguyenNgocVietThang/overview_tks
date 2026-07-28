@@ -61,12 +61,26 @@ async function syncCustomersInitial() {
 }
 
 async function syncAllInitialData() {
-  console.log('Bat dau tai Hang hoa...');
-  await syncProductsInitial();
-  console.log('Bat dau tai Hoa don...');
-  await syncInvoicesInitial();
-  console.log('Bat dau tai Khach hang...');
-  await syncCustomersInitial();
+  const steps = [
+    ['Hang hoa', syncProductsInitial],
+    ['Hoa don', syncInvoicesInitial],
+    ['Khach hang', syncCustomersInitial],
+  ];
+  const errors = [];
+
+  for (const [label, fn] of steps) {
+    console.log(`Bat dau tai ${label}...`);
+    try {
+      await fn();
+    } catch (err) {
+      console.error(`Loi khi dong bo ${label}:`, err);
+      errors.push([label, err]);
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Dong bo hoan tat voi ${errors.length} loi: ${errors.map(([label]) => label).join(', ')}`);
+  }
   console.log('Hoan tat dong bo toan bo du lieu ban dau!');
 }
 
