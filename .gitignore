@@ -10,8 +10,7 @@
 # Node modules (nếu dùng clasp local)
 node_modules/
 
-# server/ — Node backend env (chứa CLIENT_SECRET, GOOGLE_SERVICE_ACCOUNT_JSON)
-server/.env
+# server/.env is intentionally tracked per user request (contains CLIENT_SECRET)
 
 # Local development preview (không cần commit)
 dev/
