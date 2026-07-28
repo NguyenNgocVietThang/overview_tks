@@ -229,7 +229,7 @@
       <div class="nav-item" data-view="invoices" onclick="switchView('invoices')"><span class="ic">▤</span> Hóa đơn</div>
       <div class="nav-item" data-view="customers" onclick="switchView('customers')"><span class="ic">◈</span> Khách hàng</div>
       <div class="nav-item" data-view="suppliers" onclick="switchView('suppliers')"><span class="ic">▨</span> Nhà cung cấp</div>
-      <div class="sidebar-footer">TOKOSI · Dữ liệu từ Google Sheet · tự làm mới mỗi 5 phút</div>
+      <div class="sidebar-footer">TOKOSI · Dữ liệu từ Google Sheet · tự làm mới mỗi 10 phút</div>
     </div>
 
     <div class="content">
@@ -789,6 +789,8 @@
     document.getElementById('veil').classList.toggle('show', isLoading);
   }
 
+  const AUTO_REFRESH_MS = 10 * 60 * 1000; // toi da 10 phut/lan, tranh vuot han muc Google Sheets API
+
   function loadData(days, isManualRefresh){
     if (isManualRefresh) setLoading(true);
     fetch('/api/dashboard?days=' + encodeURIComponent(days))
@@ -797,9 +799,16 @@
         return res.json();
       })
       .then(function(data){
+        // So sanh du lieu (tru updatedAt vi truong nay luon doi moi lan goi) de
+        // biet Google Sheets co thuc su thay doi khong, tranh render lai/giat
+        // man hinh khi du lieu y het lan truoc.
+        const { updatedAt, ...rest } = data;
+        const fingerprint = JSON.stringify(rest);
+        const changed = fingerprint !== state.lastFingerprint;
+        state.lastFingerprint = fingerprint;
         state.data = data;
-        document.getElementById('updatedAt').textContent = 'Cập nhật lúc ' + data.updatedAt;
-        renderView(state.view);
+        document.getElementById('updatedAt').textContent = 'Cập nhật lúc ' + updatedAt + (changed ? '' : ' (không đổi)');
+        if (changed || isManualRefresh) renderView(state.view);
         if (isManualRefresh) setLoading(false);
       })
       .catch(function(err){
@@ -811,7 +820,7 @@
   }
 
   loadData(state.days, true);
-  setInterval(function(){ loadData(state.days, false); }, 20000); // tu dong lam moi moi 20 giay, khong hien veil de tranh giat man hinh
+  setInterval(function(){ loadData(state.days, false); }, AUTO_REFRESH_MS);
 </script>
 </body>
 </html>
