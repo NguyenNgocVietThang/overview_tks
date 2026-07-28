@@ -90,8 +90,8 @@ async function getDashboardData(days) {
   const poData = sheets[CONFIG.SHEET_PURCHASES];
 
   // ---------- HÀNG HÓA ----------
-  // Cột: [0]Mã hàng [1]Tên hàng [2]Nhóm hàng [3]Thương hiệu [4]Loại [5]Giá vốn [6]Giá bán [7]Tồn kho [8]Khách đặt [9]Ngày sửa cuối
-  let totalProducts = 0, totalStock = 0, inStockCodes = 0, lowStock = [];
+  // Cột: [0]Mã hàng [1]Tên hàng [2]Nhóm hàng [3]Thương hiệu [4]Loại [5]Giá vốn [6]Giá bán [7]Tồn kho [8]Khách đặt [9]Trạng thái kinh doanh [10]Ngày sửa cuối
+  let totalProducts = 0, totalStock = 0, inStockCodes = 0, activeProducts = 0, inactiveProducts = 0, lowStock = [];
   let stockList = [];
   const categoryMap = {};
 
@@ -102,11 +102,13 @@ async function getDashboardData(days) {
     totalProducts++;
     const ton = Number(row[7]) || 0;
     const reserved = Number(row[8]) || 0;
+    const status = row[9] || 'Đang kinh doanh';
+    if (status === 'Ngừng kinh doanh') inactiveProducts++; else activeProducts++;
     totalStock += ton;
     if (ton > 0) inStockCodes++;
-    stockList.push({ code, name: row[1], stock: ton, reserved });
+    stockList.push({ code, name: row[1], stock: ton, reserved, status });
     if (ton <= LOW_STOCK_THRESHOLD) {
-      lowStock.push({ code, name: row[1], stock: ton, reserved });
+      lowStock.push({ code, name: row[1], stock: ton, reserved, status });
     }
 
     const catName = (row[2] && String(row[2]).trim()) || 'Chưa phân nhóm';
@@ -127,6 +129,7 @@ async function getDashboardData(days) {
     name: p.name,
     stock: p.stock,
     reserved: p.reserved,
+    status: p.status,
     pct: totalStock > 0 ? (p.stock / totalStock) * 100 : 0
   }));
 
@@ -318,6 +321,8 @@ async function getDashboardData(days) {
       totalProducts,
       totalStock,
       inStockCodes,
+      activeProducts,
+      inactiveProducts,
       lowStockCount: lowStock.length,
       totalCustomers,
       customersWithDebt,

@@ -286,6 +286,10 @@
             <div class="eyebrow">Sắp hết hàng</div>
             <div class="value" id="pr-lowstock">—</div>
           </div>
+          <div class="kpi-card">
+            <div class="eyebrow">Ngừng kinh doanh</div>
+            <div class="value" id="pr-inactive">—</div>
+          </div>
         </div>
 
         <div class="grid-2">
@@ -306,11 +310,18 @@
         </div>
 
         <div class="panel">
-          <div class="panel-head"><h2>Tất cả mã hàng <span class="tag" id="tagAllProducts">—</span></h2></div>
+          <div class="panel-head">
+            <h2>Tất cả mã hàng <span class="tag" id="tagAllProducts">—</span></h2>
+            <div class="period-toggle" id="productStatusToggle">
+              <button data-status="all" class="active" onclick="setProductStatus('all')">Tất cả</button>
+              <button data-status="Đang kinh doanh" onclick="setProductStatus('Đang kinh doanh')">Đang kinh doanh</button>
+              <button data-status="Ngừng kinh doanh" onclick="setProductStatus('Ngừng kinh doanh')">Ngừng kinh doanh</button>
+            </div>
+          </div>
           <div class="scroll-list" style="max-height:420px;">
             <table>
-              <thead><tr><th>Sản phẩm</th><th>Tồn</th><th>Đặt</th><th>Tỷ lệ</th></tr></thead>
-              <tbody id="allProductRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
+              <thead><tr><th>Sản phẩm</th><th>Tồn</th><th>Đặt</th><th>Tỷ lệ</th><th>Trạng thái</th></tr></thead>
+              <tbody id="allProductRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -495,7 +506,7 @@
   <div class="loading-veil" id="veil">Đang tải dữ liệu…</div>
 
 <script>
-  const state = { data: null, days: 30, view: 'overview', charts: {} };
+  const state = { data: null, days: 30, view: 'overview', charts: {}, productStatus: 'all' };
 
   function fmtMoney(n){ n = Number(n) || 0; return n.toLocaleString('vi-VN') + '₫'; }
   function fmtMoneyShort(n){
@@ -524,6 +535,17 @@
     state.days = days;
     document.querySelectorAll('#periodToggle button').forEach(b => b.classList.toggle('active', Number(b.dataset.days) === days));
     loadData(days, false);
+  }
+
+  function setProductStatus(status){
+    state.productStatus = status;
+    document.querySelectorAll('#productStatusToggle button').forEach(b => b.classList.toggle('active', b.dataset.status === status));
+    if(state.data) renderView('products');
+  }
+
+  function bizStatusPill(status){
+    if(status === 'Ngừng kinh doanh') return '<span class="pill bad">' + status + '</span>';
+    return '<span class="pill ok">' + (status || 'Đang kinh doanh') + '</span>';
   }
 
   const CHART_COLORS = ['#F0A63A','#3DD68C','#5B9BF0','#F1616A','#B586F0','#4DD0E1','#7E8CA8'];
@@ -658,6 +680,7 @@
       document.getElementById('pr-total').textContent = d.kpi.totalProducts;
       document.getElementById('pr-stock').textContent = d.kpi.inStockCodes.toLocaleString('vi-VN');
       document.getElementById('pr-lowstock').textContent = d.kpi.lowStockCount;
+      document.getElementById('pr-inactive').textContent = d.kpi.inactiveProducts || 0;
       document.getElementById('tagLowStock').textContent = d.lowStock.length;
       const rows = document.getElementById('stockRows');
       rows.innerHTML = d.lowStock.length ? d.lowStock.map(p =>
@@ -666,13 +689,14 @@
       ).join('') : '<tr><td colspan="3" class="empty">Không có sản phẩm sắp hết</td></tr>';
       renderDoughnutWithLegend('chartStockDist','stockDist','tagStockDist','stockDistLegend', d.stockDistribution);
 
-      document.getElementById('tagAllProducts').textContent = d.allProducts.length;
+      const filteredProducts = state.productStatus === 'all' ? d.allProducts : d.allProducts.filter(p => p.status === state.productStatus);
+      document.getElementById('tagAllProducts').textContent = filteredProducts.length;
       const allRows = document.getElementById('allProductRows');
-      allRows.innerHTML = d.allProducts.length ? d.allProducts.map(p =>
+      allRows.innerHTML = filteredProducts.length ? filteredProducts.map(p =>
         '<tr><td class="name-cell">' + p.name + '<br><span class="mono muted" style="font-size:10.5px;">' + p.code + '</span></td>' +
         '<td class="mono">' + stockPill(p.stock) + '</td><td class="mono muted">' + p.reserved + '</td>' +
-        '<td class="mono muted">' + p.pct.toFixed(2) + '%</td></tr>'
-      ).join('') : '<tr><td colspan="4" class="empty">Không có dữ liệu</td></tr>';
+        '<td class="mono muted">' + p.pct.toFixed(2) + '%</td><td>' + bizStatusPill(p.status) + '</td></tr>'
+      ).join('') : '<tr><td colspan="5" class="empty">Không có dữ liệu</td></tr>';
 
       document.getElementById('tagTopSelling').textContent = d.topSellingProducts.length;
       if(d.topSellingProducts.length) renderBarChartList('chartTopSelling','topSelling',d.topSellingProducts,p=>p.name,p=>p.revenue,'#3DD68C');

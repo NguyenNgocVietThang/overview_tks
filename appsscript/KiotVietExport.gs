@@ -20,8 +20,8 @@
  *    -> Từ giờ mỗi khi có Hàng hóa/Tồn kho/Khách hàng/Hóa đơn/Đặt hàng/Nhóm hàng
  *       thay đổi trên KiotViet, sheet tương ứng sẽ tự cập nhật gần như ngay lập tức.
  * 6. Chọn thêm "Bật lịch tự động 5 phút (Trả hàng, NCC, Nhập hàng)"
- *    vì KiotViet KHÔNG có webhook cho 3 bảng này (không có type return.*/
- *    supplier.*/purchaseorder.*) — chỉ có thể polling định kỳ, không thể real-time
+ *    vì KiotViet KHÔNG có webhook cho 3 bảng này (không có type return.x,
+ *    supplier.x, purchaseorder.x) — chỉ có thể polling định kỳ, không thể real-time
  *    tuyệt đối cho 3 bảng này dù cấu hình thế nào.
  *
  * Nếu deploy lại (New deployment) thì URL web app đổi -> phải đăng ký lại webhook
@@ -100,14 +100,7 @@ function kvFetchAllPages_(path, extraQuery) {
 
   do {
     const url = `${KV_BASE_URL}/${path}?pageSize=${KV_PAGE_SIZE}&currentItem=${currentItem}${extraQuery || ''}`;
-    const response = UrlFetchApp.fetch(url, {
-      headers: { Authorization: 'Bearer ' + token, Retailer: retailer },
-      muteHttpExceptions: true
-    });
-    const result = JSON.parse(response.getContentText());
-    if (!result.data) {
-      throw new Error(`Lỗi gọi KiotViet API (${path}): ${response.getContentText()}`);
-    }
+    const result = kvFetchWithRetry_(url, { Authorization: 'Bearer ' + token, Retailer: retailer }, path);
     all = all.concat(result.data);
     total = result.total || 0;
     currentItem += KV_PAGE_SIZE;
@@ -115,6 +108,41 @@ function kvFetchAllPages_(path, extraQuery) {
   } while (currentItem < total);
 
   return all;
+}
+
+/**
+ * Gọi UrlFetchApp.fetch với thử lại (retry) khi gặp lỗi mạng tạm thời
+ * (vd: "Address unavailable") hoặc lỗi HTTP tạm thời (429/5xx), tránh việc
+ * cả lần đồng bộ bị hủy giữa chừng và mất dữ liệu các trang đã tải được.
+ */
+function kvFetchWithRetry_(url, headers, path) {
+  const maxAttempts = 5;
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = UrlFetchApp.fetch(url, { headers, muteHttpExceptions: true });
+      const code = response.getResponseCode();
+
+      if (code === 429 || code >= 500) {
+        lastError = new Error(`HTTP ${code} từ KiotViet API (${path}): ${response.getContentText()}`);
+      } else {
+        const result = JSON.parse(response.getContentText());
+        if (!result.data) {
+          throw new Error(`Lỗi gọi KiotViet API (${path}): ${response.getContentText()}`);
+        }
+        return result;
+      }
+    } catch (err) {
+      lastError = err;
+    }
+
+    if (attempt < maxAttempts) {
+      Utilities.sleep(1000 * Math.pow(2, attempt - 1)); // 1s, 2s, 4s, 8s
+    }
+  }
+
+  throw new Error(`Gọi KiotViet API (${path}) thất bại sau ${maxAttempts} lần thử: ${lastError}`);
 }
 
 // ---------- SHEET HELPERS ----------
@@ -206,7 +234,7 @@ function syncProducts_() {
   const products = kvFetchAllPages_('products', '&includeInventory=true');
   const headers = [
     'Mã hàng', 'Tên hàng', 'Nhóm hàng', 'Thương hiệu', 'Loại',
-    'Giá vốn', 'Giá bán', 'Tồn kho', 'Khách đặt', 'Ngày sửa cuối'
+    'Giá vốn', 'Giá bán', 'Tồn kho', 'Khách đặt', 'Trạng thái kinh doanh', 'Ngày sửa cuối'
   ];
   const rows = products.map(p => {
     const tonKho = p.inventories ? p.inventories.reduce((s, i) => s + (i.onHand || 0), 0) : (p.totalOnHand || 0);
@@ -215,7 +243,9 @@ function syncProducts_() {
       p.code || '', p.fullName || p.name || '', p.categoryName || '', p.tradeMarkName || '',
       p.type === 2 ? 'Combo' : (p.type === 3 ? 'Dịch vụ' : 'Hàng hóa'),
       p.basePrice ? p.basePrice : (p.cost || 0),
-      p.basePrice || 0, tonKho, khachDat, fmtDate_(p.modifiedDate || p.createdDate)
+      p.basePrice || 0, tonKho, khachDat,
+      p.isActive === false ? 'Ngừng kinh doanh' : 'Đang kinh doanh',
+      fmtDate_(p.modifiedDate || p.createdDate)
     ];
   });
   writeSheet_('Hàng hóa', headers, rows);
@@ -344,15 +374,18 @@ function doPost(e) {
 function upsertProductFromWebhook_(p) {
   const code = p.Code || p.code || p.ProductCode;
   if (!code) return;
-  const headers = ['Mã hàng', 'Tên hàng', 'Nhóm hàng', 'Thương hiệu', 'Loại', 'Giá vốn', 'Giá bán', 'Tồn kho', 'Khách đặt', 'Ngày sửa cuối'];
+  const headers = ['Mã hàng', 'Tên hàng', 'Nhóm hàng', 'Thương hiệu', 'Loại', 'Giá vốn', 'Giá bán', 'Tồn kho', 'Khách đặt', 'Trạng thái kinh doanh', 'Ngày sửa cuối'];
   const inventories = p.Inventories || p.inventories || [];
   const tonKho = inventories.length ? inventories.reduce((s, i) => s + (i.OnHand || i.onHand || 0), 0) : (p.OnHand !== undefined ? p.OnHand : (p.onHand || 0));
   const khachDat = inventories.length ? inventories.reduce((s, i) => s + (i.Reserved || i.reserved || 0), 0) : (p.Reserved !== undefined ? p.Reserved : (p.reserved || 0));
+  const isActive = p.IsActive !== undefined ? p.IsActive : p.isActive;
   const row = [
     code, p.Name || p.name || p.FullName || p.fullName || '', p.CategoryName || p.categoryName || '',
     p.TradeMarkName || p.tradeMarkName || '', '',
     p.Cost !== undefined ? p.Cost : (p.cost || 0), p.BasePrice !== undefined ? p.BasePrice : (p.basePrice || 0),
-    tonKho, khachDat, fmtDate_(p.ModifiedDate || p.modifiedDate || new Date())
+    tonKho, khachDat,
+    isActive === false ? 'Ngừng kinh doanh' : 'Đang kinh doanh',
+    fmtDate_(p.ModifiedDate || p.modifiedDate || new Date())
   ];
   upsertRow_('Hàng hóa', headers, code, row);
 }
