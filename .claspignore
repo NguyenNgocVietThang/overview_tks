@@ -1,0 +1,8 @@
+# Kh​ông đẩy lên Google Apps Script
+node_modules/
+docs/
+future-phases/
+*.md
+*.bpmn
+.gitignore
+README.md

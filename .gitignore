@@ -1,0 +1,24 @@
+# ==========================================
+# Git Ignore — TKS Dashboard
+# ==========================================
+
+# Thông tin nhạy cảm — KHÔNG đẩy lên GitHub
+# (chứa CLIENT_ID, CLIENT_SECRET của KiotViet)
+# Thêm lại thủ công sau khi clone: clasp login && clasp pull
+.clasp.json
+
+# Node modules (nếu dùng clasp local)
+node_modules/
+
+# File tạm của hệ điều hành
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# File tạm của editor
+*.swp
+*.swo
+.vscode/settings.json
+
+# Log files
+*.log
