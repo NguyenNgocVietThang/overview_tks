@@ -135,6 +135,17 @@
   .chart-box{ position:relative; height:260px; }
   .chart-box.small{ height:220px; }
 
+  .scroll-list{ max-height:340px; overflow-y:auto; }
+  .scroll-list::-webkit-scrollbar{ width:8px; }
+  .scroll-list::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
+  .scroll-list table thead th{ position:sticky; top:0; background:var(--panel); z-index:1; }
+
+  .legend-list{ display:flex; flex-direction:column; gap:7px; }
+  .legend-row{ display:flex; align-items:center; gap:8px; font-size:11.5px; }
+  .legend-row .dot{ width:9px; height:9px; border-radius:2px; flex-shrink:0; }
+  .legend-row .lbl{ flex:1; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .legend-row .val{ color:var(--muted); font-family:'JetBrains Mono',monospace; flex-shrink:0; }
+
   table{ width:100%; border-collapse:collapse; font-size:12.5px; }
   thead th{ text-align:left; color:var(--muted); font-weight:600; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; padding:0 8px 8px 8px; border-bottom:1px solid var(--border); }
   tbody td{ padding:9px 8px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; }
@@ -217,7 +228,8 @@
       <div class="nav-item" data-view="products" onclick="switchView('products')"><span class="ic">▣</span> Hàng hóa</div>
       <div class="nav-item" data-view="invoices" onclick="switchView('invoices')"><span class="ic">▤</span> Hóa đơn</div>
       <div class="nav-item" data-view="customers" onclick="switchView('customers')"><span class="ic">◈</span> Khách hàng</div>
-      <div class="sidebar-footer">TOKOSI · Dữ liệu từ Google Sheet · bấm Làm mới để cập nhật</div>
+      <div class="nav-item" data-view="suppliers" onclick="switchView('suppliers')"><span class="ic">▨</span> Nhà cung cấp</div>
+      <div class="sidebar-footer">TOKOSI · Dữ liệu từ Google Sheet · tự làm mới mỗi 5 phút</div>
     </div>
 
     <div class="content">
@@ -267,7 +279,7 @@
             <div class="value" id="pr-total">—</div>
           </div>
           <div class="kpi-card">
-            <div class="eyebrow">Tổng tồn kho</div>
+            <div class="eyebrow">Mã còn hàng</div>
             <div class="value" id="pr-stock">—</div>
           </div>
           <div class="kpi-card accent-red">
@@ -279,23 +291,49 @@
         <div class="grid-2">
           <div class="panel">
             <div class="panel-head"><h2>Hàng sắp hết <span class="tag" id="tagLowStock">—</span></h2></div>
-            <table>
-              <thead><tr><th>Sản phẩm</th><th>Tồn</th><th>Đặt</th></tr></thead>
-              <tbody id="stockRows"><tr><td colspan="3" class="empty">Đang tải...</td></tr></tbody>
-            </table>
+            <div class="scroll-list">
+              <table>
+                <thead><tr><th>Sản phẩm</th><th>Tồn</th><th>Đặt</th></tr></thead>
+                <tbody id="stockRows"><tr><td colspan="3" class="empty">Đang tải...</td></tr></tbody>
+              </table>
+            </div>
           </div>
           <div class="panel">
-            <div class="panel-head"><h2>Tỷ lệ tồn kho theo sản phẩm</h2></div>
+            <div class="panel-head"><h2>Tỷ lệ tồn kho theo sản phẩm <span class="tag" id="tagStockDist">—</span></h2></div>
             <div class="chart-box small"><canvas id="chartStockDist"></canvas></div>
+            <div class="scroll-list legend-list" id="stockDistLegend" style="max-height:160px; margin-top:10px;"></div>
           </div>
         </div>
 
         <div class="panel">
-          <h2>Top sản phẩm bán chạy</h2>
-          <div class="placeholder-card">
-            <b>Chưa có dữ liệu chi tiết hóa đơn</b>
-            Hệ thống hiện chỉ lưu tổng tiền mỗi hóa đơn, chưa lưu danh sách sản phẩm trong từng hóa đơn.
-            Để hiển thị biểu đồ này chính xác, cần đồng bộ thêm "chi tiết hóa đơn" (invoiceDetails) từ KiotViet — nói mình biết nếu bạn muốn bổ sung phần này.
+          <div class="panel-head"><h2>Tất cả mã hàng <span class="tag" id="tagAllProducts">—</span></h2></div>
+          <div class="scroll-list" style="max-height:420px;">
+            <table>
+              <thead><tr><th>Sản phẩm</th><th>Tồn</th><th>Đặt</th><th>Tỷ lệ</th></tr></thead>
+              <tbody id="allProductRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head"><h2>Top sản phẩm bán chạy <span class="tag" id="tagTopSelling">—</span></h2></div>
+            <div class="chart-box small"><canvas id="chartTopSelling"></canvas></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Tồn kho theo nhóm hàng <span class="tag" id="tagCategoryStock">—</span></h2></div>
+            <div class="chart-box small"><canvas id="chartCategoryStock"></canvas></div>
+            <div class="scroll-list legend-list" id="categoryStockLegend" style="max-height:160px; margin-top:10px;"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Chi tiết sản phẩm bán chạy</h2>
+          <div class="scroll-list" style="max-height:340px;">
+            <table>
+              <thead><tr><th>Sản phẩm</th><th>SL bán</th><th>Doanh thu</th></tr></thead>
+              <tbody id="topSellingRows"><tr><td colspan="3" class="empty">Đang tải...</td></tr></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -320,6 +358,16 @@
             <div class="eyebrow">Hóa đơn hủy hôm nay</div>
             <div class="value" id="in-cancelled">—</div>
           </div>
+          <div class="kpi-card accent-amber">
+            <div class="eyebrow">Đặt hàng đang chờ</div>
+            <div class="value" id="in-pending-count">—</div>
+            <div class="sub" id="in-pending-total">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="eyebrow">Trả hàng</div>
+            <div class="value" id="in-returns-count">—</div>
+            <div class="sub" id="in-returns-total">—</div>
+          </div>
         </div>
 
         <div class="panel">
@@ -339,6 +387,22 @@
           <table>
             <thead><tr><th>Mã HĐ</th><th>Khách hàng</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead>
             <tbody id="invoiceRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
+          </table>
+        </div>
+
+        <div class="panel">
+          <h2>Đặt hàng gần đây <span class="tag" id="tagOrders">—</span></h2>
+          <table>
+            <thead><tr><th>Mã ĐH</th><th>Khách hàng</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead>
+            <tbody id="orderRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
+          </table>
+        </div>
+
+        <div class="panel">
+          <h2>Trả hàng gần đây <span class="tag" id="tagReturns">—</span></h2>
+          <table>
+            <thead><tr><th>Mã trả hàng</th><th>HĐ gốc</th><th>Khách hàng</th><th>Tổng tiền trả</th><th>Trạng thái</th></tr></thead>
+            <tbody id="returnRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -373,6 +437,54 @@
           <table>
             <thead><tr><th>Mã KH</th><th>Tên khách hàng</th><th>Điện thoại</th><th>Công nợ</th></tr></thead>
             <tbody id="debtRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ============ NHÀ CUNG CẤP ============ -->
+      <div class="view" id="view-suppliers">
+        <div class="view-title">Nhà cung cấp</div>
+        <div class="view-sub">Công nợ phải trả và lịch sử nhập hàng</div>
+
+        <div class="kpi-grid">
+          <div class="kpi-card accent-blue">
+            <div class="eyebrow">Tổng nhà cung cấp</div>
+            <div class="value" id="sp-total">—</div>
+          </div>
+          <div class="kpi-card accent-red">
+            <div class="eyebrow">NCC đang nợ</div>
+            <div class="value" id="sp-debtcount">—</div>
+          </div>
+          <div class="kpi-card accent-amber">
+            <div class="eyebrow">Tổng nợ phải trả</div>
+            <div class="value" id="sp-totaldebt">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="eyebrow">Tổng chi nhập hàng</div>
+            <div class="value" id="sp-totalpurchase">—</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>Nhà cung cấp nợ cao nhất</h2></div>
+          <div class="chart-box"><canvas id="chartSupplierDebt"></canvas></div>
+        </div>
+
+        <div class="panel">
+          <h2>Danh sách nhà cung cấp <span class="tag" id="tagSuppliers">—</span></h2>
+          <div class="scroll-list" style="max-height:340px;">
+            <table>
+              <thead><tr><th>Mã NCC</th><th>Tên</th><th>Điện thoại</th><th>Nợ cần trả</th></tr></thead>
+              <tbody id="supplierRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Nhập hàng gần đây <span class="tag" id="tagPurchases">—</span></h2>
+          <table>
+            <thead><tr><th>Mã nhập hàng</th><th>Nhà cung cấp</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead>
+            <tbody id="purchaseRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -424,7 +536,7 @@
     destroyChart(key);
     const ctx = document.getElementById(canvasId).getContext('2d');
     state.charts[key] = new Chart(ctx, {
-      type: revenueByDay.length > 45 ? 'line' : 'bar',
+      type: 'line',
       data: {
         labels: revenueByDay.map(d => d.label),
         datasets: [{
@@ -447,36 +559,60 @@
         },
         scales: {
           x: { ticks: { color: '#7E8CA8', maxTicksLimit: 10, font:{size:10.5} }, grid: { display:false } },
-          y: { ticks: { color: '#7E8CA8', callback: v => fmtMoneyShort(v), font:{size:10.5} }, grid: { color:'rgba(255,255,255,0.05)' } }
+          y: { ticks: { color: '#7E8CA8', stepSize: 500000000, callback: v => fmtMoneyShort(v), font:{size:10.5} }, grid: { color:'rgba(255,255,255,0.05)' } }
         }
       }
     });
   }
 
-  function renderStockDistChart(dist){
-    destroyChart('stockDist');
-    const ctx = document.getElementById('chartStockDist').getContext('2d');
-    state.charts.stockDist = new Chart(ctx, {
+  function hexToRgba(hex, alpha){
+    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+  }
+  function distColor(i){
+    const base = CHART_COLORS[i % CHART_COLORS.length];
+    const cycle = Math.floor(i / CHART_COLORS.length);
+    if(cycle === 0) return base;
+    return hexToRgba(base, Math.max(0.35, 1 - cycle * 0.22));
+  }
+
+  function renderDoughnutWithLegend(canvasId, key, tagId, legendId, dist){
+    destroyChart(key);
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    const colors = dist.map((d, i) => distColor(i));
+    const total = dist.reduce((s, d) => s + d.value, 0);
+    state.charts[key] = new Chart(ctx, {
       type: 'doughnut',
       data: {
         labels: dist.map(d => d.label),
-        datasets: [{ data: dist.map(d => d.value), backgroundColor: CHART_COLORS, borderColor:'#131C30', borderWidth:2 }]
+        datasets: [{ data: dist.map(d => d.value), backgroundColor: colors, borderColor:'#131C30', borderWidth:2 }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position:'right', labels:{ color:'#ECF1F8', boxWidth:10, font:{size:11} } } }
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: c => c.label + ': ' + c.raw.toLocaleString('vi-VN') + ' (' + (total ? (c.raw/total*100).toFixed(1) : 0) + '%)' } }
+        }
       }
     });
+
+    document.getElementById(tagId).textContent = dist.length;
+    const legend = document.getElementById(legendId);
+    legend.innerHTML = dist.map((d, i) =>
+      '<div class="legend-row"><span class="dot" style="background:' + colors[i] + ';"></span>' +
+      '<span class="lbl" title="' + d.label + '">' + d.label + '</span>' +
+      '<span class="val">' + (total ? (d.value/total*100).toFixed(1) : 0) + '%</span></div>'
+    ).join('');
   }
 
-  function renderDebtChart(list){
-    destroyChart('debt');
-    const ctx = document.getElementById('chartDebt').getContext('2d');
-    state.charts.debt = new Chart(ctx, {
+  function renderBarChartList(canvasId, key, list, labelFn, valueFn, color){
+    destroyChart(key);
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    state.charts[key] = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: list.map(c => c.name),
-        datasets: [{ data: list.map(c => c.debt), backgroundColor: '#F1616A', borderRadius: 4 }]
+        labels: list.map(labelFn),
+        datasets: [{ data: list.map(valueFn), backgroundColor: color, borderRadius: 4 }]
       },
       options: {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
@@ -489,7 +625,17 @@
     });
   }
 
-  function statusPill(status){ return status === 'Đã hủy' ? '<span class="pill bad">Đã hủy</span>' : '<span class="pill ok">Hoàn thành</span>'; }
+  function statusPill(status){
+    if(status === 'Đã hủy') return '<span class="pill bad">Đã hủy</span>';
+    if(status === 'Đang xử lý') return '<span class="pill warn">Đang xử lý</span>';
+    return '<span class="pill ok">' + (status || 'Hoàn thành') + '</span>';
+  }
+  function genericStatusPill(status){
+    if(!status) return '<span class="muted">—</span>';
+    if(status === 'Đã hủy') return '<span class="pill bad">' + status + '</span>';
+    if(status === 'Hoàn thành') return '<span class="pill ok">' + status + '</span>';
+    return '<span class="pill warn">' + status + '</span>';
+  }
   function stockPill(stock){
     if(stock <= 0) return '<span class="pill bad">' + stock + '</span>';
     if(stock <= 3) return '<span class="pill warn">' + stock + '</span>';
@@ -510,7 +656,7 @@
     }
     else if(view === 'products'){
       document.getElementById('pr-total').textContent = d.kpi.totalProducts;
-      document.getElementById('pr-stock').textContent = d.kpi.totalStock.toLocaleString('vi-VN');
+      document.getElementById('pr-stock').textContent = d.kpi.inStockCodes.toLocaleString('vi-VN');
       document.getElementById('pr-lowstock').textContent = d.kpi.lowStockCount;
       document.getElementById('tagLowStock').textContent = d.lowStock.length;
       const rows = document.getElementById('stockRows');
@@ -518,7 +664,27 @@
         '<tr><td class="name-cell">' + p.name + '<br><span class="mono muted" style="font-size:10.5px;">' + p.code + '</span></td>' +
         '<td class="mono">' + stockPill(p.stock) + '</td><td class="mono muted">' + p.reserved + '</td></tr>'
       ).join('') : '<tr><td colspan="3" class="empty">Không có sản phẩm sắp hết</td></tr>';
-      renderStockDistChart(d.stockDistribution);
+      renderDoughnutWithLegend('chartStockDist','stockDist','tagStockDist','stockDistLegend', d.stockDistribution);
+
+      document.getElementById('tagAllProducts').textContent = d.allProducts.length;
+      const allRows = document.getElementById('allProductRows');
+      allRows.innerHTML = d.allProducts.length ? d.allProducts.map(p =>
+        '<tr><td class="name-cell">' + p.name + '<br><span class="mono muted" style="font-size:10.5px;">' + p.code + '</span></td>' +
+        '<td class="mono">' + stockPill(p.stock) + '</td><td class="mono muted">' + p.reserved + '</td>' +
+        '<td class="mono muted">' + p.pct.toFixed(2) + '%</td></tr>'
+      ).join('') : '<tr><td colspan="4" class="empty">Không có dữ liệu</td></tr>';
+
+      document.getElementById('tagTopSelling').textContent = d.topSellingProducts.length;
+      if(d.topSellingProducts.length) renderBarChartList('chartTopSelling','topSelling',d.topSellingProducts,p=>p.name,p=>p.revenue,'#3DD68C');
+      else destroyChart('topSelling');
+      const topSellingRows = document.getElementById('topSellingRows');
+      topSellingRows.innerHTML = d.topSellingProducts.length ? d.topSellingProducts.map(p =>
+        '<tr><td class="name-cell">' + p.name + '<br><span class="mono muted" style="font-size:10.5px;">' + p.code + '</span></td>' +
+        '<td class="mono muted">' + p.qty.toLocaleString('vi-VN') + '</td><td class="mono">' + fmtMoney(p.revenue) + '</td></tr>'
+      ).join('') : '<tr><td colspan="3" class="empty">Chưa có dữ liệu chi tiết hóa đơn</td></tr>';
+
+      renderDoughnutWithLegend('chartCategoryStock','categoryStock','tagCategoryStock','categoryStockLegend',
+        d.stockByCategory.map(c => ({ label: c.name, value: c.stock })));
     }
     else if(view === 'invoices'){
       document.getElementById('in-revenue').textContent = fmtMoney(d.kpi.revenueToday);
@@ -533,6 +699,26 @@
         '<td class="mono">' + fmtMoney(inv.total) + '</td><td>' + statusPill(inv.status) + '</td></tr>'
       ).join('') : '<tr><td colspan="4" class="empty">Chưa có hóa đơn nào</td></tr>';
       renderRevenueChart('chartInvoiceRevenue', 'invoiceRevenue', d.revenueByDay);
+
+      document.getElementById('in-pending-count').textContent = d.kpi.pendingOrdersCount;
+      document.getElementById('in-pending-total').textContent = fmtMoney(d.kpi.pendingOrdersTotal);
+      document.getElementById('in-returns-count').textContent = d.kpi.returnsCount;
+      document.getElementById('in-returns-total').textContent = fmtMoney(d.kpi.totalReturns);
+
+      document.getElementById('tagOrders').textContent = d.recentOrders.length;
+      const orderRows = document.getElementById('orderRows');
+      orderRows.innerHTML = d.recentOrders.length ? d.recentOrders.map(o =>
+        '<tr><td class="mono muted">' + o.code + '</td><td class="name-cell">' + (o.customer || 'Khách lẻ') + '</td>' +
+        '<td class="mono">' + fmtMoney(o.total) + '</td><td>' + genericStatusPill(o.status) + '</td></tr>'
+      ).join('') : '<tr><td colspan="4" class="empty">Chưa có đặt hàng nào</td></tr>';
+
+      document.getElementById('tagReturns').textContent = d.recentReturns.length;
+      const returnRows = document.getElementById('returnRows');
+      returnRows.innerHTML = d.recentReturns.length ? d.recentReturns.map(rt =>
+        '<tr><td class="mono muted">' + rt.code + '</td><td class="mono muted">' + (rt.originalInvoiceCode || '—') + '</td>' +
+        '<td class="name-cell">' + (rt.customer || 'Khách lẻ') + '</td>' +
+        '<td class="mono">' + fmtMoney(rt.total) + '</td><td>' + genericStatusPill(rt.status) + '</td></tr>'
+      ).join('') : '<tr><td colspan="5" class="empty">Chưa có trả hàng nào</td></tr>';
     }
     else if(view === 'customers'){
       document.getElementById('cu-total').textContent = d.kpi.totalCustomers.toLocaleString('vi-VN');
@@ -544,7 +730,32 @@
         '<tr><td class="mono muted">' + c.code + '</td><td class="name-cell">' + c.name + '</td>' +
         '<td class="mono muted">' + (c.phone || '—') + '</td><td class="mono" style="color:var(--red);">' + fmtMoney(c.debt) + '</td></tr>'
       ).join('') : '<tr><td colspan="4" class="empty">Không có khách hàng nợ</td></tr>';
-      if(d.topDebt.length) renderDebtChart(d.topDebt); else destroyChart('debt');
+      if(d.topDebt.length) renderBarChartList('chartDebt','debt',d.topDebt,c=>c.name,c=>c.debt,'#F1616A'); else destroyChart('debt');
+    }
+    else if(view === 'suppliers'){
+      document.getElementById('sp-total').textContent = d.kpi.totalSuppliers;
+      document.getElementById('sp-debtcount').textContent = d.kpi.suppliersWithDebt;
+      document.getElementById('sp-totaldebt').textContent = fmtMoney(d.kpi.totalSupplierDebt);
+      document.getElementById('sp-totalpurchase').textContent = fmtMoney(d.kpi.totalPurchaseSpend);
+
+      const topSupplierDebt = d.suppliers.filter(s => s.debt > 0).slice(0, 8);
+      if(topSupplierDebt.length) renderBarChartList('chartSupplierDebt','supplierDebt',topSupplierDebt,s=>s.name,s=>s.debt,'#F1616A');
+      else destroyChart('supplierDebt');
+
+      document.getElementById('tagSuppliers').textContent = d.suppliers.length;
+      const supplierRows = document.getElementById('supplierRows');
+      supplierRows.innerHTML = d.suppliers.length ? d.suppliers.map(s =>
+        '<tr><td class="mono muted">' + s.code + '</td><td class="name-cell">' + s.name + '</td>' +
+        '<td class="mono muted">' + (s.phone || '—') + '</td>' +
+        '<td class="mono" style="color:' + (s.debt > 0 ? 'var(--red)' : 'inherit') + ';">' + fmtMoney(s.debt) + '</td></tr>'
+      ).join('') : '<tr><td colspan="4" class="empty">Không có nhà cung cấp</td></tr>';
+
+      document.getElementById('tagPurchases').textContent = d.recentPurchaseOrders.length;
+      const purchaseRows = document.getElementById('purchaseRows');
+      purchaseRows.innerHTML = d.recentPurchaseOrders.length ? d.recentPurchaseOrders.map(p =>
+        '<tr><td class="mono muted">' + p.code + '</td><td class="name-cell">' + (p.supplier || '—') + '</td>' +
+        '<td class="mono">' + fmtMoney(p.total) + '</td><td>' + genericStatusPill(p.status) + '</td></tr>'
+      ).join('') : '<tr><td colspan="4" class="empty">Chưa có nhập hàng nào</td></tr>';
     }
   }
 
@@ -555,7 +766,7 @@
   }
 
   function loadData(days, isManualRefresh){
-    setLoading(true);
+    if (isManualRefresh) setLoading(true);
     fetch('/api/dashboard?days=' + encodeURIComponent(days))
       .then(function(res){
         if(!res.ok) throw new Error('HTTP ' + res.status);
@@ -565,17 +776,18 @@
         state.data = data;
         document.getElementById('updatedAt').textContent = 'Cập nhật lúc ' + data.updatedAt;
         renderView(state.view);
-        setLoading(false);
+        if (isManualRefresh) setLoading(false);
       })
       .catch(function(err){
         document.getElementById('updatedAt').textContent = 'Lỗi tải dữ liệu';
         console.error(err);
-        setLoading(false);
-        alert('Không thể tải dữ liệu: ' + (err && err.message ? err.message : err));
+        if (isManualRefresh) setLoading(false);
+        if (isManualRefresh) alert('Không thể tải dữ liệu: ' + (err && err.message ? err.message : err));
       });
   }
 
-  loadData(state.days, false);
+  loadData(state.days, true);
+  setInterval(function(){ loadData(state.days, false); }, 20000); // tu dong lam moi moi 20 giay, khong hien veil de tranh giat man hinh
 </script>
 </body>
 </html>

@@ -12,16 +12,19 @@ function required(name) {
 }
 
 const CONFIG = {
-  CLIENT_ID: required('CLIENT_ID'),
-  CLIENT_SECRET: required('CLIENT_SECRET'),
-  RETAILER: required('RETAILER'),
   SPREADSHEET_ID: required('SPREADSHEET_ID'),
   GOOGLE_SERVICE_ACCOUNT_JSON: required('GOOGLE_SERVICE_ACCOUNT_JSON'),
   PORT: process.env.PORT || 3000,
 
+  SHEET_CATEGORIES: 'Nhóm hàng',
   SHEET_PRODUCTS: 'Hàng hóa',
   SHEET_INVOICES: 'Hóa đơn',
-  SHEET_CUSTOMERS: 'Khách hàng'
+  SHEET_INVOICE_DETAILS: 'Chi tiết hóa đơn',
+  SHEET_ORDERS: 'Đặt hàng',
+  SHEET_RETURNS: 'Trả hàng',
+  SHEET_CUSTOMERS: 'Khách hàng',
+  SHEET_SUPPLIERS: 'Nhà cung cấp',
+  SHEET_PURCHASES: 'Nhập hàng'
 };
 
 module.exports = CONFIG;

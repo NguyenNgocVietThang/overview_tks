@@ -26,5 +26,8 @@ desktop.ini
 *.swo
 .vscode/settings.json
 
+# Claude Code local config (khong lien quan code project)
+.claude/
+
 # Log files
 *.log
