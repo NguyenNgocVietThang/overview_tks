@@ -7,6 +7,10 @@ const CONFIG = require('../config');
 
 let sheetsApiPromise = null;
 
+function quoteSheetName(sheetName) {
+  return `'${String(sheetName).replace(/'/g, "''")}'`;
+}
+
 function getSheetsApi() {
   if (!sheetsApiPromise) {
     const credentials = JSON.parse(CONFIG.GOOGLE_SERVICE_ACCOUNT_JSON);
@@ -28,7 +32,7 @@ async function getValues(sheetName) {
   const sheets = await getSheetsApi();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: CONFIG.SPREADSHEET_ID,
-    range: sheetName
+    range: quoteSheetName(sheetName)
   });
   return res.data.values || [];
 }
@@ -51,7 +55,7 @@ async function getMultipleSheetValues(sheetNames) {
   const sheets = await getSheetsApi();
   const res = await sheets.spreadsheets.values.batchGet({
     spreadsheetId: CONFIG.SPREADSHEET_ID,
-    ranges: sheetNames
+    ranges: sheetNames.map(quoteSheetName)
   });
   const result = {};
   sheetNames.forEach(name => { result[name] = []; });
