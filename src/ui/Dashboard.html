@@ -19,8 +19,44 @@
     --text:#ECF1F8;
     --muted:#7E8CA8;
     --sidebar-w:210px;
+
+    /* Alias theo design-system/tks-dashboard/MASTER.md — dùng cho code mới */
+    --color-background:var(--bg);
+    --color-secondary:var(--panel);
+    --color-secondary-2:var(--panel-2);
+    --color-border:var(--border);
+    --color-primary:var(--amber);
+    --color-on-primary:#1B1206;
+    --color-accent:var(--green);
+    --color-destructive:var(--red);
+    --color-ring:var(--blue);
+    --color-foreground:var(--text);
+    --color-muted:var(--muted);
+
+    /* Thang spacing — Density 8/10 */
+    --space-xs:2px;
+    --space-sm:4px;
+    --space-md:8px;
+    --space-lg:12px;
+    --space-xl:16px;
+    --space-2xl:24px;
+    --space-3xl:32px;
+
+    /* Flat Design: không dùng shadow để tạo độ nổi */
+    --shadow-none:none;
+    --shadow-brand:0 2px 8px rgba(0,0,0,0.3);
+
+    --motion-fast:150ms;
+    --motion-base:200ms;
   }
   *{box-sizing:border-box;}
+
+  /* Focus ring dùng chung cho mọi phần tử tương tác */
+  :focus-visible{
+    outline:2px solid var(--color-ring);
+    outline-offset:2px;
+    border-radius:8px;
+  }
   body{
     margin:0;
     background:
@@ -52,14 +88,16 @@
   .brand{ display:flex; align-items:center; gap:12px; }
   .menu-btn{
     display:none; background:var(--panel-2); border:1px solid var(--border); color:var(--text);
-    width:36px; height:36px; border-radius:8px; font-size:16px; cursor:pointer; flex-shrink:0;
+    width:44px; height:44px; border-radius:8px; font-size:16px; cursor:pointer; flex-shrink:0;
+    transition:border-color var(--motion-fast) ease, background-color var(--motion-fast) ease;
   }
+  .menu-btn:hover{ border-color:var(--muted); }
   .brand-mark{
     width:44px;height:44px;border-radius:10px;
     background:#fff;
     display:flex;align-items:center;justify-content:center;
     flex-shrink:0;
-    box-shadow:0 2px 8px rgba(0,0,0,0.3);
+    box-shadow:var(--shadow-brand); /* ngoại lệ thương hiệu duy nhất */
     padding:3px;
   }
   .brand-mark svg{ width:100%; height:100%; }
@@ -69,11 +107,14 @@
   .clock{ font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--muted); display:flex; align-items:center; gap:8px; }
   .dot{ width:8px;height:8px;border-radius:50%;background:var(--green); box-shadow:0 0 0 3px rgba(61,214,140,0.18); }
   .refresh-btn{
-    background:var(--amber); color:#1b1206; border:none; font-family:'Sora',sans-serif;
-    font-weight:700; font-size:13px; padding:9px 16px; border-radius:8px; cursor:pointer;
-    display:flex; align-items:center; gap:8px;
+    background:var(--color-primary); color:var(--color-on-primary); border:none; font-family:'Sora',sans-serif;
+    font-weight:700; font-size:13px; padding:var(--space-lg) var(--space-xl); border-radius:8px; cursor:pointer;
+    display:flex; align-items:center; gap:var(--space-md);
+    min-height:44px; /* touch target */
+    transition:opacity var(--motion-fast) ease;
   }
-  .refresh-btn:disabled{ opacity:.55; }
+  .refresh-btn:hover{ opacity:.88; }
+  .refresh-btn:disabled{ opacity:.55; cursor:not-allowed; }
   .spinning{ animation:spin 0.8s linear infinite; display:inline-block; }
   @keyframes spin{ to{ transform:rotate(360deg); } }
 
@@ -93,6 +134,7 @@
   }
   .nav-item .ic{ font-size:15px; width:18px; text-align:center; }
   .nav-item:hover{ background:rgba(255,255,255,0.03); color:var(--text); }
+  .nav-item:focus-visible{ background:rgba(255,255,255,0.03); color:var(--text); }
   .nav-item.active{
     background:rgba(240,166,58,0.10); color:var(--amber); border-left-color:var(--amber); font-weight:600;
   }
@@ -109,7 +151,11 @@
   .view-sub{ font-size:12.5px; color:var(--muted); margin:0 0 18px; }
 
   .kpi-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; margin-bottom:20px; }
-  .kpi-card{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px; }
+  .kpi-card{
+    background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px;
+    box-shadow:var(--shadow-none); transition:border-color var(--motion-fast) ease;
+  }
+  .kpi-card:hover{ border-color:var(--muted); }
   .kpi-card .eyebrow{ font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:600; }
   .kpi-card .value{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:23px; margin-top:7px; }
   .kpi-card .sub{ font-size:11.5px; color:var(--muted); margin-top:5px; }
@@ -118,7 +164,11 @@
   .kpi-card.accent-red .value{ color:var(--red); }
   .kpi-card.accent-blue .value{ color:var(--blue); }
 
-  .panel{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-bottom:16px; }
+  .panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-bottom:16px;
+    box-shadow:var(--shadow-none); transition:border-color var(--motion-fast) ease;
+  }
+  .panel:hover{ border-color:var(--muted); }
   .panel-head{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
   .panel h2{ font-family:'Sora',sans-serif; font-size:14px; margin:0; font-weight:600; display:flex; align-items:center; gap:8px; }
   .panel h2 .tag{ font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; background:var(--panel-2); color:var(--muted); }
@@ -126,9 +176,12 @@
   .period-toggle{ display:flex; gap:6px; background:var(--panel-2); padding:4px; border-radius:8px; border:1px solid var(--border); }
   .period-toggle button{
     background:transparent; border:none; color:var(--muted); font-size:11.5px; font-weight:600;
-    padding:6px 12px; border-radius:6px; cursor:pointer; font-family:'Inter',sans-serif;
+    padding:var(--space-md) var(--space-lg); border-radius:6px; cursor:pointer; font-family:'Inter',sans-serif;
+    min-height:36px; transition:background-color var(--motion-fast) ease, color var(--motion-fast) ease;
   }
-  .period-toggle button.active{ background:var(--amber); color:#1b1206; }
+  .period-toggle button:hover{ color:var(--text); }
+  .period-toggle button.active{ background:var(--color-primary); color:var(--color-on-primary); }
+  .period-toggle button.active:hover{ color:var(--color-on-primary); opacity:.88; }
 
   .grid-2{ display:grid; grid-template-columns:1.3fr 1fr; gap:16px; }
   @media (max-width:900px){ .grid-2{ grid-template-columns:1fr; } }
@@ -137,10 +190,21 @@
   .chart-box.small{ height:220px; }
   .chart-box.wide{ height:340px; }
 
+  /* Bảng cuộn riêng, không đẩy cả trang cuộn ngang trên mobile */
+  .table-wrap{ overflow:auto; max-height:420px; margin:0 calc(var(--space-md) * -1); padding:0 var(--space-md); }
+  .table-wrap table{ min-width:520px; }
+
   table{ width:100%; border-collapse:collapse; font-size:12.5px; }
-  thead th{ text-align:left; color:var(--muted); font-weight:600; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; padding:0 8px 8px 8px; border-bottom:1px solid var(--border); }
+  thead th{
+    text-align:left; color:var(--muted); font-weight:600; font-size:10.5px; text-transform:uppercase;
+    letter-spacing:.04em; padding:var(--space-md) var(--space-md); border-bottom:1px solid var(--border);
+    position:sticky; top:0; background:var(--panel); z-index:1;
+  }
   tbody td{ padding:9px 8px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; }
   tbody tr:last-child td{ border-bottom:none; }
+  tbody tr{ transition:background-color var(--motion-fast) ease; }
+  tbody tr:hover td{ background:var(--panel-2); } /* đổi màu nền, không đổ bóng */
+  th.num, td.num{ text-align:right; } /* cột số căn phải */
   .mono{ font-family:'JetBrains Mono',monospace; }
   .name-cell{ color:var(--text); font-weight:500; }
   .muted{ color:var(--muted); }
@@ -164,11 +228,20 @@
   .loading-veil.show{ opacity:1; pointer-events:all; }
 
   @media (max-width:760px){
-    .menu-btn{ display:block; }
-    .sidebar{ position:fixed; left:0; top:0; height:100vh; transform:translateX(-100%); box-shadow:0 0 30px rgba(0,0,0,0.4); }
+    .menu-btn{ display:flex; align-items:center; justify-content:center; }
+    .sidebar{ position:fixed; left:0; top:0; height:100vh; transform:translateX(-100%); border-right:1px solid var(--border); }
     .sidebar.open{ transform:translateX(0); }
     .backdrop.show{ display:block; }
     .content{ padding:18px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{
+      animation-duration:0.01ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:0.01ms !important;
+      scroll-behavior:auto !important;
+    }
   }
 </style>
 </head>
@@ -176,7 +249,7 @@
 
   <div class="receipt-header">
     <div class="brand">
-      <button class="menu-btn" id="menuBtn" onclick="toggleSidebar()">☰</button>
+      <button class="menu-btn" id="menuBtn" type="button" aria-label="Mở menu điều hướng" aria-expanded="false" aria-controls="sidebar" onclick="toggleSidebar()">☰</button>
       <div class="brand-mark">
         <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" fill="none">
           <!-- TOKOSI text -->
@@ -206,21 +279,21 @@
     </div>
     <div class="status-line">
       <div class="clock"><span class="dot"></span><span id="updatedAt">Đang tải...</span></div>
-      <button class="refresh-btn" id="refreshBtn" onclick="loadData(state.days, true)">
-        <span id="refreshIcon">⟳</span> Làm mới
+      <button class="refresh-btn" id="refreshBtn" type="button" onclick="loadData(state.days, true)">
+        <span id="refreshIcon" aria-hidden="true">⟳</span> Làm mới
       </button>
     </div>
   </div>
 
   <div class="shell">
-    <div class="backdrop" id="backdrop" onclick="toggleSidebar()"></div>
-    <div class="sidebar" id="sidebar">
-      <div class="nav-item active" data-view="overview" onclick="switchView('overview')"><span class="ic">◆</span> Tổng quan</div>
-      <div class="nav-item" data-view="products" onclick="switchView('products')"><span class="ic">▣</span> Hàng hóa</div>
-      <div class="nav-item" data-view="invoices" onclick="switchView('invoices')"><span class="ic">▤</span> Hóa đơn</div>
-      <div class="nav-item" data-view="customers" onclick="switchView('customers')"><span class="ic">◈</span> Khách hàng</div>
+    <div class="backdrop" id="backdrop" onclick="closeSidebar()"></div>
+    <nav class="sidebar" id="sidebar" aria-label="Điều hướng chính">
+      <div class="nav-item active" role="button" tabindex="0" aria-current="page" aria-controls="view-overview" data-view="overview" onclick="switchView('overview')" onkeydown="navKey(event,'overview')"><span class="ic" aria-hidden="true">◆</span> Tổng quan</div>
+      <div class="nav-item" role="button" tabindex="0" aria-controls="view-products" data-view="products" onclick="switchView('products')" onkeydown="navKey(event,'products')"><span class="ic" aria-hidden="true">▣</span> Hàng hóa</div>
+      <div class="nav-item" role="button" tabindex="0" aria-controls="view-invoices" data-view="invoices" onclick="switchView('invoices')" onkeydown="navKey(event,'invoices')"><span class="ic" aria-hidden="true">▤</span> Hóa đơn</div>
+      <div class="nav-item" role="button" tabindex="0" aria-controls="view-customers" data-view="customers" onclick="switchView('customers')" onkeydown="navKey(event,'customers')"><span class="ic" aria-hidden="true">◈</span> Khách hàng</div>
       <div class="sidebar-footer">TOKOSI · Dữ liệu từ Google Sheet · bấm Làm mới để cập nhật</div>
-    </div>
+    </nav>
 
     <div class="content">
 
@@ -280,10 +353,12 @@
 
         <div class="panel">
           <div class="panel-head"><h2>Hàng đã hết <span class="tag" id="tagLowStock">—</span></h2></div>
-          <table>
-            <thead><tr><th>Sản phẩm</th><th>Loại</th><th>Trạng thái kinh doanh</th><th>Giá vốn</th><th>Giá bán</th></tr></thead>
-            <tbody id="stockRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
-          </table>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Sản phẩm</th><th>Loại</th><th>Trạng thái kinh doanh</th><th class="num">Giá vốn</th><th class="num">Giá bán</th></tr></thead>
+              <tbody id="stockRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
+            </table>
+          </div>
         </div>
 
         <div class="panel">
@@ -327,9 +402,9 @@
           <div class="panel-head">
             <h2>Doanh thu theo ngày</h2>
             <div class="period-toggle" id="periodToggle">
-              <button data-days="7" onclick="setPeriod(7)">7 ngày</button>
-              <button data-days="30" class="active" onclick="setPeriod(30)">30 ngày</button>
-              <button data-days="90" onclick="setPeriod(90)">90 ngày</button>
+              <button type="button" data-days="7" onclick="setPeriod(7)">7 ngày</button>
+              <button type="button" data-days="30" class="active" onclick="setPeriod(30)">30 ngày</button>
+              <button type="button" data-days="90" onclick="setPeriod(90)">90 ngày</button>
             </div>
           </div>
           <div class="chart-box"><canvas id="chartInvoiceRevenue"></canvas></div>
@@ -337,10 +412,12 @@
 
         <div class="panel">
           <h2>Hóa đơn gần đây <span class="tag" id="tagInvoices">—</span></h2>
-          <table>
-            <thead><tr><th>Mã HĐ</th><th>Khách hàng</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead>
-            <tbody id="invoiceRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
-          </table>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Mã HĐ</th><th>Khách hàng</th><th class="num">Tổng tiền</th><th>Trạng thái</th></tr></thead>
+              <tbody id="invoiceRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -371,17 +448,19 @@
 
         <div class="panel">
           <h2>Chi tiết khách nợ <span class="tag" id="tagDebt">—</span></h2>
-          <table>
-            <thead><tr><th>Mã KH</th><th>Tên khách hàng</th><th>Điện thoại</th><th>Công nợ</th></tr></thead>
-            <tbody id="debtRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
-          </table>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Mã KH</th><th>Tên khách hàng</th><th>Điện thoại</th><th class="num">Công nợ</th></tr></thead>
+              <tbody id="debtRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
     </div>
   </div>
 
-  <div class="loading-veil" id="veil">Đang tải dữ liệu…</div>
+  <div class="loading-veil" id="veil" role="status" aria-live="polite">Đang tải dữ liệu…</div>
 
 <script>
   const state = { data: null, days: 30, view: 'overview', charts: {} };
@@ -396,17 +475,35 @@
   }
 
   function toggleSidebar(){
-    document.getElementById('sidebar').classList.toggle('open');
-    document.getElementById('backdrop').classList.toggle('show');
+    const isOpen = document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('backdrop').classList.toggle('show', isOpen);
+    document.getElementById('menuBtn').setAttribute('aria-expanded', String(isOpen));
+  }
+
+  function closeSidebar(){
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('backdrop').classList.remove('show');
+    document.getElementById('menuBtn').setAttribute('aria-expanded', 'false');
+  }
+
+  // Cho phép chọn mục điều hướng bằng Enter / Space
+  function navKey(event, view){
+    if(event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar'){
+      event.preventDefault();
+      switchView(view);
+    }
   }
 
   function switchView(view){
     state.view = view;
-    document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === view));
+    document.querySelectorAll('.nav-item').forEach(el => {
+      const isActive = el.dataset.view === view;
+      el.classList.toggle('active', isActive);
+      if(isActive) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
+    });
     document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
     document.getElementById('view-' + view).classList.add('active');
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('backdrop').classList.remove('show');
+    closeSidebar();
     if(state.data) renderView(view);
   }
 
@@ -537,7 +634,7 @@
       rows.innerHTML = d.lowStock.length ? d.lowStock.map(p =>
         '<tr><td class="name-cell">' + p.name + '<br><span class="mono muted" style="font-size:10.5px;">' + p.code + '</span></td>' +
         '<td>' + (p.type || '—') + '</td><td>' + bizStatusPill(p.status) + '</td>' +
-        '<td class="mono muted">' + fmtMoney(p.cost) + '</td><td class="mono">' + fmtMoney(p.price) + '</td></tr>'
+        '<td class="mono muted num">' + fmtMoney(p.cost) + '</td><td class="mono num">' + fmtMoney(p.price) + '</td></tr>'
       ).join('') : '<tr><td colspan="5" class="empty">Không có sản phẩm đã hết hàng</td></tr>';
       const categoryValues = d.stockValueByCategory || [];
       document.getElementById('tagCategoryValue').textContent =
@@ -555,7 +652,7 @@
       const rows = document.getElementById('invoiceRows');
       rows.innerHTML = d.recentInvoices.length ? d.recentInvoices.map(inv =>
         '<tr><td class="mono muted">' + inv.code + '</td><td class="name-cell">' + (inv.customer || 'Khách lẻ') + '</td>' +
-        '<td class="mono">' + fmtMoney(inv.total) + '</td><td>' + statusPill(inv.status) + '</td></tr>'
+        '<td class="mono num">' + fmtMoney(inv.total) + '</td><td>' + statusPill(inv.status) + '</td></tr>'
       ).join('') : '<tr><td colspan="4" class="empty">Chưa có hóa đơn nào</td></tr>';
       renderRevenueChart('chartInvoiceRevenue', 'invoiceRevenue', d.revenueByDay);
     }
@@ -567,7 +664,7 @@
       const rows = document.getElementById('debtRows');
       rows.innerHTML = d.topDebt.length ? d.topDebt.map(c =>
         '<tr><td class="mono muted">' + c.code + '</td><td class="name-cell">' + c.name + '</td>' +
-        '<td class="mono muted">' + (c.phone || '—') + '</td><td class="mono" style="color:var(--red);">' + fmtMoney(c.debt) + '</td></tr>'
+        '<td class="mono muted">' + (c.phone || '—') + '</td><td class="mono num" style="color:var(--red);">' + fmtMoney(c.debt) + '</td></tr>'
       ).join('') : '<tr><td colspan="4" class="empty">Không có khách hàng nợ</td></tr>';
       if(d.topDebt.length) renderDebtChart(d.topDebt); else destroyChart('debt');
     }

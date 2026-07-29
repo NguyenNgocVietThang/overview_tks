@@ -57,6 +57,10 @@ webtks-dashboard/
 ├── appsscript/                  # ── Apps Script đồng bộ KiotViet → Sheets ──
 │   └── KiotVietExport.gs        # syncAll, doPost (webhook), polling 5 phút
 │
+├── design-system/               # Quy chuẩn giao diện dùng chung
+│   └── tks-dashboard/
+│       └── MASTER.md            # Token, component và quy tắc thiết kế dashboard
+│
 ├── src/                         # ── GIAI ĐOẠN 1 — Code Apps Script (clasp) ──
 │   ├── config/
 │   │   └── Config.gs            # object CONFIG (Client ID/Secret, tên các Sheet)
