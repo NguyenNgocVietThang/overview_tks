@@ -152,7 +152,7 @@ Luồng này xảy ra mỗi khi người dùng truy cập hoặc tương tác v�
          [B4] ▭ dashboardData.getDashboardData() tính toán:
               - KPI (doanh thu hôm nay, tồn kho, công nợ, đặt hàng, trả hàng, nhập hàng)
               - revenueByDay (mảng ngày trong kỳ theo Asia/Ho_Chi_Minh)
-              - Top sản phẩm bán chạy, hàng tồn thấp, công nợ top 8
+              - Top sản phẩm bán chạy, hàng đã hết, công nợ top 8
               - Dữ liệu gần nhất: 8 HĐ, 8 đặt hàng, 8 trả hàng, 8 nhập hàng
                    |
          [B5] ▭ Backend trả HTTP 200 JSON toàn bộ dữ liệu
@@ -160,7 +160,7 @@ Luồng này xảy ra mỗi khi người dùng truy cập hoặc tương tác v�
          [B6] ▭ Frontend render:
               - KPI cards (doanh thu, tồn kho, công nợ...)
               - Biểu đồ doanh thu theo ngày (Chart.js)
-              - Bảng top sản phẩm, hàng tồn thấp, công nợ, đơn hàng gần nhất
+              - Bảng top sản phẩm, hàng đã hết, công nợ, đơn hàng gần nhất
               - Hiển thị updatedAt theo giờ Việt Nam
                    |
          [B7] ◎ Dashboard sẵn sàng sử dụng

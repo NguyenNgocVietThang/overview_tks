@@ -159,7 +159,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-02.1 | Tính doanh thu hôm nay: tổng `Tổng tiền hàng` các hóa đơn trạng thái "Hoàn thành" có ngày bán = hôm nay theo Asia/Ho_Chi_Minh.       | Cao         | Hoàn thành     |
 | FR-02.2 | Tính số hóa đơn hoàn thành hôm nay và số hóa đơn đã hủy hôm nay.                                                                     | Cao         | Hoàn thành     |
 | FR-02.3 | Tính doanh thu và số hóa đơn hoàn thành trong kỳ lọc (7/30/90 ngày gần nhất), với ranh giới ngày theo Asia/Ho_Chi_Minh.              | Cao         | Hoàn thành     |
-| FR-02.4 | Tính KPI hàng hóa: tổng mã hàng, tổng tồn kho, số mã có hàng (tồn > 0), số mã đang/ngừng kinh doanh, số mã tồn thấp (≤ 5).           | Cao         | Hoàn thành     |
+| FR-02.4 | Tính KPI hàng hóa: tổng mã hàng, tổng tồn kho, số mã có hàng (tồn > 0), số mã đang/ngừng kinh doanh, số mã đã hết hàng (tồn = 0).      | Cao         | Hoàn thành     |
 | FR-02.5 | Tính KPI khách hàng: tổng khách, số khách có nợ (nợ > 0), tổng công nợ.                                                               | Cao         | Hoàn thành     |
 | FR-02.6 | Tính KPI nhà cung cấp: tổng NCC, số NCC có nợ (nợ > 0), tổng nợ cần trả.                                                             | Cao         | Hoàn thành     |
 | FR-02.7 | Tính KPI đặt hàng: số đơn đang chờ xử lý (trạng thái "Phiếu tạm", "Đang xử lý", "Đã xác nhận"), tổng giá trị đang chờ.              | Cao         | Hoàn thành     |
@@ -172,7 +172,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 |---------|----------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
 | FR-03.1 | Tạo mảng `revenueByDay`: mỗi phần tử là 1 ngày trong kỳ lọc với tổng doanh thu và số hóa đơn hoàn thành của ngày đó.                              | Cao         | Hoàn thành     |
 | FR-03.2 | Tạo danh sách `topSellingProducts` (top 10 sản phẩm bán chạy nhất theo doanh thu từ Chi tiết hóa đơn, loại trừ hóa đơn đã hủy).                   | Cao         | Hoàn thành     |
-| FR-03.3 | Tạo danh sách `lowStock`: sản phẩm có tồn kho ≤ 5, sắp xếp tăng dần theo tồn kho.                                                                 | Cao         | Hoàn thành     |
+| FR-03.3 | Tạo danh sách `lowStock`: sản phẩm có tồn kho = 0.                                                                                           | Cao         | Hoàn thành     |
 | FR-03.4 | Tạo `stockByCategory`: phân bổ tồn kho theo nhóm hàng, top 15 nhóm + nhóm "Khác".                                                                 | Cao         | Hoàn thành     |
 | FR-03.5 | Tạo `stockDistribution`: top 20 mã hàng theo tồn kho + nhóm "Khác".                                                                               | Trung bình  | Hoàn thành     |
 | FR-03.6 | Tạo `allProducts`: toàn bộ danh sách sản phẩm kèm tỉ lệ % tồn kho.                                                                                | Trung bình  | Hoàn thành     |
@@ -215,7 +215,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-07.1 | Sidebar điều hướng với các mục tương ứng từng section của dashboard.                                                    | Cao         | Hoàn thành     |
 | FR-07.2 | Khu vực KPI cards: hiển thị các chỉ số tổng quan với icon và màu sắc phân biệt.                                         | Cao         | Hoàn thành     |
 | FR-07.3 | Biểu đồ doanh thu theo ngày (line/bar chart) với bộ lọc 7/30/90 ngày.                                                   | Cao         | Hoàn thành     |
-| FR-07.4 | Bảng top sản phẩm bán chạy, hàng tồn thấp, công nợ khách hàng, NCC, đặt hàng, trả hàng, nhập hàng gần nhất.            | Cao         | Hoàn thành     |
+| FR-07.4 | Bảng top sản phẩm bán chạy, hàng đã hết, công nợ khách hàng, NCC, đặt hàng, trả hàng, nhập hàng gần nhất.              | Cao         | Hoàn thành     |
 | FR-07.5 | Route `/api/debug`: kiểm tra biến môi trường, kết nối Google Sheets và liệt kê `sheetTabs`; trả riêng `sheetTabsError` nếu bước liệt kê lỗi. | Thấp | Hoàn thành |
 | FR-07.6 | Route `/health`: trả HTTP 200 `{"status":"ok"}` để Render health check.                                                  | Cao         | Hoàn thành     |
 
@@ -242,7 +242,7 @@ Giao diện Dashboard gồm:
 - **Sidebar (trái):** logo, danh sách mục điều hướng, có thể thu gọn.
 - **Header (trên):** tên trang, timestamp cập nhật theo giờ Việt Nam, bộ lọc thời gian (7/30/90 ngày), nút "Làm mới".
 - **Khu vực KPI cards:** dãy thẻ số liệu tổng quan.
-- **Khu vực biểu đồ & bảng:** biểu đồ doanh thu theo ngày, bảng top sản phẩm, hàng tồn thấp, công nợ, đơn hàng gần nhất.
+- **Khu vực biểu đồ & bảng:** biểu đồ doanh thu theo ngày, bảng top sản phẩm, hàng đã hết, công nợ, đơn hàng gần nhất.
 
 ## 5.2. Trạng thái giao diện cần xử lý
 

@@ -5,7 +5,7 @@
 const CONFIG = require('../config');
 const sheetsClient = require('../sheets/sheetsClient');
 
-const LOW_STOCK_THRESHOLD = 5;
+const OUT_OF_STOCK_LEVEL = 0;
 const CATEGORY_STOCK_TOP = 15;
 const TOP_SELLING_LIMIT = 10;
 const PENDING_ORDER_STATUSES = new Set(['Phiếu tạm', 'Đang xử lý', 'Đã xác nhận']);
@@ -151,7 +151,7 @@ async function getDashboardData(days) {
     totalStock += ton;
     if (ton > 0) inStockCodes++;
     stockList.push({ code, name: row[1], stock: ton, reserved, status });
-    if (ton <= LOW_STOCK_THRESHOLD) {
+    if (ton === OUT_OF_STOCK_LEVEL) {
       lowStock.push({ code, name: row[1], stock: ton, reserved, status });
     }
 

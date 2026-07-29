@@ -73,7 +73,7 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - **Biểu đồ doanh thu theo ngày** với bộ lọc 7/30/90 ngày.
 
-- **Các bảng dữ liệu chi tiết:** top sản phẩm bán chạy, hàng tồn thấp, công nợ khách hàng, biểu đồ phân bổ tồn kho theo nhóm hàng, đơn đặt hàng/trả hàng/nhập hàng gần nhất.
+- **Các bảng dữ liệu chi tiết:** top sản phẩm bán chạy, hàng đã hết, công nợ khách hàng, biểu đồ phân bổ tồn kho theo nhóm hàng, đơn đặt hàng/trả hàng/nhập hàng gần nhất.
 
 - **Cập nhật dữ liệu trên dashboard:** thủ công qua nút "Làm mới", tự động mỗi 10 phút và tải bù khi người dùng quay lại tab trình duyệt sau ít nhất 10 phút.
 
@@ -136,7 +136,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 8 tab dữ li�
 |---------------------------|--------------------------------------------------------------------------------------------------|
 | Bán hàng hôm nay          | Doanh thu hôm nay, số hóa đơn hoàn thành, số hóa đơn đã hủy                                     |
 | Kỳ lọc (7/30/90 ngày)     | Doanh thu kỳ, số hóa đơn kỳ, biểu đồ doanh thu theo ngày                                        |
-| Hàng hóa                  | Tổng mã hàng, tổng tồn kho, số mã đang có hàng, sản phẩm đang/ngừng kinh doanh, số mã tồn thấp  |
+| Hàng hóa                  | Tổng mã hàng, tổng tồn kho, số mã đang có hàng, sản phẩm đang/ngừng kinh doanh, số mã đã hết hàng |
 | Khách hàng                | Tổng khách hàng, số khách có công nợ, tổng công nợ khách hàng                                   |
 | Nhà cung cấp              | Tổng NCC, số NCC có công nợ, tổng nợ cần trả NCC                                                |
 | Đặt hàng                  | Số đơn đang chờ xử lý (Phiếu tạm/Đang xử lý/Đã xác nhận), tổng giá trị đang chờ               |
@@ -149,7 +149,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 8 tab dữ li�
 
 - **Top 10 sản phẩm bán chạy:** xếp hạng theo doanh thu, tính từ Chi tiết hóa đơn (loại trừ hóa đơn đã hủy).
 
-- **Hàng tồn thấp:** danh sách sản phẩm có tồn kho ≤ 5 đơn vị.
+- **Hàng đã hết:** danh sách sản phẩm có tồn kho = 0.
 
 - **Phân bổ tồn kho theo nhóm hàng:** biểu đồ top 15 nhóm.
 

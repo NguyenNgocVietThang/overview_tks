@@ -240,9 +240,9 @@
             <div class="sub" id="ov-stock-sub">—</div>
           </div>
           <div class="kpi-card accent-red">
-            <div class="eyebrow">Sắp hết hàng</div>
+            <div class="eyebrow">Đã hết hàng</div>
             <div class="value" id="ov-lowstock">—</div>
-            <div class="sub">Tồn kho ≤ 5</div>
+            <div class="sub">Tồn kho = 0</div>
           </div>
           <div class="kpi-card accent-blue">
             <div class="eyebrow">Khách hàng</div>
@@ -260,7 +260,7 @@
       <!-- ============ HÀNG HÓA ============ -->
       <div class="view" id="view-products">
         <div class="view-title">Hàng hóa</div>
-        <div class="view-sub">Tồn kho và các mặt hàng sắp hết</div>
+        <div class="view-sub">Tồn kho và các mặt hàng đã hết</div>
 
         <div class="kpi-grid">
           <div class="kpi-card accent-amber">
@@ -272,14 +272,14 @@
             <div class="value" id="pr-stock">—</div>
           </div>
           <div class="kpi-card accent-red">
-            <div class="eyebrow">Sắp hết hàng</div>
+            <div class="eyebrow">Đã hết hàng</div>
             <div class="value" id="pr-lowstock">—</div>
           </div>
         </div>
 
         <div class="grid-2">
           <div class="panel">
-            <div class="panel-head"><h2>Hàng sắp hết <span class="tag" id="tagLowStock">—</span></h2></div>
+            <div class="panel-head"><h2>Hàng đã hết <span class="tag" id="tagLowStock">—</span></h2></div>
             <table>
               <thead><tr><th>Sản phẩm</th><th>Tồn</th><th>Đặt</th></tr></thead>
               <tbody id="stockRows"><tr><td colspan="3" class="empty">Đang tải...</td></tr></tbody>
@@ -518,7 +518,7 @@
       rows.innerHTML = d.lowStock.length ? d.lowStock.map(p =>
         '<tr><td class="name-cell">' + p.name + '<br><span class="mono muted" style="font-size:10.5px;">' + p.code + '</span></td>' +
         '<td class="mono">' + stockPill(p.stock) + '</td><td class="mono muted">' + p.reserved + '</td></tr>'
-      ).join('') : '<tr><td colspan="3" class="empty">Không có sản phẩm sắp hết</td></tr>';
+      ).join('') : '<tr><td colspan="3" class="empty">Không có sản phẩm đã hết hàng</td></tr>';
       renderStockDistChart(d.stockDistribution);
     }
     else if(view === 'invoices'){

@@ -20,7 +20,7 @@ function getDashboardData(days) {
   const prodData = prodSheet ? prodSheet.getDataRange().getValues() : [[]];
   let totalProducts = 0, totalStock = 0, lowStock = [];
   let stockList = []; // dùng để tính phân bố tồn kho
-  const LOW_STOCK_THRESHOLD = 5;
+  const OUT_OF_STOCK_LEVEL = 0;
 
   for (let r = 1; r < prodData.length; r++) {
     const row = prodData[r];
@@ -30,7 +30,7 @@ function getDashboardData(days) {
     const ton = Number(row[3]) || 0;
     totalStock += ton;
     stockList.push({ code: code, name: row[1], stock: ton, reserved: Number(row[4]) || 0 });
-    if (ton <= LOW_STOCK_THRESHOLD) {
+    if (ton === OUT_OF_STOCK_LEVEL) {
       lowStock.push({ code: code, name: row[1], stock: ton, reserved: Number(row[4]) || 0 });
     }
   }

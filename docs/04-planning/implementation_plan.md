@@ -60,7 +60,7 @@ server/public/
 
 - **KPI Dashboard:** Doanh thu hôm nay, hóa đơn, tồn kho, công nợ KH/NCC, đặt hàng, trả hàng, nhập hàng
 - **Biểu đồ doanh thu theo ngày:** bộ lọc 7 / 30 / 90 ngày
-- **Bảng chi tiết:** Top 10 sản phẩm bán chạy, hàng tồn thấp, Top 8 công nợ, 8 bản ghi gần nhất (HĐ, đặt hàng, trả hàng, nhập hàng)
+- **Bảng chi tiết:** Top 10 sản phẩm bán chạy, hàng đã hết, Top 8 công nợ, 8 bản ghi gần nhất (HĐ, đặt hàng, trả hàng, nhập hàng)
 - **Đồng bộ tự động:** Webhook KiotViet (9 event) + Polling 5 phút (Trả hàng/NCC/Nhập hàng)
 - **Làm mới dashboard:** nút Refresh; tự tải nền mỗi 10 phút; tải bù khi quay lại tab đã ẩn quá 10 phút
 - **Khả năng chịu lỗi tab nguồn:** tab thiếu/đổi tên trả dữ liệu rỗng cho section tương ứng thay vì làm lỗi toàn dashboard
