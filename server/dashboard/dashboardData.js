@@ -230,7 +230,14 @@ async function getDashboardData(days) {
     if (ton > 0) inStockCodes++;
     stockList.push({ code, name: row[1], stock: ton, reserved, status });
     if (ton === OUT_OF_STOCK_LEVEL) {
-      lowStock.push({ code, name: row[1], stock: ton, reserved, status });
+      lowStock.push({
+        code,
+        name: row[1],
+        type: row[4] || '—',
+        status,
+        cost,
+        price: Math.max(Number(row[6]) || 0, 0)
+      });
     }
 
     const categoryName = (row[2] && String(row[2]).trim()) || '';

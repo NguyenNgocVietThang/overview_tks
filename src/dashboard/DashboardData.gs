@@ -103,7 +103,14 @@ function getDashboardData(days) {
     totalStock += ton;
     const reserved = Number(row[8]) || 0;
     if (ton === OUT_OF_STOCK_LEVEL) {
-      lowStock.push({ code: code, name: row[1], stock: ton, reserved: reserved });
+      lowStock.push({
+        code: code,
+        name: row[1],
+        type: row[4] || '—',
+        status: row[9] || 'Đang kinh doanh',
+        cost: cost,
+        price: Math.max(Number(row[6]) || 0, 0)
+      });
     }
 
     const categoryName = (row[2] && String(row[2]).trim()) || '';

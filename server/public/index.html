@@ -297,8 +297,8 @@
           <div class="panel-head"><h2>Hàng đã hết <span class="tag" id="tagLowStock">—</span></h2></div>
           <div class="scroll-list">
             <table>
-              <thead><tr><th>Sản phẩm</th><th>Tồn</th><th>Đặt</th></tr></thead>
-              <tbody id="stockRows"><tr><td colspan="3" class="empty">Đang tải...</td></tr></tbody>
+              <thead><tr><th>Sản phẩm</th><th>Loại</th><th>Trạng thái kinh doanh</th><th>Giá vốn</th><th>Giá bán</th></tr></thead>
+              <tbody id="stockRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -727,8 +727,9 @@
       const rows = document.getElementById('stockRows');
       rows.innerHTML = d.lowStock.length ? d.lowStock.map(p =>
         '<tr><td class="name-cell">' + p.name + '<br><span class="mono muted" style="font-size:10.5px;">' + p.code + '</span></td>' +
-        '<td class="mono">' + stockPill(p.stock) + '</td><td class="mono muted">' + p.reserved + '</td></tr>'
-      ).join('') : '<tr><td colspan="3" class="empty">Không có sản phẩm đã hết hàng</td></tr>';
+        '<td>' + (p.type || '—') + '</td><td>' + bizStatusPill(p.status) + '</td>' +
+        '<td class="mono muted">' + fmtMoney(p.cost) + '</td><td class="mono">' + fmtMoney(p.price) + '</td></tr>'
+      ).join('') : '<tr><td colspan="5" class="empty">Không có sản phẩm đã hết hàng</td></tr>';
       const categoryValues = d.stockValueByCategory || [];
       document.getElementById('tagCategoryValue').textContent =
         (d.kpi.inventoryValueCategoryCount || 0) + ' nhóm · ' + fmtMoneyShort(d.kpi.totalInventoryValue || 0);
