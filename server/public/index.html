@@ -433,7 +433,7 @@
       <form class="dashboard-search" id="dashboardSearchForm" onsubmit="handleSearchSubmit(event)">
         <div class="search-copy">
           <label class="search-label" id="searchLabel" for="dashboardSearchInput">Tìm trong Tổng quan</label>
-          <span class="search-description" id="searchDescription">Gõ tiền tố của tên hoặc mã, sau đó nhấn Enter để xem chi tiết</span>
+          <span class="search-description" id="searchDescription">Nhập mã, tên hoặc từ khóa xuất hiện ở bất kỳ vị trí nào</span>
         </div>
         <div class="search-row">
           <div class="search-input-wrap">
@@ -1088,9 +1088,9 @@
         .then(function(results){
           setSearchStatus(results.length
             ? (state.search.total > results.length
-              ? results.length + ' trong ' + state.search.total + ' dòng khớp tiền tố'
-              : results.length + ' dòng khớp tiền tố')
-            : 'Không có tên hoặc mã nào khớp tiền tố này');
+              ? results.length + ' trong ' + state.search.total + ' dòng khớp từ khóa'
+              : results.length + ' dòng khớp từ khóa')
+            : 'Không có tên hoặc mã nào chứa từ khóa này');
         })
         .catch(function(err){
           if(err.name !== 'AbortError'){
@@ -1124,7 +1124,7 @@
       const query = normalizeSearchQuery(document.getElementById('dashboardSearchInput').value);
       resultPanel.innerHTML =
         '<div class="search-empty"><b>Không tìm thấy kết quả</b>' +
-        'Không có tên hoặc mã nào bắt đầu bằng “' + escapeHtml(query) + '”. ' +
+        'Không có tên hoặc mã nào chứa từ khóa “' + escapeHtml(query) + '”. ' +
         'Hãy sửa từ khóa, hoặc xóa ô tìm kiếm và nhấn Enter để quay lại thống kê.</div>';
       setSearchStatus('Không tìm thấy kết quả phù hợp');
       return;
@@ -1177,14 +1177,14 @@
 
     resultPanel.innerHTML =
       '<div class="search-result-head"><div>' +
-      '<span class="search-result-source">Kết quả tiền tố</span>' +
+      '<span class="search-result-source">Kết quả từ khóa</span>' +
       '<h2>' + results.length + ' dòng khớp “' + escapeHtml(query) + '”</h2>' +
       '<p class="search-results-summary">Đã chuẩn hóa khoảng trắng trong từ khóa và dữ liệu trước khi đối chiếu.</p>' +
       '</div><button class="search-back" type="button" onclick="clearSearchAndReturn()">Quay lại thống kê</button></div>' +
       '<div class="search-results-wrap"><table class="search-results-table"><thead><tr>' +
       (showSource ? '<th>Nguồn</th>' : '') + '<th>Mã</th><th>Tên</th><th>Thao tác</th>' +
       '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
-    setSearchStatus('Đang hiển thị toàn bộ ' + results.length + ' dòng khớp tiền tố');
+    setSearchStatus('Đang hiển thị toàn bộ ' + results.length + ' dòng khớp từ khóa');
   }
 
   function reopenSearchResults(){
@@ -1212,7 +1212,7 @@
     const submitButton = document.getElementById('searchSubmitBtn');
     input.value = query;
     submitButton.disabled = true;
-    setSearchStatus('Đang tải toàn bộ dòng khớp tiền tố…');
+    setSearchStatus('Đang tải toàn bộ dòng khớp từ khóa…');
     try{
       const results = await fetchSearchResults(query, false, true);
       renderSearchResults(results, state.search.lastQuery);

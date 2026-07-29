@@ -294,12 +294,19 @@ function getSearchMatchRank(code, name, query) {
   const compactCode = code.replace(/\s/g, '');
   const compactName = name.replace(/\s/g, '');
   const compactQuery = query.replace(/\s/g, '');
+  const queryTokens = query.split(' ').filter(Boolean);
   if (compactCode === compactQuery) return 2;
   if (compactName === compactQuery) return 3;
   if (code.startsWith(query)) return 4;
   if (name.startsWith(query)) return 5;
   if (compactCode.startsWith(compactQuery)) return 6;
   if (compactName.startsWith(compactQuery)) return 7;
+  if (code.includes(query)) return 8;
+  if (name.includes(query)) return 9;
+  if (compactCode.includes(compactQuery)) return 10;
+  if (compactName.includes(compactQuery)) return 11;
+  if (queryTokens.length > 1 && queryTokens.every(token => code.includes(token))) return 12;
+  if (queryTokens.length > 1 && queryTokens.every(token => name.includes(token))) return 13;
   return -1;
 }
 
@@ -318,7 +325,8 @@ function buildSearchFields(headers, row) {
 }
 
 /**
- * Tim ban ghi theo tien to cua ma hoac ten trong pham vi dashboard hien tai.
+ * Tim ban ghi co ma hoac ten chua tu khoa trong pham vi dashboard hien tai.
+ * Uu tien: trung hoan toan, trung tien to, chua cum tu, roi den du cac tu don.
  * Ket qua kem toan bo cot cua dong nguon de giao dien hien thi dung nhu Sheet.
  */
 async function searchDashboardRecords(view, rawQuery, rawLimit) {
