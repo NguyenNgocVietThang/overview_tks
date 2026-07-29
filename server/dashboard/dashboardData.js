@@ -248,14 +248,20 @@ let searchSheetCache = {
   loading: null
 };
 
+function normalizeWhitespace(value) {
+  return String(value === undefined || value === null ? '' : value)
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
 function normalizeSearchValue(value) {
-  return String(value || '')
-    .trim()
+  return normalizeWhitespace(value)
     .toLocaleLowerCase('vi-VN')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/\s+/g, ' ');
+    .replace(/đ/g, 'd');
 }
 
 function rememberSearchSheets(sheets) {
@@ -284,8 +290,16 @@ async function getSearchSheets() {
 function getSearchMatchRank(code, name, query) {
   if (code === query) return 0;
   if (name === query) return 1;
-  if (code.startsWith(query)) return 2;
-  if (name.startsWith(query)) return 3;
+
+  const compactCode = code.replace(/\s/g, '');
+  const compactName = name.replace(/\s/g, '');
+  const compactQuery = query.replace(/\s/g, '');
+  if (compactCode === compactQuery) return 2;
+  if (compactName === compactQuery) return 3;
+  if (code.startsWith(query)) return 4;
+  if (name.startsWith(query)) return 5;
+  if (compactCode.startsWith(compactQuery)) return 6;
+  if (compactName.startsWith(compactQuery)) return 7;
   return -1;
 }
 
@@ -293,11 +307,11 @@ function buildSearchFields(headers, row) {
   const fieldCount = Math.max(headers.length, row.length);
   const fields = [];
   for (let index = 0; index < fieldCount; index++) {
-    const header = String(headers[index] || '').trim() || `Cột ${index + 1}`;
+    const header = normalizeWhitespace(headers[index]) || `Cột ${index + 1}`;
     const rawValue = row[index];
     fields.push({
       label: header,
-      value: rawValue === undefined || rawValue === null || rawValue === '' ? '—' : String(rawValue)
+      value: rawValue === undefined || rawValue === null || rawValue === '' ? '—' : normalizeWhitespace(rawValue)
     });
   }
   return fields;
@@ -309,10 +323,11 @@ function buildSearchFields(headers, row) {
  */
 async function searchDashboardRecords(view, rawQuery, rawLimit) {
   const scope = SEARCH_SCOPES[view] || SEARCH_SCOPES.overview;
-  const queryText = String(rawQuery || '').trim().slice(0, 120);
+  const queryText = normalizeWhitespace(rawQuery).slice(0, 120);
   const query = normalizeSearchValue(queryText);
-  const limit = Math.min(Math.max(Number(rawLimit) || 8, 1), 10);
-  if (!query) return { view, query: queryText, results: [] };
+  const wantsAllResults = String(rawLimit || '').toLocaleLowerCase('vi-VN') === 'all';
+  const limit = wantsAllResults ? null : Math.min(Math.max(Number(rawLimit) || 8, 1), 50);
+  if (!query) return { view, query: queryText, total: 0, results: [] };
 
   const sheets = await getSearchSheets();
   const matches = [];
@@ -324,8 +339,8 @@ async function searchDashboardRecords(view, rawQuery, rawLimit) {
 
     for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
       const row = rows[rowIndex] || [];
-      const code = String(row[source.codeIndex] || '').trim();
-      const name = String(row[source.nameIndex] || '').trim();
+      const code = normalizeWhitespace(row[source.codeIndex]);
+      const name = normalizeWhitespace(row[source.nameIndex]);
       if (!code && !name) continue;
 
       const rank = getSearchMatchRank(
@@ -358,7 +373,9 @@ async function searchDashboardRecords(view, rawQuery, rawLimit) {
   return {
     view,
     query: queryText,
-    results: matches.slice(0, limit).map(({ _rank, _sourceOrder, ...result }) => result)
+    total: matches.length,
+    results: (limit === null ? matches : matches.slice(0, limit))
+      .map(({ _rank, _sourceOrder, ...result }) => result)
   };
 }
 

@@ -231,6 +231,24 @@
   }
   .search-result h2{ margin:0; font-family:'Sora',sans-serif; font-size:18px; }
   .search-result-code{ margin-top:5px; color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:12px; }
+  .search-results-summary{ margin:0; color:var(--muted); font-size:12px; }
+  .search-results-wrap{
+    max-height:min(60vh,640px); overflow:auto; border:1px solid var(--border); border-radius:9px;
+  }
+  .search-results-table{ min-width:640px; }
+  .search-results-table thead th{
+    position:sticky; top:0; z-index:2; padding:10px 12px; background:var(--panel-2);
+  }
+  .search-results-table tbody td{ padding:10px 12px; }
+  .search-result-source-cell{ color:var(--muted); font-size:11.5px; }
+  .search-row-action{
+    min-height:44px; padding:0 12px; border:1px solid var(--border); border-radius:8px;
+    background:var(--panel-2); color:var(--text); font-family:'Inter',sans-serif;
+    font-size:12px; font-weight:600; white-space:nowrap; cursor:pointer;
+    transition:border-color .15s ease, background-color .15s ease;
+  }
+  .search-row-action:hover{ border-color:var(--muted); background:var(--surface-hover); }
+  .search-row-action:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
   .search-back{
     min-height:44px; padding:0 14px; flex-shrink:0; cursor:pointer;
     background:var(--panel-2); color:var(--text); border:1px solid var(--border);
@@ -734,6 +752,7 @@
     tableSorts: {},
     search: {
       results: [],
+      total: 0,
       activeIndex: -1,
       active: false,
       lastQuery: '',
@@ -912,6 +931,14 @@
       .replace(/'/g, '&#039;');
   }
 
+  function normalizeSearchQuery(value){
+    return String(value === undefined || value === null ? '' : value)
+      .normalize('NFKC')
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
+      .replace(/\s+/gu, ' ')
+      .trim();
+  }
+
   function updateSearchContext(){
     const context = SEARCH_CONTEXT[state.view] || SEARCH_CONTEXT.overview;
     document.getElementById('searchLabel').textContent = context.title;
@@ -951,6 +978,7 @@
   function exitSearchMode(){
     state.search.active = false;
     state.search.results = [];
+    state.search.total = 0;
     state.search.lastQuery = '';
     cancelSearchRequest();
     hideSearchSuggestions();
@@ -1012,16 +1040,17 @@
     option.scrollIntoView({ block: 'nearest' });
   }
 
-  async function fetchSearchResults(query, showSuggestions){
+  async function fetchSearchResults(query, showSuggestions, fetchAll){
     cancelSearchRequest();
     const requestId = ++state.search.requestId;
     const controller = new AbortController();
     state.search.controller = controller;
+    const normalizedQuery = normalizeSearchQuery(query);
 
     const response = await fetch(
       '/api/search?view=' + encodeURIComponent(state.view) +
-      '&q=' + encodeURIComponent(query) +
-      '&limit=8',
+      '&q=' + encodeURIComponent(normalizedQuery) +
+      '&limit=' + (fetchAll ? 'all' : '8'),
       { signal: controller.signal }
     );
     if(!response.ok) throw new Error('HTTP ' + response.status);
@@ -1029,7 +1058,8 @@
     if(requestId !== state.search.requestId) return [];
 
     state.search.results = payload.results || [];
-    state.search.lastQuery = query;
+    state.search.total = Number(payload.total) || state.search.results.length;
+    state.search.lastQuery = payload.query || normalizedQuery;
     state.search.activeIndex = -1;
     if(showSuggestions) renderSuggestions();
     return state.search.results;
@@ -1037,12 +1067,13 @@
 
   function handleSearchInput(){
     const input = document.getElementById('dashboardSearchInput');
-    const query = input.value.trim();
+    const query = normalizeSearchQuery(input.value);
     document.getElementById('searchClearBtn').hidden = !input.value;
     cancelSearchRequest();
 
     if(!query){
       state.search.results = [];
+      state.search.total = 0;
       state.search.lastQuery = '';
       hideSearchSuggestions();
       setSearchStatus(state.search.active
@@ -1056,7 +1087,9 @@
       fetchSearchResults(query, true)
         .then(function(results){
           setSearchStatus(results.length
-            ? results.length + ' gợi ý khớp tiền tố'
+            ? (state.search.total > results.length
+              ? results.length + ' trong ' + state.search.total + ' dòng khớp tiền tố'
+              : results.length + ' dòng khớp tiền tố')
             : 'Không có tên hoặc mã nào khớp tiền tố này');
         })
         .catch(function(err){
@@ -1088,7 +1121,7 @@
     resultPanel.hidden = false;
 
     if(!result){
-      const query = document.getElementById('dashboardSearchInput').value.trim();
+      const query = normalizeSearchQuery(document.getElementById('dashboardSearchInput').value);
       resultPanel.innerHTML =
         '<div class="search-empty"><b>Không tìm thấy kết quả</b>' +
         'Không có tên hoặc mã nào bắt đầu bằng “' + escapeHtml(query) + '”. ' +
@@ -1109,7 +1142,7 @@
       '<span class="search-result-source">Sheet ' + escapeHtml(result.sourceLabel) + '</span>' +
       '<h2>' + escapeHtml(result.name || result.code) + '</h2>' +
       '<div class="search-result-code">' + escapeHtml(result.code || 'Không có mã') + '</div>' +
-      '</div><button class="search-back" type="button" onclick="clearSearchAndReturn()">Quay lại thống kê</button></div>' +
+      '</div><button class="search-back" type="button" onclick="reopenSearchResults()">Quay lại kết quả</button></div>' +
       '<p class="detail-title">Toàn bộ thông tin theo thứ tự cột trong bảng Sheets gốc</p>' +
       '<dl class="detail-grid">' + fieldsHtml + '</dl>';
     setSearchStatus('Đang hiển thị chi tiết từ sheet ' + result.sourceLabel);
@@ -1118,6 +1151,44 @@
   function chooseSearchResult(index){
     const result = state.search.results[index];
     if(result) renderSearchResult(result);
+  }
+
+  function renderSearchResults(results, query){
+    state.search.active = true;
+    hideSearchSuggestions();
+    document.getElementById('dashboardStats').classList.add('search-mode');
+    const resultPanel = document.getElementById('searchResult');
+    resultPanel.hidden = false;
+
+    if(!results.length){
+      renderSearchResult(null);
+      return;
+    }
+
+    const showSource = state.view === 'overview' || state.view === 'invoices' || state.view === 'suppliers';
+    const rowsHtml = results.map(function(result, index){
+      return '<tr>' +
+        (showSource ? '<td class="search-result-source-cell">' + escapeHtml(result.sourceLabel) + '</td>' : '') +
+        '<td class="mono muted">' + escapeHtml(result.code || '—') + '</td>' +
+        '<td class="name-cell">' + escapeHtml(result.name || result.code || '—') + '</td>' +
+        '<td><button class="search-row-action" type="button" onclick="chooseSearchResult(' + index + ')">Xem chi tiết</button></td>' +
+        '</tr>';
+    }).join('');
+
+    resultPanel.innerHTML =
+      '<div class="search-result-head"><div>' +
+      '<span class="search-result-source">Kết quả tiền tố</span>' +
+      '<h2>' + results.length + ' dòng khớp “' + escapeHtml(query) + '”</h2>' +
+      '<p class="search-results-summary">Đã chuẩn hóa khoảng trắng trong từ khóa và dữ liệu trước khi đối chiếu.</p>' +
+      '</div><button class="search-back" type="button" onclick="clearSearchAndReturn()">Quay lại thống kê</button></div>' +
+      '<div class="search-results-wrap"><table class="search-results-table"><thead><tr>' +
+      (showSource ? '<th>Nguồn</th>' : '') + '<th>Mã</th><th>Tên</th><th>Thao tác</th>' +
+      '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
+    setSearchStatus('Đang hiển thị toàn bộ ' + results.length + ' dòng khớp tiền tố');
+  }
+
+  function reopenSearchResults(){
+    renderSearchResults(state.search.results, state.search.lastQuery);
   }
 
   function clearSearchAndReturn(){
@@ -1131,7 +1202,7 @@
   async function handleSearchSubmit(event){
     event.preventDefault();
     const input = document.getElementById('dashboardSearchInput');
-    const query = input.value.trim();
+    const query = normalizeSearchQuery(input.value);
 
     if(!query){
       exitSearchMode();
@@ -1139,13 +1210,12 @@
     }
 
     const submitButton = document.getElementById('searchSubmitBtn');
+    input.value = query;
     submitButton.disabled = true;
-    setSearchStatus('Đang mở thông tin chi tiết…');
+    setSearchStatus('Đang tải toàn bộ dòng khớp tiền tố…');
     try{
-      let results = state.search.lastQuery === query ? state.search.results : null;
-      if(!results) results = await fetchSearchResults(query, false);
-      const selected = state.search.activeIndex >= 0 ? results[state.search.activeIndex] : results[0];
-      renderSearchResult(selected || null);
+      const results = await fetchSearchResults(query, false, true);
+      renderSearchResults(results, state.search.lastQuery);
     } catch(err){
       if(err.name !== 'AbortError'){
         setSearchStatus('Không thể tìm kiếm lúc này. Vui lòng thử lại', true);
