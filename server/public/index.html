@@ -681,10 +681,12 @@
 
         <div class="panel">
           <h2>Chi tiết khách nợ <span class="tag" id="tagDebt">—</span></h2>
-          <table>
-            <thead><tr><th>Mã KH</th><th>Tên khách hàng</th><th>Điện thoại</th><th>Công nợ</th></tr></thead>
-            <tbody id="debtRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
-          </table>
+          <div class="scroll-list" style="max-height:340px;">
+            <table>
+              <thead><tr><th>Mã KH</th><th>Tên khách hàng</th><th>Điện thoại</th><th>Công nợ</th></tr></thead>
+              <tbody id="debtRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -1517,7 +1519,8 @@
         '<tr><td class="mono muted">' + c.code + '</td><td class="name-cell">' + c.name + '</td>' +
         '<td class="mono muted">' + (c.phone || '—') + '</td><td class="mono" data-sort-value="' + c.debt + '" style="color:var(--red);">' + fmtMoney(c.debt) + '</td></tr>'
       ).join('') : '<tr><td colspan="4" class="empty">Không có khách hàng nợ</td></tr>';
-      if(d.topDebt.length) renderBarChartList('chartDebt','debt',d.topDebt,c=>c.name,c=>c.debt,themeColor('--red'),true); else destroyChart('debt');
+      const topDebtChart = d.topDebt.slice(0, 25);
+      if(topDebtChart.length) renderBarChartList('chartDebt','debt',topDebtChart,c=>c.name,c=>c.debt,themeColor('--red'),true); else destroyChart('debt');
     }
     else if(view === 'suppliers'){
       document.getElementById('sp-total').textContent = d.kpi.totalSuppliers;

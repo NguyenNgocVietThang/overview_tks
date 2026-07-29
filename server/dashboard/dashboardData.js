@@ -8,7 +8,6 @@ const sheetsClient = require('../sheets/sheetsClient');
 const OUT_OF_STOCK_LEVEL = 0;
 const TOP_SELLING_LIMIT = 10;
 const MAX_PARENT_CATEGORY_BARS = 30;
-const MAX_DEBT_BARS = 25;
 const SEARCH_CACHE_TTL_MS = 2 * 60 * 1000;
 const PENDING_ORDER_STATUSES = new Set(['Phiếu tạm', 'Đang xử lý', 'Đã xác nhận']);
 const DASHBOARD_TIME_ZONE = 'Asia/Ho_Chi_Minh';
@@ -611,7 +610,6 @@ async function getDashboardData(days) {
     }
   }
   topDebt.sort((a, b) => b.debt - a.debt);
-  topDebt = topDebt.slice(0, MAX_DEBT_BARS);
 
   // ---------- NHÀ CUNG CẤP ----------
   // Cột: [0]Mã NCC [1]Tên NCC [2]Điện thoại [3]Email [4]Địa chỉ [5]Nợ cần trả
