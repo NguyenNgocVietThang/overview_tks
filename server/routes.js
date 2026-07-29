@@ -1,5 +1,5 @@
 const express = require('express');
-const { getDashboardData } = require('./dashboard/dashboardData');
+const { getDashboardData, searchDashboardRecords } = require('./dashboard/dashboardData');
 
 const router = express.Router();
 
@@ -53,6 +53,25 @@ router.get('/api/dashboard', async (req, res) => {
       detail: err.message,
       googleStatus,
       googleMessage
+    });
+  }
+});
+
+router.get('/api/search', async (req, res) => {
+  try {
+    const data = await searchDashboardRecords(req.query.view, req.query.q, req.query.limit);
+    res.status(200).json(data);
+  } catch (err) {
+    const googleStatus = err?.response?.status;
+    console.error('=== LOI /api/search ===');
+    console.error('Message:', err.message);
+    console.error('Google API status:', googleStatus);
+    console.error('Stack:', err.stack);
+    console.error('=====================');
+    res.status(500).json({
+      error: 'Khong tim kiem duoc du lieu dashboard.',
+      detail: err.message,
+      googleStatus
     });
   }
 });

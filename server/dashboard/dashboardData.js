@@ -8,6 +8,7 @@ const sheetsClient = require('../sheets/sheetsClient');
 const OUT_OF_STOCK_LEVEL = 0;
 const TOP_SELLING_LIMIT = 10;
 const MAX_PARENT_CATEGORY_BARS = 30;
+const SEARCH_CACHE_TTL_MS = 2 * 60 * 1000;
 const PENDING_ORDER_STATUSES = new Set(['Phiếu tạm', 'Đang xử lý', 'Đã xác nhận']);
 const DASHBOARD_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const DASHBOARD_UTC_OFFSET = '+07:00';
@@ -185,6 +186,182 @@ const SHEET_NAMES = [
   CONFIG.SHEET_PURCHASES
 ];
 
+const SEARCH_SOURCES = {
+  products: {
+    label: CONFIG.SHEET_PRODUCTS,
+    sheetName: CONFIG.SHEET_PRODUCTS,
+    codeIndex: 0,
+    nameIndex: 1
+  },
+  invoices: {
+    label: CONFIG.SHEET_INVOICES,
+    sheetName: CONFIG.SHEET_INVOICES,
+    codeIndex: 0,
+    nameIndex: 2
+  },
+  orders: {
+    label: CONFIG.SHEET_ORDERS,
+    sheetName: CONFIG.SHEET_ORDERS,
+    codeIndex: 0,
+    nameIndex: 2
+  },
+  returns: {
+    label: CONFIG.SHEET_RETURNS,
+    sheetName: CONFIG.SHEET_RETURNS,
+    codeIndex: 0,
+    nameIndex: 3
+  },
+  customers: {
+    label: CONFIG.SHEET_CUSTOMERS,
+    sheetName: CONFIG.SHEET_CUSTOMERS,
+    codeIndex: 0,
+    nameIndex: 1
+  },
+  suppliers: {
+    label: CONFIG.SHEET_SUPPLIERS,
+    sheetName: CONFIG.SHEET_SUPPLIERS,
+    codeIndex: 0,
+    nameIndex: 1
+  },
+  purchases: {
+    label: CONFIG.SHEET_PURCHASES,
+    sheetName: CONFIG.SHEET_PURCHASES,
+    codeIndex: 0,
+    nameIndex: 2
+  }
+};
+
+const SEARCH_SCOPES = {
+  overview: ['products', 'invoices', 'orders', 'returns', 'customers', 'suppliers', 'purchases'],
+  products: ['products'],
+  invoices: ['invoices', 'orders', 'returns'],
+  customers: ['customers'],
+  suppliers: ['suppliers', 'purchases']
+};
+const SEARCH_SHEET_NAMES = [...new Set(
+  Object.values(SEARCH_SOURCES).map(source => source.sheetName)
+)];
+
+let searchSheetCache = {
+  data: null,
+  expiresAt: 0,
+  loading: null
+};
+
+function normalizeSearchValue(value) {
+  return String(value || '')
+    .trim()
+    .toLocaleLowerCase('vi-VN')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/\s+/g, ' ');
+}
+
+function rememberSearchSheets(sheets) {
+  searchSheetCache.data = sheets;
+  searchSheetCache.expiresAt = Date.now() + SEARCH_CACHE_TTL_MS;
+}
+
+async function getSearchSheets() {
+  if (searchSheetCache.data && Date.now() < searchSheetCache.expiresAt) {
+    return searchSheetCache.data;
+  }
+  if (searchSheetCache.loading) return searchSheetCache.loading;
+
+  const loading = sheetsClient.getMultipleSheetValues(SEARCH_SHEET_NAMES)
+    .then(sheets => {
+      rememberSearchSheets(sheets);
+      return sheets;
+    })
+    .finally(() => {
+      if (searchSheetCache.loading === loading) searchSheetCache.loading = null;
+    });
+  searchSheetCache.loading = loading;
+  return loading;
+}
+
+function getSearchMatchRank(code, name, query) {
+  if (code === query) return 0;
+  if (name === query) return 1;
+  if (code.startsWith(query)) return 2;
+  if (name.startsWith(query)) return 3;
+  return -1;
+}
+
+function buildSearchFields(headers, row) {
+  const fieldCount = Math.max(headers.length, row.length);
+  const fields = [];
+  for (let index = 0; index < fieldCount; index++) {
+    const header = String(headers[index] || '').trim() || `Cột ${index + 1}`;
+    const rawValue = row[index];
+    fields.push({
+      label: header,
+      value: rawValue === undefined || rawValue === null || rawValue === '' ? '—' : String(rawValue)
+    });
+  }
+  return fields;
+}
+
+/**
+ * Tim ban ghi theo tien to cua ma hoac ten trong pham vi dashboard hien tai.
+ * Ket qua kem toan bo cot cua dong nguon de giao dien hien thi dung nhu Sheet.
+ */
+async function searchDashboardRecords(view, rawQuery, rawLimit) {
+  const scope = SEARCH_SCOPES[view] || SEARCH_SCOPES.overview;
+  const queryText = String(rawQuery || '').trim().slice(0, 120);
+  const query = normalizeSearchValue(queryText);
+  const limit = Math.min(Math.max(Number(rawLimit) || 8, 1), 10);
+  if (!query) return { view, query: queryText, results: [] };
+
+  const sheets = await getSearchSheets();
+  const matches = [];
+
+  scope.forEach((sourceKey, sourceOrder) => {
+    const source = SEARCH_SOURCES[sourceKey];
+    const rows = sheets[source.sheetName] || [];
+    const headers = rows[0] || [];
+
+    for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
+      const row = rows[rowIndex] || [];
+      const code = String(row[source.codeIndex] || '').trim();
+      const name = String(row[source.nameIndex] || '').trim();
+      if (!code && !name) continue;
+
+      const rank = getSearchMatchRank(
+        normalizeSearchValue(code),
+        normalizeSearchValue(name),
+        query
+      );
+      if (rank < 0) continue;
+
+      matches.push({
+        id: `${sourceKey}:${rowIndex + 1}`,
+        source: sourceKey,
+        sourceLabel: source.label,
+        code,
+        name: name || code,
+        fields: buildSearchFields(headers, row),
+        _rank: rank,
+        _sourceOrder: sourceOrder
+      });
+    }
+  });
+
+  matches.sort((a, b) =>
+    a._rank - b._rank ||
+    a._sourceOrder - b._sourceOrder ||
+    a.code.localeCompare(b.code, 'vi', { numeric: true, sensitivity: 'base' }) ||
+    a.name.localeCompare(b.name, 'vi', { sensitivity: 'base' })
+  );
+
+  return {
+    view,
+    query: queryText,
+    results: matches.slice(0, limit).map(({ _rank, _sourceOrder, ...result }) => result)
+  };
+}
+
 /**
  * Ham chinh lay du lieu cho dashboard.
  * @param {number} days - So ngay gan nhat de ve bieu do doanh thu (7/30/90). Mac dinh 30.
@@ -196,6 +373,7 @@ async function getDashboardData(days) {
   const todayStr = formatDMY(now);
 
   const sheets = await sheetsClient.getMultipleSheetValues(SHEET_NAMES);
+  rememberSearchSheets(sheets);
   const categoryData = sheets[CONFIG.SHEET_CATEGORIES];
   const prodData = sheets[CONFIG.SHEET_PRODUCTS];
   const invData = sheets[CONFIG.SHEET_INVOICES];
@@ -484,4 +662,4 @@ async function getDashboardData(days) {
   };
 }
 
-module.exports = { getDashboardData };
+module.exports = { getDashboardData, searchDashboardRecords };
