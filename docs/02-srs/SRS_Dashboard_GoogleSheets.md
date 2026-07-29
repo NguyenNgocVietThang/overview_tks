@@ -174,7 +174,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-03.2 | Tạo danh sách `topSellingProducts` (top 10 sản phẩm bán chạy nhất theo doanh thu từ Chi tiết hóa đơn, loại trừ hóa đơn đã hủy).                   | Cao         | Hoàn thành     |
 | FR-03.3 | Tạo danh sách `lowStock`: sản phẩm có tồn kho = 0.                                                                                           | Cao         | Hoàn thành     |
 | FR-03.4 | Tạo `stockByCategory`: phân bổ tồn kho theo nhóm hàng, top 15 nhóm + nhóm "Khác".                                                                 | Cao         | Hoàn thành     |
-| FR-03.5 | Tạo `stockDistribution`: top 20 mã hàng theo tồn kho + nhóm "Khác".                                                                               | Trung bình  | Hoàn thành     |
+| FR-03.5 | Tạo `stockValueByCategory`: tổng `Giá vốn × max(Tồn kho, 0)` theo nhóm hàng, top 15 nhóm theo giá trị + nhóm "Khác".                          | Cao         | Hoàn thành     |
 | FR-03.6 | Tạo `allProducts`: toàn bộ danh sách sản phẩm kèm tỉ lệ % tồn kho.                                                                                | Trung bình  | Hoàn thành     |
 | FR-03.7 | Tạo `topDebt`: top 8 khách hàng có công nợ cao nhất.                                                                                               | Cao         | Hoàn thành     |
 | FR-03.8 | Tạo `recentInvoices`, `recentOrders`, `recentReturns`, `recentPurchaseOrders`: 8 bản ghi gần nhất (sort theo thời gian giảm dần).                  | Cao         | Hoàn thành     |
@@ -216,6 +216,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-07.2 | Khu vực KPI cards: hiển thị các chỉ số tổng quan với icon và màu sắc phân biệt.                                         | Cao         | Hoàn thành     |
 | FR-07.3 | Biểu đồ doanh thu theo ngày (line/bar chart) với bộ lọc 7/30/90 ngày.                                                   | Cao         | Hoàn thành     |
 | FR-07.4 | Bảng top sản phẩm bán chạy, hàng đã hết, công nợ khách hàng, NCC, đặt hàng, trả hàng, nhập hàng gần nhất.              | Cao         | Hoàn thành     |
+| FR-07.7 | Biểu đồ cột tỷ lệ giá trị tồn kho theo nhóm hàng nằm trên một panel toàn chiều ngang, tooltip hiển thị giá trị tiền và tỷ trọng phần trăm. | Cao | Hoàn thành |
 | FR-07.5 | Route `/api/debug`: kiểm tra biến môi trường, kết nối Google Sheets và liệt kê `sheetTabs`; trả riêng `sheetTabsError` nếu bước liệt kê lỗi. | Thấp | Hoàn thành |
 | FR-07.6 | Route `/health`: trả HTTP 200 `{"status":"ok"}` để Render health check.                                                  | Cao         | Hoàn thành     |
 
@@ -276,6 +277,8 @@ Giao diện Dashboard gồm:
     "activeProducts": 0,
     "inactiveProducts": 0,
     "lowStockCount": 0,
+    "totalInventoryValue": 0,
+    "inventoryValueCategoryCount": 0,
     "totalCustomers": 0,
     "customersWithDebt": 0,
     "totalDebt": 0,
@@ -294,7 +297,7 @@ Giao diện Dashboard gồm:
   "revenueByDay": [{ "date": "dd/MM/yyyy", "label": "dd/MM", "revenue": 0, "count": 0 }],
   "recentInvoices": [{ "code": "", "customer": "", "total": 0, "status": "", "time": "" }],
   "lowStock": [{ "code": "", "name": "", "stock": 0, "reserved": 0, "status": "" }],
-  "stockDistribution": [{ "label": "", "value": 0 }],
+  "stockValueByCategory": [{ "name": "", "stockValue": 0, "stock": 0, "productCount": 0 }],
   "allProducts": [{ "code": "", "name": "", "stock": 0, "reserved": 0, "status": "", "pct": 0 }],
   "topDebt": [{ "code": "", "name": "", "phone": "", "debt": 0 }],
   "stockByCategory": [{ "name": "", "stock": 0, "productCount": 0 }],

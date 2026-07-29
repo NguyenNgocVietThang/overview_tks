@@ -145,6 +145,8 @@ async function getDashboardData(days) {
     if (!code) continue;
     totalProducts++;
     const ton = Number(row[7]) || 0;
+    const cost = Math.max(Number(row[5]) || 0, 0);
+    const stockValue = Math.max(ton, 0) * cost;
     const reserved = Number(row[8]) || 0;
     const status = row[9] || 'Đang kinh doanh';
     if (status === 'Ngừng kinh doanh') inactiveProducts++; else activeProducts++;
@@ -156,17 +158,14 @@ async function getDashboardData(days) {
     }
 
     const catName = (row[2] && String(row[2]).trim()) || 'Chưa phân nhóm';
-    if (!categoryMap[catName]) categoryMap[catName] = { name: catName, stock: 0, productCount: 0 };
+    if (!categoryMap[catName]) categoryMap[catName] = { name: catName, stock: 0, stockValue: 0, productCount: 0 };
     categoryMap[catName].stock += ton;
+    categoryMap[catName].stockValue += stockValue;
     categoryMap[catName].productCount += 1;
   }
   lowStock.sort((a, b) => a.stock - b.stock);
 
   stockList.sort((a, b) => b.stock - a.stock);
-  const topStock = stockList.slice(0, 20);
-  const restStock = stockList.slice(20).reduce((s, p) => s + p.stock, 0);
-  const stockDistribution = topStock.map(p => ({ label: p.name, value: p.stock }));
-  if (restStock > 0) stockDistribution.push({ label: 'Khác (' + (stockList.length - 20) + ' mã)', value: restStock });
 
   const allProducts = stockList.map(p => ({
     code: p.code,
@@ -177,12 +176,27 @@ async function getDashboardData(days) {
     pct: totalStock > 0 ? (p.stock / totalStock) * 100 : 0
   }));
 
-  let stockByCategory = Object.values(categoryMap).sort((a, b) => b.stock - a.stock);
+  const categoryList = Object.values(categoryMap);
+  let stockByCategory = categoryList.slice().sort((a, b) => b.stock - a.stock);
   const restCategoryCount = stockByCategory.length - CATEGORY_STOCK_TOP;
   const restCategoryStock = stockByCategory.slice(CATEGORY_STOCK_TOP).reduce((s, c) => s + c.stock, 0);
   stockByCategory = stockByCategory.slice(0, CATEGORY_STOCK_TOP);
   if (restCategoryCount > 0 && restCategoryStock > 0) {
     stockByCategory.push({ name: 'Khác (' + restCategoryCount + ' nhóm)', stock: restCategoryStock, productCount: 0 });
+  }
+
+  let stockValueByCategory = categoryList.filter(c => c.stockValue > 0).sort((a, b) => b.stockValue - a.stockValue);
+  const inventoryValueCategoryCount = stockValueByCategory.length;
+  const totalInventoryValue = stockValueByCategory.reduce((sum, category) => sum + category.stockValue, 0);
+  const restValueCategories = stockValueByCategory.slice(CATEGORY_STOCK_TOP);
+  stockValueByCategory = stockValueByCategory.slice(0, CATEGORY_STOCK_TOP);
+  if (restValueCategories.length > 0) {
+    stockValueByCategory.push({
+      name: 'Khác (' + restValueCategories.length + ' nhóm)',
+      stockValue: restValueCategories.reduce((sum, category) => sum + category.stockValue, 0),
+      stock: restValueCategories.reduce((sum, category) => sum + category.stock, 0),
+      productCount: restValueCategories.reduce((sum, category) => sum + category.productCount, 0)
+    });
   }
 
   // ---------- HÓA ĐƠN ----------
@@ -367,6 +381,8 @@ async function getDashboardData(days) {
       activeProducts,
       inactiveProducts,
       lowStockCount: lowStock.length,
+      totalInventoryValue,
+      inventoryValueCategoryCount,
       totalCustomers,
       customersWithDebt,
       totalDebt,
@@ -385,7 +401,7 @@ async function getDashboardData(days) {
     revenueByDay,
     recentInvoices,
     lowStock,
-    stockDistribution,
+    stockValueByCategory,
     allProducts,
     topDebt,
     stockByCategory,

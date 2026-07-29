@@ -151,7 +151,9 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 8 tab dữ li�
 
 - **Hàng đã hết:** danh sách sản phẩm có tồn kho = 0.
 
-- **Phân bổ tồn kho theo nhóm hàng:** biểu đồ top 15 nhóm.
+- **Tỷ lệ giá trị tồn kho theo nhóm hàng:** biểu đồ cột toàn chiều ngang, lấy `Giá vốn × Tồn kho`, hiển thị top 15 nhóm và gộp phần còn lại vào nhóm "Khác".
+
+- **Phân bổ số lượng tồn kho theo nhóm hàng:** biểu đồ top 15 nhóm.
 
 - **Top 8 khách hàng có công nợ cao nhất.**
 

@@ -134,6 +134,7 @@
 
   .chart-box{ position:relative; height:260px; }
   .chart-box.small{ height:220px; }
+  .chart-box.wide{ height:340px; }
 
   .scroll-list{ max-height:340px; overflow-y:auto; }
   .scroll-list::-webkit-scrollbar{ width:8px; }
@@ -292,21 +293,19 @@
           </div>
         </div>
 
-        <div class="grid-2">
-          <div class="panel">
-            <div class="panel-head"><h2>Hàng đã hết <span class="tag" id="tagLowStock">—</span></h2></div>
-            <div class="scroll-list">
-              <table>
-                <thead><tr><th>Sản phẩm</th><th>Tồn</th><th>Đặt</th></tr></thead>
-                <tbody id="stockRows"><tr><td colspan="3" class="empty">Đang tải...</td></tr></tbody>
-              </table>
-            </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Hàng đã hết <span class="tag" id="tagLowStock">—</span></h2></div>
+          <div class="scroll-list">
+            <table>
+              <thead><tr><th>Sản phẩm</th><th>Tồn</th><th>Đặt</th></tr></thead>
+              <tbody id="stockRows"><tr><td colspan="3" class="empty">Đang tải...</td></tr></tbody>
+            </table>
           </div>
-          <div class="panel">
-            <div class="panel-head"><h2>Tỷ lệ tồn kho theo sản phẩm <span class="tag" id="tagStockDist">—</span></h2></div>
-            <div class="chart-box small"><canvas id="chartStockDist"></canvas></div>
-            <div class="scroll-list legend-list" id="stockDistLegend" style="max-height:160px; margin-top:10px;"></div>
-          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>Tỷ lệ giá trị tồn kho theo nhóm hàng <span class="tag" id="tagCategoryValue">—</span></h2></div>
+          <div class="chart-box wide"><canvas id="chartCategoryValue"></canvas></div>
         </div>
 
         <div class="panel">
@@ -511,6 +510,7 @@
   function fmtMoney(n){ n = Number(n) || 0; return n.toLocaleString('vi-VN') + '₫'; }
   function fmtMoneyShort(n){
     n = Number(n) || 0;
+    if(n >= 1000000000) return (n/1000000000).toFixed(1).replace('.0','').replace('.', ',') + ' tỷ₫';
     if(n >= 1000000) return (n/1000000).toFixed(1).replace('.0','') + 'tr₫';
     if(n >= 1000) return (n/1000).toFixed(0) + 'k₫';
     return n + '₫';
@@ -647,6 +647,48 @@
     });
   }
 
+  function renderCategoryValueChart(list){
+    destroyChart('categoryValue');
+    const ctx = document.getElementById('chartCategoryValue').getContext('2d');
+    const total = list.reduce((sum, category) => sum + category.stockValue, 0);
+    state.charts.categoryValue = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: list.map(category => category.name),
+        datasets: [{
+          label: 'Giá trị tồn kho',
+          data: list.map(category => category.stockValue),
+          backgroundColor: list.map((category, index) => distColor(index)),
+          borderRadius: 5,
+          maxBarThickness: 58
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: context => 'Giá trị: ' + fmtMoney(context.raw) + ' · ' + (total ? (context.raw / total * 100).toFixed(1) : 0) + '%'
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color:'#ECF1F8', autoSkip:false, minRotation:20, maxRotation:45, font:{size:10.5} },
+            grid: { display:false }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { color:'#7E8CA8', callback: value => fmtMoneyShort(value), font:{size:10.5} },
+            grid: { color:'rgba(255,255,255,0.05)' }
+          }
+        }
+      }
+    });
+  }
+
   function statusPill(status){
     if(status === 'Đã hủy') return '<span class="pill bad">Đã hủy</span>';
     if(status === 'Đang xử lý') return '<span class="pill warn">Đang xử lý</span>';
@@ -687,7 +729,11 @@
         '<tr><td class="name-cell">' + p.name + '<br><span class="mono muted" style="font-size:10.5px;">' + p.code + '</span></td>' +
         '<td class="mono">' + stockPill(p.stock) + '</td><td class="mono muted">' + p.reserved + '</td></tr>'
       ).join('') : '<tr><td colspan="3" class="empty">Không có sản phẩm đã hết hàng</td></tr>';
-      renderDoughnutWithLegend('chartStockDist','stockDist','tagStockDist','stockDistLegend', d.stockDistribution);
+      const categoryValues = d.stockValueByCategory || [];
+      document.getElementById('tagCategoryValue').textContent =
+        (d.kpi.inventoryValueCategoryCount || 0) + ' nhóm · ' + fmtMoneyShort(d.kpi.totalInventoryValue || 0);
+      if(categoryValues.length) renderCategoryValueChart(categoryValues);
+      else destroyChart('categoryValue');
 
       const filteredProducts = state.productStatus === 'all' ? d.allProducts : d.allProducts.filter(p => p.status === state.productStatus);
       document.getElementById('tagAllProducts').textContent = filteredProducts.length;
