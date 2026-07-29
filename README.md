@@ -54,7 +54,10 @@ webtks-dashboard/
 ├── .claspignore                 # Loại trừ docs/, future-phases/ khỏi clasp push
 ├── appsscript.json              # Manifest Apps Script (timezone, oauthScopes)
 │
-├── src/                         # ── GIAI ĐOẠN 1 — Code Apps Script ──
+├── appsscript/                  # ── Apps Script đồng bộ KiotViet → Sheets ──
+│   └── KiotVietExport.gs        # syncAll, doPost (webhook), polling 5 phút
+│
+├── src/                         # ── GIAI ĐOẠN 1 — Code Apps Script (clasp) ──
 │   ├── config/
 │   │   └── Config.gs            # object CONFIG (Client ID/Secret, tên các Sheet)
 │   │
@@ -198,4 +201,4 @@ clasp push
 
 ---
 
-*Cập nhật lần cuối: 2026-07-28*
+*Cập nhật lần cuối: 2026-07-29*
