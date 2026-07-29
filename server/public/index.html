@@ -2,11 +2,21 @@
 <html>
 <head>
 <meta charset="utf-8">
+<script>
+  (function(){
+    try{
+      document.documentElement.dataset.theme = localStorage.getItem('tks-dashboard-theme') === 'light' ? 'light' : 'dark';
+    } catch(err){
+      document.documentElement.dataset.theme = 'dark';
+    }
+  })();
+</script>
 <script src="/vendor/chart.umd.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
   :root{
+    color-scheme:dark;
     --bg:#0B1120;
     --panel:#131C30;
     --panel-2:#0F1728;
@@ -17,18 +27,43 @@
     --blue:#5B9BF0;
     --text:#ECF1F8;
     --muted:#7E8CA8;
+    --surface-hover:rgba(255,255,255,0.03);
+    --row-divider:rgba(255,255,255,0.04);
+    --chart-grid:rgba(255,255,255,0.05);
+    --veil:rgba(11,17,32,0.6);
+    --amber-glow:rgba(240,166,58,0.07);
+    --green-glow:rgba(61,214,140,0.06);
     --sidebar-w:210px;
+  }
+  :root[data-theme="light"]{
+    color-scheme:light;
+    --bg:#F4F7FB;
+    --panel:#FFFFFF;
+    --panel-2:#EAF0F7;
+    --border:#C8D3E1;
+    --green:#168A56;
+    --red:#D43D4A;
+    --blue:#2563EB;
+    --text:#182338;
+    --muted:#5F6F86;
+    --surface-hover:rgba(15,23,42,0.05);
+    --row-divider:rgba(15,23,42,0.08);
+    --chart-grid:rgba(15,23,42,0.10);
+    --veil:rgba(244,247,251,0.72);
+    --amber-glow:rgba(240,166,58,0.11);
+    --green-glow:rgba(22,138,86,0.08);
   }
   *{box-sizing:border-box;}
   body{
     margin:0;
     background:
-      radial-gradient(circle at 15% 0%, rgba(240,166,58,0.07), transparent 45%),
-      radial-gradient(circle at 90% 10%, rgba(61,214,140,0.06), transparent 40%),
+      radial-gradient(circle at 15% 0%, var(--amber-glow), transparent 45%),
+      radial-gradient(circle at 90% 10%, var(--green-glow), transparent 40%),
       var(--bg);
     color:var(--text);
     font-family:'Inter',sans-serif;
     min-height:100vh;
+    transition:color .2s ease, background-color .2s ease;
   }
 
   /* ---------- Header kiểu "hoá đơn giấy" ---------- */
@@ -73,6 +108,18 @@
     display:flex; align-items:center; gap:8px;
   }
   .refresh-btn:disabled{ opacity:.55; }
+  .theme-toggle{
+    min-height:44px; padding:0 12px; display:flex; align-items:center; gap:8px;
+    background:var(--panel-2); color:var(--text); border:1px solid var(--border);
+    border-radius:8px; font-family:'Inter',sans-serif; font-size:12px; font-weight:600; cursor:pointer;
+    transition:border-color .15s ease, background-color .15s ease, color .15s ease;
+  }
+  .theme-toggle:hover{ border-color:var(--muted); background:var(--surface-hover); }
+  .theme-toggle:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+  .theme-toggle svg{ width:18px; height:18px; flex-shrink:0; }
+  .theme-icon-moon{ display:none; }
+  :root[data-theme="light"] .theme-icon-sun{ display:none; }
+  :root[data-theme="light"] .theme-icon-moon{ display:block; }
   .spinning{ animation:spin 0.8s linear infinite; display:inline-block; }
   @keyframes spin{ to{ transform:rotate(360deg); } }
 
@@ -91,7 +138,7 @@
     border-left:3px solid transparent; transition:background .15s ease, color .15s ease;
   }
   .nav-item .ic{ font-size:15px; width:18px; text-align:center; }
-  .nav-item:hover{ background:rgba(255,255,255,0.03); color:var(--text); }
+  .nav-item:hover{ background:var(--surface-hover); color:var(--text); }
   .nav-item.active{
     background:rgba(240,166,58,0.10); color:var(--amber); border-left-color:var(--amber); font-weight:600;
   }
@@ -136,7 +183,7 @@
     color:var(--muted); background:transparent; border:0; border-radius:6px; cursor:pointer;
     transition:color .15s ease, background-color .15s ease;
   }
-  .search-clear:hover{ color:var(--text); background:rgba(255,255,255,.05); }
+  .search-clear:hover{ color:var(--text); background:var(--surface-hover); }
   .search-clear:focus-visible, .search-submit:focus-visible, .suggestion-item:focus-visible, .search-back:focus-visible{
     outline:2px solid var(--blue); outline-offset:2px;
   }
@@ -258,7 +305,7 @@
   thead th[aria-sort="descending"] .sort-button,
   thead th[aria-sort="ascending"] .sort-indicator,
   thead th[aria-sort="descending"] .sort-indicator{ color:var(--amber); }
-  tbody td{ padding:9px 8px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; }
+  tbody td{ padding:9px 8px; border-bottom:1px solid var(--row-divider); vertical-align:middle; }
   tbody tr:last-child td{ border-bottom:none; }
   .mono{ font-family:'JetBrains Mono',monospace; }
   .name-cell{ color:var(--text); font-weight:500; }
@@ -275,7 +322,7 @@
   .placeholder-card b{ color:var(--text); display:block; margin-bottom:6px; font-family:'Sora',sans-serif; font-size:13px; }
 
   .loading-veil{
-    position:fixed; inset:0; background:rgba(11,17,32,0.6); backdrop-filter:blur(2px);
+    position:fixed; inset:0; background:var(--veil); backdrop-filter:blur(2px);
     display:flex; align-items:center; justify-content:center; z-index:50;
     font-family:'JetBrains Mono',monospace; color:var(--amber); font-size:13px;
     opacity:0; pointer-events:none; transition:opacity .2s ease;
@@ -342,6 +389,11 @@
     </div>
     <div class="status-line">
       <div class="clock"><span class="dot"></span><span id="updatedAt">Đang tải...</span></div>
+      <button class="theme-toggle" id="themeToggle" type="button" onclick="toggleTheme()" aria-label="Chuyển sang giao diện sáng" aria-pressed="false" title="Chuyển sang giao diện sáng">
+        <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"></path></svg>
+        <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path></svg>
+        <span id="themeLabel">Chế độ sáng</span>
+      </button>
       <button class="refresh-btn" id="refreshBtn" onclick="loadData(state.days, true)">
         <span id="refreshIcon">⟳</span> Làm mới
       </button>
@@ -690,6 +742,36 @@
       controller: null
     }
   };
+  const THEME_STORAGE_KEY = 'tks-dashboard-theme';
+
+  function themeColor(name){
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function chartTheme(){
+    return {
+      text:themeColor('--text'), muted:themeColor('--muted'), panel:themeColor('--panel'),
+      grid:themeColor('--chart-grid'), amber:themeColor('--amber')
+    };
+  }
+
+  function syncThemeControl(){
+    const isLight = document.documentElement.dataset.theme === 'light';
+    const action = isLight ? 'Chuyển sang giao diện tối' : 'Chuyển sang giao diện sáng';
+    const button = document.getElementById('themeToggle');
+    button.setAttribute('aria-label', action);
+    button.setAttribute('aria-pressed', String(isLight));
+    button.title = action;
+    document.getElementById('themeLabel').textContent = isLight ? 'Chế độ tối' : 'Chế độ sáng';
+  }
+
+  function toggleTheme(){
+    const nextTheme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = nextTheme;
+    try{ localStorage.setItem(THEME_STORAGE_KEY, nextTheme); } catch(err){}
+    syncThemeControl();
+    if(state.data) renderView(state.view);
+  }
 
   function fmtMoney(n){ n = Number(n) || 0; return n.toLocaleString('vi-VN') + '₫'; }
   function fmtMoneyShort(n){
@@ -1115,6 +1197,7 @@
   function renderRevenueChart(canvasId, key, revenueByDay){
     destroyChart(key);
     const ctx = document.getElementById(canvasId).getContext('2d');
+    const theme = chartTheme();
     state.charts[key] = new Chart(ctx, {
       type: 'line',
       data: {
@@ -1123,7 +1206,7 @@
           label: 'Doanh thu',
           data: revenueByDay.map(d => d.revenue),
           backgroundColor: 'rgba(240,166,58,0.35)',
-          borderColor: '#F0A63A',
+          borderColor: theme.amber,
           borderWidth: 2,
           borderRadius: 3,
           fill: true,
@@ -1138,8 +1221,8 @@
           tooltip: { callbacks: { label: c => fmtMoney(c.raw) } }
         },
         scales: {
-          x: { ticks: { color: '#7E8CA8', maxTicksLimit: 10, font:{size:10.5} }, grid: { display:false } },
-          y: { ticks: { color: '#7E8CA8', stepSize: 500000000, callback: v => fmtMoneyShort(v), font:{size:10.5} }, grid: { color:'rgba(255,255,255,0.05)' } }
+          x: { ticks: { color: theme.muted, maxTicksLimit: 10, font:{size:10.5} }, grid: { display:false } },
+          y: { ticks: { color: theme.muted, stepSize: 500000000, callback: v => fmtMoneyShort(v), font:{size:10.5} }, grid: { color:theme.grid } }
         }
       }
     });
@@ -1159,13 +1242,14 @@
   function renderDoughnutWithLegend(canvasId, key, tagId, legendId, dist){
     destroyChart(key);
     const ctx = document.getElementById(canvasId).getContext('2d');
+    const theme = chartTheme();
     const colors = dist.map((d, i) => distColor(i));
     const total = dist.reduce((s, d) => s + d.value, 0);
     state.charts[key] = new Chart(ctx, {
       type: 'doughnut',
       data: {
         labels: dist.map(d => d.label),
-        datasets: [{ data: dist.map(d => d.value), backgroundColor: colors, borderColor:'#131C30', borderWidth:2 }]
+        datasets: [{ data: dist.map(d => d.value), backgroundColor: colors, borderColor:theme.panel, borderWidth:2 }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
@@ -1188,6 +1272,7 @@
   function renderBarChartList(canvasId, key, list, labelFn, valueFn, color){
     destroyChart(key);
     const ctx = document.getElementById(canvasId).getContext('2d');
+    const theme = chartTheme();
     state.charts[key] = new Chart(ctx, {
       type: 'bar',
       data: {
@@ -1198,8 +1283,8 @@
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
         plugins: { legend:{display:false}, tooltip:{ callbacks:{ label: c => fmtMoney(c.raw) } } },
         scales: {
-          x: { ticks:{ color:'#7E8CA8', callback: v => fmtMoneyShort(v), font:{size:10.5} }, grid:{ color:'rgba(255,255,255,0.05)' } },
-          y: { ticks:{ color:'#ECF1F8', font:{size:11} }, grid:{ display:false } }
+          x: { ticks:{ color:theme.muted, callback: v => fmtMoneyShort(v), font:{size:10.5} }, grid:{ color:theme.grid } },
+          y: { ticks:{ color:theme.text, font:{size:11} }, grid:{ display:false } }
         }
       }
     });
@@ -1209,6 +1294,7 @@
     destroyChart('categoryValue');
     const ctx = document.getElementById('chartCategoryValue').getContext('2d');
     const total = list.reduce((sum, category) => sum + category.stockValue, 0);
+    const theme = chartTheme();
     state.charts.categoryValue = new Chart(ctx, {
       type: 'bar',
       data: {
@@ -1234,13 +1320,13 @@
         },
         scales: {
           x: {
-            ticks: { color:'#ECF1F8', autoSkip:false, maxTicksLimit:30, minRotation:20, maxRotation:45, font:{size:10.5} },
+            ticks: { color:theme.text, autoSkip:false, maxTicksLimit:30, minRotation:20, maxRotation:45, font:{size:10.5} },
             grid: { display:false }
           },
           y: {
             beginAtZero: true,
-            ticks: { color:'#7E8CA8', callback: value => fmtMoneyShort(value), font:{size:10.5} },
-            grid: { color:'rgba(255,255,255,0.05)' }
+            ticks: { color:theme.muted, callback: value => fmtMoneyShort(value), font:{size:10.5} },
+            grid: { color:theme.grid }
           }
         }
       }
@@ -1304,7 +1390,7 @@
       ).join('') : '<tr><td colspan="5" class="empty">Không có dữ liệu</td></tr>';
 
       document.getElementById('tagTopSelling').textContent = d.topSellingProducts.length;
-      if(d.topSellingProducts.length) renderBarChartList('chartTopSelling','topSelling',d.topSellingProducts,p=>p.name,p=>p.revenue,'#3DD68C');
+      if(d.topSellingProducts.length) renderBarChartList('chartTopSelling','topSelling',d.topSellingProducts,p=>p.name,p=>p.revenue,themeColor('--green'));
       else destroyChart('topSelling');
       const topSellingRows = document.getElementById('topSellingRows');
       topSellingRows.innerHTML = d.topSellingProducts.length ? d.topSellingProducts.map(p =>
@@ -1359,7 +1445,7 @@
         '<tr><td class="mono muted">' + c.code + '</td><td class="name-cell">' + c.name + '</td>' +
         '<td class="mono muted">' + (c.phone || '—') + '</td><td class="mono" data-sort-value="' + c.debt + '" style="color:var(--red);">' + fmtMoney(c.debt) + '</td></tr>'
       ).join('') : '<tr><td colspan="4" class="empty">Không có khách hàng nợ</td></tr>';
-      if(d.topDebt.length) renderBarChartList('chartDebt','debt',d.topDebt,c=>c.name,c=>c.debt,'#F1616A'); else destroyChart('debt');
+      if(d.topDebt.length) renderBarChartList('chartDebt','debt',d.topDebt,c=>c.name,c=>c.debt,themeColor('--red')); else destroyChart('debt');
     }
     else if(view === 'suppliers'){
       document.getElementById('sp-total').textContent = d.kpi.totalSuppliers;
@@ -1368,7 +1454,7 @@
       document.getElementById('sp-totalpurchase').textContent = fmtMoney(d.kpi.totalPurchaseSpend);
 
       const topSupplierDebt = d.suppliers.filter(s => s.debt > 0).slice(0, 8);
-      if(topSupplierDebt.length) renderBarChartList('chartSupplierDebt','supplierDebt',topSupplierDebt,s=>s.name,s=>s.debt,'#F1616A');
+      if(topSupplierDebt.length) renderBarChartList('chartSupplierDebt','supplierDebt',topSupplierDebt,s=>s.name,s=>s.debt,themeColor('--red'));
       else destroyChart('supplierDebt');
 
       document.getElementById('tagSuppliers').textContent = d.suppliers.length;
@@ -1426,6 +1512,7 @@
       });
   }
 
+  syncThemeControl();
   initSortableTables();
   updateSearchContext();
   loadData(state.days, true);

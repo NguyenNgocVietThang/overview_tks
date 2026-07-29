@@ -89,7 +89,7 @@ webtks-dashboard/
 │   │   └── Helpers.gs           # getCodeRowMap, formatLastRowNumbers, formatDate
 │   │
 │   └── ui/
-│       └── Dashboard.html       # Giao diện Web App (Chart.js, dark theme)
+│       └── Dashboard.html       # Giao diện Web App (Chart.js, dark/light mode)
 │
 ├── docs/
 │   ├── 01-business/
