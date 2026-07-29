@@ -9,15 +9,45 @@ const LOW_STOCK_THRESHOLD = 5;
 const CATEGORY_STOCK_TOP = 15;
 const TOP_SELLING_LIMIT = 10;
 const PENDING_ORDER_STATUSES = new Set(['Phiếu tạm', 'Đang xử lý', 'Đã xác nhận']);
+const DASHBOARD_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+const DASHBOARD_UTC_OFFSET = '+07:00';
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-GB', {
+  timeZone: DASHBOARD_TIME_ZONE,
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23'
+});
+
+function getDashboardDateParts(date) {
+  return Object.fromEntries(
+    DATE_TIME_FORMATTER.formatToParts(date)
+      .filter(part => part.type !== 'literal')
+      .map(part => [part.type, part.value])
+  );
+}
 
 function formatDMY(date) {
-  const pad = n => String(n).padStart(2, '0');
-  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
+  const { day, month, year } = getDashboardDateParts(date);
+  return `${day}/${month}/${year}`;
 }
 
 function formatDMYHMS(date) {
-  const pad = n => String(n).padStart(2, '0');
-  return `${formatDMY(date)} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  const { day, month, year, hour, minute, second } = getDashboardDateParts(date);
+  return `${day}/${month}/${year} ${hour}:${minute}:${second}`;
+}
+
+function parseDashboardWallTime(yyyy, MM, dd, hh = '0', mi = '0', ss = '0') {
+  const pad = value => String(value).padStart(2, '0');
+  const expected = `${pad(dd)}/${pad(MM)}/${yyyy} ${pad(hh)}:${pad(mi)}:${pad(ss)}`;
+  const iso = `${yyyy}-${pad(MM)}-${pad(dd)}T${pad(hh)}:${pad(mi)}:${pad(ss)}${DASHBOARD_UTC_OFFSET}`;
+  const date = new Date(iso);
+  return !isNaN(date.getTime()) && formatDMYHMS(date) === expected ? date : null;
 }
 
 /**
@@ -29,9 +59,16 @@ function parseSheetDate(raw) {
   if (raw === undefined || raw === null || raw === '') return null;
 
   if (typeof raw === 'number') {
-    const ms = Math.round((raw - 25569) * 86400 * 1000);
-    const d = new Date(ms);
-    return isNaN(d.getTime()) ? null : d;
+    const wallTime = new Date(Math.round((raw - 25569) * DAY_MS));
+    if (isNaN(wallTime.getTime())) return null;
+    return parseDashboardWallTime(
+      wallTime.getUTCFullYear(),
+      wallTime.getUTCMonth() + 1,
+      wallTime.getUTCDate(),
+      wallTime.getUTCHours(),
+      wallTime.getUTCMinutes(),
+      wallTime.getUTCSeconds()
+    );
   }
 
   const str = String(raw).trim();
@@ -40,19 +77,25 @@ function parseSheetDate(raw) {
   const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
   if (m) {
     const [, dd, MM, yyyy, hh = '0', mi = '0', ss = '0'] = m;
-    const d = new Date(Number(yyyy), Number(MM) - 1, Number(dd), Number(hh), Number(mi), Number(ss));
-    if (!isNaN(d.getTime()) && d.getFullYear() > 1990) return d;
+    if (Number(yyyy) > 1990) return parseDashboardWallTime(yyyy, MM, dd, hh, mi, ss);
+  }
+
+  // Chuoi ISO khong kem offset cung la gio Viet Nam tu Google Sheets.
+  const isoLocal = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (isoLocal) {
+    const [, yyyy, MM, dd, hh = '0', mi = '0', ss = '0'] = isoLocal;
+    if (Number(yyyy) > 1990) return parseDashboardWallTime(yyyy, MM, dd, hh, mi, ss);
   }
 
   const d2 = new Date(str);
-  if (!isNaN(d2.getTime()) && d2.getFullYear() > 1990 && d2.getFullYear() < 2100) return d2;
+  const dashboardYear = !isNaN(d2.getTime()) ? Number(getDashboardDateParts(d2).year) : 0;
+  if (dashboardYear > 1990 && dashboardYear < 2100) return d2;
 
   return null;
 }
 
 function dmyKey(date) {
-  const pad = n => String(n).padStart(2, '0');
-  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
+  return formatDMY(date);
 }
 
 function stripSortKey(list) {
@@ -77,7 +120,8 @@ const SHEET_NAMES = [
  */
 async function getDashboardData(days) {
   days = Number(days) || 30;
-  const todayStr = formatDMY(new Date());
+  const now = new Date();
+  const todayStr = formatDMY(now);
 
   const sheets = await sheetsClient.getMultipleSheetValues(SHEET_NAMES);
   const prodData = sheets[CONFIG.SHEET_PRODUCTS];
@@ -150,8 +194,7 @@ async function getDashboardData(days) {
   const dayBuckets = {};
   const dayOrder = [];
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
+    const d = new Date(now.getTime() - i * DAY_MS);
     const key = formatDMY(d);
     dayBuckets[key] = { revenue: 0, count: 0 };
     dayOrder.push(key);
@@ -312,7 +355,7 @@ async function getDashboardData(days) {
   recentPurchaseOrders = stripSortKey(recentPurchaseOrders.slice(0, 8));
 
   return {
-    updatedAt: formatDMYHMS(new Date()),
+    updatedAt: formatDMYHMS(now),
     days,
     kpi: {
       revenueToday,
