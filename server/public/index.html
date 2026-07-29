@@ -1325,7 +1325,7 @@
         responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: c => c.label + ': ' + c.raw.toLocaleString('vi-VN') + ' (' + (total ? (c.raw/total*100).toFixed(1) : 0) + '%)' } }
+          tooltip: { callbacks: { label: c => c.label + ': ' + c.raw.toLocaleString('vi-VN') + ' (' + (total ? (c.raw/total*100).toFixed(2) : (0).toFixed(2)) + '%)' } }
         }
       }
     });
@@ -1335,7 +1335,7 @@
     legend.innerHTML = dist.map((d, i) =>
       '<div class="legend-row"><span class="dot" style="background:' + colors[i] + ';"></span>' +
       '<span class="lbl" title="' + d.label + '">' + d.label + '</span>' +
-      '<span class="val">' + (total ? (d.value/total*100).toFixed(1) : 0) + '%</span></div>'
+      '<span class="val">' + (total ? (d.value/total*100).toFixed(2) : (0).toFixed(2)) + '%</span></div>'
     ).join('');
   }
 
@@ -1384,7 +1384,7 @@
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: context => 'Giá trị: ' + fmtMoney(context.raw) + ' · ' + (total ? (context.raw / total * 100).toFixed(1) : 0) + '%'
+              label: context => 'Giá trị: ' + fmtMoney(context.raw) + ' · ' + (total ? (context.raw / total * 100).toFixed(2) : (0).toFixed(2)) + '%'
             }
           }
         },
