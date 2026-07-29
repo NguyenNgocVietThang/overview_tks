@@ -178,6 +178,13 @@ function upsertRow_(sheetName, headers, code, rowValues) {
     sheet = ss.insertSheet(sheetName);
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
     sheet.setFrozenRows(1);
+  } else {
+    const currentHeaders = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+    const headersChanged = headers.some((header, index) => String(currentHeaders[index] || '') !== String(header));
+    if (headersChanged) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+      sheet.setFrozenRows(1);
+    }
   }
   const lastRow = sheet.getLastRow();
   if (lastRow > 1) {
@@ -234,7 +241,7 @@ function syncProducts_() {
   const products = kvFetchAllPages_('products', '&includeInventory=true');
   const headers = [
     'Mã hàng', 'Tên hàng', 'Nhóm hàng', 'Thương hiệu', 'Loại',
-    'Giá vốn', 'Giá bán', 'Tồn kho', 'Khách đặt', 'Trạng thái kinh doanh', 'Ngày sửa cuối'
+    'Giá vốn', 'Giá bán', 'Tồn kho', 'Khách đặt', 'Trạng thái kinh doanh', 'Ngày sửa cuối', 'Mã nhóm hàng'
   ];
   const rows = products.map(p => {
     const tonKho = p.inventories ? p.inventories.reduce((s, i) => s + (i.onHand || 0), 0) : (p.totalOnHand || 0);
@@ -245,7 +252,7 @@ function syncProducts_() {
       p.basePrice ? p.basePrice : (p.cost || 0),
       p.basePrice || 0, tonKho, khachDat,
       p.isActive === false ? 'Ngừng kinh doanh' : 'Đang kinh doanh',
-      fmtDate_(p.modifiedDate || p.createdDate)
+      fmtDate_(p.modifiedDate || p.createdDate), p.categoryId || ''
     ];
   });
   writeSheet_('Hàng hóa', headers, rows);
@@ -374,7 +381,7 @@ function doPost(e) {
 function upsertProductFromWebhook_(p) {
   const code = p.Code || p.code || p.ProductCode;
   if (!code) return;
-  const headers = ['Mã hàng', 'Tên hàng', 'Nhóm hàng', 'Thương hiệu', 'Loại', 'Giá vốn', 'Giá bán', 'Tồn kho', 'Khách đặt', 'Trạng thái kinh doanh', 'Ngày sửa cuối'];
+  const headers = ['Mã hàng', 'Tên hàng', 'Nhóm hàng', 'Thương hiệu', 'Loại', 'Giá vốn', 'Giá bán', 'Tồn kho', 'Khách đặt', 'Trạng thái kinh doanh', 'Ngày sửa cuối', 'Mã nhóm hàng'];
   const inventories = p.Inventories || p.inventories || [];
   const tonKho = inventories.length ? inventories.reduce((s, i) => s + (i.OnHand || i.onHand || 0), 0) : (p.OnHand !== undefined ? p.OnHand : (p.onHand || 0));
   const khachDat = inventories.length ? inventories.reduce((s, i) => s + (i.Reserved || i.reserved || 0), 0) : (p.Reserved !== undefined ? p.Reserved : (p.reserved || 0));
@@ -385,7 +392,8 @@ function upsertProductFromWebhook_(p) {
     p.Cost !== undefined ? p.Cost : (p.cost || 0), p.BasePrice !== undefined ? p.BasePrice : (p.basePrice || 0),
     tonKho, khachDat,
     isActive === false ? 'Ngừng kinh doanh' : 'Đang kinh doanh',
-    fmtDate_(p.ModifiedDate || p.modifiedDate || new Date())
+    fmtDate_(p.ModifiedDate || p.modifiedDate || new Date()),
+    p.CategoryId !== undefined ? p.CategoryId : (p.categoryId || '')
   ];
   upsertRow_('Hàng hóa', headers, code, row);
 }

@@ -40,7 +40,7 @@ Sơ đồ sử dụng 1 bể (Pool) "Hệ thống Dashboard TOKOSI" với 5 làn
 |----------------------------|---------------------------------------------------------------------------------------------------------------------------------|
 | KiotViet POS               | Phần mềm quản lý bán hàng: phát sinh thay đổi dữ liệu, gửi webhook POST JSON đến Apps Script Web App URL.                       |
 | Apps Script                | `KiotVietExport.gs` chạy trong Google Workspace: nhận webhook từ KiotViet, chạy lịch polling 5 phút, đồng bộ vào Google Sheets. |
-| Google Sheets              | Spreadsheet nguồn chứa 9 tab đồng bộ; 8 tab là đầu vào trực tiếp của dashboard.                                                 |
+| Google Sheets              | Spreadsheet nguồn chứa 9 tab đồng bộ; cả 9 tab là đầu vào trực tiếp của dashboard.                                             |
 | Backend (Node.js/Express)  | Server trên Render.com: liệt kê tab, lọc tab hiện có, gọi `batchGet`, tính KPI theo giờ Việt Nam và trả JSON.                  |
 | Người dùng / Frontend      | Truy cập `tokosi.onrender.com`: xem Dashboard, lọc thời gian, làm mới thủ công/tự động và nhận tải bù khi quay lại tab.         |
 
@@ -135,7 +135,7 @@ Luồng này xảy ra mỗi khi người dùng truy cập hoặc tương tác v�
          |
 [B2] ▭ Backend nhận request, gọi Google Sheets API:
      - spreadsheets.get(fields=sheets.properties.title) để liệt kê tab
-     - lọc 8 tab dữ liệu kỳ vọng theo danh sách tab thực tế
+     - lọc 9 tab dữ liệu kỳ vọng theo danh sách tab thực tế
      - values.batchGet cho các tab đang tồn tại
          |
 [B3] ◇ Cổng quyết định: Google Sheets API có trả dữ liệu thành công?
@@ -204,11 +204,11 @@ Luồng này xảy ra mỗi khi người dùng truy cập hoặc tương tác v�
 |----------|----------------|-----------------------------------------------------------------------------------------------------|---------------------|
 | B0       | Người dùng     | Sự kiện bắt đầu: mở URL `tokosi.onrender.com`.                                                      | —                   |
 | B1       | Frontend       | Tự động gọi API khi page load xong, mặc định days=30.                                               | FR-04.1             |
-| B2       | Backend        | Liệt kê tab, lọc 8 tab dữ liệu kỳ vọng rồi `batchGet` các tab đang tồn tại.                         | FR-01.1             |
+| B2       | Backend        | Liệt kê tab, lọc 9 tab dữ liệu kỳ vọng rồi `batchGet` các tab đang tồn tại.                         | FR-01.1             |
 | B3       | Backend        | Kiểm tra kết quả từ Google Sheets API.                                                              | FR-01.4             |
 | B3-No    | Backend        | Trả 500 kèm chi tiết lỗi; frontend hiển thị thông báo.                                              | FR-01.4, FR-05.3    |
 | B3a      | Backend        | Dùng mảng rỗng cho tab thiếu/đổi tên, giữ dữ liệu của các tab còn lại.                              | FR-01.5             |
-| B4       | Backend        | Tính KPI, biểu đồ và bảng từ 8 tab dữ liệu; ngày giờ theo Asia/Ho_Chi_Minh.                         | FR-02.x, FR-03.x    |
+| B4       | Backend        | Tính KPI, biểu đồ và bảng từ 9 tab dữ liệu; ngày giờ theo Asia/Ho_Chi_Minh.                         | FR-02.x, FR-03.x    |
 | B5       | Backend        | Trả HTTP 200 JSON.                                                                                  | API spec mục 6.1    |
 | B6       | Frontend       | Render giao diện: KPI cards, biểu đồ, bảng chi tiết, timestamp giờ Việt Nam.                        | FR-07.x             |
 | B7       | —              | Dashboard sẵn sàng.                                                                                 | —                   |

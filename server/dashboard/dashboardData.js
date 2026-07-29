@@ -6,7 +6,6 @@ const CONFIG = require('../config');
 const sheetsClient = require('../sheets/sheetsClient');
 
 const OUT_OF_STOCK_LEVEL = 0;
-const CATEGORY_STOCK_TOP = 15;
 const TOP_SELLING_LIMIT = 10;
 const PENDING_ORDER_STATUSES = new Set(['Phiếu tạm', 'Đang xử lý', 'Đã xác nhận']);
 const DASHBOARD_TIME_ZONE = 'Asia/Ho_Chi_Minh';
@@ -102,7 +101,60 @@ function stripSortKey(list) {
   return list.map(({ _sortTime, ...rest }) => rest);
 }
 
+function normalizeCategoryName(value) {
+  return String(value || '').trim().toLocaleLowerCase('vi-VN');
+}
+
+function buildParentCategoryResolver(categoryData) {
+  const categoriesById = new Map();
+  const categoriesByName = new Map();
+
+  for (let r = 1; r < categoryData.length; r++) {
+    const row = categoryData[r];
+    const id = String(row[0] || '').trim();
+    const name = String(row[1] || '').trim();
+    const parentId = String(row[2] || '').trim();
+    if (!id || !name) continue;
+    const category = { id, name, parentId };
+    categoriesById.set(id, category);
+    const normalizedName = normalizeCategoryName(name);
+    if (!categoriesByName.has(normalizedName)) categoriesByName.set(normalizedName, []);
+    categoriesByName.get(normalizedName).push(category);
+  }
+
+  const rootCache = new Map();
+  function findRoot(category) {
+    if (rootCache.has(category.id)) return rootCache.get(category.id);
+    const visited = new Set();
+    let current = category;
+    while (current.parentId && !visited.has(current.id)) {
+      visited.add(current.id);
+      const parent = categoriesById.get(current.parentId);
+      if (!parent) break;
+      current = parent;
+    }
+    rootCache.set(category.id, current);
+    return current;
+  }
+
+  return function resolveParentCategory(categoryName, categoryId) {
+    const id = String(categoryId || '').trim();
+    const candidates = id && categoriesById.has(id)
+      ? [categoriesById.get(id)]
+      : (categoriesByName.get(normalizeCategoryName(categoryName)) || []);
+    if (!candidates.length) return 'Chưa xác định';
+
+    const roots = new Map();
+    candidates.forEach(category => {
+      const root = findRoot(category);
+      roots.set(root.id, root);
+    });
+    return roots.size === 1 ? roots.values().next().value.name : 'Chưa xác định';
+  };
+}
+
 const SHEET_NAMES = [
+  CONFIG.SHEET_CATEGORIES,
   CONFIG.SHEET_PRODUCTS,
   CONFIG.SHEET_INVOICES,
   CONFIG.SHEET_INVOICE_DETAILS,
@@ -124,6 +176,7 @@ async function getDashboardData(days) {
   const todayStr = formatDMY(now);
 
   const sheets = await sheetsClient.getMultipleSheetValues(SHEET_NAMES);
+  const categoryData = sheets[CONFIG.SHEET_CATEGORIES];
   const prodData = sheets[CONFIG.SHEET_PRODUCTS];
   const invData = sheets[CONFIG.SHEET_INVOICES];
   const detailData = sheets[CONFIG.SHEET_INVOICE_DETAILS];
@@ -134,10 +187,13 @@ async function getDashboardData(days) {
   const poData = sheets[CONFIG.SHEET_PURCHASES];
 
   // ---------- HÀNG HÓA ----------
-  // Cột: [0]Mã hàng [1]Tên hàng [2]Nhóm hàng [3]Thương hiệu [4]Loại [5]Giá vốn [6]Giá bán [7]Tồn kho [8]Khách đặt [9]Trạng thái kinh doanh [10]Ngày sửa cuối
+  // Cột: [0]Mã hàng [1]Tên hàng [2]Nhóm hàng [3]Thương hiệu [4]Loại [5]Giá vốn [6]Giá bán [7]Tồn kho [8]Khách đặt [9]Trạng thái kinh doanh [10]Ngày sửa cuối [11]Mã nhóm hàng
   let totalProducts = 0, totalStock = 0, inStockCodes = 0, activeProducts = 0, inactiveProducts = 0, lowStock = [];
   let stockList = [];
-  const categoryMap = {};
+  const parentCategoryMap = {};
+  const resolveParentCategory = buildParentCategoryResolver(categoryData);
+  const productHeaders = prodData[0] || [];
+  const productCategoryIdIndex = productHeaders.findIndex(header => String(header || '').trim() === 'Mã nhóm hàng');
 
   for (let r = 1; r < prodData.length; r++) {
     const row = prodData[r];
@@ -157,11 +213,15 @@ async function getDashboardData(days) {
       lowStock.push({ code, name: row[1], stock: ton, reserved, status });
     }
 
-    const catName = (row[2] && String(row[2]).trim()) || 'Chưa phân nhóm';
-    if (!categoryMap[catName]) categoryMap[catName] = { name: catName, stock: 0, stockValue: 0, productCount: 0 };
-    categoryMap[catName].stock += ton;
-    categoryMap[catName].stockValue += stockValue;
-    categoryMap[catName].productCount += 1;
+    const categoryName = (row[2] && String(row[2]).trim()) || '';
+    const categoryId = productCategoryIdIndex >= 0 ? row[productCategoryIdIndex] : '';
+    const parentCategoryName = resolveParentCategory(categoryName, categoryId);
+    if (!parentCategoryMap[parentCategoryName]) {
+      parentCategoryMap[parentCategoryName] = { name: parentCategoryName, stock: 0, stockValue: 0, productCount: 0 };
+    }
+    parentCategoryMap[parentCategoryName].stock += Math.max(ton, 0);
+    parentCategoryMap[parentCategoryName].stockValue += stockValue;
+    parentCategoryMap[parentCategoryName].productCount += 1;
   }
   lowStock.sort((a, b) => a.stock - b.stock);
 
@@ -176,28 +236,11 @@ async function getDashboardData(days) {
     pct: totalStock > 0 ? (p.stock / totalStock) * 100 : 0
   }));
 
-  const categoryList = Object.values(categoryMap);
-  let stockByCategory = categoryList.slice().sort((a, b) => b.stock - a.stock);
-  const restCategoryCount = stockByCategory.length - CATEGORY_STOCK_TOP;
-  const restCategoryStock = stockByCategory.slice(CATEGORY_STOCK_TOP).reduce((s, c) => s + c.stock, 0);
-  stockByCategory = stockByCategory.slice(0, CATEGORY_STOCK_TOP);
-  if (restCategoryCount > 0 && restCategoryStock > 0) {
-    stockByCategory.push({ name: 'Khác (' + restCategoryCount + ' nhóm)', stock: restCategoryStock, productCount: 0 });
-  }
-
-  let stockValueByCategory = categoryList.filter(c => c.stockValue > 0).sort((a, b) => b.stockValue - a.stockValue);
+  const categoryList = Object.values(parentCategoryMap);
+  const stockByCategory = categoryList.filter(category => category.stock > 0).sort((a, b) => b.stock - a.stock);
+  const stockValueByCategory = categoryList.filter(category => category.stockValue > 0).sort((a, b) => b.stockValue - a.stockValue);
   const inventoryValueCategoryCount = stockValueByCategory.length;
   const totalInventoryValue = stockValueByCategory.reduce((sum, category) => sum + category.stockValue, 0);
-  const restValueCategories = stockValueByCategory.slice(CATEGORY_STOCK_TOP);
-  stockValueByCategory = stockValueByCategory.slice(0, CATEGORY_STOCK_TOP);
-  if (restValueCategories.length > 0) {
-    stockValueByCategory.push({
-      name: 'Khác (' + restValueCategories.length + ' nhóm)',
-      stockValue: restValueCategories.reduce((sum, category) => sum + category.stockValue, 0),
-      stock: restValueCategories.reduce((sum, category) => sum + category.stock, 0),
-      productCount: restValueCategories.reduce((sum, category) => sum + category.productCount, 0)
-    });
-  }
 
   // ---------- HÓA ĐƠN ----------
   // Cột: [0]Mã hóa đơn [1]Ngày bán [2]Khách hàng [3]SĐT khách [4]Nhân viên bán [5]Chi nhánh [6]Tổng tiền hàng [7]Giảm giá [8]Khách đã trả [9]Trạng thái

@@ -13,7 +13,7 @@
 | Tài liệu liên quan | BRD v1.2 — Hệ thống Dashboard nội bộ TOKOSI               |
 | Trạng thái         | Đang vận hành (Giai đoạn 1 đã triển khai)                 |
 
-> **Ghi chú phiên bản 1.2:** Đồng bộ đặc tả với các thay đổi đang vận hành: đọc an toàn khi thiếu/đổi tên tab Google Sheets, mở rộng `/api/debug` để liệt kê tab thực tế, tự làm mới frontend mỗi 10 phút và khi tab trình duyệt hiển thị trở lại, chuẩn hóa parse/tính toán/hiển thị ngày giờ theo Asia/Ho_Chi_Minh, đồng thời phân biệt 9 tab được Apps Script đồng bộ với 8 tab backend dashboard sử dụng.
+> **Ghi chú phiên bản 1.2:** Đồng bộ đặc tả với các thay đổi đang vận hành: đọc an toàn khi thiếu/đổi tên tab Google Sheets, mở rộng `/api/debug` để liệt kê tab thực tế, tự làm mới frontend mỗi 10 phút và khi tab trình duyệt hiển thị trở lại, chuẩn hóa ngày giờ theo Asia/Ho_Chi_Minh, đồng thời đọc tab Nhóm hàng để gom tồn kho theo nhóm cha.
 
 # 1. Giới thiệu
 
@@ -27,7 +27,7 @@ Hệ thống là một Web Application nội bộ gồm 2 thành phần chính:
 
 1. **Apps Script (`KiotVietExport.gs`):** chạy trong Google Workspace, đồng bộ dữ liệu từ KiotViet Public API vào 9 tab của một Google Spreadsheet (qua webhook KiotViet real-time + polling 5 phút).
 
-2. **Web Server (Node.js/Express + HTML frontend):** đọc 8 tab dữ liệu dashboard trong tổng số 9 tab từ Google Spreadsheet qua Google Sheets API (Service Account), tính toán KPI và dữ liệu biểu đồ, trả về cho frontend qua REST API. Frontend hiển thị Dashboard tương tác trên trình duyệt.
+2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu từ Google Spreadsheet qua Google Sheets API (Service Account), tính toán KPI và dữ liệu biểu đồ, trả về cho frontend qua REST API. Frontend hiển thị Dashboard tương tác trên trình duyệt.
 
 ## 1.3. Định nghĩa & thuật ngữ
 
@@ -63,7 +63,7 @@ Apps Script (KiotVietExport.gs) — Web App URL
     | upsertRow / replaceRows           | time-based trigger (5 phút)
     | (real-time cho 6 nhóm)            | (Trả hàng + NCC + Nhập hàng)
     v                                   v
-Google Spreadsheet (9 tab đồng bộ; dashboard dùng 8 tab dữ liệu)
+Google Spreadsheet (9 tab đồng bộ và được dashboard sử dụng)
     |
     | Google Sheets API v4 — list tab → lọc tab hiện có → batchGet (Service Account)
     v
@@ -124,7 +124,7 @@ Người dùng (trình duyệt) — tokosi.onrender.com
 
 ## 2.4. Giả định & phụ thuộc
 
-- Apps Script `KiotVietExport.gs` duy trì schema cố định (tên tab, thứ tự cột) cho 9 tab; backend dashboard sử dụng 8 tab, không đọc trực tiếp tab Nhóm hàng.
+- Apps Script `KiotVietExport.gs` duy trì schema cố định (tên tab, thứ tự cột) cho 9 tab; backend dùng tab Nhóm hàng để ánh xạ nhóm con về nhóm cha.
 - Service Account đã được share quyền Viewer trên Spreadsheet nguồn.
 - KiotViet webhook đang active và trỏ đúng Web App URL của Apps Script.
 - Render.com có biến môi trường `SPREADSHEET_ID` và `GOOGLE_SERVICE_ACCOUNT_JSON` đúng.
@@ -146,7 +146,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 
 | **Mã**  | **Mô tả**                                                                                                                        | **Ưu tiên** | **Trạng thái** |
 |---------|----------------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
-| FR-01.1 | Backend gọi `spreadsheets.get` để lấy tên tab, lọc 8 tab dữ liệu kỳ vọng rồi đọc các tab đang tồn tại bằng một `batchGet`.        | Cao         | Hoàn thành     |
+| FR-01.1 | Backend gọi `spreadsheets.get` để lấy tên tab, lọc 9 tab dữ liệu kỳ vọng rồi đọc các tab đang tồn tại bằng một `batchGet`.        | Cao         | Hoàn thành     |
 | FR-01.2 | Xác thực với Google bằng Service Account JSON (không yêu cầu OAuth người dùng).                                                   | Cao         | Hoàn thành     |
 | FR-01.3 | `SPREADSHEET_ID` và `GOOGLE_SERVICE_ACCOUNT_JSON` đọc từ biến môi trường, không hard-code trong code.                            | Cao         | Hoàn thành     |
 | FR-01.4 | Nếu gọi API thất bại (timeout, 403, 500...), hệ thống trả HTTP 500 kèm thông tin lỗi chi tiết (message, Google API status).      | Cao         | Hoàn thành     |
@@ -173,8 +173,8 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-03.1 | Tạo mảng `revenueByDay`: mỗi phần tử là 1 ngày trong kỳ lọc với tổng doanh thu và số hóa đơn hoàn thành của ngày đó.                              | Cao         | Hoàn thành     |
 | FR-03.2 | Tạo danh sách `topSellingProducts` (top 10 sản phẩm bán chạy nhất theo doanh thu từ Chi tiết hóa đơn, loại trừ hóa đơn đã hủy).                   | Cao         | Hoàn thành     |
 | FR-03.3 | Tạo danh sách `lowStock`: sản phẩm có tồn kho = 0.                                                                                           | Cao         | Hoàn thành     |
-| FR-03.4 | Tạo `stockByCategory`: phân bổ tồn kho theo nhóm hàng, top 15 nhóm + nhóm "Khác".                                                                 | Cao         | Hoàn thành     |
-| FR-03.5 | Tạo `stockValueByCategory`: tổng `Giá vốn × max(Tồn kho, 0)` theo nhóm hàng, top 15 nhóm theo giá trị + nhóm "Khác".                          | Cao         | Hoàn thành     |
+| FR-03.4 | Tạo `stockByCategory`: tổng số lượng tồn kho theo nhóm cha, ánh xạ cây cha–con từ tab Nhóm hàng.                                                   | Cao         | Hoàn thành     |
+| FR-03.5 | Tạo `stockValueByCategory`: tổng `Giá vốn × max(Tồn kho, 0)` theo nhóm cha, ánh xạ cây cha–con từ tab Nhóm hàng.                                   | Cao         | Hoàn thành     |
 | FR-03.6 | Tạo `allProducts`: toàn bộ danh sách sản phẩm kèm tỉ lệ % tồn kho.                                                                                | Trung bình  | Hoàn thành     |
 | FR-03.7 | Tạo `topDebt`: top 8 khách hàng có công nợ cao nhất.                                                                                               | Cao         | Hoàn thành     |
 | FR-03.8 | Tạo `recentInvoices`, `recentOrders`, `recentReturns`, `recentPurchaseOrders`: 8 bản ghi gần nhất (sort theo thời gian giảm dần).                  | Cao         | Hoàn thành     |
@@ -216,7 +216,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-07.2 | Khu vực KPI cards: hiển thị các chỉ số tổng quan với icon và màu sắc phân biệt.                                         | Cao         | Hoàn thành     |
 | FR-07.3 | Biểu đồ doanh thu theo ngày (line/bar chart) với bộ lọc 7/30/90 ngày.                                                   | Cao         | Hoàn thành     |
 | FR-07.4 | Bảng top sản phẩm bán chạy, hàng đã hết, công nợ khách hàng, NCC, đặt hàng, trả hàng, nhập hàng gần nhất.              | Cao         | Hoàn thành     |
-| FR-07.7 | Biểu đồ cột tỷ lệ giá trị tồn kho theo nhóm hàng nằm trên một panel toàn chiều ngang, tooltip hiển thị giá trị tiền và tỷ trọng phần trăm. | Cao | Hoàn thành |
+| FR-07.7 | Biểu đồ cột giá trị và biểu đồ tròn số lượng tồn kho đều gom theo nhóm cha; tooltip biểu đồ cột hiển thị giá trị tiền và tỷ trọng phần trăm. | Cao | Hoàn thành |
 | FR-07.5 | Route `/api/debug`: kiểm tra biến môi trường, kết nối Google Sheets và liệt kê `sheetTabs`; trả riêng `sheetTabsError` nếu bước liệt kê lỗi. | Thấp | Hoàn thành |
 | FR-07.6 | Route `/health`: trả HTTP 200 `{"status":"ok"}` để Render health check.                                                  | Cao         | Hoàn thành     |
 
@@ -257,7 +257,7 @@ Giao diện Dashboard gồm:
 
 ## 6.1. GET /api/dashboard
 
-**Mô tả:** Liệt kê tab thực tế, đọc tối đa 8 tab dữ liệu dashboard đang tồn tại từ Google Spreadsheet, rồi tính toán toàn bộ KPI và dữ liệu biểu đồ. Tab bị thiếu được xử lý như dữ liệu rỗng.
+**Mô tả:** Liệt kê tab thực tế, đọc tối đa 9 tab dữ liệu dashboard đang tồn tại từ Google Spreadsheet, rồi tính toán toàn bộ KPI và dữ liệu biểu đồ. Tab bị thiếu được xử lý như dữ liệu rỗng.
 
 **Query params:**
 - `days` (optional, number): frontend sử dụng 7, 30 hoặc 90; backend mặc định 30 nếu giá trị bị thiếu hoặc không chuyển được thành số.
@@ -344,12 +344,13 @@ Giao diện Dashboard gồm:
 
 # 7. Đặc tả Apps Script (KiotVietExport.gs)
 
-## 7.1. Schema 9 tab đồng bộ và 8 tab dashboard
+## 7.1. Schema 9 tab đồng bộ và dashboard sử dụng
 
-Apps Script duy trì thêm tab **"Nhóm hàng"** (`Mã nhóm`, `Tên nhóm`). Backend không đọc trực tiếp tab này; 8 tab dưới đây là nguồn đầu vào của dashboard.
+### Sheet "Nhóm hàng" (col index 0–2)
+`[0]Mã nhóm hàng [1]Tên nhóm hàng [2]Mã nhóm cha`
 
-### Sheet "Hàng hóa" (col index 0–10)
-`[0]Mã hàng [1]Tên hàng [2]Nhóm hàng [3]Thương hiệu [4]Loại [5]Giá vốn [6]Giá bán [7]Tồn kho [8]Khách đặt [9]Trạng thái kinh doanh [10]Ngày sửa cuối`
+### Sheet "Hàng hóa" (col index 0–11)
+`[0]Mã hàng [1]Tên hàng [2]Nhóm hàng [3]Thương hiệu [4]Loại [5]Giá vốn [6]Giá bán [7]Tồn kho [8]Khách đặt [9]Trạng thái kinh doanh [10]Ngày sửa cuối [11]Mã nhóm hàng`
 
 ### Sheet "Hóa đơn" (col index 0–9)
 `[0]Mã hóa đơn [1]Ngày bán [2]Khách hàng [3]SĐT khách [4]Nhân viên bán [5]Chi nhánh [6]Tổng tiền hàng [7]Giảm giá [8]Khách đã trả [9]Trạng thái`

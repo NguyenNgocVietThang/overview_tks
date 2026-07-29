@@ -13,7 +13,7 @@
 | Đối tượng sử dụng | Ban lãnh đạo & nhân viên nội bộ công ty                            |
 | Trạng thái        | Đang vận hành (Giai đoạn 1 đã triển khai)                          |
 
-> **Ghi chú phiên bản 1.2:** Bổ sung cơ chế làm mới dashboard tự động mỗi 10 phút và khi người dùng quay lại tab trình duyệt; chuẩn hóa toàn bộ phép tính ngày giờ theo múi giờ Việt Nam; làm rõ Spreadsheet có 9 tab do Apps Script đồng bộ nhưng backend dashboard chỉ đọc 8 tab dữ liệu; bổ sung khả năng tiếp tục hiển thị khi một tab nguồn bị thiếu hoặc đổi tên.
+> **Ghi chú phiên bản 1.2:** Bổ sung cơ chế làm mới dashboard tự động mỗi 10 phút và khi người dùng quay lại tab trình duyệt; chuẩn hóa toàn bộ phép tính ngày giờ theo múi giờ Việt Nam; backend đọc đủ 9 tab dữ liệu, gồm tab Nhóm hàng để gom tồn kho theo nhóm cha; bổ sung khả năng tiếp tục hiển thị khi một tab nguồn bị thiếu hoặc đổi tên.
 
 # 1. Giới thiệu
 
@@ -23,7 +23,7 @@ Tài liệu này mô tả các yêu cầu nghiệp vụ cho Hệ thống Dashboa
 
 ## 1.2. Bối cảnh
 
-Công ty TOKOSI là một tổng kho sỉ phân phối hàng hóa, vận hành trên phần mềm **KiotViet** (quản lý bán hàng, kho, khách hàng). Dữ liệu KiotViet được đồng bộ tự động sang **Google Sheets** (qua Apps Script `KiotVietExport.gs`) dưới dạng 9 tab: Nhóm hàng, Hàng hóa, Hóa đơn, Chi tiết hóa đơn, Đặt hàng, Trả hàng, Khách hàng, Nhà cung cấp, Nhập hàng. Backend dashboard đọc trực tiếp 8 tab dữ liệu, không đọc tab Nhóm hàng.
+Công ty TOKOSI là một tổng kho sỉ phân phối hàng hóa, vận hành trên phần mềm **KiotViet** (quản lý bán hàng, kho, khách hàng). Dữ liệu KiotViet được đồng bộ tự động sang **Google Sheets** (qua Apps Script `KiotVietExport.gs`) dưới dạng 9 tab: Nhóm hàng, Hàng hóa, Hóa đơn, Chi tiết hóa đơn, Đặt hàng, Trả hàng, Khách hàng, Nhà cung cấp, Nhập hàng. Backend dashboard đọc cả 9 tab; tab Nhóm hàng cung cấp quan hệ nhóm cha–con cho biểu đồ tồn kho.
 
 Trước đây, việc theo dõi số liệu phải thực hiện thủ công trên KiotViet và Google Sheets, gây mất thời gian tổng hợp và khó trực quan hóa xu hướng. Công ty cần một **Website Dashboard tập trung** đọc dữ liệu từ Google Sheets này, hiển thị các chỉ số quan trọng dưới dạng KPI card và biểu đồ, cập nhật gần thời gian thực mà không cần thao tác thủ công.
 
@@ -37,7 +37,7 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - Xây dựng website Dashboard nội bộ, kết nối trực tiếp với Google Sheets nguồn (KiotViet export) qua Google Sheets API sử dụng Service Account.
 
-- Hiển thị đầy đủ các KPI vận hành quan trọng: doanh thu hôm nay, số hóa đơn, tồn kho thấp, công nợ khách hàng/nhà cung cấp, đơn đặt hàng đang chờ xử lý, trả hàng, nhập hàng.
+- Hiển thị đầy đủ các KPI vận hành quan trọng: doanh thu hôm nay, số hóa đơn, hàng đã hết, công nợ khách hàng/nhà cung cấp, đơn đặt hàng đang chờ xử lý, trả hàng, nhập hàng.
 
 - Hỗ trợ bộ lọc thời gian **7 / 30 / 90 ngày** cho biểu đồ doanh thu theo ngày.
 
@@ -55,12 +55,12 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 ## 3.1. Trong phạm vi (In-scope) — Giai đoạn 1 đã triển khai
 
-- **Nguồn dữ liệu cố định:** 1 Google Spreadsheet duy nhất (ID cố định theo cấu hình), chứa 9 tab do Apps Script `KiotVietExport.gs` duy trì. Backend dashboard đọc 8 tab được đánh dấu bên dưới; tab Nhóm hàng phục vụ theo dõi danh mục đồng bộ nhưng không được backend đọc trực tiếp:
+- **Nguồn dữ liệu cố định:** 1 Google Spreadsheet duy nhất (ID cố định theo cấu hình), chứa 9 tab do Apps Script `KiotVietExport.gs` duy trì. Backend dashboard đọc cả 9 tab:
 
   | Tab                | Dữ liệu                                                                  | Backend đọc |
   |--------------------|--------------------------------------------------------------------------|-------------|
-  | Nhóm hàng          | Mã nhóm, tên nhóm                                                         | Không       |
-  | Hàng hóa           | Mã hàng, tên, nhóm, giá vốn, giá bán, tồn kho, khách đặt, trạng thái    | Có          |
+  | Nhóm hàng          | Mã nhóm, tên nhóm, mã nhóm cha                                             | Có          |
+  | Hàng hóa           | Mã hàng, tên, nhóm, mã nhóm, giá vốn, giá bán, tồn kho, khách đặt, trạng thái | Có       |
   | Hóa đơn            | Mã HĐ, ngày bán, khách, nhân viên, chi nhánh, tổng tiền, trạng thái      | Có          |
   | Chi tiết hóa đơn   | Mã HĐ, mã hàng, tên hàng, số lượng, đơn giá, giảm giá, thành tiền        | Có          |
   | Đặt hàng           | Mã đặt, ngày đặt, khách, nhân viên, chi nhánh, tổng tiền, trạng thái     | Có          |
@@ -69,7 +69,7 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
   | Nhà cung cấp       | Mã NCC, tên, SĐT, email, địa chỉ, nợ cần trả                             | Có          |
   | Nhập hàng          | Mã nhập, ngày nhập, NCC, chi nhánh, tổng tiền, trạng thái                | Có          |
 
-- **KPI Dashboard:** các chỉ số tổng quan tính từ dữ liệu 8 sheet trên (xem mục 5.2).
+- **KPI Dashboard:** các chỉ số tổng quan tính từ dữ liệu 9 sheet trên (xem mục 5.2).
 
 - **Biểu đồ doanh thu theo ngày** với bộ lọc 7/30/90 ngày.
 
@@ -124,13 +124,13 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - `SPREADSHEET_ID` và `GOOGLE_SERVICE_ACCOUNT_JSON` được cấu hình qua biến môi trường (không hard-code trong code).
 
-- Backend lấy danh sách tab hiện có, lọc 8 tab dữ liệu dashboard theo tên rồi đọc các tab tồn tại bằng một lệnh `batchGet` để giảm độ trễ và tránh một tab thiếu/đổi tên làm lỗi toàn bộ dashboard.
+- Backend lấy danh sách tab hiện có, lọc 9 tab dữ liệu dashboard theo tên rồi đọc các tab tồn tại bằng một lệnh `batchGet` để giảm độ trễ và tránh một tab thiếu/đổi tên làm lỗi toàn bộ dashboard.
 
 - Tab được kỳ vọng nhưng chưa tồn tại được xem như tập dữ liệu rỗng; các phần khác của dashboard vẫn hiển thị bình thường. Danh sách tab thực tế được cung cấp qua route chẩn đoán `/api/debug` cho IT Admin.
 
 ## 5.2. KPI tổng quan
 
-Hệ thống tính toán và hiển thị các nhóm KPI sau từ 8 tab dữ liệu dashboard:
+Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ liệu dashboard:
 
 | **Nhóm**                  | **KPI**                                                                                          |
 |---------------------------|--------------------------------------------------------------------------------------------------|
@@ -151,9 +151,9 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 8 tab dữ li�
 
 - **Hàng đã hết:** danh sách sản phẩm có tồn kho = 0.
 
-- **Tỷ lệ giá trị tồn kho theo nhóm hàng:** biểu đồ cột toàn chiều ngang, lấy `Giá vốn × Tồn kho`, hiển thị top 15 nhóm và gộp phần còn lại vào nhóm "Khác".
+- **Tỷ lệ giá trị tồn kho theo nhóm cha:** biểu đồ cột toàn chiều ngang, lấy `Giá vốn × max(Tồn kho, 0)` và gom các nhóm con về nhóm cha theo tab Nhóm hàng.
 
-- **Phân bổ số lượng tồn kho theo nhóm hàng:** biểu đồ top 15 nhóm.
+- **Phân bổ số lượng tồn kho theo nhóm cha:** biểu đồ tròn gom các nhóm con về nhóm cha theo tab Nhóm hàng.
 
 - **Top 8 khách hàng có công nợ cao nhất.**
 
@@ -215,7 +215,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 8 tab dữ li�
 
 # 8. Tiêu chí nghiệm thu (Acceptance Criteria)
 
-- Dashboard hiển thị đầy đủ KPI, biểu đồ, bảng dữ liệu với dữ liệu đúng từ 8 tab dữ liệu Google Sheets.
+- Dashboard hiển thị đầy đủ KPI, biểu đồ, bảng dữ liệu với dữ liệu đúng từ 9 tab dữ liệu Google Sheets.
 - Bộ lọc 7/30/90 ngày thay đổi biểu đồ và KPI kỳ đúng theo ngày thực tế.
 - Nút "Làm mới" cập nhật dữ liệu mới nhất từ Sheets trong vòng vài giây.
 - Dashboard tự làm mới sau mỗi 10 phút; khi quay lại tab đã ẩn quá 10 phút, dữ liệu được tải lại ngay.
