@@ -47,25 +47,46 @@ function sheetNameFromRange(rangeStr) {
 }
 
 /**
+ * Danh sach ten cac sheet (tab) hien co trong spreadsheet — dung de debug
+ * va de loc bot range khong ton tai truoc khi goi batchGet.
+ */
+async function listSheetTitles() {
+  const sheets = await getSheetsApi();
+  const res = await sheets.spreadsheets.get({
+    spreadsheetId: CONFIG.SPREADSHEET_ID,
+    fields: 'sheets.properties.title'
+  });
+  return (res.data.sheets || []).map(s => s.properties.title);
+}
+
+/**
  * Doc NHIEU sheet trong 1 lan goi API (giam do tre khi client poll dinh ky).
+ * batchGet se loi TOAN BO (khong tra ve gi ca) neu chi 1 sheet trong danh sach
+ * khong ton tai, nen phai loc truoc theo danh sach tab thuc te — 1 tab bi
+ * thieu/doi ten chi lam rong muc do, khong lam sap ca dashboard.
  * @param {string[]} sheetNames
- * @returns {Promise<Object<string, any[][]>>} map ten sheet -> mang 2 chieu (rong neu sheet khong co du lieu)
+ * @returns {Promise<Object<string, any[][]>>} map ten sheet -> mang 2 chieu (rong neu sheet khong co du lieu hoac khong ton tai)
  */
 async function getMultipleSheetValues(sheetNames) {
   const sheets = await getSheetsApi();
-  const res = await sheets.spreadsheets.values.batchGet({
-    spreadsheetId: CONFIG.SPREADSHEET_ID,
-    ranges: sheetNames.map(quoteSheetName)
-  });
   const result = {};
   sheetNames.forEach(name => { result[name] = []; });
 
+  const existingTitles = new Set(await listSheetTitles());
+  const namesToFetch = sheetNames.filter(name => existingTitles.has(name));
+  if (namesToFetch.length === 0) return result;
+
+  const res = await sheets.spreadsheets.values.batchGet({
+    spreadsheetId: CONFIG.SPREADSHEET_ID,
+    ranges: namesToFetch.map(quoteSheetName)
+  });
+
   const valueRanges = res.data.valueRanges || [];
   valueRanges.forEach((vr, i) => {
-    const name = sheetNameFromRange(vr.range) || sheetNames[i];
+    const name = sheetNameFromRange(vr.range) || namesToFetch[i];
     result[name] = vr.values || [];
   });
   return result;
 }
 
-module.exports = { getValues, getMultipleSheetValues };
+module.exports = { getValues, getMultipleSheetValues, listSheetTitles };

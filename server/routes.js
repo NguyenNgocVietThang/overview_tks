@@ -18,12 +18,19 @@ router.get('/api/debug', async (req, res) => {
     spreadsheetId: CONFIG.SPREADSHEET_ID ? CONFIG.SPREADSHEET_ID.substring(0, 8) + '...' : null,
     sheetsTest: null,
     sheetsError: null,
+    sheetTabs: null,
+    sheetTabsError: null,
   };
   try {
     const data = await sheetsClient.getValues(CONFIG.SHEET_INVOICES);
     checks.sheetsTest = `OK — ${data.length} rows tu sheet "${CONFIG.SHEET_INVOICES}"`;
   } catch (e) {
     checks.sheetsError = { message: e.message, googleStatus: e?.response?.status };
+  }
+  try {
+    checks.sheetTabs = await sheetsClient.listSheetTitles();
+  } catch (e) {
+    checks.sheetTabsError = e.message;
   }
   res.json(checks);
 });
