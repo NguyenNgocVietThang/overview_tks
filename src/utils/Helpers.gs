@@ -48,3 +48,10 @@ function formatDate(dateString) {
     return Utilities.formatDate(d, Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm");
   } catch (e) { return "---"; }
 }
+
+/**
+ * Nhan dien ma VAT qua Ma hang bat dau bang "VAT".
+ */
+function isVatProductCode(value) {
+  return String(value || '').trim().toUpperCase().startsWith('VAT');
+}

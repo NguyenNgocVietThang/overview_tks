@@ -31,3 +31,6 @@ desktop.ini
 
 # Log files
 *.log
+
+# npm cache
+.npm-cache/

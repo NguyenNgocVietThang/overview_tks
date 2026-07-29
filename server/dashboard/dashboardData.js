@@ -107,6 +107,10 @@ function normalizeCategoryName(value) {
   return String(value || '').trim().toLocaleLowerCase('vi-VN');
 }
 
+function isVatProductCode(value) {
+  return String(value || '').trim().toUpperCase().startsWith('VAT');
+}
+
 function buildParentCategoryResolver(categoryData) {
   const categoriesById = new Map();
   const categoriesByName = new Map();
@@ -350,6 +354,7 @@ async function searchDashboardRecords(view, rawQuery, rawLimit) {
       const code = normalizeWhitespace(row[source.codeIndex]);
       const name = normalizeWhitespace(row[source.nameIndex]);
       if (!code && !name) continue;
+      if (sourceKey === 'products' && isVatProductCode(code)) continue;
 
       const rank = getSearchMatchRank(
         normalizeSearchValue(code),
@@ -421,7 +426,7 @@ async function getDashboardData(days) {
   for (let r = 1; r < prodData.length; r++) {
     const row = prodData[r];
     const code = row[0];
-    if (!code) continue;
+    if (!code || isVatProductCode(code)) continue;
     totalProducts++;
     const ton = Number(row[7]) || 0;
     const cost = Math.max(Number(row[5]) || 0, 0);

@@ -46,7 +46,7 @@ function syncProductsInitial(token) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(CONFIG.SHEET_PRODUCTS) || ss.insertSheet(CONFIG.SHEET_PRODUCTS);
   const headers = ["Mã hàng", "Tên hàng", "Giá bán", "Tồn kho", "Khách đặt", "Thời gian sửa", "Dự kiến hết hàng"];
-  const rows = allProducts.map(p => {
+  const rows = allProducts.filter(p => !isVatProductCode(p.code)).map(p => {
     let tonKho = p.inventories ? p.inventories.reduce((sum, i) => sum + (i.onHand || 0), 0) : (p.totalOnHand || 0);
     let khachDat = p.inventories ? p.inventories.reduce((sum, i) => sum + (i.reserved || 0), 0) : (p.totalReserved || 0);
     return [p.code || "", p.fullName || p.name || "", p.basePrice || 0, tonKho, khachDat, formatDate(p.modifiedDate || p.createdDate), "---"];

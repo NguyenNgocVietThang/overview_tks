@@ -11,14 +11,27 @@ function updateProductsFromWebhook(items) {
   let sheet = ss.getSheetByName(CONFIG.SHEET_PRODUCTS);
   if (!sheet) return;
 
-  const data = sheet.getDataRange().getValues();
-  const codeRowMap = getCodeRowMap(data, 0); // Tim theo Ma hang o cot A (index 0)
+  let data = sheet.getDataRange().getValues();
+  let codeRowMap = getCodeRowMap(data, 0); // Tim theo Ma hang o cot A (index 0)
+
+  // Xoa tu duoi len truoc khi cap nhat de khong lam sai so dong trong codeRowMap.
+  const vatRows = [];
+  items.forEach(item => {
+    const code = String(item.ProductCode || item.Code || item.code || "").trim();
+    if (isVatProductCode(code) && codeRowMap[code]) vatRows.push(codeRowMap[code]);
+  });
+  [...new Set(vatRows)].sort((a, b) => b - a).forEach(rowNumber => sheet.deleteRow(rowNumber));
+  if (vatRows.length > 0) {
+    data = sheet.getDataRange().getValues();
+    codeRowMap = getCodeRowMap(data, 0);
+  }
 
   items.forEach(item => {
     const code = String(item.ProductCode || item.Code || item.code || "").trim();
     if (!code) return;
 
-    const name = item.ProductName || item.FullName || item.Name || "";
+    const name = item.ProductName || item.productName || item.FullName || item.fullName || item.Name || item.name || "";
+    if (isVatProductCode(code)) return;
     const price = item.BasePrice !== undefined ? item.BasePrice : (item.price || 0);
     const onHand = item.OnHand !== undefined ? item.OnHand : (item.onHand || 0);
     const reserved = item.Reserved !== undefined ? item.Reserved : (item.reserved || 0);

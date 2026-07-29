@@ -6,6 +6,10 @@ function normalizeCategoryName_(value) {
   return String(value || '').trim().toLocaleLowerCase('vi-VN');
 }
 
+function isVatProductRow_(row) {
+  return isVatProductCode(row && row[0]);
+}
+
 function buildParentCategoryResolver_(categoryData) {
   const categoriesById = {};
   const categoriesByName = {};
@@ -95,7 +99,7 @@ function getDashboardData(days) {
   for (let r = 1; r < prodData.length; r++) {
     const row = prodData[r];
     const code = row[0];
-    if (!code) continue;
+    if (!code || isVatProductRow_(row)) continue;
     totalProducts++;
     const ton = Number(row[7]) || 0;
     const cost = Math.max(Number(row[5]) || 0, 0);

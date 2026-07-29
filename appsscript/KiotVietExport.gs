@@ -47,6 +47,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Bán hàng (Hóa đơn, Đặt hàng, Trả hàng)', 'syncSales')
     .addItem('Hàng hóa & Kho (Sản phẩm, Nhóm hàng)', 'syncProductsAndStock')
+    .addItem('Loại bỏ mã VAT khỏi Hàng hóa', 'removeVatProducts')
     .addItem('Khách hàng', 'syncCustomers')
     .addItem('Nhà cung cấp & Nhập hàng', 'syncSuppliers')
     .addSeparator()
@@ -168,6 +169,60 @@ function fmtDate_(value) {
 }
 
 /**
+ * Cac ma VAT tren KiotViet co Ma hang bat dau bang "VAT", vi du:
+ * VAT, VAT20, VAT50, VAT10001. Khong loc theo ten hang de tranh loai nham
+ * cac san pham thuong chi co ghi chu "PHI VAT DU" trong ten.
+ */
+function isVatProductCode_(value) {
+  return String(value || '').trim().toUpperCase().startsWith('VAT');
+}
+
+function isVatProduct_(product) {
+  const code = product && (product.Code || product.code || product.ProductCode || product.productCode);
+  return isVatProductCode_(code);
+}
+
+function deleteProductRowsByCode_(code) {
+  const normalizedCode = String(code || '').trim();
+  if (!normalizedCode) return;
+
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Hàng hóa');
+  if (!sheet || sheet.getLastRow() <= 1) return;
+
+  const codes = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+  for (let r = codes.length - 1; r >= 0; r--) {
+    if (String(codes[r][0] || '').trim() === normalizedCode) sheet.deleteRow(r + 2);
+  }
+}
+
+/**
+ * Don sach ngay cac dong cu co Ma hang bat dau bang VAT ma khong can goi API.
+ * Ham nay duoc hien thi trong menu KiotViet de co the chay rieng khi can.
+ */
+function removeVatProducts() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Hàng hóa');
+  if (!sheet || sheet.getLastRow() <= 1) {
+    SpreadsheetApp.getUi().alert('Không có mã VAT nào cần loại bỏ.');
+    return;
+  }
+
+  const lastRow = sheet.getLastRow();
+  const lastColumn = sheet.getLastColumn();
+  const rows = sheet.getRange(2, 1, lastRow - 1, lastColumn).getValues();
+  const keptRows = rows.filter(row => !isVatProductCode_(row[0]));
+  const removedCount = rows.length - keptRows.length;
+
+  if (removedCount > 0) {
+    sheet.getRange(2, 1, lastRow - 1, lastColumn).clearContent();
+    if (keptRows.length > 0) {
+      sheet.getRange(2, 1, keptRows.length, lastColumn).setValues(keptRows);
+    }
+  }
+
+  SpreadsheetApp.getUi().alert('Đã loại bỏ ' + removedCount + ' mã VAT khỏi bảng Hàng hóa.');
+}
+
+/**
  * Cập nhật 1 dòng theo mã (cột đầu tiên) mà KHÔNG xóa toàn bộ sheet:
  * nếu đã có mã -> ghi đè dòng đó; nếu chưa có -> thêm dòng mới ở cuối.
  */
@@ -243,7 +298,7 @@ function syncProducts_() {
     'Mã hàng', 'Tên hàng', 'Nhóm hàng', 'Thương hiệu', 'Loại',
     'Giá vốn', 'Giá bán', 'Tồn kho', 'Khách đặt', 'Trạng thái kinh doanh', 'Ngày sửa cuối', 'Mã nhóm hàng'
   ];
-  const rows = products.map(p => {
+  const rows = products.filter(p => !isVatProduct_(p)).map(p => {
     const tonKho = p.inventories ? p.inventories.reduce((s, i) => s + (i.onHand || 0), 0) : (p.totalOnHand || 0);
     const khachDat = p.inventories ? p.inventories.reduce((s, i) => s + (i.reserved || 0), 0) : (p.totalReserved || 0);
     return [
@@ -381,6 +436,10 @@ function doPost(e) {
 function upsertProductFromWebhook_(p) {
   const code = p.Code || p.code || p.ProductCode;
   if (!code) return;
+  if (isVatProduct_(p)) {
+    deleteProductRowsByCode_(code);
+    return;
+  }
   const headers = ['Mã hàng', 'Tên hàng', 'Nhóm hàng', 'Thương hiệu', 'Loại', 'Giá vốn', 'Giá bán', 'Tồn kho', 'Khách đặt', 'Trạng thái kinh doanh', 'Ngày sửa cuối', 'Mã nhóm hàng'];
   const inventories = p.Inventories || p.inventories || [];
   const tonKho = inventories.length ? inventories.reduce((s, i) => s + (i.OnHand || i.onHand || 0), 0) : (p.OnHand !== undefined ? p.OnHand : (p.onHand || 0));
