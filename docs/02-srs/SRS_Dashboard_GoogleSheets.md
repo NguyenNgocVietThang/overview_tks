@@ -173,8 +173,8 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-03.1 | Tạo mảng `revenueByDay`: mỗi phần tử là 1 ngày trong kỳ lọc với tổng doanh thu và số hóa đơn hoàn thành của ngày đó.                              | Cao         | Hoàn thành     |
 | FR-03.2 | Tạo danh sách `topSellingProducts` (top 10 sản phẩm bán chạy nhất theo doanh thu từ Chi tiết hóa đơn, loại trừ hóa đơn đã hủy).                   | Cao         | Hoàn thành     |
 | FR-03.3 | Tạo danh sách `lowStock`: sản phẩm có tồn kho = 0.                                                                                           | Cao         | Hoàn thành     |
-| FR-03.4 | Tạo `stockByCategory`: tổng số lượng tồn kho theo nhóm cha, ánh xạ cây cha–con từ tab Nhóm hàng.                                                   | Cao         | Hoàn thành     |
-| FR-03.5 | Tạo `stockValueByCategory`: tổng `Giá vốn × max(Tồn kho, 0)` theo nhóm cha, ánh xạ cây cha–con từ tab Nhóm hàng.                                   | Cao         | Hoàn thành     |
+| FR-03.4 | Tạo `stockByCategory`: tổng số lượng tồn kho theo nhóm cha, ánh xạ cây cha–con từ tab Nhóm hàng; dòng trống `Mã nhóm cha` là nhóm cha gốc.            | Cao         | Hoàn thành     |
+| FR-03.5 | Tạo `stockValueByCategory`: tổng `Giá vốn × max(Tồn kho, 0)` theo nhóm cha; tối đa 30 phần tử (29 nhóm lớn nhất và `Khác` nếu vượt giới hạn).          | Cao         | Hoàn thành     |
 | FR-03.6 | Tạo `allProducts`: toàn bộ danh sách sản phẩm kèm tỉ lệ % tồn kho.                                                                                | Trung bình  | Hoàn thành     |
 | FR-03.7 | Tạo `topDebt`: top 8 khách hàng có công nợ cao nhất.                                                                                               | Cao         | Hoàn thành     |
 | FR-03.8 | Tạo `recentInvoices`, `recentOrders`, `recentReturns`, `recentPurchaseOrders`: 8 bản ghi gần nhất (sort theo thời gian giảm dần).                  | Cao         | Hoàn thành     |
@@ -216,7 +216,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-07.2 | Khu vực KPI cards: hiển thị các chỉ số tổng quan với icon và màu sắc phân biệt.                                         | Cao         | Hoàn thành     |
 | FR-07.3 | Biểu đồ doanh thu theo ngày (line/bar chart) với bộ lọc 7/30/90 ngày.                                                   | Cao         | Hoàn thành     |
 | FR-07.4 | Bảng top sản phẩm bán chạy, hàng đã hết, công nợ khách hàng, NCC, đặt hàng, trả hàng, nhập hàng gần nhất.              | Cao         | Hoàn thành     |
-| FR-07.7 | Biểu đồ cột giá trị và biểu đồ tròn số lượng tồn kho đều gom theo nhóm cha; tooltip biểu đồ cột hiển thị giá trị tiền và tỷ trọng phần trăm. | Cao | Hoàn thành |
+| FR-07.7 | Biểu đồ cột giá trị và biểu đồ tròn số lượng tồn kho đều gom theo nhóm cha; biểu đồ cột hiển thị tối đa 30 cột và tooltip có giá trị tiền, tỷ trọng. | Cao | Hoàn thành |
 | FR-07.5 | Route `/api/debug`: kiểm tra biến môi trường, kết nối Google Sheets và liệt kê `sheetTabs`; trả riêng `sheetTabsError` nếu bước liệt kê lỗi. | Thấp | Hoàn thành |
 | FR-07.6 | Route `/health`: trả HTTP 200 `{"status":"ok"}` để Render health check.                                                  | Cao         | Hoàn thành     |
 

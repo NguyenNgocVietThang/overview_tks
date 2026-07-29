@@ -26,13 +26,15 @@ function buildParentCategoryResolver_(categoryData) {
   function findRoot(category) {
     const visited = {};
     let current = category;
-    while (current.parentId && !visited[current.id]) {
+
+    while (current) {
+      // Chỉ các dòng để trống "Mã nhóm cha" mới là nhóm cha gốc.
+      if (!current.parentId) return current;
+      if (visited[current.id]) break;
       visited[current.id] = true;
-      const parent = categoriesById[current.parentId];
-      if (!parent) break;
-      current = parent;
+      current = categoriesById[current.parentId];
     }
-    return current;
+    return null;
   }
 
   return function(categoryName, categoryId) {
@@ -45,11 +47,23 @@ function buildParentCategoryResolver_(categoryData) {
     const roots = {};
     candidates.forEach(category => {
       const root = findRoot(category);
-      roots[root.id] = root;
+      if (root) roots[root.id] = root;
     });
     const rootIds = Object.keys(roots);
     return rootIds.length === 1 ? roots[rootIds[0]].name : 'Chưa xác định';
   };
+}
+
+function limitParentCategoryBars_(categories, maxBars) {
+  if (categories.length <= maxBars) return categories;
+
+  const visibleCategories = categories.slice(0, maxBars - 1);
+  const remainingCategories = categories.slice(maxBars - 1);
+  return visibleCategories.concat({
+    name: 'Khác (' + remainingCategories.length + ' nhóm)',
+    stockValue: remainingCategories.reduce((sum, category) => sum + category.stockValue, 0),
+    productCount: remainingCategories.reduce((sum, category) => sum + category.productCount, 0)
+  });
 }
 
 /**
@@ -76,6 +90,7 @@ function getDashboardData(days) {
   const productHeaders = prodData[0] || [];
   const productCategoryIdIndex = productHeaders.findIndex(header => String(header || '').trim() === 'Mã nhóm hàng');
   const OUT_OF_STOCK_LEVEL = 0;
+  const MAX_PARENT_CATEGORY_BARS = 30;
 
   for (let r = 1; r < prodData.length; r++) {
     const row = prodData[r];
@@ -101,9 +116,10 @@ function getDashboardData(days) {
   lowStock.sort((a, b) => a.stock - b.stock);
   lowStock = lowStock.slice(0, 8);
 
-  const stockValueByCategory = Object.values(parentCategoryMap).filter(c => c.stockValue > 0).sort((a, b) => b.stockValue - a.stockValue);
-  const inventoryValueCategoryCount = stockValueByCategory.length;
-  const totalInventoryValue = stockValueByCategory.reduce((sum, category) => sum + category.stockValue, 0);
+  const allStockValueByCategory = Object.values(parentCategoryMap).filter(c => c.stockValue > 0).sort((a, b) => b.stockValue - a.stockValue);
+  const inventoryValueCategoryCount = allStockValueByCategory.length;
+  const totalInventoryValue = allStockValueByCategory.reduce((sum, category) => sum + category.stockValue, 0);
+  const stockValueByCategory = limitParentCategoryBars_(allStockValueByCategory, MAX_PARENT_CATEGORY_BARS);
 
   // ---------- HÓA ĐƠN ----------
   const invSheet = ss.getSheetByName(CONFIG.SHEET_INVOICES);

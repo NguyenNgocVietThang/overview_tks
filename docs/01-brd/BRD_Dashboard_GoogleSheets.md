@@ -151,9 +151,9 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 
 - **Hàng đã hết:** danh sách sản phẩm có tồn kho = 0.
 
-- **Tỷ lệ giá trị tồn kho theo nhóm cha:** biểu đồ cột toàn chiều ngang, lấy `Giá vốn × max(Tồn kho, 0)` và gom các nhóm con về nhóm cha theo tab Nhóm hàng.
+- **Tỷ lệ giá trị tồn kho theo nhóm cha:** biểu đồ cột toàn chiều ngang, lấy `Giá vốn × max(Tồn kho, 0)` và gom các nhóm con về nhóm cha theo tab Nhóm hàng. Dòng để trống `Mã nhóm cha` được xem là nhóm cha gốc. Trục ngang hiển thị tối đa 30 cột; nếu vượt quá thì giữ 29 nhóm có giá trị lớn nhất và gộp phần còn lại vào `Khác`.
 
-- **Phân bổ số lượng tồn kho theo nhóm cha:** biểu đồ tròn gom các nhóm con về nhóm cha theo tab Nhóm hàng.
+- **Phân bổ số lượng tồn kho theo nhóm cha:** biểu đồ tròn gom các nhóm con về nhóm cha theo tab Nhóm hàng; dòng để trống `Mã nhóm cha` được xem là nhóm cha gốc.
 
 - **Top 8 khách hàng có công nợ cao nhất.**
 

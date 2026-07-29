@@ -478,7 +478,7 @@
           tooltip: { callbacks: { label: context => 'Giá trị: ' + fmtMoney(context.raw) + ' · ' + (total ? (context.raw / total * 100).toFixed(1) : 0) + '%' } }
         },
         scales: {
-          x: { ticks:{ color:'#ECF1F8', autoSkip:false, minRotation:20, maxRotation:45, font:{size:10.5} }, grid:{ display:false } },
+          x: { ticks:{ color:'#ECF1F8', autoSkip:false, maxTicksLimit:30, minRotation:20, maxRotation:45, font:{size:10.5} }, grid:{ display:false } },
           y: { beginAtZero:true, ticks:{ color:'#7E8CA8', callback:value => fmtMoneyShort(value), font:{size:10.5} }, grid:{ color:'rgba(255,255,255,0.05)' } }
         }
       }

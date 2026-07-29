@@ -7,6 +7,7 @@ const sheetsClient = require('../sheets/sheetsClient');
 
 const OUT_OF_STOCK_LEVEL = 0;
 const TOP_SELLING_LIMIT = 10;
+const MAX_PARENT_CATEGORY_BARS = 30;
 const PENDING_ORDER_STATUSES = new Set(['Phiếu tạm', 'Đang xử lý', 'Đã xác nhận']);
 const DASHBOARD_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const DASHBOARD_UTC_OFFSET = '+07:00';
@@ -127,14 +128,20 @@ function buildParentCategoryResolver(categoryData) {
     if (rootCache.has(category.id)) return rootCache.get(category.id);
     const visited = new Set();
     let current = category;
-    while (current.parentId && !visited.has(current.id)) {
+
+    while (current) {
+      // Chỉ các dòng để trống "Mã nhóm cha" mới là nhóm cha gốc.
+      if (!current.parentId) {
+        rootCache.set(category.id, current);
+        return current;
+      }
+      if (visited.has(current.id)) break;
       visited.add(current.id);
-      const parent = categoriesById.get(current.parentId);
-      if (!parent) break;
-      current = parent;
+      current = categoriesById.get(current.parentId);
     }
-    rootCache.set(category.id, current);
-    return current;
+
+    rootCache.set(category.id, null);
+    return null;
   }
 
   return function resolveParentCategory(categoryName, categoryId) {
@@ -147,10 +154,23 @@ function buildParentCategoryResolver(categoryData) {
     const roots = new Map();
     candidates.forEach(category => {
       const root = findRoot(category);
-      roots.set(root.id, root);
+      if (root) roots.set(root.id, root);
     });
     return roots.size === 1 ? roots.values().next().value.name : 'Chưa xác định';
   };
+}
+
+function limitParentCategoryBars(categories) {
+  if (categories.length <= MAX_PARENT_CATEGORY_BARS) return categories;
+
+  const visibleCategories = categories.slice(0, MAX_PARENT_CATEGORY_BARS - 1);
+  const remainingCategories = categories.slice(MAX_PARENT_CATEGORY_BARS - 1);
+  return visibleCategories.concat({
+    name: `Khác (${remainingCategories.length} nhóm)`,
+    stockValue: remainingCategories.reduce((sum, category) => sum + category.stockValue, 0),
+    stock: remainingCategories.reduce((sum, category) => sum + category.stock, 0),
+    productCount: remainingCategories.reduce((sum, category) => sum + category.productCount, 0)
+  });
 }
 
 const SHEET_NAMES = [
@@ -238,9 +258,10 @@ async function getDashboardData(days) {
 
   const categoryList = Object.values(parentCategoryMap);
   const stockByCategory = categoryList.filter(category => category.stock > 0).sort((a, b) => b.stock - a.stock);
-  const stockValueByCategory = categoryList.filter(category => category.stockValue > 0).sort((a, b) => b.stockValue - a.stockValue);
-  const inventoryValueCategoryCount = stockValueByCategory.length;
-  const totalInventoryValue = stockValueByCategory.reduce((sum, category) => sum + category.stockValue, 0);
+  const allStockValueByCategory = categoryList.filter(category => category.stockValue > 0).sort((a, b) => b.stockValue - a.stockValue);
+  const inventoryValueCategoryCount = allStockValueByCategory.length;
+  const totalInventoryValue = allStockValueByCategory.reduce((sum, category) => sum + category.stockValue, 0);
+  const stockValueByCategory = limitParentCategoryBars(allStockValueByCategory);
 
   // ---------- HÓA ĐƠN ----------
   // Cột: [0]Mã hóa đơn [1]Ngày bán [2]Khách hàng [3]SĐT khách [4]Nhân viên bán [5]Chi nhánh [6]Tổng tiền hàng [7]Giảm giá [8]Khách đã trả [9]Trạng thái
