@@ -7,13 +7,13 @@
 | **Thông tin**     | **Nội dung**                                                        |
 |-------------------|---------------------------------------------------------------------|
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Google Sheets → Web)  |
-| Phiên bản         | 1.1                                                                 |
+| Phiên bản         | 1.2                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 28/07/2026                                                          |
+| Ngày cập nhật     | 29/07/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo & nhân viên nội bộ công ty                            |
 | Trạng thái        | Đang vận hành (Giai đoạn 1 đã triển khai)                          |
 
-> **Ghi chú phiên bản 1.1:** Cập nhật để phản ánh đúng kiến trúc đã được xây dựng và triển khai thực tế. Các điều chỉnh chính so với v1.0: (1) xác định rõ nguồn dữ liệu là KiotViet thông qua Apps Script; (2) bỏ yêu cầu nhận diện cột tự động (hệ thống dùng schema cố định 8 sheet); (3) bỏ OAuth người dùng (dùng Service Account); (4) bỏ phân quyền Admin/Nhân viên trong Giai đoạn 1; (5) cập nhật stack công nghệ thực tế.
+> **Ghi chú phiên bản 1.2:** Bổ sung cơ chế làm mới dashboard tự động mỗi 10 phút và khi người dùng quay lại tab trình duyệt; chuẩn hóa toàn bộ phép tính ngày giờ theo múi giờ Việt Nam; làm rõ Spreadsheet có 9 tab do Apps Script đồng bộ nhưng backend dashboard chỉ đọc 8 tab dữ liệu; bổ sung khả năng tiếp tục hiển thị khi một tab nguồn bị thiếu hoặc đổi tên.
 
 # 1. Giới thiệu
 
@@ -23,7 +23,7 @@ Tài liệu này mô tả các yêu cầu nghiệp vụ cho Hệ thống Dashboa
 
 ## 1.2. Bối cảnh
 
-Công ty TOKOSI là một tổng kho sỉ phân phối hàng hóa, vận hành trên phần mềm **KiotViet** (quản lý bán hàng, kho, khách hàng). Dữ liệu KiotViet được đồng bộ tự động sang **Google Sheets** (qua Apps Script `KiotVietExport.gs`) dưới dạng 8 sheet cố định: Hàng hóa, Hóa đơn, Chi tiết hóa đơn, Đặt hàng, Trả hàng, Khách hàng, Nhà cung cấp, Nhập hàng.
+Công ty TOKOSI là một tổng kho sỉ phân phối hàng hóa, vận hành trên phần mềm **KiotViet** (quản lý bán hàng, kho, khách hàng). Dữ liệu KiotViet được đồng bộ tự động sang **Google Sheets** (qua Apps Script `KiotVietExport.gs`) dưới dạng 9 tab: Nhóm hàng, Hàng hóa, Hóa đơn, Chi tiết hóa đơn, Đặt hàng, Trả hàng, Khách hàng, Nhà cung cấp, Nhập hàng. Backend dashboard đọc trực tiếp 8 tab dữ liệu, không đọc tab Nhóm hàng.
 
 Trước đây, việc theo dõi số liệu phải thực hiện thủ công trên KiotViet và Google Sheets, gây mất thời gian tổng hợp và khó trực quan hóa xu hướng. Công ty cần một **Website Dashboard tập trung** đọc dữ liệu từ Google Sheets này, hiển thị các chỉ số quan trọng dưới dạng KPI card và biểu đồ, cập nhật gần thời gian thực mà không cần thao tác thủ công.
 
@@ -41,6 +41,10 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - Hỗ trợ bộ lọc thời gian **7 / 30 / 90 ngày** cho biểu đồ doanh thu theo ngày.
 
+- Tự động tải lại dữ liệu dashboard mỗi 10 phút và tải bù khi người dùng quay lại một tab trình duyệt đã bị ẩn quá một chu kỳ làm mới.
+
+- Bảo đảm các KPI theo ngày và thời điểm cập nhật luôn được tính theo múi giờ **Asia/Ho_Chi_Minh (UTC+7)**, không phụ thuộc múi giờ của máy chủ Render.
+
 - Dữ liệu được đồng bộ **gần thời gian thực** từ KiotViet sang Google Sheets qua 2 cơ chế: (a) webhook KiotViet → Apps Script cho 6 nhóm dữ liệu chính, (b) lịch polling 5 phút cho 3 bảng KiotViet không có webhook (Trả hàng, Nhà cung cấp, Nhập hàng).
 
 - Rút ngắn thời gian tổng hợp báo cáo, giúp lãnh đạo và nhân viên theo dõi số liệu bằng một cú truy cập web đơn giản.
@@ -51,18 +55,19 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 ## 3.1. Trong phạm vi (In-scope) — Giai đoạn 1 đã triển khai
 
-- **Nguồn dữ liệu cố định:** 1 Google Spreadsheet duy nhất (ID cố định theo cấu hình), chứa 8 sheet do Apps Script KiotVietExport.gs duy trì:
+- **Nguồn dữ liệu cố định:** 1 Google Spreadsheet duy nhất (ID cố định theo cấu hình), chứa 9 tab do Apps Script `KiotVietExport.gs` duy trì. Backend dashboard đọc 8 tab được đánh dấu bên dưới; tab Nhóm hàng phục vụ theo dõi danh mục đồng bộ nhưng không được backend đọc trực tiếp:
 
-  | Sheet              | Dữ liệu                                                                  |
-  |--------------------|--------------------------------------------------------------------------|
-  | Hàng hóa           | Mã hàng, tên, nhóm, giá vốn, giá bán, tồn kho, khách đặt, trạng thái    |
-  | Hóa đơn            | Mã HĐ, ngày bán, khách, nhân viên, chi nhánh, tổng tiền, trạng thái      |
-  | Chi tiết hóa đơn   | Mã HĐ, mã hàng, tên hàng, số lượng, đơn giá, giảm giá, thành tiền        |
-  | Đặt hàng           | Mã đặt, ngày đặt, khách, nhân viên, chi nhánh, tổng tiền, trạng thái     |
-  | Trả hàng           | Mã trả, ngày trả, mã HĐ gốc, khách, tổng tiền trả, trạng thái            |
-  | Khách hàng         | Mã KH, tên, SĐT, giới tính, nhóm, địa chỉ, email, nợ hiện tại, tổng bán  |
-  | Nhà cung cấp       | Mã NCC, tên, SĐT, email, địa chỉ, nợ cần trả                             |
-  | Nhập hàng          | Mã nhập, ngày nhập, NCC, chi nhánh, tổng tiền, trạng thái                |
+  | Tab                | Dữ liệu                                                                  | Backend đọc |
+  |--------------------|--------------------------------------------------------------------------|-------------|
+  | Nhóm hàng          | Mã nhóm, tên nhóm                                                         | Không       |
+  | Hàng hóa           | Mã hàng, tên, nhóm, giá vốn, giá bán, tồn kho, khách đặt, trạng thái    | Có          |
+  | Hóa đơn            | Mã HĐ, ngày bán, khách, nhân viên, chi nhánh, tổng tiền, trạng thái      | Có          |
+  | Chi tiết hóa đơn   | Mã HĐ, mã hàng, tên hàng, số lượng, đơn giá, giảm giá, thành tiền        | Có          |
+  | Đặt hàng           | Mã đặt, ngày đặt, khách, nhân viên, chi nhánh, tổng tiền, trạng thái     | Có          |
+  | Trả hàng           | Mã trả, ngày trả, mã HĐ gốc, khách, tổng tiền trả, trạng thái            | Có          |
+  | Khách hàng         | Mã KH, tên, SĐT, giới tính, nhóm, địa chỉ, email, nợ hiện tại, tổng bán  | Có          |
+  | Nhà cung cấp       | Mã NCC, tên, SĐT, email, địa chỉ, nợ cần trả                             | Có          |
+  | Nhập hàng          | Mã nhập, ngày nhập, NCC, chi nhánh, tổng tiền, trạng thái                | Có          |
 
 - **KPI Dashboard:** các chỉ số tổng quan tính từ dữ liệu 8 sheet trên (xem mục 5.2).
 
@@ -70,7 +75,7 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - **Các bảng dữ liệu chi tiết:** top sản phẩm bán chạy, hàng tồn thấp, công nợ khách hàng, biểu đồ phân bổ tồn kho theo nhóm hàng, đơn đặt hàng/trả hàng/nhập hàng gần nhất.
 
-- **Cập nhật dữ liệu thủ công** qua nút "Làm mới" trên giao diện.
+- **Cập nhật dữ liệu trên dashboard:** thủ công qua nút "Làm mới", tự động mỗi 10 phút và tải bù khi người dùng quay lại tab trình duyệt sau ít nhất 10 phút.
 
 - **Đồng bộ tự động** từ KiotViet qua Apps Script (webhook + polling 5 phút), không cần thao tác từ phía web dashboard.
 
@@ -119,11 +124,13 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - `SPREADSHEET_ID` và `GOOGLE_SERVICE_ACCOUNT_JSON` được cấu hình qua biến môi trường (không hard-code trong code).
 
-- Backend đọc **8 sheet cùng lúc** trong 1 lần gọi API (`batchGet`) để giảm độ trễ và tiết kiệm quota.
+- Backend lấy danh sách tab hiện có, lọc 8 tab dữ liệu dashboard theo tên rồi đọc các tab tồn tại bằng một lệnh `batchGet` để giảm độ trễ và tránh một tab thiếu/đổi tên làm lỗi toàn bộ dashboard.
+
+- Tab được kỳ vọng nhưng chưa tồn tại được xem như tập dữ liệu rỗng; các phần khác của dashboard vẫn hiển thị bình thường. Danh sách tab thực tế được cung cấp qua route chẩn đoán `/api/debug` cho IT Admin.
 
 ## 5.2. KPI tổng quan
 
-Hệ thống tính toán và hiển thị các nhóm KPI sau từ dữ liệu 8 sheet:
+Hệ thống tính toán và hiển thị các nhóm KPI sau từ 8 tab dữ liệu dashboard:
 
 | **Nhóm**                  | **KPI**                                                                                          |
 |---------------------------|--------------------------------------------------------------------------------------------------|
@@ -156,11 +163,16 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ dữ liệu 8 
 
 - Mặc định là 30 ngày.
 
+- Ranh giới "hôm nay", các ngày trong kỳ lọc và timestamp `updatedAt` được xác định theo múi giờ **Asia/Ho_Chi_Minh (UTC+7)**.
+
 ## 5.5. Cập nhật dữ liệu
 
-**Thủ công:** Người dùng nhấn nút "Làm mới" → frontend gọi lại `GET /api/dashboard` → backend đọc Google Sheets API → trả dữ liệu mới.
+**Trên dashboard:**
+- **Thủ công:** Người dùng nhấn nút "Làm mới" → frontend gọi lại `GET /api/dashboard` → backend đọc Google Sheets API → trả dữ liệu mới.
+- **Định kỳ:** Frontend tự gọi lại API mỗi 10 phút, chỉ render lại nội dung khi dữ liệu nghiệp vụ thay đổi.
+- **Khi quay lại tab:** Nếu tab trình duyệt đã bị ẩn ít nhất 10 phút, frontend tải lại dữ liệu ngay khi tab trở lại trạng thái hiển thị để timestamp không bị cũ do trình duyệt tạm dừng bộ hẹn giờ nền.
 
-**Tự động (phía Apps Script, không phụ thuộc backend web):**
+**Đồng bộ nguồn (phía Apps Script, không phụ thuộc backend web):**
 - **Webhook KiotViet → Apps Script:** KiotViet gửi POST JSON mỗi khi có thay đổi Hàng hóa, Hóa đơn, Đặt hàng, Khách hàng, Nhóm hàng (9 loại event); Apps Script cập nhật đúng dòng trong Google Sheets ngay lập tức.
 - **Polling 5 phút:** Apps Script trigger chạy mỗi 5 phút để đồng bộ Trả hàng, Nhà cung cấp, Nhập hàng (KiotViet không có webhook cho 3 nhóm này).
 
@@ -183,7 +195,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ dữ liệu 8 
 
 ## 7.1. Giả định
 
-- Google Sheets nguồn được duy trì bởi Apps Script `KiotVietExport.gs` với **schema cố định** (tên sheet và thứ tự cột không thay đổi tùy tiện).
+- Google Sheets nguồn được duy trì bởi Apps Script `KiotVietExport.gs` với **schema cố định** (tên tab và thứ tự cột không thay đổi tùy tiện).
 
 - Service Account `tokosi@tokosi.iam.gserviceaccount.com` đã được chia sẻ quyền Viewer trên Google Spreadsheet nguồn.
 
@@ -196,13 +208,17 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ dữ liệu 8 
 - Hệ thống chỉ đọc 1 Google Spreadsheet cố định (không đa nguồn, không multi-tenant).
 - Backend chỉ **đọc** Google Sheets, không ghi ngược lại.
 - Dữ liệu real-time phụ thuộc vào tính khả dụng của KiotViet webhook và Apps Script — nếu bị gián đoạn, dữ liệu có thể bị trễ đến lần sync tiếp theo.
-- Giới hạn quota Google Sheets API: áp dụng cơ chế `batchGet` (1 lần gọi cho 8 sheet) để tối ưu.
+- Giới hạn quota Google Sheets API: mỗi lần tải dashboard cần một request metadata để liệt kê tab và một `batchGet` cho các tab dữ liệu đang tồn tại.
+- Nếu một tab dữ liệu bị thiếu hoặc đổi tên, phần dữ liệu tương ứng hiển thị rỗng/0 cho đến khi IT Admin khôi phục đúng schema; dashboard không dừng toàn bộ vì lỗi range không tồn tại.
 
 # 8. Tiêu chí nghiệm thu (Acceptance Criteria)
 
-- Dashboard hiển thị đầy đủ KPI, biểu đồ, bảng dữ liệu với dữ liệu đúng từ 8 sheet Google Sheets.
+- Dashboard hiển thị đầy đủ KPI, biểu đồ, bảng dữ liệu với dữ liệu đúng từ 8 tab dữ liệu Google Sheets.
 - Bộ lọc 7/30/90 ngày thay đổi biểu đồ và KPI kỳ đúng theo ngày thực tế.
 - Nút "Làm mới" cập nhật dữ liệu mới nhất từ Sheets trong vòng vài giây.
+- Dashboard tự làm mới sau mỗi 10 phút; khi quay lại tab đã ẩn quá 10 phút, dữ liệu được tải lại ngay.
+- KPI "hôm nay", chuỗi ngày trên biểu đồ và `updatedAt` thống nhất theo múi giờ Asia/Ho_Chi_Minh.
+- Khi thiếu một tab nguồn, dashboard vẫn trả kết quả cho các phần dữ liệu còn lại và route `/api/debug` liệt kê được các tab thực tế.
 - Hệ thống hoạt động ổn định trên Render.com, uptime >= 99% trong giờ hành chính.
 - Không lộ thông tin nhạy cảm (Service Account key, Spreadsheet ID) ra phía client.
 - Kiến trúc Giai đoạn 1 được tổ chức theo mô-đun rõ ràng, cho phép bổ sung module ở mục 3.3 mà không phải tái cấu trúc toàn bộ.
@@ -215,8 +231,8 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ dữ liệu 8 
 |-----------------------------------|---------------------------------------------------------------------------------------------------|----------------|
 | 1. Phân tích & thiết kế            | Hoàn thiện BRD, SRS, BPMN; thiết kế kiến trúc kỹ thuật                                           | Hoàn thành     |
 | 2. Apps Script đồng bộ KiotViet    | `KiotVietExport.gs`: sync toàn bộ, webhook real-time, polling 5 phút cho 3 bảng không có webhook | Hoàn thành     |
-| 3. Backend Node.js/Express         | API `/api/dashboard`, đọc 8 sheet bằng `batchGet`, tính toán KPI & dữ liệu biểu đồ               | Hoàn thành     |
-| 4. Frontend HTML/CSS/JS            | Giao diện Dashboard: Sidebar, KPI cards, biểu đồ doanh thu, bảng chi tiết, bộ lọc thời gian      | Hoàn thành     |
+| 3. Backend Node.js/Express         | API `/api/dashboard`, lọc tab hiện có rồi `batchGet`, tính KPI theo giờ Việt Nam                 | Hoàn thành     |
+| 4. Frontend HTML/CSS/JS            | Dashboard, bộ lọc thời gian, làm mới thủ công/tự động 10 phút và tải bù khi quay lại tab          | Hoàn thành     |
 | 5. Triển khai Render.com           | Deploy lên `tokosi.onrender.com`, cấu hình biến môi trường                                        | Hoàn thành     |
 | 6. Phân quyền & xuất báo cáo       | Module Admin/Nhân viên, xuất PDF/Excel                                                            | Giai đoạn 2    |
 
@@ -232,4 +248,4 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ dữ liệu 8 
 | Giai đoạn 7 — Trợ lý AI                         | Chatbot hỏi-đáp số liệu bằng ngôn ngữ tự nhiên; AI dự đoán & phát hiện bất thường tự động             | Ưu tiên chatbot trước; cần dữ liệu chuẩn hoá từ các giai đoạn trước  |
 | Giai đoạn 8 — Thay thế KiotViet                 | Ngừng sử dụng KiotViet, chuyển hoàn toàn nghiệp vụ sang hệ thống mới                                   | Chỉ thực hiện khi Giai đoạn 3–4 đã ổn định và nghiệm thu đầy đủ      |
 
-*— Hết tài liệu BRD v1.1 —*
+*— Hết tài liệu BRD v1.2 —*
