@@ -1,13 +1,15 @@
 // ==========================================
-// SCHEMA DAY DU KIOTVIET -> GOOGLE SHEETS
+// SCHEMA KIOTVIET -> GOOGLE SHEETS
 // ==========================================
 
 /**
- * Moi sheet giu cac cot dashboard dang dung o ben trai, sau do bo sung day du
- * cac truong Public API o ben phai. Cac object/mang long duoc luu duoi dang JSON.
- * Cot "Du lieu KiotViet (JSON)" la ban sao payload goc de khong mat truong moi
- * neu KiotViet bo sung API truoc khi ma nguon duoc cap nhat.
+ * Moi sheet giu cac cot dashboard dang dung o ben trai, sau do bo sung cac
+ * truong Public API dang duoc su dung. Object/mang long khong duoc ghi vao
+ * Sheets de bang tinh gon, de doc va khong cham do payload JSON lon.
  */
+
+const KIOTVIET_SHEET_SCHEMA_VERSION = '2026-07-30-no-json-columns-v1';
+const KIOTVIET_SHEET_SCHEMA_PROPERTY = 'KIOTVIET_SHEET_SCHEMA_VERSION';
 
 const CATEGORY_SHEET_HEADERS = Object.freeze([
   'Mã nhóm hàng',
@@ -16,9 +18,7 @@ const CATEGORY_SHEET_HEADERS = Object.freeze([
   'ID gian hàng',
   'Có nhóm con',
   'Ngày sửa cuối',
-  'Ngày tạo',
-  'Nhóm con (JSON)',
-  'Dữ liệu KiotViet (JSON)'
+  'Ngày tạo'
 ]);
 
 const PRODUCT_EXTRA_HEADERS = Object.freeze([
@@ -33,24 +33,13 @@ const PRODUCT_EXTRA_HEADERS = Object.freeze([
   'ID hàng cùng loại',
   'Giá trị quy đổi',
   'Có thuộc tính',
-  'Thuộc tính (JSON)',
-  'Danh sách đơn vị (JSON)',
   'Giá trước thuế',
   'Giá sau thuế',
   'Trọng lượng',
   'Đang hoạt động',
   'Ngày tạo',
   'Ngày cập nhật',
-  'Bảng giá (JSON)',
-  'Tồn kho theo chi nhánh (JSON)',
-  'Serial/IMEI (JSON)',
-  'Lô - hạn sử dụng (JSON)',
-  'Bảo hành (JSON)',
-  'Hàng thành phần (JSON)',
-  'Thuế bán (JSON)',
-  'Thuế nhập (JSON)',
-  'Mã loại hàng',
-  'Dữ liệu KiotViet (JSON)'
+  'Mã loại hàng'
 ]);
 
 const INVOICE_SHEET_HEADERS = Object.freeze([
@@ -77,12 +66,7 @@ const INVOICE_SHEET_HEADERS = Object.freeze([
   'Thu hộ COD',
   'Tổng thuế',
   'Ngày tạo',
-  'Ngày cập nhật',
-  'Thanh toán (JSON)',
-  'Thu khác (JSON)',
-  'Kênh bán (JSON)',
-  'Giao hàng (JSON)',
-  'Dữ liệu KiotViet (JSON)'
+  'Ngày cập nhật'
 ]);
 
 const INVOICE_DETAIL_SHEET_HEADERS = Object.freeze([
@@ -98,11 +82,7 @@ const INVOICE_DETAIL_SHEET_HEADERS = Object.freeze([
   'Giảm giá (%)',
   'Ghi chú',
   'Là dòng chính',
-  'Serial/IMEI',
-  'Lô - hạn sử dụng (JSON)',
-  'Thuế chi tiết (JSON)',
-  'Hàng combo (JSON)',
-  'Dữ liệu chi tiết KiotViet (JSON)'
+  'Serial/IMEI'
 ]);
 
 const ORDER_SHEET_HEADERS = Object.freeze([
@@ -128,11 +108,7 @@ const ORDER_SHEET_HEADERS = Object.freeze([
   'Thu hộ COD',
   'Tổng thuế',
   'Ngày tạo',
-  'Ngày cập nhật',
-  'Thanh toán (JSON)',
-  'Chi tiết đặt hàng (JSON)',
-  'Giao hàng (JSON)',
-  'Dữ liệu KiotViet (JSON)'
+  'Ngày cập nhật'
 ]);
 
 const RETURN_SHEET_HEADERS = Object.freeze([
@@ -160,10 +136,7 @@ const RETURN_SHEET_HEADERS = Object.freeze([
   'Chế độ tính thuế',
   'Giảm giá sau thuế',
   'Ngày tạo',
-  'Ngày cập nhật',
-  'Thanh toán (JSON)',
-  'Chi tiết trả hàng (JSON)',
-  'Dữ liệu KiotViet (JSON)'
+  'Ngày cập nhật'
 ]);
 
 const CUSTOMER_SHEET_HEADERS = Object.freeze([
@@ -192,9 +165,7 @@ const CUSTOMER_SHEET_HEADERS = Object.freeze([
   'ID gian hàng',
   'Ngày cập nhật',
   'Ngày tạo',
-  'Nhóm khách hàng (JSON)',
-  'PSID Facebook',
-  'Dữ liệu KiotViet (JSON)'
+  'PSID Facebook'
 ]);
 
 const SUPPLIER_SHEET_HEADERS = Object.freeze([
@@ -218,8 +189,7 @@ const SUPPLIER_SHEET_HEADERS = Object.freeze([
   'ID chi nhánh tạo',
   'Người tạo',
   'Tổng mua',
-  'Tổng mua trừ trả hàng',
-  'Dữ liệu KiotViet (JSON)'
+  'Tổng mua trừ trả hàng'
 ]);
 
 const PURCHASE_SHEET_HEADERS = Object.freeze([
@@ -244,10 +214,7 @@ const PURCHASE_SHEET_HEADERS = Object.freeze([
   'Tên trạng thái API',
   'Ghi chú',
   'Ngày tạo',
-  'Ngày cập nhật',
-  'Thanh toán (JSON)',
-  'Chi tiết nhập hàng (JSON)',
-  'Dữ liệu KiotViet (JSON)'
+  'Ngày cập nhật'
 ]);
 
 function pickKiotVietValue_(source, keys) {
@@ -300,28 +267,6 @@ function kiotVietBooleanText_(source, keys) {
   return result.value === true ? 'Có' : (result.value === false ? 'Không' : String(result.value));
 }
 
-function kiotVietJson_(value) {
-  if (value === undefined || value === null || value === '') return '';
-  if (typeof value === 'string') return value;
-  try {
-    const json = JSON.stringify(value);
-    // Google Sheets gioi han 50.000 ky tu/cell. Cac truong da duoc tach cot o
-    // ben trai; cot JSON la ban sao du phong nen can cat an toan de khong lam
-    // hong ca lan dong bo neu payload bat thuong qua lon.
-    if (json.length > 49000) {
-      return json.substring(0, 48920) + '… [đã rút gọn do giới hạn 50.000 ký tự/cell]';
-    }
-    return json;
-  } catch (error) {
-    return String(value);
-  }
-}
-
-function kiotVietFieldJson_(source, keys) {
-  const result = pickKiotVietValue_(source, keys);
-  return result.found ? kiotVietJson_(result.value) : '';
-}
-
 function kiotVietGender_(source) {
   const result = pickKiotVietValue_(source, ['Gender', 'gender']);
   if (!result.found || result.value === null || result.value === '') return '';
@@ -362,9 +307,7 @@ function buildCategorySheetRow_(category) {
     kiotVietId_(category, ['RetailerId', 'retailerId']),
     kiotVietBooleanText_(category, ['HasChild', 'hasChild']),
     kiotVietDate_(category, ['ModifiedDate', 'modifiedDate']),
-    kiotVietDate_(category, ['CreatedDate', 'createdDate']),
-    kiotVietFieldJson_(category, ['Children', 'children']),
-    kiotVietJson_(category)
+    kiotVietDate_(category, ['CreatedDate', 'createdDate'])
   ];
 }
 
@@ -382,29 +325,13 @@ function buildFullProductSheetRow_(product) {
     kiotVietId_(product, ['MasterProductId', 'masterProductId']),
     kiotVietNumber_(product, ['ConversionValue', 'conversionValue'], ''),
     kiotVietBooleanText_(product, ['HasVariants', 'hasVariants']),
-    kiotVietFieldJson_(product, ['Attributes', 'attributes']),
-    kiotVietFieldJson_(product, ['Units', 'units']),
     kiotVietNumber_(product, ['Price', 'price'], ''),
     kiotVietNumber_(product, ['PriceAfterTax', 'priceAfterTax'], ''),
     kiotVietNumber_(product, ['Weight', 'weight'], ''),
     kiotVietBooleanText_(product, ['IsActive', 'isActive']),
     kiotVietDate_(product, ['CreatedDate', 'createdDate']),
     kiotVietDate_(product, ['ModifiedDate', 'modifiedDate']),
-    kiotVietFieldJson_(product, ['PriceBooks', 'priceBooks']),
-    kiotVietFieldJson_(product, ['Inventories', 'inventories', 'Inventory', 'inventory']),
-    kiotVietFieldJson_(product, [
-      'ProductSerials', 'productSerials', 'Serials', 'serials',
-      'SerialNumbers', 'serialNumbers'
-    ]),
-    kiotVietFieldJson_(product, ['BatchExpires', 'batchExpires', 'ProductBatchExpires', 'productBatchExpires']),
-    kiotVietFieldJson_(product, [
-      'ProductWarranties', 'productWarranties', 'Warranties', 'warranties'
-    ]),
-    kiotVietFieldJson_(product, ['Materials', 'materials', 'ProductFormulas', 'productFormulas']),
-    kiotVietFieldJson_(product, ['ProductTaxs', 'productTaxs', 'ProductTaxes', 'productTaxes']),
-    kiotVietFieldJson_(product, ['PurchaseTax', 'purchaseTax']),
-    kiotVietValue_(product, ['Type', 'type', 'ProductType', 'productType'], ''),
-    kiotVietJson_(product)
+    kiotVietValue_(product, ['Type', 'type', 'ProductType', 'productType'], '')
   ]);
 }
 
@@ -433,12 +360,7 @@ function buildInvoiceSheetRow_(invoice) {
     kiotVietBooleanText_(invoice, ['UsingCod', 'usingCod']),
     kiotVietNumber_(invoice, ['TotalTax', 'totalTax'], ''),
     kiotVietDate_(invoice, ['CreatedDate', 'createdDate']),
-    kiotVietDate_(invoice, ['ModifiedDate', 'modifiedDate']),
-    kiotVietFieldJson_(invoice, ['Payments', 'payments']),
-    kiotVietFieldJson_(invoice, ['InvoiceOrderSurcharges', 'invoiceOrderSurcharges']),
-    kiotVietFieldJson_(invoice, ['SaleChannel', 'saleChannel']),
-    kiotVietFieldJson_(invoice, ['InvoiceDelivery', 'invoiceDelivery']),
-    kiotVietJson_(invoice)
+    kiotVietDate_(invoice, ['ModifiedDate', 'modifiedDate'])
   ];
 }
 
@@ -462,11 +384,7 @@ function buildInvoiceDetailSheetRow_(invoice, detail) {
     kiotVietNumber_(detail, ['DiscountRatio', 'discountRatio'], ''),
     kiotVietText_(detail, ['Note', 'note']),
     kiotVietBooleanText_(detail, ['IsMaster', 'isMaster']),
-    kiotVietText_(detail, ['SerialNumbers', 'serialNumbers']),
-    kiotVietFieldJson_(detail, ['ProductBatchExpire', 'productBatchExpire']),
-    kiotVietFieldJson_(detail, ['InvoiceDetailTaxs', 'invoiceDetailTaxs', 'InvoiceDetailTaxes', 'invoiceDetailTaxes']),
-    kiotVietFieldJson_(detail, ['ComboItems', 'comboItems']),
-    kiotVietJson_(detail)
+    kiotVietText_(detail, ['SerialNumbers', 'serialNumbers'])
   ];
 }
 
@@ -500,11 +418,7 @@ function buildOrderSheetRow_(order) {
     kiotVietBooleanText_(order, ['UsingCod', 'usingCod']),
     kiotVietNumber_(order, ['TotalTax', 'totalTax'], ''),
     kiotVietDate_(order, ['CreatedDate', 'createdDate']),
-    kiotVietDate_(order, ['ModifiedDate', 'modifiedDate']),
-    kiotVietFieldJson_(order, ['Payments', 'payments']),
-    kiotVietFieldJson_(order, ['OrderDetails', 'orderDetails']),
-    kiotVietFieldJson_(order, ['OrderDelivery', 'orderDelivery']),
-    kiotVietJson_(order)
+    kiotVietDate_(order, ['ModifiedDate', 'modifiedDate'])
   ];
 }
 
@@ -534,10 +448,7 @@ function buildReturnSheetRow_(returnItem) {
     kiotVietValue_(returnItem, ['PricingMode', 'pricingMode'], ''),
     kiotVietNumber_(returnItem, ['DiscountAfterTax', 'discountAfterTax'], ''),
     kiotVietDate_(returnItem, ['CreatedDate', 'createdDate']),
-    kiotVietDate_(returnItem, ['ModifiedDate', 'modifiedDate']),
-    kiotVietFieldJson_(returnItem, ['Payments', 'payments']),
-    kiotVietFieldJson_(returnItem, ['ReturnDetails', 'returnDetails']),
-    kiotVietJson_(returnItem)
+    kiotVietDate_(returnItem, ['ModifiedDate', 'modifiedDate'])
   ];
 }
 
@@ -568,9 +479,7 @@ function buildCustomerSheetRow_(customer) {
     kiotVietId_(customer, ['RetailerId', 'retailerId']),
     kiotVietDate_(customer, ['ModifiedDate', 'modifiedDate']),
     kiotVietDate_(customer, ['CreatedDate', 'createdDate']),
-    kiotVietFieldJson_(customer, ['CustomerGroupDetails', 'customerGroupDetails', 'Groups', 'groups']),
-    kiotVietId_(customer, ['PsidFacebook', 'psidFacebook']),
-    kiotVietJson_(customer)
+    kiotVietId_(customer, ['PsidFacebook', 'psidFacebook'])
   ];
 }
 
@@ -596,8 +505,7 @@ function buildSupplierSheetRow_(supplier) {
     kiotVietId_(supplier, ['BranchId', 'branchId']),
     kiotVietText_(supplier, ['CreatedBy', 'createdBy']),
     kiotVietNumber_(supplier, ['TotalInvoiced', 'totalInvoiced'], ''),
-    kiotVietNumber_(supplier, ['TotalInvoicedWithoutReturn', 'totalInvoicedWithoutReturn'], ''),
-    kiotVietJson_(supplier)
+    kiotVietNumber_(supplier, ['TotalInvoicedWithoutReturn', 'totalInvoicedWithoutReturn'], '')
   ];
 }
 
@@ -624,10 +532,7 @@ function buildPurchaseSheetRow_(purchase) {
     kiotVietText_(purchase, ['StatusValue', 'statusValue']),
     kiotVietText_(purchase, ['Description', 'description']),
     kiotVietDate_(purchase, ['CreatedDate', 'createdDate']),
-    kiotVietDate_(purchase, ['ModifiedDate', 'modifiedDate']),
-    kiotVietFieldJson_(purchase, ['Payments', 'payments']),
-    kiotVietFieldJson_(purchase, ['PurchaseOrderDetails', 'purchaseOrderDetails']),
-    kiotVietJson_(purchase)
+    kiotVietDate_(purchase, ['ModifiedDate', 'modifiedDate'])
   ];
 }
 
@@ -643,8 +548,7 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
     buildRow: buildCategorySheetRow_,
     aliases: {},
     numberHeaders: [],
-    textHeaders: ['Mã nhóm hàng', 'Mã nhóm cha', 'ID gian hàng'],
-    jsonHeaders: ['Nhóm con (JSON)', 'Dữ liệu KiotViet (JSON)']
+    textHeaders: ['Mã nhóm hàng', 'Mã nhóm cha', 'ID gian hàng']
   },
   products: {
     sheetName: CONFIG.SHEET_PRODUCTS,
@@ -687,9 +591,7 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
     textHeaders: [
       'Mã hàng', 'Mã nhóm hàng', 'ID hàng hóa', 'Mã vạch', 'ID gian hàng',
       'ID đơn vị cơ bản', 'ID hàng cùng loại'
-    ],
-    jsonHeaders: PRODUCT_EXTRA_HEADERS.filter(header => header.indexOf('(JSON)') !== -1)
-      .concat(['Hình ảnh', 'Vị trí'])
+    ]
   },
   invoices: {
     sheetName: CONFIG.SHEET_INVOICES,
@@ -708,8 +610,7 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
     textHeaders: [
       'Mã hóa đơn', 'SĐT khách', 'ID hóa đơn', 'ID gian hàng', 'Mã đặt hàng', 'ID chi nhánh',
       'ID nhân viên bán', 'ID khách hàng', 'Mã khách hàng'
-    ],
-    jsonHeaders: INVOICE_SHEET_HEADERS.filter(header => header.indexOf('(JSON)') !== -1)
+    ]
   },
   invoiceDetails: {
     sheetName: CONFIG.SHEET_INVOICE_DETAILS,
@@ -723,8 +624,7 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
     },
     aliases: {},
     numberHeaders: ['Số lượng', 'Đơn giá', 'Giảm giá', 'Thành tiền', 'Giảm giá (%)'],
-    textHeaders: ['Mã hóa đơn', 'Mã hàng', 'ID hóa đơn', 'ID hàng hóa', 'Serial/IMEI'],
-    jsonHeaders: INVOICE_DETAIL_SHEET_HEADERS.filter(header => header.indexOf('(JSON)') !== -1)
+    textHeaders: ['Mã hóa đơn', 'Mã hàng', 'ID hóa đơn', 'ID hàng hóa', 'Serial/IMEI']
   },
   orders: {
     sheetName: CONFIG.SHEET_ORDERS,
@@ -740,8 +640,7 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
     textHeaders: [
       'Mã đặt hàng', 'ID đặt hàng', 'ID gian hàng', 'ID chi nhánh', 'ID nhân viên lập',
       'ID khách hàng', 'Mã khách hàng'
-    ],
-    jsonHeaders: ORDER_SHEET_HEADERS.filter(header => header.indexOf('(JSON)') !== -1)
+    ]
   },
   returns: {
     sheetName: CONFIG.SHEET_RETURNS,
@@ -760,8 +659,7 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
     textHeaders: [
       'Mã trả hàng', 'Mã hóa đơn gốc', 'ID trả hàng', 'ID gian hàng', 'ID hóa đơn gốc',
       'ID chi nhánh', 'ID người nhận trả', 'ID khách hàng', 'Mã khách hàng'
-    ],
-    jsonHeaders: RETURN_SHEET_HEADERS.filter(header => header.indexOf('(JSON)') !== -1)
+    ]
   },
   customers: {
     sheetName: CONFIG.SHEET_CUSTOMERS,
@@ -781,8 +679,7 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
     textHeaders: [
       'Mã khách hàng', 'Điện thoại', 'Điện thoại phụ', 'CCCD/CMND',
       'ID khách hàng', 'Mã số thuế', 'ID gian hàng', 'PSID Facebook'
-    ],
-    jsonHeaders: CUSTOMER_SHEET_HEADERS.filter(header => header.indexOf('(JSON)') !== -1)
+    ]
   },
   suppliers: {
     sheetName: CONFIG.SHEET_SUPPLIERS,
@@ -798,8 +695,7 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
     textHeaders: [
       'Mã NCC', 'Điện thoại', 'ID nhà cung cấp', 'Mã số thuế',
       'ID gian hàng', 'ID chi nhánh tạo'
-    ],
-    jsonHeaders: SUPPLIER_SHEET_HEADERS.filter(header => header.indexOf('(JSON)') !== -1)
+    ]
   },
   purchases: {
     sheetName: CONFIG.SHEET_PURCHASES,
@@ -815,8 +711,7 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
     textHeaders: [
       'Mã nhập hàng', 'ID nhập hàng', 'ID gian hàng', 'ID chi nhánh',
       'ID nhà cung cấp', 'Mã nhà cung cấp', 'ID người nhập'
-    ],
-    jsonHeaders: PURCHASE_SHEET_HEADERS.filter(header => header.indexOf('(JSON)') !== -1)
+    ]
   }
 });
 
@@ -883,11 +778,90 @@ function fetchKiotVietJsonWithRetry_(url, token, endpoint) {
   );
 }
 
+function isLegacyKiotVietJsonHeader_(header) {
+  return /\(JSON\)\s*$/i.test(String(header || '').trim());
+}
+
+/**
+ * Xoa vat ly cac cot JSON cu tu mot sheet, di tu phai sang trai de khong lam
+ * thay doi chi so cua cac cot chua xu ly.
+ */
+function removeLegacyKiotVietJsonColumns_(sheet) {
+  if (!sheet || sheet.getLastRow() === 0 || sheet.getLastColumn() === 0) return 0;
+
+  const lastColumn = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+  let removedCount = 0;
+
+  for (let columnIndex = headers.length - 1; columnIndex >= 0; columnIndex--) {
+    if (!isLegacyKiotVietJsonHeader_(headers[columnIndex])) continue;
+    sheet.deleteColumn(columnIndex + 1);
+    removedCount++;
+  }
+
+  return removedCount;
+}
+
+/**
+ * Ham admin co the chay thu cong khi can. Trigger nen cung tu goi mot lan sau
+ * moi phien ban schema, nen khong can vao tung tab de xoa cot bang tay.
+ */
+function removeJsonColumnsFromAllSheets() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const processedSheets = {};
+  const removedBySheet = {};
+  let removedColumns = 0;
+
+  Object.keys(KIOTVIET_SHEET_SCHEMAS).forEach(schemaKey => {
+    const sheetName = KIOTVIET_SHEET_SCHEMAS[schemaKey].sheetName;
+    if (processedSheets[sheetName]) return;
+    processedSheets[sheetName] = true;
+
+    const sheet = spreadsheet.getSheetByName(sheetName);
+    if (!sheet) return;
+
+    const count = removeLegacyKiotVietJsonColumns_(sheet);
+    if (count > 0) removedBySheet[sheetName] = count;
+    removedColumns += count;
+  });
+
+  PropertiesService.getScriptProperties().setProperty(
+    KIOTVIET_SHEET_SCHEMA_PROPERTY,
+    KIOTVIET_SHEET_SCHEMA_VERSION
+  );
+  Logger.log(
+    'Da xoa ' + removedColumns + ' cot JSON cu. Chi tiet: ' +
+    JSON.stringify(removedBySheet)
+  );
+  return { removedColumns: removedColumns, sheets: removedBySheet };
+}
+
+function migrateKiotVietSheetsIfNeeded_() {
+  const properties = PropertiesService.getScriptProperties();
+  if (properties.getProperty(KIOTVIET_SHEET_SCHEMA_PROPERTY) === KIOTVIET_SHEET_SCHEMA_VERSION) {
+    return false;
+  }
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return false;
+
+  try {
+    if (properties.getProperty(KIOTVIET_SHEET_SCHEMA_PROPERTY) === KIOTVIET_SHEET_SCHEMA_VERSION) {
+      return false;
+    }
+    removeJsonColumnsFromAllSheets();
+    return true;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function writeKiotVietSheet_(schema, items) {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = spreadsheet.getSheetByName(schema.sheetName) || spreadsheet.insertSheet(schema.sheetName);
   const rows = (Array.isArray(items) ? items : []).map(item => schema.buildRow(item));
 
+  removeLegacyKiotVietJsonColumns_(sheet);
   sheet.clearContents();
   sheet.getRange(1, 1, 1, schema.headers.length).setValues([schema.headers]);
   writeKiotVietRowsInChunks_(sheet, 2, rows, schema.headers.length);
@@ -930,14 +904,6 @@ function formatKiotVietSheet_(sheet, schema, dataRowCount) {
     }
   });
 
-  (schema.jsonHeaders || []).forEach(header => {
-    const columnIndex = schema.headers.indexOf(header);
-    if (columnIndex >= 0) {
-      sheet.getRange(2, columnIndex + 1, dataRowCount, 1)
-        .setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
-      sheet.setColumnWidth(columnIndex + 1, 260);
-    }
-  });
 }
 
 function writeKiotVietRowsInChunks_(sheet, startRow, rows, columnCount) {
@@ -949,6 +915,7 @@ function writeKiotVietRowsInChunks_(sheet, startRow, rows, columnCount) {
 }
 
 function ensureKiotVietSheetSchema_(sheet, schema) {
+  removeLegacyKiotVietJsonColumns_(sheet);
   const lastRow = sheet.getLastRow();
   const lastColumn = sheet.getLastColumn();
   if (lastRow === 0 || lastColumn === 0) {
@@ -988,17 +955,6 @@ function ensureKiotVietSheetSchema_(sheet, schema) {
   formatKiotVietSheet_(sheet, schema, migratedRows.length);
 }
 
-function parseExistingRawKiotVietRow_(schema, row) {
-  const rawIndex = schema.headers.indexOf('Dữ liệu KiotViet (JSON)');
-  if (rawIndex < 0 || !row || !row[rawIndex]) return {};
-  try {
-    const parsed = JSON.parse(String(row[rawIndex]));
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch (error) {
-    return {};
-  }
-}
-
 function upsertKiotVietSheetItems_(schema, items) {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = spreadsheet.getSheetByName(schema.sheetName) || spreadsheet.insertSheet(schema.sheetName);
@@ -1014,12 +970,10 @@ function upsertKiotVietSheetItems_(schema, items) {
 
     const existingRowNumber = codeRowMap[code];
     const existingRow = existingRowNumber ? (data[existingRowNumber - 1] || []) : [];
-    const existingRaw = parseExistingRawKiotVietRow_(schema, existingRow);
-    const mergedItem = Object.assign({}, existingRaw, item);
-    let row = schema.buildRow(mergedItem);
-    if (existingRowNumber && Object.keys(existingRaw).length === 0) {
-      // Sheet cu chua co payload goc. Neu hydrate tam thoi loi, giu lai o cu
-      // thay vi ghi de thanh rong; lan full sync tiep theo se bo sung day du.
+    let row = schema.buildRow(item);
+    if (existingRowNumber) {
+      // Neu hydrate tam thoi loi, giu lai gia tri cu tai cac cot ma webhook
+      // khong cung cap thay vi ghi de thanh rong.
       row = row.map((value, index) => {
         return value === '' && existingRow[index] !== undefined && existingRow[index] !== ''
           ? existingRow[index]

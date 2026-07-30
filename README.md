@@ -20,7 +20,7 @@ Hệ thống dashboard **thời gian thực** cho cửa hàng **CHbansi**, đồ
 | Hạng mục | Chi tiết |
 |---|---|
 | **Nền tảng** | Google Apps Script (V8 Runtime) |
-| **Lưu trữ dữ liệu** | Google Sheets (các tab vận hành + Báo cáo bán hàng tháng này + Hàng bán theo khách 90 ngày) |
+| **Lưu trữ dữ liệu** | Google Sheets (các tab vận hành + Báo cáo bán hàng tháng này + chi tiết Hàng bán theo khách 90 ngày) |
 | **Nguồn dữ liệu** | KiotViet Public API |
 | **Cập nhật** | Real-time qua Webhook + hàng đợi CacheService |
 | **Giao diện** | Web App HTML/CSS/JS (Chart.js) |
@@ -61,7 +61,7 @@ webtks-dashboard/
 │
 ├── server/                      # Backend Node.js đọc/ghi Google Sheets
 │   ├── jobs/
-│   │   └── syncCustomerReport.js # Tác vụ cập nhật 2 báo cáo khách hàng lúc 07:00
+│   │   └── syncCustomerReport.js # Tác vụ đối soát toàn bộ 2 báo cáo lúc 07:00
 │   └── sheets/
 │       └── sheetsClient.js      # Đọc dữ liệu Google Sheets cho dashboard
 │
@@ -174,7 +174,7 @@ mỗi lần phát hành.
 ### Bước 4 — Thiết lập lần đầu (chạy thủ công 1 lần)
 1. Kiểm tra đã khai báo `KIOTVIET_CLIENT_ID` và `KIOTVIET_CLIENT_SECRET` trong Script Properties, sau đó chạy `syncAllInitialData()` để tải dữ liệu ban đầu
 2. Chạy `setupKiotVietAutoSync()` một lần. Hàm này tự tạo secret, trigger xử lý hàng đợi mỗi 1 phút, trigger polling mỗi 5 phút và đăng ký đủ 9 webhook mà không xóa webhook của hệ thống khác.
-3. Hai tab **Báo cáo bán hàng** và **Hàng bán theo khách** sẽ tự được làm mới mỗi ngày sau 07:00 qua trigger hàng đợi. Có thể chạy `setupCustomerReport()` nếu muốn tạo ngay và có thêm trigger riêng.
+3. Tab **Hàng bán theo khách** có đúng 5 cột `Khách hàng`, `Mã hàng`, `Tên hàng`, `SL mua`, `Thời gian`; mỗi mặt hàng trong hóa đơn hoàn thành là một dòng và được webhook cập nhật trong khoảng 1 phút. Hai tab báo cáo vẫn được đối soát toàn bộ mỗi ngày sau 07:00. Có thể chạy `setupCustomerReport()` nếu muốn tạo ngay và có thêm trigger riêng. Tab **Báo cáo bán hàng** có đủ 18 cột như file xuất KiotViet.
 
 Sau khi bật, thay đổi Hàng hóa, Tồn kho, Khách hàng, Hóa đơn, Đặt hàng và Nhóm hàng
 được nhận bằng webhook rồi ghi vào Sheets trong khoảng 1 phút. **Trả hàng**, **Nhà cung
@@ -192,13 +192,14 @@ cho ba nhóm này.
 
 | Hàm | Mục đích | Khi nào chạy |
 |---|---|---|
-| `syncAllInitialData()` | Tải đủ trường Public API vào 9 sheet vận hành và làm mới 2 sheet báo cáo | Lần đầu hoặc khi cần full refresh |
+| `syncAllInitialData()` | Làm mới 9 sheet vận hành theo schema gọn không có cột JSON và làm mới 2 sheet báo cáo | Lần đầu hoặc khi cần full refresh |
+| `removeJsonColumnsFromAllSheets()` | Xóa ngay các cột `(JSON)` cũ trên 9 sheet vận hành | Tùy chọn; trigger nền cũng tự chạy một lần sau khi deploy |
 | `setupKiotVietAutoSync()` | Bật hoặc khôi phục webhook và trigger an toàn, không tạo trùng | 1 lần sau khi deploy |
 | `syncPollingOnly_()` | Làm mới Trả hàng, Nhà cung cấp, Nhập hàng | Tự chạy bởi trigger 5 phút |
 | `setupPollingTrigger()` | Bật lịch làm mới 3 sheet không có webhook | 1 lần duy nhất |
 | `removePollingTrigger()` | Tắt lịch làm mới 5 phút | Khi bảo trì |
-| `syncCustomerReport()` | Làm mới Báo cáo bán hàng tháng này và Hàng bán theo khách 90 ngày | Khi cần cập nhật thủ công |
-| `syncCustomerProductReport()` | Làm mới Hàng bán theo khách 90 ngày (đồng thời làm mới báo cáo tháng) | Khi cần cập nhật thủ công |
+| `syncCustomerReport()` | Làm mới Báo cáo bán hàng 18 cột và chi tiết từng mặt hàng bán theo khách trong 90 ngày | Khi cần cập nhật/đối soát thủ công |
+| `syncCustomerProductReport()` | Làm mới Hàng bán theo khách 5 cột (đồng thời làm mới báo cáo tháng) | Khi cần cập nhật thủ công |
 | `setupCustomerReport()` | Tạo cả hai báo cáo ngay và bật thêm lịch riêng gần 07:00 | Tùy chọn |
 | `setupCustomerReportDailyTrigger()` | Tạo lại lịch cập nhật hai báo cáo hàng ngày gần 07:00 | Khi cần khôi phục lịch |
 | `setupQueueProcessingTrigger()` | Tạo trigger 1 phút | 1 lần duy nhất |
@@ -243,8 +244,9 @@ cho ba nhóm này.
 > `doGet()` gọi `createHtmlOutputFromFile('ui/Dashboard')` — khớp đúng đường dẫn. ✅
 
 > **Schema dữ liệu:** 9 sheet vận hành giữ nguyên các cột dashboard ở bên trái và
-> bổ sung toàn bộ trường KiotViet ở bên phải. Object/mảng được lưu dưới dạng JSON;
-> cột `Dữ liệu KiotViet (JSON)` giữ payload gốc để không mất trường mới từ API.
+> chỉ bổ sung các trường KiotViet dạng phẳng đang được sử dụng. Apps Script không
+> ghi object/mảng hoặc payload gốc vào cột JSON; trigger nền tự xóa các cột JSON
+> của schema cũ một lần sau khi phiên bản mới được deploy.
 
 
 ---

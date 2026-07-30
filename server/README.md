@@ -5,9 +5,12 @@ dashboard. The Sheet itself (9 tabs: Nhóm hàng, Hàng hóa, Hóa đơn, Chi ti
 hóa đơn, Đặt hàng, Trả hàng, Khách hàng, Nhà cung cấp, Nhập hàng) is synced
 from KiotViet **independently**, by the modular Google Apps Script project in
 `../src/`, which runs inside that Sheet (webhook + 5-minute polling trigger).
-This server does not talk to the KiotViet API
-at all — it only reads the Sheet via the Sheets API and computes the
-dashboard's KPIs/charts.
+The Express dashboard path only reads the Sheet via the Sheets API and computes
+KPIs/charts. The optional `npm run sync:customer-report` job is the exception:
+it reads KiotViet directly and rewrites the two report tabs, including all 18
+columns of `Báo cáo bán hàng` and the five-column, per-product-line
+`Hàng bán theo khách` report. Apps Script invoice webhooks keep the latter
+updated within the one-minute queue cycle.
 
 ## 1. One-time setup
 
@@ -17,7 +20,8 @@ dashboard's KPIs/charts.
 2. Create a **Service Account**, then create a JSON key for it and download it.
 3. Open the target Google Sheet (the one the Apps Script project is bound to) →
    Share → invite the service account's `...@...iam.gserviceaccount.com`
-   email as **Viewer** (read-only is enough; this server never writes).
+   email as **Viewer** for the dashboard, or **Editor** if you will run
+   `npm run sync:customer-report` to rewrite the report tabs.
 4. Copy the spreadsheet ID from its URL:
    `https://docs.google.com/spreadsheets/d/<SPREADSHEET_ID>/edit`.
 

@@ -204,14 +204,14 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | **Mã**  | **Mô tả**                                                                                                                                                                     | **Ưu tiên** | **Trạng thái** |
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
 | FR-06.1 | `syncAllInitialData()`: đồng bộ toàn bộ dữ liệu KiotViet vào 9 sheet vận hành (xóa nội dung và ghi lại toàn bộ).                                                           | Cao         | Hoàn thành     |
-| FR-06.2 | `doPost(e)`: nhận webhook POST, hydrate bản ghi chi tiết rồi upsert/delete đúng sheet cho product/invoice/order/customer/category; hóa đơn đồng thời thay chi tiết hóa đơn. | Cao         | Hoàn thành     |
+| FR-06.2 | `doPost(e)`: nhận webhook POST, hydrate bản ghi chi tiết rồi upsert/delete đúng sheet cho product/invoice/order/customer/category; hóa đơn đồng thời thay chi tiết hóa đơn và các dòng `Hàng bán theo khách`. | Cao | Hoàn thành |
 | FR-06.3 | `setupPollingTrigger()`: bật trigger 5 phút để sync Trả hàng + Nhà cung cấp + Nhập hàng (KiotViet không có webhook cho 3 loại này).                                           | Cao         | Hoàn thành     |
 | FR-06.4 | `setupRealtimeWebhook()`: đăng ký 9 loại event webhook với KiotViet API, xóa webhook cũ trước khi đăng ký mới.                                                               | Cao         | Hoàn thành     |
 | FR-06.5 | Retry tự động tối đa 5 lần (exponential backoff) khi gọi KiotViet API bị lỗi tạm thời (429/5xx/network error).                                                               | Cao         | Hoàn thành     |
-| FR-06.6 | `syncCustomerReport()`: tổng hợp hóa đơn và trả hàng hoàn thành trong tháng, ghi tab `Báo cáo bán hàng` với Doanh thu, Giá trị trả, Doanh thu thuần. | Cao | Hoàn thành |
-| FR-06.7 | Cùng lần chạy, hệ thống ghi tab `Hàng bán theo khách` cho 90 ngày qua với SL mua, Doanh thu, SL Trả, Giá trị trả và Doanh thu thuần. | Cao | Hoàn thành |
-| FR-06.8 | `processWebhookQueue()` gọi `syncCustomerReportIfDue_()` mỗi phút và chỉ chạy hai báo cáo một lần/ngày sau 07:00; `setupCustomerReportDailyTrigger()` cung cấp trigger riêng tùy chọn. | Cao | Hoàn thành |
-| FR-06.9 | 9 sheet giữ các cột dashboard ở bên trái, bổ sung mọi trường Public API ở bên phải; object/mảng lưu JSON và mỗi dòng giữ payload gốc để tương thích trường API mới. | Cao | Hoàn thành |
+| FR-06.6 | `syncCustomerReport()`: tổng hợp hóa đơn và trả hàng hoàn thành trong tháng, ghi tab `Báo cáo bán hàng` đủ 18 cột như file xuất KiotViet, gồm thông tin khách, số đơn, tổng tiền, giảm giá, doanh thu và chi tiết từng giao dịch. | Cao | Hoàn thành |
+| FR-06.7 | Tab `Hàng bán theo khách` giữ đúng 5 cột Khách hàng, Mã hàng, Tên hàng, SL mua, Thời gian; mỗi chi tiết hàng hóa của hóa đơn hoàn thành trong 90 ngày là một dòng. | Cao | Hoàn thành |
+| FR-06.8 | Webhook hóa đơn thay/xóa đúng các dòng `Hàng bán theo khách` trong chu kỳ hàng đợi 1 phút; `syncCustomerReportIfDue_()` vẫn đối soát toàn bộ hai báo cáo một lần/ngày sau 07:00. | Cao | Hoàn thành |
+| FR-06.9 | 9 sheet giữ các cột dashboard ở bên trái và các trường KiotViet dạng phẳng đang dùng ở bên phải; không lưu object/mảng hoặc payload gốc dạng JSON. Trigger nền tự xóa vật lý các cột `(JSON)` của schema cũ sau khi deploy. | Cao | Hoàn thành |
 
 ## 3.7. FR-07: Giao diện người dùng
 
@@ -352,10 +352,10 @@ Giao diện Dashboard gồm:
 ## 7.1. Schema 9 tab đồng bộ và dashboard sử dụng
 
 Các dải cột dưới đây là **cột tương thích dashboard** và luôn nằm bên trái.
-`src/kiotviet/SheetSchemas.gs` nối thêm các trường Public API ở bên phải, gồm ID,
-trạng thái gốc, thời gian tạo/cập nhật, thông tin thuế, thanh toán, giao hàng,
-chi tiết nghiệp vụ và các object/mảng dạng JSON. Cột cuối
-`Dữ liệu KiotViet (JSON)` giữ payload gốc để không bỏ sót trường mới từ API.
+`src/kiotviet/SheetSchemas.gs` nối thêm các trường Public API dạng phẳng đang sử
+dụng ở bên phải, gồm ID, trạng thái gốc, thời gian tạo/cập nhật và thông tin thuế.
+Object/mảng lồng và payload gốc không được ghi vào Sheets; bước di trú chạy một
+lần qua trigger nền sẽ xóa vật lý các cột `(JSON)` của schema cũ.
 
 ### Sheet "Nhóm hàng" (col index 0–2)
 `[0]Mã nhóm hàng [1]Tên nhóm hàng [2]Mã nhóm cha`
@@ -390,21 +390,23 @@ chi tiết nghiệp vụ và các object/mảng dạng JSON. Cột cuối
 
 ## 7.2. Schema tab "Báo cáo bán hàng" (dashboard không đọc)
 
-`[0]Mã KH [1]Khách hàng [2]Doanh thu [3]Giá trị trả [4]Doanh thu thuần`
+`[0]Mã KH [1]Khách hàng [2]Số điện thoại [3]Nhóm khách hàng [4]SL đơn bán [5]Tổng tiền [6]Giảm giá HĐ [7]Doanh thu [8]SL đơn trả [9]Giá trị trả [10]Doanh thu thuần [11]Mã giao dịch [12]Thời gian (theo giao dịch) [13]Nhân viên [14]SL giao dịch (theo giao dịch) [15]Tổng tiền hàng (theo giao dịch) [16]Giảm giá (theo giao dịch) [17]Doanh thu (theo giao dịch)`
 
-- Dòng 2 chứa số lượng khách hàng và tổng các cột tiền.
+- Mỗi hóa đơn hoặc phiếu trả hàng là một dòng; các cột tổng hợp theo khách hàng được lặp lại để mỗi dòng có thể lọc/đối soát độc lập.
+- Số điện thoại và nhóm khách hàng được nối từ endpoint khách hàng của KiotViet; mã, thời gian, nhân viên, số lượng và giá trị giao dịch lấy từ hóa đơn/phiếu trả.
 - Dữ liệu được lấy theo bộ lọc KiotViet: Kiểu hiển thị **Báo cáo**, Mối quan tâm **Bán hàng**, Thời gian **Tháng này**.
 - Chỉ tính hóa đơn/phiếu trả hàng trạng thái hoàn thành; `Doanh thu thuần = Doanh thu - Giá trị trả`.
 - Trigger hàng đợi kiểm tra mỗi phút và chạy một lần/ngày sau 07:00 theo `Asia/Ho_Chi_Minh`; nếu lỗi sẽ thử lại ở phút kế tiếp.
 
 ## 7.3. Schema tab "Hàng bán theo khách" (dashboard không đọc)
 
-`[0]Mã KH [1]Khách hàng [2]SL mua [3]Doanh thu [4]SL Trả [5]Giá trị trả [6]Doanh thu thuần`
+`[0]Khách hàng [1]Mã hàng [2]Tên hàng [3]SL mua [4]Thời gian`
 
-- Dòng 2 chứa số lượng khách hàng, tổng số lượng mua/trả và tổng các cột tiền.
-- Dữ liệu được lấy theo bộ lọc: Kiểu hiển thị **Báo cáo**, Mối quan tâm **Hàng bán theo khách**, Thời gian **90 ngày qua**.
+- Mỗi chi tiết hàng hóa trong hóa đơn hoàn thành là một dòng; không có dòng tổng hợp.
+- Dữ liệu được lấy theo khoảng thời gian **90 ngày qua**, sắp xếp mới nhất trước.
 - Khoảng ngày chạy từ 00:00 của ngày cách hiện tại 90 ngày đến hết ngày hiện tại theo `Asia/Ho_Chi_Minh`, tương ứng cách KiotViet hiển thị “30 ngày qua”.
-- Chỉ tính hóa đơn/phiếu trả hàng trạng thái hoàn thành; `Doanh thu thuần = Doanh thu - Giá trị trả`.
+- Chỉ ghi hóa đơn trạng thái hoàn thành. Webhook cập nhật trong khoảng 1 phút; mã/ID hóa đơn được lưu ở note nội bộ của cột A để thay hoặc xóa đúng dòng mà không phải thêm cột kỹ thuật.
+- Lượt đồng bộ gần 07:00 làm mới toàn bộ cửa sổ 90 ngày để loại bản ghi hết hạn và đối soát sai lệch webhook.
 
 ## 7.4. Webhook KiotViet — 9 loại event
 

@@ -47,9 +47,9 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - Dữ liệu được đồng bộ **gần thời gian thực** từ KiotViet sang Google Sheets qua 2 cơ chế: (a) webhook KiotViet → Apps Script cho 6 nhóm dữ liệu chính, (b) lịch polling 5 phút cho 3 bảng KiotViet không có webhook (Trả hàng, Nhà cung cấp, Nhập hàng).
 
-- Tab **Báo cáo bán hàng** tổng hợp mối quan tâm Bán hàng trong tháng hiện tại, gồm Mã KH, Khách hàng, Doanh thu, Giá trị trả và Doanh thu thuần; tự động làm mới hàng ngày lúc gần 07:00 theo múi giờ Việt Nam.
+- Tab **Báo cáo bán hàng** bám theo file xuất KiotViet trong tháng hiện tại với 18 cột: thông tin khách hàng, số đơn/tổng tiền/giảm giá/doanh thu/trả hàng và chi tiết từng giao dịch; tự động làm mới hàng ngày lúc gần 07:00 theo múi giờ Việt Nam.
 
-- Tab **Hàng bán theo khách** tổng hợp 90 ngày qua, gồm Mã KH, Khách hàng, SL mua, Doanh thu, SL Trả, Giá trị trả và Doanh thu thuần; dùng khoảng thời gian trượt 90 ngày thay cho giới hạn 30 ngày trên màn hình KiotViet.
+- Tab **Hàng bán theo khách** liệt kê từng mặt hàng của hóa đơn hoàn thành trong 90 ngày qua với đúng 5 cột: Khách hàng, Mã hàng, Tên hàng, SL mua, Thời gian. Hóa đơn mới/sửa/hủy được phản ánh qua webhook trong khoảng 1 phút; lượt 07:00 đối soát lại toàn bộ dữ liệu.
 
 - Rút ngắn thời gian tổng hợp báo cáo, giúp lãnh đạo và nhân viên theo dõi số liệu bằng một cú truy cập web đơn giản.
 
@@ -72,8 +72,8 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
   | Khách hàng         | Mã KH, tên, SĐT, giới tính, nhóm, địa chỉ, email, nợ hiện tại, tổng bán  | Có          |
   | Nhà cung cấp       | Mã NCC, tên, SĐT, email, địa chỉ, nợ cần trả                             | Có          |
   | Nhập hàng          | Mã nhập, ngày nhập, NCC, chi nhánh, tổng tiền, trạng thái                | Có          |
-  | Báo cáo bán hàng | Mã KH, khách hàng, doanh thu, giá trị trả, doanh thu thuần tháng hiện tại | Không       |
-  | Hàng bán theo khách | Mã KH, khách hàng, SL mua, doanh thu, SL trả, giá trị trả, doanh thu thuần trong 90 ngày qua | Không |
+  | Báo cáo bán hàng | 18 cột theo file xuất KiotViet: khách hàng, tổng hợp bán/trả và chi tiết từng giao dịch trong tháng hiện tại | Không |
+  | Hàng bán theo khách | Khách hàng, mã hàng, tên hàng, SL mua, thời gian của từng dòng hàng bán trong 90 ngày qua | Có |
 
 - **KPI Dashboard:** các chỉ số tổng quan tính từ dữ liệu 9 sheet trên (xem mục 5.2).
 
@@ -181,7 +181,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 - **Khi quay lại tab:** Nếu tab trình duyệt đã bị ẩn ít nhất 10 phút, frontend tải lại dữ liệu ngay khi tab trở lại trạng thái hiển thị để timestamp không bị cũ do trình duyệt tạm dừng bộ hẹn giờ nền.
 
 **Đồng bộ nguồn (phía Apps Script, không phụ thuộc backend web):**
-- **Webhook KiotViet → Apps Script:** KiotViet gửi POST JSON mỗi khi có thay đổi Hàng hóa, Hóa đơn, Đặt hàng, Khách hàng, Nhóm hàng (9 loại event); Apps Script cập nhật đúng dòng trong Google Sheets ngay lập tức.
+- **Webhook KiotViet → Apps Script:** KiotViet gửi POST JSON mỗi khi có thay đổi Hàng hóa, Hóa đơn, Đặt hàng, Khách hàng, Nhóm hàng (9 loại event); Apps Script cập nhật đúng dòng trong Google Sheets, đồng thời thay các dòng tương ứng trong `Hàng bán theo khách` khi hóa đơn đổi.
 - **Polling 5 phút:** Apps Script trigger chạy mỗi 5 phút để đồng bộ Trả hàng, Nhà cung cấp, Nhập hàng (KiotViet không có webhook cho 3 nhóm này).
 
 ## 5.6. Truy cập & bảo mật (Giai đoạn 1)

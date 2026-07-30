@@ -24,6 +24,8 @@ const KIOTVIET_DEFAULT_WEBHOOK_URL =
  * - Giu nguyen webhook cua he thong khac; chi thay webhook cu/trung cua dashboard.
  */
 function setupKiotVietAutoSync() {
+  migrateKiotVietSheetsIfNeeded_();
+
   const token = getKiotVietToken();
   if (!token) throw new Error("Khong lay duoc token KiotViet de bat tu dong dong bo.");
 

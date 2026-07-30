@@ -5,10 +5,12 @@
 /**
  * Dong bo toan bo 9 sheet van hanh va 2 sheet bao cao.
  *
- * Cac cot dashboard dang dung luon nam o ben trai; tat ca truong Public API
- * duoc bo sung o ben phai theo schema trong SheetSchemas.gs.
+ * Cac cot dashboard dang dung luon nam o ben trai; cac truong Public API dang
+ * duoc su dung duoc bo sung o ben phai, khong kem cot JSON.
  */
 function syncAllInitialData() {
+  migrateKiotVietSheetsIfNeeded_();
+
   const token = getKiotVietToken();
   if (!token) throw new Error('Khong lay duoc KiotViet token.');
 

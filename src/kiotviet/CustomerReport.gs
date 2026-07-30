@@ -5,23 +5,36 @@
 const CUSTOMER_REPORT_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const CUSTOMER_REPORT_TRIGGER_HANDLER = 'syncCustomerReport';
 const CUSTOMER_REPORT_LAST_SYNC_PROPERTY = 'CUSTOMER_REPORT_LAST_SYNC_DATE';
+const CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY = 'CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION';
+const CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION = 'detail-lines-v1';
 const CUSTOMER_REPORT_PAGE_SIZE = 100;
 const CUSTOMER_REPORT_HEADERS = Object.freeze([
   'Mã KH',
   'Khách hàng',
+  'Số điện thoại',
+  'Nhóm khách hàng',
+  'SL đơn bán',
+  'Tổng tiền',
+  'Giảm giá HĐ',
   'Doanh thu',
+  'SL đơn trả',
   'Giá trị trả',
-  'Doanh thu thuần'
+  'Doanh thu thuần',
+  'Mã giao dịch',
+  'Thời gian (theo giao dịch)',
+  'Nhân viên',
+  'SL giao dịch (theo giao dịch)',
+  'Tổng tiền hàng (theo giao dịch)',
+  'Giảm giá (theo giao dịch)',
+  'Doanh thu (theo giao dịch)'
 ]);
 const CUSTOMER_PRODUCT_REPORT_DAYS = 90;
 const CUSTOMER_PRODUCT_REPORT_HEADERS = Object.freeze([
-  'Mã KH',
   'Khách hàng',
+  'Mã hàng',
+  'Tên hàng',
   'SL mua',
-  'Doanh thu',
-  'SL Trả',
-  'Giá trị trả',
-  'Doanh thu thuần'
+  'Thời gian'
 ]);
 
 /**
@@ -29,7 +42,9 @@ const CUSTOMER_PRODUCT_REPORT_HEADERS = Object.freeze([
  * - "Bao cao ban hang": Ban hang -> Thang nay.
  * - "Hang ban theo khach": Hang ban theo khach -> 90 ngay qua.
  *
- * Doanh thu = tong hoa don hoan thanh trong thang.
+ * Moi hoa don/phieu tra hang la mot dong chi tiet giao dich, kem theo cac chi so
+ * tong hop cua khach hang giong file xuat Bao cao ban hang cua KiotViet.
+ * Doanh thu = tong hoa don hoan thanh trong thang sau giam gia hoa don.
  * Gia tri tra = tong phieu tra hang hoan thanh trong thang.
  * Doanh thu thuan = Doanh thu - Gia tri tra.
  */
@@ -57,29 +72,42 @@ function syncCustomerReport() {
       orderBy: 'returnDate',
       orderDirection: 'DESC'
     });
-    const reportRows = aggregateCustomerReport_(invoices, returns, period);
-    const productReportRows = aggregateCustomerProductReport_(invoices, returns, productPeriod);
+    const customerProfiles = fetchCustomerReportPages_('customers', token, {
+      includeCustomerGroup: true
+    });
+    const reportRows = aggregateCustomerReport_(invoices, returns, period, customerProfiles);
+    const productReportRows = aggregateCustomerProductReport_(invoices, productPeriod);
+    const reportSummary = summarizeCustomerReport_(reportRows);
 
     writeCustomerReportSheet_(reportRows, period);
     writeCustomerProductReportSheet_(productReportRows, productPeriod);
-    PropertiesService.getScriptProperties().setProperty(
-      CUSTOMER_REPORT_LAST_SYNC_PROPERTY,
-      Utilities.formatDate(new Date(), CUSTOMER_REPORT_TIME_ZONE, 'yyyy-MM-dd')
-    );
+    PropertiesService.getScriptProperties().setProperties({
+      [CUSTOMER_REPORT_LAST_SYNC_PROPERTY]:
+        Utilities.formatDate(new Date(), CUSTOMER_REPORT_TIME_ZONE, 'yyyy-MM-dd'),
+      [CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY]: CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION
+    });
     Logger.log(
-      'Da cap nhat Bao cao khach hang: %s khach hang; Hang ban theo khach 90 ngay: %s khach hang.',
+      'Da cap nhat Bao cao ban hang: %s khach hang, %s giao dich; Hang ban theo khach 90 ngay: %s dong hang.',
       reportRows.length,
+      reportSummary.transactionCount,
       productReportRows.length
     );
 
     return {
       sheetName: CONFIG.SHEET_CUSTOMER_REPORT,
       customerCount: reportRows.length,
+      transactionCount: reportSummary.transactionCount,
+      totalRevenue: reportSummary.revenue,
+      totalReturns: reportSummary.returnValue,
+      netRevenue: reportSummary.netRevenue,
       fromDate: period.startLabel,
       toDate: period.endLabel,
       customerProductReport: {
         sheetName: CONFIG.SHEET_CUSTOMER_PRODUCT_REPORT,
-        customerCount: productReportRows.length,
+        rowCount: productReportRows.length,
+        purchasedQuantity: productReportRows.reduce((total, row) => {
+          return total + customerReportNumber_(row.purchasedQuantity);
+        }, 0),
         fromDate: productPeriod.startLabel,
         toDate: productPeriod.endLabel,
         days: CUSTOMER_PRODUCT_REPORT_DAYS
@@ -108,10 +136,12 @@ function syncCustomerReportIfDue_() {
   const now = new Date();
   const today = Utilities.formatDate(now, CUSTOMER_REPORT_TIME_ZONE, 'yyyy-MM-dd');
   const hour = Number(Utilities.formatDate(now, CUSTOMER_REPORT_TIME_ZONE, 'H'));
-  const lastSyncDate = PropertiesService.getScriptProperties()
-    .getProperty(CUSTOMER_REPORT_LAST_SYNC_PROPERTY);
+  const properties = PropertiesService.getScriptProperties();
+  const lastSyncDate = properties.getProperty(CUSTOMER_REPORT_LAST_SYNC_PROPERTY);
+  const schemaVersion = properties.getProperty(CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY);
+  const needsSchemaMigration = schemaVersion !== CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION;
 
-  if (hour < 7 || lastSyncDate === today) return false;
+  if (!needsSchemaMigration && (hour < 7 || lastSyncDate === today)) return false;
 
   try {
     syncCustomerReport();
@@ -290,25 +320,67 @@ function fetchCustomerReportJsonWithRetry_(url, token, endpoint) {
   );
 }
 
-function aggregateCustomerReport_(invoices, returns, period) {
+function aggregateCustomerReport_(invoices, returns, period, customerProfiles) {
   const customers = {};
+  const profileLookup = buildCustomerReportProfileLookup_(customerProfiles);
 
   (invoices || []).forEach(invoice => {
     if (Number(invoice.status) !== 1) return;
     if (!isCustomerReportDateInRange_(invoice.purchaseDate, period)) return;
-    addCustomerReportAmount_(customers, invoice, customerReportNumber_(invoice.total), 0);
+
+    const customer = getOrCreateCustomerReportCustomer_(customers, invoice, profileLookup);
+    const discount = customerReportInvoiceDiscount_(invoice);
+    const revenue = customerReportNumber_(invoice.total);
+    const grossTotal = revenue + discount;
+
+    customer.saleOrderCount++;
+    customer.grossTotal += grossTotal;
+    customer.invoiceDiscount += discount;
+    customer.revenue += revenue;
+    customer.transactions.push({
+      transactionCode: customerReportSafeText_(invoice.code || invoice.invoiceCode || ''),
+      transactionTime: customerReportDateValue_(invoice.purchaseDate),
+      transactionTimeMs: customerReportDateTime_(invoice.purchaseDate),
+      employeeName: customerReportSafeText_(invoice.soldByName || ''),
+      transactionQuantity: sumCustomerReportDetailQuantity_(invoice.invoiceDetails),
+      transactionGrossTotal: grossTotal,
+      transactionDiscount: discount,
+      transactionRevenue: revenue
+    });
   });
 
   (returns || []).forEach(returnItem => {
     if (Number(returnItem.status) !== 1) return;
     if (!isCustomerReportDateInRange_(returnItem.returnDate, period)) return;
-    addCustomerReportAmount_(customers, returnItem, 0, customerReportNumber_(returnItem.returnTotal));
+
+    const customer = getOrCreateCustomerReportCustomer_(customers, returnItem, profileLookup);
+    const returnValue = customerReportNumber_(returnItem.returnTotal);
+    const returnDiscount = customerReportNumber_(returnItem.returnDiscount);
+
+    customer.returnOrderCount++;
+    customer.returnValue += returnValue;
+    customer.transactions.push({
+      transactionCode: customerReportSafeText_(returnItem.code || returnItem.returnCode || ''),
+      transactionTime: customerReportDateValue_(returnItem.returnDate),
+      transactionTimeMs: customerReportDateTime_(returnItem.returnDate),
+      employeeName: customerReportSafeText_(returnItem.soldByName || ''),
+      transactionQuantity: -sumCustomerReportDetailQuantity_(returnItem.returnDetails),
+      transactionGrossTotal: -(returnValue + returnDiscount),
+      transactionDiscount: -returnDiscount,
+      transactionRevenue: -returnValue
+    });
   });
 
   return Object.keys(customers)
     .map(key => {
       const customer = customers[key];
       customer.netRevenue = customer.revenue - customer.returnValue;
+      customer.transactions.sort((left, right) => {
+        if (right.transactionTimeMs !== left.transactionTimeMs) {
+          return right.transactionTimeMs - left.transactionTimeMs;
+        }
+        return String(left.transactionCode).localeCompare(String(right.transactionCode));
+      });
       return customer;
     })
     .sort((left, right) => {
@@ -318,114 +390,193 @@ function aggregateCustomerReport_(invoices, returns, period) {
     });
 }
 
-function aggregateCustomerProductReport_(invoices, returns, period) {
-  const customers = {};
+function buildCustomerReportProfileLookup_(customerProfiles) {
+  const lookup = { byId: {}, byCode: {} };
 
-  (invoices || []).forEach(invoice => {
-    if (Number(invoice.status) !== 1) return;
-    if (!isCustomerReportDateInRange_(invoice.purchaseDate, period)) return;
-    addCustomerProductReportAmount_(
-      customers,
-      invoice,
-      sumCustomerReportDetailQuantity_(invoice.invoiceDetails),
-      customerReportNumber_(invoice.total),
-      0,
-      0
-    );
+  (customerProfiles || []).forEach(profile => {
+    const customerId = customerReportText_(profile.id || profile.customerId);
+    const customerCode = customerReportText_(profile.code || profile.customerCode).toLocaleLowerCase();
+    if (customerId) lookup.byId[customerId] = profile;
+    if (customerCode) lookup.byCode[customerCode] = profile;
   });
 
-  (returns || []).forEach(returnItem => {
-    if (Number(returnItem.status) !== 1) return;
-    if (!isCustomerReportDateInRange_(returnItem.returnDate, period)) return;
-    addCustomerProductReportAmount_(
-      customers,
-      returnItem,
-      0,
-      0,
-      sumCustomerReportDetailQuantity_(returnItem.returnDetails),
-      customerReportNumber_(returnItem.returnTotal)
-    );
-  });
-
-  return Object.keys(customers)
-    .map(key => {
-      const customer = customers[key];
-      customer.netRevenue = customer.revenue - customer.returnValue;
-      return customer;
-    })
-    .sort((left, right) => {
-      if (right.netRevenue !== left.netRevenue) return right.netRevenue - left.netRevenue;
-      if (right.revenue !== left.revenue) return right.revenue - left.revenue;
-      return String(left.customerCode).localeCompare(String(right.customerCode));
-    });
+  return lookup;
 }
 
-function addCustomerProductReportAmount_(customers, item, purchasedQuantity, revenue, returnedQuantity, returnValue) {
-  const customerId = item.customerId === null || item.customerId === undefined
-    ? ''
-    : String(item.customerId).trim();
-  const customerCode = String(item.customerCode || '').trim();
-  const customerName = String(item.customerName || 'Khách lẻ').trim() || 'Khách lẻ';
+function getOrCreateCustomerReportCustomer_(customers, item, profileLookup) {
+  const customerId = customerReportText_(item.customerId);
+  const itemCustomerCode = customerReportText_(item.customerCode);
+  const itemCustomerName = customerReportText_(item.customerName) || 'Khách lẻ';
   const key = customerId
     ? 'id:' + customerId
-    : (customerCode ? 'code:' + customerCode : 'name:' + customerName.toLocaleLowerCase());
+    : (itemCustomerCode ? 'code:' + itemCustomerCode.toLocaleLowerCase() : 'name:' + itemCustomerName.toLocaleLowerCase());
+  const profile = (customerId && profileLookup.byId[customerId]) ||
+    (itemCustomerCode && profileLookup.byCode[itemCustomerCode.toLocaleLowerCase()]) || {};
+  const profileCode = customerReportText_(profile.code || profile.customerCode);
+  const profileName = customerReportText_(profile.name || profile.customerName);
 
   if (!customers[key]) {
     customers[key] = {
-      customerCode: customerCode,
-      customerName: customerName,
-      purchasedQuantity: 0,
+      customerCode: customerReportSafeText_(itemCustomerCode || profileCode),
+      customerName: customerReportSafeText_(itemCustomerName !== 'Khách lẻ' ? itemCustomerName : (profileName || itemCustomerName)),
+      contactNumber: customerReportSafeText_(profile.contactNumber || profile.customerContactNumber || item.contactNumber || ''),
+      customerGroup: customerReportSafeText_(customerReportCustomerGroups_(profile)),
+      saleOrderCount: 0,
+      grossTotal: 0,
+      invoiceDiscount: 0,
       revenue: 0,
-      returnedQuantity: 0,
+      returnOrderCount: 0,
       returnValue: 0,
-      netRevenue: 0
+      netRevenue: 0,
+      transactions: []
     };
   } else {
-    if (!customers[key].customerCode && customerCode) customers[key].customerCode = customerCode;
-    if (customers[key].customerName === 'Khách lẻ' && customerName !== 'Khách lẻ') {
-      customers[key].customerName = customerName;
+    if (!customers[key].customerCode && (itemCustomerCode || profileCode)) {
+      customers[key].customerCode = customerReportSafeText_(itemCustomerCode || profileCode);
+    }
+    if (customers[key].customerName === 'Khách lẻ' && (profileName || itemCustomerName !== 'Khách lẻ')) {
+      customers[key].customerName = customerReportSafeText_(profileName || itemCustomerName);
+    }
+    if (!customers[key].contactNumber && profile.contactNumber) {
+      customers[key].contactNumber = customerReportSafeText_(profile.contactNumber);
+    }
+    if (!customers[key].customerGroup) {
+      customers[key].customerGroup = customerReportSafeText_(customerReportCustomerGroups_(profile));
     }
   }
 
-  customers[key].purchasedQuantity += purchasedQuantity;
-  customers[key].revenue += revenue;
-  customers[key].returnedQuantity += returnedQuantity;
-  customers[key].returnValue += returnValue;
+  return customers[key];
+}
+
+function customerReportCustomerGroups_(profile) {
+  const direct = profile.groups || profile.groupName || profile.customerGroups;
+  if (Array.isArray(direct)) {
+    return direct.map(group => {
+      if (typeof group === 'string') return group;
+      return customerReportText_(group && (group.name || group.groupName));
+    }).filter(Boolean).join(', ');
+  }
+  if (direct !== null && direct !== undefined && direct !== '') return String(direct);
+
+  return (Array.isArray(profile.customerGroupDetails) ? profile.customerGroupDetails : [])
+    .map(detail => customerReportText_(detail && (detail.groupName || detail.name)))
+    .filter(Boolean)
+    .join(', ');
+}
+
+function customerReportInvoiceDiscount_(invoice) {
+  if (Number(invoice.pricingMode) === 1 && invoice.discountAfterTax !== null && invoice.discountAfterTax !== undefined) {
+    return customerReportNumber_(invoice.discountAfterTax);
+  }
+  return customerReportNumber_(invoice.discount);
+}
+
+function customerReportText_(value) {
+  return value === null || value === undefined ? '' : String(value).trim();
+}
+
+function customerReportSafeText_(value) {
+  const text = customerReportText_(value);
+  return text.charAt(0) === '=' ? "'" + text : text;
+}
+
+function customerReportDateTime_(value) {
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return isFinite(time) ? time : 0;
+}
+
+function customerReportDateValue_(value) {
+  const time = customerReportDateTime_(value);
+  return time ? new Date(time) : '';
+}
+
+function summarizeCustomerReport_(reportRows) {
+  return (reportRows || []).reduce((summary, customer) => {
+    summary.transactionCount += (customer.transactions || []).length;
+    summary.revenue += customer.revenue;
+    summary.returnValue += customer.returnValue;
+    summary.netRevenue += customer.netRevenue;
+    return summary;
+  }, { transactionCount: 0, revenue: 0, returnValue: 0, netRevenue: 0 });
+}
+
+function aggregateCustomerProductReport_(invoices, periodOrReturns, optionalPeriod) {
+  // optionalPeriod giu tuong thich voi loi goi cu (invoices, returns, period).
+  const period = optionalPeriod || periodOrReturns;
+  const rows = [];
+
+  (invoices || []).forEach(invoice => {
+    const status = customerProductReportValue_(invoice, ['Status', 'status'], 0);
+    const purchaseDate = customerProductReportValue_(
+      invoice,
+      ['PurchaseDate', 'purchaseDate'],
+      ''
+    );
+    if (Number(status) !== 1 || !isCustomerReportDateInRange_(purchaseDate, period)) return;
+
+    const details = customerProductReportValue_(
+      invoice,
+      ['InvoiceDetails', 'invoiceDetails'],
+      []
+    );
+    (Array.isArray(details) ? details : []).forEach(detail => {
+      rows.push(buildCustomerProductReportRow_(invoice, detail, purchaseDate));
+    });
+  });
+
+  return rows.sort(compareCustomerProductReportRows_);
+}
+
+function buildCustomerProductReportRow_(invoice, detail, purchaseDate) {
+  const customerName = customerProductReportValue_(
+    invoice,
+    ['CustomerName', 'customerName'],
+    'Khách lẻ'
+  );
+  return {
+    customerName: customerReportSafeText_(customerName || 'Khách lẻ'),
+    productCode: customerReportSafeText_(
+      customerProductReportValue_(detail, ['ProductCode', 'productCode'], '')
+    ),
+    productName: customerReportSafeText_(
+      customerProductReportValue_(detail, ['ProductName', 'productName'], '')
+    ),
+    purchasedQuantity: customerReportNumber_(
+      customerProductReportValue_(detail, ['Quantity', 'quantity'], 0)
+    ),
+    purchaseTime: customerReportDateValue_(purchaseDate),
+    purchaseTimeMs: customerReportDateTime_(purchaseDate),
+    invoiceId: customerReportSafeText_(
+      customerProductReportValue_(invoice, ['InvoiceId', 'invoiceId', 'Id', 'id'], '')
+    ),
+    invoiceCode: customerReportSafeText_(
+      customerProductReportValue_(invoice, ['InvoiceCode', 'invoiceCode', 'Code', 'code'], '')
+    )
+  };
+}
+
+function customerProductReportValue_(source, keys, defaultValue) {
+  const object = source || {};
+  for (let i = 0; i < keys.length; i++) {
+    if (Object.prototype.hasOwnProperty.call(object, keys[i])) return object[keys[i]];
+  }
+  return defaultValue;
+}
+
+function compareCustomerProductReportRows_(left, right) {
+  if (right.purchaseTimeMs !== left.purchaseTimeMs) {
+    return right.purchaseTimeMs - left.purchaseTimeMs;
+  }
+  const invoiceCompare = String(left.invoiceCode).localeCompare(String(right.invoiceCode));
+  if (invoiceCompare !== 0) return invoiceCompare;
+  return String(left.productCode).localeCompare(String(right.productCode));
 }
 
 function sumCustomerReportDetailQuantity_(details) {
   return (Array.isArray(details) ? details : []).reduce((total, detail) => {
-    return total + customerReportNumber_(detail && detail.quantity);
+    return total + customerReportNumber_(detail && (detail.quantity !== undefined ? detail.quantity : detail.Quantity));
   }, 0);
-}
-
-function addCustomerReportAmount_(customers, item, revenue, returnValue) {
-  const customerId = item.customerId === null || item.customerId === undefined
-    ? ''
-    : String(item.customerId).trim();
-  const customerCode = String(item.customerCode || '').trim();
-  const customerName = String(item.customerName || 'Khách lẻ').trim() || 'Khách lẻ';
-  const key = customerId
-    ? 'id:' + customerId
-    : (customerCode ? 'code:' + customerCode : 'name:' + customerName.toLocaleLowerCase());
-
-  if (!customers[key]) {
-    customers[key] = {
-      customerCode: customerCode,
-      customerName: customerName,
-      revenue: 0,
-      returnValue: 0,
-      netRevenue: 0
-    };
-  } else {
-    if (!customers[key].customerCode && customerCode) customers[key].customerCode = customerCode;
-    if (customers[key].customerName === 'Khách lẻ' && customerName !== 'Khách lẻ') {
-      customers[key].customerName = customerName;
-    }
-  }
-
-  customers[key].revenue += revenue;
-  customers[key].returnValue += returnValue;
 }
 
 function isCustomerReportDateInRange_(value, period) {
@@ -448,59 +599,91 @@ function writeCustomerReportSheet_(reportRows, period) {
   }
   if (!sheet) sheet = spreadsheet.insertSheet(CONFIG.SHEET_CUSTOMER_REPORT);
 
-  const totals = reportRows.reduce((summary, row) => {
-    summary.revenue += row.revenue;
-    summary.returnValue += row.returnValue;
-    summary.netRevenue += row.netRevenue;
-    return summary;
-  }, { revenue: 0, returnValue: 0, netRevenue: 0 });
-
-  const values = [
-    CUSTOMER_REPORT_HEADERS,
-    [
-      'SL khách hàng: ' + reportRows.length,
-      '',
-      totals.revenue,
-      totals.returnValue,
-      totals.netRevenue
-    ]
-  ].concat(reportRows.map(row => [
-    row.customerCode,
-    row.customerName,
-    row.revenue,
-    row.returnValue,
-    row.netRevenue
-  ]));
+  const values = buildCustomerReportValues_(reportRows);
+  const dataRowCount = values.length - 1;
 
   sheet.clear();
   sheet.getRange(1, 1, values.length, CUSTOMER_REPORT_HEADERS.length).setValues(values);
-  sheet.getRange(1, 1, 1, CUSTOMER_REPORT_HEADERS.length)
-    .setFontWeight('bold')
-    .setBackground('#A9DEF4')
-    .setHorizontalAlignment('center');
-  sheet.getRange(2, 1, 1, CUSTOMER_REPORT_HEADERS.length)
-    .setFontWeight('bold')
-    .setBackground('#F5F0D5');
   sheet.getRange(1, 1).setNote(
     'Kiểu hiển thị: Báo cáo\n' +
     'Mối quan tâm: Bán hàng\n' +
     'Thời gian: Tháng này (' + period.startLabel + ' - ' + period.endLabel + ')\n' +
+    'Chi tiết: Mỗi hóa đơn hoặc phiếu trả hàng là một dòng giao dịch.\n' +
     'Tự động cập nhật hàng ngày lúc gần 07:00.'
   );
 
-  if (reportRows.length > 0) {
-    sheet.getRange(3, 1, reportRows.length, 1).setNumberFormat('@');
-    sheet.getRange(3, 3, reportRows.length, 3).setNumberFormat('#,##0');
+  if (dataRowCount > 0) {
+    sheet.getRange(2, 1, dataRowCount, 4).setNumberFormat('@');
+    sheet.getRange(2, 5, dataRowCount, 1).setNumberFormat('#,##0');
+    sheet.getRange(2, 6, dataRowCount, 3).setNumberFormat('#,##0');
+    sheet.getRange(2, 9, dataRowCount, 1).setNumberFormat('#,##0');
+    sheet.getRange(2, 10, dataRowCount, 2).setNumberFormat('#,##0');
+    sheet.getRange(2, 12, dataRowCount, 1).setNumberFormat('@');
+    sheet.getRange(2, 13, dataRowCount, 1).setNumberFormat('dd/MM/yyyy HH:mm:ss');
+    sheet.getRange(2, 14, dataRowCount, 1).setNumberFormat('@');
+    sheet.getRange(2, 15, dataRowCount, 1).setNumberFormat('#,##0.##');
+    sheet.getRange(2, 16, dataRowCount, 3).setNumberFormat('#,##0');
   }
-  sheet.getRange(2, 3, 1, 3).setNumberFormat('#,##0');
-  sheet.setFrozenRows(2);
+
+  sheet.getRange(1, 1, 1, CUSTOMER_REPORT_HEADERS.length)
+    .setFontWeight('bold')
+    .setFontColor('#FFFFFF')
+    .setBackground('#4F81BD')
+    .setHorizontalAlignment('center')
+    .setVerticalAlignment('middle')
+    .setWrap(true);
+
+  const existingFilter = sheet.getFilter();
+  if (existingFilter) existingFilter.remove();
+  if (dataRowCount > 0) {
+    sheet.getRange(1, 1, values.length, CUSTOMER_REPORT_HEADERS.length).createFilter();
+  }
+
+  sheet.setFrozenRows(1);
   sheet.setTabColor('#0D6EFD');
   sheet.autoResizeColumns(1, CUSTOMER_REPORT_HEADERS.length);
-  sheet.setColumnWidth(1, Math.max(sheet.getColumnWidth(1), 130));
-  sheet.setColumnWidth(2, Math.max(sheet.getColumnWidth(2), 230));
-  sheet.setColumnWidth(3, Math.max(sheet.getColumnWidth(3), 135));
-  sheet.setColumnWidth(4, Math.max(sheet.getColumnWidth(4), 135));
-  sheet.setColumnWidth(5, Math.max(sheet.getColumnWidth(5), 150));
+  sheet.setColumnWidth(1, 115);
+  sheet.setColumnWidth(2, 220);
+  sheet.setColumnWidth(3, 125);
+  sheet.setColumnWidth(4, 165);
+  sheet.setColumnWidths(5, 7, 115);
+  sheet.setColumnWidth(12, 125);
+  sheet.setColumnWidth(13, 175);
+  sheet.setColumnWidth(14, 130);
+  sheet.setColumnWidth(15, 155);
+  sheet.setColumnWidths(16, 3, 175);
+  sheet.setRowHeight(1, 42);
+}
+
+function buildCustomerReportValues_(reportRows) {
+  const values = [CUSTOMER_REPORT_HEADERS];
+
+  (reportRows || []).forEach(customer => {
+    (customer.transactions || []).forEach(transaction => {
+      values.push([
+        customer.customerCode,
+        customer.customerName,
+        customer.contactNumber,
+        customer.customerGroup,
+        customer.saleOrderCount,
+        customer.grossTotal,
+        customer.invoiceDiscount,
+        customer.revenue,
+        customer.returnOrderCount,
+        customer.returnValue,
+        customer.netRevenue,
+        transaction.transactionCode,
+        transaction.transactionTime,
+        transaction.employeeName,
+        transaction.transactionQuantity,
+        transaction.transactionGrossTotal,
+        transaction.transactionDiscount,
+        transaction.transactionRevenue
+      ]);
+    });
+  });
+
+  return values;
 }
 
 function writeCustomerProductReportSheet_(reportRows, period) {
@@ -508,77 +691,170 @@ function writeCustomerProductReportSheet_(reportRows, period) {
   let sheet = spreadsheet.getSheetByName(CONFIG.SHEET_CUSTOMER_PRODUCT_REPORT);
   if (!sheet) sheet = spreadsheet.insertSheet(CONFIG.SHEET_CUSTOMER_PRODUCT_REPORT);
 
-  const totals = reportRows.reduce((summary, row) => {
-    summary.purchasedQuantity += row.purchasedQuantity;
-    summary.revenue += row.revenue;
-    summary.returnedQuantity += row.returnedQuantity;
-    summary.returnValue += row.returnValue;
-    summary.netRevenue += row.netRevenue;
-    return summary;
-  }, {
-    purchasedQuantity: 0,
-    revenue: 0,
-    returnedQuantity: 0,
-    returnValue: 0,
-    netRevenue: 0
-  });
-
-  const values = [
-    CUSTOMER_PRODUCT_REPORT_HEADERS,
-    [
-      'SL khách hàng: ' + reportRows.length,
-      '',
-      totals.purchasedQuantity,
-      totals.revenue,
-      totals.returnedQuantity,
-      totals.returnValue,
-      totals.netRevenue
-    ]
-  ].concat(reportRows.map(row => [
-    row.customerCode,
+  const values = [CUSTOMER_PRODUCT_REPORT_HEADERS].concat(reportRows.map(row => [
     row.customerName,
+    row.productCode,
+    row.productName,
     row.purchasedQuantity,
-    row.revenue,
-    row.returnedQuantity,
-    row.returnValue,
-    row.netRevenue
+    row.purchaseTime
   ]));
 
+  const existingFilter = sheet.getFilter();
+  if (existingFilter) existingFilter.remove();
   sheet.clear();
   sheet.getRange(1, 1, values.length, CUSTOMER_PRODUCT_REPORT_HEADERS.length).setValues(values);
   sheet.getRange(1, 1, 1, CUSTOMER_PRODUCT_REPORT_HEADERS.length)
     .setFontWeight('bold')
-    .setBackground('#A9DEF4')
+    .setFontColor('#FFFFFF')
+    .setBackground('#00A6A6')
     .setHorizontalAlignment('center');
-  sheet.getRange(2, 1, 1, CUSTOMER_PRODUCT_REPORT_HEADERS.length)
-    .setFontWeight('bold')
-    .setBackground('#F5F0D5');
   sheet.getRange(1, 1).setNote(
     'Kiểu hiển thị: Báo cáo\n' +
     'Mối quan tâm: Hàng bán theo khách\n' +
     'Thời gian: 90 ngày qua (' + period.startLabel + ' - ' + period.endLabel + ')\n' +
-    'Tự động cập nhật hàng ngày lúc gần 07:00.'
+    'Chi tiết: Mỗi mặt hàng trong hóa đơn hoàn thành là một dòng.\n' +
+    'Tự động cập nhật từ webhook KiotViet trong khoảng 1 phút; đối soát toàn bộ lúc gần 07:00.'
   );
 
   if (reportRows.length > 0) {
-    sheet.getRange(3, 1, reportRows.length, 1).setNumberFormat('@');
-    sheet.getRange(3, 3, reportRows.length, 1).setNumberFormat('#,##0');
-    sheet.getRange(3, 4, reportRows.length, 1).setNumberFormat('#,##0');
-    sheet.getRange(3, 5, reportRows.length, 1).setNumberFormat('#,##0');
-    sheet.getRange(3, 6, reportRows.length, 2).setNumberFormat('#,##0');
+    sheet.getRange(2, 1, reportRows.length, 3).setNumberFormat('@');
+    sheet.getRange(2, 4, reportRows.length, 1).setNumberFormat('#,##0.##');
+    sheet.getRange(2, 5, reportRows.length, 1).setNumberFormat('dd/MM/yyyy HH:mm:ss');
+    sheet.getRange(2, 1, reportRows.length, 1).setNotes(
+      reportRows.map(row => [customerProductReportMetadataNote_(row)])
+    );
+    sheet.getRange(1, 1, values.length, CUSTOMER_PRODUCT_REPORT_HEADERS.length).createFilter();
   }
-  sheet.getRange(2, 3, 1, 1).setNumberFormat('#,##0');
-  sheet.getRange(2, 4, 1, 1).setNumberFormat('#,##0');
-  sheet.getRange(2, 5, 1, 1).setNumberFormat('#,##0');
-  sheet.getRange(2, 6, 1, 2).setNumberFormat('#,##0');
-  sheet.setFrozenRows(2);
+  sheet.setFrozenRows(1);
   sheet.setTabColor('#00A6A6');
   sheet.autoResizeColumns(1, CUSTOMER_PRODUCT_REPORT_HEADERS.length);
-  sheet.setColumnWidth(1, Math.max(sheet.getColumnWidth(1), 130));
-  sheet.setColumnWidth(2, Math.max(sheet.getColumnWidth(2), 230));
-  sheet.setColumnWidth(3, Math.max(sheet.getColumnWidth(3), 105));
-  sheet.setColumnWidth(4, Math.max(sheet.getColumnWidth(4), 135));
-  sheet.setColumnWidth(5, Math.max(sheet.getColumnWidth(5), 105));
-  sheet.setColumnWidth(6, Math.max(sheet.getColumnWidth(6), 135));
-  sheet.setColumnWidth(7, Math.max(sheet.getColumnWidth(7), 150));
+  sheet.setColumnWidth(1, Math.max(sheet.getColumnWidth(1), 220));
+  sheet.setColumnWidth(2, Math.max(sheet.getColumnWidth(2), 125));
+  sheet.setColumnWidth(3, Math.max(sheet.getColumnWidth(3), 260));
+  sheet.setColumnWidth(4, Math.max(sheet.getColumnWidth(4), 105));
+  sheet.setColumnWidth(5, Math.max(sheet.getColumnWidth(5), 175));
+  sheet.setRowHeight(1, 36);
+}
+
+/**
+ * Thay cac dong cua hoa don vua duoc webhook cap nhat. Ma hoa don/ID duoc luu
+ * trong note cot A, nen tab van chi co dung 5 cot nghiep vu ma van upsert duoc.
+ */
+function updateCustomerProductReportFromInvoices_(invoices) {
+  replaceCustomerProductReportInvoices_(invoices, true);
+}
+
+function deleteCustomerProductReportInvoices_(invoices, additionalInvoiceCodes) {
+  const deleteItems = (Array.isArray(invoices) ? invoices : []).slice();
+  (Array.isArray(additionalInvoiceCodes) ? additionalInvoiceCodes : []).forEach(code => {
+    deleteItems.push({ invoiceCode: code });
+  });
+  replaceCustomerProductReportInvoices_(deleteItems, false);
+}
+
+function replaceCustomerProductReportInvoices_(invoices, appendCompletedRows) {
+  const items = Array.isArray(invoices) ? invoices : [];
+  if (items.length === 0) return;
+
+  const sheet = SpreadsheetApp.getActiveSpreadsheet()
+    .getSheetByName(CONFIG.SHEET_CUSTOMER_PRODUCT_REPORT);
+  if (!sheet || !isCustomerProductReportSchemaReady_(sheet)) {
+    Logger.log(
+      'Bo qua cap nhat real-time Hang ban theo khach: schema chua san sang; ' +
+      'syncCustomerReportIfDue_ se tu chuyen doi.'
+    );
+    return;
+  }
+
+  const identities = buildCustomerProductReportIdentityMap_(items);
+  if (Object.keys(identities.ids).length === 0 && Object.keys(identities.codes).length === 0) {
+    return;
+  }
+
+  const existingFilter = sheet.getFilter();
+  if (existingFilter) existingFilter.remove();
+
+  if (sheet.getLastRow() > 1) {
+    const rowCount = sheet.getLastRow() - 1;
+    const notes = sheet.getRange(2, 1, rowCount, 1).getNotes();
+    for (let rowOffset = rowCount - 1; rowOffset >= 0; rowOffset--) {
+      const metadata = parseCustomerProductReportMetadataNote_(notes[rowOffset][0]);
+      if (
+        (metadata.invoiceId && identities.ids[metadata.invoiceId]) ||
+        (metadata.invoiceCode && identities.codes[metadata.invoiceCode])
+      ) {
+        sheet.deleteRow(rowOffset + 2);
+      }
+    }
+  }
+
+  if (appendCompletedRows) {
+    const period = getCustomerReportRollingRange_(new Date(), CUSTOMER_PRODUCT_REPORT_DAYS);
+    const newRows = aggregateCustomerProductReport_(items, period);
+    if (newRows.length > 0) {
+      const startRow = sheet.getLastRow() + 1;
+      const values = newRows.map(row => [
+        row.customerName,
+        row.productCode,
+        row.productName,
+        row.purchasedQuantity,
+        row.purchaseTime
+      ]);
+      sheet.getRange(startRow, 1, values.length, CUSTOMER_PRODUCT_REPORT_HEADERS.length)
+        .setValues(values);
+      sheet.getRange(startRow, 1, values.length, 3).setNumberFormat('@');
+      sheet.getRange(startRow, 4, values.length, 1).setNumberFormat('#,##0.##');
+      sheet.getRange(startRow, 5, values.length, 1).setNumberFormat('dd/MM/yyyy HH:mm:ss');
+      sheet.getRange(startRow, 1, values.length, 1).setNotes(
+        newRows.map(row => [customerProductReportMetadataNote_(row)])
+      );
+    }
+  }
+
+  if (sheet.getLastRow() > 1) {
+    sheet.getRange(2, 1, sheet.getLastRow() - 1, CUSTOMER_PRODUCT_REPORT_HEADERS.length)
+      .sort({ column: 5, ascending: false });
+    sheet.getRange(1, 1, sheet.getLastRow(), CUSTOMER_PRODUCT_REPORT_HEADERS.length)
+      .createFilter();
+  }
+}
+
+function isCustomerProductReportSchemaReady_(sheet) {
+  if (!sheet || sheet.getLastColumn() < CUSTOMER_PRODUCT_REPORT_HEADERS.length) return false;
+  const headers = sheet.getRange(1, 1, 1, CUSTOMER_PRODUCT_REPORT_HEADERS.length).getValues()[0];
+  return CUSTOMER_PRODUCT_REPORT_HEADERS.every((header, index) => headers[index] === header);
+}
+
+function buildCustomerProductReportIdentityMap_(invoices) {
+  const identities = { ids: {}, codes: {} };
+  (invoices || []).forEach(invoice => {
+    const invoiceId = customerReportText_(
+      customerProductReportValue_(invoice, ['InvoiceId', 'invoiceId', 'Id', 'id'], '')
+    );
+    const invoiceCode = customerReportText_(
+      customerProductReportValue_(invoice, ['InvoiceCode', 'invoiceCode', 'Code', 'code'], '')
+    );
+    if (invoiceId) identities.ids[invoiceId] = true;
+    if (invoiceCode) identities.codes[invoiceCode] = true;
+  });
+  return identities;
+}
+
+function customerProductReportMetadataNote_(row) {
+  return JSON.stringify({
+    invoiceId: customerReportText_(row.invoiceId),
+    invoiceCode: customerReportText_(row.invoiceCode)
+  });
+}
+
+function parseCustomerProductReportMetadataNote_(note) {
+  try {
+    const parsed = JSON.parse(note || '{}');
+    return {
+      invoiceId: customerReportText_(parsed.invoiceId),
+      invoiceCode: customerReportText_(parsed.invoiceCode)
+    };
+  } catch (error) {
+    return { invoiceId: '', invoiceCode: '' };
+  }
 }

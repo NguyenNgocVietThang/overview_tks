@@ -63,7 +63,7 @@ server/public/
 - **Biểu đồ doanh thu theo ngày:** bộ lọc 7 / 30 / 90 ngày
 - **Bảng chi tiết:** Top 10 sản phẩm bán chạy, hàng đã hết, Top 8 công nợ, 8 bản ghi gần nhất (HĐ, đặt hàng, trả hàng, nhập hàng)
 - **Đồng bộ tự động:** Webhook KiotViet (9 event) + Polling 5 phút (Trả hàng/NCC/Nhập hàng)
-- **Schema đầy đủ:** giữ cột dashboard ở bên trái; trường Public API, dữ liệu lồng dạng JSON và payload gốc ở bên phải
+- **Schema gọn:** giữ cột dashboard ở bên trái và các trường Public API dạng phẳng đang dùng ở bên phải; không lưu cột JSON/payload gốc
 - **Làm mới dashboard:** nút Refresh; tự tải nền mỗi 10 phút; tải bù khi quay lại tab đã ẩn quá 10 phút
 - **Khả năng chịu lỗi tab nguồn:** tab thiếu/đổi tên trả dữ liệu rỗng cho section tương ứng thay vì làm lỗi toàn dashboard
 - **Nhất quán thời gian:** KPI hôm nay, chuỗi ngày và `updatedAt` theo Asia/Ho_Chi_Minh
@@ -102,7 +102,7 @@ server/public/
 > `config/` → `dashboard/` → `kiotviet/` → `sync/` → `ui/` → `utils/`  
 > `Config.gs` luôn được khởi tạo trước tất cả module khác. ✅
 
-> **Schema Google Sheets:** Apps Script duy trì 9 tab vận hành, tab `Báo cáo bán hàng` tháng hiện tại và tab `Hàng bán theo khách` 90 ngày; trigger hàng đợi kiểm tra mỗi phút và cập nhật cả hai báo cáo một lần/ngày sau 07:00. `src/kiotviet/SheetSchemas.gs` giữ cột dashboard ở bên trái và nối đủ trường KiotViet ở bên phải. Backend dashboard chỉ đọc 9 tab vận hành và dùng `Nhóm hàng` để gom tồn kho theo nhóm cha.
+> **Schema Google Sheets:** Apps Script duy trì 9 tab vận hành, tab `Báo cáo bán hàng` 18 cột theo từng giao dịch trong tháng hiện tại và tab `Hàng bán theo khách` đúng 5 cột chi tiết hàng bán trong 90 ngày. Webhook hóa đơn cập nhật tab này theo chu kỳ hàng đợi 1 phút; lượt 07:00 đối soát toàn bộ. `src/kiotviet/SheetSchemas.gs` giữ cột dashboard ở bên trái, chỉ nối các trường KiotViet dạng phẳng đang dùng và tự xóa cột JSON cũ qua trigger nền. Backend dashboard chỉ đọc 9 tab vận hành và dùng `Nhóm hàng` để gom tồn kho theo nhóm cha.
 > `sheetsClient.js` lọc tab hiện có trước `batchGet`, nên tab thiếu chỉ làm rỗng section tương ứng. Khi thay đổi các cột tương thích dashboard vẫn phải cập nhật đồng bộ `SheetSchemas.gs`, `server/config.js` và `server/dashboard/dashboardData.js`.
 
 > **Múi giờ:** Backend cố định `Asia/Ho_Chi_Minh`/UTC+07:00 cho parse ngày, KPI "hôm nay", bucket 7/30/90 ngày và `updatedAt`; không phụ thuộc timezone mặc định của Render.

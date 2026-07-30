@@ -13,16 +13,33 @@ const LEGACY_REPORT_SHEET_NAME = 'Báo cáo khách hàng';
 const CUSTOMER_PRODUCT_REPORT_SHEET_NAME = 'Hàng bán theo khách';
 const REPORT_TIME_ZONE_OFFSET_HOURS = 7;
 const PAGE_SIZE = 100;
-const HEADERS = ['Mã KH', 'Khách hàng', 'Doanh thu', 'Giá trị trả', 'Doanh thu thuần'];
-const CUSTOMER_PRODUCT_REPORT_DAYS = 90;
-const CUSTOMER_PRODUCT_HEADERS = [
+const HEADERS = [
   'Mã KH',
   'Khách hàng',
-  'SL mua',
+  'Số điện thoại',
+  'Nhóm khách hàng',
+  'SL đơn bán',
+  'Tổng tiền',
+  'Giảm giá HĐ',
   'Doanh thu',
-  'SL Trả',
+  'SL đơn trả',
   'Giá trị trả',
-  'Doanh thu thuần'
+  'Doanh thu thuần',
+  'Mã giao dịch',
+  'Thời gian (theo giao dịch)',
+  'Nhân viên',
+  'SL giao dịch (theo giao dịch)',
+  'Tổng tiền hàng (theo giao dịch)',
+  'Giảm giá (theo giao dịch)',
+  'Doanh thu (theo giao dịch)'
+];
+const CUSTOMER_PRODUCT_REPORT_DAYS = 90;
+const CUSTOMER_PRODUCT_HEADERS = [
+  'Khách hàng',
+  'Mã hàng',
+  'Tên hàng',
+  'SL mua',
+  'Thời gian'
 ];
 
 function readKiotVietConfig() {
@@ -118,30 +135,50 @@ function getRollingDayRange(now, days) {
   };
 }
 
-function aggregateCustomerReport(invoices, returns, period) {
+function aggregateCustomerReport(invoices, returns, period, customerProfiles) {
   const customers = new Map();
+  const profileLookup = buildCustomerProfileLookup(customerProfiles);
 
-  const addAmount = (item, revenue, returnValue) => {
-    const customerId = item.customerId == null ? '' : String(item.customerId);
-    const customerCode = String(item.customerCode || '').trim();
-    const customerName = String(item.customerName || 'Khách lẻ').trim() || 'Khách lẻ';
+  const getOrCreateCustomer = item => {
+    const customerId = textValue(item.customerId);
+    const itemCustomerCode = textValue(item.customerCode);
+    const itemCustomerName = textValue(item.customerName) || 'Khách lẻ';
     const key = customerId
       ? `id:${customerId}`
-      : (customerCode ? `code:${customerCode}` : `name:${customerName.toLowerCase()}`);
+      : (itemCustomerCode ? `code:${itemCustomerCode.toLowerCase()}` : `name:${itemCustomerName.toLowerCase()}`);
+    const profile = (customerId && profileLookup.byId.get(customerId)) ||
+      (itemCustomerCode && profileLookup.byCode.get(itemCustomerCode.toLowerCase())) || {};
+    const profileCode = textValue(profile.code || profile.customerCode);
+    const profileName = textValue(profile.name || profile.customerName);
 
     if (!customers.has(key)) {
       customers.set(key, {
-        customerCode,
-        customerName,
+        customerCode: safeText(itemCustomerCode || profileCode),
+        customerName: safeText(itemCustomerName !== 'Khách lẻ' ? itemCustomerName : (profileName || itemCustomerName)),
+        contactNumber: safeText(profile.contactNumber || profile.customerContactNumber || item.contactNumber || ''),
+        customerGroup: safeText(getCustomerGroups(profile)),
+        saleOrderCount: 0,
+        grossTotal: 0,
+        invoiceDiscount: 0,
         revenue: 0,
-        returnValue: 0
+        returnOrderCount: 0,
+        returnValue: 0,
+        transactions: []
       });
     }
 
     const customer = customers.get(key);
-    if (!customer.customerCode && customerCode) customer.customerCode = customerCode;
-    customer.revenue += Number(revenue || 0);
-    customer.returnValue += Number(returnValue || 0);
+    if (!customer.customerCode && (itemCustomerCode || profileCode)) {
+      customer.customerCode = safeText(itemCustomerCode || profileCode);
+    }
+    if (customer.customerName === 'Khách lẻ' && (profileName || itemCustomerName !== 'Khách lẻ')) {
+      customer.customerName = safeText(profileName || itemCustomerName);
+    }
+    if (!customer.contactNumber && profile.contactNumber) {
+      customer.contactNumber = safeText(profile.contactNumber);
+    }
+    if (!customer.customerGroup) customer.customerGroup = safeText(getCustomerGroups(profile));
+    return customer;
   };
 
   for (const invoice of invoices || []) {
@@ -151,7 +188,25 @@ function aggregateCustomerReport(invoices, returns, period) {
       purchaseTime >= period.startTime &&
       purchaseTime < period.endExclusiveTime
     ) {
-      addAmount(invoice, invoice.total, 0);
+      const customer = getOrCreateCustomer(invoice);
+      const discount = getInvoiceDiscount(invoice);
+      const revenue = numberValue(invoice.total);
+      const grossTotal = revenue + discount;
+
+      customer.saleOrderCount += 1;
+      customer.grossTotal += grossTotal;
+      customer.invoiceDiscount += discount;
+      customer.revenue += revenue;
+      customer.transactions.push({
+        transactionCode: safeText(invoice.code || invoice.invoiceCode || ''),
+        transactionTime: invoice.purchaseDate || '',
+        transactionTimeMs: Number.isFinite(purchaseTime) ? purchaseTime : 0,
+        employeeName: safeText(invoice.soldByName || ''),
+        transactionQuantity: sumDetailQuantity(invoice.invoiceDetails),
+        transactionGrossTotal: grossTotal,
+        transactionDiscount: discount,
+        transactionRevenue: revenue
+      });
     }
   }
 
@@ -162,94 +217,141 @@ function aggregateCustomerReport(invoices, returns, period) {
       returnTime >= period.startTime &&
       returnTime < period.endExclusiveTime
     ) {
-      addAmount(returnItem, 0, returnItem.returnTotal);
+      const customer = getOrCreateCustomer(returnItem);
+      const returnValue = numberValue(returnItem.returnTotal);
+      const returnDiscount = numberValue(returnItem.returnDiscount);
+
+      customer.returnOrderCount += 1;
+      customer.returnValue += returnValue;
+      customer.transactions.push({
+        transactionCode: safeText(returnItem.code || returnItem.returnCode || ''),
+        transactionTime: returnItem.returnDate || '',
+        transactionTimeMs: Number.isFinite(returnTime) ? returnTime : 0,
+        employeeName: safeText(returnItem.soldByName || ''),
+        transactionQuantity: -sumDetailQuantity(returnItem.returnDetails),
+        transactionGrossTotal: -(returnValue + returnDiscount),
+        transactionDiscount: -returnDiscount,
+        transactionRevenue: -returnValue
+      });
     }
   }
 
   return [...customers.values()]
     .map(customer => ({
       ...customer,
-      netRevenue: customer.revenue - customer.returnValue
+      netRevenue: customer.revenue - customer.returnValue,
+      transactions: customer.transactions.sort((left, right) =>
+        right.transactionTimeMs - left.transactionTimeMs ||
+        left.transactionCode.localeCompare(right.transactionCode)
+      )
     }))
     .sort((left, right) =>
       right.netRevenue - left.netRevenue ||
       right.revenue - left.revenue ||
       left.customerCode.localeCompare(right.customerCode)
     );
+}
+
+function buildCustomerProfileLookup(customerProfiles) {
+  const lookup = { byId: new Map(), byCode: new Map() };
+  for (const profile of customerProfiles || []) {
+    const customerId = textValue(profile.id || profile.customerId);
+    const customerCode = textValue(profile.code || profile.customerCode).toLowerCase();
+    if (customerId) lookup.byId.set(customerId, profile);
+    if (customerCode) lookup.byCode.set(customerCode, profile);
+  }
+  return lookup;
+}
+
+function getCustomerGroups(profile) {
+  const direct = profile.groups || profile.groupName || profile.customerGroups;
+  if (Array.isArray(direct)) {
+    return direct
+      .map(group => typeof group === 'string' ? group : textValue(group && (group.name || group.groupName)))
+      .filter(Boolean)
+      .join(', ');
+  }
+  if (direct != null && direct !== '') return String(direct);
+  return (Array.isArray(profile.customerGroupDetails) ? profile.customerGroupDetails : [])
+    .map(detail => textValue(detail && (detail.groupName || detail.name)))
+    .filter(Boolean)
+    .join(', ');
+}
+
+function getInvoiceDiscount(invoice) {
+  if (Number(invoice.pricingMode) === 1 && invoice.discountAfterTax != null) {
+    return numberValue(invoice.discountAfterTax);
+  }
+  return numberValue(invoice.discount);
+}
+
+function numberValue(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function textValue(value) {
+  return value == null ? '' : String(value).trim();
+}
+
+function safeText(value) {
+  const text = textValue(value);
+  return text.startsWith('=') ? `'${text}` : text;
 }
 
 function sumDetailQuantity(details) {
   return (Array.isArray(details) ? details : []).reduce((total, detail) => {
-    const quantity = Number(detail && detail.quantity);
+    const quantity = Number(detail && (detail.quantity !== undefined ? detail.quantity : detail.Quantity));
     return total + (Number.isFinite(quantity) ? quantity : 0);
   }, 0);
 }
 
-function aggregateCustomerProductReport(invoices, returns, period) {
-  const customers = new Map();
-
-  const addAmount = (item, purchasedQuantity, revenue, returnedQuantity, returnValue) => {
-    const customerId = item.customerId == null ? '' : String(item.customerId).trim();
-    const customerCode = String(item.customerCode || '').trim();
-    const customerName = String(item.customerName || 'Khách lẻ').trim() || 'Khách lẻ';
-    const key = customerId
-      ? `id:${customerId}`
-      : (customerCode ? `code:${customerCode}` : `name:${customerName.toLowerCase()}`);
-
-    if (!customers.has(key)) {
-      customers.set(key, {
-        customerCode,
-        customerName,
-        purchasedQuantity: 0,
-        revenue: 0,
-        returnedQuantity: 0,
-        returnValue: 0
-      });
-    }
-
-    const customer = customers.get(key);
-    if (!customer.customerCode && customerCode) customer.customerCode = customerCode;
-    if (customer.customerName === 'Khách lẻ' && customerName !== 'Khách lẻ') {
-      customer.customerName = customerName;
-    }
-    customer.purchasedQuantity += Number(purchasedQuantity || 0);
-    customer.revenue += Number(revenue || 0);
-    customer.returnedQuantity += Number(returnedQuantity || 0);
-    customer.returnValue += Number(returnValue || 0);
-  };
+function aggregateCustomerProductReport(invoices, periodOrReturns, optionalPeriod) {
+  // optionalPeriod keeps compatibility with the former (invoices, returns, period) signature.
+  const period = optionalPeriod || periodOrReturns;
+  const rows = [];
 
   for (const invoice of invoices || []) {
-    const purchaseTime = Date.parse(invoice.purchaseDate);
+    const purchaseDate = firstDefined(invoice, ['purchaseDate', 'PurchaseDate'], '');
+    const purchaseTime = Date.parse(purchaseDate);
+    const status = firstDefined(invoice, ['status', 'Status'], 0);
     if (
-      Number(invoice.status) === 1 &&
-      purchaseTime >= period.startTime &&
-      purchaseTime < period.endExclusiveTime
+      Number(status) !== 1 ||
+      purchaseTime < period.startTime ||
+      purchaseTime >= period.endExclusiveTime
     ) {
-      addAmount(invoice, sumDetailQuantity(invoice.invoiceDetails), invoice.total, 0, 0);
+      continue;
+    }
+
+    const details = firstDefined(invoice, ['invoiceDetails', 'InvoiceDetails'], []);
+    for (const detail of Array.isArray(details) ? details : []) {
+      rows.push({
+        customerName: safeText(firstDefined(invoice, ['customerName', 'CustomerName'], 'Khách lẻ')) ||
+          'Khách lẻ',
+        productCode: safeText(firstDefined(detail, ['productCode', 'ProductCode'], '')),
+        productName: safeText(firstDefined(detail, ['productName', 'ProductName'], '')),
+        purchasedQuantity: numberValue(firstDefined(detail, ['quantity', 'Quantity'], 0)),
+        purchaseTime: purchaseDate,
+        purchaseTimeMs: purchaseTime,
+        invoiceId: textValue(firstDefined(invoice, ['invoiceId', 'InvoiceId', 'id', 'Id'], '')),
+        invoiceCode: textValue(firstDefined(invoice, ['invoiceCode', 'InvoiceCode', 'code', 'Code'], ''))
+      });
     }
   }
 
-  for (const returnItem of returns || []) {
-    const returnTime = Date.parse(returnItem.returnDate);
-    if (
-      Number(returnItem.status) === 1 &&
-      returnTime >= period.startTime &&
-      returnTime < period.endExclusiveTime
-    ) {
-      addAmount(returnItem, 0, 0, sumDetailQuantity(returnItem.returnDetails), returnItem.returnTotal);
-    }
-  }
+  return rows.sort((left, right) =>
+    right.purchaseTimeMs - left.purchaseTimeMs ||
+    left.invoiceCode.localeCompare(right.invoiceCode) ||
+    left.productCode.localeCompare(right.productCode)
+  );
+}
 
-  return [...customers.values()]
-    .map(customer => ({
-      ...customer,
-      netRevenue: customer.revenue - customer.returnValue
-    }))
-    .sort((left, right) =>
-      right.netRevenue - left.netRevenue ||
-      right.revenue - left.revenue ||
-      left.customerCode.localeCompare(right.customerCode)
-    );
+function firstDefined(source, keys, defaultValue) {
+  const object = source || {};
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(object, key)) return object[key];
+  }
+  return defaultValue;
 }
 
 async function loadCustomerReportsData() {
@@ -262,7 +364,7 @@ async function loadCustomerReportsData() {
   const now = new Date();
   const monthPeriod = getCurrentMonthRange(now);
   const productPeriod = getRollingDayRange(now, CUSTOMER_PRODUCT_REPORT_DAYS);
-  const [invoices, returns] = await Promise.all([
+  const [invoices, returns, customers] = await Promise.all([
     fetchAllKiotVietPages('invoices', headers, {
       fromPurchaseDate: productPeriod.startQuery,
       toPurchaseDate: productPeriod.endQuery,
@@ -271,14 +373,17 @@ async function loadCustomerReportsData() {
     fetchAllKiotVietPages('returns', headers, {
       orderBy: 'returnDate',
       orderDirection: 'DESC'
+    }),
+    fetchAllKiotVietPages('customers', headers, {
+      includeCustomerGroup: 'true'
     })
   ]);
 
   return {
     monthPeriod,
     productPeriod,
-    customerReportRows: aggregateCustomerReport(invoices, returns, monthPeriod),
-    customerProductReportRows: aggregateCustomerProductReport(invoices, returns, productPeriod)
+    customerReportRows: aggregateCustomerReport(invoices, returns, monthPeriod, customers),
+    customerProductReportRows: aggregateCustomerProductReport(invoices, productPeriod)
   };
 }
 
@@ -337,69 +442,88 @@ async function ensureReportSheet(sheets, spreadsheetId, sheetName, legacySheetNa
 }
 
 function buildSheetValues(reportRows) {
-  const totals = reportRows.reduce((summary, row) => {
-    summary.revenue += row.revenue;
-    summary.returnValue += row.returnValue;
-    summary.netRevenue += row.netRevenue;
-    return summary;
-  }, { revenue: 0, returnValue: 0, netRevenue: 0 });
+  const values = [HEADERS];
 
+  for (const customer of reportRows || []) {
+    for (const transaction of customer.transactions || []) {
+      values.push([
+        customer.customerCode,
+        customer.customerName,
+        customer.contactNumber,
+        customer.customerGroup,
+        customer.saleOrderCount,
+        customer.grossTotal,
+        customer.invoiceDiscount,
+        customer.revenue,
+        customer.returnOrderCount,
+        customer.returnValue,
+        customer.netRevenue,
+        transaction.transactionCode,
+        formatTransactionDateTime(transaction.transactionTime),
+        transaction.employeeName,
+        transaction.transactionQuantity,
+        transaction.transactionGrossTotal,
+        transaction.transactionDiscount,
+        transaction.transactionRevenue
+      ]);
+    }
+  }
+
+  return values;
+}
+
+function summarizeCustomerReport(reportRows) {
+  return (reportRows || []).reduce((summary, customer) => {
+    summary.transactionCount += (customer.transactions || []).length;
+    summary.revenue += customer.revenue;
+    summary.returnValue += customer.returnValue;
+    summary.netRevenue += customer.netRevenue;
+    return summary;
+  }, { transactionCount: 0, revenue: 0, returnValue: 0, netRevenue: 0 });
+}
+
+function formatTransactionDateTime(value) {
+  const match = String(value || '').match(
+    /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/
+  );
+  if (!match) return safeText(value);
+  return `${match[3]}/${match[2]}/${match[1]} ${match[4]}:${match[5]}:${match[6]}`;
+}
+
+function buildCustomerProductSheetValues(reportRows) {
   return [
-    HEADERS,
-    [
-      `SL khách hàng: ${reportRows.length}`,
-      '',
-      totals.revenue,
-      totals.returnValue,
-      totals.netRevenue
-    ],
+    CUSTOMER_PRODUCT_HEADERS,
     ...reportRows.map(row => [
-      row.customerCode,
       row.customerName,
-      row.revenue,
-      row.returnValue,
-      row.netRevenue
+      row.productCode,
+      row.productName,
+      row.purchasedQuantity,
+      toGoogleSheetsDateSerial(row.purchaseTime)
     ])
   ];
 }
 
-function buildCustomerProductSheetValues(reportRows) {
-  const totals = reportRows.reduce((summary, row) => {
-    summary.purchasedQuantity += row.purchasedQuantity;
-    summary.revenue += row.revenue;
-    summary.returnedQuantity += row.returnedQuantity;
-    summary.returnValue += row.returnValue;
-    summary.netRevenue += row.netRevenue;
-    return summary;
-  }, {
-    purchasedQuantity: 0,
-    revenue: 0,
-    returnedQuantity: 0,
-    returnValue: 0,
-    netRevenue: 0
-  });
+function buildCustomerProductSheetNotes(reportRows) {
+  return (reportRows || []).map(row => JSON.stringify({
+    invoiceId: textValue(row.invoiceId),
+    invoiceCode: textValue(row.invoiceCode)
+  }));
+}
 
-  return [
-    CUSTOMER_PRODUCT_HEADERS,
-    [
-      `SL khách hàng: ${reportRows.length}`,
-      '',
-      totals.purchasedQuantity,
-      totals.revenue,
-      totals.returnedQuantity,
-      totals.returnValue,
-      totals.netRevenue
-    ],
-    ...reportRows.map(row => [
-      row.customerCode,
-      row.customerName,
-      row.purchasedQuantity,
-      row.revenue,
-      row.returnedQuantity,
-      row.returnValue,
-      row.netRevenue
-    ])
-  ];
+function toGoogleSheetsDateSerial(value) {
+  const match = String(value || '').match(
+    /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/
+  );
+  if (!match) return safeText(value);
+  const milliseconds = Date.UTC(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+    Number(match[4]),
+    Number(match[5]),
+    Number(match[6])
+  );
+  return milliseconds / 86400000 + 25569;
 }
 
 function formatDateLabel(dateText) {
@@ -433,12 +557,99 @@ async function writeReportSheet(sheets, spreadsheetId, sheetProperties, values, 
       },
       cell: {
         userEnteredFormat: {
-          numberFormat: { type: 'NUMBER', pattern: numberFormat.pattern }
+          numberFormat: { type: numberFormat.type || 'NUMBER', pattern: numberFormat.pattern }
         }
       },
       fields: 'userEnteredFormat.numberFormat'
     }
   }));
+  const textFormatRequests = (options.textColumns || []).map(columnIndex => ({
+    repeatCell: {
+      range: {
+        sheetId,
+        startRowIndex: 1,
+        endRowIndex: values.length,
+        startColumnIndex: columnIndex,
+        endColumnIndex: columnIndex + 1
+      },
+      cell: {
+        userEnteredFormat: {
+          numberFormat: { type: 'TEXT', pattern: '@' }
+        }
+      },
+      fields: 'userEnteredFormat.numberFormat'
+    }
+  }));
+  const columnWidthRequests = (options.columnWidths || []).map(columnWidth => ({
+    updateDimensionProperties: {
+      range: {
+        sheetId,
+        dimension: 'COLUMNS',
+        startIndex: columnWidth.startIndex,
+        endIndex: columnWidth.endIndex
+      },
+      properties: { pixelSize: columnWidth.pixelSize },
+      fields: 'pixelSize'
+    }
+  }));
+  const summaryRowRequest = options.summaryRow ? [{
+    repeatCell: {
+      range: {
+        sheetId,
+        startRowIndex: 1,
+        endRowIndex: 2,
+        startColumnIndex: 0,
+        endColumnIndex: options.columnCount
+      },
+      cell: {
+        userEnteredFormat: {
+          backgroundColorStyle: {
+            rgbColor: { red: 0.961, green: 0.941, blue: 0.835 }
+          },
+          textFormat: { bold: true }
+        }
+      },
+      fields: 'userEnteredFormat(backgroundColorStyle,textFormat)'
+    }
+  }] : [];
+  const filterRequests = options.addFilter && values.length > 1 ? [{
+    setBasicFilter: {
+      filter: {
+        range: {
+          sheetId,
+          startRowIndex: 0,
+          endRowIndex: values.length,
+          startColumnIndex: 0,
+          endColumnIndex: options.columnCount
+        }
+      }
+    }
+  }] : [];
+  const clearDataNotesRequest = options.rowNotes ? [{
+    repeatCell: {
+      range: {
+        sheetId,
+        startRowIndex: 1,
+        startColumnIndex: 0,
+        endColumnIndex: 1
+      },
+      cell: {},
+      fields: 'note'
+    }
+  }] : [];
+  const rowNotesRequest = options.rowNotes && options.rowNotes.length > 0 ? [{
+    updateCells: {
+      rows: options.rowNotes.map(note => ({ values: [{ note }] })),
+      fields: 'note',
+      range: {
+        sheetId,
+        startRowIndex: 1,
+        endRowIndex: options.rowNotes.length + 1,
+        startColumnIndex: 0,
+        endColumnIndex: 1
+      }
+    }
+  }] : [];
 
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
@@ -448,7 +659,7 @@ async function writeReportSheet(sheets, spreadsheetId, sheetProperties, values, 
           updateSheetProperties: {
             properties: {
               sheetId,
-              gridProperties: { frozenRowCount: 2 },
+              gridProperties: { frozenRowCount: options.frozenRowCount || 1 },
               tabColorStyle: {
                 rgbColor: options.tabColor
               }
@@ -468,36 +679,26 @@ async function writeReportSheet(sheets, spreadsheetId, sheetProperties, values, 
             cell: {
               userEnteredFormat: {
                 backgroundColorStyle: {
-                  rgbColor: { red: 0.663, green: 0.871, blue: 0.957 }
+                  rgbColor: options.headerColor || { red: 0.663, green: 0.871, blue: 0.957 }
                 },
-                textFormat: { bold: true },
-                horizontalAlignment: 'CENTER'
+                textFormat: {
+                  bold: true,
+                  foregroundColorStyle: {
+                    rgbColor: options.headerTextColor || { red: 0, green: 0, blue: 0 }
+                  }
+                },
+                horizontalAlignment: 'CENTER',
+                verticalAlignment: 'MIDDLE',
+                wrapStrategy: 'WRAP'
               }
             },
-            fields: 'userEnteredFormat(backgroundColorStyle,textFormat,horizontalAlignment)'
+            fields: 'userEnteredFormat(backgroundColorStyle,textFormat,horizontalAlignment,verticalAlignment,wrapStrategy)'
           }
         },
-        {
-          repeatCell: {
-            range: {
-              sheetId,
-              startRowIndex: 1,
-              endRowIndex: 2,
-              startColumnIndex: 0,
-              endColumnIndex: options.columnCount
-            },
-            cell: {
-              userEnteredFormat: {
-                backgroundColorStyle: {
-                  rgbColor: { red: 0.961, green: 0.941, blue: 0.835 }
-                },
-                textFormat: { bold: true }
-              }
-            },
-            fields: 'userEnteredFormat(backgroundColorStyle,textFormat)'
-          }
-        },
+        ...summaryRowRequest,
         ...numberFormatRequests,
+        ...textFormatRequests,
+        ...clearDataNotesRequest,
         {
           updateCells: {
             rows: [{ values: [{ note: options.note }] }],
@@ -511,6 +712,7 @@ async function writeReportSheet(sheets, spreadsheetId, sheetProperties, values, 
             }
           }
         },
+        ...rowNotesRequest,
         {
           autoResizeDimensions: {
             dimensions: {
@@ -520,7 +722,9 @@ async function writeReportSheet(sheets, spreadsheetId, sheetProperties, values, 
               endIndex: options.columnCount
             }
           }
-        }
+        },
+        ...columnWidthRequests,
+        ...filterRequests
       ]
     }
   });
@@ -543,6 +747,8 @@ async function syncCustomerReport() {
   );
   const customerValues = buildSheetValues(reports.customerReportRows);
   const productValues = buildCustomerProductSheetValues(reports.customerProductReportRows);
+  const productNotes = buildCustomerProductSheetNotes(reports.customerProductReportRows);
+  const customerSummary = summarizeCustomerReport(reports.customerReportRows);
   const monthStart = reports.monthPeriod.startQuery.slice(0, 10);
   const monthEnd = reports.monthPeriod.endQuery.slice(0, 10);
 
@@ -551,49 +757,93 @@ async function syncCustomerReport() {
       sheetName: REPORT_SHEET_NAME,
       columnCount: HEADERS.length,
       tabColor: { red: 0.051, green: 0.431, blue: 0.992 },
-      numberFormats: [{ startColumnIndex: 2, endColumnIndex: 5, pattern: '#,##0' }],
+      frozenRowCount: 1,
+      summaryRow: false,
+      addFilter: true,
+      headerColor: { red: 0.31, green: 0.506, blue: 0.741 },
+      headerTextColor: { red: 1, green: 1, blue: 1 },
+      textColumns: [0, 1, 2, 3, 11, 13],
+      numberFormats: [
+        { startColumnIndex: 4, endColumnIndex: 5, pattern: '#,##0' },
+        { startColumnIndex: 5, endColumnIndex: 8, pattern: '#,##0' },
+        { startColumnIndex: 8, endColumnIndex: 9, pattern: '#,##0' },
+        { startColumnIndex: 9, endColumnIndex: 11, pattern: '#,##0' },
+        { startColumnIndex: 14, endColumnIndex: 15, pattern: '#,##0.##' },
+        { startColumnIndex: 15, endColumnIndex: 18, pattern: '#,##0' }
+      ],
+      columnWidths: [
+        { startIndex: 0, endIndex: 1, pixelSize: 115 },
+        { startIndex: 1, endIndex: 2, pixelSize: 220 },
+        { startIndex: 2, endIndex: 3, pixelSize: 125 },
+        { startIndex: 3, endIndex: 4, pixelSize: 165 },
+        { startIndex: 4, endIndex: 11, pixelSize: 115 },
+        { startIndex: 11, endIndex: 12, pixelSize: 125 },
+        { startIndex: 12, endIndex: 13, pixelSize: 175 },
+        { startIndex: 13, endIndex: 14, pixelSize: 130 },
+        { startIndex: 14, endIndex: 15, pixelSize: 155 },
+        { startIndex: 15, endIndex: 18, pixelSize: 175 }
+      ],
       note:
         'Kiểu hiển thị: Báo cáo\n' +
         'Mối quan tâm: Bán hàng\n' +
         `Thời gian: Tháng này (${formatDateLabel(monthStart)} - ${formatDateLabel(monthEnd)})\n` +
+        'Chi tiết: Mỗi hóa đơn hoặc phiếu trả hàng là một dòng giao dịch.\n' +
         'Tự động cập nhật hàng ngày lúc 07:00.'
     }),
     writeReportSheet(sheets, spreadsheetId, productSheetProperties, productValues, {
       sheetName: CUSTOMER_PRODUCT_REPORT_SHEET_NAME,
       columnCount: CUSTOMER_PRODUCT_HEADERS.length,
       tabColor: { red: 0, green: 0.651, blue: 0.651 },
+      frozenRowCount: 1,
+      summaryRow: false,
+      addFilter: true,
+      headerColor: { red: 0, green: 0.651, blue: 0.651 },
+      headerTextColor: { red: 1, green: 1, blue: 1 },
+      textColumns: [0, 1, 2],
       numberFormats: [
-        { startColumnIndex: 2, endColumnIndex: 3, pattern: '#,##0' },
-        { startColumnIndex: 3, endColumnIndex: 4, pattern: '#,##0' },
-        { startColumnIndex: 4, endColumnIndex: 5, pattern: '#,##0' },
-        { startColumnIndex: 5, endColumnIndex: 7, pattern: '#,##0' }
+        { startColumnIndex: 3, endColumnIndex: 4, pattern: '#,##0.##' },
+        {
+          startColumnIndex: 4,
+          endColumnIndex: 5,
+          type: 'DATE_TIME',
+          pattern: 'dd/MM/yyyy HH:mm:ss'
+        }
       ],
+      columnWidths: [
+        { startIndex: 0, endIndex: 1, pixelSize: 220 },
+        { startIndex: 1, endIndex: 2, pixelSize: 125 },
+        { startIndex: 2, endIndex: 3, pixelSize: 260 },
+        { startIndex: 3, endIndex: 4, pixelSize: 105 },
+        { startIndex: 4, endIndex: 5, pixelSize: 175 }
+      ],
+      rowNotes: productNotes,
       note:
         'Kiểu hiển thị: Báo cáo\n' +
         'Mối quan tâm: Hàng bán theo khách\n' +
         `Thời gian: 90 ngày qua (${formatDateLabel(reports.productPeriod.startDate)} - ` +
         `${formatDateLabel(reports.productPeriod.endDate)})\n` +
-        'Tự động cập nhật hàng ngày lúc 07:00.'
+        'Chi tiết: Mỗi mặt hàng trong hóa đơn hoàn thành là một dòng.\n' +
+        'Tự động cập nhật từ webhook KiotViet trong khoảng 1 phút; đối soát toàn bộ lúc 07:00.'
     })
   ]);
 
   return {
     sheetName: REPORT_SHEET_NAME,
     customerCount: reports.customerReportRows.length,
-    totalRevenue: customerValues[1][2],
-    totalReturns: customerValues[1][3],
-    netRevenue: customerValues[1][4],
+    transactionCount: customerSummary.transactionCount,
+    totalRevenue: customerSummary.revenue,
+    totalReturns: customerSummary.returnValue,
+    netRevenue: customerSummary.netRevenue,
     customerProductReport: {
       sheetName: CUSTOMER_PRODUCT_REPORT_SHEET_NAME,
-      customerCount: reports.customerProductReportRows.length,
+      rowCount: reports.customerProductReportRows.length,
       days: CUSTOMER_PRODUCT_REPORT_DAYS,
       fromDate: reports.productPeriod.startDate,
       toDate: reports.productPeriod.endDate,
-      purchasedQuantity: productValues[1][2],
-      totalRevenue: productValues[1][3],
-      returnedQuantity: productValues[1][4],
-      totalReturns: productValues[1][5],
-      netRevenue: productValues[1][6]
+      purchasedQuantity: reports.customerProductReportRows.reduce(
+        (total, row) => total + numberValue(row.purchasedQuantity),
+        0
+      )
     }
   };
 }
@@ -608,10 +858,15 @@ if (require.main === module) {
 }
 
 module.exports = {
+  HEADERS,
   aggregateCustomerReport,
   aggregateCustomerProductReport,
   buildSheetValues,
   buildCustomerProductSheetValues,
+  buildCustomerProductSheetNotes,
+  toGoogleSheetsDateSerial,
+  summarizeCustomerReport,
+  formatTransactionDateTime,
   getCurrentMonthRange,
   getRollingDayRange,
   syncCustomerReport

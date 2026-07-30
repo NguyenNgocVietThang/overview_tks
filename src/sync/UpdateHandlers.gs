@@ -23,6 +23,11 @@ function updateInvoicesFromWebhook(items) {
   const hydratedItems = hydrateKiotVietItems_(items, schema);
   upsertKiotVietSheetItems_(schema, hydratedItems);
   replaceInvoiceDetailsForInvoices_(hydratedItems);
+  try {
+    updateCustomerProductReportFromInvoices_(hydratedItems);
+  } catch (error) {
+    Logger.log('Loi cap nhat real-time Hang ban theo khach: ' + error.toString());
+  }
 }
 
 function updateOrdersFromWebhook(items) {
@@ -50,6 +55,11 @@ function deleteProductsFromWebhook(items) {
 function deleteInvoicesFromWebhook(items) {
   const deletedCodes = deleteKiotVietSheetItems_(KIOTVIET_SHEET_SCHEMAS.invoices, items);
   deleteInvoiceDetailsByCodes_(deletedCodes);
+  try {
+    deleteCustomerProductReportInvoices_(items, deletedCodes);
+  } catch (error) {
+    Logger.log('Loi xoa hoa don khoi Hang ban theo khach: ' + error.toString());
+  }
 }
 
 function deleteOrdersFromWebhook(items) {
