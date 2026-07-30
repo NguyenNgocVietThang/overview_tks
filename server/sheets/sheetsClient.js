@@ -32,7 +32,12 @@ async function getValues(sheetName) {
   const sheets = await getSheetsApi();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: CONFIG.SPREADSHEET_ID,
-    range: quoteSheetName(sheetName)
+    range: quoteSheetName(sheetName),
+    // Dashboard can tinh toan tren gia tri so goc. Neu dung mac dinh
+    // FORMATTED_VALUE, locale vi-VN tra 1021937723 thanh "1.021.937.723"
+    // va Number(...) se bien gia tri nay thanh NaN/0.
+    valueRenderOption: 'UNFORMATTED_VALUE',
+    dateTimeRenderOption: 'FORMATTED_STRING'
   });
   return res.data.values || [];
 }
@@ -78,7 +83,9 @@ async function getMultipleSheetValues(sheetNames) {
 
   const res = await sheets.spreadsheets.values.batchGet({
     spreadsheetId: CONFIG.SPREADSHEET_ID,
-    ranges: namesToFetch.map(quoteSheetName)
+    ranges: namesToFetch.map(quoteSheetName),
+    valueRenderOption: 'UNFORMATTED_VALUE',
+    dateTimeRenderOption: 'FORMATTED_STRING'
   });
 
   const valueRanges = res.data.valueRanges || [];
