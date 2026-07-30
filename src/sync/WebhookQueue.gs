@@ -23,13 +23,21 @@ function doPost(e) {
     }
 
     const rawContents = e.postData.contents;
+    const eventType = String(
+      (e.parameter && (e.parameter.eventType || e.parameter.type)) || ''
+    ).toLowerCase();
+    const queuedContents = JSON.stringify({
+      _kiotVietQueueEnvelope: true,
+      eventType: eventType,
+      body: rawContents
+    });
     const cache = CacheService.getScriptCache();
 
     // Tao key duy nhat cho lan nhan nay (timestamp + so ngau nhien de tranh trung neu 2 request den cung 1 mili-giay)
     const uniqueKey = QUEUE_CACHE_PREFIX + new Date().getTime() + "_" + Math.floor(Math.random() * 100000);
 
     // Luu payload tho vao cache - thao tac nay rat nhanh (<100ms), khong dung Sheet, khong can khoa
-    cache.put(uniqueKey, rawContents, CACHE_EXPIRY_SECONDS);
+    cache.put(uniqueKey, queuedContents, CACHE_EXPIRY_SECONDS);
 
     // Cap nhat danh sach cac key dang cho xu ly (de trigger biet can doc key nao)
     // Dung LockService O DAY chi de bao ve viec doc/ghi index (rat nhanh, khong lien quan Sheet)
@@ -52,6 +60,49 @@ function doPost(e) {
     Logger.log("Loi khi dua webhook vao hang doi: " + err.toString());
     return ContentService.createTextOutput("ERROR: " + err.toString()).setMimeType(ContentService.MimeType.TEXT);
   }
+}
+
+/**
+ * Chuan hoa moi dang payload webhook ma KiotViet dang su dung.
+ * Cac su kien delete chi gui RemoveId va khong co Action/Notifications, nen
+ * eventType tren URL dang ky duoc dung de khoi phuc ngu canh.
+ */
+function normalizeKiotVietWebhookNotifications_(payload, eventType) {
+  const normalizedType = String(eventType || '').toLowerCase();
+  if (!payload || typeof payload !== 'object') return [];
+
+  const sourceNotifications = Array.isArray(payload.Notifications)
+    ? payload.Notifications
+    : (Array.isArray(payload.notifications) ? payload.notifications : null);
+  if (sourceNotifications) {
+    return sourceNotifications.map(notification => {
+      const copy = Object.assign({}, notification || {});
+      if (!copy.Action && !copy.action && normalizedType) copy.Action = normalizedType;
+      return copy;
+    });
+  }
+
+  if (payload.Action || payload.action) return [payload];
+
+  const removedIds = payload.RemoveId || payload.removeId ||
+    payload.RemovedId || payload.removedId;
+  if (normalizedType.indexOf('.delete') !== -1 && Array.isArray(removedIds)) {
+    return [{
+      Action: normalizedType,
+      Data: removedIds.map(id => {
+        return id && typeof id === 'object' ? id : { Id: id, id: id };
+      })
+    }];
+  }
+
+  if (normalizedType && (payload.Data !== undefined || payload.data !== undefined)) {
+    return [{
+      Action: normalizedType,
+      Data: payload.Data !== undefined ? payload.Data : payload.data
+    }];
+  }
+
+  return [];
 }
 
 /**
@@ -100,21 +151,16 @@ function processWebhookQueue() {
       }
 
       try {
-        const payload = JSON.parse(rawContents);
+        const parsedQueueItem = JSON.parse(rawContents);
+        const isEnvelope = parsedQueueItem && parsedQueueItem._kiotVietQueueEnvelope === true;
+        const eventType = isEnvelope ? String(parsedQueueItem.eventType || '').toLowerCase() : '';
+        const payload = isEnvelope ? JSON.parse(parsedQueueItem.body) : parsedQueueItem;
         Logger.log("Xu ly payload tu key: " + key);
 
-        // === Toan bo logic phan loai va ghi Sheet giu nguyen nhu code cu ===
-        let notifications = [];
-        if (Array.isArray(payload.Notifications)) {
-          notifications = payload.Notifications;
-        } else if (Array.isArray(payload.notifications)) {
-          notifications = payload.notifications;
-        } else if (payload.Action || payload.action) {
-          notifications = [payload];
-        }
+        const notifications = normalizeKiotVietWebhookNotifications_(payload, eventType);
 
         notifications.forEach(noti => {
-          const action = (noti.Action || noti.action || "").toLowerCase();
+          const action = (noti.Action || noti.action || eventType || "").toLowerCase();
           const rawItems = noti.Data || noti.data || [];
           const items = Array.isArray(rawItems) ? rawItems : [rawItems];
 
@@ -179,10 +225,9 @@ function processWebhookQueue() {
 
 /**
  * Kiem tra shared-secret dinh kem trong query string cua URL webhook.
- * KiotViet KHONG ho tro ky (HMAC) payload hay gui header tuy chinh khi goi webhook -
- * chi cho phep cau hinh Url/Type/IsActive/Description khi dang ky (xem WebhookAdmin.gs).
- * Vi vay bien phap xac thuc kha thi la nhung mot secret vao chinh URL webhook
- * (vi du: .../exec?secret=xxxx) va so sanh lai o day moi khi nhan request.
+ * KiotViet co ho tro chu ky X-Hub-Signature, nhung su kien doPost cua Apps Script
+ * khong cung cap request headers cho ma xu ly. Vi vay endpoint Apps Script dung
+ * shared-secret dai, ngau nhien trong URL HTTPS va so sanh lai o day.
  *
  * @param {Object} e - Doi tuong request cua doPost
  * @returns {boolean} true neu secret hop le
@@ -197,11 +242,9 @@ function isValidWebhookSecret_(e) {
 /**
  * HAM THIET LAP SHARED-SECRET CHO WEBHOOK - CHI CAN CHAY 1 LAN DUY NHAT BANG TAY.
  *
- * Sau khi chay, secret duoc luu trong Script Properties (khong nam trong source code)
- * va duoc log ra. Copy secret nay va dan vao cuoi URL webhook dang duoc dang ky voi
- * KiotViet, dang query string: .../exec?secret=<secret-vua-tao>
- * (Xem registerWebhookWithCorrectUrl() / registerWebhookProgrammatically() trong
- * WebhookAdmin.gs - ca hai da duoc cap nhat de tu dong gan secret nay vao URL.)
+ * Sau khi chay, secret duoc luu trong Script Properties (khong nam trong source code).
+ * Cac ham dang ky trong WebhookAdmin.gs tu dong gan secret vao URL va khong in
+ * gia tri bi mat ra nhat ky.
  *
  * LUU Y: sau khi thiet lap secret, phai dang ky lai webhook (xoa webhook cu qua
  * deleteAllOldWebhooks() roi dang ky lai) vi webhook cu (khong co ?secret=) se
@@ -212,13 +255,11 @@ function setupWebhookSecret() {
   const existing = props.getProperty("WEBHOOK_SECRET");
   if (existing) {
     Logger.log("Da co san WEBHOOK_SECRET, khong tao lai (xoa property nay truoc neu muon doi).");
-    Logger.log("Secret hien tai: " + existing);
     return;
   }
   const secret = Utilities.getUuid().replace(/-/g, "");
   props.setProperty("WEBHOOK_SECRET", secret);
-  Logger.log("Da tao WEBHOOK_SECRET moi: " + secret);
-  Logger.log("Them vao cuoi URL webhook khi dang ky voi KiotViet: ?secret=" + secret);
+  Logger.log("Da tao WEBHOOK_SECRET moi (gia tri duoc an khoi nhat ky).");
 }
 
 /**

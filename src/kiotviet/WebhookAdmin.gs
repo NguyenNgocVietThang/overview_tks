@@ -2,6 +2,176 @@
 // QUAN LY WEBHOOK KIOTVIET (Admin tools)
 // ==========================================
 
+const KIOTVIET_AUTO_SYNC_EVENT_TYPES = Object.freeze([
+  "product.update",
+  "product.delete",
+  "stock.update",
+  "customer.update",
+  "customer.delete",
+  "invoice.update",
+  "order.update",
+  "category.update",
+  "category.delete"
+]);
+const KIOTVIET_AUTO_SYNC_DESCRIPTION_PREFIX = "Auto-sync Google Sheets - ";
+const KIOTVIET_DEFAULT_WEBHOOK_URL =
+  "https://script.google.com/macros/s/AKfycby99mhJo_-EZPl4VBdtjxf2HI9A_x5MSgGX0yk2UjhkCV_o3DvfjJNf6HoZG5zAWw2clA/exec";
+
+/**
+ * Bat toan bo co che tu dong theo cach idempotent:
+ * - Tao shared-secret neu chua co.
+ * - Tao lai trigger hang doi 1 phut va polling 5 phut.
+ * - Giu nguyen webhook cua he thong khac; chi thay webhook cu/trung cua dashboard.
+ */
+function setupKiotVietAutoSync() {
+  const token = getKiotVietToken();
+  if (!token) throw new Error("Khong lay duoc token KiotViet de bat tu dong dong bo.");
+
+  ensureKiotVietWebhookSecret_();
+  setupQueueProcessingTrigger();
+  setupPollingTrigger();
+
+  const result = reconcileKiotVietAutoSyncWebhooks_(token);
+  Logger.log(
+    "AUTO-SYNC READY: active=" + result.activeCount +
+    ", created=" + result.createdCount +
+    ", removedStale=" + result.removedCount +
+    ", failed=" + result.failedCount
+  );
+  if (result.activeCount !== KIOTVIET_AUTO_SYNC_EVENT_TYPES.length || result.failedCount > 0) {
+    throw new Error("Chua bat du 9 webhook KiotViet: " + JSON.stringify(result));
+  }
+  return result;
+}
+
+function ensureKiotVietWebhookSecret_() {
+  const properties = PropertiesService.getScriptProperties();
+  let secret = properties.getProperty("WEBHOOK_SECRET");
+  if (!secret) {
+    secret = Utilities.getUuid().replace(/-/g, "");
+    properties.setProperty("WEBHOOK_SECRET", secret);
+    Logger.log("Da tao WEBHOOK_SECRET moi (gia tri duoc an khoi nhat ky).");
+  }
+  return secret;
+}
+
+function getKiotVietWebhookBaseUrl_() {
+  const configured = PropertiesService.getScriptProperties().getProperty("WEBHOOK_URL");
+  const url = String(configured || KIOTVIET_DEFAULT_WEBHOOK_URL).trim();
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(url)) {
+    throw new Error("WEBHOOK_URL phai la URL Apps Script /exec hop le.");
+  }
+  return url;
+}
+
+function appendWebhookEventType_(url, eventType) {
+  const separator = url.indexOf("?") === -1 ? "?" : "&";
+  return url + separator + "eventType=" + encodeURIComponent(eventType);
+}
+
+function buildKiotVietAutoSyncWebhookUrl_(eventType) {
+  return appendWebhookEventType_(
+    appendWebhookSecret_(getKiotVietWebhookBaseUrl_()),
+    eventType
+  );
+}
+
+function reconcileKiotVietAutoSyncWebhooks_(token) {
+  const listResult = fetchKiotVietJsonWithRetry_(
+    "https://public.kiotapi.com/webhooks?pageSize=100",
+    token,
+    "webhooks"
+  );
+  const existing = Array.isArray(listResult.data) ? listResult.data : [];
+  const desiredTypes = {};
+  KIOTVIET_AUTO_SYNC_EVENT_TYPES.forEach(type => { desiredTypes[type] = true; });
+  const baseUrl = getKiotVietWebhookBaseUrl_();
+  const activeTypes = {};
+  let createdCount = 0;
+  let removedCount = 0;
+  let failedCount = 0;
+
+  existing.forEach(webhook => {
+    const type = String(webhook.type || webhook.Type || "").toLowerCase();
+    const url = String(webhook.url || webhook.Url || "");
+    const description = String(webhook.description || webhook.Description || "");
+    const isActive = webhook.isActive === true || webhook.IsActive === true;
+    const expectedUrl = desiredTypes[type] ? buildKiotVietAutoSyncWebhookUrl_(type) : "";
+    const isManaged = description.indexOf(KIOTVIET_AUTO_SYNC_DESCRIPTION_PREFIX) === 0 ||
+      (desiredTypes[type] && url.indexOf(baseUrl) === 0);
+    const isExactActive = desiredTypes[type] && url === expectedUrl && isActive;
+
+    if (isExactActive && !activeTypes[type]) {
+      activeTypes[type] = true;
+      return;
+    }
+    if (!isManaged) return;
+
+    const webhookId = webhook.id || webhook.Id;
+    if (!webhookId) {
+      failedCount++;
+      Logger.log("Khong xoa duoc webhook cu vi thieu id: " + JSON.stringify(webhook));
+      return;
+    }
+    const deleteResponse = UrlFetchApp.fetch(
+      "https://public.kiotapi.com/webhooks/" + encodeURIComponent(webhookId),
+      {
+        method: "delete",
+        headers: {
+          Authorization: "Bearer " + token,
+          Retailer: CONFIG.RETAILER
+        },
+        muteHttpExceptions: true
+      }
+    );
+    const deleteCode = deleteResponse.getResponseCode();
+    if (deleteCode >= 200 && deleteCode < 300) removedCount++;
+    else {
+      failedCount++;
+      Logger.log("Xoa webhook cu that bai, HTTP " + deleteCode + ": " + deleteResponse.getContentText());
+    }
+  });
+
+  KIOTVIET_AUTO_SYNC_EVENT_TYPES.forEach(type => {
+    if (activeTypes[type]) return;
+    const response = UrlFetchApp.fetch("https://public.kiotapi.com/webhooks", {
+      method: "post",
+      contentType: "application/json",
+      headers: {
+        Authorization: "Bearer " + token,
+        Retailer: CONFIG.RETAILER
+      },
+      payload: JSON.stringify({
+        Webhook: {
+          Type: type,
+          Url: buildKiotVietAutoSyncWebhookUrl_(type),
+          IsActive: true,
+          Description: KIOTVIET_AUTO_SYNC_DESCRIPTION_PREFIX + type
+        }
+      }),
+      muteHttpExceptions: true
+    });
+    const responseCode = response.getResponseCode();
+    if (responseCode >= 200 && responseCode < 300) {
+      activeTypes[type] = true;
+      createdCount++;
+    } else {
+      failedCount++;
+      Logger.log(
+        "Dang ky webhook " + type + " that bai, HTTP " + responseCode +
+        ": " + response.getContentText()
+      );
+    }
+  });
+
+  return {
+    activeCount: Object.keys(activeTypes).length,
+    createdCount: createdCount,
+    removedCount: removedCount,
+    failedCount: failedCount
+  };
+}
+
 /**
  * Gan shared-secret (thiet lap bang setupWebhookSecret() trong WebhookQueue.gs)
  * vao cuoi URL webhook duoi dang query string "?secret=...". doPost() se doi chieu
@@ -44,17 +214,7 @@ function registerWebhookProgrammatically() {
   }
 
   // Danh sach day du 9 loai su kien can dang ky rieng le:
-  const eventTypes = [
-    "product.update",
-    "product.delete",
-    "stock.update",
-    "customer.update",
-    "customer.delete",
-    "invoice.update",
-    "order.update",
-    "category.update",
-    "category.delete"
-  ];
+  const eventTypes = KIOTVIET_AUTO_SYNC_EVENT_TYPES;
 
   const url = "https://public.kiotapi.com/webhooks";
   let successCount = 0;
@@ -64,7 +224,7 @@ function registerWebhookProgrammatically() {
     const payload = {
       "Webhook": {
         "Type": type,
-        "Url": myWebhookUrl,
+        "Url": appendWebhookEventType_(myWebhookUrl, type),
         "IsActive": true,
         "Description": "Auto-sync Google Sheets - " + type
       }
@@ -117,7 +277,7 @@ function registerWebhookProgrammatically() {
  */
 function registerWebhookWithCorrectUrl() {
   // URL /exec cua deployment Web App cong khai dang hoat dong.
-  const CORRECT_WEBHOOK_URL = appendWebhookSecret_("https://script.google.com/macros/s/AKfycby99mhJo_-EZPl4VBdtjxf2HI9A_x5MSgGX0yk2UjhkCV_o3DvfjJNf6HoZG5zAWw2clA/exec");
+  const CORRECT_WEBHOOK_URL = appendWebhookSecret_(KIOTVIET_DEFAULT_WEBHOOK_URL);
 
   const token = getKiotVietToken();
   if (!token) {
@@ -125,17 +285,7 @@ function registerWebhookWithCorrectUrl() {
     return;
   }
 
-  const eventTypes = [
-    "product.update",
-    "product.delete",
-    "stock.update",
-    "customer.update",
-    "customer.delete",
-    "invoice.update",
-    "order.update",
-    "category.update",
-    "category.delete"
-  ];
+  const eventTypes = KIOTVIET_AUTO_SYNC_EVENT_TYPES;
 
   const url = "https://public.kiotapi.com/webhooks";
   let successCount = 0;
@@ -145,7 +295,7 @@ function registerWebhookWithCorrectUrl() {
     const payload = {
       "Webhook": {
         "Type": type,
-        "Url": CORRECT_WEBHOOK_URL,
+        "Url": appendWebhookEventType_(CORRECT_WEBHOOK_URL, type),
         "IsActive": true,
         "Description": "Auto-sync Google Sheets - " + type
       }
