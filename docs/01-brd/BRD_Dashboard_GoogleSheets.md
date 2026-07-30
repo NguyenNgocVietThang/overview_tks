@@ -23,7 +23,7 @@ Tài liệu này mô tả các yêu cầu nghiệp vụ cho Hệ thống Dashboa
 
 ## 1.2. Bối cảnh
 
-Công ty TOKOSI là một tổng kho sỉ phân phối hàng hóa, vận hành trên phần mềm **KiotViet** (quản lý bán hàng, kho, khách hàng). Dữ liệu KiotViet được đồng bộ tự động sang **Google Sheets** (qua Apps Script `KiotVietExport.gs`) dưới dạng 9 tab dữ liệu vận hành và 2 tab tổng hợp báo cáo bán hàng. Backend dashboard đọc 9 tab vận hành; tab Nhóm hàng cung cấp quan hệ nhóm cha–con cho biểu đồ tồn kho, còn hai tab báo cáo phục vụ đối soát trực tiếp trên Google Sheets.
+Công ty TOKOSI là một tổng kho sỉ phân phối hàng hóa, vận hành trên phần mềm **KiotViet** (quản lý bán hàng, kho, khách hàng). Dữ liệu KiotViet được đồng bộ tự động sang **Google Sheets** (qua Apps Script module trong `src/`) dưới dạng 9 tab dữ liệu vận hành và 2 tab tổng hợp báo cáo bán hàng. Backend dashboard đọc 9 tab vận hành; tab Nhóm hàng cung cấp quan hệ nhóm cha–con cho biểu đồ tồn kho, còn hai tab báo cáo phục vụ đối soát trực tiếp trên Google Sheets.
 
 Trước đây, việc theo dõi số liệu phải thực hiện thủ công trên KiotViet và Google Sheets, gây mất thời gian tổng hợp và khó trực quan hóa xu hướng. Công ty cần một **Website Dashboard tập trung** đọc dữ liệu từ Google Sheets này, hiển thị các chỉ số quan trọng dưới dạng KPI card và biểu đồ, cập nhật gần thời gian thực mà không cần thao tác thủ công.
 
@@ -203,7 +203,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 
 ## 7.1. Giả định
 
-- Google Sheets nguồn được duy trì bởi Apps Script `KiotVietExport.gs` với **schema cố định** (tên tab và thứ tự cột không thay đổi tùy tiện).
+- Google Sheets nguồn được duy trì bởi Apps Script `src/kiotviet/SheetSchemas.gs` với **schema cố định**: cột dashboard ở bên trái, trường KiotViet mở rộng ở bên phải.
 
 - Service Account `tokosi@tokosi.iam.gserviceaccount.com` đã được chia sẻ quyền Viewer trên Google Spreadsheet nguồn.
 
@@ -238,7 +238,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 | **Bước**                          | **Nội dung**                                                                                      | **Trạng thái** |
 |-----------------------------------|---------------------------------------------------------------------------------------------------|----------------|
 | 1. Phân tích & thiết kế            | Hoàn thiện BRD, SRS, BPMN; thiết kế kiến trúc kỹ thuật                                           | Hoàn thành     |
-| 2. Apps Script đồng bộ KiotViet    | `KiotVietExport.gs`: sync toàn bộ, webhook real-time, polling 5 phút cho 3 bảng không có webhook | Hoàn thành     |
+| 2. Apps Script đồng bộ KiotViet    | `src/`: sync đủ trường, webhook real-time, polling 5 phút cho 3 bảng không có webhook | Hoàn thành     |
 | 3. Backend Node.js/Express         | API `/api/dashboard`, lọc tab hiện có rồi `batchGet`, tính KPI theo giờ Việt Nam                 | Hoàn thành     |
 | 4. Frontend HTML/CSS/JS            | Dashboard, bộ lọc thời gian, làm mới thủ công/tự động 10 phút và tải bù khi quay lại tab          | Hoàn thành     |
 | 5. Triển khai Render.com           | Deploy lên `tokosi.onrender.com`, cấu hình biến môi trường                                        | Hoàn thành     |

@@ -1,6 +1,6 @@
 // ==========================================
 // DASHBOARD DATA — cung cap du lieu cho Web App (GET /api/dashboard)
-// Doc tu sheet KiotViet export 9-tab (dong bo boi appsscript/KiotVietExport.gs)
+// Doc tu sheet KiotViet export 9-tab (dong bo boi cac module Apps Script trong src/)
 // ==========================================
 const CONFIG = require('../config');
 const sheetsClient = require('../sheets/sheetsClient');

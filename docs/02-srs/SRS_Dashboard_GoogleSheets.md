@@ -25,7 +25,7 @@ Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi ch�
 
 Hệ thống là một Web Application nội bộ gồm 2 thành phần chính:
 
-1. **Apps Script (`KiotVietExport.gs`):** chạy trong Google Workspace, đồng bộ dữ liệu từ KiotViet Public API vào 9 tab vận hành và 2 tab tổng hợp báo cáo khách hàng (qua webhook KiotViet real-time + polling 5 phút + lịch báo cáo hàng ngày).
+1. **Apps Script (`src/`):** chạy trong Google Workspace, đồng bộ đủ trường dữ liệu KiotViet Public API vào 9 tab vận hành và 2 tab tổng hợp báo cáo khách hàng (qua webhook KiotViet real-time + polling 5 phút + lịch báo cáo hàng ngày).
 
 2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu từ Google Spreadsheet qua Google Sheets API (Service Account), tính toán KPI và dữ liệu biểu đồ, trả về cho frontend qua REST API. Frontend hiển thị Dashboard tương tác trên trình duyệt.
 
@@ -37,7 +37,7 @@ Hệ thống là một Web Application nội bộ gồm 2 thành phần chính:
 | KPI Card                | Thẻ hiển thị 1 chỉ số tổng hợp (vd: Doanh thu hôm nay, Tổng tồn kho).               |
 | Spreadsheet nguồn       | Google Spreadsheet được Apps Script duy trì, chứa 9 tab vận hành và 2 tab báo cáo khách hàng. |
 | Service Account         | Tài khoản dịch vụ Google dùng để backend đọc Spreadsheet mà không cần OAuth user.    |
-| Apps Script             | `KiotVietExport.gs` chạy trong Google Workspace, đồng bộ dữ liệu từ KiotViet.       |
+| Apps Script             | Mã module trong `src/` chạy trong Google Workspace, đồng bộ dữ liệu từ KiotViet.    |
 | batchGet                | Gọi Google Sheets API đọc nhiều tab đang tồn tại cùng lúc trong 1 request HTTP.      |
 | KiotViet webhook        | KiotViet Public API gửi POST JSON về Web App URL của Apps Script khi có thay đổi.    |
 | Polling trigger         | Apps Script time-based trigger chạy mỗi 5 phút cho 3 bảng không có KiotViet webhook. |
@@ -58,9 +58,9 @@ KiotViet POS
     |
     | (webhook POST JSON — 9 loại event: product/invoice/order/customer/category)
     v
-Apps Script (KiotVietExport.gs) — Web App URL
+Apps Script (`src/`, triển khai bằng clasp) — Web App URL
     |                                   |
-    | upsertRow / replaceRows           | time-based trigger (5 phút)
+    | hydrate + upsert/delete           | time-based trigger (5 phút)
     | (real-time cho 6 nhóm)            | (Trả hàng + NCC + Nhập hàng)
     v                                   v
 Google Spreadsheet (9 tab đồng bộ và được dashboard sử dụng)
@@ -111,9 +111,9 @@ Người dùng (trình duyệt) — tokosi.onrender.com
 - **Biến môi trường:** cấu hình trực tiếp trên Render dashboard
 
 ### Apps Script
-- **File:** `appsscript/KiotVietExport.gs`
+- **Mã triển khai:** các module trong `src/` (`.clasp.json` đặt `rootDir: "src"`)
 - **Nơi chạy:** Google Apps Script (gắn với Google Spreadsheet)
-- **Chức năng:** sync full, webhook receiver (doPost), upsert real-time, polling trigger 5 phút
+- **Chức năng:** sync full đủ trường, webhook receiver (doPost), hydrate + upsert/delete real-time, polling trigger 5 phút
 
 ## 2.3. Đối tượng người dùng (Giai đoạn 1)
 
@@ -124,7 +124,7 @@ Người dùng (trình duyệt) — tokosi.onrender.com
 
 ## 2.4. Giả định & phụ thuộc
 
-- Apps Script `KiotVietExport.gs` duy trì schema cố định (tên tab, thứ tự cột) cho 9 tab; backend dùng tab Nhóm hàng để ánh xạ nhóm con về nhóm cha.
+- Apps Script `src/kiotviet/SheetSchemas.gs` duy trì schema cố định cho 9 tab; backend dùng các cột tương thích bên trái và tab Nhóm hàng để ánh xạ nhóm con về nhóm cha.
 - Service Account đã được share quyền Viewer trên Spreadsheet nguồn.
 - KiotViet webhook đang active và trỏ đúng Web App URL của Apps Script.
 - Render.com có biến môi trường `SPREADSHEET_ID` và `GOOGLE_SERVICE_ACCOUNT_JSON` đúng.
@@ -203,14 +203,15 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 
 | **Mã**  | **Mô tả**                                                                                                                                                                     | **Ưu tiên** | **Trạng thái** |
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
-| FR-06.1 | `syncAll()`: đồng bộ toàn bộ dữ liệu KiotViet vào 8 sheet (xóa và ghi lại toàn bộ).                                                                                         | Cao         | Hoàn thành     |
-| FR-06.2 | `doPost(e)`: nhận webhook POST từ KiotViet, xử lý đúng loại event (product/invoice/order/customer/category), cập nhật đúng dòng bằng `upsertRow_` / `replaceInvoiceDetailRows_`. | Cao         | Hoàn thành     |
+| FR-06.1 | `syncAllInitialData()`: đồng bộ toàn bộ dữ liệu KiotViet vào 9 sheet vận hành (xóa nội dung và ghi lại toàn bộ).                                                           | Cao         | Hoàn thành     |
+| FR-06.2 | `doPost(e)`: nhận webhook POST, hydrate bản ghi chi tiết rồi upsert/delete đúng sheet cho product/invoice/order/customer/category; hóa đơn đồng thời thay chi tiết hóa đơn. | Cao         | Hoàn thành     |
 | FR-06.3 | `setupPollingTrigger()`: bật trigger 5 phút để sync Trả hàng + Nhà cung cấp + Nhập hàng (KiotViet không có webhook cho 3 loại này).                                           | Cao         | Hoàn thành     |
 | FR-06.4 | `setupRealtimeWebhook()`: đăng ký 9 loại event webhook với KiotViet API, xóa webhook cũ trước khi đăng ký mới.                                                               | Cao         | Hoàn thành     |
 | FR-06.5 | Retry tự động tối đa 5 lần (exponential backoff) khi gọi KiotViet API bị lỗi tạm thời (429/5xx/network error).                                                               | Cao         | Hoàn thành     |
 | FR-06.6 | `syncCustomerReport()`: tổng hợp hóa đơn và trả hàng hoàn thành trong tháng, ghi tab `Báo cáo bán hàng` với Doanh thu, Giá trị trả, Doanh thu thuần. | Cao | Hoàn thành |
 | FR-06.7 | Cùng lần chạy, hệ thống ghi tab `Hàng bán theo khách` cho 90 ngày qua với SL mua, Doanh thu, SL Trả, Giá trị trả và Doanh thu thuần. | Cao | Hoàn thành |
 | FR-06.8 | `processWebhookQueue()` gọi `syncCustomerReportIfDue_()` mỗi phút và chỉ chạy hai báo cáo một lần/ngày sau 07:00; `setupCustomerReportDailyTrigger()` cung cấp trigger riêng tùy chọn. | Cao | Hoàn thành |
+| FR-06.9 | 9 sheet giữ các cột dashboard ở bên trái, bổ sung mọi trường Public API ở bên phải; object/mảng lưu JSON và mỗi dòng giữ payload gốc để tương thích trường API mới. | Cao | Hoàn thành |
 
 ## 3.7. FR-07: Giao diện người dùng
 
@@ -346,9 +347,15 @@ Giao diện Dashboard gồm:
 }
 ```
 
-# 7. Đặc tả Apps Script (KiotVietExport.gs)
+# 7. Đặc tả Apps Script (`src/`)
 
 ## 7.1. Schema 9 tab đồng bộ và dashboard sử dụng
+
+Các dải cột dưới đây là **cột tương thích dashboard** và luôn nằm bên trái.
+`src/kiotviet/SheetSchemas.gs` nối thêm các trường Public API ở bên phải, gồm ID,
+trạng thái gốc, thời gian tạo/cập nhật, thông tin thuế, thanh toán, giao hàng,
+chi tiết nghiệp vụ và các object/mảng dạng JSON. Cột cuối
+`Dữ liệu KiotViet (JSON)` giữ payload gốc để không bỏ sót trường mới từ API.
 
 ### Sheet "Nhóm hàng" (col index 0–2)
 `[0]Mã nhóm hàng [1]Tên nhóm hàng [2]Mã nhóm cha`
@@ -407,7 +414,7 @@ Giao diện Dashboard gồm:
 
 ## 7.5. Format ngày tháng
 
-Tất cả giá trị ngày trong sheet được lưu dạng chuỗi: `dd/MM/yyyy HH:mm:ss` (vd: `28/07/2026 14:30:00`), do Apps Script dùng `Utilities.formatDate(..., 'Asia/Ho_Chi_Minh', 'dd/MM/yyyy HH:mm:ss')`.
+Tất cả giá trị ngày trong sheet được lưu dạng chuỗi: `dd/MM/yyyy HH:mm` (vd: `28/07/2026 14:30`), do Apps Script dùng `Utilities.formatDate(..., 'Asia/Ho_Chi_Minh', 'dd/MM/yyyy HH:mm')`.
 
 Backend parse ngày bằng hàm `parseSheetDate()` hỗ trợ: số serial Excel, chuỗi `dd/MM/yyyy [HH:mm:ss]`, chuỗi ISO không offset (được hiểu là giờ Việt Nam) và ISO 8601 có offset. Giá trị không hợp lệ trả về `null` thay vì làm lỗi toàn bộ dashboard.
 
@@ -431,7 +438,7 @@ Các phép tính "hôm nay", bucket ngày 7/30/90 ngày và `updatedAt` đều d
 |--------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
 | Google Sheets API trả 500 khiến dashboard không load được                            | Log chi tiết lỗi (googleStatus, message) + route `/api/debug` để chẩn đoán nhanh. Hiển thị lỗi rõ ràng cho user. |
 | Service Account bị xóa hoặc mất quyền trên Spreadsheet                              | Biến môi trường `GOOGLE_SERVICE_ACCOUNT_JSON` trên Render; cần re-share Spreadsheet khi thay SA.                   |
-| KiotViet webhook bị gỡ/hết hạn → Sheets không được cập nhật real-time               | Polling 5 phút là fallback cho 3 bảng; sync full thủ công `syncAll()` để recover.                                  |
+| KiotViet webhook bị gỡ/hết hạn → Sheets không được cập nhật real-time               | Polling 5 phút là fallback cho 3 bảng; chạy thủ công `syncAllInitialData()` để full refresh.                       |
 | Apps Script timeout khi đồng bộ lượng lớn dữ liệu (quota 6 phút/execution)          | Hàm `kvFetchAllPages_` chia nhỏ theo trang (pageSize=100); retry có delay tránh rate-limit.                         |
 | Tên sheet hoặc thứ tự cột thay đổi trong Apps Script → backend đọc sai dữ liệu      | Schema cố định, comment rõ ràng trong cả 2 file; cần sync thay đổi schema giữa Apps Script và dashboardData.js.    |
 | Một tab bị thiếu/đổi tên làm `batchGet` lỗi toàn bộ                                 | Liệt kê tab trước khi đọc, chỉ `batchGet` tab hiện có; trả mảng rỗng cho tab thiếu và kiểm tra bằng `/api/debug`.   |

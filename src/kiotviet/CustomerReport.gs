@@ -249,15 +249,18 @@ function fetchCustomerReportPages_(endpoint, token, query) {
 function fetchCustomerReportJsonWithRetry_(url, token, endpoint) {
   const maxAttempts = 5;
   let lastError = null;
+  let attemptsMade = 0;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    attemptsMade = attempt;
     try {
       const response = UrlFetchApp.fetch(url, {
         headers: {
           Authorization: 'Bearer ' + token,
           Retailer: CONFIG.RETAILER
         },
-        muteHttpExceptions: true
+        muteHttpExceptions: true,
+        timeoutSeconds: 45
       });
       const responseCode = response.getResponseCode();
       const responseText = response.getContentText();
@@ -282,7 +285,7 @@ function fetchCustomerReportJsonWithRetry_(url, token, endpoint) {
   }
 
   throw new Error(
-    'Khong the lay du lieu ' + endpoint + ' sau ' + maxAttempts + ' lan thu: ' +
+    'Khong the lay du lieu ' + endpoint + ' sau ' + attemptsMade + ' lan thu: ' +
     (lastError ? lastError.message : 'Khong ro nguyen nhan')
   );
 }

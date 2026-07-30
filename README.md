@@ -52,8 +52,8 @@ KiotViet ──POST──▶ doPost()          ← Nhận & queue ngay (< 100ms)
 webtks-dashboard/
 ├── .clasp.json                  # Cấu hình clasp (scriptId, rootDir: "src")
 ├── .claspignore                 # Loại trừ docs/, future-phases/ khỏi clasp push
-├── appsscript/                  # ── Apps Script đồng bộ KiotViet → Sheets ──
-│   └── KiotVietExport.gs        # syncAll, doPost (webhook), polling 5 phút
+├── appsscript/                  # Bản đơn file cũ để tham khảo (không được clasp push)
+│   └── KiotVietExport.gs        # Luồng legacy; mã triển khai chính nằm trong src/
 │
 ├── design-system/               # Quy chuẩn giao diện dùng chung
 │   └── tks-dashboard/
@@ -75,17 +75,18 @@ webtks-dashboard/
 │   │   ├── Auth.gs              # getKiotVietToken()
 │   │   ├── CustomerReport.gs    # syncCustomerReport, setupCustomerReport,
 │   │   │                        #   setupCustomerReportDailyTrigger
-│   │   ├── SyncInitial.gs       # syncAllInitialData, syncProductsInitial,
-│   │   │                        #   syncInvoicesInitial, syncCustomersInitial
+│   │   ├── SheetSchemas.gs      # Schema đủ trường cho 9 sheet, fetch/retry,
+│   │   │                        #   ghi/upsert/migrate dữ liệu KiotViet
+│   │   ├── SyncInitial.gs       # syncAllInitialData, sync 9 sheet vận hành,
+│   │   │                        #   setupPollingTrigger (5 phút)
 │   │   └── WebhookAdmin.gs      # registerWebhookProgrammatically,
 │   │                            #   registerWebhookWithCorrectUrl,
 │   │                            #   listRegisteredWebhooks, checkWebhookStatus,
 │   │                            #   deleteAllOldWebhooks
 │   │
 │   ├── sync/
-│   │   ├── UpdateHandlers.gs    # updateProductsFromWebhook,
-│   │   │                        #   updateInvoicesFromWebhook,
-│   │   │                        #   updateCustomersFromWebhook
+│   │   ├── UpdateHandlers.gs    # hydrate + update/delete Product, Invoice,
+│   │   │                        #   Order, Customer, Category
 │   │   └── WebhookQueue.gs      # doPost, processWebhookQueue,
 │   │                            #   setupQueueProcessingTrigger
 │   │
@@ -100,7 +101,7 @@ webtks-dashboard/
 │       └── Dashboard.html       # Giao diện Web App (Chart.js, dark/light mode)
 │
 ├── docs/
-│   ├── 01-business/
+│   ├── 01-brd/
 │   │   └── BRD_Dashboard_GoogleSheets.md
 │   ├── 02-srs/
 │   │   └── SRS_Dashboard_GoogleSheets.md
@@ -175,7 +176,8 @@ mỗi lần phát hành.
 2. Chạy `deleteAllOldWebhooks()` để xóa webhook cũ (nếu có)
 3. Chạy `registerWebhookWithCorrectUrl()` để đăng ký webhook mới
 4. Chạy `setupQueueProcessingTrigger()` để tạo trigger xử lý hàng đợi mỗi 1 phút
-5. Hai tab **Báo cáo bán hàng** và **Hàng bán theo khách** sẽ tự được tạo sau 07:00 qua trigger 1 phút ở bước 4. Có thể chạy `setupCustomerReport()` nếu muốn tạo ngay và có thêm trigger riêng.
+5. Chạy `setupPollingTrigger()` để đồng bộ **Trả hàng**, **Nhà cung cấp** và **Nhập hàng** mỗi 5 phút (KiotViet không phát webhook cho ba nhóm này)
+6. Hai tab **Báo cáo bán hàng** và **Hàng bán theo khách** sẽ tự được tạo sau 07:00 qua trigger 1 phút ở bước 4. Có thể chạy `setupCustomerReport()` nếu muốn tạo ngay và có thêm trigger riêng.
 
 ### Bước 5 — Deploy Web App
 1. **Deploy → New deployment → Web App**
@@ -188,7 +190,10 @@ mỗi lần phát hành.
 
 | Hàm | Mục đích | Khi nào chạy |
 |---|---|---|
-| `syncAllInitialData()` | Tải toàn bộ dữ liệu lần đầu | 1 lần duy nhất khi bắt đầu |
+| `syncAllInitialData()` | Tải đủ trường Public API vào 9 sheet vận hành và làm mới 2 sheet báo cáo | Lần đầu hoặc khi cần full refresh |
+| `syncPollingOnly_()` | Làm mới Trả hàng, Nhà cung cấp, Nhập hàng | Tự chạy bởi trigger 5 phút |
+| `setupPollingTrigger()` | Bật lịch làm mới 3 sheet không có webhook | 1 lần duy nhất |
+| `removePollingTrigger()` | Tắt lịch làm mới 5 phút | Khi bảo trì |
 | `syncCustomerReport()` | Làm mới Báo cáo bán hàng tháng này và Hàng bán theo khách 90 ngày | Khi cần cập nhật thủ công |
 | `syncCustomerProductReport()` | Làm mới Hàng bán theo khách 90 ngày (đồng thời làm mới báo cáo tháng) | Khi cần cập nhật thủ công |
 | `setupCustomerReport()` | Tạo cả hai báo cáo ngay và bật thêm lịch riêng gần 07:00 | Tùy chọn |
@@ -218,7 +223,7 @@ mỗi lần phát hành.
 
 | Tài liệu | Mô tả |
 |---|---|
-| [BRD](docs/01-business/BRD_Dashboard_GoogleSheets.md) | Business Requirements Document |
+| [BRD](docs/01-brd/BRD_Dashboard_GoogleSheets.md) | Business Requirements Document |
 | [SRS](docs/02-srs/SRS_Dashboard_GoogleSheets.md) | Software Requirements Specification |
 | [BPMN](docs/03-process/BPMN_Dashboard_GoogleSheets.md) | Sơ đồ quy trình nghiệp vụ |
 | [Implementation Plan](docs/04-planning/implementation_plan.md) | Kế hoạch triển khai chi tiết |
@@ -233,6 +238,10 @@ mỗi lần phát hành.
 
 > **Tên file HTML**: `src/ui/Dashboard.html` được clasp push lên GAS với tên `ui/Dashboard`.  
 > `doGet()` gọi `createHtmlOutputFromFile('ui/Dashboard')` — khớp đúng đường dẫn. ✅
+
+> **Schema dữ liệu:** 9 sheet vận hành giữ nguyên các cột dashboard ở bên trái và
+> bổ sung toàn bộ trường KiotViet ở bên phải. Object/mảng được lưu dưới dạng JSON;
+> cột `Dữ liệu KiotViet (JSON)` giữ payload gốc để không mất trường mới từ API.
 
 
 ---

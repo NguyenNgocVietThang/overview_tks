@@ -234,7 +234,7 @@ function buildProductSheetRow_(product, existingRow) {
   const tradeMarkName = pickProductValue_(product, ['TradeMarkName', 'tradeMarkName', 'TrademarkName', 'trademarkName']);
   const basePrice = pickProductValue_(product, ['BasePrice', 'basePrice', 'Price', 'price']);
   const isActive = pickProductValue_(product, ['IsActive', 'isActive']);
-  const createdDate = pickProductValue_(product, ['CreatedDate', 'createdDate']);
+  const modifiedDate = pickProductValue_(product, ['ModifiedDate', 'modifiedDate', 'CreatedDate', 'createdDate']);
   const categoryId = pickProductValue_(product, ['CategoryId', 'categoryId']);
   const estimatedOutOfStock = pickProductValue_(product, [
     'EstimatedOutOfStockDate', 'estimatedOutOfStockDate',
@@ -252,7 +252,7 @@ function buildProductSheetRow_(product, existingRow) {
     inventories.onHand,
     inventories.reserved,
     isActive.found ? (isActive.value === false ? 'Ngừng kinh doanh' : 'Đang kinh doanh') : undefined,
-    createdDate.found ? formatDate(createdDate.value) : undefined,
+    modifiedDate.found ? formatDate(modifiedDate.value) : undefined,
     categoryId.found ? categoryId.value : undefined,
     getProductImagesText_(product),
     getProductChannelsText_(product),
@@ -311,7 +311,8 @@ function ensureProductSheetSchema_(sheet) {
 
   const aliases = {
     'Loại hàng': ['Loại hàng', 'Loại'],
-    'Trạng thái': ['Trạng thái', 'Trạng thái kinh doanh']
+    'Trạng thái': ['Trạng thái', 'Trạng thái kinh doanh'],
+    'Ngày sửa cuối': ['Ngày sửa cuối', 'Thời gian tạo', 'Ngày cập nhật']
   };
   const oldIndexByHeader = {};
   oldHeaders.forEach((header, index) => {

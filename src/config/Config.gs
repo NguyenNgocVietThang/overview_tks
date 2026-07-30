@@ -7,8 +7,13 @@ const CONFIG = {
   // Ten cac tab luu du lieu tren Sheet
   SHEET_PRODUCTS: 'Hàng hóa',
   SHEET_INVOICES: 'Hóa đơn',
+  SHEET_INVOICE_DETAILS: 'Chi tiết hóa đơn',
+  SHEET_ORDERS: 'Đặt hàng',
+  SHEET_RETURNS: 'Trả hàng',
   SHEET_CUSTOMERS: 'Khách hàng',
   SHEET_CATEGORIES: 'Nhóm hàng',
+  SHEET_SUPPLIERS: 'Nhà cung cấp',
+  SHEET_PURCHASES: 'Nhập hàng',
   SHEET_CUSTOMER_REPORT: 'Báo cáo bán hàng',
   SHEET_CUSTOMER_PRODUCT_REPORT: 'Hàng bán theo khách'
 };
@@ -30,7 +35,7 @@ const PRODUCT_SHEET_HEADERS = Object.freeze([
   'Tồn kho',
   'Khách đặt',
   'Trạng thái',
-  'Thời gian tạo',
+  'Ngày sửa cuối',
   'Mã nhóm hàng',
   'Hình ảnh',
   'Liên kết kênh bán',

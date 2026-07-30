@@ -2,7 +2,7 @@
   "name": "tokosi-dashboard-server",
   "version": "1.0.0",
   "private": true,
-  "description": "Node/Express backend for the TOKOSI dashboard, reading the KiotViet export Google Sheet maintained by appsscript/KiotVietExport.gs.",
+  "description": "Node/Express backend for the TOKOSI dashboard, reading the KiotViet export Google Sheet maintained by the Apps Script modules in src/.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

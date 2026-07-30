@@ -39,7 +39,7 @@ Sơ đồ sử dụng 1 bể (Pool) "Hệ thống Dashboard TOKOSI" với 5 làn
 | **Vai trò (Lane)**         | **Mô tả trách nhiệm**                                                                                                           |
 |----------------------------|---------------------------------------------------------------------------------------------------------------------------------|
 | KiotViet POS               | Phần mềm quản lý bán hàng: phát sinh thay đổi dữ liệu, gửi webhook POST JSON đến Apps Script Web App URL.                       |
-| Apps Script                | `KiotVietExport.gs` chạy trong Google Workspace: nhận webhook từ KiotViet, chạy lịch polling 5 phút, đồng bộ vào Google Sheets. |
+| Apps Script                | Các module trong `src/` chạy trong Google Workspace: nhận webhook từ KiotViet, chạy lịch polling 5 phút, đồng bộ vào Google Sheets. |
 | Google Sheets              | Spreadsheet nguồn chứa 9 tab đồng bộ; cả 9 tab là đầu vào trực tiếp của dashboard.                                             |
 | Backend (Node.js/Express)  | Server trên Render.com: liệt kê tab, lọc tab hiện có, gọi `batchGet`, tính KPI theo giờ Việt Nam và trả JSON.                  |
 | Người dùng / Frontend      | Truy cập `tokosi.onrender.com`: xem Dashboard, lọc thời gian, làm mới thủ công/tự động và nhận tải bù khi quay lại tab.         |
@@ -244,7 +244,7 @@ Luồng này do IT Admin thực hiện khi triển khai lần đầu hoặc khi 
      └─ Có →
 
 --- Phần 2: Cấu hình Apps Script ---
-[C7] ▭ Mở Google Spreadsheet → Extensions → Apps Script → dán KiotVietExport.gs
+[C7] ▭ Dùng clasp push các module trong `src/` lên dự án Apps Script
 [C8] ▭ Lưu → Deploy → New deployment → Web app
      - Execute as: Me
      - Who has access: Anyone
@@ -288,7 +288,7 @@ Mỗi bước trong 3 luồng đã được gắn mã yêu cầu chức năng/ph
 
 - **Nhất quán thời gian:** Backend xử lý ngày và `updatedAt` theo Asia/Ho_Chi_Minh. Frontend tự tải mỗi 10 phút và tải bù khi tab được xem lại để tránh timestamp bị cũ do browser throttling.
 
-- **Điểm yếu cần lưu ý:** Nếu KiotViet webhook bị gỡ và polling trigger cũng bị xóa → dữ liệu trong Sheets sẽ ngừng cập nhật tự động. Cần theo dõi định kỳ và dùng `syncAll()` để recover khi cần.
+- **Điểm yếu cần lưu ý:** Nếu KiotViet webhook bị gỡ và polling trigger cũng bị xóa → dữ liệu trong Sheets sẽ ngừng cập nhật tự động. Cần theo dõi định kỳ và dùng `syncAllInitialData()` để full refresh khi cần.
 
 - **Nâng cấp tương lai (Giai đoạn 2+):** Khi thêm phân quyền, chỉ cần bổ sung middleware auth vào Express routes — không ảnh hưởng đến Luồng A và logic tính KPI. Khi thêm cache (Redis), thêm layer trước bước B2 — không thay đổi luồng tổng thể.
 

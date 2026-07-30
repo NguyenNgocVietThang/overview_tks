@@ -167,12 +167,15 @@ function getDashboardData(days) {
     const row = invData[r];
     const code = row[0];
     if (!code) continue;
-    const customer = row[1];
-    const total = Number(row[2]) || 0;
-    const discount = Number(row[3]) || 0;
-    const paid = Number(row[4]) || 0;
-    const status = row[5];
-    const dateStr = String(row[6] || "");
+    // 10 cot dau giu schema chung voi backend Node.js:
+    // Ma HD, Ngay ban, Khach hang, SDT, Nhan vien, Chi nhanh,
+    // Tong tien, Giam gia, Da tra, Trang thai.
+    const customer = row[2];
+    const total = Number(row[6]) || 0;
+    const discount = Number(row[7]) || 0;
+    const paid = Number(row[8]) || 0;
+    const status = row[9];
+    const dateStr = String(row[1] || "");
     const dateKey = dateStr.split(" ")[0]; // lấy phần dd/MM/yyyy
     const timePart = (dateStr.split(" ")[1] || "").substring(0, 5);
     const isCancelled = status === "Đã hủy";
@@ -249,7 +252,9 @@ function getDashboardData(days) {
     const code = row[0];
     if (!code) continue;
     totalCustomers++;
-    const debt = Number(row[5]) || 0;
+    // 9 cot dau giu schema chung: Ma, Ten, Dien thoai, Gioi tinh,
+    // Nhom, Dia chi, Email, No hien tai, Tong ban.
+    const debt = Number(row[7]) || 0;
     if (debt > 0) {
       customersWithDebt++;
       totalDebt += debt;

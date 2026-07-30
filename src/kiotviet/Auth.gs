@@ -27,10 +27,33 @@ function getKiotVietToken() {
     "method": "post",
     "contentType": "application/x-www-form-urlencoded",
     "payload": payload,
-    "muteHttpExceptions": true
+    "muteHttpExceptions": true,
+    "timeoutSeconds": 45
   };
-  try {
-    const response = UrlFetchApp.fetch(url, options);
-    return JSON.parse(response.getContentText()).access_token || null;
-  } catch (e) { return null; }
+
+  const maxAttempts = 3;
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = UrlFetchApp.fetch(url, options);
+      const responseCode = response.getResponseCode();
+      const responseText = response.getContentText();
+      if (responseCode >= 200 && responseCode < 300) {
+        const token = JSON.parse(responseText).access_token;
+        if (token) return token;
+        lastError = new Error('KiotViet khong tra ve access_token.');
+      } else {
+        lastError = new Error('HTTP ' + responseCode + ' tu KiotViet token endpoint.');
+        if (responseCode !== 429 && responseCode < 500) break;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    if (attempt < maxAttempts) Utilities.sleep(1000 * Math.pow(2, attempt - 1));
+  }
+
+  Logger.log('Khong lay duoc KiotViet token: ' +
+    (lastError ? lastError.toString() : 'khong ro loi'));
+  return null;
 }

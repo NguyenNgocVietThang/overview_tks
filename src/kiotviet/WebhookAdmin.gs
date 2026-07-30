@@ -43,8 +43,7 @@ function registerWebhookProgrammatically() {
     return;
   }
 
-  // Danh sach day du 9 loai su kien can dang ky rieng le (khop voi
-  // KV_WEBHOOK_EVENT_TYPES trong appsscript/KiotVietExport.gs - ban goc):
+  // Danh sach day du 9 loai su kien can dang ky rieng le:
   const eventTypes = [
     "product.update",
     "product.delete",

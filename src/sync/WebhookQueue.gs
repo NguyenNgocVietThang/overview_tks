@@ -115,21 +115,34 @@ function processWebhookQueue() {
 
         notifications.forEach(noti => {
           const action = (noti.Action || noti.action || "").toLowerCase();
-          const items = noti.Data || noti.data || [];
+          const rawItems = noti.Data || noti.data || [];
+          const items = Array.isArray(rawItems) ? rawItems : [rawItems];
 
           if (!items || items.length === 0) return;
 
-          if (action.includes("product") || action.includes("stock")) {
+          const isDelete = action.indexOf(".delete") !== -1;
+          if (action.includes("product")) {
+            if (isDelete) deleteProductsFromWebhook(items);
+            else updateProductsFromWebhook(items);
+          }
+          else if (action.includes("stock")) {
             updateProductsFromWebhook(items);
           }
-          else if (action.includes("invoice") || action.includes("order")) {
-            updateInvoicesFromWebhook(items);
+          else if (action.includes("invoice")) {
+            if (isDelete) deleteInvoicesFromWebhook(items);
+            else updateInvoicesFromWebhook(items);
+          }
+          else if (action.includes("order")) {
+            if (isDelete) deleteOrdersFromWebhook(items);
+            else updateOrdersFromWebhook(items);
           }
           else if (action.includes("customer")) {
-            updateCustomersFromWebhook(items);
+            if (isDelete) deleteCustomersFromWebhook(items);
+            else updateCustomersFromWebhook(items);
           }
           else if (action.includes("category")) {
-            updateCategoriesFromWebhook(items);
+            if (isDelete) deleteCategoriesFromWebhook(items);
+            else updateCategoriesFromWebhook(items);
           } else {
             Logger.log("Action khong xac dinh, bo qua: " + action);
           }

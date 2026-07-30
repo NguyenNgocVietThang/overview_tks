@@ -3,9 +3,9 @@
 Express server that reads a Google Sheet and serves the live TOKOSI
 dashboard. The Sheet itself (9 tabs: Nhóm hàng, Hàng hóa, Hóa đơn, Chi tiết
 hóa đơn, Đặt hàng, Trả hàng, Khách hàng, Nhà cung cấp, Nhập hàng) is synced
-from KiotViet **independently**, by the Google Apps Script project in
-`../appsscript/KiotVietExport.gs`, which runs inside that Sheet (webhook +
-30-minute polling triggers). This server does not talk to the KiotViet API
+from KiotViet **independently**, by the modular Google Apps Script project in
+`../src/`, which runs inside that Sheet (webhook + 5-minute polling trigger).
+This server does not talk to the KiotViet API
 at all — it only reads the Sheet via the Sheets API and computes the
 dashboard's KPIs/charts.
 
@@ -15,26 +15,22 @@ dashboard's KPIs/charts.
 1. In Google Cloud Console, create a project (or reuse one), enable the
    **Google Sheets API**.
 2. Create a **Service Account**, then create a JSON key for it and download it.
-3. Open the target Google Sheet (the one `KiotVietExport.gs` is bound to) →
+3. Open the target Google Sheet (the one the Apps Script project is bound to) →
    Share → invite the service account's `...@...iam.gserviceaccount.com`
    email as **Viewer** (read-only is enough; this server never writes).
 4. Copy the spreadsheet ID from its URL:
    `https://docs.google.com/spreadsheets/d/<SPREADSHEET_ID>/edit`.
 
 ### Real-time sync from KiotViet into the Sheet
-This is configured from inside the Google Sheet itself, not from this
-server. In the Sheet: Extensions → Apps Script → paste
-`../appsscript/KiotVietExport.gs` → reload the Sheet → use the **KiotViet**
-menu:
-- **"Bật cập nhật real-time (đăng ký Webhook)"** — deploy the Apps Script as
-  a Web App first (Deploy → New deployment → Web app, Execute as: Me, Who
-  has access: Anyone), then paste the deployment URL here.
-- **"Bật lịch tự động 30 phút"** — for the tables KiotViet has no webhook for
-  (Trả hàng, Nhà cung cấp, Nhập hàng, Nhóm hàng).
+This is configured in the bound Google Apps Script project:
 
-If "Hóa đơn" / "Chi tiết hóa đơn" / "Đặt hàng" / "Trả hàng" are empty, run
-**"Bán hàng (Hóa đơn, Đặt hàng, Trả hàng)"** from the same menu once to
-backfill them.
+1. From the repository root, run `clasp push --force`.
+2. Run `syncAllInitialData()` once to backfill all 9 operational sheets.
+3. Deploy/update the Apps Script Web App.
+4. Run `setupWebhookSecret()`, register the 9 webhook event types with
+   `registerWebhookWithCorrectUrl()`, and run `setupQueueProcessingTrigger()`.
+5. Run `setupPollingTrigger()` for Trả hàng, Nhà cung cấp, and Nhập hàng,
+   because KiotViet does not publish webhook events for those three groups.
 
 ### Local `.env`
 ```bash
@@ -45,7 +41,7 @@ npm start
 ```
 Visit `http://localhost:3000` — it should show the dashboard with real data
 from the Sheet. `GET /health` should return `{"status":"ok"}`. The page
-auto-refreshes every 5 minutes, plus a manual "Làm mới" button.
+auto-refreshes every 10 minutes, plus a manual "Làm mới" button.
 
 ## 2. Deploying on Render — exact values for the "New Web Service" form
 
