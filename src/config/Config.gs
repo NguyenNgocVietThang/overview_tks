@@ -9,5 +9,6 @@ const CONFIG = {
   // Ten cac tab luu du lieu tren Sheet
   SHEET_PRODUCTS: 'Hàng hóa',
   SHEET_INVOICES: 'Hóa đơn',
-  SHEET_CUSTOMERS: 'Khách hàng'
+  SHEET_CUSTOMERS: 'Khách hàng',
+  SHEET_CATEGORIES: 'Nhóm hàng'
 };

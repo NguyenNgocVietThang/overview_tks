@@ -127,3 +127,36 @@ function updateCustomersFromWebhook(items) {
     }
   });
 }
+
+/**
+ * Cap nhat Tab: NHOM HANG (Real-time)
+ * @param {Array} items - Danh sach nhom hang tu webhook payload
+ */
+function updateCategoriesFromWebhook(items) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(CONFIG.SHEET_CATEGORIES) || ss.insertSheet(CONFIG.SHEET_CATEGORIES);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(["Mã nhóm hàng", "Tên nhóm hàng", "Mã nhóm cha"]);
+  }
+
+  const data = sheet.getDataRange().getValues();
+  const codeRowMap = getCodeRowMap(data, 0); // Tim theo Ma nhom hang o cot A (index 0)
+
+  items.forEach(item => {
+    const code = String(
+      item.CategoryId !== undefined ? item.CategoryId : (item.categoryId !== undefined ? item.categoryId : (item.Id || item.id || ""))
+    ).trim();
+    if (!code) return;
+
+    const name = item.CategoryName || item.categoryName || item.Name || item.name || "";
+    const parentId = item.ParentId !== undefined ? item.ParentId : (item.parentId !== undefined ? item.parentId : "");
+
+    if (codeRowMap[code]) {
+      const r = codeRowMap[code];
+      if (name) sheet.getRange(r, 2).setValue(name);
+      sheet.getRange(r, 3).setValue(parentId);
+    } else {
+      sheet.appendRow([code, name, parentId]);
+    }
+  });
+}

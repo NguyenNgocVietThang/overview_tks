@@ -6,11 +6,11 @@
  * Diem vao khi mo Web App (link .../exec).
  * Tra ve file Dashboard.html duoc render boi HtmlService.
  *
- * Luu y: clasp se push src/ui/Dashboard.html len GAS voi ten "Dashboard",
- * nen createHtmlOutputFromFile('Dashboard') hoat dong chinh xac.
+ * Clasp giu duong dan thu muc cua file HTML tren Apps Script,
+ * nen phai goi dung ten "ui/Dashboard".
  */
 function doGet(e) {
-  return HtmlService.createHtmlOutputFromFile('Dashboard')
+  return HtmlService.createHtmlOutputFromFile('ui/Dashboard')
     .setTitle('TOKOSI · Live Dashboard')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);

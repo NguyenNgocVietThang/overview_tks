@@ -79,7 +79,7 @@ ten-thu-muc/
 
 ### 2.4 `appsscript.json`
 
-**Vị trí:** `d:\Web TKS Dashboard\appsscript.json`
+**Vị trí:** `d:\Web TKS Dashboard\src\appsscript.json`
 
 **Khi nào cập nhật:**
 - Thêm OAuth scope mới (khi code mới cần quyền truy cập service GAS chưa có)

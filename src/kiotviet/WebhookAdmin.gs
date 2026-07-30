@@ -3,6 +3,26 @@
 // ==========================================
 
 /**
+ * Gan shared-secret (thiet lap bang setupWebhookSecret() trong WebhookQueue.gs)
+ * vao cuoi URL webhook duoi dang query string "?secret=...". doPost() se doi chieu
+ * lai gia tri nay - xem isValidWebhookSecret_() trong WebhookQueue.gs.
+ * Neu chua thiet lap secret (chay setupWebhookSecret() lan dau), tra ve URL goc
+ * khong doi va ghi log canh bao, vi doPost se tu choi moi request khi chua co secret.
+ *
+ * @param {string} url - URL webhook goc (chua co query string secret)
+ * @returns {string} URL da gan them ?secret=...
+ */
+function appendWebhookSecret_(url) {
+  const secret = PropertiesService.getScriptProperties().getProperty("WEBHOOK_SECRET");
+  if (!secret) {
+    Logger.log("CANH BAO: Chua thiet lap WEBHOOK_SECRET. Chay setupWebhookSecret() (trong WebhookQueue.gs) truoc khi dang ky webhook, neu khong doPost se tu choi moi request.");
+    return url;
+  }
+  const separator = url.indexOf("?") === -1 ? "?" : "&";
+  return url + separator + "secret=" + encodeURIComponent(secret);
+}
+
+/**
  * HAM TU DONG DANG KY WEBHOOK TREN KIOTVIET BANG CODE
  *
  * SUA LOI QUAN TRONG (schema sai):
@@ -15,7 +35,7 @@
  * => Vi vay phai goi API nay NHIEU LAN, moi lan dang ky 1 Type rieng.
  */
 function registerWebhookProgrammatically() {
-  const myWebhookUrl = ScriptApp.getService().getUrl();
+  const myWebhookUrl = appendWebhookSecret_(ScriptApp.getService().getUrl());
 
   const token = getKiotVietToken();
   if (!token) {
@@ -23,18 +43,18 @@ function registerWebhookProgrammatically() {
     return;
   }
 
-  // Danh sach cac loai su kien can dang ky rieng le
-  // Luu y: KiotViet Retail dung "product.update" / "stock.update" / "customer.update"...
-  // Neu ban da tung dang ky voi "product.insert" ma khong thay tai lieu de cap toi type nay,
-  // hay uu tien dung dung cac type duoc liet ke trong tai lieu chinh thuc:
+  // Danh sach day du 9 loai su kien can dang ky rieng le (khop voi
+  // KV_WEBHOOK_EVENT_TYPES trong appsscript/KiotVietExport.gs - ban goc):
   const eventTypes = [
     "product.update",
     "product.delete",
     "stock.update",
     "customer.update",
-    "customer.delete"
-    // Neu can theo doi hoa don/dat hang, kiem tra lai tai lieu Retail day du (muc 2.11)
-    // vi ban Retail co the co them type rieng cho invoice/order khac voi ban FNB.
+    "customer.delete",
+    "invoice.update",
+    "order.update",
+    "category.update",
+    "category.delete"
   ];
 
   const url = "https://public.kiotapi.com/webhooks";
@@ -97,8 +117,8 @@ function registerWebhookProgrammatically() {
  * ma ban vua lay tu Manage deployments.
  */
 function registerWebhookWithCorrectUrl() {
-  // DAN CHINH XAC URL /exec cua ban vao day, thay the toan bo dong duoi:
-  const CORRECT_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzw165iOiCDNy2_mSKzKb-iXVIH1yahsfRiEllwNcQ6DQmTkfgWtw49S_5dngEeFVzIMA/exec";
+  // URL /exec cua deployment Web App cong khai dang hoat dong.
+  const CORRECT_WEBHOOK_URL = appendWebhookSecret_("https://script.google.com/macros/s/AKfycby99mhJo_-EZPl4VBdtjxf2HI9A_x5MSgGX0yk2UjhkCV_o3DvfjJNf6HoZG5zAWw2clA/exec");
 
   const token = getKiotVietToken();
   if (!token) {
@@ -111,7 +131,11 @@ function registerWebhookWithCorrectUrl() {
     "product.delete",
     "stock.update",
     "customer.update",
-    "customer.delete"
+    "customer.delete",
+    "invoice.update",
+    "order.update",
+    "category.update",
+    "category.delete"
   ];
 
   const url = "https://public.kiotapi.com/webhooks";

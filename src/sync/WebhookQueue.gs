@@ -17,6 +17,11 @@ function doPost(e) {
       return ContentService.createTextOutput("No data").setMimeType(ContentService.MimeType.TEXT);
     }
 
+    if (!isValidWebhookSecret_(e)) {
+      Logger.log("Webhook bi tu choi: thieu hoac sai shared-secret (query param 'secret').");
+      return ContentService.createTextOutput("UNAUTHORIZED").setMimeType(ContentService.MimeType.TEXT);
+    }
+
     const rawContents = e.postData.contents;
     const cache = CacheService.getScriptCache();
 
@@ -118,6 +123,9 @@ function processWebhookQueue() {
           }
           else if (action.includes("customer")) {
             updateCustomersFromWebhook(items);
+          }
+          else if (action.includes("category")) {
+            updateCategoriesFromWebhook(items);
           } else {
             Logger.log("Action khong xac dinh, bo qua: " + action);
           }
@@ -150,6 +158,50 @@ function processWebhookQueue() {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * Kiem tra shared-secret dinh kem trong query string cua URL webhook.
+ * KiotViet KHONG ho tro ky (HMAC) payload hay gui header tuy chinh khi goi webhook -
+ * chi cho phep cau hinh Url/Type/IsActive/Description khi dang ky (xem WebhookAdmin.gs).
+ * Vi vay bien phap xac thuc kha thi la nhung mot secret vao chinh URL webhook
+ * (vi du: .../exec?secret=xxxx) va so sanh lai o day moi khi nhan request.
+ *
+ * @param {Object} e - Doi tuong request cua doPost
+ * @returns {boolean} true neu secret hop le
+ */
+function isValidWebhookSecret_(e) {
+  const expected = PropertiesService.getScriptProperties().getProperty("WEBHOOK_SECRET");
+  if (!expected) return false; // Chua thiet lap secret (chay setupWebhookSecret()) => tu choi tat ca de an toan
+  const received = e.parameter && e.parameter.secret;
+  return typeof received === "string" && received === expected;
+}
+
+/**
+ * HAM THIET LAP SHARED-SECRET CHO WEBHOOK - CHI CAN CHAY 1 LAN DUY NHAT BANG TAY.
+ *
+ * Sau khi chay, secret duoc luu trong Script Properties (khong nam trong source code)
+ * va duoc log ra. Copy secret nay va dan vao cuoi URL webhook dang duoc dang ky voi
+ * KiotViet, dang query string: .../exec?secret=<secret-vua-tao>
+ * (Xem registerWebhookWithCorrectUrl() / registerWebhookProgrammatically() trong
+ * WebhookAdmin.gs - ca hai da duoc cap nhat de tu dong gan secret nay vao URL.)
+ *
+ * LUU Y: sau khi thiet lap secret, phai dang ky lai webhook (xoa webhook cu qua
+ * deleteAllOldWebhooks() roi dang ky lai) vi webhook cu (khong co ?secret=) se
+ * bi doPost tu choi.
+ */
+function setupWebhookSecret() {
+  const props = PropertiesService.getScriptProperties();
+  const existing = props.getProperty("WEBHOOK_SECRET");
+  if (existing) {
+    Logger.log("Da co san WEBHOOK_SECRET, khong tao lai (xoa property nay truoc neu muon doi).");
+    Logger.log("Secret hien tai: " + existing);
+    return;
+  }
+  const secret = Utilities.getUuid().replace(/-/g, "");
+  props.setProperty("WEBHOOK_SECRET", secret);
+  Logger.log("Da tao WEBHOOK_SECRET moi: " + secret);
+  Logger.log("Them vao cuoi URL webhook khi dang ky voi KiotViet: ?secret=" + secret);
 }
 
 /**

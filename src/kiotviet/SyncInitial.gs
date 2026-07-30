@@ -22,6 +22,9 @@ function syncAllInitialData() {
   Logger.log("Bat dau tai Khach hang...");
   syncCustomersInitial(token);
 
+  Logger.log("Bat dau tai Nhom hang...");
+  syncCategoriesInitial(token);
+
   Logger.log("Hoan tat dong bo toan bo du lieu ban dau!");
 }
 
@@ -124,5 +127,37 @@ function syncCustomersInitial(token) {
     sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
     sheet.getRange(2, 3, rows.length, 1).setNumberFormat("@"); // Dien thoai dang text tranh mat so 0 dau
     sheet.getRange(2, 6, rows.length, 1).setNumberFormat("#,##0");
+  }
+}
+
+/**
+ * Tai toan bo nhom hang tu KiotViet va ghi vao Sheet "Nhom hang".
+ * Can dong bo day du (khong chi cac nhom thay doi qua webhook) de
+ * buildParentCategoryResolver_ (DashboardData.gs) tim dung nhom cha goc
+ * cho tung san pham.
+ * @param {string} token - KiotViet access token
+ */
+function syncCategoriesInitial(token) {
+  let allCategories = [];
+  let currentItem = 0;
+  const pageSize = 100;
+  let total = 0;
+  do {
+    const url = `https://public.kiotapi.com/categories?hierarchicalData=false&pageSize=${pageSize}&currentItem=${currentItem}`;
+    const response = UrlFetchApp.fetch(url, { "headers": { "Authorization": "Bearer " + token, "Retailer": CONFIG.RETAILER } });
+    const result = JSON.parse(response.getContentText());
+    allCategories = allCategories.concat(result.data || []);
+    total = result.total || 0;
+    currentItem += pageSize;
+  } while (currentItem < total);
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(CONFIG.SHEET_CATEGORIES) || ss.insertSheet(CONFIG.SHEET_CATEGORIES);
+  const headers = ["Mã nhóm hàng", "Tên nhóm hàng", "Mã nhóm cha"];
+  const rows = allCategories.map(c => [c.categoryId || "", c.categoryName || "", c.parentId || ""]);
+  sheet.clearContents();
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#EFEFEF");
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
   }
 }

@@ -52,8 +52,6 @@ KiotViet ──POST──▶ doPost()          ← Nhận & queue ngay (< 100ms)
 webtks-dashboard/
 ├── .clasp.json                  # Cấu hình clasp (scriptId, rootDir: "src")
 ├── .claspignore                 # Loại trừ docs/, future-phases/ khỏi clasp push
-├── appsscript.json              # Manifest Apps Script (timezone, oauthScopes)
-│
 ├── appsscript/                  # ── Apps Script đồng bộ KiotViet → Sheets ──
 │   └── KiotVietExport.gs        # syncAll, doPost (webhook), polling 5 phút
 │
@@ -62,6 +60,8 @@ webtks-dashboard/
 │       └── MASTER.md            # Token, component và quy tắc thiết kế dashboard
 │
 ├── src/                         # ── GIAI ĐOẠN 1 — Code Apps Script (clasp) ──
+│   ├── appsscript.json          # Manifest Apps Script (timezone, oauthScopes)
+│   │
 │   ├── config/
 │   │   └── Config.gs            # object CONFIG (Client ID/Secret, tên các Sheet)
 │   │
@@ -141,8 +141,19 @@ Mở `.clasp.json`, thay `<SCRIPT_ID_PLACEHOLDER>` bằng Script ID thật của
 
 ### Bước 3 — Push code lên GAS
 ```bash
-clasp push
+clasp push --force
 ```
+
+Mỗi lần phát hành, luôn tạo phiên bản mới và cập nhật deployment Web App hiện tại
+thay vì chỉ dừng ở bản HEAD:
+
+```bash
+clasp version "Mô tả phiên bản"
+clasp redeploy AKfycby99mhJo_-EZPl4VBdtjxf2HI9A_x5MSgGX0yk2UjhkCV_o3DvfjJNf6HoZG5zAWw2clA -V <VERSION_MỚI>
+```
+
+Deployment ID được giữ nguyên nên URL Web App không đổi; chỉ số phiên bản tăng sau
+mỗi lần phát hành.
 
 ### Bước 4 — Thiết lập lần đầu (chạy thủ công 1 lần)
 1. Mở **Apps Script Editor** → chạy `syncAllInitialData()` để tải dữ liệu ban đầu
@@ -200,9 +211,9 @@ clasp push
 > `config/` → `dashboard/` → `kiotviet/` → `sync/` → `ui/` → `utils/`  
 > Đảm bảo `Config.gs` luôn được khởi tạo trước tất cả các module khác. ✅
 
-> **Tên file HTML**: `src/ui/Dashboard.html` được clasp push lên GAS với tên `Dashboard`.  
-> `doGet()` gọi `createHtmlOutputFromFile('Dashboard')` — hoạt động chính xác. ✅
+> **Tên file HTML**: `src/ui/Dashboard.html` được clasp push lên GAS với tên `ui/Dashboard`.  
+> `doGet()` gọi `createHtmlOutputFromFile('ui/Dashboard')` — khớp đúng đường dẫn. ✅
 
 ---
 
-*Cập nhật lần cuối: 2026-07-29*
+*Cập nhật lần cuối: 2026-07-30*
