@@ -60,6 +60,10 @@ function doPost(e) {
  * KHONG duoc KiotViet goi truc tiep, nen khong co ap luc timeout.
  */
 function processWebhookQueue() {
+  // Tan dung trigger 1 phut dang co san de cap nhat Bao cao khach hang mot lan
+  // moi ngay sau 07:00. Ham nay tu bo qua neu hom nay da dong bo thanh cong.
+  syncCustomerReportIfDue_();
+
   const cache = CacheService.getScriptCache();
   const lock = LockService.getScriptLock();
 

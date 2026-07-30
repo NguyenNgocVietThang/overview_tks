@@ -22,7 +22,7 @@ appsscript/
 
 src/                        ← GAS source code (clasp push)
 ├── config/Config.gs
-├── kiotviet/Auth.gs · SyncInitial.gs · WebhookAdmin.gs
+├── kiotviet/Auth.gs · CustomerReport.gs · SyncInitial.gs · WebhookAdmin.gs
 ├── sync/UpdateHandlers.gs · WebhookQueue.gs
 ├── dashboard/WebApp.gs · DashboardData.gs
 ├── ui/Dashboard.html
@@ -32,6 +32,7 @@ server/                     ← Node.js/Express backend (Render.com)
 ├── index.js
 ├── config.js
 ├── routes.js
+├── jobs/syncCustomerReport.js ← Đồng bộ 2 báo cáo khách hàng theo lịch 07:00
 ├── sheets/sheetsClient.js  ← Liệt kê/lọc tab hiện có trước batchGet
 └── dashboard/dashboardData.js ← Tính ngày giờ theo Asia/Ho_Chi_Minh
 
@@ -49,7 +50,7 @@ server/public/
 |-------|---------------------------------------|----------------------------------------------------------------------------------------------------|----------------|
 | 1     | Phân tích & thiết kế                  | Hoàn thiện BRD v1.2, SRS v1.2, BPMN v1.2; thiết kế kiến trúc kỹ thuật                            | ✅ Hoàn thành  |
 | 2     | Apps Script đồng bộ KiotViet          | `appsscript/KiotVietExport.gs`: sync full, webhook 9 event, polling 5 phút (Trả hàng/NCC/Nhập hàng) | ✅ Hoàn thành  |
-| 3     | GAS Web App (src/)                    | Multi-file GAS: Auth, SyncInitial, WebhookAdmin, UpdateHandlers, WebhookQueue, DashboardData, WebApp | ✅ Hoàn thành  |
+| 3     | GAS Web App (src/)                    | Multi-file GAS: Auth, CustomerReport, SyncInitial, WebhookAdmin, UpdateHandlers, WebhookQueue, DashboardData, WebApp | ✅ Hoàn thành  |
 | 4     | Backend Node.js/Express               | `server/`: liệt kê/lọc tab, `batchGet` tối đa 9 tab, xử lý tab thiếu và tính ngày giờ Việt Nam   | ✅ Hoàn thành  |
 | 5     | Frontend HTML/CSS/JS                  | Sidebar, KPI, biểu đồ/bảng, lọc 7/30/90 ngày, refresh tay + nền 10 phút + tải bù khi tab visible | ✅ Hoàn thành  |
 | 6     | Triển khai Render.com                 | Deploy lên `tokosi.onrender.com`; cấu hình `SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_JSON`         | ✅ Hoàn thành  |
@@ -100,13 +101,15 @@ server/public/
 > `config/` → `dashboard/` → `kiotviet/` → `sync/` → `ui/` → `utils/`  
 > `Config.gs` luôn được khởi tạo trước tất cả module khác. ✅
 
-> **Schema Google Sheets:** Apps Script duy trì 9 tab; backend đọc đủ 9 tab và dùng `Nhóm hàng` để gom tồn kho theo nhóm cha.
+> **Schema Google Sheets:** Apps Script duy trì 9 tab vận hành, tab `Báo cáo bán hàng` tháng hiện tại và tab `Hàng bán theo khách` 90 ngày; trigger hàng đợi kiểm tra mỗi phút và cập nhật cả hai báo cáo một lần/ngày sau 07:00. Backend dashboard chỉ đọc 9 tab vận hành và dùng `Nhóm hàng` để gom tồn kho theo nhóm cha.
 > `sheetsClient.js` lọc tab hiện có trước `batchGet`, nên tab thiếu chỉ làm rỗng section tương ứng. Khi thay đổi tên/schema vẫn phải cập nhật đồng bộ `appsscript/KiotVietExport.gs`, `server/config.js` và `server/dashboard/dashboardData.js`.
 
 > **Múi giờ:** Backend cố định `Asia/Ho_Chi_Minh`/UTC+07:00 cho parse ngày, KPI "hôm nay", bucket 7/30/90 ngày và `updatedAt`; không phụ thuộc timezone mặc định của Render.
 
 > **Biến môi trường Render:** `SPREADSHEET_ID` và `GOOGLE_SERVICE_ACCOUNT_JSON` — không commit vào repo.
 
+> **Thông tin xác thực KiotViet:** Apps Script đọc `KIOTVIET_CLIENT_ID` và `KIOTVIET_CLIENT_SECRET` từ Script Properties; tác vụ Node.js đọc `KIOTVIET_CLIENT_ID`, `KIOTVIET_CLIENT_SECRET`, `KIOTVIET_RETAILER` từ biến môi trường. Không hard-code hoặc commit các giá trị này.
+
 ---
 
-*— Cập nhật lần cuối: 29/07/2026 —*
+*— Cập nhật lần cuối: 30/07/2026 —*

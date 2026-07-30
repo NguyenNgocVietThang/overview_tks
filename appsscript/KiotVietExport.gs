@@ -7,19 +7,21 @@
  *
  * CÀI ĐẶT LẦN ĐẦU (đồng bộ toàn bộ dữ liệu):
  * 1. Mở Google Sheets > Extensions > Apps Script, dán toàn bộ file này vào.
- * 2. Lưu, quay lại Sheets, tải lại trang -> menu "KiotViet" sẽ xuất hiện.
- * 3. Chọn "Đồng bộ tất cả" (lần đầu có thể mất vài phút do phân trang).
+ * 2. Trong Project Settings > Script Properties, khai báo KIOTVIET_CLIENT_ID
+ *    và KIOTVIET_CLIENT_SECRET.
+ * 3. Lưu, quay lại Sheets, tải lại trang -> menu "KiotViet" sẽ xuất hiện.
+ * 4. Chọn "Đồng bộ tất cả" (lần đầu có thể mất vài phút do phân trang).
  *
  * BẬT CẬP NHẬT REAL-TIME (KiotViet đẩy thay đổi về ngay lập tức qua webhook):
- * 4. Trong Apps Script editor: Deploy > New deployment > chọn loại "Web app".
+ * 5. Trong Apps Script editor: Deploy > New deployment > chọn loại "Web app".
  *    - Execute as: Me
  *    - Who has access: Anyone
  *    Bấm Deploy, copy "Web app URL" (dạng https://script.google.com/macros/s/.../exec).
- * 5. Quay lại Sheets > menu KiotViet > "Bật cập nhật real-time (đăng ký Webhook)".
+ * 6. Quay lại Sheets > menu KiotViet > "Bật cập nhật real-time (đăng ký Webhook)".
  *    Dán Web app URL vừa copy vào hộp thoại hiện ra.
  *    -> Từ giờ mỗi khi có Hàng hóa/Tồn kho/Khách hàng/Hóa đơn/Đặt hàng/Nhóm hàng
  *       thay đổi trên KiotViet, sheet tương ứng sẽ tự cập nhật gần như ngay lập tức.
- * 6. Chọn thêm "Bật lịch tự động 5 phút (Trả hàng, NCC, Nhập hàng)"
+ * 7. Chọn thêm "Bật lịch tự động 5 phút (Trả hàng, NCC, Nhập hàng)"
  *    vì KiotViet KHÔNG có webhook cho 3 bảng này (không có type return.x,
  *    supplier.x, purchaseorder.x) — chỉ có thể polling định kỳ, không thể real-time
  *    tuyệt đối cho 3 bảng này dù cấu hình thế nào.
@@ -31,8 +33,6 @@
  * refresh), độc lập với cơ chế real-time ở trên.
  */
 
-const KV_CLIENT_ID = '7e146353-e5e8-49ac-84f9-646f443d9237';
-const KV_CLIENT_SECRET = 'D8F6FF4E0DCA02210CE3CD92D97004AA62A89C3B';
 const KV_RETAILER = 'CHbansi';
 
 const KV_BASE_URL = 'https://public.kiotapi.com';
@@ -69,14 +69,23 @@ function syncAll() {
 // ---------- AUTH ----------
 
 function getKiotVietToken_() {
+  const properties = PropertiesService.getScriptProperties();
+  const clientId = properties.getProperty('KIOTVIET_CLIENT_ID');
+  const clientSecret = properties.getProperty('KIOTVIET_CLIENT_SECRET');
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      'Thiếu KIOTVIET_CLIENT_ID hoặc KIOTVIET_CLIENT_SECRET trong Apps Script Properties.'
+    );
+  }
+
   const response = UrlFetchApp.fetch('https://id.kiotviet.vn/connect/token', {
     method: 'post',
     contentType: 'application/x-www-form-urlencoded',
     payload: {
       scopes: 'PublicApi.Access',
       grant_type: 'client_credentials',
-      client_id: KV_CLIENT_ID,
-      client_secret: KV_CLIENT_SECRET
+      client_id: clientId,
+      client_secret: clientSecret
     },
     muteHttpExceptions: true
   });

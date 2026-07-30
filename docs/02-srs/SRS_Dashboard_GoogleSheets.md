@@ -25,7 +25,7 @@ Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi ch�
 
 Hệ thống là một Web Application nội bộ gồm 2 thành phần chính:
 
-1. **Apps Script (`KiotVietExport.gs`):** chạy trong Google Workspace, đồng bộ dữ liệu từ KiotViet Public API vào 9 tab của một Google Spreadsheet (qua webhook KiotViet real-time + polling 5 phút).
+1. **Apps Script (`KiotVietExport.gs`):** chạy trong Google Workspace, đồng bộ dữ liệu từ KiotViet Public API vào 9 tab vận hành và 2 tab tổng hợp báo cáo khách hàng (qua webhook KiotViet real-time + polling 5 phút + lịch báo cáo hàng ngày).
 
 2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu từ Google Spreadsheet qua Google Sheets API (Service Account), tính toán KPI và dữ liệu biểu đồ, trả về cho frontend qua REST API. Frontend hiển thị Dashboard tương tác trên trình duyệt.
 
@@ -35,7 +35,7 @@ Hệ thống là một Web Application nội bộ gồm 2 thành phần chính:
 |-------------------------|---------------------------------------------------------------------------------------|
 | Dashboard               | Trang tổng hợp hiển thị số liệu và biểu đồ từ dữ liệu nguồn.                          |
 | KPI Card                | Thẻ hiển thị 1 chỉ số tổng hợp (vd: Doanh thu hôm nay, Tổng tồn kho).               |
-| Spreadsheet nguồn       | Google Spreadsheet được Apps Script duy trì, chứa 9 tab KiotViet export.              |
+| Spreadsheet nguồn       | Google Spreadsheet được Apps Script duy trì, chứa 9 tab vận hành và 2 tab báo cáo khách hàng. |
 | Service Account         | Tài khoản dịch vụ Google dùng để backend đọc Spreadsheet mà không cần OAuth user.    |
 | Apps Script             | `KiotVietExport.gs` chạy trong Google Workspace, đồng bộ dữ liệu từ KiotViet.       |
 | batchGet                | Gọi Google Sheets API đọc nhiều tab đang tồn tại cùng lúc trong 1 request HTTP.      |
@@ -149,8 +149,9 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-01.1 | Backend gọi `spreadsheets.get` để lấy tên tab, lọc 9 tab dữ liệu kỳ vọng rồi đọc các tab đang tồn tại bằng một `batchGet`.        | Cao         | Hoàn thành     |
 | FR-01.2 | Xác thực với Google bằng Service Account JSON (không yêu cầu OAuth người dùng).                                                   | Cao         | Hoàn thành     |
 | FR-01.3 | `SPREADSHEET_ID` và `GOOGLE_SERVICE_ACCOUNT_JSON` đọc từ biến môi trường, không hard-code trong code.                            | Cao         | Hoàn thành     |
-| FR-01.4 | Nếu gọi API thất bại (timeout, 403, 500...), hệ thống trả HTTP 500 kèm thông tin lỗi chi tiết (message, Google API status).      | Cao         | Hoàn thành     |
-| FR-01.5 | Nếu một tab dữ liệu không tồn tại/đã đổi tên, tab đó được ánh xạ thành mảng rỗng; các phần dữ liệu còn lại vẫn được trả về.      | Cao         | Hoàn thành     |
+| FR-01.4 | Thông tin xác thực KiotViet được đọc từ Apps Script Properties hoặc biến môi trường server; không hard-code trong mã nguồn. | Cao | Hoàn thành |
+| FR-01.5 | Nếu gọi API thất bại (timeout, 403, 500...), hệ thống trả HTTP 500 kèm thông tin lỗi chi tiết (message, Google API status).      | Cao         | Hoàn thành     |
+| FR-01.6 | Nếu một tab dữ liệu không tồn tại/đã đổi tên, tab đó được ánh xạ thành mảng rỗng; các phần dữ liệu còn lại vẫn được trả về.      | Cao         | Hoàn thành     |
 
 ## 3.2. FR-02: Tính toán KPI
 
@@ -207,6 +208,9 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-06.3 | `setupPollingTrigger()`: bật trigger 5 phút để sync Trả hàng + Nhà cung cấp + Nhập hàng (KiotViet không có webhook cho 3 loại này).                                           | Cao         | Hoàn thành     |
 | FR-06.4 | `setupRealtimeWebhook()`: đăng ký 9 loại event webhook với KiotViet API, xóa webhook cũ trước khi đăng ký mới.                                                               | Cao         | Hoàn thành     |
 | FR-06.5 | Retry tự động tối đa 5 lần (exponential backoff) khi gọi KiotViet API bị lỗi tạm thời (429/5xx/network error).                                                               | Cao         | Hoàn thành     |
+| FR-06.6 | `syncCustomerReport()`: tổng hợp hóa đơn và trả hàng hoàn thành trong tháng, ghi tab `Báo cáo bán hàng` với Doanh thu, Giá trị trả, Doanh thu thuần. | Cao | Hoàn thành |
+| FR-06.7 | Cùng lần chạy, hệ thống ghi tab `Hàng bán theo khách` cho 90 ngày qua với SL mua, Doanh thu, SL Trả, Giá trị trả và Doanh thu thuần. | Cao | Hoàn thành |
+| FR-06.8 | `processWebhookQueue()` gọi `syncCustomerReportIfDue_()` mỗi phút và chỉ chạy hai báo cáo một lần/ngày sau 07:00; `setupCustomerReportDailyTrigger()` cung cấp trigger riêng tùy chọn. | Cao | Hoàn thành |
 
 ## 3.7. FR-07: Giao diện người dùng
 
@@ -377,13 +381,31 @@ Giao diện Dashboard gồm:
 ### Sheet "Nhập hàng" (col index 0–5)
 `[0]Mã nhập hàng [1]Ngày nhập [2]Nhà cung cấp [3]Chi nhánh [4]Tổng tiền [5]Trạng thái`
 
-## 7.2. Webhook KiotViet — 9 loại event
+## 7.2. Schema tab "Báo cáo bán hàng" (dashboard không đọc)
+
+`[0]Mã KH [1]Khách hàng [2]Doanh thu [3]Giá trị trả [4]Doanh thu thuần`
+
+- Dòng 2 chứa số lượng khách hàng và tổng các cột tiền.
+- Dữ liệu được lấy theo bộ lọc KiotViet: Kiểu hiển thị **Báo cáo**, Mối quan tâm **Bán hàng**, Thời gian **Tháng này**.
+- Chỉ tính hóa đơn/phiếu trả hàng trạng thái hoàn thành; `Doanh thu thuần = Doanh thu - Giá trị trả`.
+- Trigger hàng đợi kiểm tra mỗi phút và chạy một lần/ngày sau 07:00 theo `Asia/Ho_Chi_Minh`; nếu lỗi sẽ thử lại ở phút kế tiếp.
+
+## 7.3. Schema tab "Hàng bán theo khách" (dashboard không đọc)
+
+`[0]Mã KH [1]Khách hàng [2]SL mua [3]Doanh thu [4]SL Trả [5]Giá trị trả [6]Doanh thu thuần`
+
+- Dòng 2 chứa số lượng khách hàng, tổng số lượng mua/trả và tổng các cột tiền.
+- Dữ liệu được lấy theo bộ lọc: Kiểu hiển thị **Báo cáo**, Mối quan tâm **Hàng bán theo khách**, Thời gian **90 ngày qua**.
+- Khoảng ngày chạy từ 00:00 của ngày cách hiện tại 90 ngày đến hết ngày hiện tại theo `Asia/Ho_Chi_Minh`, tương ứng cách KiotViet hiển thị “30 ngày qua”.
+- Chỉ tính hóa đơn/phiếu trả hàng trạng thái hoàn thành; `Doanh thu thuần = Doanh thu - Giá trị trả`.
+
+## 7.4. Webhook KiotViet — 9 loại event
 
 `product.update`, `product.delete`, `stock.update`, `customer.update`, `customer.delete`, `invoice.update`, `order.update`, `category.update`, `category.delete`
 
 **Lưu ý quan trọng:** KiotViet KHÔNG có webhook cho Trả hàng (`return.*`), Nhà cung cấp (`supplier.*`), Nhập hàng (`purchaseorder.*`) → phải dùng polling 5 phút.
 
-## 7.3. Format ngày tháng
+## 7.5. Format ngày tháng
 
 Tất cả giá trị ngày trong sheet được lưu dạng chuỗi: `dd/MM/yyyy HH:mm:ss` (vd: `28/07/2026 14:30:00`), do Apps Script dùng `Utilities.formatDate(..., 'Asia/Ho_Chi_Minh', 'dd/MM/yyyy HH:mm:ss')`.
 
@@ -395,7 +417,7 @@ Các phép tính "hôm nay", bucket ngày 7/30/90 ngày và `updatedAt` đều d
 
 | **Yêu cầu BRD**                          | **Yêu cầu SRS liên quan**           |
 |------------------------------------------|-------------------------------------|
-| Kết nối Sheets — Service Account (5.1)   | FR-01.1 → FR-01.5                   |
+| Kết nối Sheets — Service Account (5.1)   | FR-01.1 → FR-01.6                   |
 | KPI tổng quan (5.2)                      | FR-02.1 → FR-02.9                   |
 | Biểu đồ & bảng chi tiết (5.3)           | FR-03.1 → FR-03.9                   |
 | Bộ lọc 7/30/90 ngày (5.4)               | FR-04.1, FR-04.2, FR-04.3           |

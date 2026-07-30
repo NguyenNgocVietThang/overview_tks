@@ -23,7 +23,7 @@ Tài liệu này mô tả các yêu cầu nghiệp vụ cho Hệ thống Dashboa
 
 ## 1.2. Bối cảnh
 
-Công ty TOKOSI là một tổng kho sỉ phân phối hàng hóa, vận hành trên phần mềm **KiotViet** (quản lý bán hàng, kho, khách hàng). Dữ liệu KiotViet được đồng bộ tự động sang **Google Sheets** (qua Apps Script `KiotVietExport.gs`) dưới dạng 9 tab: Nhóm hàng, Hàng hóa, Hóa đơn, Chi tiết hóa đơn, Đặt hàng, Trả hàng, Khách hàng, Nhà cung cấp, Nhập hàng. Backend dashboard đọc cả 9 tab; tab Nhóm hàng cung cấp quan hệ nhóm cha–con cho biểu đồ tồn kho.
+Công ty TOKOSI là một tổng kho sỉ phân phối hàng hóa, vận hành trên phần mềm **KiotViet** (quản lý bán hàng, kho, khách hàng). Dữ liệu KiotViet được đồng bộ tự động sang **Google Sheets** (qua Apps Script `KiotVietExport.gs`) dưới dạng 9 tab dữ liệu vận hành và 2 tab tổng hợp báo cáo bán hàng. Backend dashboard đọc 9 tab vận hành; tab Nhóm hàng cung cấp quan hệ nhóm cha–con cho biểu đồ tồn kho, còn hai tab báo cáo phục vụ đối soát trực tiếp trên Google Sheets.
 
 Trước đây, việc theo dõi số liệu phải thực hiện thủ công trên KiotViet và Google Sheets, gây mất thời gian tổng hợp và khó trực quan hóa xu hướng. Công ty cần một **Website Dashboard tập trung** đọc dữ liệu từ Google Sheets này, hiển thị các chỉ số quan trọng dưới dạng KPI card và biểu đồ, cập nhật gần thời gian thực mà không cần thao tác thủ công.
 
@@ -47,6 +47,10 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - Dữ liệu được đồng bộ **gần thời gian thực** từ KiotViet sang Google Sheets qua 2 cơ chế: (a) webhook KiotViet → Apps Script cho 6 nhóm dữ liệu chính, (b) lịch polling 5 phút cho 3 bảng KiotViet không có webhook (Trả hàng, Nhà cung cấp, Nhập hàng).
 
+- Tab **Báo cáo bán hàng** tổng hợp mối quan tâm Bán hàng trong tháng hiện tại, gồm Mã KH, Khách hàng, Doanh thu, Giá trị trả và Doanh thu thuần; tự động làm mới hàng ngày lúc gần 07:00 theo múi giờ Việt Nam.
+
+- Tab **Hàng bán theo khách** tổng hợp 90 ngày qua, gồm Mã KH, Khách hàng, SL mua, Doanh thu, SL Trả, Giá trị trả và Doanh thu thuần; dùng khoảng thời gian trượt 90 ngày thay cho giới hạn 30 ngày trên màn hình KiotViet.
+
 - Rút ngắn thời gian tổng hợp báo cáo, giúp lãnh đạo và nhân viên theo dõi số liệu bằng một cú truy cập web đơn giản.
 
 - Xây dựng trên nền kiến trúc mô-đun, dễ mở rộng, làm nền tảng cho lộ trình dài hạn.
@@ -55,7 +59,7 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 ## 3.1. Trong phạm vi (In-scope) — Giai đoạn 1 đã triển khai
 
-- **Nguồn dữ liệu cố định:** 1 Google Spreadsheet duy nhất (ID cố định theo cấu hình), chứa 9 tab do Apps Script `KiotVietExport.gs` duy trì. Backend dashboard đọc cả 9 tab:
+- **Nguồn dữ liệu cố định:** 1 Google Spreadsheet duy nhất (ID cố định theo cấu hình), chứa 9 tab vận hành và 2 tab báo cáo do Apps Script duy trì. Backend dashboard đọc 9 tab vận hành:
 
   | Tab                | Dữ liệu                                                                  | Backend đọc |
   |--------------------|--------------------------------------------------------------------------|-------------|
@@ -68,6 +72,8 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
   | Khách hàng         | Mã KH, tên, SĐT, giới tính, nhóm, địa chỉ, email, nợ hiện tại, tổng bán  | Có          |
   | Nhà cung cấp       | Mã NCC, tên, SĐT, email, địa chỉ, nợ cần trả                             | Có          |
   | Nhập hàng          | Mã nhập, ngày nhập, NCC, chi nhánh, tổng tiền, trạng thái                | Có          |
+  | Báo cáo bán hàng | Mã KH, khách hàng, doanh thu, giá trị trả, doanh thu thuần tháng hiện tại | Không       |
+  | Hàng bán theo khách | Mã KH, khách hàng, SL mua, doanh thu, SL trả, giá trị trả, doanh thu thuần trong 90 ngày qua | Không |
 
 - **KPI Dashboard:** các chỉ số tổng quan tính từ dữ liệu 9 sheet trên (xem mục 5.2).
 

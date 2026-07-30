@@ -5,7 +5,8 @@
   "description": "Node/Express backend for the TOKOSI dashboard, reading the KiotViet export Google Sheet maintained by appsscript/KiotVietExport.gs.",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "sync:customer-report": "node jobs/syncCustomerReport.js"
   },
   "dependencies": {
     "express": "^4.19.2",

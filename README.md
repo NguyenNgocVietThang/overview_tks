@@ -20,7 +20,7 @@ Hệ thống dashboard **thời gian thực** cho cửa hàng **CHbansi**, đồ
 | Hạng mục | Chi tiết |
 |---|---|
 | **Nền tảng** | Google Apps Script (V8 Runtime) |
-| **Lưu trữ dữ liệu** | Google Sheets (3 tab: Hàng hóa, Hóa đơn, Khách hàng) |
+| **Lưu trữ dữ liệu** | Google Sheets (các tab vận hành + Báo cáo bán hàng tháng này + Hàng bán theo khách 90 ngày) |
 | **Nguồn dữ liệu** | KiotViet Public API |
 | **Cập nhật** | Real-time qua Webhook + hàng đợi CacheService |
 | **Giao diện** | Web App HTML/CSS/JS (Chart.js) |
@@ -59,6 +59,12 @@ webtks-dashboard/
 │   └── tks-dashboard/
 │       └── MASTER.md            # Token, component và quy tắc thiết kế dashboard
 │
+├── server/                      # Backend Node.js đọc/ghi Google Sheets
+│   ├── jobs/
+│   │   └── syncCustomerReport.js # Tác vụ cập nhật 2 báo cáo khách hàng lúc 07:00
+│   └── sheets/
+│       └── sheetsClient.js      # Đọc dữ liệu Google Sheets cho dashboard
+│
 ├── src/                         # ── GIAI ĐOẠN 1 — Code Apps Script (clasp) ──
 │   ├── appsscript.json          # Manifest Apps Script (timezone, oauthScopes)
 │   │
@@ -67,6 +73,8 @@ webtks-dashboard/
 │   │
 │   ├── kiotviet/
 │   │   ├── Auth.gs              # getKiotVietToken()
+│   │   ├── CustomerReport.gs    # syncCustomerReport, setupCustomerReport,
+│   │   │                        #   setupCustomerReportDailyTrigger
 │   │   ├── SyncInitial.gs       # syncAllInitialData, syncProductsInitial,
 │   │   │                        #   syncInvoicesInitial, syncCustomersInitial
 │   │   └── WebhookAdmin.gs      # registerWebhookProgrammatically,
@@ -144,6 +152,13 @@ Mở `.clasp.json`, thay `<SCRIPT_ID_PLACEHOLDER>` bằng Script ID thật của
 clasp push --force
 ```
 
+Trong **Apps Script Editor → Project Settings → Script Properties**, tạo hai thuộc tính:
+
+- `KIOTVIET_CLIENT_ID`: Client ID của KiotViet.
+- `KIOTVIET_CLIENT_SECRET`: Client Secret của KiotViet.
+
+Không lưu hai giá trị này trong mã nguồn hoặc commit lên Git.
+
 Mỗi lần phát hành, luôn tạo phiên bản mới và cập nhật deployment Web App hiện tại
 thay vì chỉ dừng ở bản HEAD:
 
@@ -156,10 +171,11 @@ Deployment ID được giữ nguyên nên URL Web App không đổi; chỉ số 
 mỗi lần phát hành.
 
 ### Bước 4 — Thiết lập lần đầu (chạy thủ công 1 lần)
-1. Mở **Apps Script Editor** → chạy `syncAllInitialData()` để tải dữ liệu ban đầu
+1. Kiểm tra đã khai báo `KIOTVIET_CLIENT_ID` và `KIOTVIET_CLIENT_SECRET` trong Script Properties, sau đó chạy `syncAllInitialData()` để tải dữ liệu ban đầu
 2. Chạy `deleteAllOldWebhooks()` để xóa webhook cũ (nếu có)
 3. Chạy `registerWebhookWithCorrectUrl()` để đăng ký webhook mới
 4. Chạy `setupQueueProcessingTrigger()` để tạo trigger xử lý hàng đợi mỗi 1 phút
+5. Hai tab **Báo cáo bán hàng** và **Hàng bán theo khách** sẽ tự được tạo sau 07:00 qua trigger 1 phút ở bước 4. Có thể chạy `setupCustomerReport()` nếu muốn tạo ngay và có thêm trigger riêng.
 
 ### Bước 5 — Deploy Web App
 1. **Deploy → New deployment → Web App**
@@ -173,6 +189,10 @@ mỗi lần phát hành.
 | Hàm | Mục đích | Khi nào chạy |
 |---|---|---|
 | `syncAllInitialData()` | Tải toàn bộ dữ liệu lần đầu | 1 lần duy nhất khi bắt đầu |
+| `syncCustomerReport()` | Làm mới Báo cáo bán hàng tháng này và Hàng bán theo khách 90 ngày | Khi cần cập nhật thủ công |
+| `syncCustomerProductReport()` | Làm mới Hàng bán theo khách 90 ngày (đồng thời làm mới báo cáo tháng) | Khi cần cập nhật thủ công |
+| `setupCustomerReport()` | Tạo cả hai báo cáo ngay và bật thêm lịch riêng gần 07:00 | Tùy chọn |
+| `setupCustomerReportDailyTrigger()` | Tạo lại lịch cập nhật hai báo cáo hàng ngày gần 07:00 | Khi cần khôi phục lịch |
 | `setupQueueProcessingTrigger()` | Tạo trigger 1 phút | 1 lần duy nhất |
 | `checkWebhookStatus()` | Kiểm tra webhook đang active | Khi debug |
 | `listRegisteredWebhooks()` | Liệt kê webhook đã đăng ký | Khi debug |
@@ -213,6 +233,7 @@ mỗi lần phát hành.
 
 > **Tên file HTML**: `src/ui/Dashboard.html` được clasp push lên GAS với tên `ui/Dashboard`.  
 > `doGet()` gọi `createHtmlOutputFromFile('ui/Dashboard')` — khớp đúng đường dẫn. ✅
+
 
 ---
 

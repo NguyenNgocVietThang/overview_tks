@@ -39,7 +39,7 @@ backfill them.
 ### Local `.env`
 ```bash
 cp .env.example .env
-# fill in SPREADSHEET_ID and GOOGLE_SERVICE_ACCOUNT_JSON
+# fill in SPREADSHEET_ID, GOOGLE_SERVICE_ACCOUNT_JSON and KIOTVIET_* variables
 npm install
 npm start
 ```
@@ -60,5 +60,8 @@ auto-refreshes every 5 minutes, plus a manual "Làm mới" button.
 **Environment variables** (Render dashboard → your service → Environment):
 - `SPREADSHEET_ID`
 - `GOOGLE_SERVICE_ACCOUNT_JSON` — the full service account JSON key, one line
+- `KIOTVIET_CLIENT_ID` — KiotViet Public API client ID
+- `KIOTVIET_CLIENT_SECRET` — KiotViet Public API client secret
+- `KIOTVIET_RETAILER` — KiotViet retailer name
 
 `PORT` is set automatically by Render — don't set it yourself.

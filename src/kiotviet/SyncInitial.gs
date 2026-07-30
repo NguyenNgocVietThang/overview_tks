@@ -25,6 +25,9 @@ function syncAllInitialData() {
   Logger.log("Bat dau tai Nhom hang...");
   syncCategoriesInitial(token);
 
+  Logger.log("Bat dau tao Bao cao khach hang thang nay...");
+  syncCustomerReport();
+
   Logger.log("Hoan tat dong bo toan bo du lieu ban dau!");
 }
 
