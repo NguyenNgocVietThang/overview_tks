@@ -43,6 +43,11 @@ function formatDMYHMS(date) {
   return `${day}/${month}/${year} ${hour}:${minute}:${second}`;
 }
 
+function formatHM(date) {
+  const { hour, minute } = getDashboardDateParts(date);
+  return `${hour}:${minute}`;
+}
+
 function parseDashboardWallTime(yyyy, MM, dd, hh = '0', mi = '0', ss = '0') {
   const pad = value => String(value).padStart(2, '0');
   const expected = `${pad(dd)}/${pad(MM)}/${yyyy} ${pad(hh)}:${pad(mi)}:${pad(ss)}`;
@@ -473,7 +478,9 @@ async function getDashboardData(days) {
 
   const categoryList = Object.values(parentCategoryMap);
   const stockByCategory = categoryList.filter(category => category.stock > 0).sort((a, b) => b.stock - a.stock);
-  const allStockValueByCategory = categoryList.filter(category => category.stockValue > 0).sort((a, b) => b.stockValue - a.stockValue);
+  const allStockValueByCategory = categoryList
+    .filter(category => category.stockValue > 0 || category.stock > 0)
+    .sort((a, b) => b.stockValue - a.stockValue || b.stock - a.stock);
   const inventoryValueCategoryCount = allStockValueByCategory.length;
   const totalInventoryValue = allStockValueByCategory.reduce((sum, category) => sum + category.stockValue, 0);
   const stockValueByCategory = limitParentCategoryBars(allStockValueByCategory);
@@ -482,7 +489,26 @@ async function getDashboardData(days) {
   // Cột: [0]Mã hóa đơn [1]Ngày bán [2]Khách hàng [3]SĐT khách [4]Nhân viên bán [5]Chi nhánh [6]Tổng tiền hàng [7]Giảm giá [8]Khách đã trả [9]Trạng thái
   let revenueToday = 0, invoicesToday = 0, cancelledToday = 0;
   let recentInvoices = [];
+  let endOfDayTransactions = [];
   const cancelledInvoiceCodes = new Set();
+
+  // Tổng số lượng từng hóa đơn để báo cáo cuối ngày có cột SL như KiotViet.
+  const invoiceQuantityMap = new Map();
+  for (let r = 1; r < detailData.length; r++) {
+    const invoiceCode = String(detailData[r][0] || '').trim();
+    if (!invoiceCode) continue;
+    const quantity = Number(detailData[r][3]) || 0;
+    invoiceQuantityMap.set(invoiceCode, (invoiceQuantityMap.get(invoiceCode) || 0) + quantity);
+  }
+
+  const hourlyEndOfDay = Array.from({ length: 24 }, (_, hour) => ({
+    hour,
+    label: String(hour).padStart(2, '0') + 'h',
+    revenue: 0,
+    paid: 0,
+    discount: 0,
+    count: 0
+  }));
 
   const dayBuckets = {};
   const dayOrder = [];
@@ -499,6 +525,8 @@ async function getDashboardData(days) {
     if (!code) continue;
     const customer = row[2];
     const total = Number(row[6]) || 0;
+    const discount = Number(row[7]) || 0;
+    const paid = Number(row[8]) || 0;
     const status = row[9] || 'Hoàn thành';
     const isCancelled = status === 'Đã hủy';
     const isCompleted = status === 'Hoàn thành';
@@ -509,7 +537,30 @@ async function getDashboardData(days) {
 
     if (dateKey === todayStr) {
       if (isCancelled) cancelledToday++;
-      else if (isCompleted) { revenueToday += total; invoicesToday++; }
+      else if (isCompleted) {
+        revenueToday += total;
+        invoicesToday++;
+        const hour = Number(getDashboardDateParts(dt).hour);
+        if (hourlyEndOfDay[hour]) {
+          hourlyEndOfDay[hour].revenue += total;
+          hourlyEndOfDay[hour].paid += paid;
+          hourlyEndOfDay[hour].discount += discount;
+          hourlyEndOfDay[hour].count += 1;
+        }
+      }
+
+      const normalizedCode = String(code).trim();
+      endOfDayTransactions.push({
+        code,
+        time: dt ? formatHM(dt) : '—',
+        quantity: invoiceQuantityMap.get(normalizedCode) || 0,
+        quantityKnown: invoiceQuantityMap.has(normalizedCode),
+        revenue: total,
+        discount,
+        paid,
+        status,
+        _sortTime: dt ? dt.getTime() : 0
+      });
     }
 
     if (isCompleted && dateKey && Object.prototype.hasOwnProperty.call(dayBuckets, dateKey)) {
@@ -521,6 +572,24 @@ async function getDashboardData(days) {
   }
   recentInvoices.sort((a, b) => b._sortTime - a._sortTime);
   recentInvoices = stripSortKey(recentInvoices.slice(0, 8));
+  endOfDayTransactions.sort((a, b) => b._sortTime - a._sortTime);
+  endOfDayTransactions = stripSortKey(endOfDayTransactions);
+
+  const completedEndOfDayTransactions = endOfDayTransactions.filter(item => item.status === 'Hoàn thành');
+  const endOfDayReport = {
+    date: todayStr,
+    transactions: endOfDayTransactions,
+    hourly: hourlyEndOfDay,
+    summary: {
+      transactionCount: completedEndOfDayTransactions.length,
+      cancelledCount: endOfDayTransactions.length - completedEndOfDayTransactions.length,
+      quantity: completedEndOfDayTransactions.reduce((sum, item) => sum + item.quantity, 0),
+      quantityKnown: completedEndOfDayTransactions.length > 0 && completedEndOfDayTransactions.every(item => item.quantityKnown),
+      revenue: completedEndOfDayTransactions.reduce((sum, item) => sum + item.revenue, 0),
+      discount: completedEndOfDayTransactions.reduce((sum, item) => sum + item.discount, 0),
+      paid: completedEndOfDayTransactions.reduce((sum, item) => sum + item.paid, 0)
+    }
+  };
 
   const revenueByDay = dayOrder.map(key => ({
     date: key,
@@ -677,6 +746,7 @@ async function getDashboardData(days) {
       totalPurchaseSpend
     },
     revenueByDay,
+    endOfDayReport,
     recentInvoices,
     lowStock,
     stockValueByCategory,

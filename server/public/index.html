@@ -299,6 +299,24 @@
   .chart-box.wide{ height:340px; }
   .chart-box.tall{ height:380px; }
 
+  .end-day-summary{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:20px; }
+  .end-day-stat{ background:var(--panel-2); border:1px solid var(--border); border-radius:9px; padding:12px 14px; }
+  .end-day-stat .label{ color:var(--muted); font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  .end-day-stat .number{ display:block; margin-top:6px; color:var(--text); font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; }
+  .end-day-stat .note{ display:block; margin-top:4px; color:var(--muted); font-size:10.5px; }
+  .end-day-section{ margin-top:20px; }
+  .end-day-section-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+  .end-day-section-head h3{ margin:0; color:var(--text); font-family:'Sora',sans-serif; font-size:12.5px; font-weight:600; }
+  .end-day-section-head span{ color:var(--muted); font-size:11px; }
+  .end-day-chart{ height:300px; }
+  .end-day-table table{ min-width:860px; }
+  .end-day-table tfoot td{ padding:11px 8px; border-top:1px solid var(--border); color:var(--text); font-weight:700; background:var(--panel-2); }
+  .end-day-table tfoot td:first-child{ border-radius:0 0 0 7px; }
+  .end-day-table tfoot td:last-child{ border-radius:0 0 7px 0; }
+
+  @media (max-width:900px){ .end-day-summary{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  @media (max-width:520px){ .end-day-summary{ grid-template-columns:1fr; } }
+
   .scroll-list{ max-height:340px; overflow-y:auto; }
   .scroll-list::-webkit-scrollbar{ width:8px; }
   .scroll-list::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
@@ -479,7 +497,7 @@
       <!-- ============ TỔNG QUAN ============ -->
       <div class="view active" id="view-overview">
         <div class="view-title">Tổng quan</div>
-        <div class="view-sub">Số liệu nhanh trong ngày và xu hướng 30 ngày gần nhất</div>
+        <div class="view-sub">Số liệu nhanh và báo cáo bán hàng cuối ngày</div>
 
         <div class="kpi-grid">
           <div class="kpi-card accent-green">
@@ -504,9 +522,52 @@
           </div>
         </div>
 
-        <div class="panel">
-          <div class="panel-head"><h2>Doanh thu 30 ngày gần nhất</h2></div>
-          <div class="chart-box"><canvas id="chartOverviewRevenue"></canvas></div>
+        <div class="panel end-day-panel">
+          <div class="panel-head">
+            <h2>Báo cáo cuối ngày <span class="tag" id="tagEndOfDayDate">—</span></h2>
+          </div>
+
+          <div class="end-day-summary">
+            <div class="end-day-stat">
+              <span class="label">Giao dịch hoàn thành</span>
+              <strong class="number" id="end-day-transactions">—</strong>
+              <span class="note" id="end-day-cancelled">—</span>
+            </div>
+            <div class="end-day-stat">
+              <span class="label">Doanh thu</span>
+              <strong class="number" id="end-day-revenue">—</strong>
+            </div>
+            <div class="end-day-stat">
+              <span class="label">Giảm giá</span>
+              <strong class="number" id="end-day-discount">—</strong>
+            </div>
+            <div class="end-day-stat">
+              <span class="label">Thực thu</span>
+              <strong class="number" id="end-day-paid">—</strong>
+            </div>
+          </div>
+
+          <div class="end-day-section">
+            <div class="end-day-section-head">
+              <h3>Diễn biến bán hàng theo giờ</h3>
+              <span>Cột doanh thu · đường thực thu, giảm giá và số giao dịch</span>
+            </div>
+            <div class="chart-box end-day-chart"><canvas id="chartEndOfDay"></canvas></div>
+          </div>
+
+          <div class="end-day-section">
+            <div class="end-day-section-head">
+              <h3>Chi tiết giao dịch</h3>
+              <span id="end-day-table-count">—</span>
+            </div>
+            <div class="table-wrap end-day-table">
+              <table>
+                <thead><tr><th>Mã giao dịch</th><th>Thời gian</th><th>SL</th><th>Doanh thu</th><th>Giảm giá</th><th>Thực thu</th><th>Trạng thái</th></tr></thead>
+                <tbody id="endOfDayRows"><tr><td colspan="7" class="empty">Đang tải...</td></tr></tbody>
+                <tfoot><tr><td colspan="2">Tổng cuối ngày</td><td class="mono" id="end-day-total-qty">—</td><td class="mono" id="end-day-total-revenue">—</td><td class="mono" id="end-day-total-discount">—</td><td class="mono" id="end-day-total-paid">—</td><td></td></tr></tfoot>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -545,7 +606,7 @@
         </div>
 
         <div class="panel">
-          <div class="panel-head"><h2>Tỷ lệ giá trị tồn kho theo nhóm cha <span class="tag" id="tagCategoryValue">—</span></h2></div>
+          <div class="panel-head"><h2>Tỷ lệ tồn kho theo nhóm cha <span class="tag" id="tagCategoryValue">—</span></h2></div>
           <div class="chart-box wide"><canvas id="chartCategoryValue"></canvas></div>
         </div>
 
@@ -566,16 +627,9 @@
           </div>
         </div>
 
-        <div class="grid-2">
-          <div class="panel">
-            <div class="panel-head"><h2>Top sản phẩm bán chạy <span class="tag" id="tagTopSelling">—</span></h2></div>
-            <div class="chart-box small"><canvas id="chartTopSelling"></canvas></div>
-          </div>
-          <div class="panel">
-            <div class="panel-head"><h2>Tỷ lệ số lượng tồn kho theo nhóm cha <span class="tag" id="tagCategoryStock">—</span></h2></div>
-            <div class="chart-box small"><canvas id="chartCategoryStock"></canvas></div>
-            <div class="scroll-list legend-list" id="categoryStockLegend" style="max-height:160px; margin-top:10px;"></div>
-          </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Top sản phẩm bán chạy <span class="tag" id="tagTopSelling">—</span></h2></div>
+          <div class="chart-box small"><canvas id="chartTopSelling"></canvas></div>
         </div>
 
         <div class="panel">
@@ -1265,8 +1319,6 @@
     return '<span class="pill ok">' + (status ? escapeHtml(status) : 'Đang kinh doanh') + '</span>';
   }
 
-  const CHART_COLORS = ['#F0A63A','#3DD68C','#5B9BF0','#F1616A','#B586F0','#4DD0E1','#7E8CA8'];
-
   function destroyChart(key){
     if(state.charts[key]){ state.charts[key].destroy(); delete state.charts[key]; }
   }
@@ -1305,45 +1357,60 @@
     });
   }
 
-  function hexToRgba(hex, alpha){
-    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
-    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
-  }
-  function distColor(i){
-    const base = CHART_COLORS[i % CHART_COLORS.length];
-    const cycle = Math.floor(i / CHART_COLORS.length);
-    if(cycle === 0) return base;
-    return hexToRgba(base, Math.max(0.35, 1 - cycle * 0.22));
-  }
+  function renderEndOfDayChart(report){
+    destroyChart('endOfDay');
+    const canvas = document.getElementById('chartEndOfDay');
+    if(!canvas || !report) return;
 
-  function renderDoughnutWithLegend(canvasId, key, tagId, legendId, dist){
-    destroyChart(key);
-    const ctx = document.getElementById(canvasId).getContext('2d');
+    const allHours = report.hourly || [];
+    const activeHours = allHours.filter(slot => slot.revenue || slot.paid || slot.discount || slot.count);
+    const firstHour = activeHours.length ? Math.min(6, activeHours[0].hour) : 6;
+    const lastHour = activeHours.length ? Math.max(22, activeHours[activeHours.length - 1].hour) : 22;
+    const hours = allHours.filter(slot => slot.hour >= firstHour && slot.hour <= lastHour);
     const theme = chartTheme();
-    const colors = dist.map((d, i) => distColor(i));
-    const total = dist.reduce((s, d) => s + d.value, 0);
-    state.charts[key] = new Chart(ctx, {
-      type: 'doughnut',
+
+    state.charts.endOfDay = new Chart(canvas.getContext('2d'), {
       data: {
-        labels: dist.map(d => d.label),
-        datasets: [{ data: dist.map(d => d.value), backgroundColor: colors, borderColor:theme.panel, borderWidth:2 }]
+        labels: hours.map(slot => slot.label),
+        datasets: [
+          {
+            type: 'bar', label: 'Doanh thu', data: hours.map(slot => slot.revenue), yAxisID: 'money',
+            backgroundColor: 'rgba(240,166,58,0.42)', borderColor: theme.amber,
+            borderWidth: 1.5, borderRadius: 5, maxBarThickness: 38, order: 4
+          },
+          {
+            type: 'line', label: 'Thực thu', data: hours.map(slot => slot.paid), yAxisID: 'money',
+            borderColor: themeColor('--green'), backgroundColor: themeColor('--green'),
+            borderWidth: 2.2, tension: .32, pointRadius: 2.5, pointHoverRadius: 5, order: 1
+          },
+          {
+            type: 'line', label: 'Giảm giá', data: hours.map(slot => slot.discount), yAxisID: 'money',
+            borderColor: themeColor('--red'), backgroundColor: themeColor('--red'),
+            borderWidth: 1.8, borderDash: [5,4], tension: .32, pointRadius: 2, pointHoverRadius: 4, order: 2
+          },
+          {
+            type: 'line', label: 'Số giao dịch', data: hours.map(slot => slot.count), yAxisID: 'count',
+            borderColor: themeColor('--blue'), backgroundColor: themeColor('--blue'),
+            borderWidth: 1.8, tension: .32, pointRadius: 2, pointHoverRadius: 4, order: 3
+          }
+        ]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
+        interaction: { mode:'index', intersect:false },
         plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: c => c.label + ': ' + c.raw.toLocaleString('vi-VN') + ' (' + (total ? (c.raw/total*100).toFixed(2) : (0).toFixed(2)) + '%)' } }
+          legend: { display:true, position:'bottom', labels:{ color:theme.text, usePointStyle:true, boxWidth:8, padding:16, font:{size:10.5} } },
+          tooltip: { callbacks: { label: context => context.dataset.yAxisID === 'count'
+            ? context.dataset.label + ': ' + context.raw
+            : context.dataset.label + ': ' + fmtMoney(context.raw) } }
+        },
+        scales: {
+          x: { ticks:{ color:theme.muted, maxTicksLimit:12, font:{size:10.5} }, grid:{ display:false } },
+          money: { beginAtZero:true, position:'left', ticks:{ color:theme.muted, callback:value => fmtMoneyShort(value), font:{size:10.5} }, grid:{ color:theme.grid } },
+          count: { beginAtZero:true, position:'right', suggestedMax:5, ticks:{ color:themeColor('--blue'), precision:0, stepSize:1, font:{size:10.5} }, grid:{ drawOnChartArea:false } }
         }
       }
     });
-
-    document.getElementById(tagId).textContent = dist.length;
-    const legend = document.getElementById(legendId);
-    legend.innerHTML = dist.map((d, i) =>
-      '<div class="legend-row"><span class="dot" style="background:' + colors[i] + ';"></span>' +
-      '<span class="lbl" title="' + escapeHtml(d.label) + '">' + escapeHtml(d.label) + '</span>' +
-      '<span class="val">' + (total ? (d.value/total*100).toFixed(2) : (0).toFixed(2)) + '%</span></div>'
-    ).join('');
   }
 
   function renderBarChartList(canvasId, key, list, labelFn, valueFn, color, vertical){
@@ -1371,28 +1438,47 @@
   function renderCategoryValueChart(list){
     destroyChart('categoryValue');
     const ctx = document.getElementById('chartCategoryValue').getContext('2d');
-    const total = list.reduce((sum, category) => sum + category.stockValue, 0);
+    const totalValue = list.reduce((sum, category) => sum + category.stockValue, 0);
+    const totalQuantity = list.reduce((sum, category) => sum + category.stock, 0);
     const theme = chartTheme();
     state.charts.categoryValue = new Chart(ctx, {
       type: 'bar',
       data: {
         labels: list.map(category => category.name),
-        datasets: [{
-          label: 'Giá trị tồn kho',
-          data: list.map(category => category.stockValue),
-          backgroundColor: list.map((category, index) => distColor(index)),
-          borderRadius: 5,
-          maxBarThickness: 58
-        }]
+        datasets: [
+          {
+            label: 'Giá trị',
+            data: list.map(category => category.stockValue),
+            yAxisID: 'value',
+            backgroundColor: themeColor('--green'),
+            borderRadius: 5,
+            maxBarThickness: 34
+          },
+          {
+            label: 'Số lượng',
+            data: list.map(category => category.stock),
+            yAxisID: 'quantity',
+            backgroundColor: theme.amber,
+            borderRadius: 5,
+            maxBarThickness: 34
+          }
+        ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        interaction: { mode:'index', intersect:false },
         plugins: {
-          legend: { display: false },
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: { color:theme.text, usePointStyle:true, boxWidth:8, padding:16, font:{size:10.5} }
+          },
           tooltip: {
             callbacks: {
-              label: context => 'Giá trị: ' + fmtMoney(context.raw) + ' · ' + (total ? (context.raw / total * 100).toFixed(2) : (0).toFixed(2)) + '%'
+              label: context => context.dataset.yAxisID === 'value'
+                ? 'Giá trị: ' + fmtMoney(context.raw) + ' · ' + (totalValue ? (context.raw / totalValue * 100).toFixed(2) : (0).toFixed(2)) + '%'
+                : 'Số lượng: ' + Number(context.raw || 0).toLocaleString('vi-VN') + ' · ' + (totalQuantity ? (context.raw / totalQuantity * 100).toFixed(2) : (0).toFixed(2)) + '%'
             }
           }
         },
@@ -1401,10 +1487,19 @@
             ticks: { color:theme.text, autoSkip:false, maxTicksLimit:30, minRotation:20, maxRotation:45, font:{size:10.5} },
             grid: { display:false }
           },
-          y: {
+          value: {
             beginAtZero: true,
-            ticks: { color:theme.muted, callback: value => fmtMoneyShort(value), font:{size:10.5} },
+            position: 'left',
+            title: { display:true, text:'Giá trị tồn kho', color:themeColor('--green'), font:{size:10.5, weight:'600'} },
+            ticks: { color:themeColor('--green'), callback: value => fmtMoneyShort(value), font:{size:10.5} },
             grid: { color:theme.grid }
+          },
+          quantity: {
+            beginAtZero: true,
+            position: 'right',
+            title: { display:true, text:'Số lượng tồn kho', color:theme.amber, font:{size:10.5, weight:'600'} },
+            ticks: { color:theme.amber, precision:0, callback:value => Number(value).toLocaleString('vi-VN'), font:{size:10.5} },
+            grid: { drawOnChartArea:false }
           }
         }
       }
@@ -1438,7 +1533,30 @@
       document.getElementById('ov-lowstock').textContent = d.kpi.lowStockCount;
       document.getElementById('ov-customers').textContent = d.kpi.totalCustomers.toLocaleString('vi-VN');
       document.getElementById('ov-customers-sub').textContent = d.kpi.customersWithDebt + ' đang nợ · ' + fmtMoney(d.kpi.totalDebt);
-      renderRevenueChart('chartOverviewRevenue', 'overviewRevenue', d.revenueByDay);
+      const report = d.endOfDayReport || { date:'—', transactions:[], hourly:[], summary:{} };
+      const summary = report.summary || {};
+      const transactions = report.transactions || [];
+      document.getElementById('tagEndOfDayDate').textContent = report.date || 'Hôm nay';
+      document.getElementById('end-day-transactions').textContent = Number(summary.transactionCount || 0).toLocaleString('vi-VN');
+      document.getElementById('end-day-cancelled').textContent = (summary.cancelledCount || 0) + ' giao dịch đã hủy';
+      document.getElementById('end-day-revenue').textContent = fmtMoney(summary.revenue);
+      document.getElementById('end-day-discount').textContent = fmtMoney(summary.discount);
+      document.getElementById('end-day-paid').textContent = fmtMoney(summary.paid);
+      document.getElementById('end-day-table-count').textContent = transactions.length + ' giao dịch trong ngày';
+      document.getElementById('end-day-total-qty').textContent = summary.quantityKnown ? Number(summary.quantity || 0).toLocaleString('vi-VN') : '—';
+      document.getElementById('end-day-total-revenue').textContent = fmtMoney(summary.revenue);
+      document.getElementById('end-day-total-discount').textContent = fmtMoney(summary.discount);
+      document.getElementById('end-day-total-paid').textContent = fmtMoney(summary.paid);
+      document.getElementById('endOfDayRows').innerHTML = transactions.length ? transactions.map(item =>
+        '<tr><td class="mono name-cell">' + escapeHtml(item.code) + '</td>' +
+        '<td class="mono muted">' + escapeHtml(item.time || '—') + '</td>' +
+        '<td class="mono" data-sort-value="' + item.quantity + '">' + (item.quantityKnown ? Number(item.quantity || 0).toLocaleString('vi-VN') : '—') + '</td>' +
+        '<td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td>' +
+        '<td class="mono" data-sort-value="' + item.discount + '">' + fmtMoney(item.discount) + '</td>' +
+        '<td class="mono" data-sort-value="' + item.paid + '">' + fmtMoney(item.paid) + '</td>' +
+        '<td>' + statusPill(item.status) + '</td></tr>'
+      ).join('') : '<tr><td colspan="7" class="empty">Chưa có giao dịch trong ngày</td></tr>';
+      renderEndOfDayChart(report);
     }
     else if(view === 'products'){
       document.getElementById('pr-total').textContent = d.kpi.totalProducts;
@@ -1476,8 +1594,6 @@
         '<td class="mono muted" data-sort-value="' + p.qty + '">' + p.qty.toLocaleString('vi-VN') + '</td><td class="mono" data-sort-value="' + p.revenue + '">' + fmtMoney(p.revenue) + '</td></tr>'
       ).join('') : '<tr><td colspan="3" class="empty">Chưa có dữ liệu chi tiết hóa đơn</td></tr>';
 
-      renderDoughnutWithLegend('chartCategoryStock','categoryStock','tagCategoryStock','categoryStockLegend',
-        d.stockByCategory.map(c => ({ label: c.name, value: c.stock })));
     }
     else if(view === 'invoices'){
       document.getElementById('in-revenue').textContent = fmtMoney(d.kpi.revenueToday);

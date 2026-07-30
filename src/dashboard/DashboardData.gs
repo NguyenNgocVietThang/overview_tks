@@ -66,6 +66,7 @@ function limitParentCategoryBars_(categories, maxBars) {
   return visibleCategories.concat({
     name: 'Khác (' + remainingCategories.length + ' nhóm)',
     stockValue: remainingCategories.reduce((sum, category) => sum + category.stockValue, 0),
+    stock: remainingCategories.reduce((sum, category) => sum + category.stock, 0),
     productCount: remainingCategories.reduce((sum, category) => sum + category.productCount, 0)
   });
 }
@@ -120,14 +121,17 @@ function getDashboardData(days) {
     const categoryName = (row[2] && String(row[2]).trim()) || '';
     const categoryId = productCategoryIdIndex >= 0 ? row[productCategoryIdIndex] : '';
     const parentCategoryName = resolveParentCategory(categoryName, categoryId);
-    if (!parentCategoryMap[parentCategoryName]) parentCategoryMap[parentCategoryName] = { name: parentCategoryName, stockValue: 0, productCount: 0 };
+    if (!parentCategoryMap[parentCategoryName]) parentCategoryMap[parentCategoryName] = { name: parentCategoryName, stockValue: 0, stock: 0, productCount: 0 };
     parentCategoryMap[parentCategoryName].stockValue += stockValue;
+    parentCategoryMap[parentCategoryName].stock += Math.max(ton, 0);
     parentCategoryMap[parentCategoryName].productCount += 1;
   }
   lowStock.sort((a, b) => a.stock - b.stock);
   lowStock = lowStock.slice(0, 8);
 
-  const allStockValueByCategory = Object.values(parentCategoryMap).filter(c => c.stockValue > 0).sort((a, b) => b.stockValue - a.stockValue);
+  const allStockValueByCategory = Object.values(parentCategoryMap)
+    .filter(c => c.stockValue > 0 || c.stock > 0)
+    .sort((a, b) => b.stockValue - a.stockValue || b.stock - a.stock);
   const inventoryValueCategoryCount = allStockValueByCategory.length;
   const totalInventoryValue = allStockValueByCategory.reduce((sum, category) => sum + category.stockValue, 0);
   const stockValueByCategory = limitParentCategoryBars_(allStockValueByCategory, MAX_PARENT_CATEGORY_BARS);
@@ -137,6 +141,16 @@ function getDashboardData(days) {
   const invData = invSheet ? invSheet.getDataRange().getValues() : [[]];
   let revenueToday = 0, invoicesToday = 0, cancelledToday = 0;
   let recentInvoices = [];
+  let endOfDayTransactions = [];
+
+  const hourlyEndOfDay = Array.from({ length: 24 }, (_, hour) => ({
+    hour: hour,
+    label: String(hour).padStart(2, "0") + "h",
+    revenue: 0,
+    paid: 0,
+    discount: 0,
+    count: 0
+  }));
 
   // Chuẩn bị khung ngày cho biểu đồ (days ngày gần nhất, kể cả hôm nay)
   const dayBuckets = {}; // key: dd/MM/yyyy -> {revenue, count}
@@ -155,14 +169,38 @@ function getDashboardData(days) {
     if (!code) continue;
     const customer = row[1];
     const total = Number(row[2]) || 0;
+    const discount = Number(row[3]) || 0;
+    const paid = Number(row[4]) || 0;
     const status = row[5];
     const dateStr = String(row[6] || "");
     const dateKey = dateStr.split(" ")[0]; // lấy phần dd/MM/yyyy
+    const timePart = (dateStr.split(" ")[1] || "").substring(0, 5);
     const isCancelled = status === "Đã hủy";
 
     if (dateKey === todayStr) {
       if (isCancelled) { cancelledToday++; }
-      else { revenueToday += total; invoicesToday++; }
+      else {
+        revenueToday += total;
+        invoicesToday++;
+        const hour = Number(timePart.split(":")[0]);
+        if (Number.isFinite(hour) && hourlyEndOfDay[hour]) {
+          hourlyEndOfDay[hour].revenue += total;
+          hourlyEndOfDay[hour].paid += paid;
+          hourlyEndOfDay[hour].discount += discount;
+          hourlyEndOfDay[hour].count += 1;
+        }
+      }
+
+      endOfDayTransactions.push({
+        code: code,
+        time: timePart || "—",
+        quantity: 0,
+        quantityKnown: false,
+        revenue: total,
+        discount: discount,
+        paid: paid,
+        status: status || "Hoàn thành"
+      });
     }
 
     if (!isCancelled && dayBuckets.hasOwnProperty(dateKey)) {
@@ -173,6 +211,23 @@ function getDashboardData(days) {
     recentInvoices.push({ code: code, customer: customer, total: total, status: status, time: dateStr });
   }
   recentInvoices = recentInvoices.slice(-8).reverse();
+  endOfDayTransactions = endOfDayTransactions.reverse();
+
+  const completedEndOfDayTransactions = endOfDayTransactions.filter(item => item.status !== "Đã hủy");
+  const endOfDayReport = {
+    date: todayStr,
+    transactions: endOfDayTransactions,
+    hourly: hourlyEndOfDay,
+    summary: {
+      transactionCount: completedEndOfDayTransactions.length,
+      cancelledCount: endOfDayTransactions.length - completedEndOfDayTransactions.length,
+      quantity: 0,
+      quantityKnown: false,
+      revenue: completedEndOfDayTransactions.reduce((sum, item) => sum + item.revenue, 0),
+      discount: completedEndOfDayTransactions.reduce((sum, item) => sum + item.discount, 0),
+      paid: completedEndOfDayTransactions.reduce((sum, item) => sum + item.paid, 0)
+    }
+  };
 
   const revenueByDay = dayOrder.map(key => ({
     date: key,
@@ -223,6 +278,7 @@ function getDashboardData(days) {
       periodInvoices: periodInvoices
     },
     revenueByDay: revenueByDay,
+    endOfDayReport: endOfDayReport,
     recentInvoices: recentInvoices,
     lowStock: lowStock,
     stockValueByCategory: stockValueByCategory,

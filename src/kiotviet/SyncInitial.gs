@@ -30,15 +30,19 @@ function syncAllInitialData() {
 
 /**
  * Tai toan bo hang hoa tu KiotViet va ghi vao Sheet "Hang hoa".
- * @param {string} token - KiotViet access token
+ * Co the chay truc tiep ham nay trong Apps Script ma khong can truyen token.
+ * @param {string=} token - KiotViet access token (khong bat buoc)
  */
 function syncProductsInitial(token) {
+  token = token || getKiotVietToken();
+  if (!token) throw new Error('Khong lay duoc KiotViet token de dong bo Hang hoa.');
+
   let allProducts = [];
   let currentItem = 0;
   const pageSize = 100;
   let total = 0;
   do {
-    const url = `https://public.kiotapi.com/products?pageSize=${pageSize}&currentItem=${currentItem}&includeInventory=true`;
+    const url = `https://public.kiotapi.com/products?pageSize=${pageSize}&currentItem=${currentItem}&includeInventory=true&includeQuantity=true&IncludeProductShelves=true`;
     const response = UrlFetchApp.fetch(url, { "headers": { "Authorization": "Bearer " + token, "Retailer": CONFIG.RETAILER } });
     const result = JSON.parse(response.getContentText());
     allProducts = allProducts.concat(result.data || []);
@@ -48,19 +52,16 @@ function syncProductsInitial(token) {
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(CONFIG.SHEET_PRODUCTS) || ss.insertSheet(CONFIG.SHEET_PRODUCTS);
-  const headers = ["Mã hàng", "Tên hàng", "Giá bán", "Tồn kho", "Khách đặt", "Thời gian sửa", "Dự kiến hết hàng"];
-  const rows = allProducts.filter(p => !isVatProductCode(p.code)).map(p => {
-    let tonKho = p.inventories ? p.inventories.reduce((sum, i) => sum + (i.onHand || 0), 0) : (p.totalOnHand || 0);
-    let khachDat = p.inventories ? p.inventories.reduce((sum, i) => sum + (i.reserved || 0), 0) : (p.totalReserved || 0);
-    return [p.code || "", p.fullName || p.name || "", p.basePrice || 0, tonKho, khachDat, formatDate(p.modifiedDate || p.createdDate), "---"];
-  });
+  const rows = allProducts
+    .filter(product => !isVatProductCode(getProductCode_(product)))
+    .map(product => buildProductSheetRow_(product));
+
   sheet.clearContents();
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#EFEFEF");
+  sheet.getRange(1, 1, 1, PRODUCT_SHEET_HEADERS.length).setValues([PRODUCT_SHEET_HEADERS]);
   if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-    sheet.getRange(2, 3, rows.length, 1).setNumberFormat("#,##0");
-    sheet.getRange(2, 4, rows.length, 2).setNumberFormat("#,##0");
+    sheet.getRange(2, 1, rows.length, PRODUCT_SHEET_HEADERS.length).setValues(rows);
   }
+  formatProductSheet_(sheet, rows.length);
 }
 
 /**
