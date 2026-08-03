@@ -21,6 +21,7 @@ const KIOTVIET_DEFAULT_WEBHOOK_URL =
  * Bat toan bo co che tu dong theo cach idempotent:
  * - Tao shared-secret neu chua co.
  * - Tao lai trigger hang doi 1 phut va polling 5 phut.
+ * - Go trigger cong no legacy; khong cham vao HN1/HN3/HN7 cua KiotViet.
  * - Giu nguyen webhook cua he thong khac; chi thay webhook cu/trung cua dashboard.
  */
 function setupKiotVietAutoSync() {
@@ -32,7 +33,7 @@ function setupKiotVietAutoSync() {
   ensureKiotVietWebhookSecret_();
   setupQueueProcessingTrigger();
   setupPollingTrigger();
-  setupCustomerDebtReportDailyTrigger();
+  disableLegacyCustomerDebtReportSync_();
 
   const result = reconcileKiotVietAutoSyncWebhooks_(token);
   Logger.log(

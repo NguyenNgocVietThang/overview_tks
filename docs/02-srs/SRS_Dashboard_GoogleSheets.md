@@ -25,7 +25,7 @@ Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi ch�
 
 Hệ thống là một Web Application nội bộ gồm 2 thành phần chính:
 
-1. **Apps Script (`src/`):** chạy trong Google Workspace, đồng bộ đủ trường dữ liệu KiotViet Public API vào 9 tab vận hành và 2 tab tổng hợp báo cáo khách hàng (qua webhook KiotViet real-time + polling 5 phút + lịch báo cáo hàng ngày).
+1. **Apps Script (`src/`):** chạy trong Google Workspace, đồng bộ đủ trường dữ liệu KiotViet Public API vào 9 tab vận hành và 2 tab tổng hợp báo cáo khách hàng (qua webhook KiotViet real-time + polling 5 phút + lịch báo cáo hàng ngày). Ba tab HN1/HN3/HN7 do KiotViet quản lý và nằm ngoài phạm vi ghi dữ liệu của Apps Script.
 
 2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu từ Google Spreadsheet qua Google Sheets API (Service Account), tính toán KPI và dữ liệu biểu đồ, trả về cho frontend qua REST API. Frontend hiển thị Dashboard tương tác trên trình duyệt.
 
@@ -35,7 +35,7 @@ Hệ thống là một Web Application nội bộ gồm 2 thành phần chính:
 |-------------------------|---------------------------------------------------------------------------------------|
 | Dashboard               | Trang tổng hợp hiển thị số liệu và biểu đồ từ dữ liệu nguồn.                          |
 | KPI Card                | Thẻ hiển thị 1 chỉ số tổng hợp (vd: Doanh thu hôm nay, Tổng tồn kho).               |
-| Spreadsheet nguồn       | Google Spreadsheet được Apps Script duy trì, chứa 9 tab vận hành và 2 tab báo cáo khách hàng. |
+| Spreadsheet nguồn       | Google Spreadsheet chứa 9 tab vận hành và 2 tab báo cáo do Apps Script duy trì, cùng HN1/HN3/HN7 do KiotViet quản lý. |
 | Service Account         | Tài khoản dịch vụ Google dùng để backend đọc Spreadsheet mà không cần OAuth user.    |
 | Apps Script             | Mã module trong `src/` chạy trong Google Workspace, đồng bộ dữ liệu từ KiotViet.    |
 | batchGet                | Gọi Google Sheets API đọc nhiều tab đang tồn tại cùng lúc trong 1 request HTTP.      |
@@ -212,7 +212,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-06.7 | Tab `Hàng bán theo khách` giữ đúng 5 cột Khách hàng, Mã hàng, Tên hàng, SL mua chi tiết, Thời gian; mỗi chi tiết hàng hóa của hóa đơn hoàn thành trong 90 ngày là một dòng. | Cao | Hoàn thành |
 | FR-06.8 | Webhook hóa đơn thay/xóa đúng các dòng `Hàng bán theo khách` trong chu kỳ hàng đợi 1 phút; `syncCustomerReportIfDue_()` vẫn đối soát toàn bộ hai báo cáo một lần/ngày sau 07:00. | Cao | Hoàn thành |
 | FR-06.9 | 9 sheet giữ các cột dashboard ở bên trái và các trường KiotViet dạng phẳng đang dùng ở bên phải; không lưu object/mảng hoặc payload gốc dạng JSON. Trigger nền tự xóa vật lý các cột `(JSON)` của schema cũ sau khi deploy. | Cao | Hoàn thành |
-| FR-06.10 | `syncCustomerDebtReports()` tạo và làm mới `HN1`, `HN3`, `HN7` cho 1/3/7 ngày gần đây tính cả hôm nay; mỗi tab dùng cấu trúc 25 cột của file xuất công nợ KiotViet và chỉ có một dòng cho mỗi khách hàng. Nhiều giao dịch hoặc mặt hàng được ghép trong ô bằng dấu `|`. Trigger chạy hằng ngày gần 15:00; trigger hàng đợi 1 phút chạy bù nếu lượt chính lỗi hoặc bị trễ. | Cao | Hoàn thành |
+| FR-06.10 | Apps Script không được tạo, xóa, đọc/ghi dữ liệu, đổi header, bộ lọc, định dạng, kích thước hoặc bất kỳ thuộc tính cấu trúc nào của `HN1`, `HN3`, `HN7`. Các hàm công nợ legacy chỉ được phép gỡ trigger cũ và trả trạng thái bỏ qua. | Cao | Hoàn thành |
 
 ## 3.7. FR-07: Giao diện người dùng
 
@@ -409,15 +409,12 @@ lần qua trigger nền sẽ xóa vật lý các cột `(JSON)` của schema cũ
 - Chỉ ghi hóa đơn trạng thái hoàn thành. Webhook cập nhật trong khoảng 1 phút; mã/ID hóa đơn được lưu ở note nội bộ của cột A để thay hoặc xóa đúng dòng mà không phải thêm cột kỹ thuật.
 - Lượt đồng bộ gần 07:00 làm mới toàn bộ cửa sổ 90 ngày để loại bản ghi hết hạn và đối soát sai lệch webhook.
 
-## 7.4. Schema các tab công nợ HN1/HN3/HN7 (dashboard không đọc)
+## 7.4. Các tab HN1/HN3/HN7 do KiotViet quản lý (dashboard không đọc)
 
-`[0]Mã KH [1]Khách hàng [2]Số điện thoại [3]Nhóm khách hàng [4]Nợ đầu kỳ [5]Ghi nợ [6]Ghi có [7]Nợ cuối kỳ [8]Mã giao dịch [9]Thời gian [10]Loại giao dịch [11]Giá trị [12]Dư nợ cuối [13]Mã hàng [14]Tên hàng [15]Thương hiệu [16]Nhóm hàng(3 Cấp) [17]Đơn giá [18]SL sản phẩm [19]Thành tiền [20]Chiết khấu [21]VAT bán hàng [22]VAT hoàn lại [23]Thu khác [24]Tổng cộng`
-
-- `HN1` lấy hôm nay; `HN3` lấy hôm nay và 2 ngày trước; `HN7` lấy hôm nay và 6 ngày trước.
-- Mỗi khách hàng chỉ chiếm một dòng. `Dư nợ đầu kỳ` và các giao dịch tiếp theo vẫn sắp xếp tăng dần theo thời gian, nhưng các giá trị chi tiết được ghép trong cùng ô và ngăn cách bằng dấu `|`; chi tiết nhiều mặt hàng cũng được ghép tương ứng trong các cột hàng hóa.
-- Hóa đơn hoàn thành và phiếu chi/hoàn tiền làm tăng nợ; trả hàng và phiếu thu làm giảm nợ.
-- `Nợ cuối kỳ` đối soát với `customers.debt` tại thời điểm đồng bộ; `Nợ đầu kỳ = Nợ cuối kỳ - Ghi nợ + Ghi có`.
-- Dữ liệu tự cập nhật hằng ngày gần 15:00 theo múi giờ `Asia/Ho_Chi_Minh`.
+- Cấu trúc, dữ liệu, định dạng và lịch cập nhật của HN1/HN3/HN7 được giữ nguyên theo nguồn KiotViet.
+- Apps Script không đăng ký trigger đồng bộ cho ba tab này và không lấy tên tab vào cấu hình ghi dữ liệu.
+- `syncAllInitialData()`, hàng đợi webhook và polling 5 phút không được truy cập hoặc thay đổi HN1/HN3/HN7.
+- Các entry point công nợ cũ được giữ làm compatibility guard: chỉ gỡ trigger legacy rồi trả trạng thái `skipped`, tuyệt đối không gọi Spreadsheet service cho ba tab này.
 
 ## 7.5. Webhook KiotViet — 9 loại event
 
