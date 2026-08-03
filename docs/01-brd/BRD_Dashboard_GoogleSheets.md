@@ -9,7 +9,7 @@
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Google Sheets → Web)  |
 | Phiên bản         | 1.2                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 29/07/2026                                                          |
+| Ngày cập nhật     | 31/07/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo & nhân viên nội bộ công ty                            |
 | Trạng thái        | Đang vận hành (Giai đoạn 1 đã triển khai)                          |
 
@@ -23,7 +23,7 @@ Tài liệu này mô tả các yêu cầu nghiệp vụ cho Hệ thống Dashboa
 
 ## 1.2. Bối cảnh
 
-Công ty TOKOSI là một tổng kho sỉ phân phối hàng hóa, vận hành trên phần mềm **KiotViet** (quản lý bán hàng, kho, khách hàng). Dữ liệu KiotViet được đồng bộ tự động sang **Google Sheets** (qua Apps Script module trong `src/`) dưới dạng 9 tab dữ liệu vận hành và 2 tab tổng hợp báo cáo bán hàng. Backend dashboard đọc 9 tab vận hành; tab Nhóm hàng cung cấp quan hệ nhóm cha–con cho biểu đồ tồn kho, còn hai tab báo cáo phục vụ đối soát trực tiếp trên Google Sheets.
+Công ty TOKOSI là một tổng kho sỉ phân phối hàng hóa, vận hành trên phần mềm **KiotViet** (quản lý bán hàng, kho, khách hàng). Dữ liệu KiotViet được đồng bộ tự động sang **Google Sheets** (qua Apps Script module trong `src/`) dưới dạng 9 tab dữ liệu vận hành và 5 tab báo cáo. Backend dashboard đọc 9 tab vận hành; tab Nhóm hàng cung cấp quan hệ nhóm cha–con cho biểu đồ tồn kho, còn năm tab báo cáo phục vụ đối soát trực tiếp trên Google Sheets.
 
 Trước đây, việc theo dõi số liệu phải thực hiện thủ công trên KiotViet và Google Sheets, gây mất thời gian tổng hợp và khó trực quan hóa xu hướng. Công ty cần một **Website Dashboard tập trung** đọc dữ liệu từ Google Sheets này, hiển thị các chỉ số quan trọng dưới dạng KPI card và biểu đồ, cập nhật gần thời gian thực mà không cần thao tác thủ công.
 
@@ -49,7 +49,9 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - Tab **Báo cáo bán hàng** bám theo file xuất KiotViet trong tháng hiện tại với 18 cột: thông tin khách hàng, số đơn/tổng tiền/giảm giá/doanh thu/trả hàng và chi tiết từng giao dịch; tự động làm mới hàng ngày lúc gần 07:00 theo múi giờ Việt Nam.
 
-- Tab **Hàng bán theo khách** liệt kê từng mặt hàng của hóa đơn hoàn thành trong 90 ngày qua với đúng 5 cột: Khách hàng, Mã hàng, Tên hàng, SL mua, Thời gian. Hóa đơn mới/sửa/hủy được phản ánh qua webhook trong khoảng 1 phút; lượt 07:00 đối soát lại toàn bộ dữ liệu.
+- Tab **Hàng bán theo khách** liệt kê từng mặt hàng của hóa đơn hoàn thành trong 90 ngày qua với đúng 5 cột: Khách hàng, Mã hàng, Tên hàng, SL mua chi tiết, Thời gian. Hóa đơn mới/sửa/hủy được phản ánh qua webhook trong khoảng 1 phút; lượt 07:00 đối soát lại toàn bộ dữ liệu.
+
+- Ba tab **HN1**, **HN3**, **HN7** tổng hợp công nợ khách hàng cho 1/3/7 ngày gần đây tính cả hôm nay, dùng cấu trúc 25 cột của file xuất KiotViet nhưng chỉ hiển thị một dòng cho mỗi khách hàng; nhiều giao dịch hoặc mặt hàng được ghép trong ô bằng dấu `|`; tự động làm mới hằng ngày gần 15:00.
 
 - Rút ngắn thời gian tổng hợp báo cáo, giúp lãnh đạo và nhân viên theo dõi số liệu bằng một cú truy cập web đơn giản.
 
@@ -59,7 +61,7 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 ## 3.1. Trong phạm vi (In-scope) — Giai đoạn 1 đã triển khai
 
-- **Nguồn dữ liệu cố định:** 1 Google Spreadsheet duy nhất (ID cố định theo cấu hình), chứa 9 tab vận hành và 2 tab báo cáo do Apps Script duy trì. Backend dashboard đọc 9 tab vận hành:
+- **Nguồn dữ liệu cố định:** 1 Google Spreadsheet duy nhất (ID cố định theo cấu hình), chứa 9 tab vận hành và 5 tab báo cáo do Apps Script duy trì. Backend dashboard đọc 9 tab vận hành:
 
   | Tab                | Dữ liệu                                                                  | Backend đọc |
   |--------------------|--------------------------------------------------------------------------|-------------|
@@ -73,7 +75,8 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
   | Nhà cung cấp       | Mã NCC, tên, SĐT, email, địa chỉ, nợ cần trả                             | Có          |
   | Nhập hàng          | Mã nhập, ngày nhập, NCC, chi nhánh, tổng tiền, trạng thái                | Có          |
   | Báo cáo bán hàng | 18 cột theo file xuất KiotViet: khách hàng, tổng hợp bán/trả và chi tiết từng giao dịch trong tháng hiện tại | Không |
-  | Hàng bán theo khách | Khách hàng, mã hàng, tên hàng, SL mua, thời gian của từng dòng hàng bán trong 90 ngày qua | Có |
+  | Hàng bán theo khách | Khách hàng, mã hàng, tên hàng, SL mua chi tiết, thời gian của từng dòng hàng bán trong 90 ngày qua | Có |
+  | HN1 / HN3 / HN7 | Công nợ khách hàng 1/3/7 ngày tính cả hôm nay, đúng 25 cột của báo cáo KiotViet | Không |
 
 - **KPI Dashboard:** các chỉ số tổng quan tính từ dữ liệu 9 sheet trên (xem mục 5.2).
 
@@ -183,6 +186,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 **Đồng bộ nguồn (phía Apps Script, không phụ thuộc backend web):**
 - **Webhook KiotViet → Apps Script:** KiotViet gửi POST JSON mỗi khi có thay đổi Hàng hóa, Hóa đơn, Đặt hàng, Khách hàng, Nhóm hàng (9 loại event); Apps Script cập nhật đúng dòng trong Google Sheets, đồng thời thay các dòng tương ứng trong `Hàng bán theo khách` khi hóa đơn đổi.
 - **Polling 5 phút:** Apps Script trigger chạy mỗi 5 phút để đồng bộ Trả hàng, Nhà cung cấp, Nhập hàng (KiotViet không có webhook cho 3 nhóm này).
+- **Đối soát công nợ 15:00:** Apps Script làm mới HN1/HN3/HN7 hằng ngày; trigger hàng đợi 1 phút chạy bù sau 15:00 nếu lượt chính bị trễ hoặc lỗi.
 
 ## 5.6. Truy cập & bảo mật (Giai đoạn 1)
 
@@ -227,6 +231,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 - Dashboard tự làm mới sau mỗi 10 phút; khi quay lại tab đã ẩn quá 10 phút, dữ liệu được tải lại ngay.
 - KPI "hôm nay", chuỗi ngày trên biểu đồ và `updatedAt` thống nhất theo múi giờ Asia/Ho_Chi_Minh.
 - Khi thiếu một tab nguồn, dashboard vẫn trả kết quả cho các phần dữ liệu còn lại và route `/api/debug` liệt kê được các tab thực tế.
+- HN1/HN3/HN7 dùng đúng cửa sổ 1/3/7 ngày tính cả hôm nay, đủ 25 cột như file xuất KiotViet và chỉ có một dòng cho mỗi khách hàng; các chi tiết phát sinh được ghép trong ô bằng dấu `|`. Báo cáo được cập nhật hằng ngày gần 15:00 theo giờ Việt Nam.
 - Hệ thống hoạt động ổn định trên Render.com, uptime >= 99% trong giờ hành chính.
 - Không lộ thông tin nhạy cảm (Service Account key, Spreadsheet ID) ra phía client.
 - Kiến trúc Giai đoạn 1 được tổ chức theo mô-đun rõ ràng, cho phép bổ sung module ở mục 3.3 mà không phải tái cấu trúc toàn bộ.

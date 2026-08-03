@@ -38,7 +38,7 @@ const CUSTOMER_PRODUCT_HEADERS = [
   'Khách hàng',
   'Mã hàng',
   'Tên hàng',
-  'SL mua',
+  'SL mua chi tiết',
   'Thời gian'
 ];
 

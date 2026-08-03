@@ -32,6 +32,7 @@ function setupKiotVietAutoSync() {
   ensureKiotVietWebhookSecret_();
   setupQueueProcessingTrigger();
   setupPollingTrigger();
+  setupCustomerDebtReportDailyTrigger();
 
   const result = reconcileKiotVietAutoSyncWebhooks_(token);
   Logger.log(

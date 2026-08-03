@@ -123,6 +123,9 @@ function processWebhookQueue() {
   // sau 07:00 va tu dong chuyen schema Hang ban theo khach khi co phien ban moi.
   syncCustomerReportIfDue_();
 
+  // Sau 15:00, chay bu bao cao cong no neu trigger ngay bi tre hoac loi.
+  syncCustomerDebtReportsIfDue_();
+
   const cache = CacheService.getScriptCache();
   const lock = LockService.getScriptLock();
 

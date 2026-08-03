@@ -3,7 +3,7 @@
 // ==========================================
 
 /**
- * Dong bo toan bo 9 sheet van hanh va 2 sheet bao cao.
+ * Dong bo toan bo 9 sheet van hanh va 5 sheet bao cao.
  *
  * Cac cot dashboard dang dung luon nam o ben trai; cac truong Public API dang
  * duoc su dung duoc bo sung o ben phai, khong kem cot JSON.
@@ -41,7 +41,10 @@ function syncAllInitialData() {
   Logger.log('Bat dau tao Bao cao ban hang va Hang ban theo khach...');
   syncCustomerReport();
 
-  Logger.log('Hoan tat dong bo day du 9 sheet van hanh va 2 sheet bao cao.');
+  Logger.log('Bat dau tao Bao cao cong no HN1/HN3/HN7...');
+  syncCustomerDebtReports();
+
+  Logger.log('Hoan tat dong bo day du 9 sheet van hanh va 5 sheet bao cao.');
 }
 
 function syncCategoriesInitial(token) {

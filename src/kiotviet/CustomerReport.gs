@@ -6,7 +6,7 @@ const CUSTOMER_REPORT_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const CUSTOMER_REPORT_TRIGGER_HANDLER = 'syncCustomerReport';
 const CUSTOMER_REPORT_LAST_SYNC_PROPERTY = 'CUSTOMER_REPORT_LAST_SYNC_DATE';
 const CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY = 'CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION';
-const CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION = 'detail-lines-v1';
+const CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION = 'detail-quantity-header-v2';
 const CUSTOMER_REPORT_PAGE_SIZE = 100;
 const CUSTOMER_REPORT_HEADERS = Object.freeze([
   'Mã KH',
@@ -33,7 +33,7 @@ const CUSTOMER_PRODUCT_REPORT_HEADERS = Object.freeze([
   'Khách hàng',
   'Mã hàng',
   'Tên hàng',
-  'SL mua',
+  'SL mua chi tiết',
   'Thời gian'
 ]);
 
