@@ -24,7 +24,13 @@ const CONFIG = {
   SHEET_RETURNS: 'Trả hàng',
   SHEET_CUSTOMERS: 'Khách hàng',
   SHEET_SUPPLIERS: 'Nhà cung cấp',
-  SHEET_PURCHASES: 'Nhập hàng'
+  SHEET_PURCHASES: 'Nhập hàng',
+
+  // HN1/HN3/HN7 do KiotViet tự quản lý và tự xuất báo cáo công nợ theo kỳ
+  // 1/3/7 ngày. Server CHỈ ĐỌC — không được tạo/xóa/ghi ba tab này.
+  SHEET_DEBT_1: 'HN1',
+  SHEET_DEBT_3: 'HN3',
+  SHEET_DEBT_7: 'HN7'
 };
 
 module.exports = CONFIG;

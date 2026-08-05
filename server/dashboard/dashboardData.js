@@ -4,6 +4,7 @@
 // ==========================================
 const CONFIG = require('../config');
 const sheetsClient = require('../sheets/sheetsClient');
+const { parseDebtSheet } = require('./debtReport');
 
 const OUT_OF_STOCK_LEVEL = 0;
 const TOP_SELLING_LIMIT = 10;
@@ -193,6 +194,14 @@ const SHEET_NAMES = [
   CONFIG.SHEET_CUSTOMERS,
   CONFIG.SHEET_SUPPLIERS,
   CONFIG.SHEET_PURCHASES
+];
+
+// HN1/HN3/HN7 do KiotViet tu quan ly; gop vao cung 1 lan batchGet de khong
+// tang so request goi Google Sheets API. Server CHI DOC, khong bao gio ghi.
+const DEBT_SHEETS = [
+  { period: 1, name: CONFIG.SHEET_DEBT_1 },
+  { period: 3, name: CONFIG.SHEET_DEBT_3 },
+  { period: 7, name: CONFIG.SHEET_DEBT_7 }
 ];
 
 const SEARCH_SOURCES = {
@@ -407,8 +416,15 @@ async function getDashboardData(days) {
   const now = new Date();
   const todayStr = formatDMY(now);
 
-  const sheets = await sheetsClient.getMultipleSheetValues(SHEET_NAMES);
+  const debtSheetNames = DEBT_SHEETS.map(entry => entry.name);
+  const sheets = await sheetsClient.getMultipleSheetValues(SHEET_NAMES.concat(debtSheetNames));
   rememberSearchSheets(sheets);
+
+  const debt = {};
+  DEBT_SHEETS.forEach(entry => {
+    debt[entry.period] = parseDebtSheet(sheets[entry.name]);
+  });
+
   const categoryData = sheets[CONFIG.SHEET_CATEGORIES];
   const prodData = sheets[CONFIG.SHEET_PRODUCTS];
   const invData = sheets[CONFIG.SHEET_INVOICES];
@@ -757,7 +773,8 @@ async function getDashboardData(days) {
     recentOrders,
     recentReturns,
     suppliers,
-    recentPurchaseOrders
+    recentPurchaseOrders,
+    debt
   };
 }
 

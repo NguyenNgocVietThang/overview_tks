@@ -449,6 +449,7 @@
       <div class="nav-item" data-view="invoices" onclick="switchView('invoices')"><span class="ic">▤</span> Hóa đơn</div>
       <div class="nav-item" data-view="customers" onclick="switchView('customers')"><span class="ic">◈</span> Khách hàng</div>
       <div class="nav-item" data-view="suppliers" onclick="switchView('suppliers')"><span class="ic">▨</span> Nhà cung cấp</div>
+      <div class="nav-item" data-view="debt" onclick="switchView('debt')"><span class="ic">✱</span> Công nợ</div>
       <div class="sidebar-footer">TOKOSI · Dữ liệu từ Google Sheet · tự làm mới mỗi 10 phút</div>
     </div>
 
@@ -798,6 +799,55 @@
         </div>
       </div>
 
+      <!-- ============ CÔNG NỢ ============ -->
+      <div class="view" id="view-debt">
+        <div class="view-title">Công nợ khách hàng theo kỳ</div>
+        <div class="view-sub">Dữ liệu từ KiotViet (HN1/HN3/HN7) — KiotViet tự cập nhật hàng ngày, dashboard làm mới mỗi 10 phút. Số liệu này khác "Tổng công nợ" (nợ lũy kế) ở tab Khách hàng — không đối chiếu chéo hai nguồn.</div>
+
+        <div class="period-toggle" id="debtPeriodToggle">
+          <button class="active" data-period="1" onclick="setDebtPeriod(1)">1 ngày</button>
+          <button data-period="3" onclick="setDebtPeriod(3)">3 ngày</button>
+          <button data-period="7" onclick="setDebtPeriod(7)">7 ngày</button>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-card accent-amber">
+            <div class="eyebrow">Tổng nợ cuối kỳ</div>
+            <div class="value" id="dt-closing">—</div>
+          </div>
+          <div class="kpi-card accent-red">
+            <div class="eyebrow">Tổng ghi nợ (phát sinh)</div>
+            <div class="value" id="dt-debit">—</div>
+          </div>
+          <div class="kpi-card accent-blue">
+            <div class="eyebrow">Tổng ghi có (đã thu)</div>
+            <div class="value" id="dt-credit">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="eyebrow">Khách còn nợ</div>
+            <div class="value" id="dt-count">—</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>Khách nợ cao nhất trong kỳ</h2></div>
+          <div class="chart-box tall"><canvas id="chartDebtPeriod"></canvas></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Chi tiết công nợ theo khách <span class="tag" id="tagDebtPeriod">—</span></h2>
+            <input type="text" id="debtFilterInput" class="search-input" style="max-width:280px;" placeholder="Lọc theo mã hoặc tên khách" oninput="renderDebtTable()">
+          </div>
+          <div class="scroll-list" style="max-height:420px;">
+            <table>
+              <thead><tr><th>Mã KH</th><th>Khách hàng</th><th>Điện thoại</th><th>Nhóm KH</th><th>Nợ đầu kỳ</th><th>Ghi nợ</th><th>Ghi có</th><th>Nợ cuối kỳ</th></tr></thead>
+              <tbody id="debtPeriodRows"><tr><td colspan="8" class="empty">Đang tải...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       </div>
     </div>
   </div>
@@ -811,6 +861,7 @@
     view: 'overview',
     charts: {},
     productStatus: 'all',
+    debtPeriod: 1,
     lastFetchTime: 0,
     tableSorts: {},
     search: {
@@ -998,6 +1049,10 @@
     suppliers: {
       title: 'Tìm trong Nhà cung cấp',
       placeholder: 'Tìm mã, tên nhà cung cấp hoặc phiếu nhập'
+    },
+    debt: {
+      title: 'Tìm trong Công nợ',
+      placeholder: 'Dùng ô lọc bên dưới bảng công nợ để tìm khách hàng'
     }
   };
 
@@ -1695,7 +1750,73 @@
         '<td class="mono" data-sort-value="' + p.total + '">' + fmtMoney(p.total) + '</td><td>' + genericStatusPill(p.status) + '</td></tr>'
       ).join('') : '<tr><td colspan="4" class="empty">Chưa có nhập hàng nào</td></tr>';
     }
+    else if(view === 'debt'){
+      const periodData = (d.debt && d.debt[state.debtPeriod]) || { customers: [], kpi: {} };
+      const kpi = periodData.kpi || {};
+      document.getElementById('dt-closing').textContent = fmtMoney(kpi.totalClosingDebt);
+      document.getElementById('dt-debit').textContent = fmtMoney(kpi.totalDebit);
+      document.getElementById('dt-credit').textContent = fmtMoney(kpi.totalCredit);
+      document.getElementById('dt-count').textContent = kpi.customersWithDebt || 0;
+
+      const chartList = (periodData.customers || []).filter(c => c.closingDebt > 0).slice(0, 25);
+      if(chartList.length) renderBarChartList('chartDebtPeriod','debtPeriod',chartList,c=>c.name,c=>c.closingDebt,themeColor('--red'),true);
+      else destroyChart('debtPeriod');
+
+      renderDebtTable();
+    }
     applyActiveTableSorts();
+  }
+
+  function setDebtPeriod(period){
+    state.debtPeriod = period;
+    document.querySelectorAll('#debtPeriodToggle button').forEach(b => b.classList.toggle('active', Number(b.dataset.period) === period));
+    if(state.data) renderView('debt');
+  }
+
+  function renderDebtTable(){
+    const d = state.data;
+    if(!d || !d.debt) return;
+    const periodData = d.debt[state.debtPeriod] || { customers: [] };
+    const filterRaw = (document.getElementById('debtFilterInput').value || '').trim().toLocaleLowerCase('vi-VN');
+    const customers = periodData.customers || [];
+    const filtered = filterRaw
+      ? customers.filter(c =>
+          String(c.code || '').toLocaleLowerCase('vi-VN').includes(filterRaw) ||
+          String(c.name || '').toLocaleLowerCase('vi-VN').includes(filterRaw))
+      : customers;
+
+    document.getElementById('tagDebtPeriod').textContent = filtered.length;
+    const rows = document.getElementById('debtPeriodRows');
+    rows.innerHTML = filtered.length ? filtered.map(function(c, idx){
+      const detailRows = (c.transactions || []).map(t =>
+        '<tr><td class="mono muted">' + escapeHtml(t.code || '—') + '</td>' +
+        '<td class="mono muted">' + escapeHtml(t.time || '—') + '</td>' +
+        '<td>' + escapeHtml(t.type || '—') + '</td>' +
+        '<td class="mono" data-sort-value="' + t.value + '">' + fmtMoney(t.value) + '</td>' +
+        '<td class="mono" data-sort-value="' + t.runningBalance + '">' + fmtMoney(t.runningBalance) + '</td></tr>'
+      ).join('');
+      return '<tr class="debt-row" style="cursor:pointer;" onclick="toggleDebtDetail(' + idx + ')">' +
+        '<td class="mono muted">' + escapeHtml(c.code) + '</td>' +
+        '<td class="name-cell">' + escapeHtml(c.name) + '</td>' +
+        '<td class="mono muted">' + (c.phone ? escapeHtml(c.phone) : '—') + '</td>' +
+        '<td>' + (c.group ? escapeHtml(c.group) : '—') + '</td>' +
+        '<td class="mono muted" data-sort-value="' + c.openingDebt + '">' + fmtMoney(c.openingDebt) + '</td>' +
+        '<td class="mono" data-sort-value="' + c.debit + '">' + fmtMoney(c.debit) + '</td>' +
+        '<td class="mono" data-sort-value="' + c.credit + '">' + fmtMoney(c.credit) + '</td>' +
+        '<td class="mono" data-sort-value="' + c.closingDebt + '" style="color:' + (c.closingDebt > 0 ? 'var(--red)' : 'inherit') + ';">' + fmtMoney(c.closingDebt) + '</td>' +
+        '</tr>' +
+        '<tr class="debt-detail-row" id="debt-detail-' + idx + '" style="display:none;"><td colspan="8">' +
+        (detailRows
+          ? '<table><thead><tr><th>Mã giao dịch</th><th>Thời gian</th><th>Loại giao dịch</th><th>Giá trị</th><th>Dư nợ cuối</th></tr></thead><tbody>' + detailRows + '</tbody></table>'
+          : '<span class="empty">Không có chi tiết giao dịch</span>') +
+        '</td></tr>';
+    }).join('') : '<tr><td colspan="8" class="empty">Không có khách hàng nào trong kỳ này</td></tr>';
+    applyActiveTableSorts();
+  }
+
+  function toggleDebtDetail(idx){
+    const row = document.getElementById('debt-detail-' + idx);
+    if(row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
   }
 
   function setLoading(isLoading){
