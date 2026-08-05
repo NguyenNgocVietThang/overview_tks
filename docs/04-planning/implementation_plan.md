@@ -17,15 +17,11 @@
 # 1. Kiến trúc thực tế đã triển khai
 
 ```
-appsscript/
-└── KiotVietExport.gs       ← Bản legacy một file, chỉ giữ để tham khảo
-
 src/                        ← GAS source code (clasp push)
+├── HuongDanSuDung.gs       ← Hướng dẫn hàm và luồng liên kết trên Apps Script
 ├── config/Config.gs
 ├── kiotviet/Auth.gs · CustomerDebtReport.gs · CustomerReport.gs · SheetSchemas.gs · SyncInitial.gs · WebhookAdmin.gs
 ├── sync/UpdateHandlers.gs · WebhookQueue.gs
-├── dashboard/WebApp.gs · DashboardData.gs
-├── ui/Dashboard.html
 └── utils/Helpers.gs
 
 server/                     ← Node.js/Express backend (Render.com)
@@ -49,8 +45,8 @@ server/public/
 | **#** | **Hạng mục**                          | **Nội dung**                                                                                       | **Trạng thái** |
 |-------|---------------------------------------|----------------------------------------------------------------------------------------------------|----------------|
 | 1     | Phân tích & thiết kế                  | Hoàn thiện BRD v1.2, SRS v1.2, BPMN v1.2; thiết kế kiến trúc kỹ thuật                            | ✅ Hoàn thành  |
-| 2     | Apps Script đồng bộ KiotViet          | `src/`: sync đủ trường cho 9 sheet, webhook 9 event, polling 5 phút (Trả hàng/NCC/Nhập hàng)       | ✅ Hoàn thành  |
-| 3     | GAS Web App (src/)                    | Multi-file GAS: Auth, SheetSchemas, CustomerDebtReport (guard bảo vệ HN1/HN3/HN7), CustomerReport, SyncInitial, WebhookAdmin, UpdateHandlers, WebhookQueue, DashboardData, WebApp | ✅ Hoàn thành  |
+| 2     | Apps Script đồng bộ KiotViet          | `src/`: sync đủ trường, webhook 9 event qua queue bền vững, polling 15 phút (Trả hàng/NCC/Nhập hàng) | ✅ Hoàn thành  |
+| 3     | GAS Web App (src/)                    | Chỉ nhận `doPost()` từ KiotViet; đã bỏ preview HTML và logic đọc dashboard khỏi Apps Script | ✅ Hoàn thành  |
 | 4     | Backend Node.js/Express               | `server/`: liệt kê/lọc tab, `batchGet` tối đa 9 tab, xử lý tab thiếu và tính ngày giờ Việt Nam   | ✅ Hoàn thành  |
 | 5     | Frontend HTML/CSS/JS                  | Sidebar, KPI, biểu đồ/bảng, lọc 7/30/90 ngày, refresh tay + nền 10 phút + tải bù khi tab visible | ✅ Hoàn thành  |
 | 6     | Triển khai Render.com                 | Deploy lên `tokosi.onrender.com`; cấu hình `SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_JSON`         | ✅ Hoàn thành  |
@@ -62,7 +58,7 @@ server/public/
 - **KPI Dashboard:** Doanh thu hôm nay, hóa đơn, tồn kho, công nợ KH/NCC, đặt hàng, trả hàng, nhập hàng
 - **Biểu đồ doanh thu theo ngày:** bộ lọc 7 / 30 / 90 ngày
 - **Bảng chi tiết:** Top 10 sản phẩm bán chạy, hàng đã hết, Top 8 công nợ, 8 bản ghi gần nhất (HĐ, đặt hàng, trả hàng, nhập hàng)
-- **Đồng bộ tự động:** Webhook KiotViet (9 event) + Polling 5 phút (Trả hàng/NCC/Nhập hàng)
+- **Đồng bộ tự động:** Webhook KiotViet (9 event) qua tab queue ẩn + polling 15 phút (Trả hàng/NCC/Nhập hàng)
 - **Schema gọn:** giữ cột dashboard ở bên trái và các trường Public API dạng phẳng đang dùng ở bên phải; không lưu cột JSON/payload gốc
 - **Làm mới dashboard:** nút Refresh; tự tải nền mỗi 10 phút; tải bù khi quay lại tab đã ẩn quá 10 phút
 - **Khả năng chịu lỗi tab nguồn:** tab thiếu/đổi tên trả dữ liệu rỗng cho section tương ứng thay vì làm lỗi toàn dashboard
@@ -99,10 +95,10 @@ server/public/
 # 5. Ghi chú kỹ thuật quan trọng
 
 > **Thứ tự load file GAS (src/):** clasp sắp xếp alphabetical theo thư mục:
-> `config/` → `dashboard/` → `kiotviet/` → `sync/` → `ui/` → `utils/`  
+> `HuongDanSuDung.gs` → `config/` → `kiotviet/` → `sync/` → `utils/`
 > `Config.gs` luôn được khởi tạo trước tất cả module khác. ✅
 
-> **Schema Google Sheets:** Apps Script duy trì 9 tab vận hành, tab `Báo cáo bán hàng` 18 cột theo từng giao dịch trong tháng hiện tại và tab `Hàng bán theo khách` đúng 5 cột chi tiết hàng bán trong 90 ngày. Webhook hóa đơn cập nhật `Hàng bán theo khách` theo chu kỳ hàng đợi 1 phút; lượt 07:00 đối soát hai báo cáo. Ba tab `HN1`/`HN3`/`HN7` do KiotViet quản lý: Apps Script không tạo, ghi, xóa, định dạng hoặc thay đổi cấu trúc; module CustomerDebtReport chỉ là guard gỡ trigger legacy. `src/kiotviet/SheetSchemas.gs` giữ cột dashboard ở bên trái, chỉ nối các trường KiotViet dạng phẳng đang dùng và tự xóa cột JSON cũ qua trigger nền. Backend dashboard chỉ đọc 9 tab vận hành và dùng `Nhóm hàng` để gom tồn kho theo nhóm cha.
+> **Schema Google Sheets:** Apps Script duy trì 9 tab vận hành, 2 tab báo cáo và tab ẩn `_KV_WEBHOOK_QUEUE`. Queue không hết hạn, chỉ xóa sự kiện sau khi ghi thành công và tự retry lỗi. Ba tab `HN1`/`HN3`/`HN7` do KiotViet quản lý: Apps Script không tạo, ghi, xóa, định dạng hoặc thay đổi cấu trúc. `src/kiotviet/SheetSchemas.gs` ghi dữ liệu mới trước khi dọn dòng dư để tránh xóa trắng khi cập nhật lỗi.
 > `sheetsClient.js` lọc tab hiện có trước `batchGet`, nên tab thiếu chỉ làm rỗng section tương ứng. Khi thay đổi các cột tương thích dashboard vẫn phải cập nhật đồng bộ `SheetSchemas.gs`, `server/config.js` và `server/dashboard/dashboardData.js`.
 
 > **Múi giờ:** Backend cố định `Asia/Ho_Chi_Minh`/UTC+07:00 cho parse ngày, KPI "hôm nay", bucket 7/30/90 ngày và `updatedAt`; không phụ thuộc timezone mặc định của Render.
@@ -113,4 +109,4 @@ server/public/
 
 ---
 
-*— Cập nhật lần cuối: 30/07/2026 —*
+*— Cập nhật lần cuối: 03/08/2026 —*

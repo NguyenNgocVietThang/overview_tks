@@ -601,9 +601,17 @@ function writeCustomerReportSheet_(reportRows, period) {
 
   const values = buildCustomerReportValues_(reportRows);
   const dataRowCount = values.length - 1;
+  const previousLastRow = sheet.getLastRow();
 
-  sheet.clear();
   sheet.getRange(1, 1, values.length, CUSTOMER_REPORT_HEADERS.length).setValues(values);
+  if (previousLastRow > values.length) {
+    sheet.getRange(
+      values.length + 1,
+      1,
+      previousLastRow - values.length,
+      CUSTOMER_REPORT_HEADERS.length
+    ).clearContent().clearNote();
+  }
   sheet.getRange(1, 1).setNote(
     'Kiểu hiển thị: Báo cáo\n' +
     'Mối quan tâm: Bán hàng\n' +
@@ -701,8 +709,16 @@ function writeCustomerProductReportSheet_(reportRows, period) {
 
   const existingFilter = sheet.getFilter();
   if (existingFilter) existingFilter.remove();
-  sheet.clear();
+  const previousLastRow = sheet.getLastRow();
   sheet.getRange(1, 1, values.length, CUSTOMER_PRODUCT_REPORT_HEADERS.length).setValues(values);
+  if (previousLastRow > values.length) {
+    sheet.getRange(
+      values.length + 1,
+      1,
+      previousLastRow - values.length,
+      CUSTOMER_PRODUCT_REPORT_HEADERS.length
+    ).clearContent().clearNote();
+  }
   sheet.getRange(1, 1, 1, CUSTOMER_PRODUCT_REPORT_HEADERS.length)
     .setFontWeight('bold')
     .setFontColor('#FFFFFF')

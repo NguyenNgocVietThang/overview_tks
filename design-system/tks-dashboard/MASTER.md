@@ -22,7 +22,8 @@
 > `landing` domain (hero/CTA/section-order patterns) does not apply. The **Dashboard Style**
 > field from `products.csv` row 102 is used instead: **Real-Time Monitoring + Data-Dense**.
 
-> **Note on convergence:** The existing UI (`src/ui/Dashboard.html`, `dev/index.html`) already
+> **Note on convergence:** The production UI (`server/public/index.html`) and local preview
+> (`dev/index.html`) already
 > uses a dark navy background with green/amber/red status colors — which is almost exactly
 > what this category recommends (`Functional neutral + status traffic-light (green/amber/red)
 > + scanner accent`). The amber (`#F0A63A`) already in use **is** the "scanner accent" the

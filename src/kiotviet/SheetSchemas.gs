@@ -862,9 +862,15 @@ function writeKiotVietSheet_(schema, items) {
   const rows = (Array.isArray(items) ? items : []).map(item => schema.buildRow(item));
 
   removeLegacyKiotVietJsonColumns_(sheet);
-  sheet.clearContents();
+  ensureKiotVietSheetSchema_(sheet, schema);
+  const previousLastRow = sheet.getLastRow();
   sheet.getRange(1, 1, 1, schema.headers.length).setValues([schema.headers]);
   writeKiotVietRowsInChunks_(sheet, 2, rows, schema.headers.length);
+  const newLastRow = rows.length + 1;
+  if (previousLastRow > newLastRow) {
+    sheet.getRange(newLastRow + 1, 1, previousLastRow - newLastRow, schema.headers.length)
+      .clearContent();
+  }
   formatKiotVietSheet_(sheet, schema, rows.length);
   return rows.length;
 }
@@ -949,9 +955,25 @@ function ensureKiotVietSheetSchema_(sheet, schema) {
     });
   });
 
-  sheet.clearContents();
+  const previousLastRow = lastRow;
+  const previousLastColumn = lastColumn;
   sheet.getRange(1, 1, 1, schema.headers.length).setValues([schema.headers]);
   writeKiotVietRowsInChunks_(sheet, 2, migratedRows, schema.headers.length);
+  const newLastRow = migratedRows.length + 1;
+  if (previousLastRow > newLastRow) {
+    sheet.getRange(
+      newLastRow + 1,
+      1,
+      previousLastRow - newLastRow,
+      previousLastColumn
+    ).clearContent();
+  }
+  if (previousLastColumn > schema.headers.length) {
+    sheet.deleteColumns(
+      schema.headers.length + 1,
+      previousLastColumn - schema.headers.length
+    );
+  }
   formatKiotVietSheet_(sheet, schema, migratedRows.length);
 }
 
@@ -1067,10 +1089,7 @@ function replaceInvoiceDetailsForInvoices_(invoices) {
   const keptRows = currentRows.filter(row => !replacementCodes[String(row[0] || '').trim()]);
   const rows = keptRows.concat(replacementRows);
 
-  sheet.clearContents();
-  sheet.getRange(1, 1, 1, schema.headers.length).setValues([schema.headers]);
-  writeKiotVietRowsInChunks_(sheet, 2, rows, schema.headers.length);
-  formatKiotVietSheet_(sheet, schema, rows.length);
+  writeKiotVietSheetRowsSafely_(sheet, schema, rows);
 }
 
 function deleteInvoiceDetailsByCodes_(invoiceCodes) {
@@ -1087,8 +1106,17 @@ function deleteInvoiceDetailsByCodes_(invoiceCodes) {
 
   const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, schema.headers.length).getValues();
   const keptRows = data.filter(row => !codeMap[String(row[0] || '').trim()]);
-  sheet.clearContents();
+  writeKiotVietSheetRowsSafely_(sheet, schema, keptRows);
+}
+
+function writeKiotVietSheetRowsSafely_(sheet, schema, rows) {
+  const previousLastRow = sheet.getLastRow();
   sheet.getRange(1, 1, 1, schema.headers.length).setValues([schema.headers]);
-  writeKiotVietRowsInChunks_(sheet, 2, keptRows, schema.headers.length);
-  formatKiotVietSheet_(sheet, schema, keptRows.length);
+  writeKiotVietRowsInChunks_(sheet, 2, rows, schema.headers.length);
+  const newLastRow = rows.length + 1;
+  if (previousLastRow > newLastRow) {
+    sheet.getRange(newLastRow + 1, 1, previousLastRow - newLastRow, schema.headers.length)
+      .clearContent();
+  }
+  formatKiotVietSheet_(sheet, schema, rows.length);
 }

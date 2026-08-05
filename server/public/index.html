@@ -155,10 +155,29 @@
   .view-sub{ font-size:12.5px; color:var(--muted); margin:0 0 18px; }
 
   [hidden]{ display:none !important; }
-  .dashboard-search{
+  /* ---------- Thanh bộ lọc cố định (sidebar filter layout, dạng trên cùng) ---------- */
+  .filterbar{
+    position:sticky; top:0; z-index:25;
     background:var(--panel); border:1px solid var(--border); border-radius:12px;
-    padding:16px 18px; margin-bottom:20px;
+    padding:14px 16px; margin-bottom:22px;
+    box-shadow:0 8px 20px rgba(0,0,0,.16);
   }
+  :root[data-theme="light"] .filterbar{ box-shadow:0 8px 20px rgba(15,23,42,.07); }
+  .filterbar-row{ display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap; }
+  .filter-group{ display:flex; flex-direction:column; gap:6px; }
+  .filter-group[hidden]{ display:none !important; }
+  .filter-label{
+    color:var(--muted); font-size:10px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.07em;
+  }
+  .filter-input{ max-width:260px; }
+  @media (max-width:760px){
+    .filterbar{ position:static; }
+    .filter-group, .filter-input{ width:100%; max-width:none; }
+    .filter-group .period-toggle{ justify-content:space-between; }
+  }
+
+  .dashboard-search{ flex:1 1 340px; min-width:0; }
   .search-copy{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:10px; }
   .search-label{ font-family:'Sora',sans-serif; font-size:13px; font-weight:600; }
   .search-description{ color:var(--muted); font-size:11.5px; }
@@ -265,7 +284,45 @@
   .search-empty{ padding:36px 16px; text-align:center; color:var(--muted); }
   .search-empty b{ display:block; margin-bottom:7px; color:var(--text); font-family:'Sora',sans-serif; font-size:15px; }
 
-  .kpi-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; margin-bottom:20px; }
+  /* ---------- Hệ lưới chung 12 cột: KPI, biểu đồ, bảng dùng chung một lưới ---------- */
+  .grid{ display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:16px; align-items:start; }
+  .grid > *{ min-width:0; }
+  .grid > .panel{ margin-bottom:0; }
+  .col-3{ grid-column:span 3; }
+  .col-4{ grid-column:span 4; }
+  .col-5{ grid-column:span 5; }
+  .col-6{ grid-column:span 6; }
+  .col-7{ grid-column:span 7; }
+  .col-8{ grid-column:span 8; }
+  .col-12{ grid-column:span 12; }
+  @media (max-width:1180px){
+    .col-3{ grid-column:span 6; }
+    .col-4{ grid-column:span 6; }
+    .col-5, .col-7, .col-8{ grid-column:span 12; }
+  }
+  @media (max-width:760px){
+    .col-3, .col-4, .col-5, .col-6, .col-7, .col-8{ grid-column:span 12; }
+  }
+
+  /* ---------- Mạch kể chuyện: KPI → Xu hướng → Phân tích → Chi tiết ---------- */
+  .section{ margin-bottom:24px; }
+  .section-head{ display:flex; align-items:center; gap:10px; margin:0 0 12px; }
+  .section-step{
+    flex-shrink:0; width:22px; height:22px; border-radius:6px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--panel-2); border:1px solid var(--border);
+    color:var(--amber); font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700;
+  }
+  .section-head h2{
+    margin:0; font-family:'Sora',sans-serif; font-size:12px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.09em; color:var(--text);
+  }
+  .section-head .section-note{ color:var(--muted); font-size:11.5px; font-weight:400; text-transform:none; letter-spacing:0; }
+  .section-head::after{ content:""; flex:1; height:1px; background:var(--border); }
+
+  .drill-hint{ color:var(--muted); font-size:11px; font-weight:400; }
+
+  .kpi-grid{ display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:14px; }
   .kpi-card{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px; }
   .kpi-card .eyebrow{ font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:600; }
   .kpi-card .value{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:23px; margin-top:7px; }
@@ -299,7 +356,9 @@
   .chart-box.wide{ height:340px; }
   .chart-box.tall{ height:380px; }
 
+  .table-wrap{ overflow-x:auto; }
   .end-day-summary{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:20px; }
+  .end-day-summary.stack{ grid-template-columns:1fr; margin-bottom:0; }
   .end-day-stat{ background:var(--panel-2); border:1px solid var(--border); border-radius:9px; padding:12px 14px; }
   .end-day-stat .label{ color:var(--muted); font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
   .end-day-stat .number{ display:block; margin-top:6px; color:var(--text); font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; }
@@ -317,7 +376,7 @@
   @media (max-width:900px){ .end-day-summary{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
   @media (max-width:520px){ .end-day-summary{ grid-template-columns:1fr; } }
 
-  .scroll-list{ max-height:340px; overflow-y:auto; }
+  .scroll-list{ max-height:340px; overflow-y:auto; overflow-x:auto; }
   .scroll-list::-webkit-scrollbar{ width:8px; }
   .scroll-list::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
   .scroll-list table thead th{ position:sticky; top:0; background:var(--panel); z-index:1; }
@@ -356,6 +415,9 @@
   .pill.bad{ background:rgba(241,97,106,0.13); color:var(--red); }
   .pill.warn{ background:rgba(240,166,58,0.14); color:var(--amber); }
   .empty{ color:var(--muted); font-size:12.5px; padding:18px 8px; text-align:center; }
+  /* Drill-down: dòng cha bấm được, dòng chi tiết lùi nền để thấy rõ cấp dưới */
+  .debt-row:hover td{ background:var(--surface-hover); }
+  .debt-detail-row > td{ background:var(--panel-2); }
 
   .placeholder-card{
     border:1px dashed var(--border); border-radius:10px; padding:22px; text-align:center; color:var(--muted); font-size:12.5px;
@@ -454,6 +516,8 @@
     </div>
 
     <div class="content">
+      <div class="filterbar" id="filterBar">
+       <div class="filterbar-row">
       <form class="dashboard-search" id="dashboardSearchForm" onsubmit="handleSearchSubmit(event)">
         <div class="search-copy">
           <label class="search-label" id="searchLabel" for="dashboardSearchInput">Tìm trong Tổng quan</label>
@@ -492,311 +556,431 @@
         <div class="search-status" id="searchStatus" aria-live="polite">Có thể dùng phím ↑ ↓ để chọn gợi ý</div>
       </form>
 
+        <div class="filter-group" data-filter-view="overview invoices" hidden>
+          <span class="filter-label">Khoảng thời gian</span>
+          <div class="period-toggle" id="periodToggle">
+            <button type="button" data-days="7" onclick="setPeriod(7)">7 ngày</button>
+            <button type="button" data-days="30" class="active" onclick="setPeriod(30)">30 ngày</button>
+            <button type="button" data-days="90" onclick="setPeriod(90)">90 ngày</button>
+          </div>
+        </div>
+
+        <div class="filter-group" data-filter-view="products" hidden>
+          <span class="filter-label">Trạng thái kinh doanh</span>
+          <div class="period-toggle" id="productStatusToggle">
+            <button type="button" data-status="all" class="active" onclick="setProductStatus('all')">Tất cả</button>
+            <button type="button" data-status="Đang kinh doanh" onclick="setProductStatus('Đang kinh doanh')">Đang kinh doanh</button>
+            <button type="button" data-status="Ngừng kinh doanh" onclick="setProductStatus('Ngừng kinh doanh')">Ngừng kinh doanh</button>
+          </div>
+        </div>
+
+        <div class="filter-group" data-filter-view="debt" hidden>
+          <span class="filter-label">Kỳ công nợ</span>
+          <div class="period-toggle" id="debtPeriodToggle">
+            <button type="button" class="active" data-period="1" onclick="setDebtPeriod(1)">1 ngày</button>
+            <button type="button" data-period="3" onclick="setDebtPeriod(3)">3 ngày</button>
+            <button type="button" data-period="7" onclick="setDebtPeriod(7)">7 ngày</button>
+          </div>
+        </div>
+
+        <div class="filter-group" data-filter-view="debt" hidden>
+          <span class="filter-label">Lọc khách hàng</span>
+          <input type="text" id="debtFilterInput" class="search-input filter-input" placeholder="Mã hoặc tên khách" oninput="renderDebtTable()">
+        </div>
+       </div>
+      </div>
+
       <section class="search-result" id="searchResult" aria-live="polite" hidden></section>
       <div class="dashboard-stats" id="dashboardStats">
 
       <!-- ============ TỔNG QUAN ============ -->
       <div class="view active" id="view-overview">
         <div class="view-title">Tổng quan</div>
-        <div class="view-sub">Số liệu nhanh và báo cáo bán hàng cuối ngày</div>
+        <div class="view-sub">Chỉ số hôm nay → xu hướng doanh thu → phân tích giao dịch → chi tiết cuối ngày</div>
 
-        <div class="kpi-grid">
-          <div class="kpi-card accent-green">
-            <div class="eyebrow">Doanh thu hôm nay</div>
-            <div class="value" id="ov-revenue">—</div>
-            <div class="sub" id="ov-revenue-sub">—</div>
+        <section class="section">
+          <div class="section-head"><span class="section-step">1</span><h2>Chỉ số then chốt <span class="section-note">tình hình hôm nay</span></h2></div>
+          <div class="kpi-grid">
+            <div class="kpi-card accent-green col-3">
+              <div class="eyebrow">Doanh thu hôm nay</div>
+              <div class="value" id="ov-revenue">—</div>
+              <div class="sub" id="ov-revenue-sub">—</div>
+            </div>
+            <div class="kpi-card accent-amber col-3">
+              <div class="eyebrow">Tồn kho hiện tại</div>
+              <div class="value" id="ov-stock">—</div>
+              <div class="sub" id="ov-stock-sub">—</div>
+            </div>
+            <div class="kpi-card accent-red col-3">
+              <div class="eyebrow">Đã hết hàng</div>
+              <div class="value" id="ov-lowstock">—</div>
+              <div class="sub">Tồn kho = 0</div>
+            </div>
+            <div class="kpi-card accent-blue col-3">
+              <div class="eyebrow">Khách hàng</div>
+              <div class="value" id="ov-customers">—</div>
+              <div class="sub" id="ov-customers-sub">—</div>
+            </div>
           </div>
-          <div class="kpi-card accent-amber">
-            <div class="eyebrow">Tồn kho hiện tại</div>
-            <div class="value" id="ov-stock">—</div>
-            <div class="sub" id="ov-stock-sub">—</div>
-          </div>
-          <div class="kpi-card accent-red">
-            <div class="eyebrow">Đã hết hàng</div>
-            <div class="value" id="ov-lowstock">—</div>
-            <div class="sub">Tồn kho = 0</div>
-          </div>
-          <div class="kpi-card accent-blue">
-            <div class="eyebrow">Khách hàng</div>
-            <div class="value" id="ov-customers">—</div>
-            <div class="sub" id="ov-customers-sub">—</div>
-          </div>
-        </div>
+        </section>
 
-        <div class="panel end-day-panel">
-          <div class="panel-head">
-            <h2>Báo cáo cuối ngày <span class="tag" id="tagEndOfDayDate">—</span></h2>
+        <section class="section">
+          <div class="section-head"><span class="section-step">2</span><h2>Xu hướng <span class="section-note">doanh thu theo ngày và kết quả cuối ngày</span></h2></div>
+          <div class="grid">
+            <div class="panel col-8">
+              <div class="panel-head"><h2>Doanh thu theo ngày <span class="tag" id="tagOverviewPeriod">—</span></h2></div>
+              <div class="chart-box"><canvas id="chartOverviewRevenue" role="img" aria-label="Biểu đồ xu hướng doanh thu theo ngày"></canvas></div>
+            </div>
+            <div class="panel col-4">
+              <div class="panel-head"><h2>Cuối ngày <span class="tag" id="tagEndOfDayDate">—</span></h2></div>
+              <div class="end-day-summary stack">
+                <div class="end-day-stat">
+                  <span class="label">Giao dịch hoàn thành</span>
+                  <strong class="number" id="end-day-transactions">—</strong>
+                  <span class="note" id="end-day-cancelled">—</span>
+                </div>
+                <div class="end-day-stat">
+                  <span class="label">Doanh thu</span>
+                  <strong class="number" id="end-day-revenue">—</strong>
+                </div>
+                <div class="end-day-stat">
+                  <span class="label">Giảm giá</span>
+                  <strong class="number" id="end-day-discount">—</strong>
+                </div>
+                <div class="end-day-stat">
+                  <span class="label">Thực thu</span>
+                  <strong class="number" id="end-day-paid">—</strong>
+                </div>
+              </div>
+            </div>
           </div>
+        </section>
 
-          <div class="end-day-summary">
-            <div class="end-day-stat">
-              <span class="label">Giao dịch hoàn thành</span>
-              <strong class="number" id="end-day-transactions">—</strong>
-              <span class="note" id="end-day-cancelled">—</span>
-            </div>
-            <div class="end-day-stat">
-              <span class="label">Doanh thu</span>
-              <strong class="number" id="end-day-revenue">—</strong>
-            </div>
-            <div class="end-day-stat">
-              <span class="label">Giảm giá</span>
-              <strong class="number" id="end-day-discount">—</strong>
-            </div>
-            <div class="end-day-stat">
-              <span class="label">Thực thu</span>
-              <strong class="number" id="end-day-paid">—</strong>
+        <section class="section">
+          <div class="section-head"><span class="section-step">3</span><h2>Phân tích <span class="section-note">giao dịch nào đóng góp nhiều nhất</span></h2></div>
+          <div class="grid">
+            <div class="panel col-12">
+              <div class="panel-head">
+                <h2>Top 30 giao dịch lớn nhất</h2>
+                <span class="drill-hint" id="top-transactions-count">Xếp theo doanh thu · không gồm giao dịch đã hủy</span>
+              </div>
+              <div class="chart-box end-day-chart">
+                <canvas id="chartTopTransactions" role="img" aria-label="Biểu đồ top 30 giao dịch có doanh thu lớn nhất trong ngày"></canvas>
+              </div>
             </div>
           </div>
+        </section>
 
-          <div class="end-day-section">
-            <div class="end-day-section-head">
-              <h3>Top 30 giao dịch lớn nhất</h3>
-              <span id="top-transactions-count">Xếp theo doanh thu · không gồm giao dịch đã hủy</span>
-            </div>
-            <div class="chart-box end-day-chart">
-              <canvas id="chartTopTransactions" role="img" aria-label="Biểu đồ top 30 giao dịch có doanh thu lớn nhất trong ngày"></canvas>
-            </div>
-          </div>
-
-          <div class="end-day-section">
-            <div class="end-day-section-head">
-              <h3>Chi tiết giao dịch</h3>
-              <span id="end-day-table-count">—</span>
-            </div>
-            <div class="table-wrap end-day-table">
-              <table>
-                <thead><tr><th>Mã giao dịch</th><th>Thời gian</th><th>SL</th><th>Doanh thu</th><th>Giảm giá</th><th>Thực thu</th><th>Trạng thái</th></tr></thead>
-                <tbody id="endOfDayRows"><tr><td colspan="7" class="empty">Đang tải...</td></tr></tbody>
-                <tfoot><tr><td colspan="2">Tổng cuối ngày</td><td class="mono" id="end-day-total-qty">—</td><td class="mono" id="end-day-total-revenue">—</td><td class="mono" id="end-day-total-discount">—</td><td class="mono" id="end-day-total-paid">—</td><td></td></tr></tfoot>
-              </table>
+        <section class="section">
+          <div class="section-head"><span class="section-step">4</span><h2>Dữ liệu chi tiết <span class="section-note">từng giao dịch trong ngày</span></h2></div>
+          <div class="grid">
+            <div class="panel col-12 end-day-table">
+              <div class="panel-head">
+                <h2>Chi tiết giao dịch</h2>
+                <span class="drill-hint" id="end-day-table-count">—</span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Mã giao dịch</th><th>Thời gian</th><th>SL</th><th>Doanh thu</th><th>Giảm giá</th><th>Thực thu</th><th>Trạng thái</th></tr></thead>
+                  <tbody id="endOfDayRows"><tr><td colspan="7" class="empty">Đang tải...</td></tr></tbody>
+                  <tfoot><tr><td colspan="2">Tổng cuối ngày</td><td class="mono" id="end-day-total-qty">—</td><td class="mono" id="end-day-total-revenue">—</td><td class="mono" id="end-day-total-discount">—</td><td class="mono" id="end-day-total-paid">—</td><td></td></tr></tfoot>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
+        </section>
       </div>
 
       <!-- ============ HÀNG HÓA ============ -->
       <div class="view" id="view-products">
         <div class="view-title">Hàng hóa</div>
-        <div class="view-sub">Tồn kho và các mặt hàng đã hết</div>
+        <div class="view-sub">Chỉ số tồn kho → cơ cấu theo nhóm → sản phẩm bán chạy → chi tiết từng mã hàng</div>
 
-        <div class="kpi-grid">
-          <div class="kpi-card accent-amber">
-            <div class="eyebrow">Tổng số mặt hàng</div>
-            <div class="value" id="pr-total">—</div>
-          </div>
-          <div class="kpi-card">
-            <div class="eyebrow">Mã còn hàng</div>
-            <div class="value" id="pr-stock">—</div>
-          </div>
-          <div class="kpi-card accent-red">
-            <div class="eyebrow">Đã hết hàng</div>
-            <div class="value" id="pr-lowstock">—</div>
-          </div>
-          <div class="kpi-card">
-            <div class="eyebrow">Ngừng kinh doanh</div>
-            <div class="value" id="pr-inactive">—</div>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head"><h2>Hàng đã hết <span class="tag" id="tagLowStock">—</span></h2></div>
-          <div class="scroll-list">
-            <table>
-              <thead><tr><th>Sản phẩm</th><th>Loại</th><th>Trạng thái kinh doanh</th><th>Giá vốn</th><th>Giá bán</th></tr></thead>
-              <tbody id="stockRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head"><h2>Tỷ lệ tồn kho theo nhóm cha <span class="tag" id="tagCategoryValue">—</span></h2></div>
-          <div class="chart-box wide"><canvas id="chartCategoryValue"></canvas></div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <h2>Tất cả mã hàng <span class="tag" id="tagAllProducts">—</span></h2>
-            <div class="period-toggle" id="productStatusToggle">
-              <button data-status="all" class="active" onclick="setProductStatus('all')">Tất cả</button>
-              <button data-status="Đang kinh doanh" onclick="setProductStatus('Đang kinh doanh')">Đang kinh doanh</button>
-              <button data-status="Ngừng kinh doanh" onclick="setProductStatus('Ngừng kinh doanh')">Ngừng kinh doanh</button>
+        <section class="section">
+          <div class="section-head"><span class="section-step">1</span><h2>Chỉ số then chốt <span class="section-note">quy mô danh mục và mức độ hết hàng</span></h2></div>
+          <div class="kpi-grid">
+            <div class="kpi-card accent-amber col-3">
+              <div class="eyebrow">Tổng số mặt hàng</div>
+              <div class="value" id="pr-total">—</div>
+            </div>
+            <div class="kpi-card col-3">
+              <div class="eyebrow">Mã còn hàng</div>
+              <div class="value" id="pr-stock">—</div>
+            </div>
+            <div class="kpi-card accent-red col-3">
+              <div class="eyebrow">Đã hết hàng</div>
+              <div class="value" id="pr-lowstock">—</div>
+            </div>
+            <div class="kpi-card col-3">
+              <div class="eyebrow">Ngừng kinh doanh</div>
+              <div class="value" id="pr-inactive">—</div>
             </div>
           </div>
-          <div class="scroll-list" style="max-height:420px;">
-            <table>
-              <thead><tr><th>Sản phẩm</th><th>Tồn</th><th>Đặt</th><th>Tỷ lệ</th><th>Trạng thái</th></tr></thead>
-              <tbody id="allProductRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
-            </table>
-          </div>
-        </div>
+        </section>
 
-        <div class="panel">
-          <div class="panel-head"><h2>Top sản phẩm bán chạy <span class="tag" id="tagTopSelling">—</span></h2></div>
-          <div class="chart-box small"><canvas id="chartTopSelling"></canvas></div>
-        </div>
-
-        <div class="panel">
-          <h2>Chi tiết sản phẩm bán chạy</h2>
-          <div class="scroll-list" style="max-height:340px;">
-            <table>
-              <thead><tr><th>Sản phẩm</th><th>SL bán</th><th>Doanh thu</th></tr></thead>
-              <tbody id="topSellingRows"><tr><td colspan="3" class="empty">Đang tải...</td></tr></tbody>
-            </table>
+        <section class="section">
+          <div class="section-head"><span class="section-step">2</span><h2>Cơ cấu tồn kho <span class="section-note">giá trị và số lượng theo nhóm cha</span></h2></div>
+          <div class="grid">
+            <div class="panel col-12">
+              <div class="panel-head"><h2>Tỷ lệ tồn kho theo nhóm cha <span class="tag" id="tagCategoryValue">—</span></h2></div>
+              <div class="chart-box wide"><canvas id="chartCategoryValue"></canvas></div>
+            </div>
           </div>
-        </div>
+        </section>
+
+        <section class="section">
+          <div class="section-head"><span class="section-step">3</span><h2>Phân tích <span class="section-note">mặt hàng nào tạo ra doanh thu</span></h2></div>
+          <div class="grid">
+            <div class="panel col-7">
+              <div class="panel-head"><h2>Top sản phẩm bán chạy <span class="tag" id="tagTopSelling">—</span></h2></div>
+              <div class="chart-box small"><canvas id="chartTopSelling"></canvas></div>
+            </div>
+            <div class="panel col-5">
+              <div class="panel-head"><h2>Chi tiết sản phẩm bán chạy</h2></div>
+              <div class="scroll-list" style="max-height:220px;">
+                <table>
+                  <thead><tr><th>Sản phẩm</th><th>SL bán</th><th>Doanh thu</th></tr></thead>
+                  <tbody id="topSellingRows"><tr><td colspan="3" class="empty">Đang tải...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-head"><span class="section-step">4</span><h2>Dữ liệu chi tiết <span class="section-note">hàng cần nhập gấp và toàn bộ danh mục</span></h2></div>
+          <div class="grid">
+            <div class="panel col-5">
+              <div class="panel-head"><h2>Hàng đã hết <span class="tag" id="tagLowStock">—</span></h2></div>
+              <div class="scroll-list" style="max-height:420px;">
+                <table>
+                  <thead><tr><th>Sản phẩm</th><th>Loại</th><th>Trạng thái kinh doanh</th><th>Giá vốn</th><th>Giá bán</th></tr></thead>
+                  <tbody id="stockRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="panel col-7">
+              <div class="panel-head">
+                <h2>Tất cả mã hàng <span class="tag" id="tagAllProducts">—</span></h2>
+                <span class="drill-hint">Lọc theo trạng thái ở thanh bộ lọc phía trên</span>
+              </div>
+              <div class="scroll-list" style="max-height:420px;">
+                <table>
+                  <thead><tr><th>Sản phẩm</th><th>Tồn</th><th>Đặt</th><th>Tỷ lệ</th><th>Trạng thái</th></tr></thead>
+                  <tbody id="allProductRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
       <!-- ============ HÓA ĐƠN ============ -->
       <div class="view" id="view-invoices">
         <div class="view-title">Hóa đơn</div>
-        <div class="view-sub">Doanh thu theo ngày và các hóa đơn gần đây</div>
+        <div class="view-sub">Chỉ số bán hàng → xu hướng doanh thu → phân tích đơn chờ và trả hàng → chi tiết hóa đơn</div>
 
-        <div class="kpi-grid">
-          <div class="kpi-card accent-green">
-            <div class="eyebrow">Doanh thu hôm nay</div>
-            <div class="value" id="in-revenue">—</div>
-            <div class="sub" id="in-revenue-sub">—</div>
-          </div>
-          <div class="kpi-card accent-blue">
-            <div class="eyebrow">Doanh thu trong kỳ</div>
-            <div class="value" id="in-period-revenue">—</div>
-            <div class="sub" id="in-period-sub">—</div>
-          </div>
-          <div class="kpi-card accent-red">
-            <div class="eyebrow">Hóa đơn hủy hôm nay</div>
-            <div class="value" id="in-cancelled">—</div>
-          </div>
-          <div class="kpi-card accent-amber">
-            <div class="eyebrow">Đặt hàng đang chờ</div>
-            <div class="value" id="in-pending-count">—</div>
-            <div class="sub" id="in-pending-total">—</div>
-          </div>
-          <div class="kpi-card">
-            <div class="eyebrow">Trả hàng</div>
-            <div class="value" id="in-returns-count">—</div>
-            <div class="sub" id="in-returns-total">—</div>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <h2>Doanh thu theo ngày</h2>
-            <div class="period-toggle" id="periodToggle">
-              <button data-days="7" onclick="setPeriod(7)">7 ngày</button>
-              <button data-days="30" class="active" onclick="setPeriod(30)">30 ngày</button>
-              <button data-days="90" onclick="setPeriod(90)">90 ngày</button>
+        <section class="section">
+          <div class="section-head"><span class="section-step">1</span><h2>Chỉ số then chốt <span class="section-note">hôm nay và trong kỳ đang chọn</span></h2></div>
+          <div class="kpi-grid">
+            <div class="kpi-card accent-green col-4">
+              <div class="eyebrow">Doanh thu hôm nay</div>
+              <div class="value" id="in-revenue">—</div>
+              <div class="sub" id="in-revenue-sub">—</div>
+            </div>
+            <div class="kpi-card accent-blue col-4">
+              <div class="eyebrow">Doanh thu trong kỳ</div>
+              <div class="value" id="in-period-revenue">—</div>
+              <div class="sub" id="in-period-sub">—</div>
+            </div>
+            <div class="kpi-card accent-red col-4">
+              <div class="eyebrow">Hóa đơn hủy hôm nay</div>
+              <div class="value" id="in-cancelled">—</div>
+            </div>
+            <div class="kpi-card accent-amber col-6">
+              <div class="eyebrow">Đặt hàng đang chờ</div>
+              <div class="value" id="in-pending-count">—</div>
+              <div class="sub" id="in-pending-total">—</div>
+            </div>
+            <div class="kpi-card col-6">
+              <div class="eyebrow">Trả hàng</div>
+              <div class="value" id="in-returns-count">—</div>
+              <div class="sub" id="in-returns-total">—</div>
             </div>
           </div>
-          <div class="chart-box"><canvas id="chartInvoiceRevenue"></canvas></div>
-        </div>
+        </section>
 
-        <div class="panel">
-          <h2>Hóa đơn gần đây <span class="tag" id="tagInvoices">—</span></h2>
-          <table>
-            <thead><tr><th>Mã HĐ</th><th>Khách hàng</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead>
-            <tbody id="invoiceRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
-          </table>
-        </div>
+        <section class="section">
+          <div class="section-head"><span class="section-step">2</span><h2>Xu hướng <span class="section-note">doanh thu theo ngày trong kỳ</span></h2></div>
+          <div class="grid">
+            <div class="panel col-12">
+              <div class="panel-head">
+                <h2>Doanh thu theo ngày</h2>
+                <span class="drill-hint">Đổi khoảng thời gian ở thanh bộ lọc phía trên</span>
+              </div>
+              <div class="chart-box"><canvas id="chartInvoiceRevenue"></canvas></div>
+            </div>
+          </div>
+        </section>
 
-        <div class="panel">
-          <h2>Đặt hàng gần đây <span class="tag" id="tagOrders">—</span></h2>
-          <table>
-            <thead><tr><th>Mã ĐH</th><th>Khách hàng</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead>
-            <tbody id="orderRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
-          </table>
-        </div>
+        <section class="section">
+          <div class="section-head"><span class="section-step">3</span><h2>Phân tích <span class="section-note">hai luồng ảnh hưởng doanh thu: đơn chờ và trả hàng</span></h2></div>
+          <div class="grid">
+            <div class="panel col-6">
+              <div class="panel-head"><h2>Đặt hàng gần đây <span class="tag" id="tagOrders">—</span></h2></div>
+              <div class="scroll-list" style="max-height:320px;">
+                <table>
+                  <thead><tr><th>Mã ĐH</th><th>Khách hàng</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead>
+                  <tbody id="orderRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="panel col-6">
+              <div class="panel-head"><h2>Trả hàng gần đây <span class="tag" id="tagReturns">—</span></h2></div>
+              <div class="scroll-list" style="max-height:320px;">
+                <table>
+                  <thead><tr><th>Mã trả hàng</th><th>HĐ gốc</th><th>Khách hàng</th><th>Tổng tiền trả</th><th>Trạng thái</th></tr></thead>
+                  <tbody id="returnRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
 
-        <div class="panel">
-          <h2>Trả hàng gần đây <span class="tag" id="tagReturns">—</span></h2>
-          <table>
-            <thead><tr><th>Mã trả hàng</th><th>HĐ gốc</th><th>Khách hàng</th><th>Tổng tiền trả</th><th>Trạng thái</th></tr></thead>
-            <tbody id="returnRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
-          </table>
-        </div>
+        <section class="section">
+          <div class="section-head"><span class="section-step">4</span><h2>Dữ liệu chi tiết <span class="section-note">từng hóa đơn phát sinh</span></h2></div>
+          <div class="grid">
+            <div class="panel col-12">
+              <div class="panel-head"><h2>Hóa đơn gần đây <span class="tag" id="tagInvoices">—</span></h2></div>
+              <div class="scroll-list" style="max-height:420px;">
+                <table>
+                  <thead><tr><th>Mã HĐ</th><th>Khách hàng</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead>
+                  <tbody id="invoiceRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
       <!-- ============ KHÁCH HÀNG ============ -->
       <div class="view" id="view-customers">
         <div class="view-title">Khách hàng</div>
-        <div class="view-sub">Tổng số khách hàng và tình trạng công nợ</div>
+        <div class="view-sub">Chỉ số khách hàng → phân tích tập trung công nợ → chi tiết từng khách nợ</div>
 
-        <div class="kpi-grid">
-          <div class="kpi-card accent-blue">
-            <div class="eyebrow">Tổng khách hàng</div>
-            <div class="value" id="cu-total">—</div>
+        <section class="section">
+          <div class="section-head"><span class="section-step">1</span><h2>Chỉ số then chốt <span class="section-note">quy mô tệp khách và rủi ro công nợ</span></h2></div>
+          <div class="kpi-grid">
+            <div class="kpi-card accent-blue col-4">
+              <div class="eyebrow">Tổng khách hàng</div>
+              <div class="value" id="cu-total">—</div>
+            </div>
+            <div class="kpi-card accent-red col-4">
+              <div class="eyebrow">Khách đang nợ</div>
+              <div class="value" id="cu-debtcount">—</div>
+            </div>
+            <div class="kpi-card accent-amber col-4">
+              <div class="eyebrow">Tổng công nợ</div>
+              <div class="value" id="cu-totaldebt">—</div>
+            </div>
           </div>
-          <div class="kpi-card accent-red">
-            <div class="eyebrow">Khách đang nợ</div>
-            <div class="value" id="cu-debtcount">—</div>
-          </div>
-          <div class="kpi-card accent-amber">
-            <div class="eyebrow">Tổng công nợ</div>
-            <div class="value" id="cu-totaldebt">—</div>
-          </div>
-        </div>
+        </section>
 
-        <div class="panel">
-          <div class="panel-head"><h2>Khách hàng công nợ cao nhất</h2></div>
-          <div class="chart-box tall"><canvas id="chartDebt"></canvas></div>
-        </div>
-
-        <div class="panel">
-          <h2>Chi tiết khách nợ <span class="tag" id="tagDebt">—</span></h2>
-          <div class="scroll-list" style="max-height:340px;">
-            <table>
-              <thead><tr><th>Mã KH</th><th>Tên khách hàng</th><th>Điện thoại</th><th>Công nợ</th></tr></thead>
-              <tbody id="debtRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
-            </table>
+        <section class="section">
+          <div class="section-head"><span class="section-step">2</span><h2>Phân tích <span class="section-note">nợ tập trung ở những khách nào</span></h2></div>
+          <div class="grid">
+            <div class="panel col-12">
+              <div class="panel-head">
+                <h2>Khách hàng công nợ cao nhất</h2>
+                <span class="drill-hint">25 khách nợ lớn nhất</span>
+              </div>
+              <div class="chart-box tall"><canvas id="chartDebt"></canvas></div>
+            </div>
           </div>
-        </div>
+        </section>
+
+        <section class="section">
+          <div class="section-head"><span class="section-step">3</span><h2>Dữ liệu chi tiết <span class="section-note">danh sách khách còn nợ</span></h2></div>
+          <div class="grid">
+            <div class="panel col-12">
+              <div class="panel-head">
+                <h2>Chi tiết khách nợ <span class="tag" id="tagDebt">—</span></h2>
+                <span class="drill-hint">Xem diễn biến nợ theo kỳ ở tab Công nợ</span>
+              </div>
+              <div class="scroll-list" style="max-height:420px;">
+                <table>
+                  <thead><tr><th>Mã KH</th><th>Tên khách hàng</th><th>Điện thoại</th><th>Công nợ</th></tr></thead>
+                  <tbody id="debtRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
       <!-- ============ NHÀ CUNG CẤP ============ -->
       <div class="view" id="view-suppliers">
         <div class="view-title">Nhà cung cấp</div>
-        <div class="view-sub">Công nợ phải trả và lịch sử nhập hàng</div>
+        <div class="view-sub">Chỉ số phải trả → phân tích nợ tập trung → chi tiết nhà cung cấp và phiếu nhập</div>
 
-        <div class="kpi-grid">
-          <div class="kpi-card accent-blue">
-            <div class="eyebrow">Tổng nhà cung cấp</div>
-            <div class="value" id="sp-total">—</div>
+        <section class="section">
+          <div class="section-head"><span class="section-step">1</span><h2>Chỉ số then chốt <span class="section-note">nghĩa vụ phải trả và chi phí nhập hàng</span></h2></div>
+          <div class="kpi-grid">
+            <div class="kpi-card accent-blue col-3">
+              <div class="eyebrow">Tổng nhà cung cấp</div>
+              <div class="value" id="sp-total">—</div>
+            </div>
+            <div class="kpi-card accent-red col-3">
+              <div class="eyebrow">NCC đang nợ</div>
+              <div class="value" id="sp-debtcount">—</div>
+            </div>
+            <div class="kpi-card accent-amber col-3">
+              <div class="eyebrow">Tổng nợ phải trả</div>
+              <div class="value" id="sp-totaldebt">—</div>
+            </div>
+            <div class="kpi-card col-3">
+              <div class="eyebrow">Tổng chi nhập hàng</div>
+              <div class="value" id="sp-totalpurchase">—</div>
+            </div>
           </div>
-          <div class="kpi-card accent-red">
-            <div class="eyebrow">NCC đang nợ</div>
-            <div class="value" id="sp-debtcount">—</div>
-          </div>
-          <div class="kpi-card accent-amber">
-            <div class="eyebrow">Tổng nợ phải trả</div>
-            <div class="value" id="sp-totaldebt">—</div>
-          </div>
-          <div class="kpi-card">
-            <div class="eyebrow">Tổng chi nhập hàng</div>
-            <div class="value" id="sp-totalpurchase">—</div>
-          </div>
-        </div>
+        </section>
 
-        <div class="panel">
-          <div class="panel-head"><h2>Nhà cung cấp nợ cao nhất</h2></div>
-          <div class="chart-box tall"><canvas id="chartSupplierDebt"></canvas></div>
-        </div>
-
-        <div class="panel">
-          <h2>Danh sách nhà cung cấp <span class="tag" id="tagSuppliers">—</span></h2>
-          <div class="scroll-list" style="max-height:340px;">
-            <table>
-              <thead><tr><th>Mã NCC</th><th>Tên</th><th>Điện thoại</th><th>Nợ cần trả</th></tr></thead>
-              <tbody id="supplierRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
-            </table>
+        <section class="section">
+          <div class="section-head"><span class="section-step">2</span><h2>Phân tích <span class="section-note">nợ phải trả tập trung ở nhà cung cấp nào</span></h2></div>
+          <div class="grid">
+            <div class="panel col-12">
+              <div class="panel-head">
+                <h2>Nhà cung cấp nợ cao nhất</h2>
+                <span class="drill-hint">25 nhà cung cấp có dư nợ lớn nhất</span>
+              </div>
+              <div class="chart-box tall"><canvas id="chartSupplierDebt"></canvas></div>
+            </div>
           </div>
-        </div>
+        </section>
 
-        <div class="panel">
-          <h2>Nhập hàng gần đây <span class="tag" id="tagPurchases">—</span></h2>
-          <table>
-            <thead><tr><th>Mã nhập hàng</th><th>Nhà cung cấp</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead>
-            <tbody id="purchaseRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
-          </table>
-        </div>
+        <section class="section">
+          <div class="section-head"><span class="section-step">3</span><h2>Dữ liệu chi tiết <span class="section-note">danh sách nhà cung cấp và lịch sử nhập hàng</span></h2></div>
+          <div class="grid">
+            <div class="panel col-6">
+              <div class="panel-head"><h2>Danh sách nhà cung cấp <span class="tag" id="tagSuppliers">—</span></h2></div>
+              <div class="scroll-list" style="max-height:380px;">
+                <table>
+                  <thead><tr><th>Mã NCC</th><th>Tên</th><th>Điện thoại</th><th>Nợ cần trả</th></tr></thead>
+                  <tbody id="supplierRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="panel col-6">
+              <div class="panel-head"><h2>Nhập hàng gần đây <span class="tag" id="tagPurchases">—</span></h2></div>
+              <div class="scroll-list" style="max-height:380px;">
+                <table>
+                  <thead><tr><th>Mã nhập hàng</th><th>Nhà cung cấp</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead>
+                  <tbody id="purchaseRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
       <!-- ============ CÔNG NỢ ============ -->
@@ -804,48 +988,58 @@
         <div class="view-title">Công nợ khách hàng theo kỳ</div>
         <div class="view-sub">Dữ liệu từ KiotViet (HN1/HN3/HN7) — KiotViet tự cập nhật hàng ngày, dashboard làm mới mỗi 10 phút. Số liệu này khác "Tổng công nợ" (nợ lũy kế) ở tab Khách hàng — không đối chiếu chéo hai nguồn.</div>
 
-        <div class="period-toggle" id="debtPeriodToggle">
-          <button class="active" data-period="1" onclick="setDebtPeriod(1)">1 ngày</button>
-          <button data-period="3" onclick="setDebtPeriod(3)">3 ngày</button>
-          <button data-period="7" onclick="setDebtPeriod(7)">7 ngày</button>
-        </div>
+        <section class="section">
+          <div class="section-head"><span class="section-step">1</span><h2>Chỉ số then chốt <span class="section-note">kết quả của kỳ đang chọn</span></h2></div>
+          <div class="kpi-grid">
+            <div class="kpi-card accent-amber col-3">
+              <div class="eyebrow">Tổng nợ cuối kỳ</div>
+              <div class="value" id="dt-closing">—</div>
+            </div>
+            <div class="kpi-card accent-red col-3">
+              <div class="eyebrow">Tổng ghi nợ (phát sinh)</div>
+              <div class="value" id="dt-debit">—</div>
+            </div>
+            <div class="kpi-card accent-blue col-3">
+              <div class="eyebrow">Tổng ghi có (đã thu)</div>
+              <div class="value" id="dt-credit">—</div>
+            </div>
+            <div class="kpi-card col-3">
+              <div class="eyebrow">Khách còn nợ</div>
+              <div class="value" id="dt-count">—</div>
+            </div>
+          </div>
+        </section>
 
-        <div class="kpi-grid">
-          <div class="kpi-card accent-amber">
-            <div class="eyebrow">Tổng nợ cuối kỳ</div>
-            <div class="value" id="dt-closing">—</div>
+        <section class="section">
+          <div class="section-head"><span class="section-step">2</span><h2>Phân tích <span class="section-note">khách nào chiếm phần lớn dư nợ cuối kỳ</span></h2></div>
+          <div class="grid">
+            <div class="panel col-12">
+              <div class="panel-head">
+                <h2>Khách nợ cao nhất trong kỳ</h2>
+                <span class="drill-hint">Đổi kỳ 1 / 3 / 7 ngày ở thanh bộ lọc phía trên</span>
+              </div>
+              <div class="chart-box tall"><canvas id="chartDebtPeriod"></canvas></div>
+            </div>
           </div>
-          <div class="kpi-card accent-red">
-            <div class="eyebrow">Tổng ghi nợ (phát sinh)</div>
-            <div class="value" id="dt-debit">—</div>
-          </div>
-          <div class="kpi-card accent-blue">
-            <div class="eyebrow">Tổng ghi có (đã thu)</div>
-            <div class="value" id="dt-credit">—</div>
-          </div>
-          <div class="kpi-card">
-            <div class="eyebrow">Khách còn nợ</div>
-            <div class="value" id="dt-count">—</div>
-          </div>
-        </div>
+        </section>
 
-        <div class="panel">
-          <div class="panel-head"><h2>Khách nợ cao nhất trong kỳ</h2></div>
-          <div class="chart-box tall"><canvas id="chartDebtPeriod"></canvas></div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <h2>Chi tiết công nợ theo khách <span class="tag" id="tagDebtPeriod">—</span></h2>
-            <input type="text" id="debtFilterInput" class="search-input" style="max-width:280px;" placeholder="Lọc theo mã hoặc tên khách" oninput="renderDebtTable()">
+        <section class="section">
+          <div class="section-head"><span class="section-step">3</span><h2>Dữ liệu chi tiết <span class="section-note">nhấn một dòng để mở từng giao dịch của khách</span></h2></div>
+          <div class="grid">
+            <div class="panel col-12">
+              <div class="panel-head">
+                <h2>Chi tiết công nợ theo khách <span class="tag" id="tagDebtPeriod">—</span></h2>
+                <span class="drill-hint">▸ Nhấn vào dòng để xem chi tiết giao dịch</span>
+              </div>
+              <div class="scroll-list" style="max-height:480px;">
+                <table>
+                  <thead><tr><th>Mã KH</th><th>Khách hàng</th><th>Điện thoại</th><th>Nhóm KH</th><th>Nợ đầu kỳ</th><th>Ghi nợ</th><th>Ghi có</th><th>Nợ cuối kỳ</th></tr></thead>
+                  <tbody id="debtPeriodRows"><tr><td colspan="8" class="empty">Đang tải...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
           </div>
-          <div class="scroll-list" style="max-height:420px;">
-            <table>
-              <thead><tr><th>Mã KH</th><th>Khách hàng</th><th>Điện thoại</th><th>Nhóm KH</th><th>Nợ đầu kỳ</th><th>Ghi nợ</th><th>Ghi có</th><th>Nợ cuối kỳ</th></tr></thead>
-              <tbody id="debtPeriodRows"><tr><td colspan="8" class="empty">Đang tải...</td></tr></tbody>
-            </table>
-          </div>
-        </div>
+        </section>
       </div>
 
       </div>
@@ -1364,6 +1558,14 @@
     document.getElementById('backdrop').classList.toggle('show');
   }
 
+  // Thanh bo loc co dinh chi hien nhung nhom loc dung cho tab dang xem
+  function updateFilterBar(){
+    document.querySelectorAll('#filterBar .filter-group').forEach(function(group){
+      const views = (group.dataset.filterView || '').split(/\s+/);
+      group.hidden = views.indexOf(state.view) === -1;
+    });
+  }
+
   function switchView(view){
     state.view = view;
     document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === view));
@@ -1371,6 +1573,7 @@
     document.getElementById('view-' + view).classList.add('active');
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('backdrop').classList.remove('show');
+    updateFilterBar();
     resetSearchForView();
     if(state.data) renderView(view);
   }
@@ -1616,6 +1819,8 @@
       document.getElementById('ov-lowstock').textContent = d.kpi.lowStockCount;
       document.getElementById('ov-customers').textContent = d.kpi.totalCustomers.toLocaleString('vi-VN');
       document.getElementById('ov-customers-sub').textContent = d.kpi.customersWithDebt + ' đang nợ · ' + fmtMoney(d.kpi.totalDebt);
+      document.getElementById('tagOverviewPeriod').textContent = (d.days || state.days) + ' ngày';
+      renderRevenueChart('chartOverviewRevenue', 'overviewRevenue', d.revenueByDay || []);
       const report = d.endOfDayReport || { date:'—', transactions:[], hourly:[], summary:{} };
       const summary = report.summary || {};
       const transactions = report.transactions || [];
@@ -1858,6 +2063,7 @@
 
   syncThemeControl();
   initSortableTables();
+  updateFilterBar();
   updateSearchContext();
   loadData(state.days, true);
   setInterval(function(){ loadData(state.days, false); }, AUTO_REFRESH_MS);

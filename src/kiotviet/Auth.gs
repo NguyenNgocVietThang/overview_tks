@@ -7,6 +7,10 @@
  * @returns {string|null} access_token hoac null neu that bai
  */
 function getKiotVietToken() {
+  const cache = CacheService.getScriptCache();
+  const cachedToken = cache.get('KIOTVIET_ACCESS_TOKEN');
+  if (cachedToken) return cachedToken;
+
   const properties = PropertiesService.getScriptProperties();
   const clientId = properties.getProperty('KIOTVIET_CLIENT_ID');
   const clientSecret = properties.getProperty('KIOTVIET_CLIENT_SECRET');
@@ -39,8 +43,14 @@ function getKiotVietToken() {
       const responseCode = response.getResponseCode();
       const responseText = response.getContentText();
       if (responseCode >= 200 && responseCode < 300) {
-        const token = JSON.parse(responseText).access_token;
-        if (token) return token;
+        const tokenResult = JSON.parse(responseText);
+        const token = tokenResult.access_token;
+        if (token) {
+          const expiresIn = Number(tokenResult.expires_in) || 3600;
+          const cacheSeconds = Math.max(60, Math.min(3300, expiresIn - 60));
+          cache.put('KIOTVIET_ACCESS_TOKEN', token, cacheSeconds);
+          return token;
+        }
         lastError = new Error('KiotViet khong tra ve access_token.');
       } else {
         lastError = new Error('HTTP ' + responseCode + ' tu KiotViet token endpoint.');

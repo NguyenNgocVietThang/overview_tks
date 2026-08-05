@@ -39,7 +39,7 @@ Sơ đồ sử dụng 1 bể (Pool) "Hệ thống Dashboard TOKOSI" với 5 làn
 | **Vai trò (Lane)**         | **Mô tả trách nhiệm**                                                                                                           |
 |----------------------------|---------------------------------------------------------------------------------------------------------------------------------|
 | KiotViet POS               | Phần mềm quản lý bán hàng: phát sinh thay đổi dữ liệu, gửi webhook POST JSON đến Apps Script Web App URL.                       |
-| Apps Script                | Các module trong `src/` chạy trong Google Workspace: nhận webhook từ KiotViet, chạy lịch polling 5 phút, đồng bộ vào Google Sheets. |
+| Apps Script                | Các module trong `src/` chạy trong Google Workspace: lưu webhook vào queue bền vững, chạy lịch polling 15 phút, đồng bộ vào Google Sheets. |
 | Google Sheets              | Spreadsheet nguồn chứa 9 tab đồng bộ; cả 9 tab là đầu vào trực tiếp của dashboard.                                             |
 | Backend (Node.js/Express)  | Server trên Render.com: liệt kê tab, lọc tab hiện có, gọi `batchGet`, tính KPI theo giờ Việt Nam và trả JSON.                  |
 | Người dùng / Frontend      | Truy cập `tokosi.onrender.com`: xem Dashboard, lọc thời gian, làm mới thủ công/tự động và nhận tải bù khi quay lại tab.         |
@@ -61,7 +61,7 @@ Sơ đồ sử dụng 1 bể (Pool) "Hệ thống Dashboard TOKOSI" với 5 làn
 
 ```
 Luồng A (liên tục, nền):  KiotViet → Apps Script → Google Sheets
-                                          ↑ (polling 5 phút cho Trả hàng/NCC/Nhập hàng)
+                                          ↑ (polling 15 phút cho Trả hàng/NCC/Nhập hàng)
 
 Luồng B (theo yêu cầu):   Người dùng → Frontend → Backend → Google Sheets API
                                           ↓
@@ -83,45 +83,49 @@ Luồng này chạy liên tục và tự động, không phụ thuộc vào ngư
 [A1] ▭ KiotViet gửi POST JSON đến Apps Script Web App URL
      (action: product.update, invoice.update, order.update, customer.update, category.update...)
          |
-[A2] ▭ Apps Script `doPost(e)` nhận webhook payload
+[A2] ▭ Apps Script `doPost(e)` xác thực và ghi payload vào tab ẩn `_KV_WEBHOOK_QUEUE`
          |
-[A3] ◇ Cổng quyết định: loại action là gì?
-     ├─ product/stock → [A4a] upsertProductFromWebhook_ → cập nhật dòng trong "Hàng hóa"
-     ├─ invoice       → [A4b] upsertInvoiceFromWebhook_ → cập nhật "Hóa đơn" + replaceInvoiceDetailRows_ → "Chi tiết hóa đơn"
-     ├─ order         → [A4c] upsertOrderFromWebhook_  → cập nhật dòng trong "Đặt hàng"
-     ├─ customer      → [A4d] upsertCustomerFromWebhook_ → cập nhật dòng trong "Khách hàng"
-     └─ category      → [A4e] upsertCategoryFromWebhook_ → cập nhật dòng trong "Nhóm hàng"
+[A3] ▭ `doPost()` trả `QUEUED` sau khi Google Sheets xác nhận ghi thành công
          |
-[A5] ▭ Apps Script trả HTTP 200 {"ok":true} về KiotViet (tránh KiotViet retry vô hạn)
+[A4] ◎ Trigger 1 phút gọi `processWebhookQueue()`, nhận tối đa 50 sự kiện
          |
-[A6] ● Kết thúc — dữ liệu đã cập nhật trong Google Sheets
+[A5] ◇ Cổng quyết định: loại action là gì?
+     ├─ product/stock → updateProductsFromWebhook() → "Hàng hóa"
+     ├─ invoice       → updateInvoicesFromWebhook() → "Hóa đơn" + "Chi tiết hóa đơn"
+     ├─ order         → updateOrdersFromWebhook() → "Đặt hàng"
+     ├─ customer      → updateCustomersFromWebhook() → "Khách hàng"
+     └─ category      → updateCategoriesFromWebhook() → "Nhóm hàng"
+         |
+[A6] ◇ Thành công?
+     ├─ Có → xóa sự kiện khỏi queue
+     └─ Không → giữ payload, retry; sau 10 lần chuyển `ERROR`
 
---- SONG SONG: Polling trigger 5 phút ---
-[A7] ● Time-based trigger kích hoạt mỗi 5 phút
+--- SONG SONG: Polling trigger 15 phút ---
+[A7] ● Time-based trigger kích hoạt mỗi 15 phút
          |
 [A8] ▭ Apps Script chạy syncPollingOnly_():
      - syncReturns_()    → ghi lại toàn bộ sheet "Trả hàng"
      - syncSuppliers()   → ghi lại "Nhà cung cấp" + "Nhập hàng"
          |
-[A9] ● Kết thúc — 3 sheet được cập nhật (tối đa trễ 5 phút)
+[A9] ● Kết thúc — 3 sheet được cập nhật (tối đa trễ 15 phút)
 ```
 
 | **Bước** | **Vai trò**      | **Mô tả**                                                                                           | **Tham chiếu** |
 |----------|------------------|-----------------------------------------------------------------------------------------------------|----------------|
 | A0       | KiotViet         | Sự kiện bắt đầu: dữ liệu thay đổi trên KiotViet (bán hàng, nhập hàng, cập nhật tồn kho...).        | —              |
 | A1       | KiotViet         | Gửi POST JSON đến Apps Script Web App URL với payload chứa action và data.                          | FR-06.2        |
-| A2       | Apps Script      | `doPost(e)` nhận và parse payload; xác định loại action.                                            | FR-06.2        |
-| A3       | Apps Script      | Cổng quyết định theo loại action.                                                                   | FR-06.2        |
-| A4a–A4e  | Apps Script      | Cập nhật đúng dòng trong sheet tương ứng (upsert theo mã — không xóa toàn sheet).                  | FR-06.2        |
-| A5       | Apps Script      | Trả 200 OK về KiotViet để ngừng retry.                                                              | FR-06.2        |
-| A6       | —                | Kết thúc chu kỳ webhook.                                                                            | —              |
-| A7       | Apps Script      | Time-based trigger kích hoạt mỗi 5 phút (do KiotViet không có webhook cho Trả hàng/NCC/Nhập hàng). | FR-06.3        |
+| A2       | Apps Script      | `doPost(e)` xác thực và ghi payload bền vững trước khi phản hồi.                                    | FR-06.2, FR-06.10 |
+| A3       | Apps Script      | Trả `QUEUED`; nếu chưa ghi được thì trả lỗi và không xác nhận nhầm.                                 | FR-06.10       |
+| A4–A5    | Apps Script      | Trigger 1 phút phân loại và upsert/xóa đúng dòng trong sheet tương ứng.                             | FR-06.2        |
+| A6       | Apps Script      | Chỉ xóa payload khi thành công; lỗi được giữ để retry hoặc kiểm tra.                                | FR-06.10       |
+| A7       | Apps Script      | Time-based trigger kích hoạt mỗi 15 phút (do KiotViet không có webhook cho Trả hàng/NCC/Nhập hàng). | FR-06.3        |
 | A8       | Apps Script      | `syncPollingOnly_()`: ghi lại toàn bộ 3 sheet từ KiotViet API (full refresh, không upsert).         | FR-06.3        |
 | A9       | —                | Kết thúc chu kỳ polling.                                                                            | —              |
 
 **Lỗi trong Luồng A:**
 - Nếu KiotViet API trả 429/5xx: Apps Script retry tối đa 5 lần với exponential backoff (FR-06.5).
-- Nếu `doPost` throw exception: trả 200 OK để KiotViet không retry, log lỗi vào console.
+- Nếu `doPost` không ghi được queue: trả lỗi và không xóa payload chưa được lưu.
+- Nếu handler lỗi: giữ nguyên payload; retry tối đa 10 lần rồi chuyển `ERROR`.
 - Nếu polling trigger bị xóa: Trả hàng/NCC/Nhập hàng sẽ không được cập nhật tự động; IT Admin cần chạy lại `setupPollingTrigger()`.
 
 # 6. Luồng B — Sử dụng Dashboard (theo yêu cầu người dùng)
@@ -252,7 +256,7 @@ Luồng này do IT Admin thực hiện khi triển khai lần đầu hoặc khi 
 [C9] ▭ Menu KiotViet → "Đồng bộ tất cả" (sync toàn bộ lần đầu)
 [C10] ▭ Menu KiotViet → "Bật cập nhật real-time" → dán Web App URL
       → Apps Script đăng ký 9 loại webhook với KiotViet API
-[C11] ▭ Menu KiotViet → "Bật lịch tự động 5 phút"
+[C11] ▭ Chạy `setupPollingTrigger()` để bật lịch tự động 15 phút
       → Apps Script tạo time-based trigger cho Trả hàng/NCC/Nhập hàng
 [C12] ◎ Hệ thống đã cấu hình hoàn chỉnh, sẵn sàng vận hành
       → Chuyển sang Luồng A (tự động) và Luồng B (theo yêu cầu)
@@ -267,7 +271,7 @@ Luồng này do IT Admin thực hiện khi triển khai lần đầu hoặc khi 
 | C7–C8    | IT Admin     | Triển khai Apps Script làm Web App để nhận webhook từ KiotViet.                                 | FR-06.4        |
 | C9       | IT Admin     | Đồng bộ toàn bộ dữ liệu KiotViet lần đầu vào Spreadsheet.                                      | FR-06.1        |
 | C10      | IT Admin     | Đăng ký 9 loại webhook KiotViet → Apps Script.                                                  | FR-06.4        |
-| C11      | IT Admin     | Bật trigger polling 5 phút cho 3 bảng không có webhook.                                         | FR-06.3        |
+| C11      | IT Admin     | Bật trigger polling 15 phút cho 3 bảng không có webhook.                                        | FR-06.3        |
 | C12      | —            | Hệ thống sẵn sàng vận hành đầy đủ.                                                              | —              |
 
 # 8. Truy vết yêu cầu

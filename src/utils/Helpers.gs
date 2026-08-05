@@ -3,6 +3,14 @@
 // ==========================================
 
 /**
+ * Khoa rieng luong ghi du lieu. Project bound dung DocumentLock; neu project
+ * standalone thi dung UserLock (web app va trigger deu chay bang tai khoan deploy).
+ */
+function getKiotVietDataLock_() {
+  return LockService.getDocumentLock() || LockService.getUserLock();
+}
+
+/**
  * Ham lay ban do Dong tuong ung voi Ma (code) de tim kiem nhanh.
  * Tranh viec scan toan bo sheet moi lan cap nhat.
  *
@@ -332,10 +340,26 @@ function ensureProductSheetSchema_(sheet) {
     return defaults[newIndex];
   }));
 
-  sheet.clearContents();
+  const previousLastRow = lastRow;
+  const previousLastColumn = lastColumn;
   sheet.getRange(1, 1, 1, PRODUCT_SHEET_HEADERS.length).setValues([PRODUCT_SHEET_HEADERS]);
   if (migratedRows.length > 0) {
     sheet.getRange(2, 1, migratedRows.length, PRODUCT_SHEET_HEADERS.length).setValues(migratedRows);
+  }
+  const newLastRow = migratedRows.length + 1;
+  if (previousLastRow > newLastRow) {
+    sheet.getRange(
+      newLastRow + 1,
+      1,
+      previousLastRow - newLastRow,
+      previousLastColumn
+    ).clearContent();
+  }
+  if (previousLastColumn > PRODUCT_SHEET_HEADERS.length) {
+    sheet.deleteColumns(
+      PRODUCT_SHEET_HEADERS.length + 1,
+      previousLastColumn - PRODUCT_SHEET_HEADERS.length
+    );
   }
   formatProductSheet_(sheet, migratedRows.length);
 }

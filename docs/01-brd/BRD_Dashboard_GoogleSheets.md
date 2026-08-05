@@ -45,7 +45,7 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - Bảo đảm các KPI theo ngày và thời điểm cập nhật luôn được tính theo múi giờ **Asia/Ho_Chi_Minh (UTC+7)**, không phụ thuộc múi giờ của máy chủ Render.
 
-- Dữ liệu được đồng bộ **gần thời gian thực** từ KiotViet sang Google Sheets qua 2 cơ chế: (a) webhook KiotViet → Apps Script cho 6 nhóm dữ liệu chính, (b) lịch polling 5 phút cho 3 bảng KiotViet không có webhook (Trả hàng, Nhà cung cấp, Nhập hàng).
+- Dữ liệu được đồng bộ **gần thời gian thực** từ KiotViet sang Google Sheets qua 2 cơ chế: (a) webhook KiotViet → hàng đợi bền vững Apps Script cho 6 nhóm dữ liệu chính, (b) lịch polling 15 phút cho 3 bảng KiotViet không có webhook (Trả hàng, Nhà cung cấp, Nhập hàng).
 
 - Tab **Báo cáo bán hàng** bám theo file xuất KiotViet trong tháng hiện tại với 18 cột: thông tin khách hàng, số đơn/tổng tiền/giảm giá/doanh thu/trả hàng và chi tiết từng giao dịch; tự động làm mới hàng ngày lúc gần 07:00 theo múi giờ Việt Nam.
 
@@ -86,7 +86,7 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - **Cập nhật dữ liệu trên dashboard:** thủ công qua nút "Làm mới", tự động mỗi 10 phút và tải bù khi người dùng quay lại tab trình duyệt sau ít nhất 10 phút.
 
-- **Đồng bộ tự động** từ KiotViet qua Apps Script (webhook + polling 5 phút), không cần thao tác từ phía web dashboard.
+- **Đồng bộ tự động** từ KiotViet qua Apps Script (webhook + polling 15 phút), không cần thao tác từ phía web dashboard.
 
 - **Truy cập không yêu cầu đăng nhập** trong Giai đoạn 1 (nội bộ, truy cập trực tiếp URL).
 
@@ -185,7 +185,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 
 **Đồng bộ nguồn (phía Apps Script, không phụ thuộc backend web):**
 - **Webhook KiotViet → Apps Script:** KiotViet gửi POST JSON mỗi khi có thay đổi Hàng hóa, Hóa đơn, Đặt hàng, Khách hàng, Nhóm hàng (9 loại event); Apps Script cập nhật đúng dòng trong Google Sheets, đồng thời thay các dòng tương ứng trong `Hàng bán theo khách` khi hóa đơn đổi.
-- **Polling 5 phút:** Apps Script trigger chạy mỗi 5 phút để đồng bộ Trả hàng, Nhà cung cấp, Nhập hàng (KiotViet không có webhook cho 3 nhóm này).
+- **Polling 15 phút:** Apps Script trigger chạy mỗi 15 phút để đồng bộ Trả hàng, Nhà cung cấp, Nhập hàng (KiotViet không có webhook cho 3 nhóm này).
 - **Bảo vệ HN1/HN3/HN7:** Apps Script không tạo lịch đối soát; khi nâng cấp, cơ chế thiết lập tự động gỡ trigger công nợ legacy mà không truy cập ba tab.
 
 ## 5.6. Truy cập & bảo mật (Giai đoạn 1)
@@ -243,7 +243,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 | **Bước**                          | **Nội dung**                                                                                      | **Trạng thái** |
 |-----------------------------------|---------------------------------------------------------------------------------------------------|----------------|
 | 1. Phân tích & thiết kế            | Hoàn thiện BRD, SRS, BPMN; thiết kế kiến trúc kỹ thuật                                           | Hoàn thành     |
-| 2. Apps Script đồng bộ KiotViet    | `src/`: sync đủ trường, webhook real-time, polling 5 phút cho 3 bảng không có webhook | Hoàn thành     |
+| 2. Apps Script đồng bộ KiotViet    | `src/`: sync đủ trường, webhook qua queue bền vững, polling 15 phút cho 3 bảng không có webhook | Hoàn thành     |
 | 3. Backend Node.js/Express         | API `/api/dashboard`, lọc tab hiện có rồi `batchGet`, tính KPI theo giờ Việt Nam                 | Hoàn thành     |
 | 4. Frontend HTML/CSS/JS            | Dashboard, bộ lọc thời gian, làm mới thủ công/tự động 10 phút và tải bù khi quay lại tab          | Hoàn thành     |
 | 5. Triển khai Render.com           | Deploy lên `tokosi.onrender.com`, cấu hình biến môi trường                                        | Hoàn thành     |

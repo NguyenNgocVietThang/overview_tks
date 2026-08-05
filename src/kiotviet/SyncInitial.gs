@@ -10,39 +10,45 @@
  * HN1/HN3/HN7 do KiotViet quan ly va tuyet doi khong duoc thay doi.
  */
 function syncAllInitialData() {
-  migrateKiotVietSheetsIfNeeded_();
+  const dataLock = getKiotVietDataLock_();
+  dataLock.waitLock(30000);
+  try {
+    migrateKiotVietSheetsIfNeeded_();
 
-  const token = getKiotVietToken();
-  if (!token) throw new Error('Khong lay duoc KiotViet token.');
+    const token = getKiotVietToken();
+    if (!token) throw new Error('Khong lay duoc KiotViet token.');
 
-  Logger.log('Bat dau dong bo Nhom hang...');
-  syncCategoriesInitial(token);
+    Logger.log('Bat dau dong bo Nhom hang...');
+    syncCategoriesInitial(token);
 
-  Logger.log('Bat dau dong bo Hang hoa...');
-  syncProductsInitial(token);
+    Logger.log('Bat dau dong bo Hang hoa...');
+    syncProductsInitial(token);
 
-  Logger.log('Bat dau dong bo Hoa don va Chi tiet hoa don...');
-  syncInvoicesInitial(token);
+    Logger.log('Bat dau dong bo Hoa don va Chi tiet hoa don...');
+    syncInvoicesInitial(token);
 
-  Logger.log('Bat dau dong bo Dat hang...');
-  syncOrdersInitial(token);
+    Logger.log('Bat dau dong bo Dat hang...');
+    syncOrdersInitial(token);
 
-  Logger.log('Bat dau dong bo Tra hang...');
-  syncReturnsInitial(token);
+    Logger.log('Bat dau dong bo Tra hang...');
+    syncReturnsInitial(token);
 
-  Logger.log('Bat dau dong bo Khach hang...');
-  syncCustomersInitial(token);
+    Logger.log('Bat dau dong bo Khach hang...');
+    syncCustomersInitial(token);
 
-  Logger.log('Bat dau dong bo Nha cung cap...');
-  syncSuppliersInitial(token);
+    Logger.log('Bat dau dong bo Nha cung cap...');
+    syncSuppliersInitial(token);
 
-  Logger.log('Bat dau dong bo Nhap hang...');
-  syncPurchasesInitial(token);
+    Logger.log('Bat dau dong bo Nhap hang...');
+    syncPurchasesInitial(token);
 
-  Logger.log('Bat dau tao Bao cao ban hang va Hang ban theo khach...');
-  syncCustomerReport();
+    Logger.log('Bat dau tao Bao cao ban hang va Hang ban theo khach...');
+    syncCustomerReport();
 
-  Logger.log('Hoan tat dong bo day du 9 sheet van hanh va 2 sheet bao cao; giu nguyen HN1/HN3/HN7.');
+    Logger.log('Hoan tat dong bo day du 9 sheet van hanh va 2 sheet bao cao; giu nguyen HN1/HN3/HN7.');
+  } finally {
+    dataLock.releaseLock();
+  }
 }
 
 function syncCategoriesInitial(token) {
@@ -105,28 +111,37 @@ function syncPurchasesInitial(token) {
 }
 
 /**
- * Ba endpoint nay khong co webhook Public API; polling 5 phut de sheet khong bi cu.
+ * Ba endpoint nay khong co webhook Public API; polling 15 phut de giam quota.
  */
 function syncPollingOnly_() {
-  const token = getKiotVietToken();
-  syncReturnsInitial(token);
-  syncSuppliersInitial(token);
-  syncPurchasesInitial(token);
-  Logger.log('Da polling Tra hang, Nha cung cap va Nhap hang.');
+  const dataLock = getKiotVietDataLock_();
+  if (!dataLock.tryLock(30000)) {
+    Logger.log('Bo qua polling lan nay vi dang co mot dot ghi du lieu khac.');
+    return;
+  }
+  try {
+    const token = getKiotVietToken();
+    syncReturnsInitial(token);
+    syncSuppliersInitial(token);
+    syncPurchasesInitial(token);
+    Logger.log('Da polling Tra hang, Nha cung cap va Nhap hang.');
+  } finally {
+    dataLock.releaseLock();
+  }
 }
 
 function setupPollingTrigger() {
   removePollingTrigger_();
   ScriptApp.newTrigger('syncPollingOnly_')
     .timeBased()
-    .everyMinutes(5)
+    .everyMinutes(15)
     .create();
-  Logger.log('Da bat polling 5 phut cho Tra hang, Nha cung cap va Nhap hang.');
+  Logger.log('Da bat polling 15 phut cho Tra hang, Nha cung cap va Nhap hang.');
 }
 
 function removePollingTrigger() {
   removePollingTrigger_();
-  Logger.log('Da tat polling 5 phut.');
+  Logger.log('Da tat polling 15 phut.');
 }
 
 function removePollingTrigger_() {

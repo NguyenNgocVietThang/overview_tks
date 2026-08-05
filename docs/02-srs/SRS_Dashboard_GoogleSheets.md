@@ -25,7 +25,7 @@ Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi ch�
 
 Hệ thống là một Web Application nội bộ gồm 2 thành phần chính:
 
-1. **Apps Script (`src/`):** chạy trong Google Workspace, đồng bộ đủ trường dữ liệu KiotViet Public API vào 9 tab vận hành và 2 tab tổng hợp báo cáo khách hàng (qua webhook KiotViet real-time + polling 5 phút + lịch báo cáo hàng ngày). Ba tab HN1/HN3/HN7 do KiotViet quản lý và nằm ngoài phạm vi ghi dữ liệu của Apps Script.
+1. **Apps Script (`src/`):** chạy trong Google Workspace, đồng bộ đủ trường dữ liệu KiotViet Public API vào 9 tab vận hành và 2 tab tổng hợp báo cáo khách hàng (qua webhook KiotViet + hàng đợi bền vững + polling 15 phút + lịch báo cáo hàng ngày). Ba tab HN1/HN3/HN7 do KiotViet quản lý và nằm ngoài phạm vi ghi dữ liệu của Apps Script.
 
 2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu từ Google Spreadsheet qua Google Sheets API (Service Account), tính toán KPI và dữ liệu biểu đồ, trả về cho frontend qua REST API. Frontend hiển thị Dashboard tương tác trên trình duyệt.
 
@@ -40,7 +40,7 @@ Hệ thống là một Web Application nội bộ gồm 2 thành phần chính:
 | Apps Script             | Mã module trong `src/` chạy trong Google Workspace, đồng bộ dữ liệu từ KiotViet.    |
 | batchGet                | Gọi Google Sheets API đọc nhiều tab đang tồn tại cùng lúc trong 1 request HTTP.      |
 | KiotViet webhook        | KiotViet Public API gửi POST JSON về Web App URL của Apps Script khi có thay đổi.    |
-| Polling trigger         | Apps Script time-based trigger chạy mỗi 5 phút cho 3 bảng không có KiotViet webhook. |
+| Polling trigger         | Apps Script time-based trigger chạy mỗi 15 phút cho 3 bảng không có KiotViet webhook. |
 
 ## 1.4. Tài liệu tham khảo
 
@@ -60,7 +60,7 @@ KiotViet POS
     v
 Apps Script (`src/`, triển khai bằng clasp) — Web App URL
     |                                   |
-    | hydrate + upsert/delete           | time-based trigger (5 phút)
+    | hydrate + upsert/delete           | time-based trigger (15 phút)
     | (real-time cho 6 nhóm)            | (Trả hàng + NCC + Nhập hàng)
     v                                   v
 Google Spreadsheet (9 tab đồng bộ và được dashboard sử dụng)
@@ -113,7 +113,7 @@ Người dùng (trình duyệt) — tokosi.onrender.com
 ### Apps Script
 - **Mã triển khai:** các module trong `src/` (`.clasp.json` đặt `rootDir: "src"`)
 - **Nơi chạy:** Google Apps Script (gắn với Google Spreadsheet)
-- **Chức năng:** sync full đủ trường, webhook receiver (doPost), hydrate + upsert/delete real-time, polling trigger 5 phút
+- **Chức năng:** sync full đủ trường, webhook receiver (doPost), queue bền vững, hydrate + upsert/delete, polling trigger 15 phút
 
 ## 2.3. Đối tượng người dùng (Giai đoạn 1)
 
@@ -205,13 +205,15 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
 | FR-06.1 | `syncAllInitialData()`: đồng bộ toàn bộ dữ liệu KiotViet vào 9 sheet vận hành (xóa nội dung và ghi lại toàn bộ).                                                           | Cao         | Hoàn thành     |
 | FR-06.2 | `doPost(e)`: nhận webhook POST, hydrate bản ghi chi tiết rồi upsert/delete đúng sheet cho product/invoice/order/customer/category; hóa đơn đồng thời thay chi tiết hóa đơn và các dòng `Hàng bán theo khách`. | Cao | Hoàn thành |
-| FR-06.3 | `setupPollingTrigger()`: bật trigger 5 phút để sync Trả hàng + Nhà cung cấp + Nhập hàng (KiotViet không có webhook cho 3 loại này).                                           | Cao         | Hoàn thành     |
+| FR-06.3 | `setupPollingTrigger()`: bật trigger 15 phút để sync Trả hàng + Nhà cung cấp + Nhập hàng (KiotViet không có webhook cho 3 loại này).                                          | Cao         | Hoàn thành     |
 | FR-06.4 | `setupRealtimeWebhook()`: đăng ký 9 loại event webhook với KiotViet API, xóa webhook cũ trước khi đăng ký mới.                                                               | Cao         | Hoàn thành     |
 | FR-06.5 | Retry tự động tối đa 5 lần (exponential backoff) khi gọi KiotViet API bị lỗi tạm thời (429/5xx/network error).                                                               | Cao         | Hoàn thành     |
 | FR-06.6 | `syncCustomerReport()`: tổng hợp hóa đơn và trả hàng hoàn thành trong tháng, ghi tab `Báo cáo bán hàng` đủ 18 cột như file xuất KiotViet, gồm thông tin khách, số đơn, tổng tiền, giảm giá, doanh thu và chi tiết từng giao dịch. | Cao | Hoàn thành |
 | FR-06.7 | Tab `Hàng bán theo khách` giữ đúng 5 cột Khách hàng, Mã hàng, Tên hàng, SL mua chi tiết, Thời gian; mỗi chi tiết hàng hóa của hóa đơn hoàn thành trong 90 ngày là một dòng. | Cao | Hoàn thành |
 | FR-06.8 | Webhook hóa đơn thay/xóa đúng các dòng `Hàng bán theo khách` trong chu kỳ hàng đợi 1 phút; `syncCustomerReportIfDue_()` vẫn đối soát toàn bộ hai báo cáo một lần/ngày sau 07:00. | Cao | Hoàn thành |
 | FR-06.9 | 9 sheet giữ các cột dashboard ở bên trái và các trường KiotViet dạng phẳng đang dùng ở bên phải; không lưu object/mảng hoặc payload gốc dạng JSON. Trigger nền tự xóa vật lý các cột `(JSON)` của schema cũ sau khi deploy. | Cao | Hoàn thành |
+| FR-06.10 | Webhook phải được ghi vào tab hàng đợi ẩn bền vững trước khi phản hồi thành công; chỉ xóa sau khi xử lý thành công. Lỗi được retry tối đa 10 lần rồi giữ ở trạng thái `ERROR` để xử lý thủ công. | Cao | Hoàn thành |
+| FR-06.11 | Full sync ghi dữ liệu mới trước khi dọn dòng cũ dư và khóa chung với luồng webhook, tránh xóa trắng hoặc ghi đè chéo khi cập nhật lỗi. | Cao | Hoàn thành |
 | FR-06.10 | Apps Script không được tạo, xóa, đọc/ghi dữ liệu, đổi header, bộ lọc, định dạng, kích thước hoặc bất kỳ thuộc tính cấu trúc nào của `HN1`, `HN3`, `HN7`. Các hàm công nợ legacy chỉ được phép gỡ trigger cũ và trả trạng thái bỏ qua. | Cao | Hoàn thành |
 
 ## 3.7. FR-07: Giao diện người dùng
@@ -238,7 +240,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | NFR-06 | Bảo trì              | Mã nguồn tổ chức theo module rõ ràng, comment tiếng Việt, dễ đọc và bảo trì.                                                                   |
 | NFR-07 | Giới hạn API         | Sau khi lấy metadata tab, dùng một `batchGet` duy nhất để đọc toàn bộ tab dữ liệu đang tồn tại; chu kỳ làm mới tự động là 10 phút.               |
 | NFR-08 | Nhật ký & debug      | Log chi tiết lỗi khi `/api/dashboard` thất bại; `/api/debug` kiểm tra kết nối và trả danh sách tab hiện có mà không lộ secret.                   |
-| NFR-09 | Độ trễ đồng bộ       | Từ khi dữ liệu thay đổi trên KiotViet → Apps Script cập nhật Sheets (qua webhook): mục tiêu < 10 giây. Trả hàng/NCC/Nhập hàng: tối đa 5 phút (polling). |
+| NFR-09 | Độ trễ đồng bộ       | Từ khi dữ liệu thay đổi trên KiotViet → Apps Script cập nhật Sheets qua webhook: mục tiêu dưới 2 phút. Trả hàng/NCC/Nhập hàng: tối đa 15 phút (polling). |
 | NFR-10 | Nhất quán thời gian  | Parse ngày từ Sheets, xác định ngày hiện tại, tạo bucket 7/30/90 ngày và format `updatedAt` theo Asia/Ho_Chi_Minh, độc lập timezone máy chủ.      |
 
 # 5. Yêu cầu giao diện người dùng (UI Requirements)
@@ -413,14 +415,14 @@ lần qua trigger nền sẽ xóa vật lý các cột `(JSON)` của schema cũ
 
 - Cấu trúc, dữ liệu, định dạng và lịch cập nhật của HN1/HN3/HN7 được giữ nguyên theo nguồn KiotViet.
 - Apps Script không đăng ký trigger đồng bộ cho ba tab này và không lấy tên tab vào cấu hình ghi dữ liệu.
-- `syncAllInitialData()`, hàng đợi webhook và polling 5 phút không được truy cập hoặc thay đổi HN1/HN3/HN7.
+- `syncAllInitialData()`, hàng đợi webhook và polling 15 phút không được truy cập hoặc thay đổi HN1/HN3/HN7.
 - Các entry point công nợ cũ được giữ làm compatibility guard: chỉ gỡ trigger legacy rồi trả trạng thái `skipped`, tuyệt đối không gọi Spreadsheet service cho ba tab này.
 
 ## 7.5. Webhook KiotViet — 9 loại event
 
 `product.update`, `product.delete`, `stock.update`, `customer.update`, `customer.delete`, `invoice.update`, `order.update`, `category.update`, `category.delete`
 
-**Lưu ý quan trọng:** KiotViet KHÔNG có webhook cho Trả hàng (`return.*`), Nhà cung cấp (`supplier.*`), Nhập hàng (`purchaseorder.*`) → phải dùng polling 5 phút.
+**Lưu ý quan trọng:** KiotViet KHÔNG có webhook cho Trả hàng (`return.*`), Nhà cung cấp (`supplier.*`), Nhập hàng (`purchaseorder.*`) → dùng polling 15 phút để cân bằng độ mới dữ liệu và quota.
 
 ## 7.6. Format ngày tháng
 
@@ -448,7 +450,7 @@ Các phép tính "hôm nay", bucket ngày 7/30/90 ngày và `updatedAt` đều d
 |--------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
 | Google Sheets API trả 500 khiến dashboard không load được                            | Log chi tiết lỗi (googleStatus, message) + route `/api/debug` để chẩn đoán nhanh. Hiển thị lỗi rõ ràng cho user. |
 | Service Account bị xóa hoặc mất quyền trên Spreadsheet                              | Biến môi trường `GOOGLE_SERVICE_ACCOUNT_JSON` trên Render; cần re-share Spreadsheet khi thay SA.                   |
-| KiotViet webhook bị gỡ/hết hạn → Sheets không được cập nhật real-time               | Polling 5 phút là fallback cho 3 bảng; chạy thủ công `syncAllInitialData()` để full refresh.                       |
+| KiotViet webhook bị gỡ/hết hạn → các bảng có webhook ngừng cập nhật                  | Kiểm tra webhook/queue; chạy thủ công `syncAllInitialData()` để đối soát toàn bộ. Polling 15 phút chỉ áp dụng cho 3 bảng không có webhook. |
 | Apps Script timeout khi đồng bộ lượng lớn dữ liệu (quota 6 phút/execution)          | Hàm `kvFetchAllPages_` chia nhỏ theo trang (pageSize=100); retry có delay tránh rate-limit.                         |
 | Tên sheet hoặc thứ tự cột thay đổi trong Apps Script → backend đọc sai dữ liệu      | Schema cố định, comment rõ ràng trong cả 2 file; cần sync thay đổi schema giữa Apps Script và dashboardData.js.    |
 | Một tab bị thiếu/đổi tên làm `batchGet` lỗi toàn bộ                                 | Liệt kê tab trước khi đọc, chỉ `batchGet` tab hiện có; trả mảng rỗng cho tab thiếu và kiểm tra bằng `/api/debug`.   |
