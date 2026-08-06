@@ -276,14 +276,57 @@ function normalizeWhitespace(value) {
 
 function normalizeSearchValue(value) {
   return normalizeWhitespace(value)
-    .toLocaleLowerCase('vi-VN')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd');
+    // NFC keeps Vietnamese diacritics comparable even when the source and the
+    // query use different Unicode representations (for example, "a" + a tone
+    // mark versus the precomposed character). Case is intentionally ignored.
+    .normalize('NFC')
+    .toLocaleLowerCase('vi-VN');
+}
+
+function compactSearchValue(value) {
+  return value.replace(/\s/gu, '');
+}
+
+function buildSearchIndex(sheets) {
+  const sources = {};
+
+  Object.entries(SEARCH_SOURCES).forEach(([sourceKey, source], sourceOrder) => {
+    const rows = sheets[source.sheetName] || [];
+    const headers = rows[0] || [];
+    const records = [];
+
+    for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
+      const row = rows[rowIndex] || [];
+      const code = normalizeWhitespace(row[source.codeIndex]);
+      const name = normalizeWhitespace(row[source.nameIndex]);
+      if (!code && !name) continue;
+      if (sourceKey === 'products' && isVatProductCode(code)) continue;
+
+      const normalizedCode = normalizeSearchValue(code);
+      const normalizedName = normalizeSearchValue(name);
+      records.push({
+        row,
+        rowIndex,
+        code,
+        name: name || code,
+        normalizedCode,
+        normalizedName,
+        compactCode: compactSearchValue(normalizedCode),
+        compactName: compactSearchValue(normalizedName)
+      });
+    }
+
+    sources[sourceKey] = { source, sourceOrder, headers, records };
+  });
+
+  return sources;
 }
 
 function rememberSearchSheets(sheets) {
-  searchSheetCache.data = sheets;
+  // Normalizing every cell and serializing every field on each keystroke was
+  // the hot path for large product sheets. Build the reusable search index when
+  // the Sheets cache changes instead.
+  searchSheetCache.data = buildSearchIndex(sheets);
   searchSheetCache.expiresAt = Date.now() + SEARCH_CACHE_TTL_MS;
 }
 
@@ -296,7 +339,7 @@ async function getSearchSheets() {
   const loading = sheetsClient.getMultipleSheetValues(SEARCH_SHEET_NAMES)
     .then(sheets => {
       rememberSearchSheets(sheets);
-      return sheets;
+      return searchSheetCache.data;
     })
     .finally(() => {
       if (searchSheetCache.loading === loading) searchSheetCache.loading = null;
@@ -305,26 +348,23 @@ async function getSearchSheets() {
   return loading;
 }
 
-function getSearchMatchRank(code, name, query) {
-  if (code === query) return 0;
-  if (name === query) return 1;
-
-  const compactCode = code.replace(/\s/g, '');
-  const compactName = name.replace(/\s/g, '');
-  const compactQuery = query.replace(/\s/g, '');
-  const queryTokens = query.split(' ').filter(Boolean);
-  if (compactCode === compactQuery) return 2;
-  if (compactName === compactQuery) return 3;
-  if (code.startsWith(query)) return 4;
-  if (name.startsWith(query)) return 5;
-  if (compactCode.startsWith(compactQuery)) return 6;
-  if (compactName.startsWith(compactQuery)) return 7;
-  if (code.includes(query)) return 8;
-  if (name.includes(query)) return 9;
-  if (compactCode.includes(compactQuery)) return 10;
-  if (compactName.includes(compactQuery)) return 11;
-  if (queryTokens.length > 1 && queryTokens.every(token => code.includes(token))) return 12;
-  if (queryTokens.length > 1 && queryTokens.every(token => name.includes(token))) return 13;
+function getSearchMatchRank(record, query) {
+  const { normalizedCode: code, normalizedName: name, compactCode, compactName } = record;
+  const { value, compactValue, tokens } = query;
+  if (code === value) return 0;
+  if (name === value) return 1;
+  if (compactCode === compactValue) return 2;
+  if (compactName === compactValue) return 3;
+  if (code.startsWith(value)) return 4;
+  if (name.startsWith(value)) return 5;
+  if (compactCode.startsWith(compactValue)) return 6;
+  if (compactName.startsWith(compactValue)) return 7;
+  if (code.includes(value)) return 8;
+  if (name.includes(value)) return 9;
+  if (compactCode.includes(compactValue)) return 10;
+  if (compactName.includes(compactValue)) return 11;
+  if (tokens.length > 1 && tokens.every(token => code.includes(token))) return 12;
+  if (tokens.length > 1 && tokens.every(token => name.includes(token))) return 13;
   return -1;
 }
 
@@ -350,51 +390,42 @@ function buildSearchFields(headers, row) {
 async function searchDashboardRecords(view, rawQuery, rawLimit) {
   const scope = SEARCH_SCOPES[view] || SEARCH_SCOPES.overview;
   const queryText = normalizeWhitespace(rawQuery).slice(0, 120);
-  const query = normalizeSearchValue(queryText);
+  const normalizedQuery = normalizeSearchValue(queryText);
+  const query = {
+    value: normalizedQuery,
+    compactValue: compactSearchValue(normalizedQuery),
+    tokens: normalizedQuery.split(' ').filter(Boolean)
+  };
   const wantsAllResults = String(rawLimit || '').toLocaleLowerCase('vi-VN') === 'all';
   const limit = wantsAllResults ? null : Math.min(Math.max(Number(rawLimit) || 8, 1), 50);
-  if (!query) return { view, query: queryText, total: 0, results: [] };
+  if (!query.value) return { view, query: queryText, total: 0, results: [] };
 
-  const sheets = await getSearchSheets();
+  const indexedSources = await getSearchSheets();
   const matches = [];
 
-  scope.forEach((sourceKey, sourceOrder) => {
-    const source = SEARCH_SOURCES[sourceKey];
-    const rows = sheets[source.sheetName] || [];
-    const headers = rows[0] || [];
+  scope.forEach(sourceKey => {
+    const indexedSource = indexedSources[sourceKey];
+    if (!indexedSource) return;
 
-    for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
-      const row = rows[rowIndex] || [];
-      const code = normalizeWhitespace(row[source.codeIndex]);
-      const name = normalizeWhitespace(row[source.nameIndex]);
-      if (!code && !name) continue;
-      if (sourceKey === 'products' && isVatProductCode(code)) continue;
-
-      const rank = getSearchMatchRank(
-        normalizeSearchValue(code),
-        normalizeSearchValue(name),
-        query
-      );
-      if (rank < 0) continue;
+    indexedSource.records.forEach(record => {
+      const rank = getSearchMatchRank(record, query);
+      if (rank < 0) return;
 
       matches.push({
-        id: `${sourceKey}:${rowIndex + 1}`,
+        indexedSource,
+        record,
         source: sourceKey,
-        sourceLabel: source.label,
-        code,
-        name: name || code,
-        fields: buildSearchFields(headers, row),
         _rank: rank,
-        _sourceOrder: sourceOrder
+        _sourceOrder: indexedSource.sourceOrder
       });
-    }
+    });
   });
 
   matches.sort((a, b) =>
     a._rank - b._rank ||
     a._sourceOrder - b._sourceOrder ||
-    a.code.localeCompare(b.code, 'vi', { numeric: true, sensitivity: 'base' }) ||
-    a.name.localeCompare(b.name, 'vi', { sensitivity: 'base' })
+    a.record.code.localeCompare(b.record.code, 'vi', { numeric: true, sensitivity: 'base' }) ||
+    a.record.name.localeCompare(b.record.name, 'vi', { sensitivity: 'base' })
   );
 
   return {
@@ -402,7 +433,14 @@ async function searchDashboardRecords(view, rawQuery, rawLimit) {
     query: queryText,
     total: matches.length,
     results: (limit === null ? matches : matches.slice(0, limit))
-      .map(({ _rank, _sourceOrder, ...result }) => result)
+      .map(({ indexedSource, record, source, _rank, _sourceOrder }) => ({
+        id: `${source}:${record.rowIndex + 1}`,
+        source,
+        sourceLabel: indexedSource.source.label,
+        code: record.code,
+        name: record.name,
+        fields: buildSearchFields(indexedSource.headers, record.row)
+      }))
   };
 }
 
