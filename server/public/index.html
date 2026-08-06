@@ -685,9 +685,9 @@
               </div>
               <div class="table-wrap">
                 <table>
-                  <thead><tr><th>Mã giao dịch</th><th>Thời gian</th><th>SL</th><th>Doanh thu</th><th>Giảm giá</th><th>Thực thu</th><th>Trạng thái</th></tr></thead>
-                  <tbody id="endOfDayRows"><tr><td colspan="7" class="empty">Đang tải...</td></tr></tbody>
-                  <tfoot><tr><td colspan="2">Tổng cuối ngày</td><td class="mono" id="end-day-total-qty">—</td><td class="mono" id="end-day-total-revenue">—</td><td class="mono" id="end-day-total-discount">—</td><td class="mono" id="end-day-total-paid">—</td><td></td></tr></tfoot>
+                  <thead><tr><th>Mã giao dịch</th><th>Thời gian</th><th>Khách hàng</th><th>Nhân viên bán hàng</th><th>SL</th><th>Doanh thu</th><th>Giảm giá</th><th>Thực thu</th><th>Trạng thái</th></tr></thead>
+                  <tbody id="endOfDayRows"><tr><td colspan="9" class="empty">Đang tải...</td></tr></tbody>
+                  <tfoot><tr><td colspan="4">Tổng cuối ngày</td><td class="mono" id="end-day-total-qty">—</td><td class="mono" id="end-day-total-revenue">—</td><td class="mono" id="end-day-total-discount">—</td><td class="mono" id="end-day-total-paid">—</td><td></td></tr></tfoot>
                 </table>
               </div>
             </div>
@@ -751,6 +751,24 @@
                 <table>
                   <thead><tr><th>Mã</th><th>Tên</th><th>Nhóm hàng</th><th>Giá vốn</th><th>Giá bán</th></tr></thead>
                   <tbody id="todayNewProductRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-head"><span class="section-step">7</span><h2>Hàng nhập gần đây <span class="section-note">ngày nhập cách hôm nay không quá 90 ngày</span></h2></div>
+          <div class="grid">
+            <div class="panel col-12">
+              <div class="panel-head">
+                <h2>Danh sách nhập hàng <span class="tag" id="tagPurchases">—</span></h2>
+                <span class="drill-hint">Tính từ ngày nhập đầu tiên · ≤ 90 ngày</span>
+              </div>
+              <div class="scroll-list" style="max-height:420px;">
+                <table>
+                  <thead><tr><th>Mã nhập hàng</th><th>Ngày nhập</th><th>Nhà cung cấp</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead>
+                  <tbody id="purchaseRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
                 </table>
               </div>
             </div>
@@ -1026,23 +1044,14 @@
         </section>
 
         <section class="section">
-          <div class="section-head"><span class="section-step">3</span><h2>Dữ liệu chi tiết <span class="section-note">danh sách nhà cung cấp và lịch sử nhập hàng</span></h2></div>
+          <div class="section-head"><span class="section-step">3</span><h2>Dữ liệu chi tiết <span class="section-note">danh sách nhà cung cấp</span></h2></div>
           <div class="grid">
-            <div class="panel col-6">
+            <div class="panel col-12">
               <div class="panel-head"><h2>Danh sách nhà cung cấp <span class="tag" id="tagSuppliers">—</span></h2></div>
               <div class="scroll-list" style="max-height:380px;">
                 <table>
                   <thead><tr><th>Mã NCC</th><th>Tên</th><th>Điện thoại</th><th>Nợ cần trả</th></tr></thead>
                   <tbody id="supplierRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
-                </table>
-              </div>
-            </div>
-            <div class="panel col-6">
-              <div class="panel-head"><h2>Nhập hàng gần đây <span class="tag" id="tagPurchases">—</span></h2></div>
-              <div class="scroll-list" style="max-height:380px;">
-                <table>
-                  <thead><tr><th>Mã nhập hàng</th><th>Nhà cung cấp</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead>
-                  <tbody id="purchaseRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
                 </table>
               </div>
             </div>
@@ -1207,8 +1216,8 @@
         th.setAttribute('aria-sort', 'none');
         button.type = 'button';
         button.className = 'sort-button';
-        button.title = 'Sắp xếp ' + label + ' từ A đến Z';
-        button.setAttribute('aria-label', 'Sắp xếp cột ' + label + ' từ A đến Z');
+        button.title = 'Sắp xếp tăng dần theo ' + label;
+        button.setAttribute('aria-label', 'Sắp xếp tăng dần theo cột ' + label);
         labelSpan.textContent = label;
         indicator.className = 'sort-indicator';
         indicator.setAttribute('aria-hidden', 'true');
@@ -1236,6 +1245,10 @@
       return row.cells.length > columnIndex && row.cells[0].colSpan === 1;
     });
     if(rows.length < 2) return;
+
+    rows.forEach(function(row, index){
+      if(!row.hasAttribute('data-sort-original-index')) row.dataset.sortOriginalIndex = index;
+    });
 
     rows
       .map(function(row, originalIndex){
@@ -1265,21 +1278,39 @@
       const label = button ? button.firstElementChild.textContent : th.textContent.trim();
       const isActive = index === columnIndex;
       th.setAttribute('aria-sort', isActive ? (direction === 'asc' ? 'ascending' : 'descending') : 'none');
-      if(indicator) indicator.textContent = isActive ? (direction === 'asc' ? 'A–Z' : 'Z–A') : '↕';
+      if(indicator) indicator.textContent = isActive ? (direction === 'asc' ? '↓' : '↑') : '↕';
       if(button){
-        const nextDirectionLabel = isActive && direction === 'asc' ? 'Z đến A' : 'A đến Z';
-        button.title = 'Sắp xếp ' + label + ' từ ' + nextDirectionLabel;
-        button.setAttribute('aria-label', 'Sắp xếp cột ' + label + ' từ ' + nextDirectionLabel);
+        const nextAction = isActive
+          ? (direction === 'asc' ? 'Sắp xếp giảm dần' : 'Bỏ sắp xếp')
+          : 'Sắp xếp tăng dần';
+        button.title = nextAction + ' theo ' + label;
+        button.setAttribute('aria-label', nextAction + ' theo cột ' + label);
       }
     });
   }
 
   function setTableSort(tbodyId, columnIndex){
     const current = state.tableSorts[tbodyId];
-    const direction = current && current.columnIndex === columnIndex && current.direction === 'asc' ? 'desc' : 'asc';
+    if(current && current.columnIndex === columnIndex && current.direction === 'desc'){
+      delete state.tableSorts[tbodyId];
+      restoreTableRowOrder(tbodyId);
+      updateTableSortHeader(tbodyId, -1, null);
+      return;
+    }
+    const direction = current && current.columnIndex === columnIndex ? 'desc' : 'asc';
     state.tableSorts[tbodyId] = { columnIndex: columnIndex, direction: direction };
     sortTableRows(tbodyId, columnIndex, direction);
     updateTableSortHeader(tbodyId, columnIndex, direction);
+  }
+
+  function restoreTableRowOrder(tbodyId){
+    const tbody = document.getElementById(tbodyId);
+    if(!tbody) return;
+    Array.from(tbody.rows)
+      .sort(function(a, b){
+        return Number(a.dataset.sortOriginalIndex || 0) - Number(b.dataset.sortOriginalIndex || 0);
+      })
+      .forEach(function(row){ tbody.appendChild(row); });
   }
 
   function applyActiveTableSorts(){
@@ -1907,12 +1938,14 @@
       document.getElementById('endOfDayRows').innerHTML = transactions.length ? transactions.map(item =>
         '<tr><td class="mono name-cell">' + escapeHtml(item.code) + '</td>' +
         '<td class="mono muted">' + escapeHtml(item.time || '—') + '</td>' +
+        '<td class="name-cell">' + escapeHtml(item.customer || '—') + '</td>' +
+        '<td>' + escapeHtml(item.employee || '—') + '</td>' +
         '<td class="mono" data-sort-value="' + item.quantity + '">' + (item.quantityKnown ? Number(item.quantity || 0).toLocaleString('vi-VN') : '—') + '</td>' +
         '<td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td>' +
         '<td class="mono" data-sort-value="' + item.discount + '">' + fmtMoney(item.discount) + '</td>' +
         '<td class="mono" data-sort-value="' + item.paid + '">' + fmtMoney(item.paid) + '</td>' +
         '<td>' + statusPill(item.status) + '</td></tr>'
-      ).join('') : '<tr><td colspan="7" class="empty">Chưa có giao dịch trong ngày</td></tr>';
+      ).join('') : '<tr><td colspan="9" class="empty">Chưa có giao dịch trong ngày</td></tr>';
       renderTopTransactionsChart(report);
 
       const todayPurchases = ov.todayPurchases || { date:'Hôm nay', orderCount:0, totalAmount:0, supplierCount:0, bySupplier:[], orders:[] };
@@ -1954,6 +1987,16 @@
       ).join('') : '<tr><td colspan="5" class="empty">' +
         (todayNewProducts.dateColumnAvailable === false ? 'Sheet Hàng hóa chưa có cột Ngày tạo' : 'Chưa có mã hàng mới tạo hôm nay') +
         '</td></tr>';
+
+      const recentPurchases = (d.newPurchases && d.newPurchases.orders) || [];
+      document.getElementById('tagPurchases').textContent = recentPurchases.length;
+      document.getElementById('purchaseRows').innerHTML = recentPurchases.length ? recentPurchases.map(p =>
+        '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
+        '<td class="mono muted">' + (p.date ? escapeHtml(p.date) : '—') + '</td>' +
+        '<td class="name-cell">' + (p.supplier ? escapeHtml(p.supplier) : '—') + '</td>' +
+        '<td class="mono" data-sort-value="' + p.total + '">' + fmtMoney(p.total) + '</td>' +
+        '<td>' + genericStatusPill(p.status) + '</td></tr>'
+      ).join('') : '<tr><td colspan="5" class="empty">Không có hàng nhập trong 90 ngày gần đây</td></tr>';
     }
     else if(view === 'products'){
       document.getElementById('pr-total').textContent = d.kpi.totalProducts;
@@ -2057,12 +2100,6 @@
         '<td class="mono" data-sort-value="' + s.debt + '" style="color:' + (s.debt > 0 ? 'var(--red)' : 'inherit') + ';">' + fmtMoney(s.debt) + '</td></tr>'
       ).join('') : '<tr><td colspan="4" class="empty">Không có nhà cung cấp</td></tr>';
 
-      document.getElementById('tagPurchases').textContent = d.recentPurchaseOrders.length;
-      const purchaseRows = document.getElementById('purchaseRows');
-      purchaseRows.innerHTML = d.recentPurchaseOrders.length ? d.recentPurchaseOrders.map(p =>
-        '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + (p.supplier ? escapeHtml(p.supplier) : '—') + '</td>' +
-        '<td class="mono" data-sort-value="' + p.total + '">' + fmtMoney(p.total) + '</td><td>' + genericStatusPill(p.status) + '</td></tr>'
-      ).join('') : '<tr><td colspan="4" class="empty">Chưa có nhập hàng nào</td></tr>';
     }
     else if(view === 'debt'){
       const periodData = (d.debt && d.debt[state.debtPeriod]) || { customers: [], kpi: {} };

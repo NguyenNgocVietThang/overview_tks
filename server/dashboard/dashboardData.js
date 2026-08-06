@@ -613,6 +613,8 @@ function buildTransactionsReport(range, invoiceRecords, invoiceQuantityMap) {
       return {
         code: r.code,
         time: r._dt ? (singleDay ? formatHM(r._dt) : formatDMYHM(r._dt)) : '—',
+        customer: r.customer,
+        employee: r.employee,
         quantity: invoiceQuantityMap.get(normalizedCode) || 0,
         quantityKnown: invoiceQuantityMap.has(normalizedCode),
         revenue: r.total,
@@ -789,6 +791,7 @@ async function getDashboardData(filters) {
     if (!code) continue;
     const customer = row[2];
     const phone = row[3];
+    const employee = row[4];
     const total = Number(row[6]) || 0;
     const discount = Number(row[7]) || 0;
     const paid = Number(row[8]) || 0;
@@ -808,6 +811,7 @@ async function getDashboardData(filters) {
       code,
       customer,
       phone,
+      employee,
       total,
       discount,
       paid,
@@ -976,8 +980,6 @@ async function getDashboardData(filters) {
     });
   }
   purchaseRecords.sort((a, b) => b._sortTime - a._sortTime);
-  const recentPurchaseOrders = purchaseRecords.slice(0, 8).map(({ _dt, _sortTime, ...rest }) => rest);
-
   // ---------- NHẬP HÀNG HÔM NAY (tab Tổng quan) ----------
   // Sheet "Nhập hàng" chỉ có dữ liệu cấp phiếu. Vì vậy "tổng số lượng mã"
   // ở đây là số mã nhập hàng (số phiếu), không phải số mã sản phẩm bên trong.
@@ -996,12 +998,17 @@ async function getDashboardData(filters) {
   const todayPurchaseOrders = todayPurchaseRecords.map(({ _dt, _sortTime, ...rest }) => rest);
   const todayPurchaseTotalAmount = todayPurchaseRecords.reduce((sum, p) => sum + p.total, 0);
 
-  // ---------- HÀNG MỚI NHẬP: phiếu nhập trong N ngày gần đây, nhóm theo NCC ----------
-  // "Hang moi nhap" = phieu nhap co Ngay nhap trong NEW_PURCHASES_WINDOW_DAYS
-  // ngay gan day (TODAY() - Ngay nhap < 90). Bieu do 2 cot top 30 NCC theo
+  // ---------- HÀNG NHẬP GẦN ĐÂY: ngày nhập cách hôm nay không quá N ngày ----------
+  // Bao gồm cả phiếu có Ngày nhập đúng NEW_PURCHASES_WINDOW_DAYS ngày trước.
+  // Bieu do 2 cot top 30 NCC theo
   // Tong tien nhap, kem cot So phieu nhap — day la 2 so lieu duy nhat co san
   // o cap phieu nhap trong sheet "Nhập hàng".
-  const newPurchasesRange = resolveFilterRange({ mode: 'days', days: NEW_PURCHASES_WINDOW_DAYS }, now);
+  const newPurchasesRange = {
+    mode: 'range',
+    start: startOfDay(new Date(now.getTime() - NEW_PURCHASES_WINDOW_DAYS * DAY_MS)),
+    end: endOfDay(now),
+    label: `Không quá ${NEW_PURCHASES_WINDOW_DAYS} ngày`
+  };
   const newPurchaseOrders = purchaseRecords
     .filter(p => isWithinRange(p._dt, newPurchasesRange))
     .map(({ _dt, _sortTime, ...rest }) => rest);
@@ -1099,7 +1106,6 @@ async function getDashboardData(filters) {
     allProducts,
     stockByCategory,
     suppliers,
-    recentPurchaseOrders,
     newPurchases: {
       bySupplier: newPurchasesBySupplier,
       orders: newPurchaseOrders
