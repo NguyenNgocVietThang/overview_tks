@@ -9,11 +9,16 @@ const { parseDebtSheet } = require('./debtReport');
 const OUT_OF_STOCK_LEVEL = 0;
 const TOP_SELLING_LIMIT = 10;
 const MAX_PARENT_CATEGORY_BARS = 30;
+const NEW_PURCHASES_WINDOW_DAYS = 90; // dinh nghia "hang moi nhap": Ngay nhap trong N ngay gan day
+const NEW_PURCHASES_SUPPLIER_LIMIT = 30; // top NCC cho bieu do 2 cot
 const SEARCH_CACHE_TTL_MS = 2 * 60 * 1000;
+const DASHBOARD_SHEETS_CACHE_TTL_MS = 90 * 1000;
 const PENDING_ORDER_STATUSES = new Set(['Phiếu tạm', 'Đang xử lý', 'Đã xác nhận']);
 const DASHBOARD_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const DASHBOARD_UTC_OFFSET = '+07:00';
 const DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_RANGE_DAYS = 3660; // ~10 nam — chan vong lap tao bucket ngay bi vo tan/qua lon
+const MAX_REPORT_TRANSACTIONS = 500; // gioi han so dong bang "Chi tiet giao dich" khi loc ca ky dai
 
 const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-GB', {
   timeZone: DASHBOARD_TIME_ZONE,
@@ -47,6 +52,11 @@ function formatDMYHMS(date) {
 function formatHM(date) {
   const { hour, minute } = getDashboardDateParts(date);
   return `${hour}:${minute}`;
+}
+
+function formatDMYHM(date) {
+  const { day, month, hour, minute } = getDashboardDateParts(date);
+  return `${day}/${month} ${hour}:${minute}`;
 }
 
 function parseDashboardWallTime(yyyy, MM, dd, hh = '0', mi = '0', ss = '0') {
@@ -87,7 +97,8 @@ function parseSheetDate(raw) {
     if (Number(yyyy) > 1990) return parseDashboardWallTime(yyyy, MM, dd, hh, mi, ss);
   }
 
-  // Chuoi ISO khong kem offset cung la gio Viet Nam tu Google Sheets.
+  // Chuoi ISO khong kem offset cung la gio Viet Nam tu Google Sheets (va cung
+  // la dinh dang <input type="date"> gui len tu bo loc "Tuy chinh" o client).
   const isoLocal = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
   if (isoLocal) {
     const [, yyyy, MM, dd, hh = '0', mi = '0', ss = '0'] = isoLocal;
@@ -105,8 +116,65 @@ function dmyKey(date) {
   return formatDMY(date);
 }
 
-function stripSortKey(list) {
-  return list.map(({ _sortTime, ...rest }) => rest);
+function startOfDay(date) {
+  const { day, month, year } = getDashboardDateParts(date);
+  return parseDashboardWallTime(year, month, day, 0, 0, 0);
+}
+
+function endOfDay(date) {
+  const { day, month, year } = getDashboardDateParts(date);
+  return parseDashboardWallTime(year, month, day, 23, 59, 59);
+}
+
+/**
+ * Quy doi 1 bo loc thoi gian tu client ({mode, days, from, to}) thanh khoang
+ * ngay cu the. mode: 'days' (N ngay gan nhat, ke ca hom nay) | 'range' (tuy
+ * chinh tu ngay...den ngay...) | 'all' (khong gioi han — bo qua moi dieu kien
+ * ngay thang). Khong bao gio throw: bo loc "range" thieu/sai dinh dang duoc
+ * coi nhu "all" de dashboard khong bi trong thay vi bao loi.
+ */
+function resolveFilterRange(spec, now) {
+  const raw = spec || {};
+  const mode = raw.mode === 'range' || raw.mode === 'all' ? raw.mode : 'days';
+
+  if (mode === 'all') {
+    return { mode: 'all', start: null, end: null, label: 'Tất cả' };
+  }
+
+  if (mode === 'range') {
+    const fromDate = raw.from ? parseSheetDate(raw.from) : null;
+    const toDate = raw.to ? parseSheetDate(raw.to) : null;
+    if (!fromDate || !toDate) {
+      return { mode: 'all', start: null, end: null, label: 'Tất cả' };
+    }
+    let start = startOfDay(fromDate);
+    let end = endOfDay(toDate);
+    if (start.getTime() > end.getTime()) {
+      start = startOfDay(toDate);
+      end = endOfDay(fromDate);
+    }
+    if ((end.getTime() - start.getTime()) / DAY_MS > MAX_RANGE_DAYS) {
+      end = endOfDay(new Date(start.getTime() + MAX_RANGE_DAYS * DAY_MS));
+    }
+    return { mode: 'range', start, end, label: `${formatDMY(start)} – ${formatDMY(end)}` };
+  }
+
+  const days = Math.min(Math.max(Number(raw.days) || 30, 1), MAX_RANGE_DAYS);
+  const end = endOfDay(now);
+  const start = startOfDay(new Date(now.getTime() - (days - 1) * DAY_MS));
+  return { mode: 'days', days, start, end, label: `${days} ngày` };
+}
+
+function isWithinRange(date, range) {
+  if (range.mode === 'all') return true;
+  if (!date) return false;
+  const t = date.getTime();
+  return t >= range.start.getTime() && t <= range.end.getTime();
+}
+
+// true khi khoang loc chi gom dung 1 ngay (vd "1 ngày", hoac tuy chinh tu ngay = den ngay)
+function isSingleDayRange(range) {
+  return range.mode !== 'all' && formatDMY(range.start) === formatDMY(range.end);
 }
 
 function normalizeCategoryName(value) {
@@ -115,6 +183,10 @@ function normalizeCategoryName(value) {
 
 function isVatProductCode(value) {
   return String(value || '').trim().toUpperCase().startsWith('VAT');
+}
+
+function normalizePhone(value) {
+  return String(value || '').replace(/\D/g, '');
 }
 
 function buildParentCategoryResolver(categoryData) {
@@ -269,7 +341,7 @@ let searchSheetCache = {
 function normalizeWhitespace(value) {
   return String(value === undefined || value === null ? '' : value)
     .normalize('NFKC')
-    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[​-‍﻿]/g, '')
     .replace(/\s+/gu, ' ')
     .trim();
 }
@@ -444,18 +516,157 @@ async function searchDashboardRecords(view, rawQuery, rawLimit) {
   };
 }
 
+// ---------- Cache ngan han cho du lieu tho doc tu Google Sheet ----------
+// Truoc day moi lan goi /api/dashboard deu batchGet lai TOAN BO cac sheet.
+// Gio moi tab co bo loc rieng nen client co the goi API thuong xuyen hon han
+// (moi lan doi bo loc o bat ky tab nao) — cache vai chuc giay de tranh dam
+// vao han muc Google Sheets API; tinh toan loc theo ngay van chay tren du
+// lieu da cache nen van nhanh va luon phan anh dung bo loc moi nhat.
+let dashboardSheetsCache = {
+  data: null,
+  expiresAt: 0,
+  loading: null
+};
+
+async function getCachedDashboardSheets() {
+  if (dashboardSheetsCache.data && Date.now() < dashboardSheetsCache.expiresAt) {
+    return dashboardSheetsCache.data;
+  }
+  if (dashboardSheetsCache.loading) return dashboardSheetsCache.loading;
+
+  const debtSheetNames = DEBT_SHEETS.map(entry => entry.name);
+  const loading = sheetsClient.getMultipleSheetValues(SHEET_NAMES.concat(debtSheetNames))
+    .then(sheets => {
+      dashboardSheetsCache.data = sheets;
+      dashboardSheetsCache.expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
+      return sheets;
+    })
+    .finally(() => {
+      if (dashboardSheetsCache.loading === loading) dashboardSheetsCache.loading = null;
+    });
+  dashboardSheetsCache.loading = loading;
+  return loading;
+}
+
+/**
+ * Gop cac hoa don trong `records` thanh chuoi doanh thu theo ngay trong
+ * `range`. Voi "Tat ca" (khong gioi han), bucket theo tung ngay THUC SU CO
+ * hoa don thay vi dien du moi ngay lich (tranh bieu do qua dai/rong khi du
+ * lieu trai dai nhieu nam).
+ */
+function buildRevenuePeriod(range, invoiceRecords) {
+  const completed = invoiceRecords.filter(r => r.isCompleted && r._dt && isWithinRange(r._dt, range));
+  const dayBuckets = {};
+  const dayOrder = [];
+
+  if (range.mode === 'all') {
+    completed
+      .slice()
+      .sort((a, b) => a._sortTime - b._sortTime)
+      .forEach(r => {
+        if (!dayBuckets[r._dateKey]) {
+          dayBuckets[r._dateKey] = { revenue: 0, count: 0 };
+          dayOrder.push(r._dateKey);
+        }
+      });
+  } else {
+    let cursor = range.start;
+    while (cursor.getTime() <= range.end.getTime()) {
+      const key = formatDMY(cursor);
+      dayBuckets[key] = { revenue: 0, count: 0 };
+      dayOrder.push(key);
+      cursor = new Date(cursor.getTime() + DAY_MS);
+    }
+  }
+
+  completed.forEach(r => {
+    const bucket = dayBuckets[r._dateKey];
+    if (!bucket) return;
+    bucket.revenue += r.total;
+    bucket.count += 1;
+  });
+
+  const revenueByDay = dayOrder.map(key => ({
+    date: key,
+    label: key.substring(0, 5),
+    revenue: dayBuckets[key].revenue,
+    count: dayBuckets[key].count
+  }));
+  const periodRevenue = revenueByDay.reduce((s, d) => s + d.revenue, 0);
+  const periodInvoices = revenueByDay.reduce((s, d) => s + d.count, 0);
+  return { revenueByDay, periodRevenue, periodInvoices };
+}
+
+/**
+ * Bao cao chi tiet giao dich trong `range` cho tab Tong quan (thay cho khai
+ * niem "cuoi ngay" co dinh truoc day). Tong hop (summary) luon tinh tren TOAN
+ * BO giao dich trong ky; danh sach chi tiet (transactions) gioi han
+ * MAX_REPORT_TRANSACTIONS dong gan nhat de khong lam nang trang khi chon ky dai.
+ */
+function buildTransactionsReport(range, invoiceRecords, invoiceQuantityMap) {
+  const singleDay = isSingleDayRange(range);
+  const inRangeRecords = invoiceRecords.filter(r => isWithinRange(r._dt, range));
+
+  const allTransactions = inRangeRecords
+    .map(r => {
+      const normalizedCode = String(r.code).trim();
+      return {
+        code: r.code,
+        time: r._dt ? (singleDay ? formatHM(r._dt) : formatDMYHM(r._dt)) : '—',
+        quantity: invoiceQuantityMap.get(normalizedCode) || 0,
+        quantityKnown: invoiceQuantityMap.has(normalizedCode),
+        revenue: r.total,
+        discount: r.discount,
+        paid: r.paid,
+        status: r.status,
+        _sortTime: r._sortTime
+      };
+    })
+    .sort((a, b) => b._sortTime - a._sortTime);
+
+  const completedTransactions = allTransactions.filter(t => t.status === 'Hoàn thành');
+  const summary = {
+    transactionCount: completedTransactions.length,
+    cancelledCount: allTransactions.length - completedTransactions.length,
+    quantity: completedTransactions.reduce((s, t) => s + t.quantity, 0),
+    quantityKnown: completedTransactions.length > 0 && completedTransactions.every(t => t.quantityKnown),
+    revenue: completedTransactions.reduce((s, t) => s + t.revenue, 0),
+    discount: completedTransactions.reduce((s, t) => s + t.discount, 0),
+    paid: completedTransactions.reduce((s, t) => s + t.paid, 0)
+  };
+
+  const transactions = allTransactions
+    .slice(0, MAX_REPORT_TRANSACTIONS)
+    .map(({ _sortTime, ...rest }) => rest);
+
+  return {
+    date: range.label,
+    singleDay,
+    truncated: allTransactions.length > MAX_REPORT_TRANSACTIONS,
+    totalInRange: allTransactions.length,
+    transactions,
+    summary
+  };
+}
+
 /**
  * Ham chinh lay du lieu cho dashboard.
- * @param {number} days - So ngay gan nhat de ve bieu do doanh thu (7/30/90). Mac dinh 30.
+ * @param {Object} filters - Bo loc thoi gian rieng cho tung tab:
+ *   { overview, products, invoices, customers }, moi cai dang
+ *   { mode: 'days'|'range'|'all', days?, from?, to? }.
  * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
  */
-async function getDashboardData(days) {
-  days = Number(days) || 30;
+async function getDashboardData(filters) {
+  const f = filters || {};
   const now = new Date();
   const todayStr = formatDMY(now);
 
-  const debtSheetNames = DEBT_SHEETS.map(entry => entry.name);
-  const sheets = await sheetsClient.getMultipleSheetValues(SHEET_NAMES.concat(debtSheetNames));
+  const overviewRange = resolveFilterRange(f.overview, now);
+  const productsRange = resolveFilterRange(f.products, now);
+  const invoicesRange = resolveFilterRange(f.invoices, now);
+  const customersRange = resolveFilterRange(f.customers, now);
+
+  const sheets = await getCachedDashboardSheets();
   rememberSearchSheets(sheets);
 
   const debt = {};
@@ -475,12 +686,16 @@ async function getDashboardData(days) {
 
   // ---------- HÀNG HÓA ----------
   // Cột: [0]Mã hàng [1]Tên hàng [2]Nhóm hàng [3]Thương hiệu [4]Loại [5]Giá vốn [6]Giá bán [7]Tồn kho [8]Khách đặt [9]Trạng thái kinh doanh [10]Ngày sửa cuối [11]Mã nhóm hàng
+  // Toan bo phan nay la so lieu TON KHO TAI THOI DIEM HIEN TAI (snapshot) —
+  // khong gan voi 1 ngay phat sinh cu the nen KHONG loc theo bo loc thoi gian.
   let totalProducts = 0, totalStock = 0, inStockCodes = 0, activeProducts = 0, inactiveProducts = 0, lowStock = [];
   let stockList = [];
   const parentCategoryMap = {};
   const resolveParentCategory = buildParentCategoryResolver(categoryData);
   const productHeaders = prodData[0] || [];
   const productCategoryIdIndex = productHeaders.findIndex(header => String(header || '').trim() === 'Mã nhóm hàng');
+  const productCreatedDateIndex = productHeaders.findIndex(header => String(header || '').trim() === 'Ngày tạo');
+  const todayNewProducts = [];
 
   for (let r = 1; r < prodData.length; r++) {
     const row = prodData[r];
@@ -489,6 +704,7 @@ async function getDashboardData(days) {
     totalProducts++;
     const ton = Number(row[7]) || 0;
     const cost = Math.max(Number(row[5]) || 0, 0);
+    const price = Math.max(Number(row[6]) || 0, 0);
     const stockValue = Math.max(ton, 0) * cost;
     const reserved = Number(row[8]) || 0;
     const status = row[9] || 'Đang kinh doanh';
@@ -496,6 +712,17 @@ async function getDashboardData(days) {
     totalStock += ton;
     if (ton > 0) inStockCodes++;
     stockList.push({ code, name: row[1], stock: ton, reserved, status });
+    const createdAt = productCreatedDateIndex >= 0 ? parseSheetDate(row[productCreatedDateIndex]) : null;
+    if (createdAt && dmyKey(createdAt) === todayStr) {
+      todayNewProducts.push({
+        code,
+        name: row[1] || code,
+        category: row[2] || 'Chưa phân nhóm',
+        cost,
+        price,
+        _sortTime: createdAt.getTime()
+      });
+    }
     if (ton === OUT_OF_STOCK_LEVEL) {
       lowStock.push({
         code,
@@ -503,7 +730,7 @@ async function getDashboardData(days) {
         type: row[4] || '—',
         status,
         cost,
-        price: Math.max(Number(row[6]) || 0, 0)
+        price
       });
     }
 
@@ -518,6 +745,8 @@ async function getDashboardData(days) {
     parentCategoryMap[parentCategoryName].productCount += 1;
   }
   lowStock.sort((a, b) => a.stock - b.stock);
+  todayNewProducts.sort((a, b) => b._sortTime - a._sortTime);
+  const todayNewProductRows = todayNewProducts.map(({ _sortTime, ...rest }) => rest);
 
   stockList.sort((a, b) => b.stock - a.stock);
 
@@ -539,14 +768,9 @@ async function getDashboardData(days) {
   const totalInventoryValue = allStockValueByCategory.reduce((sum, category) => sum + category.stockValue, 0);
   const stockValueByCategory = limitParentCategoryBars(allStockValueByCategory);
 
-  // ---------- HÓA ĐƠN ----------
+  // ---------- HÓA ĐƠN: index 1 lần, dùng lại cho mọi bộ lọc ----------
   // Cột: [0]Mã hóa đơn [1]Ngày bán [2]Khách hàng [3]SĐT khách [4]Nhân viên bán [5]Chi nhánh [6]Tổng tiền hàng [7]Giảm giá [8]Khách đã trả [9]Trạng thái
-  let revenueToday = 0, invoicesToday = 0, cancelledToday = 0;
-  let recentInvoices = [];
-  let endOfDayTransactions = [];
-  const cancelledInvoiceCodes = new Set();
-
-  // Tổng số lượng từng hóa đơn để báo cáo cuối ngày có cột SL như KiotViet.
+  // Tong so luong tung hoa don de bao cao co cot SL nhu KiotViet.
   const invoiceQuantityMap = new Map();
   for (let r = 1; r < detailData.length; r++) {
     const invoiceCode = String(detailData[r][0] || '').trim();
@@ -555,106 +779,61 @@ async function getDashboardData(days) {
     invoiceQuantityMap.set(invoiceCode, (invoiceQuantityMap.get(invoiceCode) || 0) + quantity);
   }
 
-  const hourlyEndOfDay = Array.from({ length: 24 }, (_, hour) => ({
-    hour,
-    label: String(hour).padStart(2, '0') + 'h',
-    revenue: 0,
-    paid: 0,
-    discount: 0,
-    count: 0
-  }));
-
-  const dayBuckets = {};
-  const dayOrder = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(now.getTime() - i * DAY_MS);
-    const key = formatDMY(d);
-    dayBuckets[key] = { revenue: 0, count: 0 };
-    dayOrder.push(key);
-  }
+  let revenueToday = 0, invoicesToday = 0, cancelledToday = 0;
+  const invoiceRecords = [];
+  const invoiceIndexByCode = new Map();
 
   for (let r = 1; r < invData.length; r++) {
     const row = invData[r];
     const code = row[0];
     if (!code) continue;
     const customer = row[2];
+    const phone = row[3];
     const total = Number(row[6]) || 0;
     const discount = Number(row[7]) || 0;
     const paid = Number(row[8]) || 0;
     const status = row[9] || 'Hoàn thành';
     const isCancelled = status === 'Đã hủy';
     const isCompleted = status === 'Hoàn thành';
-    if (isCancelled) cancelledInvoiceCodes.add(String(code).trim());
-
     const dt = parseSheetDate(row[1]);
     const dateKey = dt ? dmyKey(dt) : '';
 
-    if (dateKey === todayStr) {
-      if (isCancelled) cancelledToday++;
-      else if (isCompleted) {
-        revenueToday += total;
-        invoicesToday++;
-        const hour = Number(getDashboardDateParts(dt).hour);
-        if (hourlyEndOfDay[hour]) {
-          hourlyEndOfDay[hour].revenue += total;
-          hourlyEndOfDay[hour].paid += paid;
-          hourlyEndOfDay[hour].discount += discount;
-          hourlyEndOfDay[hour].count += 1;
-        }
-      }
-
-      const normalizedCode = String(code).trim();
-      endOfDayTransactions.push({
-        code,
-        time: dt ? formatHM(dt) : '—',
-        quantity: invoiceQuantityMap.get(normalizedCode) || 0,
-        quantityKnown: invoiceQuantityMap.has(normalizedCode),
-        revenue: total,
-        discount,
-        paid,
-        status,
-        _sortTime: dt ? dt.getTime() : 0
-      });
+    if (dateKey === todayStr && isCompleted) {
+      revenueToday += total;
+      invoicesToday++;
     }
+    if (dateKey === todayStr && isCancelled) cancelledToday++;
 
-    if (isCompleted && dateKey && Object.prototype.hasOwnProperty.call(dayBuckets, dateKey)) {
-      dayBuckets[dateKey].revenue += total;
-      dayBuckets[dateKey].count += 1;
-    }
-
-    recentInvoices.push({ code, customer, total, status, time: row[1] || '', _sortTime: dt ? dt.getTime() : 0 });
+    const record = {
+      code,
+      customer,
+      phone,
+      total,
+      discount,
+      paid,
+      status,
+      time: row[1] || '',
+      isCancelled,
+      isCompleted,
+      _dt: dt,
+      _dateKey: dateKey,
+      _sortTime: dt ? dt.getTime() : 0
+    };
+    invoiceRecords.push(record);
+    invoiceIndexByCode.set(String(code).trim(), record);
   }
-  recentInvoices.sort((a, b) => b._sortTime - a._sortTime);
-  recentInvoices = stripSortKey(recentInvoices.slice(0, 8));
-  endOfDayTransactions.sort((a, b) => b._sortTime - a._sortTime);
-  endOfDayTransactions = stripSortKey(endOfDayTransactions);
 
-  const completedEndOfDayTransactions = endOfDayTransactions.filter(item => item.status === 'Hoàn thành');
-  const endOfDayReport = {
-    date: todayStr,
-    transactions: endOfDayTransactions,
-    hourly: hourlyEndOfDay,
-    summary: {
-      transactionCount: completedEndOfDayTransactions.length,
-      cancelledCount: endOfDayTransactions.length - completedEndOfDayTransactions.length,
-      quantity: completedEndOfDayTransactions.reduce((sum, item) => sum + item.quantity, 0),
-      quantityKnown: completedEndOfDayTransactions.length > 0 && completedEndOfDayTransactions.every(item => item.quantityKnown),
-      revenue: completedEndOfDayTransactions.reduce((sum, item) => sum + item.revenue, 0),
-      discount: completedEndOfDayTransactions.reduce((sum, item) => sum + item.discount, 0),
-      paid: completedEndOfDayTransactions.reduce((sum, item) => sum + item.paid, 0)
-    }
-  };
+  const overviewPeriod = buildRevenuePeriod(overviewRange, invoiceRecords);
+  const overviewReport = buildTransactionsReport(overviewRange, invoiceRecords, invoiceQuantityMap);
 
-  const revenueByDay = dayOrder.map(key => ({
-    date: key,
-    label: key.substring(0, 5),
-    revenue: dayBuckets[key].revenue,
-    count: dayBuckets[key].count
-  }));
-  const periodRevenue = revenueByDay.reduce((s, d) => s + d.revenue, 0);
-  const periodInvoices = revenueByDay.reduce((s, d) => s + d.count, 0);
+  const invoicesPeriod = buildRevenuePeriod(invoicesRange, invoiceRecords);
+  const recentInvoices = invoiceRecords
+    .filter(r => isWithinRange(r._dt, invoicesRange))
+    .sort((a, b) => b._sortTime - a._sortTime)
+    .slice(0, 8)
+    .map(r => ({ code: r.code, customer: r.customer, total: r.total, status: r.status, time: r.time }));
 
-  // ---------- CHI TIẾT HÓA ĐƠN -> TOP SẢN PHẨM BÁN CHẠY ----------
+  // ---------- CHI TIẾT HÓA ĐƠN -> TOP SẢN PHẨM BÁN CHẠY (theo bộ lọc Hàng hóa) ----------
   // Cột: [0]Mã hóa đơn [1]Mã hàng [2]Tên hàng [3]Số lượng [4]Đơn giá [5]Giảm giá [6]Thành tiền
   const productSalesMap = {};
   for (let r = 1; r < detailData.length; r++) {
@@ -662,7 +841,9 @@ async function getDashboardData(days) {
     const invoiceCode = row[0];
     const code = row[1];
     if (!invoiceCode || !code) continue;
-    if (cancelledInvoiceCodes.has(String(invoiceCode).trim())) continue;
+    const invoiceEntry = invoiceIndexByCode.get(String(invoiceCode).trim());
+    if (!invoiceEntry || invoiceEntry.isCancelled) continue;
+    if (!isWithinRange(invoiceEntry._dt, productsRange)) continue;
 
     const name = row[2] || code;
     const qty = Number(row[3]) || 0;
@@ -676,47 +857,68 @@ async function getDashboardData(days) {
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, TOP_SELLING_LIMIT);
 
-  // ---------- ĐẶT HÀNG ----------
+  // ---------- ĐẶT HÀNG (theo bộ lọc Hóa đơn) ----------
   // Cột: [0]Mã đặt hàng [1]Ngày đặt [2]Khách hàng [3]Nhân viên lập [4]Chi nhánh [5]Tổng tiền [6]Trạng thái
-  let pendingOrdersCount = 0, pendingOrdersTotal = 0;
-  let recentOrders = [];
+  const orderRecords = [];
   for (let r = 1; r < orderData.length; r++) {
     const row = orderData[r];
     const code = row[0];
     if (!code) continue;
     const dt = parseSheetDate(row[1]);
-    const customer = row[2];
-    const total = Number(row[5]) || 0;
-    const status = row[6] || '';
-
-    if (PENDING_ORDER_STATUSES.has(status)) { pendingOrdersCount++; pendingOrdersTotal += total; }
-    recentOrders.push({ code, date: row[1] || '', customer, total, status, _sortTime: dt ? dt.getTime() : 0 });
+    orderRecords.push({
+      code, date: row[1] || '', customer: row[2], total: Number(row[5]) || 0, status: row[6] || '',
+      _dt: dt, _sortTime: dt ? dt.getTime() : 0
+    });
   }
-  recentOrders.sort((a, b) => b._sortTime - a._sortTime);
-  recentOrders = stripSortKey(recentOrders.slice(0, 8));
+  const ordersInRange = orderRecords.filter(o => isWithinRange(o._dt, invoicesRange));
+  let pendingOrdersCount = 0, pendingOrdersTotal = 0;
+  ordersInRange.forEach(o => {
+    if (PENDING_ORDER_STATUSES.has(o.status)) { pendingOrdersCount++; pendingOrdersTotal += o.total; }
+  });
+  const recentOrders = ordersInRange
+    .slice()
+    .sort((a, b) => b._sortTime - a._sortTime)
+    .slice(0, 8)
+    .map(({ _dt, _sortTime, ...rest }) => rest);
 
-  // ---------- TRẢ HÀNG ----------
+  // ---------- TRẢ HÀNG (theo bộ lọc Hóa đơn) ----------
   // Cột: [0]Mã trả hàng [1]Ngày trả [2]Mã hóa đơn gốc [3]Khách hàng [4]Tổng tiền trả [5]Trạng thái
-  let returnsCount = 0, totalReturns = 0;
-  let recentReturns = [];
+  const returnRecords = [];
   for (let r = 1; r < returnData.length; r++) {
     const row = returnData[r];
     const code = row[0];
     if (!code) continue;
     const dt = parseSheetDate(row[1]);
-    const total = Number(row[4]) || 0;
-    returnsCount++;
-    totalReturns += total;
-    recentReturns.push({
-      code, date: row[1] || '', originalInvoiceCode: row[2] || '',
-      customer: row[3] || '', total, status: row[5] || '', _sortTime: dt ? dt.getTime() : 0
+    returnRecords.push({
+      code, date: row[1] || '', originalInvoiceCode: row[2] || '', customer: row[3] || '',
+      total: Number(row[4]) || 0, status: row[5] || '',
+      _dt: dt, _sortTime: dt ? dt.getTime() : 0
     });
   }
-  recentReturns.sort((a, b) => b._sortTime - a._sortTime);
-  recentReturns = stripSortKey(recentReturns.slice(0, 8));
+  const returnsInRange = returnRecords.filter(rt => isWithinRange(rt._dt, invoicesRange));
+  const returnsCount = returnsInRange.length;
+  const totalReturns = returnsInRange.reduce((sum, rt) => sum + rt.total, 0);
+  const recentReturns = returnsInRange
+    .slice()
+    .sort((a, b) => b._sortTime - a._sortTime)
+    .slice(0, 8)
+    .map(({ _dt, _sortTime, ...rest }) => rest);
 
   // ---------- KHÁCH HÀNG ----------
   // Cột: [0]Mã khách hàng [1]Tên khách hàng [2]Điện thoại [3]Giới tính [4]Nhóm khách hàng [5]Địa chỉ [6]Email [7]Nợ hiện tại [8]Tổng bán
+  // "Nợ hiện tại" là số dư TẠI THỜI ĐIỂM HIỆN TẠI (snapshot) nên KPI tổng
+  // (totalCustomers/customersWithDebt/totalDebt) không lọc theo thời gian.
+  // Danh sách/biểu đồ khách nợ (topDebt) thì thu hẹp theo khách CÓ hóa đơn
+  // hoàn thành trong khoảng đã chọn, kèm doanh thu mua hàng trong kỳ đó —
+  // nối bằng số điện thoại vì hóa đơn không lưu mã khách hàng.
+  const customerRevenueByPhone = new Map();
+  invoiceRecords.forEach(r => {
+    if (!r.isCompleted || !isWithinRange(r._dt, customersRange)) return;
+    const phoneKey = normalizePhone(r.phone);
+    if (!phoneKey) return;
+    customerRevenueByPhone.set(phoneKey, (customerRevenueByPhone.get(phoneKey) || 0) + r.total);
+  });
+
   let totalCustomers = 0, customersWithDebt = 0, totalDebt = 0;
   let topDebt = [];
 
@@ -729,7 +931,12 @@ async function getDashboardData(days) {
     if (debt > 0) {
       customersWithDebt++;
       totalDebt += debt;
-      topDebt.push({ code, name: row[1], phone: row[2], debt });
+      const phoneKey = normalizePhone(row[2]);
+      const periodRevenue = customerRevenueByPhone.get(phoneKey) || 0;
+      const includeInPeriod = customersRange.mode === 'all' || customerRevenueByPhone.has(phoneKey);
+      if (includeInPeriod) {
+        topDebt.push({ code, name: row[1], phone: row[2], debt, periodRevenue });
+      }
     }
   }
   topDebt.sort((a, b) => b.debt - a.debt);
@@ -751,8 +958,10 @@ async function getDashboardData(days) {
 
   // ---------- NHẬP HÀNG ----------
   // Cột: [0]Mã nhập hàng [1]Ngày nhập [2]Nhà cung cấp [3]Chi nhánh [4]Tổng tiền [5]Trạng thái
+  // Sheet nay chi co du lieu cap PHIEU nhap (khong co dong Ma hang/So luong),
+  // nen "Hang moi nhap" duoc dinh nghia lai theo PHIEU nhap thay vi mat hang.
   let purchaseOrdersCount = 0, totalPurchaseSpend = 0;
-  let recentPurchaseOrders = [];
+  const purchaseRecords = [];
   for (let r = 1; r < poData.length; r++) {
     const row = poData[r];
     const code = row[0];
@@ -761,17 +970,68 @@ async function getDashboardData(days) {
     const total = Number(row[4]) || 0;
     purchaseOrdersCount++;
     totalPurchaseSpend += total;
-    recentPurchaseOrders.push({
-      code, date: row[1] || '', supplier: row[2] || '', branch: row[3] || '',
-      total, status: row[5] || '', _sortTime: dt ? dt.getTime() : 0
+    purchaseRecords.push({
+      code, date: row[1] || '', supplier: row[2] || '(Không xác định)', branch: row[3] || '',
+      total, status: row[5] || '', _dt: dt, _sortTime: dt ? dt.getTime() : 0
     });
   }
-  recentPurchaseOrders.sort((a, b) => b._sortTime - a._sortTime);
-  recentPurchaseOrders = stripSortKey(recentPurchaseOrders.slice(0, 8));
+  purchaseRecords.sort((a, b) => b._sortTime - a._sortTime);
+  const recentPurchaseOrders = purchaseRecords.slice(0, 8).map(({ _dt, _sortTime, ...rest }) => rest);
+
+  // ---------- NHẬP HÀNG HÔM NAY (tab Tổng quan) ----------
+  // Sheet "Nhập hàng" chỉ có dữ liệu cấp phiếu. Vì vậy "tổng số lượng mã"
+  // ở đây là số mã nhập hàng (số phiếu), không phải số mã sản phẩm bên trong.
+  const todayPurchaseRecords = purchaseRecords.filter(p => p._dt && dmyKey(p._dt) === todayStr);
+  const todayPurchaseSupplierMap = {};
+  todayPurchaseRecords.forEach(p => {
+    const supplierName = p.supplier || '(Không xác định)';
+    if (!todayPurchaseSupplierMap[supplierName]) {
+      todayPurchaseSupplierMap[supplierName] = { name: supplierName, orderCount: 0, total: 0 };
+    }
+    todayPurchaseSupplierMap[supplierName].orderCount += 1;
+    todayPurchaseSupplierMap[supplierName].total += p.total;
+  });
+  const todayPurchasesBySupplier = Object.values(todayPurchaseSupplierMap)
+    .sort((a, b) => b.total - a.total);
+  const todayPurchaseOrders = todayPurchaseRecords.map(({ _dt, _sortTime, ...rest }) => rest);
+  const todayPurchaseTotalAmount = todayPurchaseRecords.reduce((sum, p) => sum + p.total, 0);
+
+  // ---------- HÀNG MỚI NHẬP: phiếu nhập trong N ngày gần đây, nhóm theo NCC ----------
+  // "Hang moi nhap" = phieu nhap co Ngay nhap trong NEW_PURCHASES_WINDOW_DAYS
+  // ngay gan day (TODAY() - Ngay nhap < 90). Bieu do 2 cot top 30 NCC theo
+  // Tong tien nhap, kem cot So phieu nhap — day la 2 so lieu duy nhat co san
+  // o cap phieu nhap trong sheet "Nhập hàng".
+  const newPurchasesRange = resolveFilterRange({ mode: 'days', days: NEW_PURCHASES_WINDOW_DAYS }, now);
+  const newPurchaseOrders = purchaseRecords
+    .filter(p => isWithinRange(p._dt, newPurchasesRange))
+    .map(({ _dt, _sortTime, ...rest }) => rest);
+
+  const newPurchaseSupplierMap = {};
+  newPurchaseOrders.forEach(p => {
+    const supplierName = p.supplier || '(Không xác định)';
+    if (!newPurchaseSupplierMap[supplierName]) {
+      newPurchaseSupplierMap[supplierName] = { name: supplierName, orderCount: 0, total: 0 };
+    }
+    newPurchaseSupplierMap[supplierName].orderCount += 1;
+    newPurchaseSupplierMap[supplierName].total += p.total;
+  });
+  const newPurchasesBySupplier = Object.values(newPurchaseSupplierMap)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, NEW_PURCHASES_SUPPLIER_LIMIT);
+
+  const newPurchasesOrderCount = newPurchaseOrders.length;
+  const newPurchasesTotalAmount = newPurchaseOrders.reduce((sum, p) => sum + p.total, 0);
+  const newPurchasesSupplierCount = Object.keys(newPurchaseSupplierMap).length;
 
   return {
     updatedAt: formatDMYHMS(now),
-    days,
+    filters: {
+      overview: overviewRange,
+      products: productsRange,
+      invoices: invoicesRange,
+      customers: customersRange,
+      newPurchases: newPurchasesRange
+    },
     kpi: {
       revenueToday,
       invoicesToday,
@@ -787,31 +1047,63 @@ async function getDashboardData(days) {
       totalCustomers,
       customersWithDebt,
       totalDebt,
-      periodRevenue,
-      periodInvoices,
-      pendingOrdersCount,
-      pendingOrdersTotal,
-      returnsCount,
-      totalReturns,
       totalSuppliers,
       suppliersWithDebt,
       totalSupplierDebt,
       purchaseOrdersCount,
-      totalPurchaseSpend
+      totalPurchaseSpend,
+      newPurchasesOrderCount,
+      newPurchasesTotalAmount,
+      newPurchasesSupplierCount
     },
-    revenueByDay,
-    endOfDayReport,
-    recentInvoices,
+    overview: {
+      revenueByDay: overviewPeriod.revenueByDay,
+      periodRevenue: overviewPeriod.periodRevenue,
+      periodInvoices: overviewPeriod.periodInvoices,
+      endOfDayReport: overviewReport,
+      todayPurchases: {
+        date: todayStr,
+        orderCount: todayPurchaseOrders.length,
+        totalAmount: todayPurchaseTotalAmount,
+        supplierCount: todayPurchasesBySupplier.length,
+        bySupplier: todayPurchasesBySupplier,
+        orders: todayPurchaseOrders
+      },
+      todayNewProducts: {
+        date: todayStr,
+        count: todayNewProductRows.length,
+        dateColumnAvailable: productCreatedDateIndex >= 0,
+        products: todayNewProductRows
+      }
+    },
+    products: {
+      topSellingProducts
+    },
+    invoices: {
+      revenueByDay: invoicesPeriod.revenueByDay,
+      periodRevenue: invoicesPeriod.periodRevenue,
+      periodInvoices: invoicesPeriod.periodInvoices,
+      recentInvoices,
+      recentOrders,
+      recentReturns,
+      pendingOrdersCount,
+      pendingOrdersTotal,
+      returnsCount,
+      totalReturns
+    },
+    customers: {
+      topDebt
+    },
     lowStock,
     stockValueByCategory,
     allProducts,
-    topDebt,
     stockByCategory,
-    topSellingProducts,
-    recentOrders,
-    recentReturns,
     suppliers,
     recentPurchaseOrders,
+    newPurchases: {
+      bySupplier: newPurchasesBySupplier,
+      orders: newPurchaseOrders
+    },
     debt
   };
 }

@@ -355,6 +355,10 @@
   .chart-box.small{ height:220px; }
   .chart-box.wide{ height:340px; }
   .chart-box.tall{ height:380px; }
+  .chart-empty{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:var(--muted); font-size:12.5px; text-align:center;
+  }
 
   .table-wrap{ overflow-x:auto; }
   .end-day-summary{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:20px; }
@@ -684,6 +688,69 @@
                   <thead><tr><th>Mã giao dịch</th><th>Thời gian</th><th>SL</th><th>Doanh thu</th><th>Giảm giá</th><th>Thực thu</th><th>Trạng thái</th></tr></thead>
                   <tbody id="endOfDayRows"><tr><td colspan="7" class="empty">Đang tải...</td></tr></tbody>
                   <tfoot><tr><td colspan="2">Tổng cuối ngày</td><td class="mono" id="end-day-total-qty">—</td><td class="mono" id="end-day-total-revenue">—</td><td class="mono" id="end-day-total-discount">—</td><td class="mono" id="end-day-total-paid">—</td><td></td></tr></tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-head"><span class="section-step">5</span><h2>Hàng nhập hôm nay <span class="section-note">tổng hợp và chi tiết mã nhập hàng phát sinh trong ngày</span></h2></div>
+          <div class="kpi-grid" style="margin-bottom:14px;">
+            <div class="kpi-card accent-amber col-4">
+              <div class="eyebrow">Tổng mã nhập hàng</div>
+              <div class="value" id="ov-purchase-count">—</div>
+              <div class="sub" id="ov-purchase-date">—</div>
+            </div>
+            <div class="kpi-card accent-green col-4">
+              <div class="eyebrow">Tổng tiền nhập</div>
+              <div class="value" id="ov-purchase-total">—</div>
+              <div class="sub">Tính trên các mã nhập hôm nay</div>
+            </div>
+            <div class="kpi-card accent-blue col-4">
+              <div class="eyebrow">Nhà cung cấp</div>
+              <div class="value" id="ov-purchase-suppliers">—</div>
+              <div class="sub">Có phát sinh nhập hàng hôm nay</div>
+            </div>
+          </div>
+          <div class="grid">
+            <div class="panel col-5">
+              <div class="panel-head">
+                <h2>Nhập hàng theo nhà cung cấp</h2>
+                <span class="drill-hint" id="ov-purchase-chart-hint">Hôm nay</span>
+              </div>
+              <div class="chart-box">
+                <canvas id="chartOverviewPurchases" role="img" aria-label="Biểu đồ nhập hàng hôm nay theo nhà cung cấp"></canvas>
+                <div class="chart-empty" id="overviewPurchaseChartEmpty" hidden>Chưa có dữ liệu nhập hàng hôm nay</div>
+              </div>
+            </div>
+            <div class="panel col-7">
+              <div class="panel-head">
+                <h2>Danh sách nhập hàng</h2>
+                <span class="drill-hint" id="ov-purchase-table-count">—</span>
+              </div>
+              <div class="scroll-list" style="max-height:360px;">
+                <table>
+                  <thead><tr><th>Mã nhập hàng</th><th>Ngày nhập</th><th>Nhà cung cấp</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead>
+                  <tbody id="overviewPurchaseRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-head"><span class="section-step">6</span><h2>Mã mới tạo hôm nay <span class="section-note">các mã hàng có Ngày tạo trong hôm nay</span></h2></div>
+          <div class="grid">
+            <div class="panel col-12">
+              <div class="panel-head">
+                <h2>Danh sách mã mới <span class="tag" id="tagTodayNewProductsDate">—</span></h2>
+                <span class="drill-hint" id="today-new-products-count">—</span>
+              </div>
+              <div class="scroll-list" style="max-height:420px;">
+                <table>
+                  <thead><tr><th>Mã</th><th>Tên</th><th>Nhóm hàng</th><th>Giá vốn</th><th>Giá bán</th></tr></thead>
+                  <tbody id="todayNewProductRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
                 </table>
               </div>
             </div>
@@ -1811,7 +1878,9 @@
 
   function renderView(view){
     const d = state.data;
+    if(!d) return;
     if(view === 'overview'){
+      const ov = d.overview || d;
       document.getElementById('ov-revenue').textContent = fmtMoney(d.kpi.revenueToday);
       document.getElementById('ov-revenue-sub').textContent = d.kpi.invoicesToday + ' hóa đơn' + (d.kpi.cancelledToday ? ' · ' + d.kpi.cancelledToday + ' đã hủy' : '');
       document.getElementById('ov-stock').textContent = d.kpi.totalStock.toLocaleString('vi-VN');
@@ -1819,9 +1888,9 @@
       document.getElementById('ov-lowstock').textContent = d.kpi.lowStockCount;
       document.getElementById('ov-customers').textContent = d.kpi.totalCustomers.toLocaleString('vi-VN');
       document.getElementById('ov-customers-sub').textContent = d.kpi.customersWithDebt + ' đang nợ · ' + fmtMoney(d.kpi.totalDebt);
-      document.getElementById('tagOverviewPeriod').textContent = (d.days || state.days) + ' ngày';
-      renderRevenueChart('chartOverviewRevenue', 'overviewRevenue', d.revenueByDay || []);
-      const report = d.endOfDayReport || { date:'—', transactions:[], hourly:[], summary:{} };
+      document.getElementById('tagOverviewPeriod').textContent = (d.filters && d.filters.overview ? d.filters.overview.label : ((d.days || state.days) + ' ngày'));
+      renderRevenueChart('chartOverviewRevenue', 'overviewRevenue', ov.revenueByDay || d.revenueByDay || []);
+      const report = ov.endOfDayReport || d.endOfDayReport || { date:'—', transactions:[], hourly:[], summary:{} };
       const summary = report.summary || {};
       const transactions = report.transactions || [];
       document.getElementById('tagEndOfDayDate').textContent = report.date || 'Hôm nay';
@@ -1845,6 +1914,46 @@
         '<td>' + statusPill(item.status) + '</td></tr>'
       ).join('') : '<tr><td colspan="7" class="empty">Chưa có giao dịch trong ngày</td></tr>';
       renderTopTransactionsChart(report);
+
+      const todayPurchases = ov.todayPurchases || { date:'Hôm nay', orderCount:0, totalAmount:0, supplierCount:0, bySupplier:[], orders:[] };
+      const todayPurchaseSuppliers = todayPurchases.bySupplier || [];
+      const todayPurchaseOrders = todayPurchases.orders || [];
+      document.getElementById('ov-purchase-count').textContent = Number(todayPurchases.orderCount || 0).toLocaleString('vi-VN');
+      document.getElementById('ov-purchase-date').textContent = 'Ngày ' + (todayPurchases.date || 'hôm nay');
+      document.getElementById('ov-purchase-total').textContent = fmtMoney(todayPurchases.totalAmount);
+      document.getElementById('ov-purchase-suppliers').textContent = Number(todayPurchases.supplierCount || 0).toLocaleString('vi-VN');
+      document.getElementById('ov-purchase-chart-hint').textContent = todayPurchaseSuppliers.length
+        ? todayPurchaseSuppliers.length + ' nhà cung cấp · ' + (todayPurchases.date || 'hôm nay')
+        : 'Chưa có phát sinh hôm nay';
+      document.getElementById('ov-purchase-table-count').textContent = 'Tổng ' + Number(todayPurchases.orderCount || 0).toLocaleString('vi-VN') + ' mã nhập hàng';
+      document.getElementById('chartOverviewPurchases').hidden = !todayPurchaseSuppliers.length;
+      document.getElementById('overviewPurchaseChartEmpty').hidden = !!todayPurchaseSuppliers.length;
+      if(todayPurchaseSuppliers.length){
+        renderBarChartList('chartOverviewPurchases','overviewPurchases',todayPurchaseSuppliers,s=>s.name,s=>s.total,themeColor('--amber'),true);
+      } else {
+        destroyChart('overviewPurchases');
+      }
+      document.getElementById('overviewPurchaseRows').innerHTML = todayPurchaseOrders.length ? todayPurchaseOrders.map(p =>
+        '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
+        '<td class="mono muted">' + (p.date ? escapeHtml(p.date) : '—') + '</td>' +
+        '<td class="name-cell">' + (p.supplier ? escapeHtml(p.supplier) : '—') + '</td>' +
+        '<td class="mono" data-sort-value="' + p.total + '">' + fmtMoney(p.total) + '</td>' +
+        '<td>' + genericStatusPill(p.status) + '</td></tr>'
+      ).join('') : '<tr><td colspan="5" class="empty">Chưa có mã nhập hàng nào hôm nay</td></tr>';
+
+      const todayNewProducts = ov.todayNewProducts || { date:'Hôm nay', count:0, dateColumnAvailable:true, products:[] };
+      const newProductRows = todayNewProducts.products || [];
+      document.getElementById('tagTodayNewProductsDate').textContent = todayNewProducts.date || 'Hôm nay';
+      document.getElementById('today-new-products-count').textContent = 'Tổng ' + Number(todayNewProducts.count || 0).toLocaleString('vi-VN') + ' mã mới';
+      document.getElementById('todayNewProductRows').innerHTML = newProductRows.length ? newProductRows.map(p =>
+        '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
+        '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+        '<td>' + escapeHtml(p.category || 'Chưa phân nhóm') + '</td>' +
+        '<td class="mono muted" data-sort-value="' + p.cost + '">' + fmtMoney(p.cost) + '</td>' +
+        '<td class="mono" data-sort-value="' + p.price + '">' + fmtMoney(p.price) + '</td></tr>'
+      ).join('') : '<tr><td colspan="5" class="empty">' +
+        (todayNewProducts.dateColumnAvailable === false ? 'Sheet Hàng hóa chưa có cột Ngày tạo' : 'Chưa có mã hàng mới tạo hôm nay') +
+        '</td></tr>';
     }
     else if(view === 'products'){
       document.getElementById('pr-total').textContent = d.kpi.totalProducts;
@@ -2050,7 +2159,14 @@
         state.lastFingerprint = fingerprint;
         state.data = data;
         document.getElementById('updatedAt').textContent = 'Cập nhật lúc ' + updatedAt + (changed ? '' : ' (không đổi)');
-        if (changed || isManualRefresh) renderView(state.view);
+        if (changed || isManualRefresh) {
+          try {
+            renderView(state.view);
+          } catch(err) {
+            console.error('Render error:', err);
+            alert('Lỗi hiển thị dữ liệu: ' + (err && err.message ? err.message : err));
+          }
+        }
         if (isManualRefresh) setLoading(false);
       })
       .catch(function(err){
