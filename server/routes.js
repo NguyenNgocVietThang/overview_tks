@@ -35,9 +35,29 @@ router.get('/api/debug', async (req, res) => {
   res.json(checks);
 });
 
+// Doc bo loc thoi gian rieng cho 1 tab tu query string, vd prefix "ov" doc
+// ovMode/ovDays/ovFrom/ovTo. legacyDays la fallback cho tham so "days" cu (khi
+// dashboard chi co 1 bo loc dung chung cho Tong quan+Hoa don) de link cu/API
+// cu khong bi vo neu con noi nao goi lai kieu cu.
+function parseFilterSpec(query, prefix, legacyDays) {
+  return {
+    mode: query[prefix + 'Mode'],
+    days: query[prefix + 'Days'] || legacyDays,
+    from: query[prefix + 'From'],
+    to: query[prefix + 'To']
+  };
+}
+
 router.get('/api/dashboard', async (req, res) => {
   try {
-    const data = await getDashboardData(req.query.days);
+    const legacyDays = req.query.days;
+    const filters = {
+      overview: parseFilterSpec(req.query, 'ov', legacyDays),
+      products: parseFilterSpec(req.query, 'pr'),
+      invoices: parseFilterSpec(req.query, 'in', legacyDays),
+      customers: parseFilterSpec(req.query, 'cu')
+    };
+    const data = await getDashboardData(filters);
     res.status(200).json(data);
   } catch (err) {
     const googleStatus = err?.response?.status;

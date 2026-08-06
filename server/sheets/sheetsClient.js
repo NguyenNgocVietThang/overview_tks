@@ -51,17 +51,43 @@ function sheetNameFromRange(rangeStr) {
   return namePart;
 }
 
+const SHEET_TITLES_CACHE_TTL_MS = 5 * 60 * 1000; // vai phut la du: danh sach tab hau nhu khong doi giua cac lan poll
+
+let sheetTitlesCache = {
+  data: null,
+  expiresAt: 0,
+  loading: null
+};
+
 /**
  * Danh sach ten cac sheet (tab) hien co trong spreadsheet — dung de debug
  * va de loc bot range khong ton tai truoc khi goi batchGet.
+ * Ket qua duoc cache vai phut (giong searchSheetCache) vi getMultipleSheetValues
+ * goi ham nay o MOI lan client poll du lieu, trong khi danh sach tab hau nhu
+ * khong bao gio doi giua 2 lan poll lien tiep.
  */
 async function listSheetTitles() {
+  if (sheetTitlesCache.data && Date.now() < sheetTitlesCache.expiresAt) {
+    return sheetTitlesCache.data;
+  }
+  if (sheetTitlesCache.loading) return sheetTitlesCache.loading;
+
   const sheets = await getSheetsApi();
-  const res = await sheets.spreadsheets.get({
+  const loading = sheets.spreadsheets.get({
     spreadsheetId: CONFIG.SPREADSHEET_ID,
     fields: 'sheets.properties.title'
-  });
-  return (res.data.sheets || []).map(s => s.properties.title);
+  })
+    .then(res => {
+      const titles = (res.data.sheets || []).map(s => s.properties.title);
+      sheetTitlesCache.data = titles;
+      sheetTitlesCache.expiresAt = Date.now() + SHEET_TITLES_CACHE_TTL_MS;
+      return titles;
+    })
+    .finally(() => {
+      if (sheetTitlesCache.loading === loading) sheetTitlesCache.loading = null;
+    });
+  sheetTitlesCache.loading = loading;
+  return loading;
 }
 
 /**
