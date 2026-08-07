@@ -317,6 +317,11 @@ const SEARCH_SOURCES = {
   purchases: {
     label: CONFIG.SHEET_PURCHASES,
     sheetName: CONFIG.SHEET_PURCHASES,
+    // Sheet "Nhập hàng" da doi sang cap dong hang (xem PURCHASE_SHEET_HEADERS
+    // trong SheetSchemas.gs) nen cot khong con o vi tri co dinh — uu tien tim
+    // theo TEN COT, codeIndex/nameIndex chi la fallback neu khong tim thay header.
+    codeHeader: 'Mã nhập hàng',
+    nameHeader: 'Tên nhà cung cấp',
     codeIndex: 0,
     nameIndex: 2
   }
@@ -368,10 +373,19 @@ function buildSearchIndex(sheets) {
     const headers = rows[0] || [];
     const records = [];
 
+    const headerCodeIndex = source.codeHeader
+      ? headers.findIndex(header => String(header || '').trim() === source.codeHeader)
+      : -1;
+    const headerNameIndex = source.nameHeader
+      ? headers.findIndex(header => String(header || '').trim() === source.nameHeader)
+      : -1;
+    const codeIndex = headerCodeIndex >= 0 ? headerCodeIndex : source.codeIndex;
+    const nameIndex = headerNameIndex >= 0 ? headerNameIndex : source.nameIndex;
+
     for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
       const row = rows[rowIndex] || [];
-      const code = normalizeWhitespace(row[source.codeIndex]);
-      const name = normalizeWhitespace(row[source.nameIndex]);
+      const code = normalizeWhitespace(row[codeIndex]);
+      const name = normalizeWhitespace(row[nameIndex]);
       if (!code && !name) continue;
       if (sourceKey === 'products' && isVatProductCode(code)) continue;
 
@@ -838,6 +852,49 @@ async function getDashboardData(filters) {
   const totalInventoryValue = allStockValueByCategory.reduce((sum, category) => sum + category.stockValue, 0);
   const stockValueByCategory = limitParentCategoryBars(allStockValueByCategory);
 
+  // ---------- HÀNG MỚI NHẬP (theo bộ lọc Hàng hóa) ----------
+  // Lay ngay nhap SOM NHAT cho tung ma hang tu sheet "Nhap hang" (doc theo TEN
+  // COT thay vi index cung, vi schema sheet nay da doi sang cap dong hang —
+  // xem PURCHASE_SHEET_HEADERS trong SheetSchemas.gs). Mot ma chi xuat hien
+  // neu ngay nhap dau tien nam trong khoang cua tab Hang hoa va khop bo loc
+  // trang thai kinh doanh dang chon.
+  const poHeaders = poData[0] || [];
+  const poCodeIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Mã hàng');
+  const poNameIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Tên hàng');
+  const poTimeIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Thời gian');
+  const firstImportByCode = new Map();
+
+  if (poCodeIndex >= 0 && poTimeIndex >= 0) {
+    for (let r = 1; r < poData.length; r++) {
+      const row = poData[r];
+      const code = row[poCodeIndex];
+      if (!code || isVatProductCode(code)) continue;
+      const importDate = parseSheetDate(row[poTimeIndex]);
+      if (!importDate) continue;
+      const key = String(code).trim();
+      const existing = firstImportByCode.get(key);
+      if (!existing || importDate.getTime() < existing.date.getTime()) {
+        const name = (poNameIndex >= 0 && row[poNameIndex]) || (existing && existing.name) || code;
+        firstImportByCode.set(key, { code, name, date: importDate });
+      }
+    }
+  }
+
+  const newlyImportedProducts = [];
+  firstImportByCode.forEach(entry => {
+    if (!isWithinRange(entry.date, productsRange)) return;
+    const currentProductStatus = productStatusByCode.get(String(entry.code).trim());
+    if (productStatusFilter !== 'all' && currentProductStatus !== productStatusFilter) return;
+    newlyImportedProducts.push({
+      code: entry.code,
+      name: entry.name,
+      firstImportDate: formatDMY(entry.date),
+      _sortTime: entry.date.getTime()
+    });
+  });
+  newlyImportedProducts.sort((a, b) => b._sortTime - a._sortTime);
+  const newlyImportedRows = newlyImportedProducts.map(({ _sortTime, ...rest }) => rest);
+
   // ---------- HÓA ĐƠN: index 1 lần, dùng lại cho mọi bộ lọc ----------
   // Cột: [0]Mã hóa đơn [1]Ngày bán [2]Khách hàng [3]SĐT khách [4]Nhân viên bán [5]Chi nhánh [6]Tổng tiền hàng [7]Giảm giá [8]Khách đã trả [9]Trạng thái
   // Tong so luong tung hoa don de bao cao co cot SL nhu KiotViet.
@@ -899,6 +956,9 @@ async function getDashboardData(filters) {
   const overviewReport = buildTransactionsReport(overviewRange, invoiceRecords, invoiceQuantityMap);
 
   const invoicesPeriod = buildRevenuePeriod(invoicesRange, invoiceRecords);
+  const periodCancelledInvoices = invoiceRecords.filter(
+    record => record.isCancelled && isWithinRange(record._dt, invoicesRange)
+  ).length;
   const recentInvoices = invoiceRecords
     .filter(r => isWithinRange(r._dt, invoicesRange))
     .sort((a, b) => b._sortTime - a._sortTime)
@@ -1054,23 +1114,41 @@ async function getDashboardData(filters) {
   const totalSuppliers = suppliers.length;
 
   // ---------- NHẬP HÀNG ----------
-  // Cột: [0]Mã nhập hàng [1]Ngày nhập [2]Nhà cung cấp [3]Chi nhánh [4]Tổng tiền [5]Trạng thái
-  // Sheet nay chi co du lieu cap PHIEU nhap (khong co dong Ma hang/So luong),
-  // nen "Hang moi nhap" duoc dinh nghia lai theo PHIEU nhap thay vi mat hang.
+  // Sheet "Nhập hàng" da doi sang cap dong hang (moi dong la mot mat hang
+  // trong phieu nhap, thong tin phieu duoc lap lai tren moi dong) - doc theo
+  // TEN COT thay vi index cung, xem PURCHASE_SHEET_HEADERS trong SheetSchemas.gs.
+  // Gom lai theo "Ma nhap hang" de moi phieu chi tinh 1 lan.
+  const poOrderCodeIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Mã nhập hàng');
+  const poOrderTimeIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Thời gian');
+  const poOrderSupplierIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Tên nhà cung cấp');
+  const poOrderBranchIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Chi nhánh');
+  const poOrderTotalIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Tổng tiền hàng');
+  const poOrderStatusIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Trạng thái');
+
   let purchaseOrdersCount = 0, totalPurchaseSpend = 0;
   const purchaseRecords = [];
-  for (let r = 1; r < poData.length; r++) {
-    const row = poData[r];
-    const code = row[0];
-    if (!code) continue;
-    const dt = parseSheetDate(row[1]);
-    const total = Number(row[4]) || 0;
-    purchaseOrdersCount++;
-    totalPurchaseSpend += total;
-    purchaseRecords.push({
-      code, date: row[1] || '', supplier: row[2] || '(Không xác định)', branch: row[3] || '',
-      total, status: row[5] || '', _dt: dt, _sortTime: dt ? dt.getTime() : 0
-    });
+  const seenPurchaseOrderCodes = new Set();
+  if (poOrderCodeIndex >= 0) {
+    for (let r = 1; r < poData.length; r++) {
+      const row = poData[r];
+      const code = row[poOrderCodeIndex];
+      if (!code || seenPurchaseOrderCodes.has(code)) continue;
+      seenPurchaseOrderCodes.add(code);
+      const dateVal = poOrderTimeIndex >= 0 ? row[poOrderTimeIndex] : '';
+      const dt = parseSheetDate(dateVal);
+      const total = poOrderTotalIndex >= 0 ? (Number(row[poOrderTotalIndex]) || 0) : 0;
+      purchaseOrdersCount++;
+      totalPurchaseSpend += total;
+      purchaseRecords.push({
+        code,
+        date: dateVal || '',
+        supplier: (poOrderSupplierIndex >= 0 && row[poOrderSupplierIndex]) || '(Không xác định)',
+        branch: (poOrderBranchIndex >= 0 && row[poOrderBranchIndex]) || '',
+        total,
+        status: (poOrderStatusIndex >= 0 && row[poOrderStatusIndex]) || '',
+        _dt: dt, _sortTime: dt ? dt.getTime() : 0
+      });
+    }
   }
   purchaseRecords.sort((a, b) => b._sortTime - a._sortTime);
 
@@ -1156,12 +1234,18 @@ async function getDashboardData(filters) {
     },
     products: {
       topSellingProducts,
-      topSellingParentCategories
+      topSellingParentCategories,
+      newlyImported: {
+        label: productsRange.label,
+        count: newlyImportedRows.length,
+        products: newlyImportedRows
+      }
     },
     invoices: {
       revenueByDay: invoicesPeriod.revenueByDay,
       periodRevenue: invoicesPeriod.periodRevenue,
       periodInvoices: invoicesPeriod.periodInvoices,
+      periodCancelledInvoices,
       recentInvoices,
       recentOrders,
       recentReturns,

@@ -353,7 +353,7 @@
   .period-toggle button.active{ background:var(--amber); color:#1b1206; }
   .analysis-toggle{ width:max-content; max-width:100%; margin:0 0 14px auto; }
 
-  /* ---------- Bộ lọc thời gian riêng cho từng section trong tab Tổng quan ---------- */
+  /* ---------- Bộ lọc thời gian cấp tab ---------- */
   .mini-filter{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:-2px 0 14px; }
   .mini-filter-range{ display:flex; align-items:center; gap:6px; }
   .mini-date{
@@ -635,10 +635,43 @@
 
         <div class="filter-group" data-filter-view="invoices" hidden>
           <span class="filter-label">Khoảng thời gian</span>
-          <div class="period-toggle" id="periodToggle">
-            <button type="button" data-days="7" onclick="setPeriod(7)">7 ngày</button>
-            <button type="button" data-days="30" class="active" onclick="setPeriod(30)">30 ngày</button>
-            <button type="button" data-days="90" onclick="setPeriod(90)">90 ngày</button>
+          <span class="drill-hint" style="margin:-4px 0 2px;">Áp dụng cho toàn bộ dữ liệu tab Hóa đơn</span>
+          <div class="mini-filter" data-filter-key="invoices" style="margin:0;">
+            <div class="period-toggle" data-mini-toggle>
+              <button type="button" data-days="1" onclick="setMiniFilterDays('invoices',1)">1 ngày</button>
+              <button type="button" data-days="7" onclick="setMiniFilterDays('invoices',7)">7 ngày</button>
+              <button type="button" data-days="30" class="active" onclick="setMiniFilterDays('invoices',30)">30 ngày</button>
+              <button type="button" data-days="90" onclick="setMiniFilterDays('invoices',90)">90 ngày</button>
+              <button type="button" data-custom onclick="focusMiniFilterRange('invoices')">Tùy chọn</button>
+              <button type="button" data-all onclick="setMiniFilterAll('invoices')">Tất cả</button>
+            </div>
+            <div class="mini-filter-range">
+              <input type="date" class="mini-date" id="miniFrom-invoices">
+              <span class="mini-filter-sep">đến</span>
+              <input type="date" class="mini-date" id="miniTo-invoices">
+              <button type="button" class="mini-filter-apply" onclick="applyMiniFilterRange('invoices')">Áp dụng</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="filter-group" data-filter-view="products" hidden>
+          <span class="filter-label">Khoảng thời gian</span>
+          <span class="drill-hint" style="margin:-4px 0 2px;">Áp dụng cho bán hàng và hàng mới nhập; tồn kho là số hiện tại</span>
+          <div class="mini-filter" data-filter-key="products" style="margin:0;">
+            <div class="period-toggle" data-mini-toggle>
+              <button type="button" data-days="1" onclick="setMiniFilterDays('products',1)">1 ngày</button>
+              <button type="button" data-days="7" onclick="setMiniFilterDays('products',7)">7 ngày</button>
+              <button type="button" data-days="30" class="active" onclick="setMiniFilterDays('products',30)">30 ngày</button>
+              <button type="button" data-days="90" onclick="setMiniFilterDays('products',90)">90 ngày</button>
+              <button type="button" data-custom onclick="focusMiniFilterRange('products')">Tùy chọn</button>
+              <button type="button" data-all onclick="setMiniFilterAll('products')">Tất cả</button>
+            </div>
+            <div class="mini-filter-range">
+              <input type="date" class="mini-date" id="miniFrom-products">
+              <span class="mini-filter-sep">đến</span>
+              <input type="date" class="mini-date" id="miniTo-products">
+              <button type="button" class="mini-filter-apply" onclick="applyMiniFilterRange('products')">Áp dụng</button>
+            </div>
           </div>
         </div>
 
@@ -855,7 +888,7 @@
         <div class="view-sub">Chỉ số tồn kho → cơ cấu theo nhóm → sản phẩm bán chạy → chi tiết từng mã hàng</div>
 
         <section class="section">
-          <div class="section-head"><span class="section-step">1</span><h2>Chỉ số then chốt <span class="section-note">quy mô danh mục và mức độ hết hàng</span></h2></div>
+          <div class="section-head"><span class="section-step">1</span><h2>Chỉ số then chốt <span class="section-note">tồn kho hiện tại, không thay đổi theo khoảng thời gian</span></h2></div>
           <div class="kpi-grid">
             <div class="kpi-card accent-amber col-3">
               <div class="eyebrow">Tổng số mặt hàng</div>
@@ -877,7 +910,7 @@
         </section>
 
         <section class="section">
-          <div class="section-head"><span class="section-step">2</span><h2>Cơ cấu tồn kho <span class="section-note">giá trị và số lượng theo nhóm cha</span></h2></div>
+          <div class="section-head"><span class="section-step">2</span><h2>Cơ cấu tồn kho <span class="section-note">giá trị hiện tại và số lượng theo nhóm cha</span></h2></div>
           <div class="grid">
             <div class="panel col-12">
               <div class="panel-head"><h2>Tỷ lệ tồn kho theo nhóm cha <span class="tag" id="tagCategoryValue">—</span></h2></div>
@@ -887,7 +920,7 @@
         </section>
 
         <section class="section">
-          <div class="section-head"><span class="section-step">3</span><h2>Phân tích <span class="section-note">mặt hàng hoặc nhóm cha nào tạo ra doanh thu</span></h2></div>
+          <div class="section-head"><span class="section-step">3</span><h2>Phân tích <span class="section-note" id="productAnalysisPeriod">doanh thu trong 30 ngày</span></h2></div>
           <div class="period-toggle analysis-toggle" id="productAnalysisToggle" role="group" aria-label="Kiểu phân tích doanh thu">
             <button type="button" class="active" data-analysis="product" onclick="setProductAnalysis('product')">Theo mặt hàng</button>
             <button type="button" data-analysis="parentCategory" onclick="setProductAnalysis('parentCategory')">Theo nhóm cha</button>
@@ -935,6 +968,21 @@
             </div>
           </div>
         </section>
+
+        <section class="section">
+          <div class="section-head"><span class="section-step">5</span><h2>Hàng mới nhập <span class="section-note" id="newlyImportedPeriod">ngày nhập đầu tiên trong 30 ngày</span></h2></div>
+          <div class="grid">
+            <div class="panel col-12">
+              <div class="panel-head"><h2>Hàng mới nhập <span class="tag" id="tagNewlyImported">—</span></h2></div>
+              <div class="scroll-list" style="max-height:420px;">
+                <table>
+                  <thead><tr><th>Mã hàng</th><th>Tên hàng</th><th>Ngày nhập đầu tiên</th></tr></thead>
+                  <tbody id="newlyImportedRows"><tr><td colspan="3" class="empty">Đang tải...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
       <!-- ============ HÓA ĐƠN ============ -->
@@ -943,21 +991,22 @@
         <div class="view-sub">Chỉ số bán hàng → xu hướng doanh thu → phân tích đơn chờ và trả hàng → chi tiết hóa đơn</div>
 
         <section class="section">
-          <div class="section-head"><span class="section-step">1</span><h2>Chỉ số then chốt <span class="section-note">hôm nay và trong kỳ đang chọn</span></h2></div>
+          <div class="section-head"><span class="section-step">1</span><h2>Chỉ số then chốt <span class="section-note">tổng hợp theo khoảng thời gian đang chọn</span></h2></div>
           <div class="kpi-grid">
             <div class="kpi-card accent-green col-4">
-              <div class="eyebrow">Doanh thu hôm nay</div>
+              <div class="eyebrow">Doanh thu trong kỳ</div>
               <div class="value" id="in-revenue">—</div>
               <div class="sub" id="in-revenue-sub">—</div>
             </div>
             <div class="kpi-card accent-blue col-4">
-              <div class="eyebrow">Doanh thu trong kỳ</div>
-              <div class="value" id="in-period-revenue">—</div>
+              <div class="eyebrow">Hóa đơn hoàn thành trong kỳ</div>
+              <div class="value" id="in-period-invoices">—</div>
               <div class="sub" id="in-period-sub">—</div>
             </div>
             <div class="kpi-card accent-red col-4">
-              <div class="eyebrow">Hóa đơn hủy hôm nay</div>
+              <div class="eyebrow">Hóa đơn hủy trong kỳ</div>
               <div class="value" id="in-cancelled">—</div>
+              <div class="sub" id="in-cancelled-sub">—</div>
             </div>
             <div class="kpi-card accent-amber col-6">
               <div class="eyebrow">Đặt hàng đang chờ</div>
@@ -1213,7 +1262,9 @@
     lastFetchTime: 0,
     tableSorts: {},
     filters: {
-      overview: { mode: 'days', days: 30 }
+      overview: { mode: 'days', days: 30 },
+      products: { mode: 'days', days: 30 },
+      invoices: { mode: 'days', days: 30 }
     },
     search: {
       results: [],
@@ -1761,12 +1812,6 @@
     if(state.data) renderView(view);
   }
 
-  function setPeriod(days){
-    state.days = days;
-    document.querySelectorAll('#periodToggle button').forEach(b => b.classList.toggle('active', Number(b.dataset.days) === days));
-    loadData(days, false);
-  }
-
   function setProductStatus(status){
     state.productStatus = status;
     document.querySelectorAll('#productStatusToggle button').forEach(b => b.classList.toggle('active', b.dataset.status === status));
@@ -1782,12 +1827,13 @@
     if(state.data) renderProductSalesAnalysis(state.data);
   }
 
-  // Bo loc thoi gian dung chung cho toan bo tab Tong quan (bieu do/bang doanh
-  // thu, Hang nhap, Ma moi tao, Hang ngung kinh doanh deu dung 1 khoang thoi
-  // gian nay): 1/7/30/90 ngay, tuy chon Tu ngay...den ngay..., hoac Tat ca.
-  // Gui len server duoi 4 prefix (ov/pu/np/de) de khong phai doi API/backend
-  // — moi prefix tuong ung 1 khoi du lieu server da tinh san theo bo loc rieng.
-  const OVERVIEW_FILTER_PREFIXES = ['ov', 'pu', 'np', 'de'];
+  // Moi tab nho mot bo loc thoi gian doc lap. Tong quan can gui cung lua chon
+  // cho 4 khoi backend; Hang hoa va Hoa don moi tab dung mot prefix rieng.
+  const TAB_FILTER_PREFIXES = {
+    overview: ['ov', 'pu', 'np', 'de'],
+    products: ['pr'],
+    invoices: ['in']
+  };
 
   function setMiniFilterDays(key, days){
     state.filters[key] = { mode: 'days', days: days };
@@ -1850,16 +1896,18 @@
   }
 
   function buildMiniFilterQuery(){
-    const filter = state.filters.overview;
-    if(!filter) return '';
     const parts = [];
-    OVERVIEW_FILTER_PREFIXES.forEach(function(prefix){
-      parts.push(prefix + 'Mode=' + encodeURIComponent(filter.mode));
-      if(filter.mode === 'days') parts.push(prefix + 'Days=' + encodeURIComponent(filter.days));
-      if(filter.mode === 'range'){
-        parts.push(prefix + 'From=' + encodeURIComponent(filter.from));
-        parts.push(prefix + 'To=' + encodeURIComponent(filter.to));
-      }
+    Object.keys(TAB_FILTER_PREFIXES).forEach(function(key){
+      const filter = state.filters[key];
+      if(!filter) return;
+      TAB_FILTER_PREFIXES[key].forEach(function(prefix){
+        parts.push(prefix + 'Mode=' + encodeURIComponent(filter.mode));
+        if(filter.mode === 'days') parts.push(prefix + 'Days=' + encodeURIComponent(filter.days));
+        if(filter.mode === 'range'){
+          parts.push(prefix + 'From=' + encodeURIComponent(filter.from));
+          parts.push(prefix + 'To=' + encodeURIComponent(filter.to));
+        }
+      });
     });
     parts.push('prStatus=' + encodeURIComponent(state.productStatus));
     return parts.join('&');
@@ -2227,6 +2275,9 @@
       ).join('') : '<tr><td colspan="5" class="empty">Chưa có mã ngừng kinh doanh trong khoảng đã chọn</td></tr>';
     }
     else if(view === 'products'){
+      const productRangeLabel = d.filters && d.filters.products ? d.filters.products.label : '30 ngày';
+      document.getElementById('productAnalysisPeriod').textContent = 'doanh thu: ' + productRangeLabel;
+      document.getElementById('newlyImportedPeriod').textContent = 'ngày nhập đầu tiên: ' + productRangeLabel;
       document.getElementById('pr-total').textContent = d.kpi.totalProducts;
       document.getElementById('pr-stock').textContent = d.kpi.inStockCodes.toLocaleString('vi-VN');
       document.getElementById('pr-lowstock').textContent = d.kpi.lowStockCount;
@@ -2253,17 +2304,26 @@
         '<td class="mono muted" data-sort-value="' + p.pct + '">' + p.pct.toFixed(2) + '%</td><td>' + bizStatusPill(p.status) + '</td></tr>'
       ).join('') : '<tr><td colspan="5" class="empty">Không có dữ liệu</td></tr>';
 
+      const newlyImported = (d.products && d.products.newlyImported && d.products.newlyImported.products) || [];
+      document.getElementById('tagNewlyImported').textContent = newlyImported.length;
+      const newlyImportedTbody = document.getElementById('newlyImportedRows');
+      newlyImportedTbody.innerHTML = newlyImported.length ? newlyImported.map(p =>
+        '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+        '<td class="mono muted">' + escapeHtml(p.firstImportDate) + '</td></tr>'
+      ).join('') : '<tr><td colspan="3" class="empty">Không có mã hàng mới nhập · ' + escapeHtml(productRangeLabel) + '</td></tr>';
+
       renderProductSalesAnalysis(d);
 
     }
     else if(view === 'invoices'){
       const invoiceData = d.invoices || d;
-      document.getElementById('in-revenue').textContent = fmtMoney(d.kpi.revenueToday);
-      document.getElementById('in-revenue-sub').textContent = d.kpi.invoicesToday + ' hóa đơn hôm nay';
-      document.getElementById('in-period-revenue').textContent = fmtMoney(invoiceData.periodRevenue);
-      document.getElementById('in-period-sub').textContent = Number(invoiceData.periodInvoices || 0).toLocaleString('vi-VN') + ' hóa đơn / ' +
-        (d.filters && d.filters.invoices ? d.filters.invoices.label : ((d.days || state.days) + ' ngày'));
-      document.getElementById('in-cancelled').textContent = d.kpi.cancelledToday;
+      const invoiceRangeLabel = d.filters && d.filters.invoices ? d.filters.invoices.label : ((d.days || state.days) + ' ngày');
+      document.getElementById('in-revenue').textContent = fmtMoney(invoiceData.periodRevenue);
+      document.getElementById('in-revenue-sub').textContent = invoiceRangeLabel;
+      document.getElementById('in-period-invoices').textContent = Number(invoiceData.periodInvoices || 0).toLocaleString('vi-VN');
+      document.getElementById('in-period-sub').textContent = invoiceRangeLabel;
+      document.getElementById('in-cancelled').textContent = Number(invoiceData.periodCancelledInvoices || 0).toLocaleString('vi-VN');
+      document.getElementById('in-cancelled-sub').textContent = invoiceRangeLabel;
       const recentInvoices = invoiceData.recentInvoices || [];
       document.getElementById('tagInvoices').textContent = recentInvoices.length;
       const rows = document.getElementById('invoiceRows');
@@ -2448,6 +2508,8 @@
   updateFilterBar();
   updateSearchContext();
   syncMiniFilterUI('overview');
+  syncMiniFilterUI('products');
+  syncMiniFilterUI('invoices');
   loadData(state.days, true);
   setInterval(function(){ loadData(state.days, false); }, AUTO_REFRESH_MS);
 
