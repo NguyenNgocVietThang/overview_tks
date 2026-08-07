@@ -29,8 +29,8 @@
 > + scanner accent`). The amber (`#F0A63A`) already in use **is** the "scanner accent" the
 > data calls for. So this system mostly **formalizes and completes** the existing tokens
 > (adds a real spacing scale, motion spec, component specs, a11y checklist) rather than
-> replacing the palette outright. Keeping the existing brand fonts (Sora for display headings,
-> JetBrains Mono for numeric/tabular data) on top of the recommended base is a deliberate,
+> replacing the palette outright. Using Be Vietnam Pro for display headings and IBM Plex Mono
+> for numeric/tabular data on top of the recommended base is a deliberate,
 > documented deviation — not an oversight.
 
 ---
@@ -62,15 +62,16 @@ than leaving it under threshold (Accessibility is Priority 1 in the skill's rule
 
 ### Typography
 
-- **Heading / Display Font:** Sora (existing — kept as a deliberate brand accent for `h1`/big
-  numbers, layered on top of the recommended base rather than replacing it)
+- **Heading / Display Font:** Be Vietnam Pro — a modern brand accent with strong Vietnamese
+  diacritic support, used for headings and primary actions.
 - **Body Font:** Inter — matches `typography.csv` row 5 "Minimal Swiss"
   (*"minimal, clean, swiss, functional, neutral, professional"* — Best For: *Dashboards, admin
   panels, documentation, enterprise apps, design systems*)
-- **Numeric / Tabular Font:** JetBrains Mono (existing — for the clock, quantities, prices;
-  matches `typography.csv` row 9 "Developer Mono" mood: *code, developer, technical, precise*)
+- **Numeric / Tabular Font:** IBM Plex Mono — for the clock, quantities, prices, percentages,
+  and identifiers; use tabular figures so dense columns remain easy to compare.
 - **Mood:** Professional + Clean hierarchy (from `ui-reasoning.csv` row 102)
-- **Google Fonts:** `https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap` (already imported — no change needed)
+- **Google Fonts:** `https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600&display=swap`
+- **Font tokens:** `--font-display: 'Be Vietnam Pro', sans-serif`; `--font-body: 'Inter', sans-serif`; `--font-data: 'IBM Plex Mono', monospace`.
 - **Base size:** 16px minimum body text; never drop below 12px even for dense table cells (Priority 6 check).
 
 ### Spacing Variables
@@ -117,7 +118,7 @@ exception, not a pattern to extend to cards/tables/buttons.
   padding: var(--space-lg) var(--space-xl);
   border: none;
   border-radius: 8px;
-  font-family: 'Sora', sans-serif;
+  font-family: var(--font-display);
   font-weight: 700;
   cursor: pointer;
   transition: background-color 150ms ease, opacity 150ms ease;
@@ -186,7 +187,7 @@ exception, not a pattern to extend to cards/tables/buttons.
 
 - Sticky header row on scroll.
 - Row hover = background-color shift only (`var(--color-secondary-2)`), never a shadow/lift.
-- Numeric columns: `font-family: 'JetBrains Mono'`, right-aligned.
+- Numeric columns: `font-family: var(--font-data)`, `font-variant-numeric: tabular-nums`, right-aligned.
 - Minimum 44×44px hit target on any row-level action button/icon (Priority 2 — Touch & Interaction).
 
 ---

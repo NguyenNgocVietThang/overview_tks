@@ -1,24 +1,24 @@
-﻿# SƠ ĐỒ QUY TRÌNH NGHIỆP VỤ (BPMN)
+# SƠ ĐỒ QUY TRÌNH NGHIỆP VỤ (BPMN)
 
 **HỆ THỐNG DASHBOARD NỘI BỘ TOKOSI — GIAI ĐOẠN 1**
 
 |                         |                                                                               |
 |-------------------------|-------------------------------------------------------------------------------|
 | **Tên tài liệu**        | Sơ đồ quy trình nghiệp vụ (BPMN) — Hệ thống Dashboard nội bộ TOKOSI          |
-| **Phiên bản**           | 1.2                                                                           |
+| **Phiên bản**           | 1.3                                                                           |
 | **Ngày tạo**            | 27/07/2026                                                                    |
-| **Ngày cập nhật**       | 29/07/2026                                                                    |
-| **Tài liệu tham chiếu** | BRD v1.2 và SRS v1.2 — Hệ thống Dashboard nội bộ TOKOSI                      |
+| **Ngày cập nhật**       | 07/08/2026                                                                    |
+| **Tài liệu tham chiếu** | BRD v1.3 và SRS v1.3 — Hệ thống Dashboard nội bộ TOKOSI                      |
 | **Phạm vi**             | Toàn bộ luồng nghiệp vụ Giai đoạn 1 (đã triển khai)                          |
 | **Trạng thái**          | Cập nhật theo code thực tế — đang vận hành                                    |
 
-> **Ghi chú phiên bản 1.2:** Bổ sung các nhánh vận hành mới đã triển khai: backend liệt kê và lọc tab trước `batchGet`, tiếp tục xử lý khi thiếu tab; frontend tự tải mỗi 10 phút và tải bù khi tab hiển thị trở lại; toàn bộ mốc ngày giờ dashboard dùng Asia/Ho_Chi_Minh; `/api/debug` trả thêm danh sách tab thực tế.
+> **Ghi chú phiên bản 1.3:** Bổ sung các nhánh vận hành mới: Apps Script `CustomerDebtReport.gs` tự động tính và ghi đè HN1/HN3/HN7 gần 15:00, `DiscontinuedProducts.gs` cập nhật lịch sử hàng ngừng kinh doanh trong một tab duy nhất, backend Express `server/dashboard/debtReport.js` đọc HN1/HN3/HN7 phục vụ API báo cáo công nợ KH 1/3/7 ngày.
 
 # 1. Giới thiệu
 
 ## 1.1. Mục đích tài liệu
 
-Tài liệu này trình bày mô hình hóa quy trình nghiệp vụ (BPMN — Business Process Model and Notation) cho toàn bộ luồng vận hành của Hệ thống Dashboard nội bộ TOKOSI, cụ thể hóa các yêu cầu đã nêu trong BRD v1.2 và SRS v1.2 thành sơ đồ trực quan theo vai trò (swimlane).
+Tài liệu này trình bày mô hình hóa quy trình nghiệp vụ (BPMN — Business Process Model and Notation) cho toàn bộ luồng vận hành của Hệ thống Dashboard nội bộ TOKOSI, cụ thể hóa các yêu cầu đã nêu trong BRD v1.3 và SRS v1.3 thành sơ đồ trực quan theo vai trò (swimlane).
 
 ## 1.2. Phạm vi mô hình hóa
 

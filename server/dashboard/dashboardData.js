@@ -9,7 +9,6 @@ const { parseDebtSheet } = require('./debtReport');
 const OUT_OF_STOCK_LEVEL = 0;
 const TOP_SELLING_LIMIT = 10;
 const MAX_PARENT_CATEGORY_BARS = 30;
-const NEW_PURCHASES_WINDOW_DAYS = 90; // dinh nghia "hang moi nhap": Ngay nhap trong N ngay gan day
 const NEW_PURCHASES_SUPPLIER_LIMIT = 30; // top NCC cho bieu do 2 cot
 const SEARCH_CACHE_TTL_MS = 2 * 60 * 1000;
 const DASHBOARD_SHEETS_CACHE_TTL_MS = 90 * 1000;
@@ -74,6 +73,7 @@ function parseDashboardWallTime(yyyy, MM, dd, hh = '0', mi = '0', ss = '0') {
  */
 function parseSheetDate(raw) {
   if (raw === undefined || raw === null || raw === '') return null;
+  if (raw instanceof Date) return isNaN(raw.getTime()) ? null : raw;
 
   if (typeof raw === 'number') {
     const wallTime = new Date(Math.round((raw - 25569) * DAY_MS));
@@ -265,7 +265,8 @@ const SHEET_NAMES = [
   CONFIG.SHEET_RETURNS,
   CONFIG.SHEET_CUSTOMERS,
   CONFIG.SHEET_SUPPLIERS,
-  CONFIG.SHEET_PURCHASES
+  CONFIG.SHEET_PURCHASES,
+  CONFIG.SHEET_DEACTIVATED_TODAY
 ];
 
 // HN1/HN3/HN7 do KiotViet tu quan ly; gop vao cung 1 lan batchGet de khong
@@ -653,9 +654,9 @@ function buildTransactionsReport(range, invoiceRecords, invoiceQuantityMap) {
 
 /**
  * Ham chinh lay du lieu cho dashboard.
- * @param {Object} filters - Bo loc thoi gian rieng cho tung tab:
- *   { overview, products, invoices, customers }, moi cai dang
- *   { mode: 'days'|'range'|'all', days?, from?, to? }.
+ * @param {Object} filters - Bo loc rieng cho tung tab. Moi bo loc thoi gian co
+ *   dang { mode: 'days'|'range'|'all', days?, from?, to? }; products co them
+ *   status: 'all'|'Đang kinh doanh'|'Ngừng kinh doanh'.
  * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
  */
 async function getDashboardData(filters) {
@@ -665,15 +666,21 @@ async function getDashboardData(filters) {
 
   const overviewRange = resolveFilterRange(f.overview, now);
   const productsRange = resolveFilterRange(f.products, now);
+  const productStatusFilter = ['Đang kinh doanh', 'Ngừng kinh doanh'].includes(f.products && f.products.status)
+    ? f.products.status
+    : 'all';
   const invoicesRange = resolveFilterRange(f.invoices, now);
   const customersRange = resolveFilterRange(f.customers, now);
+  const newPurchasesRange = resolveFilterRange(f.newPurchases, now);
+  const newProductsRange = resolveFilterRange(f.newProducts, now);
+  const deactivatedRange = resolveFilterRange(f.deactivated, now);
 
   const sheets = await getCachedDashboardSheets();
   rememberSearchSheets(sheets);
 
   const debt = {};
   DEBT_SHEETS.forEach(entry => {
-    debt[entry.period] = parseDebtSheet(sheets[entry.name]);
+    debt[entry.period] = parseDebtSheet(sheets[entry.name], now);
   });
 
   const categoryData = sheets[CONFIG.SHEET_CATEGORIES];
@@ -685,6 +692,7 @@ async function getDashboardData(filters) {
   const custData = sheets[CONFIG.SHEET_CUSTOMERS];
   const supplierData = sheets[CONFIG.SHEET_SUPPLIERS];
   const poData = sheets[CONFIG.SHEET_PURCHASES];
+  const deactivatedData = sheets[CONFIG.SHEET_DEACTIVATED_TODAY];
 
   // ---------- HÀNG HÓA ----------
   // Cột: [0]Mã hàng [1]Tên hàng [2]Nhóm hàng [3]Thương hiệu [4]Loại [5]Giá vốn [6]Giá bán [7]Tồn kho [8]Khách đặt [9]Trạng thái kinh doanh [10]Ngày sửa cuối [11]Mã nhóm hàng
@@ -693,6 +701,8 @@ async function getDashboardData(filters) {
   let totalProducts = 0, totalStock = 0, inStockCodes = 0, activeProducts = 0, inactiveProducts = 0, lowStock = [];
   let stockList = [];
   const parentCategoryMap = {};
+  const productParentCategoryByCode = new Map();
+  const productStatusByCode = new Map();
   const resolveParentCategory = buildParentCategoryResolver(categoryData);
   const productHeaders = prodData[0] || [];
   const productCategoryIdIndex = productHeaders.findIndex(header => String(header || '').trim() === 'Mã nhóm hàng');
@@ -703,19 +713,15 @@ async function getDashboardData(filters) {
     const row = prodData[r];
     const code = row[0];
     if (!code || isVatProductCode(code)) continue;
-    totalProducts++;
     const ton = Number(row[7]) || 0;
     const cost = Math.max(Number(row[5]) || 0, 0);
     const price = Math.max(Number(row[6]) || 0, 0);
     const stockValue = Math.max(ton, 0) * cost;
     const reserved = Number(row[8]) || 0;
-    const status = row[9] || 'Đang kinh doanh';
-    if (status === 'Ngừng kinh doanh') inactiveProducts++; else activeProducts++;
-    totalStock += ton;
-    if (ton > 0) inStockCodes++;
-    stockList.push({ code, name: row[1], stock: ton, reserved, status });
+    const status = String(row[9] || 'Đang kinh doanh').trim();
+    productStatusByCode.set(String(code).trim(), status);
     const createdAt = productCreatedDateIndex >= 0 ? parseSheetDate(row[productCreatedDateIndex]) : null;
-    if (createdAt && dmyKey(createdAt) === todayStr) {
+    if (createdAt && isWithinRange(createdAt, newProductsRange)) {
       todayNewProducts.push({
         code,
         name: row[1] || code,
@@ -725,6 +731,13 @@ async function getDashboardData(filters) {
         _sortTime: createdAt.getTime()
       });
     }
+    if (productStatusFilter !== 'all' && status !== productStatusFilter) continue;
+
+    totalProducts++;
+    if (status === 'Ngừng kinh doanh') inactiveProducts++; else activeProducts++;
+    totalStock += ton;
+    if (ton > 0) inStockCodes++;
+    stockList.push({ code, name: row[1], stock: ton, reserved, status });
     if (ton === OUT_OF_STOCK_LEVEL) {
       lowStock.push({
         code,
@@ -739,6 +752,7 @@ async function getDashboardData(filters) {
     const categoryName = (row[2] && String(row[2]).trim()) || '';
     const categoryId = productCategoryIdIndex >= 0 ? row[productCategoryIdIndex] : '';
     const parentCategoryName = resolveParentCategory(categoryName, categoryId);
+    productParentCategoryByCode.set(String(code).trim(), parentCategoryName);
     if (!parentCategoryMap[parentCategoryName]) {
       parentCategoryMap[parentCategoryName] = { name: parentCategoryName, stock: 0, stockValue: 0, productCount: 0 };
     }
@@ -749,6 +763,59 @@ async function getDashboardData(filters) {
   lowStock.sort((a, b) => a.stock - b.stock);
   todayNewProducts.sort((a, b) => b._sortTime - a._sortTime);
   const todayNewProductRows = todayNewProducts.map(({ _sortTime, ...rest }) => rest);
+
+  // ---------- HÀNG NGỪNG KINH DOANH ----------
+  // Tab "Hàng ngừng kinh doanh" do src/kiotviet/DiscontinuedProducts.gs ghi nhan
+  // moi khi 1 ma hang chuyen sang "Ngung kinh doanh". Loc lai theo
+  // "Ngay sua tren KiotViet" / "Thoi gian phat hien" bang bo loc thoi gian cua tab Tong quan.
+  const deactivatedTodayProducts = [];
+  if (Array.isArray(deactivatedData) && deactivatedData.length > 1) {
+    const deactivatedHeaders = deactivatedData[0] || [];
+    const norm = str => String(str || '').toLowerCase().replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+    const findCol = (...keywords) => deactivatedHeaders.findIndex(header => {
+      const h = norm(header);
+      return keywords.some(kw => h.includes(norm(kw)));
+    });
+
+    const modifiedAtIndex = findCol('Ngày sửa trên KiotViet', 'Ngày sửa KiotViet', 'Ngày sửa');
+    const detectedAtIndex = findCol('Thời gian phát hiện', 'Phát hiện');
+    const statusIndex = findCol('Trạng thái hiện tại', 'Trạng thái');
+    const codeIndex = findCol('Mã hàng');
+    const nameIndex = findCol('Tên hàng');
+    const categoryIndex = findCol('Nhóm hàng');
+
+    for (let r = 1; r < deactivatedData.length; r++) {
+      const row = deactivatedData[r];
+      const code = codeIndex >= 0 ? row[codeIndex] : row[6];
+      if (!code) continue;
+
+      const modifiedAtDate = modifiedAtIndex >= 0 ? parseSheetDate(row[modifiedAtIndex]) : null;
+      const detectedAtDate = detectedAtIndex >= 0 ? parseSheetDate(row[detectedAtIndex]) : null;
+      const eventDate = modifiedAtDate || detectedAtDate || parseSheetDate(row[0]);
+
+      if (!isWithinRange(eventDate, deactivatedRange)) continue;
+
+      let displayDateStr = '';
+      if (eventDate) {
+        displayDateStr = formatDMYHMS(eventDate);
+      } else if (modifiedAtIndex >= 0 && row[modifiedAtIndex]) {
+        displayDateStr = String(row[modifiedAtIndex]);
+      } else if (detectedAtIndex >= 0 && row[detectedAtIndex]) {
+        displayDateStr = String(row[detectedAtIndex]);
+      }
+
+      deactivatedTodayProducts.push({
+        code,
+        name: (nameIndex >= 0 ? row[nameIndex] : row[8]) || code,
+        category: (categoryIndex >= 0 ? row[categoryIndex] : row[12]) || 'Chưa phân nhóm',
+        status: (statusIndex >= 0 ? row[statusIndex] : row[2]) || 'Ngừng kinh doanh',
+        modifiedAt: displayDateStr,
+        _sortTime: eventDate ? eventDate.getTime() : 0
+      });
+    }
+  }
+  deactivatedTodayProducts.sort((a, b) => b._sortTime - a._sortTime);
+  const deactivatedTodayRows = deactivatedTodayProducts.map(({ _sortTime, ...rest }) => rest);
 
   stockList.sort((a, b) => b.stock - a.stock);
 
@@ -840,6 +907,7 @@ async function getDashboardData(filters) {
   // ---------- CHI TIẾT HÓA ĐƠN -> TOP SẢN PHẨM BÁN CHẠY (theo bộ lọc Hàng hóa) ----------
   // Cột: [0]Mã hóa đơn [1]Mã hàng [2]Tên hàng [3]Số lượng [4]Đơn giá [5]Giảm giá [6]Thành tiền
   const productSalesMap = {};
+  const parentCategorySalesMap = {};
   for (let r = 1; r < detailData.length; r++) {
     const row = detailData[r];
     const invoiceCode = row[0];
@@ -848,6 +916,8 @@ async function getDashboardData(filters) {
     const invoiceEntry = invoiceIndexByCode.get(String(invoiceCode).trim());
     if (!invoiceEntry || invoiceEntry.isCancelled) continue;
     if (!isWithinRange(invoiceEntry._dt, productsRange)) continue;
+    const currentProductStatus = productStatusByCode.get(String(code).trim());
+    if (productStatusFilter !== 'all' && currentProductStatus !== productStatusFilter) continue;
 
     const name = row[2] || code;
     const qty = Number(row[3]) || 0;
@@ -856,8 +926,30 @@ async function getDashboardData(filters) {
     if (!productSalesMap[code]) productSalesMap[code] = { code, name, qty: 0, revenue: 0 };
     productSalesMap[code].qty += qty;
     productSalesMap[code].revenue += revenue;
+
+    const parentCategoryName = productParentCategoryByCode.get(String(code).trim()) || 'Chưa xác định';
+    if (!parentCategorySalesMap[parentCategoryName]) {
+      parentCategorySalesMap[parentCategoryName] = {
+        name: parentCategoryName,
+        qty: 0,
+        revenue: 0,
+        productCodes: new Set()
+      };
+    }
+    parentCategorySalesMap[parentCategoryName].qty += qty;
+    parentCategorySalesMap[parentCategoryName].revenue += revenue;
+    parentCategorySalesMap[parentCategoryName].productCodes.add(String(code).trim());
   }
   const topSellingProducts = Object.values(productSalesMap)
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, TOP_SELLING_LIMIT);
+  const topSellingParentCategories = Object.values(parentCategorySalesMap)
+    .map(category => ({
+      name: category.name,
+      qty: category.qty,
+      revenue: category.revenue,
+      productCount: category.productCodes.size
+    }))
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, TOP_SELLING_LIMIT);
 
@@ -980,35 +1072,13 @@ async function getDashboardData(filters) {
     });
   }
   purchaseRecords.sort((a, b) => b._sortTime - a._sortTime);
-  // ---------- NHẬP HÀNG HÔM NAY (tab Tổng quan) ----------
-  // Sheet "Nhập hàng" chỉ có dữ liệu cấp phiếu. Vì vậy "tổng số lượng mã"
-  // ở đây là số mã nhập hàng (số phiếu), không phải số mã sản phẩm bên trong.
-  const todayPurchaseRecords = purchaseRecords.filter(p => p._dt && dmyKey(p._dt) === todayStr);
-  const todayPurchaseSupplierMap = {};
-  todayPurchaseRecords.forEach(p => {
-    const supplierName = p.supplier || '(Không xác định)';
-    if (!todayPurchaseSupplierMap[supplierName]) {
-      todayPurchaseSupplierMap[supplierName] = { name: supplierName, orderCount: 0, total: 0 };
-    }
-    todayPurchaseSupplierMap[supplierName].orderCount += 1;
-    todayPurchaseSupplierMap[supplierName].total += p.total;
-  });
-  const todayPurchasesBySupplier = Object.values(todayPurchaseSupplierMap)
-    .sort((a, b) => b.total - a.total);
-  const todayPurchaseOrders = todayPurchaseRecords.map(({ _dt, _sortTime, ...rest }) => rest);
-  const todayPurchaseTotalAmount = todayPurchaseRecords.reduce((sum, p) => sum + p.total, 0);
 
-  // ---------- HÀNG NHẬP GẦN ĐÂY: ngày nhập cách hôm nay không quá N ngày ----------
-  // Bao gồm cả phiếu có Ngày nhập đúng NEW_PURCHASES_WINDOW_DAYS ngày trước.
-  // Bieu do 2 cot top 30 NCC theo
-  // Tong tien nhap, kem cot So phieu nhap — day la 2 so lieu duy nhat co san
-  // o cap phieu nhap trong sheet "Nhập hàng".
-  const newPurchasesRange = {
-    mode: 'range',
-    start: startOfDay(new Date(now.getTime() - NEW_PURCHASES_WINDOW_DAYS * DAY_MS)),
-    end: endOfDay(now),
-    label: `Không quá ${NEW_PURCHASES_WINDOW_DAYS} ngày`
-  };
+  // ---------- HÀNG NHẬP (tab Tổng quan) ----------
+  // Sheet "Nhập hàng" chỉ có dữ liệu cấp phiếu. Vì vậy "tổng số lượng mã" ở
+  // đây là số mã nhập hàng (số phiếu), không phải số mã sản phẩm bên trong.
+  // Gộp "hôm nay" + "gần đây" thành 1 danh sách loc theo bo loc thoi gian
+  // rieng cua section (mac dinh xem resolveFilterRange), thay vi tach rieng
+  // KPI "hôm nay" va bang "khong qua 90 ngay" nhu truoc.
   const newPurchaseOrders = purchaseRecords
     .filter(p => isWithinRange(p._dt, newPurchasesRange))
     .map(({ _dt, _sortTime, ...rest }) => rest);
@@ -1035,9 +1105,12 @@ async function getDashboardData(filters) {
     filters: {
       overview: overviewRange,
       products: productsRange,
+      productStatus: productStatusFilter,
       invoices: invoicesRange,
       customers: customersRange,
-      newPurchases: newPurchasesRange
+      newPurchases: newPurchasesRange,
+      newProducts: newProductsRange,
+      deactivated: deactivatedRange
     },
     kpi: {
       revenueToday,
@@ -1068,23 +1141,21 @@ async function getDashboardData(filters) {
       periodRevenue: overviewPeriod.periodRevenue,
       periodInvoices: overviewPeriod.periodInvoices,
       endOfDayReport: overviewReport,
-      todayPurchases: {
-        date: todayStr,
-        orderCount: todayPurchaseOrders.length,
-        totalAmount: todayPurchaseTotalAmount,
-        supplierCount: todayPurchasesBySupplier.length,
-        bySupplier: todayPurchasesBySupplier,
-        orders: todayPurchaseOrders
-      },
       todayNewProducts: {
-        date: todayStr,
+        label: newProductsRange.label,
         count: todayNewProductRows.length,
         dateColumnAvailable: productCreatedDateIndex >= 0,
         products: todayNewProductRows
+      },
+      deactivatedToday: {
+        label: deactivatedRange.label,
+        count: deactivatedTodayRows.length,
+        products: deactivatedTodayRows
       }
     },
     products: {
-      topSellingProducts
+      topSellingProducts,
+      topSellingParentCategories
     },
     invoices: {
       revenueByDay: invoicesPeriod.revenueByDay,
@@ -1107,6 +1178,10 @@ async function getDashboardData(filters) {
     stockByCategory,
     suppliers,
     newPurchases: {
+      label: newPurchasesRange.label,
+      orderCount: newPurchasesOrderCount,
+      totalAmount: newPurchasesTotalAmount,
+      supplierCount: newPurchasesSupplierCount,
       bySupplier: newPurchasesBySupplier,
       orders: newPurchaseOrders
     },

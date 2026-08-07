@@ -1,4 +1,4 @@
-﻿# TÀI LIỆU ĐẶC TẢ YÊU CẦU PHẦN MỀM
+# TÀI LIỆU ĐẶC TẢ YÊU CẦU PHẦN MỀM
 
 *(Software Requirements Specification – SRS)*
 
@@ -7,27 +7,27 @@
 | **Thông tin**      | **Nội dung**                                               |
 |--------------------|------------------------------------------------------------|
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                          |
-| Phiên bản          | 1.2                                                        |
+| Phiên bản          | 1.3                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 29/07/2026                                                 |
-| Tài liệu liên quan | BRD v1.2 — Hệ thống Dashboard nội bộ TOKOSI               |
+| Ngày cập nhật      | 07/08/2026                                                 |
+| Tài liệu liên quan | BRD v1.3 — Hệ thống Dashboard nội bộ TOKOSI               |
 | Trạng thái         | Đang vận hành (Giai đoạn 1 đã triển khai)                 |
 
-> **Ghi chú phiên bản 1.2:** Đồng bộ đặc tả với các thay đổi đang vận hành: đọc an toàn khi thiếu/đổi tên tab Google Sheets, mở rộng `/api/debug` để liệt kê tab thực tế, tự làm mới frontend mỗi 10 phút và khi tab trình duyệt hiển thị trở lại, chuẩn hóa ngày giờ theo Asia/Ho_Chi_Minh, đồng thời đọc tab Nhóm hàng để gom tồn kho theo nhóm cha.
+> **Ghi chú phiên bản 1.3:** Đồng bộ đặc tả với các thay đổi đang vận hành: bổ sung module Apps Script `CustomerDebtReport.gs` tự động tính và ghi đè HN1/HN3/HN7 lúc 15:00, module `DiscontinuedProducts.gs` lưu lịch sử hàng ngừng kinh doanh từ trước tới nay trong một tab duy nhất, module backend `server/dashboard/debtReport.js` phục vụ báo cáo công nợ 1/3/7 ngày, cùng các bộ lọc tìm kiếm sản phẩm tiếng Việt tối ưu.
 
 # 1. Giới thiệu
 
 ## 1.1. Mục đích
 
-Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi chức năng của hệ thống Website Dashboard TOKOSI, làm cơ sở cho đội phát triển thiết kế, xây dựng, kiểm thử phần mềm. Tài liệu cụ thể hóa các yêu cầu nghiệp vụ đã nêu trong BRD v1.2 thành các đặc tả kỹ thuật có thể triển khai được.
+Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi chức năng của hệ thống Website Dashboard TOKOSI, làm cơ sở cho đội phát triển thiết kế, xây dựng, kiểm thử phần mềm. Tài liệu cụ thể hóa các yêu cầu nghiệp vụ đã nêu trong BRD v1.3 thành các đặc tả kỹ thuật có thể triển khai được.
 
 ## 1.2. Phạm vi hệ thống
 
 Hệ thống là một Web Application nội bộ gồm 2 thành phần chính:
 
-1. **Apps Script (`src/`):** chạy trong Google Workspace, đồng bộ đủ trường dữ liệu KiotViet Public API vào 9 tab vận hành và 2 tab tổng hợp báo cáo khách hàng (qua webhook KiotViet + hàng đợi bền vững + polling 15 phút + lịch báo cáo hàng ngày). Ba tab HN1/HN3/HN7 do KiotViet quản lý và nằm ngoài phạm vi ghi dữ liệu của Apps Script.
+1. **Apps Script (`src/`):** chạy trong Google Workspace, đồng bộ đủ trường dữ liệu KiotViet Public API vào 9 tab vận hành, 1 tab lịch sử hàng ngừng kinh doanh, 2 tab tổng hợp báo cáo khách hàng và 3 tab báo cáo công nợ HN1/HN3/HN7 (qua webhook KiotViet + hàng đợi bền vững + polling 15 phút + lịch báo cáo hàng ngày).
 
-2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu từ Google Spreadsheet qua Google Sheets API (Service Account), tính toán KPI và dữ liệu biểu đồ, trả về cho frontend qua REST API. Frontend hiển thị Dashboard tương tác trên trình duyệt.
+2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu và 3 tab công nợ HN1/HN3/HN7 từ Google Spreadsheet qua Google Sheets API (Service Account), tính toán KPI, dữ liệu biểu đồ và báo cáo công nợ khách hàng 1/3/7 ngày, trả về cho frontend qua REST API. Frontend hiển thị Dashboard tương tác trên trình duyệt.
 
 ## 1.3. Định nghĩa & thuật ngữ
 
@@ -35,7 +35,7 @@ Hệ thống là một Web Application nội bộ gồm 2 thành phần chính:
 |-------------------------|---------------------------------------------------------------------------------------|
 | Dashboard               | Trang tổng hợp hiển thị số liệu và biểu đồ từ dữ liệu nguồn.                          |
 | KPI Card                | Thẻ hiển thị 1 chỉ số tổng hợp (vd: Doanh thu hôm nay, Tổng tồn kho).               |
-| Spreadsheet nguồn       | Google Spreadsheet chứa 9 tab vận hành và 2 tab báo cáo do Apps Script duy trì, cùng HN1/HN3/HN7 do KiotViet quản lý. |
+| Spreadsheet nguồn       | Google Spreadsheet chứa 9 tab vận hành, 2 tab báo cáo bán hàng, tab lịch sử hàng ngừng kinh doanh và HN1/HN3/HN7 do Apps Script duy trì. |
 | Service Account         | Tài khoản dịch vụ Google dùng để backend đọc Spreadsheet mà không cần OAuth user.    |
 | Apps Script             | Mã module trong `src/` chạy trong Google Workspace, đồng bộ dữ liệu từ KiotViet.    |
 | batchGet                | Gọi Google Sheets API đọc nhiều tab đang tồn tại cùng lúc trong 1 request HTTP.      |
@@ -203,7 +203,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 
 | **Mã**  | **Mô tả**                                                                                                                                                                     | **Ưu tiên** | **Trạng thái** |
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
-| FR-06.1 | `syncAllInitialData()`: đồng bộ toàn bộ dữ liệu KiotViet vào 9 sheet vận hành (xóa nội dung và ghi lại toàn bộ).                                                           | Cao         | Hoàn thành     |
+| FR-06.1 | `syncAllInitialData()`: đồng bộ toàn bộ dữ liệu KiotViet vào 9 sheet vận hành, cập nhật lịch sử hàng ngừng kinh doanh và làm mới các báo cáo; HN1/HN3/HN7 phải chạy sau khi tab Hàng hóa đã được làm mới. | Cao | Hoàn thành |
 | FR-06.2 | `doPost(e)`: nhận webhook POST, hydrate bản ghi chi tiết rồi upsert/delete đúng sheet cho product/invoice/order/customer/category; hóa đơn đồng thời thay chi tiết hóa đơn và các dòng `Hàng bán theo khách`. | Cao | Hoàn thành |
 | FR-06.3 | `setupPollingTrigger()`: bật trigger 15 phút để sync Trả hàng + Nhà cung cấp + Nhập hàng (KiotViet không có webhook cho 3 loại này).                                          | Cao         | Hoàn thành     |
 | FR-06.4 | `setupRealtimeWebhook()`: đăng ký 9 loại event webhook với KiotViet API, xóa webhook cũ trước khi đăng ký mới.                                                               | Cao         | Hoàn thành     |
@@ -214,7 +214,8 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-06.9 | 9 sheet giữ các cột dashboard ở bên trái và các trường KiotViet dạng phẳng đang dùng ở bên phải; không lưu object/mảng hoặc payload gốc dạng JSON. Trigger nền tự xóa vật lý các cột `(JSON)` của schema cũ sau khi deploy. | Cao | Hoàn thành |
 | FR-06.10 | Webhook phải được ghi vào tab hàng đợi ẩn bền vững trước khi phản hồi thành công; chỉ xóa sau khi xử lý thành công. Lỗi được retry tối đa 10 lần rồi giữ ở trạng thái `ERROR` để xử lý thủ công. | Cao | Hoàn thành |
 | FR-06.11 | Full sync ghi dữ liệu mới trước khi dọn dòng cũ dư và khóa chung với luồng webhook, tránh xóa trắng hoặc ghi đè chéo khi cập nhật lỗi. | Cao | Hoàn thành |
-| FR-06.10 | Apps Script không được tạo, xóa, đọc/ghi dữ liệu, đổi header, bộ lọc, định dạng, kích thước hoặc bất kỳ thuộc tính cấu trúc nào của `HN1`, `HN3`, `HN7`. Các hàm công nợ legacy chỉ được phép gỡ trigger cũ và trả trạng thái bỏ qua. | Cao | Hoàn thành |
+| FR-06.12 | `syncCustomerDebtReports()` dùng cùng luồng tính cho chạy riêng và `syncAllInitialData()`, ghi đè HN1/HN3/HN7 theo kỳ 1/3/7 ngày và tự cập nhật gần 15:00. | Cao | Hoàn thành |
+| FR-06.13 | Chỉ duy trì tab `Hàng ngừng kinh doanh`; dữ liệu lịch sử không bị xóa theo ngày và tab legacy `Hàng ngừng KD hôm nay` được gộp/dọn khi đồng bộ. | Cao | Hoàn thành |
 
 ## 3.7. FR-07: Giao diện người dùng
 
@@ -411,12 +412,12 @@ lần qua trigger nền sẽ xóa vật lý các cột `(JSON)` của schema cũ
 - Chỉ ghi hóa đơn trạng thái hoàn thành. Webhook cập nhật trong khoảng 1 phút; mã/ID hóa đơn được lưu ở note nội bộ của cột A để thay hoặc xóa đúng dòng mà không phải thêm cột kỹ thuật.
 - Lượt đồng bộ gần 07:00 làm mới toàn bộ cửa sổ 90 ngày để loại bản ghi hết hạn và đối soát sai lệch webhook.
 
-## 7.4. Các tab HN1/HN3/HN7 do KiotViet quản lý (dashboard không đọc)
+## 7.4. Các tab HN1/HN3/HN7 do Apps Script duy trì
 
-- Cấu trúc, dữ liệu, định dạng và lịch cập nhật của HN1/HN3/HN7 được giữ nguyên theo nguồn KiotViet.
-- Apps Script không đăng ký trigger đồng bộ cho ba tab này và không lấy tên tab vào cấu hình ghi dữ liệu.
-- `syncAllInitialData()`, hàng đợi webhook và polling 15 phút không được truy cập hoặc thay đổi HN1/HN3/HN7.
-- Các entry point công nợ cũ được giữ làm compatibility guard: chỉ gỡ trigger legacy rồi trả trạng thái `skipped`, tuyệt đối không gọi Spreadsheet service cho ba tab này.
+- `CustomerDebtReport.gs` lấy dữ liệu khách hàng, hóa đơn, trả hàng và thu/chi từ KiotViet rồi ghi HN1/HN3/HN7 theo các kỳ 1/3/7 ngày.
+- `syncAllInitialData()` làm mới tab Hàng hóa trước khi dựng ba báo cáo để thông tin mã hàng, tên hàng, thương hiệu và nhóm hàng giống kết quả chạy `syncCustomerDebtReports()` riêng.
+- Trigger hàng ngày chạy gần 15:00; hàng đợi một phút có cơ chế chạy bù nếu lịch ngày bị trễ hoặc lỗi.
+- Backend dashboard chỉ đọc ba tab này và không ghi ngược lại.
 
 ## 7.5. Webhook KiotViet — 9 loại event
 

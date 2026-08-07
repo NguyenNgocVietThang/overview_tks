@@ -20,7 +20,7 @@ Hệ thống dashboard **thời gian thực** cho cửa hàng **CHbansi**, đồ
 | Hạng mục | Chi tiết |
 |---|---|
 | **Nền tảng** | Google Apps Script (V8 Runtime) |
-| **Lưu trữ dữ liệu** | Google Sheets (9 tab vận hành + 2 báo cáo do hệ thống quản lý; HN1/HN3/HN7 do KiotViet quản lý riêng) |
+| **Lưu trữ dữ liệu** | Google Sheets (9 tab vận hành + 6 tab tổng hợp: Báo cáo bán hàng, Hàng bán theo khách, Hàng ngừng kinh doanh, HN1, HN3, HN7) |
 | **Nguồn dữ liệu** | KiotViet Public API |
 | **Cập nhật** | Webhook + hàng đợi bền vững trên tab ẩn; polling 15 phút cho nguồn không có webhook |
 | **Apps Script** | Chỉ đồng bộ KiotViet → Google Sheets; Web App `/exec` chỉ nhận HTTP POST |
@@ -55,6 +55,9 @@ webtks-dashboard/
 │       └── MASTER.md            # Token, component và quy tắc thiết kế dashboard
 │
 ├── server/                      # Backend Node.js đọc/ghi Google Sheets
+│   ├── dashboard/
+│   │   ├── dashboardData.js     # Thống kê tổng quan KPI & biểu đồ
+│   │   └── debtReport.js        # Báo cáo công nợ khách hàng 1/3/7 ngày từ HN1/HN3/HN7
 │   ├── jobs/
 │   │   └── syncCustomerReport.js # Tác vụ đối soát toàn bộ 2 báo cáo lúc 07:00
 │   └── sheets/
@@ -69,9 +72,11 @@ webtks-dashboard/
 │   │
 │   ├── kiotviet/
 │   │   ├── Auth.gs              # getKiotVietToken() + cache token theo hạn
-│   │   ├── CustomerDebtReport.gs # Chặn ghi HN1/HN3/HN7 và gỡ trigger công nợ cũ
+│   │   ├── CustomerDebtReport.gs # syncCustomerDebtReports, setupCustomerDebtReports,
+│   │   │                        #   setupCustomerDebtReportDailyTrigger (HN1/HN3/HN7)
 │   │   ├── CustomerReport.gs    # syncCustomerReport, setupCustomerReport,
 │   │   │                        #   setupCustomerReportDailyTrigger
+│   │   ├── DiscontinuedProducts.gs # syncHangNgungKinhDoanh, lưu lịch sử ngừng kinh doanh
 │   │   ├── SheetSchemas.gs      # Schema đủ trường cho 9 sheet, fetch/retry,
 │   │   │                        #   ghi/upsert/migrate dữ liệu KiotViet
 │   │   ├── SyncInitial.gs       # syncAllInitialData, sync 9 sheet vận hành,
@@ -101,8 +106,11 @@ webtks-dashboard/
 │   │       ├── bpmn_1_phaseA.bpmn
 │   │       ├── bpmn_2_phaseB.bpmn
 │   │       └── bpmn_3_phaseC.bpmn
-│   └── 04-planning/
-│       └── implementation_plan.md
+│   ├── 04-planning/
+│   │   └── implementation_plan.md
+│   └── superpowers/
+│       └── specs/
+│           └── 2026-08-05-debt-dashboard-design.md
 │
 └── future-phases/               # ── Khung rỗng cho các giai đoạn sau ──
     ├── sales-pos/               # Giai đoạn 2: POS bán hàng
@@ -162,10 +170,10 @@ Deployment ID được giữ nguyên nên URL Web App không đổi; chỉ số 
 mỗi lần phát hành.
 
 ### Bước 4 — Thiết lập lần đầu (chạy thủ công 1 lần)
-1. Kiểm tra đã khai báo `KIOTVIET_CLIENT_ID` và `KIOTVIET_CLIENT_SECRET` trong Script Properties, sau đó chạy `syncAllInitialData()` để tải dữ liệu ban đầu
-2. Chạy `setupKiotVietAutoSync()` một lần. Hàm này tự tạo secret, trigger xử lý hàng đợi mỗi 1 phút, trigger polling mỗi 15 phút, gỡ trigger công nợ legacy và đăng ký đủ 9 webhook mà không xóa webhook của hệ thống khác.
+1. Kiểm tra đã khai báo `KIOTVIET_CLIENT_ID` và `KIOTVIET_CLIENT_SECRET` trong Script Properties, sau đó chạy `syncAllInitialData()` để tải dữ liệu ban đầu. Hàm này cũng cập nhật toàn bộ lịch sử vào tab **Hàng ngừng kinh doanh** và dọn tab legacy `Hàng ngừng KD hôm nay` nếu còn tồn tại.
+2. Chạy `setupKiotVietAutoSync()` một lần. Hàm này tự tạo secret, trigger xử lý hàng đợi mỗi 1 phút, polling mỗi 15 phút, cập nhật **Hàng ngừng kinh doanh** lúc 07:00, cập nhật HN1/HN3/HN7 gần 15:00 và đăng ký đủ 9 webhook mà không xóa webhook của hệ thống khác.
 3. Tab **Hàng bán theo khách** có đúng 5 cột `Khách hàng`, `Mã hàng`, `Tên hàng`, `SL mua chi tiết`, `Thời gian`; mỗi mặt hàng trong hóa đơn hoàn thành là một dòng và được webhook cập nhật trong khoảng 1 phút. Hai tab báo cáo vẫn được đối soát toàn bộ mỗi ngày sau 07:00. Có thể chạy `setupCustomerReport()` nếu muốn tạo ngay và có thêm trigger riêng. Tab **Báo cáo bán hàng** có đủ 18 cột như file xuất KiotViet.
-4. Ba tab **HN1**, **HN3**, **HN7** do KiotViet quản lý. Apps Script không tạo, xóa, ghi dữ liệu, đổi header, bộ lọc, định dạng, kích thước hay bất kỳ thuộc tính cấu trúc nào của ba tab này.
+4. Ba tab **HN1**, **HN3**, **HN7** là báo cáo công nợ khách hàng 1/3/7 ngày gần đây (tính cả hôm nay) do Apps Script tự tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00, hoặc chạy tay `syncCustomerDebtReports()` bất cứ lúc nào cần cập nhật ngay.
 
 Sau khi bật, thay đổi Hàng hóa, Tồn kho, Khách hàng, Hóa đơn, Đặt hàng và Nhóm hàng
 được nhận bằng webhook rồi ghi vào Sheets trong khoảng 1 phút. **Trả hàng**, **Nhà cung
@@ -183,7 +191,9 @@ cho ba nhóm này.
 
 | Hàm | Mục đích | Khi nào chạy |
 |---|---|---|
-| `syncAllInitialData()` | Làm mới 9 sheet vận hành theo schema gọn không có cột JSON và 2 sheet báo cáo do hệ thống quản lý; không chạm HN1/HN3/HN7 | Lần đầu hoặc khi cần full refresh |
+| `syncAllInitialData()` | Làm mới 9 sheet vận hành, lịch sử Hàng ngừng kinh doanh, 2 báo cáo bán hàng và HN1/HN3/HN7; báo cáo công nợ chạy sau khi Hàng hóa đã cập nhật | Lần đầu hoặc khi cần full refresh |
+| `syncHangNgungKinhDoanh()` | Nạp các sản phẩm đang ngừng kinh doanh và giữ lịch sử các sản phẩm từng ngừng; không tạo tab theo ngày | Khi cần đối soát thủ công |
+| `cauHinhLichHangNgungKinhDoanh()` | Cập nhật toàn bộ lịch sử và tạo lại lịch cập nhật 07:00 hàng ngày | Một lần sau khi deploy |
 | `removeJsonColumnsFromAllSheets()` | Xóa ngay các cột `(JSON)` cũ trên 9 sheet vận hành | Tùy chọn; trigger nền cũng tự chạy một lần sau khi deploy |
 | `setupKiotVietAutoSync()` | Bật hoặc khôi phục webhook và trigger an toàn, không tạo trùng | 1 lần sau khi deploy |
 | `syncPollingOnly_()` | Làm mới Trả hàng, Nhà cung cấp, Nhập hàng | Tự chạy bởi trigger 15 phút |
@@ -193,7 +203,10 @@ cho ba nhóm này.
 | `syncCustomerProductReport()` | Làm mới Hàng bán theo khách 5 cột (đồng thời làm mới báo cáo tháng) | Khi cần cập nhật thủ công |
 | `setupCustomerReport()` | Tạo cả hai báo cáo ngay và bật thêm lịch riêng gần 07:00 | Tùy chọn |
 | `setupCustomerReportDailyTrigger()` | Tạo lại lịch cập nhật hai báo cáo hàng ngày gần 07:00 | Khi cần khôi phục lịch |
-| `removeCustomerDebtReportDailyTrigger()` | Gỡ trigger công nợ legacy mà không chạm HN1/HN3/HN7 | Sau khi nâng cấp nếu cần kiểm tra thủ công |
+| `syncCustomerDebtReports()` | Tính lại công nợ khách hàng 1/3/7 ngày gần đây và ghi đè cả 3 tab HN1/HN3/HN7 | Khi cần cập nhật/đối soát ngay lập tức |
+| `setupCustomerDebtReports()` | Tạo báo cáo HN1/HN3/HN7 ngay và bật thêm lịch riêng gần 15:00 | Tùy chọn |
+| `setupCustomerDebtReportDailyTrigger()` | Tạo lại lịch cập nhật HN1/HN3/HN7 hàng ngày gần 15:00 | Khi cần khôi phục lịch |
+| `removeCustomerDebtReportDailyTrigger()` | Gỡ lịch cập nhật HN1/HN3/HN7 hàng ngày | Khi cần tạm dừng tự động cập nhật |
 | `setupQueueProcessingTrigger()` | Tạo trigger 1 phút | 1 lần duy nhất |
 | `getWebhookQueueStatus()` | Đếm sự kiện còn chờ trong hàng đợi bền vững | Khi kiểm tra vận hành |
 | `retryWebhookQueueErrors()` | Đưa sự kiện lỗi về hàng chờ sau khi đã sửa nguyên nhân | Khi queue có dòng `ERROR` |
@@ -241,10 +254,11 @@ cho ba nhóm này.
 > **Schema dữ liệu:** 9 sheet vận hành giữ nguyên các cột dashboard ở bên trái và
 > chỉ bổ sung các trường KiotViet dạng phẳng đang được sử dụng. Apps Script không
 > ghi object/mảng hoặc payload gốc vào cột JSON; trigger nền tự xóa các cột JSON
-> của schema cũ một lần sau khi phiên bản mới được deploy. HN1/HN3/HN7 nằm ngoài
-> phạm vi quản lý schema của Apps Script và luôn được giữ nguyên như KiotViet cung cấp.
+> của schema cũ một lần sau khi phiên bản mới được deploy. HN1/HN3/HN7 dùng schema
+> báo cáo riêng (một dòng cho mỗi giao dịch hoặc mặt hàng trong giao dịch)
+> do `CustomerDebtReport.gs` tự quản lý, tách biệt với 9 sheet vận hành.
 
 
 ---
 
-*Cập nhật lần cuối: 2026-08-03*
+*Cập nhật lần cuối: 2026-08-07*

@@ -13,7 +13,7 @@
 </script>
 <script src="/vendor/chart.umd.min.js"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600&family=Open+Sans:wght@400;500;600;700&display=swap');
 
   :root{
     color-scheme:dark;
@@ -34,6 +34,9 @@
     --amber-glow:rgba(240,166,58,0.07);
     --green-glow:rgba(61,214,140,0.06);
     --sidebar-w:210px;
+    --font-display:'Be Vietnam Pro',sans-serif;
+    --font-body:'Inter',sans-serif;
+    --font-data:'IBM Plex Mono',monospace;
   }
   :root[data-theme="light"]{
     color-scheme:light;
@@ -41,6 +44,7 @@
     --panel:#FFFFFF;
     --panel-2:#EAF0F7;
     --border:#C8D3E1;
+    --amber:#C47D0A;
     --green:#168A56;
     --red:#D43D4A;
     --blue:#2563EB;
@@ -61,7 +65,7 @@
       radial-gradient(circle at 90% 10%, var(--green-glow), transparent 40%),
       var(--bg);
     color:var(--text);
-    font-family:'Inter',sans-serif;
+    font-family:var(--font-body);
     min-height:100vh;
     transition:color .2s ease, background-color .2s ease;
   }
@@ -97,13 +101,13 @@
     padding:3px;
   }
   .brand-mark svg{ width:100%; height:100%; }
-  .brand-text h1{ margin:0; font-family:'Sora',sans-serif; font-weight:700; font-size:17px; }
+  .brand-text h1{ margin:0; font-family:var(--font-display); font-weight:700; font-size:17px; }
   .brand-text p{ margin:2px 0 0; font-size:11.5px; color:var(--muted); }
   .status-line{ display:flex; align-items:center; gap:14px; }
-  .clock{ font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .clock{ font-family:var(--font-data); font-size:12.5px; font-weight:500; color:var(--muted); display:flex; align-items:center; gap:8px; font-variant-numeric:tabular-nums; }
   .dot{ width:8px;height:8px;border-radius:50%;background:var(--green); box-shadow:0 0 0 3px rgba(61,214,140,0.18); }
   .refresh-btn{
-    background:var(--amber); color:#1b1206; border:none; font-family:'Sora',sans-serif;
+    background:var(--amber); color:#1b1206; border:none; font-family:var(--font-display);
     font-weight:700; font-size:13px; padding:9px 16px; border-radius:8px; cursor:pointer;
     display:flex; align-items:center; gap:8px;
   }
@@ -111,7 +115,7 @@
   .theme-toggle{
     min-height:44px; padding:0 12px; display:flex; align-items:center; gap:8px;
     background:var(--panel-2); color:var(--text); border:1px solid var(--border);
-    border-radius:8px; font-family:'Inter',sans-serif; font-size:12px; font-weight:600; cursor:pointer;
+    border-radius:8px; font-family:var(--font-body); font-size:12px; font-weight:600; cursor:pointer;
     transition:border-color .15s ease, background-color .15s ease, color .15s ease;
   }
   .theme-toggle:hover{ border-color:var(--muted); background:var(--surface-hover); }
@@ -151,7 +155,7 @@
   .view.active{ display:block; }
   @keyframes fadein{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;} }
 
-  .view-title{ font-family:'Sora',sans-serif; font-size:19px; font-weight:700; margin:0 0 4px; }
+  .view-title{ font-family:var(--font-display); font-size:21px; font-weight:700; margin:0 0 4px; }
   .view-sub{ font-size:12.5px; color:var(--muted); margin:0 0 18px; }
 
   [hidden]{ display:none !important; }
@@ -179,7 +183,7 @@
 
   .dashboard-search{ flex:1 1 340px; min-width:0; }
   .search-copy{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:10px; }
-  .search-label{ font-family:'Sora',sans-serif; font-size:13px; font-weight:600; }
+  .search-label{ font-family:var(--font-display); font-size:13px; font-weight:600; }
   .search-description{ color:var(--muted); font-size:11.5px; }
   .search-row{ display:flex; align-items:stretch; gap:8px; }
   .search-input-wrap{ position:relative; flex:1; min-width:0; }
@@ -190,7 +194,7 @@
   .search-input{
     width:100%; min-height:44px; padding:10px 46px 10px 40px;
     background:var(--panel-2); color:var(--text); border:1px solid var(--border);
-    border-radius:8px; font-family:'Inter',sans-serif; font-size:16px;
+    border-radius:8px; font-family:var(--font-body); font-size:16px;
     transition:border-color .15s ease, background-color .15s ease;
   }
   .search-input::placeholder{ color:var(--muted); opacity:.85; }
@@ -209,7 +213,7 @@
   .search-clear svg{ width:17px; height:17px; }
   .search-submit{
     min-height:44px; padding:0 18px; border:0; border-radius:8px;
-    background:var(--amber); color:#1B1206; font-family:'Sora',sans-serif;
+    background:var(--amber); color:#1B1206; font-family:var(--font-display);
     font-size:13px; font-weight:700; cursor:pointer;
     transition:opacity .15s ease, background-color .15s ease;
   }
@@ -230,7 +234,7 @@
   }
   .suggestion-item:hover, .suggestion-item.active{ background:var(--panel-2); }
   .suggestion-name{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; font-weight:600; }
-  .suggestion-code{ display:block; margin-top:3px; color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:10.5px; }
+  .suggestion-code{ display:block; margin-top:3px; color:var(--muted); font-family:var(--font-data); font-size:11px; font-weight:500; font-variant-numeric:tabular-nums; }
   .suggestion-source{
     color:var(--amber); border:1px solid rgba(240,166,58,.28); border-radius:999px;
     padding:3px 7px; font-size:10px; white-space:nowrap;
@@ -248,8 +252,8 @@
     display:inline-block; margin-bottom:7px; padding:3px 8px; border-radius:999px;
     color:var(--amber); background:rgba(240,166,58,.1); font-size:10.5px; font-weight:700;
   }
-  .search-result h2{ margin:0; font-family:'Sora',sans-serif; font-size:18px; }
-  .search-result-code{ margin-top:5px; color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:12px; }
+  .search-result h2{ margin:0; font-family:var(--font-display); font-size:18px; }
+  .search-result-code{ margin-top:5px; color:var(--muted); font-family:var(--font-data); font-size:12px; font-weight:500; font-variant-numeric:tabular-nums; }
   .search-results-summary{ margin:0; color:var(--muted); font-size:12px; }
   .search-results-wrap{
     max-height:min(60vh,640px); overflow:auto; border:1px solid var(--border); border-radius:9px;
@@ -262,7 +266,7 @@
   .search-result-source-cell{ color:var(--muted); font-size:11.5px; }
   .search-row-action{
     min-height:44px; padding:0 12px; border:1px solid var(--border); border-radius:8px;
-    background:var(--panel-2); color:var(--text); font-family:'Inter',sans-serif;
+    background:var(--panel-2); color:var(--text); font-family:var(--font-body);
     font-size:12px; font-weight:600; white-space:nowrap; cursor:pointer;
     transition:border-color .15s ease, background-color .15s ease;
   }
@@ -271,7 +275,7 @@
   .search-back{
     min-height:44px; padding:0 14px; flex-shrink:0; cursor:pointer;
     background:var(--panel-2); color:var(--text); border:1px solid var(--border);
-    border-radius:8px; font-family:'Inter',sans-serif; font-size:12px; font-weight:600;
+    border-radius:8px; font-family:var(--font-body); font-size:12px; font-weight:600;
     transition:border-color .15s ease, background-color .15s ease;
   }
   .search-back:hover{ border-color:var(--muted); }
@@ -282,7 +286,7 @@
   .detail-field dd{ margin:0; color:var(--text); font-size:13px; line-height:1.45; overflow-wrap:anywhere; }
   .detail-field dd.mono{ font-size:12px; }
   .search-empty{ padding:36px 16px; text-align:center; color:var(--muted); }
-  .search-empty b{ display:block; margin-bottom:7px; color:var(--text); font-family:'Sora',sans-serif; font-size:15px; }
+  .search-empty b{ display:block; margin-bottom:7px; color:var(--text); font-family:var(--font-display); font-size:15px; }
 
   /* ---------- Hệ lưới chung 12 cột: KPI, biểu đồ, bảng dùng chung một lưới ---------- */
   .grid{ display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:16px; align-items:start; }
@@ -311,10 +315,10 @@
     flex-shrink:0; width:22px; height:22px; border-radius:6px;
     display:flex; align-items:center; justify-content:center;
     background:var(--panel-2); border:1px solid var(--border);
-    color:var(--amber); font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700;
+    color:var(--amber); font-family:var(--font-data); font-size:11px; font-weight:700; font-variant-numeric:tabular-nums;
   }
   .section-head h2{
-    margin:0; font-family:'Sora',sans-serif; font-size:12px; font-weight:700;
+    margin:0; font-family:var(--font-display); font-size:12px; font-weight:700;
     text-transform:uppercase; letter-spacing:.09em; color:var(--text);
   }
   .section-head .section-note{ color:var(--muted); font-size:11.5px; font-weight:400; text-transform:none; letter-spacing:0; }
@@ -325,7 +329,7 @@
   .kpi-grid{ display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:14px; }
   .kpi-card{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px; }
   .kpi-card .eyebrow{ font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:600; }
-  .kpi-card .value{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:23px; margin-top:7px; }
+  .kpi-card .value{ font-family:var(--font-data); font-weight:700; font-size:23px; margin-top:7px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
   .kpi-card .sub{ font-size:11.5px; color:var(--muted); margin-top:5px; }
   .kpi-card.accent-amber .value{ color:var(--amber); }
   .kpi-card.accent-green .value{ color:var(--green); }
@@ -334,19 +338,43 @@
 
   .panel{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-bottom:16px; }
   .panel-head{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
-  .panel h2{ font-family:'Sora',sans-serif; font-size:14px; margin:0; font-weight:600; display:flex; align-items:center; gap:8px; }
+  .panel h2{ font-family:var(--font-display); font-size:14px; margin:0; font-weight:600; display:flex; align-items:center; gap:8px; }
   .panel h2 .tag{ font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; background:var(--panel-2); color:var(--muted); }
   .panel:has(table) > h2,
   .panel:has(table) > .panel-head{
     margin-bottom:20px; padding-bottom:14px; border-bottom:1px solid var(--border);
   }
 
-  .period-toggle{ display:flex; gap:6px; background:var(--panel-2); padding:4px; border-radius:8px; border:1px solid var(--border); }
+  .period-toggle{ display:flex; gap:6px; background:var(--panel-2); padding:4px; border-radius:8px; border:1px solid var(--border); flex-wrap:wrap; }
   .period-toggle button{
     background:transparent; border:none; color:var(--muted); font-size:11.5px; font-weight:600;
-    padding:6px 12px; border-radius:6px; cursor:pointer; font-family:'Inter',sans-serif;
+    padding:6px 12px; border-radius:6px; cursor:pointer; font-family:var(--font-body);
   }
   .period-toggle button.active{ background:var(--amber); color:#1b1206; }
+  .analysis-toggle{ width:max-content; max-width:100%; margin:0 0 14px auto; }
+
+  /* ---------- Bộ lọc thời gian riêng cho từng section trong tab Tổng quan ---------- */
+  .mini-filter{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:-2px 0 14px; }
+  .mini-filter-range{ display:flex; align-items:center; gap:6px; }
+  .mini-date{
+    min-height:34px; padding:6px 8px; background:var(--panel-2); color:var(--text);
+    border:1px solid var(--border); border-radius:7px; font-family:var(--font-body); font-size:12px;
+  }
+  .mini-date:focus{ border-color:var(--blue); outline:none; }
+  .mini-filter-sep{ color:var(--muted); font-size:11px; }
+  .mini-filter-apply{
+    min-height:34px; padding:0 12px; border:1px solid var(--border); border-radius:7px;
+    background:var(--panel-2); color:var(--text); font-family:var(--font-body);
+    font-size:11.5px; font-weight:600; cursor:pointer; transition:border-color .15s ease, background-color .15s ease;
+  }
+  .mini-filter-apply:hover{ border-color:var(--muted); }
+  .mini-filter-range.active .mini-filter-apply{ background:var(--amber); color:#1b1206; border-color:var(--amber); }
+  @media (max-width:760px){
+    .mini-filter{ width:100%; }
+    .mini-filter .period-toggle{ width:100%; justify-content:space-between; }
+    .mini-filter-range{ width:100%; }
+    .mini-date{ flex:1; min-width:0; }
+  }
 
   .grid-2{ display:grid; grid-template-columns:1.3fr 1fr; gap:16px; }
   @media (max-width:900px){ .grid-2{ grid-template-columns:1fr; } }
@@ -365,11 +393,25 @@
   .end-day-summary.stack{ grid-template-columns:1fr; margin-bottom:0; }
   .end-day-stat{ background:var(--panel-2); border:1px solid var(--border); border-radius:9px; padding:12px 14px; }
   .end-day-stat .label{ color:var(--muted); font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
-  .end-day-stat .number{ display:block; margin-top:6px; color:var(--text); font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; }
+  .end-day-stat .number{ display:block; margin-top:6px; color:var(--text); font-family:var(--font-data); font-size:16px; font-weight:700; font-variant-numeric:tabular-nums; }
   .end-day-stat .note{ display:block; margin-top:4px; color:var(--muted); font-size:10.5px; }
   .end-day-section{ margin-top:20px; }
   .end-day-section-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
-  .end-day-section-head h3{ margin:0; color:var(--text); font-family:'Sora',sans-serif; font-size:12.5px; font-weight:600; }
+  .end-day-section-head h3{ margin:0; color:var(--text); font-family:var(--font-display); font-size:12.5px; font-weight:600; }
+  .end-day-section-head span{ color:var(--muted); font-size:11px; }
+  .end-day-chart{ height:300px; }
+  .end-day-table table{ min-width:860px; }
+  .end-day-table tfoot td{ padding:11px 8px; border-top:1px solid var(--border); color:var(--text); font-weight:700; background:var(--panel-2); }
+  .end-day-table tfoot td:first-child{ border-radius:0 0 0 7px; }
+  .end-day-table tfoot td:last-child{ border-radius:0 0 7px 0; }
+
+  @media (max-width:900px){ .end-day-summary{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  @media (max-width:520px){ .end-day-summary{ grid-template-columns:1fr; } }
+
+  .scroll-list{ max-height:340px; overflow-y:auto; overflow-x:auto; }
+  .scroll-list::-webkit-scrollbar{ width:8px; }
+  .scroll-list::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
+  .scroll-list table thead th{ position:sticky; top:0; background:var(--panel); z-index:1; }
   .end-day-section-head span{ color:var(--muted); font-size:11px; }
   .end-day-chart{ height:300px; }
   .end-day-table table{ min-width:860px; }
@@ -389,29 +431,39 @@
   .legend-row{ display:flex; align-items:center; gap:8px; font-size:11.5px; }
   .legend-row .dot{ width:9px; height:9px; border-radius:2px; flex-shrink:0; }
   .legend-row .lbl{ flex:1; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .legend-row .val{ color:var(--muted); font-family:'JetBrains Mono',monospace; flex-shrink:0; }
+  .legend-row .val{ color:var(--muted); font-family:var(--font-data); font-weight:500; flex-shrink:0; font-variant-numeric:tabular-nums; }
 
-  table{ width:100%; border-collapse:collapse; font-size:12.5px; }
-  thead th{ text-align:left; color:var(--muted); font-weight:600; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; padding:0 8px 8px 8px; border-bottom:1px solid var(--border); }
-  thead th.sortable{ padding:0; }
+  /* ---------- Table header: trông như data, phân cách bằng border-bottom ---------- */
+  thead th{
+    padding:9px 8px;
+    font-family:var(--font-body); font-size:13px; font-weight:500;
+    color:var(--text);
+    background:transparent;
+    border-bottom:1px solid var(--border);
+    white-space:nowrap;
+    vertical-align:middle;
+    text-align:left;
+  }
   .sort-button{
-    width:100%; min-height:30px; display:flex; align-items:flex-start; justify-content:space-between; gap:8px;
-    padding:0 8px 8px; border:0; background:transparent; color:inherit; cursor:pointer;
-    font:inherit; font-weight:inherit; text-align:left; text-transform:inherit; letter-spacing:inherit;
+    display:inline-flex; align-items:center; gap:0;
+    background:none; border:none; padding:0; margin:0;
+    font-family:inherit; font-size:inherit; font-weight:inherit;
+    color:inherit; cursor:pointer; width:100%;
   }
   .sort-button:hover{ color:var(--text); }
   .sort-button:focus-visible{ outline:2px solid var(--blue); outline-offset:-2px; border-radius:4px; }
   .sort-indicator{
-    min-width:25px; color:var(--muted); font-family:'JetBrains Mono',monospace;
+    min-width:25px; color:var(--muted); font-family:var(--font-data);
     font-size:9px; font-weight:600; letter-spacing:0; text-align:right; white-space:nowrap;
   }
   thead th[aria-sort="ascending"] .sort-button,
   thead th[aria-sort="descending"] .sort-button,
   thead th[aria-sort="ascending"] .sort-indicator,
   thead th[aria-sort="descending"] .sort-indicator{ color:var(--amber); }
-  tbody td{ padding:9px 8px; border-bottom:1px solid var(--row-divider); vertical-align:middle; }
+  tbody td{ padding:9px 8px; border-bottom:1px solid var(--row-divider); vertical-align:middle; font-size:13px; }
   tbody tr:last-child td{ border-bottom:none; }
-  .mono{ font-family:'JetBrains Mono',monospace; }
+  .mono{ font-family:var(--font-data); font-weight:500; font-variant-numeric:tabular-nums; }
+  td.mono{ text-align:right; }
   .name-cell{ color:var(--text); font-weight:500; }
   .muted{ color:var(--muted); }
   .pill{ display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; }
@@ -426,12 +478,12 @@
   .placeholder-card{
     border:1px dashed var(--border); border-radius:10px; padding:22px; text-align:center; color:var(--muted); font-size:12.5px;
   }
-  .placeholder-card b{ color:var(--text); display:block; margin-bottom:6px; font-family:'Sora',sans-serif; font-size:13px; }
+  .placeholder-card b{ color:var(--text); display:block; margin-bottom:6px; font-family:var(--font-display); font-size:13px; }
 
   .loading-veil{
     position:fixed; inset:0; background:var(--veil); backdrop-filter:blur(2px);
     display:flex; align-items:center; justify-content:center; z-index:50;
-    font-family:'JetBrains Mono',monospace; color:var(--amber); font-size:13px;
+    font-family:var(--font-data); color:var(--amber); font-size:13px; font-weight:500; font-variant-numeric:tabular-nums;
     opacity:0; pointer-events:none; transition:opacity .2s ease;
   }
   .loading-veil.show{ opacity:1; pointer-events:all; }
@@ -560,7 +612,28 @@
         <div class="search-status" id="searchStatus" aria-live="polite">Có thể dùng phím ↑ ↓ để chọn gợi ý</div>
       </form>
 
-        <div class="filter-group" data-filter-view="overview invoices" hidden>
+        <div class="filter-group" data-filter-view="overview" hidden>
+          <span class="filter-label">Khoảng thời gian</span>
+          <span class="drill-hint" style="margin:-4px 0 2px;">Áp dụng cho toàn bộ dữ liệu tab Tổng quan</span>
+          <div class="mini-filter" data-filter-key="overview" style="margin:0;">
+            <div class="period-toggle" data-mini-toggle>
+              <button type="button" data-days="1" onclick="setMiniFilterDays('overview',1)">1 ngày</button>
+              <button type="button" data-days="7" onclick="setMiniFilterDays('overview',7)">7 ngày</button>
+              <button type="button" data-days="30" class="active" onclick="setMiniFilterDays('overview',30)">30 ngày</button>
+              <button type="button" data-days="90" onclick="setMiniFilterDays('overview',90)">90 ngày</button>
+              <button type="button" data-custom onclick="focusMiniFilterRange('overview')">Tùy chọn</button>
+              <button type="button" data-all onclick="setMiniFilterAll('overview')">Tất cả</button>
+            </div>
+            <div class="mini-filter-range">
+              <input type="date" class="mini-date" id="miniFrom-overview">
+              <span class="mini-filter-sep">đến</span>
+              <input type="date" class="mini-date" id="miniTo-overview">
+              <button type="button" class="mini-filter-apply" onclick="applyMiniFilterRange('overview')">Áp dụng</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="filter-group" data-filter-view="invoices" hidden>
           <span class="filter-label">Khoảng thời gian</span>
           <div class="period-toggle" id="periodToggle">
             <button type="button" data-days="7" onclick="setPeriod(7)">7 ngày</button>
@@ -683,7 +756,7 @@
                 <h2>Chi tiết giao dịch</h2>
                 <span class="drill-hint" id="end-day-table-count">—</span>
               </div>
-              <div class="table-wrap">
+              <div class="table-wrap scroll-list">
                 <table>
                   <thead><tr><th>Mã giao dịch</th><th>Thời gian</th><th>Khách hàng</th><th>Nhân viên bán hàng</th><th>SL</th><th>Doanh thu</th><th>Giảm giá</th><th>Thực thu</th><th>Trạng thái</th></tr></thead>
                   <tbody id="endOfDayRows"><tr><td colspan="9" class="empty">Đang tải...</td></tr></tbody>
@@ -695,7 +768,7 @@
         </section>
 
         <section class="section">
-          <div class="section-head"><span class="section-step">5</span><h2>Hàng nhập hôm nay <span class="section-note">tổng hợp và chi tiết mã nhập hàng phát sinh trong ngày</span></h2></div>
+          <div class="section-head"><span class="section-step">5</span><h2>Hàng nhập <span class="section-note">tổng hợp và danh sách phiếu nhập hàng theo khoảng thời gian đã chọn ở trên</span></h2></div>
           <div class="kpi-grid" style="margin-bottom:14px;">
             <div class="kpi-card accent-amber col-4">
               <div class="eyebrow">Tổng mã nhập hàng</div>
@@ -705,31 +778,31 @@
             <div class="kpi-card accent-green col-4">
               <div class="eyebrow">Tổng tiền nhập</div>
               <div class="value" id="ov-purchase-total">—</div>
-              <div class="sub">Tính trên các mã nhập hôm nay</div>
+              <div class="sub">Tính trên các mã nhập trong khoảng đã chọn</div>
             </div>
             <div class="kpi-card accent-blue col-4">
               <div class="eyebrow">Nhà cung cấp</div>
               <div class="value" id="ov-purchase-suppliers">—</div>
-              <div class="sub">Có phát sinh nhập hàng hôm nay</div>
+              <div class="sub">Có phát sinh nhập hàng trong khoảng đã chọn</div>
             </div>
           </div>
           <div class="grid">
             <div class="panel col-5">
               <div class="panel-head">
                 <h2>Nhập hàng theo nhà cung cấp</h2>
-                <span class="drill-hint" id="ov-purchase-chart-hint">Hôm nay</span>
+                <span class="drill-hint" id="ov-purchase-chart-hint">—</span>
               </div>
               <div class="chart-box">
-                <canvas id="chartOverviewPurchases" role="img" aria-label="Biểu đồ nhập hàng hôm nay theo nhà cung cấp"></canvas>
-                <div class="chart-empty" id="overviewPurchaseChartEmpty" hidden>Chưa có dữ liệu nhập hàng hôm nay</div>
+                <canvas id="chartOverviewPurchases" role="img" aria-label="Biểu đồ nhập hàng theo nhà cung cấp"></canvas>
+                <div class="chart-empty" id="overviewPurchaseChartEmpty" hidden>Chưa có dữ liệu nhập hàng trong khoảng đã chọn</div>
               </div>
             </div>
             <div class="panel col-7">
               <div class="panel-head">
-                <h2>Danh sách nhập hàng</h2>
+                <h2>Danh sách nhập hàng <span class="tag" id="tagPurchases">—</span></h2>
                 <span class="drill-hint" id="ov-purchase-table-count">—</span>
               </div>
-              <div class="scroll-list" style="max-height:360px;">
+              <div class="scroll-list" style="max-height:420px;">
                 <table>
                   <thead><tr><th>Mã nhập hàng</th><th>Ngày nhập</th><th>Nhà cung cấp</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead>
                   <tbody id="overviewPurchaseRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
@@ -740,7 +813,7 @@
         </section>
 
         <section class="section">
-          <div class="section-head"><span class="section-step">6</span><h2>Mã mới tạo hôm nay <span class="section-note">các mã hàng có Ngày tạo trong hôm nay</span></h2></div>
+          <div class="section-head"><span class="section-step">6</span><h2>Mã mới tạo <span class="section-note">các mã hàng có Ngày tạo trong khoảng thời gian đã chọn ở trên</span></h2></div>
           <div class="grid">
             <div class="panel col-12">
               <div class="panel-head">
@@ -758,17 +831,17 @@
         </section>
 
         <section class="section">
-          <div class="section-head"><span class="section-step">7</span><h2>Hàng nhập gần đây <span class="section-note">ngày nhập cách hôm nay không quá 90 ngày</span></h2></div>
+          <div class="section-head"><span class="section-step">7</span><h2>Hàng ngừng kinh doanh <span class="section-note">các mã hàng chuyển sang Ngừng kinh doanh trong khoảng thời gian đã chọn ở trên</span></h2></div>
           <div class="grid">
             <div class="panel col-12">
               <div class="panel-head">
-                <h2>Danh sách nhập hàng <span class="tag" id="tagPurchases">—</span></h2>
-                <span class="drill-hint">Tính từ ngày nhập đầu tiên · ≤ 90 ngày</span>
+                <h2>Danh sách mã ngừng kinh doanh <span class="tag" id="tagDeactivatedTodayDate">—</span></h2>
+                <span class="drill-hint" id="deactivated-today-count">—</span>
               </div>
               <div class="scroll-list" style="max-height:420px;">
                 <table>
-                  <thead><tr><th>Mã nhập hàng</th><th>Ngày nhập</th><th>Nhà cung cấp</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead>
-                  <tbody id="purchaseRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
+                  <thead><tr><th>Mã hàng</th><th>Tên hàng</th><th>Nhóm hàng</th><th>Ngày sửa trên KiotViet</th><th>Trạng thái</th></tr></thead>
+                  <tbody id="deactivatedTodayRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
                 </table>
               </div>
             </div>
@@ -814,17 +887,21 @@
         </section>
 
         <section class="section">
-          <div class="section-head"><span class="section-step">3</span><h2>Phân tích <span class="section-note">mặt hàng nào tạo ra doanh thu</span></h2></div>
+          <div class="section-head"><span class="section-step">3</span><h2>Phân tích <span class="section-note">mặt hàng hoặc nhóm cha nào tạo ra doanh thu</span></h2></div>
+          <div class="period-toggle analysis-toggle" id="productAnalysisToggle" role="group" aria-label="Kiểu phân tích doanh thu">
+            <button type="button" class="active" data-analysis="product" onclick="setProductAnalysis('product')">Theo mặt hàng</button>
+            <button type="button" data-analysis="parentCategory" onclick="setProductAnalysis('parentCategory')">Theo nhóm cha</button>
+          </div>
           <div class="grid">
             <div class="panel col-7">
-              <div class="panel-head"><h2>Top sản phẩm bán chạy <span class="tag" id="tagTopSelling">—</span></h2></div>
+              <div class="panel-head"><h2><span id="topSellingChartTitle">Top sản phẩm bán chạy</span> <span class="tag" id="tagTopSelling">—</span></h2></div>
               <div class="chart-box small"><canvas id="chartTopSelling"></canvas></div>
             </div>
             <div class="panel col-5">
-              <div class="panel-head"><h2>Chi tiết sản phẩm bán chạy</h2></div>
+              <div class="panel-head"><h2 id="topSellingTableTitle">Chi tiết sản phẩm bán chạy</h2></div>
               <div class="scroll-list" style="max-height:220px;">
                 <table>
-                  <thead><tr><th>Sản phẩm</th><th>SL bán</th><th>Doanh thu</th></tr></thead>
+                  <thead><tr><th id="topSellingNameHeader">Sản phẩm</th><th>SL bán</th><th>Doanh thu</th></tr></thead>
                   <tbody id="topSellingRows"><tr><td colspan="3" class="empty">Đang tải...</td></tr></tbody>
                 </table>
               </div>
@@ -1062,13 +1139,13 @@
       <!-- ============ CÔNG NỢ ============ -->
       <div class="view" id="view-debt">
         <div class="view-title">Công nợ khách hàng theo kỳ</div>
-        <div class="view-sub">Dữ liệu từ KiotViet (HN1/HN3/HN7) — KiotViet tự cập nhật hàng ngày, dashboard làm mới mỗi 10 phút. Số liệu này khác "Tổng công nợ" (nợ lũy kế) ở tab Khách hàng — không đối chiếu chéo hai nguồn.</div>
+        <div class="view-sub">Dữ liệu từ KiotViet (HN1/HN3/HN7) — Apps Script cập nhật hàng ngày, dashboard làm mới mỗi 10 phút. Số liệu này khác "Tổng công nợ" (nợ lũy kế) ở tab Khách hàng — không đối chiếu chéo hai nguồn.</div>
 
         <section class="section">
           <div class="section-head"><span class="section-step">1</span><h2>Chỉ số then chốt <span class="section-note">kết quả của kỳ đang chọn</span></h2></div>
           <div class="kpi-grid">
             <div class="kpi-card accent-amber col-3">
-              <div class="eyebrow">Tổng nợ cuối kỳ</div>
+              <div class="eyebrow">Tổng dư nợ sau thanh toán mới nhất</div>
               <div class="value" id="dt-closing">—</div>
             </div>
             <div class="kpi-card accent-red col-3">
@@ -1087,7 +1164,7 @@
         </section>
 
         <section class="section">
-          <div class="section-head"><span class="section-step">2</span><h2>Phân tích <span class="section-note">khách nào chiếm phần lớn dư nợ cuối kỳ</span></h2></div>
+          <div class="section-head"><span class="section-step">2</span><h2>Phân tích <span class="section-note">mỗi khách lấy dư nợ của lần thanh toán mới nhất đến hiện tại</span></h2></div>
           <div class="grid">
             <div class="panel col-12">
               <div class="panel-head">
@@ -1109,7 +1186,7 @@
               </div>
               <div class="scroll-list" style="max-height:480px;">
                 <table>
-                  <thead><tr><th>Mã KH</th><th>Khách hàng</th><th>Điện thoại</th><th>Nhóm KH</th><th>Nợ đầu kỳ</th><th>Ghi nợ</th><th>Ghi có</th><th>Nợ cuối kỳ</th></tr></thead>
+                  <thead><tr><th>Mã KH</th><th>Khách hàng</th><th>Điện thoại</th><th>Nhóm KH</th><th>Nợ đầu kỳ</th><th>Ghi nợ</th><th>Ghi có</th><th>Dư nợ cuối (thanh toán mới nhất)</th></tr></thead>
                   <tbody id="debtPeriodRows"><tr><td colspan="8" class="empty">Đang tải...</td></tr></tbody>
                 </table>
               </div>
@@ -1131,9 +1208,13 @@
     view: 'overview',
     charts: {},
     productStatus: 'all',
+    productAnalysis: 'product',
     debtPeriod: 1,
     lastFetchTime: 0,
     tableSorts: {},
+    filters: {
+      overview: { mode: 'days', days: 30 }
+    },
     search: {
       results: [],
       total: 0,
@@ -1145,6 +1226,10 @@
       controller: null
     }
   };
+  Chart.defaults.font.family = 'Inter, sans-serif';
+  Chart.defaults.font.weight = '400';
+  Chart.defaults.plugins.tooltip.titleFont = { family:'Inter, sans-serif', weight:'600' };
+  Chart.defaults.plugins.tooltip.bodyFont = { family:'IBM Plex Mono, monospace', weight:'500' };
   const THEME_STORAGE_KEY = 'tks-dashboard-theme';
 
   function themeColor(name){
@@ -1685,7 +1770,99 @@
   function setProductStatus(status){
     state.productStatus = status;
     document.querySelectorAll('#productStatusToggle button').forEach(b => b.classList.toggle('active', b.dataset.status === status));
-    if(state.data) renderView('products');
+    loadData(state.days, false);
+  }
+
+  function setProductAnalysis(mode){
+    if(mode !== 'product' && mode !== 'parentCategory') return;
+    state.productAnalysis = mode;
+    document.querySelectorAll('#productAnalysisToggle button').forEach(function(button){
+      button.classList.toggle('active', button.dataset.analysis === mode);
+    });
+    if(state.data) renderProductSalesAnalysis(state.data);
+  }
+
+  // Bo loc thoi gian dung chung cho toan bo tab Tong quan (bieu do/bang doanh
+  // thu, Hang nhap, Ma moi tao, Hang ngung kinh doanh deu dung 1 khoang thoi
+  // gian nay): 1/7/30/90 ngay, tuy chon Tu ngay...den ngay..., hoac Tat ca.
+  // Gui len server duoi 4 prefix (ov/pu/np/de) de khong phai doi API/backend
+  // — moi prefix tuong ung 1 khoi du lieu server da tinh san theo bo loc rieng.
+  const OVERVIEW_FILTER_PREFIXES = ['ov', 'pu', 'np', 'de'];
+
+  function setMiniFilterDays(key, days){
+    state.filters[key] = { mode: 'days', days: days };
+    syncMiniFilterUI(key);
+    loadData(state.days, false);
+  }
+
+  function setMiniFilterAll(key){
+    state.filters[key] = { mode: 'all' };
+    syncMiniFilterUI(key);
+    loadData(state.days, false);
+  }
+
+  function applyMiniFilterRange(key){
+    const fromInput = document.getElementById('miniFrom-' + key);
+    const toInput = document.getElementById('miniTo-' + key);
+    const from = fromInput ? fromInput.value : '';
+    const to = toInput ? toInput.value : '';
+    if(!from || !to){
+      alert('Vui lòng chọn đủ Từ ngày và Đến ngày');
+      return;
+    }
+    state.filters[key] = { mode: 'range', from: from, to: to };
+    syncMiniFilterUI(key);
+    loadData(state.days, false);
+  }
+
+  function focusMiniFilterRange(key){
+    const container = document.querySelector('.mini-filter[data-filter-key="' + key + '"]');
+    if(container){
+      container.querySelectorAll('[data-mini-toggle] button').forEach(b => b.classList.remove('active'));
+      const customBtn = container.querySelector('[data-mini-toggle] button[data-custom]');
+      if(customBtn) customBtn.classList.add('active');
+      const rangeWrap = container.querySelector('.mini-filter-range');
+      if(rangeWrap) rangeWrap.classList.add('active');
+    }
+    const fromInput = document.getElementById('miniFrom-' + key);
+    if(fromInput) fromInput.focus();
+  }
+
+  function syncMiniFilterUI(key){
+    const filter = state.filters[key];
+    const container = document.querySelector('.mini-filter[data-filter-key="' + key + '"]');
+    if(!container || !filter) return;
+    container.querySelectorAll('[data-mini-toggle] button[data-days]').forEach(function(b){
+      b.classList.toggle('active', filter.mode === 'days' && Number(b.dataset.days) === filter.days);
+    });
+    const allBtn = container.querySelector('[data-mini-toggle] button[data-all]');
+    if(allBtn) allBtn.classList.toggle('active', filter.mode === 'all');
+    const customBtn = container.querySelector('[data-mini-toggle] button[data-custom]');
+    if(customBtn) customBtn.classList.toggle('active', filter.mode === 'range');
+    const rangeWrap = container.querySelector('.mini-filter-range');
+    if(rangeWrap) rangeWrap.classList.toggle('active', filter.mode === 'range');
+    if(filter.mode === 'range'){
+      const fromInput = document.getElementById('miniFrom-' + key);
+      const toInput = document.getElementById('miniTo-' + key);
+      if(fromInput) fromInput.value = filter.from;
+      if(toInput) toInput.value = filter.to;
+    }
+  }
+
+  function buildMiniFilterQuery(){
+    const filter = state.filters.overview;
+    if(!filter) return '';
+    const parts = [];
+    OVERVIEW_FILTER_PREFIXES.forEach(function(prefix){
+      parts.push(prefix + 'Mode=' + encodeURIComponent(filter.mode));
+      if(filter.mode === 'days') parts.push(prefix + 'Days=' + encodeURIComponent(filter.days));
+      if(filter.mode === 'range'){
+        parts.push(prefix + 'From=' + encodeURIComponent(filter.from));
+        parts.push(prefix + 'To=' + encodeURIComponent(filter.to));
+      }
+    });
+    parts.push('prStatus=' + encodeURIComponent(state.productStatus));
+    return parts.join('&');
   }
 
   function bizStatusPill(status){
@@ -1890,6 +2067,53 @@
     });
   }
 
+  function renderProductSalesAnalysis(d){
+    const productsData = d.products || {};
+    const isParentCategory = state.productAnalysis === 'parentCategory';
+    const analysisRows = isParentCategory
+      ? (productsData.topSellingParentCategories || [])
+      : (productsData.topSellingProducts || d.topSellingProducts || []);
+    const chartTitle = isParentCategory ? 'Top nhóm cha theo doanh thu' : 'Top sản phẩm bán chạy';
+    const tableTitle = isParentCategory ? 'Chi tiết doanh thu theo nhóm cha' : 'Chi tiết sản phẩm bán chạy';
+    const firstColumnLabel = isParentCategory ? 'Nhóm cha' : 'Sản phẩm';
+
+    document.querySelectorAll('#productAnalysisToggle button').forEach(function(button){
+      button.classList.toggle('active', button.dataset.analysis === state.productAnalysis);
+    });
+    document.getElementById('topSellingChartTitle').textContent = chartTitle;
+    document.getElementById('topSellingTableTitle').textContent = tableTitle;
+    document.getElementById('tagTopSelling').textContent = analysisRows.length;
+
+    const nameHeader = document.getElementById('topSellingNameHeader');
+    const nameHeaderButton = nameHeader.querySelector('.sort-button');
+    if(nameHeaderButton) nameHeaderButton.firstElementChild.textContent = firstColumnLabel;
+    else nameHeader.textContent = firstColumnLabel;
+
+    if(analysisRows.length){
+      renderBarChartList('chartTopSelling','topSelling',analysisRows,item=>item.name,item=>item.revenue,themeColor('--green'));
+    } else {
+      destroyChart('topSelling');
+    }
+
+    const topSellingRows = document.getElementById('topSellingRows');
+    topSellingRows.innerHTML = analysisRows.length ? analysisRows.map(item =>
+      '<tr><td class="name-cell">' + escapeHtml(item.name) +
+      (isParentCategory
+        ? '<br><span class="mono muted" style="font-size:10.5px;">' + Number(item.productCount || 0).toLocaleString('vi-VN') + ' mặt hàng</span>'
+        : '<br><span class="mono muted" style="font-size:10.5px;">' + escapeHtml(item.code) + '</span>') +
+      '</td><td class="mono muted" data-sort-value="' + item.qty + '">' + Number(item.qty || 0).toLocaleString('vi-VN') +
+      '</td><td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td></tr>'
+    ).join('') : '<tr><td colspan="3" class="empty">Chưa có dữ liệu chi tiết hóa đơn</td></tr>';
+
+    const activeSort = state.tableSorts.topSellingRows;
+    if(activeSort){
+      sortTableRows('topSellingRows', activeSort.columnIndex, activeSort.direction);
+      updateTableSortHeader('topSellingRows', activeSort.columnIndex, activeSort.direction);
+    } else {
+      updateTableSortHeader('topSellingRows', -1, null);
+    }
+  }
+
   function statusPill(status){
     if(status === 'Đã hủy') return '<span class="pill bad">Đã hủy</span>';
     if(status === 'Đang xử lý') return '<span class="pill warn">Đang xử lý</span>';
@@ -1948,35 +2172,36 @@
       ).join('') : '<tr><td colspan="9" class="empty">Chưa có giao dịch trong ngày</td></tr>';
       renderTopTransactionsChart(report);
 
-      const todayPurchases = ov.todayPurchases || { date:'Hôm nay', orderCount:0, totalAmount:0, supplierCount:0, bySupplier:[], orders:[] };
-      const todayPurchaseSuppliers = todayPurchases.bySupplier || [];
-      const todayPurchaseOrders = todayPurchases.orders || [];
-      document.getElementById('ov-purchase-count').textContent = Number(todayPurchases.orderCount || 0).toLocaleString('vi-VN');
-      document.getElementById('ov-purchase-date').textContent = 'Ngày ' + (todayPurchases.date || 'hôm nay');
-      document.getElementById('ov-purchase-total').textContent = fmtMoney(todayPurchases.totalAmount);
-      document.getElementById('ov-purchase-suppliers').textContent = Number(todayPurchases.supplierCount || 0).toLocaleString('vi-VN');
-      document.getElementById('ov-purchase-chart-hint').textContent = todayPurchaseSuppliers.length
-        ? todayPurchaseSuppliers.length + ' nhà cung cấp · ' + (todayPurchases.date || 'hôm nay')
-        : 'Chưa có phát sinh hôm nay';
-      document.getElementById('ov-purchase-table-count').textContent = 'Tổng ' + Number(todayPurchases.orderCount || 0).toLocaleString('vi-VN') + ' mã nhập hàng';
-      document.getElementById('chartOverviewPurchases').hidden = !todayPurchaseSuppliers.length;
-      document.getElementById('overviewPurchaseChartEmpty').hidden = !!todayPurchaseSuppliers.length;
-      if(todayPurchaseSuppliers.length){
-        renderBarChartList('chartOverviewPurchases','overviewPurchases',todayPurchaseSuppliers,s=>s.name,s=>s.total,themeColor('--amber'),true);
+      const newPurchases = d.newPurchases || { label:'—', orderCount:0, totalAmount:0, supplierCount:0, bySupplier:[], orders:[] };
+      const newPurchaseSuppliers = newPurchases.bySupplier || [];
+      const newPurchaseOrders = newPurchases.orders || [];
+      document.getElementById('ov-purchase-count').textContent = Number(newPurchases.orderCount || 0).toLocaleString('vi-VN');
+      document.getElementById('ov-purchase-date').textContent = newPurchases.label || '—';
+      document.getElementById('ov-purchase-total').textContent = fmtMoney(newPurchases.totalAmount);
+      document.getElementById('ov-purchase-suppliers').textContent = Number(newPurchases.supplierCount || 0).toLocaleString('vi-VN');
+      document.getElementById('ov-purchase-chart-hint').textContent = newPurchaseSuppliers.length
+        ? newPurchaseSuppliers.length + ' nhà cung cấp · ' + (newPurchases.label || '—')
+        : 'Chưa có phát sinh trong khoảng đã chọn';
+      document.getElementById('tagPurchases').textContent = newPurchases.label || '—';
+      document.getElementById('ov-purchase-table-count').textContent = 'Tổng ' + Number(newPurchases.orderCount || 0).toLocaleString('vi-VN') + ' mã nhập hàng';
+      document.getElementById('chartOverviewPurchases').hidden = !newPurchaseSuppliers.length;
+      document.getElementById('overviewPurchaseChartEmpty').hidden = !!newPurchaseSuppliers.length;
+      if(newPurchaseSuppliers.length){
+        renderBarChartList('chartOverviewPurchases','overviewPurchases',newPurchaseSuppliers,s=>s.name,s=>s.total,themeColor('--amber'),true);
       } else {
         destroyChart('overviewPurchases');
       }
-      document.getElementById('overviewPurchaseRows').innerHTML = todayPurchaseOrders.length ? todayPurchaseOrders.map(p =>
+      document.getElementById('overviewPurchaseRows').innerHTML = newPurchaseOrders.length ? newPurchaseOrders.map(p =>
         '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
         '<td class="mono muted">' + (p.date ? escapeHtml(p.date) : '—') + '</td>' +
         '<td class="name-cell">' + (p.supplier ? escapeHtml(p.supplier) : '—') + '</td>' +
         '<td class="mono" data-sort-value="' + p.total + '">' + fmtMoney(p.total) + '</td>' +
         '<td>' + genericStatusPill(p.status) + '</td></tr>'
-      ).join('') : '<tr><td colspan="5" class="empty">Chưa có mã nhập hàng nào hôm nay</td></tr>';
+      ).join('') : '<tr><td colspan="5" class="empty">Không có hàng nhập trong khoảng thời gian đã chọn</td></tr>';
 
-      const todayNewProducts = ov.todayNewProducts || { date:'Hôm nay', count:0, dateColumnAvailable:true, products:[] };
+      const todayNewProducts = ov.todayNewProducts || { label:'—', count:0, dateColumnAvailable:true, products:[] };
       const newProductRows = todayNewProducts.products || [];
-      document.getElementById('tagTodayNewProductsDate').textContent = todayNewProducts.date || 'Hôm nay';
+      document.getElementById('tagTodayNewProductsDate').textContent = todayNewProducts.label || '—';
       document.getElementById('today-new-products-count').textContent = 'Tổng ' + Number(todayNewProducts.count || 0).toLocaleString('vi-VN') + ' mã mới';
       document.getElementById('todayNewProductRows').innerHTML = newProductRows.length ? newProductRows.map(p =>
         '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
@@ -1985,18 +2210,20 @@
         '<td class="mono muted" data-sort-value="' + p.cost + '">' + fmtMoney(p.cost) + '</td>' +
         '<td class="mono" data-sort-value="' + p.price + '">' + fmtMoney(p.price) + '</td></tr>'
       ).join('') : '<tr><td colspan="5" class="empty">' +
-        (todayNewProducts.dateColumnAvailable === false ? 'Sheet Hàng hóa chưa có cột Ngày tạo' : 'Chưa có mã hàng mới tạo hôm nay') +
+        (todayNewProducts.dateColumnAvailable === false ? 'Sheet Hàng hóa chưa có cột Ngày tạo' : 'Chưa có mã hàng mới tạo trong khoảng đã chọn') +
         '</td></tr>';
 
-      const recentPurchases = (d.newPurchases && d.newPurchases.orders) || [];
-      document.getElementById('tagPurchases').textContent = recentPurchases.length;
-      document.getElementById('purchaseRows').innerHTML = recentPurchases.length ? recentPurchases.map(p =>
+      const deactivatedToday = ov.deactivatedToday || { label:'—', count:0, products:[] };
+      const deactivatedRows = deactivatedToday.products || [];
+      document.getElementById('tagDeactivatedTodayDate').textContent = deactivatedToday.label || '—';
+      document.getElementById('deactivated-today-count').textContent = 'Tổng ' + Number(deactivatedToday.count || 0).toLocaleString('vi-VN') + ' mã ngừng kinh doanh';
+      document.getElementById('deactivatedTodayRows').innerHTML = deactivatedRows.length ? deactivatedRows.map(p =>
         '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
-        '<td class="mono muted">' + (p.date ? escapeHtml(p.date) : '—') + '</td>' +
-        '<td class="name-cell">' + (p.supplier ? escapeHtml(p.supplier) : '—') + '</td>' +
-        '<td class="mono" data-sort-value="' + p.total + '">' + fmtMoney(p.total) + '</td>' +
-        '<td>' + genericStatusPill(p.status) + '</td></tr>'
-      ).join('') : '<tr><td colspan="5" class="empty">Không có hàng nhập trong 90 ngày gần đây</td></tr>';
+        '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+        '<td>' + escapeHtml(p.category || 'Chưa phân nhóm') + '</td>' +
+        '<td class="mono muted">' + (p.modifiedAt ? escapeHtml(p.modifiedAt) : '—') + '</td>' +
+        '<td>' + bizStatusPill(p.status) + '</td></tr>'
+      ).join('') : '<tr><td colspan="5" class="empty">Chưa có mã ngừng kinh doanh trong khoảng đã chọn</td></tr>';
     }
     else if(view === 'products'){
       document.getElementById('pr-total').textContent = d.kpi.totalProducts;
@@ -2016,7 +2243,7 @@
       if(categoryValues.length) renderCategoryValueChart(categoryValues);
       else destroyChart('categoryValue');
 
-      const filteredProducts = state.productStatus === 'all' ? d.allProducts : d.allProducts.filter(p => p.status === state.productStatus);
+      const filteredProducts = d.allProducts || [];
       document.getElementById('tagAllProducts').textContent = filteredProducts.length;
       const allRows = document.getElementById('allProductRows');
       allRows.innerHTML = filteredProducts.length ? filteredProducts.map(p =>
@@ -2025,61 +2252,61 @@
         '<td class="mono muted" data-sort-value="' + p.pct + '">' + p.pct.toFixed(2) + '%</td><td>' + bizStatusPill(p.status) + '</td></tr>'
       ).join('') : '<tr><td colspan="5" class="empty">Không có dữ liệu</td></tr>';
 
-      document.getElementById('tagTopSelling').textContent = d.topSellingProducts.length;
-      if(d.topSellingProducts.length) renderBarChartList('chartTopSelling','topSelling',d.topSellingProducts,p=>p.name,p=>p.revenue,themeColor('--green'));
-      else destroyChart('topSelling');
-      const topSellingRows = document.getElementById('topSellingRows');
-      topSellingRows.innerHTML = d.topSellingProducts.length ? d.topSellingProducts.map(p =>
-        '<tr><td class="name-cell">' + escapeHtml(p.name) + '<br><span class="mono muted" style="font-size:10.5px;">' + escapeHtml(p.code) + '</span></td>' +
-        '<td class="mono muted" data-sort-value="' + p.qty + '">' + p.qty.toLocaleString('vi-VN') + '</td><td class="mono" data-sort-value="' + p.revenue + '">' + fmtMoney(p.revenue) + '</td></tr>'
-      ).join('') : '<tr><td colspan="3" class="empty">Chưa có dữ liệu chi tiết hóa đơn</td></tr>';
+      renderProductSalesAnalysis(d);
 
     }
     else if(view === 'invoices'){
+      const invoiceData = d.invoices || d;
       document.getElementById('in-revenue').textContent = fmtMoney(d.kpi.revenueToday);
       document.getElementById('in-revenue-sub').textContent = d.kpi.invoicesToday + ' hóa đơn hôm nay';
-      document.getElementById('in-period-revenue').textContent = fmtMoney(d.kpi.periodRevenue);
-      document.getElementById('in-period-sub').textContent = d.kpi.periodInvoices + ' hóa đơn / ' + d.days + ' ngày';
+      document.getElementById('in-period-revenue').textContent = fmtMoney(invoiceData.periodRevenue);
+      document.getElementById('in-period-sub').textContent = Number(invoiceData.periodInvoices || 0).toLocaleString('vi-VN') + ' hóa đơn / ' +
+        (d.filters && d.filters.invoices ? d.filters.invoices.label : ((d.days || state.days) + ' ngày'));
       document.getElementById('in-cancelled').textContent = d.kpi.cancelledToday;
-      document.getElementById('tagInvoices').textContent = d.recentInvoices.length;
+      const recentInvoices = invoiceData.recentInvoices || [];
+      document.getElementById('tagInvoices').textContent = recentInvoices.length;
       const rows = document.getElementById('invoiceRows');
-      rows.innerHTML = d.recentInvoices.length ? d.recentInvoices.map(inv =>
+      rows.innerHTML = recentInvoices.length ? recentInvoices.map(inv =>
         '<tr><td class="mono muted">' + escapeHtml(inv.code) + '</td><td class="name-cell">' + (inv.customer ? escapeHtml(inv.customer) : 'Khách lẻ') + '</td>' +
         '<td class="mono" data-sort-value="' + inv.total + '">' + fmtMoney(inv.total) + '</td><td>' + statusPill(inv.status) + '</td></tr>'
       ).join('') : '<tr><td colspan="4" class="empty">Chưa có hóa đơn nào</td></tr>';
-      renderRevenueChart('chartInvoiceRevenue', 'invoiceRevenue', d.revenueByDay);
+      renderRevenueChart('chartInvoiceRevenue', 'invoiceRevenue', invoiceData.revenueByDay || []);
 
-      document.getElementById('in-pending-count').textContent = d.kpi.pendingOrdersCount;
-      document.getElementById('in-pending-total').textContent = fmtMoney(d.kpi.pendingOrdersTotal);
-      document.getElementById('in-returns-count').textContent = d.kpi.returnsCount;
-      document.getElementById('in-returns-total').textContent = fmtMoney(d.kpi.totalReturns);
+      document.getElementById('in-pending-count').textContent = Number(invoiceData.pendingOrdersCount || 0).toLocaleString('vi-VN');
+      document.getElementById('in-pending-total').textContent = fmtMoney(invoiceData.pendingOrdersTotal);
+      document.getElementById('in-returns-count').textContent = Number(invoiceData.returnsCount || 0).toLocaleString('vi-VN');
+      document.getElementById('in-returns-total').textContent = fmtMoney(invoiceData.totalReturns);
 
-      document.getElementById('tagOrders').textContent = d.recentOrders.length;
+      const recentOrders = invoiceData.recentOrders || [];
+      document.getElementById('tagOrders').textContent = recentOrders.length;
       const orderRows = document.getElementById('orderRows');
-      orderRows.innerHTML = d.recentOrders.length ? d.recentOrders.map(o =>
+      orderRows.innerHTML = recentOrders.length ? recentOrders.map(o =>
         '<tr><td class="mono muted">' + escapeHtml(o.code) + '</td><td class="name-cell">' + (o.customer ? escapeHtml(o.customer) : 'Khách lẻ') + '</td>' +
         '<td class="mono" data-sort-value="' + o.total + '">' + fmtMoney(o.total) + '</td><td>' + genericStatusPill(o.status) + '</td></tr>'
       ).join('') : '<tr><td colspan="4" class="empty">Chưa có đặt hàng nào</td></tr>';
 
-      document.getElementById('tagReturns').textContent = d.recentReturns.length;
+      const recentReturns = invoiceData.recentReturns || [];
+      document.getElementById('tagReturns').textContent = recentReturns.length;
       const returnRows = document.getElementById('returnRows');
-      returnRows.innerHTML = d.recentReturns.length ? d.recentReturns.map(rt =>
+      returnRows.innerHTML = recentReturns.length ? recentReturns.map(rt =>
         '<tr><td class="mono muted">' + escapeHtml(rt.code) + '</td><td class="mono muted">' + (rt.originalInvoiceCode ? escapeHtml(rt.originalInvoiceCode) : '—') + '</td>' +
         '<td class="name-cell">' + (rt.customer ? escapeHtml(rt.customer) : 'Khách lẻ') + '</td>' +
         '<td class="mono" data-sort-value="' + rt.total + '">' + fmtMoney(rt.total) + '</td><td>' + genericStatusPill(rt.status) + '</td></tr>'
       ).join('') : '<tr><td colspan="5" class="empty">Chưa có trả hàng nào</td></tr>';
     }
     else if(view === 'customers'){
+      const customerData = d.customers || d;
+      const topDebt = customerData.topDebt || [];
       document.getElementById('cu-total').textContent = d.kpi.totalCustomers.toLocaleString('vi-VN');
       document.getElementById('cu-debtcount').textContent = d.kpi.customersWithDebt;
       document.getElementById('cu-totaldebt').textContent = fmtMoney(d.kpi.totalDebt);
-      document.getElementById('tagDebt').textContent = d.topDebt.length;
+      document.getElementById('tagDebt').textContent = topDebt.length;
       const rows = document.getElementById('debtRows');
-      rows.innerHTML = d.topDebt.length ? d.topDebt.map(c =>
+      rows.innerHTML = topDebt.length ? topDebt.map(c =>
         '<tr><td class="mono muted">' + escapeHtml(c.code) + '</td><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
         '<td class="mono muted">' + (c.phone ? escapeHtml(c.phone) : '—') + '</td><td class="mono" data-sort-value="' + c.debt + '" style="color:var(--red);">' + fmtMoney(c.debt) + '</td></tr>'
       ).join('') : '<tr><td colspan="4" class="empty">Không có khách hàng nợ</td></tr>';
-      const topDebtChart = d.topDebt.slice(0, 25);
+      const topDebtChart = topDebt.slice(0, 25);
       if(topDebtChart.length) renderBarChartList('chartDebt','debt',topDebtChart,c=>c.name,c=>c.debt,themeColor('--red'),true); else destroyChart('debt');
     }
     else if(view === 'suppliers'){
@@ -2181,7 +2408,8 @@
   function loadData(days, isManualRefresh){
     state.lastFetchTime = Date.now();
     if (isManualRefresh) setLoading(true);
-    fetch('/api/dashboard?days=' + encodeURIComponent(days))
+    const miniFilterQuery = buildMiniFilterQuery();
+    fetch('/api/dashboard?days=' + encodeURIComponent(days) + (miniFilterQuery ? '&' + miniFilterQuery : ''))
       .then(function(res){
         if(!res.ok) throw new Error('HTTP ' + res.status);
         return res.json();
@@ -2218,6 +2446,7 @@
   initSortableTables();
   updateFilterBar();
   updateSearchContext();
+  syncMiniFilterUI('overview');
   loadData(state.days, true);
   setInterval(function(){ loadData(state.days, false); }, AUTO_REFRESH_MS);
 

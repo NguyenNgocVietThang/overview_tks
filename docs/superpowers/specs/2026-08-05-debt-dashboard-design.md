@@ -2,13 +2,15 @@
 
 Ngày: 2026-08-05
 
+> Trạng thái: phần giả định “Apps Script không ghi HN1/HN3/HN7” đã được thay thế
+> bởi triển khai hiện tại trong `CustomerDebtReport.gs`; tài liệu này chỉ còn lưu
+> quyết định thiết kế dashboard phía server tại thời điểm ban đầu.
+
 ## Bối cảnh
 
-Dashboard hiện tại (`server/`, Node.js/Express, đọc Google Sheets read-only) có 5 tab:
-Tổng quan, Hàng hóa, Hóa đơn, Khách hàng, Nhà cung cấp. Ba tab `HN1`, `HN3`, `HN7`
-trong Google Sheet do KiotViet tự quản lý và tự động xuất báo cáo — Apps Script
-(`src/`) tuyệt đối không được tạo/xóa/ghi/đổi cấu trúc 3 tab này (xem README,
-SRS FR-06.10). Cho đến nay dashboard Node.js cũng chưa từng đọc 3 tab này.
+Dashboard (`server/`, Node.js/Express) đọc Google Sheets ở chế độ read-only. Ba
+tab `HN1`, `HN3`, `HN7` hiện do Apps Script `CustomerDebtReport.gs` tính từ
+KiotViet và ghi theo schema thống nhất; server chỉ đọc để hiển thị.
 
 Yêu cầu: thêm 1 khu vực dashboard hiển thị công nợ theo 3 kỳ 1/7/3 ngày, lấy dữ
 liệu trực tiếp (chỉ đọc) từ HN1/HN3/HN7, tự làm mới cùng chu kỳ với dashboard
@@ -26,14 +28,14 @@ Dư nợ cuối | Mã hàng | Tên hàng | Thương hiệu | Nhóm hàng(3 Cấp
 
 - HN1 = kỳ 1 ngày gần nhất (tính cả hôm nay), HN3 = 3 ngày, HN7 = 7 ngày — cùng
   cấu trúc cột, chỉ khác độ dài kỳ.
-- KiotViet tự cập nhật 1 lần/ngày lúc ~15:00. "Real-time" ở đây nghĩa là dashboard
+- Apps Script tự cập nhật 1 lần/ngày lúc ~15:00. "Real-time" ở đây nghĩa là dashboard
   phản ánh đúng dữ liệu mới nhất tại mỗi lần tự làm mới (hiện 10 phút/lần), không
   nhanh hơn tốc độ nguồn cập nhật.
 - 5 cột giao dịch (Mã giao dịch, Thời gian, Loại giao dịch, Giá trị, Dư nợ cuối)
   có thể chứa NHIỀU giá trị trong 1 ô, ngăn cách bằng dấu `|`, khi khách có nhiều
   giao dịch trong kỳ.
 
-## Kiến trúc thay đổi (chỉ trong `server/`, không đụng `src/`)
+## Kiến trúc dashboard phía server
 
 1. `server/config.js`: thêm `SHEET_DEBT_1='HN1'`, `SHEET_DEBT_3='HN3'`, `SHEET_DEBT_7='HN7'`.
 2. `server/dashboard/debtReport.js` (mới): hàm `parseDebtSheet(rows)` — dò cột
@@ -65,12 +67,11 @@ Dư nợ cuối | Mã hàng | Tên hàng | Thương hiệu | Nhóm hàng(3 Cấp
 - Dòng thiếu Mã KH → bỏ qua.
 - Số phần tử giữa các cột giao dịch (`|`) lệch nhau → dùng độ dài lớn nhất, phần
   thiếu để trống.
-- Không bao giờ ghi/sửa HN1/HN3/HN7 — chỉ gọi `spreadsheets.values.batchGet` với
-  scope `readonly` đã có sẵn.
+- Backend không bao giờ ghi/sửa HN1/HN3/HN7 — chỉ gọi
+  `spreadsheets.values.batchGet` với scope `readonly` đã có sẵn.
 
 ## Ngoài phạm vi
 
-- Không sửa Apps Script (`src/`), không tạo/xóa/ghi HN1/HN3/HN7.
 - Không cần endpoint `/api/search` mới — bảng công nợ lọc phía client.
 - Không cố gắng đọc note/comment của ô Google Sheets (chỉ đọc giá trị qua Values
   API) — dòng ghi chú "cập nhật lúc..." trên sheet không được hiển thị lại trên

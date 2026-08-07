@@ -3,17 +3,18 @@
 // ==========================================
 
 /**
- * Dong bo toan bo 9 sheet van hanh va 2 sheet bao cao do he thong quan ly.
+ * Dong bo toan bo 9 sheet van hanh va 6 sheet tong hop/bao cao.
  *
  * Cac cot dashboard dang dung luon nam o ben trai; cac truong Public API dang
  * duoc su dung duoc bo sung o ben phai, khong kem cot JSON.
- * HN1/HN3/HN7 do KiotViet quan ly va tuyet doi khong duoc thay doi.
  */
 function syncAllInitialData() {
   const dataLock = getKiotVietDataLock_();
   dataLock.waitLock(30000);
   try {
     migrateKiotVietSheetsIfNeeded_();
+    // Don tab legacy ngay tu dau; neu chi co tab cu thi doi ten de giu du lieu.
+    migrateLegacyDiscontinuedSheet_(SpreadsheetApp.getActiveSpreadsheet());
 
     const token = getKiotVietToken();
     if (!token) throw new Error('Khong lay duoc KiotViet token.');
@@ -23,6 +24,15 @@ function syncAllInitialData() {
 
     Logger.log('Bat dau dong bo Hang hoa...');
     syncProductsInitial(token);
+
+    // Bao cao cong no tra cuu ten/nhom/thuong hieu tu tab Hang hoa. Phai tao
+    // sau khi tab nay da duoc lam moi de sync all cho ket qua dung nhu khi chay
+    // syncCustomerDebtReports() rieng, nhung van chay som de tranh het thoi gian.
+    Logger.log('Bat dau tao Bao cao cong no HN1/HN3/HN7...');
+    syncCustomerDebtReports(token);
+
+    Logger.log('Bat dau cap nhat lich su Hang ngung kinh doanh...');
+    syncHangNgungKinhDoanh_(token);
 
     Logger.log('Bat dau dong bo Hoa don va Chi tiet hoa don...');
     syncInvoicesInitial(token);
@@ -45,7 +55,7 @@ function syncAllInitialData() {
     Logger.log('Bat dau tao Bao cao ban hang va Hang ban theo khach...');
     syncCustomerReport();
 
-    Logger.log('Hoan tat dong bo day du 9 sheet van hanh va 2 sheet bao cao; giu nguyen HN1/HN3/HN7.');
+    Logger.log('Hoan tat dong bo day du 9 sheet van hanh va 6 sheet tong hop/bao cao.');
   } finally {
     dataLock.releaseLock();
   }

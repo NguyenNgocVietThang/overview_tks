@@ -281,10 +281,13 @@ function buildProductSheetRow_(product, existingRow) {
 function formatProductSheet_(sheet, dataRowCount) {
   sheet.getRange(1, 1, 1, PRODUCT_SHEET_HEADERS.length)
     .setFontWeight('bold')
-    .setBackground('#EFEFEF');
+    .setFontColor('#FFFFFF')
+    .setBackground('#1F4E78')
+    .setFontFamily('Open Sans');
   sheet.setFrozenRows(1);
 
   if (dataRowCount <= 0) return;
+  sheet.getRange(2, 1, dataRowCount, PRODUCT_SHEET_HEADERS.length).setFontFamily('Open Sans');
   sheet.getRange(2, 6, dataRowCount, 4).setNumberFormat('#,##0');
   sheet.getRange(2, 17, dataRowCount, 2).setNumberFormat('#,##0');
   sheet.getRange(2, 13, dataRowCount, 1).setWrap(true);
@@ -292,6 +295,7 @@ function formatProductSheet_(sheet, dataRowCount) {
 }
 
 function formatProductSheetRow_(sheet, rowNumber) {
+  sheet.getRange(rowNumber, 1, 1, PRODUCT_SHEET_HEADERS.length).setFontFamily('Open Sans');
   sheet.getRange(rowNumber, 6, 1, 4).setNumberFormat('#,##0');
   sheet.getRange(rowNumber, 17, 1, 2).setNumberFormat('#,##0');
   sheet.getRange(rowNumber, 13).setWrap(true);
@@ -362,4 +366,34 @@ function ensureProductSheetSchema_(sheet) {
     );
   }
   formatProductSheet_(sheet, migratedRows.length);
+}
+
+/**
+ * Dinh dang tat ca cac sheet trong spreadsheet sang font Open Sans va tieu de cac truong mau trang (#FFFFFF).
+ * Co the chay truc tiep tu GAS Editor de cap nhat tat ca cac tab hien co.
+ */
+function formatAllSheetsToOpenSans() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = ss.getSheets();
+
+  sheets.forEach(sheet => {
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    if (lastRow <= 0 || lastCol <= 0) return;
+
+    const fullRange = sheet.getRange(1, 1, lastRow, lastCol);
+    fullRange.setFontFamily('Open Sans');
+
+    const headerRange = sheet.getRange(1, 1, 1, lastCol);
+    headerRange
+      .setFontWeight('bold')
+      .setFontColor('#FFFFFF')
+      .setFontFamily('Open Sans');
+
+    // Neu hang dau chua co mau nen dam, dat mau nen mac dinh #1F4E78 cho tieu de de chu trang noi bat
+    const currentBg = headerRange.getBackground();
+    if (!currentBg || currentBg === '#ffffff' || currentBg.toLowerCase() === '#efefef') {
+      headerRange.setBackground('#1F4E78');
+    }
+  });
 }

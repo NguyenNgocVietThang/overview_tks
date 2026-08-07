@@ -1,4 +1,4 @@
-/*
+/* DONATE: MB 5479803260680
 ===============================================================================
 HUONG DAN SU DUNG APPS SCRIPT - DONG BO KIOTVIET -> GOOGLE SHEETS
 ===============================================================================
@@ -12,42 +12,73 @@ trong src/ de clasp push len va co the doc truc tiep trong Apps Script Editor.
 - Giao dien dashboard chi nam o web that trong server/public/index.html.
 - Deployment Apps Script van la Web App de KiotViet POST webhook vao URL /exec.
 - Khong co doGet(), khong co HTML dashboard va khong tinh KPI dashboard tai day.
-- HN1, HN3, HN7 do KiotViet quan ly; code khong doc/ghi/doi cau truc cac tab nay.
+- HN1, HN3, HN7 la bao cao cong no khach hang theo 1/3/7 ngay gan day (tinh ca
+  hom nay); Apps Script tu tinh tu du lieu KiotViet va ghi de vao dung cau truc
+  cot ma server/dashboard/debtReport.js dang doc (xem kiotviet/CustomerDebtReport.gs).
+- Chi dung tab Hang ngung kinh doanh de luu lich su tu truoc toi nay. Tab cu
+  Hang ngung KD hom nay se duoc gop/xoa khi chay sync all hoac cau hinh lich.
 
 2. CAC HAM QUAN TRI CAN CHAY
 -------------------------------------------------------------------------------
 
 syncAllInitialData()
   Khi dung : Lan cai dat dau tien, hoac khi can doi soat toan bo.
-  Tac dung : Lay token, migrate schema neu can, tai lai 9 tab van hanh, sau do
-             tao lai 2 tab Bao cao ban hang va Hang ban theo khach.
+  Tac dung : Lay token, migrate schema neu can, tai lai 9 tab van hanh; cap nhat
+             lich su Hang ngung kinh doanh; tao lai 2 tab bao cao ban hang va
+             3 tab HN1/HN3/HN7.
   Goi tiep : getKiotVietDataLock_()
              -> migrateKiotVietSheetsIfNeeded_()
              -> getKiotVietToken()
-             -> syncCategoriesInitial()/syncProductsInitial()/...
-             -> syncCustomerReport().
+             -> syncCategoriesInitial()/syncProductsInitial()
+             -> syncCustomerDebtReports()
+             -> syncHangNgungKinhDoanh_()
+             -> cac ham syncXxxInitial() con lai
+             -> syncCustomerReport()
   Luu y    : Khong dat ham nay lam trigger ngan han. Ham dung khoa ghi chung de
              khong xung dot voi webhook/polling.
 
 setupKiotVietAutoSync()
   Khi dung : Mot lan sau khi deploy, hoac khi doi WEBHOOK_URL/deployment.
-  Tac dung : Tao WEBHOOK_SECRET neu thieu; tao trigger queue 1 phut; tao trigger
-             polling 15 phut; go trigger cong no legacy; doi chieu va dam bao du
-             9 webhook do he thong quan ly.
+  Tac dung : Tao WEBHOOK_SECRET neu thieu; tao trigger queue 1 phut; polling
+             15 phut; Hang ngung kinh doanh 07:00; HN1/HN3/HN7 gan 15:00; doi
+             chieu va dam bao du 9 webhook do he thong quan ly.
   Goi tiep : migrateKiotVietSheetsIfNeeded_()
              -> getKiotVietToken()
              -> ensureKiotVietWebhookSecret_()
              -> setupQueueProcessingTrigger()
              -> setupPollingTrigger()
-             -> disableLegacyCustomerDebtReportSync_()
+             -> setupHangNgungKinhDoanhTrigger_()
+             -> setupCustomerDebtReportDailyTrigger()
              -> reconcileKiotVietAutoSyncWebhooks_().
-  Luu y    : Ham nay khong tao trigger bao cao 07:00. Neu can trigger bao cao,
-             chay setupCustomerReport() rieng.
+  Luu y    : Ham nay khong tao trigger bao cao ban hang 07:00. Neu can trigger
+             do, chay setupCustomerReport() rieng.
 
 setupCustomerReport()
   Khi dung : Mot lan neu muon Apps Script tu doi soat 2 bao cao luc 07:00.
   Tac dung : Chay syncCustomerReport() ngay va tao lai trigger hang ngay.
   Goi tiep : syncCustomerReport() -> setupCustomerReportDailyTrigger().
+
+setupCustomerDebtReports()
+  Khi dung : Mot lan neu muon Apps Script tu dong cap nhat HN1/HN3/HN7 luc 15:00.
+  Tac dung : Chay syncCustomerDebtReports() ngay va tao lai trigger hang ngay
+             gan 15:00 (dung ScriptApp trigger, gio Asia/Ho_Chi_Minh).
+  Goi tiep : syncCustomerDebtReports() -> setupCustomerDebtReportDailyTrigger().
+
+syncCustomerDebtReports()
+  Khi dung : Chay tay bat cu luc nao can dong bo ngay lap tuc (khong doi den 15:00).
+  Tac dung : Lay du lieu khach hang/hoa don/tra hang/thu-chi 7 ngay gan nhat tu
+             KiotViet, tinh cong no dau ky - cuoi ky cho tung khoang 1/3/7 ngay
+             (tinh ca hom nay) va ghi de toan bo 3 tab HN1/HN3/HN7.
+
+syncHangNgungKinhDoanh()
+  Khi dung : Khi can doi soat rieng lich su hang ngung kinh doanh.
+  Tac dung : Cap nhat tab Hang ngung kinh doanh tu toan bo hang dang ngung tren
+             KiotViet, giu lai lich su cu va danh dau hang da kinh doanh lai.
+
+cauHinhLichHangNgungKinhDoanh()
+  Khi dung : Mot lan sau khi deploy de cap nhat lich su va tao lich 07:00.
+  Tac dung : Gop/xoa tab legacy Hang ngung KD hom nay, khoi tao trang thai an va
+             tao trigger capNhatHangNgungKinhDoanh().
 
 checkWebhookStatus()
   Khi dung : Sau cai dat, hoac khi nghi webhook bi mat/ngung hoat dong.
@@ -71,8 +102,9 @@ setupPollingTrigger() / removePollingTrigger()
              khong co webhook Public API.
 
 removeCustomerDebtReportDailyTrigger()
-  Khi dung : Sau khi nang cap tu ban cu neu con trigger cong no.
-  Tac dung : Chi go trigger legacy; khong cham vao HN1/HN3/HN7.
+  Khi dung : Khi can tam ngung tu dong cap nhat HN1/HN3/HN7 luc 15:00.
+  Tac dung : Go trigger hang ngay; du lieu da ghi trong sheet van giu nguyen,
+             chi khong tu cap nhat them cho den khi bat lai.
 
 Quy uoc: ham co dau gach duoi o cuoi ten (vi du syncPollingOnly_) la ham noi bo;
 khong chay tay tru khi dang chan doan va hieu ro dau vao.
@@ -159,7 +191,12 @@ kiotviet/CustomerReport.gs
   Tao/doi soat Bao cao ban hang va Hang ban theo khach; quan ly trigger 07:00.
 
 kiotviet/CustomerDebtReport.gs
-  Compatibility guard chi go trigger cu; bao ve HN1/HN3/HN7.
+  Tinh va ghi bao cao cong no khach hang HN1/HN3/HN7 (1/3/7 ngay gan day, tinh
+  ca hom nay); quan ly trigger hang ngay gan 15:00 va ham chay bu qua queue.
+
+kiotviet/DiscontinuedProducts.gs
+  Luu lich su Hang ngung kinh doanh tu truoc toi nay, don tab legacy va quan ly
+  trigger cap nhat 07:00 hang ngay.
 
 utils/Helpers.gs
   Khoa ghi chung, chuan hoa ngay/ma va tao dinh dang/dong Hang hoa.
@@ -172,10 +209,11 @@ utils/Helpers.gs
    - WEBHOOK_URL (tuy chon; URL /exec cua deployment neu khac mac dinh)
 2) Chay clasp push --force tu thu muc du an.
 3) Tao version moi va redeploy Web App. Quyen truy cap phai cho phep KiotViet POST.
-4) Lan dau chay syncAllInitialData().
-5) Chay setupKiotVietAutoSync().
-6) Neu dung trigger bao cao 07:00, chay setupCustomerReport().
+4) Lan dau chay syncAllInitialData() (dong bo Hang ngung kinh doanh va HN1/HN3/HN7).
+5) Chay setupKiotVietAutoSync() (tu bat trigger HN1/HN3/HN7 gan 15:00 hang ngay).
+6) Neu dung trigger bao cao ban hang 07:00, chay setupCustomerReport().
 7) Xac nhan bang checkWebhookStatus() va getWebhookQueueStatus().
+8) Can cap nhat HN1/HN3/HN7 ngay lap tuc (khong doi 15:00): chay tay syncCustomerDebtReports().
 
 7. XU LY LOI
 -------------------------------------------------------------------------------
@@ -184,8 +222,11 @@ utils/Helpers.gs
 - Khong xoa queue bang tay truoc khi xac nhan du lieu da co trong sheet dich.
 - Full sync loi: du lieu cu khong bi xoa trang; sua quota/API roi chay lai.
 - Webhook URL thay doi: cap nhat WEBHOOK_URL va chay setupKiotVietAutoSync().
-- Trigger dung: tao lai bang setupQueueProcessingTrigger(), setupPollingTrigger()
-  hoac setupCustomerReportDailyTrigger() tuy loai.
-
+- Trigger dung: tao lai bang setupQueueProcessingTrigger(), setupPollingTrigger(),
+  setupCustomerReportDailyTrigger() hoac setupCustomerDebtReportDailyTrigger() tuy loai.
+- HN1/HN3/HN7 khong cap nhat: kiem tra trigger bang setupCustomerDebtReportDailyTrigger();
+  neu can du lieu ngay, chay tay syncCustomerDebtReports(). Trigger 1 phut (processWebhookQueue)
+  cung tu chay bu qua syncCustomerDebtReportsIfDue_() neu sau 15:00 ma chua dong bo.
+- Lien he Nguyen Ngoc Viet Thang: 0974089295
 ===============================================================================
 */

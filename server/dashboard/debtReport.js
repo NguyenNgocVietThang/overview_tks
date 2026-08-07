@@ -1,5 +1,5 @@
 // ==========================================
-// BAO CAO CONG NO THEO KY (HN1/HN3/HN7) — do KiotViet tu quan ly va tu xuat.
+// BAO CAO CONG NO THEO KY (HN1/HN3/HN7) — do Apps Script tao tu du lieu KiotViet.
 // Module nay CHI DOC va parse du lieu, khong bao gio ghi/sua HN1/HN3/HN7.
 // ==========================================
 
@@ -18,6 +18,10 @@ const DEBT_COLUMNS = {
   txnValue: 'Giá trị',
   txnRunningBalance: 'Dư nợ cuối'
 };
+
+const VIETNAM_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
+const GOOGLE_SHEETS_EPOCH_DAYS = 25569;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function buildColumnIndex(headers) {
   const index = {};
@@ -49,6 +53,76 @@ function toNumber(raw) {
   return isNaN(num) ? 0 : num;
 }
 
+function normalizeText(raw) {
+  return String(raw || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .trim()
+    .toLowerCase();
+}
+
+function vietnamWallTimeToDate(year, month, day, hour, minute, second) {
+  const values = [year, month, day, hour, minute, second].map(Number);
+  if (values.some(value => !Number.isInteger(value))) return null;
+
+  const [yyyy, MM, dd, hh, mi, ss] = values;
+  const timestamp = Date.UTC(yyyy, MM - 1, dd, hh, mi, ss) - VIETNAM_UTC_OFFSET_MS;
+  const wallTime = new Date(timestamp + VIETNAM_UTC_OFFSET_MS);
+  const isValid = wallTime.getUTCFullYear() === yyyy &&
+    wallTime.getUTCMonth() + 1 === MM &&
+    wallTime.getUTCDate() === dd &&
+    wallTime.getUTCHours() === hh &&
+    wallTime.getUTCMinutes() === mi &&
+    wallTime.getUTCSeconds() === ss;
+
+  return isValid ? new Date(timestamp) : null;
+}
+
+/**
+ * Doc thoi gian giao dich theo gio Viet Nam. Sheets API hien tra chuoi
+ * dd/MM/yyyy HH:mm, nhung van ho tro serial number va ISO de parser khong bi
+ * phu thuoc vao kieu hien thi cua sheet.
+ */
+function parseTransactionTime(raw) {
+  if (raw === undefined || raw === null || raw === '') return null;
+  if (raw instanceof Date) return isNaN(raw.getTime()) ? null : raw;
+
+  if (typeof raw === 'number') {
+    const wallTime = new Date(Math.round((raw - GOOGLE_SHEETS_EPOCH_DAYS) * DAY_MS));
+    if (isNaN(wallTime.getTime())) return null;
+    return vietnamWallTimeToDate(
+      wallTime.getUTCFullYear(),
+      wallTime.getUTCMonth() + 1,
+      wallTime.getUTCDate(),
+      wallTime.getUTCHours(),
+      wallTime.getUTCMinutes(),
+      wallTime.getUTCSeconds()
+    );
+  }
+
+  const value = String(raw).trim();
+  const dmy = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (dmy) {
+    const [, dd, MM, yyyy, hh = '0', mi = '0', ss = '0'] = dmy;
+    return vietnamWallTimeToDate(yyyy, MM, dd, hh, mi, ss);
+  }
+
+  const isoLocal = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (isoLocal) {
+    const [, yyyy, MM, dd, hh = '0', mi = '0', ss = '0'] = isoLocal;
+    return vietnamWallTimeToDate(yyyy, MM, dd, hh, mi, ss);
+  }
+
+  const parsed = new Date(value);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function isPaymentTransaction(transaction) {
+  return normalizeText(transaction.type) === 'thanh toan';
+}
+
 /**
  * Ghep 5 cot giao dich (da tach theo "|") thanh mang cac giao dich cua 1 khach.
  * Neu so phan tu giua cac cot lech nhau (du lieu KiotViet khong deu), dung do
@@ -71,18 +145,26 @@ function zipTransactions(codes, times, types, values, balances) {
 
 /**
  * Parse 1 sheet cong no (HN1/HN3/HN7) thanh danh sach khach hang + KPI tong hop.
+ * Sheet thuc te co the lap 1 khach tren nhieu dong. Moi khach chi duoc giu 1
+ * lan; closingDebt lay tu "Du no cuoi" cua giao dich "Thanh toan" moi nhat
+ * khong vuot qua thoi diem hien tai.
  * @param {any[][]} rows - gia tri tho tra ve tu Google Sheets API (rows[0] la header)
+ * @param {Date} [now] - thoi diem doi soat (truyen vao de moi sheet dung cung 1 moc)
  * @returns {{customers: object[], kpi: object}}
  */
-function parseDebtSheet(rows) {
+function parseDebtSheet(rows, now = new Date()) {
   const headers = (rows && rows[0]) || [];
   const columnIndex = buildColumnIndex(headers);
+  const nowTime = now instanceof Date && !isNaN(now.getTime()) ? now.getTime() : Date.now();
 
-  const customers = [];
+  const customersByCode = new Map();
   for (let r = 1; r < (rows ? rows.length : 0); r++) {
     const row = rows[r];
     const code = cell(row, columnIndex.code);
     if (!code) continue;
+
+    const normalizedCode = String(code).trim();
+    if (!normalizedCode) continue;
 
     const transactions = zipTransactions(
       splitPipeValues(cell(row, columnIndex.txnCode)),
@@ -92,18 +174,51 @@ function parseDebtSheet(rows) {
       splitPipeValues(cell(row, columnIndex.txnRunningBalance))
     );
 
-    customers.push({
-      code: String(code).trim(),
-      name: cell(row, columnIndex.name) || '',
-      phone: cell(row, columnIndex.phone) || '',
-      group: cell(row, columnIndex.group) || '',
-      openingDebt: toNumber(cell(row, columnIndex.openingDebt)),
-      debit: toNumber(cell(row, columnIndex.debit)),
-      credit: toNumber(cell(row, columnIndex.credit)),
-      closingDebt: toNumber(cell(row, columnIndex.closingDebt)),
-      transactions
+    let customer = customersByCode.get(normalizedCode);
+    if (!customer) {
+      customer = {
+        code: normalizedCode,
+        name: cell(row, columnIndex.name) || '',
+        phone: cell(row, columnIndex.phone) || '',
+        group: cell(row, columnIndex.group) || '',
+        openingDebt: toNumber(cell(row, columnIndex.openingDebt)),
+        debit: toNumber(cell(row, columnIndex.debit)),
+        credit: toNumber(cell(row, columnIndex.credit)),
+        closingDebt: 0,
+        transactions: [],
+        latestPaymentTime: -Infinity
+      };
+      customersByCode.set(normalizedCode, customer);
+    } else {
+      // Dien thong tin neu dong dau bi thieu; cac cot tong hop lap lai theo khach
+      // nen khong cong don qua tung dong giao dich.
+      if (!customer.name) customer.name = cell(row, columnIndex.name) || '';
+      if (!customer.phone) customer.phone = cell(row, columnIndex.phone) || '';
+      if (!customer.group) customer.group = cell(row, columnIndex.group) || '';
+    }
+
+    transactions.forEach(transaction => {
+      customer.transactions.push(transaction);
+      if (!isPaymentTransaction(transaction)) return;
+
+      const transactionTime = parseTransactionTime(transaction.time);
+      if (!transactionTime) return;
+      const timestamp = transactionTime.getTime();
+      if (timestamp > nowTime || timestamp < customer.latestPaymentTime) return;
+
+      // Neu co 2 dong thanh toan cung thoi gian, dong xuat hien sau trong sheet
+      // la dong quyet dinh (thu tu sheet la thu tu nguon tra ve).
+      customer.latestPaymentTime = timestamp;
+      customer.closingDebt = transaction.runningBalance;
     });
   }
+
+  const customers = Array.from(customersByCode.values())
+    .filter(customer => customer.latestPaymentTime !== -Infinity)
+    .map(customer => {
+      const { latestPaymentTime, ...publicCustomer } = customer;
+      return publicCustomer;
+    });
 
   customers.sort((a, b) => b.closingDebt - a.closingDebt);
 

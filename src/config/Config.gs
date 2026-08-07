@@ -15,7 +15,11 @@ const CONFIG = {
   SHEET_SUPPLIERS: 'Nhà cung cấp',
   SHEET_PURCHASES: 'Nhập hàng',
   SHEET_CUSTOMER_REPORT: 'Báo cáo bán hàng',
-  SHEET_CUSTOMER_PRODUCT_REPORT: 'Hàng bán theo khách'
+  SHEET_CUSTOMER_PRODUCT_REPORT: 'Hàng bán theo khách',
+  SHEET_DISCONTINUED_PRODUCTS: 'Hàng ngừng kinh doanh',
+  SHEET_CUSTOMER_DEBT_1_DAY: 'HN1',
+  SHEET_CUSTOMER_DEBT_3_DAYS: 'HN3',
+  SHEET_CUSTOMER_DEBT_7_DAYS: 'HN7'
 };
 
 /**

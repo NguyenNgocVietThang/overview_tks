@@ -633,10 +633,15 @@ function writeCustomerReportSheet_(reportRows, period) {
     sheet.getRange(2, 16, dataRowCount, 3).setNumberFormat('#,##0');
   }
 
+  if (dataRowCount > 0) {
+    sheet.getRange(2, 1, dataRowCount, CUSTOMER_REPORT_HEADERS.length).setFontFamily('Open Sans');
+  }
+
   sheet.getRange(1, 1, 1, CUSTOMER_REPORT_HEADERS.length)
     .setFontWeight('bold')
     .setFontColor('#FFFFFF')
     .setBackground('#4F81BD')
+    .setFontFamily('Open Sans')
     .setHorizontalAlignment('center')
     .setVerticalAlignment('middle')
     .setWrap(true);
@@ -719,10 +724,14 @@ function writeCustomerProductReportSheet_(reportRows, period) {
       CUSTOMER_PRODUCT_REPORT_HEADERS.length
     ).clearContent().clearNote();
   }
+  if (reportRows.length > 0) {
+    sheet.getRange(2, 1, reportRows.length, CUSTOMER_PRODUCT_REPORT_HEADERS.length).setFontFamily('Open Sans');
+  }
   sheet.getRange(1, 1, 1, CUSTOMER_PRODUCT_REPORT_HEADERS.length)
     .setFontWeight('bold')
     .setFontColor('#FFFFFF')
     .setBackground('#00A6A6')
+    .setFontFamily('Open Sans')
     .setHorizontalAlignment('center');
   sheet.getRange(1, 1).setNote(
     'Kiểu hiển thị: Báo cáo\n' +

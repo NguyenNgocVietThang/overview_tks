@@ -64,7 +64,10 @@ function ensureWebhookQueueSheet_() {
     sheet = spreadsheet.insertSheet(WEBHOOK_QUEUE_SHEET);
     sheet.getRange(1, 1, 1, WEBHOOK_QUEUE_HEADERS.length)
       .setValues([WEBHOOK_QUEUE_HEADERS])
-      .setFontWeight('bold');
+      .setFontWeight('bold')
+      .setFontColor('#FFFFFF')
+      .setBackground('#1F4E78')
+      .setFontFamily('Open Sans');
     sheet.setFrozenRows(1);
     sheet.hideSheet();
   }
@@ -218,6 +221,9 @@ function processWebhookQueue() {
         Logger.log('Loi cap nhat schema, se thu lai: ' + migrationError.toString());
       }
       syncCustomerReportIfDue_();
+
+      // Sau 15:00, chay bu bao cao cong no neu trigger ngay bi tre hoac loi.
+      syncCustomerDebtReportsIfDue_();
     } finally {
       maintenanceLock.releaseLock();
     }

@@ -890,11 +890,15 @@ function writeInvoiceDetailsSheet_(invoices) {
 function formatKiotVietSheet_(sheet, schema, dataRowCount) {
   sheet.getRange(1, 1, 1, schema.headers.length)
     .setFontWeight('bold')
-    .setBackground('#EFEFEF')
+    .setFontColor('#FFFFFF')
+    .setBackground('#1F4E78')
+    .setFontFamily('Open Sans')
     .setVerticalAlignment('middle');
   sheet.setFrozenRows(1);
 
   if (dataRowCount <= 0) return;
+
+  sheet.getRange(2, 1, dataRowCount, schema.headers.length).setFontFamily('Open Sans');
 
   (schema.numberHeaders || []).forEach(header => {
     const columnIndex = schema.headers.indexOf(header);
@@ -909,7 +913,6 @@ function formatKiotVietSheet_(sheet, schema, dataRowCount) {
       sheet.getRange(2, columnIndex + 1, dataRowCount, 1).setNumberFormat('@');
     }
   });
-
 }
 
 function writeKiotVietRowsInChunks_(sheet, startRow, rows, columnCount) {

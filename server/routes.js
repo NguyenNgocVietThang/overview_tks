@@ -53,9 +53,21 @@ router.get('/api/dashboard', async (req, res) => {
     const legacyDays = req.query.days;
     const filters = {
       overview: parseFilterSpec(req.query, 'ov', legacyDays),
-      products: parseFilterSpec(req.query, 'pr'),
+      products: {
+        ...parseFilterSpec(req.query, 'pr'),
+        status: req.query.prStatus
+      },
       invoices: parseFilterSpec(req.query, 'in', legacyDays),
-      customers: parseFilterSpec(req.query, 'cu')
+      // Tab Khách hàng hiện không có bộ lọc thời gian. Mặc định phải lấy toàn
+      // bộ snapshot công nợ; nếu để trống, resolveFilterRange sẽ tự rơi về 30
+      // ngày và danh sách khách nợ có thể bị loại sạch khi hóa đơn thiếu SĐT.
+      customers: {
+        ...parseFilterSpec(req.query, 'cu'),
+        mode: req.query.cuMode || 'all'
+      },
+      newPurchases: parseFilterSpec(req.query, 'pu'),
+      newProducts: parseFilterSpec(req.query, 'np'),
+      deactivated: parseFilterSpec(req.query, 'de')
     };
     const data = await getDashboardData(filters);
     res.status(200).json(data);
