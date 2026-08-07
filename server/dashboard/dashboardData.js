@@ -8,6 +8,7 @@ const { parseDebtSheet } = require('./debtReport');
 
 const OUT_OF_STOCK_LEVEL = 0;
 const TOP_SELLING_LIMIT = 10;
+const NEWLY_IMPORTED_REVENUE_LIMIT = 15;
 const MAX_PARENT_CATEGORY_BARS = 30;
 const NEW_PURCHASES_SUPPLIER_LIMIT = 30; // top NCC cho bieu do 2 cot
 const SEARCH_CACHE_TTL_MS = 2 * 60 * 1000;
@@ -893,7 +894,7 @@ async function getDashboardData(filters) {
     });
   });
   newlyImportedProducts.sort((a, b) => b._sortTime - a._sortTime);
-  const newlyImportedRows = newlyImportedProducts.map(({ _sortTime, ...rest }) => rest);
+  const newlyImportedCodeSet = new Set(newlyImportedProducts.map(p => String(p.code).trim()));
 
   // ---------- HÓA ĐƠN: index 1 lần, dùng lại cho mọi bộ lọc ----------
   // Cột: [0]Mã hóa đơn [1]Ngày bán [2]Khách hàng [3]SĐT khách [4]Nhân viên bán [5]Chi nhánh [6]Tổng tiền hàng [7]Giảm giá [8]Khách đã trả [9]Trạng thái
@@ -969,6 +970,8 @@ async function getDashboardData(filters) {
   // Cột: [0]Mã hóa đơn [1]Mã hàng [2]Tên hàng [3]Số lượng [4]Đơn giá [5]Giảm giá [6]Thành tiền
   const productSalesMap = {};
   const parentCategorySalesMap = {};
+  const newlyImportedCategorySalesMap = {};
+  const newlyImportedProductSalesMap = new Map();
   for (let r = 1; r < detailData.length; r++) {
     const row = detailData[r];
     const invoiceCode = row[0];
@@ -983,12 +986,13 @@ async function getDashboardData(filters) {
     const name = row[2] || code;
     const qty = Number(row[3]) || 0;
     const revenue = Number(row[6]) || 0;
+    const trimmedCode = String(code).trim();
 
     if (!productSalesMap[code]) productSalesMap[code] = { code, name, qty: 0, revenue: 0 };
     productSalesMap[code].qty += qty;
     productSalesMap[code].revenue += revenue;
 
-    const parentCategoryName = productParentCategoryByCode.get(String(code).trim()) || 'Chưa xác định';
+    const parentCategoryName = productParentCategoryByCode.get(trimmedCode) || 'Chưa xác định';
     if (!parentCategorySalesMap[parentCategoryName]) {
       parentCategorySalesMap[parentCategoryName] = {
         name: parentCategoryName,
@@ -999,7 +1003,28 @@ async function getDashboardData(filters) {
     }
     parentCategorySalesMap[parentCategoryName].qty += qty;
     parentCategorySalesMap[parentCategoryName].revenue += revenue;
-    parentCategorySalesMap[parentCategoryName].productCodes.add(String(code).trim());
+    parentCategorySalesMap[parentCategoryName].productCodes.add(trimmedCode);
+
+    if (newlyImportedCodeSet.has(trimmedCode)) {
+      if (!newlyImportedProductSalesMap.has(trimmedCode)) {
+        newlyImportedProductSalesMap.set(trimmedCode, { code, name, qty: 0, revenue: 0 });
+      }
+      const newlyImportedProductSale = newlyImportedProductSalesMap.get(trimmedCode);
+      newlyImportedProductSale.qty += qty;
+      newlyImportedProductSale.revenue += revenue;
+
+      if (!newlyImportedCategorySalesMap[parentCategoryName]) {
+        newlyImportedCategorySalesMap[parentCategoryName] = {
+          name: parentCategoryName,
+          qty: 0,
+          revenue: 0,
+          productCodes: new Set()
+        };
+      }
+      newlyImportedCategorySalesMap[parentCategoryName].qty += qty;
+      newlyImportedCategorySalesMap[parentCategoryName].revenue += revenue;
+      newlyImportedCategorySalesMap[parentCategoryName].productCodes.add(trimmedCode);
+    }
   }
   const topSellingProducts = Object.values(productSalesMap)
     .sort((a, b) => b.revenue - a.revenue)
@@ -1013,6 +1038,72 @@ async function getDashboardData(filters) {
     }))
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, TOP_SELLING_LIMIT);
+
+  const newlyImportedRows = newlyImportedProducts.map(({ _sortTime, ...product }) => {
+    const sales = newlyImportedProductSalesMap.get(String(product.code).trim());
+    return {
+      ...product,
+      revenue: sales ? sales.revenue : 0
+    };
+  });
+  const topNewlyImportedByRevenue = Array.from(newlyImportedProductSalesMap.values())
+    .filter(product => product.revenue > 0)
+    .sort((a, b) => b.revenue - a.revenue || b.qty - a.qty || String(a.name).localeCompare(String(b.name), 'vi'))
+    .slice(0, NEWLY_IMPORTED_REVENUE_LIMIT);
+
+  // ---------- HÀNG MỚI NHẬP -> DOANH THU BÁN THỰC TẾ THEO NHÓM HÀNG ----------
+  // Chi lay doanh thu cua nhung ma hang co ngay nhap dau tien nam trong productsRange
+  // (newlyImportedCodeSet), gop nhom cha, gioi han so lat hien thi tren pie chart.
+  const NEWLY_IMPORTED_PIE_LIMIT = 7;
+  const newlyImportedByCategoryFull = Object.values(newlyImportedCategorySalesMap)
+    .map(category => ({
+      name: category.name,
+      qty: category.qty,
+      revenue: category.revenue,
+      productCount: category.productCodes.size
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+  const newlyImportedByCategory = newlyImportedByCategoryFull.length <= NEWLY_IMPORTED_PIE_LIMIT
+    ? newlyImportedByCategoryFull
+    : (() => {
+        const visible = newlyImportedByCategoryFull.slice(0, NEWLY_IMPORTED_PIE_LIMIT - 1);
+        const rest = newlyImportedByCategoryFull.slice(NEWLY_IMPORTED_PIE_LIMIT - 1);
+        return visible.concat({
+          name: `Khác (${rest.length} nhóm)`,
+          qty: rest.reduce((sum, c) => sum + c.qty, 0),
+          revenue: rest.reduce((sum, c) => sum + c.revenue, 0),
+          productCount: rest.reduce((sum, c) => sum + c.productCount, 0)
+        });
+      })();
+  const newlyImportedSalesRevenue = newlyImportedByCategoryFull.reduce((sum, c) => sum + c.revenue, 0);
+  const newlyImportedSalesQty = newlyImportedByCategoryFull.reduce((sum, c) => sum + c.qty, 0);
+
+  // Group newly imported products by parent category (count of products)
+  const newlyImportedProductCountMap = {};
+  newlyImportedProducts.forEach(product => {
+    const parentCategoryName = productParentCategoryByCode.get(String(product.code).trim()) || 'Chưa xác định';
+    if (!newlyImportedProductCountMap[parentCategoryName]) {
+      newlyImportedProductCountMap[parentCategoryName] = {
+        name: parentCategoryName,
+        productCount: 0
+      };
+    }
+    newlyImportedProductCountMap[parentCategoryName].productCount++;
+  });
+
+  const newlyImportedByProductCountFull = Object.values(newlyImportedProductCountMap)
+    .sort((a, b) => b.productCount - a.productCount);
+
+  const newlyImportedByProductCount = newlyImportedByProductCountFull.length <= NEWLY_IMPORTED_PIE_LIMIT
+    ? newlyImportedByProductCountFull
+    : (() => {
+        const visible = newlyImportedByProductCountFull.slice(0, NEWLY_IMPORTED_PIE_LIMIT - 1);
+        const rest = newlyImportedByProductCountFull.slice(NEWLY_IMPORTED_PIE_LIMIT - 1);
+        return visible.concat({
+          name: `Khác (${rest.length} nhóm)`,
+          productCount: rest.reduce((sum, c) => sum + c.productCount, 0)
+        });
+      })();
 
   // ---------- ĐẶT HÀNG (theo bộ lọc Hóa đơn) ----------
   // Cột: [0]Mã đặt hàng [1]Ngày đặt [2]Khách hàng [3]Nhân viên lập [4]Chi nhánh [5]Tổng tiền [6]Trạng thái
@@ -1238,7 +1329,12 @@ async function getDashboardData(filters) {
       newlyImported: {
         label: productsRange.label,
         count: newlyImportedRows.length,
-        products: newlyImportedRows
+        products: newlyImportedRows,
+        topByRevenue: topNewlyImportedByRevenue,
+        salesByCategory: newlyImportedByCategory,
+        countByCategory: newlyImportedByProductCount,
+        salesRevenue: newlyImportedSalesRevenue,
+        salesQty: newlyImportedSalesQty
       }
     },
     invoices: {

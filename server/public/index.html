@@ -383,6 +383,8 @@
   .chart-box.small{ height:220px; }
   .chart-box.wide{ height:340px; }
   .chart-box.tall{ height:380px; }
+  .chart-box.newly-imported-top{ height:480px; }
+  .chart-box.newly-imported-top.is-empty{ height:180px; }
   .chart-empty{
     position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
     color:var(--muted); font-size:12.5px; text-align:center;
@@ -973,11 +975,39 @@
           <div class="section-head"><span class="section-step">5</span><h2>Hàng mới nhập <span class="section-note" id="newlyImportedPeriod">ngày nhập đầu tiên trong 30 ngày</span></h2></div>
           <div class="grid">
             <div class="panel col-12">
+              <div class="panel-head">
+                <h2>Top 15 doanh thu hàng mới nhập <span class="tag" id="tagNewlyImportedTopRevenue">—</span></h2>
+                <span class="drill-hint">Xếp theo doanh thu · không gồm hóa đơn đã hủy</span>
+              </div>
+              <div class="chart-box newly-imported-top" id="newlyImportedTopRevenueChartBox">
+                <canvas id="chartNewlyImportedTopRevenue" role="img" aria-label="Biểu đồ cột ngang Top 15 doanh thu hàng mới nhập"></canvas>
+                <div class="chart-empty" id="newlyImportedTopRevenueChartEmpty" hidden>Chưa có doanh thu từ hàng mới nhập trong khoảng đã chọn</div>
+              </div>
+            </div>
+            <div class="panel col-6">
+              <div class="panel-head">
+                <h2>Doanh thu theo nhóm hàng <span class="tag" id="tagNewlyImportedRevenue">—</span></h2>
+              </div>
+              <div class="chart-box">
+                <canvas id="chartNewlyImportedRevenue" role="img" aria-label="Biểu đồ doanh thu hàng mới nhập theo nhóm hàng"></canvas>
+                <div class="chart-empty" id="newlyImportedRevenueChartEmpty" hidden>Chưa có doanh thu từ hàng mới nhập trong khoảng đã chọn</div>
+              </div>
+            </div>
+            <div class="panel col-6">
+              <div class="panel-head">
+                <h2>Số lượng bán theo nhóm hàng <span class="tag" id="tagNewlyImportedQty">—</span></h2>
+              </div>
+              <div class="chart-box">
+                <canvas id="chartNewlyImportedQty" role="img" aria-label="Biểu đồ số lượng bán hàng mới nhập theo nhóm hàng"></canvas>
+                <div class="chart-empty" id="newlyImportedQtyChartEmpty" hidden>Chưa có dữ liệu số lượng bán hàng mới nhập</div>
+              </div>
+            </div>
+            <div class="panel col-12">
               <div class="panel-head"><h2>Hàng mới nhập <span class="tag" id="tagNewlyImported">—</span></h2></div>
               <div class="scroll-list" style="max-height:420px;">
                 <table>
-                  <thead><tr><th>Mã hàng</th><th>Tên hàng</th><th>Ngày nhập đầu tiên</th></tr></thead>
-                  <tbody id="newlyImportedRows"><tr><td colspan="3" class="empty">Đang tải...</td></tr></tbody>
+                  <thead><tr><th>Mã hàng</th><th>Tên hàng</th><th>Ngày nhập đầu tiên</th><th>Doanh thu</th></tr></thead>
+                  <tbody id="newlyImportedRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
                 </table>
               </div>
             </div>
@@ -1292,6 +1322,13 @@
       text:themeColor('--text'), muted:themeColor('--muted'), panel:themeColor('--panel'),
       grid:themeColor('--chart-grid'), amber:themeColor('--amber')
     };
+  }
+
+  const CATEGORY_PALETTE = ['#F0A63A','#5B9BF0','#3DD68C','#F1616A','#B98CF2','#4FD1C5','#F0888C','#8CA0C7'];
+  const CATEGORY_OTHER_COLOR = '#6B7280';
+  function categoryColor(name, index){
+    if(String(name || '').indexOf('Khác') === 0) return CATEGORY_OTHER_COLOR;
+    return CATEGORY_PALETTE[index % CATEGORY_PALETTE.length];
   }
 
   function syncThemeControl(){
@@ -2044,6 +2081,89 @@
     });
   }
 
+  function renderPieChartList(canvasId, key, list, labelFn, valueFn, formatFn, centerLabel){
+    destroyChart(key);
+    const canvas = document.getElementById(canvasId);
+    if(!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const theme = chartTheme();
+    const format = formatFn || (v => fmtMoney(v));
+    const values = list.map(valueFn);
+    const total = values.reduce((sum, v) => sum + (Number(v) || 0), 0);
+
+    const centerTextPlugin = {
+      id: 'centerText_' + key,
+      afterDraw(chart) {
+        if (!total) return;
+        const { ctx, chartArea } = chart;
+        if (!chartArea) return;
+        const { top, bottom, left, right } = chartArea;
+        ctx.save();
+        const centerX = (left + right) / 2;
+        const centerY = (top + bottom) / 2;
+
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        ctx.font = '500 11px Inter, sans-serif';
+        ctx.fillStyle = theme.muted;
+        ctx.fillText(centerLabel || 'Tổng', centerX, centerY - 10);
+
+        ctx.font = '600 12.5px "IBM Plex Mono", monospace';
+        ctx.fillStyle = theme.text;
+        ctx.fillText(format(total), centerX, centerY + 9);
+        ctx.restore();
+      }
+    };
+
+    state.charts[key] = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: list.map(labelFn),
+        datasets: [{
+          data: values,
+          backgroundColor: list.map((item, i) => categoryColor(labelFn(item), i)),
+          borderColor: theme.panel,
+          borderWidth: 2,
+          hoverOffset: 5
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        cutout: '68%',
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: {
+              color: theme.text,
+              boxWidth: 10,
+              usePointStyle: true,
+              pointStyle: 'circle',
+              font: { size: 10.5, family: 'Inter, sans-serif' },
+              padding: 10
+            }
+          },
+          tooltip: {
+            backgroundColor: theme.panel,
+            titleColor: theme.text,
+            bodyColor: theme.text,
+            borderColor: theme.grid,
+            borderWidth: 1,
+            padding: 10,
+            callbacks: {
+              label: c => {
+                const value = Number(c.raw) || 0;
+                const pct = total > 0 ? (value / total * 100).toFixed(1) : '0.0';
+                return ' ' + c.label + ': ' + format(value) + ' (' + pct + '%)';
+              }
+            }
+          }
+        }
+      },
+      plugins: [centerTextPlugin]
+    });
+  }
+
   function renderCategoryValueChart(list){
     destroyChart('categoryValue');
     const ctx = document.getElementById('chartCategoryValue').getContext('2d');
@@ -2309,8 +2429,70 @@
       const newlyImportedTbody = document.getElementById('newlyImportedRows');
       newlyImportedTbody.innerHTML = newlyImported.length ? newlyImported.map(p =>
         '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-        '<td class="mono muted">' + escapeHtml(p.firstImportDate) + '</td></tr>'
-      ).join('') : '<tr><td colspan="3" class="empty">Không có mã hàng mới nhập · ' + escapeHtml(productRangeLabel) + '</td></tr>';
+        '<td class="mono muted">' + escapeHtml(p.firstImportDate) + '</td>' +
+        '<td class="mono" data-sort-value="' + (Number(p.revenue) || 0) + '">' + fmtMoney(p.revenue) + '</td></tr>'
+      ).join('') : '<tr><td colspan="4" class="empty">Không có mã hàng mới nhập · ' + escapeHtml(productRangeLabel) + '</td></tr>';
+
+      const newlyImportedInfo = (d.products && d.products.newlyImported) || {};
+      const topNewlyImportedByRevenue = newlyImportedInfo.topByRevenue || [];
+      document.getElementById('tagNewlyImportedTopRevenue').textContent = topNewlyImportedByRevenue.length + ' mặt hàng';
+      const hasNewlyImportedTopRevenue = topNewlyImportedByRevenue.length > 0;
+      document.getElementById('newlyImportedTopRevenueChartBox').classList.toggle('is-empty', !hasNewlyImportedTopRevenue);
+      document.getElementById('chartNewlyImportedTopRevenue').hidden = !hasNewlyImportedTopRevenue;
+      document.getElementById('newlyImportedTopRevenueChartEmpty').hidden = hasNewlyImportedTopRevenue;
+      if(hasNewlyImportedTopRevenue){
+        renderBarChartList(
+          'chartNewlyImportedTopRevenue',
+          'newlyImportedTopRevenue',
+          topNewlyImportedByRevenue,
+          p => p.name,
+          p => p.revenue,
+          themeColor('--amber')
+        );
+      } else {
+        destroyChart('newlyImportedTopRevenue');
+      }
+
+      const newlyImportedByCategory = newlyImportedInfo.salesByCategory || [];
+      const newlyImportedCountByCategory = newlyImportedInfo.countByCategory || [];
+      const newlyImportedProductsList = newlyImportedInfo.products || [];
+
+      const salesRevenue = newlyImportedInfo.salesRevenue || 0;
+      const salesQty = newlyImportedInfo.salesQty || 0;
+
+      const hasNewlyImportedSales = newlyImportedByCategory.length > 0 && (salesRevenue > 0 || salesQty > 0);
+      const hasNewlyImportedProducts = newlyImportedProductsList.length > 0 && newlyImportedCountByCategory.length > 0;
+
+      if(hasNewlyImportedSales){
+        document.getElementById('tagNewlyImportedRevenue').textContent = fmtMoneyShort(salesRevenue);
+        document.getElementById('tagNewlyImportedQty').textContent = Number(salesQty).toLocaleString('vi-VN');
+        document.getElementById('chartNewlyImportedRevenue').hidden = false;
+        document.getElementById('newlyImportedRevenueChartEmpty').hidden = true;
+        document.getElementById('chartNewlyImportedQty').hidden = false;
+        document.getElementById('newlyImportedQtyChartEmpty').hidden = true;
+
+        renderPieChartList('chartNewlyImportedRevenue','newlyImportedRevenue', newlyImportedByCategory, c=>c.name, c=>c.revenue, fmtMoney, 'Doanh thu');
+        renderPieChartList('chartNewlyImportedQty','newlyImportedQty', newlyImportedByCategory, c=>c.name, c=>c.qty, v=>Number(v).toLocaleString('vi-VN'), 'Số lượng');
+      } else if(hasNewlyImportedProducts){
+        document.getElementById('tagNewlyImportedRevenue').textContent = newlyImportedProductsList.length + ' mã';
+        document.getElementById('tagNewlyImportedQty').textContent = newlyImportedCountByCategory.length + ' nhóm';
+        document.getElementById('chartNewlyImportedRevenue').hidden = false;
+        document.getElementById('newlyImportedRevenueChartEmpty').hidden = true;
+        document.getElementById('chartNewlyImportedQty').hidden = false;
+        document.getElementById('newlyImportedQtyChartEmpty').hidden = true;
+
+        renderPieChartList('chartNewlyImportedRevenue','newlyImportedRevenue', newlyImportedCountByCategory, c=>c.name, c=>c.productCount, v=>v + ' mã', 'Số mã hàng');
+        renderPieChartList('chartNewlyImportedQty','newlyImportedQty', newlyImportedCountByCategory, c=>c.name, c=>c.productCount, v=>v + ' mã', 'Cơ cấu nhóm');
+      } else {
+        document.getElementById('tagNewlyImportedRevenue').textContent = '0đ';
+        document.getElementById('tagNewlyImportedQty').textContent = '0';
+        document.getElementById('chartNewlyImportedRevenue').hidden = true;
+        document.getElementById('newlyImportedRevenueChartEmpty').hidden = false;
+        document.getElementById('chartNewlyImportedQty').hidden = true;
+        document.getElementById('newlyImportedQtyChartEmpty').hidden = false;
+        destroyChart('newlyImportedRevenue');
+        destroyChart('newlyImportedQty');
+      }
 
       renderProductSalesAnalysis(d);
 
