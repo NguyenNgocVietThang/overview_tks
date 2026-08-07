@@ -822,8 +822,8 @@
               </div>
               <div class="scroll-list" style="max-height:420px;">
                 <table>
-                  <thead><tr><th>Mã</th><th>Tên</th><th>Nhóm hàng</th><th>Giá vốn</th><th>Giá bán</th></tr></thead>
-                  <tbody id="todayNewProductRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
+                  <thead><tr><th>Mã</th><th>Tên</th><th>Nhóm hàng</th><th>Thời gian tạo mã</th><th>Giá vốn</th><th>Giá bán</th></tr></thead>
+                  <tbody id="todayNewProductRows"><tr><td colspan="6" class="empty">Đang tải...</td></tr></tbody>
                 </table>
               </div>
             </div>
@@ -2207,9 +2207,10 @@
         '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
         '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
         '<td>' + escapeHtml(p.category || 'Chưa phân nhóm') + '</td>' +
+        '<td class="mono muted">' + escapeHtml(p.createdAt || '—') + '</td>' +
         '<td class="mono muted" data-sort-value="' + p.cost + '">' + fmtMoney(p.cost) + '</td>' +
         '<td class="mono" data-sort-value="' + p.price + '">' + fmtMoney(p.price) + '</td></tr>'
-      ).join('') : '<tr><td colspan="5" class="empty">' +
+      ).join('') : '<tr><td colspan="6" class="empty">' +
         (todayNewProducts.dateColumnAvailable === false ? 'Sheet Hàng hóa chưa có cột Ngày tạo' : 'Chưa có mã hàng mới tạo trong khoảng đã chọn') +
         '</td></tr>';
 

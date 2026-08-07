@@ -726,6 +726,7 @@ async function getDashboardData(filters) {
         code,
         name: row[1] || code,
         category: row[2] || 'Chưa phân nhóm',
+        createdAt: formatDMYHMS(createdAt),
         cost,
         price,
         _sortTime: createdAt.getTime()
