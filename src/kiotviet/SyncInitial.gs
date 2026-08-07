@@ -117,7 +117,8 @@ function syncPurchasesInitial(token) {
   token = token || getKiotVietToken();
   const schema = KIOTVIET_SHEET_SCHEMAS.purchases;
   const items = fetchAllKiotVietPages_(schema, token);
-  return writeKiotVietSheet_(schema, items);
+  const wrappers = buildPurchaseOrderWrappers_(items);
+  return writeKiotVietSheet_(schema, wrappers);
 }
 
 /**

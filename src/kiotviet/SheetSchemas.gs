@@ -192,29 +192,41 @@ const SUPPLIER_SHEET_HEADERS = Object.freeze([
   'Tổng mua trừ trả hàng'
 ]);
 
+// Cau truc y het file "Danh sach chi tiet nhap hang" xuat tu KiotViet: moi
+// dong la mot mat hang trong phieu nhap (thong tin phieu nhap duoc lap lai
+// tren tung dong mat hang cua chinh phieu do).
 const PURCHASE_SHEET_HEADERS = Object.freeze([
-  'Mã nhập hàng',
-  'Ngày nhập',
-  'Nhà cung cấp',
   'Chi nhánh',
-  'Tổng tiền',
-  'Trạng thái',
-  'ID nhập hàng',
-  'ID gian hàng',
-  'ID chi nhánh',
-  'ID nhà cung cấp',
+  'Mã nhập hàng',
+  'Thời gian',
+  'Thời gian tạo',
+  'Ngày cập nhật',
   'Mã nhà cung cấp',
-  'Đối tượng nộp/nhận',
-  'ID người nhập',
+  'Tên nhà cung cấp',
+  'Điện thoại',
+  'Địa chỉ',
   'Người nhập',
-  'Giảm giá (%)',
-  'Giảm giá',
-  'Tổng thuế',
-  'Mã trạng thái',
-  'Tên trạng thái API',
+  'Người tạo',
+  'Tổng tiền hàng',
+  'Giảm giá phiếu nhập',
+  'Cần trả NCC',
+  'Tiền đã trả NCC',
   'Ghi chú',
-  'Ngày tạo',
-  'Ngày cập nhật'
+  'Số hóa đơn đầu vào',
+  'Tổng số lượng',
+  'Tổng số mặt hàng',
+  'Trạng thái',
+  'Mã hàng',
+  'Tên hàng',
+  'Thương hiệu',
+  'ĐVT',
+  'Ghi chú hàng hóa',
+  'Đơn giá',
+  'Giảm giá %',
+  'Giảm giá',
+  'Giá nhập',
+  'Thành tiền',
+  'Số lượng'
 ]);
 
 function pickKiotVietValue_(source, keys) {
@@ -509,30 +521,89 @@ function buildSupplierSheetRow_(supplier) {
   ];
 }
 
-function buildPurchaseSheetRow_(purchase) {
+/**
+ * Lay mang chi tiet mat hang cua mot phieu nhap, chap nhan nhieu ten truong
+ * KiotViet co the tra ve tuy phien ban API.
+ */
+function getPurchaseOrderDetails_(order) {
+  const details = kiotVietValue_(order, [
+    'PurchaseOrderDetails', 'purchaseOrderDetails',
+    'ProductDetails', 'productDetails',
+    'Details', 'details'
+  ], []);
+  return Array.isArray(details) ? details : [];
+}
+
+/**
+ * Ghep moi phieu nhap voi tung dong mat hang cua no thanh danh sach wrapper
+ * {order, detail}, giong cach lam voi Hoa don/Chi tiet hoa don. Phieu nhap
+ * khong co dong mat hang nao van duoc giu lai (detail rong) de khong mat du
+ * lieu phieu nhap tren sheet.
+ */
+function buildPurchaseOrderWrappers_(purchaseOrders) {
+  const wrappers = [];
+  (Array.isArray(purchaseOrders) ? purchaseOrders : []).forEach(order => {
+    const details = getPurchaseOrderDetails_(order);
+    if (details.length === 0) {
+      wrappers.push({ order: order, detail: {} });
+      return;
+    }
+    details.forEach(detail => wrappers.push({ order: order, detail: detail }));
+  });
+  return wrappers;
+}
+
+function buildPurchaseSheetRow_(wrapper) {
+  const order = (wrapper && wrapper.order) || {};
+  const detail = (wrapper && wrapper.detail) || {};
+  const details = getPurchaseOrderDetails_(order);
+
+  const totalQuantity = details.reduce((sum, item) => {
+    return sum + kiotVietNumber_(item, ['Quantity', 'quantity', 'OrderQuantity', 'orderQuantity'], 0);
+  }, 0);
+  const totalPayment = kiotVietNumber_(order, ['TotalPayment', 'totalPayment', 'PaidAmount', 'paidAmount'], 0);
+  const total = kiotVietNumber_(order, ['Total', 'total'], 0);
+
+  const detailPrice = kiotVietNumber_(detail, ['Price', 'price'], '');
+  const detailQuantity = kiotVietNumber_(detail, ['Quantity', 'quantity', 'OrderQuantity', 'orderQuantity'], '');
+  const detailDiscount = kiotVietNumber_(detail, ['Discount', 'discount'], '');
+  const subTotal = pickKiotVietValue_(detail, ['SubTotal', 'subTotal']);
+  const detailAmount = subTotal.found
+    ? kiotVietNumber_(detail, ['SubTotal', 'subTotal'])
+    : (Number(detailPrice) || 0) * (Number(detailQuantity) || 0) - (Number(detailDiscount) || 0);
+
   return [
-    kiotVietText_(purchase, ['PurchaseOrderCode', 'purchaseOrderCode', 'Code', 'code']),
-    kiotVietDate_(purchase, ['PurchaseDate', 'purchaseDate']),
-    kiotVietText_(purchase, ['SupplierName', 'supplierName']),
-    kiotVietText_(purchase, ['BranchName', 'branchName']),
-    kiotVietNumber_(purchase, ['Total', 'total']),
-    kiotVietStatus_(purchase, {}),
-    kiotVietId_(purchase, ['Id', 'id', 'PurchaseOrderId', 'purchaseOrderId']),
-    kiotVietId_(purchase, ['RetailerId', 'retailerId']),
-    kiotVietId_(purchase, ['BranchId', 'branchId']),
-    kiotVietId_(purchase, ['SupplierId', 'supplierId']),
-    kiotVietText_(purchase, ['SupplierCode', 'supplierCode']),
-    kiotVietText_(purchase, ['PartnerType', 'partnerType']),
-    kiotVietId_(purchase, ['PurchaseById', 'purchaseById']),
-    kiotVietText_(purchase, ['PurchaseName', 'purchaseName']),
-    kiotVietNumber_(purchase, ['DiscountRatio', 'discountRatio'], ''),
-    kiotVietNumber_(purchase, ['Discount', 'discount'], ''),
-    kiotVietNumber_(purchase, ['TotalTax', 'totalTax'], ''),
-    kiotVietValue_(purchase, ['Status', 'status'], ''),
-    kiotVietText_(purchase, ['StatusValue', 'statusValue']),
-    kiotVietText_(purchase, ['Description', 'description']),
-    kiotVietDate_(purchase, ['CreatedDate', 'createdDate']),
-    kiotVietDate_(purchase, ['ModifiedDate', 'modifiedDate'])
+    kiotVietText_(order, ['BranchName', 'branchName']),
+    kiotVietText_(order, ['PurchaseOrderCode', 'purchaseOrderCode', 'Code', 'code']),
+    kiotVietDate_(order, ['PurchaseDate', 'purchaseDate']),
+    kiotVietDate_(order, ['CreatedDate', 'createdDate']),
+    kiotVietDate_(order, ['ModifiedDate', 'modifiedDate']),
+    kiotVietText_(order, ['SupplierCode', 'supplierCode']),
+    kiotVietText_(order, ['SupplierName', 'supplierName']),
+    kiotVietText_(order, ['ContactNumber', 'contactNumber', 'SupplierContactNumber', 'supplierContactNumber', 'Phone', 'phone']),
+    kiotVietText_(order, ['Address', 'address', 'SupplierAddress', 'supplierAddress']),
+    kiotVietText_(order, ['PurchaseName', 'purchaseName']),
+    kiotVietText_(order, ['CreatedByName', 'createdByName', 'CreatorName', 'creatorName', 'PurchaseName', 'purchaseName']),
+    total,
+    kiotVietNumber_(order, ['Discount', 'discount'], 0),
+    kiotVietNumber_(order, ['SupplierDebt', 'supplierDebt', 'NeedToPay', 'needToPay'], total - totalPayment),
+    totalPayment,
+    kiotVietText_(order, ['Description', 'description']),
+    kiotVietText_(order, ['InvoiceNumber', 'invoiceNumber', 'InputVATNumber', 'inputVATNumber', 'InputInvoiceNumber', 'inputInvoiceNumber']),
+    totalQuantity,
+    details.length,
+    kiotVietStatus_(order, {}),
+    kiotVietText_(detail, ['ProductCode', 'productCode']),
+    kiotVietText_(detail, ['ProductName', 'productName']),
+    kiotVietText_(detail, ['Brand', 'brand', 'BrandName', 'brandName']),
+    kiotVietText_(detail, ['Unit', 'unit', 'ProductUnit', 'productUnit']),
+    kiotVietText_(detail, ['Note', 'note']),
+    detailPrice,
+    kiotVietNumber_(detail, ['DiscountRatio', 'discountRatio'], ''),
+    detailDiscount,
+    detailPrice,
+    detailAmount,
+    detailQuantity
   ];
 }
 
@@ -707,11 +778,12 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
     idKeys: ['PurchaseOrderId', 'purchaseOrderId', 'Id', 'id'],
     buildRow: buildPurchaseSheetRow_,
     aliases: {},
-    numberHeaders: ['Tổng tiền', 'Giảm giá (%)', 'Giảm giá', 'Tổng thuế'],
-    textHeaders: [
-      'Mã nhập hàng', 'ID nhập hàng', 'ID gian hàng', 'ID chi nhánh',
-      'ID nhà cung cấp', 'Mã nhà cung cấp', 'ID người nhập'
-    ]
+    numberHeaders: [
+      'Tổng tiền hàng', 'Giảm giá phiếu nhập', 'Cần trả NCC', 'Tiền đã trả NCC',
+      'Tổng số lượng', 'Tổng số mặt hàng',
+      'Đơn giá', 'Giảm giá %', 'Giảm giá', 'Giá nhập', 'Thành tiền', 'Số lượng'
+    ],
+    textHeaders: ['Mã nhập hàng', 'Mã nhà cung cấp', 'Điện thoại', 'Số hóa đơn đầu vào', 'Mã hàng']
   }
 });
 
