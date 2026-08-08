@@ -19,6 +19,7 @@ const DASHBOARD_UTC_OFFSET = '+07:00';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_RANGE_DAYS = 3660; // ~10 nam — chan vong lap tao bucket ngay bi vo tan/qua lon
 const MAX_REPORT_TRANSACTIONS = 500; // gioi han so dong bang "Chi tiet giao dich" khi loc ca ky dai
+const TOP_REPORT_TRANSACTIONS = 15;
 
 const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-GB', {
   timeZone: DASHBOARD_TIME_ZONE,
@@ -643,6 +644,11 @@ function buildTransactionsReport(range, invoiceRecords, invoiceQuantityMap) {
     .sort((a, b) => b._sortTime - a._sortTime);
 
   const completedTransactions = allTransactions.filter(t => t.status === 'Hoàn thành');
+  const topTransactions = completedTransactions
+    .slice()
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, TOP_REPORT_TRANSACTIONS)
+    .map(({ _sortTime, ...rest }) => rest);
   const summary = {
     transactionCount: completedTransactions.length,
     cancelledCount: allTransactions.length - completedTransactions.length,
@@ -663,6 +669,7 @@ function buildTransactionsReport(range, invoiceRecords, invoiceQuantityMap) {
     truncated: allTransactions.length > MAX_REPORT_TRANSACTIONS,
     totalInRange: allTransactions.length,
     transactions,
+    topTransactions,
     summary
   };
 }

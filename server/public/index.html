@@ -426,6 +426,9 @@
   .end-day-section-head h3{ margin:0; color:var(--text); font-family:var(--font-display); font-size:12.5px; font-weight:600; }
   .end-day-section-head span{ color:var(--muted); font-size:11px; }
   .end-day-chart{ height:300px; }
+  .transaction-analysis-grid{ align-items:stretch; }
+  .transaction-analysis-grid > .panel{ height:100%; margin-bottom:0; }
+  .top-transactions-chart{ height:460px; }
   .end-day-table table{ min-width:860px; }
   .end-day-table tfoot td{ padding:11px 8px; border-top:1px solid var(--border); color:var(--text); font-weight:700; background:var(--panel-2); }
   .end-day-table tfoot td:first-child{ border-radius:0 0 0 7px; }
@@ -438,6 +441,7 @@
   .scroll-list::-webkit-scrollbar{ width:8px; }
   .scroll-list::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
   .scroll-list table thead th{ position:sticky; top:0; background:var(--panel); z-index:1; }
+  .scroll-list.transaction-detail-scroll{ max-height:460px; }
   .end-day-section-head span{ color:var(--muted); font-size:11px; }
   .end-day-chart{ height:300px; }
   .end-day-table table{ min-width:860px; }
@@ -822,33 +826,27 @@
         </section>
 
         <section class="section">
-          <div class="section-head"><span class="section-step">3</span><h2>Phân tích <span class="section-note">giao dịch nào đóng góp nhiều nhất</span></h2></div>
-          <div class="grid">
-            <div class="panel col-12">
+          <div class="section-head"><span class="section-step">3</span><h2>Phân tích &amp; dữ liệu chi tiết <span class="section-note">giao dịch trong khoảng thời gian đã lọc</span></h2></div>
+          <div class="grid transaction-analysis-grid">
+            <div class="panel col-5">
               <div class="panel-head">
-                <h2>Top 30 giao dịch lớn nhất</h2>
+                <h2>Top 15 giao dịch lớn nhất</h2>
                 <span class="drill-hint" id="top-transactions-count">Xếp theo doanh thu · không gồm giao dịch đã hủy</span>
               </div>
-              <div class="chart-box end-day-chart">
-                <canvas id="chartTopTransactions" role="img" aria-label="Biểu đồ top 30 giao dịch có doanh thu lớn nhất trong ngày"></canvas>
+              <div class="chart-box top-transactions-chart">
+                <canvas id="chartTopTransactions" role="img" aria-label="Biểu đồ cột ngang top 15 giao dịch có doanh thu lớn nhất theo bộ lọc"></canvas>
               </div>
             </div>
-          </div>
-        </section>
-
-        <section class="section">
-          <div class="section-head"><span class="section-step">4</span><h2>Dữ liệu chi tiết <span class="section-note">từng giao dịch trong ngày</span></h2></div>
-          <div class="grid">
-            <div class="panel col-12 end-day-table">
+            <div class="panel col-7 end-day-table">
               <div class="panel-head">
                 <h2>Chi tiết giao dịch</h2>
                 <span class="drill-hint" id="end-day-table-count">—</span>
               </div>
-              <div class="table-wrap scroll-list">
+              <div class="table-wrap scroll-list transaction-detail-scroll">
                 <table>
                   <thead><tr><th>Mã giao dịch</th><th>Thời gian</th><th>Khách hàng</th><th>Nhân viên bán hàng</th><th>SL</th><th>Doanh thu</th><th>Giảm giá</th><th>Thực thu</th><th>Trạng thái</th></tr></thead>
                   <tbody id="endOfDayRows"><tr><td colspan="9" class="empty">Đang tải...</td></tr></tbody>
-                  <tfoot><tr><td colspan="4">Tổng cuối ngày</td><td class="mono" id="end-day-total-qty">—</td><td class="mono" id="end-day-total-revenue">—</td><td class="mono" id="end-day-total-discount">—</td><td class="mono" id="end-day-total-paid">—</td><td></td></tr></tfoot>
+                  <tfoot><tr><td colspan="4">Tổng theo bộ lọc</td><td class="mono" id="end-day-total-qty">—</td><td class="mono" id="end-day-total-revenue">—</td><td class="mono" id="end-day-total-discount">—</td><td class="mono" id="end-day-total-paid">—</td><td></td></tr></tfoot>
                 </table>
               </div>
             </div>
@@ -856,7 +854,7 @@
         </section>
 
         <section class="section">
-          <div class="section-head"><span class="section-step">5</span><h2>Hàng nhập <span class="section-note">tổng hợp và danh sách phiếu nhập hàng theo khoảng thời gian đã chọn ở trên</span></h2></div>
+          <div class="section-head"><span class="section-step">4</span><h2>Hàng nhập <span class="section-note">tổng hợp và danh sách phiếu nhập hàng theo khoảng thời gian đã chọn ở trên</span></h2></div>
           <div class="kpi-grid" style="margin-bottom:14px;">
             <div class="kpi-card accent-amber col-4">
               <div class="eyebrow">Tổng mã nhập hàng</div>
@@ -901,7 +899,7 @@
         </section>
 
         <section class="section">
-          <div class="section-head"><span class="section-step">6</span><h2>Mã mới tạo <span class="section-note">các mã hàng có Ngày tạo trong khoảng thời gian đã chọn ở trên</span></h2></div>
+          <div class="section-head"><span class="section-step">5</span><h2>Mã mới tạo <span class="section-note">các mã hàng có Ngày tạo trong khoảng thời gian đã chọn ở trên</span></h2></div>
           <div class="grid">
             <div class="panel col-12">
               <div class="panel-head">
@@ -919,7 +917,7 @@
         </section>
 
         <section class="section">
-          <div class="section-head"><span class="section-step">7</span><h2>Hàng ngừng kinh doanh <span class="section-note">các mã hàng chuyển sang Ngừng kinh doanh trong khoảng thời gian đã chọn ở trên</span></h2></div>
+          <div class="section-head"><span class="section-step">6</span><h2>Hàng ngừng kinh doanh <span class="section-note">các mã hàng chuyển sang Ngừng kinh doanh trong khoảng thời gian đã chọn ở trên</span></h2></div>
           <div class="grid">
             <div class="panel col-12">
               <div class="panel-head">
@@ -2077,10 +2075,10 @@
     const canvas = document.getElementById('chartTopTransactions');
     if(!canvas || !report) return;
 
-    const transactions = (report.transactions || [])
-      .filter(item => item && item.status !== 'Đã hủy')
+    const transactions = (report.topTransactions || report.transactions || [])
+      .filter(item => item && item.status === 'Hoàn thành')
       .sort((a, b) => (Number(b.revenue) || 0) - (Number(a.revenue) || 0))
-      .slice(0, 30);
+      .slice(0, 15);
     const revenueValues = transactions.map(item => Number(item.revenue) || 0);
     const formatAxisMoney = createMoneyAxisFormatter(revenueValues);
     const theme = chartTheme();
@@ -2106,6 +2104,7 @@
         }]
       },
       options: {
+        indexAxis:'y',
         animation: chartAnimationOption(),
         responsive:true,
         maintainAspectRatio:false,
@@ -2130,8 +2129,8 @@
           }
         },
         scales: {
-          x:{ ticks:{ color:theme.muted, autoSkip:true, maxTicksLimit:15, minRotation:35, maxRotation:55, font:{size:10.5} }, grid:{display:false} },
-          y:{ beginAtZero:true, ticks:{ color:theme.muted, callback:formatAxisMoney, font:{size:10.5} }, grid:{color:theme.grid} }
+          x:{ beginAtZero:true, ticks:{ color:theme.muted, callback:formatAxisMoney, font:{size:10.5} }, grid:{color:theme.grid} },
+          y:{ ticks:{ color:theme.muted, autoSkip:false, font:{size:10.5} }, grid:{display:false} }
         }
       }
     });
@@ -2403,7 +2402,7 @@
       document.getElementById('end-day-revenue').textContent = fmtMoney(summary.revenue);
       document.getElementById('end-day-discount').textContent = fmtMoney(summary.discount);
       document.getElementById('end-day-paid').textContent = fmtMoney(summary.paid);
-      document.getElementById('end-day-table-count').textContent = transactions.length + ' giao dịch trong ngày';
+      document.getElementById('end-day-table-count').textContent = transactions.length + ' giao dịch theo bộ lọc';
       document.getElementById('end-day-total-qty').textContent = summary.quantityKnown ? Number(summary.quantity || 0).toLocaleString('vi-VN') : '—';
       document.getElementById('end-day-total-revenue').textContent = fmtMoney(summary.revenue);
       document.getElementById('end-day-total-discount').textContent = fmtMoney(summary.discount);
