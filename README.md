@@ -48,20 +48,36 @@ KiotViet ──POST──▶ doPost()          ← Xác thực và ghi bền v�
 
 ```
 webtks-dashboard/
+├── .agents/                     # Custom agent skills & workflows
+│   └── skills/
+│       └── update-file/
+│           └── SKILL.md         # Quy trình đồng bộ file khi cây thư mục thay đổi
 ├── .clasp.json                  # Cấu hình clasp (scriptId, rootDir: "src")
-├── .claspignore                 # Loại trừ docs/, future-phases/ khỏi clasp push
+├── .claspignore                 # Loại trừ docs/, future-phases/, dev/, server/ khỏi clasp push
 ├── design-system/               # Quy chuẩn giao diện dùng chung
 │   └── tks-dashboard/
 │       └── MASTER.md            # Token, component và quy tắc thiết kế dashboard
 │
-├── server/                      # Backend Node.js đọc/ghi Google Sheets
+├── dev/                         # Giao diện tĩnh thử nghiệm / mock data
+│   ├── index.html
+│   └── vendor/
+│       └── chart.umd.min.js
+│
+├── server/                      # Backend Node.js đọc/ghi Google Sheets & Web Server
 │   ├── dashboard/
 │   │   ├── dashboardData.js     # Thống kê tổng quan KPI & biểu đồ
 │   │   └── debtReport.js        # Báo cáo công nợ khách hàng 1/3/7 ngày từ HN1/HN3/HN7
 │   ├── jobs/
 │   │   └── syncCustomerReport.js # Tác vụ đối soát toàn bộ 2 báo cáo lúc 07:00
-│   └── sheets/
-│       └── sheetsClient.js      # Đọc dữ liệu Google Sheets cho dashboard
+│   ├── public/                  # Frontend Live Dashboard
+│   │   ├── index.html
+│   │   └── vendor/
+│   │       └── chart.umd.min.js
+│   ├── sheets/
+│   │   └── sheetsClient.js      # Đọc dữ liệu Google Sheets cho dashboard
+│   ├── config.js                # Cấu hình môi trường Node.js server
+│   ├── index.js                 # Express server entry point
+│   └── routes.js                # Định tuyến API endpoint (/api/dashboard/summary, etc.)
 │
 ├── src/                         # ── GIAI ĐOẠN 1 — Code Apps Script (clasp) ──
 │   ├── appsscript.json          # Manifest Apps Script (timezone, oauthScopes)

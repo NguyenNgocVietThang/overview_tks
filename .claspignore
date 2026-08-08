@@ -1,9 +1,14 @@
-# Kh​ông đẩy lên Google Apps Script
+# Không đẩy lên Google Apps Script
 node_modules/
 docs/
 future-phases/
 dev/
+server/
+design-system/
+.agents/
+.claude/
 *.md
 *.bpmn
 .gitignore
 README.md
+
