@@ -34,6 +34,7 @@
     --amber-glow:rgba(240,166,58,0.07);
     --green-glow:rgba(61,214,140,0.06);
     --sidebar-w:210px;
+    --ease-out:cubic-bezier(0.23, 1, 0.32, 1);
     --font-display:'Be Vietnam Pro',sans-serif;
     --font-body:'Inter',sans-serif;
     --font-data:'IBM Plex Mono',monospace;
@@ -69,6 +70,9 @@
     min-height:100vh;
     transition:color .2s ease, background-color .2s ease;
   }
+  .panel, .kpi-card, .sidebar, .filterbar, thead th{
+    transition:background-color .2s ease, border-color .2s ease, color .2s ease;
+  }
 
   /* ---------- Header kiểu "hoá đơn giấy" ---------- */
   .receipt-header{
@@ -89,9 +93,14 @@
   }
   .brand{ display:flex; align-items:center; gap:12px; }
   .menu-btn{
-    display:none; background:var(--panel-2); border:1px solid var(--border); color:var(--text);
-    width:36px; height:36px; border-radius:8px; font-size:16px; cursor:pointer; flex-shrink:0;
+    display:none; align-items:center; justify-content:center;
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    width:44px; height:44px; border-radius:8px; cursor:pointer; flex-shrink:0;
+    transition:border-color .15s ease, background-color .15s ease;
   }
+  .menu-btn:hover{ border-color:var(--muted); background:var(--surface-hover); }
+  .menu-btn:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+  .menu-btn svg{ width:20px; height:20px; }
   .brand-mark{
     width:44px;height:44px;border-radius:10px;
     background:#fff;
@@ -108,10 +117,13 @@
   .dot{ width:8px;height:8px;border-radius:50%;background:var(--green); box-shadow:0 0 0 3px rgba(61,214,140,0.18); }
   .refresh-btn{
     background:var(--amber); color:#1b1206; border:none; font-family:var(--font-display);
-    font-weight:700; font-size:13px; padding:9px 16px; border-radius:8px; cursor:pointer;
-    display:flex; align-items:center; gap:8px;
+    font-weight:700; font-size:13px; padding:0 16px; min-height:44px; border-radius:8px; cursor:pointer;
+    display:flex; align-items:center; gap:8px; transition:opacity .15s ease;
   }
-  .refresh-btn:disabled{ opacity:.55; }
+  .refresh-btn:hover:not(:disabled){ opacity:.88; }
+  .refresh-btn:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+  .refresh-btn:disabled{ opacity:.55; cursor:not-allowed; }
+  .refresh-btn svg{ width:16px; height:16px; flex-shrink:0; transition:transform .15s ease; }
   .theme-toggle{
     min-height:44px; padding:0 12px; display:flex; align-items:center; gap:8px;
     background:var(--panel-2); color:var(--text); border:1px solid var(--border);
@@ -134,15 +146,18 @@
     width:var(--sidebar-w); flex-shrink:0; background:var(--panel-2);
     border-right:1px solid var(--border); padding:18px 12px;
     position:sticky; top:0; align-self:flex-start; height:calc(100vh - 78px);
-    transition:transform .28s ease; z-index:20;
+    transition:transform .28s var(--ease-out); z-index:20;
   }
   .nav-item{
     display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:8px;
-    color:var(--muted); font-size:13.5px; font-weight:500; cursor:pointer; margin-bottom:4px;
-    border-left:3px solid transparent; transition:background .15s ease, color .15s ease;
+    width:100%; background:none; border:none; border-left:3px solid transparent;
+    color:var(--muted); font-size:13.5px; font-weight:500; font-family:var(--font-body);
+    text-align:left; cursor:pointer; margin-bottom:4px; min-height:44px;
+    transition:background .15s ease, color .15s ease;
   }
-  .nav-item .ic{ font-size:15px; width:18px; text-align:center; }
+  .nav-item .ic{ width:18px; height:18px; flex-shrink:0; }
   .nav-item:hover{ background:var(--surface-hover); color:var(--text); }
+  .nav-item:focus-visible{ outline:2px solid var(--blue); outline-offset:-2px; }
   .nav-item.active{
     background:rgba(240,166,58,0.10); color:var(--amber); border-left-color:var(--amber); font-weight:600;
   }
@@ -151,7 +166,7 @@
   .backdrop{ display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:15; }
 
   .content{ flex:1; min-width:0; padding:24px; }
-  .view{ display:none; animation:fadein .25s ease; }
+  .view{ display:none; animation:fadein .25s var(--ease-out); }
   .view.active{ display:block; }
   @keyframes fadein{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;} }
 
@@ -225,6 +240,12 @@
     position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:30;
     max-height:320px; overflow-y:auto; padding:5px;
     background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    transform-origin:top;
+    opacity:0; transform:scale(0.97) translateY(-4px); pointer-events:none;
+    transition:opacity .18s var(--ease-out), transform .18s var(--ease-out);
+  }
+  .suggestions.show{
+    opacity:1; transform:scale(1) translateY(0); pointer-events:auto;
   }
   .suggestion-item{
     width:100%; min-height:52px; padding:9px 10px; border:0; border-radius:7px;
@@ -478,7 +499,15 @@
   .empty{ color:var(--muted); font-size:12.5px; padding:18px 8px; text-align:center; }
   /* Drill-down: dòng cha bấm được, dòng chi tiết lùi nền để thấy rõ cấp dưới */
   .debt-row:hover td{ background:var(--surface-hover); }
+  .debt-row:focus-visible{ outline:2px solid var(--blue); outline-offset:-2px; }
   .debt-detail-row > td{ background:var(--panel-2); }
+  .debt-detail-row > td > *{
+    animation:debtDetailFadeIn .18s var(--ease-out);
+  }
+  @keyframes debtDetailFadeIn{
+    from{ opacity:0; transform:translateY(-3px); }
+    to{ opacity:1; transform:none; }
+  }
 
   .placeholder-card{
     border:1px dashed var(--border); border-radius:10px; padding:22px; text-align:center; color:var(--muted); font-size:12.5px;
@@ -489,7 +518,7 @@
     position:fixed; inset:0; background:var(--veil); backdrop-filter:blur(2px);
     display:flex; align-items:center; justify-content:center; z-index:50;
     font-family:var(--font-data); color:var(--amber); font-size:13px; font-weight:500; font-variant-numeric:tabular-nums;
-    opacity:0; pointer-events:none; transition:opacity .2s ease;
+    opacity:0; pointer-events:none; transition:opacity .2s var(--ease-out);
   }
   .loading-veil.show{ opacity:1; pointer-events:all; }
 
@@ -523,7 +552,9 @@
 
   <div class="receipt-header">
     <div class="brand">
-      <button class="menu-btn" id="menuBtn" onclick="toggleSidebar()">☰</button>
+      <button class="menu-btn" id="menuBtn" type="button" onclick="toggleSidebar()" aria-label="Mở menu điều hướng" aria-expanded="false" aria-controls="sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+      </button>
       <div class="brand-mark">
         <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" fill="none">
           <!-- TOKOSI text -->
@@ -558,8 +589,9 @@
         <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path></svg>
         <span id="themeLabel">Chế độ sáng</span>
       </button>
-      <button class="refresh-btn" id="refreshBtn" onclick="loadData(state.days, true)">
-        <span id="refreshIcon">⟳</span> Làm mới
+      <button class="refresh-btn" id="refreshBtn" type="button" onclick="loadData(state.days, true)">
+        <svg id="refreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>
+        Làm mới
       </button>
     </div>
   </div>
@@ -567,12 +599,30 @@
   <div class="shell">
     <div class="backdrop" id="backdrop" onclick="toggleSidebar()"></div>
     <div class="sidebar" id="sidebar">
-      <div class="nav-item active" data-view="overview" onclick="switchView('overview')"><span class="ic">◆</span> Tổng quan</div>
-      <div class="nav-item" data-view="products" onclick="switchView('products')"><span class="ic">▣</span> Hàng hóa</div>
-      <div class="nav-item" data-view="invoices" onclick="switchView('invoices')"><span class="ic">▤</span> Hóa đơn</div>
-      <div class="nav-item" data-view="customers" onclick="switchView('customers')"><span class="ic">◈</span> Khách hàng</div>
-      <div class="nav-item" data-view="suppliers" onclick="switchView('suppliers')"><span class="ic">▨</span> Nhà cung cấp</div>
-      <div class="nav-item" data-view="debt" onclick="switchView('debt')"><span class="ic">✱</span> Công nợ</div>
+      <button type="button" class="nav-item active" data-view="overview" onclick="switchView('overview')" aria-current="page">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></svg>
+        Tổng quan
+      </button>
+      <button type="button" class="nav-item" data-view="products" onclick="switchView('products')">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73Z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path></svg>
+        Hàng hóa
+      </button>
+      <button type="button" class="nav-item" data-view="invoices" onclick="switchView('invoices')">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path></svg>
+        Hóa đơn
+      </button>
+      <button type="button" class="nav-item" data-view="customers" onclick="switchView('customers')">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+        Khách hàng
+      </button>
+      <button type="button" class="nav-item" data-view="suppliers" onclick="switchView('suppliers')">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle></svg>
+        Nhà cung cấp
+      </button>
+      <button type="button" class="nav-item" data-view="debt" onclick="switchView('debt')">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path></svg>
+        Công nợ
+      </button>
       <div class="sidebar-footer">TOKOSI · Dữ liệu từ Google Sheet · tự làm mới mỗi 10 phút</div>
     </div>
 
@@ -610,7 +660,7 @@
                 <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
               </svg>
             </button>
-            <div class="suggestions" id="searchSuggestions" role="listbox" hidden></div>
+            <div class="suggestions" id="searchSuggestions" role="listbox"></div>
           </div>
           <button class="search-submit" id="searchSubmitBtn" type="submit">Tìm kiếm</button>
         </div>
@@ -1289,6 +1339,7 @@
     days: 30,
     view: 'overview',
     charts: {},
+    chartAnimation: true,
     productStatus: 'all',
     productAnalysis: 'product',
     debtPeriod: 1,
@@ -1312,6 +1363,7 @@
   };
   Chart.defaults.font.family = 'Inter, sans-serif';
   Chart.defaults.font.weight = '400';
+  Chart.defaults.animation.duration = 300;
   Chart.defaults.plugins.tooltip.titleFont = { family:'Inter, sans-serif', weight:'600' };
   Chart.defaults.plugins.tooltip.bodyFont = { family:'IBM Plex Mono, monospace', weight:'500' };
   const THEME_STORAGE_KEY = 'tks-dashboard-theme';
@@ -1325,6 +1377,10 @@
       text:themeColor('--text'), muted:themeColor('--muted'), panel:themeColor('--panel'),
       grid:themeColor('--chart-grid'), amber:themeColor('--amber')
     };
+  }
+
+  function chartAnimationOption(){
+    return state.chartAnimation ? { duration: 300 } : false;
   }
 
   const CATEGORY_PALETTE = ['#F0A63A','#5B9BF0','#3DD68C','#F1616A','#B98CF2','#4FD1C5','#F0888C','#8CA0C7'];
@@ -1349,7 +1405,11 @@
     document.documentElement.dataset.theme = nextTheme;
     try{ localStorage.setItem(THEME_STORAGE_KEY, nextTheme); } catch(err){}
     syncThemeControl();
-    if(state.data) renderView(state.view);
+    if(state.data){
+      state.chartAnimation = false;
+      renderView(state.view);
+      state.chartAnimation = true;
+    }
   }
 
   function fmtMoney(n){ n = Number(n) || 0; return n.toLocaleString('vi-VN') + '₫'; }
@@ -1557,7 +1617,7 @@
 
   function hideSearchSuggestions(){
     const suggestions = document.getElementById('searchSuggestions');
-    suggestions.hidden = true;
+    suggestions.classList.remove('show');
     suggestions.innerHTML = '';
     const input = document.getElementById('dashboardSearchInput');
     input.setAttribute('aria-expanded', 'false');
@@ -1614,7 +1674,7 @@
     const results = state.search.results;
     const showSource = state.view === 'overview' || state.view === 'invoices' || state.view === 'suppliers';
     if(!results.length){
-      suggestions.hidden = true;
+      suggestions.classList.remove('show');
       document.getElementById('dashboardSearchInput').setAttribute('aria-expanded', 'false');
       return;
     }
@@ -1628,7 +1688,7 @@
         (showSource ? '<span class="suggestion-source">' + escapeHtml(result.sourceLabel) + '</span>' : '') +
         '</button>';
     }).join('');
-    suggestions.hidden = false;
+    suggestions.classList.add('show');
     document.getElementById('dashboardSearchInput').setAttribute('aria-expanded', 'true');
   }
 
@@ -1828,8 +1888,11 @@
   }
 
   function toggleSidebar(){
-    document.getElementById('sidebar').classList.toggle('open');
-    document.getElementById('backdrop').classList.toggle('show');
+    const isOpen = document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('backdrop').classList.toggle('show', isOpen);
+    const menuBtn = document.getElementById('menuBtn');
+    menuBtn.setAttribute('aria-expanded', String(isOpen));
+    menuBtn.setAttribute('aria-label', isOpen ? 'Đóng menu điều hướng' : 'Mở menu điều hướng');
   }
 
   // Thanh bo loc co dinh chi hien nhung nhom loc dung cho tab dang xem
@@ -1842,14 +1905,24 @@
 
   function switchView(view){
     state.view = view;
-    document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === view));
+    document.querySelectorAll('.nav-item').forEach(function(el){
+      const isActive = el.dataset.view === view;
+      el.classList.toggle('active', isActive);
+      if(isActive) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
+    });
     document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
     document.getElementById('view-' + view).classList.add('active');
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('backdrop').classList.remove('show');
+    document.getElementById('menuBtn').setAttribute('aria-expanded', 'false');
+    document.getElementById('menuBtn').setAttribute('aria-label', 'Mở menu điều hướng');
     updateFilterBar();
     resetSearchForView();
-    if(state.data) renderView(view);
+    if(state.data){
+      state.chartAnimation = false;
+      renderView(view);
+      state.chartAnimation = true;
+    }
   }
 
   function setProductStatus(status){
@@ -1985,6 +2058,7 @@
         }]
       },
       options: {
+        animation: chartAnimationOption(),
         responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
@@ -2032,6 +2106,7 @@
         }]
       },
       options: {
+        animation: chartAnimationOption(),
         responsive:true,
         maintainAspectRatio:false,
         interaction:{ mode:'nearest', intersect:true },
@@ -2075,6 +2150,7 @@
         datasets: [{ data: list.map(valueFn), backgroundColor: color, borderRadius: 4, maxBarThickness: vertical ? 40 : undefined }]
       },
       options: {
+        animation: chartAnimationOption(),
         indexAxis: vertical ? 'x' : 'y', responsive: true, maintainAspectRatio: false,
         plugins: { legend:{display:false}, tooltip:{ callbacks:{ label: c => fmtMoney(c.raw) } } },
         scales: vertical
@@ -2132,6 +2208,7 @@
         }]
       },
       options: {
+        animation: chartAnimationOption(),
         responsive: true, maintainAspectRatio: false,
         cutout: '68%',
         plugins: {
@@ -2197,6 +2274,7 @@
         ]
       },
       options: {
+        animation: chartAnimationOption(),
         responsive: true,
         maintainAspectRatio: false,
         interaction: { mode:'index', intersect:false },
@@ -2619,7 +2697,7 @@
         '<td class="mono" data-sort-value="' + t.value + '">' + fmtMoney(t.value) + '</td>' +
         '<td class="mono" data-sort-value="' + t.runningBalance + '">' + fmtMoney(t.runningBalance) + '</td></tr>'
       ).join('');
-      return '<tr class="debt-row" style="cursor:pointer;" onclick="toggleDebtDetail(' + idx + ')">' +
+      return '<tr class="debt-row" style="cursor:pointer;" tabindex="0" role="button" aria-expanded="false" aria-controls="debt-detail-' + idx + '" onclick="toggleDebtDetail(' + idx + ')" onkeydown="handleDebtRowKeydown(event, ' + idx + ')">' +
         '<td class="mono muted">' + escapeHtml(c.code) + '</td>' +
         '<td class="name-cell">' + escapeHtml(c.name) + '</td>' +
         '<td class="mono muted">' + (c.phone ? escapeHtml(c.phone) : '—') + '</td>' +
@@ -2640,7 +2718,17 @@
 
   function toggleDebtDetail(idx){
     const row = document.getElementById('debt-detail-' + idx);
-    if(row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+    if(!row) return;
+    const isOpen = row.style.display === 'none';
+    row.style.display = isOpen ? 'table-row' : 'none';
+    const trigger = row.previousElementSibling;
+    if(trigger && trigger.classList.contains('debt-row')) trigger.setAttribute('aria-expanded', String(isOpen));
+  }
+
+  function handleDebtRowKeydown(event, idx){
+    if(event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
+    event.preventDefault();
+    toggleDebtDetail(idx);
   }
 
   function setLoading(isLoading){
@@ -2672,7 +2760,9 @@
         document.getElementById('updatedAt').textContent = 'Cập nhật lúc ' + updatedAt + (changed ? '' : ' (không đổi)');
         if (changed || isManualRefresh) {
           try {
+            state.chartAnimation = !!isManualRefresh;
             renderView(state.view);
+            state.chartAnimation = true;
           } catch(err) {
             console.error('Render error:', err);
             alert('Lỗi hiển thị dữ liệu: ' + (err && err.message ? err.message : err));
