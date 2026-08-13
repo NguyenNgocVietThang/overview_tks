@@ -348,6 +348,7 @@ let searchSheetCache = {
   expiresAt: 0,
   loading: null
 };
+let searchIndexBuildCountForTest = 0; // chi dung trong test, xem __test__ o cuoi file
 
 function normalizeWhitespace(value) {
   return String(value === undefined || value === null ? '' : value)
@@ -418,6 +419,7 @@ function rememberSearchSheets(sheets) {
   // Normalizing every cell and serializing every field on each keystroke was
   // the hot path for large product sheets. Build the reusable search index when
   // the Sheets cache changes instead.
+  searchIndexBuildCountForTest += 1; // chi dung trong test, xem __test__ o cuoi file
   searchSheetCache.data = buildSearchIndex(sheets);
   searchSheetCache.expiresAt = Date.now() + SEARCH_CACHE_TTL_MS;
 }
@@ -544,6 +546,7 @@ async function searchDashboardRecords(view, rawQuery, rawLimit) {
 // lieu da cache nen van nhanh va luon phan anh dung bo loc moi nhat.
 let dashboardSheetsCache = {
   data: null,
+  version: 0,
   expiresAt: 0,
   loading: null
 };
@@ -558,7 +561,12 @@ async function getCachedDashboardSheets() {
   const loading = sheetsClient.getMultipleSheetValues(SHEET_NAMES.concat(debtSheetNames))
     .then(sheets => {
       dashboardSheetsCache.data = sheets;
+      dashboardSheetsCache.version += 1;
       dashboardSheetsCache.expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
+      // Rebuild o day (chi khi vua fetch lai tu Google) thay vi trong
+      // getDashboardData — truoc day rememberSearchSheets() bi goi lai o MOI
+      // request /api/dashboard du raw data khong doi, ton CPU vo ich.
+      rememberSearchSheets(sheets);
       return sheets;
     })
     .finally(() => {
@@ -743,7 +751,6 @@ async function getDashboardData(filters) {
   const deactivatedRange = resolveFilterRange(f.deactivated, now);
 
   const sheets = await getCachedDashboardSheets();
-  rememberSearchSheets(sheets);
 
   const debt = {};
   DEBT_SHEETS.forEach(entry => {
@@ -1426,4 +1433,17 @@ async function getDashboardData(filters) {
   };
 }
 
-module.exports = { getDashboardData, searchDashboardRecords };
+module.exports = {
+  getDashboardData,
+  searchDashboardRecords,
+  // Cac hook duoi day CHI phuc vu test (dashboardData.test.js) — khong dung
+  // trong code san pham.
+  __test__: {
+    resetCaches() {
+      dashboardSheetsCache = { data: null, version: 0, expiresAt: 0, loading: null };
+      searchSheetCache = { data: null, expiresAt: 0, loading: null };
+      searchIndexBuildCountForTest = 0;
+    },
+    getSearchIndexBuildCount: () => searchIndexBuildCountForTest
+  }
+};

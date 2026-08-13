@@ -6,6 +6,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "test": "node --test",
     "sync:customer-report": "node jobs/syncCustomerReport.js"
   },
   "dependencies": {
