@@ -20,6 +20,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_RANGE_DAYS = 3660; // ~10 nam — chan vong lap tao bucket ngay bi vo tan/qua lon
 const MAX_REPORT_TRANSACTIONS = 500; // gioi han so dong bang "Chi tiet giao dich" khi loc ca ky dai
 const TOP_REPORT_TRANSACTIONS = 15;
+const TOP_CUSTOMER_REVENUE_CHART_LIMIT = 15;
+const TOP_CUSTOMER_REVENUE_TABLE_LIMIT = 50;
 
 const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-GB', {
   timeZone: DASHBOARD_TIME_ZONE,
@@ -268,7 +270,8 @@ const SHEET_NAMES = [
   CONFIG.SHEET_CUSTOMERS,
   CONFIG.SHEET_SUPPLIERS,
   CONFIG.SHEET_PURCHASES,
-  CONFIG.SHEET_DEACTIVATED_TODAY
+  CONFIG.SHEET_DEACTIVATED_TODAY,
+  CONFIG.SHEET_CUSTOMER_REPORT
 ];
 
 // HN1/HN3/HN7 do KiotViet tu quan ly; gop vao cung 1 lan batchGet de khong
@@ -615,6 +618,48 @@ function buildRevenuePeriod(range, invoiceRecords) {
 }
 
 /**
+ * Gop cac dong giao dich trong sheet "Bao cao ban hang" (moi dong la 1 hoa
+ * don HOAC 1 phieu tra hang cua 1 khach, xem buildCustomerReportValues_ trong
+ * CustomerReport.gs) thanh doanh thu theo tung khach trong `range`. Cot E/H
+ * (SL don ban/Doanh thu) trong sheet la tong TOAN THOI GIAN nen khong dung
+ * duoc truc tiep — phai tu cong don tu cot M (Thoi gian theo giao dich, index
+ * 12) va cot R (Doanh thu theo giao dich, index 17). Quy uoc: doanh thu dong
+ * >= 0 la don ban (cong vao saleOrderCount), < 0 la dong tra hang (khong tinh
+ * vao saleOrderCount nhung van cong don vao revenue vi cot nay da tru tra
+ * hang o tung dong).
+ */
+function buildTopCustomersByRevenue(range, customerReportData) {
+  const customers = new Map();
+
+  for (let r = 1; r < customerReportData.length; r++) {
+    const row = customerReportData[r];
+    const code = String(row[0] || '').trim();
+    const name = String(row[1] || '').trim();
+    if (!code && !name) continue;
+
+    const dt = parseSheetDate(row[12]);
+    if (!isWithinRange(dt, range)) continue;
+
+    const key = code || ('name:' + name.toLocaleLowerCase('vi-VN'));
+    if (!customers.has(key)) {
+      customers.set(key, { code: code || '—', name: name || '(Không xác định)', saleOrderCount: 0, revenue: 0 });
+    }
+    const entry = customers.get(key);
+    const revenue = Number(row[17]) || 0;
+    entry.revenue += revenue;
+    if (revenue >= 0) entry.saleOrderCount += 1;
+  }
+
+  const sorted = Array.from(customers.values()).sort((a, b) => b.revenue - a.revenue);
+
+  return {
+    label: range.label,
+    top15: sorted.slice(0, TOP_CUSTOMER_REVENUE_CHART_LIMIT),
+    top50: sorted.slice(0, TOP_CUSTOMER_REVENUE_TABLE_LIMIT)
+  };
+}
+
+/**
  * Bao cao chi tiet giao dich trong `range` cho tab Tong quan (thay cho khai
  * niem "cuoi ngay" co dinh truoc day). Tong hop (summary) luon tinh tren TOAN
  * BO giao dich trong ky; danh sach chi tiet (transactions) gioi han
@@ -712,6 +757,7 @@ async function getDashboardData(filters) {
   const orderData = sheets[CONFIG.SHEET_ORDERS];
   const returnData = sheets[CONFIG.SHEET_RETURNS];
   const custData = sheets[CONFIG.SHEET_CUSTOMERS];
+  const customerReportData = sheets[CONFIG.SHEET_CUSTOMER_REPORT] || [];
   const supplierData = sheets[CONFIG.SHEET_SUPPLIERS];
   const poData = sheets[CONFIG.SHEET_PURCHASES];
   const deactivatedData = sheets[CONFIG.SHEET_DEACTIVATED_TODAY];
@@ -1196,6 +1242,8 @@ async function getDashboardData(filters) {
   }
   topDebt.sort((a, b) => b.debt - a.debt);
 
+  const topCustomersByRevenue = buildTopCustomersByRevenue(customersRange, customerReportData);
+
   // ---------- NHÀ CUNG CẤP ----------
   // Cột: [0]Mã NCC [1]Tên NCC [2]Điện thoại [3]Email [4]Địa chỉ [5]Nợ cần trả
   let suppliers = [];
@@ -1358,7 +1406,8 @@ async function getDashboardData(filters) {
       totalReturns
     },
     customers: {
-      topDebt
+      topDebt,
+      topRevenue: topCustomersByRevenue
     },
     lowStock,
     stockValueByCategory,

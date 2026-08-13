@@ -1,5 +1,5 @@
 // ==========================================
-// BAO CAO KHACH HANG - THANG NAY VA HANG BAN 90 NGAY
+// BAO CAO KHACH HANG - TOAN THOI GIAN VA HANG BAN 90 NGAY
 // ==========================================
 
 const CUSTOMER_REPORT_TIME_ZONE = 'Asia/Ho_Chi_Minh';
@@ -39,13 +39,13 @@ const CUSTOMER_PRODUCT_REPORT_HEADERS = Object.freeze([
 
 /**
  * Tao/cap nhat hai tab bao cao khach hang:
- * - "Bao cao ban hang": Ban hang -> Thang nay.
+ * - "Bao cao ban hang": Ban hang -> Toan thoi gian (tu truoc den nay).
  * - "Hang ban theo khach": Hang ban theo khach -> 90 ngay qua.
  *
  * Moi hoa don/phieu tra hang la mot dong chi tiet giao dich, kem theo cac chi so
  * tong hop cua khach hang giong file xuat Bao cao ban hang cua KiotViet.
- * Doanh thu = tong hoa don hoan thanh trong thang sau giam gia hoa don.
- * Gia tri tra = tong phieu tra hang hoan thanh trong thang.
+ * Doanh thu = tong hoa don hoan thanh tu truoc den nay sau giam gia hoa don.
+ * Gia tri tra = tong phieu tra hang hoan thanh tu truoc den nay.
  * Doanh thu thuan = Doanh thu - Gia tri tra.
  */
 function syncCustomerReport() {
@@ -61,11 +61,12 @@ function syncCustomerReport() {
     }
 
     const now = new Date();
-    const period = getCustomerReportMonthRange_(now);
+    const period = getCustomerReportAllTimeRange_(now);
     const productPeriod = getCustomerReportRollingRange_(now, CUSTOMER_PRODUCT_REPORT_DAYS);
+    // Lay toan bo hoa don hoan thanh tu truoc den nay (khong gioi han fromPurchaseDate/toPurchaseDate)
+    // de tab "Bao cao ban hang" tong hop du lieu toan thoi gian; tab "Hang ban theo khach" van
+    // chi loc lai 90 ngay gan nhat tu chinh bo du lieu nay o buoc aggregate ben duoi.
     const invoices = fetchCustomerReportPages_('invoices', token, {
-      fromPurchaseDate: productPeriod.startQuery,
-      toPurchaseDate: productPeriod.endQuery,
       status: 1
     });
     const returns = fetchCustomerReportPages_('returns', token, {
@@ -87,7 +88,7 @@ function syncCustomerReport() {
       [CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY]: CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION
     });
     Logger.log(
-      'Da cap nhat Bao cao ban hang: %s khach hang, %s giao dich; Hang ban theo khach 90 ngay: %s dong hang.',
+      'Da cap nhat Bao cao ban hang (toan thoi gian): %s khach hang, %s giao dich; Hang ban theo khach 90 ngay: %s dong hang.',
       reportRows.length,
       reportSummary.transactionCount,
       productReportRows.length
@@ -200,7 +201,28 @@ function removeCustomerReportDailyTrigger_() {
 }
 
 /**
+ * Khoang thoi gian toan bo (tu truoc den nay) den het ngay hien tai theo gio Viet Nam.
+ * Khong gioi han moc bat dau de tong hop du lieu ban hang toan thoi gian.
+ */
+function getCustomerReportAllTimeRange_(now) {
+  const current = now || new Date();
+  const todayText = Utilities.formatDate(current, CUSTOMER_REPORT_TIME_ZONE, 'yyyy-MM-dd');
+  const tomorrow = new Date(current.getTime() + 24 * 60 * 60 * 1000);
+  const tomorrowText = Utilities.formatDate(tomorrow, CUSTOMER_REPORT_TIME_ZONE, 'yyyy-MM-dd');
+
+  return {
+    start: new Date(0),
+    endExclusive: new Date(tomorrowText + 'T00:00:00+07:00'),
+    startQuery: '',
+    endQuery: todayText + 'T23:59:59',
+    startLabel: 'Từ trước đến nay',
+    endLabel: todayText.substring(8, 10) + '/' + todayText.substring(5, 7) + '/' + todayText.substring(0, 4)
+  };
+}
+
+/**
  * Khoang thoi gian tu dau thang den het ngay hien tai theo gio Viet Nam.
+ * (Khong con duoc syncCustomerReport() su dung truc tiep, giu lai phong khi can bao cao theo thang.)
  */
 function getCustomerReportMonthRange_(now) {
   const current = now || new Date();
@@ -615,7 +637,7 @@ function writeCustomerReportSheet_(reportRows, period) {
   sheet.getRange(1, 1).setNote(
     'Kiểu hiển thị: Báo cáo\n' +
     'Mối quan tâm: Bán hàng\n' +
-    'Thời gian: Tháng này (' + period.startLabel + ' - ' + period.endLabel + ')\n' +
+    'Thời gian: Toàn thời gian (' + period.startLabel + ' - ' + period.endLabel + ')\n' +
     'Chi tiết: Mỗi hóa đơn hoặc phiếu trả hàng là một dòng giao dịch.\n' +
     'Tự động cập nhật hàng ngày lúc gần 07:00.'
   );
