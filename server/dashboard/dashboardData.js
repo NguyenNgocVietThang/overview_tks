@@ -727,16 +727,58 @@ function buildTransactionsReport(range, invoiceRecords, invoiceQuantityMap) {
   };
 }
 
+const DASHBOARD_RESULT_CACHE_TTL_MS = DASHBOARD_SHEETS_CACHE_TTL_MS; // ket qua tinh toan khong the "tuoi" hon du lieu tho dung de tinh ra no
+let dashboardResultCache = new Map(); // key: `${sheetsVersion}|${JSON.stringify(filters)}` -> { data, expiresAt }
+let computeCallCountForTest = 0; // chi dung trong test, xem __test__ o cuoi file
+
+function dashboardResultCacheKey(sheetsVersion, filters) {
+  return sheetsVersion + '|' + JSON.stringify(filters || {});
+}
+
 /**
- * Ham chinh lay du lieu cho dashboard.
- * @param {Object} filters - Bo loc rieng cho tung tab. Moi bo loc thoi gian co
- *   dang { mode: 'days'|'range'|'all', days?, from?, to? }; products co them
- *   status: 'all'|'Đang kinh doanh'|'Ngừng kinh doanh'.
+ * Ham chinh lay du lieu cho dashboard — wrapper them cache ket qua da tinh
+ * theo tung bo loc, tranh chay lai toan bo tinh toan ben duoi khi client doi
+ * tab/poll lai voi CUNG bo loc trong luc du lieu tho (dashboardSheetsCache)
+ * chua het han.
+ * @param {Object} filters - xem computeDashboardData
  * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
  */
 async function getDashboardData(filters) {
   const f = filters || {};
-  const now = new Date();
+  const sheets = await getCachedDashboardSheets();
+  const sheetsVersion = dashboardSheetsCache.version;
+  const cacheKey = dashboardResultCacheKey(sheetsVersion, f);
+
+  const cached = dashboardResultCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.data;
+  }
+
+  // Du lieu tho da sang phien ban moi (fetch lai) -> moi ket qua cache cu deu
+  // tinh tu du lieu cu, don sach de Map khong phinh vo han qua nhieu phien ban.
+  for (const key of dashboardResultCache.keys()) {
+    if (!key.startsWith(sheetsVersion + '|')) dashboardResultCache.delete(key);
+  }
+
+  const data = computeDashboardData(sheets, f, new Date());
+  dashboardResultCache.set(cacheKey, { data, expiresAt: Date.now() + DASHBOARD_RESULT_CACHE_TTL_MS });
+  return data;
+}
+
+/**
+ * Tinh toan toan bo du lieu dashboard tu du lieu tho da doc (sheets) va bo
+ * loc. Ham thuan (khong tu fetch, khong cache) de getDashboardData ben tren
+ * co the cache ket qua theo (phien ban du lieu tho + bo loc).
+ * @param {Object} sheets - map ten sheet -> mang 2 chieu, tu getCachedDashboardSheets()
+ * @param {Object} filters - Bo loc rieng cho tung tab. Moi bo loc thoi gian co
+ *   dang { mode: 'days'|'range'|'all', days?, from?, to? }; products co them
+ *   status: 'all'|'Đang kinh doanh'|'Ngừng kinh doanh'.
+ * @param {Date} now
+ * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
+ */
+function computeDashboardData(sheets, filters, now) {
+  computeCallCountForTest += 1;
+  const f = filters || {};
   const todayStr = formatDMY(now);
 
   const overviewRange = resolveFilterRange(f.overview, now);
@@ -749,8 +791,6 @@ async function getDashboardData(filters) {
   const newPurchasesRange = resolveFilterRange(f.newPurchases, now);
   const newProductsRange = resolveFilterRange(f.newProducts, now);
   const deactivatedRange = resolveFilterRange(f.deactivated, now);
-
-  const sheets = await getCachedDashboardSheets();
 
   const debt = {};
   DEBT_SHEETS.forEach(entry => {
@@ -1442,8 +1482,14 @@ module.exports = {
     resetCaches() {
       dashboardSheetsCache = { data: null, version: 0, expiresAt: 0, loading: null };
       searchSheetCache = { data: null, expiresAt: 0, loading: null };
+      dashboardResultCache = new Map();
       searchIndexBuildCountForTest = 0;
+      computeCallCountForTest = 0;
     },
-    getSearchIndexBuildCount: () => searchIndexBuildCountForTest
+    expireSheetsCache() {
+      dashboardSheetsCache.expiresAt = 0;
+    },
+    getSearchIndexBuildCount: () => searchIndexBuildCountForTest,
+    getComputeCallCount: () => computeCallCountForTest
   }
 };

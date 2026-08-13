@@ -58,3 +58,23 @@ test('rememberSearchSheets chi rebuild search index khi raw sheet data thuc su d
 });
 
 module.exports = { freshDashboardData, mockSheets, BASE_FILTERS };
+
+test('getDashboardData cache ket qua da tinh theo tung bo loc, khong tinh lai khi bo loc khong doi va raw sheets van con hieu luc', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const callCounter = { count: 0 };
+  mockSheets(sheetsClient, callCounter);
+  dashboardData.__test__.resetCaches();
+
+  await dashboardData.getDashboardData(BASE_FILTERS);
+  await dashboardData.getDashboardData(BASE_FILTERS); // cung bo loc -> phai lay tu cache
+  assert.equal(dashboardData.__test__.getComputeCallCount(), 1, 'bo loc khong doi -> khong tinh lai');
+
+  const otherFilters = { ...BASE_FILTERS, products: { mode: 'days', days: 7 } };
+  await dashboardData.getDashboardData(otherFilters); // bo loc khac -> phai tinh lai
+  assert.equal(dashboardData.__test__.getComputeCallCount(), 2, 'bo loc khac -> phai tinh lai');
+
+  dashboardData.__test__.expireSheetsCache();
+  await dashboardData.getDashboardData(BASE_FILTERS); // raw sheets het han -> version moi -> phai tinh lai du bo loc giong lan dau
+  assert.equal(dashboardData.__test__.getComputeCallCount(), 3, 'raw sheets refetch -> ket qua cu bi coi la stale, phai tinh lai');
+  assert.equal(callCounter.count, 2, 'raw sheets phai duoc fetch lai dung 1 lan nua sau khi het han');
+});
