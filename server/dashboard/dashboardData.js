@@ -728,6 +728,7 @@ function buildTransactionsReport(range, invoiceRecords, invoiceQuantityMap) {
 }
 
 const DASHBOARD_RESULT_CACHE_TTL_MS = DASHBOARD_SHEETS_CACHE_TTL_MS; // ket qua tinh toan khong the "tuoi" hon du lieu tho dung de tinh ra no
+const DASHBOARD_RESULT_CACHE_MAX_ENTRIES = 32; // chan bo nho: filters den tu query string nen so bo loc khac nhau la khong gioi han
 let dashboardResultCache = new Map(); // key: `${sheetsVersion}|${JSON.stringify(filters)}` -> { data, expiresAt }
 let computeCallCountForTest = 0; // chi dung trong test, xem __test__ o cuoi file
 
@@ -762,6 +763,11 @@ async function getDashboardData(filters) {
 
   const data = computeDashboardData(sheets, f, new Date());
   dashboardResultCache.set(cacheKey, { data, expiresAt: Date.now() + DASHBOARD_RESULT_CACHE_TTL_MS });
+  // Gioi han so entry trong Map — Map giu thu tu insertion nen phan tu dau tien
+  // luon la entry cu nhat, xoa dan cho toi khi ve lai duoi muc tran.
+  while (dashboardResultCache.size > DASHBOARD_RESULT_CACHE_MAX_ENTRIES) {
+    dashboardResultCache.delete(dashboardResultCache.keys().next().value);
+  }
   return data;
 }
 
@@ -1490,6 +1496,7 @@ module.exports = {
       dashboardSheetsCache.expiresAt = 0;
     },
     getSearchIndexBuildCount: () => searchIndexBuildCountForTest,
-    getComputeCallCount: () => computeCallCountForTest
+    getComputeCallCount: () => computeCallCountForTest,
+    getResultCacheSize: () => dashboardResultCache.size
   }
 };

@@ -78,3 +78,23 @@ test('getDashboardData cache ket qua da tinh theo tung bo loc, khong tinh lai kh
   assert.equal(dashboardData.__test__.getComputeCallCount(), 3, 'raw sheets refetch -> ket qua cu bi coi la stale, phai tinh lai');
   assert.equal(callCounter.count, 2, 'raw sheets phai duoc fetch lai dung 1 lan nua sau khi het han');
 });
+
+test('dashboardResultCache khong phinh vo han trong cung 1 phien ban raw sheets khi bo loc khac nhau khong gioi han', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const callCounter = { count: 0 };
+  mockSheets(sheetsClient, callCounter);
+  dashboardData.__test__.resetCaches();
+
+  // 40 bo loc khac nhau (> muc tran 32) nhung cung 1 phien ban raw sheets ->
+  // phai bi cat bot, khong duoc phinh vo han theo so bo loc tu query string.
+  for (let days = 1; days <= 40; days++) {
+    await dashboardData.getDashboardData({ ...BASE_FILTERS, products: { mode: 'days', days } });
+  }
+
+  assert.equal(callCounter.count, 1, 'raw sheets van chi fetch 1 lan (chua het han 90s)');
+  assert.equal(dashboardData.__test__.getComputeCallCount(), 40, 'moi bo loc khac nhau deu phai tinh rieng (chua bi cache trung)');
+  assert.ok(
+    dashboardData.__test__.getResultCacheSize() <= 32,
+    `dashboardResultCache phai bi gioi han <= 32 entry, hien tai la ${dashboardData.__test__.getResultCacheSize()}`
+  );
+});
