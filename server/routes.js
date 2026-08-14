@@ -95,7 +95,8 @@ router.get('/api/dashboard', async (req, res) => {
 
 router.get('/api/search', async (req, res) => {
   try {
-    const data = await searchDashboardRecords(req.query.view, req.query.q, req.query.limit, req.query.mode);
+    const filterSpec = req.query.view === 'customers' ? parseFilterSpec(req.query, 'cu') : undefined;
+    const data = await searchDashboardRecords(req.query.view, req.query.q, req.query.limit, req.query.mode, filterSpec);
     res.status(200).json(data);
   } catch (err) {
     const googleStatus = err?.response?.status;
