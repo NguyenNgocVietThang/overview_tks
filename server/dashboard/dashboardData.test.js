@@ -283,3 +283,62 @@ test('dashboardResultCache khong phinh vo han trong cung 1 phien ban raw sheets 
     `dashboardResultCache phai bi gioi han <= 32 entry, hien tai la ${dashboardData.__test__.getResultCacheSize()}`
   );
 });
+
+test('tim khach hang gan them revenue tong hop tu sheet Bao cao ban hang theo ky loc', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const CONFIG = require('../config');
+  sheetsClient.getMultipleSheetValues = async (names) => {
+    const result = {};
+    names.forEach(name => { result[name] = []; });
+    if (names.includes(CONFIG.SHEET_CUSTOMERS)) {
+      result[CONFIG.SHEET_CUSTOMERS] = [
+        ['Mã khách hàng', 'Tên khách hàng', 'Điện thoại', 'Giới tính', 'Nhóm khách hàng', 'Địa chỉ', 'Email', 'Nợ hiện tại', 'Tổng bán'],
+        ['KH-A', 'Khách A', '0900000001', 'Nữ', 'VIP', '', '', 500000, 12]
+      ];
+    }
+    if (names.includes(CONFIG.SHEET_CUSTOMER_REPORT)) {
+      const row = new Array(18).fill('');
+      row[0] = 'KH-A'; row[1] = 'Khách A'; row[12] = '10/08/2026 10:00:00'; row[17] = 700000;
+      const rowOutsideRange = new Array(18).fill('');
+      rowOutsideRange[0] = 'KH-A'; rowOutsideRange[1] = 'Khách A'; rowOutsideRange[12] = '01/01/2020 10:00:00'; rowOutsideRange[17] = 999999;
+      result[CONFIG.SHEET_CUSTOMER_REPORT] = [
+        ['Mã KH', 'Tên KH', '', '', '', '', '', '', '', '', '', '', 'Thời gian', '', '', '', '', 'Doanh thu'],
+        row,
+        rowOutsideRange
+      ];
+    }
+    return result;
+  };
+  dashboardData.__test__.resetCaches();
+
+  const result = await dashboardData.searchDashboardRecords(
+    'customers', 'Khách A', 'all', undefined,
+    { mode: 'range', from: '08/08/2026', to: '12/08/2026' }
+  );
+
+  assert.equal(result.results.length, 1);
+  assert.equal(result.results[0].code, 'KH-A');
+  assert.equal(result.results[0].revenue, 700000, 'chi cong doanh thu trong khoang ngay duoc loc, bo qua dong ngoai ky');
+});
+
+test('tim khach hang khong co filterSpec van tra ve, revenue mac dinh 0 neu khong co du lieu bao cao', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const CONFIG = require('../config');
+  sheetsClient.getMultipleSheetValues = async (names) => {
+    const result = {};
+    names.forEach(name => { result[name] = []; });
+    if (names.includes(CONFIG.SHEET_CUSTOMERS)) {
+      result[CONFIG.SHEET_CUSTOMERS] = [
+        ['Mã khách hàng', 'Tên khách hàng'],
+        ['KH-Z', 'Khách Z']
+      ];
+    }
+    return result;
+  };
+  dashboardData.__test__.resetCaches();
+
+  const result = await dashboardData.searchDashboardRecords('customers', 'Khách Z', 'all');
+
+  assert.equal(result.results.length, 1);
+  assert.equal(result.results[0].revenue, 0);
+});

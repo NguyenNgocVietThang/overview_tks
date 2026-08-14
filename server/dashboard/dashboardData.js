@@ -479,6 +479,48 @@ async function getCustomerProductTopSheet() {
   return loading;
 }
 
+let customerReportSearchCache = {
+  data: null,
+  expiresAt: 0,
+  loading: null
+};
+
+async function getCustomerReportSheetForSearch() {
+  if (customerReportSearchCache.data && Date.now() < customerReportSearchCache.expiresAt) {
+    return customerReportSearchCache.data;
+  }
+  if (customerReportSearchCache.loading) return customerReportSearchCache.loading;
+
+  const loading = sheetsClient.getMultipleSheetValues([CONFIG.SHEET_CUSTOMER_REPORT])
+    .then(sheets => {
+      customerReportSearchCache.data = sheets[CONFIG.SHEET_CUSTOMER_REPORT] || [];
+      customerReportSearchCache.expiresAt = Date.now() + SEARCH_CACHE_TTL_MS;
+      return customerReportSearchCache.data;
+    })
+    .finally(() => {
+      if (customerReportSearchCache.loading === loading) customerReportSearchCache.loading = null;
+    });
+  customerReportSearchCache.loading = loading;
+  return loading;
+}
+
+/**
+ * Gan "Tong doanh thu" cho ket qua tim kiem tab Khach hang, tong hop tu sheet
+ * "Bao cao ban hang" theo dung ky loc dang chon tren tab (giong cach tinh
+ * "Top khach hang theo doanh thu"). Khong lam gi voi cac view khac.
+ */
+async function attachCustomerRevenue(view, results, filterSpec) {
+  if (view !== 'customers' || !results.length) return results;
+  const range = resolveFilterRange(filterSpec, new Date());
+  const customerReportData = await getCustomerReportSheetForSearch();
+  const revenueByCode = aggregateCustomerReportRevenueByCode(range, customerReportData);
+  results.forEach(result => {
+    const entry = revenueByCode.get(result.code);
+    result.revenue = entry ? entry.revenue : 0;
+  });
+  return results;
+}
+
 function parseMultiSearchCodes(rawQuery) {
   const seenCodes = new Set();
   return normalizeWhitespace(rawQuery).split(' ').filter(Boolean).reduce((list, code) => {
@@ -537,7 +579,7 @@ function buildSearchFields(headers, row) {
  * Uu tien: trung hoan toan, trung tien to, chua cum tu, roi den du cac tu don.
  * Ket qua kem toan bo cot cua dong nguon de giao dien hien thi dung nhu Sheet.
  */
-async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode) {
+async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode, filterSpec) {
   const scope = SEARCH_SCOPES[view] || SEARCH_SCOPES.overview;
   const isMultiCodeSearch = String(rawMode || '').toLocaleLowerCase('vi-VN') === 'codes';
   const normalizedInput = normalizeWhitespace(rawQuery);
@@ -583,6 +625,16 @@ async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode) {
       a.record.rowIndex - b.record.rowIndex
     );
 
+    const results = matches.map(({ indexedSource, record, source }) => ({
+      id: `${source}:${record.rowIndex + 1}`,
+      source,
+      sourceLabel: indexedSource.source.label,
+      code: record.code,
+      name: record.name,
+      fields: buildSearchFields(indexedSource.headers, record.row)
+    }));
+    await attachCustomerRevenue(view, results, filterSpec);
+
     return {
       view,
       mode: 'codes',
@@ -591,14 +643,7 @@ async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode) {
       matchedCount: matchedCodeOrders.size,
       missingCount: codes.length - matchedCodeOrders.size,
       total: matches.length,
-      results: matches.map(({ indexedSource, record, source }) => ({
-        id: `${source}:${record.rowIndex + 1}`,
-        source,
-        sourceLabel: indexedSource.source.label,
-        code: record.code,
-        name: record.name,
-        fields: buildSearchFields(indexedSource.headers, record.row)
-      }))
+      results
     };
   }
 
@@ -640,19 +685,22 @@ async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode) {
     a.record.name.localeCompare(b.record.name, 'vi', { sensitivity: 'base' })
   );
 
+  const results = (limit === null ? matches : matches.slice(0, limit))
+    .map(({ indexedSource, record, source, _rank, _sourceOrder }) => ({
+      id: `${source}:${record.rowIndex + 1}`,
+      source,
+      sourceLabel: indexedSource.source.label,
+      code: record.code,
+      name: record.name,
+      fields: buildSearchFields(indexedSource.headers, record.row)
+    }));
+  await attachCustomerRevenue(view, results, filterSpec);
+
   return {
     view,
     query: queryText,
     total: matches.length,
-    results: (limit === null ? matches : matches.slice(0, limit))
-      .map(({ indexedSource, record, source, _rank, _sourceOrder }) => ({
-        id: `${source}:${record.rowIndex + 1}`,
-        source,
-        sourceLabel: indexedSource.source.label,
-        code: record.code,
-        name: record.name,
-        fields: buildSearchFields(indexedSource.headers, record.row)
-      }))
+    results
   };
 }
 
@@ -914,7 +962,7 @@ function buildRevenuePeriod(range, invoiceRecords) {
  * vao saleOrderCount nhung van cong don vao revenue vi cot nay da tru tra
  * hang o tung dong).
  */
-function buildTopCustomersByRevenue(range, customerReportData) {
+function aggregateCustomerReportRevenueByCode(range, customerReportData) {
   const customers = new Map();
 
   for (let r = 1; r < customerReportData.length; r++) {
@@ -936,6 +984,11 @@ function buildTopCustomersByRevenue(range, customerReportData) {
     if (revenue >= 0) entry.saleOrderCount += 1;
   }
 
+  return customers;
+}
+
+function buildTopCustomersByRevenue(range, customerReportData) {
+  const customers = aggregateCustomerReportRevenueByCode(range, customerReportData);
   const sorted = Array.from(customers.values()).sort((a, b) => b.revenue - a.revenue);
 
   return {
@@ -1817,6 +1870,7 @@ module.exports = {
       dashboardSheetsCache = { data: null, version: 0, expiresAt: 0, loading: null };
       searchSheetCache = { data: null, expiresAt: 0, loading: null };
       customerProductTopSheetCache = { data: null, expiresAt: 0, loading: null };
+      customerReportSearchCache = { data: null, expiresAt: 0, loading: null };
       dashboardResultCache = new Map();
       searchIndexBuildCountForTest = 0;
       computeCallCountForTest = 0;
