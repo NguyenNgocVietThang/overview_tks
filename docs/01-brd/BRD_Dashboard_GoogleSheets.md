@@ -7,13 +7,13 @@
 | **Thông tin**     | **Nội dung**                                                        |
 |-------------------|---------------------------------------------------------------------|
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Google Sheets → Web)  |
-| Phiên bản         | 1.3                                                                 |
+| Phiên bản         | 1.4                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 07/08/2026                                                          |
+| Ngày cập nhật     | 14/08/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo & nhân viên nội bộ công ty                            |
-| Trạng thái        | Đang vận hành (Giai đoạn 1 đã triển khai)                          |
+| Trạng thái        | Đang vận hành (Giai đoạn 1 đã hoàn thiện)                          |
 
-> **Ghi chú phiên bản 1.3:** Bổ sung module `CustomerDebtReport.gs` tự động tính toán công nợ khách hàng 1/3/7 ngày gần đây và ghi đè vào 3 tab HN1/HN3/HN7 lúc gần 15:00 hàng ngày, cùng module backend `debtReport.js` đọc và hiển thị báo cáo công nợ khách hàng trên Web Dashboard; bổ sung module `DiscontinuedProducts.gs` lưu lịch sử hàng ngừng kinh doanh từ trước tới nay trong một tab duy nhất.
+> **Ghi chú phiên bản 1.4:** Bổ sung tính năng Xuất Excel tùy chọn trường cho 16 bảng dữ liệu và kết quả tìm kiếm (tạo file `.xlsx` đa worksheet, AutoFilter, giữ định dạng text cho mã/SĐT); phân trang client-side cho bảng Hàng hóa và Hàng đã hết (`pagination.js`); chế độ tìm kiếm nhiều mã chính xác và Top 3 khách hàng theo mã hàng; Result Cache tầng backend tối ưu thời gian phản hồi tức thì (<10ms).
 
 # 1. Giới thiệu
 
@@ -31,7 +31,7 @@ Hệ thống được xây dựng như nền móng kiến trúc để trong tư�
 
 ## 1.3. Phạm vi tài liệu
 
-Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đã triển khai)**: Dashboard đọc từ Google Sheets KiotViet, hiển thị KPI và biểu đồ. Đồng thời nêu định hướng mở rộng dài hạn để kiến trúc Giai đoạn 1 được thiết kế theo hướng dễ mở rộng.
+Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đã hoàn thiện)**: Dashboard đọc từ Google Sheets KiotViet, hiển thị KPI, biểu đồ, báo cáo công nợ, tìm kiếm đa chế độ, phân trang bảng lớn và xuất file Excel. Đồng thời nêu định hướng mở rộng dài hạn để kiến trúc Giai đoạn 1 được thiết kế theo hướng dễ mở rộng.
 
 # 2. Mục tiêu dự án
 
@@ -41,9 +41,13 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - Hỗ trợ bộ lọc thời gian **7 / 30 / 90 ngày** cho biểu đồ doanh thu theo ngày.
 
-- Tự động tải lại dữ liệu dashboard mỗi 10 phút và tải bù khi người dùng quay lại một tab trình duyệt đã bị ẩn quá một chu kỳ làm mới.
+- Tự động tải lại dữ liệu dashboard mỗi 10 phút và tải bù khi người dùng quay lại một tab trình duyệt đã bị ẩn quá một chu kỳ làm mới; tích hợp Result Cache cho tốc độ phản hồi tức thì khi chuyển tab.
 
 - Bảo đảm các KPI theo ngày và thời điểm cập nhật luôn được tính theo múi giờ **Asia/Ho_Chi_Minh (UTC+7)**, không phụ thuộc múi giờ của máy chủ Render.
+
+- Cung cấp tính năng **Xuất Excel** trực tiếp cho 16 bảng dữ liệu và kết quả tìm kiếm với tùy chọn trường linh hoạt, định dạng hoàn chỉnh.
+
+- Phân trang mượt mà cho bảng dữ liệu lớn (trên 7.000 sản phẩm) nhằm đảm bảo giao diện luôn phản hồi nhanh chóng, không bị đơ giật.
 
 - Dữ liệu được đồng bộ **gần thời gian thực** từ KiotViet sang Google Sheets qua 2 cơ chế: (a) webhook KiotViet → hàng đợi bền vững Apps Script cho 6 nhóm dữ liệu chính, (b) lịch polling 15 phút cho 3 bảng KiotViet không có webhook (Trả hàng, Nhà cung cấp, Nhập hàng).
 
@@ -230,9 +234,11 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 
 - Dashboard hiển thị đầy đủ KPI, biểu đồ, bảng dữ liệu với dữ liệu đúng từ 9 tab dữ liệu Google Sheets.
 - Bộ lọc 7/30/90 ngày thay đổi biểu đồ và KPI kỳ đúng theo ngày thực tế.
-- Nút "Làm mới" cập nhật dữ liệu mới nhất từ Sheets trong vòng vài giây.
+- Nút "Làm mới" cập nhật dữ liệu mới nhất từ Sheets trong vòng vài giây; chuyển tab / đổi bộ lọc phản hồi tức thì (<10ms) nhờ Result Cache.
 - Dashboard tự làm mới sau mỗi 10 phút; khi quay lại tab đã ẩn quá 10 phút, dữ liệu được tải lại ngay.
 - KPI "hôm nay", chuỗi ngày trên biểu đồ và `updatedAt` thống nhất theo múi giờ Asia/Ho_Chi_Minh.
+- Hỗ trợ xuất Excel cho 16 bảng dữ liệu và kết quả tìm kiếm với đầy đủ tùy chọn trường, định dạng chuẩn.
+- Bảng dữ liệu lớn (>7.000 dòng) được phân trang ~200 dòng/trang, chuyển trang mượt mà không lag.
 - Khi thiếu một tab nguồn, dashboard vẫn trả kết quả cho các phần dữ liệu còn lại và route `/api/debug` liệt kê được các tab thực tế.
 - HN1/HN3/HN7 do `CustomerDebtReport.gs` ghi theo schema báo cáo thống nhất; kết quả chạy `syncAllInitialData()` phải tương đương chạy riêng `syncCustomerDebtReports()` tại cùng thời điểm.
 - Chỉ còn tab `Hàng ngừng kinh doanh` để lưu lịch sử từ trước tới nay; tab theo ngày cũ không được tạo lại.
@@ -242,22 +248,22 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 
 # 9. Kế hoạch triển khai tổng quan
 
-## 9.1. Giai đoạn 1 — Dashboard (đã triển khai)
+## 9.1. Giai đoạn 1 — Dashboard (đã hoàn thiện)
 
 | **Bước**                          | **Nội dung**                                                                                      | **Trạng thái** |
 |-----------------------------------|---------------------------------------------------------------------------------------------------|----------------|
-| 1. Phân tích & thiết kế            | Hoàn thiện BRD, SRS, BPMN; thiết kế kiến trúc kỹ thuật                                           | Hoàn thành     |
+| 1. Phân tích & thiết kế            | Hoàn thiện BRD v1.4, SRS v1.6, BPMN v1.4; thiết kế kiến trúc kỹ thuật                            | Hoàn thành     |
 | 2. Apps Script đồng bộ KiotViet    | `src/`: sync đủ trường, webhook qua queue bền vững, polling 15 phút cho 3 bảng không có webhook | Hoàn thành     |
-| 3. Backend Node.js/Express         | API `/api/dashboard`, lọc tab hiện có rồi `batchGet`, tính KPI theo giờ Việt Nam                 | Hoàn thành     |
-| 4. Frontend HTML/CSS/JS            | Dashboard, bộ lọc thời gian, làm mới thủ công/tự động 10 phút và tải bù khi quay lại tab          | Hoàn thành     |
+| 3. Backend Node.js/Express         | API `/api/dashboard`, `/api/search`, `/api/customer-product-top`, Result Cache, 21 unit tests     | Hoàn thành     |
+| 4. Frontend HTML/CSS/JS            | Dashboard, bộ lọc thời gian, phân trang bảng (`pagination.js`), motion tokens, transitions         | Hoàn thành     |
 | 5. Triển khai Render.com           | Deploy lên `tokosi.onrender.com`, cấu hình biến môi trường                                        | Hoàn thành     |
-| 6. Phân quyền & xuất báo cáo       | Module Admin/Nhân viên, xuất PDF/Excel                                                            | Giai đoạn 2    |
+| 6. Xuất Excel 16 bảng             | Module `exportService.js` tạo workbook `.xlsx` đa worksheet, tùy chọn trường                      | Hoàn thành     |
 
 ## 9.2. Lộ trình dài hạn (định hướng)
 
 | **Giai đoạn**                                   | **Nội dung chính**                                                                                      | **Ghi chú**                                                          |
 |-------------------------------------------------|---------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------|
-| Giai đoạn 2 — Phân quyền & xuất báo cáo         | Đăng nhập nội bộ, phân quyền Admin/Nhân viên, xuất PDF/Excel                                           | Ưu tiên triển khai ngay sau Giai đoạn 1                              |
+| Giai đoạn 2 — Phân quyền & xuất PDF             | Đăng nhập nội bộ, phân quyền Admin/Nhân viên, xuất PDF cho KPI summary và bản in                       | Ưu tiên triển khai ngay sau Giai đoạn 1                              |
 | Giai đoạn 3 — Bán hàng/POS                      | Tạo đơn bán, quản lý khách hàng, công nợ, in hóa đơn — tương đương nghiệp vụ KiotViet                  | Sau Giai đoạn 2                                                      |
 | Giai đoạn 4 — Kho đa chi nhánh                  | Nhập/xuất/chuyển kho, tồn kho theo từng kho, kiểm kê định kỳ cho 5.000–20.000 SKU                      | Phụ thuộc dữ liệu chuẩn hoá từ Giai đoạn 3                           |
 | Giai đoạn 5 — Phân tích & phát hiện bất thường  | Phân tích doanh số, dự đoán nhu cầu nhập hàng, phát hiện sai lệch tồn kho/giá bất thường               | Cần dữ liệu lịch sử đủ lớn từ Giai đoạn 3–4                          |
@@ -265,4 +271,4 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 | Giai đoạn 7 — Trợ lý AI                         | Chatbot hỏi-đáp số liệu bằng ngôn ngữ tự nhiên; AI dự đoán & phát hiện bất thường tự động             | Ưu tiên chatbot trước; cần dữ liệu chuẩn hoá từ các giai đoạn trước  |
 | Giai đoạn 8 — Thay thế KiotViet                 | Ngừng sử dụng KiotViet, chuyển hoàn toàn nghiệp vụ sang hệ thống mới                                   | Chỉ thực hiện khi Giai đoạn 3–4 đã ổn định và nghiệm thu đầy đủ      |
 
-*— Hết tài liệu BRD v1.2 —*
+*— Hết tài liệu BRD v1.4 —*

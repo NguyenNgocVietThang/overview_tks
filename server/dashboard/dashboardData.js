@@ -12,7 +12,10 @@ const NEWLY_IMPORTED_REVENUE_LIMIT = 15;
 const MAX_PARENT_CATEGORY_BARS = 30;
 const NEW_PURCHASES_SUPPLIER_LIMIT = 30; // top NCC cho bieu do 2 cot
 const SEARCH_CACHE_TTL_MS = 2 * 60 * 1000;
+const MAX_MULTI_SEARCH_CODES = 50;
 const DASHBOARD_SHEETS_CACHE_TTL_MS = 90 * 1000;
+const CUSTOMER_PRODUCT_TOP_CACHE_TTL_MS = 90 * 1000;
+const CUSTOMER_PRODUCT_TOP_LIMIT = 3;
 const PENDING_ORDER_STATUSES = new Set(['Phiếu tạm', 'Đang xử lý', 'Đã xác nhận']);
 const DASHBOARD_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const DASHBOARD_UTC_OFFSET = '+07:00';
@@ -356,6 +359,11 @@ let searchSheetCache = {
   expiresAt: 0,
   loading: null
 };
+let customerProductTopSheetCache = {
+  data: null,
+  expiresAt: 0,
+  loading: null
+};
 let searchIndexBuildCountForTest = 0; // chi dung trong test, xem __test__ o cuoi file
 
 function normalizeWhitespace(value) {
@@ -450,6 +458,46 @@ async function getSearchSheets() {
   return loading;
 }
 
+async function getCustomerProductTopSheet() {
+  if (customerProductTopSheetCache.data && Date.now() < customerProductTopSheetCache.expiresAt) {
+    return customerProductTopSheetCache.data;
+  }
+  if (customerProductTopSheetCache.loading) return customerProductTopSheetCache.loading;
+
+  const loading = sheetsClient.getMultipleSheetValues([CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT])
+    .then(sheets => {
+      customerProductTopSheetCache.data = sheets[CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT] || [];
+      customerProductTopSheetCache.expiresAt = Date.now() + CUSTOMER_PRODUCT_TOP_CACHE_TTL_MS;
+      return customerProductTopSheetCache.data;
+    })
+    .finally(() => {
+      if (customerProductTopSheetCache.loading === loading) {
+        customerProductTopSheetCache.loading = null;
+      }
+    });
+  customerProductTopSheetCache.loading = loading;
+  return loading;
+}
+
+function parseMultiSearchCodes(rawQuery) {
+  const seenCodes = new Set();
+  return normalizeWhitespace(rawQuery).split(' ').filter(Boolean).reduce((list, code) => {
+    const normalizedCode = normalizeSearchValue(code);
+    if (!normalizedCode || seenCodes.has(normalizedCode)) return list;
+    seenCodes.add(normalizedCode);
+    list.push({ value: code, normalizedValue: normalizedCode, order: list.length });
+    return list;
+  }, []);
+}
+
+function assertMultiSearchCodeLimit(codes) {
+  if (codes.length <= MAX_MULTI_SEARCH_CODES) return;
+  const error = new RangeError(`Chi duoc tim toi da ${MAX_MULTI_SEARCH_CODES} ma moi lan.`);
+  error.statusCode = 400;
+  error.code = 'TOO_MANY_SEARCH_CODES';
+  throw error;
+}
+
 function getSearchMatchRank(record, query) {
   const { normalizedCode: code, normalizedName: name, compactCode, compactName } = record;
   const { value, compactValue, tokens } = query;
@@ -489,9 +537,71 @@ function buildSearchFields(headers, row) {
  * Uu tien: trung hoan toan, trung tien to, chua cum tu, roi den du cac tu don.
  * Ket qua kem toan bo cot cua dong nguon de giao dien hien thi dung nhu Sheet.
  */
-async function searchDashboardRecords(view, rawQuery, rawLimit) {
+async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode) {
   const scope = SEARCH_SCOPES[view] || SEARCH_SCOPES.overview;
-  const queryText = normalizeWhitespace(rawQuery).slice(0, 120);
+  const isMultiCodeSearch = String(rawMode || '').toLocaleLowerCase('vi-VN') === 'codes';
+  const normalizedInput = normalizeWhitespace(rawQuery);
+  const queryText = isMultiCodeSearch ? normalizedInput : normalizedInput.slice(0, 120);
+
+  if (isMultiCodeSearch) {
+    const codes = parseMultiSearchCodes(queryText);
+    assertMultiSearchCodeLimit(codes);
+
+    if (!codes.length) {
+      return {
+        view,
+        mode: 'codes',
+        query: queryText,
+        requestedCount: 0,
+        matchedCount: 0,
+        missingCount: 0,
+        total: 0,
+        results: []
+      };
+    }
+
+    const codeOrder = new Map(codes.map(code => [code.normalizedValue, code.order]));
+    const matchedCodeOrders = new Set();
+    const indexedSources = await getSearchSheets();
+    const matches = [];
+
+    scope.forEach(sourceKey => {
+      const indexedSource = indexedSources[sourceKey];
+      if (!indexedSource) return;
+
+      indexedSource.records.forEach(record => {
+        const requestOrder = codeOrder.get(record.normalizedCode);
+        if (requestOrder === undefined) return;
+        matchedCodeOrders.add(requestOrder);
+        matches.push({ indexedSource, record, source: sourceKey, requestOrder });
+      });
+    });
+
+    matches.sort((a, b) =>
+      a.requestOrder - b.requestOrder ||
+      a.indexedSource.sourceOrder - b.indexedSource.sourceOrder ||
+      a.record.rowIndex - b.record.rowIndex
+    );
+
+    return {
+      view,
+      mode: 'codes',
+      query: codes.map(code => code.value).join(' '),
+      requestedCount: codes.length,
+      matchedCount: matchedCodeOrders.size,
+      missingCount: codes.length - matchedCodeOrders.size,
+      total: matches.length,
+      results: matches.map(({ indexedSource, record, source }) => ({
+        id: `${source}:${record.rowIndex + 1}`,
+        source,
+        sourceLabel: indexedSource.source.label,
+        code: record.code,
+        name: record.name,
+        fields: buildSearchFields(indexedSource.headers, record.row)
+      }))
+    };
+  }
+
   const normalizedQuery = normalizeSearchValue(queryText);
   const query = {
     value: normalizedQuery,
@@ -543,6 +653,166 @@ async function searchDashboardRecords(view, rawQuery, rawLimit) {
         name: record.name,
         fields: buildSearchFields(indexedSource.headers, record.row)
       }))
+  };
+}
+
+function getRequiredCustomerProductHeaderIndexes(rows) {
+  const headers = rows[0] || [];
+  const normalizedHeaders = headers.map(normalizeSearchValue);
+  const required = {
+    productCode: 'Mã hàng',
+    productName: 'Tên hàng',
+    customerCode: 'Mã KH',
+    customerName: 'Khách hàng',
+    returnedQuantityAllTime: 'SL Trả (theo khách hàng)',
+    returnValueAllTime: 'Giá trị trả (theo khách hàng)',
+    purchaseTime: 'Thời gian',
+    purchasedQuantity: 'SL chi tiết',
+    purchaseRevenue: 'Thành tiền chi tiết'
+  };
+  const indexes = {};
+  const missing = [];
+
+  Object.entries(required).forEach(([key, label]) => {
+    const index = normalizedHeaders.indexOf(normalizeSearchValue(label));
+    indexes[key] = index;
+    if (index < 0) missing.push(label);
+  });
+
+  if (missing.length) {
+    const error = new Error(`Sheet "${CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT}" thieu cot: ${missing.join(', ')}.`);
+    error.statusCode = 500;
+    error.code = 'CUSTOMER_PRODUCT_SHEET_SCHEMA_INVALID';
+    throw error;
+  }
+  return indexes;
+}
+
+/**
+ * Tim toi da 3 khach mua nhieu nhat cho tung ma hang trong ky da chon.
+ * Du lieu mua duoc cong tu tung dong chi tiet; du lieu tra trong sheet chi la
+ * tong toan lich su va bi lap lai tren moi dong hoa don, nen chi doc mot gia
+ * tri dai dien cho moi cap san pham-khach hang, tuyet doi khong cong don.
+ */
+async function searchTopCustomersByProducts(rawQuery, filterSpec, now = new Date()) {
+  const codes = parseMultiSearchCodes(rawQuery);
+  assertMultiSearchCodeLimit(codes);
+  const range = resolveFilterRange(filterSpec, now);
+
+  if (!codes.length) {
+    return {
+      mode: 'customer-product-top',
+      query: '',
+      filter: range,
+      requestedCount: 0,
+      matchedCount: 0,
+      missingCount: 0,
+      total: 0,
+      results: []
+    };
+  }
+
+  const rows = await getCustomerProductTopSheet();
+  const indexes = getRequiredCustomerProductHeaderIndexes(rows);
+  const requestedByCode = new Map(codes.map(code => [code.normalizedValue, code]));
+  const products = new Map();
+
+  for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
+    const row = rows[rowIndex] || [];
+    const productCode = normalizeWhitespace(row[indexes.productCode]);
+    const normalizedProductCode = normalizeSearchValue(productCode);
+    const requestedCode = requestedByCode.get(normalizedProductCode);
+    if (!requestedCode) continue;
+
+    const purchaseTime = parseSheetDate(row[indexes.purchaseTime]);
+    if (!isWithinRange(purchaseTime, range)) continue;
+
+    const productName = normalizeWhitespace(row[indexes.productName]) || productCode;
+    const customerCode = normalizeWhitespace(row[indexes.customerCode]);
+    const customerName = normalizeWhitespace(row[indexes.customerName]) || 'Khách lẻ';
+    const customerKey = customerCode
+      ? `code:${normalizeSearchValue(customerCode)}`
+      : `name:${normalizeSearchValue(customerName)}`;
+
+    if (!products.has(normalizedProductCode)) {
+      products.set(normalizedProductCode, {
+        requestOrder: requestedCode.order,
+        productCode,
+        productName,
+        customers: new Map()
+      });
+    }
+    const product = products.get(normalizedProductCode);
+    if (!product.productName && productName) product.productName = productName;
+
+    if (!product.customers.has(customerKey)) {
+      product.customers.set(customerKey, {
+        customerCode,
+        customerName,
+        purchasedQuantity: 0,
+        purchaseRevenue: 0,
+        returnedQuantityAllTime: Number(row[indexes.returnedQuantityAllTime]) || 0,
+        returnValueAllTime: Number(row[indexes.returnValueAllTime]) || 0,
+        lastPurchaseTime: purchaseTime
+      });
+    }
+
+    const customer = product.customers.get(customerKey);
+    customer.purchasedQuantity += Number(row[indexes.purchasedQuantity]) || 0;
+    customer.purchaseRevenue += Number(row[indexes.purchaseRevenue]) || 0;
+    if (!customer.lastPurchaseTime || purchaseTime.getTime() > customer.lastPurchaseTime.getTime()) {
+      customer.lastPurchaseTime = purchaseTime;
+    }
+    // Cac cot tra la snapshot toan lich su lap lai. Neu dong truoc bi trong,
+    // nhan gia tri hop le o dong sau; khong bao gio cong cac dong voi nhau.
+    const returnedQuantity = Number(row[indexes.returnedQuantityAllTime]);
+    const returnValue = Number(row[indexes.returnValueAllTime]);
+    if (Number.isFinite(returnedQuantity)) customer.returnedQuantityAllTime = returnedQuantity;
+    if (Number.isFinite(returnValue)) customer.returnValueAllTime = returnValue;
+  }
+
+  const results = [];
+  Array.from(products.values())
+    .sort((left, right) => left.requestOrder - right.requestOrder)
+    .forEach(product => {
+      Array.from(product.customers.values())
+        .sort((left, right) =>
+          right.purchasedQuantity - left.purchasedQuantity ||
+          right.purchaseRevenue - left.purchaseRevenue ||
+          right.lastPurchaseTime.getTime() - left.lastPurchaseTime.getTime() ||
+          String(left.customerCode || left.customerName).localeCompare(
+            String(right.customerCode || right.customerName),
+            'vi',
+            { numeric: true, sensitivity: 'base' }
+          )
+        )
+        .slice(0, CUSTOMER_PRODUCT_TOP_LIMIT)
+        .forEach(customer => {
+          results.push({
+            productCode: product.productCode,
+            productName: product.productName,
+            customerCode: customer.customerCode,
+            customerName: customer.customerName,
+            purchasedQuantity: customer.purchasedQuantity,
+            purchaseRevenue: customer.purchaseRevenue,
+            returnedQuantityAllTime: customer.returnedQuantityAllTime,
+            returnValueAllTime: customer.returnValueAllTime,
+            netRevenue: customer.purchaseRevenue - customer.returnValueAllTime,
+            lastPurchaseDate: formatDMY(customer.lastPurchaseTime)
+          });
+        });
+    });
+
+  const matchedCount = products.size;
+  return {
+    mode: 'customer-product-top',
+    query: codes.map(code => code.value).join(' '),
+    filter: range,
+    requestedCount: codes.length,
+    matchedCount,
+    missingCount: codes.length - matchedCount,
+    total: results.length,
+    results
   };
 }
 
@@ -780,6 +1050,19 @@ async function getDashboardData(filters) {
 }
 
 /**
+ * Snapshot dung rieng cho xuat file: du lieu dashboard da tinh va cac dong
+ * Google Sheets goc phai cung mot phien ban cache de viec noi them cot khong
+ * bi lech khi Sheets vua duoc dong bo giua hai request.
+ */
+async function getDashboardExportSnapshot(filters) {
+  const sheets = await getCachedDashboardSheets();
+  // Tinh truc tiep tu chinh object `sheets` vua lay thay vi goi lai wrapper
+  // cache; nhu vay du lieu goc va tap dong da loc chac chan cung mot snapshot.
+  const dashboard = computeDashboardData(sheets, filters || {}, new Date());
+  return { sheets, dashboard };
+}
+
+/**
  * Tinh toan toan bo du lieu dashboard tu du lieu tho da doc (sheets) va bo
  * loc. Ham thuan (khong tu fetch, khong cache) de getDashboardData ben tren
  * co the cache ket qua theo (phien ban du lieu tho + bo loc).
@@ -831,6 +1114,7 @@ function computeDashboardData(sheets, filters, now) {
   let stockList = [];
   const parentCategoryMap = {};
   const productParentCategoryByCode = new Map();
+  const productChildCategoryByCode = new Map();
   const productStatusByCode = new Map();
   const resolveParentCategory = buildParentCategoryResolver(categoryData);
   const productHeaders = prodData[0] || [];
@@ -883,6 +1167,7 @@ function computeDashboardData(sheets, filters, now) {
     const categoryId = productCategoryIdIndex >= 0 ? row[productCategoryIdIndex] : '';
     const parentCategoryName = resolveParentCategory(categoryName, categoryId);
     productParentCategoryByCode.set(String(code).trim(), parentCategoryName);
+    productChildCategoryByCode.set(String(code).trim(), categoryName || 'Chưa phân nhóm');
     if (!parentCategoryMap[parentCategoryName]) {
       parentCategoryMap[parentCategoryName] = { name: parentCategoryName, stock: 0, stockValue: 0, productCount: 0 };
     }
@@ -1085,6 +1370,7 @@ function computeDashboardData(sheets, filters, now) {
   // Cột: [0]Mã hóa đơn [1]Mã hàng [2]Tên hàng [3]Số lượng [4]Đơn giá [5]Giảm giá [6]Thành tiền
   const productSalesMap = {};
   const parentCategorySalesMap = {};
+  const childCategorySalesMap = {};
   const newlyImportedCategorySalesMap = {};
   const newlyImportedProductSalesMap = new Map();
   for (let r = 1; r < detailData.length; r++) {
@@ -1120,6 +1406,20 @@ function computeDashboardData(sheets, filters, now) {
     parentCategorySalesMap[parentCategoryName].revenue += revenue;
     parentCategorySalesMap[parentCategoryName].productCodes.add(trimmedCode);
 
+    const childCategoryName = productChildCategoryByCode.get(trimmedCode) || 'Chưa phân nhóm';
+    if (!childCategorySalesMap[parentCategoryName]) childCategorySalesMap[parentCategoryName] = {};
+    if (!childCategorySalesMap[parentCategoryName][childCategoryName]) {
+      childCategorySalesMap[parentCategoryName][childCategoryName] = {
+        name: childCategoryName,
+        qty: 0,
+        revenue: 0,
+        productCodes: new Set()
+      };
+    }
+    childCategorySalesMap[parentCategoryName][childCategoryName].qty += qty;
+    childCategorySalesMap[parentCategoryName][childCategoryName].revenue += revenue;
+    childCategorySalesMap[parentCategoryName][childCategoryName].productCodes.add(trimmedCode);
+
     if (newlyImportedCodeSet.has(trimmedCode)) {
       if (!newlyImportedProductSalesMap.has(trimmedCode)) {
         newlyImportedProductSalesMap.set(trimmedCode, { code, name, qty: 0, revenue: 0 });
@@ -1153,6 +1453,21 @@ function computeDashboardData(sheets, filters, now) {
     }))
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, TOP_SELLING_LIMIT);
+
+  // ---------- DOANH THU/SL BÁN THEO NHÓM CON, GOM THEO TỪNG NHÓM CHA ----------
+  // Dung cho phan "chon 1 nhom cha -> xem chi tiet nhom con" o tab Hang hoa.
+  const childCategorySalesByParent = {};
+  Object.keys(childCategorySalesMap).forEach(parentName => {
+    childCategorySalesByParent[parentName] = Object.values(childCategorySalesMap[parentName])
+      .map(category => ({
+        name: category.name,
+        qty: category.qty,
+        revenue: category.revenue,
+        productCount: category.productCodes.size
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+  });
+  const availableParentCategories = Object.keys(parentCategoryMap).sort((a, b) => a.localeCompare(b, 'vi'));
 
   const newlyImportedRows = newlyImportedProducts.map(({ _sortTime, ...product }) => {
     const sales = newlyImportedProductSalesMap.get(String(product.code).trim());
@@ -1443,6 +1758,8 @@ function computeDashboardData(sheets, filters, now) {
     products: {
       topSellingProducts,
       topSellingParentCategories,
+      childCategorySalesByParent,
+      availableParentCategories,
       newlyImported: {
         label: productsRange.label,
         count: newlyImportedRows.length,
@@ -1490,13 +1807,16 @@ function computeDashboardData(sheets, filters, now) {
 
 module.exports = {
   getDashboardData,
+  getDashboardExportSnapshot,
   searchDashboardRecords,
+  searchTopCustomersByProducts,
   // Cac hook duoi day CHI phuc vu test (dashboardData.test.js) — khong dung
   // trong code san pham.
   __test__: {
     resetCaches() {
       dashboardSheetsCache = { data: null, version: 0, expiresAt: 0, loading: null };
       searchSheetCache = { data: null, expiresAt: 0, loading: null };
+      customerProductTopSheetCache = { data: null, expiresAt: 0, loading: null };
       dashboardResultCache = new Map();
       searchIndexBuildCountForTest = 0;
       computeCallCountForTest = 0;

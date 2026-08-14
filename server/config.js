@@ -24,6 +24,7 @@ const CONFIG = {
   SHEET_RETURNS: 'Trả hàng',
   SHEET_CUSTOMERS: 'Khách hàng',
   SHEET_CUSTOMER_REPORT: 'Báo cáo bán hàng',
+  SHEET_CUSTOMER_BY_PRODUCT_REPORT: 'Khách theo hàng hóa',
   SHEET_SUPPLIERS: 'Nhà cung cấp',
   SHEET_PURCHASES: 'Nhập hàng',
   SHEET_DEACTIVATED_TODAY: 'Hàng ngừng kinh doanh',

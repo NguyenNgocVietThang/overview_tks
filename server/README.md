@@ -36,18 +36,34 @@ This is configured in the bound Google Apps Script project:
 5. Run `setupPollingTrigger()` for Trả hàng, Nhà cung cấp, and Nhập hàng,
    because KiotViet does not publish webhook events for those three groups.
 
-### Local `.env`
+### Local `.env` & Testing
 ```bash
 cp .env.example .env
-# fill in SPREADSHEET_ID, GOOGLE_SERVICE_ACCOUNT_JSON and KIOTVIET_* variables
+# Điền SPREADSHEET_ID, GOOGLE_SERVICE_ACCOUNT_JSON và các biến KIOTVIET_*
 npm install
-npm start
+npm test      # Chạy 21 unit tests (cache, pagination, export, search)
+npm start     # Khởi chạy server tại http://localhost:3000
 ```
-Visit `http://localhost:3000` — it should show the dashboard with real data
-from the Sheet. `GET /health` should return `{"status":"ok"}`. The page
-auto-refreshes every 10 minutes, plus a manual "Làm mới" button.
+Truy cập `http://localhost:3000` — giao diện Live Dashboard tải số liệu thời gian thực từ Google Sheets. `GET /health` trả về `{"status":"ok"}`. Giao diện tự động làm mới sau mỗi 10 phút hoặc bấm nút "Làm mới".
 
-## 2. Deploying on Render — exact values for the "New Web Service" form
+## 2. Các API Endpoints
+
+| Method | Endpoint | Mô tả |
+|---|---|---|
+| `GET` | `/api/dashboard?days={7\|30\|90}` | Trả về toàn bộ KPI, biểu đồ, danh sách top/gần đây. Tích hợp cache thô Sheets 90s và Result Cache theo `(rawDataVersion, filters)` giúp chuyển tab và lọc thời gian phản hồi tức thì (<10ms). |
+| `GET` | `/api/search` | Tìm kiếm bản ghi trong phạm vi tab hiện tại. Hỗ trợ tìm từ khóa thông thường hoặc tìm chính xác nhiều mã cùng lúc (`mode=codes`, tối đa 50 mã). |
+| `GET` | `/api/customer-product-top` | Tìm top 3 khách hàng mua nhiều nhất cho danh sách tối đa 50 mã sản phẩm từ sheet `Khách theo hàng hóa`, áp dụng bộ lọc thời gian. |
+| `POST` | `/api/export/fields` | Trả về danh sách worksheet và các trường dữ liệu có thể chọn xuất cho bảng hoặc kết quả tìm kiếm tương ứng. |
+| `POST` | `/api/export` | Tạo và tải file `.xlsx` theo các trường đã chọn, giữ bộ lọc hiện tại, hỗ trợ định dạng ngày, text mã/SĐT, cố định tiêu đề và AutoFilter. |
+| `GET` | `/health` | Health check endpoint cho Render ping giữ instance hoạt động (`{"status":"ok"}`). |
+| `GET` | `/api/debug` | Chẩn đoán biến môi trường, kết nối Google Sheets và liệt kê các tab hiện có. |
+
+### Cải tiến hiệu năng & UX
+- **Result Cache:** Tách hàm tính toán thuần túy `computeDashboardData()` và cache kết quả theo `(rawDataVersion, filters)`. Index tìm kiếm chỉ được build lại khi Sheets được fetch mới.
+- **Phân trang bảng client-side (`pagination.js`):** Tối ưu 2 bảng lớn (`allProducts` và `lowStock`) hiển thị ~200 dòng/trang kèm nút phân trang Trước/Sau, khắc phục hoàn toàn tình trạng đơ giao diện khi chuyển tab Hàng hóa.
+- **Xuất Excel (16 bảng):** Mỗi bảng có nút Xuất Excel riêng; xuất nhiều worksheet cho Nhập hàng / Công nợ và kết quả tìm kiếm đa nguồn.
+
+## 3. Deploying on Render — exact values for the "New Web Service" form
 
 | Field | Value |
 |---|---|

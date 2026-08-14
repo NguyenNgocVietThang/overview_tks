@@ -7,19 +7,19 @@
 | **Thông tin**      | **Nội dung**                                               |
 |--------------------|------------------------------------------------------------|
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                          |
-| Phiên bản          | 1.4                                                        |
+| Phiên bản          | 1.6                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 13/08/2026                                                 |
-| Tài liệu liên quan | BRD v1.3 — Hệ thống Dashboard nội bộ TOKOSI               |
-| Trạng thái         | Đang vận hành (Giai đoạn 1 đã triển khai)                 |
+| Ngày cập nhật      | 14/08/2026                                                 |
+| Tài liệu liên quan | BRD v1.4 — Hệ thống Dashboard nội bộ TOKOSI               |
+| Trạng thái         | Đang vận hành (Giai đoạn 1 đã hoàn thiện)                 |
 
-> **Ghi chú phiên bản 1.4:** Bổ sung tab `Khách theo hàng hóa` 25 cột theo file xuất KiotViet, tổng hợp toàn bộ lịch sử theo sản phẩm → khách hàng → hóa đơn và đối soát gần 07:00 hoặc chạy tay.
+> **Ghi chú phiên bản 1.6:** Bổ sung Result Cache tầng backend (`dashboardResultCache` theo `rawDataVersion` và filters), phân trang bảng client-side (`pagination.js`), API xuất Excel (`POST /api/export/fields`, `POST /api/export`), tối ưu micro-animations & motion tokens (`--ease-out`), và bộ kiểm thử tự động 21 unit tests.
 
 # 1. Giới thiệu
 
 ## 1.1. Mục đích
 
-Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi chức năng của hệ thống Website Dashboard TOKOSI, làm cơ sở cho đội phát triển thiết kế, xây dựng, kiểm thử phần mềm. Tài liệu cụ thể hóa các yêu cầu nghiệp vụ đã nêu trong BRD v1.3 thành các đặc tả kỹ thuật có thể triển khai được.
+Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi chức năng của hệ thống Website Dashboard TOKOSI, làm cơ sở cho đội phát triển thiết kế, xây dựng, kiểm thử phần mềm. Tài liệu cụ thể hóa các yêu cầu nghiệp vụ đã nêu trong BRD v1.4 thành các đặc tả kỹ thuật có thể triển khai được.
 
 ## 1.2. Phạm vi hệ thống
 
@@ -27,7 +27,7 @@ Hệ thống là một Web Application nội bộ gồm 2 thành phần chính:
 
 1. **Apps Script (`src/`):** chạy trong Google Workspace, đồng bộ đủ trường dữ liệu KiotViet Public API vào 9 tab vận hành, 1 tab lịch sử hàng ngừng kinh doanh, 2 tab tổng hợp báo cáo khách hàng và 3 tab báo cáo công nợ HN1/HN3/HN7 (qua webhook KiotViet + hàng đợi bền vững + polling 15 phút + lịch báo cáo hàng ngày).
 
-2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu và 3 tab công nợ HN1/HN3/HN7 từ Google Spreadsheet qua Google Sheets API (Service Account), tính toán KPI, dữ liệu biểu đồ và báo cáo công nợ khách hàng 1/3/7 ngày, trả về cho frontend qua REST API. Frontend hiển thị Dashboard tương tác trên trình duyệt.
+2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu và 3 tab công nợ HN1/HN3/HN7 từ Google Spreadsheet qua Google Sheets API (Service Account), tính toán KPI, dữ liệu biểu đồ và báo cáo công nợ khách hàng 1/3/7 ngày, trả về cho frontend qua REST API. Tích hợp Result Cache tầng backend, phân trang bảng client-side và xuất file Excel đa worksheet. Frontend hiển thị Dashboard tương tác trên trình duyệt.
 
 ## 1.3. Định nghĩa & thuật ngữ
 
@@ -41,10 +41,11 @@ Hệ thống là một Web Application nội bộ gồm 2 thành phần chính:
 | batchGet                | Gọi Google Sheets API đọc nhiều tab đang tồn tại cùng lúc trong 1 request HTTP.      |
 | KiotViet webhook        | KiotViet Public API gửi POST JSON về Web App URL của Apps Script khi có thay đổi.    |
 | Polling trigger         | Apps Script time-based trigger chạy mỗi 15 phút cho 3 bảng không có KiotViet webhook. |
+| Result Cache            | Cơ chế lưu đệm kết quả KPI/biểu đồ đã tính theo phiên bản dữ liệu thô và bộ lọc.    |
 
 ## 1.4. Tài liệu tham khảo
 
-- BRD v1.2 — Hệ thống Dashboard nội bộ TOKOSI.
+- BRD v1.4 — Hệ thống Dashboard nội bộ TOKOSI.
 - Google Sheets API v4 Documentation.
 - KiotViet Public API Documentation.
 - Google Apps Script Documentation.
@@ -71,38 +72,43 @@ Backend: Node.js + Express
     - server/index.js           : khởi động server Express
     - server/config.js          : đọc biến môi trường
     - server/routes.js          : định nghĩa endpoints
-    - server/sheets/sheetsClient.js   : gọi Google Sheets API
-    - server/dashboard/dashboardData.js : tính toán KPI & biểu đồ
+    - server/sheets/sheetsClient.js   : gọi Google Sheets API (cache thô 90s)
+    - server/dashboard/dashboardData.js : tính toán KPI, biểu đồ & Result Cache
+    - server/dashboard/debtReport.js    : báo cáo công nợ khách hàng HN1/HN3/HN7
+    - server/dashboard/exportService.js : dịch vụ tạo file xuất Excel .xlsx 16 bảng
     |
-    | REST API chính: GET /api/dashboard?days=30
+    | REST APIs: /api/dashboard, /api/search, /api/customer-product-top, /api/export
     v
 Frontend: HTML/CSS/JS tĩnh (server/public/index.html)
-    - Chart.js (biểu đồ)
-    - Vanilla JS (fetch API, DOM manipulation, auto-refresh 10 phút)
+    - Chart.js (biểu đồ với animation gating)
+    - pagination.js (phân trang bảng client-side)
+    - Vanilla JS (fetch API, DOM manipulation, auto-refresh 10 phút, transitions)
     |
     v
-Người dùng (trình duyệt) — tokosi.onrender.com
+Người dùng (trình duyệt) — tokosi.onrender.com / localhost:3000
 ```
 
 ## 2.2. Stack công nghệ thực tế
 
 ### Backend
-- **Runtime:** Node.js
+- **Runtime:** Node.js (>= 18)
 - **Framework:** Express.js v4
-- **Dependencies:** `googleapis` (Google Sheets API client), `dotenv` (dev only)
+- **Dependencies:** `googleapis` (Google Sheets API client), `dotenv` (dev only), `exceljs` / export builder
 - **Entry point:** `server/index.js`
-- **API:** REST; endpoint chính `GET /api/dashboard?days={7|30|90}`, kèm `/health` và `/api/debug`
+- **Testing:** `node:test` + `node:assert/strict` (21 unit tests tự động)
+- **API:** REST; endpoints `/api/dashboard`, `/api/search`, `/api/customer-product-top`, `/api/export/fields`, `/api/export`, `/health`, `/api/debug`
 
 ### Frontend
 - **Công nghệ:** HTML5, CSS3 (Vanilla), JavaScript (ES6+)
 - **Thư viện biểu đồ:** Chart.js (vendor local tại `server/public/vendor/chart.umd.min.js`)
-- **File:** `server/public/index.html` (single-page, tất cả trong 1 file)
+- **Phân trang:** `server/public/js/pagination.js` (module độc lập, test riêng)
+- **File chính:** `server/public/index.html` (single-page, đầy đủ modal xuất Excel, bảng phân trang, dropdown mượt mà)
 - **Không dùng:** React, Next.js, TailwindCSS, TypeScript
 
-### Dữ liệu
+### Dữ liệu & Caching
 - **Nguồn:** Google Spreadsheet (ID cấu hình qua env var `SPREADSHEET_ID`)
 - **Xác thực:** Google Service Account JSON (env var `GOOGLE_SERVICE_ACCOUNT_JSON`)
-- **Không có:** PostgreSQL, Redis, session/token management trong Giai đoạn 1
+- **Caching:** Cache dữ liệu thô Sheets 90s (`dashboardSheetsCache`) + Result Cache in-memory theo key `(rawDataVersion, filters)`
 
 ### Hạ tầng & triển khai
 - **Hosting:** Render.com (Web Service)
@@ -119,7 +125,7 @@ Người dùng (trình duyệt) — tokosi.onrender.com
 
 | **Vai trò**  | **Mô tả**                                                              |
 |--------------|------------------------------------------------------------------------|
-| Người xem    | Mọi người dùng nội bộ có URL — xem KPI, lọc thời gian, làm mới dữ liệu. |
+| Người xem    | Mọi người dùng nội bộ có URL — xem KPI, lọc thời gian, phân trang, xuất Excel, làm mới dữ liệu. |
 | IT Admin     | Cấu hình biến môi trường Render, quản lý Apps Script trigger/webhook.   |
 
 ## 2.4. Giả định & phụ thuộc
@@ -138,11 +144,10 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 - Khi thêm phân quyền (Giai đoạn 2): bổ sung middleware auth vào Express, không cần thay đổi logic tính toán KPI.
 - Khi bổ sung CSDL (Giai đoạn 3+): thêm PostgreSQL để lưu lịch sử, không phá vỡ luồng đọc Sheets hiện tại.
 - API versioning (`/api/v1/...`) khi bổ sung endpoint cho module mới.
-- Frontend có thể nâng cấp sang React/Next.js khi giao diện phức tạp hơn, tái sử dụng cùng REST API.
 
 # 3. Yêu cầu chức năng (Functional Requirements)
 
-## 3.1. FR-01: Đọc dữ liệu từ Google Sheets
+## 3.1. FR-01: Đọc dữ liệu từ Google Sheets & Caching
 
 | **Mã**  | **Mô tả**                                                                                                                        | **Ưu tiên** | **Trạng thái** |
 |---------|----------------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
@@ -152,6 +157,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-01.4 | Thông tin xác thực KiotViet được đọc từ Apps Script Properties hoặc biến môi trường server; không hard-code trong mã nguồn. | Cao | Hoàn thành |
 | FR-01.5 | Nếu gọi API thất bại (timeout, 403, 500...), hệ thống trả HTTP 500 kèm thông tin lỗi chi tiết (message, Google API status).      | Cao         | Hoàn thành     |
 | FR-01.6 | Nếu một tab dữ liệu không tồn tại/đã đổi tên, tab đó được ánh xạ thành mảng rỗng; các phần dữ liệu còn lại vẫn được trả về.      | Cao         | Hoàn thành     |
+| FR-01.7 | Backend duy trì cache dữ liệu thô Sheets trong 90s (`dashboardSheetsCache`) và Result Cache theo `(rawDataVersion, filters)`; `rememberSearchSheets` chỉ build lại search index khi raw data thực sự được fetch mới. | Cao | Hoàn thành |
 
 ## 3.2. FR-02: Tính toán KPI
 
@@ -180,6 +186,8 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-03.7 | Tạo `topDebt`: top 8 khách hàng có công nợ cao nhất.                                                                                               | Cao         | Hoàn thành     |
 | FR-03.8 | Tạo `recentInvoices`, `recentOrders`, `recentReturns`, `recentPurchaseOrders`: 8 bản ghi gần nhất (sort theo thời gian giảm dần).                  | Cao         | Hoàn thành     |
 | FR-03.9 | Tạo `suppliers`: danh sách tất cả nhà cung cấp, sắp xếp giảm dần theo nợ.                                                                         | Trung bình  | Hoàn thành     |
+| FR-03.10 | Tạo `products.childCategorySalesByParent`: doanh thu và SL bán theo nhóm con, gom theo từng nhóm cha (từ Chi tiết hóa đơn, loại trừ hóa đơn đã hủy), phục vụ phần "Chi tiết theo nhóm con" ở tab Hàng hóa. | Trung bình  | Hoàn thành     |
+| FR-03.11 | Tạo `products.availableParentCategories`: danh sách tên nhóm cha (từ `parentCategoryMap`, sắp xếp theo bảng chữ cái), dùng để đổ vào dropdown chọn nhóm cha thay vì nhập liệu tự do. | Trung bình  | Hoàn thành     |
 
 ## 3.4. FR-04: Bộ lọc thời gian
 
@@ -218,7 +226,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-06.13 | Chỉ duy trì tab `Hàng ngừng kinh doanh`; dữ liệu lịch sử không bị xóa theo ngày và tab legacy `Hàng ngừng KD hôm nay` được gộp/dọn khi đồng bộ. | Cao | Hoàn thành |
 | FR-06.14 | Tab `Khách theo hàng hóa` có đúng 25 cột như file xuất KiotViet, tổng hợp toàn bộ lịch sử theo sản phẩm → khách hàng → chi tiết hóa đơn; chỉ cập nhật gần 07:00 hoặc qua `syncCustomerByProductReport()`, không nhận cập nhật webhook. | Cao | Hoàn thành |
 
-## 3.7. FR-07: Giao diện người dùng
+## 3.7. FR-07: Giao diện người dùng & Tối ưu tương tác
 
 | **Mã**  | **Mô tả**                                                                                                                | **Ưu tiên** | **Trạng thái** |
 |---------|--------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
@@ -229,21 +237,31 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-07.7 | Biểu đồ cột giá trị và biểu đồ tròn số lượng tồn kho đều gom theo nhóm cha; biểu đồ cột hiển thị tối đa 30 cột và tooltip có giá trị tiền, tỷ trọng. | Cao | Hoàn thành |
 | FR-07.5 | Route `/api/debug`: kiểm tra biến môi trường, kết nối Google Sheets và liệt kê `sheetTabs`; trả riêng `sheetTabsError` nếu bước liệt kê lỗi. | Thấp | Hoàn thành |
 | FR-07.6 | Route `/health`: trả HTTP 200 `{"status":"ok"}` để Render health check.                                                  | Cao         | Hoàn thành     |
+| FR-07.8 | Thanh tìm kiếm có hai chế độ: thông thường và nhiều mã. Chế độ nhiều mã tách tối đa 50 mã theo khoảng trắng, khớp chính xác không phân biệt hoa thường, loại mã trùng và trả kết quả theo thứ tự nhập. | Cao | Hoàn thành |
+| FR-07.9 | Riêng tab Khách hàng có thêm chế độ `Top KH theo sản phẩm`: nhận tối đa 50 mã, trả tối đa 3 khách/mã theo SL mua trong kỳ; hiển thị doanh thu mua, tổng trả toàn thời gian, doanh thu thuần hỗn hợp và ngày mua cuối cùng. | Cao | Hoàn thành |
+| FR-07.10 | Mỗi bảng dữ liệu có nút `Xuất Excel`; người dùng chọn trường từ đầy đủ header Google Sheets, mặc định chọn tất cả. File giữ bộ lọc hiện tại, bỏ giới hạn phân trang nhưng giữ giới hạn Top/gần đây của bảng. | Cao | Hoàn thành |
+| FR-07.11 | Kết quả tìm kiếm ngoài Tổng quan được xuất Excel; kết quả nhiều nguồn tạo một worksheet cho mỗi nguồn và tự lấy toàn bộ trường. Tìm kiếm Tổng quan không hỗ trợ xuất do trộn nhiều loại dữ liệu. | Cao | Hoàn thành |
+| FR-07.12 | Xuất Nhập hàng và Công nợ tạo hai worksheet tổng hợp/chi tiết; workbook cố định header, bật AutoFilter và giữ mã/SĐT dạng text. | Cao | Hoàn thành |
+| FR-07.13 | Bảng tất cả hàng hóa (`allProducts`) và bảng hàng đã hết (`lowStock`) được phân trang client-side qua `pagination.js` (~200 dòng/trang), có điều khiển Trang trước / Trang sau, giữ nguyên thẻ đếm tổng số lượng. | Cao | Hoàn thành |
+| FR-07.14 | Biểu đồ Chart.js có animation gating (không animate lại khi chuyển tab, đổi theme hay background polling); các phần tử dropdown, surface theme và dòng chi tiết công nợ có transition mượt mà dùng chung token `--ease-out`. | Cao | Hoàn thành |
 
 # 4. Yêu cầu phi chức năng (Non-functional Requirements)
 
 | **Mã** | **Hạng mục**         | **Mô tả yêu cầu**                                                                                                                               |
 |--------|----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
-| NFR-01 | Hiệu năng            | API `/api/dashboard` trả kết quả trong vòng 5 giây trong điều kiện bình thường (1 request metadata + 1 `batchGet`).                            |
+| NFR-01 | Hiệu năng            | API `/api/dashboard` phản hồi < 10ms khi cache hit (Result Cache); phản hồi trong vòng 5 giây khi phải gọi Google Sheets API (`batchGet`).     |
 | NFR-02 | Khả dụng             | Hệ thống hoạt động ổn định trên Render.com, mục tiêu uptime >= 99% trong giờ hành chính.                                                        |
 | NFR-03 | Bảo mật              | Toàn bộ giao tiếp qua HTTPS; Service Account key và Spreadsheet ID lưu trong biến môi trường, không commit vào repo.                             |
 | NFR-04 | Khả năng mở rộng     | Kiến trúc module rõ ràng (config, sheets, dashboard, routes) cho phép bổ sung module mới mà không phải rewrite code hiện tại.                    |
-| NFR-05 | Usability            | Giao diện trực quan, thao tác lọc thời gian và làm mới trong 1–2 cú nhấp chuột; hỗ trợ desktop và tablet.                                       |
+| NFR-05 | Usability            | Giao diện trực quan, thao tác lọc thời gian và làm mới trong 1–2 cú nhấp chuột; bảng lớn chuyển trang tức thì không đơ UI; hỗ trợ desktop/tablet.|
 | NFR-06 | Bảo trì              | Mã nguồn tổ chức theo module rõ ràng, comment tiếng Việt, dễ đọc và bảo trì.                                                                   |
 | NFR-07 | Giới hạn API         | Sau khi lấy metadata tab, dùng một `batchGet` duy nhất để đọc toàn bộ tab dữ liệu đang tồn tại; chu kỳ làm mới tự động là 10 phút.               |
 | NFR-08 | Nhật ký & debug      | Log chi tiết lỗi khi `/api/dashboard` thất bại; `/api/debug` kiểm tra kết nối và trả danh sách tab hiện có mà không lộ secret.                   |
 | NFR-09 | Độ trễ đồng bộ       | Từ khi dữ liệu thay đổi trên KiotViet → Apps Script cập nhật Sheets qua webhook: mục tiêu dưới 2 phút. Trả hàng/NCC/Nhập hàng: tối đa 15 phút (polling). |
 | NFR-10 | Nhất quán thời gian  | Parse ngày từ Sheets, xác định ngày hiện tại, tạo bucket 7/30/90 ngày và format `updatedAt` theo Asia/Ho_Chi_Minh, độc lập timezone máy chủ.      |
+| NFR-11 | An toàn xuất dữ liệu | API xuất chỉ nhận khóa bảng, bộ lọc và danh sách trường hợp lệ; không nhận dòng dữ liệu từ client, chặn trường lạ và vô hiệu hóa chuỗi có thể bị Excel hiểu là công thức. |
+| NFR-12 | Kiểm thử tự động     | Duy trì bộ 21 unit tests chuẩn `node:test` bao phủ cache backend, phân trang client-side, đăng ký xuất Excel và các chế độ tìm kiếm nâng cao.  |
+
 
 # 5. Yêu cầu giao diện người dùng (UI Requirements)
 
@@ -312,6 +330,10 @@ Giao diện Dashboard gồm:
   "topDebt": [{ "code": "", "name": "", "phone": "", "debt": 0 }],
   "stockByCategory": [{ "name": "", "stock": 0, "productCount": 0 }],
   "topSellingProducts": [{ "code": "", "name": "", "qty": 0, "revenue": 0 }],
+  "products": {
+    "childCategorySalesByParent": { "<Tên nhóm cha>": [{ "name": "", "qty": 0, "revenue": 0, "productCount": 0 }] },
+    "availableParentCategories": [""]
+  },
   "recentOrders": [{ "code": "", "date": "", "customer": "", "total": 0, "status": "" }],
   "recentReturns": [{ "code": "", "date": "", "originalInvoiceCode": "", "customer": "", "total": 0, "status": "" }],
   "suppliers": [{ "code": "", "name": "", "phone": "", "email": "", "address": "", "debt": 0 }],
@@ -329,13 +351,39 @@ Giao diện Dashboard gồm:
 }
 ```
 
-## 6.2. GET /health
+## 6.2. GET /api/search
+
+**Mô tả:** Tìm bản ghi trong phạm vi tab dashboard hiện tại. Mặc định tìm mã, tên hoặc từ khóa như trước; khi `mode=codes`, tìm chính xác nhiều mã cùng lúc.
+
+**Query params:**
+- `view` (optional): phạm vi dữ liệu tương ứng tab hiện tại.
+- `q` (required): từ khóa hoặc danh sách mã phân tách bởi một hay nhiều ký tự khoảng trắng.
+- `limit` (optional): số dòng tối đa hoặc `all`; chế độ nhiều mã luôn trả toàn bộ dòng khớp.
+- `mode` (optional): đặt `codes` để tìm tối đa 50 mã chính xác, loại mã trùng không phân biệt hoa thường và giữ thứ tự nhập.
+
+Chế độ nhiều mã trả thêm `requestedCount`, `matchedCount` và `missingCount`; cấu trúc từng phần tử `results` giống chế độ thông thường.
+
+## 6.3. GET /api/customer-product-top
+
+**Mô tả:** Tìm tối đa 3 khách hàng có SL mua cao nhất cho từng mã hàng từ sheet `Khách theo hàng hóa`. Dữ liệu mua và ngày mua cuối chịu bộ lọc thời gian tab Khách hàng; SL trả và Giá trị trả là tổng toàn thời gian do sheet nguồn không lưu ngày trả chi tiết.
+
+**Query params:**
+- `q` (required): tối đa 50 mã hàng, phân tách bằng khoảng trắng hoặc xuống dòng; khớp chính xác, không phân biệt hoa thường, loại mã trùng và giữ thứ tự nhập.
+- `cuMode`: `days`, `range` hoặc `all`.
+- `cuDays`: số ngày khi `cuMode=days`.
+- `cuFrom`, `cuTo`: ngày `yyyy-MM-dd` khi `cuMode=range`.
+
+**Response (HTTP 200):** trả `filter`, `requestedCount`, `matchedCount`, `missingCount`, `total` và `results`. Mỗi kết quả gồm `productCode`, `productName`, `customerName`, `purchasedQuantity`, `purchaseRevenue`, `returnedQuantityAllTime`, `returnValueAllTime`, `netRevenue`, `lastPurchaseDate`.
+
+Kết quả xếp theo SL mua giảm dần, sau đó doanh thu mua, ngày mua cuối và mã khách. `netRevenue` bằng doanh thu mua trong kỳ trừ giá trị trả toàn thời gian; khi `cuMode` khác `all`, hai vế không cùng kỳ và giao diện phải hiển thị chú thích rõ ràng.
+
+## 6.4. GET /health
 
 **Mô tả:** Health check cho Render.com.
 
 **Response (HTTP 200):** `{"status": "ok"}`
 
-## 6.3. GET /api/debug
+## 6.5. GET /api/debug
 
 **Mô tả:** Kiểm tra nhanh trạng thái biến môi trường, kết nối Google Sheets và danh sách tab thực tế. Dùng để debug, không bảo mật.
 
@@ -351,6 +399,56 @@ Giao diện Dashboard gồm:
   "sheetTabsError": null
 }
 ```
+
+## 6.6. POST /api/export/fields
+
+**Mô tả:** Lấy danh sách các worksheet và trường dữ liệu hợp lệ có thể chọn để xuất Excel cho một bảng dữ liệu hoặc kết quả tìm kiếm cụ thể.
+
+**Body (JSON):**
+```json
+{
+  "tableKey": "allProducts",
+  "searchContext": null
+}
+```
+
+**Response (HTTP 200):**
+```json
+{
+  "tableKey": "allProducts",
+  "defaultFilename": "tat-ca-ma-hang_14-08-2026.xlsx",
+  "sheets": [
+    {
+      "sheetKey": "allProducts",
+      "sheetTitle": "Tất cả mã hàng",
+      "fields": [
+        { "key": "code", "label": "Mã hàng", "default": true },
+        { "key": "name", "label": "Tên hàng", "default": true },
+        { "key": "category", "label": "Nhóm hàng", "default": true },
+        { "key": "stock", "label": "Tồn kho", "default": true },
+        { "key": "costPrice", "label": "Giá vốn", "default": true }
+      ]
+    }
+  ]
+}
+```
+
+## 6.7. POST /api/export
+
+**Mô tả:** Nhận cấu hình trường cần xuất và ngữ cảnh bộ lọc/tìm kiếm, đọc dữ liệu thực tế từ Google Sheets trên server và tạo file `.xlsx` định dạng hoàn chỉnh (cố định hàng tiêu đề, bật AutoFilter, ép kiểu text cho mã/SĐT).
+
+**Body (JSON):**
+```json
+{
+  "tableKey": "allProducts",
+  "selectedFields": {
+    "allProducts": ["code", "name", "category", "stock", "costPrice"]
+  },
+  "searchContext": null
+}
+```
+
+**Response (HTTP 200):** Binary stream file `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` kèm header `Content-Disposition: attachment; filename="..."`.
 
 # 7. Đặc tả Apps Script (`src/`)
 
@@ -413,7 +511,7 @@ lần qua trigger nền sẽ xóa vật lý các cột `(JSON)` của schema cũ
 - Chỉ ghi hóa đơn trạng thái hoàn thành. Webhook cập nhật trong khoảng 1 phút; mã/ID hóa đơn được lưu ở note nội bộ của cột A để thay hoặc xóa đúng dòng mà không phải thêm cột kỹ thuật.
 - Lượt đồng bộ gần 07:00 làm mới toàn bộ cửa sổ 90 ngày để loại bản ghi hết hạn và đối soát sai lệch webhook.
 
-## 7.4. Schema tab "Khách theo hàng hóa" (dashboard không đọc)
+## 7.4. Schema tab "Khách theo hàng hóa"
 
 `[0]Nhóm hàng [1]Mã hàng [2]Tên hàng [3]Thương hiệu [4]Đơn vị tính [5]SL Khách hàng [6]SL mua (theo sản phẩm) [7]Doanh thu (theo sản phẩm) [8]SL Trả (theo sản phẩm) [9]Giá trị trả (theo sản phẩm) [10]Doanh thu thuần (theo sản phẩm) [11]Mã KH [12]Khách hàng [13]Số điện thoại [14]SL mua (theo khách hàng) [15]Doanh thu (theo khách hàng) [16]SL Trả (theo khách hàng) [17]Giá trị trả (theo khách hàng) [18]Doanh thu thuần (theo khách hàng) [19]Mã hóa đơn [20]Chi nhánh [21]Thời gian [22]SL chi tiết [23]Đơn giá chi tiết [24]Thành tiền chi tiết`
 
@@ -421,6 +519,7 @@ lần qua trigger nền sẽ xóa vật lý các cột `(JSON)` của schema cũ
 - Các chỉ tiêu sản phẩm và khách hàng được lặp lại trên từng dòng hóa đơn để có thể lọc và đối soát độc lập; phiếu trả không còn hóa đơn gốc vẫn được giữ bằng một dòng trống phần chi tiết bán.
 - Metadata nhóm hàng, thương hiệu và đơn vị tính được nối từ tab `Hàng hóa`; số điện thoại nối từ hồ sơ khách hàng.
 - Sheet không nhận webhook. `syncCustomerReport()` đối soát gần 07:00; `syncCustomerByProductReport()` cho phép cập nhật thủ công bất kỳ lúc nào.
+- Dashboard chỉ đọc sheet này khi gọi `/api/customer-product-top` và giữ cache riêng 90 giây; luồng `/api/dashboard` thông thường không tải sheet lớn này.
 
 ## 7.5. Các tab HN1/HN3/HN7 do Apps Script duy trì
 
@@ -447,13 +546,13 @@ Các phép tính "hôm nay", bucket ngày 7/30/90 ngày và `updatedAt` đều d
 
 | **Yêu cầu BRD**                          | **Yêu cầu SRS liên quan**           |
 |------------------------------------------|-------------------------------------|
-| Kết nối Sheets — Service Account (5.1)   | FR-01.1 → FR-01.6                   |
+| Kết nối Sheets & Caching (5.1)           | FR-01.1 → FR-01.7                   |
 | KPI tổng quan (5.2)                      | FR-02.1 → FR-02.9                   |
-| Biểu đồ & bảng chi tiết (5.3)           | FR-03.1 → FR-03.9                   |
+| Biểu đồ & bảng chi tiết (5.3)           | FR-03.1 → FR-03.11                  |
 | Bộ lọc 7/30/90 ngày (5.4)               | FR-04.1, FR-04.2, FR-04.3           |
 | Cập nhật dashboard (5.5)                 | FR-05.1 → FR-05.5                   |
 | Đồng bộ tự động — Apps Script (5.5)     | FR-06.1 → FR-06.14                  |
-| Giao diện Dashboard (5.3, 5.4, 5.5)     | FR-07.1 → FR-07.6                   |
+| Giao diện, Phân trang & Xuất Excel (5.3, 5.4, 5.5) | FR-07.1 → FR-07.14        |
 
 # 9. Rủi ro kỹ thuật & phương án giảm thiểu
 
@@ -469,4 +568,5 @@ Các phép tính "hôm nay", bucket ngày 7/30/90 ngày và `updatedAt` đều d
 | Trình duyệt trì hoãn timer khi tab chạy nền làm timestamp cũ                        | Lưu thời điểm fetch cuối và gọi lại API khi tab `visible` nếu đã qua chu kỳ 10 phút.                               |
 | Render.com free tier hibernation → cold start làm chậm request đầu tiên             | Health check endpoint `/health` được Render ping định kỳ để giữ instance ấm.                                       |
 
-*— Hết tài liệu SRS v1.2 —*
+*— Hết tài liệu SRS v1.6 —*
+

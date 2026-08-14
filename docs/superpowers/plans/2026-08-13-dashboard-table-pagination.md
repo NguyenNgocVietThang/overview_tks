@@ -36,7 +36,7 @@ This isolates the Products tab's two full-list tables as the dominant, reproduci
 **Interfaces:**
 - Produces: `paginate(items, page, pageSize) -> { items, page, pageSize, totalPages, totalItems }`. Exposed as `window.paginate` in the browser and via `module.exports` for Node tests (dual CommonJS/global pattern, no bundler needed). Task 2 depends on this exact signature and return shape.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `server/public/js/pagination.test.js`:
 ```js
@@ -75,7 +75,7 @@ test('paginate xu ly mang rong va input khong hop le ma khong throw', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run (from repo root):
 ```bash
@@ -83,7 +83,7 @@ node --test "server/public/js/pagination.test.js"
 ```
 Expected: FAIL — `Cannot find module './pagination'` (file doesn't exist yet).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `server/public/js/pagination.js`:
 ```js
@@ -116,7 +116,7 @@ if (typeof window !== 'undefined') {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run (from repo root):
 ```bash
@@ -124,7 +124,7 @@ node --test "server/public/js/pagination.test.js"
 ```
 Expected: PASS (2 tests, 0 failures).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/public/js/pagination.js server/public/js/pagination.test.js
@@ -143,7 +143,7 @@ git commit -m "feat(dashboard): add unit-tested pagination helper for large tabl
 - Produces: `renderPaginatedRows(tableKey, ids, items, rowHtmlFn, emptyColspan, emptyMessage)` — a reusable render helper. Task 3 reuses this exact function for the `lowStock` table; do not duplicate it.
 - Produces: `state.tablePages` (object, mirrors the existing `state.tableSorts` convention at `index.html:1393`) — tracks the current page per table key across re-renders.
 
-- [ ] **Step 1: Load the new script**
+- [x] **Step 1: Load the new script**
 
 In `server/public/index.html`, replace:
 ```html
@@ -155,7 +155,7 @@ with:
 <script src="/js/pagination.js"></script>
 ```
 
-- [ ] **Step 2: Add pagination-controls CSS**
+- [x] **Step 2: Add pagination-controls CSS**
 
 Find (around `index.html:527`):
 ```css
@@ -182,7 +182,7 @@ Replace with:
   @media (max-width:760px){
 ```
 
-- [ ] **Step 3: Add pagination controls markup**
+- [x] **Step 3: Add pagination controls markup**
 
 Find (around `index.html:1031-1042`):
 ```html
@@ -220,7 +220,7 @@ Replace with:
             </div>
 ```
 
-- [ ] **Step 4: Add `tablePages` state and the `renderPaginatedRows` helper**
+- [x] **Step 4: Add `tablePages` state and the `renderPaginatedRows` helper**
 
 Find (around `index.html:1393`):
 ```js
@@ -270,7 +270,7 @@ Find the start of the render helpers, right before `function renderView(view){` 
 
 ```
 
-- [ ] **Step 5: Wire the `allProducts` table to use it**
+- [x] **Step 5: Wire the `allProducts` table to use it**
 
 Find (around `index.html:2604-2611`):
 ```js
@@ -299,7 +299,7 @@ Replace with:
       );
 ```
 
-- [ ] **Step 6: Verify in the browser (no automated frontend test harness exists in this repo — see plan header)**
+- [x] **Step 6: Verify in the browser (no automated frontend test harness exists in this repo — see plan header)**
 
 Start the dev server preview (`.claude/launch.json` config `tokosi-dashboard`), then in the browser console / via the browser JS tool, on the loaded dashboard page:
 ```js
@@ -313,7 +313,7 @@ Expected: previously ~3500ms (see plan header Evidence), now well under 300ms.
 
 Also click the "Sau ›" / "‹ Trước" buttons under "Tất cả mã hàng" and confirm: the page label updates (`Trang 2/39`), the row count stays at 200 or fewer, `tagAllProducts` still shows the full total (7624, unchanged), and "Sau ›" disables on the last page / "‹ Trước" disables on page 1.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add server/public/index.html
@@ -330,7 +330,7 @@ git commit -m "perf(dashboard): paginate the all-products table instead of rende
 **Interfaces:**
 - Consumes: `renderPaginatedRows` (from Task 2) — reused unchanged with a different `tableKey` and `ids`.
 
-- [ ] **Step 1: Add pagination controls markup**
+- [x] **Step 1: Add pagination controls markup**
 
 Find (around `index.html:1022-1030`):
 ```html
@@ -362,7 +362,7 @@ Replace with:
             </div>
 ```
 
-- [ ] **Step 2: Wire the `lowStock` table to use `renderPaginatedRows`**
+- [x] **Step 2: Wire the `lowStock` table to use `renderPaginatedRows`**
 
 Find (around `index.html:2592-2597`):
 ```js
@@ -387,11 +387,11 @@ Replace with:
       );
 ```
 
-- [ ] **Step 3: Verify in the browser**
+- [x] **Step 3: Verify in the browser**
 
 Repeat the Task 2 Step 6 timing check — `switchView('products')` should now cover both tables and stay well under 300ms (down from ~3500ms). Click "Sau ›"/"‹ Trước" under "Hàng đã hết" and confirm the same behavior as Task 2 (label updates, `tagLowStock` still shows the full total of 4688, boundary buttons disable correctly), and confirm it doesn't interfere with the "Tất cả mã hàng" pagination state (each table's page is tracked independently via its own `tableKey`).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add server/public/index.html

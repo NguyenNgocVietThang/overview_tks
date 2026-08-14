@@ -73,13 +73,17 @@ webtks-dashboard/
 │
 ├── server/                      # Backend Node.js đọc/ghi Google Sheets & Web Server
 │   ├── dashboard/
-│   │   ├── dashboardData.js     # Thống kê tổng quan KPI & biểu đồ
-│   │   └── debtReport.js        # Báo cáo công nợ khách hàng 1/3/7 ngày từ HN1/HN3/HN7
+│   │   ├── dashboardData.js     # Thống kê tổng quan KPI, biểu đồ và tìm kiếm
+│   │   ├── dashboardData.test.js # Unit test dữ liệu dashboard/tìm kiếm/cache
+│   │   ├── debtReport.js        # Báo cáo công nợ khách hàng 1/3/7 ngày từ HN1/HN3/HN7
+│   │   ├── exportService.js     # Registry 16 bảng và tạo workbook Excel
+│   │   └── exportService.test.js # Unit test dữ liệu/file Excel
 │   ├── jobs/
 │   │   └── syncCustomerReport.js # Tác vụ đối soát toàn bộ 3 báo cáo lúc 07:00
 │   ├── public/                  # Frontend Live Dashboard
 │   │   ├── index.html
 │   │   ├── js/
+│   │   │   ├── export-ui.test.js # Kiểm tra nút/modal xuất Excel trong giao diện
 │   │   │   ├── pagination.js    # Phân trang client-side cho các bảng
 │   │   │   └── pagination.test.js # Unit test cho module phân trang
 │   │   └── vendor/
@@ -136,6 +140,9 @@ webtks-dashboard/
 │   ├── 04-planning/
 │   │   └── implementation_plan.md
 │   └── superpowers/
+│       ├── plans/
+│       │   ├── 2026-08-13-dashboard-result-cache.md
+│       │   └── 2026-08-13-dashboard-table-pagination.md
 │       └── specs/
 │           └── 2026-08-05-debt-dashboard-design.md
 │
@@ -152,9 +159,17 @@ webtks-dashboard/
 ## Cài đặt & triển khai
 
 ### Yêu cầu
-- [Node.js](https://nodejs.org/) ≥ 16
+- [Node.js](https://nodejs.org/) ≥ 18
 - [@google/clasp](https://github.com/google/clasp): `npm install -g @google/clasp`
 - Tài khoản Google có quyền truy cập Google Apps Script
+
+### Chạy kiểm thử tự động (Server & Frontend logic)
+Thư mục `server/` tích hợp sẵn 21 unit tests (dùng `node:test` chuẩn của Node.js, không cần thư viện ngoài):
+```bash
+cd server
+npm test
+```
+Bộ test bao gồm: kiểm thử Result Cache backend, phân trang client-side (`pagination.js`), đăng ký & tạo file Xuất Excel 16 bảng (`exportService.js`), tìm kiếm nhiều mã và Top 3 KH theo sản phẩm.
 
 ### Bước 1 — Clone & login
 ```bash
@@ -265,7 +280,12 @@ cho ba nhóm này.
 | [BRD](docs/01-brd/BRD_Dashboard_GoogleSheets.md) | Business Requirements Document |
 | [SRS](docs/02-srs/SRS_Dashboard_GoogleSheets.md) | Software Requirements Specification |
 | [BPMN](docs/03-process/BPMN_Dashboard_GoogleSheets.md) | Sơ đồ quy trình nghiệp vụ |
-| [Implementation Plan](docs/04-planning/implementation_plan.md) | Kế hoạch triển khai chi tiết |
+| [Implementation Plan](docs/04-planning/implementation_plan.md) | Kế hoạch triển khai chi tiết & trạng thái |
+| [Design System Master](design-system/tks-dashboard/MASTER.md) | Hệ thống token, component và quy tắc giao diện |
+| [Debt Dashboard Spec](docs/superpowers/specs/2026-08-05-debt-dashboard-design.md) | Đặc tả thiết kế module Báo cáo công nợ HN1/HN3/HN7 |
+| [Result Cache Plan](docs/superpowers/plans/2026-08-13-dashboard-result-cache.md) | Kế hoạch & chi tiết triển khai Result Cache tầng backend |
+| [Pagination Plan](docs/superpowers/plans/2026-08-13-dashboard-table-pagination.md) | Kế hoạch & chi tiết triển khai phân trang bảng client-side |
+| [Animation Plans](plans/README.md) | Kế hoạch chi tiết 5 cải tiến motion/transitions cho giao diện |
 | [Apps Script Guide](src/HuongDanSuDung.gs) | Hướng dẫn hàm, tác dụng và luồng liên kết; được push lên Apps Script |
 
 ---

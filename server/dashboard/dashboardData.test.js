@@ -57,6 +57,191 @@ test('rememberSearchSheets chi rebuild search index khi raw sheet data thuc su d
   );
 });
 
+test('tim nhieu ma khop chinh xac, bo ma trung va giu thu tu ma nhap', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const CONFIG = require('../config');
+  sheetsClient.getMultipleSheetValues = async (names) => {
+    const result = {};
+    names.forEach(name => { result[name] = []; });
+    result[CONFIG.SHEET_PRODUCTS] = [
+      ['Mã hàng', 'Tên hàng'],
+      ['SP-02', 'Sản phẩm hai'],
+      ['SP-01', 'Sản phẩm một'],
+      ['SP-010', 'Không được khớp một phần']
+    ];
+    return result;
+  };
+  dashboardData.__test__.resetCaches();
+
+  const result = await dashboardData.searchDashboardRecords(
+    'products',
+    '  sp-01\nSP-02\tSP-01  MA-KHONG-CO ',
+    'all',
+    'codes'
+  );
+
+  assert.deepEqual(result.results.map(item => item.code), ['SP-01', 'SP-02']);
+  assert.equal(result.requestedCount, 3);
+  assert.equal(result.matchedCount, 2);
+  assert.equal(result.missingCount, 1);
+  assert.equal(result.total, 2);
+});
+
+test('tim nhieu ma chap nhan 50 ma va tu choi 51 ma', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  mockSheets(sheetsClient, { count: 0 });
+  dashboardData.__test__.resetCaches();
+
+  const fiftyCodes = Array.from({ length: 50 }, (_, index) => `MA-${index + 1}`).join(' ');
+  const accepted = await dashboardData.searchDashboardRecords('products', fiftyCodes, 'all', 'codes');
+  assert.equal(accepted.requestedCount, 50);
+
+  const fiftyOneCodes = `${fiftyCodes} MA-51`;
+  await assert.rejects(
+    dashboardData.searchDashboardRecords('products', fiftyOneCodes, 'all', 'codes'),
+    error => error.code === 'TOO_MANY_SEARCH_CODES' && error.statusCode === 400
+  );
+});
+
+test('tim thong thuong van ho tro ten nhieu tu', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const CONFIG = require('../config');
+  sheetsClient.getMultipleSheetValues = async (names) => {
+    const result = {};
+    names.forEach(name => { result[name] = []; });
+    result[CONFIG.SHEET_PRODUCTS] = [
+      ['Mã hàng', 'Tên hàng'],
+      ['AT-01', 'Áo thun xanh']
+    ];
+    return result;
+  };
+  dashboardData.__test__.resetCaches();
+
+  const result = await dashboardData.searchDashboardRecords('products', 'áo thun', 'all');
+  assert.deepEqual(result.results.map(item => item.code), ['AT-01']);
+});
+
+function customerProductTopRows() {
+  return [
+    [
+      'Mã hàng', 'Tên hàng', 'Mã KH', 'Khách hàng',
+      'SL Trả (theo khách hàng)', 'Giá trị trả (theo khách hàng)',
+      'Thời gian', 'SL chi tiết', 'Thành tiền chi tiết'
+    ],
+    ['SP-01', 'Sản phẩm một', 'KH-A', 'Khách A', 2, 120, '10/08/2026 00:00:00', 3, 300],
+    ['SP-01', 'Sản phẩm một', 'KH-A', 'Khách A', 2, 120, '12/08/2026 23:59:59', 4, 400],
+    ['SP-01', 'Sản phẩm một', 'KH-A', 'Khách A', 2, 120, '13/08/2026 00:00:00', 100, 10000],
+    ['SP-01', 'Sản phẩm một', 'KH-B', 'Khách B', 0, 0, '11/08/2026 09:00:00', 8, 700],
+    ['SP-01', 'Sản phẩm một', 'KH-C', 'Khách C', 1, 50, '12/08/2026 10:00:00', 8, 650],
+    ['SP-01', 'Sản phẩm một', 'KH-D', 'Khách D', 1, 50, '12/08/2026 10:00:00', 8, 650],
+    ['SP-01', 'Sản phẩm một', 'KH-E', 'Khách E', 0, 0, '09/08/2026 23:59:59', 99, 9999],
+    ['SP-02', 'Sản phẩm hai', '', 'Khách lẻ', 0, 0, '12/08/2026 08:00:00', 2, 250]
+  ];
+}
+
+test('top KH theo san pham cong chi tiet trong ky, khong cong trung cot tra va xep hang on dinh', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const CONFIG = require('../config');
+  let fetchCount = 0;
+  sheetsClient.getMultipleSheetValues = async names => {
+    fetchCount += 1;
+    const result = {};
+    names.forEach(name => { result[name] = []; });
+    result[CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT] = customerProductTopRows();
+    return result;
+  };
+  dashboardData.__test__.resetCaches();
+
+  const result = await dashboardData.searchTopCustomersByProducts(
+    ' SP-02\nsp-01 SP-02 KHONG-CO ',
+    { mode: 'range', from: '2026-08-10', to: '2026-08-12' },
+    new Date('2026-08-14T12:00:00+07:00')
+  );
+
+  assert.equal(fetchCount, 1, 'sheet rieng chi duoc doc mot lan');
+  assert.equal(result.requestedCount, 3);
+  assert.equal(result.matchedCount, 2);
+  assert.equal(result.missingCount, 1);
+  assert.equal(result.total, 4);
+  assert.equal(result.filter.label, '10/08/2026 – 12/08/2026');
+  assert.deepEqual(
+    result.results.map(item => [item.productCode, item.customerName]),
+    [
+      ['SP-02', 'Khách lẻ'],
+      ['SP-01', 'Khách B'],
+      ['SP-01', 'Khách C'],
+      ['SP-01', 'Khách D']
+    ]
+  );
+
+  const customerAAllTimeCheck = await dashboardData.searchTopCustomersByProducts(
+    'SP-01',
+    { mode: 'range', from: '2026-08-10', to: '2026-08-12' },
+    new Date('2026-08-14T12:00:00+07:00')
+  );
+  assert.equal(fetchCount, 1, 'cache 90 giay duoc tai su dung');
+  assert.equal(customerAAllTimeCheck.results.length, 3);
+
+  const customerC = result.results.find(item => item.customerName === 'Khách C');
+  assert.equal(customerC.returnedQuantityAllTime, 1);
+  assert.equal(customerC.returnValueAllTime, 50);
+  assert.equal(customerC.netRevenue, 600);
+  assert.equal(customerC.lastPurchaseDate, '12/08/2026');
+});
+
+test('top KH theo san pham loc dung 1/7/30/90 ngay va che do tat ca', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const CONFIG = require('../config');
+  sheetsClient.getMultipleSheetValues = async names => {
+    const result = {};
+    names.forEach(name => { result[name] = []; });
+    result[CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT] = customerProductTopRows();
+    return result;
+  };
+  dashboardData.__test__.resetCaches();
+  const now = new Date('2026-08-14T12:00:00+07:00');
+
+  const oneDay = await dashboardData.searchTopCustomersByProducts('SP-01', { mode: 'days', days: 1 }, now);
+  const sevenDays = await dashboardData.searchTopCustomersByProducts('SP-01', { mode: 'days', days: 7 }, now);
+  const thirtyDays = await dashboardData.searchTopCustomersByProducts('SP-01', { mode: 'days', days: 30 }, now);
+  const ninetyDays = await dashboardData.searchTopCustomersByProducts('SP-01', { mode: 'days', days: 90 }, now);
+  const allTime = await dashboardData.searchTopCustomersByProducts('SP-01', { mode: 'all' }, now);
+
+  assert.equal(oneDay.matchedCount, 0);
+  assert.equal(sevenDays.matchedCount, 1);
+  assert.equal(thirtyDays.matchedCount, 1);
+  assert.equal(ninetyDays.matchedCount, 1);
+  assert.equal(allTime.matchedCount, 1);
+  assert.equal(allTime.filter.label, 'Tất cả');
+  assert.equal(allTime.results[0].customerName, 'Khách A');
+  assert.equal(allTime.results[0].purchasedQuantity, 107);
+  assert.equal(allTime.results[0].purchaseRevenue, 10700);
+  assert.equal(allTime.results[0].returnedQuantityAllTime, 2, 'cot tong tra lap lai khong duoc cong ba lan');
+  assert.equal(allTime.results[0].returnValueAllTime, 120, 'gia tri tra lap lai khong duoc cong ba lan');
+  assert.equal(allTime.results[0].netRevenue, 10580);
+});
+
+test('top KH theo san pham chap nhan 50 ma va tu choi 51 ma', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const CONFIG = require('../config');
+  sheetsClient.getMultipleSheetValues = async names => {
+    const result = {};
+    names.forEach(name => { result[name] = []; });
+    result[CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT] = [customerProductTopRows()[0]];
+    return result;
+  };
+  dashboardData.__test__.resetCaches();
+
+  const fiftyCodes = Array.from({ length: 50 }, (_, index) => `MA-${index + 1}`).join(' ');
+  const accepted = await dashboardData.searchTopCustomersByProducts(fiftyCodes, { mode: 'all' });
+  assert.equal(accepted.requestedCount, 50);
+
+  await assert.rejects(
+    dashboardData.searchTopCustomersByProducts(`${fiftyCodes} MA-51`, { mode: 'all' }),
+    error => error.code === 'TOO_MANY_SEARCH_CODES' && error.statusCode === 400
+  );
+});
+
 module.exports = { freshDashboardData, mockSheets, BASE_FILTERS };
 
 test('getDashboardData cache ket qua da tinh theo tung bo loc, khong tinh lai khi bo loc khong doi va raw sheets van con hieu luc', async () => {
