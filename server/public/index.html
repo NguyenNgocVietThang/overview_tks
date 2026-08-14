@@ -12,6 +12,7 @@
   })();
 </script>
 <script src="/vendor/chart.umd.min.js"></script>
+<script src="/js/pagination.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600&family=Open+Sans:wght@400;500;600;700&display=swap');
 
@@ -526,6 +527,18 @@
   }
   .loading-veil.show{ opacity:1; pointer-events:all; }
 
+  .pagination-controls{
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    margin-top:10px; font-family:var(--font-body); font-size:11.5px; color:var(--muted);
+  }
+  .pagination-controls button{
+    min-height:30px; padding:0 12px; border:1px solid var(--border); border-radius:7px;
+    background:var(--panel-2); color:var(--text); font-family:var(--font-body);
+    font-size:11.5px; font-weight:600; cursor:pointer; transition:border-color .15s ease, opacity .15s ease;
+  }
+  .pagination-controls button:hover:not(:disabled){ border-color:var(--muted); }
+  .pagination-controls button:disabled{ opacity:.4; cursor:default; }
+
   @media (max-width:760px){
     .menu-btn{ display:block; }
     .sidebar{ position:fixed; left:0; top:0; height:100vh; transform:translateX(-100%); box-shadow:0 0 30px rgba(0,0,0,0.4); }
@@ -1027,6 +1040,11 @@
                   <tbody id="stockRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
                 </table>
               </div>
+              <div class="pagination-controls" id="stockPagination" hidden>
+                <button type="button" id="stockPrevPage">‹ Trước</button>
+                <span id="stockPageLabel">Trang 1/1</span>
+                <button type="button" id="stockNextPage">Sau ›</button>
+              </div>
             </div>
             <div class="panel col-7">
               <div class="panel-head">
@@ -1038,6 +1056,11 @@
                   <thead><tr><th>Sản phẩm</th><th>Tồn</th><th>Đặt</th><th>Tỷ lệ</th><th>Trạng thái</th></tr></thead>
                   <tbody id="allProductRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
                 </table>
+              </div>
+              <div class="pagination-controls" id="allProductsPagination" hidden>
+                <button type="button" id="allProductsPrevPage">‹ Trước</button>
+                <span id="allProductsPageLabel">Trang 1/1</span>
+                <button type="button" id="allProductsNextPage">Sau ›</button>
               </div>
             </div>
           </div>
@@ -1391,6 +1414,7 @@
     debtPeriod: 1,
     lastFetchTime: 0,
     tableSorts: {},
+    tablePages: {}, // { [tableKey]: currentPage } — xem renderPaginatedRows()
     filters: {
       overview: { mode: 'days', days: 30 },
       products: { mode: 'days', days: 30 },
@@ -2485,6 +2509,40 @@
     return '<span class="pill ok">' + stock + '</span>';
   }
 
+  const TABLE_PAGE_SIZE = 200; // allProducts/lowStock co the len toi hang nghin dong; render het cung luc lam switchView('products') mat ~3.5s (xem docs/superpowers/plans/2026-08-13-dashboard-table-pagination.md)
+
+  /**
+   * Render 1 bang lon theo trang thay vi day het toan bo `items` vao DOM cung
+   * luc. Giu nguyen trang dang xem trong state.tablePages qua cac lan
+   * re-render (vi du sau khi loadData() refresh du lieu).
+   */
+  function renderPaginatedRows(tableKey, ids, items, rowHtmlFn, emptyColspan, emptyMessage){
+    const tbody = document.getElementById(ids.tbody);
+    const result = paginate(items, state.tablePages[tableKey] || 1, TABLE_PAGE_SIZE);
+    state.tablePages[tableKey] = result.page;
+
+    tbody.innerHTML = result.items.length
+      ? result.items.map(rowHtmlFn).join('')
+      : '<tr><td colspan="' + emptyColspan + '" class="empty">' + emptyMessage + '</td></tr>';
+
+    const pagination = document.getElementById(ids.pagination);
+    const prevBtn = document.getElementById(ids.prevBtn);
+    const nextBtn = document.getElementById(ids.nextBtn);
+    const label = document.getElementById(ids.label);
+    pagination.hidden = result.totalPages <= 1;
+    label.textContent = 'Trang ' + result.page + '/' + result.totalPages;
+    prevBtn.disabled = result.page <= 1;
+    nextBtn.disabled = result.page >= result.totalPages;
+    prevBtn.onclick = function(){
+      state.tablePages[tableKey] = result.page - 1;
+      renderPaginatedRows(tableKey, ids, items, rowHtmlFn, emptyColspan, emptyMessage);
+    };
+    nextBtn.onclick = function(){
+      state.tablePages[tableKey] = result.page + 1;
+      renderPaginatedRows(tableKey, ids, items, rowHtmlFn, emptyColspan, emptyMessage);
+    };
+  }
+
   function renderView(view){
     const d = state.data;
     if(!d) return;
@@ -2589,12 +2647,16 @@
       document.getElementById('pr-lowstock').textContent = d.kpi.lowStockCount;
       document.getElementById('pr-inactive').textContent = d.kpi.inactiveProducts || 0;
       document.getElementById('tagLowStock').textContent = d.lowStock.length;
-      const rows = document.getElementById('stockRows');
-      rows.innerHTML = d.lowStock.length ? d.lowStock.map(p =>
-        '<tr><td class="name-cell">' + escapeHtml(p.name) + '<br><span class="mono muted" style="font-size:10.5px;">' + escapeHtml(p.code) + '</span></td>' +
-        '<td>' + (p.type ? escapeHtml(p.type) : '—') + '</td><td>' + bizStatusPill(p.status) + '</td>' +
-        '<td class="mono muted" data-sort-value="' + p.cost + '">' + fmtMoney(p.cost) + '</td><td class="mono" data-sort-value="' + p.price + '">' + fmtMoney(p.price) + '</td></tr>'
-      ).join('') : '<tr><td colspan="5" class="empty">Không có sản phẩm đã hết hàng</td></tr>';
+      renderPaginatedRows(
+        'lowStock',
+        { tbody: 'stockRows', pagination: 'stockPagination', prevBtn: 'stockPrevPage', nextBtn: 'stockNextPage', label: 'stockPageLabel' },
+        d.lowStock,
+        p => '<tr><td class="name-cell">' + escapeHtml(p.name) + '<br><span class="mono muted" style="font-size:10.5px;">' + escapeHtml(p.code) + '</span></td>' +
+          '<td>' + (p.type ? escapeHtml(p.type) : '—') + '</td><td>' + bizStatusPill(p.status) + '</td>' +
+          '<td class="mono muted" data-sort-value="' + p.cost + '">' + fmtMoney(p.cost) + '</td><td class="mono" data-sort-value="' + p.price + '">' + fmtMoney(p.price) + '</td></tr>',
+        5,
+        'Không có sản phẩm đã hết hàng'
+      );
       const categoryValues = d.stockValueByCategory || [];
       document.getElementById('tagCategoryValue').textContent =
         (d.kpi.inventoryValueCategoryCount || 0) + ' nhóm · ' + fmtMoneyShort(d.kpi.totalInventoryValue || 0);
@@ -2603,12 +2665,16 @@
 
       const filteredProducts = d.allProducts || [];
       document.getElementById('tagAllProducts').textContent = filteredProducts.length;
-      const allRows = document.getElementById('allProductRows');
-      allRows.innerHTML = filteredProducts.length ? filteredProducts.map(p =>
-        '<tr><td class="name-cell">' + escapeHtml(p.name) + '<br><span class="mono muted" style="font-size:10.5px;">' + escapeHtml(p.code) + '</span></td>' +
-        '<td class="mono" data-sort-value="' + p.stock + '">' + stockPill(p.stock) + '</td><td class="mono muted" data-sort-value="' + p.reserved + '">' + p.reserved + '</td>' +
-        '<td class="mono muted" data-sort-value="' + p.pct + '">' + p.pct.toFixed(2) + '%</td><td>' + bizStatusPill(p.status) + '</td></tr>'
-      ).join('') : '<tr><td colspan="5" class="empty">Không có dữ liệu</td></tr>';
+      renderPaginatedRows(
+        'allProducts',
+        { tbody: 'allProductRows', pagination: 'allProductsPagination', prevBtn: 'allProductsPrevPage', nextBtn: 'allProductsNextPage', label: 'allProductsPageLabel' },
+        filteredProducts,
+        p => '<tr><td class="name-cell">' + escapeHtml(p.name) + '<br><span class="mono muted" style="font-size:10.5px;">' + escapeHtml(p.code) + '</span></td>' +
+          '<td class="mono" data-sort-value="' + p.stock + '">' + stockPill(p.stock) + '</td><td class="mono muted" data-sort-value="' + p.reserved + '">' + p.reserved + '</td>' +
+          '<td class="mono muted" data-sort-value="' + p.pct + '">' + p.pct.toFixed(2) + '%</td><td>' + bizStatusPill(p.status) + '</td></tr>',
+        5,
+        'Không có dữ liệu'
+      );
 
       const newlyImported = (d.products && d.products.newlyImported && d.products.newlyImported.products) || [];
       document.getElementById('tagNewlyImported').textContent = newlyImported.length;
