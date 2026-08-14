@@ -7,7 +7,10 @@ const CUSTOMER_REPORT_TRIGGER_HANDLER = 'syncCustomerReport';
 const CUSTOMER_REPORT_LAST_SYNC_PROPERTY = 'CUSTOMER_REPORT_LAST_SYNC_DATE';
 const CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY = 'CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION';
 const CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION = 'detail-quantity-header-v2';
+const CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_PROPERTY = 'CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_VERSION';
+const CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_VERSION = 'kiotviet-export-25-columns-v1';
 const CUSTOMER_REPORT_PAGE_SIZE = 100;
+const CUSTOMER_BY_PRODUCT_REPORT_WRITE_CHUNK_SIZE = 500;
 const CUSTOMER_REPORT_HEADERS = Object.freeze([
   'Mã KH',
   'Khách hàng',
@@ -36,11 +39,39 @@ const CUSTOMER_PRODUCT_REPORT_HEADERS = Object.freeze([
   'SL mua chi tiết',
   'Thời gian'
 ]);
+const CUSTOMER_BY_PRODUCT_REPORT_HEADERS = Object.freeze([
+  'Nhóm hàng',
+  'Mã hàng',
+  'Tên hàng',
+  'Thương hiệu',
+  'Đơn vị tính',
+  'SL Khách hàng',
+  'SL mua (theo sản phẩm)',
+  'Doanh thu (theo sản phẩm)',
+  'SL Trả (theo sản phẩm)',
+  'Giá trị trả (theo sản phẩm)',
+  'Doanh thu thuần (theo sản phẩm)',
+  'Mã KH',
+  'Khách hàng',
+  'Số điện thoại',
+  'SL mua (theo khách hàng)',
+  'Doanh thu (theo khách hàng)',
+  'SL Trả (theo khách hàng)',
+  'Giá trị trả (theo khách hàng)',
+  'Doanh thu thuần (theo khách hàng)',
+  'Mã hóa đơn',
+  'Chi nhánh',
+  'Thời gian',
+  'SL chi tiết',
+  'Đơn giá chi tiết',
+  'Thành tiền chi tiết'
+]);
 
 /**
- * Tao/cap nhat hai tab bao cao khach hang:
+ * Tao/cap nhat ba tab bao cao khach hang:
  * - "Bao cao ban hang": Ban hang -> Toan thoi gian (tu truoc den nay).
  * - "Hang ban theo khach": Hang ban theo khach -> 90 ngay qua.
+ * - "Khach theo hang hoa": Khach theo hang hoa -> Toan thoi gian.
  *
  * Moi hoa don/phieu tra hang la mot dong chi tiet giao dich, kem theo cac chi so
  * tong hop cua khach hang giong file xuat Bao cao ban hang cua KiotViet.
@@ -78,20 +109,38 @@ function syncCustomerReport() {
     });
     const reportRows = aggregateCustomerReport_(invoices, returns, period, customerProfiles);
     const productReportRows = aggregateCustomerProductReport_(invoices, productPeriod);
+    const productMetadataLookup = buildCustomerByProductMetadataLookup_();
+    const customerByProductReport = aggregateCustomerByProductReport_(
+      invoices,
+      returns,
+      period,
+      customerProfiles,
+      productMetadataLookup
+    );
     const reportSummary = summarizeCustomerReport_(reportRows);
 
     writeCustomerReportSheet_(reportRows, period);
     writeCustomerProductReportSheet_(productReportRows, productPeriod);
+    SpreadsheetApp.flush();
+    Logger.log(
+      'Chuan bi ghi Khach theo hang hoa: %s dong, %s san pham.',
+      customerByProductReport.rows.length,
+      customerByProductReport.productCount
+    );
+    writeCustomerByProductReportSheet_(customerByProductReport.rows, period);
     PropertiesService.getScriptProperties().setProperties({
       [CUSTOMER_REPORT_LAST_SYNC_PROPERTY]:
         Utilities.formatDate(new Date(), CUSTOMER_REPORT_TIME_ZONE, 'yyyy-MM-dd'),
-      [CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY]: CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION
+      [CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY]: CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION,
+      [CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_PROPERTY]: CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_VERSION
     });
     Logger.log(
-      'Da cap nhat Bao cao ban hang (toan thoi gian): %s khach hang, %s giao dich; Hang ban theo khach 90 ngay: %s dong hang.',
+      'Da cap nhat Bao cao ban hang: %s khach, %s giao dich; Hang ban theo khach: %s dong; Khach theo hang hoa: %s dong, %s san pham.',
       reportRows.length,
       reportSummary.transactionCount,
-      productReportRows.length
+      productReportRows.length,
+      customerByProductReport.rows.length,
+      customerByProductReport.productCount
     );
 
     return {
@@ -112,6 +161,19 @@ function syncCustomerReport() {
         fromDate: productPeriod.startLabel,
         toDate: productPeriod.endLabel,
         days: CUSTOMER_PRODUCT_REPORT_DAYS
+      },
+      customerByProductReport: {
+        sheetName: CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT,
+        rowCount: customerByProductReport.rows.length,
+        productCount: customerByProductReport.productCount,
+        customerProductCount: customerByProductReport.customerProductCount,
+        purchasedQuantity: customerByProductReport.purchasedQuantity,
+        revenue: customerByProductReport.revenue,
+        returnedQuantity: customerByProductReport.returnedQuantity,
+        returnValue: customerByProductReport.returnValue,
+        netRevenue: customerByProductReport.netRevenue,
+        fromDate: period.startLabel,
+        toDate: period.endLabel
       }
     };
   } finally {
@@ -128,6 +190,14 @@ function syncCustomerProductReport() {
 }
 
 /**
+ * Dong bo thu cong tab "Khach theo hang hoa". Ham dung chung mot luot lay API
+ * voi hai bao cao khach hang con lai de khong tang gap doi quota KiotViet.
+ */
+function syncCustomerByProductReport() {
+  return syncCustomerReport().customerByProductReport;
+}
+
+/**
  * Duoc goi boi trigger hang doi 1 phut dang co san. Sau 07:00, neu bao cao
  * chua duoc cap nhat trong ngay thi chay mot lan; neu loi se thu lai o phut sau.
  * Co che nay giup lich 07:00 hoat dong ngay sau khi push ma khong can tao them
@@ -140,7 +210,11 @@ function syncCustomerReportIfDue_() {
   const properties = PropertiesService.getScriptProperties();
   const lastSyncDate = properties.getProperty(CUSTOMER_REPORT_LAST_SYNC_PROPERTY);
   const schemaVersion = properties.getProperty(CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY);
-  const needsSchemaMigration = schemaVersion !== CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION;
+  const customerByProductSchemaVersion = properties.getProperty(
+    CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_PROPERTY
+  );
+  const needsSchemaMigration = schemaVersion !== CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION ||
+    customerByProductSchemaVersion !== CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_VERSION;
 
   if (!needsSchemaMigration && (hour < 7 || lastSyncDate === today)) return false;
 
@@ -550,6 +624,360 @@ function aggregateCustomerProductReport_(invoices, periodOrReturns, optionalPeri
   return rows.sort(compareCustomerProductReportRows_);
 }
 
+/**
+ * Tong hop bao cao "Khach theo hang hoa" theo dung 3 tang cua file xuat
+ * KiotViet: san pham -> khach hang -> chi tiet hoa don.
+ */
+function aggregateCustomerByProductReport_(
+  invoices,
+  returns,
+  period,
+  customerProfiles,
+  productMetadataLookup
+) {
+  const products = {};
+  const profileLookup = buildCustomerReportProfileLookup_(customerProfiles);
+  const metadataLookup = productMetadataLookup || {};
+
+  (invoices || []).forEach(invoice => {
+    const status = customerProductReportValue_(invoice, ['Status', 'status'], 0);
+    const purchaseDate = customerProductReportValue_(
+      invoice,
+      ['PurchaseDate', 'purchaseDate'],
+      ''
+    );
+    if (Number(status) !== 1 || !isCustomerReportDateInRange_(purchaseDate, period)) return;
+
+    const customerIdentity = customerByProductCustomerIdentity_(invoice, profileLookup);
+    const details = customerProductReportValue_(
+      invoice,
+      ['InvoiceDetails', 'invoiceDetails'],
+      []
+    );
+    (Array.isArray(details) ? details : []).forEach(detail => {
+      const product = getOrCreateCustomerByProduct_(products, detail, metadataLookup);
+      const customer = getOrCreateCustomerByProductCustomer_(product, customerIdentity);
+      const quantity = customerByProductQuantity_(detail);
+      const price = customerByProductPrice_(detail, invoice);
+      const amount = customerByProductAmount_(detail, quantity, price);
+
+      product.purchasedQuantity += quantity;
+      product.revenue += amount;
+      customer.purchasedQuantity += quantity;
+      customer.revenue += amount;
+      customer.sales.push({
+        invoiceCode: customerReportSafeText_(customerProductReportValue_(
+          invoice,
+          ['InvoiceCode', 'invoiceCode', 'Code', 'code'],
+          ''
+        )),
+        branchName: customerReportSafeText_(customerProductReportValue_(
+          invoice,
+          ['BranchName', 'branchName'],
+          ''
+        )),
+        purchaseTime: customerReportDateValue_(purchaseDate),
+        purchaseTimeMs: customerReportDateTime_(purchaseDate),
+        quantity: quantity,
+        price: price,
+        amount: amount
+      });
+    });
+  });
+
+  (returns || []).forEach(returnItem => {
+    const status = customerProductReportValue_(returnItem, ['Status', 'status'], 0);
+    const returnDate = customerProductReportValue_(
+      returnItem,
+      ['ReturnDate', 'returnDate'],
+      ''
+    );
+    if (Number(status) !== 1 || !isCustomerReportDateInRange_(returnDate, period)) return;
+
+    const customerIdentity = customerByProductCustomerIdentity_(returnItem, profileLookup);
+    const details = customerProductReportValue_(
+      returnItem,
+      ['ReturnDetails', 'returnDetails'],
+      []
+    );
+    (Array.isArray(details) ? details : []).forEach(detail => {
+      const product = getOrCreateCustomerByProduct_(products, detail, metadataLookup);
+      const customer = getOrCreateCustomerByProductCustomer_(product, customerIdentity);
+      const quantity = Math.abs(customerByProductQuantity_(detail));
+      const price = customerByProductPrice_(detail, returnItem);
+      const amount = Math.abs(customerByProductAmount_(detail, quantity, price));
+
+      product.returnedQuantity += quantity;
+      product.returnValue += amount;
+      customer.returnedQuantity += quantity;
+      customer.returnValue += amount;
+    });
+  });
+
+  const productList = Object.keys(products).map(key => {
+    const product = products[key];
+    product.netRevenue = product.revenue - product.returnValue;
+    product.customerList = Object.keys(product.customers).map(customerKey => {
+      const customer = product.customers[customerKey];
+      customer.netRevenue = customer.revenue - customer.returnValue;
+      customer.sales.sort((left, right) => {
+        if (right.purchaseTimeMs !== left.purchaseTimeMs) {
+          return right.purchaseTimeMs - left.purchaseTimeMs;
+        }
+        return String(left.invoiceCode).localeCompare(String(right.invoiceCode));
+      });
+      return customer;
+    }).sort((left, right) => {
+      if (right.netRevenue !== left.netRevenue) return right.netRevenue - left.netRevenue;
+      if (right.revenue !== left.revenue) return right.revenue - left.revenue;
+      return String(left.customerCode).localeCompare(String(right.customerCode));
+    });
+    product.customerCount = product.customerList.filter(customer => {
+      return customer.purchasedQuantity !== 0;
+    }).length;
+    return product;
+  }).sort((left, right) => {
+    if (right.netRevenue !== left.netRevenue) return right.netRevenue - left.netRevenue;
+    if (right.revenue !== left.revenue) return right.revenue - left.revenue;
+    return String(left.productCode).localeCompare(String(right.productCode));
+  });
+
+  const rows = [];
+  let customerProductCount = 0;
+  let purchasedQuantity = 0;
+  let revenue = 0;
+  let returnedQuantity = 0;
+  let returnValue = 0;
+
+  productList.forEach(product => {
+    purchasedQuantity += product.purchasedQuantity;
+    revenue += product.revenue;
+    returnedQuantity += product.returnedQuantity;
+    returnValue += product.returnValue;
+
+    product.customerList.forEach(customer => {
+      customerProductCount++;
+      const sales = customer.sales.length > 0 ? customer.sales : [{
+        invoiceCode: '',
+        branchName: '',
+        purchaseTime: '',
+        purchaseTimeMs: 0,
+        quantity: 0,
+        price: 0,
+        amount: 0
+      }];
+      sales.forEach(sale => {
+        rows.push([
+          product.categoryName,
+          product.productCode,
+          product.productName,
+          product.tradeMarkName,
+          product.unit,
+          product.customerCount,
+          product.purchasedQuantity,
+          product.revenue,
+          product.returnedQuantity,
+          product.returnValue,
+          product.netRevenue,
+          customer.customerCode,
+          customer.customerName,
+          customer.contactNumber,
+          customer.purchasedQuantity,
+          customer.revenue,
+          customer.returnedQuantity,
+          customer.returnValue,
+          customer.netRevenue,
+          sale.invoiceCode,
+          sale.branchName,
+          sale.purchaseTime,
+          sale.quantity,
+          sale.price,
+          sale.amount
+        ]);
+      });
+    });
+  });
+
+  return {
+    rows: rows,
+    productCount: productList.length,
+    customerProductCount: customerProductCount,
+    purchasedQuantity: purchasedQuantity,
+    revenue: revenue,
+    returnedQuantity: returnedQuantity,
+    returnValue: returnValue,
+    netRevenue: revenue - returnValue
+  };
+}
+
+function buildCustomerByProductMetadataLookup_() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_PRODUCTS);
+  if (!sheet || sheet.getLastRow() < 2 || sheet.getLastColumn() < 1) return {};
+
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(value => String(value || '').trim());
+  const codeIndex = headers.indexOf('Mã hàng');
+  if (codeIndex === -1) return {};
+
+  const nameIndex = headers.indexOf('Tên hàng');
+  const categoryIndex = headers.indexOf('Nhóm hàng');
+  const tradeMarkIndex = headers.indexOf('Thương hiệu');
+  const unitIndex = headers.indexOf('Đơn vị tính');
+  const lookup = {};
+
+  values.slice(1).forEach(row => {
+    const code = customerReportText_(row[codeIndex]);
+    if (!code) return;
+    lookup[code.toLocaleLowerCase()] = {
+      productCode: customerReportSafeText_(code),
+      productName: nameIndex === -1 ? '' : customerReportSafeText_(row[nameIndex]),
+      categoryName: categoryIndex === -1 ? '' : customerReportSafeText_(row[categoryIndex]),
+      tradeMarkName: tradeMarkIndex === -1 ? '' : customerReportSafeText_(row[tradeMarkIndex]),
+      unit: unitIndex === -1 ? '' : customerReportSafeText_(row[unitIndex])
+    };
+  });
+  return lookup;
+}
+
+function getOrCreateCustomerByProduct_(products, detail, metadataLookup) {
+  const productId = customerReportText_(customerProductReportValue_(
+    detail,
+    ['ProductId', 'productId'],
+    ''
+  ));
+  const productCode = customerReportText_(customerProductReportValue_(
+    detail,
+    ['ProductCode', 'productCode', 'Code', 'code'],
+    ''
+  ));
+  const productName = customerReportText_(customerProductReportValue_(
+    detail,
+    ['ProductName', 'productName', 'Name', 'name'],
+    ''
+  ));
+  const key = productId
+    ? 'id:' + productId
+    : (productCode
+      ? 'code:' + productCode.toLocaleLowerCase()
+      : 'name:' + productName.toLocaleLowerCase());
+  const metadata = metadataLookup[productCode.toLocaleLowerCase()] || {};
+
+  if (!products[key]) {
+    products[key] = {
+      productCode: customerReportSafeText_(productCode || metadata.productCode || ''),
+      productName: customerReportSafeText_(metadata.productName || productName),
+      categoryName: customerReportSafeText_(metadata.categoryName || ''),
+      tradeMarkName: customerReportSafeText_(metadata.tradeMarkName || ''),
+      unit: customerReportSafeText_(metadata.unit || ''),
+      purchasedQuantity: 0,
+      revenue: 0,
+      returnedQuantity: 0,
+      returnValue: 0,
+      netRevenue: 0,
+      customerCount: 0,
+      customers: {}
+    };
+  }
+  return products[key];
+}
+
+function customerByProductCustomerIdentity_(item, profileLookup) {
+  const customerId = customerReportText_(customerProductReportValue_(
+    item,
+    ['CustomerId', 'customerId'],
+    ''
+  ));
+  const itemCode = customerReportText_(customerProductReportValue_(
+    item,
+    ['CustomerCode', 'customerCode'],
+    ''
+  ));
+  const itemName = customerReportText_(customerProductReportValue_(
+    item,
+    ['CustomerName', 'customerName'],
+    'Khách lẻ'
+  )) || 'Khách lẻ';
+  const profile = (customerId && profileLookup.byId[customerId]) ||
+    (itemCode && profileLookup.byCode[itemCode.toLocaleLowerCase()]) || {};
+  const profileCode = customerReportText_(profile.code || profile.customerCode);
+  const profileName = customerReportText_(profile.name || profile.customerName);
+  const code = itemCode || profileCode;
+  const name = itemName !== 'Khách lẻ' ? itemName : (profileName || itemName);
+
+  return {
+    key: customerId
+      ? 'id:' + customerId
+      : (code ? 'code:' + code.toLocaleLowerCase() : 'name:' + name.toLocaleLowerCase()),
+    customerCode: customerReportSafeText_(code),
+    customerName: customerReportSafeText_(name),
+    contactNumber: customerReportSafeText_(
+      profile.contactNumber || profile.customerContactNumber ||
+      customerProductReportValue_(item, ['ContactNumber', 'contactNumber'], '')
+    )
+  };
+}
+
+function getOrCreateCustomerByProductCustomer_(product, identity) {
+  if (!product.customers[identity.key]) {
+    product.customers[identity.key] = {
+      customerCode: identity.customerCode,
+      customerName: identity.customerName,
+      contactNumber: identity.contactNumber,
+      purchasedQuantity: 0,
+      revenue: 0,
+      returnedQuantity: 0,
+      returnValue: 0,
+      netRevenue: 0,
+      sales: []
+    };
+  } else if (!product.customers[identity.key].contactNumber && identity.contactNumber) {
+    product.customers[identity.key].contactNumber = identity.contactNumber;
+  }
+  return product.customers[identity.key];
+}
+
+function customerByProductQuantity_(detail) {
+  return customerReportNumber_(customerProductReportValue_(
+    detail,
+    ['Quantity', 'quantity'],
+    0
+  ));
+}
+
+function customerByProductPrice_(detail, parent) {
+  const taxMode = Number(customerProductReportValue_(
+    parent,
+    ['PricingMode', 'pricingMode'],
+    0
+  )) === 1;
+  const priceKeys = taxMode
+    ? ['PriceAfterTax', 'priceAfterTax', 'Price', 'price']
+    : ['Price', 'price', 'PriceAfterTax', 'priceAfterTax'];
+  return customerReportNumber_(customerProductReportValue_(detail, priceKeys, 0));
+}
+
+function customerByProductAmount_(detail, quantity, price) {
+  const subTotal = customerProductReportValue_(
+    detail,
+    ['SubTotal', 'subTotal', 'SubTotalAfterTax', 'subTotalAfterTax'],
+    null
+  );
+  if (subTotal !== null && subTotal !== undefined && subTotal !== '') {
+    return customerReportNumber_(subTotal);
+  }
+  const discount = customerReportNumber_(customerProductReportValue_(
+    detail,
+    [
+      'AllocationDiscount', 'allocationDiscount',
+      'DiscountAfterTax', 'discountAfterTax',
+      'Discount', 'discount'
+    ],
+    0
+  ));
+  return quantity * price - discount;
+}
+
 function buildCustomerProductReportRow_(invoice, detail, purchaseDate) {
   const customerName = customerProductReportValue_(
     invoice,
@@ -781,6 +1209,121 @@ function writeCustomerProductReportSheet_(reportRows, period) {
   sheet.setColumnWidth(4, Math.max(sheet.getColumnWidth(4), 105));
   sheet.setColumnWidth(5, Math.max(sheet.getColumnWidth(5), 175));
   sheet.setRowHeight(1, 36);
+}
+
+function writeCustomerByProductReportSheet_(reportRows, period) {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = spreadsheet.getSheetByName(CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT);
+  if (!sheet) sheet = spreadsheet.insertSheet(CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT);
+
+  const columnCount = CUSTOMER_BY_PRODUCT_REPORT_HEADERS.length;
+  const rows = Array.isArray(reportRows) ? reportRows : [];
+  const requiredRows = rows.length + 1;
+  ensureCustomerByProductSheetSize_(sheet, requiredRows, columnCount);
+
+  const existingFilter = sheet.getFilter();
+  if (existingFilter) existingFilter.remove();
+  const previousLastRow = sheet.getLastRow();
+  const previousLastColumn = sheet.getLastColumn();
+
+  sheet.getRange(1, 1, 1, columnCount).setValues([CUSTOMER_BY_PRODUCT_REPORT_HEADERS]);
+  for (let offset = 0; offset < rows.length; offset += CUSTOMER_BY_PRODUCT_REPORT_WRITE_CHUNK_SIZE) {
+    const chunk = rows.slice(offset, offset + CUSTOMER_BY_PRODUCT_REPORT_WRITE_CHUNK_SIZE);
+    sheet.getRange(offset + 2, 1, chunk.length, columnCount).setValues(chunk);
+  }
+
+  if (previousLastRow > requiredRows) {
+    sheet.getRange(
+      requiredRows + 1,
+      1,
+      previousLastRow - requiredRows,
+      Math.max(previousLastColumn, columnCount)
+    ).clearContent().clearNote();
+  }
+  if (previousLastColumn > columnCount) {
+    sheet.getRange(
+      1,
+      columnCount + 1,
+      Math.max(previousLastRow, requiredRows),
+      previousLastColumn - columnCount
+    ).clearContent().clearNote();
+  }
+
+  const populatedRange = sheet.getRange(1, 1, requiredRows, columnCount);
+  populatedRange.setFontFamily('Open Sans');
+  sheet.getRange(1, 1, 1, columnCount)
+    .setFontWeight('bold')
+    .setFontColor('#FFFFFF')
+    .setBackground('#00A6A6')
+    .setFontFamily('Open Sans')
+    .setHorizontalAlignment('center')
+    .setWrap(true);
+  sheet.getRange(1, 1).setNote(
+    'Kiểu hiển thị: Báo cáo\n' +
+    'Mối quan tâm: Khách theo hàng hóa\n' +
+    'Thời gian: Toàn bộ lịch sử (' + period.startLabel + ' - ' + period.endLabel + ')\n' +
+    'Chi tiết: Sản phẩm -> khách hàng -> từng dòng hóa đơn hoàn thành.\n' +
+    'Tự động đối soát gần 07:00; có thể chạy tay syncCustomerByProductReport().\n' +
+    'Nguồn API: https://www.kiotviet.vn/huong-dan-su-dung-kiotviet/retail-ket-noi-api/public-api/'
+  );
+
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, 5).setNumberFormat('@');
+    sheet.getRange(2, 12, rows.length, 3).setNumberFormat('@');
+    sheet.getRange(2, 20, rows.length, 2).setNumberFormat('@');
+    [6, 7, 9, 15, 17, 23].forEach(column => {
+      sheet.getRange(2, column, rows.length, 1).setNumberFormat('#,##0.##');
+    });
+    [8, 10, 11, 16, 18, 19, 24, 25].forEach(column => {
+      sheet.getRange(2, column, rows.length, 1).setNumberFormat('#,##0');
+    });
+    sheet.getRange(2, 22, rows.length, 1).setNumberFormat('dd/MM/yyyy HH:mm:ss');
+    populatedRange.createFilter();
+  }
+
+  sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(2);
+  sheet.setTabColor('#00A6A6');
+  const widths = [
+    230, 125, 300, 130, 105, 105, 135, 155, 135, 150, 170, 115, 210,
+    130, 145, 165, 140, 155, 175, 125, 165, 175, 105, 125, 145
+  ];
+  widths.forEach((width, index) => sheet.setColumnWidth(index + 1, width));
+  sheet.setRowHeight(1, 48);
+}
+
+/**
+ * Tang grid theo cach co the retry an toan. Neu request insert bi timeout sau
+ * khi Google da xu ly, lan thu lai doc kich thuoc moi va chi chen phan con thieu.
+ */
+function ensureCustomerByProductSheetSize_(sheet, requiredRows, requiredColumns) {
+  const maxAttempts = 3;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const currentRows = sheet.getMaxRows();
+      if (currentRows < requiredRows) {
+        sheet.insertRowsAfter(currentRows, requiredRows - currentRows);
+      }
+      const currentColumns = sheet.getMaxColumns();
+      if (currentColumns < requiredColumns) {
+        sheet.insertColumnsAfter(currentColumns, requiredColumns - currentColumns);
+      }
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) {
+        SpreadsheetApp.flush();
+        Utilities.sleep(1000 * attempt);
+      }
+    }
+  }
+
+  throw new Error(
+    'Khong the mo rong grid Khach theo hang hoa den ' + requiredRows + ' dong x ' +
+    requiredColumns + ' cot: ' + (lastError ? lastError.toString() : 'khong ro loi')
+  );
 }
 
 /**

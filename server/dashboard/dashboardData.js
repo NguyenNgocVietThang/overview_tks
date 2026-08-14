@@ -47,6 +47,14 @@ function formatDMY(date) {
   return `${day}/${month}/${year}`;
 }
 
+function daysSince(date) {
+  const toUtcMidnight = d => {
+    const { day, month, year } = getDashboardDateParts(d);
+    return Date.UTC(Number(year), Number(month) - 1, Number(day));
+  };
+  return Math.round((toUtcMidnight(new Date()) - toUtcMidnight(date)) / DAY_MS);
+}
+
 function formatDMYHMS(date) {
   const { day, month, year, hour, minute, second } = getDashboardDateParts(date);
   return `${day}/${month}/${year} ${hour}:${minute}:${second}`;
@@ -996,6 +1004,7 @@ function computeDashboardData(sheets, filters, now) {
       code: entry.code,
       name: entry.name,
       firstImportDate: formatDMY(entry.date),
+      daysOnHand: daysSince(entry.date),
       _sortTime: entry.date.getTime()
     });
   });

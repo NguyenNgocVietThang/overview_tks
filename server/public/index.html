@@ -1083,8 +1083,8 @@
               <div class="panel-head"><h2>Hàng mới nhập <span class="tag" id="tagNewlyImported">—</span></h2></div>
               <div class="scroll-list newly-imported-table-scroll">
                 <table>
-                  <thead><tr><th>Mã hàng</th><th>Tên hàng</th><th>Ngày nhập đầu tiên</th><th>Doanh thu</th></tr></thead>
-                  <tbody id="newlyImportedRows"><tr><td colspan="4" class="empty">Đang tải...</td></tr></tbody>
+                  <thead><tr><th>Mã hàng</th><th>Tên hàng</th><th>Ngày nhập đầu tiên</th><th>Số ngày tồn tại</th><th>Doanh thu</th></tr></thead>
+                  <tbody id="newlyImportedRows"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
                 </table>
               </div>
             </div>
@@ -2682,8 +2682,9 @@
       newlyImportedTbody.innerHTML = newlyImported.length ? newlyImported.map(p =>
         '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
         '<td class="mono muted">' + escapeHtml(p.firstImportDate) + '</td>' +
+        '<td class="mono muted" data-sort-value="' + (Number(p.daysOnHand) || 0) + '">' + escapeHtml(String(p.daysOnHand)) + '</td>' +
         '<td class="mono" data-sort-value="' + (Number(p.revenue) || 0) + '">' + fmtMoney(p.revenue) + '</td></tr>'
-      ).join('') : '<tr><td colspan="4" class="empty">Không có mã hàng mới nhập · ' + escapeHtml(productRangeLabel) + '</td></tr>';
+      ).join('') : '<tr><td colspan="5" class="empty">Không có mã hàng mới nhập · ' + escapeHtml(productRangeLabel) + '</td></tr>';
 
       const newlyImportedInfo = (d.products && d.products.newlyImported) || {};
       const topNewlyImportedByRevenue = newlyImportedInfo.topByRevenue || [];

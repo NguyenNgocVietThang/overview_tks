@@ -6,10 +6,10 @@
 
 | **Thông tin**    | **Nội dung**                                                         |
 |------------------|----------------------------------------------------------------------|
-| Phiên bản tài liệu | 1.3                                                              |
+| Phiên bản tài liệu | 1.4                                                              |
 | Ngày tạo         | 27/07/2026                                                           |
-| Ngày cập nhật    | 07/08/2026                                                           |
-| Tài liệu liên quan | BRD v1.3 · SRS v1.3 · BPMN v1.3 · Debt Spec 2026-08-05            |
+| Ngày cập nhật    | 14/08/2026                                                           |
+| Tài liệu liên quan | BRD v1.3 · SRS v1.4 · BPMN v1.3 · Debt Spec 2026-08-05            |
 | Trạng thái       | Giai đoạn 1 hoàn thành — đang vận hành                               |
 
 ---
@@ -28,14 +28,16 @@ server/                     ← Node.js/Express backend (Render.com)
 ├── index.js
 ├── config.js
 ├── routes.js
-├── jobs/syncCustomerReport.js ← Đồng bộ 2 báo cáo khách hàng theo lịch 07:00
+├── jobs/syncCustomerReport.js ← Đối soát 3 báo cáo khách hàng theo lịch 07:00
 ├── sheets/sheetsClient.js  ← Liệt kê/lọc tab hiện có trước batchGet
-└── dashboard/
-    ├── dashboardData.js    ← Thống kê tổng quan KPI & biểu đồ (Asia/Ho_Chi_Minh)
-    └── debtReport.js       ← Báo cáo công nợ khách hàng 1/3/7 ngày từ HN1/HN3/HN7
-
-server/public/
-└── index.html              ← Frontend HTML/CSS/JS (Chart.js)
+├── dashboard/
+│   ├── dashboardData.js    ← Thống kê tổng quan KPI & biểu đồ (Asia/Ho_Chi_Minh)
+│   └── debtReport.js       ← Báo cáo công nợ khách hàng 1/3/7 ngày từ HN1/HN3/HN7
+└── public/
+    ├── index.html          ← Frontend HTML/CSS/JS (Chart.js)
+    └── js/
+        ├── pagination.js   ← Client-side pagination logic
+        └── pagination.test.js ← Unit test cho pagination
 ```
 
 ---
@@ -56,6 +58,7 @@ server/public/
 | 8     | Health check & Debug route            | `GET /health` → Render ping; `/api/debug` → kiểm tra kết nối và liệt kê `sheetTabs`                | ✅ Hoàn thành  |
 | 9     | Báo cáo công nợ KH 1/3/7 ngày         | `CustomerDebtReport.gs` tự động tính và ghi đè HN1/HN3/HN7; backend `debtReport.js` đọc và hiển thị| ✅ Hoàn thành  |
 | 10    | Lịch sử hàng Ngừng kinh doanh | `DiscontinuedProducts.gs` cập nhật toàn bộ lịch sử trong tab `Hàng ngừng kinh doanh` | ✅ Hoàn thành  |
+| 11    | Khách theo hàng hóa | `CustomerReport.gs` tổng hợp toàn bộ lịch sử theo 25 cột sản phẩm → khách → hóa đơn, cập nhật gần 07:00 hoặc chạy tay | ✅ Hoàn thành |
 
 ## 2.2. Tính năng đã vận hành
 
@@ -104,7 +107,7 @@ server/public/
 > `HuongDanSuDung.gs` → `config/` → `kiotviet/` → `sync/` → `utils/`
 > `Config.gs` luôn được khởi tạo trước tất cả module khác. ✅
 
-> **Schema Google Sheets:** Apps Script duy trì 9 tab vận hành, tab lịch sử `Hàng ngừng kinh doanh`, 2 tab báo cáo bán hàng, 3 tab báo cáo công nợ HN1/HN3/HN7 và tab ẩn `_KV_WEBHOOK_QUEUE`. Queue không hết hạn, chỉ xóa sự kiện sau khi ghi thành công và tự retry lỗi. Ba tab `HN1`/`HN3`/`HN7` do `CustomerDebtReport.gs` tự động tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00 (hoặc chạy tay), được backend `server/dashboard/debtReport.js` đọc để dựng báo cáo công nợ. `src/kiotviet/SheetSchemas.gs` ghi dữ liệu mới trước khi dọn dòng dư để tránh xóa trắng khi cập nhật lỗi.
+> **Schema Google Sheets:** Apps Script duy trì 9 tab vận hành, tab lịch sử `Hàng ngừng kinh doanh`, 3 tab báo cáo khách hàng, 3 tab báo cáo công nợ HN1/HN3/HN7 và tab ẩn `_KV_WEBHOOK_QUEUE`. Queue không hết hạn, chỉ xóa sự kiện sau khi ghi thành công và tự retry lỗi. Ba tab `HN1`/`HN3`/`HN7` do `CustomerDebtReport.gs` tự động tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00 (hoặc chạy tay), được backend `server/dashboard/debtReport.js` đọc để dựng báo cáo công nợ. `src/kiotviet/SheetSchemas.gs` ghi dữ liệu mới trước khi dọn dòng dư để tránh xóa trắng khi cập nhật lỗi.
 > `sheetsClient.js` lọc tab hiện có trước `batchGet`, nên tab thiếu chỉ làm rỗng section tương ứng. Khi thay đổi các cột tương thích dashboard vẫn phải cập nhật đồng bộ `SheetSchemas.gs`, `server/config.js` và `server/dashboard/dashboardData.js`.
 
 > **Múi giờ:** Backend cố định `Asia/Ho_Chi_Minh`/UTC+07:00 cho parse ngày, KPI "hôm nay", bucket 7/30/90 ngày và `updatedAt`; không phụ thuộc timezone mặc định của Render.
@@ -115,4 +118,4 @@ server/public/
 
 ---
 
-*— Cập nhật lần cuối: 07/08/2026 —*
+*— Cập nhật lần cuối: 14/08/2026 —*

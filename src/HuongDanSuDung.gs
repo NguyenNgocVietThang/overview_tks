@@ -24,7 +24,7 @@ trong src/ de clasp push len va co the doc truc tiep trong Apps Script Editor.
 syncAllInitialData()
   Khi dung : Lan cai dat dau tien, hoac khi can doi soat toan bo.
   Tac dung : Lay token, migrate schema neu can, tai lai 9 tab van hanh; cap nhat
-             lich su Hang ngung kinh doanh; tao lai 2 tab bao cao ban hang va
+             lich su Hang ngung kinh doanh; tao lai 3 tab bao cao khach hang va
              3 tab HN1/HN3/HN7.
   Goi tiep : getKiotVietDataLock_()
              -> migrateKiotVietSheetsIfNeeded_()
@@ -54,9 +54,14 @@ setupKiotVietAutoSync()
              do, chay setupCustomerReport() rieng.
 
 setupCustomerReport()
-  Khi dung : Mot lan neu muon Apps Script tu doi soat 2 bao cao luc 07:00.
+  Khi dung : Mot lan neu muon Apps Script tu doi soat 3 bao cao luc 07:00.
   Tac dung : Chay syncCustomerReport() ngay va tao lai trigger hang ngay.
   Goi tiep : syncCustomerReport() -> setupCustomerReportDailyTrigger().
+
+syncCustomerByProductReport()
+  Khi dung : Chay tay bat cu luc nao can cap nhat tab Khach theo hang hoa.
+  Tac dung : Lam moi bao cao 25 cot theo toan bo lich su; de tiet kiem quota,
+             cung doi soat Bao cao ban hang va Hang ban theo khach trong mot luot.
 
 setupCustomerDebtReports()
   Khi dung : Mot lan neu muon Apps Script tu dong cap nhat HN1/HN3/HN7 luc 15:00.
@@ -188,7 +193,8 @@ sync/UpdateHandlers.gs
   Hydrate ban ghi va dieu phoi upsert/xoa cho tung loai webhook.
 
 kiotviet/CustomerReport.gs
-  Tao/doi soat Bao cao ban hang va Hang ban theo khach; quan ly trigger 07:00.
+  Tao/doi soat Bao cao ban hang, Hang ban theo khach va Khach theo hang hoa;
+  quan ly trigger 07:00 va cung cap ham chay tay tung bao cao.
 
 kiotviet/CustomerDebtReport.gs
   Tinh va ghi bao cao cong no khach hang HN1/HN3/HN7 (1/3/7 ngay gan day, tinh

@@ -7,13 +7,13 @@
 | **Thông tin**      | **Nội dung**                                               |
 |--------------------|------------------------------------------------------------|
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                          |
-| Phiên bản          | 1.3                                                        |
+| Phiên bản          | 1.4                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 07/08/2026                                                 |
+| Ngày cập nhật      | 13/08/2026                                                 |
 | Tài liệu liên quan | BRD v1.3 — Hệ thống Dashboard nội bộ TOKOSI               |
 | Trạng thái         | Đang vận hành (Giai đoạn 1 đã triển khai)                 |
 
-> **Ghi chú phiên bản 1.3:** Đồng bộ đặc tả với các thay đổi đang vận hành: bổ sung module Apps Script `CustomerDebtReport.gs` tự động tính và ghi đè HN1/HN3/HN7 lúc 15:00, module `DiscontinuedProducts.gs` lưu lịch sử hàng ngừng kinh doanh từ trước tới nay trong một tab duy nhất, module backend `server/dashboard/debtReport.js` phục vụ báo cáo công nợ 1/3/7 ngày, cùng các bộ lọc tìm kiếm sản phẩm tiếng Việt tối ưu.
+> **Ghi chú phiên bản 1.4:** Bổ sung tab `Khách theo hàng hóa` 25 cột theo file xuất KiotViet, tổng hợp toàn bộ lịch sử theo sản phẩm → khách hàng → hóa đơn và đối soát gần 07:00 hoặc chạy tay.
 
 # 1. Giới thiệu
 
@@ -208,14 +208,15 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-06.3 | `setupPollingTrigger()`: bật trigger 15 phút để sync Trả hàng + Nhà cung cấp + Nhập hàng (KiotViet không có webhook cho 3 loại này).                                          | Cao         | Hoàn thành     |
 | FR-06.4 | `setupRealtimeWebhook()`: đăng ký 9 loại event webhook với KiotViet API, xóa webhook cũ trước khi đăng ký mới.                                                               | Cao         | Hoàn thành     |
 | FR-06.5 | Retry tự động tối đa 5 lần (exponential backoff) khi gọi KiotViet API bị lỗi tạm thời (429/5xx/network error).                                                               | Cao         | Hoàn thành     |
-| FR-06.6 | `syncCustomerReport()`: tổng hợp hóa đơn và trả hàng hoàn thành trong tháng, ghi tab `Báo cáo bán hàng` đủ 18 cột như file xuất KiotViet, gồm thông tin khách, số đơn, tổng tiền, giảm giá, doanh thu và chi tiết từng giao dịch. | Cao | Hoàn thành |
+| FR-06.6 | `syncCustomerReport()`: tổng hợp toàn bộ lịch sử hóa đơn và trả hàng hoàn thành, ghi tab `Báo cáo bán hàng` đủ 18 cột như file xuất KiotViet, gồm thông tin khách, số đơn, tổng tiền, giảm giá, doanh thu và chi tiết từng giao dịch. | Cao | Hoàn thành |
 | FR-06.7 | Tab `Hàng bán theo khách` giữ đúng 5 cột Khách hàng, Mã hàng, Tên hàng, SL mua chi tiết, Thời gian; mỗi chi tiết hàng hóa của hóa đơn hoàn thành trong 90 ngày là một dòng. | Cao | Hoàn thành |
-| FR-06.8 | Webhook hóa đơn thay/xóa đúng các dòng `Hàng bán theo khách` trong chu kỳ hàng đợi 1 phút; `syncCustomerReportIfDue_()` vẫn đối soát toàn bộ hai báo cáo một lần/ngày sau 07:00. | Cao | Hoàn thành |
+| FR-06.8 | Webhook hóa đơn thay/xóa đúng các dòng `Hàng bán theo khách` trong chu kỳ hàng đợi 1 phút; `syncCustomerReportIfDue_()` đối soát toàn bộ ba báo cáo một lần/ngày sau 07:00. | Cao | Hoàn thành |
 | FR-06.9 | 9 sheet giữ các cột dashboard ở bên trái và các trường KiotViet dạng phẳng đang dùng ở bên phải; không lưu object/mảng hoặc payload gốc dạng JSON. Trigger nền tự xóa vật lý các cột `(JSON)` của schema cũ sau khi deploy. | Cao | Hoàn thành |
 | FR-06.10 | Webhook phải được ghi vào tab hàng đợi ẩn bền vững trước khi phản hồi thành công; chỉ xóa sau khi xử lý thành công. Lỗi được retry tối đa 10 lần rồi giữ ở trạng thái `ERROR` để xử lý thủ công. | Cao | Hoàn thành |
 | FR-06.11 | Full sync ghi dữ liệu mới trước khi dọn dòng cũ dư và khóa chung với luồng webhook, tránh xóa trắng hoặc ghi đè chéo khi cập nhật lỗi. | Cao | Hoàn thành |
 | FR-06.12 | `syncCustomerDebtReports()` dùng cùng luồng tính cho chạy riêng và `syncAllInitialData()`, ghi đè HN1/HN3/HN7 theo kỳ 1/3/7 ngày và tự cập nhật gần 15:00. | Cao | Hoàn thành |
 | FR-06.13 | Chỉ duy trì tab `Hàng ngừng kinh doanh`; dữ liệu lịch sử không bị xóa theo ngày và tab legacy `Hàng ngừng KD hôm nay` được gộp/dọn khi đồng bộ. | Cao | Hoàn thành |
+| FR-06.14 | Tab `Khách theo hàng hóa` có đúng 25 cột như file xuất KiotViet, tổng hợp toàn bộ lịch sử theo sản phẩm → khách hàng → chi tiết hóa đơn; chỉ cập nhật gần 07:00 hoặc qua `syncCustomerByProductReport()`, không nhận cập nhật webhook. | Cao | Hoàn thành |
 
 ## 3.7. FR-07: Giao diện người dùng
 
@@ -398,7 +399,7 @@ lần qua trigger nền sẽ xóa vật lý các cột `(JSON)` của schema cũ
 
 - Mỗi hóa đơn hoặc phiếu trả hàng là một dòng; các cột tổng hợp theo khách hàng được lặp lại để mỗi dòng có thể lọc/đối soát độc lập.
 - Số điện thoại và nhóm khách hàng được nối từ endpoint khách hàng của KiotViet; mã, thời gian, nhân viên, số lượng và giá trị giao dịch lấy từ hóa đơn/phiếu trả.
-- Dữ liệu được lấy theo bộ lọc KiotViet: Kiểu hiển thị **Báo cáo**, Mối quan tâm **Bán hàng**, Thời gian **Tháng này**.
+- Dữ liệu bao phủ toàn bộ lịch sử đến hết ngày hiện tại theo `Asia/Ho_Chi_Minh`.
 - Chỉ tính hóa đơn/phiếu trả hàng trạng thái hoàn thành; `Doanh thu thuần = Doanh thu - Giá trị trả`.
 - Trigger hàng đợi kiểm tra mỗi phút và chạy một lần/ngày sau 07:00 theo `Asia/Ho_Chi_Minh`; nếu lỗi sẽ thử lại ở phút kế tiếp.
 
@@ -412,20 +413,29 @@ lần qua trigger nền sẽ xóa vật lý các cột `(JSON)` của schema cũ
 - Chỉ ghi hóa đơn trạng thái hoàn thành. Webhook cập nhật trong khoảng 1 phút; mã/ID hóa đơn được lưu ở note nội bộ của cột A để thay hoặc xóa đúng dòng mà không phải thêm cột kỹ thuật.
 - Lượt đồng bộ gần 07:00 làm mới toàn bộ cửa sổ 90 ngày để loại bản ghi hết hạn và đối soát sai lệch webhook.
 
-## 7.4. Các tab HN1/HN3/HN7 do Apps Script duy trì
+## 7.4. Schema tab "Khách theo hàng hóa" (dashboard không đọc)
+
+`[0]Nhóm hàng [1]Mã hàng [2]Tên hàng [3]Thương hiệu [4]Đơn vị tính [5]SL Khách hàng [6]SL mua (theo sản phẩm) [7]Doanh thu (theo sản phẩm) [8]SL Trả (theo sản phẩm) [9]Giá trị trả (theo sản phẩm) [10]Doanh thu thuần (theo sản phẩm) [11]Mã KH [12]Khách hàng [13]Số điện thoại [14]SL mua (theo khách hàng) [15]Doanh thu (theo khách hàng) [16]SL Trả (theo khách hàng) [17]Giá trị trả (theo khách hàng) [18]Doanh thu thuần (theo khách hàng) [19]Mã hóa đơn [20]Chi nhánh [21]Thời gian [22]SL chi tiết [23]Đơn giá chi tiết [24]Thành tiền chi tiết`
+
+- Dữ liệu bao phủ toàn bộ lịch sử; chỉ tính hóa đơn và phiếu trả hoàn thành.
+- Các chỉ tiêu sản phẩm và khách hàng được lặp lại trên từng dòng hóa đơn để có thể lọc và đối soát độc lập; phiếu trả không còn hóa đơn gốc vẫn được giữ bằng một dòng trống phần chi tiết bán.
+- Metadata nhóm hàng, thương hiệu và đơn vị tính được nối từ tab `Hàng hóa`; số điện thoại nối từ hồ sơ khách hàng.
+- Sheet không nhận webhook. `syncCustomerReport()` đối soát gần 07:00; `syncCustomerByProductReport()` cho phép cập nhật thủ công bất kỳ lúc nào.
+
+## 7.5. Các tab HN1/HN3/HN7 do Apps Script duy trì
 
 - `CustomerDebtReport.gs` lấy dữ liệu khách hàng, hóa đơn, trả hàng và thu/chi từ KiotViet rồi ghi HN1/HN3/HN7 theo các kỳ 1/3/7 ngày.
 - `syncAllInitialData()` làm mới tab Hàng hóa trước khi dựng ba báo cáo để thông tin mã hàng, tên hàng, thương hiệu và nhóm hàng giống kết quả chạy `syncCustomerDebtReports()` riêng.
 - Trigger hàng ngày chạy gần 15:00; hàng đợi một phút có cơ chế chạy bù nếu lịch ngày bị trễ hoặc lỗi.
 - Backend dashboard chỉ đọc ba tab này và không ghi ngược lại.
 
-## 7.5. Webhook KiotViet — 9 loại event
+## 7.6. Webhook KiotViet — 9 loại event
 
 `product.update`, `product.delete`, `stock.update`, `customer.update`, `customer.delete`, `invoice.update`, `order.update`, `category.update`, `category.delete`
 
 **Lưu ý quan trọng:** KiotViet KHÔNG có webhook cho Trả hàng (`return.*`), Nhà cung cấp (`supplier.*`), Nhập hàng (`purchaseorder.*`) → dùng polling 15 phút để cân bằng độ mới dữ liệu và quota.
 
-## 7.6. Format ngày tháng
+## 7.7. Format ngày tháng
 
 Tất cả giá trị ngày trong sheet được lưu dạng chuỗi: `dd/MM/yyyy HH:mm` (vd: `28/07/2026 14:30`), do Apps Script dùng `Utilities.formatDate(..., 'Asia/Ho_Chi_Minh', 'dd/MM/yyyy HH:mm')`.
 
@@ -442,7 +452,7 @@ Các phép tính "hôm nay", bucket ngày 7/30/90 ngày và `updatedAt` đều d
 | Biểu đồ & bảng chi tiết (5.3)           | FR-03.1 → FR-03.9                   |
 | Bộ lọc 7/30/90 ngày (5.4)               | FR-04.1, FR-04.2, FR-04.3           |
 | Cập nhật dashboard (5.5)                 | FR-05.1 → FR-05.5                   |
-| Đồng bộ tự động — Apps Script (5.5)     | FR-06.1 → FR-06.5                   |
+| Đồng bộ tự động — Apps Script (5.5)     | FR-06.1 → FR-06.14                  |
 | Giao diện Dashboard (5.3, 5.4, 5.5)     | FR-07.1 → FR-07.6                   |
 
 # 9. Rủi ro kỹ thuật & phương án giảm thiểu
