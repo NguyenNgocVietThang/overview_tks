@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quản lý vận chuyển · TOKOSI Dashboard</title>
+<script>
+  (function(){
+    try{
+      document.documentElement.dataset.theme = localStorage.getItem('tks-dashboard-theme') === 'light' ? 'light' : 'dark';
+    } catch(err){
+      document.documentElement.dataset.theme = 'dark';
+    }
+    document.documentElement.style.visibility = 'hidden';
+  })();
+</script>
+<link rel="stylesheet" href="/shared/shared.css">
+<script src="/shared/shared-nav.js"></script>
+<style>
+  .roadmap-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
+  .roadmap-list li{
+    display:flex; align-items:flex-start; gap:12px;
+    padding:12px 14px; border:1px solid var(--border); border-radius:10px; background:var(--panel-2);
+  }
+  .roadmap-badge{
+    flex-shrink:0; min-width:74px; text-align:center; padding:3px 8px; border-radius:6px;
+    font-family:var(--font-data); font-size:11px; font-weight:700;
+    background:rgba(240,166,58,0.12); color:var(--amber);
+  }
+  .roadmap-badge.done{ background:rgba(61,214,140,0.12); color:var(--green); }
+  .roadmap-text strong{ display:block; font-size:13.5px; margin-bottom:2px; }
+  .roadmap-text span{ font-size:12px; color:var(--muted); }
+  .empty-hero{ max-width:560px; margin:0 auto; text-align:center; padding:40px 0 8px; }
+  .empty-hero svg{ width:56px; height:56px; color:var(--amber); margin-bottom:14px; }
+  .empty-hero h2{ font-family:var(--font-display); font-size:20px; margin:0 0 8px; }
+  .empty-hero p{ color:var(--muted); font-size:13px; line-height:1.6; margin:0 0 24px; }
+</style>
+</head>
+<body>
+  <div class="receipt-header">
+    <div class="brand">
+      <button class="menu-btn" id="menuBtn" type="button" onclick="toggleSidebar()" aria-label="Mở menu điều hướng" aria-expanded="false" aria-controls="sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+      </button>
+      <div class="brand-mark">
+        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" fill="none">
+          <text x="50" y="18" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="18" fill="#CC1111" letter-spacing="1">TOKOSI</text>
+          <polyline points="18,42 50,22 82,42" stroke="#CC1111" stroke-width="6" stroke-linejoin="round" fill="none"/>
+          <polyline points="24,48 50,30 76,48" stroke="#CC1111" stroke-width="5" stroke-linejoin="round" fill="none"/>
+          <polyline points="22,52 22,80 78,80 78,52" stroke="#CC1111" stroke-width="5.5" stroke-linejoin="round" fill="none"/>
+          <rect x="34" y="58" width="32" height="14" rx="2" stroke="#CC1111" stroke-width="4" fill="none"/>
+          <line x1="34" y1="63" x2="66" y2="63" stroke="#CC1111" stroke-width="3"/>
+          <line x1="34" y1="67.5" x2="66" y2="67.5" stroke="#CC1111" stroke-width="3"/>
+          <circle cx="41" cy="76" r="3" fill="#CC1111"/>
+          <circle cx="59" cy="76" r="3" fill="#CC1111"/>
+          <path d="M12,86 Q50,96 88,86" stroke="#CC1111" stroke-width="5" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>TOKOSI · Quản lý vận chuyển</h1>
+        <p>4 luồng giao hàng · trạng thái đơn theo thời gian thực</p>
+      </div>
+    </div>
+    <div class="status-line">
+      <div class="account-chip" id="accountChip"></div>
+    </div>
+  </div>
+
+  <div class="shell">
+    <div class="backdrop" id="backdrop" onclick="toggleSidebar()"></div>
+    <div class="sidebar" id="sidebar"></div>
+
+    <div class="content">
+      <div class="empty-hero">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle></svg>
+        <h2>Quản lý vận chuyển đang được xây dựng</h2>
+        <p>
+          Tính năng theo dõi đơn hàng theo 4 luồng giao hàng (HN An Khánh, SG Tân Phú, đường tàu,
+          shipper), bot Telegram tự động cho 9 nhóm chat, OCR bill ký nhận và KPI vận chuyển sẽ
+          xuất hiện tại đây. Đăng nhập/phân quyền (nền tảng của tính năng này) đã sẵn sàng.
+        </p>
+      </div>
+
+      <div class="panel">
+        <h3 style="margin:0 0 12px; font-family:var(--font-display); font-size:14px;">Lộ trình triển khai</h3>
+        <ul class="roadmap-list">
+          <li>
+            <span class="roadmap-badge done">Phase 0</span>
+            <span class="roadmap-text"><strong>Nền tảng đăng nhập</strong><span>Đăng nhập, phân quyền theo vai trò, tái cấu trúc menu — đã hoàn thành.</span></span>
+          </li>
+          <li>
+            <span class="roadmap-badge">Phase 1</span>
+            <span class="roadmap-text"><strong>MVP vận chuyển thủ công</strong><span>Tạo/sửa đơn hàng thủ công, trạng thái vận chuyển, trang tra cứu khách hàng công khai.</span></span>
+          </li>
+          <li>
+            <span class="roadmap-badge">Phase 2</span>
+            <span class="roadmap-text"><strong>Tự động hóa</strong><span>Nạp đơn tự động từ KiotViet, bot Telegram cho 9 nhóm chat, OCR bill ký nhận.</span></span>
+          </li>
+          <li>
+            <span class="roadmap-badge">Phase 3</span>
+            <span class="roadmap-text"><strong>Vận hành đầy đủ</strong><span>Dashboard KPI, đối soát cuối ngày, quản lý xe/tài xế, cảnh báo real-time.</span></span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleSidebar(){
+      const isOpen = document.getElementById('sidebar').classList.toggle('open');
+      document.getElementById('backdrop').classList.toggle('show', isOpen);
+      const menuBtn = document.getElementById('menuBtn');
+      menuBtn.setAttribute('aria-expanded', String(isOpen));
+      menuBtn.setAttribute('aria-label', isOpen ? 'Đóng menu điều hướng' : 'Mở menu điều hướng');
+    }
+
+    TKSNav.renderTopSidebar(document.getElementById('sidebar'), 'shipment');
+    TKSNav.authGuard();
+  </script>
+</body>
+</html>

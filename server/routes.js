@@ -10,10 +10,26 @@ const router = express.Router();
 const sheetsClient = require('./sheets/sheetsClient');
 const { getExportFields, createExportWorkbook } = require('./dashboard/exportService');
 const CONFIG = require('./config');
+const authRoutes = require('./auth/authRoutes');
+const { requireAuth } = require('./auth/authMiddleware');
 
 router.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
+
+// /api/auth/* mount truoc — POST /login va POST /logout khong doi hoi da dang
+// nhap (do chinh la noi de dang nhap); GET /me tu bao ve bang requireAuth ben trong.
+router.use(authRoutes);
+
+// Toan bo API "Bao cao tong hop" ben duoi day yeu cau da dang nhap (bat ky 1
+// trong 4 vai tro co tai khoan web) — day la ranh gioi bao mat that su, khac
+// voi auth-guard phia client chi de dieu huong UX. Trang tra cuu cong khai
+// cho khach hang (Phase 1) se nam o route rieng, KHONG qua requireAuth.
+router.use('/api/debug', requireAuth);
+router.use('/api/dashboard', requireAuth);
+router.use('/api/search', requireAuth);
+router.use('/api/customer-product-top', requireAuth);
+router.use('/api/export', requireAuth);
 
 // Route kiem tra ket noi nhanh — chi xem duoc tren server, KHONG expose secret
 router.get('/api/debug', async (req, res) => {

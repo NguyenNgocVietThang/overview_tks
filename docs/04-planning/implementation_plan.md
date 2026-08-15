@@ -90,7 +90,7 @@ server/                     ← Node.js/Express backend (Render.com)
 
 | **#** | **Hạng mục**                  | **Mô tả**                                                                             | **Ưu tiên** | **Trạng thái** |
 |-------|-------------------------------|--------------------------------------------------------------------------------------|-------------|----------------|
-| 1     | Phân quyền người dùng         | Đăng nhập nội bộ, phân quyền Admin/Nhân viên; middleware auth Express                | Cao         | Đang lên kế hoạch |
+| 1     | Phân quyền người dùng         | Đăng nhập nội bộ (JWT httpOnly cookie + bcrypt), 4 vai trò Quản lý/Kế toán/Trưởng kho/Trợ lý, middleware `requireAuth`/`requireRole` bọc toàn bộ `/api/*` — xem chi tiết mục 6 bên dưới | Cao         | ✅ Nền tảng hoàn thành (Phase 0 của "Quản lý vận chuyển") |
 | 2     | Xuất báo cáo PDF              | Excel theo từng bảng đã hoàn thành; còn lại PDF cho KPI summary và báo cáo in        | Cao         | Đang lên kế hoạch |
 | 3     | Nâng cấp UI/UX                | Glassmorphism, counting animation KPI, biểu đồ nâng cao                               | Trung bình  | Một phần hoàn thành (Motion & Transitions ✅) |
 | 4     | Theo dõi chu kỳ refresh       | Hiển thị countdown và cho phép cấu hình chu kỳ (logic auto-refresh 10 phút đã có)      | Trung bình  | Đang lên kế hoạch |
@@ -129,4 +129,20 @@ server/                     ← Node.js/Express backend (Render.com)
 
 ---
 
-*— Cập nhật lần cuối: 14/08/2026 —*
+# 6. Giai đoạn 3 — "Quản lý vận chuyển" (kế hoạch chi tiết: `Plan Process Automation.md`)
+
+Toàn bộ 6 tab dashboard hiện có (Tổng quan/Hàng hóa/Hóa đơn/Khách hàng/Nhà cung cấp/Công nợ) được gộp vào 1 mục menu cha **"Báo cáo tổng hợp"**; tính năng theo dõi/tự động hóa quy trình vận chuyển (4 luồng giao hàng, bot Telegram 9 nhóm chat, OCR, KPI vận chuyển) nằm ở mục **"Quản lý vận chuyển"** ngang hàng. Kiến trúc giữ nguyên GAS + Google Sheets + Node/Express + Render hiện có — không dùng Next.js/NestJS/PostgreSQL/Redis/Docker.
+
+| Phase | Nội dung | Trạng thái |
+|---|---|---|
+| **0 — Nền tảng Auth** | JWT (httpOnly cookie) + bcrypt, tab `Users` (spreadsheet KiotViet hiện có), middleware `requireAuth`/`requireRole` bọc `/api/dashboard`, `/api/search`, `/api/customer-product-top`, `/api/export`, `/api/debug`; tái cấu trúc sidebar (`server/public/index.html`) thành nhóm "Báo cáo tổng hợp" + mục "Quản lý vận chuyển"; trang `server/public/login/index.html`; trang placeholder `server/public/shipment/index.html`; `server/scripts/setupUsersSheet.js` để tạo/sửa tài khoản qua CLI | ✅ Hoàn thành |
+| **1 — MVP vận chuyển thủ công** | Spreadsheet vận chuyển riêng (`VC_Orders`/`VC_OrderItems`/`VC_StatusHistory`/`VC_Attachments`/`VC_Exceptions`/`VC_Vehicles`) qua GAS project mới `shipment-bot/`, CRUD đơn hàng thủ công + state machine, trang tra cứu khách hàng công khai | 🔲 Chưa bắt đầu |
+| **2a — Nạp đơn tự động** | `shipment-bot` poll KiotViet Public API tạo đơn tự động | 🔲 Chưa bắt đầu |
+| **2b — Bot Telegram + OCR (phạm vi giảm)** | Nghe 9 nhóm, lưu ảnh Drive, OCR **chỉ bill ký nhận** (Vision API), khớp mã đơn qua caption | 🔲 Chưa bắt đầu |
+| **3 — Vận hành đầy đủ** | KPI dashboard, đối soát cuối ngày, quản lý xe/tài xế, notification center, module cước phí | 🔲 Chưa bắt đầu |
+
+> **Lưu ý kiến trúc:** tab `Users` cố tình đặt trong spreadsheet KiotViet hiện có (không phải spreadsheet vận chuyển riêng ở Phase 1) vì tab này không bao giờ bị bot/GAS ghi tự động — chỉ Quản lý tạo/sửa tài khoản qua `setupUsersSheet.js`, nên không có rủi ro race condition cần cô lập.
+
+---
+
+*— Cập nhật lần cuối: 15/08/2026 —*

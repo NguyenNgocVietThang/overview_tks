@@ -7,12 +7,17 @@
   "scripts": {
     "start": "node index.js",
     "test": "node --test",
-    "sync:customer-report": "node jobs/syncCustomerReport.js"
+    "sync:customer-report": "node jobs/syncCustomerReport.js",
+    "setup:users-sheet": "node scripts/setupUsersSheet.js"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
     "exceljs": "^4.4.0",
     "express": "^4.19.2",
-    "googleapis": "^140.0.1"
+    "google-auth-library": "^9.15.1",
+    "googleapis": "^140.0.1",
+    "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
     "dotenv": "^16.4.5"

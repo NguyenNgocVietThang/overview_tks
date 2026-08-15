@@ -1,11 +1,13 @@
 const path = require('path');
 const express = require('express');
+const cookieParser = require('cookie-parser');
 const CONFIG = require('./config');
 const routes = require('./routes');
 
 const app = express();
 
 app.use(express.json());
+app.use(cookieParser());
 app.use(routes);
 app.use(express.static(path.join(__dirname, 'public')));
 

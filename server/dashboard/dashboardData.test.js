@@ -3,6 +3,7 @@
 // .env that — khong dung tai khoan Google Sheets that trong test.
 process.env.SPREADSHEET_ID = process.env.SPREADSHEET_ID || 'test-spreadsheet-id';
 process.env.GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}';
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

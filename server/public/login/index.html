@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đăng nhập · TOKOSI Dashboard</title>
+<script>
+  (function(){
+    try{
+      document.documentElement.dataset.theme = localStorage.getItem('tks-dashboard-theme') === 'light' ? 'light' : 'dark';
+    } catch(err){
+      document.documentElement.dataset.theme = 'dark';
+    }
+  })();
+</script>
+<link rel="stylesheet" href="/shared/shared.css">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  .login-shell{
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .login-card{
+    width:100%; max-width:380px;
+    background:var(--panel); border:1px solid var(--border); border-radius:14px;
+    padding:32px 28px 28px;
+  }
+  .login-brand{ display:flex; align-items:center; gap:12px; margin-bottom:22px; }
+  .login-brand .brand-mark{
+    width:44px; height:44px; border-radius:10px; background:#fff;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    box-shadow:0 2px 8px rgba(0,0,0,0.3); padding:3px;
+  }
+  .login-brand .brand-mark svg{ width:100%; height:100%; }
+  .login-brand h1{ margin:0; font-family:var(--font-display); font-weight:700; font-size:16px; }
+  .login-brand p{ margin:2px 0 0; font-size:11.5px; color:var(--muted); }
+  .login-card h2{ margin:0 0 4px; font-family:var(--font-display); font-size:19px; font-weight:700; }
+  .login-card .sub{ margin:0 0 22px; font-size:12.5px; color:var(--muted); }
+  .field{ margin-bottom:16px; }
+  .field label{ display:block; margin-bottom:6px; font-size:12px; font-weight:600; color:var(--muted); }
+  .field input{
+    width:100%; min-height:44px; padding:10px 14px;
+    background:var(--panel-2); color:var(--text); border:1px solid var(--border);
+    border-radius:8px; font-family:var(--font-body); font-size:15px;
+    transition:border-color .15s ease;
+  }
+  .field input:focus{ border-color:var(--blue); outline:none; }
+  .field input:focus-visible{ box-shadow:0 0 0 3px rgba(91,155,240,.2); }
+  .login-error{
+    display:none; margin:0 0 16px; padding:10px 12px; border-radius:8px;
+    background:rgba(241,97,106,0.1); border:1px solid rgba(241,97,106,0.3);
+    color:var(--red); font-size:12.5px;
+  }
+  .login-error.show{ display:block; }
+  .login-submit{ width:100%; min-height:46px; }
+  .login-footer{ margin-top:20px; text-align:center; font-size:11px; color:var(--muted); }
+  .google-btn-wrap{ display:flex; justify-content:center; margin-bottom:18px; min-height:40px; }
+  .login-divider{
+    display:flex; align-items:center; gap:10px; margin:0 0 18px;
+    font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;
+  }
+  .login-divider::before, .login-divider::after{
+    content:''; flex:1; height:1px; background:var(--border);
+  }
+  .login-pending{
+    display:none; margin:0 0 16px; padding:10px 12px; border-radius:8px;
+    background:rgba(91,155,240,0.1); border:1px solid rgba(91,155,240,0.3);
+    color:var(--blue); font-size:12.5px;
+  }
+  .login-pending.show{ display:block; }
+</style>
+</head>
+<body>
+  <div class="login-shell">
+    <form class="login-card" id="loginForm" novalidate>
+      <div class="login-brand">
+        <div class="brand-mark">
+          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" fill="none">
+            <text x="50" y="18" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="18" fill="#CC1111" letter-spacing="1">TOKOSI</text>
+            <polyline points="18,42 50,22 82,42" stroke="#CC1111" stroke-width="6" stroke-linejoin="round" fill="none"/>
+            <polyline points="24,48 50,30 76,48" stroke="#CC1111" stroke-width="5" stroke-linejoin="round" fill="none"/>
+            <polyline points="22,52 22,80 78,80 78,52" stroke="#CC1111" stroke-width="5.5" stroke-linejoin="round" fill="none"/>
+            <rect x="34" y="58" width="32" height="14" rx="2" stroke="#CC1111" stroke-width="4" fill="none"/>
+            <line x1="34" y1="63" x2="66" y2="63" stroke="#CC1111" stroke-width="3"/>
+            <line x1="34" y1="67.5" x2="66" y2="67.5" stroke="#CC1111" stroke-width="3"/>
+            <circle cx="41" cy="76" r="3" fill="#CC1111"/>
+            <circle cx="59" cy="76" r="3" fill="#CC1111"/>
+            <path d="M12,86 Q50,96 88,86" stroke="#CC1111" stroke-width="5" fill="none" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <h1>TOKOSI · Dashboard</h1>
+          <p>Báo cáo tổng hợp · Quản lý vận chuyển</p>
+        </div>
+      </div>
+
+      <h2>Đăng nhập</h2>
+      <p class="sub">Dành cho Quản lý, Kế toán, Trưởng kho, Trợ lý.</p>
+
+      <div class="login-pending" id="loginPending" role="status"></div>
+      <div class="login-error" id="loginError" role="alert"></div>
+
+      <div class="google-btn-wrap" id="googleBtnWrap"></div>
+      <div class="login-divider" id="loginDivider">hoặc đăng nhập bằng tài khoản</div>
+
+      <div class="field">
+        <label for="username">Tài khoản</label>
+        <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+      </div>
+      <div class="field">
+        <label for="password">Mật khẩu</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required>
+      </div>
+
+      <button type="submit" class="btn-primary login-submit" id="loginSubmit">Đăng nhập</button>
+
+      <div class="login-footer">TOKOSI · Truy cập nội bộ</div>
+    </form>
+  </div>
+
+  <script>
+    function getNextUrl(){
+      const params = new URLSearchParams(window.location.search);
+      const next = params.get('next');
+      // Chi chap nhan duong dan noi bo (bat dau bang "/", khong phai "//") de
+      // tranh open-redirect qua query string bi thao tung.
+      if(next && next.startsWith('/') && !next.startsWith('//')) return next;
+      return '/';
+    }
+
+    const form = document.getElementById('loginForm');
+    const errorBox = document.getElementById('loginError');
+    const pendingBox = document.getElementById('loginPending');
+    const submitBtn = document.getElementById('loginSubmit');
+    const googleBtnWrap = document.getElementById('googleBtnWrap');
+    const loginDivider = document.getElementById('loginDivider');
+
+    function showError(message){
+      errorBox.textContent = message;
+      errorBox.classList.add('show');
+      pendingBox.classList.remove('show');
+    }
+    function showPending(message){
+      pendingBox.textContent = message;
+      pendingBox.classList.add('show');
+      errorBox.classList.remove('show');
+    }
+
+    // Dang nhap bang Google (Google Identity Services) — bo sung, khong thay
+    // the form username/mat khau ben duoi. An hoan toan neu server chua cau
+    // hinh GOOGLE_CLIENT_ID (xem GET /api/auth/google-config).
+    function handleGoogleCredential(response){
+      errorBox.classList.remove('show');
+      pendingBox.classList.remove('show');
+      fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ credential: response.credential })
+      })
+        .then(function(res){
+          return res.json().then(function(body){ return { ok: res.ok, body: body }; });
+        })
+        .then(function(result){
+          if(result.ok){
+            window.location.href = getNextUrl();
+            return;
+          }
+          if(result.body && result.body.pending){
+            showPending(result.body.error || 'Tài khoản đang chờ quản trị viên duyệt.');
+          } else {
+            showError((result.body && result.body.error) || 'Đăng nhập bằng Google thất bại.');
+          }
+        })
+        .catch(function(){
+          showError('Đăng nhập bằng Google thất bại, vui lòng thử lại.');
+        });
+    }
+
+    fetch('/api/auth/google-config', { credentials: 'same-origin' })
+      .then(function(res){ return res.ok ? res.json() : { clientId: null }; })
+      .then(function(config){
+        if(!config || !config.clientId || typeof google === 'undefined' || !google.accounts){
+          googleBtnWrap.style.display = 'none';
+          loginDivider.style.display = 'none';
+          return;
+        }
+        google.accounts.id.initialize({
+          client_id: config.clientId,
+          callback: handleGoogleCredential
+        });
+        const isLight = document.documentElement.dataset.theme === 'light';
+        google.accounts.id.renderButton(googleBtnWrap, {
+          type: 'standard',
+          theme: isLight ? 'outline' : 'filled_black',
+          size: 'large',
+          width: 324,
+          text: 'signin_with'
+        });
+      })
+      .catch(function(){
+        googleBtnWrap.style.display = 'none';
+        loginDivider.style.display = 'none';
+      });
+
+    form.addEventListener('submit', function(event){
+      event.preventDefault();
+      errorBox.classList.remove('show');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Đang đăng nhập...';
+
+      fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          username: document.getElementById('username').value.trim(),
+          password: document.getElementById('password').value
+        })
+      })
+        .then(function(res){
+          return res.json().then(function(body){ return { ok: res.ok, body: body }; });
+        })
+        .then(function(result){
+          if(!result.ok){
+            throw new Error((result.body && result.body.error) || 'Đăng nhập thất bại.');
+          }
+          window.location.href = getNextUrl();
+        })
+        .catch(function(err){
+          errorBox.textContent = err.message || 'Đăng nhập thất bại, vui lòng thử lại.';
+          errorBox.classList.add('show');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Đăng nhập';
+        });
+    });
+
+    // Da dang nhap san (token con hieu luc) -> khoi chao lai man hinh nay.
+    fetch('/api/auth/me', { credentials: 'same-origin' })
+      .then(function(res){ if(res.ok) window.location.href = getNextUrl(); })
+      .catch(function(){});
+  </script>
+</body>
+</html>

@@ -16,6 +16,25 @@ const CONFIG = {
   GOOGLE_SERVICE_ACCOUNT_JSON: required('GOOGLE_SERVICE_ACCOUNT_JSON'),
   PORT: process.env.PORT || 3000,
 
+  // Dang nhap/phan quyen — xem server/auth/. JWT_SECRET bat buoc de tranh
+  // token gia mao; khong co gia tri mac dinh vi day la secret bao mat.
+  JWT_SECRET: required('JWT_SECRET'),
+  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '12h',
+
+  // Dang nhap bang Google (server/auth/googleAuthService.js). OAuth Client ID
+  // loai "Web application" tren Google Cloud Console — KHONG phai secret (se
+  // duoc tra ve qua GET /api/auth/google-config cho trang login doc), nen
+  // khong dung required(): thieu bien nay chi tat tinh nang Google, khong
+  // lam sap server. Khong can GOOGLE_CLIENT_SECRET vi dung ID token flow
+  // (Google Identity Services), khong dung authorization-code flow.
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || null,
+
+  // Tab "Users" nam CHUNG spreadsheet KiotViet hien co (khong tao spreadsheet
+  // rieng cho tab nay) — vi tab Users KHONG bao gio duoc bot Telegram/GAS
+  // ghi tu dong (chi Quan ly tao/sua tai khoan qua script setup), nen khong
+  // co rui ro race condition can spreadsheet rieng bao ve.
+  SHEET_USERS: 'Users',
+
   SHEET_CATEGORIES: 'Nhóm hàng',
   SHEET_PRODUCTS: 'Hàng hóa',
   SHEET_INVOICES: 'Hóa đơn',

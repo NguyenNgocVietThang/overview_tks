@@ -1,0 +1,200 @@
+/* ==========================================
+   SHARED.CSS — token mau/font/spacing + component header/sidebar/button dung
+   chung cho cac trang MOI (login, shipment...). Day la BAN SAO cac quy tac da
+   co trong server/public/index.html (khong phai file duoc tach ra tu do) —
+   giu index.html nguyen ven de khong dong cham file dang chay that ngoai san
+   xuat. Doi mau/font o day thi doi luon ben index.html de 2 noi khop nhau.
+   Xem design-system/tks-dashboard/MASTER.md cho quy tac day du.
+   ========================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+:root{
+  color-scheme:dark;
+  --bg:#0B1120;
+  --panel:#131C30;
+  --panel-2:#0F1728;
+  --border:#22304A;
+  --amber:#F0A63A;
+  --green:#3DD68C;
+  --red:#F1616A;
+  --blue:#5B9BF0;
+  --text:#ECF1F8;
+  --muted:#7E8CA8;
+  --surface-hover:rgba(255,255,255,0.03);
+  --amber-glow:rgba(240,166,58,0.07);
+  --green-glow:rgba(61,214,140,0.06);
+  --sidebar-w:210px;
+  --ease-out:cubic-bezier(0.23, 1, 0.32, 1);
+  --font-display:'Be Vietnam Pro',sans-serif;
+  --font-body:'Inter',sans-serif;
+  --font-data:'IBM Plex Mono',monospace;
+}
+:root[data-theme="light"]{
+  color-scheme:light;
+  --bg:#F4F7FB;
+  --panel:#FFFFFF;
+  --panel-2:#EAF0F7;
+  --border:#C8D3E1;
+  --amber:#C47D0A;
+  --green:#168A56;
+  --red:#D43D4A;
+  --blue:#2563EB;
+  --text:#182338;
+  --muted:#5F6F86;
+  --surface-hover:rgba(15,23,42,0.05);
+  --amber-glow:rgba(240,166,58,0.11);
+  --green-glow:rgba(22,138,86,0.08);
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:
+    radial-gradient(circle at 15% 0%, var(--amber-glow), transparent 45%),
+    radial-gradient(circle at 90% 10%, var(--green-glow), transparent 40%),
+    var(--bg);
+  color:var(--text);
+  font-family:var(--font-body);
+  min-height:100vh;
+  transition:color .2s ease, background-color .2s ease;
+}
+
+/* ---------- Header ---------- */
+.receipt-header{
+  background:var(--panel);
+  border-bottom:1px solid var(--border);
+  position:relative;
+  padding:16px 24px 24px;
+  display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+}
+.receipt-header::after{
+  content:"";
+  position:absolute; left:0; right:0; bottom:-11px; height:12px; z-index:2;
+  background:
+    linear-gradient(-45deg, var(--bg) 6px, transparent 0),
+    linear-gradient(45deg, var(--bg) 6px, transparent 0);
+  background-size:12px 12px;
+  background-repeat:repeat-x;
+}
+.brand{ display:flex; align-items:center; gap:12px; }
+.menu-btn{
+  display:none; align-items:center; justify-content:center;
+  background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+  width:44px; height:44px; border-radius:8px; cursor:pointer; flex-shrink:0;
+  transition:border-color .15s ease, background-color .15s ease;
+}
+.menu-btn:hover{ border-color:var(--muted); background:var(--surface-hover); }
+.menu-btn:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+.menu-btn svg{ width:20px; height:20px; }
+.brand-mark{
+  width:44px;height:44px;border-radius:10px;
+  background:#fff;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+  box-shadow:0 2px 8px rgba(0,0,0,0.3);
+  padding:3px;
+}
+.brand-mark svg{ width:100%; height:100%; }
+.brand-text h1{ margin:0; font-family:var(--font-display); font-weight:700; font-size:17px; }
+.brand-text p{ margin:2px 0 0; font-size:11.5px; color:var(--muted); }
+.status-line{ display:flex; align-items:center; gap:14px; }
+
+.account-chip{
+  display:flex; align-items:center; gap:8px;
+  min-height:44px; padding:0 6px 0 12px;
+  background:var(--panel-2); border:1px solid var(--border); border-radius:8px;
+  font-size:12.5px;
+}
+.account-chip .who{ display:flex; flex-direction:column; line-height:1.25; }
+.account-chip .who .name{ font-weight:600; color:var(--text); }
+.account-chip .who .role{ color:var(--muted); font-size:11px; }
+.account-chip .logout-btn{
+  min-height:32px; padding:0 10px; border:0; border-radius:6px; cursor:pointer;
+  background:transparent; color:var(--muted); font-family:var(--font-body); font-size:12px; font-weight:600;
+  transition:background-color .15s ease, color .15s ease;
+}
+.account-chip .logout-btn:hover{ background:var(--surface-hover); color:var(--text); }
+.account-chip .logout-btn:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+
+/* ---------- Layout: sidebar + content ---------- */
+.shell{ display:flex; min-height:calc(100vh - 78px); }
+
+.sidebar{
+  width:var(--sidebar-w); flex-shrink:0; background:var(--panel-2);
+  border-right:1px solid var(--border); padding:18px 12px;
+  position:sticky; top:0; align-self:flex-start; height:calc(100vh - 78px);
+  transition:transform .28s var(--ease-out); z-index:20;
+}
+.nav-item{
+  display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:8px;
+  width:100%; background:none; border:none; border-left:3px solid transparent;
+  color:var(--muted); font-size:13.5px; font-weight:500; font-family:var(--font-body);
+  text-align:left; text-decoration:none; cursor:pointer; margin-bottom:4px; min-height:44px;
+  transition:background .15s ease, color .15s ease;
+}
+.nav-item .ic{ width:18px; height:18px; flex-shrink:0; }
+.nav-item:hover{ background:var(--surface-hover); color:var(--text); }
+.nav-item:focus-visible{ outline:2px solid var(--blue); outline-offset:-2px; }
+.nav-item.active{
+  background:rgba(240,166,58,0.10); color:var(--amber); border-left-color:var(--amber); font-weight:600;
+}
+
+/* Nhom cha "Báo cáo tổng hợp" co the mo/dong, chua cac nav-item con thut le */
+.nav-group-toggle{
+  display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:8px;
+  width:100%; background:none; border:none; border-left:3px solid transparent;
+  color:var(--muted); font-size:13.5px; font-weight:500; font-family:var(--font-body);
+  text-align:left; cursor:pointer; margin-bottom:2px; min-height:44px;
+  transition:background .15s ease, color .15s ease;
+}
+.nav-group-toggle .ic{ width:18px; height:18px; flex-shrink:0; }
+.nav-group-toggle span{ flex:1; }
+.nav-group-toggle:hover{ background:var(--surface-hover); color:var(--text); }
+.nav-group-toggle:focus-visible{ outline:2px solid var(--blue); outline-offset:-2px; }
+.nav-group-toggle.has-active{ color:var(--text); }
+.nav-group-chevron{ width:14px; height:14px; flex-shrink:0; transition:transform .18s var(--ease-out); }
+.nav-group-toggle[aria-expanded="false"] .nav-group-chevron{ transform:rotate(-90deg); }
+.nav-group-list{ padding-left:14px; margin-bottom:4px; }
+.nav-group-list[hidden]{ display:none; }
+
+.sidebar-footer{ margin-top:18px; padding:12px; border-top:1px solid var(--border); font-size:11px; color:var(--muted); }
+
+.backdrop{ display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:15; }
+.backdrop.show{ display:block; }
+@media (max-width:900px){
+  .menu-btn{ display:flex; }
+  .sidebar{ position:fixed; top:0; left:0; bottom:0; height:100vh; transform:translateX(-100%); box-shadow:0 0 0 rgba(0,0,0,0); }
+  .sidebar.open{ transform:translateX(0); box-shadow:12px 0 32px rgba(0,0,0,.35); }
+}
+
+.content{ flex:1; min-width:0; padding:24px; }
+.view-title{ font-family:var(--font-display); font-size:21px; font-weight:700; margin:0 0 4px; }
+.view-sub{ font-size:12.5px; color:var(--muted); margin:0 0 18px; }
+
+.btn-primary{
+  background:var(--amber); color:#1B1206; border:none; border-radius:8px;
+  padding:12px 20px; font-family:var(--font-display); font-weight:700; font-size:13.5px;
+  cursor:pointer; transition:opacity .15s ease;
+}
+.btn-primary:hover:not(:disabled){ opacity:.88; }
+.btn-primary:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+.btn-primary:disabled{ opacity:.55; cursor:not-allowed; }
+
+.btn-secondary{
+  background:var(--panel-2); color:var(--text); border:1px solid var(--border); border-radius:8px;
+  padding:12px 20px; font-family:var(--font-body); font-weight:600; font-size:13.5px; cursor:pointer;
+  transition:border-color .15s ease, background-color .15s ease;
+}
+.btn-secondary:hover{ border-color:var(--muted); }
+.btn-secondary:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+
+.panel{
+  background:var(--panel); border:1px solid var(--border); border-radius:12px;
+  padding:20px; box-shadow:none;
+}
+
+[hidden]{ display:none !important; }
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; scroll-behavior:auto !important; }
+}

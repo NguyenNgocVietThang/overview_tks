@@ -9,10 +9,14 @@
     } catch(err){
       document.documentElement.dataset.theme = 'dark';
     }
+    // An noi dung cho toi khi authGuard() xac nhan da dang nhap — tranh
+    // nhap nhoang du lieu dashboard truoc khi kip redirect ve /login/.
+    document.documentElement.style.visibility = 'hidden';
   })();
 </script>
 <script src="/vendor/chart.umd.min.js"></script>
 <script src="/js/pagination.js"></script>
+<script src="/shared/shared-nav.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600&family=Open+Sans:wght@400;500;600;700&display=swap');
 
@@ -162,6 +166,44 @@
   .nav-item.active{
     background:rgba(240,166,58,0.10); color:var(--amber); border-left-color:var(--amber); font-weight:600;
   }
+  .nav-item[href]{ text-decoration:none; }
+
+  /* Nhom cha "Báo cáo tổng hợp" mo/dong, chua 6 nav-item bao cao hien co, thut le */
+  .nav-group-toggle{
+    display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:8px;
+    width:100%; background:none; border:none; border-left:3px solid transparent;
+    color:var(--muted); font-size:13.5px; font-weight:500; font-family:var(--font-body);
+    text-align:left; cursor:pointer; margin-bottom:2px; min-height:44px;
+    transition:background .15s ease, color .15s ease;
+  }
+  .nav-group-toggle .ic{ width:18px; height:18px; flex-shrink:0; }
+  .nav-group-toggle span{ flex:1; }
+  .nav-group-toggle:hover{ background:var(--surface-hover); color:var(--text); }
+  .nav-group-toggle:focus-visible{ outline:2px solid var(--blue); outline-offset:-2px; }
+  .nav-group-toggle.has-active{ color:var(--text); }
+  .nav-group-chevron{ width:14px; height:14px; flex-shrink:0; transition:transform .18s var(--ease-out); }
+  .nav-group-toggle[aria-expanded="false"] .nav-group-chevron{ transform:rotate(-90deg); }
+  .nav-group-list{ padding-left:14px; margin-bottom:4px; }
+  .nav-group-list[hidden]{ display:none; }
+
+  .account-chip{
+    display:flex; align-items:center; gap:8px;
+    min-height:44px; padding:0 6px 0 12px;
+    background:var(--panel-2); border:1px solid var(--border); border-radius:8px;
+    font-size:12.5px;
+  }
+  .account-chip:empty{ display:none; }
+  .account-chip .who{ display:flex; flex-direction:column; line-height:1.25; }
+  .account-chip .who .name{ font-weight:600; color:var(--text); }
+  .account-chip .who .role{ color:var(--muted); font-size:11px; }
+  .account-chip .logout-btn{
+    min-height:32px; padding:0 10px; border:0; border-radius:6px; cursor:pointer;
+    background:transparent; color:var(--muted); font-family:var(--font-body); font-size:12px; font-weight:600;
+    transition:background-color .15s ease, color .15s ease;
+  }
+  .account-chip .logout-btn:hover{ background:var(--surface-hover); color:var(--text); }
+  .account-chip .logout-btn:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+
   .sidebar-footer{ margin-top:18px; padding:12px; border-top:1px solid var(--border); font-size:11px; color:var(--muted); }
 
   .backdrop{ display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:15; }
@@ -718,6 +760,7 @@
     </div>
     <div class="status-line">
       <div class="clock"><span class="dot"></span><span id="updatedAt">Đang tải...</span></div>
+      <div class="account-chip" id="accountChip"></div>
       <button class="theme-toggle" id="themeToggle" type="button" onclick="toggleTheme()" aria-label="Chuyển sang giao diện sáng" aria-pressed="false" title="Chuyển sang giao diện sáng">
         <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"></path></svg>
         <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path></svg>
@@ -733,30 +776,43 @@
   <div class="shell">
     <div class="backdrop" id="backdrop" onclick="toggleSidebar()"></div>
     <div class="sidebar" id="sidebar">
-      <button type="button" class="nav-item active" data-view="overview" onclick="switchView('overview')" aria-current="page">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></svg>
-        Tổng quan
-      </button>
-      <button type="button" class="nav-item" data-view="products" onclick="switchView('products')">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73Z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path></svg>
-        Hàng hóa
-      </button>
-      <button type="button" class="nav-item" data-view="invoices" onclick="switchView('invoices')">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path></svg>
-        Hóa đơn
-      </button>
-      <button type="button" class="nav-item" data-view="customers" onclick="switchView('customers')">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-        Khách hàng
-      </button>
-      <button type="button" class="nav-item" data-view="suppliers" onclick="switchView('suppliers')">
+      <div class="nav-group">
+        <button type="button" class="nav-group-toggle has-active" id="navGroupToggle" onclick="toggleNavGroup()" aria-expanded="true" aria-controls="navGroupList">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></svg>
+          <span>Báo cáo tổng hợp</span>
+          <svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <div class="nav-group-list" id="navGroupList">
+          <button type="button" class="nav-item active" data-view="overview" onclick="switchView('overview')" aria-current="page">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></svg>
+            Tổng quan
+          </button>
+          <button type="button" class="nav-item" data-view="products" onclick="switchView('products')">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73Z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path></svg>
+            Hàng hóa
+          </button>
+          <button type="button" class="nav-item" data-view="invoices" onclick="switchView('invoices')">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path></svg>
+            Hóa đơn
+          </button>
+          <button type="button" class="nav-item" data-view="customers" onclick="switchView('customers')">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            Khách hàng
+          </button>
+          <button type="button" class="nav-item" data-view="suppliers" onclick="switchView('suppliers')">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle></svg>
+            Nhà cung cấp
+          </button>
+          <button type="button" class="nav-item" data-view="debt" onclick="switchView('debt')">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path></svg>
+            Công nợ
+          </button>
+        </div>
+      </div>
+      <a href="/shipment/" class="nav-item">
         <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle></svg>
-        Nhà cung cấp
-      </button>
-      <button type="button" class="nav-item" data-view="debt" onclick="switchView('debt')">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path></svg>
-        Công nợ
-      </button>
+        Quản lý vận chuyển
+      </a>
       <div class="sidebar-footer">TOKOSI · Dữ liệu từ Google Sheet · tự làm mới mỗi 10 phút</div>
     </div>
 
@@ -2644,6 +2700,16 @@
     menuBtn.setAttribute('aria-label', isOpen ? 'Đóng menu điều hướng' : 'Mở menu điều hướng');
   }
 
+  // Mo/dong nhom "Báo cáo tổng hợp" trong sidebar, nho trang thai qua lan tai lai.
+  function toggleNavGroup(forceExpanded){
+    const toggle = document.getElementById('navGroupToggle');
+    const list = document.getElementById('navGroupList');
+    const expanded = typeof forceExpanded === 'boolean' ? forceExpanded : toggle.getAttribute('aria-expanded') !== 'true';
+    toggle.setAttribute('aria-expanded', String(expanded));
+    list.hidden = !expanded;
+    try{ localStorage.setItem('tks-dashboard-nav-group-reports', expanded ? 'open' : 'closed'); } catch(err){}
+  }
+
   // Thanh bo loc co dinh chi hien nhung nhom loc dung cho tab dang xem
   function updateFilterBar(){
     document.querySelectorAll('#filterBar .filter-group').forEach(function(group){
@@ -3744,6 +3810,17 @@
       closeExportDialog();
     }
   });
+
+  // Khoi phuc trang thai mo/dong nhom "Báo cáo tổng hợp" (mac dinh mo, khop
+  // hanh vi truoc khi co nhom cha).
+  try{
+    if(localStorage.getItem('tks-dashboard-nav-group-reports') === 'closed') toggleNavGroup(false);
+  } catch(err){}
+
+  // Ranh gioi bao mat that su nam o server (authMiddleware tren /api/*).
+  // authGuard() chi de dieu huong UX: redirect /login/ neu chua dang nhap,
+  // roi moi hien noi dung (visibility:hidden duoc dat tu dau <head>).
+  TKSNav.authGuard();
 
   syncThemeControl();
   initSortableTables();
