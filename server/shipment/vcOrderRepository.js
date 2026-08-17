@@ -285,8 +285,87 @@ async function createOrder({ kiotviet_code, warehouse, flow, vehicle_id, driver_
   const rawOrders = await vcClient.vcGetValues(CONFIG.VC_SHEET_ORDERS);
   const existingOrders = rowsToObjects(SCHEMA.orders.headers, SCHEMA.orders.fieldKeys, rawOrders);
 
-  // Kiem tra trung kiotviet_code (chi cho phep neu don cu da DA_HUY)
+  // Don do webhook KiotViet tao truoc o trang thai MOI_TAO se duoc giao cho
+  // quy trinh van chuyen khi nguoi dung bam tao/in don. Khong tao dong trung.
   const existing = existingOrders.find(o => o.kiotviet_code === kiotviet_code);
+  const now = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
+
+  if (existing && existing.current_status === ORDER_STATUS.MOI_TAO) {
+    const preferInput = (value, fallback) => (
+      value !== undefined && value !== null && value !== '' ? value : (fallback || '')
+    );
+    const claimedOrder = {
+      ...existing,
+      warehouse:      preferInput(warehouse, existing.warehouse),
+      flow:           preferInput(flow, existing.flow),
+      vehicle_id:     preferInput(vehicle_id, existing.vehicle_id),
+      driver_name:    preferInput(driver_name, existing.driver_name),
+      customer_name:  preferInput(customer_name, existing.customer_name),
+      customer_phone: preferInput(customer_phone, existing.customer_phone),
+      address:        preferInput(address, existing.address),
+      current_status: ORDER_STATUS.DA_IN,
+      updated_at:     now
+    };
+
+    const codeColumn = rawOrders[0].findIndex(header => header === 'Mã hóa đơn KiotViet');
+    const existingRowIndex = rawOrders.findIndex((row, index) => (
+      index > 0 && codeColumn >= 0 && row[codeColumn] === kiotviet_code
+    ));
+    if (existingRowIndex < 1) {
+      throw makeError(`Không tìm thấy dòng dữ liệu cho hóa đơn "${kiotviet_code}".`, 409, 'ORDER_ROW_NOT_FOUND');
+    }
+
+    await vcClient.vcUpdateRow(
+      CONFIG.VC_SHEET_ORDERS,
+      existingRowIndex + 1,
+      objectToRow(SCHEMA.orders.fieldKeys, claimedOrder)
+    );
+
+    const historyObj = {
+      history_id: generateId('HST'),
+      order_id: existing.order_id,
+      from_status: ORDER_STATUS.MOI_TAO,
+      to_status: ORDER_STATUS.DA_IN,
+      changed_by: 'system:create',
+      changed_at: now,
+      note: 'Nhận xử lý đơn đã đồng bộ từ KiotViet'
+    };
+    await vcClient.vcAppendRow(
+      CONFIG.VC_SHEET_STATUS_HISTORY,
+      objectToRow(SCHEMA.statusHistory.fieldKeys, historyObj)
+    );
+
+    const rawItems = await vcClient.vcGetValues(CONFIG.VC_SHEET_ORDER_ITEMS);
+    let savedItems = rowsToObjects(
+      SCHEMA.orderItems.headers,
+      SCHEMA.orderItems.fieldKeys,
+      rawItems
+    ).filter(item => item.order_id === existing.order_id);
+
+    if (savedItems.length === 0) {
+      savedItems = [];
+      for (const item of (items || [])) {
+        const itemObj = {
+          order_id: existing.order_id,
+          product_code:     item.product_code     || '',
+          product_name:     item.product_name     || '',
+          quantity_ordered: item.quantity_ordered || '',
+          quantity_picked:  '',
+          unit:             item.unit             || '',
+          notes:            item.notes            || ''
+        };
+        await vcClient.vcAppendRow(
+          CONFIG.VC_SHEET_ORDER_ITEMS,
+          objectToRow(SCHEMA.orderItems.fieldKeys, itemObj)
+        );
+        savedItems.push(itemObj);
+      }
+    }
+
+    return { ...claimedOrder, items: savedItems };
+  }
+
+  // Cac trang thai dang xu ly khong duoc tao lai; don DA_HUY van co the tao moi.
   if (existing && existing.current_status !== ORDER_STATUS.DA_HUY) {
     throw makeError(
       `Đã tồn tại đơn vận chuyển cho mã hóa đơn "${kiotviet_code}" (Mã vận đơn: ${existing.order_id}).`,
@@ -295,7 +374,6 @@ async function createOrder({ kiotviet_code, warehouse, flow, vehicle_id, driver_
     );
   }
 
-  const now = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
   const order_id = generateOrderId(rawOrders);
 
   const orderObj = {

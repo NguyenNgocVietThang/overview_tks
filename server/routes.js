@@ -11,6 +11,7 @@ const sheetsClient = require('./sheets/sheetsClient');
 const { getExportFields, createExportWorkbook } = require('./dashboard/exportService');
 const CONFIG = require('./config');
 const authRoutes = require('./auth/authRoutes');
+const adminUserRoutes = require('./auth/adminUserRoutes');
 const { requireAuth, requireRole } = require('./auth/authMiddleware');
 const { INTERNAL_ROLES } = require('./auth/userRepository');
 const { lookupInvoiceStatuses } = require('./shipment/invoiceStatusService');
@@ -23,6 +24,7 @@ router.get('/health', (req, res) => {
 // /api/auth/* mount truoc — POST /login va POST /logout khong doi hoi da dang
 // nhap (do chinh la noi de dang nhap); GET /me tu bao ve bang requireAuth ben trong.
 router.use(authRoutes);
+router.use(adminUserRoutes);
 
 router.post('/api/shipment/invoice-status', requireAuth, async (req, res) => {
   try {

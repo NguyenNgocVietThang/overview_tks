@@ -1,0 +1,16 @@
+[
+  {
+    "id": "user-2",
+    "username": "laixe1",
+    "hoTen": "Lái Xe 1",
+    "email": "laixe@tokosi.vn",
+    "passwordHash": "$2a$10$8FfwY4wIuz3kBS1gX7zlBOhpKhsC1KETaMXkPprQNqjMSgzcBkXny",
+    "vaiTro": "Lái xe",
+    "coSo": "Tân Phú",
+    "trangThai": "Đang hoạt động",
+    "ngayTao": "01/01/2026",
+    "soDienThoai": "",
+    "emailKhoiPhuc": "",
+    "sdtKhoiPhuc": ""
+  }
+]

@@ -251,27 +251,27 @@ hover/focus states — reserve GSAP for the refresh spinner and any future chart
 }
 ```
 
-- ✅ Use for card/row/button hover and the existing refresh-button spin.
-- ❌ Don't use `back.out()`/overshoot easing on dense data tables — it reads as sloppy on informational UI (motion.csv row 9 note).
-- ⚡ `prefers-reduced-motion` must be respected — currently **not** implemented anywhere in `dev/index.html` / `Dashboard.html`; add it.
+- [Do] Use for card/row/button hover and the existing refresh-button spin.
+- [Don't] Don't use `back.out()`/overshoot easing on dense data tables — it reads as sloppy on informational UI (motion.csv row 9 note).
+- [Note] `prefers-reduced-motion` must be respected — currently **not** implemented anywhere in `dev/index.html` / `Dashboard.html`; add it.
 
 ---
 
 ## Anti-Patterns (Do NOT Use)
 
-- ❌ Excessive decoration
-- ❌ Complex shadows
-- ❌ 3D effects
-- ❌ Complex 3D / premium-luxury ornamentation / immersive effects (Flat Design "Do Not Use For")
+- Excessive decoration
+- Complex shadows
+- 3D effects
+- Complex 3D / premium-luxury ornamentation / immersive effects (Flat Design "Do Not Use For")
 
 ### Additional Forbidden Patterns
 
-- ❌ **Emojis as icons** — Use SVG icons (Heroicons, Lucide, Simple Icons)
-- ❌ **Missing cursor:pointer** — All clickable elements must have `cursor:pointer`
-- ❌ **Layout-shifting hovers** — Avoid scale transforms that shift layout; use color/translateY instead
-- ❌ **Low contrast text** — Maintain 4.5:1 minimum contrast ratio (check `--color-muted` usages)
-- ❌ **Instant state changes** — Always use transitions (150–300ms)
-- ❌ **Invisible focus states** — Focus states must be visible for keyboard nav (`:focus-visible`, not `outline: none`)
+- **Emojis as icons** — Use SVG icons (Heroicons, Lucide, Simple Icons)
+- **Missing cursor:pointer** — All clickable elements must have `cursor:pointer`
+- **Layout-shifting hovers** — Avoid scale transforms that shift layout; use color/translateY instead
+- **Low contrast text** — Maintain 4.5:1 minimum contrast ratio (check `--color-muted` usages)
+- **Instant state changes** — Always use transitions (150–300ms)
+- **Invisible focus states** — Focus states must be visible for keyboard nav (`:focus-visible`, not `outline: none`)
 
 ---
 

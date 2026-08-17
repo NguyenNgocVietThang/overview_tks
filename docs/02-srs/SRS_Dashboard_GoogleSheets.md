@@ -25,7 +25,7 @@ Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi ch�
 
 Hệ thống là một Web Application nội bộ gồm các thành phần chính:
 
-1. **Apps Script (`src/`):** chạy trong Google Workspace, đồng bộ đủ trường dữ liệu KiotViet Public API vào 9 tab vận hành, 1 tab lịch sử hàng ngừng kinh doanh, 2 tab tổng hợp báo cáo khách hàng và 3 tab báo cáo công nợ HN1/HN3/HN7 (qua webhook KiotViet + hàng đợi bền vững + polling 15 phút + lịch báo cáo hàng ngày).
+1. **Apps Script (`src/`):** cùng một bộ mã chạy theo hai profile độc lập. `FULL_DASHBOARD` duy trì sheet tổng hợp cũ gồm 9 tab vận hành, lịch sử/báo cáo và polling; `SHIPMENT_LIFECYCLE` duy trì sheet vận chuyển mới, nhận riêng `invoice.update` qua hàng đợi bền vững và upsert đơn, chi tiết, lịch sử trạng thái.
 
 2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu, 3 tab công nợ HN1/HN3/HN7 và tab `Users` từ Google Spreadsheet qua Google Sheets API (Service Account), xác thực người dùng và phân quyền RBAC (JWT httpOnly cookie, bcrypt, Google OAuth), tra cứu trạng thái vận chuyển đơn hàng, tính toán KPI, dữ liệu biểu đồ và báo cáo công nợ khách hàng 1/3/7 ngày, trả về cho frontend qua REST API. Tích hợp Result Cache tầng backend, phân trang bảng client-side và xuất file Excel đa worksheet. Frontend hiển thị Dashboard tương tác, trang tra cứu vận chuyển và đăng nhập/đăng ký trên trình duyệt.
 
@@ -577,9 +577,11 @@ lần qua trigger nền sẽ xóa vật lý các cột `(JSON)` của schema cũ
 - Trigger hàng ngày chạy gần 15:00; hàng đợi một phút có cơ chế chạy bù nếu lịch ngày bị trễ hoặc lỗi.
 - Backend dashboard chỉ đọc ba tab này và không ghi ngược lại.
 
-## 7.6. Webhook KiotViet — 9 loại event
+## 7.6. Webhook KiotViet — hai profile đồng thời
 
-`product.update`, `product.delete`, `stock.update`, `customer.update`, `customer.delete`, `invoice.update`, `order.update`, `category.update`, `category.delete`
+Profile `FULL_DASHBOARD` của sheet cũ đăng ký 9 loại: `product.update`, `product.delete`, `stock.update`, `customer.update`, `customer.delete`, `invoice.update`, `order.update`, `category.update`, `category.delete`.
+
+KiotViet chỉ chấp nhận một webhook cho mỗi Type, vì vậy profile `FULL_DASHBOARD` của sheet cũ giữ đăng ký `invoice.update`. Sau khi cập nhật sheet cũ thành công, hàng đợi chuyển tiếp payload sang Web App của profile `SHIPMENT_LIFECYCLE`; project mới có queue một phút riêng và không đăng ký webhook trùng.
 
 **Lưu ý quan trọng:** KiotViet KHÔNG có webhook cho Trả hàng (`return.*`), Nhà cung cấp (`supplier.*`), Nhập hàng (`purchaseorder.*`) → dùng polling 15 phút để cân bằng độ mới dữ liệu và quota.
 

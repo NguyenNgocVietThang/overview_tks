@@ -6,11 +6,11 @@
 
 | **Thông tin**    | **Nội dung**                                                         |
 |------------------|----------------------------------------------------------------------|
-| Phiên bản tài liệu | 1.6                                                              |
+| Phiên bản tài liệu | 1.8                                                              |
 | Ngày tạo         | 27/07/2026                                                           |
-| Ngày cập nhật    | 15/08/2026                                                           |
+| Ngày cập nhật    | 17/08/2026                                                           |
 | Tài liệu liên quan | BRD v1.5 · SRS v1.7 · BPMN v1.5 · Debt Spec 2026-08-05 · Cache/Pagination Plans · Plan Process Automation |
-| Trạng thái       | Giai đoạn 1 & Phase 0/0.5 hoàn thành — đang vận hành                 |
+| Trạng thái       | Giai đoạn 1 & Phase 0/0.5/1 hoàn thành — đang vận hành                 |
 
 ---
 
@@ -21,6 +21,7 @@ src/                        ← GAS source code (clasp push)
 ├── HuongDanSuDung.gs       ← Hướng dẫn hàm và luồng liên kết trên Apps Script
 ├── config/Config.gs
 ├── kiotviet/Auth.gs · CustomerDebtReport.gs · CustomerReport.gs · DiscontinuedProducts.gs · SheetSchemas.gs · SyncInitial.gs · WebhookAdmin.gs
+├── shipment/KiotVietLifecycle.gs ← Vòng đời 6 tab vận chuyển và chuyển tiếp webhook
 ├── sync/UpdateHandlers.gs · WebhookQueue.gs
 └── utils/Helpers.gs
 
@@ -42,11 +43,21 @@ server/                     ← Node.js/Express backend (Render.com)
 │   ├── exportService.js    ← Registry 16 bảng và tạo file Excel .xlsx
 │   └── exportService.test.js ← Unit test xuất Excel
 ├── jobs/syncCustomerReport.js ← Đối soát 3 báo cáo khách hàng theo lịch 07:00
-├── scripts/setupUsersSheet.js ← CLI quản lý tài khoản người dùng và sheet Users
+├── scripts/
+│   ├── setupUsersSheet.js  ← CLI quản lý tài khoản người dùng và sheet Users
+│   └── setupVcSheet.js     ← CLI khởi tạo 6 tab vận chuyển VC_*
 ├── shipment/
+│   ├── driveService.js     ← Tải ảnh chứng từ lên Google Drive theo ngày/mã đơn
 │   ├── invoiceStatusService.js ← Tra cứu mã/trạng thái hóa đơn, cache 90s
-│   └── invoiceStatusService.test.js
-├── sheets/sheetsClient.js  ← Liệt kê/lọc tab hiện có trước batchGet
+│   ├── invoiceStatusService.test.js
+│   ├── orderStateMachine.js ← State Machine 8 trạng thái vận đơn & kiểm tra chuyển tiếp
+│   ├── orderStateMachine.test.js
+│   ├── shipmentOrderRoutes.js ← REST API vận đơn, điều phối, ảnh chứng từ, sự cố, đối soát
+│   ├── vcOrderRepository.js ← Thao tác CRUD 6 tab vận chuyển VC_*
+│   └── vcOrderRepository.test.js
+├── sheets/
+│   ├── sheetsClient.js     ← Đọc dữ liệu Google Sheets cho dashboard
+│   └── vcSheetsClient.js   ← Đọc/ghi dữ liệu bảng vận chuyển VC_*
 └── public/
     ├── index.html          ← Frontend Live Dashboard (KPI, biểu đồ, tìm kiếm, xuất Excel)
     ├── js/
@@ -56,8 +67,11 @@ server/                     ← Node.js/Express backend (Render.com)
     │   └── pagination.test.js ← Unit test cho phân trang
     ├── login/index.html    ← Giao diện đăng nhập nội bộ & Google
     ├── register/index.html ← Giao diện đăng ký tài khoản Khách
-    ├── shared/             ← shared-nav.js, shared.css dùng chung
-    ├── shipment/index.html ← Giao diện tra cứu trạng thái vận chuyển
+    ├── shared/             ← shared-nav.js, shared.css, image-compress.js dùng chung
+    ├── shipment/
+    │   ├── index.html      ← Giao diện tra cứu trạng thái vận chuyển (Khách)
+    │   ├── dispatch/       ← Giao diện Web Desktop: Bảng điều phối vận đơn (Kế toán/Quản lý)
+    │   └── mobile/         ← Giao diện Mobile Web 1-chạm (Thủ kho & Lái xe)
     └── vendor/
         └── chart.umd.min.js
 ```
@@ -70,22 +84,22 @@ server/                     ← Node.js/Express backend (Render.com)
 
 | **#** | **Hạng mục**                          | **Nội dung**                                                                                       | **Trạng thái** |
 |-------|---------------------------------------|----------------------------------------------------------------------------------------------------|----------------|
-| 1     | Phân tích & thiết kế                  | Hoàn thiện BRD v1.5, SRS v1.7, BPMN v1.5; thiết kế kiến trúc kỹ thuật                            | ✅ Hoàn thành  |
-| 2     | Apps Script đồng bộ KiotViet          | `src/`: sync đủ trường, webhook 9 event qua queue bền vững, polling 15 phút (Trả hàng/NCC/Nhập hàng) | ✅ Hoàn thành  |
-| 3     | GAS Web App (src/)                    | Chỉ nhận `doPost()` từ KiotViet; đã bỏ preview HTML và logic đọc dashboard khỏi Apps Script | ✅ Hoàn thành  |
-| 4     | Backend Node.js/Express               | `server/`: liệt kê/lọc tab, `batchGet` tối đa 9 tab, xử lý tab thiếu và tính ngày giờ Việt Nam   | ✅ Hoàn thành  |
-| 5     | Frontend HTML/CSS/JS                  | Sidebar, KPI, biểu đồ/bảng, lọc 7/30/90 ngày, refresh tay + nền 10 phút + tải bù khi tab visible | ✅ Hoàn thành  |
-| 6     | Triển khai Render.com                 | Deploy lên `tokosi.onrender.com`; cấu hình `SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_JSON`         | ✅ Hoàn thành  |
-| 7     | CI/CD                                 | Auto-deploy khi push lên branch `main` của GitHub repo                                             | ✅ Hoàn thành  |
-| 8     | Health check & Debug route            | `GET /health` → Render ping; `/api/debug` → kiểm tra kết nối và liệt kê `sheetTabs`                | ✅ Hoàn thành  |
-| 9     | Báo cáo công nợ KH 1/3/7 ngày         | `CustomerDebtReport.gs` tự động tính và ghi đè HN1/HN3/HN7; backend `debtReport.js` đọc và hiển thị| ✅ Hoàn thành  |
-| 10    | Lịch sử hàng Ngừng kinh doanh | `DiscontinuedProducts.gs` cập nhật toàn bộ lịch sử trong tab `Hàng ngừng kinh doanh` | ✅ Hoàn thành  |
-| 11    | Khách theo hàng hóa | `CustomerReport.gs` tổng hợp toàn bộ lịch sử theo 25 cột sản phẩm → khách → hóa đơn, cập nhật gần 07:00 hoặc chạy tay | ✅ Hoàn thành |
-| 12    | Xuất Excel theo từng bảng | 16 bảng và kết quả tìm kiếm xuất `.xlsx`, chọn đủ trường Google Sheets, hỗ trợ workbook nhiều worksheet | ✅ Hoàn thành |
-| 13    | Result Cache tầng backend | Cache dữ liệu thô 90s + Result Cache theo `(rawDataVersion, filters)`, search index chỉ build lại khi refetch | ✅ Hoàn thành |
-| 14    | Phân trang bảng client-side | `pagination.js` phân trang ~200 dòng/trang cho `allProducts` và `lowStock`, loại bỏ lag 3.5s khi mở tab Hàng hóa | ✅ Hoàn thành |
-| 15    | Tối ưu Motion & UI Transitions | Áp dụng shared `--ease-out`, chống re-animate biểu đồ khi chuyển tab/poll, transition mượt mà cho search suggestions, surfaces, debt rows | ✅ Hoàn thành |
-| 16    | Bộ kiểm thử tự động (74 tests) | 74 unit tests chuẩn `node:test` bao phủ auth/Guest/Google, tra cứu vận chuyển, cache, pagination, excel export, multi-code search, customer product top | ✅ Hoàn thành |
+| 1     | Phân tích & thiết kế                  | Hoàn thiện BRD v1.5, SRS v1.7, BPMN v1.5; thiết kế kiến trúc kỹ thuật                            | [Hoan thanh]   |
+| 2     | Apps Script đồng bộ KiotViet          | `src/`: sync đủ trường, webhook 9 event qua queue bền vững, polling 15 phút (Trả hàng/NCC/Nhập hàng) | [Hoan thanh]   |
+| 3     | GAS Web App (src/)                    | Chỉ nhận `doPost()` từ KiotViet; đã bỏ preview HTML và logic đọc dashboard khỏi Apps Script | [Hoan thanh]   |
+| 4     | Backend Node.js/Express               | `server/`: liệt kê/lọc tab, `batchGet` tối đa 9 tab, xử lý tab thiếu và tính ngày giờ Việt Nam   | [Hoan thanh]   |
+| 5     | Frontend HTML/CSS/JS                  | Sidebar, KPI, biểu đồ/bảng, lọc 7/30/90 ngày, refresh tay + nền 10 phút + tải bù khi tab visible | [Hoan thanh]   |
+| 6     | Triển khai Render.com                 | Deploy lên `tokosi.onrender.com`; cấu hình `SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_JSON`         | [Hoan thanh]   |
+| 7     | CI/CD                                 | Auto-deploy khi push lên branch `main` của GitHub repo                                             | [Hoan thanh]   |
+| 8     | Health check & Debug route            | `GET /health` -> Render ping; `/api/debug` -> kiểm tra kết nối và liệt kê `sheetTabs`             | [Hoan thanh]   |
+| 9     | Báo cáo công nợ KH 1/3/7 ngày         | `CustomerDebtReport.gs` tự động tính và ghi đè HN1/HN3/HN7; backend `debtReport.js` đọc và hiển thị| [Hoan thanh]   |
+| 10    | Lịch sử hàng Ngừng kinh doanh | `DiscontinuedProducts.gs` cập nhật toàn bộ lịch sử trong tab `Hàng ngừng kinh doanh` | [Hoan thanh]   |
+| 11    | Khách theo hàng hóa | `CustomerReport.gs` tổng hợp toàn bộ lịch sử theo 25 cột sản phẩm -> khách -> hóa đơn, cập nhật gần 07:00 hoặc chạy tay | [Hoan thanh] |
+| 12    | Xuất Excel theo từng bảng | 16 bảng và kết quả tìm kiếm xuất `.xlsx`, chọn đủ trường Google Sheets, hỗ trợ workbook nhiều worksheet | [Hoan thanh] |
+| 13    | Result Cache tầng backend | Cache dữ liệu thô 90s + Result Cache theo `(rawDataVersion, filters)`, search index chỉ build lại khi refetch | [Hoan thanh] |
+| 14    | Phân trang bảng client-side | `pagination.js` phân trang ~200 dòng/trang cho `allProducts` và `lowStock`, loại bỏ lag 3.5s khi mở tab Hàng hóa | [Hoan thanh] |
+| 15    | Tối ưu Motion & UI Transitions | Áp dụng shared `--ease-out`, chống re-animate biểu đồ khi chuyển tab/poll, transition mượt mà cho search suggestions, surfaces, debt rows | [Hoan thanh] |
+| 16    | Bộ kiểm thử tự động | Bộ unit tests chuẩn `node:test` bao phủ auth/Guest/Google, tra cứu vận chuyển, State Machine, Repository VC, cache, pagination, excel export | [Hoan thanh] |
 
 ## 2.2. Tính năng đã vận hành
 
@@ -106,11 +120,11 @@ server/                     ← Node.js/Express backend (Render.com)
 
 | **#** | **Hạng mục**                  | **Mô tả**                                                                             | **Ưu tiên** | **Trạng thái** |
 |-------|-------------------------------|--------------------------------------------------------------------------------------|-------------|----------------|
-| 1     | Phân quyền người dùng         | Đăng nhập nội bộ (JWT httpOnly cookie + bcrypt), 4 vai trò Quản lý/Kế toán/Trưởng kho/Trợ lý, middleware `requireAuth`/`requireRole` bọc toàn bộ `/api/*` — xem chi tiết mục 6 bên dưới | Cao         | ✅ Nền tảng hoàn thành (Phase 0 của "Quản lý vận chuyển") |
+| 1     | Phân quyền người dùng         | Đăng nhập nội bộ (JWT httpOnly cookie + bcrypt), phân quyền theo vai trò, middleware `requireAuth`/`requireRole` bọc toàn bộ `/api/*` | Cao         | [Hoan thanh] (Phase 0) |
 | 2     | Xuất báo cáo PDF              | Excel theo từng bảng đã hoàn thành; còn lại PDF cho KPI summary và báo cáo in        | Cao         | Đang lên kế hoạch |
-| 3     | Nâng cấp UI/UX                | Glassmorphism, counting animation KPI, biểu đồ nâng cao                               | Trung bình  | Một phần hoàn thành (Motion & Transitions ✅) |
+| 3     | Nâng cấp UI/UX                | Counting animation KPI, biểu đồ nâng cao                               | Trung bình  | Một phần hoàn thành |
 | 4     | Theo dõi chu kỳ refresh       | Hiển thị countdown và cho phép cấu hình chu kỳ (logic auto-refresh 10 phút đã có)      | Trung bình  | Đang lên kế hoạch |
-| 5     | Cache tầng backend            | In-memory result cache và raw sheets cache 90s đã triển khai (`dashboardData.js`)     | Thấp        | ✅ Đã hoàn thành |
+| 5     | Cache tầng backend            | In-memory result cache và raw sheets cache 90s đã triển khai (`dashboardData.js`)     | Thấp        | [Hoan thanh] |
 | 6     | Cảnh báo tồn kho              | Notification khi tồn kho dưới ngưỡng cấu hình                                        | Thấp        | Đang lên kế hoạch |
 
 ---
@@ -131,15 +145,15 @@ server/                     ← Node.js/Express backend (Render.com)
 # 5. Ghi chú kỹ thuật quan trọng
 
 > **Thứ tự load file GAS (src/):** clasp sắp xếp alphabetical theo thư mục:
-> `HuongDanSuDung.gs` → `config/` → `kiotviet/` → `sync/` → `utils/`
-> `Config.gs` luôn được khởi tạo trước tất cả module khác. ✅
+> `HuongDanSuDung.gs` -> `config/` -> `kiotviet/` -> `shipment/` -> `sync/` -> `utils/`
+> `Config.gs` luôn được khởi tạo trước tất cả module khác.
 
-> **Schema Google Sheets:** Apps Script duy trì 9 tab vận hành, tab lịch sử `Hàng ngừng kinh doanh`, 3 tab báo cáo khách hàng, 3 tab báo cáo công nợ HN1/HN3/HN7 và tab ẩn `_KV_WEBHOOK_QUEUE`. Queue không hết hạn, chỉ xóa sự kiện sau khi ghi thành công và tự retry lỗi. Ba tab `HN1`/`HN3`/`HN7` do `CustomerDebtReport.gs` tự động tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00 (hoặc chạy tay), được backend `server/dashboard/debtReport.js` đọc để dựng báo cáo công nợ. `src/kiotviet/SheetSchemas.gs` ghi dữ liệu mới trước khi dọn dòng dư để tránh xóa trắng khi cập nhật lỗi.
+> **Schema Google Sheets:** Apps Script duy trì 9 tab vận hành, tab lịch sử `Hàng ngừng kinh doanh`, 3 tab báo cáo khách hàng, 3 tab báo cáo công nợ HN1/HN3/HN7, 6 tab vận chuyển `VC_*` và tab ẩn `_KV_WEBHOOK_QUEUE`. Queue không hết hạn, chỉ xóa sự kiện sau khi ghi thành công và tự retry lỗi. Ba tab `HN1`/`HN3`/`HN7` do `CustomerDebtReport.gs` tự động tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00 (hoặc chạy tay), được backend `server/dashboard/debtReport.js` đọc để dựng báo cáo công nợ. `src/kiotviet/SheetSchemas.gs` ghi dữ liệu mới trước khi dọn dòng dư để tránh xóa trắng khi cập nhật lỗi.
 > `sheetsClient.js` lọc tab hiện có trước `batchGet`, nên tab thiếu chỉ làm rỗng section tương ứng. Khi thay đổi các cột tương thích dashboard vẫn phải cập nhật đồng bộ `SheetSchemas.gs`, `server/config.js` và `server/dashboard/dashboardData.js`.
 
 > **Múi giờ:** Backend cố định `Asia/Ho_Chi_Minh`/UTC+07:00 cho parse ngày, KPI "hôm nay", bucket 7/30/90 ngày và `updatedAt`; không phụ thuộc timezone mặc định của Render.
 
-> **Biến môi trường Render:** `SPREADSHEET_ID` và `GOOGLE_SERVICE_ACCOUNT_JSON` — không commit vào repo.
+> **Biến môi trường Render:** `SPREADSHEET_ID`, `VC_SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_JSON`, `JWT_SECRET` — không commit vào repo.
 
 > **Thông tin xác thực KiotViet:** Apps Script đọc `KIOTVIET_CLIENT_ID` và `KIOTVIET_CLIENT_SECRET` từ Script Properties; tác vụ Node.js đọc `KIOTVIET_CLIENT_ID`, `KIOTVIET_CLIENT_SECRET`, `KIOTVIET_RETAILER` từ biến môi trường. Không hard-code hoặc commit các giá trị này.
 
@@ -151,14 +165,14 @@ Toàn bộ 6 tab dashboard hiện có (Tổng quan/Hàng hóa/Hóa đơn/Khách 
 
 | Phase | Nội dung | Trạng thái |
 |---|---|---|
-| **0 — Nền tảng Auth** | JWT httpOnly cookie + bcrypt; đăng nhập nội bộ, Google Identity và form đăng ký riêng; vai trò `Khách` hoạt động ngay chỉ được vào Quản lý vận chuyển; bốn vai trò nội bộ giữ quyền dashboard; tab `Users` và công cụ quản trị CLI | ✅ Hoàn thành |
-| **0.5 — Tra cứu vận chuyển cho Khách** | `POST /api/shipment/invoice-status` khớp chính xác tối đa 50 mã từ sheet `Hóa đơn`, chỉ trả mã/trạng thái và cache 90 giây; trang `/shipment/` mặc định trống, menu/redirect theo vai trò | ✅ Hoàn thành |
-| **1 — MVP Vận chuyển Web-First (Kế hoạch thay thế)** | Spreadsheet vận chuyển riêng (`VC_Orders`/`VC_OrderItems`/`VC_StatusHistory`/`VC_Attachments`/`VC_Exceptions`/`VC_Vehicles`), State Machine 4 luồng, Web Desktop Điều phối (Kế toán) & Mobile Web 1-chạm (Kho & Lái xe chụp ảnh lưu Drive), Báo cáo Đối soát cuối ngày tự động | 🚀 Sẵn sàng triển khai |
-| **2 — Tự động hóa Bot Telegram & OCR (Khi chuẩn bị đủ bot)** | Bot Telegram nghe 9 nhóm gọi webhook vào API Phase 1, OCR bill ký nhận (Vision API), quy tắc tự động hoàn thành đơn hoặc chuyển hàng đợi soát thủ công | ⏳ Giai đoạn tiếp theo |
-| **3 — Vận hành nâng cao & Mở rộng** | KPI dashboard vận chuyển chuyên sâu, quản lý xe/tài xế & phân bổ tuyến, module cước phí | 🔮 Tương lai |
+| **0 — Nền tảng Auth** | JWT httpOnly cookie + bcrypt; đăng nhập nội bộ, Google Identity và form đăng ký riêng; vai trò `Khách` hoạt động ngay chỉ được vào Quản lý vận chuyển; bốn vai trò nội bộ giữ quyền dashboard; tab `Users` và công cụ quản trị CLI | [Hoan thanh] |
+| **0.5 — Tra cứu vận chuyển cho Khách** | `POST /api/shipment/invoice-status` khớp chính xác tối đa 50 mã từ sheet `Hóa đơn`, chỉ trả mã/trạng thái và cache 90 giây; trang `/shipment/` mặc định trống, menu/redirect theo vai trò | [Hoan thanh] |
+| **1 — MVP Vận chuyển Web-First (Kế hoạch thay thế)** | Spreadsheet vận chuyển riêng (`VC_Orders`/`VC_OrderItems`/`VC_StatusHistory`/`VC_Attachments`/`VC_Exceptions`/`VC_Vehicles`), State Machine 4 luồng 8 trạng thái, Web Desktop Điều phối (Kế toán) & Mobile Web 1-chạm (Kho & Lái xe chụp ảnh lưu Drive), Báo cáo Đối soát cuối ngày tự động | [Hoan thanh] |
+| **2 — Tự động hóa Bot Telegram & OCR (Khi chuẩn bị đủ bot)** | Bot Telegram nghe 9 nhóm gọi webhook vào API Phase 1, OCR bill ký nhận (Vision API), quy tắc tự động hoàn thành đơn hoặc chuyển hàng đợi soát thủ công | [Giai doan tiep theo] |
+| **3 — Vận hành nâng cao & Mở rộng** | KPI dashboard vận chuyển chuyên sâu, quản lý xe/tài xế & phân bổ tuyến, module cước phí | [Tuong lai] |
 
-> **Lưu ý kiến trúc:** tab `Users` cố tình đặt trong spreadsheet KiotViet hiện có (không phải spreadsheet vận chuyển riêng ở Phase 1) vì tab này không bao giờ bị bot/GAS ghi tự động — chỉ Quản lý tạo/sửa tài khoản qua `setupUsersSheet.js`, nên không có rủi ro race condition cần cô lập.
+> **Lưu ý kiến trúc:** tab `Users` đặt trong spreadsheet KiotViet hiện có vì tab này chỉ Quản lý tạo/sửa tài khoản qua `setupUsersSheet.js`, không có rủi ro race condition.
 
 ---
 
-*— Cập nhật lần cuối: 17/08/2026 —*
+*Cập nhật lần cuối: 17/08/2026*

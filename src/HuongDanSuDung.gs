@@ -17,6 +17,12 @@ trong src/ de clasp push len va co the doc truc tiep trong Apps Script Editor.
   cot ma server/dashboard/debtReport.js dang doc (xem kiotviet/CustomerDebtReport.gs).
 - Chi dung tab Hang ngung kinh doanh de luu lich su tu truoc toi nay. Tab cu
   Hang ngung KD hom nay se duoc gop/xoa khi chay sync all hoac cau hinh lich.
+- Cung mot bo ma nguon ho tro hai du an doc lap:
+  + Sheet tong hop cu: khong dat KIOTVIET_SYNC_MODE (mac dinh FULL_DASHBOARD).
+  + Sheet van chuyen moi: dat KIOTVIET_SYNC_MODE=SHIPMENT_LIFECYCLE; chi nhan
+    invoice.update va ghi cac bang lien quan den vong doi don hang.
+- KiotViet chi cho mot webhook moi Type: project cu giu invoice.update va
+  forward payload sang WEBHOOK_URL cua project moi bang shared secret rieng.
 
 2. CAC HAM QUAN TRI CAN CHAY
 -------------------------------------------------------------------------------
@@ -52,6 +58,23 @@ setupKiotVietAutoSync()
              -> reconcileKiotVietAutoSyncWebhooks_().
   Luu y    : Ham nay khong tao trigger bao cao ban hang 07:00. Neu can trigger
              do, chay setupCustomerReport() rieng.
+
+initializeShipmentLifecycleSheets()
+  Khi dung : Tren du an sheet van chuyen moi, truoc lan dong bo dau tien.
+  Tac dung : Tao/kiem tra 6 tab Don van chuyen, Chi tiet van chuyen, Lich su
+             trang thai, Anh chung tu, Su co van chuyen va Danh muc xe.
+
+syncShipmentLifecycleRecent7Days()
+  Khi dung : Lan dau tren sheet van chuyen, hoac khi can doi soat du lieu gan day.
+  Tac dung : Tai hoa don sua trong 7 ngay theo tung trang va upsert don/chi tiet;
+             khong chay sync all nen tranh gioi han thoi gian Apps Script.
+
+setupShipmentLifecycleSync()
+  Khi dung : Mot lan tren du an sheet van chuyen sau khi deploy Web App.
+  Tac dung : Dat che do SHIPMENT_LIFECYCLE, khoi tao 6 tab va tao trigger queue
+             moi phut de nhan invoice.update chuyen tiep tu project cu.
+  Luu y    : Dat KIOTVIET_SHIPMENT_RELAY_ENABLED=true tren project moi. Project
+             cu dat SHIPMENT_WEBHOOK_URL va SHIPMENT_WEBHOOK_SECRET.
 
 setupCustomerReport()
   Khi dung : Mot lan neu muon Apps Script tu doi soat 3 bao cao luc 07:00.
@@ -129,6 +152,8 @@ Trigger moi phut
   -> processWebhookQueue()
      -> claimWebhookQueueBatch_()                   nhan toi da 50 su kien
      -> processWebhookQueueItem_()
+        -> neu SHIPMENT_LIFECYCLE: processShipmentLifecycleWebhookItems_()
+           -> upsert Don van chuyen + Chi tiet van chuyen + Lich su trang thai
         -> product/stock : updateProductsFromWebhook() hoac deleteProducts...
         -> invoice      : updateInvoicesFromWebhook() hoac deleteInvoices...
         -> order        : updateOrdersFromWebhook()
@@ -184,7 +209,11 @@ kiotviet/SyncInitial.gs
   Full sync, cac ham sync tung tab va polling 15 phut.
 
 kiotviet/WebhookAdmin.gs
-  Tao/kiem tra/doi chieu webhook; URL dang ky tro toi doPost().
+  Tao/kiem tra/doi chieu webhook theo profile; URL dang ky tro toi doPost().
+
+shipment/KiotVietLifecycle.gs
+  Khoi tao 6 tab van chuyen, backfill 7 ngay va xu ly invoice.update theo ma
+  hoa don; giu nguyen trang thai/nghiep vu da duoc nguoi dung cap nhat.
 
 sync/WebhookQueue.gs
   Nhan webhook, queue ben vung, lease/retry va trigger xu ly moi phut.
@@ -213,10 +242,15 @@ utils/Helpers.gs
    - KIOTVIET_CLIENT_ID
    - KIOTVIET_CLIENT_SECRET
    - WEBHOOK_URL (bat buoc; URL /exec cua deployment Web App hien tai)
+   - KIOTVIET_SYNC_MODE=SHIPMENT_LIFECYCLE (chi dat tren sheet van chuyen moi)
+   - KIOTVIET_SHIPMENT_RELAY_ENABLED=true (chi tren sheet van chuyen moi)
+   - Project cu: SHIPMENT_WEBHOOK_URL va SHIPMENT_WEBHOOK_SECRET trung voi
+     WEBHOOK_URL/WEBHOOK_SECRET cua project van chuyen.
 2) Chay clasp push --force tu thu muc du an.
 3) Tao version moi va redeploy Web App. Quyen truy cap phai cho phep KiotViet POST.
-4) Lan dau chay syncAllInitialData() (dong bo Hang ngung kinh doanh va HN1/HN3/HN7).
-5) Chay setupKiotVietAutoSync() (tu bat trigger HN1/HN3/HN7 gan 15:00 hang ngay).
+4) Sheet tong hop cu: chay syncAllInitialData(), sau do setupKiotVietAutoSync().
+5) Sheet van chuyen moi: chay syncShipmentLifecycleRecent7Days(), sau do
+   setupShipmentLifecycleSync().
 6) Neu dung trigger bao cao ban hang 07:00, chay setupCustomerReport().
 7) Xac nhan bang checkWebhookStatus() va getWebhookQueueStatus().
 8) Can cap nhat HN1/HN3/HN7 ngay lap tuc (khong doi 15:00): chay tay syncCustomerDebtReports().

@@ -147,7 +147,7 @@ Khi thêm 1 thư mục `future-phases/` mới:
 ```
 2. Thêm hàng trong bảng `## Lộ trình mở rộng`:
 ```
-| **X** 🔲 | `future-phases/ten-module/` | Mô tả đầy đủ |
+| **X** [Chua bat dau] | `future-phases/ten-module/` | Mô tả đầy đủ |
 ```
 
 ---

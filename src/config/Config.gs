@@ -20,8 +20,43 @@ const CONFIG = {
   SHEET_DISCONTINUED_PRODUCTS: 'Hàng ngừng kinh doanh',
   SHEET_CUSTOMER_DEBT_1_DAY: 'HN1',
   SHEET_CUSTOMER_DEBT_3_DAYS: 'HN3',
-  SHEET_CUSTOMER_DEBT_7_DAYS: 'HN7'
+  SHEET_CUSTOMER_DEBT_7_DAYS: 'HN7',
+
+  // Spreadsheet van chuyen doc lap. O che do SHIPMENT_LIFECYCLE, Apps Script
+  // chi ghi cac tab nay va khong tao 9 tab du lieu tong hop cua dashboard cu.
+  SHEET_SHIPMENT_ORDERS: 'Đơn vận chuyển',
+  SHEET_SHIPMENT_ORDER_ITEMS: 'Chi tiết vận chuyển',
+  SHEET_SHIPMENT_STATUS_HISTORY: 'Lịch sử trạng thái',
+  SHEET_SHIPMENT_ATTACHMENTS: 'Ảnh chứng từ',
+  SHEET_SHIPMENT_EXCEPTIONS: 'Sự cố vận chuyển',
+  SHEET_SHIPMENT_VEHICLES: 'Danh mục xe'
 };
+
+const KIOTVIET_SYNC_MODES = Object.freeze({
+  FULL_DASHBOARD: 'FULL_DASHBOARD',
+  SHIPMENT_LIFECYCLE: 'SHIPMENT_LIFECYCLE'
+});
+
+/**
+ * Du an cu khong co property nay nen mac dinh van dong bo day du nhu truoc.
+ * Du an cua spreadsheet van chuyen dat KIOTVIET_SYNC_MODE=SHIPMENT_LIFECYCLE.
+ */
+function getKiotVietSyncMode_() {
+  const configured = PropertiesService.getScriptProperties()
+    .getProperty('KIOTVIET_SYNC_MODE');
+  return configured === KIOTVIET_SYNC_MODES.SHIPMENT_LIFECYCLE
+    ? KIOTVIET_SYNC_MODES.SHIPMENT_LIFECYCLE
+    : KIOTVIET_SYNC_MODES.FULL_DASHBOARD;
+}
+
+function isShipmentLifecycleMode_() {
+  return getKiotVietSyncMode_() === KIOTVIET_SYNC_MODES.SHIPMENT_LIFECYCLE;
+}
+
+function isShipmentLifecycleRelayEnabled_() {
+  return String(PropertiesService.getScriptProperties()
+    .getProperty('KIOTVIET_SHIPMENT_RELAY_ENABLED') || '').toLowerCase() === 'true';
+}
 
 /**
  * Schema co dinh cua tab Hang hoa.

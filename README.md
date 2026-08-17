@@ -1,10 +1,10 @@
 # TKS Dashboard — CHbansi Live Dashboard
 
-Hệ thống dashboard **thời gian thực** cho cửa hàng **CHbansi**, đồng bộ dữ liệu từ [KiotViet](https://www.kiotviet.vn/) qua Google Apps Script + Google Sheets.
+Hệ thống dashboard thời gian thực cho cửa hàng CHbansi, đồng bộ dữ liệu từ KiotViet qua Google Apps Script + Google Sheets.
 
 ---
 
-## 📋 Mục lục
+## Mục lục
 
 - [Tổng quan](#tổng-quan)
 - [Cấu trúc thư mục](#cấu-trúc-thư-mục)
@@ -19,11 +19,11 @@ Hệ thống dashboard **thời gian thực** cho cửa hàng **CHbansi**, đồ
 
 | Hạng mục | Chi tiết |
 |---|---|
-| **Nền tảng** | Google Apps Script (V8 Runtime) |
-| **Lưu trữ dữ liệu** | Google Sheets (9 tab vận hành + 7 tab tổng hợp: Báo cáo bán hàng, Hàng bán theo khách, Khách theo hàng hóa, Hàng ngừng kinh doanh, HN1, HN3, HN7) |
-| **Nguồn dữ liệu** | KiotViet Public API |
+| **Nền tảng** | Google Apps Script (V8 Runtime) + Node.js/Express Backend |
+| **Lưu trữ dữ liệu** | Google Sheets (9 tab vận hành + 7 tab tổng hợp + 6 tab vận chuyển VC_* + tab Users) + Google Drive (Ảnh chứng từ) |
+| **Nguồn dữ liệu** | KiotViet Public API & Webhook |
 | **Cập nhật** | Webhook + hàng đợi bền vững trên tab ẩn; polling 15 phút cho nguồn không có webhook |
-| **Apps Script** | Chỉ đồng bộ KiotViet → Google Sheets; Web App `/exec` chỉ nhận HTTP POST |
+| **Apps Script** | Đồng bộ KiotViet -> Google Sheets; Web App `/exec` nhận HTTP POST; chuyển tiếp webhook vòng đời vận chuyển |
 | **Múi giờ** | Asia/Ho_Chi_Minh (GMT+7) |
 
 ### Kiến trúc xử lý Webhook
@@ -33,13 +33,13 @@ KiotViet ──POST──▶ doPost()          ← Xác thực và ghi bền v�
                       │
              _KV_WEBHOOK_QUEUE        ← Tab ẩn, không tự hết hạn
                       │
-              ┌── trigger/1 phút ──┐
-              ▼                    │
-   processWebhookQueue()           │  ← Đọc queue & ghi Sheet
-              │                    │
-    updateXxxFromWebhook()         └── LockService (tránh race condition)
-              │
-         Google Sheets
+               ┌── trigger/1 phút ──┐
+               ▼                    │
+    processWebhookQueue()           │  ← Đọc queue & ghi Sheet
+               │                    │
+     updateXxxFromWebhook()         └── LockService (tránh race condition)
+               │
+          Google Sheets
 ```
 
 ---
@@ -72,40 +72,76 @@ webtks-dashboard/
 │   └── README.md
 │
 ├── server/                      # Backend Node.js đọc/ghi Google Sheets & Web Server
-│   ├── auth/                    # JWT, bcrypt, Google Identity, Users sheet và phân quyền
+│   ├── auth/                    # JWT, bcrypt, Google Identity, Users cục bộ bảo mật và phân quyền
+│   │   ├── adminUserRoutes.js   # API /api/admin/users (CRUD tài khoản, reset mật khẩu, phân quyền)
+│   │   ├── adminUserRoutes.test.js # Unit test routes quản trị người dùng
+│   │   ├── authMiddleware.js    # requireAuth, requireRole bọc route
+│   │   ├── authMiddleware.test.js # Unit test middleware xác thực
+│   │   ├── authRoutes.js        # API /api/auth (login, register, google, me, profile, change-password, logout, reset OTP, lockout)
+│   │   ├── authRoutes.test.js   # Unit test routes xác thực
+│   │   ├── authService.js       # Xử lý JWT cookie và mật khẩu bcrypt
+│   │   ├── authService.test.js  # Unit test auth service
+│   │   ├── googleAuthService.js # Xác thực Google ID Token
+│   │   ├── googleAuthService.test.js # Unit test Google auth
+│   │   ├── localUserStore.js    # Lưu trữ dữ liệu người dùng cục bộ bảo mật (server/data/users.json)
+│   │   ├── otpService.js        # Sinh mã xác thực OTP 6 số, che mờ Email/SĐT và kiểm tra thời hạn
+│   │   ├── otpService.test.js   # Unit test OTP service
+│   │   ├── userRepository.js    # Tầng truy xuất thông tin tài khoản người dùng
+│   │   ├── userRepository.test.js # Unit test user repository
+│   │   └── userWriteRepository.js # Tầng ghi thông tin người dùng bảo mật
 │   ├── dashboard/
-│   │   ├── dashboardData.js     # Thống kê tổng quan KPI, biểu đồ và tìm kiếm
+│   │   ├── dashboardData.js     # Thống kê tổng quan KPI, biểu đồ, tìm kiếm và Result Cache
 │   │   ├── dashboardData.test.js # Unit test dữ liệu dashboard/tìm kiếm/cache
 │   │   ├── debtReport.js        # Báo cáo công nợ khách hàng 1/3/7 ngày từ HN1/HN3/HN7
 │   │   ├── exportService.js     # Registry 16 bảng và tạo workbook Excel
 │   │   └── exportService.test.js # Unit test dữ liệu/file Excel
 │   ├── jobs/
 │   │   └── syncCustomerReport.js # Tác vụ đối soát toàn bộ 3 báo cáo lúc 07:00
-│   ├── public/                  # Frontend Live Dashboard
-│   │   ├── index.html
+│   ├── public/                  # Frontend Live Dashboard, Vận chuyển & Quản lý tài khoản
+│   │   ├── account/
+│   │   │   └── index.html       # Quản lý tài khoản (Hồ sơ cá nhân & Quản trị người dùng)
+│   │   ├── index.html           # Live Dashboard (KPI, biểu đồ, phân trang, xuất Excel)
 │   │   ├── js/
-│   │   │   ├── auth-guest-ui.test.js # Kiểm tra UI đăng ký/Google/tra cứu Khách
+│   │   │   ├── auth-guest-ui.test.js # Kiểm tra UI đăng ký/Google/tra cứu Khách/Tài khoản
 │   │   │   ├── export-ui.test.js # Kiểm tra nút/modal xuất Excel trong giao diện
 │   │   │   ├── pagination.js    # Phân trang client-side cho các bảng
 │   │   │   └── pagination.test.js # Unit test cho module phân trang
 │   │   ├── login/index.html     # Đăng nhập nội bộ hoặc Google
 │   │   ├── register/index.html  # Đăng ký tài khoản Khách bằng email/mật khẩu
-│   │   ├── shared/              # CSS và điều hướng/auth guard dùng chung
-│   │   ├── shipment/index.html  # Tra cứu trạng thái hóa đơn chính xác
+│   │   ├── shared/              # CSS, điều hướng/auth guard và tiện ích nén ảnh dùng chung
+│   │   │   ├── image-compress.js # Nén và resize ảnh trước khi upload
+│   │   │   ├── shared-nav.js    # Header navigation dùng chung đa trang (3 mục cấp cao)
+│   │   │   └── shared.css       # Style theme và component dùng chung
+│   │   ├── shipment/
+│   │   │   ├── index.html       # Tra cứu trạng thái hóa đơn cho khách hàng
+│   │   │   ├── dispatch/
+│   │   │   │   ├── index.html   # Web Desktop: Bảng điều phối vận đơn & Kanban (Kế toán)
+│   │   │   │   └── dispatch.js  # Logic điều phối, lọc và cập nhật trạng thái
+│   │   │   └── mobile/
+│   │   │       ├── index.html   # Mobile Web 1-chạm (Thủ kho & Lái xe)
+│   │   │       └── mobile.js    # Camera upload ảnh chứng từ & chuyển trạng thái
 │   │   └── vendor/
 │   │       └── chart.umd.min.js
 │   ├── scripts/
-│   │   └── setupUsersSheet.js   # CLI quản lý tài khoản người dùng và khởi tạo sheet Users
-│   ├── shipment/
-│   │   ├── invoiceStatusService.js # Tra cứu mã/trạng thái, cache 90 giây
-│   │   └── invoiceStatusService.test.js
+│   │   ├── setupUsersSheet.js   # CLI quản lý tài khoản người dùng và khởi tạo sheet Users
+│   │   └── setupVcSheet.js      # CLI khởi tạo 6 tab vận chuyển VC_*
 │   ├── sheets/
-│   │   └── sheetsClient.js      # Đọc dữ liệu Google Sheets cho dashboard
+│   │   ├── sheetsClient.js      # Đọc dữ liệu Google Sheets cho dashboard
+│   │   └── vcSheetsClient.js    # Đọc/ghi dữ liệu bảng vận chuyển VC_*
+│   ├── shipment/
+│   │   ├── driveService.js      # Tải ảnh chứng từ lên Google Drive theo ngày/mã đơn
+│   │   ├── invoiceStatusService.js # Tra cứu mã/trạng thái, cache 90 giây
+│   │   ├── invoiceStatusService.test.js # Unit test tra cứu trạng thái
+│   │   ├── orderStateMachine.js # State Machine 8 trạng thái vận đơn & kiểm tra chuyển tiếp
+│   │   ├── orderStateMachine.test.js # Unit test State Machine
+│   │   ├── shipmentOrderRoutes.js # REST API vận đơn, điều phối, ảnh chứng từ, sự cố, đối soát
+│   │   ├── vcOrderRepository.js # Thao tác CRUD 6 tab vận chuyển VC_*
+│   │   └── vcOrderRepository.test.js # Unit test repository vận đơn
 │   ├── config.js                # Cấu hình môi trường Node.js server
 │   ├── index.js                 # Express server entry point
-│   └── routes.js                # Định tuyến API endpoint (/api/dashboard/summary, etc.)
+│   └── routes.js                # Định tuyến API endpoint (/api/dashboard/*, /api/auth/*, /api/shipment/*)
 │
-├── src/                         # ── GIAI ĐOẠN 1 — Code Apps Script (clasp) ──
+├── src/                         # Giai đoạn 1: Code Apps Script (clasp)
 │   ├── appsscript.json          # Manifest Apps Script (timezone, oauthScopes)
 │   ├── HuongDanSuDung.gs        # Hướng dẫn hàm và luồng liên kết ngay trên GAS
 │   │
@@ -115,41 +151,45 @@ webtks-dashboard/
 │   ├── kiotviet/
 │   │   ├── Auth.gs              # getKiotVietToken() + cache token theo hạn
 │   │   ├── CustomerDebtReport.gs # syncCustomerDebtReports, setupCustomerDebtReports,
-│   │   │                        #   setupCustomerDebtReportDailyTrigger (HN1/HN3/HN7)
+│   │   │                        # setupCustomerDebtReportDailyTrigger (HN1/HN3/HN7)
 │   │   ├── CustomerReport.gs    # syncCustomerReport, syncCustomerByProductReport,
-│   │   │                        #   setupCustomerReport, trigger 07:00
+│   │   │                        # setupCustomerReport, trigger 07:00
 │   │   ├── DiscontinuedProducts.gs # syncHangNgungKinhDoanh, lưu lịch sử ngừng kinh doanh
 │   │   ├── SheetSchemas.gs      # Schema đủ trường cho 9 sheet, fetch/retry,
-│   │   │                        #   ghi/upsert/migrate dữ liệu KiotViet
+│   │   │                        # ghi/upsert/migrate dữ liệu KiotViet
 │   │   ├── SyncInitial.gs       # syncAllInitialData, sync 9 sheet vận hành,
-│   │   │                        #   setupPollingTrigger (15 phút)
+│   │   │                        # setupPollingTrigger (15 phút)
 │   │   └── WebhookAdmin.gs      # registerWebhookProgrammatically,
-│   │                            #   registerWebhookWithCorrectUrl,
-│   │                            #   listRegisteredWebhooks, checkWebhookStatus,
-│   │                            #   deleteAllOldWebhooks
+│   │                            # registerWebhookWithCorrectUrl,
+│   │                            # listRegisteredWebhooks, checkWebhookStatus,
+│   │                            # deleteAllOldWebhooks
+│   │
+│   ├── shipment/
+│   │   └── KiotVietLifecycle.gs # Khởi tạo 6 tab vận chuyển, nhận invoice.update,
+│   │                            # upsert đơn/chi tiết và backfill 7 ngày
 │   │
 │   ├── sync/
 │   │   ├── UpdateHandlers.gs    # hydrate + update/delete Product, Invoice,
-│   │   │                        #   Order, Customer, Category
+│   │   │                        # Order, Customer, Category
 │   │   └── WebhookQueue.gs      # doPost, queue bền vững, retry,
-│   │                            #   processWebhookQueue, getWebhookQueueStatus
+│   │                            # processWebhookQueue, getWebhookQueueStatus
 │   │
 │   └── utils/
 │       └── Helpers.gs           # getCodeRowMap, formatLastRowNumbers, formatDate
 │
 ├── docs/
 │   ├── 01-brd/
-│   │   └── BRD_Dashboard_GoogleSheets.md
+│   │   └── BRD_Dashboard_GoogleSheets.md # Yêu cầu nghiệp vụ BRD v1.5
 │   ├── 02-srs/
-│   │   └── SRS_Dashboard_GoogleSheets.md
+│   │   └── SRS_Dashboard_GoogleSheets.md # Đặc tả kỹ thuật SRS v1.7
 │   ├── 03-process/
-│   │   ├── BPMN_Dashboard_GoogleSheets.md
+│   │   ├── BPMN_Dashboard_GoogleSheets.md # Sơ đồ quy trình nghiệp vụ
 │   │   └── bpmn/
 │   │       ├── bpmn_1_phaseA.bpmn
 │   │       ├── bpmn_2_phaseB.bpmn
 │   │       └── bpmn_3_phaseC.bpmn
 │   ├── 04-planning/
-│   │   └── implementation_plan.md
+│   │   └── implementation_plan.md        # Kế hoạch triển khai chi tiết & trạng thái
 │   └── superpowers/
 │       ├── plans/
 │       │   ├── 2026-08-13-dashboard-result-cache.md
@@ -157,7 +197,7 @@ webtks-dashboard/
 │       └── specs/
 │           └── 2026-08-05-debt-dashboard-design.md
 │
-└── future-phases/               # ── Khung rỗng cho các giai đoạn sau ──
+└── future-phases/               # Khung rỗng cho các giai đoạn sau
     ├── sales-pos/               # Giai đoạn 2: POS bán hàng
     ├── inventory/               # Giai đoạn 3: Quản lý kho nâng cao
     ├── analytics-anomaly/       # Giai đoạn 4: Phát hiện bất thường
@@ -170,17 +210,17 @@ webtks-dashboard/
 ## Cài đặt & triển khai
 
 ### Yêu cầu
-- [Node.js](https://nodejs.org/) ≥ 18
+- [Node.js](https://nodejs.org/) >= 18
 - [@google/clasp](https://github.com/google/clasp): `npm install -g @google/clasp`
 - Tài khoản Google có quyền truy cập Google Apps Script
 
 ### Chạy kiểm thử tự động (Server & Frontend logic)
-Thư mục `server/` tích hợp sẵn 74 unit tests (dùng `node:test` chuẩn của Node.js, không cần thư viện ngoài):
+Thư mục `server/` tích hợp sẵn bộ unit tests (dùng `node:test` chuẩn của Node.js, không cần thư viện ngoài):
 ```bash
 cd server
 npm test
 ```
-Bộ test bao gồm: kiểm thử xác thực auth (JWT httpOnly cookie, bcrypt, Google Identity, đăng ký tài khoản Khách, bảo vệ route theo vai trò), tra cứu trạng thái vận chuyển hóa đơn (`invoiceStatusService.js`), Result Cache backend, phân trang client-side (`pagination.js`), đăng ký & tạo file Xuất Excel 16 bảng (`exportService.js`), tìm kiếm nhiều mã chính xác và Top 3 KH theo sản phẩm.
+Bộ test bao gồm: kiểm thử xác thực auth (JWT httpOnly cookie, bcrypt, Google Identity, đăng ký tài khoản Khách, bảo vệ route theo vai trò), tra cứu trạng thái vận chuyển hóa đơn (`invoiceStatusService.js`), State Machine vận đơn 8 trạng thái (`orderStateMachine.js`), CRUD kho dữ liệu vận đơn (`vcOrderRepository.js`), Result Cache backend, phân trang client-side (`pagination.js`), đăng ký & tạo file Xuất Excel 16 bảng (`exportService.js`), tìm kiếm nhiều mã chính xác và Top 3 KH theo sản phẩm.
 
 ### Bước 1 — Clone & login
 ```bash
@@ -197,20 +237,20 @@ Mở `.clasp.json`, thay `<SCRIPT_ID_PLACEHOLDER>` bằng Script ID thật của
   "rootDir": "src"
 }
 ```
-> Script ID lấy từ: **Apps Script Editor → Project Settings → Script ID**
+> Script ID lấy từ: **Apps Script Editor -> Project Settings -> Script ID**
 
 ### Bước 3 — Push code lên GAS
 ```bash
 clasp push --force
 ```
 
-Trong **Apps Script Editor → Project Settings → Script Properties**, tạo hai thuộc tính:
+Trong **Apps Script Editor -> Project Settings -> Script Properties**, tạo các thuộc tính:
 
 - `KIOTVIET_CLIENT_ID`: Client ID của KiotViet.
 - `KIOTVIET_CLIENT_SECRET`: Client Secret của KiotViet.
 - `WEBHOOK_URL`: URL `/exec` của Web App sau khi deploy.
 
-Không lưu hai giá trị này trong mã nguồn hoặc commit lên Git.
+Không lưu các giá trị này trong mã nguồn hoặc commit lên Git.
 
 Lần đầu, tạo version và deployment Web App mới:
 
@@ -220,15 +260,16 @@ clasp deploy --description "KiotViet auto-sync"
 
 Lưu URL `https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec` vào Script Property
 `WEBHOOK_URL`. Những lần phát hành sau, tạo version mới rồi cập nhật đúng deployment
-đang dùng bằng `clasp redeploy <DEPLOYMENT_ID> -V <VERSION_MỚI>`.
+đang dùng bằng `clasp redeploy <DEPLOYMENT_ID> -V <VERSION_MOI>`.
 Manifest cũng chỉ cho phép chính tài khoản triển khai gọi hàm qua Apps Script
 Execution API (`executionApi.access = MYSELF`) để phục vụ kiểm tra và vận hành an toàn.
 
 ### Bước 4 — Thiết lập lần đầu (chạy thủ công 1 lần)
-1. Kiểm tra đã khai báo `KIOTVIET_CLIENT_ID` và `KIOTVIET_CLIENT_SECRET` trong Script Properties, sau đó chạy `syncAllInitialData()` để tải dữ liệu ban đầu. Hàm này cũng cập nhật toàn bộ lịch sử vào tab **Hàng ngừng kinh doanh** và dọn tab legacy `Hàng ngừng KD hôm nay` nếu còn tồn tại.
-2. Chạy `setupKiotVietAutoSync()` một lần. Hàm này tự tạo secret, trigger xử lý hàng đợi mỗi 1 phút, polling mỗi 15 phút, cập nhật **Hàng ngừng kinh doanh** lúc 07:00, cập nhật HN1/HN3/HN7 gần 15:00 và đăng ký đủ 9 webhook mà không xóa webhook của hệ thống khác.
-3. Tab **Hàng bán theo khách** có đúng 5 cột và được webhook cập nhật trong khoảng 1 phút. Tab **Khách theo hàng hóa** có đúng 25 cột như file xuất KiotViet, lấy toàn bộ lịch sử và chỉ làm mới khi chạy tay hoặc gần 07:00. Cả ba báo cáo được đối soát bởi `setupCustomerReport()`; tab **Báo cáo bán hàng** giữ đủ 18 cột.
-4. Ba tab **HN1**, **HN3**, **HN7** là báo cáo công nợ khách hàng 1/3/7 ngày gần đây (tính cả hôm nay) do Apps Script tự tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00, hoặc chạy tay `syncCustomerDebtReports()` bất cứ lúc nào cần cập nhật ngay.
+1. Kiểm tra đã khai báo `KIOTVIET_CLIENT_ID` và `KIOTVIET_CLIENT_SECRET` trong Script Properties. Chỉ trên dự án sheet tổng hợp cũ, chạy `syncAllInitialData()` để tải dữ liệu ban đầu. Hàm này cũng cập nhật toàn bộ lịch sử vào tab **Hàng ngừng kinh doanh** và dọn tab legacy `Hàng ngừng KD hôm nay` nếu còn tồn tại.
+2. Với sheet tổng hợp cũ, chạy `setupKiotVietAutoSync()` một lần. Chế độ mặc định `FULL_DASHBOARD` giữ nguyên trigger queue 1 phút, polling 15 phút, lịch báo cáo và 9 webhook.
+3. Với sheet vận chuyển mới, đặt `KIOTVIET_SYNC_MODE=SHIPMENT_LIFECYCLE` và `KIOTVIET_SHIPMENT_RELAY_ENABLED=true`, chạy `syncShipmentLifecycleRecent7Days()` rồi `setupShipmentLifecycleSync()`. Do KiotViet chỉ cho một webhook mỗi Type, project cũ giữ `invoice.update` và chuyển tiếp sự kiện sang Web App mới bằng `SHIPMENT_WEBHOOK_URL` + `SHIPMENT_WEBHOOK_SECRET`.
+4. Tab **Hàng bán theo khách** có đúng 5 cột và được webhook cập nhật trong khoảng 1 phút. Tab **Khách theo hàng hóa** có đúng 25 cột như file xuất KiotViet, lấy toàn bộ lịch sử và chỉ làm mới khi chạy tay hoặc gần 07:00. Cả ba báo cáo được đối soát bởi `setupCustomerReport()`; tab **Báo cáo bán hàng** giữ đủ 18 cột.
+5. Ba tab **HN1**, **HN3**, **HN7** là báo cáo công nợ khách hàng 1/3/7 ngày gần đây (tính cả hôm nay) do Apps Script tự tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00, hoặc chạy tay `syncCustomerDebtReports()` bất cứ lúc nào cần cập nhật ngay.
 
 Sau khi bật, thay đổi Hàng hóa, Tồn kho, Khách hàng, Hóa đơn, Đặt hàng và Nhóm hàng
 được nhận bằng webhook rồi ghi vào Sheets trong khoảng 1 phút. **Trả hàng**, **Nhà cung
@@ -236,9 +277,9 @@ cấp** và **Nhập hàng** được quét dự phòng mỗi 15 phút vì KiotV
 cho ba nhóm này.
 
 ### Bước 5 — Deploy Web App
-1. **Deploy → New deployment → Web App**
+1. **Deploy -> New deployment -> Web App**
 2. Execute as: **Me**, Access: **Anyone**
-3. Copy URL `/exec` → lưu vào Script Property `WEBHOOK_URL`
+3. Copy URL `/exec` -> lưu vào Script Property `WEBHOOK_URL`
 
 ---
 
@@ -251,6 +292,9 @@ cho ba nhóm này.
 | `cauHinhLichHangNgungKinhDoanh()` | Cập nhật toàn bộ lịch sử và tạo lại lịch cập nhật 07:00 hàng ngày | Một lần sau khi deploy |
 | `removeJsonColumnsFromAllSheets()` | Xóa ngay các cột `(JSON)` cũ trên 9 sheet vận hành | Tùy chọn; trigger nền cũng tự chạy một lần sau khi deploy |
 | `setupKiotVietAutoSync()` | Bật hoặc khôi phục webhook và trigger an toàn, không tạo trùng | 1 lần sau khi deploy |
+| `initializeShipmentLifecycleSheets()` | Tạo/kiểm tra đủ 6 tab và header vận chuyển | Khi chuẩn bị sheet mới |
+| `syncShipmentLifecycleRecent7Days()` | Nạp hóa đơn 7 ngày gần nhất theo từng trang, tránh chạy full quá quota | Một lần ban đầu hoặc khi đối soát |
+| `setupShipmentLifecycleSync()` | Chọn chế độ vòng đời vận chuyển và tạo trigger queue; nhận `invoice.update` chuyển tiếp từ project cũ | Một lần trên dự án sheet mới |
 | `syncPollingOnly_()` | Làm mới Trả hàng, Nhà cung cấp, Nhập hàng | Tự chạy bởi trigger 15 phút |
 | `setupPollingTrigger()` | Bật lịch làm mới 3 sheet không có webhook | 1 lần duy nhất |
 | `removePollingTrigger()` | Tắt lịch làm mới 15 phút | Khi bảo trì |
@@ -277,12 +321,12 @@ cho ba nhóm này.
 
 | Giai đoạn | Module | Mô tả |
 |---|---|---|
-| **1** ✅ | `src/` | Dashboard real-time (đang chạy) |
-| **2** 🔲 | `future-phases/sales-pos/` | POS bán hàng tích hợp |
-| **3** 🔲 | `future-phases/inventory/` | Quản lý kho nâng cao, cảnh báo |
-| **4** 🔲 | `future-phases/analytics-anomaly/` | Phát hiện bất thường, fraud detection |
-| **5** 🔲 | `future-phases/directory/` | Danh bạ nhân viên / đối tác |
-| **6** 🔲 | `future-phases/ai-assistant/` | Chatbot tư vấn & dự báo bằng AI |
+| **1** [Hoan thanh] | `src/` | Dashboard real-time (đang chạy) |
+| **2** [Chua bat dau] | `future-phases/sales-pos/` | POS bán hàng tích hợp |
+| **3** [Chua bat dau] | `future-phases/inventory/` | Quản lý kho nâng cao, cảnh báo |
+| **4** [Chua bat dau] | `future-phases/analytics-anomaly/` | Phát hiện bất thường, fraud detection |
+| **5** [Chua bat dau] | `future-phases/directory/` | Danh bạ nhân viên / đối tác |
+| **6** [Chua bat dau] | `future-phases/ai-assistant/` | Chatbot tư vấn & dự báo bằng AI |
 
 ---
 
@@ -307,9 +351,9 @@ cho ba nhóm này.
 
 ## Ghi chú kỹ thuật
 
-> **Thứ tự load file trong GAS**: clasp sắp xếp file theo thứ tự alphabetical của thư mục.  
-> `HuongDanSuDung.gs` → `config/` → `kiotviet/` → `sync/` → `utils/`
-> Đảm bảo `Config.gs` luôn được khởi tạo trước tất cả các module khác. ✅
+> **Thứ tự load file trong GAS**: clasp sắp xếp file theo thứ tự alphabetical của thư mục.
+> `HuongDanSuDung.gs` -> `config/` -> `kiotviet/` -> `shipment/` -> `sync/` -> `utils/`
+> Đảm bảo `Config.gs` luôn được khởi tạo trước tất cả các module khác.
 
 > Apps Script không có `doGet()` hoặc file HTML. Deployment Web App chỉ tồn tại
 > để KiotViet gọi `doPost()` qua URL `/exec`.
@@ -320,7 +364,6 @@ cho ba nhóm này.
 > của schema cũ một lần sau khi phiên bản mới được deploy. HN1/HN3/HN7 dùng schema
 > báo cáo riêng (một dòng cho mỗi giao dịch hoặc mặt hàng trong giao dịch)
 > do `CustomerDebtReport.gs` tự quản lý, tách biệt với 9 sheet vận hành.
-
 
 ---
 

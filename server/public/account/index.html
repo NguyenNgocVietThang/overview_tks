@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quản lý tài khoản · TOKOSI Dashboard</title>
+<link rel="icon" type="image/jpeg" href="/Logo.jpg">
+<script>
+  (function(){
+    try{ document.documentElement.dataset.theme = localStorage.getItem('tks-dashboard-theme') === 'light' ? 'light' : 'dark'; }
+    catch(err){ document.documentElement.dataset.theme = 'dark'; }
+    document.documentElement.style.visibility = 'hidden';
+  })();
+</script>
+<link rel="stylesheet" href="/shared/shared.css">
+<script src="/shared/shared-nav.js"></script>
+<style>
+  /* ---------- Account Page Custom Styles ---------- */
+  .account-wrap{ max-width:1200px; margin:0 auto; }
+  
+  .account-header{ margin-bottom:20px; }
+  .account-header h2{
+    margin:0 0 6px; font-family:var(--font-display); font-weight:800; font-size:24px;
+    letter-spacing:-0.02em; color:var(--text);
+  }
+  .account-header p{ margin:0; color:var(--muted); font-size:13.5px; }
+
+  /* Sub-tab Switcher */
+  .subnav-tabs{
+    display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border);
+    margin-bottom:24px; padding-bottom:12px;
+  }
+  .subnav-tab{
+    display:inline-flex; align-items:center; gap:8px; padding:9px 16px;
+    border:1px solid var(--border); border-radius:10px; background:var(--panel-2);
+    color:var(--muted); font-family:var(--font-display); font-size:13px; font-weight:600;
+    cursor:pointer; transition:border-color .15s ease, background-color .15s ease, color .15s ease;
+  }
+  .subnav-tab:hover{ border-color:var(--muted); color:var(--text); }
+  .subnav-tab.active{
+    background:rgba(59,130,246,0.12); color:var(--blue); border-color:var(--blue); font-weight:700;
+  }
+  .subnav-tab svg{ width:16px; height:16px; flex-shrink:0; }
+
+  /* Profile Grid */
+  .profile-grid{
+    display:grid; grid-template-columns:repeat(12, minmax(0, 1fr)); gap:20px;
+  }
+  .profile-card{
+    background:var(--panel); border:1px solid var(--border); border-radius:14px;
+    padding:22px; box-shadow:var(--card-shadow);
+    display:flex; flex-direction:column;
+  }
+  .profile-card-title{
+    margin:0 0 6px; font-family:var(--font-display); font-size:15px; font-weight:700;
+    color:var(--text); display:flex; align-items:center; gap:8px;
+  }
+  .profile-card-title svg{ width:18px; height:18px; color:var(--blue); flex-shrink:0; }
+  .profile-card-desc{
+    margin:0 0 16px; font-size:12.5px; color:var(--muted); line-height:1.45;
+  }
+  .profile-card form{
+    display:flex; flex-direction:column; flex:1;
+  }
+  .profile-card form .btn-primary{
+    margin-top:auto;
+  }
+  
+  .profile-card.col-6{ grid-column:span 6; }
+  .profile-card.col-12{ grid-column:span 12; }
+  @media (max-width:900px){
+    .profile-card.col-6{ grid-column:span 12; }
+  }
+
+  .profile-card-logout{
+    padding:16px 22px;
+  }
+  .logout-content{
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+  }
+
+  /* Form Elements */
+  .form-group{ margin-bottom:16px; }
+  .form-group label{
+    display:block; margin-bottom:6px; font-size:12.5px; font-weight:600; color:var(--text-secondary);
+  }
+  .form-control{
+    width:100%; min-height:40px; padding:8px 12px; background:var(--panel-2); color:var(--text);
+    border:1px solid var(--border); border-radius:8px; font-family:var(--font-body); font-size:13px;
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  .form-control:focus{ outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(59,130,246,0.18); }
+  .form-control:disabled{ color:var(--muted); background:var(--surface-hover); cursor:not-allowed; }
+
+  /* KPI Summary Cards */
+  .kpi-row{
+    display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; margin-bottom:20px;
+  }
+  @media (max-width:800px){
+    .kpi-row{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width:480px){
+    .kpi-row{ grid-template-columns:1fr; }
+  }
+  .kpi-stat{
+    background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px 16px;
+  }
+  .kpi-stat .lbl{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+  .kpi-stat .val{ font-family:var(--font-data); font-size:22px; font-weight:700; color:var(--text); margin-top:4px; }
+  .kpi-stat.kpi-green .val{ color:var(--green); }
+  .kpi-stat.kpi-red .val{ color:var(--red); }
+  .kpi-stat.kpi-amber .val{ color:var(--amber); }
+
+  /* Toolbar */
+  .admin-toolbar{
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px;
+  }
+  .admin-filters{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap; flex:1; min-width:260px;
+  }
+  .search-box{
+    position:relative; flex:1; min-width:200px;
+  }
+  .search-box input{
+    width:100%; min-height:38px; padding:8px 12px 8px 34px; background:var(--panel-2); color:var(--text);
+    border:1px solid var(--border); border-radius:8px; font-family:var(--font-body); font-size:12.5px;
+  }
+  .search-box input:focus{ outline:none; border-color:var(--blue); }
+  .search-box svg{
+    position:absolute; left:10px; top:50%; transform:translateY(-50%); width:16px; height:16px; color:var(--muted);
+  }
+  .filter-select{
+    min-height:38px; padding:6px 10px; background:var(--panel-2); color:var(--text);
+    border:1px solid var(--border); border-radius:8px; font-family:var(--font-body); font-size:12.5px; cursor:pointer;
+  }
+  .filter-select:focus{ outline:none; border-color:var(--blue); }
+
+  /* Table */
+  .users-table-panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:14px; overflow:hidden;
+    box-shadow:var(--card-shadow);
+  }
+  .users-table-scroll{ overflow-x:auto; }
+  .users-table{ width:100%; border-collapse:collapse; text-align:left; }
+  .users-table th, .users-table td{ padding:12px 16px; border-bottom:1px solid var(--border); font-size:13px; }
+  .users-table th{
+    background:var(--panel-2); color:var(--muted); font-size:11.5px; font-weight:600;
+    text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;
+  }
+  .users-table th.sortable{ cursor:pointer; user-select:none; }
+  .users-table th.sortable:hover{ color:var(--text); }
+  .sort-icon{ display:inline-block; margin-left:4px; font-size:10px; color:var(--muted); }
+  .sort-active{ color:var(--amber); }
+
+  .user-cell{ display:flex; align-items:center; gap:10px; }
+  .user-avatar{
+    width:32px; height:32px; border-radius:50%; background:var(--blue); color:#fff;
+    font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .user-name{ font-weight:600; color:var(--text); }
+  .user-username{ font-family:var(--font-data); font-size:12px; color:var(--muted); }
+
+  /* Role Badges */
+  .role-badge{
+    display:inline-flex; align-items:center; padding:3px 9px; border-radius:6px; font-size:11.5px; font-weight:700;
+  }
+  .role-quan-ly{ background:rgba(139,92,246,0.16); color:#a78bfa; border:1px solid rgba(139,92,246,0.3); }
+  .role-ke-toan{ background:rgba(16,185,129,0.14); color:#34d399; border:1px solid rgba(16,185,129,0.3); }
+  .role-truong-kho{ background:rgba(245,158,11,0.14); color:#fbbf24; border:1px solid rgba(245,158,11,0.3); }
+  .role-tro-ly{ background:rgba(59,130,246,0.14); color:#60a5fa; border:1px solid rgba(59,130,246,0.3); }
+  .role-lai-xe{ background:rgba(249,115,22,0.14); color:#fb923c; border:1px solid rgba(249,115,22,0.3); }
+  .role-khach{ background:rgba(148,163,184,0.14); color:#cbd5e1; border:1px solid rgba(148,163,184,0.3); }
+
+  /* Status Pills */
+  .status-pill{
+    display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; font-size:11.5px; font-weight:600;
+  }
+  .status-pill.status-active{ background:rgba(16,185,129,0.12); color:var(--green); }
+  .status-pill.status-locked{ background:rgba(239,68,68,0.12); color:var(--red); }
+  .status-pill.status-pending{ background:rgba(245,158,11,0.12); color:var(--amber); }
+
+  /* Table Action Buttons */
+  .row-actions{ display:flex; align-items:center; gap:6px; }
+  .action-icon-btn{
+    width:32px; height:32px; border:1px solid var(--border); border-radius:7px;
+    background:var(--panel-2); color:var(--muted); cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center;
+    transition:border-color .15s, color .15s, background-color .15s;
+  }
+  .action-icon-btn:hover{ color:var(--text); border-color:var(--muted); background:var(--surface-hover); }
+  .action-icon-btn.btn-danger:hover{ color:var(--red); border-color:var(--red); }
+  .action-icon-btn svg{ width:15px; height:15px; }
+
+  /* Modals */
+  .modal-overlay{
+    position:fixed; inset:0; z-index:300; background:rgba(0,0,0,0.6); backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-overlay[hidden]{ display:none; }
+  .modal-box{
+    width:100%; max-width:480px; max-height:90vh; overflow-y:auto; background:var(--panel);
+    border:1px solid var(--border); border-radius:14px; box-shadow:0 20px 50px rgba(0,0,0,0.4);
+  }
+  .modal-header{
+    display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--border);
+  }
+  .modal-header h3{ margin:0; font-family:var(--font-display); font-size:16px; font-weight:700; color:var(--text); }
+  .modal-close{
+    width:30px; height:30px; border:none; background:transparent; color:var(--muted); font-size:16px;
+    cursor:pointer; border-radius:6px;
+  }
+  .modal-close:hover{ color:var(--text); background:var(--surface-hover); }
+  .modal-body{ padding:20px; }
+  .modal-footer{
+    display:flex; align-items:center; justify-content:flex-end; gap:10px; padding:14px 20px;
+    border-top:1px solid var(--border); background:var(--panel-2);
+  }
+
+  .alert-box{
+    padding:10px 14px; border-radius:8px; font-size:12.5px; margin-bottom:14px; line-height:1.45;
+  }
+  .alert-warning{ background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.3); color:var(--amber); }
+  .alert-error{ background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); color:var(--red); }
+  .alert-success{ background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3); color:var(--green); }
+
+  /* Toast Notification */
+  .toast-container{
+    position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column; gap:8px; pointer-events:none;
+  }
+  .toast{
+    min-width:280px; max-width:400px; padding:12px 18px; border-radius:10px; font-size:13px; font-weight:600;
+    box-shadow:0 8px 24px rgba(0,0,0,0.3); display:flex; align-items:center; gap:10px;
+    animation:toastSlideIn .25s var(--ease-out); pointer-events:auto;
+  }
+  .toast.toast-success{ background:#064e3b; color:#a7f3d0; border:1px solid #059669; }
+  .toast.toast-error{ background:#7f1d1d; color:#fecaca; border:1px solid #dc2626; }
+  @keyframes toastSlideIn{
+    from{ transform:translateY(20px); opacity:0; }
+    to{ transform:translateY(0); opacity:1; }
+  }
+</style>
+</head>
+<body>
+  <div class="receipt-header">
+    <div class="brand">
+      <button class="menu-btn" id="menuBtn" type="button" onclick="toggleSidebar()" aria-label="Mở menu điều hướng" aria-expanded="false" aria-controls="sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+      </button>
+      <div class="brand-mark">
+        <img src="/Logo.jpg" alt="TOKOSI Logo" width="44" height="44">
+      </div>
+      <div class="brand-text">
+        <h1>TOKOSI · Quản lý tài khoản</h1>
+        <p>Hồ sơ cá nhân &amp; Quản trị người dùng</p>
+      </div>
+    </div>
+    <div class="status-line">
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Chuyển chế độ giao diện" onclick="toggleTheme()">
+        <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"></path></svg>
+        <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
+        <span id="themeLabel">Chế độ sáng</span>
+      </button>
+      <div class="account-chip" id="accountChip"></div>
+    </div>
+  </div>
+
+  <div class="shell">
+    <div class="backdrop" id="backdrop" onclick="toggleSidebar()"></div>
+    <div class="sidebar" id="sidebar" data-tks-active-top="account"></div>
+    <main class="content">
+      <div class="account-wrap">
+        <div class="account-header">
+          <h2>Tài khoản &amp; Phân quyền</h2>
+          <p>Quản lý thông tin hồ sơ cá nhân và danh sách tài khoản trong hệ thống</p>
+        </div>
+
+        <!-- Subnav Switcher -->
+        <div class="subnav-tabs" id="subnavTabs">
+          <button type="button" class="subnav-tab active" id="tabBtnProfile" onclick="switchAccountTab('profile')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            Hồ sơ cá nhân
+          </button>
+          <button type="button" class="subnav-tab" id="tabBtnAdminUsers" onclick="switchAccountTab('adminUsers')" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            Quản lý người dùng
+          </button>
+        </div>
+
+        <!-- TAB 1: HỒ SƠ CÁ NHÂN -->
+        <div id="tabContentProfile">
+          <div class="profile-grid">
+            <!-- Thông tin cá nhân -->
+            <div class="profile-card col-6">
+              <div class="profile-card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                Thông tin cá nhân
+              </div>
+              <p class="profile-card-desc">Cập nhật họ tên hiển thị và địa chỉ email của tài khoản.</p>
+              <form id="profileForm" onsubmit="handleSaveProfile(event)">
+                <div class="form-group">
+                  <label for="profHoTen">Họ và tên</label>
+                  <input type="text" id="profHoTen" class="form-control" maxlength="100" required>
+                </div>
+                <div class="form-group">
+                  <label for="profEmail">Email</label>
+                  <input type="email" id="profEmail" class="form-control" maxlength="254" required>
+                </div>
+                <div id="profileFormMsg" class="alert-box alert-error" style="display:none;"></div>
+                <button type="submit" id="btnSaveProfile" class="btn-primary">Lưu thay đổi</button>
+              </form>
+            </div>
+
+            <!-- Quyền hạn hệ thống -->
+            <div class="profile-card col-6">
+              <div class="profile-card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                Quyền hạn &amp; Hệ thống
+              </div>
+              <p class="profile-card-desc">Thông tin tài khoản phân quyền và phạm vi cơ sở hoạt động.</p>
+              <div class="form-group">
+                <label>Tài khoản đăng nhập</label>
+                <input type="text" id="profUsername" class="form-control" disabled>
+              </div>
+              <div class="form-group">
+                <label>Vai trò</label>
+                <div style="margin-top:4px;"><span id="profRoleBadge" class="role-badge role-khach">—</span></div>
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label>Cơ sở phụ trách</label>
+                <input type="text" id="profFacility" class="form-control" disabled>
+              </div>
+            </div>
+
+            <!-- Thông tin liên hệ & Khôi phục -->
+            <div class="profile-card col-6">
+              <div class="profile-card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                Thông tin liên hệ &amp; Khôi phục
+              </div>
+              <p class="profile-card-desc">
+                Dùng để nhận OTP xác thực danh tính. Yêu cầu nhập mật khẩu hiện tại để lưu.
+              </p>
+              <form id="recoveryForm" onsubmit="handleSaveRecovery(event)">
+                <div class="form-group">
+                  <label for="profPhone">Số điện thoại chính</label>
+                  <input type="tel" id="profPhone" class="form-control" maxlength="12" placeholder="Ví dụ: 0912345678">
+                </div>
+                <div class="form-group">
+                  <label for="profRecoveryEmail">Email khôi phục</label>
+                  <input type="email" id="profRecoveryEmail" class="form-control" maxlength="254" placeholder="Ví dụ: recovery@domain.com">
+                </div>
+                <div class="form-group">
+                  <label for="profRecoveryPhone">Số điện thoại khôi phục</label>
+                  <input type="tel" id="profRecoveryPhone" class="form-control" maxlength="12" placeholder="Ví dụ: 0987654321">
+                </div>
+                <div class="form-group" id="groupRecoveryConfirmPassword">
+                  <label for="recoveryConfirmPass">Mật khẩu hiện tại (Bắt buộc để xác nhận) *</label>
+                  <div class="password-wrap">
+                    <input type="password" id="recoveryConfirmPass" class="form-control" autocomplete="current-password" placeholder="Nhập mật khẩu để xác nhận">
+                    <button type="button" class="password-toggle-btn" onclick="togglePassword('recoveryConfirmPass', this)" aria-label="Hiện mật khẩu">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    </button>
+                  </div>
+                </div>
+                <div id="recoveryFormMsg" class="alert-box alert-error" style="display:none;"></div>
+                <button type="submit" id="btnSaveRecovery" class="btn-primary">Lưu thông tin khôi phục</button>
+              </form>
+            </div>
+
+            <!-- Đổi mật khẩu -->
+            <div class="profile-card col-6">
+              <div class="profile-card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-1.5 1.5L10 13l-4 1 1-4 7.5-7.5m1.5-1.5L21 2z"></path></svg>
+                Bảo mật &amp; Đổi mật khẩu
+              </div>
+              <p class="profile-card-desc">
+                Cập nhật mật khẩu định kỳ để nâng cao an toàn cho tài khoản cá nhân.
+              </p>
+              <form id="passwordForm" onsubmit="handleChangePassword(event)">
+                <div class="alert-box alert-warning" id="profPasswordHint" style="display:none;">
+                  Tài khoản đăng nhập bằng Google — bạn có thể đặt mật khẩu để đăng nhập trực tiếp.
+                </div>
+                <div class="form-group" id="groupCurrentPassword">
+                  <label for="profCurrentPass">Mật khẩu hiện tại</label>
+                  <div class="password-wrap">
+                    <input type="password" id="profCurrentPass" class="form-control" autocomplete="current-password">
+                    <button type="button" class="password-toggle-btn" onclick="togglePassword('profCurrentPass', this)" aria-label="Hiện mật khẩu">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="profNewPass">Mật khẩu mới (tối thiểu 8 ký tự)</label>
+                  <div class="password-wrap">
+                    <input type="password" id="profNewPass" class="form-control" autocomplete="new-password" required minlength="8">
+                    <button type="button" class="password-toggle-btn" onclick="togglePassword('profNewPass', this)" aria-label="Hiện mật khẩu">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="profConfirmPass">Xác nhận mật khẩu mới</label>
+                  <div class="password-wrap">
+                    <input type="password" id="profConfirmPass" class="form-control" autocomplete="new-password" required minlength="8">
+                    <button type="button" class="password-toggle-btn" onclick="togglePassword('profConfirmPass', this)" aria-label="Hiện mật khẩu">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    </button>
+                  </div>
+                </div>
+                <div id="passwordFormMsg" class="alert-box alert-error" style="display:none;"></div>
+                <button type="submit" id="btnChangePassword" class="btn-primary">Cập nhật mật khẩu</button>
+              </form>
+            </div>
+
+            <!-- Đăng xuất -->
+            <div class="profile-card col-12 profile-card-logout">
+              <div class="logout-content">
+                <div>
+                  <div class="profile-card-title" style="color:var(--red); margin:0 0 4px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--red);"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    Phiên đăng nhập
+                  </div>
+                  <p class="profile-card-desc" style="margin:0;">Đăng xuất khỏi tài khoản trên thiết bị này.</p>
+                </div>
+                <button type="button" id="btnAccountLogout" class="btn-danger" onclick="handleLogout()" style="display:inline-flex; align-items:center; gap:8px;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                  Đăng xuất
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: QUẢN LÝ NGƯỜI DÙNG (DÀNH RIÊNG QUẢN LÝ) -->
+        <div id="tabContentAdminUsers" style="display:none;">
+          <!-- Thống kê nhanh -->
+          <div class="kpi-row">
+            <div class="kpi-stat">
+              <div class="lbl">Tổng tài khoản</div>
+              <div class="val" id="statTotalUsers">0</div>
+            </div>
+            <div class="kpi-stat kpi-green">
+              <div class="lbl">Đang hoạt động</div>
+              <div class="val" id="statActiveUsers">0</div>
+            </div>
+            <div class="kpi-stat kpi-amber">
+              <div class="lbl">Chờ duyệt</div>
+              <div class="val" id="statPendingUsers">0</div>
+            </div>
+            <div class="kpi-stat kpi-red">
+              <div class="lbl">Đang khóa</div>
+              <div class="val" id="statLockedUsers">0</div>
+            </div>
+          </div>
+
+          <!-- Toolbar -->
+          <div class="admin-toolbar">
+            <div class="admin-filters">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="userSearchInput" placeholder="Tìm theo tên, tài khoản, email..." oninput="handleFilterUsers()">
+              </div>
+              <select id="userRoleFilter" class="filter-select" onchange="handleFilterUsers()">
+                <option value="">Tất cả vai trò</option>
+                <option value="Quản lý">Quản lý</option>
+                <option value="Kế toán">Kế toán</option>
+                <option value="Trưởng kho">Trưởng kho</option>
+                <option value="Trợ lý">Trợ lý</option>
+                <option value="Lái xe">Lái xe</option>
+                <option value="Khách">Khách</option>
+              </select>
+              <select id="userFacilityFilter" class="filter-select" onchange="handleFilterUsers()">
+                <option value="">Tất cả cơ sở</option>
+                <option value="An Khánh">An Khánh</option>
+                <option value="Tân Phú">Tân Phú</option>
+                <option value="Cả hai">Cả hai</option>
+              </select>
+              <select id="userStatusFilter" class="filter-select" onchange="handleFilterUsers()">
+                <option value="">Tất cả trạng thái</option>
+                <option value="Đang hoạt động">Đang hoạt động</option>
+                <option value="Chờ duyệt">Chờ duyệt</option>
+                <option value="Khóa">Khóa</option>
+              </select>
+            </div>
+            <button type="button" class="btn-primary" onclick="openCreateUserModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              Thêm tài khoản
+            </button>
+          </div>
+
+          <!-- Bảng danh sách -->
+          <div class="users-table-panel">
+            <div class="users-table-scroll">
+              <table class="users-table" id="usersTable">
+                <thead>
+                  <tr>
+                    <th class="sortable" onclick="handleSort('hoTen')">Họ và tên <span class="sort-icon" id="sort-hoTen">↕</span></th>
+                    <th class="sortable" onclick="handleSort('username')">Tài khoản <span class="sort-icon" id="sort-username">↕</span></th>
+                    <th class="sortable" onclick="handleSort('email')">Email <span class="sort-icon" id="sort-email">↕</span></th>
+                    <th class="sortable" onclick="handleSort('vaiTro')">Vai trò <span class="sort-icon" id="sort-vaiTro">↕</span></th>
+                    <th class="sortable" onclick="handleSort('coSo')">Cơ sở <span class="sort-icon" id="sort-coSo">↕</span></th>
+                    <th class="sortable" onclick="handleSort('trangThai')">Trạng thái <span class="sort-icon" id="sort-trangThai">↕</span></th>
+                    <th class="sortable" onclick="handleSort('ngayTao')">Ngày tạo <span class="sort-icon" id="sort-ngayTao">↕</span></th>
+                    <th style="text-align:right;">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody id="usersTableBody">
+                  <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px;">Đang tải danh sách...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL: THÊM MỚI TÀI KHOẢN -->
+  <div class="modal-overlay" id="createUserModal" hidden>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Thêm mới tài khoản</h3>
+        <button type="button" class="modal-close" onclick="closeModal('createUserModal')">✕</button>
+      </div>
+      <form id="createUserForm" onsubmit="handleCreateUser(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="createUsername">Tên tài khoản (Username) *</label>
+            <input type="text" id="createUsername" class="form-control" placeholder="vd: ketoan1" required minlength="3" maxlength="50">
+          </div>
+          <div class="form-group">
+            <label for="createPassword">Mật khẩu khởi tạo *</label>
+            <div class="password-wrap">
+              <input type="password" id="createPassword" class="form-control" placeholder="Tối thiểu 8 ký tự" required minlength="8">
+              <button type="button" class="password-toggle-btn" onclick="togglePassword('createPassword', this)" aria-label="Hiện mật khẩu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="createHoTen">Họ và tên *</label>
+            <input type="text" id="createHoTen" class="form-control" placeholder="vd: Nguyễn Văn A" required maxlength="100">
+          </div>
+          <div class="form-group">
+            <label for="createEmail">Email</label>
+            <input type="email" id="createEmail" class="form-control" placeholder="vd: nva@tokosi.vn">
+          </div>
+          <div class="form-group">
+            <label for="createPhone">Số điện thoại</label>
+            <input type="tel" id="createPhone" class="form-control" placeholder="vd: 0912345678">
+          </div>
+          <div class="form-group">
+            <label for="createVaiTro">Vai trò *</label>
+            <select id="createVaiTro" class="form-control" required>
+              <option value="Quản lý">Quản lý</option>
+              <option value="Kế toán">Kế toán</option>
+              <option value="Trưởng kho">Trưởng kho</option>
+              <option value="Trợ lý">Trợ lý</option>
+              <option value="Lái xe">Lái xe</option>
+              <option value="Khách" selected>Khách</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="createCoSo">Cơ sở phụ trách</label>
+            <select id="createCoSo" class="form-control">
+              <option value="">-- Không phân cơ sở --</option>
+              <option value="An Khánh">An Khánh</option>
+              <option value="Tân Phú">Tân Phú</option>
+              <option value="Cả hai">Cả hai</option>
+            </select>
+          </div>
+          <div id="createUserError" class="alert-box alert-error" style="display:none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('createUserModal')">Hủy</button>
+          <button type="submit" id="btnSubmitCreate" class="btn-primary">Tạo tài khoản</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CHỈNH SỬA TÀI KHOẢN -->
+  <div class="modal-overlay" id="editUserModal" hidden>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Chỉnh sửa tài khoản</h3>
+        <button type="button" class="modal-close" onclick="closeModal('editUserModal')">✕</button>
+      </div>
+      <form id="editUserForm" onsubmit="handleSaveEditUser(event)">
+        <input type="hidden" id="editUserId">
+        <div class="modal-body">
+          <div id="editSelfNotice" class="alert-box alert-warning" style="display:none;">
+            Bạn đang sửa tài khoản của chính mình. Vai trò Quản lý và trạng thái Hoạt động được bảo vệ an toàn.
+          </div>
+          <div class="form-group">
+            <label for="editUsername">Tên tài khoản</label>
+            <input type="text" id="editUsername" class="form-control" disabled>
+          </div>
+          <div class="form-group">
+            <label for="editHoTen">Họ và tên *</label>
+            <input type="text" id="editHoTen" class="form-control" required maxlength="100">
+          </div>
+          <div class="form-group">
+            <label for="editEmail">Email</label>
+            <input type="email" id="editEmail" class="form-control">
+          </div>
+          <div class="form-group">
+            <label for="editPhone">Số điện thoại</label>
+            <input type="tel" id="editPhone" class="form-control" placeholder="vd: 0912345678">
+          </div>
+          <div class="form-group">
+            <label for="editVaiTro">Vai trò</label>
+            <select id="editVaiTro" class="form-control" required>
+              <option value="Quản lý">Quản lý</option>
+              <option value="Kế toán">Kế toán</option>
+              <option value="Trưởng kho">Trưởng kho</option>
+              <option value="Trợ lý">Trợ lý</option>
+              <option value="Lái xe">Lái xe</option>
+              <option value="Khách">Khách</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="editCoSo">Cơ sở phụ trách</label>
+            <select id="editCoSo" class="form-control">
+              <option value="">-- Không phân cơ sở --</option>
+              <option value="An Khánh">An Khánh</option>
+              <option value="Tân Phú">Tân Phú</option>
+              <option value="Cả hai">Cả hai</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="editTrangThai">Trạng thái tài khoản</label>
+            <select id="editTrangThai" class="form-control" required>
+              <option value="Đang hoạt động">Đang hoạt động</option>
+              <option value="Chờ duyệt">Chờ duyệt</option>
+              <option value="Khóa">Khóa</option>
+            </select>
+          </div>
+          <div id="editUserError" class="alert-box alert-error" style="display:none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('editUserModal')">Hủy</button>
+          <button type="submit" id="btnSubmitEdit" class="btn-primary">Lưu thay đổi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ĐẶT LẠI MẬT KHẨU (ADMIN) -->
+  <div class="modal-overlay" id="resetPasswordModal" hidden>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Đặt lại mật khẩu</h3>
+        <button type="button" class="modal-close" onclick="closeModal('resetPasswordModal')">✕</button>
+      </div>
+      <form id="resetPasswordForm" onsubmit="handleResetPassword(event)">
+        <input type="hidden" id="resetUserId">
+        <div class="modal-body">
+          <p style="margin:0 0 14px;color:var(--text-secondary);font-size:13px;">
+            Cấp mật khẩu mới cho tài khoản: <strong id="resetTargetUsername" style="color:var(--text);"></strong>
+          </p>
+          <div class="form-group">
+            <label for="resetNewPassword">Mật khẩu mới *</label>
+            <div class="password-wrap">
+              <input type="password" id="resetNewPassword" class="form-control" placeholder="Tối thiểu 8 ký tự" required minlength="8">
+              <button type="button" class="password-toggle-btn" onclick="togglePassword('resetNewPassword', this)" aria-label="Hiện mật khẩu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="resetConfirmPassword">Xác nhận mật khẩu *</label>
+            <div class="password-wrap">
+              <input type="password" id="resetConfirmPassword" class="form-control" placeholder="Nhập lại mật khẩu mới" required minlength="8">
+              <button type="button" class="password-toggle-btn" onclick="togglePassword('resetConfirmPassword', this)" aria-label="Hiện mật khẩu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
+            </div>
+          </div>
+          <div id="resetPasswordError" class="alert-box alert-error" style="display:none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('resetPasswordModal')">Hủy</button>
+          <button type="submit" id="btnSubmitReset" class="btn-primary">Đặt mật khẩu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    const THEME_STORAGE_KEY = 'tks-dashboard-theme';
+    let currentUser = null;
+    let rawAdminUsers = [];
+    let sortField = 'ngayTao';
+    let sortAsc = false;
+
+    function syncThemeControl(){
+      const isLight = document.documentElement.dataset.theme === 'light';
+      const button = document.getElementById('themeToggle');
+      const action = isLight ? 'Chuyển sang giao diện tối' : 'Chuyển sang giao diện sáng';
+      if(button){
+        button.setAttribute('aria-label', action);
+        button.setAttribute('aria-pressed', String(isLight));
+        button.title = action;
+      }
+      const label = document.getElementById('themeLabel');
+      if(label) label.textContent = isLight ? 'Chế độ tối' : 'Chế độ sáng';
+    }
+
+    function toggleTheme(){
+      const nextTheme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+      document.documentElement.dataset.theme = nextTheme;
+      try{ localStorage.setItem(THEME_STORAGE_KEY, nextTheme); }catch(e){}
+      syncThemeControl();
+    }
+
+    function toggleSidebar(){
+      const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('backdrop');
+      const btn = document.getElementById('menuBtn');
+      if(sidebar){
+        const isOpen = sidebar.classList.toggle('open');
+        if(backdrop) backdrop.classList.toggle('show', isOpen);
+        if(btn) btn.setAttribute('aria-expanded', String(isOpen));
+      }
+    }
+
+    function showToast(message, type = 'success'){
+      const container = document.getElementById('toastContainer');
+      if(!container) return;
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        toast.style.transition = 'opacity .3s, transform .3s';
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    function switchAccountTab(tabName){
+      const btnProfile = document.getElementById('tabBtnProfile');
+      const btnAdmin = document.getElementById('tabBtnAdminUsers');
+      const contentProfile = document.getElementById('tabContentProfile');
+      const contentAdmin = document.getElementById('tabContentAdminUsers');
+
+      if(tabName === 'adminUsers'){
+        btnProfile.classList.remove('active');
+        btnAdmin.classList.add('active');
+        contentProfile.style.display = 'none';
+        contentAdmin.style.display = 'block';
+        loadAdminUsers();
+      } else {
+        btnAdmin.classList.remove('active');
+        btnProfile.classList.add('active');
+        contentAdmin.style.display = 'none';
+        contentProfile.style.display = 'block';
+        loadProfileData();
+      }
+    }
+
+    function openModal(id){
+      const m = document.getElementById(id);
+      if(m) m.hidden = false;
+    }
+
+    function closeModal(id){
+      const m = document.getElementById(id);
+      if(m) m.hidden = true;
+    }
+
+    const eyeSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+    const eyeOffSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+
+    function togglePassword(inputId, btnEl){
+      const input = document.getElementById(inputId);
+      if(!input) return;
+      const isPass = input.type === 'password';
+      input.type = isPass ? 'text' : 'password';
+      btnEl.innerHTML = isPass ? eyeOffSvg : eyeSvg;
+      btnEl.setAttribute('aria-label', isPass ? 'Ẩn mật khẩu' : 'Hiện mật khẩu');
+    }
+
+    // ---------- Load Profile ----------
+    function loadProfileData(){
+      fetch('/api/auth/profile', { credentials: 'same-origin' })
+        .then(res => res.json())
+        .then(profile => {
+          document.getElementById('profHoTen').value = profile.hoTen || '';
+          document.getElementById('profEmail').value = profile.email || '';
+          document.getElementById('profUsername').value = profile.username || '';
+          document.getElementById('profFacility').value = profile.coSo || 'Toàn hệ thống';
+
+          // Recovery contacts
+          document.getElementById('profPhone').value = profile.soDienThoai || '';
+          document.getElementById('profRecoveryEmail').value = profile.emailKhoiPhuc || '';
+          document.getElementById('profRecoveryPhone').value = profile.sdtKhoiPhuc || '';
+          document.getElementById('recoveryConfirmPass').value = '';
+
+          const roleEl = document.getElementById('profRoleBadge');
+          roleEl.textContent = profile.vaiTro || 'Khách';
+          const roleClass = 'role-' + (profile.vaiTro || 'khach').toLowerCase().replace(/\s+/g, '-').replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g,'a').replace(/[èéẹẻẽêềếệểễ]/g,'e').replace(/[ìíịỉĩ]/g,'i').replace(/[òóọỏõôồốộổỗơờớợởỡ]/g,'o').replace(/[ùúụủũưừứựửữ]/g,'u').replace(/[ỳýỵỷỹ]/g,'y').replace(/đ/g,'d');
+          roleEl.className = `role-badge ${roleClass}`;
+
+          document.getElementById('groupCurrentPassword').style.display = profile.hasPassword ? 'block' : 'none';
+          document.getElementById('groupRecoveryConfirmPassword').style.display = profile.hasPassword ? 'block' : 'none';
+          document.getElementById('profPasswordHint').style.display = profile.hasPassword ? 'none' : 'block';
+        })
+        .catch(err => {
+          console.error('Lỗi tải hồ sơ:', err);
+        });
+    }
+
+    function handleSaveProfile(e){
+      e.preventDefault();
+      const hoTen = document.getElementById('profHoTen').value.trim();
+      const email = document.getElementById('profEmail').value.trim();
+      const msgEl = document.getElementById('profileFormMsg');
+      const btn = document.getElementById('btnSaveProfile');
+
+      msgEl.style.display = 'none';
+      btn.disabled = true;
+
+      fetch('/api/auth/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hoTen, email })
+      })
+        .then(res => res.json().then(data => ({ ok: res.ok, data })))
+        .then(result => {
+          btn.disabled = false;
+          if(!result.ok){
+            msgEl.textContent = result.data.error || 'Không cập nhật được hồ sơ.';
+            msgEl.style.display = 'block';
+            return;
+          }
+          showToast('Đã cập nhật thông tin cá nhân thành công!');
+          if(window.TKSNav && window.TKSNav.renderAccountChip){
+            if(!currentUser) currentUser = {};
+            currentUser.hoTen = result.data.hoTen;
+            currentUser.email = result.data.email;
+            window.TKSNav.renderAccountChip(currentUser);
+          }
+        })
+        .catch(() => {
+          btn.disabled = false;
+          msgEl.textContent = 'Lỗi kết nối, vui lòng thử lại.';
+          msgEl.style.display = 'block';
+        });
+    }
+
+    function handleSaveRecovery(e){
+      e.preventDefault();
+      const soDienThoai = document.getElementById('profPhone').value.trim();
+      const emailKhoiPhuc = document.getElementById('profRecoveryEmail').value.trim();
+      const sdtKhoiPhuc = document.getElementById('profRecoveryPhone').value.trim();
+      const matKhauXacNhan = document.getElementById('recoveryConfirmPass').value;
+      const msgEl = document.getElementById('recoveryFormMsg');
+      const btn = document.getElementById('btnSaveRecovery');
+
+      msgEl.style.display = 'none';
+      btn.disabled = true;
+
+      fetch('/api/auth/recovery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          soDienThoai,
+          emailKhoiPhuc,
+          sdtKhoiPhuc,
+          matKhauXacNhan
+        })
+      })
+        .then(res => res.json().then(data => ({ ok: res.ok, data })))
+        .then(result => {
+          btn.disabled = false;
+          if(!result.ok){
+            msgEl.textContent = result.data.error || 'Không lưu được thông tin khôi phục.';
+            msgEl.style.display = 'block';
+            return;
+          }
+          document.getElementById('recoveryConfirmPass').value = '';
+          showToast('Đã lưu thông tin liên hệ và khôi phục thành công!');
+        })
+        .catch(() => {
+          btn.disabled = false;
+          msgEl.textContent = 'Lỗi kết nối, vui lòng thử lại.';
+          msgEl.style.display = 'block';
+        });
+    }
+
+    function handleChangePassword(e){
+      e.preventDefault();
+      const matKhauHienTai = document.getElementById('profCurrentPass').value;
+      const matKhauMoi = document.getElementById('profNewPass').value;
+      const confirm = document.getElementById('profConfirmPass').value;
+      const msgEl = document.getElementById('passwordFormMsg');
+      const btn = document.getElementById('btnChangePassword');
+
+      msgEl.style.display = 'none';
+
+      if(matKhauMoi !== confirm){
+        msgEl.textContent = 'Xác nhận mật khẩu mới không khớp.';
+        msgEl.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+
+      fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matKhauHienTai, matKhauMoi })
+      })
+        .then(res => res.json().then(data => ({ ok: res.ok, data })))
+        .then(result => {
+          btn.disabled = false;
+          if(!result.ok){
+            msgEl.textContent = result.data.error || 'Không đổi được mật khẩu.';
+            msgEl.style.display = 'block';
+            return;
+          }
+          document.getElementById('profCurrentPass').value = '';
+          document.getElementById('profNewPass').value = '';
+          document.getElementById('profConfirmPass').value = '';
+          showToast('Đã đổi mật khẩu thành công!');
+        })
+        .catch(() => {
+          btn.disabled = false;
+          msgEl.textContent = 'Lỗi kết nối, vui lòng thử lại.';
+          msgEl.style.display = 'block';
+        });
+    }
+
+    // ---------- Admin User Management ----------
+    function loadAdminUsers(){
+      fetch('/api/admin/users', { credentials: 'same-origin' })
+        .then(res => {
+          if(!res.ok) throw new Error('Forbidden');
+          return res.json();
+        })
+        .then(data => {
+          rawAdminUsers = data.users || [];
+          renderKPIs(rawAdminUsers);
+          handleFilterUsers();
+        })
+        .catch(err => {
+          console.error('Lỗi tải danh sách người dùng:', err);
+          document.getElementById('usersTableBody').innerHTML =
+            '<tr><td colspan="8" style="text-align:center;color:var(--red);padding:24px;">Không có quyền truy cập hoặc lỗi kết nối.</td></tr>';
+        });
+    }
+
+    function renderKPIs(users){
+      document.getElementById('statTotalUsers').textContent = users.length;
+      document.getElementById('statActiveUsers').textContent = users.filter(u => u.trangThai === 'Đang hoạt động').length;
+      document.getElementById('statPendingUsers').textContent = users.filter(u => u.trangThai === 'Chờ duyệt').length;
+      document.getElementById('statLockedUsers').textContent = users.filter(u => u.trangThai === 'Khóa').length;
+    }
+
+    function handleFilterUsers(){
+      const q = (document.getElementById('userSearchInput').value || '').trim().toLowerCase();
+      const roleFilter = document.getElementById('userRoleFilter').value;
+      const facFilter = document.getElementById('userFacilityFilter').value;
+      const stFilter = document.getElementById('userStatusFilter').value;
+
+      let filtered = rawAdminUsers.filter(u => {
+        const matchQ = !q || (u.hoTen && u.hoTen.toLowerCase().includes(q)) ||
+                             (u.username && u.username.toLowerCase().includes(q)) ||
+                             (u.email && u.email.toLowerCase().includes(q));
+        const matchRole = !roleFilter || u.vaiTro === roleFilter;
+        const matchFac = !facFilter || (facFilter === 'Cả hai' ? (u.coSo === 'Cả hai' || u.coSo === 'An Khánh' || u.coSo === 'Tân Phú') : u.coSo === facFilter);
+        const matchStatus = !stFilter || u.trangThai === stFilter;
+        return matchQ && matchRole && matchFac && matchStatus;
+      });
+
+      // Sorting
+      filtered.sort((a, b) => {
+        let valA = a[sortField] || '';
+        let valB = b[sortField] || '';
+        if(typeof valA === 'string') valA = valA.toLowerCase();
+        if(typeof valB === 'string') valB = valB.toLowerCase();
+        if(valA < valB) return sortAsc ? -1 : 1;
+        if(valA > valB) return sortAsc ? 1 : -1;
+        return 0;
+      });
+
+      renderUsersTable(filtered);
+    }
+
+    function handleSort(field){
+      if(sortField === field){
+        sortAsc = !sortAsc;
+      } else {
+        sortField = field;
+        sortAsc = true;
+      }
+
+      // Update sort indicators
+      ['hoTen', 'username', 'email', 'vaiTro', 'coSo', 'trangThai', 'ngayTao'].forEach(f => {
+        const icon = document.getElementById(`sort-${f}`);
+        if(icon){
+          if(f === sortField){
+            icon.textContent = sortAsc ? '↑' : '↓';
+            icon.classList.add('sort-active');
+          } else {
+            icon.textContent = '↕';
+            icon.classList.remove('sort-active');
+          }
+        }
+      });
+
+      handleFilterUsers();
+    }
+
+    function getRoleBadgeHtml(role){
+      const r = role || 'Khách';
+      let cls = 'role-khach';
+      if(r === 'Quản lý') cls = 'role-quan-ly';
+      else if(r === 'Kế toán') cls = 'role-ke-toan';
+      else if(r === 'Trưởng kho') cls = 'role-truong-kho';
+      else if(r === 'Trợ lý') cls = 'role-tro-ly';
+      else if(r === 'Lái xe') cls = 'role-lai-xe';
+      return `<span class="role-badge ${cls}">${escapeHtml(r)}</span>`;
+    }
+
+    function getStatusPillHtml(st){
+      if(st === 'Đang hoạt động') return `<span class="status-pill status-active">● Hoạt động</span>`;
+      if(st === 'Khóa') return `<span class="status-pill status-locked">● Khóa</span>`;
+      return `<span class="status-pill status-pending">● Chờ duyệt</span>`;
+    }
+
+    function escapeHtml(str){
+      if(!str) return '';
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function renderUsersTable(users){
+      const tbody = document.getElementById('usersTableBody');
+      if(!users.length){
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:36px;">Không tìm thấy tài khoản nào phù hợp.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = users.map(u => {
+        const initial = (u.hoTen || u.username || '?').trim().charAt(0).toUpperCase();
+        const isSelf = currentUser && (String(currentUser.id) === String(u.id) || currentUser.username.toLowerCase() === u.username.toLowerCase());
+        const lockIcon = u.trangThai === 'Khóa'
+          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>'
+          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>';
+        const lockTitle = u.trangThai === 'Khóa' ? 'Mở khóa tài khoản' : 'Khóa tài khoản';
+
+        return `
+          <tr>
+            <td>
+              <div class="user-cell">
+                <div class="user-avatar">${escapeHtml(initial)}</div>
+                <div>
+                  <div class="user-name">${escapeHtml(u.hoTen || u.username)} ${isSelf ? '<span style="font-size:10.5px;color:var(--blue);font-weight:700;">(Bạn)</span>' : ''}</div>
+                  <div class="user-username">@${escapeHtml(u.username)}</div>
+                </div>
+              </div>
+            </td>
+            <td><code style="font-family:var(--font-data);color:var(--text-secondary);">${escapeHtml(u.username)}</code></td>
+            <td>${escapeHtml(u.email || '—')}</td>
+            <td>${getRoleBadgeHtml(u.vaiTro)}</td>
+            <td>${escapeHtml(u.coSo || '—')}</td>
+            <td>${getStatusPillHtml(u.trangThai)}</td>
+            <td style="font-family:var(--font-data);font-size:12px;color:var(--muted);">${escapeHtml(u.ngayTao || '—')}</td>
+            <td style="text-align:right;">
+              <div class="row-actions" style="justify-content:flex-end;">
+                <button type="button" class="action-icon-btn" title="Chỉnh sửa tài khoản" onclick="openEditUserModal('${u.id}')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                </button>
+                <button type="button" class="action-icon-btn" title="Đặt lại mật khẩu" onclick="openResetPasswordModal('${u.id}', '${escapeHtml(u.username)}')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-1.5 1.5L10 13l-4 1 1-4 7.5-7.5m1.5-1.5L21 2z"></path></svg>
+                </button>
+                ${!isSelf ? `
+                  <button type="button" class="action-icon-btn" title="${lockTitle}" onclick="toggleUserLock('${u.id}', '${u.trangThai}')">
+                    ${lockIcon}
+                  </button>
+                  <button type="button" class="action-icon-btn btn-danger" title="Xóa tài khoản" onclick="handleDeleteUser('${u.id}', '${escapeHtml(u.username)}')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                  </button>
+                ` : ''}
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Modal Create
+    function openCreateUserModal(){
+      document.getElementById('createUserForm').reset();
+      document.getElementById('createUserError').style.display = 'none';
+      openModal('createUserModal');
+    }
+
+    function handleCreateUser(e){
+      e.preventDefault();
+      const username = document.getElementById('createUsername').value.trim();
+      const password = document.getElementById('createPassword').value;
+      const hoTen = document.getElementById('createHoTen').value.trim();
+      const email = document.getElementById('createEmail').value.trim();
+      const soDienThoai = document.getElementById('createPhone').value.trim();
+      const vaiTro = document.getElementById('createVaiTro').value;
+      const coSo = document.getElementById('createCoSo').value;
+      const errEl = document.getElementById('createUserError');
+      const btn = document.getElementById('btnSubmitCreate');
+
+      errEl.style.display = 'none';
+      btn.disabled = true;
+
+      fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, hoTen, email, soDienThoai, vaiTro, coSo })
+      })
+        .then(res => res.json().then(data => ({ ok: res.ok, data })))
+        .then(result => {
+          btn.disabled = false;
+          if(!result.ok){
+            errEl.textContent = result.data.error || 'Không tạo được tài khoản.';
+            errEl.style.display = 'block';
+            return;
+          }
+          closeModal('createUserModal');
+          showToast(`Đã tạo tài khoản "${username}" thành công!`);
+          loadAdminUsers();
+        })
+        .catch(() => {
+          btn.disabled = false;
+          errEl.textContent = 'Lỗi kết nối, vui lòng thử lại.';
+          errEl.style.display = 'block';
+        });
+    }
+
+    // Modal Edit
+    function openEditUserModal(id){
+      const u = rawAdminUsers.find(x => String(x.id) === String(id));
+      if(!u) return;
+
+      document.getElementById('editUserId').value = u.id;
+      document.getElementById('editUsername').value = u.username;
+      document.getElementById('editHoTen').value = u.hoTen || '';
+      document.getElementById('editEmail').value = u.email || '';
+      document.getElementById('editPhone').value = u.soDienThoai || '';
+      document.getElementById('editVaiTro').value = u.vaiTro || 'Khách';
+      document.getElementById('editCoSo').value = u.coSo || '';
+      document.getElementById('editTrangThai').value = u.trangThai || 'Đang hoạt động';
+      document.getElementById('editUserError').style.display = 'none';
+
+      const isSelf = currentUser && (String(currentUser.id) === String(u.id) || currentUser.username.toLowerCase() === u.username.toLowerCase());
+      const selfNotice = document.getElementById('editSelfNotice');
+      const roleSelect = document.getElementById('editVaiTro');
+      const statusSelect = document.getElementById('editTrangThai');
+
+      if(isSelf){
+        selfNotice.style.display = 'block';
+        roleSelect.disabled = true;
+        statusSelect.disabled = true;
+      } else {
+        selfNotice.style.display = 'none';
+        roleSelect.disabled = false;
+        statusSelect.disabled = false;
+      }
+
+      openModal('editUserModal');
+    }
+
+    function handleSaveEditUser(e){
+      e.preventDefault();
+      const id = document.getElementById('editUserId').value;
+      const hoTen = document.getElementById('editHoTen').value.trim();
+      const email = document.getElementById('editEmail').value.trim();
+      const soDienThoai = document.getElementById('editPhone').value.trim();
+      const vaiTro = document.getElementById('editVaiTro').value;
+      const coSo = document.getElementById('editCoSo').value;
+      const trangThai = document.getElementById('editTrangThai').value;
+      const errEl = document.getElementById('editUserError');
+      const btn = document.getElementById('btnSubmitEdit');
+
+      errEl.style.display = 'none';
+      btn.disabled = true;
+
+      const payload = { hoTen, email, soDienThoai, coSo };
+      // Chỉ gửi vaiTro / trangThai nếu không bị disable (không phải tự sửa chính mình)
+      if(!document.getElementById('editVaiTro').disabled) payload.vaiTro = vaiTro;
+      if(!document.getElementById('editTrangThai').disabled) payload.trangThai = trangThai;
+
+      fetch(`/api/admin/users/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+        .then(res => res.json().then(data => ({ ok: res.ok, data })))
+        .then(result => {
+          btn.disabled = false;
+          if(!result.ok){
+            errEl.textContent = result.data.error || 'Không cập nhật được tài khoản.';
+            errEl.style.display = 'block';
+            return;
+          }
+          closeModal('editUserModal');
+          showToast('Đã cập nhật thông tin tài khoản!');
+          loadAdminUsers();
+        })
+        .catch(() => {
+          btn.disabled = false;
+          errEl.textContent = 'Lỗi kết nối, vui lòng thử lại.';
+          errEl.style.display = 'block';
+        });
+    }
+
+    // Modal Reset Password
+    function openResetPasswordModal(id, username){
+      document.getElementById('resetUserId').value = id;
+      document.getElementById('resetTargetUsername').textContent = username;
+      document.getElementById('resetNewPassword').value = '';
+      document.getElementById('resetConfirmPassword').value = '';
+      document.getElementById('resetPasswordError').style.display = 'none';
+      openModal('resetPasswordModal');
+    }
+
+    function handleResetPassword(e){
+      e.preventDefault();
+      const id = document.getElementById('resetUserId').value;
+      const newPassword = document.getElementById('resetNewPassword').value;
+      const confirm = document.getElementById('resetConfirmPassword').value;
+      const errEl = document.getElementById('resetPasswordError');
+      const btn = document.getElementById('btnSubmitReset');
+
+      errEl.style.display = 'none';
+
+      if(newPassword !== confirm){
+        errEl.textContent = 'Xác nhận mật khẩu không khớp.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+
+      fetch(`/api/admin/users/${id}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword })
+      })
+        .then(res => res.json().then(data => ({ ok: res.ok, data })))
+        .then(result => {
+          btn.disabled = false;
+          if(!result.ok){
+            errEl.textContent = result.data.error || 'Không đặt lại được mật khẩu.';
+            errEl.style.display = 'block';
+            return;
+          }
+          closeModal('resetPasswordModal');
+          showToast('Đã đặt lại mật khẩu mới cho tài khoản!');
+        })
+        .catch(() => {
+          btn.disabled = false;
+          errEl.textContent = 'Lỗi kết nối, vui lòng thử lại.';
+          errEl.style.display = 'block';
+        });
+    }
+
+    // Lock / Unlock toggle
+    function toggleUserLock(id, currentStatus){
+      const nextStatus = currentStatus === 'Khóa' ? 'Đang hoạt động' : 'Khóa';
+      const actionText = nextStatus === 'Khóa' ? 'khóa' : 'mở khóa';
+      if(!confirm(`Bạn có chắc chắn muốn ${actionText} tài khoản này?`)) return;
+
+      fetch(`/api/admin/users/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trangThai: nextStatus })
+      })
+        .then(res => res.json().then(data => ({ ok: res.ok, data })))
+        .then(result => {
+          if(!result.ok){
+            showToast(result.data.error || 'Thao tác không thành công', 'error');
+            return;
+          }
+          showToast(`Đã ${actionText} tài khoản thành công!`);
+          loadAdminUsers();
+        })
+        .catch(() => {
+          showToast('Lỗi kết nối khi cập nhật trạng thái', 'error');
+        });
+    }
+
+    // Delete User
+    function handleDeleteUser(id, username){
+      if(!confirm(`CẢNH BÁO: Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản "${username}"?`)) return;
+
+      fetch(`/api/admin/users/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      })
+        .then(res => res.json().then(data => ({ ok: res.ok, data })))
+        .then(result => {
+          if(!result.ok){
+            showToast(result.data.error || 'Không thể xóa tài khoản', 'error');
+            return;
+          }
+          showToast(`Đã xóa tài khoản "${username}" thành công!`);
+          loadAdminUsers();
+        })
+        .catch(() => {
+          showToast('Lỗi kết nối khi xóa tài khoản', 'error');
+        });
+    }
+
+    // ---------- Logout ----------
+    function handleLogout(){
+      if(window.TKSNav && window.TKSNav.logout){
+        window.TKSNav.logout();
+      } else {
+        if(!confirm('Bạn có chắc chắn muốn đăng xuất?')) return;
+        fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
+          .finally(() => { window.location.href = '/login/'; });
+      }
+    }
+
+    // ---------- Init Page ----------
+    window.addEventListener('DOMContentLoaded', () => {
+      syncThemeControl();
+      const sidebar = document.getElementById('sidebar');
+      if(window.TKSNav && window.TKSNav.authGuard){
+        window.TKSNav.authGuard()
+          .then(user => {
+            currentUser = user;
+            if(sidebar) window.TKSNav.renderTopSidebar(sidebar, 'account', user);
+
+            // Kiểm tra role Quản lý để hiển thị tab Quản lý người dùng
+            if(user.vaiTro === 'Quản lý'){
+              const adminTabBtn = document.getElementById('tabBtnAdminUsers');
+              if(adminTabBtn) adminTabBtn.style.display = 'inline-flex';
+            }
+
+            // Load profile data by default
+            loadProfileData();
+          });
+      }
+    });
+  </script>
+</body>
+</html>

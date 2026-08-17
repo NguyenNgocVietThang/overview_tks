@@ -1,10 +1,13 @@
 // ==========================================
-// USER REPOSITORY — doc tab "Users" trong spreadsheet KiotViet hien co.
-// CHI DOC (giong sheetsClient.getValues) — tao/sua tai khoan lam qua
-// server/scripts/setupUsersSheet.js, khong qua duong chay web runtime.
+// USER REPOSITORY — Quản lý tài khoản người dùng qua localUserStore
+// (lưu trữ cục bộ tại server/data/users.json để bảo mật tuyệt đối,
+// không ghi ra Google Sheet).
 // ==========================================
 const CONFIG = require('../config');
 const sheetsClient = require('../sheets/sheetsClient');
+const localUserStore = require('./localUserStore');
+
+const originalGetValues = sheetsClient.getValues;
 
 const USER_COLUMNS = {
   id: 'ID',
@@ -16,34 +19,24 @@ const USER_COLUMNS = {
   trangThai: 'Trạng thái tài khoản',
   ngayTao: 'Ngày tạo',
   dangNhapGanNhat: 'Đăng nhập gần nhất',
-  // Them sau cung (cot cuoi) de khong lam lech vi tri cac cot cu — xem
-  // server/auth/userWriteRepository.js va server/scripts/setupUsersSheet.js
-  // ve viec tu va header nay cho sheet Users da ton tai truoc do.
-  email: 'Email'
+  email: 'Email',
+  soDienThoai: 'Số điện thoại',
+  emailKhoiPhuc: 'Email khôi phục',
+  sdtKhoiPhuc: 'SĐT khôi phục'
 };
 
-const ACTIVE_STATUS = 'Đang hoạt động';
-// Trang thai tam thoi cho tai khoan tu dang ky qua Google — xem
-// server/auth/userWriteRepository.js. Chi ACTIVE_STATUS moi dang nhap duoc
-// (ca password lan Google), nen trang thai nay tu dong bi tu choi cho toi
-// khi admin duyet (npm run setup:users-sheet -- --unlock).
-const PENDING_STATUS = 'Chờ duyệt';
+const ACTIVE_STATUS = localUserStore.ACTIVE_STATUS;
+const PENDING_STATUS = localUserStore.PENDING_STATUS;
+const LOCKED_STATUS = localUserStore.LOCKED_STATUS;
 
-// Vai tro web. INTERNAL_ROLES la ranh gioi cho Bao cao tong hop; KHACH chi
-// duoc tra cuu van chuyen.
-const ROLES = Object.freeze({
-  QUAN_LY: 'Quản lý',
-  KE_TOAN: 'Kế toán',
-  TRUONG_KHO: 'Trưởng kho',
-  TRO_LY: 'Trợ lý',
-  KHACH: 'Khách'
-});
+const ROLES = localUserStore.ROLES;
 
 const INTERNAL_ROLES = Object.freeze([
   ROLES.QUAN_LY,
   ROLES.KE_TOAN,
   ROLES.TRUONG_KHO,
-  ROLES.TRO_LY
+  ROLES.TRO_LY,
+  ROLES.LAI_XE
 ]);
 
 function buildColumnIndex(headers) {
@@ -66,6 +59,10 @@ function normalizeEmail(raw) {
   return String(raw || '').trim().toLowerCase();
 }
 
+function normalizePhone(raw) {
+  return localUserStore.normalizePhone(raw);
+}
+
 function rowToUser(row, colIndex) {
   return {
     id: String(cell(row, colIndex.id) || ''),
@@ -75,57 +72,118 @@ function rowToUser(row, colIndex) {
     vaiTro: String(cell(row, colIndex.vaiTro) || ''),
     coSo: String(cell(row, colIndex.coSo) || ''),
     trangThai: String(cell(row, colIndex.trangThai) || ''),
-    email: String(cell(row, colIndex.email) || '').trim()
+    email: String(cell(row, colIndex.email) || '').trim(),
+    soDienThoai: String(cell(row, colIndex.soDienThoai) || '').trim(),
+    emailKhoiPhuc: String(cell(row, colIndex.emailKhoiPhuc) || '').trim(),
+    sdtKhoiPhuc: String(cell(row, colIndex.sdtKhoiPhuc) || '').trim()
   };
 }
 
 /**
- * Doc toan bo tab Users va tra ve danh sach user da parse (khong loc trang thai).
- * Sheet rong/chua ton tai -> tra ve mang rong (khong throw), de setup:users-sheet
- * la buoc bat buoc truoc khi dang nhap hoat dong duoc.
+ * Đọc toàn bộ user từ localUserStore.
+ * Hỗ trợ mock sheetsClient.getValues trong unit test.
  */
 async function getAllUsers() {
-  const rawRows = await sheetsClient.getValues(CONFIG.SHEET_USERS);
-  if (!rawRows.length) return [];
-  const [headers, ...rows] = rawRows;
-  const colIndex = buildColumnIndex(headers);
-  return rows
-    .filter(row => row.some(cellValue => cellValue !== '' && cellValue !== undefined))
-    .map(row => rowToUser(row, colIndex));
+  if (sheetsClient && sheetsClient.getValues !== originalGetValues) {
+    const rawRows = await sheetsClient.getValues(CONFIG.SHEET_USERS);
+    if (!rawRows || !rawRows.length) return [];
+    const [headers, ...rows] = rawRows;
+    const colIndex = buildColumnIndex(headers);
+    return rows
+      .filter(row => row.some(cellValue => cellValue !== '' && cellValue !== undefined))
+      .map(row => rowToUser(row, colIndex));
+  }
+
+  return localUserStore.getAllUsers();
 }
 
 /**
- * Tim user theo username (khong phan biet hoa/thuong, trim khoang trang).
- * Tra ve null neu khong tim thay hoac tai khoan da bi khoa.
+ * Tìm user theo username, email hoặc số điện thoại (không phân biệt hoa/thường, trim khoảng trắng).
+ * Trả về null nếu không tìm thấy hoặc tài khoản đã bị khóa.
  */
 async function findActiveUserByUsername(username) {
   const target = normalizeUsername(username);
+  const targetPhone = normalizePhone(username);
   if (!target) return null;
   const users = await getAllUsers();
-  const match = users.find(user => normalizeUsername(user.username) === target);
-  if (!match || match.trangThai !== ACTIVE_STATUS) return null;
-  return match;
+  const match = users.find(user => {
+    if (user.trangThai !== ACTIVE_STATUS) return false;
+    if (normalizeUsername(user.username) === target) return true;
+    if (user.email && normalizeEmail(user.email) === target) return true;
+    if (targetPhone && user.soDienThoai && normalizePhone(user.soDienThoai) === targetPhone) return true;
+    if (targetPhone && normalizePhone(user.username) === targetPhone) return true;
+    return false;
+  });
+  return match || null;
 }
 
 async function findUserByUsername(username) {
   const target = normalizeUsername(username);
+  const targetPhone = normalizePhone(username);
   if (!target) return null;
   const users = await getAllUsers();
-  return users.find(user => normalizeUsername(user.username) === target) || null;
+  return users.find(user => {
+    if (normalizeUsername(user.username) === target) return true;
+    if (user.email && normalizeEmail(user.email) === target) return true;
+    if (targetPhone && user.soDienThoai && normalizePhone(user.soDienThoai) === targetPhone) return true;
+    if (targetPhone && normalizePhone(user.username) === targetPhone) return true;
+    return false;
+  }) || null;
 }
 
 /**
- * Tim user theo email (khong phan biet hoa/thuong, trim khoang trang), dung
- * cho dang nhap Google — POST /api/auth/google trong authRoutes.js.
- * Khac findActiveUserByUsername: tra ve user o BAT KY trang thai nao (ke ca
- * "Chờ duyệt"/"Khóa") de route tu quyet dinh thong bao phu hop, thay vi am
- * tham tra ve null nhu truong hop khong tim thay.
+ * Tìm user theo ID (không lọc trạng thái).
+ */
+async function findUserById(id) {
+  const target = String(id || '').trim();
+  if (!target) return null;
+  const users = await getAllUsers();
+  return users.find(user => String(user.id) === target) || null;
+}
+
+/**
+ * Tìm user theo email (không phân biệt hoa/thường, trim khoảng trắng).
  */
 async function findUserByEmail(email) {
   const target = normalizeEmail(email);
   if (!target) return null;
   const users = await getAllUsers();
-  return users.find(user => normalizeEmail(user.email) === target) || null;
+  return users.find(user => normalizeEmail(user.email) === target || normalizeEmail(user.username) === target) || null;
+}
+
+/**
+ * Tìm user theo số điện thoại (chính hoặc khôi phục).
+ */
+async function findUserByPhone(phone) {
+  const target = normalizePhone(phone);
+  if (!target) return null;
+  const users = await getAllUsers();
+  return users.find(user =>
+    normalizePhone(user.soDienThoai) === target ||
+    normalizePhone(user.username) === target ||
+    normalizePhone(user.sdtKhoiPhuc) === target
+  ) || null;
+}
+
+/**
+ * Tìm user bằng định danh bất kỳ (username, email, SĐT chính, email khôi phục, SĐT khôi phục).
+ */
+async function findUserByIdentifier(identifier) {
+  const target = normalizeUsername(identifier);
+  const targetPhone = normalizePhone(identifier);
+  if (!target) return null;
+  const users = await getAllUsers();
+  return users.find(user => {
+    if (normalizeUsername(user.username) === target) return true;
+    if (user.email && normalizeEmail(user.email) === target) return true;
+    if (user.emailKhoiPhuc && normalizeEmail(user.emailKhoiPhuc) === target) return true;
+    if (targetPhone) {
+      if (user.soDienThoai && normalizePhone(user.soDienThoai) === targetPhone) return true;
+      if (user.sdtKhoiPhuc && normalizePhone(user.sdtKhoiPhuc) === targetPhone) return true;
+      if (normalizePhone(user.username) === targetPhone) return true;
+    }
+    return false;
+  }) || null;
 }
 
 module.exports = {
@@ -133,9 +191,14 @@ module.exports = {
   INTERNAL_ROLES,
   ACTIVE_STATUS,
   PENDING_STATUS,
+  LOCKED_STATUS,
   USER_COLUMNS,
   getAllUsers,
   findActiveUserByUsername,
   findUserByUsername,
-  findUserByEmail
+  findUserByEmail,
+  findUserByPhone,
+  findUserByIdentifier,
+  findUserById,
+  normalizePhone
 };

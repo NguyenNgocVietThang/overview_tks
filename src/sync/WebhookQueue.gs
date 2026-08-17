@@ -167,13 +167,23 @@ function processWebhookQueueItem_(queueItem) {
     const items = Array.isArray(rawItems) ? rawItems : [rawItems];
     if (items.length === 0 || items[0] === undefined || items[0] === null) return;
 
+    if (isShipmentLifecycleMode_()) {
+      processShipmentLifecycleWebhookItems_(action, items);
+      return;
+    }
+
     const isDelete = action.indexOf('.delete') !== -1;
     if (action.indexOf('product') !== -1) {
       if (isDelete) deleteProductsFromWebhook(items); else updateProductsFromWebhook(items);
     } else if (action.indexOf('stock') !== -1) {
       updateProductsFromWebhook(items);
     } else if (action.indexOf('invoice') !== -1) {
-      if (isDelete) deleteInvoicesFromWebhook(items); else updateInvoicesFromWebhook(items);
+      if (isDelete) {
+        deleteInvoicesFromWebhook(items);
+      } else {
+        updateInvoicesFromWebhook(items);
+        forwardInvoiceWebhookToShipment_(action, items);
+      }
     } else if (action.indexOf('order') !== -1) {
       if (isDelete) deleteOrdersFromWebhook(items); else updateOrdersFromWebhook(items);
     } else if (action.indexOf('customer') !== -1) {
@@ -184,6 +194,43 @@ function processWebhookQueueItem_(queueItem) {
       throw new Error('Loai su kien chua duoc ho tro: ' + action);
     }
   });
+}
+
+/**
+ * KiotViet chi cho mot webhook cho moi Type. Project tong hop cu giu
+ * invoice.update va chuyen tiep payload sang project van chuyen sau khi da
+ * cap nhat thanh cong. Neu project dich tam loi, queue cu se retry idempotent.
+ */
+function forwardInvoiceWebhookToShipment_(action, items) {
+  const properties = PropertiesService.getScriptProperties();
+  const baseUrl = String(properties.getProperty('SHIPMENT_WEBHOOK_URL') || '').trim();
+  const secret = String(properties.getProperty('SHIPMENT_WEBHOOK_SECRET') || '').trim();
+  if (!baseUrl) return;
+  if (!secret) throw new Error('Thieu SHIPMENT_WEBHOOK_SECRET de chuyen tiep invoice.update.');
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(baseUrl)) {
+    throw new Error('SHIPMENT_WEBHOOK_URL khong hop le.');
+  }
+
+  const targetUrl = appendWebhookEventType_(
+    baseUrl + '?secret=' + encodeURIComponent(secret),
+    action || 'invoice.update'
+  );
+  const response = UrlFetchApp.fetch(targetUrl, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify({
+      Notifications: [{ Action: action || 'invoice.update', Data: items }]
+    }),
+    muteHttpExceptions: true
+  });
+  const code = response.getResponseCode();
+  const responseText = String(response.getContentText() || '').trim();
+  if (code < 200 || code >= 300 || responseText !== 'QUEUED') {
+    throw new Error(
+      'Chuyen tiep invoice.update sang sheet van chuyen that bai, HTTP ' +
+      code + ': ' + responseText
+    );
+  }
 }
 
 function finalizeWebhookQueueItem_(id, error) {
@@ -212,20 +259,22 @@ function finalizeWebhookQueueItem_(id, error) {
 }
 
 function processWebhookQueue() {
-  const maintenanceLock = getKiotVietDataLock_();
-  if (maintenanceLock.tryLock(5000)) {
-    try {
+  if (!isShipmentLifecycleMode_()) {
+    const maintenanceLock = getKiotVietDataLock_();
+    if (maintenanceLock.tryLock(5000)) {
       try {
-        migrateKiotVietSheetsIfNeeded_();
-      } catch (migrationError) {
-        Logger.log('Loi cap nhat schema, se thu lai: ' + migrationError.toString());
-      }
-      syncCustomerReportIfDue_();
+        try {
+          migrateKiotVietSheetsIfNeeded_();
+        } catch (migrationError) {
+          Logger.log('Loi cap nhat schema, se thu lai: ' + migrationError.toString());
+        }
+        syncCustomerReportIfDue_();
 
-      // Sau 15:00, chay bu bao cao cong no neu trigger ngay bi tre hoac loi.
-      syncCustomerDebtReportsIfDue_();
-    } finally {
-      maintenanceLock.releaseLock();
+        // Sau 15:00, chay bu bao cao cong no neu trigger ngay bi tre hoac loi.
+        syncCustomerDebtReportsIfDue_();
+      } finally {
+        maintenanceLock.releaseLock();
+      }
     }
   }
 

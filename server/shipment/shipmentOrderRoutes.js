@@ -409,4 +409,74 @@ router.patch('/api/shipment/vehicles/:vehicleId', ...authDispatch, async (req, r
   }
 });
 
+// ---------------------------------------------------------------------------
+// 15. GET /api/shipment/invoices/pending — hóa đơn KiotViet chưa tạo đơn VC
+// ---------------------------------------------------------------------------
+
+router.get('/api/shipment/invoices/pending', ...authDispatch, async (req, res) => {
+  try {
+    const { dateFrom, dateTo } = req.query;
+
+    // Doc sheet Hoa don goc KiotViet
+    const invoiceRows = await sheetsClient.getValues(CONFIG.SHEET_INVOICES);
+    if (!invoiceRows.length) return res.status(200).json({ invoices: [] });
+
+    const [headers, ...dataRows] = invoiceRows;
+    const idx = {
+      code:    headers.findIndex(h => String(h || '').trim() === 'Mã hóa đơn'),
+      date:    headers.findIndex(h => String(h || '').trim() === 'Ngày'),
+      name:    headers.findIndex(h => String(h || '').trim() === 'Tên khách'),
+      phone:   headers.findIndex(h => String(h || '').trim() === 'Số điện thoại'),
+      address: headers.findIndex(h => String(h || '').trim() === 'Địa chỉ'),
+      amount:  headers.findIndex(h => String(h || '').trim() === 'Tổng tiền')
+    };
+
+    if (idx.code < 0) {
+      return res.status(500).json({ error: 'Sheet hóa đơn thiếu cột "Mã hóa đơn".', code: 'SHEET_CONFIG_ERROR' });
+    }
+
+    // Doc tat ca don VC de biet kiotviet_code da ton tai
+    const existingOrders = await repo.getOrders({});
+    const usedCodes = new Set(
+      existingOrders.map(o => String(o.kiotviet_code || '').trim()).filter(Boolean)
+    );
+
+    // Loc hoa don chua co don VC
+    const from = dateFrom ? new Date(dateFrom) : null;
+    const to   = dateTo   ? new Date(dateTo + 'T23:59:59') : null;
+
+    function cellAt(row, i) { return i >= 0 && i < row.length ? String(row[i] || '').trim() : ''; }
+
+    const invoices = [];
+    for (const row of dataRows) {
+      const code = cellAt(row, idx.code);
+      if (!code) continue;
+      if (usedCodes.has(code)) continue;
+
+      // Loc theo ngay neu co
+      if ((from || to) && idx.date >= 0) {
+        const rawDate = cellAt(row, idx.date);
+        if (rawDate) {
+          const d = new Date(rawDate);
+          if (from && d < from) continue;
+          if (to   && d > to)   continue;
+        }
+      }
+
+      invoices.push({
+        kiotviet_code:  code,
+        invoice_date:   cellAt(row, idx.date),
+        customer_name:  cellAt(row, idx.name),
+        customer_phone: cellAt(row, idx.phone),
+        address:        cellAt(row, idx.address),
+        amount:         cellAt(row, idx.amount)
+      });
+    }
+
+    res.status(200).json({ invoices });
+  } catch (err) {
+    handleError(res, err, 'GET /api/shipment/invoices/pending');
+  }
+});
+
 module.exports = router;

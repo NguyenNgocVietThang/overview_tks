@@ -14,6 +14,21 @@ const KIOTVIET_AUTO_SYNC_EVENT_TYPES = Object.freeze([
   "category.delete"
 ]);
 const KIOTVIET_AUTO_SYNC_DESCRIPTION_PREFIX = "Auto-sync Google Sheets - ";
+const KIOTVIET_SHIPMENT_EVENT_TYPES = Object.freeze(["invoice.update"]);
+const KIOTVIET_SHIPMENT_DESCRIPTION_PREFIX = "Shipment lifecycle - ";
+
+function getKiotVietAutoSyncProfile_() {
+  if (isShipmentLifecycleMode_()) {
+    return {
+      eventTypes: KIOTVIET_SHIPMENT_EVENT_TYPES,
+      descriptionPrefix: KIOTVIET_SHIPMENT_DESCRIPTION_PREFIX
+    };
+  }
+  return {
+    eventTypes: KIOTVIET_AUTO_SYNC_EVENT_TYPES,
+    descriptionPrefix: KIOTVIET_AUTO_SYNC_DESCRIPTION_PREFIX
+  };
+}
 
 /**
  * Bat toan bo co che tu dong theo cach idempotent:
@@ -23,26 +38,45 @@ const KIOTVIET_AUTO_SYNC_DESCRIPTION_PREFIX = "Auto-sync Google Sheets - ";
  * - Giu nguyen webhook cua he thong khac; chi thay webhook cu/trung cua dashboard.
  */
 function setupKiotVietAutoSync() {
-  migrateKiotVietSheetsIfNeeded_();
+  const profile = getKiotVietAutoSyncProfile_();
+
+  if (isShipmentLifecycleMode_()) {
+    initializeShipmentLifecycleSheets();
+  } else {
+    migrateKiotVietSheetsIfNeeded_();
+  }
 
   const token = getKiotVietToken();
   if (!token) throw new Error("Khong lay duoc token KiotViet de bat tu dong dong bo.");
 
   ensureKiotVietWebhookSecret_();
   setupQueueProcessingTrigger();
-  setupPollingTrigger();
-  setupHangNgungKinhDoanhTrigger_();
-  setupCustomerDebtReportDailyTrigger();
+  if (isShipmentLifecycleMode_() && isShipmentLifecycleRelayEnabled_()) {
+    const relayResult = {
+      activeCount: 0,
+      createdCount: 0,
+      removedCount: 0,
+      failedCount: 0,
+      relayEnabled: true
+    };
+    Logger.log('AUTO-SYNC READY: invoice.update duoc chuyen tiep tu project tong hop cu.');
+    return relayResult;
+  }
+  if (!isShipmentLifecycleMode_()) {
+    setupPollingTrigger();
+    setupHangNgungKinhDoanhTrigger_();
+    setupCustomerDebtReportDailyTrigger();
+  }
 
-  const result = reconcileKiotVietAutoSyncWebhooks_(token);
+  const result = reconcileKiotVietAutoSyncWebhooks_(token, profile);
   Logger.log(
     "AUTO-SYNC READY: active=" + result.activeCount +
     ", created=" + result.createdCount +
     ", removedStale=" + result.removedCount +
     ", failed=" + result.failedCount
   );
-  if (result.activeCount !== KIOTVIET_AUTO_SYNC_EVENT_TYPES.length || result.failedCount > 0) {
-    throw new Error("Chua bat du 9 webhook KiotViet: " + JSON.stringify(result));
+  if (result.activeCount !== profile.eventTypes.length || result.failedCount > 0) {
+    throw new Error("Chua bat du webhook KiotViet cho che do hien tai: " + JSON.stringify(result));
   }
   return result;
 }
@@ -84,7 +118,8 @@ function buildKiotVietAutoSyncWebhookUrl_(eventType) {
   );
 }
 
-function reconcileKiotVietAutoSyncWebhooks_(token) {
+function reconcileKiotVietAutoSyncWebhooks_(token, profile) {
+  profile = profile || getKiotVietAutoSyncProfile_();
   const listResult = fetchKiotVietJsonWithRetry_(
     "https://public.kiotapi.com/webhooks?pageSize=100",
     token,
@@ -92,7 +127,7 @@ function reconcileKiotVietAutoSyncWebhooks_(token) {
   );
   const existing = Array.isArray(listResult.data) ? listResult.data : [];
   const desiredTypes = {};
-  KIOTVIET_AUTO_SYNC_EVENT_TYPES.forEach(type => { desiredTypes[type] = true; });
+  profile.eventTypes.forEach(type => { desiredTypes[type] = true; });
   const baseUrl = getKiotVietWebhookBaseUrl_();
   const activeTypes = {};
   let createdCount = 0;
@@ -105,8 +140,11 @@ function reconcileKiotVietAutoSyncWebhooks_(token) {
     const description = String(webhook.description || webhook.Description || "");
     const isActive = webhook.isActive === true || webhook.IsActive === true;
     const expectedUrl = desiredTypes[type] ? buildKiotVietAutoSyncWebhookUrl_(type) : "";
-    const isManaged = description.indexOf(KIOTVIET_AUTO_SYNC_DESCRIPTION_PREFIX) === 0 ||
-      (desiredTypes[type] && url.indexOf(baseUrl) === 0);
+    // Chi quan ly webhook mang tien to cua profile hien tai, hoac webhook dang
+    // tro vao chinh deployment hien tai. URL cua project cu khac baseUrl nen
+    // tuyet doi khong bi xoa khi bat project van chuyen.
+    const isManaged = description.indexOf(profile.descriptionPrefix) === 0 ||
+      url.indexOf(baseUrl) === 0;
     const isExactActive = desiredTypes[type] && url === expectedUrl && isActive;
 
     if (isExactActive && !activeTypes[type]) {
@@ -140,7 +178,7 @@ function reconcileKiotVietAutoSyncWebhooks_(token) {
     }
   });
 
-  KIOTVIET_AUTO_SYNC_EVENT_TYPES.forEach(type => {
+  profile.eventTypes.forEach(type => {
     if (activeTypes[type]) return;
     const response = UrlFetchApp.fetch("https://public.kiotapi.com/webhooks", {
       method: "post",
@@ -154,7 +192,7 @@ function reconcileKiotVietAutoSyncWebhooks_(token) {
           Type: type,
           Url: buildKiotVietAutoSyncWebhookUrl_(type),
           IsActive: true,
-          Description: KIOTVIET_AUTO_SYNC_DESCRIPTION_PREFIX + type
+          Description: profile.descriptionPrefix + type
         }
       }),
       muteHttpExceptions: true
@@ -222,7 +260,8 @@ function registerWebhookProgrammatically() {
   }
 
   // Danh sach day du 9 loai su kien can dang ky rieng le:
-  const eventTypes = KIOTVIET_AUTO_SYNC_EVENT_TYPES;
+  const profile = getKiotVietAutoSyncProfile_();
+  const eventTypes = profile.eventTypes;
 
   const url = "https://public.kiotapi.com/webhooks";
   let successCount = 0;
@@ -234,7 +273,7 @@ function registerWebhookProgrammatically() {
         "Type": type,
         "Url": appendWebhookEventType_(myWebhookUrl, type),
         "IsActive": true,
-        "Description": "Auto-sync Google Sheets - " + type
+        "Description": profile.descriptionPrefix + type
       }
     };
 
@@ -294,7 +333,8 @@ function registerWebhookWithCorrectUrl() {
     return;
   }
 
-  const eventTypes = KIOTVIET_AUTO_SYNC_EVENT_TYPES;
+  const profile = getKiotVietAutoSyncProfile_();
+  const eventTypes = profile.eventTypes;
 
   const url = "https://public.kiotapi.com/webhooks";
   let successCount = 0;
@@ -306,7 +346,7 @@ function registerWebhookWithCorrectUrl() {
         "Type": type,
         "Url": appendWebhookEventType_(CORRECT_WEBHOOK_URL, type),
         "IsActive": true,
-        "Description": "Auto-sync Google Sheets - " + type
+        "Description": profile.descriptionPrefix + type
       }
     };
 

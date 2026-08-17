@@ -198,6 +198,46 @@ test('createOrder: cho phep tao lai don neu don cu da DA_HUY', async (t) => {
   assert.ok(orderAppend, 'Phai append dong vao tab Don van chuyen');
 });
 
+test('createOrder: nhan don MOI_TAO tu KiotViet ma khong tao dong hoac item trung', async () => {
+  const orderId = 'VC-20260101-0001';
+  const existingOrders = makeOrderRows([orderId, 'HD-SYNC-01', 'Mới tạo', 1]);
+  const existingItems = [
+    ['Mã vận đơn', 'Mã hàng', 'Tên hàng hóa', 'Số lượng đặt', 'Số lượng đã nhặt', 'Đơn vị tính', 'Ghi chú'],
+    [orderId, 'SP001', 'Sản phẩm đồng bộ', 2, '', 'Cái', '']
+  ];
+  const { repo, calls } = freshRepo({ orders: existingOrders, orderItems: existingItems });
+
+  const result = await repo.createOrder({
+    kiotviet_code: 'HD-SYNC-01',
+    warehouse: 'Tân Phú',
+    flow: 2,
+    vehicle_id: 'XE-01',
+    driver_name: 'Tài xế A',
+    customer_name: 'Khách cập nhật',
+    customer_phone: '0900000000',
+    address: 'TP.HCM',
+    items: [{ product_code: 'SP001', product_name: 'Sản phẩm đồng bộ', quantity_ordered: 2 }]
+  });
+
+  assert.equal(result.order_id, orderId);
+  assert.equal(result.current_status, 'Đã in');
+  assert.equal(result.warehouse, 'Tân Phú');
+  assert.equal(result.items.length, 1);
+  assert.equal(calls.append.filter(c => c.sheetName === 'Đơn vận chuyển').length, 0);
+  assert.equal(calls.append.filter(c => c.sheetName === 'Chi tiết vận chuyển').length, 0);
+
+  const orderUpdate = calls.update.find(c => c.sheetName === 'Đơn vận chuyển');
+  assert.ok(orderUpdate, 'Phải cập nhật đúng dòng đơn đã đồng bộ');
+  assert.equal(orderUpdate.rowIndex, 2);
+  assert.equal(orderUpdate.row[0], orderId);
+  assert.equal(orderUpdate.row[9], 'Đã in');
+
+  const history = calls.append.find(c => c.sheetName === 'Lịch sử trạng thái');
+  assert.ok(history, 'Phải ghi lịch sử nhận xử lý');
+  assert.equal(history.row[2], 'Mới tạo');
+  assert.equal(history.row[3], 'Đã in');
+});
+
 test('createOrder: ghi lich su trang thai voi to_status = Da in', async (t) => {
   const { repo, calls } = freshRepo({ orders: [[]] });
 

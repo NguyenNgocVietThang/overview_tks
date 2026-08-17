@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Điều phối vận chuyển · TOKOSI Dashboard</title>
+<link rel="icon" type="image/jpeg" href="/Logo.jpg">
+<meta name="description" content="Trang điều phối vận chuyển nội bộ — tạo đơn từ KiotViet, theo dõi Kanban trạng thái, quản lý xe và xử lý sự cố.">
+<script>
+  (function(){
+    try{ document.documentElement.dataset.theme = localStorage.getItem('tks-dashboard-theme') === 'light' ? 'light' : 'dark'; }
+    catch(e){ document.documentElement.dataset.theme = 'dark'; }
+    document.documentElement.style.visibility = 'hidden';
+  })();
+</script>
+<link rel="stylesheet" href="/shared/shared.css">
+<script src="/shared/shared-nav.js"></script>
+<script src="/shared/image-compress.js"></script>
+<style>
+/* ---- Layout ---- */
+.page-header{
+  display:flex;align-items:center;gap:12px;padding:18px 24px 14px;
+  background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap;
+}
+.page-header h1{margin:0;font-family:var(--font-display);font-size:19px;font-weight:800;letter-spacing:-.01em;}
+.page-header .sub{color:var(--muted);font-size:12.5px;margin:2px 0 0;}
+.header-left{flex:1;min-width:0;}
+.header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.link-chip{
+  padding:6px 14px;border-radius:9999px;font-size:12px;font-weight:600;
+  background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+  text-decoration:none;transition:border-color .15s,background .15s;
+}
+.link-chip:hover{border-color:var(--muted);background:var(--surface-hover);}
+.theme-toggle-disp{
+  padding:6px 12px;border-radius:9999px;background:var(--panel-2);
+  border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:600;
+  cursor:pointer;display:flex;align-items:center;gap:6px;
+}
+
+.main-shell{display:flex;min-height:calc(100vh - 62px);}
+.sidebar-disp{
+  width:210px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);
+  padding:14px 10px;position:sticky;top:0;height:calc(100vh - 62px);overflow-y:auto;
+  display:flex;flex-direction:column;gap:2px;
+}
+.content-disp{flex:1;min-width:0;padding:20px;display:flex;flex-direction:column;gap:16px;overflow:hidden;}
+
+/* ---- Sections ---- */
+.section-panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:var(--card-shadow);}
+.section-title{font-family:var(--font-display);font-size:15px;font-weight:700;margin:0 0 14px;display:flex;align-items:center;gap:8px;}
+.section-title .icon{font-size:18px;}
+
+/* ---- Filter bar ---- */
+.filter-bar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;}
+.filter-group{display:flex;flex-direction:column;gap:4px;}
+.filter-group label{font-size:11.5px;font-weight:600;color:var(--muted);}
+.filter-group select,.filter-group input{
+  height:36px;padding:0 10px;background:var(--panel-2);color:var(--text);
+  border:1px solid var(--border);border-radius:8px;font-family:var(--font-body);font-size:13px;
+  min-width:130px;cursor:pointer;transition:border-color .15s;
+}
+.filter-group select:focus,.filter-group input:focus{outline:none;border-color:var(--blue);}
+
+/* ---- Kanban ---- */
+.kanban-scroll{overflow-x:auto;padding-bottom:8px;}
+.kanban-board{display:flex;gap:12px;min-width:max-content;}
+.kanban-col{
+  width:220px;flex-shrink:0;display:flex;flex-direction:column;gap:6px;
+  background:var(--panel-2);border-radius:14px;padding:10px 8px;border:1px solid var(--border);
+}
+.kanban-col-header{
+  display:flex;align-items:center;justify-content:space-between;padding:6px 8px;
+  border-left:3px solid;border-radius:6px;margin-bottom:4px;
+  background:var(--surface-hover);
+}
+.kanban-col-title{font-size:12.5px;font-weight:700;letter-spacing:.01em;}
+.kanban-col-count{
+  min-width:22px;height:22px;border-radius:99px;background:var(--panel-3);
+  color:var(--text-secondary);font-size:11.5px;font-weight:700;display:flex;align-items:center;justify-content:center;
+}
+.kanban-cards{display:flex;flex-direction:column;gap:6px;}
+.kanban-card{
+  background:var(--panel);border:1px solid;border-radius:10px;padding:10px 12px;
+  cursor:pointer;transition:transform .12s,box-shadow .12s;
+}
+.kanban-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.25);}
+.card-code{font-family:var(--font-data);font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:3px;}
+.card-customer{font-size:13px;color:var(--text-secondary);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.card-meta{display:flex;gap:6px;font-size:11px;color:var(--muted);}
+.card-driver{font-size:11.5px;color:var(--muted);margin-top:4px;}
+
+/* ---- Invoices table ---- */
+.inv-table-wrap{overflow-x:auto;margin-top:12px;}
+.inv-table{width:100%;border-collapse:collapse;font-size:13px;}
+.inv-table th{text-transform:uppercase;font-size:11px;letter-spacing:.04em;color:var(--muted);padding:8px 12px;background:var(--panel-2);border-bottom:1px solid var(--border);text-align:left;}
+.inv-table td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);}
+.inv-table tr:hover td{background:var(--surface-hover);}
+.mono{font-family:var(--font-data);font-weight:600;color:var(--text);}
+
+/* ---- Create form ---- */
+.create-controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
+.create-controls select,.create-controls input{
+  height:38px;padding:0 12px;background:var(--panel-2);color:var(--text);
+  border:1px solid var(--border);border-radius:9px;font-family:var(--font-body);font-size:13px;
+  min-width:170px;transition:border-color .15s;
+}
+.create-controls select:focus,.create-controls input:focus{outline:none;border-color:var(--blue);}
+
+.result-row{padding:6px 12px;border-radius:8px;font-size:13px;margin-top:4px;}
+.result-row.ok{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.25);color:var(--green);}
+.result-row.err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:var(--red);}
+
+/* ---- Vehicles ---- */
+.vehicles-table{width:100%;border-collapse:collapse;font-size:13px;}
+.vehicles-table th{text-transform:uppercase;font-size:11px;letter-spacing:.04em;color:var(--muted);padding:8px 12px;background:var(--panel-2);border-bottom:1px solid var(--border);text-align:left;}
+.vehicles-table td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);}
+.btn-sm{padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;background:var(--panel-2);border:1px solid var(--border);color:var(--text);transition:background .15s,border-color .15s;}
+.btn-sm:hover{background:var(--surface-hover);border-color:var(--muted);}
+.add-vehicle-form{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:14px;}
+.add-vehicle-form input{
+  height:36px;padding:0 10px;background:var(--panel-2);color:var(--text);
+  border:1px solid var(--border);border-radius:8px;font-family:var(--font-body);font-size:13px;
+  transition:border-color .15s;
+}
+.add-vehicle-form input:focus{outline:none;border-color:var(--blue);}
+.add-vehicle-form input::placeholder{color:var(--muted);}
+
+/* ---- Modal overlay / dialogs ---- */
+.modal-overlay{
+  position:fixed;inset:0;background:var(--veil);z-index:100;
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  padding:16px;backdrop-filter:blur(4px);
+}
+.dialog{
+  background:var(--panel);border:1px solid var(--border);border-radius:20px;
+  box-shadow:0 24px 64px rgba(0,0,0,.5);width:100%;max-width:640px;max-height:90vh;
+  overflow-y:auto;position:relative;
+}
+.dialog-header{
+  display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;
+  border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--panel);z-index:1;
+}
+.dialog-title{font-family:var(--font-display);font-size:16px;font-weight:800;margin:0;}
+.dialog-close{width:34px;height:34px;border-radius:8px;background:var(--panel-2);border:1px solid var(--border);
+  color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .15s;}
+.dialog-close:hover{background:var(--surface-hover);}
+.dialog-body{padding:18px 20px 20px;}
+.dialog-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+.dialog-label{font-size:11.5px;font-weight:600;color:var(--muted);min-width:90px;}
+.dialog-value{font-size:13.5px;color:var(--text);}
+.status-badge-modal{display:inline-flex;padding:4px 12px;border-radius:6px;font-size:13px;font-weight:700;border:1px solid transparent;}
+
+.modal-section-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:16px 0 8px;}
+.btn-sm-action{
+  padding:7px 14px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;
+  background:var(--primary-gradient);color:#fff;border:none;
+  box-shadow:var(--primary-shadow);transition:opacity .15s,transform .15s;margin-right:6px;margin-bottom:6px;
+}
+.btn-sm-action:hover{opacity:.9;transform:translateY(-1px);}
+
+.history-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px;}
+.history-item{
+  display:grid;grid-template-columns:auto 1fr auto;align-items:start;gap:6px;
+  padding:8px 12px;background:var(--panel-2);border-radius:8px;font-size:12.5px;
+}
+.history-status{font-weight:700;color:var(--text);}
+.history-by{color:var(--muted);font-size:11.5px;}
+.history-time{color:var(--muted);font-size:11px;white-space:nowrap;}
+.history-note{grid-column:1/-1;color:var(--text-secondary);font-size:12px;font-style:italic;}
+
+.gallery{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;}
+.gallery-thumb{width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--border);transition:transform .15s;}
+.gallery-thumb:hover{transform:scale(1.05);}
+
+.meta-edit{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+.meta-edit select,.meta-edit input{
+  height:34px;padding:0 10px;background:var(--panel-2);color:var(--text);
+  border:1px solid var(--border);border-radius:8px;font-family:var(--font-body);font-size:13px;
+  min-width:160px;transition:border-color .15s;
+}
+.meta-edit select:focus,.meta-edit input:focus{outline:none;border-color:var(--blue);}
+
+/* ---- Exception form ---- */
+.exc-form{display:flex;flex-direction:column;gap:10px;}
+.exc-form select,.exc-form textarea{
+  padding:9px 12px;background:var(--panel-2);color:var(--text);
+  border:1px solid var(--border);border-radius:9px;font-family:var(--font-body);font-size:13px;
+  transition:border-color .15s;
+}
+.exc-form select:focus,.exc-form textarea:focus{outline:none;border-color:var(--blue);}
+.exc-form textarea{min-height:80px;resize:vertical;}
+
+/* ---- Edit vehicle dialog ---- */
+.edit-veh-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.edit-veh-form input{
+  height:36px;padding:0 10px;background:var(--panel-2);color:var(--text);
+  border:1px solid var(--border);border-radius:8px;font-family:var(--font-body);font-size:13px;
+  transition:border-color .15s;width:100%;
+}
+.edit-veh-form input:focus{outline:none;border-color:var(--blue);}
+.edit-veh-form label{font-size:11.5px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px;}
+.edit-veh-form .span2{grid-column:1/-1;}
+
+/* ---- Toast ---- */
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
+  background:var(--panel-3);color:var(--text);border:1px solid var(--border);
+  padding:10px 20px;border-radius:10px;font-size:13.5px;font-weight:600;
+  box-shadow:0 8px 24px rgba(0,0,0,.3);z-index:200;
+  transition:transform .25s var(--ease-out),opacity .25s;opacity:0;pointer-events:none;white-space:nowrap;
+}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
+.toast.toast-error{background:rgba(239,68,68,.2);border-color:rgba(239,68,68,.4);color:var(--red);}
+.toast.toast-warn{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.35);color:var(--amber);}
+
+/* ---- Theme ---- */
+.theme-icon-moon{display:none;}
+:root[data-theme="light"] .theme-icon-sun{display:none;}
+:root[data-theme="light"] .theme-icon-moon{display:block;}
+
+@media(max-width:900px){
+  .sidebar-disp{display:none;}
+  .filter-bar{gap:8px;}
+}
+</style>
+</head>
+<body>
+<!-- ======================== HEADER ======================== -->
+<header class="page-header">
+  <div class="header-left" style="display:flex;align-items:center;gap:12px;">
+    <div class="brand-mark">
+      <img src="/Logo.jpg" alt="TOKOSI Logo" width="44" height="44">
+    </div>
+    <div>
+      <h1>Điều phối vận chuyển</h1>
+      <p class="sub">TOKOSI Dashboard · Quản lý đơn vận chuyển nội bộ</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <span id="internalLinks" style="display:flex;gap:6px;"></span>
+    <button class="theme-toggle-disp" onclick="toggleTheme()" type="button" aria-label="Đổi giao diện">
+      <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:15px;height:15px;"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:15px;height:15px;"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    </button>
+    <div id="accountChip"></div>
+  </div>
+</header>
+
+<!-- ======================== MAIN SHELL ======================== -->
+<div class="main-shell">
+  <!-- Sidebar nav -->
+  <nav class="sidebar-disp" id="sidebar" data-tks-active-top="shipment">
+  </nav>
+
+  <!-- Main content -->
+  <main class="content-disp">
+
+    <!-- ── PANEL TẠO ĐƠN (chỉ Quản lý / Kế toán) ── -->
+    <section class="section-panel" id="panelCreate">
+      <h2 class="section-title"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:inline-block;vertical-align:-2px;"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="M12 11h4"></path><path d="M12 16h4"></path><path d="M8 11h.01"></path><path d="M8 16h.01"></path></svg></span> Tạo đơn từ hóa đơn KiotViet</h2>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="filter-group">
+          <label for="filterInvFrom">Từ ngày</label>
+          <input type="date" id="filterInvFrom">
+        </div>
+        <div class="filter-group">
+          <label for="filterInvTo">Đến ngày</label>
+          <input type="date" id="filterInvTo">
+        </div>
+        <button class="btn-primary" id="btnLoadInvoices" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:5px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Tải hóa đơn chờ
+        </button>
+      </div>
+
+      <div class="inv-table-wrap" id="invoicesTable" hidden>
+        <table class="inv-table">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="checkAllInv" aria-label="Chọn tất cả"></th>
+              <th>Mã HĐ</th>
+              <th>Khách hàng</th>
+              <th>Điện thoại</th>
+              <th>Địa chỉ</th>
+            </tr>
+          </thead>
+          <tbody id="invoicesTbody"></tbody>
+        </table>
+      </div>
+
+      <div class="create-controls">
+        <select id="selectWarehouse" aria-label="Kho xuất">
+          <option value="">— Kho —</option>
+          <option value="An Khánh">An Khánh</option>
+          <option value="Tân Phú">Tân Phú</option>
+        </select>
+        <select id="selectFlow" aria-label="Luồng giao">
+          <option value="">— Luồng —</option>
+          <option value="1">Luồng 1 — HN xe công ty</option>
+          <option value="2">Luồng 2 — SG xe công ty</option>
+          <option value="3">Luồng 3 — HN tàu hỏa</option>
+          <option value="4">Luồng 4 — SG shipper</option>
+        </select>
+        <select id="selectVehicle" aria-label="Xe">
+          <option value="">— Chọn xe (tùy chọn) —</option>
+        </select>
+        <input type="text" id="inputDriver" placeholder="Tên lái xe (tùy chọn)" style="min-width:200px;">
+        <button class="btn-primary" id="createOrderBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:5px;"><polyline points="20 6 9 17 4 12"></polyline></svg>Tạo đơn</button>
+      </div>
+      <div id="createResult" style="margin-top:10px;"></div>
+    </section>
+
+    <!-- ── BẢNG KANBAN ── -->
+    <section class="section-panel" style="padding-bottom:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <h2 class="section-title" style="margin:0;"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:inline-block;vertical-align:-2px;"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M8 7v7"></path><path d="M12 7v4"></path><path d="M16 7v9"></path></svg></span> Bảng Kanban trạng thái</h2>
+        <button class="btn-secondary" id="btnRefresh" type="button" style="height:36px;font-size:12.5px;padding:0 14px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;display:inline-block;vertical-align:-2px;margin-right:5px;"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>Làm mới
+        </button>
+      </div>
+
+      <!-- Bộ lọc -->
+      <form class="filter-bar" id="filterForm">
+        <div class="filter-group">
+          <label for="fWarehouse">Kho</label>
+          <select id="fWarehouse">
+            <option value="">Tất cả kho</option>
+            <option value="An Khánh">An Khánh</option>
+            <option value="Tân Phú">Tân Phú</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="fFlow">Luồng</label>
+          <select id="fFlow">
+            <option value="">Tất cả</option>
+            <option value="1">Luồng 1</option>
+            <option value="2">Luồng 2</option>
+            <option value="3">Luồng 3</option>
+            <option value="4">Luồng 4</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="fStatus">Trạng thái</label>
+          <select id="fStatus">
+            <option value="">Tất cả</option>
+            <option>Mới tạo</option>
+            <option>Đã in</option>
+            <option>Đã nhặt hàng</option>
+            <option>Đang chuyển kho</option>
+            <option>Đang giao</option>
+            <option>Đã giao</option>
+            <option>Hoàn thành</option>
+            <option>Sự cố</option>
+            <option>Đã hủy</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="fDriver">Lái xe</label>
+          <input type="text" id="fDriver" placeholder="Tìm lái xe..." style="min-width:130px;">
+        </div>
+        <div class="filter-group">
+          <label for="fDateFrom">Từ ngày</label>
+          <input type="date" id="fDateFrom">
+        </div>
+        <div class="filter-group">
+          <label for="fDateTo">Đến ngày</label>
+          <input type="date" id="fDateTo">
+        </div>
+        <button class="btn-primary" type="submit" style="height:36px;font-size:12.5px;padding:0 16px;align-self:flex-end;">
+          Lọc
+        </button>
+      </form>
+
+      <div class="kanban-scroll" style="margin-top:14px;">
+        <div class="kanban-board" id="kanbanBoard">
+          <div style="color:var(--muted);font-size:13px;padding:20px;">Đang tải dữ liệu...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── QUẢN LÝ XE (chỉ Quản lý / Kế toán) ── -->
+    <section class="section-panel" id="panelVehicles">
+      <h2 class="section-title"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:inline-block;vertical-align:-2px;"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle></svg></span> Quản lý xe</h2>
+
+      <div style="overflow-x:auto;">
+        <table class="vehicles-table">
+          <thead>
+            <tr><th>Mã xe</th><th>Biển số</th><th>Loại xe</th><th>Lái xe mặc định</th><th></th></tr>
+          </thead>
+          <tbody id="vehiclesTbody">
+            <tr><td colspan="5" style="color:var(--muted);padding:12px;">Đang tải...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <details style="margin-top:14px;">
+        <summary style="font-size:13.5px;font-weight:700;color:var(--blue);cursor:pointer;user-select:none;">
+          + Thêm xe mới
+        </summary>
+        <form class="add-vehicle-form" id="addVehicleForm" style="margin-top:12px;">
+          <input type="text"   name="vehicle_id"     placeholder="Mã xe (vd: XE01)"  required>
+          <input type="text"   name="plate_number"   placeholder="Biển số (30A-123)"  required>
+          <input type="text"   name="vehicle_type"   placeholder="Loại xe"            required>
+          <input type="text"   name="default_driver" placeholder="Lái xe mặc định">
+          <input type="number" name="max_weight"      placeholder="Tải trọng (kg)">
+          <input type="text"   name="notes"           placeholder="Ghi chú">
+          <button class="btn-primary" type="submit" style="height:36px;font-size:13px;">Thêm xe</button>
+        </form>
+      </details>
+    </section>
+
+  </main><!-- end content-disp -->
+</div><!-- end main-shell -->
+
+<!-- ======================== MODAL OVERLAY ======================== -->
+<div class="modal-overlay" id="modalOverlay" hidden>
+
+  <!-- Dialog chi tiết đơn -->
+  <div class="dialog" id="dialogOrder" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="dialog-header">
+      <h3 class="dialog-title" id="modalTitle">Chi tiết đơn</h3>
+      <button class="dialog-close" id="btnCloseModal" aria-label="Đóng">✕</button>
+    </div>
+    <div class="dialog-body" id="modalBody" hidden>
+      <div style="margin-bottom:12px;">
+        <span class="status-badge-modal" id="modalStatusBadge"></span>
+      </div>
+
+      <div class="dialog-row"><span class="dialog-label">Khách hàng</span><span class="dialog-value" id="modalCustomer"></span></div>
+      <div class="dialog-row"><span class="dialog-label">Điện thoại</span><span class="dialog-value" id="modalPhone"></span></div>
+      <div class="dialog-row"><span class="dialog-label">Địa chỉ</span><span class="dialog-value" id="modalAddress"></span></div>
+      <div class="dialog-row"><span class="dialog-label">Luồng</span><span class="dialog-value" id="modalFlow"></span></div>
+      <div class="dialog-row"><span class="dialog-label">Kho</span><span class="dialog-value" id="modalWarehouse"></span></div>
+      <div class="dialog-row"><span class="dialog-label">Lái xe</span><span class="dialog-value" id="modalDriver"></span></div>
+
+      <!-- Chuyển trạng thái -->
+      <p class="modal-section-title">Chuyển trạng thái</p>
+      <div id="modalTransitions" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
+      <button class="btn-sm" id="btnReportException" hidden
+        style="border-color:rgba(239,68,68,.4);color:var(--red);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;display:inline-block;vertical-align:-2px;margin-right:4px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>Báo sự cố</button>
+
+      <!-- Cập nhật xe / lái xe -->
+      <p class="modal-section-title">Cập nhật thông tin</p>
+      <div class="meta-edit">
+        <select id="modalVehicle" aria-label="Xe">
+          <option value="">— Chọn xe —</option>
+        </select>
+        <input type="text" id="modalDriverInput" placeholder="Tên lái xe">
+        <button class="btn-primary" id="saveMeta" type="button" style="height:36px;font-size:13px;padding:0 14px;">Lưu</button>
+      </div>
+
+      <!-- Lịch sử -->
+      <p class="modal-section-title">Lịch sử trạng thái</p>
+      <ul class="history-list" id="modalHistory"></ul>
+
+      <!-- Ảnh chứng từ -->
+      <p class="modal-section-title">Ảnh chứng từ</p>
+      <div class="gallery" id="modalGallery"></div>
+    </div>
+    <div id="modalLoading" style="padding:40px;text-align:center;color:var(--muted);">Đang tải...</div>
+  </div>
+
+  <!-- Dialog sự cố -->
+  <div class="dialog" id="dialogException" hidden role="dialog" aria-modal="true" aria-labelledby="excTitle">
+    <div class="dialog-header">
+      <h3 class="dialog-title" id="excTitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:inline-block;vertical-align:-2px;margin-right:6px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>Báo sự cố</h3>
+      <button class="dialog-close" id="btnCloseException" aria-label="Đóng">✕</button>
+    </div>
+    <div class="dialog-body">
+      <form class="exc-form" id="exceptionForm">
+        <label>
+          <span style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px;">Loại sự cố</span>
+          <select id="excType" required>
+            <option value="">— Chọn loại —</option>
+            <option value="MISSING_ITEM">Thiếu hàng</option>
+            <option value="DAMAGED_ITEM">Hàng hỏng</option>
+            <option value="WRONG_ADDRESS">Sai địa chỉ</option>
+            <option value="CUSTOMER_REFUSE">Khách từ chối nhận</option>
+            <option value="VEHICLE_BREAKDOWN">Xe hỏng</option>
+            <option value="OTHER">Khác</option>
+          </select>
+        </label>
+        <label>
+          <span style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px;">Mô tả</span>
+          <textarea id="excDescription" placeholder="Mô tả chi tiết sự cố..." required></textarea>
+        </label>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <button class="btn-secondary" type="button" id="btnCloseException2"
+            onclick="document.getElementById('btnCloseException').click()">Hủy</button>
+          <button class="btn-primary" type="submit">Gửi báo cáo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Dialog sửa xe -->
+  <div class="dialog" id="dialogEditVehicle" hidden role="dialog" aria-modal="true" aria-labelledby="editVehTitle">
+    <div class="dialog-header">
+      <h3 class="dialog-title" id="editVehTitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:inline-block;vertical-align:-2px;margin-right:6px;"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>Chỉnh sửa xe</h3>
+      <button class="dialog-close" id="btnCloseEditVehicle" aria-label="Đóng">✕</button>
+    </div>
+    <div class="dialog-body">
+      <form class="edit-veh-form" id="editVehicleForm">
+        <input type="hidden" id="editVehicleId">
+        <div>
+          <label for="editPlateNumber">Biển số</label>
+          <input type="text" id="editPlateNumber" required>
+        </div>
+        <div>
+          <label for="editVehicleType">Loại xe</label>
+          <input type="text" id="editVehicleType" required>
+        </div>
+        <div>
+          <label for="editDefaultDriver">Lái xe mặc định</label>
+          <input type="text" id="editDefaultDriver">
+        </div>
+        <div>
+          <label for="editMaxWeight">Tải trọng (kg)</label>
+          <input type="number" id="editMaxWeight">
+        </div>
+        <div class="span2">
+          <label for="editVehicleNotes">Ghi chú</label>
+          <input type="text" id="editVehicleNotes">
+        </div>
+        <div class="span2" style="display:flex;justify-content:flex-end;gap:10px;">
+          <button class="btn-secondary" type="button" onclick="document.getElementById('btnCloseEditVehicle').click()">Hủy</button>
+          <button class="btn-primary" type="submit">Lưu thay đổi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div><!-- end modal-overlay -->
+
+<!-- Toast -->
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+  /* Theme toggle */
+  const THEME_KEY = 'tks-dashboard-theme';
+  function toggleTheme(){
+    const n = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = n;
+    try{ localStorage.setItem(THEME_KEY, n); } catch(e){}
+  }
+</script>
+<script src="/shipment/dispatch/dispatch.js"></script>
+</body>
+</html>

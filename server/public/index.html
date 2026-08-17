@@ -2,6 +2,8 @@
 <html>
 <head>
 <meta charset="utf-8">
+<title>Tổng hợp báo cáo · TOKOSI Dashboard</title>
+<link rel="icon" type="image/jpeg" href="/Logo.jpg">
 <script>
   (function(){
     try{
@@ -147,14 +149,15 @@
     display:flex;align-items:center;justify-content:center;
     flex-shrink:0;
     box-shadow:0 4px 12px rgba(0,0,0,0.18);
-    padding:4px;
+    padding:3px;
     border:1px solid rgba(255,255,255,0.15);
+    overflow:hidden;
   }
   :root[data-theme="light"] .brand-mark{
     box-shadow:0 2px 8px rgba(0,0,0,0.08);
     border:1px solid #E2E8F0;
   }
-  .brand-mark svg{ width:100%; height:100%; }
+  .brand-mark svg, .brand-mark img{ width:100%; height:100%; object-fit:contain; display:block; }
   .brand-text h1{ margin:0; font-family:var(--font-display); font-weight:700; font-size:17px; letter-spacing:-0.01em; }
   .brand-text p{ margin:2px 0 0; font-size:11.5px; color:var(--muted); }
   .status-line{ display:flex; align-items:center; gap:12px; }
@@ -229,23 +232,83 @@
   .nav-group-list{ padding-left:14px; margin-bottom:4px; }
   .nav-group-list[hidden]{ display:none; }
 
-  .account-chip{
+  #accountChip{ display:flex; align-items:center; gap:8px; }
+  #accountChip:empty{ display:none; }
+
+  .profile-trigger{
     display:flex; align-items:center; gap:8px;
-    min-height:44px; padding:0 6px 0 12px;
+    min-height:44px; padding:0 12px 0 6px;
     background:var(--panel-2); border:1px solid var(--border); border-radius:8px;
-    font-size:12.5px;
+    font-size:12.5px; cursor:pointer; font-family:var(--font-body);
+    transition:border-color .15s ease, background-color .15s ease, transform .15s ease;
   }
-  .account-chip:empty{ display:none; }
-  .account-chip .who{ display:flex; flex-direction:column; line-height:1.25; }
-  .account-chip .who .name{ font-weight:600; color:var(--text); }
-  .account-chip .who .role{ color:var(--muted); font-size:11px; }
-  .account-chip .logout-btn{
-    min-height:32px; padding:0 10px; border:0; border-radius:6px; cursor:pointer;
-    background:transparent; color:var(--muted); font-family:var(--font-body); font-size:12px; font-weight:600;
+  .profile-trigger:hover{ border-color:var(--muted); background:var(--surface-hover); transform:translateY(-1px); }
+  .profile-trigger:active{ transform:translateY(0); }
+  .profile-trigger:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+  .profile-trigger .avatar-badge{
+    width:26px; height:26px; flex-shrink:0; border-radius:50%;
+    background:var(--blue); color:#fff; font-weight:700; font-size:12px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .profile-trigger .who{ display:flex; flex-direction:column; line-height:1.25; text-align:left; }
+  .profile-trigger .who .name{ font-weight:600; color:var(--text); }
+  .profile-trigger .who .role{ color:var(--muted); font-size:11px; }
+
+  .logout-btn-standalone{
+    min-height:44px; padding:0 14px; border:1px solid var(--border); border-radius:8px; cursor:pointer;
+    background:var(--panel-2); color:var(--text); font-family:var(--font-body); font-size:12px; font-weight:600;
+    transition:border-color .15s ease, background-color .15s ease, color .15s ease;
+  }
+  .logout-btn-standalone:hover{ border-color:var(--muted); background:var(--surface-hover); }
+  .logout-btn-standalone:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+
+  /* ---------- Modal Ho so ca nhan (mirror server/public/shared/shared.css) ---------- */
+  .tks-profile-overlay{
+    position:fixed; inset:0; z-index:200; background:rgba(0,0,0,0.5);
+    display:flex; align-items:center; justify-content:center; padding:16px;
+  }
+  .tks-profile-overlay[hidden]{ display:none; }
+  .tks-profile-dialog{
+    width:100%; max-width:420px; max-height:calc(100vh - 64px);
+    overflow-y:auto; background:var(--panel); border:1px solid var(--border); border-radius:14px;
+    box-shadow:0 12px 32px rgba(0,0,0,0.35);
+  }
+  .tks-profile-header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px; border-bottom:1px solid var(--border);
+  }
+  .tks-profile-header h3{ margin:0; font-family:var(--font-display); font-size:16px; font-weight:700; }
+  .tks-profile-close{
+    width:28px; height:28px; border:0; border-radius:8px; cursor:pointer;
+    background:transparent; color:var(--muted); font-size:14px;
     transition:background-color .15s ease, color .15s ease;
   }
-  .account-chip .logout-btn:hover{ background:var(--surface-hover); color:var(--text); }
-  .account-chip .logout-btn:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+  .tks-profile-close:hover{ background:var(--surface-hover); color:var(--text); }
+  .tks-profile-body{ padding:16px; }
+  .tks-profile-loading{ margin:0; padding:24px 0; text-align:center; color:var(--muted); font-size:13px; }
+  .tks-profile-section + .tks-profile-section{ margin-top:24px; padding-top:16px; border-top:1px solid var(--border); }
+  .tks-profile-section-title{
+    margin:0 0 12px; font-size:12px; font-weight:700; text-transform:uppercase;
+    letter-spacing:.05em; color:var(--muted);
+  }
+  .tks-profile-hint{ margin:0 0 12px; font-size:12px; color:var(--muted); }
+  .tks-field{ display:flex; flex-direction:column; gap:4px; margin-bottom:12px; font-size:12.5px; }
+  .tks-field span{ font-weight:600; color:var(--text); }
+  .tks-field input{
+    min-height:38px; padding:0 12px; border:1px solid var(--border); border-radius:8px;
+    background:var(--panel-2); color:var(--text); font-family:var(--font-body); font-size:13px;
+  }
+  .tks-field input:focus-visible{ outline:2px solid var(--blue); outline-offset:1px; }
+  .tks-field-readonly input{ color:var(--muted); cursor:not-allowed; }
+  .tks-field-error{ margin:0 0 12px; font-size:12px; color:#EF4444; }
+  .tks-btn-primary{
+    min-height:38px; padding:0 16px; border:0; border-radius:8px; cursor:pointer;
+    background:var(--blue); color:#fff; font-family:var(--font-body); font-size:12.5px; font-weight:700;
+    transition:opacity .15s ease;
+  }
+  .tks-btn-primary:hover{ opacity:.9; }
+  .tks-btn-primary:disabled{ opacity:.6; cursor:not-allowed; }
+  .tks-btn-primary:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
 
   .sidebar-footer{ margin-top:18px; padding:12px; border-top:1px solid var(--border); font-size:11px; color:var(--muted); }
 
@@ -775,29 +838,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
       </button>
       <div class="brand-mark">
-        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" fill="none">
-          <!-- TOKOSI text -->
-          <text x="50" y="18" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="18" fill="#CC1111" letter-spacing="1">TOKOSI</text>
-          <!-- Roof chevron top -->
-          <polyline points="18,42 50,22 82,42" stroke="#CC1111" stroke-width="6" stroke-linejoin="round" fill="none"/>
-          <!-- Roof chevron bottom -->
-          <polyline points="24,48 50,30 76,48" stroke="#CC1111" stroke-width="5" stroke-linejoin="round" fill="none"/>
-          <!-- House walls -->
-          <polyline points="22,52 22,80 78,80 78,52" stroke="#CC1111" stroke-width="5.5" stroke-linejoin="round" fill="none"/>
-          <!-- Shopping cart body -->
-          <rect x="34" y="58" width="32" height="14" rx="2" stroke="#CC1111" stroke-width="4" fill="none"/>
-          <!-- Cart lines -->
-          <line x1="34" y1="63" x2="66" y2="63" stroke="#CC1111" stroke-width="3"/>
-          <line x1="34" y1="67.5" x2="66" y2="67.5" stroke="#CC1111" stroke-width="3"/>
-          <!-- Cart wheels -->
-          <circle cx="41" cy="76" r="3" fill="#CC1111"/>
-          <circle cx="59" cy="76" r="3" fill="#CC1111"/>
-          <!-- Ground arc -->
-          <path d="M12,86 Q50,96 88,86" stroke="#CC1111" stroke-width="5" fill="none" stroke-linecap="round"/>
-        </svg>
+        <img src="/Logo.jpg" alt="TOKOSI Logo" width="44" height="44">
       </div>
       <div class="brand-text">
-        <h1>TOKOSI · Live Dashboard</h1>
+        <h1>TOKOSI · Tổng hợp báo cáo</h1>
         <p>Đồng bộ trực tiếp từ KiotViet qua Google Sheets</p>
       </div>
     </div>
@@ -821,7 +865,7 @@
     <div class="sidebar" id="sidebar">
       <div class="nav-group">
         <button type="button" class="nav-group-toggle has-active" id="navGroupToggle" onclick="toggleNavGroup()" aria-expanded="true" aria-controls="navGroupList">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></svg>
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="8" y1="18" x2="8" y2="14"></line><line x1="16" y1="18" x2="16" y2="16"></line></svg>
           <span>Báo cáo tổng hợp</span>
           <svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
         </button>
@@ -843,7 +887,7 @@
             Khách hàng
           </button>
           <button type="button" class="nav-item" data-view="suppliers" onclick="switchView('suppliers')">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle></svg>
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path><path d="M10 6h4"></path><path d="M10 10h4"></path><path d="M10 14h4"></path><path d="M10 18h4"></path></svg>
             Nhà cung cấp
           </button>
           <button type="button" class="nav-item" data-view="debt" onclick="switchView('debt')">
@@ -855,6 +899,10 @@
       <a href="/shipment/" class="nav-item">
         <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle></svg>
         Quản lý vận chuyển
+      </a>
+      <a href="/account/" class="nav-item">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+        Quản lý tài khoản
       </a>
       <div class="sidebar-footer">TOKOSI · Dữ liệu từ Google Sheet · tự làm mới mỗi 10 phút</div>
     </div>
@@ -1758,11 +1806,59 @@
     return state.chartAnimation ? { duration: 300 } : false;
   }
 
-  const CATEGORY_PALETTE = ['#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6','#06B6D4','#EC4899','#64748B'];
-  const CATEGORY_OTHER_COLOR = '#94A3B8';
-  function categoryColor(name, index){
-    if(String(name || '').indexOf('Khác') === 0) return CATEGORY_OTHER_COLOR;
-    return CATEGORY_PALETTE[index % CATEGORY_PALETTE.length];
+  const CATEGORY_PALETTE = [
+    '#3B82F6', // Blue
+    '#10B981', // Emerald
+    '#F59E0B', // Amber
+    '#8B5CF6', // Purple
+    '#EC4899', // Pink
+    '#06B6D4', // Cyan
+    '#F97316', // Orange
+    '#6366F1', // Indigo
+    '#84CC16', // Lime
+    '#D946EF', // Fuchsia
+    '#14B8A6', // Teal
+    '#EF4444', // Red
+    '#0EA5E9', // Sky
+    '#EAB308', // Yellow
+    '#A855F7', // Violet
+    '#2DD4BF', // Mint
+    '#F43F5E', // Rose
+    '#2563EB', // Sapphire Blue
+    '#059669', // Dark Emerald
+    '#D97706', // Warm Amber
+    '#7C3AED', // Deep Violet
+    '#DB2777', // Dark Pink
+    '#0891B2', // Deep Cyan
+    '#EA580C', // Rust Orange
+    '#4F46E5', // Deep Indigo
+    '#65A30D', // Olive Lime
+    '#C026D3', // Plum Fuchsia
+    '#0D9488', // Deep Teal
+    '#DC2626', // Crimson Red
+    '#0284C7', // Ocean Sky
+    '#CA8A04', // Golden Ochre
+    '#9333EA', // Royal Purple
+    '#E11D48', // Bright Ruby
+    '#1D4ED8', // Navy Blue
+    '#047857', // Forest Green
+    '#B45309'  // Cognac Amber
+  ];
+  const CATEGORY_OTHER_COLOR = '#64748B';
+
+  function isOtherCategory(name){
+    const s = String(name || '').trim().toLowerCase();
+    return s.indexOf('khác') === 0 || s === 'chưa phân nhóm' || s === 'chua phan nhom' || s.indexOf('còn lại') === 0 || s === 'other' || s === 'others';
+  }
+
+  function categoryColor(name, index, total){
+    if(isOtherCategory(name)) return CATEGORY_OTHER_COLOR;
+    const idx = typeof index === 'number' ? index : 0;
+    if(idx < CATEGORY_PALETTE.length){
+      return CATEGORY_PALETTE[idx];
+    }
+    const hue = Math.round((idx * 137.508) % 360);
+    return 'hsl(' + hue + ', 72%, 52%)';
   }
 
   function syncThemeControl(){
@@ -3143,7 +3239,7 @@
         labels: list.map(labelFn),
         datasets: [{
           data: values,
-          backgroundColor: list.map((item, i) => categoryColor(labelFn(item), i)),
+          backgroundColor: list.map((item, i) => categoryColor(labelFn(item), i, list.length)),
           borderColor: theme.panel,
           borderWidth: 2,
           hoverOffset: 5

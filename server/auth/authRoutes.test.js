@@ -33,8 +33,10 @@ function freshAuthRoutes({
   verifyGoogleIdToken,
   findUserByEmail,
   findUserByUsername = async () => null,
+  findActiveUserByUsername = async () => null,
   createActiveGuest,
-  activatePendingGuest = async () => {}
+  activatePendingGuest = async () => {},
+  updateUserFields = async (id, fields) => ({ id, ...fields, trangThai: 'Đang hoạt động' })
 }) {
   ['./authRoutes', './googleAuthService', './userRepository', './userWriteRepository', '../config']
     .forEach(id => { delete require.cache[require.resolve(id)]; });
@@ -45,10 +47,12 @@ function freshAuthRoutes({
   const userRepository = require('./userRepository');
   userRepository.findUserByEmail = findUserByEmail;
   userRepository.findUserByUsername = findUserByUsername;
+  userRepository.findActiveUserByUsername = findActiveUserByUsername;
 
   const userWriteRepository = require('./userWriteRepository');
   userWriteRepository.createActiveGuest = createActiveGuest;
   userWriteRepository.activatePendingGuest = activatePendingGuest;
+  userWriteRepository.updateUserFields = updateUserFields;
 
   return require('./authRoutes');
 }
@@ -241,3 +245,130 @@ test('GET /api/auth/google-config: chua cau hinh -> clientId null (de trang logi
     process.env.GOOGLE_CLIENT_ID = original;
   }
 });
+
+test('POST /api/auth/register: dang ky bang so dien thoai hop le', async () => {
+  let createdWith = null;
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: async () => null,
+    findUserByUsername: async () => null,
+    createActiveGuest: async args => { createdWith = args; }
+  });
+  const handler = getRouteHandler(router, 'post', '/api/auth/register');
+  const res = fakeRes();
+  await handler({ body: { hoTen: 'Khách Phone', soDienThoai: '0912345678', password: 'Password123' } }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.username, '0912345678');
+  assert.equal(res.body.vaiTro, 'Khách');
+  assert.equal(createdWith.soDienThoai, '0912345678');
+  assert.equal(res.cookies.length, 1);
+});
+
+test('POST /api/auth/register: so dien thoai khong hop le -> 400', async () => {
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL
+  });
+  const handler = getRouteHandler(router, 'post', '/api/auth/register');
+  const res = fakeRes();
+  await handler({ body: { hoTen: 'A', soDienThoai: '123', password: 'Password123' } }, res);
+  assert.equal(res.statusCode, 400);
+  assert.match(res.body.error, /Số điện thoại không hợp lệ/);
+});
+
+test('POST /api/auth/login: nhap sai 5 lan -> 423 Locked kem lockoutRemainingSeconds va suggestReset', async () => {
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL
+  });
+  const { clearFailedLogins } = require('./authRoutes');
+  clearFailedLogins('lockoutuser');
+
+  const userRepository = require('./userRepository');
+  userRepository.findActiveUserByUsername = async () => null; // User khong ton tai hoac sai pass
+
+  const handler = getRouteHandler(router, 'post', '/api/auth/login');
+
+  // 4 lan dau -> 401
+  for (let i = 0; i < 4; i++) {
+    const res = fakeRes();
+    await handler({ body: { username: 'lockoutuser', password: 'wrongpassword' } }, res);
+    assert.equal(res.statusCode, 401);
+  }
+
+  // Lan 5 -> 423
+  const res5 = fakeRes();
+  await handler({ body: { username: 'lockoutuser', password: 'wrongpassword' } }, res5);
+  assert.equal(res5.statusCode, 423);
+  assert.equal(res5.body.locked, true);
+  assert.equal(res5.body.suggestReset, true);
+  assert.ok(res5.body.lockoutRemainingSeconds > 0);
+
+  clearFailedLogins('lockoutuser');
+});
+
+test('POST /api/auth/google: cap nhat ten va email vao tai khoan nguoi dung', async () => {
+  let updatedFields = null;
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: async () => ({ email: 'existing@gmail.com', emailVerified: true, name: 'Nguyễn Văn A' }),
+    findUserByEmail: async () => ({
+      id: 'user-123',
+      username: 'existing@gmail.com',
+      hoTen: 'existing@gmail.com',
+      email: '',
+      vaiTro: 'Khách',
+      coSo: '',
+      trangThai: 'Đang hoạt động'
+    }),
+    createActiveGuest: NEVER_CALL,
+    updateUserFields: async (id, fields) => {
+      updatedFields = fields;
+      return { id, username: 'existing@gmail.com', hoTen: fields.hoTen, email: fields.email, vaiTro: 'Khách', coSo: '', trangThai: 'Đang hoạt động' };
+    }
+  });
+
+  const handler = getRouteHandler(router, 'post', '/api/auth/google');
+  const res = fakeRes();
+  await handler({ body: { credential: 'tok' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.email, 'existing@gmail.com');
+  assert.equal(res.body.hoTen, 'Nguyễn Văn A');
+  assert.deepEqual(updatedFields, { email: 'existing@gmail.com', hoTen: 'Nguyễn Văn A' });
+});
+
+test('POST /api/auth/login: tu dong cap nhat email neu dang nhap bang email ma truong email rong', async () => {
+  let updatedFields = null;
+  const { hashPassword } = require('./authService');
+  const hashedPassword = await hashPassword('password123');
+
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    findActiveUserByUsername: async () => ({
+      id: 'user-456',
+      username: 'user_email@domain.com',
+      hoTen: 'Người Dùng',
+      email: '',
+      passwordHash: hashedPassword,
+      vaiTro: 'Khách',
+      coSo: '',
+      trangThai: 'Đang hoạt động'
+    }),
+    updateUserFields: async (id, fields) => {
+      updatedFields = fields;
+      return { id, username: 'user_email@domain.com', hoTen: 'Người Dùng', email: fields.email, vaiTro: 'Khách', coSo: '', trangThai: 'Đang hoạt động' };
+    }
+  });
+
+  const handler = getRouteHandler(router, 'post', '/api/auth/login');
+  const res = fakeRes();
+  await handler({ body: { username: 'user_email@domain.com', password: 'password123' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.email, 'user_email@domain.com');
+  assert.deepEqual(updatedFields, { email: 'user_email@domain.com' });
+});
+
+
