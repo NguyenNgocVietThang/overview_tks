@@ -21,6 +21,14 @@
         return res.json();
       })
       .then(function(user){
+        if(user.vaiTro === 'Khách' && window.location.pathname !== '/shipment/' && window.location.pathname !== '/shipment'){
+          window.location.href = '/shipment/';
+          return new Promise(function(){});
+        }
+        var sidebar = document.getElementById('sidebar');
+        if(sidebar && sidebar.dataset.tksActiveTop){
+          TKSNav.renderTopSidebar(sidebar, sidebar.dataset.tksActiveTop, user);
+        }
         document.documentElement.style.visibility = '';
         TKSNav.renderAccountChip(user);
         return user;
@@ -59,15 +67,17 @@
    * rieng (tich hop voi switchView()) nen KHONG dung ham nay.
    * @param {string} activeTop 'reports' | 'shipment'
    */
-  TKSNav.renderTopSidebar = function renderTopSidebar(mountEl, activeTop){
+  TKSNav.renderTopSidebar = function renderTopSidebar(mountEl, activeTop, user){
     if(!mountEl) return;
+    mountEl.dataset.tksActiveTop = activeTop;
     var reportsActive = activeTop === 'reports';
     var shipmentActive = activeTop === 'shipment';
-    mountEl.innerHTML =
+    var reportsLink = user && user.vaiTro === 'Khách' ? '' :
       '<a href="/" class="nav-item' + (reportsActive ? ' active' : '') + '"' +
         (reportsActive ? ' aria-current="page"' : '') + '>' +
         '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></svg>' +
-        'Báo cáo tổng hợp</a>' +
+        'Báo cáo tổng hợp</a>';
+    mountEl.innerHTML = reportsLink +
       '<a href="/shipment/" class="nav-item' + (shipmentActive ? ' active' : '') + '"' +
         (shipmentActive ? ' aria-current="page"' : '') + '>' +
         '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle></svg>' +

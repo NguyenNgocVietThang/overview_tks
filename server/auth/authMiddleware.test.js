@@ -72,3 +72,13 @@ test('requireRole: vai tro khong nam trong danh sach cho phep -> 403', () => {
   assert.equal(res.statusCode, 403);
   assert.equal(nextCalled, false);
 });
+
+test('requireRole: Khach bi chan khoi route chi danh cho noi bo', () => {
+  const middleware = requireRole('Quản lý', 'Kế toán', 'Trưởng kho', 'Trợ lý');
+  const req = { user: { vaiTro: 'Khách' } };
+  const res = fakeRes();
+  let nextCalled = false;
+  middleware(req, res, () => { nextCalled = true; });
+  assert.equal(res.statusCode, 403);
+  assert.equal(nextCalled, false);
+});

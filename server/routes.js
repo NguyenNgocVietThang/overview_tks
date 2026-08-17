@@ -11,7 +11,10 @@ const sheetsClient = require('./sheets/sheetsClient');
 const { getExportFields, createExportWorkbook } = require('./dashboard/exportService');
 const CONFIG = require('./config');
 const authRoutes = require('./auth/authRoutes');
-const { requireAuth } = require('./auth/authMiddleware');
+const { requireAuth, requireRole } = require('./auth/authMiddleware');
+const { INTERNAL_ROLES } = require('./auth/userRepository');
+const { lookupInvoiceStatuses } = require('./shipment/invoiceStatusService');
+const shipmentOrderRoutes    = require('./shipment/shipmentOrderRoutes');
 
 router.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
@@ -21,15 +24,36 @@ router.get('/health', (req, res) => {
 // nhap (do chinh la noi de dang nhap); GET /me tu bao ve bang requireAuth ben trong.
 router.use(authRoutes);
 
-// Toan bo API "Bao cao tong hop" ben duoi day yeu cau da dang nhap (bat ky 1
-// trong 4 vai tro co tai khoan web) — day la ranh gioi bao mat that su, khac
+router.post('/api/shipment/invoice-status', requireAuth, async (req, res) => {
+  try {
+    const results = await lookupInvoiceStatuses(req.body && req.body.codes);
+    res.status(200).json({ results });
+  } catch (err) {
+    console.error('=== LOI TRA CUU TRANG THAI HOA DON ===');
+    console.error(err.stack);
+    console.error('======================================');
+    res.status(err.statusCode || 500).json({
+      error: err.statusCode && err.statusCode < 500
+        ? err.message
+        : 'Không tra cứu được trạng thái hóa đơn.',
+      code: err.code
+    });
+  }
+});
+
+// Cac endpoint quan ly van chuyen Phase 1B — /api/shipment/* (tru invoice-status o tren)
+router.use(shipmentOrderRoutes);
+
+// Toan bo API "Bao cao tong hop" ben duoi day chi danh cho 4 vai tro noi bo;
+// Khach chi duoc dung route tra cuu van chuyen o tren. Day la ranh gioi bao mat,
 // voi auth-guard phia client chi de dieu huong UX. Trang tra cuu cong khai
 // cho khach hang (Phase 1) se nam o route rieng, KHONG qua requireAuth.
-router.use('/api/debug', requireAuth);
-router.use('/api/dashboard', requireAuth);
-router.use('/api/search', requireAuth);
-router.use('/api/customer-product-top', requireAuth);
-router.use('/api/export', requireAuth);
+const requireInternalUser = [requireAuth, requireRole(...INTERNAL_ROLES)];
+router.use('/api/debug', ...requireInternalUser);
+router.use('/api/dashboard', ...requireInternalUser);
+router.use('/api/search', ...requireInternalUser);
+router.use('/api/customer-product-top', ...requireInternalUser);
+router.use('/api/export', ...requireInternalUser);
 
 // Route kiem tra ket noi nhanh — chi xem duoc tren server, KHONG expose secret
 router.get('/api/debug', async (req, res) => {

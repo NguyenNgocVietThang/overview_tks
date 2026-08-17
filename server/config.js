@@ -29,6 +29,22 @@ const CONFIG = {
   // (Google Identity Services), khong dung authorization-code flow.
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || null,
 
+  // ==========================================
+  // QUAN LY VAN CHUYEN — Spreadsheet rieng (VC_*) va Google Drive luu anh
+  // ==========================================
+  // Optional — neu chua set thi log canh bao khi module van chuyen duoc goi,
+  // khong lam crash server hien tai. Phai set truoc khi dung Phase 1B+.
+  VC_SPREADSHEET_ID: process.env.VC_SPREADSHEET_ID || null,
+  VC_DRIVE_FOLDER_ID: process.env.VC_DRIVE_FOLDER_ID || null,
+
+  // Ten 6 tab trong Spreadsheet van chuyen rieng (Tieng Viet truc quan, de su dung).
+  VC_SHEET_ORDERS: 'Đơn vận chuyển',
+  VC_SHEET_ORDER_ITEMS: 'Chi tiết vận chuyển',
+  VC_SHEET_STATUS_HISTORY: 'Lịch sử trạng thái',
+  VC_SHEET_ATTACHMENTS: 'Ảnh chứng từ',
+  VC_SHEET_EXCEPTIONS: 'Sự cố vận chuyển',
+  VC_SHEET_VEHICLES: 'Danh mục xe',
+
   // Tab "Users" nam CHUNG spreadsheet KiotViet hien co (khong tao spreadsheet
   // rieng cho tab nay) — vi tab Users KHONG bao gio duoc bot Telegram/GAS
   // ghi tu dong (chi Quan ly tao/sua tai khoan qua script setup), nen khong

@@ -1,72 +1,196 @@
 <!DOCTYPE html>
-<html>
+<html lang="vi" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Đăng nhập · TOKOSI Dashboard</title>
 <script>
-  (function(){
-    try{
-      document.documentElement.dataset.theme = localStorage.getItem('tks-dashboard-theme') === 'light' ? 'light' : 'dark';
-    } catch(err){
-      document.documentElement.dataset.theme = 'dark';
-    }
-  })();
+  document.documentElement.dataset.theme = 'light';
 </script>
 <link rel="stylesheet" href="/shared/shared.css">
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   .login-shell{
-    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+    position:relative;
   }
   .login-card{
-    width:100%; max-width:380px;
-    background:var(--panel); border:1px solid var(--border); border-radius:14px;
-    padding:32px 28px 28px;
+    width:100%;
+    max-width:400px;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:20px;
+    padding:36px 30px 30px;
+    box-shadow:var(--card-shadow);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+    position:relative;
+    z-index:2;
+    transition:background-color .2s ease, border-color .2s ease, box-shadow .2s ease;
   }
-  .login-brand{ display:flex; align-items:center; gap:12px; margin-bottom:22px; }
+  .login-brand{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    margin-bottom:24px;
+  }
   .login-brand .brand-mark{
-    width:44px; height:44px; border-radius:10px; background:#fff;
-    display:flex; align-items:center; justify-content:center; flex-shrink:0;
-    box-shadow:0 2px 8px rgba(0,0,0,0.3); padding:3px;
+    width:48px;
+    height:48px;
+    border-radius:14px;
+    background:#FFFFFF;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+    box-shadow:0 4px 14px rgba(0,0,0,0.14);
+    padding:4px;
+    border:1px solid rgba(255,255,255,0.18);
+  }
+  :root[data-theme="light"] .login-brand .brand-mark{
+    border:1px solid #E2E8F0;
+    box-shadow:0 2px 10px rgba(0,0,0,0.06);
   }
   .login-brand .brand-mark svg{ width:100%; height:100%; }
-  .login-brand h1{ margin:0; font-family:var(--font-display); font-weight:700; font-size:16px; }
-  .login-brand p{ margin:2px 0 0; font-size:11.5px; color:var(--muted); }
-  .login-card h2{ margin:0 0 4px; font-family:var(--font-display); font-size:19px; font-weight:700; }
-  .login-card .sub{ margin:0 0 22px; font-size:12.5px; color:var(--muted); }
-  .field{ margin-bottom:16px; }
-  .field label{ display:block; margin-bottom:6px; font-size:12px; font-weight:600; color:var(--muted); }
-  .field input{
-    width:100%; min-height:44px; padding:10px 14px;
-    background:var(--panel-2); color:var(--text); border:1px solid var(--border);
-    border-radius:8px; font-family:var(--font-body); font-size:15px;
-    transition:border-color .15s ease;
+  .login-brand h1{
+    margin:0;
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:16.5px;
+    letter-spacing:-0.01em;
+    color:var(--text);
   }
-  .field input:focus{ border-color:var(--blue); outline:none; }
-  .field input:focus-visible{ box-shadow:0 0 0 3px rgba(91,155,240,.2); }
+  .login-brand p{
+    margin:2px 0 0;
+    font-size:11.5px;
+    color:var(--muted);
+  }
+  .login-card h2{
+    margin:0 0 6px;
+    font-family:var(--font-display);
+    font-size:21px;
+    font-weight:800;
+    letter-spacing:-0.02em;
+    color:var(--text);
+  }
+  .login-card .sub{
+    margin:0 0 24px;
+    font-size:13px;
+    color:var(--muted);
+    line-height:1.5;
+  }
+  .field{ margin-bottom:18px; }
+  .field label{
+    display:block;
+    margin-bottom:7px;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--text-secondary);
+  }
+  .field input{
+    width:100%;
+    min-height:46px;
+    padding:11px 16px;
+    background:var(--panel-2);
+    color:var(--text);
+    border:1px solid var(--border);
+    border-radius:10px;
+    font-family:var(--font-body);
+    font-size:14.5px;
+    transition:border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+  }
+  .field input:focus{
+    border-color:var(--blue);
+    outline:none;
+    box-shadow:0 0 0 3px rgba(59,130,246,0.22);
+  }
   .login-error{
-    display:none; margin:0 0 16px; padding:10px 12px; border-radius:8px;
-    background:rgba(241,97,106,0.1); border:1px solid rgba(241,97,106,0.3);
-    color:var(--red); font-size:12.5px;
+    display:none;
+    margin:0 0 18px;
+    padding:11px 14px;
+    border-radius:10px;
+    background:rgba(239,68,68,0.12);
+    border:1px solid rgba(239,68,68,0.3);
+    color:var(--red);
+    font-size:13px;
+    line-height:1.45;
   }
   .login-error.show{ display:block; }
-  .login-submit{ width:100%; min-height:46px; }
-  .login-footer{ margin-top:20px; text-align:center; font-size:11px; color:var(--muted); }
-  .google-btn-wrap{ display:flex; justify-content:center; margin-bottom:18px; min-height:40px; }
-  .login-divider{
-    display:flex; align-items:center; gap:10px; margin:0 0 18px;
-    font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;
-  }
-  .login-divider::before, .login-divider::after{
-    content:''; flex:1; height:1px; background:var(--border);
-  }
   .login-pending{
-    display:none; margin:0 0 16px; padding:10px 12px; border-radius:8px;
-    background:rgba(91,155,240,0.1); border:1px solid rgba(91,155,240,0.3);
-    color:var(--blue); font-size:12.5px;
+    display:none;
+    margin:0 0 18px;
+    padding:11px 14px;
+    border-radius:10px;
+    background:rgba(59,130,246,0.12);
+    border:1px solid rgba(59,130,246,0.3);
+    color:var(--blue);
+    font-size:13px;
+    line-height:1.45;
   }
   .login-pending.show{ display:block; }
+  .google-btn-wrap{
+    display:flex;
+    justify-content:center;
+    margin-bottom:18px;
+    min-height:40px;
+    width:100%;
+  }
+  .google-btn-wrap iframe{
+    margin:0 auto !important;
+  }
+  .login-divider{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin:0 0 18px;
+    font-size:11.5px;
+    color:var(--muted);
+    font-weight:500;
+  }
+  .login-divider::before, .login-divider::after{
+    content:'';
+    flex:1;
+    height:1px;
+    background:var(--border);
+  }
+  .login-submit{
+    width:100%;
+    min-height:48px;
+    font-size:14.5px;
+    font-weight:700;
+    margin-top:6px;
+  }
+  .register-link{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    min-height:44px;
+    margin-top:12px;
+    border:1px solid var(--border);
+    border-radius:10px;
+    background:var(--panel-2);
+    color:var(--text);
+    text-decoration:none;
+    font-size:13px;
+    font-weight:600;
+    transition:border-color .15s ease, background-color .15s ease, color .15s ease, transform .15s ease;
+  }
+  .register-link:hover{
+    border-color:var(--blue);
+    color:var(--blue);
+    background:var(--surface-hover);
+    transform:translateY(-1px);
+  }
+  .login-footer{
+    margin-top:22px;
+    text-align:center;
+    font-size:11.5px;
+    color:var(--muted);
+  }
 </style>
 </head>
 <body>
@@ -94,7 +218,7 @@
       </div>
 
       <h2>Đăng nhập</h2>
-      <p class="sub">Dành cho Quản lý, Kế toán, Trưởng kho, Trợ lý.</p>
+      <p class="sub">Đăng nhập nội bộ hoặc tài khoản Khách tra cứu vận chuyển.</p>
 
       <div class="login-pending" id="loginPending" role="status"></div>
       <div class="login-error" id="loginError" role="alert"></div>
@@ -104,25 +228,26 @@
 
       <div class="field">
         <label for="username">Tài khoản</label>
-        <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+        <input type="text" id="username" name="username" autocomplete="username" placeholder="Nhập tên tài khoản hoặc email" required autofocus>
       </div>
       <div class="field">
         <label for="password">Mật khẩu</label>
-        <input type="password" id="password" name="password" autocomplete="current-password" required>
+        <input type="password" id="password" name="password" autocomplete="current-password" placeholder="••••••••" required>
       </div>
 
       <button type="submit" class="btn-primary login-submit" id="loginSubmit">Đăng nhập</button>
+      <a class="register-link" href="/register/">Đăng ký tài khoản Khách</a>
 
       <div class="login-footer">TOKOSI · Truy cập nội bộ</div>
     </form>
   </div>
 
   <script>
+    let currentGoogleClientId = null;
+
     function getNextUrl(){
       const params = new URLSearchParams(window.location.search);
       const next = params.get('next');
-      // Chi chap nhan duong dan noi bo (bat dau bang "/", khong phai "//") de
-      // tranh open-redirect qua query string bi thao tung.
       if(next && next.startsWith('/') && !next.startsWith('//')) return next;
       return '/';
     }
@@ -133,6 +258,10 @@
     const submitBtn = document.getElementById('loginSubmit');
     const googleBtnWrap = document.getElementById('googleBtnWrap');
     const loginDivider = document.getElementById('loginDivider');
+
+    function landingUrl(user){
+      return user && user.vaiTro === 'Khách' ? '/shipment/' : getNextUrl();
+    }
 
     function showError(message){
       errorBox.textContent = message;
@@ -145,9 +274,6 @@
       errorBox.classList.remove('show');
     }
 
-    // Dang nhap bang Google (Google Identity Services) — bo sung, khong thay
-    // the form username/mat khau ben duoi. An hoan toan neu server chua cau
-    // hinh GOOGLE_CLIENT_ID (xem GET /api/auth/google-config).
     function handleGoogleCredential(response){
       errorBox.classList.remove('show');
       pendingBox.classList.remove('show');
@@ -162,7 +288,7 @@
         })
         .then(function(result){
           if(result.ok){
-            window.location.href = getNextUrl();
+            window.location.href = landingUrl(result.body);
             return;
           }
           if(result.body && result.body.pending){
@@ -176,31 +302,50 @@
         });
     }
 
+    function hideGoogleSection(){
+      googleBtnWrap.style.display = 'none';
+      loginDivider.style.display = 'none';
+    }
+
+    function renderGoogleButton(clientId){
+      currentGoogleClientId = clientId;
+      google.accounts.id.initialize({
+        client_id: clientId,
+        callback: handleGoogleCredential
+      });
+      googleBtnWrap.innerHTML = '';
+      google.accounts.id.renderButton(googleBtnWrap, {
+        type: 'standard',
+        theme: 'outline',
+        size: 'large',
+        width: 340,
+        text: 'signin_with',
+        shape: 'rectangular',
+        logo_alignment: 'left'
+      });
+    }
+
     fetch('/api/auth/google-config', { credentials: 'same-origin' })
       .then(function(res){ return res.ok ? res.json() : { clientId: null }; })
       .then(function(config){
-        if(!config || !config.clientId || typeof google === 'undefined' || !google.accounts){
-          googleBtnWrap.style.display = 'none';
-          loginDivider.style.display = 'none';
+        if(!config || !config.clientId){
+          hideGoogleSection();
           return;
         }
-        google.accounts.id.initialize({
-          client_id: config.clientId,
-          callback: handleGoogleCredential
-        });
-        const isLight = document.documentElement.dataset.theme === 'light';
-        google.accounts.id.renderButton(googleBtnWrap, {
-          type: 'standard',
-          theme: isLight ? 'outline' : 'filled_black',
-          size: 'large',
-          width: 324,
-          text: 'signin_with'
-        });
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.onload = function(){
+          if(typeof google === 'undefined' || !google.accounts){
+            hideGoogleSection();
+            return;
+          }
+          renderGoogleButton(config.clientId);
+        };
+        script.onerror = hideGoogleSection;
+        document.head.appendChild(script);
       })
-      .catch(function(){
-        googleBtnWrap.style.display = 'none';
-        loginDivider.style.display = 'none';
-      });
+      .catch(hideGoogleSection);
 
     form.addEventListener('submit', function(event){
       event.preventDefault();
@@ -224,7 +369,7 @@
           if(!result.ok){
             throw new Error((result.body && result.body.error) || 'Đăng nhập thất bại.');
           }
-          window.location.href = getNextUrl();
+          window.location.href = landingUrl(result.body);
         })
         .catch(function(err){
           errorBox.textContent = err.message || 'Đăng nhập thất bại, vui lòng thử lại.';
@@ -234,9 +379,12 @@
         });
     });
 
-    // Da dang nhap san (token con hieu luc) -> khoi chao lai man hinh nay.
     fetch('/api/auth/me', { credentials: 'same-origin' })
-      .then(function(res){ if(res.ok) window.location.href = getNextUrl(); })
+      .then(function(res){
+        if(!res.ok) return null;
+        return res.json();
+      })
+      .then(function(user){ if(user) window.location.href = landingUrl(user); })
       .catch(function(){});
   </script>
 </body>

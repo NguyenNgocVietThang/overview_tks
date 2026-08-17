@@ -29,13 +29,22 @@ const ACTIVE_STATUS = 'Đang hoạt động';
 // khi admin duyet (npm run setup:users-sheet -- --unlock).
 const PENDING_STATUS = 'Chờ duyệt';
 
-// Danh gioi han vai tro co tai khoan web — dung xuyen suot middleware phan quyen.
+// Vai tro web. INTERNAL_ROLES la ranh gioi cho Bao cao tong hop; KHACH chi
+// duoc tra cuu van chuyen.
 const ROLES = Object.freeze({
   QUAN_LY: 'Quản lý',
   KE_TOAN: 'Kế toán',
   TRUONG_KHO: 'Trưởng kho',
-  TRO_LY: 'Trợ lý'
+  TRO_LY: 'Trợ lý',
+  KHACH: 'Khách'
 });
+
+const INTERNAL_ROLES = Object.freeze([
+  ROLES.QUAN_LY,
+  ROLES.KE_TOAN,
+  ROLES.TRUONG_KHO,
+  ROLES.TRO_LY
+]);
 
 function buildColumnIndex(headers) {
   const index = {};
@@ -98,6 +107,13 @@ async function findActiveUserByUsername(username) {
   return match;
 }
 
+async function findUserByUsername(username) {
+  const target = normalizeUsername(username);
+  if (!target) return null;
+  const users = await getAllUsers();
+  return users.find(user => normalizeUsername(user.username) === target) || null;
+}
+
 /**
  * Tim user theo email (khong phan biet hoa/thuong, trim khoang trang), dung
  * cho dang nhap Google — POST /api/auth/google trong authRoutes.js.
@@ -114,10 +130,12 @@ async function findUserByEmail(email) {
 
 module.exports = {
   ROLES,
+  INTERNAL_ROLES,
   ACTIVE_STATUS,
   PENDING_STATUS,
   USER_COLUMNS,
   getAllUsers,
   findActiveUserByUsername,
+  findUserByUsername,
   findUserByEmail
 };

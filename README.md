@@ -72,6 +72,7 @@ webtks-dashboard/
 │   └── README.md
 │
 ├── server/                      # Backend Node.js đọc/ghi Google Sheets & Web Server
+│   ├── auth/                    # JWT, bcrypt, Google Identity, Users sheet và phân quyền
 │   ├── dashboard/
 │   │   ├── dashboardData.js     # Thống kê tổng quan KPI, biểu đồ và tìm kiếm
 │   │   ├── dashboardData.test.js # Unit test dữ liệu dashboard/tìm kiếm/cache
@@ -83,11 +84,21 @@ webtks-dashboard/
 │   ├── public/                  # Frontend Live Dashboard
 │   │   ├── index.html
 │   │   ├── js/
+│   │   │   ├── auth-guest-ui.test.js # Kiểm tra UI đăng ký/Google/tra cứu Khách
 │   │   │   ├── export-ui.test.js # Kiểm tra nút/modal xuất Excel trong giao diện
 │   │   │   ├── pagination.js    # Phân trang client-side cho các bảng
 │   │   │   └── pagination.test.js # Unit test cho module phân trang
+│   │   ├── login/index.html     # Đăng nhập nội bộ hoặc Google
+│   │   ├── register/index.html  # Đăng ký tài khoản Khách bằng email/mật khẩu
+│   │   ├── shared/              # CSS và điều hướng/auth guard dùng chung
+│   │   ├── shipment/index.html  # Tra cứu trạng thái hóa đơn chính xác
 │   │   └── vendor/
 │   │       └── chart.umd.min.js
+│   ├── scripts/
+│   │   └── setupUsersSheet.js   # CLI quản lý tài khoản người dùng và khởi tạo sheet Users
+│   ├── shipment/
+│   │   ├── invoiceStatusService.js # Tra cứu mã/trạng thái, cache 90 giây
+│   │   └── invoiceStatusService.test.js
 │   ├── sheets/
 │   │   └── sheetsClient.js      # Đọc dữ liệu Google Sheets cho dashboard
 │   ├── config.js                # Cấu hình môi trường Node.js server
@@ -164,12 +175,12 @@ webtks-dashboard/
 - Tài khoản Google có quyền truy cập Google Apps Script
 
 ### Chạy kiểm thử tự động (Server & Frontend logic)
-Thư mục `server/` tích hợp sẵn 21 unit tests (dùng `node:test` chuẩn của Node.js, không cần thư viện ngoài):
+Thư mục `server/` tích hợp sẵn 74 unit tests (dùng `node:test` chuẩn của Node.js, không cần thư viện ngoài):
 ```bash
 cd server
 npm test
 ```
-Bộ test bao gồm: kiểm thử Result Cache backend, phân trang client-side (`pagination.js`), đăng ký & tạo file Xuất Excel 16 bảng (`exportService.js`), tìm kiếm nhiều mã và Top 3 KH theo sản phẩm.
+Bộ test bao gồm: kiểm thử xác thực auth (JWT httpOnly cookie, bcrypt, Google Identity, đăng ký tài khoản Khách, bảo vệ route theo vai trò), tra cứu trạng thái vận chuyển hóa đơn (`invoiceStatusService.js`), Result Cache backend, phân trang client-side (`pagination.js`), đăng ký & tạo file Xuất Excel 16 bảng (`exportService.js`), tìm kiếm nhiều mã chính xác và Top 3 KH theo sản phẩm.
 
 ### Bước 1 — Clone & login
 ```bash
@@ -197,19 +208,21 @@ Trong **Apps Script Editor → Project Settings → Script Properties**, tạo h
 
 - `KIOTVIET_CLIENT_ID`: Client ID của KiotViet.
 - `KIOTVIET_CLIENT_SECRET`: Client Secret của KiotViet.
+- `WEBHOOK_URL`: URL `/exec` của Web App sau khi deploy.
 
 Không lưu hai giá trị này trong mã nguồn hoặc commit lên Git.
 
-Mỗi lần phát hành, luôn tạo phiên bản mới và cập nhật deployment Web App hiện tại
-thay vì chỉ dừng ở bản HEAD:
+Lần đầu, tạo version và deployment Web App mới:
 
 ```bash
-clasp version "Mô tả phiên bản"
-clasp redeploy AKfycby99mhJo_-EZPl4VBdtjxf2HI9A_x5MSgGX0yk2UjhkCV_o3DvfjJNf6HoZG5zAWw2clA -V <VERSION_MỚI>
+clasp deploy --description "KiotViet auto-sync"
 ```
 
-Deployment ID được giữ nguyên nên URL Web App không đổi; chỉ số phiên bản tăng sau
-mỗi lần phát hành.
+Lưu URL `https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec` vào Script Property
+`WEBHOOK_URL`. Những lần phát hành sau, tạo version mới rồi cập nhật đúng deployment
+đang dùng bằng `clasp redeploy <DEPLOYMENT_ID> -V <VERSION_MỚI>`.
+Manifest cũng chỉ cho phép chính tài khoản triển khai gọi hàm qua Apps Script
+Execution API (`executionApi.access = MYSELF`) để phục vụ kiểm tra và vận hành an toàn.
 
 ### Bước 4 — Thiết lập lần đầu (chạy thủ công 1 lần)
 1. Kiểm tra đã khai báo `KIOTVIET_CLIENT_ID` và `KIOTVIET_CLIENT_SECRET` trong Script Properties, sau đó chạy `syncAllInitialData()` để tải dữ liệu ban đầu. Hàm này cũng cập nhật toàn bộ lịch sử vào tab **Hàng ngừng kinh doanh** và dọn tab legacy `Hàng ngừng KD hôm nay` nếu còn tồn tại.
@@ -225,7 +238,7 @@ cho ba nhóm này.
 ### Bước 5 — Deploy Web App
 1. **Deploy → New deployment → Web App**
 2. Execute as: **Me**, Access: **Anyone**
-3. Copy URL `/exec` → dán vào `registerWebhookWithCorrectUrl()` nếu cần cập nhật lại
+3. Copy URL `/exec` → lưu vào Script Property `WEBHOOK_URL`
 
 ---
 
@@ -281,6 +294,8 @@ cho ba nhóm này.
 | [SRS](docs/02-srs/SRS_Dashboard_GoogleSheets.md) | Software Requirements Specification |
 | [BPMN](docs/03-process/BPMN_Dashboard_GoogleSheets.md) | Sơ đồ quy trình nghiệp vụ |
 | [Implementation Plan](docs/04-planning/implementation_plan.md) | Kế hoạch triển khai chi tiết & trạng thái |
+| [Plan Process Automation](Plan%20Process%20Automation.md) | Kế hoạch kiểm soát & tự động hóa quy trình vận chuyển hàng hóa |
+| [Server Guide](server/README.md) | Hướng dẫn triển khai, kiểm thử và tài liệu API backend Node.js |
 | [Design System Master](design-system/tks-dashboard/MASTER.md) | Hệ thống token, component và quy tắc giao diện |
 | [Debt Dashboard Spec](docs/superpowers/specs/2026-08-05-debt-dashboard-design.md) | Đặc tả thiết kế module Báo cáo công nợ HN1/HN3/HN7 |
 | [Result Cache Plan](docs/superpowers/plans/2026-08-13-dashboard-result-cache.md) | Kế hoạch & chi tiết triển khai Result Cache tầng backend |
@@ -309,4 +324,4 @@ cho ba nhóm này.
 
 ---
 
-*Cập nhật lần cuối: 2026-08-14*
+*Cập nhật lần cuối: 2026-08-17*

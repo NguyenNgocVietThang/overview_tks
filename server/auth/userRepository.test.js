@@ -75,6 +75,17 @@ test('findActiveUserByUsername: khong tim thay -> tra ve null', async () => {
   assert.equal(await userRepository.findActiveUserByUsername('khong-ton-tai'), null);
 });
 
+test('findUserByUsername: tim ca tai khoan khong hoat dong de chan dang ky trung', async () => {
+  const { userRepository, sheetsClient } = freshUserRepository();
+  sheetsClient.getValues = async () => [
+    HEADERS,
+    ['u1', 'A', 'Khach@Example.com', '', 'Khách', '', 'Khóa', '', '', '']
+  ];
+  const found = await userRepository.findUserByUsername(' khach@example.com ');
+  assert.ok(found);
+  assert.equal(found.trangThai, 'Khóa');
+});
+
 test('getAllUsers: parse dung cot Email', async () => {
   const { userRepository, sheetsClient } = freshUserRepository();
   sheetsClient.getValues = async () => [

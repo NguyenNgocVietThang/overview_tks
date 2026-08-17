@@ -29,7 +29,7 @@ const SHEET_NAME = 'Users';
 const BCRYPT_SALT_ROUNDS = 10;
 const ACTIVE_STATUS = 'Đang hoạt động';
 const LOCKED_STATUS = 'Khóa';
-const VALID_ROLES = ['Quản lý', 'Kế toán', 'Trưởng kho', 'Trợ lý'];
+const VALID_ROLES = ['Quản lý', 'Kế toán', 'Trưởng kho', 'Trợ lý', 'Khách'];
 
 // Phai khop CHINH XAC thu tu cot trong server/auth/userRepository.js (USER_COLUMNS).
 // "Email" them sau cung (cot cuoi, cho dang nhap Google — server/auth/
@@ -261,11 +261,11 @@ async function main() {
   console.log(`Cách dùng:
   npm run setup:users-sheet -- --init
   npm run setup:users-sheet -- --list
-  npm run setup:users-sheet -- --add --username=<tk> --password=<mk> --hoTen="<Họ tên>" --vaiTro="Quản lý|Kế toán|Trưởng kho|Trợ lý" [--coSo="An Khánh|Tân Phú|Cả hai"] [--email=<email>]
+  npm run setup:users-sheet -- --add --username=<tk> --password=<mk> --hoTen="<Họ tên>" --vaiTro="Quản lý|Kế toán|Trưởng kho|Trợ lý|Khách" [--coSo="An Khánh|Tân Phú|Cả hai"] [--email=<email>]
   npm run setup:users-sheet -- --lock --username=<tk>
   npm run setup:users-sheet -- --unlock --username=<tk>
 
-  # Duyệt tài khoản tự đăng ký bằng Google (trạng thái "Chờ duyệt", username = email):
+  # Chuyển tài khoản legacy còn "Chờ duyệt" sang hoạt động:
   npm run setup:users-sheet -- --unlock --username=<email>
   # ...hoặc duyệt kèm đổi vai trò/cơ sở phụ trách luôn:
   npm run setup:users-sheet -- --add --username=<email> --password=<mk-tam> --hoTen="<Họ tên>" --vaiTro="Kế toán"`);

@@ -7,13 +7,13 @@
 | **Thông tin**     | **Nội dung**                                                        |
 |-------------------|---------------------------------------------------------------------|
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Google Sheets → Web)  |
-| Phiên bản         | 1.4                                                                 |
+| Phiên bản         | 1.5                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 14/08/2026                                                          |
-| Đối tượng sử dụng | Ban lãnh đạo & nhân viên nội bộ công ty                            |
-| Trạng thái        | Đang vận hành (Giai đoạn 1 đã hoàn thiện)                          |
+| Ngày cập nhật     | 15/08/2026                                                          |
+| Đối tượng sử dụng | Ban lãnh đạo, nhân viên nội bộ công ty & khách hàng tra cứu        |
+| Trạng thái        | Đang vận hành (Giai đoạn 1 & Phase 0/0.5 đã hoàn thiện)            |
 
-> **Ghi chú phiên bản 1.4:** Bổ sung tính năng Xuất Excel tùy chọn trường cho 16 bảng dữ liệu và kết quả tìm kiếm (tạo file `.xlsx` đa worksheet, AutoFilter, giữ định dạng text cho mã/SĐT); phân trang client-side cho bảng Hàng hóa và Hàng đã hết (`pagination.js`); chế độ tìm kiếm nhiều mã chính xác và Top 3 khách hàng theo mã hàng; Result Cache tầng backend tối ưu thời gian phản hồi tức thì (<10ms).
+> **Ghi chú phiên bản 1.5:** Bổ sung module xác thực & phân quyền (đăng nhập nội bộ JWT cookie/bcrypt, đăng ký tài khoản Khách, Google Identity Sign-In), tra cứu trạng thái vận chuyển hóa đơn (`/api/shipment/invoice-status`), bộ 74 unit tests tự động, cùng tính năng Xuất Excel tùy chọn trường cho 16 bảng dữ liệu, phân trang client-side (`pagination.js`), và Result Cache tầng backend tối ưu phản hồi tức thì (<10ms).
 
 # 1. Giới thiệu
 
@@ -95,7 +95,7 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - **Đồng bộ tự động** từ KiotViet qua Apps Script (webhook + polling 15 phút), không cần thao tác từ phía web dashboard.
 
-- **Truy cập không yêu cầu đăng nhập** trong Giai đoạn 1 (nội bộ, truy cập trực tiếp URL).
+- **Xác thực & phân quyền (Phase 0):** Đăng nhập nội bộ bằng tài khoản trong tab `Users`, hỗ trợ Google Sign-In, và cho phép Khách tự đăng ký để tra cứu vận chuyển đơn hàng.
 
 - **Triển khai trên Render.com** (cloud hosting), domain `tokosi.onrender.com`.
 
@@ -252,9 +252,9 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 
 | **Bước**                          | **Nội dung**                                                                                      | **Trạng thái** |
 |-----------------------------------|---------------------------------------------------------------------------------------------------|----------------|
-| 1. Phân tích & thiết kế            | Hoàn thiện BRD v1.4, SRS v1.6, BPMN v1.4; thiết kế kiến trúc kỹ thuật                            | Hoàn thành     |
+| 1. Phân tích & thiết kế            | Hoàn thiện BRD v1.5, SRS v1.7, BPMN v1.5; thiết kế kiến trúc kỹ thuật                            | Hoàn thành     |
 | 2. Apps Script đồng bộ KiotViet    | `src/`: sync đủ trường, webhook qua queue bền vững, polling 15 phút cho 3 bảng không có webhook | Hoàn thành     |
-| 3. Backend Node.js/Express         | API `/api/dashboard`, `/api/search`, `/api/customer-product-top`, Result Cache, 21 unit tests     | Hoàn thành     |
+| 3. Backend Node.js/Express         | API `/api/dashboard`, `/api/search`, `/api/customer-product-top`, `/api/auth/*`, `/api/shipment/*`, Result Cache, 74 unit tests | Hoàn thành     |
 | 4. Frontend HTML/CSS/JS            | Dashboard, bộ lọc thời gian, phân trang bảng (`pagination.js`), motion tokens, transitions         | Hoàn thành     |
 | 5. Triển khai Render.com           | Deploy lên `tokosi.onrender.com`, cấu hình biến môi trường                                        | Hoàn thành     |
 | 6. Xuất Excel 16 bảng             | Module `exportService.js` tạo workbook `.xlsx` đa worksheet, tùy chọn trường                      | Hoàn thành     |
@@ -271,4 +271,4 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 | Giai đoạn 7 — Trợ lý AI                         | Chatbot hỏi-đáp số liệu bằng ngôn ngữ tự nhiên; AI dự đoán & phát hiện bất thường tự động             | Ưu tiên chatbot trước; cần dữ liệu chuẩn hoá từ các giai đoạn trước  |
 | Giai đoạn 8 — Thay thế KiotViet                 | Ngừng sử dụng KiotViet, chuyển hoàn toàn nghiệp vụ sang hệ thống mới                                   | Chỉ thực hiện khi Giai đoạn 3–4 đã ổn định và nghiệm thu đầy đủ      |
 
-*— Hết tài liệu BRD v1.4 —*
+*— Hết tài liệu BRD v1.5 —*

@@ -39,26 +39,41 @@
 
 ### Color Palette
 
+#### Dark Mode (Default)
 | Role | Hex | CSS Variable | Source |
 |------|-----|--------------|--------|
-| Primary / Brand Accent (scanner accent) | `#F0A63A` | `--color-primary` | existing brand color = data's "scanner accent" |
-| On Primary | `#1B1206` | `--color-on-primary` | existing |
-| Secondary (panel) | `#131C30` | `--color-secondary` | existing |
-| Secondary 2 (panel-alt) | `#0F1728` | `--color-secondary-2` | existing |
-| Accent / Positive (in-stock) | `#3DD68C` | `--color-accent` | existing = traffic-light green |
-| Background | `#0B1120` | `--color-background` | existing |
-| Foreground | `#ECF1F8` | `--color-foreground` | existing |
-| Muted | `#7E8CA8` | `--color-muted` | existing |
-| Border | `#22304A` | `--color-border` | existing |
-| Destructive / Out-of-stock | `#F1616A` | `--color-destructive` | existing = traffic-light red |
-| Ring / Info-Focus | `#5B9BF0` | `--color-ring` | existing, doubles as visible focus-ring color |
+| Primary Gradient | `#3B82F6` → `#2563EB` | `--primary-gradient` | Modern Sapphire/Indigo |
+| On Primary | `#FFFFFF` | `--primary-text` | High contrast |
+| Panel / Card | `#111827` | `--panel` | Slate 900 |
+| Panel 2 (Input/Sidebar) | `#1E293B` | `--panel-2` | Slate 800 |
+| Panel 3 (Active/Hover) | `#334155` | `--panel-3` | Slate 700 |
+| Background | `#090D16` | `--bg` | Deep Obsidian |
+| Text / Foreground | `#F8FAFC` | `--text` | Crisp Slate 50 |
+| Text Secondary | `#CBD5E1` | `--text-secondary` | Slate 300 |
+| Muted | `#94A3B8` | `--muted` | Slate 400 (4.5:1+ WCAG AA) |
+| Border | `#26334D` | `--border` | Refined border |
+| Accent Amber | `#F59E0B` | `--amber` | Modern Amber |
+| Accent Green (Positive) | `#10B981` | `--green` | Modern Emerald |
+| Accent Red (Destructive) | `#EF4444` | `--red` | Modern Coral Red |
+| Accent Blue (Ring/Focus) | `#3B82F6` | `--blue` | Sapphire Focus Ring |
 
-**Color Notes:** Matches `colors.csv` row 6 "Financial Dashboard" archetype (dark bg + green
-positive / red negative indicators) blended with the category's explicit "traffic-light
-(green/amber/red) + scanner accent" mood. **Contrast check required:** verify
-`--color-muted` (#7E8CA8) on `--color-background` (#0B1120) hits **4.5:1** for body text —
-if any 12–13px muted labels fall short, bump to `#8FA0C2` or increase size to ≥14px rather
-than leaving it under threshold (Accessibility is Priority 1 in the skill's rule table).
+#### Light Mode
+| Role | Hex | CSS Variable | Source |
+|------|-----|--------------|--------|
+| Primary Gradient | `#2563EB` → `#1D4ED8` | `--primary-gradient` | Clean Modern Blue |
+| On Primary | `#FFFFFF` | `--primary-text` | High contrast |
+| Panel / Card | `#FFFFFF` | `--panel` | Pure White |
+| Panel 2 | `#F1F5F9` | `--panel-2` | Slate 100 |
+| Panel 3 | `#E2E8F0` | `--panel-3` | Slate 200 |
+| Background | `#F8FAFC` | `--bg` | Slate 50 Canvas |
+| Text / Foreground | `#0F172A` | `--text` | Slate 900 |
+| Text Secondary | `#334155` | `--text-secondary` | Slate 700 |
+| Muted | `#64748B` | `--muted` | Slate 500 (4.5:1+ WCAG AA) |
+| Border | `#E2E8F0` | `--border` | Slate 200 |
+| Accent Amber | `#D97706` | `--amber` | Warm Amber |
+| Accent Green (Positive) | `#059669` | `--green` | Deep Emerald |
+| Accent Red (Destructive) | `#DC2626` | `--red` | Deep Red |
+| Accent Blue (Ring/Focus) | `#2563EB` | `--blue` | Vibrant Blue Focus Ring |
 
 ### Typography
 

@@ -14,8 +14,6 @@ const KIOTVIET_AUTO_SYNC_EVENT_TYPES = Object.freeze([
   "category.delete"
 ]);
 const KIOTVIET_AUTO_SYNC_DESCRIPTION_PREFIX = "Auto-sync Google Sheets - ";
-const KIOTVIET_DEFAULT_WEBHOOK_URL =
-  "https://script.google.com/macros/s/AKfycby99mhJo_-EZPl4VBdtjxf2HI9A_x5MSgGX0yk2UjhkCV_o3DvfjJNf6HoZG5zAWw2clA/exec";
 
 /**
  * Bat toan bo co che tu dong theo cach idempotent:
@@ -62,7 +60,12 @@ function ensureKiotVietWebhookSecret_() {
 
 function getKiotVietWebhookBaseUrl_() {
   const configured = PropertiesService.getScriptProperties().getProperty("WEBHOOK_URL");
-  const url = String(configured || KIOTVIET_DEFAULT_WEBHOOK_URL).trim();
+  const url = String(configured || "").trim();
+  if (!url) {
+    throw new Error(
+      "Thieu WEBHOOK_URL trong Apps Script Properties. Hay deploy Web App va luu URL /exec truoc khi bat auto-sync."
+    );
+  }
   if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(url)) {
     throw new Error("WEBHOOK_URL phai la URL Apps Script /exec hop le.");
   }
@@ -281,8 +284,9 @@ function registerWebhookProgrammatically() {
  * ma ban vua lay tu Manage deployments.
  */
 function registerWebhookWithCorrectUrl() {
-  // URL /exec cua deployment Web App cong khai dang hoat dong.
-  const CORRECT_WEBHOOK_URL = appendWebhookSecret_(KIOTVIET_DEFAULT_WEBHOOK_URL);
+  // URL /exec cua deployment Web App cong khai dang hoat dong, duoc luu trong
+  // Script Properties de khong gan cung deployment cua mot spreadsheet khac.
+  const CORRECT_WEBHOOK_URL = appendWebhookSecret_(getKiotVietWebhookBaseUrl_());
 
   const token = getKiotVietToken();
   if (!token) {

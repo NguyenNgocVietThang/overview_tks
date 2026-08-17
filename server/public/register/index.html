@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đăng ký · TOKOSI Dashboard</title>
+<script>
+  document.documentElement.dataset.theme = 'light';
+</script>
+<link rel="stylesheet" href="/shared/shared.css">
+<style>
+  .register-shell{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+    position:relative;
+  }
+  .register-card{
+    width:100%;
+    max-width:440px;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:20px;
+    padding:36px 32px 32px;
+    box-shadow:var(--card-shadow);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+    position:relative;
+    z-index:2;
+    transition:background-color .2s ease, border-color .2s ease, box-shadow .2s ease;
+  }
+  .register-brand{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    margin-bottom:24px;
+  }
+  .brand-badge{
+    width:48px;
+    height:48px;
+    border-radius:14px;
+    display:grid;
+    place-items:center;
+    background:rgba(59,130,246,0.12);
+    color:var(--blue);
+    font-family:var(--font-display);
+    font-weight:800;
+    font-size:16px;
+    border:1px solid rgba(59,130,246,0.25);
+    box-shadow:0 4px 12px rgba(59,130,246,0.15);
+  }
+  .register-brand h1{
+    margin:0;
+    font-family:var(--font-display);
+    font-size:16.5px;
+    font-weight:700;
+    color:var(--text);
+    letter-spacing:-0.01em;
+  }
+  .register-brand p, .sub{
+    margin:2px 0 0;
+    color:var(--muted);
+    font-size:12px;
+  }
+  .register-card h2{
+    margin:0 0 6px;
+    font-family:var(--font-display);
+    font-size:21px;
+    font-weight:800;
+    letter-spacing:-0.02em;
+    color:var(--text);
+  }
+  .sub{
+    margin-bottom:24px;
+    line-height:1.5;
+    font-size:13px;
+  }
+  .field{ margin-bottom:16px; }
+  .field label{
+    display:block;
+    margin-bottom:6px;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--text-secondary);
+  }
+  .field input{
+    width:100%;
+    min-height:46px;
+    padding:11px 16px;
+    background:var(--panel-2);
+    color:var(--text);
+    border:1px solid var(--border);
+    border-radius:10px;
+    font-family:var(--font-body);
+    font-size:14.5px;
+    transition:border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+  }
+  .field input:focus{
+    border-color:var(--blue);
+    outline:none;
+    box-shadow:0 0 0 3px rgba(59,130,246,0.22);
+  }
+  .form-error{
+    display:none;
+    margin:0 0 18px;
+    padding:11px 14px;
+    border-radius:10px;
+    background:rgba(239,68,68,0.12);
+    border:1px solid rgba(239,68,68,0.3);
+    color:var(--red);
+    font-size:13px;
+    line-height:1.45;
+  }
+  .form-error.show{ display:block; }
+  .register-submit{
+    width:100%;
+    min-height:48px;
+    font-size:14.5px;
+    font-weight:700;
+    margin-top:8px;
+  }
+  .back-login{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    min-height:44px;
+    margin-top:12px;
+    border:1px solid var(--border);
+    border-radius:10px;
+    background:var(--panel-2);
+    color:var(--text);
+    text-decoration:none;
+    font-size:13px;
+    font-weight:600;
+    transition:border-color .15s ease, background-color .15s ease, color .15s ease, transform .15s ease;
+  }
+  .back-login:hover{
+    border-color:var(--blue);
+    color:var(--blue);
+    background:var(--surface-hover);
+    transform:translateY(-1px);
+  }
+</style>
+</head>
+<body>
+  <div class="register-shell">
+    <form class="register-card" id="registerForm" novalidate>
+      <div class="register-brand">
+        <div class="brand-badge">TKS</div>
+        <div>
+          <h1>TOKOSI · Dashboard</h1>
+          <p>Tài khoản tra cứu vận chuyển</p>
+        </div>
+      </div>
+      <h2>Đăng ký tài khoản Khách</h2>
+      <p class="sub">Tài khoản Khách chỉ được tra cứu trạng thái theo mã hóa đơn trong mục Quản lý vận chuyển.</p>
+      <div class="form-error" id="registerError" role="alert"></div>
+      <div class="field">
+        <label for="hoTen">Họ và tên</label>
+        <input id="hoTen" name="hoTen" autocomplete="name" maxlength="100" placeholder="Ví dụ: Nguyễn Văn A" required autofocus>
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" autocomplete="email" maxlength="254" placeholder="email@domain.com" required>
+      </div>
+      <div class="field">
+        <label for="password">Mật khẩu</label>
+        <input type="password" id="password" name="password" autocomplete="new-password" minlength="8" maxlength="128" placeholder="Tối thiểu 8 ký tự" required>
+      </div>
+      <div class="field">
+        <label for="confirmPassword">Xác nhận mật khẩu</label>
+        <input type="password" id="confirmPassword" name="confirmPassword" autocomplete="new-password" minlength="8" maxlength="128" placeholder="Nhập lại mật khẩu" required>
+      </div>
+      <button type="submit" class="btn-primary register-submit" id="registerSubmit">Đăng ký tài khoản</button>
+      <a class="back-login" href="/login/">Đã có tài khoản? Đăng nhập</a>
+    </form>
+  </div>
+  <script>
+    const form = document.getElementById('registerForm');
+    const errorBox = document.getElementById('registerError');
+    const submitBtn = document.getElementById('registerSubmit');
+    function showError(message){ errorBox.textContent = message; errorBox.classList.add('show'); }
+
+    form.addEventListener('submit', function(event){
+      event.preventDefault();
+      errorBox.classList.remove('show');
+      const password = document.getElementById('password').value;
+      if(password !== document.getElementById('confirmPassword').value){
+        showError('Mật khẩu xác nhận không khớp.');
+        return;
+      }
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Đang đăng ký...';
+      fetch('/api/auth/register', {
+        method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin',
+        body:JSON.stringify({
+          hoTen:document.getElementById('hoTen').value.trim(),
+          email:document.getElementById('email').value.trim(),
+          password:password
+        })
+      })
+        .then(function(res){ return res.json().then(function(body){ return {ok:res.ok, body:body}; }); })
+        .then(function(result){
+          if(!result.ok) throw new Error((result.body && result.body.error) || 'Đăng ký thất bại.');
+          window.location.href = '/shipment/';
+        })
+        .catch(function(err){
+          showError(err.message || 'Đăng ký thất bại, vui lòng thử lại.');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Đăng ký tài khoản';
+        });
+    });
+
+    fetch('/api/auth/me', {credentials:'same-origin'})
+      .then(function(res){ if(res.ok) window.location.href = '/shipment/'; })
+      .catch(function(){});
+  </script>
+</body>
+</html>

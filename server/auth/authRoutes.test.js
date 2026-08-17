@@ -7,6 +7,7 @@ process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'test-client-id.a
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { AUTH_COOKIE_NAME } = require('./authMiddleware');
+const { comparePassword } = require('./authService');
 
 function fakeRes() {
   const res = { statusCode: null, body: null, cookies: [] };
@@ -28,7 +29,13 @@ function getRouteHandler(router, method, routePath) {
  * ghi de tren MODULE dependency truoc, roi moi require authRoutes.js fresh
  * de no "chup" dung ham da mock (khong the mock sau khi da require).
  */
-function freshAuthRoutes({ verifyGoogleIdToken, findUserByEmail, createPendingGoogleUser }) {
+function freshAuthRoutes({
+  verifyGoogleIdToken,
+  findUserByEmail,
+  findUserByUsername = async () => null,
+  createActiveGuest,
+  activatePendingGuest = async () => {}
+}) {
   ['./authRoutes', './googleAuthService', './userRepository', './userWriteRepository', '../config']
     .forEach(id => { delete require.cache[require.resolve(id)]; });
 
@@ -37,17 +44,69 @@ function freshAuthRoutes({ verifyGoogleIdToken, findUserByEmail, createPendingGo
 
   const userRepository = require('./userRepository');
   userRepository.findUserByEmail = findUserByEmail;
+  userRepository.findUserByUsername = findUserByUsername;
 
   const userWriteRepository = require('./userWriteRepository');
-  userWriteRepository.createPendingGoogleUser = createPendingGoogleUser;
+  userWriteRepository.createActiveGuest = createActiveGuest;
+  userWriteRepository.activatePendingGuest = activatePendingGuest;
 
   return require('./authRoutes');
 }
 
 const NEVER_CALL = async () => { throw new Error('khong nen goi ham nay'); };
 
+test('POST /api/auth/register: thieu du lieu, email sai hoac mat khau ngan -> 400', async () => {
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL
+  });
+  const handler = getRouteHandler(router, 'post', '/api/auth/register');
+  for (const body of [
+    {},
+    { hoTen: 'A', email: 'email-sai', password: '12345678' },
+    { hoTen: 'A', email: 'a@example.com', password: '1234567' }
+  ]) {
+    const res = fakeRes();
+    await handler({ body }, res);
+    assert.equal(res.statusCode, 400);
+  }
+});
+
+test('POST /api/auth/register: email da ton tai -> 409, khong ghi user', async () => {
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: async () => ({ id: 'old' }),
+    createActiveGuest: NEVER_CALL
+  });
+  const handler = getRouteHandler(router, 'post', '/api/auth/register');
+  const res = fakeRes();
+  await handler({ body: { hoTen: 'A', email: 'a@example.com', password: '12345678' } }, res);
+  assert.equal(res.statusCode, 409);
+});
+
+test('POST /api/auth/register: tao Khach, bam mat khau va set cookie', async () => {
+  let createdWith = null;
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: async () => null,
+    findUserByUsername: async () => null,
+    createActiveGuest: async args => { createdWith = args; }
+  });
+  const handler = getRouteHandler(router, 'post', '/api/auth/register');
+  const res = fakeRes();
+  await handler({ body: { hoTen: ' Khách A ', email: ' KHACH@Example.com ', password: 'MatKhau123' } }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.username, 'khach@example.com');
+  assert.equal(res.body.vaiTro, 'Khách');
+  assert.equal(createdWith.email, 'khach@example.com');
+  assert.notEqual(createdWith.passwordHash, 'MatKhau123');
+  assert.equal(await comparePassword('MatKhau123', createdWith.passwordHash), true);
+  assert.equal(res.cookies[0].name, AUTH_COOKIE_NAME);
+});
+
 test('POST /api/auth/google: thieu credential -> 400', async () => {
-  const router = freshAuthRoutes({ verifyGoogleIdToken: NEVER_CALL, findUserByEmail: NEVER_CALL, createPendingGoogleUser: NEVER_CALL });
+  const router = freshAuthRoutes({ verifyGoogleIdToken: NEVER_CALL, findUserByEmail: NEVER_CALL, createActiveGuest: NEVER_CALL });
   const handler = getRouteHandler(router, 'post', '/api/auth/google');
   const res = fakeRes();
   await handler({ body: {} }, res);
@@ -58,7 +117,7 @@ test('POST /api/auth/google: GOOGLE_CLIENT_ID chua cau hinh -> 500, khong goi Go
   const original = process.env.GOOGLE_CLIENT_ID;
   process.env.GOOGLE_CLIENT_ID = '';
   try {
-    const router = freshAuthRoutes({ verifyGoogleIdToken: NEVER_CALL, findUserByEmail: NEVER_CALL, createPendingGoogleUser: NEVER_CALL });
+    const router = freshAuthRoutes({ verifyGoogleIdToken: NEVER_CALL, findUserByEmail: NEVER_CALL, createActiveGuest: NEVER_CALL });
     const handler = getRouteHandler(router, 'post', '/api/auth/google');
     const res = fakeRes();
     await handler({ body: { credential: 'tok' } }, res);
@@ -72,7 +131,7 @@ test('POST /api/auth/google: token khong xac thuc duoc -> 401', async () => {
   const router = freshAuthRoutes({
     verifyGoogleIdToken: async () => { throw new Error('invalid_token'); },
     findUserByEmail: NEVER_CALL,
-    createPendingGoogleUser: NEVER_CALL
+    createActiveGuest: NEVER_CALL
   });
   const handler = getRouteHandler(router, 'post', '/api/auth/google');
   const res = fakeRes();
@@ -84,7 +143,7 @@ test('POST /api/auth/google: email Google chua xac minh -> 401', async () => {
   const router = freshAuthRoutes({
     verifyGoogleIdToken: async () => ({ email: 'a@gmail.com', emailVerified: false, name: 'A' }),
     findUserByEmail: NEVER_CALL,
-    createPendingGoogleUser: NEVER_CALL
+    createActiveGuest: NEVER_CALL
   });
   const handler = getRouteHandler(router, 'post', '/api/auth/google');
   const res = fakeRes();
@@ -92,41 +151,46 @@ test('POST /api/auth/google: email Google chua xac minh -> 401', async () => {
   assert.equal(res.statusCode, 401);
 });
 
-test('POST /api/auth/google: email chua co trong Users sheet -> tu tao "Chờ duyệt", 403 pending', async () => {
+test('POST /api/auth/google: email chua co -> tao Khach hoat dong va dang nhap ngay', async () => {
   let createdWith = null;
   const router = freshAuthRoutes({
     verifyGoogleIdToken: async () => ({ email: 'nguoimoi@gmail.com', emailVerified: true, name: 'Người Mới' }),
     findUserByEmail: async () => null,
-    createPendingGoogleUser: async args => { createdWith = args; }
+    createActiveGuest: async args => { createdWith = args; }
   });
   const handler = getRouteHandler(router, 'post', '/api/auth/google');
   const res = fakeRes();
   await handler({ body: { credential: 'tok' } }, res);
-  assert.equal(res.statusCode, 403);
-  assert.equal(res.body.pending, true);
-  assert.deepEqual(createdWith, { email: 'nguoimoi@gmail.com', hoTen: 'Người Mới' });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.vaiTro, 'Khách');
+  assert.equal(createdWith.email, 'nguoimoi@gmail.com');
+  assert.equal(createdWith.hoTen, 'Người Mới');
+  assert.equal(res.cookies.length, 1);
 });
 
-test('POST /api/auth/google: tai khoan dang "Chờ duyệt" -> 403 pending, khong tao lai', async () => {
+test('POST /api/auth/google: tai khoan dang "Chờ duyệt" -> kich hoat thanh Khach', async () => {
   let createCalled = false;
+  let activatedWith = null;
   const router = freshAuthRoutes({
     verifyGoogleIdToken: async () => ({ email: 'cho@gmail.com', emailVerified: true, name: 'Chờ' }),
     findUserByEmail: async () => ({ id: '1', username: 'cho@gmail.com', hoTen: 'Chờ', vaiTro: 'Trợ lý', coSo: '', trangThai: 'Chờ duyệt' }),
-    createPendingGoogleUser: async () => { createCalled = true; }
+    createActiveGuest: async () => { createCalled = true; },
+    activatePendingGuest: async args => { activatedWith = args; }
   });
   const handler = getRouteHandler(router, 'post', '/api/auth/google');
   const res = fakeRes();
   await handler({ body: { credential: 'tok' } }, res);
-  assert.equal(res.statusCode, 403);
-  assert.equal(res.body.pending, true);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.vaiTro, 'Khách');
   assert.equal(createCalled, false);
+  assert.deepEqual(activatedWith, { email: 'cho@gmail.com', hoTen: 'Chờ' });
 });
 
 test('POST /api/auth/google: tai khoan bi khoa -> 403, khong co pending flag', async () => {
   const router = freshAuthRoutes({
     verifyGoogleIdToken: async () => ({ email: 'khoa@gmail.com', emailVerified: true, name: 'Khóa' }),
     findUserByEmail: async () => ({ id: '1', username: 'khoa@gmail.com', hoTen: 'Khóa', vaiTro: 'Trợ lý', coSo: '', trangThai: 'Khóa' }),
-    createPendingGoogleUser: NEVER_CALL
+    createActiveGuest: NEVER_CALL
   });
   const handler = getRouteHandler(router, 'post', '/api/auth/google');
   const res = fakeRes();
@@ -142,7 +206,7 @@ test('POST /api/auth/google: tai khoan dang hoat dong -> 200, set cookie tks_aut
       id: '1', username: 'quanly@gmail.com', hoTen: 'Quản Lý A', vaiTro: 'Quản lý', coSo: 'Cả hai',
       trangThai: 'Đang hoạt động', passwordHash: 'khong-duoc-lo-ra'
     }),
-    createPendingGoogleUser: NEVER_CALL
+    createActiveGuest: NEVER_CALL
   });
   const handler = getRouteHandler(router, 'post', '/api/auth/google');
   const res = fakeRes();
@@ -156,7 +220,7 @@ test('POST /api/auth/google: tai khoan dang hoat dong -> 200, set cookie tks_aut
 });
 
 test('GET /api/auth/google-config: tra ve clientId da cau hinh', () => {
-  const router = freshAuthRoutes({ verifyGoogleIdToken: NEVER_CALL, findUserByEmail: NEVER_CALL, createPendingGoogleUser: NEVER_CALL });
+  const router = freshAuthRoutes({ verifyGoogleIdToken: NEVER_CALL, findUserByEmail: NEVER_CALL, createActiveGuest: NEVER_CALL });
   const handler = getRouteHandler(router, 'get', '/api/auth/google-config');
   const res = fakeRes();
   handler({}, res);
@@ -168,7 +232,7 @@ test('GET /api/auth/google-config: chua cau hinh -> clientId null (de trang logi
   const original = process.env.GOOGLE_CLIENT_ID;
   process.env.GOOGLE_CLIENT_ID = '';
   try {
-    const router = freshAuthRoutes({ verifyGoogleIdToken: NEVER_CALL, findUserByEmail: NEVER_CALL, createPendingGoogleUser: NEVER_CALL });
+    const router = freshAuthRoutes({ verifyGoogleIdToken: NEVER_CALL, findUserByEmail: NEVER_CALL, createActiveGuest: NEVER_CALL });
     const handler = getRouteHandler(router, 'get', '/api/auth/google-config');
     const res = fakeRes();
     handler({}, res);

@@ -18,139 +18,146 @@ Toàn bộ quy trình hiện điều phối qua các **nhóm chat Telegram đán
 - Không có trạng thái đơn hàng tập trung, khó truy vết realtime.
 - Sai sót/thiếu ảnh khi soát cuối ngày.
 - Nhặt nhầm/thừa/thiếu hàng không được phát hiện sớm.
-- Không có dashboard/số liệu tổng hợp (KPI, doanh thu, công nợ, tồn kho).
+- Không có dashboard/số liệu tổng hợp (KPI, tiến độ giao hàng, công nợ, hiệu suất xe).
 - Toàn bộ vận hành phụ thuộc vào việc theo dõi thủ công nhiều nhóm chat cùng lúc.
 
-### Mục tiêu
+### Mục tiêu tổng thể
 
-Xây dựng một web app: theo dõi/truy vết đơn hàng theo thời gian thực, có **bot Telegram tự động** xử lý các nhóm hiện tại (OCR ảnh + tự cập nhật trạng thái), **dashboard KPI** với bộ lọc/tìm kiếm, **phân quyền theo 9 vai trò** nội bộ + trang tra cứu công khai cho khách hàng, tích hợp **KiotViet API** làm nguồn dữ liệu đơn hàng chính, và xuất báo cáo định kỳ ra **Google Sheets**.
+Xây dựng hệ thống quản lý & truy vết đơn hàng theo thời gian thực:
+- **Giai đoạn trước mắt (Kế hoạch thay thế Web-First):** Vận hành, cập nhật trạng thái và upload ảnh chứng từ trực tiếp qua Web Portal / Mobile Web 1-chạm mà **không phụ thuộc vào Telegram Bot**.
+- **Giai đoạn tiếp theo (Khi có đủ Telegram Bot):** Tích hợp Bot Telegram tự động (OCR ảnh + webhook nạp dữ liệu từ 9 nhóm chat vào hệ thống).
+- **Dashboard & Báo cáo:** Dashboard KPI vận chuyển, lọc/tìm kiếm đa năng, đối soát cuối ngày tự động lọc đơn thiếu ảnh, phân quyền RBAC và trang tra cứu công khai cho khách hàng.
 
 **Quy mô:** ~100 người dùng, ~200 đơn hàng/ngày.
 
 ---
 
-## 2. Quyết định kiến trúc đã chốt
+## 2. Quyết định kiến trúc & Chiến lược Chuyển tiếp (Interim Web-First)
+
+### 2.1. Quyết định kiến trúc cốt lõi
 
 | Vấn đề | Quyết định |
 |---|---|
-| Nguồn dữ liệu đơn hàng | **API KiotViet** làm nguồn chính (đơn, khách hàng, sản phẩm, công nợ). OCR chỉ dùng cho ảnh phiếu xác nhận giao hàng/bill ký nhận — dữ liệu không có sẵn trong KiotViet. |
-| Mức độ tự động của bot Telegram | **Tự động hoàn toàn**: bot đọc ảnh/tin nhắn trong nhóm 20-28, tự OCR, tự đối chiếu và cập nhật trạng thái đơn hàng. Chỉ cảnh báo người dùng xử lý thủ công khi không chắc chắn (ảnh mờ, không khớp mã đơn...). |
-| Vai trò Google Sheets | **Chỉ xuất báo cáo định kỳ** (một chiều), không phải nguồn dữ liệu chính của hệ thống. |
+| Nguồn dữ liệu đơn hàng | **Hóa đơn KiotViet** (đã đồng bộ tự động vào Google Sheets `Hóa đơn`) làm nguồn khởi tạo đơn vận chuyển. Khi có API KiotViet trực tiếp, hệ thống sẽ mở rộng nạp tự động qua API. |
+| **Xử lý khi chưa đủ Bot Telegram** | **Áp dụng Kế hoạch thay thế Web-First**: Thay vì chờ Bot Telegram cho đủ 9 nhóm chat, các bộ phận (*Kế toán, Thủ kho, Lái xe/Shipper*) thao tác cập nhật trạng thái và upload ảnh trực tiếp qua **Giao diện Web tối ưu Mobile (1-2 chạm)**. |
+| Tương thích với Bot Telegram sau này | **Forward-Compatible (Tương thích 100%)**: Backend API và State Machine được chuẩn hóa. Khi Bot Telegram & OCR sẵn sàng, Bot chỉ đóng vai trò là kênh nạp sự kiện tự động gọi vào đúng API này mà không cần thay đổi dữ liệu. |
+| Hạ tầng lưu trữ & Database | **Google Sheets độc lập (`VC_*`)** làm DB trung gian + **Google Drive API** lưu trữ ảnh chứng từ theo mã đơn/ngày. Backend Node.js/Express (Render) quản lý nghiệp vụ và cache. |
+| Vai trò Google Sheets | Lưu trữ dữ liệu vận hành phân luồng, xuất báo cáo định kỳ, dễ dàng kiểm tra thủ công khi cần. |
 
 ---
 
-## 3. Đề xuất công nghệ
+## 3. Ma trận chuyển đổi quy trình: Chat Telegram ↔ Web Thay Thế ↔ Bot Tương Lai
 
-| Thành phần | Lựa chọn | Lý do |
-|---|---|---|
-| Frontend | **Next.js** (React + TypeScript) | 1 codebase cho dashboard nội bộ + trang tra cứu khách hàng công khai; SSR tốt cho tải nhanh trên mobile của lái xe/kho |
-| Backend API | **NestJS** (Node.js + TypeScript) | Cùng ngôn ngữ với frontend; cấu trúc module rõ ràng (Orders, Users, Telegram, OCR, Reports); dễ bảo trì với đội nhỏ |
-| Database | **PostgreSQL** | Quan hệ rõ ràng giữa đơn/khách/kho/xe/lịch sử trạng thái; transaction an toàn cho state machine |
-| Hàng đợi tác vụ nền | **Redis + BullMQ** | Xử lý OCR, gọi KiotViet API, đồng bộ Google Sheets bất đồng bộ — tránh chặn bot Telegram khi xử lý ảnh |
-| Lưu trữ ảnh | **Object storage** (Cloudflare R2 / AWS S3) | Ảnh đơn hàng, ảnh nhặt hàng, ảnh giao hàng, bill ký nhận — dung lượng lớn, cần CDN phân phối nhanh |
-| OCR | **Google Cloud Vision API** (hoặc FPT.AI OCR cho chữ viết tay tiếng Việt) | Đọc mã đơn, số lượng, chữ ký trên phiếu chụp gửi vào Telegram |
-| Bot Telegram | **grammY** (Node.js), chạy qua webhook | Nghe đồng thời 9 nhóm, tải ảnh, gọi OCR, gọi API cập nhật trạng thái |
-| Tích hợp KiotViet | **KiotViet Public API** (OAuth2) | Đồng bộ đơn hàng/khách hàng/sản phẩm/công nợ qua webhook hoặc polling định kỳ |
-| Xuất Google Sheets | **Google Sheets API** (service account) | Cron job đẩy báo cáo doanh thu/công nợ/KPI theo ngày/tuần |
-| Xác thực & phân quyền | **JWT + RBAC** (9 vai trò nội bộ); khách hàng tra cứu công khai theo mã đơn, không cần tài khoản | Đơn giản, đủ cho quy mô 100 người dùng |
-| Hosting/Triển khai | **Docker Compose** trên 1 VPS (tách container nếu cần scale sau); CI/CD đơn giản qua GitHub Actions | Chi phí thấp, phù hợp quy mô hiện tại |
-| Thông báo real-time | **WebSocket (Socket.IO)** cho notification center trên web | Cảnh báo tức thời cho Kế toán/Trưởng kho khi đơn trễ hoặc thiếu ảnh |
+| Khâu nghiệp vụ / Nhóm chat | Hiện tại (Thủ công qua Chat) | **Kế hoạch Thay thế (Web Portal 1-chạm)** | **Tương lai (Bot Telegram + OCR)** |
+|---|---|---|---|
+| **1. Khởi tạo đơn & Gán luồng/xe** *(Nhóm 20, 21)* | Sale gửi đơn, Kế toán đọc tin nhắn và in phiếu | Kế toán mở Web Điều phối, chọn hóa đơn KiotViet có sẵn, gán Kho + Luồng (1-4) + Xe $\rightarrow$ Bấm **"Tạo đơn / Đã in"** | KiotViet API nạp tự động hoặc Bot đọc tin nhắn nhóm 20/21 |
+| **2. Kho nhặt hàng & Chụp ảnh** *(Nhóm 22, 23)* | Kho nhặt xong chụp ảnh gửi vào nhóm chat | Kho mở Web trên điện thoại $\rightarrow$ Chọn đơn $\rightarrow$ Chụp ảnh hàng nhặt $\rightarrow$ Bấm **"Đã nhặt hàng"** | Kho chụp gửi nhóm $\rightarrow$ Bot tự lưu Drive và cập nhật |
+| **3. Lái xe nhận hàng & Giao** *(Nhóm 24)* | Lái xe nhắn/chụp ảnh xác nhận nhận đơn | Lái xe mở Mobile Web $\rightarrow$ Thấy danh sách đơn của mình $\rightarrow$ Bấm **"Bắt đầu giao"** | Bot ghi nhận khi tài xế gửi ảnh/tin nhắn nhóm 24 |
+| **4. Giao hàng & Ký nhận bill** *(Nhóm 25, 26)* | Lái xe chụp ảnh giao / bill ký gửi nhóm chat | Lái xe bấm **[📷 Chụp bill ký/ảnh giao]** $\rightarrow$ Bấm **"Đã giao / Hoàn thành"** | Bot OCR bill ký nhận $\rightarrow$ Tự động khớp mã và hoàn thành đơn |
+| **5. Đơn hoàn thành & Xử lý sự cố** *(Nhóm 27, 28)* | Soát thủ công từng nhóm chat để tìm đơn lỗi/thiếu ảnh | Trang **Đối soát cuối ngày** tự động lọc đơn thiếu ảnh. Gặp sự cố bấm form **"Báo cáo sự cố"** | Bot tự động cảnh báo vào nhóm điều phối khi đơn trễ hoặc ảnh mờ |
 
 ---
 
-## 4. Vai trò & phân quyền
+## 4. Data Model (Bảng dữ liệu Google Sheets Vận chuyển)
 
-| Vai trò | Quyền trên web app |
-|---|---|
-| **Quản lý** | Full quyền: xem, sửa, duyệt, báo cáo, quản trị người dùng |
-| **Kế toán** | Xem/sửa trạng thái, duyệt đơn, quản lý công nợ/cước, xem tồn kho theo cơ sở |
-| **Trưởng kho** | Xem/sửa trạng thái, duyệt đơn, quản lý tồn kho/đơn treo tạm giữa 2 cơ sở HN-SG |
-| **Trợ lý** | Chỉ xem toàn bộ trạng thái đơn hàng, không có quyền sửa |
-| **Khách hàng** | Tra cứu công khai theo mã đơn, không cần đăng nhập |
-| **Sale, Nhân viên kho, Lái xe, Shipper, Nhân viên mua hàng** | Không có tài khoản/quyền trên web — tương tác hoàn toàn qua chat Telegram, bot xử lý thay |
+Spreadsheet vận chuyển độc lập gồm **6 tab tiếng Việt** trực quan, thân thiện cho người dùng:
+
+- **`Đơn vận chuyển` (Theo dõi đơn chính):**
+  - `Mã vận đơn` (`order_id`): Mã vận đơn nội bộ (`VC-YYYYMMDD-XXXX`).
+  - `Mã hóa đơn KiotViet` (`kiotviet_code`): Mã hóa đơn KiotViet (`HD...`).
+  - `Kho xuất` (`warehouse`): Cơ sở xuất hàng (`An Khánh` / `Tân Phú`).
+  - `Luồng giao hàng` (`flow`): Luồng giao hàng (`1`: HN xe cty, `2`: SG xe cty, `3`: HN tàu hỏa Nam, `4`: SG shipper).
+  - `Mã xe` (`vehicle_id`) / `Tên tài xế` (`driver_name`): Xe & tài xế phụ trách.
+  - `Tên khách hàng` (`customer_name`), `Số điện thoại` (`customer_phone`), `Địa chỉ nhận hàng` (`address`): Thông tin nhận hàng.
+  - `Trạng thái hiện tại` (`current_status`): Trạng thái đơn hàng.
+  - `Giữ hàng tàu hỏa` (`is_transit_held`): Cờ giữ hàng trung gian (Luồng 3 - Tàu hỏa).
+  - `Tiền cước` (`freight_amount`), `Ghi chú cước` (`freight_note`): Cước phí & ghi chú.
+  - `Thời gian tạo` (`created_at`), `Cập nhật lần cuối` (`updated_at`).
+
+- **`Chi tiết vận chuyển` (Mặt hàng trong đơn):**
+  - `Mã vận đơn` (`order_id`), `Mã hàng` (`product_code`), `Tên hàng hóa` (`product_name`), `Số lượng đặt` (`quantity_ordered`), `Số lượng đã nhặt` (`quantity_picked`), `Đơn vị tính` (`unit`), `Ghi chú` (`notes`).
+
+- **`Lịch sử trạng thái` (Nhật ký trạng thái & Audit Log):**
+  - `Mã lịch sử` (`history_id`), `Mã vận đơn` (`order_id`), `Trạng thái trước` (`from_status`), `Trạng thái mới` (`to_status`), `Người thực hiện` (`changed_by`), `Thời gian cập nhật` (`changed_at`), `Ghi chú` (`note`).
+
+- **`Ảnh chứng từ` (Quản lý Ảnh chứng từ & Drive):**
+  - `Mã chứng từ` (`attachment_id`), `Mã vận đơn` (`order_id`), `Loại chứng từ` (`type`: `PICKUP_PHOTO` - ảnh nhặt, `DELIVERY_PHOTO` - ảnh giao, `SIGNED_BILL` - bill ký nhận, `EXCEPTION_PHOTO` - ảnh sự cố).
+  - `Google Drive File ID` (`drive_file_id`), `Link xem ảnh` (`drive_view_url`), `Link thumbnail` (`drive_thumbnail_url`): Link ảnh lưu trên Google Drive công ty (tự động phân thư mục theo Ngày/Mã đơn).
+  - `Người tải lên` (`uploaded_by`), `Thời gian tải lên` (`uploaded_at`), `Nội dung OCR` (`ocr_text`).
+
+- **`Sự cố vận chuyển` (Xử lý sự cố / Trả hàng):**
+  - `Mã sự cố` (`exception_id`), `Mã vận đơn` (`order_id`), `Khâu phát sinh` (`stage`), `Loại sự cố` (`type`: Trả hàng / Thiếu hàng / Hư hỏng...), `Mô tả chi tiết` (`description`), `Người xử lý` (`resolver`), `Trạng thái xử lý` (`status`), `Thời gian báo cáo` (`created_at`), `Thời gian xử lý xong` (`resolved_at`).
+
+- **`Danh mục xe` (Phương tiện & Tài xế):**
+  - `Mã xe` (`vehicle_id`), `Biển số xe` (`plate_number`), `Loại xe` (`vehicle_type`), `Tài xế mặc định` (`default_driver`), `Tải trọng tối đa (kg)` (`max_weight`), `Ghi chú` (`notes`).
 
 ---
 
-## 5. Data model (cốt lõi)
-
-- **Order**: mã đơn KiotViet, mã vận đơn, kho xuất (An Khánh/Tân Phú), luồng giao hàng (1-4), khách hàng, NV bán hàng, tổng tiền, công nợ, trạng thái hiện tại, xe/lái xe được gán (kèm ghi chú), cờ "đang treo tạm giữa 2 cơ sở" (luồng 3)
-- **OrderItem**: tên hàng, SL đặt, đơn giá, thành tiền, vị trí kho, SL thực nhặt (đối chiếu qua OCR), ghi chú/số thùng
-- **OrderStatusHistory**: trạng thái, thời điểm, người/nguồn thực hiện (web / bot / OCR), ảnh đính kèm
-- **Attachment**: loại ảnh (đơn sale, phiếu nhặt hàng, phiếu xác nhận giao hàng, bill ký nhận), url, kết quả OCR, nguồn tin nhắn Telegram (message id, group id)
-- **ReturnException**: đơn liên quan, khâu xảy ra (nhặt hàng/đang giao/đã giao...), loại (trả hàng/thiếu/thừa/hư hỏng), mô tả, người xử lý, trạng thái xử lý
-- **Vehicle**: biển số, loại xe, tài xế phụ trách, ghi chú tải trọng/hàng hóa
-- **User**: tên, SĐT, vai trò, cơ sở phụ trách
-- **TelegramGroupMapping**: chat_id Telegram ↔ mã nhóm (20-28) ↔ cơ sở/loại sự kiện tương ứng
-
----
-
-## 6. State machine trạng thái đơn hàng
+## 5. State Machine trạng thái đơn hàng
 
 ```
-Mới tạo → Đã in → Đã nhặt hàng → (Đang chuyển kho nội bộ — chỉ luồng 3, tùy chọn) → Đang giao → Đã giao → Hoàn thành
+Mới tạo → Đã in → Đã nhặt hàng → (Đang chuyển kho/Tàu hỏa — chỉ luồng 3) → Đang giao → Đã giao → Hoàn thành
 ```
 
-**Nhánh ngoại lệ — Trả hàng:** có thể xảy ra từ bất kỳ trạng thái nào từ "Đã nhặt hàng" trở đi. Khi xảy ra, hệ thống lưu lại trạng thái trước đó + lý do + người xử lý, không xóa lịch sử trạng thái đã có.
-
-**Quy tắc "coi như đã ký":** nếu khách không ký nhưng kho có chụp ảnh bill lên nhóm 25 (Nhóm chụp bill ký nhận) → hệ thống tự động đánh dấu đơn Hoàn thành.
-
----
-
-## 7. Tính năng chính
-
-1. **Dashboard & KPI**: tổng đơn theo trạng thái/luồng/kho, đơn trễ, doanh thu/công nợ theo ngày-tuần-tháng, bộ lọc (mã đơn, khách hàng, trạng thái, luồng, kho, ngày, lái xe, sale) + tìm kiếm nhanh theo mã đơn.
-2. **Bot Telegram tự động**: nghe 9 nhóm (20-28), OCR ảnh, đối chiếu mã đơn với KiotViet, tự cập nhật trạng thái tương ứng; cảnh báo thủ công khi không chắc chắn (ảnh mờ, không khớp mã đơn).
-3. **Đối chiếu số lượng tự động**: so sánh SL đặt (từ KiotViet) với SL thực nhặt/giao (từ OCR phiếu) → gắn cờ cảnh báo khi có chênh lệch — giải quyết pain-point "nhặt nhầm/thừa/thiếu hàng".
-4. **Đối soát cuối ngày**: báo cáo tự động liệt kê các đơn còn thiếu ảnh xác nhận ở bất kỳ khâu nào — giải quyết pain-point "thiếu ảnh khi soát cuối ngày".
-5. **Quản lý xe & tài xế**: danh sách xe, tài xế, trường ghi chú tải trọng/hàng hóa cho từng chuyến.
-6. **Cảnh báo real-time**: notification center trên web (cho Kế toán, Trưởng kho, Quản lý), có thể kèm gửi qua bot Telegram.
-7. **Tra cứu khách hàng**: trang công khai tìm theo mã đơn, xem trạng thái hiện tại (không hiển thị dữ liệu nhạy cảm khác).
-8. **Luồng ngoại lệ trả hàng**: ghi nhận tại bất kỳ khâu nào, không phá vỡ lịch sử trạng thái đơn.
-9. **Xuất báo cáo Google Sheets**: cron job định kỳ đẩy báo cáo doanh thu/công nợ/KPI.
-10. **Module cước phí**: để trống công thức tính, chờ người dùng cung cấp sau; thiết kế sẵn field mở rộng (`Order.freight_amount`, `Order.freight_formula_version`) để không phải đổi schema khi bổ sung.
+* **Nhánh ngoại lệ — Sự cố / Trả hàng:** Có thể phát sinh từ bất kỳ khâu nào từ "Đã nhặt hàng" trở đi. Hệ thống lưu lại trạng thái trước đó + nguyên nhân + ảnh minh chứng, không làm mất lịch sử vận đơn.
+* **Quy tắc "Coi như đã ký":** Nếu có ảnh chụp bill hoặc ảnh xác nhận giao hàng hợp lệ $\rightarrow$ Hệ thống chuyển trạng thái **Hoàn thành**.
 
 ---
 
-## 8. Cấu trúc thư mục dự kiến (khi bắt đầu code)
+## 6. Thiết kế Giao diện Web Chuyển tiếp (Web-First Portal)
+
+### 6.1. Web Desktop: Điều phối & Quản lý đơn (`/shipment/dispatch`)
+- **Tạo đơn 1-click từ KiotViet:** Danh sách hóa đơn mới từ sheet `Hóa đơn`, Kế toán chỉ cần tick chọn $\rightarrow$ Gán Luồng & Xe $\rightarrow$ Bấm tạo đơn.
+- **Bảng Kanban trực quan:** Theo dõi đơn theo từng cột trạng thái (*Mới tạo $\rightarrow$ Đã in $\rightarrow$ Đã nhặt $\rightarrow$ Đang giao $\rightarrow$ Hoàn tất / Sự cố*).
+- **Bộ lọc & Tìm kiếm:** Lọc theo Ngày, Kho, Luồng 1-4, Lái xe, Trạng thái đơn.
+
+### 6.2. Mobile Web 1-Chạm: Dành cho Thủ kho & Lái xe (`/shipment/mobile`)
+- **Tối ưu điện thoại:** Nút bấm lớn, thao tác nhanh, tích hợp trực tiếp Camera điện thoại qua HTML5 File/Camera API.
+- **Tự động nén ảnh client-side:** Resize và nén ảnh trước khi tải lên để tiết kiệm băng thông 4G và upload cực nhanh (<1s).
+- **Dành cho Kho:** Xem danh sách đơn cần nhặt $\rightarrow$ Bấm **[📷 Chụp ảnh hàng nhặt]** $\rightarrow$ Bấm **[Xác nhận đã nhặt]**.
+- **Dành cho Lái xe / Shipper:** Xem danh sách đơn của mình $\rightarrow$ Bấm **[Bắt đầu giao]** $\rightarrow$ Đến nơi chụp ảnh bill/hàng $\rightarrow$ Bấm **[Hoàn thành]**.
+
+### 6.3. Báo cáo Đối soát Cuối ngày (`/shipment/audit`)
+- Tự động liệt kê danh sách kiểm tra:
+  - ❌ Đơn nào chưa có ảnh nhặt hàng kho?
+  - ❌ Đơn nào giao thành công nhưng thiếu ảnh bill ký nhận?
+  - ⚠️ Đơn nào đang giao quá thời gian quy định (đơn trễ)?
+
+---
+
+## 7. Roadmap triển khai theo từng giai đoạn
 
 ```
-Process Automation/
-├── Plan.md                     # tài liệu này
-├── apps/
-│   ├── web/                    # Next.js: dashboard nội bộ + trang tra cứu khách hàng
-│   ├── api/                    # NestJS: REST API, state machine, RBAC
-│   └── bot/                    # grammY: Telegram bot worker
-├── packages/
-│   ├── db/                     # Prisma schema + migrations (Postgres)
-│   └── shared/                 # types dùng chung (Order, Status enum...)
-└── docker-compose.yml
+┌────────────────────────────────────────────────────────────────────────┐
+│  Phase 0: Nền tảng Auth & Phân quyền RBAC 5 vai trò                    │ ✅ ĐÃ XONG
+├────────────────────────────────────────────────────────────────────────┤
+│  Phase 0.5: Tra cứu vận chuyển Khách hàng (API + UI /shipment/)        │ ✅ ĐÃ XONG
+├────────────────────────────────────────────────────────────────────────┤
+│  Phase 1: MVP Quản lý Vận chuyển Web-First (Kế hoạch thay thế)         │ 🚀 TRIỂN KHAI NGAY
+│   ├── 1A: Khởi tạo Spreadsheet VC_* & Google Drive Service lưu ảnh  ✅ │
+│   ├── 1B: Backend State Machine & API CRUD đơn vận chuyển         ✅   │
+│   ├── 1C: Web Desktop Điều phối (Kế toán) & Mobile Web (Kho/Lái xe)    │
+│   └── 1D: Báo cáo Đối soát cuối ngày tự động lọc đơn thiếu ảnh         │
+├────────────────────────────────────────────────────────────────────────┤
+│  Phase 2: Tự động hóa Bot Telegram & OCR (Khi chuẩn bị đủ Bot 9 nhóm)  │ ⏳ GIAI ĐOẠN TIẾP THEO
+│   ├── 2A: Bot Telegram lắng nghe 9 nhóm chat (20-28) -> gọi API Phase 1│
+│   ├── 2B: Tích hợp OCR (Google Cloud Vision) đọc bill ký nhận          │
+│   └── 2C: Hàng đợi cảnh báo thủ công khi ảnh mờ / không khớp mã        │
+├────────────────────────────────────────────────────────────────────────┤
+│  Phase 3: Vận hành nâng cao & Mở rộng                                  │ 🔮 TƯƠNG LAI
+│   ├── Dashboard KPI vận chuyển chuyên sâu (doanh thu, hiệu suất xe)    │
+│   ├── Quản lý xe/tài xế & phân bổ tuyến tối ưu                         │
+│   └── Module cước phí vận chuyển (khi có công thức)                    │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 9. Roadmap theo giai đoạn
+## 8. Tài liệu tham chiếu trong dự án
 
-- **Phase 0 — Nền tảng**: setup repo, DB schema, auth/RBAC, kết nối KiotViet API (đồng bộ đơn/khách/sản phẩm), CRUD đơn hàng cơ bản trên web.
-- **Phase 1 — MVP**: bot Telegram tự động cho 9 nhóm (OCR + cập nhật trạng thái), state machine đầy đủ + luồng trả hàng, trang tra cứu khách hàng, cảnh báo cơ bản trên web.
-- **Phase 2 — Vận hành đầy đủ**: dashboard KPI + bộ lọc, đối soát cuối ngày tự động, đối chiếu số lượng tự động, quản lý xe/tài xế, xuất báo cáo Google Sheets, module cước phí (khi có công thức).
-- **Phase 3 — Mở rộng**: hỗ trợ nhiều kho hơn 2 cơ sở hiện tại, gợi ý tối ưu (ghép xe/tuyến, nếu cần sau này), PWA riêng cho lái xe (chụp ảnh offline-friendly).
-
-Timeline cụ thể: chờ người dùng quy định sau.
-
----
-
-## 10. Rủi ro & giả định
-
-- Cần xin quyền API KiotViet (gói phù hợp) — nếu công ty chưa có, cần liên hệ KiotViet trước khi bắt đầu Phase 0.
-- OCR tiếng Việt viết tay không chính xác 100% → thiết kế hàng đợi "cần soát thủ công" thay vì tự tin cập nhật sai trạng thái đơn.
-- Bot cần được thêm làm admin vào 9 nhóm Telegram hiện tại, và cần thu thập chat_id thực tế của từng nhóm khi triển khai.
-- Giả định mỗi nhóm Telegram map 1-1 với 1 loại sự kiện/cơ sở như mô tả trong file `Luồng cơ bản vận chuyển hàng.txt`.
-
----
-
-## 11. Tài liệu tham chiếu trong dự án
-
-- [`Luồng cơ bản vận chuyển hàng.txt`](./Luồng%20cơ%20bản%20vận%20chuyển%20hàng.txt) — mô tả gốc 4 luồng nghiệp vụ và 9 nhóm chat Telegram
+- [`docs/04-planning/implementation_plan.md`](file:///d:/Web%20TKS%20Dashboard/docs/04-planning/implementation_plan.md) — Kế hoạch tổng thể hệ thống TOKOSI
+- [`docs/01-brd/BRD_Dashboard_GoogleSheets.md`](file:///d:/Web%20TKS%20Dashboard/docs/01-brd/BRD_Dashboard_GoogleSheets.md) — Yêu cầu nghiệp vụ BRD v1.5
+- [`docs/02-srs/SRS_Dashboard_GoogleSheets.md`](file:///d:/Web%20TKS%20Dashboard/docs/02-srs/SRS_Dashboard_GoogleSheets.md) — Đặc tả kỹ thuật SRS v1.7
 - `Mẫu đơn sale gửi.jpg` — mẫu đơn hàng xuất từ KiotViet
 - `Phiếu đặt hàng lái xe gửi.jpg` — mẫu phiếu đặt hàng kho gửi lái xe
 - `Phiếu xác nhận giao hàng láy xe gửi.jpg` — mẫu phiếu lái xe chụp xác nhận giao hàng

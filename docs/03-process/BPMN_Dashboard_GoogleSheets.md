@@ -5,30 +5,32 @@
 |                         |                                                                               |
 |-------------------------|-------------------------------------------------------------------------------|
 | **Tên tài liệu**        | Sơ đồ quy trình nghiệp vụ (BPMN) — Hệ thống Dashboard nội bộ TOKOSI          |
-| **Phiên bản**           | 1.4                                                                           |
+| **Phiên bản**           | 1.5                                                                           |
 | **Ngày tạo**            | 27/07/2026                                                                    |
-| **Ngày cập nhật**       | 14/08/2026                                                                    |
-| **Tài liệu tham chiếu** | BRD v1.4 và SRS v1.6 — Hệ thống Dashboard nội bộ TOKOSI                      |
-| **Phạm vi**             | Toàn bộ luồng nghiệp vụ Giai đoạn 1 (đã hoàn thiện)                          |
+| **Ngày cập nhật**       | 15/08/2026                                                                    |
+| **Tài liệu tham chiếu** | BRD v1.5 và SRS v1.7 — Hệ thống Dashboard nội bộ TOKOSI                      |
+| **Phạm vi**             | Toàn bộ luồng nghiệp vụ Giai đoạn 1 & Phase 0/0.5                            |
 | **Trạng thái**          | Cập nhật theo code thực tế — đang vận hành                                    |
 
-> **Ghi chú phiên bản 1.4:** Bổ sung các luồng nghiệp vụ hoàn thiện: Luồng kiểm tra Result Cache tầng backend (`dashboardResultCache`), luồng phân trang bảng client-side (`pagination.js`), luồng Xuất Excel tùy chọn trường cho 16 bảng và tìm kiếm (`exportService.js`), cùng các chế độ tìm kiếm nhiều mã / Top 3 khách hàng theo sản phẩm.
+> **Ghi chú phiên bản 1.5:** Bổ sung các luồng nghiệp vụ hoàn thiện: Luồng xác thực & phân quyền Phase 0 (Đăng nhập nội bộ JWT/bcrypt, Google Identity Sign-In, Đăng ký tài khoản Khách, điều hướng theo vai trò), luồng tra cứu vận chuyển đơn hàng Phase 0.5 (`invoiceStatusService.js`), kiểm tra Result Cache tầng backend (`dashboardResultCache`), phân trang bảng client-side (`pagination.js`), Xuất Excel 16 bảng (`exportService.js`), và duy trì 74 unit tests.
 
 # 1. Giới thiệu
 
 ## 1.1. Mục đích tài liệu
 
-Tài liệu này trình bày mô hình hóa quy trình nghiệp vụ (BPMN — Business Process Model and Notation) cho toàn bộ luồng vận hành của Hệ thống Dashboard nội bộ TOKOSI, cụ thể hóa các yêu cầu đã nêu trong BRD v1.4 và SRS v1.6 thành sơ đồ trực quan theo vai trò (swimlane).
+Tài liệu này trình bày mô hình hóa quy trình nghiệp vụ (BPMN — Business Process Model and Notation) cho toàn bộ luồng vận hành của Hệ thống Dashboard nội bộ TOKOSI, cụ thể hóa các yêu cầu đã nêu trong BRD v1.5 và SRS v1.7 thành sơ đồ trực quan theo vai trò (swimlane).
 
 ## 1.2. Phạm vi mô hình hóa
 
-Tài liệu mô hình hóa toàn bộ luồng end-to-end của Giai đoạn 1, được chia thành 3 luồng liên kết với nhau:
+Tài liệu mô hình hóa toàn bộ luồng end-to-end của hệ thống, được chia thành 4 luồng liên kết với nhau:
 
 - **Luồng A — Đồng bộ KiotViet → Google Sheets (Apps Script):** chạy liên tục và tự động, độc lập với web dashboard.
 
-- **Luồng B — Sử dụng Dashboard & Tiện ích (Result Cache, Phân trang, Tìm kiếm, Xuất Excel):** người dùng truy cập URL, xem KPI/biểu đồ, lọc thời gian, phân trang bảng lớn, tìm kiếm đa chế độ và xuất file Excel.
+- **Luồng B — Sử dụng Dashboard & Tiện ích (Result Cache, Phân trang, Tìm kiếm, Xuất Excel):** người dùng nội bộ truy cập, xem KPI/biểu đồ, lọc thời gian, phân trang bảng lớn, tìm kiếm đa chế độ và xuất file Excel.
 
-- **Luồng C — Thiết lập hệ thống (một lần):** IT Admin cấu hình biến môi trường, Apps Script, triển khai Render.
+- **Luồng C — Thiết lập hệ thống (một lần):** IT Admin cấu hình biến môi trường, Apps Script, khởi tạo tài khoản Users, triển khai Render.
+
+- **Luồng D — Xác thực người dùng & Tra cứu vận chuyển (Phase 0 & 0.5):** Đăng ký/đăng nhập (mật khẩu hoặc Google), phân quyền truy cập, và tra cứu trạng thái hóa đơn cho khách hàng.
 
 Các nhánh xử lý lỗi quan trọng (API 500, biến môi trường thiếu, webhook lỗi) được thể hiện đầy đủ.
 
@@ -297,6 +299,6 @@ Mỗi bước trong 3 luồng đã được gắn mã yêu cầu chức năng/ph
 
 - **Nhất quán thời gian:** Backend xử lý ngày và `updatedAt` theo Asia/Ho_Chi_Minh. Frontend tự tải mỗi 10 phút và tải bù khi tab được xem lại để tránh timestamp bị cũ do browser throttling.
 
-- **Kiểm thử liên tục:** Trước khi commit hoặc deploy, luôn chạy `npm test` tại `server/` để kiểm tra toàn bộ 21 unit tests.
+- **Kiểm thử liên tục:** Trước khi commit hoặc deploy, luôn chạy `npm test` tại `server/` để kiểm tra toàn bộ 74 unit tests.
 
-*— Hết tài liệu BPMN v1.4 —*
+*— Hết tài liệu BPMN v1.5 —*

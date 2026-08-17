@@ -212,7 +212,7 @@ utils/Helpers.gs
 1) Apps Script -> Project Settings -> Script Properties:
    - KIOTVIET_CLIENT_ID
    - KIOTVIET_CLIENT_SECRET
-   - WEBHOOK_URL (tuy chon; URL /exec cua deployment neu khac mac dinh)
+   - WEBHOOK_URL (bat buoc; URL /exec cua deployment Web App hien tai)
 2) Chay clasp push --force tu thu muc du an.
 3) Tao version moi va redeploy Web App. Quyen truy cap phai cho phep KiotViet POST.
 4) Lan dau chay syncAllInitialData() (dong bo Hang ngung kinh doanh va HN1/HN3/HN7).
