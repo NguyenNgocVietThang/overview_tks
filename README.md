@@ -54,6 +54,12 @@ webtks-dashboard/
 │           └── SKILL.md         # Quy trình đồng bộ file khi cây thư mục thay đổi
 ├── .clasp.json                  # Cấu hình clasp (scriptId, rootDir: "src")
 ├── .claspignore                 # Loại trừ docs/, future-phases/, dev/, server/ khỏi clasp push
+├── 3D Design.md                 # Kế hoạch chi tiết triển khai hiệu ứng 3D toàn trang
+├── ERD KiotViet.drawio          # Sơ đồ quan hệ thực thể KiotViet
+├── Logo.jpg                     # Logo thương hiệu công ty
+├── Plan Process Automation.md   # Kế hoạch kiểm soát & tự động hóa quy trình vận chuyển
+├── README.md                    # Tài liệu hướng dẫn tổng quan dự án
+│
 ├── design-system/               # Quy chuẩn giao diện dùng chung
 │   └── tks-dashboard/
 │       └── MASTER.md            # Token, component và quy tắc thiết kế dashboard
@@ -63,16 +69,8 @@ webtks-dashboard/
 │   └── vendor/
 │       └── chart.umd.min.js
 │
-├── plans/                       # Các kế hoạch nâng cấp UI/UX chi tiết
-│   ├── 001-stop-chart-reanimate-on-tab-switch-and-poll.md
-│   ├── 002-shared-easing-tokens-for-entrances.md
-│   ├── 003-search-suggestions-dropdown-transition.md
-│   ├── 004-theme-toggle-surface-transitions.md
-│   ├── 005-debt-row-detail-fade-in.md
-│   └── README.md
-│
 ├── server/                      # Backend Node.js đọc/ghi Google Sheets & Web Server
-│   ├── auth/                    # JWT, bcrypt, Google Identity, Users cục bộ bảo mật và phân quyền
+│   ├── auth/                    # JWT, bcrypt, Google Identity, Users cục bộ bảo mật, OTP và phân quyền
 │   │   ├── adminUserRoutes.js   # API /api/admin/users (CRUD tài khoản, reset mật khẩu, phân quyền)
 │   │   ├── adminUserRoutes.test.js # Unit test routes quản trị người dùng
 │   │   ├── authMiddleware.js    # requireAuth, requireRole bọc route
@@ -95,23 +93,35 @@ webtks-dashboard/
 │   │   ├── debtReport.js        # Báo cáo công nợ khách hàng 1/3/7 ngày từ HN1/HN3/HN7
 │   │   ├── exportService.js     # Registry 16 bảng và tạo workbook Excel
 │   │   └── exportService.test.js # Unit test dữ liệu/file Excel
+│   ├── data/
+│   │   └── users.json           # Dữ liệu tài khoản người dùng cục bộ (local backup)
 │   ├── jobs/
 │   │   └── syncCustomerReport.js # Tác vụ đối soát toàn bộ 3 báo cáo lúc 07:00
 │   ├── public/                  # Frontend Live Dashboard, Vận chuyển & Quản lý tài khoản
 │   │   ├── account/
 │   │   │   └── index.html       # Quản lý tài khoản (Hồ sơ cá nhân & Quản trị người dùng)
 │   │   ├── index.html           # Live Dashboard (KPI, biểu đồ, phân trang, xuất Excel)
+│   │   ├── Logo.jpg             # Logo thương hiệu frontend
 │   │   ├── js/
 │   │   │   ├── auth-guest-ui.test.js # Kiểm tra UI đăng ký/Google/tra cứu Khách/Tài khoản
 │   │   │   ├── export-ui.test.js # Kiểm tra nút/modal xuất Excel trong giao diện
 │   │   │   ├── pagination.js    # Phân trang client-side cho các bảng
-│   │   │   └── pagination.test.js # Unit test cho module phân trang
-│   │   ├── login/index.html     # Đăng nhập nội bộ hoặc Google
-│   │   ├── register/index.html  # Đăng ký tài khoản Khách bằng email/mật khẩu
-│   │   ├── shared/              # CSS, điều hướng/auth guard và tiện ích nén ảnh dùng chung
+│   │   │   ├── pagination.test.js # Unit test cho module phân trang
+│   │   │   ├── three-bg.test.js # Kiểm tra hệ thống hạt 3D background và đổi theme
+│   │   │   ├── three-buttons.test.js # Kiểm tra hiệu ứng 3D tactile press và ripple nút
+│   │   │   ├── three-css-transforms.test.js # Kiểm tra hiệu ứng 3D CSS perspective cho thẻ/panel
+│   │   │   ├── three-infrastructure.test.js # Kiểm tra nạp và khởi tạo thư viện THREE.js r159
+│   │   │   ├── three-interactions.test.js # Kiểm tra dynamic hover tilt và button/nav 3D
+│   │   │   ├── three-navigation.test.js # Kiểm tra hiệu ứng 3D trượt nổi thanh điều hướng sidebar
+│   │   │   └── three-tables.test.js     # Kiểm tra hiệu ứng 3D nổi dòng bảng và animation so le
+│   │   ├── login/index.html     # Đăng nhập nội bộ, Google OAuth & Quên mật khẩu OTP
+│   │   ├── register/index.html  # Đăng ký tài khoản Khách bằng Email hoặc Số điện thoại
+│   │   ├── shared/              # CSS, điều hướng/auth guard, nén ảnh và hiệu ứng 3D dùng chung
 │   │   │   ├── image-compress.js # Nén và resize ảnh trước khi upload
 │   │   │   ├── shared-nav.js    # Header navigation dùng chung đa trang (3 mục cấp cao)
-│   │   │   └── shared.css       # Style theme và component dùng chung
+│   │   │   ├── shared.css       # Style theme và component dùng chung
+│   │   │   ├── three-bg.js      # Hệ thống hạt 3D Particle Background toàn trang
+│   │   │   └── three-interactions.js # Bộ xử lý 3D dynamic tilt, 3D navigation, button ripple và table row animation
 │   │   ├── shipment/
 │   │   │   ├── index.html       # Tra cứu trạng thái hóa đơn cho khách hàng
 │   │   │   ├── dispatch/
@@ -121,7 +131,8 @@ webtks-dashboard/
 │   │   │       ├── index.html   # Mobile Web 1-chạm (Thủ kho & Lái xe)
 │   │   │       └── mobile.js    # Camera upload ảnh chứng từ & chuyển trạng thái
 │   │   └── vendor/
-│   │       └── chart.umd.min.js
+│   │       ├── chart.umd.min.js # Thư viện biểu đồ 2D Chart.js
+│   │       └── three.min.js     # Thư viện đồ họa 3D THREE.js r159 UMD
 │   ├── scripts/
 │   │   ├── setupUsersSheet.js   # CLI quản lý tài khoản người dùng và khởi tạo sheet Users
 │   │   └── setupVcSheet.js      # CLI khởi tạo 6 tab vận chuyển VC_*
@@ -132,14 +143,14 @@ webtks-dashboard/
 │   │   ├── driveService.js      # Tải ảnh chứng từ lên Google Drive theo ngày/mã đơn
 │   │   ├── invoiceStatusService.js # Tra cứu mã/trạng thái, cache 90 giây
 │   │   ├── invoiceStatusService.test.js # Unit test tra cứu trạng thái
-│   │   ├── orderStateMachine.js # State Machine 8 trạng thái vận đơn & kiểm tra chuyển tiếp
+│   │   ├── orderStateMachine.js # State Machine 9 trạng thái vận đơn & kiểm tra chuyển tiếp
 │   │   ├── orderStateMachine.test.js # Unit test State Machine
 │   │   ├── shipmentOrderRoutes.js # REST API vận đơn, điều phối, ảnh chứng từ, sự cố, đối soát
 │   │   ├── vcOrderRepository.js # Thao tác CRUD 6 tab vận chuyển VC_*
 │   │   └── vcOrderRepository.test.js # Unit test repository vận đơn
 │   ├── config.js                # Cấu hình môi trường Node.js server
 │   ├── index.js                 # Express server entry point
-│   └── routes.js                # Định tuyến API endpoint (/api/dashboard/*, /api/auth/*, /api/shipment/*)
+│   └── routes.js                # Định tuyến API endpoint (/api/dashboard/*, /api/auth/*, /api/admin/*, /api/shipment/*)
 │
 ├── src/                         # Giai đoạn 1: Code Apps Script (clasp)
 │   ├── appsscript.json          # Manifest Apps Script (timezone, oauthScopes)
@@ -179,17 +190,17 @@ webtks-dashboard/
 │
 ├── docs/
 │   ├── 01-brd/
-│   │   └── BRD_Dashboard_GoogleSheets.md # Yêu cầu nghiệp vụ BRD v1.5
+│   │   └── BRD_Dashboard_GoogleSheets.md # Yêu cầu nghiệp vụ BRD v1.6
 │   ├── 02-srs/
-│   │   └── SRS_Dashboard_GoogleSheets.md # Đặc tả kỹ thuật SRS v1.7
+│   │   └── SRS_Dashboard_GoogleSheets.md # Đặc tả kỹ thuật SRS v1.8
 │   ├── 03-process/
-│   │   ├── BPMN_Dashboard_GoogleSheets.md # Sơ đồ quy trình nghiệp vụ
+│   │   ├── BPMN_Dashboard_GoogleSheets.md # Sơ đồ quy trình nghiệp vụ v1.7
 │   │   └── bpmn/
 │   │       ├── bpmn_1_phaseA.bpmn
 │   │       ├── bpmn_2_phaseB.bpmn
 │   │       └── bpmn_3_phaseC.bpmn
 │   ├── 04-planning/
-│   │   └── implementation_plan.md        # Kế hoạch triển khai chi tiết & trạng thái
+│   │   └── implementation_plan.md        # Kế hoạch triển khai chi tiết & trạng thái v1.9
 │   └── superpowers/
 │       ├── plans/
 │       │   ├── 2026-08-13-dashboard-result-cache.md
@@ -220,7 +231,16 @@ Thư mục `server/` tích hợp sẵn bộ unit tests (dùng `node:test` chuẩ
 cd server
 npm test
 ```
-Bộ test bao gồm: kiểm thử xác thực auth (JWT httpOnly cookie, bcrypt, Google Identity, đăng ký tài khoản Khách, bảo vệ route theo vai trò), tra cứu trạng thái vận chuyển hóa đơn (`invoiceStatusService.js`), State Machine vận đơn 8 trạng thái (`orderStateMachine.js`), CRUD kho dữ liệu vận đơn (`vcOrderRepository.js`), Result Cache backend, phân trang client-side (`pagination.js`), đăng ký & tạo file Xuất Excel 16 bảng (`exportService.js`), tìm kiếm nhiều mã chính xác và Top 3 KH theo sản phẩm.
+Bộ test gồm **141 bài kiểm thử tự động** bao phủ toàn diện:
+- Xác thực người dùng (JWT httpOnly cookie, mật khẩu bcrypt, Google Identity OAuth, đăng ký bằng Email/SĐT, bảo vệ route RBAC 5 vai trò).
+- Quản trị tài khoản Admin (CRUD danh sách người dùng, reset mật khẩu, kích hoạt/khóa tài khoản).
+- Khôi phục mật khẩu OTP 6 số (sinh mã, gửi giả lập qua Email/SĐT, giới hạn thử lại, chống brute-force và cơ chế lockout tạm thời 5 phút).
+- Quản lý hồ sơ cá nhân và đổi mật khẩu chủ động.
+- Tra cứu trạng thái hóa đơn cho khách hàng (`invoiceStatusService.js` với cache 90s).
+- State Machine vận đơn 9 trạng thái (`orderStateMachine.js`) và CRUD kho dữ liệu 6 tab vận chuyển (`vcOrderRepository.js`).
+- Result Cache tầng backend tối ưu phản hồi tức thì (<10ms).
+- Phân trang client-side (`pagination.js`) và module Xuất Excel 16 bảng (`exportService.js`).
+- Tìm kiếm nhiều mã chính xác và Top 3 KH theo danh mục sản phẩm.
 
 ### Bước 1 — Clone & login
 ```bash
@@ -317,6 +337,57 @@ cho ba nhóm này.
 
 ---
 
+## Hiệu ứng 3D (3D Effects)
+
+Dashboard có lớp hiệu ứng 3D tùy chọn (progressive enhancement) trên cả 7 trang giao diện: `index.html`, `login/`, `register/`, `account/`, `shipment/`, `shipment/dispatch/`, `shipment/mobile/`. Trang vẫn hoạt động đầy đủ nếu lớp này bị tắt hoặc lỗi.
+
+### Thành phần
+
+| File | Vai trò |
+|---|---|
+| `server/public/vendor/three.min.js` | Thư viện THREE.js r159 (UMD, ~650KB), nguồn cho `window.THREE` |
+| `server/public/shared/three-bg.js` | Particle background toàn trang (canvas `.tks-bg-canvas`, tự đổi màu theo theme, tự dừng khi tab ẩn) |
+| `server/public/shared/three-interactions.js` | Tilt 3D cho card/KPI theo vị trí chuột, press effect cho button, depth cho nav item — chỉ dùng CSS transform, **không** cần `window.THREE` |
+| `server/public/shared/three-loading.js` | 3D loading cube (thuần CSS), auto-upgrade mọi `.loading-veil` |
+| `server/public/js/three-charts.js` | Biểu đồ doanh thu 3D (`window.TKSCharts3D.renderRevenue3D`), chỉ dùng ở `index.html` |
+| `server/public/shared/three-performance.js` | Theo dõi FPS, tự hạ chất lượng particle khi máy yếu (`window.TKSPerformance`) |
+| `server/public/shared/three-memory.js` | Theo dõi & dọn WebGL context/geometry/material để tránh leak (`window.TKSMemory`) |
+| `server/public/shared/three-visibility.js` | Trung tâm pause/resume các module 3D khi đổi tab (`window.TKSVisibility`) |
+
+### Thứ tự load
+
+Mỗi trong 7 trang load 3D theo đúng thứ tự sau (bắt buộc — các module sau phụ thuộc module trước):
+
+```html
+<!-- Đầu trang, trong <head> — không cần THREE.js -->
+<script src="/shared/three-interactions.js"></script>
+<script src="/shared/three-loading.js"></script>
+
+<!-- Cuối trang, trước </body> — cần THREE.js load trước -->
+<script src="/vendor/three.min.js"></script>
+<script src="/shared/three-performance.js"></script>
+<script src="/shared/three-memory.js"></script>
+<script src="/shared/three-visibility.js"></script>
+<script src="/shared/three-bg.js"></script>
+<!-- Chỉ index.html: -->
+<script src="/js/three-charts.js"></script>
+```
+
+### Tắt hiệu ứng
+
+- **Tắt trên 1 trang:** xóa toàn bộ các thẻ `<script src="/shared/three-*.js">`, `<script src="/vendor/three.min.js">` và (nếu có) `<script src="/js/three-charts.js">` khỏi trang đó. Trang hoạt động bình thường — mọi handler 3D tự kiểm tra `window.THREE`/DOM trước khi chạy, không throw lỗi khi thiếu.
+- **Tắt toàn site:** lặp lại thao tác trên cho cả 7 trang. Xem hướng dẫn từng bước và lệnh khôi phục bằng git tại [ROLLBACK.md](ROLLBACK.md).
+
+### Hiệu năng & Khả năng tiếp cận
+
+- Particle count tự thích ứng theo thiết bị: 300 (desktop) / 100 (mobile), giảm tiếp xuống 50 nếu FPS thấp (`three-performance.js`, 4 mức chất lượng).
+- Tối đa 8 WebGL context được theo dõi và dispose tự động khi rời trang (`three-memory.js`).
+- Toàn bộ animation dừng khi tab ẩn (`three-visibility.js`) và khi `prefers-reduced-motion: reduce` được bật.
+- Canvas nền trang trí mang `aria-hidden="true"`; canvas biểu đồ 3D mang `role="img"` + `aria-label`; focus indicator (`:focus-visible`) độc lập với transform 3D nên không bị ảnh hưởng.
+- Chi tiết đầy đủ: [Performance Optimization Report](docs/performance-optimization-report.md), [3D Design Plan](3D%20Design.md) (Task 12, Task 13).
+
+---
+
 ## Lộ trình mở rộng
 
 | Giai đoạn | Module | Mô tả |
@@ -334,17 +405,18 @@ cho ba nhóm này.
 
 | Tài liệu | Mô tả |
 |---|---|
-| [BRD](docs/01-brd/BRD_Dashboard_GoogleSheets.md) | Business Requirements Document |
-| [SRS](docs/02-srs/SRS_Dashboard_GoogleSheets.md) | Software Requirements Specification |
-| [BPMN](docs/03-process/BPMN_Dashboard_GoogleSheets.md) | Sơ đồ quy trình nghiệp vụ |
-| [Implementation Plan](docs/04-planning/implementation_plan.md) | Kế hoạch triển khai chi tiết & trạng thái |
+| [BRD](docs/01-brd/BRD_Dashboard_GoogleSheets.md) | Business Requirements Document v1.6 |
+| [SRS](docs/02-srs/SRS_Dashboard_GoogleSheets.md) | Software Requirements Specification v1.8 |
+| [BPMN](docs/03-process/BPMN_Dashboard_GoogleSheets.md) | Sơ đồ quy trình nghiệp vụ v1.7 |
+| [Implementation Plan](docs/04-planning/implementation_plan.md) | Kế hoạch triển khai chi tiết & trạng thái v1.9 |
 | [Plan Process Automation](Plan%20Process%20Automation.md) | Kế hoạch kiểm soát & tự động hóa quy trình vận chuyển hàng hóa |
+| [3D Design Plan](3D%20Design.md) | Kế hoạch chi tiết thiết kế hiệu ứng 3D toàn bộ 5 trang giao diện |
+| [3D Rollback Guide](ROLLBACK.md) | Hướng dẫn tắt/khôi phục lớp hiệu ứng 3D trên từng trang hoặc toàn site |
 | [Server Guide](server/README.md) | Hướng dẫn triển khai, kiểm thử và tài liệu API backend Node.js |
 | [Design System Master](design-system/tks-dashboard/MASTER.md) | Hệ thống token, component và quy tắc giao diện |
 | [Debt Dashboard Spec](docs/superpowers/specs/2026-08-05-debt-dashboard-design.md) | Đặc tả thiết kế module Báo cáo công nợ HN1/HN3/HN7 |
 | [Result Cache Plan](docs/superpowers/plans/2026-08-13-dashboard-result-cache.md) | Kế hoạch & chi tiết triển khai Result Cache tầng backend |
 | [Pagination Plan](docs/superpowers/plans/2026-08-13-dashboard-table-pagination.md) | Kế hoạch & chi tiết triển khai phân trang bảng client-side |
-| [Animation Plans](plans/README.md) | Kế hoạch chi tiết 5 cải tiến motion/transitions cho giao diện |
 | [Apps Script Guide](src/HuongDanSuDung.gs) | Hướng dẫn hàm, tác dụng và luồng liên kết; được push lên Apps Script |
 
 ---
@@ -367,4 +439,4 @@ cho ba nhóm này.
 
 ---
 
-*Cập nhật lần cuối: 2026-08-17*
+*Cập nhật lần cuối: 17/08/2026*
