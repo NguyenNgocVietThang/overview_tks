@@ -172,6 +172,6 @@ Select-String -Path "d:\Web TKS Dashboard\README.md" -Pattern "src/" -Context 0,
 ## Ghi chú quan trọng
 
 - **KHÔNG** cập nhật `docs/03-process/bpmn/*.bpmn` — đây là file nhị phân BPMN, không chứa đường dẫn cứng
-- **KHÔNG** cập nhật `docs/01-business/BRD*.md` trừ khi có thay đổi nghiệp vụ thực sự
+- **KHÔNG** cập nhật `docs/01-brd/BRD*.md` trừ khi có thay đổi nghiệp vụ thực sự
 - Thứ tự ưu tiên cập nhật: `README.md` → `.claspignore` → `appsscript.json` → `.clasp.json` → `docs/`
 - Luôn cập nhật dòng `*Cập nhật lần cuối:*` ở cuối `README.md`

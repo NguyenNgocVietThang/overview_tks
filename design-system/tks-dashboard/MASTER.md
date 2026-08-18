@@ -253,40 +253,52 @@ hover/focus states — reserve GSAP for the refresh spinner and any future chart
 
 - [Do] Use for card/row/button hover and the existing refresh-button spin.
 - [Don't] Don't use `back.out()`/overshoot easing on dense data tables — it reads as sloppy on informational UI (motion.csv row 9 note).
-- [Note] `prefers-reduced-motion` must be respected — currently **not** implemented anywhere in `dev/index.html` / `Dashboard.html`; add it.
+- [Note] `prefers-reduced-motion` must be respected — fully supported across all 3D and CSS transition modules via `@media (prefers-reduced-motion: reduce)`.
+
+---
+
+## 3D Progressive Enhancement Layer (Cập nhật 18/08/2026)
+
+Hệ thống bổ sung một lớp **Progressive Enhancement 3D** tùy chọn trên cả 7 trang giao diện, hoạt động độc lập trên nền tảng Flat Design cốt lõi:
+
+1. **Hạt nền Three.js (three-bg.js):** 300 hạt chuyển động mượt mà, tự đổi màu theo theme dark/light, canvas mang `aria-hidden="true"`, z-index -1.
+2. **Card Tilt 3D (three-interactions.js):** Tính toán góc xoay nhẹ theo vị trí con trỏ chuột (`transform: rotateX(...) rotateY(...)`) tạo cảm giác chiều sâu vật lý.
+3. **Tactile Buttons & Navigation:** Nút bấm có hiệu ứng lún 3D và ripple; menu item nổi lên khi hover.
+4. **3D Loading Cube (three-loading.js):** Khối lập phương 3D xoay không gian khi tải dữ liệu (`role="status"`).
+5. **Biểu đồ 3D (three-charts.js):** Biểu đồ cột 3D Three.js cho doanh thu trên trang tổng quan.
+6. **Thích ứng hiệu năng & Khả năng tiếp cận:**
+   - Tự động hạ chất lượng hạt/tần số render khi FPS giảm (`three-performance.js`).
+   - Tự động thu hồi bộ nhớ WebGL và giải phóng context khi rời trang (`three-memory.js`).
+   - Tự động tạm dừng hoạt họa khi tab bị ẩn (`three-visibility.js`).
+   - Vô hiệu hóa toàn bộ hiệu ứng 3D khi người dùng bật `prefers-reduced-motion: reduce`.
+   - Xem chi tiết tại [3D Design Plan](../../3D%20Design.md), [Báo cáo tối ưu hiệu năng](../../docs/performance-optimization-report.md) và [Hướng dẫn Rollback](../../ROLLBACK.md).
 
 ---
 
 ## Anti-Patterns (Do NOT Use)
 
-- Excessive decoration
-- Complex shadows
-- 3D effects
-- Complex 3D / premium-luxury ornamentation / immersive effects (Flat Design "Do Not Use For")
-
-### Additional Forbidden Patterns
-
-- **Emojis as icons** — Use SVG icons (Heroicons, Lucide, Simple Icons)
-- **Missing cursor:pointer** — All clickable elements must have `cursor:pointer`
-- **Layout-shifting hovers** — Avoid scale transforms that shift layout; use color/translateY instead
-- **Low contrast text** — Maintain 4.5:1 minimum contrast ratio (check `--color-muted` usages)
-- **Instant state changes** — Always use transitions (150–300ms)
-- **Invisible focus states** — Focus states must be visible for keyboard nav (`:focus-visible`, not `outline: none`)
+- **Emojis as icons** — Luôn sử dụng SVG icons (Heroicons, Lucide, Simple Icons), không dùng emoji thay icon.
+- **Missing cursor:pointer** — Mọi phần tử click được phải có `cursor:pointer`.
+- **Layout-shifting hovers** — Tránh scale transforms làm vỡ layout bảng/lưới; sử dụng color/translateY/CSS 3D perspective.
+- **Low contrast text** — Đảm bảo độ tương phản tối thiểu 4.5:1 (WCAG AA).
+- **Invisible focus states** — Luôn giữ `:focus-visible` với outline rõ ràng cho điều hướng bàn phím.
+- **Hard dependency on 3D** — Tuyệt đối không để logic nghiệp vụ phụ thuộc vào Three.js hoặc WebGL; mọi script 3D phải tự kiểm tra tồn tại và graceful degradation.
 
 ---
 
 ## Pre-Delivery Checklist
 
-Before delivering any UI code, verify:
+Trước khi hoàn thành và bàn giao UI, kiểm tra:
 
-- [ ] No emojis used as icons (use SVG instead)
-- [ ] All icons from a consistent icon set (Heroicons/Lucide-style, currently inline SVG — keep that)
-- [ ] `cursor-pointer` on all clickable elements (chart legend items, table rows with drill-down, filter chips)
-- [ ] Hover states with smooth transitions (150–300ms), color/translateY only, no box-shadow elevation
-- [ ] Dark-mode text contrast 4.5:1 minimum, especially `--color-muted` on `--color-background`
-- [ ] Focus states visible for keyboard navigation (`:focus-visible` outline using `--color-ring`)
-- [ ] `prefers-reduced-motion` respected (not yet present — add)
-- [ ] Responsive: 375px, 768px, 1024px, 1440px — verify the sidebar collapses correctly below 768px
-- [ ] No content hidden behind the fixed header
-- [ ] No horizontal scroll on mobile (tables need a scroll container, not the page)
-- [ ] Touch targets ≥44×44px for icon-only buttons (refresh button, table row actions)
+- [x] Không sử dụng emoji làm icon (sử dụng inline SVG chuẩn)
+- [x] Tất cả icon thuộc bộ icon thống nhất (Heroicons/Lucide phong cách)
+- [x] `cursor: pointer` trên mọi phần tử tương tác (chips lọc, hàng bảng drill-down, icon actions)
+- [x] Hover states mượt mà (150–300ms), không giật lag
+- [x] Độ tương phản chữ Dark Mode ≥ 4.5:1 (WCAG AA)
+- [x] Focus states hiển thị rõ ràng cho keyboard navigation (`:focus-visible`)
+- [x] `prefers-reduced-motion: reduce` được tuân thủ nghiêm ngặt
+- [x] Responsive layout kiểm thử trên 375px, 768px, 1024px, 1440px
+- [x] Không có nội dung bị che khuất sau fixed header / floating elements
+- [x] Không tràn ngang (horizontal scroll) ngoài ý muốn trên thiết bị di động
+- [x] Touch targets ≥44×44px cho các nút bấm trên giao diện Mobile
+- [x] Lớp 3D có thể tắt hoàn toàn mà không gây bất kỳ lỗi console hoặc vỡ layout nào (theo [ROLLBACK.md](../../ROLLBACK.md))

@@ -36,6 +36,7 @@
   --row-divider:rgba(255,255,255,0.05);
   --chart-grid:rgba(255,255,255,0.06);
   --veil:rgba(9,13,22,0.72);
+  --overlay-bg:rgba(0,0,0,0.6);
   --card-shadow:0 12px 32px -8px rgba(0,0,0,0.5), 0 0 1px 1px rgba(255,255,255,0.06);
   
   --ambient-1:rgba(59,130,246,0.08);
@@ -46,6 +47,74 @@
   --font-display:'Be Vietnam Pro',sans-serif;
   --font-body:'Inter',sans-serif;
   --font-data:'IBM Plex Mono',monospace;
+
+  /* Spacing scale (see design-system/tks-dashboard/MASTER.md — Spacing Variables) */
+  --space-xs:2px;
+  --space-sm:4px;
+  --space-md:8px;
+  --space-lg:12px;
+  --space-xl:16px;
+  --space-2xl:24px;
+  --space-3xl:32px;
+
+  /* ── Border Radius scale ── */
+  --radius-xs:6px;   /* chips, tiny badges */
+  --radius-sm:8px;   /* inputs, small buttons */
+  --radius-md:10px;  /* tabs, medium controls */
+  --radius-lg:12px;  /* KPI cards */
+  --radius-xl:14px;  /* panels, modals */
+  --radius-pill:9999px;
+
+  /* ── Shadow tokens ── */
+  --shadow-modal:0 20px 50px rgba(0,0,0,0.4);
+  --shadow-toast:0 8px 24px rgba(0,0,0,0.3);
+  --shadow-focus-blue:0 15px 35px -10px rgba(59,130,246,0.4), 0 0 0 3px rgba(59,130,246,0.2), 0 0 25px rgba(59,130,246,0.25);
+  --shadow-brand:0 4px 12px rgba(0,0,0,0.18);
+
+  /* ── Accent alpha ── */
+  --accent-blue-12:rgba(59,130,246,0.12);
+  --accent-blue-18:rgba(59,130,246,0.18);
+
+  /* ── Role badge tokens ── */
+  --role-quan-ly-bg:rgba(139,92,246,0.16);
+  --role-quan-ly-fg:#a78bfa;
+  --role-quan-ly-border:rgba(139,92,246,0.3);
+  --role-ke-toan-bg:rgba(16,185,129,0.14);
+  --role-ke-toan-fg:#34d399;
+  --role-ke-toan-border:rgba(16,185,129,0.3);
+  --role-truong-kho-bg:rgba(245,158,11,0.14);
+  --role-truong-kho-fg:#fbbf24;
+  --role-truong-kho-border:rgba(245,158,11,0.3);
+  --role-tro-ly-bg:rgba(59,130,246,0.14);
+  --role-tro-ly-fg:#60a5fa;
+  --role-tro-ly-border:rgba(59,130,246,0.3);
+  --role-lai-xe-bg:rgba(249,115,22,0.14);
+  --role-lai-xe-fg:#fb923c;
+  --role-lai-xe-border:rgba(249,115,22,0.3);
+  --role-khach-bg:rgba(148,163,184,0.14);
+  --role-khach-fg:#cbd5e1;
+  --role-khach-border:rgba(148,163,184,0.3);
+
+  /* ── Alert box tokens ── */
+  --alert-warning-bg:rgba(245,158,11,0.12);
+  --alert-warning-border:rgba(245,158,11,0.3);
+  --alert-error-bg:rgba(239,68,68,0.12);
+  --alert-error-border:rgba(239,68,68,0.3);
+  --alert-success-bg:rgba(16,185,129,0.12);
+  --alert-success-border:rgba(16,185,129,0.3);
+
+  /* ── Toast semantic tokens ── */
+  --toast-success-bg:#064e3b;
+  --toast-success-fg:#a7f3d0;
+  --toast-success-border:#059669;
+  --toast-error-bg:#7f1d1d;
+  --toast-error-fg:#fecaca;
+  --toast-error-border:#dc2626;
+
+  /* ── Status pill tokens ── */
+  --status-active-bg:rgba(16,185,129,0.12);
+  --status-locked-bg:rgba(239,68,68,0.12);
+  --status-pending-bg:rgba(245,158,11,0.12);
 }
 
 :root[data-theme="light"]{
@@ -78,10 +147,62 @@
   --row-divider:rgba(15,23,42,0.06);
   --chart-grid:rgba(15,23,42,0.08);
   --veil:rgba(248,250,252,0.78);
+  --overlay-bg:rgba(0,0,0,0.45);
   --card-shadow:0 10px 25px -5px rgba(0,0,0,0.05), 0 4px 10px -4px rgba(0,0,0,0.02), 0 0 1px 1px rgba(0,0,0,0.04);
   
   --ambient-1:rgba(37,99,235,0.04);
   --ambient-2:rgba(5,150,105,0.03);
+
+  /* ── Light mode shadow overrides ── */
+  --shadow-modal:0 20px 50px rgba(0,0,0,0.2);
+  --shadow-toast:0 8px 24px rgba(0,0,0,0.12);
+  --shadow-focus-blue:0 8px 20px -6px rgba(37,99,235,0.35), 0 0 0 3px rgba(37,99,235,0.18), 0 0 15px rgba(37,99,235,0.15);
+  --shadow-brand:0 2px 8px rgba(0,0,0,0.08);
+
+  /* ── Light accent alpha ── */
+  --accent-blue-12:rgba(37,99,235,0.10);
+  --accent-blue-18:rgba(37,99,235,0.15);
+
+  /* ── Light role badge tokens ── */
+  --role-quan-ly-bg:rgba(109,40,217,0.10);
+  --role-quan-ly-fg:#7C3AED;
+  --role-quan-ly-border:rgba(109,40,217,0.25);
+  --role-ke-toan-bg:rgba(5,150,105,0.10);
+  --role-ke-toan-fg:#059669;
+  --role-ke-toan-border:rgba(5,150,105,0.25);
+  --role-truong-kho-bg:rgba(217,119,6,0.10);
+  --role-truong-kho-fg:#D97706;
+  --role-truong-kho-border:rgba(217,119,6,0.25);
+  --role-tro-ly-bg:rgba(37,99,235,0.10);
+  --role-tro-ly-fg:#2563EB;
+  --role-tro-ly-border:rgba(37,99,235,0.25);
+  --role-lai-xe-bg:rgba(234,88,12,0.10);
+  --role-lai-xe-fg:#EA580C;
+  --role-lai-xe-border:rgba(234,88,12,0.25);
+  --role-khach-bg:rgba(100,116,139,0.10);
+  --role-khach-fg:#475569;
+  --role-khach-border:rgba(100,116,139,0.25);
+
+  /* ── Light alert box tokens ── */
+  --alert-warning-bg:rgba(217,119,6,0.08);
+  --alert-warning-border:rgba(217,119,6,0.25);
+  --alert-error-bg:rgba(220,38,38,0.08);
+  --alert-error-border:rgba(220,38,38,0.25);
+  --alert-success-bg:rgba(5,150,105,0.08);
+  --alert-success-border:rgba(5,150,105,0.25);
+
+  /* ── Light toast tokens ── */
+  --toast-success-bg:#D1FAE5;
+  --toast-success-fg:#065F46;
+  --toast-success-border:#059669;
+  --toast-error-bg:#FEE2E2;
+  --toast-error-fg:#991B1B;
+  --toast-error-border:#DC2626;
+
+  /* ── Light status pill tokens ── */
+  --status-active-bg:rgba(5,150,105,0.10);
+  --status-locked-bg:rgba(220,38,38,0.10);
+  --status-pending-bg:rgba(217,119,6,0.10);
 }
 
 *{box-sizing:border-box;}
@@ -267,7 +388,8 @@ body{
 }
 .tks-field input:focus-visible{ outline:2px solid var(--blue); outline-offset:1px; }
 .tks-field-readonly input{ color:var(--muted); cursor:not-allowed; }
-.tks-field-error{ margin:0 0 var(--space-lg); font-size:12px; color:#EF4444; }
+.tks-field-error{ margin:0 0 var(--space-lg); font-size:12px; color:var(--red); }
+.tks-field-error.tks-field-success{ color:var(--green); }
 .tks-btn-primary{
   min-height:38px; padding:0 var(--space-xl); border:0; border-radius:8px; cursor:pointer;
   background:var(--blue); color:#fff; font-family:var(--font-body); font-size:12.5px; font-weight:700;
@@ -287,26 +409,58 @@ body{
 .tks-btn-danger:focus-visible{ outline:2px solid var(--red); outline-offset:2px; }
 
 /* ---------- Layout: sidebar + content ---------- */
-.shell{ display:flex; min-height:calc(100vh - 78px); }
+.shell{ display:flex; min-height:calc(100vh - 78px); position:relative; z-index:1; }
 
 .sidebar{
   width:var(--sidebar-w); flex-shrink:0; background:var(--panel);
   border-right:1px solid var(--border); padding:18px 12px;
   position:sticky; top:0; align-self:flex-start; height:calc(100vh - 78px);
   transition:transform .28s var(--ease-out), background-color .2s ease, border-color .2s ease; z-index:20;
+  perspective:1000px;
+  perspective-origin:center center;
+}
+.sidebar-disp{
+  perspective:1000px;
+  perspective-origin:center center;
 }
 .nav-item{
   display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px;
   width:100%; background:none; border:none; border-left:3px solid transparent;
   color:var(--muted); font-size:13.5px; font-weight:500; font-family:var(--font-body);
   text-align:left; text-decoration:none; cursor:pointer; margin-bottom:4px; min-height:42px;
-  transition:background .15s ease, color .15s ease, border-color .15s ease;
+  transform-style:preserve-3d;
+  transition:transform 0.3s cubic-bezier(0.23, 1, 0.32, 1), background .15s ease, color .15s ease, border-color .15s ease, box-shadow 0.3s ease;
 }
-.nav-item .ic{ width:18px; height:18px; flex-shrink:0; }
-.nav-item:hover{ background:var(--surface-hover); color:var(--text); }
+.nav-item .ic{
+  width:18px; height:18px; flex-shrink:0;
+  transform-style:preserve-3d;
+  transition:transform 0.3s ease;
+}
+.nav-item:hover:not(.active){
+  background:var(--surface-hover);
+  color:var(--text);
+  transform:perspective(800px) translateZ(10px) translateX(8px);
+}
+.nav-item:hover .ic{
+  animation:iconBounce 0.6s ease;
+}
 .nav-item:focus-visible{ outline:2px solid var(--blue); outline-offset:-2px; }
 .nav-item.active{
-  background:rgba(59,130,246,0.12); color:var(--blue); border-left-color:var(--blue); font-weight:600;
+  background:rgba(59,130,246,0.12);
+  color:var(--blue);
+  border-left-color:var(--blue);
+  font-weight:600;
+  transform:perspective(800px) translateZ(15px);
+  box-shadow:-4px 0 12px rgba(59,130,246,0.4), inset 3px 0 0 var(--blue);
+}
+
+:root[data-theme="light"] .nav-item.active{
+  box-shadow:-4px 0 12px rgba(37,99,235,0.25), inset 3px 0 0 var(--primary);
+}
+
+@keyframes iconBounce {
+  0%, 100% { transform: translateZ(0); }
+  50% { transform: translateZ(8px) rotateY(15deg); }
 }
 
 .nav-group-toggle{
@@ -314,16 +468,28 @@ body{
   width:100%; background:none; border:none; border-left:3px solid transparent;
   color:var(--muted); font-size:13.5px; font-weight:500; font-family:var(--font-body);
   text-align:left; cursor:pointer; margin-bottom:2px; min-height:42px;
-  transition:background .15s ease, color .15s ease;
+  transform-style:preserve-3d;
+  transition:transform 0.3s cubic-bezier(0.23, 1, 0.32, 1), background .15s ease, color .15s ease, box-shadow 0.3s ease;
 }
-.nav-group-toggle .ic{ width:18px; height:18px; flex-shrink:0; }
+.nav-group-toggle .ic{
+  width:18px; height:18px; flex-shrink:0;
+  transform-style:preserve-3d;
+  transition:transform 0.3s ease;
+}
 .nav-group-toggle span{ flex:1; }
-.nav-group-toggle:hover{ background:var(--surface-hover); color:var(--text); }
+.nav-group-toggle:hover{
+  background:var(--surface-hover);
+  color:var(--text);
+  transform:perspective(800px) translateZ(8px) translateX(6px);
+}
+.nav-group-toggle:hover .ic{
+  animation:iconBounce 0.6s ease;
+}
 .nav-group-toggle:focus-visible{ outline:2px solid var(--blue); outline-offset:-2px; }
 .nav-group-toggle.has-active{ color:var(--text); font-weight:600; }
 .nav-group-chevron{ width:14px; height:14px; flex-shrink:0; transition:transform .18s var(--ease-out); }
 .nav-group-toggle[aria-expanded="false"] .nav-group-chevron{ transform:rotate(-90deg); }
-.nav-group-list{ padding-left:14px; margin-bottom:4px; }
+.nav-group-list{ padding-left:14px; margin-bottom:4px; perspective:800px; }
 .nav-group-list[hidden]{ display:none; }
 
 .sidebar-footer{ margin-top:18px; padding:12px; border-top:1px solid var(--border); font-size:11px; color:var(--muted); }
@@ -336,42 +502,134 @@ body{
   .sidebar.open{ transform:translateX(0); box-shadow:12px 0 32px rgba(0,0,0,.35); }
 }
 
-.content{ flex:1; min-width:0; padding:24px; }
+.content{ flex:1; min-width:0; padding:24px; position:relative; z-index:1; }
 .view-title{ font-family:var(--font-display); font-size:21px; font-weight:700; margin:0 0 4px; letter-spacing:-0.01em; }
 .view-sub{ font-size:12.5px; color:var(--muted); margin:0 0 18px; }
 
-/* ---------- Buttons ---------- */
+/* ---------- Buttons (3D Enhanced) ---------- */
+.btn-primary, .refresh-btn, .theme-toggle, .theme-toggle-floating, .btn-secondary, .btn-danger, .btn-outline, .btn-export, .export-button, .export-btn, .tks-btn-primary, .tks-btn-secondary, .tks-btn-danger, .profile-trigger, .menu-btn, .auth-nav-tab, .btn {
+  position: relative;
+  overflow: hidden;
+  transform-style: preserve-3d;
+  transition: transform 0.15s cubic-bezier(0.23, 1, 0.32, 1),
+              box-shadow 0.15s ease,
+              background-color 0.15s ease,
+              border-color 0.15s ease,
+              opacity 0.15s ease;
+}
+
 .btn-primary{
   background:var(--primary-gradient); color:var(--primary-text); border:none; border-radius:10px;
   padding:11px 20px; font-family:var(--font-display); font-weight:700; font-size:13.5px;
   cursor:pointer; box-shadow:var(--primary-shadow);
-  transition:transform .15s ease, opacity .15s ease, box-shadow .15s ease;
   display:inline-flex; align-items:center; justify-content:center; gap:8px;
 }
-.btn-primary:hover:not(:disabled){ transform:translateY(-1px); opacity:.95; }
-.btn-primary:active:not(:disabled){ transform:translateY(0); }
+.btn-primary:hover:not(:disabled),
+.refresh-btn:hover:not(:disabled),
+.tks-btn-primary:hover:not(:disabled){
+  transform: translateY(-2px);
+  box-shadow:
+    0 20px 40px -8px rgba(59, 130, 246, 0.5),
+    0 0 20px rgba(59, 130, 246, 0.3);
+  opacity: .98;
+}
+:root[data-theme="light"] .btn-primary:hover:not(:disabled),
+:root[data-theme="light"] .refresh-btn:hover:not(:disabled),
+:root[data-theme="light"] .tks-btn-primary:hover:not(:disabled){
+  box-shadow:
+    0 16px 32px -8px rgba(37, 99, 235, 0.35),
+    0 0 15px rgba(37, 99, 235, 0.2);
+}
+.btn-primary:active:not(:disabled),
+.refresh-btn:active:not(:disabled),
+.tks-btn-primary:active:not(:disabled){
+  /* translateY only (no scale/perspective translateZ): shrinking or
+     foreshortening the box mid-click can slide its edge out from under
+     the cursor before mouseup, so the click lands on the parent element
+     instead of the button and the click is silently lost. See ROLLBACK.md
+     and the button click-loss fix note below. */
+  transform: translateY(1px);
+  box-shadow: 0 5px 10px -4px rgba(59, 130, 246, 0.3);
+}
 .btn-primary:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
-.btn-primary:disabled{ opacity:.55; cursor:not-allowed; transform:none; box-shadow:none; }
+.btn-primary:disabled,
+.refresh-btn:disabled,
+.tks-btn-primary:disabled{ opacity:.55; cursor:not-allowed; transform:none !important; box-shadow:none !important; }
 
 .btn-secondary{
   background:var(--panel-2); color:var(--text); border:1px solid var(--border); border-radius:10px;
   padding:11px 20px; font-family:var(--font-body); font-weight:600; font-size:13.5px; cursor:pointer;
-  transition:border-color .15s ease, background-color .15s ease, transform .15s ease;
   display:inline-flex; align-items:center; justify-content:center; gap:8px;
 }
-.btn-secondary:hover{ border-color:var(--muted); transform:translateY(-1px); }
-.btn-secondary:active{ transform:translateY(0); }
+.btn-secondary:hover:not(:disabled),
+.btn-outline:hover:not(:disabled),
+.export-button:hover:not(:disabled),
+.tks-btn-secondary:hover:not(:disabled){
+  border-color:var(--muted);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.25), 0 0 15px rgba(59, 130, 246, 0.15);
+}
+.btn-secondary:active:not(:disabled),
+.btn-outline:active:not(:disabled),
+.export-button:active:not(:disabled),
+.tks-btn-secondary:active:not(:disabled){
+  transform: translateY(1px);
+  box-shadow: 0 2px 6px -2px rgba(0, 0, 0, 0.2);
+}
 .btn-secondary:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+.btn-secondary:disabled,
+.export-button:disabled,
+.tks-btn-secondary:disabled{ opacity:.55; cursor:not-allowed; transform:none !important; box-shadow:none !important; }
 
 .btn-danger{
   background:rgba(239,68,68,0.12); color:var(--red); border:1px solid rgba(239,68,68,0.3); border-radius:10px;
   padding:11px 20px; font-family:var(--font-display); font-weight:700; font-size:13.5px; cursor:pointer;
-  transition:border-color .15s ease, background-color .15s ease, color .15s ease, transform .15s ease;
   display:inline-flex; align-items:center; justify-content:center; gap:8px;
 }
-.btn-danger:hover{ background:var(--red); color:#fff; border-color:var(--red); transform:translateY(-1px); }
-.btn-danger:active{ transform:translateY(0); }
+.btn-danger:hover:not(:disabled),
+.tks-btn-danger:hover:not(:disabled){
+  background:var(--red); color:#fff; border-color:var(--red);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -6px rgba(239, 68, 68, 0.35), 0 0 15px rgba(239, 68, 68, 0.25);
+}
+.btn-danger:active:not(:disabled),
+.tks-btn-danger:active:not(:disabled){
+  transform: translateY(1px);
+  box-shadow: 0 2px 6px -2px rgba(239, 68, 68, 0.2);
+}
 .btn-danger:focus-visible{ outline:2px solid var(--red); outline-offset:2px; }
+.btn-danger:disabled,
+.tks-btn-danger:disabled{ opacity:.55; cursor:not-allowed; transform:none !important; box-shadow:none !important; }
+
+/* ---------- Ripple Effect ---------- */
+.ripple-effect {
+  position: absolute;
+  border-radius: 50%;
+  transform: scale(0);
+  animation: rippleAnimation 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  background: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+  z-index: 10;
+}
+
+:root[data-theme="light"] .ripple-effect {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.btn-primary .ripple-effect,
+.refresh-btn .ripple-effect,
+.tks-btn-primary .ripple-effect,
+.btn-danger .ripple-effect,
+.tks-btn-danger .ripple-effect {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+@keyframes rippleAnimation {
+  to {
+    transform: scale(3.5);
+    opacity: 0;
+  }
+}
 
 .panel{
   background:var(--panel); border:1px solid var(--border); border-radius:16px;
@@ -490,9 +748,360 @@ body{
   width:100%;
 }
 
+/* ---------- 3D Background Canvas Layer ---------- */
+.tks-bg-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+/* ---------- 3D CSS Transforms for Cards and Panels ---------- */
+.perspective-container,
+.kpi-grid,
+.grid,
+.profile-grid,
+.kpi-row,
+.order-list,
+.kanban-cards,
+.login-shell,
+.register-shell {
+  perspective: 1000px;
+  perspective-origin: 50% 50%;
+}
+
+.card-3d,
+.kpi-card,
+.panel,
+.profile-card,
+.kpi-stat,
+.int-nav-card,
+.login-card,
+.register-card,
+.order-card {
+  transform-style: preserve-3d;
+  transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1),
+              box-shadow 0.4s ease,
+              background-color 0.2s ease,
+              border-color 0.2s ease;
+}
+
+.card-3d:hover,
+.kpi-card:hover,
+.kpi-stat:hover,
+.int-nav-card:hover,
+.order-card:hover {
+  transform: translateZ(20px) scale(1.02);
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.5),
+    0 0 30px var(--primary),
+    0 0 1px 1px rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme="light"] .card-3d:hover,
+:root[data-theme="light"] .kpi-card:hover,
+:root[data-theme="light"] .kpi-stat:hover,
+:root[data-theme="light"] .int-nav-card:hover,
+:root[data-theme="light"] .order-card:hover {
+  box-shadow: 
+    0 20px 40px -12px rgba(0, 0, 0, 0.12),
+    0 0 25px rgba(37, 99, 235, 0.22),
+    0 0 1px 1px rgba(0, 0, 0, 0.05);
+}
+
+/* ---------- 3D Table Row Effects ---------- */
+tbody tr {
+  transform-style: preserve-3d;
+  transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1),
+              box-shadow 0.2s ease,
+              background-color 0.2s ease;
+}
+
+tbody tr:hover {
+  transform: perspective(1000px) translateZ(5px);
+  box-shadow: 
+    0 10px 25px -5px rgba(0, 0, 0, 0.3),
+    0 0 1px rgba(59, 130, 246, 0.5);
+  background: var(--panel-2);
+}
+
+:root[data-theme="light"] tbody tr:hover {
+  box-shadow: 
+    0 8px 20px -5px rgba(0, 0, 0, 0.1),
+    0 0 1px rgba(37, 99, 235, 0.35);
+  background: var(--panel-2);
+}
+
+/* ---------- 3D Search Box Enhancement ---------- */
+.search-input-wrap,
+.search-box,
+.export-search-wrap {
+  transform-style: preserve-3d;
+  perspective: 800px;
+}
+
+.search-input,
+.search-box input,
+.export-field-search {
+  transform-style: preserve-3d;
+  transition: 
+    transform 0.3s cubic-bezier(0.23, 1, 0.32, 1),
+    box-shadow 0.3s ease,
+    border-color 0.3s ease,
+    background-color 0.2s ease;
+}
+
+.search-input:focus,
+.search-box input:focus,
+.export-field-search:focus {
+  transform: perspective(800px) translateZ(15px) scale(1.02);
+  box-shadow: 
+    0 20px 40px -10px rgba(59, 130, 246, 0.4),
+    0 0 0 4px rgba(59, 130, 246, 0.2),
+    0 0 30px rgba(59, 130, 246, 0.3);
+  border-color: var(--blue);
+  outline: none;
+}
+
+:root[data-theme="light"] .search-input:focus,
+:root[data-theme="light"] .search-box input:focus,
+:root[data-theme="light"] .export-field-search:focus {
+  box-shadow: 
+    0 15px 35px -10px rgba(37, 99, 235, 0.25),
+    0 0 0 4px rgba(37, 99, 235, 0.15),
+    0 0 25px rgba(37, 99, 235, 0.2);
+}
+
+.suggestions {
+  transform-style: preserve-3d;
+  transform-origin: top center;
+}
+
+.suggestions.show {
+  animation: dropdownExpand 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  transform: perspective(800px) translateZ(10px) rotateX(0) scale(1);
+}
+
+@keyframes dropdownExpand {
+  from {
+    opacity: 0;
+    transform: perspective(800px) translateZ(-30px) rotateX(-10deg) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(800px) translateZ(10px) rotateX(0) scale(1);
+  }
+}
+
+.suggestion-item {
+  transform-style: preserve-3d;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.suggestion-item:hover,
+.suggestion-item.active {
+  transform: perspective(600px) translateZ(4px);
+}
+
+/* ---------- 3D Loading Veil (three-loading.js) ----------
+   Base structural styles. Animation keyframes + cube transforms
+   are injected by three-loading.js at runtime.
+   These rules ensure the overlay layout is correct even before
+   the script runs.
+   ---------------------------------------------------------- */
+.loading-veil {
+  position: fixed;
+  inset: 0;
+  background: var(--veil, rgba(9,13,22,0.82));
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .3s var(--ease-out);
+}
+.loading-veil.show {
+  opacity: 1;
+  pointer-events: all;
+}
+
 [hidden]{ display:none !important; }
 
 @media (prefers-reduced-motion: reduce){
   *{ animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; scroll-behavior:auto !important; }
+  .tks-bg-canvas { opacity: 0.4; }
+  .card-3d:hover,
+  .kpi-card:hover,
+  .kpi-stat:hover,
+  .int-nav-card:hover,
+  .order-card:hover,
+  .panel.card-3d:hover {
+    transform: none;
+    box-shadow: 0 0 0 2px var(--primary);
+  }
+  tbody tr:hover {
+    transform: none;
+    box-shadow: none;
+  }
+  .nav-item:hover:not(.active),
+  .nav-group-toggle:hover {
+    transform: none;
+  }
+  .nav-item.active {
+    transform: none;
+    box-shadow: inset 3px 0 0 var(--blue);
+  }
+  .nav-item:hover .ic,
+  .nav-group-toggle:hover .ic {
+    animation: none;
+  }
+  .btn-primary:hover,
+  .refresh-btn:hover,
+  .theme-toggle:hover,
+  .theme-toggle-floating:hover,
+  .btn-secondary:hover,
+  .btn-outline:hover,
+  .export-button:hover,
+  .tks-btn-primary:hover,
+  .tks-btn-secondary:hover,
+  .tks-btn-danger:hover,
+  .profile-trigger:hover,
+  .menu-btn:hover {
+    transform: none;
+    box-shadow: 0 0 0 2px var(--primary);
+  }
+  .btn-primary:active,
+  .refresh-btn:active,
+  .theme-toggle:active,
+  .theme-toggle-floating:active,
+  .btn-secondary:active,
+  .btn-outline:active,
+  .export-button:active,
+  .tks-btn-primary:active,
+  .tks-btn-secondary:active,
+  .tks-btn-danger:active,
+  .profile-trigger:active,
+  .menu-btn:active {
+    transform: none;
+  }
+  .search-input:focus,
+  .search-box input:focus,
+  .export-field-search:focus {
+    transform: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  }
+  .suggestions.show {
+    animation: none;
+    transform: none;
+  }
+  .suggestion-item:hover,
+  .suggestion-item.active {
+    transform: none;
+  }
+  .ripple-effect {
+    display: none !important;
+    animation: none !important;
+  }
+  /* 3D Loading Cube — stop spin, show angled static cube */
+  .cube {
+    animation: none !important;
+    transform: rotateX(25deg) rotateY(30deg) !important;
+  }
+  .cube-core::before {
+    animation: none !important;
+    opacity: 0.9;
+  }
+  .loader-text {
+    animation: none !important;
+    opacity: 0.9;
+  }
+  .loader-ring::after {
+    animation: none !important;
+  }
+  .loader-3d {
+    transition: transform 0.15s ease, opacity 0.15s ease !important;
+  }
 }
+
+/* ==========================================
+   UTILITY — .table-note & .empty-state
+   Dùng chung cho mọi trang có bảng / danh sách.
+   ========================================== */
+
+/* .table-note — cell trống trong <tbody>, ví dụ:
+   <td colspan="N" class="table-note">Đang tải...</td>    */
+.table-note {
+  color: var(--muted);
+  font-size: 12.5px;
+  padding: 18px 8px;
+  text-align: center;
+}
+
+/* .empty-state — block lớn khi danh sách trống, ví dụ:
+   <div class="empty-state">
+     <div class="empty-state__icon">…svg…</div>
+     <h3>Không có đơn nào</h3>
+     <p>Hướng dẫn ngắn...</p>
+   </div>                                                  */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+}
+.empty-state .icon,
+.empty-state__icon {
+  font-size: 56px;
+  margin-bottom: 12px;
+}
+.empty-state h3 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+.empty-state p {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ---------- Windows High Contrast / forced-colors ----------
+   box-shadow is stripped under forced-colors mode, so any hover/focus
+   cue that relies only on a glow shadow becomes invisible. Fall back to
+   a visible outline (which forced-colors always respects) so 3D hover
+   states remain perceivable without breaking the system palette.
+   ------------------------------------------------------------ */
+@media (forced-colors: active) {
+  .card-3d:hover,
+  .kpi-card:hover,
+  .kpi-stat:hover,
+  .int-nav-card:hover,
+  .order-card:hover,
+  .panel.card-3d:hover,
+  tbody tr:hover,
+  .btn-primary:hover,
+  .refresh-btn:hover,
+  .theme-toggle:hover,
+  .theme-toggle-floating:hover,
+  .btn-secondary:hover,
+  .btn-outline:hover,
+  .export-button:hover,
+  .tks-btn-primary:hover,
+  .tks-btn-secondary:hover,
+  .tks-btn-danger:hover,
+  .profile-trigger:hover,
+  .menu-btn:hover {
+    outline: 2px solid CanvasText;
+    outline-offset: 1px;
+  }
+  .nav-item.active {
+    outline: 2px solid Highlight;
+  }
+  .tks-bg-canvas { display: none; }
+}
+
 

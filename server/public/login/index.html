@@ -9,6 +9,8 @@
   document.documentElement.dataset.theme = 'light';
 </script>
 <link rel="stylesheet" href="/shared/shared.css">
+<script src="/shared/three-interactions.js"></script>
+<script src="/shared/three-loading.js"></script>
 <style>
   .login-shell{
     min-height:100vh;
@@ -249,8 +251,8 @@
 </style>
 </head>
 <body>
-  <div class="login-shell">
-    <form class="login-card" id="loginForm" novalidate>
+  <div class="login-shell perspective-container">
+    <form class="login-card card-3d" id="loginForm" novalidate>
       <div class="login-brand">
         <div class="brand-mark">
           <img src="/Logo.jpg" alt="TOKOSI Logo" width="48" height="48">
@@ -793,5 +795,11 @@
       .then(function(user){ if(user) window.location.href = landingUrl(user); })
       .catch(function(){});
   </script>
+  <!-- 3D Background Particle System -->
+  <script src="/vendor/three.min.js"></script>
+  <script src="/shared/three-performance.js"></script>
+  <script src="/shared/three-memory.js"></script>
+  <script src="/shared/three-visibility.js"></script>
+  <script src="/shared/three-bg.js"></script>
 </body>
 </html>

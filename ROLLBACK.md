@@ -90,4 +90,3 @@ Sau đó xóa thủ công tất cả `<script src="/shared/three-*.js">`, `<scri
 git revert <commit-rollback>
 ```
 hoặc thêm lại các thẻ `<script>` ở mục "Tắt nhanh" theo đúng thứ tự đã liệt kê (thứ tự bắt buộc — `three.min.js` phải load trước các module `three-performance.js`/`three-memory.js`/`three-visibility.js`/`three-bg.js`/`three-charts.js`).
-</content>

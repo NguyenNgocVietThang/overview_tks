@@ -482,8 +482,23 @@ router.post('/api/auth/logout', (req, res) => {
   res.status(200).json({ ok: true });
 });
 
-router.get('/api/auth/me', requireAuth, (req, res) => {
-  res.status(200).json(req.user);
+router.get('/api/auth/me', requireAuth, async (req, res) => {
+  try {
+    const user = await findUserById(req.user.id);
+    if (!user) {
+      return res.status(401).json({ error: 'Tài khoản không tồn tại hoặc đã bị xóa.' });
+    }
+    if (user.trangThai !== ACTIVE_STATUS) {
+      return res.status(403).json({ error: 'Tài khoản đã bị tạm khóa.' });
+    }
+    // Tự động làm mới cookie token nếu vai trò hoặc thông tin có cập nhật mới
+    if (user.vaiTro !== req.user.vaiTro || user.hoTen !== req.user.hoTen || user.coSo !== req.user.coSo) {
+      signIn(res, user);
+    }
+    res.status(200).json(publicUser(user));
+  } catch (err) {
+    res.status(200).json(req.user);
+  }
 });
 
 // -------------------------------------------------------------
@@ -572,9 +587,10 @@ router.post('/api/auth/recovery', requireAuth, async (req, res) => {
       }
     }
 
-    // Validate so dien thoai chinh
+    // Validate so dien thoai chinh neu duoc truyen
     let normPhone = '';
-    if (soDienThoai) {
+    const hasPhoneInBody = req.body && req.body.soDienThoai !== undefined;
+    if (hasPhoneInBody && soDienThoai) {
       normPhone = normalizePhone(soDienThoai);
       if (!/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(normPhone) && !/^[0-9]{10}$/.test(normPhone)) {
         return res.status(400).json({ error: 'Số điện thoại chính không hợp lệ (yêu cầu 10 số).' });
@@ -596,10 +612,12 @@ router.post('/api/auth/recovery', requireAuth, async (req, res) => {
     }
 
     const updates = {
-      soDienThoai: normPhone,
       emailKhoiPhuc,
       sdtKhoiPhuc: normRecoveryPhone
     };
+    if (hasPhoneInBody) {
+      updates.soDienThoai = normPhone;
+    }
 
     const updated = await updateUserFields(current.id, updates);
     res.status(200).json({

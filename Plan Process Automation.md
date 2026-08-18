@@ -95,14 +95,25 @@ Spreadsheet vận chuyển độc lập gồm **6 tab tiếng Việt** trực qu
 
 ---
 
-## 5. State Machine trạng thái đơn hàng
+## 5. State Machine trạng thái đơn hàng (9 trạng thái)
 
 ```
-CHO_XAC_NHAN -> DA_XAC_NHAN -> DANG_DONG_GOI -> DA_DONG_GOI -> DANG_GIAO_HANG -> DA_GIAO_HANG
+[Mới tạo] ──▶ [Đã in] ──▶ [Đã nhặt hàng] ──┬──(Luồng 3: Tàu hỏa)──▶ [Đang chuyển kho] ──┐
+                                          │                                             │
+                                          └──(Luồng 1, 2, 4)──────▶ [Đang giao] ◀───────┘
+                                                                        │
+                                                                        ▼
+                                                                   [Đã giao]
+                                                                        │
+                                                                        ▼
+                                                                  [Hoàn thành]
 ```
 
-- **Nhánh ngoại lệ — Sự cố / Trả hàng:** Có thể chuyển sang `THAT_BAI` hoặc `DA_HUY` khi gặp sự cố, kèm theo lý do hủy và ảnh minh chứng, bảo toàn đầy đủ nhật ký trạng thái (`VC_StatusHistory`).
-- **Quy tắc "Coi như đã ký":** Nếu có ảnh chụp bill hoặc ảnh xác nhận giao hàng hợp lệ -> Hệ thống chuyển trạng thái sang `DA_GIAO_HANG`.
+- **Nhánh ngoại lệ — Sự cố (`SU_CO`) & Đã hủy (`DA_HUY`):**
+  - Đơn có thể báo cáo sự cố (`SU_CO`) từ các trạng thái vận hành (`DA_IN`, `DA_NHAT_HANG`, `DANG_CHUYEN_KHO`, `DANG_GIAO`), kèm mô tả sự cố và ảnh chứng từ lưu Drive.
+  - Khi xử lý sự cố xong, đơn được khôi phục về trạng thái trước đó.
+  - Đơn có thể hủy (`DA_HUY`) khi có quyết định hủy đơn từ kế toán/quản lý.
+- **Quy tắc "Coi như đã ký":** Nếu có ảnh chụp bill hoặc ảnh xác nhận giao hàng hợp lệ -> Hệ thống chuyển trạng thái sang `DA_GIAO` -> `HOAN_THANH`.
 
 ---
 
@@ -110,7 +121,7 @@ CHO_XAC_NHAN -> DA_XAC_NHAN -> DANG_DONG_GOI -> DA_DONG_GOI -> DANG_GIAO_HANG ->
 
 ### 6.1. Web Desktop: Điều phối & Quản lý đơn (`/shipment/dispatch`)
 - **Tạo đơn 1-click từ KiotViet:** Danh sách hóa đơn mới từ sheet `Hóa đơn`, Kế toán chỉ cần tick chọn -> Gán Luồng & Xe -> Bấm tạo đơn.
-- **Bảng Kanban trực quan:** Theo dõi đơn theo từng cột trạng thái (*Chờ xác nhận -> Đã xác nhận -> Đang đóng gói -> Đã đóng gói -> Đang giao hàng -> Đã giao hàng / Sự cố*).
+- **Bảng Kanban trực quan:** Theo dõi đơn theo từng cột trạng thái (*Mới tạo -> Đã in -> Đã nhặt hàng -> Đang chuyển kho / Đang giao -> Đã giao -> Hoàn thành / Sự cố*).
 - **Bộ lọc & Tìm kiếm:** Lọc theo Ngày, Kho, Luồng 1-4, Lái xe, Trạng thái đơn.
 
 ### 6.2. Mobile Web 1-Chạm: Dành cho Thủ kho & Lái xe (`/shipment/mobile`)
@@ -131,13 +142,13 @@ CHO_XAC_NHAN -> DA_XAC_NHAN -> DANG_DONG_GOI -> DA_DONG_GOI -> DANG_GIAO_HANG ->
 
 ```
 +------------------------------------------------------------------------+
-| Phase 0: Nền tảng Auth & Phân quyền RBAC 5 vai trò                     | [DA HOAN THANH]
+| Phase 0: Nền tảng Auth, RBAC 5 vai trò & Quản lý tài khoản / OTP Reset | [DA HOAN THANH]
 +------------------------------------------------------------------------+
 | Phase 0.5: Tra cứu vận chuyển Khách hàng (API + UI /shipment/)         | [DA HOAN THANH]
 +------------------------------------------------------------------------+
-| Phase 1: MVP Quản lý Vận chuyển Web-First (Kế hoạch thay thế)          | [DANG TRIEN KHAI]
+| Phase 1: MVP Quản lý Vận chuyển Web-First (Kế hoạch thay thế)          | [DA HOAN THANH]
 |  |-- 1A: Khởi tạo Spreadsheet VC_* & Google Drive Service lưu ảnh      | [DA HOAN THANH]
-|  |-- 1B: Backend State Machine & API CRUD đơn vận chuyển               | [DA HOAN THANH]
+|  |-- 1B: Backend State Machine 9 trạng thái & API CRUD đơn vận chuyển  | [DA HOAN THANH]
 |  |-- 1C: Web Desktop Điều phối (Kế toán) & Mobile Web (Kho/Lái xe)     | [DA HOAN THANH]
 |  `-- 1D: Báo cáo Đối soát cuối ngày tự động lọc đơn thiếu ảnh          | [DA HOAN THANH]
 +------------------------------------------------------------------------+
@@ -157,9 +168,13 @@ CHO_XAC_NHAN -> DA_XAC_NHAN -> DANG_DONG_GOI -> DA_DONG_GOI -> DANG_GIAO_HANG ->
 
 ## 8. Tài liệu tham chiếu trong dự án
 
-- [`docs/04-planning/implementation_plan.md`](docs/04-planning/implementation_plan.md) — Kế hoạch tổng thể hệ thống TOKOSI
-- [`docs/01-brd/BRD_Dashboard_GoogleSheets.md`](docs/01-brd/BRD_Dashboard_GoogleSheets.md) — Yêu cầu nghiệp vụ BRD v1.5
-- [`docs/02-srs/SRS_Dashboard_GoogleSheets.md`](docs/02-srs/SRS_Dashboard_GoogleSheets.md) — Đặc tả kỹ thuật SRS v1.7
+- [`docs/04-planning/implementation_plan.md`](docs/04-planning/implementation_plan.md) — Kế hoạch tổng thể hệ thống TOKOSI v2.0
+- [`docs/01-brd/BRD_Dashboard_GoogleSheets.md`](docs/01-brd/BRD_Dashboard_GoogleSheets.md) — Yêu cầu nghiệp vụ BRD v1.7
+- [`docs/02-srs/SRS_Dashboard_GoogleSheets.md`](docs/02-srs/SRS_Dashboard_GoogleSheets.md) — Đặc tả kỹ thuật SRS v1.9
+- [`docs/03-process/BPMN_Dashboard_GoogleSheets.md`](docs/03-process/BPMN_Dashboard_GoogleSheets.md) — Sơ đồ quy trình nghiệp vụ BPMN v1.8
+- [`3D Design.md`](3D%20Design.md) — Kế hoạch thiết kế hiệu ứng 3D toàn site
+- [`ROLLBACK.md`](ROLLBACK.md) — Hướng dẫn tắt & khôi phục nhanh hiệu ứng 3D
+- [`docs/performance-optimization-report.md`](docs/performance-optimization-report.md) — Báo cáo tối ưu hóa hiệu năng 3D, FPS & WebGL
 - `Mẫu đơn sale gửi.jpg` — mẫu đơn hàng xuất từ KiotViet
 - `Phiếu đặt hàng lái xe gửi.jpg` — mẫu phiếu đặt hàng kho gửi lái xe
 - `Phiếu xác nhận giao hàng láy xe gửi.jpg` — mẫu phiếu lái xe chụp xác nhận giao hàng

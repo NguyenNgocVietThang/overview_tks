@@ -1,6 +1,6 @@
 # TOKOSI Dashboard — Node server
 
-Express server that reads Google Sheets and serves the live TOKOSI dashboard and shipment management system. The operational Sheets (Nhóm hàng, Hàng hóa, Hóa đơn, Chi tiết hóa đơn, Đặt hàng, Trả hàng, Khách hàng, Nhà cung cấp, Nhập hàng) are synced from KiotViet independently by the modular Google Apps Script project in `../src/`. The Express backend reads Sheets via the Sheets API, computes KPIs/charts, manages users/auth (JWT + bcrypt + Google Identity), and powers the 8-state shipment delivery lifecycle system (`VC_*` sheets and Google Drive attachments).
+Express server that reads Google Sheets and serves the live TOKOSI dashboard and shipment management system. The operational Sheets (Nhóm hàng, Hàng hóa, Hóa đơn, Chi tiết hóa đơn, Đặt hàng, Trả hàng, Khách hàng, Nhà cung cấp, Nhập hàng) are synced from KiotViet independently by the modular Google Apps Script project in `../src/`. The Express backend reads Sheets via the Sheets API, computes KPIs/charts, manages users/auth (JWT + bcrypt + Google Identity + OTP recovery + Local User Store), and powers the 9-state shipment delivery lifecycle system (`VC_*` sheets and Google Drive attachments).
 
 ## 1. One-time setup
 
@@ -24,7 +24,7 @@ This is configured in the bound Google Apps Script project:
 cp .env.example .env
 # Điền SPREADSHEET_ID, VC_SPREADSHEET_ID, DRIVE_UPLOAD_FOLDER_ID, GOOGLE_SERVICE_ACCOUNT_JSON, JWT_SECRET, GOOGLE_CLIENT_ID
 npm install
-npm test      # Chạy bộ unit tests (auth/Guest, Google OAuth, shipment lifecycle, State Machine, VC repository, cache, pagination, export, search)
+npm test      # Chạy 214 unit tests tự động (auth/Guest/SĐT, Google OAuth, OTP reset, Admin CRUD, shipment lifecycle, State Machine 9 trạng thái, VC repository, cache, pagination, export, search, 3D Three.js effects, 3D interactions, 3D loading cube, adaptive performance & memory cleanup)
 npm start     # Khởi chạy server tại http://localhost:3000
 ```
 Truy cập `http://localhost:3000` — giao diện Live Dashboard tải số liệu thời gian thực từ Google Sheets. `GET /health` trả về `{"status":"ok"}`.
@@ -49,31 +49,54 @@ node scripts/setupVcSheet.js
 
 ## 2. Các API Endpoints
 
-| Method | Endpoint | Mô tả |
-|---|---|---|
-| `POST` | `/api/auth/register` | Đăng ký email/mật khẩu, tạo tài khoản `Khách` và tự động cấp cookie JWT. |
-| `POST` | `/api/auth/login` | Đăng nhập nội bộ bằng username/password, cấp JWT qua httpOnly cookie `tks_auth`. |
-| `POST` | `/api/auth/google` | Đăng nhập bằng Google ID Token; tài khoản mới nhận vai trò `Khách`. |
-| `GET` | `/api/auth/google-config` | Trả về `clientId` Google OAuth đã cấu hình. |
-| `GET` | `/api/auth/me` | Trả về thông tin người dùng đang đăng nhập từ JWT cookie. |
-| `POST` | `/api/auth/logout` | Đăng xuất người dùng, xóa cookie `tks_auth`. |
-| `POST` | `/api/shipment/invoice-status` | Tra cứu chính xác tối đa 50 mã hóa đơn (cache 90s). Dành cho Khách và nội bộ. |
-| `GET` | `/api/shipment/orders` | Danh sách đơn vận chuyển, hỗ trợ lọc theo trạng thái, luồng, kho, lái xe, ngày. |
-| `POST` | `/api/shipment/orders` | Tạo đơn vận chuyển mới từ hóa đơn KiotViet hoặc thủ công. |
-| `GET` | `/api/shipment/orders/:id` | Chi tiết vận đơn, danh sách mặt hàng, lịch sử và ảnh chứng từ. |
-| `POST` | `/api/shipment/orders/:id/transition` | Chuyển trạng thái vận đơn theo State Machine (8 trạng thái). |
-| `POST` | `/api/shipment/orders/:id/assign-driver` | Gán tài xế và mã xe cho đơn vận chuyển. |
-| `POST` | `/api/shipment/orders/:id/photos` | Tải lên ảnh chứng từ lưu Google Drive và ghi nhận vào VC_Attachments. |
-| `POST` | `/api/shipment/orders/:id/exception` | Báo cáo sự cố phát sinh trong quá trình vận chuyển. |
-| `GET` | `/api/shipment/audit` | Báo cáo đối soát cuối ngày lọc đơn thiếu ảnh nhặt, thiếu bill ký hoặc giao trễ. |
-| `GET` | `/api/shipment/vehicles` | Danh mục phương tiện và tài xế từ tab VC_Vehicles. |
-| `GET` | `/api/dashboard?days={7\|30\|90}` | Trả về toàn bộ KPI, biểu đồ, danh sách top/gần đây kèm Result Cache. |
-| `GET` | `/api/search` | Tìm kiếm bản ghi trong tab hiện tại hoặc tìm chính xác nhiều mã (`mode=codes`). |
-| `GET` | `/api/customer-product-top` | Tìm top 3 khách hàng mua nhiều nhất cho danh sách tối đa 50 mã sản phẩm. |
-| `POST` | `/api/export/fields` | Trả về danh sách worksheet và các trường dữ liệu có thể chọn xuất Excel. |
-| `POST` | `/api/export` | Tạo và tải file `.xlsx` theo các trường đã chọn và bộ lọc hiện tại. |
-| `GET` | `/health` | Health check endpoint cho Render ping (`{"status":"ok"}`). |
-| `GET` | `/api/debug` | Chẩn đoán biến môi trường, kết nối Google Sheets và danh sách tab. |
+### 2.1. Xác thực & Hồ sơ cá nhân (`/api/auth/*`)
+| Method | Endpoint | Quyền | Mô tả |
+|---|---|---|---|
+| `POST` | `/api/auth/register` | Public | Đăng ký tài khoản `Khách` bằng Email hoặc Số điện thoại, tự động cấp JWT cookie. |
+| `POST` | `/api/auth/login` | Public | Đăng nhập nội bộ (username/password), cấp JWT cookie `tks_auth`. Khóa 5 phút nếu sai 5 lần. |
+| `POST` | `/api/auth/google` | Public | Đăng nhập bằng Google ID Token; tài khoản mới nhận vai trò `Khách`. |
+| `GET` | `/api/auth/google-config` | Public | Trả về `clientId` Google OAuth đã cấu hình. |
+| `GET` | `/api/auth/me` | Logged in | Trả về thông tin người dùng đang đăng nhập từ JWT cookie. |
+| `PUT` | `/api/auth/profile` | Logged in | Cập nhật họ tên, email hoặc số điện thoại khôi phục (cần xác nhận mật khẩu hiện tại). |
+| `POST` | `/api/auth/change-password` | Logged in | Đổi mật khẩu chủ động (yêu cầu mật khẩu cũ). |
+| `POST` | `/api/auth/request-reset-otp` | Public | Yêu cầu sinh mã OTP 6 số để khôi phục mật khẩu (hạn dùng 5 phút). |
+| `POST` | `/api/auth/verify-reset-otp` | Public | Xác thực mã OTP 6 số và nhận `resetToken` tạm thời (10 phút). |
+| `POST` | `/api/auth/reset-password-otp` | Public | Đặt mật khẩu mới bằng `resetToken` sau khi xác thực OTP thành công. |
+| `POST` | `/api/auth/logout` | Logged in | Đăng xuất người dùng, xóa cookie `tks_auth`. |
+
+### 2.2. Quản trị người dùng Admin (`/api/admin/users/*`)
+| Method | Endpoint | Quyền | Mô tả |
+|---|---|---|---|
+| `GET` | `/api/admin/users` | Quản lý | Danh sách tất cả tài khoản người dùng và trạng thái hoạt động. |
+| `POST` | `/api/admin/users` | Quản lý | Tạo tài khoản người dùng mới trực tiếp với vai trò chỉ định. |
+| `PATCH` | `/api/admin/users/:username` | Quản lý | Cập nhật họ tên, email, SĐT, vai trò hoặc trạng thái (Hoạt động/Khóa). |
+| `POST` | `/api/admin/users/:username/reset-password` | Quản lý | Đặt lại mật khẩu mới cho một tài khoản cụ thể. |
+| `DELETE` | `/api/admin/users/:username` | Quản lý | Khóa/vô hiệu hóa tài khoản người dùng khỏi hệ thống. |
+
+### 2.3. Vận chuyển & Điều phối (`/api/shipment/*`)
+| Method | Endpoint | Quyền | Mô tả |
+|---|---|---|---|
+| `POST` | `/api/shipment/invoice-status` | Logged in | Tra cứu chính xác tối đa 50 mã hóa đơn (cache 90s). Dành cho Khách và nội bộ. |
+| `GET` | `/api/shipment/orders` | Nội bộ | Danh sách đơn vận chuyển, hỗ trợ lọc theo trạng thái, luồng, kho, lái xe, ngày. |
+| `POST` | `/api/shipment/orders` | Nội bộ | Tạo đơn vận chuyển mới từ hóa đơn KiotViet hoặc thủ công. |
+| `GET` | `/api/shipment/orders/:id` | Nội bộ | Chi tiết vận đơn, danh sách mặt hàng, lịch sử và ảnh chứng từ. |
+| `POST` | `/api/shipment/orders/:id/transition` | Nội bộ | Chuyển trạng thái vận đơn theo State Machine (9 trạng thái). |
+| `POST` | `/api/shipment/orders/:id/assign-driver` | Nội bộ | Gán tài xế và mã xe cho đơn vận chuyển. |
+| `POST` | `/api/shipment/orders/:id/photos` | Nội bộ | Tải lên ảnh chứng từ lưu Google Drive và ghi nhận vào VC_Attachments. |
+| `POST` | `/api/shipment/orders/:id/exception` | Nội bộ | Báo cáo sự cố phát sinh trong quá trình vận chuyển. |
+| `GET` | `/api/shipment/audit` | Nội bộ | Báo cáo đối soát cuối ngày lọc đơn thiếu ảnh nhặt, thiếu bill ký hoặc giao trễ. |
+| `GET` | `/api/shipment/vehicles` | Nội bộ | Danh mục phương tiện và tài xế từ tab VC_Vehicles. |
+
+### 2.4. Dashboard, Tìm kiếm & Tiện ích
+| Method | Endpoint | Quyền | Mô tả |
+|---|---|---|---|
+| `GET` | `/api/dashboard?days={7\|30\|90}` | Nội bộ | Trả về toàn bộ KPI, biểu đồ, danh sách top/gần đây kèm Result Cache. |
+| `GET` | `/api/search` | Nội bộ | Tìm kiếm bản ghi trong tab hiện tại hoặc tìm chính xác nhiều mã (`mode=codes`). |
+| `GET` | `/api/customer-product-top` | Nội bộ | Tìm top 3 khách hàng mua nhiều nhất cho danh sách tối đa 50 mã sản phẩm. |
+| `POST` | `/api/export/fields` | Nội bộ | Trả về danh sách worksheet và các trường dữ liệu có thể chọn xuất Excel. |
+| `POST` | `/api/export` | Nội bộ | Tạo và tải file `.xlsx` theo các trường đã chọn và bộ lọc hiện tại. |
+| `GET` | `/health` | Public | Health check endpoint cho Render ping (`{"status":"ok"}`). |
+| `GET` | `/api/debug` | Nội bộ | Chẩn đoán biến môi trường, kết nối Google Sheets và danh sách tab. |
 
 ## 3. Deploying on Render — exact values for the "New Web Service" form
 

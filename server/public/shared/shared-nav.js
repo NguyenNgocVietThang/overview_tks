@@ -113,7 +113,6 @@
             '<section class="tks-profile-section">' +
               '<p class="tks-profile-section-title">Thông tin khôi phục & Bảo mật</p>' +
               '<p class="tks-profile-hint">Dùng để nhận mã OTP khi quên mật khẩu hoặc xác minh đăng nhập.</p>' +
-              '<label class="tks-field"><span>Số điện thoại chính</span><input type="tel" id="tksProfilePhone" maxlength="12" placeholder="vd: 0912345678"></label>' +
               '<label class="tks-field"><span>Email khôi phục</span><input type="email" id="tksProfileRecoveryEmail" maxlength="254" placeholder="vd: recovery@domain.com"></label>' +
               '<label class="tks-field"><span>Số điện thoại khôi phục</span><input type="tel" id="tksProfileRecoveryPhone" maxlength="12" placeholder="vd: 0987654321"></label>' +
               '<div class="tks-field" id="tksRecoveryPasswordField">' +
@@ -177,7 +176,6 @@
       profileError: overlay.querySelector('#tksProfileError'),
       saveBtn: overlay.querySelector('#tksProfileSave'),
       // Recovery contacts
-      phone: overlay.querySelector('#tksProfilePhone'),
       recoveryEmail: overlay.querySelector('#tksProfileRecoveryEmail'),
       recoveryPhone: overlay.querySelector('#tksProfileRecoveryPhone'),
       recoveryConfirmPassword: overlay.querySelector('#tksRecoveryConfirmPassword'),
@@ -210,8 +208,21 @@
     els.onOpenKeydown = onKeydown;
 
     function showError(el, msg){
+      el.classList.remove('tks-field-success');
       el.textContent = msg;
       el.hidden = !msg;
+    }
+
+    // Thong bao thanh cong hien inline ngay tren nut Luu (khong dung alert()).
+    // Tu an sau vai giay hoac khi nguoi dung bat dau sua lai form.
+    function showSuccess(el, msg){
+      el.classList.add('tks-field-success');
+      el.textContent = msg;
+      el.hidden = !msg;
+      window.clearTimeout(el._tksSuccessTimer);
+      el._tksSuccessTimer = window.setTimeout(function(){
+        if(el.classList.contains('tks-field-success')) showError(el, '');
+      }, 4000);
     }
 
     els.saveBtn.addEventListener('click', function(){
@@ -242,7 +253,7 @@
             var badgeEl = mount.querySelector('.avatar-badge');
             if(badgeEl) badgeEl.textContent = (result.data.hoTen || '?').trim().charAt(0).toUpperCase() || '?';
           }
-          alert('Đã cập nhật thông tin cá nhân thành công!');
+          showSuccess(els.profileError, 'Đã cập nhật thông tin cá nhân thành công.');
         })
         .catch(function(){ showError(els.profileError, 'Không cập nhật được hồ sơ, vui lòng thử lại.'); })
         .finally(function(){ els.saveBtn.disabled = false; });
@@ -250,7 +261,6 @@
 
     els.recoverySaveBtn.addEventListener('click', function(){
       showError(els.recoveryError, '');
-      var soDienThoai = els.phone.value.trim();
       var emailKhoiPhuc = els.recoveryEmail.value.trim();
       var sdtKhoiPhuc = els.recoveryPhone.value.trim();
       var matKhauXacNhan = els.recoveryConfirmPassword.value;
@@ -261,7 +271,6 @@
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          soDienThoai: soDienThoai,
           emailKhoiPhuc: emailKhoiPhuc,
           sdtKhoiPhuc: sdtKhoiPhuc,
           matKhauXacNhan: matKhauXacNhan
@@ -274,7 +283,7 @@
             return;
           }
           els.recoveryConfirmPassword.value = '';
-          alert('Đã cập nhật thông tin liên hệ và khôi phục thành công!');
+          showSuccess(els.recoveryError, 'Đã cập nhật thông tin khôi phục thành công.');
         })
         .catch(function(){ showError(els.recoveryError, 'Lỗi kết nối, vui lòng thử lại.'); })
         .finally(function(){ els.recoverySaveBtn.disabled = false; });
@@ -309,8 +318,7 @@
           els.currentPassword.value = '';
           els.newPassword.value = '';
           els.confirmPassword.value = '';
-          showError(els.passwordError, '');
-          alert('Đổi mật khẩu thành công!');
+          showSuccess(els.passwordError, 'Đổi mật khẩu thành công.');
         })
         .catch(function(){ showError(els.passwordError, 'Không đổi được mật khẩu, vui lòng thử lại.'); })
         .finally(function(){ els.changePasswordBtn.disabled = false; });
@@ -341,9 +349,8 @@
         els.username.value = profile.username || '';
         els.role.value = profile.vaiTro || '';
         els.facility.value = profile.coSo || '';
-        els.phone.value = profile.soDienThoai || '';
         els.recoveryEmail.value = profile.emailKhoiPhuc || '';
-        els.recoveryPhone.value = profile.sdtKhoiPhuc || '';
+        els.recoveryPhone.value = profile.sdtKhoiPhuc || profile.soDienThoai || '';
         els.recoveryConfirmPassword.value = '';
         els.currentPasswordField.hidden = !profile.hasPassword;
         els.passwordHint.hidden = !!profile.hasPassword;
@@ -380,6 +387,9 @@
         '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>' +
         'Quản lý tài khoản</a>';
     mountEl.innerHTML = reportsLink + shipmentLink + accountLink;
+    if (typeof window !== 'undefined' && window.TKS3D && typeof window.TKS3D.refresh === 'function') {
+      window.TKS3D.refresh(mountEl);
+    }
   };
 
   window.TKSNav = TKSNav;

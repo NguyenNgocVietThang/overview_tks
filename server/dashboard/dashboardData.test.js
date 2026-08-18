@@ -343,3 +343,54 @@ test('tim khach hang khong co filterSpec van tra ve, revenue mac dinh 0 neu khon
   assert.equal(result.results.length, 1);
   assert.equal(result.results[0].revenue, 0);
 });
+
+test('getDashboardData tong hop topRevenue tu sheet Hoa don khi sheet Bao cao ban hang khong co', async () => {
+  const { dashboardData, sheetsClient, BASE_FILTERS } = freshDashboardData();
+  const CONFIG = require('../config');
+  sheetsClient.getMultipleSheetValues = async (names) => {
+    const result = {};
+    names.forEach(name => { result[name] = []; });
+    if (names.includes(CONFIG.SHEET_CUSTOMERS)) {
+      result[CONFIG.SHEET_CUSTOMERS] = [
+        ['Mã khách hàng', 'Tên khách hàng', 'Điện thoại', 'Giới tính', 'Nhóm khách hàng', 'Địa chỉ', 'Email', 'Nợ hiện tại'],
+        ['KH-01', 'Khách Số Một', '0901111111', '', '', '', '', 0],
+        ['KH-02', 'Khách Số Hai', '0902222222', '', '', '', '', 0]
+      ];
+    }
+    if (names.includes(CONFIG.SHEET_INVOICES)) {
+      result[CONFIG.SHEET_INVOICES] = [
+        ['Mã hóa đơn', 'Ngày bán', 'Khách hàng', 'SĐT khách', 'Nhân viên bán', 'Chi nhánh', 'Tổng tiền hàng', 'Giảm giá', 'Khách đã trả', 'Trạng thái', 'ID', 'ID gian', 'Mã đặt', 'ID CN', 'ID NV', 'ID KH', 'Mã khách hàng'],
+        ['HD-01', '10/08/2026 10:00:00', 'Khách Số Một', '0901111111', '', '', 500000, 0, 500000, 'Hoàn thành', '', '', '', '', '', '', 'KH-01'],
+        ['HD-02', '11/08/2026 14:00:00', 'Khách Số Một', '0901111111', '', '', 300000, 0, 300000, 'Hoàn thành', '', '', '', '', '', '', 'KH-01'],
+        ['HD-03', '11/08/2026 15:00:00', 'Khách Số Hai', '0902222222', '', '', 1200000, 0, 1200000, 'Hoàn thành', '', '', '', '', '', '', 'KH-02'],
+        ['HD-04', '11/08/2026 16:00:00', 'Khách Hủy', '0903333333', '', '', 9999999, 0, 0, 'Đã hủy', '', '', '', '', '', '', 'KH-03']
+      ];
+    }
+    if (names.includes(CONFIG.SHEET_RETURNS)) {
+      result[CONFIG.SHEET_RETURNS] = [
+        ['Mã trả hàng', 'Ngày trả', 'Mã hóa đơn', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái', 'ID', 'ID gian', 'ID HĐ', 'ID CN', 'CN', 'ID NV', 'NV', 'ID KH', 'Mã khách hàng'],
+        ['TH-01', '12/08/2026 09:00:00', 'HD-03', 'Khách Số Hai', 200000, 'Hoàn thành', '', '', '', '', '', '', '', '', 'KH-02']
+      ];
+    }
+    return result;
+  };
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData({
+    ...BASE_FILTERS,
+    customers: { mode: 'all' }
+  });
+
+  const topRevenue = data.customers.topRevenue;
+  assert.ok(topRevenue, 'co topRevenue trong customers');
+  assert.equal(topRevenue.top15.length, 2, 'co dung 2 khach hoan thanh giao dich');
+  // KH-02: 1,200,000 - 200,000 = 1,000,000
+  assert.equal(topRevenue.top15[0].code, 'KH-02');
+  assert.equal(topRevenue.top15[0].revenue, 1000000);
+  assert.equal(topRevenue.top15[0].saleOrderCount, 1);
+  // KH-01: 500,000 + 300,000 = 800,000
+  assert.equal(topRevenue.top15[1].code, 'KH-01');
+  assert.equal(topRevenue.top15[1].revenue, 800000);
+  assert.equal(topRevenue.top15[1].saleOrderCount, 2);
+});
+

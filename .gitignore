@@ -32,5 +32,6 @@ desktop.ini
 # Log files
 *.log
 
-# npm cache
-.npm-cache/
+# Temporary generated files
+.tmp*/
+.tmp-phase-a/

@@ -7,10 +7,10 @@
 | **Thông tin**      | **Nội dung**                                                         |
 |--------------------|----------------------------------------------------------------------|
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                                    |
-| Phiên bản          | 1.6                                                                  |
+| Phiên bản          | 1.8                                                                  |
 | Ngày tạo           | 27/07/2026                                                           |
-| Ngày cập nhật      | 17/08/2026                                                           |
-| Tài liệu liên quan | BRD v1.5 · SRS v1.7 · Implementation Plan v1.8 · Plan Process Automation |
+| Ngày cập nhật      | 18/08/2026                                                           |
+| Tài liệu liên quan | BRD v1.7 · SRS v1.9 · Implementation Plan v2.0 · Plan Process Automation · 3D Design · Performance Optimization Report · ROLLBACK |
 | Trạng thái         | Đang vận hành                                                        |
 
 ---
@@ -19,10 +19,11 @@
 
 Tài liệu này mô tả chi tiết các luồng quy trình vận hành của Hệ thống Website Dashboard TOKOSI theo chuẩn BPMN 2.0 (mô tả dưới dạng text diagram và bảng bước chi tiết). Các file `.bpmn` chuẩn XML đặt tại thư mục `docs/03-process/bpmn/` để mở bằng các công cụ như Camunda Modeler, bpmn.io hoặc draw.io.
 
-Tài liệu này mô tả 3 luồng chính:
+Tài liệu này mô tả 4 luồng chính:
 - **Luồng A:** Đồng bộ dữ liệu KiotViet -> Google Sheets qua Apps Script (Webhook + Polling).
 - **Luồng B:** Người dùng sử dụng Dashboard & Tiện ích (Result Cache, Phân trang, Xuất Excel).
 - **Luồng C:** Cấu hình và triển khai hệ thống (Render.com + Apps Script Web App).
+- **Luồng D:** Xác thực, Quản lý tài khoản & Khôi phục mật khẩu OTP.
 
 ---
 
@@ -32,9 +33,9 @@ Tài liệu này mô tả 3 luồng chính:
 |----------------------------|---------------------------------------------------------------------------------------------------------------------------------|
 | KiotViet POS               | Phần mềm quản lý bán hàng: phát sinh thay đổi dữ liệu, gửi webhook POST JSON đến Apps Script Web App URL.                       |
 | Apps Script                | Các module trong `src/` chạy trong Google Workspace: lưu webhook vào queue bền vững, chạy lịch polling 15 phút, đồng bộ vào Google Sheets. |
-| Google Sheets              | Spreadsheet nguồn chứa 9 tab đồng bộ, 3 tab báo cáo khách hàng, 6 tab vận chuyển VC_* và HN1/HN3/HN7.                           |
-| Backend (Node.js/Express)  | Server trên Render.com: quản lý Result Cache, đọc Google Sheets qua Service Account, tính toán KPI, tạo file Excel và phục vụ API. |
-| Người dùng / Frontend      | Truy cập Web Dashboard: tương tác KPI, chuyển tab tức thì (<10ms), phân trang, tìm kiếm nâng cao và tải file Excel.           |
+| Google Sheets              | Spreadsheet nguồn chứa 9 tab đồng bộ, 3 tab báo cáo khách hàng, 6 tab vận chuyển VC_*, tab Users và HN1/HN3/HN7.               |
+| Backend (Node.js/Express)  | Server trên Render.com: quản lý Result Cache, đọc Google Sheets qua Service Account, tính toán KPI, xác thực JWT/bcrypt/OTP, tạo file Excel và phục vụ API. |
+| Người dùng / Frontend      | Truy cập Web Dashboard: tương tác KPI, chuyển tab tức thì (<10ms), phân trang, quản lý tài khoản `/account/`, tra cứu vận chuyển và tải file Excel. |
 
 ---
 
@@ -64,6 +65,8 @@ Luồng B (theo yêu cầu):   Người dùng -> Frontend -> Backend (Result Cac
                                       Hiển thị Dashboard / Xuất Excel / Phân trang
 
 Luồng C (một lần):        IT Admin cấu hình Render env vars + Apps Script trigger/webhook
+
+Luồng D (theo sự kiện):   Người dùng / Admin -> Đăng nhập / Đăng ký SĐT / Đổi MK / OTP Reset / Admin CRUD
 ```
 
 Luồng A chạy hoàn toàn độc lập với Luồng B. Backend (Luồng B) không nhận push từ Apps Script — chỉ đọc Sheets theo yêu cầu của frontend.
@@ -254,7 +257,7 @@ Luồng này do IT Admin thực hiện khi triển khai lần đầu hoặc khi 
      - GOOGLE_SERVICE_ACCOUNT_JSON = {nội dung JSON của Service Account key}
      - JWT_SECRET = {Secret key JWT}
      - KIOTVIET_CLIENT_ID, KIOTVIET_CLIENT_SECRET, KIOTVIET_RETAILER
-[C3] [Task] Render tự động deploy từ GitHub branch main (chạy `npm install` và `npm test`)
+[C3] [Task] Render tự động deploy từ GitHub branch main (chạy `npm install` và `npm test` với 141 tests)
 [C4] [Decision] Deploy thành công?
      |-- Không -> kiểm tra logs Render -> quay lại C1
      `-- Có ->
@@ -284,28 +287,52 @@ Luồng này do IT Admin thực hiện khi triển khai lần đầu hoặc khi 
 
 ---
 
-# 8. Truy vết yêu cầu
+# 8. Luồng D — Xác thực, Quản lý tài khoản & Khôi phục mật khẩu OTP
 
-Mỗi bước trong 3 luồng đã được gắn mã yêu cầu chức năng/phi chức năng (FR-xx / NFR-xx) tương ứng với SRS v1.7 mục 3 và mục 4, giúp truy vết đầy đủ hai chiều giữa mô hình quy trình (BPMN) và đặc tả kỹ thuật (SRS).
+```
+--- Nhánh D1: Đăng nhập nội bộ & Lockout 5 phút ---
+[D1.1] Người dùng nhập username & mật khẩu -> POST /api/auth/login
+       |-- Đúng mật khẩu -> Cấp JWT httpOnly cookie `tks_auth`, reset bộ đếm sai -> [Đăng nhập thành công]
+       `-- Sai mật khẩu -> Tăng bộ đếm sai:
+             |-- < 5 lần -> Thông báo sai mật khẩu (còn N lần thử)
+             `-- >= 5 lần -> Kích hoạt Lockout 5 phút, trả thời gian đếm ngược
+
+--- Nhánh D2: Khôi phục mật khẩu bằng OTP 6 số ---
+[D2.1] Người dùng click "Quên mật khẩu?" -> Nhập username/email -> POST /api/auth/request-reset-otp
+[D2.2] Backend sinh mã OTP 6 số (hạn 5 phút), che mờ Email/SĐT (`user***@...`)
+[D2.3] Người dùng nhập mã OTP nhận được -> POST /api/auth/verify-reset-otp
+       |-- Mã đúng -> Nhận `resetToken` tạm thời (10 phút)
+       `-- Mã sai -> Báo lỗi (tối đa 3 lần thử)
+[D2.4] Người dùng nhập mật khẩu mới -> POST /api/auth/reset-password-otp -> [Cập nhật mật khẩu thành công]
+
+--- Nhánh D3: Quản lý hồ sơ & Quản trị người dùng (/account/) ---
+[D3.1] Người dùng đăng nhập vào /account/ -> Xem thông tin cá nhân, cập nhật SĐT khôi phục hoặc đổi mật khẩu
+[D3.2] Người dùng vai trò `Quản lý` -> Mở tab "Quản trị người dùng" -> Xem danh sách, tạo tài khoản mới, phân vai trò, đặt lại mật khẩu hoặc khóa tài khoản
+```
+
+---
+
+# 9. Truy vết yêu cầu
+
+Mỗi bước trong các luồng đã được gắn mã yêu cầu chức năng/phi chức năng (FR-xx / NFR-xx) tương ứng với SRS v1.8 mục 3 và mục 4, giúp truy vết đầy đủ hai chiều giữa mô hình quy trình (BPMN) và đặc tả kỹ thuật (SRS).
 
 | **Luồng** | **Yêu cầu SRS bao phủ**                      |
 |-----------|----------------------------------------------|
 | Luồng A   | FR-06.1 -> FR-06.14, NFR-09                   |
 | Luồng B   | FR-01.1 -> FR-01.7, FR-02.x, FR-03.x, FR-04.x, FR-05.x, FR-07.1 -> FR-07.14, NFR-01, NFR-03, NFR-10, NFR-11 |
 | Luồng C   | FR-01.3, FR-06.4, FR-07.5, NFR-02, NFR-03, NFR-12 |
+| Luồng D   | FR-08.1 -> FR-08.7, NFR-03, NFR-12           |
 
 ---
 
-# 9. Ghi chú & khuyến nghị
+# 10. Ghi chú & khuyến nghị
 
 - **Điểm mấu chốt:** Backend web (Luồng B) và Apps Script (Luồng A) hoạt động hoàn toàn độc lập — backend không nhận push từ Apps Script, chỉ pull từ Sheets khi có request. Tích hợp Result Cache giúp việc chuyển tab và đổi bộ lọc diễn ra tức thì (<10ms).
-
+- **Bảo mật đăng nhập & Tài khoản:** Cơ chế lockout 5 phút ngăn chặn tấn công dò mật khẩu (brute-force); mã OTP 6 số hết hạn sau 5 phút đảm bảo an toàn tối đa cho quy trình khôi phục tài khoản.
 - **Khả năng suy giảm có kiểm soát:** Một tab nguồn bị thiếu/đổi tên chỉ làm rỗng section tương ứng; IT Admin dùng `sheetTabs` từ `/api/debug` để xác định sai lệch schema. Lỗi xác thực, quyền truy cập hoặc Google API vẫn đi theo nhánh B3-No.
-
 - **Nhất quán thời gian:** Backend xử lý ngày và `updatedAt` theo Asia/Ho_Chi_Minh. Frontend tự tải mỗi 10 phút và tải bù khi tab được xem lại để tránh timestamp bị cũ do browser throttling.
-
-- **Kiểm thử liên tục:** Trước khi commit hoặc deploy, luôn chạy `npm test` tại `server/` để kiểm tra toàn bộ bộ unit tests.
+- **Kiểm thử liên tục:** Trước khi commit hoặc deploy, luôn chạy `npm test` tại `server/` để kiểm tra toàn bộ 214 bài kiểm thử tự động.
 
 ---
 
-*Hết tài liệu BPMN v1.6*
+*Hết tài liệu BPMN v1.8*

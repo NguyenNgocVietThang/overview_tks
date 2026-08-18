@@ -37,7 +37,7 @@ test('modal co du dieu khien chon truong va script inline bien dich hop le', () 
 
 test('nut xuat ket qua tim kiem bi an rieng o tab Tong quan', () => {
   const html = readDashboardHtml();
-  const functionMatch = html.match(/function searchExportButtonHtml\(\)\{([\s\S]*?)\n  \}/);
+  const functionMatch = html.match(/function searchExportButtonHtml\(\)\s*\{([\s\S]*?)\n\s*\}/);
   assert.ok(functionMatch, 'phai co helper tao nut xuat cho ket qua tim kiem');
   assert.match(functionMatch[1], /state\.view === 'overview'/);
   assert.match(functionMatch[1], /openExportDialog\(\\'search\.results\\'\)/);

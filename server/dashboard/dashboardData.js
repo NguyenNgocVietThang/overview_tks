@@ -513,9 +513,20 @@ async function attachCustomerRevenue(view, results, filterSpec) {
   if (view !== 'customers' || !results.length) return results;
   const range = resolveFilterRange(filterSpec, new Date());
   const customerReportData = await getCustomerReportSheetForSearch();
-  const revenueByCode = aggregateCustomerReportRevenueByCode(range, customerReportData);
+  let revenueByCode;
+  if (Array.isArray(customerReportData) && customerReportData.length > 1) {
+    revenueByCode = aggregateCustomerReportRevenueByCode(range, customerReportData);
+  } else {
+    const rawSheets = await getCachedDashboardSheets();
+    revenueByCode = aggregateCustomerRevenueFromSheetRows(
+      range,
+      rawSheets[CONFIG.SHEET_INVOICES] || [],
+      rawSheets[CONFIG.SHEET_CUSTOMERS] || [],
+      rawSheets[CONFIG.SHEET_RETURNS] || []
+    );
+  }
   results.forEach(result => {
-    const entry = revenueByCode.get(result.code);
+    const entry = revenueByCode.get(result.code) || (result.name ? revenueByCode.get('name:' + result.name.toLocaleLowerCase('vi-VN')) : null);
     result.revenue = entry ? entry.revenue : 0;
   });
   return results;
@@ -987,8 +998,119 @@ function aggregateCustomerReportRevenueByCode(range, customerReportData) {
   return customers;
 }
 
-function buildTopCustomersByRevenue(range, customerReportData) {
-  const customers = aggregateCustomerReportRevenueByCode(range, customerReportData);
+/**
+ * Tinh tong doanh thu theo tung khach hang tu cac sheet co ban ("Hoa don",
+ * "Khach hang", "Tra hang") khi sheet "Bao cao ban hang" khong ton tai hoac rong.
+ */
+function aggregateCustomerRevenueFromSheetRows(range, invData, custData, retData) {
+  const customers = new Map();
+  const custCodeByPhone = new Map();
+  const custCodeByName = new Map();
+  const custNameByCode = new Map();
+
+  if (Array.isArray(custData)) {
+    for (let r = 1; r < custData.length; r++) {
+      const row = custData[r];
+      const code = String(row[0] || '').trim();
+      const name = String(row[1] || '').trim();
+      const phone = normalizePhone(row[2]);
+      if (code) {
+        if (name) custNameByCode.set(code, name);
+        if (phone) custCodeByPhone.set(phone, code);
+        if (name) custCodeByName.set(name.toLocaleLowerCase('vi-VN'), code);
+      }
+    }
+  }
+
+  const invHeaders = (Array.isArray(invData) && invData[0]) || [];
+  const invCodeIdx = invHeaders.findIndex(h => String(h || '').trim() === 'Mã khách hàng');
+  const invStatusIdx = invHeaders.findIndex(h => String(h || '').trim() === 'Trạng thái');
+  const invDateIdx = invHeaders.findIndex(h => String(h || '').trim() === 'Ngày bán');
+  const invNameIdx = invHeaders.findIndex(h => String(h || '').trim() === 'Khách hàng');
+  const invPhoneIdx = invHeaders.findIndex(h => String(h || '').trim() === 'SĐT khách');
+  const invTotalIdx = invHeaders.findIndex(h => String(h || '').trim() === 'Tổng tiền hàng');
+
+  if (Array.isArray(invData)) {
+    for (let r = 1; r < invData.length; r++) {
+      const row = invData[r];
+      const status = String((invStatusIdx >= 0 ? row[invStatusIdx] : row[9]) || 'Hoàn thành').trim();
+      if (status !== 'Hoàn thành') continue;
+
+      const dateVal = invDateIdx >= 0 ? row[invDateIdx] : row[1];
+      const dt = parseSheetDate(dateVal);
+      if (!isWithinRange(dt, range)) continue;
+
+      let code = String((invCodeIdx >= 0 ? row[invCodeIdx] : row[16]) || '').trim();
+      let name = String((invNameIdx >= 0 ? row[invNameIdx] : row[2]) || '').trim();
+      const phone = normalizePhone(invPhoneIdx >= 0 ? row[invPhoneIdx] : row[3]);
+
+      if (!code && phone && custCodeByPhone.has(phone)) {
+        code = custCodeByPhone.get(phone);
+      }
+      if (!code && name && custCodeByName.has(name.toLocaleLowerCase('vi-VN'))) {
+        code = custCodeByName.get(name.toLocaleLowerCase('vi-VN'));
+      }
+      if (code && !name && custNameByCode.has(code)) {
+        name = custNameByCode.get(code);
+      }
+
+      const key = code || ('name:' + name.toLocaleLowerCase('vi-VN'));
+      if (!customers.has(key)) {
+        customers.set(key, {
+          code: code || '—',
+          name: name || '(Không xác định)',
+          saleOrderCount: 0,
+          revenue: 0
+        });
+      }
+      const entry = customers.get(key);
+      const total = Number(invTotalIdx >= 0 ? row[invTotalIdx] : row[6]) || 0;
+      entry.revenue += total;
+      entry.saleOrderCount += 1;
+    }
+  }
+
+  if (Array.isArray(retData) && retData.length > 1) {
+    const retHeaders = retData[0] || [];
+    const retCodeIdx = retHeaders.findIndex(h => String(h || '').trim() === 'Mã khách hàng');
+    const retStatusIdx = retHeaders.findIndex(h => String(h || '').trim() === 'Trạng thái');
+    const retDateIdx = retHeaders.findIndex(h => String(h || '').trim() === 'Ngày trả');
+    const retNameIdx = retHeaders.findIndex(h => String(h || '').trim() === 'Khách hàng');
+    const retTotalIdx = retHeaders.findIndex(h => String(h || '').trim() === 'Tổng tiền trả');
+
+    for (let r = 1; r < retData.length; r++) {
+      const row = retData[r];
+      const status = String((retStatusIdx >= 0 ? row[retStatusIdx] : row[5]) || 'Hoàn thành').trim();
+      if (status !== 'Hoàn thành') continue;
+
+      const dateVal = retDateIdx >= 0 ? row[retDateIdx] : row[1];
+      const dt = parseSheetDate(dateVal);
+      if (!isWithinRange(dt, range)) continue;
+
+      let code = String((retCodeIdx >= 0 ? row[retCodeIdx] : row[14]) || '').trim();
+      let name = String((retNameIdx >= 0 ? row[retNameIdx] : row[3]) || '').trim();
+      if (!code && name && custCodeByName.has(name.toLocaleLowerCase('vi-VN'))) {
+        code = custCodeByName.get(name.toLocaleLowerCase('vi-VN'));
+      }
+      const key = code || ('name:' + name.toLocaleLowerCase('vi-VN'));
+      if (customers.has(key)) {
+        const entry = customers.get(key);
+        const retTotal = Number(retTotalIdx >= 0 ? row[retTotalIdx] : row[4]) || 0;
+        entry.revenue -= retTotal;
+      }
+    }
+  }
+
+  return customers;
+}
+
+function buildTopCustomersByRevenue(range, customerReportData, invData, custData, retData) {
+  let customers;
+  if (Array.isArray(customerReportData) && customerReportData.length > 1) {
+    customers = aggregateCustomerReportRevenueByCode(range, customerReportData);
+  } else {
+    customers = aggregateCustomerRevenueFromSheetRows(range, invData, custData, retData);
+  }
   const sorted = Array.from(customers.values()).sort((a, b) => b.revenue - a.revenue);
 
   return {
@@ -1672,7 +1794,7 @@ function computeDashboardData(sheets, filters, now) {
   }
   topDebt.sort((a, b) => b.debt - a.debt);
 
-  const topCustomersByRevenue = buildTopCustomersByRevenue(customersRange, customerReportData);
+  const topCustomersByRevenue = buildTopCustomersByRevenue(customersRange, customerReportData, invData, custData, returnData);
 
   // ---------- NHÀ CUNG CẤP ----------
   // Cột: [0]Mã NCC [1]Tên NCC [2]Điện thoại [3]Email [4]Địa chỉ [5]Nợ cần trả

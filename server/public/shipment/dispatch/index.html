@@ -16,6 +16,8 @@
 <link rel="stylesheet" href="/shared/shared.css">
 <script src="/shared/shared-nav.js"></script>
 <script src="/shared/image-compress.js"></script>
+<script src="/shared/three-interactions.js"></script>
+<script src="/shared/three-loading.js"></script>
 <style>
 /* ---- Layout ---- */
 .page-header{
@@ -255,10 +257,10 @@
   </nav>
 
   <!-- Main content -->
-  <main class="content-disp">
+  <main class="content-disp perspective-container">
 
     <!-- ── PANEL TẠO ĐƠN (chỉ Quản lý / Kế toán) ── -->
-    <section class="section-panel" id="panelCreate">
+    <section class="section-panel card-3d" id="panelCreate">
       <h2 class="section-title"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:inline-block;vertical-align:-2px;"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="M12 11h4"></path><path d="M12 16h4"></path><path d="M8 11h.01"></path><path d="M8 16h.01"></path></svg></span> Tạo đơn từ hóa đơn KiotViet</h2>
 
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
@@ -313,7 +315,7 @@
     </section>
 
     <!-- ── BẢNG KANBAN ── -->
-    <section class="section-panel" style="padding-bottom:14px;">
+    <section class="section-panel card-3d" style="padding-bottom:14px;">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
         <h2 class="section-title" style="margin:0;"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:inline-block;vertical-align:-2px;"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M8 7v7"></path><path d="M12 7v4"></path><path d="M16 7v9"></path></svg></span> Bảng Kanban trạng thái</h2>
         <button class="btn-secondary" id="btnRefresh" type="button" style="height:36px;font-size:12.5px;padding:0 14px;">
@@ -381,7 +383,7 @@
     </section>
 
     <!-- ── QUẢN LÝ XE (chỉ Quản lý / Kế toán) ── -->
-    <section class="section-panel" id="panelVehicles">
+    <section class="section-panel card-3d" id="panelVehicles">
       <h2 class="section-title"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:inline-block;vertical-align:-2px;"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle></svg></span> Quản lý xe</h2>
 
       <div style="overflow-x:auto;">
@@ -547,5 +549,11 @@
   }
 </script>
 <script src="/shipment/dispatch/dispatch.js"></script>
+<!-- 3D Background Particle System -->
+<script src="/vendor/three.min.js"></script>
+<script src="/shared/three-performance.js"></script>
+<script src="/shared/three-memory.js"></script>
+<script src="/shared/three-visibility.js"></script>
+<script src="/shared/three-bg.js"></script>
 </body>
 </html>

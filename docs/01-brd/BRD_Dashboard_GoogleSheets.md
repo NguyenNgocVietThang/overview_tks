@@ -7,13 +7,13 @@
 | **Thông tin**     | **Nội dung**                                                        |
 |-------------------|---------------------------------------------------------------------|
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Google Sheets → Web)  |
-| Phiên bản         | 1.5                                                                 |
+| Phiên bản         | 1.7                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 15/08/2026                                                          |
+| Ngày cập nhật     | 18/08/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo, nhân viên nội bộ công ty & khách hàng tra cứu        |
-| Trạng thái        | Đang vận hành (Giai đoạn 1 & Phase 0/0.5 đã hoàn thiện)            |
+| Trạng thái        | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1 & Lớp hiệu ứng 3D hoàn thiện) |
 
-> **Ghi chú phiên bản 1.5:** Bổ sung module xác thực & phân quyền (đăng nhập nội bộ JWT cookie/bcrypt, đăng ký tài khoản Khách, Google Identity Sign-In), tra cứu trạng thái vận chuyển hóa đơn (`/api/shipment/invoice-status`), bộ 74 unit tests tự động, cùng tính năng Xuất Excel tùy chọn trường cho 16 bảng dữ liệu, phân trang client-side (`pagination.js`), và Result Cache tầng backend tối ưu phản hồi tức thì (<10ms).
+> **Ghi chú phiên bản 1.7:** Bổ sung lớp hiệu ứng 3D Visual Progressive Enhancement (Three.js r159 background, dynamic hover card tilt, 3D rotating loading cube, tactile press buttons, 3D navigation, 3D charts, hệ thống giám sát hiệu năng thích ứng FPS `three-performance.js`, dọn dẹp bộ nhớ WebGL `three-memory.js`, và tạm dừng khi ẩn tab `three-visibility.js`), module xác thực & quản trị tài khoản người dùng nâng cao (đăng nhập nội bộ JWT cookie/bcrypt, đăng ký tài khoản Khách bằng Email hoặc Số điện thoại, Google Identity Sign-In, khôi phục mật khẩu qua mã OTP 6 số, bảo vệ chống brute-force với cơ chế lockout 5 phút, trang quản lý tài khoản `/account/`), hệ thống quản trị người dùng Admin (`/api/admin/users`), State Machine vận đơn 9 trạng thái, bộ 214 unit tests tự động hoàn chỉnh, cùng tính năng Xuất Excel tùy chọn trường cho 16 bảng dữ liệu, phân trang client-side (`pagination.js`), và Result Cache tầng backend tối ưu phản hồi tức thì (<10ms).
 
 # 1. Giới thiệu
 
@@ -248,22 +248,23 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 
 # 9. Kế hoạch triển khai tổng quan
 
-## 9.1. Giai đoạn 1 — Dashboard (đã hoàn thiện)
+## 9.1. Giai đoạn 1 — Dashboard & Lớp hiệu ứng 3D (đã hoàn thiện)
 
 | **Bước**                          | **Nội dung**                                                                                      | **Trạng thái** |
 |-----------------------------------|---------------------------------------------------------------------------------------------------|----------------|
-| 1. Phân tích & thiết kế            | Hoàn thiện BRD v1.5, SRS v1.7, BPMN v1.5; thiết kế kiến trúc kỹ thuật                            | Hoàn thành     |
+| 1. Phân tích & thiết kế            | Hoàn thiện BRD v1.7, SRS v1.9, BPMN v1.8; thiết kế kiến trúc kỹ thuật                            | Hoàn thành     |
 | 2. Apps Script đồng bộ KiotViet    | `src/`: sync đủ trường, webhook qua queue bền vững, polling 15 phút cho 3 bảng không có webhook | Hoàn thành     |
-| 3. Backend Node.js/Express         | API `/api/dashboard`, `/api/search`, `/api/customer-product-top`, `/api/auth/*`, `/api/shipment/*`, Result Cache, 74 unit tests | Hoàn thành     |
-| 4. Frontend HTML/CSS/JS            | Dashboard, bộ lọc thời gian, phân trang bảng (`pagination.js`), motion tokens, transitions         | Hoàn thành     |
-| 5. Triển khai Render.com           | Deploy lên `tokosi.onrender.com`, cấu hình biến môi trường                                        | Hoàn thành     |
-| 6. Xuất Excel 16 bảng             | Module `exportService.js` tạo workbook `.xlsx` đa worksheet, tùy chọn trường                      | Hoàn thành     |
+| 3. Backend Node.js/Express         | API `/api/dashboard`, `/api/search`, `/api/customer-product-top`, `/api/auth/*`, `/api/admin/*`, `/api/shipment/*`, Result Cache, 214 unit tests | Hoàn thành     |
+| 4. Frontend HTML/CSS/JS            | Dashboard, bộ lọc thời gian, phân trang bảng (`pagination.js`), motion tokens, transitions, quản trị tài khoản (`/account/`) | Hoàn thành     |
+| 5. Lớp hiệu ứng 3D Visual          | Three.js r159 particle background, card 3D tilt, tactile buttons, 3D rotating loading cube, FPS monitor & WebGL memory disposal trên cả 7 trang | Hoàn thành     |
+| 6. Triển khai Render.com           | Deploy lên `tokosi.onrender.com`, cấu hình biến môi trường                                        | Hoàn thành     |
+| 7. Xuất Excel 16 bảng             | Module `exportService.js` tạo workbook `.xlsx` đa worksheet, tùy chọn trường                      | Hoàn thành     |
 
 ## 9.2. Lộ trình dài hạn (định hướng)
 
 | **Giai đoạn**                                   | **Nội dung chính**                                                                                      | **Ghi chú**                                                          |
 |-------------------------------------------------|---------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------|
-| Giai đoạn 2 — Phân quyền & xuất PDF             | Đăng nhập nội bộ, phân quyền Admin/Nhân viên, xuất PDF cho KPI summary và bản in                       | Ưu tiên triển khai ngay sau Giai đoạn 1                              |
+| Giai đoạn 2 — Phân quyền & xuất PDF             | Đăng nhập nội bộ, phân quyền Admin/Nhân viên, xuất PDF cho KPI summary và bản in                       | Đã hoàn thành phần Quản lý tài khoản & 3D; tiếp tục PDF               |
 | Giai đoạn 3 — Bán hàng/POS                      | Tạo đơn bán, quản lý khách hàng, công nợ, in hóa đơn — tương đương nghiệp vụ KiotViet                  | Sau Giai đoạn 2                                                      |
 | Giai đoạn 4 — Kho đa chi nhánh                  | Nhập/xuất/chuyển kho, tồn kho theo từng kho, kiểm kê định kỳ cho 5.000–20.000 SKU                      | Phụ thuộc dữ liệu chuẩn hoá từ Giai đoạn 3                           |
 | Giai đoạn 5 — Phân tích & phát hiện bất thường  | Phân tích doanh số, dự đoán nhu cầu nhập hàng, phát hiện sai lệch tồn kho/giá bất thường               | Cần dữ liệu lịch sử đủ lớn từ Giai đoạn 3–4                          |
@@ -271,4 +272,4 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 | Giai đoạn 7 — Trợ lý AI                         | Chatbot hỏi-đáp số liệu bằng ngôn ngữ tự nhiên; AI dự đoán & phát hiện bất thường tự động             | Ưu tiên chatbot trước; cần dữ liệu chuẩn hoá từ các giai đoạn trước  |
 | Giai đoạn 8 — Thay thế KiotViet                 | Ngừng sử dụng KiotViet, chuyển hoàn toàn nghiệp vụ sang hệ thống mới                                   | Chỉ thực hiện khi Giai đoạn 3–4 đã ổn định và nghiệm thu đầy đủ      |
 
-*— Hết tài liệu BRD v1.5 —*
+*— Hết tài liệu BRD v1.7 —*

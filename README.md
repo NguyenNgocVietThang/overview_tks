@@ -59,6 +59,7 @@ webtks-dashboard/
 ├── Logo.jpg                     # Logo thương hiệu công ty
 ├── Plan Process Automation.md   # Kế hoạch kiểm soát & tự động hóa quy trình vận chuyển
 ├── README.md                    # Tài liệu hướng dẫn tổng quan dự án
+├── ROLLBACK.md                  # Hướng dẫn tắt & khôi phục nhanh lớp hiệu ứng 3D
 │
 ├── design-system/               # Quy chuẩn giao diện dùng chung
 │   └── tks-dashboard/
@@ -102,6 +103,7 @@ webtks-dashboard/
 │   │   │   └── index.html       # Quản lý tài khoản (Hồ sơ cá nhân & Quản trị người dùng)
 │   │   ├── index.html           # Live Dashboard (KPI, biểu đồ, phân trang, xuất Excel)
 │   │   ├── Logo.jpg             # Logo thương hiệu frontend
+│   │   ├── performance-test.html # Trang công cụ kiểm tra & đo lường hiệu năng 3D trực quan
 │   │   ├── js/
 │   │   │   ├── auth-guest-ui.test.js # Kiểm tra UI đăng ký/Google/tra cứu Khách/Tài khoản
 │   │   │   ├── export-ui.test.js # Kiểm tra nút/modal xuất Excel trong giao diện
@@ -109,9 +111,11 @@ webtks-dashboard/
 │   │   │   ├── pagination.test.js # Unit test cho module phân trang
 │   │   │   ├── three-bg.test.js # Kiểm tra hệ thống hạt 3D background và đổi theme
 │   │   │   ├── three-buttons.test.js # Kiểm tra hiệu ứng 3D tactile press và ripple nút
+│   │   │   ├── three-charts.js  # Biểu đồ doanh thu 3D Three.js cho dashboard
 │   │   │   ├── three-css-transforms.test.js # Kiểm tra hiệu ứng 3D CSS perspective cho thẻ/panel
 │   │   │   ├── three-infrastructure.test.js # Kiểm tra nạp và khởi tạo thư viện THREE.js r159
 │   │   │   ├── three-interactions.test.js # Kiểm tra dynamic hover tilt và button/nav 3D
+│   │   │   ├── three-loading.test.js # Kiểm tra 3D rotating loading cube
 │   │   │   ├── three-navigation.test.js # Kiểm tra hiệu ứng 3D trượt nổi thanh điều hướng sidebar
 │   │   │   └── three-tables.test.js     # Kiểm tra hiệu ứng 3D nổi dòng bảng và animation so le
 │   │   ├── login/index.html     # Đăng nhập nội bộ, Google OAuth & Quên mật khẩu OTP
@@ -121,7 +125,12 @@ webtks-dashboard/
 │   │   │   ├── shared-nav.js    # Header navigation dùng chung đa trang (3 mục cấp cao)
 │   │   │   ├── shared.css       # Style theme và component dùng chung
 │   │   │   ├── three-bg.js      # Hệ thống hạt 3D Particle Background toàn trang
-│   │   │   └── three-interactions.js # Bộ xử lý 3D dynamic tilt, 3D navigation, button ripple và table row animation
+│   │   │   ├── three-interactions.js # Bộ xử lý 3D dynamic tilt, 3D navigation, button ripple và table row animation
+│   │   │   ├── three-loading.js # 3D rotating loading cube loader
+│   │   │   ├── three-memory.js  # Bộ quản lý WebGL context và giải phóng bộ nhớ
+│   │   │   ├── three-performance.js # Bộ giám sát FPS và tự động điều chỉnh chất lượng 3D
+│   │   │   ├── three-performance.test.js # Unit test cho bộ giám sát hiệu năng
+│   │   │   └── three-visibility.js # Bộ điều phối tạm dừng/tiếp tục hiệu ứng khi đổi tab
 │   │   ├── shipment/
 │   │   │   ├── index.html       # Tra cứu trạng thái hóa đơn cho khách hàng
 │   │   │   ├── dispatch/
@@ -189,18 +198,19 @@ webtks-dashboard/
 │       └── Helpers.gs           # getCodeRowMap, formatLastRowNumbers, formatDate
 │
 ├── docs/
+│   ├── performance-optimization-report.md # Báo cáo tối ưu hóa hiệu năng 3D, FPS & WebGL Memory
 │   ├── 01-brd/
-│   │   └── BRD_Dashboard_GoogleSheets.md # Yêu cầu nghiệp vụ BRD v1.6
+│   │   └── BRD_Dashboard_GoogleSheets.md # Yêu cầu nghiệp vụ BRD v1.7
 │   ├── 02-srs/
-│   │   └── SRS_Dashboard_GoogleSheets.md # Đặc tả kỹ thuật SRS v1.8
+│   │   └── SRS_Dashboard_GoogleSheets.md # Đặc tả kỹ thuật SRS v1.9
 │   ├── 03-process/
-│   │   ├── BPMN_Dashboard_GoogleSheets.md # Sơ đồ quy trình nghiệp vụ v1.7
+│   │   ├── BPMN_Dashboard_GoogleSheets.md # Sơ đồ quy trình nghiệp vụ v1.8
 │   │   └── bpmn/
 │   │       ├── bpmn_1_phaseA.bpmn
 │   │       ├── bpmn_2_phaseB.bpmn
 │   │       └── bpmn_3_phaseC.bpmn
 │   ├── 04-planning/
-│   │   └── implementation_plan.md        # Kế hoạch triển khai chi tiết & trạng thái v1.9
+│   │   └── implementation_plan.md        # Kế hoạch triển khai chi tiết & trạng thái v2.0
 │   └── superpowers/
 │       ├── plans/
 │       │   ├── 2026-08-13-dashboard-result-cache.md
@@ -231,7 +241,7 @@ Thư mục `server/` tích hợp sẵn bộ unit tests (dùng `node:test` chuẩ
 cd server
 npm test
 ```
-Bộ test gồm **141 bài kiểm thử tự động** bao phủ toàn diện:
+Bộ test gồm **214 bài kiểm thử tự động** bao phủ toàn diện 100%:
 - Xác thực người dùng (JWT httpOnly cookie, mật khẩu bcrypt, Google Identity OAuth, đăng ký bằng Email/SĐT, bảo vệ route RBAC 5 vai trò).
 - Quản trị tài khoản Admin (CRUD danh sách người dùng, reset mật khẩu, kích hoạt/khóa tài khoản).
 - Khôi phục mật khẩu OTP 6 số (sinh mã, gửi giả lập qua Email/SĐT, giới hạn thử lại, chống brute-force và cơ chế lockout tạm thời 5 phút).
@@ -241,6 +251,7 @@ Bộ test gồm **141 bài kiểm thử tự động** bao phủ toàn diện:
 - Result Cache tầng backend tối ưu phản hồi tức thì (<10ms).
 - Phân trang client-side (`pagination.js`) và module Xuất Excel 16 bảng (`exportService.js`).
 - Tìm kiếm nhiều mã chính xác và Top 3 KH theo danh mục sản phẩm.
+- Lớp hiệu ứng 3D Three.js: Particle background, card hover tilt, tactile press buttons, 3D navigation, table staggered rows, 3D rotating loading cube, adaptive performance monitor & WebGL memory disposal.
 
 ### Bước 1 — Clone & login
 ```bash
@@ -405,12 +416,13 @@ Mỗi trong 7 trang load 3D theo đúng thứ tự sau (bắt buộc — các mo
 
 | Tài liệu | Mô tả |
 |---|---|
-| [BRD](docs/01-brd/BRD_Dashboard_GoogleSheets.md) | Business Requirements Document v1.6 |
-| [SRS](docs/02-srs/SRS_Dashboard_GoogleSheets.md) | Software Requirements Specification v1.8 |
-| [BPMN](docs/03-process/BPMN_Dashboard_GoogleSheets.md) | Sơ đồ quy trình nghiệp vụ v1.7 |
-| [Implementation Plan](docs/04-planning/implementation_plan.md) | Kế hoạch triển khai chi tiết & trạng thái v1.9 |
+| [BRD](docs/01-brd/BRD_Dashboard_GoogleSheets.md) | Business Requirements Document v1.7 |
+| [SRS](docs/02-srs/SRS_Dashboard_GoogleSheets.md) | Software Requirements Specification v1.9 |
+| [BPMN](docs/03-process/BPMN_Dashboard_GoogleSheets.md) | Sơ đồ quy trình nghiệp vụ v1.8 |
+| [Implementation Plan](docs/04-planning/implementation_plan.md) | Kế hoạch triển khai chi tiết & trạng thái v2.0 |
 | [Plan Process Automation](Plan%20Process%20Automation.md) | Kế hoạch kiểm soát & tự động hóa quy trình vận chuyển hàng hóa |
-| [3D Design Plan](3D%20Design.md) | Kế hoạch chi tiết thiết kế hiệu ứng 3D toàn bộ 5 trang giao diện |
+| [3D Design Plan](3D%20Design.md) | Kế hoạch chi tiết thiết kế hiệu ứng 3D toàn bộ 7 trang giao diện |
+| [Performance Optimization Report](docs/performance-optimization-report.md) | Báo cáo tối ưu hiệu năng 3D, kiểm thử FPS và quản lý bộ nhớ WebGL |
 | [3D Rollback Guide](ROLLBACK.md) | Hướng dẫn tắt/khôi phục lớp hiệu ứng 3D trên từng trang hoặc toàn site |
 | [Server Guide](server/README.md) | Hướng dẫn triển khai, kiểm thử và tài liệu API backend Node.js |
 | [Design System Master](design-system/tks-dashboard/MASTER.md) | Hệ thống token, component và quy tắc giao diện |
@@ -439,4 +451,4 @@ Mỗi trong 7 trang load 3D theo đúng thứ tự sau (bắt buộc — các mo
 
 ---
 
-*Cập nhật lần cuối: 17/08/2026*
+*Cập nhật lần cuối: 18/08/2026*

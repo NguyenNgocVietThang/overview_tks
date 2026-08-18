@@ -81,14 +81,18 @@ function createDefaultUsers() {
   ];
 }
 
+let lastLoadedMtime = 0;
+
 function loadFromDisk() {
   ensureDataDir(currentStorePath);
   if (fs.existsSync(currentStorePath)) {
     try {
+      const stats = fs.statSync(currentStorePath);
       const raw = fs.readFileSync(currentStorePath, 'utf8');
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         inMemoryUsers = parsed;
+        lastLoadedMtime = stats.mtimeMs;
         return inMemoryUsers;
       }
     } catch (err) {
@@ -107,6 +111,9 @@ function saveToDisk(users) {
   const data = JSON.stringify(users, null, 2);
   fs.writeFileSync(tempPath, data, 'utf8');
   fs.renameSync(tempPath, currentStorePath);
+  try {
+    lastLoadedMtime = fs.statSync(currentStorePath).mtimeMs;
+  } catch (e) {}
 }
 
 function initStore(customPath) {
@@ -120,7 +127,17 @@ function initStore(customPath) {
 function ensureLoaded() {
   if (!isInitialized || !inMemoryUsers) {
     initStore();
+    return inMemoryUsers;
   }
+  // Kiểm tra nếu file users.json trên đĩa bị sửa đổi từ bên ngoài thì reload vào RAM
+  try {
+    if (fs.existsSync(currentStorePath)) {
+      const currentMtime = fs.statSync(currentStorePath).mtimeMs;
+      if (currentMtime > lastLoadedMtime) {
+        loadFromDisk();
+      }
+    }
+  } catch (e) {}
   return inMemoryUsers;
 }
 
@@ -353,6 +370,7 @@ async function deleteUser(id) {
 function setInMemoryUsers(users) {
   inMemoryUsers = users.map(u => ({ ...u }));
   isInitialized = true;
+  lastLoadedMtime = Infinity;
 }
 
 module.exports = {

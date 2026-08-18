@@ -7,19 +7,19 @@
 | **Thông tin**      | **Nội dung**                                               |
 |--------------------|------------------------------------------------------------|
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                          |
-| Phiên bản          | 1.7                                                        |
+| Phiên bản          | 1.9                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 15/08/2026                                                 |
-| Tài liệu liên quan | BRD v1.5 · BPMN v1.5 · Implementation Plan v1.6 · Plan Process Automation |
-| Trạng thái         | Đang vận hành (Giai đoạn 1 & Phase 0/0.5 đã hoàn thiện)    |
+| Ngày cập nhật      | 18/08/2026                                                 |
+| Tài liệu liên quan | BRD v1.7 · BPMN v1.8 · Implementation Plan v2.0 · Plan Process Automation · 3D Design · Performance Optimization Report · ROLLBACK |
+| Trạng thái         | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1 & Lớp hiệu ứng 3D đã hoàn thiện) |
 
-> **Ghi chú phiên bản 1.7:** Bổ sung module xác thực & phân quyền Phase 0 (JWT httpOnly cookie, bcrypt, đăng ký tài khoản `Khách`, Google Identity Sign-In, CLI quản trị Users sheet), module tra cứu vận chuyển Phase 0.5 (`POST /api/shipment/invoice-status` với cache 90s và giao diện `/shipment/`), bảo vệ route theo 5 vai trò (`Quản lý`, `Kế toán`, `Trưởng kho`, `Trợ lý`, `Khách`), Result Cache tầng backend (`dashboardResultCache` theo `rawDataVersion` và filters), phân trang bảng client-side (`pagination.js`), API xuất Excel (`POST /api/export/fields`, `POST /api/export`), và bộ kiểm thử tự động 74 unit tests.
+> **Ghi chú phiên bản 1.9:** Bổ sung lớp hiệu ứng 3D Visual Progressive Layer trên cả 7 trang giao diện (Three.js r159 particle background `three-bg.js`, dynamic card tilt & button tactile `three-interactions.js`, 3D rotating loading cube `three-loading.js`, biểu đồ doanh thu 3D `three-charts.js`, bộ giám sát FPS và thích ứng chất lượng `three-performance.js`, quản lý bộ nhớ WebGL `three-memory.js`, tạm dừng khi đổi tab `three-visibility.js`), module xác thực & quản trị tài khoản người dùng nâng cao Phase 0 (JWT httpOnly cookie, bcrypt, đăng ký tài khoản `Khách` bằng Email hoặc Số điện thoại, Google Identity Sign-In, khôi phục mật khẩu qua mã OTP 6 số với cơ chế lockout 5 phút, đổi mật khẩu & cập nhật hồ sơ, giao diện quản lý tài khoản `/account/`, API quản trị Admin `/api/admin/users`), module tra cứu vận chuyển Phase 0.5 (`POST /api/shipment/invoice-status` với cache 90s và giao diện `/shipment/`), bảo vệ route theo 5 vai trò (`Quản lý`, `Kế toán`, `Trưởng kho`, `Trợ lý`, `Khách`), State Machine vận đơn 9 trạng thái, Result Cache tầng backend (`dashboardResultCache` theo `rawDataVersion` và filters), phân trang bảng client-side (`pagination.js`), API xuất Excel (`POST /api/export/fields`, `POST /api/export`), và bộ kiểm thử tự động toàn diện 214 unit tests.
 
 # 1. Giới thiệu
 
 ## 1.1. Mục đích
 
-Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi chức năng của hệ thống Website Dashboard TOKOSI, làm cơ sở cho đội phát triển thiết kế, xây dựng, kiểm thử phần mềm. Tài liệu cụ thể hóa các yêu cầu nghiệp vụ đã nêu trong BRD v1.5 thành các đặc tả kỹ thuật có thể triển khai được.
+Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi chức năng của hệ thống Website Dashboard TOKOSI, làm cơ sở cho đội phát triển thiết kế, xây dựng, kiểm thử phần mềm. Tài liệu cụ thể hóa các yêu cầu nghiệp vụ đã nêu trong BRD v1.6 thành các đặc tả kỹ thuật có thể triển khai được.
 
 ## 1.2. Phạm vi hệ thống
 
@@ -27,7 +27,7 @@ Hệ thống là một Web Application nội bộ gồm các thành phần chín
 
 1. **Apps Script (`src/`):** cùng một bộ mã chạy theo hai profile độc lập. `FULL_DASHBOARD` duy trì sheet tổng hợp cũ gồm 9 tab vận hành, lịch sử/báo cáo và polling; `SHIPMENT_LIFECYCLE` duy trì sheet vận chuyển mới, nhận riêng `invoice.update` qua hàng đợi bền vững và upsert đơn, chi tiết, lịch sử trạng thái.
 
-2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu, 3 tab công nợ HN1/HN3/HN7 và tab `Users` từ Google Spreadsheet qua Google Sheets API (Service Account), xác thực người dùng và phân quyền RBAC (JWT httpOnly cookie, bcrypt, Google OAuth), tra cứu trạng thái vận chuyển đơn hàng, tính toán KPI, dữ liệu biểu đồ và báo cáo công nợ khách hàng 1/3/7 ngày, trả về cho frontend qua REST API. Tích hợp Result Cache tầng backend, phân trang bảng client-side và xuất file Excel đa worksheet. Frontend hiển thị Dashboard tương tác, trang tra cứu vận chuyển và đăng nhập/đăng ký trên trình duyệt.
+2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu, 3 tab công nợ HN1/HN3/HN7 và tab `Users` từ Google Spreadsheet qua Google Sheets API (Service Account), xác thực người dùng và phân quyền RBAC (JWT httpOnly cookie, bcrypt, Google OAuth, mã OTP 6 số, local backup store), tra cứu trạng thái vận chuyển đơn hàng, quản trị người dùng, tính toán KPI, dữ liệu biểu đồ và báo cáo công nợ khách hàng 1/3/7 ngày, trả về cho frontend qua REST API. Tích hợp Result Cache tầng backend, phân trang bảng client-side và xuất file Excel đa worksheet. Frontend hiển thị Dashboard tương tác, trang tra cứu vận chuyển, quản lý tài khoản và đăng nhập/đăng ký trên trình duyệt.
 
 ## 1.3. Định nghĩa & thuật ngữ
 
@@ -42,17 +42,18 @@ Hệ thống là một Web Application nội bộ gồm các thành phần chín
 | KiotViet webhook        | KiotViet Public API gửi POST JSON về Web App URL của Apps Script khi có thay đổi.    |
 | Polling trigger         | Apps Script time-based trigger chạy mỗi 15 phút cho 3 bảng không có KiotViet webhook. |
 | Result Cache            | Cơ chế lưu đệm kết quả KPI/biểu đồ đã tính theo phiên bản dữ liệu thô và bộ lọc.    |
+| OTP                     | One-Time Password mã xác thực dùng một lần 6 số dùng để khôi phục mật khẩu.         |
 
 ## 1.4. Tài liệu tham khảo
 
-- BRD v1.5 — Hệ thống Dashboard nội bộ TOKOSI.
+- BRD v1.6 — Hệ thống Dashboard nội bộ TOKOSI.
 - Google Sheets API v4 Documentation.
 - KiotViet Public API Documentation.
 - Google Apps Script Documentation.
 
 # 2. Mô tả tổng quan hệ thống
 
-## 2.1. Kiến trúc tổng quan — Giai đoạn 1 & Phase 0/0.5 (đã triển khai)
+## 2.1. Kiến trúc tổng quan — Giai đoạn 1 & Phase 0/0.5/1 (đã triển khai)
 
 ```
 KiotViet POS
@@ -73,24 +74,32 @@ Backend: Node.js + Express
     - server/config.js                : đọc biến môi trường (JWT_SECRET, SPREADSHEET_ID...)
     - server/routes.js                : định nghĩa endpoints & phân quyền middleware
     - server/auth/authMiddleware.js   : requireAuth, requireRole bọc route
-    - server/auth/authRoutes.js       : /api/auth/register, /login, /google, /me, /logout
-    - server/auth/userRepository.js   : đọc/tìm người dùng từ sheet Users
-    - server/auth/userWriteRepository.js : tạo user mới vào sheet Users
+    - server/auth/authRoutes.js       : /api/auth/* (register, login, google, profile, otp reset)
+    - server/auth/adminUserRoutes.js  : /api/admin/users (CRUD tài khoản, phân quyền)
+    - server/auth/otpService.js       : sinh mã OTP 6 số, mask Email/SĐT, kiểm tra thời hạn
+    - server/auth/localUserStore.js   : lưu trữ tài khoản cục bộ bảo mật (server/data/users.json)
+    - server/auth/userRepository.js   : đọc/tìm người dùng từ sheet Users & local store
+    - server/auth/userWriteRepository.js : tạo/cập nhật user vào sheet Users & local store
     - server/shipment/invoiceStatusService.js : tra cứu trạng thái hóa đơn (cache 90s)
+    - server/shipment/orderStateMachine.js : State Machine 9 trạng thái vận đơn
+    - server/shipment/vcOrderRepository.js : CRUD 6 tab vận chuyển VC_*
     - server/sheets/sheetsClient.js   : gọi Google Sheets API (cache thô 90s)
     - server/dashboard/dashboardData.js : tính toán KPI, biểu đồ & Result Cache
     - server/dashboard/debtReport.js  : báo cáo công nợ khách hàng HN1/HN3/HN7
     - server/dashboard/exportService.js : dịch vụ tạo file xuất Excel .xlsx 16 bảng
     - server/scripts/setupUsersSheet.js : CLI quản trị tài khoản người dùng
     |
-    | REST APIs: /api/auth/*, /api/shipment/*, /api/dashboard, /api/search, /api/export
+    | REST APIs: /api/auth/*, /api/admin/*, /api/shipment/*, /api/dashboard, /api/search, /api/export
     v
 Frontend: HTML/CSS/JS tĩnh (server/public/)
     - server/public/index.html        : Live Dashboard (KPI, biểu đồ, phân trang, xuất Excel)
-    - server/public/login/index.html   : Đăng nhập nội bộ & Google Sign-In
-    - server/public/register/index.html: Đăng ký tài khoản Khách
+    - server/public/account/index.html: Quản lý tài khoản (Hồ sơ & Quản trị người dùng)
+    - server/public/login/index.html   : Đăng nhập nội bộ, Google Sign-In & Quên mật khẩu OTP
+    - server/public/register/index.html: Đăng ký tài khoản Khách (Email / Số điện thoại)
     - server/public/shipment/index.html: Tra cứu trạng thái vận chuyển hóa đơn
-    - server/public/shared/shared-nav.js : Điều hướng dùng chung & auth guard
+    - server/public/shipment/dispatch/: Bảng điều phối vận đơn Web Desktop (Kế toán)
+    - server/public/shipment/mobile/  : Mobile Web 1-chạm (Thủ kho & Lái xe)
+    - server/public/shared/shared-nav.js : Điều hướng dùng chung đa trang & auth guard
     - server/public/js/pagination.js  : Phân trang bảng client-side
     - Chart.js (biểu đồ với animation gating)
     |
@@ -105,10 +114,11 @@ Người dùng (trình duyệt) — tokosi.onrender.com / localhost:3000
 - **Framework:** Express.js v4
 - **Dependencies:** `googleapis` (Google Sheets API client), `bcryptjs` / `bcrypt`, `jsonwebtoken`, `exceljs` / export builder, `dotenv` (dev only)
 - **Entry point:** `server/index.js`
-- **Testing:** `node:test` + `node:assert/strict` (74 unit tests tự động)
+- **Testing:** `node:test` + `node:assert/strict` (141 unit tests tự động)
 - **API:** REST; endpoints:
-  - Auth: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/google`, `GET /api/auth/google-config`, `GET /api/auth/me`, `POST /api/auth/logout`
-  - Shipment: `POST /api/shipment/invoice-status`
+  - Auth: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/google`, `GET /api/auth/google-config`, `GET /api/auth/me`, `PUT /api/auth/profile`, `POST /api/auth/change-password`, `POST /api/auth/request-reset-otp`, `POST /api/auth/verify-reset-otp`, `POST /api/auth/reset-password-otp`, `POST /api/auth/logout`
+  - Admin: `GET /api/admin/users`, `POST /api/admin/users`, `PATCH /api/admin/users/:username`, `POST /api/admin/users/:username/reset-password`, `DELETE /api/admin/users/:username`
+  - Shipment: `POST /api/shipment/invoice-status`, `GET /api/shipment/orders`, `POST /api/shipment/orders`, `GET /api/shipment/orders/:id`, `POST /api/shipment/orders/:id/transition`, `POST /api/shipment/orders/:id/assign-driver`, `POST /api/shipment/orders/:id/photos`, `POST /api/shipment/orders/:id/exception`, `GET /api/shipment/audit`, `GET /api/shipment/vehicles`
   - Dashboard & Analytics: `GET /api/dashboard`, `GET /api/search`, `GET /api/customer-product-top`
   - Export: `POST /api/export/fields`, `POST /api/export`
   - System: `GET /health`, `GET /api/debug`
@@ -260,14 +270,17 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-07.13 | Bảng tất cả hàng hóa (`allProducts`) và bảng hàng đã hết (`lowStock`) được phân trang client-side qua `pagination.js` (~200 dòng/trang), có điều khiển Trang trước / Trang sau, giữ nguyên thẻ đếm tổng số lượng. | Cao | Hoàn thành |
 | FR-07.14 | Biểu đồ Chart.js có animation gating (không animate lại khi chuyển tab, đổi theme hay background polling); các phần tử dropdown, surface theme và dòng chi tiết công nợ có transition mượt mà dùng chung token `--ease-out`. | Cao | Hoàn thành |
 
-## 3.8. FR-08: Đăng ký, Google Guest & Tra cứu vận chuyển
+## 3.8. FR-08: Đăng ký, Google Guest, Quản trị tài khoản & Tra cứu vận chuyển
 
 | **Mã** | **Mô tả** | **Ưu tiên** | **Trạng thái** |
 |--------|-----------|-------------|----------------|
-| FR-08.1 | Form đăng ký riêng nhận họ tên, email và mật khẩu; email là username, mật khẩu được băm bcrypt, tài khoản `Khách` hoạt động và tự đăng nhập ngay. | Cao | Hoàn thành |
+| FR-08.1 | Form đăng ký riêng nhận họ tên, email hoặc số điện thoại và mật khẩu; mật khẩu được băm bcrypt, tài khoản `Khách` hoạt động và tự đăng nhập ngay. | Cao | Hoàn thành |
 | FR-08.2 | Google Identity cho phép email xác minh đăng nhập ngay: email mới nhận vai trò `Khách`, tài khoản nội bộ giữ vai trò hiện có, tài khoản khóa bị từ chối và bản ghi legacy `Chờ duyệt` chuyển thành `Khách`. | Cao | Hoàn thành |
 | FR-08.3 | `Khách` chỉ thấy mục Quản lý vận chuyển và bị backend chặn khỏi dashboard, tìm kiếm, xuất Excel và debug; bốn vai trò nội bộ giữ quyền hiện tại. | Cao | Hoàn thành |
 | FR-08.4 | Tra cứu vận chuyển nhận tối đa 50 mã hóa đơn, khớp chính xác không phân biệt hoa/thường, loại trùng và chỉ trả `code`, `found`, `status`; giao diện không hiển thị dữ liệu trước khi tìm. | Cao | Hoàn thành |
+| FR-08.5 | Quản lý hồ sơ cá nhân và đổi mật khẩu chủ động (`PUT /api/auth/profile`, `POST /api/auth/change-password`), yêu cầu nhập mật khẩu hiện tại để xác minh. | Cao | Hoàn thành |
+| FR-08.6 | Khôi phục mật khẩu qua mã OTP 6 số (`request-reset-otp`, `verify-reset-otp`, `reset-password-otp`), che mờ Email/SĐT, giới hạn thử lại, chống brute-force và cơ chế lockout tạm thời 5 phút khi đăng nhập sai quá 5 lần liên tiếp. | Cao | Hoàn thành |
+| FR-08.7 | Quản trị người dùng Admin (`/api/admin/users`), chỉ vai trò `Quản lý` được xem danh sách, tạo tài khoản, đổi vai trò, đặt lại mật khẩu và khóa/mở khóa tài khoản; hỗ trợ lưu trữ cục bộ bảo mật `users.json`. | Cao | Hoàn thành |
 
 # 4. Yêu cầu phi chức năng (Non-functional Requirements)
 
@@ -284,7 +297,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | NFR-09 | Độ trễ đồng bộ       | Từ khi dữ liệu thay đổi trên KiotViet → Apps Script cập nhật Sheets qua webhook: mục tiêu dưới 2 phút. Trả hàng/NCC/Nhập hàng: tối đa 15 phút (polling). |
 | NFR-10 | Nhất quán thời gian  | Parse ngày từ Sheets, xác định ngày hiện tại, tạo bucket 7/30/90 ngày và format `updatedAt` theo Asia/Ho_Chi_Minh, độc lập timezone máy chủ.      |
 | NFR-11 | An toàn xuất dữ liệu | API xuất chỉ nhận khóa bảng, bộ lọc và danh sách trường hợp lệ; không nhận dòng dữ liệu từ client, chặn trường lạ và vô hiệu hóa chuỗi có thể bị Excel hiểu là công thức. |
-| NFR-12 | Kiểm thử tự động     | Duy trì bộ 74 unit tests chuẩn `node:test` bao phủ auth/Guest, tra cứu vận chuyển, cache backend, phân trang, xuất Excel và tìm kiếm nâng cao.  |
+| NFR-12 | Kiểm thử tự động     | Duy trì bộ **141 unit tests** chuẩn `node:test` bao phủ auth/Guest/SĐT, Admin CRUD, OTP reset, tra cứu vận chuyển, State Machine 9 trạng thái, cache, phân trang, xuất Excel và tìm kiếm nâng cao. |
 
 
 # 5. Yêu cầu giao diện người dùng (UI Requirements)
@@ -475,11 +488,17 @@ Kết quả xếp theo SL mua giảm dần, sau đó doanh thu mua, ngày mua cu
 
 **Response (HTTP 200):** Binary stream file `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` kèm header `Content-Disposition: attachment; filename="..."`.
 
-## 6.8. API xác thực Khách
+## 6.8. API xác thực & Hồ sơ cá nhân
 
-- `POST /api/auth/register`: nhận `{ "hoTen": "...", "email": "...", "password": "..." }`; tạo tài khoản `Khách`, cookie JWT và trả user với HTTP 201. Email đã tồn tại trả 409; dữ liệu sai trả 400.
+- `POST /api/auth/register`: nhận `{ "hoTen": "...", "email": "...", "phone": "...", "password": "..." }`; tạo tài khoản `Khách`, cookie JWT và trả user với HTTP 201.
+- `POST /api/auth/login`: đăng nhập username/password, cấp JWT cookie `tks_auth`; kích hoạt lockout 5 phút nếu nhập sai 5 lần liên tiếp.
 - `POST /api/auth/google`: xác minh Google ID token; email mới hoặc legacy `Chờ duyệt` vào ngay với vai trò `Khách`, email nội bộ giữ nguyên vai trò, tài khoản khóa trả 403.
 - `GET /api/auth/me` và `POST /api/auth/logout`: dùng chung cho tài khoản nội bộ và Khách.
+- `PUT /api/auth/profile`: cập nhật thông tin cá nhân (họ tên, email, SĐT khôi phục) kèm xác thực mật khẩu hiện tại.
+- `POST /api/auth/change-password`: đổi mật khẩu người dùng chủ động.
+- `POST /api/auth/request-reset-otp`: sinh và gửi mã OTP 6 số khôi phục mật khẩu (hạn dùng 5 phút).
+- `POST /api/auth/verify-reset-otp`: xác thực mã OTP và cấp `resetToken` 10 phút.
+- `POST /api/auth/reset-password-otp`: đổi mật khẩu mới sử dụng `resetToken`.
 
 ## 6.9. POST /api/shipment/invoice-status
 
@@ -498,6 +517,26 @@ Kết quả xếp theo SL mua giảm dần, sau đó doanh thu mua, ngày mua cu
 ```
 
 API trim, khớp chính xác không phân biệt hoa/thường, loại mã trùng theo thứ tự đầu vào và chỉ đọc hai cột `Mã hóa đơn`/`Trạng thái`. Snapshot sheet được cache 90 giây.
+
+## 6.10. API Quản trị người dùng Admin (`/api/admin/users/*`)
+
+- `GET /api/admin/users`: danh sách tài khoản, vai trò và trạng thái. (Chỉ vai trò `Quản lý`).
+- `POST /api/admin/users`: tạo tài khoản người dùng mới.
+- `PATCH /api/admin/users/:username`: cập nhật thông tin tài khoản, đổi vai trò hoặc khóa/kích hoạt.
+- `POST /api/admin/users/:username/reset-password`: đặt lại mật khẩu cho tài khoản người dùng.
+- `DELETE /api/admin/users/:username`: khóa tài khoản người dùng.
+
+## 6.11. API Vận chuyển & Điều phối (`/api/shipment/*`)
+
+- `GET /api/shipment/orders`: danh sách đơn vận chuyển kèm bộ lọc trạng thái, luồng, kho, lái xe, ngày.
+- `POST /api/shipment/orders`: tạo đơn vận chuyển mới.
+- `GET /api/shipment/orders/:id`: chi tiết vận đơn, mặt hàng, lịch sử và ảnh chứng từ.
+- `POST /api/shipment/orders/:id/transition`: chuyển trạng thái vận đơn theo State Machine 9 trạng thái.
+- `POST /api/shipment/orders/:id/assign-driver`: gán lái xe và mã phương tiện.
+- `POST /api/shipment/orders/:id/photos`: tải lên ảnh chứng từ lưu Google Drive (`VC_Attachments`).
+- `POST /api/shipment/orders/:id/exception`: báo cáo sự cố vận chuyển (`VC_Exceptions`).
+- `GET /api/shipment/audit`: báo cáo đối soát cuối ngày lọc đơn thiếu ảnh hoặc giao trễ.
+- `GET /api/shipment/vehicles`: danh mục xe và tài xế (`VC_Vehicles`).
 
 # 7. Đặc tả Apps Script (`src/`)
 
@@ -604,7 +643,8 @@ Các phép tính "hôm nay", bucket ngày 7/30/90 ngày và `updatedAt` đều d
 | Cập nhật dashboard (5.5)                 | FR-05.1 → FR-05.5                   |
 | Đồng bộ tự động — Apps Script (5.5)     | FR-06.1 → FR-06.14                  |
 | Giao diện, Phân trang & Xuất Excel (5.3, 5.4, 5.5) | FR-07.1 → FR-07.14        |
-| Đăng ký, Google Guest & tra cứu vận chuyển          | FR-08.1 → FR-08.4         |
+| Đăng ký, Google Guest, Quản trị tài khoản & tra cứu vận chuyển | FR-08.1 → FR-08.7 |
+| Lớp hiệu ứng 3D Visual & Giám sát hiệu năng thích ứng | FR-09.1 → FR-09.7 |
 
 # 9. Rủi ro kỹ thuật & phương án giảm thiểu
 
@@ -620,4 +660,4 @@ Các phép tính "hôm nay", bucket ngày 7/30/90 ngày và `updatedAt` đều d
 | Trình duyệt trì hoãn timer khi tab chạy nền làm timestamp cũ                        | Lưu thời điểm fetch cuối và gọi lại API khi tab `visible` nếu đã qua chu kỳ 10 phút.                               |
 | Render.com free tier hibernation → cold start làm chậm request đầu tiên             | Health check endpoint `/health` được Render ping định kỳ để giữ instance ấm.                                       |
 
-*— Hết tài liệu SRS v1.6 —*
+*— Hết tài liệu SRS v1.9 —*
