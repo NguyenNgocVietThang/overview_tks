@@ -9,8 +9,6 @@
   document.documentElement.dataset.theme = 'light';
 </script>
 <link rel="stylesheet" href="/shared/shared.css">
-<script src="/shared/three-interactions.js" defer></script>
-<script src="/shared/three-loading.js" defer></script>
 <style>
   .register-shell{
     min-height:100vh;
@@ -332,12 +330,6 @@
       .then(function(res){ if(res.ok) window.location.href = '/shipment/'; })
       .catch(function(){});
   </script>
-  <!-- 3D Background Particle System -->
-  <script src="/vendor/three.min.js"></script>
-  <script src="/shared/three-performance.js"></script>
-  <script src="/shared/three-memory.js"></script>
-  <script src="/shared/three-visibility.js"></script>
-  <script src="/shared/three-bg.js"></script>
 </body>
 </html>
 
