@@ -6508,8 +6508,9 @@
         renderDebtTable();
       }
       applyActiveTableSorts();
-      if (window.TKS3D && window.TKS3D.refresh) window.TKS3D.refresh();
-      if (typeof animateTableRows === 'function') animateTableRows(document.getElementById(view));
+      const viewEl = document.getElementById(view);
+      if (window.TKS3D && window.TKS3D.refresh) window.TKS3D.refresh(viewEl);
+      if (typeof animateTableRows === 'function') animateTableRows(viewEl);
     }
 
     function setDebtPeriod(period) {
@@ -6557,7 +6558,7 @@
           '</td></tr>';
       }).join('') : '<tr><td colspan="8" class="table-note">Không có khách hàng nào trong kỳ này</td></tr>';
       applyActiveTableSorts();
-      if (window.TKS3D && window.TKS3D.refresh) window.TKS3D.refresh();
+      if (window.TKS3D && window.TKS3D.refresh) window.TKS3D.refresh(rows); // `rows` = document.getElementById('debtPeriodRows'), da co san o dong tren
       if (typeof animateTableRows === 'function') animateTableRows(rows);
     }
 
