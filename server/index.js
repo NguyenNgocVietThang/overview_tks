@@ -1,11 +1,13 @@
 const path = require('path');
 const express = require('express');
+const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const CONFIG = require('./config');
 const routes = require('./routes');
 
 const app = express();
 
+app.use(compression());
 app.use(express.json());
 app.use(cookieParser());
 
