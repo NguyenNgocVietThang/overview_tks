@@ -26,7 +26,7 @@ try {
 }
 
 // ─── Module source ────────────────────────────────────────────────────────────
-const MODULE_PATH = path.resolve(__dirname, '../shared/three-loading.js');
+const MODULE_PATH = path.resolve(__dirname, '..', '..', 'public', 'shared', 'three-loading.js');
 const moduleSource = fs.readFileSync(MODULE_PATH, 'utf8');
 
 // ─── Factory: create a fresh jsdom + eval module ──────────────────────────────

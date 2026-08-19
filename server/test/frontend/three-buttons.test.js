@@ -9,7 +9,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const publicDir = path.join(__dirname, '..');
+const publicDir = path.join(__dirname, '..', '..', 'public');
 const sharedCssPath = path.join(publicDir, 'shared', 'shared.css');
 const indexHtmlPath = path.join(publicDir, 'index.html');
 const interactionsPath = path.join(publicDir, 'shared', 'three-interactions.js');

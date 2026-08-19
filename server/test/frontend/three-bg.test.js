@@ -6,8 +6,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const threeBgPath = path.join(__dirname, '..', 'shared', 'three-bg.js');
-const vendorThreePath = path.join(__dirname, '..', 'vendor', 'three.min.js');
+const threeBgPath = path.join(__dirname, '..', '..', 'public', 'shared', 'three-bg.js');
+const vendorThreePath = path.join(__dirname, '..', '..', 'public', 'vendor', 'three.min.js');
 
 test('three-bg.js file exists and is non-empty', () => {
   assert.ok(fs.existsSync(threeBgPath), 'shared/three-bg.js phai ton tai');

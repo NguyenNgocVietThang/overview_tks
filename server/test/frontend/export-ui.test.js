@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const htmlPath = path.join(__dirname, '..', 'index.html');
+const htmlPath = path.join(__dirname, '..', '..', 'public', 'index.html');
 
 function readDashboardHtml() {
   return fs.readFileSync(htmlPath, 'utf8');

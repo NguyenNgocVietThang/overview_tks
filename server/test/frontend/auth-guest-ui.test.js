@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 function readPublic(relativePath) {
-  return fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
+  return fs.readFileSync(path.join(__dirname, '..', '..', 'public', relativePath), 'utf8');
 }
 
 function inlineScripts(html) {

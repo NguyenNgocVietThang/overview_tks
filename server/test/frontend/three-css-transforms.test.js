@@ -8,7 +8,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const publicDir = path.join(__dirname, '..');
+const publicDir = path.join(__dirname, '..', '..', 'public');
 const sharedCssPath = path.join(publicDir, 'shared', 'shared.css');
 const indexHtmlPath = path.join(publicDir, 'index.html');
 const loginHtmlPath = path.join(publicDir, 'login', 'index.html');

@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const vendorThreePath = path.join(__dirname, '..', 'vendor', 'three.min.js');
+const vendorThreePath = path.join(__dirname, '..', '..', 'public', 'vendor', 'three.min.js');
 
 test('THREE.js r159 vendor bundle exists and has expected size', () => {
   assert.ok(fs.existsSync(vendorThreePath), 'vendor/three.min.js phai ton tai');

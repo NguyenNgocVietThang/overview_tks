@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { paginate } = require('./pagination');
+const { paginate } = require('../../public/js/pagination');
 
 test('paginate tra ve dung so trang va cat dung doan items', () => {
   const items = Array.from({ length: 250 }, (_, i) => i + 1); // [1..250]
