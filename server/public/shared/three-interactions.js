@@ -65,13 +65,36 @@
           card.style.transition = 'transform 0.4s cubic-bezier(0.23, 1, 0.32, 1), box-shadow 0.4s ease';
         }
 
-        const onMouseMove = (e) => this.onCardHover(e, card);
-        const onMouseLeave = () => this.onCardLeave(card);
+        let cachedRect = null;
+        let rafId = null;
+        let pendingEvent = null;
 
+        const onMouseEnter = () => {
+          cachedRect = card.getBoundingClientRect(); // doc rect 1 lan khi bat dau hover
+        };
+
+        const onMouseMove = (e) => {
+          pendingEvent = e;
+          if (rafId) return; // da co 1 frame dang cho, gop cac mousemove tiep theo
+          rafId = requestAnimationFrame(() => {
+            rafId = null;
+            if (pendingEvent) this.onCardHover(pendingEvent, card, cachedRect);
+          });
+        };
+
+        const onMouseLeave = () => {
+          if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+          cachedRect = null;
+          this.onCardLeave(card);
+        };
+
+        card.addEventListener('mouseenter', onMouseEnter);
         card.addEventListener('mousemove', onMouseMove);
         card.addEventListener('mouseleave', onMouseLeave);
 
         this._cleanups.push(() => {
+          if (rafId) cancelAnimationFrame(rafId);
+          card.removeEventListener('mouseenter', onMouseEnter);
           card.removeEventListener('mousemove', onMouseMove);
           card.removeEventListener('mouseleave', onMouseLeave);
           delete card.dataset.tks3dCardInit;
@@ -80,11 +103,11 @@
       });
     },
 
-    onCardHover(e, card) {
+    onCardHover(e, card, cachedRect) {
       if (this.shouldReduceMotion()) return;
       if (!card) return;
 
-      const rect = card.getBoundingClientRect();
+      const rect = cachedRect || card.getBoundingClientRect(); // fallback neu goi truc tiep khong qua rAF path
       if (rect.width <= 0 || rect.height <= 0) return;
 
       const x = e.clientX - rect.left;
@@ -93,12 +116,11 @@
       const centerX = rect.width / 2;
       const centerY = rect.height / 2;
 
-      // Adjust tilt intensity based on quality
       let maxTilt = 5;
       if (this.currentQuality === 'low') {
         maxTilt = 3;
       } else if (this.currentQuality === 'minimal') {
-        maxTilt = 0; // No tilt on minimal
+        maxTilt = 0;
         return;
       }
 
@@ -109,11 +131,10 @@
       const glowColor = isLight ? 'rgba(37, 99, 235, 0.2)' : 'rgba(59, 130, 246, 0.3)';
       const ambientBorder = isLight ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.1)';
 
-      // Disable glow effects on low/minimal quality
       const useGlow = this.currentQuality !== 'low' && this.currentQuality !== 'minimal';
 
       card.style.transform = `perspective(1000px) translateZ(20px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) scale(1.02)`;
-      
+
       if (useGlow) {
         card.style.boxShadow = `0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 30px ${glowColor}, 0 0 1px 1px ${ambientBorder}`;
       } else {
