@@ -6,11 +6,11 @@
 
 | **Thông tin**    | **Nội dung**                                                         |
 |------------------|----------------------------------------------------------------------|
-| Phiên bản tài liệu | 2.0                                                              |
+| Phiên bản tài liệu | 2.1                                                              |
 | Ngày tạo         | 27/07/2026                                                           |
-| Ngày cập nhật    | 18/08/2026                                                           |
-| Tài liệu liên quan | BRD v1.7 · SRS v1.9 · BPMN v1.8 · Debt Spec 2026-08-05 · Cache/Pagination Plans · Plan Process Automation · 3D Design · Performance Optimization Report · ROLLBACK |
-| Trạng thái       | Giai đoạn 1, Phase 0/0.5/1 & Lớp hiệu ứng 3D hoàn thành — đang vận hành |
+| Ngày cập nhật    | 19/08/2026                                                           |
+| Tài liệu liên quan | BRD v1.7 · SRS v1.9 · BPMN v1.8 · Debt Spec 2026-08-05 · Cache/Pagination Plans · Lag Optimization Plan 2026-08-19 · Plan Process Automation · 3D Design · Performance Optimization Report · ROLLBACK |
+| Trạng thái       | Giai đoạn 1, Phase 0/0.5/1 & Lớp 3D + Gói tối ưu hóa hiệu năng 4 Phase hoàn thành — đang vận hành |
 
 ---
 
@@ -26,7 +26,7 @@ src/                        ← GAS source code (clasp push)
 └── utils/Helpers.gs
 
 server/                     ← Node.js/Express backend (Render.com)
-├── index.js
+├── index.js                ← Express entry point (Gzip compression, static Cache-Control headers)
 ├── config.js
 ├── routes.js
 ├── auth/                   ← Xác thực JWT cookie, bcrypt, Google OAuth, OTP, Local User Store & phân quyền RBAC
@@ -40,7 +40,7 @@ server/                     ← Node.js/Express backend (Render.com)
 │   ├── userRepository.js · userRepository.test.js
 │   └── userWriteRepository.js
 ├── dashboard/
-│   ├── dashboardData.js    ← Thống kê KPI, biểu đồ, tìm kiếm, Result Cache
+│   ├── dashboardData.js    ← Thống kê KPI, biểu đồ, tìm kiếm, Result Cache (90s)
 │   ├── dashboardData.test.js ← Unit test cache/aggregation/search
 │   ├── debtReport.js       ← Báo cáo công nợ khách hàng 1/3/7 ngày từ HN1/HN3/HN7
 │   ├── exportService.js    ← Registry 16 bảng và tạo file Excel .xlsx
@@ -58,40 +58,33 @@ server/                     ← Node.js/Express backend (Render.com)
 │   ├── orderStateMachine.js ← State Machine 9 trạng thái vận đơn & kiểm tra chuyển tiếp
 │   ├── orderStateMachine.test.js
 │   ├── shipmentOrderRoutes.js ← REST API vận đơn, điều phối, ảnh chứng từ, sự cố, đối soát
-│   ├── vcOrderRepository.js ← Thao tác CRUD 6 tab vận chuyển VC_*
+│   ├── vcOrderRepository.js ← Thao tác CRUD 6 tab vận chuyển VC_* (batchUpdate updateOrderItems)
 │   └── vcOrderRepository.test.js
 ├── sheets/
-│   ├── sheetsClient.js     ← Đọc dữ liệu Google Sheets cho dashboard
-│   └── vcSheetsClient.js   ← Đọc/ghi dữ liệu bảng vận chuyển VC_*
+│   ├── sheetsClient.js     ← Đọc dữ liệu Google Sheets cho dashboard (cache 90s, timeout 15s)
+│   └── vcSheetsClient.js   ← Đọc/ghi dữ liệu VC_* (cache theo sheet 12s, write invalidation, timeout 15s)
+├── test/
+│   └── frontend/           ← Bộ unit test frontend logic & 3D (di dời khỏi public/ để bảo mật & gọn gàng)
+│       ├── auth-guest-ui.test.js · export-ui.test.js · pagination.test.js
+│       ├── three-bg.test.js · three-buttons.test.js · three-css-transforms.test.js
+│       ├── three-infrastructure.test.js · three-interactions.test.js · three-loading.test.js
+│       ├── three-navigation.test.js · three-performance.test.js · three-tables.test.js
 └── public/
-    ├── index.html          ← Frontend Live Dashboard (KPI, biểu đồ, tìm kiếm, xuất Excel)
+    ├── index.html          ← Frontend Live Dashboard (KPI, biểu đồ, 13 bảng phân trang 100 dòng, xuất Excel)
     ├── Logo.jpg            # Logo thương hiệu frontend
     ├── performance-test.html # Trang công cụ kiểm tra & đo lường hiệu năng 3D trực quan
     ├── account/
     │   └── index.html      ← Quản lý tài khoản (Hồ sơ cá nhân & Quản trị người dùng)
     ├── js/
-    │   ├── auth-guest-ui.test.js ← Kiểm tra UI đăng ký/Google/tra cứu Khách/Tài khoản
-    │   ├── export-ui.test.js ← Unit test giao diện xuất Excel
-    │   ├── pagination.js   ← Module phân trang bảng client-side
-    │   ├── pagination.test.js ← Unit test cho phân trang
-    │   ├── three-bg.test.js ← Kiểm tra hệ thống hạt 3D background và đổi theme
-    │   ├── three-buttons.test.js ← Kiểm tra hiệu ứng 3D tactile press và ripple nút
-    │   ├── three-charts.js ← Biểu đồ doanh thu 3D Three.js cho dashboard
-    │   ├── three-css-transforms.test.js ← Kiểm tra hiệu ứng 3D CSS perspective cho thẻ/panel
-    │   ├── three-infrastructure.test.js ← Kiểm tra nạp và khởi tạo thư viện THREE.js r159
-    │   ├── three-interactions.test.js ← Kiểm tra dynamic hover tilt và button/nav 3D
-    │   ├── three-loading.test.js ← Kiểm tra 3D rotating loading cube
-    │   ├── three-navigation.test.js ← Kiểm tra hiệu ứng 3D trượt nổi thanh điều hướng sidebar
-    │   └── three-tables.test.js ← Kiểm tra hiệu ứng 3D nổi dòng bảng và animation so le
-    ├── login/index.html    ← Giao diện đăng nhập nội bộ, Google Sign-In, OTP Reset & Lockout
-    ├── register/index.html ← Giao diện đăng ký tài khoản Khách (Email / Số điện thoại)
+    │   └── pagination.js   ← Module phân trang bảng client-side (renderPaginatedRows)
+    ├── login/index.html    ← Giao diện đăng nhập nội bộ, Google Sign-In, OTP Reset (tải nhẹ, không 3D)
+    ├── register/index.html ← Giao diện đăng ký tài khoản Khách (tải nhẹ, không 3D)
     ├── shared/             ← shared-nav.js, shared.css, image-compress.js dùng chung
     │   ├── three-bg.js     ← Hệ thống hạt 3D Particle Background toàn trang
-    │   ├── three-interactions.js ← Bộ xử lý 3D dynamic tilt, 3D navigation, button ripple và table row animation
+    │   ├── three-interactions.js ← Bộ xử lý 3D dynamic tilt (rAF throttle), 3D navigation và tactile buttons
     │   ├── three-loading.js ← 3D rotating loading cube loader
     │   ├── three-memory.js ← Bộ quản lý WebGL context và giải phóng bộ nhớ
     │   ├── three-performance.js ← Bộ giám sát FPS và tự động điều chỉnh chất lượng 3D
-    │   ├── three-performance.test.js ← Unit test cho bộ giám sát hiệu năng
     │   └── three-visibility.js ← Bộ điều phối tạm dừng/tiếp tục hiệu ứng khi đổi tab
     ├── shipment/
     │   ├── index.html      ← Giao diện tra cứu trạng thái vận chuyển (Khách)
@@ -104,7 +97,7 @@ server/                     ← Node.js/Express backend (Render.com)
 
 ---
 
-# 2. Giai đoạn 1 — Dashboard Real-Time & Lớp hiệu ứng 3D (ĐÃ HOÀN THÀNH)
+# 2. Giai đoạn 1 — Dashboard Real-Time & Tối ưu hóa hiệu năng (ĐÃ HOÀN THÀNH)
 
 ## 2.1. Danh sách task đã hoàn thành
 
@@ -125,21 +118,25 @@ server/                     ← Node.js/Express backend (Render.com)
 | 13    | Result Cache tầng backend | Cache dữ liệu thô 90s + Result Cache theo `(rawDataVersion, filters)`, search index chỉ build lại khi refetch | [Hoan thanh] |
 | 14    | Phân trang bảng client-side | `pagination.js` phân trang ~200 dòng/trang cho `allProducts` và `lowStock`, loại bỏ lag 3.5s khi mở tab Hàng hóa | [Hoan thanh] |
 | 15    | Tối ưu Motion & UI Transitions | Áp dụng shared `--ease-out`, chống re-animate biểu đồ khi chuyển tab/poll, transition mượt mà cho search suggestions, surfaces, debt rows | [Hoan thanh] |
-| 16    | Lớp hiệu ứng 3D Progressive Layer | Tích hợp Three.js r159 particle background, card 3D tilt, tactile buttons, 3D navigation, table staggered rows, 3D loading cube, adaptive performance monitor & memory disposal trên cả 7 trang | [Hoan thanh] |
-| 17    | Bộ kiểm thử tự động | Bộ **214 unit tests** chuẩn `node:test` bao phủ auth/Guest/SĐT, Admin CRUD, OTP reset, tra cứu vận chuyển, State Machine 9 trạng thái, Repository VC, cache, pagination, excel export, và 10 test suites 3D | [Hoan thanh] |
+| 16    | Lớp hiệu ứng 3D Progressive Layer | Tích hợp Three.js r159 particle background, card 3D tilt, tactile buttons, 3D navigation, table staggered rows, 3D loading cube, adaptive performance monitor & memory disposal trên 5 trang | [Hoan thanh] |
+| 17    | Bộ kiểm thử tự động | Bộ **214 unit tests** chuẩn `node:test` bao phủ auth/Guest/SĐT, Admin CRUD, OTP reset, tra cứu vận chuyển, State Machine 9 trạng thái, Repository VC, cache, pagination, excel export, và 12 frontend test suites trong `server/test/frontend/` | [Hoan thanh] |
+| 18    | Tối ưu hóa hiệu năng & Giảm lag (4 Phase) | (1) Gzip compression, Cache-Control static assets, script defer, fonts preconnect, gỡ 3D login/register; (2) rAF throttle `onCardHover`, scoped `TKS3D.refresh()`; (3) Phân trang 100 dòng/trang cho toàn bộ 13 bảng dữ liệu + lazy debt detail; (4) Backend cache 12s theo sheet `vcSheetsClient.js` kèm write invalidation, `vcBatchUpdate` cho `updateOrderItems`, 15s timeout cho Google Sheets API | [Hoan thanh] |
 
 ## 2.2. Tính năng đã vận hành
 
 - **KPI Dashboard:** Doanh thu hôm nay, hóa đơn, tồn kho, công nợ KH/NCC, đặt hàng, trả hàng, nhập hàng.
 - **Biểu đồ doanh thu theo ngày:** bộ lọc 7 / 30 / 90 ngày, biểu đồ cơ cấu tồn kho, số lượng/doanh thu theo nhóm cha & nhóm con.
-- **Bảng chi tiết & Phân trang:** Top 10 sản phẩm bán chạy, hàng đã hết (phân trang), tất cả mã hàng (phân trang), Top 8 công nợ, bản ghi gần nhất.
+- **Bảng chi tiết & Phân trang toàn diện (100 dòng/trang):** Áp dụng phân trang client-side (`renderPaginatedRows`) cho toàn bộ 13 bảng dữ liệu (allProducts, lowStock, childCategory, topSelling, endOfDay, overviewPurchases, todayNewProducts, deactivatedToday, newlyImported, invoices, orders, returns, topDebt, customerRevenue, suppliers, debt).
+- **Lazy-Render chi tiết công nợ:** Chỉ dựng DOM chi tiết giao dịch khi khách hàng bấm mở rộng dòng, tra cứu theo `data-customer-code`.
 - **Báo cáo công nợ KH 1/3/7 ngày:** Tự động tính toán từ KiotViet qua `CustomerDebtReport.gs`, ghi vào 3 tab HN1/HN3/HN7 và hiển thị trực quan qua `debtReport.js`.
 - **Theo dõi hàng Ngừng kinh doanh:** Duy trì lịch sử từ trước tới nay trong một tab duy nhất qua `DiscontinuedProducts.gs`.
 - **Đồng bộ tự động:** Webhook KiotViet (9 event) qua tab queue ẩn + polling 15 phút (Trả hàng/NCC/Nhập hàng).
 - **Backend Result Cache:** Phản hồi tức thì (<10ms) cho các lượt chuyển tab, thay đổi bộ lọc hoặc mở nhiều tab trình duyệt khi dữ liệu Sheets chưa đổi.
+- **Bảo vệ Quota Google Sheets API cho Vận đơn:** Bộ nhớ đệm ngắn hạn 12s theo sheet trong `vcSheetsClient.js` chống nghẽn khi nhiều tài xế/điều phối viên poll đồng thời, kết hợp cơ chế xóa cache chủ động khi ghi dữ liệu và batch write qua `vcBatchUpdate`.
+- **Giao tiếp mạng tối ưu (Network Delivery):** Gzip compression toàn diện, Cache-Control static headers, non-blocking script defer và Google Fonts preconnect.
 - **Tìm kiếm nâng cao:** Hỗ trợ tìm kiếm từ khóa thông thường, tìm chính xác tối đa 50 mã (`mode=codes`), và tìm Top 3 khách hàng theo danh sách mã sản phẩm từ `Khách theo hàng hóa`.
 - **Xuất Excel (16 bảng):** Nút riêng cho từng bảng, tùy chọn trường từ Google Sheets, giữ bộ lọc hiện tại, hỗ trợ xuất tổng hợp + chi tiết và kết quả tìm kiếm đa nguồn.
-- **Lớp hiệu ứng 3D Visual & Hiệu năng cao:** Hệ thống hạt 3D Particle Background tự động đổi màu theo theme, card 3D tilt xoay nhẹ theo vị trí chuột, 3D rotating cube loader, biểu đồ 3D Three.js, tự động giảm tải xuống 30fps/50 particles khi máy yếu (`three-performance.js`), quản lý thu hồi bộ nhớ WebGL (`three-memory.js`), và tạm dừng animation khi chuyển tab (`three-visibility.js`).
+- **Lớp hiệu ứng 3D Visual & Hiệu năng cao:** Hệ thống hạt 3D Particle Background tự động đổi màu theo theme, card 3D tilt xoay nhẹ theo vị trí chuột với rAF gating & cached rect, 3D rotating cube loader, tự động giảm tải xuống 30fps/50 particles khi máy yếu (`three-performance.js`), quản lý thu hồi bộ nhớ WebGL (`three-memory.js`), và tạm dừng animation khi chuyển tab (`three-visibility.js`).
 - **Giao diện mượt mà & Tiếp cận (A11y):** Tôn trọng tuyệt đối `prefers-reduced-motion: reduce`, đảm bảo độ tương phản WCAG AA, focus indicators `:focus-visible` độc lập.
 
 ---
@@ -203,4 +200,4 @@ Toàn bộ 6 tab dashboard hiện có (Tổng quan/Hàng hóa/Hóa đơn/Khách 
 
 ---
 
-*Cập nhật lần cuối: 18/08/2026*
+*Cập nhật lần cuối: 19/08/2026*

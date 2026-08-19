@@ -38,7 +38,8 @@ const REPLACEMENTS = [
   ['border-radius: 0 0 0 7px;', 'border-radius: 0 0 0 var(--radius-7);', 2],
 
   // --- one-off hex colors used outside the :root token blocks ---
-  ['border: 1px solid #E2E8F0;', 'border: 1px solid var(--border);', 1],
+  // (the single `border: 1px solid #E2E8F0;` case was already normalized
+  // to var(--border) by hand — see Phase A notes — so it's not repeated here)
   ['#fff', 'var(--white)', 3],
 
   // --- RGB channel aliases (fixed values — see the comment above the

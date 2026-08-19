@@ -24,10 +24,17 @@ This is configured in the bound Google Apps Script project:
 cp .env.example .env
 # Điền SPREADSHEET_ID, VC_SPREADSHEET_ID, DRIVE_UPLOAD_FOLDER_ID, GOOGLE_SERVICE_ACCOUNT_JSON, JWT_SECRET, GOOGLE_CLIENT_ID
 npm install
-npm test      # Chạy 214 unit tests tự động (auth/Guest/SĐT, Google OAuth, OTP reset, Admin CRUD, shipment lifecycle, State Machine 9 trạng thái, VC repository, cache, pagination, export, search, 3D Three.js effects, 3D interactions, 3D loading cube, adaptive performance & memory cleanup)
-npm start     # Khởi chạy server tại http://localhost:3000
+npm test      # Chạy 214 unit tests tự động (auth/Guest/SĐT, Google OAuth, OTP reset, Admin CRUD, shipment lifecycle, State Machine 9 trạng thái, VC repository, cache, pagination, export, search, và 12 frontend test suites trong test/frontend/)
+npm start     # Khởi chạy server tại http://localhost:3000 (tự động bật gzip compression và static Cache-Control headers)
 ```
 Truy cập `http://localhost:3000` — giao diện Live Dashboard tải số liệu thời gian thực từ Google Sheets. `GET /health` trả về `{"status":"ok"}`.
+
+### Hiệu năng & Tối ưu hóa Backend
+- **Gzip Compression:** Tự động nén toàn bộ HTTP responses (HTML, CSS, JS, JSON API).
+- **Static Assets Cache-Control:** Vendor libs (`max-age=86400`), Shared JS/CSS (`max-age=3600`), Images (`max-age=604800`).
+- **Short-TTL Cache Vận đơn (`vcSheetsClient.js`):** Cache dữ liệu thô theo sheet 12s + Write-invalidation tự động (tránh rate-limit Google Sheets khi tài xế/điều phối viên poll 25-30s).
+- **Batch Writing (`updateOrderItems`):** Gom các thao tác ghi dòng tuần tự thành 1 request `batchUpdate` duy nhất.
+- **Request Timeout:** Timeout 15s (`VC_API_TIMEOUT_MS = 15000`) cho mọi kết nối Google Sheets API chống treo request.
 
 ### Quản lý tài khoản người dùng & Khởi tạo Vận chuyển (CLI Scripts)
 ```bash

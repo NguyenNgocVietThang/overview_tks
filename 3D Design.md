@@ -1280,12 +1280,15 @@ gaps closed today are called out below.**
 
 ---
 
-## 📌 Notes
+## 📌 Notes & 2026-08-19 Performance Refinement
 
-- **Phạm vi:** Đây là enhancement layer, không replace giao diện hiện tại
-- **Philosophy:** "Progressive enhancement" — trang vẫn hoạt động tốt nếu không có 3D
-- **Trade-offs:** Tăng file size (~600KB cho THREE.js), nhưng worth it cho visual impact
-- **Future:** Có thể extend thêm 3D interactions (drag-to-rotate charts, VR mode...)
+- **Phạm vi:** Đây là enhancement layer, không replace giao diện hiện tại.
+- **Philosophy:** "Progressive enhancement" — trang vẫn hoạt động tốt nếu không có 3D.
+- **Tối ưu hóa đợt 19/08/2026 (Giảm lag & Tiết kiệm tài nguyên):**
+  - **Login / Register Streamlining:** Đã gỡ bỏ 3D stack (`three.min.js`, `three-bg.js`...) khỏi `login/index.html` và `register/index.html` theo đúng `ROLLBACK.md` để giảm ~650KB payload trong lần truy cập đầu tiên của người dùng chưa đăng nhập.
+  - **Main-Thread Hover Throttling (`three-interactions.js`):** Thay thế event `mousemove` thô bằng rAF gating + cache `getBoundingClientRect()` tại `mouseenter`, loại bỏ hoàn toàn hiện tượng forced reflow và dồn paint.
+  - **Scoped `TKS3D.refresh(rootEl)`:** Gọi `TKS3D.refresh(viewEl)` và `TKS3D.refresh(rows)` có tham số container mục tiêu thay vì quét lại toàn bộ `document` mỗi khi chuyển view hoặc lọc công nợ.
+  - **Dọn dẹp code:** Gỡ bỏ các tham chiếu tới `three-charts.js` (không nằm trong codebase thực tế, thay bằng Chart.js 2D tiêu chuẩn với animation gating).
 
 ---
 
@@ -1301,6 +1304,7 @@ gaps closed today are called out below.**
 
 ---
 
-**Status:** ✅ Đã hoàn thành toàn diện / Fully Implemented (214/214 tests passing, tích hợp trên 7 trang giao diện)  
-**Effort:** Hoàn thành trong 14 tasks theo đúng lộ trình  
-**Priority:** High (Premium feature delivered)
+**Status:** ✅ Đã tối ưu hóa hiệu năng & vận hành (rAF Throttled, Scoped Refresh, 5 trang active, 214 tests passing)  
+**Effort:** Hoàn thành 14 tasks ban đầu + gói tối ưu hóa hiệu năng 4 phases (19/08/2026)  
+**Priority:** High (Production Optimized)
+

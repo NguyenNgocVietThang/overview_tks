@@ -7,13 +7,13 @@
 | **Thông tin**      | **Nội dung**                                               |
 |--------------------|------------------------------------------------------------|
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                          |
-| Phiên bản          | 1.9                                                        |
+| Phiên bản          | 2.0                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 18/08/2026                                                 |
-| Tài liệu liên quan | BRD v1.7 · BPMN v1.8 · Implementation Plan v2.0 · Plan Process Automation · 3D Design · Performance Optimization Report · ROLLBACK |
-| Trạng thái         | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1 & Lớp hiệu ứng 3D đã hoàn thiện) |
+| Ngày cập nhật      | 19/08/2026                                                 |
+| Tài liệu liên quan | BRD v1.7 · BPMN v1.8 · Implementation Plan v2.1 · Plan Process Automation · 3D Design · Performance Optimization Report · Lag Optimization Plan · ROLLBACK |
+| Trạng thái         | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1, Lớp 3D & Gói tối ưu hóa hiệu năng 4 Phase đã hoàn thiện) |
 
-> **Ghi chú phiên bản 1.9:** Bổ sung lớp hiệu ứng 3D Visual Progressive Layer trên cả 7 trang giao diện (Three.js r159 particle background `three-bg.js`, dynamic card tilt & button tactile `three-interactions.js`, 3D rotating loading cube `three-loading.js`, biểu đồ doanh thu 3D `three-charts.js`, bộ giám sát FPS và thích ứng chất lượng `three-performance.js`, quản lý bộ nhớ WebGL `three-memory.js`, tạm dừng khi đổi tab `three-visibility.js`), module xác thực & quản trị tài khoản người dùng nâng cao Phase 0 (JWT httpOnly cookie, bcrypt, đăng ký tài khoản `Khách` bằng Email hoặc Số điện thoại, Google Identity Sign-In, khôi phục mật khẩu qua mã OTP 6 số với cơ chế lockout 5 phút, đổi mật khẩu & cập nhật hồ sơ, giao diện quản lý tài khoản `/account/`, API quản trị Admin `/api/admin/users`), module tra cứu vận chuyển Phase 0.5 (`POST /api/shipment/invoice-status` với cache 90s và giao diện `/shipment/`), bảo vệ route theo 5 vai trò (`Quản lý`, `Kế toán`, `Trưởng kho`, `Trợ lý`, `Khách`), State Machine vận đơn 9 trạng thái, Result Cache tầng backend (`dashboardResultCache` theo `rawDataVersion` và filters), phân trang bảng client-side (`pagination.js`), API xuất Excel (`POST /api/export/fields`, `POST /api/export`), và bộ kiểm thử tự động toàn diện 214 unit tests.
+> **Ghi chú phiên bản 2.0:** Bổ sung gói tối ưu hóa toàn diện hiệu năng và chống lag 4 Phase: (1) Nén Gzip compression cho mọi response, thiết lập Cache-Control static assets (vendor 1 ngày, js/css 1 giờ, images 7 ngày), defer scripts không chặn parser, preconnect Google Fonts, gỡ bỏ 3D bundle khỏi trang login/register để giảm ~650KB payload cho khách mới; (2) Giảm tải main-thread cho hệ thống 3D (rAF throttle + cached bounding rect cho `onCardHover`, scoped `TKS3D.refresh(targetContainer)`); (3) Chuẩn hóa phân trang client-side 100 dòng/trang cho toàn bộ 13 bảng dữ liệu trong dashboard + lazy-render chi tiết công nợ khách hàng; (4) Bảo vệ hạn ngạch Google Sheets API cho nghiệp vụ vận đơn bằng cache theo sheet 12s trong `vcSheetsClient.js` kèm cơ chế Write Invalidation tự động, batch write các cập nhật dòng qua `vcBatchUpdate`, và thiết lập 15s timeout cho mọi lời gọi Google Sheets API. Tái cơ cấu 12 bộ test frontend vào `server/test/frontend/`.
 
 # 1. Giới thiệu
 

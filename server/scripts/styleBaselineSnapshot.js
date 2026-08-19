@@ -50,7 +50,7 @@ function extractBlock(css, selectorRe) {
 }
 
 // Matches `prop: value;` (value cannot itself contain `{`/`}`), across newlines.
-const DECL_RE = /([a-zA-Z-]+)\s*:\s*([^;{}]+);/g;
+const DECL_RE = /([a-zA-Z0-9-]+)\s*:\s*([^;{}]+);/g;
 
 function parseDeclarations(css) {
   const out = [];
@@ -58,6 +58,41 @@ function parseDeclarations(css) {
   DECL_RE.lastIndex = 0;
   while ((m = DECL_RE.exec(css))) {
     out.push({ prop: m[1].trim(), value: m[2].trim(), index: m.index });
+  }
+  return out;
+}
+
+// Same as parseDeclarations, but also tags each declaration with which
+// theme(s) it can actually apply to, based on brace nesting: anything
+// nested under a `:root[data-theme="light"] ...` selector is light-only —
+// it can never render in the dark theme, no matter what its resolved value
+// says. Without this, a declaration whose resolved value legitimately
+// differs per theme (e.g. it now uses a themed var()) looks like a false
+// "value changed" diff even though the selector gates it to one theme.
+function parseDeclarationsWithScope(css) {
+  const out = [];
+  const stack = []; // true = current nesting is under a light-only selector
+  let buf = '';
+  for (let i = 0; i < css.length; i++) {
+    const ch = css[i];
+    if (ch === '{') {
+      const isLight = /\[data-theme=["']light["']\]/.test(buf) ||
+        (stack.length > 0 && stack[stack.length - 1]);
+      stack.push(isLight);
+      buf = '';
+    } else if (ch === '}') {
+      stack.pop();
+      buf = '';
+    } else if (ch === ';') {
+      const m = /^\s*([a-zA-Z0-9-]+)\s*:\s*([^;{}]+)\s*$/.exec(buf);
+      if (m) {
+        const scope = stack.length > 0 && stack[stack.length - 1] ? 'light' : 'both';
+        out.push({ prop: m[1].trim(), value: m[2].trim(), scope });
+      }
+      buf = '';
+    } else {
+      buf += ch;
+    }
   }
   return out;
 }
@@ -92,13 +127,16 @@ function snapshot(filePath) {
   const darkVars = buildVarMap(darkBlock);
   const lightVars = Object.assign({}, darkVars, lightBlock ? buildVarMap(lightBlock) : {});
 
-  const decls = parseDeclarations(style).filter(({ prop, value }) => {
+  const decls = parseDeclarationsWithScope(style).filter(({ prop, value }) => {
     if (prop.startsWith('--')) return false;
     return TARGET_PROPS.has(prop) || COLOR_RE.test(value) || value.includes('var(');
   });
 
-  const dark = decls.map((d, i) => ({ i, prop: d.prop, resolved: resolveVars(d.value, darkVars) }));
-  const light = decls.map((d, i) => ({ i, prop: d.prop, resolved: resolveVars(d.value, lightVars) }));
+  const dark = decls
+    .filter((d) => d.scope !== 'light')
+    .map((d, i) => ({ i, prop: d.prop, resolved: resolveVars(d.value, darkVars) }));
+  const light = decls
+    .map((d, i) => ({ i, prop: d.prop, resolved: resolveVars(d.value, lightVars) }));
 
   return { count: decls.length, dark, light };
 }
