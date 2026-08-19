@@ -399,6 +399,23 @@ Mỗi trong 7 trang load 3D theo đúng thứ tự sau (bắt buộc — các mo
 
 ---
 
+## Cache tĩnh (Static Asset Caching)
+
+Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại file tĩnh:
+
+| Loại file | Cache-Control | Mục đích |
+|---|---|---|
+| Thư viện vendor (`/vendor/`) | `public, max-age=86400` (1 ngày) | Chart.js, THREE.js thay đổi hiếm khi |
+| JS/CSS dùng chung (`/shared/*.js|css`, `/js/*.js`) | `public, max-age=3600` (1 giờ) | Có thể sửa đổi thường xuyên hơn |
+| Ảnh (`*.png`, `*.jpg`, `*.svg`, `*.webp`, `*.ico`) | `public, max-age=604800` (7 ngày) | Thay đổi rất hiếm khi |
+| HTML (entry points như `index.html`) | Không set custom; dùng ETag revalidation | Luôn kiểm tra phiên bản mới sau deploy |
+
+**Rủi ro:** Sau khi deploy một bugfix khẩn cấp trên JS/CSS core, người dùng có thể vẫn thấy bản code cũ trong tối đa **1 giờ** do trình duyệt cache local.
+
+**Hướng dẫn cho người dùng:** Nếu cần xem bản mới ngay lập tức sau một deploy khẩn cấp, hướng dẫn họ nhấn **Ctrl+F5** (Windows/Linux) hoặc **Cmd+Shift+R** (Mac) để thực hiện hard refresh (bypass cache).
+
+---
+
 ## Lộ trình mở rộng
 
 | Giai đoạn | Module | Mô tả |
