@@ -15,7 +15,21 @@ app.use(cookieParser());
 app.use(routes);
 
 // Static files (html, css, js, images...)
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders(res, filePath) {
+    if (filePath.includes(`${path.sep}vendor${path.sep}`)) {
+      // Vendor lib (chart.umd.min.js, three.min.js) hiem khi doi thu cong
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // 1 ngay
+    } else if (/\.(js|css)$/.test(filePath)) {
+      // /shared/*, /js/* — co the sua thuong xuyen hon vendor
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 gio
+    } else if (/\.(png|jpg|jpeg|svg|webp|ico)$/.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=604800'); // 7 ngay
+    }
+    // HTML: khong set — giu mac dinh (ETag revalidate), vi day la entry point
+    // can luon lay ban moi nhat khi co deploy.
+  }
+}));
 
 // ── 404 handlers ─────────────────────────────────────────────────────────────
 // Phai dat SAU routes va static de chi bat nhung request khong khop gi ca.
