@@ -4270,6 +4270,11 @@
                     </tbody>
                   </table>
                 </div>
+                <div class="pagination-controls" id="supplierPagination" hidden>
+                  <button type="button" id="supplierPrevPage">‹ Trước</button>
+                  <span id="supplierPageLabel">Trang 1/1</span>
+                  <button type="button" id="supplierNextPage">Sau ›</button>
+                </div>
               </div>
             </div>
           </section>
@@ -6159,7 +6164,7 @@
       return '<span class="pill ok">' + stock + '</span>';
     }
 
-    const TABLE_PAGE_SIZE = 200; // allProducts/lowStock co the len toi hang nghin dong; render het cung luc lam switchView('products') mat ~3.5s (xem docs/superpowers/plans/2026-08-13-dashboard-table-pagination.md)
+    const TABLE_PAGE_SIZE = 100; // Giam tu 200 xuong 100 — du lieu demo hien it dong nhung du lieu KiotViet that se lon hon nhieu; 100 dong/trang muot hon cho moi bang dung chung renderPaginatedRows() (xem docs/superpowers/plans/2026-08-13-dashboard-table-pagination.md)
 
     /**
      * Render 1 bang lon theo trang thay vi day het toan bo `items` vao DOM cung
@@ -6485,12 +6490,16 @@
         else destroyChart('supplierDebt');
 
         document.getElementById('tagSuppliers').textContent = d.suppliers.length;
-        const supplierRows = document.getElementById('supplierRows');
-        supplierRows.innerHTML = d.suppliers.length ? d.suppliers.map(s =>
-          '<tr><td class="mono muted">' + escapeHtml(s.code) + '</td><td class="name-cell">' + escapeHtml(s.name) + '</td>' +
-          '<td class="mono muted">' + (s.phone ? escapeHtml(s.phone) : '—') + '</td>' +
-          '<td class="mono" data-sort-value="' + s.debt + '" style="color:' + (s.debt > 0 ? 'var(--red)' : 'inherit') + ';">' + fmtMoney(s.debt) + '</td></tr>'
-        ).join('') : '<tr><td colspan="4" class="table-note">Không có nhà cung cấp</td></tr>';
+        renderPaginatedRows(
+          'suppliers',
+          { tbody: 'supplierRows', pagination: 'supplierPagination', prevBtn: 'supplierPrevPage', nextBtn: 'supplierNextPage', label: 'supplierPageLabel' },
+          d.suppliers,
+          s => '<tr><td class="mono muted">' + escapeHtml(s.code) + '</td><td class="name-cell">' + escapeHtml(s.name) + '</td>' +
+            '<td class="mono muted">' + (s.phone ? escapeHtml(s.phone) : '—') + '</td>' +
+            '<td class="mono" data-sort-value="' + s.debt + '" style="color:' + (s.debt > 0 ? 'var(--red)' : 'inherit') + ';">' + fmtMoney(s.debt) + '</td></tr>',
+          4,
+          'Không có nhà cung cấp'
+        );
 
       }
       else if (view === 'debt') {
