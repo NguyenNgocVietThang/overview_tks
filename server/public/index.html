@@ -4360,6 +4360,11 @@
                     </tbody>
                   </table>
                 </div>
+                <div class="pagination-controls" id="debtPagination" hidden>
+                  <button type="button" id="debtPrevPage">‹ Trước</button>
+                  <span id="debtPageLabel">Trang 1/1</span>
+                  <button type="button" id="debtNextPage">Sau ›</button>
+                </div>
               </div>
             </div>
           </section>
@@ -6541,16 +6546,13 @@
         : customers;
 
       document.getElementById('tagDebtPeriod').textContent = filtered.length;
-      const rows = document.getElementById('debtPeriodRows');
-      rows.innerHTML = filtered.length ? filtered.map(function (c, idx) {
-        const detailRows = (c.transactions || []).map(t =>
-          '<tr><td class="mono muted">' + escapeHtml(t.code || '—') + '</td>' +
-          '<td class="mono muted">' + escapeHtml(t.time || '—') + '</td>' +
-          '<td>' + escapeHtml(t.type || '—') + '</td>' +
-          '<td class="mono" data-sort-value="' + t.value + '">' + fmtMoney(t.value) + '</td>' +
-          '<td class="mono" data-sort-value="' + t.runningBalance + '">' + fmtMoney(t.runningBalance) + '</td></tr>'
-        ).join('');
-        return '<tr class="debt-row" style="cursor:pointer;" tabindex="0" role="button" aria-expanded="false" aria-controls="debt-detail-' + idx + '" onclick="toggleDebtDetail(' + idx + ')" onkeydown="handleDebtRowKeydown(event, ' + idx + ')">' +
+      state.debtFilteredCustomers = filtered; // luu de toggleDebtDetail tra cuu theo code
+
+      renderPaginatedRows(
+        'debt',
+        { tbody: 'debtPeriodRows', pagination: 'debtPagination', prevBtn: 'debtPrevPage', nextBtn: 'debtNextPage', label: 'debtPageLabel' },
+        filtered,
+        c => '<tr class="debt-row" style="cursor:pointer;" tabindex="0" role="button" aria-expanded="false" data-customer-code="' + escapeHtml(c.code) + '" onclick="toggleDebtDetail(this)" onkeydown="handleDebtRowKeydown(event, this)">' +
           '<td class="mono muted">' + escapeHtml(c.code) + '</td>' +
           '<td class="name-cell">' + escapeHtml(c.name) + '</td>' +
           '<td class="mono muted">' + (c.phone ? escapeHtml(c.phone) : '—') + '</td>' +
@@ -6560,30 +6562,56 @@
           '<td class="mono" data-sort-value="' + c.credit + '">' + fmtMoney(c.credit) + '</td>' +
           '<td class="mono" data-sort-value="' + c.closingDebt + '" style="color:' + (c.closingDebt > 0 ? 'var(--red)' : 'inherit') + ';">' + fmtMoney(c.closingDebt) + '</td>' +
           '</tr>' +
-          '<tr class="debt-detail-row" id="debt-detail-' + idx + '" style="display:none;"><td colspan="8">' +
-          (detailRows
-            ? '<table><thead><tr><th>Mã giao dịch</th><th>Thời gian</th><th>Loại giao dịch</th><th>Giá trị</th><th>Dư nợ cuối</th></tr></thead><tbody>' + detailRows + '</tbody></table>'
-            : '<span class="table-note">Không có chi tiết giao dịch</span>') +
-          '</td></tr>';
-      }).join('') : '<tr><td colspan="8" class="table-note">Không có khách hàng nào trong kỳ này</td></tr>';
+          '<tr class="debt-detail-row" data-customer-code="' + escapeHtml(c.code) + '" style="display:none;"><td colspan="8"></td></tr>', // KHONG render transactions san — lazy-render trong toggleDebtDetail
+        8,
+        'Không có khách hàng nào trong kỳ này'
+      );
+
+      // QUAN TRONG: giu lai 2 dong nay tu ban goc (da duoc Task 2.2 sua thanh
+      // TKS3D.refresh(rows) thay vi refresh() khong tham so) — renderPaginatedRows()
+      // da tu goi animateTableRows(tbody) noi bo nen KHONG can goi lai o day, nhung
+      // applyActiveTableSorts() va TKS3D.refresh(rows) khong nam trong renderPaginatedRows
+      // nen PHAI giu, neu khong se mat tinh nang restore sort dang active va hover-tilt
+      // tren bang cong no sau khi Task 2.2 da fix scope cho no.
       applyActiveTableSorts();
-      if (window.TKS3D && window.TKS3D.refresh) window.TKS3D.refresh(rows); // `rows` = document.getElementById('debtPeriodRows'), da co san o dong tren
-      if (typeof animateTableRows === 'function') animateTableRows(rows);
+      const debtRowsEl = document.getElementById('debtPeriodRows');
+      if (window.TKS3D && window.TKS3D.refresh) window.TKS3D.refresh(debtRowsEl);
     }
 
-    function toggleDebtDetail(idx) {
-      const row = document.getElementById('debt-detail-' + idx);
-      if (!row) return;
-      const isOpen = row.style.display === 'none';
-      row.style.display = isOpen ? 'table-row' : 'none';
-      const trigger = row.previousElementSibling;
-      if (trigger && trigger.classList.contains('debt-row')) trigger.setAttribute('aria-expanded', String(isOpen));
+    function toggleDebtDetail(triggerRow) {
+      const code = triggerRow.dataset.customerCode;
+      // Tra bang data-customer-code thay vi nextElementSibling: sortTableRows() (dung
+      // chung, ngoai pham vi Task 3.3) chi di chuyen cac <tr> "trigger" (cell dau tien
+      // co colSpan===1) khi sap xep cot, KHONG di chuyen debt-detail-row di kem — nen
+      // sau khi sort, quan he ke nhau trong DOM giua 2 dong bi vo. Tra theo code giu
+      // dung cap du DOM co bi sap xep lai the nao.
+      const detailRow = triggerRow.parentElement
+        ? triggerRow.parentElement.querySelector('tr.debt-detail-row[data-customer-code="' + CSS.escape(code) + '"]')
+        : null;
+      if (!detailRow) return;
+      const isOpening = detailRow.style.display === 'none';
+      if (isOpening && !detailRow.dataset.rendered) {
+        const c = (state.debtFilteredCustomers || []).find(x => x.code === code);
+        const detailRows = ((c && c.transactions) || []).map(t =>
+          '<tr><td class="mono muted">' + escapeHtml(t.code || '—') + '</td>' +
+          '<td class="mono muted">' + escapeHtml(t.time || '—') + '</td>' +
+          '<td>' + escapeHtml(t.type || '—') + '</td>' +
+          '<td class="mono" data-sort-value="' + t.value + '">' + fmtMoney(t.value) + '</td>' +
+          '<td class="mono" data-sort-value="' + t.runningBalance + '">' + fmtMoney(t.runningBalance) + '</td></tr>'
+        ).join('');
+        detailRow.querySelector('td').innerHTML = detailRows
+          ? '<table><thead><tr><th>Mã giao dịch</th><th>Thời gian</th><th>Loại giao dịch</th><th>Giá trị</th><th>Dư nợ cuối</th></tr></thead><tbody>' + detailRows + '</tbody></table>'
+          : '<span class="table-note">Không có chi tiết giao dịch</span>';
+        detailRow.dataset.rendered = 'true';
+      }
+      detailRow.style.display = isOpening ? 'table-row' : 'none';
+      triggerRow.setAttribute('aria-expanded', String(isOpening));
     }
 
-    function handleDebtRowKeydown(event, idx) {
+    function handleDebtRowKeydown(event, triggerRow) {
       if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
       event.preventDefault();
-      toggleDebtDetail(idx);
+      toggleDebtDetail(triggerRow);
     }
 
     function setLoading(isLoading) {
