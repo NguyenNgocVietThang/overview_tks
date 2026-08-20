@@ -6537,7 +6537,7 @@
       const d = state.data;
       if (!d || !d.debt) return;
       const periodData = d.debt[state.debtPeriod] || { customers: [] };
-      const filterRaw = (document.getElementById('debtFilterInput').value || '').trim().toLocaleLowerCase('vi-VN');
+      const filterRaw = ((document.getElementById('debtFilterInput') || {}).value || '').trim().toLocaleLowerCase('vi-VN');
       const customers = periodData.customers || [];
       const filtered = filterRaw
         ? customers.filter(c =>
