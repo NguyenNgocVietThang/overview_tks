@@ -3514,6 +3514,11 @@
                     </tfoot>
                   </table>
                 </div>
+                <div class="pagination-controls" id="endOfDayPagination" hidden>
+                  <button type="button" id="endOfDayPrevPage">‹ Trước</button>
+                  <span id="endOfDayPageLabel">Trang 1/1</span>
+                  <button type="button" id="endOfDayNextPage">Sau ›</button>
+                </div>
               </div>
             </div>
           </section>
@@ -3578,6 +3583,11 @@
                     </tbody>
                   </table>
                 </div>
+                <div class="pagination-controls" id="overviewPurchasePagination" hidden>
+                  <button type="button" id="overviewPurchasePrevPage">‹ Trước</button>
+                  <span id="overviewPurchasePageLabel">Trang 1/1</span>
+                  <button type="button" id="overviewPurchaseNextPage">Sau ›</button>
+                </div>
               </div>
             </div>
           </section>
@@ -3614,6 +3624,11 @@
                     </tbody>
                   </table>
                 </div>
+                <div class="pagination-controls" id="todayNewProductsPagination" hidden>
+                  <button type="button" id="todayNewProductsPrevPage">‹ Trước</button>
+                  <span id="todayNewProductsPageLabel">Trang 1/1</span>
+                  <button type="button" id="todayNewProductsNextPage">Sau ›</button>
+                </div>
               </div>
             </div>
           </section>
@@ -3648,6 +3663,11 @@
                       </tr>
                     </tbody>
                   </table>
+                </div>
+                <div class="pagination-controls" id="deactivatedTodayPagination" hidden>
+                  <button type="button" id="deactivatedTodayPrevPage">‹ Trước</button>
+                  <span id="deactivatedTodayPageLabel">Trang 1/1</span>
+                  <button type="button" id="deactivatedTodayNextPage">Sau ›</button>
                 </div>
               </div>
             </div>
@@ -3737,6 +3757,11 @@
                       </tr>
                     </tbody>
                   </table>
+                </div>
+                <div class="pagination-controls" id="topSellingPagination" hidden>
+                  <button type="button" id="topSellingPrevPage">‹ Trước</button>
+                  <span id="topSellingPageLabel">Trang 1/1</span>
+                  <button type="button" id="topSellingNextPage">Sau ›</button>
                 </div>
               </div>
             </div>
@@ -3850,6 +3875,11 @@
                       </tr>
                     </tbody>
                   </table>
+                </div>
+                <div class="pagination-controls" id="newlyImportedPagination" hidden>
+                  <button type="button" id="newlyImportedPrevPage">‹ Trước</button>
+                  <span id="newlyImportedPageLabel">Trang 1/1</span>
+                  <button type="button" id="newlyImportedNextPage">Sau ›</button>
                 </div>
               </div>
               <div class="panel col-6">
@@ -4027,6 +4057,11 @@
                     </tbody>
                   </table>
                 </div>
+                <div class="pagination-controls" id="ordersPagination" hidden>
+                  <button type="button" id="ordersPrevPage">‹ Trước</button>
+                  <span id="ordersPageLabel">Trang 1/1</span>
+                  <button type="button" id="ordersNextPage">Sau ›</button>
+                </div>
               </div>
               <div class="panel col-6">
                 <div class="panel-head">
@@ -4050,6 +4085,11 @@
                       </tr>
                     </tbody>
                   </table>
+                </div>
+                <div class="pagination-controls" id="returnsPagination" hidden>
+                  <button type="button" id="returnsPrevPage">‹ Trước</button>
+                  <span id="returnsPageLabel">Trang 1/1</span>
+                  <button type="button" id="returnsNextPage">Sau ›</button>
                 </div>
               </div>
             </div>
@@ -4081,6 +4121,11 @@
                       </tr>
                     </tbody>
                   </table>
+                </div>
+                <div class="pagination-controls" id="invoicesPagination" hidden>
+                  <button type="button" id="invoicesPrevPage">‹ Trước</button>
+                  <span id="invoicesPageLabel">Trang 1/1</span>
+                  <button type="button" id="invoicesNextPage">Sau ›</button>
                 </div>
               </div>
             </div>
@@ -4151,6 +4196,11 @@
                     </tbody>
                   </table>
                 </div>
+                <div class="pagination-controls" id="customerRevenuePagination" hidden>
+                  <button type="button" id="customerRevenuePrevPage">‹ Trước</button>
+                  <span id="customerRevenuePageLabel">Trang 1/1</span>
+                  <button type="button" id="customerRevenueNextPage">Sau ›</button>
+                </div>
               </div>
             </div>
           </section>
@@ -4193,6 +4243,11 @@
                       </tr>
                     </tbody>
                   </table>
+                </div>
+                <div class="pagination-controls" id="topDebtPagination" hidden>
+                  <button type="button" id="topDebtPrevPage">‹ Trước</button>
+                  <span id="topDebtPageLabel">Trang 1/1</span>
+                  <button type="button" id="topDebtNextPage">Sau ›</button>
                 </div>
               </div>
             </div>
@@ -6065,15 +6120,19 @@
         destroyChart('topSelling');
       }
 
-      const topSellingRows = document.getElementById('topSellingRows');
-      topSellingRows.innerHTML = analysisRows.length ? analysisRows.map(item =>
-        '<tr><td class="name-cell">' + escapeHtml(item.name) +
-        (isParentCategory
-          ? '<br><span class="mono muted" style="font-size:10.5px;">' + Number(item.productCount || 0).toLocaleString('vi-VN') + ' mặt hàng</span>'
-          : '<br><span class="mono muted" style="font-size:10.5px;">' + escapeHtml(item.code) + '</span>') +
-        '</td><td class="mono muted" data-sort-value="' + item.qty + '">' + Number(item.qty || 0).toLocaleString('vi-VN') +
-        '</td><td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td></tr>'
-      ).join('') : '<tr><td colspan="3" class="table-note">Chưa có dữ liệu chi tiết hóa đơn</td></tr>';
+      renderPaginatedRows(
+        'topSelling',
+        { tbody: 'topSellingRows', pagination: 'topSellingPagination', prevBtn: 'topSellingPrevPage', nextBtn: 'topSellingNextPage', label: 'topSellingPageLabel' },
+        analysisRows,
+        item => '<tr><td class="name-cell">' + escapeHtml(item.name) +
+          (isParentCategory
+            ? '<br><span class="mono muted" style="font-size:10.5px;">' + Number(item.productCount || 0).toLocaleString('vi-VN') + ' mặt hàng</span>'
+            : '<br><span class="mono muted" style="font-size:10.5px;">' + escapeHtml(item.code) + '</span>') +
+          '</td><td class="mono muted" data-sort-value="' + item.qty + '">' + Number(item.qty || 0).toLocaleString('vi-VN') +
+          '</td><td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td></tr>',
+        3,
+        'Chưa có dữ liệu chi tiết hóa đơn'
+      );
 
       const activeSort = state.tableSorts.topSellingRows;
       if (activeSort) {
@@ -6235,17 +6294,22 @@
         document.getElementById('end-day-total-revenue').textContent = fmtMoney(summary.revenue);
         document.getElementById('end-day-total-discount').textContent = fmtMoney(summary.discount);
         document.getElementById('end-day-total-paid').textContent = fmtMoney(summary.paid);
-        document.getElementById('endOfDayRows').innerHTML = transactions.length ? transactions.map(item =>
-          '<tr><td class="mono name-cell">' + escapeHtml(item.code) + '</td>' +
-          '<td class="mono muted">' + escapeHtml(item.time || '—') + '</td>' +
-          '<td class="name-cell">' + escapeHtml(item.customer || '—') + '</td>' +
-          '<td>' + escapeHtml(item.employee || '—') + '</td>' +
-          '<td class="mono" data-sort-value="' + item.quantity + '">' + (item.quantityKnown ? Number(item.quantity || 0).toLocaleString('vi-VN') : '—') + '</td>' +
-          '<td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td>' +
-          '<td class="mono" data-sort-value="' + item.discount + '">' + fmtMoney(item.discount) + '</td>' +
-          '<td class="mono" data-sort-value="' + item.paid + '">' + fmtMoney(item.paid) + '</td>' +
-          '<td>' + statusPill(item.status) + '</td></tr>'
-        ).join('') : '<tr><td colspan="9" class="table-note">Chưa có giao dịch trong ngày</td></tr>';
+        renderPaginatedRows(
+          'endOfDay',
+          { tbody: 'endOfDayRows', pagination: 'endOfDayPagination', prevBtn: 'endOfDayPrevPage', nextBtn: 'endOfDayNextPage', label: 'endOfDayPageLabel' },
+          transactions,
+          item => '<tr><td class="mono name-cell">' + escapeHtml(item.code) + '</td>' +
+            '<td class="mono muted">' + escapeHtml(item.time || '—') + '</td>' +
+            '<td class="name-cell">' + escapeHtml(item.customer || '—') + '</td>' +
+            '<td>' + escapeHtml(item.employee || '—') + '</td>' +
+            '<td class="mono" data-sort-value="' + item.quantity + '">' + (item.quantityKnown ? Number(item.quantity || 0).toLocaleString('vi-VN') : '—') + '</td>' +
+            '<td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td>' +
+            '<td class="mono" data-sort-value="' + item.discount + '">' + fmtMoney(item.discount) + '</td>' +
+            '<td class="mono" data-sort-value="' + item.paid + '">' + fmtMoney(item.paid) + '</td>' +
+            '<td>' + statusPill(item.status) + '</td></tr>',
+          9,
+          'Chưa có giao dịch trong ngày'
+        );
         renderTopTransactionsChart(report);
 
         const newPurchases = d.newPurchases || { label: '—', orderCount: 0, totalAmount: 0, supplierCount: 0, bySupplier: [], orders: [] };
@@ -6267,40 +6331,53 @@
         } else {
           destroyChart('overviewPurchases');
         }
-        document.getElementById('overviewPurchaseRows').innerHTML = newPurchaseOrders.length ? newPurchaseOrders.map(p =>
-          '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
-          '<td class="mono muted">' + (p.date ? escapeHtml(p.date) : '—') + '</td>' +
-          '<td class="name-cell">' + (p.supplier ? escapeHtml(p.supplier) : '—') + '</td>' +
-          '<td class="mono" data-sort-value="' + p.total + '">' + fmtMoney(p.total) + '</td>' +
-          '<td>' + genericStatusPill(p.status) + '</td></tr>'
-        ).join('') : '<tr><td colspan="5" class="table-note">Không có hàng nhập trong khoảng thời gian đã chọn</td></tr>';
+        renderPaginatedRows(
+          'overviewPurchase',
+          { tbody: 'overviewPurchaseRows', pagination: 'overviewPurchasePagination', prevBtn: 'overviewPurchasePrevPage', nextBtn: 'overviewPurchaseNextPage', label: 'overviewPurchasePageLabel' },
+          newPurchaseOrders,
+          p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
+            '<td class="mono muted">' + (p.date ? escapeHtml(p.date) : '—') + '</td>' +
+            '<td class="name-cell">' + (p.supplier ? escapeHtml(p.supplier) : '—') + '</td>' +
+            '<td class="mono" data-sort-value="' + p.total + '">' + fmtMoney(p.total) + '</td>' +
+            '<td>' + genericStatusPill(p.status) + '</td></tr>',
+          5,
+          'Không có hàng nhập trong khoảng thời gian đã chọn'
+        );
 
         const todayNewProducts = ov.todayNewProducts || { label: '—', count: 0, dateColumnAvailable: true, products: [] };
         const newProductRows = todayNewProducts.products || [];
         document.getElementById('tagTodayNewProductsDate').textContent = todayNewProducts.label || '—';
         document.getElementById('today-new-products-count').textContent = 'Tổng ' + Number(todayNewProducts.count || 0).toLocaleString('vi-VN') + ' mã mới';
-        document.getElementById('todayNewProductRows').innerHTML = newProductRows.length ? newProductRows.map(p =>
-          '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
-          '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-          '<td>' + escapeHtml(p.category || 'Chưa phân nhóm') + '</td>' +
-          '<td class="mono muted">' + escapeHtml(p.createdAt || '—') + '</td>' +
-          '<td class="mono muted" data-sort-value="' + p.cost + '">' + fmtMoney(p.cost) + '</td>' +
-          '<td class="mono" data-sort-value="' + p.price + '">' + fmtMoney(p.price) + '</td></tr>'
-        ).join('') : '<tr><td colspan="6" class="table-note">' +
-        (todayNewProducts.dateColumnAvailable === false ? 'Sheet Hàng hóa chưa có cột Ngày tạo' : 'Chưa có mã hàng mới tạo trong khoảng đã chọn') +
-        '</td></tr>';
+        renderPaginatedRows(
+          'todayNewProducts',
+          { tbody: 'todayNewProductRows', pagination: 'todayNewProductsPagination', prevBtn: 'todayNewProductsPrevPage', nextBtn: 'todayNewProductsNextPage', label: 'todayNewProductsPageLabel' },
+          newProductRows,
+          p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
+            '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+            '<td>' + escapeHtml(p.category || 'Chưa phân nhóm') + '</td>' +
+            '<td class="mono muted">' + escapeHtml(p.createdAt || '—') + '</td>' +
+            '<td class="mono muted" data-sort-value="' + p.cost + '">' + fmtMoney(p.cost) + '</td>' +
+            '<td class="mono" data-sort-value="' + p.price + '">' + fmtMoney(p.price) + '</td></tr>',
+          6,
+          todayNewProducts.dateColumnAvailable === false ? 'Sheet Hàng hóa chưa có cột Ngày tạo' : 'Chưa có mã hàng mới tạo trong khoảng đã chọn'
+        );
 
         const deactivatedToday = ov.deactivatedToday || { label: '—', count: 0, products: [] };
         const deactivatedRows = deactivatedToday.products || [];
         document.getElementById('tagDeactivatedTodayDate').textContent = deactivatedToday.label || '—';
         document.getElementById('deactivated-today-count').textContent = 'Tổng ' + Number(deactivatedToday.count || 0).toLocaleString('vi-VN') + ' mã ngừng kinh doanh';
-        document.getElementById('deactivatedTodayRows').innerHTML = deactivatedRows.length ? deactivatedRows.map(p =>
-          '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
-          '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-          '<td>' + escapeHtml(p.category || 'Chưa phân nhóm') + '</td>' +
-          '<td class="mono muted">' + (p.modifiedAt ? escapeHtml(p.modifiedAt) : '—') + '</td>' +
-          '<td>' + bizStatusPill(p.status) + '</td></tr>'
-        ).join('') : '<tr><td colspan="5" class="table-note">Chưa có mã ngừng kinh doanh trong khoảng đã chọn</td></tr>';
+        renderPaginatedRows(
+          'deactivatedToday',
+          { tbody: 'deactivatedTodayRows', pagination: 'deactivatedTodayPagination', prevBtn: 'deactivatedTodayPrevPage', nextBtn: 'deactivatedTodayNextPage', label: 'deactivatedTodayPageLabel' },
+          deactivatedRows,
+          p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
+            '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+            '<td>' + escapeHtml(p.category || 'Chưa phân nhóm') + '</td>' +
+            '<td class="mono muted">' + (p.modifiedAt ? escapeHtml(p.modifiedAt) : '—') + '</td>' +
+            '<td>' + bizStatusPill(p.status) + '</td></tr>',
+          5,
+          'Chưa có mã ngừng kinh doanh trong khoảng đã chọn'
+        );
       }
       else if (view === 'products') {
         const productRangeLabel = d.filters && d.filters.products ? d.filters.products.label : '30 ngày';
@@ -6342,13 +6419,17 @@
 
         const newlyImported = (d.products && d.products.newlyImported && d.products.newlyImported.products) || [];
         document.getElementById('tagNewlyImported').textContent = newlyImported.length;
-        const newlyImportedTbody = document.getElementById('newlyImportedRows');
-        newlyImportedTbody.innerHTML = newlyImported.length ? newlyImported.map(p =>
-          '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-          '<td class="mono muted">' + escapeHtml(p.firstImportDate) + '</td>' +
-          '<td class="mono muted" data-sort-value="' + (Number(p.daysOnHand) || 0) + '">' + escapeHtml(String(p.daysOnHand)) + '</td>' +
-          '<td class="mono" data-sort-value="' + (Number(p.revenue) || 0) + '">' + fmtMoney(p.revenue) + '</td></tr>'
-        ).join('') : '<tr><td colspan="5" class="table-note">Không có mã hàng mới nhập · ' + escapeHtml(productRangeLabel) + '</td></tr>';
+        renderPaginatedRows(
+          'newlyImported',
+          { tbody: 'newlyImportedRows', pagination: 'newlyImportedPagination', prevBtn: 'newlyImportedPrevPage', nextBtn: 'newlyImportedNextPage', label: 'newlyImportedPageLabel' },
+          newlyImported,
+          p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+            '<td class="mono muted">' + escapeHtml(p.firstImportDate) + '</td>' +
+            '<td class="mono muted" data-sort-value="' + (Number(p.daysOnHand) || 0) + '">' + escapeHtml(String(p.daysOnHand)) + '</td>' +
+            '<td class="mono" data-sort-value="' + (Number(p.revenue) || 0) + '">' + fmtMoney(p.revenue) + '</td></tr>',
+          5,
+          'Không có mã hàng mới nhập · ' + escapeHtml(productRangeLabel)
+        );
 
         const newlyImportedInfo = (d.products && d.products.newlyImported) || {};
         const topNewlyImportedByRevenue = newlyImportedInfo.topByRevenue || [];
@@ -6428,11 +6509,15 @@
         document.getElementById('in-cancelled-sub').textContent = invoiceRangeLabel;
         const recentInvoices = invoiceData.recentInvoices || [];
         document.getElementById('tagInvoices').textContent = recentInvoices.length;
-        const rows = document.getElementById('invoiceRows');
-        rows.innerHTML = recentInvoices.length ? recentInvoices.map(inv =>
-          '<tr><td class="mono muted">' + escapeHtml(inv.code) + '</td><td class="name-cell">' + (inv.customer ? escapeHtml(inv.customer) : 'Khách lẻ') + '</td>' +
-          '<td class="mono" data-sort-value="' + inv.total + '">' + fmtMoney(inv.total) + '</td><td>' + statusPill(inv.status) + '</td></tr>'
-        ).join('') : '<tr><td colspan="4" class="table-note">Chưa có hóa đơn nào</td></tr>';
+        renderPaginatedRows(
+          'invoices',
+          { tbody: 'invoiceRows', pagination: 'invoicesPagination', prevBtn: 'invoicesPrevPage', nextBtn: 'invoicesNextPage', label: 'invoicesPageLabel' },
+          recentInvoices,
+          inv => '<tr><td class="mono muted">' + escapeHtml(inv.code) + '</td><td class="name-cell">' + (inv.customer ? escapeHtml(inv.customer) : 'Khách lẻ') + '</td>' +
+            '<td class="mono" data-sort-value="' + inv.total + '">' + fmtMoney(inv.total) + '</td><td>' + statusPill(inv.status) + '</td></tr>',
+          4,
+          'Chưa có hóa đơn nào'
+        );
         renderRevenueChart('chartInvoiceRevenue', 'invoiceRevenue', invoiceData.revenueByDay || []);
 
         document.getElementById('in-pending-count').textContent = Number(invoiceData.pendingOrdersCount || 0).toLocaleString('vi-VN');
@@ -6442,20 +6527,28 @@
 
         const recentOrders = invoiceData.recentOrders || [];
         document.getElementById('tagOrders').textContent = recentOrders.length;
-        const orderRows = document.getElementById('orderRows');
-        orderRows.innerHTML = recentOrders.length ? recentOrders.map(o =>
-          '<tr><td class="mono muted">' + escapeHtml(o.code) + '</td><td class="name-cell">' + (o.customer ? escapeHtml(o.customer) : 'Khách lẻ') + '</td>' +
-          '<td class="mono" data-sort-value="' + o.total + '">' + fmtMoney(o.total) + '</td><td>' + genericStatusPill(o.status) + '</td></tr>'
-        ).join('') : '<tr><td colspan="4" class="table-note">Chưa có đặt hàng nào</td></tr>';
+        renderPaginatedRows(
+          'orders',
+          { tbody: 'orderRows', pagination: 'ordersPagination', prevBtn: 'ordersPrevPage', nextBtn: 'ordersNextPage', label: 'ordersPageLabel' },
+          recentOrders,
+          o => '<tr><td class="mono muted">' + escapeHtml(o.code) + '</td><td class="name-cell">' + (o.customer ? escapeHtml(o.customer) : 'Khách lẻ') + '</td>' +
+            '<td class="mono" data-sort-value="' + o.total + '">' + fmtMoney(o.total) + '</td><td>' + genericStatusPill(o.status) + '</td></tr>',
+          4,
+          'Chưa có đặt hàng nào'
+        );
 
         const recentReturns = invoiceData.recentReturns || [];
         document.getElementById('tagReturns').textContent = recentReturns.length;
-        const returnRows = document.getElementById('returnRows');
-        returnRows.innerHTML = recentReturns.length ? recentReturns.map(rt =>
-          '<tr><td class="mono muted">' + escapeHtml(rt.code) + '</td><td class="mono muted">' + (rt.originalInvoiceCode ? escapeHtml(rt.originalInvoiceCode) : '—') + '</td>' +
-          '<td class="name-cell">' + (rt.customer ? escapeHtml(rt.customer) : 'Khách lẻ') + '</td>' +
-          '<td class="mono" data-sort-value="' + rt.total + '">' + fmtMoney(rt.total) + '</td><td>' + genericStatusPill(rt.status) + '</td></tr>'
-        ).join('') : '<tr><td colspan="5" class="table-note">Chưa có trả hàng nào</td></tr>';
+        renderPaginatedRows(
+          'returns',
+          { tbody: 'returnRows', pagination: 'returnsPagination', prevBtn: 'returnsPrevPage', nextBtn: 'returnsNextPage', label: 'returnsPageLabel' },
+          recentReturns,
+          rt => '<tr><td class="mono muted">' + escapeHtml(rt.code) + '</td><td class="mono muted">' + (rt.originalInvoiceCode ? escapeHtml(rt.originalInvoiceCode) : '—') + '</td>' +
+            '<td class="name-cell">' + (rt.customer ? escapeHtml(rt.customer) : 'Khách lẻ') + '</td>' +
+            '<td class="mono" data-sort-value="' + rt.total + '">' + fmtMoney(rt.total) + '</td><td>' + genericStatusPill(rt.status) + '</td></tr>',
+          5,
+          'Chưa có trả hàng nào'
+        );
       }
       else if (view === 'customers') {
         const customerData = d.customers || d;
@@ -6464,11 +6557,15 @@
         document.getElementById('cu-debtcount').textContent = d.kpi.customersWithDebt;
         document.getElementById('cu-totaldebt').textContent = fmtMoney(d.kpi.totalDebt);
         document.getElementById('tagDebt').textContent = topDebt.length;
-        const rows = document.getElementById('debtRows');
-        rows.innerHTML = topDebt.length ? topDebt.map(c =>
-          '<tr><td class="mono muted">' + escapeHtml(c.code) + '</td><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
-          '<td class="mono muted">' + (c.phone ? escapeHtml(c.phone) : '—') + '</td><td class="mono" data-sort-value="' + c.debt + '" style="color:var(--red);">' + fmtMoney(c.debt) + '</td></tr>'
-        ).join('') : '<tr><td colspan="4" class="table-note">Không có khách hàng nợ</td></tr>';
+        renderPaginatedRows(
+          'topDebt',
+          { tbody: 'debtRows', pagination: 'topDebtPagination', prevBtn: 'topDebtPrevPage', nextBtn: 'topDebtNextPage', label: 'topDebtPageLabel' },
+          topDebt,
+          c => '<tr><td class="mono muted">' + escapeHtml(c.code) + '</td><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
+            '<td class="mono muted">' + (c.phone ? escapeHtml(c.phone) : '—') + '</td><td class="mono" data-sort-value="' + c.debt + '" style="color:var(--red);">' + fmtMoney(c.debt) + '</td></tr>',
+          4,
+          'Không có khách hàng nợ'
+        );
         const topDebtChart = topDebt.slice(0, 15);
         if (topDebtChart.length) renderBarChartList('chartDebt', 'debt', topDebtChart, c => c.name, c => c.debt, themeColor('--red'), false); else destroyChart('debt');
 
@@ -6476,12 +6573,16 @@
         const top50 = topRevenue.top50 || [];
         document.getElementById('tagCustomerRevenue').textContent = top50.length;
         document.getElementById('top-customer-revenue-count').textContent = topRevenue.label || '—';
-        const revenueRows = document.getElementById('customerRevenueRows');
-        revenueRows.innerHTML = top50.length ? top50.map(c =>
-          '<tr><td class="mono muted">' + escapeHtml(c.code) + '</td><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
-          '<td class="mono">' + Number(c.saleOrderCount || 0).toLocaleString('vi-VN') + '</td>' +
-          '<td class="mono" data-sort-value="' + c.revenue + '">' + fmtMoney(c.revenue) + '</td></tr>'
-        ).join('') : '<tr><td colspan="4" class="table-note">Không có dữ liệu doanh thu trong khoảng đã chọn</td></tr>';
+        renderPaginatedRows(
+          'customerRevenue',
+          { tbody: 'customerRevenueRows', pagination: 'customerRevenuePagination', prevBtn: 'customerRevenuePrevPage', nextBtn: 'customerRevenueNextPage', label: 'customerRevenuePageLabel' },
+          top50,
+          c => '<tr><td class="mono muted">' + escapeHtml(c.code) + '</td><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
+            '<td class="mono">' + Number(c.saleOrderCount || 0).toLocaleString('vi-VN') + '</td>' +
+            '<td class="mono" data-sort-value="' + c.revenue + '">' + fmtMoney(c.revenue) + '</td></tr>',
+          4,
+          'Không có dữ liệu doanh thu trong khoảng đã chọn'
+        );
         renderTopCustomerRevenueChart(topRevenue);
       }
       else if (view === 'suppliers') {
