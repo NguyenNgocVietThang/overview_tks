@@ -16,6 +16,32 @@ const CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY = 'CUSTOMER_PRODUCT_REPORT_SCHEMA_
 const CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION = 'detail-quantity-header-v2';
 const CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_PROPERTY = 'CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_VERSION';
 const CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_VERSION = 'kiotviet-export-25-columns-v1';
+const CUSTOMER_REPORT_DAILY_SCHEDULES = Object.freeze([
+  { handler: CUSTOMER_SALES_REPORT_TRIGGER_HANDLER, hour: 6, minute: 0 },
+  { handler: CUSTOMER_PRODUCT_REPORT_TRIGGER_HANDLER, hour: 6, minute: 30 },
+  { handler: CUSTOMER_BY_PRODUCT_REPORT_TRIGGER_HANDLER, hour: 7, minute: 0 }
+]);
+const CUSTOMER_REPORT_CATCH_UP_DEFINITIONS = Object.freeze([
+  {
+    minuteOfDay: 360,
+    lastSyncProperty: CUSTOMER_REPORT_LAST_SYNC_PROPERTY,
+    handler: syncSalesCustomerReport
+  },
+  {
+    minuteOfDay: 390,
+    lastSyncProperty: CUSTOMER_PRODUCT_REPORT_LAST_SYNC_PROPERTY,
+    schemaProperty: CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY,
+    schemaVersion: CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION,
+    handler: syncCustomerProductReport
+  },
+  {
+    minuteOfDay: 420,
+    lastSyncProperty: CUSTOMER_BY_PRODUCT_REPORT_LAST_SYNC_PROPERTY,
+    schemaProperty: CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_PROPERTY,
+    schemaVersion: CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_VERSION,
+    handler: syncCustomerByProductReport
+  }
+]);
 const CUSTOMER_REPORT_PAGE_SIZE = 100;
 const CUSTOMER_BY_PRODUCT_REPORT_WRITE_CHUNK_SIZE = 500;
 const CUSTOMER_REPORT_HEADERS = Object.freeze([
@@ -290,37 +316,42 @@ function requireCustomerReportToken_() {
 }
 
 /**
- * Duoc goi boi trigger hang doi 1 phut dang co san. Sau 07:00, neu bao cao
- * chua duoc cap nhat trong ngay thi chay mot lan; neu loi se thu lai o phut sau.
- * Co che nay giup lich 07:00 hoat dong ngay sau khi push ma khong can tao them
- * trigger thu cong.
+ * Duoc goi boi trigger hang doi 1 phut dang co san. Moi bao cao chay sau gio
+ * cua rieng no neu chua thanh cong trong ngay; loi se duoc thu lai o phut sau.
  */
-function syncCustomerReportIfDue_() {
-  const now = new Date();
+function syncCustomerReportIfDue_(now) {
+  now = now || new Date();
   const today = Utilities.formatDate(now, CUSTOMER_REPORT_TIME_ZONE, 'yyyy-MM-dd');
   const hour = Number(Utilities.formatDate(now, CUSTOMER_REPORT_TIME_ZONE, 'H'));
+  const minute = Number(Utilities.formatDate(now, CUSTOMER_REPORT_TIME_ZONE, 'm'));
+  const minuteOfDay = hour * 60 + minute;
   const properties = PropertiesService.getScriptProperties();
-  const lastSyncDate = properties.getProperty(CUSTOMER_REPORT_LAST_SYNC_PROPERTY);
-  const schemaVersion = properties.getProperty(CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY);
-  const customerByProductSchemaVersion = properties.getProperty(
-    CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_PROPERTY
-  );
-  const needsSchemaMigration = schemaVersion !== CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION ||
-    customerByProductSchemaVersion !== CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_VERSION;
+  let successCount = 0;
 
-  if (!needsSchemaMigration && (hour < 7 || lastSyncDate === today)) return false;
+  CUSTOMER_REPORT_CATCH_UP_DEFINITIONS.forEach(function(definition) {
+    if (minuteOfDay < definition.minuteOfDay) return;
 
-  try {
-    syncCustomerReport();
-    return true;
-  } catch (error) {
-    Logger.log('Loi dong bo Bao cao khach hang, se thu lai o phut sau: ' + error.toString());
-    return false;
-  }
+    const syncedToday = properties.getProperty(definition.lastSyncProperty) === today;
+    const currentSchema = !definition.schemaProperty ||
+      properties.getProperty(definition.schemaProperty) === definition.schemaVersion;
+    if (syncedToday && currentSchema) return;
+
+    try {
+      definition.handler();
+      successCount++;
+    } catch (error) {
+      Logger.log(
+        'Loi dong bo ' + definition.lastSyncProperty + ', se thu lai o phut sau: ' +
+        error.toString()
+      );
+    }
+  });
+
+  return successCount;
 }
 
 /**
- * Chay mot lan de tao du lieu ngay va bat lich dong bo moi ngay luc 07:00.
+ * Chay mot lan de tao du lieu ngay va bat lich dong bo luc 06:00, 06:30, 07:00.
  */
 function setupCustomerReport() {
   const result = syncCustomerReport();
@@ -329,21 +360,25 @@ function setupCustomerReport() {
 }
 
 /**
- * Tao duy nhat mot time trigger cho Bao cao khach hang.
- * Apps Script co the chay lech khoang +/- 15 phut quanh 07:00.
+ * Tao ba time trigger cho Bao cao khach hang luc 06:00, 06:30 va 07:00.
+ * Apps Script co the chay lech khoang +/- 15 phut quanh moi moc gio.
  */
 function setupCustomerReportDailyTrigger() {
   removeCustomerReportDailyTrigger_();
 
-  ScriptApp.newTrigger(CUSTOMER_REPORT_LEGACY_TRIGGER_HANDLER)
-    .timeBased()
-    .atHour(7)
-    .nearMinute(0)
-    .everyDays(1)
-    .inTimezone(CUSTOMER_REPORT_TIME_ZONE)
-    .create();
+  CUSTOMER_REPORT_DAILY_SCHEDULES.forEach(function(schedule) {
+    ScriptApp.newTrigger(schedule.handler)
+      .timeBased()
+      .atHour(schedule.hour)
+      .nearMinute(schedule.minute)
+      .everyDays(1)
+      .inTimezone(CUSTOMER_REPORT_TIME_ZONE)
+      .create();
+  });
 
-  Logger.log('Da bat lich syncCustomerReport() hang ngay luc gan 07:00 (Asia/Ho_Chi_Minh).');
+  Logger.log(
+    'Da bat lich Bao cao khach hang luc gan 06:00, 06:30 va 07:00 (Asia/Ho_Chi_Minh).'
+  );
 }
 
 /**
@@ -357,8 +392,13 @@ function removeCustomerReportDailyTrigger() {
 
 function removeCustomerReportDailyTrigger_() {
   let removedCount = 0;
+  const reportHandlers = {};
+  reportHandlers[CUSTOMER_REPORT_LEGACY_TRIGGER_HANDLER] = true;
+  CUSTOMER_REPORT_DAILY_SCHEDULES.forEach(function(schedule) {
+    reportHandlers[schedule.handler] = true;
+  });
   ScriptApp.getProjectTriggers().forEach(trigger => {
-    if (trigger.getHandlerFunction() === CUSTOMER_REPORT_LEGACY_TRIGGER_HANDLER) {
+    if (reportHandlers[trigger.getHandlerFunction()]) {
       ScriptApp.deleteTrigger(trigger);
       removedCount++;
     }
@@ -1159,7 +1199,7 @@ function writeCustomerReportSheet_(reportRows, period) {
     'Mối quan tâm: Bán hàng\n' +
     'Thời gian: Toàn thời gian (' + period.startLabel + ' - ' + period.endLabel + ')\n' +
     'Chi tiết: Mỗi hóa đơn hoặc phiếu trả hàng là một dòng giao dịch.\n' +
-    'Tự động cập nhật hàng ngày lúc gần 07:00.'
+    'Tự động cập nhật hàng ngày lúc gần 06:00.'
   );
 
   if (dataRowCount > 0) {
@@ -1280,7 +1320,7 @@ function writeCustomerProductReportSheet_(reportRows, period) {
     'Mối quan tâm: Hàng bán theo khách\n' +
     'Thời gian: 90 ngày qua (' + period.startLabel + ' - ' + period.endLabel + ')\n' +
     'Chi tiết: Mỗi mặt hàng trong hóa đơn hoàn thành là một dòng.\n' +
-    'Tự động cập nhật từ webhook KiotViet trong khoảng 1 phút; đối soát toàn bộ lúc gần 07:00.'
+    'Tự động cập nhật từ webhook KiotViet trong khoảng 1 phút; đối soát toàn bộ lúc gần 06:30.'
   );
 
   if (reportRows.length > 0) {

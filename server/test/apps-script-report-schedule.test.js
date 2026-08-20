@@ -14,6 +14,60 @@ function loadAppsScript() {
   return context;
 }
 
+function loadDiscontinuedProducts(context) {
+  const source = fs.readFileSync(
+    path.join(__dirname, '../../src/kiotviet/DiscontinuedProducts.gs'),
+    'utf8'
+  );
+  vm.runInContext(source, context, { filename: 'DiscontinuedProducts.gs' });
+}
+
+function createTriggerRecorder(existingHandlers = []) {
+  const createdTriggers = [];
+  const deletedHandlers = [];
+
+  return {
+    createdTriggers,
+    deletedHandlers,
+    scriptApp: {
+      getProjectTriggers: () => existingHandlers.map(handler => ({
+        getHandlerFunction: () => handler
+      })),
+      deleteTrigger: trigger => deletedHandlers.push(trigger.getHandlerFunction()),
+      newTrigger: handler => {
+        const trigger = { handler };
+        const builder = {
+          timeBased: () => builder,
+          atHour: hour => {
+            trigger.hour = hour;
+            return builder;
+          },
+          nearMinute: minute => {
+            trigger.minute = minute;
+            return builder;
+          },
+          everyDays: () => builder,
+          inTimezone: timezone => {
+            trigger.timezone = timezone;
+            return builder;
+          },
+          create: () => createdTriggers.push(trigger)
+        };
+        return builder;
+      }
+    }
+  };
+}
+
+function customerReportFormatDate(date, timezone, format) {
+  assert.equal(timezone, 'Asia/Ho_Chi_Minh');
+  if (format === 'yyyy-MM-dd') return '2026-08-20';
+  const vietnam = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+  if (format === 'H') return String(vietnam.getUTCHours());
+  if (format === 'm') return String(vietnam.getUTCMinutes());
+  throw new Error('Unexpected date format: ' + format);
+}
+
 function createCustomerReportHarness() {
   const context = loadAppsScript();
   const writes = [];
@@ -42,7 +96,7 @@ function createCustomerReportHarness() {
     })
   };
   context.Utilities = {
-    formatDate: () => '2026-08-20',
+    formatDate: customerReportFormatDate,
     sleep: () => {}
   };
   context.SpreadsheetApp = { flush: () => {} };
@@ -127,4 +181,95 @@ test('syncCustomerReport refreshes all reports and records every last-sync date'
   assert.equal(properties.CUSTOMER_REPORT_LAST_SYNC_DATE, '2026-08-20');
   assert.equal(properties.CUSTOMER_PRODUCT_REPORT_LAST_SYNC_DATE, '2026-08-20');
   assert.equal(properties.CUSTOMER_BY_PRODUCT_REPORT_LAST_SYNC_DATE, '2026-08-20');
+});
+
+test('setupCustomerReportDailyTrigger creates staggered schedules and replaces only report triggers', () => {
+  const { context } = createCustomerReportHarness();
+  const recorder = createTriggerRecorder([
+    'syncCustomerReport',
+    'syncSalesCustomerReport',
+    'syncCustomerProductReport',
+    'syncCustomerByProductReport',
+    'unrelatedHandler'
+  ]);
+  context.ScriptApp = recorder.scriptApp;
+
+  context.setupCustomerReportDailyTrigger();
+
+  assert.deepEqual(recorder.createdTriggers, [
+    { handler: 'syncSalesCustomerReport', hour: 6, minute: 0, timezone: 'Asia/Ho_Chi_Minh' },
+    { handler: 'syncCustomerProductReport', hour: 6, minute: 30, timezone: 'Asia/Ho_Chi_Minh' },
+    { handler: 'syncCustomerByProductReport', hour: 7, minute: 0, timezone: 'Asia/Ho_Chi_Minh' }
+  ]);
+  assert.deepEqual(recorder.deletedHandlers, [
+    'syncCustomerReport',
+    'syncSalesCustomerReport',
+    'syncCustomerProductReport',
+    'syncCustomerByProductReport'
+  ]);
+  assert.ok(!recorder.deletedHandlers.includes('unrelatedHandler'));
+});
+
+test('setupHangNgungKinhDoanhTrigger_ schedules discontinued products for 07:30', () => {
+  const recorder = createTriggerRecorder();
+  const context = vm.createContext({
+    console,
+    CONFIG: { SHEET_DISCONTINUED_PRODUCTS: 'Hàng ngừng kinh doanh' },
+    ScriptApp: recorder.scriptApp
+  });
+  loadDiscontinuedProducts(context);
+
+  context.setupHangNgungKinhDoanhTrigger_();
+
+  assert.deepEqual(recorder.createdTriggers, [
+    { handler: 'capNhatHangNgungKinhDoanh', hour: 7, minute: 30, timezone: 'Asia/Ho_Chi_Minh' }
+  ]);
+});
+
+test('syncCustomerReportIfDue_ runs each report at its independent due time once per day', () => {
+  const { context, writes, properties } = createCustomerReportHarness();
+
+  assert.equal(
+    context.syncCustomerReportIfDue_(new Date('2026-08-20T06:29:00+07:00')),
+    1
+  );
+  assert.deepEqual(writes, ['sales']);
+
+  assert.equal(
+    context.syncCustomerReportIfDue_(new Date('2026-08-20T06:30:00+07:00')),
+    1
+  );
+  assert.deepEqual(writes, ['sales', 'customerProduct']);
+
+  assert.equal(
+    context.syncCustomerReportIfDue_(new Date('2026-08-20T07:00:00+07:00')),
+    1
+  );
+  assert.deepEqual(writes, ['sales', 'customerProduct', 'customerByProduct']);
+  assert.equal(properties.CUSTOMER_REPORT_LAST_SYNC_DATE, '2026-08-20');
+  assert.equal(properties.CUSTOMER_PRODUCT_REPORT_LAST_SYNC_DATE, '2026-08-20');
+  assert.equal(properties.CUSTOMER_BY_PRODUCT_REPORT_LAST_SYNC_DATE, '2026-08-20');
+});
+
+test('syncCustomerReportIfDue_ retries a failed report without recording success', () => {
+  const { context, writes, properties } = createCustomerReportHarness();
+  let shouldFail = true;
+  context.writeCustomerReportSheet_ = () => {
+    if (shouldFail) throw new Error('write failed');
+    writes.push('sales');
+  };
+
+  assert.equal(
+    context.syncCustomerReportIfDue_(new Date('2026-08-20T06:29:00+07:00')),
+    0
+  );
+  assert.equal(properties.CUSTOMER_REPORT_LAST_SYNC_DATE, undefined);
+
+  shouldFail = false;
+  assert.equal(
+    context.syncCustomerReportIfDue_(new Date('2026-08-20T06:29:00+07:00')),
+    1
+  );
+  assert.deepEqual(writes, ['sales']);
+  assert.equal(properties.CUSTOMER_REPORT_LAST_SYNC_DATE, '2026-08-20');
 });

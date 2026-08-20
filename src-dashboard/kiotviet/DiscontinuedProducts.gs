@@ -558,7 +558,7 @@ function cauHinhLichHangNgungKinhDoanh() {
     const fullSync = syncHangNgungKinhDoanh_(token);
     setupHangNgungKinhDoanhTrigger_();
     ss.toast(
-      'Đã cập nhật toàn bộ lịch sử và cài lịch 07:00 mỗi ngày.',
+      'Đã cập nhật toàn bộ lịch sử và cài lịch 07:30 mỗi ngày.',
       DISCONTINUED_CFG.SHEET,
       8
     );
@@ -579,7 +579,7 @@ function setupHangNgungKinhDoanhTrigger_() {
   ScriptApp.newTrigger('capNhatHangNgungKinhDoanh')
     .timeBased()
     .atHour(7)
-    .nearMinute(0)
+    .nearMinute(30)
     .everyDays(1)
     .inTimezone(DISCONTINUED_CFG.TIMEZONE)
     .create();
