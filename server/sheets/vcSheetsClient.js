@@ -92,25 +92,46 @@ function vcInvalidateSheetTitlesCache() {
 const VC_SHEET_CACHE_TTL_MS = 12 * 1000; // 12s — ngan hon POLL_MS=25-30s cua client de van bat kip 1 vong poll
 const vcSheetCache = new Map(); // sheetName -> { data, expiresAt, loading }
 
-// Bo dem generation TOAN CUC (khong phai theo tung sheet) — bump moi khi co
-// BAT KY lan invalidate nao (targeted hoac clear toan bo). Muc dich: chan
-// mot read dang bay (bat dau TRUOC 1 lan ghi) "hoi sinh" du lieu cu vao cache
-// SAU KHI lan ghi do da invalidate xong. Neu khong co counter nay, .then()
-// cua read cu se ghi de len cache bang snapshot tu-truoc-khi-ghi, va vi cac
-// ham doc-sua-ghi (transitionOrderStatus, updateOrderMeta...) doc nguyen dong
-// tu cache roi ghi ca dong tro lai, 1 cache entry "hoi sinh" co the bi GHI
-// NGUOC vao sheet that — khong chi hien thi cu ma con lam mat du lieu.
-// Dung 1 counter GLOBAL (khong phai Map theo sheet) de don gian va an toan
-// tuyet doi: bat ky lan ghi nao o sheet nao cung bump counter, nen 1 read
-// dang bay cho BAT KY sheet nao (ke ca sheet khac voi sheet vua ghi) deu bi
-// chan khong duoc ghi vao cache neu no "vuot mat" 1 lan invalidate — cai gia
-// phai tra la thinh thoang bo qua 1 lan cache-populate khong lien quan ngay
-// sau 1 lan ghi bat ky (hiem, vo hai, chi mat 12s cache-hit tiep theo), doi
-// lai la KHONG BAO GIO co the ghi du lieu cu vao cache.
-let vcSheetGeneration = 0;
+// Bo dem generation THEO TUNG SHEET (Map<sheetName, number>) — bump generation
+// CUA DUNG SHEET DO moi khi invalidateVcSheetCache(sheetName) chay. Muc dich:
+// chan mot read dang bay (bat dau TRUOC 1 lan ghi vao CUNG sheet) "hoi sinh"
+// du lieu cu vao cache SAU KHI lan ghi do da invalidate xong. Neu khong co
+// counter nay, .then() cua read cu se ghi de len cache bang snapshot tu-truoc-
+// khi-ghi, va vi cac ham doc-sua-ghi (transitionOrderStatus, updateOrderMeta...)
+// doc nguyen dong tu cache roi ghi ca dong tro lai, 1 cache entry "hoi sinh"
+// co the bi GHI NGUOC vao sheet that — khong chi hien thi cu ma con lam mat
+// du lieu.
+//
+// QUAN TRONG — vi sao PER-SHEET (Map) chu KHONG phai 1 counter TOAN CUC:
+// Ban dau dung 1 `let` toan cuc, bump o MOI lan invalidate bat ke sheet nao.
+// Bug da phat hien: invalidateVcSheetCache(sheetName) chi xoa entry cua DUNG
+// sheet do trong vcSheetCache, nhung neu dung 1 counter toan cuc thi 1 lan
+// ghi vao sheet Y se bump generation dung cho CA sheet X (khong lien quan).
+// Read X dang bay se thay "generation da doi" (do Y gay ra) va dung khong
+// set() lai cache — dung — NHUNG entry cua X (placeholder {loading} da dang
+// ky truoc do) khong bi xoa boi lan ghi vao Y (invalidate chi xoa key Y).
+// Placeholder cu cua X bi "mac ket" vinh vien trong map: moi lan vcGetValues(X)
+// sau do deu roi vao nhanh `if (cached && cached.loading) return cached.loading`
+// va tra ve DUNG cai promise-da-settled-tu-lau do — MAI MAI, cho toi khi co ai
+// do ghi TRUC TIEP vao X hoac vcBatchUpdate() chay. Tuc la 1 lan ghi vao sheet
+// KHAC co the lam "dong bang" cache cua sheet nay vo thoi han — te hon ca bug
+// ban dau (bug ban dau chi ton tai toi da 12s).
+//
+// Dung Map PER-SHEET giu dung bat bien: "generation cua sheet S doi tuc la
+// entry cua DUNG sheet S da bi/roi se bi xoa" — vi ca 2 hanh dong (bump +
+// delete) chay dong bo trong CUNG 1 ham invalidateVcSheetCache(sheetName) cho
+// CUNG 1 sheetName, khong bao gio lech nhau. Sheet khac hoan toan khong bi
+// anh huong. Cai gia duy nhat: 1 read dang bay cho DUNG sheet vua bi ghi se
+// bo qua 1 lan cache-populate (dung nhu thiet ke ban dau) — chu KHONG con lam
+// "dong bang" cache cua sheet khac.
+const vcSheetGeneration = new Map(); // sheetName -> generation counter
+
+function getVcSheetGeneration(sheetName) {
+  return vcSheetGeneration.get(sheetName) || 0;
+}
 
 function invalidateVcSheetCache(sheetName) {
-  vcSheetGeneration++;
+  vcSheetGeneration.set(sheetName, getVcSheetGeneration(sheetName) + 1);
   vcSheetCache.delete(sheetName);
 }
 
@@ -128,7 +149,7 @@ async function vcGetValues(sheetName) {
   }
   if (cached && cached.loading) return cached.loading;
 
-  const generationAtStart = vcSheetGeneration;
+  const generationAtStart = getVcSheetGeneration(sheetName);
 
   const loading = getVcSheetsApi().then(sheets => sheets.spreadsheets.values.get({
     spreadsheetId: CONFIG.VC_SPREADSHEET_ID,
@@ -137,12 +158,14 @@ async function vcGetValues(sheetName) {
     dateTimeRenderOption: 'FORMATTED_STRING'
   })).then(res => {
     const values = res.data.values || [];
-    // Chi cache neu KHONG co lan ghi nao xay ra trong luc dang doc (generation
-    // khong doi) — tranh "hoi sinh" du lieu cu vao cache sau khi 1 request ghi
-    // khac da invalidate trong luc read nay con dang bay. Neu generation da
-    // doi, van tra ve `values` dung cho CALLER cua chinh lan doc nay (du lieu
-    // vua doc tu Google, khong sai), chi khong luu vao cache.
-    if (vcSheetGeneration === generationAtStart) {
+    // Chi cache neu KHONG co lan ghi nao vao DUNG sheet nay xay ra trong luc
+    // dang doc (generation cua sheet nay khong doi) — tranh "hoi sinh" du lieu
+    // cu vao cache sau khi 1 request ghi khac da invalidate trong luc read
+    // nay con dang bay. Neu generation da doi, van tra ve `values` dung cho
+    // CALLER cua chinh lan doc nay (du lieu vua doc tu Google, khong sai), chi
+    // khong luu vao cache (entry cua sheet nay da bi invalidateVcSheetCache()
+    // xoa dong bo cung luc bump generation, nen khong con gi de "don dep" o day).
+    if (getVcSheetGeneration(sheetName) === generationAtStart) {
       vcSheetCache.set(sheetName, { data: values, expiresAt: Date.now() + VC_SHEET_CACHE_TTL_MS, loading: null });
     }
     return values;
@@ -150,7 +173,7 @@ async function vcGetValues(sheetName) {
     // Tuong tu: chi xoa cache neu generation khong doi — tranh xoa nham 1
     // cache entry MOI HON (da duoc mot lan doc khac set sau khi request nay
     // bi vuot mat va that bai).
-    if (vcSheetGeneration === generationAtStart) {
+    if (getVcSheetGeneration(sheetName) === generationAtStart) {
       vcSheetCache.delete(sheetName); // khong cache loi — lan sau thu lai ngay
     }
     throw err;
@@ -269,7 +292,17 @@ async function vcBatchUpdate(requests) {
     // co the dung nhieu sheet khac nhau (khong biet truoc sheet nao), va 1 loi (vd
     // timeout) khong dam bao request chua toi Google — an toan hon la coi nhu co the
     // da ghi mot phan.
-    vcSheetGeneration++;
+    //
+    // Bump generation cho MOI sheet dang co entry trong cache (ca da-cache va dang
+    // loading) TRUOC KHI clear() — vi blast radius cua batchUpdate khong biet truoc
+    // (co the dung bat ky sheet nao trong requests), day la CACH DUY NHAT de dam bao
+    // bat ky read dang bay nao (cho bat ky sheet nao dang co entry) cung bi phat hien
+    // "vuot mat" khi no resolve xong va khong duoc phep set() lai cache — giu dung bat
+    // bien "generation cua sheet S doi tuc la entry cua S da/roi se bi xoa" cho CA
+    // truong hop batchUpdate, khong chi vcAppendRow/vcUpdateRow don-sheet.
+    for (const trackedSheetName of vcSheetCache.keys()) {
+      vcSheetGeneration.set(trackedSheetName, getVcSheetGeneration(trackedSheetName) + 1);
+    }
     vcSheetCache.clear();
   }
 }

@@ -217,3 +217,75 @@ test('vcGetValues: generation-guard — read dang bay (bat dau truoc ghi, resolv
     assert.equal(calls.get, 2, 'lan doc sau cung phai la 1 request Google API moi (goi lan thu 2), khong duoc dung cache "hoi sinh" tu read da bi vuot mat');
   } finally { restore(); }
 });
+
+test('vcGetValues: ghi vao sheet KHAC khong duoc lam "dong bang" vinh vien cache cua sheet dang doc dang bay (cross-sheet regression)', async (t) => {
+  // Day la kich ban CU THE re-reviewer da dung de tai hien bug thu 2: dung 1
+  // counter generation TOAN CUC (thay vi PER-SHEET) lam cho 1 lan ghi vao
+  // sheet Y hoan toan khong lien quan cung "vuot mat" duoc 1 read dang bay
+  // cua sheet X — .then() cua read X dung khong set() lai cache (dung, nho
+  // generation-guard), NHUNG voi thiet ke SAI (global) thi khong co gi xoa
+  // hoac cap nhat lai placeholder {data:null, expiresAt:0, loading} cua X, nen
+  // moi lan vcGetValues(X) sau do deu roi vao nhanh `cached.loading` va tra ve
+  // DUNG 1 promise-da-settled-tu-lau — VINH VIEN, du TTL 12s co troi qua bao
+  // nhieu lan, cho toi khi co ai do ghi TRUC TIEP vao X. Fix (Map generation
+  // PER-SHEET) dam bao ghi vao Y hoan toan khong dung toi generation/cache cua
+  // X, nen X van duoc cache dung (hoac fetch lai binh thuong) sau TTL.
+  t.mock.timers.enable({ apis: ['Date'] });
+
+  let resolveXRead;
+  const xReadGate = new Promise(resolve => { resolveXRead = resolve; });
+  let xCallCount = 0;
+
+  const { client, calls, restore } = freshClient({
+    getImpl: async (params) => {
+      const isSheetX = params.range.includes('Đơn vận chuyển');
+      if (!isSheetX) {
+        // Sheet Y — luon tra ve ngay, khong lien quan gi den kich ban dang test.
+        return { data: { values: [['header'], ['Y-row']] } };
+      }
+      xCallCount++;
+      if (xCallCount === 1) {
+        // Lan doc DAU TIEN cho sheet X — bi treo (dang bay) cho toi khi test
+        // chu dong resolve xReadGate, mo phong no resolve TRE (sau khi 1 lan
+        // ghi vao sheet Y KHAC da chay xong).
+        await xReadGate;
+      }
+      return { data: { values: [['header'], [`X-v${xCallCount}`]] } };
+    }
+  });
+
+  try {
+    // 1. Bat dau doc sheet X — bi treo (dang bay), chua resolve.
+    const xReadPromise = client.vcGetValues('Đơn vận chuyển');
+
+    // 2. Trong luc X con dang bay, ghi vao sheet Y — HOAN TOAN KHAC voi X.
+    //    Voi fix (per-sheet), invalidate nay chi dung toi generation/cache cua Y.
+    await client.vcAppendRow('Chi tiết vận chuyển', ['Y-NEW']);
+
+    // 3. Tha gate cho read X hoan tat — resolve SAU khi buoc 2 (ghi vao Y) da xong.
+    resolveXRead();
+    const v1 = await xReadPromise;
+    assert.deepEqual(v1, [['header'], ['X-v1']]);
+
+    // 4. Cho TTL (12s) troi qua that su (bang fake timer) — neu X van hoat dong
+    //    binh thuong (khong bi "dong bang"), lan doc tiep theo phai la 1
+    //    cache-miss THAT SU va kich hoat 1 lan goi Google API moi cho X. Neu bug
+    //    "dong bang" con ton tai (do sheet Y "vuot mat" gay ra), placeholder cu
+    //    cua X (data:null, loading:promise-da-settled) van con nguyen trong map
+    //    mai mai — nhanh kiem tra TTL (`cached.data && ...`) luon bi bo qua vi
+    //    `data` la null, va vcGetValues(X) se mai mai roi vao nhanh
+    //    `cached.loading`, KHONG BAO GIO goi lai API du TTL da het han tu lau.
+    t.mock.timers.tick(13000);
+
+    const callsGetBefore = calls.get;
+    const v2 = await client.vcGetValues('Đơn vận chuyển');
+    assert.equal(calls.get, callsGetBefore + 1,
+      'sau khi TTL het han, doc lai sheet X phai kich hoat 1 lan goi Google API MOI — ' +
+      'neu X bi "dong bang" boi lan ghi vao sheet Y (bug generation toan cuc), se KHONG co ' +
+      'lan goi API moi nao du bao nhieu thoi gian troi qua');
+    assert.deepEqual(v2, [['header'], ['X-v2']], 'du lieu tra ve phai la du lieu MOI (lan fetch thu 2), khong phai promise cu tai su dung');
+  } finally {
+    t.mock.timers.reset();
+    restore();
+  }
+});
