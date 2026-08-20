@@ -600,11 +600,63 @@ async function transitionOrderStatus(orderId, toStatus, { changedBy, note = '' }
 // ---------------------------------------------------------------------------
 
 /**
+ * Chuyen 1 gia tri JS thanh CellData cua Google Sheets `updateCells`.
+ *
+ * KHAC vcUpdateRow: vcUpdateRow dung `values.update` voi
+ * valueInputOption='USER_ENTERED', tuc Google TU SUY DIEN kieu tu chuoi (chuoi
+ * "0012" -> so 12, "1E5" -> 100000, chuoi bat dau bang "=" -> cong thuc).
+ * `updateCells` thi ghi kieu TUONG MINH, nen o day ta anh xa dung kieu goc:
+ *   - so   -> numberValue   (giu nguyen so)
+ *   - bool -> boolValue
+ *   - con lai -> stringValue (giu nguyen VAN BAN, khong bi Google suy dien lai)
+ *
+ * Vi vcGetValues doc bang UNFORMATTED_VALUE (o so tra ve number, o van ban tra
+ * ve string), cac o KHONG bi sua trong dong se duoc ghi lai DUNG KIEU GOC —
+ * round-trip chinh xac, khong bi "trot" kieu nhu USER_ENTERED co the gay ra.
+ *
+ * Gia tri rong (undefined/null/'') tra ve CellData RONG `{}`: voi mask
+ * fields='userEnteredValue', CellData khong co userEnteredValue nghia la XOA
+ * gia tri o do — o thuc su trong (giong USER_ENTERED voi ''), khong phai o
+ * chua chuoi rong.
+ *
+ * @param {any} v
+ * @returns {object} CellData
+ */
+function toCellData(v) {
+  if (v === undefined || v === null || v === '') return {};
+  if (typeof v === 'number') {
+    return Number.isFinite(v)
+      ? { userEnteredValue: { numberValue: v } }
+      : { userEnteredValue: { stringValue: String(v) } }; // NaN/Infinity khong hop le voi numberValue
+  }
+  if (typeof v === 'boolean') return { userEnteredValue: { boolValue: v } };
+  return { userEnteredValue: { stringValue: String(v) } };
+}
+
+/**
+ * Giu nguyen hanh vi cu cho gia tri so nhap tu client: truoc day
+ * valueInputOption='USER_ENTERED' se tu doi chuoi "12" thanh SO 12 tren sheet.
+ * `updateCells` khong tu doi, nen doi tay o day de cot "So luong da nhat" van
+ * la so (cac cong thuc SUM/so sanh tren sheet phu thuoc vao dieu nay).
+ * @param {any} v
+ * @returns {any}
+ */
+function coerceNumericPatchValue(v) {
+  if (typeof v === 'string') {
+    const trimmed = v.trim();
+    if (trimmed !== '' && Number.isFinite(Number(trimmed))) return Number(trimmed);
+  }
+  return v;
+}
+
+/**
  * @param {string} orderId
  * @param {{ product_code: string, quantity_picked?: any, notes?: string }[]} items
  * @returns {Promise<void>}
  */
 async function updateOrderItems(orderId, items) {
+  if (!Array.isArray(items) || items.length === 0) return;
+
   const rawRows = await vcClient.vcGetValues(CONFIG.VC_SHEET_ORDER_ITEMS);
   if (!rawRows.length) return;
 
@@ -614,25 +666,64 @@ async function updateOrderItems(orderId, items) {
 
   const colMap = {};
   fieldKeys.forEach((key, si) => {
-    colMap[key] = headerRow.findIndex(h => String(h || '').trim() === headers[si]);
+    colMap[key] = (headerRow || []).findIndex(h => String(h || '').trim() === headers[si]);
   });
 
+  // Buoc 1: dung san noi dung tung dong can ghi (chua goi API nao).
+  // rowIdx la chi so 0-based TRONG dataRows (dataRows[0] = dong du lieu dau tien,
+  // tuc dong 2 tren giao dien Sheets vi dong 1 la header).
+  const pendingRows = [];
   for (const patch of items) {
+    if (!patch) continue;
+
     const rowIdx = dataRows.findIndex(
       row => row[colMap.order_id] === orderId && row[colMap.product_code] === patch.product_code
     );
-    if (rowIdx < 0) continue;
+    if (rowIdx < 0) continue; // khong tim thay item -> bo qua, khong lam hong ca request
 
     const row = [...dataRows[rowIdx]];
     while (row.length < fieldKeys.length) row.push('');
     if (patch.quantity_picked !== undefined && colMap.quantity_picked >= 0) {
-      row[colMap.quantity_picked] = patch.quantity_picked;
+      row[colMap.quantity_picked] = coerceNumericPatchValue(patch.quantity_picked);
     }
     if (patch.notes !== undefined && colMap.notes >= 0) {
       row[colMap.notes] = patch.notes;
     }
-    await vcClient.vcUpdateRow(CONFIG.VC_SHEET_ORDER_ITEMS, rowIdx + 2, row);
+    pendingRows.push({ rowIdx, row });
   }
+
+  // Khong co dong nao khop -> khong goi API ghi (va cung khong can sheetId).
+  if (pendingRows.length === 0) return;
+
+  // Buoc 2: doi sang sheetId SO — spreadsheets.batchUpdate khong nhan ten tab.
+  const sheetId = await vcClient.vcGetSheetId(CONFIG.VC_SHEET_ORDER_ITEMS);
+
+  // Buoc 3: 1 request updateCells cho moi dong, gui TAT CA trong 1 lan goi API.
+  //
+  // GridRange cua Sheets API la 0-based, half-open [start, end) TREN TOAN SHEET
+  // (dong 0 = header). Vay dataRows[rowIdx] nam o dong tuyet doi rowIdx + 1
+  //   => startRowIndex = rowIdx + 1, endRowIndex = rowIdx + 2 (dung 1 dong).
+  // Doi chieu voi code cu: vcUpdateRow dung chi so 1-based (dong 1 = header)
+  // nen dung rowIdx + 2 — cung tro toi DUNG 1 dong do, chi khac he quy chieu.
+  //
+  // fields='userEnteredValue' chi dong vao GIA TRI o; dinh dang (mau nen, font,
+  // number format, data validation, ghi chu...) KHONG bi dung toi.
+  const requests = pendingRows.map(({ rowIdx, row }) => ({
+    updateCells: {
+      range: {
+        sheetId,
+        startRowIndex:    rowIdx + 1,
+        endRowIndex:      rowIdx + 2,
+        startColumnIndex: 0,
+        endColumnIndex:   row.length
+      },
+      // So o trong `values` phai khop chinh xac chieu rong range (row.length)
+      rows: [{ values: row.map(toCellData) }],
+      fields: 'userEnteredValue'
+    }
+  }));
+
+  await vcClient.vcBatchUpdate(requests);
 }
 
 // ---------------------------------------------------------------------------
@@ -993,6 +1084,8 @@ module.exports = {
     generateOrderId,
     generateId,
     todayVN,
+    toCellData,
+    coerceNumericPatchValue,
     SCHEMA
   }
 };

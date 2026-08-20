@@ -78,9 +78,104 @@ async function vcListSheetTitles() {
   return loading;
 }
 
-/** Invalidate cache sau khi tao/doi tab moi */
+// ---- Cache sheetId SO theo ten tab -----------------------------------------
+//
+// KHAC vcListSheetTitles: cac API ghi theo dang `spreadsheets.batchUpdate`
+// (updateCells, deleteDimension...) KHONG nhan ten tab ma nhan `sheetId` SO
+// (0-based grid id, on dinh suot doi cua tab, khong doi khi doi ten tab).
+// A1 notation (`spreadsheets.values.*`) thi nguoc lai chi nhan ten tab.
+//
+// 1 lan goi spreadsheets.get lay duoc sheetId cua TAT CA tab, nen cache ca map
+// title -> sheetId (khong cache rieng tung ten). TTL 5 phut giong cache ten tab:
+// sheetId cua 1 tab la vinh vien, nhung anh xa TEN -> sheetId co the doi neu ai
+// do doi ten tab tren Google Sheet, nen khong cache vinh vien.
+const VC_SHEET_IDS_CACHE_TTL_MS = 5 * 60 * 1000;
+let vcSheetIdsCache = { data: null, expiresAt: 0, loading: null };
+
+/**
+ * Goi Google API lay map title -> sheetId cho toan bo spreadsheet.
+ * Dedupe: neu da co 1 lan fetch dang bay thi dung chung, khong goi API lan 2.
+ * @returns {Promise<Map<string, number>>}
+ */
+function fetchVcSheetIds() {
+  if (vcSheetIdsCache.loading) return vcSheetIdsCache.loading;
+
+  // Giu tham chieu toi object cache tai thoi diem bat dau fetch. vcInvalidate-
+  // SheetTitlesCache() THAY THE ca object (khong sua tai cho), nen so sanh
+  // identity la du de phat hien "fetch nay da bi mot lan invalidate vuot mat"
+  // => khong duoc phep ghi ket qua (co the da cu) vao cache MOI. Cung ho tro
+  // (khong "hoi sinh" du lieu cu) nhu generation-guard cua vcGetValues.
+  const cacheAtStart = vcSheetIdsCache;
+
+  const loading = getVcSheetsApi()
+    .then(sheets => sheets.spreadsheets.get({
+      spreadsheetId: CONFIG.VC_SPREADSHEET_ID,
+      fields: 'sheets.properties(sheetId,title)'
+    }))
+    .then(res => {
+      const map = new Map();
+      (res.data.sheets || []).forEach(s => {
+        const props = s && s.properties;
+        // sheetId cua tab dau tien thuong la 0 => phai check typeof, khong dung truthy
+        if (props && typeof props.sheetId === 'number' && props.title != null) {
+          map.set(props.title, props.sheetId);
+        }
+      });
+      if (vcSheetIdsCache === cacheAtStart) {
+        vcSheetIdsCache.data = map;
+        vcSheetIdsCache.expiresAt = Date.now() + VC_SHEET_IDS_CACHE_TTL_MS;
+      }
+      // Van tra ve `map` cho caller cua chinh lan fetch nay (du lieu vua doc
+      // tu Google, khong sai) — chi khong luu vao cache khi da bi vuot mat.
+      return map;
+    })
+    .finally(() => {
+      // Chi go loading neu van la promise cua chinh lan fetch nay (tranh go
+      // nham 1 lan fetch moi hon da duoc dang ky sau do).
+      if (vcSheetIdsCache.loading === loading) vcSheetIdsCache.loading = null;
+    });
+
+  vcSheetIdsCache.loading = loading;
+  return loading;
+}
+
+/**
+ * Lay sheetId SO cua 1 tab theo ten (dung cho spreadsheets.batchUpdate).
+ * @param {string} sheetName
+ * @returns {Promise<number>}
+ * @throws neu khong tim thay tab (sau khi da thu doc lai truc tiep tu Google)
+ */
+async function vcGetSheetId(sheetName) {
+  let map;
+  let fromCache = false;
+
+  if (vcSheetIdsCache.data && Date.now() < vcSheetIdsCache.expiresAt) {
+    map = vcSheetIdsCache.data;
+    fromCache = true;
+  } else if (vcSheetIdsCache.loading) {
+    map = await vcSheetIdsCache.loading;
+  } else {
+    map = await fetchVcSheetIds();
+  }
+
+  if (map.has(sheetName)) return map.get(sheetName);
+
+  // Miss tren du lieu CACHE co the chi la do tab vua duoc tao/doi ten sau lan
+  // fetch truoc => thu doc lai 1 lan truc tiep tu Google truoc khi bao loi.
+  // Neu map vua doc la du lieu TUOI (khong phai cache) thi khong fetch lai —
+  // tranh goi API lien tuc khi ai do goi voi ten tab khong ton tai.
+  if (fromCache) {
+    const fresh = await fetchVcSheetIds();
+    if (fresh.has(sheetName)) return fresh.get(sheetName);
+  }
+
+  throw new Error(`[vcSheetsClient] Khong tim thay sheetId cho tab "${sheetName}"`);
+}
+
+/** Invalidate cache sau khi tao/doi tab moi (ca danh sach ten tab lan map sheetId) */
 function vcInvalidateSheetTitlesCache() {
   vcSheetTitlesCache = { data: null, expiresAt: 0, loading: null };
+  vcSheetIdsCache = { data: null, expiresAt: 0, loading: null };
 }
 
 // ---- Cache ngan han theo tab (rieng biet voi cache danh sach tab o tren) ----
@@ -331,6 +426,7 @@ module.exports = {
   vcUpdateRow,
   vcBatchUpdate,
   vcListSheetTitles,
+  vcGetSheetId,
   vcInvalidateSheetTitlesCache,
   invalidateVcSheetCache
 };

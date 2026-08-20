@@ -21,10 +21,14 @@ const { google } = require('googleapis');
 function freshClient(opts = {}) {
   try { delete require.cache[require.resolve('./vcSheetsClient')]; } catch (e) { /* ignore */ }
 
-  const calls = { get: 0, append: 0, update: 0, batchUpdate: 0 };
+  const calls = { get: 0, append: 0, update: 0, batchUpdate: 0, sheetsGet: 0 };
 
   const defaultGetImpl = async () => ({ data: { values: [['header'], ['row1']] } });
   const getImpl = opts.getImpl || defaultGetImpl;
+
+  // spreadsheets.get (metadata) — dung boi vcListSheetTitles va vcGetSheetId
+  const defaultSheetsGetImpl = async () => ({ data: { sheets: [] } });
+  const sheetsGetImpl = opts.sheetsGetImpl || defaultSheetsGetImpl;
 
   const fakeSheetsApi = {
     spreadsheets: {
@@ -34,7 +38,7 @@ function freshClient(opts = {}) {
         update: async () => { calls.update++; return {}; }
       },
       batchUpdate: async () => { calls.batchUpdate++; return {}; },
-      get: async () => ({ data: { sheets: [] } })
+      get: async (params) => { calls.sheetsGet++; return sheetsGetImpl(params); }
     }
   };
 
@@ -288,4 +292,181 @@ test('vcGetValues: ghi vao sheet KHAC khong duoc lam "dong bang" vinh vien cache
     t.mock.timers.reset();
     restore();
   }
+});
+
+// ---------------------------------------------------------------------------
+// vcGetSheetId — tra cuu sheetId SO tu ten tab (Task 4.2)
+//
+// LUU Y: googleapis duoc mock hoan toan — KHONG co request that nao toi Google.
+// ---------------------------------------------------------------------------
+
+const SHEETS_META = {
+  data: {
+    sheets: [
+      // sheetId 0 la gia tri THAT cua tab dau tien tren Google — falsy, de bat
+      // cac loi kieu `if (!sheetId)` hoac `sheetId || fallback`.
+      { properties: { sheetId: 0,       title: 'Đơn vận chuyển' } },
+      { properties: { sheetId: 1234567, title: 'Chi tiết vận chuyển' } },
+      { properties: { sheetId: 890,     title: 'Lịch sử trạng thái' } }
+    ]
+  }
+};
+
+test('vcGetSheetId: tra ve dung sheetId SO theo ten tab (ke ca sheetId = 0)', async () => {
+  const { client, restore } = freshClient({ sheetsGetImpl: async () => SHEETS_META });
+  try {
+    assert.equal(await client.vcGetSheetId('Đơn vận chuyển'), 0);
+    assert.equal(await client.vcGetSheetId('Chi tiết vận chuyển'), 1234567);
+    assert.equal(await client.vcGetSheetId('Lịch sử trạng thái'), 890);
+  } finally { restore(); }
+});
+
+test('vcGetSheetId: goi spreadsheets.get dung fields metadata, khong doc gia tri o', async () => {
+  let seenParams = null;
+  const { client, calls, restore } = freshClient({
+    sheetsGetImpl: async (params) => { seenParams = params; return SHEETS_META; }
+  });
+  try {
+    await client.vcGetSheetId('Chi tiết vận chuyển');
+    assert.equal(seenParams.spreadsheetId, 'test-vc-spreadsheet-id');
+    assert.equal(seenParams.fields, 'sheets.properties(sheetId,title)');
+    assert.equal(calls.get, 0, 'khong duoc goi values.get (chi can metadata)');
+  } finally { restore(); }
+});
+
+test('vcGetSheetId: cache — nhieu lan goi (ke ca tab khac nhau) chi 1 lan goi API', async () => {
+  const { client, calls, restore } = freshClient({ sheetsGetImpl: async () => SHEETS_META });
+  try {
+    await client.vcGetSheetId('Đơn vận chuyển');
+    await client.vcGetSheetId('Đơn vận chuyển');
+    await client.vcGetSheetId('Chi tiết vận chuyển');
+    await client.vcGetSheetId('Lịch sử trạng thái');
+    assert.equal(calls.sheetsGet, 1, '1 lan spreadsheets.get lay duoc sheetId cua TAT CA tab');
+  } finally { restore(); }
+});
+
+test('vcGetSheetId: 2 request dong thoi (cung tick) chi goi API 1 lan (dedupe)', async () => {
+  const { client, calls, restore } = freshClient({ sheetsGetImpl: async () => SHEETS_META });
+  try {
+    const [a, b] = await Promise.all([
+      client.vcGetSheetId('Chi tiết vận chuyển'),
+      client.vcGetSheetId('Đơn vận chuyển')
+    ]);
+    assert.equal(a, 1234567);
+    assert.equal(b, 0);
+    assert.equal(calls.sheetsGet, 1, 'phai dedupe vao 1 lan goi API duy nhat');
+  } finally { restore(); }
+});
+
+test('vcGetSheetId: het TTL (5 phut) thi doc lai metadata', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'] });
+  const { client, calls, restore } = freshClient({ sheetsGetImpl: async () => SHEETS_META });
+  try {
+    await client.vcGetSheetId('Đơn vận chuyển');
+    assert.equal(calls.sheetsGet, 1);
+
+    t.mock.timers.tick(4 * 60 * 1000);
+    await client.vcGetSheetId('Đơn vận chuyển');
+    assert.equal(calls.sheetsGet, 1, 'trong TTL van dung cache');
+
+    t.mock.timers.tick(2 * 60 * 1000); // tong 6 phut > TTL 5 phut
+    await client.vcGetSheetId('Đơn vận chuyển');
+    assert.equal(calls.sheetsGet, 2, 'sau TTL phai doc lai metadata');
+  } finally { t.mock.timers.reset(); restore(); }
+});
+
+test('vcGetSheetId: tab khong ton tai -> nem loi ro rang', async () => {
+  const { client, restore } = freshClient({ sheetsGetImpl: async () => SHEETS_META });
+  try {
+    await assert.rejects(
+      () => client.vcGetSheetId('Tab khong ton tai'),
+      /Khong tim thay sheetId cho tab "Tab khong ton tai"/
+    );
+  } finally { restore(); }
+});
+
+test('vcGetSheetId: tab MOI tao sau khi da cache -> doc lai 1 lan roi tra ve dung, khong nem loi', async () => {
+  let round = 0;
+  const { client, calls, restore } = freshClient({
+    sheetsGetImpl: async () => {
+      round++;
+      if (round === 1) return SHEETS_META;
+      return { data: { sheets: SHEETS_META.data.sheets.concat([{ properties: { sheetId: 999, title: 'Tab mới' } }]) } };
+    }
+  });
+  try {
+    await client.vcGetSheetId('Đơn vận chuyển'); // nap cache (chua co 'Tab mới')
+    assert.equal(calls.sheetsGet, 1);
+
+    assert.equal(await client.vcGetSheetId('Tab mới'), 999, 'miss tren cache phai kich hoat doc lai');
+    assert.equal(calls.sheetsGet, 2);
+  } finally { restore(); }
+});
+
+test('vcGetSheetId: miss tren du lieu VUA doc (khong phai cache) khong doc lai vo han', async () => {
+  const { client, calls, restore } = freshClient({ sheetsGetImpl: async () => SHEETS_META });
+  try {
+    // Lan goi dau tien: cache rong -> fetch 1 lan -> van khong thay -> throw ngay,
+    // KHONG duoc fetch them lan nua (du lieu vua doc da la tuoi nhat).
+    await assert.rejects(() => client.vcGetSheetId('Khong co'), /Khong tim thay sheetId/);
+    assert.equal(calls.sheetsGet, 1, 'chi 1 lan goi API khi du lieu vua doc da tuoi');
+  } finally { restore(); }
+});
+
+test('vcGetSheetId: loi API khong bi cache — lan sau thu lai ngay', async () => {
+  let attempt = 0;
+  const { client, calls, restore } = freshClient({
+    sheetsGetImpl: async () => {
+      attempt++;
+      if (attempt === 1) throw new Error('Google API tam thoi loi (503)');
+      return SHEETS_META;
+    }
+  });
+  try {
+    await assert.rejects(() => client.vcGetSheetId('Đơn vận chuyển'), /tam thoi loi/);
+    assert.equal(await client.vcGetSheetId('Đơn vận chuyển'), 0);
+    assert.equal(calls.sheetsGet, 2, 'phai goi lai API sau loi, khong ket cung');
+  } finally { restore(); }
+});
+
+test('vcInvalidateSheetTitlesCache: xoa ca cache sheetId', async () => {
+  const { client, calls, restore } = freshClient({ sheetsGetImpl: async () => SHEETS_META });
+  try {
+    await client.vcGetSheetId('Đơn vận chuyển');
+    assert.equal(calls.sheetsGet, 1);
+
+    client.vcInvalidateSheetTitlesCache();
+
+    await client.vcGetSheetId('Đơn vận chuyển');
+    assert.equal(calls.sheetsGet, 2, 'sau invalidate phai doc lai metadata');
+  } finally { restore(); }
+});
+
+test('vcGetSheetId: fetch dang bay bi invalidate vuot mat -> khong "hoi sinh" du lieu cu vao cache', async () => {
+  // Cung ho bug voi generation-guard cua vcGetValues (Task 4.1): 1 lan doc
+  // metadata dang bay, giua chung co ai do doi ten tab + goi invalidate. Ket
+  // qua CU khong duoc phep ghi de len cache moi.
+  let resolveFirst;
+  const gate = new Promise(r => { resolveFirst = r; });
+  let round = 0;
+
+  const { client, calls, restore } = freshClient({
+    sheetsGetImpl: async () => {
+      round++;
+      if (round === 1) { await gate; return SHEETS_META; }
+      return { data: { sheets: [{ properties: { sheetId: 42, title: 'Tab đã đổi tên' } }] } };
+    }
+  });
+  try {
+    const inFlight = client.vcGetSheetId('Đơn vận chuyển');
+    client.vcInvalidateSheetTitlesCache(); // vuot mat lan fetch dang bay
+    resolveFirst();
+    assert.equal(await inFlight, 0, 'caller cua chinh lan fetch do van nhan du lieu no vua doc');
+
+    // Lan goi tiep theo KHONG duoc dung ket qua cu da "hoi sinh" — phai fetch lai.
+    assert.equal(await client.vcGetSheetId('Tab đã đổi tên'), 42);
+    assert.equal(calls.sheetsGet, 2);
+    // Va ten cu khong con ton tai nua
+    await assert.rejects(() => client.vcGetSheetId('Đơn vận chuyển'), /Khong tim thay sheetId/);
+  } finally { restore(); }
 });

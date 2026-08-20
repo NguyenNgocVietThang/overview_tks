@@ -54,7 +54,7 @@ function freshRepo(mockData = {}) {
   const repo      = require('./vcOrderRepository');
   const vcClient  = require('../sheets/vcSheetsClient');
 
-  const calls = { append: [], update: [], get: [] };
+  const calls = { append: [], update: [], get: [], batchUpdate: [], getSheetId: [] };
 
   // Default empty sheet data
   const ITEM_HEADERS = ['Mã vận đơn', 'Mã hàng', 'Tên hàng hóa', 'Số lượng đặt', 'Số lượng đã nhặt', 'Đơn vị tính', 'Ghi chú'];
@@ -99,8 +99,80 @@ function freshRepo(mockData = {}) {
     }
   };
 
-  return { repo, vcClient, calls };
+  // sheetId SO gia lap cho tung tab (giong Google: tab dau tien co sheetId 0 —
+  // gia tri 0 la "falsy", co chu y de bat loi kieu `if (!sheetId)`).
+  const SHEET_IDS = {
+    'Đơn vận chuyển':      0,
+    'Chi tiết vận chuyển': 1234567,
+    'Lịch sử trạng thái':  222,
+    'Ảnh chứng từ':        333,
+    'Sự cố vận chuyển':    444,
+    'Danh mục xe':         555
+  };
+
+  vcClient.vcGetSheetId = async (sheetName) => {
+    calls.getSheetId.push(sheetName);
+    if (!(sheetName in SHEET_IDS)) {
+      throw new Error(`[vcSheetsClient] Khong tim thay sheetId cho tab "${sheetName}"`);
+    }
+    return SHEET_IDS[sheetName];
+  };
+
+  vcClient.vcBatchUpdate = async (requests) => {
+    calls.batchUpdate.push(requests);
+  };
+
+  return { repo, vcClient, calls, SHEET_IDS, sheetDataMap };
 }
+
+/**
+ * "Ap dung" cac request updateCells len 1 ban sao rawRows — mo phong Google
+ * Sheets de kiem chung ket qua CUOI CUNG tren sheet, khong chi kiem hinh dang
+ * request. Cai dat theo dung ngu nghia tai lieu Sheets API:
+ *   - GridRange 0-based, half-open [startRowIndex, endRowIndex)
+ *   - fields='userEnteredValue' => CellData rong `{}` XOA gia tri o
+ * @param {any[][]} rawRows  rows goc (hang 0 = header)
+ * @param {object[]} requests
+ * @returns {any[][]} rows sau khi ap dung
+ */
+function applyUpdateCells(rawRows, requests) {
+  const grid = rawRows.map(r => r.slice());
+  for (const req of requests) {
+    const uc = req.updateCells;
+    assert.ok(uc, 'moi request phai la updateCells');
+    assert.equal(uc.fields, 'userEnteredValue', 'mask phai chi dong vao gia tri, khong dong vao dinh dang');
+    const { sheetId, startRowIndex, endRowIndex, startColumnIndex, endColumnIndex } = uc.range;
+    assert.equal(typeof sheetId, 'number', 'sheetId phai la SO');
+    assert.equal(endRowIndex - startRowIndex, uc.rows.length, 'so dong du lieu phai khop chieu cao range');
+    uc.rows.forEach((rowData, ri) => {
+      assert.equal(
+        rowData.values.length, endColumnIndex - startColumnIndex,
+        'so o du lieu phai khop chieu rong range'
+      );
+      const absRow = startRowIndex + ri;
+      while (grid.length <= absRow) grid.push([]);
+      rowData.values.forEach((cell, ci) => {
+        const absCol = startColumnIndex + ci;
+        while (grid[absRow].length <= absCol) grid[absRow].push('');
+        if (!cell.userEnteredValue) { grid[absRow][absCol] = ''; return; }
+        const uev = cell.userEnteredValue;
+        const keys = Object.keys(uev);
+        assert.equal(keys.length, 1, 'userEnteredValue chi duoc co dung 1 kieu gia tri');
+        assert.ok(
+          ['numberValue', 'stringValue', 'boolValue', 'formulaValue'].includes(keys[0]),
+          `kieu gia tri khong hop le: ${keys[0]}`
+        );
+        grid[absRow][absCol] = uev[keys[0]];
+      });
+    });
+  }
+  return grid;
+}
+
+const ITEM_HEADERS_FIXTURE = [
+  'Mã vận đơn', 'Mã hàng', 'Tên hàng hóa',
+  'Số lượng đặt', 'Số lượng đã nhặt', 'Đơn vị tính', 'Ghi chú'
+];
 
 // ---------------------------------------------------------------------------
 // Test: sinh order_id tang dan trong cung ngay
@@ -404,4 +476,248 @@ test('createOrder: nem ORDER_ID_COLLISION neu phat hien trung order_id sau khi g
     }),
     err => err.statusCode === 409 && err.code === 'ORDER_ID_COLLISION'
   );
+});
+
+// ---------------------------------------------------------------------------
+// Test: updateOrderItems — batch hoa vong lap ghi tuan tu (Task 4.2)
+//
+// LUU Y: toan bo test duoi day chay tren vcSheetsClient DA MOCK — KHONG co
+// request that nao toi Google Sheets API, khong dung toi du lieu production.
+// ---------------------------------------------------------------------------
+
+const ITEMS_SHEET = 'Chi tiết vận chuyển';
+
+/**
+ * Fixture 4 dong du lieu, co xen ke don khac de bat loi ghi lech dong:
+ *   dataRows[0] = VC-0001/SP-A  -> dong 2 tren Sheets -> startRowIndex 1
+ *   dataRows[1] = VC-0001/SP-B  -> dong 3            -> startRowIndex 2
+ *   dataRows[2] = VC-0002/SP-A  -> dong 4 (don KHAC) -> startRowIndex 3
+ *   dataRows[3] = VC-0001/SP-C  -> dong 5 (dong CUOI)-> startRowIndex 4
+ */
+function makeItemRows() {
+  return [
+    ITEM_HEADERS_FIXTURE.slice(),
+    ['VC-0001', 'SP-A', 'Hàng A', 10, 0,  'Thùng', ''],
+    ['VC-0001', 'SP-B', 'Hàng B', 20, 0,  'Cái',   'ghi chú cũ'],
+    ['VC-0002', 'SP-A', 'Hàng A', 30, 30, 'Thùng', 'đơn khác'],
+    ['VC-0001', 'SP-C', 'Hàng C', 40, 0,  'Kg',    '']
+  ];
+}
+
+test('updateOrderItems: gui DUNG 1 lan vcBatchUpdate cho nhieu item (khong phai N lan ghi tuan tu)', async () => {
+  const { repo, calls } = freshRepo({ orderItems: makeItemRows() });
+
+  await repo.updateOrderItems('VC-0001', [
+    { product_code: 'SP-A', quantity_picked: 10 },
+    { product_code: 'SP-B', quantity_picked: 15, notes: 'thiếu 5' },
+    { product_code: 'SP-C', quantity_picked: 40 }
+  ]);
+
+  assert.equal(calls.batchUpdate.length, 1, 'phai gom vao DUNG 1 lan goi vcBatchUpdate');
+  assert.equal(calls.batchUpdate[0].length, 3, '1 request updateCells cho moi item khop');
+  assert.equal(calls.update.length, 0, 'khong duoc con dung vcUpdateRow tuan tu nua');
+  assert.deepEqual(calls.getSheetId, [ITEMS_SHEET], 'chi tra cuu sheetId 1 lan, dung tab Chi tiet van chuyen');
+});
+
+test('updateOrderItems: sheetId lay dung tu vcGetSheetId va gan vao moi range', async () => {
+  const { repo, calls, SHEET_IDS } = freshRepo({ orderItems: makeItemRows() });
+
+  await repo.updateOrderItems('VC-0001', [{ product_code: 'SP-A', quantity_picked: 5 }]);
+
+  const req = calls.batchUpdate[0][0];
+  assert.equal(req.updateCells.range.sheetId, SHEET_IDS[ITEMS_SHEET]);
+  assert.equal(typeof req.updateCells.range.sheetId, 'number');
+});
+
+test('updateOrderItems: row-index math 0-based dung cho dong dau/giua/cuoi (co header)', async () => {
+  const { repo, calls } = freshRepo({ orderItems: makeItemRows() });
+
+  await repo.updateOrderItems('VC-0001', [
+    { product_code: 'SP-A', quantity_picked: 1 }, // dataRows[0] -> dong tuyet doi 1
+    { product_code: 'SP-B', quantity_picked: 2 }, // dataRows[1] -> dong tuyet doi 2
+    { product_code: 'SP-C', quantity_picked: 3 }  // dataRows[3] -> dong tuyet doi 4 (dong cuoi)
+  ]);
+
+  const ranges = calls.batchUpdate[0].map(r => r.updateCells.range);
+  assert.deepEqual(
+    ranges.map(r => [r.startRowIndex, r.endRowIndex]),
+    [[1, 2], [2, 3], [4, 5]],
+    'startRowIndex = chi so trong dataRows + 1 (header chiem dong 0); range half-open 1 dong'
+  );
+  ranges.forEach(r => {
+    assert.equal(r.startColumnIndex, 0, 'luon ghi tu cot A');
+    assert.equal(r.endColumnIndex, 7, 'ghi het 7 cot cua schema orderItems');
+  });
+});
+
+test('updateOrderItems: KHONG lech dong sang don khac va khong dung toi dong khong lien quan', async () => {
+  const rows = makeItemRows();
+  const { repo, calls } = freshRepo({ orderItems: rows.map(r => r.slice()) });
+
+  await repo.updateOrderItems('VC-0001', [
+    { product_code: 'SP-A', quantity_picked: 7 },
+    { product_code: 'SP-C', quantity_picked: 40, notes: 'đủ' }
+  ]);
+
+  const after = applyUpdateCells(rows, calls.batchUpdate[0]);
+
+  // Dong cua don VC-0002 (index 3) phai NGUYEN VEN
+  assert.deepEqual(after[3], ['VC-0002', 'SP-A', 'Hàng A', 30, 30, 'Thùng', 'đơn khác']);
+  // Dong SP-B cua chinh don do (khong nam trong patch) cung phai nguyen ven
+  assert.deepEqual(after[2], ['VC-0001', 'SP-B', 'Hàng B', 20, 0, 'Cái', 'ghi chú cũ']);
+  // Header nguyen ven
+  assert.deepEqual(after[0], ITEM_HEADERS_FIXTURE);
+  // 2 dong duoc sua dung gia tri, cac cot khac giu nguyen
+  assert.deepEqual(after[1], ['VC-0001', 'SP-A', 'Hàng A', 10, 7, 'Thùng', '']);
+  assert.deepEqual(after[4], ['VC-0001', 'SP-C', 'Hàng C', 40, 40, 'Kg', 'đủ']);
+});
+
+test('updateOrderItems: item khong ton tai bi bo qua, khong crash, khong sinh request', async () => {
+  const { repo, calls } = freshRepo({ orderItems: makeItemRows() });
+
+  await repo.updateOrderItems('VC-0001', [
+    { product_code: 'SP-KHONG-CO', quantity_picked: 99 },
+    { product_code: 'SP-B',        quantity_picked: 20 }
+  ]);
+
+  assert.equal(calls.batchUpdate.length, 1);
+  assert.equal(calls.batchUpdate[0].length, 1, 'chi item tim thay moi sinh request');
+  assert.equal(calls.batchUpdate[0][0].updateCells.range.startRowIndex, 2, 'dung dong cua SP-B');
+});
+
+test('updateOrderItems: khong item nao khop -> KHONG goi vcBatchUpdate va khong tra cuu sheetId', async () => {
+  const { repo, calls } = freshRepo({ orderItems: makeItemRows() });
+
+  await repo.updateOrderItems('VC-0001', [{ product_code: 'SP-KHONG-CO', quantity_picked: 1 }]);
+
+  assert.equal(calls.batchUpdate.length, 0);
+  assert.equal(calls.getSheetId.length, 0, 'khong can sheetId khi khong co gi de ghi');
+});
+
+test('updateOrderItems: items rong -> khong doc sheet, khong goi API ghi nao', async () => {
+  const { repo, calls } = freshRepo({ orderItems: makeItemRows() });
+
+  await repo.updateOrderItems('VC-0001', []);
+
+  assert.equal(calls.batchUpdate.length, 0);
+  assert.equal(calls.getSheetId.length, 0);
+  assert.equal(calls.get.length, 0, 'khong can doc sheet khi khong co item nao');
+});
+
+test('updateOrderItems: sheet rong (chi header / khong co dong nao) -> khong goi vcBatchUpdate', async () => {
+  const { repo, calls } = freshRepo({ orderItems: [ITEM_HEADERS_FIXTURE.slice()] });
+  await repo.updateOrderItems('VC-0001', [{ product_code: 'SP-A', quantity_picked: 1 }]);
+  assert.equal(calls.batchUpdate.length, 0);
+
+  const empty = freshRepo({ orderItems: [] });
+  await empty.repo.updateOrderItems('VC-0001', [{ product_code: 'SP-A', quantity_picked: 1 }]);
+  assert.equal(empty.calls.batchUpdate.length, 0);
+});
+
+test('updateOrderItems: cap nhat CHI notes (khong co quantity_picked) khong lam mat so luong da nhat', async () => {
+  const rows = makeItemRows();
+  const { repo, calls } = freshRepo({ orderItems: rows.map(r => r.slice()) });
+
+  await repo.updateOrderItems('VC-0002', [{ product_code: 'SP-A', notes: 'ghi chú mới' }]);
+
+  const after = applyUpdateCells(rows, calls.batchUpdate[0]);
+  assert.deepEqual(after[3], ['VC-0002', 'SP-A', 'Hàng A', 30, 30, 'Thùng', 'ghi chú mới']);
+});
+
+test('updateOrderItems: quantity_picked dang chuoi so duoc ghi thanh SO (giu hanh vi USER_ENTERED cu)', async () => {
+  const { repo, calls } = freshRepo({ orderItems: makeItemRows() });
+
+  await repo.updateOrderItems('VC-0001', [{ product_code: 'SP-A', quantity_picked: '12' }]);
+
+  const cells = calls.batchUpdate[0][0].updateCells.rows[0].values;
+  assert.deepEqual(cells[4], { userEnteredValue: { numberValue: 12 } });
+});
+
+test('updateOrderItems: gia tri VAN BAN giu nguyen kieu chuoi (khong bi suy dien thanh so)', async () => {
+  const rows = [
+    ITEM_HEADERS_FIXTURE.slice(),
+    // Ma hang "0012" la VAN BAN tren sheet — USER_ENTERED se bien no thanh so 12,
+    // updateCells ghi tuong minh stringValue nen giu nguyen.
+    ['VC-0001', '0012', 'Hàng số', 10, 0, 'Thùng', '']
+  ];
+  const { repo, calls } = freshRepo({ orderItems: rows.map(r => r.slice()) });
+
+  await repo.updateOrderItems('VC-0001', [{ product_code: '0012', quantity_picked: 3 }]);
+
+  const cells = calls.batchUpdate[0][0].updateCells.rows[0].values;
+  assert.deepEqual(cells[1], { userEnteredValue: { stringValue: '0012' } }, 'ma hang van la VAN BAN');
+  assert.deepEqual(cells[3], { userEnteredValue: { numberValue: 10 } }, 'so luong dat van la SO');
+
+  const after = applyUpdateCells(rows, calls.batchUpdate[0]);
+  assert.deepEqual(after[1], ['VC-0001', '0012', 'Hàng số', 10, 3, 'Thùng', '']);
+});
+
+test('updateOrderItems: dong ngan (thieu cot cuoi) duoc pad du 7 cot va range khop chieu rong', async () => {
+  const rows = [
+    ITEM_HEADERS_FIXTURE.slice(),
+    ['VC-0001', 'SP-A', 'Hàng A', 10] // Sheets cat bo cac o trong o cuoi dong
+  ];
+  const { repo, calls } = freshRepo({ orderItems: rows.map(r => r.slice()) });
+
+  await repo.updateOrderItems('VC-0001', [{ product_code: 'SP-A', quantity_picked: 4, notes: 'x' }]);
+
+  const uc = calls.batchUpdate[0][0].updateCells;
+  assert.equal(uc.range.endColumnIndex, 7);
+  assert.equal(uc.rows[0].values.length, 7);
+  // O trong -> CellData rong {} (XOA gia tri o, khong ghi chuoi rong)
+  assert.deepEqual(uc.rows[0].values[5], {}, 'cot Don vi tinh trong -> CellData rong');
+
+  const after = applyUpdateCells(rows, calls.batchUpdate[0]);
+  assert.deepEqual(after[1], ['VC-0001', 'SP-A', 'Hàng A', 10, 4, '', 'x']);
+});
+
+test('updateOrderItems: dong DAI hon schema (co cot phu) khong lam mat cot phu', async () => {
+  const rows = [
+    ITEM_HEADERS_FIXTURE.concat(['Cột phụ']),
+    ['VC-0001', 'SP-A', 'Hàng A', 10, 0, 'Thùng', '', 'giữ nguyên']
+  ];
+  const { repo, calls } = freshRepo({ orderItems: rows.map(r => r.slice()) });
+
+  await repo.updateOrderItems('VC-0001', [{ product_code: 'SP-A', quantity_picked: 9 }]);
+
+  const uc = calls.batchUpdate[0][0].updateCells;
+  assert.equal(uc.range.endColumnIndex, 8, 'range phu het ca cot phu de ghi lai nguyen ven');
+  const after = applyUpdateCells(rows, calls.batchUpdate[0]);
+  assert.deepEqual(after[1], ['VC-0001', 'SP-A', 'Hàng A', 10, 9, 'Thùng', '', 'giữ nguyên']);
+});
+
+test('updateOrderItems: mask fields chi dong vao userEnteredValue (khong xoa dinh dang)', async () => {
+  const { repo, calls } = freshRepo({ orderItems: makeItemRows() });
+  await repo.updateOrderItems('VC-0001', [{ product_code: 'SP-A', quantity_picked: 1 }]);
+
+  calls.batchUpdate[0].forEach(req => {
+    assert.equal(req.updateCells.fields, 'userEnteredValue');
+    // Khong duoc gui userEnteredFormat/note/dataValidation... (se bi xoa neu vao mask)
+    req.updateCells.rows[0].values.forEach(cell => {
+      assert.deepEqual(Object.keys(cell).filter(k => k !== 'userEnteredValue'), []);
+    });
+  });
+});
+
+test('updateOrderItems: loi tu vcBatchUpdate duoc nem ra ngoai (khong nuot am tham)', async () => {
+  const { repo, vcClient } = freshRepo({ orderItems: makeItemRows() });
+  vcClient.vcBatchUpdate = async () => { throw new Error('Google API 500'); };
+
+  await assert.rejects(
+    () => repo.updateOrderItems('VC-0001', [{ product_code: 'SP-A', quantity_picked: 1 }]),
+    /Google API 500/
+  );
+});
+
+test('toCellData: anh xa kieu gia tri dung dac ta CellData', () => {
+  const { toCellData } = require('./vcOrderRepository').__test__;
+  assert.deepEqual(toCellData(0),        { userEnteredValue: { numberValue: 0 } });
+  assert.deepEqual(toCellData(12.5),     { userEnteredValue: { numberValue: 12.5 } });
+  assert.deepEqual(toCellData('abc'),    { userEnteredValue: { stringValue: 'abc' } });
+  assert.deepEqual(toCellData('=SUM(A1)'), { userEnteredValue: { stringValue: '=SUM(A1)' } }, 'khong bien thanh cong thuc');
+  assert.deepEqual(toCellData(true),     { userEnteredValue: { boolValue: true } });
+  assert.deepEqual(toCellData(''),          {}, 'o trong -> XOA gia tri');
+  assert.deepEqual(toCellData(null),        {});
+  assert.deepEqual(toCellData(undefined),   {});
+  assert.deepEqual(toCellData(NaN),      { userEnteredValue: { stringValue: 'NaN' } }, 'NaN khong hop le voi numberValue');
 });
