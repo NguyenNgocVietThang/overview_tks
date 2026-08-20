@@ -110,7 +110,7 @@ webtks-dashboard/
 │   │   ├── hrLeaveRoutes.test.js # Unit test API nhập nghỉ theo ngày/buổi
 │   │   └── hrLeaveService.js    # Tính buổi nghỉ theo Sáng/Chiều và kiểm tra mốc gửi 07:45/12:30
 │   ├── jobs/
-│   │   └── syncCustomerReport.js # Tác vụ đối soát toàn bộ 3 báo cáo lúc 07:00
+│   │   └── syncCustomerReport.js # Tác vụ đối soát từng báo cáo lúc 06:00, 06:30, 07:00
 │   ├── public/                  # Frontend Live Dashboard, Vận chuyển & Quản lý tài khoản
 │   │   ├── 404.html             # Trang lỗi 404 tùy biến giao diện
 │   │   ├── account/
@@ -183,7 +183,9 @@ webtks-dashboard/
 │   ├── kiotviet/
 │   │   ├── Auth.gs              # getKiotVietToken(), clearKiotVietToken()
 │   │   ├── CustomerDebtReport.gs # syncCustomerDebtReports(), setupCustomerDebtReports()
-│   │   ├── CustomerReport.gs    # syncCustomerReport(), syncCustomerByProductReport()
+│   │   ├── CustomerReport.gs    # syncCustomerReport(), syncSalesCustomerReport(),
+│   │   │                        # syncCustomerProductReport(), syncCustomerByProductReport(),
+│   │   │                        # setupCustomerReportDailyTrigger() (06:00/06:30/07:00)
 │   │   ├── DiscontinuedProducts.gs # syncHangNgungKinhDoanh(), migrateLegacyDiscontinuedSheet_()
 │   │   ├── SheetSchemas.gs      # migrateKiotVietSheetsIfNeeded_(), syncKiotVietTableChunk_()
 │   │   ├── SyncInitial.gs       # syncAllInitialData(), setupPollingTrigger()
@@ -323,7 +325,7 @@ Execution API (`executionApi.access = MYSELF`) để phục vụ kiểm tra và 
 2. Với sheet tổng hợp cũ, chạy `setupKiotVietAutoSync()` một lần. Chế độ mặc định `FULL_DASHBOARD` giữ nguyên trigger queue 1 phút, polling 15 phút, lịch báo cáo và 9 webhook.
 3. Với project Vận chuyển, đặt `KIOTVIET_SYNC_MODE=SHIPMENT_LIFECYCLE` và `KIOTVIET_SHIPMENT_RELAY_ENABLED=true`, chạy `syncShipmentLifecycleRecent7Days()` rồi `setupShipmentLifecycleSync()`. Project Dashboard giữ `invoice.update` và chuyển tiếp sự kiện bằng `SHIPMENT_WEBHOOK_URL` + `SHIPMENT_WEBHOOK_SECRET`.
 4. Không dùng spreadsheet/profile `COMBINED`; Dashboard, Vận chuyển và Nhân sự phải trỏ đến ba Google Sheets độc lập.
-5. Tab **Hàng bán theo khách** có đúng 5 cột và được webhook cập nhật trong khoảng 1 phút. Tab **Khách theo hàng hóa** có đúng 25 cột như file xuất KiotViet, lấy toàn bộ lịch sử và chỉ làm mới khi chạy tay hoặc gần 07:00. Cả ba báo cáo được đối soát bởi `setupCustomerReport()`; tab **Báo cáo bán hàng** giữ đủ 18 cột.
+5. Chạy `setupCustomerReport()` để làm mới ngay cả ba báo cáo và cài ba lịch độc lập: **Báo cáo bán hàng** gần **06:00**; **Hàng bán theo khách** được webhook cập nhật trong khoảng 1 phút và đối soát gần **06:30**; **Khách theo hàng hóa** gần **07:00**. Ba tab lần lượt giữ đủ 18, 5 và 25 cột.
 6. Ba tab **HN1**, **HN3**, **HN7** là báo cáo công nợ khách hàng 1/3/7 ngày gần đây (tính cả hôm nay) do Apps Script tự tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00, hoặc chạy tay `syncCustomerDebtReports()` bất cứ lúc nào cần cập nhật ngay.
 
 Sau khi bật, thay đổi Hàng hóa, Tồn kho, Khách hàng, Hóa đơn, Đặt hàng và Nhóm hàng
@@ -344,7 +346,7 @@ cho ba nhóm này.
 |---|---|---|
 | `syncAllInitialData()` | Làm mới 9 sheet vận hành, lịch sử Hàng ngừng kinh doanh, 3 báo cáo khách hàng và HN1/HN3/HN7; báo cáo công nợ chạy sau khi Hàng hóa đã cập nhật | Lần đầu hoặc khi cần full refresh |
 | `syncHangNgungKinhDoanh()` | Nạp các sản phẩm đang ngừng kinh doanh và giữ lịch sử các sản phẩm từng ngừng; không tạo tab theo ngày | Khi cần đối soát thủ công |
-| `cauHinhLichHangNgungKinhDoanh()` | Cập nhật toàn bộ lịch sử và tạo lại lịch cập nhật 07:00 hàng ngày | Một lần sau khi deploy |
+| `cauHinhLichHangNgungKinhDoanh()` | Cập nhật toàn bộ lịch sử và tạo lại lịch cập nhật gần 07:30 hàng ngày | Một lần sau khi deploy |
 | `removeJsonColumnsFromAllSheets()` | Xóa ngay các cột `(JSON)` cũ trên 9 sheet vận hành | Tùy chọn; trigger nền cũng tự chạy một lần sau khi deploy |
 | `setupKiotVietAutoSync()` | Bật hoặc khôi phục webhook và trigger an toàn, không tạo trùng | 1 lần sau khi deploy |
 | `initializeShipmentLifecycleSheets()` | Tạo/kiểm tra đủ 6 tab và header vận chuyển | Khi chuẩn bị sheet mới |
@@ -355,10 +357,11 @@ cho ba nhóm này.
 | `setupPollingTrigger()` | Bật lịch làm mới 3 sheet không có webhook | 1 lần duy nhất |
 | `removePollingTrigger()` | Tắt lịch làm mới 15 phút | Khi bảo trì |
 | `syncCustomerReport()` | Làm mới cả ba báo cáo khách hàng trong một lượt lấy API | Khi cần cập nhật/đối soát thủ công |
-| `syncCustomerProductReport()` | Làm mới Hàng bán theo khách 5 cột (đồng thời làm mới hai báo cáo còn lại) | Khi cần cập nhật thủ công |
-| `syncCustomerByProductReport()` | Làm mới Khách theo hàng hóa 25 cột, toàn bộ lịch sử (đồng thời làm mới hai báo cáo còn lại) | Khi cần cập nhật thủ công |
-| `setupCustomerReport()` | Tạo cả ba báo cáo ngay và bật lịch riêng gần 07:00 | Một lần sau khi deploy |
-| `setupCustomerReportDailyTrigger()` | Tạo lại lịch cập nhật ba báo cáo hàng ngày gần 07:00 | Khi cần khôi phục lịch |
+| `syncSalesCustomerReport()` | Làm mới riêng Báo cáo bán hàng 18 cột | Khi cần cập nhật thủ công một sheet |
+| `syncCustomerProductReport()` | Làm mới riêng Hàng bán theo khách 5 cột | Khi cần cập nhật thủ công một sheet |
+| `syncCustomerByProductReport()` | Làm mới riêng Khách theo hàng hóa 25 cột, toàn bộ lịch sử | Khi cần cập nhật thủ công một sheet |
+| `setupCustomerReport()` | Làm mới ngay cả ba báo cáo và bật ba lịch độc lập gần 06:00, 06:30, 07:00 | Một lần sau khi deploy |
+| `setupCustomerReportDailyTrigger()` | Cài ba trigger: Báo cáo bán hàng 06:00, Hàng bán theo khách 06:30, Khách theo hàng hóa 07:00 | Khi cần khôi phục lịch |
 | `syncCustomerDebtReports()` | Tính lại công nợ khách hàng 1/3/7 ngày gần đây và ghi đè cả 3 tab HN1/HN3/HN7 | Khi cần cập nhật/đối soát ngay lập tức |
 | `setupCustomerDebtReports()` | Tạo báo cáo HN1/HN3/HN7 ngay và bật thêm lịch riêng gần 15:00 | Tùy chọn |
 | `setupCustomerDebtReportDailyTrigger()` | Tạo lại lịch cập nhật HN1/HN3/HN7 hàng ngày gần 15:00 | Khi cần khôi phục lịch |

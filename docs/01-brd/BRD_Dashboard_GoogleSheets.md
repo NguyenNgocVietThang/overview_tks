@@ -51,13 +51,15 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - Dữ liệu được đồng bộ **gần thời gian thực** từ KiotViet sang Google Sheets qua 2 cơ chế: (a) webhook KiotViet → hàng đợi bền vững Apps Script cho 6 nhóm dữ liệu chính, (b) lịch polling 15 phút cho 3 bảng KiotViet không có webhook (Trả hàng, Nhà cung cấp, Nhập hàng).
 
-- Tab **Báo cáo bán hàng** bám theo file xuất KiotViet trong tháng hiện tại với 18 cột: thông tin khách hàng, số đơn/tổng tiền/giảm giá/doanh thu/trả hàng và chi tiết từng giao dịch; tự động làm mới hàng ngày lúc gần 07:00 theo múi giờ Việt Nam.
+- Tab **Báo cáo bán hàng** bám theo file xuất KiotViet trong tháng hiện tại với 18 cột: thông tin khách hàng, số đơn/tổng tiền/giảm giá/doanh thu/trả hàng và chi tiết từng giao dịch; tự động đối soát hàng ngày lúc gần 06:00 theo múi giờ Việt Nam.
 
-- Tab **Hàng bán theo khách** liệt kê từng mặt hàng của hóa đơn hoàn thành trong 90 ngày qua với đúng 5 cột: Khách hàng, Mã hàng, Tên hàng, SL mua chi tiết, Thời gian. Hóa đơn mới/sửa/hủy được phản ánh qua webhook trong khoảng 1 phút; lượt 06:30 đối soát lại toàn bộ dữ liệu.
+- Tab **Hàng bán theo khách** liệt kê từng mặt hàng của hóa đơn hoàn thành trong 90 ngày qua với đúng 5 cột: Khách hàng, Mã hàng, Tên hàng, SL mua chi tiết, Thời gian. Hóa đơn mới/sửa/hủy được phản ánh qua webhook trong khoảng 1 phút; lượt gần 06:30 đối soát lại toàn bộ dữ liệu.
+
+- Tab **Khách theo hàng hóa** tổng hợp toàn bộ lịch sử theo sản phẩm, khách hàng và chi tiết hóa đơn; tự động đối soát gần 07:00.
 
 - Ba tab **HN1**, **HN3**, **HN7** là báo cáo công nợ khách hàng 1/3/7 ngày gần đây (tính cả hôm nay) do Apps Script tự động tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00, được backend Node.js đọc để hiển thị báo cáo công nợ trên Web Dashboard.
 
-- Tab **Hàng ngừng kinh doanh** lưu lịch sử từ trước tới nay trong một tab duy nhất, cập nhật khi full sync và theo lịch 07:30.
+- Tab **Hàng ngừng kinh doanh** lưu lịch sử từ trước tới nay trong một tab duy nhất, cập nhật khi full sync và tự động cập nhật gần 07:30.
 
 - **Phân hệ Quản lý Nghỉ phép HR & Telegram Bot:** Cung cấp kênh nộp đơn xin nghỉ phép, tra cứu số dư ngày phép trực tuyến 24/7 qua Web Portal và Telegram Bot, quy trình phê duyệt tự động gửi thông báo cho nhân viên.
 

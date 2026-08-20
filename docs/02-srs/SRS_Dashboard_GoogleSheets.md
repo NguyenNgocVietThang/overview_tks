@@ -256,12 +256,12 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-06.5 | Retry tự động tối đa 5 lần (exponential backoff) khi gọi KiotViet API bị lỗi tạm thời (429/5xx/network error).                                                               | Cao         | Hoàn thành     |
 | FR-06.6 | `syncCustomerReport()`: tổng hợp toàn bộ lịch sử hóa đơn và trả hàng hoàn thành, ghi tab `Báo cáo bán hàng` đủ 18 cột như file xuất KiotViet, gồm thông tin khách, số đơn, tổng tiền, giảm giá, doanh thu và chi tiết từng giao dịch. | Cao | Hoàn thành |
 | FR-06.7 | Tab `Hàng bán theo khách` giữ đúng 5 cột Khách hàng, Mã hàng, Tên hàng, SL mua chi tiết, Thời gian; mỗi chi tiết hàng hóa của hóa đơn hoàn thành trong 90 ngày là một dòng. | Cao | Hoàn thành |
-| FR-06.8 | Webhook hóa đơn thay/xóa đúng các dòng `Hàng bán theo khách` trong chu kỳ hàng đợi 1 phút; `syncCustomerReportIfDue_()` đối soát toàn bộ ba báo cáo một lần/ngày sau 07:00. | Cao | Hoàn thành |
+| FR-06.8 | Webhook hóa đơn thay/xóa đúng các dòng `Hàng bán theo khách` trong chu kỳ hàng đợi 1 phút; `syncCustomerReportIfDue_()` đối soát độc lập `Báo cáo bán hàng` gần 06:00, `Hàng bán theo khách` gần 06:30 và `Khách theo hàng hóa` gần 07:00. Hàng đợi kiểm tra mỗi phút và chạy bù riêng báo cáo nào đã đến lịch nhưng chưa đồng bộ thành công. | Cao | Hoàn thành |
 | FR-06.9 | 9 sheet giữ các cột dashboard ở bên trái và các trường KiotViet dạng phẳng đang dùng ở bên phải; không lưu object/mảng hoặc payload gốc dạng JSON. Trigger nền tự xóa vật lý các cột `(JSON)` của schema cũ sau khi deploy. | Cao | Hoàn thành |
 | FR-06.10 | Webhook phải được ghi vào tab hàng đợi ẩn bền vững trước khi phản hồi thành công; chỉ xóa sau khi xử lý thành công. Lỗi được retry tối đa 10 lần rồi giữ ở trạng thái `ERROR` để xử lý thủ công. | Cao | Hoàn thành |
 | FR-06.11 | Full sync ghi dữ liệu mới trước khi dọn dòng cũ dư và khóa chung với luồng webhook, tránh xóa trắng hoặc ghi đè chéo khi cập nhật lỗi. | Cao | Hoàn thành |
 | FR-06.12 | `syncCustomerDebtReports()` dùng cùng luồng tính cho chạy riêng và `syncAllInitialData()`, ghi đè HN1/HN3/HN7 theo kỳ 1/3/7 ngày và tự cập nhật gần 15:00. | Cao | Hoàn thành |
-| FR-06.13 | Chỉ duy trì tab `Hàng ngừng kinh doanh`; dữ liệu lịch sử không bị xóa theo ngày và tab legacy `Hàng ngừng KD hôm nay` được gộp/dọn khi đồng bộ. | Cao | Hoàn thành |
+| FR-06.13 | Chỉ duy trì tab `Hàng ngừng kinh doanh`; dữ liệu lịch sử không bị xóa theo ngày, tab legacy `Hàng ngừng KD hôm nay` được gộp/dọn khi đồng bộ và lịch tự động cập nhật gần 07:30. | Cao | Hoàn thành |
 | FR-06.14 | Tab `Khách theo hàng hóa` có đúng 25 cột như file xuất KiotViet, tổng hợp toàn bộ lịch sử theo sản phẩm → khách hàng → chi tiết hóa đơn; chỉ cập nhật gần 07:00 hoặc qua `syncCustomerByProductReport()`, không nhận cập nhật webhook. | Cao | Hoàn thành |
 
 ## 3.7. FR-07: Giao diện người dùng & Tối ưu tương tác
@@ -610,7 +610,7 @@ lần qua trigger nền sẽ xóa vật lý các cột `(JSON)` của schema cũ
 - Số điện thoại và nhóm khách hàng được nối từ endpoint khách hàng của KiotViet; mã, thời gian, nhân viên, số lượng và giá trị giao dịch lấy từ hóa đơn/phiếu trả.
 - Dữ liệu bao phủ toàn bộ lịch sử đến hết ngày hiện tại theo `Asia/Ho_Chi_Minh`.
 - Chỉ tính hóa đơn/phiếu trả hàng trạng thái hoàn thành; `Doanh thu thuần = Doanh thu - Giá trị trả`.
-- Trigger hàng đợi kiểm tra mỗi phút và chạy một lần/ngày sau 07:00 theo `Asia/Ho_Chi_Minh`; nếu lỗi sẽ thử lại ở phút kế tiếp.
+- `Báo cáo bán hàng` tự động đối soát gần 06:00 theo `Asia/Ho_Chi_Minh`; hàng đợi kiểm tra mỗi phút và chạy bù nếu báo cáo chưa đồng bộ thành công.
 
 ## 7.3. Schema tab "Hàng bán theo khách" (dashboard không đọc)
 
@@ -620,7 +620,7 @@ lần qua trigger nền sẽ xóa vật lý các cột `(JSON)` của schema cũ
 - Dữ liệu được lấy theo khoảng thời gian **90 ngày qua**, sắp xếp mới nhất trước.
 - Khoảng ngày chạy từ 00:00 của ngày cách hiện tại 90 ngày đến hết ngày hiện tại theo `Asia/Ho_Chi_Minh`, tương ứng cách KiotViet hiển thị “30 ngày qua”.
 - Chỉ ghi hóa đơn trạng thái hoàn thành. Webhook cập nhật trong khoảng 1 phút; mã/ID hóa đơn được lưu ở note nội bộ của cột A để thay hoặc xóa đúng dòng mà không phải thêm cột kỹ thuật.
-- Lượt đồng bộ gần 07:00 làm mới toàn bộ cửa sổ 90 ngày để loại bản ghi hết hạn và đối soát sai lệch webhook.
+- Lượt đối soát gần 06:30 làm mới toàn bộ cửa sổ 90 ngày để loại bản ghi hết hạn và đối soát sai lệch webhook.
 
 ## 7.4. Schema tab "Khách theo hàng hóa"
 
@@ -629,7 +629,7 @@ lần qua trigger nền sẽ xóa vật lý các cột `(JSON)` của schema cũ
 - Dữ liệu bao phủ toàn bộ lịch sử; chỉ tính hóa đơn và phiếu trả hoàn thành.
 - Các chỉ tiêu sản phẩm và khách hàng được lặp lại trên từng dòng hóa đơn để có thể lọc và đối soát độc lập; phiếu trả không còn hóa đơn gốc vẫn được giữ bằng một dòng trống phần chi tiết bán.
 - Metadata nhóm hàng, thương hiệu và đơn vị tính được nối từ tab `Hàng hóa`; số điện thoại nối từ hồ sơ khách hàng.
-- Sheet không nhận webhook. `syncCustomerReport()` đối soát gần 07:00; `syncCustomerByProductReport()` cho phép cập nhật thủ công bất kỳ lúc nào.
+- Sheet không nhận webhook. `syncCustomerByProductReport()` tự động đối soát gần 07:00 và cho phép cập nhật thủ công bất kỳ lúc nào.
 - Dashboard chỉ đọc sheet này khi gọi `/api/customer-product-top` và giữ cache riêng 90 giây; luồng `/api/dashboard` thông thường không tải sheet lớn này.
 
 ## 7.5. Các tab HN1/HN3/HN7 do Apps Script duy trì

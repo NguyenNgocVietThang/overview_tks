@@ -61,7 +61,7 @@ syncAllInitialData()
 setupKiotVietAutoSync()
   Khi dung : Mot lan sau khi deploy, hoac khi doi WEBHOOK_URL/deployment.
   Tac dung : Tao WEBHOOK_SECRET neu thieu; tao trigger queue 1 phut; polling
-             15 phut; Hang ngung kinh doanh 07:00; HN1/HN3/HN7 gan 15:00; doi
+             15 phut; Hang ngung kinh doanh 07:30; HN1/HN3/HN7 gan 15:00; doi
              chieu va dam bao du 9 webhook do he thong quan ly.
   Goi tiep : migrateKiotVietSheetsIfNeeded_()
              -> getKiotVietToken()
@@ -71,18 +71,29 @@ setupKiotVietAutoSync()
              -> setupHangNgungKinhDoanhTrigger_()
              -> setupCustomerDebtReportDailyTrigger()
              -> reconcileKiotVietAutoSyncWebhooks_().
-  Luu y    : Ham nay khong tao trigger bao cao ban hang 07:00. Neu can trigger
-             do, chay setupCustomerReport() rieng.
+  Luu y    : Ham nay khong tao trigger bao cao khach hang. Neu can cac lich
+             06:00, 06:30 va 07:00, chay setupCustomerReport() rieng.
 
 setupCustomerReport()
-  Khi dung : Mot lan neu muon Apps Script tu doi soat 3 bao cao luc 07:00.
-  Tac dung : Chay syncCustomerReport() ngay va tao lai trigger hang ngay.
+  Khi dung : Mot lan neu muon Apps Script tu doi soat ba bao cao theo lich rieng.
+  Tac dung : Chay syncCustomerReport() ngay de lam moi ca ba bao cao, sau do tao
+             ba trigger doc lap: Bao cao ban hang gan 06:00, Hang ban theo khach
+             gan 06:30 va Khach theo hang hoa gan 07:00.
   Goi tiep : syncCustomerReport() -> setupCustomerReportDailyTrigger().
+
+syncSalesCustomerReport()
+  Khi dung : Chay tay khi can cap nhat rieng tab Bao cao ban hang.
+  Tac dung : Chi lam moi Bao cao ban hang; lich tu dong doi soat gan 06:00.
+
+syncCustomerProductReport()
+  Khi dung : Chay tay khi can cap nhat rieng tab Hang ban theo khach.
+  Tac dung : Chi lam moi Hang ban theo khach; webhook cap nhat trong khoang 1 phut
+             va lich doi soat toan bo gan 06:30.
 
 syncCustomerByProductReport()
   Khi dung : Chay tay bat cu luc nao can cap nhat tab Khach theo hang hoa.
-  Tac dung : Lam moi bao cao 25 cot theo toan bo lich su; de tiet kiem quota,
-             cung doi soat Bao cao ban hang va Hang ban theo khach trong mot luot.
+  Tac dung : Chi lam moi bao cao 25 cot theo toan bo lich su; lich tu dong doi
+             soat gan 07:00.
 
 setupCustomerDebtReports()
   Khi dung : Mot lan neu muon Apps Script tu dong cap nhat HN1/HN3/HN7 luc 15:00.
@@ -102,7 +113,7 @@ syncHangNgungKinhDoanh()
              KiotViet, giu lai lich su cu va danh dau hang da kinh doanh lai.
 
 cauHinhLichHangNgungKinhDoanh()
-  Khi dung : Mot lan sau khi deploy de cap nhat lich su va tao lich 07:00.
+  Khi dung : Mot lan sau khi deploy de cap nhat lich su va tao lich 07:30.
   Tac dung : Gop/xoa tab legacy Hang ngung KD hom nay, khoi tao trang thai an va
              tao trigger capNhatHangNgungKinhDoanh().
 
@@ -217,7 +228,8 @@ sync/UpdateHandlers.gs
 
 kiotviet/CustomerReport.gs
   Tao/doi soat Bao cao ban hang, Hang ban theo khach va Khach theo hang hoa;
-  quan ly trigger 07:00 va cung cap ham chay tay tung bao cao.
+  quan ly ba trigger doc lap gan 06:00, 06:30, 07:00 va cung cap ham chay tay
+  tung bao cao.
 
 kiotviet/CustomerDebtReport.gs
   Tinh va ghi bao cao cong no khach hang HN1/HN3/HN7 (1/3/7 ngay gan day, tinh
@@ -225,7 +237,7 @@ kiotviet/CustomerDebtReport.gs
 
 kiotviet/DiscontinuedProducts.gs
   Luu lich su Hang ngung kinh doanh tu truoc toi nay, don tab legacy va quan ly
-  trigger cap nhat 07:00 hang ngay.
+  trigger cap nhat 07:30 hang ngay.
 
 utils/Helpers.gs
   Khoa ghi chung, chuan hoa ngay/ma va tao dinh dang/dong Hang hoa.
@@ -244,7 +256,7 @@ utils/Helpers.gs
    src-order-lifecycle/HuongDanSuDung.gs.
 3) Tao version moi va redeploy Web App. Quyen truy cap phai cho phep KiotViet POST.
 4) Sheet tong hop cu: chay syncAllInitialData(), sau do setupKiotVietAutoSync().
-5) Neu dung trigger bao cao ban hang 07:00, chay setupCustomerReport().
+5) Neu dung lich bao cao khach hang 06:00, 06:30 va 07:00, chay setupCustomerReport().
 6) Xac nhan bang checkWebhookStatus() va getWebhookQueueStatus().
 7) Can cap nhat HN1/HN3/HN7 ngay lap tuc (khong doi 15:00): chay tay syncCustomerDebtReports().
 

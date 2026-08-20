@@ -55,7 +55,7 @@ server/                     ← Node.js/Express backend (Render.com)
 │   ├── hrLeaveRepository.js   ← CRUD Google Sheets HR_Leaves
 │   ├── hrLeaveRoutes.js       ← REST API /api/hr/leave/* (nộp đơn, tra cứu, duyệt/từ chối, xuất Excel)
 │   └── hrLeaveService.js      ← Nghiệp vụ tính hạn mức, trừ ngày phép và quản lý trạng thái
-├── jobs/syncCustomerReport.js ← Đối soát 3 báo cáo khách hàng theo lịch 07:00
+├── jobs/syncCustomerReport.js ← Đối soát Báo cáo bán hàng 06:00, Hàng bán theo khách 06:30, Khách theo hàng hóa 07:00
 ├── scripts/
 │   ├── setupHrSheet.js     ← CLI khởi tạo 3 tab HR_Leaves, HR_Employees, HR_Policy
 │   ├── setupUsersSheet.js  ← CLI quản lý tài khoản người dùng và sheet Users
@@ -131,7 +131,7 @@ server/                     ← Node.js/Express backend (Render.com)
 | 7     | CI/CD                                 | Auto-deploy khi push lên branch `main` của GitHub repo                                             | [Hoan thanh]   |
 | 8     | Health check & Debug route            | `GET /health` -> Render ping; `/api/debug` -> kiểm tra kết nối và liệt kê `sheetTabs`             | [Hoan thanh]   |
 | 9     | Báo cáo công nợ KH 1/3/7 ngày         | `CustomerDebtReport.gs` tự động tính và ghi đè HN1/HN3/HN7; backend `debtReport.js` đọc và hiển thị| [Hoan thanh]   |
-| 10    | Lịch sử hàng Ngừng kinh doanh | `DiscontinuedProducts.gs` cập nhật toàn bộ lịch sử trong tab `Hàng ngừng kinh doanh` | [Hoan thanh]   |
+| 10    | Lịch sử hàng Ngừng kinh doanh | `DiscontinuedProducts.gs` cập nhật toàn bộ lịch sử trong tab `Hàng ngừng kinh doanh` gần 07:30 | [Hoan thanh]   |
 | 11    | Khách theo hàng hóa | `CustomerReport.gs` tổng hợp toàn bộ lịch sử theo 25 cột sản phẩm -> khách -> hóa đơn, cập nhật gần 07:00 hoặc chạy tay | [Hoan thanh] |
 | 12    | Xuất Excel theo từng bảng | 16 bảng và kết quả tìm kiếm xuất `.xlsx`, chọn đủ trường Google Sheets, hỗ trợ workbook nhiều worksheet | [Hoan thanh] |
 | 13    | Result Cache tầng backend | Cache dữ liệu thô 90s + Result Cache theo `(rawDataVersion, filters)`, search index chỉ build lại khi refetch | [Hoan thanh] |

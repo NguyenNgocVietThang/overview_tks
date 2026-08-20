@@ -34,7 +34,7 @@ function getKiotVietAutoSyncProfile_() {
  * Bat toan bo co che tu dong theo cach idempotent:
  * - Tao shared-secret neu chua co.
  * - Tao lai trigger hang doi 1 phut va polling 15 phut.
- * - Tao lai trigger lich su Hang ngung kinh doanh luc 07:00.
+ * - Tao lai trigger lich su Hang ngung kinh doanh luc 07:30.
  * - Giu nguyen webhook cua he thong khac; chi thay webhook cu/trung cua dashboard.
  */
 function setupKiotVietAutoSync() {

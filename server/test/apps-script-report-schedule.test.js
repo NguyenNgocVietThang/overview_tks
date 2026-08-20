@@ -22,6 +22,52 @@ function loadDiscontinuedProducts(context) {
   vm.runInContext(source, context, { filename: 'DiscontinuedProducts.gs' });
 }
 
+function readScheduleDocumentation(relativePath) {
+  return fs.readFileSync(path.join(__dirname, '../..', relativePath), 'utf8');
+}
+
+test('operator documentation uses staggered report schedules instead of obsolete shared 07:00 claims', () => {
+  const inScopeFiles = [
+    'src/kiotviet/CustomerReport.gs',
+    'src/kiotviet/WebhookAdmin.gs',
+    'src/HuongDanSuDung.gs',
+    'README.md',
+    'docs/01-brd/BRD_Dashboard_GoogleSheets.md',
+    'docs/02-srs/SRS_Dashboard_GoogleSheets.md',
+    'docs/04-planning/implementation_plan.md'
+  ];
+  const obsoleteClaims = [
+    'đối soát toàn bộ lúc gần 07:00',
+    '3 báo cáo lúc 07:00',
+    'lịch 07:00 mỗi ngày',
+    'trigger cập nhật ba báo cáo hàng ngày gần 07:00'
+  ];
+
+  for (const relativePath of inScopeFiles) {
+    const contents = readScheduleDocumentation(relativePath).toLocaleLowerCase('vi-VN');
+    for (const obsoleteClaim of obsoleteClaims) {
+      assert.ok(
+        !contents.includes(obsoleteClaim),
+        `${relativePath} must not claim "${obsoleteClaim}"`
+      );
+    }
+  }
+
+  for (const relativePath of [
+    'README.md',
+    'src/HuongDanSuDung.gs',
+    'docs/02-srs/SRS_Dashboard_GoogleSheets.md'
+  ]) {
+    const contents = readScheduleDocumentation(relativePath);
+    for (const scheduleTime of ['06:00', '06:30', '07:00', '07:30']) {
+      assert.ok(
+        contents.includes(scheduleTime),
+        `${relativePath} must document the ${scheduleTime} schedule`
+      );
+    }
+  }
+});
+
 function createTriggerRecorder(existingHandlers = []) {
   const createdTriggers = [];
   const deletedHandlers = [];

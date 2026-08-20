@@ -183,7 +183,7 @@ function syncCustomerReport() {
 }
 
 /**
- * Dong bo thu cong tab "Bao cao ban hang".
+ * Diem vao chay tay, chi dong bo tab "Bao cao ban hang".
  */
 function syncSalesCustomerReport() {
   return withCustomerReportLock_(function() {
@@ -208,7 +208,7 @@ function syncSalesCustomerReport() {
 }
 
 /**
- * Dong bo thu cong tab "Hang ban theo khach".
+ * Diem vao chay tay, chi dong bo tab "Hang ban theo khach".
  */
 function syncCustomerProductReport() {
   return withCustomerReportLock_(function() {
@@ -226,7 +226,7 @@ function syncCustomerProductReport() {
 }
 
 /**
- * Dong bo thu cong tab "Khach theo hang hoa".
+ * Diem vao chay tay, chi dong bo tab "Khach theo hang hoa".
  */
 function syncCustomerByProductReport() {
   return withCustomerReportLock_(function() {
@@ -351,7 +351,8 @@ function syncCustomerReportIfDue_(now) {
 }
 
 /**
- * Chay mot lan de tao du lieu ngay va bat lich dong bo luc 06:00, 06:30, 07:00.
+ * Chay mot lan de lam moi ngay ca ba bao cao va bat ba lich doc lap luc
+ * 06:00, 06:30 va 07:00.
  */
 function setupCustomerReport() {
   const result = syncCustomerReport();
