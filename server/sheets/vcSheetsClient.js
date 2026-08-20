@@ -92,7 +92,25 @@ function vcInvalidateSheetTitlesCache() {
 const VC_SHEET_CACHE_TTL_MS = 12 * 1000; // 12s — ngan hon POLL_MS=25-30s cua client de van bat kip 1 vong poll
 const vcSheetCache = new Map(); // sheetName -> { data, expiresAt, loading }
 
+// Bo dem generation TOAN CUC (khong phai theo tung sheet) — bump moi khi co
+// BAT KY lan invalidate nao (targeted hoac clear toan bo). Muc dich: chan
+// mot read dang bay (bat dau TRUOC 1 lan ghi) "hoi sinh" du lieu cu vao cache
+// SAU KHI lan ghi do da invalidate xong. Neu khong co counter nay, .then()
+// cua read cu se ghi de len cache bang snapshot tu-truoc-khi-ghi, va vi cac
+// ham doc-sua-ghi (transitionOrderStatus, updateOrderMeta...) doc nguyen dong
+// tu cache roi ghi ca dong tro lai, 1 cache entry "hoi sinh" co the bi GHI
+// NGUOC vao sheet that — khong chi hien thi cu ma con lam mat du lieu.
+// Dung 1 counter GLOBAL (khong phai Map theo sheet) de don gian va an toan
+// tuyet doi: bat ky lan ghi nao o sheet nao cung bump counter, nen 1 read
+// dang bay cho BAT KY sheet nao (ke ca sheet khac voi sheet vua ghi) deu bi
+// chan khong duoc ghi vao cache neu no "vuot mat" 1 lan invalidate — cai gia
+// phai tra la thinh thoang bo qua 1 lan cache-populate khong lien quan ngay
+// sau 1 lan ghi bat ky (hiem, vo hai, chi mat 12s cache-hit tiep theo), doi
+// lai la KHONG BAO GIO co the ghi du lieu cu vao cache.
+let vcSheetGeneration = 0;
+
 function invalidateVcSheetCache(sheetName) {
+  vcSheetGeneration++;
   vcSheetCache.delete(sheetName);
 }
 
@@ -110,21 +128,39 @@ async function vcGetValues(sheetName) {
   }
   if (cached && cached.loading) return cached.loading;
 
-  const sheets = await getVcSheetsApi();
-  const loading = sheets.spreadsheets.values.get({
+  const generationAtStart = vcSheetGeneration;
+
+  const loading = getVcSheetsApi().then(sheets => sheets.spreadsheets.values.get({
     spreadsheetId: CONFIG.VC_SPREADSHEET_ID,
     range: quoteSheetName(sheetName),
     valueRenderOption: 'UNFORMATTED_VALUE',
     dateTimeRenderOption: 'FORMATTED_STRING'
-  }).then(res => {
+  })).then(res => {
     const values = res.data.values || [];
-    vcSheetCache.set(sheetName, { data: values, expiresAt: Date.now() + VC_SHEET_CACHE_TTL_MS, loading: null });
+    // Chi cache neu KHONG co lan ghi nao xay ra trong luc dang doc (generation
+    // khong doi) — tranh "hoi sinh" du lieu cu vao cache sau khi 1 request ghi
+    // khac da invalidate trong luc read nay con dang bay. Neu generation da
+    // doi, van tra ve `values` dung cho CALLER cua chinh lan doc nay (du lieu
+    // vua doc tu Google, khong sai), chi khong luu vao cache.
+    if (vcSheetGeneration === generationAtStart) {
+      vcSheetCache.set(sheetName, { data: values, expiresAt: Date.now() + VC_SHEET_CACHE_TTL_MS, loading: null });
+    }
     return values;
   }).catch(err => {
-    vcSheetCache.delete(sheetName); // khong cache loi — lan sau thu lai ngay
+    // Tuong tu: chi xoa cache neu generation khong doi — tranh xoa nham 1
+    // cache entry MOI HON (da duoc mot lan doc khac set sau khi request nay
+    // bi vuot mat va that bai).
+    if (vcSheetGeneration === generationAtStart) {
+      vcSheetCache.delete(sheetName); // khong cache loi — lan sau thu lai ngay
+    }
     throw err;
   });
 
+  // Dang ky placeholder NGAY LAP TUC — dong bo, TRUOC ca getVcSheetsApi() —
+  // de cac request trung sheet goi trong cung tick dedupe dung vao 1 lan goi
+  // API duy nhat thay vi moi request tu goi rieng (vi vcGetValues la async
+  // function nhung toan bo code phia tren khong co `await` nao, ham chay het
+  // dong bo toi day truoc khi tra quyen dieu khien).
   vcSheetCache.set(sheetName, { data: cached ? cached.data : null, expiresAt: 0, loading });
   return loading;
 }
@@ -174,14 +210,21 @@ async function vcGetMultipleSheetValues(sheetNames) {
  */
 async function vcAppendRow(sheetName, row) {
   const sheets = await getVcSheetsApi();
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: CONFIG.VC_SPREADSHEET_ID,
-    range: quoteSheetName(sheetName),
-    valueInputOption: 'USER_ENTERED',
-    insertDataOption: 'INSERT_ROWS',
-    requestBody: { values: [row] }
-  });
-  invalidateVcSheetCache(sheetName);
+  try {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: CONFIG.VC_SPREADSHEET_ID,
+      range: quoteSheetName(sheetName),
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [row] }
+    });
+  } finally {
+    // Invalidate du thanh cong hay that bai: 1 loi (vd timeout) khong dam bao
+    // ghi KHONG lam — co the da len sheet that o phia Google roi moi bao loi
+    // ve client. Bo qua invalidate khi that bai se de lai du lieu cu trong
+    // cache toi 12s du sheet that co the da thay doi.
+    invalidateVcSheetCache(sheetName);
+  }
 }
 
 /**
@@ -196,13 +239,17 @@ async function vcUpdateRow(sheetName, rowIndex, row) {
   const sheets = await getVcSheetsApi();
   const lastColLetter = columnIndexToLetter(row.length);
   const range = `${quoteSheetName(sheetName)}!A${rowIndex}:${lastColLetter}${rowIndex}`;
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: CONFIG.VC_SPREADSHEET_ID,
-    range,
-    valueInputOption: 'USER_ENTERED',
-    requestBody: { values: [row] }
-  });
-  invalidateVcSheetCache(sheetName);
+  try {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: CONFIG.VC_SPREADSHEET_ID,
+      range,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [row] }
+    });
+  } finally {
+    // Xem giai thich trong vcAppendRow: invalidate du thanh cong hay that bai.
+    invalidateVcSheetCache(sheetName);
+  }
 }
 
 /**
@@ -212,11 +259,19 @@ async function vcUpdateRow(sheetName, rowIndex, row) {
  */
 async function vcBatchUpdate(requests) {
   const sheets = await getVcSheetsApi();
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: CONFIG.VC_SPREADSHEET_ID,
-    requestBody: { requests }
-  });
-  vcSheetCache.clear(); // batchUpdate co the dung nhieu sheet khac nhau — don sach toan bo cho an toan
+  try {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: CONFIG.VC_SPREADSHEET_ID,
+      requestBody: { requests }
+    });
+  } finally {
+    // Du thanh cong hay that bai deu bump generation + xoa toan bo cache: batchUpdate
+    // co the dung nhieu sheet khac nhau (khong biet truoc sheet nao), va 1 loi (vd
+    // timeout) khong dam bao request chua toi Google — an toan hon la coi nhu co the
+    // da ghi mot phan.
+    vcSheetGeneration++;
+    vcSheetCache.clear();
+  }
 }
 
 // ---- Utility ----------------------------------------------------------------

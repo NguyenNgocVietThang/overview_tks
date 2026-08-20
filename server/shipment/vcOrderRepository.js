@@ -402,6 +402,15 @@ async function createOrder({ kiotviet_code, warehouse, flow, vehicle_id, driver_
   // 2 don khac nhau trung "Mã vận đơn" — nang hon rui ro sua-de-len-nhau da
   // ghi o dau file vi day la hong khoa nghiep vu, khong chi mat du lieu 1
   // truong. Doc lai ngay sau khi ghi de phat hien som.
+  //
+  // LUU Y (fragile): tinh dung cua kiem tra nay dua vao viec vcGetValues() o
+  // dong ngay duoi day chay NGAY SAU vcAppendRow() o tren, KHONG co await I/O
+  // nao xen vao giua — vi vcSheetsClient.invalidateVcSheetCache() chi bao dam
+  // "lan vcGetValues KE TIEP cho sheet nay se la cache-miss", chu khong khoa
+  // toan bo sheet trong luc doc lai. Neu sau nay co ai chen 1 buoc await khac
+  // (vd ghi log, goi API phu) vao giua 2 dong nay, van con dung ve mat "doc du
+  // lieu moi nhat", nhung se keo dai thoi gian ho (window) truoc khi phat hien
+  // trung order_id — nen tranh chen them await khong can thiet vao doan nay.
   const rawOrdersAfterAppend = await vcClient.vcGetValues(CONFIG.VC_SHEET_ORDERS);
   const dupCount = rawOrdersAfterAppend
     .slice(1)
