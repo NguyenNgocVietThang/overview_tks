@@ -83,6 +83,19 @@ function vcInvalidateSheetTitlesCache() {
   vcSheetTitlesCache = { data: null, expiresAt: 0, loading: null };
 }
 
+// ---- Cache ngan han theo tab (rieng biet voi cache danh sach tab o tren) ----
+
+// Cache ngan han cho du lieu tho tung tab VC — van don can do tuoi cao hon
+// dashboard (nhieu tai xe/dieu phoi vien poll 25-30s cung luc), nen TTL ngan
+// hon nhieu so voi dashboardData.js (90s). Invalidate CHU DONG ngay sau moi
+// lan ghi vao dung sheet do de tranh doc du lieu cu ngay sau khi user vua sua.
+const VC_SHEET_CACHE_TTL_MS = 12 * 1000; // 12s — ngan hon POLL_MS=25-30s cua client de van bat kip 1 vong poll
+const vcSheetCache = new Map(); // sheetName -> { data, expiresAt, loading }
+
+function invalidateVcSheetCache(sheetName) {
+  vcSheetCache.delete(sheetName);
+}
+
 // ---- Read -------------------------------------------------------------------
 
 /**
@@ -91,14 +104,29 @@ function vcInvalidateSheetTitlesCache() {
  * @returns {Promise<any[][]>} Mang 2 chieu (giong getDataRange().getValues())
  */
 async function vcGetValues(sheetName) {
+  const cached = vcSheetCache.get(sheetName);
+  if (cached && cached.data && Date.now() < cached.expiresAt) {
+    return cached.data;
+  }
+  if (cached && cached.loading) return cached.loading;
+
   const sheets = await getVcSheetsApi();
-  const res = await sheets.spreadsheets.values.get({
+  const loading = sheets.spreadsheets.values.get({
     spreadsheetId: CONFIG.VC_SPREADSHEET_ID,
     range: quoteSheetName(sheetName),
     valueRenderOption: 'UNFORMATTED_VALUE',
     dateTimeRenderOption: 'FORMATTED_STRING'
+  }).then(res => {
+    const values = res.data.values || [];
+    vcSheetCache.set(sheetName, { data: values, expiresAt: Date.now() + VC_SHEET_CACHE_TTL_MS, loading: null });
+    return values;
+  }).catch(err => {
+    vcSheetCache.delete(sheetName); // khong cache loi — lan sau thu lai ngay
+    throw err;
   });
-  return res.data.values || [];
+
+  vcSheetCache.set(sheetName, { data: cached ? cached.data : null, expiresAt: 0, loading });
+  return loading;
 }
 
 /**
@@ -153,6 +181,7 @@ async function vcAppendRow(sheetName, row) {
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: [row] }
   });
+  invalidateVcSheetCache(sheetName);
 }
 
 /**
@@ -173,6 +202,7 @@ async function vcUpdateRow(sheetName, rowIndex, row) {
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] }
   });
+  invalidateVcSheetCache(sheetName);
 }
 
 /**
@@ -186,6 +216,7 @@ async function vcBatchUpdate(requests) {
     spreadsheetId: CONFIG.VC_SPREADSHEET_ID,
     requestBody: { requests }
   });
+  vcSheetCache.clear(); // batchUpdate co the dung nhieu sheet khac nhau — don sach toan bo cho an toan
 }
 
 // ---- Utility ----------------------------------------------------------------
@@ -212,5 +243,6 @@ module.exports = {
   vcUpdateRow,
   vcBatchUpdate,
   vcListSheetTitles,
-  vcInvalidateSheetTitlesCache
+  vcInvalidateSheetTitlesCache,
+  invalidateVcSheetCache
 };
