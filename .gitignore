@@ -36,3 +36,4 @@ desktop.ini
 .tmp*/
 .tmp-phase-a/
 .superpowers/
+.worktrees/
