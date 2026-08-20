@@ -3,8 +3,15 @@
 // ==========================================
 
 const CUSTOMER_REPORT_TIME_ZONE = 'Asia/Ho_Chi_Minh';
-const CUSTOMER_REPORT_TRIGGER_HANDLER = 'syncCustomerReport';
+const CUSTOMER_SALES_REPORT_TRIGGER_HANDLER = 'syncSalesCustomerReport';
+const CUSTOMER_PRODUCT_REPORT_TRIGGER_HANDLER = 'syncCustomerProductReport';
+const CUSTOMER_BY_PRODUCT_REPORT_TRIGGER_HANDLER = 'syncCustomerByProductReport';
+const CUSTOMER_REPORT_LEGACY_TRIGGER_HANDLER = 'syncCustomerReport';
 const CUSTOMER_REPORT_LAST_SYNC_PROPERTY = 'CUSTOMER_REPORT_LAST_SYNC_DATE';
+const CUSTOMER_PRODUCT_REPORT_LAST_SYNC_PROPERTY =
+  'CUSTOMER_PRODUCT_REPORT_LAST_SYNC_DATE';
+const CUSTOMER_BY_PRODUCT_REPORT_LAST_SYNC_PROPERTY =
+  'CUSTOMER_BY_PRODUCT_REPORT_LAST_SYNC_DATE';
 const CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY = 'CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION';
 const CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION = 'detail-quantity-header-v2';
 const CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_PROPERTY = 'CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_VERSION';
@@ -80,17 +87,8 @@ const CUSTOMER_BY_PRODUCT_REPORT_HEADERS = Object.freeze([
  * Doanh thu thuan = Doanh thu - Gia tri tra.
  */
 function syncCustomerReport() {
-  const lock = LockService.getScriptLock();
-  if (!lock.tryLock(30000)) {
-    throw new Error('Bao cao khach hang dang duoc dong bo boi mot tien trinh khac.');
-  }
-
-  try {
-    const token = getKiotVietToken();
-    if (!token) {
-      throw new Error('Khong lay duoc KiotViet token de dong bo Bao cao khach hang.');
-    }
-
+  return withCustomerReportLock_(function() {
+    const token = requireCustomerReportToken_();
     const now = new Date();
     const period = getCustomerReportAllTimeRange_(now);
     const productPeriod = getCustomerReportRollingRange_(now, CUSTOMER_PRODUCT_REPORT_DAYS);
@@ -128,9 +126,11 @@ function syncCustomerReport() {
       customerByProductReport.productCount
     );
     writeCustomerByProductReportSheet_(customerByProductReport.rows, period);
+    const today = customerReportToday_();
     PropertiesService.getScriptProperties().setProperties({
-      [CUSTOMER_REPORT_LAST_SYNC_PROPERTY]:
-        Utilities.formatDate(new Date(), CUSTOMER_REPORT_TIME_ZONE, 'yyyy-MM-dd'),
+      [CUSTOMER_REPORT_LAST_SYNC_PROPERTY]: today,
+      [CUSTOMER_PRODUCT_REPORT_LAST_SYNC_PROPERTY]: today,
+      [CUSTOMER_BY_PRODUCT_REPORT_LAST_SYNC_PROPERTY]: today,
       [CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY]: CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION,
       [CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_PROPERTY]: CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_VERSION
     });
@@ -143,58 +143,150 @@ function syncCustomerReport() {
       customerByProductReport.productCount
     );
 
-    return {
-      sheetName: CONFIG.SHEET_CUSTOMER_REPORT,
-      customerCount: reportRows.length,
-      transactionCount: reportSummary.transactionCount,
-      totalRevenue: reportSummary.revenue,
-      totalReturns: reportSummary.returnValue,
-      netRevenue: reportSummary.netRevenue,
-      fromDate: period.startLabel,
-      toDate: period.endLabel,
-      customerProductReport: {
-        sheetName: CONFIG.SHEET_CUSTOMER_PRODUCT_REPORT,
-        rowCount: productReportRows.length,
-        purchasedQuantity: productReportRows.reduce((total, row) => {
-          return total + customerReportNumber_(row.purchasedQuantity);
-        }, 0),
-        fromDate: productPeriod.startLabel,
-        toDate: productPeriod.endLabel,
-        days: CUSTOMER_PRODUCT_REPORT_DAYS
-      },
-      customerByProductReport: {
-        sheetName: CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT,
-        rowCount: customerByProductReport.rows.length,
-        productCount: customerByProductReport.productCount,
-        customerProductCount: customerByProductReport.customerProductCount,
-        purchasedQuantity: customerByProductReport.purchasedQuantity,
-        revenue: customerByProductReport.revenue,
-        returnedQuantity: customerByProductReport.returnedQuantity,
-        returnValue: customerByProductReport.returnValue,
-        netRevenue: customerByProductReport.netRevenue,
-        fromDate: period.startLabel,
-        toDate: period.endLabel
-      }
-    };
-  } finally {
-    lock.releaseLock();
-  }
+    const salesReport = buildCustomerSalesReportResult_(reportRows, reportSummary, period);
+    salesReport.customerProductReport = buildCustomerProductReportResult_(
+      productReportRows,
+      productPeriod
+    );
+    salesReport.customerByProductReport = buildCustomerByProductReportResult_(
+      customerByProductReport,
+      period
+    );
+    return salesReport;
+  });
 }
 
 /**
- * Dong bo thu cong tab "Hang ban theo khach". De toi uu so lan goi API,
- * ham nay cung lam moi tab "Bao cao khach hang" trong cung mot lan chay.
+ * Dong bo thu cong tab "Bao cao ban hang".
+ */
+function syncSalesCustomerReport() {
+  return withCustomerReportLock_(function() {
+    const token = requireCustomerReportToken_();
+    const period = getCustomerReportAllTimeRange_(new Date());
+    const invoices = fetchCustomerReportPages_('invoices', token, { status: 1 });
+    const returns = fetchCustomerReportPages_('returns', token, {
+      orderBy: 'returnDate',
+      orderDirection: 'DESC'
+    });
+    const customers = fetchCustomerReportPages_('customers', token, {
+      includeCustomerGroup: true
+    });
+    const rows = aggregateCustomerReport_(invoices, returns, period, customers);
+    const summary = summarizeCustomerReport_(rows);
+    writeCustomerReportSheet_(rows, period);
+    PropertiesService.getScriptProperties().setProperty(
+      CUSTOMER_REPORT_LAST_SYNC_PROPERTY, customerReportToday_()
+    );
+    return buildCustomerSalesReportResult_(rows, summary, period);
+  });
+}
+
+/**
+ * Dong bo thu cong tab "Hang ban theo khach".
  */
 function syncCustomerProductReport() {
-  return syncCustomerReport().customerProductReport;
+  return withCustomerReportLock_(function() {
+    const token = requireCustomerReportToken_();
+    const period = getCustomerReportRollingRange_(new Date(), CUSTOMER_PRODUCT_REPORT_DAYS);
+    const invoices = fetchCustomerReportPages_('invoices', token, { status: 1 });
+    const rows = aggregateCustomerProductReport_(invoices, period);
+    writeCustomerProductReportSheet_(rows, period);
+    PropertiesService.getScriptProperties().setProperties({
+      [CUSTOMER_PRODUCT_REPORT_LAST_SYNC_PROPERTY]: customerReportToday_(),
+      [CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY]: CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION
+    });
+    return buildCustomerProductReportResult_(rows, period);
+  });
 }
 
 /**
- * Dong bo thu cong tab "Khach theo hang hoa". Ham dung chung mot luot lay API
- * voi hai bao cao khach hang con lai de khong tang gap doi quota KiotViet.
+ * Dong bo thu cong tab "Khach theo hang hoa".
  */
 function syncCustomerByProductReport() {
-  return syncCustomerReport().customerByProductReport;
+  return withCustomerReportLock_(function() {
+    const token = requireCustomerReportToken_();
+    const period = getCustomerReportAllTimeRange_(new Date());
+    const invoices = fetchCustomerReportPages_('invoices', token, { status: 1 });
+    const returns = fetchCustomerReportPages_('returns', token, {
+      orderBy: 'returnDate',
+      orderDirection: 'DESC'
+    });
+    const customers = fetchCustomerReportPages_('customers', token, {
+      includeCustomerGroup: true
+    });
+    const metadataLookup = buildCustomerByProductMetadataLookup_();
+    const report = aggregateCustomerByProductReport_(
+      invoices,
+      returns,
+      period,
+      customers,
+      metadataLookup
+    );
+    writeCustomerByProductReportSheet_(report.rows, period);
+    PropertiesService.getScriptProperties().setProperties({
+      [CUSTOMER_BY_PRODUCT_REPORT_LAST_SYNC_PROPERTY]: customerReportToday_(),
+      [CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_PROPERTY]: CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_VERSION
+    });
+    return buildCustomerByProductReportResult_(report, period);
+  });
+}
+
+function buildCustomerSalesReportResult_(reportRows, reportSummary, period) {
+  return {
+    sheetName: CONFIG.SHEET_CUSTOMER_REPORT,
+    customerCount: reportRows.length,
+    transactionCount: reportSummary.transactionCount,
+    totalRevenue: reportSummary.revenue,
+    totalReturns: reportSummary.returnValue,
+    netRevenue: reportSummary.netRevenue,
+    fromDate: period.startLabel,
+    toDate: period.endLabel
+  };
+}
+
+function buildCustomerProductReportResult_(productReportRows, productPeriod) {
+  return {
+    sheetName: CONFIG.SHEET_CUSTOMER_PRODUCT_REPORT,
+    rowCount: productReportRows.length,
+    purchasedQuantity: productReportRows.reduce(function(total, row) {
+      return total + customerReportNumber_(row.purchasedQuantity);
+    }, 0),
+    fromDate: productPeriod.startLabel,
+    toDate: productPeriod.endLabel,
+    days: CUSTOMER_PRODUCT_REPORT_DAYS
+  };
+}
+
+function buildCustomerByProductReportResult_(report, period) {
+  return {
+    sheetName: CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT,
+    rowCount: report.rows.length,
+    productCount: report.productCount,
+    customerProductCount: report.customerProductCount,
+    purchasedQuantity: report.purchasedQuantity,
+    revenue: report.revenue,
+    returnedQuantity: report.returnedQuantity,
+    returnValue: report.returnValue,
+    netRevenue: report.netRevenue,
+    fromDate: period.startLabel,
+    toDate: period.endLabel
+  };
+}
+
+function customerReportToday_() {
+  return Utilities.formatDate(new Date(), CUSTOMER_REPORT_TIME_ZONE, 'yyyy-MM-dd');
+}
+
+function withCustomerReportLock_(callback) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('Bao cao khach hang dang duoc dong bo boi mot tien trinh khac.');
+  try { return callback(); } finally { lock.releaseLock(); }
+}
+
+function requireCustomerReportToken_() {
+  const token = getKiotVietToken();
+  if (!token) throw new Error('Khong lay duoc KiotViet token de dong bo Bao cao khach hang.');
+  return token;
 }
 
 /**
@@ -243,7 +335,7 @@ function setupCustomerReport() {
 function setupCustomerReportDailyTrigger() {
   removeCustomerReportDailyTrigger_();
 
-  ScriptApp.newTrigger(CUSTOMER_REPORT_TRIGGER_HANDLER)
+  ScriptApp.newTrigger(CUSTOMER_REPORT_LEGACY_TRIGGER_HANDLER)
     .timeBased()
     .atHour(7)
     .nearMinute(0)
@@ -266,7 +358,7 @@ function removeCustomerReportDailyTrigger() {
 function removeCustomerReportDailyTrigger_() {
   let removedCount = 0;
   ScriptApp.getProjectTriggers().forEach(trigger => {
-    if (trigger.getHandlerFunction() === CUSTOMER_REPORT_TRIGGER_HANDLER) {
+    if (trigger.getHandlerFunction() === CUSTOMER_REPORT_LEGACY_TRIGGER_HANDLER) {
       ScriptApp.deleteTrigger(trigger);
       removedCount++;
     }
