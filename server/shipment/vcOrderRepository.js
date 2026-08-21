@@ -650,6 +650,28 @@ function coerceNumericPatchValue(v) {
 }
 
 /**
+ * So khop 1 o KHOA (order_id / product_code) doc tu sheet voi gia tri client gui len.
+ *
+ * Vi sao khong dung `===` truc tiep: vcGetValues doc bang UNFORMATTED_VALUE, nen 1 o
+ * "Ma hang" chua toan chu so (vd 12345) tra ve SO 12345, trong khi client luon gui
+ * chuoi "12345" qua JSON. `12345 === "12345"` la FALSE => item bi bo qua AM THAM,
+ * ham tra ve ma khong ghi gi va cung khong bao loi. (Bug nay co san tu ban dung
+ * vong lap tuan tu; chuan hoa o day de mat han ca lop loi do.)
+ *
+ * null/undefined khong bao gio duoc coi la khop — tranh truong hop colMap = -1
+ * lam `row[-1]` thanh undefined roi `String(undefined) === String(undefined)` khop bay.
+ *
+ * @param {any} cellValue   Gia tri o doc tu sheet
+ * @param {any} patchValue  Gia tri client gui len
+ * @returns {boolean}
+ */
+function sameKeyValue(cellValue, patchValue) {
+  if (cellValue === undefined || cellValue === null) return false;
+  if (patchValue === undefined || patchValue === null) return false;
+  return String(cellValue).trim() === String(patchValue).trim();
+}
+
+/**
  * @param {string} orderId
  * @param {{ product_code: string, quantity_picked?: any, notes?: string }[]} items
  * @returns {Promise<void>}
@@ -677,7 +699,8 @@ async function updateOrderItems(orderId, items) {
     if (!patch) continue;
 
     const rowIdx = dataRows.findIndex(
-      row => row[colMap.order_id] === orderId && row[colMap.product_code] === patch.product_code
+      row => sameKeyValue(row[colMap.order_id], orderId)
+          && sameKeyValue(row[colMap.product_code], patch.product_code)
     );
     if (rowIdx < 0) continue; // khong tim thay item -> bo qua, khong lam hong ca request
 
@@ -1086,6 +1109,7 @@ module.exports = {
     todayVN,
     toCellData,
     coerceNumericPatchValue,
+    sameKeyValue,
     SCHEMA
   }
 };

@@ -721,3 +721,63 @@ test('toCellData: anh xa kieu gia tri dung dac ta CellData', () => {
   assert.deepEqual(toCellData(undefined),   {});
   assert.deepEqual(toCellData(NaN),      { userEnteredValue: { stringValue: 'NaN' } }, 'NaN khong hop le voi numberValue');
 });
+
+// ---------------------------------------------------------------------------
+// Test: so khop o KHOA chiu duoc lech kieu so/chuoi (fix bug co san)
+// ---------------------------------------------------------------------------
+
+test('updateOrderItems: ma hang dang SO tren sheet van khop voi chuoi client gui len', async () => {
+  // UNFORMATTED_VALUE tra ve SO 12345 cho o "Ma hang" toan chu so, con client
+  // luon gui chuoi "12345" qua JSON. Truoc fix: 12345 === "12345" la false =>
+  // item bi bo qua AM THAM, khong ghi gi va khong bao loi.
+  const rows = [
+    ITEM_HEADERS_FIXTURE.slice(),
+    ['VC-0001', 12345, 'Hàng mã số', 10, 0, 'Thùng', '']
+  ];
+  const { repo, calls } = freshRepo({ orderItems: rows.map(r => r.slice()) });
+
+  await repo.updateOrderItems('VC-0001', [{ product_code: '12345', quantity_picked: 8 }]);
+
+  assert.equal(calls.batchUpdate.length, 1, 'phai tim thay dong va ghi that su');
+  const after = applyUpdateCells(rows, calls.batchUpdate[0]);
+  assert.deepEqual(after[1], ['VC-0001', 12345, 'Hàng mã số', 10, 8, 'Thùng', '']);
+  assert.equal(typeof after[1][1], 'number', 'ma hang van duoc ghi lai dung kieu SO goc');
+});
+
+test('updateOrderItems: khoang trang thua quanh ma hang khong lam truot khop', async () => {
+  const rows = [
+    ITEM_HEADERS_FIXTURE.slice(),
+    ['VC-0001', ' SP-A ', 'Hàng A', 10, 0, 'Thùng', '']
+  ];
+  const { repo, calls } = freshRepo({ orderItems: rows.map(r => r.slice()) });
+
+  await repo.updateOrderItems('VC-0001', [{ product_code: 'SP-A', quantity_picked: 6 }]);
+
+  assert.equal(calls.batchUpdate.length, 1);
+  assert.equal(calls.batchUpdate[0][0].updateCells.range.startRowIndex, 1);
+});
+
+test('updateOrderItems: chuan hoa khop KHONG lam khop nham don khac hay ma hang khac', async () => {
+  const { repo, calls } = freshRepo({ orderItems: makeItemRows() });
+
+  await repo.updateOrderItems('VC-0002', [{ product_code: 'SP-A', quantity_picked: 99 }]);
+
+  assert.equal(calls.batchUpdate[0].length, 1, 'chi dung 1 dong, du VC-0001 cung co SP-A');
+  assert.equal(
+    calls.batchUpdate[0][0].updateCells.range.startRowIndex, 3,
+    'phai la dong cua VC-0002 (dataRows[2]), khong phai dong SP-A cua VC-0001'
+  );
+});
+
+test('sameKeyValue: null/undefined khong bao gio khop (chan bay colMap = -1)', () => {
+  const { sameKeyValue } = require('./vcOrderRepository').__test__;
+  assert.equal(sameKeyValue(12345, '12345'), true);
+  assert.equal(sameKeyValue('12345', 12345), true);
+  assert.equal(sameKeyValue(' SP-A ', 'SP-A'), true);
+  assert.equal(sameKeyValue('SP-A', 'SP-B'), false);
+  // Bay quan trong: row[-1] la undefined, patch.product_code cung co the undefined
+  assert.equal(sameKeyValue(undefined, undefined), false, 'khong duoc khop qua String(undefined)');
+  assert.equal(sameKeyValue(null, null), false);
+  assert.equal(sameKeyValue(undefined, 'SP-A'), false);
+  assert.equal(sameKeyValue('SP-A', undefined), false);
+});
