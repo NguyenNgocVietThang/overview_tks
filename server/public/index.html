@@ -6248,6 +6248,20 @@
         animateTableRows(tbody);
       }
 
+      // Re-apply any active column sort and hover-tilt effects to the freshly
+      // rendered rows. Without this, paging (Prev/Next) leaves the new page's
+      // rows in raw (unsorted) order even though the header still shows the
+      // sort arrow, and skips the hover-tilt init that other renders get.
+      // applyActiveTableSorts() is safe to call broadly: it iterates
+      // state.tableSorts keyed by tbodyId and only re-sorts tables that
+      // actually have an active sort recorded, so this has no effect on
+      // other tables beyond redundantly (but harmlessly/idempotently)
+      // re-applying their own already-applied sort.
+      if (typeof applyActiveTableSorts === 'function') {
+        applyActiveTableSorts();
+      }
+      if (window.TKS3D && window.TKS3D.refresh) window.TKS3D.refresh(tbody);
+
       const pagination = document.getElementById(ids.pagination);
       const prevBtn = document.getElementById(ids.prevBtn);
       const nextBtn = document.getElementById(ids.nextBtn);
@@ -6667,16 +6681,10 @@
         8,
         'Không có khách hàng nào trong kỳ này'
       );
-
-      // QUAN TRONG: giu lai 2 dong nay tu ban goc (da duoc Task 2.2 sua thanh
-      // TKS3D.refresh(rows) thay vi refresh() khong tham so) — renderPaginatedRows()
-      // da tu goi animateTableRows(tbody) noi bo nen KHONG can goi lai o day, nhung
-      // applyActiveTableSorts() va TKS3D.refresh(rows) khong nam trong renderPaginatedRows
-      // nen PHAI giu, neu khong se mat tinh nang restore sort dang active va hover-tilt
-      // tren bang cong no sau khi Task 2.2 da fix scope cho no.
-      applyActiveTableSorts();
-      const debtRowsEl = document.getElementById('debtPeriodRows');
-      if (window.TKS3D && window.TKS3D.refresh) window.TKS3D.refresh(debtRowsEl);
+      // applyActiveTableSorts() and TKS3D.refresh() are now called inside
+      // renderPaginatedRows() itself (right after tbody.innerHTML is set), so
+      // every table using that shared helper gets this consistently — no
+      // need to repeat it here for the debt table specifically anymore.
     }
 
     function toggleDebtDetail(triggerRow) {
