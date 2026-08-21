@@ -16,6 +16,7 @@ const { requireAuth, requireRole } = require('./auth/authMiddleware');
 const { INTERNAL_ROLES } = require('./auth/userRepository');
 const { lookupInvoiceStatuses } = require('./shipment/invoiceStatusService');
 const shipmentOrderRoutes    = require('./shipment/shipmentOrderRoutes');
+const hrLeaveRoutes          = require('./hr/hrLeaveRoutes');
 
 router.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
@@ -45,6 +46,10 @@ router.post('/api/shipment/invoice-status', requireAuth, async (req, res) => {
 
 // Cac endpoint quan ly van chuyen Phase 1B — /api/shipment/* (tru invoice-status o tren)
 router.use(shipmentOrderRoutes);
+
+// Cac endpoint quan ly nhan su (nghi phep) — /api/hr/* — phan quyen rieng
+// tung route ben trong hrLeaveRoutes.js (xem het ho so vs chi Quan ly duyet).
+router.use(hrLeaveRoutes);
 
 // Toan bo API "Bao cao tong hop" ben duoi day chi danh cho 4 vai tro noi bo;
 // Khach chi duoc dung route tra cuu van chuyen o tren. Day la ranh gioi bao mat,

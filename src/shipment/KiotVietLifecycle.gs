@@ -82,8 +82,8 @@ function syncShipmentLifecycleRecent7Days() {
 }
 
 function syncShipmentLifecycleRecentDays_(days) {
-  if (!isShipmentLifecycleMode_()) {
-    throw new Error('KIOTVIET_SYNC_MODE phai la SHIPMENT_LIFECYCLE.');
+  if (!hasShipmentLifecycle_()) {
+    throw new Error('Che do dong bo phai co vong doi van chuyen.');
   }
   initializeShipmentLifecycleSheets();
   const token = getKiotVietToken();

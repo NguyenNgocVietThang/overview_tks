@@ -9,7 +9,8 @@
     "test": "node --test",
     "sync:customer-report": "node jobs/syncCustomerReport.js",
     "setup:users-sheet": "node scripts/setupUsersSheet.js",
-    "setup:vc-sheet": "node scripts/setupVcSheet.js"
+    "setup:vc-sheet": "node scripts/setupVcSheet.js",
+    "setup:hr-sheet": "node scripts/setupHrSheet.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -20,7 +21,8 @@
     "google-auth-library": "^9.15.1",
     "googleapis": "^140.0.1",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^2.2.0"
+    "multer": "^2.2.0",
+    "node-telegram-bot-api": "^0.66.0"
   },
   "devDependencies": {
     "dotenv": "^16.4.5",

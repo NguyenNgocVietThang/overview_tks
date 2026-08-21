@@ -34,7 +34,8 @@ const CONFIG = {
 
 const KIOTVIET_SYNC_MODES = Object.freeze({
   FULL_DASHBOARD: 'FULL_DASHBOARD',
-  SHIPMENT_LIFECYCLE: 'SHIPMENT_LIFECYCLE'
+  SHIPMENT_LIFECYCLE: 'SHIPMENT_LIFECYCLE',
+  COMBINED: 'COMBINED'
 });
 
 /**
@@ -44,13 +45,25 @@ const KIOTVIET_SYNC_MODES = Object.freeze({
 function getKiotVietSyncMode_() {
   const configured = PropertiesService.getScriptProperties()
     .getProperty('KIOTVIET_SYNC_MODE');
-  return configured === KIOTVIET_SYNC_MODES.SHIPMENT_LIFECYCLE
-    ? KIOTVIET_SYNC_MODES.SHIPMENT_LIFECYCLE
-    : KIOTVIET_SYNC_MODES.FULL_DASHBOARD;
+  if (configured === KIOTVIET_SYNC_MODES.SHIPMENT_LIFECYCLE) {
+    return KIOTVIET_SYNC_MODES.SHIPMENT_LIFECYCLE;
+  }
+  if (configured === KIOTVIET_SYNC_MODES.COMBINED) {
+    return KIOTVIET_SYNC_MODES.COMBINED;
+  }
+  return KIOTVIET_SYNC_MODES.FULL_DASHBOARD;
 }
 
 function isShipmentLifecycleMode_() {
   return getKiotVietSyncMode_() === KIOTVIET_SYNC_MODES.SHIPMENT_LIFECYCLE;
+}
+
+function isCombinedKiotVietMode_() {
+  return getKiotVietSyncMode_() === KIOTVIET_SYNC_MODES.COMBINED;
+}
+
+function hasShipmentLifecycle_() {
+  return isShipmentLifecycleMode_() || isCombinedKiotVietMode_();
 }
 
 function isShipmentLifecycleRelayEnabled_() {

@@ -371,26 +371,87 @@
     var reportsActive = activeTop === 'reports';
     var shipmentActive = activeTop === 'shipment';
     var accountActive = activeTop === 'account';
+    var hrActive = activeTop === 'hr';
+    // Nhom "Bao cao tong hop" — cac tab con la cac view cua trang chinh (index.html), dieu huong
+    // bang hash (vd /#overview) roi index.html tu switchView() khi tai trang.
+    var REPORT_VIEWS = [
+      { view: 'overview', label: 'Tổng quan', icon: '<rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect>' },
+      { view: 'products', label: 'Hàng hóa', icon: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73Z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path>' },
+      { view: 'invoices', label: 'Hóa đơn', icon: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path>' },
+      { view: 'customers', label: 'Khách hàng', icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>' },
+      { view: 'suppliers', label: 'Nhà cung cấp', icon: '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path><path d="M10 6h4"></path><path d="M10 10h4"></path><path d="M10 14h4"></path><path d="M10 18h4"></path>' },
+      { view: 'debt', label: 'Công nợ', icon: '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>' }
+    ];
+    var reportsExpanded = reportsActive || TKSNav._isNavGroupOpen('reports');
     var reportsLink = user && user.vaiTro === 'Khách' ? '' :
-      '<a href="/" class="nav-item' + (reportsActive ? ' active' : '') + '"' +
-        (reportsActive ? ' aria-current="page"' : '') + '>' +
-        '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="8" y1="18" x2="8" y2="14"></line><line x1="16" y1="18" x2="16" y2="16"></line></svg>' +
-        'Báo cáo tổng hợp</a>';
+      '<div class="nav-group">' +
+        '<button type="button" class="nav-group-toggle' + (reportsActive ? ' has-active' : '') + '" id="tksReportsGroupToggle" data-tks-nav-group="reports" aria-expanded="' + reportsExpanded + '" aria-controls="tksReportsGroupList">' +
+          '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="8" y1="18" x2="8" y2="14"></line><line x1="16" y1="18" x2="16" y2="16"></line></svg>' +
+          '<span>Báo cáo tổng hợp</span>' +
+          '<svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
+        '</button>' +
+        '<div class="nav-group-list" id="tksReportsGroupList"' + (reportsExpanded ? '' : ' hidden') + '>' +
+          REPORT_VIEWS.map(function(v){
+            return '<a href="/#' + v.view + '" class="nav-item">' +
+              '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + v.icon + '</svg>' +
+              v.label + '</a>';
+          }).join('') +
+        '</div>' +
+      '</div>';
     var shipmentLink =
       '<a href="/shipment/" class="nav-item' + (shipmentActive ? ' active' : '') + '"' +
         (shipmentActive ? ' aria-current="page"' : '') + '>' +
         '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle></svg>' +
         'Quản lý vận chuyển</a>';
+    // Khach khong duoc xem du lieu nhan su noi bo (giong reportsLink) — an hoan toan.
+    // Nhom "Quan ly nhan su" co the mo/dong, chua cac tab con (hien tai: Nghi phep) — them tab con
+    // moi sau nay bang cach them 1 the <a> vao trong .nav-group-list.
+    var hrExpanded = hrActive || TKSNav._isNavGroupOpen('hr');
+    var hrLink = user && user.vaiTro === 'Khách' ? '' :
+      '<div class="nav-group">' +
+        '<button type="button" class="nav-group-toggle' + (hrActive ? ' has-active' : '') + '" id="tksHrGroupToggle" data-tks-nav-group="hr" aria-expanded="' + hrExpanded + '" aria-controls="tksHrGroupList">' +
+          '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>' +
+          '<span>Quản lý nhân sự</span>' +
+          '<svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
+        '</button>' +
+        '<div class="nav-group-list" id="tksHrGroupList"' + (hrExpanded ? '' : ' hidden') + '>' +
+          '<a href="/humanresources/#leave" class="nav-item' + (hrActive ? ' active' : '') + '"' +
+            (hrActive ? ' aria-current="page"' : '') + '>' +
+            '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>' +
+            'Nghỉ phép</a>' +
+        '</div>' +
+      '</div>';
     var accountLink =
       '<a href="/account/" class="nav-item' + (accountActive ? ' active' : '') + '"' +
         (accountActive ? ' aria-current="page"' : '') + '>' +
         '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>' +
         'Quản lý tài khoản</a>';
-    mountEl.innerHTML = reportsLink + shipmentLink + accountLink;
+    mountEl.innerHTML = reportsLink + shipmentLink + hrLink + accountLink;
     if (typeof window !== 'undefined' && window.TKS3D && typeof window.TKS3D.refresh === 'function') {
       window.TKS3D.refresh(mountEl);
     }
   };
+
+  // ---------- Nhom sidebar co the mo/dong (vd: "Quan ly nhan su"), nho trang thai qua lan tai lai ----------
+  var NAV_GROUP_STORAGE_PREFIX = 'tks-dashboard-nav-group-';
+
+  TKSNav._isNavGroupOpen = function _isNavGroupOpen(key){
+    try{ return localStorage.getItem(NAV_GROUP_STORAGE_PREFIX + key) !== 'closed'; }
+    catch(err){ return true; }
+  };
+
+  document.addEventListener('click', function(e){
+    var toggle = e.target.closest && e.target.closest('[data-tks-nav-group]');
+    if(!toggle) return;
+    var key = toggle.dataset.tksNavGroup;
+    var list = document.getElementById(toggle.getAttribute('aria-controls'));
+    if(!list) return;
+    var expanded = toggle.getAttribute('aria-expanded') !== 'true';
+    toggle.setAttribute('aria-expanded', String(expanded));
+    list.hidden = !expanded;
+    try{ localStorage.setItem(NAV_GROUP_STORAGE_PREFIX + key, expanded ? 'open' : 'closed'); }
+    catch(err){}
+  });
 
   window.TKSNav = TKSNav;
 })();

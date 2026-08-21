@@ -943,7 +943,8 @@ function writeKiotVietSheet_(schema, items) {
     sheet.getRange(newLastRow + 1, 1, previousLastRow - newLastRow, schema.headers.length)
       .clearContent();
   }
-  formatKiotVietSheet_(sheet, schema, rows.length);
+  // Khong ap number format trong full sync: Google Sheets Tables co cot co
+  // kieu co the nem loi khong bat duoc tu setNumberFormat va lam dung polling.
   return rows.length;
 }
 
@@ -957,6 +958,40 @@ function writeInvoiceDetailsSheet_(invoices) {
     });
   });
   return writeKiotVietSheet_(schema, wrappers);
+}
+
+function setKiotVietNumberFormatIfSupported_(range, numberFormat) {
+  try {
+    range.setNumberFormat(numberFormat);
+    return true;
+  } catch (error) {
+    if (!isKiotVietTypedColumnFormattingError_(error)) throw error;
+
+    // Google Sheets Tables co the gan column type va cam Apps Script doi
+    // number format. Day chi la loi trinh bay; du lieu van phai duoc dong bo.
+    Logger.log('Bo qua dinh dang cot co kieu cua Google Sheets: ' + error);
+    return false;
+  }
+}
+
+function isKiotVietTypedColumnFormattingError_(error) {
+  const message = [
+    error && error.message ? error.message : '',
+    String(error || '')
+  ].join(' ');
+  return /typed column|column type|cột đã nhập|cột có kiểu|number format|định dạng số/i
+    .test(message);
+}
+
+function formatKiotVietSheetIfSupported_(sheet, schema, dataRowCount) {
+  try {
+    formatKiotVietSheet_(sheet, schema, dataRowCount);
+    return true;
+  } catch (error) {
+    if (!isKiotVietTypedColumnFormattingError_(error)) throw error;
+    Logger.log('Bo qua buoc dinh dang sheet co cot kieu cua Google Sheets: ' + error);
+    return false;
+  }
 }
 
 function formatKiotVietSheet_(sheet, schema, dataRowCount) {
@@ -975,14 +1010,20 @@ function formatKiotVietSheet_(sheet, schema, dataRowCount) {
   (schema.numberHeaders || []).forEach(header => {
     const columnIndex = schema.headers.indexOf(header);
     if (columnIndex >= 0) {
-      sheet.getRange(2, columnIndex + 1, dataRowCount, 1).setNumberFormat('#,##0.##');
+      setKiotVietNumberFormatIfSupported_(
+        sheet.getRange(2, columnIndex + 1, dataRowCount, 1),
+        '#,##0.##'
+      );
     }
   });
 
   (schema.textHeaders || []).forEach(header => {
     const columnIndex = schema.headers.indexOf(header);
     if (columnIndex >= 0) {
-      sheet.getRange(2, columnIndex + 1, dataRowCount, 1).setNumberFormat('@');
+      setKiotVietNumberFormatIfSupported_(
+        sheet.getRange(2, columnIndex + 1, dataRowCount, 1),
+        '@'
+      );
     }
   });
 }
@@ -1001,7 +1042,6 @@ function ensureKiotVietSheetSchema_(sheet, schema) {
   const lastColumn = sheet.getLastColumn();
   if (lastRow === 0 || lastColumn === 0) {
     sheet.getRange(1, 1, 1, schema.headers.length).setValues([schema.headers]);
-    formatKiotVietSheet_(sheet, schema, 0);
     return;
   }
 
@@ -1049,7 +1089,6 @@ function ensureKiotVietSheetSchema_(sheet, schema) {
       previousLastColumn - schema.headers.length
     );
   }
-  formatKiotVietSheet_(sheet, schema, migratedRows.length);
 }
 
 function upsertKiotVietSheetItems_(schema, items) {
@@ -1097,11 +1136,21 @@ function upsertKiotVietSheetItems_(schema, items) {
 function formatKiotVietSheetRow_(sheet, schema, rowNumber) {
   (schema.numberHeaders || []).forEach(header => {
     const columnIndex = schema.headers.indexOf(header);
-    if (columnIndex >= 0) sheet.getRange(rowNumber, columnIndex + 1).setNumberFormat('#,##0.##');
+    if (columnIndex >= 0) {
+      setKiotVietNumberFormatIfSupported_(
+        sheet.getRange(rowNumber, columnIndex + 1),
+        '#,##0.##'
+      );
+    }
   });
   (schema.textHeaders || []).forEach(header => {
     const columnIndex = schema.headers.indexOf(header);
-    if (columnIndex >= 0) sheet.getRange(rowNumber, columnIndex + 1).setNumberFormat('@');
+    if (columnIndex >= 0) {
+      setKiotVietNumberFormatIfSupported_(
+        sheet.getRange(rowNumber, columnIndex + 1),
+        '@'
+      );
+    }
   });
 }
 
@@ -1193,5 +1242,4 @@ function writeKiotVietSheetRowsSafely_(sheet, schema, rows) {
     sheet.getRange(newLastRow + 1, 1, previousLastRow - newLastRow, schema.headers.length)
       .clearContent();
   }
-  formatKiotVietSheet_(sheet, schema, rows.length);
 }

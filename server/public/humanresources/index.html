@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quản lý nhân sự · TOKOSI Dashboard</title>
+<link rel="icon" type="image/jpeg" href="/Logo.jpg">
+<script>
+  (function(){
+    try{ document.documentElement.dataset.theme = localStorage.getItem('tks-dashboard-theme') === 'light' ? 'light' : 'dark'; }
+    catch(err){ document.documentElement.dataset.theme = 'dark'; }
+    document.documentElement.style.visibility = 'hidden';
+  })();
+</script>
+<link rel="stylesheet" href="/shared/shared.css">
+<script src="/shared/shared-nav.js"></script>
+<script src="/shared/three-interactions.js" defer></script>
+<script src="/shared/three-loading.js" defer></script>
+<style>
+  .hr-wrap{ width:100%; margin:0 auto; }
+  .hr-header{ margin-bottom:20px; }
+  .hr-header h2{
+    margin:0 0 6px; font-family:var(--font-display); font-weight:800; font-size:24px;
+    letter-spacing:-0.02em; color:var(--text);
+  }
+  .hr-header p{ margin:0; color:var(--muted); font-size:13.5px; }
+
+  .hr-subnav{
+    display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:20px;
+    border-bottom:1px solid var(--border); padding-bottom:0;
+  }
+  .hr-subnav-item{
+    display:inline-flex; align-items:center; gap:6px; padding:9px 14px; margin-bottom:-1px;
+    background:transparent; border:1px solid transparent; border-bottom:2px solid transparent;
+    border-radius:var(--radius-xs) var(--radius-xs) 0 0; color:var(--muted); font-family:var(--font-body);
+    font-size:13px; font-weight:600; cursor:pointer; transition:color .15s ease, border-color .15s ease;
+  }
+  .hr-subnav-item svg{ width:15px; height:15px; flex-shrink:0; }
+  .hr-subnav-item:hover{ color:var(--text); }
+  .hr-subnav-item.active{ color:var(--blue); border-bottom-color:var(--blue); }
+  .hr-subtab-panel{ display:none; }
+  .hr-subtab-panel.active{ display:block; }
+
+  .kpi-row{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; margin-bottom:20px; }
+  @media (max-width:800px){ .kpi-row{ grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+  @media (max-width:480px){ .kpi-row{ grid-template-columns:1fr; } }
+  .kpi-stat{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px 16px; }
+  .kpi-stat .lbl{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+  .kpi-stat .val{ font-family:var(--font-data); font-size:22px; font-weight:700; color:var(--text); margin-top:4px; }
+  .kpi-stat.kpi-green .val{ color:var(--green); }
+  .kpi-stat.kpi-red .val{ color:var(--red); }
+  .kpi-stat.kpi-amber .val{ color:var(--amber); }
+
+  .admin-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+  .admin-filters{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; flex:1; min-width:260px; }
+  .search-box{ position:relative; flex:1; min-width:200px; }
+  .search-box input{
+    width:100%; min-height:38px; padding:8px 12px 8px 34px; background:var(--panel-2); color:var(--text);
+    border:1px solid var(--border); border-radius:var(--radius-sm); font-family:var(--font-body); font-size:12.5px;
+  }
+  .search-box input:focus{ outline:none; border-color:var(--blue); }
+  .search-box svg{ position:absolute; left:10px; top:50%; transform:translateY(-50%); width:16px; height:16px; color:var(--muted); pointer-events:none; }
+  .filter-select{
+    min-height:38px; padding:6px 10px; background:var(--panel-2); color:var(--text);
+    border:1px solid var(--border); border-radius:var(--radius-sm); font-family:var(--font-body); font-size:12.5px; cursor:pointer;
+  }
+  .filter-select:focus{ outline:none; border-color:var(--blue); }
+  .date-range-group{ display:flex; align-items:center; gap:6px; }
+  .date-range-group span{ color:var(--muted); font-size:12px; }
+  .date-range-group input[type="date"]{
+    min-height:38px; padding:6px 10px; background:var(--panel-2); color:var(--text);
+    border:1px solid var(--border); border-radius:var(--radius-sm); font-family:var(--font-body); font-size:12.5px; cursor:pointer;
+  }
+  .date-range-group input[type="date"]:focus{ outline:none; border-color:var(--blue); }
+
+  .users-table-panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-xl); overflow:hidden;
+    box-shadow:var(--card-shadow); margin-bottom:24px;
+  }
+  .users-table-scroll{ overflow-x:auto; }
+  .users-table{ width:100%; border-collapse:collapse; text-align:left; }
+  .users-table th, .users-table td{ padding:12px 16px; border-bottom:1px solid var(--border); font-size:13px; }
+  .users-table th{
+    background:var(--panel-2); color:var(--muted); font-size:11.5px; font-weight:600;
+    text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;
+  }
+  .users-table td{ vertical-align:top; }
+
+  .status-pill{
+    display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:var(--radius-pill); font-size:11.5px; font-weight:600;
+  }
+  .status-pill.leave-pending{ background:var(--status-pending-bg); color:var(--amber); }
+  .status-pill.leave-provisional{ background:var(--accent-blue-12); color:var(--blue); }
+  .status-pill.leave-approved{ background:var(--status-active-bg); color:var(--green); }
+  .status-pill.leave-rejected{ background:var(--status-locked-bg); color:var(--red); }
+
+  .urgent-badge{
+    display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:var(--radius-pill);
+    font-size:10.5px; font-weight:700; background:var(--status-pending-bg); color:var(--amber); margin-left:6px;
+  }
+
+  .row-actions{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .row-actions .btn-mini{
+    padding:5px 10px; font-size:11.5px; font-weight:600; border-radius:var(--radius-xs); border:1px solid var(--border);
+    background:var(--panel-2); color:var(--text); cursor:pointer;
+  }
+  .row-actions .btn-mini:hover{ border-color:var(--muted); background:var(--surface-hover); }
+  .row-actions .btn-mini.approve{ border-color:var(--green); color:var(--green); }
+  .row-actions .btn-mini.provisional{ border-color:var(--blue); color:var(--blue); }
+  .row-actions .btn-mini.reject{ border-color:var(--red); color:var(--red); }
+
+  .profile-card{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-xl);
+    padding:22px; box-shadow:var(--card-shadow); margin-bottom:24px;
+  }
+  .profile-card-title{
+    margin:0 0 6px; font-family:var(--font-display); font-size:15px; font-weight:700;
+    color:var(--text); display:flex; align-items:center; gap:8px;
+  }
+  .profile-card-title svg{ width:18px; height:18px; color:var(--blue); flex-shrink:0; }
+  .profile-card-desc{ margin:0 0 16px; font-size:12.5px; color:var(--muted); line-height:1.45; }
+  .link-code-display{
+    font-family:var(--font-data); font-size:26px; font-weight:800; letter-spacing:.12em;
+    color:var(--blue); background:var(--panel-2); border:1px dashed var(--border);
+    border-radius:var(--radius-md); padding:12px 18px; display:inline-block; margin:8px 0;
+  }
+
+  .form-group{ margin-bottom:16px; }
+  .form-group label{ display:block; margin-bottom:6px; font-size:12.5px; font-weight:600; color:var(--text-secondary); }
+  .form-control{
+    width:100%; min-height:40px; padding:8px 12px; background:var(--panel-2); color:var(--text);
+    border:1px solid var(--border); border-radius:var(--radius-sm); font-family:var(--font-body); font-size:13px;
+  }
+  .form-control:focus{ outline:none; border-color:var(--blue); box-shadow:0 0 0 3px var(--accent-blue-18); }
+
+  .modal-overlay{
+    position:fixed; inset:0; z-index:300; background:var(--overlay-bg); backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-overlay[hidden]{ display:none; }
+  .modal-box{ width:100%; max-width:480px; max-height:90vh; overflow-y:auto; background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-xl); box-shadow:var(--shadow-modal); }
+  .modal-header{ display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--border); }
+  .modal-header h3{ margin:0; font-family:var(--font-display); font-size:16px; font-weight:700; color:var(--text); }
+  .modal-close{ width:30px; height:30px; border:none; background:transparent; color:var(--muted); font-size:16px; cursor:pointer; border-radius:var(--radius-xs); }
+  .modal-close:hover{ color:var(--text); background:var(--surface-hover); }
+  .modal-body{ padding:20px; }
+  .modal-footer{ display:flex; align-items:center; justify-content:flex-end; gap:10px; padding:14px 20px; border-top:1px solid var(--border); background:var(--panel-2); }
+
+  .alert-box{ padding:10px 14px; border-radius:var(--radius-sm); font-size:12.5px; margin-bottom:14px; line-height:1.45; }
+  .alert-warning{ background:var(--alert-warning-bg); border:1px solid var(--alert-warning-border); color:var(--amber); }
+  .alert-error{ background:var(--alert-error-bg); border:1px solid var(--alert-error-border); color:var(--red); }
+  .alert-success{ background:var(--alert-success-bg); border:1px solid var(--alert-success-border); color:var(--green); }
+
+  .toast-container{ position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
+  .toast{
+    min-width:280px; max-width:400px; padding:12px 18px; border-radius:var(--radius-md); font-size:13px; font-weight:600;
+    box-shadow:var(--shadow-toast); display:flex; align-items:center; gap:10px; pointer-events:auto;
+  }
+  .toast.toast-success{ background:var(--toast-success-bg); color:var(--toast-success-fg); border:1px solid var(--toast-success-border); }
+  .toast.toast-error{ background:var(--toast-error-bg); color:var(--toast-error-fg); border:1px solid var(--toast-error-border); }
+
+  .empty-row td{ text-align:center; color:var(--muted); padding:28px 16px; }
+</style>
+</head>
+<body>
+  <div class="receipt-header">
+    <div class="brand">
+      <button class="menu-btn" id="menuBtn" type="button" onclick="toggleSidebar()" aria-label="Mở menu điều hướng" aria-expanded="false" aria-controls="sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+      </button>
+      <div class="brand-mark"><img src="/Logo.jpg" alt="TOKOSI Logo" width="44" height="44"></div>
+      <div class="brand-text">
+        <h1>TOKOSI · Quản lý nhân sự</h1>
+        <p>Yêu cầu nghỉ phép &amp; liên kết Telegram</p>
+      </div>
+    </div>
+    <div class="status-line">
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Chuyển chế độ giao diện" onclick="toggleTheme()">
+        <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"></path></svg>
+        <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
+        <span id="themeLabel">Chế độ sáng</span>
+      </button>
+      <div class="account-chip" id="accountChip"></div>
+    </div>
+  </div>
+
+  <div class="shell">
+    <div class="backdrop" id="backdrop" onclick="toggleSidebar()"></div>
+    <div class="sidebar" id="sidebar" data-tks-active-top="hr"></div>
+    <main class="content">
+      <div class="hr-wrap">
+        <div class="hr-header">
+          <h2>Quản lý nhân sự</h2>
+          <p>Danh sách yêu cầu nghỉ phép gửi qua bot Telegram và ghi nhận thủ công. Toàn bộ nhân sự nội bộ xem được; chỉ Quản lý được phê duyệt.</p>
+        </div>
+
+        <!-- Tab con cua "Quan ly nhan su" — them tab moi bang cach them 1 nut o day va 1 .hr-subtab-panel ben duoi -->
+        <div class="hr-subnav" role="tablist">
+          <button type="button" class="hr-subnav-item active" data-subtab="leave" role="tab" aria-selected="true" onclick="switchHrSubtab('leave')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            Nghỉ phép
+          </button>
+        </div>
+
+        <div class="hr-subtab-panel active" id="hrSubtab-leave" role="tabpanel">
+        <!-- KPI -->
+        <div class="kpi-row">
+          <div class="kpi-stat kpi-amber">
+            <div class="lbl">Chưa duyệt</div>
+            <div class="val" id="statPending">0</div>
+          </div>
+          <div class="kpi-stat">
+            <div class="lbl">Tạm duyệt</div>
+            <div class="val" id="statProvisional">0</div>
+          </div>
+          <div class="kpi-stat kpi-green">
+            <div class="lbl">Đã duyệt</div>
+            <div class="val" id="statApproved">0</div>
+          </div>
+          <div class="kpi-stat kpi-red">
+            <div class="lbl">Từ chối</div>
+            <div class="val" id="statRejected">0</div>
+          </div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="admin-toolbar">
+          <div class="admin-filters">
+            <div class="search-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="text" id="employeeSearchInput" placeholder="Tìm theo tên hoặc tài khoản..." oninput="handleFilterChange()">
+            </div>
+            <select id="statusFilter" class="filter-select" onchange="handleFilterChange()">
+              <option value="">Tất cả trạng thái</option>
+              <option value="Chưa duyệt">Chưa duyệt</option>
+              <option value="Tạm duyệt">Tạm duyệt</option>
+              <option value="Đã duyệt">Đã duyệt</option>
+              <option value="Từ chối">Từ chối</option>
+            </select>
+            <div class="date-range-group">
+              <span>Từ</span>
+              <input type="date" id="fromDateFilter" onchange="handleFilterChange()">
+              <span>đến</span>
+              <input type="date" id="toDateFilter" onchange="handleFilterChange()">
+            </div>
+          </div>
+          <button type="button" class="btn-primary" id="btnManualAbsence" style="display:none;" onclick="openModal('manualAbsenceModal')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Ghi nhận tự ý nghỉ
+          </button>
+        </div>
+
+        <!-- Bang danh sach -->
+        <div class="users-table-panel">
+          <div class="users-table-scroll">
+            <table class="users-table" id="leaveTable">
+              <thead>
+                <tr>
+                  <th>Mã yêu cầu</th>
+                  <th>Người gửi</th>
+                  <th>Lý do</th>
+                  <th>Thời gian nghỉ</th>
+                  <th>Tổng giờ</th>
+                  <th>Người bàn giao</th>
+                  <th>Trạng thái</th>
+                  <th>Người duyệt</th>
+                  <th>Hành động</th>
+                </tr>
+              </thead>
+              <tbody id="leaveTableBody">
+                <tr class="empty-row"><td colspan="9">Đang tải dữ liệu...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Lien ket Telegram -->
+        <div class="profile-card">
+          <div class="profile-card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13"></path><path d="M22 2 15 22l-4-9-9-4 20-7z"></path></svg>
+            Liên kết Telegram
+          </div>
+          <p class="profile-card-desc" id="linkStatusDesc">Đang kiểm tra trạng thái liên kết...</p>
+          <div id="linkStatusOk" style="display:none;">
+            <span class="status-pill leave-approved">Đã liên kết với @<span id="linkedTgUsername"></span></span>
+          </div>
+          <div id="linkStatusNeeded" style="display:none;">
+            <button type="button" class="btn-primary" onclick="handleCreateLinkCode()">Tạo mã liên kết</button>
+            <div id="linkCodeResult" style="display:none; margin-top:12px;">
+              <div class="link-code-display" id="linkCodeValue">------</div>
+              <p class="profile-card-desc" style="margin:8px 0 0;">Mở Telegram, tìm bot xin nghỉ phép của công ty, gõ <code>/lienket &lt;mã&gt;</code> trong vòng <span id="linkCodeTtl">15</span> phút.</p>
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal: duyet/tam duyet/tu choi -->
+  <div class="modal-overlay" id="decisionModal" hidden>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="decisionModalTitle">Cập nhật trạng thái</h3>
+        <button type="button" class="modal-close" onclick="closeModal('decisionModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="decisionNote">Ghi chú (tùy chọn, hiển thị lý do từ chối nếu có)</label>
+          <textarea id="decisionNote" class="form-control" rows="3"></textarea>
+        </div>
+        <div id="decisionModalMsg" class="alert-box alert-error" style="display:none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-mini" onclick="closeModal('decisionModal')">Hủy</button>
+        <button type="button" class="btn-primary" id="btnConfirmDecision" onclick="submitDecision()">Xác nhận</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: ghi nhan tu y nghi -->
+  <div class="modal-overlay" id="manualAbsenceModal" hidden>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Ghi nhận tự ý nghỉ không xin phép</h3>
+        <button type="button" class="modal-close" onclick="closeModal('manualAbsenceModal')">✕</button>
+      </div>
+      <form id="manualAbsenceForm" onsubmit="handleManualAbsenceSubmit(event)">
+        <div class="modal-body">
+          <p class="alert-box alert-warning">Chưa có nguồn dữ liệu chấm công tự động — Quản lý/HR ghi nhận thủ công. Bản ghi này sẽ ở trạng thái "Đã duyệt" (là bản ghi nhận, không phải đơn chờ duyệt).</p>
+          <div class="form-group">
+            <label for="maHoTen">Họ tên nhân viên *</label>
+            <input type="text" id="maHoTen" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label for="maChucVu">Chức vụ</label>
+            <input type="text" id="maChucVu" class="form-control">
+          </div>
+          <div class="form-group">
+            <label for="maLyDo">Diễn giải *</label>
+            <textarea id="maLyDo" class="form-control" rows="2" required placeholder="Vd: Nghỉ không báo trước, không liên lạc được ngày 20/08/2026"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="maStart">Thời gian bắt đầu</label>
+            <input type="datetime-local" id="maStart" class="form-control">
+          </div>
+          <div class="form-group">
+            <label for="maEnd">Thời gian kết thúc</label>
+            <input type="datetime-local" id="maEnd" class="form-control">
+          </div>
+          <div id="manualAbsenceMsg" class="alert-box alert-error" style="display:none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-mini" onclick="closeModal('manualAbsenceModal')">Hủy</button>
+          <button type="submit" class="btn-primary">Ghi nhận</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    const THEME_STORAGE_KEY = 'tks-dashboard-theme';
+    let currentUser = null;
+    let rawLeaveRequests = [];
+    let urgentSummaryByUsername = {};
+    let pendingDecision = null; // { id, status }
+
+    function syncThemeControl(){
+      const isLight = document.documentElement.dataset.theme === 'light';
+      const button = document.getElementById('themeToggle');
+      const action = isLight ? 'Chuyển sang giao diện tối' : 'Chuyển sang giao diện sáng';
+      if(button){
+        button.setAttribute('aria-label', action);
+        button.setAttribute('aria-pressed', String(isLight));
+        button.title = action;
+      }
+      const label = document.getElementById('themeLabel');
+      if(label) label.textContent = isLight ? 'Chế độ tối' : 'Chế độ sáng';
+    }
+
+    function toggleTheme(){
+      const nextTheme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+      document.documentElement.dataset.theme = nextTheme;
+      try{ localStorage.setItem(THEME_STORAGE_KEY, nextTheme); }catch(e){}
+      syncThemeControl();
+    }
+
+    function toggleSidebar(){
+      const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('backdrop');
+      const btn = document.getElementById('menuBtn');
+      if(sidebar){
+        const isOpen = sidebar.classList.toggle('open');
+        if(backdrop) backdrop.classList.toggle('show', isOpen);
+        if(btn) btn.setAttribute('aria-expanded', String(isOpen));
+      }
+    }
+
+    function showToast(message, type){
+      const container = document.getElementById('toastContainer');
+      if(!container) return;
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type || 'success'}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity .3s';
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    // ---------- Tab con (Nghi phep, ...) ----------
+    function switchHrSubtab(name){
+      if(!document.getElementById(`hrSubtab-${name}`)) return;
+      document.querySelectorAll('.hr-subnav-item').forEach(btn => {
+        const active = btn.dataset.subtab === name;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-selected', String(active));
+      });
+      document.querySelectorAll('.hr-subtab-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === `hrSubtab-${name}`);
+      });
+      if(history.replaceState) history.replaceState(null, '', `#${name}`);
+    }
+
+    // Sidebar (nhom "Quản lý nhân sự") link toi tung tab con bang hash, vd /humanresources/#leave.
+    function applyHrSubtabFromHash(){
+      const name = (window.location.hash || '').replace('#', '');
+      if(name) switchHrSubtab(name);
+    }
+    window.addEventListener('hashchange', applyHrSubtabFromHash);
+
+    function openModal(id){ const m = document.getElementById(id); if(m) m.hidden = false; }
+    function closeModal(id){ const m = document.getElementById(id); if(m) m.hidden = true; }
+
+    async function parseApiResponse(res){
+      let data = {};
+      try{ data = await res.json(); }
+      catch(_){ data = { error: res.statusText ? `Lỗi hệ thống (${res.status} ${res.statusText})` : 'Lỗi phản hồi từ máy chủ.' }; }
+      return { ok: res.ok, status: res.status, data };
+    }
+
+    const STATUS_CLASS = {
+      'Chưa duyệt': 'leave-pending',
+      'Tạm duyệt': 'leave-provisional',
+      'Đã duyệt': 'leave-approved',
+      'Từ chối': 'leave-rejected'
+    };
+
+    function formatDateTime(iso){
+      if(!iso) return '—';
+      const d = new Date(iso);
+      if(isNaN(d.getTime())) return String(iso);
+      const pad = n => String(n).padStart(2, '0');
+      return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function escapeHtml(str){
+      return String(str == null ? '' : str).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+
+    // ---------- Load danh sach ----------
+    function handleFilterChange(){ loadLeaveRequests(); }
+
+    function todayIso(){
+      const d = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    }
+
+    // Mac dinh bo loc thoi gian yeu cau la "hom nay -> hom nay".
+    function initDateRangeFilter(){
+      const today = todayIso();
+      const fromEl = document.getElementById('fromDateFilter');
+      const toEl = document.getElementById('toDateFilter');
+      if(fromEl && !fromEl.value) fromEl.value = today;
+      if(toEl && !toEl.value) toEl.value = today;
+    }
+
+    async function loadLeaveRequests(){
+      const tbody = document.getElementById('leaveTableBody');
+      const status = document.getElementById('statusFilter').value;
+      const employee = document.getElementById('employeeSearchInput').value.trim();
+      const fromDate = document.getElementById('fromDateFilter').value;
+      const toDate = document.getElementById('toDateFilter').value;
+
+      const params = new URLSearchParams();
+      if(status) params.set('status', status);
+      if(employee) params.set('employee', employee);
+      if(fromDate) params.set('from', fromDate);
+      if(toDate) params.set('to', toDate);
+
+      try{
+        const res = await fetch(`/api/hr/leave-requests?${params.toString()}`, { credentials: 'same-origin' });
+        const { ok, data } = await parseApiResponse(res);
+        if(!ok){
+          tbody.innerHTML = `<tr class="empty-row"><td colspan="9">${escapeHtml(data.error || 'Không tải được danh sách.')}</td></tr>`;
+          return;
+        }
+        rawLeaveRequests = data.requests || [];
+        renderStats(rawLeaveRequests);
+        renderTable(rawLeaveRequests);
+        loadUrgentSummary();
+      }catch(err){
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Lỗi kết nối máy chủ.</td></tr>';
+      }
+    }
+
+    async function loadUrgentSummary(){
+      try{
+        const res = await fetch('/api/hr/leave-requests/summary/urgent-flags', { credentials: 'same-origin' });
+        const { ok, data } = await parseApiResponse(res);
+        if(!ok) return;
+        urgentSummaryByUsername = {};
+        (data.summary || []).forEach(entry => { urgentSummaryByUsername[entry.web_username || entry.ho_ten] = entry; });
+        renderTable(rawLeaveRequests);
+      }catch(err){ /* badge la thong tin phu, khong chan UI neu loi */ }
+    }
+
+    function renderStats(requests){
+      const counts = { 'Chưa duyệt': 0, 'Tạm duyệt': 0, 'Đã duyệt': 0, 'Từ chối': 0 };
+      requests.forEach(r => { if(counts.hasOwnProperty(r.trang_thai)) counts[r.trang_thai]++; });
+      document.getElementById('statPending').textContent = counts['Chưa duyệt'];
+      document.getElementById('statProvisional').textContent = counts['Tạm duyệt'];
+      document.getElementById('statApproved').textContent = counts['Đã duyệt'];
+      document.getElementById('statRejected').textContent = counts['Từ chối'];
+    }
+
+    function renderTable(requests){
+      const tbody = document.getElementById('leaveTableBody');
+      if(!requests.length){
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Chưa có yêu cầu nghỉ phép nào.</td></tr>';
+        return;
+      }
+      const isManager = currentUser && currentUser.vaiTro === 'Quản lý';
+      tbody.innerHTML = requests.map(r => {
+        const statusClass = STATUS_CLASS[r.trang_thai] || 'leave-pending';
+        const urgentEntry = urgentSummaryByUsername[r.web_username || r.ho_ten];
+        const urgentBadge = (urgentEntry && urgentEntry.isOverThreshold)
+          ? `<span class="urgent-badge" title="Nghỉ gấp ${urgentEntry.count} lần trong tháng">⚠ ${urgentEntry.count} lần nghỉ gấp</span>` : '';
+        const isPendingLike = r.trang_thai === 'Chưa duyệt' || r.trang_thai === 'Tạm duyệt';
+        const actions = isManager && isPendingLike ? `
+          <div class="row-actions">
+            <button class="btn-mini provisional" onclick="openDecisionModal('${r.request_id}', 'Tạm duyệt')">Tạm duyệt</button>
+            <button class="btn-mini approve" onclick="openDecisionModal('${r.request_id}', 'Đã duyệt')">Duyệt</button>
+            <button class="btn-mini reject" onclick="openDecisionModal('${r.request_id}', 'Từ chối')">Từ chối</button>
+          </div>` : (isManager ? `
+          <div class="row-actions">
+            <button class="btn-mini" onclick="openDecisionModal('${r.request_id}', 'Chưa duyệt')">Mở lại</button>
+          </div>` : '—');
+
+        return `<tr>
+          <td>${escapeHtml(r.request_id)}${r.co_nghi_gap === true || r.co_nghi_gap === 'TRUE' ? ' <span class="urgent-badge">Nghỉ gấp</span>' : ''}</td>
+          <td>${escapeHtml(r.ho_ten)}${r.chuc_vu ? ` - <span style="color:var(--muted); font-size:11.5px;">${escapeHtml(r.chuc_vu)}</span>` : ''}${urgentBadge}</td>
+          <td>${escapeHtml(r.ly_do)}${r.co_tu_y_nghi === true || r.co_tu_y_nghi === 'TRUE' ? '<br><span style="color:var(--red); font-size:11px; font-weight:600;">Tự ý nghỉ (HR ghi nhận)</span>' : ''}</td>
+          <td>${formatDateTime(r.thoi_gian_bat_dau)}<br>→ ${formatDateTime(r.thoi_gian_ket_thuc)}</td>
+          <td>${r.tong_gio_nghi || '—'}</td>
+          <td>${escapeHtml(r.nguoi_ban_giao) || '—'}</td>
+          <td><span class="status-pill ${statusClass}">${escapeHtml(r.trang_thai)}</span></td>
+          <td>${escapeHtml(r.nguoi_duyet) || '—'}</td>
+          <td>${actions}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    // ---------- Duyet/tam duyet/tu choi ----------
+    function openDecisionModal(id, status){
+      pendingDecision = { id, status };
+      document.getElementById('decisionModalTitle').textContent = `Đổi trạng thái: ${status}`;
+      document.getElementById('decisionNote').value = '';
+      document.getElementById('decisionModalMsg').style.display = 'none';
+      openModal('decisionModal');
+    }
+
+    async function submitDecision(){
+      if(!pendingDecision) return;
+      const note = document.getElementById('decisionNote').value.trim();
+      const msgEl = document.getElementById('decisionModalMsg');
+      try{
+        const res = await fetch(`/api/hr/leave-requests/${encodeURIComponent(pendingDecision.id)}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ status: pendingDecision.status, note })
+        });
+        const { ok, data } = await parseApiResponse(res);
+        if(!ok){
+          msgEl.textContent = data.error || 'Cập nhật thất bại.';
+          msgEl.style.display = 'block';
+          return;
+        }
+        closeModal('decisionModal');
+        showToast('Đã cập nhật trạng thái yêu cầu nghỉ phép.', 'success');
+        loadLeaveRequests();
+      }catch(err){
+        msgEl.textContent = 'Lỗi kết nối máy chủ.';
+        msgEl.style.display = 'block';
+      }
+    }
+
+    // ---------- Ghi nhan tu y nghi ----------
+    async function handleManualAbsenceSubmit(event){
+      event.preventDefault();
+      const msgEl = document.getElementById('manualAbsenceMsg');
+      const payload = {
+        ho_ten: document.getElementById('maHoTen').value.trim(),
+        chuc_vu: document.getElementById('maChucVu').value.trim(),
+        ly_do: document.getElementById('maLyDo').value.trim(),
+        thoi_gian_bat_dau: document.getElementById('maStart').value ? new Date(document.getElementById('maStart').value).toISOString() : '',
+        thoi_gian_ket_thuc: document.getElementById('maEnd').value ? new Date(document.getElementById('maEnd').value).toISOString() : '',
+        co_tu_y_nghi: true
+      };
+      try{
+        const res = await fetch('/api/hr/leave-requests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(payload)
+        });
+        const { ok, data } = await parseApiResponse(res);
+        if(!ok){
+          msgEl.textContent = data.error || 'Ghi nhận thất bại.';
+          msgEl.style.display = 'block';
+          return;
+        }
+        closeModal('manualAbsenceModal');
+        document.getElementById('manualAbsenceForm').reset();
+        msgEl.style.display = 'none';
+        showToast('Đã ghi nhận trường hợp tự ý nghỉ.', 'success');
+        loadLeaveRequests();
+      }catch(err){
+        msgEl.textContent = 'Lỗi kết nối máy chủ.';
+        msgEl.style.display = 'block';
+      }
+    }
+
+    // ---------- Lien ket Telegram ----------
+    async function loadLinkStatus(){
+      try{
+        const res = await fetch('/api/hr/telegram/link-status', { credentials: 'same-origin' });
+        const { ok, data } = await parseApiResponse(res);
+        const descEl = document.getElementById('linkStatusDesc');
+        if(!ok){
+          descEl.textContent = 'Không tải được trạng thái liên kết.';
+          return;
+        }
+        if(data.linked){
+          descEl.textContent = 'Tài khoản của bạn đã liên kết với Telegram, bot sẽ nhận diện đúng danh tính khi bạn xin nghỉ.';
+          document.getElementById('linkedTgUsername').textContent = (data.telegram_username || '').replace(/^@/, '');
+          document.getElementById('linkStatusOk').style.display = 'block';
+          document.getElementById('linkStatusNeeded').style.display = 'none';
+        } else {
+          descEl.textContent = 'Bạn chưa liên kết tài khoản Telegram. Tạo mã bên dưới rồi gõ /lienket <mã> với bot xin nghỉ phép.';
+          document.getElementById('linkStatusOk').style.display = 'none';
+          document.getElementById('linkStatusNeeded').style.display = 'block';
+        }
+      }catch(err){
+        document.getElementById('linkStatusDesc').textContent = 'Lỗi kết nối máy chủ.';
+      }
+    }
+
+    async function handleCreateLinkCode(){
+      try{
+        const res = await fetch('/api/hr/telegram/link-code', { method: 'POST', credentials: 'same-origin' });
+        const { ok, data } = await parseApiResponse(res);
+        if(!ok){
+          showToast(data.error || 'Không tạo được mã liên kết.', 'error');
+          return;
+        }
+        document.getElementById('linkCodeValue').textContent = data.code;
+        document.getElementById('linkCodeResult').style.display = 'block';
+      }catch(err){
+        showToast('Lỗi kết nối máy chủ.', 'error');
+      }
+    }
+
+    // ---------- Init ----------
+    window.addEventListener('DOMContentLoaded', () => {
+      syncThemeControl();
+      const sidebar = document.getElementById('sidebar');
+      if(window.TKSNav && window.TKSNav.authGuard){
+        window.TKSNav.authGuard().then(user => {
+          currentUser = user;
+          if(sidebar) window.TKSNav.renderTopSidebar(sidebar, 'hr', user);
+          if(user.vaiTro === 'Quản lý'){
+            document.getElementById('btnManualAbsence').style.display = 'inline-flex';
+          }
+          applyHrSubtabFromHash();
+          initDateRangeFilter();
+          loadLeaveRequests();
+          loadLinkStatus();
+        });
+      }
+    });
+  </script>
+  <!-- 3D Background Particle System -->
+  <script src="/vendor/three.min.js"></script>
+  <script src="/shared/three-performance.js"></script>
+  <script src="/shared/three-memory.js"></script>
+  <script src="/shared/three-visibility.js"></script>
+  <script src="/shared/three-bg.js"></script>
+</body>
+</html>

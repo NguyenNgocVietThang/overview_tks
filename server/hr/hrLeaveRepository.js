@@ -1,0 +1,336 @@
+// ==========================================
+// HR LEAVE REPOSITORY — CRUD cho 2 tab nhan su:
+//   - "Yêu cầu nghỉ phép" (du lieu chinh)
+//   - "_HR_TELEGRAM_LINKS" (lien ket chat_id Telegram <-> tai khoan web, an)
+//
+// Theo mau repository/service/routes cua Phase 1B (vcOrderRepository.js):
+// SCHEMA anh xa header Tieng Viet <-> fieldKeys, doc/ghi qua hrSheetsClient.
+// ==========================================
+'use strict';
+
+const CONFIG = require('../config');
+const {
+  hrGetValues, hrAppendRow, hrUpdateRow, invalidateHrSheetCache
+} = require('../sheets/hrSheetsClient');
+
+// ---- Schema -------------------------------------------------------------
+
+const LEAVE_SCHEMA = {
+  sheet: () => CONFIG.HR_SHEET_LEAVE_REQUESTS,
+  headers: [
+    'Mã yêu cầu', 'Telegram chat_id', 'Telegram username', 'Tài khoản web',
+    'Họ tên', 'Chức vụ', 'Lý do nghỉ', 'Loại yêu cầu',
+    'Thời gian nhắn', 'Thời gian bắt đầu nghỉ', 'Thời gian kết thúc nghỉ',
+    'Tổng giờ nghỉ', 'Tổng ngày nghỉ (quy đổi)', 'Người bàn giao',
+    'Trạng thái phê duyệt', 'Người phê duyệt', 'Thời điểm phê duyệt', 'Ghi chú/lý do từ chối',
+    'Cờ nghỉ gấp', 'Cờ tự ý nghỉ', 'Thời gian tạo', 'Cập nhật lần cuối'
+  ],
+  fieldKeys: [
+    'request_id', 'telegram_chat_id', 'telegram_username', 'web_username',
+    'ho_ten', 'chuc_vu', 'ly_do', 'loai_yeu_cau',
+    'thoi_gian_nhan', 'thoi_gian_bat_dau', 'thoi_gian_ket_thuc',
+    'tong_gio_nghi', 'tong_ngay_nghi', 'nguoi_ban_giao',
+    'trang_thai', 'nguoi_duyet', 'thoi_diem_duyet', 'ghi_chu_duyet',
+    'co_nghi_gap', 'co_tu_y_nghi', 'created_at', 'updated_at'
+  ]
+};
+
+const LINK_SCHEMA = {
+  sheet: () => CONFIG.HR_SHEET_TELEGRAM_LINKS,
+  headers: [
+    'Mã liên kết', 'Tài khoản web', 'Trạng thái', 'Telegram chat_id',
+    'Telegram username', 'Thời gian tạo', 'Thời gian hết hạn', 'Thời gian liên kết'
+  ],
+  fieldKeys: [
+    'link_code', 'web_username', 'status', 'telegram_chat_id',
+    'telegram_username', 'created_at', 'expires_at', 'linked_at'
+  ]
+};
+
+const LEAVE_TYPE = Object.freeze({
+  REQUEST: 'Xin nghỉ phép',
+  MANUAL_ABSENCE: 'Tự ý nghỉ (HR ghi nhận)'
+});
+
+const LEAVE_STATUS = Object.freeze({
+  PENDING: 'Chưa duyệt',
+  PROVISIONAL: 'Tạm duyệt',
+  APPROVED: 'Đã duyệt',
+  REJECTED: 'Từ chối'
+});
+
+const LINK_STATUS = Object.freeze({
+  UNUSED: 'CHUA_SU_DUNG',
+  LINKED: 'DA_LIEN_KET',
+  EXPIRED: 'HET_HAN'
+});
+
+// ---- Loi nghiep vu (statusCode < 500 duoc handleError() o routes tra thang) ---
+
+class HrError extends Error {
+  constructor(message, statusCode, code) {
+    super(message);
+    this.statusCode = statusCode || 400;
+    this.code = code || 'HR_ERROR';
+  }
+}
+
+// ---- Utility chung: doc toan bo 1 tab thanh mang object theo fieldKeys -------
+
+function rowToObject(row, fieldKeys) {
+  const obj = {};
+  fieldKeys.forEach((key, i) => { obj[key] = row[i] !== undefined ? row[i] : ''; });
+  return obj;
+}
+
+function objectToRow(obj, fieldKeys) {
+  return fieldKeys.map(key => {
+    const v = obj[key];
+    if (v === undefined || v === null) return '';
+    if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
+    return v;
+  });
+}
+
+/**
+ * Doc toan bo tab, tra ve { rows: [{...obj, _rowIndex}], headers }.
+ * _rowIndex la vi tri dong 1-based tren Sheet that (2 = dong du lieu dau tien),
+ * dung cho hrUpdateRow.
+ */
+async function readAll(schema) {
+  const values = await hrGetValues(schema.sheet());
+  if (!values || values.length === 0) return [];
+  const dataRows = values.slice(1);
+  return dataRows
+    .map((row, i) => ({ row, rowIndex: i + 2 }))
+    .filter(({ row }) => row.some(cell => cell !== '' && cell !== undefined))
+    .map(({ row, rowIndex }) => Object.assign(rowToObject(row, schema.fieldKeys), { _rowIndex: rowIndex }));
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function generateRequestId() {
+  const stamp = new Date();
+  const y = stamp.getFullYear();
+  const m = String(stamp.getMonth() + 1).padStart(2, '0');
+  const d = String(stamp.getDate()).padStart(2, '0');
+  const rand = Math.floor(Math.random() * 9000 + 1000);
+  return `NP-${y}${m}${d}-${rand}`;
+}
+
+function generateLinkCode() {
+  return String(Math.floor(Math.random() * 900000 + 100000)); // 6 chu so
+}
+
+// ---- Leave requests -------------------------------------------------------
+
+/**
+ * @param {Object} filters { status, employee, from, to } — from/to dang 'YYYY-MM-DD', loc theo thoi_gian_bat_dau
+ */
+async function getLeaveRequests(filters) {
+  filters = filters || {};
+  let items = await readAll(LEAVE_SCHEMA);
+
+  if (filters.status) {
+    items = items.filter(item => item.trang_thai === filters.status);
+  }
+  if (filters.employee) {
+    const needle = String(filters.employee).trim().toLowerCase();
+    items = items.filter(item =>
+      String(item.ho_ten || '').toLowerCase().includes(needle) ||
+      String(item.web_username || '').toLowerCase().includes(needle)
+    );
+  }
+  if (filters.from) {
+    const fromDate = String(filters.from).slice(0, 10);
+    items = items.filter(item => String(item.thoi_gian_bat_dau || '').slice(0, 10) >= fromDate);
+  }
+  if (filters.to) {
+    const toDate = String(filters.to).slice(0, 10);
+    items = items.filter(item => String(item.thoi_gian_bat_dau || '').slice(0, 10) <= toDate);
+  }
+
+  // Moi nhat truoc
+  items.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  return items.map(stripRowIndex);
+}
+
+async function getLeaveRequestById(id) {
+  const items = await readAll(LEAVE_SCHEMA);
+  const found = items.find(item => item.request_id === id);
+  return found ? stripRowIndex(found) : null;
+}
+
+function stripRowIndex(item) {
+  const copy = Object.assign({}, item);
+  delete copy._rowIndex;
+  return copy;
+}
+
+/**
+ * Tao 1 yeu cau nghi phep moi (dung boi bot Telegram hoac Quan ly nhap tay).
+ */
+async function createLeaveRequest(data) {
+  const ts = nowIso();
+  const record = {
+    request_id: generateRequestId(),
+    telegram_chat_id: data.telegram_chat_id || '',
+    telegram_username: data.telegram_username || '',
+    web_username: data.web_username || '',
+    ho_ten: data.ho_ten || '',
+    chuc_vu: data.chuc_vu || '',
+    ly_do: data.ly_do || '',
+    loai_yeu_cau: data.loai_yeu_cau || LEAVE_TYPE.REQUEST,
+    thoi_gian_nhan: data.thoi_gian_nhan || ts,
+    thoi_gian_bat_dau: data.thoi_gian_bat_dau || '',
+    thoi_gian_ket_thuc: data.thoi_gian_ket_thuc || '',
+    tong_gio_nghi: data.tong_gio_nghi != null ? data.tong_gio_nghi : '',
+    tong_ngay_nghi: data.tong_gio_nghi != null ? Number((data.tong_gio_nghi / 8).toFixed(2)) : '',
+    nguoi_ban_giao: data.nguoi_ban_giao || '',
+    trang_thai: data.trang_thai || LEAVE_STATUS.PENDING,
+    nguoi_duyet: data.nguoi_duyet || '',
+    thoi_diem_duyet: data.thoi_diem_duyet || '',
+    ghi_chu_duyet: data.ghi_chu_duyet || '',
+    co_nghi_gap: !!data.co_nghi_gap,
+    co_tu_y_nghi: !!data.co_tu_y_nghi,
+    created_at: ts,
+    updated_at: ts
+  };
+  await hrAppendRow(LEAVE_SCHEMA.sheet(), objectToRow(record, LEAVE_SCHEMA.fieldKeys));
+  return record;
+}
+
+/**
+ * Doi trang thai phe duyet 1 yeu cau. Ghi nguoi duyet + thoi diem duyet.
+ */
+async function updateLeaveRequestStatus(id, { status, approver, note }) {
+  if (!Object.values(LEAVE_STATUS).includes(status)) {
+    throw new HrError(`Trạng thái không hợp lệ: "${status}".`, 400, 'INVALID_STATUS');
+  }
+  const items = await readAll(LEAVE_SCHEMA);
+  const found = items.find(item => item.request_id === id);
+  if (!found) {
+    throw new HrError(`Không tìm thấy yêu cầu nghỉ phép "${id}".`, 404, 'LEAVE_REQUEST_NOT_FOUND');
+  }
+
+  const ts = nowIso();
+  const updated = Object.assign({}, found, {
+    trang_thai: status,
+    nguoi_duyet: approver || found.nguoi_duyet,
+    thoi_diem_duyet: ts,
+    ghi_chu_duyet: note != null ? note : found.ghi_chu_duyet,
+    updated_at: ts
+  });
+  const rowIndex = updated._rowIndex;
+  delete updated._rowIndex;
+
+  await hrUpdateRow(LEAVE_SCHEMA.sheet(), rowIndex, objectToRow(updated, LEAVE_SCHEMA.fieldKeys));
+  return updated;
+}
+
+/**
+ * Tinh so lan "nghi gap" theo tung nhan vien trong 1 thang (badge canh bao).
+ * @param {string} month 'YYYY-MM', mac dinh la thang hien tai
+ */
+async function getUrgentFlagSummary(month) {
+  const targetMonth = month || nowIso().slice(0, 7);
+  const items = await readAll(LEAVE_SCHEMA);
+  const counts = new Map(); // web_username -> { ho_ten, count }
+
+  items.forEach(item => {
+    if (!item.co_nghi_gap || String(item.co_nghi_gap).toUpperCase() !== 'TRUE') return;
+    if (!String(item.thoi_gian_bat_dau || '').startsWith(targetMonth)) return;
+    const key = item.web_username || item.ho_ten || 'unknown';
+    const entry = counts.get(key) || { web_username: item.web_username, ho_ten: item.ho_ten, count: 0 };
+    entry.count += 1;
+    counts.set(key, entry);
+  });
+
+  return Array.from(counts.values()).map(entry => Object.assign(entry, {
+    month: targetMonth,
+    isOverThreshold: entry.count > CONFIG.HR_URGENT_FLAG_MONTHLY_THRESHOLD
+  }));
+}
+
+// ---- Telegram link codes ----------------------------------------------------
+
+async function createLinkCode(webUsername) {
+  if (!webUsername) throw new HrError('Thiếu tài khoản web để tạo mã liên kết.', 400, 'INVALID_REQUEST');
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + CONFIG.HR_LINK_CODE_TTL_MINUTES * 60 * 1000);
+  const record = {
+    link_code: generateLinkCode(),
+    web_username: webUsername,
+    status: LINK_STATUS.UNUSED,
+    telegram_chat_id: '',
+    telegram_username: '',
+    created_at: now.toISOString(),
+    expires_at: expiresAt.toISOString(),
+    linked_at: ''
+  };
+  await hrAppendRow(LINK_SCHEMA.sheet(), objectToRow(record, LINK_SCHEMA.fieldKeys));
+  return record;
+}
+
+/**
+ * Nhan vien go /lienket <code> tren bot -> xac nhan ma va rang buoc chat_id.
+ */
+async function consumeLinkCode(code, { chatId, telegramUsername }) {
+  const items = await readAll(LINK_SCHEMA);
+  const found = items.find(item => String(item.link_code) === String(code));
+  if (!found) {
+    throw new HrError('Mã liên kết không tồn tại.', 404, 'LINK_CODE_NOT_FOUND');
+  }
+  if (found.status === LINK_STATUS.LINKED) {
+    throw new HrError('Mã liên kết này đã được sử dụng.', 400, 'LINK_CODE_ALREADY_USED');
+  }
+  if (new Date(found.expires_at).getTime() < Date.now()) {
+    throw new HrError('Mã liên kết đã hết hạn, vui lòng tạo mã mới trên web.', 400, 'LINK_CODE_EXPIRED');
+  }
+
+  const updated = Object.assign({}, found, {
+    status: LINK_STATUS.LINKED,
+    telegram_chat_id: String(chatId),
+    telegram_username: telegramUsername || '',
+    linked_at: nowIso()
+  });
+  const rowIndex = updated._rowIndex;
+  delete updated._rowIndex;
+
+  await hrUpdateRow(LINK_SCHEMA.sheet(), rowIndex, objectToRow(updated, LINK_SCHEMA.fieldKeys));
+  return updated;
+}
+
+async function findLinkByChatId(chatId) {
+  const items = await readAll(LINK_SCHEMA);
+  const found = items.find(item =>
+    item.status === LINK_STATUS.LINKED && String(item.telegram_chat_id) === String(chatId)
+  );
+  return found ? stripRowIndex(found) : null;
+}
+
+async function findLinkByWebUsername(webUsername) {
+  const items = await readAll(LINK_SCHEMA);
+  const found = items
+    .filter(item => item.web_username === webUsername && item.status === LINK_STATUS.LINKED)
+    .sort((a, b) => String(b.linked_at).localeCompare(String(a.linked_at)))[0];
+  return found ? stripRowIndex(found) : null;
+}
+
+module.exports = {
+  LEAVE_TYPE,
+  LEAVE_STATUS,
+  LINK_STATUS,
+  HrError,
+  getLeaveRequests,
+  getLeaveRequestById,
+  createLeaveRequest,
+  updateLeaveRequestStatus,
+  getUrgentFlagSummary,
+  createLinkCode,
+  consumeLinkCode,
+  findLinkByChatId,
+  findLinkByWebUsername
+};

@@ -182,6 +182,10 @@ function processWebhookQueueItem_(queueItem) {
         deleteInvoicesFromWebhook(items);
       } else {
         updateInvoicesFromWebhook(items);
+      }
+      if (isCombinedKiotVietMode_()) {
+        processShipmentLifecycleWebhookItems_(action, items);
+      } else if (!isDelete) {
         forwardInvoiceWebhookToShipment_(action, items);
       }
     } else if (action.indexOf('order') !== -1) {

@@ -157,6 +157,9 @@ webtks-dashboard/
 │   │   ├── shipmentOrderRoutes.js # REST API vận đơn, điều phối, ảnh chứng từ, sự cố, đối soát
 │   │   ├── vcOrderRepository.js # Thao tác CRUD 6 tab vận chuyển VC_*
 │   │   └── vcOrderRepository.test.js # Unit test repository vận đơn
+│   ├── test/
+│   │   ├── apps-script-sync.test.js # Hồi quy URL webhook stale và typed-column Google Sheets
+│   │   └── frontend/            # Unit test giao diện, phân trang và hiệu ứng 3D
 │   ├── config.js                # Cấu hình môi trường Node.js server
 │   ├── index.js                 # Express server entry point
 │   └── routes.js                # Định tuyến API endpoint (/api/dashboard/*, /api/auth/*, /api/admin/*, /api/shipment/*)
@@ -241,7 +244,7 @@ Thư mục `server/` tích hợp sẵn bộ unit tests (dùng `node:test` chuẩ
 cd server
 npm test
 ```
-Bộ test gồm **214 bài kiểm thử tự động** bao phủ toàn diện 100%:
+Bộ test hiện gồm **261 bài kiểm thử tự động**:
 - Xác thực người dùng (JWT httpOnly cookie, mật khẩu bcrypt, Google Identity OAuth, đăng ký bằng Email/SĐT, bảo vệ route RBAC 5 vai trò).
 - Quản trị tài khoản Admin (CRUD danh sách người dùng, reset mật khẩu, kích hoạt/khóa tài khoản).
 - Khôi phục mật khẩu OTP 6 số (sinh mã, gửi giả lập qua Email/SĐT, giới hạn thử lại, chống brute-force và cơ chế lockout tạm thời 5 phút).
@@ -299,8 +302,9 @@ Execution API (`executionApi.access = MYSELF`) để phục vụ kiểm tra và 
 1. Kiểm tra đã khai báo `KIOTVIET_CLIENT_ID` và `KIOTVIET_CLIENT_SECRET` trong Script Properties. Chỉ trên dự án sheet tổng hợp cũ, chạy `syncAllInitialData()` để tải dữ liệu ban đầu. Hàm này cũng cập nhật toàn bộ lịch sử vào tab **Hàng ngừng kinh doanh** và dọn tab legacy `Hàng ngừng KD hôm nay` nếu còn tồn tại.
 2. Với sheet tổng hợp cũ, chạy `setupKiotVietAutoSync()` một lần. Chế độ mặc định `FULL_DASHBOARD` giữ nguyên trigger queue 1 phút, polling 15 phút, lịch báo cáo và 9 webhook.
 3. Với sheet vận chuyển mới, đặt `KIOTVIET_SYNC_MODE=SHIPMENT_LIFECYCLE` và `KIOTVIET_SHIPMENT_RELAY_ENABLED=true`, chạy `syncShipmentLifecycleRecent7Days()` rồi `setupShipmentLifecycleSync()`. Do KiotViet chỉ cho một webhook mỗi Type, project cũ giữ `invoice.update` và chuyển tiếp sự kiện sang Web App mới bằng `SHIPMENT_WEBHOOK_URL` + `SHIPMENT_WEBHOOK_SECRET`.
-4. Tab **Hàng bán theo khách** có đúng 5 cột và được webhook cập nhật trong khoảng 1 phút. Tab **Khách theo hàng hóa** có đúng 25 cột như file xuất KiotViet, lấy toàn bộ lịch sử và chỉ làm mới khi chạy tay hoặc gần 07:00. Cả ba báo cáo được đối soát bởi `setupCustomerReport()`; tab **Báo cáo bán hàng** giữ đủ 18 cột.
-5. Ba tab **HN1**, **HN3**, **HN7** là báo cáo công nợ khách hàng 1/3/7 ngày gần đây (tính cả hôm nay) do Apps Script tự tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00, hoặc chạy tay `syncCustomerDebtReports()` bất cứ lúc nào cần cập nhật ngay.
+4. Nếu một spreadsheet chứa đồng thời cả tab dashboard và tab vận chuyển, chạy `setupCombinedKiotVietSync()`. Chế độ `COMBINED` quản lý đủ 9 webhook và cập nhật `invoice.update` vào cả Hóa đơn lẫn Đơn vận chuyển, không dùng relay vòng lặp.
+5. Tab **Hàng bán theo khách** có đúng 5 cột và được webhook cập nhật trong khoảng 1 phút. Tab **Khách theo hàng hóa** có đúng 25 cột như file xuất KiotViet, lấy toàn bộ lịch sử và chỉ làm mới khi chạy tay hoặc gần 07:00. Cả ba báo cáo được đối soát bởi `setupCustomerReport()`; tab **Báo cáo bán hàng** giữ đủ 18 cột.
+6. Ba tab **HN1**, **HN3**, **HN7** là báo cáo công nợ khách hàng 1/3/7 ngày gần đây (tính cả hôm nay) do Apps Script tự tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00, hoặc chạy tay `syncCustomerDebtReports()` bất cứ lúc nào cần cập nhật ngay.
 
 Sau khi bật, thay đổi Hàng hóa, Tồn kho, Khách hàng, Hóa đơn, Đặt hàng và Nhóm hàng
 được nhận bằng webhook rồi ghi vào Sheets trong khoảng 1 phút. **Trả hàng**, **Nhà cung
@@ -326,6 +330,7 @@ cho ba nhóm này.
 | `initializeShipmentLifecycleSheets()` | Tạo/kiểm tra đủ 6 tab và header vận chuyển | Khi chuẩn bị sheet mới |
 | `syncShipmentLifecycleRecent7Days()` | Nạp hóa đơn 7 ngày gần nhất theo từng trang, tránh chạy full quá quota | Một lần ban đầu hoặc khi đối soát |
 | `setupShipmentLifecycleSync()` | Chọn chế độ vòng đời vận chuyển và tạo trigger queue; nhận `invoice.update` chuyển tiếp từ project cũ | Một lần trên dự án sheet mới |
+| `setupCombinedKiotVietSync()` | Chọn chế độ dùng chung; bật 9 webhook, polling/báo cáo và cập nhật cả dashboard lẫn vận chuyển | Một lần trên spreadsheet chứa cả hai nhóm tab |
 | `syncPollingOnly_()` | Làm mới Trả hàng, Nhà cung cấp, Nhập hàng | Tự chạy bởi trigger 15 phút |
 | `setupPollingTrigger()` | Bật lịch làm mới 3 sheet không có webhook | 1 lần duy nhất |
 | `removePollingTrigger()` | Tắt lịch làm mới 15 phút | Khi bảo trì |
@@ -468,4 +473,4 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 
 ---
 
-*Cập nhật lần cuối: 18/08/2026*
+*Cập nhật lần cuối: 20/08/2026*

@@ -25,7 +25,7 @@ Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi ch�
 
 Hệ thống là một Web Application nội bộ gồm các thành phần chính:
 
-1. **Apps Script (`src/`):** cùng một bộ mã chạy theo hai profile độc lập. `FULL_DASHBOARD` duy trì sheet tổng hợp cũ gồm 9 tab vận hành, lịch sử/báo cáo và polling; `SHIPMENT_LIFECYCLE` duy trì sheet vận chuyển mới, nhận riêng `invoice.update` qua hàng đợi bền vững và upsert đơn, chi tiết, lịch sử trạng thái.
+1. **Apps Script (`src/`):** cùng một bộ mã chạy theo ba profile. `FULL_DASHBOARD` duy trì sheet tổng hợp gồm 9 tab vận hành, lịch sử/báo cáo và polling; `SHIPMENT_LIFECYCLE` duy trì sheet vận chuyển độc lập, nhận riêng `invoice.update` qua hàng đợi bền vững; `COMBINED` dùng khi một spreadsheet chứa cả hai nhóm tab và xử lý `invoice.update` tại chỗ cho cả dashboard lẫn vòng đời vận chuyển.
 
 2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu, 3 tab công nợ HN1/HN3/HN7 và tab `Users` từ Google Spreadsheet qua Google Sheets API (Service Account), xác thực người dùng và phân quyền RBAC (JWT httpOnly cookie, bcrypt, Google OAuth, mã OTP 6 số, local backup store), tra cứu trạng thái vận chuyển đơn hàng, quản trị người dùng, tính toán KPI, dữ liệu biểu đồ và báo cáo công nợ khách hàng 1/3/7 ngày, trả về cho frontend qua REST API. Tích hợp Result Cache tầng backend, phân trang bảng client-side và xuất file Excel đa worksheet. Frontend hiển thị Dashboard tương tác, trang tra cứu vận chuyển, quản lý tài khoản và đăng nhập/đăng ký trên trình duyệt.
 
@@ -297,7 +297,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | NFR-09 | Độ trễ đồng bộ       | Từ khi dữ liệu thay đổi trên KiotViet → Apps Script cập nhật Sheets qua webhook: mục tiêu dưới 2 phút. Trả hàng/NCC/Nhập hàng: tối đa 15 phút (polling). |
 | NFR-10 | Nhất quán thời gian  | Parse ngày từ Sheets, xác định ngày hiện tại, tạo bucket 7/30/90 ngày và format `updatedAt` theo Asia/Ho_Chi_Minh, độc lập timezone máy chủ.      |
 | NFR-11 | An toàn xuất dữ liệu | API xuất chỉ nhận khóa bảng, bộ lọc và danh sách trường hợp lệ; không nhận dòng dữ liệu từ client, chặn trường lạ và vô hiệu hóa chuỗi có thể bị Excel hiểu là công thức. |
-| NFR-12 | Kiểm thử tự động     | Duy trì bộ **141 unit tests** chuẩn `node:test` bao phủ auth/Guest/SĐT, Admin CRUD, OTP reset, tra cứu vận chuyển, State Machine 9 trạng thái, cache, phân trang, xuất Excel và tìm kiếm nâng cao. |
+| NFR-12 | Kiểm thử tự động     | Duy trì bộ **261 unit tests** chuẩn `node:test` bao phủ Apps Script sync, auth/Guest/SĐT, Admin CRUD, OTP reset, tra cứu vận chuyển, State Machine 9 trạng thái, cache, phân trang, xuất Excel và tìm kiếm nâng cao. |
 
 
 # 5. Yêu cầu giao diện người dùng (UI Requirements)

@@ -68,7 +68,26 @@ const CONFIG = {
   // Server CHỈ ĐỌC — không được tạo/xóa/ghi ba tab này.
   SHEET_DEBT_1: 'HN1',
   SHEET_DEBT_3: 'HN3',
-  SHEET_DEBT_7: 'HN7'
+  SHEET_DEBT_7: 'HN7',
+
+  // ==========================================
+  // QUAN LY NHAN SU — Spreadsheet rieng (HR_*) + Bot Telegram xin nghi phep
+  // ==========================================
+  // Optional — neu chua set thi log canh bao khi module HR duoc goi, khong
+  // lam crash server hien tai (giong VC_SPREADSHEET_ID).
+  HR_SPREADSHEET_ID: process.env.HR_SPREADSHEET_ID || null,
+  TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || null,
+
+  HR_SHEET_LEAVE_REQUESTS: 'Yêu cầu nghỉ phép',
+  HR_SHEET_TELEGRAM_LINKS: '_HR_TELEGRAM_LINKS',
+
+  // Nguong canh bao "nghi gap": thoi gian bat dau nghi - thoi gian nhan tin
+  // < nguong nay (gio) thi tu dong gan co, chi de canh bao, khong tu tu choi.
+  HR_URGENT_NOTICE_HOURS_THRESHOLD: Number(process.env.HR_URGENT_NOTICE_HOURS_THRESHOLD) || 24,
+  // So lan nghi gap/thang vuot nguong nay thi hien badge canh bao cho Quan ly.
+  HR_URGENT_FLAG_MONTHLY_THRESHOLD: Number(process.env.HR_URGENT_FLAG_MONTHLY_THRESHOLD) || 2,
+  // Thoi han hieu luc cua ma lien ket Telegram (phut).
+  HR_LINK_CODE_TTL_MINUTES: Number(process.env.HR_LINK_CODE_TTL_MINUTES) || 15
 };
 
 module.exports = CONFIG;

@@ -17,10 +17,12 @@ trong src/ de clasp push len va co the doc truc tiep trong Apps Script Editor.
   cot ma server/dashboard/debtReport.js dang doc (xem kiotviet/CustomerDebtReport.gs).
 - Chi dung tab Hang ngung kinh doanh de luu lich su tu truoc toi nay. Tab cu
   Hang ngung KD hom nay se duoc gop/xoa khi chay sync all hoac cau hinh lich.
-- Cung mot bo ma nguon ho tro hai du an doc lap:
+- Cung mot bo ma nguon ho tro ba cau hinh:
   + Sheet tong hop cu: khong dat KIOTVIET_SYNC_MODE (mac dinh FULL_DASHBOARD).
   + Sheet van chuyen moi: dat KIOTVIET_SYNC_MODE=SHIPMENT_LIFECYCLE; chi nhan
     invoice.update va ghi cac bang lien quan den vong doi don hang.
+  + Sheet dung chung: dat KIOTVIET_SYNC_MODE=COMBINED; duy tri ca 9 tab bao cao
+    va 6 tab van chuyen trong cung mot spreadsheet.
 - KiotViet chi cho mot webhook moi Type: project cu giu invoice.update va
   forward payload sang WEBHOOK_URL cua project moi bang shared secret rieng.
 
@@ -75,6 +77,11 @@ setupShipmentLifecycleSync()
              moi phut de nhan invoice.update chuyen tiep tu project cu.
   Luu y    : Dat KIOTVIET_SHIPMENT_RELAY_ENABLED=true tren project moi. Project
              cu dat SHIPMENT_WEBHOOK_URL va SHIPMENT_WEBHOOK_SECRET.
+
+setupCombinedKiotVietSync()
+  Khi dung : Khi mot spreadsheet chua ca cac tab dashboard va tab van chuyen.
+  Tac dung : Dat che do COMBINED, bat polling/bao cao/9 webhook; invoice.update
+             cap nhat dong thoi Hoa don va Don van chuyen ma khong relay vong lap.
 
 setupCustomerReport()
   Khi dung : Mot lan neu muon Apps Script tu doi soat 3 bao cao luc 07:00.
@@ -243,6 +250,7 @@ utils/Helpers.gs
    - KIOTVIET_CLIENT_SECRET
    - WEBHOOK_URL (bat buoc; URL /exec cua deployment Web App hien tai)
    - KIOTVIET_SYNC_MODE=SHIPMENT_LIFECYCLE (chi dat tren sheet van chuyen moi)
+   - KIOTVIET_SYNC_MODE=COMBINED (neu mot sheet chua ca dashboard va van chuyen)
    - KIOTVIET_SHIPMENT_RELAY_ENABLED=true (chi tren sheet van chuyen moi)
    - Project cu: SHIPMENT_WEBHOOK_URL va SHIPMENT_WEBHOOK_SECRET trung voi
      WEBHOOK_URL/WEBHOOK_SECRET cua project van chuyen.
@@ -251,9 +259,10 @@ utils/Helpers.gs
 4) Sheet tong hop cu: chay syncAllInitialData(), sau do setupKiotVietAutoSync().
 5) Sheet van chuyen moi: chay syncShipmentLifecycleRecent7Days(), sau do
    setupShipmentLifecycleSync().
-6) Neu dung trigger bao cao ban hang 07:00, chay setupCustomerReport().
-7) Xac nhan bang checkWebhookStatus() va getWebhookQueueStatus().
-8) Can cap nhat HN1/HN3/HN7 ngay lap tuc (khong doi 15:00): chay tay syncCustomerDebtReports().
+6) Sheet dung chung: chay setupCombinedKiotVietSync().
+7) Neu dung trigger bao cao ban hang 07:00, chay setupCustomerReport().
+8) Xac nhan bang checkWebhookStatus() va getWebhookQueueStatus().
+9) Can cap nhat HN1/HN3/HN7 ngay lap tuc (khong doi 15:00): chay tay syncCustomerDebtReports().
 
 7. XU LY LOI
 -------------------------------------------------------------------------------

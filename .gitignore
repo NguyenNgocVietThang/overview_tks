@@ -37,3 +37,7 @@ desktop.ini
 .tmp-phase-a/
 .superpowers/
 .worktrees/
+
+# Trang thai hoi thoai tam thoi cua bot Telegram nghi phep (du lieu song runtime,
+# khong phai du lieu goc — xem server/telegram/conversationStore.js)
+server/data/telegram_conversations.json*

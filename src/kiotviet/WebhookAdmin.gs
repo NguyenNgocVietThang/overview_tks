@@ -44,6 +44,7 @@ function setupKiotVietAutoSync() {
     initializeShipmentLifecycleSheets();
   } else {
     migrateKiotVietSheetsIfNeeded_();
+    if (isCombinedKiotVietMode_()) initializeShipmentLifecycleSheets();
   }
 
   const token = getKiotVietToken();
@@ -81,6 +82,18 @@ function setupKiotVietAutoSync() {
   return result;
 }
 
+/**
+ * Cau hinh mot spreadsheet duy nhat chua ca dashboard va vong doi van chuyen.
+ * invoice.update duoc xu ly tai cho cho ca hai bo tab, khong relay vong lap.
+ */
+function setupCombinedKiotVietSync() {
+  PropertiesService.getScriptProperties().setProperty(
+    'KIOTVIET_SYNC_MODE',
+    KIOTVIET_SYNC_MODES.COMBINED
+  );
+  return setupKiotVietAutoSync();
+}
+
 function ensureKiotVietWebhookSecret_() {
   const properties = PropertiesService.getScriptProperties();
   let secret = properties.getProperty("WEBHOOK_SECRET");
@@ -92,16 +105,40 @@ function ensureKiotVietWebhookSecret_() {
   return secret;
 }
 
+function normalizeKiotVietWebAppUrl_(value) {
+  const url = String(value || '').trim().replace(/\/dev$/, '/exec');
+  return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(url)
+    ? url
+    : '';
+}
+
 function getKiotVietWebhookBaseUrl_() {
-  const configured = PropertiesService.getScriptProperties().getProperty("WEBHOOK_URL");
-  const url = String(configured || "").trim();
+  const properties = PropertiesService.getScriptProperties();
+  const configured = normalizeKiotVietWebAppUrl_(
+    properties.getProperty('WEBHOOK_URL')
+  );
+  let currentDeployment = '';
+  try {
+    currentDeployment = normalizeKiotVietWebAppUrl_(
+      ScriptApp.getService().getUrl()
+    );
+  } catch (error) {
+    Logger.log('Khong doc duoc URL deployment hien tai: ' + error.toString());
+  }
+
+  // WEBHOOK_URL co the tro thanh URL chet sau khi deployment cu bi xoa.
+  // ScriptApp.getService().getUrl() la nguon hien hanh; /dev va /exec dung
+  // chung deployment id nen chuan hoa sang /exec de KiotViet goi cong khai.
+  const url = currentDeployment || configured;
   if (!url) {
     throw new Error(
-      "Thieu WEBHOOK_URL trong Apps Script Properties. Hay deploy Web App va luu URL /exec truoc khi bat auto-sync."
+      'Khong tim thay URL Web App /exec. Hay deploy Web App truoc khi bat auto-sync.'
     );
   }
-  if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(url)) {
-    throw new Error("WEBHOOK_URL phai la URL Apps Script /exec hop le.");
+
+  if (currentDeployment && currentDeployment !== configured) {
+    properties.setProperty('WEBHOOK_URL', currentDeployment);
+    Logger.log('Da tu dong cap nhat WEBHOOK_URL sang deployment hien tai.');
   }
   return url;
 }

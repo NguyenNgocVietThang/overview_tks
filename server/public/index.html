@@ -17,8 +17,8 @@
       document.documentElement.style.visibility = 'hidden';
     })();
   </script>
-  <script src="/vendor/chart.umd.min.js" defer></script>
-  <script src="/js/pagination.js" defer></script>
+  <script src="/vendor/chart.umd.min.js"></script>
+  <script src="/js/pagination.js"></script>
   <script src="/shared/shared-nav.js"></script>
   <script src="/shared/three-interactions.js" defer></script>
   <script src="/shared/three-loading.js" defer></script>
@@ -413,7 +413,7 @@
     /* Ripple effect styling */
     .ripple-effect {
       position: absolute;
-      border-radius: var(--radius-circle);
+      border-radius: 50%;
       transform: scale(0);
       animation: rippleAnimation 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
       background: rgba(var(--overlay-rgb), 0.35);
@@ -3212,6 +3212,29 @@
         </svg>
         Quản lý vận chuyển
       </a>
+      <div class="nav-group">
+        <button type="button" class="nav-group-toggle" id="hrGroupToggle" onclick="toggleNavGroup('hr')"
+          aria-expanded="false" aria-controls="hrGroupList">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+          <span>Quản lý nhân sự</span>
+          <svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        <div class="nav-group-list" id="hrGroupList" hidden>
+          <a href="/humanresources/#leave" class="nav-item">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            Nghỉ phép
+          </a>
+        </div>
+      </div>
       <a href="/account/" class="nav-item">
         <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
           stroke-linejoin="round" aria-hidden="true">
@@ -5577,14 +5600,21 @@
       menuBtn.setAttribute('aria-label', isOpen ? 'Đóng menu điều hướng' : 'Mở menu điều hướng');
     }
 
-    // Mo/dong nhom "Báo cáo tổng hợp" trong sidebar, nho trang thai qua lan tai lai.
-    function toggleNavGroup(forceExpanded) {
-      const toggle = document.getElementById('navGroupToggle');
-      const list = document.getElementById('navGroupList');
+    // Mo/dong 1 nhom trong sidebar (vd: "Báo cáo tổng hợp", "Quản lý nhân sự"), nho trang thai qua lan tai lai.
+    const NAV_GROUP_IDS = {
+      reports: { toggle: 'navGroupToggle', list: 'navGroupList' },
+      hr: { toggle: 'hrGroupToggle', list: 'hrGroupList' }
+    };
+    function toggleNavGroup(key, forceExpanded) {
+      if (typeof key === 'boolean') { forceExpanded = key; key = 'reports'; } // tuong thich nguoc: toggleNavGroup(false)
+      const ids = NAV_GROUP_IDS[key] || NAV_GROUP_IDS.reports;
+      const toggle = document.getElementById(ids.toggle);
+      const list = document.getElementById(ids.list);
+      if (!toggle || !list) return;
       const expanded = typeof forceExpanded === 'boolean' ? forceExpanded : toggle.getAttribute('aria-expanded') !== 'true';
       toggle.setAttribute('aria-expanded', String(expanded));
       list.hidden = !expanded;
-      try { localStorage.setItem('tks-dashboard-nav-group-reports', expanded ? 'open' : 'closed'); } catch (err) { }
+      try { localStorage.setItem('tks-dashboard-nav-group-' + key, expanded ? 'open' : 'closed'); } catch (err) { }
     }
 
     // Thanh bo loc co dinh chi hien nhung nhom loc dung cho tab dang xem
@@ -6779,10 +6809,19 @@
     });
 
     // Khoi phuc trang thai mo/dong nhom "Báo cáo tổng hợp" (mac dinh mo, khop
-    // hanh vi truoc khi co nhom cha).
+    // hanh vi truoc khi co nhom cha) va nhom "Quản lý nhân sự" (mac dinh dong).
     try {
-      if (localStorage.getItem('tks-dashboard-nav-group-reports') === 'closed') toggleNavGroup(false);
+      if (localStorage.getItem('tks-dashboard-nav-group-reports') === 'closed') toggleNavGroup('reports', false);
+      if (localStorage.getItem('tks-dashboard-nav-group-hr') === 'open') toggleNavGroup('hr', true);
     } catch (err) { }
+
+    // Vao thang mot tab bao cao tu sidebar cua trang khac (vd /#products) —
+    // cac trang khac dieu huong toi day bang hash roi trang nay tu chuyen view.
+    const REPORT_VIEW_NAMES = ['overview', 'products', 'invoices', 'customers', 'suppliers', 'debt'];
+    (function applyReportViewFromHash() {
+      const hashView = (window.location.hash || '').replace('#', '');
+      if (REPORT_VIEW_NAMES.indexOf(hashView) !== -1) switchView(hashView);
+    })();
 
     // Ranh gioi bao mat that su nam o server (authMiddleware tren /api/*).
     // authGuard() chi de dieu huong UX: redirect /login/ neu chua dang nhap,
