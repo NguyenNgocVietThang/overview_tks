@@ -371,4 +371,85 @@ test('POST /api/auth/login: tu dong cap nhat email neu dang nhap bang email ma t
   assert.deepEqual(updatedFields, { email: 'user_email@domain.com' });
 });
 
+test('POST /api/auth/google: thangnnv2003@gmail.com mac dinh nhan quyen Quan ly khi tao moi', async () => {
+  let createdWith = null;
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: async () => ({ email: 'thangnnv2003@gmail.com', emailVerified: true, name: 'Nguyễn Ngọc Việt Thắng' }),
+    findUserByEmail: async () => null,
+    createActiveGuest: async args => {
+      createdWith = args;
+      return {
+        id: 'thang-id',
+        username: args.username,
+        hoTen: args.hoTen,
+        email: args.email,
+        vaiTro: args.vaiTro || 'Quản lý',
+        coSo: 'Cả hai',
+        trangThai: 'Đang hoạt động'
+      };
+    }
+  });
+
+  const handler = getRouteHandler(router, 'post', '/api/auth/google');
+  const res = fakeRes();
+  await handler({ body: { credential: 'tok' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.email, 'thangnnv2003@gmail.com');
+  assert.equal(res.body.vaiTro, 'Quản lý');
+  assert.equal(createdWith.vaiTro, 'Quản lý');
+});
+
+test('POST /api/auth/google: thangnnv2003@gmail.com ton tai tu truoc duoc tu dong nang/giu quyen Quan ly', async () => {
+  let updatedFields = null;
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: async () => ({ email: 'thangnnv2003@gmail.com', emailVerified: true, name: 'Nguyễn Ngọc Việt Thắng' }),
+    findUserByEmail: async () => ({
+      id: 'thang-id',
+      username: 'thangnnv2003@gmail.com',
+      hoTen: 'Nguyễn Ngọc Việt Thắng',
+      email: 'thangnnv2003@gmail.com',
+      vaiTro: 'Khách',
+      coSo: '',
+      trangThai: 'Đang hoạt động'
+    }),
+    createActiveGuest: NEVER_CALL,
+    updateUserFields: async (id, fields) => {
+      updatedFields = fields;
+      return {
+        id,
+        username: 'thangnnv2003@gmail.com',
+        hoTen: 'Nguyễn Ngọc Việt Thắng',
+        email: 'thangnnv2003@gmail.com',
+        vaiTro: fields.vaiTro || 'Quản lý',
+        coSo: 'Cả hai',
+        trangThai: 'Đang hoạt động'
+      };
+    }
+  });
+
+  const handler = getRouteHandler(router, 'post', '/api/auth/google');
+  const res = fakeRes();
+  await handler({ body: { credential: 'tok' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.vaiTro, 'Quản lý');
+  assert.equal(updatedFields.vaiTro, 'Quản lý');
+  assert.equal(updatedFields.trangThai, 'Đang hoạt động');
+});
+
+test('POST /api/auth/register: dang ky bang thangnnv2003@gmail.com duoc gan quyen Quan ly', async () => {
+  let createdWith = null;
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: async () => null,
+    findUserByUsername: async () => null,
+    createActiveGuest: async args => { createdWith = args; }
+  });
+  const handler = getRouteHandler(router, 'post', '/api/auth/register');
+  const res = fakeRes();
+  await handler({ body: { hoTen: 'Thắng', email: 'thangnnv2003@gmail.com', password: 'Password123' } }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.vaiTro, 'Quản lý');
+  assert.equal(createdWith.vaiTro, 'Quản lý');
+});
+
 

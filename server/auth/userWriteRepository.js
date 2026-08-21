@@ -9,7 +9,7 @@ const { ACTIVE_STATUS, ROLES, normalizePhone } = require('./userRepository');
 /**
  * Tạo tài khoản Khách hoạt động ngay cho đăng ký email, số điện thoại hoặc Google.
  */
-async function createActiveGuest({ id, email = '', soDienThoai = '', hoTen = '', username = '', passwordHash = '' }) {
+async function createActiveGuest({ id, email = '', soDienThoai = '', hoTen = '', username = '', passwordHash = '', vaiTro = '' }) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
   const normalizedPhone = normalizePhone(soDienThoai);
   const normalizedUsername = String(username || normalizedEmail || normalizedPhone || '').trim().toLowerCase();
@@ -40,6 +40,9 @@ async function createActiveGuest({ id, email = '', soDienThoai = '', hoTen = '',
     throw err;
   }
 
+  const isTargetAdmin = localUserStore.isHardcodedAdmin(normalizedEmail) || localUserStore.isHardcodedAdmin(normalizedUsername);
+  const assignedRole = isTargetAdmin ? ROLES.QUAN_LY : (vaiTro || ROLES.KHACH);
+
   return localUserStore.createUser({
     id: id || crypto.randomUUID(),
     username: normalizedUsername,
@@ -47,8 +50,8 @@ async function createActiveGuest({ id, email = '', soDienThoai = '', hoTen = '',
     soDienThoai: normalizedPhone,
     hoTen: normalizedHoTen,
     passwordHash,
-    vaiTro: ROLES.KHACH,
-    coSo: '',
+    vaiTro: assignedRole,
+    coSo: isTargetAdmin ? 'Cả hai' : '',
     trangThai: ACTIVE_STATUS
   });
 }
@@ -63,8 +66,10 @@ async function activatePendingGuest({ email, hoTen }) {
     throw new Error('Không tìm thấy tài khoản chờ duyệt.');
   }
 
+  const isTargetAdmin = localUserStore.isHardcodedAdmin(normalizedEmail) || localUserStore.isHardcodedAdmin(user.username);
+
   return localUserStore.updateUser(user.id, {
-    vaiTro: ROLES.KHACH,
+    vaiTro: isTargetAdmin ? ROLES.QUAN_LY : ROLES.KHACH,
     trangThai: ACTIVE_STATUS,
     hoTen: user.hoTen || hoTen || normalizedEmail
   });

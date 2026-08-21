@@ -16,6 +16,7 @@ const { requireAuth, requireRole } = require('../auth/authMiddleware');
 const { ROLES, INTERNAL_ROLES } = require('../auth/userRepository');
 const repo = require('./hrLeaveRepository');
 const { resolveApproverName } = require('./hrLeaveService');
+const { buildLeaveRequestsWorkbook } = require('./hrLeaveExportService');
 
 // Xem duoc: moi vai tro noi bo (Khach khong duoc).
 const authInternal = [requireAuth, requireRole(...INTERNAL_ROLES)];
@@ -57,6 +58,23 @@ router.get('/api/hr/leave-requests/summary/urgent-flags', ...authInternal, async
     res.status(200).json({ summary });
   } catch (err) {
     handleError(res, err, 'GET /api/hr/leave-requests/summary/urgent-flags');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/hr/leave-requests/export — xuat Excel danh sach dang loc/sap xep
+// ---------------------------------------------------------------------------
+// Dat TRUOC route /:id de tranh "export" bi hieu nham la 1 request_id.
+
+router.post('/api/hr/leave-requests/export', ...authInternal, async (req, res) => {
+  try {
+    const { status, employee, from, to, sortField, sortDir } = req.body || {};
+    const { buffer, fileName, mime } = await buildLeaveRequestsWorkbook({ status, employee, from, to, sortField, sortDir });
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.status(200).send(Buffer.from(buffer));
+  } catch (err) {
+    handleError(res, err, 'POST /api/hr/leave-requests/export');
   }
 });
 

@@ -193,6 +193,8 @@ module.exports = {
   PENDING_STATUS,
   LOCKED_STATUS,
   USER_COLUMNS,
+  HARDCODED_ADMINS: localUserStore.HARDCODED_ADMINS,
+  isHardcodedAdmin: localUserStore.isHardcodedAdmin,
   getAllUsers,
   findActiveUserByUsername,
   findUserByUsername,

@@ -126,6 +126,8 @@ router.put('/api/admin/users/:id', async (req, res) => {
     const currentAdminId = req.user.id;
     const isSelf = String(currentAdminId) === String(targetId) ||
                    req.user.username.toLowerCase() === targetUser.username.toLowerCase();
+    const isTargetHardcodedAdmin = localUserStore.isHardcodedAdmin(targetUser.email) ||
+                                   localUserStore.isHardcodedAdmin(targetUser.username);
 
     const updates = {};
 
@@ -165,9 +167,12 @@ router.put('/api/admin/users/:id', async (req, res) => {
       if (!VALID_ROLES.includes(vaiTro)) {
         return res.status(400).json({ error: `Vai trò không hợp lệ: ${vaiTro}` });
       }
-      // Business Rule: Chống tự hạ quyền
+      // Business Rule: Chống tự hạ quyền & chống hạ quyền Admin mặc định
       if (isSelf && vaiTro !== ROLES.QUAN_LY) {
         return res.status(400).json({ error: 'Bạn không thể tự hạ quyền Quản lý của chính mình.' });
+      }
+      if (isTargetHardcodedAdmin && vaiTro !== ROLES.QUAN_LY) {
+        return res.status(400).json({ error: 'Không thể hạ quyền của tài khoản Quản trị viên hệ thống mặc định.' });
       }
       updates.vaiTro = vaiTro;
     }
@@ -177,9 +182,12 @@ router.put('/api/admin/users/:id', async (req, res) => {
       if (!VALID_STATUSES.includes(trangThai)) {
         return res.status(400).json({ error: `Trạng thái không hợp lệ: ${trangThai}` });
       }
-      // Business Rule: Chống tự khóa tài khoản của chính mình
+      // Business Rule: Chống tự khóa & chống khóa Admin mặc định
       if (isSelf && trangThai !== ACTIVE_STATUS) {
         return res.status(400).json({ error: 'Bạn không thể tự khóa tài khoản của chính mình.' });
+      }
+      if (isTargetHardcodedAdmin && trangThai !== ACTIVE_STATUS) {
+        return res.status(400).json({ error: 'Không thể khóa tài khoản Quản trị viên hệ thống mặc định.' });
       }
       updates.trangThai = trangThai;
     }
@@ -239,6 +247,12 @@ router.delete('/api/admin/users/:id', async (req, res) => {
                    req.user.username.toLowerCase() === targetUser.username.toLowerCase();
     if (isSelf) {
       return res.status(400).json({ error: 'Bạn không thể tự xóa tài khoản của chính mình.' });
+    }
+
+    const isTargetHardcodedAdmin = localUserStore.isHardcodedAdmin(targetUser.email) ||
+                                   localUserStore.isHardcodedAdmin(targetUser.username);
+    if (isTargetHardcodedAdmin) {
+      return res.status(400).json({ error: 'Không thể xóa tài khoản Quản trị viên hệ thống mặc định.' });
     }
 
     await localUserStore.deleteUser(targetId);

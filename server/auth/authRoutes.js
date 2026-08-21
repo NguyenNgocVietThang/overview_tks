@@ -16,7 +16,8 @@ const {
   ACTIVE_STATUS,
   PENDING_STATUS,
   ROLES,
-  normalizePhone
+  normalizePhone,
+  isHardcodedAdmin
 } = require('./userRepository');
 const { createActiveGuest, activatePendingGuest, updateUserFields } = require('./userWriteRepository');
 const { verifyGoogleIdToken } = require('./googleAuthService');
@@ -164,6 +165,11 @@ router.post('/api/auth/login', async (req, res) => {
     if (user.email) clearFailedLogins(user.email);
     if (user.soDienThoai) clearFailedLogins(user.soDienThoai);
 
+    if (isHardcodedAdmin(user.email) || isHardcodedAdmin(user.username)) {
+      user.vaiTro = ROLES.QUAN_LY;
+      user.trangThai = ACTIVE_STATUS;
+    }
+
     // Neu dang nhap bang email ma tai khoan chua co truong email -> cap nhat vao ho so
     if (normIdentifier.includes('@') && !user.email) {
       const updated = await updateUserFields(user.id, { email: normIdentifier });
@@ -240,14 +246,15 @@ router.post('/api/auth/register', async (req, res) => {
 
     const passwordHash = await hashPassword(password);
     const username = email || normalizePhone(soDienThoai);
+    const isTargetAdmin = isHardcodedAdmin(email) || isHardcodedAdmin(username);
     const user = {
       id: crypto.randomUUID(),
       username,
       hoTen,
       email,
       soDienThoai: normalizePhone(soDienThoai),
-      vaiTro: ROLES.KHACH,
-      coSo: ''
+      vaiTro: isTargetAdmin ? ROLES.QUAN_LY : ROLES.KHACH,
+      coSo: isTargetAdmin ? 'Cả hai' : ''
     };
 
     try {
@@ -421,25 +428,32 @@ router.post('/api/auth/google', async (req, res) => {
 
     const email = profile.email.toLowerCase().trim();
     const googleName = (profile.name || '').trim();
+    const isTargetAdmin = isHardcodedAdmin(email);
 
     let user = await findUserByEmail(email);
 
     if (!user) {
+      const assignedRole = isTargetAdmin ? ROLES.QUAN_LY : ROLES.KHACH;
       const created = await createActiveGuest({
         email,
         hoTen: googleName || email,
-        username: email
+        username: email,
+        vaiTro: assignedRole
       });
       user = created || {
         id: crypto.randomUUID(),
         username: email,
         hoTen: googleName || email,
         email,
-        vaiTro: ROLES.KHACH,
-        coSo: '',
+        vaiTro: assignedRole,
+        coSo: isTargetAdmin ? 'Cả hai' : '',
         trangThai: ACTIVE_STATUS
       };
     } else {
+      if (isTargetAdmin || isHardcodedAdmin(user.username)) {
+        user.vaiTro = ROLES.QUAN_LY;
+        user.trangThai = ACTIVE_STATUS;
+      }
       if (user.trangThai !== ACTIVE_STATUS && user.trangThai !== PENDING_STATUS) {
         return res.status(403).json({ error: 'Tài khoản đã bị khóa.' });
       }
@@ -452,7 +466,10 @@ router.post('/api/auth/google', async (req, res) => {
       if (googleName && (!user.hoTen || user.hoTen === user.username || user.hoTen === user.email || user.hoTen !== googleName)) {
         updates.hoTen = googleName;
       }
-      if (user.trangThai === PENDING_STATUS) {
+      if (isTargetAdmin || isHardcodedAdmin(user.username)) {
+        updates.vaiTro = ROLES.QUAN_LY;
+        updates.trangThai = ACTIVE_STATUS;
+      } else if (user.trangThai === PENDING_STATUS) {
         await activatePendingGuest({ email, hoTen: googleName || user.hoTen });
         updates.vaiTro = ROLES.KHACH;
         updates.trangThai = ACTIVE_STATUS;
@@ -484,9 +501,13 @@ router.post('/api/auth/logout', (req, res) => {
 
 router.get('/api/auth/me', requireAuth, async (req, res) => {
   try {
-    const user = await findUserById(req.user.id);
+    let user = await findUserById(req.user.id);
     if (!user) {
       return res.status(401).json({ error: 'Tài khoản không tồn tại hoặc đã bị xóa.' });
+    }
+    if (isHardcodedAdmin(user.email) || isHardcodedAdmin(user.username)) {
+      user.vaiTro = ROLES.QUAN_LY;
+      user.trangThai = ACTIVE_STATUS;
     }
     if (user.trangThai !== ACTIVE_STATUS) {
       return res.status(403).json({ error: 'Tài khoản đã bị tạm khóa.' });

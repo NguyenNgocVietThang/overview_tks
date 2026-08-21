@@ -323,6 +323,8 @@ module.exports = {
   LEAVE_TYPE,
   LEAVE_STATUS,
   LINK_STATUS,
+  LEAVE_SCHEMA_HEADERS: LEAVE_SCHEMA.headers,
+  LEAVE_SCHEMA_FIELD_KEYS: LEAVE_SCHEMA.fieldKeys,
   HrError,
   getLeaveRequests,
   getLeaveRequestById,
