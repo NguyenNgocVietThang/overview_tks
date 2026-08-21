@@ -134,7 +134,9 @@ function createMockDOMEnvironment(options = {}) {
   const context = vm.createContext({
     window: mockWindow,
     document: mockDocument,
-    console
+    console,
+    requestAnimationFrame: (cb) => { cb(); return 1; },
+    cancelAnimationFrame: () => {}
   });
 
   const scriptCode = fs.readFileSync(interactionsPath, 'utf8');
@@ -286,11 +288,12 @@ test('three-interactions.js destroy cleanly removes listeners and resets styles'
   assert.strictEqual(card.style.transform, '', 'Card should no longer react to mousemove after destroy');
 });
 
-test('all major HTML pages load shared/three-interactions.js script', () => {
+test('all major HTML pages (except login/register) load shared/three-interactions.js script', () => {
+  // login/index.html and register/index.html intentionally do NOT load the 3D
+  // stack — Task 1.4 removed it from those pages since they don't need it
+  // (see ROLLBACK.md). See the companion test below that locks that in.
   const htmlFiles = [
     { name: 'index.html', path: indexHtmlPath },
-    { name: 'login/index.html', path: loginHtmlPath },
-    { name: 'register/index.html', path: registerHtmlPath },
     { name: 'account/index.html', path: accountHtmlPath },
     { name: 'shipment/index.html', path: shipmentHtmlPath },
     { name: 'shipment/dispatch/index.html', path: dispatchHtmlPath },
@@ -301,5 +304,18 @@ test('all major HTML pages load shared/three-interactions.js script', () => {
     assert.ok(fs.existsSync(filePath), `${name} must exist`);
     const content = fs.readFileSync(filePath, 'utf8');
     assert.match(content, /src=["']\/shared\/three-interactions\.js["']/, `${name} must include three-interactions.js script tag`);
+  });
+});
+
+test('login/register pages do NOT load shared/three-interactions.js (Task 1.4 removed 3D from those pages)', () => {
+  const htmlFiles = [
+    { name: 'login/index.html', path: loginHtmlPath },
+    { name: 'register/index.html', path: registerHtmlPath }
+  ];
+
+  htmlFiles.forEach(({ name, path: filePath }) => {
+    assert.ok(fs.existsSync(filePath), `${name} must exist`);
+    const content = fs.readFileSync(filePath, 'utf8');
+    assert.doesNotMatch(content, /src=["']\/shared\/three-interactions\.js["']/, `${name} must NOT include three-interactions.js script tag`);
   });
 });
