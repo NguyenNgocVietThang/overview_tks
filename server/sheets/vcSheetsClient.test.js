@@ -21,7 +21,7 @@ const { google } = require('googleapis');
 function freshClient(opts = {}) {
   try { delete require.cache[require.resolve('./vcSheetsClient')]; } catch (e) { /* ignore */ }
 
-  const calls = { get: 0, append: 0, update: 0, batchUpdate: 0, sheetsGet: 0 };
+  const calls = { get: 0, append: 0, update: 0, batchUpdate: 0, sheetsGet: 0, batchGet: 0 };
 
   const defaultGetImpl = async () => ({ data: { values: [['header'], ['row1']] } });
   const getImpl = opts.getImpl || defaultGetImpl;
@@ -30,15 +30,23 @@ function freshClient(opts = {}) {
   const defaultSheetsGetImpl = async () => ({ data: { sheets: [] } });
   const sheetsGetImpl = opts.sheetsGetImpl || defaultSheetsGetImpl;
 
+  const defaultBatchGetImpl = async () => ({ data: { valueRanges: [] } });
+  const batchGetImpl = opts.batchGetImpl || defaultBatchGetImpl;
+
+  // Ghi lai tham so thu 2 (options) cua moi lan goi de test xac nhan timeout
+  // duoc truyen dung vi tri (khong bi lot vao requestBody / param dau).
+  const lastOptions = { get: null, append: null, update: null, batchUpdate: null, sheetsGet: null, batchGet: null };
+
   const fakeSheetsApi = {
     spreadsheets: {
       values: {
-        get: async (params) => { calls.get++; return getImpl(params); },
-        append: async () => { calls.append++; return {}; },
-        update: async () => { calls.update++; return {}; }
+        get: async (params, options) => { calls.get++; lastOptions.get = options; return getImpl(params); },
+        append: async (params, options) => { calls.append++; lastOptions.append = options; return {}; },
+        update: async (params, options) => { calls.update++; lastOptions.update = options; return {}; },
+        batchGet: async (params, options) => { calls.batchGet++; lastOptions.batchGet = options; return batchGetImpl(params); }
       },
-      batchUpdate: async () => { calls.batchUpdate++; return {}; },
-      get: async (params) => { calls.sheetsGet++; return sheetsGetImpl(params); }
+      batchUpdate: async (params, options) => { calls.batchUpdate++; lastOptions.batchUpdate = options; return {}; },
+      get: async (params, options) => { calls.sheetsGet++; lastOptions.sheetsGet = options; return sheetsGetImpl(params); }
     }
   };
 
@@ -58,6 +66,7 @@ function freshClient(opts = {}) {
   return {
     client,
     calls,
+    lastOptions,
     restore: () => { google.auth.GoogleAuth = originalGoogleAuth; google.sheets = originalSheetsFn; }
   };
 }
@@ -426,6 +435,65 @@ test('vcGetSheetId: loi API khong bi cache — lan sau thu lai ngay', async () =
     await assert.rejects(() => client.vcGetSheetId('Đơn vận chuyển'), /tam thoi loi/);
     assert.equal(await client.vcGetSheetId('Đơn vận chuyển'), 0);
     assert.equal(calls.sheetsGet, 2, 'phai goi lai API sau loi, khong ket cung');
+  } finally { restore(); }
+});
+
+// ---------------------------------------------------------------------------
+// Task 4.3 — timeout truyen dung tham so thu 2 (options) cho moi lan goi
+// Google Sheets API, khong bi lot vao requestBody (se bi Google API bo qua
+// am tham va khong cung cap bao ve nao ca).
+// ---------------------------------------------------------------------------
+
+const VC_API_TIMEOUT_MS = 15000;
+
+test('vcGetValues: truyen { timeout } lam tham so thu 2 cho values.get', async () => {
+  const { client, lastOptions, restore } = freshClient();
+  try {
+    await client.vcGetValues('Đơn vận chuyển');
+    assert.equal(lastOptions.get && lastOptions.get.timeout, VC_API_TIMEOUT_MS);
+  } finally { restore(); }
+});
+
+test('vcAppendRow: truyen { timeout } lam tham so thu 2 cho values.append', async () => {
+  const { client, lastOptions, restore } = freshClient();
+  try {
+    await client.vcAppendRow('Đơn vận chuyển', ['VC-001']);
+    assert.equal(lastOptions.append && lastOptions.append.timeout, VC_API_TIMEOUT_MS);
+  } finally { restore(); }
+});
+
+test('vcUpdateRow: truyen { timeout } lam tham so thu 2 cho values.update', async () => {
+  const { client, lastOptions, restore } = freshClient();
+  try {
+    await client.vcUpdateRow('Đơn vận chuyển', 2, ['VC-001', 'x']);
+    assert.equal(lastOptions.update && lastOptions.update.timeout, VC_API_TIMEOUT_MS);
+  } finally { restore(); }
+});
+
+test('vcBatchUpdate: truyen { timeout } lam tham so thu 2 cho spreadsheets.batchUpdate', async () => {
+  const { client, lastOptions, restore } = freshClient();
+  try {
+    await client.vcBatchUpdate([{ updateCells: {} }]);
+    assert.equal(lastOptions.batchUpdate && lastOptions.batchUpdate.timeout, VC_API_TIMEOUT_MS);
+  } finally { restore(); }
+});
+
+test('vcGetMultipleSheetValues: truyen { timeout } lam tham so thu 2 cho values.batchGet', async () => {
+  const { client, lastOptions, restore } = freshClient({
+    sheetsGetImpl: async () => ({ data: { sheets: [{ properties: { title: 'Đơn vận chuyển' } }] } }),
+    batchGetImpl: async () => ({ data: { valueRanges: [{ range: "'Đơn vận chuyển'!A1", values: [['x']] }] } })
+  });
+  try {
+    await client.vcGetMultipleSheetValues(['Đơn vận chuyển']);
+    assert.equal(lastOptions.batchGet && lastOptions.batchGet.timeout, VC_API_TIMEOUT_MS);
+  } finally { restore(); }
+});
+
+test('vcGetSheetId (spreadsheets.get metadata): truyen { timeout } lam tham so thu 2', async () => {
+  const { client, lastOptions, restore } = freshClient({ sheetsGetImpl: async () => SHEETS_META });
+  try {
+    await client.vcGetSheetId('Đơn vận chuyển');
+    assert.equal(lastOptions.sheetsGet && lastOptions.sheetsGet.timeout, VC_API_TIMEOUT_MS);
   } finally { restore(); }
 });
 

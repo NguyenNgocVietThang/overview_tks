@@ -10,6 +10,10 @@
 const { google } = require('googleapis');
 const CONFIG = require('../config');
 
+// Gioi han tren cho moi lan goi Google Sheets API — tranh request Express bi
+// treo vo thoi han neu Google API cham/khong phan hoi.
+const VC_API_TIMEOUT_MS = 15000; // 15s
+
 // ---- Auth singleton (read + write scope) --------------------------------
 
 let vcSheetsApiPromise = null;
@@ -64,7 +68,7 @@ async function vcListSheetTitles() {
   const loading = sheets.spreadsheets.get({
     spreadsheetId: CONFIG.VC_SPREADSHEET_ID,
     fields: 'sheets.properties.title'
-  })
+  }, { timeout: VC_API_TIMEOUT_MS })
     .then(res => {
       const titles = (res.data.sheets || []).map(s => s.properties.title);
       vcSheetTitlesCache.data = titles;
@@ -111,7 +115,7 @@ function fetchVcSheetIds() {
     .then(sheets => sheets.spreadsheets.get({
       spreadsheetId: CONFIG.VC_SPREADSHEET_ID,
       fields: 'sheets.properties(sheetId,title)'
-    }))
+    }, { timeout: VC_API_TIMEOUT_MS }))
     .then(res => {
       const map = new Map();
       (res.data.sheets || []).forEach(s => {
@@ -251,7 +255,7 @@ async function vcGetValues(sheetName) {
     range: quoteSheetName(sheetName),
     valueRenderOption: 'UNFORMATTED_VALUE',
     dateTimeRenderOption: 'FORMATTED_STRING'
-  })).then(res => {
+  }, { timeout: VC_API_TIMEOUT_MS })).then(res => {
     const values = res.data.values || [];
     // Chi cache neu KHONG co lan ghi nao vao DUNG sheet nay xay ra trong luc
     // dang doc (generation cua sheet nay khong doi) — tranh "hoi sinh" du lieu
@@ -303,7 +307,7 @@ async function vcGetMultipleSheetValues(sheetNames) {
     ranges: namesToFetch.map(quoteSheetName),
     valueRenderOption: 'UNFORMATTED_VALUE',
     dateTimeRenderOption: 'FORMATTED_STRING'
-  });
+  }, { timeout: VC_API_TIMEOUT_MS });
 
   const valueRanges = res.data.valueRanges || [];
   valueRanges.forEach((vr, i) => {
@@ -335,7 +339,7 @@ async function vcAppendRow(sheetName, row) {
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       requestBody: { values: [row] }
-    });
+    }, { timeout: VC_API_TIMEOUT_MS });
   } finally {
     // Invalidate du thanh cong hay that bai: 1 loi (vd timeout) khong dam bao
     // ghi KHONG lam — co the da len sheet that o phia Google roi moi bao loi
@@ -363,7 +367,7 @@ async function vcUpdateRow(sheetName, rowIndex, row) {
       range,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [row] }
-    });
+    }, { timeout: VC_API_TIMEOUT_MS });
   } finally {
     // Xem giai thich trong vcAppendRow: invalidate du thanh cong hay that bai.
     invalidateVcSheetCache(sheetName);
@@ -381,7 +385,7 @@ async function vcBatchUpdate(requests) {
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId: CONFIG.VC_SPREADSHEET_ID,
       requestBody: { requests }
-    });
+    }, { timeout: VC_API_TIMEOUT_MS });
   } finally {
     // Du thanh cong hay that bai deu bump generation + xoa toan bo cache: batchUpdate
     // co the dung nhieu sheet khac nhau (khong biet truoc sheet nao), va 1 loi (vd

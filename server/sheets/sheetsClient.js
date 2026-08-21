@@ -5,6 +5,10 @@
 const { google } = require('googleapis');
 const CONFIG = require('../config');
 
+// Gioi han tren cho moi lan goi Google Sheets API — tranh request Express bi
+// treo vo thoi han neu Google API cham/khong phan hoi.
+const API_TIMEOUT_MS = 15000; // 15s
+
 let sheetsApiPromise = null;
 
 function quoteSheetName(sheetName) {
@@ -38,7 +42,7 @@ async function getValues(sheetName) {
     // va Number(...) se bien gia tri nay thanh NaN/0.
     valueRenderOption: 'UNFORMATTED_VALUE',
     dateTimeRenderOption: 'FORMATTED_STRING'
-  });
+  }, { timeout: API_TIMEOUT_MS });
   return res.data.values || [];
 }
 
@@ -76,7 +80,7 @@ async function listSheetTitles() {
   const loading = sheets.spreadsheets.get({
     spreadsheetId: CONFIG.SPREADSHEET_ID,
     fields: 'sheets.properties.title'
-  })
+  }, { timeout: API_TIMEOUT_MS })
     .then(res => {
       const titles = (res.data.sheets || []).map(s => s.properties.title);
       sheetTitlesCache.data = titles;
@@ -112,7 +116,7 @@ async function getMultipleSheetValues(sheetNames) {
     ranges: namesToFetch.map(quoteSheetName),
     valueRenderOption: 'UNFORMATTED_VALUE',
     dateTimeRenderOption: 'FORMATTED_STRING'
-  });
+  }, { timeout: API_TIMEOUT_MS });
 
   const valueRanges = res.data.valueRanges || [];
   valueRanges.forEach((vr, i) => {
