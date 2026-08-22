@@ -47,3 +47,8 @@ server/data/telegram_conversations.json*
 # va server/auth/roleChangeRequestRepository.js)
 server/data/notifications.json*
 server/data/roleChangeRequests.json*
+
+# Du lieu nguoi dung thuc (du lieu song tren server, KHONG duoc ghi de boi GitHub)
+# File nay duoc tao tu dong khi server khoi dong lan dau (xem server/auth/localUserStore.js)
+# De seed du lieu ban dau: copy server/data/users.json.example -> server/data/users.json
+server/data/users.json

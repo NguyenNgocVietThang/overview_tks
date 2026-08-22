@@ -1,0 +1,10 @@
+[
+  {
+    "_comment": "==========================================================",
+    "_note1": "File nay la TEMPLATE \u2014 sao chep thanh users.json khi deploy lan dau:",
+    "_note2": "  cp server/data/users.json.example server/data/users.json",
+    "_note3": "Hoac de trong thu muc data/ \u2014 server se tu tao users.json voi tai khoan mac dinh.",
+    "_note4": "users.json duoc .gitignore de du lieu thuc khong bi mat khi pull tu GitHub.",
+    "_comment2": "=========================================================="
+  }
+]
