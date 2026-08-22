@@ -16,10 +16,13 @@ const { requireAuth } = require('../auth/authMiddleware');
 const repo = require('./notificationRepository');
 
 function handleError(res, err, context) {
+  if (err.statusCode && err.statusCode < 500) {
+    return res.status(err.statusCode).json({ error: err.message, code: err.code });
+  }
   console.error(`=== LOI ${context} ===`);
   console.error(err.stack);
   console.error(`${'='.repeat(context.length + 10)}`);
-  res.status(500).json({ error: 'Lỗi hệ thống, vui lòng thử lại sau.' });
+  return res.status(500).json({ error: 'Lỗi hệ thống, vui lòng thử lại sau.', code: err.code });
 }
 
 router.get('/api/notifications', requireAuth, async (req, res) => {
