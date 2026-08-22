@@ -17,6 +17,8 @@ const { INTERNAL_ROLES } = require('./auth/userRepository');
 const { lookupInvoiceStatuses } = require('./shipment/invoiceStatusService');
 const shipmentOrderRoutes    = require('./shipment/shipmentOrderRoutes');
 const hrLeaveRoutes          = require('./hr/hrLeaveRoutes');
+const notificationRoutes     = require('./notifications/notificationRoutes');
+const roleChangeRequestRoutes = require('./auth/roleChangeRequestRoutes');
 
 router.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
@@ -50,6 +52,12 @@ router.use(shipmentOrderRoutes);
 // Cac endpoint quan ly nhan su (nghi phep) — /api/hr/* — phan quyen rieng
 // tung route ben trong hrLeaveRoutes.js (xem het ho so vs chi Quan ly duyet).
 router.use(hrLeaveRoutes);
+
+// Chuong thong bao dung chung cho MOI tai khoan — /api/notifications/*.
+router.use(notificationRoutes);
+
+// Yeu cau doi vai tro tu than — /api/role-requests/* — Quan ly duyet/tu choi.
+router.use(roleChangeRequestRoutes);
 
 // Toan bo API "Bao cao tong hop" ben duoi day chi danh cho 4 vai tro noi bo;
 // Khach chi duoc dung route tra cuu van chuyen o tren. Day la ranh gioi bao mat,
