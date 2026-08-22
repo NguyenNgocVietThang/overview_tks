@@ -7,19 +7,19 @@
 | **Thông tin**      | **Nội dung**                                               |
 |--------------------|------------------------------------------------------------|
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                          |
-| Phiên bản          | 2.0                                                        |
+| Phiên bản          | 2.1                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 19/08/2026                                                 |
-| Tài liệu liên quan | BRD v1.7 · BPMN v1.8 · Implementation Plan v2.1 · Plan Process Automation · 3D Design · Performance Optimization Report · Lag Optimization Plan · ROLLBACK |
-| Trạng thái         | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1, Lớp 3D & Gói tối ưu hóa hiệu năng 4 Phase đã hoàn thiện) |
+| Ngày cập nhật      | 22/08/2026                                                 |
+| Tài liệu liên quan | BRD v1.8 · BPMN v1.9 · Implementation Plan v2.2 · CSNS-NP-01 (Chính sách nghỉ phép) · Plan Process Automation · 3D Design · Performance Optimization Report · Lag Optimization Plan · ROLLBACK |
+| Trạng thái         | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1, Lớp 3D, Gói tối ưu hóa hiệu năng & Phân hệ HR Leave + Telegram Bot đã hoàn thiện) |
 
-> **Ghi chú phiên bản 2.0:** Bổ sung gói tối ưu hóa toàn diện hiệu năng và chống lag 4 Phase: (1) Nén Gzip compression cho mọi response, thiết lập Cache-Control static assets (vendor 1 ngày, js/css 1 giờ, images 7 ngày), defer scripts không chặn parser, preconnect Google Fonts, gỡ bỏ 3D bundle khỏi trang login/register để giảm ~650KB payload cho khách mới; (2) Giảm tải main-thread cho hệ thống 3D (rAF throttle + cached bounding rect cho `onCardHover`, scoped `TKS3D.refresh(targetContainer)`); (3) Chuẩn hóa phân trang client-side 100 dòng/trang cho toàn bộ 13 bảng dữ liệu trong dashboard + lazy-render chi tiết công nợ khách hàng; (4) Bảo vệ hạn ngạch Google Sheets API cho nghiệp vụ vận đơn bằng cache theo sheet 12s trong `vcSheetsClient.js` kèm cơ chế Write Invalidation tự động, batch write các cập nhật dòng qua `vcBatchUpdate`, và thiết lập 15s timeout cho mọi lời gọi Google Sheets API. Tái cơ cấu 12 bộ test frontend vào `server/test/frontend/`.
+> **Ghi chú phiên bản 2.1:** Bổ sung Phân hệ Quản lý Nghỉ phép HR (HR Leave Management) & Telegram Bot: Quản lý và theo dõi hạn mức, số dư ngày phép theo chính sách CSNS-NP-01; nộp đơn xin nghỉ và tra cứu số dư 24/7 qua Web Portal (`/humanresources/`) hoặc Telegram Bot tương tác (`hrTelegramBot.js`); phê duyệt/từ chối đơn và gửi thông báo tức thì qua Telegram; xuất báo cáo đối soát ngày nghỉ phép ra Excel `.xlsx`. Chuẩn hóa bộ kiểm thử tự động toàn diện đạt **324 unit tests**.
 
 # 1. Giới thiệu
 
 ## 1.1. Mục đích
 
-Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi chức năng của hệ thống Website Dashboard TOKOSI, làm cơ sở cho đội phát triển thiết kế, xây dựng, kiểm thử phần mềm. Tài liệu cụ thể hóa các yêu cầu nghiệp vụ đã nêu trong BRD v1.6 thành các đặc tả kỹ thuật có thể triển khai được.
+Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi chức năng của hệ thống Website Dashboard TOKOSI, làm cơ sở cho đội phát triển thiết kế, xây dựng, kiểm thử phần mềm. Tài liệu cụ thể hóa các yêu cầu nghiệp vụ đã nêu trong BRD v1.8 thành các đặc tả kỹ thuật có thể triển khai được.
 
 ## 1.2. Phạm vi hệ thống
 
@@ -27,7 +27,7 @@ Hệ thống là một Web Application nội bộ gồm các thành phần chín
 
 1. **Apps Script (`src/`):** cùng một bộ mã chạy theo ba profile. `FULL_DASHBOARD` duy trì sheet tổng hợp gồm 9 tab vận hành, lịch sử/báo cáo và polling; `SHIPMENT_LIFECYCLE` duy trì sheet vận chuyển độc lập, nhận riêng `invoice.update` qua hàng đợi bền vững; `COMBINED` dùng khi một spreadsheet chứa cả hai nhóm tab và xử lý `invoice.update` tại chỗ cho cả dashboard lẫn vòng đời vận chuyển.
 
-2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu, 3 tab công nợ HN1/HN3/HN7 và tab `Users` từ Google Spreadsheet qua Google Sheets API (Service Account), xác thực người dùng và phân quyền RBAC (JWT httpOnly cookie, bcrypt, Google OAuth, mã OTP 6 số, local backup store), tra cứu trạng thái vận chuyển đơn hàng, quản trị người dùng, tính toán KPI, dữ liệu biểu đồ và báo cáo công nợ khách hàng 1/3/7 ngày, trả về cho frontend qua REST API. Tích hợp Result Cache tầng backend, phân trang bảng client-side và xuất file Excel đa worksheet. Frontend hiển thị Dashboard tương tác, trang tra cứu vận chuyển, quản lý tài khoản và đăng nhập/đăng ký trên trình duyệt.
+2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu, 3 tab công nợ HN1/HN3/HN7, tab `Users`, 6 tab vận chuyển `VC_*` và 3 tab nhân sự `HR_*` từ Google Spreadsheet qua Google Sheets API (Service Account), xác thực người dùng và phân quyền RBAC (JWT httpOnly cookie, bcrypt, Google OAuth, mã OTP 6 số, local backup store), tra cứu trạng thái vận chuyển đơn hàng, quản trị người dùng, quản lý ngày nghỉ phép nhân viên và tích hợp Telegram Bot, tính toán KPI, dữ liệu biểu đồ và báo cáo công nợ khách hàng 1/3/7 ngày, trả về cho frontend qua REST API. Tích hợp Result Cache tầng backend, phân trang bảng client-side và xuất file Excel đa worksheet. Frontend hiển thị Dashboard tương tác, trang tra cứu vận chuyển, cổng thông tin nhân sự, quản lý tài khoản và đăng nhập/đăng ký trên trình duyệt.
 
 ## 1.3. Định nghĩa & thuật ngữ
 
@@ -35,7 +35,7 @@ Hệ thống là một Web Application nội bộ gồm các thành phần chín
 |-------------------------|---------------------------------------------------------------------------------------|
 | Dashboard               | Trang tổng hợp hiển thị số liệu và biểu đồ từ dữ liệu nguồn.                          |
 | KPI Card                | Thẻ hiển thị 1 chỉ số tổng hợp (vd: Doanh thu hôm nay, Tổng tồn kho).               |
-| Spreadsheet nguồn       | Google Spreadsheet chứa 9 tab vận hành, 2 tab báo cáo bán hàng, tab lịch sử hàng ngừng kinh doanh, tab Users và HN1/HN3/HN7 do Apps Script duy trì. |
+| Spreadsheet nguồn       | Google Spreadsheet chứa 9 tab vận hành, 2 tab báo cáo bán hàng, tab lịch sử hàng ngừng kinh doanh, tab Users, tab VC_*, tab HR_* và HN1/HN3/HN7 do Apps Script duy trì. |
 | Service Account         | Tài khoản dịch vụ Google dùng để backend đọc/ghi Spreadsheet mà không cần OAuth user. |
 | Apps Script             | Mã module trong `src/` chạy trong Google Workspace, đồng bộ dữ liệu từ KiotViet.    |
 | batchGet                | Gọi Google Sheets API đọc nhiều tab đang tồn tại cùng lúc trong 1 request HTTP.      |
@@ -43,34 +43,36 @@ Hệ thống là một Web Application nội bộ gồm các thành phần chín
 | Polling trigger         | Apps Script time-based trigger chạy mỗi 15 phút cho 3 bảng không có KiotViet webhook. |
 | Result Cache            | Cơ chế lưu đệm kết quả KPI/biểu đồ đã tính theo phiên bản dữ liệu thô và bộ lọc.    |
 | OTP                     | One-Time Password mã xác thực dùng một lần 6 số dùng để khôi phục mật khẩu.         |
+| HR Leave                | Phân hệ quản lý đơn nghỉ phép, tính toán số dư ngày phép theo chính sách CSNS-NP-01. |
 
 ## 1.4. Tài liệu tham khảo
 
-- BRD v1.6 — Hệ thống Dashboard nội bộ TOKOSI.
+- BRD v1.8 — Hệ thống Dashboard nội bộ TOKOSI.
+- CSNS-NP-01 — Quy định & Chính sách quản lý nghỉ phép nhân sự.
 - Google Sheets API v4 Documentation.
 - KiotViet Public API Documentation.
 - Google Apps Script Documentation.
 
 # 2. Mô tả tổng quan hệ thống
 
-## 2.1. Kiến trúc tổng quan — Giai đoạn 1 & Phase 0/0.5/1 (đã triển khai)
+## 2.1. Kiến trúc tổng quan — Giai đoạn 1 & Phase 0/0.5/1 & HR Module (đã triển khai)
 
 ```
-KiotViet POS
+KiotViet POS / Telegram User / HR Portal
     |
-    | (webhook POST JSON — 9 loại event: product/invoice/order/customer/category)
+    | (webhook POST JSON — 9 loại event / Telegram Bot webhook / HTTP REST)
     v
-Apps Script (`src/`, triển khai bằng clasp) — Web App URL
+Apps Script (`src/`, clasp) / Backend Node.js Express (Render.com)
     |                                   |
     | hydrate + upsert/delete           | time-based trigger (15 phút)
     | (real-time cho 6 nhóm)            | (Trả hàng + NCC + Nhập hàng)
     v                                   v
-Google Spreadsheet (9 tab vận hành + 7 tab tổng hợp + tab Users)
+Google Spreadsheet (9 tab vận hành + 7 tab tổng hợp + tab Users + 6 tab VC_* + 3 tab HR_*)
     |
     | Google Sheets API v4 — list tab → lọc tab hiện có → batchGet / append (Service Account)
     v
 Backend: Node.js + Express
-    - server/index.js                 : khởi động server Express
+    - server/index.js                 : khởi động server Express (Gzip, Cache-Control)
     - server/config.js                : đọc biến môi trường (JWT_SECRET, SPREADSHEET_ID...)
     - server/routes.js                : định nghĩa endpoints & phân quyền middleware
     - server/auth/authMiddleware.js   : requireAuth, requireRole bọc route
@@ -80,20 +82,29 @@ Backend: Node.js + Express
     - server/auth/localUserStore.js   : lưu trữ tài khoản cục bộ bảo mật (server/data/users.json)
     - server/auth/userRepository.js   : đọc/tìm người dùng từ sheet Users & local store
     - server/auth/userWriteRepository.js : tạo/cập nhật user vào sheet Users & local store
+    - server/hr/hrLeaveRoutes.js      : /api/hr/leave/* (nộp đơn, tra cứu, duyệt/từ chối, xuất Excel)
+    - server/hr/hrLeaveService.js     : nghiệp vụ tính hạn mức và trừ ngày phép
+    - server/hr/hrLeaveRepository.js  : CRUD dữ liệu Google Sheets HR_Leaves
+    - server/hr/hrLeaveExportService.js : xuất báo cáo ngày nghỉ phép nhân viên ra Excel
+    - server/telegram/hrTelegramBot.js : Telegram Bot nộp đơn, tra cứu ngày phép & thông báo duyệt
     - server/shipment/invoiceStatusService.js : tra cứu trạng thái hóa đơn (cache 90s)
     - server/shipment/orderStateMachine.js : State Machine 9 trạng thái vận đơn
     - server/shipment/vcOrderRepository.js : CRUD 6 tab vận chuyển VC_*
-    - server/sheets/sheetsClient.js   : gọi Google Sheets API (cache thô 90s)
+    - server/sheets/sheetsClient.js   : gọi Google Sheets API (cache thô 90s, timeout 15s)
+    - server/sheets/vcSheetsClient.js : gọi Google Sheets API VC_* (cache 12s, write invalidation)
+    - server/sheets/hrSheetsClient.js : gọi Google Sheets API HR_*
     - server/dashboard/dashboardData.js : tính toán KPI, biểu đồ & Result Cache
     - server/dashboard/debtReport.js  : báo cáo công nợ khách hàng HN1/HN3/HN7
     - server/dashboard/exportService.js : dịch vụ tạo file xuất Excel .xlsx 16 bảng
     - server/scripts/setupUsersSheet.js : CLI quản trị tài khoản người dùng
+    - server/scripts/setupHrSheet.js  : CLI khởi tạo các tab HR
     |
-    | REST APIs: /api/auth/*, /api/admin/*, /api/shipment/*, /api/dashboard, /api/search, /api/export
+    | REST APIs: /api/auth/*, /api/admin/*, /api/shipment/*, /api/hr/*, /api/dashboard, /api/search, /api/export
     v
 Frontend: HTML/CSS/JS tĩnh (server/public/)
     - server/public/index.html        : Live Dashboard (KPI, biểu đồ, phân trang, xuất Excel)
     - server/public/account/index.html: Quản lý tài khoản (Hồ sơ & Quản trị người dùng)
+    - server/public/humanresources/   : Cổng thông tin nhân sự (Nộp đơn nghỉ phép, tra cứu, phê duyệt)
     - server/public/login/index.html   : Đăng nhập nội bộ, Google Sign-In & Quên mật khẩu OTP
     - server/public/register/index.html: Đăng ký tài khoản Khách (Email / Số điện thoại)
     - server/public/shipment/index.html: Tra cứu trạng thái vận chuyển hóa đơn
@@ -114,11 +125,12 @@ Người dùng (trình duyệt) — tokosi.onrender.com / localhost:3000
 - **Framework:** Express.js v4
 - **Dependencies:** `googleapis` (Google Sheets API client), `bcryptjs` / `bcrypt`, `jsonwebtoken`, `exceljs` / export builder, `dotenv` (dev only)
 - **Entry point:** `server/index.js`
-- **Testing:** `node:test` + `node:assert/strict` (141 unit tests tự động)
+- **Testing:** `node:test` + `node:assert/strict` (324 unit tests tự động)
 - **API:** REST; endpoints:
   - Auth: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/google`, `GET /api/auth/google-config`, `GET /api/auth/me`, `PUT /api/auth/profile`, `POST /api/auth/change-password`, `POST /api/auth/request-reset-otp`, `POST /api/auth/verify-reset-otp`, `POST /api/auth/reset-password-otp`, `POST /api/auth/logout`
   - Admin: `GET /api/admin/users`, `POST /api/admin/users`, `PATCH /api/admin/users/:username`, `POST /api/admin/users/:username/reset-password`, `DELETE /api/admin/users/:username`
   - Shipment: `POST /api/shipment/invoice-status`, `GET /api/shipment/orders`, `POST /api/shipment/orders`, `GET /api/shipment/orders/:id`, `POST /api/shipment/orders/:id/transition`, `POST /api/shipment/orders/:id/assign-driver`, `POST /api/shipment/orders/:id/photos`, `POST /api/shipment/orders/:id/exception`, `GET /api/shipment/audit`, `GET /api/shipment/vehicles`
+  - HR Leave: `GET /api/hr/leave/history`, `POST /api/hr/leave/requests`, `GET /api/hr/leave/balance`, `GET /api/hr/leave/admin/requests`, `POST /api/hr/leave/admin/requests/:id/approve`, `POST /api/hr/leave/admin/requests/:id/reject`, `GET /api/hr/leave/export`
   - Dashboard & Analytics: `GET /api/dashboard`, `GET /api/search`, `GET /api/customer-product-top`
   - Export: `POST /api/export/fields`, `POST /api/export`
   - System: `GET /health`, `GET /api/debug`
@@ -282,6 +294,16 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-08.6 | Khôi phục mật khẩu qua mã OTP 6 số (`request-reset-otp`, `verify-reset-otp`, `reset-password-otp`), che mờ Email/SĐT, giới hạn thử lại, chống brute-force và cơ chế lockout tạm thời 5 phút khi đăng nhập sai quá 5 lần liên tiếp. | Cao | Hoàn thành |
 | FR-08.7 | Quản trị người dùng Admin (`/api/admin/users`), chỉ vai trò `Quản lý` được xem danh sách, tạo tài khoản, đổi vai trò, đặt lại mật khẩu và khóa/mở khóa tài khoản; hỗ trợ lưu trữ cục bộ bảo mật `users.json`. | Cao | Hoàn thành |
 
+## 3.10. FR-10: Nghỉ phép theo buổi và Telegram Bot
+
+| **Mã** | **Mô tả** | **Ưu tiên** | **Trạng thái** |
+|---|---|---|---|
+| FR-10.1 | Đơn nghỉ lưu mốc bắt đầu/kết thúc dạng `Sáng|Chiều dd/mm/yyyy`, tổng số buổi và tổng ngày quy đổi bằng số buổi chia 2. | Cao | Hoàn thành |
+| FR-10.2 | Phép tính loại toàn bộ buổi thuộc Chủ nhật; thứ Bảy vẫn được tính. Khoảng chỉ có Chủ nhật bị từ chối. | Cao | Hoàn thành |
+| FR-10.3 | Bot dùng luồng nhập ngày và buổi, khôi phục được `startDate`/`endDate` sau restart và chống xử lý trùng theo `chatId:messageId`. | Cao | Hoàn thành |
+| FR-10.4 | Thời gian gửi sau 07:45 đối với buổi Sáng hoặc 12:30 đối với buổi Chiều được cảnh báo; nếu vẫn xác nhận, đơn được lưu với trạng thái `Vi phạm`. | Cao | Hoàn thành |
+| FR-10.5 | Tab Nghỉ phép hiển thị cột Thời gian gửi; bộ lọc `from`/`to` lọc theo trường này và mặc định để trống. | Cao | Hoàn thành |
+
 # 4. Yêu cầu phi chức năng (Non-functional Requirements)
 
 | **Mã** | **Hạng mục**         | **Mô tả yêu cầu**                                                                                                                               |
@@ -297,7 +319,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | NFR-09 | Độ trễ đồng bộ       | Từ khi dữ liệu thay đổi trên KiotViet → Apps Script cập nhật Sheets qua webhook: mục tiêu dưới 2 phút. Trả hàng/NCC/Nhập hàng: tối đa 15 phút (polling). |
 | NFR-10 | Nhất quán thời gian  | Parse ngày từ Sheets, xác định ngày hiện tại, tạo bucket 7/30/90 ngày và format `updatedAt` theo Asia/Ho_Chi_Minh, độc lập timezone máy chủ.      |
 | NFR-11 | An toàn xuất dữ liệu | API xuất chỉ nhận khóa bảng, bộ lọc và danh sách trường hợp lệ; không nhận dòng dữ liệu từ client, chặn trường lạ và vô hiệu hóa chuỗi có thể bị Excel hiểu là công thức. |
-| NFR-12 | Kiểm thử tự động     | Duy trì bộ **261 unit tests** chuẩn `node:test` bao phủ Apps Script sync, auth/Guest/SĐT, Admin CRUD, OTP reset, tra cứu vận chuyển, State Machine 9 trạng thái, cache, phân trang, xuất Excel và tìm kiếm nâng cao. |
+| NFR-12 | Kiểm thử tự động     | Duy trì bộ **324 unit tests** chuẩn `node:test` bao phủ HR leave, Telegram bot, conversation store, Apps Script sync, auth/Guest/SĐT, Admin CRUD, OTP reset, tra cứu vận chuyển, State Machine 9 trạng thái, VC repository, cache, phân trang, xuất Excel, tìm kiếm nâng cao và frontend 3D. |
 
 
 # 5. Yêu cầu giao diện người dùng (UI Requirements)
@@ -632,6 +654,10 @@ Backend parse ngày bằng hàm `parseSheetDate()` hỗ trợ: số serial Excel
 
 Các phép tính "hôm nay", bucket ngày 7/30/90 ngày và `updatedAt` đều dùng `Asia/Ho_Chi_Minh` (`UTC+07:00`), không dùng timezone mặc định của máy chủ Render.
 
+## 7.8. Schema tab yêu cầu nghỉ phép HR
+
+Các cột nghiệp vụ nghỉ phép dùng `Thời gian gửi` (ISO), `Thời gian bắt đầu`, `Thời gian kết thúc`, `Tổng buổi nghỉ`, `Tổng ngày nghỉ quy đổi`. Hai mốc nghỉ có định dạng `Sáng dd/mm/yyyy` hoặc `Chiều dd/mm/yyyy`; không còn cột tổng giờ nghỉ.
+
 # 8. Ma trận truy vết yêu cầu (Traceability Matrix)
 
 | **Yêu cầu BRD**                          | **Yêu cầu SRS liên quan**           |
@@ -644,6 +670,7 @@ Các phép tính "hôm nay", bucket ngày 7/30/90 ngày và `updatedAt` đều d
 | Đồng bộ tự động — Apps Script (5.5)     | FR-06.1 → FR-06.14                  |
 | Giao diện, Phân trang & Xuất Excel (5.3, 5.4, 5.5) | FR-07.1 → FR-07.14        |
 | Đăng ký, Google Guest, Quản trị tài khoản & tra cứu vận chuyển | FR-08.1 → FR-08.7 |
+| Nghỉ phép theo buổi & Telegram Bot | FR-10.1 → FR-10.5 |
 | Lớp hiệu ứng 3D Visual & Giám sát hiệu năng thích ứng | FR-09.1 → FR-09.7 |
 
 # 9. Rủi ro kỹ thuật & phương án giảm thiểu

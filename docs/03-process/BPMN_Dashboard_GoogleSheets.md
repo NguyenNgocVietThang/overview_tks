@@ -7,10 +7,10 @@
 | **Thông tin**      | **Nội dung**                                                         |
 |--------------------|----------------------------------------------------------------------|
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                                    |
-| Phiên bản          | 1.8                                                                  |
+| Phiên bản          | 1.9                                                                  |
 | Ngày tạo           | 27/07/2026                                                           |
-| Ngày cập nhật      | 18/08/2026                                                           |
-| Tài liệu liên quan | BRD v1.7 · SRS v1.9 · Implementation Plan v2.0 · Plan Process Automation · 3D Design · Performance Optimization Report · ROLLBACK |
+| Ngày cập nhật      | 22/08/2026                                                           |
+| Tài liệu liên quan | BRD v1.8 · SRS v2.1 · Implementation Plan v2.2 · CSNS-NP-01 · Plan Process Automation · 3D Design · Performance Optimization Report · ROLLBACK |
 | Trạng thái         | Đang vận hành                                                        |
 
 ---
@@ -19,11 +19,12 @@
 
 Tài liệu này mô tả chi tiết các luồng quy trình vận hành của Hệ thống Website Dashboard TOKOSI theo chuẩn BPMN 2.0 (mô tả dưới dạng text diagram và bảng bước chi tiết). Các file `.bpmn` chuẩn XML đặt tại thư mục `docs/03-process/bpmn/` để mở bằng các công cụ như Camunda Modeler, bpmn.io hoặc draw.io.
 
-Tài liệu này mô tả 4 luồng chính:
+Tài liệu này mô tả 5 luồng chính:
 - **Luồng A:** Đồng bộ dữ liệu KiotViet -> Google Sheets qua Apps Script (Webhook + Polling).
 - **Luồng B:** Người dùng sử dụng Dashboard & Tiện ích (Result Cache, Phân trang, Xuất Excel).
 - **Luồng C:** Cấu hình và triển khai hệ thống (Render.com + Apps Script Web App).
 - **Luồng D:** Xác thực, Quản lý tài khoản & Khôi phục mật khẩu OTP.
+- **Luồng E:** Đăng ký, Phê duyệt Nghỉ phép Nhân sự & Tương tác Telegram Bot.
 
 ---
 
@@ -312,9 +313,33 @@ Luồng này do IT Admin thực hiện khi triển khai lần đầu hoặc khi 
 
 ---
 
+# 8b. Luồng E — Đăng ký, Phê duyệt Nghỉ phép Nhân sự & Telegram Bot
+
+```
+--- Nhánh E1: Nộp đơn xin nghỉ phép qua Web Portal (/humanresources/) ---
+[E1.1] Nhân viên mở /humanresources/ -> Kiểm tra số dư ngày phép (GET /api/hr/leave/balance)
+[E1.2] Nhân viên điền form nộp đơn (loại nghỉ, từ ngày - đến ngày, số giờ/ngày, lý do) -> POST /api/hr/leave/requests
+[E1.3] Backend xác thực dữ liệu, ghi nhận đơn vào tab `HR_Leaves` ở trạng thái PENDING
+[E1.4] Telegram Bot tự động gửi thông báo đến nhóm Quản lý/HR kèm nút bấm hoặc thông tin duyệt đơn
+
+--- Nhánh E2: Tương tác qua Telegram Bot (hrTelegramBot.js) ---
+[E2.1] Nhân viên gửi tin nhắn /start hoặc /nghiphep đến Telegram Bot
+[E2.2] Bot đối soát tài khoản qua conversationStore -> Hướng dẫn nhân viên chọn loại nghỉ và thời gian
+[E2.3] Nhân viên xác nhận -> Bot gọi API nội bộ tạo đơn nghỉ phép và phản hồi mã đơn
+
+--- Nhánh E3: Phê duyệt đơn & Xuất báo cáo (Quản lý / HR) ---
+[E3.1] Quản lý mở Cổng thông tin duyệt đơn (GET /api/hr/leave/admin/requests)
+[E3.2] Quản lý duyệt (POST .../approve) hoặc từ chối kèm lý do (POST .../reject)
+[E3.3] Backend cập nhật trạng thái đơn, tính toán trừ số dư ngày phép trong năm
+[E3.4] Telegram Bot gửi thông báo kết quả tức thì đến nhân viên
+[E3.5] HR xuất báo cáo đối soát ngày nghỉ phép ra file Excel .xlsx (GET /api/hr/leave/export)
+```
+
+---
+
 # 9. Truy vết yêu cầu
 
-Mỗi bước trong các luồng đã được gắn mã yêu cầu chức năng/phi chức năng (FR-xx / NFR-xx) tương ứng với SRS v1.8 mục 3 và mục 4, giúp truy vết đầy đủ hai chiều giữa mô hình quy trình (BPMN) và đặc tả kỹ thuật (SRS).
+Mỗi bước trong các luồng đã được gắn mã yêu cầu chức năng/phi chức năng (FR-xx / NFR-xx) tương ứng với SRS v2.1 mục 3 và mục 4, giúp truy vết đầy đủ hai chiều giữa mô hình quy trình (BPMN) và đặc tả kỹ thuật (SRS).
 
 | **Luồng** | **Yêu cầu SRS bao phủ**                      |
 |-----------|----------------------------------------------|
@@ -322,6 +347,7 @@ Mỗi bước trong các luồng đã được gắn mã yêu cầu chức năng
 | Luồng B   | FR-01.1 -> FR-01.7, FR-02.x, FR-03.x, FR-04.x, FR-05.x, FR-07.1 -> FR-07.14, NFR-01, NFR-03, NFR-10, NFR-11 |
 | Luồng C   | FR-01.3, FR-06.4, FR-07.5, NFR-02, NFR-03, NFR-12 |
 | Luồng D   | FR-08.1 -> FR-08.7, NFR-03, NFR-12           |
+| Luồng E   | CSNS-NP-01, HR Leave APIs, Telegram Bot, NFR-01, NFR-03 |
 
 ---
 
@@ -329,10 +355,11 @@ Mỗi bước trong các luồng đã được gắn mã yêu cầu chức năng
 
 - **Điểm mấu chốt:** Backend web (Luồng B) và Apps Script (Luồng A) hoạt động hoàn toàn độc lập — backend không nhận push từ Apps Script, chỉ pull từ Sheets khi có request. Tích hợp Result Cache giúp việc chuyển tab và đổi bộ lọc diễn ra tức thì (<10ms).
 - **Bảo mật đăng nhập & Tài khoản:** Cơ chế lockout 5 phút ngăn chặn tấn công dò mật khẩu (brute-force); mã OTP 6 số hết hạn sau 5 phút đảm bảo an toàn tối đa cho quy trình khôi phục tài khoản.
-- **Khả năng suy giảm có kiểm soát:** Một tab nguồn bị thiếu/đổi tên chỉ làm rỗng section tương ứng; IT Admin dùng `sheetTabs` từ `/api/debug` để xác định sai lệch schema. Lỗi xác thực, quyền truy cập hoặc Google API vẫn đi theo nhánh B3-No.
-- **Nhất quán thời gian:** Backend xử lý ngày và `updatedAt` theo Asia/Ho_Chi_Minh. Frontend tự tải mỗi 10 phút và tải bù khi tab được xem lại để tránh timestamp bị cũ do browser throttling.
-- **Kiểm thử liên tục:** Trước khi commit hoặc deploy, luôn chạy `npm test` tại `server/` để kiểm tra toàn bộ 214 bài kiểm thử tự động.
+- **Phân hệ HR & Telegram Bot:** Phối hợp linh hoạt giữa Web Portal và Telegram Bot cho phép nhân viên đăng ký nghỉ phép mọi lúc, quản lý duyệt đơn nhanh chóng và dữ liệu được đồng bộ bền vững trên Google Sheets `HR_Leaves`.
+- **Khả năng suy giảm có kiểm soát:** Một tab nguồn bị thiếu/đổi tên chỉ làm rỗng section tương ứng; IT Admin dùng `sheetTabs` từ `/api/debug` để xác định sai lệch schema.
+- **Nhất quán thời gian:** Backend xử lý ngày và `updatedAt` theo Asia/Ho_Chi_Minh.
+- **Kiểm thử liên tục:** Trước khi commit hoặc deploy, luôn chạy `npm test` tại `server/` để kiểm tra toàn bộ **277 bài kiểm thử tự động**.
 
 ---
 
-*Hết tài liệu BPMN v1.8*
+*Hết tài liệu BPMN v1.9*

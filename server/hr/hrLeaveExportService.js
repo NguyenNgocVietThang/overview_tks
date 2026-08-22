@@ -16,8 +16,8 @@ const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.
 const COLUMN_WIDTHS = {
   request_id: 20, telegram_chat_id: 16, telegram_username: 18, web_username: 16,
   ho_ten: 22, chuc_vu: 28, ly_do: 30, loai_yeu_cau: 22,
-  thoi_gian_nhan: 18, thoi_gian_bat_dau: 18, thoi_gian_ket_thuc: 18,
-  tong_gio_nghi: 12, tong_ngay_nghi: 14, nguoi_ban_giao: 18,
+  thoi_gian_gui: 20, thoi_gian_bat_dau: 20, thoi_gian_ket_thuc: 20,
+  tong_buoi_nghi: 14, tong_ngay_nghi: 18, nguoi_ban_giao: 18,
   trang_thai: 14, nguoi_duyet: 16, thoi_diem_duyet: 18, ghi_chu_duyet: 26,
   co_nghi_gap: 10, co_tu_y_nghi: 10, created_at: 18, updated_at: 18
 };

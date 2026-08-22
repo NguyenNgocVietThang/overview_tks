@@ -11,27 +11,14 @@ if (process.env.NODE_ENV !== 'production') {
 }
 const { google } = require('googleapis');
 const CONFIG = require('../config');
+const { LEAVE_SCHEMA_HEADERS, LEAVE_SCHEMA_FIELD_KEYS } = require('../hr/hrLeaveRepository');
 
 // ---- Schema 2 tab Nhan su ---------------------------------------------------
 const HR_SCHEMAS = [
   {
     name: CONFIG.HR_SHEET_LEAVE_REQUESTS,
-    headers: [
-      'Mã yêu cầu', 'Telegram chat_id', 'Telegram username', 'Tài khoản web',
-      'Họ tên', 'Chức vụ', 'Lý do nghỉ', 'Loại yêu cầu',
-      'Thời gian nhắn', 'Thời gian bắt đầu nghỉ', 'Thời gian kết thúc nghỉ',
-      'Tổng giờ nghỉ', 'Tổng ngày nghỉ (quy đổi)', 'Người bàn giao',
-      'Trạng thái phê duyệt', 'Người phê duyệt', 'Thời điểm phê duyệt', 'Ghi chú/lý do từ chối',
-      'Cờ nghỉ gấp', 'Cờ tự ý nghỉ', 'Thời gian tạo', 'Cập nhật lần cuối'
-    ],
-    fieldKeys: [
-      'request_id', 'telegram_chat_id', 'telegram_username', 'web_username',
-      'ho_ten', 'chuc_vu', 'ly_do', 'loai_yeu_cau',
-      'thoi_gian_nhan', 'thoi_gian_bat_dau', 'thoi_gian_ket_thuc',
-      'tong_gio_nghi', 'tong_ngay_nghi', 'nguoi_ban_giao',
-      'trang_thai', 'nguoi_duyet', 'thoi_diem_duyet', 'ghi_chu_duyet',
-      'co_nghi_gap', 'co_tu_y_nghi', 'created_at', 'updated_at'
-    ],
+    headers: LEAVE_SCHEMA_HEADERS,
+    fieldKeys: LEAVE_SCHEMA_FIELD_KEYS,
     hidden: false,
     description: 'Danh sách yêu cầu nghỉ phép gửi qua bot Telegram và ghi nhận thủ công'
   },

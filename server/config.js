@@ -83,7 +83,7 @@ const CONFIG = {
 
   // Nguong canh bao "nghi gap": thoi gian bat dau nghi - thoi gian nhan tin
   // < nguong nay (gio) thi tu dong gan co, chi de canh bao, khong tu tu choi.
-  HR_URGENT_NOTICE_HOURS_THRESHOLD: Number(process.env.HR_URGENT_NOTICE_HOURS_THRESHOLD) || 24,
+  HR_URGENT_NOTICE_HOURS_THRESHOLD: Number(process.env.HR_URGENT_NOTICE_HOURS_THRESHOLD) || 10,
   // So lan nghi gap/thang vuot nguong nay thi hien badge canh bao cho Quan ly.
   HR_URGENT_FLAG_MONTHLY_THRESHOLD: Number(process.env.HR_URGENT_FLAG_MONTHLY_THRESHOLD) || 2,
   // Thoi han hieu luc cua ma lien ket Telegram (phut).

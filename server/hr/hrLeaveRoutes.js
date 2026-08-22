@@ -15,7 +15,12 @@ const router = express.Router();
 const { requireAuth, requireRole } = require('../auth/authMiddleware');
 const { ROLES, INTERNAL_ROLES } = require('../auth/userRepository');
 const repo = require('./hrLeaveRepository');
-const { resolveApproverName } = require('./hrLeaveService');
+const {
+  resolveApproverName,
+  computeDurationSessions,
+  parseIsoDateOnly,
+  formatLeaveBoundary
+} = require('./hrLeaveService');
 const { buildLeaveRequestsWorkbook } = require('./hrLeaveExportService');
 
 // Xem duoc: moi vai tro noi bo (Khach khong duoc).
@@ -34,7 +39,7 @@ function handleError(res, err, context) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/hr/leave-requests — danh sach, loc theo status/employee/from-to (ngay)
+// GET /api/hr/leave-requests — danh sach, loc theo status/employee/from-to (thoi gian gui)
 // ---------------------------------------------------------------------------
 
 router.get('/api/hr/leave-requests', ...authInternal, async (req, res) => {
@@ -102,12 +107,22 @@ router.post('/api/hr/leave-requests', ...authManager, async (req, res) => {
   try {
     const {
       web_username, ho_ten, chuc_vu, ly_do, loai_yeu_cau,
-      thoi_gian_bat_dau, thoi_gian_ket_thuc, tong_gio_nghi,
+      start_date, start_session, end_date, end_session,
       nguoi_ban_giao, co_tu_y_nghi
     } = req.body || {};
 
     if (!ho_ten || !ly_do) {
       return res.status(400).json({ error: 'Thiếu trường bắt buộc: ho_ten, ly_do.', code: 'INVALID_REQUEST' });
+    }
+
+    const startDate = parseIsoDateOnly(start_date);
+    const endDate = parseIsoDateOnly(end_date || start_date);
+    const totalSessions = computeDurationSessions(startDate, start_session, endDate, end_session);
+    if (!startDate || !endDate || totalSessions == null || totalSessions <= 0) {
+      return res.status(400).json({
+        error: 'Khoảng nghỉ không hợp lệ hoặc chỉ gồm Chủ nhật.',
+        code: 'INVALID_LEAVE_RANGE'
+      });
     }
 
     const isManualAbsence = !!co_tu_y_nghi || loai_yeu_cau === repo.LEAVE_TYPE.MANUAL_ABSENCE;
@@ -117,9 +132,9 @@ router.post('/api/hr/leave-requests', ...authManager, async (req, res) => {
       chuc_vu,
       ly_do,
       loai_yeu_cau: isManualAbsence ? repo.LEAVE_TYPE.MANUAL_ABSENCE : repo.LEAVE_TYPE.REQUEST,
-      thoi_gian_bat_dau,
-      thoi_gian_ket_thuc,
-      tong_gio_nghi: tong_gio_nghi != null ? Number(tong_gio_nghi) : undefined,
+      thoi_gian_bat_dau: formatLeaveBoundary(startDate, start_session),
+      thoi_gian_ket_thuc: formatLeaveBoundary(endDate, end_session),
+      tong_buoi_nghi: totalSessions,
       nguoi_ban_giao,
       // Ban ghi "tu y nghi" la ghi nhan, khong phai don cho duyet -> mac dinh Da duyet.
       trang_thai: isManualAbsence ? repo.LEAVE_STATUS.APPROVED : repo.LEAVE_STATUS.PENDING,

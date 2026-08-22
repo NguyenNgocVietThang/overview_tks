@@ -94,6 +94,7 @@
   .status-pill.leave-provisional{ background:var(--accent-blue-12); color:var(--blue); }
   .status-pill.leave-approved{ background:var(--status-active-bg); color:var(--green); }
   .status-pill.leave-rejected{ background:var(--status-locked-bg); color:var(--red); }
+  .status-pill.leave-violation{ background:var(--status-locked-bg); color:var(--red); border:1px solid color-mix(in srgb, var(--red) 35%, transparent); }
 
   .urgent-badge{
     display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:var(--radius-pill);
@@ -260,6 +261,10 @@
             <div class="lbl">Từ chối</div>
             <div class="val" id="statRejected">0</div>
           </div>
+          <div class="kpi-stat kpi-red">
+            <div class="lbl">Vi phạm</div>
+            <div class="val" id="statViolation">0</div>
+          </div>
         </div>
 
         <!-- Toolbar -->
@@ -275,9 +280,10 @@
               <option value="Tạm duyệt">Tạm duyệt</option>
               <option value="Đã duyệt">Đã duyệt</option>
               <option value="Từ chối">Từ chối</option>
+              <option value="Vi phạm">Vi phạm</option>
             </select>
             <div class="date-range-group">
-              <span>Từ</span>
+              <span>Thời gian gửi: Từ</span>
               <input type="date" id="fromDateFilter" onchange="handleFilterChange()">
               <span>đến</span>
               <input type="date" id="toDateFilter" onchange="handleFilterChange()">
@@ -292,6 +298,31 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
               Ghi nhận tự ý nghỉ
             </button>
+          </div>
+        </div>
+
+        <!-- Bang danh sach -->
+        <div class="users-table-panel">
+          <div class="users-table-scroll">
+            <table class="users-table" id="leaveTable">
+              <thead>
+                <tr>
+                  <th>Mã yêu cầu</th>
+                  <th>Người gửi</th>
+                  <th>Thời gian gửi</th>
+                  <th>Lý do</th>
+                  <th>Thời gian nghỉ</th>
+                  <th>Tổng buổi / ngày</th>
+                  <th>Người bàn giao</th>
+                  <th>Trạng thái</th>
+                  <th>Người duyệt</th>
+                  <th>Hành động</th>
+                </tr>
+              </thead>
+              <tbody id="leaveTableBody">
+                <tr class="empty-row"><td colspan="10">Đang tải dữ liệu...</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -340,30 +371,6 @@
                 </table>
               </div>
             </div>
-          </div>
-        </div>
-
-        <!-- Bang danh sach -->
-        <div class="users-table-panel">
-          <div class="users-table-scroll">
-            <table class="users-table" id="leaveTable">
-              <thead>
-                <tr>
-                  <th>Mã yêu cầu</th>
-                  <th>Người gửi</th>
-                  <th>Lý do</th>
-                  <th>Thời gian nghỉ</th>
-                  <th>Tổng giờ</th>
-                  <th>Người bàn giao</th>
-                  <th>Trạng thái</th>
-                  <th>Người duyệt</th>
-                  <th>Hành động</th>
-                </tr>
-              </thead>
-              <tbody id="leaveTableBody">
-                <tr class="empty-row"><td colspan="9">Đang tải dữ liệu...</td></tr>
-              </tbody>
-            </table>
           </div>
         </div>
 
@@ -434,12 +441,26 @@
             <textarea id="maLyDo" class="form-control" rows="2" required placeholder="Vd: Nghỉ không báo trước, không liên lạc được ngày 20/08/2026"></textarea>
           </div>
           <div class="form-group">
-            <label for="maStart">Thời gian bắt đầu</label>
-            <input type="datetime-local" id="maStart" class="form-control">
+            <label for="maStartDate">Ngày bắt đầu *</label>
+            <input type="date" id="maStartDate" class="form-control" required>
           </div>
           <div class="form-group">
-            <label for="maEnd">Thời gian kết thúc</label>
-            <input type="datetime-local" id="maEnd" class="form-control">
+            <label for="maStartSession">Buổi bắt đầu *</label>
+            <select id="maStartSession" class="form-control" required>
+              <option value="Sáng">Sáng</option>
+              <option value="Chiều">Chiều</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="maEndDate">Ngày kết thúc (để trống nếu cùng ngày)</label>
+            <input type="date" id="maEndDate" class="form-control">
+          </div>
+          <div class="form-group">
+            <label for="maEndSession">Buổi kết thúc *</label>
+            <select id="maEndSession" class="form-control" required>
+              <option value="Sáng">Sáng</option>
+              <option value="Chiều">Chiều</option>
+            </select>
           </div>
           <div id="manualAbsenceMsg" class="alert-box alert-error" style="display:none;"></div>
         </div>
@@ -542,7 +563,8 @@
       'Chưa duyệt': 'leave-pending',
       'Tạm duyệt': 'leave-provisional',
       'Đã duyệt': 'leave-approved',
-      'Từ chối': 'leave-rejected'
+      'Từ chối': 'leave-rejected',
+      'Vi phạm': 'leave-violation'
     };
 
     function formatDateTime(iso){
@@ -553,6 +575,14 @@
       return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
 
+    function leaveBoundaryToTimestamp(value){
+      const match = String(value || '').match(/^(Sáng|Chiều)\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if(!match) return '';
+      const hour = match[1] === 'Sáng' ? 7 : 12;
+      const minute = match[1] === 'Sáng' ? 45 : 30;
+      return new Date(Number(match[4]), Number(match[3]) - 1, Number(match[2]), hour, minute).getTime();
+    }
+
     function escapeHtml(str){
       return String(str == null ? '' : str).replace(/[&<>"']/g, c => ({
         '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -561,21 +591,6 @@
 
     // ---------- Load danh sach ----------
     function handleFilterChange(){ loadLeaveRequests(); }
-
-    function todayIso(){
-      const d = new Date();
-      const pad = n => String(n).padStart(2, '0');
-      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-    }
-
-    // Mac dinh bo loc thoi gian yeu cau la "hom nay -> hom nay".
-    function initDateRangeFilter(){
-      const today = todayIso();
-      const fromEl = document.getElementById('fromDateFilter');
-      const toEl = document.getElementById('toDateFilter');
-      if(fromEl && !fromEl.value) fromEl.value = today;
-      if(toEl && !toEl.value) toEl.value = today;
-    }
 
     async function loadLeaveRequests(){
       const tbody = document.getElementById('leaveTableBody');
@@ -594,7 +609,7 @@
         const res = await fetch(`/api/hr/leave-requests?${params.toString()}`, { credentials: 'same-origin' });
         const { ok, data } = await parseApiResponse(res);
         if(!ok){
-          tbody.innerHTML = `<tr class="empty-row"><td colspan="9">${escapeHtml(data.error || 'Không tải được danh sách.')}</td></tr>`;
+          tbody.innerHTML = `<tr class="empty-row"><td colspan="10">${escapeHtml(data.error || 'Không tải được danh sách.')}</td></tr>`;
           return;
         }
         rawLeaveRequests = data.requests || [];
@@ -603,7 +618,7 @@
         renderCharts(rawLeaveRequests);
         loadUrgentSummary();
       }catch(err){
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Lỗi kết nối máy chủ.</td></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Lỗi kết nối máy chủ.</td></tr>';
       }
     }
 
@@ -619,18 +634,19 @@
     }
 
     function renderStats(requests){
-      const counts = { 'Chưa duyệt': 0, 'Tạm duyệt': 0, 'Đã duyệt': 0, 'Từ chối': 0 };
+      const counts = { 'Chưa duyệt': 0, 'Tạm duyệt': 0, 'Đã duyệt': 0, 'Từ chối': 0, 'Vi phạm': 0 };
       requests.forEach(r => { if(counts.hasOwnProperty(r.trang_thai)) counts[r.trang_thai]++; });
       document.getElementById('statPending').textContent = counts['Chưa duyệt'];
       document.getElementById('statProvisional').textContent = counts['Tạm duyệt'];
       document.getElementById('statApproved').textContent = counts['Đã duyệt'];
       document.getElementById('statRejected').textContent = counts['Từ chối'];
+      document.getElementById('statViolation').textContent = counts['Vi phạm'];
     }
 
     function renderTable(requests){
       const tbody = document.getElementById('leaveTableBody');
       if(!requests.length){
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Chưa có yêu cầu nghỉ phép nào.</td></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Chưa có yêu cầu nghỉ phép nào.</td></tr>';
         return;
       }
       const isManager = currentUser && currentUser.vaiTro === 'Quản lý';
@@ -645,7 +661,7 @@
             <button class="btn-mini provisional" onclick="openDecisionModal('${r.request_id}', 'Tạm duyệt')">Tạm duyệt</button>
             <button class="btn-mini approve" onclick="openDecisionModal('${r.request_id}', 'Đã duyệt')">Duyệt</button>
             <button class="btn-mini reject" onclick="openDecisionModal('${r.request_id}', 'Từ chối')">Từ chối</button>
-          </div>` : (isManager ? `
+          </div>` : (isManager && r.trang_thai !== 'Vi phạm' ? `
           <div class="row-actions">
             <button class="btn-mini" onclick="openDecisionModal('${r.request_id}', 'Chưa duyệt')">Mở lại</button>
           </div>` : '—');
@@ -653,9 +669,10 @@
         return `<tr>
           <td>${escapeHtml(r.request_id)}${r.co_nghi_gap === true || r.co_nghi_gap === 'TRUE' ? ' <span class="urgent-badge">Nghỉ gấp</span>' : ''}</td>
           <td>${escapeHtml(r.ho_ten)}${r.chuc_vu ? ` - <span style="color:var(--muted); font-size:11.5px;">${escapeHtml(r.chuc_vu)}</span>` : ''}${urgentBadge}</td>
+          <td data-sort-value="${new Date(r.thoi_gian_gui).getTime() || ''}">${formatDateTime(r.thoi_gian_gui)}</td>
           <td>${escapeHtml(r.ly_do)}${r.co_tu_y_nghi === true || r.co_tu_y_nghi === 'TRUE' ? '<br><span style="color:var(--red); font-size:11px; font-weight:600;">Tự ý nghỉ (HR ghi nhận)</span>' : ''}</td>
-          <td data-sort-value="${new Date(r.thoi_gian_bat_dau).getTime() || ''}">${formatDateTime(r.thoi_gian_bat_dau)}<br>→ ${formatDateTime(r.thoi_gian_ket_thuc)}</td>
-          <td data-sort-value="${r.tong_gio_nghi || ''}">${r.tong_gio_nghi || '—'}</td>
+          <td data-sort-value="${leaveBoundaryToTimestamp(r.thoi_gian_bat_dau)}">${escapeHtml(r.thoi_gian_bat_dau) || '—'}<br>→ ${escapeHtml(r.thoi_gian_ket_thuc) || '—'}</td>
+          <td data-sort-value="${r.tong_buoi_nghi || ''}">${r.tong_buoi_nghi || '—'} buổi (${fmtSoNgay(r.tong_ngay_nghi)} ngày)</td>
           <td>${escapeHtml(r.nguoi_ban_giao) || '—'}</td>
           <td><span class="status-pill ${statusClass}">${escapeHtml(r.trang_thai)}</span></td>
           <td>${escapeHtml(r.nguoi_duyet) || '—'}</td>
@@ -708,8 +725,10 @@
         ho_ten: document.getElementById('maHoTen').value.trim(),
         chuc_vu: document.getElementById('maChucVu').value.trim(),
         ly_do: document.getElementById('maLyDo').value.trim(),
-        thoi_gian_bat_dau: document.getElementById('maStart').value ? new Date(document.getElementById('maStart').value).toISOString() : '',
-        thoi_gian_ket_thuc: document.getElementById('maEnd').value ? new Date(document.getElementById('maEnd').value).toISOString() : '',
+        start_date: document.getElementById('maStartDate').value,
+        start_session: document.getElementById('maStartSession').value,
+        end_date: document.getElementById('maEndDate').value || document.getElementById('maStartDate').value,
+        end_session: document.getElementById('maEndSession').value,
         co_tu_y_nghi: true
       };
       try{
@@ -907,7 +926,7 @@
       const fromDate = document.getElementById('fromDateFilter').value;
       const toDate = document.getElementById('toDateFilter').value;
       const leaveSort = state.tableSorts['leaveTableBody'];
-      const SORT_FIELD_BY_COLUMN = ['request_id', 'ho_ten', 'ly_do', 'thoi_gian_bat_dau', 'tong_gio_nghi', 'nguoi_ban_giao', 'trang_thai', 'nguoi_duyet'];
+      const SORT_FIELD_BY_COLUMN = ['request_id', 'ho_ten', 'thoi_gian_gui', 'ly_do', 'thoi_gian_bat_dau', 'tong_buoi_nghi', 'nguoi_ban_giao', 'trang_thai', 'nguoi_duyet'];
       const payload = { status, employee, from: fromDate, to: toDate };
       if(leaveSort && SORT_FIELD_BY_COLUMN[leaveSort.columnIndex]){
         payload.sortField = SORT_FIELD_BY_COLUMN[leaveSort.columnIndex];
@@ -985,9 +1004,13 @@
       return String(r && r.chuc_vu || '').trim() || 'Chưa phân loại';
     }
 
-    function toDayKey(iso){
-      if(!iso) return null;
-      const d = new Date(iso);
+    function toDayKey(value){
+      if(!value) return null;
+      const boundary = String(value).match(/^(?:Sáng|Chiều)\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if(boundary){
+        return `${boundary[3]}-${String(boundary[2]).padStart(2, '0')}-${String(boundary[1]).padStart(2, '0')}`;
+      }
+      const d = new Date(value);
       if(isNaN(d.getTime())) return null;
       const pad = n => String(n).padStart(2, '0');
       return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
@@ -998,8 +1021,7 @@
       return `${d}/${m}`;
     }
 
-    // Dem theo ngay bat dau nghi (thoi_gian_bat_dau) — giong cach filter from/to
-    // hien tai dang loc theo cot nay; khong tinh nghi nhieu ngay trai deu tren tung ngay.
+    // Bieu do dem theo ngay bat dau nghi; bo loc danh sach doc lap va dung thoi_gian_gui.
     function groupByDayAndChucVu(requests){
       const dayKeys = [];
       const chucVus = [];
@@ -1238,7 +1260,6 @@
             document.getElementById('btnManualAbsence').style.display = 'inline-flex';
           }
           applyHrSubtabFromHash();
-          initDateRangeFilter();
           initSortableTables();
           loadLeaveRequests();
           loadLinkStatus();

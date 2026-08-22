@@ -7,13 +7,13 @@
 | **Thông tin**     | **Nội dung**                                                        |
 |-------------------|---------------------------------------------------------------------|
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Google Sheets → Web)  |
-| Phiên bản         | 1.7                                                                 |
+| Phiên bản         | 1.8                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 18/08/2026                                                          |
+| Ngày cập nhật     | 22/08/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo, nhân viên nội bộ công ty & khách hàng tra cứu        |
-| Trạng thái        | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1 & Lớp hiệu ứng 3D hoàn thiện) |
+| Trạng thái        | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1, Lớp hiệu ứng 3D & Phân hệ HR + Telegram Bot hoàn thiện) |
 
-> **Ghi chú phiên bản 1.7:** Bổ sung lớp hiệu ứng 3D Visual Progressive Enhancement (Three.js r159 background, dynamic hover card tilt, 3D rotating loading cube, tactile press buttons, 3D navigation, 3D charts, hệ thống giám sát hiệu năng thích ứng FPS `three-performance.js`, dọn dẹp bộ nhớ WebGL `three-memory.js`, và tạm dừng khi ẩn tab `three-visibility.js`), module xác thực & quản trị tài khoản người dùng nâng cao (đăng nhập nội bộ JWT cookie/bcrypt, đăng ký tài khoản Khách bằng Email hoặc Số điện thoại, Google Identity Sign-In, khôi phục mật khẩu qua mã OTP 6 số, bảo vệ chống brute-force với cơ chế lockout 5 phút, trang quản lý tài khoản `/account/`), hệ thống quản trị người dùng Admin (`/api/admin/users`), State Machine vận đơn 9 trạng thái, bộ 214 unit tests tự động hoàn chỉnh, cùng tính năng Xuất Excel tùy chọn trường cho 16 bảng dữ liệu, phân trang client-side (`pagination.js`), và Result Cache tầng backend tối ưu phản hồi tức thì (<10ms).
+> **Ghi chú phiên bản 1.8:** Bổ sung Phân hệ Quản lý Nghỉ phép Nhân sự (HR Leave Management) & Telegram Bot theo chính sách CSNS-NP-01: Quản lý hạn mức, số dư ngày phép; nộp đơn xin nghỉ và tra cứu trực tuyến trên Cổng thông tin nhân sự (`/humanresources/`) hoặc qua Telegram Bot tương tác (`hrTelegramBot.js`); quy trình phê duyệt/từ chối đơn đa vai trò và gửi thông báo kết quả tức thì qua Telegram; xuất báo cáo đối soát ngày nghỉ phép ra Excel. Tích hợp bộ kiểm thử tự động toàn diện **324 unit tests** chuẩn `node:test`.
 
 # 1. Giới thiệu
 
@@ -23,7 +23,7 @@ Tài liệu này mô tả các yêu cầu nghiệp vụ cho Hệ thống Dashboa
 
 ## 1.2. Bối cảnh
 
-Công ty TOKOSI là một tổng kho sỉ phân phối hàng hóa, vận hành trên phần mềm **KiotViet** (quản lý bán hàng, kho, khách hàng). Dữ liệu KiotViet được đồng bộ tự động sang **Google Sheets** (qua Apps Script module trong `src/`) dưới dạng 9 tab dữ liệu vận hành, 1 tab lịch sử hàng ngừng kinh doanh, 2 tab báo cáo bán hàng và 3 tab báo cáo công nợ HN1/HN3/HN7. Backend dashboard đọc các tab cần thiết để hiển thị KPI, biểu đồ và báo cáo công nợ khách hàng 1/3/7 ngày.
+Công ty TOKOSI là một tổng kho sỉ phân phối hàng hóa, vận hành trên phần mềm **KiotViet** (quản lý bán hàng, kho, khách hàng). Dữ liệu KiotViet được đồng bộ tự động sang **Google Sheets** (qua Apps Script module trong `src/`) dưới dạng 9 tab dữ liệu vận hành, 1 tab lịch sử hàng ngừng kinh doanh, 2 tab báo cáo bán hàng, 3 tab báo cáo công nợ HN1/HN3/HN7, 6 tab vận chuyển `VC_*` và 3 tab nhân sự `HR_*`. Backend dashboard đọc các tab cần thiết để hiển thị KPI, biểu đồ, báo cáo công nợ khách hàng và quản lý nghỉ phép nhân sự.
 
 Trước đây, việc theo dõi số liệu phải thực hiện thủ công trên KiotViet và Google Sheets, gây mất thời gian tổng hợp và khó trực quan hóa xu hướng. Công ty cần một **Website Dashboard tập trung** đọc dữ liệu từ Google Sheets này, hiển thị các chỉ số quan trọng dưới dạng KPI card và biểu đồ, cập nhật gần thời gian thực mà không cần thao tác thủ công.
 
@@ -31,7 +31,7 @@ Hệ thống được xây dựng như nền móng kiến trúc để trong tư�
 
 ## 1.3. Phạm vi tài liệu
 
-Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đã hoàn thiện)**: Dashboard đọc từ Google Sheets KiotViet, hiển thị KPI, biểu đồ, báo cáo công nợ, tìm kiếm đa chế độ, phân trang bảng lớn và xuất file Excel. Đồng thời nêu định hướng mở rộng dài hạn để kiến trúc Giai đoạn 1 được thiết kế theo hướng dễ mở rộng.
+Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đã hoàn thiện)**: Dashboard đọc từ Google Sheets KiotViet, hiển thị KPI, biểu đồ, báo cáo công nợ, tìm kiếm đa chế độ, phân trang bảng lớn, xuất file Excel, Quản lý vận chuyển và Phân hệ Nhân sự HR. Đồng thời nêu định hướng mở rộng dài hạn để kiến trúc Giai đoạn 1 được thiết kế theo hướng dễ mở rộng.
 
 # 2. Mục tiêu dự án
 
@@ -45,7 +45,7 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - Bảo đảm các KPI theo ngày và thời điểm cập nhật luôn được tính theo múi giờ **Asia/Ho_Chi_Minh (UTC+7)**, không phụ thuộc múi giờ của máy chủ Render.
 
-- Cung cấp tính năng **Xuất Excel** trực tiếp cho 16 bảng dữ liệu và kết quả tìm kiếm với tùy chọn trường linh hoạt, định dạng hoàn chỉnh.
+- Cung cấp tính năng **Xuất Excel** trực tiếp cho 16 bảng dữ liệu, kết quả tìm kiếm và báo cáo nghỉ phép nhân viên với tùy chọn trường linh hoạt, định dạng hoàn chỉnh.
 
 - Phân trang mượt mà cho bảng dữ liệu lớn (trên 7.000 sản phẩm) nhằm đảm bảo giao diện luôn phản hồi nhanh chóng, không bị đơ giật.
 
@@ -53,11 +53,13 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - Tab **Báo cáo bán hàng** bám theo file xuất KiotViet trong tháng hiện tại với 18 cột: thông tin khách hàng, số đơn/tổng tiền/giảm giá/doanh thu/trả hàng và chi tiết từng giao dịch; tự động làm mới hàng ngày lúc gần 07:00 theo múi giờ Việt Nam.
 
-- Tab **Hàng bán theo khách** liệt kê từng mặt hàng của hóa đơn hoàn thành trong 90 ngày qua với đúng 5 cột: Khách hàng, Mã hàng, Tên hàng, SL mua chi tiết, Thời gian. Hóa đơn mới/sửa/hủy được phản ánh qua webhook trong khoảng 1 phút; lượt 07:00 đối soát lại toàn bộ dữ liệu.
+- Tab **Hàng bán theo khách** liệt kê từng mặt hàng của hóa đơn hoàn thành trong 90 ngày qua với đúng 5 cột: Khách hàng, Mã hàng, Tên hàng, SL mua chi tiết, Thời gian. Hóa đơn mới/sửa/hủy được phản ánh qua webhook trong khoảng 1 phút; lượt 06:30 đối soát lại toàn bộ dữ liệu.
 
 - Ba tab **HN1**, **HN3**, **HN7** là báo cáo công nợ khách hàng 1/3/7 ngày gần đây (tính cả hôm nay) do Apps Script tự động tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00, được backend Node.js đọc để hiển thị báo cáo công nợ trên Web Dashboard.
 
-- Tab **Hàng ngừng kinh doanh** lưu lịch sử từ trước tới nay trong một tab duy nhất, cập nhật khi full sync và theo lịch 07:00.
+- Tab **Hàng ngừng kinh doanh** lưu lịch sử từ trước tới nay trong một tab duy nhất, cập nhật khi full sync và theo lịch 07:30.
+
+- **Phân hệ Quản lý Nghỉ phép HR & Telegram Bot:** Cung cấp kênh nộp đơn xin nghỉ phép, tra cứu số dư ngày phép trực tuyến 24/7 qua Web Portal và Telegram Bot, quy trình phê duyệt tự động gửi thông báo cho nhân viên.
 
 - Rút ngắn thời gian tổng hợp báo cáo, giúp lãnh đạo và nhân viên theo dõi số liệu bằng một cú truy cập web đơn giản.
 
@@ -67,7 +69,7 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 ## 3.1. Trong phạm vi (In-scope) — Giai đoạn 1 đã triển khai
 
-- **Nguồn dữ liệu cố định:** 1 Google Spreadsheet duy nhất (ID cố định theo cấu hình), chứa 9 tab vận hành, 1 tab lịch sử hàng ngừng kinh doanh, 2 tab báo cáo bán hàng và 3 tab báo cáo công nợ HN1/HN3/HN7 do Apps Script duy trì:
+- **Nguồn dữ liệu cố định:** 1 Google Spreadsheet duy nhất (ID cố định theo cấu hình), chứa 9 tab vận hành, 1 tab lịch sử hàng ngừng kinh doanh, 2 tab báo cáo bán hàng, 3 tab báo cáo công nợ HN1/HN3/HN7, 6 tab vận chuyển `VC_*` và 3 tab nhân sự `HR_*` do Apps Script & Node.js duy trì:
 
   | Tab                | Dữ liệu                                                                  | Backend đọc |
   |--------------------|--------------------------------------------------------------------------|-------------|
@@ -84,6 +86,8 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
   | Hàng bán theo khách | Khách hàng, mã hàng, tên hàng, SL mua chi tiết, thời gian của từng dòng hàng bán trong 90 ngày qua | Có |
   | Hàng ngừng kinh doanh | Lịch sử các mã hàng từng ngừng kinh doanh và trạng thái hiện tại | Có |
   | HN1 / HN3 / HN7 | Báo cáo công nợ khách hàng 1/3/7 ngày do Apps Script `CustomerDebtReport.gs` tự động tính và ghi đè | Có (`debtReport.js`) |
+  | VC_Orders / VC_* | 6 tab dữ liệu vận chuyển hàng hóa, theo dõi đơn và trạng thái giao | Có (`vcSheetsClient.js`) |
+  | HR_Leaves / HR_* | 3 tab dữ liệu nhân sự, đơn xin nghỉ phép, danh sách nhân viên & chính sách phép | Có (`hrSheetsClient.js`) |
 
 - **KPI Dashboard:** các chỉ số tổng quan tính từ dữ liệu 9 sheet trên (xem mục 5.2).
 
@@ -254,7 +258,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 |-----------------------------------|---------------------------------------------------------------------------------------------------|----------------|
 | 1. Phân tích & thiết kế            | Hoàn thiện BRD v1.7, SRS v1.9, BPMN v1.8; thiết kế kiến trúc kỹ thuật                            | Hoàn thành     |
 | 2. Apps Script đồng bộ KiotViet    | `src/`: sync đủ trường, webhook qua queue bền vững, polling 15 phút cho 3 bảng không có webhook | Hoàn thành     |
-| 3. Backend Node.js/Express         | API `/api/dashboard`, `/api/search`, `/api/customer-product-top`, `/api/auth/*`, `/api/admin/*`, `/api/shipment/*`, Result Cache, 214 unit tests | Hoàn thành     |
+| 3. Backend Node.js/Express         | API `/api/dashboard`, `/api/search`, `/api/customer-product-top`, `/api/auth/*`, `/api/admin/*`, `/api/shipment/*`, Result Cache, 324 unit tests | Hoàn thành     |
 | 4. Frontend HTML/CSS/JS            | Dashboard, bộ lọc thời gian, phân trang bảng (`pagination.js`), motion tokens, transitions, quản trị tài khoản (`/account/`) | Hoàn thành     |
 | 5. Lớp hiệu ứng 3D Visual          | Three.js r159 particle background, card 3D tilt, tactile buttons, 3D rotating loading cube, FPS monitor & WebGL memory disposal trên cả 7 trang | Hoàn thành     |
 | 6. Triển khai Render.com           | Deploy lên `tokosi.onrender.com`, cấu hình biến môi trường                                        | Hoàn thành     |
@@ -272,4 +276,4 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 | Giai đoạn 7 — Trợ lý AI                         | Chatbot hỏi-đáp số liệu bằng ngôn ngữ tự nhiên; AI dự đoán & phát hiện bất thường tự động             | Ưu tiên chatbot trước; cần dữ liệu chuẩn hoá từ các giai đoạn trước  |
 | Giai đoạn 8 — Thay thế KiotViet                 | Ngừng sử dụng KiotViet, chuyển hoàn toàn nghiệp vụ sang hệ thống mới                                   | Chỉ thực hiện khi Giai đoạn 3–4 đã ổn định và nghiệm thu đầy đủ      |
 
-*— Hết tài liệu BRD v1.7 —*
+*— Hết tài liệu BRD v1.8 —*

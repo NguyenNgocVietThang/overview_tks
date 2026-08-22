@@ -22,9 +22,9 @@ This is configured in the bound Google Apps Script project:
 ### Local `.env` & Testing
 ```bash
 cp .env.example .env
-# Điền SPREADSHEET_ID, VC_SPREADSHEET_ID, DRIVE_UPLOAD_FOLDER_ID, GOOGLE_SERVICE_ACCOUNT_JSON, JWT_SECRET, GOOGLE_CLIENT_ID
+# Điền SPREADSHEET_ID, VC_SPREADSHEET_ID, HR_SPREADSHEET_ID, DRIVE_UPLOAD_FOLDER_ID, GOOGLE_SERVICE_ACCOUNT_JSON, JWT_SECRET, GOOGLE_CLIENT_ID, TELEGRAM_BOT_TOKEN, TELEGRAM_HR_CHAT_ID
 npm install
-npm test      # Chạy 214 unit tests tự động (auth/Guest/SĐT, Google OAuth, OTP reset, Admin CRUD, shipment lifecycle, State Machine 9 trạng thái, VC repository, cache, pagination, export, search, và 12 frontend test suites trong test/frontend/)
+npm test      # Chạy 324 unit tests tự động (HR Leave & Telegram bot, auth/Guest/SĐT, Google OAuth, OTP reset, Admin CRUD, shipment lifecycle, State Machine 9 trạng thái, VC repository, cache, pagination, export, search, và 13 frontend test suites trong test/frontend/)
 npm start     # Khởi chạy server tại http://localhost:3000 (tự động bật gzip compression và static Cache-Control headers)
 ```
 Truy cập `http://localhost:3000` — giao diện Live Dashboard tải số liệu thời gian thực từ Google Sheets. `GET /health` trả về `{"status":"ok"}`.
@@ -36,7 +36,7 @@ Truy cập `http://localhost:3000` — giao diện Live Dashboard tải số li�
 - **Batch Writing (`updateOrderItems`):** Gom các thao tác ghi dòng tuần tự thành 1 request `batchUpdate` duy nhất.
 - **Request Timeout:** Timeout 15s (`VC_API_TIMEOUT_MS = 15000`) cho mọi kết nối Google Sheets API chống treo request.
 
-### Quản lý tài khoản người dùng & Khởi tạo Vận chuyển (CLI Scripts)
+### Quản lý tài khoản, Vận chuyển & Phân hệ Nhân sự (CLI Scripts)
 ```bash
 # Khởi tạo tab Users và tạo tài khoản Admin mặc định
 node scripts/setupUsersSheet.js init
@@ -52,6 +52,9 @@ node scripts/setupUsersSheet.js list
 
 # Khởi tạo 6 tab vận chuyển VC_* trên Google Spreadsheet vận chuyển
 node scripts/setupVcSheet.js
+
+# Khởi tạo 3 tab nhân sự HR_Leaves, HR_Employees, HR_Policy
+node scripts/setupHrSheet.js init
 ```
 
 ## 2. Các API Endpoints
@@ -94,7 +97,20 @@ node scripts/setupVcSheet.js
 | `GET` | `/api/shipment/audit` | Nội bộ | Báo cáo đối soát cuối ngày lọc đơn thiếu ảnh nhặt, thiếu bill ký hoặc giao trễ. |
 | `GET` | `/api/shipment/vehicles` | Nội bộ | Danh mục phương tiện và tài xế từ tab VC_Vehicles. |
 
-### 2.4. Dashboard, Tìm kiếm & Tiện ích
+### 2.4. Quản lý Nghỉ phép HR (`/api/hr/*`)
+| Method | Endpoint | Quyền | Mô tả |
+|---|---|---|---|
+| `GET` | `/api/hr/leave-requests` | Nội bộ | Danh sách đơn; `from`/`to` lọc theo `Thời gian gửi`. |
+| `POST` | `/api/hr/leave-requests` | Quản lý | Ghi nhận nghỉ thủ công bằng ngày + buổi. |
+| `GET` | `/api/hr/leave-requests/:id` | Nội bộ | Xem chi tiết một yêu cầu. |
+| `PATCH` | `/api/hr/leave-requests/:id/status` | Quản lý | Cập nhật trạng thái và thông báo kết quả qua Telegram. |
+| `POST` | `/api/hr/leave-requests/export` | Nội bộ | Xuất danh sách đang lọc/sắp xếp ra Excel. |
+| `GET` | `/api/hr/leave-requests/summary/urgent-flags` | Nội bộ | Tổng hợp số lần nghỉ gấp theo tháng. |
+| `POST` | `/api/hr/telegram/link-code` | Nội bộ | Tạo mã liên kết Telegram cho tài khoản hiện tại. |
+
+Schema nghỉ phép dùng `Thời gian gửi`, `Thời gian bắt đầu/kết thúc` dạng `Sáng|Chiều dd/mm/yyyy`, `Tổng buổi nghỉ` và `Tổng ngày nghỉ quy đổi = số buổi / 2`. Chủ nhật không tính buổi nghỉ. Đơn gửi sau 07:45 (Sáng) hoặc 12:30 (Chiều) vẫn được lưu với trạng thái `Vi phạm`.
+
+### 2.5. Dashboard, Tìm kiếm & Tiện ích
 | Method | Endpoint | Quyền | Mô tả |
 |---|---|---|---|
 | `GET` | `/api/dashboard?days={7\|30\|90}` | Nội bộ | Trả về toàn bộ KPI, biểu đồ, danh sách top/gần đây kèm Result Cache. |
@@ -118,10 +134,13 @@ node scripts/setupVcSheet.js
 **Environment variables** (Render dashboard -> your service -> Environment):
 - `SPREADSHEET_ID` — Google Spreadsheet ID (Dashboard)
 - `VC_SPREADSHEET_ID` — Google Spreadsheet ID (Vận chuyển VC_*)
+- `HR_SPREADSHEET_ID` — Google Spreadsheet ID (Nhân sự HR_*)
 - `DRIVE_UPLOAD_FOLDER_ID` — Google Drive Folder ID (Lưu ảnh chứng từ)
 - `GOOGLE_SERVICE_ACCOUNT_JSON` — The full service account JSON key (one line)
 - `JWT_SECRET` — Secret key để ký và xác thực token JWT
 - `GOOGLE_CLIENT_ID` — Google OAuth Client ID cho tính năng Google Sign-In (tùy chọn)
+- `TELEGRAM_BOT_TOKEN` — Telegram Bot Token cho bot thông báo & tương tác HR
+- `TELEGRAM_HR_CHAT_ID` — Telegram Chat ID nhóm Quản lý/HR nhận thông báo đơn xin nghỉ
 - `KIOTVIET_CLIENT_ID` — KiotViet Public API client ID (cho job sync báo cáo)
 - `KIOTVIET_CLIENT_SECRET` — KiotViet Public API client secret (cho job sync báo cáo)
 - `KIOTVIET_RETAILER` — KiotViet retailer name (cho job sync báo cáo)

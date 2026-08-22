@@ -25,10 +25,14 @@ function ensureDataDir(filePath) {
 }
 
 // Cac field kieu Date bi JSON.stringify thanh chuoi ISO khi ghi xuong dia —
-// can hoi phuc lai thanh Date khi doc len de cac ham nhu formatDateTime,
+// can hoi phuc lai thanh Date khi doc len de cac ham nhu formatDate,
 // computeIsUrgent... hoat dong dung.
 function reviveDates(conv) {
   if (conv && conv.data) {
+    // Cac field moi (Sang/Chieu flow): startDate, endDate
+    if (typeof conv.data.startDate === 'string') conv.data.startDate = new Date(conv.data.startDate);
+    if (typeof conv.data.endDate === 'string') conv.data.endDate = new Date(conv.data.endDate);
+    // Cac field cu (gio cu, giu tuong thich nguoc): start, end
     if (typeof conv.data.start === 'string') conv.data.start = new Date(conv.data.start);
     if (typeof conv.data.end === 'string') conv.data.end = new Date(conv.data.end);
   }

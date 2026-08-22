@@ -52,6 +52,27 @@ test('trang thai song sot qua "restart" (cache RAM bi xoa, doc lai tu file)', ()
   }
 });
 
+test('khoi phuc startDate va endDate cua luong nghi theo buoi sau restart', () => {
+  const { store, tmpFile } = freshStore();
+  try {
+    const startDate = new Date(2026, 7, 22);
+    const endDate = new Date(2026, 7, 24);
+    store.setConversation(223, { step: 'AWAITING_END_SESSION', data: { startDate, endDate } });
+
+    delete require.cache[require.resolve('./conversationStore')];
+    const reloaded = require('./conversationStore');
+    reloaded.initStore(tmpFile);
+    const conv = reloaded.getConversation(223);
+
+    assert.ok(conv.data.startDate instanceof Date);
+    assert.ok(conv.data.endDate instanceof Date);
+    assert.equal(conv.data.startDate.getTime(), startDate.getTime());
+    assert.equal(conv.data.endDate.getTime(), endDate.getTime());
+  } finally {
+    fs.rmSync(tmpFile, { force: true });
+  }
+});
+
 test('deleteConversation xoa han, getConversation tra ve null', () => {
   const { store, tmpFile } = freshStore();
   try {

@@ -20,16 +20,16 @@ const LEAVE_SCHEMA = {
   headers: [
     'Mã yêu cầu', 'Telegram chat_id', 'Telegram username', 'Tài khoản web',
     'Họ tên', 'Chức vụ', 'Lý do nghỉ', 'Loại yêu cầu',
-    'Thời gian nhắn', 'Thời gian bắt đầu nghỉ', 'Thời gian kết thúc nghỉ',
-    'Tổng giờ nghỉ', 'Tổng ngày nghỉ (quy đổi)', 'Người bàn giao',
+    'Thời gian gửi', 'Thời gian bắt đầu', 'Thời gian kết thúc',
+    'Tổng buổi nghỉ', 'Tổng ngày nghỉ quy đổi', 'Người bàn giao',
     'Trạng thái phê duyệt', 'Người phê duyệt', 'Thời điểm phê duyệt', 'Ghi chú/lý do từ chối',
     'Cờ nghỉ gấp', 'Cờ tự ý nghỉ', 'Thời gian tạo', 'Cập nhật lần cuối'
   ],
   fieldKeys: [
     'request_id', 'telegram_chat_id', 'telegram_username', 'web_username',
     'ho_ten', 'chuc_vu', 'ly_do', 'loai_yeu_cau',
-    'thoi_gian_nhan', 'thoi_gian_bat_dau', 'thoi_gian_ket_thuc',
-    'tong_gio_nghi', 'tong_ngay_nghi', 'nguoi_ban_giao',
+    'thoi_gian_gui', 'thoi_gian_bat_dau', 'thoi_gian_ket_thuc',
+    'tong_buoi_nghi', 'tong_ngay_nghi', 'nguoi_ban_giao',
     'trang_thai', 'nguoi_duyet', 'thoi_diem_duyet', 'ghi_chu_duyet',
     'co_nghi_gap', 'co_tu_y_nghi', 'created_at', 'updated_at'
   ]
@@ -56,7 +56,8 @@ const LEAVE_STATUS = Object.freeze({
   PENDING: 'Chưa duyệt',
   PROVISIONAL: 'Tạm duyệt',
   APPROVED: 'Đã duyệt',
-  REJECTED: 'Từ chối'
+  REJECTED: 'Từ chối',
+  VIOLATION: 'Vi phạm'
 });
 
 const LINK_STATUS = Object.freeze({
@@ -124,10 +125,23 @@ function generateLinkCode() {
   return String(Math.floor(Math.random() * 900000 + 100000)); // 6 chu so
 }
 
+function submissionDateKey(value) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const get = type => parts.find(part => part.type === type)?.value || '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
 // ---- Leave requests -------------------------------------------------------
 
 /**
- * @param {Object} filters { status, employee, from, to } — from/to dang 'YYYY-MM-DD', loc theo thoi_gian_bat_dau
+ * @param {Object} filters { status, employee, from, to } — from/to dang 'YYYY-MM-DD', loc theo thoi_gian_gui
  */
 async function getLeaveRequests(filters) {
   filters = filters || {};
@@ -145,15 +159,15 @@ async function getLeaveRequests(filters) {
   }
   if (filters.from) {
     const fromDate = String(filters.from).slice(0, 10);
-    items = items.filter(item => String(item.thoi_gian_bat_dau || '').slice(0, 10) >= fromDate);
+    items = items.filter(item => submissionDateKey(item.thoi_gian_gui) >= fromDate);
   }
   if (filters.to) {
     const toDate = String(filters.to).slice(0, 10);
-    items = items.filter(item => String(item.thoi_gian_bat_dau || '').slice(0, 10) <= toDate);
+    items = items.filter(item => submissionDateKey(item.thoi_gian_gui) <= toDate);
   }
 
   // Moi nhat truoc
-  items.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  items.sort((a, b) => String(b.thoi_gian_gui || b.created_at).localeCompare(String(a.thoi_gian_gui || a.created_at)));
   return items.map(stripRowIndex);
 }
 
@@ -174,6 +188,10 @@ function stripRowIndex(item) {
  */
 async function createLeaveRequest(data) {
   const ts = nowIso();
+  const totalSessions = Number(data.tong_buoi_nghi);
+  if (!Number.isInteger(totalSessions) || totalSessions <= 0) {
+    throw new HrError('Tổng buổi nghỉ phải là số nguyên dương.', 400, 'INVALID_TOTAL_SESSIONS');
+  }
   const record = {
     request_id: generateRequestId(),
     telegram_chat_id: data.telegram_chat_id || '',
@@ -183,11 +201,11 @@ async function createLeaveRequest(data) {
     chuc_vu: data.chuc_vu || '',
     ly_do: data.ly_do || '',
     loai_yeu_cau: data.loai_yeu_cau || LEAVE_TYPE.REQUEST,
-    thoi_gian_nhan: data.thoi_gian_nhan || ts,
+    thoi_gian_gui: data.thoi_gian_gui || ts,
     thoi_gian_bat_dau: data.thoi_gian_bat_dau || '',
     thoi_gian_ket_thuc: data.thoi_gian_ket_thuc || '',
-    tong_gio_nghi: data.tong_gio_nghi != null ? data.tong_gio_nghi : '',
-    tong_ngay_nghi: data.tong_gio_nghi != null ? Number((data.tong_gio_nghi / 8).toFixed(2)) : '',
+    tong_buoi_nghi: totalSessions,
+    tong_ngay_nghi: Number((totalSessions / 2).toFixed(2)),
     nguoi_ban_giao: data.nguoi_ban_giao || '',
     trang_thai: data.trang_thai || LEAVE_STATUS.PENDING,
     nguoi_duyet: data.nguoi_duyet || '',
@@ -241,7 +259,10 @@ async function getUrgentFlagSummary(month) {
 
   items.forEach(item => {
     if (!item.co_nghi_gap || String(item.co_nghi_gap).toUpperCase() !== 'TRUE') return;
-    if (!String(item.thoi_gian_bat_dau || '').startsWith(targetMonth)) return;
+    const dateMatch = String(item.thoi_gian_bat_dau || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!dateMatch) return;
+    const leaveMonth = `${dateMatch[3]}-${String(dateMatch[2]).padStart(2, '0')}`;
+    if (leaveMonth !== targetMonth) return;
     const key = item.web_username || item.ho_ten || 'unknown';
     const entry = counts.get(key) || { web_username: item.web_username, ho_ten: item.ho_ten, count: 0 };
     entry.count += 1;

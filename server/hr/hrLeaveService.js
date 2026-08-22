@@ -1,5 +1,5 @@
 // ==========================================
-// HR LEAVE SERVICE — logic nghiep vu: tinh gio nghi, co "nghi gap", resolve
+// HR LEAVE SERVICE — logic nghiep vu: tinh buoi nghi, co "nghi gap", resolve
 // danh tinh nguoi gui/nguoi duyet tu users.json (khong doc qua Telegram).
 // ==========================================
 'use strict';
@@ -8,15 +8,81 @@ const CONFIG = require('../config');
 const userRepository = require('../auth/userRepository');
 
 /**
- * Tinh so gio giua 2 moc thoi gian ISO/parseable. Khong tru ngay nghi/le —
- * don gian hoa cho giai doan 1 (xem ghi chu trong CHINH-SACH-NGHI-PHEP.md
- * ve viec chi tru gio theo lich lam viec that, se can tich hop lich ca sau).
+ * Tinh so buoi nghi dua tren ngay + buoi bat dau/ket thuc.
+ *
+ * Moi ngay thuong co 2 buoi; Chu nhat bi bo qua hoan toan. Khoang tinh bao
+ * gom ca buoi bat dau va buoi ket thuc.
+ *
+ * @param {Date} startDate  - Doi tuong Date ngay bat dau (chi dung phan ngay)
+ * @param {'Sáng'|'Chiều'} startSession - Buoi bat dau
+ * @param {Date} endDate    - Doi tuong Date ngay ket thuc (chi dung phan ngay)
+ * @param {'Sáng'|'Chiều'} endSession   - Buoi ket thuc
+ * @returns {number|null}   - So buoi nguyen (co the bang 0 neu chi co Chu nhat),
+ *                            hoac null neu thu tu/dau vao khong hop le
  */
-function computeDurationHours(start, end) {
-  const startMs = new Date(start).getTime();
-  const endMs = new Date(end).getTime();
-  if (!isFinite(startMs) || !isFinite(endMs) || endMs <= startMs) return null;
-  return Math.round(((endMs - startMs) / (60 * 60 * 1000)) * 100) / 100;
+function computeDurationSessions(startDate, startSession, endDate, endSession) {
+  const sessionIndex = { 'Sáng': 0, 'Chiều': 1 };
+  if (startDate == null || endDate == null) return null;
+  if (!(startSession in sessionIndex) || !(endSession in sessionIndex)) return null;
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return null;
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  if (end < start) return null;
+  if (end.getTime() === start.getTime() && sessionIndex[endSession] < sessionIndex[startSession]) {
+    return null;
+  }
+
+  let totalSessions = 0;
+  for (const day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) {
+    if (day.getDay() === 0) continue; // Chu nhat khong tinh phep.
+    const firstSession = day.getTime() === start.getTime() ? sessionIndex[startSession] : 0;
+    const lastSession = day.getTime() === end.getTime() ? sessionIndex[endSession] : 1;
+    totalSessions += Math.max(0, lastSession - firstSession + 1);
+  }
+  return totalSessions;
+}
+
+function getSessionStartTime(startDate, startSession) {
+  if (startDate == null) return null;
+  const start = new Date(startDate);
+  if (!Number.isFinite(start.getTime())) return null;
+  if (startSession === 'Sáng') start.setHours(7, 45, 0, 0);
+  else if (startSession === 'Chiều') start.setHours(12, 30, 0, 0);
+  else return null;
+  return start;
+}
+
+function computeSubmissionViolation(messageTime, startDate, startSession) {
+  const submittedAt = new Date(messageTime);
+  const sessionStartsAt = getSessionStartTime(startDate, startSession);
+  if (!Number.isFinite(submittedAt.getTime()) || !sessionStartsAt) return false;
+  return submittedAt.getTime() > sessionStartsAt.getTime();
+}
+
+function parseIsoDateOnly(value) {
+  const match = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (date.getFullYear() !== Number(match[1]) ||
+      date.getMonth() !== Number(match[2]) - 1 ||
+      date.getDate() !== Number(match[3])) return null;
+  return date;
+}
+
+function formatVietnameseDate(date) {
+  const parsed = new Date(date);
+  if (!Number.isFinite(parsed.getTime())) return null;
+  const pad = value => String(value).padStart(2, '0');
+  return `${pad(parsed.getDate())}/${pad(parsed.getMonth() + 1)}/${parsed.getFullYear()}`;
+}
+
+function formatLeaveBoundary(date, session) {
+  if (session !== 'Sáng' && session !== 'Chiều') return null;
+  const formattedDate = formatVietnameseDate(date);
+  return formattedDate ? `${session} ${formattedDate}` : null;
 }
 
 /**
@@ -51,7 +117,12 @@ function resolveApproverName(reqUser) {
 }
 
 module.exports = {
-  computeDurationHours,
+  computeDurationSessions,
+  getSessionStartTime,
+  computeSubmissionViolation,
+  parseIsoDateOnly,
+  formatVietnameseDate,
+  formatLeaveBoundary,
   computeIsUrgent,
   resolveSenderIdentity,
   resolveApproverName
