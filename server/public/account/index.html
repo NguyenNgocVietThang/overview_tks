@@ -336,6 +336,10 @@
                 <label>Cơ sở phụ trách</label>
                 <input type="text" id="profFacility" class="form-control" disabled>
               </div>
+              <div class="form-group" style="margin-top:12px; margin-bottom:0;">
+                <button type="button" class="btn-secondary" id="btnOpenRoleRequest" onclick="openRoleRequestModal()">Yêu cầu đổi vai trò</button>
+                <p class="profile-card-desc" id="roleRequestPendingNote" style="display:none; margin-top:8px;"></p>
+              </div>
             </div>
 
             <!-- Thông tin khôi phục -->
@@ -691,6 +695,41 @@
     </div>
   </div>
 
+  <!-- MODAL: YÊU CẦU ĐỔI VAI TRÒ -->
+  <div class="modal-overlay" id="roleRequestModal" hidden>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Yêu cầu đổi vai trò</h3>
+        <button type="button" class="modal-close" onclick="closeModal('roleRequestModal')">✕</button>
+      </div>
+      <form id="roleRequestForm" onsubmit="handleSubmitRoleRequest(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="roleRequestTarget">Vai trò muốn đổi thành *</label>
+            <select id="roleRequestTarget" class="form-control" required>
+              <option value="">-- Chọn vai trò --</option>
+              <option value="Quản lý">Quản lý</option>
+              <option value="Kế toán">Kế toán</option>
+              <option value="Trưởng kho">Trưởng kho</option>
+              <option value="Trợ lý">Trợ lý</option>
+              <option value="Lái xe">Lái xe</option>
+              <option value="Khách">Khách</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="roleRequestReason">Lý do *</label>
+            <textarea id="roleRequestReason" class="form-control" rows="3" maxlength="500" required placeholder="Nêu lý do bạn cần đổi vai trò..."></textarea>
+          </div>
+          <div id="roleRequestError" class="alert-box alert-error" style="display:none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('roleRequestModal')">Hủy</button>
+          <button type="submit" id="btnSubmitRoleRequest" class="btn-primary">Gửi yêu cầu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toastContainer"></div>
 
@@ -765,6 +804,7 @@
         contentAdmin.style.display = 'none';
         contentProfile.style.display = 'block';
         loadProfileData();
+        checkPendingRoleRequest();
       }
     }
 
@@ -865,6 +905,71 @@
           msgEl.textContent = 'Lỗi kết nối, vui lòng thử lại.';
           msgEl.style.display = 'block';
         });
+    }
+
+    function openRoleRequestModal(){
+      document.getElementById('roleRequestError').style.display = 'none';
+      document.getElementById('roleRequestForm').reset();
+      if(currentUser && currentUser.vaiTro){
+        const select = document.getElementById('roleRequestTarget');
+        Array.from(select.options).forEach(opt => {
+          opt.disabled = (opt.value === currentUser.vaiTro);
+        });
+      }
+      openModal('roleRequestModal');
+    }
+
+    function handleSubmitRoleRequest(e){
+      e.preventDefault();
+      const requestedRole = document.getElementById('roleRequestTarget').value;
+      const reason = document.getElementById('roleRequestReason').value.trim();
+      const errEl = document.getElementById('roleRequestError');
+      const btn = document.getElementById('btnSubmitRoleRequest');
+
+      errEl.style.display = 'none';
+      btn.disabled = true;
+
+      fetch('/api/role-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestedRole, reason })
+      })
+        .then(parseApiResponse)
+        .then(result => {
+          btn.disabled = false;
+          if(!result.ok){
+            errEl.textContent = result.data.error || 'Không gửi được yêu cầu.';
+            errEl.style.display = 'block';
+            return;
+          }
+          closeModal('roleRequestModal');
+          showToast('Đã gửi yêu cầu đổi vai trò, chờ Quản lý duyệt.');
+          checkPendingRoleRequest();
+        })
+        .catch(() => {
+          btn.disabled = false;
+          errEl.textContent = 'Lỗi kết nối, vui lòng thử lại.';
+          errEl.style.display = 'block';
+        });
+    }
+
+    function checkPendingRoleRequest(){
+      fetch('/api/role-requests', { credentials: 'same-origin' })
+        .then(res => res.json())
+        .then(data => {
+          const pending = (data.requests || []).find(r => r.status === 'Chờ duyệt');
+          const note = document.getElementById('roleRequestPendingNote');
+          const btn = document.getElementById('btnOpenRoleRequest');
+          if(pending){
+            note.textContent = `Đang chờ duyệt: đổi sang "${pending.requestedRole}".`;
+            note.style.display = 'block';
+            btn.disabled = true;
+          } else {
+            note.style.display = 'none';
+            btn.disabled = false;
+          }
+        })
+        .catch(() => {});
     }
 
     function handleSaveRecovery(e){
@@ -1362,6 +1467,7 @@
 
             // Load profile data by default
             loadProfileData();
+            checkPendingRoleRequest();
           });
       }
     });
