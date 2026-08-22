@@ -29,7 +29,7 @@ function handleError(res, err, context) {
   console.error(`=== LOI ${context} ===`);
   console.error(err.stack);
   console.error(`${'='.repeat(context.length + 10)}`);
-  res.status(500).json({ error: 'Lỗi hệ thống, vui lòng thử lại sau.' });
+  return res.status(500).json({ error: 'Lỗi hệ thống, vui lòng thử lại sau.', code: err.code });
 }
 
 // ---------------------------------------------------------------------------
@@ -111,7 +111,7 @@ router.get('/api/role-requests/:id', requireAuth, async (req, res) => {
     }
     const isManager = req.user.vaiTro === ROLES.QUAN_LY;
     if (!isManager && request.userId !== String(req.user.id)) {
-      return res.status(403).json({ error: 'Bạn không có quyền xem yêu cầu này.' });
+      return res.status(403).json({ error: 'Bạn không có quyền xem yêu cầu này.', code: 'ROLE_REQUEST_FORBIDDEN' });
     }
     res.status(200).json({ request });
   } catch (err) {
@@ -135,6 +135,16 @@ router.patch('/api/role-requests/:id/status', ...authManager, async (req, res) =
     if (!target) {
       return res.status(404).json({ error: 'Không tìm thấy yêu cầu.', code: 'ROLE_REQUEST_NOT_FOUND' });
     }
+    if (target.status !== repo.ROLE_REQUEST_STATUS.PENDING) {
+      return res.status(409).json({ error: 'Yêu cầu này đã được xử lý trước đó.', code: 'ROLE_REQUEST_ALREADY_HANDLED' });
+    }
+
+    // Cap nhat vaiTro TRUOC khi danh dau request la Da duyet — neu updateUser
+    // that bai (vd user da bi xoa), request VAN GIU trang thai Cho duyet thay
+    // vi bi khoa vinh vien o trang thai "Da duyet" trong khi vaiTro chua doi.
+    if (status === repo.ROLE_REQUEST_STATUS.APPROVED) {
+      await localUserStore.updateUser(target.userId, { vaiTro: target.requestedRole });
+    }
 
     const updated = await repo.updateRequestStatus(req.params.id, {
       status,
@@ -142,10 +152,6 @@ router.patch('/api/role-requests/:id/status', ...authManager, async (req, res) =
       reviewedByUserId: req.user.id,
       reviewNote: note
     });
-
-    if (status === repo.ROLE_REQUEST_STATUS.APPROVED) {
-      await localUserStore.updateUser(updated.userId, { vaiTro: updated.requestedRole });
-    }
 
     try {
       const isApproved = status === repo.ROLE_REQUEST_STATUS.APPROVED;
