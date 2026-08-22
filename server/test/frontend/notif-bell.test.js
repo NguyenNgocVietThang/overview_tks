@@ -32,6 +32,7 @@ test('renderNotifBell chèn nút chuông ngay trước #accountChip', () => {
   const bell = document.getElementById('tksNotifBell');
   assert.ok(bell, 'phải có phần tử #tksNotifBell');
   assert.equal(bell.nextElementSibling.id, 'accountChip', 'chuông phải nằm ngay trước #accountChip');
+  window.close();
 });
 
 test('renderNotifBell hiển thị badge đúng số thông báo chưa đọc', async () => {
@@ -46,6 +47,7 @@ test('renderNotifBell hiển thị badge đúng số thông báo chưa đọc', 
   const badge = document.getElementById('tksNotifBadge');
   assert.equal(badge.hidden, false);
   assert.equal(badge.textContent, '3');
+  window.close();
 });
 
 test('click vào chuông mở dropdown và tải danh sách thông báo', async () => {
@@ -70,6 +72,7 @@ test('click vào chuông mở dropdown và tải danh sách thông báo', async 
   assert.equal(dropdown.hidden, false);
   assert.ok(requestedUrls.some(u => u === '/api/notifications'));
   assert.ok(document.getElementById('tksNotifList').textContent.includes('Đã duyệt'));
+  window.close();
 });
 
 test('Quản lý thấy nút Duyệt/Từ chối trên thông báo yêu cầu đổi vai trò chưa đọc, và click Duyệt gọi đúng API', async () => {
@@ -100,4 +103,5 @@ test('Quản lý thấy nút Duyệt/Từ chối trên thông báo yêu cầu đ
   assert.equal(patchCalls.length, 1);
   assert.equal(patchCalls[0].url, '/api/role-requests/r1/status');
   assert.equal(patchCalls[0].body.status, 'Đã duyệt');
+  window.close();
 });
