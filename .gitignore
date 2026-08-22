@@ -41,3 +41,9 @@ desktop.ini
 # Trang thai hoi thoai tam thoi cua bot Telegram nghi phep (du lieu song runtime,
 # khong phai du lieu goc — xem server/telegram/conversationStore.js)
 server/data/telegram_conversations.json*
+
+# Du lieu runtime cua chuong thong bao + yeu cau doi vai tro (tich luy khi chay
+# server/test, khong phai du lieu goc — xem server/notifications/notificationRepository.js
+# va server/auth/roleChangeRequestRepository.js)
+server/data/notifications.json*
+server/data/roleChangeRequests.json*
