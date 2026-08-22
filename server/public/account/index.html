@@ -12,8 +12,8 @@
     document.documentElement.style.visibility = 'hidden';
   })();
 </script>
-<link rel="stylesheet" href="/shared/shared.css">
-<script src="/shared/shared-nav.js"></script>
+<link rel="stylesheet" href="/shared/shared.css?v=20260822">
+<script src="/shared/shared-nav.js?v=20260822"></script>
 <script src="/shared/three-interactions.js" defer></script>
 <script src="/shared/three-loading.js" defer></script>
 <style>
@@ -28,21 +28,23 @@
   .account-header p{ margin:0; color:var(--muted); font-size:13.5px; }
 
   /* Sub-tab Switcher */
-  .subnav-tabs{
-    display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border);
-    margin-bottom:24px; padding-bottom:12px;
+  .account-subnav, .subnav-tabs{
+    display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:20px;
+    border-bottom:1px solid var(--border); padding-bottom:0;
   }
-  .subnav-tab{
-    display:inline-flex; align-items:center; gap:8px; padding:9px 16px;
-    border:1px solid var(--border); border-radius:var(--radius-md); background:var(--panel-2);
-    color:var(--muted); font-family:var(--font-display); font-size:13px; font-weight:600;
-    cursor:pointer; transition:border-color .15s ease, background-color .15s ease, color .15s ease;
+  .account-subnav-item, .subnav-tab{
+    display:inline-flex; align-items:center; gap:6px; padding:9px 14px; margin-bottom:-1px;
+    background:transparent; border:1px solid transparent; border-bottom:2px solid transparent;
+    border-radius:var(--radius-xs) var(--radius-xs) 0 0; color:var(--muted); font-family:var(--font-body);
+    font-size:13px; font-weight:600; cursor:pointer; transition:color .15s ease, border-color .15s ease;
   }
-  .subnav-tab:hover{ border-color:var(--muted); color:var(--text); }
-  .subnav-tab.active{
-    background:var(--accent-blue-12); color:var(--blue); border-color:var(--blue); font-weight:700;
+  .account-subnav-item:hover, .subnav-tab:hover{ color:var(--text); }
+  .account-subnav-item.active, .subnav-tab.active{
+    color:var(--blue); border-bottom-color:var(--blue); font-weight:700; background:transparent;
   }
-  .subnav-tab svg{ width:16px; height:16px; flex-shrink:0; }
+  .account-subnav-item svg, .subnav-tab svg{ width:15px; height:15px; flex-shrink:0; }
+  .account-subtab-panel{ display:none; }
+  .account-subtab-panel.active{ display:block; }
 
   /* Profile Grid */
   .profile-grid{
@@ -281,20 +283,20 @@
           <p>Quản lý thông tin hồ sơ cá nhân và danh sách tài khoản trong hệ thống</p>
         </div>
 
-        <!-- Subnav Switcher -->
-        <div class="subnav-tabs" id="subnavTabs">
-          <button type="button" class="subnav-tab active" id="tabBtnProfile" onclick="switchAccountTab('profile')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-            Hồ sơ cá nhân
+        <!-- Tab con của "Quản lý tài khoản" -->
+        <div class="account-subnav" role="tablist" id="accountSubnav">
+          <button type="button" class="account-subnav-item active" data-subtab="profile" role="tab" aria-selected="true" id="tabBtnProfile" onclick="switchAccountTab('profile')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            Quản lý hồ sơ
           </button>
-          <button type="button" class="subnav-tab" id="tabBtnAdminUsers" onclick="switchAccountTab('adminUsers')" style="display:none;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          <button type="button" class="account-subnav-item" data-subtab="users" role="tab" aria-selected="false" id="tabBtnAdminUsers" onclick="switchAccountTab('users')" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="15" r="3"></circle><circle cx="9" cy="7" r="4"></circle><path d="M10 15H6a4 4 0 0 0-4 4v2"></path><path d="m21.7 16.4-.9-.3"></path><path d="m15.2 13.9-.9-.3"></path><path d="m16.6 18.7.3-.9"></path><path d="m19.1 12.2.3-.9"></path><path d="m19.6 18.7-.4-.8"></path><path d="m16.8 12.3-.4-.8"></path><path d="m14.3 16.6.8-.4"></path><path d="m20.7 13.8.8-.4"></path></svg>
             Quản lý người dùng
           </button>
         </div>
 
-        <!-- TAB 1: HỒ SƠ CÁ NHÂN -->
-        <div id="tabContentProfile">
+        <!-- TAB 1: QUẢN LÝ HỒ SƠ -->
+        <div class="account-subtab-panel active" id="accountSubtab-profile" role="tabpanel">
           <div class="profile-grid perspective-container">
             <!-- Thông tin cá nhân -->
             <div class="profile-card card-3d col-6">
@@ -439,7 +441,7 @@
         </div>
 
         <!-- TAB 2: QUẢN LÝ NGƯỜI DÙNG (DÀNH RIÊNG QUẢN LÝ) -->
-        <div id="tabContentAdminUsers" style="display:none;">
+        <div class="account-subtab-panel" id="accountSubtab-users" role="tabpanel" style="display:none;">
           <!-- Thống kê nhanh -->
           <div class="kpi-row perspective-container">
             <div class="kpi-stat card-3d">
@@ -786,27 +788,64 @@
       }, 3500);
     }
 
-    function switchAccountTab(tabName){
-      const btnProfile = document.getElementById('tabBtnProfile');
-      const btnAdmin = document.getElementById('tabBtnAdminUsers');
-      const contentProfile = document.getElementById('tabContentProfile');
-      const contentAdmin = document.getElementById('tabContentAdminUsers');
+    function switchAccountTab(tabName, skipHashUpdate){
+      const validTab = (tabName === 'users' || tabName === 'adminUsers') ? 'users' : 'profile';
+      
+      // Nếu chọn tab users mà không phải Quản lý thì quay về profile
+      if(validTab === 'users' && (!currentUser || currentUser.vaiTro !== 'Quản lý')){
+        return switchAccountTab('profile', skipHashUpdate);
+      }
 
-      if(tabName === 'adminUsers'){
-        btnProfile.classList.remove('active');
-        btnAdmin.classList.add('active');
-        contentProfile.style.display = 'none';
-        contentAdmin.style.display = 'block';
+      document.querySelectorAll('.account-subnav-item, .subnav-tab').forEach(btn => {
+        const active = (btn.dataset.subtab === validTab) || (validTab === 'profile' && btn.id === 'tabBtnProfile') || (validTab === 'users' && btn.id === 'tabBtnAdminUsers');
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-selected', String(active));
+      });
+
+      const panelProfile = document.getElementById('accountSubtab-profile') || document.getElementById('tabContentProfile');
+      const panelUsers = document.getElementById('accountSubtab-users') || document.getElementById('tabContentAdminUsers');
+
+      if(panelProfile){
+        const active = validTab === 'profile';
+        panelProfile.classList.toggle('active', active);
+        panelProfile.style.display = active ? 'block' : 'none';
+      }
+      if(panelUsers){
+        const active = validTab === 'users';
+        panelUsers.classList.toggle('active', active);
+        panelUsers.style.display = active ? 'block' : 'none';
+      }
+
+      // Cập nhật active class trên sidebar nếu có
+      const sidebarSubItems = document.querySelectorAll('#tksAccountGroupList .nav-item');
+      sidebarSubItems.forEach(item => {
+        const itemTab = item.dataset.accountSubtab;
+        const active = (itemTab === validTab);
+        item.classList.toggle('active', active);
+        if(active) item.setAttribute('aria-current', 'page');
+        else item.removeAttribute('aria-current');
+      });
+
+      if(!skipHashUpdate && history.replaceState){
+        history.replaceState(null, '', `#${validTab}`);
+      }
+
+      if(validTab === 'users'){
         loadAdminUsers();
       } else {
-        btnAdmin.classList.remove('active');
-        btnProfile.classList.add('active');
-        contentAdmin.style.display = 'none';
-        contentProfile.style.display = 'block';
         loadProfileData();
         checkPendingRoleRequest();
       }
     }
+
+    function applyAccountSubtabFromHash(){
+      const rawHash = (window.location.hash || '').replace('#', '');
+      const name = (rawHash === 'users' || rawHash === 'adminUsers') ? 'users' : (rawHash === 'profile' ? 'profile' : '');
+      if(name){
+        switchAccountTab(name, true);
+      }
+    }
+    window.addEventListener('hashchange', applyAccountSubtabFromHash);
 
     function openModal(id){
       const m = document.getElementById(id);
@@ -1465,9 +1504,17 @@
               if(adminTabBtn) adminTabBtn.style.display = 'inline-flex';
             }
 
-            // Load profile data by default
-            loadProfileData();
-            checkPendingRoleRequest();
+            // Áp dụng tab từ hash URL nếu có (ví dụ /account/#users hoặc /account/#profile)
+            const initialHash = (window.location.hash || '').replace('#', '');
+            if(initialHash === 'users' || initialHash === 'adminUsers'){
+              if(user.vaiTro === 'Quản lý'){
+                switchAccountTab('users', true);
+              } else {
+                switchAccountTab('profile', true);
+              }
+            } else {
+              switchAccountTab('profile', true);
+            }
           });
       }
     });

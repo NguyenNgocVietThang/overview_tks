@@ -12,8 +12,8 @@
     document.documentElement.style.visibility = 'hidden';
   })();
 </script>
-<link rel="stylesheet" href="/shared/shared.css">
-<script src="/shared/shared-nav.js"></script>
+<link rel="stylesheet" href="/shared/shared.css?v=20260822">
+<script src="/shared/shared-nav.js?v=20260822"></script>
 <script src="/vendor/chart.umd.min.js"></script>
 <script src="/shared/three-interactions.js" defer></script>
 <script src="/shared/three-loading.js" defer></script>
@@ -1031,6 +1031,32 @@
       return 'hsl(' + hue + ', 72%, 52%)';
     }
 
+    // Chuyen hex #RRGGBB hoac hsl() sang rgba voi alpha cho mau trong suot
+    function hexToRgba(hex, alpha){
+      if(typeof hex === 'string' && hex.startsWith('#') && hex.length === 7){
+        const r = parseInt(hex.slice(1,3), 16);
+        const g = parseInt(hex.slice(3,5), 16);
+        const b = parseInt(hex.slice(5,7), 16);
+        return `rgba(${r},${g},${b},${alpha})`;
+      }
+      // hsl(...) → tra lai nhu cu voi opacity
+      if(typeof hex === 'string' && hex.startsWith('hsl')){
+        return hex.replace('hsl(', 'hsla(').replace(')', `,${alpha})`);
+      }
+      return hex;
+    }
+
+    // Mau nen trong suot (0.3) cho cot bieu do
+    function categoryColorFill(name, index){
+      const solid = categoryColor(name, index);
+      return hexToRgba(solid, 0.3);
+    }
+
+    // Mau vien solid cho cot bieu do
+    function categoryBorderColor(name, index){
+      return categoryColor(name, index);
+    }
+
     function destroyChart(key){
       if(state.charts[key]){ state.charts[key].destroy(); delete state.charts[key]; }
     }
@@ -1127,7 +1153,9 @@
             datasets: chucVus.map((cv, i) => ({
               label: cv,
               data: dayKeys.map(dk => (counts[dk] && counts[dk][cv]) || 0),
-              backgroundColor: categoryColor(cv, i),
+              backgroundColor: categoryColorFill(cv, i),
+              borderColor: categoryBorderColor(cv, i),
+              borderWidth: 1.5,
               borderRadius: 3
             }))
           },
@@ -1175,7 +1203,7 @@
           type: 'doughnut',
           data: {
             labels: list.map(e => e.chucVu),
-            datasets: [{ data: list.map(e => e.soYeuCau), backgroundColor: list.map((e, i) => categoryColor(e.chucVu, i)) }]
+            datasets: [{ data: list.map(e => e.soYeuCau), backgroundColor: list.map((e, i) => categoryColorFill(e.chucVu, i)), borderColor: list.map((e, i) => categoryBorderColor(e.chucVu, i)), borderWidth: 1.5 }]
           },
           options: {
             responsive: true, maintainAspectRatio: false,
@@ -1195,7 +1223,7 @@
           type: 'bar',
           data: {
             labels: list.map(e => e.chucVu),
-            datasets: [{ data: list.map(e => e.soYeuCau), backgroundColor: list.map((e, i) => categoryColor(e.chucVu, i)), borderRadius: 4 }]
+            datasets: [{ data: list.map(e => e.soYeuCau), backgroundColor: list.map((e, i) => categoryColorFill(e.chucVu, i)), borderColor: list.map((e, i) => categoryBorderColor(e.chucVu, i)), borderWidth: 1.5, borderRadius: 4 }]
           },
           options: {
             indexAxis: 'y', responsive: true, maintainAspectRatio: false,
@@ -1259,7 +1287,7 @@
           type: 'bar',
           data: {
             labels: list.map(e => e.hoTen),
-            datasets: [{ label: 'Tổng ngày nghỉ', data: list.map(e => e.tongNgayNghi), backgroundColor: '#3B82F6', borderRadius: 4, maxBarThickness: 26 }]
+            datasets: [{ label: 'Tổng ngày nghỉ', data: list.map(e => e.tongNgayNghi), backgroundColor: 'rgba(59,130,246,0.3)', borderColor: '#3B82F6', borderWidth: 1.5, borderRadius: 4, maxBarThickness: 26 }]
           },
           options: {
             indexAxis: 'y', responsive: true, maintainAspectRatio: false,

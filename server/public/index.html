@@ -19,7 +19,7 @@
   </script>
   <script src="/vendor/chart.umd.min.js"></script>
   <script src="/js/pagination.js"></script>
-  <script src="/shared/shared-nav.js"></script>
+  <script src="/shared/shared-nav.js?v=20260822"></script>
   <script src="/shared/three-interactions.js" defer></script>
   <script src="/shared/three-loading.js" defer></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -3170,10 +3170,11 @@
           <button type="button" class="nav-item" data-view="customers" onclick="switchView('customers')">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-              <circle cx="9" cy="7" r="4"></circle>
-              <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              <path d="M16 2v2"></path>
+              <path d="M8 2v2"></path>
+              <rect x="3" y="4" width="18" height="18" rx="2"></rect>
+              <circle cx="12" cy="11" r="3"></circle>
+              <path d="M8 18a4 4 0 0 1 8 0"></path>
             </svg>
             Khách hàng
           </button>
@@ -3235,14 +3236,31 @@
           </a>
         </div>
       </div>
-      <a href="/account/" class="nav-item">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-          stroke-linejoin="round" aria-hidden="true">
-          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
-          <circle cx="12" cy="7" r="4"></circle>
-        </svg>
-        Quản lý tài khoản
-      </a>
+      <div class="nav-group">
+        <button type="button" class="nav-group-toggle" id="accountGroupToggle" onclick="toggleNavGroup('account')"
+          aria-expanded="false" aria-controls="accountGroupList">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.8 17 5 19 5a1 1 0 0 1 1 1z"></path>
+            <path d="m9 12 2 2 4-4"></path>
+          </svg>
+          <span>Quản lý tài khoản</span>
+          <svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        <div class="nav-group-list" id="accountGroupList" hidden>
+          <a href="/account/#profile" class="nav-item">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            Quản lý hồ sơ
+          </a>
+          <a href="/account/#users" class="nav-item" id="navAccountUsers" style="display:none;">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="15" r="3"></circle><circle cx="9" cy="7" r="4"></circle><path d="M10 15H6a4 4 0 0 0-4 4v2"></path><path d="m21.7 16.4-.9-.3"></path><path d="m15.2 13.9-.9-.3"></path><path d="m16.6 18.7.3-.9"></path><path d="m19.1 12.2.3-.9"></path><path d="m19.6 18.7-.4-.8"></path><path d="m16.8 12.3-.4-.8"></path><path d="m14.3 16.6.8-.4"></path><path d="m20.7 13.8.8-.4"></path></svg>
+            Quản lý người dùng
+          </a>
+        </div>
+      </div>
       <div class="sidebar-footer">TOKOSI · Dữ liệu từ Google Sheet · tự làm mới mỗi 10 phút</div>
     </div>
 
@@ -4622,6 +4640,33 @@
       return 'hsl(' + hue + ', 72%, 52%)';
     }
 
+    function colorWithAlpha(color, alpha) {
+      if (!color) return color;
+      color = String(color).trim();
+      if (color.startsWith('#')) {
+        let hex = color.slice(1);
+        if (hex.length === 3) {
+          hex = hex.split('').map(c => c + c).join('');
+        }
+        if (hex.length === 6) {
+          const r = parseInt(hex.slice(0, 2), 16);
+          const g = parseInt(hex.slice(2, 4), 16);
+          const b = parseInt(hex.slice(4, 6), 16);
+          return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + alpha + ')';
+        }
+      }
+      if (color.startsWith('rgb(')) {
+        return color.replace('rgb(', 'rgba(').replace(')', ', ' + alpha + ')');
+      }
+      if (color.startsWith('rgba(')) {
+        return color.replace(/,[\s\d\.]+\)$/, ', ' + alpha + ')');
+      }
+      if (color.startsWith('hsl(')) {
+        return color.replace('hsl(', 'hsla(').replace(')', ', ' + alpha + ')');
+      }
+      return color;
+    }
+
     function syncThemeControl() {
       const isLight = document.documentElement.dataset.theme === 'light';
       const action = isLight ? 'Chuyển sang giao diện tối' : 'Chuyển sang giao diện sáng';
@@ -5603,7 +5648,8 @@
     // Mo/dong 1 nhom trong sidebar (vd: "Báo cáo tổng hợp", "Quản lý nhân sự"), nho trang thai qua lan tai lai.
     const NAV_GROUP_IDS = {
       reports: { toggle: 'navGroupToggle', list: 'navGroupList' },
-      hr: { toggle: 'hrGroupToggle', list: 'hrGroupList' }
+      hr: { toggle: 'hrGroupToggle', list: 'hrGroupList' },
+      account: { toggle: 'accountGroupToggle', list: 'accountGroupList' }
     };
     function toggleNavGroup(key, forceExpanded) {
       if (typeof key === 'boolean') { forceExpanded = key; key = 'reports'; } // tuong thich nguoc: toggleNavGroup(false)
@@ -5949,11 +5995,20 @@
       const theme = chartTheme();
       const valueScale = { ticks: { color: theme.muted, callback: v => fmtMoneyShort(v), font: { size: 10.5 } }, grid: { color: theme.grid } };
       const labelScale = { ticks: { color: theme.text, font: { size: 10.5 }, autoSkip: false, maxRotation: 60, minRotation: 40 }, grid: { display: false } };
+      const solidColor = color || theme.amber;
+      const fillColor = colorWithAlpha(solidColor, 0.5);
       state.charts[key] = new Chart(ctx, {
         type: 'bar',
         data: {
           labels: list.map(labelFn),
-          datasets: [{ data: list.map(valueFn), backgroundColor: color, borderRadius: 4, maxBarThickness: vertical ? 40 : undefined }]
+          datasets: [{
+            data: list.map(valueFn),
+            backgroundColor: fillColor,
+            borderColor: solidColor,
+            borderWidth: 1.5,
+            borderRadius: 5,
+            maxBarThickness: vertical ? 40 : 38
+          }]
         },
         options: {
           animation: chartAnimationOption(),
@@ -6056,6 +6111,8 @@
       const totalValue = list.reduce((sum, category) => sum + category.stockValue, 0);
       const totalQuantity = list.reduce((sum, category) => sum + category.stock, 0);
       const theme = chartTheme();
+      const greenSolid = themeColor('--green') || '#10B981';
+      const amberSolid = theme.amber || '#F59E0B';
       state.charts.categoryValue = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -6065,7 +6122,9 @@
               label: 'Giá trị',
               data: list.map(category => category.stockValue),
               yAxisID: 'value',
-              backgroundColor: themeColor('--green'),
+              backgroundColor: colorWithAlpha(greenSolid, 0.5),
+              borderColor: greenSolid,
+              borderWidth: 1.5,
               borderRadius: 5,
               maxBarThickness: 34
             },
@@ -6073,7 +6132,9 @@
               label: 'Số lượng',
               data: list.map(category => category.stock),
               yAxisID: 'quantity',
-              backgroundColor: theme.amber,
+              backgroundColor: colorWithAlpha(amberSolid, 0.5),
+              borderColor: amberSolid,
+              borderWidth: 1.5,
               borderRadius: 5,
               maxBarThickness: 34
             }
@@ -6809,24 +6870,32 @@
     });
 
     // Khoi phuc trang thai mo/dong nhom "Báo cáo tổng hợp" (mac dinh mo, khop
-    // hanh vi truoc khi co nhom cha) va nhom "Quản lý nhân sự" (mac dinh dong).
+    // hanh vi truoc khi co nhom cha), nhom "Quản lý nhân sự" va "Quản lý tài khoản".
     try {
       if (localStorage.getItem('tks-dashboard-nav-group-reports') === 'closed') toggleNavGroup('reports', false);
       if (localStorage.getItem('tks-dashboard-nav-group-hr') === 'open') toggleNavGroup('hr', true);
+      if (localStorage.getItem('tks-dashboard-nav-group-account') === 'open') toggleNavGroup('account', true);
     } catch (err) { }
 
     // Vao thang mot tab bao cao tu sidebar cua trang khac (vd /#products) —
     // cac trang khac dieu huong toi day bang hash roi trang nay tu chuyen view.
     const REPORT_VIEW_NAMES = ['overview', 'products', 'invoices', 'customers', 'suppliers', 'debt'];
-    (function applyReportViewFromHash() {
+    function applyReportViewFromHash() {
       const hashView = (window.location.hash || '').replace('#', '');
       if (REPORT_VIEW_NAMES.indexOf(hashView) !== -1) switchView(hashView);
-    })();
+    }
+    applyReportViewFromHash();
+    window.addEventListener('hashchange', applyReportViewFromHash);
 
     // Ranh gioi bao mat that su nam o server (authMiddleware tren /api/*).
     // authGuard() chi de dieu huong UX: redirect /login/ neu chua dang nhap,
     // roi moi hien noi dung (visibility:hidden duoc dat tu dau <head>).
-    TKSNav.authGuard();
+    TKSNav.authGuard().then(function(user){
+      if(user && user.vaiTro === 'Quản lý'){
+        var navUsers = document.getElementById('navAccountUsers');
+        if(navUsers) navUsers.style.display = 'flex';
+      }
+    });
 
     syncThemeControl();
     initSortableTables();

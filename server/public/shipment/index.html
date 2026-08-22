@@ -12,8 +12,8 @@
     document.documentElement.style.visibility = 'hidden';
   })();
 </script>
-<link rel="stylesheet" href="/shared/shared.css">
-<script src="/shared/shared-nav.js"></script>
+<link rel="stylesheet" href="/shared/shared.css?v=20260822">
+<script src="/shared/shared-nav.js?v=20260822"></script>
 <script src="/shared/three-interactions.js" defer></script>
 <script src="/shared/three-loading.js" defer></script>
 <style>
@@ -94,7 +94,7 @@
 
   <div class="shell">
     <div class="backdrop" id="backdrop" onclick="toggleSidebar()"></div>
-    <div class="sidebar" id="sidebar"></div>
+    <div class="sidebar" id="sidebar" data-tks-active-top="shipment"></div>
     <main class="content">
       <div class="lookup-wrap perspective-container">
         <!-- Panel điều hướng nội bộ — ẩn mặc định, JS hiện sau khi xác thực role -->
@@ -238,7 +238,6 @@
         .finally(function(){ submitBtn.disabled = false; submitBtn.textContent = 'Tìm kiếm'; });
     });
 
-    TKSNav.renderTopSidebar(document.getElementById('sidebar'), 'shipment');
     TKSNav.authGuard().then(function(user) {
       if (!user) return;
       // Hiển thị panel điều hướng nội bộ cho các vai trò nội bộ

@@ -22,8 +22,8 @@ app.use(express.static(path.join(__dirname, 'public'), {
       // Vendor lib (chart.umd.min.js, three.min.js) hiem khi doi thu cong
       res.setHeader('Cache-Control', 'public, max-age=86400'); // 1 ngay
     } else if (/\.(js|css)$/.test(filePath)) {
-      // /shared/*, /js/* — co the sua thuong xuyen hon vendor
-      res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 gio
+      // /shared/*, /js/* — luon revalidate de cap nhat UI tuc thi khi sua code
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
     } else if (/\.(png|jpg|jpeg|svg|webp|ico)$/.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=604800'); // 7 ngay
     }

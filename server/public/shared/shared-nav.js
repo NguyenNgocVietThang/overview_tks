@@ -517,12 +517,13 @@
       { view: 'overview', label: 'Tổng quan', icon: '<rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect>' },
       { view: 'products', label: 'Hàng hóa', icon: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73Z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path>' },
       { view: 'invoices', label: 'Hóa đơn', icon: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path>' },
-      { view: 'customers', label: 'Khách hàng', icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>' },
+      { view: 'customers', label: 'Khách hàng', icon: '<path d="M16 2v2"></path><path d="M8 2v2"></path><rect x="3" y="4" width="18" height="18" rx="2"></rect><circle cx="12" cy="11" r="3"></circle><path d="M8 18a4 4 0 0 1 8 0"></path>' },
       { view: 'suppliers', label: 'Nhà cung cấp', icon: '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path><path d="M10 6h4"></path><path d="M10 10h4"></path><path d="M10 14h4"></path><path d="M10 18h4"></path>' },
       { view: 'debt', label: 'Công nợ', icon: '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>' }
     ];
     var reportsExpanded = reportsActive || TKSNav._isNavGroupOpen('reports');
-    var reportsLink = user && user.vaiTro === 'Khách' ? '' :
+    var NO_REPORTS_ROLES = ['Khách', 'Lái xe', 'Kế toán', 'Trưởng kho'];
+    var reportsLink = user && NO_REPORTS_ROLES.indexOf(user.vaiTro) !== -1 ? '' :
       '<div class="nav-group">' +
         '<button type="button" class="nav-group-toggle' + (reportsActive ? ' has-active' : '') + '" id="tksReportsGroupToggle" data-tks-nav-group="reports" aria-expanded="' + reportsExpanded + '" aria-controls="tksReportsGroupList">' +
           '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="8" y1="18" x2="8" y2="14"></line><line x1="16" y1="18" x2="16" y2="16"></line></svg>' +
@@ -560,11 +561,35 @@
             'Nghỉ phép</a>' +
         '</div>' +
       '</div>';
+    // Nhom "Quan ly tai khoan" co the mo/dong, chua cac tab con (Quan ly ho so, Quan ly nguoi dung)
+    var accountExpanded = accountActive || TKSNav._isNavGroupOpen('account');
+    var currentPath = (typeof window !== 'undefined' && window.location.pathname) ? window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') : '';
+    var isAccountPage = (currentPath === '/account');
+    var accountHash = (isAccountPage && typeof window !== 'undefined' && window.location.hash) ? window.location.hash.replace('#', '') : '';
+    var isUsersTab = isAccountPage && (accountHash === 'users' || accountHash === 'adminUsers');
+    var isProfileTab = isAccountPage && !isUsersTab;
+
+    var accountUsersSubItem = (user && user.vaiTro === 'Quản lý') ?
+      '<a href="/account/#users" class="nav-item' + (isUsersTab ? ' active' : '') + '"' +
+        (isUsersTab ? ' aria-current="page"' : '') + ' data-account-subtab="users">' +
+        '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="15" r="3"></circle><circle cx="9" cy="7" r="4"></circle><path d="M10 15H6a4 4 0 0 0-4 4v2"></path><path d="m21.7 16.4-.9-.3"></path><path d="m15.2 13.9-.9-.3"></path><path d="m16.6 18.7.3-.9"></path><path d="m19.1 12.2.3-.9"></path><path d="m19.6 18.7-.4-.8"></path><path d="m16.8 12.3-.4-.8"></path><path d="m14.3 16.6.8-.4"></path><path d="m20.7 13.8.8-.4"></path></svg>' +
+        'Quản lý người dùng</a>' : '';
+
     var accountLink =
-      '<a href="/account/" class="nav-item' + (accountActive ? ' active' : '') + '"' +
-        (accountActive ? ' aria-current="page"' : '') + '>' +
-        '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>' +
-        'Quản lý tài khoản</a>';
+      '<div class="nav-group">' +
+        '<button type="button" class="nav-group-toggle' + (accountActive ? ' has-active' : '') + '" id="tksAccountGroupToggle" data-tks-nav-group="account" aria-expanded="' + accountExpanded + '" aria-controls="tksAccountGroupList">' +
+          '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.8 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>' +
+          '<span>Quản lý tài khoản</span>' +
+          '<svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
+        '</button>' +
+        '<div class="nav-group-list" id="tksAccountGroupList"' + (accountExpanded ? '' : ' hidden') + '>' +
+          '<a href="/account/#profile" class="nav-item' + (isProfileTab ? ' active' : '') + '"' +
+            (isProfileTab ? ' aria-current="page"' : '') + ' data-account-subtab="profile">' +
+            '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>' +
+            'Quản lý hồ sơ</a>' +
+          accountUsersSubItem +
+        '</div>' +
+      '</div>';
     mountEl.innerHTML = reportsLink + shipmentLink + hrLink + accountLink;
     if (typeof window !== 'undefined' && window.TKS3D && typeof window.TKS3D.refresh === 'function') {
       window.TKS3D.refresh(mountEl);
