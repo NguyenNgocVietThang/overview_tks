@@ -7,6 +7,15 @@ const os = require('os');
 const path = require('path');
 const EventEmitter = require('events');
 
+test('khong khoi dong bot Telegram o may local neu chua bat ro rang', () => {
+  const isEnabled = require('./hrTelegramBot').isTelegramBotRuntimeEnabled;
+
+  assert.equal(isEnabled?.({}), false);
+  assert.equal(isEnabled?.({ TELEGRAM_BOT_ENABLED: 'true' }), true);
+  assert.equal(isEnabled?.({ RENDER: 'true' }), true);
+  assert.equal(isEnabled?.({ RENDER: 'true', TELEGRAM_BOT_ENABLED: 'false' }), false);
+});
+
 test('doi Telegram gui cau hoi tiep theo xong moi hoan tat xu ly tin nhan', async () => {
   const telegramModulePath = require.resolve('node-telegram-bot-api');
   const botModulePath = require.resolve('./hrTelegramBot');

@@ -21,6 +21,13 @@ const {
 const conversationStore = require('./conversationStore');
 
 let botInstance = null;
+
+function isTelegramBotRuntimeEnabled(env = process.env) {
+  if (env.TELEGRAM_BOT_ENABLED != null) {
+    return String(env.TELEGRAM_BOT_ENABLED).toLowerCase() === 'true';
+  }
+  return String(env.RENDER).toLowerCase() === 'true';
+}
 const messageQueues = new Map();
 
 // Dedup: tranh xu ly cung 1 message_id 2 lan.
@@ -441,6 +448,7 @@ async function notifyLeaveDecision(chatId, { status, note, requestId }) {
 module.exports = {
   startHrTelegramBot,
   notifyLeaveDecision,
+  isTelegramBotRuntimeEnabled,
   __test__: {
     parseVietnameseDate,
     normalizeSession,
