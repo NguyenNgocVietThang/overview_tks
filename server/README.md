@@ -101,6 +101,7 @@ node scripts/setupHrSheet.js init
 | Method | Endpoint | Quyền | Mô tả |
 |---|---|---|---|
 | `GET` | `/api/hr/leave-requests` | Nội bộ | Danh sách đơn; `from`/`to` lọc theo `Thời gian gửi`. |
+| `GET` | `/api/hr/leave-requests/stream` | Nội bộ | Stream Server-Sent Events (SSE) đồng bộ real-time khi trạng thái đổi hoặc có đơn mới. |
 | `POST` | `/api/hr/leave-requests` | Quản lý | Ghi nhận nghỉ thủ công bằng ngày + buổi. |
 | `GET` | `/api/hr/leave-requests/:id` | Nội bộ | Xem chi tiết một yêu cầu. |
 | `PATCH` | `/api/hr/leave-requests/:id/status` | Quản lý | Cập nhật trạng thái và thông báo kết quả qua Telegram. |
@@ -108,7 +109,7 @@ node scripts/setupHrSheet.js init
 | `GET` | `/api/hr/leave-requests/summary/urgent-flags` | Nội bộ | Tổng hợp số lần nghỉ gấp theo tháng. |
 | `POST` | `/api/hr/telegram/link-code` | Nội bộ | Tạo mã liên kết Telegram cho tài khoản hiện tại. |
 
-Schema nghỉ phép dùng `Thời gian gửi`, `Thời gian bắt đầu/kết thúc` dạng `Sáng|Chiều dd/mm/yyyy`, `Tổng buổi nghỉ` và `Tổng ngày nghỉ quy đổi = số buổi / 2`. Chủ nhật không tính buổi nghỉ. Đơn gửi sau 07:45 (Sáng) hoặc 12:30 (Chiều) vẫn được lưu với trạng thái `Vi phạm`.
+Schema nghỉ phép dùng `Thời gian gửi`, `Thời gian bắt đầu/kết thúc` dạng `Sáng|Chiều dd/mm/yyyy`, `Tổng buổi nghỉ` và `Tổng ngày nghỉ quy đổi = số buổi / 2`. Đơn gửi sau 07:45 (Sáng) hoặc 12:30 (Chiều) vẫn được lưu với trạng thái `Vi phạm`.
 
 ### 2.5. Dashboard, Tìm kiếm & Tiện ích
 | Method | Endpoint | Quyền | Mô tả |

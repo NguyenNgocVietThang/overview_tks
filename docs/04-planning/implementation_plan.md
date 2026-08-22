@@ -137,7 +137,7 @@ server/                     ← Node.js/Express backend (Render.com)
 | 16    | Lớp hiệu ứng 3D Progressive Layer | Tích hợp Three.js r159 particle background, card 3D tilt, tactile buttons, 3D navigation, table staggered rows, 3D loading cube, adaptive performance monitor & memory disposal trên các trang chính | [Hoan thanh] |
 | 17    | Bộ kiểm thử tự động | Bộ **324 unit tests** chuẩn `node:test` bao phủ HR leave, Telegram bot, conversation store, Apps Script sync, auth/Guest/SĐT, Admin CRUD, OTP reset, tra cứu vận chuyển, State Machine 9 trạng thái, Repository VC, cache, pagination, excel export, và frontend | [Hoan thanh] |
 | 18    | Tối ưu hóa hiệu năng & Giảm lag (4 Phase) | (1) Gzip compression, Cache-Control static assets, script defer, fonts preconnect, gỡ 3D login/register; (2) rAF throttle `onCardHover`, scoped `TKS3D.refresh()`; (3) Phân trang 100 dòng/trang cho toàn bộ 13 bảng dữ liệu + lazy debt detail; (4) Backend cache 12s theo sheet `vcSheetsClient.js` kèm write invalidation, `vcBatchUpdate` cho `updateOrderItems`, 15s timeout cho Google Sheets API | [Hoan thanh] |
-| 19    | Phân hệ Quản lý Nghỉ phép HR & Telegram Bot | Nghỉ theo Sáng/Chiều, loại Chủ nhật, quy đổi số buổi/2, lọc theo thời gian gửi và ghi trạng thái `Vi phạm` khi gửi sau 07:45/12:30; đồng bộ Google Sheet, REST API, `/humanresources/`, Excel và Telegram Bot | [Hoan thanh] |
+| 19    | Phân hệ Quản lý Nghỉ phép HR & Telegram Bot | Nghỉ theo Sáng/Chiều, quy đổi số buổi/2, lọc theo thời gian gửi và ghi trạng thái `Vi phạm` khi gửi sau 07:45/12:30; đồng bộ Google Sheet, REST API, `/humanresources/`, Excel và Telegram Bot | [Hoan thanh] |
 
 ## 2.2. Tính năng đã vận hành
 

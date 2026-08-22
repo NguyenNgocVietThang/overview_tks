@@ -1,4 +1,4 @@
-﻿// ==========================================
+// ==========================================
 // HR TELEGRAM BOT -- nhan dien tin nhan xin nghi phep, ghi thang vao Google
 // Sheet nhan su qua hrLeaveRepository (khong qua hang doi Apps Script).
 //
@@ -18,6 +18,7 @@ const {
   formatLeaveBoundary,
   resolveSenderIdentity
 } = require('../hr/hrLeaveService');
+const { broadcastLeaveEvent, LEAVE_EVENT_TYPES } = require('../hr/hrLeaveEvents');
 const conversationStore = require('./conversationStore');
 
 let botInstance = null;
@@ -126,6 +127,9 @@ function startHrTelegramBot() {
 
   bot.on('polling_error', (err) => {
     console.warn('[HR Telegram Bot] Polling warning/error:', err.code || err.message);
+  });
+  bot.on('error', (err) => {
+    console.warn('[HR Telegram Bot] General error:', err.code || err.message);
   });
 
   bot.onText(/^\/start/, async msg => {
@@ -384,6 +388,8 @@ async function handleConversationStep(bot, chatId, conv, text) {
       return;
     }
     default:
+      resetConversation(chatId);
+      await bot.sendMessage(chatId, 'Phiên xin nghỉ không hợp lệ hoặc đã hết hạn. Vui lòng gõ /xinnghi để bắt đầu lại.');
       return;
   }
 }
@@ -420,6 +426,10 @@ async function submitLeaveRequest(bot, chatId, conv) {
   // Sheet da ghi thanh cong: dong phien ngay de nut xac nhan cu khong the tao
   // them dong trung neu Telegram tam thoi khong gui duoc tin thong bao.
   resetConversation(chatId);
+
+  // Phat tin hieu realtime toi tat ca cac client web dang mo
+  broadcastLeaveEvent(LEAVE_EVENT_TYPES.CREATED, record);
+
   const statusText = d.co_vi_pham
     ? 'Tr\u1ea1ng th\u00e1i: Vi ph\u1ea1m.'
     : 'Ch\u1edd Qu\u1ea3n l\u00fd ph\u00ea duy\u1ec7t.';

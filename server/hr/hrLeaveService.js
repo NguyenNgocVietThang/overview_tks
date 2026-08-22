@@ -10,15 +10,14 @@ const userRepository = require('../auth/userRepository');
 /**
  * Tinh so buoi nghi dua tren ngay + buoi bat dau/ket thuc.
  *
- * Moi ngay thuong co 2 buoi; Chu nhat bi bo qua hoan toan. Khoang tinh bao
- * gom ca buoi bat dau va buoi ket thuc.
+ * Moi ngay co 2 buoi (Sang va Chieu). Khoang tinh bao gom ca buoi bat dau
+ * va buoi ket thuc (bat dau o dau buoi bat dau, ket thuc o cuoi buoi ket thuc).
  *
  * @param {Date} startDate  - Doi tuong Date ngay bat dau (chi dung phan ngay)
  * @param {'Sáng'|'Chiều'} startSession - Buoi bat dau
  * @param {Date} endDate    - Doi tuong Date ngay ket thuc (chi dung phan ngay)
  * @param {'Sáng'|'Chiều'} endSession   - Buoi ket thuc
- * @returns {number|null}   - So buoi nguyen (co the bang 0 neu chi co Chu nhat),
- *                            hoac null neu thu tu/dau vao khong hop le
+ * @returns {number|null}   - So buoi nguyen, hoac null neu thu tu/dau vao khong hop le
  */
 function computeDurationSessions(startDate, startSession, endDate, endSession) {
   const sessionIndex = { 'Sáng': 0, 'Chiều': 1 };
@@ -37,7 +36,6 @@ function computeDurationSessions(startDate, startSession, endDate, endSession) {
 
   let totalSessions = 0;
   for (const day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) {
-    if (day.getDay() === 0) continue; // Chu nhat khong tinh phep.
     const firstSession = day.getTime() === start.getTime() ? sessionIndex[startSession] : 0;
     const lastSession = day.getTime() === end.getTime() ? sessionIndex[endSession] : 1;
     totalSessions += Math.max(0, lastSession - firstSession + 1);

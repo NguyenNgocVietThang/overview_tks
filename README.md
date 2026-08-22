@@ -100,12 +100,13 @@ webtks-dashboard/
 │   ├── data/
 │   │   └── users.json           # Dữ liệu tài khoản người dùng cục bộ (local backup)
 │   ├── hr/                      # Phân hệ Quản lý Nghỉ phép Nhân sự (HR Leave Management)
+│   │   ├── hrLeaveEvents.js     # EventEmitter singleton phát sự kiện SSE cập nhật realtime cho đơn nghỉ phép
 │   │   ├── hrLeaveExportService.js # Xuất báo cáo danh sách ngày nghỉ phép nhân sự ra Excel
 │   │   ├── hrLeaveRepository.js # Tầng truy xuất dữ liệu ngày phép từ Google Sheets HR_Leaves
 │   │   ├── hrLeaveRepository.test.js # Unit test schema, quy đổi và lọc theo thời gian gửi
-│   │   ├── hrLeaveRoutes.js     # API /api/hr/leave/* (nộp đơn, tra cứu số dư, duyệt/từ chối, xuất báo cáo)
+│   │   ├── hrLeaveRoutes.js     # API /api/hr/leave/* (nộp đơn, tra cứu số dư, duyệt/từ chối, stream SSE, xuất báo cáo)
 │   │   ├── hrLeaveRoutes.test.js # Unit test API nhập nghỉ theo ngày/buổi
-│   │   └── hrLeaveService.js    # Tính buổi nghỉ, loại Chủ nhật và kiểm tra mốc gửi 07:45/12:30
+│   │   └── hrLeaveService.js    # Tính buổi nghỉ theo Sáng/Chiều và kiểm tra mốc gửi 07:45/12:30
 │   ├── jobs/
 │   │   └── syncCustomerReport.js # Tác vụ đối soát toàn bộ 3 báo cáo lúc 07:00
 │   ├── public/                  # Frontend Live Dashboard, Vận chuyển & Quản lý tài khoản

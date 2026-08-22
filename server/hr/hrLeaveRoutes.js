@@ -22,6 +22,7 @@ const {
   formatLeaveBoundary
 } = require('./hrLeaveService');
 const { buildLeaveRequestsWorkbook } = require('./hrLeaveExportService');
+const { leaveEvents, LEAVE_EVENT_TYPES, broadcastLeaveEvent } = require('./hrLeaveEvents');
 
 // Xem duoc: moi vai tro noi bo (Khach khong duoc).
 const authInternal = [requireAuth, requireRole(...INTERNAL_ROLES)];
@@ -37,6 +38,47 @@ function handleError(res, err, context) {
   console.error(`${'='.repeat(context.length + 10)}`);
   return res.status(500).json({ error: 'Lỗi hệ thống, vui lòng thử lại sau.', code: err.code });
 }
+
+// ---------------------------------------------------------------------------
+// GET /api/hr/leave-requests/stream — Server-Sent Events (SSE) cap nhat realtime
+// ---------------------------------------------------------------------------
+// Dat TRUOC route /:id de tranh "stream" bi hieu nham la 1 request_id.
+
+router.get('/api/hr/leave-requests/stream', ...authInternal, (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no'
+  });
+
+  // Gui initial ping xac nhan ket noi thanh cong
+  res.write(': connected\n\n');
+
+  const onLeaveEvent = (payload) => {
+    try {
+      res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    } catch (err) {
+      // Client disconnect, khong can throw
+    }
+  };
+
+  leaveEvents.on('leave-event', onLeaveEvent);
+
+  // Heartbeat dinh ky de tranh timeout proxy / trinh duyet (25s)
+  const heartbeatTimer = setInterval(() => {
+    try {
+      res.write(': ping\n\n');
+    } catch (err) {
+      clearInterval(heartbeatTimer);
+    }
+  }, 25000);
+
+  req.on('close', () => {
+    leaveEvents.removeListener('leave-event', onLeaveEvent);
+    clearInterval(heartbeatTimer);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // GET /api/hr/leave-requests — danh sach, loc theo status/employee/from-to (thoi gian gui)
@@ -120,7 +162,7 @@ router.post('/api/hr/leave-requests', ...authManager, async (req, res) => {
     const totalSessions = computeDurationSessions(startDate, start_session, endDate, end_session);
     if (!startDate || !endDate || totalSessions == null || totalSessions <= 0) {
       return res.status(400).json({
-        error: 'Khoảng nghỉ không hợp lệ hoặc chỉ gồm Chủ nhật.',
+        error: 'Khoảng thời gian nghỉ không hợp lệ.',
         code: 'INVALID_LEAVE_RANGE'
       });
     }
@@ -143,6 +185,9 @@ router.post('/api/hr/leave-requests', ...authManager, async (req, res) => {
       co_tu_y_nghi: isManualAbsence
     });
     res.status(201).json({ request: record });
+
+    // Phat tin hieu realtime toi tat ca cac client dang mo
+    broadcastLeaveEvent(LEAVE_EVENT_TYPES.CREATED, record);
   } catch (err) {
     handleError(res, err, 'POST /api/hr/leave-requests');
   }
@@ -161,6 +206,9 @@ router.patch('/api/hr/leave-requests/:id/status', ...authManager, async (req, re
     const approver = resolveApproverName(req.user);
     const updated = await repo.updateLeaveRequestStatus(req.params.id, { status, approver, note });
     res.status(200).json({ request: updated });
+
+    // Phat tin hieu realtime toi tat ca cac client dang mo
+    broadcastLeaveEvent(LEAVE_EVENT_TYPES.STATUS_CHANGED, updated);
 
     // Bao Telegram best-effort, KHONG duoc lam hong response da tra o tren.
     if (updated.telegram_chat_id) {

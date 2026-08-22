@@ -11,7 +11,7 @@ Tab yêu cầu nghỉ phép bỏ hai cột `Tổng giờ nghỉ` và mô hình n
 - `Thời gian gửi`: thời điểm bot nhận lệnh `/xinnghi`, lưu dạng ISO để lọc và sắp xếp ổn định; web định dạng lại theo múi giờ người dùng.
 - `Thời gian bắt đầu`: chuỗi `Sáng dd/mm/yyyy` hoặc `Chiều dd/mm/yyyy`.
 - `Thời gian kết thúc`: chuỗi `Sáng dd/mm/yyyy` hoặc `Chiều dd/mm/yyyy`.
-- `Tổng buổi nghỉ`: số buổi nguyên sau khi loại trừ Chủ nhật.
+- `Tổng buổi nghỉ`: số buổi nguyên từ đầu buổi bắt đầu đến cuối buổi kết thúc.
 - `Tổng ngày nghỉ quy đổi`: `Tổng buổi nghỉ / 2`.
 
 Các cột nhận dạng người gửi, lý do, bàn giao, phê duyệt, cờ nghỉ gấp, cờ tự ý nghỉ và audit vẫn được giữ. Script `setupHrSheet.js` sử dụng đúng schema mới; việc chạy chế độ reset trên Google Sheet thật là thao tác phá hủy riêng và không nằm trong lần sửa code này.
@@ -20,19 +20,20 @@ Các cột nhận dạng người gửi, lý do, bàn giao, phê duyệt, cờ n
 
 `computeDurationSessions(startDate, startSession, endDate, endSession)` trả về số **buổi**, không trả về số ngày.
 
-- Mỗi ngày có hai slot: Sáng và Chiều.
-- Khoảng tính bao gồm slot bắt đầu và slot kết thúc.
-- Bỏ toàn bộ slot thuộc Chủ nhật; thứ Bảy vẫn được tính.
-- Ngày kết thúc trước ngày bắt đầu hoặc Chiều → Sáng trong cùng ngày là không hợp lệ.
-- Khoảng chỉ chứa Chủ nhật cho kết quả 0 và bot yêu cầu nhập lại, không cho sang bước bàn giao/xác nhận.
+- Mỗi ngày có hai buổi: Sáng và Chiều.
+- Khoảng tính bao gồm từ đầu buổi bắt đầu đến cuối buổi kết thúc.
+- Ngày kết thúc trước ngày bắt đầu hoặc Chiều → Sáng trong cùng ngày là không hợp lệ (trả về `null`).
 - Số ngày quy đổi luôn bằng số buổi chia 2.
 
 Ví dụ:
 
-- Sáng → Sáng cùng ngày thường: 1 buổi, 0,5 ngày.
-- Sáng → Chiều cùng ngày thường: 2 buổi, 1 ngày.
-- Chiều thứ Bảy → Sáng thứ Hai: 2 buổi vì Chủ nhật bị loại.
-- Sáng 22/08/2026 → Chiều 25/08/2026: tính các slot không thuộc Chủ nhật trong khoảng.
+- Sáng → Sáng cùng ngày: 1 buổi (0,5 ngày).
+- Chiều → Chiều cùng ngày: 1 buổi (0,5 ngày).
+- Sáng → Chiều cùng ngày: 2 buổi (1 ngày).
+- Chiều hôm trước → Sáng hôm sau: 2 buổi (1 ngày).
+- Sáng hôm trước → Chiều hôm sau: 4 buổi (2 ngày).
+- Chiều hôm nay → Sáng 2 ngày sau: 4 buổi (2 ngày).
+- Sáng 22/08/2026 → Chiều 25/08/2026: 8 buổi (4 ngày).
 
 ## Luồng Telegram
 
@@ -75,7 +76,7 @@ Parser ngày kiểm tra ngày lịch thực tế, nên các giá trị như `31/
 
 ## Kiểm thử
 
-- Unit test bảng trường hợp tính buổi, gồm Chủ nhật, khoảng chỉ Chủ nhật, thứ Bảy → thứ Hai và đầu vào không hợp lệ.
+- Unit test bảng trường hợp tính buổi: Sáng-Sáng, Chiều-Chiều, Sáng-Chiều cùng ngày, Chiều hôm trước - Sáng hôm sau, nhiều ngày liên tiếp và các trường hợp đầu vào không hợp lệ.
 - Unit test mốc 07:45/12:30, gồm trước, bằng và sau mốc; xác nhận trạng thái `Vi phạm` vẫn được ghi.
 - Test parser ngày, chuẩn hóa buổi, deduplicate giữa `onText` và handler `message`, và queue theo chat.
 - Test khôi phục `startDate`/`endDate` sau khi reload store.
@@ -85,5 +86,4 @@ Parser ngày kiểm tra ngày lịch thực tế, nên các giá trị như `31/
 ## Ngoài phạm vi
 
 - Không tự chạy reset hoặc xóa dữ liệu trên Google Sheet thật.
-- Không loại trừ thứ Bảy, ngày lễ hoặc ngày nghỉ công ty; chỉ loại trừ Chủ nhật.
 - Không chuyển đổi lịch sử dữ liệu theo giờ sang dữ liệu theo buổi.

@@ -96,6 +96,44 @@
   .status-pill.leave-rejected{ background:var(--status-locked-bg); color:var(--red); }
   .status-pill.leave-violation{ background:var(--status-locked-bg); color:var(--red); border:1px solid color-mix(in srgb, var(--red) 35%, transparent); }
 
+  .status-select{
+    display:inline-flex; align-items:center; padding:3px 24px 3px 10px; border-radius:var(--radius-pill);
+    font-family:var(--font-body); font-size:11.5px; font-weight:600; cursor:pointer;
+    border:1px solid transparent; outline:none; transition:all .15s ease;
+    appearance:none; -webkit-appearance:none; -moz-appearance:none;
+    background-repeat:no-repeat; background-position:right 7px center; background-size:11px 11px;
+  }
+  .status-select:focus{ box-shadow:0 0 0 2px var(--blue); }
+  .status-select:disabled{ opacity:0.6; cursor:not-allowed; }
+  .status-select option{ background:var(--panel); color:var(--text); font-weight:500; }
+
+  .status-select.leave-pending{
+    background-color:var(--status-pending-bg); color:var(--amber);
+    border-color:color-mix(in srgb, var(--amber) 40%, transparent);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23F59E0B' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .status-select.leave-approved{
+    background-color:var(--status-active-bg); color:var(--green);
+    border-color:color-mix(in srgb, var(--green) 40%, transparent);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310B981' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .status-select.leave-rejected{
+    background-color:var(--status-locked-bg); color:var(--red);
+    border-color:color-mix(in srgb, var(--red) 40%, transparent);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23EF4444' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .status-select.leave-provisional{
+    background-color:var(--accent-blue-12); color:var(--blue);
+    border-color:color-mix(in srgb, var(--blue) 40%, transparent);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233B82F6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+
+  @keyframes rowPulseHighlight {
+    0% { background-color:color-mix(in srgb, var(--blue) 28%, transparent); }
+    100% { background-color:transparent; }
+  }
+  .row-highlight-update{ animation:rowPulseHighlight 2.5s ease-out; }
+
   .urgent-badge{
     display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:var(--radius-pill);
     font-size:10.5px; font-weight:700; background:var(--status-pending-bg); color:var(--amber); margin-left:6px;
@@ -314,13 +352,12 @@
                   <th>Thời gian nghỉ</th>
                   <th>Tổng buổi / ngày</th>
                   <th>Người bàn giao</th>
-                  <th>Trạng thái</th>
                   <th>Người duyệt</th>
-                  <th>Hành động</th>
+                  <th>Trạng thái</th>
                 </tr>
               </thead>
               <tbody id="leaveTableBody">
-                <tr class="empty-row"><td colspan="10">Đang tải dữ liệu...</td></tr>
+                <tr class="empty-row"><td colspan="9">Đang tải dữ liệu...</td></tr>
               </tbody>
             </table>
           </div>
@@ -395,27 +432,6 @@
         </div>
       </div>
     </main>
-  </div>
-
-  <!-- Modal: duyet/tam duyet/tu choi -->
-  <div class="modal-overlay" id="decisionModal" hidden>
-    <div class="modal-box">
-      <div class="modal-header">
-        <h3 id="decisionModalTitle">Cập nhật trạng thái</h3>
-        <button type="button" class="modal-close" onclick="closeModal('decisionModal')">✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label for="decisionNote">Ghi chú (tùy chọn, hiển thị lý do từ chối nếu có)</label>
-          <textarea id="decisionNote" class="form-control" rows="3"></textarea>
-        </div>
-        <div id="decisionModalMsg" class="alert-box alert-error" style="display:none;"></div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-mini" onclick="closeModal('decisionModal')">Hủy</button>
-        <button type="button" class="btn-primary" id="btnConfirmDecision" onclick="submitDecision()">Xác nhận</button>
-      </div>
-    </div>
   </div>
 
   <!-- Modal: ghi nhan tu y nghi -->
@@ -592,7 +608,7 @@
     // ---------- Load danh sach ----------
     function handleFilterChange(){ loadLeaveRequests(); }
 
-    async function loadLeaveRequests(){
+    async function loadLeaveRequests(silent){
       const tbody = document.getElementById('leaveTableBody');
       const status = document.getElementById('statusFilter').value;
       const employee = document.getElementById('employeeSearchInput').value.trim();
@@ -609,7 +625,7 @@
         const res = await fetch(`/api/hr/leave-requests?${params.toString()}`, { credentials: 'same-origin' });
         const { ok, data } = await parseApiResponse(res);
         if(!ok){
-          tbody.innerHTML = `<tr class="empty-row"><td colspan="10">${escapeHtml(data.error || 'Không tải được danh sách.')}</td></tr>`;
+          if(!silent) tbody.innerHTML = `<tr class="empty-row"><td colspan="9">${escapeHtml(data.error || 'Không tải được danh sách.')}</td></tr>`;
           return;
         }
         rawLeaveRequests = data.requests || [];
@@ -618,7 +634,7 @@
         renderCharts(rawLeaveRequests);
         loadUrgentSummary();
       }catch(err){
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Lỗi kết nối máy chủ.</td></tr>';
+        if(!silent) tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Lỗi kết nối máy chủ.</td></tr>';
       }
     }
 
@@ -646,7 +662,7 @@
     function renderTable(requests){
       const tbody = document.getElementById('leaveTableBody');
       if(!requests.length){
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Chưa có yêu cầu nghỉ phép nào.</td></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Chưa có yêu cầu nghỉ phép nào.</td></tr>';
         return;
       }
       const isManager = currentUser && currentUser.vaiTro === 'Quản lý';
@@ -655,18 +671,23 @@
         const urgentEntry = urgentSummaryByUsername[r.web_username || r.ho_ten];
         const urgentBadge = (urgentEntry && urgentEntry.isOverThreshold)
           ? `<span class="urgent-badge" title="Nghỉ gấp ${urgentEntry.count} lần trong tháng">⚠ ${urgentEntry.count} lần nghỉ gấp</span>` : '';
-        const isPendingLike = r.trang_thai === 'Chưa duyệt' || r.trang_thai === 'Tạm duyệt';
-        const actions = isManager && isPendingLike ? `
-          <div class="row-actions">
-            <button class="btn-mini provisional" onclick="openDecisionModal('${r.request_id}', 'Tạm duyệt')">Tạm duyệt</button>
-            <button class="btn-mini approve" onclick="openDecisionModal('${r.request_id}', 'Đã duyệt')">Duyệt</button>
-            <button class="btn-mini reject" onclick="openDecisionModal('${r.request_id}', 'Từ chối')">Từ chối</button>
-          </div>` : (isManager && r.trang_thai !== 'Vi phạm' ? `
-          <div class="row-actions">
-            <button class="btn-mini" onclick="openDecisionModal('${r.request_id}', 'Chưa duyệt')">Mở lại</button>
-          </div>` : '—');
 
-        return `<tr>
+        let statusHtml = '';
+        if (isManager && r.trang_thai !== 'Vi phạm') {
+          const options = ['Chưa duyệt', 'Đã duyệt', 'Từ chối'];
+          if (r.trang_thai === 'Tạm duyệt' && !options.includes('Tạm duyệt')) {
+            options.splice(1, 0, 'Tạm duyệt');
+          }
+          statusHtml = `
+            <select class="status-select ${statusClass}" data-request-id="${escapeHtml(r.request_id)}" data-prev-status="${escapeHtml(r.trang_thai)}" onchange="handleStatusSelectChange(this, '${escapeHtml(r.request_id)}')" aria-label="Trạng thái cho đơn ${escapeHtml(r.request_id)}">
+              ${options.map(opt => `<option value="${escapeHtml(opt)}"${opt === r.trang_thai ? ' selected' : ''}>${escapeHtml(opt)}</option>`).join('')}
+            </select>
+          `;
+        } else {
+          statusHtml = `<span class="status-pill ${statusClass}">${escapeHtml(r.trang_thai)}</span>`;
+        }
+
+        return `<tr id="leave-row-${escapeHtml(r.request_id)}">
           <td>${escapeHtml(r.request_id)}${r.co_nghi_gap === true || r.co_nghi_gap === 'TRUE' ? ' <span class="urgent-badge">Nghỉ gấp</span>' : ''}</td>
           <td>${escapeHtml(r.ho_ten)}${r.chuc_vu ? ` - <span style="color:var(--muted); font-size:11.5px;">${escapeHtml(r.chuc_vu)}</span>` : ''}${urgentBadge}</td>
           <td data-sort-value="${new Date(r.thoi_gian_gui).getTime() || ''}">${formatDateTime(r.thoi_gian_gui)}</td>
@@ -674,46 +695,61 @@
           <td data-sort-value="${leaveBoundaryToTimestamp(r.thoi_gian_bat_dau)}">${escapeHtml(r.thoi_gian_bat_dau) || '—'}<br>→ ${escapeHtml(r.thoi_gian_ket_thuc) || '—'}</td>
           <td data-sort-value="${r.tong_buoi_nghi || ''}">${r.tong_buoi_nghi || '—'} buổi (${fmtSoNgay(r.tong_ngay_nghi)} ngày)</td>
           <td>${escapeHtml(r.nguoi_ban_giao) || '—'}</td>
-          <td><span class="status-pill ${statusClass}">${escapeHtml(r.trang_thai)}</span></td>
-          <td>${escapeHtml(r.nguoi_duyet) || '—'}</td>
-          <td>${actions}</td>
+          <td class="approver-cell">${escapeHtml(r.nguoi_duyet) || '—'}</td>
+          <td data-sort-value="${escapeHtml(r.trang_thai)}">${statusHtml}</td>
         </tr>`;
       }).join('');
       applyActiveTableSorts();
     }
 
-    // ---------- Duyet/tam duyet/tu choi ----------
-    function openDecisionModal(id, status){
-      pendingDecision = { id, status };
-      document.getElementById('decisionModalTitle').textContent = `Đổi trạng thái: ${status}`;
-      document.getElementById('decisionNote').value = '';
-      document.getElementById('decisionModalMsg').style.display = 'none';
-      openModal('decisionModal');
-    }
+    // ---------- Quan ly doi trang thai truc tiep bang select ----------
+    async function handleStatusSelectChange(selectEl, requestId){
+      const prevStatus = selectEl.dataset.prevStatus;
+      const newStatus = selectEl.value;
+      if(prevStatus === newStatus) return;
 
-    async function submitDecision(){
-      if(!pendingDecision) return;
-      const note = document.getElementById('decisionNote').value.trim();
-      const msgEl = document.getElementById('decisionModalMsg');
+      selectEl.disabled = true;
+      selectEl.className = `status-select ${STATUS_CLASS[newStatus] || 'leave-pending'}`;
+
       try{
-        const res = await fetch(`/api/hr/leave-requests/${encodeURIComponent(pendingDecision.id)}/status`, {
+        const res = await fetch(`/api/hr/leave-requests/${encodeURIComponent(requestId)}/status`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'same-origin',
-          body: JSON.stringify({ status: pendingDecision.status, note })
+          body: JSON.stringify({ status: newStatus })
         });
         const { ok, data } = await parseApiResponse(res);
         if(!ok){
-          msgEl.textContent = data.error || 'Cập nhật thất bại.';
-          msgEl.style.display = 'block';
+          selectEl.value = prevStatus;
+          selectEl.className = `status-select ${STATUS_CLASS[prevStatus] || 'leave-pending'}`;
+          showToast(data.error || 'Cập nhật trạng thái thất bại.', 'error');
           return;
         }
-        closeModal('decisionModal');
-        showToast('Đã cập nhật trạng thái yêu cầu nghỉ phép.', 'success');
-        loadLeaveRequests();
+
+        selectEl.dataset.prevStatus = newStatus;
+        showToast(`Đã chuyển đơn "${requestId}" sang "${newStatus}".`, 'success');
+
+        const reqIndex = rawLeaveRequests.findIndex(r => r.request_id === requestId);
+        if(reqIndex !== -1 && data.request){
+          rawLeaveRequests[reqIndex] = { ...rawLeaveRequests[reqIndex], ...data.request };
+        }
+
+        const rowEl = document.getElementById(`leave-row-${requestId}`);
+        if(rowEl){
+          const approverCell = rowEl.querySelector('.approver-cell');
+          if(approverCell) approverCell.textContent = (data.request && data.request.nguoi_duyet) || (newStatus === 'Chưa duyệt' ? '—' : (currentUser && (currentUser.hoTen || currentUser.username)) || '—');
+          const statusCell = selectEl.closest('td');
+          if(statusCell) statusCell.setAttribute('data-sort-value', newStatus);
+        }
+
+        renderStats(rawLeaveRequests);
+        renderCharts(rawLeaveRequests);
       }catch(err){
-        msgEl.textContent = 'Lỗi kết nối máy chủ.';
-        msgEl.style.display = 'block';
+        selectEl.value = prevStatus;
+        selectEl.className = `status-select ${STATUS_CLASS[prevStatus] || 'leave-pending'}`;
+        showToast('Lỗi kết nối máy chủ.', 'error');
+      }finally{
+        selectEl.disabled = false;
       }
     }
 
@@ -926,7 +962,7 @@
       const fromDate = document.getElementById('fromDateFilter').value;
       const toDate = document.getElementById('toDateFilter').value;
       const leaveSort = state.tableSorts['leaveTableBody'];
-      const SORT_FIELD_BY_COLUMN = ['request_id', 'ho_ten', 'thoi_gian_gui', 'ly_do', 'thoi_gian_bat_dau', 'tong_buoi_nghi', 'nguoi_ban_giao', 'trang_thai', 'nguoi_duyet'];
+      const SORT_FIELD_BY_COLUMN = ['request_id', 'ho_ten', 'thoi_gian_gui', 'ly_do', 'thoi_gian_bat_dau', 'tong_buoi_nghi', 'nguoi_ban_giao', 'nguoi_duyet', 'trang_thai'];
       const payload = { status, employee, from: fromDate, to: toDate };
       if(leaveSort && SORT_FIELD_BY_COLUMN[leaveSort.columnIndex]){
         payload.sortField = SORT_FIELD_BY_COLUMN[leaveSort.columnIndex];
@@ -1248,6 +1284,75 @@
       renderChucVuCharts(requests);
     }
 
+    // ---------- Real-time (SSE) cap nhat tu dong khong can reload ----------
+    let leaveEventSource = null;
+
+    function setupLeaveRealtimeStream(){
+      if(!window.EventSource) return;
+      if(leaveEventSource){
+        try{ leaveEventSource.close(); }catch(e){}
+        leaveEventSource = null;
+      }
+
+      try{
+        leaveEventSource = new EventSource('/api/hr/leave-requests/stream');
+
+        leaveEventSource.onmessage = function(event){
+          if(!event.data) return;
+          try{
+            const payload = JSON.parse(event.data);
+            if(!payload || !payload.type) return;
+
+            if(payload.type === 'LEAVE_STATUS_CHANGED' && payload.data){
+              const updated = payload.data;
+              const reqIndex = rawLeaveRequests.findIndex(r => r.request_id === updated.request_id);
+              if(reqIndex !== -1){
+                rawLeaveRequests[reqIndex] = { ...rawLeaveRequests[reqIndex], ...updated };
+              } else {
+                rawLeaveRequests.unshift(updated);
+              }
+              renderStats(rawLeaveRequests);
+              renderCharts(rawLeaveRequests);
+              renderTable(rawLeaveRequests);
+
+              // Hieu ung highlight dong du lieu vua thay doi
+              const rowEl = document.getElementById(`leave-row-${updated.request_id}`);
+              if(rowEl){
+                rowEl.classList.remove('row-highlight-update');
+                void rowEl.offsetWidth;
+                rowEl.classList.add('row-highlight-update');
+              }
+            } else if(payload.type === 'LEAVE_REQUEST_CREATED' && payload.data){
+              const created = payload.data;
+              const reqIndex = rawLeaveRequests.findIndex(r => r.request_id === created.request_id);
+              if(reqIndex === -1){
+                rawLeaveRequests.unshift(created);
+              } else {
+                rawLeaveRequests[reqIndex] = { ...rawLeaveRequests[reqIndex], ...created };
+              }
+              renderStats(rawLeaveRequests);
+              renderCharts(rawLeaveRequests);
+              renderTable(rawLeaveRequests);
+
+              // Hieu ung highlight don moi
+              const rowEl = document.getElementById(`leave-row-${created.request_id}`);
+              if(rowEl){
+                rowEl.classList.remove('row-highlight-update');
+                void rowEl.offsetWidth;
+                rowEl.classList.add('row-highlight-update');
+              }
+            }
+          }catch(err){ /* parse error */ }
+        };
+
+        leaveEventSource.onerror = function(){
+          // EventSource tu dong ket noi lai khi gap su co mang
+        };
+      }catch(err){
+        console.warn('Real-time SSE init failed:', err);
+      }
+    }
+
     // ---------- Init ----------
     window.addEventListener('DOMContentLoaded', () => {
       syncThemeControl();
@@ -1263,8 +1368,15 @@
           initSortableTables();
           loadLeaveRequests();
           loadLinkStatus();
+          setupLeaveRealtimeStream();
         });
       }
+
+      document.addEventListener('visibilitychange', () => {
+        if(document.visibilityState === 'visible'){
+          loadLeaveRequests(true /* silent */);
+        }
+      });
     });
   </script>
   <!-- 3D Background Particle System -->

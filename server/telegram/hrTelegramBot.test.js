@@ -312,31 +312,37 @@ test('submitLeaveRequest giu phien khi ghi Sheet that bai de nguoi dung thu lai'
   }
 });
 
-test('computeDurationSessions tra so buoi va loai tru Chu nhat', () => {
+test('computeDurationSessions tinh dung so buoi theo moc bat dau va ket thuc', () => {
   const { computeDurationSessions } = require('../hr/hrLeaveService');
 
   const d = (y, m, day) => new Date(y, m - 1, day);
 
-  // Thu Bay 22/08/2026 van la ngay lam viec.
+  // Sang - Sang cung ngay: 1 buoi (0.5 ngay)
   assert.equal(computeDurationSessions(d(2026,8,22), 'S\u00e1ng', d(2026,8,22), 'S\u00e1ng'), 1);
 
+  // Chieu - Chieu cung ngay: 1 buoi (0.5 ngay)
   assert.equal(computeDurationSessions(d(2026,8,22), 'Chi\u1ec1u', d(2026,8,22), 'Chi\u1ec1u'), 1);
 
+  // Sang - Chieu cung ngay: 2 buoi (1 ngay)
   assert.equal(computeDurationSessions(d(2026,8,22), 'S\u00e1ng', d(2026,8,22), 'Chi\u1ec1u'), 2);
 
   // Chieu - Sang cung ngay: khong hop le
   assert.equal(computeDurationSessions(d(2026,8,22), 'Chi\u1ec1u', d(2026,8,22), 'S\u00e1ng'), null);
 
-  // Chu nhat 23/08 bi loai: Chieu Thu Bay + Sang Thu Hai = 2 buoi.
-  assert.equal(computeDurationSessions(d(2026,8,22), 'Chi\u1ec1u', d(2026,8,24), 'S\u00e1ng'), 2);
+  // Chieu hom truoc -> Sang hom sau (vd: Chieu 23/08 -> Sang 24/08): 2 buoi (1 ngay)
+  assert.equal(computeDurationSessions(d(2026,8,23), 'Chi\u1ec1u', d(2026,8,24), 'S\u00e1ng'), 2);
 
-  assert.equal(computeDurationSessions(d(2026,8,22), 'S\u00e1ng', d(2026,8,24), 'Chi\u1ec1u'), 4);
+  // Sang 22/08 -> Chieu 23/08: 4 buoi (2 ngay)
+  assert.equal(computeDurationSessions(d(2026,8,22), 'S\u00e1ng', d(2026,8,23), 'Chi\u1ec1u'), 4);
 
-  // Khoang chi co Chu nhat khong co buoi nghi hop le.
-  assert.equal(computeDurationSessions(d(2026,8,23), 'S\u00e1ng', d(2026,8,23), 'Chi\u1ec1u'), 0);
+  // Chieu hom nay -> Sang 2 ngay sau (22/08 Chieu -> 24/08 Sang): 4 buoi (2 ngay)
+  assert.equal(computeDurationSessions(d(2026,8,22), 'Chi\u1ec1u', d(2026,8,24), 'S\u00e1ng'), 4);
 
-  // 22 -> 25/08 co mot Chu nhat: Thu Bay, Thu Hai, Thu Ba = 6 buoi.
-  assert.equal(computeDurationSessions(d(2026,8,22), 'S\u00e1ng', d(2026,8,25), 'Chi\u1ec1u'), 6);
+  // Sang 22/08 -> Chieu 24/08: 6 buoi (3 ngay)
+  assert.equal(computeDurationSessions(d(2026,8,22), 'S\u00e1ng', d(2026,8,24), 'Chi\u1ec1u'), 6);
+
+  // Sang 22/08 -> Chieu 25/08: 8 buoi (4 ngay)
+  assert.equal(computeDurationSessions(d(2026,8,22), 'S\u00e1ng', d(2026,8,25), 'Chi\u1ec1u'), 8);
 
   // Ngay ket thuc truoc ngay bat dau: null
   assert.equal(computeDurationSessions(d(2026,8,25), 'Sáng', d(2026,8,22), 'Chiều'), null);
