@@ -47,6 +47,7 @@
         }
         document.documentElement.style.visibility = '';
         TKSNav.renderAccountChip(user);
+        TKSNav.renderNotifBell(user);
         return user;
       })
       .catch(function(){
@@ -81,6 +82,143 @@
     mount.querySelector('#tksProfileTrigger').addEventListener('click', function(){
       window.location.href = '/account/';
     });
+  };
+
+  // ---------- Chuong thong bao (dung chung moi trang, dat canh accountChip) ----------
+  var notifPollTimer = null;
+
+  /**
+   * Chen nut chuong + dropdown ngay truoc phan tu #accountChip. Khong can sua
+   * HTML tung trang vi #accountChip da co san o moi trang noi bo. Poll
+   * /api/notifications/unread-count moi 30s (khong co ha tang websocket).
+   */
+  TKSNav.renderNotifBell = function renderNotifBell(user){
+    var chipMount = document.getElementById('accountChip');
+    if(!chipMount || !chipMount.parentNode) return;
+    if(document.getElementById('tksNotifBell')) return;
+
+    var wrap = document.createElement('div');
+    wrap.className = 'tks-notif-wrap';
+    wrap.id = 'tksNotifBell';
+    wrap.innerHTML =
+      '<button type="button" class="tks-notif-bell" id="tksNotifBellBtn" aria-label="Thông báo" aria-haspopup="true" aria-expanded="false">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>' +
+        '<span class="tks-notif-badge" id="tksNotifBadge" hidden>0</span>' +
+      '</button>' +
+      '<div class="tks-notif-dropdown" id="tksNotifDropdown" hidden>' +
+        '<div class="tks-notif-dropdown-header">' +
+          '<span>Thông báo</span>' +
+          '<button type="button" class="tks-notif-mark-all" id="tksNotifMarkAll">Đánh dấu đã đọc</button>' +
+        '</div>' +
+        '<div class="tks-notif-list" id="tksNotifList"><p class="tks-notif-empty">Đang tải...</p></div>' +
+      '</div>';
+    chipMount.parentNode.insertBefore(wrap, chipMount);
+
+    var btn = wrap.querySelector('#tksNotifBellBtn');
+    var dropdown = wrap.querySelector('#tksNotifDropdown');
+    var badge = wrap.querySelector('#tksNotifBadge');
+    var list = wrap.querySelector('#tksNotifList');
+    var markAllBtn = wrap.querySelector('#tksNotifMarkAll');
+    var isOpen = false;
+
+    function renderBadge(count){
+      if(count > 0){
+        badge.textContent = count > 99 ? '99+' : String(count);
+        badge.hidden = false;
+      } else {
+        badge.hidden = true;
+      }
+    }
+
+    function refreshCount(){
+      fetch('/api/notifications/unread-count', { credentials: 'same-origin' })
+        .then(function(res){ return res.ok ? res.json() : { count: 0 }; })
+        .then(function(data){ renderBadge(data.count || 0); })
+        .catch(function(){});
+    }
+
+    function escapeHtml(str){
+      return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function renderList(notifications){
+      if(!notifications.length){
+        list.innerHTML = '<p class="tks-notif-empty">Không có thông báo nào.</p>';
+        return;
+      }
+      list.innerHTML = notifications.map(function(n){
+        var actions = '';
+        if(n.type === 'role_change_request' && !n.isRead && user.vaiTro === 'Quản lý'){
+          actions =
+            '<div class="tks-notif-actions">' +
+              '<button type="button" class="tks-notif-approve" data-request-id="' + escapeHtml(n.relatedId) + '">Duyệt</button>' +
+              '<button type="button" class="tks-notif-reject" data-request-id="' + escapeHtml(n.relatedId) + '">Từ chối</button>' +
+            '</div>';
+        }
+        return '<div class="tks-notif-item' + (n.isRead ? '' : ' unread') + '" data-notif-id="' + n.id + '">' +
+          '<p class="tks-notif-item-title">' + escapeHtml(n.title) + '</p>' +
+          '<p class="tks-notif-item-msg">' + escapeHtml(n.message) + '</p>' +
+          actions +
+        '</div>';
+      }).join('');
+    }
+
+    function loadList(){
+      fetch('/api/notifications', { credentials: 'same-origin' })
+        .then(function(res){ return res.json(); })
+        .then(function(data){ renderList(data.notifications || []); })
+        .catch(function(){ list.innerHTML = '<p class="tks-notif-empty">Không tải được thông báo.</p>'; });
+    }
+
+    function closeDropdown(){
+      dropdown.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+      isOpen = false;
+    }
+    function openDropdown(){
+      dropdown.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+      isOpen = true;
+      loadList();
+    }
+
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      if(isOpen) closeDropdown(); else openDropdown();
+    });
+    document.addEventListener('click', function(e){
+      if(isOpen && !wrap.contains(e.target)) closeDropdown();
+    });
+
+    markAllBtn.addEventListener('click', function(){
+      fetch('/api/notifications/read-all', { method: 'PATCH', credentials: 'same-origin' })
+        .then(function(){ refreshCount(); loadList(); })
+        .catch(function(){});
+    });
+
+    list.addEventListener('click', function(e){
+      var approveBtn = e.target.closest && e.target.closest('.tks-notif-approve');
+      var rejectBtn = e.target.closest && e.target.closest('.tks-notif-reject');
+      var actionBtn = approveBtn || rejectBtn;
+      if(!actionBtn) return;
+      var requestId = actionBtn.dataset.requestId;
+      var status = approveBtn ? 'Đã duyệt' : 'Từ chối';
+      actionBtn.disabled = true;
+      fetch('/api/role-requests/' + requestId + '/status', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: status })
+      })
+        .then(function(res){ return res.json(); })
+        .then(function(){ loadList(); refreshCount(); })
+        .catch(function(){ actionBtn.disabled = false; });
+    });
+
+    refreshCount();
+    if(notifPollTimer) window.clearInterval(notifPollTimer);
+    notifPollTimer = window.setInterval(refreshCount, 30000);
   };
 
   // ---------- Modal Ho so ca nhan (dung chung moi trang) ----------

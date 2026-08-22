@@ -342,6 +342,55 @@ body{
 .profile-trigger .who .name{ font-weight:600; color:var(--text); }
 .profile-trigger .who .role{ color:var(--muted); font-size:11px; }
 
+/* ---------- Chuong thong bao (dung chung moi trang) ---------- */
+.tks-notif-wrap{ position:relative; }
+.tks-notif-bell{
+  position:relative; display:flex; align-items:center; justify-content:center;
+  width:40px; height:40px; padding:0;
+  background:var(--panel-2); border:1px solid var(--border); border-radius:10px;
+  cursor:pointer; color:var(--text);
+  transition:border-color .15s ease, background-color .15s ease, transform .15s ease;
+}
+.tks-notif-bell:hover{ border-color:var(--muted); background:var(--surface-hover); transform:translateY(-1px); }
+.tks-notif-bell:active{ transform:translateY(0); }
+.tks-notif-bell:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+.tks-notif-bell svg{ width:18px; height:18px; }
+.tks-notif-badge{
+  position:absolute; top:2px; right:2px; min-width:16px; height:16px; padding:0 4px;
+  border-radius:9999px; background:#EF4444; color:#fff; font-size:10px; font-weight:700;
+  display:flex; align-items:center; justify-content:center; line-height:1;
+}
+.tks-notif-dropdown{
+  position:absolute; top:calc(100% + 8px); right:0; width:340px; max-width:calc(100vw - 24px);
+  max-height:420px; overflow-y:auto; z-index:60;
+  background:var(--panel); border:1px solid var(--border); border-radius:12px;
+  box-shadow:var(--shadow-modal, 0 12px 32px rgba(0,0,0,0.25));
+}
+.tks-notif-dropdown-header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 14px; border-bottom:1px solid var(--border);
+  font-family:var(--font-body); font-weight:700; font-size:13px; color:var(--text);
+}
+.tks-notif-mark-all{
+  background:none; border:none; color:var(--blue); font-size:11.5px; font-weight:600; cursor:pointer; padding:0;
+}
+.tks-notif-list{ padding:6px; }
+.tks-notif-empty{ padding:16px; text-align:center; color:var(--muted); font-size:12.5px; margin:0; }
+.tks-notif-item{
+  padding:10px 10px; border-radius:8px; margin-bottom:2px;
+}
+.tks-notif-item.unread{ background:var(--surface-hover); }
+.tks-notif-item-title{ margin:0 0 2px; font-size:12.5px; font-weight:700; color:var(--text); }
+.tks-notif-item-msg{ margin:0; font-size:12px; color:var(--muted); line-height:1.4; }
+.tks-notif-actions{ display:flex; gap:8px; margin-top:8px; }
+.tks-notif-approve, .tks-notif-reject{
+  flex:1; padding:6px 10px; border-radius:8px; font-size:11.5px; font-weight:700; cursor:pointer;
+  border:1px solid var(--border);
+}
+.tks-notif-approve{ background:var(--blue); color:#fff; border-color:var(--blue); }
+.tks-notif-reject{ background:var(--panel-2); color:var(--text); }
+.tks-notif-approve:disabled, .tks-notif-reject:disabled{ opacity:.6; cursor:not-allowed; }
+
 .logout-btn-standalone{
   min-height:40px; padding:0 14px; border:1px solid var(--border); border-radius:10px; cursor:pointer;
   background:var(--panel-2); color:var(--text); font-family:var(--font-body); font-size:12px; font-weight:600;
