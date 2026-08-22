@@ -44,6 +44,12 @@ router.post('/api/role-requests', requireAuth, async (req, res) => {
     if (!requestedRole || !VALID_ROLES.includes(requestedRole)) {
       return res.status(400).json({ error: `Vai trò không hợp lệ: ${requestedRole}`, code: 'INVALID_REQUEST' });
     }
+    if (localUserStore.isHardcodedAdmin(req.user.username) || localUserStore.isHardcodedAdmin(req.user.email)) {
+      return res.status(400).json({
+        error: 'Tài khoản Quản trị viên hệ thống mặc định không thể đổi vai trò qua yêu cầu này.',
+        code: 'ROLE_REQUEST_HARDCODED_ADMIN'
+      });
+    }
     if (requestedRole === req.user.vaiTro) {
       return res.status(400).json({ error: 'Vai trò yêu cầu trùng với vai trò hiện tại.', code: 'SAME_ROLE' });
     }
@@ -137,6 +143,12 @@ router.patch('/api/role-requests/:id/status', ...authManager, async (req, res) =
     }
     if (target.status !== repo.ROLE_REQUEST_STATUS.PENDING) {
       return res.status(409).json({ error: 'Yêu cầu này đã được xử lý trước đó.', code: 'ROLE_REQUEST_ALREADY_HANDLED' });
+    }
+    if (String(target.userId) === String(req.user.id)) {
+      return res.status(403).json({
+        error: 'Bạn không thể tự duyệt yêu cầu đổi vai trò của chính mình.',
+        code: 'ROLE_REQUEST_SELF_REVIEW'
+      });
     }
 
     // Cap nhat vaiTro TRUOC khi danh dau request la Da duyet — neu updateUser

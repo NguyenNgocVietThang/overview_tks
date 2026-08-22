@@ -139,7 +139,8 @@
 
     function escapeHtml(str){
       return String(str == null ? '' : str)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     function renderList(notifications){
@@ -156,7 +157,7 @@
               '<button type="button" class="tks-notif-reject" data-request-id="' + escapeHtml(n.relatedId) + '">Từ chối</button>' +
             '</div>';
         }
-        return '<div class="tks-notif-item' + (n.isRead ? '' : ' unread') + '" data-notif-id="' + n.id + '">' +
+        return '<div class="tks-notif-item' + (n.isRead ? '' : ' unread') + '" data-notif-id="' + escapeHtml(n.id) + '">' +
           '<p class="tks-notif-item-title">' + escapeHtml(n.title) + '</p>' +
           '<p class="tks-notif-item-msg">' + escapeHtml(n.message) + '</p>' +
           actions +

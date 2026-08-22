@@ -7,6 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const crypto = require('crypto');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -158,6 +159,12 @@ async function updateRequestStatus(id, { status, reviewedBy, reviewedByUserId, r
 }
 
 function setInMemoryRequests(requests) {
+  if (currentStorePath === DEFAULT_STORE_PATH) {
+    // Test quen goi initStore(tempPath) truoc setInMemoryRequests se khong bi anh
+    // huong (currentStorePath da doi). Neu ai quen initStore, tu dong chuyen sang file
+    // tam de KHONG BAO GIO ghi de du lieu that trong server/data/roleChangeRequests.json.
+    currentStorePath = path.join(os.tmpdir(), `role-requests-safety-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  }
   inMemoryRequests = requests.map(r => ({ ...r }));
   isInitialized = true;
   lastLoadedMtime = Infinity;

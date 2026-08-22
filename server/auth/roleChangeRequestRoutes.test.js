@@ -154,3 +154,44 @@ test('PATCH /api/role-requests/:id/status từ chối -> KHÔNG đổi vaiTro', 
   const updatedUser = await localUserStore.getUserById('u1');
   assert.equal(updatedUser.vaiTro, 'Trợ lý');
 });
+
+test('PATCH /api/role-requests/:id/status trả 403/ROLE_REQUEST_SELF_REVIEW khi Quản lý tự duyệt yêu cầu của chính mình', async () => {
+  localUserStore.setInMemoryUsers([
+    { id: 'm1', username: 'ql1', hoTen: 'Quản lý 1', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động' }
+  ]);
+  roleRepo.setInMemoryRequests([]);
+  notificationRepo.setInMemoryNotifications([]);
+  const created = await roleRepo.createRequest({ userId: 'm1', username: 'ql1', hoTen: 'Quản lý 1', currentRole: 'Quản lý', requestedRole: 'Khách', reason: 'x' });
+
+  const handler = getRouteHandler(roleChangeRequestRoutes, 'patch', '/api/role-requests/:id/status');
+  const req = {
+    user: { id: 'm1', username: 'ql1', hoTen: 'Quản lý 1', vaiTro: 'Quản lý' },
+    params: { id: created.id },
+    body: { status: roleRepo.ROLE_REQUEST_STATUS.APPROVED, note: 'Tự duyệt' }
+  };
+  const res = fakeRes();
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.code, 'ROLE_REQUEST_SELF_REVIEW');
+
+  const updatedUser = await localUserStore.getUserById('m1');
+  assert.equal(updatedUser.vaiTro, 'Quản lý');
+});
+
+test('POST /api/role-requests trả 400/ROLE_REQUEST_HARDCODED_ADMIN khi hardcoded admin gửi yêu cầu', async () => {
+  localUserStore.setInMemoryUsers([
+    { id: 'admin-id', username: 'admin', hoTen: 'Quản trị viên', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động' }
+  ]);
+  roleRepo.setInMemoryRequests([]);
+  const handler = getRouteHandler(roleChangeRequestRoutes, 'post', '/api/role-requests');
+  const req = {
+    user: { id: 'admin-id', username: 'admin', hoTen: 'Quản trị viên', vaiTro: 'Quản lý' },
+    body: { requestedRole: 'Khách', reason: 'x' }
+  };
+  const res = fakeRes();
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.code, 'ROLE_REQUEST_HARDCODED_ADMIN');
+});

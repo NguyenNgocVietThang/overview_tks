@@ -8,6 +8,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const crypto = require('crypto');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -158,6 +159,12 @@ async function markAllRead(userId) {
 }
 
 function setInMemoryNotifications(notifications) {
+  if (currentStorePath === DEFAULT_STORE_PATH) {
+    // Test quen goi initStore(tempPath) truoc setInMemoryNotifications se khong bi anh
+    // huong (currentStorePath da doi). Neu ai quen initStore, tu dong chuyen sang file
+    // tam de KHONG BAO GIO ghi de du lieu that trong server/data/notifications.json.
+    currentStorePath = path.join(os.tmpdir(), `notifications-safety-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  }
   inMemoryNotifications = notifications.map(n => ({ ...n }));
   isInitialized = true;
   lastLoadedMtime = Infinity;

@@ -2,8 +2,20 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const os = require('os');
+const path = require('path');
+const fs = require('fs');
 const notificationRoutes = require('./notificationRoutes');
 const repo = require('./notificationRepository');
+
+const testDbPath = path.join(os.tmpdir(), `test-notification-routes-${Date.now()}.json`);
+repo.initStore(testDbPath);
+
+test.after(() => {
+  if (fs.existsSync(testDbPath)) {
+    try { fs.unlinkSync(testDbPath); } catch (e) {}
+  }
+});
 
 function fakeRes() {
   const res = { statusCode: null, body: null };
