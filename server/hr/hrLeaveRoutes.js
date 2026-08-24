@@ -23,6 +23,21 @@ const {
 } = require('./hrLeaveService');
 const { buildLeaveRequestsWorkbook } = require('./hrLeaveExportService');
 const { leaveEvents, LEAVE_EVENT_TYPES, broadcastLeaveEvent } = require('./hrLeaveEvents');
+const localUserStore = require('../auth/localUserStore');
+const notificationRepo = require('../notifications/notificationRepository');
+
+// Bao Quan ly khac (tru nguoi thao tac) - best-effort, KHONG duoc lam hong response chinh.
+async function notifyOtherManagers(actingUserId, payload) {
+  try {
+    const allUsers = await localUserStore.getAllUsers();
+    const managerIds = allUsers
+      .filter(u => u.vaiTro === ROLES.QUAN_LY && String(u.id) !== String(actingUserId))
+      .map(u => u.id);
+    await notificationRepo.createNotificationForUsers(managerIds, payload);
+  } catch (notifyErr) {
+    console.error('Lỗi báo thông báo nghỉ phép cho Quản lý:', notifyErr.message);
+  }
+}
 
 // Xem duoc: moi vai tro noi bo (Khach khong duoc).
 const authInternal = [requireAuth, requireRole(...INTERNAL_ROLES)];
@@ -188,6 +203,14 @@ router.post('/api/hr/leave-requests', ...authManager, async (req, res) => {
 
     // Phat tin hieu realtime toi tat ca cac client dang mo
     broadcastLeaveEvent(LEAVE_EVENT_TYPES.CREATED, record);
+
+    notifyOtherManagers(req.user.id, {
+      type: 'leave_request_created',
+      title: 'Có nhân sự nghỉ phép mới',
+      message: `${record.ho_ten} vừa ${isManualAbsence ? 'được ghi nhận tự ý nghỉ' : 'gửi yêu cầu nghỉ phép'} từ ${record.thoi_gian_bat_dau} đến ${record.thoi_gian_ket_thuc}.`,
+      relatedType: 'leaveRequest',
+      relatedId: record.id
+    });
   } catch (err) {
     handleError(res, err, 'POST /api/hr/leave-requests');
   }
@@ -215,6 +238,31 @@ router.patch('/api/hr/leave-requests/:id/status', ...authManager, async (req, re
       require('../telegram/hrTelegramBot')
         .notifyLeaveDecision(updated.telegram_chat_id, { status, note, requestId: updated.request_id })
         .catch(() => {});
+    }
+
+    notifyOtherManagers(req.user.id, {
+      type: 'leave_request_decision',
+      title: 'Đơn nghỉ phép đã được cập nhật',
+      message: `Đơn nghỉ phép của ${updated.ho_ten} đã chuyển sang trạng thái "${status}".`,
+      relatedType: 'leaveRequest',
+      relatedId: updated.id
+    });
+
+    // Bao chinh nhan su xin nghi (neu don gan voi 1 tai khoan web) - best-effort.
+    if (updated.web_username) {
+      localUserStore.getUserByUsername(updated.web_username)
+        .then(employee => {
+          if (!employee) return;
+          return notificationRepo.createNotification({
+            recipientUserId: employee.id,
+            type: 'leave_request_decision',
+            title: 'Đơn nghỉ phép của bạn đã được cập nhật',
+            message: `Đơn nghỉ phép của bạn đã được ${status}${note ? ` (${note})` : ''}.`,
+            relatedType: 'leaveRequest',
+            relatedId: updated.id
+          });
+        })
+        .catch(notifyErr => console.error('Lỗi báo thông báo nghỉ phép cho nhân viên:', notifyErr.message));
     }
   } catch (err) {
     handleError(res, err, 'PATCH /api/hr/leave-requests/:id/status');

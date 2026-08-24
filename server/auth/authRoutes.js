@@ -41,6 +41,79 @@ function clearFailedLogins(identifier) {
   }
 }
 
+// Rate limit cho cac route quen mat khau (channels/send-otp/verify): gioi han
+// theo ca identifier va IP de chan vua do 1 tai khoan vua do nhieu tai khoan
+// tu cung 1 nguon.
+const FORGOT_PW_WINDOW_MS = 10 * 60 * 1000; // 10 phut
+const FORGOT_PW_MAX_PER_IDENTIFIER = 8;
+const FORGOT_PW_MAX_PER_IP = 20;
+const forgotPwHitsByIdentifier = new Map(); // Map<string, { count, windowStart }>
+const forgotPwHitsByIp = new Map(); // Map<string, { count, windowStart }>
+
+function checkAndBumpRateLimit(map, key, max) {
+  if (!key) return true;
+  const now = Date.now();
+  const entry = map.get(key);
+  if (!entry || now - entry.windowStart > FORGOT_PW_WINDOW_MS) {
+    map.set(key, { count: 1, windowStart: now });
+    return true;
+  }
+  if (entry.count >= max) return false;
+  entry.count += 1;
+  return true;
+}
+
+function forgotPasswordRateLimit(req, res, next) {
+  const identifierKey = String((req.body && req.body.identifier) || '').trim().toLowerCase();
+  const ip = req.ip || (req.socket && req.socket.remoteAddress) || 'unknown';
+  const idOk = checkAndBumpRateLimit(forgotPwHitsByIdentifier, identifierKey, FORGOT_PW_MAX_PER_IDENTIFIER);
+  const ipOk = checkAndBumpRateLimit(forgotPwHitsByIp, ip, FORGOT_PW_MAX_PER_IP);
+  if (!idOk || !ipOk) {
+    return res.status(429).json({ error: 'Bạn thao tác quá nhiều lần, vui lòng thử lại sau ít phút.' });
+  }
+  next();
+}
+
+/**
+ * Sinh danh sach kenh OTP gia, deterministic theo identifier, dung cho tai
+ * khoan khong ton tai de tranh lo thong tin qua enumeration (response giong
+ * het tai khoan that ve hinh dang va tinh on dinh giua cac lan goi).
+ */
+function fakeChannelsForIdentifier(identifier) {
+  const hash = crypto.createHash('sha256').update(String(identifier || '')).digest('hex');
+  const maskedUser = hash.slice(0, 2);
+  return [
+    {
+      channel: 'email',
+      label: 'Email chính',
+      targetMasked: `${maskedUser}***@••••.com`,
+      targetRaw: null
+    }
+  ];
+}
+
+const FAKE_CHANNEL_LABELS = {
+  email: 'Email chính',
+  recovery_email: 'Email khôi phục',
+  phone: 'Số điện thoại',
+  recovery_phone: 'Số điện thoại khôi phục'
+};
+
+function fakeSendOtpResponse(identifier, channelType) {
+  const label = FAKE_CHANNEL_LABELS[channelType] || 'kênh liên hệ';
+  const hash = crypto.createHash('sha256').update(`${String(identifier || '')}|${channelType}`).digest('hex');
+  const targetMasked = channelType.includes('email')
+    ? `${hash.slice(0, 2)}***@••••.com`
+    : `${hash.slice(0, 2)}****${hash.slice(2, 5)}`;
+  return {
+    ok: true,
+    message: `Mã xác nhận OTP đã được gửi đến ${label.toLowerCase()} (${targetMasked}).`,
+    targetMasked,
+    channel: channelType,
+    expiresInSeconds: Math.floor(otpService.OTP_TTL_MS / 1000)
+  };
+}
+
 function cookieOptions() {
   return {
     httpOnly: true,
@@ -282,7 +355,7 @@ router.post('/api/auth/register', async (req, res) => {
 /**
  * Tra ve cac kenh nhan OTP kha dung cho tai khoan (Email / SDT da che mo)
  */
-router.post('/api/auth/forgot-password/channels', async (req, res) => {
+router.post('/api/auth/forgot-password/channels', forgotPasswordRateLimit, async (req, res) => {
   try {
     const identifier = req.body && req.body.identifier;
     if (!identifier) {
@@ -291,7 +364,11 @@ router.post('/api/auth/forgot-password/channels', async (req, res) => {
 
     const user = await findUserByIdentifier(identifier);
     if (!user) {
-      return res.status(404).json({ error: 'Không tìm thấy tài khoản phù hợp với thông tin đã nhập.' });
+      // Tra ve kenh gia thay vi 404 de tranh lo thong tin tai khoan nao ton tai (user enumeration)
+      return res.status(200).json({
+        identifier,
+        channels: fakeChannelsForIdentifier(identifier)
+      });
     }
 
     const channels = otpService.getAvailableChannels(user);
@@ -314,7 +391,7 @@ router.post('/api/auth/forgot-password/channels', async (req, res) => {
 /**
  * Gui ma OTP den kenh da chon
  */
-router.post('/api/auth/forgot-password/send-otp', async (req, res) => {
+router.post('/api/auth/forgot-password/send-otp', forgotPasswordRateLimit, async (req, res) => {
   try {
     const identifier = req.body && req.body.identifier;
     const channelType = req.body && req.body.channel; // 'email' | 'phone' | 'recovery_email' | 'recovery_phone'
@@ -324,7 +401,8 @@ router.post('/api/auth/forgot-password/send-otp', async (req, res) => {
 
     const user = await findUserByIdentifier(identifier);
     if (!user) {
-      return res.status(404).json({ error: 'Không tìm thấy tài khoản.' });
+      // Tra ve response gia giong het tai khoan that de tranh lo user enumeration
+      return res.status(200).json(fakeSendOtpResponse(identifier, channelType));
     }
 
     const channels = otpService.getAvailableChannels(user);
@@ -334,15 +412,16 @@ router.post('/api/auth/forgot-password/send-otp', async (req, res) => {
     }
 
     const otpResult = otpService.generateResetOtp(user.username, chosen.targetRaw, chosen.channel);
+    if (!otpResult.success && otpResult.cooldown) {
+      return res.status(429).json({ error: `Vui lòng đợi ${otpResult.waitSeconds} giây trước khi yêu cầu mã mới.` });
+    }
 
     res.status(200).json({
       ok: true,
       message: `Mã xác nhận OTP đã được gửi đến ${chosen.label.toLowerCase()} (${chosen.targetMasked}).`,
       targetMasked: chosen.targetMasked,
       channel: chosen.channel,
-      expiresInSeconds: otpResult.expiresInSeconds,
-      // Trong moi truong dev/test co the tra ve ma de tien nghiem thu
-      devCode: process.env.NODE_ENV !== 'production' ? otpResult.code : undefined
+      expiresInSeconds: otpResult.expiresInSeconds
     });
   } catch (err) {
     console.error('=== LOI /api/auth/forgot-password/send-otp ===', err);
@@ -353,7 +432,7 @@ router.post('/api/auth/forgot-password/send-otp', async (req, res) => {
 /**
  * Xac thuc ma OTP va cap nhat mat khau moi
  */
-router.post('/api/auth/forgot-password/verify', async (req, res) => {
+router.post('/api/auth/forgot-password/verify', forgotPasswordRateLimit, async (req, res) => {
   try {
     const identifier = req.body && req.body.identifier;
     const otp = req.body && req.body.otp;
@@ -372,7 +451,8 @@ router.post('/api/auth/forgot-password/verify', async (req, res) => {
 
     const user = await findUserByIdentifier(identifier);
     if (!user) {
-      return res.status(404).json({ error: 'Không tìm thấy tài khoản.' });
+      // Cung status/message nhu OTP sai/het han de khong lo enumeration qua buoc verify
+      return res.status(400).json({ error: 'Mã OTP không tồn tại hoặc đã hết hạn. Vui lòng yêu cầu mã mới.' });
     }
 
     const verifyResult = otpService.verifyResetOtp(user.username, otp);

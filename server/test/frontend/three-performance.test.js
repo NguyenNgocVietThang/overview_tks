@@ -24,7 +24,7 @@
     failed: 0,
     
     describe(suiteName, fn) {
-      console.group(`📦 ${suiteName}`);
+      console.group(`${suiteName}`);
       fn();
       console.groupEnd();
     },
@@ -33,10 +33,10 @@
       try {
         fn();
         this.passed++;
-        console.log(`  ✅ ${testName}`);
+        console.log(`  [PASS] ${testName}`);
       } catch (err) {
         this.failed++;
-        console.error(`  ❌ ${testName}`);
+        console.error(`  [FAIL] ${testName}`);
         console.error(`     ${err.message}`);
       }
     },
@@ -67,7 +67,7 @@
     
     summary() {
       console.log('\n' + '='.repeat(60));
-      console.log(`📊 Test Summary: ${this.passed} passed, ${this.failed} failed`);
+      console.log(`Test Summary: ${this.passed} passed, ${this.failed} failed`);
       console.log('='.repeat(60));
       return this.failed === 0;
     }
@@ -85,14 +85,14 @@
     // Timeout after 5 seconds
     setTimeout(() => {
       clearInterval(checkInterval);
-      console.error('❌ Modules failed to load within timeout');
+      console.error('Modules failed to load within timeout');
     }, 5000);
   }
 
   // Run all tests
   function runTests() {
     console.clear();
-    console.log('🧪 TKS 3D Performance Test Suite');
+    console.log('TKS 3D Performance Test Suite');
     console.log('='.repeat(60) + '\n');
 
     // Test 1: Performance Monitor Initialization
@@ -312,7 +312,7 @@
           TestRunner.assertExists(memory.usedMB);
           TestRunner.assertExists(memory.percentage);
         } else {
-          console.log('     ℹ️  performance.memory not available');
+          console.log('     [INFO] performance.memory not available');
         }
       });
     });

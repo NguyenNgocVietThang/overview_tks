@@ -9,6 +9,9 @@
 
   var TKSNav = {};
 
+  // Tach rieng de test co the gia lap (khong thuc su dieu huong trong jsdom).
+  TKSNav._navigate = function(url){ window.location.href = url; };
+
   var eyeSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
   var eyeOffSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
 
@@ -92,6 +95,16 @@
    * HTML tung trang vi #accountChip da co san o moi trang noi bo. Poll
    * /api/notifications/unread-count moi 30s (khong co ha tang websocket).
    */
+  // Thong báo bấm vào sẽ điều hướng theo relatedType. Xem
+  // server/notifications/notificationRepository.js cho các type đang phát ra.
+  var NOTIF_NAV_TARGETS = {
+    roleChangeRequest: '/account/#users',
+    accountCreated: '/account/#users',
+    leaveRequest: '/humanresources/#leave'
+  };
+
+  var trashSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>';
+
   TKSNav.renderNotifBell = function renderNotifBell(user){
     var chipMount = document.getElementById('accountChip');
     if(!chipMount || !chipMount.parentNode) return;
@@ -108,7 +121,10 @@
       '<div class="tks-notif-dropdown" id="tksNotifDropdown" hidden>' +
         '<div class="tks-notif-dropdown-header">' +
           '<span>Thông báo</span>' +
-          '<button type="button" class="tks-notif-mark-all" id="tksNotifMarkAll">Đánh dấu đã đọc</button>' +
+          '<div class="tks-notif-header-actions">' +
+            '<button type="button" class="tks-notif-mark-all" id="tksNotifMarkAll">Đánh dấu đã đọc</button>' +
+            '<button type="button" class="tks-notif-clear-all" id="tksNotifClearAll" hidden>Xóa tất cả</button>' +
+          '</div>' +
         '</div>' +
         '<div class="tks-notif-list" id="tksNotifList"><p class="tks-notif-empty">Đang tải...</p></div>' +
       '</div>';
@@ -119,6 +135,7 @@
     var badge = wrap.querySelector('#tksNotifBadge');
     var list = wrap.querySelector('#tksNotifList');
     var markAllBtn = wrap.querySelector('#tksNotifMarkAll');
+    var clearAllBtn = wrap.querySelector('#tksNotifClearAll');
     var isOpen = false;
 
     function renderBadge(count){
@@ -143,7 +160,16 @@
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    function formatNotifDate(iso){
+      if(!iso) return '';
+      var d = new Date(iso);
+      if(isNaN(d.getTime())) return '';
+      var pad = function(n){ return n < 10 ? '0' + n : String(n); };
+      return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear();
+    }
+
     function renderList(notifications){
+      clearAllBtn.hidden = !notifications.length;
       if(!notifications.length){
         list.innerHTML = '<p class="tks-notif-empty">Không có thông báo nào.</p>';
         return;
@@ -157,9 +183,14 @@
               '<button type="button" class="tks-notif-reject" data-request-id="' + escapeHtml(n.relatedId) + '">Từ chối</button>' +
             '</div>';
         }
-        return '<div class="tks-notif-item' + (n.isRead ? '' : ' unread') + '" data-notif-id="' + escapeHtml(n.id) + '">' +
+        var clickable = !!NOTIF_NAV_TARGETS[n.relatedType];
+        var dateStr = formatNotifDate(n.createdAt);
+        return '<div class="tks-notif-item' + (n.isRead ? '' : ' unread') + (clickable ? ' clickable' : '') + '"' +
+          ' data-notif-id="' + escapeHtml(n.id) + '" data-related-type="' + escapeHtml(n.relatedType || '') + '">' +
+          '<button type="button" class="tks-notif-delete" data-notif-id="' + escapeHtml(n.id) + '" aria-label="Xóa thông báo">' + trashSvg + '</button>' +
           '<p class="tks-notif-item-title">' + escapeHtml(n.title) + '</p>' +
           '<p class="tks-notif-item-msg">' + escapeHtml(n.message) + '</p>' +
+          (dateStr ? '<p class="tks-notif-item-date">' + escapeHtml(dateStr) + '</p>' : '') +
           actions +
         '</div>';
       }).join('');
@@ -172,15 +203,33 @@
         .catch(function(){ list.innerHTML = '<p class="tks-notif-empty">Không tải được thông báo.</p>'; });
     }
 
+    function positionDropdown(){
+      var rect = btn.getBoundingClientRect();
+      var margin = 12;
+      var width = Math.min(340, window.innerWidth - margin * 2);
+      var left = Math.min(Math.max(rect.right - width, margin), window.innerWidth - width - margin);
+      var top = Math.min(rect.bottom + 8, window.innerHeight - margin);
+      dropdown.style.width = width + 'px';
+      dropdown.style.top = top + 'px';
+      dropdown.style.left = left + 'px';
+    }
+
+    function onViewportChange(){ if(isOpen) positionDropdown(); }
+
     function closeDropdown(){
       dropdown.hidden = true;
       btn.setAttribute('aria-expanded', 'false');
       isOpen = false;
+      window.removeEventListener('resize', onViewportChange);
+      window.removeEventListener('scroll', onViewportChange, true);
     }
     function openDropdown(){
       dropdown.hidden = false;
       btn.setAttribute('aria-expanded', 'true');
       isOpen = true;
+      positionDropdown();
+      window.addEventListener('resize', onViewportChange);
+      window.addEventListener('scroll', onViewportChange, true);
       loadList();
     }
 
@@ -198,23 +247,59 @@
         .catch(function(){});
     });
 
+    clearAllBtn.addEventListener('click', function(){
+      fetch('/api/notifications', { method: 'DELETE', credentials: 'same-origin' })
+        .then(function(){ refreshCount(); loadList(); })
+        .catch(function(){});
+    });
+
     list.addEventListener('click', function(e){
       var approveBtn = e.target.closest && e.target.closest('.tks-notif-approve');
       var rejectBtn = e.target.closest && e.target.closest('.tks-notif-reject');
+      var deleteBtn = e.target.closest && e.target.closest('.tks-notif-delete');
       var actionBtn = approveBtn || rejectBtn;
-      if(!actionBtn) return;
-      var requestId = actionBtn.dataset.requestId;
-      var status = approveBtn ? 'Đã duyệt' : 'Từ chối';
-      actionBtn.disabled = true;
-      fetch('/api/role-requests/' + requestId + '/status', {
-        method: 'PATCH',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: status })
-      })
-        .then(function(res){ return res.json(); })
-        .then(function(){ loadList(); refreshCount(); })
-        .catch(function(){ actionBtn.disabled = false; });
+
+      if(deleteBtn){
+        var deleteId = deleteBtn.dataset.notifId;
+        deleteBtn.disabled = true;
+        fetch('/api/notifications/' + deleteId, { method: 'DELETE', credentials: 'same-origin' })
+          .then(function(){ loadList(); refreshCount(); })
+          .catch(function(){ deleteBtn.disabled = false; });
+        return;
+      }
+
+      if(actionBtn){
+        var requestId = actionBtn.dataset.requestId;
+        var status = approveBtn ? 'Đã duyệt' : 'Từ chối';
+        actionBtn.disabled = true;
+        fetch('/api/role-requests/' + requestId + '/status', {
+          method: 'PATCH',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: status })
+        })
+          .then(function(res){ return res.json(); })
+          .then(function(){ loadList(); refreshCount(); })
+          .catch(function(){ actionBtn.disabled = false; });
+        return;
+      }
+
+      var item = e.target.closest && e.target.closest('.tks-notif-item');
+      if(!item) return;
+      var notifId = item.dataset.notifId;
+      var relatedType = item.dataset.relatedType;
+      var target = NOTIF_NAV_TARGETS[relatedType];
+      var wasUnread = item.classList.contains('unread');
+
+      var markReadPromise = wasUnread
+        ? fetch('/api/notifications/' + notifId + '/read', { method: 'PATCH', credentials: 'same-origin' }).catch(function(){})
+        : Promise.resolve();
+
+      if(target){
+        markReadPromise.then(function(){ TKSNav._navigate(target); });
+      } else if(wasUnread){
+        markReadPromise.then(function(){ refreshCount(); loadList(); });
+      }
     });
 
     refreshCount();

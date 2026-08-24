@@ -455,7 +455,7 @@ function listRegisteredWebhooks() {
 function checkWebhookStatus() {
   const token = getKiotVietToken();
   if (!token) {
-    Logger.log("❌ Khong lay duoc token");
+    Logger.log("Khong lay duoc token");
     return;
   }
 
@@ -477,7 +477,7 @@ function checkWebhookStatus() {
   Logger.log("Chi tiet: " + JSON.stringify(result, null, 2));
 
   if (result.total === 0) {
-    Logger.log("⚠️ KHONG CO WEBHOOK NAO DUOC DANG KY!");
+    Logger.log("KHONG CO WEBHOOK NAO DUOC DANG KY!");
     Logger.log("Hay chay ham: registerWebhookProgrammatically()");
   } else {
     result.data.forEach((webhook, index) => {

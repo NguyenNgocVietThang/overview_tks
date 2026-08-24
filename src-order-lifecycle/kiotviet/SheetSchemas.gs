@@ -1005,7 +1005,7 @@ function syncKiotVietTableChunk_(schemaKey, options) {
   if (isCompleted) {
     props.deleteProperty(stateKey);
     if (resumeHandler) removeSpecificChunkTrigger_(resumeHandler);
-    Logger.log('✅ [' + schema.sheetName + '] HOAN TAT 100% DONG BO (' + currentItem + '/' + totalRecords + ' ban ghi).');
+    Logger.log('[' + schema.sheetName + '] HOAN TAT 100% DONG BO (' + currentItem + '/' + totalRecords + ' ban ghi).');
     return {
       schemaKey: schemaKey,
       sheetName: schema.sheetName,
@@ -1026,7 +1026,7 @@ function syncKiotVietTableChunk_(schemaKey, options) {
 
     if (autoSchedule && resumeHandler) {
       scheduleSpecificChunkTrigger_(resumeHandler);
-      Logger.log('⏳ [' + schema.sheetName + '] Da len lich tu chay tiep sau 1 phut qua trigger: ' + resumeHandler);
+      Logger.log('[' + schema.sheetName + '] Da len lich tu chay tiep sau 1 phut qua trigger: ' + resumeHandler);
     }
 
     return {

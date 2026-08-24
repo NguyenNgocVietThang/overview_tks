@@ -338,7 +338,7 @@
      */
     logReport() {
       const report = this.getReport();
-      console.group('🧹 TKS Memory Report');
+      console.group('TKS Memory Report');
       console.log('WebGL Contexts:', report.contexts);
       console.log('Tracked Geometries:', report.geometries);
       console.log('Tracked Materials:', report.materials);

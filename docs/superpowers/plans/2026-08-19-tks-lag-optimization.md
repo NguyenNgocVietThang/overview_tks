@@ -1,6 +1,6 @@
 # Giảm lag TKS Dashboard — Implementation Plan & Chi tiết kỹ thuật
 
-> **Trạng thái:** ✅ Đã hoàn thành (Fully Implemented & Verified on 19/08/2026)  
+> **Trạng thái:** Đã hoàn thành (Fully Implemented & Verified on 19/08/2026)
 > **Phạm vi:** Tối ưu hóa toàn diện 4 lớp hệ thống (Network Delivery → Main-Thread/3D → DOM Rendering → Backend Data Layer)
 
 **Goal:** Giảm độ trễ/giật (lag) của TKS Dashboard trên cả 2 trục: (a) tốc độ tải trang cho mọi người dùng, và (b) độ mượt khi tương tác (chuyển tab, hover, lọc bảng lớn) — mà không phá vỡ nghiệp vụ vận đơn đang chạy thật hàng ngày.

@@ -65,4 +65,25 @@ router.patch('/api/notifications/read-all', requireAuth, async (req, res) => {
   }
 });
 
+router.delete('/api/notifications/:id', requireAuth, async (req, res) => {
+  try {
+    const deleted = await repo.deleteNotification(req.params.id, req.user.id);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Không tìm thấy thông báo.' });
+    }
+    res.status(200).json({ deleted: true });
+  } catch (err) {
+    handleError(res, err, 'DELETE /api/notifications/:id');
+  }
+});
+
+router.delete('/api/notifications', requireAuth, async (req, res) => {
+  try {
+    const deleted = await repo.deleteAllForUser(req.user.id);
+    res.status(200).json({ deleted });
+  } catch (err) {
+    handleError(res, err, 'DELETE /api/notifications');
+  }
+});
+
 module.exports = router;

@@ -447,7 +447,7 @@
     
     logReport() {
       const report = this.getReport();
-      console.group('📊 TKS Performance Report');
+      console.group('TKS Performance Report');
       console.log('FPS:', report.fps);
       console.log('Quality:', report.quality);
       console.log('Capabilities:', report.capabilities);

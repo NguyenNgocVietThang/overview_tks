@@ -1,13 +1,13 @@
 # 3D Design Implementation Plan for TKS Dashboard
 
-> **Project:** TOKOSI · Live Dashboard 3D Enhancement  
-> **Created:** 2026-08-17  
-> **Scope:** Full-site 3D effects with interactive hover/focus states  
+> **Project:** TOKOSI · Live Dashboard 3D Enhancement
+> **Created:** 2026-08-17
+> **Scope:** Full-site 3D effects with interactive hover/focus states
 > **Level:** Premium/Nổi bật (Bold 3D presence across all pages)
 
 ---
 
-## 📋 Problem Statement
+## Problem Statement
 
 Dashboard hiện tại sử dụng Flat Design thuần túy (2D, no shadows, no depth). Khách hàng yêu cầu nâng cấp lên **giao diện 3D nổi bật và ấn tượng** để:
 
@@ -25,7 +25,7 @@ Dashboard hiện tại sử dụng Flat Design thuần túy (2D, no shadows, no 
 
 ---
 
-## 🎯 Requirements
+## Requirements
 
 ### R1: Background 3D Layer (Trang trí nền)
 - Hiệu ứng particle field động với ~200-400 particles
@@ -74,7 +74,7 @@ Dashboard hiện tại sử dụng Flat Design thuần túy (2D, no shadows, no 
 
 ---
 
-## 📚 Background Research
+## Background Research
 
 ### Three.js Integration
 - **Version:** r159 (latest stable, UMD build)
@@ -98,7 +98,7 @@ Dashboard hiện tại sử dụng Flat Design thuần túy (2D, no shadows, no 
 }
 
 .card-3d:hover {
-  transform: 
+  transform:
     translateZ(20px)
     rotateX(var(--rx))
     rotateY(var(--ry))
@@ -121,7 +121,7 @@ Dashboard hiện tại sử dụng Flat Design thuần túy (2D, no shadows, no 
 
 ---
 
-## 💡 Proposed Solution
+## Proposed Solution
 
 ### Architecture Overview
 
@@ -182,17 +182,17 @@ server/public/
     renderer: null,
     particles: null,
     animationId: null,
-    
+
     init() {
       // Setup scene với transparent background
       this.scene = new THREE.Scene();
-      
+
       // Camera với FOV phù hợp cho background
       this.camera = new THREE.PerspectiveCamera(
         60, window.innerWidth / window.innerHeight, 0.1, 1000
       );
       this.camera.position.z = 200;
-      
+
       // Renderer với alpha channel
       this.renderer = new THREE.WebGLRenderer({
         alpha: true,
@@ -200,23 +200,23 @@ server/public/
       });
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       this.renderer.setSize(window.innerWidth, window.innerHeight);
-      
+
       // Canvas styling
       const canvas = this.renderer.domElement;
       canvas.classList.add('tks-bg-canvas');
       canvas.setAttribute('aria-hidden', 'true');
       document.body.insertBefore(canvas, document.body.firstChild);
-      
+
       // Create particles
       this.createParticles();
-      
+
       // Theme sync
       this.syncTheme();
       this.watchTheme();
-      
+
       // Event listeners
       this.bindEvents();
-      
+
       // Check for reduced motion
       if (this.shouldReduceMotion()) {
         this.renderer.render(this.scene, this.camera);
@@ -224,28 +224,28 @@ server/public/
         this.animate();
       }
     },
-    
+
     createParticles() {
       const isMobile = window.innerWidth < 768;
       const count = isMobile ? 100 : 300;
-      
+
       const geometry = new THREE.BufferGeometry();
       const positions = new Float32Array(count * 3);
       const velocities = new Float32Array(count * 3);
-      
+
       for (let i = 0; i < count * 3; i += 3) {
         positions[i] = (Math.random() - 0.5) * 500;
         positions[i + 1] = (Math.random() - 0.5) * 500;
         positions[i + 2] = (Math.random() - 0.5) * 200;
-        
+
         velocities[i] = (Math.random() - 0.5) * 0.5;
         velocities[i + 1] = (Math.random() - 0.5) * 0.5;
         velocities[i + 2] = (Math.random() - 0.5) * 0.2;
       }
-      
+
       geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 3));
-      
+
       const material = new THREE.PointsMaterial({
         size: isMobile ? 1.5 : 2,
         color: 0x3B82F6, // Will be updated by syncTheme()
@@ -253,23 +253,23 @@ server/public/
         opacity: 0.6,
         blending: THREE.AdditiveBlending
       });
-      
+
       this.particles = new THREE.Points(geometry, material);
       this.scene.add(this.particles);
     },
-    
+
     syncTheme() {
       const isLight = document.documentElement.dataset.theme === 'light';
       const primaryColor = getComputedStyle(document.documentElement)
         .getPropertyValue('--primary').trim();
-      
+
       if (this.particles) {
         const color = new THREE.Color(primaryColor || (isLight ? '#2563EB' : '#3B82F6'));
         this.particles.material.color = color;
         this.particles.material.opacity = isLight ? 0.4 : 0.6;
       }
     },
-    
+
     watchTheme() {
       const observer = new MutationObserver(() => this.syncTheme());
       observer.observe(document.documentElement, {
@@ -277,46 +277,46 @@ server/public/
         attributeFilter: ['data-theme']
       });
     },
-    
+
     animate() {
       this.animationId = requestAnimationFrame(() => this.animate());
-      
+
       // Update particles
       const positions = this.particles.geometry.attributes.position.array;
       const velocities = this.particles.geometry.attributes.velocity.array;
-      
+
       for (let i = 0; i < positions.length; i += 3) {
         positions[i] += velocities[i];
         positions[i + 1] += velocities[i + 1];
         positions[i + 2] += velocities[i + 2];
-        
+
         // Wrap around
         if (Math.abs(positions[i]) > 250) positions[i] *= -1;
         if (Math.abs(positions[i + 1]) > 250) positions[i + 1] *= -1;
         if (Math.abs(positions[i + 2]) > 100) positions[i + 2] *= -1;
       }
-      
+
       this.particles.geometry.attributes.position.needsUpdate = true;
       this.particles.rotation.y += 0.0005;
-      
+
       this.renderer.render(this.scene, this.camera);
     },
-    
+
     shouldReduceMotion() {
       return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     },
-    
+
     bindEvents() {
       window.addEventListener('resize', () => this.onResize());
       document.addEventListener('visibilitychange', () => this.onVisibilityChange());
     },
-    
+
     onResize() {
       this.camera.aspect = window.innerWidth / window.innerHeight;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(window.innerWidth, window.innerHeight);
     },
-    
+
     onVisibilityChange() {
       if (document.hidden) {
         if (this.animationId) cancelAnimationFrame(this.animationId);
@@ -325,7 +325,7 @@ server/public/
       }
     }
   };
-  
+
   // Auto-init on DOMContentLoaded
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => ParticleBackground.init());
@@ -340,37 +340,37 @@ server/public/
 // Xử lý hover effects cho cards, buttons, panels
 (function() {
   'use strict';
-  
+
   const TKS3D = {
     init() {
       this.setupCardEffects();
       this.setupButtonEffects();
       this.setupNavigationEffects();
     },
-    
+
     setupCardEffects() {
       document.querySelectorAll('.kpi-card, .panel, .card-3d').forEach(card => {
         card.style.transformStyle = 'preserve-3d';
         card.style.transition = 'transform 0.4s cubic-bezier(0.23, 1, 0.32, 1), box-shadow 0.4s ease';
-        
+
         card.addEventListener('mousemove', (e) => this.onCardHover(e, card));
         card.addEventListener('mouseleave', () => this.onCardLeave(card));
       });
     },
-    
+
     onCardHover(e, card) {
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-      
+
       const rect = card.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      
+
       const centerX = rect.width / 2;
       const centerY = rect.height / 2;
-      
+
       const rotateX = (y - centerY) / centerY * -5; // Max 5deg
       const rotateY = (x - centerX) / centerX * 5;
-      
+
       card.style.transform = `
         perspective(1000px)
         translateZ(20px)
@@ -378,53 +378,53 @@ server/public/
         rotateY(${rotateY}deg)
         scale(1.02)
       `;
-      
+
       card.style.boxShadow = `
         0 25px 50px -12px rgba(0, 0, 0, 0.5),
         0 0 30px rgba(59, 130, 246, 0.3),
         0 0 1px 1px rgba(255, 255, 255, 0.1)
       `;
     },
-    
+
     onCardLeave(card) {
       card.style.transform = '';
       card.style.boxShadow = '';
     },
-    
+
     setupButtonEffects() {
       document.querySelectorAll('.btn-primary, .refresh-btn, .theme-toggle').forEach(btn => {
         btn.style.transformStyle = 'preserve-3d';
-        
+
         btn.addEventListener('mousedown', (e) => {
           if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
           btn.style.transform = 'perspective(500px) translateZ(-8px) scale(0.98)';
         });
-        
+
         btn.addEventListener('mouseup', () => {
           btn.style.transform = '';
         });
       });
     },
-    
+
     setupNavigationEffects() {
       document.querySelectorAll('.nav-item').forEach(item => {
         item.style.transformStyle = 'preserve-3d';
         item.style.transition = 'transform 0.3s ease';
-        
+
         item.addEventListener('mouseenter', () => {
           if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
           if (!item.classList.contains('active')) {
             item.style.transform = 'perspective(800px) translateZ(10px) translateX(8px)';
           }
         });
-        
+
         item.addEventListener('mouseleave', () => {
           item.style.transform = '';
         });
       });
     }
   };
-  
+
   // Auto-init
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => TKS3D.init());
@@ -440,25 +440,25 @@ server/public/
 (function() {
   'use strict';
   if (!window.THREE) return;
-  
+
   window.TKSCharts3D = {
     renderers: {},
-    
+
     renderRevenue3D(canvasId, data) {
       const canvas = document.getElementById(canvasId);
       if (!canvas || !data || !data.length) {
         this.showEmptyState(canvasId);
         return;
       }
-      
+
       // Dispose previous renderer
       if (this.renderers[canvasId]) {
         this.renderers[canvasId].dispose();
       }
-      
+
       const scene = new THREE.Scene();
       scene.background = null;
-      
+
       const camera = new THREE.PerspectiveCamera(
         50,
         canvas.clientWidth / canvas.clientHeight,
@@ -467,7 +467,7 @@ server/public/
       );
       camera.position.set(data.length * 1.5, data.length * 1.2, data.length * 2);
       camera.lookAt(0, 0, 0);
-      
+
       const renderer = new THREE.WebGLRenderer({
         canvas: canvas,
         alpha: true,
@@ -476,24 +476,24 @@ server/public/
       renderer.setSize(canvas.clientWidth, canvas.clientHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       this.renderers[canvasId] = renderer;
-      
+
       // Lighting
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
       scene.add(ambientLight);
-      
+
       const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
       directionalLight.position.set(5, 10, 7.5);
       scene.add(directionalLight);
-      
+
       // Create bars
       const maxRevenue = Math.max(...data.map(d => d.revenue || 0));
       const barWidth = 2;
       const barSpacing = 3;
-      
+
       data.forEach((item, index) => {
         const height = (item.revenue / maxRevenue) * 15 || 0.1;
         const geometry = new THREE.BoxGeometry(barWidth, height, barWidth);
-        
+
         // Gradient material
         const material = new THREE.MeshStandardMaterial({
           color: 0xF59E0B,
@@ -502,43 +502,43 @@ server/public/
           emissive: 0xF59E0B,
           emissiveIntensity: 0.2
         });
-        
+
         const bar = new THREE.Mesh(geometry, material);
         bar.position.x = (index - data.length / 2) * barSpacing;
         bar.position.y = height / 2;
         bar.userData = { label: item.label, revenue: item.revenue };
-        
+
         scene.add(bar);
-        
+
         // Add text label (canvas texture)
         this.addLabel(scene, item.label, bar.position.x, -0.5, 0);
       });
-      
+
       // Grid helper
       const gridHelper = new THREE.GridHelper(data.length * barSpacing, data.length);
       gridHelper.material.opacity = 0.2;
       gridHelper.material.transparent = true;
       scene.add(gridHelper);
-      
+
       // Animation loop
       let angle = 0;
       const animate = () => {
         if (!this.renderers[canvasId]) return;
-        
+
         angle += 0.005;
         camera.position.x = Math.cos(angle) * data.length * 2;
         camera.position.z = Math.sin(angle) * data.length * 2;
         camera.lookAt(0, 5, 0);
-        
+
         renderer.render(scene, camera);
-        
+
         if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
           requestAnimationFrame(animate);
         }
       };
-      
+
       animate();
-      
+
       // Resize handler
       window.addEventListener('resize', () => {
         if (!this.renderers[canvasId]) return;
@@ -547,32 +547,32 @@ server/public/
         renderer.setSize(canvas.clientWidth, canvas.clientHeight);
       });
     },
-    
+
     addLabel(scene, text, x, y, z) {
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
       canvas.width = 128;
       canvas.height = 32;
-      
+
       context.fillStyle = '#F8FAFC';
       context.font = '16px Inter';
       context.textAlign = 'center';
       context.textBaseline = 'middle';
       context.fillText(text, 64, 16);
-      
+
       const texture = new THREE.CanvasTexture(canvas);
       const material = new THREE.SpriteMaterial({ map: texture });
       const sprite = new THREE.Sprite(material);
       sprite.position.set(x, y, z);
       sprite.scale.set(2, 0.5, 1);
-      
+
       scene.add(sprite);
     },
-    
+
     showEmptyState(canvasId) {
       const canvas = document.getElementById(canvasId);
       if (!canvas) return;
-      
+
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = '#94A3B8';
@@ -580,7 +580,7 @@ server/public/
       ctx.textAlign = 'center';
       ctx.fillText('Chưa có dữ liệu', canvas.width / 2, canvas.height / 2);
     },
-    
+
     dispose(canvasId) {
       if (this.renderers[canvasId]) {
         this.renderers[canvasId].dispose();
@@ -593,7 +593,7 @@ server/public/
 
 ---
 
-## 📝 Task Breakdown
+## Task Breakdown
 
 ### Task 1: Setup THREE.js Infrastructure
 **Objective:** Vendor THREE.js library và tạo base structure cho 3D effects
@@ -608,9 +608,9 @@ server/public/
 3. Test global `window.THREE` availability bằng cách tạo simple scene
 
 **Tests:**
-- ✅ Load three.min.js trong browser console → `window.THREE` phải defined
-- ✅ Không có console errors khi load
-- ✅ File size hợp lý (~580KB)
+- Load three.min.js trong browser console → `window.THREE` phải defined
+- Không có console errors khi load
+- File size hợp lý (~580KB)
 
 **Demo:** Console log `THREE.REVISION` hiển thị version number
 
@@ -640,11 +640,11 @@ server/public/
    ```
 
 **Tests:**
-- ✅ Particles render và di chuyển mượt mà
-- ✅ Đổi theme (dark/light) → màu particles tự động đổi
-- ✅ Pause tab → animation stops
-- ✅ `prefers-reduced-motion: reduce` → render 1 frame tĩnh
-- ✅ Canvas không chặn mouse events
+- Particles render và di chuyển mượt mà
+- Đổi theme (dark/light) → màu particles tự động đổi
+- Pause tab → animation stops
+- `prefers-reduced-motion: reduce` → render 1 frame tĩnh
+- Canvas không chặn mouse events
 
 **Demo:** Background particle field hiển thị, di chuyển chậm, đổi màu theo theme
 
@@ -660,21 +660,21 @@ server/public/
      perspective: 1000px;
      perspective-origin: 50% 50%;
    }
-   
+
    .card-3d, .kpi-card, .panel {
      transform-style: preserve-3d;
      transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1),
                  box-shadow 0.4s ease;
    }
-   
+
    .card-3d:hover {
      transform: translateZ(20px) scale(1.02);
-     box-shadow: 
+     box-shadow:
        0 25px 50px -12px rgba(0, 0, 0, 0.5),
        0 0 30px var(--primary),
        0 0 1px 1px rgba(255, 255, 255, 0.1);
    }
-   
+
    @media (prefers-reduced-motion: reduce) {
      .card-3d:hover {
        transform: none;
@@ -687,10 +687,10 @@ server/public/
 3. Đảm bảo z-index hierarchy: content (z-index:1) > background (z-index:-1)
 
 **Tests:**
-- ✅ Hover KPI cards → tilt effect smooth
-- ✅ Box shadow gradient hiển thị đúng
-- ✅ Không bị layout shift (các cards xung quanh không nhảy)
-- ✅ Reduced motion → chỉ highlight border, no transform
+- Hover KPI cards → tilt effect smooth
+- Box shadow gradient hiển thị đúng
+- Không bị layout shift (các cards xung quanh không nhảy)
+- Reduced motion → chỉ highlight border, no transform
 
 **Demo:** Hover vào "Doanh thu hôm nay" card → card nổi lên với shadow glow
 
@@ -708,11 +708,11 @@ server/public/
 6. Extend cho buttons (press effect) và navigation items (slide + tilt)
 
 **Tests:**
-- ✅ Di chuột qua card → card nghiêng theo hướng chuột
-- ✅ Di chuột ra ngoài → card quay về vị trí ban đầu
-- ✅ Click button → có press down effect
-- ✅ Hover nav item → slide ra + nghiêng nhẹ
-- ✅ Performance: không drop frames khi hover nhiều cards liên tục
+- Di chuột qua card → card nghiêng theo hướng chuột
+- Di chuột ra ngoài → card quay về vị trí ban đầu
+- Click button → có press down effect
+- Hover nav item → slide ra + nghiêng nhẹ
+- Performance: không drop frames khi hover nhiều cards liên tục
 
 **Demo:** Di chuột chậm qua 4 KPI cards → tất cả đều tilt theo cursor
 
@@ -744,12 +744,12 @@ server/public/
 4. Call `TKSCharts3D.renderRevenue3D()` trong `renderView('overview')` sau khi load data
 
 **Tests:**
-- ✅ Chart render với đúng số bar = số ngày
-- ✅ Bar heights tỷ lệ với revenue values
-- ✅ Camera quay chậm tự động (hoặc dừng với reduced-motion)
-- ✅ Empty state khi không có dữ liệu
-- ✅ Responsive: resize window → chart update dimensions
-- ✅ Đổi filter ngày → chart re-render với data mới
+- Chart render với đúng số bar = số ngày
+- Bar heights tỷ lệ với revenue values
+- Camera quay chậm tự động (hoặc dừng với reduced-motion)
+- Empty state khi không có dữ liệu
+- Responsive: resize window → chart update dimensions
+- Đổi filter ngày → chart re-render với data mới
 
 **Demo:** Biểu đồ 3D hiển thị doanh thu 30 ngày, camera quay chậm, hover highlight bar
 
@@ -765,19 +765,19 @@ server/public/
      transform-style: preserve-3d;
      transition: transform 0.3s ease;
    }
-   
+
    .nav-item:hover:not(.active) {
-     transform: 
+     transform:
        perspective(800px)
        translateZ(10px)
        translateX(8px);
    }
-   
+
    .nav-item.active {
-     transform: 
+     transform:
        perspective(800px)
        translateZ(15px);
-     box-shadow: 
+     box-shadow:
        -4px 0 12px rgba(59, 130, 246, 0.4),
        inset 3px 0 0 var(--blue);
    }
@@ -788,7 +788,7 @@ server/public/
    .nav-item:hover .ic {
      animation: iconBounce 0.6s ease;
    }
-   
+
    @keyframes iconBounce {
      0%, 100% { transform: translateZ(0); }
      50% { transform: translateZ(8px) rotateY(15deg); }
@@ -796,11 +796,11 @@ server/public/
    ```
 
 **Tests:**
-- ✅ Hover nav items → slide out effect
-- ✅ Active item có depth rõ ràng hơn
-- ✅ Icon bounce smooth khi hover
-- ✅ Không làm shift các items khác
-- ✅ Focus state (keyboard nav) vẫn rõ ràng
+- Hover nav items → slide out effect
+- Active item có depth rõ ràng hơn
+- Icon bounce smooth khi hover
+- Không làm shift các items khác
+- Focus state (keyboard nav) vẫn rõ ràng
 
 **Demo:** Hover qua menu items → từng item trượt ra và nghiêng, icon có animation nhẹ
 
@@ -816,17 +816,17 @@ server/public/
      transform-style: preserve-3d;
      transition: transform 0.15s ease, box-shadow 0.15s ease;
    }
-   
+
    .btn-primary:hover {
      transform: perspective(500px) translateZ(10px);
-     box-shadow: 
+     box-shadow:
        0 20px 40px -8px rgba(59, 130, 246, 0.5),
        0 0 20px rgba(59, 130, 246, 0.3);
    }
-   
+
    .btn-primary:active {
      transform: perspective(500px) translateZ(-5px) scale(0.98);
-     box-shadow: 
+     box-shadow:
        0 5px 10px -4px rgba(59, 130, 246, 0.3);
    }
    ```
@@ -840,23 +840,23 @@ server/public/
      const size = Math.max(rect.width, rect.height);
      const x = e.clientX - rect.left - size / 2;
      const y = e.clientY - rect.top - size / 2;
-     
+
      ripple.style.width = ripple.style.height = size + 'px';
      ripple.style.left = x + 'px';
      ripple.style.top = y + 'px';
      ripple.classList.add('ripple-effect');
-     
+
      button.appendChild(ripple);
      setTimeout(() => ripple.remove(), 600);
    }
    ```
 
 **Tests:**
-- ✅ Hover button → nổi lên với glow
-- ✅ Click button → press down + ripple
-- ✅ Release → spring back
-- ✅ Disabled state → no effects
-- ✅ Focus ring vẫn hiển thị đúng
+- Hover button → nổi lên với glow
+- Click button → press down + ripple
+- Release → spring back
+- Disabled state → no effects
+- Focus ring vẫn hiển thị đúng
 
 **Demo:** Click "Làm mới" button → press down effect rõ ràng, ripple expand
 
@@ -872,10 +872,10 @@ server/public/
      transform-style: preserve-3d;
      transition: transform 0.2s ease, box-shadow 0.2s ease;
    }
-   
+
    tbody tr:hover {
      transform: perspective(1000px) translateZ(5px);
-     box-shadow: 
+     box-shadow:
        0 10px 25px -5px rgba(0, 0, 0, 0.3),
        0 0 1px rgba(59, 130, 246, 0.5);
      background: var(--panel-2);
@@ -899,11 +899,11 @@ server/public/
    ```
 
 **Tests:**
-- ✅ Hover table row → nhẹ nhàng nổi lên
-- ✅ Shadow không chồng lên row khác
-- ✅ Không ảnh hưởng table header
-- ✅ Staggered animation chạy khi load data mới
-- ✅ Click row (drill-down) vẫn hoạt động
+- Hover table row → nhẹ nhàng nổi lên
+- Shadow không chồng lên row khác
+- Không ảnh hưởng table header
+- Staggered animation chạy khi load data mới
+- Click row (drill-down) vẫn hoạt động
 
 **Demo:** Hover qua bảng "Chi tiết giao dịch" → từng row nổi lên nhẹ với shadow
 
@@ -918,31 +918,31 @@ server/public/
    .search-input-wrap {
      transform-style: preserve-3d;
    }
-   
+
    .search-input {
-     transition: 
+     transition:
        transform 0.3s ease,
        box-shadow 0.3s ease,
        border-color 0.3s ease;
    }
-   
+
    .search-input:focus {
      transform: perspective(800px) translateZ(15px) scale(1.02);
-     box-shadow: 
+     box-shadow:
        0 20px 40px -10px rgba(59, 130, 246, 0.4),
        0 0 0 4px rgba(59, 130, 246, 0.2),
        0 0 30px rgba(59, 130, 246, 0.3);
    }
-   
+
    .suggestions {
      transform-style: preserve-3d;
      transform-origin: top center;
    }
-   
+
    .suggestions.show {
      animation: dropdownExpand 0.4s cubic-bezier(0.23, 1, 0.32, 1);
    }
-   
+
    @keyframes dropdownExpand {
      from {
        opacity: 0;
@@ -956,17 +956,17 @@ server/public/
    ```
 
 **Tests:**
-- ✅ Focus search → expand + glow effect
-- ✅ Suggestions dropdown có 3D appear animation
-- ✅ Blur → smooth collapse
-- ✅ Typing không bị lag
-- ✅ Reduced motion → no transform, chỉ glow
+- Focus search → expand + glow effect
+- Suggestions dropdown có 3D appear animation
+- Blur → smooth collapse
+- Typing không bị lag
+- Reduced motion → no transform, chỉ glow
 
 **Demo:** Click vào ô tìm kiếm → input expand + suggestions dropdown có depth
 
 ---
 
-### Task 10: Add 3D Loading States ✅
+### Task 10: Add 3D Loading States
 **Objective:** Replace flat spinner với 3D rotating loader
 
 **Implemented:**
@@ -1002,19 +1002,19 @@ server/public/
 6. Tạo `server/public/js/three-loading.test.js` — 9 describe suites, ~35 test cases
 
 **Tests:**
-- ✅ Loading state hiển thị 3D cube quay
-- ✅ Cube render mượt 60fps
-- ✅ Text below cube luôn readable
-- ✅ Reduced motion → cube tĩnh (rotateX(25deg) rotateY(30deg)), chỉ fade in/out
-- ✅ aria-live region thông báo cho screen reader
-- ✅ Veil dynamically created nếu trang không có sẵn
-- ✅ wrap() trả về cùng promise, hide sau resolve/reject
+- Loading state hiển thị 3D cube quay
+- Cube render mượt 60fps
+- Text below cube luôn readable
+- Reduced motion → cube tĩnh (rotateX(25deg) rotateY(30deg)), chỉ fade in/out
+- aria-live region thông báo cho screen reader
+- Veil dynamically created nếu trang không có sẵn
+- wrap() trả về cùng promise, hide sau resolve/reject
 
 **Demo:** Trigger loading state → 3D cube xuất hiện và quay
 
 ---
 
-### Task 11: Integrate 3D Effects into All Pages ✅
+### Task 11: Integrate 3D Effects into All Pages
 **Objective:** Apply consistent 3D system across 5 pages
 
 **Implemented:**
@@ -1049,17 +1049,17 @@ server/public/
    - Comprehensive `prefers-reduced-motion` overrides
 
 **Tests:**
-- ✅ Mỗi trang load 3D effects đúng (three-bg.js tự khởi động)
-- ✅ Console không có errors (THREE.js check + graceful fallback)
-- ✅ Performance ổn định (particle count auto-reduced on mobile)
-- ✅ Click/scroll không bị chặn (canvas z-index:-1, pointer-events:none)
-- ✅ Theme toggle hoạt động trên mọi trang (MutationObserver sync)
+- Mỗi trang load 3D effects đúng (three-bg.js tự khởi động)
+- Console không có errors (THREE.js check + graceful fallback)
+- Performance ổn định (particle count auto-reduced on mobile)
+- Click/scroll không bị chặn (canvas z-index:-1, pointer-events:none)
+- Theme toggle hoạt động trên mọi trang (MutationObserver sync)
 
 **Demo:** Navigate qua 7 trang → 3D particle background consistent, card tilt effects, nav depth — no lag
 
 ---
 
-### Task 12: Performance Optimization and Testing ✅
+### Task 12: Performance Optimization and Testing
 **Objective:** Đảm bảo 3D effects không ảnh hưởng performance
 
 **Implemented:**
@@ -1097,19 +1097,19 @@ server/public/
    - Automated test runner với detailed reporting
 
 **Tests:**
-- ✅ All 40+ test cases passing
-- ✅ Desktop: 60fps consistent, Memory ~80MB
-- ✅ Mobile: 30fps consistent, Memory ~45MB
-- ✅ No WebGL context warnings (≤3 contexts)
-- ✅ Memory stable over 30-min session (~300KB/min leak rate acceptable)
-- ✅ Tab visibility pause/resume working correctly
-- ✅ Quality auto-adjustment working (tested with stress test)
-- ✅ No console errors in production
+- All 40+ test cases passing
+- Desktop: 60fps consistent, Memory ~80MB
+- Mobile: 30fps consistent, Memory ~45MB
+- No WebGL context warnings (≤3 contexts)
+- Memory stable over 30-min session (~300KB/min leak rate acceptable)
+- Tab visibility pause/resume working correctly
+- Quality auto-adjustment working (tested with stress test)
+- No console errors in production
 
 **Documentation:**
-- ✅ Performance Optimization Report (`docs/performance-optimization-report.md`)
-- ✅ Visual test dashboard available at `/performance-test.html`
-- ✅ API documentation in code comments
+- Performance Optimization Report (`docs/performance-optimization-report.md`)
+- Visual test dashboard available at `/performance-test.html`
+- API documentation in code comments
 
 **Demo:** Visit `/performance-test.html` → All metrics green, FPS graph stable, all tests passing
 
@@ -1144,11 +1144,11 @@ audit, two real gaps were found and fixed:
      harness (and the troubleshooting docs) already expected.
    - `npm test` now passes **214/214**, confirmed via two clean full runs.
 
-**Status:** ✅ **PRODUCTION READY** (now actually verified, not just documented)
+**Status:** **PRODUCTION READY** (now actually verified, not just documented)
 
 ---
 
-### Task 13: Accessibility and Reduced Motion Support ✅
+### Task 13: Accessibility and Reduced Motion Support
 **Objective:** Đảm bảo 3D không ảnh hưởng accessibility
 
 **Audited 2026-08-18 — most of this was already implemented in earlier commits;
@@ -1183,16 +1183,16 @@ gaps closed today are called out below.**
    the 3D layer sitting visually on top.
 
 **Tests:**
-- ✅ Enable reduced motion → animations stop/simplify (CSS + JS `shouldReduceMotion()` both verified)
-- ✅ Tab navigation → focus order correct, `:focus-visible` outlines present on every interactive 3D-enhanced element
-- ✅ Screen reader → decorative canvas `aria-hidden`, data canvas has `role="img"`+label, semantic HTML underneath is readable
-- ✅ High contrast / forced-colors → outline fallback added, verified against full CSS test suite
+- Enable reduced motion → animations stop/simplify (CSS + JS `shouldReduceMotion()` both verified)
+- Tab navigation → focus order correct, `:focus-visible` outlines present on every interactive 3D-enhanced element
+- Screen reader → decorative canvas `aria-hidden`, data canvas has `role="img"`+label, semantic HTML underneath is readable
+- High contrast / forced-colors → outline fallback added, verified against full CSS test suite
 
 **Demo:** Toggle reduced motion → particles stop, tilt effects become simple highlights. Toggle Windows High Contrast → hover states switch to system-color outlines instead of vanishing glows.
 
 ---
 
-### Task 14: Documentation and Rollback Plan ✅
+### Task 14: Documentation and Rollback Plan
 **Objective:** Document cách sử dụng và tắt 3D effects
 
 **Verified 2026-08-18:**
@@ -1214,15 +1214,15 @@ gaps closed today are called out below.**
 3. Added a `ROLLBACK.md` row to README's "Tài liệu kỹ thuật" table.
 
 **Tests:**
-- ✅ `ROLLBACK.md` file paths verified to exist via shell check (all 8 source files present)
-- ✅ README new section verified present via grep, cross-checked against live `<script>` tags on `index.html` and `shipment/mobile/index.html`
-- ✅ Documentation matches actual shipped script order (differs from this plan's original Task 14 draft, which predated Tasks 10-13 and omitted 6 of the 9 real files)
+- `ROLLBACK.md` file paths verified to exist via shell check (all 8 source files present)
+- README new section verified present via grep, cross-checked against live `<script>` tags on `index.html` and `shipment/mobile/index.html`
+- Documentation matches actual shipped script order (differs from this plan's original Task 14 draft, which predated Tasks 10-13 and omitted 6 of the 9 real files)
 
 **Demo:** Open [README.md](README.md) → "Hiệu ứng 3D" section lists correct files/order; open [ROLLBACK.md](ROLLBACK.md) → follow "Tắt nhanh" steps on any page → 3D disappears, rest of page unaffected.
 
 ---
 
-## ✅ Verification Checklist
+## Verification Checklist
 
 ### Visual Quality
 - [x] Background particles hiển thị mượt mà, đổi màu đúng theme
@@ -1269,7 +1269,7 @@ gaps closed today are called out below.**
 
 ---
 
-## 🎯 Success Criteria
+## Success Criteria
 
 1. **Visual Impact:** Dashboard trông hiện đại và premium với 3D effects rõ ràng
 2. **Performance:** Không có lag hoặc janky animations, FPS stable
@@ -1280,7 +1280,7 @@ gaps closed today are called out below.**
 
 ---
 
-## 📌 Notes & 2026-08-19 Performance Refinement
+## Notes & 2026-08-19 Performance Refinement
 
 - **Phạm vi:** Đây là enhancement layer, không replace giao diện hiện tại.
 - **Philosophy:** "Progressive enhancement" — trang vẫn hoạt động tốt nếu không có 3D.
@@ -1292,7 +1292,7 @@ gaps closed today are called out below.**
 
 ---
 
-## 🔗 References
+## References
 
 - [THREE.js Documentation](https://threejs.org/docs/)
 - [CSS 3D Transforms MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/transform)
@@ -1304,7 +1304,7 @@ gaps closed today are called out below.**
 
 ---
 
-**Status:** ✅ Đã tối ưu hóa hiệu năng & vận hành (rAF Throttled, Scoped Refresh, 5 trang active, 214 tests passing)  
-**Effort:** Hoàn thành 14 tasks ban đầu + gói tối ưu hóa hiệu năng 4 phases (19/08/2026)  
+**Status:** Đã tối ưu hóa hiệu năng & vận hành (rAF Throttled, Scoped Refresh, 5 trang active, 214 tests passing)
+**Effort:** Hoàn thành 14 tasks ban đầu + gói tối ưu hóa hiệu năng 4 phases (19/08/2026)
 **Priority:** High (Production Optimized)
 

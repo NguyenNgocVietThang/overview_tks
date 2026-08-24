@@ -1161,6 +1161,7 @@
           },
           options: {
             responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false, axis: 'x' },
             plugins: { legend: { display: true, position: 'bottom', labels: { color: theme.text, font: { size: 11 } } } },
             scales: {
               x: { stacked: true, ticks: { color: theme.text, font: { size: 11 } }, grid: { display: false } },
@@ -1227,6 +1228,7 @@
           },
           options: {
             indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false, axis: 'y' },
             plugins: { legend: { display: false } },
             scales: {
               x: { beginAtZero: true, ticks: { color: theme.muted, precision: 0, font: { size: 10.5 } }, grid: { color: theme.grid } },
@@ -1291,6 +1293,7 @@
           },
           options: {
             indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false, axis: 'y' },
             plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${fmtSoNgay(c.raw)} ngày` } } },
             scales: {
               x: { beginAtZero: true, ticks: { color: theme.muted, font: { size: 10.5 } }, grid: { color: theme.grid } },

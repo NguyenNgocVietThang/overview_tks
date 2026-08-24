@@ -158,6 +158,28 @@ async function markAllRead(userId) {
   return changed;
 }
 
+async function deleteNotification(id, userId) {
+  const notifications = ensureLoaded();
+  const target = String(userId);
+  const index = notifications.findIndex(n => String(n.id) === String(id) && n.recipientUserId === target);
+  if (index < 0) return false;
+  notifications.splice(index, 1);
+  saveToDisk(notifications);
+  return true;
+}
+
+async function deleteAllForUser(userId) {
+  const notifications = ensureLoaded();
+  const target = String(userId);
+  const remaining = notifications.filter(n => n.recipientUserId !== target);
+  const deleted = notifications.length - remaining.length;
+  if (deleted > 0) {
+    inMemoryNotifications = remaining;
+    saveToDisk(remaining);
+  }
+  return deleted;
+}
+
 function setInMemoryNotifications(notifications) {
   if (currentStorePath === DEFAULT_STORE_PATH) {
     // Test quen goi initStore(tempPath) truoc setInMemoryNotifications se khong bi anh
@@ -178,5 +200,7 @@ module.exports = {
   getUnreadCount,
   markRead,
   markAllRead,
+  deleteNotification,
+  deleteAllForUser,
   setInMemoryNotifications
 };

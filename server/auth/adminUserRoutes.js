@@ -10,6 +10,7 @@ const { requireAuth, requireRole } = require('./authMiddleware');
 const localUserStore = require('./localUserStore');
 const { ROLES, ACTIVE_STATUS, LOCKED_STATUS, PENDING_STATUS } = localUserStore;
 const { normalizePhone } = require('./userRepository');
+const notificationRepo = require('../notifications/notificationRepository');
 
 const router = express.Router();
 
@@ -103,6 +104,23 @@ router.post('/api/admin/users', async (req, res) => {
     });
 
     res.status(201).json({ user: publicAdminUser(newUser) });
+
+    // Bao cac Quan ly khac biet - best-effort, KHONG duoc lam hong response da tra o tren.
+    try {
+      const allUsers = await localUserStore.getAllUsers();
+      const managerIds = allUsers
+        .filter(u => u.vaiTro === ROLES.QUAN_LY && String(u.id) !== String(req.user.id))
+        .map(u => u.id);
+      await notificationRepo.createNotificationForUsers(managerIds, {
+        type: 'account_created',
+        title: 'Tài khoản mới được tạo',
+        message: `${newUser.hoTen || newUser.username} (${newUser.username}) vừa được tạo với vai trò "${newUser.vaiTro}".`,
+        relatedType: 'accountCreated',
+        relatedId: newUser.id
+      });
+    } catch (notifyErr) {
+      console.error('Lỗi báo thông báo tài khoản mới cho Quản lý:', notifyErr.message);
+    }
   } catch (err) {
     if (err && err.code === 'USER_EXISTS') {
       return res.status(409).json({ error: err.message });

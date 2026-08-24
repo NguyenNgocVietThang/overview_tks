@@ -80,3 +80,23 @@ test('markRead trả về null nếu id không thuộc userId', async () => {
   const result = await repo.markRead(n.id, 'someone-else');
   assert.equal(result, null);
 });
+
+test('deleteNotification xóa đúng bản ghi thuộc user, trả false nếu không thuộc/không tồn tại', async () => {
+  repo.setInMemoryNotifications([]);
+  const n = await repo.createNotification({ recipientUserId: 'a', type: 't', title: '1', message: '' });
+  assert.equal(await repo.deleteNotification(n.id, 'someone-else'), false);
+  assert.equal(await repo.deleteNotification(n.id, 'a'), true);
+  assert.equal((await repo.listForUser('a')).length, 0);
+  assert.equal(await repo.deleteNotification(n.id, 'a'), false);
+});
+
+test('deleteAllForUser xóa toàn bộ thông báo của đúng user, không đụng người khác', async () => {
+  repo.setInMemoryNotifications([]);
+  await repo.createNotification({ recipientUserId: 'a', type: 't', title: '1', message: '' });
+  await repo.createNotification({ recipientUserId: 'a', type: 't', title: '2', message: '' });
+  await repo.createNotification({ recipientUserId: 'b', type: 't', title: '3', message: '' });
+  const deleted = await repo.deleteAllForUser('a');
+  assert.equal(deleted, 2);
+  assert.equal((await repo.listForUser('a')).length, 0);
+  assert.equal((await repo.listForUser('b')).length, 1);
+});

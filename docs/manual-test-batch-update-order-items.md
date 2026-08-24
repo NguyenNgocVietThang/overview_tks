@@ -11,7 +11,7 @@
 > (nếu còn lưu) hoặc lịch sử git các commit `perf: batch sequential row writes...` /
 > `fix: normalize order_id/product_code matching...`.
 
-## ⚠️ ĐỌC TRƯỚC: hiện KHÔNG có giao diện nào gọi endpoint này
+## ĐỌC TRƯỚC: hiện KHÔNG có giao diện nào gọi endpoint này
 
 Đã grep cả hai SPA frontend: **`dispatch.js` và `mobile.js` đều KHÔNG gọi**
 `PATCH /api/shipment/orders/:orderId/items`.
@@ -155,7 +155,7 @@ Mở trực tiếp Google Sheet, tab `Chi tiết vận chuyển`, kiểm tra:
 
 1. **Dừng ngay**, không gọi thêm request nào.
 2. Khôi phục dữ liệu từ bản backup ở Bước 1.
-3. **⚠️ Sau khi khôi phục/đổi tên bất kỳ tab nào: KHỞI ĐỘNG LẠI SERVER (hoặc chờ 5 phút)**
+3. ** Sau khi khôi phục/đổi tên bất kỳ tab nào: KHỞI ĐỘNG LẠI SERVER (hoặc chờ 5 phút)**
    trước khi ghi tiếp — xem điểm 4 bên dưới.
 
 ## Test biên (khuyến nghị làm thêm sau khi test cơ bản qua)

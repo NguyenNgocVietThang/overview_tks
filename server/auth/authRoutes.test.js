@@ -24,6 +24,26 @@ function getRouteHandler(router, method, routePath) {
 }
 
 /**
+ * Chay TOAN BO middleware stack cua 1 route (vd forgotPasswordRateLimit ->
+ * handler chinh), khac voi getRouteHandler chi lay handler cuoi cung. Can
+ * dung cho cac route co gan middleware (rate limit) truoc handler chinh.
+ */
+function getRouteStack(router, method, routePath) {
+  const layer = router.stack.find(l => l.route && l.route.path === routePath && l.route.methods[method]);
+  if (!layer) throw new Error(`Không tìm thấy route: ${method.toUpperCase()} ${routePath}`);
+  return layer.route.stack.map(l => l.handle);
+}
+
+async function callRoute(router, method, routePath, req, res) {
+  const stack = getRouteStack(router, method, routePath);
+  for (const handle of stack) {
+    let calledNext = false;
+    await handle(req, res, () => { calledNext = true; });
+    if (!calledNext) break;
+  }
+}
+
+/**
  * Require lai authRoutes.js VOI cac dependency da mock san. authRoutes.js
  * destructure ham ngay luc require (const { x } = require(...)), nen phai
  * ghi de tren MODULE dependency truoc, roi moi require authRoutes.js fresh
@@ -34,11 +54,12 @@ function freshAuthRoutes({
   findUserByEmail,
   findUserByUsername = async () => null,
   findActiveUserByUsername = async () => null,
+  findUserByIdentifier = async () => null,
   createActiveGuest,
   activatePendingGuest = async () => {},
   updateUserFields = async (id, fields) => ({ id, ...fields, trangThai: 'Đang hoạt động' })
 }) {
-  ['./authRoutes', './googleAuthService', './userRepository', './userWriteRepository', '../config']
+  ['./authRoutes', './googleAuthService', './userRepository', './userWriteRepository', './otpService', '../config']
     .forEach(id => { delete require.cache[require.resolve(id)]; });
 
   const googleAuthService = require('./googleAuthService');
@@ -48,6 +69,7 @@ function freshAuthRoutes({
   userRepository.findUserByEmail = findUserByEmail;
   userRepository.findUserByUsername = findUserByUsername;
   userRepository.findActiveUserByUsername = findActiveUserByUsername;
+  userRepository.findUserByIdentifier = findUserByIdentifier;
 
   const userWriteRepository = require('./userWriteRepository');
   userWriteRepository.createActiveGuest = createActiveGuest;
@@ -450,6 +472,98 @@ test('POST /api/auth/register: dang ky bang thangnnv2003@gmail.com duoc gan quye
   assert.equal(res.statusCode, 201);
   assert.equal(res.body.vaiTro, 'Quản lý');
   assert.equal(createdWith.vaiTro, 'Quản lý');
+});
+
+// -------------------------------------------------------------
+// FORGOT PASSWORD / OTP — chong user enumeration, khong lo OTP, rate limit
+// -------------------------------------------------------------
+
+test('POST /api/auth/forgot-password/channels: tai khoan khong ton tai van tra ve 200 kem kenh gia (chong enumeration)', async () => {
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    findUserByIdentifier: async () => null
+  });
+  const res = fakeRes();
+  await callRoute(router, 'post', '/api/auth/forgot-password/channels', { body: { identifier: 'khong-ton-tai' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.ok(Array.isArray(res.body.channels) && res.body.channels.length > 0);
+  assert.equal(res.body.channels[0].targetRaw, null);
+});
+
+test('POST /api/auth/forgot-password/channels: tai khoan ton tai tra ve 200 kem kenh that, cung shape voi tai khoan gia', async () => {
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    findUserByIdentifier: async () => ({ username: 'user1', email: 'user1@example.com' })
+  });
+  const res = fakeRes();
+  await callRoute(router, 'post', '/api/auth/forgot-password/channels', { body: { identifier: 'user1' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.ok(Array.isArray(res.body.channels) && res.body.channels.length > 0);
+  assert.equal(res.body.channels[0].channel, 'email');
+});
+
+test('POST /api/auth/forgot-password/send-otp: tai khoan khong ton tai tra ve 200 gia, khong lo devCode/code', async () => {
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    findUserByIdentifier: async () => null
+  });
+  const res = fakeRes();
+  await callRoute(router, 'post', '/api/auth/forgot-password/send-otp', { body: { identifier: 'khong-ton-tai', channel: 'email' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.devCode, undefined);
+  assert.equal(res.body.code, undefined);
+});
+
+test('POST /api/auth/forgot-password/send-otp: tai khoan that tra ve 200, khong lo devCode/code trong response', async () => {
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    findUserByIdentifier: async () => ({ username: 'user1', email: 'user1@example.com' })
+  });
+  const res = fakeRes();
+  await callRoute(router, 'post', '/api/auth/forgot-password/send-otp', { body: { identifier: 'user1', channel: 'email' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.devCode, undefined);
+  assert.equal(res.body.code, undefined);
+  assert.equal('devCode' in res.body, false);
+});
+
+test('POST /api/auth/forgot-password/verify: tai khoan khong ton tai tra ve 400 giong OTP sai/het han (khong phai 404)', async () => {
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    findUserByIdentifier: async () => null
+  });
+  const res = fakeRes();
+  await callRoute(router, 'post', '/api/auth/forgot-password/verify', { body: { identifier: 'khong-ton-tai', otp: '123456', newPassword: 'MatKhauMoi123' } }, res);
+  assert.equal(res.statusCode, 400);
+  assert.match(res.body.error, /Mã OTP không tồn tại hoặc đã hết hạn/);
+});
+
+test('POST /api/auth/forgot-password/send-otp: goi lien tuc vuot nguong bi chan 429', async () => {
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    findUserByIdentifier: async () => null
+  });
+  let sawRateLimited = false;
+  for (let i = 0; i < 30; i++) {
+    const res = fakeRes();
+    await callRoute(router, 'post', '/api/auth/forgot-password/send-otp', { body: { identifier: 'spam-target', channel: 'email' } }, res);
+    if (res.statusCode === 429) { sawRateLimited = true; break; }
+  }
+  assert.equal(sawRateLimited, true);
 });
 
 

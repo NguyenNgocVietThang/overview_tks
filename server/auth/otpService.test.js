@@ -75,3 +75,19 @@ test('otpService: khoa khi nhap sai qua so lan MAX_OTP_ATTEMPTS', () => {
   assert.equal(lockedRes.valid, false);
   assert.match(lockedRes.error, /nhập sai mã OTP quá 5 lần/);
 });
+
+test('otpService: gui lai OTP ngay lap tuc bi chan boi cooldown', () => {
+  clearAllOtp();
+  const first = generateResetOtp('user-cooldown', 'user@example.com', 'email');
+  assert.equal(first.success, true);
+  assert.match(first.code, /^[0-9]{6}$/);
+
+  const second = generateResetOtp('user-cooldown', 'user@example.com', 'email');
+  assert.equal(second.success, false);
+  assert.equal(second.cooldown, true);
+  assert.ok(second.waitSeconds > 0 && second.waitSeconds <= 60);
+
+  // Ma cu van con hieu luc, chua bi ghi de boi lan goi bi chan
+  const verifyRes = verifyResetOtp('user-cooldown', first.code);
+  assert.equal(verifyRes.valid, true);
+});

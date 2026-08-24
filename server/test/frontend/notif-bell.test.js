@@ -105,3 +105,83 @@ test('Quản lý thấy nút Duyệt/Từ chối trên thông báo yêu cầu đ
   assert.equal(patchCalls[0].body.status, 'Đã duyệt');
   window.close();
 });
+
+test('click vào thông báo có relatedType đánh dấu đã đọc rồi điều hướng đúng URL', async () => {
+  const calledUrls = [];
+  const { window, document } = createEnv({ id: 'u1', vaiTro: 'Quản lý' }, async (url, opts) => {
+    calledUrls.push({ url: String(url), method: opts && opts.method });
+    if (String(url).includes('/unread-count')) return { ok: true, json: async () => ({ count: 1 }) };
+    if (opts && opts.method === 'PATCH' && String(url).includes('/read')) {
+      return { ok: true, json: async () => ({ notification: { id: 'n1', isRead: true } }) };
+    }
+    return {
+      ok: true,
+      json: async () => ({ notifications: [
+        { id: 'n1', type: 'leave_request_created', title: 'Có nhân sự nghỉ phép', message: 'A nghỉ phép', isRead: false, relatedType: 'leaveRequest', relatedId: 'lv1' }
+      ] })
+    };
+  });
+  let navigatedTo = null;
+  window.TKSNav._navigate = url => { navigatedTo = url; };
+  window.TKSNav.renderNotifBell({ id: 'u1', vaiTro: 'Quản lý' });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  document.getElementById('tksNotifBellBtn').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+
+  document.querySelector('.tks-notif-item').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+
+  assert.ok(calledUrls.some(c => c.method === 'PATCH' && c.url.includes('/api/notifications/n1/read')));
+  assert.equal(navigatedTo, '/humanresources/#leave');
+  window.close();
+});
+
+test('click icon xóa trên thông báo gọi DELETE /api/notifications/:id', async () => {
+  const calledUrls = [];
+  const { window, document } = createEnv({ id: 'u1', vaiTro: 'Trợ lý' }, async (url, opts) => {
+    calledUrls.push({ url: String(url), method: opts && opts.method });
+    if (String(url).includes('/unread-count')) return { ok: true, json: async () => ({ count: 1 }) };
+    if (opts && opts.method === 'DELETE') return { ok: true, json: async () => ({ deleted: true }) };
+    return {
+      ok: true,
+      json: async () => ({ notifications: [
+        { id: 'n1', type: 'role_change_decision', title: 'Đã duyệt', message: 'OK', isRead: false, relatedId: 'r1' }
+      ] })
+    };
+  });
+  window.TKSNav.renderNotifBell({ id: 'u1', vaiTro: 'Trợ lý' });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  document.getElementById('tksNotifBellBtn').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+
+  document.querySelector('.tks-notif-delete').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+
+  assert.ok(calledUrls.some(c => c.method === 'DELETE' && c.url === '/api/notifications/n1'));
+  window.close();
+});
+
+test('click "Xóa tất cả" gọi DELETE /api/notifications', async () => {
+  const calledUrls = [];
+  const { window, document } = createEnv({ id: 'u1', vaiTro: 'Trợ lý' }, async (url, opts) => {
+    calledUrls.push({ url: String(url), method: opts && opts.method });
+    if (String(url).includes('/unread-count')) return { ok: true, json: async () => ({ count: 1 }) };
+    if (opts && opts.method === 'DELETE') return { ok: true, json: async () => ({ deleted: 1 }) };
+    return {
+      ok: true,
+      json: async () => ({ notifications: [
+        { id: 'n1', type: 'role_change_decision', title: 'Đã duyệt', message: 'OK', isRead: false, relatedId: 'r1' }
+      ] })
+    };
+  });
+  window.TKSNav.renderNotifBell({ id: 'u1', vaiTro: 'Trợ lý' });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  document.getElementById('tksNotifBellBtn').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+
+  document.getElementById('tksNotifClearAll').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+
+  assert.ok(calledUrls.some(c => c.method === 'DELETE' && c.url === '/api/notifications'));
+  window.close();
+});

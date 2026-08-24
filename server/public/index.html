@@ -19,6 +19,7 @@
   </script>
   <script src="/vendor/chart.umd.min.js"></script>
   <script src="/js/pagination.js"></script>
+  <link rel="stylesheet" href="/shared/shared.css?v=20260822">
   <script src="/shared/shared-nav.js?v=20260822"></script>
   <script src="/shared/three-interactions.js" defer></script>
   <script src="/shared/three-loading.js" defer></script>
@@ -61,6 +62,9 @@
 
       --ambient-1: rgba(var(--primary-rgb-d), 0.08);
       --ambient-2: rgba(var(--glow-green-rgb), 0.05);
+
+      --bg-image: url('/shared/images/bg-dark.jpg');
+      --bg-scrim: rgba(9, 13, 22, 0.72);
 
       --sidebar-w: 210px;
       --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -142,6 +146,9 @@
 
       --ambient-1: rgba(var(--primary-rgb-l), 0.04);
       --ambient-2: rgba(5, 150, 105, 0.03);
+
+      --bg-image: url('/shared/images/bg-light.jpg');
+      --bg-scrim: rgba(248, 250, 252, 0.80);
     }
 
     * {
@@ -153,11 +160,13 @@
       background:
         radial-gradient(circle at 15% 0%, var(--ambient-1), transparent 45%),
         radial-gradient(circle at 90% 10%, var(--ambient-2), transparent 40%),
+        linear-gradient(var(--bg-scrim), var(--bg-scrim)),
+        var(--bg-image) center/cover no-repeat fixed,
         var(--bg);
       color: var(--text);
       font-family: var(--font-body);
       min-height: 100vh;
-      transition: color .2s ease, background-color .2s ease;
+      transition: color .2s ease, background-color .2s ease, background-image .3s ease;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
@@ -3083,33 +3092,12 @@
       </div>
     </div>
     <div class="status-line">
-      <div class="clock"><span class="dot"></span><span id="updatedAt">Đang tải...</span></div>
-      <div class="account-chip" id="accountChip"></div>
-      <button class="theme-toggle" id="themeToggle" type="button" onclick="toggleTheme()"
-        aria-label="Chuyển sang giao diện sáng" aria-pressed="false" title="Chuyển sang giao diện sáng">
-        <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-          stroke-linecap="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="4"></circle>
-          <path
-            d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41">
-          </path>
-        </svg>
-        <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>
-        </svg>
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Chuyển chế độ giao diện" onclick="toggleTheme()">
+        <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"></path></svg>
+        <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
         <span id="themeLabel">Chế độ sáng</span>
       </button>
-      <button class="refresh-btn" id="refreshBtn" type="button" onclick="loadData(state.days, true)">
-        <svg id="refreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-          <path d="M21 3v5h-5"></path>
-          <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-          <path d="M8 16H3v5"></path>
-        </svg>
-        Làm mới
-      </button>
+      <div class="account-chip" id="accountChip"></div>
     </div>
   </div>
 
@@ -5855,6 +5843,7 @@
         options: {
           animation: chartAnimationOption(),
           responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false, axis: 'x' },
           plugins: {
             legend: { display: false },
             tooltip: { callbacks: { label: c => fmtMoney(c.raw) } }
@@ -5905,7 +5894,7 @@
           animation: chartAnimationOption(),
           responsive: true,
           maintainAspectRatio: false,
-          interaction: { mode: 'nearest', intersect: true },
+          interaction: { mode: 'index', intersect: false, axis: 'y' },
           plugins: {
             legend: { display: false },
             tooltip: {
@@ -5962,7 +5951,7 @@
           animation: chartAnimationOption(),
           responsive: true,
           maintainAspectRatio: false,
-          interaction: { mode: 'nearest', intersect: true },
+          interaction: { mode: 'index', intersect: false, axis: 'y' },
           plugins: {
             legend: { display: false },
             tooltip: {
@@ -6013,6 +6002,7 @@
         options: {
           animation: chartAnimationOption(),
           indexAxis: vertical ? 'x' : 'y', responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false, axis: vertical ? 'x' : 'y' },
           plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => fmtMoney(c.raw) } } },
           scales: vertical
             ? { x: labelScale, y: valueScale }
@@ -6815,8 +6805,6 @@
     }
 
     function setLoading(isLoading) {
-      document.getElementById('refreshBtn').disabled = isLoading;
-      document.getElementById('refreshIcon').classList.toggle('spinning', isLoading);
       document.getElementById('veil').classList.toggle('show', isLoading);
     }
 
@@ -6840,7 +6828,6 @@
           const changed = fingerprint !== state.lastFingerprint;
           state.lastFingerprint = fingerprint;
           state.data = data;
-          document.getElementById('updatedAt').textContent = 'Cập nhật lúc ' + updatedAt + (changed ? '' : ' (không đổi)');
           if (changed || isManualRefresh) {
             try {
               state.chartAnimation = !!isManualRefresh;
@@ -6855,7 +6842,6 @@
           if (isManualRefresh) setLoading(false);
         })
         .catch(function (err) {
-          document.getElementById('updatedAt').textContent = 'Lỗi tải dữ liệu';
           console.error(err);
           if (isManualRefresh) setLoading(false);
           if (isManualRefresh) showToast('Không thể tải dữ liệu: ' + (err && err.message ? err.message : err), 'error');

@@ -7,6 +7,7 @@ const crypto = require('crypto');
 
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 phút
 const MAX_OTP_ATTEMPTS = 5;
+const RESEND_COOLDOWN_MS = 60 * 1000; // 60 giay giua 2 lan gui OTP cho cung 1 tai khoan
 
 // Lưu trữ OTP tạm thời trong bộ nhớ: Map<normalizedIdentifier, OtpRecord>
 const otpStore = new Map();
@@ -100,8 +101,16 @@ function getAvailableChannels(user) {
  */
 function generateResetOtp(identifier, targetRaw, channelType) {
   const normId = normalize(identifier);
+  const now = Date.now();
+
+  const existing = otpStore.get(normId);
+  if (existing && existing.createdAt && (now - existing.createdAt) < RESEND_COOLDOWN_MS) {
+    const waitSeconds = Math.ceil((RESEND_COOLDOWN_MS - (now - existing.createdAt)) / 1000);
+    return { success: false, cooldown: true, waitSeconds };
+  }
+
   const code = String(crypto.randomInt(100000, 999999));
-  const expiresAt = Date.now() + OTP_TTL_MS;
+  const expiresAt = now + OTP_TTL_MS;
 
   const record = {
     code,
@@ -109,13 +118,16 @@ function generateResetOtp(identifier, targetRaw, channelType) {
     target: targetRaw,
     channel: channelType,
     expiresAt,
-    attempts: 0
+    attempts: 0,
+    createdAt: now
   };
 
   otpStore.set(normId, record);
 
   // Giả lập gửi OTP: log ra console server để dev/admin kiểm tra hoặc tích hợp SMS/Email service
-  console.log(`\n🔑 [OTP SERVICE] Đã tạo mã OTP cho [${normId}] qua [${channelType} -> ${targetRaw}]: [${code}] (Hạn dùng 5 phút)\n`);
+  // TODO: thay bang tich hop SMS/Email that (Twilio/nodemailer/...) truoc khi dua len production —
+  // hien tai day la kenh "gui" duy nhat, khong co gui that qua email/SDT.
+  console.log(`\n[OTP SERVICE] Đã tạo mã OTP cho [${normId}] qua [${channelType} -> ${targetRaw}]: [${code}] (Hạn dùng 5 phút)\n`);
 
   return {
     success: true,

@@ -701,12 +701,7 @@
           }
 
           document.getElementById('otpSentTarget').textContent = result.data.targetMasked;
-          // Nếu có devCode trong môi trường dev, tự điền mã để tiện test
-          if(result.data.devCode){
-            document.getElementById('inputOtpCode').value = result.data.devCode;
-          } else {
-            document.getElementById('inputOtpCode').value = '';
-          }
+          document.getElementById('inputOtpCode').value = '';
           document.getElementById('resetNewPass').value = '';
           document.getElementById('resetConfirmPass').value = '';
 

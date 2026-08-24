@@ -92,3 +92,40 @@ test('PATCH /api/notifications/read-all đánh dấu toàn bộ đã đọc', as
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.changed, 2);
 });
+
+test('DELETE /api/notifications/:id xóa đúng thông báo của user', async () => {
+  repo.setInMemoryNotifications([
+    { id: 'n1', recipientUserId: 'u1', type: 't', title: 'A', message: '', isRead: false, createdAt: '2026-01-01T00:00:00.000Z' }
+  ]);
+  const handler = getRouteHandler(notificationRoutes, 'delete', '/api/notifications/:id');
+  const req = { user: { id: 'u1' }, params: { id: 'n1' } };
+  const res = fakeRes();
+  await handler(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.deleted, true);
+});
+
+test('DELETE /api/notifications/:id trả 404 nếu không thuộc user', async () => {
+  repo.setInMemoryNotifications([
+    { id: 'n1', recipientUserId: 'someone-else', type: 't', title: 'A', message: '', isRead: false, createdAt: '2026-01-01T00:00:00.000Z' }
+  ]);
+  const handler = getRouteHandler(notificationRoutes, 'delete', '/api/notifications/:id');
+  const req = { user: { id: 'u1' }, params: { id: 'n1' } };
+  const res = fakeRes();
+  await handler(req, res);
+  assert.equal(res.statusCode, 404);
+});
+
+test('DELETE /api/notifications xóa toàn bộ thông báo của user', async () => {
+  repo.setInMemoryNotifications([
+    { id: 'n1', recipientUserId: 'u1', type: 't', title: 'A', message: '', isRead: false, createdAt: '2026-01-01T00:00:00.000Z' },
+    { id: 'n2', recipientUserId: 'u1', type: 't', title: 'B', message: '', isRead: false, createdAt: '2026-01-01T00:00:00.000Z' },
+    { id: 'n3', recipientUserId: 'u2', type: 't', title: 'C', message: '', isRead: false, createdAt: '2026-01-01T00:00:00.000Z' }
+  ]);
+  const handler = getRouteHandler(notificationRoutes, 'delete', '/api/notifications');
+  const req = { user: { id: 'u1' } };
+  const res = fakeRes();
+  await handler(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.deleted, 2);
+});

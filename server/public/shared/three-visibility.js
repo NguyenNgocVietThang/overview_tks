@@ -247,7 +247,7 @@
      */
     logReport() {
       const stats = this.getStats();
-      console.group('👁️ TKS Visibility Report');
+      console.group('TKS Visibility Report');
       console.log('Current State:', stats.currentState);
       console.log('Total Hidden Time:', stats.totalHiddenSeconds + 's');
       console.log('Registered Components:', stats.componentCount);

@@ -60,7 +60,7 @@ function syncAllDataChunked() {
       syncCustomerReport();
       props.deleteProperty('MASTER_CHAIN_SYNC_STATE');
       removeAllChunkResumeTriggers_();
-      Logger.log('🎉🎉🎉 HOAN TAT TOAN BO CHUOI DONG BO 9 SHEET VAN HANH VA 7 SHEET TONG HOP/BAO CAO!');
+      Logger.log('HOAN TAT TOAN BO CHUOI DONG BO 9 SHEET VAN HANH VA 7 SHEET TONG HOP/BAO CAO!');
       return;
     }
 
@@ -84,7 +84,7 @@ function syncAllDataChunked() {
       } else {
         props.deleteProperty('MASTER_CHAIN_SYNC_STATE');
         removeAllChunkResumeTriggers_();
-        Logger.log('🎉 HOAN TAT TOAN BO CAC BANG DU LIEU!');
+        Logger.log('HOAN TAT TOAN BO CAC BANG DU LIEU!');
       }
     } else {
       // Bang nay chua xong -> Luu state va len lich chay tiep bang nay
