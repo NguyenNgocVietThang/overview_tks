@@ -87,11 +87,9 @@ function setupKiotVietAutoSync() {
  * invoice.update duoc xu ly tai cho cho ca hai bo tab, khong relay vong lap.
  */
 function setupCombinedKiotVietSync() {
-  PropertiesService.getScriptProperties().setProperty(
-    'KIOTVIET_SYNC_MODE',
-    KIOTVIET_SYNC_MODES.COMBINED
+  throw new Error(
+    'Che do COMBINED da ngung ho tro. Project nay chi dung cho Google Sheets Van chuyen.'
   );
-  return setupKiotVietAutoSync();
 }
 
 function ensureKiotVietWebhookSecret_() {

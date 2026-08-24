@@ -67,3 +67,8 @@ function getKiotVietToken() {
     (lastError ? lastError.toString() : 'khong ro loi'));
   return null;
 }
+
+function clearKiotVietToken() {
+  CacheService.getScriptCache().remove('KIOTVIET_ACCESS_TOKEN');
+  Logger.log('Đã xóa KIOTVIET_ACCESS_TOKEN khỏi Cache thành công!');
+}

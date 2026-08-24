@@ -41,7 +41,10 @@
   
   --ambient-1:rgba(59,130,246,0.08);
   --ambient-2:rgba(16,185,129,0.05);
-  
+
+  --bg-image:url('images/bg-dark.jpg');
+  --bg-scrim:rgba(9,13,22,0.72);
+
   --sidebar-w:210px;
   --ease-out:cubic-bezier(0.23, 1, 0.32, 1);
   --font-display:'Be Vietnam Pro',sans-serif;
@@ -153,6 +156,9 @@
   --ambient-1:rgba(37,99,235,0.04);
   --ambient-2:rgba(5,150,105,0.03);
 
+  --bg-image:url('images/bg-light.jpg');
+  --bg-scrim:rgba(248,250,252,0.80);
+
   /* ── Light mode shadow overrides ── */
   --shadow-modal:0 20px 50px rgba(0,0,0,0.2);
   --shadow-toast:0 8px 24px rgba(0,0,0,0.12);
@@ -212,11 +218,13 @@ body{
   background:
     radial-gradient(circle at 15% 0%, var(--ambient-1), transparent 45%),
     radial-gradient(circle at 90% 10%, var(--ambient-2), transparent 40%),
+    linear-gradient(var(--bg-scrim), var(--bg-scrim)),
+    var(--bg-image) center/cover no-repeat fixed,
     var(--bg);
   color:var(--text);
   font-family:var(--font-body);
   min-height:100vh;
-  transition:color .2s ease, background-color .2s ease;
+  transition:color .2s ease, background-color .2s ease, background-image .3s ease;
   -webkit-font-smoothing:antialiased;
   -moz-osx-font-smoothing:grayscale;
 }

@@ -33,7 +33,7 @@ Tài liệu này mô tả 5 luồng chính:
 | **Vai trò (Lane)**         | **Mô tả trách nhiệm**                                                                                                           |
 |----------------------------|---------------------------------------------------------------------------------------------------------------------------------|
 | KiotViet POS               | Phần mềm quản lý bán hàng: phát sinh thay đổi dữ liệu, gửi webhook POST JSON đến Apps Script Web App URL.                       |
-| Apps Script                | Các module trong `src/` chạy trong Google Workspace: lưu webhook vào queue bền vững, chạy lịch polling 15 phút, đồng bộ vào Google Sheets. |
+| Apps Script                | Hai project trong `src-dashboard/` và `src-order-lifecycle/` chạy độc lập theo từng Google Sheets: lưu webhook vào queue bền vững, polling và đồng bộ dữ liệu. |
 | Google Sheets              | Spreadsheet nguồn chứa 9 tab đồng bộ, 3 tab báo cáo khách hàng, 6 tab vận chuyển VC_*, tab Users và HN1/HN3/HN7.               |
 | Backend (Node.js/Express)  | Server trên Render.com: quản lý Result Cache, đọc Google Sheets qua Service Account, tính toán KPI, xác thực JWT/bcrypt/OTP, tạo file Excel và phục vụ API. |
 | Người dùng / Frontend      | Truy cập Web Dashboard: tương tác KPI, chuyển tab tức thì (<10ms), phân trang, quản lý tài khoản `/account/`, tra cứu vận chuyển và tải file Excel. |
@@ -268,7 +268,7 @@ Luồng này do IT Admin thực hiện khi triển khai lần đầu hoặc khi 
      `-- Có ->
 
 --- Phần 2: Cấu hình Apps Script ---
-[C7] [Task] Dùng clasp push các module trong `src/` lên dự án Apps Script
+[C7] [Task] Dùng clasp push riêng `src-dashboard/` và `src-order-lifecycle/` lên hai dự án Apps Script
 [C8] [Task] Lưu -> Deploy -> New deployment -> Web app (Execute as: Me, Access: Anyone) -> Copy URL
 [C9] [Task] Chạy `syncAllInitialData()` để tải dữ liệu ban đầu
 [C10] [Task] Chạy `setupKiotVietAutoSync()` để tự tạo secret, trigger 1 phút, polling 15 phút và đăng ký 9 webhook

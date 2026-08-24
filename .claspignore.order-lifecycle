@@ -1,0 +1,14 @@
+# Chỉ dùng cho project Vận chuyển (rootDir: src-order-lifecycle).
+node_modules/
+docs/
+future-phases/
+plans/
+dev/
+server/
+design-system/
+.agents/
+.claude/
+*.md
+*.bpmn
+.gitignore
+README.md

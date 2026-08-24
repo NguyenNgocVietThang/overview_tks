@@ -6,6 +6,7 @@
 # (chứa CLIENT_ID, CLIENT_SECRET của KiotViet)
 # Thêm lại thủ công sau khi clone: clasp login && clasp pull
 .clasp.json
+.clasp.*.json
 
 # Node modules (nếu dùng clasp local)
 node_modules/

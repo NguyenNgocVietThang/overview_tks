@@ -12,6 +12,13 @@ app.use(compression());
 app.use(express.json());
 app.use(cookieParser());
 
+// Ngan Cloudflare/Render cache response API — du lieu bao cao phai luon lay tu
+// Google Sheets moi nhat, khong duoc phep tra ban cache cu tu edge/CDN.
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+
 // API + auth routes TRUOC static (tranh express.static chop mat /api/*)
 app.use(routes);
 

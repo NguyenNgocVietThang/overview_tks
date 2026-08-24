@@ -8,7 +8,7 @@
 |------------------|----------------------------------------------------------------------|
 | Phiên bản tài liệu | 2.2                                                              |
 | Ngày tạo         | 27/07/2026                                                           |
-| Ngày cập nhật    | 21/08/2026                                                           |
+| Ngày cập nhật    | 24/08/2026                                                           |
 | Tài liệu liên quan | BRD v1.8 · SRS v2.1 · BPMN v1.9 · CSNS-NP-01 (Chính sách nghỉ phép) · Debt Spec 2026-08-05 · Cache/Pagination Plans · Lag Optimization Plan · Stagger Triggers Plan · Plan Process Automation · 3D Design · Performance Optimization Report · ROLLBACK |
 | Trạng thái       | Giai đoạn 1 (Dashboard, Vận chuyển, Auth, 3D, Performance) & Phân hệ Quản lý Nghỉ phép HR + Telegram Bot hoàn thành — đang vận hành |
 
@@ -17,13 +17,16 @@
 # 1. Kiến trúc thực tế đã triển khai
 
 ```
-src/                        ← GAS source code (clasp push)
-├── HuongDanSuDung.gs       ← Hướng dẫn hàm và luồng liên kết trên Apps Script
-├── config/Config.gs
+src-dashboard/              ← GAS project riêng cho Google Sheets Dashboard
+├── HuongDanSuDung.gs · config/Config.gs · utils/Helpers.gs
 ├── kiotviet/Auth.gs · CustomerDebtReport.gs · CustomerReport.gs · DiscontinuedProducts.gs · SheetSchemas.gs · SyncInitial.gs · WebhookAdmin.gs
-├── shipment/KiotVietLifecycle.gs ← Vòng đời 6 tab vận chuyển và chuyển tiếp webhook
-├── sync/UpdateHandlers.gs · WebhookQueue.gs
-└── utils/Helpers.gs
+└── sync/UpdateHandlers.gs · WebhookQueue.gs
+
+src-order-lifecycle/        ← GAS project riêng cho Google Sheets Vận chuyển
+├── HuongDanSuDung.gs · config/Config.gs · utils/Helpers.gs
+├── kiotviet/Auth.gs · SheetSchemas.gs · WebhookAdmin.gs
+├── shipment/KiotVietLifecycle.gs
+└── sync/UpdateHandlers.gs · WebhookQueue.gs
 
 server/                     ← Node.js/Express backend (Render.com)
 ├── index.js                ← Express entry point (Gzip compression, static Cache-Control headers)
@@ -120,8 +123,8 @@ server/                     ← Node.js/Express backend (Render.com)
 | **#** | **Hạng mục**                          | **Nội dung**                                                                                       | **Trạng thái** |
 |-------|---------------------------------------|----------------------------------------------------------------------------------------------------|----------------|
 | 1     | Phân tích & thiết kế                  | Hoàn thiện BRD v1.8, SRS v2.1, BPMN v1.9; thiết kế kiến trúc kỹ thuật                            | [Hoan thanh]   |
-| 2     | Apps Script đồng bộ KiotViet          | `src/`: sync đủ trường, webhook 9 event qua queue bền vững, polling 15 phút (Trả hàng/NCC/Nhập hàng) | [Hoan thanh]   |
-| 3     | GAS Web App (src/)                    | Chỉ nhận `doPost()` từ KiotViet; đã bỏ preview HTML và logic đọc dashboard khỏi Apps Script | [Hoan thanh]   |
+| 2     | Apps Script đồng bộ KiotViet          | `src-dashboard/`: sync đủ trường, webhook 9 event qua queue bền vững, polling 15 phút (Trả hàng/NCC/Nhập hàng) | [Hoan thanh]   |
+| 3     | GAS Web Apps tách theo Sheet          | `src-dashboard/` và `src-order-lifecycle/` chỉ nhận `doPost()`, mỗi project có rootDir/manifest riêng | [Hoan thanh]   |
 | 4     | Backend Node.js/Express               | `server/`: liệt kê/lọc tab, `batchGet` tối đa 9 tab, xử lý tab thiếu và tính ngày giờ Việt Nam   | [Hoan thanh]   |
 | 5     | Frontend HTML/CSS/JS                  | Sidebar, KPI, biểu đồ/bảng, lọc 7/30/90 ngày, refresh tay + nền 10 phút + tải bù khi tab visible | [Hoan thanh]   |
 | 6     | Triển khai Render.com                 | Deploy lên `tokosi.onrender.com`; cấu hình `SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_JSON`         | [Hoan thanh]   |
@@ -187,11 +190,9 @@ server/                     ← Node.js/Express backend (Render.com)
 
 # 5. Ghi chú kỹ thuật quan trọng
 
-> **Thứ tự load file GAS (src/):** clasp sắp xếp alphabetical theo thư mục:
-> `HuongDanSuDung.gs` -> `config/` -> `kiotviet/` -> `shipment/` -> `sync/` -> `utils/`
-> `Config.gs` luôn được khởi tạo trước tất cả module khác.
+> **Thứ tự load file GAS:** Dashboard dùng `HuongDanSuDung.gs -> config/ -> kiotviet/ -> sync/ -> utils/`; Vận chuyển thêm `shipment/` trước `sync/`. `Config.gs` luôn được khởi tạo trước các module nghiệp vụ.
 
-> **Schema Google Sheets:** Apps Script duy trì 9 tab vận hành, tab lịch sử `Hàng ngừng kinh doanh`, 3 tab báo cáo khách hàng, 3 tab báo cáo công nợ HN1/HN3/HN7, 6 tab vận chuyển `VC_*`, 3 tab nhân sự `HR_*` và tab ẩn `_KV_WEBHOOK_QUEUE`. Profile `COMBINED` hỗ trợ một spreadsheet chứa đồng thời cả hai nhóm tab và xử lý `invoice.update` tại chỗ cho cả dashboard lẫn vận chuyển.
+> **Schema Google Sheets:** `src-dashboard/` duy trì 9 tab vận hành, lịch sử và báo cáo; `src-order-lifecycle/` duy trì 6 tab vận chuyển và queue riêng. Ba nguồn Dashboard, Vận chuyển và Nhân sự dùng ba spreadsheet độc lập; HR được backend quản lý qua `HR_SPREADSHEET_ID`.
 
 > **Múi giờ:** Backend cố định `Asia/Ho_Chi_Minh`/UTC+07:00 cho parse ngày, KPI "hôm nay", bucket 7/30/90 ngày và `updatedAt`; không phụ thuộc timezone mặc định của Render.
 

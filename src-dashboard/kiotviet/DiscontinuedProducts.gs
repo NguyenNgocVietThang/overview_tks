@@ -349,26 +349,77 @@ function discontinuedProductRow_(p, eventType) {
 
 function formatDiscontinuedOutput_(sheet) {
   const width = DISCONTINUED_HEADERS.length;
-  sheet.setFrozenRows(1);
-  if (sheet.getLastRow() >= 1) {
-    sheet.getRange(1, 1, Math.max(1, sheet.getLastRow()), width).setFontFamily('Open Sans');
+  const lastRow = sheet.getLastRow();
+  const dataRowCount = Math.max(0, lastRow - 1);
+
+  try {
+    sheet.setFrozenRows(1);
+  } catch (e) {
+    Logger.log('Bo qua setFrozenRows: ' + e);
   }
-  sheet.getRange(1, 1, 1, width)
-    .setBackground('#b71c1c')
-    .setFontColor('#FFFFFF')
-    .setFontWeight('bold')
-    .setFontFamily('Open Sans')
-    .setWrap(true);
-  sheet.getRange('A:B').setNumberFormat('dd/MM/yyyy HH:mm:ss');
-  sheet.getRange('V:AB').setNumberFormat('#,##0.00');
-  sheet.getDataRange().setVerticalAlignment('top');
-  sheet.autoResizeColumns(1, Math.min(width, 20));
-  [29,30,31,32,33,34,40,42].forEach(function(column) {
-    sheet.setColumnWidth(column, 260);
-  });
-  if (sheet.getFilter()) sheet.getFilter().remove();
-  if (sheet.getLastRow() >= 1) {
-    sheet.getRange(1, 1, Math.max(1, sheet.getLastRow()), width).createFilter();
+
+  try {
+    sheet.getRange(1, 1, Math.max(1, lastRow), width).setFontFamily('Open Sans');
+  } catch (e) {
+    Logger.log('Bo qua setFontFamily: ' + e);
+  }
+
+  try {
+    sheet.getRange(1, 1, 1, width)
+      .setBackground('#b71c1c')
+      .setFontColor('#FFFFFF')
+      .setFontWeight('bold')
+      .setFontFamily('Open Sans')
+      .setWrap(true);
+  } catch (e) {
+    Logger.log('Bo qua header format: ' + e);
+  }
+
+  if (dataRowCount > 0) {
+    // Cot 1..2 (A:B) - Dinh dang ngay thang
+    try {
+      sheet.getRange(2, 1, dataRowCount, 2).setNumberFormat('dd/MM/yyyy HH:mm:ss');
+    } catch (e) {
+      Logger.log('Bo qua dinh dang ngay thang (typed column): ' + e);
+    }
+
+    // Cot 22..28 (V:AB) - Dinh dang so thap phan
+    try {
+      sheet.getRange(2, 22, dataRowCount, 7).setNumberFormat('#,##0.00');
+    } catch (e) {
+      Logger.log('Bo qua dinh dang so (typed column): ' + e);
+    }
+  }
+
+  try {
+    sheet.getDataRange().setVerticalAlignment('top');
+  } catch (e) {
+    Logger.log('Bo qua setVerticalAlignment: ' + e);
+  }
+
+  try {
+    sheet.autoResizeColumns(1, Math.min(width, 20));
+  } catch (e) {
+    Logger.log('Bo qua autoResizeColumns: ' + e);
+  }
+
+  try {
+    [29, 30, 31, 32, 33, 34, 40, 42].forEach(function(column) {
+      if (column <= sheet.getMaxColumns()) {
+        sheet.setColumnWidth(column, 260);
+      }
+    });
+  } catch (e) {
+    Logger.log('Bo qua setColumnWidth: ' + e);
+  }
+
+  try {
+    if (sheet.getFilter()) sheet.getFilter().remove();
+    if (lastRow >= 1) {
+      sheet.getRange(1, 1, lastRow, width).createFilter();
+    }
+  } catch (e) {
+    Logger.log('Bo qua createFilter: ' + e);
   }
 }
 

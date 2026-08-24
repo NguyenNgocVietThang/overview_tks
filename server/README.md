@@ -1,6 +1,6 @@
 # TOKOSI Dashboard — Node server
 
-Express server that reads Google Sheets and serves the live TOKOSI dashboard and shipment management system. The operational Sheets (Nhóm hàng, Hàng hóa, Hóa đơn, Chi tiết hóa đơn, Đặt hàng, Trả hàng, Khách hàng, Nhà cung cấp, Nhập hàng) are synced from KiotViet independently by the modular Google Apps Script project in `../src/`. The Express backend reads Sheets via the Sheets API, computes KPIs/charts, manages users/auth (JWT + bcrypt + Google Identity + OTP recovery + Local User Store), and powers the 9-state shipment delivery lifecycle system (`VC_*` sheets and Google Drive attachments).
+Express server that reads three independent Google Sheets sources for Dashboard (`SPREADSHEET_ID`), Shipment (`VC_SPREADSHEET_ID`) and HR (`HR_SPREADSHEET_ID`). KiotViet dashboard data is maintained by `../src-dashboard/`; shipment ingestion is maintained by `../src-order-lifecycle/`. The Express backend reads Sheets via the Sheets API, computes KPIs/charts, manages users/auth (JWT + bcrypt + Google Identity + OTP recovery + Local User Store), and powers the 9-state shipment delivery lifecycle system (`VC_*` sheets and Google Drive attachments).
 
 ## 1. One-time setup
 

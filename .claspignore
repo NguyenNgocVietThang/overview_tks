@@ -1,4 +1,6 @@
-# Không đẩy lên Google Apps Script
+# Chỉ dùng cho project Dashboard (rootDir: src-dashboard).
+# Project Vận chuyển dùng .clasp.order-lifecycle.json và
+# .claspignore.order-lifecycle.
 node_modules/
 docs/
 future-phases/
@@ -12,5 +14,4 @@ design-system/
 *.bpmn
 .gitignore
 README.md
-
 

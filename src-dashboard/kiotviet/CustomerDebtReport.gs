@@ -651,15 +651,24 @@ function writeCustomerDebtReportSheet_(sheetName, rows, period, syncedAt) {
     sheet.getRange(2, 1, dataRowCount, CUSTOMER_DEBT_REPORT_HEADERS.length)
       .setWrap(false)
       .setVerticalAlignment('middle');
-    sheet.getRange(2, 1, dataRowCount, 4).setNumberFormat('@');
-    sheet.getRange(2, 5, dataRowCount, 4).setNumberFormat('#,##0.####');
-    sheet.getRange(2, 9, dataRowCount, 1).setNumberFormat('@');
-    sheet.getRange(2, 10, dataRowCount, 1).setNumberFormat('dd/MM/yyyy HH:mm');
-    sheet.getRange(2, 11, dataRowCount, 1).setNumberFormat('@');
-    sheet.getRange(2, 12, dataRowCount, 2).setNumberFormat('#,##0.####');
-    sheet.getRange(2, 14, dataRowCount, 4).setNumberFormat('@');
-    sheet.getRange(2, 18, dataRowCount, 8).setNumberFormat('#,##0.####');
-    fullRange.createFilter();
+    try {
+      sheet.getRange(2, 1, dataRowCount, 4).setNumberFormat('@');
+      sheet.getRange(2, 5, dataRowCount, 4).setNumberFormat('#,##0.####');
+      sheet.getRange(2, 9, dataRowCount, 1).setNumberFormat('@');
+      sheet.getRange(2, 10, dataRowCount, 1).setNumberFormat('dd/MM/yyyy HH:mm');
+      sheet.getRange(2, 11, dataRowCount, 1).setNumberFormat('@');
+      sheet.getRange(2, 12, dataRowCount, 2).setNumberFormat('#,##0.####');
+      sheet.getRange(2, 14, dataRowCount, 4).setNumberFormat('@');
+      sheet.getRange(2, 18, dataRowCount, 8).setNumberFormat('#,##0.####');
+    } catch (e) {
+      Logger.log('Bo qua dinh dang so bao cao cong no: ' + e);
+    }
+    try {
+      if (sheet.getFilter()) sheet.getFilter().remove();
+      fullRange.createFilter();
+    } catch (e) {
+      Logger.log('Bo qua createFilter bao cao cong no: ' + e);
+    }
   }
 
   sheet.setFrozenRows(1);

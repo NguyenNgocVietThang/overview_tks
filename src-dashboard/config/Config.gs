@@ -2,7 +2,9 @@
 // CAU HINH THONG TIN KET NOI KIOTVIET — TOKOSI
 // ==========================================
 const CONFIG = {
-  RETAILER: 'CHbansi', // Ten gian hang TOKOSI tren KiotViet
+  get RETAILER() {
+    return PropertiesService.getScriptProperties().getProperty('KIOTVIET_RETAILER') || 'CHhanoi';
+  }, // Ten gian hang TOKOSI tren KiotViet
 
   // Ten cac tab luu du lieu tren Sheet
   SHEET_PRODUCTS: 'Hàng hóa',
@@ -20,50 +22,31 @@ const CONFIG = {
   SHEET_DISCONTINUED_PRODUCTS: 'Hàng ngừng kinh doanh',
   SHEET_CUSTOMER_DEBT_1_DAY: 'HN1',
   SHEET_CUSTOMER_DEBT_3_DAYS: 'HN3',
-  SHEET_CUSTOMER_DEBT_7_DAYS: 'HN7',
-
-  // Spreadsheet van chuyen doc lap. O che do SHIPMENT_LIFECYCLE, Apps Script
-  // chi ghi cac tab nay va khong tao 9 tab du lieu tong hop cua dashboard cu.
-  SHEET_SHIPMENT_ORDERS: 'Đơn vận chuyển',
-  SHEET_SHIPMENT_ORDER_ITEMS: 'Chi tiết vận chuyển',
-  SHEET_SHIPMENT_STATUS_HISTORY: 'Lịch sử trạng thái',
-  SHEET_SHIPMENT_ATTACHMENTS: 'Ảnh chứng từ',
-  SHEET_SHIPMENT_EXCEPTIONS: 'Sự cố vận chuyển',
-  SHEET_SHIPMENT_VEHICLES: 'Danh mục xe'
+  SHEET_CUSTOMER_DEBT_7_DAYS: 'HN7'
 };
 
 const KIOTVIET_SYNC_MODES = Object.freeze({
-  FULL_DASHBOARD: 'FULL_DASHBOARD',
-  SHIPMENT_LIFECYCLE: 'SHIPMENT_LIFECYCLE',
-  COMBINED: 'COMBINED'
+  FULL_DASHBOARD: 'FULL_DASHBOARD'
 });
 
 /**
- * Du an cu khong co property nay nen mac dinh van dong bo day du nhu truoc.
- * Du an cua spreadsheet van chuyen dat KIOTVIET_SYNC_MODE=SHIPMENT_LIFECYCLE.
+ * Project nay chi phuc vu spreadsheet Dashboard. Logic Vận chuyển nằm trong
+ * src-order-lifecycle/ và được triển khai bằng .clasp.order-lifecycle.json.
  */
 function getKiotVietSyncMode_() {
-  const configured = PropertiesService.getScriptProperties()
-    .getProperty('KIOTVIET_SYNC_MODE');
-  if (configured === KIOTVIET_SYNC_MODES.SHIPMENT_LIFECYCLE) {
-    return KIOTVIET_SYNC_MODES.SHIPMENT_LIFECYCLE;
-  }
-  if (configured === KIOTVIET_SYNC_MODES.COMBINED) {
-    return KIOTVIET_SYNC_MODES.COMBINED;
-  }
   return KIOTVIET_SYNC_MODES.FULL_DASHBOARD;
 }
 
 function isShipmentLifecycleMode_() {
-  return getKiotVietSyncMode_() === KIOTVIET_SYNC_MODES.SHIPMENT_LIFECYCLE;
+  return false;
 }
 
 function isCombinedKiotVietMode_() {
-  return getKiotVietSyncMode_() === KIOTVIET_SYNC_MODES.COMBINED;
+  return false;
 }
 
 function hasShipmentLifecycle_() {
-  return isShipmentLifecycleMode_() || isCombinedKiotVietMode_();
+  return false;
 }
 
 function isShipmentLifecycleRelayEnabled_() {

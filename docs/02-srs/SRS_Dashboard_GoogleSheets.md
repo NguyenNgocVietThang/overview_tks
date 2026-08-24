@@ -9,7 +9,7 @@
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                          |
 | Phiên bản          | 2.1                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 22/08/2026                                                 |
+| Ngày cập nhật      | 24/08/2026                                                 |
 | Tài liệu liên quan | BRD v1.8 · BPMN v1.9 · Implementation Plan v2.2 · CSNS-NP-01 (Chính sách nghỉ phép) · Plan Process Automation · 3D Design · Performance Optimization Report · Lag Optimization Plan · ROLLBACK |
 | Trạng thái         | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1, Lớp 3D, Gói tối ưu hóa hiệu năng & Phân hệ HR Leave + Telegram Bot đã hoàn thiện) |
 
@@ -25,7 +25,7 @@ Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi ch�
 
 Hệ thống là một Web Application nội bộ gồm các thành phần chính:
 
-1. **Apps Script (`src/`):** cùng một bộ mã chạy theo ba profile. `FULL_DASHBOARD` duy trì sheet tổng hợp gồm 9 tab vận hành, lịch sử/báo cáo và polling; `SHIPMENT_LIFECYCLE` duy trì sheet vận chuyển độc lập, nhận riêng `invoice.update` qua hàng đợi bền vững; `COMBINED` dùng khi một spreadsheet chứa cả hai nhóm tab và xử lý `invoice.update` tại chỗ cho cả dashboard lẫn vòng đời vận chuyển.
+1. **Apps Script tách theo Google Sheets:** `src-dashboard/` duy trì 9 tab vận hành, lịch sử/báo cáo và polling của Dashboard; `src-order-lifecycle/` duy trì sheet Vận chuyển độc lập và nhận `invoice.update` qua hàng đợi bền vững. Mỗi thư mục là một GAS project tự chứa với `rootDir`, manifest và cấu hình clasp riêng.
 
 2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu, 3 tab công nợ HN1/HN3/HN7, tab `Users`, 6 tab vận chuyển `VC_*` và 3 tab nhân sự `HR_*` từ Google Spreadsheet qua Google Sheets API (Service Account), xác thực người dùng và phân quyền RBAC (JWT httpOnly cookie, bcrypt, Google OAuth, mã OTP 6 số, local backup store), tra cứu trạng thái vận chuyển đơn hàng, quản trị người dùng, quản lý ngày nghỉ phép nhân viên và tích hợp Telegram Bot, tính toán KPI, dữ liệu biểu đồ và báo cáo công nợ khách hàng 1/3/7 ngày, trả về cho frontend qua REST API. Tích hợp Result Cache tầng backend, phân trang bảng client-side và xuất file Excel đa worksheet. Frontend hiển thị Dashboard tương tác, trang tra cứu vận chuyển, cổng thông tin nhân sự, quản lý tài khoản và đăng nhập/đăng ký trên trình duyệt.
 
@@ -35,9 +35,9 @@ Hệ thống là một Web Application nội bộ gồm các thành phần chín
 |-------------------------|---------------------------------------------------------------------------------------|
 | Dashboard               | Trang tổng hợp hiển thị số liệu và biểu đồ từ dữ liệu nguồn.                          |
 | KPI Card                | Thẻ hiển thị 1 chỉ số tổng hợp (vd: Doanh thu hôm nay, Tổng tồn kho).               |
-| Spreadsheet nguồn       | Google Spreadsheet chứa 9 tab vận hành, 2 tab báo cáo bán hàng, tab lịch sử hàng ngừng kinh doanh, tab Users, tab VC_*, tab HR_* và HN1/HN3/HN7 do Apps Script duy trì. |
+| Spreadsheet nguồn       | Ba Google Spreadsheet độc lập: Dashboard (`SPREADSHEET_ID`), Vận chuyển (`VC_SPREADSHEET_ID`) và Nhân sự (`HR_SPREADSHEET_ID`). |
 | Service Account         | Tài khoản dịch vụ Google dùng để backend đọc/ghi Spreadsheet mà không cần OAuth user. |
-| Apps Script             | Mã module trong `src/` chạy trong Google Workspace, đồng bộ dữ liệu từ KiotViet.    |
+| Apps Script             | Hai GAS project trong `src-dashboard/` và `src-order-lifecycle/` đồng bộ dữ liệu theo từng tính năng. |
 | batchGet                | Gọi Google Sheets API đọc nhiều tab đang tồn tại cùng lúc trong 1 request HTTP.      |
 | KiotViet webhook        | KiotViet Public API gửi POST JSON về Web App URL của Apps Script khi có thay đổi.    |
 | Polling trigger         | Apps Script time-based trigger chạy mỗi 15 phút cho 3 bảng không có KiotViet webhook. |
@@ -62,12 +62,12 @@ KiotViet POS / Telegram User / HR Portal
     |
     | (webhook POST JSON — 9 loại event / Telegram Bot webhook / HTTP REST)
     v
-Apps Script (`src/`, clasp) / Backend Node.js Express (Render.com)
+Apps Script (`src-dashboard/`, `src-order-lifecycle/`) / Backend Node.js Express (Render.com)
     |                                   |
     | hydrate + upsert/delete           | time-based trigger (15 phút)
     | (real-time cho 6 nhóm)            | (Trả hàng + NCC + Nhập hàng)
     v                                   v
-Google Spreadsheet (9 tab vận hành + 7 tab tổng hợp + tab Users + 6 tab VC_* + 3 tab HR_*)
+Ba Google Spreadsheet độc lập (Dashboard / Vận chuyển / Nhân sự)
     |
     | Google Sheets API v4 — list tab → lọc tab hiện có → batchGet / append (Service Account)
     v
@@ -143,7 +143,7 @@ Người dùng (trình duyệt) — tokosi.onrender.com / localhost:3000
 - **Không dùng:** React, Next.js, TailwindCSS, TypeScript
 
 ### Dữ liệu & Caching
-- **Nguồn:** Google Spreadsheet (ID cấu hình qua env var `SPREADSHEET_ID`)
+- **Nguồn:** ba Google Spreadsheet, cấu hình qua `SPREADSHEET_ID`, `VC_SPREADSHEET_ID`, `HR_SPREADSHEET_ID`
 - **Xác thực:** Google Service Account JSON (env var `GOOGLE_SERVICE_ACCOUNT_JSON`)
 - **Caching:** Cache dữ liệu thô Sheets 90s (`dashboardSheetsCache`) + Result Cache in-memory theo key `(rawDataVersion, filters)`
 
@@ -154,9 +154,10 @@ Người dùng (trình duyệt) — tokosi.onrender.com / localhost:3000
 - **Biến môi trường:** cấu hình trực tiếp trên Render dashboard
 
 ### Apps Script
-- **Mã triển khai:** các module trong `src/` (`.clasp.json` đặt `rootDir: "src"`)
-- **Nơi chạy:** Google Apps Script (gắn với Google Spreadsheet)
-- **Chức năng:** sync full đủ trường, webhook receiver (doPost), queue bền vững, hydrate + upsert/delete, polling trigger 15 phút
+- **Dashboard:** `src-dashboard/` qua `.clasp.json` (`rootDir: "src-dashboard"`)
+- **Vận chuyển:** `src-order-lifecycle/` qua `.clasp.order-lifecycle.json` (`rootDir: "src-order-lifecycle"`)
+- **Nơi chạy:** hai Google Apps Script project gắn với hai Google Spreadsheet tương ứng
+- **Chức năng:** webhook receiver (`doPost`), queue bền vững, hydrate + upsert/delete; Dashboard có thêm full sync và polling 15 phút
 
 ## 2.3. Đối tượng người dùng (Giai đoạn 1)
 
@@ -167,7 +168,7 @@ Người dùng (trình duyệt) — tokosi.onrender.com / localhost:3000
 
 ## 2.4. Giả định & phụ thuộc
 
-- Apps Script `src/kiotviet/SheetSchemas.gs` duy trì schema cố định cho 9 tab; backend dùng các cột tương thích bên trái và tab Nhóm hàng để ánh xạ nhóm con về nhóm cha.
+- Apps Script `src-dashboard/kiotviet/SheetSchemas.gs` duy trì schema cố định cho 9 tab; backend dùng các cột tương thích bên trái và tab Nhóm hàng để ánh xạ nhóm con về nhóm cha.
 - Service Account đã được share quyền Viewer trên Spreadsheet nguồn.
 - KiotViet webhook đang active và trỏ đúng Web App URL của Apps Script.
 - Render.com có biến môi trường `SPREADSHEET_ID` và `GOOGLE_SERVICE_ACCOUNT_JSON` đúng.
@@ -560,12 +561,12 @@ API trim, khớp chính xác không phân biệt hoa/thường, loại mã trùn
 - `GET /api/shipment/audit`: báo cáo đối soát cuối ngày lọc đơn thiếu ảnh hoặc giao trễ.
 - `GET /api/shipment/vehicles`: danh mục xe và tài xế (`VC_Vehicles`).
 
-# 7. Đặc tả Apps Script (`src/`)
+# 7. Đặc tả Apps Script theo tính năng
 
 ## 7.1. Schema 9 tab đồng bộ và dashboard sử dụng
 
 Các dải cột dưới đây là **cột tương thích dashboard** và luôn nằm bên trái.
-`src/kiotviet/SheetSchemas.gs` nối thêm các trường Public API dạng phẳng đang sử
+`src-dashboard/kiotviet/SheetSchemas.gs` nối thêm các trường Public API dạng phẳng đang sử
 dụng ở bên phải, gồm ID, trạng thái gốc, thời gian tạo/cập nhật và thông tin thuế.
 Object/mảng lồng và payload gốc không được ghi vào Sheets; bước di trú chạy một
 lần qua trigger nền sẽ xóa vật lý các cột `(JSON)` của schema cũ.
@@ -638,11 +639,11 @@ lần qua trigger nền sẽ xóa vật lý các cột `(JSON)` của schema cũ
 - Trigger hàng ngày chạy gần 15:00; hàng đợi một phút có cơ chế chạy bù nếu lịch ngày bị trễ hoặc lỗi.
 - Backend dashboard chỉ đọc ba tab này và không ghi ngược lại.
 
-## 7.6. Webhook KiotViet — hai profile đồng thời
+## 7.6. Webhook KiotViet — hai project độc lập
 
-Profile `FULL_DASHBOARD` của sheet cũ đăng ký 9 loại: `product.update`, `product.delete`, `stock.update`, `customer.update`, `customer.delete`, `invoice.update`, `order.update`, `category.update`, `category.delete`.
+Project `src-dashboard/` đăng ký 9 loại: `product.update`, `product.delete`, `stock.update`, `customer.update`, `customer.delete`, `invoice.update`, `order.update`, `category.update`, `category.delete`.
 
-KiotViet chỉ chấp nhận một webhook cho mỗi Type, vì vậy profile `FULL_DASHBOARD` của sheet cũ giữ đăng ký `invoice.update`. Sau khi cập nhật sheet cũ thành công, hàng đợi chuyển tiếp payload sang Web App của profile `SHIPMENT_LIFECYCLE`; project mới có queue một phút riêng và không đăng ký webhook trùng.
+KiotViet chỉ chấp nhận một webhook cho mỗi Type, vì vậy project Dashboard giữ đăng ký `invoice.update`. Sau khi cập nhật sheet Dashboard thành công, hàng đợi chuyển tiếp payload sang Web App `src-order-lifecycle/`; project Vận chuyển có queue một phút riêng và không đăng ký webhook trùng. Profile `COMBINED` không còn được sử dụng.
 
 **Lưu ý quan trọng:** KiotViet KHÔNG có webhook cho Trả hàng (`return.*`), Nhà cung cấp (`supplier.*`), Nhập hàng (`purchaseorder.*`) → dùng polling 15 phút để cân bằng độ mới dữ liệu và quota.
 

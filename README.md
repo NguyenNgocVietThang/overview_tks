@@ -52,8 +52,10 @@ webtks-dashboard/
 │   └── skills/
 │       └── update-file/
 │           └── SKILL.md         # Quy trình đồng bộ file khi cây thư mục thay đổi
-├── .clasp.json                  # Cấu hình clasp (scriptId, rootDir: "src")
-├── .claspignore                 # Loại trừ docs/, future-phases/, dev/, server/ khỏi clasp push
+├── .clasp.json                  # Project Dashboard (rootDir: "src-dashboard")
+├── .clasp.order-lifecycle.json  # Project Vận chuyển (rootDir: "src-order-lifecycle")
+├── .claspignore                 # Ignore profile cho project Dashboard
+├── .claspignore.order-lifecycle # Ignore profile cho project Vận chuyển
 ├── 3D Design.md                 # Kế hoạch chi tiết triển khai hiệu ứng 3D toàn trang
 ├── CHINH-SACH-NGHI-PHEP.md      # Quy định & chính sách quản lý nghỉ phép nhân sự (CSNS-NP-01)
 ├── ERD KiotViet.drawio          # Sơ đồ quan hệ thực thể KiotViet
@@ -174,41 +176,36 @@ webtks-dashboard/
 │   ├── index.js                 # Express server entry point
 │   └── routes.js                # Định tuyến API endpoint (/api/dashboard/*, /api/auth/*, /api/admin/*, /api/shipment/*, /api/hr/*)
 │
-├── src/                         # Giai đoạn 1: Code Apps Script (clasp)
-│   ├── appsscript.json          # Manifest Apps Script (timezone, oauthScopes)
-│   ├── HuongDanSuDung.gs        # Hướng dẫn hàm và luồng liên kết ngay trên GAS
-│   │
-│   ├── config/
-│   │   └── Config.gs            # object CONFIG (Client ID/Secret, tên các Sheet)
-│   │
+├── src-dashboard/               # Apps Script riêng cho Google Sheets Dashboard
+│   ├── appsscript.json          # Manifest Apps Script Dashboard
+│   ├── HuongDanSuDung.gs        # Hướng dẫn syncAllDataChunked(), setupKiotVietAutoSync()
+│   ├── config/Config.gs         # CONFIG, getKiotVietSyncMode_()
 │   ├── kiotviet/
-│   │   ├── Auth.gs              # getKiotVietToken() + cache token theo hạn
-│   │   ├── CustomerDebtReport.gs # syncCustomerDebtReports, setupCustomerDebtReports,
-│   │   │                        # setupCustomerDebtReportDailyTrigger (HN1/HN3/HN7)
-│   │   ├── CustomerReport.gs    # syncCustomerReport, syncCustomerByProductReport,
-│   │   │                        # setupCustomerReport, trigger 07:00
-│   │   ├── DiscontinuedProducts.gs # syncHangNgungKinhDoanh, lưu lịch sử ngừng kinh doanh
-│   │   ├── SheetSchemas.gs      # Schema đủ trường cho 9 sheet, fetch/retry,
-│   │   │                        # ghi/upsert/migrate dữ liệu KiotViet
-│   │   ├── SyncInitial.gs       # syncAllInitialData, sync 9 sheet vận hành,
-│   │   │                        # setupPollingTrigger (15 phút)
-│   │   └── WebhookAdmin.gs      # registerWebhookProgrammatically,
-│   │                            # registerWebhookWithCorrectUrl,
-│   │                            # listRegisteredWebhooks, checkWebhookStatus,
-│   │                            # deleteAllOldWebhooks
-│   │
-│   ├── shipment/
-│   │   └── KiotVietLifecycle.gs # Khởi tạo 6 tab vận chuyển, nhận invoice.update,
-│   │                            # upsert đơn/chi tiết và backfill 7 ngày
-│   │
+│   │   ├── Auth.gs              # getKiotVietToken(), clearKiotVietToken()
+│   │   ├── CustomerDebtReport.gs # syncCustomerDebtReports(), setupCustomerDebtReports()
+│   │   ├── CustomerReport.gs    # syncCustomerReport(), syncCustomerByProductReport()
+│   │   ├── DiscontinuedProducts.gs # syncHangNgungKinhDoanh(), migrateLegacyDiscontinuedSheet_()
+│   │   ├── SheetSchemas.gs      # migrateKiotVietSheetsIfNeeded_(), syncKiotVietTableChunk_()
+│   │   ├── SyncInitial.gs       # syncAllInitialData(), setupPollingTrigger()
+│   │   └── WebhookAdmin.gs      # setupKiotVietAutoSync(), checkWebhookStatus()
 │   ├── sync/
-│   │   ├── UpdateHandlers.gs    # hydrate + update/delete Product, Invoice,
-│   │   │                        # Order, Customer, Category
-│   │   └── WebhookQueue.gs      # doPost, queue bền vững, retry,
-│   │                            # processWebhookQueue, getWebhookQueueStatus
-│   │
-│   └── utils/
-│       └── Helpers.gs           # getCodeRowMap, formatLastRowNumbers, formatDate
+│   │   ├── UpdateHandlers.gs    # updateProductsFromWebhook(), updateInvoicesFromWebhook()
+│   │   └── WebhookQueue.gs      # doPost(), processWebhookQueue(), forwardInvoiceWebhookToShipment_()
+│   └── utils/Helpers.gs         # getKiotVietDataLock_(), formatDate()
+│
+├── src-order-lifecycle/         # Apps Script riêng cho Google Sheets Vận chuyển
+│   ├── appsscript.json          # Manifest Apps Script Vận chuyển
+│   ├── HuongDanSuDung.gs        # Hướng dẫn deploy/setup project Vận chuyển
+│   ├── config/Config.gs         # CONFIG, chế độ SHIPMENT_LIFECYCLE và tên 6 tab
+│   ├── kiotviet/
+│   │   ├── Auth.gs              # getKiotVietToken(), clearKiotVietToken()
+│   │   ├── SheetSchemas.gs      # fetchKiotVietJsonWithRetry_(), adapter invoice
+│   │   └── WebhookAdmin.gs      # setupKiotVietAutoSync(), cấu hình relay
+│   ├── shipment/KiotVietLifecycle.gs # setupShipmentLifecycleSync(), syncShipmentLifecycleRecent7Days()
+│   ├── sync/
+│   │   ├── UpdateHandlers.gs    # hydrateKiotVietItems_()
+│   │   └── WebhookQueue.gs      # doPost(), processWebhookQueue()
+│   └── utils/Helpers.gs         # Helper dùng nội bộ project Vận chuyển
 │
 ├── docs/
 │   ├── manual-test-batch-update-order-items.md # Hướng dẫn kiểm thử production cập nhật hàng loạt đơn vận chuyển
@@ -282,18 +279,23 @@ clasp login
 ```
 
 ### Bước 2 — Điền Script ID
-Mở `.clasp.json`, thay `<SCRIPT_ID_PLACEHOLDER>` bằng Script ID thật của bạn:
+Mỗi Google Sheets dùng một Apps Script project riêng. Cấu hình Dashboard nằm trong
+`.clasp.json`; cấu hình Vận chuyển nằm trong `.clasp.order-lifecycle.json`:
 ```json
 {
   "scriptId": "YOUR_REAL_SCRIPT_ID_HERE",
-  "rootDir": "src"
+  "rootDir": "src-dashboard"
 }
 ```
 > Script ID lấy từ: **Apps Script Editor -> Project Settings -> Script ID**
 
 ### Bước 3 — Push code lên GAS
 ```bash
+# Dashboard
 clasp push --force
+
+# Vận chuyển
+clasp -P .clasp.order-lifecycle.json -I .claspignore.order-lifecycle push --force
 ```
 
 Trong **Apps Script Editor -> Project Settings -> Script Properties**, tạo các thuộc tính:
@@ -319,8 +321,8 @@ Execution API (`executionApi.access = MYSELF`) để phục vụ kiểm tra và 
 ### Bước 4 — Thiết lập lần đầu (chạy thủ công 1 lần)
 1. Kiểm tra đã khai báo `KIOTVIET_CLIENT_ID` và `KIOTVIET_CLIENT_SECRET` trong Script Properties. Chỉ trên dự án sheet tổng hợp cũ, chạy `syncAllInitialData()` để tải dữ liệu ban đầu. Hàm này cũng cập nhật toàn bộ lịch sử vào tab **Hàng ngừng kinh doanh** và dọn tab legacy `Hàng ngừng KD hôm nay` nếu còn tồn tại.
 2. Với sheet tổng hợp cũ, chạy `setupKiotVietAutoSync()` một lần. Chế độ mặc định `FULL_DASHBOARD` giữ nguyên trigger queue 1 phút, polling 15 phút, lịch báo cáo và 9 webhook.
-3. Với sheet vận chuyển mới, đặt `KIOTVIET_SYNC_MODE=SHIPMENT_LIFECYCLE` và `KIOTVIET_SHIPMENT_RELAY_ENABLED=true`, chạy `syncShipmentLifecycleRecent7Days()` rồi `setupShipmentLifecycleSync()`. Do KiotViet chỉ cho một webhook mỗi Type, project cũ giữ `invoice.update` và chuyển tiếp sự kiện sang Web App mới bằng `SHIPMENT_WEBHOOK_URL` + `SHIPMENT_WEBHOOK_SECRET`.
-4. Nếu một spreadsheet chứa đồng thời cả tab dashboard và tab vận chuyển, chạy `setupCombinedKiotVietSync()`. Chế độ `COMBINED` quản lý đủ 9 webhook và cập nhật `invoice.update` vào cả Hóa đơn lẫn Đơn vận chuyển, không dùng relay vòng lặp.
+3. Với project Vận chuyển, đặt `KIOTVIET_SYNC_MODE=SHIPMENT_LIFECYCLE` và `KIOTVIET_SHIPMENT_RELAY_ENABLED=true`, chạy `syncShipmentLifecycleRecent7Days()` rồi `setupShipmentLifecycleSync()`. Project Dashboard giữ `invoice.update` và chuyển tiếp sự kiện bằng `SHIPMENT_WEBHOOK_URL` + `SHIPMENT_WEBHOOK_SECRET`.
+4. Không dùng spreadsheet/profile `COMBINED`; Dashboard, Vận chuyển và Nhân sự phải trỏ đến ba Google Sheets độc lập.
 5. Tab **Hàng bán theo khách** có đúng 5 cột và được webhook cập nhật trong khoảng 1 phút. Tab **Khách theo hàng hóa** có đúng 25 cột như file xuất KiotViet, lấy toàn bộ lịch sử và chỉ làm mới khi chạy tay hoặc gần 07:00. Cả ba báo cáo được đối soát bởi `setupCustomerReport()`; tab **Báo cáo bán hàng** giữ đủ 18 cột.
 6. Ba tab **HN1**, **HN3**, **HN7** là báo cáo công nợ khách hàng 1/3/7 ngày gần đây (tính cả hôm nay) do Apps Script tự tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00, hoặc chạy tay `syncCustomerDebtReports()` bất cứ lúc nào cần cập nhật ngay.
 
@@ -440,7 +442,7 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 
 | Giai đoạn | Module | Mô tả |
 |---|---|---|
-| **1** [Hoan thanh] | `src/` | Dashboard real-time (đang chạy) |
+| **1** [Hoan thanh] | `src-dashboard/`, `src-order-lifecycle/` | Apps Script tách riêng theo Google Sheets Dashboard và Vận chuyển |
 | **2** [Chua bat dau] | `future-phases/sales-pos/` | POS bán hàng tích hợp |
 | **3** [Chua bat dau] | `future-phases/inventory/` | Quản lý kho nâng cao, cảnh báo |
 | **4** [Chua bat dau] | `future-phases/analytics-anomaly/` | Phát hiện bất thường, fraud detection |
@@ -472,15 +474,16 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 | [HR Leave Sessions Plan](docs/superpowers/plans/2026-08-22-hr-leave-sessions-submission-filter.md) | Kế hoạch triển khai đồng bộ Bot, Google Sheet, API và giao diện HR |
 | [Result Cache Plan](docs/superpowers/plans/2026-08-13-dashboard-result-cache.md) | Kế hoạch & chi tiết triển khai Result Cache tầng backend |
 | [Pagination Plan](docs/superpowers/plans/2026-08-13-dashboard-table-pagination.md) | Kế hoạch & chi tiết triển khai phân trang bảng client-side |
-| [Apps Script Guide](src/HuongDanSuDung.gs) | Hướng dẫn hàm, tác dụng và luồng liên kết; được push lên Apps Script |
+| [Dashboard Apps Script Guide](src-dashboard/HuongDanSuDung.gs) | Hướng dẫn đồng bộ Google Sheets Dashboard |
+| [Shipment Apps Script Guide](src-order-lifecycle/HuongDanSuDung.gs) | Hướng dẫn đồng bộ Google Sheets Vận chuyển |
 
 ---
 
 ## Ghi chú kỹ thuật
 
-> **Thứ tự load file trong GAS**: clasp sắp xếp file theo thứ tự alphabetical của thư mục.
-> `HuongDanSuDung.gs` -> `config/` -> `kiotviet/` -> `shipment/` -> `sync/` -> `utils/`
-> Đảm bảo `Config.gs` luôn được khởi tạo trước tất cả các module khác.
+> **Hai project GAS độc lập:** Dashboard load `HuongDanSuDung.gs -> config/ -> kiotviet/ -> sync/ -> utils/`;
+> Vận chuyển load `HuongDanSuDung.gs -> config/ -> kiotviet/ -> shipment/ -> sync/ -> utils/`.
+> Mỗi project có `rootDir`, manifest và ignore profile riêng; `Config.gs` luôn được khởi tạo trước các module nghiệp vụ.
 
 > Apps Script không có `doGet()` hoặc file HTML. Deployment Web App chỉ tồn tại
 > để KiotViet gọi `doPost()` qua URL `/exec`.
@@ -494,4 +497,4 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 
 ---
 
-*Cập nhật lần cuối: 22/08/2026*
+*Cập nhật lần cuối: 24/08/2026*

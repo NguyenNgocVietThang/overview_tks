@@ -165,29 +165,20 @@ test('three-interactions.js initializes TKS3D and TKSInteractions namespaces', (
   assert.strictEqual(env.window.TKSInteractions, env.TKS3D, 'TKSInteractions should alias TKS3D');
 });
 
-test('three-interactions.js applies dynamic 3D tilt and box-shadow on card mousemove', () => {
+test('three-interactions.js applies lift (no tilt) and box-shadow on card mouseenter', () => {
   const env = createMockDOMEnvironment();
   const card = env.elements.cards[0];
 
   assert.strictEqual(card.style.transformStyle, 'preserve-3d', 'Card should have transformStyle preserve-3d');
   assert.ok(card.style.transition.includes('transform'), 'Card should have transform transition');
 
-  // Hover at right-bottom quadrant:
-  // Card is 300x200 at (100,100). Center is at (250, 200).
-  // Mouse at (350, 250) -> offset from center: x = +100 (out of 150), y = +50 (out of 100)
-  // rotateX = (50/100) * -5 = -2.5deg
-  // rotateY = (100/150) * 5 = +3.33deg
-  card.dispatchEvent({
-    type: 'mousemove',
-    clientX: 350,
-    clientY: 250
-  });
+  card.dispatchEvent({ type: 'mouseenter' });
 
   assert.ok(card.style.transform.includes('perspective(1000px)'), 'Transform must include perspective(1000px)');
   assert.ok(card.style.transform.includes('translateZ(20px)'), 'Transform must include translateZ(20px)');
   assert.ok(card.style.transform.includes('scale(1.02)'), 'Transform must include scale(1.02)');
-  assert.ok(card.style.transform.includes('rotateX(-2.50deg)'), 'Transform rotateX should match cursor offset');
-  assert.ok(card.style.transform.includes('rotateY(3.33deg)'), 'Transform rotateY should match cursor offset');
+  assert.ok(!card.style.transform.includes('rotateX'), 'Transform must not include any rotateX tilt');
+  assert.ok(!card.style.transform.includes('rotateY'), 'Transform must not include any rotateY tilt');
   assert.ok(card.style.boxShadow.includes('rgba(59, 130, 246'), 'Card box-shadow should glow with primary color');
 });
 
@@ -195,11 +186,7 @@ test('three-interactions.js resets transform and shadow on card mouseleave', () 
   const env = createMockDOMEnvironment();
   const card = env.elements.cards[0];
 
-  card.dispatchEvent({
-    type: 'mousemove',
-    clientX: 350,
-    clientY: 250
-  });
+  card.dispatchEvent({ type: 'mouseenter' });
   assert.notStrictEqual(card.style.transform, '');
 
   card.dispatchEvent({ type: 'mouseleave' });

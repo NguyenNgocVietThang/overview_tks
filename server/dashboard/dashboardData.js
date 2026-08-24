@@ -1,6 +1,6 @@
 // ==========================================
 // DASHBOARD DATA — cung cap du lieu cho Web App (GET /api/dashboard)
-// Doc tu sheet KiotViet export 9-tab (dong bo boi cac module Apps Script trong src/)
+// Doc tu sheet KiotViet export 9-tab (dong bo boi Apps Script trong src-dashboard/)
 // ==========================================
 const CONFIG = require('../config');
 const sheetsClient = require('../sheets/sheetsClient');
@@ -1355,7 +1355,7 @@ function computeDashboardData(sheets, filters, now) {
   const todayNewProductRows = todayNewProducts.map(({ _sortTime, ...rest }) => rest);
 
   // ---------- HÀNG NGỪNG KINH DOANH ----------
-  // Tab "Hàng ngừng kinh doanh" do src/kiotviet/DiscontinuedProducts.gs ghi nhan
+  // Tab "Hàng ngừng kinh doanh" do src-dashboard/kiotviet/DiscontinuedProducts.gs ghi nhan
   // moi khi 1 ma hang chuyen sang "Ngung kinh doanh". Loc lai theo
   // "Ngay sua tren KiotViet" / "Thoi gian phat hien" bang bo loc thoi gian cua tab Tong quan.
   const deactivatedTodayProducts = [];
