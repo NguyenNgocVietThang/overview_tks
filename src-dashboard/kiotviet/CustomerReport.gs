@@ -316,8 +316,9 @@ function requireCustomerReportToken_() {
 }
 
 /**
- * Duoc goi boi trigger hang doi 1 phut dang co san. Moi bao cao chay sau gio
- * cua rieng no neu chua thanh cong trong ngay; loi se duoc thu lai o phut sau.
+ * Duoc goi boi trigger hang doi 1 phut dang co san. Moi luot chi thu mot bao
+ * cao den han de khong day processWebhookQueue toi gioi han thuc thi; cac bao
+ * cao con lai se duoc thu o nhung phut ke tiep.
  */
 function syncCustomerReportIfDue_(now) {
   now = now || new Date();
@@ -326,28 +327,28 @@ function syncCustomerReportIfDue_(now) {
   const minute = Number(Utilities.formatDate(now, CUSTOMER_REPORT_TIME_ZONE, 'm'));
   const minuteOfDay = hour * 60 + minute;
   const properties = PropertiesService.getScriptProperties();
-  let successCount = 0;
-
-  CUSTOMER_REPORT_CATCH_UP_DEFINITIONS.forEach(function(definition) {
-    if (minuteOfDay < definition.minuteOfDay) return;
+  for (let index = 0; index < CUSTOMER_REPORT_CATCH_UP_DEFINITIONS.length; index++) {
+    const definition = CUSTOMER_REPORT_CATCH_UP_DEFINITIONS[index];
+    if (minuteOfDay < definition.minuteOfDay) continue;
 
     const syncedToday = properties.getProperty(definition.lastSyncProperty) === today;
     const currentSchema = !definition.schemaProperty ||
       properties.getProperty(definition.schemaProperty) === definition.schemaVersion;
-    if (syncedToday && currentSchema) return;
+    if (syncedToday && currentSchema) continue;
 
     try {
       definition.handler();
-      successCount++;
+      return 1;
     } catch (error) {
       Logger.log(
         'Loi dong bo ' + definition.lastSyncProperty + ', se thu lai o phut sau: ' +
         error.toString()
       );
+      return 0;
     }
-  });
+  }
 
-  return successCount;
+  return 0;
 }
 
 /**

@@ -272,7 +272,7 @@ test('setupHangNgungKinhDoanhTrigger_ schedules discontinued products for 07:30'
   ]);
 });
 
-test('syncCustomerReportIfDue_ runs each report at its independent due time once per day', () => {
+test('syncCustomerReportIfDue_ runs at most one overdue report per queue invocation', () => {
   const { context, writes, properties } = createCustomerReportHarness();
 
   assert.equal(
@@ -295,6 +295,16 @@ test('syncCustomerReportIfDue_ runs each report at its independent due time once
   assert.equal(properties.CUSTOMER_REPORT_LAST_SYNC_DATE, '2026-08-20');
   assert.equal(properties.CUSTOMER_PRODUCT_REPORT_LAST_SYNC_DATE, '2026-08-20');
   assert.equal(properties.CUSTOMER_BY_PRODUCT_REPORT_LAST_SYNC_DATE, '2026-08-20');
+});
+
+test('syncCustomerReportIfDue_ limits a late queue run to one heavy report', () => {
+  const { context, writes } = createCustomerReportHarness();
+
+  assert.equal(
+    context.syncCustomerReportIfDue_(new Date('2026-08-20T14:23:00+07:00')),
+    1
+  );
+  assert.deepEqual(writes, ['sales']);
 });
 
 test('syncCustomerReportIfDue_ retries a failed report without recording success', () => {
