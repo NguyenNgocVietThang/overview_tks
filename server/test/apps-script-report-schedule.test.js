@@ -6,7 +6,7 @@ const vm = require('node:vm');
 
 function loadAppsScript() {
   const source = fs.readFileSync(
-    path.join(__dirname, '../../src/kiotviet/CustomerReport.gs'),
+    path.join(__dirname, '../../src-dashboard/kiotviet/CustomerReport.gs'),
     'utf8'
   );
   const context = vm.createContext({ console });
@@ -16,7 +16,7 @@ function loadAppsScript() {
 
 function loadDiscontinuedProducts(context) {
   const source = fs.readFileSync(
-    path.join(__dirname, '../../src/kiotviet/DiscontinuedProducts.gs'),
+    path.join(__dirname, '../../src-dashboard/kiotviet/DiscontinuedProducts.gs'),
     'utf8'
   );
   vm.runInContext(source, context, { filename: 'DiscontinuedProducts.gs' });
@@ -28,9 +28,9 @@ function readScheduleDocumentation(relativePath) {
 
 test('operator documentation uses staggered report schedules instead of obsolete shared 07:00 claims', () => {
   const inScopeFiles = [
-    'src/kiotviet/CustomerReport.gs',
-    'src/kiotviet/WebhookAdmin.gs',
-    'src/HuongDanSuDung.gs',
+    'src-dashboard/kiotviet/CustomerReport.gs',
+    'src-dashboard/kiotviet/WebhookAdmin.gs',
+    'src-dashboard/HuongDanSuDung.gs',
     'README.md',
     'docs/01-brd/BRD_Dashboard_GoogleSheets.md',
     'docs/02-srs/SRS_Dashboard_GoogleSheets.md',
@@ -55,7 +55,7 @@ test('operator documentation uses staggered report schedules instead of obsolete
 
   for (const relativePath of [
     'README.md',
-    'src/HuongDanSuDung.gs',
+    'src-dashboard/HuongDanSuDung.gs',
     'docs/02-srs/SRS_Dashboard_GoogleSheets.md'
   ]) {
     const contents = readScheduleDocumentation(relativePath);
