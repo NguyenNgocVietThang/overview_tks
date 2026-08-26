@@ -76,7 +76,7 @@ webtks-dashboard/
 │       └── chart.umd.min.js
 │
 ├── server/                      # Backend Node.js đọc/ghi Google Sheets & Web Server
-│   ├── auth/                    # JWT, bcrypt, Google Identity, Users cục bộ bảo mật, OTP và phân quyền
+│   ├── auth/                    # JWT, bcrypt, Google Identity, Users cục bộ bảo mật, OTP, phân quyền & đổi vai trò
 │   │   ├── adminUserRoutes.js   # API /api/admin/users (CRUD tài khoản, reset mật khẩu, phân quyền)
 │   │   ├── adminUserRoutes.test.js # Unit test routes quản trị người dùng
 │   │   ├── authMiddleware.js    # requireAuth, requireRole bọc route
@@ -90,6 +90,8 @@ webtks-dashboard/
 │   │   ├── localUserStore.js    # Lưu trữ dữ liệu người dùng cục bộ bảo mật (server/data/users.json)
 │   │   ├── otpService.js        # Sinh mã xác thực OTP 6 số, che mờ Email/SĐT và kiểm tra thời hạn
 │   │   ├── otpService.test.js   # Unit test OTP service
+│   │   ├── roleChangeRequestRepository.js # Kho lưu trữ yêu cầu đổi vai trò của người dùng
+│   │   ├── roleChangeRequestRoutes.js # API /api/role-requests (tạo yêu cầu, duyệt/từ chối vai trò)
 │   │   ├── userRepository.js    # Tầng truy xuất thông tin tài khoản người dùng
 │   │   ├── userRepository.test.js # Unit test user repository
 │   │   └── userWriteRepository.js # Tầng ghi thông tin người dùng bảo mật
@@ -98,9 +100,31 @@ webtks-dashboard/
 │   │   ├── dashboardData.test.js # Unit test dữ liệu dashboard/tìm kiếm/cache
 │   │   ├── debtReport.js        # Báo cáo công nợ khách hàng 1/3/7 ngày từ HN1/HN3/HN7
 │   │   ├── exportService.js     # Registry 16 bảng và tạo workbook Excel
-│   │   └── exportService.test.js # Unit test dữ liệu/file Excel
+│   │   ├── exportService.test.js # Unit test dữ liệu/file Excel
+│   │   └── stockoutCheck/       # Kiểm tra đứt hàng đối chiếu file Excel với KiotViet API
+│   │       ├── concurrencyPool.js # Quản lý hàng đợi tải đồng thời có giới hạn
+│   │       ├── concurrencyPool.test.js
+│   │       ├── excelParser.js   # Đọc và phân tích file Excel danh sách sản phẩm
+│   │       ├── excelParser.test.js
+│   │       ├── jobManager.js    # Quản lý vòng đời tác vụ kiểm tra bất đồng bộ
+│   │       ├── jobManager.test.js
+│   │       ├── kiotVietClient.js # Giao tiếp KiotViet API lấy chi tiết tồn/giao dịch
+│   │       ├── kiotVietClient.test.js
+│   │       ├── productCodeValidator.js # Xác thực mã sản phẩm hợp lệ
+│   │       ├── productCodeValidator.test.js
+│   │       ├── stockoutAnalyzer.js # Phân tích nguyên nhân và mốc đứt hàng
+│   │       ├── stockoutAnalyzer.test.js
+│   │       ├── stockoutCheckRoutes.js # API /api/products/stockout-check/*
+│   │       ├── stockoutCheckRoutes.test.js
+│   │       ├── stockoutCheckService.js # Điều phối toàn bộ quy trình kiểm tra đứt hàng
+│   │       ├── stockoutCheckService.test.js
+│   │       ├── timelineBuilder.js # Xây dựng dòng thời gian biến động tồn kho
+│   │       └── timelineBuilder.test.js
 │   ├── data/
-│   │   └── users.json           # Dữ liệu tài khoản người dùng cục bộ (local backup)
+│   │   ├── notifications.json   # Lưu trữ thông báo hệ thống cục bộ
+│   │   ├── roleChangeRequests.json # Lưu trữ yêu cầu đổi vai trò cục bộ
+│   │   ├── users.json           # Dữ liệu tài khoản người dùng cục bộ (local backup)
+│   │   └── users.json.example   # Bản mẫu cấu trúc dữ liệu người dùng
 │   ├── hr/                      # Phân hệ Quản lý Nghỉ phép Nhân sự (HR Leave Management)
 │   │   ├── hrLeaveEvents.js     # EventEmitter singleton phát sự kiện SSE cập nhật realtime cho đơn nghỉ phép
 │   │   ├── hrLeaveExportService.js # Xuất báo cáo danh sách ngày nghỉ phép nhân sự ra Excel
@@ -111,10 +135,15 @@ webtks-dashboard/
 │   │   └── hrLeaveService.js    # Tính buổi nghỉ theo Sáng/Chiều và kiểm tra mốc gửi 07:45/12:30
 │   ├── jobs/
 │   │   └── syncCustomerReport.js # Tác vụ đối soát từng báo cáo lúc 06:00, 06:30, 07:00
+│   ├── notifications/           # Hệ thống thông báo dùng chung toàn hệ thống
+│   │   ├── notificationRepository.js # CRUD thông báo trong server/data/notifications.json
+│   │   ├── notificationRepository.test.js
+│   │   ├── notificationRoutes.js # API /api/notifications/* (chuông thông báo, đọc, xóa)
+│   │   └── notificationRoutes.test.js
 │   ├── public/                  # Frontend Live Dashboard, Vận chuyển & Quản lý tài khoản
 │   │   ├── 404.html             # Trang lỗi 404 tùy biến giao diện
 │   │   ├── account/
-│   │   │   └── index.html       # Quản lý tài khoản (Hồ sơ cá nhân & Quản trị người dùng)
+│   │   │   └── index.html       # Quản lý tài khoản (Hồ sơ cá nhân, Đổi vai trò & Quản trị người dùng)
 │   │   ├── humanresources/
 │   │   │   └── index.html       # Cổng thông tin nhân sự: nộp đơn nghỉ phép, tra cứu ngày phép & phê duyệt
 │   │   ├── index.html           # Live Dashboard (KPI, biểu đồ, phân trang, xuất Excel)
@@ -124,9 +153,9 @@ webtks-dashboard/
 │   │   │   └── pagination.js    # Phân trang client-side cho các bảng
 │   │   ├── login/index.html     # Đăng nhập nội bộ, Google OAuth & Quên mật khẩu OTP
 │   │   ├── register/index.html  # Đăng ký tài khoản Khách bằng Email hoặc Số điện thoại
-│   │   ├── shared/              # CSS, điều hướng/auth guard, nén ảnh và hiệu ứng 3D dùng chung
+│   │   ├── shared/              # CSS, điều hướng/auth guard, chuông thông báo, nén ảnh và hiệu ứng 3D
 │   │   │   ├── image-compress.js # Nén và resize ảnh trước khi upload
-│   │   │   ├── shared-nav.js    # Header navigation dùng chung đa trang (Báo cáo, Vận chuyển, Nhân sự, Tài khoản)
+│   │   │   ├── shared-nav.js    # Header navigation dùng chung đa trang (Báo cáo, Vận chuyển, Nhân sự, Tài khoản, Chuông thông báo)
 │   │   │   ├── shared.css       # Style theme và component dùng chung
 │   │   │   ├── three-bg.js      # Hệ thống hạt 3D Particle Background toàn trang
 │   │   │   ├── three-interactions.js # Bộ xử lý 3D dynamic tilt, 3D navigation, button ripple và table row animation
@@ -171,10 +200,11 @@ webtks-dashboard/
 │   │   └── hrTelegramBot.test.js # Unit test HR Telegram Bot
 │   ├── test/
 │   │   ├── apps-script-sync.test.js # Hồi quy URL webhook stale và typed-column Google Sheets
-│   │   └── frontend/            # Unit test giao diện, phân trang và hiệu ứng 3D
+│   │   ├── apps-script-report-schedule.test.js # Unit test lịch phân bổ đồng bộ báo cáo
+│   │   └── frontend/            # Unit test giao diện, chuông thông báo, đổi vai trò, phân trang và hiệu ứng 3D
 │   ├── config.js                # Cấu hình môi trường Node.js server
 │   ├── index.js                 # Express server entry point
-│   └── routes.js                # Định tuyến API endpoint (/api/dashboard/*, /api/auth/*, /api/admin/*, /api/shipment/*, /api/hr/*)
+│   └── routes.js                # Định tuyến API endpoint (/api/dashboard/*, /api/auth/*, /api/admin/*, /api/shipment/*, /api/hr/*, /api/notifications/*, /api/role-requests/*, /api/products/stockout-check/*)
 │
 ├── src-dashboard/               # Apps Script riêng cho Google Sheets Dashboard
 │   ├── appsscript.json          # Manifest Apps Script Dashboard
@@ -213,9 +243,9 @@ webtks-dashboard/
 │   ├── manual-test-batch-update-order-items.md # Hướng dẫn kiểm thử production cập nhật hàng loạt đơn vận chuyển
 │   ├── performance-optimization-report.md # Báo cáo tối ưu hóa hiệu năng 3D, FPS & WebGL Memory
 │   ├── 01-brd/
-│   │   └── BRD_Dashboard_GoogleSheets.md # Yêu cầu nghiệp vụ BRD v1.8
+│   │   └── BRD_Dashboard_GoogleSheets.md # Yêu cầu nghiệp vụ BRD v1.9
 │   ├── 02-srs/
-│   │   └── SRS_Dashboard_GoogleSheets.md # Đặc tả kỹ thuật SRS v2.1
+│   │   └── SRS_Dashboard_GoogleSheets.md # Đặc tả kỹ thuật SRS v2.2
 │   ├── 03-process/
 │   │   ├── BPMN_Dashboard_GoogleSheets.md # Sơ đồ quy trình nghiệp vụ v1.9
 │   │   └── bpmn/
@@ -223,7 +253,7 @@ webtks-dashboard/
 │   │       ├── bpmn_2_phaseB.bpmn
 │   │       └── bpmn_3_phaseC.bpmn
 │   ├── 04-planning/
-│   │   └── implementation_plan.md        # Kế hoạch triển khai chi tiết & trạng thái v2.2
+│   │   └── implementation_plan.md        # Kế hoạch triển khai chi tiết & trạng thái v2.3
 │   └── superpowers/
 │       ├── plans/
 │       │   ├── 2026-08-13-dashboard-result-cache.md
@@ -231,6 +261,7 @@ webtks-dashboard/
 │       │   ├── 2026-08-19-tks-lag-optimization.md
 │       │   ├── 2026-08-20-stagger-customer-report-triggers.md
 │       │   ├── 2026-08-21-hr-leave-days-input.md
+│       │   ├── 2026-08-22-gemini-one-message-leave-request.md
 │       │   └── 2026-08-22-hr-leave-sessions-submission-filter.md
 │       └── specs/
 │           ├── 2026-08-05-debt-dashboard-design.md
@@ -260,12 +291,14 @@ Thư mục `server/` tích hợp sẵn bộ unit tests (dùng `node:test` chuẩ
 cd server
 npm test
 ```
-Bộ test hiện gồm **324 bài kiểm thử tự động**:
+Bộ test hiện gồm **434 bài kiểm thử tự động**:
 - Phân hệ Quản lý Nghỉ phép HR & Telegram Bot (`hrLeaveRoutes.js`, `hrLeaveService.js`, `hrLeaveExportService.js`, `hrTelegramBot.js`, `conversationStore.js`).
 - Xác thực người dùng (JWT httpOnly cookie, mật khẩu bcrypt, Google Identity OAuth, đăng ký bằng Email/SĐT, bảo vệ route RBAC 5 vai trò).
 - Quản trị tài khoản Admin (CRUD danh sách người dùng, reset mật khẩu, kích hoạt/khóa tài khoản, xuất báo cáo).
+- Yêu cầu đổi vai trò người dùng (`roleChangeRequestRoutes.js`) & Chuông thông báo toàn hệ thống (`notificationRoutes.js`, `notif-bell.test.js`).
 - Khôi phục mật khẩu OTP 6 số (sinh mã, gửi giả lập qua Email/SĐT, giới hạn thử lại, chống brute-force và cơ chế lockout tạm thời 5 phút).
 - Quản lý hồ sơ cá nhân và đổi mật khẩu chủ động.
+- Kiểm tra đứt hàng đối chiếu Excel với KiotViet API (`stockoutCheckService.js`, `excelParser.js`, `timelineBuilder.js`, `stockoutAnalyzer.js`, `concurrencyPool.js`).
 - Tra cứu trạng thái hóa đơn cho khách hàng (`invoiceStatusService.js` với cache 90s).
 - State Machine vận đơn 9 trạng thái (`orderStateMachine.js`) và CRUD kho dữ liệu 6 tab vận chuyển (`vcOrderRepository.js`).
 - Result Cache tầng backend tối ưu phản hồi tức thì (<10ms).
@@ -500,4 +533,4 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 
 ---
 
-*Cập nhật lần cuối: 24/08/2026*
+*Cập nhật lần cuối: 26/08/2026*

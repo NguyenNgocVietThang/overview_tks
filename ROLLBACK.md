@@ -4,7 +4,7 @@ Hướng dẫn tắt hoặc gỡ bỏ lớp hiệu ứng 3D (particle background
 
 ## Phạm vi ảnh hưởng
 
-5 trang có tích hợp 3D: `server/public/index.html`, `account/index.html`, `shipment/index.html`, `shipment/dispatch/index.html`, `shipment/mobile/index.html`. *(Lưu ý: `login/index.html` và `register/index.html` đã được gỡ bỏ 3D stack chủ động để tối ưu tốc độ tải trang đăng nhập ban đầu).*
+6 trang có tích hợp 3D: `server/public/index.html`, `account/index.html`, `humanresources/index.html`, `shipment/index.html`, `shipment/dispatch/index.html`, `shipment/mobile/index.html`. *(Lưu ý: `login/index.html` và `register/index.html` đã được gỡ bỏ 3D stack chủ động để tối ưu tốc độ tải trang đăng nhập ban đầu).*
 
 8 file nguồn liên quan:
 ```
@@ -41,7 +41,7 @@ Xóa (hoặc comment `<!-- -->`) cả 2 nhóm trên khỏi 1 trang để tắt 3
 
 ## Tắt toàn site
 
-Lặp lại thao tác "Tắt nhanh" ở trên cho cả 5 trang liệt kê ở mục "Phạm vi ảnh hưởng".
+Lặp lại thao tác "Tắt nhanh" ở trên cho cả 6 trang liệt kê ở mục "Phạm vi ảnh hưởng".
 
 ## Rollback bằng Git (khôi phục về trước khi có 3D)
 

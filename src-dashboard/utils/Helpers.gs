@@ -239,21 +239,14 @@ function buildProductSheetRow_(product, existingRow) {
   const inventories = getProductInventoryValues_(product);
   const name = pickProductValue_(product, ['FullName', 'fullName', 'ProductName', 'productName', 'Name', 'name']);
   const categoryName = pickProductValue_(product, ['CategoryName', 'categoryName']);
-  const tradeMarkName = pickProductValue_(product, ['TradeMarkName', 'tradeMarkName', 'TrademarkName', 'trademarkName']);
   const basePrice = pickProductValue_(product, ['BasePrice', 'basePrice', 'Price', 'price']);
   const isActive = pickProductValue_(product, ['IsActive', 'isActive']);
   const modifiedDate = pickProductValue_(product, ['ModifiedDate', 'modifiedDate', 'CreatedDate', 'createdDate']);
   const categoryId = pickProductValue_(product, ['CategoryId', 'categoryId']);
-  const estimatedOutOfStock = pickProductValue_(product, [
-    'EstimatedOutOfStockDate', 'estimatedOutOfStockDate',
-    'ExpectedOutOfStockDate', 'expectedOutOfStockDate'
-  ]);
-
   const values = [
     getProductCode_(product),
     name.found ? String(name.value || '') : undefined,
     categoryName.found ? String(categoryName.value || '') : undefined,
-    tradeMarkName.found ? String(tradeMarkName.value || '') : undefined,
     getProductTypeLabel_(product),
     inventories.cost,
     basePrice.found ? productNumber_(basePrice.value) : undefined,
@@ -262,17 +255,12 @@ function buildProductSheetRow_(product, existingRow) {
     isActive.found ? (isActive.value === false ? 'Ngừng kinh doanh' : 'Đang kinh doanh') : undefined,
     modifiedDate.found ? formatDate(modifiedDate.value) : undefined,
     categoryId.found ? categoryId.value : undefined,
-    getProductImagesText_(product),
-    getProductChannelsText_(product),
-    getProductShelvesText_(product),
-    estimatedOutOfStock.found ? formatDate(estimatedOutOfStock.value) : undefined,
-    inventories.minQuantity,
-    inventories.maxQuantity
+    getProductShelvesText_(product)
   ];
 
   const defaults = [
-    '', '', '', '', 'Hàng hóa', 0, 0, 0, 0, 'Đang kinh doanh',
-    '---', '', '', '', '', '---', 0, 0
+    '', '', '', 'Hàng hóa', 0, 0, 0, 0, 'Đang kinh doanh',
+    '---', '', ''
   ];
 
   return values.map((value, index) => productRowValue_(value, existingRow, index, defaults[index]));
@@ -288,18 +276,14 @@ function formatProductSheet_(sheet, dataRowCount) {
 
   if (dataRowCount <= 0) return;
   sheet.getRange(2, 1, dataRowCount, PRODUCT_SHEET_HEADERS.length).setFontFamily('Open Sans');
-  sheet.getRange(2, 6, dataRowCount, 4).setNumberFormat('#,##0');
-  sheet.getRange(2, 17, dataRowCount, 2).setNumberFormat('#,##0');
-  sheet.getRange(2, 13, dataRowCount, 1).setWrap(true);
-  sheet.getRange(2, 15, dataRowCount, 1).setWrap(true);
+  sheet.getRange(2, 5, dataRowCount, 4).setNumberFormat('#,##0');
+  sheet.getRange(2, 12, dataRowCount, 1).setWrap(true);
 }
 
 function formatProductSheetRow_(sheet, rowNumber) {
   sheet.getRange(rowNumber, 1, 1, PRODUCT_SHEET_HEADERS.length).setFontFamily('Open Sans');
-  sheet.getRange(rowNumber, 6, 1, 4).setNumberFormat('#,##0');
-  sheet.getRange(rowNumber, 17, 1, 2).setNumberFormat('#,##0');
-  sheet.getRange(rowNumber, 13).setWrap(true);
-  sheet.getRange(rowNumber, 15).setWrap(true);
+  sheet.getRange(rowNumber, 5, 1, 4).setNumberFormat('#,##0');
+  sheet.getRange(rowNumber, 12).setWrap(true);
 }
 
 /**
@@ -340,7 +324,7 @@ function ensureProductSheetSchema_(sheet) {
       const oldIndex = oldIndexByHeader[candidates[i]];
       if (oldIndex !== undefined) return oldRow[oldIndex];
     }
-    const defaults = ['', '', '', '', 'Hàng hóa', 0, 0, 0, 0, 'Đang kinh doanh', '---', '', '', '', '', '---', 0, 0];
+    const defaults = ['', '', '', 'Hàng hóa', 0, 0, 0, 0, 'Đang kinh doanh', '---', '', ''];
     return defaults[newIndex];
   }));
 
@@ -396,4 +380,124 @@ function formatAllSheetsToOpenSans() {
       headerRange.setBackground('#1F4E78');
     }
   });
+}
+
+// Google Sheets gioi han 10 trieu o cho moi spreadsheet. Truoc khi mo rong
+// mot sheet, thu hoi cac hang/cot hoan toan trong o cac sheet khac neu phep
+// mo rong se vuot gioi han. Du lieu trong used range khong bi thay doi.
+const SPREADSHEET_GRID_CELL_LIMIT_ = 10000000;
+
+function spreadsheetGridCellCount_(spreadsheet) {
+  return spreadsheet.getSheets().reduce(function(total, sheet) {
+    return total + sheet.getMaxRows() * sheet.getMaxColumns();
+  }, 0);
+}
+
+function compactUnusedSheetGrid_(sheet) {
+  // Sheets bat buoc giu lai it nhat mot hang/cot khong bi co dinh.
+  const usedRows = Math.max(sheet.getLastRow(), sheet.getFrozenRows() + 1, 1);
+  const usedColumns = Math.max(sheet.getLastColumn(), sheet.getFrozenColumns() + 1, 1);
+  const extraRows = sheet.getMaxRows() - usedRows;
+  const extraColumns = sheet.getMaxColumns() - usedColumns;
+
+  if (extraRows > 0) sheet.deleteRows(usedRows + 1, extraRows);
+  if (extraColumns > 0) sheet.deleteColumns(usedColumns + 1, extraColumns);
+}
+
+/** Thu gon lưới trống cua tat ca tab ma khong cham vao used range/frozen panes. */
+function compactAllSheetsSafely() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const beforeCells = spreadsheetGridCellCount_(spreadsheet);
+  const sheets = [];
+  spreadsheet.getSheets().forEach(function(sheet) {
+    const beforeRows = sheet.getMaxRows();
+    const beforeColumns = sheet.getMaxColumns();
+    compactUnusedSheetGrid_(sheet);
+    const afterRows = sheet.getMaxRows();
+    const afterColumns = sheet.getMaxColumns();
+    sheets.push({
+      sheetName: sheet.getName(),
+      beforeRows: beforeRows,
+      beforeColumns: beforeColumns,
+      afterRows: afterRows,
+      afterColumns: afterColumns,
+      reclaimedCells: beforeRows * beforeColumns - afterRows * afterColumns
+    });
+  });
+  const result = {
+    beforeCells: beforeCells,
+    afterCells: spreadsheetGridCellCount_(spreadsheet),
+    sheets: sheets
+  };
+  Logger.log('Ket qua thu gon lưới: ' + JSON.stringify(result));
+  return result;
+}
+
+function ensureSpreadsheetCellHeadroom_(spreadsheet, additionalCells) {
+  additionalCells = Math.max(Number(additionalCells) || 0, 0);
+  let currentCells = spreadsheetGridCellCount_(spreadsheet);
+  if (currentCells + additionalCells <= SPREADSHEET_GRID_CELL_LIMIT_) {
+    return;
+  }
+
+  const sheets = spreadsheet.getSheets();
+  for (let i = 0; i < sheets.length; i++) {
+    const sheet = sheets[i];
+    const before = sheet.getMaxRows() * sheet.getMaxColumns();
+    compactUnusedSheetGrid_(sheet);
+    const after = sheet.getMaxRows() * sheet.getMaxColumns();
+    currentCells += after - before;
+    if (currentCells + additionalCells <= SPREADSHEET_GRID_CELL_LIMIT_) return;
+  }
+
+  throw new Error(
+    'Bảng tính đã đạt giới hạn 10.000.000 ô và không còn lưới trống để thu gọn.'
+  );
+}
+
+function createCompactSheet_(spreadsheet, sheetName, requiredRows, requiredColumns) {
+  // Apps Script tao sheet moi voi lưới mac dinh 1.000 x 26. Can bao dam
+  // headroom truoc khi tao, sau do thu gon sheet trang con 1 x 1.
+  ensureSpreadsheetCellHeadroom_(spreadsheet, 1000 * 26);
+  const sheet = spreadsheet.insertSheet(sheetName);
+  compactUnusedSheetGrid_(sheet);
+  ensureSheetGridCapacity_(sheet, requiredRows, requiredColumns);
+  return sheet;
+}
+
+function ensureSheetGridCapacity_(sheet, requiredRows, requiredColumns) {
+  requiredRows = Math.max(Number(requiredRows) || 0, 1);
+  requiredColumns = Math.max(Number(requiredColumns) || 0, 1);
+
+  let currentRows = sheet.getMaxRows();
+  let currentColumns = sheet.getMaxColumns();
+  if (currentRows >= requiredRows && currentColumns >= requiredColumns) return;
+
+  const spreadsheet = sheet.getParent();
+  const projectedRows = Math.max(currentRows, requiredRows);
+  const projectedColumns = Math.max(currentColumns, requiredColumns);
+  const growth = projectedRows * projectedColumns - currentRows * currentColumns;
+
+  if (spreadsheetGridCellCount_(spreadsheet) + growth > SPREADSHEET_GRID_CELL_LIMIT_) {
+    ensureSpreadsheetCellHeadroom_(spreadsheet, growth);
+    currentRows = sheet.getMaxRows();
+    currentColumns = sheet.getMaxColumns();
+  }
+
+  const finalRows = Math.max(currentRows, requiredRows);
+  const finalColumns = Math.max(currentColumns, requiredColumns);
+  const finalGrowth = finalRows * finalColumns - currentRows * currentColumns;
+  if (spreadsheetGridCellCount_(spreadsheet) + finalGrowth > SPREADSHEET_GRID_CELL_LIMIT_) {
+    throw new Error(
+      'Bảng tính đã đạt giới hạn 10.000.000 ô và không còn lưới trống để thu gọn.'
+    );
+  }
+
+  if (currentRows < requiredRows) {
+    sheet.insertRowsAfter(currentRows, requiredRows - currentRows);
+  }
+  currentColumns = sheet.getMaxColumns();
+  if (currentColumns < requiredColumns) {
+    sheet.insertColumnsAfter(currentColumns, requiredColumns - currentColumns);
+  }
 }

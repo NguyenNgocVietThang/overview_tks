@@ -7,13 +7,13 @@
 | **Thông tin**     | **Nội dung**                                                        |
 |-------------------|---------------------------------------------------------------------|
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Google Sheets → Web)  |
-| Phiên bản         | 1.8                                                                 |
+| Phiên bản         | 1.9                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 22/08/2026                                                          |
+| Ngày cập nhật     | 26/08/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo, nhân viên nội bộ công ty & khách hàng tra cứu        |
-| Trạng thái        | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1, Lớp hiệu ứng 3D & Phân hệ HR + Telegram Bot hoàn thiện) |
+| Trạng thái        | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1, 3D Layer, Phân hệ HR + Bot, Chuông thông báo, Đổi vai trò & Kiểm tra đứt hàng) |
 
-> **Ghi chú phiên bản 1.8:** Bổ sung Phân hệ Quản lý Nghỉ phép Nhân sự (HR Leave Management) & Telegram Bot theo chính sách CSNS-NP-01: Quản lý hạn mức, số dư ngày phép; nộp đơn xin nghỉ và tra cứu trực tuyến trên Cổng thông tin nhân sự (`/humanresources/`) hoặc qua Telegram Bot tương tác (`hrTelegramBot.js`); quy trình phê duyệt/từ chối đơn đa vai trò và gửi thông báo kết quả tức thì qua Telegram; xuất báo cáo đối soát ngày nghỉ phép ra Excel. Tích hợp bộ kiểm thử tự động toàn diện **324 unit tests** chuẩn `node:test`.
+> **Ghi chú phiên bản 1.9:** Bổ sung Phân hệ Quản lý Nghỉ phép Nhân sự (HR Leave Management) & Telegram Bot theo chính sách CSNS-NP-01; Chuông thông báo toàn hệ thống; Cơ chế gửi & duyệt yêu cầu đổi vai trò người dùng; Công cụ Kiểm tra đứt hàng đối chiếu file Excel với KiotViet API nền; Tích hợp bộ kiểm thử tự động toàn diện **434 unit tests** chuẩn `node:test`.
 
 # 1. Giới thiệu
 
@@ -23,7 +23,7 @@ Tài liệu này mô tả các yêu cầu nghiệp vụ cho Hệ thống Dashboa
 
 ## 1.2. Bối cảnh
 
-Công ty TOKOSI là một tổng kho sỉ phân phối hàng hóa, vận hành trên phần mềm **KiotViet** (quản lý bán hàng, kho, khách hàng). Dữ liệu KiotViet được đồng bộ tự động sang **Google Sheets** (qua Apps Script module trong `src/`) dưới dạng 9 tab dữ liệu vận hành, 1 tab lịch sử hàng ngừng kinh doanh, 2 tab báo cáo bán hàng, 3 tab báo cáo công nợ HN1/HN3/HN7, 6 tab vận chuyển `VC_*` và 3 tab nhân sự `HR_*`. Backend dashboard đọc các tab cần thiết để hiển thị KPI, biểu đồ, báo cáo công nợ khách hàng và quản lý nghỉ phép nhân sự.
+Công ty TOKOSI là một tổng kho sỉ phân phối hàng hóa, vận hành trên phần mềm **KiotViet** (quản lý bán hàng, kho, khách hàng). Dữ liệu KiotViet được đồng bộ tự động sang **Google Sheets** (qua hai project Apps Script độc lập `src-dashboard/` và `src-order-lifecycle/`) dưới dạng 9 tab dữ liệu vận hành, 1 tab lịch sử hàng ngừng kinh doanh, 3 tab báo cáo khách hàng, 3 tab báo cáo công nợ HN1/HN3/HN7, 6 tab vận chuyển `VC_*` và 3 tab nhân sự `HR_*`. Backend dashboard đọc các tab cần thiết để hiển thị KPI, biểu đồ, báo cáo công nợ khách hàng và quản lý nghỉ phép nhân sự.
 
 Trước đây, việc theo dõi số liệu phải thực hiện thủ công trên KiotViet và Google Sheets, gây mất thời gian tổng hợp và khó trực quan hóa xu hướng. Công ty cần một **Website Dashboard tập trung** đọc dữ liệu từ Google Sheets này, hiển thị các chỉ số quan trọng dưới dạng KPI card và biểu đồ, cập nhật gần thời gian thực mà không cần thao tác thủ công.
 

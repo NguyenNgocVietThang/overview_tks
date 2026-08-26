@@ -57,14 +57,13 @@ function isShipmentLifecycleRelayEnabled_() {
 /**
  * Schema co dinh cua tab Hang hoa.
  *
- * 12 cot dau giu thu tu ma Dashboard dang su dung. Cac cot con lai bo sung
- * thong tin hien thi tren man hinh Hang hoa cua KiotViet.
+ * Chi giu cac cot Dashboard va bao cao van su dung. Dashboard phai tra cuu
+ * theo ten header, khong phu thuoc vao vi tri cot co dinh.
  */
 const PRODUCT_SHEET_HEADERS = Object.freeze([
   'Mã hàng',
   'Tên hàng',
   'Nhóm hàng',
-  'Thương hiệu',
   'Loại hàng',
   'Giá vốn',
   'Giá bán',
@@ -73,10 +72,5 @@ const PRODUCT_SHEET_HEADERS = Object.freeze([
   'Trạng thái',
   'Ngày sửa cuối',
   'Mã nhóm hàng',
-  'Hình ảnh',
-  'Liên kết kênh bán',
-  'Vị trí',
-  'Dự kiến hết hàng',
-  'Định mức tồn ít nhất',
-  'Định mức tồn nhiều nhất'
+  'Vị trí'
 ]);

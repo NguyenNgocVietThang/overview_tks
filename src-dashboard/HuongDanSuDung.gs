@@ -81,19 +81,16 @@ setupCustomerReport()
              gan 06:30 va Khach theo hang hoa gan 07:00.
   Goi tiep : syncCustomerReport() -> setupCustomerReportDailyTrigger().
 
-syncSalesCustomerReport()
-  Khi dung : Chay tay khi can cap nhat rieng tab Bao cao ban hang.
-  Tac dung : Chi lam moi Bao cao ban hang; lich tu dong doi soat gan 06:00.
-
-syncCustomerProductReport()
-  Khi dung : Chay tay khi can cap nhat rieng tab Hang ban theo khach.
-  Tac dung : Chi lam moi Hang ban theo khach; webhook cap nhat trong khoang 1 phut
-             va lich doi soat toan bo gan 06:30.
-
-syncCustomerByProductReport()
-  Khi dung : Chay tay bat cu luc nao can cap nhat tab Khach theo hang hoa.
-  Tac dung : Chi lam moi bao cao 25 cot theo toan bo lich su; lich tu dong doi
-             soat gan 07:00.
+syncSalesCustomerReport(), syncCustomerProductReport(), syncCustomerByProductReport()
+  Khi dung : Chay tay khi can cap nhat rieng tung tab (Bao cao ban hang gan
+             06:00, Hang ban theo khach gan 06:30, Khach theo hang hoa gan 07:00).
+  Tac dung : Chay theo phan doan (chunked/resumable) qua runCustomerReportChunkedJob_ -
+             moi lan goi toi da ~4.5 phut, luu tien do vao Script Properties va sheet
+             an tam. Neu du lieu nhieu, mot lan Run co the CHUA xong (khong bao loi,
+             chi la chua toi luot ghi sheet); trigger hang doi 1 phut (processWebhookQueue
+             -> syncCustomerReportIfDue_) se tu dong goi lai cho toi khi hoan tat va
+             cap nhat LAST_SYNC property. Neu chay tay va muon xong ngay khong doi
+             trigger, bam Run nhieu lan lien tiep cho den khi Log hien "HOAN TAT".
 
 setupCustomerDebtReports()
   Khi dung : Mot lan neu muon Apps Script tu dong cap nhat HN1/HN3/HN7 luc 15:00.
@@ -196,10 +193,10 @@ syncAllInitialData()
 Trigger 15 phut
   -> syncPollingOnly_()
      -> getKiotVietDataLock_()
-     -> getKiotVietToken()
-     -> syncReturnsInitial()
-     -> syncSuppliersInitial()
-     -> syncPurchasesInitial().
+     -> syncKiotVietTableChunk_() cho tung bang trong POLLING_ONLY_CHAIN
+        (Tra hang, Nha cung cap, Nhap hang), moi lan toi da ~4.5 phut.
+     -> Neu chua xong bang/chuoi: tu tao trigger 1 phut rieng
+        (resumePollingOnlyChunk_) de tiep suc, khong doi trigger 15 phut ke tiep.
 
 5. VAI TRO TUNG FILE
 -------------------------------------------------------------------------------

@@ -8,7 +8,7 @@
  * Sheets de bang tinh gon, de doc va khong cham do payload JSON lon.
  */
 
-const KIOTVIET_SHEET_SCHEMA_VERSION = '2026-07-30-no-json-columns-v1';
+const KIOTVIET_SHEET_SCHEMA_VERSION = '2026-08-25-compact-columns-v2';
 const KIOTVIET_SHEET_SCHEMA_PROPERTY = 'KIOTVIET_SHEET_SCHEMA_VERSION';
 
 const CATEGORY_SHEET_HEADERS = Object.freeze([
@@ -23,19 +23,12 @@ const CATEGORY_SHEET_HEADERS = Object.freeze([
 
 const PRODUCT_EXTRA_HEADERS = Object.freeze([
   'ID hàng hóa',
-  'Mã vạch',
   'ID gian hàng',
   'Được phép bán',
   'Tên gốc',
   'Mô tả',
-  'Đơn vị tính',
-  'ID đơn vị cơ bản',
-  'ID hàng cùng loại',
   'Giá trị quy đổi',
   'Có thuộc tính',
-  'Giá trước thuế',
-  'Giá sau thuế',
-  'Trọng lượng',
   'Đang hoạt động',
   'Ngày tạo',
   'Ngày cập nhật',
@@ -54,7 +47,6 @@ const INVOICE_SHEET_HEADERS = Object.freeze([
   'Khách đã trả',
   'Trạng thái',
   'ID hóa đơn',
-  'ID gian hàng',
   'Mã đặt hàng',
   'ID chi nhánh',
   'ID nhân viên bán',
@@ -64,9 +56,7 @@ const INVOICE_SHEET_HEADERS = Object.freeze([
   'Tên trạng thái API',
   'Ghi chú',
   'Thu hộ COD',
-  'Tổng thuế',
-  'Ngày tạo',
-  'Ngày cập nhật'
+  'Ngày tạo'
 ]);
 
 const INVOICE_DETAIL_SHEET_HEADERS = Object.freeze([
@@ -80,9 +70,7 @@ const INVOICE_DETAIL_SHEET_HEADERS = Object.freeze([
   'ID hóa đơn',
   'ID hàng hóa',
   'Giảm giá (%)',
-  'Ghi chú',
-  'Là dòng chính',
-  'Serial/IMEI'
+  'Ghi chú'
 ]);
 
 const ORDER_SHEET_HEADERS = Object.freeze([
@@ -106,7 +94,6 @@ const ORDER_SHEET_HEADERS = Object.freeze([
   'Tên trạng thái API',
   'Ghi chú',
   'Thu hộ COD',
-  'Tổng thuế',
   'Ngày tạo',
   'Ngày cập nhật'
 ]);
@@ -114,12 +101,10 @@ const ORDER_SHEET_HEADERS = Object.freeze([
 const RETURN_SHEET_HEADERS = Object.freeze([
   'Mã trả hàng',
   'Ngày trả',
-  'Mã hóa đơn gốc',
   'Khách hàng',
   'Tổng tiền trả',
   'Trạng thái',
   'ID trả hàng',
-  'ID gian hàng',
   'ID hóa đơn gốc',
   'ID chi nhánh',
   'Chi nhánh',
@@ -132,9 +117,6 @@ const RETURN_SHEET_HEADERS = Object.freeze([
   'Tổng thanh toán',
   'Mã trạng thái',
   'Tên trạng thái API',
-  'Tổng thuế',
-  'Chế độ tính thuế',
-  'Giảm giá sau thuế',
   'Ngày tạo',
   'Ngày cập nhật'
 ]);
@@ -143,45 +125,25 @@ const CUSTOMER_SHEET_HEADERS = Object.freeze([
   'Mã khách hàng',
   'Tên khách hàng',
   'Điện thoại',
-  'Giới tính',
   'Nhóm khách hàng',
   'Địa chỉ',
-  'Email',
   'Nợ hiện tại',
   'Tổng bán',
   'ID khách hàng',
-  'Loại khách hàng',
-  'Ngày sinh',
   'Điện thoại phụ',
-  'CCCD/CMND',
-  'Khu vực',
-  'Phường/Xã',
   'Công ty',
-  'Ghi chú',
-  'Mã số thuế',
-  'Tổng điểm',
   'Tổng doanh thu',
-  'Điểm hiện tại',
   'ID gian hàng',
-  'Ngày cập nhật',
-  'Ngày tạo',
-  'PSID Facebook'
+  'Ngày tạo'
 ]);
 
 const SUPPLIER_SHEET_HEADERS = Object.freeze([
   'Mã NCC',
   'Tên NCC',
   'Điện thoại',
-  'Email',
   'Địa chỉ',
   'Nợ cần trả',
   'ID nhà cung cấp',
-  'Khu vực',
-  'Phường/Xã',
-  'Công ty',
-  'Mã số thuế',
-  'Ghi chú',
-  'Nhóm nhà cung cấp',
   'Trạng thái hoạt động',
   'Ngày cập nhật',
   'Ngày tạo',
@@ -200,11 +162,8 @@ const PURCHASE_SHEET_HEADERS = Object.freeze([
   'Mã nhập hàng',
   'Thời gian',
   'Thời gian tạo',
-  'Ngày cập nhật',
   'Mã nhà cung cấp',
   'Tên nhà cung cấp',
-  'Điện thoại',
-  'Địa chỉ',
   'Người nhập',
   'Người tạo',
   'Tổng tiền hàng',
@@ -212,15 +171,11 @@ const PURCHASE_SHEET_HEADERS = Object.freeze([
   'Cần trả NCC',
   'Tiền đã trả NCC',
   'Ghi chú',
-  'Số hóa đơn đầu vào',
   'Tổng số lượng',
   'Tổng số mặt hàng',
   'Trạng thái',
   'Mã hàng',
   'Tên hàng',
-  'Thương hiệu',
-  'ĐVT',
-  'Ghi chú hàng hóa',
   'Đơn giá',
   'Giảm giá %',
   'Giảm giá',
@@ -327,19 +282,12 @@ function buildFullProductSheetRow_(product) {
   const baseRow = buildProductSheetRow_(product);
   return baseRow.concat([
     kiotVietId_(product, ['Id', 'id', 'ProductId', 'productId']),
-    kiotVietText_(product, ['BarCode', 'barCode', 'Barcode', 'barcode']),
     kiotVietId_(product, ['RetailerId', 'retailerId']),
     kiotVietBooleanText_(product, ['AllowsSale', 'allowsSale']),
     kiotVietText_(product, ['Name', 'name']),
     kiotVietText_(product, ['Description', 'description']),
-    kiotVietText_(product, ['Unit', 'unit']),
-    kiotVietId_(product, ['MasterUnitId', 'masterUnitId']),
-    kiotVietId_(product, ['MasterProductId', 'masterProductId']),
     kiotVietNumber_(product, ['ConversionValue', 'conversionValue'], ''),
     kiotVietBooleanText_(product, ['HasVariants', 'hasVariants']),
-    kiotVietNumber_(product, ['Price', 'price'], ''),
-    kiotVietNumber_(product, ['PriceAfterTax', 'priceAfterTax'], ''),
-    kiotVietNumber_(product, ['Weight', 'weight'], ''),
     kiotVietBooleanText_(product, ['IsActive', 'isActive']),
     kiotVietDate_(product, ['CreatedDate', 'createdDate']),
     kiotVietDate_(product, ['ModifiedDate', 'modifiedDate']),
@@ -360,7 +308,6 @@ function buildInvoiceSheetRow_(invoice) {
     kiotVietNumber_(invoice, ['TotalPayment', 'totalPayment', 'ActualPayment', 'actualPayment']),
     kiotVietStatus_(invoice, { 1: 'Phiếu tạm', 2: 'Đã hủy', 3: 'Hoàn thành' }),
     kiotVietId_(invoice, ['Id', 'id', 'InvoiceId', 'invoiceId']),
-    kiotVietId_(invoice, ['RetailerId', 'retailerId']),
     kiotVietText_(invoice, ['OrderCode', 'orderCode']),
     kiotVietId_(invoice, ['BranchId', 'branchId']),
     kiotVietId_(invoice, ['SoldById', 'soldById']),
@@ -370,9 +317,7 @@ function buildInvoiceSheetRow_(invoice) {
     kiotVietText_(invoice, ['StatusValue', 'statusValue']),
     kiotVietText_(invoice, ['Description', 'description']),
     kiotVietBooleanText_(invoice, ['UsingCod', 'usingCod']),
-    kiotVietNumber_(invoice, ['TotalTax', 'totalTax'], ''),
-    kiotVietDate_(invoice, ['CreatedDate', 'createdDate']),
-    kiotVietDate_(invoice, ['ModifiedDate', 'modifiedDate'])
+    kiotVietDate_(invoice, ['CreatedDate', 'createdDate'])
   ];
 }
 
@@ -394,9 +339,7 @@ function buildInvoiceDetailSheetRow_(invoice, detail) {
     kiotVietId_(invoice, ['Id', 'id', 'InvoiceId', 'invoiceId']),
     kiotVietId_(detail, ['ProductId', 'productId']),
     kiotVietNumber_(detail, ['DiscountRatio', 'discountRatio'], ''),
-    kiotVietText_(detail, ['Note', 'note']),
-    kiotVietBooleanText_(detail, ['IsMaster', 'isMaster']),
-    kiotVietText_(detail, ['SerialNumbers', 'serialNumbers'])
+    kiotVietText_(detail, ['Note', 'note'])
   ];
 }
 
@@ -428,7 +371,6 @@ function buildOrderSheetRow_(order) {
     kiotVietText_(order, ['StatusValue', 'statusValue']),
     kiotVietText_(order, ['Description', 'description']),
     kiotVietBooleanText_(order, ['UsingCod', 'usingCod']),
-    kiotVietNumber_(order, ['TotalTax', 'totalTax'], ''),
     kiotVietDate_(order, ['CreatedDate', 'createdDate']),
     kiotVietDate_(order, ['ModifiedDate', 'modifiedDate'])
   ];
@@ -438,12 +380,10 @@ function buildReturnSheetRow_(returnItem) {
   return [
     kiotVietText_(returnItem, ['ReturnCode', 'returnCode', 'Code', 'code']),
     kiotVietDate_(returnItem, ['ReturnDate', 'returnDate']),
-    kiotVietText_(returnItem, ['InvoiceCode', 'invoiceCode']),
     kiotVietText_(returnItem, ['CustomerName', 'customerName'], 'Khách lẻ') || 'Khách lẻ',
     kiotVietNumber_(returnItem, ['ReturnTotal', 'returnTotal']),
     kiotVietStatus_(returnItem, { 1: 'Hoàn thành', 2: 'Đã hủy' }),
     kiotVietId_(returnItem, ['Id', 'id', 'ReturnId', 'returnId']),
-    kiotVietId_(returnItem, ['RetailerId', 'retailerId']),
     kiotVietId_(returnItem, ['InvoiceId', 'invoiceId']),
     kiotVietId_(returnItem, ['BranchId', 'branchId']),
     kiotVietText_(returnItem, ['BranchName', 'branchName']),
@@ -456,9 +396,6 @@ function buildReturnSheetRow_(returnItem) {
     kiotVietNumber_(returnItem, ['TotalPayment', 'totalPayment'], ''),
     kiotVietValue_(returnItem, ['Status', 'status'], ''),
     kiotVietText_(returnItem, ['StatusValue', 'statusValue']),
-    kiotVietNumber_(returnItem, ['TotalTax', 'totalTax'], ''),
-    kiotVietValue_(returnItem, ['PricingMode', 'pricingMode'], ''),
-    kiotVietNumber_(returnItem, ['DiscountAfterTax', 'discountAfterTax'], ''),
     kiotVietDate_(returnItem, ['CreatedDate', 'createdDate']),
     kiotVietDate_(returnItem, ['ModifiedDate', 'modifiedDate'])
   ];
@@ -469,29 +406,16 @@ function buildCustomerSheetRow_(customer) {
     kiotVietText_(customer, ['CustomerCode', 'customerCode', 'Code', 'code']),
     kiotVietText_(customer, ['Name', 'name', 'CustomerName', 'customerName']),
     kiotVietText_(customer, ['ContactNumber', 'contactNumber']),
-    kiotVietGender_(customer),
     kiotVietCustomerGroups_(customer),
     kiotVietText_(customer, ['Address', 'address']),
-    kiotVietText_(customer, ['Email', 'email']),
     kiotVietNumber_(customer, ['Debt', 'debt', 'TotalDebt', 'totalDebt']),
     kiotVietNumber_(customer, ['TotalInvoiced', 'totalInvoiced']),
     kiotVietId_(customer, ['Id', 'id', 'CustomerId', 'customerId']),
-    kiotVietValue_(customer, ['Type', 'type'], ''),
-    kiotVietDate_(customer, ['BirthDate', 'birthDate']),
     kiotVietText_(customer, ['SubNumber', 'subNumber']),
-    kiotVietText_(customer, ['IdentificationNumber', 'identificationNumber']),
-    kiotVietText_(customer, ['LocationName', 'locationName']),
-    kiotVietText_(customer, ['WardName', 'wardName']),
     kiotVietText_(customer, ['Organization', 'organization']),
-    kiotVietText_(customer, ['Comments', 'comments']),
-    kiotVietText_(customer, ['TaxCode', 'taxCode']),
-    kiotVietNumber_(customer, ['TotalPoint', 'totalPoint'], ''),
     kiotVietNumber_(customer, ['TotalRevenue', 'totalRevenue'], ''),
-    kiotVietNumber_(customer, ['RewardPoint', 'rewardPoint'], ''),
     kiotVietId_(customer, ['RetailerId', 'retailerId']),
-    kiotVietDate_(customer, ['ModifiedDate', 'modifiedDate']),
-    kiotVietDate_(customer, ['CreatedDate', 'createdDate']),
-    kiotVietId_(customer, ['PsidFacebook', 'psidFacebook'])
+    kiotVietDate_(customer, ['CreatedDate', 'createdDate'])
   ];
 }
 
@@ -500,16 +424,9 @@ function buildSupplierSheetRow_(supplier) {
     kiotVietText_(supplier, ['SupplierCode', 'supplierCode', 'Code', 'code']),
     kiotVietText_(supplier, ['SupplierName', 'supplierName', 'Name', 'name']),
     kiotVietText_(supplier, ['ContactNumber', 'contactNumber']),
-    kiotVietText_(supplier, ['Email', 'email']),
     kiotVietText_(supplier, ['Address', 'address']),
     kiotVietNumber_(supplier, ['Debt', 'debt']),
     kiotVietId_(supplier, ['Id', 'id', 'SupplierId', 'supplierId']),
-    kiotVietText_(supplier, ['LocationName', 'locationName']),
-    kiotVietText_(supplier, ['WardName', 'wardName']),
-    kiotVietText_(supplier, ['Organization', 'organization']),
-    kiotVietText_(supplier, ['TaxCode', 'taxCode']),
-    kiotVietText_(supplier, ['Comments', 'comments']),
-    kiotVietText_(supplier, ['Groups', 'groups']),
     kiotVietBooleanText_(supplier, ['IsActive', 'isActive']),
     kiotVietDate_(supplier, ['ModifiedDate', 'modifiedDate']),
     kiotVietDate_(supplier, ['CreatedDate', 'createdDate']),
@@ -577,11 +494,8 @@ function buildPurchaseSheetRow_(wrapper) {
     kiotVietText_(order, ['PurchaseOrderCode', 'purchaseOrderCode', 'Code', 'code']),
     kiotVietDate_(order, ['PurchaseDate', 'purchaseDate']),
     kiotVietDate_(order, ['CreatedDate', 'createdDate']),
-    kiotVietDate_(order, ['ModifiedDate', 'modifiedDate']),
     kiotVietText_(order, ['SupplierCode', 'supplierCode']),
     kiotVietText_(order, ['SupplierName', 'supplierName']),
-    kiotVietText_(order, ['ContactNumber', 'contactNumber', 'SupplierContactNumber', 'supplierContactNumber', 'Phone', 'phone']),
-    kiotVietText_(order, ['Address', 'address', 'SupplierAddress', 'supplierAddress']),
     kiotVietText_(order, ['PurchaseName', 'purchaseName']),
     kiotVietText_(order, ['CreatedByName', 'createdByName', 'CreatorName', 'creatorName', 'PurchaseName', 'purchaseName']),
     total,
@@ -589,15 +503,11 @@ function buildPurchaseSheetRow_(wrapper) {
     kiotVietNumber_(order, ['SupplierDebt', 'supplierDebt', 'NeedToPay', 'needToPay'], total - totalPayment),
     totalPayment,
     kiotVietText_(order, ['Description', 'description']),
-    kiotVietText_(order, ['InvoiceNumber', 'invoiceNumber', 'InputVATNumber', 'inputVATNumber', 'InputInvoiceNumber', 'inputInvoiceNumber']),
     totalQuantity,
     details.length,
     kiotVietStatus_(order, {}),
     kiotVietText_(detail, ['ProductCode', 'productCode']),
     kiotVietText_(detail, ['ProductName', 'productName']),
-    kiotVietText_(detail, ['Brand', 'brand', 'BrandName', 'brandName']),
-    kiotVietText_(detail, ['Unit', 'unit', 'ProductUnit', 'productUnit']),
-    kiotVietText_(detail, ['Note', 'note']),
     detailPrice,
     kiotVietNumber_(detail, ['DiscountRatio', 'discountRatio'], ''),
     detailDiscount,
@@ -656,12 +566,10 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
     },
     numberHeaders: [
       'Giá vốn', 'Giá bán', 'Tồn kho', 'Khách đặt',
-      'Định mức tồn ít nhất', 'Định mức tồn nhiều nhất',
-      'Giá trị quy đổi', 'Giá trước thuế', 'Giá sau thuế', 'Trọng lượng'
+      'Giá trị quy đổi'
     ],
     textHeaders: [
-      'Mã hàng', 'Mã nhóm hàng', 'ID hàng hóa', 'Mã vạch', 'ID gian hàng',
-      'ID đơn vị cơ bản', 'ID hàng cùng loại'
+      'Mã hàng', 'Mã nhóm hàng', 'ID hàng hóa', 'ID gian hàng'
     ]
   },
   invoices: {
@@ -677,9 +585,9 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
       'Khách hàng': ['Khách hàng', 'Tên khách hàng'],
       'Tổng tiền hàng': ['Tổng tiền hàng', 'Tổng tiền']
     },
-    numberHeaders: ['Tổng tiền hàng', 'Giảm giá', 'Khách đã trả', 'Tổng thuế'],
+    numberHeaders: ['Tổng tiền hàng', 'Giảm giá', 'Khách đã trả'],
     textHeaders: [
-      'Mã hóa đơn', 'SĐT khách', 'ID hóa đơn', 'ID gian hàng', 'Mã đặt hàng', 'ID chi nhánh',
+      'Mã hóa đơn', 'SĐT khách', 'ID hóa đơn', 'Mã đặt hàng', 'ID chi nhánh',
       'ID nhân viên bán', 'ID khách hàng', 'Mã khách hàng'
     ]
   },
@@ -695,7 +603,7 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
     },
     aliases: {},
     numberHeaders: ['Số lượng', 'Đơn giá', 'Giảm giá', 'Thành tiền', 'Giảm giá (%)'],
-    textHeaders: ['Mã hóa đơn', 'Mã hàng', 'ID hóa đơn', 'ID hàng hóa', 'Serial/IMEI']
+    textHeaders: ['Mã hóa đơn', 'Mã hàng', 'ID hóa đơn', 'ID hàng hóa']
   },
   orders: {
     sheetName: CONFIG.SHEET_ORDERS,
@@ -707,7 +615,7 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
     idKeys: ['OrderId', 'orderId', 'Id', 'id'],
     buildRow: buildOrderSheetRow_,
     aliases: {},
-    numberHeaders: ['Tổng tiền', 'Khách đã trả', 'Giảm giá (%)', 'Giảm giá', 'Tổng thuế'],
+    numberHeaders: ['Tổng tiền', 'Khách đã trả', 'Giảm giá (%)', 'Giảm giá'],
     textHeaders: [
       'Mã đặt hàng', 'ID đặt hàng', 'ID gian hàng', 'ID chi nhánh', 'ID nhân viên lập',
       'ID khách hàng', 'Mã khách hàng'
@@ -724,11 +632,10 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
     buildRow: buildReturnSheetRow_,
     aliases: {},
     numberHeaders: [
-      'Tổng tiền trả', 'Giảm giá trả hàng', 'Phí trả hàng', 'Tổng thanh toán',
-      'Tổng thuế', 'Giảm giá sau thuế'
+      'Tổng tiền trả', 'Giảm giá trả hàng', 'Phí trả hàng', 'Tổng thanh toán'
     ],
     textHeaders: [
-      'Mã trả hàng', 'Mã hóa đơn gốc', 'ID trả hàng', 'ID gian hàng', 'ID hóa đơn gốc',
+      'Mã trả hàng', 'ID trả hàng', 'ID hóa đơn gốc',
       'ID chi nhánh', 'ID người nhận trả', 'ID khách hàng', 'Mã khách hàng'
     ]
   },
@@ -744,12 +651,10 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
     aliases: {
       'Nhóm khách hàng': ['Nhóm khách hàng', 'Tên nhóm khách hàng']
     },
-    numberHeaders: [
-      'Nợ hiện tại', 'Tổng bán', 'Tổng điểm', 'Tổng doanh thu', 'Điểm hiện tại'
-    ],
+    numberHeaders: ['Nợ hiện tại', 'Tổng bán', 'Tổng doanh thu'],
     textHeaders: [
-      'Mã khách hàng', 'Điện thoại', 'Điện thoại phụ', 'CCCD/CMND',
-      'ID khách hàng', 'Mã số thuế', 'ID gian hàng', 'PSID Facebook'
+      'Mã khách hàng', 'Điện thoại', 'Điện thoại phụ',
+      'ID khách hàng', 'ID gian hàng'
     ]
   },
   suppliers: {
@@ -764,7 +669,7 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
     aliases: {},
     numberHeaders: ['Nợ cần trả', 'Tổng mua', 'Tổng mua trừ trả hàng'],
     textHeaders: [
-      'Mã NCC', 'Điện thoại', 'ID nhà cung cấp', 'Mã số thuế',
+      'Mã NCC', 'Điện thoại', 'ID nhà cung cấp',
       'ID gian hàng', 'ID chi nhánh tạo'
     ]
   },
@@ -783,7 +688,7 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
       'Tổng số lượng', 'Tổng số mặt hàng',
       'Đơn giá', 'Giảm giá %', 'Giảm giá', 'Giá nhập', 'Thành tiền', 'Số lượng'
     ],
-    textHeaders: ['Mã nhập hàng', 'Mã nhà cung cấp', 'Điện thoại', 'Số hóa đơn đầu vào', 'Mã hàng']
+    textHeaders: ['Mã nhập hàng', 'Mã nhà cung cấp', 'Mã hàng']
   }
 });
 
@@ -856,9 +761,62 @@ function fetchKiotVietJsonWithRetry_(url, token, endpoint) {
 const SYNC_CHUNK_CONFIG = Object.freeze({
   CHUNK_SIZE: 5000,            // 5.000 ban ghi moi lan chay
   PAGE_SIZE: 100,              // 100 ban ghi moi trang API KiotViet
+  PURCHASES_PAGE_SIZE: 20,     // Purchase order kem chi tiet rat nang; giu request nho de tranh treo 6 phut
   MAX_RUN_SECONDS: 270,        // Dung an toan sau 4.5 phut de tranh timeout 6 phut cua Google
   AUTO_TRIGGER_DELAY_MS: 60000 // 1 phut tao trigger tiep suc
 });
+
+// Nhap hang co the mat vai phut de tai va bung chi tiet tung mat hang. Ghi vao
+// tab staging de mot lan timeout/API loi khong xoa du lieu dang hien thi.
+const KIOTVIET_CHUNK_STAGING_SHEETS_ = Object.freeze({
+  purchases: '_KV_SYNC_STAGING_PURCHASES'
+});
+
+function prepareKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema) {
+  const stagingName = KIOTVIET_CHUNK_STAGING_SHEETS_[schemaKey];
+  if (!stagingName) return null;
+
+  let stagingSheet = spreadsheet.getSheetByName(stagingName);
+  if (!stagingSheet) {
+    stagingSheet = createCompactSheet_(spreadsheet, stagingName, 1, schema.headers.length);
+  }
+  stagingSheet.hideSheet();
+  return stagingSheet;
+}
+
+function publishKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema, liveSheet, stagingSheet) {
+  const stagingLastRow = stagingSheet.getLastRow();
+  const previousLastRow = liveSheet.getLastRow();
+
+  // Neu API dot ngot tra ve rong, giu lai du lieu live thay vi cong bo mot bang
+  // rong. Nguoi van hanh co the xoa chu dong neu gian hang thuc su khong co phieu.
+  if (stagingLastRow <= 1 && previousLastRow > 1) {
+    throw new Error(
+      '[' + schema.sheetName + '] API tra ve 0 ban ghi; giu lai du lieu hien tai de tranh mat du lieu.'
+    );
+  }
+
+  const publishRowCount = Math.max(stagingLastRow, 1);
+  ensureSheetGridCapacity_(liveSheet, publishRowCount, schema.headers.length);
+  const stagedValues = stagingSheet
+    .getRange(1, 1, publishRowCount, schema.headers.length)
+    .getValues();
+
+  // Ghi de tu tren xuong ma khong clear toan bo tab live truoc. Neu Google
+  // Sheets nem loi giua chung, du lieu cu van con o cac dong chua ghi den.
+  writeKiotVietRowsInChunks_(liveSheet, 1, stagedValues, schema.headers.length);
+  if (previousLastRow > publishRowCount) {
+    liveSheet
+      .getRange(publishRowCount + 1, 1, previousLastRow - publishRowCount, schema.headers.length)
+      .clearContent();
+  }
+
+  spreadsheet.deleteSheet(stagingSheet);
+  Logger.log(
+    '[' + schema.sheetName + '] Da cong bo ' + Math.max(publishRowCount - 1, 0) +
+    ' dong tu staging.'
+  );
+}
 
 /**
  * Dong bo mot phan doan (chunk) cho bat ky bang nao cua KiotViet.
@@ -881,7 +839,9 @@ function syncKiotVietTableChunk_(schemaKey, options) {
   if (!token) throw new Error('Khong lay duoc KiotViet token.');
 
   const chunkSize = options.chunkSize || SYNC_CHUNK_CONFIG.CHUNK_SIZE;
-  const pageSize = SYNC_CHUNK_CONFIG.PAGE_SIZE;
+  const pageSize = schemaKey === 'purchases'
+    ? SYNC_CHUNK_CONFIG.PURCHASES_PAGE_SIZE
+    : SYNC_CHUNK_CONFIG.PAGE_SIZE;
   const maxRunSeconds = options.maxRunSeconds || SYNC_CHUNK_CONFIG.MAX_RUN_SECONDS;
   const autoSchedule = options.autoSchedule !== false;
   const resumeHandler = options.resumeHandler;
@@ -899,10 +859,62 @@ function syncKiotVietTableChunk_(schemaKey, options) {
   }
 
   let currentItem = Number(state.currentItem) || 0;
-  const isFirstChunk = (currentItem === 0);
 
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = spreadsheet.getSheetByName(schema.sheetName) || spreadsheet.insertSheet(schema.sheetName);
+  const liveSheet = spreadsheet.getSheetByName(schema.sheetName) || spreadsheet.insertSheet(schema.sheetName);
+  const stagingName = KIOTVIET_CHUNK_STAGING_SHEETS_[schemaKey];
+  let stagingSheet = stagingName ? spreadsheet.getSheetByName(stagingName) : null;
+
+  // Neu lan cong bo truoc bi gian doan, thu lai tu staging ma khong tai trung
+  // hay append trung chunk cu.
+  if (state.phase === 'commit' && stagingName && stagingSheet) {
+    publishKiotVietChunkStagingSheet_(
+      spreadsheet, schemaKey, schema, liveSheet, stagingSheet
+    );
+    props.deleteProperty(stateKey);
+    if (resumeHandler) removeSpecificChunkTrigger_(resumeHandler);
+    return {
+      schemaKey: schemaKey,
+      sheetName: schema.sheetName,
+      isCompleted: true,
+      currentItem: currentItem,
+      total: Number(state.total) || currentItem,
+      recordsProcessed: 0
+    };
+  }
+
+  // Checkpoint khong con staging la checkpoint khong the tiep tuc an toan.
+  // Khoi dong lai tu dau thay vi ghi tiep vao live hoac bo sot cac trang dau.
+  if (stagingName && currentItem > 0 && !stagingSheet) {
+    Logger.log('[' + schema.sheetName + '] Mat staging, khoi dong lai tu trang dau.');
+    props.deleteProperty(stateKey);
+    state = {};
+    currentItem = 0;
+  }
+
+  if (stagingName && !stagingSheet) {
+    stagingSheet = prepareKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema);
+  }
+
+  // Neu lan chay truoc dung giua luc ghi mot trang, state van tro toi trang da
+  // flush thanh cong gan nhat. Xoa phan du chua co checkpoint de lan tiep theo
+  // co the tai lai trang do ma khong tao dong trung.
+  if (stagingSheet && currentItem > 0 && Number(state.stagingLastRow) > 0) {
+    const checkpointLastRow = Number(state.stagingLastRow);
+    const stagingLastRow = stagingSheet.getLastRow();
+    if (stagingLastRow > checkpointLastRow) {
+      stagingSheet
+        .getRange(
+          checkpointLastRow + 1,
+          1,
+          stagingLastRow - checkpointLastRow,
+          schema.headers.length
+        )
+        .clearContent();
+    }
+  }
+  const sheet = stagingSheet || liveSheet;
+  const isFirstChunk = (currentItem === 0);
 
   // Neu la lan dau tien: Don cot JSON cu, kiem tra schema, xoa trang noi dung cu va ghi Header
   if (isFirstChunk) {
@@ -950,9 +962,33 @@ function syncKiotVietTableChunk_(schemaKey, options) {
 
     if (pageItems.length === 0) break;
 
-    chunkRawItems = chunkRawItems.concat(pageItems);
+    if (schemaKey === 'purchases') {
+      const wrappers = buildPurchaseOrderWrappers_(pageItems);
+      const rows = wrappers.map(item => schema.buildRow(item));
+      const startRow = sheet.getLastRow() + 1;
+      writeKiotVietRowsInChunks_(sheet, startRow, rows, schema.headers.length);
+      if (typeof SpreadsheetApp !== 'undefined' && typeof SpreadsheetApp.flush === 'function') {
+        SpreadsheetApp.flush();
+      }
+    } else {
+      chunkRawItems = chunkRawItems.concat(pageItems);
+    }
     currentItem += pageItems.length;
     recordsInThisRun += pageItems.length;
+
+    // Nhap hang ghi theo tung trang vao staging. Chi checkpoint sau khi flush
+    // de state khong bao gio chay truoc du lieu da duoc luu trong Sheets.
+    if (schemaKey === 'purchases') {
+      props.setProperty(stateKey, JSON.stringify({
+        schemaKey: schemaKey,
+        sheetName: schema.sheetName,
+        currentItem: currentItem,
+        total: totalRecords,
+        stagingLastRow: sheet.getLastRow(),
+        isCompleted: false,
+        updatedAt: new Date().toISOString()
+      }));
+    }
 
     if (currentItem >= totalRecords) break;
     Utilities.sleep(120);
@@ -985,17 +1021,14 @@ function syncKiotVietTableChunk_(schemaKey, options) {
         const detailStartRow = detailSheet.getLastRow() + 1;
         writeKiotVietRowsInChunks_(detailSheet, detailStartRow, detailRows, detailSchema.headers.length);
       }
-    } else if (schemaKey === 'purchases') {
-      const wrappers = buildPurchaseOrderWrappers_(chunkRawItems);
-      const rows = wrappers.map(item => schema.buildRow(item));
-      const startRow = sheet.getLastRow() + 1;
-      writeKiotVietRowsInChunks_(sheet, startRow, rows, schema.headers.length);
     } else {
       const rows = chunkRawItems.map(item => schema.buildRow(item));
       const startRow = sheet.getLastRow() + 1;
       writeKiotVietRowsInChunks_(sheet, startRow, rows, schema.headers.length);
     }
+  }
 
+  if (recordsInThisRun > 0) {
     Logger.log('[' + schema.sheetName + '] Da ghi ' + recordsInThisRun + ' ban ghi vao Sheet (Hien tai: ' + currentItem + '/' + totalRecords + ').');
   }
 
@@ -1003,6 +1036,30 @@ function syncKiotVietTableChunk_(schemaKey, options) {
   const isCompleted = (totalRecords > 0 && currentItem >= totalRecords) || (recordsInThisRun === 0 && totalRecords > 0) || (totalRecords === 0 && isFirstChunk);
 
   if (isCompleted) {
+    if (stagingSheet) {
+      props.setProperty(stateKey, JSON.stringify({
+        schemaKey: schemaKey,
+        sheetName: schema.sheetName,
+        currentItem: currentItem,
+        total: totalRecords,
+        stagingLastRow: stagingSheet ? stagingSheet.getLastRow() : undefined,
+        phase: 'commit',
+        updatedAt: new Date().toISOString()
+      }));
+      if (resumeHandler) scheduleSpecificChunkTrigger_(resumeHandler);
+      Logger.log(
+        '[' + schema.sheetName + '] Da tai du staging; se cong bo o luot tiep theo.'
+      );
+      return {
+        schemaKey: schemaKey,
+        sheetName: schema.sheetName,
+        isCompleted: false,
+        currentItem: currentItem,
+        total: totalRecords,
+        recordsProcessed: recordsInThisRun,
+        phase: 'commit'
+      };
+    }
     props.deleteProperty(stateKey);
     if (resumeHandler) removeSpecificChunkTrigger_(resumeHandler);
     Logger.log('[' + schema.sheetName + '] HOAN TAT 100% DONG BO (' + currentItem + '/' + totalRecords + ' ban ghi).');
@@ -1020,6 +1077,7 @@ function syncKiotVietTableChunk_(schemaKey, options) {
       sheetName: schema.sheetName,
       currentItem: currentItem,
       total: totalRecords,
+      stagingLastRow: stagingSheet ? stagingSheet.getLastRow() : undefined,
       isCompleted: false,
       updatedAt: new Date().toISOString()
     }));
@@ -1304,6 +1362,13 @@ function formatKiotVietSheet_(sheet, schema, dataRowCount) {
 }
 
 function writeKiotVietRowsInChunks_(sheet, startRow, rows, columnCount) {
+  if (rows.length > 0 && typeof sheet.getMaxRows === 'function') {
+    ensureSheetGridCapacity_(
+      sheet,
+      startRow + rows.length - 1,
+      columnCount
+    );
+  }
   const chunkSize = 1000;
   for (let offset = 0; offset < rows.length; offset += chunkSize) {
     const chunk = rows.slice(offset, offset + chunkSize);

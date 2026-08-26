@@ -82,22 +82,24 @@ Các nguyên tắc chung:
 
 Người lao động làm đủ 12 tháng được hưởng phép năm tối thiểu như sau:
 
-- 12 ngày làm việc đối với công việc trong điều kiện bình thường;
-- 14 ngày làm việc đối với người lao động chưa thành niên, người lao động là người khuyết tật và người làm nghề, công việc nặng nhọc, độc hại, nguy hiểm;
-- 16 ngày làm việc đối với người làm nghề, công việc đặc biệt nặng nhọc, độc hại, nguy hiểm;
-- cứ đủ 05 năm làm việc cho Công ty, số ngày phép năm được tăng thêm 01 ngày.
-
-Đối tượng được hưởng 14 hoặc 16 ngày phải được HR xác định dựa trên hồ sơ nhân sự và danh mục nghề, công việc theo pháp luật hiện hành.
+- 12 ngày làm việc đối với người lao động làm công việc trong điều kiện bình thường;
+- 14 ngày làm việc đối với người lao động chưa thành niên, lao động là người khuyết tật, người làm nghề, công việc nặng nhọc, độc hại, nguy hiểm;
+- 16 ngày làm việc đối với người làm nghề, công việc đặc biệt nặng nhọc, độc hại, nguy hiểm.
+- Cứ đủ 05 năm làm việc cho Công ty thì số ngày nghỉ hằng năm của người lao động được tăng thêm tương ứng 01 ngày (Điều 114 Bộ luật Lao động).
 
 ### 6.2. Quy đổi và đơn vị sử dụng
 
-1. Phép năm được quản lý theo giờ. Đơn vị đăng ký nhỏ nhất là 01 giờ.
-2. Với lịch làm việc chuẩn 08 giờ/ngày:
-   - 12 ngày tương đương 96 giờ/năm;
-   - 14 ngày tương đương 112 giờ/năm;
-   - 16 ngày tương đương 128 giờ/năm.
-3. Khi nghỉ, Công ty chỉ trừ số giờ làm việc nằm trong lịch hoặc ca đã được phân công. Giờ ngoài ca, ngày nghỉ hằng tuần và ngày lễ, Tết không bị trừ vào số dư phép.
-4. Nếu một vị trí có thời giờ làm việc chuẩn khác 08 giờ/ngày theo quy định hợp pháp, HR quy đổi quyền lợi tương ứng sao cho không thấp hơn số ngày nghỉ luật định.
+1. Phép năm được quản lý theo ngày và buổi (Sáng / Chiều) trên Cổng thông tin nhân sự và Telegram Bot (1 buổi = 0.5 ngày làm việc = 4 giờ; 1 ngày = 2 buổi = 8 giờ). Đơn vị đăng ký nhỏ nhất trên hệ thống là 01 buổi (0.5 ngày) hoặc 01 giờ đối với trường hợp đặc thù được HR duyệt.
+2. Với lịch làm việc chuẩn 08 giờ/ngày (2 buổi/ngày):
+   - 12 ngày tương đương 24 buổi (96 giờ/năm);
+   - 14 ngày tương đương 28 buổi (112 giờ/năm);
+   - 16 ngày tương đương 32 buổi (128 giờ/năm).
+3. Khi nghỉ, Công ty chỉ trừ số buổi/giờ làm việc nằm trong lịch hoặc ca đã được phân công. Giờ ngoài ca, ngày nghỉ hằng tuần và ngày lễ, Tết không bị trừ vào số dư phép.
+4. Mốc thời gian gửi đơn đăng ký nghỉ:
+   - Ca sáng: gửi trước **07:45** ngày bắt đầu nghỉ.
+   - Ca chiều: gửi trước **12:30** ngày bắt đầu nghỉ.
+   - Đơn gửi sau mốc giờ trên vẫn được ghi nhận vào hệ thống nhưng tự động gắn cờ trạng thái `Vi phạm` để Quản lý và HR hậu kiểm.
+5. Nếu một vị trí có thời giờ làm việc chuẩn khác 08 giờ/ngày theo quy định hợp pháp, HR quy đổi quyền lợi tương ứng sao cho không thấp hơn số ngày nghỉ luật định.
 
 ### 6.3. Tích lũy theo tháng
 

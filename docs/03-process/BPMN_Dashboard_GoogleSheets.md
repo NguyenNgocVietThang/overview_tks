@@ -7,10 +7,10 @@
 | **Thông tin**      | **Nội dung**                                                         |
 |--------------------|----------------------------------------------------------------------|
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                                    |
-| Phiên bản          | 1.9                                                                  |
+| Phiên bản          | 2.0                                                                  |
 | Ngày tạo           | 27/07/2026                                                           |
-| Ngày cập nhật      | 22/08/2026                                                           |
-| Tài liệu liên quan | BRD v1.8 · SRS v2.1 · Implementation Plan v2.2 · CSNS-NP-01 · Plan Process Automation · 3D Design · Performance Optimization Report · ROLLBACK |
+| Ngày cập nhật      | 26/08/2026                                                           |
+| Tài liệu liên quan | BRD v1.9 · SRS v2.2 · Implementation Plan v2.3 · CSNS-NP-01 · Plan Process Automation · 3D Design · Performance Optimization Report · ROLLBACK |
 | Trạng thái         | Đang vận hành                                                        |
 
 ---
@@ -358,8 +358,8 @@ Mỗi bước trong các luồng đã được gắn mã yêu cầu chức năng
 - **Phân hệ HR & Telegram Bot:** Phối hợp linh hoạt giữa Web Portal và Telegram Bot cho phép nhân viên đăng ký nghỉ phép mọi lúc, quản lý duyệt đơn nhanh chóng và dữ liệu được đồng bộ bền vững trên Google Sheets `HR_Leaves`.
 - **Khả năng suy giảm có kiểm soát:** Một tab nguồn bị thiếu/đổi tên chỉ làm rỗng section tương ứng; IT Admin dùng `sheetTabs` từ `/api/debug` để xác định sai lệch schema.
 - **Nhất quán thời gian:** Backend xử lý ngày và `updatedAt` theo Asia/Ho_Chi_Minh.
-- **Kiểm thử liên tục:** Trước khi commit hoặc deploy, luôn chạy `npm test` tại `server/` để kiểm tra toàn bộ **277 bài kiểm thử tự động**.
+- **Kiểm thử liên tục:** Trước khi commit hoặc deploy, luôn chạy `npm test` tại `server/` để kiểm tra toàn bộ **434 bài kiểm thử tự động**.
 
 ---
 
-*Hết tài liệu BPMN v1.9*
+*Hết tài liệu BPMN v2.0*

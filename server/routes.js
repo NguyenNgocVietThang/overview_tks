@@ -19,6 +19,7 @@ const shipmentOrderRoutes    = require('./shipment/shipmentOrderRoutes');
 const hrLeaveRoutes          = require('./hr/hrLeaveRoutes');
 const notificationRoutes     = require('./notifications/notificationRoutes');
 const roleChangeRequestRoutes = require('./auth/roleChangeRequestRoutes');
+const stockoutCheckRoutes    = require('./dashboard/stockoutCheck/stockoutCheckRoutes');
 
 router.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
@@ -69,6 +70,10 @@ router.use('/api/dashboard', ...requireInternalUser);
 router.use('/api/search', ...requireInternalUser);
 router.use('/api/customer-product-top', ...requireInternalUser);
 router.use('/api/export', ...requireInternalUser);
+router.use('/api/products', ...requireInternalUser);
+
+// Kiem tra dut hang (upload Excel, doi chieu truc tiep KiotViet API) — /api/products/stockout-check/*
+router.use(stockoutCheckRoutes);
 
 // Route kiem tra ket noi nhanh — chi xem duoc tren server, KHONG expose secret
 router.get('/api/debug', async (req, res) => {

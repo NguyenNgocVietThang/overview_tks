@@ -24,7 +24,7 @@ This is configured in the bound Google Apps Script project:
 cp .env.example .env
 # Điền SPREADSHEET_ID, VC_SPREADSHEET_ID, HR_SPREADSHEET_ID, DRIVE_UPLOAD_FOLDER_ID, GOOGLE_SERVICE_ACCOUNT_JSON, JWT_SECRET, GOOGLE_CLIENT_ID, TELEGRAM_BOT_TOKEN, TELEGRAM_HR_CHAT_ID
 npm install
-npm test      # Chạy 324 unit tests tự động (HR Leave & Telegram bot, auth/Guest/SĐT, Google OAuth, OTP reset, Admin CRUD, shipment lifecycle, State Machine 9 trạng thái, VC repository, cache, pagination, export, search, và 13 frontend test suites trong test/frontend/)
+npm test      # Chạy 434 unit tests tự động (HR Leave & Telegram bot, auth/Guest/SĐT, Google OAuth, OTP reset, Admin CRUD, yêu cầu đổi vai trò, chuông thông báo, kiểm tra đứt hàng Excel-KiotViet, shipment lifecycle, State Machine 9 trạng thái, VC repository, cache, pagination, export, search, và 13 frontend test suites trong test/frontend/)
 npm start     # Khởi chạy server tại http://localhost:3000 (tự động bật gzip compression và static Cache-Control headers)
 ```
 Truy cập `http://localhost:3000` — giao diện Live Dashboard tải số liệu thời gian thực từ Google Sheets. `GET /health` trả về `{"status":"ok"}`.
@@ -74,7 +74,7 @@ node scripts/setupHrSheet.js init
 | `POST` | `/api/auth/reset-password-otp` | Public | Đặt mật khẩu mới bằng `resetToken` sau khi xác thực OTP thành công. |
 | `POST` | `/api/auth/logout` | Logged in | Đăng xuất người dùng, xóa cookie `tks_auth`. |
 
-### 2.2. Quản trị người dùng Admin (`/api/admin/users/*`)
+### 2.2. Quản trị người dùng & Phân quyền Admin (`/api/admin/users/*`, `/api/role-requests/*`)
 | Method | Endpoint | Quyền | Mô tả |
 |---|---|---|---|
 | `GET` | `/api/admin/users` | Quản lý | Danh sách tất cả tài khoản người dùng và trạng thái hoạt động. |
@@ -82,8 +82,20 @@ node scripts/setupHrSheet.js init
 | `PATCH` | `/api/admin/users/:username` | Quản lý | Cập nhật họ tên, email, SĐT, vai trò hoặc trạng thái (Hoạt động/Khóa). |
 | `POST` | `/api/admin/users/:username/reset-password` | Quản lý | Đặt lại mật khẩu mới cho một tài khoản cụ thể. |
 | `DELETE` | `/api/admin/users/:username` | Quản lý | Khóa/vô hiệu hóa tài khoản người dùng khỏi hệ thống. |
+| `POST` | `/api/role-requests` | Logged in | Gửi yêu cầu xin nâng cấp/thay đổi vai trò tài khoản kèm lý do. |
+| `GET` | `/api/role-requests` | Quản lý | Xem danh sách tất cả yêu cầu đổi vai trò của người dùng. |
+| `PATCH` | `/api/role-requests/:id/decision` | Quản lý | Duyệt hoặc từ chối yêu cầu đổi vai trò, tự động gửi thông báo. |
 
-### 2.3. Vận chuyển & Điều phối (`/api/shipment/*`)
+### 2.3. Chuông thông báo toàn hệ thống (`/api/notifications/*`)
+| Method | Endpoint | Quyền | Mô tả |
+|---|---|---|---|
+| `GET` | `/api/notifications` | Logged in | Lấy danh sách thông báo của tài khoản hiện tại và số lượng chưa đọc. |
+| `PATCH` | `/api/notifications/:id/read` | Logged in | Đánh dấu một thông báo là đã đọc. |
+| `POST` | `/api/notifications/read-all` | Logged in | Đánh dấu tất cả thông báo của tài khoản là đã đọc. |
+| `DELETE` | `/api/notifications/:id` | Logged in | Xóa một thông báo cụ thể. |
+| `DELETE` | `/api/notifications` | Logged in | Xóa tất cả thông báo của tài khoản hiện tại. |
+
+### 2.4. Vận chuyển & Điều phối (`/api/shipment/*`)
 | Method | Endpoint | Quyền | Mô tả |
 |---|---|---|---|
 | `POST` | `/api/shipment/invoice-status` | Logged in | Tra cứu chính xác tối đa 50 mã hóa đơn (cache 90s). Dành cho Khách và nội bộ. |
@@ -97,7 +109,7 @@ node scripts/setupHrSheet.js init
 | `GET` | `/api/shipment/audit` | Nội bộ | Báo cáo đối soát cuối ngày lọc đơn thiếu ảnh nhặt, thiếu bill ký hoặc giao trễ. |
 | `GET` | `/api/shipment/vehicles` | Nội bộ | Danh mục phương tiện và tài xế từ tab VC_Vehicles. |
 
-### 2.4. Quản lý Nghỉ phép HR (`/api/hr/*`)
+### 2.5. Quản lý Nghỉ phép HR (`/api/hr/*`)
 | Method | Endpoint | Quyền | Mô tả |
 |---|---|---|---|
 | `GET` | `/api/hr/leave-requests` | Nội bộ | Danh sách đơn; `from`/`to` lọc theo `Thời gian gửi`. |
@@ -111,7 +123,17 @@ node scripts/setupHrSheet.js init
 
 Schema nghỉ phép dùng `Thời gian gửi`, `Thời gian bắt đầu/kết thúc` dạng `Sáng|Chiều dd/mm/yyyy`, `Tổng buổi nghỉ` và `Tổng ngày nghỉ quy đổi = số buổi / 2`. Đơn gửi sau 07:45 (Sáng) hoặc 12:30 (Chiều) vẫn được lưu với trạng thái `Vi phạm`.
 
-### 2.5. Dashboard, Tìm kiếm & Tiện ích
+### 2.6. Kiểm tra đứt hàng (`/api/products/stockout-check/*`)
+| Method | Endpoint | Quyền | Mô tả |
+|---|---|---|---|
+| `POST` | `/api/products/stockout-check/validate` | Nội bộ | Đọc và kiểm tra tính hợp lệ của file Excel danh sách sản phẩm tải lên. |
+| `POST` | `/api/products/stockout-check/start` | Nội bộ | Khởi chạy tác vụ phân tích đứt hàng đối chiếu dữ liệu KiotViet API nền. |
+| `GET` | `/api/products/stockout-check/status/:jobId` | Nội bộ | Kiểm tra tiến độ phân tích đứt hàng theo jobId. |
+| `GET` | `/api/products/stockout-check/result/:jobId` | Nội bộ | Lấy kết quả phân tích đứt hàng và dòng thời gian biến động tồn kho. |
+| `POST` | `/api/products/stockout-check/export/:jobId` | Nội bộ | Xuất báo cáo kết quả kiểm tra đứt hàng ra file Excel. |
+| `POST` | `/api/products/stockout-check/cancel/:jobId` | Nội bộ | Hủy tác vụ kiểm tra đứt hàng đang chạy. |
+
+### 2.7. Dashboard, Tìm kiếm & Tiện ích
 | Method | Endpoint | Quyền | Mô tả |
 |---|---|---|---|
 | `GET` | `/api/dashboard?days={7\|30\|90}` | Nội bộ | Trả về toàn bộ KPI, biểu đồ, danh sách top/gần đây kèm Result Cache. |

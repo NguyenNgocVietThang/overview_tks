@@ -15,7 +15,7 @@ const CUSTOMER_BY_PRODUCT_REPORT_LAST_SYNC_PROPERTY =
 const CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY = 'CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION';
 const CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION = 'detail-quantity-header-v2';
 const CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_PROPERTY = 'CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_VERSION';
-const CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_VERSION = 'kiotviet-export-25-columns-v1';
+const CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_VERSION = 'kiotviet-export-23-columns-v2';
 const CUSTOMER_REPORT_DAILY_SCHEDULES = Object.freeze([
   { handler: CUSTOMER_SALES_REPORT_TRIGGER_HANDLER, hour: 6, minute: 0 },
   { handler: CUSTOMER_PRODUCT_REPORT_TRIGGER_HANDLER, hour: 6, minute: 30 },
@@ -42,7 +42,10 @@ const CUSTOMER_REPORT_CATCH_UP_DEFINITIONS = Object.freeze([
     handler: syncCustomerByProductReport
   }
 ]);
-const CUSTOMER_REPORT_PAGE_SIZE = 100;
+// Chi lay du lieu tu dau nam 2026 tro ve day de tranh fetch toan bo lich su
+// KiotViet (tung gay timeout 6 phut cua Apps Script). Doi ngay nay neu can
+// mo rong pham vi bao cao.
+const CUSTOMER_REPORT_MIN_DATE_TEXT = '2026-01-01';
 const CUSTOMER_BY_PRODUCT_REPORT_WRITE_CHUNK_SIZE = 500;
 const CUSTOMER_REPORT_HEADERS = Object.freeze([
   'Mã KH',
@@ -76,8 +79,6 @@ const CUSTOMER_BY_PRODUCT_REPORT_HEADERS = Object.freeze([
   'Nhóm hàng',
   'Mã hàng',
   'Tên hàng',
-  'Thương hiệu',
-  'Đơn vị tính',
   'SL Khách hàng',
   'SL mua (theo sản phẩm)',
   'Doanh thu (theo sản phẩm)',
@@ -101,109 +102,313 @@ const CUSTOMER_BY_PRODUCT_REPORT_HEADERS = Object.freeze([
 ]);
 
 /**
- * Tao/cap nhat ba tab bao cao khach hang:
- * - "Bao cao ban hang": Ban hang -> Toan thoi gian (tu truoc den nay).
- * - "Hang ban theo khach": Hang ban theo khach -> 90 ngay qua.
- * - "Khach theo hang hoa": Khach theo hang hoa -> Toan thoi gian.
- *
- * Moi hoa don/phieu tra hang la mot dong chi tiet giao dich, kem theo cac chi so
- * tong hop cua khach hang giong file xuat Bao cao ban hang cua KiotViet.
- * Doanh thu = tong hoa don hoan thanh tu truoc den nay sau giam gia hoa don.
- * Gia tri tra = tong phieu tra hang hoan thanh tu truoc den nay.
- * Doanh thu thuan = Doanh thu - Gia tri tra.
+ * ==========================================
+ * DONG BO PHAN DOAN (CHUNKED) CHO BAO CAO KHACH HANG
+ * ==========================================
+ * Voi tai khoan co nhieu du lieu, fetch+aggregate toan bo trong 1 lan goi ham
+ * de bi vuot qua gioi han thuc thi 6 phut cua Apps Script. runCustomerReportChunkedJob_
+ * chia cong viec thanh nhieu "tick" (moi tick toi da CUSTOMER_REPORT_CHUNK_CONFIG.MAX_RUN_SECONDS),
+ * luu tien do (stage + currentItem) vao Script Properties va du lieu tho vao
+ * cac sheet an tam (staging). syncCustomerReportIfDue_ (WebhookQueue.gs) da goi
+ * lai handler nay moi phut neu bao cao chua xong hom nay, nen no tu dong "chay
+ * tiep" qua nhieu tick ma khong can trigger rieng.
  */
-function syncCustomerReport() {
-  return withCustomerReportLock_(function() {
-    const token = requireCustomerReportToken_();
-    const now = new Date();
-    const period = getCustomerReportAllTimeRange_(now);
-    const productPeriod = getCustomerReportRollingRange_(now, CUSTOMER_PRODUCT_REPORT_DAYS);
-    // Lay toan bo hoa don hoan thanh tu truoc den nay (khong gioi han fromPurchaseDate/toPurchaseDate)
-    // de tab "Bao cao ban hang" tong hop du lieu toan thoi gian; tab "Hang ban theo khach" van
-    // chi loc lai 90 ngay gan nhat tu chinh bo du lieu nay o buoc aggregate ben duoi.
-    const invoices = fetchCustomerReportPages_('invoices', token, {
-      status: 1
-    });
-    const returns = fetchCustomerReportPages_('returns', token, {
-      orderBy: 'returnDate',
-      orderDirection: 'DESC'
-    });
-    const customerProfiles = fetchCustomerReportPages_('customers', token, {
-      includeCustomerGroup: true
-    });
-    const reportRows = aggregateCustomerReport_(invoices, returns, period, customerProfiles);
-    const productReportRows = aggregateCustomerProductReport_(invoices, productPeriod);
-    const productMetadataLookup = buildCustomerByProductMetadataLookup_();
-    const customerByProductReport = aggregateCustomerByProductReport_(
-      invoices,
-      returns,
-      period,
-      customerProfiles,
-      productMetadataLookup
-    );
-    const reportSummary = summarizeCustomerReport_(reportRows);
+const CUSTOMER_REPORT_CHUNK_CONFIG = Object.freeze({
+  PAGE_SIZE: 100,
+  MAX_RUN_SECONDS: 270 // dung an toan sau 4.5 phut de tranh timeout 6 phut cua Google
+});
 
-    writeCustomerReportSheet_(reportRows, period);
-    writeCustomerProductReportSheet_(productReportRows, productPeriod);
-    SpreadsheetApp.flush();
-    Logger.log(
-      'Chuan bi ghi Khach theo hang hoa: %s dong, %s san pham.',
-      customerByProductReport.rows.length,
-      customerByProductReport.productCount
-    );
-    writeCustomerByProductReportSheet_(customerByProductReport.rows, period);
-    const today = customerReportToday_();
-    PropertiesService.getScriptProperties().setProperties({
-      [CUSTOMER_REPORT_LAST_SYNC_PROPERTY]: today,
-      [CUSTOMER_PRODUCT_REPORT_LAST_SYNC_PROPERTY]: today,
-      [CUSTOMER_BY_PRODUCT_REPORT_LAST_SYNC_PROPERTY]: today,
-      [CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY]: CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION,
-      [CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_PROPERTY]: CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_VERSION
-    });
-    Logger.log(
-      'Da cap nhat Bao cao ban hang: %s khach, %s giao dich; Hang ban theo khach: %s dong; Khach theo hang hoa: %s dong, %s san pham.',
-      reportRows.length,
-      reportSummary.transactionCount,
-      productReportRows.length,
-      customerByProductReport.rows.length,
-      customerByProductReport.productCount
-    );
+function customerReportStagingSheetName_(jobKey, stageKey) {
+  return '_KV_CR_RAW_' + jobKey.toUpperCase() + '_' + stageKey.toUpperCase();
+}
 
-    const salesReport = buildCustomerSalesReportResult_(reportRows, reportSummary, period);
-    salesReport.customerProductReport = buildCustomerProductReportResult_(
-      productReportRows,
-      productPeriod
-    );
-    salesReport.customerByProductReport = buildCustomerByProductReportResult_(
-      customerByProductReport,
-      period
-    );
-    return salesReport;
+function ensureCustomerReportStagingSheet_(sheetName) {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = spreadsheet.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = createCompactSheet_(spreadsheet, sheetName, 1, 1);
+    sheet.hideSheet();
+  }
+  return sheet;
+}
+
+// Gioi han o cua Google Sheets la 50.000 ky tu; mot so hoa don co rat nhieu
+// dong chi tiet nen JSON co the vuot qua muc do. Chia JSON moi ban ghi thanh
+// nhieu o tren cung 1 dong (duoi muc gioi han) va ghep lai khi doc.
+const CUSTOMER_REPORT_STAGING_CELL_LIMIT = 45000;
+
+function splitCustomerReportJsonForStaging_(json) {
+  const chunks = [];
+  for (let i = 0; i < json.length; i += CUSTOMER_REPORT_STAGING_CELL_LIMIT) {
+    chunks.push(json.substring(i, i + CUSTOMER_REPORT_STAGING_CELL_LIMIT));
+  }
+  return chunks.length > 0 ? chunks : [''];
+}
+
+function appendCustomerReportRawItems_(sheetName, items) {
+  if (!items || items.length === 0) return;
+  const sheet = ensureCustomerReportStagingSheet_(sheetName);
+  const itemChunks = items.map(item => splitCustomerReportJsonForStaging_(JSON.stringify(item)));
+  const maxCols = itemChunks.reduce((max, chunks) => Math.max(max, chunks.length), 1);
+  const rows = itemChunks.map(chunks => {
+    const row = chunks.slice();
+    while (row.length < maxCols) row.push('');
+    return row;
   });
+  const startRow = sheet.getLastRow() + 1;
+  ensureSheetGridCapacity_(sheet, startRow + rows.length - 1, maxCols);
+  sheet.getRange(startRow, 1, rows.length, maxCols).setValues(rows);
+}
+
+function readCustomerReportRawItems_(sheetName) {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName(sheetName);
+  if (!sheet || sheet.getLastRow() < 1) return [];
+  const lastColumn = Math.max(sheet.getLastColumn(), 1);
+  const values = sheet.getRange(1, 1, sheet.getLastRow(), lastColumn).getValues();
+  return values
+    .map(row => {
+      const json = row.join('');
+      if (!json) return null;
+      try { return JSON.parse(json); } catch (e) { return null; }
+    })
+    .filter(item => item !== null);
+}
+
+function clearCustomerReportStagingSheet_(sheetName) {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName(sheetName);
+  if (sheet) spreadsheet.deleteSheet(sheet);
 }
 
 /**
- * Diem vao chay tay, chi dong bo tab "Bao cao ban hang".
+ * Fetch mot endpoint theo trang, ghi truc tiep vao sheet staging sau moi
+ * trang (khong giu ca mang trong bo nho) cho toi khi het du lieu, dung som
+ * (returns, xem stopDateField) hoac cham nguong thoi gian cua tick nay.
+ */
+function fetchCustomerReportEndpointChunk_(
+  endpoint, token, query, progress, sheetName, deadlineMs, stopDateField, stopMinimumTime
+) {
+  let currentItem = Number(progress.currentItem) || 0;
+  let total = Number(progress.total) || 0;
+
+  while (new Date().getTime() < deadlineMs) {
+    const params = Object.assign({}, query || {}, {
+      pageSize: CUSTOMER_REPORT_CHUNK_CONFIG.PAGE_SIZE,
+      currentItem: currentItem
+    });
+    const queryString = Object.keys(params)
+      .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]))
+      .join('&');
+    const url = 'https://public.kiotapi.com/' + endpoint + '?' + queryString;
+    const result = fetchCustomerReportJsonWithRetry_(url, token, endpoint);
+    const pageItems = Array.isArray(result.data) ? result.data : [];
+    total = Number(result.total) || 0;
+
+    if (pageItems.length === 0) return { currentItem: currentItem, total: total, done: true };
+
+    appendCustomerReportRawItems_(sheetName, pageItems);
+    currentItem += pageItems.length;
+
+    if (stopDateField && isFinite(stopMinimumTime)) {
+      const pageTimes = pageItems
+        .map(item => new Date(item[stopDateField]).getTime())
+        .filter(time => isFinite(time));
+      if (pageTimes.length > 0 && Math.max.apply(null, pageTimes) < stopMinimumTime) {
+        return { currentItem: currentItem, total: total, done: true };
+      }
+    }
+
+    if (currentItem >= total) return { currentItem: currentItem, total: total, done: true };
+    Utilities.sleep(120);
+  }
+
+  return { currentItem: currentItem, total: total, done: false };
+}
+
+/**
+ * Chay mot "tick" (toi da MAX_RUN_SECONDS) cho mot job bao cao khach hang.
+ * jobConfig:
+ *   - period: khoang thoi gian (dung cho invoices va early-stop cua returns)
+ *   - needsReturns/needsCustomers: co can fetch endpoint do khong
+ *   - buildQuery(stageKey): tra ve query params cho tung endpoint
+ *   - finalize({invoices, returns, customers, period}): aggregate + ghi sheet,
+ *     tra ve ket qua tom tat de hien thi
+ * Tra ve { isCompleted:false } neu tick nay chua fetch xong; lan goi tiep theo
+ * (do syncCustomerReportIfDue_ hoac nguoi dung chay lai) se tiep tuc tu diem dung.
+ */
+function runCustomerReportChunkedJob_(jobKey, jobConfig) {
+  return withCustomerReportLock_(function() {
+    const startMs = new Date().getTime();
+    const deadlineMs = startMs + CUSTOMER_REPORT_CHUNK_CONFIG.MAX_RUN_SECONDS * 1000;
+    const token = requireCustomerReportToken_();
+    const props = PropertiesService.getScriptProperties();
+    const stateKey = 'CUSTOMER_REPORT_JOB_STATE_' + jobKey;
+
+    let state = {};
+    try {
+      const raw = props.getProperty(stateKey);
+      if (raw) state = JSON.parse(raw);
+    } catch (e) {
+      state = {};
+    }
+
+    const stages = ['invoices']
+      .concat(jobConfig.needsReturns ? ['returns'] : [])
+      .concat(jobConfig.needsCustomers ? ['customers'] : []);
+    let stageIndex = Number(state.stageIndex) || 0;
+    const progress = state.progress || {};
+
+    if (stageIndex === 0 && !state.progress) {
+      // Lan dau cua job (khong phai tick tiep suc): don staging cu neu co.
+      stages.forEach(stageKey => clearCustomerReportStagingSheet_(customerReportStagingSheetName_(jobKey, stageKey)));
+    }
+
+    while (stageIndex < stages.length && new Date().getTime() < deadlineMs) {
+      const stageKey = stages[stageIndex];
+      const sheetName = customerReportStagingSheetName_(jobKey, stageKey);
+      const stageProgress = progress[stageKey] || { currentItem: 0, total: 0 };
+      const stageResult = fetchCustomerReportEndpointChunk_(
+        stageKey,
+        token,
+        jobConfig.buildQuery(stageKey),
+        stageProgress,
+        sheetName,
+        deadlineMs,
+        stageKey === 'returns' ? 'returnDate' : null,
+        stageKey === 'returns' ? jobConfig.period.start.getTime() : null
+      );
+      progress[stageKey] = { currentItem: stageResult.currentItem, total: stageResult.total };
+      logCustomerReportStep_(jobKey, startMs, 'fetch ' + stageKey, stageResult.currentItem + '/' + stageResult.total);
+
+      if (stageResult.done) {
+        stageIndex++;
+      } else {
+        break;
+      }
+    }
+
+    if (stageIndex < stages.length) {
+      props.setProperty(stateKey, JSON.stringify({ stageIndex: stageIndex, progress: progress }));
+      Logger.log('[%s] Chua fetch xong, se tiep tuc o lan chay ke tiep (dang o buoc: %s).', jobKey, stages[stageIndex]);
+      return { isCompleted: false, jobKey: jobKey };
+    }
+
+    // Tach buoc aggregate/write sang mot tick rieng. Bao cao Khach theo hang hoa
+    // co the tao gan 90.000 dong; neu vua fetch xong vua tong hop trong cung mot
+    // lan chay, Apps Script co the timeout sau khi da ghi mot phan sheet dich.
+    if (!state.readyToFinalize && new Date().getTime() - startMs > 30000) {
+      props.setProperty(stateKey, JSON.stringify({
+        stageIndex: stageIndex,
+        progress: progress,
+        readyToFinalize: true
+      }));
+      Logger.log('[%s] Da fetch xong; se aggregate va ghi sheet trong tick ke tiep.', jobKey);
+      return { isCompleted: false, jobKey: jobKey, phase: 'finalize' };
+    }
+
+    const invoices = readCustomerReportRawItems_(customerReportStagingSheetName_(jobKey, 'invoices'));
+    const returns = jobConfig.needsReturns
+      ? readCustomerReportRawItems_(customerReportStagingSheetName_(jobKey, 'returns'))
+      : [];
+    const customers = jobConfig.needsCustomers
+      ? readCustomerReportRawItems_(customerReportStagingSheetName_(jobKey, 'customers'))
+      : [];
+    logCustomerReportStep_(jobKey, startMs, 'da fetch xong, bat dau aggregate', invoices.length);
+
+    const result = jobConfig.finalize({
+      invoices: invoices,
+      returns: returns,
+      customers: customers,
+      period: jobConfig.period
+    });
+
+    stages.forEach(stageKey => clearCustomerReportStagingSheet_(customerReportStagingSheetName_(jobKey, stageKey)));
+    props.deleteProperty(stateKey);
+    logCustomerReportStep_(jobKey, startMs, 'HOAN TAT', invoices.length);
+
+    return Object.assign({ isCompleted: true, jobKey: jobKey }, result);
+  });
+}
+
+function salesCustomerReportFinalize_(data) {
+  const rows = aggregateCustomerReport_(data.invoices, data.returns, data.period, data.customers);
+  const summary = summarizeCustomerReport_(rows);
+  writeCustomerReportSheet_(rows, data.period);
+  PropertiesService.getScriptProperties().setProperty(
+    CUSTOMER_REPORT_LAST_SYNC_PROPERTY, customerReportToday_()
+  );
+  return buildCustomerSalesReportResult_(rows, summary, data.period);
+}
+
+function customerProductReportFinalize_(data) {
+  const rows = aggregateCustomerProductReport_(data.invoices, data.period);
+  writeCustomerProductReportSheet_(rows, data.period);
+  PropertiesService.getScriptProperties().setProperties({
+    [CUSTOMER_PRODUCT_REPORT_LAST_SYNC_PROPERTY]: customerReportToday_(),
+    [CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY]: CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION
+  });
+  return buildCustomerProductReportResult_(rows, data.period);
+}
+
+function customerByProductReportFinalize_(data) {
+  const metadataLookup = buildCustomerByProductMetadataLookup_();
+  const report = aggregateCustomerByProductReport_(
+    data.invoices, data.returns, data.period, data.customers, metadataLookup
+  );
+  writeCustomerByProductReportSheet_(report.rows, data.period);
+  PropertiesService.getScriptProperties().setProperties({
+    [CUSTOMER_BY_PRODUCT_REPORT_LAST_SYNC_PROPERTY]: customerReportToday_(),
+    [CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_PROPERTY]: CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_VERSION
+  });
+  return buildCustomerByProductReportResult_(report, data.period);
+}
+
+function customerReportInvoiceQuery_(period) {
+  return { status: 1, fromPurchaseDate: period.startQuery, toPurchaseDate: period.endQuery };
+}
+
+function customerReportSalesAndByProductQuery_(stageKey, period) {
+  if (stageKey === 'invoices') return customerReportInvoiceQuery_(period);
+  if (stageKey === 'returns') return { orderBy: 'returnDate', orderDirection: 'DESC' };
+  return { includeCustomerGroup: true };
+}
+
+/**
+ * Diem vao chay tay/menu: lam moi ca ba tab bao cao khach hang.
+ * QUAN TRONG: chi chay MOT tick chunked (toi da ~4.5 phut, xem
+ * runCustomerReportChunkedJob_) cho MOT bang moi lan goi ham nay - dung ngay
+ * sau khi bang hien tai chua xong (isCompleted=false), KHONG duoc goi tiep
+ * bang ke tiep trong cung 1 lan thuc thi, vi 2-3 tick cong lai (270s x 2-3)
+ * se vuot qua gioi han thuc thi 6 phut cua Apps Script.
+ * Voi tai khoan nhieu du lieu, chay ham nay nhieu lan (hoac de trigger hang
+ * doi 1 phut tu dong tiep tuc qua syncCustomerReportIfDue_) cho toi khi ca
+ * ba tab deu hoan tat.
+ */
+function syncCustomerReport() {
+  const salesReport = syncSalesCustomerReport();
+  if (!salesReport.isCompleted) return salesReport;
+
+  salesReport.customerProductReport = syncCustomerProductReport();
+  if (!salesReport.customerProductReport.isCompleted) return salesReport;
+
+  salesReport.customerByProductReport = syncCustomerByProductReport();
+  return salesReport;
+}
+
+/**
+ * Diem vao chay tay, chi dong bo tab "Bao cao ban hang". Duoc goi lai nhieu
+ * lan (tu syncCustomerReportIfDue_ moi phut, hoac nguoi dung chay lai bang
+ * tay) cho toi khi fetch+aggregate xong; xem runCustomerReportChunkedJob_.
  */
 function syncSalesCustomerReport() {
-  return withCustomerReportLock_(function() {
-    const token = requireCustomerReportToken_();
-    const period = getCustomerReportAllTimeRange_(new Date());
-    const invoices = fetchCustomerReportPages_('invoices', token, { status: 1 });
-    const returns = fetchCustomerReportPages_('returns', token, {
-      orderBy: 'returnDate',
-      orderDirection: 'DESC'
-    });
-    const customers = fetchCustomerReportPages_('customers', token, {
-      includeCustomerGroup: true
-    });
-    const rows = aggregateCustomerReport_(invoices, returns, period, customers);
-    const summary = summarizeCustomerReport_(rows);
-    writeCustomerReportSheet_(rows, period);
-    PropertiesService.getScriptProperties().setProperty(
-      CUSTOMER_REPORT_LAST_SYNC_PROPERTY, customerReportToday_()
-    );
-    return buildCustomerSalesReportResult_(rows, summary, period);
+  const period = getCustomerReportAllTimeRange_(new Date());
+  return runCustomerReportChunkedJob_('sales', {
+    period: period,
+    needsReturns: true,
+    needsCustomers: true,
+    buildQuery: stageKey => customerReportSalesAndByProductQuery_(stageKey, period),
+    finalize: salesCustomerReportFinalize_
   });
 }
 
@@ -211,17 +416,13 @@ function syncSalesCustomerReport() {
  * Diem vao chay tay, chi dong bo tab "Hang ban theo khach".
  */
 function syncCustomerProductReport() {
-  return withCustomerReportLock_(function() {
-    const token = requireCustomerReportToken_();
-    const period = getCustomerReportRollingRange_(new Date(), CUSTOMER_PRODUCT_REPORT_DAYS);
-    const invoices = fetchCustomerReportPages_('invoices', token, { status: 1 });
-    const rows = aggregateCustomerProductReport_(invoices, period);
-    writeCustomerProductReportSheet_(rows, period);
-    PropertiesService.getScriptProperties().setProperties({
-      [CUSTOMER_PRODUCT_REPORT_LAST_SYNC_PROPERTY]: customerReportToday_(),
-      [CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY]: CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION
-    });
-    return buildCustomerProductReportResult_(rows, period);
+  const period = getCustomerReportRollingRange_(new Date(), CUSTOMER_PRODUCT_REPORT_DAYS);
+  return runCustomerReportChunkedJob_('product', {
+    period: period,
+    needsReturns: false,
+    needsCustomers: false,
+    buildQuery: () => customerReportInvoiceQuery_(period),
+    finalize: customerProductReportFinalize_
   });
 }
 
@@ -229,31 +430,13 @@ function syncCustomerProductReport() {
  * Diem vao chay tay, chi dong bo tab "Khach theo hang hoa".
  */
 function syncCustomerByProductReport() {
-  return withCustomerReportLock_(function() {
-    const token = requireCustomerReportToken_();
-    const period = getCustomerReportAllTimeRange_(new Date());
-    const invoices = fetchCustomerReportPages_('invoices', token, { status: 1 });
-    const returns = fetchCustomerReportPages_('returns', token, {
-      orderBy: 'returnDate',
-      orderDirection: 'DESC'
-    });
-    const customers = fetchCustomerReportPages_('customers', token, {
-      includeCustomerGroup: true
-    });
-    const metadataLookup = buildCustomerByProductMetadataLookup_();
-    const report = aggregateCustomerByProductReport_(
-      invoices,
-      returns,
-      period,
-      customers,
-      metadataLookup
-    );
-    writeCustomerByProductReportSheet_(report.rows, period);
-    PropertiesService.getScriptProperties().setProperties({
-      [CUSTOMER_BY_PRODUCT_REPORT_LAST_SYNC_PROPERTY]: customerReportToday_(),
-      [CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_PROPERTY]: CUSTOMER_BY_PRODUCT_REPORT_SCHEMA_VERSION
-    });
-    return buildCustomerByProductReportResult_(report, period);
+  const period = getCustomerReportAllTimeRange_(new Date());
+  return runCustomerReportChunkedJob_('byProduct', {
+    period: period,
+    needsReturns: true,
+    needsCustomers: true,
+    buildQuery: stageKey => customerReportSalesAndByProductQuery_(stageKey, period),
+    finalize: customerByProductReportFinalize_
   });
 }
 
@@ -297,6 +480,16 @@ function buildCustomerByProductReportResult_(report, period) {
     fromDate: period.startLabel,
     toDate: period.endLabel
   };
+}
+
+/**
+ * Ghi log thoi gian tich luy (giay) tu luc bat dau tick hien tai cua job
+ * `jobKey` den het buoc `stepName`, kem so dong/ban ghi de biet buoc nao
+ * ton thoi gian nhat (fetch API hay aggregate hay ghi sheet).
+ */
+function logCustomerReportStep_(jobKey, startMs, stepName, itemCount) {
+  const elapsedSeconds = ((new Date().getTime() - startMs) / 1000).toFixed(1);
+  Logger.log('[%s] %s: %s, %ss tu luc bat dau tick nay.', jobKey, stepName, itemCount, elapsedSeconds);
 }
 
 function customerReportToday_() {
@@ -409,8 +602,9 @@ function removeCustomerReportDailyTrigger_() {
 }
 
 /**
- * Khoang thoi gian toan bo (tu truoc den nay) den het ngay hien tai theo gio Viet Nam.
- * Khong gioi han moc bat dau de tong hop du lieu ban hang toan thoi gian.
+ * Khoang thoi gian tu dau nam 2026 (CUSTOMER_REPORT_MIN_DATE_TEXT) den het
+ * ngay hien tai theo gio Viet Nam. Gioi han moc bat dau de tranh fetch toan
+ * bo lich su KiotViet.
  */
 function getCustomerReportAllTimeRange_(now) {
   const current = now || new Date();
@@ -419,11 +613,11 @@ function getCustomerReportAllTimeRange_(now) {
   const tomorrowText = Utilities.formatDate(tomorrow, CUSTOMER_REPORT_TIME_ZONE, 'yyyy-MM-dd');
 
   return {
-    start: new Date(0),
+    start: new Date(CUSTOMER_REPORT_MIN_DATE_TEXT + 'T00:00:00+07:00'),
     endExclusive: new Date(tomorrowText + 'T00:00:00+07:00'),
-    startQuery: '',
+    startQuery: CUSTOMER_REPORT_MIN_DATE_TEXT + 'T00:00:00',
     endQuery: todayText + 'T23:59:59',
-    startLabel: 'Từ trước đến nay',
+    startLabel: customerReportDateLabel_(CUSTOMER_REPORT_MIN_DATE_TEXT),
     endLabel: todayText.substring(8, 10) + '/' + todayText.substring(5, 7) + '/' + todayText.substring(0, 4)
   };
 }
@@ -476,34 +670,6 @@ function getCustomerReportRollingRange_(now, days) {
 
 function customerReportDateLabel_(dateText) {
   return dateText.substring(8, 10) + '/' + dateText.substring(5, 7) + '/' + dateText.substring(0, 4);
-}
-
-function fetchCustomerReportPages_(endpoint, token, query) {
-  let allItems = [];
-  let currentItem = 0;
-  let total = 0;
-
-  do {
-    const params = Object.assign({}, query || {}, {
-      pageSize: CUSTOMER_REPORT_PAGE_SIZE,
-      currentItem: currentItem
-    });
-    const queryString = Object.keys(params)
-      .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]))
-      .join('&');
-    const url = 'https://public.kiotapi.com/' + endpoint + '?' + queryString;
-    const result = fetchCustomerReportJsonWithRetry_(url, token, endpoint);
-    const pageItems = Array.isArray(result.data) ? result.data : [];
-
-    allItems = allItems.concat(pageItems);
-    total = Number(result.total) || 0;
-    currentItem += CUSTOMER_REPORT_PAGE_SIZE;
-
-    if (pageItems.length === 0) break;
-    if (currentItem < total) Utilities.sleep(150);
-  } while (currentItem < total);
-
-  return allItems;
 }
 
 function fetchCustomerReportJsonWithRetry_(url, token, endpoint) {
@@ -905,8 +1071,6 @@ function aggregateCustomerByProductReport_(
           product.categoryName,
           product.productCode,
           product.productName,
-          product.tradeMarkName,
-          product.unit,
           product.customerCount,
           product.purchasedQuantity,
           product.revenue,
@@ -956,8 +1120,6 @@ function buildCustomerByProductMetadataLookup_() {
 
   const nameIndex = headers.indexOf('Tên hàng');
   const categoryIndex = headers.indexOf('Nhóm hàng');
-  const tradeMarkIndex = headers.indexOf('Thương hiệu');
-  const unitIndex = headers.indexOf('Đơn vị tính');
   const lookup = {};
 
   values.slice(1).forEach(row => {
@@ -966,9 +1128,7 @@ function buildCustomerByProductMetadataLookup_() {
     lookup[code.toLocaleLowerCase()] = {
       productCode: customerReportSafeText_(code),
       productName: nameIndex === -1 ? '' : customerReportSafeText_(row[nameIndex]),
-      categoryName: categoryIndex === -1 ? '' : customerReportSafeText_(row[categoryIndex]),
-      tradeMarkName: tradeMarkIndex === -1 ? '' : customerReportSafeText_(row[tradeMarkIndex]),
-      unit: unitIndex === -1 ? '' : customerReportSafeText_(row[unitIndex])
+      categoryName: categoryIndex === -1 ? '' : customerReportSafeText_(row[categoryIndex])
     };
   });
   return lookup;
@@ -1002,8 +1162,6 @@ function getOrCreateCustomerByProduct_(products, detail, metadataLookup) {
       productCode: customerReportSafeText_(productCode || metadata.productCode || ''),
       productName: customerReportSafeText_(metadata.productName || productName),
       categoryName: customerReportSafeText_(metadata.categoryName || ''),
-      tradeMarkName: customerReportSafeText_(metadata.tradeMarkName || ''),
-      unit: customerReportSafeText_(metadata.unit || ''),
       purchasedQuantity: 0,
       revenue: 0,
       returnedQuantity: 0,
@@ -1199,7 +1357,7 @@ function writeCustomerReportSheet_(reportRows, period) {
   sheet.getRange(1, 1).setNote(
     'Kiểu hiển thị: Báo cáo\n' +
     'Mối quan tâm: Bán hàng\n' +
-    'Thời gian: Toàn thời gian (' + period.startLabel + ' - ' + period.endLabel + ')\n' +
+    'Thời gian: ' + period.startLabel + ' - ' + period.endLabel + '\n' +
     'Chi tiết: Mỗi hóa đơn hoặc phiếu trả hàng là một dòng giao dịch.\n' +
     'Tự động cập nhật hàng ngày lúc gần 06:00.'
   );
@@ -1402,16 +1560,16 @@ function writeCustomerByProductReportSheet_(reportRows, period) {
   );
 
   if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, 5).setNumberFormat('@');
-    sheet.getRange(2, 12, rows.length, 3).setNumberFormat('@');
-    sheet.getRange(2, 20, rows.length, 2).setNumberFormat('@');
-    [6, 7, 9, 15, 17, 23].forEach(column => {
+    sheet.getRange(2, 1, rows.length, 3).setNumberFormat('@');
+    sheet.getRange(2, 10, rows.length, 3).setNumberFormat('@');
+    sheet.getRange(2, 18, rows.length, 2).setNumberFormat('@');
+    [4, 5, 7, 13, 15, 21].forEach(column => {
       sheet.getRange(2, column, rows.length, 1).setNumberFormat('#,##0.##');
     });
-    [8, 10, 11, 16, 18, 19, 24, 25].forEach(column => {
+    [6, 8, 9, 14, 16, 17, 22, 23].forEach(column => {
       sheet.getRange(2, column, rows.length, 1).setNumberFormat('#,##0');
     });
-    sheet.getRange(2, 22, rows.length, 1).setNumberFormat('dd/MM/yyyy HH:mm:ss');
+    sheet.getRange(2, 20, rows.length, 1).setNumberFormat('dd/MM/yyyy HH:mm:ss');
     populatedRange.createFilter();
   }
 
@@ -1419,11 +1577,12 @@ function writeCustomerByProductReportSheet_(reportRows, period) {
   sheet.setFrozenColumns(2);
   sheet.setTabColor('#00A6A6');
   const widths = [
-    230, 125, 300, 130, 105, 105, 135, 155, 135, 150, 170, 115, 210,
+    230, 125, 300, 105, 135, 155, 135, 150, 170, 115, 210,
     130, 145, 165, 140, 155, 175, 125, 165, 175, 105, 125, 145
   ];
   widths.forEach((width, index) => sheet.setColumnWidth(index + 1, width));
   sheet.setRowHeight(1, 48);
+  compactUnusedSheetGrid_(sheet);
 }
 
 /**

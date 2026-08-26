@@ -6,6 +6,14 @@ const CONFIG = require('./config');
 const routes = require('./routes');
 const { startHrTelegramBot, isTelegramBotRuntimeEnabled } = require('./telegram/hrTelegramBot');
 
+process.on('uncaughtException', (err) => {
+  console.error('[Process] Uncaught exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Process] Unhandled rejection at:', promise, 'reason:', reason);
+});
+
 const app = express();
 
 app.use(compression());

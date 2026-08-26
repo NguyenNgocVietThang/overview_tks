@@ -5,11 +5,16 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 function loadAppsScript() {
+  const helpersSource = fs.readFileSync(
+    path.join(__dirname, '../../src-dashboard/utils/Helpers.gs'),
+    'utf8'
+  );
   const source = fs.readFileSync(
     path.join(__dirname, '../../src-dashboard/kiotviet/CustomerReport.gs'),
     'utf8'
   );
   const context = vm.createContext({ console });
+  vm.runInContext(helpersSource, context, { filename: 'Helpers.gs' });
   vm.runInContext(source, context, { filename: 'CustomerReport.gs' });
   return context;
 }
@@ -24,6 +29,64 @@ function loadDiscontinuedProducts(context) {
 
 function readScheduleDocumentation(relativePath) {
   return fs.readFileSync(path.join(__dirname, '../..', relativePath), 'utf8');
+}
+
+function createGridSheet(
+  name, maxRows, maxColumns, lastRow = 1, lastColumn = 1,
+  frozenRows = 0, frozenColumns = 0
+) {
+  let parent;
+  const sheet = {
+    getName: () => name,
+    getParent: () => parent,
+    setParent: value => { parent = value; },
+    hideSheet: () => {},
+    getMaxRows: () => maxRows,
+    getMaxColumns: () => maxColumns,
+    getFrozenRows: () => frozenRows,
+    getFrozenColumns: () => frozenColumns,
+    getLastRow: () => lastRow,
+    getLastColumn: () => lastColumn,
+    deleteRows: (start, count) => {
+      if (maxRows - count <= frozenRows) throw new Error('Cannot delete all non-frozen rows');
+      maxRows -= count;
+    },
+    deleteColumns: (start, count) => {
+      if (maxColumns - count <= frozenColumns) throw new Error('Cannot delete all non-frozen columns');
+      maxColumns -= count;
+    },
+    insertRowsAfter: (after, count) => { maxRows += count; },
+    insertColumnsAfter: (after, count) => { maxColumns += count; },
+    getRange: (row, column, rowCount = 1, columnCount = 1) => {
+      if (row + rowCount - 1 > maxRows || column + columnCount - 1 > maxColumns) {
+        throw new Error('Spreadsheet cell limit exceeded');
+      }
+      return {
+        setValues: () => {
+          lastRow = Math.max(lastRow, row + rowCount - 1);
+          lastColumn = Math.max(lastColumn, column + columnCount - 1);
+        }
+      };
+    }
+  };
+  return sheet;
+}
+
+function createGridSpreadsheet(initialSheets = []) {
+  const sheets = initialSheets.slice();
+  const spreadsheet = {
+    getSheets: () => sheets.slice(),
+    getSheetByName: name => sheets.find(sheet => sheet.getName() === name),
+    insertSheet: (...args) => {
+      if (args.length !== 1) throw new Error('Invalid argument: options. Should be of type: Map.');
+      const sheet = createGridSheet(args[0], 1000, 26, 0, 0);
+      sheet.setParent(spreadsheet);
+      sheets.push(sheet);
+      return sheet;
+    }
+  };
+  sheets.forEach(sheet => sheet.setParent(spreadsheet));
+  return spreadsheet;
 }
 
 test('operator documentation uses staggered report schedules instead of obsolete shared 07:00 claims', () => {
@@ -66,6 +129,75 @@ test('operator documentation uses staggered report schedules instead of obsolete
       );
     }
   }
+});
+
+test('customer report staging allocates only the cells needed for raw rows', () => {
+  const context = loadAppsScript();
+  const spreadsheet = createGridSpreadsheet();
+  context.SpreadsheetApp = { getActiveSpreadsheet: () => spreadsheet };
+
+  context.appendCustomerReportRawItems_('_KV_CR_RAW_TEST', [
+    { id: 1, code: 'A' },
+    { id: 2, code: 'B' }
+  ]);
+
+  const sheet = spreadsheet.getSheetByName('_KV_CR_RAW_TEST');
+  assert.equal(sheet.getMaxRows(), 2);
+  assert.equal(sheet.getMaxColumns(), 1);
+  assert.equal(sheet.getLastRow(), 2);
+});
+
+test('grid capacity helper reclaims unused cells before growing a full spreadsheet', () => {
+  const context = loadAppsScript();
+  const target = createGridSheet('Target', 1, 1, 1, 1);
+  const bloated = createGridSheet('Bloated', 1000000, 10, 1, 1);
+  const spreadsheet = createGridSpreadsheet([target, bloated]);
+
+  context.ensureSheetGridCapacity_(target, 2, 2);
+
+  assert.equal(target.getMaxRows(), 2);
+  assert.equal(target.getMaxColumns(), 2);
+  assert.equal(bloated.getMaxRows(), 1);
+  assert.equal(bloated.getMaxColumns(), 1);
+});
+
+test('grid compaction preserves one unfrozen row and column', () => {
+  const context = loadAppsScript();
+  const frozen = createGridSheet('Frozen', 1000, 26, 1, 1, 1, 1);
+
+  assert.doesNotThrow(() => context.compactUnusedSheetGrid_(frozen));
+  assert.equal(frozen.getMaxRows(), 2);
+  assert.equal(frozen.getMaxColumns(), 2);
+});
+
+test('headroom cleanup stops as soon as enough cells have been reclaimed', () => {
+  const context = loadAppsScript();
+  const bloated = createGridSheet('Bloated', 1000000, 10, 1, 1);
+  const untouched = createGridSheet('Untouched', 2, 1, 1, 1);
+  untouched.getLastRow = () => { throw new Error('should not inspect later sheets'); };
+  const spreadsheet = createGridSpreadsheet([bloated, untouched]);
+
+  assert.doesNotThrow(() => context.ensureSpreadsheetCellHeadroom_(spreadsheet, 26000));
+  assert.equal(bloated.getMaxRows(), 1);
+  assert.equal(untouched.getMaxRows(), 2);
+});
+
+test('discontinued product append grows the grid before writing a new event', () => {
+  const context = loadAppsScript();
+  context.CONFIG = { SHEET_DISCONTINUED_PRODUCTS: 'Hàng ngừng kinh doanh' };
+  loadDiscontinuedProducts(context);
+  const output = createGridSheet('Hàng ngừng kinh doanh', 1, 42, 1, 42);
+  createGridSpreadsheet([output]);
+
+  assert.doesNotThrow(() => context.upsertDiscontinuedEvent_(output, {
+    id: 123,
+    code: 'SP-123',
+    name: 'Sản phẩm 123',
+    isActive: false,
+    inventories: []
+  }, 'Ngừng kinh doanh'));
+  assert.equal(output.getMaxRows(), 2);
+  assert.equal(output.getLastRow(), 2);
 });
 
 function createTriggerRecorder(existingHandlers = []) {
@@ -138,24 +270,49 @@ function createCustomerReportHarness() {
       setProperty: (key, value) => {
         properties[key] = value;
       },
-      setProperties: values => Object.assign(properties, values)
+      setProperties: values => Object.assign(properties, values),
+      deleteProperty: key => {
+        delete properties[key];
+      }
     })
   };
   context.Utilities = {
     formatDate: customerReportFormatDate,
     sleep: () => {}
   };
-  context.SpreadsheetApp = { flush: () => {} };
+  const fakeSheets = {};
+  context.SpreadsheetApp = {
+    flush: () => {},
+    getActiveSpreadsheet: () => ({
+      getSheetByName: name => fakeSheets[name],
+      insertSheet: name => {
+        const sheet = { hideSheet: () => {} };
+        fakeSheets[name] = sheet;
+        return sheet;
+      },
+      deleteSheet: sheet => {
+        Object.keys(fakeSheets).forEach(key => {
+          if (fakeSheets[key] === sheet) delete fakeSheets[key];
+        });
+      }
+    })
+  };
   context.Logger = { log: () => {} };
-  context.fetchCustomerReportPages_ = endpoint => {
+  context.fetchCustomerReportJsonWithRetry_ = (url, token, endpoint) => {
     fetched.push(endpoint);
-    return [];
+    return { data: [], total: 0 };
   };
   context.getCustomerReportAllTimeRange_ = () => ({
-    startLabel: 'Từ trước đến nay',
+    start: new Date('2026-01-01T00:00:00+07:00'),
+    startQuery: '2026-01-01T00:00:00',
+    endQuery: '2026-08-20T23:59:59',
+    startLabel: '01/01/2026',
     endLabel: '20/08/2026'
   });
   context.getCustomerReportRollingRange_ = () => ({
+    start: new Date('2026-05-22T00:00:00+07:00'),
+    startQuery: '2026-05-22T00:00:00',
+    endQuery: '2026-08-20T23:59:59',
     startLabel: '22/05/2026',
     endLabel: '20/08/2026'
   });
@@ -220,7 +377,11 @@ test('syncCustomerReport refreshes all reports and records every last-sync date'
   const result = context.syncCustomerReport();
 
   assert.deepEqual(writes, ['sales', 'customerProduct', 'customerByProduct']);
-  assert.deepEqual(fetched, ['invoices', 'returns', 'customers']);
+  assert.deepEqual(fetched, [
+    'invoices', 'returns', 'customers', // sales
+    'invoices', // product (90-day rolling)
+    'invoices', 'returns', 'customers' // byProduct
+  ]);
   assert.equal(result.sheetName, 'Báo cáo bán hàng');
   assert.equal(result.customerProductReport.sheetName, 'Hàng bán theo khách');
   assert.equal(result.customerByProductReport.sheetName, 'Khách theo hàng hóa');

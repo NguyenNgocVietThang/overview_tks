@@ -7,13 +7,13 @@
 | **Thông tin**      | **Nội dung**                                               |
 |--------------------|------------------------------------------------------------|
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                          |
-| Phiên bản          | 2.1                                                        |
+| Phiên bản          | 2.2                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 24/08/2026                                                 |
-| Tài liệu liên quan | BRD v1.8 · BPMN v1.9 · Implementation Plan v2.2 · CSNS-NP-01 (Chính sách nghỉ phép) · Plan Process Automation · 3D Design · Performance Optimization Report · Lag Optimization Plan · ROLLBACK |
-| Trạng thái         | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1, Lớp 3D, Gói tối ưu hóa hiệu năng & Phân hệ HR Leave + Telegram Bot đã hoàn thiện) |
+| Ngày cập nhật      | 26/08/2026                                                 |
+| Tài liệu liên quan | BRD v1.9 · BPMN v1.9 · Implementation Plan v2.3 · CSNS-NP-01 (Chính sách nghỉ phép) · Plan Process Automation · 3D Design · Performance Optimization Report · Lag Optimization Plan · ROLLBACK |
+| Trạng thái         | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1, Lớp 3D, Gói tối ưu hóa hiệu năng, Phân hệ HR Leave + Bot, Chuông thông báo, Đổi vai trò & Kiểm tra đứt hàng) |
 
-> **Ghi chú phiên bản 2.1:** Bổ sung Phân hệ Quản lý Nghỉ phép HR (HR Leave Management) & Telegram Bot: Quản lý và theo dõi hạn mức, số dư ngày phép theo chính sách CSNS-NP-01; nộp đơn xin nghỉ và tra cứu số dư 24/7 qua Web Portal (`/humanresources/`) hoặc Telegram Bot tương tác (`hrTelegramBot.js`); phê duyệt/từ chối đơn và gửi thông báo tức thì qua Telegram; xuất báo cáo đối soát ngày nghỉ phép ra Excel `.xlsx`. Chuẩn hóa bộ kiểm thử tự động toàn diện đạt **324 unit tests**.
+> **Ghi chú phiên bản 2.2:** Bổ sung Chuông thông báo toàn hệ thống, Cơ chế xin đổi & duyệt vai trò người dùng, Công cụ Kiểm tra đứt hàng đối chiếu file Excel với KiotViet API nền, Phân hệ Quản lý Nghỉ phép HR (HR Leave Management) & Telegram Bot theo chính sách CSNS-NP-01. Chuẩn hóa bộ kiểm thử tự động toàn diện đạt **434 unit tests**.
 
 # 1. Giới thiệu
 

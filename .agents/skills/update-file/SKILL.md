@@ -49,26 +49,25 @@ Dưới đây là tất cả file có thể bị ảnh hưởng khi cấu trúc 
 - Thêm file `.gs` mới → ghi rõ tên hàm trong comment `← funcA(), funcB()`
 - Cập nhật dòng `*Cập nhật lần cuối:*` ở cuối file theo ngày hiện tại
 
-### 2.2 `.clasp.json`
+### 2.2 `.clasp.json` & `.clasp.order-lifecycle.json`
 
-**Vị trí:** `d:\Web TKS Dashboard\.clasp.json`
+**Vị trí:** `d:\Web TKS Dashboard\.clasp.json` (Dashboard: `rootDir: "src-dashboard"`) và `d:\Web TKS Dashboard\.clasp.order-lifecycle.json` (Vận chuyển: `rootDir: "src-order-lifecycle"`).
 
 **Khi nào cập nhật:**
 - Thay đổi thư mục gốc chứa source code (`rootDir`)
-- Thêm `filePushOrder` nếu cần kiểm soát thứ tự load file (hiếm gặp với GAS V8)
+- Cấu hình Script ID cho từng project độc lập
 
-**Quy tắc `filePushOrder`:** Chỉ cần thiết nếu một file phụ thuộc vào biến toàn cục của file khác
-và clasp không sắp xếp đúng theo alphabetical. Trong dự án này thứ tự load đã đúng:
-`config/ → dashboard/ → kiotviet/ → sync/ → ui/ → utils/`
+**Quy tắc:**
+- Project Dashboard load: `HuongDanSuDung.gs → config/ → kiotviet/ → sync/ → utils/`
+- Project Vận chuyển load: `HuongDanSuDung.gs → config/ → kiotviet/ → shipment/ → sync/ → utils/`
 
-### 2.3 `.claspignore`
+### 2.3 `.claspignore` & `.claspignore.order-lifecycle`
 
-**Vị trí:** `d:\Web TKS Dashboard\.claspignore`
+**Vị trí:** `d:\Web TKS Dashboard\.claspignore` và `d:\Web TKS Dashboard\.claspignore.order-lifecycle`
 
 **Khi nào cập nhật:**
 - Thêm thư mục/file mới KHÔNG nên push lên Google Apps Script
   (ví dụ: thư mục tài liệu, scripts test, file config local)
-- Ví dụ: nếu thêm thư mục `scripts/` chứa helper PowerShell → thêm `scripts/` vào `.claspignore`
 
 **Quy tắc:**
 ```
@@ -79,7 +78,7 @@ ten-thu-muc/
 
 ### 2.4 `appsscript.json`
 
-**Vị trí:** `d:\Web TKS Dashboard\src\appsscript.json`
+**Vị trí:** `d:\Web TKS Dashboard\src-dashboard\appsscript.json` và `d:\Web TKS Dashboard\src-order-lifecycle\appsscript.json`
 
 **Khi nào cập nhật:**
 - Thêm OAuth scope mới (khi code mới cần quyền truy cập service GAS chưa có)

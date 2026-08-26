@@ -7,24 +7,18 @@ const DISCONTINUED_CFG = Object.freeze({
 });
 
 const DISCONTINUED_HEADERS = Object.freeze([
-  'Thời gian phát hiện',
   'Ngày sửa trên KiotViet',
   'Trạng thái hiện tại',
   'Loại ghi nhận',
   'ID hàng hóa',
   'ID gian hàng',
   'Mã hàng',
-  'Mã vạch',
   'Tên hàng',
   'Tên đầy đủ',
   'Loại hàng',
   'ID nhóm hàng',
   'Nhóm hàng',
-  'ID thương hiệu',
   'Thương hiệu',
-  'Đơn vị',
-  'ID đơn vị cơ bản',
-  'ID hàng cùng loại',
   'Hệ số quy đổi',
   'Cho phép bán',
   'Có biến thể',
@@ -37,18 +31,10 @@ const DISCONTINUED_HEADERS = Object.freeze([
   'Định mức tồn cao nhất',
   'Tồn kho theo chi nhánh',
   'Bảng giá',
-  'Thuộc tính',
   'Hình ảnh',
-  'Vị trí hàng',
-  'Công thức/combo',
-  'Mẫu ghi chú',
-  'Tích điểm',
-  'Quản lý serial/IMEI',
   'Quản lý lô',
-  'Quản lý hạn sử dụng',
   'Mô tả',
-  'Ngày tạo',
-  'Dữ liệu API đầy đủ (JSON)'
+  'Ngày tạo'
 ]);
 
 function capNhatHangNgungKinhDoanh() {
@@ -177,22 +163,21 @@ function fetchKiotVietProductsByStatus_(isActive, lastModifiedFrom, token) {
 
 function ensureDiscontinuedOutput_(ss) {
   let sheet = ss.getSheetByName(DISCONTINUED_CFG.SHEET);
-  if (!sheet) sheet = ss.insertSheet(DISCONTINUED_CFG.SHEET);
   const width = DISCONTINUED_HEADERS.length;
-  if (sheet.getMaxColumns() < width) {
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), width - sheet.getMaxColumns());
-  }
-  const current = sheet.getRange(1, 1, 1, width).getValues()[0];
-  if (current.join('|') !== DISCONTINUED_HEADERS.join('|')) {
-    sheet.getRange(1, 1, 1, width).setValues([DISCONTINUED_HEADERS]);
-  }
+  if (!sheet) sheet = createCompactSheet_(ss, DISCONTINUED_CFG.SHEET, 1, width);
+  ensureKiotVietSheetSchema_(sheet, {
+    headers: DISCONTINUED_HEADERS,
+    aliases: {},
+    numberHeaders: [],
+    textHeaders: []
+  });
   return sheet;
 }
 
 function ensureDiscontinuedState_(ss) {
   let sheet = ss.getSheetByName(DISCONTINUED_CFG.STATE_SHEET);
   if (!sheet) {
-    sheet = ss.insertSheet(DISCONTINUED_CFG.STATE_SHEET);
+    sheet = createCompactSheet_(ss, DISCONTINUED_CFG.STATE_SHEET, 1, 6);
     sheet.getRange(1, 1, 1, 6).setValues([[
       'ID hàng hóa', 'Mã hàng', 'Tên hàng', 'isActive',
       'Ngày sửa KiotViet', 'Lần kiểm tra'
@@ -246,7 +231,10 @@ function writeDiscontinuedStateMap_(sheet, map) {
   rows.sort(function(a, b) { return String(a[1]).localeCompare(String(b[1])); });
   const oldRows = Math.max(0, sheet.getLastRow() - 1);
   if (oldRows) sheet.getRange(2, 1, oldRows, 6).clearContent();
-  if (rows.length) sheet.getRange(2, 1, rows.length, 6).setValues(rows);
+  if (rows.length) {
+    ensureSheetGridCapacity_(sheet, rows.length + 1, 6);
+    sheet.getRange(2, 1, rows.length, 6).setValues(rows);
+  }
 }
 
 function upsertDiscontinuedEvent_(sheet, product, eventType) {
@@ -255,27 +243,26 @@ function upsertDiscontinuedEvent_(sheet, product, eventType) {
   let targetRow = lastRow + 1;
 
   if (lastRow >= 2) {
-    const ids = sheet.getRange(2, 5, lastRow - 1, 1).getValues();
+    const ids = sheet.getRange(2, 4, lastRow - 1, 1).getValues();
     for (let i = 0; i < ids.length; i++) {
       if (String(ids[i][0]) === String(product.id)) {
         targetRow = i + 2;
-        row[0] = sheet.getRange(targetRow, 1).getValue() || row[0];
         break;
       }
     }
   }
+  ensureSheetGridCapacity_(sheet, targetRow, row.length);
   sheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
 }
 
 function markDiscontinuedReactivated_(sheet, product) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return;
-  const ids = sheet.getRange(2, 5, lastRow - 1, 1).getValues();
+  const ids = sheet.getRange(2, 4, lastRow - 1, 1).getValues();
   for (let i = 0; i < ids.length; i++) {
     if (String(ids[i][0]) === String(product.id)) {
-      sheet.getRange(i + 2, 3).setValue('Đã kinh doanh lại');
-      sheet.getRange(i + 2, 2).setValue(toDateOrText_(product.modifiedDate));
-      sheet.getRange(i + 2, 42).setValue(JSON.stringify(product));
+      sheet.getRange(i + 2, 2).setValue('Đã kinh doanh lại');
+      sheet.getRange(i + 2, 1).setValue(toDateOrText_(product.modifiedDate));
       return;
     }
   }
@@ -300,24 +287,18 @@ function discontinuedProductRow_(p, eventType) {
       }, 0);
 
   return [
-    new Date(),
     toDateOrText_(p.modifiedDate),
     p.isActive === false ? 'Ngừng kinh doanh' : 'Đang kinh doanh',
     eventType,
     p.id || '',
     p.retailerId || '',
     p.code || '',
-    p.barCode || '',
     p.name || '',
     p.fullName || '',
     productTypeLabel_(p.type),
     p.categoryId || '',
     p.categoryName || '',
-    p.tradeMarkId || '',
     p.tradeMarkName || '',
-    p.unit || '',
-    p.masterUnitId || '',
-    p.masterProductId || '',
     p.conversionValue == null ? '' : p.conversionValue,
     booleanLabel_(p.allowsSale),
     booleanLabel_(p.hasVariants),
@@ -330,20 +311,12 @@ function discontinuedProductRow_(p, eventType) {
     maxQty,
     compactJson_(inventories),
     compactJson_(p.priceBooks || []),
-    compactJson_(p.attributes || []),
     (p.images || []).map(function(img) {
       return typeof img === 'string' ? img : (img.Image || img.image || '');
     }).filter(String).join(String.fromCharCode(10)),
-    compactJson_(p.productShelves || []),
-    compactJson_(p.productFormulas || []),
-    p.orderTemplate || '',
-    booleanLabel_(p.isRewardPoint),
-    booleanLabel_(p.isLotSerialControl || p.isProductSerial),
     booleanLabel_(p.isBatchExpireControl),
-    booleanLabel_(p.isExpireControl),
     p.description || '',
-    toDateOrText_(p.createdDate),
-    JSON.stringify(p)
+    toDateOrText_(p.createdDate)
   ];
 }
 
@@ -376,16 +349,16 @@ function formatDiscontinuedOutput_(sheet) {
   }
 
   if (dataRowCount > 0) {
-    // Cot 1..2 (A:B) - Dinh dang ngay thang
+    // Cot 1 (A) - Dinh dang ngay thang
     try {
-      sheet.getRange(2, 1, dataRowCount, 2).setNumberFormat('dd/MM/yyyy HH:mm:ss');
+      sheet.getRange(2, 1, dataRowCount, 1).setNumberFormat('dd/MM/yyyy HH:mm:ss');
     } catch (e) {
       Logger.log('Bo qua dinh dang ngay thang (typed column): ' + e);
     }
 
-    // Cot 22..28 (V:AB) - Dinh dang so thap phan
+    // Cot 16..22 (P:V) - Dinh dang so thap phan
     try {
-      sheet.getRange(2, 22, dataRowCount, 7).setNumberFormat('#,##0.00');
+      sheet.getRange(2, 16, dataRowCount, 7).setNumberFormat('#,##0.00');
     } catch (e) {
       Logger.log('Bo qua dinh dang so (typed column): ' + e);
     }
@@ -404,7 +377,7 @@ function formatDiscontinuedOutput_(sheet) {
   }
 
   try {
-    [29, 30, 31, 32, 33, 34, 40, 42].forEach(function(column) {
+    [23, 24, 25, 27].forEach(function(column) {
       if (column <= sheet.getMaxColumns()) {
         sheet.setColumnWidth(column, 260);
       }
@@ -421,6 +394,7 @@ function formatDiscontinuedOutput_(sheet) {
   } catch (e) {
     Logger.log('Bo qua createFilter: ' + e);
   }
+  compactUnusedSheetGrid_(sheet);
 }
 
 function toDateOrText_(value) {
@@ -471,7 +445,7 @@ function syncHangNgungKinhDoanh_(token) {
     : [];
   const rowsById = {};
   existingRows.forEach(function(row) {
-    if (row[4]) rowsById[String(row[4])] = row;
+    if (row[3]) rowsById[String(row[3])] = row;
   });
 
   const inactiveProducts = fetchKiotVietProductsByStatus_(false, null, token);
@@ -482,25 +456,27 @@ function syncHangNgungKinhDoanh_(token) {
     const oldRow = rowsById[id];
     const newRow = discontinuedProductRow_(
       product,
-      oldRow ? oldRow[3] : 'Nạp lịch sử ngừng kinh doanh từ KiotViet'
+      oldRow ? oldRow[2] : 'Nạp lịch sử ngừng kinh doanh từ KiotViet'
     );
-    if (oldRow) newRow[0] = oldRow[0] || newRow[0];
     rowsById[id] = newRow;
   });
 
   Object.keys(rowsById).forEach(function(id) {
-    if (!inactiveIds[id] && rowsById[id][2] === 'Ngừng kinh doanh') {
-      rowsById[id][2] = 'Đã kinh doanh lại';
+    if (!inactiveIds[id] && rowsById[id][1] === 'Ngừng kinh doanh') {
+      rowsById[id][1] = 'Đã kinh doanh lại';
     }
   });
 
   const rows = Object.keys(rowsById).map(function(id) { return rowsById[id]; });
   rows.sort(function(a, b) {
-    return new Date(b[1] || 0).getTime() - new Date(a[1] || 0).getTime();
+    return new Date(b[0] || 0).getTime() - new Date(a[0] || 0).getTime();
   });
   const oldCount = Math.max(0, sheet.getLastRow() - 1);
   if (oldCount) sheet.getRange(2, 1, oldCount, width).clearContent();
-  if (rows.length) sheet.getRange(2, 1, rows.length, width).setValues(rows);
+  if (rows.length) {
+    ensureSheetGridCapacity_(sheet, rows.length + 1, width);
+    sheet.getRange(2, 1, rows.length, width).setValues(rows);
+  }
   formatDiscontinuedOutput_(sheet);
   // Chi can baseline cac ma dang ngung: ma moi ngung se duoc nhan khi khong co
   // state cu, con ma kinh doanh lai se doi chieu duoc voi state false nay.
@@ -528,17 +504,23 @@ function migrateLegacyDiscontinuedSheet_(ss) {
 
   const width = DISCONTINUED_HEADERS.length;
   historySheet = ensureDiscontinuedOutput_(ss);
+  ensureKiotVietSheetSchema_(legacySheet, {
+    headers: DISCONTINUED_HEADERS,
+    aliases: {},
+    numberHeaders: [],
+    textHeaders: []
+  });
   if (legacySheet.getLastRow() > 1 && legacySheet.getLastColumn() >= width) {
     const existingIds = {};
-    if (historySheet.getLastRow() > 1 && historySheet.getLastColumn() >= 5) {
-      historySheet.getRange(2, 5, historySheet.getLastRow() - 1, 1)
+    if (historySheet.getLastRow() > 1 && historySheet.getLastColumn() >= 4) {
+      historySheet.getRange(2, 4, historySheet.getLastRow() - 1, 1)
         .getValues()
         .forEach(function(row) { if (row[0]) existingIds[String(row[0])] = true; });
     }
     const legacyRows = legacySheet.getRange(
       2, 1, legacySheet.getLastRow() - 1, width
     ).getValues().filter(function(row) {
-      return row[4] && !existingIds[String(row[4])];
+      return row[3] && !existingIds[String(row[3])];
     });
     if (legacyRows.length) {
       historySheet.getRange(historySheet.getLastRow() + 1, 1, legacyRows.length, width)

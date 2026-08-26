@@ -15,9 +15,9 @@ const CUSTOMER_DEBT_REPORT_HEADERS = Object.freeze([
   'Mã KH', 'Khách hàng', 'Số điện thoại', 'Nhóm khách hàng',
   'Nợ đầu kỳ', 'Ghi nợ', 'Ghi có', 'Nợ cuối kỳ',
   'Mã giao dịch', 'Thời gian', 'Loại giao dịch', 'Giá trị', 'Dư nợ cuối',
-  'Mã hàng', 'Tên hàng', 'Thương hiệu', 'Nhóm hàng(3 Cấp)',
+  'Mã hàng', 'Tên hàng', 'Nhóm hàng(3 Cấp)',
   'Đơn giá', 'SL sản phẩm', 'Thành tiền', 'Chiết khấu',
-  'VAT bán hàng', 'VAT hoàn lại', 'Thu khác', 'Tổng cộng'
+  'Tổng cộng'
 ]);
 
 /**
@@ -224,7 +224,6 @@ function buildCustomerDebtProductLookup_() {
   const codeIndex = headers.indexOf('Mã hàng');
   const nameIndex = headers.indexOf('Tên hàng');
   const categoryIndex = headers.indexOf('Nhóm hàng');
-  const tradeMarkIndex = headers.indexOf('Thương hiệu');
   if (codeIndex < 0) return lookup;
 
   values.slice(1).forEach(row => {
@@ -232,7 +231,6 @@ function buildCustomerDebtProductLookup_() {
     if (!code) return;
     lookup[code] = {
       name: nameIndex >= 0 ? customerDebtSafeText_(row[nameIndex]) : '',
-      tradeMark: tradeMarkIndex >= 0 ? customerDebtSafeText_(row[tradeMarkIndex]) : '',
       category: categoryIndex >= 0 ? customerDebtSafeText_(row[categoryIndex]) : ''
     };
   });
@@ -557,15 +555,11 @@ function buildCustomerDebtReportValues_(rows, period) {
           reportLine.runningDebt,
           productLine ? productLine.productCode : '',
           productLine ? productLine.productName : '',
-          productLine ? productLine.tradeMark : '',
           productLine ? productLine.category : '',
           productLine ? productLine.price : '',
           productLine ? productLine.quantity : '',
           productLine ? productLine.amount : '',
           productLine ? productLine.discount : '',
-          productLine ? productLine.salesVat : '',
-          productLine ? productLine.returnVat : '',
-          transaction.otherReceipt || 0,
           transaction.total || 0
         ]));
       });
@@ -658,8 +652,8 @@ function writeCustomerDebtReportSheet_(sheetName, rows, period, syncedAt) {
       sheet.getRange(2, 10, dataRowCount, 1).setNumberFormat('dd/MM/yyyy HH:mm');
       sheet.getRange(2, 11, dataRowCount, 1).setNumberFormat('@');
       sheet.getRange(2, 12, dataRowCount, 2).setNumberFormat('#,##0.####');
-      sheet.getRange(2, 14, dataRowCount, 4).setNumberFormat('@');
-      sheet.getRange(2, 18, dataRowCount, 8).setNumberFormat('#,##0.####');
+      sheet.getRange(2, 14, dataRowCount, 3).setNumberFormat('@');
+      sheet.getRange(2, 17, dataRowCount, 5).setNumberFormat('#,##0.####');
     } catch (e) {
       Logger.log('Bo qua dinh dang so bao cao cong no: ' + e);
     }
@@ -684,10 +678,10 @@ function writeCustomerDebtReportSheet_(sheetName, rows, period, syncedAt) {
   sheet.setColumnWidths(12, 2, 105);
   sheet.setColumnWidth(14, 105);
   sheet.setColumnWidth(15, 270);
-  sheet.setColumnWidth(16, 130);
-  sheet.setColumnWidth(17, 230);
-  sheet.setColumnWidths(18, 8, 110);
+  sheet.setColumnWidth(16, 230);
+  sheet.setColumnWidths(17, 5, 110);
   sheet.setRowHeight(1, 30);
+  compactUnusedSheetGrid_(sheet);
 }
 
 function customerDebtNumber_(value) {

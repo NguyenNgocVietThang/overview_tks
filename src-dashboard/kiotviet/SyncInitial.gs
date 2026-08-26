@@ -294,6 +294,19 @@ function syncPurchasesInitial(token) {
 /**
  * Ba endpoint nay khong co webhook Public API; polling 15 phut de giam quota.
  */
+const POLLING_ONLY_CHAIN = Object.freeze(['returns', 'suppliers', 'purchases']);
+const POLLING_ONLY_STATE_PROPERTY = 'POLLING_ONLY_CHAIN_INDEX';
+const POLLING_ONLY_RESUME_HANDLER = 'resumePollingOnlyChunk_';
+
+/**
+ * Chay mot phan doan (chunk) cho bang dang den luot trong POLLING_ONLY_CHAIN,
+ * qua co che chunked/resumable dung chung voi syncAllDataChunked (xem
+ * syncKiotVietTableChunk_ o SheetSchemas.gs). Moi lan chay toi da ~4.5 phut
+ * (SYNC_CHUNK_CONFIG.MAX_RUN_SECONDS) roi nha lock, tranh timeout 6 phut cua
+ * Apps Script va tranh giu lock qua lau lam chan processWebhookQueue.
+ * Neu chua xong bang hien tai (hoac chua het chuoi), tu tao trigger 1 phut
+ * (POLLING_ONLY_RESUME_HANDLER) doc lap voi trigger chinh 15 phut de tiep suc.
+ */
 function syncPollingOnly_() {
   const dataLock = getKiotVietDataLock_();
   if (!dataLock.tryLock(30000)) {
@@ -301,14 +314,40 @@ function syncPollingOnly_() {
     return;
   }
   try {
-    const token = getKiotVietToken();
-    syncReturnsInitial(token);
-    syncSuppliersInitial(token);
-    syncPurchasesInitial(token);
-    Logger.log('Da polling Tra hang, Nha cung cap va Nhap hang.');
+    const props = PropertiesService.getScriptProperties();
+    let tableIndex = Number(props.getProperty(POLLING_ONLY_STATE_PROPERTY)) || 0;
+    if (tableIndex >= POLLING_ONLY_CHAIN.length) tableIndex = 0;
+
+    const schemaKey = POLLING_ONLY_CHAIN[tableIndex];
+    const result = syncKiotVietTableChunk_(schemaKey, {
+      resumeHandler: POLLING_ONLY_RESUME_HANDLER,
+      autoSchedule: false
+    });
+
+    if (!result.isCompleted) {
+      props.setProperty(POLLING_ONLY_STATE_PROPERTY, String(tableIndex));
+      scheduleSpecificChunkTrigger_(POLLING_ONLY_RESUME_HANDLER);
+      Logger.log('[' + schemaKey + '] Polling chua xong, se tiep tuc sau 1 phut.');
+      return;
+    }
+
+    tableIndex++;
+    if (tableIndex < POLLING_ONLY_CHAIN.length) {
+      props.setProperty(POLLING_ONLY_STATE_PROPERTY, String(tableIndex));
+      scheduleSpecificChunkTrigger_(POLLING_ONLY_RESUME_HANDLER);
+      Logger.log('Da polling xong ' + schemaKey + ', tiep tuc ' + POLLING_ONLY_CHAIN[tableIndex] + ' sau 1 phut.');
+    } else {
+      props.deleteProperty(POLLING_ONLY_STATE_PROPERTY);
+      removeSpecificChunkTrigger_(POLLING_ONLY_RESUME_HANDLER);
+      Logger.log('Da polling xong Tra hang, Nha cung cap va Nhap hang.');
+    }
   } finally {
     dataLock.releaseLock();
   }
+}
+
+function resumePollingOnlyChunk_() {
+  syncPollingOnly_();
 }
 
 function setupPollingTrigger() {
@@ -331,4 +370,6 @@ function removePollingTrigger_() {
       ScriptApp.deleteTrigger(trigger);
     }
   });
+  removeSpecificChunkTrigger_(POLLING_ONLY_RESUME_HANDLER);
+  PropertiesService.getScriptProperties().deleteProperty(POLLING_ONLY_STATE_PROPERTY);
 }

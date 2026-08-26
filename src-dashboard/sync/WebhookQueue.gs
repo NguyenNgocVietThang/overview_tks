@@ -365,3 +365,28 @@ function setupQueueProcessingTrigger() {
   ScriptApp.newTrigger('processWebhookQueue').timeBased().everyMinutes(1).create();
   Logger.log('Da bat trigger xu ly webhook moi 1 phut.');
 }
+
+/**
+ * Tam dung trigger processWebhookQueue (vd: de chay tay mot dong bo nang
+ * ma khong bi tranh khoa LockService moi phut). Webhook va vot bu bao cao
+ * se khong duoc xu ly cho toi khi goi resumeWebhookQueueTrigger().
+ */
+function pauseWebhookQueueTrigger() {
+  let removedCount = 0;
+  ScriptApp.getProjectTriggers().forEach(trigger => {
+    if (trigger.getHandlerFunction() === 'processWebhookQueue') {
+      ScriptApp.deleteTrigger(trigger);
+      removedCount++;
+    }
+  });
+  Logger.log('Da tam dung trigger xu ly webhook (' + removedCount + ' trigger da xoa).');
+  return removedCount;
+}
+
+/**
+ * Bat lai trigger processWebhookQueue sau khi tam dung bang
+ * pauseWebhookQueueTrigger(). Tuong duong setupQueueProcessingTrigger().
+ */
+function resumeWebhookQueueTrigger() {
+  setupQueueProcessingTrigger();
+}

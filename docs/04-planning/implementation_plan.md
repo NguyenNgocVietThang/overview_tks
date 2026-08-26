@@ -6,11 +6,11 @@
 
 | **Thông tin**    | **Nội dung**                                                         |
 |------------------|----------------------------------------------------------------------|
-| Phiên bản tài liệu | 2.2                                                              |
+| Phiên bản tài liệu | 2.3                                                              |
 | Ngày tạo         | 27/07/2026                                                           |
-| Ngày cập nhật    | 24/08/2026                                                           |
-| Tài liệu liên quan | BRD v1.8 · SRS v2.1 · BPMN v1.9 · CSNS-NP-01 (Chính sách nghỉ phép) · Debt Spec 2026-08-05 · Cache/Pagination Plans · Lag Optimization Plan · Stagger Triggers Plan · Plan Process Automation · 3D Design · Performance Optimization Report · ROLLBACK |
-| Trạng thái       | Giai đoạn 1 (Dashboard, Vận chuyển, Auth, 3D, Performance) & Phân hệ Quản lý Nghỉ phép HR + Telegram Bot hoàn thành — đang vận hành |
+| Ngày cập nhật    | 26/08/2026                                                           |
+| Tài liệu liên quan | BRD v1.9 · SRS v2.2 · BPMN v2.0 · CSNS-NP-01 (Chính sách nghỉ phép) · Debt Spec 2026-08-05 · Cache/Pagination Plans · Lag Optimization Plan · Stagger Triggers Plan · Plan Process Automation · 3D Design · Performance Optimization Report · ROLLBACK |
+| Trạng thái       | Giai đoạn 1 (Dashboard, Vận chuyển, Auth, 3D, Performance), Phân hệ HR + Bot, Chuông thông báo, Đổi vai trò & Kiểm tra đứt hàng hoàn thành — đang vận hành |
 
 ---
 
@@ -31,8 +31,8 @@ src-order-lifecycle/        ← GAS project riêng cho Google Sheets Vận chuy�
 server/                     ← Node.js/Express backend (Render.com)
 ├── index.js                ← Express entry point (Gzip compression, static Cache-Control headers)
 ├── config.js
-├── routes.js               ← Định tuyến API (/api/dashboard/*, /api/auth/*, /api/admin/*, /api/shipment/*, /api/hr/*)
-├── auth/                   ← Xác thực JWT cookie, bcrypt, Google OAuth, OTP, Local User Store & phân quyền RBAC
+├── routes.js               ← Định tuyến API (/api/dashboard/*, /api/auth/*, /api/admin/*, /api/shipment/*, /api/hr/*, /api/notifications/*, /api/role-requests/*, /api/products/stockout-check/*)
+├── auth/                   ← Xác thực JWT cookie, bcrypt, Google OAuth, OTP, Local User Store, phân quyền RBAC & đổi vai trò
 │   ├── adminUserRoutes.js · adminUserRoutes.test.js ← API quản trị người dùng Admin (/api/admin/users)
 │   ├── authMiddleware.js · authMiddleware.test.js   ← requireAuth, requireRole
 │   ├── authRoutes.js · authRoutes.test.js           ← /api/auth/* (login, register, google, profile, otp reset)
@@ -40,6 +40,7 @@ server/                     ← Node.js/Express backend (Render.com)
 │   ├── googleAuthService.js · googleAuthService.test.js
 │   ├── localUserStore.js                            ← Lưu trữ dữ liệu người dùng cục bộ bảo mật
 │   ├── otpService.js · otpService.test.js           ← OTP 6 số, mask email/phone, chống brute-force
+│   ├── roleChangeRequestRepository.js · roleChangeRequestRoutes.js ← API xin đổi vai trò & duyệt vai trò (/api/role-requests)
 │   ├── userRepository.js · userRepository.test.js
 │   └── userWriteRepository.js
 ├── dashboard/
@@ -47,15 +48,26 @@ server/                     ← Node.js/Express backend (Render.com)
 │   ├── dashboardData.test.js ← Unit test cache/aggregation/search
 │   ├── debtReport.js       ← Báo cáo công nợ khách hàng 1/3/7 ngày từ HN1/HN3/HN7
 │   ├── exportService.js    ← Registry 16 bảng và tạo file Excel .xlsx
-│   └── exportService.test.js ← Unit test xuất Excel
+│   ├── exportService.test.js ← Unit test xuất Excel
+│   └── stockoutCheck/      ← Kiểm tra đứt hàng đối chiếu file Excel với KiotViet API
+│       ├── concurrencyPool.js · excelParser.js · jobManager.js · kiotVietClient.js
+│       ├── productCodeValidator.js · stockoutAnalyzer.js · stockoutCheckRoutes.js
+│       ├── stockoutCheckService.js · timelineBuilder.js (+ Unit tests đầy đủ)
 ├── data/
-│   └── users.json          ← Backup dữ liệu tài khoản người dùng cục bộ
+│   ├── notifications.json  ← Lưu trữ thông báo hệ thống cục bộ
+│   ├── roleChangeRequests.json ← Lưu trữ yêu cầu đổi vai trò cục bộ
+│   ├── users.json          ← Backup dữ liệu tài khoản người dùng cục bộ
+│   └── users.json.example  ← Mẫu cấu trúc dữ liệu người dùng
 ├── hr/                     ← Phân hệ Quản lý Nghỉ phép Nhân sự (HR Leave Management)
+│   ├── hrLeaveEvents.js    ← EventEmitter singleton phát sự kiện SSE cập nhật realtime cho đơn nghỉ phép
 │   ├── hrLeaveExportService.js ← Xuất báo cáo ngày nghỉ phép Excel
 │   ├── hrLeaveRepository.js   ← CRUD Google Sheets HR_Leaves
-│   ├── hrLeaveRoutes.js       ← REST API /api/hr/leave/* (nộp đơn, tra cứu, duyệt/từ chối, xuất Excel)
-│   └── hrLeaveService.js      ← Nghiệp vụ tính hạn mức, trừ ngày phép và quản lý trạng thái
+│   ├── hrLeaveRoutes.js       ← REST API /api/hr/leave/* (nộp đơn, tra cứu, duyệt/từ chối, stream SSE, xuất Excel)
+│   └── hrLeaveService.js      ← Nghiệp vụ tính hạn mức, buổi nghỉ Sáng/Chiều và mốc gửi 07:45/12:30
 ├── jobs/syncCustomerReport.js ← Đối soát Báo cáo bán hàng 06:00, Hàng bán theo khách 06:30, Khách theo hàng hóa 07:00
+├── notifications/          ← Hệ thống thông báo dùng chung toàn hệ thống
+│   ├── notificationRepository.js · notificationRepository.test.js
+│   └── notificationRoutes.js · notificationRoutes.test.js ← API chuông thông báo (/api/notifications)
 ├── scripts/
 │   ├── setupHrSheet.js     ← CLI khởi tạo 3 tab HR_Leaves, HR_Employees, HR_Policy
 │   ├── setupUsersSheet.js  ← CLI quản lý tài khoản người dùng và sheet Users
@@ -80,20 +92,20 @@ server/                     ← Node.js/Express backend (Render.com)
 │   ├── hrTelegramBot.js · hrTelegramBot.test.js ← Bot nộp đơn xin nghỉ, tra cứu ngày phép, thông báo duyệt đơn
 ├── test/
 │   ├── apps-script-sync.test.js ← Hồi quy URL webhook stale và typed-column Google Sheets
+│   ├── apps-script-report-schedule.test.js ← Unit test lịch phân bổ đồng bộ báo cáo
 │   └── frontend/           ← Bộ unit test frontend logic & 3D
-│       ├── auth-guest-ui.test.js · export-ui.test.js · pagination.test.js
-│       ├── three-bg.test.js · three-buttons.test.js · three-css-transforms.test.js
-│       ├── three-infrastructure.test.js · three-interactions.test.js · three-loading.test.js
-│       ├── three-navigation.test.js · three-performance.test.js · three-tables.test.js
+│       ├── auth-guest-ui.test.js · content-full-width.test.js · export-ui.test.js
+│       ├── hr-leave-loading.test.js · hr-leave-realtime-status.test.js · notif-bell.test.js
+│       ├── pagination.test.js · role-request-ui.test.js · three-*.test.js
 └── public/
     ├── 404.html            ← Trang lỗi 404 tùy biến
     ├── index.html          ← Frontend Live Dashboard (KPI, biểu đồ, 13 bảng phân trang 100 dòng, xuất Excel)
     ├── Logo.jpg            # Logo thương hiệu frontend
     ├── performance-test.html # Trang công cụ kiểm tra & đo lường hiệu năng 3D trực quan
     ├── account/
-    │   └── index.html      ← Quản lý tài khoản (Hồ sơ cá nhân & Quản trị người dùng)
+    │   └── index.html      ← Quản lý tài khoản (Hồ sơ cá nhân, Yêu cầu đổi vai trò & Quản trị người dùng)
     ├── humanresources/
-    │   └── index.html      ← Cổng thông tin nhân sự (Nộp đơn nghỉ phép, tra cứu số dư, duyệt đơn)
+    │   └── index.html      ← Cổng thông tin nhân sự (Nộp đơn nghỉ phép, tra cứu số dư, duyệt đơn realtime SSE)
     ├── js/
     │   └── pagination.js   ← Module phân trang bảng client-side (renderPaginatedRows)
     ├── login/index.html    ← Giao diện đăng nhập nội bộ, Google Sign-In, OTP Reset (tải nhẹ, không 3D)
@@ -122,7 +134,7 @@ server/                     ← Node.js/Express backend (Render.com)
 
 | **#** | **Hạng mục**                          | **Nội dung**                                                                                       | **Trạng thái** |
 |-------|---------------------------------------|----------------------------------------------------------------------------------------------------|----------------|
-| 1     | Phân tích & thiết kế                  | Hoàn thiện BRD v1.8, SRS v2.1, BPMN v1.9; thiết kế kiến trúc kỹ thuật                            | [Hoan thanh]   |
+| 1     | Phân tích & thiết kế                  | Hoàn thiện BRD v1.9, SRS v2.2, BPMN v2.0; thiết kế kiến trúc kỹ thuật                            | [Hoan thanh]   |
 | 2     | Apps Script đồng bộ KiotViet          | `src-dashboard/`: sync đủ trường, webhook 9 event qua queue bền vững, polling 15 phút (Trả hàng/NCC/Nhập hàng) | [Hoan thanh]   |
 | 3     | GAS Web Apps tách theo Sheet          | `src-dashboard/` và `src-order-lifecycle/` chỉ nhận `doPost()`, mỗi project có rootDir/manifest riêng | [Hoan thanh]   |
 | 4     | Backend Node.js/Express               | `server/`: liệt kê/lọc tab, `batchGet` tối đa 9 tab, xử lý tab thiếu và tính ngày giờ Việt Nam   | [Hoan thanh]   |
@@ -138,9 +150,11 @@ server/                     ← Node.js/Express backend (Render.com)
 | 14    | Phân trang bảng client-side | `pagination.js` phân trang ~200 dòng/trang cho `allProducts` và `lowStock`, loại bỏ lag 3.5s khi mở tab Hàng hóa | [Hoan thanh] |
 | 15    | Tối ưu Motion & UI Transitions | Áp dụng shared `--ease-out`, chống re-animate biểu đồ khi chuyển tab/poll, transition mượt mà cho search suggestions, surfaces, debt rows | [Hoan thanh] |
 | 16    | Lớp hiệu ứng 3D Progressive Layer | Tích hợp Three.js r159 particle background, card 3D tilt, tactile buttons, 3D navigation, table staggered rows, 3D loading cube, adaptive performance monitor & memory disposal trên các trang chính | [Hoan thanh] |
-| 17    | Bộ kiểm thử tự động | Bộ **324 unit tests** chuẩn `node:test` bao phủ HR leave, Telegram bot, conversation store, Apps Script sync, auth/Guest/SĐT, Admin CRUD, OTP reset, tra cứu vận chuyển, State Machine 9 trạng thái, Repository VC, cache, pagination, excel export, và frontend | [Hoan thanh] |
+| 17    | Bộ kiểm thử tự động | Bộ **434 unit tests** chuẩn `node:test` bao phủ HR leave, Telegram bot, conversation store, Apps Script sync, auth/Guest/SĐT, Admin CRUD, OTP reset, yêu cầu đổi vai trò, chuông thông báo, kiểm tra đứt hàng Excel-KiotViet, tra cứu vận chuyển, State Machine 9 trạng thái, Repository VC, cache, pagination, excel export, và frontend | [Hoan thanh] |
 | 18    | Tối ưu hóa hiệu năng & Giảm lag (4 Phase) | (1) Gzip compression, Cache-Control static assets, script defer, fonts preconnect, gỡ 3D login/register; (2) rAF throttle `onCardHover`, scoped `TKS3D.refresh()`; (3) Phân trang 100 dòng/trang cho toàn bộ 13 bảng dữ liệu + lazy debt detail; (4) Backend cache 12s theo sheet `vcSheetsClient.js` kèm write invalidation, `vcBatchUpdate` cho `updateOrderItems`, 15s timeout cho Google Sheets API | [Hoan thanh] |
 | 19    | Phân hệ Quản lý Nghỉ phép HR & Telegram Bot | Nghỉ theo Sáng/Chiều, quy đổi số buổi/2, lọc theo thời gian gửi và ghi trạng thái `Vi phạm` khi gửi sau 07:45/12:30; đồng bộ Google Sheet, REST API, `/humanresources/`, Excel và Telegram Bot | [Hoan thanh] |
+| 20    | Chuông thông báo & Đổi vai trò người dùng | Chuông thông báo toàn hệ thống (`/api/notifications`), cơ chế người dùng tự gửi yêu cầu đổi vai trò kèm lý do, Quản lý phê duyệt/từ chối và tự động gửi thông báo | [Hoan thanh] |
+| 21    | Kiểm tra đứt hàng Excel & KiotViet API | Phân hệ `/api/products/stockout-check/*` đọc file Excel tải lên, đối chiếu trực tiếp tồn kho và giao dịch KiotViet API bất đồng bộ theo hàng đợi giới hạn tải, phân tích dòng thời gian và xuất báo cáo Excel | [Hoan thanh] |
 
 ## 2.2. Tính năng đã vận hành
 
@@ -214,4 +228,4 @@ Toàn bộ các tab dashboard hiện có được gộp vào 1 mục menu cha **
 
 ---
 
-*Cập nhật lần cuối: 22/08/2026*
+*Cập nhật lần cuối: 26/08/2026*
