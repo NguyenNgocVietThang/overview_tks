@@ -11,7 +11,8 @@
     "sync:customer-report": "node jobs/syncCustomerReport.js",
     "setup:users-sheet": "node scripts/setupUsersSheet.js",
     "setup:vc-sheet": "node scripts/setupVcSheet.js",
-    "setup:hr-sheet": "node scripts/setupHrSheet.js"
+    "setup:hr-sheet": "node scripts/setupHrSheet.js",
+    "migrate:user-branches": "node scripts/migrateUserBranches.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

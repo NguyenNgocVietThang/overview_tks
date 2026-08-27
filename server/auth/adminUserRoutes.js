@@ -11,6 +11,7 @@ const localUserStore = require('./localUserStore');
 const { ROLES, ACTIVE_STATUS, LOCKED_STATUS, PENDING_STATUS } = localUserStore;
 const { normalizePhone } = require('./userRepository');
 const notificationRepo = require('../notifications/notificationRepository');
+const { normalizeCoSo, BRANCH_VALUES } = require('../branch/branches');
 
 const router = express.Router();
 
@@ -63,7 +64,10 @@ router.post('/api/admin/users', async (req, res) => {
     const email = String(req.body.email || '').trim().toLowerCase();
     const soDienThoai = String(req.body.soDienThoai || '').trim();
     const vaiTro = String(req.body.vaiTro || ROLES.KHACH).trim();
-    const coSo = String(req.body.coSo || '').trim();
+    const rawCoSo = String(req.body.coSo || '').trim();
+    // Chuan hoa ve dung 'Hà Nội' | 'Sài Gòn' | 'Cả hai'; gia tri la ('An Khánh'
+    // /'Tân Phú' cua du lieu cu) van duoc chap nhan va tu doi ten.
+    const coSo = rawCoSo ? normalizeCoSo(rawCoSo) : '';
 
     if (!username) {
       return res.status(400).json({ error: 'Vui lòng nhập tên tài khoản (username).' });
@@ -88,6 +92,9 @@ router.post('/api/admin/users', async (req, res) => {
     }
     if (!VALID_ROLES.includes(vaiTro)) {
       return res.status(400).json({ error: `Vai trò không hợp lệ. Cho phép: ${VALID_ROLES.join(', ')}` });
+    }
+    if (rawCoSo && !coSo) {
+      return res.status(400).json({ error: `Cơ sở phụ trách không hợp lệ. Cho phép: ${BRANCH_VALUES.join(', ')}` });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -177,7 +184,12 @@ router.put('/api/admin/users/:id', async (req, res) => {
     }
 
     if (req.body.coSo !== undefined) {
-      updates.coSo = String(req.body.coSo || '').trim();
+      const rawCoSo = String(req.body.coSo || '').trim();
+      const coSo = rawCoSo ? normalizeCoSo(rawCoSo) : '';
+      if (rawCoSo && !coSo) {
+        return res.status(400).json({ error: `Cơ sở phụ trách không hợp lệ. Cho phép: ${BRANCH_VALUES.join(', ')}` });
+      }
+      updates.coSo = coSo;
     }
 
     if (req.body.vaiTro !== undefined) {

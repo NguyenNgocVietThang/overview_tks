@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const { normalizeCoSo, BRANCH_BOTH } = require('../branch/branches');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const DEFAULT_STORE_PATH = path.join(DATA_DIR, 'users.json');
@@ -149,6 +150,12 @@ function ensureHardcodedAdmins(users) {
       }
       if (u.trangThai !== ACTIVE_STATUS) {
         u.trangThai = ACTIVE_STATUS;
+        modified = true;
+      }
+      // Admin cung phai phu trach ca hai co so, neu khong se bi middleware co so
+      // chan (BRANCH_UNASSIGNED) du dang la Quan ly.
+      if (normalizeCoSo(u.coSo) !== BRANCH_BOTH) {
+        u.coSo = BRANCH_BOTH;
         modified = true;
       }
     }
@@ -365,7 +372,9 @@ async function createUser(userData) {
     sdtKhoiPhuc: userData.sdtKhoiPhuc ? String(userData.sdtKhoiPhuc).trim() : '',
     passwordHash: userData.passwordHash || '',
     vaiTro: isTargetAdmin ? ROLES.QUAN_LY : (userData.vaiTro || ROLES.KHACH),
-    coSo: userData.coSo || (isTargetAdmin ? 'Cả hai' : ''),
+    // Chuan hoa mot lan nua o day (ngoai adminUserRoutes) vi cac script setup
+    // ghi thang vao store, khong di qua route.
+    coSo: normalizeCoSo(userData.coSo) || (isTargetAdmin ? BRANCH_BOTH : ''),
     trangThai: isTargetAdmin ? ACTIVE_STATUS : (userData.trangThai || ACTIVE_STATUS),
     ngayTao: userData.ngayTao || formatDateVN(),
     dangNhapGanNhat: userData.dangNhapGanNhat || ''
@@ -417,6 +426,11 @@ async function updateUser(id, updates) {
     }
   }
 
+  // Admin cung luon phu trach ca hai co so — neu de rong ho se bi
+  // BRANCH_UNASSIGNED chan khoi moi du lieu, ke ca khi dang la Quan ly.
+  const safeCoSo = isTargetAdmin
+    ? BRANCH_BOTH
+    : (updates.coSo !== undefined ? normalizeCoSo(updates.coSo) : normalizeCoSo(current.coSo));
   const safeVaiTro = isTargetAdmin ? ROLES.QUAN_LY : (updates.vaiTro !== undefined ? String(updates.vaiTro).trim() : current.vaiTro);
   const safeTrangThai = isTargetAdmin ? ACTIVE_STATUS : (updates.trangThai !== undefined ? String(updates.trangThai).trim() : current.trangThai);
 
@@ -424,6 +438,7 @@ async function updateUser(id, updates) {
     ...current,
     ...updates,
     id: current.id, // ID không được đổi
+    coSo: safeCoSo,
     vaiTro: safeVaiTro,
     trangThai: safeTrangThai,
     username: updates.username !== undefined ? String(updates.username).trim() : current.username,

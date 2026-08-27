@@ -218,3 +218,47 @@ test('Admin User Management: POST /api/admin/users/:id/reset-password đặt l�
   const updated = await localUserStore.getUserById('user-2');
   assert.notEqual(updated.passwordHash, 'old-hash');
 });
+
+test('Admin User Management: POST /api/admin/users từ chối cơ sở không hợp lệ', async () => {
+  localUserStore.setInMemoryUsers([]);
+
+  const handler = getRouteHandler(adminUserRoutes, 'post', '/api/admin/users');
+  const req = {
+    user: { id: 'admin-1', vaiTro: 'Quản lý' },
+    body: {
+      username: 'nv_sai_coso',
+      password: 'MatKhau@123',
+      hoTen: 'Nhân viên',
+      vaiTro: 'Kế toán',
+      coSo: 'Đà Nẵng'
+    }
+  };
+  const res = fakeRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 400);
+  assert.match(res.body.error, /Cơ sở phụ trách không hợp lệ/);
+});
+
+test('Admin User Management: POST /api/admin/users tự đổi tên cơ sở cũ sang tên mới', async () => {
+  localUserStore.setInMemoryUsers([]);
+
+  const handler = getRouteHandler(adminUserRoutes, 'post', '/api/admin/users');
+  const req = {
+    user: { id: 'admin-1', vaiTro: 'Quản lý' },
+    body: {
+      username: 'nv_an_khanh',
+      password: 'MatKhau@123',
+      hoTen: 'Nhân viên An Khánh',
+      vaiTro: 'Kế toán',
+      coSo: 'An Khánh'
+    }
+  };
+  const res = fakeRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.user.coSo, 'Hà Nội');
+});

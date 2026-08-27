@@ -480,8 +480,8 @@
               </select>
               <select id="userFacilityFilter" class="filter-select" onchange="handleFilterUsers()">
                 <option value="">Tất cả cơ sở</option>
-                <option value="An Khánh">An Khánh</option>
-                <option value="Tân Phú">Tân Phú</option>
+                <option value="Hà Nội">Hà Nội</option>
+                <option value="Sài Gòn">Sài Gòn</option>
                 <option value="Cả hai">Cả hai</option>
               </select>
               <select id="userStatusFilter" class="filter-select" onchange="handleFilterUsers()">
@@ -574,8 +574,8 @@
             <label for="createCoSo">Cơ sở phụ trách</label>
             <select id="createCoSo" class="form-control">
               <option value="">-- Không phân cơ sở --</option>
-              <option value="An Khánh">An Khánh</option>
-              <option value="Tân Phú">Tân Phú</option>
+              <option value="Hà Nội">Hà Nội</option>
+              <option value="Sài Gòn">Sài Gòn</option>
               <option value="Cả hai">Cả hai</option>
             </select>
           </div>
@@ -633,8 +633,8 @@
             <label for="editCoSo">Cơ sở phụ trách</label>
             <select id="editCoSo" class="form-control">
               <option value="">-- Không phân cơ sở --</option>
-              <option value="An Khánh">An Khánh</option>
-              <option value="Tân Phú">Tân Phú</option>
+              <option value="Hà Nội">Hà Nội</option>
+              <option value="Sài Gòn">Sài Gòn</option>
               <option value="Cả hai">Cả hai</option>
             </select>
           </div>
@@ -1129,7 +1129,8 @@
                              (u.username && u.username.toLowerCase().includes(q)) ||
                              (u.email && u.email.toLowerCase().includes(q));
         const matchRole = !roleFilter || u.vaiTro === roleFilter;
-        const matchFac = !facFilter || (facFilter === 'Cả hai' ? (u.coSo === 'Cả hai' || u.coSo === 'An Khánh' || u.coSo === 'Tân Phú') : u.coSo === facFilter);
+        // "Cả hai" trong bo loc = xem moi tai khoan da duoc gan co so (bat ky co so nao).
+        const matchFac = !facFilter || (facFilter === 'Cả hai' ? !!u.coSo : u.coSo === facFilter);
         const matchStatus = !stFilter || u.trangThai === stFilter;
         return matchQ && matchRole && matchFac && matchStatus;
       });
