@@ -92,7 +92,7 @@ router.get('/api/shipment/orders', ...authInternal, async (req, res) => {
       driverName: driverName || undefined,
       dateFrom:   dateFrom   || undefined,
       dateTo:     dateTo     || undefined
-    });
+    }, req.branch);
     res.status(200).json({ orders });
   } catch (err) {
     handleError(res, err, 'GET /api/shipment/orders');
@@ -105,7 +105,7 @@ router.get('/api/shipment/orders', ...authInternal, async (req, res) => {
 
 router.get('/api/shipment/orders/:orderId', ...authInternal, async (req, res) => {
   try {
-    const order = await repo.getOrderById(req.params.orderId);
+    const order = await repo.getOrderById(req.params.orderId, req.branch);
     if (!order) {
       return res.status(404).json({ error: `Không tìm thấy đơn vận chuyển "${req.params.orderId}".`, code: 'ORDER_NOT_FOUND' });
     }
@@ -134,7 +134,7 @@ router.post('/api/shipment/orders', ...authDispatch, async (req, res) => {
 
     if (kiotviet_code) {
       try {
-        const invoiceRows = await sheetsClient.getValues(CONFIG.SHEET_INVOICES);
+        const invoiceRows = await sheetsClient.getSheetsClient(req.branch).getValues(CONFIG.SHEET_INVOICES);
         if (invoiceRows.length > 0) {
           const headers = invoiceRows[0];
           const codeIdx = headers.findIndex(h => String(h || '').trim() === 'Mã hóa đơn');
@@ -170,7 +170,7 @@ router.post('/api/shipment/orders', ...authDispatch, async (req, res) => {
       customer_phone: resolvedCustomerPhone,
       address:        resolvedAddress,
       items: Array.isArray(items) ? items : []
-    });
+    }, req.branch);
 
     res.status(201).json({ order });
   } catch (err) {
@@ -187,7 +187,7 @@ router.patch('/api/shipment/orders/:orderId', ...authDispatch, async (req, res) 
     const { vehicle_id, driver_name, customer_name, customer_phone, address, freight_amount, freight_note } = req.body || {};
     const order = await repo.updateOrderMeta(req.params.orderId, {
       vehicle_id, driver_name, customer_name, customer_phone, address, freight_amount, freight_note
-    });
+    }, req.branch);
     res.status(200).json({ order });
   } catch (err) {
     handleError(res, err, 'PATCH /api/shipment/orders/:orderId');
@@ -205,7 +205,7 @@ router.post('/api/shipment/orders/:orderId/transition', ...authInternal, async (
       return res.status(400).json({ error: 'Thiếu trường "to_status".', code: 'INVALID_TRANSITION' });
     }
     const changedBy = (req.user && (req.user.hoTen || req.user.username)) || 'unknown';
-    const order = await repo.transitionOrderStatus(req.params.orderId, to_status, { changedBy, note });
+    const order = await repo.transitionOrderStatus(req.params.orderId, to_status, { changedBy, note }, req.branch);
     res.status(200).json({ order });
   } catch (err) {
     handleError(res, err, 'POST /api/shipment/orders/:orderId/transition');
@@ -222,7 +222,7 @@ router.patch('/api/shipment/orders/:orderId/items', ...authInternal, async (req,
     if (!Array.isArray(items)) {
       return res.status(400).json({ error: 'Trường "items" phải là mảng.', code: 'INVALID_REQUEST' });
     }
-    await repo.updateOrderItems(req.params.orderId, items);
+    await repo.updateOrderItems(req.params.orderId, items, req.branch);
     res.status(200).json({ success: true });
   } catch (err) {
     handleError(res, err, 'PATCH /api/shipment/orders/:orderId/items');
@@ -249,7 +249,7 @@ router.post('/api/shipment/orders/:orderId/attachments', ...authInternal, upload
     }
 
     // Kiem tra don ton tai
-    const order = await repo.getOrderById(orderId);
+    const order = await repo.getOrderById(orderId, req.branch);
     if (!order) {
       return res.status(404).json({ error: `Không tìm thấy đơn vận chuyển "${orderId}".`, code: 'ORDER_NOT_FOUND' });
     }
@@ -260,7 +260,8 @@ router.post('/api/shipment/orders/:orderId/attachments', ...authInternal, upload
       type,
       fileBuffer:   req.file.buffer,
       mimeType:     req.file.mimetype,
-      originalName: req.file.originalname
+      originalName: req.file.originalname,
+      branch:       req.branch
     });
 
     const uploadedBy = (req.user && (req.user.hoTen || req.user.username)) || 'unknown';
@@ -272,7 +273,7 @@ router.post('/api/shipment/orders/:orderId/attachments', ...authInternal, upload
       drive_view_url:      driveResult.drive_view_url,
       drive_thumbnail_url: driveResult.drive_thumbnail_url,
       uploadedBy
-    });
+    }, req.branch);
 
     // 4.4 — Tu dong hoan thanh neu dieu kien dap ung
     let updatedOrder = null;
@@ -283,7 +284,7 @@ router.post('/api/shipment/orders/:orderId/attachments', ...authInternal, upload
       try {
         updatedOrder = await repo.transitionOrderStatus(orderId, ORDER_STATUS.HOAN_THANH, {
           changedBy: 'system:auto-complete'
-        });
+        }, req.branch);
       } catch (autoErr) {
         // Neu auto-complete that bai (vd: race condition trang thai da doi),
         // khong lam fail request upload — chi log canh bao
@@ -305,7 +306,7 @@ router.post('/api/shipment/orders/:orderId/attachments', ...authInternal, upload
 
 router.get('/api/shipment/orders/:orderId/attachments', ...authInternal, async (req, res) => {
   try {
-    const attachments = await repo.listAttachments(req.params.orderId);
+    const attachments = await repo.listAttachments(req.params.orderId, req.branch);
     res.status(200).json({ attachments });
   } catch (err) {
     handleError(res, err, 'GET /api/shipment/orders/:orderId/attachments');
@@ -323,7 +324,7 @@ router.post('/api/shipment/orders/:orderId/exceptions', ...authInternal, async (
       return res.status(400).json({ error: 'Thiếu trường "type" hoặc "description".', code: 'INVALID_REQUEST' });
     }
     const changedBy = (req.user && (req.user.hoTen || req.user.username)) || 'unknown';
-    const result = await repo.createException(req.params.orderId, { stage, type, description, changedBy });
+    const result = await repo.createException(req.params.orderId, { stage, type, description, changedBy }, req.branch);
     res.status(201).json(result);
   } catch (err) {
     handleError(res, err, 'POST /api/shipment/orders/:orderId/exceptions');
@@ -337,7 +338,7 @@ router.post('/api/shipment/orders/:orderId/exceptions', ...authInternal, async (
 router.get('/api/shipment/exceptions', ...authInternal, async (req, res) => {
   try {
     const { status } = req.query;
-    const exceptions = await repo.listExceptions(status ? { status } : {});
+    const exceptions = await repo.listExceptions(status ? { status } : {}, req.branch);
     res.status(200).json({ exceptions });
   } catch (err) {
     handleError(res, err, 'GET /api/shipment/exceptions');
@@ -358,7 +359,7 @@ router.patch('/api/shipment/exceptions/:exceptionId', ...authInternal, async (re
       });
     }
     const resolver = (req.user && (req.user.hoTen || req.user.username)) || 'unknown';
-    const result = await repo.resolveException(req.params.exceptionId, { resolution, resolver, note });
+    const result = await repo.resolveException(req.params.exceptionId, { resolution, resolver, note }, req.branch);
     res.status(200).json(result);
   } catch (err) {
     handleError(res, err, 'PATCH /api/shipment/exceptions/:exceptionId');
@@ -371,7 +372,7 @@ router.patch('/api/shipment/exceptions/:exceptionId', ...authInternal, async (re
 
 router.get('/api/shipment/vehicles', ...authInternal, async (req, res) => {
   try {
-    const vehicles = await repo.getVehicles();
+    const vehicles = await repo.getVehicles(req.branch);
     res.status(200).json({ vehicles });
   } catch (err) {
     handleError(res, err, 'GET /api/shipment/vehicles');
@@ -388,7 +389,7 @@ router.post('/api/shipment/vehicles', ...authDispatch, async (req, res) => {
     if (!vehicle_id || !plate_number || !vehicle_type) {
       return res.status(400).json({ error: 'Thiếu trường bắt buộc: vehicle_id, plate_number, vehicle_type.', code: 'INVALID_REQUEST' });
     }
-    const vehicle = await repo.createVehicle({ vehicle_id, plate_number, vehicle_type, default_driver, max_weight, notes });
+    const vehicle = await repo.createVehicle({ vehicle_id, plate_number, vehicle_type, default_driver, max_weight, notes }, req.branch);
     res.status(201).json({ vehicle });
   } catch (err) {
     handleError(res, err, 'POST /api/shipment/vehicles');
@@ -402,7 +403,7 @@ router.post('/api/shipment/vehicles', ...authDispatch, async (req, res) => {
 router.patch('/api/shipment/vehicles/:vehicleId', ...authDispatch, async (req, res) => {
   try {
     const { plate_number, vehicle_type, default_driver, max_weight, notes } = req.body || {};
-    const vehicle = await repo.updateVehicle(req.params.vehicleId, { plate_number, vehicle_type, default_driver, max_weight, notes });
+    const vehicle = await repo.updateVehicle(req.params.vehicleId, { plate_number, vehicle_type, default_driver, max_weight, notes }, req.branch);
     res.status(200).json({ vehicle });
   } catch (err) {
     handleError(res, err, 'PATCH /api/shipment/vehicles/:vehicleId');
@@ -418,7 +419,7 @@ router.get('/api/shipment/invoices/pending', ...authDispatch, async (req, res) =
     const { dateFrom, dateTo } = req.query;
 
     // Doc sheet Hoa don goc KiotViet
-    const invoiceRows = await sheetsClient.getValues(CONFIG.SHEET_INVOICES);
+    const invoiceRows = await sheetsClient.getSheetsClient(req.branch).getValues(CONFIG.SHEET_INVOICES);
     if (!invoiceRows.length) return res.status(200).json({ invoices: [] });
 
     const [headers, ...dataRows] = invoiceRows;
@@ -436,7 +437,7 @@ router.get('/api/shipment/invoices/pending', ...authDispatch, async (req, res) =
     }
 
     // Doc tat ca don VC de biet kiotviet_code da ton tai
-    const existingOrders = await repo.getOrders({});
+    const existingOrders = await repo.getOrders({}, req.branch);
     const usedCodes = new Set(
       existingOrders.map(o => String(o.kiotviet_code || '').trim()).filter(Boolean)
     );

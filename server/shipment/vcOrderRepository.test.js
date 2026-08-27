@@ -781,3 +781,22 @@ test('sameKeyValue: null/undefined khong bao gio khop (chan bay colMap = -1)', (
   assert.equal(sameKeyValue(undefined, 'SP-A'), false);
   assert.equal(sameKeyValue('SP-A', undefined), false);
 });
+
+test('repository doc/ghi qua dung client cua co so duoc truyen vao', async () => {
+  const { repo } = freshRepo();
+  const vcClient = require('../sheets/vcSheetsClient');
+  const { BRANCHES } = require('../branch/branches');
+  const seen = [];
+  const VEH_HEADERS = ['Mã xe', 'Biển số xe', 'Loại xe', 'Tài xế mặc định', 'Tải trọng tối đa (kg)', 'Ghi chú'];
+
+  vcClient.getVcClient = (branch) => {
+    seen.push(branch);
+    return { vcGetValues: async () => [VEH_HEADERS] };
+  };
+
+  await repo.getVehicles(BRANCHES.SAIGON);
+  await repo.getVehicles(BRANCHES.HANOI);
+  await repo.getVehicles(); // khong truyen => mac dinh Ha Noi o tang client
+
+  assert.deepEqual(seen, [BRANCHES.SAIGON, BRANCHES.HANOI, undefined]);
+});

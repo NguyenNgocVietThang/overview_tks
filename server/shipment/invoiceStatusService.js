@@ -8,7 +8,17 @@ const sheetsClient = require('../sheets/sheetsClient');
 const CACHE_TTL_MS = 90 * 1000;
 const MAX_CODES = 50;
 
-let invoiceCache = { rows: null, expiresAt: 0, loading: null };
+// Cache theo CO SO: hai co so doc hai sheet Hoa don khac nhau.
+const { BRANCHES } = require('../branch/branches');
+let invoiceCacheByBranch = new Map();
+
+function invoiceCacheFor(branch) {
+  const key = branch || BRANCHES.HANOI;
+  if (!invoiceCacheByBranch.has(key)) {
+    invoiceCacheByBranch.set(key, { rows: null, expiresAt: 0, loading: null });
+  }
+  return invoiceCacheByBranch.get(key);
+}
 
 function normalizeCode(value) {
   return String(value === undefined || value === null ? '' : value)
@@ -20,20 +30,21 @@ function codeKey(value) {
   return normalizeCode(value).toLocaleLowerCase('vi-VN');
 }
 
-async function getInvoiceRows() {
-  if (invoiceCache.rows && Date.now() < invoiceCache.expiresAt) return invoiceCache.rows;
-  if (invoiceCache.loading) return invoiceCache.loading;
+async function getInvoiceRows(branch) {
+  const cache = invoiceCacheFor(branch);
+  if (cache.rows && Date.now() < cache.expiresAt) return cache.rows;
+  if (cache.loading) return cache.loading;
 
-  const loading = sheetsClient.getValues(CONFIG.SHEET_INVOICES)
+  const loading = sheetsClient.getSheetsClient(branch).getValues(CONFIG.SHEET_INVOICES)
     .then(rows => {
-      invoiceCache.rows = rows;
-      invoiceCache.expiresAt = Date.now() + CACHE_TTL_MS;
+      cache.rows = rows;
+      cache.expiresAt = Date.now() + CACHE_TTL_MS;
       return rows;
     })
     .finally(() => {
-      if (invoiceCache.loading === loading) invoiceCache.loading = null;
+      if (cache.loading === loading) cache.loading = null;
     });
-  invoiceCache.loading = loading;
+  cache.loading = loading;
   return loading;
 }
 
@@ -77,11 +88,11 @@ function validateCodes(rawCodes) {
   return codes;
 }
 
-async function lookupInvoiceStatuses(rawCodes) {
+async function lookupInvoiceStatuses(rawCodes, branch) {
   const codes = validateCodes(rawCodes);
   if (!codes.length) return [];
 
-  const rows = await getInvoiceRows();
+  const rows = await getInvoiceRows(branch);
   const headers = rows[0] || [];
   const codeIndex = headers.findIndex(header => normalizeCode(header) === 'Mã hóa đơn');
   const statusIndex = headers.findIndex(header => normalizeCode(header) === 'Trạng thái');
@@ -112,7 +123,7 @@ module.exports = {
   MAX_CODES,
   __test__: {
     resetCache() {
-      invoiceCache = { rows: null, expiresAt: 0, loading: null };
+      invoiceCacheByBranch = new Map();
     }
   }
 };

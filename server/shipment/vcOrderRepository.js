@@ -17,6 +17,8 @@
 'use strict';
 
 const CONFIG = require('../config');
+// Moi ham nghiep vu nhan `branch` (tham so CUOI, mac dinh = Ha Noi) roi tu lay
+// client cua dung co so do — hai co so dung hai spreadsheet van chuyen rieng.
 const vcClient = require('../sheets/vcSheetsClient');
 const { ORDER_STATUS, canTransition, describeTransition } = require('./orderStateMachine');
 
@@ -216,9 +218,10 @@ function makeError(message, statusCode, code) {
  * @param {{ warehouse?, flow?, status?, driverName?, dateFrom?, dateTo? }} filter
  * @returns {Promise<object[]>}
  */
-async function getOrders(filter = {}) {
+async function getOrders(filter = {}, branch) {
+  const client = vcClient.getVcClient(branch);
   const { warehouse, flow, status, driverName, dateFrom, dateTo } = filter;
-  const rawRows = await vcClient.vcGetValues(CONFIG.VC_SHEET_ORDERS);
+  const rawRows = await client.vcGetValues(CONFIG.VC_SHEET_ORDERS);
   const orders = rowsToObjects(SCHEMA.orders.headers, SCHEMA.orders.fieldKeys, rawRows);
 
   return orders.filter(o => {
@@ -240,9 +243,10 @@ async function getOrders(filter = {}) {
  * @param {string} orderId
  * @returns {Promise<object|null>}
  */
-async function getOrderById(orderId) {
+async function getOrderById(orderId, branch) {
+  const client = vcClient.getVcClient(branch);
   // Dung vcGetMultipleSheetValues (1 lan goi API) thay vi goi rieng le tung tab
-  const sheetData = await vcClient.vcGetMultipleSheetValues([
+  const sheetData = await client.vcGetMultipleSheetValues([
     CONFIG.VC_SHEET_ORDERS,
     CONFIG.VC_SHEET_ORDER_ITEMS,
     CONFIG.VC_SHEET_STATUS_HISTORY,
@@ -280,9 +284,10 @@ async function getOrderById(orderId) {
  * @returns {Promise<object>}  Order vua tao kem items
  */
 async function createOrder({ kiotviet_code, warehouse, flow, vehicle_id, driver_name,
-                              customer_name, customer_phone, address, items }) {
+                              customer_name, customer_phone, address, items }, branch) {
+  const client = vcClient.getVcClient(branch);
   // Doc tat ca du lieu can thiet truoc khi ghi
-  const rawOrders = await vcClient.vcGetValues(CONFIG.VC_SHEET_ORDERS);
+  const rawOrders = await client.vcGetValues(CONFIG.VC_SHEET_ORDERS);
   const existingOrders = rowsToObjects(SCHEMA.orders.headers, SCHEMA.orders.fieldKeys, rawOrders);
 
   // Don do webhook KiotViet tao truoc o trang thai MOI_TAO se duoc giao cho
@@ -315,7 +320,7 @@ async function createOrder({ kiotviet_code, warehouse, flow, vehicle_id, driver_
       throw makeError(`Không tìm thấy dòng dữ liệu cho hóa đơn "${kiotviet_code}".`, 409, 'ORDER_ROW_NOT_FOUND');
     }
 
-    await vcClient.vcUpdateRow(
+    await client.vcUpdateRow(
       CONFIG.VC_SHEET_ORDERS,
       existingRowIndex + 1,
       objectToRow(SCHEMA.orders.fieldKeys, claimedOrder)
@@ -330,12 +335,12 @@ async function createOrder({ kiotviet_code, warehouse, flow, vehicle_id, driver_
       changed_at: now,
       note: 'Nhận xử lý đơn đã đồng bộ từ KiotViet'
     };
-    await vcClient.vcAppendRow(
+    await client.vcAppendRow(
       CONFIG.VC_SHEET_STATUS_HISTORY,
       objectToRow(SCHEMA.statusHistory.fieldKeys, historyObj)
     );
 
-    const rawItems = await vcClient.vcGetValues(CONFIG.VC_SHEET_ORDER_ITEMS);
+    const rawItems = await client.vcGetValues(CONFIG.VC_SHEET_ORDER_ITEMS);
     let savedItems = rowsToObjects(
       SCHEMA.orderItems.headers,
       SCHEMA.orderItems.fieldKeys,
@@ -354,7 +359,7 @@ async function createOrder({ kiotviet_code, warehouse, flow, vehicle_id, driver_
           unit:             item.unit             || '',
           notes:            item.notes            || ''
         };
-        await vcClient.vcAppendRow(
+        await client.vcAppendRow(
           CONFIG.VC_SHEET_ORDER_ITEMS,
           objectToRow(SCHEMA.orderItems.fieldKeys, itemObj)
         );
@@ -394,7 +399,7 @@ async function createOrder({ kiotviet_code, warehouse, flow, vehicle_id, driver_
     updated_at:    now
   };
 
-  await vcClient.vcAppendRow(CONFIG.VC_SHEET_ORDERS, objectToRow(SCHEMA.orders.fieldKeys, orderObj));
+  await client.vcAppendRow(CONFIG.VC_SHEET_ORDERS, objectToRow(SCHEMA.orders.fieldKeys, orderObj));
 
   // Kiem tra dung do sinh order_id khi 2 request createOrder chay gan nhu
   // dong thoi (vd 2 ke toan tao don cung luc, hoac double-click submit):
@@ -411,7 +416,7 @@ async function createOrder({ kiotviet_code, warehouse, flow, vehicle_id, driver_
   // (vd ghi log, goi API phu) vao giua 2 dong nay, van con dung ve mat "doc du
   // lieu moi nhat", nhung se keo dai thoi gian ho (window) truoc khi phat hien
   // trung order_id — nen tranh chen them await khong can thiet vao doan nay.
-  const rawOrdersAfterAppend = await vcClient.vcGetValues(CONFIG.VC_SHEET_ORDERS);
+  const rawOrdersAfterAppend = await client.vcGetValues(CONFIG.VC_SHEET_ORDERS);
   const dupCount = rawOrdersAfterAppend
     .slice(1)
     .filter(row => row[0] === order_id).length;
@@ -433,7 +438,7 @@ async function createOrder({ kiotviet_code, warehouse, flow, vehicle_id, driver_
     changed_at: now,
     note: ''
   };
-  await vcClient.vcAppendRow(CONFIG.VC_SHEET_STATUS_HISTORY, objectToRow(SCHEMA.statusHistory.fieldKeys, historyObj));
+  await client.vcAppendRow(CONFIG.VC_SHEET_STATUS_HISTORY, objectToRow(SCHEMA.statusHistory.fieldKeys, historyObj));
 
   // Ghi tung item
   const savedItems = [];
@@ -447,7 +452,7 @@ async function createOrder({ kiotviet_code, warehouse, flow, vehicle_id, driver_
       unit:             item.unit             || '',
       notes:            item.notes            || ''
     };
-    await vcClient.vcAppendRow(CONFIG.VC_SHEET_ORDER_ITEMS, objectToRow(SCHEMA.orderItems.fieldKeys, itemObj));
+    await client.vcAppendRow(CONFIG.VC_SHEET_ORDER_ITEMS, objectToRow(SCHEMA.orderItems.fieldKeys, itemObj));
     savedItems.push(itemObj);
   }
 
@@ -464,8 +469,9 @@ async function createOrder({ kiotviet_code, warehouse, flow, vehicle_id, driver_
  *           address?, freight_amount?, freight_note? }} patch
  * @returns {Promise<object>}  Order da cap nhat
  */
-async function updateOrderMeta(orderId, patch) {
-  const rawRows = await vcClient.vcGetValues(CONFIG.VC_SHEET_ORDERS);
+async function updateOrderMeta(orderId, patch, branch) {
+  const client = vcClient.getVcClient(branch);
+  const rawRows = await client.vcGetValues(CONFIG.VC_SHEET_ORDERS);
   if (!rawRows.length) throw makeError(`Không tìm thấy đơn vận chuyển "${orderId}".`, 404, 'ORDER_NOT_FOUND');
 
   const [headerRow, ...dataRows] = rawRows;
@@ -498,7 +504,7 @@ async function updateOrderMeta(orderId, patch) {
   if (colMap.updated_at >= 0) row[colMap.updated_at] = now;
 
   // rowIndex 1-based (1 = header, 2 = dong dau tien)
-  await vcClient.vcUpdateRow(CONFIG.VC_SHEET_ORDERS, rowIdx + 2, row);
+  await client.vcUpdateRow(CONFIG.VC_SHEET_ORDERS, rowIdx + 2, row);
 
   // Tra ve object da cap nhat
   const updatedObj = {};
@@ -519,7 +525,8 @@ async function updateOrderMeta(orderId, patch) {
  * @param {{ changedBy: string, note?: string }} opts
  * @returns {Promise<object>}  Order da cap nhat
  */
-async function transitionOrderStatus(orderId, toStatus, { changedBy, note = '' }) {
+async function transitionOrderStatus(orderId, toStatus, { changedBy, note = '' }, branch) {
+  const client = vcClient.getVcClient(branch);
   // Chan cung: khong cho phep chuyen sang SU_CO qua endpoint transition chung.
   // Chuyen sang SU_CO BAT BUOC di kem 1 dong trong "Su co van chuyen" + luu
   // prev_status trong note lich su (spec muc 4.3) — chi createException() lam
@@ -533,7 +540,7 @@ async function transitionOrderStatus(orderId, toStatus, { changedBy, note = '' }
     );
   }
 
-  const rawRows = await vcClient.vcGetValues(CONFIG.VC_SHEET_ORDERS);
+  const rawRows = await client.vcGetValues(CONFIG.VC_SHEET_ORDERS);
   if (!rawRows.length) throw makeError(`Không tìm thấy đơn vận chuyển "${orderId}".`, 404, 'ORDER_NOT_FOUND');
 
   const [headerRow, ...dataRows] = rawRows;
@@ -572,7 +579,7 @@ async function transitionOrderStatus(orderId, toStatus, { changedBy, note = '' }
   if (colMap.current_status >= 0) row[colMap.current_status] = toStatus;
   if (colMap.updated_at      >= 0) row[colMap.updated_at]    = now;
 
-  await vcClient.vcUpdateRow(CONFIG.VC_SHEET_ORDERS, rowIdx + 2, row);
+  await client.vcUpdateRow(CONFIG.VC_SHEET_ORDERS, rowIdx + 2, row);
 
   // Ghi lich su trang thai
   const historyObj = {
@@ -584,7 +591,7 @@ async function transitionOrderStatus(orderId, toStatus, { changedBy, note = '' }
     changed_at:  now,
     note
   };
-  await vcClient.vcAppendRow(CONFIG.VC_SHEET_STATUS_HISTORY, objectToRow(SCHEMA.statusHistory.fieldKeys, historyObj));
+  await client.vcAppendRow(CONFIG.VC_SHEET_STATUS_HISTORY, objectToRow(SCHEMA.statusHistory.fieldKeys, historyObj));
 
   // Tra ve order da cap nhat
   const updatedObj = {};
@@ -676,10 +683,11 @@ function sameKeyValue(cellValue, patchValue) {
  * @param {{ product_code: string, quantity_picked?: any, notes?: string }[]} items
  * @returns {Promise<void>}
  */
-async function updateOrderItems(orderId, items) {
+async function updateOrderItems(orderId, items, branch) {
+  const client = vcClient.getVcClient(branch);
   if (!Array.isArray(items) || items.length === 0) return;
 
-  const rawRows = await vcClient.vcGetValues(CONFIG.VC_SHEET_ORDER_ITEMS);
+  const rawRows = await client.vcGetValues(CONFIG.VC_SHEET_ORDER_ITEMS);
   if (!rawRows.length) return;
 
   const [headerRow, ...dataRows] = rawRows;
@@ -719,7 +727,7 @@ async function updateOrderItems(orderId, items) {
   if (pendingRows.length === 0) return;
 
   // Buoc 2: doi sang sheetId SO — spreadsheets.batchUpdate khong nhan ten tab.
-  const sheetId = await vcClient.vcGetSheetId(CONFIG.VC_SHEET_ORDER_ITEMS);
+  const sheetId = await client.vcGetSheetId(CONFIG.VC_SHEET_ORDER_ITEMS);
 
   // Buoc 3: 1 request updateCells cho moi dong, gui TAT CA trong 1 lan goi API.
   //
@@ -746,7 +754,7 @@ async function updateOrderItems(orderId, items) {
     }
   }));
 
-  await vcClient.vcBatchUpdate(requests);
+  await client.vcBatchUpdate(requests);
 }
 
 // ---------------------------------------------------------------------------
@@ -758,7 +766,8 @@ async function updateOrderItems(orderId, items) {
  * @param {{ type, drive_file_id, drive_view_url, drive_thumbnail_url, uploadedBy, ocr_text? }} params
  * @returns {Promise<object>}  Attachment vua ghi
  */
-async function appendAttachment(orderId, { type, drive_file_id, drive_view_url, drive_thumbnail_url, uploadedBy, ocr_text }) {
+async function appendAttachment(orderId, { type, drive_file_id, drive_view_url, drive_thumbnail_url, uploadedBy, ocr_text }, branch) {
+  const client = vcClient.getVcClient(branch);
   const now = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
   const attachmentObj = {
     attachment_id:      generateId('ATT'),
@@ -771,7 +780,7 @@ async function appendAttachment(orderId, { type, drive_file_id, drive_view_url, 
     uploaded_at:        now,
     ocr_text:           ocr_text          || ''
   };
-  await vcClient.vcAppendRow(CONFIG.VC_SHEET_ATTACHMENTS, objectToRow(SCHEMA.attachments.fieldKeys, attachmentObj));
+  await client.vcAppendRow(CONFIG.VC_SHEET_ATTACHMENTS, objectToRow(SCHEMA.attachments.fieldKeys, attachmentObj));
   return attachmentObj;
 }
 
@@ -783,8 +792,9 @@ async function appendAttachment(orderId, { type, drive_file_id, drive_view_url, 
  * @param {string} orderId
  * @returns {Promise<object[]>}
  */
-async function listAttachments(orderId) {
-  const rawRows = await vcClient.vcGetValues(CONFIG.VC_SHEET_ATTACHMENTS);
+async function listAttachments(orderId, branch) {
+  const client = vcClient.getVcClient(branch);
+  const rawRows = await client.vcGetValues(CONFIG.VC_SHEET_ATTACHMENTS);
   const all = rowsToObjects(SCHEMA.attachments.headers, SCHEMA.attachments.fieldKeys, rawRows);
   return all.filter(a => a.order_id === orderId);
 }
@@ -804,9 +814,10 @@ async function listAttachments(orderId) {
  * @param {{ stage?, type, description, changedBy }} params
  * @returns {Promise<{ exception: object, order: object }>}
  */
-async function createException(orderId, { stage, type, description, changedBy }) {
+async function createException(orderId, { stage, type, description, changedBy }, branch) {
+  const client = vcClient.getVcClient(branch);
   // Doc trang thai hien tai
-  const rawOrders = await vcClient.vcGetValues(CONFIG.VC_SHEET_ORDERS);
+  const rawOrders = await client.vcGetValues(CONFIG.VC_SHEET_ORDERS);
   if (!rawOrders.length) throw makeError(`Không tìm thấy đơn vận chuyển "${orderId}".`, 404, 'ORDER_NOT_FOUND');
 
   const [headerRow, ...dataRows] = rawOrders;
@@ -841,7 +852,7 @@ async function createException(orderId, { stage, type, description, changedBy })
   while (updatedRow.length < fieldKeys.length) updatedRow.push('');
   if (colMap.current_status >= 0) updatedRow[colMap.current_status] = ORDER_STATUS.SU_CO;
   if (colMap.updated_at      >= 0) updatedRow[colMap.updated_at]    = now;
-  await vcClient.vcUpdateRow(CONFIG.VC_SHEET_ORDERS, rowIdx + 2, updatedRow);
+  await client.vcUpdateRow(CONFIG.VC_SHEET_ORDERS, rowIdx + 2, updatedRow);
 
   // Ghi lich su: luu prev_status trong truong note theo quy uoc spec 4.3
   const historyObj = {
@@ -853,7 +864,7 @@ async function createException(orderId, { stage, type, description, changedBy })
     changed_at:  now,
     note:        `prev_status:${prevStatus}`
   };
-  await vcClient.vcAppendRow(CONFIG.VC_SHEET_STATUS_HISTORY, objectToRow(SCHEMA.statusHistory.fieldKeys, historyObj));
+  await client.vcAppendRow(CONFIG.VC_SHEET_STATUS_HISTORY, objectToRow(SCHEMA.statusHistory.fieldKeys, historyObj));
 
   // Ghi dong Su co van chuyen
   const exceptionObj = {
@@ -867,7 +878,7 @@ async function createException(orderId, { stage, type, description, changedBy })
     created_at:   now,
     resolved_at:  ''
   };
-  await vcClient.vcAppendRow(CONFIG.VC_SHEET_EXCEPTIONS, objectToRow(SCHEMA.exceptions.fieldKeys, exceptionObj));
+  await client.vcAppendRow(CONFIG.VC_SHEET_EXCEPTIONS, objectToRow(SCHEMA.exceptions.fieldKeys, exceptionObj));
 
   // Tao object order tra ve
   const updatedOrder = {};
@@ -888,9 +899,10 @@ async function createException(orderId, { stage, type, description, changedBy })
  * @param {{ resolution: 'RESUME'|'CANCEL', resolver: string, note?: string }} params
  * @returns {Promise<{ exception: object, order: object }>}
  */
-async function resolveException(exceptionId, { resolution, resolver, note = '' }) {
+async function resolveException(exceptionId, { resolution, resolver, note = '' }, branch) {
+  const client = vcClient.getVcClient(branch);
   // Doc tab su co
-  const rawExceptions = await vcClient.vcGetValues(CONFIG.VC_SHEET_EXCEPTIONS);
+  const rawExceptions = await client.vcGetValues(CONFIG.VC_SHEET_EXCEPTIONS);
   if (!rawExceptions.length) throw makeError(`Không tìm thấy sự cố "${exceptionId}".`, 404, 'EXCEPTION_NOT_FOUND');
 
   const [exHeaderRow, ...exDataRows] = rawExceptions;
@@ -914,7 +926,7 @@ async function resolveException(exceptionId, { resolution, resolver, note = '' }
   const orderId = exColMap.order_id >= 0 ? String(exRow[exColMap.order_id] || '') : '';
 
   // Tim prev_status tu Lich su trang thai (dung note "prev_status:...")
-  const rawHistory = await vcClient.vcGetValues(CONFIG.VC_SHEET_STATUS_HISTORY);
+  const rawHistory = await client.vcGetValues(CONFIG.VC_SHEET_STATUS_HISTORY);
   const historyRows = rowsToObjects(SCHEMA.statusHistory.headers, SCHEMA.statusHistory.fieldKeys, rawHistory);
   const exceptionHistoryEntry = historyRows
     .filter(h => h.order_id === orderId && h.to_status === ORDER_STATUS.SU_CO)
@@ -947,10 +959,10 @@ async function resolveException(exceptionId, { resolution, resolver, note = '' }
   if (exColMap.status      >= 0) updatedExRow[exColMap.status]      = 'RESOLVED';
   if (exColMap.resolved_at >= 0) updatedExRow[exColMap.resolved_at] = now;
   if (exColMap.resolver    >= 0) updatedExRow[exColMap.resolver]    = resolver;
-  await vcClient.vcUpdateRow(CONFIG.VC_SHEET_EXCEPTIONS, exRowIdx + 2, updatedExRow);
+  await client.vcUpdateRow(CONFIG.VC_SHEET_EXCEPTIONS, exRowIdx + 2, updatedExRow);
 
   // Cap nhat trang thai don hang
-  const rawOrders = await vcClient.vcGetValues(CONFIG.VC_SHEET_ORDERS);
+  const rawOrders = await client.vcGetValues(CONFIG.VC_SHEET_ORDERS);
   const [orderHeaderRow, ...orderDataRows] = rawOrders;
   const orderFieldKeys = SCHEMA.orders.fieldKeys;
   const orderHeaders   = SCHEMA.orders.headers;
@@ -967,7 +979,7 @@ async function resolveException(exceptionId, { resolution, resolver, note = '' }
     while (orderRow.length < orderFieldKeys.length) orderRow.push('');
     if (orderColMap.current_status >= 0) orderRow[orderColMap.current_status] = newOrderStatus;
     if (orderColMap.updated_at     >= 0) orderRow[orderColMap.updated_at]     = now;
-    await vcClient.vcUpdateRow(CONFIG.VC_SHEET_ORDERS, orderRowIdx + 2, orderRow);
+    await client.vcUpdateRow(CONFIG.VC_SHEET_ORDERS, orderRowIdx + 2, orderRow);
 
     orderFieldKeys.forEach((key, si) => {
       const ci = orderColMap[key];
@@ -984,7 +996,7 @@ async function resolveException(exceptionId, { resolution, resolver, note = '' }
       changed_at:  now,
       note:        note || `resolve:${resolution}`
     };
-    await vcClient.vcAppendRow(CONFIG.VC_SHEET_STATUS_HISTORY, objectToRow(SCHEMA.statusHistory.fieldKeys, histObj));
+    await client.vcAppendRow(CONFIG.VC_SHEET_STATUS_HISTORY, objectToRow(SCHEMA.statusHistory.fieldKeys, histObj));
   }
 
   // Tao exception object tra ve
@@ -1005,8 +1017,9 @@ async function resolveException(exceptionId, { resolution, resolver, note = '' }
  * @param {{ status?: 'OPEN'|'RESOLVED' }} filter
  * @returns {Promise<object[]>}
  */
-async function listExceptions(filter = {}) {
-  const rawRows = await vcClient.vcGetValues(CONFIG.VC_SHEET_EXCEPTIONS);
+async function listExceptions(filter = {}, branch) {
+  const client = vcClient.getVcClient(branch);
+  const rawRows = await client.vcGetValues(CONFIG.VC_SHEET_EXCEPTIONS);
   const all = rowsToObjects(SCHEMA.exceptions.headers, SCHEMA.exceptions.fieldKeys, rawRows);
   if (filter.status) return all.filter(e => e.status === filter.status);
   return all;
@@ -1017,8 +1030,9 @@ async function listExceptions(filter = {}) {
 // ---------------------------------------------------------------------------
 
 /** @returns {Promise<object[]>} */
-async function getVehicles() {
-  const rawRows = await vcClient.vcGetValues(CONFIG.VC_SHEET_VEHICLES);
+async function getVehicles(branch) {
+  const client = vcClient.getVcClient(branch);
+  const rawRows = await client.vcGetValues(CONFIG.VC_SHEET_VEHICLES);
   return rowsToObjects(SCHEMA.vehicles.headers, SCHEMA.vehicles.fieldKeys, rawRows);
 }
 
@@ -1026,7 +1040,8 @@ async function getVehicles() {
  * @param {{ vehicle_id, plate_number, vehicle_type, default_driver?, max_weight?, notes? }} params
  * @returns {Promise<object>}
  */
-async function createVehicle({ vehicle_id, plate_number, vehicle_type, default_driver, max_weight, notes }) {
+async function createVehicle({ vehicle_id, plate_number, vehicle_type, default_driver, max_weight, notes }, branch) {
+  const client = vcClient.getVcClient(branch);
   const vehicleObj = {
     vehicle_id:     vehicle_id     || '',
     plate_number:   plate_number   || '',
@@ -1035,7 +1050,7 @@ async function createVehicle({ vehicle_id, plate_number, vehicle_type, default_d
     max_weight:     max_weight     || '',
     notes:          notes          || ''
   };
-  await vcClient.vcAppendRow(CONFIG.VC_SHEET_VEHICLES, objectToRow(SCHEMA.vehicles.fieldKeys, vehicleObj));
+  await client.vcAppendRow(CONFIG.VC_SHEET_VEHICLES, objectToRow(SCHEMA.vehicles.fieldKeys, vehicleObj));
   return vehicleObj;
 }
 
@@ -1044,8 +1059,9 @@ async function createVehicle({ vehicle_id, plate_number, vehicle_type, default_d
  * @param {{ plate_number?, vehicle_type?, default_driver?, max_weight?, notes? }} patch
  * @returns {Promise<object>}
  */
-async function updateVehicle(vehicleId, patch) {
-  const rawRows = await vcClient.vcGetValues(CONFIG.VC_SHEET_VEHICLES);
+async function updateVehicle(vehicleId, patch, branch) {
+  const client = vcClient.getVcClient(branch);
+  const rawRows = await client.vcGetValues(CONFIG.VC_SHEET_VEHICLES);
   if (!rawRows.length) throw makeError(`Không tìm thấy xe "${vehicleId}".`, 404, 'VEHICLE_NOT_FOUND');
 
   const [headerRow, ...dataRows] = rawRows;
@@ -1067,7 +1083,7 @@ async function updateVehicle(vehicleId, patch) {
     if (patch[key] !== undefined && colMap[key] >= 0) row[colMap[key]] = patch[key];
   });
 
-  await vcClient.vcUpdateRow(CONFIG.VC_SHEET_VEHICLES, rowIdx + 2, row);
+  await client.vcUpdateRow(CONFIG.VC_SHEET_VEHICLES, rowIdx + 2, row);
 
   const updated = {};
   fieldKeys.forEach((key, si) => {

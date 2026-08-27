@@ -9,9 +9,10 @@
 'use strict';
 
 const CONFIG = require('../config');
-const {
-  hrGetValues, hrAppendRow, hrUpdateRow, invalidateHrSheetCache
-} = require('../sheets/hrSheetsClient');
+// Moi ham nghiep vu nhan `branch` (tham so CUOI, mac dinh = Ha Noi) roi lay
+// client cua dung co so — hai co so dung hai spreadsheet nhan su rieng.
+const hrClient = require('../sheets/hrSheetsClient');
+const { invalidateHrSheetCache } = hrClient;
 
 // ---- Schema -------------------------------------------------------------
 
@@ -98,8 +99,8 @@ function objectToRow(obj, fieldKeys) {
  * _rowIndex la vi tri dong 1-based tren Sheet that (2 = dong du lieu dau tien),
  * dung cho hrUpdateRow.
  */
-async function readAll(schema) {
-  const values = await hrGetValues(schema.sheet());
+async function readAll(schema, branch) {
+  const values = await hrClient.getHrClient(branch).hrGetValues(schema.sheet());
   if (!values || values.length === 0) return [];
   const dataRows = values.slice(1);
   return dataRows
@@ -143,9 +144,9 @@ function submissionDateKey(value) {
 /**
  * @param {Object} filters { status, employee, from, to } — from/to dang 'YYYY-MM-DD', loc theo thoi_gian_gui
  */
-async function getLeaveRequests(filters) {
+async function getLeaveRequests(filters, branch) {
   filters = filters || {};
-  let items = await readAll(LEAVE_SCHEMA);
+  let items = await readAll(LEAVE_SCHEMA, branch);
 
   if (filters.status) {
     items = items.filter(item => item.trang_thai === filters.status);
@@ -171,8 +172,8 @@ async function getLeaveRequests(filters) {
   return items.map(stripRowIndex);
 }
 
-async function getLeaveRequestById(id) {
-  const items = await readAll(LEAVE_SCHEMA);
+async function getLeaveRequestById(id, branch) {
+  const items = await readAll(LEAVE_SCHEMA, branch);
   const found = items.find(item => item.request_id === id);
   return found ? stripRowIndex(found) : null;
 }
@@ -186,7 +187,7 @@ function stripRowIndex(item) {
 /**
  * Tao 1 yeu cau nghi phep moi (dung boi bot Telegram hoac Quan ly nhap tay).
  */
-async function createLeaveRequest(data) {
+async function createLeaveRequest(data, branch) {
   const ts = nowIso();
   const totalSessions = Number(data.tong_buoi_nghi);
   if (!Number.isInteger(totalSessions) || totalSessions <= 0) {
@@ -216,18 +217,18 @@ async function createLeaveRequest(data) {
     created_at: ts,
     updated_at: ts
   };
-  await hrAppendRow(LEAVE_SCHEMA.sheet(), objectToRow(record, LEAVE_SCHEMA.fieldKeys));
+  await hrClient.getHrClient(branch).hrAppendRow(LEAVE_SCHEMA.sheet(), objectToRow(record, LEAVE_SCHEMA.fieldKeys));
   return record;
 }
 
 /**
  * Doi trang thai phe duyet 1 yeu cau. Ghi nguoi duyet + thoi diem duyet.
  */
-async function updateLeaveRequestStatus(id, { status, approver, note }) {
+async function updateLeaveRequestStatus(id, { status, approver, note }, branch) {
   if (!Object.values(LEAVE_STATUS).includes(status)) {
     throw new HrError(`Trạng thái không hợp lệ: "${status}".`, 400, 'INVALID_STATUS');
   }
-  const items = await readAll(LEAVE_SCHEMA);
+  const items = await readAll(LEAVE_SCHEMA, branch);
   const found = items.find(item => item.request_id === id);
   if (!found) {
     throw new HrError(`Không tìm thấy yêu cầu nghỉ phép "${id}".`, 404, 'LEAVE_REQUEST_NOT_FOUND');
@@ -244,7 +245,7 @@ async function updateLeaveRequestStatus(id, { status, approver, note }) {
   const rowIndex = updated._rowIndex;
   delete updated._rowIndex;
 
-  await hrUpdateRow(LEAVE_SCHEMA.sheet(), rowIndex, objectToRow(updated, LEAVE_SCHEMA.fieldKeys));
+  await hrClient.getHrClient(branch).hrUpdateRow(LEAVE_SCHEMA.sheet(), rowIndex, objectToRow(updated, LEAVE_SCHEMA.fieldKeys));
   return updated;
 }
 
@@ -252,9 +253,9 @@ async function updateLeaveRequestStatus(id, { status, approver, note }) {
  * Tinh so lan "nghi gap" theo tung nhan vien trong 1 thang (badge canh bao).
  * @param {string} month 'YYYY-MM', mac dinh la thang hien tai
  */
-async function getUrgentFlagSummary(month) {
+async function getUrgentFlagSummary(month, branch) {
   const targetMonth = month || nowIso().slice(0, 7);
-  const items = await readAll(LEAVE_SCHEMA);
+  const items = await readAll(LEAVE_SCHEMA, branch);
   const counts = new Map(); // web_username -> { ho_ten, count }
 
   items.forEach(item => {
@@ -277,7 +278,7 @@ async function getUrgentFlagSummary(month) {
 
 // ---- Telegram link codes ----------------------------------------------------
 
-async function createLinkCode(webUsername) {
+async function createLinkCode(webUsername, branch) {
   if (!webUsername) throw new HrError('Thiếu tài khoản web để tạo mã liên kết.', 400, 'INVALID_REQUEST');
   const now = new Date();
   const expiresAt = new Date(now.getTime() + CONFIG.HR_LINK_CODE_TTL_MINUTES * 60 * 1000);
@@ -291,15 +292,15 @@ async function createLinkCode(webUsername) {
     expires_at: expiresAt.toISOString(),
     linked_at: ''
   };
-  await hrAppendRow(LINK_SCHEMA.sheet(), objectToRow(record, LINK_SCHEMA.fieldKeys));
+  await hrClient.getHrClient(branch).hrAppendRow(LINK_SCHEMA.sheet(), objectToRow(record, LINK_SCHEMA.fieldKeys));
   return record;
 }
 
 /**
  * Nhan vien go /lienket <code> tren bot -> xac nhan ma va rang buoc chat_id.
  */
-async function consumeLinkCode(code, { chatId, telegramUsername }) {
-  const items = await readAll(LINK_SCHEMA);
+async function consumeLinkCode(code, { chatId, telegramUsername }, branch) {
+  const items = await readAll(LINK_SCHEMA, branch);
   const found = items.find(item => String(item.link_code) === String(code));
   if (!found) {
     throw new HrError('Mã liên kết không tồn tại.', 404, 'LINK_CODE_NOT_FOUND');
@@ -320,20 +321,20 @@ async function consumeLinkCode(code, { chatId, telegramUsername }) {
   const rowIndex = updated._rowIndex;
   delete updated._rowIndex;
 
-  await hrUpdateRow(LINK_SCHEMA.sheet(), rowIndex, objectToRow(updated, LINK_SCHEMA.fieldKeys));
+  await hrClient.getHrClient(branch).hrUpdateRow(LINK_SCHEMA.sheet(), rowIndex, objectToRow(updated, LINK_SCHEMA.fieldKeys));
   return updated;
 }
 
-async function findLinkByChatId(chatId) {
-  const items = await readAll(LINK_SCHEMA);
+async function findLinkByChatId(chatId, branch) {
+  const items = await readAll(LINK_SCHEMA, branch);
   const found = items.find(item =>
     item.status === LINK_STATUS.LINKED && String(item.telegram_chat_id) === String(chatId)
   );
   return found ? stripRowIndex(found) : null;
 }
 
-async function findLinkByWebUsername(webUsername) {
-  const items = await readAll(LINK_SCHEMA);
+async function findLinkByWebUsername(webUsername, branch) {
+  const items = await readAll(LINK_SCHEMA, branch);
   const found = items
     .filter(item => item.web_username === webUsername && item.status === LINK_STATUS.LINKED)
     .sort((a, b) => String(b.linked_at).localeCompare(String(a.linked_at)))[0];

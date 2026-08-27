@@ -11,6 +11,7 @@
 const { google } = require('googleapis');
 const { Readable } = require('stream');
 const CONFIG = require('../config');
+const { BRANCHES } = require('../branch/branches');
 
 // Cac loai anh hop le (khop voi truong "type" trong VC_Attachments)
 const ATTACHMENT_TYPES = {
@@ -24,17 +25,23 @@ const ATTACHMENT_TYPES = {
 
 let driveApiPromise = null;
 
+// Moi co so co thu muc Drive rieng. Thieu cau hinh => 503 BRANCH_NOT_CONFIGURED
+// giong cac nguon du lieu khac, de UI hien dung thong bao "chua cau hinh".
+function rootFolderIdFor(branch) {
+  const isSaigon = branch === BRANCHES.SAIGON;
+  const folderId = isSaigon ? CONFIG.VC_DRIVE_FOLDER_ID_SG : CONFIG.VC_DRIVE_FOLDER_ID;
+  if (!folderId) {
+    const err = new Error(`Cơ sở ${isSaigon ? BRANCHES.SAIGON : BRANCHES.HANOI} chưa được cấu hình thư mục Google Drive lưu ảnh chứng từ.`);
+    err.code = 'BRANCH_NOT_CONFIGURED';
+    err.statusCode = 503;
+    err.detail = `[driveService] ${isSaigon ? 'VC_DRIVE_FOLDER_ID_SG' : 'VC_DRIVE_FOLDER_ID'} chua duoc dat trong .env`;
+    throw err;
+  }
+  return folderId;
+}
+
 function getDriveApi() {
   if (!driveApiPromise) {
-    if (!CONFIG.VC_DRIVE_FOLDER_ID) {
-      return Promise.reject(
-        new Error(
-          '[driveService] VC_DRIVE_FOLDER_ID chua duoc dat. ' +
-          'Tao thu muc tren Google Drive, cap quyen Editor cho service account, ' +
-          'sau do them VC_DRIVE_FOLDER_ID vao file .env.'
-        )
-      );
-    }
     const credentials = JSON.parse(CONFIG.GOOGLE_SERVICE_ACCOUNT_JSON);
     const auth = new google.auth.GoogleAuth({
       credentials,
@@ -111,15 +118,16 @@ async function getOrCreateFolder(drive, parentId, folderName) {
  * @param {Buffer} params.fileBuffer    Buffer nhi phan cua file anh
  * @param {string} params.mimeType      MIME type (vd: "image/jpeg", "image/png")
  * @param {string} params.originalName  Ten file goc (dung de tao ten file tren Drive)
+ * @param {string} [params.branch]      Co so ('Hà Nội' | 'Sài Gòn') — quyet dinh thu muc Drive goc
  * @returns {Promise<{drive_file_id: string, drive_view_url: string, drive_thumbnail_url: string}>}
  */
-async function uploadAttachment({ orderId, date, type, fileBuffer, mimeType, originalName }) {
+async function uploadAttachment({ orderId, date, type, fileBuffer, mimeType, originalName, branch }) {
   if (!ATTACHMENT_TYPES[type]) {
     throw new Error(`[driveService] Loai anh khong hop le: "${type}". Phai la mot trong: ${Object.keys(ATTACHMENT_TYPES).join(', ')}`);
   }
 
+  const rootFolderId = rootFolderIdFor(branch);
   const drive = await getDriveApi();
-  const rootFolderId = CONFIG.VC_DRIVE_FOLDER_ID;
 
   // Xac dinh ten thu muc ngay (YYYYMMDD)
   const d = date ? new Date(date) : new Date();

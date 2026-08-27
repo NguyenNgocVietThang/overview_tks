@@ -4,6 +4,11 @@
 //
 // Che do: polling (khong can webhook cong khai/HTTPS moi).
 // State hoi thoai: Map<chatId, state> trong bo nho.
+//
+// TODO(branch): bot hien CHI phuc vu co so Ha Noi — moi loi goi repo o duoi
+// khong truyen `branch` nen mac dinh dung HR_SPREADSHEET_ID (Ha Noi). Mo rong
+// cho Sai Gon khi co HR_SPREADSHEET_ID_SG: can them cach xac dinh nhan vien
+// thuoc co so nao (tu coSo cua tai khoan web da lien ket) truoc khi ghi.
 // ==========================================
 'use strict';
 

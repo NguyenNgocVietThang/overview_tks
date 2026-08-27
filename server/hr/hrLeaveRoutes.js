@@ -71,6 +71,8 @@ router.get('/api/hr/leave-requests/stream', ...authInternal, (req, res) => {
   res.write(': connected\n\n');
 
   const onLeaveEvent = (payload) => {
+    // Chi day su kien cua DUNG co so client dang xem.
+    if (payload && payload.branch && payload.branch !== req.branch) return;
     try {
       res.write(`data: ${JSON.stringify(payload)}\n\n`);
     } catch (err) {
@@ -102,7 +104,7 @@ router.get('/api/hr/leave-requests/stream', ...authInternal, (req, res) => {
 router.get('/api/hr/leave-requests', ...authInternal, async (req, res) => {
   try {
     const { status, employee, from, to } = req.query;
-    const requests = await repo.getLeaveRequests({ status, employee, from, to });
+    const requests = await repo.getLeaveRequests({ status, employee, from, to }, req.branch);
     res.status(200).json({ requests });
   } catch (err) {
     handleError(res, err, 'GET /api/hr/leave-requests');
@@ -116,7 +118,7 @@ router.get('/api/hr/leave-requests', ...authInternal, async (req, res) => {
 
 router.get('/api/hr/leave-requests/summary/urgent-flags', ...authInternal, async (req, res) => {
   try {
-    const summary = await repo.getUrgentFlagSummary(req.query.month);
+    const summary = await repo.getUrgentFlagSummary(req.query.month, req.branch);
     res.status(200).json({ summary });
   } catch (err) {
     handleError(res, err, 'GET /api/hr/leave-requests/summary/urgent-flags');
@@ -131,7 +133,7 @@ router.get('/api/hr/leave-requests/summary/urgent-flags', ...authInternal, async
 router.post('/api/hr/leave-requests/export', ...authInternal, async (req, res) => {
   try {
     const { status, employee, from, to, sortField, sortDir } = req.body || {};
-    const { buffer, fileName, mime } = await buildLeaveRequestsWorkbook({ status, employee, from, to, sortField, sortDir });
+    const { buffer, fileName, mime } = await buildLeaveRequestsWorkbook({ status, employee, from, to, sortField, sortDir }, req.branch);
     res.setHeader('Content-Type', mime);
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     res.status(200).send(Buffer.from(buffer));
@@ -146,7 +148,7 @@ router.post('/api/hr/leave-requests/export', ...authInternal, async (req, res) =
 
 router.get('/api/hr/leave-requests/:id', ...authInternal, async (req, res) => {
   try {
-    const request = await repo.getLeaveRequestById(req.params.id);
+    const request = await repo.getLeaveRequestById(req.params.id, req.branch);
     if (!request) {
       return res.status(404).json({ error: `Không tìm thấy yêu cầu "${req.params.id}".`, code: 'LEAVE_REQUEST_NOT_FOUND' });
     }
@@ -198,11 +200,11 @@ router.post('/api/hr/leave-requests', ...authManager, async (req, res) => {
       nguoi_duyet: isManualAbsence ? resolveApproverName(req.user) : undefined,
       thoi_diem_duyet: isManualAbsence ? new Date().toISOString() : undefined,
       co_tu_y_nghi: isManualAbsence
-    });
+    }, req.branch);
     res.status(201).json({ request: record });
 
     // Phat tin hieu realtime toi tat ca cac client dang mo
-    broadcastLeaveEvent(LEAVE_EVENT_TYPES.CREATED, record);
+    broadcastLeaveEvent(LEAVE_EVENT_TYPES.CREATED, record, req.branch);
 
     notifyOtherManagers(req.user.id, {
       type: 'leave_request_created',
@@ -227,11 +229,11 @@ router.patch('/api/hr/leave-requests/:id/status', ...authManager, async (req, re
       return res.status(400).json({ error: 'Thiếu trường "status".', code: 'INVALID_REQUEST' });
     }
     const approver = resolveApproverName(req.user);
-    const updated = await repo.updateLeaveRequestStatus(req.params.id, { status, approver, note });
+    const updated = await repo.updateLeaveRequestStatus(req.params.id, { status, approver, note }, req.branch);
     res.status(200).json({ request: updated });
 
     // Phat tin hieu realtime toi tat ca cac client dang mo
-    broadcastLeaveEvent(LEAVE_EVENT_TYPES.STATUS_CHANGED, updated);
+    broadcastLeaveEvent(LEAVE_EVENT_TYPES.STATUS_CHANGED, updated, req.branch);
 
     // Bao Telegram best-effort, KHONG duoc lam hong response da tra o tren.
     if (updated.telegram_chat_id) {
@@ -275,7 +277,7 @@ router.patch('/api/hr/leave-requests/:id/status', ...authManager, async (req, re
 
 router.post('/api/hr/telegram/link-code', ...authInternal, async (req, res) => {
   try {
-    const link = await repo.createLinkCode(req.user.username);
+    const link = await repo.createLinkCode(req.user.username, req.branch);
     res.status(201).json({ code: link.link_code, expiresAt: link.expires_at });
   } catch (err) {
     handleError(res, err, 'POST /api/hr/telegram/link-code');
@@ -292,7 +294,7 @@ router.post('/api/hr/telegram/link-code/assign', ...authManager, async (req, res
     if (!web_username) {
       return res.status(400).json({ error: 'Thiếu trường "web_username".', code: 'INVALID_REQUEST' });
     }
-    const link = await repo.createLinkCode(web_username);
+    const link = await repo.createLinkCode(web_username, req.branch);
     res.status(201).json({ code: link.link_code, expiresAt: link.expires_at, web_username });
   } catch (err) {
     handleError(res, err, 'POST /api/hr/telegram/link-code/assign');
@@ -305,7 +307,7 @@ router.post('/api/hr/telegram/link-code/assign', ...authManager, async (req, res
 
 router.get('/api/hr/telegram/link-status', ...authInternal, async (req, res) => {
   try {
-    const link = await repo.findLinkByWebUsername(req.user.username);
+    const link = await repo.findLinkByWebUsername(req.user.username, req.branch);
     res.status(200).json({
       linked: !!link,
       telegram_username: link ? link.telegram_username : null,

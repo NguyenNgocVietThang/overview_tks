@@ -9,16 +9,22 @@ function freshRepository(sheetValues) {
   const previousClient = require.cache[clientPath];
   const appendedRows = [];
 
+  // Mock day du contract cua hrSheetsClient, ke ca getHrClient(branch): repo
+  // luon lay client theo co so truoc khi doc/ghi. Mock tra ve chinh no cho moi
+  // co so — test nay khong quan tam co so, chi quan tam schema/loc du lieu.
+  const clientExports = {
+    hrGetValues: async () => sheetValues,
+    hrAppendRow: async (_sheet, row) => { appendedRows.push(row); },
+    hrUpdateRow: async () => {},
+    invalidateHrSheetCache() {},
+    getHrClient: () => clientExports
+  };
+
   require.cache[clientPath] = {
     id: clientPath,
     filename: clientPath,
     loaded: true,
-    exports: {
-      hrGetValues: async () => sheetValues,
-      hrAppendRow: async (_sheet, row) => { appendedRows.push(row); },
-      hrUpdateRow: async () => {},
-      invalidateHrSheetCache() {}
-    }
+    exports: clientExports
   };
   delete require.cache[repoPath];
   const repo = require('./hrLeaveRepository');

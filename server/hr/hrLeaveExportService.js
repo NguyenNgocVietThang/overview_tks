@@ -56,10 +56,10 @@ function safeFileNamePart(str) {
  * @param {Object} filters { status, employee, from, to, sortField, sortDir }
  * @returns {Promise<{ buffer: Buffer, fileName: string, mime: string }>}
  */
-async function buildLeaveRequestsWorkbook(filters) {
+async function buildLeaveRequestsWorkbook(filters, branch) {
   filters = filters || {};
   const items = applySort(
-    await repo.getLeaveRequests({ status: filters.status, employee: filters.employee, from: filters.from, to: filters.to }),
+    await repo.getLeaveRequests({ status: filters.status, employee: filters.employee, from: filters.from, to: filters.to }, branch),
     filters.sortField,
     filters.sortDir
   );
