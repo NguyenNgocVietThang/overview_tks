@@ -13,6 +13,8 @@ const CONFIG = require('./config');
 const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
 const { requireAuth, requireRole } = require('./auth/authMiddleware');
+const { resolveBranch, resolveBranchOptional } = require('./branch/branchMiddleware');
+const branchRoutes = require('./branch/branchRoutes');
 const { INTERNAL_ROLES } = require('./auth/userRepository');
 const { lookupInvoiceStatuses } = require('./shipment/invoiceStatusService');
 const shipmentOrderRoutes    = require('./shipment/shipmentOrderRoutes');
@@ -30,9 +32,17 @@ router.get('/health', (req, res) => {
 router.use(authRoutes);
 router.use(adminUserRoutes);
 
-router.post('/api/shipment/invoice-status', requireAuth, async (req, res) => {
+// Xem/doi co so dang lam viec — /api/branch. KHONG gan resolveBranch o day:
+// chinh hai route nay quyet dinh gia tri cookie ma resolveBranch se doc.
+router.use(branchRoutes);
+
+// Tra cuu trang thai hoa don — route DUY NHAT trong /api/shipment/* ma vai tro
+// "Khách" duoc dung, ma khach thi khong duoc gan co so nao. Vi vay dang ky
+// TRUOC guard co so ben duoi va dung ban "mem" resolveBranchOptional (khong
+// bao gio 403, mac dinh Ha Noi) de khong chan khach hang.
+router.post('/api/shipment/invoice-status', requireAuth, resolveBranchOptional, async (req, res) => {
   try {
-    const results = await lookupInvoiceStatuses(req.body && req.body.codes);
+    const results = await lookupInvoiceStatuses(req.body && req.body.codes, req.branch);
     res.status(200).json({ results });
   } catch (err) {
     console.error('=== LOI TRA CUU TRANG THAI HOA DON ===');
@@ -46,6 +56,12 @@ router.post('/api/shipment/invoice-status', requireAuth, async (req, res) => {
     });
   }
 });
+
+// Toan bo /api/shipment/* va /api/hr/* con lai deu la du lieu THEO CO SO — gan
+// resolveBranch truoc cac router con de moi handler ben trong luon co req.branch,
+// va tai khoan chua duoc gan co so bi chan ngay tu vong ngoai.
+router.use('/api/shipment', requireAuth, resolveBranch);
+router.use('/api/hr', requireAuth, resolveBranch);
 
 // Cac endpoint quan ly van chuyen Phase 1B — /api/shipment/* (tru invoice-status o tren)
 router.use(shipmentOrderRoutes);
@@ -64,7 +80,7 @@ router.use(roleChangeRequestRoutes);
 // Khach chi duoc dung route tra cuu van chuyen o tren. Day la ranh gioi bao mat,
 // voi auth-guard phia client chi de dieu huong UX. Trang tra cuu cong khai
 // cho khach hang (Phase 1) se nam o route rieng, KHONG qua requireAuth.
-const requireInternalUser = [requireAuth, requireRole(...INTERNAL_ROLES)];
+const requireInternalUser = [requireAuth, requireRole(...INTERNAL_ROLES), resolveBranch];
 router.use('/api/debug', ...requireInternalUser);
 router.use('/api/dashboard', ...requireInternalUser);
 router.use('/api/search', ...requireInternalUser);
