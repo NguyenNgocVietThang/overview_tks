@@ -12,7 +12,11 @@ function required(name) {
 }
 
 const CONFIG = {
+  // SPREADSHEET_ID = co so HA NOI (bat buoc). Spreadsheet bao cao cua co so
+  // SAI GON la optional — thieu bien nay thi co so Sai Gon tra 503
+  // BRANCH_NOT_CONFIGURED chu khong lam sap server (giong VC_SPREADSHEET_ID).
   SPREADSHEET_ID: required('SPREADSHEET_ID'),
+  SPREADSHEET_ID_SG: process.env.SPREADSHEET_ID_SG || null,
   GOOGLE_SERVICE_ACCOUNT_JSON: required('GOOGLE_SERVICE_ACCOUNT_JSON'),
   PORT: process.env.PORT || 3000,
 
@@ -36,6 +40,11 @@ const CONFIG = {
   // khong lam crash server hien tai. Phai set truoc khi dung Phase 1B+.
   VC_SPREADSHEET_ID: process.env.VC_SPREADSHEET_ID || null,
   VC_DRIVE_FOLDER_ID: process.env.VC_DRIVE_FOLDER_ID || null,
+
+  // Nguon van chuyen rieng cua co so Sai Gon (se cung cap sau) — bo trong thi
+  // tab "Quan ly van chuyen" o co so Sai Gon bao "Chua duoc cau hinh".
+  VC_SPREADSHEET_ID_SG: process.env.VC_SPREADSHEET_ID_SG || null,
+  VC_DRIVE_FOLDER_ID_SG: process.env.VC_DRIVE_FOLDER_ID_SG || null,
 
   // Ten 6 tab trong Spreadsheet van chuyen rieng (Tieng Viet truc quan, de su dung).
   VC_SHEET_ORDERS: 'Đơn vận chuyển',
@@ -76,6 +85,9 @@ const CONFIG = {
   // Optional — neu chua set thi log canh bao khi module HR duoc goi, khong
   // lam crash server hien tai (giong VC_SPREADSHEET_ID).
   HR_SPREADSHEET_ID: process.env.HR_SPREADSHEET_ID || null,
+  // Nguon nhan su rieng cua co so Sai Gon (se cung cap sau) — bo trong thi tab
+  // "Quan ly nhan su" o co so Sai Gon bao "Chua duoc cau hinh".
+  HR_SPREADSHEET_ID_SG: process.env.HR_SPREADSHEET_ID_SG || null,
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || null,
 
   HR_SHEET_LEAVE_REQUESTS: 'Yêu cầu nghỉ phép',
