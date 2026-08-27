@@ -26,6 +26,8 @@ const MAX_REPORT_TRANSACTIONS = 500; // gioi han so dong bang "Chi tiet giao dic
 const TOP_REPORT_TRANSACTIONS = 15;
 const TOP_CUSTOMER_REVENUE_CHART_LIMIT = 15;
 const TOP_CUSTOMER_REVENUE_TABLE_LIMIT = 50;
+const CUSTOMER_PRODUCT_REVENUE_WINDOW_DAYS = 90;
+const CUSTOMER_PRODUCT_REVENUE_MONTH_DAYS = 30;
 
 const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-GB', {
   timeZone: DASHBOARD_TIME_ZONE,
@@ -1137,6 +1139,188 @@ function buildTopCustomersByRevenue(range, customerReportData, invData, custData
 }
 
 /**
+ * Doanh thu 90 ngay gan nhat cua 1 khach hang cu the, tach theo tung san
+ * pham (tab Khach hang — "Bao cao doanh thu theo khach"). Join truc tiep
+ * "Hoa don" (de biet ngay ban + khach hang) voi "Chi tiet hoa don" (de biet
+ * mat hang) qua Ma hoa don. KHONG dung cac sheet tong hop san co ("Bao cao
+ * ban hang"/"Khach theo hang hoa") vi do la snapshot toan thoi gian, refresh
+ * 1 lan/ngay va khong co san 3 bucket thang (0-29/30-59/60-89 ngay) can cho
+ * bang so sanh doanh so theo thang.
+ */
+function computeCustomerProductRevenue(sheets, customerCode, customerName, now) {
+  const targetCode = String(customerCode || '').trim();
+  if (!targetCode) {
+    const err = new Error('Thiếu mã khách hàng.');
+    err.statusCode = 400;
+    err.code = 'CUSTOMER_CODE_REQUIRED';
+    throw err;
+  }
+
+  const range = resolveFilterRange({ mode: 'days', days: CUSTOMER_PRODUCT_REVENUE_WINDOW_DAYS }, now);
+  const invData = sheets[CONFIG.SHEET_INVOICES] || [];
+  const detailData = sheets[CONFIG.SHEET_INVOICE_DETAILS] || [];
+  const custData = sheets[CONFIG.SHEET_CUSTOMERS] || [];
+
+  // Cung mot chuoi fallback ma khach hang (ma -> SDT -> ten chuan hoa) nhu
+  // aggregateCustomerRevenueFromSheetRows, de doanh thu tinh o day khop voi so
+  // lieu "Top khach hang theo doanh thu" o phan 2 cua cung tab.
+  const custCodeByPhone = new Map();
+  const custCodeByName = new Map();
+  let resolvedName = String(customerName || '').trim();
+  for (let r = 1; r < custData.length; r++) {
+    const row = custData[r];
+    const code = String(row[0] || '').trim();
+    const name = String(row[1] || '').trim();
+    const phone = normalizePhone(row[2]);
+    if (!code) continue;
+    if (phone) custCodeByPhone.set(phone, code);
+    if (name) custCodeByName.set(normalizeSearchValue(name), code);
+    if (code === targetCode && name && !resolvedName) resolvedName = name;
+  }
+
+  const invHeaders = invData[0] || [];
+  const invIndex = (header, fallback) => {
+    const idx = invHeaders.findIndex(h => String(h || '').trim() === header);
+    return idx >= 0 ? idx : fallback;
+  };
+  const invCodeIdx = invIndex('Mã hóa đơn', 0);
+  const invDateIdx = invIndex('Ngày bán', 1);
+  const invNameIdx = invIndex('Khách hàng', 2);
+  const invPhoneIdx = invIndex('SĐT khách', 3);
+  const invStatusIdx = invIndex('Trạng thái', 9);
+  const invCustCodeIdx = invIndex('Mã khách hàng', 15);
+
+  // Ma hoa don (da chuan hoa) -> ngay ban, chi giu hoa don hoan thanh, trong
+  // 90 ngay va thuoc dung khach hang dang xem.
+  const matchedInvoiceDates = new Map();
+  for (let r = 1; r < invData.length; r++) {
+    const row = invData[r];
+    const status = String(row[invStatusIdx] || 'Hoàn thành').trim();
+    if (status !== 'Hoàn thành') continue;
+
+    const dt = parseSheetDate(row[invDateIdx]);
+    if (!isWithinRange(dt, range)) continue;
+
+    let code = String(row[invCustCodeIdx] || '').trim();
+    const name = String(row[invNameIdx] || '').trim();
+    const phone = normalizePhone(row[invPhoneIdx]);
+    if (!code && phone && custCodeByPhone.has(phone)) code = custCodeByPhone.get(phone);
+    if (!code && name && custCodeByName.has(normalizeSearchValue(name))) code = custCodeByName.get(normalizeSearchValue(name));
+    if (code !== targetCode) continue;
+
+    const invoiceCode = String(row[invCodeIdx] || '').trim();
+    if (!invoiceCode) continue;
+    matchedInvoiceDates.set(invoiceCode, dt);
+    if (!resolvedName && name) resolvedName = name;
+  }
+
+  const dayKeys = [];
+  for (let cursor = range.start; cursor.getTime() <= range.end.getTime(); cursor = new Date(cursor.getTime() + DAY_MS)) {
+    dayKeys.push(formatDMY(cursor));
+  }
+  // Tuoi (so ngay truoc "now") cua tung ngay trong dayKeys, dung de xep vao
+  // bucket T.nay/T.truoc/T.truoc nua. Tinh tu vi tri trong dayKeys (KHONG
+  // dung ham daysSince() dung chung — ham do luon so voi new Date() THUC, bo
+  // qua tham so `now` truyen vao nen se sai khi test truyen `now` gia dinh).
+  const ageByDateKey = new Map();
+  const lastDayIndex = dayKeys.length - 1;
+  dayKeys.forEach((key, index) => ageByDateKey.set(key, lastDayIndex - index));
+  const emptyDayBuckets = () => {
+    const buckets = {};
+    dayKeys.forEach(key => { buckets[key] = 0; });
+    return buckets;
+  };
+  const toRevenueByDay = dayBuckets => dayKeys.map(key => ({
+    date: key,
+    label: key.substring(0, 5),
+    revenue: dayBuckets[key] || 0
+  }));
+
+  const totalDayBuckets = emptyDayBuckets();
+  const productsByCode = new Map();
+
+  const detHeaders = detailData[0] || [];
+  const detIndex = (header, fallback) => {
+    const idx = detHeaders.findIndex(h => String(h || '').trim() === header);
+    return idx >= 0 ? idx : fallback;
+  };
+  const detCodeIdx = detIndex('Mã hóa đơn', 0);
+  const detItemCodeIdx = detIndex('Mã hàng', 1);
+  const detItemNameIdx = detIndex('Tên hàng', 2);
+  const detQtyIdx = detIndex('Số lượng', 3);
+  const detTotalIdx = detIndex('Thành tiền', 6);
+
+  for (let r = 1; r < detailData.length; r++) {
+    const row = detailData[r];
+    const invoiceCode = String(row[detCodeIdx] || '').trim();
+    if (!invoiceCode || !matchedInvoiceDates.has(invoiceCode)) continue;
+
+    const dt = matchedInvoiceDates.get(invoiceCode);
+    const dateKey = formatDMY(dt);
+    const quantity = Number(row[detQtyIdx]) || 0;
+    const revenue = Number(row[detTotalIdx]) || 0;
+    const itemCode = String(row[detItemCodeIdx] || '').trim() || '—';
+    const itemName = String(row[detItemNameIdx] || '').trim() || itemCode;
+
+    if (totalDayBuckets[dateKey] !== undefined) totalDayBuckets[dateKey] += revenue;
+
+    if (!productsByCode.has(itemCode)) {
+      productsByCode.set(itemCode, {
+        code: itemCode,
+        name: itemName,
+        quantity: 0,
+        revenue: 0,
+        month1Revenue: 0,
+        month2Revenue: 0,
+        month3Revenue: 0,
+        dayBuckets: emptyDayBuckets()
+      });
+    }
+    const product = productsByCode.get(itemCode);
+    product.quantity += quantity;
+    product.revenue += revenue;
+    if (product.dayBuckets[dateKey] !== undefined) product.dayBuckets[dateKey] += revenue;
+
+    // T.nay = 0-29 ngay truoc, T.truoc = 30-59, T.truoc nua = 60-89 (hoa don
+    // qua 90 ngay da bi loai o vong loc "Hoa don" phia tren nen khong can
+    // nhanh else rieng cho "ngoai pham vi").
+    const age = ageByDateKey.get(dateKey);
+    if (age !== undefined) {
+      if (age < CUSTOMER_PRODUCT_REVENUE_MONTH_DAYS) product.month1Revenue += revenue;
+      else if (age < CUSTOMER_PRODUCT_REVENUE_MONTH_DAYS * 2) product.month2Revenue += revenue;
+      else if (age < CUSTOMER_PRODUCT_REVENUE_MONTH_DAYS * 3) product.month3Revenue += revenue;
+    }
+  }
+
+  const products = Array.from(productsByCode.values())
+    .map(p => ({
+      code: p.code,
+      name: p.name,
+      quantity: p.quantity,
+      revenue: p.revenue,
+      month1Revenue: p.month1Revenue,
+      month2Revenue: p.month2Revenue,
+      month3Revenue: p.month3Revenue,
+      revenueByDay: toRevenueByDay(p.dayBuckets)
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  return {
+    customer: { code: targetCode, name: resolvedName || targetCode },
+    range: { from: formatDMY(range.start), to: formatDMY(range.end), days: CUSTOMER_PRODUCT_REVENUE_WINDOW_DAYS, label: range.label },
+    totalRevenueByDay: toRevenueByDay(totalDayBuckets),
+    totalRevenue: products.reduce((sum, p) => sum + p.revenue, 0),
+    totalQuantity: products.reduce((sum, p) => sum + p.quantity, 0),
+    products
+  };
+}
+
+async function getCustomerProductRevenueReport(customerCode, customerName, branch, now = new Date()) {
+  const sheets = await getCachedDashboardSheets(branch);
+  return computeCustomerProductRevenue(sheets, customerCode, customerName, now);
+}
+
+/**
  * Bao cao chi tiet giao dich trong `range` cho tab Tong quan (thay cho khai
  * niem "cuoi ngay" co dinh truoc day). Tong hop (summary) luon tinh tren TOAN
  * BO giao dich trong ky; danh sach chi tiet (transactions) gioi han
@@ -2050,6 +2234,7 @@ module.exports = {
   getDashboardExportSnapshot,
   searchDashboardRecords,
   searchTopCustomersByProducts,
+  getCustomerProductRevenueReport,
   // Cac hook duoi day CHI phuc vu test (dashboardData.test.js) — khong dung
   // trong code san pham.
   __test__: {

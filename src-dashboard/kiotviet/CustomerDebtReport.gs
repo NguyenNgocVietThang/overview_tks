@@ -137,7 +137,7 @@ function removeCustomerDebtReportDailyTrigger_() {
   return count;
 }
 
-/** Trigger 1 phut dung ham nay de chay bu neu trigger 15:00 bi tre/loi. */
+/** Trigger 5 phut dung ham nay de chay bu neu trigger 15:00 bi tre/loi. */
 function syncCustomerDebtReportsIfDue_() {
   const now = new Date();
   const today = Utilities.formatDate(now, CUSTOMER_DEBT_REPORT_TIME_ZONE, 'yyyy-MM-dd');

@@ -184,7 +184,11 @@ function parseDebtSheet(rows, now = new Date()) {
         openingDebt: toNumber(cell(row, columnIndex.openingDebt)),
         debit: toNumber(cell(row, columnIndex.debit)),
         credit: toNumber(cell(row, columnIndex.credit)),
-        closingDebt: 0,
+        // "No cuoi ky" duoc Apps Script lap lai tren MOI dong cua khach (lay tu
+        // KiotViet customer.debt hien tai) — dung truc tiep gia tri nay lam mac
+        // dinh. Neu tim duoc giao dich "Thanh toan" gan nhat (khong vuot qua
+        // thoi diem hien tai) thi tinh chinh lai ben duoi cho chinh xac hon.
+        closingDebt: toNumber(cell(row, columnIndex.closingDebt)),
         transactions: [],
         latestPaymentTime: -Infinity
       };
@@ -213,8 +217,11 @@ function parseDebtSheet(rows, now = new Date()) {
     });
   }
 
+  // Khong loc theo latestPaymentTime nua: mot khach hoan toan co the chi co
+  // hoa don/tra hang/dieu chinh trong ky (khong co dong "Thanh toan" nao) va
+  // van phai hien thi cong no cua ho — truoc day bi filter loai het nhung
+  // khach nay dan den bang trong dashboard du sheet HN1/HN3/HN7 co du lieu.
   const customers = Array.from(customersByCode.values())
-    .filter(customer => customer.latestPaymentTime !== -Infinity)
     .map(customer => {
       const { latestPaymentTime, ...publicCustomer } = customer;
       return publicCustomer;

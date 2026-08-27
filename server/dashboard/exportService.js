@@ -22,6 +22,8 @@ const TABLE_TITLES = Object.freeze({
   'invoices.recent': 'Hóa đơn gần đây',
   'customers.revenue': 'Doanh thu theo khách',
   'customers.debt': 'Chi tiết khách nợ',
+  'customers.productDetail': 'Bảng chi tiết sản phẩm theo khách',
+  'customers.productMonthlyCompare': 'Bảng so sánh doanh số theo tháng',
   'suppliers.list': 'Danh sách nhà cung cấp',
   'debt.period': 'Công nợ theo kỳ',
   'search.results': 'Kết quả tìm kiếm',
@@ -443,6 +445,40 @@ async function buildSearchDataset(payload, filters, branch) {
   };
 }
 
+async function buildCustomerProductRevenueDataset(tableKey, payload, branch) {
+  const context = payload.context && typeof payload.context === 'object' ? payload.context : {};
+  const customerCode = normalizeText(context.customerProductCustomerCode);
+  const customerName = normalizeText(context.customerProductCustomerName);
+  if (!customerCode) throw exportError('Chưa chọn khách hàng để xuất.', 400, 'EXPORT_NO_CUSTOMER_SELECTED');
+
+  const report = await dashboardData.getCustomerProductRevenueReport(customerCode, customerName, branch);
+  const productCode = normalizeText(context.customerProductCode);
+  const products = productCode
+    ? report.products.filter(p => normalizeCode(p.code) === normalizeCode(productCode))
+    : report.products;
+
+  if (tableKey === 'customers.productDetail') {
+    return {
+      tableKey, title: TABLE_TITLES[tableKey], selectionMode: 'custom',
+      worksheets: [aggregateWorksheet('customer_product_detail', 'Bảng chi tiết sản phẩm', [
+        { key: 'name', label: 'Tên hàng' },
+        { key: 'quantity', label: 'Số lượng', type: 'number' },
+        { key: 'revenue', label: 'Doanh số', type: 'number' }
+      ], products)]
+    };
+  }
+
+  return {
+    tableKey, title: TABLE_TITLES[tableKey], selectionMode: 'custom',
+    worksheets: [aggregateWorksheet('customer_product_monthly_compare', 'Bảng so sánh doanh số theo tháng', [
+      { key: 'name', label: 'Tên hàng' },
+      { key: 'month1Revenue', label: 'T.này', type: 'number' },
+      { key: 'month2Revenue', label: 'T.trước', type: 'number' },
+      { key: 'month3Revenue', label: 'T.trước nữa', type: 'number' }
+    ], products)]
+  };
+}
+
 function buildStockoutResultDataset(payload) {
   const result = payload.stockoutResult && typeof payload.stockoutResult === 'object' ? payload.stockoutResult : null;
   const rows = result && Array.isArray(result.rows) ? result.rows : [];
@@ -472,6 +508,9 @@ async function buildExportDataset(payload, branch) {
   const filters = normalizeFilters(payload.filters);
   if (tableKey === 'search.results') return buildSearchDataset(payload, filters, branch);
   if (tableKey === 'stockout.result') return buildStockoutResultDataset(payload);
+  if (tableKey === 'customers.productDetail' || tableKey === 'customers.productMonthlyCompare') {
+    return buildCustomerProductRevenueDataset(tableKey, payload, branch);
+  }
   const context = payload.context && typeof payload.context === 'object' ? payload.context : {};
   const snapshot = await dashboardData.getDashboardExportSnapshot(filters, branch);
   return buildFixedDataset(tableKey, snapshot, context);

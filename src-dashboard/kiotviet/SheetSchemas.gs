@@ -10,6 +10,58 @@
 
 const KIOTVIET_SHEET_SCHEMA_VERSION = '2026-08-25-compact-columns-v2';
 const KIOTVIET_SHEET_SCHEMA_PROPERTY = 'KIOTVIET_SHEET_SCHEMA_VERSION';
+const KIOTVIET_INVOICE_BACKFILL_LAST_RESULT_PROPERTY_ = 'KIOTVIET_INVOICE_BACKFILL_LAST_RESULT';
+
+/**
+ * Trang thai doi soat backfill Hoa don gan nhat. Ham nay khong goi API, nen co
+ * the dung de theo doi trigger tiep suc ma khong tranh quota voi tien trinh tai.
+ */
+function getInvoiceBackfillStatus() {
+  const props = PropertiesService.getScriptProperties();
+  let checkpoint = null;
+  let lastResult = null;
+  try {
+    const rawCheckpoint = props.getProperty('SYNC_CHUNK_STATE_invoices');
+    if (rawCheckpoint) checkpoint = JSON.parse(rawCheckpoint);
+  } catch (e) {
+    checkpoint = null;
+  }
+  try {
+    const rawResult = props.getProperty(KIOTVIET_INVOICE_BACKFILL_LAST_RESULT_PROPERTY_);
+    if (rawResult) lastResult = JSON.parse(rawResult);
+  } catch (e) {
+    lastResult = null;
+  }
+
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const invoiceSheet = spreadsheet.getSheetByName('Hóa đơn');
+  const detailSheet = spreadsheet.getSheetByName('Chi tiết hóa đơn');
+  const invoiceRows = invoiceSheet ? Math.max(0, invoiceSheet.getLastRow() - 1) : 0;
+  const invoiceDetailRows = detailSheet ? Math.max(0, detailSheet.getLastRow() - 1) : 0;
+  const isCompleted = !checkpoint && !!lastResult;
+
+  return {
+    isCompleted: isCompleted,
+    phase: checkpoint ? (checkpoint.phase || 'download') : (isCompleted ? 'completed' : 'idle'),
+    currentItem: checkpoint ? (Number(checkpoint.currentItem) || 0) : 0,
+    total: checkpoint
+      ? (Number(checkpoint.total) || 0)
+      : (lastResult ? (Number(lastResult.total) || 0) : 0),
+    invoiceCount: checkpoint
+      ? (Number(checkpoint.invoiceCount) || 0)
+      : (lastResult ? (Number(lastResult.invoiceCount) || 0) : 0),
+    invoiceDetailCount: checkpoint
+      ? (Number(checkpoint.invoiceDetailCount) || 0)
+      : (lastResult ? (Number(lastResult.invoiceDetailCount) || 0) : 0),
+    invoiceRows: invoiceRows,
+    invoiceDetailRows: invoiceDetailRows,
+    matchesExpected: isCompleted &&
+      invoiceRows === Number(lastResult.invoiceCount) &&
+      invoiceDetailRows === Number(lastResult.invoiceDetailCount),
+    completedAt: lastResult ? lastResult.completedAt : null,
+    updatedAt: checkpoint ? checkpoint.updatedAt : null
+  };
+}
 
 const CATEGORY_SHEET_HEADERS = Object.freeze([
   'Mã nhóm hàng',
@@ -769,8 +821,10 @@ const SYNC_CHUNK_CONFIG = Object.freeze({
 // Nhap hang co the mat vai phut de tai va bung chi tiet tung mat hang. Ghi vao
 // tab staging de mot lan timeout/API loi khong xoa du lieu dang hien thi.
 const KIOTVIET_CHUNK_STAGING_SHEETS_ = Object.freeze({
+  invoices: '_KV_SYNC_STAGING_INVOICES',
   purchases: '_KV_SYNC_STAGING_PURCHASES'
 });
+const KIOTVIET_INVOICE_DETAIL_STAGING_SHEET_ = '_KV_SYNC_STAGING_INVOICE_DETAILS';
 
 function prepareKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema) {
   const stagingName = KIOTVIET_CHUNK_STAGING_SHEETS_[schemaKey];
@@ -784,13 +838,13 @@ function prepareKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema) {
   return stagingSheet;
 }
 
-function publishKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema, liveSheet, stagingSheet) {
+function copyKiotVietChunkStagingToLive_(schema, liveSheet, stagingSheet, allowEmpty) {
   const stagingLastRow = stagingSheet.getLastRow();
   const previousLastRow = liveSheet.getLastRow();
 
   // Neu API dot ngot tra ve rong, giu lai du lieu live thay vi cong bo mot bang
   // rong. Nguoi van hanh co the xoa chu dong neu gian hang thuc su khong co phieu.
-  if (stagingLastRow <= 1 && previousLastRow > 1) {
+  if (!allowEmpty && stagingLastRow <= 1 && previousLastRow > 1) {
     throw new Error(
       '[' + schema.sheetName + '] API tra ve 0 ban ghi; giu lai du lieu hien tai de tranh mat du lieu.'
     );
@@ -811,11 +865,105 @@ function publishKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema, liveS
       .clearContent();
   }
 
-  spreadsheet.deleteSheet(stagingSheet);
   Logger.log(
     '[' + schema.sheetName + '] Da cong bo ' + Math.max(publishRowCount - 1, 0) +
     ' dong tu staging.'
   );
+}
+
+function publishKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema, liveSheet, stagingSheet) {
+  copyKiotVietChunkStagingToLive_(schema, liveSheet, stagingSheet, false);
+  spreadsheet.deleteSheet(stagingSheet);
+}
+
+function prepareInvoiceDetailStagingSheet_(spreadsheet) {
+  const detailSchema = KIOTVIET_SHEET_SCHEMAS.invoiceDetails;
+  let stagingSheet = spreadsheet.getSheetByName(KIOTVIET_INVOICE_DETAIL_STAGING_SHEET_);
+  if (!stagingSheet) {
+    stagingSheet = createCompactSheet_(
+      spreadsheet,
+      KIOTVIET_INVOICE_DETAIL_STAGING_SHEET_,
+      1,
+      detailSchema.headers.length
+    );
+  }
+  stagingSheet.hideSheet();
+  return stagingSheet;
+}
+
+function publishInvoiceStagingPair_(spreadsheet, invoiceSchema, invoiceLiveSheet, invoiceStagingSheet) {
+  const detailSchema = KIOTVIET_SHEET_SCHEMAS.invoiceDetails;
+  const detailStagingSheet = spreadsheet.getSheetByName(KIOTVIET_INVOICE_DETAIL_STAGING_SHEET_);
+  if (!detailStagingSheet) {
+    throw new Error('[Chi tiet hoa don] Mat staging; giu nguyen hai bang live.');
+  }
+  const detailLiveSheet = spreadsheet.getSheetByName(detailSchema.sheetName) ||
+    spreadsheet.insertSheet(detailSchema.sheetName);
+
+  // Apps Script khong co transaction da-sheet. Giu phase=commit cho den khi ca
+  // hai phep copy thanh cong; neu loi giua chung, luot sau copy lai idempotent.
+  copyKiotVietChunkStagingToLive_(invoiceSchema, invoiceLiveSheet, invoiceStagingSheet, false);
+  copyKiotVietChunkStagingToLive_(detailSchema, detailLiveSheet, detailStagingSheet, true);
+  spreadsheet.deleteSheet(invoiceStagingSheet);
+  spreadsheet.deleteSheet(detailStagingSheet);
+}
+
+function writeKiotVietChunkPage_(spreadsheet, schemaKey, schema, sheet, pageItems, invoiceDetailSheet) {
+  let rows;
+  if (schemaKey === 'products') {
+    rows = pageItems
+      .filter(product => !isVatProductCode(getProductCode_(product)))
+      .map(item => schema.buildRow(item));
+  } else if (schemaKey === 'purchases') {
+    rows = buildPurchaseOrderWrappers_(pageItems).map(item => schema.buildRow(item));
+  } else {
+    rows = pageItems.map(item => schema.buildRow(item));
+  }
+
+  if (rows.length > 0) {
+    writeKiotVietRowsInChunks_(
+      sheet,
+      sheet.getLastRow() + 1,
+      rows,
+      schema.headers.length
+    );
+  }
+
+  let detailSheetLastRow;
+  let detailRowsWritten = 0;
+  if (schemaKey === 'invoices') {
+    const detailSchema = KIOTVIET_SHEET_SCHEMAS.invoiceDetails;
+    const detailSheet = invoiceDetailSheet ||
+      spreadsheet.getSheetByName(detailSchema.sheetName) ||
+      spreadsheet.insertSheet(detailSchema.sheetName);
+    const detailWrappers = [];
+    pageItems.forEach(invoice => {
+      const details = kiotVietValue_(invoice, ['InvoiceDetails', 'invoiceDetails'], []);
+      (Array.isArray(details) ? details : []).forEach(detail => {
+        detailWrappers.push({ invoice: invoice, detail: detail });
+      });
+    });
+    if (detailWrappers.length > 0) {
+      const detailRows = detailWrappers.map(wrapper => detailSchema.buildRow(wrapper));
+      detailRowsWritten = detailRows.length;
+      writeKiotVietRowsInChunks_(
+        detailSheet,
+        detailSheet.getLastRow() + 1,
+        detailRows,
+        detailSchema.headers.length
+      );
+    }
+    detailSheetLastRow = detailSheet.getLastRow();
+  }
+
+  if (typeof SpreadsheetApp !== 'undefined' && typeof SpreadsheetApp.flush === 'function') {
+    SpreadsheetApp.flush();
+  }
+  return {
+    sheetLastRow: sheet.getLastRow(),
+    detailSheetLastRow: detailSheetLastRow,
+    detailRowsWritten: detailRowsWritten
+  };
 }
 
 /**
@@ -859,18 +1007,40 @@ function syncKiotVietTableChunk_(schemaKey, options) {
   }
 
   let currentItem = Number(state.currentItem) || 0;
+  let invoiceCount = Number(state.invoiceCount) || (schemaKey === 'invoices' ? currentItem : 0);
+  let invoiceDetailCount = Number(state.invoiceDetailCount) || 0;
 
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const liveSheet = spreadsheet.getSheetByName(schema.sheetName) || spreadsheet.insertSheet(schema.sheetName);
   const stagingName = KIOTVIET_CHUNK_STAGING_SHEETS_[schemaKey];
   let stagingSheet = stagingName ? spreadsheet.getSheetByName(stagingName) : null;
+  let invoiceDetailStagingSheet = schemaKey === 'invoices'
+    ? spreadsheet.getSheetByName(KIOTVIET_INVOICE_DETAIL_STAGING_SHEET_)
+    : null;
 
   // Neu lan cong bo truoc bi gian doan, thu lai tu staging ma khong tai trung
   // hay append trung chunk cu.
   if (state.phase === 'commit' && stagingName && stagingSheet) {
-    publishKiotVietChunkStagingSheet_(
-      spreadsheet, schemaKey, schema, liveSheet, stagingSheet
-    );
+    if (schemaKey === 'invoices') {
+      publishInvoiceStagingPair_(spreadsheet, schema, liveSheet, stagingSheet);
+      const publishedDetailSheet = spreadsheet.getSheetByName(
+        KIOTVIET_SHEET_SCHEMAS.invoiceDetails.sheetName
+      );
+      props.setProperty(KIOTVIET_INVOICE_BACKFILL_LAST_RESULT_PROPERTY_, JSON.stringify({
+        completedAt: new Date().toISOString(),
+        total: Number(state.total) || currentItem,
+        invoiceCount: Number(state.invoiceCount) || currentItem,
+        invoiceDetailCount: Number(state.invoiceDetailCount) || 0,
+        invoiceRows: Math.max(0, liveSheet.getLastRow() - 1),
+        invoiceDetailRows: publishedDetailSheet
+          ? Math.max(0, publishedDetailSheet.getLastRow() - 1)
+          : 0
+      }));
+    } else {
+      publishKiotVietChunkStagingSheet_(
+        spreadsheet, schemaKey, schema, liveSheet, stagingSheet
+      );
+    }
     props.deleteProperty(stateKey);
     if (resumeHandler) removeSpecificChunkTrigger_(resumeHandler);
     return {
@@ -879,21 +1049,30 @@ function syncKiotVietTableChunk_(schemaKey, options) {
       isCompleted: true,
       currentItem: currentItem,
       total: Number(state.total) || currentItem,
-      recordsProcessed: 0
+      recordsProcessed: 0,
+      invoiceCount: Number(state.invoiceCount) || undefined,
+      invoiceDetailCount: Number(state.invoiceDetailCount) || undefined
     };
   }
 
   // Checkpoint khong con staging la checkpoint khong the tiep tuc an toan.
   // Khoi dong lai tu dau thay vi ghi tiep vao live hoac bo sot cac trang dau.
-  if (stagingName && currentItem > 0 && !stagingSheet) {
+  if (stagingName && currentItem > 0 && (
+    !stagingSheet || (schemaKey === 'invoices' && !invoiceDetailStagingSheet)
+  )) {
     Logger.log('[' + schema.sheetName + '] Mat staging, khoi dong lai tu trang dau.');
     props.deleteProperty(stateKey);
     state = {};
     currentItem = 0;
+    invoiceCount = 0;
+    invoiceDetailCount = 0;
   }
 
   if (stagingName && !stagingSheet) {
     stagingSheet = prepareKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema);
+  }
+  if (schemaKey === 'invoices' && !invoiceDetailStagingSheet) {
+    invoiceDetailStagingSheet = prepareInvoiceDetailStagingSheet_(spreadsheet);
   }
 
   // Neu lan chay truoc dung giua luc ghi mot trang, state van tro toi trang da
@@ -914,6 +1093,39 @@ function syncKiotVietTableChunk_(schemaKey, options) {
     }
   }
   const sheet = stagingSheet || liveSheet;
+
+  // Cac bang mot dong/API item co the bi dung giua luc ghi trang. Neu state cu
+  // chua co sheetLastRow, currentItem + dong header la checkpoint tuong thich
+  // nguoc cho cac schema mot-mot nhu Dat hang, Khach hang va Nha cung cap.
+  if (!stagingSheet && currentItem > 0) {
+    const fallbackCheckpointLastRow = (
+      schemaKey !== 'products' && schemaKey !== 'invoices'
+    ) ? currentItem + 1 : 0;
+    const checkpointLastRow = Number(state.sheetLastRow) || fallbackCheckpointLastRow;
+    const currentLastRow = sheet.getLastRow();
+    if (checkpointLastRow > 0 && currentLastRow > checkpointLastRow) {
+      sheet.getRange(
+        checkpointLastRow + 1,
+        1,
+        currentLastRow - checkpointLastRow,
+        schema.headers.length
+      ).clearContent();
+    }
+  }
+  if (schemaKey === 'invoices' && Number(state.detailSheetLastRow) > 0) {
+    const detailSchema = KIOTVIET_SHEET_SCHEMAS.invoiceDetails;
+    const detailSheet = invoiceDetailStagingSheet;
+    const checkpointDetailLastRow = Number(state.detailSheetLastRow);
+    if (detailSheet && detailSheet.getLastRow() > checkpointDetailLastRow) {
+      detailSheet.getRange(
+        checkpointDetailLastRow + 1,
+        1,
+        detailSheet.getLastRow() - checkpointDetailLastRow,
+        detailSchema.headers.length
+      ).clearContent();
+    }
+  }
+
   const isFirstChunk = (currentItem === 0);
 
   // Neu la lan dau tien: Don cot JSON cu, kiem tra schema, xoa trang noi dung cu va ghi Header
@@ -926,7 +1138,7 @@ function syncKiotVietTableChunk_(schemaKey, options) {
     // Rieng voi Hoa don, chuan bi ca tab Chi tiet hoa don
     if (schemaKey === 'invoices') {
       const detailSchema = KIOTVIET_SHEET_SCHEMAS.invoiceDetails;
-      const detailSheet = spreadsheet.getSheetByName(detailSchema.sheetName) || spreadsheet.insertSheet(detailSchema.sheetName);
+      const detailSheet = invoiceDetailStagingSheet;
       removeLegacyKiotVietJsonColumns_(detailSheet);
       ensureKiotVietSheetSchema_(detailSheet, detailSchema);
       detailSheet.clearContents();
@@ -938,7 +1150,6 @@ function syncKiotVietTableChunk_(schemaKey, options) {
   }
 
   const startTime = Date.now();
-  let chunkRawItems = [];
   let totalRecords = Number(state.total) || 0;
   let recordsInThisRun = 0;
 
@@ -962,70 +1173,39 @@ function syncKiotVietTableChunk_(schemaKey, options) {
 
     if (pageItems.length === 0) break;
 
-    if (schemaKey === 'purchases') {
-      const wrappers = buildPurchaseOrderWrappers_(pageItems);
-      const rows = wrappers.map(item => schema.buildRow(item));
-      const startRow = sheet.getLastRow() + 1;
-      writeKiotVietRowsInChunks_(sheet, startRow, rows, schema.headers.length);
-      if (typeof SpreadsheetApp !== 'undefined' && typeof SpreadsheetApp.flush === 'function') {
-        SpreadsheetApp.flush();
-      }
-    } else {
-      chunkRawItems = chunkRawItems.concat(pageItems);
-    }
+    const checkpointRows = writeKiotVietChunkPage_(
+      spreadsheet,
+      schemaKey,
+      schema,
+      sheet,
+      pageItems,
+      invoiceDetailStagingSheet
+    );
     currentItem += pageItems.length;
     recordsInThisRun += pageItems.length;
-
-    // Nhap hang ghi theo tung trang vao staging. Chi checkpoint sau khi flush
-    // de state khong bao gio chay truoc du lieu da duoc luu trong Sheets.
-    if (schemaKey === 'purchases') {
-      props.setProperty(stateKey, JSON.stringify({
-        schemaKey: schemaKey,
-        sheetName: schema.sheetName,
-        currentItem: currentItem,
-        total: totalRecords,
-        stagingLastRow: sheet.getLastRow(),
-        isCompleted: false,
-        updatedAt: new Date().toISOString()
-      }));
+    if (schemaKey === 'invoices') {
+      invoiceCount += pageItems.length;
+      invoiceDetailCount += checkpointRows.detailRowsWritten;
     }
+
+    // Chi checkpoint sau khi trang chinh va trang chi tiet (neu co) da flush,
+    // de state khong bao gio chay truoc du lieu da luu trong Google Sheets.
+    props.setProperty(stateKey, JSON.stringify({
+      schemaKey: schemaKey,
+      sheetName: schema.sheetName,
+      currentItem: currentItem,
+      total: totalRecords,
+      sheetLastRow: checkpointRows.sheetLastRow,
+      stagingLastRow: stagingSheet ? checkpointRows.sheetLastRow : undefined,
+      detailSheetLastRow: checkpointRows.detailSheetLastRow,
+      invoiceCount: schemaKey === 'invoices' ? invoiceCount : undefined,
+      invoiceDetailCount: schemaKey === 'invoices' ? invoiceDetailCount : undefined,
+      isCompleted: false,
+      updatedAt: new Date().toISOString()
+    }));
 
     if (currentItem >= totalRecords) break;
     Utilities.sleep(120);
-  }
-
-  // 3. Ghi du lieu dot nay xuong Google Sheet
-  if (chunkRawItems.length > 0) {
-    if (schemaKey === 'products') {
-      const validItems = chunkRawItems.filter(p => !isVatProductCode(getProductCode_(p)));
-      const rows = validItems.map(item => schema.buildRow(item));
-      const startRow = sheet.getLastRow() + 1;
-      writeKiotVietRowsInChunks_(sheet, startRow, rows, schema.headers.length);
-    } else if (schemaKey === 'invoices') {
-      const rows = chunkRawItems.map(item => schema.buildRow(item));
-      const startRow = sheet.getLastRow() + 1;
-      writeKiotVietRowsInChunks_(sheet, startRow, rows, schema.headers.length);
-
-      // Chi tiet hoa don
-      const detailSchema = KIOTVIET_SHEET_SCHEMAS.invoiceDetails;
-      const detailSheet = spreadsheet.getSheetByName(detailSchema.sheetName) || spreadsheet.insertSheet(detailSchema.sheetName);
-      const detailWrappers = [];
-      chunkRawItems.forEach(invoice => {
-        const details = kiotVietValue_(invoice, ['InvoiceDetails', 'invoiceDetails'], []);
-        (Array.isArray(details) ? details : []).forEach(detail => {
-          detailWrappers.push({ invoice: invoice, detail: detail });
-        });
-      });
-      if (detailWrappers.length > 0) {
-        const detailRows = detailWrappers.map(w => detailSchema.buildRow(w));
-        const detailStartRow = detailSheet.getLastRow() + 1;
-        writeKiotVietRowsInChunks_(detailSheet, detailStartRow, detailRows, detailSchema.headers.length);
-      }
-    } else {
-      const rows = chunkRawItems.map(item => schema.buildRow(item));
-      const startRow = sheet.getLastRow() + 1;
-      writeKiotVietRowsInChunks_(sheet, startRow, rows, schema.headers.length);
-    }
   }
 
   if (recordsInThisRun > 0) {
@@ -1043,6 +1223,11 @@ function syncKiotVietTableChunk_(schemaKey, options) {
         currentItem: currentItem,
         total: totalRecords,
         stagingLastRow: stagingSheet ? stagingSheet.getLastRow() : undefined,
+        detailSheetLastRow: schemaKey === 'invoices'
+          ? invoiceDetailStagingSheet.getLastRow()
+          : undefined,
+        invoiceCount: schemaKey === 'invoices' ? invoiceCount : undefined,
+        invoiceDetailCount: schemaKey === 'invoices' ? invoiceDetailCount : undefined,
         phase: 'commit',
         updatedAt: new Date().toISOString()
       }));
@@ -1057,6 +1242,8 @@ function syncKiotVietTableChunk_(schemaKey, options) {
         currentItem: currentItem,
         total: totalRecords,
         recordsProcessed: recordsInThisRun,
+        invoiceCount: schemaKey === 'invoices' ? invoiceCount : undefined,
+        invoiceDetailCount: schemaKey === 'invoices' ? invoiceDetailCount : undefined,
         phase: 'commit'
       };
     }
@@ -1069,7 +1256,9 @@ function syncKiotVietTableChunk_(schemaKey, options) {
       isCompleted: true,
       currentItem: currentItem,
       total: totalRecords,
-      recordsProcessed: recordsInThisRun
+      recordsProcessed: recordsInThisRun,
+      invoiceCount: schemaKey === 'invoices' ? invoiceCount : undefined,
+      invoiceDetailCount: schemaKey === 'invoices' ? invoiceDetailCount : undefined
     };
   } else {
     props.setProperty(stateKey, JSON.stringify({
@@ -1077,7 +1266,13 @@ function syncKiotVietTableChunk_(schemaKey, options) {
       sheetName: schema.sheetName,
       currentItem: currentItem,
       total: totalRecords,
+      sheetLastRow: sheet.getLastRow(),
       stagingLastRow: stagingSheet ? stagingSheet.getLastRow() : undefined,
+      detailSheetLastRow: schemaKey === 'invoices'
+        ? invoiceDetailStagingSheet.getLastRow()
+        : undefined,
+      invoiceCount: schemaKey === 'invoices' ? invoiceCount : undefined,
+      invoiceDetailCount: schemaKey === 'invoices' ? invoiceDetailCount : undefined,
       isCompleted: false,
       updatedAt: new Date().toISOString()
     }));
@@ -1093,16 +1288,18 @@ function syncKiotVietTableChunk_(schemaKey, options) {
       isCompleted: false,
       currentItem: currentItem,
       total: totalRecords,
-      recordsProcessed: recordsInThisRun
+      recordsProcessed: recordsInThisRun,
+      invoiceCount: schemaKey === 'invoices' ? invoiceCount : undefined,
+      invoiceDetailCount: schemaKey === 'invoices' ? invoiceDetailCount : undefined
     };
   }
 }
 
-function scheduleSpecificChunkTrigger_(handlerName) {
+function scheduleSpecificChunkTrigger_(handlerName, delayMs) {
   removeSpecificChunkTrigger_(handlerName);
   ScriptApp.newTrigger(handlerName)
     .timeBased()
-    .after(SYNC_CHUNK_CONFIG.AUTO_TRIGGER_DELAY_MS)
+    .after(delayMs || SYNC_CHUNK_CONFIG.AUTO_TRIGGER_DELAY_MS)
     .create();
 }
 
@@ -1179,6 +1376,7 @@ function resetAllSyncProgress() {
     props.deleteProperty('SYNC_CHUNK_STATE_' + key);
   });
   props.deleteProperty('MASTER_CHAIN_SYNC_STATE');
+  props.deleteProperty('MASTER_CHAIN_SYNC_WATCHDOG_AT');
   removeAllChunkResumeTriggers_();
   Logger.log('Da reset toan bo tien do dong bo phan doan va xoa cac trigger tiep suc.');
 }

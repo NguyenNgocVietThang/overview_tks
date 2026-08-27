@@ -1,0 +1,748 @@
+{
+  "spreadsheetId": "1PdwtGGw_hE-6wS_H3IMiuv1nGa58jpMvHDcn1iVJBZQ",
+  "title": "KIOT TOKOSI",
+  "sheetCount": 21,
+  "formulaCount": 0,
+  "audit": [
+    {
+      "sheet": "Hàng hóa",
+      "requested": "Hình ảnh",
+      "header": "Hình ảnh",
+      "columnIndex": 13,
+      "columnLetter": "M",
+      "status": "found",
+      "nonEmptyRows": 7536,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng hóa",
+      "requested": "Liên kết kênh bán",
+      "header": "Liên kết kênh bán",
+      "columnIndex": 14,
+      "columnLetter": "N",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng hóa",
+      "requested": "Thương hiệu",
+      "header": "Thương hiệu",
+      "columnIndex": 4,
+      "columnLetter": "D",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng hóa",
+      "requested": "Dự kiến hết hàng",
+      "header": "Dự kiến hết hàng",
+      "columnIndex": 16,
+      "columnLetter": "P",
+      "status": "found",
+      "nonEmptyRows": 8379,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng hóa",
+      "requested": "Định mức tồn thấp nhất",
+      "header": "Định mức tồn ít nhất",
+      "columnIndex": 17,
+      "columnLetter": "Q",
+      "status": "found",
+      "nonEmptyRows": 8379,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng hóa",
+      "requested": "Định mức tồn cao nhất",
+      "header": "Định mức tồn nhiều nhất",
+      "columnIndex": 18,
+      "columnLetter": "R",
+      "status": "found",
+      "nonEmptyRows": 8379,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng hóa",
+      "requested": "Mã vạch",
+      "header": "Mã vạch",
+      "columnIndex": 20,
+      "columnLetter": "T",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng hóa",
+      "requested": "Đơn vị tính",
+      "header": "Đơn vị tính",
+      "columnIndex": 25,
+      "columnLetter": "Y",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng hóa",
+      "requested": "ID đơn vị cơ bản",
+      "header": "ID đơn vị cơ bản",
+      "columnIndex": 26,
+      "columnLetter": "Z",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng hóa",
+      "requested": "ID hàng cùng loại",
+      "header": "ID hàng cùng loại",
+      "columnIndex": 27,
+      "columnLetter": "AA",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng hóa",
+      "requested": "Giá trước thuế",
+      "header": "Giá trước thuế",
+      "columnIndex": 30,
+      "columnLetter": "AD",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng hóa",
+      "requested": "Giá sau thuế",
+      "header": "Giá sau thuế",
+      "columnIndex": 31,
+      "columnLetter": "AE",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng hóa",
+      "requested": "Trọng lượng",
+      "header": "Trọng lượng",
+      "columnIndex": 32,
+      "columnLetter": "AF",
+      "status": "found",
+      "nonEmptyRows": 8360,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Nhà cung cấp",
+      "requested": "Email",
+      "header": "Email",
+      "columnIndex": 4,
+      "columnLetter": "D",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Nhà cung cấp",
+      "requested": "Khu vực",
+      "header": "Khu vực",
+      "columnIndex": 8,
+      "columnLetter": "H",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Nhà cung cấp",
+      "requested": "Phường/Xã",
+      "header": "Phường/Xã",
+      "columnIndex": 9,
+      "columnLetter": "I",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Nhà cung cấp",
+      "requested": "Công ty",
+      "header": "Công ty",
+      "columnIndex": 10,
+      "columnLetter": "J",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Nhà cung cấp",
+      "requested": "Mã số thuế",
+      "header": "Mã số thuế",
+      "columnIndex": 11,
+      "columnLetter": "K",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Nhà cung cấp",
+      "requested": "Ghi chú",
+      "header": "Ghi chú",
+      "columnIndex": 12,
+      "columnLetter": "L",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Nhà cung cấp",
+      "requested": "Nhóm nhà cung cấp",
+      "header": "Nhóm nhà cung cấp",
+      "columnIndex": 13,
+      "columnLetter": "M",
+      "status": "found",
+      "nonEmptyRows": 4,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Khách hàng",
+      "requested": "Giới tính",
+      "header": "Giới tính",
+      "columnIndex": 4,
+      "columnLetter": "D",
+      "status": "found",
+      "nonEmptyRows": 1,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Khách hàng",
+      "requested": "Email",
+      "header": "Email",
+      "columnIndex": 7,
+      "columnLetter": "G",
+      "status": "found",
+      "nonEmptyRows": 1,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Khách hàng",
+      "requested": "Loại khách hàng",
+      "header": "Loại khách hàng",
+      "columnIndex": 11,
+      "columnLetter": "K",
+      "status": "found",
+      "nonEmptyRows": 1159,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Khách hàng",
+      "requested": "Ngày sinh",
+      "header": "Ngày sinh",
+      "columnIndex": 12,
+      "columnLetter": "L",
+      "status": "found",
+      "nonEmptyRows": 1,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Khách hàng",
+      "requested": "CCCD/CMND",
+      "header": "CCCD/CMND",
+      "columnIndex": 14,
+      "columnLetter": "N",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Khách hàng",
+      "requested": "Khu vực",
+      "header": "Khu vực",
+      "columnIndex": 15,
+      "columnLetter": "O",
+      "status": "found",
+      "nonEmptyRows": 1,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Khách hàng",
+      "requested": "Phường/Xã",
+      "header": "Phường/Xã",
+      "columnIndex": 16,
+      "columnLetter": "P",
+      "status": "found",
+      "nonEmptyRows": 1,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Khách hàng",
+      "requested": "Ghi chú",
+      "header": "Ghi chú",
+      "columnIndex": 18,
+      "columnLetter": "R",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Khách hàng",
+      "requested": "Mã số thuế",
+      "header": "Mã số thuế",
+      "columnIndex": 19,
+      "columnLetter": "S",
+      "status": "found",
+      "nonEmptyRows": 2,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Khách hàng",
+      "requested": "Tổng điểm",
+      "header": "Tổng điểm",
+      "columnIndex": 20,
+      "columnLetter": "T",
+      "status": "found",
+      "nonEmptyRows": 1159,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Khách hàng",
+      "requested": "Điểm hiện tại",
+      "header": "Điểm hiện tại",
+      "columnIndex": 22,
+      "columnLetter": "V",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Khách hàng",
+      "requested": "Ngày cập nhật",
+      "header": "Ngày cập nhật",
+      "columnIndex": 24,
+      "columnLetter": "X",
+      "status": "found",
+      "nonEmptyRows": 1159,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Khách hàng",
+      "requested": "PSID Facebook",
+      "header": "PSID Facebook",
+      "columnIndex": 26,
+      "columnLetter": "Z",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hóa đơn",
+      "requested": "ID gian hàng",
+      "header": "ID gian hàng",
+      "columnIndex": 12,
+      "columnLetter": "L",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hóa đơn",
+      "requested": "Tổng thuế",
+      "header": "Tổng thuế",
+      "columnIndex": 22,
+      "columnLetter": "V",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hóa đơn",
+      "requested": "Ngày cập nhật",
+      "header": "Ngày cập nhật",
+      "columnIndex": 24,
+      "columnLetter": "X",
+      "status": "found",
+      "nonEmptyRows": 1410,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Chi tiết hóa đơn",
+      "requested": "Là dòng chính",
+      "header": "Là dòng chính",
+      "columnIndex": 12,
+      "columnLetter": "L",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Chi tiết hóa đơn",
+      "requested": "Serial/IMEI",
+      "header": "Serial/IMEI",
+      "columnIndex": 13,
+      "columnLetter": "M",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Đặt hàng",
+      "requested": "Tổng thuế",
+      "header": "Tổng thuế",
+      "columnIndex": 21,
+      "columnLetter": "U",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Trả hàng",
+      "requested": "Mã hóa đơn gốc",
+      "header": "Mã hóa đơn gốc",
+      "columnIndex": 3,
+      "columnLetter": "C",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Trả hàng",
+      "requested": "ID gian hàng",
+      "header": "ID gian hàng",
+      "columnIndex": 8,
+      "columnLetter": "H",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Trả hàng",
+      "requested": "Tổng thuế",
+      "header": "Tổng thuế",
+      "columnIndex": 21,
+      "columnLetter": "U",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Trả hàng",
+      "requested": "Chế độ tính thuế",
+      "header": "Chế độ tính thuế",
+      "columnIndex": 22,
+      "columnLetter": "V",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Trả hàng",
+      "requested": "Giảm giá sau thuế",
+      "header": "Giảm giá sau thuế",
+      "columnIndex": 23,
+      "columnLetter": "W",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Nhập hàng",
+      "requested": "Ngày cập nhật",
+      "header": "Ngày cập nhật",
+      "columnIndex": 5,
+      "columnLetter": "E",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Nhập hàng",
+      "requested": "Điện thoại",
+      "header": "Điện thoại",
+      "columnIndex": 8,
+      "columnLetter": "H",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Nhập hàng",
+      "requested": "Địa chỉ",
+      "header": "Địa chỉ",
+      "columnIndex": 9,
+      "columnLetter": "I",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Nhập hàng",
+      "requested": "Số hóa đơn đầu vào",
+      "header": "Số hóa đơn đầu vào",
+      "columnIndex": 17,
+      "columnLetter": "Q",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Nhập hàng",
+      "requested": "Thương hiệu",
+      "header": "Thương hiệu",
+      "columnIndex": 23,
+      "columnLetter": "W",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Nhập hàng",
+      "requested": "ĐVT",
+      "header": "ĐVT",
+      "columnIndex": 24,
+      "columnLetter": "X",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Nhập hàng",
+      "requested": "Ghi chú hàng hóa",
+      "header": "Ghi chú hàng hóa",
+      "columnIndex": 25,
+      "columnLetter": "Y",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng ngừng kinh doanh",
+      "requested": "Thời gian phát hiện",
+      "header": "Thời gian phát hiện",
+      "columnIndex": 1,
+      "columnLetter": "A",
+      "status": "found",
+      "nonEmptyRows": 2341,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng ngừng kinh doanh",
+      "requested": "Mã vạch",
+      "header": "Mã vạch",
+      "columnIndex": 8,
+      "columnLetter": "H",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng ngừng kinh doanh",
+      "requested": "ID thương hiệu",
+      "header": "ID thương hiệu",
+      "columnIndex": 14,
+      "columnLetter": "N",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng ngừng kinh doanh",
+      "requested": "Đơn vị",
+      "header": "Đơn vị",
+      "columnIndex": 16,
+      "columnLetter": "P",
+      "status": "found",
+      "nonEmptyRows": 1,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng ngừng kinh doanh",
+      "requested": "ID đơn vị",
+      "header": "ID đơn vị cơ bản",
+      "columnIndex": 17,
+      "columnLetter": "Q",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng ngừng kinh doanh",
+      "requested": "ID hàng cùng loại",
+      "header": "ID hàng cùng loại",
+      "columnIndex": 18,
+      "columnLetter": "R",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng ngừng kinh doanh",
+      "requested": "Thuộc tính",
+      "header": "Thuộc tính",
+      "columnIndex": 31,
+      "columnLetter": "AE",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng ngừng kinh doanh",
+      "requested": "Vị trí hàng",
+      "header": "Vị trí hàng",
+      "columnIndex": 33,
+      "columnLetter": "AG",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng ngừng kinh doanh",
+      "requested": "Công thức/combo",
+      "header": "Công thức/combo",
+      "columnIndex": 34,
+      "columnLetter": "AH",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng ngừng kinh doanh",
+      "requested": "Mẫu ghi chú",
+      "header": "Mẫu ghi chú",
+      "columnIndex": 35,
+      "columnLetter": "AI",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng ngừng kinh doanh",
+      "requested": "Tích điểm",
+      "header": "Tích điểm",
+      "columnIndex": 36,
+      "columnLetter": "AJ",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng ngừng kinh doanh",
+      "requested": "Quản lý serial/IMEI",
+      "header": "Quản lý serial/IMEI",
+      "columnIndex": 37,
+      "columnLetter": "AK",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng ngừng kinh doanh",
+      "requested": "Quản lý hạn sử dụng",
+      "header": "Quản lý hạn sử dụng",
+      "columnIndex": 39,
+      "columnLetter": "AM",
+      "status": "found",
+      "nonEmptyRows": 0,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "Hàng ngừng kinh doanh",
+      "requested": "Dữ liệu API đầy đủ (JSON)",
+      "header": "Dữ liệu API đầy đủ (JSON)",
+      "columnIndex": 42,
+      "columnLetter": "AP",
+      "status": "found",
+      "nonEmptyRows": 2341,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "HN1",
+      "requested": "VAT bán hàng",
+      "header": "VAT bán hàng",
+      "columnIndex": 22,
+      "columnLetter": "V",
+      "status": "found",
+      "nonEmptyRows": 379,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "HN1",
+      "requested": "VAT hoàn lại",
+      "header": "VAT hoàn lại",
+      "columnIndex": 23,
+      "columnLetter": "W",
+      "status": "found",
+      "nonEmptyRows": 379,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "HN1",
+      "requested": "Thu khác",
+      "header": "Thu khác",
+      "columnIndex": 24,
+      "columnLetter": "X",
+      "status": "found",
+      "nonEmptyRows": 846,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "HN3",
+      "requested": "VAT bán hàng",
+      "header": "VAT bán hàng",
+      "columnIndex": 22,
+      "columnLetter": "V",
+      "status": "found",
+      "nonEmptyRows": 797,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "HN3",
+      "requested": "VAT hoàn lại",
+      "header": "VAT hoàn lại",
+      "columnIndex": 23,
+      "columnLetter": "W",
+      "status": "found",
+      "nonEmptyRows": 797,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "HN3",
+      "requested": "Thu khác",
+      "header": "Thu khác",
+      "columnIndex": 24,
+      "columnLetter": "X",
+      "status": "found",
+      "nonEmptyRows": 1614,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "HN7",
+      "requested": "VAT bán hàng",
+      "header": "VAT bán hàng",
+      "columnIndex": 22,
+      "columnLetter": "V",
+      "status": "found",
+      "nonEmptyRows": 2542,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "HN7",
+      "requested": "VAT hoàn lại",
+      "header": "VAT hoàn lại",
+      "columnIndex": 23,
+      "columnLetter": "W",
+      "status": "found",
+      "nonEmptyRows": 2542,
+      "formulaReferences": []
+    },
+    {
+      "sheet": "HN7",
+      "requested": "Thu khác",
+      "header": "Thu khác",
+      "columnIndex": 24,
+      "columnLetter": "X",
+      "status": "found",
+      "nonEmptyRows": 4462,
+      "formulaReferences": []
+    }
+  ]
+}

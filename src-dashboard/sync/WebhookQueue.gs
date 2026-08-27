@@ -264,20 +264,26 @@ function finalizeWebhookQueueItem_(id, error) {
 
 function processWebhookQueue() {
   if (!isShipmentLifecycleMode_()) {
-    const maintenanceLock = getKiotVietDataLock_();
-    if (maintenanceLock.tryLock(5000)) {
-      try {
+    ensureMasterChainResumeTrigger_();
+    const masterBackfillActive = Boolean(
+      PropertiesService.getScriptProperties().getProperty('MASTER_CHAIN_SYNC_STATE')
+    );
+    if (!masterBackfillActive) {
+      const maintenanceLock = getKiotVietDataLock_();
+      if (maintenanceLock.tryLock(5000)) {
         try {
-          migrateKiotVietSheetsIfNeeded_();
-        } catch (migrationError) {
-          Logger.log('Loi cap nhat schema, se thu lai: ' + migrationError.toString());
-        }
-        syncCustomerReportIfDue_();
+          try {
+            migrateKiotVietSheetsIfNeeded_();
+          } catch (migrationError) {
+            Logger.log('Loi cap nhat schema, se thu lai: ' + migrationError.toString());
+          }
+          syncCustomerReportIfDue_();
 
-        // Sau 15:00, chay bu bao cao cong no neu trigger ngay bi tre hoac loi.
-        syncCustomerDebtReportsIfDue_();
-      } finally {
-        maintenanceLock.releaseLock();
+          // Sau 15:00, chay bu bao cao cong no neu trigger ngay bi tre hoac loi.
+          syncCustomerDebtReportsIfDue_();
+        } finally {
+          maintenanceLock.releaseLock();
+        }
       }
     }
   }
@@ -362,8 +368,8 @@ function setupQueueProcessingTrigger() {
   ScriptApp.getProjectTriggers().forEach(trigger => {
     if (trigger.getHandlerFunction() === 'processWebhookQueue') ScriptApp.deleteTrigger(trigger);
   });
-  ScriptApp.newTrigger('processWebhookQueue').timeBased().everyMinutes(1).create();
-  Logger.log('Da bat trigger xu ly webhook moi 1 phut.');
+  ScriptApp.newTrigger('processWebhookQueue').timeBased().everyMinutes(5).create();
+  Logger.log('Da bat trigger xu ly webhook moi 5 phut.');
 }
 
 /**

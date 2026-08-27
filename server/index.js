@@ -17,7 +17,10 @@ process.on('unhandledRejection', (reason, promise) => {
 const app = express();
 
 app.use(compression());
-app.use(express.json());
+// Mac dinh express.json() gioi han 100kb — khong du cho payload xuat Excel
+// ket qua kiem tra dut hang (hang tram dong, moi dong kem chi tiet cac dot dut hang).
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // Ngan Cloudflare/Render cache response API — du lieu bao cao phai luon lay tu
@@ -62,6 +65,22 @@ app.use('/api', (req, res) => {
 // [2] Tat ca route con lai — tra ve trang 404.html voi HTTP status 404
 app.use((req, res) => {
   res.status(404).sendFile(path.join(__dirname, 'public', '404.html'));
+});
+
+// ── Global Error Handler ──────────────────────────────────────────────────────
+app.use((err, req, res, next) => {
+  console.error('[Express Error]', err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  const status = err.status || err.statusCode || 500;
+  if (req.originalUrl && req.originalUrl.startsWith('/api')) {
+    return res.status(status).json({
+      error: err.message || 'Lỗi máy chủ nội bộ.',
+      status
+    });
+  }
+  res.status(status).send(`<h1>${status} Error</h1><p>${err.message || 'Internal Server Error'}</p>`);
 });
 // ─────────────────────────────────────────────────────────────────────────────
 

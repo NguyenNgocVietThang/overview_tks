@@ -29,14 +29,21 @@ function normalizeCoSo(raw) {
   return LEGACY_ALIASES[key] || '';
 }
 
+// Quan ly la vai tro dieu hanh toan he thong — mac dinh duoc xem CA HAI co so
+// ngay ca khi chua duoc gan coSo tuong minh (tai khoan tao qua form thieu
+// truong nay, hoac duoc thang cap vai tro ma khong dong thoi gan lai co so).
+const MANAGER_ROLE = 'Quản lý';
+
 /**
  * Danh sach co so mot tai khoan duoc phep xem. Rong = chua duoc gan co so
- * (Quan ly phai gan truoc khi tai khoan xem duoc bat ky du lieu nao).
+ * (Quan ly phai gan truoc khi tai khoan xem duoc bat ky du lieu nao) —
+ * ngoai tru vai tro Quan ly, luon mac dinh ve Ca hai.
  */
 function allowedBranches(user) {
   const coSo = normalizeCoSo(user && user.coSo);
   if (coSo === BRANCH_BOTH) return [BRANCHES.HANOI, BRANCHES.SAIGON];
   if (coSo) return [coSo];
+  if (user && user.vaiTro === MANAGER_ROLE) return [BRANCHES.HANOI, BRANCHES.SAIGON];
   return [];
 }
 

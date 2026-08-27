@@ -1,0 +1,17 @@
+# Chỉ dùng cho project KiotSG (rootDir: src-dashboard, dùng chung code với KiotHN).
+# Project Dashboard (KiotHN) dùng .clasp.json và .claspignore.
+# Project Vận chuyển dùng .clasp.order-lifecycle.json và
+# .claspignore.order-lifecycle.
+node_modules/
+docs/
+future-phases/
+plans/
+dev/
+server/
+design-system/
+.agents/
+.claude/
+*.md
+*.bpmn
+.gitignore
+README.md

@@ -1,10 +1,21 @@
 // ==========================================
 // CAU HINH THONG TIN KET NOI KIOTVIET — TOKOSI
+//
+// File nay dung chung cho 2 Apps Script project doc lap, deploy tu cung
+// rootDir src-dashboard/ nhung khac scriptId va khac Script Properties:
+//   - KiotHN (.clasp.json)          -> KIOTVIET_RETAILER = CHhanoi
+//   - KiotSG (.clasp.saigon.json)   -> KIOTVIET_RETAILER = CHsaigon
+// Moi project co Script Properties/token cache rieng, khong doc/ghi cheo
+// trang thai cua nhau.
 // ==========================================
 const CONFIG = {
   get RETAILER() {
-    return PropertiesService.getScriptProperties().getProperty('KIOTVIET_RETAILER') || 'CHhanoi';
-  }, // Ten gian hang TOKOSI tren KiotViet
+    const retailer = PropertiesService.getScriptProperties().getProperty('KIOTVIET_RETAILER');
+    if (!retailer) {
+      throw new Error('Thieu KIOTVIET_RETAILER trong Apps Script Properties.');
+    }
+    return retailer;
+  }, // Ten gian hang KiotViet cua project nay (KiotHN: CHhanoi, KiotSG: CHsaigon) — bat buoc khai bao, khong fallback ngam
 
   // Ten cac tab luu du lieu tren Sheet
   SHEET_PRODUCTS: 'Hàng hóa',

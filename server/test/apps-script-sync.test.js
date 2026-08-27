@@ -22,6 +22,11 @@ function loadAppsScript(files, globals = {}) {
   return context;
 }
 
+function getTestScriptProperty(properties, name) {
+  if (name === 'KIOTVIET_RETAILER') return 'CHhanoi';
+  return properties[name] || null;
+}
+
 function createFormatRange(numberFormatError) {
   return {
     setFontWeight() { return this; },
@@ -103,6 +108,41 @@ function createMemorySheet(name, initialRows, options = {}) {
 }
 
 describe('Compact KiotViet sheet schemas', () => {
+  it('builds the full discontinued reconciliation set from the synced product sheet without KiotViet API calls', () => {
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/DiscontinuedProducts.gs'
+    ]);
+    const products = vm.runInContext(`productSheetRowsToDiscontinuedProducts_([
+      ['Mã hàng','Tên hàng','Nhóm hàng','Loại hàng','Giá vốn','Giá bán','Tồn kho','Khách đặt','Trạng thái','Ngày sửa cuối','Mã nhóm hàng','Vị trí','ID hàng hóa','ID gian hàng','Được phép bán','Tên gốc','Mô tả','Giá trị quy đổi','Có thuộc tính','Đang hoạt động','Ngày tạo','Ngày cập nhật','Mã loại hàng'],
+      ['A-01','Sản phẩm ngừng','Nhóm A','Hàng hóa',12000,18000,3,2,'Ngừng kinh doanh','26/08/2026 09:30','N-A','Kệ 1','101','501','Có','Sản phẩm ngừng','Mô tả A',1,'Không','Không','01/01/2026 08:00','26/08/2026 09:30',2],
+      ['A-02','Sản phẩm đang bán','Nhóm A','Hàng hóa',10000,15000,9,0,'Đang kinh doanh','26/08/2026 10:00','N-A','Kệ 2','102','501','Có','Sản phẩm đang bán','',1,'Không','Có','01/01/2026 08:00','26/08/2026 10:00',2]
+    ])`, context);
+
+    assert.equal(products.length, 1);
+    assert.deepEqual(JSON.parse(JSON.stringify(products[0])), {
+      id: '101',
+      retailerId: '501',
+      code: 'A-01',
+      name: 'Sản phẩm ngừng',
+      fullName: 'Sản phẩm ngừng',
+      type: 2,
+      categoryId: 'N-A',
+      categoryName: 'Nhóm A',
+      conversionValue: 1,
+      allowsSale: true,
+      hasVariants: false,
+      basePrice: 18000,
+      description: 'Mô tả A',
+      isActive: false,
+      modifiedDate: '26/08/2026 09:30',
+      createdDate: '01/01/2026 08:00',
+      inventories: [{ onHand: 3, reserved: 2, onOrder: 0 }],
+      fromProductSheet: true
+    });
+  });
+
   it('keeps every sync row aligned with its compact header list', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
@@ -188,7 +228,7 @@ describe('KiotViet webhook URL recovery', () => {
       PropertiesService: {
         getScriptProperties() {
           return {
-            getProperty(name) { return properties[name] || null; },
+            getProperty(name) { return getTestScriptProperty(properties, name); },
             setProperty(name, value) { properties[name] = value; }
           };
         }
@@ -291,6 +331,40 @@ describe('Separated dashboard and shipment projects', () => {
     assert.equal(context.getKiotVietAutoSyncProfile_().eventTypes.length, 9);
   });
 
+  it('installs every dashboard schedule when auto-sync is reconciled', () => {
+    const installed = [];
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/kiotviet/WebhookAdmin.gs'
+    ]);
+    context.isShipmentLifecycleMode_ = () => false;
+    context.isCombinedKiotVietMode_ = () => false;
+    context.migrateKiotVietSheetsIfNeeded_ = () => {};
+    context.getKiotVietToken = () => 'fake-token';
+    context.ensureKiotVietWebhookSecret_ = () => {};
+    context.setupQueueProcessingTrigger = () => installed.push('queue');
+    context.setupPollingTrigger = () => installed.push('polling');
+    context.setupCustomerReportDailyTrigger = () => installed.push('customer-reports');
+    context.setupHangNgungKinhDoanhTrigger_ = () => installed.push('discontinued');
+    context.setupCustomerDebtReportDailyTrigger = () => installed.push('debt');
+    context.reconcileKiotVietAutoSyncWebhooks_ = () => ({
+      activeCount: 9,
+      createdCount: 0,
+      removedCount: 0,
+      failedCount: 0
+    });
+
+    context.setupKiotVietAutoSync();
+
+    assert.deepEqual(installed, [
+      'queue',
+      'polling',
+      'customer-reports',
+      'discontinued',
+      'debt'
+    ]);
+  });
+
   it('does not write shipment rows inside the dashboard project', () => {
     const calls = [];
     const context = loadAppsScript([
@@ -316,6 +390,65 @@ describe('Separated dashboard and shipment projects', () => {
     });
 
     assert.deepEqual(calls.map(call => call[0]), ['dashboard']);
+  });
+
+  it('checks for a stalled master sync on every dashboard queue tick', () => {
+    let watchdogCalls = 0;
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return { getProperty() { return null; } };
+        }
+      }
+    });
+    context.isShipmentLifecycleMode_ = () => false;
+    context.getKiotVietDataLock_ = () => ({ tryLock() { return false; } });
+    context.claimWebhookQueueBatch_ = () => [];
+    context.ensureMasterChainResumeTrigger_ = () => { watchdogCalls++; };
+
+    context.processWebhookQueue();
+
+    assert.equal(watchdogCalls, 1);
+  });
+
+  it('skips heavy queue maintenance while the master backfill is active', () => {
+    let maintenanceCalls = 0;
+    let claimedBatches = 0;
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) {
+              return name === 'MASTER_CHAIN_SYNC_STATE' ? '{"currentIndex":3}' : null;
+            }
+          };
+        }
+      }
+    });
+    context.isShipmentLifecycleMode_ = () => false;
+    context.ensureMasterChainResumeTrigger_ = () => {};
+    context.getKiotVietDataLock_ = () => ({
+      tryLock() { return true; },
+      releaseLock() {}
+    });
+    context.migrateKiotVietSheetsIfNeeded_ = () => { maintenanceCalls++; };
+    context.syncCustomerReportIfDue_ = () => { maintenanceCalls++; };
+    context.syncCustomerDebtReportsIfDue_ = () => { maintenanceCalls++; };
+    context.claimWebhookQueueBatch_ = () => {
+      claimedBatches++;
+      return [];
+    };
+
+    context.processWebhookQueue();
+
+    assert.equal(maintenanceCalls, 0);
+    assert.equal(claimedBatches, 1);
   });
 
   it('loads the shipment project with its own lifecycle mode and entry points', () => {
@@ -380,7 +513,9 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
       PropertiesService: {
         getScriptProperties() {
           return {
-            getProperty() { return null; },
+            getProperty(name) {
+              return name === 'KIOTVIET_RETAILER' ? 'CHhanoi' : null;
+            },
             setProperty() {},
             deleteProperty() {}
           };
@@ -444,7 +579,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
       PropertiesService: {
         getScriptProperties() {
           return {
-            getProperty(name) { return properties[name] || null; },
+            getProperty(name) { return getTestScriptProperty(properties, name); },
             setProperty(name, value) { properties[name] = value; },
             deleteProperty(name) { delete properties[name]; }
           };
@@ -501,6 +636,145 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     assert.equal(liveSheet.getRows()[1][1], 'PN-OLD');
   });
 
+  it('persists each completed orders page before requesting the next page', () => {
+    const properties = {};
+    let fetchCount = 0;
+    const firstOrder = {
+      OrderId: 201,
+      OrderCode: 'DH-FIRST',
+      PurchaseDate: '2026-08-26T10:00:00',
+      CustomerName: 'Khach thu nghiem',
+      Total: 250000,
+      Status: 3
+    };
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return getTestScriptProperty(properties, name); },
+            setProperty(name, value) { properties[name] = value; },
+            deleteProperty(name) { delete properties[name]; }
+          };
+        }
+      },
+      ScriptApp: { getProjectTriggers() { return []; } },
+      SpreadsheetApp: { flush() {} },
+      UrlFetchApp: {
+        fetch() {
+          fetchCount++;
+          if (fetchCount === 1) {
+            return {
+              getResponseCode() { return 200; },
+              getContentText() {
+                return JSON.stringify({ total: 2, data: [firstOrder] });
+              }
+            };
+          }
+          throw new Error('KiotViet stalled on the next orders page');
+        }
+      },
+      Utilities: { sleep() {} }
+    });
+    const orderHeaders = vm.runInContext('ORDER_SHEET_HEADERS.slice()', context);
+    const liveSheet = createMemorySheet(
+      'Đặt hàng',
+      [orderHeaders],
+      { maxRows: 1, maxColumns: orderHeaders.length }
+    );
+    const spreadsheet = {
+      getSheets() { return [liveSheet]; },
+      getSheetByName(name) { return name === 'Đặt hàng' ? liveSheet : null; }
+    };
+    liveSheet.setParent(spreadsheet);
+    context.SpreadsheetApp.getActiveSpreadsheet = () => spreadsheet;
+
+    assert.throws(
+      () => context.syncKiotVietTableChunk_('orders', { token: 'fake-token' }),
+      /KiotViet API \(orders\) that bai/
+    );
+
+    const checkpoint = JSON.parse(properties.SYNC_CHUNK_STATE_orders);
+    assert.equal(checkpoint.currentItem, 1);
+    assert.equal(checkpoint.sheetLastRow, 2);
+    assert.equal(liveSheet.getRows()[1][0], 'DH-FIRST');
+  });
+
+  it('removes uncheckpointed order rows before resuming', () => {
+    const properties = {
+      SYNC_CHUNK_STATE_orders: JSON.stringify({
+        schemaKey: 'orders',
+        sheetName: 'Đặt hàng',
+        currentItem: 1,
+        total: 2,
+        sheetLastRow: 2,
+        isCompleted: false
+      })
+    };
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return getTestScriptProperty(properties, name); },
+            setProperty(name, value) { properties[name] = value; },
+            deleteProperty(name) { delete properties[name]; }
+          };
+        }
+      },
+      ScriptApp: { getProjectTriggers() { return []; } },
+      SpreadsheetApp: { flush() {} },
+      UrlFetchApp: {
+        fetch() {
+          return {
+            getResponseCode() { return 200; },
+            getContentText() {
+              return JSON.stringify({
+                total: 2,
+                data: [{
+                  OrderId: 202,
+                  OrderCode: 'DH-SECOND',
+                  PurchaseDate: '2026-08-26T11:00:00',
+                  Total: 300000,
+                  Status: 3
+                }]
+              });
+            }
+          };
+        }
+      },
+      Utilities: { sleep() {} }
+    });
+    const orderHeaders = vm.runInContext('ORDER_SHEET_HEADERS.slice()', context);
+    const firstRow = Array(orderHeaders.length).fill('');
+    firstRow[0] = 'DH-FIRST';
+    const uncheckpointedRow = Array(orderHeaders.length).fill('');
+    uncheckpointedRow[0] = 'DH-UNCOMMITTED';
+    const liveSheet = createMemorySheet(
+      'Đặt hàng',
+      [orderHeaders, firstRow, uncheckpointedRow],
+      { maxRows: 4, maxColumns: orderHeaders.length }
+    );
+    const spreadsheet = {
+      getSheets() { return [liveSheet]; },
+      getSheetByName(name) { return name === 'Đặt hàng' ? liveSheet : null; }
+    };
+    liveSheet.setParent(spreadsheet);
+    context.SpreadsheetApp.getActiveSpreadsheet = () => spreadsheet;
+
+    context.syncKiotVietTableChunk_('orders', { token: 'fake-token' });
+
+    assert.equal(liveSheet.getRows().length, 3);
+    assert.equal(liveSheet.getRows()[1][0], 'DH-FIRST');
+    assert.equal(liveSheet.getRows()[2][0], 'DH-SECOND');
+  });
+
   it('keeps the current purchases visible when the first API page fails', () => {
     const properties = {};
     const context = loadAppsScript([
@@ -511,7 +785,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
       PropertiesService: {
         getScriptProperties() {
           return {
-            getProperty(name) { return properties[name] || null; },
+            getProperty(name) { return getTestScriptProperty(properties, name); },
             setProperty(name, value) { properties[name] = value; },
             deleteProperty(name) { delete properties[name]; }
           };
@@ -574,7 +848,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
       PropertiesService: {
         getScriptProperties() {
           return {
-            getProperty(name) { return properties[name] || null; },
+            getProperty(name) { return getTestScriptProperty(properties, name); },
             setProperty(name, value) { properties[name] = value; },
             deleteProperty(name) { delete properties[name]; }
           };
@@ -650,6 +924,474 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     assert.equal(properties.SYNC_CHUNK_STATE_purchases, undefined);
   });
 
+  it('keeps current invoices and details visible when the first API page fails', () => {
+    const properties = {};
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return getTestScriptProperty(properties, name); },
+            setProperty(name, value) { properties[name] = value; },
+            deleteProperty(name) { delete properties[name]; }
+          };
+        }
+      },
+      ScriptApp: { getProjectTriggers() { return []; } },
+      SpreadsheetApp: { flush() {} },
+      UrlFetchApp: { fetch() { throw new Error('KiotViet unavailable'); } },
+      Utilities: { sleep() {} }
+    });
+    const invoiceHeaders = vm.runInContext('INVOICE_SHEET_HEADERS.slice()', context);
+    const detailHeaders = vm.runInContext('INVOICE_DETAIL_SHEET_HEADERS.slice()', context);
+    const oldInvoice = Array(invoiceHeaders.length).fill('old-invoice');
+    oldInvoice[0] = 'HD-OLD';
+    const oldDetail = Array(detailHeaders.length).fill('old-detail');
+    oldDetail[0] = 'HD-OLD';
+    const liveInvoices = createMemorySheet('Hóa đơn', [invoiceHeaders, oldInvoice]);
+    const liveDetails = createMemorySheet('Chi tiết hóa đơn', [detailHeaders, oldDetail]);
+    const sheets = [liveInvoices, liveDetails];
+    const spreadsheet = {
+      getSheets() { return sheets.slice(); },
+      getSheetByName(name) { return sheets.find(sheet => sheet.getName() === name) || null; },
+      insertSheet(name) {
+        const headers = name === '_KV_SYNC_STAGING_INVOICE_DETAILS'
+          ? detailHeaders
+          : invoiceHeaders;
+        const sheet = createMemorySheet(name, [headers], {
+          maxRows: 1,
+          maxColumns: headers.length
+        });
+        sheet.setParent(spreadsheet);
+        sheets.push(sheet);
+        return sheet;
+      }
+    };
+    sheets.forEach(sheet => sheet.setParent(spreadsheet));
+    context.SpreadsheetApp.getActiveSpreadsheet = () => spreadsheet;
+
+    assert.throws(
+      () => context.syncKiotVietTableChunk_('invoices', { token: 'fake-token' }),
+      /KiotViet API \(invoices\) that bai/
+    );
+
+    assert.equal(liveInvoices.getClearCount(), 0);
+    assert.equal(liveDetails.getClearCount(), 0);
+    assert.equal(liveInvoices.getRows()[1][0], 'HD-OLD');
+    assert.equal(liveDetails.getRows()[1][0], 'HD-OLD');
+  });
+
+  it('publishes invoices and details together after staging is complete', () => {
+    const properties = {};
+    const createdTriggers = [];
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return getTestScriptProperty(properties, name); },
+            setProperty(name, value) { properties[name] = value; },
+            deleteProperty(name) { delete properties[name]; }
+          };
+        }
+      },
+      ScriptApp: {
+        getProjectTriggers() { return []; },
+        newTrigger(handler) {
+          return {
+            timeBased() { return this; },
+            after(delayMs) { this.delayMs = delayMs; return this; },
+            create() { createdTriggers.push({ handler, delayMs: this.delayMs }); }
+          };
+        }
+      },
+      SpreadsheetApp: { flush() {} },
+      UrlFetchApp: {
+        fetch() {
+          return {
+            getResponseCode() { return 200; },
+            getContentText() {
+              return JSON.stringify({
+                total: 1,
+                data: [{
+                  InvoiceId: 501,
+                  InvoiceCode: 'HD-NEW',
+                  PurchaseDate: '2026-08-27T08:00:00',
+                  Status: 1,
+                  InvoiceDetails: [
+                    { ProductId: 101, ProductCode: 'SP-1', ProductName: 'Sản phẩm 1', Quantity: 1, Price: 100000 },
+                    { ProductId: 102, ProductCode: 'SP-2', ProductName: 'Sản phẩm 2', Quantity: 2, Price: 50000 }
+                  ]
+                }]
+              });
+            }
+          };
+        }
+      },
+      Utilities: { sleep() {} }
+    });
+    const invoiceHeaders = vm.runInContext('INVOICE_SHEET_HEADERS.slice()', context);
+    const detailHeaders = vm.runInContext('INVOICE_DETAIL_SHEET_HEADERS.slice()', context);
+    const oldInvoice = Array(invoiceHeaders.length).fill('old-invoice');
+    oldInvoice[0] = 'HD-OLD';
+    const oldDetail = Array(detailHeaders.length).fill('old-detail');
+    oldDetail[0] = 'HD-OLD';
+    const liveInvoices = createMemorySheet('Hóa đơn', [invoiceHeaders, oldInvoice]);
+    const liveDetails = createMemorySheet('Chi tiết hóa đơn', [detailHeaders, oldDetail]);
+    const sheets = [liveInvoices, liveDetails];
+    const spreadsheet = {
+      getSheets() { return sheets.slice(); },
+      getSheetByName(name) { return sheets.find(sheet => sheet.getName() === name) || null; },
+      insertSheet(name) {
+        const headers = name === '_KV_SYNC_STAGING_INVOICE_DETAILS'
+          ? detailHeaders
+          : invoiceHeaders;
+        const sheet = createMemorySheet(name, [headers], {
+          maxRows: 1,
+          maxColumns: headers.length
+        });
+        sheet.setParent(spreadsheet);
+        sheets.push(sheet);
+        return sheet;
+      },
+      deleteSheet(sheet) {
+        const index = sheets.indexOf(sheet);
+        if (index >= 0) sheets.splice(index, 1);
+      }
+    };
+    sheets.forEach(sheet => sheet.setParent(spreadsheet));
+    context.SpreadsheetApp.getActiveSpreadsheet = () => spreadsheet;
+
+    const stagedResult = context.syncKiotVietTableChunk_('invoices', {
+      token: 'fake-token',
+      resumeHandler: 'resumeSyncInvoicesChunk'
+    });
+
+    assert.equal(stagedResult.isCompleted, false);
+    assert.equal(liveInvoices.getRows()[1][0], 'HD-OLD');
+    assert.equal(liveDetails.getRows()[1][0], 'HD-OLD');
+    assert.deepEqual(createdTriggers, [{
+      handler: 'resumeSyncInvoicesChunk',
+      delayMs: 60000
+    }]);
+    const checkpoint = JSON.parse(properties.SYNC_CHUNK_STATE_invoices);
+    assert.equal(checkpoint.phase, 'commit');
+    assert.equal(checkpoint.invoiceCount, 1);
+    assert.equal(checkpoint.invoiceDetailCount, 2);
+
+    const publishedResult = context.syncKiotVietTableChunk_('invoices', {
+      token: 'fake-token',
+      resumeHandler: 'resumeSyncInvoicesChunk'
+    });
+
+    assert.equal(publishedResult.isCompleted, true);
+    assert.equal(publishedResult.invoiceCount, 1);
+    assert.equal(publishedResult.invoiceDetailCount, 2);
+    assert.equal(liveInvoices.getRows()[1][0], 'HD-NEW');
+    assert.equal(liveDetails.getRows().length, 3);
+    assert.deepEqual(sheets.map(sheet => sheet.getName()).sort(), [
+      'Chi tiết hóa đơn',
+      'Hóa đơn'
+    ]);
+    assert.equal(properties.SYNC_CHUNK_STATE_invoices, undefined);
+    const audit = JSON.parse(properties.KIOTVIET_INVOICE_BACKFILL_LAST_RESULT);
+    assert.equal(audit.total, 1);
+    assert.equal(audit.invoiceCount, 1);
+    assert.equal(audit.invoiceDetailCount, 2);
+    assert.equal(audit.invoiceRows, 1);
+    assert.equal(audit.invoiceDetailRows, 2);
+    const status = context.getInvoiceBackfillStatus();
+    assert.equal(status.isCompleted, true);
+    assert.equal(status.matchesExpected, true);
+    assert.equal(status.invoiceRows, 1);
+    assert.equal(status.invoiceDetailRows, 2);
+  });
+
+  it('restarts only the invoice backfill under the shared data lock', () => {
+    const properties = {
+      SYNC_CHUNK_STATE_invoices: '{"currentItem":100}',
+      SYNC_CHUNK_STATE_orders: '{"currentItem":200}',
+      KIOTVIET_INVOICE_BACKFILL_LAST_RESULT: '{"invoiceCount":100}'
+    };
+    const removedHandlers = [];
+    let syncCalls = 0;
+    let lockReleased = false;
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/kiotviet/SyncInitial.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return getTestScriptProperty(properties, name); },
+            setProperty(name, value) { properties[name] = value; },
+            deleteProperty(name) { delete properties[name]; }
+          };
+        }
+      }
+    });
+    context.getKiotVietDataLock_ = () => ({
+      tryLock() { return true; },
+      releaseLock() { lockReleased = true; }
+    });
+    context.removeSpecificChunkTrigger_ = handler => removedHandlers.push(handler);
+    context.syncKiotVietTableChunk_ = schemaKey => {
+      syncCalls++;
+      return { schemaKey, isCompleted: false };
+    };
+
+    const result = context.restartInvoicesBackfill();
+
+    assert.equal(result.schemaKey, 'invoices');
+    assert.equal(syncCalls, 1);
+    assert.deepEqual(removedHandlers, ['resumeSyncInvoicesChunk']);
+    assert.equal(properties.SYNC_CHUNK_STATE_invoices, undefined);
+    assert.equal(properties.KIOTVIET_INVOICE_BACKFILL_LAST_RESULT, undefined);
+    assert.equal(properties.SYNC_CHUNK_STATE_orders, '{"currentItem":200}');
+    assert.equal(lockReleased, true);
+  });
+
+  it('waits five minutes before resuming a heavy polling chunk', () => {
+    const createdTriggers = [];
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/kiotviet/SyncInitial.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) {
+              return name === 'KIOTVIET_RETAILER' ? 'CHhanoi' : null;
+            },
+            setProperty() {},
+            deleteProperty() {}
+          };
+        }
+      },
+      ScriptApp: {
+        getProjectTriggers() { return []; },
+        newTrigger(handler) {
+          return {
+            timeBased() { return this; },
+            after(delayMs) { this.delayMs = delayMs; return this; },
+            create() { createdTriggers.push({ handler, delayMs: this.delayMs }); }
+          };
+        }
+      }
+    });
+    context.getKiotVietDataLock_ = () => ({
+      tryLock() { return true; },
+      releaseLock() {}
+    });
+    context.syncKiotVietTableChunk_ = () => ({ isCompleted: false });
+
+    context.syncPollingOnly_();
+
+    assert.deepEqual(createdTriggers, [{
+      handler: 'resumePollingOnlyChunk_',
+      delayMs: 300000
+    }]);
+  });
+
+  it('reschedules the master chain when another sync holds the data lock', () => {
+    const createdTriggers = [];
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/kiotviet/SyncInitial.gs'
+    ], {
+      LockService: {
+        getDocumentLock() {
+          return {
+            tryLock() { return false; },
+            releaseLock() {}
+          };
+        }
+      },
+      ScriptApp: {
+        getProjectTriggers() { return []; },
+        newTrigger(handler) {
+          return {
+            timeBased() { return this; },
+            after() { return this; },
+            create() { createdTriggers.push(handler); }
+          };
+        }
+      }
+    });
+
+    context.syncAllDataChunked();
+
+    assert.deepEqual(createdTriggers, ['resumeMasterChainSync_']);
+  });
+
+  it('restores a missing master trigger when checkpoint state still exists', () => {
+    const createdTriggers = [];
+    const properties = { MASTER_CHAIN_SYNC_STATE: '{"currentIndex":3}' };
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/kiotviet/SyncInitial.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return getTestScriptProperty(properties, name); },
+            setProperty(name, value) { properties[name] = value; }
+          };
+        }
+      },
+      ScriptApp: {
+        getProjectTriggers() { return []; },
+        newTrigger(handler) {
+          return {
+            timeBased() { return this; },
+            after() { return this; },
+            create() { createdTriggers.push(handler); }
+          };
+        }
+      }
+    });
+
+    assert.equal(context.ensureMasterChainResumeTrigger_(), true);
+    assert.deepEqual(createdTriggers, ['resumeMasterChainSync_']);
+    assert.ok(properties.MASTER_CHAIN_SYNC_WATCHDOG_AT);
+  });
+
+  it('replaces a consumed-looking master trigger when no watchdog heartbeat exists', () => {
+    const properties = { MASTER_CHAIN_SYNC_STATE: '{"currentIndex":3}' };
+    const createdTriggers = [];
+    const deletedTriggers = [];
+    const staleTrigger = { getHandlerFunction() { return 'resumeMasterChainSync_'; } };
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/kiotviet/SyncInitial.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return getTestScriptProperty(properties, name); },
+            setProperty(name, value) { properties[name] = value; }
+          };
+        }
+      },
+      ScriptApp: {
+        getProjectTriggers() { return [staleTrigger]; },
+        deleteTrigger(trigger) { deletedTriggers.push(trigger); },
+        newTrigger(handler) {
+          return {
+            timeBased() { return this; },
+            after() { return this; },
+            create() { createdTriggers.push(handler); }
+          };
+        }
+      }
+    });
+
+    assert.equal(context.ensureMasterChainResumeTrigger_(), true);
+    assert.deepEqual(deletedTriggers, [staleTrigger]);
+    assert.deepEqual(createdTriggers, ['resumeMasterChainSync_']);
+  });
+
+  it('finishes the master backfill without rebuilding separately scheduled reports', () => {
+    const properties = {
+      MASTER_CHAIN_SYNC_STATE: JSON.stringify({ currentIndex: 8 }),
+      MASTER_CHAIN_SYNC_WATCHDOG_AT: '123'
+    };
+    let reportCalls = 0;
+    let removedResumeTriggers = 0;
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/kiotviet/SyncInitial.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return getTestScriptProperty(properties, name); },
+            setProperty(name, value) { properties[name] = value; },
+            deleteProperty(name) { delete properties[name]; }
+          };
+        }
+      },
+      SpreadsheetApp: {
+        getActiveSpreadsheet() { return {}; }
+      }
+    });
+    context.getKiotVietDataLock_ = () => ({
+      tryLock() { return true; },
+      releaseLock() {}
+    });
+    context.migrateKiotVietSheetsIfNeeded_ = () => {};
+    context.migrateLegacyDiscontinuedSheet_ = () => {};
+    context.getKiotVietToken = () => 'fake-token';
+    context.syncCustomerDebtReports = () => { reportCalls++; };
+    context.syncHangNgungKinhDoanh_ = () => { reportCalls++; };
+    context.syncCustomerReport = () => { reportCalls++; };
+    context.removeAllChunkResumeTriggers_ = () => { removedResumeTriggers++; };
+
+    context.syncAllDataChunked();
+
+    assert.equal(reportCalls, 0);
+    assert.equal(properties.MASTER_CHAIN_SYNC_STATE, undefined);
+    assert.equal(properties.MASTER_CHAIN_SYNC_WATCHDOG_AT, undefined);
+    assert.equal(removedResumeTriggers, 1);
+  });
+
+  it('stops only the accidentally started master chain', () => {
+    const properties = {
+      MASTER_CHAIN_SYNC_STATE: '{"currentIndex":1}',
+      MASTER_CHAIN_SYNC_WATCHDOG_AT: '123',
+      SYNC_CHUNK_STATE_products: '{"currentItem":100}',
+      SYNC_CHUNK_STATE_invoices: '{"currentItem":200}'
+    };
+    const removedHandlers = [];
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/kiotviet/SyncInitial.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return getTestScriptProperty(properties, name); },
+            deleteProperty(name) { delete properties[name]; }
+          };
+        }
+      }
+    });
+    context.getKiotVietDataLock_ = () => ({
+      tryLock() { return true; },
+      releaseLock() {}
+    });
+    context.removeSpecificChunkTrigger_ = handler => removedHandlers.push(handler);
+
+    const result = context.stopMasterSyncChain();
+
+    assert.equal(result.stopped, true);
+    assert.equal(properties.MASTER_CHAIN_SYNC_STATE, undefined);
+    assert.equal(properties.MASTER_CHAIN_SYNC_WATCHDOG_AT, undefined);
+    assert.equal(properties.SYNC_CHUNK_STATE_products, '{"currentItem":100}');
+    assert.equal(properties.SYNC_CHUNK_STATE_invoices, '{"currentItem":200}');
+    assert.deepEqual(removedHandlers, ['resumeMasterChainSync_']);
+  });
+
   it('loads chunk sync functions and executes a chunk iteration with checkpoint persistence', () => {
     const properties = {};
     const createdTriggers = [];
@@ -662,7 +1404,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
       PropertiesService: {
         getScriptProperties() {
           return {
-            getProperty(name) { return properties[name] || null; },
+            getProperty(name) { return getTestScriptProperty(properties, name); },
             setProperty(name, value) { properties[name] = value; },
             deleteProperty(name) { delete properties[name]; }
           };

@@ -9,6 +9,7 @@ Hệ thống dashboard thời gian thực cho cửa hàng CHbansi, đồng bộ 
 - [Tổng quan](#tổng-quan)
 - [Cấu trúc thư mục](#cấu-trúc-thư-mục)
 - [Cài đặt & triển khai](#cài-đặt--triển-khai)
+- [Cấu hình đa cơ sở (Hà Nội / Sài Gòn)](#cấu-hình-đa-cơ-sở-hà-nội--sài-gòn)
 - [Cách sử dụng](#cách-sử-dụng)
 - [Lộ trình mở rộng](#lộ-trình-mở-rộng)
 - [Tài liệu kỹ thuật](#tài-liệu-kỹ-thuật)
@@ -33,7 +34,7 @@ KiotViet ──POST──▶ doPost()          ← Xác thực và ghi bền v�
                       │
              _KV_WEBHOOK_QUEUE        ← Tab ẩn, không tự hết hạn
                       │
-               ┌── trigger/1 phút ──┐
+               ┌── trigger/5 phút ──┐
                ▼                    │
     processWebhookQueue()           │  ← Đọc queue & ghi Sheet
                │                    │
@@ -52,10 +53,12 @@ webtks-dashboard/
 │   └── skills/
 │       └── update-file/
 │           └── SKILL.md         # Quy trình đồng bộ file khi cây thư mục thay đổi
-├── .clasp.json                  # Project Dashboard (rootDir: "src-dashboard")
+├── .clasp.json                  # Project KiotHN / Dashboard (rootDir: "src-dashboard")
 ├── .clasp.order-lifecycle.json  # Project Vận chuyển (rootDir: "src-order-lifecycle")
-├── .claspignore                 # Ignore profile cho project Dashboard
+├── .clasp.saigon.json           # Project KiotSG (rootDir: "src-dashboard", dùng chung code với KiotHN)
+├── .claspignore                 # Ignore profile cho project KiotHN / Dashboard
 ├── .claspignore.order-lifecycle # Ignore profile cho project Vận chuyển
+├── .claspignore.saigon          # Ignore profile cho project KiotSG
 ├── 3D Design.md                 # Kế hoạch chi tiết triển khai hiệu ứng 3D toàn trang
 ├── CHINH-SACH-NGHI-PHEP.md      # Quy định & chính sách quản lý nghỉ phép nhân sự (CSNS-NP-01)
 ├── ERD KiotViet.drawio          # Sơ đồ quan hệ thực thể KiotViet
@@ -291,7 +294,7 @@ Thư mục `server/` tích hợp sẵn bộ unit tests (dùng `node:test` chuẩ
 cd server
 npm test
 ```
-Bộ test hiện gồm **434 bài kiểm thử tự động**:
+Bộ test hiện gồm **468 bài kiểm thử tự động**:
 - Phân hệ Quản lý Nghỉ phép HR & Telegram Bot (`hrLeaveRoutes.js`, `hrLeaveService.js`, `hrLeaveExportService.js`, `hrTelegramBot.js`, `conversationStore.js`).
 - Xác thực người dùng (JWT httpOnly cookie, mật khẩu bcrypt, Google Identity OAuth, đăng ký bằng Email/SĐT, bảo vệ route RBAC 5 vai trò).
 - Quản trị tài khoản Admin (CRUD danh sách người dùng, reset mật khẩu, kích hoạt/khóa tài khoản, xuất báo cáo).
@@ -305,6 +308,7 @@ Bộ test hiện gồm **434 bài kiểm thử tự động**:
 - Phân trang client-side (`pagination.js`) và module Xuất Excel 16 bảng (`exportService.js`).
 - Tìm kiếm nhiều mã chính xác và Top 3 KH theo danh mục sản phẩm.
 - Lớp hiệu ứng 3D Three.js: Particle background, card hover tilt, tactile press buttons, 3D navigation, table staggered rows, 3D rotating loading cube, adaptive performance monitor & WebGL memory disposal.
+- Phân quyền theo cơ sở (`branches.js`, `branchMiddleware.js`): chuẩn hóa `coSo`, chặn tài khoản chưa gán cơ sở, chống giả mạo cookie `tks_branch`, cách ly cache dữ liệu giữa hai cơ sở, và nút chọn cơ sở trên thanh điều hướng (`branch-switcher.test.js`).
 
 ### Bước 1 — Clone & login
 ```bash
@@ -314,8 +318,10 @@ clasp login
 ```
 
 ### Bước 2 — Điền Script ID
-Mỗi Google Sheets dùng một Apps Script project riêng. Cấu hình Dashboard nằm trong
-`.clasp.json`; cấu hình Vận chuyển nằm trong `.clasp.order-lifecycle.json`:
+Mỗi Google Sheets dùng một Apps Script project riêng. Cấu hình KiotHN/Dashboard nằm
+trong `.clasp.json`; cấu hình Vận chuyển nằm trong `.clasp.order-lifecycle.json`;
+cấu hình KiotSG (cửa hàng Sài Gòn, dùng chung code `src-dashboard/` với KiotHN)
+nằm trong `.clasp.saigon.json`:
 ```json
 {
   "scriptId": "YOUR_REAL_SCRIPT_ID_HERE",
@@ -326,18 +332,28 @@ Mỗi Google Sheets dùng một Apps Script project riêng. Cấu hình Dashboar
 
 ### Bước 3 — Push code lên GAS
 ```bash
-# Dashboard
+# KiotHN / Dashboard
 clasp push --force
 
 # Vận chuyển
 clasp -P .clasp.order-lifecycle.json -I .claspignore.order-lifecycle push --force
+
+# KiotSG (cửa hàng Sài Gòn — dùng chung code src-dashboard/ với KiotHN)
+clasp -P .clasp.saigon.json -I .claspignore.saigon push --force
 ```
 
-Trong **Apps Script Editor -> Project Settings -> Script Properties**, tạo các thuộc tính:
+Trong **Apps Script Editor -> Project Settings -> Script Properties**, tạo các thuộc tính
+(mỗi project — KiotHN, Vận chuyển, KiotSG — có bộ Script Properties độc lập, không
+dùng chung, không đọc/ghi chéo project khác):
 
-- `KIOTVIET_CLIENT_ID`: Client ID của KiotViet.
-- `KIOTVIET_CLIENT_SECRET`: Client Secret của KiotViet.
-- `WEBHOOK_URL`: URL `/exec` của Web App sau khi deploy.
+- `KIOTVIET_CLIENT_ID`: Client ID của KiotViet (riêng theo từng cửa hàng).
+- `KIOTVIET_CLIENT_SECRET`: Client Secret của KiotViet (riêng theo từng cửa hàng).
+- `KIOTVIET_RETAILER`: bắt buộc khai báo (không còn fallback ngầm) — `CHhanoi` cho
+  project KiotHN, `CHsaigon` cho project KiotSG.
+- `WEBHOOK_URL`: URL `/exec` của Web App sau khi deploy — của đúng project đó.
+
+Riêng `SHIPMENT_WEBHOOK_URL`/`SHIPMENT_WEBHOOK_SECRET` chỉ khai báo ở project KiotHN
+(để forward `invoice.update` sang project Vận chuyển); **không** khai báo ở project KiotSG.
 
 Không lưu các giá trị này trong mã nguồn hoặc commit lên Git.
 
@@ -355,14 +371,14 @@ Execution API (`executionApi.access = MYSELF`) để phục vụ kiểm tra và 
 
 ### Bước 4 — Thiết lập lần đầu (chạy thủ công 1 lần)
 1. Kiểm tra đã khai báo `KIOTVIET_CLIENT_ID` và `KIOTVIET_CLIENT_SECRET` trong Script Properties. Chỉ trên dự án sheet tổng hợp cũ, chạy `syncAllInitialData()` để tải dữ liệu ban đầu. Hàm này cũng cập nhật toàn bộ lịch sử vào tab **Hàng ngừng kinh doanh** và dọn tab legacy `Hàng ngừng KD hôm nay` nếu còn tồn tại.
-2. Với sheet tổng hợp cũ, chạy `setupKiotVietAutoSync()` một lần. Chế độ mặc định `FULL_DASHBOARD` giữ nguyên trigger queue 1 phút, polling 15 phút, lịch báo cáo và 9 webhook.
+2. Với sheet tổng hợp cũ, chạy `setupKiotVietAutoSync()` một lần. Chế độ mặc định `FULL_DASHBOARD` tạo queue 5 phút, polling chính 15 phút, ba lịch báo cáo 06:00/06:30/07:00, Hàng ngừng kinh doanh 07:30, công nợ 15:00 và 9 webhook. Nếu một lượt polling nặng chưa xong, trigger tiếp sức chờ 5 phút để giảm tải; checkpoint bảo đảm không bỏ trang dữ liệu.
 3. Với project Vận chuyển, đặt `KIOTVIET_SYNC_MODE=SHIPMENT_LIFECYCLE` và `KIOTVIET_SHIPMENT_RELAY_ENABLED=true`, chạy `syncShipmentLifecycleRecent7Days()` rồi `setupShipmentLifecycleSync()`. Project Dashboard giữ `invoice.update` và chuyển tiếp sự kiện bằng `SHIPMENT_WEBHOOK_URL` + `SHIPMENT_WEBHOOK_SECRET`.
-4. Không dùng spreadsheet/profile `COMBINED`; Dashboard, Vận chuyển và Nhân sự phải trỏ đến ba Google Sheets độc lập.
-5. Chạy `setupCustomerReport()` để làm mới ngay cả ba báo cáo và cài ba lịch độc lập: **Báo cáo bán hàng** gần **06:00**; **Hàng bán theo khách** được webhook cập nhật trong khoảng 1 phút và đối soát gần **06:30**; **Khách theo hàng hóa** gần **07:00**. Ba tab lần lượt giữ đủ 18, 5 và 25 cột.
+4. Không dùng spreadsheet/profile `COMBINED`; Dashboard, Vận chuyển và Nhân sự phải trỏ đến ba Google Sheets độc lập. Project KiotSG (cửa hàng Sài Gòn) là một Google Sheet + Apps Script project độc lập thứ tư, dùng chung code `src-dashboard/` với KiotHN nhưng cấu hình/deploy riêng theo `.clasp.saigon.json` — xem chi tiết ở `src-dashboard/HuongDanSuDung.gs` mục "6b. CAI DAT PROJECT KIOTSG".
+5. `setupKiotVietAutoSync()` đã cài ba lịch báo cáo độc lập. Chỉ chạy `setupCustomerReport()` khi muốn làm mới ngay cả ba báo cáo: **Báo cáo bán hàng** gần **06:00**; **Hàng bán theo khách** được webhook cập nhật trong khoảng 5 phút và đối soát gần **06:30**; **Khách theo hàng hóa** gần **07:00**. Ba tab lần lượt giữ đủ 18, 5 và 25 cột.
 6. Ba tab **HN1**, **HN3**, **HN7** là báo cáo công nợ khách hàng 1/3/7 ngày gần đây (tính cả hôm nay) do Apps Script tự tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00, hoặc chạy tay `syncCustomerDebtReports()` bất cứ lúc nào cần cập nhật ngay.
 
 Sau khi bật, thay đổi Hàng hóa, Tồn kho, Khách hàng, Hóa đơn, Đặt hàng và Nhóm hàng
-được nhận bằng webhook rồi ghi vào Sheets trong khoảng 1 phút. **Trả hàng**, **Nhà cung
+được nhận bằng webhook rồi ghi vào Sheets trong khoảng 5 phút. **Trả hàng**, **Nhà cung
 cấp** và **Nhập hàng** được quét dự phòng mỗi 15 phút vì KiotViet không phát webhook
 cho ba nhóm này.
 
@@ -373,20 +389,85 @@ cho ba nhóm này.
 
 ---
 
+## Cấu hình đa cơ sở (Hà Nội / Sài Gòn)
+
+Toàn bộ tính năng của web giống hệt nhau ở hai cơ sở; chỉ **nguồn dữ liệu** là khác.
+Mỗi request dữ liệu đều đi qua `server/branch/branchMiddleware.js` để xác định
+`req.branch`, rồi đọc/ghi đúng spreadsheet của cơ sở đó.
+
+### Biến môi trường
+
+| Biến | Cơ sở | Bắt buộc | Dùng cho |
+|---|---|---|---|
+| `SPREADSHEET_ID` | Hà Nội | Có | Báo cáo tổng hợp |
+| `SPREADSHEET_ID_SG` | Sài Gòn | Không | Báo cáo tổng hợp |
+| `VC_SPREADSHEET_ID` / `VC_SPREADSHEET_ID_SG` | HN / SG | Không | Quản lý vận chuyển |
+| `VC_DRIVE_FOLDER_ID` / `VC_DRIVE_FOLDER_ID_SG` | HN / SG | Không | Ảnh chứng từ vận chuyển |
+| `HR_SPREADSHEET_ID` / `HR_SPREADSHEET_ID_SG` | HN / SG | Không | Quản lý nhân sự |
+| `KIOTVIET_RETAILER` / `KIOTVIET_RETAILER_SG` | HN / SG | Không | Kiểm tra đứt hàng |
+
+Tên tab bên trong hai spreadsheet **giống hệt nhau** — chỉ khác spreadsheet ID.
+Thiếu biến của cơ sở nào thì tab tương ứng ở cơ sở đó trả `503 BRANCH_NOT_CONFIGURED`
+và giao diện hiện "Cơ sở này chưa được cấu hình nguồn dữ liệu" — server vẫn chạy bình thường.
+
+### Phân quyền theo cơ sở
+
+Trường **"Cơ sở phụ trách"** (`coSo`) của tài khoản nhận đúng 3 giá trị: `Hà Nội`,
+`Sài Gòn`, `Cả hai` (hoặc để trống).
+
+- Tài khoản 1 cơ sở: chỉ xem được dữ liệu cơ sở đó, không có nút chuyển cơ sở.
+- Tài khoản `Cả hai`: có ô chọn cơ sở ở đầu thanh điều hướng; đổi cơ sở → tải lại trang.
+- Tài khoản **chưa gán cơ sở**: mọi API dữ liệu trả `403 BRANCH_UNASSIGNED`; Quản lý
+  phải gán cơ sở trong *Quản lý tài khoản → Quản lý người dùng*. Tài khoản vẫn vào
+  được `/account/` để xem hồ sơ.
+
+Cookie `tks_branch` chỉ là **gợi ý** về cơ sở đang xem: server luôn đối chiếu lại với
+`coSo` trong JWT ở mỗi request, nên sửa cookie bằng tay không xem được dữ liệu cơ sở
+khác — chỉ bị rơi về cơ sở hợp lệ. Ranh giới bảo mật nằm ở middleware, không phải ở
+thanh điều hướng phía client.
+
+Tab **"Quản lý tài khoản" dùng chung** cho cả hai cơ sở (`/api/auth/*`,
+`/api/admin/users/*`, `/api/role-requests/*`, `/api/notifications/*` không gắn
+middleware cơ sở).
+
+### Chuyển đổi dữ liệu tài khoản cũ
+
+Dữ liệu cũ dùng **tên kho** làm giá trị cơ sở. Chạy một lần sau khi deploy:
+
+```bash
+cd server && npm run migrate:user-branches
+```
+
+Script đổi `An Khánh → Hà Nội`, `Tân Phú → Sài Gòn`, idempotent (chạy lại không đổi gì)
+và in ra danh sách tài khoản có giá trị không hợp lệ cần Quản lý gán lại.
+
+> **Lưu ý:** tên **kho** `An Khánh` / `Tân Phú` trong `orderStateMachine.js` là khái
+> niệm khác (kho xuất hàng của luồng giao hàng) và **giữ nguyên**, không đổi tên.
+
+### Giới hạn hiện tại
+
+- Bot Telegram xin nghỉ phép (`hrTelegramBot.js`) hiện chỉ phục vụ cơ sở Hà Nội — sẽ
+  mở rộng khi có `HR_SPREADSHEET_ID_SG`.
+- Nguồn Vận chuyển / Nhân sự của Sài Gòn chưa được cấp; chỉ cần điền biến môi trường
+  tương ứng là hai tab đó hoạt động ngay, không phải sửa code.
+
+---
+
 ## Cách sử dụng
 
 | Hàm | Mục đích | Khi nào chạy |
 |---|---|---|
 | `syncAllInitialData()` | Làm mới 9 sheet vận hành, lịch sử Hàng ngừng kinh doanh, 3 báo cáo khách hàng và HN1/HN3/HN7; báo cáo công nợ chạy sau khi Hàng hóa đã cập nhật | Lần đầu hoặc khi cần full refresh |
+| `restartInvoicesBackfill()` | Reset riêng checkpoint Hóa đơn, tải Hóa đơn và Chi tiết hóa đơn vào staging rồi công bố đồng bộ; không ảnh hưởng checkpoint bảng khác | Khi Hóa đơn hoặc Chi tiết hóa đơn bị thiếu dữ liệu |
 | `syncHangNgungKinhDoanh()` | Nạp các sản phẩm đang ngừng kinh doanh và giữ lịch sử các sản phẩm từng ngừng; không tạo tab theo ngày | Khi cần đối soát thủ công |
 | `cauHinhLichHangNgungKinhDoanh()` | Cập nhật toàn bộ lịch sử và tạo lại lịch cập nhật gần 07:30 hàng ngày | Một lần sau khi deploy |
 | `removeJsonColumnsFromAllSheets()` | Xóa ngay các cột `(JSON)` cũ trên 9 sheet vận hành | Tùy chọn; trigger nền cũng tự chạy một lần sau khi deploy |
-| `setupKiotVietAutoSync()` | Bật hoặc khôi phục webhook và trigger an toàn, không tạo trùng | 1 lần sau khi deploy |
+| `setupKiotVietAutoSync()` | Bật hoặc khôi phục 9 webhook và toàn bộ 7 trigger định kỳ của Dashboard, không tạo trùng | 1 lần sau khi deploy |
 | `initializeShipmentLifecycleSheets()` | Tạo/kiểm tra đủ 6 tab và header vận chuyển | Khi chuẩn bị sheet mới |
 | `syncShipmentLifecycleRecent7Days()` | Nạp hóa đơn 7 ngày gần nhất theo từng trang, tránh chạy full quá quota | Một lần ban đầu hoặc khi đối soát |
 | `setupShipmentLifecycleSync()` | Chọn chế độ vòng đời vận chuyển và tạo trigger queue; nhận `invoice.update` chuyển tiếp từ project cũ | Một lần trên dự án sheet mới |
 | `setupCombinedKiotVietSync()` | Chọn chế độ dùng chung; bật 9 webhook, polling/báo cáo và cập nhật cả dashboard lẫn vận chuyển | Một lần trên spreadsheet chứa cả hai nhóm tab |
-| `syncPollingOnly_()` | Làm mới Trả hàng, Nhà cung cấp, Nhập hàng | Tự chạy bởi trigger 15 phút |
+| `syncPollingOnly_()` | Làm mới Trả hàng, Nhà cung cấp, Nhập hàng; lượt tiếp sức nặng chờ 5 phút và tiếp tục từ checkpoint | Tự chạy bởi trigger 15 phút |
 | `setupPollingTrigger()` | Bật lịch làm mới 3 sheet không có webhook | 1 lần duy nhất |
 | `removePollingTrigger()` | Tắt lịch làm mới 15 phút | Khi bảo trì |
 | `syncCustomerReport()` | Làm mới cả ba báo cáo khách hàng trong một lượt lấy API | Khi cần cập nhật/đối soát thủ công |
@@ -399,7 +480,7 @@ cho ba nhóm này.
 | `setupCustomerDebtReports()` | Tạo báo cáo HN1/HN3/HN7 ngay và bật thêm lịch riêng gần 15:00 | Tùy chọn |
 | `setupCustomerDebtReportDailyTrigger()` | Tạo lại lịch cập nhật HN1/HN3/HN7 hàng ngày gần 15:00 | Khi cần khôi phục lịch |
 | `removeCustomerDebtReportDailyTrigger()` | Gỡ lịch cập nhật HN1/HN3/HN7 hàng ngày | Khi cần tạm dừng tự động cập nhật |
-| `setupQueueProcessingTrigger()` | Tạo trigger 1 phút | 1 lần duy nhất |
+| `setupQueueProcessingTrigger()` | Tạo trigger 5 phút | 1 lần duy nhất |
 | `getWebhookQueueStatus()` | Đếm sự kiện còn chờ trong hàng đợi bền vững | Khi kiểm tra vận hành |
 | `retryWebhookQueueErrors()` | Đưa sự kiện lỗi về hàng chờ sau khi đã sửa nguyên nhân | Khi queue có dòng `ERROR` |
 | `checkWebhookStatus()` | Kiểm tra webhook đang active | Khi debug |
@@ -533,4 +614,4 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 
 ---
 
-*Cập nhật lần cuối: 26/08/2026*
+*Cập nhật lần cuối: 27/08/2026*

@@ -192,21 +192,6 @@
       flex-wrap: wrap;
     }
 
-    .receipt-header::after {
-      content: "";
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: -11px;
-      height: 12px;
-      z-index: 2;
-      background:
-        linear-gradient(-45deg, var(--bg) 6px, transparent 0),
-        linear-gradient(45deg, var(--bg) 6px, transparent 0);
-      background-size: 12px 12px;
-      background-repeat: repeat-x;
-    }
-
     .brand {
       display: flex;
       align-items: center;
@@ -4454,6 +4439,128 @@
               </div>
             </div>
           </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-step">4</span>
+              <h2>Báo cáo doanh thu theo khách <span class="section-note">chọn 1 khách để xem doanh thu 90 ngày gần
+                  nhất</span></h2>
+            </div>
+            <div class="search-input-wrap" style="max-width:520px;">
+              <input class="search-input" id="cpCustomerSearchInput" type="search" autocomplete="off"
+                spellcheck="false" role="combobox" aria-autocomplete="list" aria-controls="cpCustomerSuggestions"
+                aria-expanded="false" placeholder="Tìm khách hàng theo mã hoặc tên"
+                oninput="handleCustomerProductSearchInput()" onkeydown="handleCustomerProductSearchKeydown(event)">
+              <button class="search-clear" id="cpCustomerClearBtn" type="button"
+                onclick="clearCustomerProductSelection()" aria-label="Bỏ chọn khách" hidden>
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                  </path>
+                </svg>
+              </button>
+              <div class="suggestions" id="cpCustomerSuggestions" role="listbox"></div>
+            </div>
+            <div class="table-note" id="cpEmptyState" style="margin-top:10px;">Chưa chọn khách hàng — hãy tìm và
+              chọn 1 khách ở trên.</div>
+
+            <div id="cpContent" hidden>
+              <div class="grid" style="margin-top:14px;">
+                <div class="panel col-6">
+                  <div class="panel-head">
+                    <h2><span id="cpSelectedCustomerName">—</span> <span class="tag"
+                        id="cpSelectedCustomerCode">—</span></h2>
+                    <span class="drill-hint">90 ngày gần đây</span>
+                  </div>
+                  <div class="search-input-wrap" style="margin-bottom:10px;">
+                    <input class="search-input" id="cpProductFilterInput" type="search" autocomplete="off"
+                      spellcheck="false" role="combobox" aria-autocomplete="list" aria-controls="cpProductSuggestions"
+                      aria-expanded="false" placeholder="Tất cả sản phẩm (90 ngày gần nhất)"
+                      oninput="handleCustomerProductFilterInput()" onkeydown="handleCustomerProductFilterKeydown(event)">
+                    <button class="search-clear" id="cpProductClearBtn" type="button"
+                      onclick="clearCustomerProductFilter()" aria-label="Bỏ lọc sản phẩm" hidden>
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                        </path>
+                      </svg>
+                    </button>
+                    <div class="suggestions" id="cpProductSuggestions" role="listbox"></div>
+                  </div>
+                  <div class="chart-box"><canvas id="chartCustomerProductRevenue" role="img"
+                      aria-label="Biểu đồ đường doanh thu theo ngày của khách hàng đã chọn"></canvas></div>
+                </div>
+                <div class="panel col-6">
+                  <div class="panel-head">
+                    <h2>Doanh thu theo sản phẩm</h2>
+                    <span class="drill-hint" id="cpBarChartHint">Top 30 sản phẩm</span>
+                  </div>
+                  <div class="chart-box"><canvas id="chartCustomerProductBar" role="img"
+                      aria-label="Biểu đồ cột doanh thu theo sản phẩm của khách hàng đã chọn"></canvas></div>
+                </div>
+              </div>
+
+              <div class="grid" style="margin-top:14px;">
+                <div class="panel col-12">
+                  <div class="panel-head">
+                    <h2>Bảng chi tiết sản phẩm <span class="tag" id="cpDetailCount">—</span></h2>
+                    <div class="panel-head-actions"><button class="export-button" type="button"
+                        onclick="openExportDialog('customers.productDetail')">Xuất Excel</button></div>
+                  </div>
+                  <div class="table-wrap scroll-list transaction-detail-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Tên hàng</th>
+                          <th>Số lượng</th>
+                          <th>Doanh số</th>
+                        </tr>
+                      </thead>
+                      <tbody id="cpDetailRows">
+                        <tr>
+                          <td colspan="3" class="table-note">Chưa có dữ liệu</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="pagination-controls" id="cpDetailPagination" hidden>
+                    <button type="button" id="cpDetailPrevPage">‹ Trước</button>
+                    <span id="cpDetailPageLabel">Trang 1/1</span>
+                    <button type="button" id="cpDetailNextPage">Sau ›</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid" style="margin-top:14px;">
+                <div class="panel col-12">
+                  <div class="panel-head">
+                    <h2>Bảng so sánh doanh số theo tháng</h2>
+                    <div class="panel-head-actions"><button class="export-button" type="button"
+                        onclick="openExportDialog('customers.productMonthlyCompare')">Xuất Excel</button></div>
+                  </div>
+                  <div class="table-wrap scroll-list transaction-detail-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Tên hàng</th>
+                          <th>T.này</th>
+                          <th>T.trước</th>
+                          <th>T.trước nữa</th>
+                        </tr>
+                      </thead>
+                      <tbody id="cpMonthlyRows">
+                        <tr>
+                          <td colspan="4" class="table-note">Chưa có dữ liệu</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="pagination-controls" id="cpMonthlyPagination" hidden>
+                    <button type="button" id="cpMonthlyPrevPage">‹ Trước</button>
+                    <span id="cpMonthlyPageLabel">Trang 1/1</span>
+                    <button type="button" id="cpMonthlyNextPage">Sau ›</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
 
         <!-- ============ NHÀ CUNG CẤP ============ -->
@@ -4722,6 +4829,16 @@
         metadata: null,
         busy: false,
         returnFocus: null
+      },
+      // Tab Khách hàng, phần 4 — "Báo cáo doanh thu theo khách" (xem
+      // renderCustomerProductReport() và các ham handleCustomerProduct*()).
+      customerProductReport: {
+        customer: null, // { code, name } sau khi chon khach
+        data: null, // toan bo phan hoi tu /api/customer-product-revenue
+        productCode: '', // '' = tat ca san pham
+        productName: '',
+        picker: { results: [], activeIndex: -1, timer: null, controller: null, requestId: 0 },
+        productPicker: { activeIndex: -1, currentOptions: [] }
       }
     };
     Chart.defaults.font.family = 'Inter, sans-serif';
@@ -5396,7 +5513,10 @@
           productAnalysis: state.productAnalysis,
           childCategoryParent: state.childCategoryParent || '',
           debtPeriod: state.debtPeriod,
-          debtFilter: (document.getElementById('debtFilterInput') || {}).value || ''
+          debtFilter: (document.getElementById('debtFilterInput') || {}).value || '',
+          customerProductCustomerCode: (state.customerProductReport.customer || {}).code || '',
+          customerProductCustomerName: (state.customerProductReport.customer || {}).name || '',
+          customerProductCode: state.customerProductReport.productCode || ''
         }
       };
       if (tableKey === 'search.results') {
@@ -6851,6 +6971,282 @@
       };
     }
 
+    // ===== Tab Khách hàng, phần 4 — "Báo cáo doanh thu theo khách" =====
+    function hideCustomerProductSuggestions() {
+      const box = document.getElementById('cpCustomerSuggestions');
+      box.classList.remove('show');
+      box.innerHTML = '';
+      document.getElementById('cpCustomerSearchInput').setAttribute('aria-expanded', 'false');
+      state.customerProductReport.picker.results = [];
+      state.customerProductReport.picker.activeIndex = -1;
+    }
+
+    function renderCustomerProductSuggestions() {
+      const box = document.getElementById('cpCustomerSuggestions');
+      const results = state.customerProductReport.picker.results;
+      if (!results.length) { hideCustomerProductSuggestions(); return; }
+      box.innerHTML = results.map(function (result, index) {
+        return '<button class="suggestion-item' + (index === state.customerProductReport.picker.activeIndex ? ' active' : '') + '" ' +
+          'type="button" role="option" onclick="selectCustomerForProductReport(' + index + ')">' +
+          '<span><span class="suggestion-name">' + escapeHtml(result.name || result.code) + '</span>' +
+          '<span class="suggestion-code">' + escapeHtml(result.code || 'Không có mã') + '</span></span></button>';
+      }).join('');
+      box.classList.add('show');
+      document.getElementById('cpCustomerSearchInput').setAttribute('aria-expanded', 'true');
+    }
+
+    function cancelCustomerProductSearchRequest() {
+      const picker = state.customerProductReport.picker;
+      if (picker.timer) { clearTimeout(picker.timer); picker.timer = null; }
+      if (picker.controller) { picker.controller.abort(); picker.controller = null; }
+    }
+
+    function handleCustomerProductSearchInput() {
+      const input = document.getElementById('cpCustomerSearchInput');
+      const query = normalizeSearchQuery(input.value);
+      cancelCustomerProductSearchRequest();
+      if (!query) { hideCustomerProductSuggestions(); return; }
+
+      const picker = state.customerProductReport.picker;
+      picker.timer = setTimeout(async function () {
+        const requestId = ++picker.requestId;
+        const controller = new AbortController();
+        picker.controller = controller;
+        try {
+          const response = await fetch('/api/search?view=customers&q=' + encodeURIComponent(query) + '&limit=8', { signal: controller.signal });
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          const payload = await response.json();
+          if (requestId !== picker.requestId) return;
+          picker.results = payload.results || [];
+          picker.activeIndex = -1;
+          renderCustomerProductSuggestions();
+        } catch (err) {
+          if (err.name !== 'AbortError') hideCustomerProductSuggestions();
+        }
+      }, 180);
+    }
+
+    function handleCustomerProductSearchKeydown(event) {
+      const picker = state.customerProductReport.picker;
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        if (!picker.results.length) return;
+        picker.activeIndex = (picker.activeIndex + 1) % picker.results.length;
+        renderCustomerProductSuggestions();
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (!picker.results.length) return;
+        picker.activeIndex = (picker.activeIndex - 1 + picker.results.length) % picker.results.length;
+        renderCustomerProductSuggestions();
+      } else if (event.key === 'Escape') {
+        hideCustomerProductSuggestions();
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        if (picker.activeIndex >= 0) selectCustomerForProductReport(picker.activeIndex);
+      }
+    }
+
+    function selectCustomerForProductReport(index) {
+      const result = state.customerProductReport.picker.results[index];
+      if (!result) return;
+      hideCustomerProductSuggestions();
+      document.getElementById('cpCustomerSearchInput').value = result.name || result.code;
+      document.getElementById('cpCustomerClearBtn').hidden = false;
+      state.customerProductReport.customer = { code: result.code, name: result.name || result.code };
+      state.customerProductReport.productCode = '';
+      state.customerProductReport.productName = '';
+      loadCustomerProductReport();
+    }
+
+    function clearCustomerProductSelection() {
+      cancelCustomerProductSearchRequest();
+      hideCustomerProductSuggestions();
+      state.customerProductReport.customer = null;
+      state.customerProductReport.data = null;
+      state.customerProductReport.productCode = '';
+      state.customerProductReport.productName = '';
+      document.getElementById('cpCustomerSearchInput').value = '';
+      document.getElementById('cpCustomerClearBtn').hidden = true;
+      document.getElementById('cpContent').hidden = true;
+      const emptyState = document.getElementById('cpEmptyState');
+      emptyState.hidden = false;
+      emptyState.textContent = 'Chưa chọn khách hàng — hãy tìm và chọn 1 khách ở trên.';
+      destroyChart('cpRevenue');
+      destroyChart('cpBar');
+    }
+
+    async function loadCustomerProductReport() {
+      const customer = state.customerProductReport.customer;
+      if (!customer) return;
+      const emptyState = document.getElementById('cpEmptyState');
+      emptyState.hidden = false;
+      emptyState.textContent = 'Đang tải dữ liệu khách hàng…';
+      document.getElementById('cpContent').hidden = true;
+      try {
+        const response = await fetch('/api/customer-product-revenue?code=' + encodeURIComponent(customer.code) + '&name=' + encodeURIComponent(customer.name));
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const data = await response.json();
+        state.customerProductReport.data = data;
+        emptyState.hidden = true;
+        document.getElementById('cpContent').hidden = false;
+        document.getElementById('cpSelectedCustomerName').textContent = data.customer.name;
+        document.getElementById('cpSelectedCustomerCode').textContent = data.customer.code;
+        renderCustomerProductReport();
+      } catch (err) {
+        document.getElementById('cpContent').hidden = true;
+        emptyState.hidden = false;
+        emptyState.textContent = 'Không tải được báo cáo doanh thu của khách này. Vui lòng thử lại.';
+      }
+    }
+
+    function customerProductFilteredList() {
+      const data = state.customerProductReport.data;
+      if (!data) return [];
+      const productCode = state.customerProductReport.productCode;
+      if (!productCode) return data.products;
+      return data.products.filter(function (p) { return p.code === productCode; });
+    }
+
+    function renderCustomerProductReport() {
+      const data = state.customerProductReport.data;
+      if (!data) return;
+      const filtered = customerProductFilteredList();
+      const productCode = state.customerProductReport.productCode;
+
+      const revenueByDay = productCode
+        ? ((filtered[0] || {}).revenueByDay || [])
+        : (data.totalRevenueByDay || []);
+      renderRevenueChart('chartCustomerProductRevenue', 'cpRevenue', revenueByDay);
+
+      const barList = productCode ? filtered : data.products.slice(0, 30);
+      const hint = document.getElementById('cpBarChartHint');
+      if (hint) {
+        hint.textContent = productCode
+          ? '1 sản phẩm đang lọc'
+          : 'Top ' + Math.min(30, data.products.length) + ' sản phẩm';
+      }
+      if (barList.length) {
+        renderBarChartList('chartCustomerProductBar', 'cpBar', barList,
+          function (p) { return p.name; }, function (p) { return p.revenue; }, themeColor('--amber'), false);
+      } else {
+        destroyChart('cpBar');
+      }
+
+      document.getElementById('cpDetailCount').textContent = filtered.length;
+      renderPaginatedRows(
+        'cpDetail',
+        { tbody: 'cpDetailRows', pagination: 'cpDetailPagination', prevBtn: 'cpDetailPrevPage', nextBtn: 'cpDetailNextPage', label: 'cpDetailPageLabel' },
+        filtered,
+        function (p) {
+          return '<tr><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+            '<td class="mono" data-sort-value="' + p.quantity + '">' + Number(p.quantity || 0).toLocaleString('vi-VN') + '</td>' +
+            '<td class="mono" data-sort-value="' + p.revenue + '">' + fmtMoney(p.revenue) + '</td></tr>';
+        },
+        3,
+        'Không có dữ liệu'
+      );
+
+      renderPaginatedRows(
+        'cpMonthly',
+        { tbody: 'cpMonthlyRows', pagination: 'cpMonthlyPagination', prevBtn: 'cpMonthlyPrevPage', nextBtn: 'cpMonthlyNextPage', label: 'cpMonthlyPageLabel' },
+        filtered,
+        function (p) {
+          return '<tr><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+            '<td class="mono" data-sort-value="' + p.month1Revenue + '">' + fmtMoney(p.month1Revenue) + '</td>' +
+            '<td class="mono" data-sort-value="' + p.month2Revenue + '">' + fmtMoney(p.month2Revenue) + '</td>' +
+            '<td class="mono" data-sort-value="' + p.month3Revenue + '">' + fmtMoney(p.month3Revenue) + '</td></tr>';
+        },
+        4,
+        'Không có dữ liệu'
+      );
+    }
+
+    function hideCustomerProductFilterSuggestions() {
+      const box = document.getElementById('cpProductSuggestions');
+      box.classList.remove('show');
+      box.innerHTML = '';
+      document.getElementById('cpProductFilterInput').setAttribute('aria-expanded', 'false');
+    }
+
+    function customerProductFilterOptions(query) {
+      const data = state.customerProductReport.data;
+      if (!data) return [];
+      const normalizedQuery = query ? normalizeSearchQuery(query).toLocaleLowerCase('vi-VN') : '';
+      const all = [{ code: '', name: 'Tất cả sản phẩm' }].concat(
+        data.products.map(function (p) { return { code: p.code, name: p.name }; })
+      );
+      if (!normalizedQuery) return all;
+      return all.filter(function (p) {
+        return p.name.toLocaleLowerCase('vi-VN').includes(normalizedQuery) ||
+          String(p.code).toLocaleLowerCase('vi-VN').includes(normalizedQuery);
+      });
+    }
+
+    function renderCustomerProductFilterSuggestions(options) {
+      const box = document.getElementById('cpProductSuggestions');
+      state.customerProductReport.productPicker.currentOptions = options;
+      if (!options.length) { hideCustomerProductFilterSuggestions(); return; }
+      box.innerHTML = options.map(function (option, index) {
+        const label = option.code ? (option.code + ' - ' + option.name) : option.name;
+        return '<button class="suggestion-item' + (index === state.customerProductReport.productPicker.activeIndex ? ' active' : '') + '" ' +
+          'type="button" role="option" onclick="selectCustomerProductFilter(' + index + ')">' +
+          '<span class="suggestion-name">' + escapeHtml(label) + '</span></button>';
+      }).join('');
+      box.classList.add('show');
+      document.getElementById('cpProductFilterInput').setAttribute('aria-expanded', 'true');
+    }
+
+    function handleCustomerProductFilterInput() {
+      const input = document.getElementById('cpProductFilterInput');
+      state.customerProductReport.productPicker.activeIndex = -1;
+      document.getElementById('cpProductClearBtn').hidden = !input.value;
+      renderCustomerProductFilterSuggestions(customerProductFilterOptions(input.value));
+    }
+
+    function handleCustomerProductFilterKeydown(event) {
+      const picker = state.customerProductReport.productPicker;
+      const options = picker.currentOptions || [];
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        if (!options.length) return;
+        picker.activeIndex = (picker.activeIndex + 1) % options.length;
+        renderCustomerProductFilterSuggestions(options);
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (!options.length) return;
+        picker.activeIndex = (picker.activeIndex - 1 + options.length) % options.length;
+        renderCustomerProductFilterSuggestions(options);
+      } else if (event.key === 'Escape') {
+        hideCustomerProductFilterSuggestions();
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        if (picker.activeIndex >= 0) selectCustomerProductFilter(picker.activeIndex);
+      }
+    }
+
+    function selectCustomerProductFilter(index) {
+      const options = state.customerProductReport.productPicker.currentOptions || [];
+      const option = options[index];
+      if (!option) return;
+      hideCustomerProductFilterSuggestions();
+      state.customerProductReport.productCode = option.code;
+      state.customerProductReport.productName = option.code ? option.name : '';
+      const input = document.getElementById('cpProductFilterInput');
+      input.value = option.code ? (option.code + ' - ' + option.name) : '';
+      document.getElementById('cpProductClearBtn').hidden = !option.code;
+      renderCustomerProductReport();
+    }
+
+    function clearCustomerProductFilter() {
+      hideCustomerProductFilterSuggestions();
+      state.customerProductReport.productCode = '';
+      state.customerProductReport.productName = '';
+      const input = document.getElementById('cpProductFilterInput');
+      input.value = '';
+      document.getElementById('cpProductClearBtn').hidden = true;
+      renderCustomerProductReport();
+    }
+
     function renderView(view) {
       const d = state.data;
       if (!d) return;
@@ -7382,6 +7778,14 @@
       if(user && user.vaiTro === 'Quản lý'){
         var navUsers = document.getElementById('navAccountUsers');
         if(navUsers) navUsers.style.display = 'flex';
+      }
+      // Trang nay dung sidebar tinh rieng (giu logic switchView()/data-view dang
+      // chay tot) nen KHONG goi renderTopSidebar() nhu cac trang khac — chi chen
+      // them doan chon co so vao dau sidebar bang chinh ham dung chung.
+      var sidebar = document.getElementById('sidebar');
+      if(sidebar && user){
+        sidebar.insertAdjacentHTML('afterbegin', TKSNav._branchSwitcherHtml(user));
+        TKSNav._bindBranchSwitcher(sidebar);
       }
     });
 

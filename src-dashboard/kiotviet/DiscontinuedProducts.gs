@@ -161,6 +161,69 @@ function fetchKiotVietProductsByStatus_(isActive, lastModifiedFrom, token) {
   return result;
 }
 
+/**
+ * Đọc tập sản phẩm đang ngừng kinh doanh từ tab Hàng hóa đã được đồng bộ.
+ * Full reconciliation không gọi lại API nặng để tránh vượt giới hạn 6 phút.
+ */
+function readDiscontinuedProductsFromProductSheet_(ss) {
+  const sheet = ss.getSheetByName(CONFIG.SHEET_PRODUCTS);
+  if (!sheet || sheet.getLastRow() < 2) {
+    throw new Error('Tab Hàng hóa chưa có dữ liệu để đối soát hàng ngừng kinh doanh.');
+  }
+  return productSheetRowsToDiscontinuedProducts_(
+    sheet.getRange(1, 1, sheet.getLastRow(), sheet.getLastColumn()).getValues()
+  );
+}
+
+function productSheetRowsToDiscontinuedProducts_(rows) {
+  if (!rows || rows.length < 2) return [];
+  const headers = rows[0].map(function(value) { return String(value || '').trim(); });
+  const index = {};
+  headers.forEach(function(header, column) { index[header] = column; });
+  ['ID hàng hóa', 'Mã hàng', 'Trạng thái'].forEach(function(header) {
+    if (index[header] == null) {
+      throw new Error('Tab Hàng hóa thiếu cột bắt buộc: ' + header);
+    }
+  });
+
+  const valueAt = function(row, header) {
+    const column = index[header];
+    return column == null ? '' : row[column];
+  };
+  const isYes = function(value) {
+    return value === true || String(value || '').trim().toLowerCase() === 'có';
+  };
+
+  return rows.slice(1).filter(function(row) {
+    return String(valueAt(row, 'Trạng thái') || '').trim() === 'Ngừng kinh doanh';
+  }).map(function(row) {
+    return {
+      id: valueAt(row, 'ID hàng hóa'),
+      retailerId: valueAt(row, 'ID gian hàng'),
+      code: valueAt(row, 'Mã hàng'),
+      name: valueAt(row, 'Tên hàng'),
+      fullName: valueAt(row, 'Tên gốc') || valueAt(row, 'Tên hàng'),
+      type: valueAt(row, 'Mã loại hàng'),
+      categoryId: valueAt(row, 'Mã nhóm hàng'),
+      categoryName: valueAt(row, 'Nhóm hàng'),
+      conversionValue: valueAt(row, 'Giá trị quy đổi'),
+      allowsSale: isYes(valueAt(row, 'Được phép bán')),
+      hasVariants: isYes(valueAt(row, 'Có thuộc tính')),
+      basePrice: valueAt(row, 'Giá bán'),
+      description: valueAt(row, 'Mô tả'),
+      isActive: false,
+      modifiedDate: valueAt(row, 'Ngày cập nhật') || valueAt(row, 'Ngày sửa cuối'),
+      createdDate: valueAt(row, 'Ngày tạo'),
+      inventories: [{
+        onHand: Number(valueAt(row, 'Tồn kho') || 0),
+        reserved: Number(valueAt(row, 'Khách đặt') || 0),
+        onOrder: 0
+      }],
+      fromProductSheet: true
+    };
+  });
+}
+
 function ensureDiscontinuedOutput_(ss) {
   let sheet = ss.getSheetByName(DISCONTINUED_CFG.SHEET);
   const width = DISCONTINUED_HEADERS.length;
@@ -448,7 +511,7 @@ function syncHangNgungKinhDoanh_(token) {
     if (row[3]) rowsById[String(row[3])] = row;
   });
 
-  const inactiveProducts = fetchKiotVietProductsByStatus_(false, null, token);
+  const inactiveProducts = readDiscontinuedProductsFromProductSheet_(ss);
   const inactiveIds = {};
   inactiveProducts.forEach(function(product) {
     const id = String(product.id);
@@ -458,6 +521,13 @@ function syncHangNgungKinhDoanh_(token) {
       product,
       oldRow ? oldRow[2] : 'Nạp lịch sử ngừng kinh doanh từ KiotViet'
     );
+    if (oldRow && product.fromProductSheet) {
+      // Tab Hàng hóa không chứa các trường chi tiết bên dưới. Giữ lại dữ liệu
+      // lịch sử đã lấy từ API thay vì ghi đè bằng giá trị rỗng/0.
+      [11, 16, 19, 20, 21, 22, 23, 24, 25].forEach(function(column) {
+        newRow[column] = oldRow[column];
+      });
+    }
     rowsById[id] = newRow;
   });
 
@@ -468,8 +538,10 @@ function syncHangNgungKinhDoanh_(token) {
   });
 
   const rows = Object.keys(rowsById).map(function(id) { return rowsById[id]; });
+  // Sap xep TANG DAN theo ngay de du lieu moi nhat nam o CUOI bang, tranh loi
+  // chen dong/doi chieu khi cac ham upsert khac gia dinh du lieu moi duoc them vao cuoi.
   rows.sort(function(a, b) {
-    return new Date(b[0] || 0).getTime() - new Date(a[0] || 0).getTime();
+    return new Date(a[0] || 0).getTime() - new Date(b[0] || 0).getTime();
   });
   const oldCount = Math.max(0, sheet.getLastRow() - 1);
   if (oldCount) sheet.getRange(2, 1, oldCount, width).clearContent();

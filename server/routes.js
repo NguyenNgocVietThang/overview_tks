@@ -2,7 +2,8 @@ const express = require('express');
 const {
   getDashboardData,
   searchDashboardRecords,
-  searchTopCustomersByProducts
+  searchTopCustomersByProducts,
+  getCustomerProductRevenueReport
 } = require('./dashboard/dashboardData');
 
 const router = express.Router();
@@ -86,6 +87,7 @@ router.use('/api/debug', ...requireInternalUser);
 router.use('/api/dashboard', ...requireInternalUser);
 router.use('/api/search', ...requireInternalUser);
 router.use('/api/customer-product-top', ...requireInternalUser);
+router.use('/api/customer-product-revenue', ...requireInternalUser);
 router.use('/api/export', ...requireInternalUser);
 router.use('/api/products', ...requireInternalUser);
 
@@ -167,11 +169,12 @@ router.get('/api/dashboard', async (req, res) => {
     console.error('Google API message:', JSON.stringify(googleMessage));
     console.error('Stack:', err.stack);
     console.error('=========================');
-    res.status(500).json({
-      error: 'Khong lay duoc du lieu dashboard.',
+    res.status(err.statusCode || 500).json({
+      error: err.statusCode && err.statusCode < 500 ? err.message : 'Khong lay duoc du lieu dashboard.',
       detail: err.message,
       googleStatus,
-      googleMessage
+      googleMessage,
+      code: err.code
     });
   }
 });
@@ -218,6 +221,30 @@ router.get('/api/customer-product-top', async (req, res) => {
     console.error('======================================');
     res.status(err.statusCode || 500).json({
       error: 'Khong tim duoc top khach hang theo san pham.',
+      detail: err.message,
+      code: err.code,
+      googleStatus
+    });
+  }
+});
+
+router.get('/api/customer-product-revenue', async (req, res) => {
+  try {
+    const data = await getCustomerProductRevenueReport(
+      req.query.code,
+      req.query.name,
+      req.branch
+    );
+    res.status(200).json(data);
+  } catch (err) {
+    const googleStatus = err?.response?.status;
+    console.error('=== LOI /api/customer-product-revenue ===');
+    console.error('Message:', err.message);
+    console.error('Google API status:', googleStatus);
+    console.error('Stack:', err.stack);
+    console.error('==========================================');
+    res.status(err.statusCode || 500).json({
+      error: err.statusCode && err.statusCode < 500 ? err.message : 'Khong lay duoc bao cao doanh thu theo khach.',
       detail: err.message,
       code: err.code,
       googleStatus

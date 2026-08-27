@@ -420,3 +420,173 @@ test('cache cua Ha Noi khong ro ri sang Sai Gon — moi co so fetch client rieng
     'moi co so fetch dung 1 lan; lan goi Ha Noi thu hai phai lay tu cache cua Ha Noi'
   );
 });
+
+// ===== getCustomerProductRevenueReport (tab Khach hang, phan 4) =====
+
+const INVOICE_HEADERS = [
+  'Mã hóa đơn', 'Ngày bán', 'Khách hàng', 'SĐT khách', 'Nhân viên bán', 'Chi nhánh',
+  'Tổng tiền hàng', 'Giảm giá', 'Khách đã trả', 'Trạng thái', 'ID hóa đơn', 'Mã đặt hàng',
+  'ID chi nhánh', 'ID nhân viên bán', 'ID khách hàng', 'Mã khách hàng', 'Mã trạng thái',
+  'Tên trạng thái API', 'Ghi chú', 'Thu hộ COD', 'Ngày tạo'
+];
+const DETAIL_HEADERS = [
+  'Mã hóa đơn', 'Mã hàng', 'Tên hàng', 'Số lượng', 'Đơn giá', 'Giảm giá', 'Thành tiền',
+  'ID hóa đơn', 'ID hàng hóa', 'Giảm giá (%)', 'Ghi chú'
+];
+
+function invoiceRow({ code, date, name = '', phone = '', status = 'Hoàn thành', custCode = '' }) {
+  const row = new Array(INVOICE_HEADERS.length).fill('');
+  row[0] = code; row[1] = date; row[2] = name; row[3] = phone; row[9] = status; row[15] = custCode;
+  return row;
+}
+
+function detailRow({ invoiceCode, itemCode, itemName, qty, total }) {
+  const row = new Array(DETAIL_HEADERS.length).fill('');
+  row[0] = invoiceCode; row[1] = itemCode; row[2] = itemName; row[3] = qty; row[6] = total;
+  return row;
+}
+
+function mockCustomerProductRevenueSheets(sheetsClient, { invoices = [], details = [], customers = [] }) {
+  const CONFIG = require('../config');
+  sheetsClient.getMultipleSheetValues = async names => {
+    const result = {};
+    names.forEach(name => { result[name] = []; });
+    result[CONFIG.SHEET_INVOICES] = [INVOICE_HEADERS, ...invoices];
+    result[CONFIG.SHEET_INVOICE_DETAILS] = [DETAIL_HEADERS, ...details];
+    result[CONFIG.SHEET_CUSTOMERS] = [['Mã khách hàng', 'Tên khách hàng', 'Điện thoại'], ...customers];
+    return result;
+  };
+}
+
+test('bao cao doanh thu theo khach: join dung hoa don hoan thanh/trong ky/dung khach, bo qua phan con lai', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const now = new Date('2026-08-14T12:00:00+07:00');
+  mockCustomerProductRevenueSheets(sheetsClient, {
+    invoices: [
+      invoiceRow({ code: 'HD-1', date: '10/08/2026 10:00:00', custCode: 'KH-A', status: 'Hoàn thành' }),
+      invoiceRow({ code: 'HD-2', date: '10/08/2026 11:00:00', custCode: 'KH-A', status: 'Đang xử lý' }),
+      invoiceRow({ code: 'HD-3', date: '10/08/2026 12:00:00', custCode: 'KH-B', status: 'Hoàn thành' }),
+      invoiceRow({ code: 'HD-4', date: '01/01/2026 09:00:00', custCode: 'KH-A', status: 'Hoàn thành' })
+    ],
+    details: [
+      detailRow({ invoiceCode: 'HD-1', itemCode: 'SP-01', itemName: 'Sản phẩm một', qty: 2, total: 200 }),
+      detailRow({ invoiceCode: 'HD-1', itemCode: 'SP-02', itemName: 'Sản phẩm hai', qty: 1, total: 100 }),
+      detailRow({ invoiceCode: 'HD-2', itemCode: 'SP-01', itemName: 'Sản phẩm một', qty: 5, total: 500 }),
+      detailRow({ invoiceCode: 'HD-3', itemCode: 'SP-01', itemName: 'Sản phẩm một', qty: 9, total: 900 }),
+      detailRow({ invoiceCode: 'HD-4', itemCode: 'SP-01', itemName: 'Sản phẩm một', qty: 7, total: 700 })
+    ]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const report = await dashboardData.getCustomerProductRevenueReport('KH-A', '', undefined, now);
+
+  assert.equal(report.customer.code, 'KH-A');
+  assert.equal(report.totalRevenue, 300);
+  assert.equal(report.totalQuantity, 3);
+  assert.deepEqual(
+    report.products.map(p => [p.code, p.quantity, p.revenue]),
+    [['SP-01', 2, 200], ['SP-02', 1, 100]]
+  );
+});
+
+test('bao cao doanh thu theo khach: totalRevenueByDay luon du 90 diem, ngay khong phat sinh la 0', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const now = new Date('2026-08-14T12:00:00+07:00');
+  mockCustomerProductRevenueSheets(sheetsClient, {
+    invoices: [invoiceRow({ code: 'HD-1', date: '10/08/2026 10:00:00', custCode: 'KH-A' })],
+    details: [detailRow({ invoiceCode: 'HD-1', itemCode: 'SP-01', itemName: 'Sản phẩm một', qty: 1, total: 150 })]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const report = await dashboardData.getCustomerProductRevenueReport('KH-A', '', undefined, now);
+
+  assert.equal(report.totalRevenueByDay.length, 90);
+  assert.equal(report.totalRevenueByDay.reduce((s, d) => s + d.revenue, 0), 150);
+  const emptyDay = report.totalRevenueByDay.find(d => d.date === '01/08/2026');
+  assert.equal(emptyDay.revenue, 0);
+  const invoiceDay = report.totalRevenueByDay.find(d => d.date === '10/08/2026');
+  assert.equal(invoiceDay.revenue, 150);
+});
+
+test('bao cao doanh thu theo khach: chia dung 3 bucket T.nay/T.truoc/T.truoc nua, loai hoa don o ngay thu 90', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const now = new Date('2026-08-14T12:00:00+07:00');
+  const offsetDates = {
+    0: '14/08/2026', 29: '16/07/2026', 30: '15/07/2026',
+    59: '16/06/2026', 60: '15/06/2026', 89: '17/05/2026', 90: '16/05/2026'
+  };
+  const invoices = Object.entries(offsetDates).map(([offset, date]) =>
+    invoiceRow({ code: 'HD-' + offset, date: date + ' 08:00:00', custCode: 'KH-A' }));
+  const details = Object.keys(offsetDates).map(offset =>
+    detailRow({ invoiceCode: 'HD-' + offset, itemCode: 'SP-01', itemName: 'Sản phẩm một', qty: 1, total: 100 }));
+  mockCustomerProductRevenueSheets(sheetsClient, { invoices, details });
+  dashboardData.__test__.resetCaches();
+
+  const report = await dashboardData.getCustomerProductRevenueReport('KH-A', '', undefined, now);
+  const product = report.products.find(p => p.code === 'SP-01');
+
+  assert.equal(product.month1Revenue, 200, 'ngay 0 va 29 thuoc T.nay');
+  assert.equal(product.month2Revenue, 200, 'ngay 30 va 59 thuoc T.truoc');
+  assert.equal(product.month3Revenue, 200, 'ngay 60 va 89 thuoc T.truoc nua');
+  assert.equal(product.revenue, 600, 'hoa don ngay thu 90 nam ngoai cua so 90 ngay, khong duoc tinh');
+});
+
+test('bao cao doanh thu theo khach: khop khach qua SDT hoac ten khi hoa don thieu ma khach hang', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const now = new Date('2026-08-14T12:00:00+07:00');
+  mockCustomerProductRevenueSheets(sheetsClient, {
+    customers: [['KH-A', 'Khách   A  ', '0900000001']],
+    invoices: [
+      invoiceRow({ code: 'HD-1', date: '10/08/2026 10:00:00', phone: '0900000001', status: 'Hoàn thành' }),
+      invoiceRow({ code: 'HD-2', date: '11/08/2026 10:00:00', name: '  khách A', status: 'Hoàn thành' })
+    ],
+    details: [
+      detailRow({ invoiceCode: 'HD-1', itemCode: 'SP-01', itemName: 'Sản phẩm một', qty: 1, total: 100 }),
+      detailRow({ invoiceCode: 'HD-2', itemCode: 'SP-01', itemName: 'Sản phẩm một', qty: 1, total: 100 })
+    ]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const report = await dashboardData.getCustomerProductRevenueReport('KH-A', '', undefined, now);
+
+  assert.equal(report.totalRevenue, 200, 'ca 2 hoa don (khop qua SDT va qua ten chuan hoa) deu duoc tinh');
+});
+
+test('bao cao doanh thu theo khach: thieu ma khach hang thi bao loi ro rang, khong quet du lieu', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  mockSheets(sheetsClient, { count: 0 });
+  dashboardData.__test__.resetCaches();
+
+  await assert.rejects(
+    dashboardData.getCustomerProductRevenueReport('', '', undefined, new Date('2026-08-14T12:00:00+07:00')),
+    error => error.statusCode === 400 && error.code === 'CUSTOMER_CODE_REQUIRED'
+  );
+});
+
+test('bao cao doanh thu theo khach: co lap theo chi nhanh, khong ro ri du lieu giua Ha Noi va Sai Gon', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const { BRANCHES } = require('../branch/branches');
+  const CONFIG = require('../config');
+  const seen = [];
+  sheetsClient.getSheetsClient = branch => ({
+    getMultipleSheetValues: async names => {
+      seen.push(branch);
+      const result = {};
+      names.forEach(name => { result[name] = []; });
+      result[CONFIG.SHEET_INVOICES] = [INVOICE_HEADERS,
+        invoiceRow({ code: 'HD-1', date: '10/08/2026 10:00:00', custCode: 'KH-A', status: 'Hoàn thành' })];
+      result[CONFIG.SHEET_INVOICE_DETAILS] = [DETAIL_HEADERS,
+        detailRow({ invoiceCode: 'HD-1', itemCode: 'SP-01', itemName: 'Sản phẩm một', qty: 1, total: branch === BRANCHES.SAIGON ? 999 : 100 })];
+      return result;
+    }
+  });
+  dashboardData.__test__.resetCaches();
+  const now = new Date('2026-08-14T12:00:00+07:00');
+
+  const hanoi = await dashboardData.getCustomerProductRevenueReport('KH-A', '', BRANCHES.HANOI, now);
+  const saigon = await dashboardData.getCustomerProductRevenueReport('KH-A', '', BRANCHES.SAIGON, now);
+
+  assert.equal(hanoi.totalRevenue, 100);
+  assert.equal(saigon.totalRevenue, 999);
+  assert.deepEqual(seen, [BRANCHES.HANOI, BRANCHES.SAIGON]);
+});

@@ -221,3 +221,37 @@ test('API dich vu tu choi tim kiem Tong quan va tu choi khi khong chon truong', 
     dashboardData.getDashboardExportSnapshot = originalSnapshot;
   }
 });
+
+test('Bao cao doanh thu theo khach: xuat bang chi tiet + bang so sanh thang, loc theo san pham khi co chon, tu choi khi chua chon khach', async () => {
+  const originalReport = dashboardData.getCustomerProductRevenueReport;
+  dashboardData.getCustomerProductRevenueReport = async (code, name) => ({
+    customer: { code, name: name || code },
+    products: [
+      { code: 'SP-01', name: 'Sản phẩm một', quantity: 3, revenue: 300, month1Revenue: 100, month2Revenue: 100, month3Revenue: 100 },
+      { code: 'SP-02', name: 'Sản phẩm hai', quantity: 1, revenue: 100, month1Revenue: 100, month2Revenue: 0, month3Revenue: 0 }
+    ]
+  });
+  try {
+    const detailDataset = await exportService.__test__.buildExportDataset({
+      tableKey: 'customers.productDetail',
+      context: { customerProductCustomerCode: 'KH-01', customerProductCustomerName: 'Khách A' }
+    });
+    assert.equal(detailDataset.worksheets[0].rows.length, 2);
+    assert.deepEqual(detailDataset.worksheets[0].columns.map(c => c.label), ['Tên hàng', 'Số lượng', 'Doanh số']);
+
+    const monthlyDataset = await exportService.__test__.buildExportDataset({
+      tableKey: 'customers.productMonthlyCompare',
+      context: { customerProductCustomerCode: 'KH-01', customerProductCode: 'SP-02' }
+    });
+    assert.equal(monthlyDataset.worksheets[0].rows.length, 1, 'chon 1 san pham thi chi xuat 1 dong');
+    assert.equal(monthlyDataset.worksheets[0].rows[0].name, 'Sản phẩm hai');
+    assert.deepEqual(monthlyDataset.worksheets[0].columns.map(c => c.label), ['Tên hàng', 'T.này', 'T.trước', 'T.trước nữa']);
+
+    await assert.rejects(
+      exportService.__test__.buildExportDataset({ tableKey: 'customers.productDetail', context: {} }),
+      error => error.statusCode === 400 && error.code === 'EXPORT_NO_CUSTOMER_SELECTED'
+    );
+  } finally {
+    dashboardData.getCustomerProductRevenueReport = originalReport;
+  }
+});

@@ -382,7 +382,7 @@ function customerReportSalesAndByProductQuery_(stageKey, period) {
  * bang ke tiep trong cung 1 lan thuc thi, vi 2-3 tick cong lai (270s x 2-3)
  * se vuot qua gioi han thuc thi 6 phut cua Apps Script.
  * Voi tai khoan nhieu du lieu, chay ham nay nhieu lan (hoac de trigger hang
- * doi 1 phut tu dong tiep tuc qua syncCustomerReportIfDue_) cho toi khi ca
+ * doi 5 phut tu dong tiep tuc qua syncCustomerReportIfDue_) cho toi khi ca
  * ba tab deu hoan tat.
  */
 function syncCustomerReport() {
@@ -509,7 +509,7 @@ function requireCustomerReportToken_() {
 }
 
 /**
- * Duoc goi boi trigger hang doi 1 phut dang co san. Moi luot chi thu mot bao
+ * Duoc goi boi trigger hang doi 5 phut dang co san. Moi luot chi thu mot bao
  * cao den han de khong day processWebhookQueue toi gioi han thuc thi; cac bao
  * cao con lai se duoc thu o nhung phut ke tiep.
  */
@@ -771,9 +771,11 @@ function aggregateCustomerReport_(invoices, returns, period, customerProfiles) {
     .map(key => {
       const customer = customers[key];
       customer.netRevenue = customer.revenue - customer.returnValue;
+      // Sap xep TANG DAN theo thoi gian giao dich de giao dich moi nhat nam o
+      // CUOI nhom cua tung khach hang thay vi dau nhom.
       customer.transactions.sort((left, right) => {
-        if (right.transactionTimeMs !== left.transactionTimeMs) {
-          return right.transactionTimeMs - left.transactionTimeMs;
+        if (left.transactionTimeMs !== right.transactionTimeMs) {
+          return left.transactionTimeMs - right.transactionTimeMs;
         }
         return String(left.transactionCode).localeCompare(String(right.transactionCode));
       });
@@ -1020,9 +1022,11 @@ function aggregateCustomerByProductReport_(
     product.customerList = Object.keys(product.customers).map(customerKey => {
       const customer = product.customers[customerKey];
       customer.netRevenue = customer.revenue - customer.returnValue;
+      // Sap xep TANG DAN theo thoi gian mua de giao dich moi nhat nam o CUOI
+      // nhom cua tung khach hang thay vi dau nhom.
       customer.sales.sort((left, right) => {
-        if (right.purchaseTimeMs !== left.purchaseTimeMs) {
-          return right.purchaseTimeMs - left.purchaseTimeMs;
+        if (left.purchaseTimeMs !== right.purchaseTimeMs) {
+          return left.purchaseTimeMs - right.purchaseTimeMs;
         }
         return String(left.invoiceCode).localeCompare(String(right.invoiceCode));
       });
@@ -1307,8 +1311,9 @@ function customerProductReportValue_(source, keys, defaultValue) {
 }
 
 function compareCustomerProductReportRows_(left, right) {
-  if (right.purchaseTimeMs !== left.purchaseTimeMs) {
-    return right.purchaseTimeMs - left.purchaseTimeMs;
+  // Sap xep TANG DAN theo thoi gian mua de du lieu moi nhat nam o CUOI bang.
+  if (left.purchaseTimeMs !== right.purchaseTimeMs) {
+    return left.purchaseTimeMs - right.purchaseTimeMs;
   }
   const invoiceCompare = String(left.invoiceCode).localeCompare(String(right.invoiceCode));
   if (invoiceCompare !== 0) return invoiceCompare;
@@ -1480,7 +1485,7 @@ function writeCustomerProductReportSheet_(reportRows, period) {
     'Mối quan tâm: Hàng bán theo khách\n' +
     'Thời gian: 90 ngày qua (' + period.startLabel + ' - ' + period.endLabel + ')\n' +
     'Chi tiết: Mỗi mặt hàng trong hóa đơn hoàn thành là một dòng.\n' +
-    'Tự động cập nhật từ webhook KiotViet trong khoảng 1 phút; đối soát toàn bộ lúc gần 06:30.'
+    'Tự động cập nhật từ webhook KiotViet trong khoảng 5 phút; đối soát toàn bộ lúc gần 06:30.'
   );
 
   if (reportRows.length > 0) {
@@ -1695,8 +1700,9 @@ function replaceCustomerProductReportInvoices_(invoices, appendCompletedRows) {
   }
 
   if (sheet.getLastRow() > 1) {
+    // Sap xep TANG DAN theo ngay mua (cot 5) de du lieu moi nhat nam o CUOI bang.
     sheet.getRange(2, 1, sheet.getLastRow() - 1, CUSTOMER_PRODUCT_REPORT_HEADERS.length)
-      .sort({ column: 5, ascending: false });
+      .sort({ column: 5, ascending: true });
     sheet.getRange(1, 1, sheet.getLastRow(), CUSTOMER_PRODUCT_REPORT_HEADERS.length)
       .createFilter();
   }
