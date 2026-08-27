@@ -1,6 +1,6 @@
-# TKS Dashboard — CHbansi Live Dashboard
+# TKS Dashboard
 
-Hệ thống dashboard thời gian thực cho cửa hàng CHbansi, đồng bộ dữ liệu từ KiotViet qua Google Apps Script + Google Sheets.
+Hệ thống dashboard thời gian thực cho cửa hàng CHhanoi và CHsaigon, đồng bộ dữ liệu từ KiotViet qua Google Apps Script + Google Sheets.
 
 ---
 
@@ -59,9 +59,11 @@ webtks-dashboard/
 ├── .claspignore                 # Ignore profile cho project KiotHN / Dashboard
 ├── .claspignore.order-lifecycle # Ignore profile cho project Vận chuyển
 ├── .claspignore.saigon          # Ignore profile cho project KiotSG
+├── .firebaserc                  # Firebase project mặc định: tokosi-a02e0
 ├── 3D Design.md                 # Kế hoạch chi tiết triển khai hiệu ứng 3D toàn trang
 ├── CHINH-SACH-NGHI-PHEP.md      # Quy định & chính sách quản lý nghỉ phép nhân sự (CSNS-NP-01)
 ├── ERD KiotViet.drawio          # Sơ đồ quan hệ thực thể KiotViet
+├── firebase.json                # Liên kết source server/ với Firebase App Hosting
 ├── Logo.jpg                     # Logo thương hiệu công ty
 ├── Plan Process Automation.md   # Kế hoạch kiểm soát & tự động hóa quy trình vận chuyển
 ├── README.md                    # Tài liệu hướng dẫn tổng quan dự án
@@ -79,6 +81,7 @@ webtks-dashboard/
 │       └── chart.umd.min.js
 │
 ├── server/                      # Backend Node.js đọc/ghi Google Sheets & Web Server
+│   ├── apphosting.yaml          # Runtime, tài nguyên và Secret Manager cho Firebase App Hosting
 │   ├── auth/                    # JWT, bcrypt, Google Identity, Users cục bộ bảo mật, OTP, phân quyền & đổi vai trò
 │   │   ├── adminUserRoutes.js   # API /api/admin/users (CRUD tài khoản, reset mật khẩu, phân quyền)
 │   │   ├── adminUserRoutes.test.js # Unit test routes quản trị người dùng
@@ -98,6 +101,12 @@ webtks-dashboard/
 │   │   ├── userRepository.js    # Tầng truy xuất thông tin tài khoản người dùng
 │   │   ├── userRepository.test.js # Unit test user repository
 │   │   └── userWriteRepository.js # Tầng ghi thông tin người dùng bảo mật
+│   ├── branch/                  # Phân quyền và xác định cơ sở (Hà Nội / Sài Gòn) theo request
+│   │   ├── branchMiddleware.js  # Middleware gắn req.branch, chặn tài khoản chưa gán cơ sở
+│   │   ├── branchMiddleware.test.js # Unit test middleware phân quyền cơ sở
+│   │   ├── branchRoutes.js      # API danh sách cơ sở khả dụng cho tài khoản hiện tại
+│   │   ├── branches.js          # Chuẩn hóa coSo, tra cứu cấu hình theo cơ sở
+│   │   └── branches.test.js     # Unit test chuẩn hóa và tra cứu cơ sở
 │   ├── dashboard/
 │   │   ├── dashboardData.js     # Thống kê tổng quan KPI, biểu đồ, tìm kiếm và Result Cache
 │   │   ├── dashboardData.test.js # Unit test dữ liệu dashboard/tìm kiếm/cache
@@ -207,7 +216,8 @@ webtks-dashboard/
 │   │   └── frontend/            # Unit test giao diện, chuông thông báo, đổi vai trò, phân trang và hiệu ứng 3D
 │   ├── config.js                # Cấu hình môi trường Node.js server
 │   ├── index.js                 # Express server entry point
-│   └── routes.js                # Định tuyến API endpoint (/api/dashboard/*, /api/auth/*, /api/admin/*, /api/shipment/*, /api/hr/*, /api/notifications/*, /api/role-requests/*, /api/products/stockout-check/*)
+│   ├── package.json             # Dependencies, Node 22 và lệnh build/start
+│   └── routes.js                # Định tuyến API endpoint (/api/dashboard/*, /api/auth/*, /api/admin/*, /api/branch, /api/shipment/*, /api/hr/*, /api/notifications/*, /api/role-requests/*, /api/products/stockout-check/*, /api/customer-product-revenue)
 │
 ├── src-dashboard/               # Apps Script riêng cho Google Sheets Dashboard
 │   ├── appsscript.json          # Manifest Apps Script Dashboard
@@ -250,7 +260,7 @@ webtks-dashboard/
 │   ├── 02-srs/
 │   │   └── SRS_Dashboard_GoogleSheets.md # Đặc tả kỹ thuật SRS v2.2
 │   ├── 03-process/
-│   │   ├── BPMN_Dashboard_GoogleSheets.md # Sơ đồ quy trình nghiệp vụ v1.9
+│   │   ├── BPMN_Dashboard_GoogleSheets.md # Sơ đồ quy trình nghiệp vụ v2.0
 │   │   └── bpmn/
 │   │       ├── bpmn_1_phaseA.bpmn
 │   │       ├── bpmn_2_phaseB.bpmn
@@ -294,7 +304,7 @@ Thư mục `server/` tích hợp sẵn bộ unit tests (dùng `node:test` chuẩ
 cd server
 npm test
 ```
-Bộ test hiện gồm **468 bài kiểm thử tự động**:
+Bộ test hiện gồm **477 bài kiểm thử tự động** (13 test suite):
 - Phân hệ Quản lý Nghỉ phép HR & Telegram Bot (`hrLeaveRoutes.js`, `hrLeaveService.js`, `hrLeaveExportService.js`, `hrTelegramBot.js`, `conversationStore.js`).
 - Xác thực người dùng (JWT httpOnly cookie, mật khẩu bcrypt, Google Identity OAuth, đăng ký bằng Email/SĐT, bảo vệ route RBAC 5 vai trò).
 - Quản trị tài khoản Admin (CRUD danh sách người dùng, reset mật khẩu, kích hoạt/khóa tài khoản, xuất báo cáo).
@@ -572,10 +582,10 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 
 | Tài liệu | Mô tả |
 |---|---|
-| [BRD](docs/01-brd/BRD_Dashboard_GoogleSheets.md) | Business Requirements Document v1.8 |
-| [SRS](docs/02-srs/SRS_Dashboard_GoogleSheets.md) | Software Requirements Specification v2.1 |
-| [BPMN](docs/03-process/BPMN_Dashboard_GoogleSheets.md) | Sơ đồ quy trình nghiệp vụ v1.9 |
-| [Implementation Plan](docs/04-planning/implementation_plan.md) | Kế hoạch triển khai chi tiết & trạng thái v2.2 |
+| [BRD](docs/01-brd/BRD_Dashboard_GoogleSheets.md) | Business Requirements Document v1.9 |
+| [SRS](docs/02-srs/SRS_Dashboard_GoogleSheets.md) | Software Requirements Specification v2.2 |
+| [BPMN](docs/03-process/BPMN_Dashboard_GoogleSheets.md) | Sơ đồ quy trình nghiệp vụ v2.0 |
+| [Implementation Plan](docs/04-planning/implementation_plan.md) | Kế hoạch triển khai chi tiết & trạng thái v2.3 |
 | [Chính sách nghỉ phép](CHINH-SACH-NGHI-PHEP.md) | Quy định & chính sách quản lý nghỉ phép nhân sự (CSNS-NP-01) |
 | [Plan Process Automation](Plan%20Process%20Automation.md) | Kế hoạch kiểm soát & tự động hóa quy trình vận chuyển hàng hóa |
 | [Manual Test Batch Update](docs/manual-test-batch-update-order-items.md) | Hướng dẫn kiểm thử production cập nhật hàng loạt đơn vận chuyển |

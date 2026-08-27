@@ -128,19 +128,19 @@ function getKiotVietWebhookBaseUrl_() {
     Logger.log('Khong doc duoc URL deployment hien tai: ' + error.toString());
   }
 
-  // WEBHOOK_URL co the tro thanh URL chet sau khi deployment cu bi xoa.
-  // ScriptApp.getService().getUrl() la nguon hien hanh; /dev va /exec dung
-  // chung deployment id nen chuan hoa sang /exec de KiotViet goi cong khai.
-  const url = currentDeployment || configured;
+  // WEBHOOK_URL phai tro vao deployment Web App da phat hanh cong khai.
+  // ScriptApp.getService().getUrl() co the tra deployment @HEAD /dev, URL nay
+  // khong phai endpoint versioned ma KiotViet co the goi on dinh.
+  const url = configured || currentDeployment;
   if (!url) {
     throw new Error(
       'Khong tim thay URL Web App /exec. Hay deploy Web App truoc khi bat auto-sync.'
     );
   }
 
-  if (currentDeployment && currentDeployment !== configured) {
+  if (!configured && currentDeployment) {
     properties.setProperty('WEBHOOK_URL', currentDeployment);
-    Logger.log('Da tu dong cap nhat WEBHOOK_URL sang deployment hien tai.');
+    Logger.log('Da khoi tao WEBHOOK_URL tu deployment hien tai.');
   }
   return url;
 }

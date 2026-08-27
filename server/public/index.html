@@ -1251,8 +1251,7 @@
     .search-input:focus {
       border-color: var(--blue);
       outline: none;
-      transform: perspective(800px) translateZ(15px) scale(1.02);
-      box-shadow: 
+      box-shadow:
         0 20px 40px -10px rgba(var(--primary-rgb-d), 0.4),
         0 0 0 4px rgba(var(--primary-rgb-d), 0.2),
         0 0 30px rgba(var(--primary-rgb-d), 0.3);
@@ -1364,7 +1363,7 @@
 
     .suggestions.show {
       opacity: 1;
-      transform: perspective(800px) translateZ(10px) rotateX(0) scale(1);
+      transform: none;
       pointer-events: auto;
       animation: dropdownExpand 0.4s cubic-bezier(0.23, 1, 0.32, 1);
     }
@@ -1401,7 +1400,6 @@
     .suggestion-item:hover,
     .suggestion-item.active {
       background: var(--panel-2);
-      transform: perspective(600px) translateZ(4px);
     }
 
     .suggestion-name {
@@ -2475,6 +2473,17 @@
 
     .chart-box.newly-imported-top.is-empty {
       height: 180px;
+    }
+
+    .chart-box.chart-scroll-x {
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+
+    .chart-box.chart-scroll-x .chart-scroll-inner {
+      position: relative;
+      height: 100%;
+      min-width: 100%;
     }
 
     .newly-imported-feature-panel,
@@ -4464,7 +4473,7 @@
 
             <div id="cpContent" hidden>
               <div class="grid" style="margin-top:14px;">
-                <div class="panel col-6">
+                <div class="panel col-12">
                   <div class="panel-head">
                     <h2><span id="cpSelectedCustomerName">—</span> <span class="tag"
                         id="cpSelectedCustomerCode">—</span></h2>
@@ -4484,21 +4493,26 @@
                     </button>
                     <div class="suggestions" id="cpProductSuggestions" role="listbox"></div>
                   </div>
-                  <div class="chart-box"><canvas id="chartCustomerProductRevenue" role="img"
+                  <div class="chart-box wide"><canvas id="chartCustomerProductRevenue" role="img"
                       aria-label="Biểu đồ đường doanh thu theo ngày của khách hàng đã chọn"></canvas></div>
-                </div>
-                <div class="panel col-6">
-                  <div class="panel-head">
-                    <h2>Doanh thu theo sản phẩm</h2>
-                    <span class="drill-hint" id="cpBarChartHint">Top 30 sản phẩm</span>
-                  </div>
-                  <div class="chart-box"><canvas id="chartCustomerProductBar" role="img"
-                      aria-label="Biểu đồ cột doanh thu theo sản phẩm của khách hàng đã chọn"></canvas></div>
                 </div>
               </div>
 
               <div class="grid" style="margin-top:14px;">
                 <div class="panel col-12">
+                  <div class="panel-head">
+                    <h2>Doanh thu theo sản phẩm</h2>
+                    <span class="drill-hint" id="cpBarChartHint">Tất cả sản phẩm</span>
+                  </div>
+                  <div class="chart-box wide chart-scroll-x" id="cpBarChartBox">
+                    <div class="chart-scroll-inner" id="cpBarChartInner"><canvas id="chartCustomerProductBar" role="img"
+                        aria-label="Biểu đồ cột doanh thu theo sản phẩm của khách hàng đã chọn"></canvas></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid" style="margin-top:14px;">
+                <div class="panel col-6">
                   <div class="panel-head">
                     <h2>Bảng chi tiết sản phẩm <span class="tag" id="cpDetailCount">—</span></h2>
                     <div class="panel-head-actions"><button class="export-button" type="button"
@@ -4526,10 +4540,7 @@
                     <button type="button" id="cpDetailNextPage">Sau ›</button>
                   </div>
                 </div>
-              </div>
-
-              <div class="grid" style="margin-top:14px;">
-                <div class="panel col-12">
+                <div class="panel col-6">
                   <div class="panel-head">
                     <h2>Bảng so sánh doanh số theo tháng</h2>
                     <div class="panel-head-actions"><button class="export-button" type="button"
@@ -7118,17 +7129,24 @@
         : (data.totalRevenueByDay || []);
       renderRevenueChart('chartCustomerProductRevenue', 'cpRevenue', revenueByDay);
 
-      const barList = productCode ? filtered : data.products.slice(0, 30);
+      const barList = productCode ? filtered : data.products;
       const hint = document.getElementById('cpBarChartHint');
       if (hint) {
         hint.textContent = productCode
           ? '1 sản phẩm đang lọc'
-          : 'Top ' + Math.min(30, data.products.length) + ' sản phẩm';
+          : Number(data.products.length || 0).toLocaleString('vi-VN') + ' sản phẩm';
       }
+      const barInner = document.getElementById('cpBarChartInner');
       if (barList.length) {
+        if (barInner) {
+          const barBox = document.getElementById('cpBarChartBox');
+          const minWidth = barBox ? barBox.clientWidth : 0;
+          barInner.style.width = Math.max(minWidth, barList.length * 64) + 'px';
+        }
         renderBarChartList('chartCustomerProductBar', 'cpBar', barList,
-          function (p) { return p.name; }, function (p) { return p.revenue; }, themeColor('--amber'), false);
+          function (p) { return p.name; }, function (p) { return p.revenue; }, themeColor('--amber'), true);
       } else {
+        if (barInner) barInner.style.width = '100%';
         destroyChart('cpBar');
       }
 

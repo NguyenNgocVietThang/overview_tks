@@ -217,9 +217,9 @@ describe('Compact KiotViet sheet schemas', () => {
 });
 
 describe('KiotViet webhook URL recovery', () => {
-  it('replaces a stale configured webhook URL with the current web-app deployment URL', () => {
+  it('keeps the configured public web-app URL when Apps Script reports an @HEAD development deployment', () => {
     const properties = {
-      WEBHOOK_URL: 'https://script.google.com/macros/s/OLD_DEPLOYMENT/exec'
+      WEBHOOK_URL: 'https://script.google.com/macros/s/PUBLIC_VERSIONED_DEPLOYMENT/exec'
     };
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
@@ -237,7 +237,7 @@ describe('KiotViet webhook URL recovery', () => {
         getService() {
           return {
             getUrl() {
-              return 'https://script.google.com/macros/s/CURRENT_DEPLOYMENT/dev';
+              return 'https://script.google.com/macros/s/HEAD_DEVELOPMENT_DEPLOYMENT/dev';
             }
           };
         }
@@ -246,11 +246,11 @@ describe('KiotViet webhook URL recovery', () => {
 
     assert.equal(
       context.getKiotVietWebhookBaseUrl_(),
-      'https://script.google.com/macros/s/CURRENT_DEPLOYMENT/exec'
+      'https://script.google.com/macros/s/PUBLIC_VERSIONED_DEPLOYMENT/exec'
     );
     assert.equal(
       properties.WEBHOOK_URL,
-      'https://script.google.com/macros/s/CURRENT_DEPLOYMENT/exec'
+      'https://script.google.com/macros/s/PUBLIC_VERSIONED_DEPLOYMENT/exec'
     );
   });
 });

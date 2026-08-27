@@ -1,0 +1,14 @@
+{
+  "apphosting": {
+    "backendId": "tokosi-dashboard",
+    "rootDir": "server",
+    "ignore": [
+      "node_modules",
+      ".git",
+      ".env",
+      ".env.*",
+      "firebase-debug.log",
+      "firebase-debug.*.log"
+    ]
+  }
+}
