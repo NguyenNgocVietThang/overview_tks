@@ -1,9 +1,15 @@
 // ==========================================
 // GOOGLE SHEETS CLIENT — doc du lieu tu sheet KiotViet export (Apps Script
 // rieng ben ngoai chiu trach nhiem dong bo/ghi; server nay chi DOC)
+//
+// DA CO SO: moi co so (Ha Noi / Sai Gon) co spreadsheet rieng nhung TEN TAB
+// giong het nhau. Vi vay client duoc tao theo tung co so qua createClient(),
+// moi client giu cache danh sach tab RIENG (dung chung cache se lam
+// getMultipleSheetValues loc nham tab giua hai spreadsheet).
 // ==========================================
 const { google } = require('googleapis');
 const CONFIG = require('../config');
+const { BRANCHES } = require('../branch/branches');
 
 // Gioi han tren cho moi lan goi Google Sheets API — tranh request Express bi
 // treo vo thoi han neu Google API cham/khong phan hoi.
@@ -15,6 +21,8 @@ function quoteSheetName(sheetName) {
   return `'${String(sheetName).replace(/'/g, "''")}'`;
 }
 
+// Auth dung CHUNG cho moi co so — cung mot service account doc ca hai
+// spreadsheet, khong can nhan ban client xac thuc.
 function getSheetsApi() {
   if (!sheetsApiPromise) {
     const credentials = JSON.parse(CONFIG.GOOGLE_SERVICE_ACCOUNT_JSON);
@@ -29,23 +37,6 @@ function getSheetsApi() {
   return sheetsApiPromise;
 }
 
-/**
- * Doc toan bo du lieu cua 1 sheet, tra ve mang 2 chieu (giong getDataRange().getValues()).
- */
-async function getValues(sheetName) {
-  const sheets = await getSheetsApi();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: CONFIG.SPREADSHEET_ID,
-    range: quoteSheetName(sheetName),
-    // Dashboard can tinh toan tren gia tri so goc. Neu dung mac dinh
-    // FORMATTED_VALUE, locale vi-VN tra 1021937723 thanh "1.021.937.723"
-    // va Number(...) se bien gia tri nay thanh NaN/0.
-    valueRenderOption: 'UNFORMATTED_VALUE',
-    dateTimeRenderOption: 'FORMATTED_STRING'
-  }, { timeout: API_TIMEOUT_MS });
-  return res.data.values || [];
-}
-
 function sheetNameFromRange(rangeStr) {
   if (!rangeStr) return null;
   const namePart = rangeStr.split('!')[0];
@@ -57,73 +48,135 @@ function sheetNameFromRange(rangeStr) {
 
 const SHEET_TITLES_CACHE_TTL_MS = 5 * 60 * 1000; // vai phut la du: danh sach tab hau nhu khong doi giua cac lan poll
 
-let sheetTitlesCache = {
-  data: null,
-  expiresAt: 0,
-  loading: null
-};
+/**
+ * Loi "co so chua duoc cau hinh nguon du lieu" — statusCode 503 de route tra
+ * dung ma cho client, code de UI hien thong bao rieng thay vi loi chung chung.
+ */
+function branchNotConfigured(branchLabel) {
+  const err = new Error(`Cơ sở ${branchLabel} chưa được cấu hình nguồn dữ liệu.`);
+  err.code = 'BRANCH_NOT_CONFIGURED';
+  err.statusCode = 503;
+  return err;
+}
 
 /**
- * Danh sach ten cac sheet (tab) hien co trong spreadsheet — dung de debug
- * va de loc bot range khong ton tai truoc khi goi batchGet.
- * Ket qua duoc cache vai phut (giong searchSheetCache) vi getMultipleSheetValues
- * goi ham nay o MOI lan client poll du lieu, trong khi danh sach tab hau nhu
- * khong bao gio doi giua 2 lan poll lien tiep.
+ * Tao client doc gan voi 1 spreadsheet.
+ * @param {() => (string|null)} getSpreadsheetId doc CONFIG tai thoi diem GOI
+ *   (khong phai luc require) de test co the doi config sau khi module da load.
+ * @param {string} branchLabel ten co so, dung trong thong bao loi.
  */
-async function listSheetTitles() {
-  if (sheetTitlesCache.data && Date.now() < sheetTitlesCache.expiresAt) {
-    return sheetTitlesCache.data;
+function createClient(getSpreadsheetId, branchLabel) {
+  let sheetTitlesCache = { data: null, expiresAt: 0, loading: null };
+
+  function requireSpreadsheetId() {
+    const id = getSpreadsheetId();
+    if (!id) throw branchNotConfigured(branchLabel);
+    return id;
   }
-  if (sheetTitlesCache.loading) return sheetTitlesCache.loading;
 
-  const sheets = await getSheetsApi();
-  const loading = sheets.spreadsheets.get({
-    spreadsheetId: CONFIG.SPREADSHEET_ID,
-    fields: 'sheets.properties.title'
-  }, { timeout: API_TIMEOUT_MS })
-    .then(res => {
-      const titles = (res.data.sheets || []).map(s => s.properties.title);
-      sheetTitlesCache.data = titles;
-      sheetTitlesCache.expiresAt = Date.now() + SHEET_TITLES_CACHE_TTL_MS;
-      return titles;
-    })
-    .finally(() => {
-      if (sheetTitlesCache.loading === loading) sheetTitlesCache.loading = null;
+  /**
+   * Doc toan bo du lieu cua 1 sheet, tra ve mang 2 chieu (giong getDataRange().getValues()).
+   */
+  async function getValues(sheetName) {
+    const spreadsheetId = requireSpreadsheetId();
+    const sheets = await getSheetsApi();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: quoteSheetName(sheetName),
+      // Dashboard can tinh toan tren gia tri so goc. Neu dung mac dinh
+      // FORMATTED_VALUE, locale vi-VN tra 1021937723 thanh "1.021.937.723"
+      // va Number(...) se bien gia tri nay thanh NaN/0.
+      valueRenderOption: 'UNFORMATTED_VALUE',
+      dateTimeRenderOption: 'FORMATTED_STRING'
+    }, { timeout: API_TIMEOUT_MS });
+    return res.data.values || [];
+  }
+
+  /**
+   * Danh sach ten cac sheet (tab) hien co trong spreadsheet — dung de debug
+   * va de loc bot range khong ton tai truoc khi goi batchGet.
+   * Ket qua duoc cache vai phut (giong searchSheetCache) vi getMultipleSheetValues
+   * goi ham nay o MOI lan client poll du lieu, trong khi danh sach tab hau nhu
+   * khong bao gio doi giua 2 lan poll lien tiep.
+   */
+  async function listSheetTitles() {
+    if (sheetTitlesCache.data && Date.now() < sheetTitlesCache.expiresAt) {
+      return sheetTitlesCache.data;
+    }
+    if (sheetTitlesCache.loading) return sheetTitlesCache.loading;
+
+    const spreadsheetId = requireSpreadsheetId();
+    const sheets = await getSheetsApi();
+    const loading = sheets.spreadsheets.get({
+      spreadsheetId,
+      fields: 'sheets.properties.title'
+    }, { timeout: API_TIMEOUT_MS })
+      .then(res => {
+        const titles = (res.data.sheets || []).map(s => s.properties.title);
+        sheetTitlesCache.data = titles;
+        sheetTitlesCache.expiresAt = Date.now() + SHEET_TITLES_CACHE_TTL_MS;
+        return titles;
+      })
+      .finally(() => {
+        if (sheetTitlesCache.loading === loading) sheetTitlesCache.loading = null;
+      });
+    sheetTitlesCache.loading = loading;
+    return loading;
+  }
+
+  /**
+   * Doc NHIEU sheet trong 1 lan goi API (giam do tre khi client poll dinh ky).
+   * batchGet se loi TOAN BO (khong tra ve gi ca) neu chi 1 sheet trong danh sach
+   * khong ton tai, nen phai loc truoc theo danh sach tab thuc te — 1 tab bi
+   * thieu/doi ten chi lam rong muc do, khong lam sap ca dashboard.
+   * @param {string[]} sheetNames
+   * @returns {Promise<Object<string, any[][]>>} map ten sheet -> mang 2 chieu (rong neu sheet khong co du lieu hoac khong ton tai)
+   */
+  async function getMultipleSheetValues(sheetNames) {
+    const spreadsheetId = requireSpreadsheetId();
+    const sheets = await getSheetsApi();
+    const result = {};
+    sheetNames.forEach(name => { result[name] = []; });
+
+    const existingTitles = new Set(await listSheetTitles());
+    const namesToFetch = sheetNames.filter(name => existingTitles.has(name));
+    if (namesToFetch.length === 0) return result;
+
+    const res = await sheets.spreadsheets.values.batchGet({
+      spreadsheetId,
+      ranges: namesToFetch.map(quoteSheetName),
+      valueRenderOption: 'UNFORMATTED_VALUE',
+      dateTimeRenderOption: 'FORMATTED_STRING'
+    }, { timeout: API_TIMEOUT_MS });
+
+    const valueRanges = res.data.valueRanges || [];
+    valueRanges.forEach((vr, i) => {
+      const name = sheetNameFromRange(vr.range) || namesToFetch[i];
+      result[name] = vr.values || [];
     });
-  sheetTitlesCache.loading = loading;
-  return loading;
+    return result;
+  }
+
+  return { getValues, getMultipleSheetValues, listSheetTitles };
 }
+
+const hanoiClient = createClient(() => CONFIG.SPREADSHEET_ID, BRANCHES.HANOI);
+const saigonClient = createClient(() => CONFIG.SPREADSHEET_ID_SG, BRANCHES.SAIGON);
 
 /**
- * Doc NHIEU sheet trong 1 lan goi API (giam do tre khi client poll dinh ky).
- * batchGet se loi TOAN BO (khong tra ve gi ca) neu chi 1 sheet trong danh sach
- * khong ton tai, nen phai loc truoc theo danh sach tab thuc te — 1 tab bi
- * thieu/doi ten chi lam rong muc do, khong lam sap ca dashboard.
- * @param {string[]} sheetNames
- * @returns {Promise<Object<string, any[][]>>} map ten sheet -> mang 2 chieu (rong neu sheet khong co du lieu hoac khong ton tai)
+ * Client doc du lieu cua 1 co so. Mac dinh (branch khong xac dinh) = Ha Noi,
+ * giu nguyen hanh vi cu cho moi caller chua truyen branch.
+ *
+ * Ha Noi tra ve CHINH module.exports (khong phai hanoiClient) de cac test dang
+ * monkey-patch sheetsClient.getMultipleSheetValues van chan duoc loi goi.
  */
-async function getMultipleSheetValues(sheetNames) {
-  const sheets = await getSheetsApi();
-  const result = {};
-  sheetNames.forEach(name => { result[name] = []; });
-
-  const existingTitles = new Set(await listSheetTitles());
-  const namesToFetch = sheetNames.filter(name => existingTitles.has(name));
-  if (namesToFetch.length === 0) return result;
-
-  const res = await sheets.spreadsheets.values.batchGet({
-    spreadsheetId: CONFIG.SPREADSHEET_ID,
-    ranges: namesToFetch.map(quoteSheetName),
-    valueRenderOption: 'UNFORMATTED_VALUE',
-    dateTimeRenderOption: 'FORMATTED_STRING'
-  }, { timeout: API_TIMEOUT_MS });
-
-  const valueRanges = res.data.valueRanges || [];
-  valueRanges.forEach((vr, i) => {
-    const name = sheetNameFromRange(vr.range) || namesToFetch[i];
-    result[name] = vr.values || [];
-  });
-  return result;
+function getSheetsClient(branch) {
+  return branch === BRANCHES.SAIGON ? saigonClient : module.exports;
 }
 
-module.exports = { getValues, getMultipleSheetValues, listSheetTitles };
+module.exports = {
+  getValues: (...args) => hanoiClient.getValues(...args),
+  getMultipleSheetValues: (...args) => hanoiClient.getMultipleSheetValues(...args),
+  listSheetTitles: (...args) => hanoiClient.listSheetTitles(...args),
+  getSheetsClient
+};
