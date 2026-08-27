@@ -4153,6 +4153,8 @@
               <div class="panel col-12">
                 <div class="panel-head">
                   <h2>Kết quả đứt hàng <span class="tag" id="tagStockoutRows">—</span></h2>
+                  <button class="export-button" type="button" id="stockoutExportButton" disabled
+                    onclick="exportStockoutResult()">Xuất Excel</button>
                 </div>
                 <div class="scroll-list" style="max-height:480px;">
                   <table>
@@ -5280,6 +5282,8 @@
       const rows = (result && result.rows) || [];
 
       if (tag) tag.textContent = rows.length;
+      const exportButton = document.getElementById('stockoutExportButton');
+      if (exportButton) exportButton.disabled = rows.length === 0;
 
       if (rows.length === 0) {
         tbody.innerHTML = '<tr><td colspan="4" class="table-note">Không có mã hàng nào bị đứt hàng ≥ 7 ngày trong khoảng ' +
@@ -5304,6 +5308,39 @@
           '<tr class="stockout-period-row" id="' + rowId + '" hidden><td colspan="4">' + periodsHtml + '</td></tr>'
         );
       }).join('');
+    }
+
+    async function exportStockoutResult() {
+      const result = state.stockoutCheck.result;
+      const rows = (result && result.rows) || [];
+      if (!rows.length) return;
+      const button = document.getElementById('stockoutExportButton');
+      const originalLabel = button ? button.textContent : '';
+      if (button) { button.disabled = true; button.textContent = 'Đang xuất…'; }
+      try {
+        const payload = {
+          tableKey: 'stockout.result',
+          stockoutResult: result,
+          columns: { stockout_result: ['code', 'name', 'currentOnHand', 'stockoutCount', 'totalStockoutDays', 'periods'] }
+        };
+        const response = await fetch('/api/export', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        });
+        if (!response.ok) throw new Error(await readExportError(response, 'Không thể tạo file Excel'));
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = downloadNameFromResponse(response);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      } catch (err) {
+        alert(err.message || 'Không thể xuất file Excel.');
+      } finally {
+        if (button) { button.disabled = rows.length === 0; button.textContent = originalLabel; }
+      }
     }
 
     function toggleStockoutPeriods(rowId) {
@@ -7269,7 +7306,18 @@
       const miniFilterQuery = buildMiniFilterQuery();
       fetch('/api/dashboard?days=' + encodeURIComponent(days) + (miniFilterQuery ? '&' + miniFilterQuery : ''))
         .then(function (res) {
-          if (!res.ok) throw new Error('HTTP ' + res.status);
+          if (!res.ok) {
+            // Loi CO SO (chua duoc gan co so / co so chua cau hinh nguon du lieu)
+            // can thong bao rieng thay vi "Khong the tai du lieu" chung chung.
+            return res.json().catch(function () { return null; }).then(function (payload) {
+              if (window.TKSNav && TKSNav.handleBranchError(payload)) {
+                const branchErr = new Error(payload.error);
+                branchErr.handled = true;
+                throw branchErr;
+              }
+              throw new Error('HTTP ' + res.status);
+            });
+          }
           return res.json();
         })
         .then(function (data) {
@@ -7297,6 +7345,7 @@
         .catch(function (err) {
           console.error(err);
           if (isManualRefresh) setLoading(false);
+          if (err && err.handled) return; // da hien bang thong bao co so
           if (isManualRefresh) showToast('Không thể tải dữ liệu: ' + (err && err.message ? err.message : err), 'error');
         });
     }

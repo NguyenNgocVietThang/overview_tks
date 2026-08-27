@@ -572,6 +572,11 @@
       let data = {};
       try{ data = await res.json(); }
       catch(_){ data = { error: res.statusText ? `Lỗi hệ thống (${res.status} ${res.statusText})` : 'Lỗi phản hồi từ máy chủ.' }; }
+      // Loi CO SO hien bang thong bao rieng o dau trang (chua gan co so / co so
+      // chua duoc cau hinh nguon nhan su) — deu tra ve tu resolveBranch/hrSheetsClient.
+      if(!res.ok && window.TKSNav && TKSNav.handleBranchError(data)){
+        return { ok: false, status: res.status, data, branchError: true };
+      }
       return { ok: res.ok, status: res.status, data };
     }
 

@@ -1182,3 +1182,41 @@ tbody tr:hover {
 }
 
 
+
+/* ---------- Chon co so (Ha Noi / Sai Gon) — dau sidebar ---------- */
+/* Hien o MOI trang noi bo: nguoi dung phai luon biet dang xem du lieu co so nao. */
+.tks-branch{
+  display:flex; align-items:center; gap:8px;
+  padding:10px 12px; margin-bottom:10px;
+  border-radius:10px; background:var(--surface-hover);
+  border:1px solid var(--border);
+}
+.tks-branch-label{
+  font-size:11px; font-weight:600; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--muted); flex-shrink:0;
+}
+.tks-branch-value{
+  font-size:13.5px; font-weight:600; color:var(--text);
+}
+.tks-branch-select{
+  flex:1; min-width:0;
+  padding:6px 8px; border-radius:8px;
+  border:1px solid var(--border); background:var(--panel);
+  color:var(--text); font-size:13.5px; font-weight:600; font-family:var(--font-body);
+  cursor:pointer;
+}
+.tks-branch-select:focus-visible{ outline:2px solid var(--blue); outline-offset:1px; }
+.tks-branch-select:disabled{ opacity:.6; cursor:progress; }
+.tks-branch--none{
+  color:#ef4444; font-size:12.5px; font-weight:600;
+  border-color:rgba(239,68,68,.5);
+}
+
+/* Bang thong bao loi co so (chua gan co so / co so chua duoc cau hinh) */
+.tks-branch-banner{
+  position:sticky; top:0; z-index:60;
+  padding:10px 16px; text-align:center;
+  background:rgba(245,158,11,.14); color:var(--text);
+  border-bottom:1px solid rgba(245,158,11,.4);
+  font-size:13.5px; font-weight:600;
+}

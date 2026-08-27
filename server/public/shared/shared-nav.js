@@ -11,6 +11,7 @@
 
   // Tach rieng de test co the gia lap (khong thuc su dieu huong trong jsdom).
   TKSNav._navigate = function(url){ window.location.href = url; };
+  TKSNav._reload = function(){ window.location.reload(); };
 
   var eyeSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
   var eyeOffSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
@@ -675,11 +676,105 @@
           accountUsersSubItem +
         '</div>' +
       '</div>';
-    mountEl.innerHTML = reportsLink + shipmentLink + hrLink + accountLink;
+    mountEl.innerHTML = TKSNav._branchSwitcherHtml(user) + reportsLink + shipmentLink + hrLink + accountLink;
+    TKSNav._bindBranchSwitcher(mountEl);
     if (typeof window !== 'undefined' && window.TKS3D && typeof window.TKS3D.refresh === 'function') {
       window.TKS3D.refresh(mountEl);
     }
   };
+
+  // ---------- Chon co so (Ha Noi / Sai Gon) ----------
+  // Chi hien o dang SELECT khi tai khoan phu trach ca hai co so; mot co so thi
+  // hien nhan tinh de nguoi dung luon biet dang xem du lieu cua co so nao.
+  // Day chi la UX — server luon tu xac thuc lai co so theo coSo trong JWT.
+
+  var currentBranch = null;
+
+  TKSNav.getCurrentBranch = function getCurrentBranch(){ return currentBranch; };
+
+  TKSNav._branchSwitcherHtml = function _branchSwitcherHtml(user){
+    var branches = (user && user.branches) || [];
+    currentBranch = (user && user.branch) || branches[0] || null;
+
+    if(branches.length === 0){
+      return '<div class="tks-branch tks-branch--none" title="Liên hệ Quản lý để được gán cơ sở">Chưa được gán cơ sở</div>';
+    }
+    if(branches.length === 1){
+      return '<div class="tks-branch tks-branch--fixed"><span class="tks-branch-label">Cơ sở</span>' +
+        '<span class="tks-branch-value">' + escapeHtml(branches[0]) + '</span></div>';
+    }
+    return '<div class="tks-branch tks-branch--switch">' +
+      '<label class="tks-branch-label" for="tksBranchSelect">Cơ sở</label>' +
+      '<select class="tks-branch-select" id="tksBranchSelect">' +
+        branches.map(function(b){
+          return '<option value="' + escapeHtml(b) + '"' + (b === currentBranch ? ' selected' : '') + '>' + escapeHtml(b) + '</option>';
+        }).join('') +
+      '</select>' +
+    '</div>';
+  };
+
+  TKSNav._bindBranchSwitcher = function _bindBranchSwitcher(mountEl){
+    var select = mountEl && mountEl.querySelector('#tksBranchSelect');
+    if(!select) return;
+    select.addEventListener('change', function(){
+      var branch = select.value;
+      select.disabled = true;
+      fetch('/api/branch', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branch: branch })
+      })
+        .then(function(res){
+          if(!res.ok) throw new Error('branch-switch-failed');
+          // Tai lai ca trang thay vi refetch tung phan: moi tab dang giu cache/
+          // state rieng cua co so cu (bo loc, ket qua tim kiem, SSE nhan su),
+          // reload la cach chac chan nhat de khong tron du lieu hai co so.
+          TKSNav._reload();
+        })
+        .catch(function(){
+          select.disabled = false;
+          select.value = currentBranch || select.value;
+          window.alert('Không chuyển được cơ sở. Vui lòng thử lại.');
+        });
+    });
+  };
+
+  /**
+   * Hien thong bao dung cho hai loi CO SO tra ve tu server. Tra ve true neu da
+   * xu ly (goi khong can hien loi chung chung nua), false neu khong phai loi co so.
+   */
+  TKSNav.handleBranchError = function handleBranchError(payload){
+    if(!payload || !payload.code) return false;
+    if(payload.code === 'BRANCH_UNASSIGNED'){
+      TKSNav.showBranchBanner(payload.error || 'Tài khoản chưa được gán cơ sở. Liên hệ Quản lý để được cấp quyền.');
+      return true;
+    }
+    if(payload.code === 'BRANCH_NOT_CONFIGURED'){
+      TKSNav.showBranchBanner(payload.error || 'Cơ sở này chưa được cấu hình nguồn dữ liệu.');
+      return true;
+    }
+    return false;
+  };
+
+  TKSNav.showBranchBanner = function showBranchBanner(message){
+    var banner = document.getElementById('tksBranchBanner');
+    if(!banner){
+      banner = document.createElement('div');
+      banner.id = 'tksBranchBanner';
+      banner.className = 'tks-branch-banner';
+      banner.setAttribute('role', 'status');
+      document.body.insertBefore(banner, document.body.firstChild);
+    }
+    banner.textContent = message;
+    banner.hidden = false;
+  };
+
+  function escapeHtml(value){
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
 
   // ---------- Nhom sidebar co the mo/dong (vd: "Quan ly nhan su"), nho trang thai qua lan tai lai ----------
   var NAV_GROUP_STORAGE_PREFIX = 'tks-dashboard-nav-group-';

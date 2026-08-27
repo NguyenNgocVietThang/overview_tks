@@ -72,6 +72,13 @@ function handleError(res, err, context) {
   if (err.statusCode && err.statusCode < 500) {
     return res.status(err.statusCode).json({ error: err.message, code: err.code });
   }
+  // "Co so chua duoc cau hinh nguon du lieu" la 503 nhung KHONG phai loi he
+  // thong — giu nguyen thong diep de nguoi dung biet phai lam gi (bao Quan ly
+  // cau hinh nguon), thay vi "Loi he thong, vui long thu lai sau".
+  if (err.code === 'BRANCH_NOT_CONFIGURED') {
+    console.warn(`[${context}] ${err.detail || err.message}`);
+    return res.status(err.statusCode || 503).json({ error: err.message, code: err.code });
+  }
   console.error(`=== LOI ${context} ===`);
   console.error(err.stack);
   console.error(`${'='.repeat(context.length + 10)}`);

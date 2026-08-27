@@ -40,7 +40,13 @@ async function apiFetch(url, opts) {
     throw new Error('unauthorized');
   }
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(body.error || 'Lỗi không xác định'), { code: body.code });
+  if (!res.ok) {
+    // Loi CO SO hien bang thong bao rieng o dau trang thay vi toast chung chung.
+    if (window.TKSNav && TKSNav.handleBranchError(body)) {
+      throw Object.assign(new Error(body.error), { code: body.code, handled: true });
+    }
+    throw Object.assign(new Error(body.error || 'Lỗi không xác định'), { code: body.code });
+  }
   return body;
 }
 
