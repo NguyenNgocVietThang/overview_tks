@@ -31,13 +31,14 @@ async function runStockoutCheckJob(jobStore, jobId, rawCodes, deps = {}) {
   const {
     loadProductCatalogMap = defaultLoadProductCatalogMap,
     client,
+    branch,
     concurrency = 4,
     daysBack = 183,
     todayKey = todayVnDateKey()
   } = deps;
 
   try {
-    const catalogMap = await loadProductCatalogMap();
+    const catalogMap = await loadProductCatalogMap(branch);
     const { validCodes, invalidCodes } = validateCodes(rawCodes, catalogMap);
     jobStore.updateProgress(jobId, { invalidCodes, totalValidCodes: validCodes.length });
 

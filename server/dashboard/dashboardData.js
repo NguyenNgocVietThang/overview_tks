@@ -4,6 +4,7 @@
 // ==========================================
 const CONFIG = require('../config');
 const sheetsClient = require('../sheets/sheetsClient');
+const { BRANCHES } = require('../branch/branches');
 const { parseDebtSheet } = require('./debtReport');
 
 const OUT_OF_STOCK_LEVEL = 0;
@@ -354,16 +355,22 @@ const SEARCH_SHEET_NAMES = [...new Set(
   Object.values(SEARCH_SOURCES).map(source => source.sheetName)
 )];
 
-let searchSheetCache = {
-  data: null,
-  expiresAt: 0,
-  loading: null
-};
-let customerProductTopSheetCache = {
-  data: null,
-  expiresAt: 0,
-  loading: null
-};
+// ---------- Cache THEO CO SO -------------------------------------------------
+// Moi cache duoi day deu keyed by branch: hai co so doc hai spreadsheet khac
+// nhau nen dung chung 1 cache se lam nguoi dung co so nay nhan du lieu cua co
+// so kia (ro ri du lieu, khong chi la loi hien thi).
+function emptyCache() {
+  return { data: null, expiresAt: 0, loading: null };
+}
+
+function cacheEntryFor(cacheMap, branch) {
+  const key = branch || BRANCHES.HANOI;
+  if (!cacheMap.has(key)) cacheMap.set(key, emptyCache());
+  return cacheMap.get(key);
+}
+
+let searchSheetCacheByBranch = new Map();
+let customerProductTopSheetCacheByBranch = new Map();
 let searchIndexBuildCountForTest = 0; // chi dung trong test, xem __test__ o cuoi file
 
 function normalizeWhitespace(value) {
@@ -431,76 +438,78 @@ function buildSearchIndex(sheets) {
   return sources;
 }
 
-function rememberSearchSheets(sheets) {
+function rememberSearchSheets(sheets, branch) {
   // Normalizing every cell and serializing every field on each keystroke was
   // the hot path for large product sheets. Build the reusable search index when
   // the Sheets cache changes instead.
   searchIndexBuildCountForTest += 1; // chi dung trong test, xem __test__ o cuoi file
-  searchSheetCache.data = buildSearchIndex(sheets);
-  searchSheetCache.expiresAt = Date.now() + SEARCH_CACHE_TTL_MS;
+  const cache = cacheEntryFor(searchSheetCacheByBranch, branch);
+  cache.data = buildSearchIndex(sheets);
+  cache.expiresAt = Date.now() + SEARCH_CACHE_TTL_MS;
 }
 
-async function getSearchSheets() {
-  if (searchSheetCache.data && Date.now() < searchSheetCache.expiresAt) {
-    return searchSheetCache.data;
+async function getSearchSheets(branch) {
+  const cache = cacheEntryFor(searchSheetCacheByBranch, branch);
+  if (cache.data && Date.now() < cache.expiresAt) {
+    return cache.data;
   }
-  if (searchSheetCache.loading) return searchSheetCache.loading;
+  if (cache.loading) return cache.loading;
 
-  const loading = sheetsClient.getMultipleSheetValues(SEARCH_SHEET_NAMES)
+  const loading = sheetsClient.getSheetsClient(branch).getMultipleSheetValues(SEARCH_SHEET_NAMES)
     .then(sheets => {
-      rememberSearchSheets(sheets);
-      return searchSheetCache.data;
+      rememberSearchSheets(sheets, branch);
+      return cache.data;
     })
     .finally(() => {
-      if (searchSheetCache.loading === loading) searchSheetCache.loading = null;
+      if (cache.loading === loading) cache.loading = null;
     });
-  searchSheetCache.loading = loading;
+  cache.loading = loading;
   return loading;
 }
 
-async function getCustomerProductTopSheet() {
-  if (customerProductTopSheetCache.data && Date.now() < customerProductTopSheetCache.expiresAt) {
-    return customerProductTopSheetCache.data;
+async function getCustomerProductTopSheet(branch) {
+  const cache = cacheEntryFor(customerProductTopSheetCacheByBranch, branch);
+  if (cache.data && Date.now() < cache.expiresAt) {
+    return cache.data;
   }
-  if (customerProductTopSheetCache.loading) return customerProductTopSheetCache.loading;
+  if (cache.loading) return cache.loading;
 
-  const loading = sheetsClient.getMultipleSheetValues([CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT])
+  const loading = sheetsClient.getSheetsClient(branch)
+    .getMultipleSheetValues([CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT])
     .then(sheets => {
-      customerProductTopSheetCache.data = sheets[CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT] || [];
-      customerProductTopSheetCache.expiresAt = Date.now() + CUSTOMER_PRODUCT_TOP_CACHE_TTL_MS;
-      return customerProductTopSheetCache.data;
+      cache.data = sheets[CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT] || [];
+      cache.expiresAt = Date.now() + CUSTOMER_PRODUCT_TOP_CACHE_TTL_MS;
+      return cache.data;
     })
     .finally(() => {
-      if (customerProductTopSheetCache.loading === loading) {
-        customerProductTopSheetCache.loading = null;
+      if (cache.loading === loading) {
+        cache.loading = null;
       }
     });
-  customerProductTopSheetCache.loading = loading;
+  cache.loading = loading;
   return loading;
 }
 
-let customerReportSearchCache = {
-  data: null,
-  expiresAt: 0,
-  loading: null
-};
+let customerReportSearchCacheByBranch = new Map();
 
-async function getCustomerReportSheetForSearch() {
-  if (customerReportSearchCache.data && Date.now() < customerReportSearchCache.expiresAt) {
-    return customerReportSearchCache.data;
+async function getCustomerReportSheetForSearch(branch) {
+  const cache = cacheEntryFor(customerReportSearchCacheByBranch, branch);
+  if (cache.data && Date.now() < cache.expiresAt) {
+    return cache.data;
   }
-  if (customerReportSearchCache.loading) return customerReportSearchCache.loading;
+  if (cache.loading) return cache.loading;
 
-  const loading = sheetsClient.getMultipleSheetValues([CONFIG.SHEET_CUSTOMER_REPORT])
+  const loading = sheetsClient.getSheetsClient(branch)
+    .getMultipleSheetValues([CONFIG.SHEET_CUSTOMER_REPORT])
     .then(sheets => {
-      customerReportSearchCache.data = sheets[CONFIG.SHEET_CUSTOMER_REPORT] || [];
-      customerReportSearchCache.expiresAt = Date.now() + SEARCH_CACHE_TTL_MS;
-      return customerReportSearchCache.data;
+      cache.data = sheets[CONFIG.SHEET_CUSTOMER_REPORT] || [];
+      cache.expiresAt = Date.now() + SEARCH_CACHE_TTL_MS;
+      return cache.data;
     })
     .finally(() => {
-      if (customerReportSearchCache.loading === loading) customerReportSearchCache.loading = null;
+      if (cache.loading === loading) cache.loading = null;
     });
-  customerReportSearchCache.loading = loading;
+  cache.loading = loading;
   return loading;
 }
 
@@ -509,15 +518,15 @@ async function getCustomerReportSheetForSearch() {
  * "Bao cao ban hang" theo dung ky loc dang chon tren tab (giong cach tinh
  * "Top khach hang theo doanh thu"). Khong lam gi voi cac view khac.
  */
-async function attachCustomerRevenue(view, results, filterSpec) {
+async function attachCustomerRevenue(view, results, filterSpec, branch) {
   if (view !== 'customers' || !results.length) return results;
   const range = resolveFilterRange(filterSpec, new Date());
-  const customerReportData = await getCustomerReportSheetForSearch();
+  const customerReportData = await getCustomerReportSheetForSearch(branch);
   let revenueByCode;
   if (Array.isArray(customerReportData) && customerReportData.length > 1) {
     revenueByCode = aggregateCustomerReportRevenueByCode(range, customerReportData);
   } else {
-    const rawSheets = await getCachedDashboardSheets();
+    const rawSheets = await getCachedDashboardSheets(branch);
     revenueByCode = aggregateCustomerRevenueFromSheetRows(
       range,
       rawSheets[CONFIG.SHEET_INVOICES] || [],
@@ -590,7 +599,7 @@ function buildSearchFields(headers, row) {
  * Uu tien: trung hoan toan, trung tien to, chua cum tu, roi den du cac tu don.
  * Ket qua kem toan bo cot cua dong nguon de giao dien hien thi dung nhu Sheet.
  */
-async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode, filterSpec) {
+async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode, filterSpec, branch) {
   const scope = SEARCH_SCOPES[view] || SEARCH_SCOPES.overview;
   const isMultiCodeSearch = String(rawMode || '').toLocaleLowerCase('vi-VN') === 'codes';
   const normalizedInput = normalizeWhitespace(rawQuery);
@@ -615,7 +624,7 @@ async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode, filterS
 
     const codeOrder = new Map(codes.map(code => [code.normalizedValue, code.order]));
     const matchedCodeOrders = new Set();
-    const indexedSources = await getSearchSheets();
+    const indexedSources = await getSearchSheets(branch);
     const matches = [];
 
     scope.forEach(sourceKey => {
@@ -644,7 +653,7 @@ async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode, filterS
       name: record.name,
       fields: buildSearchFields(indexedSource.headers, record.row)
     }));
-    await attachCustomerRevenue(view, results, filterSpec);
+    await attachCustomerRevenue(view, results, filterSpec, branch);
 
     return {
       view,
@@ -668,7 +677,7 @@ async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode, filterS
   const limit = wantsAllResults ? null : Math.min(Math.max(Number(rawLimit) || 8, 1), 50);
   if (!query.value) return { view, query: queryText, total: 0, results: [] };
 
-  const indexedSources = await getSearchSheets();
+  const indexedSources = await getSearchSheets(branch);
   const matches = [];
 
   scope.forEach(sourceKey => {
@@ -705,7 +714,7 @@ async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode, filterS
       name: record.name,
       fields: buildSearchFields(indexedSource.headers, record.row)
     }));
-  await attachCustomerRevenue(view, results, filterSpec);
+  await attachCustomerRevenue(view, results, filterSpec, branch);
 
   return {
     view,
@@ -753,7 +762,9 @@ function getRequiredCustomerProductHeaderIndexes(rows) {
  * tong toan lich su va bi lap lai tren moi dong hoa don, nen chi doc mot gia
  * tri dai dien cho moi cap san pham-khach hang, tuyet doi khong cong don.
  */
-async function searchTopCustomersByProducts(rawQuery, filterSpec, now = new Date()) {
+// `branch` dung sau `now` (khong phai truoc) vi `now` la tham so tiem cho test
+// da co san — giu nguyen vi tri de moi loi goi cu khong phai sua.
+async function searchTopCustomersByProducts(rawQuery, filterSpec, now = new Date(), branch) {
   const codes = parseMultiSearchCodes(rawQuery);
   assertMultiSearchCodeLimit(codes);
   const range = resolveFilterRange(filterSpec, now);
@@ -771,7 +782,7 @@ async function searchTopCustomersByProducts(rawQuery, filterSpec, now = new Date
     };
   }
 
-  const rows = await getCustomerProductTopSheet();
+  const rows = await getCustomerProductTopSheet(branch);
   const indexes = getRequiredCustomerProductHeaderIndexes(rows);
   const requestedByCode = new Map(codes.map(code => [code.normalizedValue, code]));
   const products = new Map();
@@ -881,35 +892,40 @@ async function searchTopCustomersByProducts(rawQuery, filterSpec, now = new Date
 // (moi lan doi bo loc o bat ky tab nao) — cache vai chuc giay de tranh dam
 // vao han muc Google Sheets API; tinh toan loc theo ngay van chay tren du
 // lieu da cache nen van nhanh va luon phan anh dung bo loc moi nhat.
-let dashboardSheetsCache = {
-  data: null,
-  version: 0,
-  expiresAt: 0,
-  loading: null
-};
+let dashboardSheetsCacheByBranch = new Map();
 
-async function getCachedDashboardSheets() {
-  if (dashboardSheetsCache.data && Date.now() < dashboardSheetsCache.expiresAt) {
-    return dashboardSheetsCache.data;
+function dashboardSheetsCacheFor(branch) {
+  const key = branch || BRANCHES.HANOI;
+  if (!dashboardSheetsCacheByBranch.has(key)) {
+    dashboardSheetsCacheByBranch.set(key, { data: null, version: 0, expiresAt: 0, loading: null });
   }
-  if (dashboardSheetsCache.loading) return dashboardSheetsCache.loading;
+  return dashboardSheetsCacheByBranch.get(key);
+}
+
+async function getCachedDashboardSheets(branch) {
+  const cache = dashboardSheetsCacheFor(branch);
+  if (cache.data && Date.now() < cache.expiresAt) {
+    return cache.data;
+  }
+  if (cache.loading) return cache.loading;
 
   const debtSheetNames = DEBT_SHEETS.map(entry => entry.name);
-  const loading = sheetsClient.getMultipleSheetValues(SHEET_NAMES.concat(debtSheetNames))
+  const loading = sheetsClient.getSheetsClient(branch)
+    .getMultipleSheetValues(SHEET_NAMES.concat(debtSheetNames))
     .then(sheets => {
-      dashboardSheetsCache.data = sheets;
-      dashboardSheetsCache.version += 1;
-      dashboardSheetsCache.expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
+      cache.data = sheets;
+      cache.version += 1;
+      cache.expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
       // Rebuild o day (chi khi vua fetch lai tu Google) thay vi trong
       // getDashboardData — truoc day rememberSearchSheets() bi goi lai o MOI
       // request /api/dashboard du raw data khong doi, ton CPU vo ich.
-      rememberSearchSheets(sheets);
+      rememberSearchSheets(sheets, branch);
       return sheets;
     })
     .finally(() => {
-      if (dashboardSheetsCache.loading === loading) dashboardSheetsCache.loading = null;
+      if (cache.loading === loading) cache.loading = null;
     });
-  dashboardSheetsCache.loading = loading;
+  cache.loading = loading;
   return loading;
 }
 
@@ -1182,11 +1198,13 @@ function buildTransactionsReport(range, invoiceRecords, invoiceQuantityMap) {
 
 const DASHBOARD_RESULT_CACHE_TTL_MS = DASHBOARD_SHEETS_CACHE_TTL_MS; // ket qua tinh toan khong the "tuoi" hon du lieu tho dung de tinh ra no
 const DASHBOARD_RESULT_CACHE_MAX_ENTRIES = 32; // chan bo nho: filters den tu query string nen so bo loc khac nhau la khong gioi han
-let dashboardResultCache = new Map(); // key: `${sheetsVersion}|${JSON.stringify(filters)}` -> { data, expiresAt }
+let dashboardResultCache = new Map(); // key: `${branch}|${sheetsVersion}|${JSON.stringify(filters)}` -> { data, expiresAt }
 let computeCallCountForTest = 0; // chi dung trong test, xem __test__ o cuoi file
 
-function dashboardResultCacheKey(sheetsVersion, filters) {
-  return sheetsVersion + '|' + JSON.stringify(filters || {});
+// Co so nam TRONG key (khong phai Map rieng) de mot key cu the luon thuoc dung
+// mot co so — hai co so co the trung sheetsVersion nhung khong bao gio trung key.
+function dashboardResultCacheKey(branch, sheetsVersion, filters) {
+  return (branch || BRANCHES.HANOI) + '|' + sheetsVersion + '|' + JSON.stringify(filters || {});
 }
 
 /**
@@ -1197,11 +1215,11 @@ function dashboardResultCacheKey(sheetsVersion, filters) {
  * @param {Object} filters - xem computeDashboardData
  * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
  */
-async function getDashboardData(filters) {
+async function getDashboardData(filters, branch) {
   const f = filters || {};
-  const sheets = await getCachedDashboardSheets();
-  const sheetsVersion = dashboardSheetsCache.version;
-  const cacheKey = dashboardResultCacheKey(sheetsVersion, f);
+  const sheets = await getCachedDashboardSheets(branch);
+  const sheetsVersion = dashboardSheetsCacheFor(branch).version;
+  const cacheKey = dashboardResultCacheKey(branch, sheetsVersion, f);
 
   const cached = dashboardResultCache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt) {
@@ -1210,8 +1228,13 @@ async function getDashboardData(filters) {
 
   // Du lieu tho da sang phien ban moi (fetch lai) -> moi ket qua cache cu deu
   // tinh tu du lieu cu, don sach de Map khong phinh vo han qua nhieu phien ban.
+  // Chi don entry CUA CHINH CO SO nay (tien to `${branch}|`) — entry cua co so
+  // khac co vong doi rieng.
+  const branchPrefix = (branch || BRANCHES.HANOI) + '|';
   for (const key of dashboardResultCache.keys()) {
-    if (!key.startsWith(sheetsVersion + '|')) dashboardResultCache.delete(key);
+    if (key.startsWith(branchPrefix) && !key.startsWith(branchPrefix + sheetsVersion + '|')) {
+      dashboardResultCache.delete(key);
+    }
   }
 
   const data = computeDashboardData(sheets, f, new Date());
@@ -1229,8 +1252,8 @@ async function getDashboardData(filters) {
  * Google Sheets goc phai cung mot phien ban cache de viec noi them cot khong
  * bi lech khi Sheets vua duoc dong bo giua hai request.
  */
-async function getDashboardExportSnapshot(filters) {
-  const sheets = await getCachedDashboardSheets();
+async function getDashboardExportSnapshot(filters, branch) {
+  const sheets = await getCachedDashboardSheets(branch);
   // Tinh truc tiep tu chinh object `sheets` vua lay thay vi goi lai wrapper
   // cache; nhu vay du lieu goc va tap dong da loc chac chan cung mot snapshot.
   const dashboard = computeDashboardData(sheets, filters || {}, new Date());
@@ -2031,16 +2054,16 @@ module.exports = {
   // trong code san pham.
   __test__: {
     resetCaches() {
-      dashboardSheetsCache = { data: null, version: 0, expiresAt: 0, loading: null };
-      searchSheetCache = { data: null, expiresAt: 0, loading: null };
-      customerProductTopSheetCache = { data: null, expiresAt: 0, loading: null };
-      customerReportSearchCache = { data: null, expiresAt: 0, loading: null };
+      dashboardSheetsCacheByBranch = new Map();
+      searchSheetCacheByBranch = new Map();
+      customerProductTopSheetCacheByBranch = new Map();
+      customerReportSearchCacheByBranch = new Map();
       dashboardResultCache = new Map();
       searchIndexBuildCountForTest = 0;
       computeCallCountForTest = 0;
     },
-    expireSheetsCache() {
-      dashboardSheetsCache.expiresAt = 0;
+    expireSheetsCache(branch) {
+      dashboardSheetsCacheFor(branch).expiresAt = 0;
     },
     getSearchIndexBuildCount: () => searchIndexBuildCountForTest,
     getComputeCallCount: () => computeCallCountForTest,

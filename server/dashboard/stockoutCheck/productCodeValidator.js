@@ -3,8 +3,8 @@
 const sheetsClient = require('../../sheets/sheetsClient');
 const CONFIG = require('../../config');
 
-async function loadProductCatalogMap() {
-  const rows = await sheetsClient.getValues(CONFIG.SHEET_PRODUCTS);
+async function loadProductCatalogMap(branch) {
+  const rows = await sheetsClient.getSheetsClient(branch).getValues(CONFIG.SHEET_PRODUCTS);
   const map = new Map();
   if (!rows.length) return map;
 

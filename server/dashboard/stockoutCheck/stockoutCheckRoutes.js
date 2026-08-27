@@ -9,6 +9,7 @@ const { createJobStore } = require('./jobManager');
 const stockoutCheckService = require('./stockoutCheckService');
 const { parseProductCodesFromWorkbookBuffer } = require('./excelParser');
 const { createKiotVietClient } = require('./kiotVietClient');
+const { BRANCHES } = require('../../branch/branches');
 
 const jobStore = createJobStore();
 
@@ -37,10 +38,21 @@ function handleUploadError(err, req, res, next) {
   return res.status(400).json({ error: err.message, code: 'INVALID_FILE_TYPE' });
 }
 
-function readKiotVietConfig() {
-  const clientId = process.env.KIOTVIET_CLIENT_ID;
-  const clientSecret = process.env.KIOTVIET_CLIENT_SECRET;
-  const retailer = process.env.KIOTVIET_RETAILER;
+// Moi co so la mot gian hang KiotViet rieng (CHhanoi / CHsaigon). Sai Gon dung
+// bien *_SG, thieu bien nao thi lay bien goc (truong hop dung chung 1 tai khoan
+// KiotViet cho ca hai gian hang). Thieu ten gian hang Sai Gon => 503 giong cac
+// nguon du lieu khac chua duoc cau hinh.
+function readKiotVietConfig(branch) {
+  const isSaigon = branch === BRANCHES.SAIGON;
+  const clientId = (isSaigon && process.env.KIOTVIET_CLIENT_ID_SG) || process.env.KIOTVIET_CLIENT_ID;
+  const clientSecret = (isSaigon && process.env.KIOTVIET_CLIENT_SECRET_SG) || process.env.KIOTVIET_CLIENT_SECRET;
+  const retailer = isSaigon ? process.env.KIOTVIET_RETAILER_SG : process.env.KIOTVIET_RETAILER;
+  if (isSaigon && !retailer) {
+    const err = new Error('Cơ sở Sài Gòn chưa được cấu hình gian hàng KiotViet (KIOTVIET_RETAILER_SG).');
+    err.code = 'BRANCH_NOT_CONFIGURED';
+    err.statusCode = 503;
+    throw err;
+  }
   if (!clientId || !clientSecret || !retailer) {
     throw new Error('Thiếu cấu hình KIOTVIET_CLIENT_ID / KIOTVIET_CLIENT_SECRET / KIOTVIET_RETAILER.');
   }
@@ -58,16 +70,16 @@ router.post('/api/products/stockout-check', upload.single('file'), handleUploadE
       return res.status(400).json({ error: 'Không đọc được mã hàng nào từ file Excel.', code: 'EMPTY_FILE' });
     }
 
-    const client = createKiotVietClient(readKiotVietConfig());
+    const client = createKiotVietClient(readKiotVietConfig(req.branch));
     const jobId = jobStore.createJob();
     res.status(202).json({ jobId });
 
-    stockoutCheckService.runStockoutCheckJob(jobStore, jobId, rawCodes, { client }).catch((err) => {
+    stockoutCheckService.runStockoutCheckJob(jobStore, jobId, rawCodes, { client, branch: req.branch }).catch((err) => {
       jobStore.setError(jobId, { message: err.message, code: 'UNEXPECTED_ERROR' });
     });
   } catch (err) {
     if (!res.headersSent) {
-      res.status(500).json({ error: err.message, code: 'UPLOAD_FAILED' });
+      res.status(err.statusCode || 500).json({ error: err.message, code: err.code || 'UPLOAD_FAILED' });
     }
   }
 });
@@ -83,16 +95,16 @@ router.post('/api/products/stockout-check/codes', async (req, res) => {
       return res.status(400).json({ error: 'Chỉ hỗ trợ tối đa 300 mã mỗi lần kiểm tra.', code: 'TOO_MANY_CODES' });
     }
 
-    const client = createKiotVietClient(readKiotVietConfig());
+    const client = createKiotVietClient(readKiotVietConfig(req.branch));
     const jobId = jobStore.createJob();
     res.status(202).json({ jobId });
 
-    stockoutCheckService.runStockoutCheckJob(jobStore, jobId, cleaned, { client }).catch((err) => {
+    stockoutCheckService.runStockoutCheckJob(jobStore, jobId, cleaned, { client, branch: req.branch }).catch((err) => {
       jobStore.setError(jobId, { message: err.message, code: 'UNEXPECTED_ERROR' });
     });
   } catch (err) {
     if (!res.headersSent) {
-      res.status(500).json({ error: err.message, code: 'REQUEST_FAILED' });
+      res.status(err.statusCode || 500).json({ error: err.message, code: err.code || 'REQUEST_FAILED' });
     }
   }
 });

@@ -394,3 +394,29 @@ test('getDashboardData tong hop topRevenue tu sheet Hoa don khi sheet Bao cao ba
   assert.equal(topRevenue.top15[1].saleOrderCount, 2);
 });
 
+
+test('cache cua Ha Noi khong ro ri sang Sai Gon — moi co so fetch client rieng', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const { BRANCHES } = require('../branch/branches');
+  const seen = [];
+  // Ghi de getSheetsClient de biet dashboardData hoi du lieu cua co so nao.
+  sheetsClient.getSheetsClient = (branch) => ({
+    getMultipleSheetValues: async (names) => {
+      seen.push(branch);
+      const result = {};
+      names.forEach(name => { result[name] = []; });
+      return result;
+    }
+  });
+  dashboardData.__test__.resetCaches();
+
+  await dashboardData.getDashboardData(BASE_FILTERS, BRANCHES.HANOI);
+  await dashboardData.getDashboardData(BASE_FILTERS, BRANCHES.SAIGON);
+  await dashboardData.getDashboardData(BASE_FILTERS, BRANCHES.HANOI);
+
+  assert.deepEqual(
+    seen,
+    [BRANCHES.HANOI, BRANCHES.SAIGON],
+    'moi co so fetch dung 1 lan; lan goi Ha Noi thu hai phai lay tu cache cua Ha Noi'
+  );
+});

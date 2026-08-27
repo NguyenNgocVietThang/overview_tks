@@ -14,6 +14,7 @@ const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
 const { requireAuth, requireRole } = require('./auth/authMiddleware');
 const { resolveBranch, resolveBranchOptional } = require('./branch/branchMiddleware');
+const { BRANCHES } = require('./branch/branches');
 const branchRoutes = require('./branch/branchRoutes');
 const { INTERNAL_ROLES } = require('./auth/userRepository');
 const { lookupInvoiceStatuses } = require('./shipment/invoiceStatusService');
@@ -93,23 +94,29 @@ router.use(stockoutCheckRoutes);
 
 // Route kiem tra ket noi nhanh — chi xem duoc tren server, KHONG expose secret
 router.get('/api/debug', async (req, res) => {
+  // Doc theo dung co so dang chon de kiem tra nhanh "co so nay dang tro toi
+  // spreadsheet nao" — day cung la cach xac minh nhanh nhat khi doi co so.
+  const branchSheets = sheetsClient.getSheetsClient(req.branch);
+  const branchSpreadsheetId = req.branch === BRANCHES.SAIGON ? CONFIG.SPREADSHEET_ID_SG : CONFIG.SPREADSHEET_ID;
   const checks = {
     SPREADSHEET_ID: !!process.env.SPREADSHEET_ID,
     GOOGLE_SERVICE_ACCOUNT_JSON: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
-    spreadsheetId: CONFIG.SPREADSHEET_ID ? CONFIG.SPREADSHEET_ID.substring(0, 8) + '...' : null,
+    SPREADSHEET_ID_SG: !!process.env.SPREADSHEET_ID_SG,
+    branch: req.branch,
+    spreadsheetId: branchSpreadsheetId ? branchSpreadsheetId.substring(0, 8) + '...' : null,
     sheetsTest: null,
     sheetsError: null,
     sheetTabs: null,
     sheetTabsError: null,
   };
   try {
-    const data = await sheetsClient.getValues(CONFIG.SHEET_INVOICES);
+    const data = await branchSheets.getValues(CONFIG.SHEET_INVOICES);
     checks.sheetsTest = `OK — ${data.length} rows tu sheet "${CONFIG.SHEET_INVOICES}"`;
   } catch (e) {
     checks.sheetsError = { message: e.message, googleStatus: e?.response?.status };
   }
   try {
-    checks.sheetTabs = await sheetsClient.listSheetTitles();
+    checks.sheetTabs = await branchSheets.listSheetTitles();
   } catch (e) {
     checks.sheetTabsError = e.message;
   }
@@ -149,7 +156,7 @@ router.get('/api/dashboard', async (req, res) => {
       newProducts: parseFilterSpec(req.query, 'np'),
       deactivated: parseFilterSpec(req.query, 'de')
     };
-    const data = await getDashboardData(filters);
+    const data = await getDashboardData(filters, req.branch);
     res.status(200).json(data);
   } catch (err) {
     const googleStatus = err?.response?.status;
@@ -172,7 +179,7 @@ router.get('/api/dashboard', async (req, res) => {
 router.get('/api/search', async (req, res) => {
   try {
     const filterSpec = req.query.view === 'customers' ? parseFilterSpec(req.query, 'cu') : undefined;
-    const data = await searchDashboardRecords(req.query.view, req.query.q, req.query.limit, req.query.mode, filterSpec);
+    const data = await searchDashboardRecords(req.query.view, req.query.q, req.query.limit, req.query.mode, filterSpec, req.branch);
     res.status(200).json(data);
   } catch (err) {
     const googleStatus = err?.response?.status;
@@ -197,7 +204,9 @@ router.get('/api/customer-product-top', async (req, res) => {
       {
         ...parseFilterSpec(req.query, 'cu'),
         mode: req.query.cuMode || 'all'
-      }
+      },
+      undefined, // `now` — de mac dinh, tham so tiem cho test
+      req.branch
     );
     res.status(200).json(data);
   } catch (err) {
@@ -234,7 +243,7 @@ function sendExportError(res, err, fallbackMessage) {
 
 router.post('/api/export/fields', async (req, res) => {
   try {
-    const metadata = await getExportFields(req.body || {});
+    const metadata = await getExportFields(req.body || {}, req.branch);
     res.status(200).json(metadata);
   } catch (err) {
     sendExportError(res, err, 'Không lấy được danh sách trường xuất Excel.');
@@ -243,7 +252,7 @@ router.post('/api/export/fields', async (req, res) => {
 
 router.post('/api/export', async (req, res) => {
   try {
-    const file = await createExportWorkbook(req.body || {});
+    const file = await createExportWorkbook(req.body || {}, req.branch);
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
     res.setHeader('Content-Length', file.buffer.length);

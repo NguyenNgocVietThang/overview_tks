@@ -24,7 +24,8 @@ const TABLE_TITLES = Object.freeze({
   'customers.debt': 'Chi tiết khách nợ',
   'suppliers.list': 'Danh sách nhà cung cấp',
   'debt.period': 'Công nợ theo kỳ',
-  'search.results': 'Kết quả tìm kiếm'
+  'search.results': 'Kết quả tìm kiếm',
+  'stockout.result': 'Kết quả đứt hàng'
 });
 
 function exportError(message, statusCode = 400, code = 'EXPORT_INVALID_REQUEST') {
@@ -393,7 +394,7 @@ function fieldsToWorksheet(sourceKey, sourceLabel, results) {
   return { key: `search_${sourceKey}`, name: sourceLabel, columns, rows };
 }
 
-async function buildSearchDataset(payload, filters) {
+async function buildSearchDataset(payload, filters, branch) {
   const search = payload.search && typeof payload.search === 'object' ? payload.search : {};
   const view = normalizeText(search.view);
   const mode = normalizeText(search.mode) || 'normal';
@@ -408,7 +409,7 @@ async function buildSearchDataset(payload, filters) {
 
   if (mode === 'customer-products') {
     if (view !== 'customers') throw exportError('Chế độ tìm kiếm này chỉ dùng cho tab Khách hàng.');
-    const result = await dashboardData.searchTopCustomersByProducts(query, filters.customers);
+    const result = await dashboardData.searchTopCustomersByProducts(query, filters.customers, undefined, branch);
     const columns = [
       { key: 'productCode', label: 'Mã hàng', type: 'text' },
       { key: 'productName', label: 'Tên hàng' },
@@ -427,7 +428,7 @@ async function buildSearchDataset(payload, filters) {
     };
   }
 
-  const result = await dashboardData.searchDashboardRecords(view, query, 'all', mode === 'codes' ? 'codes' : undefined);
+  const result = await dashboardData.searchDashboardRecords(view, query, 'all', mode === 'codes' ? 'codes' : undefined, branch);
   const groups = new Map();
   (result.results || []).forEach(item => {
     if (!groups.has(item.source)) groups.set(item.source, { label: item.sourceLabel, results: [] });
@@ -442,18 +443,42 @@ async function buildSearchDataset(payload, filters) {
   };
 }
 
-async function buildExportDataset(payload) {
+function buildStockoutResultDataset(payload) {
+  const result = payload.stockoutResult && typeof payload.stockoutResult === 'object' ? payload.stockoutResult : null;
+  const rows = result && Array.isArray(result.rows) ? result.rows : [];
+  if (rows.length === 0) throw exportError('Chưa có kết quả kiểm tra đứt hàng để xuất.', 400, 'EXPORT_NO_DATA');
+  const dataRows = rows.map(row => ({
+    code: row.code,
+    name: row.name,
+    currentOnHand: row.currentOnHand,
+    stockoutCount: row.stockoutCount,
+    totalStockoutDays: row.totalStockoutDays,
+    periods: (row.periods || []).map(p => `${p.fromDate} — ${p.toDate} (${p.days} ngày)`).join('; ')
+  }));
+  const worksheet = aggregateWorksheet('stockout_result', 'Kết quả đứt hàng', [
+    { key: 'code', label: 'Mã hàng', type: 'text' },
+    { key: 'name', label: 'Tên hàng' },
+    { key: 'currentOnHand', label: 'Tồn kho hiện tại', type: 'number' },
+    { key: 'stockoutCount', label: 'Số lần đứt hàng', type: 'number' },
+    { key: 'totalStockoutDays', label: 'Tổng ngày đứt hàng', type: 'number' },
+    { key: 'periods', label: 'Chi tiết các đợt đứt hàng' }
+  ], dataRows);
+  return { tableKey: 'stockout.result', title: TABLE_TITLES['stockout.result'], selectionMode: 'custom', worksheets: [worksheet] };
+}
+
+async function buildExportDataset(payload, branch) {
   const tableKey = normalizeText(payload && payload.tableKey);
   if (!TABLE_TITLES[tableKey]) throw exportError('Bảng yêu cầu xuất không hợp lệ.', 400, 'EXPORT_TABLE_NOT_ALLOWED');
   const filters = normalizeFilters(payload.filters);
-  if (tableKey === 'search.results') return buildSearchDataset(payload, filters);
+  if (tableKey === 'search.results') return buildSearchDataset(payload, filters, branch);
+  if (tableKey === 'stockout.result') return buildStockoutResultDataset(payload);
   const context = payload.context && typeof payload.context === 'object' ? payload.context : {};
-  const snapshot = await dashboardData.getDashboardExportSnapshot(filters);
+  const snapshot = await dashboardData.getDashboardExportSnapshot(filters, branch);
   return buildFixedDataset(tableKey, snapshot, context);
 }
 
-async function getExportFields(payload) {
-  const dataset = await buildExportDataset(payload || {});
+async function getExportFields(payload, branch) {
+  const dataset = await buildExportDataset(payload || {}, branch);
   return {
     tableKey: dataset.tableKey,
     title: dataset.title,
@@ -579,8 +604,8 @@ function fileSlug(value) {
     .replace(/đ/gi, 'd').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'Du_lieu';
 }
 
-async function createExportWorkbook(payload) {
-  const dataset = await buildExportDataset(payload || {});
+async function createExportWorkbook(payload, branch) {
+  const dataset = await buildExportDataset(payload || {}, branch);
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'TOKOSI Dashboard';
   workbook.created = new Date();
