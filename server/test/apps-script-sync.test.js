@@ -503,6 +503,41 @@ describe('Separated dashboard and shipment projects', () => {
 });
 
 describe('Chunked sync with checkpoint and auto-resume', () => {
+  it('does not access a newly inserted staging sheet before Sheets makes it available', () => {
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs'
+    ]);
+    const staging = createMemorySheet('_KV_SYNC_STAGING_INVOICES', [], {
+      maxRows: 1000,
+      maxColumns: 26
+    });
+    staging.hideSheet = () => {
+      throw new Error('Service Spreadsheets timed out while accessing document');
+    };
+    const spreadsheet = {
+      getSheets() { return []; },
+      getSheetByName() { return null; },
+      insertSheet() {
+        staging.setParent(spreadsheet);
+        return staging;
+      }
+    };
+    context.testSpreadsheet = spreadsheet;
+
+    const prepared = vm.runInContext(
+      `prepareKiotVietChunkStagingSheet_(
+        testSpreadsheet,
+        'invoices',
+        KIOTVIET_SHEET_SCHEMAS.invoices
+      )`,
+      context
+    );
+
+    assert.equal(prepared, staging);
+  });
+
   it('uses a bounded page size for detail-heavy purchase orders', () => {
     const requestedUrls = [];
     const context = loadAppsScript([

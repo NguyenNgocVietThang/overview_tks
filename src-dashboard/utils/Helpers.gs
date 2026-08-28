@@ -457,12 +457,12 @@ function ensureSpreadsheetCellHeadroom_(spreadsheet, additionalCells) {
 
 function createCompactSheet_(spreadsheet, sheetName, requiredRows, requiredColumns) {
   // Apps Script tao sheet moi voi lưới mac dinh 1.000 x 26. Can bao dam
-  // headroom truoc khi tao, sau do thu gon sheet trang con 1 x 1.
+  // headroom truoc khi tao. Khong truy cap sheet ngay sau insertSheet: tren file
+  // lon, Sheets co the timeout moi phep getMaxRows/getLastRow/hideSheet trong
+  // vai chuc giay dau. Lưới mac dinh du cho trang staging dau tien; cac lan ghi
+  // sau mo rong theo nhu cau qua ensureSheetGridCapacity_.
   ensureSpreadsheetCellHeadroom_(spreadsheet, 1000 * 26);
-  const sheet = spreadsheet.insertSheet(sheetName);
-  compactUnusedSheetGrid_(sheet);
-  ensureSheetGridCapacity_(sheet, requiredRows, requiredColumns);
-  return sheet;
+  return spreadsheet.insertSheet(sheetName);
 }
 
 function ensureSheetGridCapacity_(sheet, requiredRows, requiredColumns) {

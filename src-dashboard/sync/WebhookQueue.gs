@@ -237,7 +237,7 @@ function forwardInvoiceWebhookToShipment_(action, items) {
   }
 }
 
-function finalizeWebhookQueueItem_(id, error) {
+function finalizeWebhookQueueItem_(id, error, skipAttemptPenalty) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
@@ -250,7 +250,11 @@ function finalizeWebhookQueueItem_(id, error) {
       if (!error) {
         sheet.deleteRow(rowNumber);
       } else {
-        const attempts = Number(sheet.getRange(rowNumber, 6).getValue() || 0);
+        let attempts = Number(sheet.getRange(rowNumber, 6).getValue() || 0);
+        // Cho khoa du lieu qua han (vi dong bo nang dang chay) khong phai loi
+        // xu ly that su: khong tinh vao so lan thu de item khong bi ERROR
+        // vinh vien chi vi trung thoi diem voi mot lan backfill.
+        if (skipAttemptPenalty && attempts > 0) attempts -= 1;
         const nextStatus = attempts >= WEBHOOK_QUEUE_MAX_ATTEMPTS ? 'ERROR' : 'PENDING';
         sheet.getRange(rowNumber, 5, 1, 4)
           .setValues([[nextStatus, attempts, '', String(error).slice(0, 500)]]);
@@ -261,6 +265,8 @@ function finalizeWebhookQueueItem_(id, error) {
     lock.releaseLock();
   }
 }
+
+const WEBHOOK_QUEUE_MAX_RUN_MS = 4 * 60 * 1000;
 
 function processWebhookQueue() {
   if (!isShipmentLifecycleMode_()) {
@@ -288,22 +294,40 @@ function processWebhookQueue() {
     }
   }
 
-  const batch = claimWebhookQueueBatch_();
-  if (batch.length === 0) return;
-  batch.forEach(queueItem => {
-    let itemError = null;
-    const dataLock = getKiotVietDataLock_();
-    try {
-      dataLock.waitLock(30000);
-      processWebhookQueueItem_(queueItem);
-    } catch (error) {
-      itemError = error;
-      Logger.log('Webhook ' + queueItem.id + ' loi, se thu lai: ' + error.toString());
-    } finally {
-      if (dataLock.hasLock()) dataLock.releaseLock();
-    }
-    finalizeWebhookQueueItem_(queueItem.id, itemError);
-  });
+  // Xu ly nhieu lo trong cung mot lan chay (thay vi cho trigger ke tiep) de
+  // hang doi khong bi don u khi luong webhook cao (vd chi nhanh nhieu don).
+  const startTime = Date.now();
+  while (Date.now() - startTime < WEBHOOK_QUEUE_MAX_RUN_MS) {
+    const batch = claimWebhookQueueBatch_();
+    if (batch.length === 0) break;
+
+    batch.forEach(queueItem => {
+      const dataLock = getKiotVietDataLock_();
+      try {
+        dataLock.waitLock(30000);
+      } catch (lockError) {
+        Logger.log(
+          'Webhook ' + queueItem.id + ' cho khoa du lieu qua han (dang co dong bo ' +
+          'nang chay), se thu lai o lan sau: ' + lockError.toString()
+        );
+        finalizeWebhookQueueItem_(queueItem.id, lockError, true);
+        return;
+      }
+
+      let itemError = null;
+      try {
+        processWebhookQueueItem_(queueItem);
+      } catch (error) {
+        itemError = error;
+        Logger.log('Webhook ' + queueItem.id + ' loi, se thu lai: ' + error.toString());
+      } finally {
+        if (dataLock.hasLock()) dataLock.releaseLock();
+      }
+      finalizeWebhookQueueItem_(queueItem.id, itemError, false);
+    });
+
+    if (batch.length < WEBHOOK_QUEUE_BATCH_SIZE) break;
+  }
 }
 
 function getWebhookQueueStatus() {
@@ -368,8 +392,8 @@ function setupQueueProcessingTrigger() {
   ScriptApp.getProjectTriggers().forEach(trigger => {
     if (trigger.getHandlerFunction() === 'processWebhookQueue') ScriptApp.deleteTrigger(trigger);
   });
-  ScriptApp.newTrigger('processWebhookQueue').timeBased().everyMinutes(5).create();
-  Logger.log('Da bat trigger xu ly webhook moi 5 phut.');
+  ScriptApp.newTrigger('processWebhookQueue').timeBased().everyMinutes(1).create();
+  Logger.log('Da bat trigger xu ly webhook moi 1 phut.');
 }
 
 /**

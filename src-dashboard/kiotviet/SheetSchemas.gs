@@ -831,10 +831,12 @@ function prepareKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema) {
   if (!stagingName) return null;
 
   let stagingSheet = spreadsheet.getSheetByName(stagingName);
+  let created = false;
   if (!stagingSheet) {
     stagingSheet = createCompactSheet_(spreadsheet, stagingName, 1, schema.headers.length);
+    created = true;
   }
-  stagingSheet.hideSheet();
+  if (!created) stagingSheet.hideSheet();
   return stagingSheet;
 }
 
@@ -879,6 +881,7 @@ function publishKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema, liveS
 function prepareInvoiceDetailStagingSheet_(spreadsheet) {
   const detailSchema = KIOTVIET_SHEET_SCHEMAS.invoiceDetails;
   let stagingSheet = spreadsheet.getSheetByName(KIOTVIET_INVOICE_DETAIL_STAGING_SHEET_);
+  let created = false;
   if (!stagingSheet) {
     stagingSheet = createCompactSheet_(
       spreadsheet,
@@ -886,8 +889,9 @@ function prepareInvoiceDetailStagingSheet_(spreadsheet) {
       1,
       detailSchema.headers.length
     );
+    created = true;
   }
-  stagingSheet.hideSheet();
+  if (!created) stagingSheet.hideSheet();
   return stagingSheet;
 }
 

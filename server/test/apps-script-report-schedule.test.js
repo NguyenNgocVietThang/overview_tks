@@ -131,7 +131,7 @@ test('operator documentation uses staggered report schedules instead of obsolete
   }
 });
 
-test('customer report staging allocates only the cells needed for raw rows', () => {
+test('customer report staging keeps the fresh default grid while writing raw rows', () => {
   const context = loadAppsScript();
   const spreadsheet = createGridSpreadsheet();
   context.SpreadsheetApp = { getActiveSpreadsheet: () => spreadsheet };
@@ -142,8 +142,8 @@ test('customer report staging allocates only the cells needed for raw rows', () 
   ]);
 
   const sheet = spreadsheet.getSheetByName('_KV_CR_RAW_TEST');
-  assert.equal(sheet.getMaxRows(), 2);
-  assert.equal(sheet.getMaxColumns(), 1);
+  assert.equal(sheet.getMaxRows(), 1000);
+  assert.equal(sheet.getMaxColumns(), 26);
   assert.equal(sheet.getLastRow(), 2);
 });
 
@@ -168,6 +168,30 @@ test('grid compaction preserves one unfrozen row and column', () => {
   assert.doesNotThrow(() => context.compactUnusedSheetGrid_(frozen));
   assert.equal(frozen.getMaxRows(), 2);
   assert.equal(frozen.getMaxColumns(), 2);
+});
+
+test('compact sheet creation keeps a fresh staging sheet when grid inspection times out', () => {
+  const context = loadAppsScript();
+  const spreadsheet = createGridSpreadsheet();
+  const fresh = createGridSheet('Staging', 1000, 26, 0, 0);
+  fresh.setParent(spreadsheet);
+  const readMaxRows = fresh.getMaxRows;
+  let firstRead = true;
+  fresh.getMaxRows = () => {
+    if (firstRead) {
+      firstRead = false;
+      throw new Error('Service Spreadsheets timed out while accessing document');
+    }
+    return readMaxRows();
+  };
+  spreadsheet.insertSheet = () => fresh;
+
+  const created = context.createCompactSheet_(spreadsheet, 'Staging', 1, 11);
+
+  assert.equal(firstRead, true);
+  fresh.getMaxRows = readMaxRows;
+  assert.equal(created.getMaxRows(), 1000);
+  assert.equal(created.getMaxColumns(), 26);
 });
 
 test('headroom cleanup stops as soon as enough cells have been reclaimed', () => {
