@@ -34,6 +34,29 @@ const CONFIG = {
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || null,
 
   // ==========================================
+  // GUI OTP QUEN MAT KHAU — Email (Gmail SMTP) + SMS (SpeedSMS)
+  // Ca hai deu OPTIONAL: thieu bien nao thi kenh do tu dong fallback ve
+  // console.log (che do dev), KHONG lam sap server. Xem server/notifications/.
+  // ==========================================
+  // Gmail SMTP: bat 2FA cho tai khoan Gmail dung de gui, roi tao "App
+  // Password" 16 ky tu tai https://myaccount.google.com/apppasswords —
+  // KHONG dung mat khau Gmail that.
+  SMTP_HOST: process.env.SMTP_HOST || 'smtp.gmail.com',
+  SMTP_PORT: Number(process.env.SMTP_PORT) || 465,
+  SMTP_USER: process.env.SMTP_USER || null,
+  SMTP_APP_PASSWORD: process.env.SMTP_APP_PASSWORD || null,
+  SMTP_FROM_NAME: process.env.SMTP_FROM_NAME || 'TOKOSI Dashboard',
+
+  // SpeedSMS (speedsms.vn): lay Access Token trong trang "Thong tin tai
+  // khoan". SPEEDSMS_SENDER tuy chon (brandname da dang ky) — de trong se
+  // gui bang dau so mac dinh cua tai khoan.
+  SPEEDSMS_ACCESS_TOKEN: process.env.SPEEDSMS_ACCESS_TOKEN || null,
+  SPEEDSMS_SENDER: process.env.SPEEDSMS_SENDER || null,
+  // sms_type cua SpeedSMS: 4 = "Notify" mac dinh (khong can dang ky brandname,
+  // phu hop OTP). Doi sang 3 + SPEEDSMS_SENDER neu tai khoan da co brandname rieng.
+  SPEEDSMS_SMS_TYPE: Number(process.env.SPEEDSMS_SMS_TYPE) || 4,
+
+  // ==========================================
   // QUAN LY VAN CHUYEN — Spreadsheet rieng (VC_*) va Google Drive luu anh
   // ==========================================
   // Optional — neu chua set thi log canh bao khi module van chuyen duoc goi,

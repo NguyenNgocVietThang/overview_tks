@@ -14,11 +14,11 @@
     document.documentElement.style.visibility = 'hidden';
   })();
 </script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/shared/shared.css?v=20260822">
-<script src="/shared/shared-nav.js?v=20260822"></script>
 <script src="/shared/image-compress.js" defer></script>
-<script src="/shared/three-interactions.js" defer></script>
-<script src="/shared/three-loading.js" defer></script>
 <style>
 /* ===== MOBILE-FIRST layout ===== */
 *{ -webkit-tap-highlight-color: transparent; }
@@ -197,7 +197,7 @@ body{
 </header>
 
 <!-- ======================== MAIN CONTENT ======================== -->
-<main class="mob-content perspective-container">
+<main class="mob-content">
 
   <button class="btn-refresh" id="btnRefresh" type="button">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:5px;"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>Làm mới danh sách
@@ -205,7 +205,7 @@ body{
 
   <p class="mob-section-title" id="listTitle">Đơn hàng cần xử lý</p>
 
-  <div class="order-list perspective-container" id="orderList">
+  <div class="order-list" id="orderList">
     <div style="color:var(--muted);font-size:14px;text-align:center;padding:30px;">Đang tải...</div>
   </div>
 
@@ -274,6 +274,11 @@ body{
   </a>
 </nav>
 
+<!-- Moved out of <head>: a parser-blocking script there stalls parsing of the
+     whole document. Not `defer`red because the inline script below uses TKSNav
+     at top level, and inline scripts run before deferred ones. -->
+<script src="/shared/shared-nav.js?v=20260822"></script>
+
 <script>
   const refreshSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:5px;"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>';
   document.getElementById('btnRefresh').addEventListener('click', async function(){
@@ -302,10 +307,5 @@ body{
 </script>
 <script src="/shipment/mobile/mobile.js"></script>
 <!-- 3D Background Particle System (auto-reduced to 100 particles on mobile) -->
-<script src="/vendor/three.min.js"></script>
-<script src="/shared/three-performance.js"></script>
-<script src="/shared/three-memory.js"></script>
-<script src="/shared/three-visibility.js"></script>
-<script src="/shared/three-bg.js"></script>
 </body>
 </html>

@@ -678,9 +678,6 @@
       '</div>';
     mountEl.innerHTML = TKSNav._branchSwitcherHtml(user) + reportsLink + shipmentLink + hrLink + accountLink;
     TKSNav._bindBranchSwitcher(mountEl);
-    if (typeof window !== 'undefined' && window.TKS3D && typeof window.TKS3D.refresh === 'function') {
-      window.TKS3D.refresh(mountEl);
-    }
   };
 
   // ---------- Chon co so (Ha Noi / Sai Gon) ----------

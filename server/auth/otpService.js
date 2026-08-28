@@ -4,6 +4,8 @@
 // và che mờ thông tin liên lạc (Email/SĐT).
 // ==========================================
 const crypto = require('crypto');
+const emailSender = require('../notifications/emailSender');
+const smsSender = require('../notifications/smsSender');
 
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 phút
 const MAX_OTP_ATTEMPTS = 5;
@@ -97,9 +99,32 @@ function getAvailableChannels(user) {
 }
 
 /**
- * Sinh mã OTP ngẫu nhiên 6 chữ số và lưu vào bộ nhớ tạm.
+ * Gửi mã OTP THẬT qua Email (Gmail SMTP) hoặc SMS (SpeedSMS). Nếu kênh
+ * tương ứng CHƯA được cấu hình (thiếu biến môi trường), fallback về
+ * console.log — chỉ dùng cho dev/test local, KHÔNG áp dụng ở production
+ * (production luôn set SMTP_USER/SPEEDSMS_ACCESS_TOKEN).
  */
-function generateResetOtp(identifier, targetRaw, channelType) {
+async function deliverOtp(channelType, targetRaw, code, expiresInSeconds) {
+  const isEmailChannel = channelType.includes('email');
+  const sender = isEmailChannel ? emailSender : smsSender;
+
+  if (!sender.isConfigured()) {
+    console.log(`\n[OTP DEV] Kênh "${channelType}" chưa cấu hình gửi thật — log mã để dev/test kiểm tra.`);
+    console.log(`[OTP DEV] [${channelType} -> ${targetRaw}]: [${code}] (Hạn dùng ${Math.round(expiresInSeconds / 60)} phút)\n`);
+    return { ok: true };
+  }
+
+  return isEmailChannel
+    ? sender.sendOtpEmail({ to: targetRaw, code, expiresInSeconds })
+    : sender.sendOtpSms({ to: targetRaw, code, expiresInSeconds });
+}
+
+/**
+ * Sinh mã OTP ngẫu nhiên 6 chữ số, gửi THẬT qua Email/SMS, và chỉ lưu vào
+ * bộ nhớ tạm (bắt đầu tính cooldown) nếu gửi thành công — gửi thất bại thì
+ * không tốn lượt cooldown, cho phép người dùng bấm gửi lại ngay.
+ */
+async function generateResetOtp(identifier, targetRaw, channelType) {
   const normId = normalize(identifier);
   const now = Date.now();
 
@@ -110,30 +135,31 @@ function generateResetOtp(identifier, targetRaw, channelType) {
   }
 
   const code = String(crypto.randomInt(100000, 999999));
-  const expiresAt = now + OTP_TTL_MS;
+  const expiresInSeconds = Math.floor(OTP_TTL_MS / 1000);
 
-  const record = {
+  const delivery = await deliverOtp(channelType, targetRaw, code, expiresInSeconds);
+  if (!delivery.ok) {
+    return {
+      success: false,
+      error: 'Không gửi được mã OTP, vui lòng thử lại sau ít phút.'
+    };
+  }
+
+  otpStore.set(normId, {
     code,
     identifier: normId,
     target: targetRaw,
     channel: channelType,
-    expiresAt,
+    expiresAt: now + OTP_TTL_MS,
     attempts: 0,
     createdAt: now
-  };
-
-  otpStore.set(normId, record);
-
-  // Giả lập gửi OTP: log ra console server để dev/admin kiểm tra hoặc tích hợp SMS/Email service
-  // TODO: thay bang tich hop SMS/Email that (Twilio/nodemailer/...) truoc khi dua len production —
-  // hien tai day la kenh "gui" duy nhat, khong co gui that qua email/SDT.
-  console.log(`\n[OTP SERVICE] Đã tạo mã OTP cho [${normId}] qua [${channelType} -> ${targetRaw}]: [${code}] (Hạn dùng 5 phút)\n`);
+  });
 
   return {
     success: true,
     targetMasked: channelType.includes('email') ? maskEmail(targetRaw) : maskPhone(targetRaw),
-    expiresInSeconds: Math.floor(OTP_TTL_MS / 1000),
-    code // Trả về cho mục đích test/dev nếu cần
+    expiresInSeconds,
+    code // Trả về cho mục đích test/dev nếu cần — KHÔNG forward field này ra response API
   };
 }
 

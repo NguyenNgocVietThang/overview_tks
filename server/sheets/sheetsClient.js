@@ -142,18 +142,28 @@ function createClient(getSpreadsheetId, branchLabel) {
     const namesToFetch = sheetNames.filter(name => existingTitles.has(name));
     if (namesToFetch.length === 0) return result;
 
-    const res = await sheets.spreadsheets.values.batchGet({
-      spreadsheetId,
-      ranges: namesToFetch.map(quoteSheetName),
-      valueRenderOption: 'UNFORMATTED_VALUE',
-      dateTimeRenderOption: 'FORMATTED_STRING'
-    }, { timeout: API_TIMEOUT_MS });
+    // Fetch tung sheet rieng biet de tranh response JSON cua 1 lan batchGet vuot qua
+    // gioi han Buffer.toString() cua V8 (~512MB JSON string), gay crash Realloc/OOM.
+    // Chay song song theo chunk nho (3 sheets/lan) vua dam bao toc do vua an toan RAM.
+    const CHUNK_SIZE = 3;
+    for (let i = 0; i < namesToFetch.length; i += CHUNK_SIZE) {
+      const chunk = namesToFetch.slice(i, i + CHUNK_SIZE);
+      await Promise.all(chunk.map(async (name) => {
+        try {
+          const res = await sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: quoteSheetName(name),
+            valueRenderOption: 'UNFORMATTED_VALUE',
+            dateTimeRenderOption: 'FORMATTED_STRING'
+          }, { timeout: API_TIMEOUT_MS });
+          result[name] = (res.data && res.data.values) || [];
+        } catch (err) {
+          console.error(`[SheetsClient] Loi khi doc sheet "${name}":`, err.message || err);
+          result[name] = [];
+        }
+      }));
+    }
 
-    const valueRanges = res.data.valueRanges || [];
-    valueRanges.forEach((vr, i) => {
-      const name = sheetNameFromRange(vr.range) || namesToFetch[i];
-      result[name] = vr.values || [];
-    });
     return result;
   }
 

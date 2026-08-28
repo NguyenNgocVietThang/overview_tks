@@ -423,7 +423,7 @@ function buildSearchIndex(sheets) {
       const normalizedCode = normalizeSearchValue(code);
       const normalizedName = normalizeSearchValue(name);
       records.push({
-        row,
+        row: row.slice(0, 15), // chi giu cac cot dau can thiet cho hien thi search modal thay vi toan bo row dai
         rowIndex,
         code,
         name: name || code,

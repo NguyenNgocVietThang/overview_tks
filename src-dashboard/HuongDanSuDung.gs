@@ -43,6 +43,11 @@ syncAllDataChunked()
 syncProductsChunk() / syncInvoicesChunk() / syncOrdersChunk() ...
   Khi dung : Khi chi muon dong bo phan doan 5.000 ban ghi cho rieng mot bang cu the.
   Tac dung : Tu dong checkpoint, ghi noi tiep vao Sheet va tu dong tao trigger tiep suc.
+  Luu y    : syncInvoicesChunk()/resumeSyncInvoicesChunk() dung khoa rieng
+             (getKiotVietInvoiceLock_) thay vi khoa chung, nen KHONG bi cac
+             chuoi khac (polling-only Tra hang/Nha cung cap/Nhap hang, hoac cac
+             buoc khac cua syncAllDataChunked) chan lai hang phut. Hoa don chi
+             cho khoa cua webhook Hoa don va buoc 'invoices' trong chuoi master.
 
 restartInvoicesBackfill()
   Khi dung : Khi can nap lai day du rieng Hoa don va Chi tiet hoa don.
@@ -50,6 +55,7 @@ restartInvoicesBackfill()
              bo ca hai bang live sau khi tai du. Trigger tiep suc van la 1 phut.
   An toan   : Khong xoa checkpoint bang khac; webhook den trong luc backfill van
              nam ben vung trong queue va duoc xu ly sau khi khoa ghi duoc nha.
+             Dung khoa rieng getKiotVietInvoiceLock_ (xem ghi chu tren).
 
 getSyncProgressSummary()
   Khi dung : Bat cu luc nao muon xem tien do % cua cac bang dang dong bo.

@@ -10,7 +10,7 @@
   "scripts": {
     "build": "node -e \"console.log('Express app: no build step required')\"",
     "start": "node --max-old-space-size=512 index.js",
-    "dev": "node --max-old-space-size=1024 index.js",
+    "dev": "node --max-old-space-size=4096 index.js",
     "test": "node --test",
     "sync:customer-report": "node jobs/syncCustomerReport.js",
     "setup:users-sheet": "node scripts/setupUsersSheet.js",
@@ -28,7 +28,8 @@
     "googleapis": "^140.0.1",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.2.0",
-    "node-telegram-bot-api": "^0.66.0"
+    "node-telegram-bot-api": "^0.66.0",
+    "nodemailer": "^9.0.6"
   },
   "devDependencies": {
     "dotenv": "^16.4.5",

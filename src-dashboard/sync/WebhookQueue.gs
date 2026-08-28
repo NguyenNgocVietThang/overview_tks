@@ -302,7 +302,11 @@ function processWebhookQueue() {
     if (batch.length === 0) break;
 
     batch.forEach(queueItem => {
-      const dataLock = getKiotVietDataLock_();
+      // Webhook Hoa don dung khoa rieng (getKiotVietInvoiceLock_) giong
+      // resumeSyncInvoicesChunk, de khong bi cac chuoi dong bo nang khac
+      // (polling-only, master chain o buoc khac Hoa don) chan mat nhieu phut.
+      const isInvoiceEvent = queueItem.eventType.indexOf('invoice') !== -1;
+      const dataLock = isInvoiceEvent ? getKiotVietInvoiceLock_() : getKiotVietDataLock_();
       try {
         dataLock.waitLock(30000);
       } catch (lockError) {

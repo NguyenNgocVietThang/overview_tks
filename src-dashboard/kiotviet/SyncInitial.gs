@@ -61,11 +61,31 @@ function syncAllDataChunked() {
       return;
     }
 
-    // Chay phan doan cho bang hien tai trong chuoi
-    const result = syncKiotVietTableChunk_(currentStep, {
-      resumeHandler: 'resumeMasterChainSync_',
-      autoSchedule: false
-    });
+    // Chay phan doan cho bang hien tai trong chuoi. Rieng Hoa don dung khoa
+    // rieng (getKiotVietInvoiceLock_) de dong bo voi resumeSyncInvoicesChunk
+    // va webhook Hoa don, tranh ghi de chong cheo len cung sheet Hoa don.
+    let result;
+    if (currentStep === 'invoices') {
+      const invoiceLock = getKiotVietInvoiceLock_();
+      if (!invoiceLock.tryLock(30000)) {
+        scheduleSpecificChunkTrigger_('resumeMasterChainSync_');
+        Logger.log('Hoa don dang duoc dong bo rieng o noi khac, se thu lai o luot sau.');
+        return;
+      }
+      try {
+        result = syncKiotVietTableChunk_(currentStep, {
+          resumeHandler: 'resumeMasterChainSync_',
+          autoSchedule: false
+        });
+      } finally {
+        invoiceLock.releaseLock();
+      }
+    } else {
+      result = syncKiotVietTableChunk_(currentStep, {
+        resumeHandler: 'resumeMasterChainSync_',
+        autoSchedule: false
+      });
+    }
 
     if (result.isCompleted) {
       // Bang nay da xong 100% -> Chuyen sang bang ke tiep
@@ -169,9 +189,16 @@ function resumeSyncProductsChunk() {
   return syncProductsChunk();
 }
 
+/**
+ * Dung khoa rieng (getKiotVietInvoiceLock_) thay vi khoa chung, de backfill
+ * Hoa don khong bao gio bi doi vo han khi chuoi polling-only (Tra hang/Nha
+ * cung cap/Nhap hang) dang giu khoa chung hang phut. Khoa rieng nay chi tranh
+ * chap voi webhook Hoa don va buoc 'invoices' trong chuoi master — hai noi
+ * duy nhat khac cung ghi vao sheet Hoa don/Chi tiet hoa don.
+ */
 function syncInvoicesChunk() {
-  const dataLock = getKiotVietDataLock_();
-  if (!dataLock.tryLock(30000)) {
+  const invoiceLock = getKiotVietInvoiceLock_();
+  if (!invoiceLock.tryLock(30000)) {
     scheduleSpecificChunkTrigger_('resumeSyncInvoicesChunk');
     Logger.log('Hoa don dang cho mot tien trinh ghi khac; se thu lai sau 1 phut.');
     return { schemaKey: 'invoices', isCompleted: false, waitingForLock: true };
@@ -181,7 +208,7 @@ function syncInvoicesChunk() {
       resumeHandler: 'resumeSyncInvoicesChunk'
     });
   } finally {
-    dataLock.releaseLock();
+    invoiceLock.releaseLock();
   }
 }
 function resumeSyncInvoicesChunk() {
@@ -193,8 +220,8 @@ function resumeSyncInvoicesChunk() {
  * cua bang khac; du lieu live chi duoc thay sau khi ca hai staging tai xong.
  */
 function restartInvoicesBackfill() {
-  const dataLock = getKiotVietDataLock_();
-  if (!dataLock.tryLock(30000)) {
+  const invoiceLock = getKiotVietInvoiceLock_();
+  if (!invoiceLock.tryLock(30000)) {
     throw new Error('Dang co tien trinh ghi du lieu khac; hay chay lai restartInvoicesBackfill sau.');
   }
   try {
@@ -219,7 +246,7 @@ function restartInvoicesBackfill() {
       resumeHandler: 'resumeSyncInvoicesChunk'
     });
   } finally {
-    dataLock.releaseLock();
+    invoiceLock.releaseLock();
   }
 }
 
@@ -269,8 +296,13 @@ function resumeSyncPurchasesChunk() {
  * duoc su dung duoc bo sung o ben phai, khong kem cot JSON.
  */
 function syncAllInitialData() {
+  // Ham nay ghi tuan tu ca 9+7 sheet trong 1 lan chay, gom ca Hoa don, nen
+  // phai giu ca hai khoa (chung + rieng Hoa don) de khong bi ghi de boi
+  // resumeSyncInvoicesChunk/webhook hoac cac chuoi chunked khac chay song song.
   const dataLock = getKiotVietDataLock_();
   dataLock.waitLock(30000);
+  const invoiceLock = getKiotVietInvoiceLock_();
+  invoiceLock.waitLock(30000);
   try {
     migrateKiotVietSheetsIfNeeded_();
     // Don tab legacy ngay tu dau; neu chi co tab cu thi doi ten de giu du lieu.
@@ -317,6 +349,7 @@ function syncAllInitialData() {
 
     Logger.log('Hoan tat dong bo day du 9 sheet van hanh va 7 sheet tong hop/bao cao.');
   } finally {
+    invoiceLock.releaseLock();
     dataLock.releaseLock();
   }
 }

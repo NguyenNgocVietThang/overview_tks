@@ -12,10 +12,10 @@
     document.documentElement.style.visibility = 'hidden';
   })();
 </script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/shared/shared.css?v=20260822">
-<script src="/shared/shared-nav.js?v=20260822"></script>
-<script src="/shared/three-interactions.js" defer></script>
-<script src="/shared/three-loading.js" defer></script>
 <style>
   /* ---------- Account Page Custom Styles ---------- */
   .account-wrap{ width:100%; max-width:none; margin:0; }
@@ -123,17 +123,15 @@
     display:flex; align-items:center; gap:10px; flex-wrap:wrap; flex:1; min-width:260px;
   }
   .search-box{
-    position:relative; flex:1; min-width:200px; transform-style:preserve-3d; perspective:800px;
+    position:relative; flex:1; min-width:200px;
   }
   .search-box input{
     width:100%; min-height:38px; padding:8px 12px 8px 34px; background:var(--panel-2); color:var(--text);
     border:1px solid var(--border); border-radius:var(--radius-sm); font-family:var(--font-body); font-size:12.5px;
-    transform-style:preserve-3d;
-    transition:transform 0.3s cubic-bezier(0.23,1,0.32,1), box-shadow 0.3s ease, border-color 0.3s ease, background-color 0.2s ease;
+    transition:box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
   }
   .search-box input:focus{
     outline:none; border-color:var(--blue);
-    transform:perspective(800px) translateZ(12px) scale(1.02);
     box-shadow:var(--shadow-focus-blue);
   }
   .search-box svg{
@@ -297,9 +295,9 @@
 
         <!-- TAB 1: QUẢN LÝ HỒ SƠ -->
         <div class="account-subtab-panel active" id="accountSubtab-profile" role="tabpanel">
-          <div class="profile-grid perspective-container">
+          <div class="profile-grid">
             <!-- Thông tin cá nhân -->
-            <div class="profile-card card-3d col-6">
+            <div class="profile-card col-6">
               <div class="profile-card-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                 Thông tin cá nhân
@@ -320,7 +318,7 @@
             </div>
 
             <!-- Quyền hạn hệ thống -->
-            <div class="profile-card card-3d col-6">
+            <div class="profile-card col-6">
               <div class="profile-card-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
                 Quyền hạn &amp; Hệ thống
@@ -345,7 +343,7 @@
             </div>
 
             <!-- Thông tin khôi phục -->
-            <div class="profile-card card-3d col-6">
+            <div class="profile-card col-6">
               <div class="profile-card-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
                 Thông tin khôi phục
@@ -377,7 +375,7 @@
             </div>
 
             <!-- Đổi mật khẩu -->
-            <div class="profile-card card-3d col-6">
+            <div class="profile-card col-6">
               <div class="profile-card-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-1.5 1.5L10 13l-4 1 1-4 7.5-7.5m1.5-1.5L21 2z"></path></svg>
                 Bảo mật &amp; Đổi mật khẩu
@@ -422,7 +420,7 @@
             </div>
 
             <!-- Đăng xuất -->
-            <div class="profile-card card-3d col-12 profile-card-logout">
+            <div class="profile-card col-12 profile-card-logout">
               <div class="logout-content">
                 <div>
                   <div class="profile-card-title" style="color:var(--red); margin:0 0 4px;">
@@ -443,20 +441,20 @@
         <!-- TAB 2: QUẢN LÝ NGƯỜI DÙNG (DÀNH RIÊNG QUẢN LÝ) -->
         <div class="account-subtab-panel" id="accountSubtab-users" role="tabpanel" style="display:none;">
           <!-- Thống kê nhanh -->
-          <div class="kpi-row perspective-container">
-            <div class="kpi-stat card-3d">
+          <div class="kpi-row">
+            <div class="kpi-stat">
               <div class="lbl">Tổng tài khoản</div>
               <div class="val" id="statTotalUsers">0</div>
             </div>
-            <div class="kpi-stat card-3d kpi-green">
+            <div class="kpi-stat kpi-green">
               <div class="lbl">Đang hoạt động</div>
               <div class="val" id="statActiveUsers">0</div>
             </div>
-            <div class="kpi-stat card-3d kpi-amber">
+            <div class="kpi-stat kpi-amber">
               <div class="lbl">Chờ duyệt</div>
               <div class="val" id="statPendingUsers">0</div>
             </div>
-            <div class="kpi-stat card-3d kpi-red">
+            <div class="kpi-stat kpi-red">
               <div class="lbl">Đang khóa</div>
               <div class="val" id="statLockedUsers">0</div>
             </div>
@@ -498,7 +496,7 @@
           </div>
 
           <!-- Bảng danh sách -->
-          <div class="users-table-panel card-3d">
+          <div class="users-table-panel">
             <div class="users-table-scroll">
               <table class="users-table" id="usersTable">
                 <thead>
@@ -734,6 +732,11 @@
 
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Moved out of <head>: a parser-blocking script there stalls parsing of the
+       whole document. Not `defer`red because the inline script below uses TKSNav
+       at top level, and inline scripts run before deferred ones. -->
+  <script src="/shared/shared-nav.js?v=20260822"></script>
 
   <script>
     const THEME_STORAGE_KEY = 'tks-dashboard-theme';
@@ -1249,12 +1252,6 @@
           </tr>
         `;
       }).join('');
-
-      if (window.TKS3D && window.TKS3D.animateTableRows) {
-        window.TKS3D.animateTableRows(tbody);
-      } else if (typeof animateTableRows === 'function') {
-        animateTableRows(tbody);
-      }
     }
 
     // Modal Create
@@ -1521,10 +1518,5 @@
     });
   </script>
   <!-- 3D Background Particle System -->
-  <script src="/vendor/three.min.js"></script>
-  <script src="/shared/three-performance.js"></script>
-  <script src="/shared/three-memory.js"></script>
-  <script src="/shared/three-visibility.js"></script>
-  <script src="/shared/three-bg.js"></script>
 </body>
 </html>

@@ -16,6 +16,13 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const app = express();
 
+// App chay sau reverse proxy (Firebase App Hosting/Cloud Run, co the co
+// Cloudflare phia truoc) — khong set trust proxy thi req.ip luon la IP cua
+// proxy (giong het nhau cho MOI request), khien rate-limit theo IP trong
+// authRoutes.js (forgotPasswordRateLimit) gop chung toan bo nguoi dung vao
+// 1 bucket va khoa nham ca site chi sau vai chuc request.
+app.set('trust proxy', 1);
+
 app.use(compression());
 // Mac dinh express.json() gioi han 100kb — khong du cho payload xuat Excel
 // ket qua kiem tra dut hang (hang tram dong, moi dong kem chi tiet cac dot dut hang).

@@ -5,9 +5,23 @@
 /**
  * Khoa rieng luong ghi du lieu. Project bound dung DocumentLock; neu project
  * standalone thi dung UserLock (web app va trigger deu chay bang tai khoan deploy).
+ * Dung cho: chuoi master, polling-only (Tra hang/Nha cung cap/Nhap hang), va
+ * webhook cua cac bang khong phai Hoa don.
  */
 function getKiotVietDataLock_() {
   return LockService.getDocumentLock() || LockService.getUserLock();
+}
+
+/**
+ * Khoa rieng cho Hoa don + Chi tiet hoa don (backfill phan doan va webhook).
+ * Tach khoi getKiotVietDataLock_() de dong bo Hoa don khong bi doi vo han khi
+ * chuoi polling-only (Tra hang/Nha cung cap/Nhap hang) dang giu khoa chung
+ * nhieu phut lien tuc. Dung UserLock vi DocumentLock da danh cho luong con lai;
+ * trigger va web app deu chay bang tai khoan deploy nen UserLock van la mot
+ * khoa duy nhat, on dinh giua cac lan chay ke tiep nhau.
+ */
+function getKiotVietInvoiceLock_() {
+  return LockService.getUserLock();
 }
 
 /**
