@@ -535,7 +535,8 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
       context
     );
 
-    assert.equal(prepared, staging);
+    assert.equal(prepared.sheet, staging);
+    assert.equal(prepared.created, true);
   });
 
   it('uses a bounded page size for detail-heavy purchase orders', () => {

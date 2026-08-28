@@ -826,9 +826,12 @@ const KIOTVIET_CHUNK_STAGING_SHEETS_ = Object.freeze({
 });
 const KIOTVIET_INVOICE_DETAIL_STAGING_SHEET_ = '_KV_SYNC_STAGING_INVOICE_DETAILS';
 
+// Tra ve {sheet, created} thay vi chi sheet: goi noi tiep theo can biet trang
+// vua duoc tao moi de bo qua cac thao tac khong can thiet (va de gay timeout
+// tren file lon) nhu don cot JSON cu hay kiem tra schema.
 function prepareKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema) {
   const stagingName = KIOTVIET_CHUNK_STAGING_SHEETS_[schemaKey];
-  if (!stagingName) return null;
+  if (!stagingName) return { sheet: null, created: false };
 
   let stagingSheet = spreadsheet.getSheetByName(stagingName);
   let created = false;
@@ -837,7 +840,7 @@ function prepareKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema) {
     created = true;
   }
   if (!created) stagingSheet.hideSheet();
-  return stagingSheet;
+  return { sheet: stagingSheet, created: created };
 }
 
 function copyKiotVietChunkStagingToLive_(schema, liveSheet, stagingSheet, allowEmpty) {
@@ -892,7 +895,7 @@ function prepareInvoiceDetailStagingSheet_(spreadsheet) {
     created = true;
   }
   if (!created) stagingSheet.hideSheet();
-  return stagingSheet;
+  return { sheet: stagingSheet, created: created };
 }
 
 function publishInvoiceStagingPair_(spreadsheet, invoiceSchema, invoiceLiveSheet, invoiceStagingSheet) {
@@ -1072,11 +1075,17 @@ function syncKiotVietTableChunk_(schemaKey, options) {
     invoiceDetailCount = 0;
   }
 
+  let stagingSheetJustCreated = false;
+  let invoiceDetailStagingSheetJustCreated = false;
   if (stagingName && !stagingSheet) {
-    stagingSheet = prepareKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema);
+    const prepared = prepareKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema);
+    stagingSheet = prepared.sheet;
+    stagingSheetJustCreated = prepared.created;
   }
   if (schemaKey === 'invoices' && !invoiceDetailStagingSheet) {
-    invoiceDetailStagingSheet = prepareInvoiceDetailStagingSheet_(spreadsheet);
+    const preparedDetail = prepareInvoiceDetailStagingSheet_(spreadsheet);
+    invoiceDetailStagingSheet = preparedDetail.sheet;
+    invoiceDetailStagingSheetJustCreated = preparedDetail.created;
   }
 
   // Neu lan chay truoc dung giua luc ghi mot trang, state van tro toi trang da
@@ -1131,11 +1140,18 @@ function syncKiotVietTableChunk_(schemaKey, options) {
   }
 
   const isFirstChunk = (currentItem === 0);
+  // Trang vua duoc tao trong chinh lan chay nay chac chan chua co cot JSON cu
+  // va header se duoc ghi lai ngay ben duoi, nen bo qua cac phep doc/ghi kiem
+  // tra schema — tren file lon (nhu spreadsheet Ha Noi) cac phep nay (getLastRow,
+  // getLastColumn...) co the bi Sheets tra ve loi timeout ngay sau insertSheet.
+  const sheetJustCreated = stagingName ? stagingSheetJustCreated : false;
 
   // Neu la lan dau tien: Don cot JSON cu, kiem tra schema, xoa trang noi dung cu va ghi Header
   if (isFirstChunk) {
-    removeLegacyKiotVietJsonColumns_(sheet);
-    ensureKiotVietSheetSchema_(sheet, schema);
+    if (!sheetJustCreated) {
+      removeLegacyKiotVietJsonColumns_(sheet);
+      ensureKiotVietSheetSchema_(sheet, schema);
+    }
     sheet.clearContents();
     sheet.getRange(1, 1, 1, schema.headers.length).setValues([schema.headers]);
 
@@ -1143,8 +1159,10 @@ function syncKiotVietTableChunk_(schemaKey, options) {
     if (schemaKey === 'invoices') {
       const detailSchema = KIOTVIET_SHEET_SCHEMAS.invoiceDetails;
       const detailSheet = invoiceDetailStagingSheet;
-      removeLegacyKiotVietJsonColumns_(detailSheet);
-      ensureKiotVietSheetSchema_(detailSheet, detailSchema);
+      if (!invoiceDetailStagingSheetJustCreated) {
+        removeLegacyKiotVietJsonColumns_(detailSheet);
+        ensureKiotVietSheetSchema_(detailSheet, detailSchema);
+      }
       detailSheet.clearContents();
       detailSheet.getRange(1, 1, 1, detailSchema.headers.length).setValues([detailSchema.headers]);
     }
