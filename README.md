@@ -54,20 +54,16 @@ webtks-dashboard/
 │       └── update-file/
 │           └── SKILL.md         # Quy trình đồng bộ file khi cây thư mục thay đổi
 ├── .clasp.json                  # Project KiotHN / Dashboard (rootDir: "src-dashboard")
-├── .clasp.order-lifecycle.json  # Project Vận chuyển (rootDir: "src-order-lifecycle")
 ├── .clasp.saigon.json           # Project KiotSG (rootDir: "src-dashboard", dùng chung code với KiotHN)
 ├── .claspignore                 # Ignore profile cho project KiotHN / Dashboard
-├── .claspignore.order-lifecycle # Ignore profile cho project Vận chuyển
 ├── .claspignore.saigon          # Ignore profile cho project KiotSG
 ├── .firebaserc                  # Firebase project mặc định: tokosi-a02e0
-├── 3D Design.md                 # Kế hoạch chi tiết triển khai hiệu ứng 3D toàn trang
 ├── CHINH-SACH-NGHI-PHEP.md      # Quy định & chính sách quản lý nghỉ phép nhân sự (CSNS-NP-01)
 ├── ERD KiotViet.drawio          # Sơ đồ quan hệ thực thể KiotViet
 ├── firebase.json                # Liên kết source server/ với Firebase App Hosting
 ├── Logo.jpg                     # Logo thương hiệu công ty
 ├── Plan Process Automation.md   # Kế hoạch kiểm soát & tự động hóa quy trình vận chuyển
 ├── README.md                    # Tài liệu hướng dẫn tổng quan dự án
-├── ROLLBACK.md                  # Hướng dẫn tắt & khôi phục nhanh lớp hiệu ứng 3D
 │
 ├── design-system/               # Quy chuẩn giao diện dùng chung
 │   └── tks-dashboard/
@@ -160,21 +156,14 @@ webtks-dashboard/
 │   │   │   └── index.html       # Cổng thông tin nhân sự: nộp đơn nghỉ phép, tra cứu ngày phép & phê duyệt
 │   │   ├── index.html           # Live Dashboard (KPI, biểu đồ, phân trang, xuất Excel)
 │   │   ├── Logo.jpg             # Logo thương hiệu frontend
-│   │   ├── performance-test.html # Trang công cụ kiểm tra & đo lường hiệu năng 3D trực quan
 │   │   ├── js/
 │   │   │   └── pagination.js    # Phân trang client-side cho các bảng
 │   │   ├── login/index.html     # Đăng nhập nội bộ, Google OAuth & Quên mật khẩu OTP
 │   │   ├── register/index.html  # Đăng ký tài khoản Khách bằng Email hoặc Số điện thoại
-│   │   ├── shared/              # CSS, điều hướng/auth guard, chuông thông báo, nén ảnh và hiệu ứng 3D
+│   │   ├── shared/              # CSS, điều hướng/auth guard, chuông thông báo và nén ảnh
 │   │   │   ├── image-compress.js # Nén và resize ảnh trước khi upload
 │   │   │   ├── shared-nav.js    # Header navigation dùng chung đa trang (Báo cáo, Vận chuyển, Nhân sự, Tài khoản, Chuông thông báo)
-│   │   │   ├── shared.css       # Style theme và component dùng chung
-│   │   │   ├── three-bg.js      # Hệ thống hạt 3D Particle Background toàn trang
-│   │   │   ├── three-interactions.js # Bộ xử lý 3D dynamic tilt, 3D navigation, button ripple và table row animation
-│   │   │   ├── three-loading.js # 3D rotating loading cube loader
-│   │   │   ├── three-memory.js  # Bộ quản lý WebGL context và giải phóng bộ nhớ
-│   │   │   ├── three-performance.js # Bộ giám sát FPS và tự động điều chỉnh chất lượng 3D
-│   │   │   └── three-visibility.js # Bộ điều phối tạm dừng/tiếp tục hiệu ứng khi đổi tab
+│   │   │   └── shared.css       # Style theme và component dùng chung
 │   │   ├── shipment/
 │   │   │   ├── index.html       # Tra cứu trạng thái hóa đơn cho khách hàng
 │   │   │   ├── dispatch/
@@ -184,8 +173,7 @@ webtks-dashboard/
 │   │   │       ├── index.html   # Mobile Web 1-chạm (Thủ kho & Lái xe)
 │   │   │       └── mobile.js    # Camera upload ảnh chứng từ & chuyển trạng thái
 │   │   └── vendor/
-│   │       ├── chart.umd.min.js # Thư viện biểu đồ 2D Chart.js
-│   │       └── three.min.js     # Thư viện đồ họa 3D THREE.js r159 UMD
+│   │       └── chart.umd.min.js # Thư viện biểu đồ Chart.js
 │   ├── scripts/
 │   │   ├── setupHrSheet.js      # CLI khởi tạo 3 tab HR_Leaves, HR_Employees, HR_Policy
 │   │   ├── setupUsersSheet.js   # CLI quản lý tài khoản người dùng và khởi tạo sheet Users
@@ -213,7 +201,7 @@ webtks-dashboard/
 │   ├── test/
 │   │   ├── apps-script-sync.test.js # Hồi quy URL webhook stale và typed-column Google Sheets
 │   │   ├── apps-script-report-schedule.test.js # Unit test lịch phân bổ đồng bộ báo cáo
-│   │   └── frontend/            # Unit test giao diện, chuông thông báo, đổi vai trò, phân trang và hiệu ứng 3D
+│   │   └── frontend/            # Unit test giao diện, chuông thông báo, đổi vai trò, phân trang và chống tái xuất hiện hiệu ứng 3D
 │   ├── config.js                # Cấu hình môi trường Node.js server
 │   ├── index.js                 # Express server entry point
 │   ├── package.json             # Dependencies, Node 22 và lệnh build/start
@@ -224,12 +212,12 @@ webtks-dashboard/
 │   ├── HuongDanSuDung.gs        # Hướng dẫn syncAllDataChunked(), setupKiotVietAutoSync()
 │   ├── config/Config.gs         # CONFIG, getKiotVietSyncMode_()
 │   ├── kiotviet/
+│   │   ├── ArchiveOldData.gs    # previewArchiveOldKiotVietData(), archiveOldKiotVietData()
 │   │   ├── Auth.gs              # getKiotVietToken(), clearKiotVietToken()
 │   │   ├── CustomerDebtReport.gs # syncCustomerDebtReports(), setupCustomerDebtReports()
 │   │   ├── CustomerReport.gs    # syncCustomerReport(), syncSalesCustomerReport(),
 │   │   │                        # syncCustomerProductReport(), syncCustomerByProductReport(),
 │   │   │                        # setupCustomerReportDailyTrigger() (06:00/06:30/07:00)
-│   │   ├── DiscontinuedProducts.gs # syncHangNgungKinhDoanh(), migrateLegacyDiscontinuedSheet_()
 │   │   ├── SheetSchemas.gs      # migrateKiotVietSheetsIfNeeded_(), syncKiotVietTableChunk_()
 │   │   ├── SyncInitial.gs       # syncAllInitialData(), setupPollingTrigger()
 │   │   └── WebhookAdmin.gs      # setupKiotVietAutoSync(), checkWebhookStatus()
@@ -238,23 +226,8 @@ webtks-dashboard/
 │   │   └── WebhookQueue.gs      # doPost(), processWebhookQueue(), forwardInvoiceWebhookToShipment_()
 │   └── utils/Helpers.gs         # getKiotVietDataLock_(), formatDate()
 │
-├── src-order-lifecycle/         # Apps Script riêng cho Google Sheets Vận chuyển
-│   ├── appsscript.json          # Manifest Apps Script Vận chuyển
-│   ├── HuongDanSuDung.gs        # Hướng dẫn deploy/setup project Vận chuyển
-│   ├── config/Config.gs         # CONFIG, chế độ SHIPMENT_LIFECYCLE và tên 6 tab
-│   ├── kiotviet/
-│   │   ├── Auth.gs              # getKiotVietToken(), clearKiotVietToken()
-│   │   ├── SheetSchemas.gs      # fetchKiotVietJsonWithRetry_(), adapter invoice
-│   │   └── WebhookAdmin.gs      # setupKiotVietAutoSync(), cấu hình relay
-│   ├── shipment/KiotVietLifecycle.gs # setupShipmentLifecycleSync(), syncShipmentLifecycleRecent7Days()
-│   ├── sync/
-│   │   ├── UpdateHandlers.gs    # hydrateKiotVietItems_()
-│   │   └── WebhookQueue.gs      # doPost(), processWebhookQueue()
-│   └── utils/Helpers.gs         # Helper dùng nội bộ project Vận chuyển
-│
 ├── docs/
 │   ├── manual-test-batch-update-order-items.md # Hướng dẫn kiểm thử production cập nhật hàng loạt đơn vận chuyển
-│   ├── performance-optimization-report.md # Báo cáo tối ưu hóa hiệu năng 3D, FPS & WebGL Memory
 │   ├── 01-brd/
 │   │   └── BRD_Dashboard_GoogleSheets.md # Yêu cầu nghiệp vụ BRD v1.9
 │   ├── 02-srs/
@@ -317,7 +290,6 @@ Bộ test hiện gồm **477 bài kiểm thử tự động** (13 test suite):
 - Result Cache tầng backend tối ưu phản hồi tức thì (<10ms).
 - Phân trang client-side (`pagination.js`) và module Xuất Excel 16 bảng (`exportService.js`).
 - Tìm kiếm nhiều mã chính xác và Top 3 KH theo danh mục sản phẩm.
-- Lớp hiệu ứng 3D Three.js: Particle background, card hover tilt, tactile press buttons, 3D navigation, table staggered rows, 3D rotating loading cube, adaptive performance monitor & WebGL memory disposal.
 - Phân quyền theo cơ sở (`branches.js`, `branchMiddleware.js`): chuẩn hóa `coSo`, chặn tài khoản chưa gán cơ sở, chống giả mạo cookie `tks_branch`, cách ly cache dữ liệu giữa hai cơ sở, và nút chọn cơ sở trên thanh điều hướng (`branch-switcher.test.js`).
 
 ### Bước 1 — Clone & login
@@ -329,9 +301,8 @@ clasp login
 
 ### Bước 2 — Điền Script ID
 Mỗi Google Sheets dùng một Apps Script project riêng. Cấu hình KiotHN/Dashboard nằm
-trong `.clasp.json`; cấu hình Vận chuyển nằm trong `.clasp.order-lifecycle.json`;
-cấu hình KiotSG (cửa hàng Sài Gòn, dùng chung code `src-dashboard/` với KiotHN)
-nằm trong `.clasp.saigon.json`:
+trong `.clasp.json`; cấu hình KiotSG (cửa hàng Sài Gòn, dùng chung code `src-dashboard/`
+với KiotHN) nằm trong `.clasp.saigon.json`:
 ```json
 {
   "scriptId": "YOUR_REAL_SCRIPT_ID_HERE",
@@ -345,15 +316,12 @@ nằm trong `.clasp.saigon.json`:
 # KiotHN / Dashboard
 clasp push --force
 
-# Vận chuyển
-clasp -P .clasp.order-lifecycle.json -I .claspignore.order-lifecycle push --force
-
 # KiotSG (cửa hàng Sài Gòn — dùng chung code src-dashboard/ với KiotHN)
 clasp -P .clasp.saigon.json -I .claspignore.saigon push --force
 ```
 
 Trong **Apps Script Editor -> Project Settings -> Script Properties**, tạo các thuộc tính
-(mỗi project — KiotHN, Vận chuyển, KiotSG — có bộ Script Properties độc lập, không
+(mỗi project — KiotHN, KiotSG — có bộ Script Properties độc lập, không
 dùng chung, không đọc/ghi chéo project khác):
 
 - `KIOTVIET_CLIENT_ID`: Client ID của KiotViet (riêng theo từng cửa hàng).
@@ -361,9 +329,6 @@ dùng chung, không đọc/ghi chéo project khác):
 - `KIOTVIET_RETAILER`: bắt buộc khai báo (không còn fallback ngầm) — `CHhanoi` cho
   project KiotHN, `CHsaigon` cho project KiotSG.
 - `WEBHOOK_URL`: URL `/exec` của Web App sau khi deploy — của đúng project đó.
-
-Riêng `SHIPMENT_WEBHOOK_URL`/`SHIPMENT_WEBHOOK_SECRET` chỉ khai báo ở project KiotHN
-(để forward `invoice.update` sang project Vận chuyển); **không** khai báo ở project KiotSG.
 
 Không lưu các giá trị này trong mã nguồn hoặc commit lên Git.
 
@@ -380,12 +345,11 @@ Manifest cũng chỉ cho phép chính tài khoản triển khai gọi hàm qua A
 Execution API (`executionApi.access = MYSELF`) để phục vụ kiểm tra và vận hành an toàn.
 
 ### Bước 4 — Thiết lập lần đầu (chạy thủ công 1 lần)
-1. Kiểm tra đã khai báo `KIOTVIET_CLIENT_ID` và `KIOTVIET_CLIENT_SECRET` trong Script Properties. Chỉ trên dự án sheet tổng hợp cũ, chạy `syncAllInitialData()` để tải dữ liệu ban đầu. Hàm này cũng cập nhật toàn bộ lịch sử vào tab **Hàng ngừng kinh doanh** và dọn tab legacy `Hàng ngừng KD hôm nay` nếu còn tồn tại.
-2. Với sheet tổng hợp cũ, chạy `setupKiotVietAutoSync()` một lần. Chế độ mặc định `FULL_DASHBOARD` tạo queue 5 phút, polling chính 15 phút, ba lịch báo cáo 06:00/06:30/07:00, Hàng ngừng kinh doanh 07:30, công nợ 15:00 và 9 webhook. Nếu một lượt polling nặng chưa xong, trigger tiếp sức chờ 5 phút để giảm tải; checkpoint bảo đảm không bỏ trang dữ liệu.
-3. Với project Vận chuyển, đặt `KIOTVIET_SYNC_MODE=SHIPMENT_LIFECYCLE` và `KIOTVIET_SHIPMENT_RELAY_ENABLED=true`, chạy `syncShipmentLifecycleRecent7Days()` rồi `setupShipmentLifecycleSync()`. Project Dashboard giữ `invoice.update` và chuyển tiếp sự kiện bằng `SHIPMENT_WEBHOOK_URL` + `SHIPMENT_WEBHOOK_SECRET`.
-4. Không dùng spreadsheet/profile `COMBINED`; Dashboard, Vận chuyển và Nhân sự phải trỏ đến ba Google Sheets độc lập. Project KiotSG (cửa hàng Sài Gòn) là một Google Sheet + Apps Script project độc lập thứ tư, dùng chung code `src-dashboard/` với KiotHN nhưng cấu hình/deploy riêng theo `.clasp.saigon.json` — xem chi tiết ở `src-dashboard/HuongDanSuDung.gs` mục "6b. CAI DAT PROJECT KIOTSG".
-5. `setupKiotVietAutoSync()` đã cài ba lịch báo cáo độc lập. Chỉ chạy `setupCustomerReport()` khi muốn làm mới ngay cả ba báo cáo: **Báo cáo bán hàng** gần **06:00**; **Hàng bán theo khách** được webhook cập nhật trong khoảng 5 phút và đối soát gần **06:30**; **Khách theo hàng hóa** gần **07:00**. Ba tab lần lượt giữ đủ 18, 5 và 25 cột.
-6. Ba tab **HN1**, **HN3**, **HN7** là báo cáo công nợ khách hàng 1/3/7 ngày gần đây (tính cả hôm nay) do Apps Script tự tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00, hoặc chạy tay `syncCustomerDebtReports()` bất cứ lúc nào cần cập nhật ngay.
+1. Kiểm tra đã khai báo `KIOTVIET_CLIENT_ID` và `KIOTVIET_CLIENT_SECRET` trong Script Properties. Chỉ trên dự án sheet tổng hợp cũ, chạy `syncAllInitialData()` để tải dữ liệu ban đầu.
+2. Với sheet tổng hợp cũ, chạy `setupKiotVietAutoSync()` một lần. Chế độ mặc định `FULL_DASHBOARD` tạo queue 5 phút, polling chính 15 phút, ba lịch báo cáo 06:00/06:30/07:00, công nợ 15:00 và 9 webhook. Nếu một lượt polling nặng chưa xong, trigger tiếp sức chờ 5 phút để giảm tải; checkpoint bảo đảm không bỏ trang dữ liệu.
+3. Không dùng spreadsheet/profile `COMBINED`; Dashboard, Vận chuyển và Nhân sự phải trỏ đến ba Google Sheets độc lập. Project KiotSG (cửa hàng Sài Gòn) là một Google Sheet + Apps Script project độc lập thứ tư, dùng chung code `src-dashboard/` với KiotHN nhưng cấu hình/deploy riêng theo `.clasp.saigon.json` — xem chi tiết ở `src-dashboard/HuongDanSuDung.gs` mục "6b. CAI DAT PROJECT KIOTSG".
+4. `setupKiotVietAutoSync()` đã cài ba lịch báo cáo độc lập. Chỉ chạy `setupCustomerReport()` khi muốn làm mới ngay cả ba báo cáo: **Báo cáo bán hàng** gần **06:00**; **Hàng bán theo khách** được webhook cập nhật trong khoảng 5 phút và đối soát gần **06:30**; **Khách theo hàng hóa** gần **07:00**. Ba tab lần lượt giữ đủ 18, 5 và 25 cột.
+5. Ba tab **HN1**, **HN3**, **HN7** là báo cáo công nợ khách hàng 1/3/7 ngày gần đây (tính cả hôm nay) do Apps Script tự tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00, hoặc chạy tay `syncCustomerDebtReports()` bất cứ lúc nào cần cập nhật ngay.
 
 Sau khi bật, thay đổi Hàng hóa, Tồn kho, Khách hàng, Hóa đơn, Đặt hàng và Nhóm hàng
 được nhận bằng webhook rồi ghi vào Sheets trong khoảng 5 phút. **Trả hàng**, **Nhà cung
@@ -467,12 +431,10 @@ và in ra danh sách tài khoản có giá trị không hợp lệ cần Quản 
 
 | Hàm | Mục đích | Khi nào chạy |
 |---|---|---|
-| `syncAllInitialData()` | Làm mới 9 sheet vận hành, lịch sử Hàng ngừng kinh doanh, 3 báo cáo khách hàng và HN1/HN3/HN7; báo cáo công nợ chạy sau khi Hàng hóa đã cập nhật | Lần đầu hoặc khi cần full refresh |
+| `syncAllInitialData()` | Làm mới 9 sheet vận hành, 3 báo cáo khách hàng và HN1/HN3/HN7; báo cáo công nợ chạy sau khi Hàng hóa đã cập nhật | Lần đầu hoặc khi cần full refresh |
 | `restartInvoicesBackfill()` | Reset riêng checkpoint Hóa đơn, tải Hóa đơn và Chi tiết hóa đơn vào staging rồi công bố đồng bộ; không ảnh hưởng checkpoint bảng khác | Khi Hóa đơn hoặc Chi tiết hóa đơn bị thiếu dữ liệu |
-| `syncHangNgungKinhDoanh()` | Nạp các sản phẩm đang ngừng kinh doanh và giữ lịch sử các sản phẩm từng ngừng; không tạo tab theo ngày | Khi cần đối soát thủ công |
-| `cauHinhLichHangNgungKinhDoanh()` | Cập nhật toàn bộ lịch sử và tạo lại lịch cập nhật gần 07:30 hàng ngày | Một lần sau khi deploy |
 | `removeJsonColumnsFromAllSheets()` | Xóa ngay các cột `(JSON)` cũ trên 9 sheet vận hành | Tùy chọn; trigger nền cũng tự chạy một lần sau khi deploy |
-| `setupKiotVietAutoSync()` | Bật hoặc khôi phục 9 webhook và toàn bộ 7 trigger định kỳ của Dashboard, không tạo trùng | 1 lần sau khi deploy |
+| `setupKiotVietAutoSync()` | Bật hoặc khôi phục 9 webhook và toàn bộ 6 trigger định kỳ của Dashboard, không tạo trùng | 1 lần sau khi deploy |
 | `initializeShipmentLifecycleSheets()` | Tạo/kiểm tra đủ 6 tab và header vận chuyển | Khi chuẩn bị sheet mới |
 | `syncShipmentLifecycleRecent7Days()` | Nạp hóa đơn 7 ngày gần nhất theo từng trang, tránh chạy full quá quota | Một lần ban đầu hoặc khi đối soát |
 | `setupShipmentLifecycleSync()` | Chọn chế độ vòng đời vận chuyển và tạo trigger queue; nhận `invoice.update` chuyển tiếp từ project cũ | Một lần trên dự án sheet mới |
@@ -500,51 +462,50 @@ và in ra danh sách tài khoản có giá trị không hợp lệ cần Quản 
 
 ---
 
-## Hiệu ứng 3D (3D Effects)
+## Hiệu năng frontend (Frontend Performance)
 
-Dashboard có lớp hiệu ứng 3D tùy chọn (progressive enhancement) trên các trang giao diện: `index.html`, `account/`, `humanresources/`, `shipment/`, `shipment/dispatch/`, `shipment/mobile/`. Trang vẫn hoạt động đầy đủ nếu lớp này bị tắt hoặc lỗi.
+Dashboard từng có một lớp hiệu ứng 3D (Three.js particle background, card tilt, 3D loading cube).
+**Lớp này đã được gỡ bỏ hoàn toàn** vì làm dashboard giật nặng trên máy cấu hình phổ thông —
+không phải tắt bằng cờ cấu hình, mà xóa hẳn khỏi mã nguồn.
 
-### Thành phần
+### Đã gỡ bỏ
 
-| File | Vai trò |
+| Thành phần | Ghi chú |
 |---|---|
-| `server/public/vendor/three.min.js` | Thư viện THREE.js r159 (UMD, ~650KB), nguồn cho `window.THREE` |
-| `server/public/shared/three-bg.js` | Particle background toàn trang (canvas `.tks-bg-canvas`, tự đổi màu theo theme, tự dừng khi tab ẩn) |
-| `server/public/shared/three-interactions.js` | Tilt 3D cho card/KPI theo vị trí chuột, press effect cho button, depth cho nav item — chỉ dùng CSS transform, **không** cần `window.THREE` |
-| `server/public/shared/three-loading.js` | 3D loading cube (thuần CSS), auto-upgrade mọi `.loading-veil` |
-| `server/public/shared/three-performance.js` | Theo dõi FPS, tự hạ chất lượng particle khi máy yếu (`window.TKSPerformance`) |
-| `server/public/shared/three-memory.js` | Theo dõi & dọn WebGL context/geometry/material để tránh leak (`window.TKSMemory`) |
-| `server/public/shared/three-visibility.js` | Trung tâm pause/resume các module 3D khi đổi tab (`window.TKSVisibility`) |
+| `vendor/three.min.js` | ~650KB tải trên 7 trang, chỉ để vẽ nền trang trí |
+| `shared/three-bg.js` | Particle field WebGL chạy vòng lặp `requestAnimationFrame` liên tục |
+| `shared/three-interactions.js` | Gắn listener hover lên **từng dòng bảng**, từng card, từng nút |
+| `shared/three-loading.js` | CSS-3D cube loader — thay bằng spinner tĩnh trong `shared.css` |
+| `shared/three-{performance,memory,visibility}.js` | Hạ tầng giám sát FPS/WebGL, không còn đối tượng để giám sát |
+| `performance-test.html` | Trang đo FPS của lớp 3D |
 
-### Thứ tự load
+### Quy tắc cần giữ
 
-Mỗi trang load 3D theo đúng thứ tự sau (bắt buộc — các module sau phụ thuộc module trước):
+Ba thứ dưới đây là nguyên nhân giật chính. Đừng đưa lại:
 
-```html
-<!-- Đầu trang, trong <head> — không cần THREE.js -->
-<script src="/shared/three-interactions.js" defer></script>
-<script src="/shared/three-loading.js" defer></script>
+1. **Không dùng `transform-style: preserve-3d`, `perspective`, `translateZ`, `rotateX/Y` trong CSS.**
+   Mỗi khai báo này đẩy phần tử thành một compositor layer riêng. Rule cũ `tbody tr { transform-style: preserve-3d }`
+   áp lên **mọi dòng bảng** (100 dòng/trang) là thủ phạm nặng nhất.
+2. **Không dùng `background-attachment: fixed`.** Nền trang được vẽ một lần vào lớp `body::before`
+   (`position: fixed; z-index: -1`). Dùng `fixed` khiến trình duyệt vẽ lại toàn bộ viewport — gồm cả
+   việc scale lại ảnh nền cover — trên **mỗi frame cuộn**.
+3. **Không dùng `backdrop-filter` trên `.loading-veil`.** Veil hiện lên ở mỗi lần auto-refresh;
+   blur toàn màn hình ở đó là chi phí lặp lại.
 
-<!-- Cuối trang, trước </body> — cần THREE.js load trước -->
-<script src="/vendor/three.min.js"></script>
-<script src="/shared/three-performance.js"></script>
-<script src="/shared/three-memory.js"></script>
-<script src="/shared/three-visibility.js"></script>
-<script src="/shared/three-bg.js"></script>
-```
+Hover/focus vẫn có phản hồi thị giác — chỉ dùng `box-shadow` + `border-color` + `background-color` (2D, rẻ).
 
-### Tắt hiệu ứng
+Các quy tắc trên được khóa lại bằng test: [`server/test/frontend/no-3d-effects.test.js`](server/test/frontend/no-3d-effects.test.js).
+Test sẽ fail nếu bất kỳ file/CSS/class nào của lớp 3D quay lại, hoặc nếu các sửa lỗi cuộn ở trên bị hoàn tác.
 
-- **Tắt trên 1 trang:** xóa toàn bộ các thẻ `<script src="/shared/three-*.js">` và `<script src="/vendor/three.min.js">` khỏi trang đó. Trang hoạt động bình thường — mọi handler 3D tự kiểm tra `window.THREE`/DOM trước khi chạy, không throw lỗi khi thiếu.
-- **Tắt toàn site:** lặp lại thao tác trên cho các trang. Xem hướng dẫn từng bước và lệnh khôi phục bằng git tại [ROLLBACK.md](ROLLBACK.md).
+### Tối ưu khác đang áp dụng
 
-### Hiệu năng & Khả năng tiếp cận
-
-- Particle count tự thích ứng theo thiết bị: 300 (desktop) / 100 (mobile), giảm tiếp xuống 50 nếu FPS thấp (`three-performance.js`, 4 mức chất lượng).
-- Tối đa 8 WebGL context được theo dõi và dispose tự động khi rời trang (`three-memory.js`).
-- Toàn bộ animation dừng khi tab ẩn (`three-visibility.js`) và khi `prefers-reduced-motion: reduce` được bật.
-- Canvas nền trang trí mang `aria-hidden="true"`; focus indicator (`:focus-visible`) độc lập với transform 3D nên không bị ảnh hưởng.
-- Chi tiết đầy đủ: [Performance Optimization Report](docs/performance-optimization-report.md), [3D Design Plan](3D%20Design.md) (Task 12, Task 13).
+- Font: chỉ tải 3 họ thực dùng (Be Vietnam Pro, Inter, IBM Plex Mono) qua `<link>` + `preconnect`
+  trên từng trang — **không** dùng `@import` trong `shared.css` (nó nối tiếp 2 round-trip chặn render).
+- `chart.umd.min.js` và `shared-nav.js` đặt cuối `<body>`, không đặt trong `<head>`.
+  Không đặt `defer` được vì script inline phía dưới dùng `Chart`/`TKSNav` ở top level.
+- Sắp xếp bảng gom vào `DocumentFragment` rồi gắn một lần, và chỉ sắp xếp lại đúng bảng vừa render.
+- Format số dùng instance `Intl.NumberFormat` tái sử dụng (`fmtNumber`/`fmtMoney`) thay cho
+  `toLocaleString('vi-VN')` gọi lặp hàng nghìn lần mỗi lần render bảng.
 
 ---
 
@@ -554,7 +515,7 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 
 | Loại file | Cache-Control | Mục đích |
 |---|---|---|
-| Thư viện vendor (`/vendor/`) | `public, max-age=86400` (1 ngày) | Chart.js, THREE.js thay đổi hiếm khi |
+| Thư viện vendor (`/vendor/`) | `public, max-age=86400` (1 ngày) | Chart.js thay đổi hiếm khi |
 | JS/CSS dùng chung (`/shared/*.js|css`, `/js/*.js`) | `public, max-age=3600` (1 giờ) | Có thể sửa đổi thường xuyên hơn |
 | Ảnh (`*.png`, `*.jpg`, `*.svg`, `*.webp`, `*.ico`) | `public, max-age=604800` (7 ngày) | Thay đổi rất hiếm khi |
 | HTML (entry points như `index.html`) | Không set custom; dùng ETag revalidation | Luôn kiểm tra phiên bản mới sau deploy |
@@ -569,7 +530,7 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 
 | Giai đoạn | Module | Mô tả |
 |---|---|---|
-| **1** [Hoan thanh] | `src-dashboard/`, `src-order-lifecycle/` | Apps Script tách riêng theo Google Sheets Dashboard và Vận chuyển |
+| **1** [Hoan thanh] | `src-dashboard/` | Apps Script đồng bộ KiotViet cho Google Sheets Dashboard |
 | **2** [Chua bat dau] | `future-phases/sales-pos/` | POS bán hàng tích hợp |
 | **3** [Chua bat dau] | `future-phases/inventory/` | Quản lý kho nâng cao, cảnh báo |
 | **4** [Chua bat dau] | `future-phases/analytics-anomaly/` | Phát hiện bất thường, fraud detection |
@@ -591,9 +552,7 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 | [Manual Test Batch Update](docs/manual-test-batch-update-order-items.md) | Hướng dẫn kiểm thử production cập nhật hàng loạt đơn vận chuyển |
 | [Lag Optimization Plan](docs/superpowers/plans/2026-08-19-tks-lag-optimization.md) | Kế hoạch tối ưu hóa toàn diện hiệu năng và chống lag 4 Phase |
 | [Stagger Report Schedules](docs/superpowers/plans/2026-08-20-stagger-customer-report-triggers.md) | Kế hoạch phân bổ lịch đồng bộ báo cáo Apps Script |
-| [3D Design Plan](3D%20Design.md) | Kế hoạch chi tiết thiết kế hiệu ứng 3D toàn bộ các trang giao diện |
-| [Performance Optimization Report](docs/performance-optimization-report.md) | Báo cáo tối ưu hiệu năng 3D, kiểm thử FPS và quản lý bộ nhớ WebGL |
-| [3D Rollback Guide](ROLLBACK.md) | Hướng dẫn tắt/khôi phục lớp hiệu ứng 3D trên từng trang hoặc toàn site |
+| [No-3D Regression Tests](server/test/frontend/no-3d-effects.test.js) | Test khóa việc gỡ bỏ lớp 3D và các sửa lỗi hiệu năng cuộn — xem mục "Hiệu năng frontend" |
 | [Server Guide](server/README.md) | Hướng dẫn triển khai, kiểm thử và tài liệu API backend Node.js |
 | [Design System Master](design-system/tks-dashboard/MASTER.md) | Hệ thống token, component và quy tắc giao diện |
 | [Debt Dashboard Spec](docs/superpowers/specs/2026-08-05-debt-dashboard-design.md) | Đặc tả thiết kế module Báo cáo công nợ HN1/HN3/HN7 |
@@ -602,15 +561,14 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 | [Result Cache Plan](docs/superpowers/plans/2026-08-13-dashboard-result-cache.md) | Kế hoạch & chi tiết triển khai Result Cache tầng backend |
 | [Pagination Plan](docs/superpowers/plans/2026-08-13-dashboard-table-pagination.md) | Kế hoạch & chi tiết triển khai phân trang bảng client-side |
 | [Dashboard Apps Script Guide](src-dashboard/HuongDanSuDung.gs) | Hướng dẫn đồng bộ Google Sheets Dashboard |
-| [Shipment Apps Script Guide](src-order-lifecycle/HuongDanSuDung.gs) | Hướng dẫn đồng bộ Google Sheets Vận chuyển |
 
 ---
 
 ## Ghi chú kỹ thuật
 
-> **Hai project GAS độc lập:** Dashboard load `HuongDanSuDung.gs -> config/ -> kiotviet/ -> sync/ -> utils/`;
-> Vận chuyển load `HuongDanSuDung.gs -> config/ -> kiotviet/ -> shipment/ -> sync/ -> utils/`.
-> Mỗi project có `rootDir`, manifest và ignore profile riêng; `Config.gs` luôn được khởi tạo trước các module nghiệp vụ.
+> **Project GAS Dashboard** load `HuongDanSuDung.gs -> config/ -> kiotviet/ -> sync/ -> utils/`,
+> dùng chung cho KiotHN và KiotSG (khác `rootDir`/manifest/ignore profile theo từng project).
+> `Config.gs` luôn được khởi tạo trước các module nghiệp vụ.
 
 > Apps Script không có `doGet()` hoặc file HTML. Deployment Web App chỉ tồn tại
 > để KiotViet gọi `doPost()` qua URL `/exec`.
@@ -624,4 +582,4 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 
 ---
 
-*Cập nhật lần cuối: 27/08/2026*
+*Cập nhật lần cuối: 29/08/2026*

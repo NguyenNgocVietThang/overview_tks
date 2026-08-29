@@ -1028,25 +1028,47 @@ function syncKiotVietTableChunk_(schemaKey, options) {
   // Neu lan cong bo truoc bi gian doan, thu lai tu staging ma khong tai trung
   // hay append trung chunk cu.
   if (state.phase === 'commit' && stagingName && stagingSheet) {
-    if (schemaKey === 'invoices') {
-      publishInvoiceStagingPair_(spreadsheet, schema, liveSheet, stagingSheet);
-      const publishedDetailSheet = spreadsheet.getSheetByName(
-        KIOTVIET_SHEET_SCHEMAS.invoiceDetails.sheetName
+    try {
+      if (schemaKey === 'invoices') {
+        publishInvoiceStagingPair_(spreadsheet, schema, liveSheet, stagingSheet);
+        const publishedDetailSheet = spreadsheet.getSheetByName(
+          KIOTVIET_SHEET_SCHEMAS.invoiceDetails.sheetName
+        );
+        props.setProperty(KIOTVIET_INVOICE_BACKFILL_LAST_RESULT_PROPERTY_, JSON.stringify({
+          completedAt: new Date().toISOString(),
+          total: Number(state.total) || currentItem,
+          invoiceCount: Number(state.invoiceCount) || currentItem,
+          invoiceDetailCount: Number(state.invoiceDetailCount) || 0,
+          invoiceRows: Math.max(0, liveSheet.getLastRow() - 1),
+          invoiceDetailRows: publishedDetailSheet
+            ? Math.max(0, publishedDetailSheet.getLastRow() - 1)
+            : 0
+        }));
+      } else {
+        publishKiotVietChunkStagingSheet_(
+          spreadsheet, schemaKey, schema, liveSheet, stagingSheet
+        );
+      }
+    } catch (publishError) {
+      // Thuong gap khi bang tinh cham gioi han 10 trieu o (SPREADSHEET_GRID_CELL_LIMIT_).
+      // Khong xoa checkpoint/staging o day: du lieu da tai van con nguyen trong
+      // staging, chi chua cong bo sang live duoc. Len lich thu lai thay vi de
+      // chuoi dong bo chet lang le (khong co watchdog nao khac theo doi rieng
+      // resumeSyncInvoicesChunk/resumeSyncPurchasesChunk/resumePollingOnlyChunk_).
+      Logger.log(
+        '[' + schema.sheetName + '] Cong bo staging that bai, se thu lai sau: ' + publishError
       );
-      props.setProperty(KIOTVIET_INVOICE_BACKFILL_LAST_RESULT_PROPERTY_, JSON.stringify({
-        completedAt: new Date().toISOString(),
+      if (resumeHandler) scheduleSpecificChunkTrigger_(resumeHandler);
+      return {
+        schemaKey: schemaKey,
+        sheetName: schema.sheetName,
+        isCompleted: false,
+        currentItem: currentItem,
         total: Number(state.total) || currentItem,
-        invoiceCount: Number(state.invoiceCount) || currentItem,
-        invoiceDetailCount: Number(state.invoiceDetailCount) || 0,
-        invoiceRows: Math.max(0, liveSheet.getLastRow() - 1),
-        invoiceDetailRows: publishedDetailSheet
-          ? Math.max(0, publishedDetailSheet.getLastRow() - 1)
-          : 0
-      }));
-    } else {
-      publishKiotVietChunkStagingSheet_(
-        spreadsheet, schemaKey, schema, liveSheet, stagingSheet
-      );
+        recordsProcessed: 0,
+        phase: 'commit',
+        error: String((publishError && publishError.message) || publishError)
+      };
     }
     props.deleteProperty(stateKey);
     if (resumeHandler) removeSpecificChunkTrigger_(resumeHandler);
@@ -1195,14 +1217,34 @@ function syncKiotVietTableChunk_(schemaKey, options) {
 
     if (pageItems.length === 0) break;
 
-    const checkpointRows = writeKiotVietChunkPage_(
-      spreadsheet,
-      schemaKey,
-      schema,
-      sheet,
-      pageItems,
-      invoiceDetailStagingSheet
-    );
+    let checkpointRows;
+    try {
+      checkpointRows = writeKiotVietChunkPage_(
+        spreadsheet,
+        schemaKey,
+        schema,
+        sheet,
+        pageItems,
+        invoiceDetailStagingSheet
+      );
+    } catch (writeError) {
+      // Cung co the la loi cham gioi han 10 trieu o. Diem dung (checkpoint) gan
+      // nhat da luu tu trang truoc van con nguyen ven, nen an toan de thu lai
+      // thay vi de nguyen chuoi dong bo chet lang le khong ai biet.
+      Logger.log(
+        '[' + schema.sheetName + '] Ghi trang du lieu that bai, se thu lai sau: ' + writeError
+      );
+      if (autoSchedule && resumeHandler) scheduleSpecificChunkTrigger_(resumeHandler);
+      return {
+        schemaKey: schemaKey,
+        sheetName: schema.sheetName,
+        isCompleted: false,
+        currentItem: currentItem,
+        total: totalRecords,
+        recordsProcessed: recordsInThisRun,
+        error: String((writeError && writeError.message) || writeError)
+      };
+    }
     currentItem += pageItems.length;
     recordsInThisRun += pageItems.length;
     if (schemaKey === 'invoices') {

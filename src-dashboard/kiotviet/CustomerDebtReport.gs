@@ -23,9 +23,16 @@ const CUSTOMER_DEBT_REPORT_HEADERS = Object.freeze([
 /**
  * Lam moi ba tab HN1/HN3/HN7 theo dung cau truc file xuat
  * BaoCaoCongNoTheoKhachHang cua KiotViet.
+ *
+ * Doc tab "Hang hoa" (buildCustomerDebtProductLookup_) de tra ten/nhom hang.
+ * Truoc day ham nay chi dung ScriptLock rieng — khac tai nguyen khoa voi
+ * getKiotVietDataLock_() ma chuoi master/polling-only/webhook San pham dung
+ * de ghi tab do — nen co the doc trung luc tab dang bi clearContents() giua
+ * chung, ra ten/nhom hang rong hoac sai. Dung chung getKiotVietDataLock_() de
+ * loai tru dung voi cac tien trinh ghi San pham, thay vi ScriptLock doc lap.
  */
 function syncCustomerDebtReports(token) {
-  const lock = LockService.getScriptLock();
+  const lock = getKiotVietDataLock_();
   if (!lock.tryLock(30000)) {
     throw new Error('Bao cao cong no khach hang dang duoc dong bo boi mot tien trinh khac.');
   }

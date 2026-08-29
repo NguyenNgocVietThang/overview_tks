@@ -92,12 +92,11 @@
       --radius-pill: 999px;
       --radius-pill-lg: 9999px;
 
-      /* Phase A: fixed RGB channel aliases for hardcoded rgba() shadow and
-         background colors. Intentionally NOT theme-reactive - each alias
-         reproduces the exact literal value already hardcoded at every call
-         site (verified byte-for-byte with server/scripts/styleBaselineSnapshot.js),
-         so no visual change. Whether any of these should instead track
-         --primary / --red / --green per theme is a later design decision. */
+      /* Giai đoạn A: Định danh kênh RGB cố định cho màu đổ bóng và nền rgba() viết cứng.
+         Chủ đích KHÔNG phản ứng theo theme - mỗi định danh tái tạo chính xác giá trị gốc
+         đã được viết cứng tại mọi vị trí (được xác thực từng byte với server/scripts/styleBaselineSnapshot.js),
+         do đó không làm đổi giao diện. Việc có chuyển các giá trị này theo dõi
+         --primary / --red / --green theo từng theme hay không sẽ là quyết định thiết kế sau. */
       --white: #fff;
       --shadow-rgb: 0, 0, 0;
       --overlay-rgb: 255, 255, 255;
@@ -161,9 +160,9 @@
       -moz-osx-font-smoothing: grayscale;
     }
 
-    /* Decorative background painted once into a fixed layer instead of four
-       `background-attachment: fixed` layers on <body>, which repainted the
-       full viewport on every scroll frame. See shared.css for the same fix. */
+    /* Nền trang trí được vẽ một lần vào một lớp cố định thay vì bốn lớp
+       `background-attachment: fixed` trên <body>, vốn gây render lại toàn bộ
+       viewport trên mỗi khung hình cuộn. Xem shared.css để biết giải pháp tương tự. */
     body::before {
       content: '';
       position: fixed;
@@ -343,9 +342,9 @@
     }
 
     .refresh-btn:active:not(:disabled) {
-      /* translateY only — see shared.css .btn-primary:active for why
-         scale/translateZ here caused clicks to land on the parent element
-         instead of the button (mouseup landing outside the shrunk box). */
+      /* Chỉ dùng translateY — xem shared.css .btn-primary:active để biết lý do vì sao
+         scale/translateZ ở đây làm cú nhấp rơi vào phần tử cha thay vì nút
+         (sự kiện mouseup rơi ra ngoài khối bị co nhỏ). */
       transform: translateY(1px);
       box-shadow: 0 5px 10px -4px rgba(var(--primary-rgb-d), 0.3);
     }
@@ -896,9 +895,9 @@
       margin: 0 0 18px;
     }
 
-    /* ---------- Cards and Panels ----------
-       Hover feedback is box-shadow/border only. See shared.css for why no
-       transform/perspective belongs in this block. */
+    /* ---------- Thẻ Card và Panel ----------
+       Phản hồi hover chỉ dùng box-shadow/border. Xem shared.css để biết lý do
+       không đưa transform/perspective vào khối này. */
     .kpi-card,
     .panel,
     .kpi-stat,
@@ -924,8 +923,8 @@
       box-shadow: 0 8px 20px -8px rgba(var(--shadow-rgb), 0.14);
     }
 
-    /* ---------- Table Row Hover ----------
-       background-color only — this page renders hundreds of rows per view. */
+    /* ---------- Di chuột qua dòng bảng ----------
+       Chỉ đổi background-color — trang này kết xuất hàng trăm dòng cho mỗi chế độ xem. */
     tbody tr {
       transition: background-color 0.15s ease;
     }
@@ -2764,8 +2763,8 @@
       font-size: 13px;
     }
 
-    /* .loading-veil / .loader-spinner base styles live in shared.css.
-       Ensure the veil is above everything on this page. */
+    /* Kiểu cơ sở của .loading-veil / .loader-spinner nằm trong shared.css.
+       Đảm bảo màn che nằm phía trên tất cả các thành phần trên trang này. */
     .loading-veil { z-index: 9000; }
 
     .pagination-controls {
@@ -3564,46 +3563,6 @@
                   <button type="button" id="todayNewProductsPrevPage">‹ Trước</button>
                   <span id="todayNewProductsPageLabel">Trang 1/1</span>
                   <button type="button" id="todayNewProductsNextPage">Sau ›</button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">6</span>
-              <h2>Hàng ngừng kinh doanh <span class="section-note">các mã hàng chuyển sang Ngừng kinh doanh trong khoảng
-                  thời gian đã chọn ở trên</span></h2>
-            </div>
-            <div class="grid">
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Danh sách mã ngừng kinh doanh <span class="tag" id="tagDeactivatedTodayDate">—</span></h2>
-                  <div class="panel-head-actions"><span class="drill-hint" id="deactivated-today-count">—</span><button
-                      class="export-button" type="button" onclick="openExportDialog('overview.deactivated')">Xuất
-                      Excel</button></div>
-                </div>
-                <div class="scroll-list" style="max-height:420px;">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Mã hàng</th>
-                        <th>Tên hàng</th>
-                        <th>Nhóm hàng</th>
-                        <th>Ngày sửa trên KiotViet</th>
-                        <th>Trạng thái</th>
-                      </tr>
-                    </thead>
-                    <tbody id="deactivatedTodayRows">
-                      <tr>
-                        <td colspan="5" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="deactivatedTodayPagination" hidden>
-                  <button type="button" id="deactivatedTodayPrevPage">‹ Trước</button>
-                  <span id="deactivatedTodayPageLabel">Trang 1/1</span>
-                  <button type="button" id="deactivatedTodayNextPage">Sau ›</button>
                 </div>
               </div>
             </div>
@@ -4590,21 +4549,20 @@
     </section>
   </div>
 
-  <!-- Loading veil. Static markup on purpose: it used to be built at runtime
-       by three-loading.js, which meant paying for a script just to draw a
-       spinner. Styles live in shared.css (.loading-veil / .loader-spinner). -->
+  <!-- Màn hình chờ tải dữ liệu. Sử dụng HTML tĩnh có chủ đích: trước đây được tạo động
+       bằng three-loading.js, làm tiêu tốn tài nguyên tải script chỉ để vẽ một vòng quay.
+       Style được định nghĩa trong shared.css (.loading-veil / .loader-spinner). -->
   <div class="loading-veil" id="veil" role="dialog" aria-modal="true" aria-label="Đang tải" aria-busy="false">
     <div class="loader-spinner" aria-hidden="true"></div>
     <span class="loader-text" aria-hidden="true">Đang tải dữ liệu…</span>
     <span class="sr-only" aria-live="polite" aria-atomic="true">Đang tải dữ liệu</span>
   </div>
 
-  <!-- Loaded at the end of <body>, not in <head>: chart.umd.min.js alone is
-       ~200 KB and a parser-blocking script tag in the head stalls parsing of
-       this (large) document until it has downloaded AND executed. They cannot
-       be `defer`red because the inline script below uses Chart, paginate() and
-       TKSNav at top level, and inline scripts run before deferred ones — this
-       placement keeps that ordering while unblocking the parser. -->
+  <!-- Tải ở cuối thẻ <body> thay vì trong <head>: riêng chart.umd.min.js đã nặng
+       ~200 KB và thẻ script chặn bộ phân tích trong <head> sẽ làm dừng render
+       tài liệu lớn này cho đến khi tải xong VÀ thực thi. Không thể dùng `defer`
+       vì inline script bên dưới dùng Chart, paginate() và TKSNav ở cấp cao nhất,
+       và inline script luôn chạy trước script defer — cách đặt này giữ đúng thứ tự mà không chặn parser. -->
   <script src="/vendor/chart.umd.min.js"></script>
   <script src="/js/pagination.js"></script>
   <script src="/shared/shared-nav.js?v=20260822"></script>
@@ -4804,11 +4762,10 @@
       }
     }
 
-    // Reused formatter instances. Calling toLocaleString('vi-VN') on a number
-    // builds (or looks up) an Intl.NumberFormat on every single call; a table
-    // page here is 100 rows with several numeric columns each, so this runs
-    // thousands of times per render. Hoisting the formatter out makes each
-    // call a straight format() with no locale negotiation.
+    // Tái sử dụng các thực thể định dạng. Gọi toLocaleString('vi-VN') trên một số
+    // sẽ khởi tạo (hoặc tìm kiếm) một Intl.NumberFormat trong mỗi lần gọi; một trang bảng
+    // ở đây có 100 dòng với nhiều cột số, do đó hàm này chạy hàng nghìn lần mỗi lần kết xuất.
+    // Việc đưa instance định dạng ra ngoài giúp mỗi lệnh gọi trở thành format() trực tiếp mà không cần đàm phán locale.
     const VN_NUMBER = new Intl.NumberFormat('vi-VN');
     const VN_NUMBER_1DP = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
 
@@ -4887,10 +4844,9 @@
         if (!row.hasAttribute('data-sort-original-index')) row.dataset.sortOriginalIndex = index;
       });
 
-      // Reorder inside a DocumentFragment, then re-attach in one go. Appending
-      // each row straight onto the live <tbody> invalidates layout once per
-      // row — with TABLE_PAGE_SIZE at 100, and applyActiveTableSorts() running
-      // after every table render, that adds up fast.
+      // Sắp xếp lại bên trong một DocumentFragment, sau đó gắn lại một lần duy nhất. Việc
+      // gắn từng dòng trực tiếp vào <tbody> đang hiển thị sẽ làm gián đoạn layout một lần cho mỗi
+      // dòng — với TABLE_PAGE_SIZE là 100 và applyActiveTableSorts() chạy sau mỗi lần render bảng, chi phí sẽ tăng rất nhanh.
       const fragment = document.createDocumentFragment();
       rows
         .map(function (row, originalIndex) {
@@ -5051,7 +5007,7 @@
           checkedAt: new Date().toISOString()
         };
         localStorage.setItem('stockoutCheck:lastState', JSON.stringify(payload));
-      } catch (err) { /* localStorage unavailable or quota exceeded — persistence is best-effort */ }
+      } catch (err) { /* localStorage không khả dụng hoặc vượt quá dung lượng lưu trữ — lưu trạng thái theo cơ chế nỗ lực tối đa */ }
     }
 
     function restoreStockoutCheckState() {
@@ -5354,8 +5310,7 @@
         invoices: cloneExportFilter(state.filters.invoices),
         customers: cloneExportFilter(state.filters.customers, 'all'),
         newPurchases: cloneExportFilter(state.filters.overview),
-        newProducts: cloneExportFilter(state.filters.overview),
-        deactivated: cloneExportFilter(state.filters.overview)
+        newProducts: cloneExportFilter(state.filters.overview)
       };
     }
 
@@ -6789,13 +6744,11 @@
         ? result.items.map(rowHtmlFn).join('')
         : '<tr><td colspan="' + emptyColspan + '" class="table-note">' + emptyMessage + '</td></tr>';
 
-      // Re-apply this table's active column sort to the freshly rendered rows.
-      // Without it, paging (Prev/Next) leaves the new page's rows in raw
-      // (unsorted) order even though the header still shows the sort arrow.
-      // Only THIS table is re-sorted: the previous applyActiveTableSorts() call
-      // here re-sorted every table that had a sort recorded, on every single
-      // table render, which is up to 100 row moves per unrelated table for no
-      // change in output.
+      // Áp dụng lại trạng thái sắp xếp cột đang hoạt động của bảng này cho các dòng mới render.
+      // Nếu không có bước này, việc chuyển trang (Trước/Sau) sẽ để các dòng ở trang mới ở thứ tự
+      // chưa sắp xếp mặc dù tiêu đề cột vẫn hiển thị mũi tên sắp xếp.
+      // Chỉ bảng NÀY được sắp xếp lại: lệnh gọi applyActiveTableSorts() trước đây tại đây
+      // đã sắp xếp lại mọi bảng có lưu trạng thái sort trên mỗi lần render bảng, gây ra tối đa 100 thao tác di chuyển dòng cho mỗi bảng không liên quan mà không thay đổi kết quả hiển thị.
       const activeSort = state.tableSorts[ids.tbody];
       if (activeSort) {
         sortTableRows(ids.tbody, activeSort.columnIndex, activeSort.direction);
@@ -7198,23 +7151,6 @@
           6,
           todayNewProducts.dateColumnAvailable === false ? 'Sheet Hàng hóa chưa có cột Ngày tạo' : 'Chưa có mã hàng mới tạo trong khoảng đã chọn'
         );
-
-        const deactivatedToday = ov.deactivatedToday || { label: '—', count: 0, products: [] };
-        const deactivatedRows = deactivatedToday.products || [];
-        document.getElementById('tagDeactivatedTodayDate').textContent = deactivatedToday.label || '—';
-        document.getElementById('deactivated-today-count').textContent = 'Tổng ' + fmtNumber(Number(deactivatedToday.count || 0)) + ' mã ngừng kinh doanh';
-        renderPaginatedRows(
-          'deactivatedToday',
-          { tbody: 'deactivatedTodayRows', pagination: 'deactivatedTodayPagination', prevBtn: 'deactivatedTodayPrevPage', nextBtn: 'deactivatedTodayNextPage', label: 'deactivatedTodayPageLabel' },
-          deactivatedRows,
-          p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
-            '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-            '<td>' + escapeHtml(p.category || 'Chưa phân nhóm') + '</td>' +
-            '<td class="mono muted">' + (p.modifiedAt ? escapeHtml(p.modifiedAt) : '—') + '</td>' +
-            '<td>' + bizStatusPill(p.status) + '</td></tr>',
-          5,
-          'Chưa có mã ngừng kinh doanh trong khoảng đã chọn'
-        );
       }
       else if (view === 'products') {
         const productRangeLabel = d.filters && d.filters.products ? d.filters.products.label : '30 ngày';
@@ -7501,10 +7437,9 @@
         8,
         'Không có khách hàng nào trong kỳ này'
       );
-      // applyActiveTableSorts() is now called inside renderPaginatedRows()
-      // itself (right after tbody.innerHTML is set), so every table using that
-      // shared helper gets this consistently — no need to repeat it here for
-      // the debt table specifically anymore.
+      // applyActiveTableSorts() hiện đã được gọi bên trong renderPaginatedRows()
+      // (ngay sau khi thiết lập tbody.innerHTML), vì vậy mọi bảng sử dụng hàm
+      // dùng chung đó đều nhận được xử lý nhất quán — không cần lặp lại ở đây riêng cho bảng công nợ nữa.
     }
 
     function toggleDebtDetail(triggerRow) {

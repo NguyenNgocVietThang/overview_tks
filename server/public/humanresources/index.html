@@ -99,8 +99,8 @@
     display:inline-flex; align-items:center; padding:3px 24px 3px 10px; border-radius:var(--radius-pill);
     font-family:var(--font-body); font-size:11.5px; font-weight:600; cursor:pointer;
     border:1px solid transparent; outline:none;
-    /* Named properties, not `all`: `all` makes the browser re-check every
-       animatable property on this element whenever any style changes. */
+    /* Chỉ định các thuộc tính cụ thể, không dùng `all`: `all` buộc trình duyệt phải kiểm tra lại mọi
+       thuộc tính có thể chuyển động trên phần tử này mỗi khi có style thay đổi. */
     transition:background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, opacity .15s ease;
     appearance:none; -webkit-appearance:none; -moz-appearance:none;
     background-repeat:no-repeat; background-position:right 7px center; background-size:11px 11px;
@@ -492,9 +492,7 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
-  <!-- End of <body> rather than <head>: chart.umd.min.js is ~200 KB and would
-       otherwise block the parser. Not `defer`red because the inline script
-       below uses TKSNav/Chart at top level and inline scripts run first. -->
+  <!-- Đặt ở cuối thẻ <body> thay vì trong <head>: chart.umd.min.js nặng ~200 KB và sẽ làm nghẽn bộ phân tích cú pháp. Không dùng `defer` vì script inline bên dưới dùng TKSNav/Chart ở cấp cao nhất và script inline luôn chạy trước. -->
   <script src="/shared/shared-nav.js?v=20260822"></script>
   <script src="/vendor/chart.umd.min.js"></script>
 
@@ -1423,6 +1421,6 @@
       });
     });
   </script>
-  <!-- 3D Background Particle System -->
+  <!-- Hệ thống hạt nền -->
 </body>
 </html>

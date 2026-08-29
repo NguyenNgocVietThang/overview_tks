@@ -274,9 +274,7 @@ body{
   </a>
 </nav>
 
-<!-- Moved out of <head>: a parser-blocking script there stalls parsing of the
-     whole document. Not `defer`red because the inline script below uses TKSNav
-     at top level, and inline scripts run before deferred ones. -->
+<!-- Đặt ở cuối thẻ body thay vì trong <head>: script chặn phân tích cú pháp trong <head> sẽ làm dừng việc xử lý toàn bộ tài liệu. Không dùng `defer` vì script inline bên dưới dùng TKSNav ở cấp cao nhất, và script inline luôn chạy trước script defer. -->
 <script src="/shared/shared-nav.js?v=20260822"></script>
 
 <script>
@@ -297,7 +295,7 @@ body{
 
   document.getElementById('btnCancelExc').addEventListener('click', closeExceptionDialog);
 
-  /* Theme toggle via query (optional) */
+  /* Chuyển đổi giao diện Theme qua query (tùy chọn) */
   const THEME_KEY = 'tks-dashboard-theme';
   function toggleTheme(){
     const n = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
@@ -306,6 +304,6 @@ body{
   }
 </script>
 <script src="/shipment/mobile/mobile.js"></script>
-<!-- 3D Background Particle System (auto-reduced to 100 particles on mobile) -->
+<!-- Hệ thống hạt nền (tự động giảm còn 100 hạt trên di động) -->
 </body>
 </html>

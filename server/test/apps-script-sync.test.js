@@ -108,47 +108,11 @@ function createMemorySheet(name, initialRows, options = {}) {
 }
 
 describe('Compact KiotViet sheet schemas', () => {
-  it('builds the full discontinued reconciliation set from the synced product sheet without KiotViet API calls', () => {
-    const context = loadAppsScript([
-      'src-dashboard/config/Config.gs',
-      'src-dashboard/utils/Helpers.gs',
-      'src-dashboard/kiotviet/DiscontinuedProducts.gs'
-    ]);
-    const products = vm.runInContext(`productSheetRowsToDiscontinuedProducts_([
-      ['Mã hàng','Tên hàng','Nhóm hàng','Loại hàng','Giá vốn','Giá bán','Tồn kho','Khách đặt','Trạng thái','Ngày sửa cuối','Mã nhóm hàng','Vị trí','ID hàng hóa','ID gian hàng','Được phép bán','Tên gốc','Mô tả','Giá trị quy đổi','Có thuộc tính','Đang hoạt động','Ngày tạo','Ngày cập nhật','Mã loại hàng'],
-      ['A-01','Sản phẩm ngừng','Nhóm A','Hàng hóa',12000,18000,3,2,'Ngừng kinh doanh','26/08/2026 09:30','N-A','Kệ 1','101','501','Có','Sản phẩm ngừng','Mô tả A',1,'Không','Không','01/01/2026 08:00','26/08/2026 09:30',2],
-      ['A-02','Sản phẩm đang bán','Nhóm A','Hàng hóa',10000,15000,9,0,'Đang kinh doanh','26/08/2026 10:00','N-A','Kệ 2','102','501','Có','Sản phẩm đang bán','',1,'Không','Có','01/01/2026 08:00','26/08/2026 10:00',2]
-    ])`, context);
-
-    assert.equal(products.length, 1);
-    assert.deepEqual(JSON.parse(JSON.stringify(products[0])), {
-      id: '101',
-      retailerId: '501',
-      code: 'A-01',
-      name: 'Sản phẩm ngừng',
-      fullName: 'Sản phẩm ngừng',
-      type: 2,
-      categoryId: 'N-A',
-      categoryName: 'Nhóm A',
-      conversionValue: 1,
-      allowsSale: true,
-      hasVariants: false,
-      basePrice: 18000,
-      description: 'Mô tả A',
-      isActive: false,
-      modifiedDate: '26/08/2026 09:30',
-      createdDate: '01/01/2026 08:00',
-      inventories: [{ onHand: 3, reserved: 2, onOrder: 0 }],
-      fromProductSheet: true
-    });
-  });
-
   it('keeps every sync row aligned with its compact header list', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
-      'src-dashboard/kiotviet/SheetSchemas.gs',
-      'src-dashboard/kiotviet/DiscontinuedProducts.gs'
+      'src-dashboard/kiotviet/SheetSchemas.gs'
     ]);
     const checks = vm.runInContext(`(() => {
       const rows = {};
@@ -158,10 +122,6 @@ describe('Compact KiotViet sheet schemas', () => {
         const input = key === 'purchases' ? { order: {}, detail: {} } : {};
         rows[key] = [schema.headers.length, schema.buildRow(input).length];
       });
-      rows.discontinued = [
-        DISCONTINUED_HEADERS.length,
-        discontinuedProductRow_({}, 'test').length
-      ];
       return rows;
     })()`, context);
 
@@ -176,8 +136,7 @@ describe('Compact KiotViet sheet schemas', () => {
       'src-dashboard/utils/Helpers.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/CustomerReport.gs',
-      'src-dashboard/kiotviet/CustomerDebtReport.gs',
-      'src-dashboard/kiotviet/DiscontinuedProducts.gs'
+      'src-dashboard/kiotviet/CustomerDebtReport.gs'
     ]);
     const remaining = vm.runInContext(`(() => {
       const checks = {
@@ -189,7 +148,6 @@ describe('Compact KiotViet sheet schemas', () => {
         orders: ['Tổng thuế'],
         returns: ['Mã hóa đơn gốc', 'ID gian hàng', 'Tổng thuế'],
         purchases: ['Ngày cập nhật', 'Điện thoại', 'Địa chỉ', 'Thương hiệu', 'ĐVT'],
-        discontinued: ['Thời gian phát hiện', 'Mã vạch', 'ID thương hiệu', 'Dữ liệu API đầy đủ (JSON)'],
         customerByProduct: ['Thương hiệu', 'Đơn vị tính'],
         customerDebt: ['Thương hiệu', 'VAT bán hàng', 'VAT hoàn lại', 'Thu khác']
       };
@@ -202,7 +160,6 @@ describe('Compact KiotViet sheet schemas', () => {
         orders: KIOTVIET_SHEET_SCHEMAS.orders.headers,
         returns: KIOTVIET_SHEET_SCHEMAS.returns.headers,
         purchases: KIOTVIET_SHEET_SCHEMAS.purchases.headers,
-        discontinued: DISCONTINUED_HEADERS,
         customerByProduct: CUSTOMER_BY_PRODUCT_REPORT_HEADERS,
         customerDebt: CUSTOMER_DEBT_REPORT_HEADERS
       };
@@ -315,6 +272,279 @@ describe('Google Sheets typed-column formatting', () => {
 });
 
 describe('Separated dashboard and shipment projects', () => {
+  it('claims at most one hundred webhook items after same-type deliveries are coalesced', () => {
+    const headers = ['ID', 'Received', 'Type', 'Payload', 'Status', 'Attempts', 'Lease', 'Error'];
+    const rows = [headers];
+    for (let index = 1; index <= 105; index++) {
+      rows.push(['webhook-' + index, new Date(), 'product.update', '{}', 'PENDING', 0, '', '']);
+    }
+    const queueSheet = createMemorySheet('_KV_WEBHOOK_QUEUE', rows);
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ], {
+      LockService: {
+        getScriptLock() {
+          return { tryLock() { return true; }, releaseLock() {} };
+        }
+      },
+      SpreadsheetApp: {
+        getActiveSpreadsheet() {
+          return { getSheetByName() { return queueSheet; } };
+        },
+        flush() {}
+      }
+    });
+
+    const claimed = context.claimWebhookQueueBatch_();
+
+    assert.equal(claimed.length, 100);
+    assert.equal(queueSheet.getRows().filter(row => row[4] === 'PROCESSING').length, 100);
+    assert.equal(queueSheet.getRows().filter(row => row[4] === 'PENDING').length, 5);
+  });
+
+  it('ignores blank queue rows instead of turning them into processing work', () => {
+    const headers = ['ID', 'Received', 'Type', 'Payload', 'Status', 'Attempts', 'Lease', 'Error'];
+    const queueSheet = createMemorySheet('_KV_WEBHOOK_QUEUE', [
+      headers,
+      ['valid-1', new Date(), 'stock.update', '{}', 'PENDING', 0, '', ''],
+      ['', '', '', '', '', '', '', ''],
+      ['', '', '', '', 'PROCESSING', 1, new Date(), '']
+    ]);
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ], {
+      LockService: {
+        getScriptLock() {
+          return { tryLock() { return true; }, releaseLock() {} };
+        }
+      },
+      SpreadsheetApp: {
+        getActiveSpreadsheet() {
+          return { getSheetByName() { return queueSheet; } };
+        },
+        flush() {}
+      }
+    });
+
+    const claimed = context.claimWebhookQueueBatch_();
+
+    assert.equal(Array.from(claimed, item => item.id).join(','), 'valid-1');
+    assert.deepEqual(queueSheet.getRows()[2].slice(4, 8), ['', '', '', '']);
+    assert.deepEqual(queueSheet.getRows()[3].slice(4, 8), ['', '', '', '']);
+  });
+
+  it('includes invoice events in the next batch even when product backlog is older', () => {
+    const headers = ['ID', 'Received', 'Type', 'Payload', 'Status', 'Attempts', 'Lease', 'Error'];
+    const rows = [headers];
+    for (let index = 1; index <= 12; index++) {
+      rows.push(['product-' + index, new Date(), 'stock.update', '{}', 'PENDING', 0, '', '']);
+    }
+    rows.push(['invoice-1', new Date(), 'invoice.update', '{}', 'PENDING', 0, '', '']);
+    const queueSheet = createMemorySheet('_KV_WEBHOOK_QUEUE', rows);
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ], {
+      LockService: {
+        getScriptLock() {
+          return { tryLock() { return true; }, releaseLock() {} };
+        }
+      },
+      SpreadsheetApp: {
+        getActiveSpreadsheet() {
+          return { getSheetByName() { return queueSheet; } };
+        },
+        flush() {}
+      }
+    });
+
+    const claimed = context.claimWebhookQueueBatch_();
+
+    assert.equal(claimed.length, 1);
+    assert.equal(claimed.some(item => item.id === 'invoice-1'), true);
+  });
+
+  it('claims up to fifty invoice events so detail rows are rewritten once per burst', () => {
+    const headers = ['ID', 'Received', 'Type', 'Payload', 'Status', 'Attempts', 'Lease', 'Error'];
+    const rows = [headers];
+    for (let index = 1; index <= 55; index++) {
+      rows.push(['invoice-' + index, new Date(), 'invoice.update', '{}', 'PENDING', 0, '', '']);
+    }
+    const queueSheet = createMemorySheet('_KV_WEBHOOK_QUEUE', rows);
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ], {
+      LockService: {
+        getScriptLock() {
+          return { tryLock() { return true; }, releaseLock() {} };
+        }
+      },
+      SpreadsheetApp: {
+        getActiveSpreadsheet() {
+          return { getSheetByName() { return queueSheet; } };
+        },
+        flush() {}
+      }
+    });
+
+    assert.equal(context.claimWebhookQueueBatch_().length, 50);
+  });
+
+  it('reclaims an expired webhook lease with a fresh attempt budget after infrastructure timeouts', () => {
+    const headers = ['ID', 'Received', 'Type', 'Payload', 'Status', 'Attempts', 'Lease', 'Error'];
+    const staleLease = new Date(Date.now() - 11 * 60 * 1000);
+    const queueSheet = createMemorySheet('_KV_WEBHOOK_QUEUE', [
+      headers,
+      ['stuck', new Date(), 'invoice.update', '{}', 'PROCESSING', 10, staleLease, '']
+    ]);
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ], {
+      LockService: {
+        getScriptLock() {
+          return { tryLock() { return true; }, releaseLock() {} };
+        }
+      },
+      SpreadsheetApp: {
+        getActiveSpreadsheet() {
+          return { getSheetByName() { return queueSheet; } };
+        },
+        flush() {}
+      }
+    });
+
+    const claimed = context.claimWebhookQueueBatch_();
+
+    assert.equal(claimed.length, 1);
+    assert.equal(queueSheet.getRows()[1][4], 'PROCESSING');
+    assert.equal(queueSheet.getRows()[1][5], 1);
+    assert.equal(queueSheet.getRows()[1][7], '');
+  });
+
+  it('recovers processing webhook rows without deleting their payloads', () => {
+    const headers = ['ID', 'Received', 'Type', 'Payload', 'Status', 'Attempts', 'Lease', 'Error'];
+    const queueSheet = createMemorySheet('_KV_WEBHOOK_QUEUE', [
+      headers,
+      ['stuck', new Date(), 'invoice.update', '{"invoice":1}', 'PROCESSING', 27, new Date(), ''],
+      ['waiting', new Date(), 'order.update', '{"order":1}', 'PENDING', 0, '', '']
+    ]);
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ], {
+      LockService: {
+        getScriptLock() {
+          return { waitLock() {}, releaseLock() {} };
+        }
+      },
+      SpreadsheetApp: {
+        getActiveSpreadsheet() {
+          return { getSheetByName() { return queueSheet; } };
+        },
+        flush() {}
+      }
+    });
+
+    const recovered = context.recoverStuckWebhookQueue();
+
+    assert.equal(recovered, 1);
+    assert.deepEqual(queueSheet.getRows()[1].slice(2, 8), [
+      'invoice.update', '{"invoice":1}', 'PENDING', 0, '', ''
+    ]);
+    assert.equal(queueSheet.getRows()[2][4], 'PENDING');
+  });
+
+  it('automatically recovers legacy quarantine errors without touching active leases', () => {
+    const headers = ['ID', 'Received', 'Type', 'Payload', 'Status', 'Attempts', 'Lease', 'Error'];
+    const properties = {};
+    const queueSheet = createMemorySheet('_KV_WEBHOOK_QUEUE', [
+      headers,
+      ['legacy', new Date(), 'invoice.update', '{"invoice":1}', 'PROCESSING', 27, new Date(), ''],
+      ['quarantined', new Date(), 'stock.update', '{"stock":1}', 'ERROR', 27, '',
+        'Lease xu ly het han qua 10 lan; can phuc hoi hang doi sau khi sua nguyen nhan timeout.']
+    ]);
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ], {
+      LockService: {
+        getScriptLock() {
+          return { tryLock() { return true; }, releaseLock() {} };
+        }
+      },
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return properties[name] || null; },
+            setProperty(name, value) { properties[name] = value; }
+          };
+        }
+      },
+      SpreadsheetApp: {
+        getActiveSpreadsheet() {
+          return { getSheetByName() { return queueSheet; } };
+        },
+        flush() {}
+      }
+    });
+
+    assert.equal(context.recoverWebhookQueueAfterBatchResize_(), 1);
+    assert.equal(queueSheet.getRows()[1][4], 'PROCESSING');
+    assert.equal(queueSheet.getRows()[1][5], 27);
+    assert.equal(queueSheet.getRows()[2][4], 'PENDING');
+    assert.equal(queueSheet.getRows()[2][5], 0);
+    assert.equal(context.recoverWebhookQueueAfterBatchResize_(), 0);
+  });
+
+  it('finalizes a processed webhook batch once instead of reacquiring the script lock per item', () => {
+    const finalizedBatches = [];
+    let individualFinalizations = 0;
+    let claimCalls = 0;
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ]);
+    context.isShipmentLifecycleMode_ = () => true;
+    context.recoverWebhookQueueAfterBatchResize_ = () => 0;
+    context.claimWebhookQueueBatch_ = () => {
+      claimCalls++;
+      return claimCalls === 1
+        ? [
+          { id: 'webhook-1', eventType: 'product.update', payload: '{}' },
+          { id: 'webhook-2', eventType: 'customer.update', payload: '{}' }
+        ]
+        : [];
+    };
+    context.getKiotVietDataLock_ = () => ({
+      waitLock() {},
+      hasLock() { return true; },
+      releaseLock() {}
+    });
+    context.processWebhookQueueItem_ = () => {};
+    context.finalizeWebhookQueueItem_ = () => { individualFinalizations++; };
+    context.finalizeWebhookQueueBatch_ = results => finalizedBatches.push(results);
+
+    context.processWebhookQueue();
+
+    assert.equal(individualFinalizations, 0);
+    assert.equal(finalizedBatches.length, 1);
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(finalizedBatches[0].map(result => ({
+        id: result.id,
+        error: result.error,
+        skipAttemptPenalty: result.skipAttemptPenalty
+      })))),
+      [
+        { id: 'webhook-1', error: null, skipAttemptPenalty: false },
+        { id: 'webhook-2', error: null, skipAttemptPenalty: false }
+      ]
+    );
+  });
+
   it('keeps the dashboard project on the full 9-event profile', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
@@ -345,7 +575,6 @@ describe('Separated dashboard and shipment projects', () => {
     context.setupQueueProcessingTrigger = () => installed.push('queue');
     context.setupPollingTrigger = () => installed.push('polling');
     context.setupCustomerReportDailyTrigger = () => installed.push('customer-reports');
-    context.setupHangNgungKinhDoanhTrigger_ = () => installed.push('discontinued');
     context.setupCustomerDebtReportDailyTrigger = () => installed.push('debt');
     context.reconcileKiotVietAutoSyncWebhooks_ = () => ({
       activeCount: 9,
@@ -360,7 +589,6 @@ describe('Separated dashboard and shipment projects', () => {
       'queue',
       'polling',
       'customer-reports',
-      'discontinued',
       'debt'
     ]);
   });
@@ -405,13 +633,92 @@ describe('Separated dashboard and shipment projects', () => {
       }
     });
     context.isShipmentLifecycleMode_ = () => false;
+    context.recoverWebhookQueueAfterBatchResize_ = () => 0;
     context.getKiotVietDataLock_ = () => ({ tryLock() { return false; } });
     context.claimWebhookQueueBatch_ = () => [];
     context.ensureMasterChainResumeTrigger_ = () => { watchdogCalls++; };
+    context.ensurePollingOnlyResumeTrigger_ = () => {};
 
     context.processWebhookQueue();
 
     assert.equal(watchdogCalls, 1);
+  });
+
+  it('merges same-type webhook deliveries into one sheet update and deduplicates item ids', () => {
+    let claimCalls = 0;
+    const processedPayloads = [];
+    const finalizedBatches = [];
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ]);
+    context.isShipmentLifecycleMode_ = () => true;
+    context.recoverWebhookQueueAfterBatchResize_ = () => 0;
+    context.claimWebhookQueueBatch_ = () => {
+      claimCalls++;
+      if (claimCalls > 1) return [];
+      return [
+        {
+          id: 'queue-1', eventType: 'product.update',
+          payload: JSON.stringify({ Id: 'delivery-1', Notifications: [{ Action: 'product.update', Data: [{ Id: 1 }] }] })
+        },
+        {
+          id: 'queue-2', eventType: 'product.update',
+          payload: JSON.stringify({ Id: 'delivery-2', Notifications: [{ Action: 'product.update', Data: [{ Id: 2 }] }] })
+        },
+        {
+          id: 'queue-3', eventType: 'product.update',
+          payload: JSON.stringify({ Id: 'delivery-2', Notifications: [{ Action: 'product.update', Data: [{ Id: 2 }] }] })
+        }
+      ];
+    };
+    context.getKiotVietDataLock_ = () => ({
+      waitLock() {},
+      hasLock() { return true; },
+      releaseLock() {}
+    });
+    context.processWebhookQueueItem_ = queueItem => {
+      processedPayloads.push(JSON.parse(queueItem.payload));
+    };
+    context.finalizeWebhookQueueBatch_ = results => {
+      finalizedBatches.push(results);
+      return true;
+    };
+
+    context.processWebhookQueue();
+
+    assert.equal(processedPayloads.length, 1);
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(processedPayloads[0].Notifications)),
+      [{ Action: 'product.update', Data: [{ Id: 1 }, { Id: 2 }] }]
+    );
+    assert.deepEqual(Array.from(finalizedBatches[0], result => result.id), [
+      'queue-1', 'queue-2', 'queue-3'
+    ]);
+  });
+
+  it('checks for a stalled polling sync on every dashboard queue tick', () => {
+    let pollingWatchdogCalls = 0;
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return { getProperty() { return null; } };
+        }
+      }
+    });
+    context.isShipmentLifecycleMode_ = () => false;
+    context.recoverWebhookQueueAfterBatchResize_ = () => 0;
+    context.getKiotVietDataLock_ = () => ({ tryLock() { return false; } });
+    context.claimWebhookQueueBatch_ = () => [];
+    context.ensureMasterChainResumeTrigger_ = () => {};
+    context.ensurePollingOnlyResumeTrigger_ = () => { pollingWatchdogCalls++; };
+
+    context.processWebhookQueue();
+
+    assert.equal(pollingWatchdogCalls, 1);
   });
 
   it('skips heavy queue maintenance while the master backfill is active', () => {
@@ -432,7 +739,9 @@ describe('Separated dashboard and shipment projects', () => {
       }
     });
     context.isShipmentLifecycleMode_ = () => false;
+    context.recoverWebhookQueueAfterBatchResize_ = () => 0;
     context.ensureMasterChainResumeTrigger_ = () => {};
+    context.ensurePollingOnlyResumeTrigger_ = () => {};
     context.getKiotVietDataLock_ = () => ({
       tryLock() { return true; },
       releaseLock() {}
@@ -449,56 +758,6 @@ describe('Separated dashboard and shipment projects', () => {
 
     assert.equal(maintenanceCalls, 0);
     assert.equal(claimedBatches, 1);
-  });
-
-  it('loads the shipment project with its own lifecycle mode and entry points', () => {
-    const context = loadAppsScript([
-      'src-order-lifecycle/config/Config.gs',
-      'src-order-lifecycle/kiotviet/Auth.gs',
-      'src-order-lifecycle/kiotviet/SheetSchemas.gs',
-      'src-order-lifecycle/kiotviet/WebhookAdmin.gs',
-      'src-order-lifecycle/shipment/KiotVietLifecycle.gs',
-      'src-order-lifecycle/sync/UpdateHandlers.gs',
-      'src-order-lifecycle/sync/WebhookQueue.gs',
-      'src-order-lifecycle/utils/Helpers.gs'
-    ], {
-      PropertiesService: {
-        getScriptProperties() {
-          return {
-            getProperty(name) {
-              return name === 'KIOTVIET_SYNC_MODE' ? 'SHIPMENT_LIFECYCLE' : null;
-            }
-          };
-        }
-      }
-    });
-
-    assert.equal(context.getKiotVietSyncMode_(), 'SHIPMENT_LIFECYCLE');
-    assert.equal(typeof context.setupShipmentLifecycleSync, 'function');
-    assert.equal(typeof context.processShipmentLifecycleWebhookItems_, 'function');
-  });
-
-  it('routes invoice.update to shipment lifecycle inside the shipment project', () => {
-    const calls = [];
-    const context = loadAppsScript([
-      'src-order-lifecycle/config/Config.gs',
-      'src-order-lifecycle/sync/WebhookQueue.gs'
-    ], {
-      processShipmentLifecycleWebhookItems_(action, items) {
-        calls.push([action, items]);
-      }
-    });
-
-    context.processWebhookQueueItem_({
-      eventType: 'invoice.update',
-      payload: JSON.stringify({
-        Notifications: [{ Action: 'invoice.update', Data: [{ Id: 456 }] }]
-      })
-    });
-
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0][0], 'invoice.update');
-    assert.equal(calls[0][1][0].Id, 456);
   });
 });
 
@@ -1149,7 +1408,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     assert.equal(status.invoiceDetailRows, 2);
   });
 
-  it('restarts only the invoice backfill under the shared data lock', () => {
+  it('restarts only the invoice backfill under the invoice data lock', () => {
     const properties = {
       SYNC_CHUNK_STATE_invoices: '{"currentItem":100}',
       SYNC_CHUNK_STATE_orders: '{"currentItem":200}',
@@ -1164,6 +1423,14 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
+      LockService: {
+        getUserLock() {
+          return {
+            tryLock() { return true; },
+            releaseLock() { lockReleased = true; }
+          };
+        }
+      },
       PropertiesService: {
         getScriptProperties() {
           return {
@@ -1173,10 +1440,6 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
           };
         }
       }
-    });
-    context.getKiotVietDataLock_ = () => ({
-      tryLock() { return true; },
-      releaseLock() { lockReleased = true; }
     });
     context.removeSpecificChunkTrigger_ = handler => removedHandlers.push(handler);
     context.syncKiotVietTableChunk_ = schemaKey => {
@@ -1237,6 +1500,48 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
       handler: 'resumePollingOnlyChunk_',
       delayMs: 300000
     }]);
+  });
+
+  it('restores a missing polling resume trigger without clearing purchase progress', () => {
+    const createdTriggers = [];
+    const properties = {
+      POLLING_ONLY_CHAIN_INDEX: '2',
+      SYNC_CHUNK_STATE_purchases: '{"currentItem":21320}'
+    };
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/kiotviet/SyncInitial.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return properties[name] || null; },
+            setProperty(name, value) { properties[name] = value; },
+            deleteProperty(name) { delete properties[name]; }
+          };
+        }
+      },
+      ScriptApp: {
+        getProjectTriggers() { return []; },
+        newTrigger(handler) {
+          return {
+            timeBased() { return this; },
+            after(delayMs) { this.delayMs = delayMs; return this; },
+            create() { createdTriggers.push({ handler, delayMs: this.delayMs }); }
+          };
+        }
+      }
+    });
+
+    assert.equal(context.ensurePollingOnlyResumeTrigger_(), true);
+    assert.deepEqual(createdTriggers, [{
+      handler: 'resumePollingOnlyChunk_',
+      delayMs: 300000
+    }]);
+    assert.equal(properties.POLLING_ONLY_CHAIN_INDEX, '2');
+    assert.equal(properties.SYNC_CHUNK_STATE_purchases, '{"currentItem":21320}');
   });
 
   it('reschedules the master chain when another sync holds the data lock', () => {
@@ -1374,10 +1679,8 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
       releaseLock() {}
     });
     context.migrateKiotVietSheetsIfNeeded_ = () => {};
-    context.migrateLegacyDiscontinuedSheet_ = () => {};
     context.getKiotVietToken = () => 'fake-token';
     context.syncCustomerDebtReports = () => { reportCalls++; };
-    context.syncHangNgungKinhDoanh_ = () => { reportCalls++; };
     context.syncCustomerReport = () => { reportCalls++; };
     context.removeAllChunkResumeTriggers_ = () => { removedResumeTriggers++; };
 

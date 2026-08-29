@@ -142,9 +142,7 @@
     </main>
   </div>
 
-  <!-- Moved out of <head>: a parser-blocking script there stalls parsing of the
-       whole document. Not `defer`red because the inline script below uses TKSNav
-       at top level, and inline scripts run before deferred ones. -->
+  <!-- Đặt ở cuối thẻ body thay vì trong <head>: script chặn phân tích cú pháp trong <head> sẽ làm dừng việc xử lý toàn bộ tài liệu. Không dùng `defer` vì script inline bên dưới dùng TKSNav ở cấp cao nhất, và script inline luôn chạy trước script defer. -->
   <script src="/shared/shared-nav.js?v=20260822"></script>
 
   <script>
@@ -247,6 +245,6 @@
       if (nav) nav.style.display = 'flex';
     });
   </script>
-  <!-- 3D Background Particle System -->
+  <!-- Hệ thống hạt nền -->
 </body>
 </html>

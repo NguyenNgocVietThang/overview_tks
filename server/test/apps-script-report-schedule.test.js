@@ -19,14 +19,6 @@ function loadAppsScript() {
   return context;
 }
 
-function loadDiscontinuedProducts(context) {
-  const source = fs.readFileSync(
-    path.join(__dirname, '../../src-dashboard/kiotviet/DiscontinuedProducts.gs'),
-    'utf8'
-  );
-  vm.runInContext(source, context, { filename: 'DiscontinuedProducts.gs' });
-}
-
 function readScheduleDocumentation(relativePath) {
   return fs.readFileSync(path.join(__dirname, '../..', relativePath), 'utf8');
 }
@@ -122,7 +114,7 @@ test('operator documentation uses staggered report schedules instead of obsolete
     'docs/02-srs/SRS_Dashboard_GoogleSheets.md'
   ]) {
     const contents = readScheduleDocumentation(relativePath);
-    for (const scheduleTime of ['06:00', '06:30', '07:00', '07:30']) {
+    for (const scheduleTime of ['06:00', '06:30', '07:00']) {
       assert.ok(
         contents.includes(scheduleTime),
         `${relativePath} must document the ${scheduleTime} schedule`
@@ -206,24 +198,6 @@ test('headroom cleanup stops as soon as enough cells have been reclaimed', () =>
   assert.equal(untouched.getMaxRows(), 2);
 });
 
-test('discontinued product append grows the grid before writing a new event', () => {
-  const context = loadAppsScript();
-  context.CONFIG = { SHEET_DISCONTINUED_PRODUCTS: 'Hàng ngừng kinh doanh' };
-  loadDiscontinuedProducts(context);
-  const output = createGridSheet('Hàng ngừng kinh doanh', 1, 42, 1, 42);
-  createGridSpreadsheet([output]);
-
-  assert.doesNotThrow(() => context.upsertDiscontinuedEvent_(output, {
-    id: 123,
-    code: 'SP-123',
-    name: 'Sản phẩm 123',
-    isActive: false,
-    inventories: []
-  }, 'Ngừng kinh doanh'));
-  assert.equal(output.getMaxRows(), 2);
-  assert.equal(output.getLastRow(), 2);
-});
-
 function createTriggerRecorder(existingHandlers = []) {
   const createdTriggers = [];
   const deletedHandlers = [];
@@ -284,6 +258,13 @@ function createCustomerReportHarness() {
   context.getKiotVietToken = () => 'token';
   context.LockService = {
     getScriptLock: () => ({
+      tryLock: () => true,
+      releaseLock: () => {}
+    }),
+    // customerProductReportFinalize_ takes getKiotVietInvoiceLock_() (UserLock)
+    // around the actual sheet write, so it never races the invoice webhook's
+    // incremental update to the same "Hàng bán theo khách" sheet.
+    getUserLock: () => ({
       tryLock: () => true,
       releaseLock: () => {}
     })
@@ -439,22 +420,6 @@ test('setupCustomerReportDailyTrigger creates staggered schedules and replaces o
     'syncCustomerByProductReport'
   ]);
   assert.ok(!recorder.deletedHandlers.includes('unrelatedHandler'));
-});
-
-test('setupHangNgungKinhDoanhTrigger_ schedules discontinued products for 07:30', () => {
-  const recorder = createTriggerRecorder();
-  const context = vm.createContext({
-    console,
-    CONFIG: { SHEET_DISCONTINUED_PRODUCTS: 'Hàng ngừng kinh doanh' },
-    ScriptApp: recorder.scriptApp
-  });
-  loadDiscontinuedProducts(context);
-
-  context.setupHangNgungKinhDoanhTrigger_();
-
-  assert.deepEqual(recorder.createdTriggers, [
-    { handler: 'capNhatHangNgungKinhDoanh', hour: 7, minute: 30, timezone: 'Asia/Ho_Chi_Minh' }
-  ]);
 });
 
 test('syncCustomerReportIfDue_ runs at most one overdue report per queue invocation', () => {

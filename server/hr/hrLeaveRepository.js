@@ -276,7 +276,7 @@ async function getUrgentFlagSummary(month, branch) {
   }));
 }
 
-// ---- Telegram link codes ----------------------------------------------------
+// ---- Mã liên kết Telegram ----------------------------------------------------
 
 async function createLinkCode(webUsername, branch) {
   if (!webUsername) throw new HrError('Thiếu tài khoản web để tạo mã liên kết.', 400, 'INVALID_REQUEST');

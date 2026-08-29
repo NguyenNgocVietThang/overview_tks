@@ -1,16 +1,16 @@
 /**
  * no-3d-effects.test.js
  *
- * The dashboard used to ship a full 3D layer: a Three.js WebGL particle
- * background, a CSS-3D cube loader, and perspective/translateZ hover effects on
- * cards, nav items, search boxes and — worst of all — every single <tbody> row.
- * It was removed because it made the dashboard unusably slow on ordinary
- * hardware (see the 3D Design.md plan for what used to be there).
+ * Dashboard trước đây từng triển khai một lớp 3D hoàn chỉnh: nền hạt Three.js WebGL,
+ * vòng xoay cube CSS-3D, và các hiệu ứng hover perspective/translateZ trên
+ * thẻ card, mục menu điều hướng, ô tìm kiếm và — tệ nhất — trên từng dòng <tbody>.
+ * Toàn bộ lớp 3D này đã được gỡ bỏ vì khiến dashboard hoạt động cực kỳ chậm trên phần cứng thông thường
+ * (xem tài liệu 3D Design.md để biết các thành phần cũ).
  *
- * These tests replace the old three-*.test.js suite. They are regression
- * guards: they fail if any part of that layer comes back, or if the related
- * scroll-performance fixes are undone. The structural assertions the old suite
- * also carried (sidebar/table markup, stacking hierarchy) are kept here.
+ * Bộ test này thay thế cho bộ three-*.test.js cũ. Đây là các chốt chặn hồi quy (regression guards):
+ * kiểm tra sẽ thất bại nếu bất kỳ phần nào của lớp 3D đó quay trở lại, hoặc nếu các bản vá hiệu năng
+ * cuộn trang liên quan bị hoàn tác. Các xác nhận cấu trúc mà bộ test cũ đảm nhiệm
+ * (markup sidebar/bảng, phân cấp xếp lớp) vẫn được duy trì tại đây.
  */
 
 const { test } = require('node:test');
@@ -35,8 +35,8 @@ const PAGES = [
 
 const readPage = (file) => fs.readFileSync(path.join(publicDir, file), 'utf8');
 
-/* Strip comments so an explanatory note about the removal does not read as the
-   thing itself coming back. */
+/* Loại bỏ comment để các ghi chú giải thích về việc gỡ bỏ không bị nhận diện nhầm
+   như là tính năng 3D quay trở lại. */
 const stripHtmlComments = (s) => s.replace(/<!--[\s\S]*?-->/g, '');
 const stripCssComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '');
 
@@ -116,9 +116,8 @@ test('no markup carries the removed .card-3d / .perspective-container hooks', ()
 });
 
 test('the page background is not painted with background-attachment: fixed', () => {
-  // `fixed` forces a full-viewport repaint (including rescaling the cover
-  // photo) on every scroll frame. The background lives on a fixed
-  // `body::before` layer instead.
+  // `fixed` buộc vẽ lại toàn bộ viewport (bao gồm cả việc thay đổi kích thước ảnh bìa)
+  // trên mỗi khung hình cuộn. Ảnh nền hiện nằm trên lớp `body::before` cố định.
   const sources = [
     { name: 'shared/shared.css', src: stripCssComments(fs.readFileSync(sharedCssPath, 'utf8')) },
     ...PAGES.map(({ name, file }) => ({ name, src: stripCssComments(stripHtmlComments(readPage(file))) }))
@@ -149,14 +148,14 @@ test('the loading veil uses the plain CSS spinner, not the removed 3D cube', () 
   const index = readPage('index.html');
   assert.match(index, /id="veil"/, 'index.html must still have the loading veil element');
   assert.match(index, /class="loader-spinner"/, 'the veil must contain the static spinner markup');
-  // The veil markup used to be injected at runtime by three-loading.js; it is
-  // now static, so it must be present in the served HTML itself.
+  // Markup của màn hình chờ trước đây được chèn khi chạy bởi three-loading.js; hiện tại
+  // là HTML tĩnh, do đó nó phải có sẵn trong chính mã nguồn HTML được phục vụ.
   assert.match(index, /<div class="loading-veil"[\s\S]*?loader-spinner[\s\S]*?<\/div>/, 'veil markup must be static in the HTML');
 });
 
 test('the full-screen loading veil does not blur its backdrop', () => {
-  // A backdrop-filter here re-renders the whole viewport every time the veil
-  // fades in, and the dashboard shows it on every auto-refresh.
+  // Thuộc tính backdrop-filter ở đây render lại toàn bộ viewport mỗi khi màn hình chờ
+  // mờ dần vào, trong khi dashboard hiển thị nó trên mỗi lần tự động làm mới.
   const shared = stripCssComments(fs.readFileSync(sharedCssPath, 'utf8'));
   const veilBlock = shared.match(/\.loading-veil\s*\{[\s\S]*?\}/);
   assert.ok(veilBlock, 'shared.css must define a .loading-veil block');

@@ -34,7 +34,6 @@ function syncAllDataChunked() {
   }
   try {
     migrateKiotVietSheetsIfNeeded_();
-    migrateLegacyDiscontinuedSheet_(SpreadsheetApp.getActiveSpreadsheet());
 
     const props = PropertiesService.getScriptProperties();
     let masterState = {};
@@ -175,15 +174,40 @@ function stopMasterSyncChain() {
 // CAC HAM DONG BO PHAN DOAN RIENG CHO TUNG BANG
 // ----------------------------------------------------
 
+/**
+ * Boc syncKiotVietTableChunk_ bang getKiotVietDataLock_() cho cac bang dung
+ * chung khoa voi chuoi master/polling-only (moi thu ngoai tru Hoa don). Truoc
+ * ban sua nay, cac ham syncXxxChunk() duoi day khong lay khoa nao ca — trong
+ * khi HuongDanSuDung.gs khuyen dung chung de "chi dong bo rieng mot bang cu
+ * the". Neu chay dung luc chuoi master/polling dang dong bo cung bang, ca hai
+ * cung clearContents() + ghi de len nhau va de checkpoint chung
+ * (SYNC_CHUNK_STATE_<bang>) trong Script Properties, gay mat/trung du lieu.
+ * Neu khong lay duoc khoa (mot tien trinh khac dang ghi), len lich trigger
+ * tiep suc thay vi ghi de khong khoa.
+ */
+function runKiotVietDataLockedChunk_(schemaKey, resumeHandler) {
+  const dataLock = getKiotVietDataLock_();
+  if (!dataLock.tryLock(30000)) {
+    scheduleSpecificChunkTrigger_(resumeHandler);
+    Logger.log('[' + schemaKey + '] Co tien trinh khac dang ghi du lieu, se thu lai o luot trigger sau.');
+    return { schemaKey: schemaKey, isCompleted: false, waitingForLock: true };
+  }
+  try {
+    return syncKiotVietTableChunk_(schemaKey, { resumeHandler: resumeHandler });
+  } finally {
+    dataLock.releaseLock();
+  }
+}
+
 function syncCategoriesChunk() {
-  return syncKiotVietTableChunk_('categories', { resumeHandler: 'resumeSyncCategoriesChunk' });
+  return runKiotVietDataLockedChunk_('categories', 'resumeSyncCategoriesChunk');
 }
 function resumeSyncCategoriesChunk() {
   return syncCategoriesChunk();
 }
 
 function syncProductsChunk() {
-  return syncKiotVietTableChunk_('products', { resumeHandler: 'resumeSyncProductsChunk' });
+  return runKiotVietDataLockedChunk_('products', 'resumeSyncProductsChunk');
 }
 function resumeSyncProductsChunk() {
   return syncProductsChunk();
@@ -250,36 +274,63 @@ function restartInvoicesBackfill() {
   }
 }
 
+/**
+ * Khoi dong lai rieng backfill Nhap hang, cung co che voi restartInvoicesBackfill:
+ * xoa checkpoint + staging cua Nhap hang, khong dung cac bang khac; du lieu live
+ * chi duoc thay sau khi staging tai xong toan bo.
+ */
+function restartPurchasesBackfill() {
+  const dataLock = getKiotVietDataLock_();
+  if (!dataLock.tryLock(30000)) {
+    throw new Error('Dang co tien trinh ghi du lieu khac; hay chay lai restartPurchasesBackfill sau.');
+  }
+  try {
+    const props = PropertiesService.getScriptProperties();
+    props.deleteProperty('SYNC_CHUNK_STATE_purchases');
+    removeSpecificChunkTrigger_('resumeSyncPurchasesChunk');
+
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const stagingSheet = spreadsheet.getSheetByName(KIOTVIET_CHUNK_STAGING_SHEETS_.purchases);
+    if (stagingSheet) spreadsheet.deleteSheet(stagingSheet);
+
+    return syncKiotVietTableChunk_('purchases', {
+      resumeHandler: 'resumeSyncPurchasesChunk'
+    });
+  } finally {
+    dataLock.releaseLock();
+  }
+}
+
 function syncOrdersChunk() {
-  return syncKiotVietTableChunk_('orders', { resumeHandler: 'resumeSyncOrdersChunk' });
+  return runKiotVietDataLockedChunk_('orders', 'resumeSyncOrdersChunk');
 }
 function resumeSyncOrdersChunk() {
   return syncOrdersChunk();
 }
 
 function syncReturnsChunk() {
-  return syncKiotVietTableChunk_('returns', { resumeHandler: 'resumeSyncReturnsChunk' });
+  return runKiotVietDataLockedChunk_('returns', 'resumeSyncReturnsChunk');
 }
 function resumeSyncReturnsChunk() {
   return syncReturnsChunk();
 }
 
 function syncCustomersChunk() {
-  return syncKiotVietTableChunk_('customers', { resumeHandler: 'resumeSyncCustomersChunk' });
+  return runKiotVietDataLockedChunk_('customers', 'resumeSyncCustomersChunk');
 }
 function resumeSyncCustomersChunk() {
   return syncCustomersChunk();
 }
 
 function syncSuppliersChunk() {
-  return syncKiotVietTableChunk_('suppliers', { resumeHandler: 'resumeSyncSuppliersChunk' });
+  return runKiotVietDataLockedChunk_('suppliers', 'resumeSyncSuppliersChunk');
 }
 function resumeSyncSuppliersChunk() {
   return syncSuppliersChunk();
 }
 
 function syncPurchasesChunk() {
-  return syncKiotVietTableChunk_('purchases', { resumeHandler: 'resumeSyncPurchasesChunk' });
+  return runKiotVietDataLockedChunk_('purchases', 'resumeSyncPurchasesChunk');
 }
 function resumeSyncPurchasesChunk() {
   return syncPurchasesChunk();
@@ -305,8 +356,6 @@ function syncAllInitialData() {
   invoiceLock.waitLock(30000);
   try {
     migrateKiotVietSheetsIfNeeded_();
-    // Don tab legacy ngay tu dau; neu chi co tab cu thi doi ten de giu du lieu.
-    migrateLegacyDiscontinuedSheet_(SpreadsheetApp.getActiveSpreadsheet());
 
     const token = getKiotVietToken();
     if (!token) throw new Error('Khong lay duoc KiotViet token.');
@@ -322,9 +371,6 @@ function syncAllInitialData() {
     // syncCustomerDebtReports() rieng, nhung van chay som de tranh het thoi gian.
     Logger.log('Bat dau tao Bao cao cong no HN1/HN3/HN7...');
     syncCustomerDebtReports(token);
-
-    Logger.log('Bat dau cap nhat lich su Hang ngung kinh doanh...');
-    syncHangNgungKinhDoanh_(token);
 
     Logger.log('Bat dau dong bo Hoa don va Chi tiet hoa don...');
     syncInvoicesInitial(token);
@@ -472,6 +518,33 @@ function syncPollingOnly_() {
 
 function resumePollingOnlyChunk_() {
   syncPollingOnly_();
+}
+
+/**
+ * Khoi phuc trigger tiep suc neu checkpoint polling con nhung trigger mot-lan
+ * da bi timeout/tieu thu. Khong xoa checkpoint hay staging dang tai do.
+ */
+function ensurePollingOnlyResumeTrigger_() {
+  const props = PropertiesService.getScriptProperties();
+  let tableIndexRaw = props.getProperty(POLLING_ONLY_STATE_PROPERTY);
+  if (tableIndexRaw === null || tableIndexRaw === '') {
+    for (let index = 0; index < POLLING_ONLY_CHAIN.length; index++) {
+      if (!props.getProperty('SYNC_CHUNK_STATE_' + POLLING_ONLY_CHAIN[index])) continue;
+      tableIndexRaw = String(index);
+      props.setProperty(POLLING_ONLY_STATE_PROPERTY, tableIndexRaw);
+      break;
+    }
+  }
+  if (tableIndexRaw === null || tableIndexRaw === '') return false;
+
+  const hasResumeTrigger = ScriptApp.getProjectTriggers().some(trigger =>
+    trigger.getHandlerFunction() === POLLING_ONLY_RESUME_HANDLER
+  );
+  if (hasResumeTrigger) return false;
+
+  scheduleSpecificChunkTrigger_(POLLING_ONLY_RESUME_HANDLER, POLLING_ONLY_RESUME_DELAY_MS);
+  Logger.log('Da khoi phuc trigger tiep suc cho polling tai buoc ' + tableIndexRaw + '.');
+  return true;
 }
 
 function setupPollingTrigger() {

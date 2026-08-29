@@ -1,26 +1,25 @@
 #!/usr/bin/env node
 /**
- * Phase A — replace hardcoded box-shadow / border-radius / color literals
- * inside the <style> block of an HTML file with CSS custom-property
- * references, without changing any resolved value.
+ * Phase A — thay thế các giá trị cố định (hardcoded) của box-shadow / border-radius / mã màu
+ * bên trong khối <style> của file HTML bằng biến CSS tùy chỉnh (custom properties),
+ * mà không làm thay đổi bất kỳ giá trị tính toán (resolved value) nào.
  *
- * Only touches text between the FIRST <style> ... </style> pair. Every
- * substitution below is an exact substring replacement so nothing outside
- * the intended declarations can be affected. Run
- * server/scripts/styleBaselineSnapshot.js before/after and `compare` the
- * two snapshots to prove the resolved CSS did not change.
+ * Chỉ tác động đến văn bản giữa cặp <style> ... </style> ĐẦU TIÊN. Mọi phép thay thế
+ * bên dưới đều là thay thế chuỗi con chính xác để không ảnh hưởng đến nội dung ngoài ý muốn.
+ * Chạy server/scripts/styleBaselineSnapshot.js trước/sau và dùng `compare` hai snapshot
+ * để chứng minh CSS sau khi resolve không bị thay đổi.
  *
- * Usage: node tokenizeHardcodedStyles.js <file.html>
+ * Cách dùng: node tokenizeHardcodedStyles.js <file.html>
  */
 'use strict';
 
 const fs = require('fs');
 
-// [exactFind, exactReplace, expectedCount|null]
-// expectedCount === null means "replace all occurrences, count not asserted"
-// (used only for the broad, provably-safe RGB-channel aliases below).
+// [chuỗiCầnTìm, chuỗiThayThế, sốLầnKỳVọng|null]
+// sốLầnKỳVọng === null nghĩa là "thay thế tất cả các lần xuất hiện, không kiểm tra số lượng"
+// (chỉ dùng cho các bí danh kênh RGB an toàn bên dưới).
 const REPLACEMENTS = [
-  // --- border-radius scale ---
+  // --- Thang đo border-radius ---
   ['border-radius: 2px;', 'border-radius: var(--radius-2);', 1],
   ['border-radius: 4px;', 'border-radius: var(--radius-4);', 3],
   ['border-radius: 5px;', 'border-radius: var(--radius-5);', 1],
@@ -37,13 +36,13 @@ const REPLACEMENTS = [
   ['border-radius: 0 0 7px 0;', 'border-radius: 0 0 var(--radius-7) 0;', 2],
   ['border-radius: 0 0 0 7px;', 'border-radius: 0 0 0 var(--radius-7);', 2],
 
-  // --- one-off hex colors used outside the :root token blocks ---
-  // (the single `border: 1px solid #E2E8F0;` case was already normalized
-  // to var(--border) by hand — see Phase A notes — so it's not repeated here)
+  // --- Các mã màu hex đơn lẻ dùng bên ngoài khối token :root ---
+  // (trường hợp `border: 1px solid #E2E8F0;` duy nhất đã được chuẩn hóa
+  // thủ công thành var(--border) — xem ghi chú Phase A — nên không lặp lại ở đây)
   ['#fff', 'var(--white)', 3],
 
-  // --- RGB channel aliases (fixed values — see the comment above the
-  //     token definitions in :root for why these are NOT theme-reactive) ---
+  // --- Bí danh kênh RGB (giá trị cố định — xem giải thích phía trên
+  //     định nghĩa token trong :root về lý do tại sao không đổi theo theme) ---
   ['rgba(0, 0, 0, ', 'rgba(var(--shadow-rgb), ', null],
   ['rgba(255, 255, 255, ', 'rgba(var(--overlay-rgb), ', null],
   ['rgba(59, 130, 246, ', 'rgba(var(--primary-rgb-d), ', null],

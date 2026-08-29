@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * Phase A tooling — snapshot every resolved box-shadow / border-radius /
- * color-ish declaration inside the <style> block of an HTML file, for both
- * the dark (:root) and light (:root[data-theme="light"]) themes.
+ * Công cụ Giai đoạn A — chụp ảnh nhanh (snapshot) mọi khai báo box-shadow / border-radius /
+ * màu sắc đã phân giải bên trong thẻ <style> của file HTML, cho cả hai giao diện
+ * tối (:root) và sáng (:root[data-theme="light"]).
  *
- * Purpose: let us tokenize hardcoded values into CSS custom properties
- * (see design-system/tks-dashboard/MASTER.md) while proving the *resolved*
- * value seen by the browser did not change — i.e. no "lệch giao diện".
+ * Mục đích: hỗ trợ chuyển đổi các giá trị viết cứng thành CSS custom properties
+ * (xem design-system/tks-dashboard/MASTER.md) đồng thời chứng minh giá trị *phân giải*
+ * trên trình duyệt hoàn toàn không đổi — tức không bị "lệch giao diện".
  *
- * Usage:
+ * Hướng dẫn sử dụng:
  *   node styleBaselineSnapshot.js capture <file.html> <out.json>
  *   node styleBaselineSnapshot.js compare <before.json> <after.json>
  */
@@ -28,17 +28,17 @@ const COLOR_RE = /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/;
 function extractStyleBlock(html) {
   const m = html.match(/<style[^>]*>([\s\S]*?)<\/style>/);
   if (!m) throw new Error('No <style> block found');
-  // Strip CSS comments first — the naive declaration regex below has no
-  // notion of comment syntax, so a stray ':' + ';' inside a /* ... */ block
-  // (e.g. a prose note) would otherwise be parsed as a bogus declaration.
+  // Xóa các comment CSS trước — regex phân tích khai báo bên dưới không nhận biết
+  // cú pháp comment, do đó dấu ':' + ';' bất kỳ trong khối /* ... */ (ví dụ: ghi chú dạng văn bản)
+  // sẽ bị phân tích nhầm thành khai báo CSS giả mạo.
   return m[1].replace(/\/\*[\s\S]*?\*\//g, '');
 }
 
-// Find `selector { ... }` and return the inner text, respecting brace nesting.
+// Tìm `selector { ... }` và trả về nội dung bên trong, có xử lý lồng dấu ngoặc nhọn.
 function extractBlock(css, selectorRe) {
   const m = selectorRe.exec(css);
   if (!m) return null;
-  let i = m.index + m[0].length; // position right after the opening `{`
+  let i = m.index + m[0].length; // vị trí ngay sau dấu mở `{`
   let depth = 1;
   const start = i;
   while (i < css.length && depth > 0) {
@@ -49,7 +49,7 @@ function extractBlock(css, selectorRe) {
   return css.slice(start, i - 1);
 }
 
-// Matches `prop: value;` (value cannot itself contain `{`/`}`), across newlines.
+// Khớp với `prop: value;` (value không được chứa `{`/`}`), trên nhiều dòng.
 const DECL_RE = /([a-zA-Z0-9-]+)\s*:\s*([^;{}]+);/g;
 
 function parseDeclarations(css) {
@@ -62,16 +62,14 @@ function parseDeclarations(css) {
   return out;
 }
 
-// Same as parseDeclarations, but also tags each declaration with which
-// theme(s) it can actually apply to, based on brace nesting: anything
-// nested under a `:root[data-theme="light"] ...` selector is light-only —
-// it can never render in the dark theme, no matter what its resolved value
-// says. Without this, a declaration whose resolved value legitimately
-// differs per theme (e.g. it now uses a themed var()) looks like a false
-// "value changed" diff even though the selector gates it to one theme.
+// Tương tự parseDeclarations, nhưng gắn thẻ từng khai báo với theme có thể áp dụng,
+// dựa trên mức độ lồng ngoặc: mọi thứ nằm trong bộ chọn `:root[data-theme="light"] ...`
+// chỉ dành cho light theme — không bao giờ hiển thị trong dark theme dù giá trị đã resolve
+// là gì. Nếu không có bước này, một khai báo có giá trị resolve khác nhau giữa các theme
+// (ví dụ dùng biến var() theo theme) sẽ bị báo diff "value changed" sai lệch.
 function parseDeclarationsWithScope(css) {
   const out = [];
-  const stack = []; // true = current nesting is under a light-only selector
+  const stack = []; // true = vị trí lồng hiện tại nằm dưới bộ chọn light-only
   let buf = '';
   for (let i = 0; i < css.length; i++) {
     const ch = css[i];
@@ -112,7 +110,7 @@ function resolveVars(value, varMap, depth = 0) {
       return resolveVars(varMap[name], varMap, depth + 1);
     }
     if (fallback !== undefined) return resolveVars(fallback, varMap, depth + 1);
-    return whole; // leave unresolved, will show up as a diff-worthy oddity
+    return whole; // giữ nguyên chưa giải quyết, sẽ hiển thị dưới dạng diff cần chú ý
   });
 }
 

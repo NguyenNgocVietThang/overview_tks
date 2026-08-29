@@ -2,7 +2,7 @@
 // CAU HINH — doc tu bien moi truong (khong commit secret)
 // ==========================================
 if (process.env.NODE_ENV !== 'production') {
-  try { require('dotenv').config(); } catch (e) { /* dotenv optional in prod */ }
+  try { require('dotenv').config(); } catch (e) { /* dotenv là tùy chọn trong môi trường production */ }
 }
 
 function required(name) {
@@ -94,7 +94,6 @@ const CONFIG = {
   SHEET_CUSTOMER_BY_PRODUCT_REPORT: 'Khách theo hàng hóa',
   SHEET_SUPPLIERS: 'Nhà cung cấp',
   SHEET_PURCHASES: 'Nhập hàng',
-  SHEET_DEACTIVATED_TODAY: 'Hàng ngừng kinh doanh',
 
   // HN1/HN3/HN7 do Apps Script tính từ dữ liệu KiotViet theo kỳ 1/3/7 ngày.
   // Server CHỈ ĐỌC — không được tạo/xóa/ghi ba tab này.

@@ -4,11 +4,10 @@
    Thiết kế cao cấp, đồng bộ Dark/Light Mode.
    ========================================== */
 
-/* Fonts are loaded via <link rel="preconnect"> + <link rel="stylesheet"> in each
-   page's <head>, NOT with @import here. An @import inside a stylesheet cannot
-   start downloading until shared.css itself has arrived and been parsed, so it
-   serialises two render-blocking round trips; the <link> form runs in parallel
-   with this file. Keep the two lists in sync when adding a family. */
+/* Phông chữ được tải qua thẻ <link rel="preconnect"> + <link rel="stylesheet"> trong phần <head>
+   của mỗi trang, KHÔNG dùng @import ở đây. Lệnh @import bên trong stylesheet không thể
+   bắt đầu tải xuống cho đến khi shared.css được tải về và phân tích, gây nghẽn render tuần tự;
+   dạng thẻ <link> sẽ chạy song song với file này. Hãy giữ đồng bộ danh sách khi thêm phông mới. */
 
 :root{
   color-scheme:dark;
@@ -55,7 +54,7 @@
   --font-body:'Inter',sans-serif;
   --font-data:'IBM Plex Mono',monospace;
 
-  /* Spacing scale (see design-system/tks-dashboard/MASTER.md — Spacing Variables) */
+  /* Thang đo khoảng cách spacing (xem design-system/tks-dashboard/MASTER.md — Spacing Variables) */
   --space-xs:2px;
   --space-sm:4px;
   --space-md:8px;
@@ -64,25 +63,25 @@
   --space-2xl:24px;
   --space-3xl:32px;
 
-  /* ── Border Radius scale ── */
-  --radius-xs:6px;   /* chips, tiny badges */
-  --radius-sm:8px;   /* inputs, small buttons */
-  --radius-md:10px;  /* tabs, medium controls */
-  --radius-lg:12px;  /* KPI cards */
-  --radius-xl:14px;  /* panels, modals */
+  /* ── Thang đo Border Radius ── */
+  --radius-xs:6px;   /* thẻ chip, huy hiệu nhỏ */
+  --radius-sm:8px;   /* ô nhập liệu, nút nhỏ */
+  --radius-md:10px;  /* tab, thành phần điều khiển vừa */
+  --radius-lg:12px;  /* thẻ KPI */
+  --radius-xl:14px;  /* panel, hộp thoại modal */
   --radius-pill:9999px;
 
-  /* ── Shadow tokens ── */
+  /* ── Token đổ bóng Shadow ── */
   --shadow-modal:0 20px 50px rgba(0,0,0,0.4);
   --shadow-toast:0 8px 24px rgba(0,0,0,0.3);
   --shadow-focus-blue:0 15px 35px -10px rgba(59,130,246,0.4), 0 0 0 3px rgba(59,130,246,0.2), 0 0 25px rgba(59,130,246,0.25);
   --shadow-brand:0 4px 12px rgba(0,0,0,0.18);
 
-  /* ── Accent alpha ── */
+  /* ── Độ trong suốt Accent alpha ── */
   --accent-blue-12:rgba(59,130,246,0.12);
   --accent-blue-18:rgba(59,130,246,0.18);
 
-  /* ── Role badge tokens ── */
+  /* ── Token huy hiệu vai trò ── */
   --role-quan-ly-bg:rgba(139,92,246,0.16);
   --role-quan-ly-fg:#a78bfa;
   --role-quan-ly-border:rgba(139,92,246,0.3);
@@ -102,7 +101,7 @@
   --role-khach-fg:#cbd5e1;
   --role-khach-border:rgba(148,163,184,0.3);
 
-  /* ── Alert box tokens ── */
+  /* ── Token hộp cảnh báo Alert box ── */
   --alert-warning-bg:rgba(245,158,11,0.12);
   --alert-warning-border:rgba(245,158,11,0.3);
   --alert-error-bg:rgba(239,68,68,0.12);
@@ -110,7 +109,7 @@
   --alert-success-bg:rgba(16,185,129,0.12);
   --alert-success-border:rgba(16,185,129,0.3);
 
-  /* ── Toast semantic tokens ── */
+  /* ── Token thông báo Toast ngữ nghĩa ── */
   --toast-success-bg:#064e3b;
   --toast-success-fg:#a7f3d0;
   --toast-success-border:#059669;
@@ -118,7 +117,7 @@
   --toast-error-fg:#fecaca;
   --toast-error-border:#dc2626;
 
-  /* ── Status pill tokens ── */
+  /* ── Token nhãn trạng thái Status pill ── */
   --status-active-bg:rgba(16,185,129,0.12);
   --status-locked-bg:rgba(239,68,68,0.12);
   --status-pending-bg:rgba(245,158,11,0.12);
@@ -163,17 +162,17 @@
   --bg-image:url('images/bg-light.jpg');
   --bg-scrim:rgba(248,250,252,0.80);
 
-  /* ── Light mode shadow overrides ── */
+  /* ── Ghi đè đổ bóng chế độ sáng Light mode ── */
   --shadow-modal:0 20px 50px rgba(0,0,0,0.2);
   --shadow-toast:0 8px 24px rgba(0,0,0,0.12);
   --shadow-focus-blue:0 8px 20px -6px rgba(37,99,235,0.35), 0 0 0 3px rgba(37,99,235,0.18), 0 0 15px rgba(37,99,235,0.15);
   --shadow-brand:0 2px 8px rgba(0,0,0,0.08);
 
-  /* ── Light accent alpha ── */
+  /* ── Độ trong suốt Accent chế độ sáng ── */
   --accent-blue-12:rgba(37,99,235,0.10);
   --accent-blue-18:rgba(37,99,235,0.15);
 
-  /* ── Light role badge tokens ── */
+  /* ── Token huy hiệu vai trò chế độ sáng ── */
   --role-quan-ly-bg:rgba(109,40,217,0.10);
   --role-quan-ly-fg:#7C3AED;
   --role-quan-ly-border:rgba(109,40,217,0.25);
@@ -193,7 +192,7 @@
   --role-khach-fg:#475569;
   --role-khach-border:rgba(100,116,139,0.25);
 
-  /* ── Light alert box tokens ── */
+  /* ── Token hộp cảnh báo chế độ sáng ── */
   --alert-warning-bg:rgba(217,119,6,0.08);
   --alert-warning-border:rgba(217,119,6,0.25);
   --alert-error-bg:rgba(220,38,38,0.08);
@@ -201,7 +200,7 @@
   --alert-success-bg:rgba(5,150,105,0.08);
   --alert-success-border:rgba(5,150,105,0.25);
 
-  /* ── Light toast tokens ── */
+  /* ── Token thông báo Toast chế độ sáng ── */
   --toast-success-bg:#D1FAE5;
   --toast-success-fg:#065F46;
   --toast-success-border:#059669;
@@ -209,7 +208,7 @@
   --toast-error-fg:#991B1B;
   --toast-error-border:#DC2626;
 
-  /* ── Light status pill tokens ── */
+  /* ── Token nhãn trạng thái chế độ sáng ── */
   --status-active-bg:rgba(5,150,105,0.10);
   --status-locked-bg:rgba(220,38,38,0.10);
   --status-pending-bg:rgba(217,119,6,0.10);
@@ -228,12 +227,11 @@ body{
   -moz-osx-font-smoothing:grayscale;
 }
 
-/* Decorative page background.
-   This used to be four stacked layers on `body` with `background-attachment:
-   fixed` — which forces the browser to repaint the whole viewport (including
-   rescaling the cover photo) on EVERY scroll frame. Painting it once into a
-   fixed, non-scrolling layer gives the identical look at a fraction of the
-   cost, and lets the compositor keep it off the scrolling path entirely. */
+/* Nền trang trí cho trang.
+   Trước đây là bốn lớp xếp chồng trên `body` với `background-attachment: fixed`
+   — điều này buộc trình duyệt phải vẽ lại toàn bộ viewport (kèm thay đổi kích thước ảnh nền)
+   trên MỖI khung hình cuộn. Vẽ một lần vào lớp cố định, không cuộn này mang lại giao diện giống hệt
+   với chi phí hiệu năng nhỏ hơn rất nhiều, giúp compositor hoàn toàn tách biệt khỏi luồng cuộn. */
 body::before{
   content:'';
   position:fixed;
@@ -248,7 +246,7 @@ body::before{
     var(--bg);
 }
 
-/* ---------- Theme Switcher Floating (Login & Register) ---------- */
+/* ---------- Nút chuyển đổi Theme nổi (Đăng nhập & Đăng ký) ---------- */
 .theme-toggle-floating{
   position:fixed;
   top:20px;
@@ -611,11 +609,10 @@ body::before{
 .btn-primary:active:not(:disabled),
 .refresh-btn:active:not(:disabled),
 .tks-btn-primary:active:not(:disabled){
-  /* translateY only (no scale/perspective translateZ): shrinking or
-     foreshortening the box mid-click can slide its edge out from under
-     the cursor before mouseup, so the click lands on the parent element
-     instead of the button and the click is silently lost. See ROLLBACK.md
-     and the button click-loss fix note below. */
+  /* Chỉ dùng translateY (không dùng scale/perspective translateZ): việc thu nhỏ
+     hoặc phối cảnh hộp khi đang bấm chuột có thể làm trượt cạnh khỏi con trỏ
+     trước sự kiện mouseup, khiến cú nhấp rơi vào phần tử cha thay vì nút
+     và làm mất thao tác nhấp một cách âm thầm. Xem ROLLBACK.md và ghi chú bên dưới. */
   transform: translateY(1px);
   box-shadow: 0 5px 10px -4px rgba(59, 130, 246, 0.3);
 }
@@ -675,7 +672,7 @@ body::before{
   transition:background-color .2s ease, border-color .2s ease, box-shadow .2s ease;
 }
 
-/* ---------- Password Input with Toggle Button ---------- */
+/* ---------- Ô nhập mật khẩu kèm nút ẩn/hiện ---------- */
 .password-wrap{
   position:relative;
   display:flex;
@@ -719,7 +716,7 @@ body::before{
   pointer-events:none;
 }
 
-/* ---------- Auth Tabs (Switch between Email and Phone) ---------- */
+/* ---------- Tab xác thực (Chuyển đổi giữa Email và Số điện thoại) ---------- */
 .auth-nav-tabs{
   display:grid;
   grid-template-columns:1fr 1fr;
@@ -757,7 +754,7 @@ body::before{
   height:15px;
 }
 
-/* ---------- Lockout & Warning Banner ---------- */
+/* ---------- Banner cảnh báo & Tạm khóa ---------- */
 .lockout-alert{
   background:rgba(239,68,68,0.12);
   border:1px solid rgba(239,68,68,0.35);
@@ -786,11 +783,10 @@ body::before{
   width:100%;
 }
 
-/* ---------- Cards and Panels ----------
-   Hover feedback is intentionally box-shadow/border only. Any transform,
-   perspective or transform-style here promotes every card (and, worse, every
-   table row) to its own compositor layer, which is what made the dashboard
-   crawl on mid-range machines. Keep this block 2D. */
+/* ---------- Thẻ Card và Panel ----------
+   Phản hồi khi di chuột (hover) chủ đích chỉ dùng box-shadow/border. Bất kỳ thuộc tính transform,
+   perspective hay transform-style nào ở đây cũng đưa mọi thẻ (và tệ hơn là mọi dòng bảng)
+   lên layer compositor riêng, khiến dashboard bị chậm trên máy cấu hình tầm trung. Hãy giữ khối này ở dạng 2D. */
 .kpi-card,
 .panel,
 .profile-card,
@@ -819,9 +815,9 @@ body::before{
   box-shadow: 0 8px 20px -8px rgba(15, 23, 42, 0.14);
 }
 
-/* ---------- Table Row Hover ----------
-   background-color only: tables here routinely render hundreds of rows, so
-   this selector is the single hottest style rule on the page. */
+/* ---------- Di chuột qua dòng bảng ----------
+   Chỉ đổi background-color: các bảng dữ liệu thường kết xuất hàng trăm dòng, nên
+   bộ chọn này là quy tắc style có tần suất kích hoạt cao nhất trên trang. */
 tbody tr {
   transition: background-color 0.15s ease;
 }
@@ -861,9 +857,9 @@ tbody tr:hover {
   transition: background-color 0.15s ease;
 }
 
-/* ---------- Loading Veil ----------
-   No backdrop-filter: it forces a full-viewport blur re-render every time the
-   veil fades in, and the dashboard shows it on every auto-refresh. */
+/* ---------- Màn hình chờ Loading Veil ----------
+   Không dùng backdrop-filter: thuộc tính này buộc phải render lại hiệu ứng mờ toàn màn hình
+   mỗi khi màn hình mờ hiện lên, trong khi dashboard hiển thị nó mỗi lần tự động làm mới. */
 .loading-veil {
   position: fixed;
   inset: 0;
@@ -883,7 +879,7 @@ tbody tr:hover {
   pointer-events: all;
 }
 
-/* Lightweight spinner + label (replaces the old CSS-3D cube loader) */
+/* Vòng quay spinner nhẹ nhàng + nhãn (thay thế cho khối CSS-3D cube loader cũ) */
 .loader-spinner {
   width: 34px;
   height: 34px;
@@ -946,8 +942,8 @@ tbody tr:hover {
   .menu-btn:active {
     transform: none;
   }
-  /* The spinner is the only remaining looping animation; freeze it rather
-     than let the global 0.001ms override spin it once at warp speed. */
+  /* Spinner là hiệu ứng chuyển động lặp duy nhất còn lại; đóng băng nó thay vì
+     để mức ghi đè toàn cục 0.001ms quay một lần với tốc độ cực nhanh. */
   .loader-spinner {
     animation: none !important;
     border-top-color: var(--primary, #3B82F6);
@@ -995,11 +991,11 @@ tbody tr:hover {
   margin: 0;
 }
 
-/* ---------- Windows High Contrast / forced-colors ----------
-   box-shadow is stripped under forced-colors mode, so any hover/focus
-   cue that relies only on a shadow becomes invisible. Fall back to
-   a visible outline (which forced-colors always respects) so hover
-   states remain perceivable without breaking the system palette.
+/* ---------- Chế độ tương phản cao Windows / forced-colors ----------
+   box-shadow bị loại bỏ trong chế độ forced-colors, khiến các chỉ báo hover/focus
+   chỉ dựa vào shadow trở nên vô hình. Chuyển sang dùng viền outline hiển thị rõ ràng
+   (luôn được tôn trọng trong forced-colors) để trạng thái hover vẫn nhận biết được
+   mà không làm sai lệch bảng màu hệ thống.
    ------------------------------------------------------------ */
 @media (forced-colors: active) {
   .kpi-card:hover,

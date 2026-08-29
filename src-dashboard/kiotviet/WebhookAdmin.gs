@@ -35,7 +35,6 @@ function getKiotVietAutoSyncProfile_() {
  * - Tao shared-secret neu chua co.
  * - Tao lai trigger hang doi 5 phut va polling 15 phut.
  * - Tao lai ba trigger bao cao khach hang luc 06:00, 06:30 va 07:00.
- * - Tao lai trigger lich su Hang ngung kinh doanh luc 07:30.
  * - Tao lai trigger cong no luc 15:00.
  * - Giu nguyen webhook cua he thong khac; chi thay webhook cu/trung cua dashboard.
  */
@@ -68,7 +67,6 @@ function setupKiotVietAutoSync() {
   if (!isShipmentLifecycleMode_()) {
     setupPollingTrigger();
     setupCustomerReportDailyTrigger();
-    setupHangNgungKinhDoanhTrigger_();
     setupCustomerDebtReportDailyTrigger();
   }
 

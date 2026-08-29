@@ -10,7 +10,7 @@
 | Phiên bản          | 2.0                                                                  |
 | Ngày tạo           | 27/07/2026                                                           |
 | Ngày cập nhật      | 26/08/2026                                                           |
-| Tài liệu liên quan | BRD v1.9 · SRS v2.2 · Implementation Plan v2.3 · CSNS-NP-01 · Plan Process Automation · 3D Design · Performance Optimization Report · ROLLBACK |
+| Tài liệu liên quan | BRD v1.9 · SRS v2.2 · Implementation Plan v2.3 · CSNS-NP-01 · Plan Process Automation · Design System MASTER |
 | Trạng thái         | Đang vận hành                                                        |
 
 ---

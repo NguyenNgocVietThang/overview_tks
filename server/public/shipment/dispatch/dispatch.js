@@ -73,7 +73,7 @@ async function init() {
   renderKanban();
   startPoll();
 
-  // Link to internal pages
+  // Liên kết tới các trang nội bộ
   addInternalLinks();
 }
 

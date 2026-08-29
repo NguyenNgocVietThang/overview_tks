@@ -21,7 +21,7 @@ const ATTACHMENT_TYPES = {
   EXCEPTION_PHOTO: 'EXCEPTION_PHOTO'  // Anh su co / tra hang
 };
 
-// ---- Auth singleton (Drive scope) -------------------------------------------
+// ---- Singleton xác thực (phạm vi Drive) -------------------------------------------
 
 let driveApiPromise = null;
 
