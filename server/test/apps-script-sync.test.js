@@ -576,6 +576,7 @@ describe('Separated dashboard and shipment projects', () => {
     context.setupPollingTrigger = () => installed.push('polling');
     context.setupCustomerReportDailyTrigger = () => installed.push('customer-reports');
     context.setupCustomerDebtReportDailyTrigger = () => installed.push('debt');
+    context.setupKiotVietRecoveryTriggers = () => installed.push('recovery');
     context.reconcileKiotVietAutoSyncWebhooks_ = () => ({
       activeCount: 9,
       createdCount: 0,
@@ -589,7 +590,8 @@ describe('Separated dashboard and shipment projects', () => {
       'queue',
       'polling',
       'customer-reports',
-      'debt'
+      'debt',
+      'recovery'
     ]);
   });
 
@@ -697,8 +699,91 @@ describe('Separated dashboard and shipment projects', () => {
     ]);
   });
 
-  it('checks for a stalled polling sync on every dashboard queue tick', () => {
+  it('routes stock webhooks through the non-hydrating stock updater', () => {
+    const received = [];
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ]);
+    context.isShipmentLifecycleMode_ = () => false;
+    context.isCombinedKiotVietMode_ = () => false;
+    context.updateProductsFromWebhook = () => {
+      throw new Error('stock updates must not hydrate product details');
+    };
+    context.updateProductStocksFromWebhook = items => received.push(...items);
+
+    context.processWebhookQueueItem_({
+      id: 'stock-1',
+      eventType: 'stock.update',
+      payload: JSON.stringify({
+        Notifications: [{
+          Action: 'stock.update',
+          Data: [{ ProductId: 1, ProductCode: 'SKU-1', OnHand: 42 }]
+        }]
+      })
+    });
+
+    assert.deepEqual(JSON.parse(JSON.stringify(received)), [
+      { ProductId: 1, ProductCode: 'SKU-1', OnHand: 42 }
+    ]);
+  });
+
+  it('isolates a failed coalesced webhook so valid deliveries are not marked as errors', () => {
+    let claimCalls = 0;
+    let processCalls = 0;
+    const finalizedBatches = [];
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ]);
+    context.isShipmentLifecycleMode_ = () => true;
+    context.recoverWebhookQueueAfterBatchResize_ = () => 0;
+    context.claimWebhookQueueBatch_ = () => {
+      claimCalls++;
+      if (claimCalls > 1) return [];
+      return Array.from({ length: 8 }, (_, index) => ({
+        id: index === 7 ? 'queue-bad' : 'queue-good-' + (index + 1),
+        eventType: 'stock.update',
+        payload: JSON.stringify({
+          Notifications: [{ Action: 'stock.update', Data: [{ ProductId: index + 1 }] }]
+        })
+      }));
+    };
+    context.getKiotVietDataLock_ = () => ({
+      waitLock() {},
+      hasLock() { return true; },
+      releaseLock() {}
+    });
+    context.processWebhookQueueItem_ = queueItem => {
+      processCalls++;
+      const payload = JSON.parse(queueItem.payload);
+      const productIds = payload.Notifications[0].Data.map(item => item.ProductId);
+      if (productIds.includes(8)) {
+        throw new Error('Address unavailable');
+      }
+    };
+    context.finalizeWebhookQueueBatch_ = results => {
+      finalizedBatches.push(results);
+      return true;
+    };
+
+    context.processWebhookQueue();
+
+    assert.equal(finalizedBatches.length, 1);
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(
+        finalizedBatches[0].slice(0, 7).map(result => [result.id, result.error])
+      )),
+      Array.from({ length: 7 }, (_, index) => ['queue-good-' + (index + 1), null])
+    );
+    assert.equal(finalizedBatches[0][7].id, 'queue-bad');
+    assert.match(finalizedBatches[0][7].error.message, /Address unavailable/);
+    assert.equal(processCalls, 7);
+  });
+
+  it('checks for stalled polling and invoice backfills on every dashboard queue tick', () => {
     let pollingWatchdogCalls = 0;
+    let invoiceWatchdogCalls = 0;
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/sync/WebhookQueue.gs'
@@ -715,10 +800,12 @@ describe('Separated dashboard and shipment projects', () => {
     context.claimWebhookQueueBatch_ = () => [];
     context.ensureMasterChainResumeTrigger_ = () => {};
     context.ensurePollingOnlyResumeTrigger_ = () => { pollingWatchdogCalls++; };
+    context.ensureInvoicesBackfillResumeTrigger_ = () => { invoiceWatchdogCalls++; };
 
     context.processWebhookQueue();
 
     assert.equal(pollingWatchdogCalls, 1);
+    assert.equal(invoiceWatchdogCalls, 1);
   });
 
   it('skips heavy queue maintenance while the master backfill is active', () => {
@@ -1456,6 +1543,32 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     assert.equal(properties.KIOTVIET_INVOICE_BACKFILL_LAST_RESULT, undefined);
     assert.equal(properties.SYNC_CHUNK_STATE_orders, '{"currentItem":200}');
     assert.equal(lockReleased, true);
+  });
+
+  it('reschedules invoice backfill after an unexpected Sheets timeout', () => {
+    const scheduled = [];
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/kiotviet/SyncInitial.gs'
+    ], {
+      LockService: {
+        getUserLock() {
+          return { tryLock() { return true; }, releaseLock() {} };
+        }
+      }
+    });
+    context.syncKiotVietTableChunk_ = () => {
+      throw new Error('Service Spreadsheets timed out while accessing document');
+    };
+    context.scheduleSpecificChunkTrigger_ = handler => scheduled.push(handler);
+
+    const result = context.syncInvoicesChunk();
+
+    assert.equal(result.isCompleted, false);
+    assert.match(result.error, /timed out/);
+    assert.deepEqual(scheduled, ['resumeSyncInvoicesChunk']);
   });
 
   it('waits five minutes before resuming a heavy polling chunk', () => {

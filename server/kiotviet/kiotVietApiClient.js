@@ -104,7 +104,7 @@ function createKiotVietClient(config) {
       pagesLoaded++;
       recordsLoaded += items.length;
 
-      onPage(items, { pagesLoaded, recordsLoaded, total });
+      await onPage(items, { pagesLoaded, recordsLoaded, total });
 
       currentItem += PAGE_SIZE;
       if (items.length === 0) break;

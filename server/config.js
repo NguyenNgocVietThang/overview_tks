@@ -121,7 +121,20 @@ const CONFIG = {
   // So lan nghi gap/thang vuot nguong nay thi hien badge canh bao cho Quan ly.
   HR_URGENT_FLAG_MONTHLY_THRESHOLD: Number(process.env.HR_URGENT_FLAG_MONTHLY_THRESHOLD) || 2,
   // Thoi han hieu luc cua ma lien ket Telegram (phut).
-  HR_LINK_CODE_TTL_MINUTES: Number(process.env.HR_LINK_CODE_TTL_MINUTES) || 15
+  HR_LINK_CODE_TTL_MINUTES: Number(process.env.HR_LINK_CODE_TTL_MINUTES) || 15,
+
+  // ==========================================
+  // POSTGRES — Phase 1 (dong bo KiotViet), xem PlanDB-Phase1-Spec.md
+  // ==========================================
+  // Bat buoc: server/db/pool.js va server/db/migrate.js khong khoi dong duoc
+  // neu thieu, giong tinh than JWT_SECRET (ha tang loi, khong fallback im lang).
+  DATABASE_URL: required('DATABASE_URL'),
+  // Optional — mac dinh true khi production (Render Postgres managed can SSL),
+  // false khi dev local (Postgres qua Docker thuong khong bat SSL).
+  PGSSL: process.env.PGSSL ? process.env.PGSSL === 'true' : process.env.NODE_ENV === 'production',
+  // Optional — nhip dong bo invoices/orders (fast) va cac entity con lai (slow).
+  KIOTVIET_SYNC_FAST_INTERVAL_MS: Number(process.env.KIOTVIET_SYNC_FAST_INTERVAL_MS) || 90000,
+  KIOTVIET_SYNC_SLOW_INTERVAL_MS: Number(process.env.KIOTVIET_SYNC_SLOW_INTERVAL_MS) || 900000
 };
 
 module.exports = CONFIG;

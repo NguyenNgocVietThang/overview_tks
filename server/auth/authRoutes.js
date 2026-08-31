@@ -14,11 +14,14 @@ const {
   findUserByIdentifier,
   findUserById,
   ACTIVE_STATUS,
+  INACTIVE_STATUS,
   PENDING_STATUS,
+  LOCKED_STATUS,
   ROLES,
   normalizePhone,
   isHardcodedAdmin
 } = require('./userRepository');
+const { formatDateVN } = require('./localUserStore');
 const { createActiveGuest, activatePendingGuest, updateUserFields } = require('./userWriteRepository');
 const { verifyGoogleIdToken } = require('./googleAuthService');
 const { AUTH_COOKIE_NAME, AUTH_COOKIE_MAX_AGE_MS, requireAuth } = require('./authMiddleware');
@@ -273,16 +276,25 @@ router.post('/api/auth/login', async (req, res) => {
     if (user.email) clearFailedLogins(user.email);
     if (user.soDienThoai) clearFailedLogins(user.soDienThoai);
 
-    if (isHardcodedAdmin(user.email) || isHardcodedAdmin(user.username)) {
+    const isTargetAdmin = isHardcodedAdmin(user.email) || isHardcodedAdmin(user.username);
+    if (isTargetAdmin) {
       user.vaiTro = ROLES.QUAN_LY;
       user.trangThai = ACTIVE_STATUS;
     }
 
+    const updates = {
+      dangNhapGanNhat: formatDateVN(new Date())
+    };
+    if (user.trangThai === INACTIVE_STATUS || user.trangThai === 'Không hoạt động' || user.trangThai === PENDING_STATUS) {
+      updates.trangThai = ACTIVE_STATUS;
+    }
+
     // Neu dang nhap bang email ma tai khoan chua co truong email -> cap nhat vao ho so
     if (normIdentifier.includes('@') && !user.email) {
-      const updated = await updateUserFields(user.id, { email: normIdentifier });
-      if (updated) user = updated;
+      updates.email = normIdentifier;
     }
+    const updated = await updateUserFields(user.id, updates);
+    if (updated) user = { ...user, ...updates, ...updated };
 
     res.status(200).json(signIn(res, user));
   } catch (err) {
@@ -565,19 +577,25 @@ router.post('/api/auth/google', async (req, res) => {
         email,
         vaiTro: assignedRole,
         coSo: isTargetAdmin ? 'Cả hai' : '',
-        trangThai: ACTIVE_STATUS
+        trangThai: ACTIVE_STATUS,
+        dangNhapGanNhat: formatDateVN(new Date())
       };
+      if (user && user.id) {
+        await updateUserFields(user.id, { dangNhapGanNhat: formatDateVN(new Date()) });
+      }
     } else {
       if (isTargetAdmin || isHardcodedAdmin(user.username)) {
         user.vaiTro = ROLES.QUAN_LY;
         user.trangThai = ACTIVE_STATUS;
       }
-      if (user.trangThai !== ACTIVE_STATUS && user.trangThai !== PENDING_STATUS) {
+      if (user.trangThai === LOCKED_STATUS || user.trangThai === 'Khóa') {
         return res.status(403).json({ error: 'Tài khoản đã bị khóa.' });
       }
 
-      // Tai khoan da ton tai -> dong bo ten va email tu Google vao ho so nguoi dung
-      const updates = {};
+      // Tai khoan da ton tai -> dong bo ten, email va dangNhapGanNhat tu Google vao ho so nguoi dung
+      const updates = {
+        dangNhapGanNhat: formatDateVN(new Date())
+      };
       if (!user.email || user.email.toLowerCase() !== email) {
         updates.email = email;
       }
@@ -590,6 +608,8 @@ router.post('/api/auth/google', async (req, res) => {
       } else if (user.trangThai === PENDING_STATUS) {
         await activatePendingGuest({ email, hoTen: googleName || user.hoTen });
         updates.vaiTro = ROLES.KHACH;
+        updates.trangThai = ACTIVE_STATUS;
+      } else if (user.trangThai === INACTIVE_STATUS || user.trangThai === 'Không hoạt động') {
         updates.trangThai = ACTIVE_STATUS;
       }
       if (Object.keys(updates).length > 0) {

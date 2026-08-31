@@ -70,6 +70,68 @@ function parseIsoDateOnly(value) {
   return date;
 }
 
+/**
+ * Parse ngày theo nhiều định dạng hỗ trợ:
+ * - dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy
+ * - dd/mm, dd-mm, dd.mm (mặc định là năm hiện tại hoặc năm của referenceDate)
+ * - Hỗ trợ ngày và tháng 1 hoặc 2 chữ số (vd: 27/8, 5/9, 27/08/2026, 27-8)
+ * - Nhận dạng từ ngữ tương đối: "hôm nay", "ngày mai", "ngày kia", "ngày mốt"...
+ *
+ * @param {string} text - Chuỗi văn bản nhập vào
+ * @param {Date|string|number} [referenceDate] - Mốc thời gian tham chiếu (mặc định: new Date())
+ * @returns {Date|null} - Đối tượng Date (00:00:00 local time) hoặc null nếu không hợp lệ
+ */
+function parseVietnameseDate(text, referenceDate) {
+  const raw = String(text || '').trim();
+  if (!raw) return null;
+
+  let ref = referenceDate instanceof Date ? referenceDate : (referenceDate ? new Date(referenceDate) : new Date());
+  if (!Number.isFinite(ref.getTime())) {
+    ref = new Date();
+  }
+
+  // 1. Nhận dạng các từ khóa ngày tương đối (hỗ trợ cả có dấu và không dấu)
+  const normalized = raw.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+
+  if (normalized === 'hom nay' || normalized === 'nay') {
+    return new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
+  }
+  if (normalized === 'ngay mai' || normalized === 'mai') {
+    return new Date(ref.getFullYear(), ref.getMonth(), ref.getDate() + 1);
+  }
+  if (
+    normalized === 'ngay kia' ||
+    normalized === 'kia' ||
+    normalized === 'ngay mot' ||
+    normalized === 'mot'
+  ) {
+    return new Date(ref.getFullYear(), ref.getMonth(), ref.getDate() + 2);
+  }
+
+  // 2. Nhận dạng định dạng số: dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy, dd/mm, dd-mm, dd.mm
+  // Chấp nhận d/m, d-m, dd/mm, dd-mm, d/m/yyyy, dd-mm-yyyy...
+  const match = raw.match(/^(\d{1,2})[\/\-\.](\d{1,2})(?:[\/\-\.](\d{4}))?$/);
+  if (match) {
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    const year = match[3] != null ? Number(match[3]) : ref.getFullYear();
+
+    const date = new Date(year, month - 1, day);
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day
+    ) {
+      return null;
+    }
+    return date;
+  }
+
+  return null;
+}
+
 function formatVietnameseDate(date) {
   const parsed = new Date(date);
   if (!Number.isFinite(parsed.getTime())) return null;
@@ -119,6 +181,7 @@ module.exports = {
   getSessionStartTime,
   computeSubmissionViolation,
   parseIsoDateOnly,
+  parseVietnameseDate,
   formatVietnameseDate,
   formatLeaveBoundary,
   computeIsUrgent,

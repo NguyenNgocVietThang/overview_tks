@@ -139,10 +139,27 @@ function submissionDateKey(value) {
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
+function extractIsoDateFromBoundary(value) {
+  if (!value) return null;
+  const str = String(value).trim();
+  const match = str.match(/(?:Sáng|Chiều)?\s*(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/i);
+  if (match) {
+    const day = String(match[1]).padStart(2, '0');
+    const month = String(match[2]).padStart(2, '0');
+    const year = match[3];
+    return `${year}-${month}-${day}`;
+  }
+  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  }
+  return null;
+}
+
 // ---- Leave requests -------------------------------------------------------
 
 /**
- * @param {Object} filters { status, employee, from, to } — from/to dang 'YYYY-MM-DD', loc theo thoi_gian_gui
+ * @param {Object} filters { status, employee, from, to } — from/to dạng 'YYYY-MM-DD', lọc theo ngày xin nghỉ thực tế
  */
 async function getLeaveRequests(filters, branch) {
   filters = filters || {};
@@ -160,11 +177,21 @@ async function getLeaveRequests(filters, branch) {
   }
   if (filters.from) {
     const fromDate = String(filters.from).slice(0, 10);
-    items = items.filter(item => submissionDateKey(item.thoi_gian_gui) >= fromDate);
+    items = items.filter(item => {
+      const endLeaveDate = extractIsoDateFromBoundary(item.thoi_gian_ket_thuc) ||
+                           extractIsoDateFromBoundary(item.thoi_gian_bat_dau);
+      if (endLeaveDate) return endLeaveDate >= fromDate;
+      return submissionDateKey(item.thoi_gian_gui) >= fromDate;
+    });
   }
   if (filters.to) {
     const toDate = String(filters.to).slice(0, 10);
-    items = items.filter(item => submissionDateKey(item.thoi_gian_gui) <= toDate);
+    items = items.filter(item => {
+      const startLeaveDate = extractIsoDateFromBoundary(item.thoi_gian_bat_dau) ||
+                             extractIsoDateFromBoundary(item.thoi_gian_ket_thuc);
+      if (startLeaveDate) return startLeaveDate <= toDate;
+      return submissionDateKey(item.thoi_gian_gui) <= toDate;
+    });
   }
 
   // Moi nhat truoc

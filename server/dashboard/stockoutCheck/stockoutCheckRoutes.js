@@ -8,7 +8,7 @@ const router = express.Router();
 const { createJobStore } = require('./jobManager');
 const stockoutCheckService = require('./stockoutCheckService');
 const { parseProductCodesFromWorkbookBuffer } = require('./excelParser');
-const { createKiotVietClient } = require('./kiotVietClient');
+const { createKiotVietClient } = require('../../kiotviet/kiotVietApiClient');
 const { BRANCHES } = require('../../branch/branches');
 
 const jobStore = createJobStore();

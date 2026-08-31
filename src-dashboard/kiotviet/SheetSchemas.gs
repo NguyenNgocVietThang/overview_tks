@@ -1170,26 +1170,43 @@ function syncKiotVietTableChunk_(schemaKey, options) {
 
   // Neu la lan dau tien: Don cot JSON cu, kiem tra schema, xoa trang noi dung cu va ghi Header
   if (isFirstChunk) {
-    if (!sheetJustCreated) {
-      removeLegacyKiotVietJsonColumns_(sheet);
-      ensureKiotVietSheetSchema_(sheet, schema);
-    }
-    sheet.clearContents();
-    sheet.getRange(1, 1, 1, schema.headers.length).setValues([schema.headers]);
-
-    // Rieng voi Hoa don, chuan bi ca tab Chi tiet hoa don
-    if (schemaKey === 'invoices') {
-      const detailSchema = KIOTVIET_SHEET_SCHEMAS.invoiceDetails;
-      const detailSheet = invoiceDetailStagingSheet;
-      if (!invoiceDetailStagingSheetJustCreated) {
-        removeLegacyKiotVietJsonColumns_(detailSheet);
-        ensureKiotVietSheetSchema_(detailSheet, detailSchema);
+    try {
+      if (!sheetJustCreated) {
+        removeLegacyKiotVietJsonColumns_(sheet);
+        ensureKiotVietSheetSchema_(sheet, schema);
       }
-      detailSheet.clearContents();
-      detailSheet.getRange(1, 1, 1, detailSchema.headers.length).setValues([detailSchema.headers]);
-    }
-    if (typeof SpreadsheetApp !== 'undefined' && typeof SpreadsheetApp.flush === 'function') {
-      SpreadsheetApp.flush();
+      sheet.clearContents();
+      sheet.getRange(1, 1, 1, schema.headers.length).setValues([schema.headers]);
+
+      // Rieng voi Hoa don, chuan bi ca tab Chi tiet hoa don
+      if (schemaKey === 'invoices') {
+        const detailSchema = KIOTVIET_SHEET_SCHEMAS.invoiceDetails;
+        const detailSheet = invoiceDetailStagingSheet;
+        if (!invoiceDetailStagingSheetJustCreated) {
+          removeLegacyKiotVietJsonColumns_(detailSheet);
+          ensureKiotVietSheetSchema_(detailSheet, detailSchema);
+        }
+        detailSheet.clearContents();
+        detailSheet.getRange(1, 1, 1, detailSchema.headers.length).setValues([detailSchema.headers]);
+      }
+      if (typeof SpreadsheetApp !== 'undefined' && typeof SpreadsheetApp.flush === 'function') {
+        SpreadsheetApp.flush();
+      }
+    } catch (initializationError) {
+      Logger.log(
+        '[' + schema.sheetName + '] Khoi tao staging that bai, se thu lai sau: ' + initializationError
+      );
+      if (autoSchedule && resumeHandler) scheduleSpecificChunkTrigger_(resumeHandler);
+      return {
+        schemaKey: schemaKey,
+        sheetName: schema.sheetName,
+        isCompleted: false,
+        currentItem: 0,
+        total: Number(state.total) || 0,
+        recordsProcessed: 0,
+        phase: 'initialize',
+        error: String((initializationError && initializationError.message) || initializationError)
+      };
     }
   }
 

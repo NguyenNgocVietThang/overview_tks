@@ -64,7 +64,7 @@ Nếu vi phạm thời điểm gửi, tóm tắt thêm cảnh báo và giải th
 - `GET /api/hr/leave-requests?from=&to=` lọc theo ngày của `thoi_gian_gui`, bao gồm cả hai đầu khoảng.
 - Export Excel truyền cùng bộ lọc và xuất schema mới.
 - Bảng web thêm cột `Thời gian gửi`; giá trị được định dạng ngày giờ dễ đọc.
-- Nhãn bộ lọc nói rõ lọc theo thời gian gửi và không có giá trị mặc định.
+- Nhãn bộ lọc nói rõ lọc theo thời gian gửi và mặc định 3 ngày gần đây.
 - Form quản lý nhập tay dùng ngày + buổi, không còn trường giờ; server tự tính số buổi và áp dụng loại trừ Chủ nhật.
 - Trạng thái `Vi phạm` có badge riêng và không hiển thị hành động duyệt/từ chối như đơn `Chờ duyệt`.
 

@@ -41,7 +41,7 @@ Truy cập `http://localhost:3000` — giao diện Live Dashboard tải số li�
 # Khởi tạo tab Users và tạo tài khoản Admin mặc định
 node scripts/setupUsersSheet.js init
 
-# Tạo tài khoản mới (vai trò: Quản lý | Kế toán | Trưởng kho | Trợ lý | Khách)
+# Tạo tài khoản mới (vai trò: Quản lý | Kế toán | Trưởng kho | Trợ lý | Lái xe | Nhân viên kho | Nhân viên sale | Nhân viên mua hàng | Khách)
 node scripts/setupUsersSheet.js add <username> <password> <vaiTro> [hoTen] [email]
 
 # Đổi mật khẩu tài khoản

@@ -8,7 +8,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { requireAuth, requireRole } = require('./authMiddleware');
 const localUserStore = require('./localUserStore');
-const { ROLES, ACTIVE_STATUS, LOCKED_STATUS, PENDING_STATUS } = localUserStore;
+const { ROLES, ACTIVE_STATUS, INACTIVE_STATUS, LOCKED_STATUS, PENDING_STATUS } = localUserStore;
 const { normalizePhone } = require('./userRepository');
 const notificationRepo = require('../notifications/notificationRepository');
 const { normalizeCoSo, BRANCH_VALUES } = require('../branch/branches');
@@ -16,7 +16,7 @@ const { normalizeCoSo, BRANCH_VALUES } = require('../branch/branches');
 const router = express.Router();
 
 const VALID_ROLES = Object.values(ROLES);
-const VALID_STATUSES = [ACTIVE_STATUS, LOCKED_STATUS, PENDING_STATUS];
+const VALID_STATUSES = [ACTIVE_STATUS, INACTIVE_STATUS, LOCKED_STATUS, PENDING_STATUS];
 
 function publicAdminUser(u) {
   return {
@@ -151,6 +151,10 @@ router.put('/api/admin/users/:id', async (req, res) => {
     const currentAdminId = req.user.id;
     const isSelf = String(currentAdminId) === String(targetId) ||
                    req.user.username.toLowerCase() === targetUser.username.toLowerCase();
+    const isTargetThang = (localUserStore.isProtectedSuperAdmin && (localUserStore.isProtectedSuperAdmin(targetUser.email) || localUserStore.isProtectedSuperAdmin(targetUser.username))) ||
+                          (targetUser.email && targetUser.email.toLowerCase() === 'thangnnv2003@gmail.com') ||
+                          (targetUser.username && targetUser.username.toLowerCase() === 'thangnnv2003@gmail.com') ||
+                          (targetUser.username && targetUser.username.toLowerCase() === 'thangnnv2003');
     const isTargetHardcodedAdmin = localUserStore.isHardcodedAdmin(targetUser.email) ||
                                    localUserStore.isHardcodedAdmin(targetUser.username);
 
@@ -197,9 +201,12 @@ router.put('/api/admin/users/:id', async (req, res) => {
       if (!VALID_ROLES.includes(vaiTro)) {
         return res.status(400).json({ error: `Vai trò không hợp lệ: ${vaiTro}` });
       }
-      // Business Rule: Chống tự hạ quyền & chống hạ quyền Admin mặc định
+      // Business Rule: Chống tự hạ quyền & chống hạ quyền thangnnv2003@gmail.com / Admin mặc định
       if (isSelf && vaiTro !== ROLES.QUAN_LY) {
         return res.status(400).json({ error: 'Bạn không thể tự hạ quyền Quản lý của chính mình.' });
+      }
+      if (isTargetThang && vaiTro !== ROLES.QUAN_LY) {
+        return res.status(400).json({ error: 'Không ai có quyền hạ quyền tài khoản thangnnv2003@gmail.com.' });
       }
       if (isTargetHardcodedAdmin && vaiTro !== ROLES.QUAN_LY) {
         return res.status(400).json({ error: 'Không thể hạ quyền của tài khoản Quản trị viên hệ thống mặc định.' });
@@ -212,11 +219,14 @@ router.put('/api/admin/users/:id', async (req, res) => {
       if (!VALID_STATUSES.includes(trangThai)) {
         return res.status(400).json({ error: `Trạng thái không hợp lệ: ${trangThai}` });
       }
-      // Business Rule: Chống tự khóa & chống khóa Admin mặc định
-      if (isSelf && trangThai !== ACTIVE_STATUS) {
+      // Business Rule: Chống tự khóa & chống khóa thangnnv2003@gmail.com / Admin mặc định
+      if (isSelf && (trangThai === LOCKED_STATUS || trangThai === 'Khóa')) {
         return res.status(400).json({ error: 'Bạn không thể tự khóa tài khoản của chính mình.' });
       }
-      if (isTargetHardcodedAdmin && trangThai !== ACTIVE_STATUS) {
+      if (isTargetThang && (trangThai === LOCKED_STATUS || trangThai === 'Khóa')) {
+        return res.status(400).json({ error: 'Không ai có quyền khóa tài khoản thangnnv2003@gmail.com.' });
+      }
+      if (isTargetHardcodedAdmin && (trangThai === LOCKED_STATUS || trangThai === 'Khóa')) {
         return res.status(400).json({ error: 'Không thể khóa tài khoản Quản trị viên hệ thống mặc định.' });
       }
       updates.trangThai = trangThai;
@@ -277,6 +287,14 @@ router.delete('/api/admin/users/:id', async (req, res) => {
                    req.user.username.toLowerCase() === targetUser.username.toLowerCase();
     if (isSelf) {
       return res.status(400).json({ error: 'Bạn không thể tự xóa tài khoản của chính mình.' });
+    }
+
+    const isTargetThang = (localUserStore.isProtectedSuperAdmin && (localUserStore.isProtectedSuperAdmin(targetUser.email) || localUserStore.isProtectedSuperAdmin(targetUser.username))) ||
+                          (targetUser.email && targetUser.email.toLowerCase() === 'thangnnv2003@gmail.com') ||
+                          (targetUser.username && targetUser.username.toLowerCase() === 'thangnnv2003@gmail.com') ||
+                          (targetUser.username && targetUser.username.toLowerCase() === 'thangnnv2003');
+    if (isTargetThang) {
+      return res.status(400).json({ error: 'Không ai có quyền xóa tài khoản thangnnv2003@gmail.com.' });
     }
 
     const isTargetHardcodedAdmin = localUserStore.isHardcodedAdmin(targetUser.email) ||

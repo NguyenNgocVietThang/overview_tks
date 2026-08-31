@@ -16,6 +16,8 @@ const KIOTVIET_AUTO_SYNC_EVENT_TYPES = Object.freeze([
 const KIOTVIET_AUTO_SYNC_DESCRIPTION_PREFIX = "Auto-sync Google Sheets - ";
 const KIOTVIET_SHIPMENT_EVENT_TYPES = Object.freeze(["invoice.update"]);
 const KIOTVIET_SHIPMENT_DESCRIPTION_PREFIX = "Shipment lifecycle - ";
+const KIOTVIET_WEBHOOK_HEALTH_HANDLER_ = 'reconcileKiotVietAutoSyncHealth_';
+const KIOTVIET_INVOICE_RECONCILE_HANDLER_ = 'reconcileInvoicesDaily_';
 
 function getKiotVietAutoSyncProfile_() {
   if (isShipmentLifecycleMode_()) {
@@ -68,6 +70,7 @@ function setupKiotVietAutoSync() {
     setupPollingTrigger();
     setupCustomerReportDailyTrigger();
     setupCustomerDebtReportDailyTrigger();
+    setupKiotVietRecoveryTriggers();
   }
 
   const result = reconcileKiotVietAutoSyncWebhooks_(token, profile);
@@ -81,6 +84,74 @@ function setupKiotVietAutoSync() {
     throw new Error("Chua bat du webhook KiotViet cho che do hien tai: " + JSON.stringify(result));
   }
   return result;
+}
+
+function createKiotVietRecoveryTriggers_() {
+  ScriptApp.newTrigger(KIOTVIET_WEBHOOK_HEALTH_HANDLER_)
+    .timeBased()
+    .everyHours(1)
+    .create();
+  ScriptApp.newTrigger(KIOTVIET_INVOICE_RECONCILE_HANDLER_)
+    .timeBased()
+    .atHour(2)
+    .everyDays(1)
+    .create();
+  ScriptApp.newTrigger(KIOTVIET_INVOICE_RECONCILE_HANDLER_)
+    .timeBased()
+    .after(60 * 1000)
+    .create();
+}
+
+function setupKiotVietRecoveryTriggers() {
+  ScriptApp.getProjectTriggers().forEach(trigger => {
+    const handler = trigger.getHandlerFunction();
+    if (handler === KIOTVIET_WEBHOOK_HEALTH_HANDLER_ ||
+        handler === KIOTVIET_INVOICE_RECONCILE_HANDLER_) {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  });
+  createKiotVietRecoveryTriggers_();
+}
+
+function ensureKiotVietRecoveryTriggers_() {
+  const handlers = {};
+  ScriptApp.getProjectTriggers().forEach(trigger => {
+    handlers[trigger.getHandlerFunction()] = true;
+  });
+  if (!handlers[KIOTVIET_WEBHOOK_HEALTH_HANDLER_]) {
+    ScriptApp.newTrigger(KIOTVIET_WEBHOOK_HEALTH_HANDLER_)
+      .timeBased()
+      .everyHours(1)
+      .create();
+  }
+  if (!handlers[KIOTVIET_INVOICE_RECONCILE_HANDLER_]) {
+    ScriptApp.newTrigger(KIOTVIET_INVOICE_RECONCILE_HANDLER_)
+      .timeBased()
+      .atHour(2)
+      .everyDays(1)
+      .create();
+    ScriptApp.newTrigger(KIOTVIET_INVOICE_RECONCILE_HANDLER_)
+      .timeBased()
+      .after(60 * 1000)
+      .create();
+  }
+}
+
+function reconcileKiotVietAutoSyncHealth_() {
+  const token = getKiotVietToken();
+  if (!token) throw new Error('Khong lay duoc token de kiem tra webhook.');
+  const profile = getKiotVietAutoSyncProfile_();
+  const result = reconcileKiotVietAutoSyncWebhooks_(token, profile);
+  if (result.activeCount !== profile.eventTypes.length || result.failedCount > 0) {
+    throw new Error('Khong khoi phuc du webhook KiotViet: ' + JSON.stringify(result));
+  }
+  return result;
+}
+
+function reconcileInvoicesDaily_() {
+  return hasInvoicesBackfillProgress_()
+    ? syncInvoicesChunk()
+    : restartInvoicesBackfill();
 }
 
 /**

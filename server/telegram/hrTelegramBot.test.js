@@ -169,11 +169,100 @@ test('normalizeSession nhan dang buoi sang va chieu chinh xac', () => {
   assert.equal(normalizeSession('abc'), null);
 });
 
+test('parseVietnameseDate nhan dang dung cac dinh dang ngay va tu khoa tuong doi', () => {
+  const { parseVietnameseDate } = require('./hrTelegramBot').__test__;
+  const refDate = new Date(2026, 7, 27); // 27/08/2026
+
+  // 1. Dinh dang day du dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy
+  const d1 = parseVietnameseDate('27/08/2026');
+  assert.equal(d1.getFullYear(), 2026);
+  assert.equal(d1.getMonth(), 7);
+  assert.equal(d1.getDate(), 27);
+
+  const d2 = parseVietnameseDate('27-08-2026');
+  assert.equal(d2.getFullYear(), 2026);
+  assert.equal(d2.getMonth(), 7);
+  assert.equal(d2.getDate(), 27);
+
+  // 2. Thang va ngay 1 chu so (d/m/yyyy, d-m-yyyy, d/m, d-m)
+  const d3 = parseVietnameseDate('5/9/2026');
+  assert.equal(d3.getFullYear(), 2026);
+  assert.equal(d3.getMonth(), 8);
+  assert.equal(d3.getDate(), 5);
+
+  const d4 = parseVietnameseDate('5-9-2026');
+  assert.equal(d4.getFullYear(), 2026);
+  assert.equal(d4.getMonth(), 8);
+  assert.equal(d4.getDate(), 5);
+
+  // 3. Khong co nam: dd/mm, dd-mm, d/m, d-m (mac dinh la nam cua referenceDate hoac nam nay)
+  const d5 = parseVietnameseDate('27/8', refDate);
+  assert.equal(d5.getFullYear(), 2026);
+  assert.equal(d5.getMonth(), 7);
+  assert.equal(d5.getDate(), 27);
+
+  const d6 = parseVietnameseDate('27-08', refDate);
+  assert.equal(d6.getFullYear(), 2026);
+  assert.equal(d6.getMonth(), 7);
+  assert.equal(d6.getDate(), 27);
+
+  const d7 = parseVietnameseDate('5/9', refDate);
+  assert.equal(d7.getFullYear(), 2026);
+  assert.equal(d7.getMonth(), 8);
+  assert.equal(d7.getDate(), 5);
+
+  // 27/8 va 27/08/2026 ban chat nhu nhau
+  assert.equal(d5.getTime(), d1.getTime());
+
+  // 4. Tu khoa tuong doi: ngay mai (1 ngay sau refDate), ngay kia (2 ngay sau refDate), hom nay
+  const tomorrow1 = parseVietnameseDate('ngày mai', refDate);
+  assert.equal(tomorrow1.getFullYear(), 2026);
+  assert.equal(tomorrow1.getMonth(), 7);
+  assert.equal(tomorrow1.getDate(), 28);
+
+  const tomorrow2 = parseVietnameseDate('mai', refDate);
+  assert.equal(tomorrow2.getDate(), 28);
+
+  const tomorrow3 = parseVietnameseDate('ngay mai', refDate);
+  assert.equal(tomorrow3.getDate(), 28);
+
+  const dayAfterTomorrow1 = parseVietnameseDate('ngày kia', refDate);
+  assert.equal(dayAfterTomorrow1.getFullYear(), 2026);
+  assert.equal(dayAfterTomorrow1.getMonth(), 7);
+  assert.equal(dayAfterTomorrow1.getDate(), 29);
+
+  const dayAfterTomorrow2 = parseVietnameseDate('kia', refDate);
+  assert.equal(dayAfterTomorrow2.getDate(), 29);
+
+  const dayAfterTomorrow3 = parseVietnameseDate('ngay kia', refDate);
+  assert.equal(dayAfterTomorrow3.getDate(), 29);
+
+  const dayAfterTomorrow4 = parseVietnameseDate('ngày mốt', refDate);
+  assert.equal(dayAfterTomorrow4.getDate(), 29);
+
+  const today1 = parseVietnameseDate('hôm nay', refDate);
+  assert.equal(today1.getDate(), 27);
+
+  const today2 = parseVietnameseDate('nay', refDate);
+  assert.equal(today2.getDate(), 27);
+
+  // 5. Chuyen thang khi +1 / +2 ngay
+  const endOfMonth = new Date(2026, 7, 31); // 31/08/2026
+  const nextMonth = parseVietnameseDate('ngày mai', endOfMonth);
+  assert.equal(nextMonth.getFullYear(), 2026);
+  assert.equal(nextMonth.getMonth(), 8); // Thang 9
+  assert.equal(nextMonth.getDate(), 1);
+});
+
 test('parseVietnameseDate tu choi ngay khong ton tai', () => {
   const { parseVietnameseDate } = require('./hrTelegramBot').__test__;
   assert.equal(parseVietnameseDate('31/02/2026'), null);
   assert.equal(parseVietnameseDate('29/02/2025'), null);
   assert.equal(parseVietnameseDate('29/02/2024').getDate(), 29);
+  assert.equal(parseVietnameseDate('31/04/2026'), null);
+  assert.equal(parseVietnameseDate('abcxyz'), null);
+  assert.equal(parseVietnameseDate(''), null);
+  assert.equal(parseVietnameseDate(null), null);
 });
 
 test('markProcessed tach message_id theo tung chat', () => {
@@ -386,3 +475,79 @@ test('computeIsUrgent tinh dung voi nguong 10h mac dinh', () => {
   assert.equal(computeIsUrgent(startTime, msgTime12h, 15), true);
   assert.equal(computeIsUrgent(startTime, msgTime6h, 4), false);
 });
+
+test('lenh /huy va nut Huy dong nhat thong bao va reset phien lam viec', async () => {
+  const telegramModulePath = require.resolve('node-telegram-bot-api');
+  const botModulePath = require.resolve('./hrTelegramBot');
+  const config = require('../config');
+  const store = require('./conversationStore');
+  const previousTelegramModule = require.cache[telegramModulePath];
+  const previousToken = config.TELEGRAM_BOT_TOKEN;
+  const tmpFile = path.join(os.tmpdir(), `tks-hr-bot-cancel-test-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+
+  const sentMessages = [];
+  const textHandlers = [];
+  let callbackHandler = null;
+
+  class FakeTelegramBot extends EventEmitter {
+    onText(regex, handler) {
+      textHandlers.push({ regex, handler });
+    }
+
+    on(event, handler) {
+      if (event === 'callback_query') callbackHandler = handler;
+      super.on(event, handler);
+    }
+
+    async sendMessage(chatId, text) {
+      sentMessages.push({ chatId, text });
+    }
+
+    async editMessageReplyMarkup() {}
+
+    async answerCallbackQuery() {}
+  }
+
+  try {
+    require.cache[telegramModulePath] = {
+      id: telegramModulePath,
+      filename: telegramModulePath,
+      loaded: true,
+      exports: FakeTelegramBot
+    };
+    config.TELEGRAM_BOT_TOKEN = 'test-token';
+    store.initStore(tmpFile);
+
+    delete require.cache[botModulePath];
+    const { startHrTelegramBot } = require('./hrTelegramBot');
+    startHrTelegramBot();
+
+    // 1. Test lệnh /huy
+    store.setConversation(991, { step: 'AWAITING_REASON', data: {} });
+    const huyHandler = textHandlers.find(h => h.regex.test('/huy')).handler;
+    await huyHandler({ chat: { id: 991 }, message_id: 1 });
+
+    assert.equal(store.getConversation(991), null);
+    assert.equal(sentMessages.find(m => m.chatId === 991).text, 'Đã hủy yêu cầu xin nghỉ phép.');
+
+    // 2. Test nút Hủy (callback_query)
+    store.setConversation(992, { step: 'CONFIRM', data: {} });
+    await callbackHandler({
+      id: 'query-1',
+      from: { id: 992 },
+      message: { chat: { id: 992 }, message_id: 10 },
+      data: 'cancel'
+    });
+
+    assert.equal(store.getConversation(992), null);
+    assert.equal(sentMessages.find(m => m.chatId === 992).text, 'Đã hủy yêu cầu xin nghỉ phép.');
+  } finally {
+    config.TELEGRAM_BOT_TOKEN = previousToken;
+    store.initStore();
+    delete require.cache[botModulePath];
+    if (previousTelegramModule) require.cache[telegramModulePath] = previousTelegramModule;
+    else delete require.cache[telegramModulePath];
+    fs.rmSync(tmpFile, { force: true });
+  }
+});
+

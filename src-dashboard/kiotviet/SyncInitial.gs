@@ -231,12 +231,44 @@ function syncInvoicesChunk() {
     return syncKiotVietTableChunk_('invoices', {
       resumeHandler: 'resumeSyncInvoicesChunk'
     });
+  } catch (error) {
+    scheduleSpecificChunkTrigger_('resumeSyncInvoicesChunk');
+    Logger.log('Backfill Hoa don bi gian doan; se thu lai sau: ' + error.toString());
+    return {
+      schemaKey: 'invoices',
+      isCompleted: false,
+      error: String((error && error.message) || error)
+    };
   } finally {
     invoiceLock.releaseLock();
   }
 }
 function resumeSyncInvoicesChunk() {
   return syncInvoicesChunk();
+}
+
+function hasInvoicesBackfillProgress_() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('SYNC_CHUNK_STATE_invoices')) return true;
+  if (typeof SpreadsheetApp === 'undefined' ||
+      typeof SpreadsheetApp.getActiveSpreadsheet !== 'function') return false;
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  return Boolean(
+    spreadsheet.getSheetByName(KIOTVIET_CHUNK_STAGING_SHEETS_.invoices) ||
+    spreadsheet.getSheetByName(KIOTVIET_INVOICE_DETAIL_STAGING_SHEET_)
+  );
+}
+
+/** Khoi phuc trigger mot lan neu backfill Hoa don con checkpoint/staging. */
+function ensureInvoicesBackfillResumeTrigger_() {
+  if (!hasInvoicesBackfillProgress_()) return false;
+  const hasResumeTrigger = ScriptApp.getProjectTriggers().some(function(trigger) {
+    return trigger.getHandlerFunction() === 'resumeSyncInvoicesChunk';
+  });
+  if (hasResumeTrigger) return false;
+  scheduleSpecificChunkTrigger_('resumeSyncInvoicesChunk');
+  Logger.log('Da khoi phuc trigger tiep suc backfill Hoa don.');
+  return true;
 }
 
 /**

@@ -13,6 +13,95 @@
   TKSNav._navigate = function(url){ window.location.href = url; };
   TKSNav._reload = function(){ window.location.reload(); };
 
+  // ---------- Do rong sidebar co the keo (resize) ----------
+  var SIDEBAR_W_KEY = 'tks-sidebar-width';
+  var SIDEBAR_W_MIN = 170;
+  var SIDEBAR_W_MAX = 420;
+
+  // Ap dung ngay khi script load (trang van dang visibility:hidden cho toi khi
+  // authGuard xong) de tranh nhap nhay do rong sidebar mac dinh roi doi lai.
+  (function applySavedSidebarWidth(){
+    try{
+      var saved = parseInt(localStorage.getItem(SIDEBAR_W_KEY), 10);
+      if(saved && saved >= SIDEBAR_W_MIN && saved <= SIDEBAR_W_MAX){
+        document.documentElement.style.setProperty('--sidebar-w', saved + 'px');
+      }
+    }catch(err){ /* localStorage khong kha dung (private mode...) — bo qua */ }
+  })();
+
+  /**
+   * Gan thanh keo (resize handle) ngay sau #sidebar de nguoi dung keo ngang
+   * mo rong/thu gon sidebar; phan .content ben canh tu thu gon vi la flex:1.
+   * Chi goi 1 lan — an toan khi authGuard/renderTopSidebar chay lai vi ham
+   * nay chi ghi de mountEl.innerHTML, khong dung toi sibling nay.
+   */
+  TKSNav._initSidebarResize = function _initSidebarResize(sidebarEl){
+    if(!sidebarEl || document.getElementById('tksSidebarResizeHandle')) return;
+    var parent = sidebarEl.parentNode;
+    if(!parent) return;
+
+    var handle = document.createElement('div');
+    handle.className = 'sidebar-resize-handle';
+    handle.id = 'tksSidebarResizeHandle';
+    handle.setAttribute('role', 'separator');
+    handle.setAttribute('aria-orientation', 'vertical');
+    handle.setAttribute('aria-label', 'Kéo để đổi độ rộng thanh điều hướng');
+    parent.insertBefore(handle, sidebarEl.nextSibling);
+
+    var dragging = false;
+    var startX = 0;
+    var startW = 0;
+
+    function currentWidth(){
+      var w = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-w'), 10);
+      return w || sidebarEl.getBoundingClientRect().width;
+    }
+
+    function setWidth(px){
+      var clamped = Math.max(SIDEBAR_W_MIN, Math.min(SIDEBAR_W_MAX, px));
+      document.documentElement.style.setProperty('--sidebar-w', clamped + 'px');
+      return clamped;
+    }
+
+    function onPointerMove(e){
+      if(!dragging) return;
+      var dx = e.clientX - startX;
+      setWidth(startW + dx);
+    }
+
+    function onPointerUp(e){
+      if(!dragging) return;
+      dragging = false;
+      handle.classList.remove('is-dragging');
+      document.body.classList.remove('tks-sidebar-resizing');
+      var finalW = setWidth(startW + (e.clientX - startX));
+      try{ localStorage.setItem(SIDEBAR_W_KEY, String(finalW)); }catch(err){}
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+    }
+
+    handle.addEventListener('pointerdown', function(e){
+      if(e.button !== undefined && e.button !== 0) return;
+      dragging = true;
+      startX = e.clientX;
+      startW = currentWidth();
+      handle.classList.add('is-dragging');
+      document.body.classList.add('tks-sidebar-resizing');
+      document.addEventListener('pointermove', onPointerMove);
+      document.addEventListener('pointerup', onPointerUp);
+    });
+
+    // Ho tro ban phim: mui ten trai/phai chinh do rong theo buoc 16px.
+    handle.tabIndex = 0;
+    handle.addEventListener('keydown', function(e){
+      if(e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      var step = e.key === 'ArrowRight' ? 16 : -16;
+      var finalW = setWidth(currentWidth() + step);
+      try{ localStorage.setItem(SIDEBAR_W_KEY, String(finalW)); }catch(err){}
+    });
+  };
+
   var eyeSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
   var eyeOffSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
 
@@ -45,9 +134,15 @@
           window.location.href = '/shipment/';
           return new Promise(function(){});
         }
+        var isPurchasingAllowed = (path === '/humanresources' || path === '/account');
+        if(user.vaiTro === 'Nhân viên mua hàng' && !isPurchasingAllowed){
+          window.location.href = '/humanresources/';
+          return new Promise(function(){});
+        }
         var sidebar = document.getElementById('sidebar');
         if(sidebar && sidebar.dataset.tksActiveTop){
           TKSNav.renderTopSidebar(sidebar, sidebar.dataset.tksActiveTop, user);
+          TKSNav._initSidebarResize(sidebar);
         }
         document.documentElement.style.visibility = '';
         TKSNav.renderAccountChip(user);
@@ -608,7 +703,7 @@
       { view: 'debt', label: 'Công nợ', icon: '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>' }
     ];
     var reportsExpanded = reportsActive || TKSNav._isNavGroupOpen('reports');
-    var NO_REPORTS_ROLES = ['Khách', 'Lái xe', 'Kế toán', 'Trưởng kho'];
+    var NO_REPORTS_ROLES = ['Khách', 'Lái xe', 'Kế toán', 'Trưởng kho', 'Nhân viên kho', 'Nhân viên sale', 'Nhân viên mua hàng'];
     var reportsLink = user && NO_REPORTS_ROLES.indexOf(user.vaiTro) !== -1 ? '' :
       '<div class="nav-group">' +
         '<button type="button" class="nav-group-toggle' + (reportsActive ? ' has-active' : '') + '" id="tksReportsGroupToggle" data-tks-nav-group="reports" aria-expanded="' + reportsExpanded + '" aria-controls="tksReportsGroupList">' +
@@ -624,7 +719,8 @@
           }).join('') +
         '</div>' +
       '</div>';
-    var shipmentLink =
+    var NO_SHIPMENT_ROLES = ['Nhân viên mua hàng'];
+    var shipmentLink = (user && NO_SHIPMENT_ROLES.indexOf(user.vaiTro) !== -1) ? '' :
       '<a href="/shipment/" class="nav-item' + (shipmentActive ? ' active' : '') + '"' +
         (shipmentActive ? ' aria-current="page"' : '') + '>' +
         '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle></svg>' +
@@ -793,6 +889,14 @@
     try{ localStorage.setItem(NAV_GROUP_STORAGE_PREFIX + key, expanded ? 'open' : 'closed'); }
     catch(err){}
   });
+
+  // Tự động nạp hiệu ứng sao băng nền dùng chung cho mọi trang
+  if(typeof document !== 'undefined' && !window.__TKS_SHOOTING_STAR_INITIALIZED__){
+    var starScript = document.createElement('script');
+    starScript.src = '/shared/shooting-star.js?v=20260830';
+    starScript.defer = true;
+    document.head.appendChild(starScript);
+  }
 
   window.TKSNav = TKSNav;
 })();

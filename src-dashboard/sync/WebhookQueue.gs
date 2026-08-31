@@ -304,7 +304,7 @@ function processWebhookQueueItem_(queueItem) {
     if (action.indexOf('product') !== -1) {
       if (isDelete) deleteProductsFromWebhook(items); else updateProductsFromWebhook(items);
     } else if (action.indexOf('stock') !== -1) {
-      updateProductsFromWebhook(items);
+      updateProductStocksFromWebhook(items);
     } else if (action.indexOf('invoice') !== -1) {
       if (isDelete) {
         deleteInvoicesFromWebhook(items);
@@ -528,11 +528,50 @@ function coalesceWebhookQueueBatch_(batch) {
   });
 }
 
+/**
+ * Xu ly lo da gom; neu mot item lam ca fetchAll() loi thi chia doi de co lap
+ * item do ma van giu duoc loi ich hydrate/ghi theo lo cho cac item con lai.
+ */
+function processWebhookQueueGroupWithIsolation_(group) {
+  try {
+    processWebhookQueueItem_(group.syntheticItem);
+    return group.queueItems.map(item => ({
+      id: item.id, error: null, skipAttemptPenalty: false
+    }));
+  } catch (error) {
+    if (group.queueItems.length <= 1) {
+      Logger.log(
+        'Webhook ' + group.queueItems[0].id + ' van loi khi tach khoi lo: ' +
+        error.toString()
+      );
+      return [{
+        id: group.queueItems[0].id, error: error, skipAttemptPenalty: false
+      }];
+    }
+
+    const middle = Math.ceil(group.queueItems.length / 2);
+    const halves = [
+      group.queueItems.slice(0, middle),
+      group.queueItems.slice(middle)
+    ];
+    return halves.reduce((results, queueItems) => {
+      const subgroup = coalesceWebhookQueueBatch_(queueItems)[0];
+      return results.concat(processWebhookQueueGroupWithIsolation_(subgroup));
+    }, []);
+  }
+}
+
 function processWebhookQueue() {
   recoverWebhookQueueAfterBatchResize_();
   if (!isShipmentLifecycleMode_()) {
+    if (typeof ensureKiotVietRecoveryTriggers_ === 'function') {
+      ensureKiotVietRecoveryTriggers_();
+    }
     ensureMasterChainResumeTrigger_();
     ensurePollingOnlyResumeTrigger_();
+    if (typeof ensureInvoicesBackfillResumeTrigger_ === 'function') {
+      ensureInvoicesBackfillResumeTrigger_();
+    }
     const masterBackfillActive = Boolean(
       PropertiesService.getScriptProperties().getProperty('MASTER_CHAIN_SYNC_STATE')
     );
@@ -585,18 +624,13 @@ function processWebhookQueue() {
         return;
       }
 
-      let itemError = null;
+      let isolatedResults;
       try {
-        processWebhookQueueItem_(queueItem);
-      } catch (error) {
-        itemError = error;
-        Logger.log('Webhook ' + queueItem.id + ' loi, se thu lai: ' + error.toString());
+        isolatedResults = processWebhookQueueGroupWithIsolation_(group);
       } finally {
         if (dataLock.hasLock()) dataLock.releaseLock();
       }
-      group.queueItems.forEach(item => finalizedResults.push({
-        id: item.id, error: itemError, skipAttemptPenalty: false
-      }));
+      Array.prototype.push.apply(finalizedResults, isolatedResults);
     });
 
     if (finalizeWebhookQueueBatch_(finalizedResults) === false) break;

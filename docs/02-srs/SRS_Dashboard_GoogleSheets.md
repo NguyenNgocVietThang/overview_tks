@@ -302,7 +302,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-10.2 | Phép tính buổi tính chính xác từ đầu buổi bắt đầu đến hết cuối buổi kết thúc (ví dụ: Sáng - Sáng cùng ngày là 1 buổi, Chiều hôm trước - Sáng hôm sau là 2 buổi, Sáng - Chiều cùng ngày là 2 buổi). | Cao | Hoàn thành |
 | FR-10.3 | Bot dùng luồng nhập ngày và buổi, khôi phục được `startDate`/`endDate` sau restart và chống xử lý trùng theo `chatId:messageId`. | Cao | Hoàn thành |
 | FR-10.4 | Thời gian gửi sau 07:45 đối với buổi Sáng hoặc 12:30 đối với buổi Chiều được cảnh báo; nếu vẫn xác nhận, đơn được lưu với trạng thái `Vi phạm`. | Cao | Hoàn thành |
-| FR-10.5 | Tab Nghỉ phép hiển thị cột Thời gian gửi; bộ lọc `from`/`to` lọc theo trường này và mặc định để trống. | Cao | Hoàn thành |
+| FR-10.5 | Tab Nghỉ phép hiển thị cột Thời gian gửi; bộ lọc `from`/`to` lọc theo trường này và mặc định 3 ngày gần đây. | Cao | Hoàn thành |
 
 # 4. Yêu cầu phi chức năng (Non-functional Requirements)
 

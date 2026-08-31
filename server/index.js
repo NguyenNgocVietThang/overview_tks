@@ -49,7 +49,10 @@ app.use(express.static(path.join(__dirname, 'public'), {
     } else if (/\.(js|css)$/.test(filePath)) {
       // /shared/*, /js/* — luon revalidate de cap nhat UI tuc thi khi sua code
       res.setHeader('Cache-Control', 'no-cache, must-revalidate');
-    } else if (/\.(png|jpg|jpeg|svg|webp|ico)$/.test(filePath)) {
+    } else if (/\.jfif$/i.test(filePath)) {
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    } else if (/\.(png|jpg|jpeg|svg|webp|ico)$/i.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=604800'); // 7 ngay
     }
     // HTML: khong set — giu mac dinh (ETag revalidate), vi day la entry point

@@ -26,6 +26,7 @@ const USER_COLUMNS = {
 };
 
 const ACTIVE_STATUS = localUserStore.ACTIVE_STATUS;
+const INACTIVE_STATUS = localUserStore.INACTIVE_STATUS;
 const PENDING_STATUS = localUserStore.PENDING_STATUS;
 const LOCKED_STATUS = localUserStore.LOCKED_STATUS;
 
@@ -36,7 +37,10 @@ const INTERNAL_ROLES = Object.freeze([
   ROLES.KE_TOAN,
   ROLES.TRUONG_KHO,
   ROLES.TRO_LY,
-  ROLES.LAI_XE
+  ROLES.LAI_XE,
+  ROLES.NHAN_VIEN_KHO,
+  ROLES.NHAN_VIEN_SALE,
+  ROLES.NHAN_VIEN_MUA_HANG
 ]);
 
 function buildColumnIndex(headers) {
@@ -99,7 +103,7 @@ async function getAllUsers() {
 
 /**
  * Tìm user theo username, email hoặc số điện thoại (không phân biệt hoa/thường, trim khoảng trắng).
- * Trả về null nếu không tìm thấy hoặc tài khoản đã bị khóa.
+ * Cho phép tài khoản Đang hoạt động và Không hoạt động. Chặn tài khoản bị Khóa.
  */
 async function findActiveUserByUsername(username) {
   const target = normalizeUsername(username);
@@ -107,7 +111,7 @@ async function findActiveUserByUsername(username) {
   if (!target) return null;
   const users = await getAllUsers();
   const match = users.find(user => {
-    if (user.trangThai !== ACTIVE_STATUS) return false;
+    if (user.trangThai === LOCKED_STATUS || user.isDeleted || user.trangThai === 'Đã xóa') return false;
     if (normalizeUsername(user.username) === target) return true;
     if (user.email && normalizeEmail(user.email) === target) return true;
     if (targetPhone && user.soDienThoai && normalizePhone(user.soDienThoai) === targetPhone) return true;
@@ -190,11 +194,13 @@ module.exports = {
   ROLES,
   INTERNAL_ROLES,
   ACTIVE_STATUS,
+  INACTIVE_STATUS,
   PENDING_STATUS,
   LOCKED_STATUS,
   USER_COLUMNS,
   HARDCODED_ADMINS: localUserStore.HARDCODED_ADMINS,
   isHardcodedAdmin: localUserStore.isHardcodedAdmin,
+  isProtectedSuperAdmin: localUserStore.isProtectedSuperAdmin,
   getAllUsers,
   findActiveUserByUsername,
   findUserByUsername,

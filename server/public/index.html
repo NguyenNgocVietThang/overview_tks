@@ -14,10 +14,12 @@
       }
       // An noi dung cho toi khi authGuard() xac nhan da dang nhap — tranh
       // nhap nhoang du lieu dashboard truoc khi kip redirect ve /login/.
-      document.documentElement.style.visibility = 'hidden';
+      if (window.location.protocol !== 'file:') {
+        document.documentElement.style.visibility = 'hidden';
+      }
     })();
   </script>
-  <link rel="stylesheet" href="/shared/shared.css?v=20260822">
+  <link rel="stylesheet" href="/shared/shared.css?v=20260830">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
@@ -58,8 +60,14 @@
       --ambient-1: rgba(var(--primary-rgb-d), 0.08);
       --ambient-2: rgba(var(--glow-green-rgb), 0.05);
 
-      --bg-image: url('/shared/images/bg-dark.jpg');
-      --bg-scrim: rgba(9, 13, 22, 0.72);
+      --bg-image: url('/Dark%20mode.jfif?v=20260829');
+      --bg-scrim: transparent;
+
+      /* ── Token văn bản trực tiếp trên nền (ngoài frame/panel) ── */
+      --canvas-text: #FFFFFF;
+      --canvas-text-muted: #FFFFFF;
+      --canvas-border: rgba(255, 255, 255, 0.3);
+      --canvas-subnav-border: rgba(255, 255, 255, 0.35);
 
       --sidebar-w: 210px;
       --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -141,8 +149,14 @@
       --ambient-1: rgba(var(--primary-rgb-l), 0.04);
       --ambient-2: rgba(5, 150, 105, 0.03);
 
-      --bg-image: url('/shared/images/bg-light.jpg');
-      --bg-scrim: rgba(248, 250, 252, 0.80);
+      --bg-image: url('/Light%20mode.jfif?v=20260829_1645');
+      --bg-scrim: transparent;
+
+      /* ── Token văn bản trực tiếp trên nền (ngoài frame/panel) ── */
+      --canvas-text: #000000;
+      --canvas-text-muted: #000000;
+      --canvas-border: rgba(0, 0, 0, 0.25);
+      --canvas-subnav-border: rgba(0, 0, 0, 0.3);
     }
 
     * {
@@ -169,12 +183,8 @@
       inset: 0;
       z-index: -1;
       pointer-events: none;
-      background:
-        radial-gradient(circle at 15% 0%, var(--ambient-1), transparent 45%),
-        radial-gradient(circle at 90% 10%, var(--ambient-2), transparent 40%),
-        linear-gradient(var(--bg-scrim), var(--bg-scrim)),
-        var(--bg-image) center/cover no-repeat,
-        var(--bg);
+      background: var(--bg-image) center/cover no-repeat;
+      background-color: var(--bg);
     }
 
     .panel,
@@ -454,9 +464,23 @@
       position: sticky;
       top: 0;
       align-self: flex-start;
-      height: calc(100vh - 78px);
+      height: 100vh;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: thin;
+      box-sizing: border-box;
       transition: transform .28s var(--ease-out), background-color .2s ease, border-color .2s ease;
       z-index: 20;
+    }
+    .sidebar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .sidebar::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+    }
+    :root[data-theme="light"] .sidebar::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.15);
     }
 
     .nav-item {
@@ -887,12 +911,14 @@
       font-size: 21px;
       font-weight: 700;
       margin: 0 0 4px;
+      color: var(--canvas-text);
     }
 
     .view-sub {
       font-size: 12.5px;
-      color: var(--muted);
+      color: var(--canvas-text);
       margin: 0 0 18px;
+      font-weight: 500;
     }
 
     /* ---------- Thẻ Card và Panel ----------
@@ -1616,13 +1642,13 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: .09em;
-      color: var(--text);
+      color: var(--canvas-text);
     }
 
     .section-head .section-note {
-      color: var(--muted);
+      color: var(--canvas-text);
       font-size: 11.5px;
-      font-weight: 400;
+      font-weight: 500;
       text-transform: none;
       letter-spacing: 0;
     }
@@ -1631,7 +1657,7 @@
       content: "";
       flex: 1;
       height: 1px;
-      background: var(--border);
+      background: var(--canvas-border);
     }
 
     .drill-hint {
@@ -2983,6 +3009,9 @@
 </head>
 
 <body>
+
+  <!-- ===== SHOOTING STAR CANVAS ===== -->
+  <canvas id="shooting-star-canvas" aria-hidden="true"></canvas>
 
   <div class="tks-toast-stack" id="tksToastStack" aria-live="polite"></div>
 
@@ -4565,7 +4594,7 @@
        và inline script luôn chạy trước script defer — cách đặt này giữ đúng thứ tự mà không chặn parser. -->
   <script src="/vendor/chart.umd.min.js"></script>
   <script src="/js/pagination.js"></script>
-  <script src="/shared/shared-nav.js?v=20260822"></script>
+  <script src="/shared/shared-nav.js?v=20260830"></script>
 
   <script>
     // Toast thong bao inline — thay the window.alert() cho loi/canh bao (khong chan luong,
@@ -7564,20 +7593,23 @@
     // Ranh gioi bao mat that su nam o server (authMiddleware tren /api/*).
     // authGuard() chi de dieu huong UX: redirect /login/ neu chua dang nhap,
     // roi moi hien noi dung (visibility:hidden duoc dat tu dau <head>).
-    TKSNav.authGuard().then(function(user){
-      if(user && user.vaiTro === 'Quản lý'){
-        var navUsers = document.getElementById('navAccountUsers');
-        if(navUsers) navUsers.style.display = 'flex';
-      }
-      // Trang nay dung sidebar tinh rieng (giu logic switchView()/data-view dang
-      // chay tot) nen KHONG goi renderTopSidebar() nhu cac trang khac — chi chen
-      // them doan chon co so vao dau sidebar bang chinh ham dung chung.
-      var sidebar = document.getElementById('sidebar');
-      if(sidebar && user){
-        sidebar.insertAdjacentHTML('afterbegin', TKSNav._branchSwitcherHtml(user));
-        TKSNav._bindBranchSwitcher(sidebar);
-      }
-    });
+    if (typeof TKSNav !== 'undefined' && TKSNav.authGuard) {
+      TKSNav.authGuard().then(function(user){
+        if(user && user.vaiTro === 'Quản lý'){
+          var navUsers = document.getElementById('navAccountUsers');
+          if(navUsers) navUsers.style.display = 'flex';
+        }
+        var sidebar = document.getElementById('sidebar');
+        if(sidebar && user){
+          sidebar.insertAdjacentHTML('afterbegin', TKSNav._branchSwitcherHtml(user));
+          TKSNav._bindBranchSwitcher(sidebar);
+        }
+      }).catch(function(err){
+        document.documentElement.style.visibility = '';
+      });
+    } else {
+      document.documentElement.style.visibility = '';
+    }
 
     syncThemeControl();
     initSortableTables();
@@ -7598,6 +7630,8 @@
       }
     });
   </script>
+
+  <script src="/shared/shooting-star.js?v=20260830"></script>
 </body>
 
 </html>

@@ -18,6 +18,15 @@ function updateProductsFromWebhook(items) {
   upsertKiotVietSheetItems_(schema, validItems);
 }
 
+/**
+ * stock.update da co ma hang va cac truong ton kho moi nhat. Ghi truc tiep de
+ * tranh mot endpoint chi tiet loi lam tre ca burst; upsert se giu lai cac cot
+ * metadata hien co ma payload stock khong cung cap.
+ */
+function updateProductStocksFromWebhook(items) {
+  upsertKiotVietSheetItems_(KIOTVIET_SHEET_SCHEMAS.products, items);
+}
+
 function updateInvoicesFromWebhook(items) {
   const schema = KIOTVIET_SHEET_SCHEMAS.invoices;
   const hydratedItems = hydrateKiotVietItems_(items, schema);

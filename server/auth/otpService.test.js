@@ -13,6 +13,8 @@ const {
   MAX_OTP_ATTEMPTS
 } = require('./otpService');
 
+emailSender.isConfigured = () => false;
+
 test('otpService: maskEmail che mo dung dinh dang', () => {
   assert.equal(maskEmail('nguyenvana@gmail.com'), 'ng***a@gmail.com');
   assert.equal(maskEmail('ab@domain.vn'), 'a***@domain.vn');

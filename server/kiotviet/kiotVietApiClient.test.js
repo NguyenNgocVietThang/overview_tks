@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createKiotVietClient } = require('./kiotVietClient');
+const { createKiotVietClient } = require('./kiotVietApiClient');
 
 function jsonResponse(status, body) {
   return {
@@ -159,6 +159,31 @@ test('fetchAllPages voi nhieu trang goi onPage nhieu lan va dung dung khi het du
 
   assert.equal(requestCount, 3); // 100 + 100 + 50
   assert.equal(totalRecords, 250);
+});
+
+test('fetchAllPages CHO onPage bat dong bo hoan tat truoc khi tai trang tiep theo (can thiet cho entity sync ghi DB theo tung trang)', async () => {
+  const allItems = Array.from({ length: 250 }, (_, i) => ({ id: i }));
+  const order = [];
+  const fetchImpl = tokenFetchImpl(async (url) => {
+    const u = new URL(url);
+    const currentItem = Number(u.searchParams.get('currentItem') || 0);
+    order.push(`fetch-page-${currentItem}`);
+    const pageItems = allItems.slice(currentItem, currentItem + 100);
+    return jsonResponse(200, { total: allItems.length, data: pageItems });
+  });
+  const client = createKiotVietClient({ clientId: 'id', clientSecret: 's', retailer: 'r', fetchImpl });
+
+  await client.fetchAllPages('invoices', {}, async (items, meta) => {
+    order.push(`onpage-start-${meta.pagesLoaded}`);
+    await new Promise((resolve) => setImmediate(resolve));
+    order.push(`onpage-end-${meta.pagesLoaded}`);
+  });
+
+  assert.deepEqual(order, [
+    'fetch-page-0', 'onpage-start-1', 'onpage-end-1',
+    'fetch-page-100', 'onpage-start-2', 'onpage-end-2',
+    'fetch-page-200', 'onpage-start-3', 'onpage-end-3'
+  ]);
 });
 
 test('fetchProductOnHand cong dong onHand tat ca chi nhanh', async () => {

@@ -29,7 +29,7 @@ const SHEET_NAME = 'Users';
 const BCRYPT_SALT_ROUNDS = 10;
 const ACTIVE_STATUS = 'Đang hoạt động';
 const LOCKED_STATUS = 'Khóa';
-const VALID_ROLES = ['Quản lý', 'Kế toán', 'Trưởng kho', 'Trợ lý', 'Lái xe', 'Khách'];
+const VALID_ROLES = ['Quản lý', 'Kế toán', 'Trưởng kho', 'Trợ lý', 'Lái xe', 'Nhân viên kho', 'Nhân viên sale', 'Nhân viên mua hàng', 'Khách'];
 
 // Phai khop CHINH XAC thu tu cot trong server/auth/userRepository.js (USER_COLUMNS).
 // "Email" them sau cung (cot cuoi, cho dang nhap Google — server/auth/
