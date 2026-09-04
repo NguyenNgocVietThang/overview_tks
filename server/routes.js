@@ -3,7 +3,9 @@ const {
   getDashboardData,
   searchDashboardRecords,
   searchTopCustomersByProducts,
-  getCustomerProductRevenueReport
+  getCustomerProductRevenueReport,
+  searchProductRevenueOverview,
+  getProductRevenueDetail
 } = require('./dashboard/dashboardData');
 
 const router = express.Router();
@@ -20,6 +22,7 @@ const branchRoutes = require('./branch/branchRoutes');
 const { INTERNAL_ROLES } = require('./auth/userRepository');
 const { lookupInvoiceStatuses } = require('./shipment/invoiceStatusService');
 const shipmentOrderRoutes    = require('./shipment/shipmentOrderRoutes');
+const orderLifecycleRoutes   = require('./shipment/orderLifecycleRoutes');
 const hrLeaveRoutes          = require('./hr/hrLeaveRoutes');
 const notificationRoutes     = require('./notifications/notificationRoutes');
 const roleChangeRequestRoutes = require('./auth/roleChangeRequestRoutes');
@@ -59,6 +62,13 @@ router.post('/api/shipment/invoice-status', requireAuth, resolveBranchOptional, 
   }
 });
 
+// Tra cuu "Vong doi don hang" — Khach (xem don cua minh) + 5 vai tro noi bo.
+// Dang ky TRUOC gate co so ben duoi (giong invoice-status o tren): nguon du
+// lieu la 1 spreadsheet RIENG (2 tab HN/SG gop lai), khong doc theo co so
+// dang dang nhap nen KHONG can resolveBranch — chi requireAuth roi ROUTER TU
+// phan quyen tung endpoint (xem orderLifecycleRoutes.js).
+router.use('/api/shipment/lifecycle', requireAuth, orderLifecycleRoutes);
+
 // Toan bo /api/shipment/* va /api/hr/* con lai deu la du lieu THEO CO SO — gan
 // resolveBranch truoc cac router con de moi handler ben trong luon co req.branch,
 // va tai khoan chua duoc gan co so bi chan ngay tu vong ngoai.
@@ -88,6 +98,8 @@ router.use('/api/dashboard', ...requireInternalUser);
 router.use('/api/search', ...requireInternalUser);
 router.use('/api/customer-product-top', ...requireInternalUser);
 router.use('/api/customer-product-revenue', ...requireInternalUser);
+router.use('/api/product-revenue-search', ...requireInternalUser);
+router.use('/api/product-revenue-detail', ...requireInternalUser);
 router.use('/api/export', ...requireInternalUser);
 router.use('/api/products', ...requireInternalUser);
 
@@ -244,6 +256,46 @@ router.get('/api/customer-product-revenue', async (req, res) => {
     console.error('==========================================');
     res.status(err.statusCode || 500).json({
       error: err.statusCode && err.statusCode < 500 ? err.message : 'Khong lay duoc bao cao doanh thu theo khach.',
+      detail: err.message,
+      code: err.code,
+      googleStatus
+    });
+  }
+});
+
+router.get('/api/product-revenue-search', async (req, res) => {
+  try {
+    const data = await searchProductRevenueOverview(req.query.q, req.query.mode, req.branch);
+    res.status(200).json(data);
+  } catch (err) {
+    const googleStatus = err?.response?.status;
+    console.error('=== LOI /api/product-revenue-search ===');
+    console.error('Message:', err.message);
+    console.error('Google API status:', googleStatus);
+    console.error('Stack:', err.stack);
+    console.error('========================================');
+    res.status(err.statusCode || 500).json({
+      error: err.statusCode && err.statusCode < 500 ? err.message : 'Khong tim kiem duoc doanh thu theo hang.',
+      detail: err.message,
+      code: err.code,
+      googleStatus
+    });
+  }
+});
+
+router.get('/api/product-revenue-detail', async (req, res) => {
+  try {
+    const data = await getProductRevenueDetail(req.query.code, req.branch);
+    res.status(200).json(data);
+  } catch (err) {
+    const googleStatus = err?.response?.status;
+    console.error('=== LOI /api/product-revenue-detail ===');
+    console.error('Message:', err.message);
+    console.error('Google API status:', googleStatus);
+    console.error('Stack:', err.stack);
+    console.error('========================================');
+    res.status(err.statusCode || 500).json({
+      error: err.statusCode && err.statusCode < 500 ? err.message : 'Khong lay duoc chi tiet doanh thu theo hang.',
       detail: err.message,
       code: err.code,
       googleStatus

@@ -57,9 +57,12 @@ function freshAuthRoutes({
   findUserByIdentifier = async () => null,
   createActiveGuest,
   activatePendingGuest = async () => {},
-  updateUserFields = async (id, fields) => ({ id, ...fields, trangThai: 'Đang hoạt động' })
+  updateUserFields = async (id, fields) => ({ id, ...fields, trangThai: 'Đang hoạt động' }),
+  employeeRegistration,
+  contactChange,
+  resolveEffectiveUser = async user => user
 }) {
-  ['./authRoutes', './googleAuthService', './userRepository', './userWriteRepository', './otpService', '../config']
+  ['./authRoutes', './googleAuthService', './userRepository', './userWriteRepository', './otpService', './employeeRegistrationService', './contactChangeService', './effectiveUserResolver', '../config']
     .forEach(id => { delete require.cache[require.resolve(id)]; });
 
   const googleAuthService = require('./googleAuthService');
@@ -76,6 +79,25 @@ function freshAuthRoutes({
   userWriteRepository.activatePendingGuest = activatePendingGuest;
   userWriteRepository.updateUserFields = updateUserFields;
 
+  const employeeRegistrationService = require('./employeeRegistrationService');
+  employeeRegistrationService.linkVerifiedGoogleIdentity = employeeRegistration && employeeRegistration.linkVerifiedGoogleIdentity
+    ? employeeRegistration.linkVerifiedGoogleIdentity
+    : async () => null;
+  if (employeeRegistration) {
+    employeeRegistrationService.createChallenge = employeeRegistration.createChallenge;
+    employeeRegistrationService.sendOtp = employeeRegistration.sendOtp;
+    employeeRegistrationService.verifyAndRegister = employeeRegistration.verifyAndRegister;
+  }
+
+  const effectiveUserResolver = require('./effectiveUserResolver');
+  effectiveUserResolver.resolveUser = resolveEffectiveUser;
+
+  const contactChangeService = require('./contactChangeService');
+  if (contactChange) {
+    contactChangeService.beginChange = contactChange.beginChange;
+    contactChangeService.confirmChange = contactChange.confirmChange;
+  }
+
   const emailSender = require('../notifications/emailSender');
   emailSender.isConfigured = () => false;
   const smsSender = require('../notifications/smsSender');
@@ -85,6 +107,122 @@ function freshAuthRoutes({
 }
 
 const NEVER_CALL = async () => { throw new Error('khong nen goi ham nay'); };
+
+test('HR registration endpoints expose channels, send OTP and sign in the verified employee', async () => {
+  const calls = [];
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    employeeRegistration: {
+      createChallenge: async identifier => ({ employeeMatch: true, challengeId: 'c1', identifier }),
+      sendOtp: async (challengeId, channel) => ({ ok: true, challengeId, channel }),
+      verifyAndRegister: async body => { calls.push(body); return { id: 'u1', username: 'a@example.com', hoTen: 'A', email: 'a@example.com', vaiTro: 'Kế toán', coSo: 'Cả hai' }; }
+    }
+  });
+
+  let res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/register/channels')({ body: { identifier: 'a@example.com' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.challengeId, 'c1');
+
+  res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/register/send-otp')({ body: { challengeId: 'c1', channel: 'email' } }, res);
+  assert.equal(res.statusCode, 200);
+
+  res = fakeRes();
+  const body = { challengeId: 'c1', otp: '123456', hoTen: 'A', password: 'Password123' };
+  await getRouteHandler(router, 'post', '/api/auth/register/verify')({ body }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.vaiTro, 'Kế toán');
+  assert.equal(res.cookies[0].name, AUTH_COOKIE_NAME);
+  assert.deepEqual(calls[0], body);
+});
+
+test('password login returns the live role resolved from HR instead of the stored role', async () => {
+  const passwordHash = await require('./authService').hashPassword('Password123');
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    findActiveUserByUsername: async () => ({
+      id: 'u1', username: 'a@example.com', email: 'a@example.com', passwordHash,
+      vaiTro: 'Khách', coSo: '', trangThai: 'Đang hoạt động'
+    }),
+    resolveEffectiveUser: async user => ({ ...user, vaiTro: 'Kế toán', coSo: 'Cả hai' })
+  });
+  const res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/login')({ body: { username: 'a@example.com', password: 'Password123' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.vaiTro, 'Kế toán');
+});
+
+test('password login can reactivate an HR-removed account after it reappears in the sheet', async () => {
+  const passwordHash = await require('./authService').hashPassword('Password123');
+  const locked = {
+    id: 'u1', username: 'a@example.com', email: 'a@example.com', passwordHash,
+    vaiTro: 'Kế toán', coSo: 'Cả hai', trangThai: 'Khóa', lockReason: 'hr_removed', hrManaged: true
+  };
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    findActiveUserByUsername: async () => null,
+    findUserByIdentifier: async () => locked,
+    resolveEffectiveUser: async user => ({ ...user, trangThai: 'Đang hoạt động', lockReason: '' })
+  });
+  const res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/login')({ body: { username: 'a@example.com', password: 'Password123' } }, res);
+  assert.equal(res.statusCode, 200);
+});
+
+test('Google login uses the HR multi-identifier linker before creating a guest', async () => {
+  let createGuestCalled = false;
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: async () => ({ email: 'a@example.com', emailVerified: true, name: 'A' }),
+    findUserByEmail: async () => null,
+    createActiveGuest: async () => { createGuestCalled = true; },
+    employeeRegistration: {
+      createChallenge: NEVER_CALL,
+      sendOtp: NEVER_CALL,
+      verifyAndRegister: NEVER_CALL,
+      linkVerifiedGoogleIdentity: async () => ({
+        id: 'u1', username: '0912345678', email: 'a@example.com', soDienThoai: '0912345678',
+        hoTen: 'A', vaiTro: 'Kế toán', coSo: 'Cả hai', trangThai: 'Đang hoạt động'
+      })
+    }
+  });
+  const res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/google')({ body: { credential: 'token' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.vaiTro, 'Kế toán');
+  assert.equal(createGuestCalled, false);
+});
+
+test('HR-managed profile contact endpoints start OTP and confirm the sheet-backed update', async () => {
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    contactChange: {
+      beginChange: async (user, field, value) => ({ challengeId: 'cc1', userId: user.id, field, value }),
+      confirmChange: async user => ({ ...user, email: 'new@example.com', verifiedEmail: true })
+    }
+  });
+  let res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/profile/contact-change')({
+    user: { id: 'u1', hrManaged: true }, body: { field: 'email', value: 'new@example.com' }
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.challengeId, 'cc1');
+
+  res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/profile/contact-change/verify')({
+    user: { id: 'u1', hrManaged: true }, body: { challengeId: 'cc1', otp: '123456' }
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.email, 'new@example.com');
+});
 
 test('POST /api/auth/register: thieu du lieu, email sai hoac mat khau ngan -> 400', async () => {
   const router = freshAuthRoutes({

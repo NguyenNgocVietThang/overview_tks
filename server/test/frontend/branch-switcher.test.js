@@ -100,17 +100,17 @@ test('handleBranchError hien bang thong bao rieng cho hai ma loi co so', () => {
 
 test('renderTopSidebar: kiem tra hien thi menu cho 3 vai tro moi', () => {
   const { sidebar: sbKho } = renderFor({ vaiTro: 'Nhân viên kho', branches: ['Hà Nội'], branch: 'Hà Nội' });
-  assert.match(sbKho.innerHTML, /Quản lý vận chuyển/);
+  assert.match(sbKho.innerHTML, /Quản lý đơn hàng/);
   assert.match(sbKho.innerHTML, /Quản lý nhân sự/);
   assert.doesNotMatch(sbKho.innerHTML, /Báo cáo tổng hợp/);
 
   const { sidebar: sbSale } = renderFor({ vaiTro: 'Nhân viên sale', branches: ['Hà Nội'], branch: 'Hà Nội' });
-  assert.match(sbSale.innerHTML, /Quản lý vận chuyển/);
+  assert.match(sbSale.innerHTML, /Quản lý đơn hàng/);
   assert.match(sbSale.innerHTML, /Quản lý nhân sự/);
   assert.doesNotMatch(sbSale.innerHTML, /Báo cáo tổng hợp/);
 
   const { sidebar: sbMuaHang } = renderFor({ vaiTro: 'Nhân viên mua hàng', branches: ['Hà Nội'], branch: 'Hà Nội' });
-  assert.doesNotMatch(sbMuaHang.innerHTML, /Quản lý vận chuyển/);
+  assert.doesNotMatch(sbMuaHang.innerHTML, /Quản lý đơn hàng/);
   assert.match(sbMuaHang.innerHTML, /Quản lý nhân sự/);
   assert.doesNotMatch(sbMuaHang.innerHTML, /Báo cáo tổng hợp/);
 });

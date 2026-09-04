@@ -589,3 +589,190 @@ test('bao cao doanh thu theo khach: co lap theo chi nhanh, khong ro ri du lieu g
   assert.equal(saigon.totalRevenue, 999);
   assert.deepEqual(seen, [BRANCHES.HANOI, BRANCHES.SAIGON]);
 });
+
+// ===== searchProductRevenueOverview / getProductRevenueDetail (tab Tong quan, "Bao cao doanh thu theo hang") =====
+
+const PRODUCT_HEADERS = [
+  'Mã hàng', 'Tên hàng', 'Nhóm hàng', 'Đơn vị', 'Loại hàng', 'Giá vốn', 'Giá bán',
+  'Tồn kho', 'Khách đặt', 'Trạng thái', 'Ghi chú', 'Mã nhóm hàng'
+];
+const CUSTOMER_PRODUCT_HEADERS = [
+  'Mã hàng', 'Tên hàng', 'Mã KH', 'Khách hàng', 'SL Trả (theo khách hàng)',
+  'Giá trị trả (theo khách hàng)', 'Thời gian', 'SL chi tiết', 'Thành tiền chi tiết'
+];
+
+function productRow({ code, name, cost = 0, price = 0, stock = 0, status = 'Đang kinh doanh' }) {
+  const row = new Array(PRODUCT_HEADERS.length).fill('');
+  row[0] = code; row[1] = name; row[5] = cost; row[6] = price; row[7] = stock; row[9] = status;
+  return row;
+}
+
+function customerProductRow({ productCode, productName, customerCode, customerName, time, qty, revenue, returnedQty = 0, returnValue = 0 }) {
+  const row = new Array(CUSTOMER_PRODUCT_HEADERS.length).fill('');
+  row[0] = productCode; row[1] = productName; row[2] = customerCode; row[3] = customerName;
+  row[4] = returnedQty; row[5] = returnValue; row[6] = time; row[7] = qty; row[8] = revenue;
+  return row;
+}
+
+function mockProductRevenueSheets(sheetsClient, { invoices = [], details = [], products = [], customerProductRows = [] }) {
+  const CONFIG = require('../config');
+  sheetsClient.getMultipleSheetValues = async names => {
+    const result = {};
+    names.forEach(name => { result[name] = []; });
+    result[CONFIG.SHEET_INVOICES] = [INVOICE_HEADERS, ...invoices];
+    result[CONFIG.SHEET_INVOICE_DETAILS] = [DETAIL_HEADERS, ...details];
+    result[CONFIG.SHEET_PRODUCTS] = [PRODUCT_HEADERS, ...products];
+    result[CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT] = [CUSTOMER_PRODUCT_HEADERS, ...customerProductRows];
+    return result;
+  };
+}
+
+test('doanh thu theo hang: chi tinh hoa don hoan thanh trong 90 ngay, gom theo ma hang khong loc khach', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const now = new Date('2026-08-14T12:00:00+07:00');
+  mockProductRevenueSheets(sheetsClient, {
+    products: [productRow({ code: 'SP-01', name: 'Sản phẩm một', stock: 15 })],
+    invoices: [
+      invoiceRow({ code: 'HD-1', date: '10/08/2026 10:00:00', status: 'Hoàn thành' }),
+      invoiceRow({ code: 'HD-2', date: '10/08/2026 11:00:00', status: 'Đang xử lý' }),
+      invoiceRow({ code: 'HD-4', date: '01/01/2026 09:00:00', status: 'Hoàn thành' })
+    ],
+    details: [
+      detailRow({ invoiceCode: 'HD-1', itemCode: 'SP-01', itemName: 'Sản phẩm một', qty: 2, total: 200 }),
+      detailRow({ invoiceCode: 'HD-2', itemCode: 'SP-01', itemName: 'Sản phẩm một', qty: 5, total: 500 }),
+      detailRow({ invoiceCode: 'HD-4', itemCode: 'SP-01', itemName: 'Sản phẩm một', qty: 7, total: 700 })
+    ]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const result = await dashboardData.searchProductRevenueOverview('SP-01', 'normal', undefined, now);
+
+  assert.equal(result.results.length, 1);
+  assert.equal(result.results[0].ds90, 200, 'hoa don dang xu ly va hoa don qua 90 ngay khong duoc tinh');
+  assert.equal(result.results[0].sl90, 2);
+  assert.equal(result.results[0].tonKho, 15);
+});
+
+test('doanh thu theo hang: Chi tiet chia dung 3 bucket T.nay/T.truoc/T.truoc nua theo ma hang', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const now = new Date('2026-08-14T12:00:00+07:00');
+  const offsetDates = {
+    0: '14/08/2026', 29: '16/07/2026', 30: '15/07/2026',
+    59: '16/06/2026', 60: '15/06/2026', 89: '17/05/2026', 90: '16/05/2026'
+  };
+  const invoices = Object.entries(offsetDates).map(([offset, date]) =>
+    invoiceRow({ code: 'HD-' + offset, date: date + ' 08:00:00', status: 'Hoàn thành' }));
+  const details = Object.keys(offsetDates).map(offset =>
+    detailRow({ invoiceCode: 'HD-' + offset, itemCode: 'SP-01', itemName: 'Sản phẩm một', qty: 1, total: 100 }));
+  mockProductRevenueSheets(sheetsClient, { products: [productRow({ code: 'SP-01', name: 'Sản phẩm một' })], invoices, details });
+  dashboardData.__test__.resetCaches();
+
+  const detail = await dashboardData.getProductRevenueDetail('SP-01', undefined, now);
+
+  assert.equal(detail.month1Revenue, 200, 'ngay 0 va 29 thuoc T.nay');
+  assert.equal(detail.month2Revenue, 200, 'ngay 30 va 59 thuoc T.truoc');
+  assert.equal(detail.month3Revenue, 200, 'ngay 60 va 89 thuoc T.truoc nua');
+});
+
+test('doanh thu theo hang: loai ma VAT khoi ca ket qua tim kiem lan doanh thu cua ma khac trong cung hoa don', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const now = new Date('2026-08-14T12:00:00+07:00');
+  mockProductRevenueSheets(sheetsClient, {
+    products: [
+      productRow({ code: 'SP-01', name: 'Sản phẩm một' }),
+      productRow({ code: 'VAT01', name: 'Thuế GTGT' })
+    ],
+    invoices: [invoiceRow({ code: 'HD-1', date: '10/08/2026 10:00:00', status: 'Hoàn thành' })],
+    details: [
+      detailRow({ invoiceCode: 'HD-1', itemCode: 'SP-01', itemName: 'Sản phẩm một', qty: 1, total: 100 }),
+      detailRow({ invoiceCode: 'HD-1', itemCode: 'VAT01', itemName: 'Thuế GTGT', qty: 1, total: 50 })
+    ]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const spResult = await dashboardData.searchProductRevenueOverview('SP-01', 'normal', undefined, now);
+  const vatResult = await dashboardData.searchProductRevenueOverview('VAT01', 'normal', undefined, now);
+
+  assert.equal(spResult.results.length, 1);
+  assert.equal(spResult.results[0].ds90, 100, 'dong VAT trong cung hoa don khong duoc cong vao SP-01');
+  assert.equal(vatResult.results.length, 0, 'ma VAT khong duoc xuat hien trong ket qua tim kiem');
+});
+
+test('doanh thu theo hang: top 3 khach xep theo doanh so (khong phai so luong), tinh tren toan bo lich su', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const now = new Date('2026-08-14T12:00:00+07:00');
+  mockProductRevenueSheets(sheetsClient, {
+    products: [productRow({ code: 'SP-01', name: 'Sản phẩm một' })],
+    customerProductRows: [
+      customerProductRow({ productCode: 'SP-01', productName: 'Sản phẩm một', customerCode: 'KH-A', customerName: 'Khách A', time: '01/01/2020 08:00:00', qty: 50, revenue: 500 }),
+      customerProductRow({ productCode: 'SP-01', productName: 'Sản phẩm một', customerCode: 'KH-B', customerName: 'Khách B', time: '10/08/2026 08:00:00', qty: 5, revenue: 900 })
+    ]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const detail = await dashboardData.getProductRevenueDetail('SP-01', undefined, now);
+
+  assert.deepEqual(detail.topCustomers.map(c => c.customerCode), ['KH-B', 'KH-A'],
+    'KH-B doanh thu cao hon dung truoc du SL thap hon; KH-A mua tu 2020 van duoc tinh (toan lich su, khong loc theo ngay)');
+});
+
+test('doanh thu theo hang: Chi tiet doc dung trang thai/gia von/gia ban/ton kho qua TEN COT du thu tu cot bi dao', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const now = new Date('2026-08-14T12:00:00+07:00');
+  const CONFIG = require('../config');
+  sheetsClient.getMultipleSheetValues = async names => {
+    const result = {};
+    names.forEach(name => { result[name] = []; });
+    result[CONFIG.SHEET_PRODUCTS] = [
+      ['Mã hàng', 'Tên hàng', 'Trạng thái', 'Giá bán', 'Giá vốn', 'Tồn kho'],
+      ['SP-01', 'Sản phẩm một', 'Ngừng kinh doanh', 200000, 150000, 7]
+    ];
+    result[CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT] = [CUSTOMER_PRODUCT_HEADERS];
+    return result;
+  };
+  dashboardData.__test__.resetCaches();
+
+  const detail = await dashboardData.getProductRevenueDetail('SP-01', undefined, now);
+  const overview = await dashboardData.searchProductRevenueOverview('SP-01', 'normal', undefined, now);
+
+  assert.equal(detail.status, 'Ngừng kinh doanh');
+  assert.equal(detail.cost, 150000);
+  assert.equal(detail.price, 200000);
+  assert.equal(overview.results[0].tonKho, 7);
+});
+
+test('doanh thu theo hang: che do thuong xep theo do khop (exact > startsWith > includes), che do nhieu ma khop chinh xac', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const now = new Date('2026-08-14T12:00:00+07:00');
+  mockProductRevenueSheets(sheetsClient, {
+    products: [
+      productRow({ code: 'SP-01', name: 'Bàn ăn' }),
+      productRow({ code: 'SP-010', name: 'Bàn ăn nhỏ' }),
+      productRow({ code: 'XSP-01X', name: 'Ghế' })
+    ]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const normalResult = await dashboardData.searchProductRevenueOverview('SP-01', 'normal', undefined, now);
+  assert.deepEqual(normalResult.results.map(r => r.code), ['SP-01', 'SP-010', 'XSP-01X']);
+
+  const codesResult = await dashboardData.searchProductRevenueOverview('SP-01 SP-010', 'codes', undefined, now);
+  assert.deepEqual(codesResult.results.map(r => r.code), ['SP-01', 'SP-010'], 'che do ma chi khop chinh xac, khong lay XSP-01X');
+  assert.equal(codesResult.mode, 'codes');
+});
+
+test('doanh thu theo hang: khong gioi han/cat bot so dong ket qua tra ve', async () => {
+  const { dashboardData, sheetsClient } = freshDashboardData();
+  const now = new Date('2026-08-14T12:00:00+07:00');
+  const products = [];
+  for (let i = 0; i < 60; i++) {
+    products.push(productRow({ code: 'ABC-' + String(i).padStart(3, '0'), name: 'Hàng ABC ' + i }));
+  }
+  mockProductRevenueSheets(sheetsClient, { products });
+  dashboardData.__test__.resetCaches();
+
+  const result = await dashboardData.searchProductRevenueOverview('ABC', 'normal', undefined, now);
+
+  assert.equal(result.results.length, 60);
+  assert.equal(result.total, 60);
+});

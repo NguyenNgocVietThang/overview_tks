@@ -23,6 +23,7 @@ const TABLE_TITLES = Object.freeze({
   'customers.debt': 'Chi tiết khách nợ',
   'customers.productDetail': 'Bảng chi tiết sản phẩm theo khách',
   'customers.productMonthlyCompare': 'Bảng so sánh doanh số theo tháng',
+  'overview.productRevenueSearch': 'Doanh thu theo hàng',
   'suppliers.list': 'Danh sách nhà cung cấp',
   'debt.period': 'Công nợ theo kỳ',
   'search.results': 'Kết quả tìm kiếm',
@@ -471,6 +472,27 @@ async function buildCustomerProductRevenueDataset(tableKey, payload, branch) {
   };
 }
 
+async function buildProductRevenueSearchDataset(payload, branch) {
+  const context = payload.context && typeof payload.context === 'object' ? payload.context : {};
+  const query = normalizeText(context.productRevenueQuery);
+  const mode = normalizeText(context.productRevenueMode) || 'normal';
+  if (!query) throw exportError('Chưa có từ khóa tìm kiếm để xuất.', 400, 'EXPORT_NO_QUERY');
+
+  const data = await dashboardData.searchProductRevenueOverview(query, mode, branch);
+  if (!data.results.length) throw exportError('Không có kết quả tìm kiếm để xuất.', 404, 'EXPORT_NO_DATA');
+
+  return {
+    tableKey: 'overview.productRevenueSearch', title: TABLE_TITLES['overview.productRevenueSearch'], selectionMode: 'custom',
+    worksheets: [aggregateWorksheet('product_revenue_search', 'Doanh thu theo hàng', [
+      { key: 'code', label: 'Mã SP', type: 'text' },
+      { key: 'name', label: 'Tên SP' },
+      { key: 'ds90', label: 'DS 90 ngày', type: 'number' },
+      { key: 'sl90', label: 'SL bán 90 ngày', type: 'number' },
+      { key: 'tonKho', label: 'Tồn hiện tại', type: 'number' }
+    ], data.results)]
+  };
+}
+
 function buildStockoutResultDataset(payload) {
   const result = payload.stockoutResult && typeof payload.stockoutResult === 'object' ? payload.stockoutResult : null;
   const rows = result && Array.isArray(result.rows) ? result.rows : [];
@@ -502,6 +524,9 @@ async function buildExportDataset(payload, branch) {
   if (tableKey === 'stockout.result') return buildStockoutResultDataset(payload);
   if (tableKey === 'customers.productDetail' || tableKey === 'customers.productMonthlyCompare') {
     return buildCustomerProductRevenueDataset(tableKey, payload, branch);
+  }
+  if (tableKey === 'overview.productRevenueSearch') {
+    return buildProductRevenueSearchDataset(payload, branch);
   }
   const context = payload.context && typeof payload.context === 'object' ? payload.context : {};
   const snapshot = await dashboardData.getDashboardExportSnapshot(filters, branch);

@@ -7,7 +7,17 @@ const os = require('os');
 const path = require('path');
 const EventEmitter = require('events');
 
-test('khong khoi dong bot Telegram o may local neu chua bat ro rang', () => {
+const telegramModulePath = require.resolve('node-telegram-bot-api');
+const botModulePath = require.resolve('./hrTelegramBot');
+const repoPath = require.resolve('../hr/hrLeaveRepository');
+const hrLeaveServicePath = require.resolve('../hr/hrLeaveService');
+const extractorPath = require.resolve('./leaveAiExtractor');
+const consensusExtractorPath = require.resolve('./leaveAiConsensusExtractor');
+const telegramIdentityServicePath = require.resolve('./telegramIdentityService');
+
+const MESSAGE_TIME_SECONDS = Math.floor(new Date('2026-08-22T08:00:00+07:00').getTime() / 1000);
+
+test('không khởi động bot Telegram ở máy local nếu chưa bật rõ ràng', () => {
   const isEnabled = require('./hrTelegramBot').isTelegramBotRuntimeEnabled;
 
   assert.equal(isEnabled?.({}), false);
@@ -16,538 +26,664 @@ test('khong khoi dong bot Telegram o may local neu chua bat ro rang', () => {
   assert.equal(isEnabled?.({ RENDER: 'true', TELEGRAM_BOT_ENABLED: 'false' }), false);
 });
 
-test('doi Telegram gui cau hoi tiep theo xong moi hoan tat xu ly tin nhan', async () => {
-  const telegramModulePath = require.resolve('node-telegram-bot-api');
-  const botModulePath = require.resolve('./hrTelegramBot');
-  const config = require('../config');
-  const store = require('./conversationStore');
+test('dừng polling khi Telegram báo 409 do có bot instance khác', async () => {
+  const h = setupHarness();
+  try {
+    h.bot.emit('polling_error', Object.assign(
+      new Error('ETELEGRAM: 409 Conflict: terminated by other getUpdates request'),
+      { code: 'ETELEGRAM', response: { statusCode: 409 } }
+    ));
+    await new Promise(resolve => setImmediate(resolve));
+
+    assert.equal(h.bot.pollingStopped, true);
+  } finally {
+    h.teardown();
+  }
+});
+
+class FakeTelegramBot extends EventEmitter {
+  constructor(token, options) {
+    super();
+    this.token = token;
+    this.options = options;
+    this.sent = [];
+    this.textHandlers = [];
+    this.pollingStopped = false;
+  }
+
+  onText(regex, handler) {
+    this.textHandlers.push({ regex, handler });
+  }
+
+  sendMessage(chatId, text, options) {
+    this.sent.push({ chatId, text, options });
+    return Promise.resolve({ message_id: this.sent.length });
+  }
+
+  answerCallbackQuery() {
+    return Promise.resolve();
+  }
+
+  editMessageReplyMarkup() {
+    return Promise.resolve();
+  }
+
+  stopPolling() {
+    this.pollingStopped = true;
+    return Promise.resolve();
+  }
+
+  async triggerText(command, { chatId, from }) {
+    const entry = this.textHandlers.find(h => h.regex.test(command));
+    if (!entry) throw new Error(`Không có handler đăng ký cho "${command}"`);
+    await entry.handler({ chat: { id: chatId }, message_id: Math.floor(Math.random() * 1e9), from }, command.match(entry.regex));
+  }
+}
+
+function extraction(overrides = {}) {
+  return {
+    intent: 'leave_request',
+    start_date: null,
+    start_session: null,
+    end_date: null,
+    end_session: null,
+    duration_value: null,
+    duration_unit: null,
+    reason: null,
+    handover: null,
+    reason_declined: false,
+    handover_declined: false,
+    confidence: 0.95,
+    ...overrides
+  };
+}
+
+function setupHarness({
+  link = { web_username: 'test', telegram_username: '@test' },
+  identity = { hoTen: 'Test User', chucVu: 'NV · Hà Nội' },
+  autoIdentity = null
+} = {}) {
   const previousTelegramModule = require.cache[telegramModulePath];
+  const previousRepoModule = require.cache[repoPath];
+  const previousServiceModule = require.cache[hrLeaveServicePath];
+  const previousExtractorModule = require.cache[extractorPath];
+  const previousConsensusExtractorModule = require.cache[consensusExtractorPath];
+  const previousTelegramIdentityService = require.cache[telegramIdentityServicePath];
+  const config = require('../config');
   const previousToken = config.TELEGRAM_BOT_TOKEN;
   const tmpFile = path.join(os.tmpdir(), `tks-hr-bot-test-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
 
-  let releaseSend;
-  class FakeTelegramBot extends EventEmitter {
-    onText() {}
+  const realRepo = require('../hr/hrLeaveRepository');
+  const realService = require('../hr/hrLeaveService');
 
-    sendMessage() {
-      return new Promise(resolve => {
-        releaseSend = resolve;
+  const created = [];
+  const createdBranches = [];
+  let linkResult = link;
+  const repoStub = {
+    ...realRepo,
+    findLinkByChatId: async () => linkResult,
+    createLeaveRequest: async (data, branch) => {
+      created.push(data);
+      createdBranches.push(branch);
+      return { ...data, request_id: 'NP-TEST-0001' };
+    }
+  };
+  const serviceStub = {
+    ...realService,
+    resolveSenderIdentity: async () => identity
+  };
+
+  const extractionQueue = [];
+  let extractionCalls = 0;
+  class FakeExtractionError extends Error {
+    constructor(code) {
+      super(code);
+      this.code = code;
+    }
+  }
+  const extractorStub = {
+    LeaveAiExtractionError: FakeExtractionError,
+    extractLeaveMessage: async (...args) => {
+      extractionCalls += 1;
+      const next = extractionQueue.shift();
+      if (!next) throw new Error(`Chưa có fixture cho lần gọi extractLeaveMessage thứ ${extractionCalls}`);
+      if (next.throw) throw next.throw;
+      if (next.fn) return next.fn(...args);
+      return next.value;
+    }
+  };
+
+  require.cache[telegramModulePath] = { id: telegramModulePath, filename: telegramModulePath, loaded: true, exports: FakeTelegramBot };
+  require.cache[repoPath] = { id: repoPath, filename: repoPath, loaded: true, exports: repoStub };
+  require.cache[hrLeaveServicePath] = { id: hrLeaveServicePath, filename: hrLeaveServicePath, loaded: true, exports: serviceStub };
+  require.cache[extractorPath] = { id: extractorPath, filename: extractorPath, loaded: true, exports: extractorStub };
+  require.cache[consensusExtractorPath] = {
+    id: consensusExtractorPath,
+    filename: consensusExtractorPath,
+    loaded: true,
+    exports: extractorStub
+  };
+  require.cache[telegramIdentityServicePath] = {
+    id: telegramIdentityServicePath,
+    filename: telegramIdentityServicePath,
+    loaded: true,
+    exports: { resolveChat: async () => autoIdentity || { status: 'not_found' } }
+  };
+
+  config.TELEGRAM_BOT_TOKEN = 'test-token';
+  const store = require('./conversationStore');
+  store.initStore(tmpFile);
+
+  delete require.cache[botModulePath];
+  const { startHrTelegramBot } = require('./hrTelegramBot');
+  const bot = startHrTelegramBot();
+
+  return {
+    bot,
+    store,
+    created,
+    createdBranches,
+    setLink(value) { linkResult = value; },
+    queueExtraction(value) { extractionQueue.push({ value }); },
+    queueExtractionAsync(fn) { extractionQueue.push({ fn }); },
+    queueExtractionError(err) { extractionQueue.push({ throw: err }); },
+    getExtractionCalls() { return extractionCalls; },
+    async sendText(chatId, text, overrides = {}) {
+      const messageHandler = bot.listeners('message')[0];
+      await messageHandler({
+        chat: { id: chatId },
+        from: { username: 'tester' },
+        message_id: Math.floor(Math.random() * 1e9),
+        date: MESSAGE_TIME_SECONDS,
+        text,
+        ...overrides
       });
-    }
-  }
-
-  try {
-    require.cache[telegramModulePath] = {
-      id: telegramModulePath,
-      filename: telegramModulePath,
-      loaded: true,
-      exports: FakeTelegramBot
-    };
-    config.TELEGRAM_BOT_TOKEN = 'test-token';
-    store.initStore(tmpFile);
-    store.setConversation(123, {
-      step: 'AWAITING_END_DATE',
-      data: {
-        startDate: new Date(2026, 7, 22, 0, 0),
-        startSession: 'Sáng',
-        messageTime: new Date(2026, 7, 21, 16, 0).toISOString()
-      }
-    });
-
-    delete require.cache[botModulePath];
-    const { startHrTelegramBot } = require('./hrTelegramBot');
-    const bot = startHrTelegramBot();
-    const messageHandler = bot.listeners('message')[0];
-    let finished = false;
-
-    const processing = messageHandler({ chat: { id: 123 }, text: '23/08/2026' })
-      .then(() => { finished = true; });
-    await new Promise(resolve => setImmediate(resolve));
-
-    assert.equal(finished, false, 'khong duoc ket thuc handler khi sendMessage van dang cho');
-    releaseSend();
-    await processing;
-    assert.equal(store.getConversation(123).step, 'AWAITING_END_SESSION');
-  } finally {
-    config.TELEGRAM_BOT_TOKEN = previousToken;
-    store.initStore();
-    delete require.cache[botModulePath];
-    if (previousTelegramModule) require.cache[telegramModulePath] = previousTelegramModule;
-    else delete require.cache[telegramModulePath];
-    fs.rmSync(tmpFile, { force: true });
-  }
-});
-
-test('xu ly tuan tu cac tin nhan den sat nhau trong cung mot chat', async () => {
-  const telegramModulePath = require.resolve('node-telegram-bot-api');
-  const botModulePath = require.resolve('./hrTelegramBot');
-  const config = require('../config');
-  const store = require('./conversationStore');
-  const previousTelegramModule = require.cache[telegramModulePath];
-  const previousToken = config.TELEGRAM_BOT_TOKEN;
-  const tmpFile = path.join(os.tmpdir(), `tks-hr-bot-queue-test-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
-
-  let releaseFirstSend;
-  let sendCount = 0;
-  class FakeTelegramBot extends EventEmitter {
-    onText() {}
-
-    sendMessage() {
-      sendCount += 1;
-      if (sendCount === 1) {
-        return new Promise(resolve => {
-          releaseFirstSend = resolve;
-        });
-      }
-      return Promise.resolve();
-    }
-  }
-
-  try {
-    require.cache[telegramModulePath] = {
-      id: telegramModulePath,
-      filename: telegramModulePath,
-      loaded: true,
-      exports: FakeTelegramBot
-    };
-    config.TELEGRAM_BOT_TOKEN = 'test-token';
-    store.initStore(tmpFile);
-    store.setConversation(456, {
-      step: 'AWAITING_REASON',
-      data: {
-        identity: { hoTen: 'Test User', chucVu: 'NV' },
-        link: { telegram_username: '@test', web_username: 'test' },
-        messageTime: new Date(2026, 7, 21, 16, 0).toISOString()
-      }
-    });
-
-    delete require.cache[botModulePath];
-    const { startHrTelegramBot } = require('./hrTelegramBot');
-    const bot = startHrTelegramBot();
-    const messageHandler = bot.listeners('message')[0];
-
-    const reasonProcessing = messageHandler({ chat: { id: 456 }, text: 'Đổi ca' });
-    await new Promise(resolve => setImmediate(resolve));
-    const dateProcessing = messageHandler({ chat: { id: 456 }, text: '22/08/2026' });
-    await new Promise(resolve => setImmediate(resolve));
-
-    assert.equal(sendCount, 1, 'tin nhan thu hai phai cho tin nhan truoc xu ly xong');
-    releaseFirstSend();
-    await Promise.all([reasonProcessing, dateProcessing]);
-
-    const conversation = store.getConversation(456);
-    assert.equal(conversation.step, 'AWAITING_START_SESSION');
-    assert.equal(conversation.data.ly_do, 'Đổi ca');
-    assert.equal(conversation.data.startDate.getFullYear(), 2026);
-    assert.equal(conversation.data.startDate.getMonth(), 7);
-    assert.equal(conversation.data.startDate.getDate(), 22);
-  } finally {
-    config.TELEGRAM_BOT_TOKEN = previousToken;
-    store.initStore();
-    delete require.cache[botModulePath];
-    if (previousTelegramModule) require.cache[telegramModulePath] = previousTelegramModule;
-    else delete require.cache[telegramModulePath];
-    fs.rmSync(tmpFile, { force: true });
-  }
-});
-
-test('normalizeSession nhan dang buoi sang va chieu chinh xac', () => {
-  const { normalizeSession } = require('./hrTelegramBot').__test__;
-
-  assert.equal(normalizeSession('S\u00e1ng'), 'S\u00e1ng');
-  assert.equal(normalizeSession('Chi\u1ec1u'), 'Chi\u1ec1u');
-  assert.equal(normalizeSession('sang'), 'S\u00e1ng');
-  assert.equal(normalizeSession('chieu'), 'Chi\u1ec1u');
-  assert.equal(normalizeSession('SANG'), 'S\u00e1ng');
-  assert.equal(normalizeSession('CHIEU'), 'Chi\u1ec1u');
-  assert.equal(normalizeSession('s'), 'S\u00e1ng');
-  assert.equal(normalizeSession('c'), 'Chi\u1ec1u');
-  assert.equal(normalizeSession('am'), 'S\u00e1ng');
-  assert.equal(normalizeSession('pm'), 'Chi\u1ec1u');
-  assert.equal(normalizeSession('buoi sang'), null);
-  assert.equal(normalizeSession(''), null);
-  assert.equal(normalizeSession('abc'), null);
-});
-
-test('parseVietnameseDate nhan dang dung cac dinh dang ngay va tu khoa tuong doi', () => {
-  const { parseVietnameseDate } = require('./hrTelegramBot').__test__;
-  const refDate = new Date(2026, 7, 27); // 27/08/2026
-
-  // 1. Dinh dang day du dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy
-  const d1 = parseVietnameseDate('27/08/2026');
-  assert.equal(d1.getFullYear(), 2026);
-  assert.equal(d1.getMonth(), 7);
-  assert.equal(d1.getDate(), 27);
-
-  const d2 = parseVietnameseDate('27-08-2026');
-  assert.equal(d2.getFullYear(), 2026);
-  assert.equal(d2.getMonth(), 7);
-  assert.equal(d2.getDate(), 27);
-
-  // 2. Thang va ngay 1 chu so (d/m/yyyy, d-m-yyyy, d/m, d-m)
-  const d3 = parseVietnameseDate('5/9/2026');
-  assert.equal(d3.getFullYear(), 2026);
-  assert.equal(d3.getMonth(), 8);
-  assert.equal(d3.getDate(), 5);
-
-  const d4 = parseVietnameseDate('5-9-2026');
-  assert.equal(d4.getFullYear(), 2026);
-  assert.equal(d4.getMonth(), 8);
-  assert.equal(d4.getDate(), 5);
-
-  // 3. Khong co nam: dd/mm, dd-mm, d/m, d-m (mac dinh la nam cua referenceDate hoac nam nay)
-  const d5 = parseVietnameseDate('27/8', refDate);
-  assert.equal(d5.getFullYear(), 2026);
-  assert.equal(d5.getMonth(), 7);
-  assert.equal(d5.getDate(), 27);
-
-  const d6 = parseVietnameseDate('27-08', refDate);
-  assert.equal(d6.getFullYear(), 2026);
-  assert.equal(d6.getMonth(), 7);
-  assert.equal(d6.getDate(), 27);
-
-  const d7 = parseVietnameseDate('5/9', refDate);
-  assert.equal(d7.getFullYear(), 2026);
-  assert.equal(d7.getMonth(), 8);
-  assert.equal(d7.getDate(), 5);
-
-  // 27/8 va 27/08/2026 ban chat nhu nhau
-  assert.equal(d5.getTime(), d1.getTime());
-
-  // 4. Tu khoa tuong doi: ngay mai (1 ngay sau refDate), ngay kia (2 ngay sau refDate), hom nay
-  const tomorrow1 = parseVietnameseDate('ngày mai', refDate);
-  assert.equal(tomorrow1.getFullYear(), 2026);
-  assert.equal(tomorrow1.getMonth(), 7);
-  assert.equal(tomorrow1.getDate(), 28);
-
-  const tomorrow2 = parseVietnameseDate('mai', refDate);
-  assert.equal(tomorrow2.getDate(), 28);
-
-  const tomorrow3 = parseVietnameseDate('ngay mai', refDate);
-  assert.equal(tomorrow3.getDate(), 28);
-
-  const dayAfterTomorrow1 = parseVietnameseDate('ngày kia', refDate);
-  assert.equal(dayAfterTomorrow1.getFullYear(), 2026);
-  assert.equal(dayAfterTomorrow1.getMonth(), 7);
-  assert.equal(dayAfterTomorrow1.getDate(), 29);
-
-  const dayAfterTomorrow2 = parseVietnameseDate('kia', refDate);
-  assert.equal(dayAfterTomorrow2.getDate(), 29);
-
-  const dayAfterTomorrow3 = parseVietnameseDate('ngay kia', refDate);
-  assert.equal(dayAfterTomorrow3.getDate(), 29);
-
-  const dayAfterTomorrow4 = parseVietnameseDate('ngày mốt', refDate);
-  assert.equal(dayAfterTomorrow4.getDate(), 29);
-
-  const today1 = parseVietnameseDate('hôm nay', refDate);
-  assert.equal(today1.getDate(), 27);
-
-  const today2 = parseVietnameseDate('nay', refDate);
-  assert.equal(today2.getDate(), 27);
-
-  // 5. Chuyen thang khi +1 / +2 ngay
-  const endOfMonth = new Date(2026, 7, 31); // 31/08/2026
-  const nextMonth = parseVietnameseDate('ngày mai', endOfMonth);
-  assert.equal(nextMonth.getFullYear(), 2026);
-  assert.equal(nextMonth.getMonth(), 8); // Thang 9
-  assert.equal(nextMonth.getDate(), 1);
-});
-
-test('parseVietnameseDate tu choi ngay khong ton tai', () => {
-  const { parseVietnameseDate } = require('./hrTelegramBot').__test__;
-  assert.equal(parseVietnameseDate('31/02/2026'), null);
-  assert.equal(parseVietnameseDate('29/02/2025'), null);
-  assert.equal(parseVietnameseDate('29/02/2024').getDate(), 29);
-  assert.equal(parseVietnameseDate('31/04/2026'), null);
-  assert.equal(parseVietnameseDate('abcxyz'), null);
-  assert.equal(parseVietnameseDate(''), null);
-  assert.equal(parseVietnameseDate(null), null);
-});
-
-test('markProcessed tach message_id theo tung chat', () => {
-  const hooks = require('./hrTelegramBot').__test__;
-  hooks.clearProcessedMessageIds();
-  assert.equal(hooks.markProcessed(100, 7), false);
-  assert.equal(hooks.markProcessed(100, 7), true);
-  assert.equal(hooks.markProcessed(200, 7), false);
-});
-
-test('tom tat hien dung tong buoi va canh bao don gui sau gio bat dau', async () => {
-  const hooks = require('./hrTelegramBot').__test__;
-  const sent = [];
-  const conv = { step: 'AWAITING_HANDOVER', data: {
-    identity: { hoTen: 'Test User', chucVu: 'Nhân viên' },
-    ly_do: 'Việc gia đình',
-    messageTime: new Date(2026, 7, 22, 8, 0).toISOString(),
-    startDate: new Date(2026, 7, 22), startSession: 'Sáng',
-    endDate: new Date(2026, 7, 22), endSession: 'Chiều',
-    tong_buoi_nghi: 2
-  } };
-
-  await hooks.handleConversationStep({ sendMessage: async (_chatId, text) => { sent.push(text); } }, 1, conv, 'Nguyễn B');
-  assert.equal(conv.data.co_vi_pham, true);
-  assert.match(sent[0], /Tổng buổi nghỉ: 2 buổi \(1 ngày\)/);
-  assert.match(sent[0], /không hợp lệ/);
-  assert.match(sent[0], /07:45/);
-});
-
-test('submitLeaveRequest ghi don gui tre voi trang thai Vi pham va schema moi', async () => {
-  const botModule = require('./hrTelegramBot');
-  const repo = require('../hr/hrLeaveRepository');
-  const store = require('./conversationStore');
-  const originalCreate = repo.createLeaveRequest;
-  const tmpFile = path.join(os.tmpdir(), `tks-hr-bot-submit-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
-  let received;
-  repo.createLeaveRequest = async payload => {
-    received = payload;
-    return { request_id: 'NP-TEST', ...payload };
-  };
-  store.initStore(tmpFile);
-  store.setConversation(777, { step: 'CONFIRM', data: {} });
-  const sent = [];
-  const bot = { sendMessage: async (_chatId, text) => { sent.push(text); } };
-  const conv = {
-    data: {
-      link: { telegram_username: '@tester', web_username: 'tester' },
-      identity: { hoTen: 'Test User', chucVu: 'Nhân viên' },
-      ly_do: 'Việc gia đình',
-      messageTime: new Date(2026, 7, 22, 8, 0).toISOString(),
-      startDate: new Date(2026, 7, 22),
-      startSession: 'Sáng',
-      endDate: new Date(2026, 7, 22),
-      endSession: 'Chiều',
-      tong_buoi_nghi: 2,
-      nguoi_ban_giao: 'Nguyễn B',
-      co_nghi_gap: true,
-      co_vi_pham: true
+    },
+    async pressButton(chatId, data, messageId = bot.sent.length) {
+      const callbackHandler = bot.listeners('callback_query')[0];
+      await callbackHandler({ id: `cb-${Math.random()}`, data, from: { id: chatId }, message: { chat: { id: chatId }, message_id: messageId } });
+    },
+    teardown() {
+      config.TELEGRAM_BOT_TOKEN = previousToken;
+      store.initStore();
+      delete require.cache[botModulePath];
+      if (previousTelegramModule) require.cache[telegramModulePath] = previousTelegramModule;
+      else delete require.cache[telegramModulePath];
+      if (previousRepoModule) require.cache[repoPath] = previousRepoModule;
+      else delete require.cache[repoPath];
+      if (previousServiceModule) require.cache[hrLeaveServicePath] = previousServiceModule;
+      else delete require.cache[hrLeaveServicePath];
+      if (previousExtractorModule) require.cache[extractorPath] = previousExtractorModule;
+      else delete require.cache[extractorPath];
+      if (previousConsensusExtractorModule) require.cache[consensusExtractorPath] = previousConsensusExtractorModule;
+      else delete require.cache[consensusExtractorPath];
+      if (previousTelegramIdentityService) require.cache[telegramIdentityServicePath] = previousTelegramIdentityService;
+      else delete require.cache[telegramIdentityServicePath];
+      fs.rmSync(tmpFile, { force: true });
     }
   };
+}
 
+test('ID Telegram trong danh sách HR tự liên kết và định tuyến đơn về HR home', async () => {
+  const h = setupHarness({
+    link: null,
+    autoIdentity: {
+      status: 'linked',
+      sourceBranch: 'Sài Gòn',
+      link: { user_id: 'u1', web_username: 'a@example.com', telegram_username: '@a', telegram_chat_id: '900' },
+      user: { id: 'u1', username: 'a@example.com' }
+    },
+    identity: { hoTen: 'A', chucVu: 'Kế toán' }
+  });
   try {
-    const succeeded = await botModule.__test__.submitLeaveRequest(bot, 777, conv);
-    assert.equal(succeeded, true);
-    assert.equal(received.thoi_gian_gui, conv.data.messageTime);
-    assert.equal(received.thoi_gian_bat_dau, 'Sáng 22/08/2026');
-    assert.equal(received.thoi_gian_ket_thuc, 'Chiều 22/08/2026');
-    assert.equal(received.tong_buoi_nghi, 2);
-    assert.equal(received.trang_thai, repo.LEAVE_STATUS.VIOLATION);
-    assert.equal(store.getConversation(777), null);
-    assert.match(sent[0], /Vi phạm/);
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: 'B'
+    }));
+    await h.sendText(900, 'Em xin nghỉ sáng mai vì khám bệnh, bàn giao B');
+    await h.pressButton(900, 'confirm');
+    assert.equal(h.createdBranches[0], 'Sài Gòn');
+    assert.equal(h.created[0].web_username, 'a@example.com');
   } finally {
-    repo.createLeaveRequest = originalCreate;
-    store.initStore();
-    fs.rmSync(tmpFile, { force: true });
+    h.teardown();
   }
 });
 
-test('submitLeaveRequest khong tao trung khi Sheet da ghi nhung Telegram gui xac nhan loi', async () => {
-  const botModule = require('./hrTelegramBot');
-  const repo = require('../hr/hrLeaveRepository');
-  const store = require('./conversationStore');
-  const originalCreate = repo.createLeaveRequest;
-  const tmpFile = path.join(os.tmpdir(), `tks-hr-bot-send-fail-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
-  let createCount = 0;
-  repo.createLeaveRequest = async payload => { createCount += 1; return { request_id: 'NP-WRITTEN', ...payload }; };
-  store.initStore(tmpFile);
-  const conv = { data: {
-    link: { telegram_username: '@tester', web_username: 'tester' },
-    identity: { hoTen: 'Test User', chucVu: 'Nhân viên' },
-    ly_do: 'Việc gia đình', messageTime: new Date(2026, 7, 21, 8).toISOString(),
-    startDate: new Date(2026, 7, 22), startSession: 'Sáng',
-    endDate: new Date(2026, 7, 22), endSession: 'Sáng', tong_buoi_nghi: 1,
-    nguoi_ban_giao: 'Nguyễn B', co_nghi_gap: false, co_vi_pham: false
-  } };
-  store.setConversation(778, conv);
-
+test('một tin nhắn đủ thông tin -> CONFIRM ngay, tóm tắt đúng nội dung', async () => {
+  const h = setupHarness();
   try {
-    const succeeded = await botModule.__test__.submitLeaveRequest({ sendMessage: async () => { throw new Error('Telegram down'); } }, 778, conv);
-    assert.equal(succeeded, true);
-    assert.equal(createCount, 1);
-    assert.equal(store.getConversation(778), null, 'da ghi Sheet thi phai dong phien de tranh bam lai tao trung');
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: 'Nguyễn B'
+    }));
+    await h.sendText(100, 'Em xin nghỉ sáng mai vì khám bệnh, bàn giao cho Nguyễn B');
+
+    const conv = h.store.getConversation(100);
+    assert.equal(conv.step, 'CONFIRM');
+    const sent = h.bot.sent.at(-1);
+    assert.match(sent.text, /Từ: Sáng 23\/08\/2026/);
+    assert.match(sent.text, /Đến: Sáng 23\/08\/2026/);
+    assert.match(sent.text, /Lý do: khám bệnh/);
+    assert.match(sent.text, /Người bàn giao: Nguyễn B/);
+    assert.deepEqual(sent.options.reply_markup.inline_keyboard[0].map(b => b.callback_data), ['confirm', 'cancel']);
   } finally {
-    repo.createLeaveRequest = originalCreate;
-    store.initStore();
-    fs.rmSync(tmpFile, { force: true });
+    h.teardown();
   }
 });
 
-test('submitLeaveRequest giu phien khi ghi Sheet that bai de nguoi dung thu lai', async () => {
-  const botModule = require('./hrTelegramBot');
-  const repo = require('../hr/hrLeaveRepository');
-  const store = require('./conversationStore');
-  const originalCreate = repo.createLeaveRequest;
-  const tmpFile = path.join(os.tmpdir(), `tks-hr-bot-sheet-fail-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
-  repo.createLeaveRequest = async () => { throw new Error('Sheet down'); };
-  const conv = { data: {
-    link: { telegram_username: '@tester', web_username: 'tester' },
-    identity: { hoTen: 'Test User', chucVu: 'Nhân viên' },
-    ly_do: 'Việc gia đình', messageTime: new Date(2026, 7, 21, 8).toISOString(),
-    startDate: new Date(2026, 7, 22), startSession: 'Sáng',
-    endDate: new Date(2026, 7, 22), endSession: 'Sáng', tong_buoi_nghi: 1,
-    nguoi_ban_giao: 'Nguyễn B', co_nghi_gap: false, co_vi_pham: false
-  } };
-  store.initStore(tmpFile);
-  store.setConversation(779, conv);
-
+test('cờ vi phạm dùng giờ Bangkok, không phụ thuộc timezone của host', async () => {
+  const previousTimeZone = process.env.TZ;
+  process.env.TZ = 'UTC';
+  const h = setupHarness();
   try {
-    const succeeded = await botModule.__test__.submitLeaveRequest({ sendMessage: async () => {} }, 779, conv);
-    assert.equal(succeeded, false);
-    assert.ok(store.getConversation(779));
+    h.queueExtraction(extraction({
+      start_date: '2026-08-22', start_session: 'Sáng', end_date: '2026-08-22', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: 'Nguyễn B'
+    }));
+    await h.sendText(115, 'Em xin nghỉ sáng nay vì khám bệnh, bàn giao Nguyễn B');
+
+    assert.equal(h.store.getConversation(115).data.resolved.coViPham, true);
   } finally {
-    repo.createLeaveRequest = originalCreate;
-    store.initStore();
-    fs.rmSync(tmpFile, { force: true });
+    h.teardown();
+    if (previousTimeZone === undefined) delete process.env.TZ;
+    else process.env.TZ = previousTimeZone;
   }
 });
 
-test('computeDurationSessions tinh dung so buoi theo moc bat dau va ket thuc', () => {
-  const { computeDurationSessions } = require('../hr/hrLeaveService');
-
-  const d = (y, m, day) => new Date(y, m - 1, day);
-
-  // Sang - Sang cung ngay: 1 buoi (0.5 ngay)
-  assert.equal(computeDurationSessions(d(2026,8,22), 'S\u00e1ng', d(2026,8,22), 'S\u00e1ng'), 1);
-
-  // Chieu - Chieu cung ngay: 1 buoi (0.5 ngay)
-  assert.equal(computeDurationSessions(d(2026,8,22), 'Chi\u1ec1u', d(2026,8,22), 'Chi\u1ec1u'), 1);
-
-  // Sang - Chieu cung ngay: 2 buoi (1 ngay)
-  assert.equal(computeDurationSessions(d(2026,8,22), 'S\u00e1ng', d(2026,8,22), 'Chi\u1ec1u'), 2);
-
-  // Chieu - Sang cung ngay: khong hop le
-  assert.equal(computeDurationSessions(d(2026,8,22), 'Chi\u1ec1u', d(2026,8,22), 'S\u00e1ng'), null);
-
-  // Chieu hom truoc -> Sang hom sau (vd: Chieu 23/08 -> Sang 24/08): 2 buoi (1 ngay)
-  assert.equal(computeDurationSessions(d(2026,8,23), 'Chi\u1ec1u', d(2026,8,24), 'S\u00e1ng'), 2);
-
-  // Sang 22/08 -> Chieu 23/08: 4 buoi (2 ngay)
-  assert.equal(computeDurationSessions(d(2026,8,22), 'S\u00e1ng', d(2026,8,23), 'Chi\u1ec1u'), 4);
-
-  // Chieu hom nay -> Sang 2 ngay sau (22/08 Chieu -> 24/08 Sang): 4 buoi (2 ngay)
-  assert.equal(computeDurationSessions(d(2026,8,22), 'Chi\u1ec1u', d(2026,8,24), 'S\u00e1ng'), 4);
-
-  // Sang 22/08 -> Chieu 24/08: 6 buoi (3 ngay)
-  assert.equal(computeDurationSessions(d(2026,8,22), 'S\u00e1ng', d(2026,8,24), 'Chi\u1ec1u'), 6);
-
-  // Sang 22/08 -> Chieu 25/08: 8 buoi (4 ngay)
-  assert.equal(computeDurationSessions(d(2026,8,22), 'S\u00e1ng', d(2026,8,25), 'Chi\u1ec1u'), 8);
-
-  // Ngay ket thuc truoc ngay bat dau: null
-  assert.equal(computeDurationSessions(d(2026,8,25), 'Sáng', d(2026,8,22), 'Chiều'), null);
-  assert.equal(computeDurationSessions(null, 'Sáng', d(2026,8,22), 'Chiều'), null);
-  assert.equal(computeDurationSessions(d(2026,8,22), 'toi', d(2026,8,22), 'Chiều'), null);
-  assert.equal(computeDurationSessions(d(2026,8,22), 'Sáng', d(2026,8,22), 'toi'), null);
-});
-
-test('computeSubmissionViolation dung moc 07:45 va 12:30', () => {
-  const { computeSubmissionViolation, getSessionStartTime } = require('../hr/hrLeaveService');
-  const startDate = new Date(2026, 7, 22);
-
-  assert.equal(getSessionStartTime(startDate, 'Sáng').getHours(), 7);
-  assert.equal(getSessionStartTime(startDate, 'Sáng').getMinutes(), 45);
-  assert.equal(getSessionStartTime(startDate, 'Chiều').getHours(), 12);
-  assert.equal(getSessionStartTime(startDate, 'Chiều').getMinutes(), 30);
-
-  assert.equal(computeSubmissionViolation(new Date(2026, 7, 22, 7, 44), startDate, 'Sáng'), false);
-  assert.equal(computeSubmissionViolation(new Date(2026, 7, 22, 7, 45), startDate, 'Sáng'), false);
-  assert.equal(computeSubmissionViolation(new Date(2026, 7, 22, 7, 46), startDate, 'Sáng'), true);
-  assert.equal(computeSubmissionViolation(new Date(2026, 7, 22, 12, 30), startDate, 'Chiều'), false);
-  assert.equal(computeSubmissionViolation(new Date(2026, 7, 22, 12, 31), startDate, 'Chiều'), true);
-  assert.equal(computeSubmissionViolation('not-a-date', startDate, 'Sáng'), false);
-  assert.equal(getSessionStartTime(null, 'Sáng'), null);
-});
-
-test('computeIsUrgent tinh dung voi nguong 10h mac dinh', () => {
-  const { computeIsUrgent } = require('../hr/hrLeaveService');
-
-  const startTime = new Date('2026-08-22T08:00:00Z');
-
-  // Nhan tin cach gio nghi 6 tieng (< 10h) => nghi gap (true)
-  const msgTime6h = new Date('2026-08-22T02:00:00Z');
-  assert.equal(computeIsUrgent(startTime, msgTime6h), true);
-
-  // Nhan tin cach gio nghi 12 tieng (> 10h) => khong nghi gap (false)
-  const msgTime12h = new Date('2026-08-21T20:00:00Z');
-  assert.equal(computeIsUrgent(startTime, msgTime12h), false);
-
-  // Truyen threshold rieng
-  assert.equal(computeIsUrgent(startTime, msgTime12h, 15), true);
-  assert.equal(computeIsUrgent(startTime, msgTime6h, 4), false);
-});
-
-test('lenh /huy va nut Huy dong nhat thong bao va reset phien lam viec', async () => {
-  const telegramModulePath = require.resolve('node-telegram-bot-api');
-  const botModulePath = require.resolve('./hrTelegramBot');
-  const config = require('../config');
-  const store = require('./conversationStore');
-  const previousTelegramModule = require.cache[telegramModulePath];
-  const previousToken = config.TELEGRAM_BOT_TOKEN;
-  const tmpFile = path.join(os.tmpdir(), `tks-hr-bot-cancel-test-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
-
-  const sentMessages = [];
-  const textHandlers = [];
-  let callbackHandler = null;
-
-  class FakeTelegramBot extends EventEmitter {
-    onText(regex, handler) {
-      textHandlers.push({ regex, handler });
-    }
-
-    on(event, handler) {
-      if (event === 'callback_query') callbackHandler = handler;
-      super.on(event, handler);
-    }
-
-    async sendMessage(chatId, text) {
-      sentMessages.push({ chatId, text });
-    }
-
-    async editMessageReplyMarkup() {}
-
-    async answerCallbackQuery() {}
-  }
-
+test('thiếu buổi -> mặc định nghỉ trọn ngày, không hỏi thêm', async () => {
+  const h = setupHarness();
   try {
-    require.cache[telegramModulePath] = {
-      id: telegramModulePath,
-      filename: telegramModulePath,
-      loaded: true,
-      exports: FakeTelegramBot
-    };
-    config.TELEGRAM_BOT_TOKEN = 'test-token';
-    store.initStore(tmpFile);
+    h.queueExtraction(extraction({ start_date: '2026-08-23', reason: 'việc gia đình', handover: 'Nguyễn C' }));
+    await h.sendText(101, 'Em xin nghỉ ngày mai ạ vì việc gia đình, bàn giao Nguyễn C');
 
-    delete require.cache[botModulePath];
-    const { startHrTelegramBot } = require('./hrTelegramBot');
-    startHrTelegramBot();
+    assert.equal(h.store.getConversation(101).step, 'CONFIRM');
+    assert.equal(h.bot.sent.length, 1, 'chỉ 1 tin nhắn — màn hình xác nhận, không hỏi thêm về buổi');
+    assert.match(h.bot.sent[0].text, /mặc định: nghỉ trọn ngày/);
+  } finally {
+    h.teardown();
+  }
+});
 
-    // 1. Test lệnh /huy
-    store.setConversation(991, { step: 'AWAITING_REASON', data: {} });
-    const huyHandler = textHandlers.find(h => h.regex.test('/huy')).handler;
-    await huyHandler({ chat: { id: 991 }, message_id: 1 });
+test('khoảng ngày thiếu buổi ghi rõ hai biên mặc định trong màn hình xác nhận', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', end_date: '2026-08-24', reason: 'việc gia đình', handover: 'Nguyễn C'
+    }));
+    await h.sendText(117, 'Em xin nghỉ từ mai đến ngày kia vì việc gia đình, bàn giao Nguyễn C');
 
-    assert.equal(store.getConversation(991), null);
-    assert.equal(sentMessages.find(m => m.chatId === 991).text, 'Đã hủy yêu cầu xin nghỉ phép.');
+    assert.match(h.bot.sent.at(-1).text, /mặc định: bắt đầu buổi Sáng, kết thúc buổi Chiều/);
+  } finally {
+    h.teardown();
+  }
+});
 
-    // 2. Test nút Hủy (callback_query)
-    store.setConversation(992, { step: 'CONFIRM', data: {} });
-    await callbackHandler({
-      id: 'query-1',
-      from: { id: 992 },
-      message: { chat: { id: 992 }, message_id: 10 },
-      data: 'cancel'
+test('ngày bắt đầu kèm thời lượng không bị ghi chú sai là nghỉ trọn ngày', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', duration_value: 3, duration_unit: 'session',
+      reason: 'việc gia đình', handover: 'Nguyễn C'
+    }));
+    await h.sendText(118, 'Em xin nghỉ 3 buổi từ ngày mai vì việc gia đình, bàn giao Nguyễn C');
+
+    assert.match(h.bot.sent.at(-1).text, /mặc định: bắt đầu buổi Sáng/);
+    assert.doesNotMatch(h.bot.sent.at(-1).text, /mặc định: nghỉ trọn ngày/);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('thiếu hoàn toàn thời gian -> hỏi đúng 1 câu về thời gian', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtraction(extraction({ reason: 'việc gia đình', handover: 'Nguyễn C' }));
+    await h.sendText(102, 'Em xin nghỉ ạ');
+
+    const conv = h.store.getConversation(102);
+    assert.equal(conv.step, 'AWAITING_CLARIFICATION');
+    assert.equal(conv.data.askCounts.TIME, 1);
+    assert.equal(h.bot.sent.length, 1);
+    assert.match(h.bot.sent[0].text, /chưa xác định chắc thời gian/);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('trả lời "không có" cho lý do/bàn giao lưu rỗng, không hỏi lại; các tin nhắn gộp vào 1 draft', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtraction(extraction({ start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng' }));
+    await h.sendText(103, 'Em xin nghỉ sáng mai');
+    assert.equal(h.store.getConversation(103).step, 'AWAITING_CLARIFICATION');
+    assert.match(h.bot.sent.at(-1).text, /Lý do nghỉ là gì/);
+
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng', reason_declined: true
+    }));
+    await h.sendText(103, 'không có');
+    assert.match(h.bot.sent.at(-1).text, /Người bàn giao công việc là ai/);
+
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason_declined: true, handover_declined: true
+    }));
+    await h.sendText(103, 'không cần');
+
+    const conv = h.store.getConversation(103);
+    assert.equal(conv.step, 'CONFIRM');
+    assert.deepEqual(conv.data.messages, ['Em xin nghỉ sáng mai', 'không có', 'không cần']);
+    assert.match(h.bot.sent.at(-1).text, /Lý do: không có/);
+    assert.match(h.bot.sent.at(-1).text, /Người bàn giao: không có/);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('câu trả lời trần "không có" được áp vào đúng nhóm bot đang hỏi', async () => {
+  const h = setupHarness();
+  try {
+    const intervalOnly = extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng'
     });
+    h.queueExtraction(intervalOnly);
+    await h.sendText(116, 'Em xin nghỉ sáng mai');
+    assert.equal(h.store.getConversation(116).data.pendingField, 'REASON');
 
-    assert.equal(store.getConversation(992), null);
-    assert.equal(sentMessages.find(m => m.chatId === 992).text, 'Đã hủy yêu cầu xin nghỉ phép.');
+    h.queueExtraction(intervalOnly);
+    await h.sendText(116, 'không có');
+    assert.equal(h.store.getConversation(116).data.pendingField, 'HANDOVER');
+    assert.match(h.bot.sent.at(-1).text, /Người bàn giao/);
+
+    h.queueExtraction(intervalOnly);
+    await h.sendText(116, 'không có');
+    assert.equal(h.store.getConversation(116).step, 'CONFIRM');
+    assert.match(h.bot.sent.at(-1).text, /Lý do: không có/);
+    assert.match(h.bot.sent.at(-1).text, /Người bàn giao: không có/);
   } finally {
-    config.TELEGRAM_BOT_TOKEN = previousToken;
-    store.initStore();
-    delete require.cache[botModulePath];
-    if (previousTelegramModule) require.cache[telegramModulePath] = previousTelegramModule;
-    else delete require.cache[telegramModulePath];
-    fs.rmSync(tmpFile, { force: true });
+    h.teardown();
   }
 });
 
+test('giá trị tường minh mới thay thế câu trả lời từ chối trước đó', async () => {
+  const h = setupHarness();
+  try {
+    const intervalOnly = extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng'
+    });
+    h.queueExtraction(intervalOnly);
+    await h.sendText(119, 'Em xin nghỉ sáng mai');
+
+    h.queueExtraction(intervalOnly);
+    await h.sendText(119, 'không có');
+
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: 'Lan'
+    }));
+    await h.sendText(119, 'Thực ra lý do là khám bệnh, em bàn giao cho Lan');
+
+    assert.equal(h.store.getConversation(119).step, 'CONFIRM');
+    assert.match(h.bot.sent.at(-1).text, /Lý do: khám bệnh/);
+    assert.match(h.bot.sent.at(-1).text, /Người bàn giao: Lan/);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('tin nhắn tự do khi đang CONFIRM thay thế bản nháp cũ (không tạo luồng song song)', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: 'Nguyễn B'
+    }));
+    await h.sendText(104, 'Em xin nghỉ sáng mai vì khám bệnh, bàn giao Nguyễn B');
+    assert.equal(h.store.getConversation(104).step, 'CONFIRM');
+
+    h.queueExtraction(extraction({
+      start_date: '2026-08-24', start_session: 'Chiều', end_date: '2026-08-24', end_session: 'Chiều',
+      reason: 'khám răng', handover: 'Nguyễn D'
+    }));
+    await h.sendText(104, 'À quên, em xin nghỉ chiều ngày kia vì khám răng, bàn giao Nguyễn D');
+
+    const conv = h.store.getConversation(104);
+    assert.equal(conv.step, 'CONFIRM');
+    assert.deepEqual(conv.data.messages, ['À quên, em xin nghỉ chiều ngày kia vì khám răng, bàn giao Nguyễn D']);
+    assert.match(h.bot.sent.at(-1).text, /Lý do: khám răng/);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('nút xác nhận của draft cũ không thể gửi draft thay thế mới', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: 'Nguyễn B'
+    }));
+    await h.sendText(113, 'Em xin nghỉ sáng mai vì khám bệnh, bàn giao Nguyễn B');
+
+    h.queueExtraction(extraction({
+      start_date: '2026-08-24', start_session: 'Chiều', end_date: '2026-08-24', end_session: 'Chiều',
+      reason: 'khám răng', handover: 'Nguyễn D'
+    }));
+    await h.sendText(113, 'À quên, em xin nghỉ chiều ngày kia vì khám răng, bàn giao Nguyễn D');
+    await h.pressButton(113, 'confirm', 1);
+
+    assert.equal(h.created.length, 0);
+    assert.equal(h.store.getConversation(113).step, 'CONFIRM');
+  } finally {
+    h.teardown();
+  }
+});
+
+test('tin nhắn thay thế draft CONFIRM vô hiệu hóa nút cũ dù AI proxy lỗi', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: 'Nguyễn B'
+    }));
+    await h.sendText(112, 'Em xin nghỉ sáng mai vì khám bệnh, bàn giao Nguyễn B');
+    assert.equal(h.store.getConversation(112).step, 'CONFIRM');
+
+    h.queueExtractionError(Object.assign(new Error('AI_LEAVE_PROVIDER_ERROR'), { code: 'AI_LEAVE_PROVIDER_ERROR' }));
+    await h.sendText(112, 'À quên, em muốn đổi thời gian nghỉ');
+    await h.pressButton(112, 'confirm');
+
+    assert.equal(h.created.length, 0);
+    assert.equal(h.store.getConversation(112), null);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('lỗi AI proxy -> không ghi Sheet, thông báo thử lại sau, không lộ chi tiết provider', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtractionError(Object.assign(new Error('AI_LEAVE_PROVIDER_ERROR'), { code: 'AI_LEAVE_PROVIDER_ERROR' }));
+    await h.sendText(105, 'Em xin nghỉ sáng mai');
+
+    assert.equal(h.created.length, 0);
+    assert.equal(h.bot.sent.length, 1);
+    assert.match(h.bot.sent[0].text, /gửi lại sau ít phút/);
+    assert.doesNotMatch(h.bot.sent[0].text, /sk-xt-|api\.xkiro\.com|AI_LEAVE_PROVIDER_ERROR/);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('không có cặp model đồng thuận -> không CONFIRM/ghi Sheet và yêu cầu diễn đạt lại', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtractionError(Object.assign(new Error('AI_LEAVE_NO_CONSENSUS'), { code: 'AI_LEAVE_NO_CONSENSUS' }));
+    await h.sendText(121, 'Em xin nghỉ sáng mai');
+
+    assert.equal(h.created.length, 0);
+    assert.notEqual(h.store.getConversation(121)?.step, 'CONFIRM');
+    assert.match(h.bot.sent.at(-1).text, /chưa có đủ hai model đồng thuận/i);
+    assert.doesNotMatch(h.bot.sent.at(-1).text, /response|Authorization|sk-xt-|AI_LEAVE_NO_CONSENSUS/i);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('lỗi AI khi xử lý tin làm rõ không làm mất tin khỏi lịch sử draft', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      handover: 'Nguyễn B'
+    }));
+    await h.sendText(114, 'Em xin nghỉ sáng mai, bàn giao Nguyễn B');
+    assert.equal(h.store.getConversation(114).step, 'AWAITING_CLARIFICATION');
+
+    h.queueExtractionError(Object.assign(new Error('AI_LEAVE_PROVIDER_ERROR'), { code: 'AI_LEAVE_PROVIDER_ERROR' }));
+    await h.sendText(114, 'Lý do là khám bệnh');
+
+    assert.deepEqual(h.store.getConversation(114).data.messages, [
+      'Em xin nghỉ sáng mai, bàn giao Nguyễn B',
+      'Lý do là khám bệnh'
+    ]);
+    assert.equal(h.created.length, 0);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('hỏi lại quá 3 lần cùng 1 nhóm -> dừng hỏi, gợi ý /huy', async () => {
+  const h = setupHarness();
+  try {
+    for (let i = 0; i < 4; i += 1) {
+      h.queueExtraction(extraction());
+      await h.sendText(106, `lần ${i}`);
+    }
+    const conv = h.store.getConversation(106);
+    assert.equal(conv.step, 'AWAITING_CLARIFICATION');
+    assert.equal(conv.data.askCounts.TIME, 4);
+    assert.match(h.bot.sent.at(-1).text, /gõ \/huy/);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('bộ đếm hỏi lại reset khi nhóm cần làm rõ thay đổi', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtraction(extraction());
+    await h.sendText(120, 'Em xin nghỉ');
+    h.queueExtraction(extraction());
+    await h.sendText(120, 'chưa rõ ngày');
+    assert.equal(h.store.getConversation(120).data.askCounts.TIME, 2);
+
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', reason: null, handover: 'Lan'
+    }));
+    await h.sendText(120, 'ngày mai');
+    assert.equal(h.store.getConversation(120).data.pendingField, 'REASON');
+
+    h.queueExtraction(extraction());
+    await h.sendText(120, 'em chưa có lý do');
+    assert.equal(h.store.getConversation(120).data.pendingField, 'TIME');
+    assert.equal(h.store.getConversation(120).data.askCounts.TIME, 1);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('chưa liên kết tài khoản -> báo hướng dẫn liên kết, không gọi AI', async () => {
+  const h = setupHarness({ link: null });
+  try {
+    await h.sendText(107, 'Em xin nghỉ sáng mai');
+    assert.equal(h.getExtractionCalls(), 0);
+    assert.match(h.bot.sent[0].text, /chưa liên kết tài khoản/i);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('xác nhận -> ghi Sheet với tin_nhan nối các tin nhắn, đúng field, xóa draft', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtraction(extraction({ start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng' }));
+    await h.sendText(108, 'Em xin nghỉ sáng mai');
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng', reason_declined: true
+    }));
+    await h.sendText(108, 'không có');
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason_declined: true, handover_declined: true
+    }));
+    await h.sendText(108, 'không cần');
+
+    assert.equal(h.store.getConversation(108).step, 'CONFIRM');
+    await h.pressButton(108, 'confirm');
+
+    assert.equal(h.created.length, 1);
+    assert.equal(h.created[0].tin_nhan, 'Em xin nghỉ sáng mai | không có | không cần');
+    assert.equal(h.created[0].tong_buoi_nghi, 1);
+    assert.equal(h.created[0].ly_do, '');
+    assert.equal(h.created[0].nguoi_ban_giao, '');
+    assert.equal(h.store.getConversation(108), null);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('xử lý tuần tự các tin nhắn đến sát nhau trong cùng một chat', async () => {
+  const h = setupHarness();
+  try {
+    let releaseFirst;
+    const firstGate = new Promise(resolve => { releaseFirst = resolve; });
+    h.queueExtractionAsync(async () => {
+      await firstGate;
+      return extraction({
+        start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+        reason: 'a', handover: 'b'
+      });
+    });
+    h.queueExtraction(extraction({
+      start_date: '2026-08-24', start_session: 'Chiều', end_date: '2026-08-24', end_session: 'Chiều',
+      reason: 'c', handover: 'd'
+    }));
+
+    const p1 = h.sendText(111, 'tin 1');
+    await new Promise(resolve => setImmediate(resolve));
+    const p2 = h.sendText(111, 'tin 2');
+    await new Promise(resolve => setImmediate(resolve));
+
+    assert.equal(h.bot.sent.length, 0, 'chưa gửi gì vì tin 1 còn đang chờ AI');
+
+    releaseFirst();
+    await p1;
+    await p2;
+
+    assert.equal(h.bot.sent.length, 2);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('/xinnghi chỉ gửi hướng dẫn ví dụ câu, không tạo trạng thái hội thoại', async () => {
+  const h = setupHarness();
+  try {
+    await h.bot.triggerText('/xinnghi', { chatId: 109 });
+    assert.equal(h.store.getConversation(109), null);
+    assert.match(h.bot.sent[0].text, /gõ một câu tự nhiên/);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('/start hướng dẫn ví dụ câu tự nhiên thay vì yêu cầu gõ /xinnghi trước', async () => {
+  const h = setupHarness();
+  try {
+    await h.bot.triggerText('/start', { chatId: 110 });
+    assert.match(h.bot.sent[0].text, /gõ một câu tự nhiên để xin nghỉ, ví dụ/);
+  } finally {
+    h.teardown();
+  }
+});

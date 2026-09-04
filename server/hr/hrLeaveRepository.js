@@ -24,7 +24,8 @@ const LEAVE_SCHEMA = {
     'Thời gian gửi', 'Thời gian bắt đầu', 'Thời gian kết thúc',
     'Tổng buổi nghỉ', 'Tổng ngày nghỉ quy đổi', 'Người bàn giao',
     'Trạng thái phê duyệt', 'Người phê duyệt', 'Thời điểm phê duyệt', 'Ghi chú/lý do từ chối',
-    'Cờ nghỉ gấp', 'Cờ tự ý nghỉ', 'Thời gian tạo', 'Cập nhật lần cuối'
+    'Cờ nghỉ gấp', 'Cờ tự ý nghỉ', 'Thời gian tạo', 'Cập nhật lần cuối',
+    'Tin nhắn'
   ],
   fieldKeys: [
     'request_id', 'telegram_chat_id', 'telegram_username', 'web_username',
@@ -32,7 +33,8 @@ const LEAVE_SCHEMA = {
     'thoi_gian_gui', 'thoi_gian_bat_dau', 'thoi_gian_ket_thuc',
     'tong_buoi_nghi', 'tong_ngay_nghi', 'nguoi_ban_giao',
     'trang_thai', 'nguoi_duyet', 'thoi_diem_duyet', 'ghi_chu_duyet',
-    'co_nghi_gap', 'co_tu_y_nghi', 'created_at', 'updated_at'
+    'co_nghi_gap', 'co_tu_y_nghi', 'created_at', 'updated_at',
+    'tin_nhan'
   ]
 };
 
@@ -40,13 +42,19 @@ const LINK_SCHEMA = {
   sheet: () => CONFIG.HR_SHEET_TELEGRAM_LINKS,
   headers: [
     'Mã liên kết', 'Tài khoản web', 'Trạng thái', 'Telegram chat_id',
-    'Telegram username', 'Thời gian tạo', 'Thời gian hết hạn', 'Thời gian liên kết'
+    'Telegram username', 'Thời gian tạo', 'Thời gian hết hạn', 'Thời gian liên kết',
+    'User ID'
   ],
   fieldKeys: [
     'link_code', 'web_username', 'status', 'telegram_chat_id',
-    'telegram_username', 'created_at', 'expires_at', 'linked_at'
+    'telegram_username', 'created_at', 'expires_at', 'linked_at',
+    'user_id'
   ]
 };
+
+function escapeUserEnteredFormula(value) {
+  return typeof value === 'string' && /^\s*[=+\-@]/.test(value) ? `'${value}` : value;
+}
 
 const LEAVE_TYPE = Object.freeze({
   REQUEST: 'Xin nghỉ phép',
@@ -64,7 +72,8 @@ const LEAVE_STATUS = Object.freeze({
 const LINK_STATUS = Object.freeze({
   UNUSED: 'CHUA_SU_DUNG',
   LINKED: 'DA_LIEN_KET',
-  EXPIRED: 'HET_HAN'
+  EXPIRED: 'HET_HAN',
+  REPLACED: 'DA_THAY_THE'
 });
 
 // ---- Loi nghiep vu (statusCode < 500 duoc handleError() o routes tra thang) ---
@@ -92,6 +101,12 @@ function objectToRow(obj, fieldKeys) {
     if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
     return v;
   });
+}
+
+function objectToLeaveRow(record) {
+  const row = objectToRow(record, LEAVE_SCHEMA.fieldKeys);
+  row[LEAVE_SCHEMA.fieldKeys.indexOf('tin_nhan')] = escapeUserEnteredFormula(record.tin_nhan);
+  return row;
 }
 
 /**
@@ -242,9 +257,10 @@ async function createLeaveRequest(data, branch) {
     co_nghi_gap: !!data.co_nghi_gap,
     co_tu_y_nghi: !!data.co_tu_y_nghi,
     created_at: ts,
-    updated_at: ts
+    updated_at: ts,
+    tin_nhan: data.tin_nhan || ''
   };
-  await hrClient.getHrClient(branch).hrAppendRow(LEAVE_SCHEMA.sheet(), objectToRow(record, LEAVE_SCHEMA.fieldKeys));
+  await hrClient.getHrClient(branch).hrAppendRow(LEAVE_SCHEMA.sheet(), objectToLeaveRow(record));
   return record;
 }
 
@@ -272,7 +288,7 @@ async function updateLeaveRequestStatus(id, { status, approver, note }, branch) 
   const rowIndex = updated._rowIndex;
   delete updated._rowIndex;
 
-  await hrClient.getHrClient(branch).hrUpdateRow(LEAVE_SCHEMA.sheet(), rowIndex, objectToRow(updated, LEAVE_SCHEMA.fieldKeys));
+  await hrClient.getHrClient(branch).hrUpdateRow(LEAVE_SCHEMA.sheet(), rowIndex, objectToLeaveRow(updated));
   return updated;
 }
 
@@ -368,12 +384,82 @@ async function findLinkByWebUsername(webUsername, branch) {
   return found ? stripRowIndex(found) : null;
 }
 
+/**
+ * Tra ve toan bo lien ket Telegram dang hoat dong (DA_LIEN_KET), dung de
+ * broadcast thong bao (vd: co nhan vien xin nghi phep) toi tat ca chat_id.
+ */
+async function findAllLinkedAccounts(branch) {
+  const items = await readAll(LINK_SCHEMA, branch);
+  return items
+    .filter(item => item.status === LINK_STATUS.LINKED && item.telegram_chat_id)
+    .map(stripRowIndex);
+}
+
+async function upsertAutomaticLink({ userId, webUsername, chatId, telegramUsername = '' }, branch) {
+  const normalizedUserId = String(userId || '').trim();
+  const normalizedUsername = String(webUsername || '').trim();
+  const normalizedChatId = String(chatId || '').trim();
+  if (!normalizedUserId || !normalizedUsername || !normalizedChatId) {
+    throw new HrError('Thiếu thông tin liên kết Telegram tự động.', 400, 'INVALID_TELEGRAM_LINK');
+  }
+  const items = await readAll(LINK_SCHEMA, branch);
+  const chatLink = items.find(item => item.status === LINK_STATUS.LINKED && String(item.telegram_chat_id) === normalizedChatId);
+  if (chatLink &&
+      ((chatLink.user_id && String(chatLink.user_id) !== normalizedUserId) ||
+       (!chatLink.user_id && chatLink.web_username && chatLink.web_username !== normalizedUsername))) {
+    throw new HrError('Telegram ID đã được liên kết với tài khoản khác.', 409, 'TELEGRAM_LINK_CONFLICT');
+  }
+
+  const accountLinks = items.filter(item => item.status === LINK_STATUS.LINKED && (
+    String(item.user_id || '') === normalizedUserId ||
+    (!item.user_id && item.web_username === normalizedUsername)
+  ));
+  const sameLink = accountLinks.find(item => String(item.telegram_chat_id) === normalizedChatId) || chatLink;
+  if (sameLink) {
+    const updated = {
+      ...sameLink,
+      web_username: normalizedUsername,
+      telegram_username: telegramUsername || sameLink.telegram_username || '',
+      user_id: normalizedUserId,
+      linked_at: sameLink.linked_at || nowIso()
+    };
+    const rowIndex = updated._rowIndex;
+    delete updated._rowIndex;
+    await hrClient.getHrClient(branch).hrUpdateRow(LINK_SCHEMA.sheet(), rowIndex, objectToRow(updated, LINK_SCHEMA.fieldKeys));
+    return updated;
+  }
+
+  for (const oldLink of accountLinks) {
+    const replaced = { ...oldLink, status: LINK_STATUS.REPLACED };
+    const rowIndex = replaced._rowIndex;
+    delete replaced._rowIndex;
+    await hrClient.getHrClient(branch).hrUpdateRow(LINK_SCHEMA.sheet(), rowIndex, objectToRow(replaced, LINK_SCHEMA.fieldKeys));
+  }
+
+  const linkedAt = nowIso();
+  const record = {
+    link_code: '',
+    web_username: normalizedUsername,
+    status: LINK_STATUS.LINKED,
+    telegram_chat_id: normalizedChatId,
+    telegram_username: telegramUsername,
+    created_at: linkedAt,
+    expires_at: '',
+    linked_at: linkedAt,
+    user_id: normalizedUserId
+  };
+  await hrClient.getHrClient(branch).hrAppendRow(LINK_SCHEMA.sheet(), objectToRow(record, LINK_SCHEMA.fieldKeys));
+  return record;
+}
+
 module.exports = {
   LEAVE_TYPE,
   LEAVE_STATUS,
   LINK_STATUS,
   LEAVE_SCHEMA_HEADERS: LEAVE_SCHEMA.headers,
   LEAVE_SCHEMA_FIELD_KEYS: LEAVE_SCHEMA.fieldKeys,
+  LINK_SCHEMA_HEADERS: LINK_SCHEMA.headers,
+  LINK_SCHEMA_FIELD_KEYS: LINK_SCHEMA.fieldKeys,
   HrError,
   getLeaveRequests,
   getLeaveRequestById,
@@ -383,5 +469,7 @@ module.exports = {
   createLinkCode,
   consumeLinkCode,
   findLinkByChatId,
-  findLinkByWebUsername
+  findLinkByWebUsername,
+  findAllLinkedAccounts,
+  upsertAutomaticLink
 };

@@ -54,6 +54,17 @@ function computeStartDelayMs(index, fastIntervalMs) {
   return index * (fastIntervalMs / 2);
 }
 
+// Cung quy uoc voi isTelegramBotRuntimeEnabled (hrTelegramBot.js): tu bat khi
+// chay tren Render (bien RENDER=true Render tu set), tat mac dinh o local de
+// khong chay song song 2 noi cung goi API KiotViet (tranh tranh nhau khoa/rate
+// limit voi instance da deploy).
+function isKiotVietSyncRuntimeEnabled(env = process.env) {
+  if (env.KIOTVIET_SYNC_ENABLED != null) {
+    return String(env.KIOTVIET_SYNC_ENABLED).toLowerCase() === 'true';
+  }
+  return String(env.RENDER).toLowerCase() === 'true';
+}
+
 async function loadActiveBranchRows(pool) {
   const result = await pool.query('SELECT id, code, kiotviet_retailer FROM branches WHERE is_active = true');
   return result.rows;
@@ -121,7 +132,7 @@ async function main() {
   process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
-module.exports = { main, matchBranchRows, computeStartDelayMs };
+module.exports = { main, matchBranchRows, computeStartDelayMs, isKiotVietSyncRuntimeEnabled };
 
 if (require.main === module) {
   main().catch((err) => {

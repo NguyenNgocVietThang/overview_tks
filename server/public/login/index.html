@@ -318,7 +318,7 @@
         </div>
         <div>
           <h1>TOKOSI</h1>
-          <p>Báo cáo tổng hợp · Quản lý vận chuyển</p>
+          <p>Báo cáo tổng hợp · Quản lý đơn hàng</p>
         </div>
       </div>
 
@@ -512,8 +512,10 @@
     function getNextUrl(){
       const params = new URLSearchParams(window.location.search);
       const next = params.get('next');
-      if(next && next.startsWith('/') && !next.startsWith('//')) return next;
-      return '/';
+      const isSafe = next && next.startsWith('/') && !next.startsWith('//')
+        && !next.startsWith('/login') && !next.startsWith('/register');
+      if(isSafe) return next;
+      return '/account/#profile';
     }
 
     const form = document.getElementById('loginForm');

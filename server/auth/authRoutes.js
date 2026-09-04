@@ -28,6 +28,9 @@ const { AUTH_COOKIE_NAME, AUTH_COOKIE_MAX_AGE_MS, requireAuth } = require('./aut
 const { allowedBranches } = require('../branch/branches');
 const { currentBranchFor } = require('../branch/branchMiddleware');
 const otpService = require('./otpService');
+const employeeRegistrationService = require('./employeeRegistrationService');
+const effectiveUserResolver = require('./effectiveUserResolver');
+const contactChangeService = require('./contactChangeService');
 
 const router = express.Router();
 
@@ -179,7 +182,14 @@ function publicProfile(user) {
     soDienThoai: user.soDienThoai || '',
     emailKhoiPhuc: user.emailKhoiPhuc || '',
     sdtKhoiPhuc: user.sdtKhoiPhuc || '',
-    hasPassword: !!user.passwordHash
+    hasPassword: !!user.passwordHash,
+    hrManaged: !!user.hrManaged,
+    hrSourceBranch: user.hrSourceBranch || '',
+    sheetVaiTro: user.sheetVaiTro || '',
+    sheetCoSo: user.sheetCoSo || '',
+    vaiTroOverride: user.vaiTroOverride || '',
+    coSoOverride: user.coSoOverride || '',
+    roleSource: user.roleSource || (user.hrManaged ? 'sheet' : 'local')
   };
 }
 
@@ -260,6 +270,12 @@ router.post('/api/auth/login', async (req, res) => {
 
     let user = await findActiveUserByUsername(username);
     if (!user) {
+      const lockedCandidate = await findUserByIdentifier(username);
+      if (lockedCandidate && lockedCandidate.lockReason === 'hr_removed') {
+        user = await effectiveUserResolver.resolveUser(lockedCandidate);
+      }
+    }
+    if (!user) {
       const failResult = registerFailedLoginAttempt(username, normIdentifier, now);
       return res.status(failResult.status).json(failResult.body);
     }
@@ -295,9 +311,19 @@ router.post('/api/auth/login', async (req, res) => {
     }
     const updated = await updateUserFields(user.id, updates);
     if (updated) user = { ...user, ...updates, ...updated };
+    user = await effectiveUserResolver.resolveUser(user);
+    if (user.trangThai === LOCKED_STATUS || user.trangThai === 'Khóa') {
+      return res.status(403).json({ error: 'Tài khoản đã bị khóa.', code: user.lockReason === 'hr_removed' ? 'ACCOUNT_HR_REMOVED' : 'ACCOUNT_LOCKED' });
+    }
 
     res.status(200).json(signIn(res, user));
   } catch (err) {
+    if (err && err.statusCode && err.statusCode < 500) {
+      return res.status(err.statusCode).json({ error: err.message, code: err.code });
+    }
+    if (err && err.code === 'HR_DIRECTORY_UNAVAILABLE') {
+      return res.status(503).json({ error: err.message, code: err.code });
+    }
     console.error('=== LOI /api/auth/login ===');
     console.error(err.stack);
     console.error('===========================');
@@ -308,6 +334,44 @@ router.post('/api/auth/login', async (req, res) => {
 // -------------------------------------------------------------
 // POST /api/auth/register (Email hoac So dien thoai)
 // -------------------------------------------------------------
+function sendEmployeeRegistrationError(res, err) {
+  if (err && err.statusCode) {
+    const body = { error: err.message, code: err.code };
+    if (err.waitSeconds) body.waitSeconds = err.waitSeconds;
+    return res.status(err.statusCode).json(body);
+  }
+  console.error('=== LOI DANG KY NHAN SU ===', err);
+  return res.status(500).json({ error: 'Không xác minh được thông tin nhân sự.', code: 'HR_REGISTRATION_FAILED' });
+}
+
+router.post('/api/auth/register/channels', async (req, res) => {
+  try {
+    const result = await employeeRegistrationService.createChallenge(req.body && req.body.identifier);
+    res.status(200).json(result);
+  } catch (err) {
+    sendEmployeeRegistrationError(res, err);
+  }
+});
+
+router.post('/api/auth/register/send-otp', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const result = await employeeRegistrationService.sendOtp(body.challengeId, body.channel);
+    res.status(200).json(result);
+  } catch (err) {
+    sendEmployeeRegistrationError(res, err);
+  }
+});
+
+router.post('/api/auth/register/verify', async (req, res) => {
+  try {
+    const user = await employeeRegistrationService.verifyAndRegister(req.body || {});
+    res.status(201).json(signIn(res, user));
+  } catch (err) {
+    sendEmployeeRegistrationError(res, err);
+  }
+});
+
 router.post('/api/auth/register', async (req, res) => {
   try {
     const hoTen = String((req.body && req.body.hoTen) || '').trim();
@@ -560,7 +624,10 @@ router.post('/api/auth/google', async (req, res) => {
     const googleName = (profile.name || '').trim();
     const isTargetAdmin = isHardcodedAdmin(email);
 
-    let user = await findUserByEmail(email);
+    let user = isTargetAdmin
+      ? null
+      : await employeeRegistrationService.linkVerifiedGoogleIdentity({ email, hoTen: googleName });
+    if (!user) user = await findUserByEmail(email);
 
     if (!user) {
       const assignedRole = isTargetAdmin ? ROLES.QUAN_LY : ROLES.KHACH;
@@ -599,7 +666,7 @@ router.post('/api/auth/google', async (req, res) => {
       if (!user.email || user.email.toLowerCase() !== email) {
         updates.email = email;
       }
-      if (googleName && (!user.hoTen || user.hoTen === user.username || user.hoTen === user.email || user.hoTen !== googleName)) {
+      if (!user.hrManaged && googleName && (!user.hoTen || user.hoTen === user.username || user.hoTen === user.email || user.hoTen !== googleName)) {
         updates.hoTen = googleName;
       }
       if (isTargetAdmin || isHardcodedAdmin(user.username)) {
@@ -678,6 +745,38 @@ router.get('/api/auth/profile', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('=== LOI GET /api/auth/profile ===', err);
     res.status(500).json({ error: 'Không tải được hồ sơ, vui lòng thử lại.' });
+  }
+});
+
+function sendContactChangeError(res, err) {
+  if (err && err.statusCode) {
+    const body = { error: err.message, code: err.code };
+    if (err.waitSeconds) body.waitSeconds = err.waitSeconds;
+    return res.status(err.statusCode).json(body);
+  }
+  console.error('=== LOI DOI LIEN HE HR ===', err);
+  return res.status(500).json({ error: 'Không cập nhật được thông tin liên hệ.', code: 'CONTACT_CHANGE_FAILED' });
+}
+
+router.post('/api/auth/profile/contact-change', requireAuth, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const result = await contactChangeService.beginChange(req.user, body.field, body.value);
+    res.status(200).json(result);
+  } catch (err) {
+    sendContactChangeError(res, err);
+  }
+});
+
+router.post('/api/auth/profile/contact-change/verify', requireAuth, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const updated = await contactChangeService.confirmChange(req.user, body.challengeId, body.otp);
+    const effective = await effectiveUserResolver.resolveUser(updated);
+    signIn(res, effective);
+    res.status(200).json(publicProfile(effective));
+  } catch (err) {
+    sendContactChangeError(res, err);
   }
 });
 

@@ -31,4 +31,65 @@ async function upsertStaffFromEntity(pool, branch, { kiotvietId, fullName, phone
   return result.rows[0].id;
 }
 
-module.exports = { upsertStaffFromEntity };
+// Ban batch cua upsertStaffFromEntity -- dung cho fast entities (invoices/
+// orders) de gop N query rieng (1 nhan vien/dong) thanh 3 query cho ca 1
+// trang ~100 dong, tranh N round-trip toi Postgres o xa (Render). Giu dung
+// ngu nghia "khong ghi de ten/sdt that bang gia tri rong" cua ban don le:
+// tach rieng gia tri "an toan" (dat placeholder khi rong, chi dung cho INSERT
+// lan dau) voi gia tri "tho" (dung de quyet dinh co ghi de khi UPDATE khong).
+async function upsertStaffBatch(pool, branch, entries, discoveredVia) {
+  const seen = new Map();
+  for (const { kiotvietId, fullName, phone } of entries) {
+    if (!kiotvietId) continue;
+    const key = String(kiotvietId);
+    if (!seen.has(key)) seen.set(key, { kiotvietId, fullName: fullName || '', phone: phone || null });
+  }
+  if (seen.size === 0) return new Map();
+
+  const kiotvietIds = [];
+  const safeFullNames = [];
+  const rawFullNames = [];
+  const phones = [];
+  for (const entry of seen.values()) {
+    kiotvietIds.push(entry.kiotvietId);
+    safeFullNames.push(entry.fullName || `Nhân viên #${entry.kiotvietId}`);
+    rawFullNames.push(entry.fullName);
+    phones.push(entry.phone);
+  }
+
+  // [1] Chen moi nhung dong chua ton tai, dung gia tri "an toan" (co
+  // placeholder) -- bo qua neu da co (DO NOTHING), tranh dung 1 cau upsert
+  // duy nhat vi EXCLUDED.full_name luc do se la gia tri an toan chu khong
+  // phai gia tri tho, lam sai logic "khong ghi de bang rong" o buoc [2].
+  await pool.query(
+    `INSERT INTO staff (branch_id, kiotviet_id, full_name, phone, discovered_via, kiotviet_synced_at, updated_at)
+     SELECT $1, u.kiotviet_id, u.safe_full_name, u.phone, $5, now(), now()
+     FROM unnest($2::bigint[], $3::text[], $4::text[]) AS u(kiotviet_id, safe_full_name, phone)
+     ON CONFLICT (branch_id, kiotviet_id) WHERE kiotviet_id IS NOT NULL DO NOTHING`,
+    [branch.id, kiotvietIds, safeFullNames, phones, discoveredVia || null]
+  );
+
+  // [2] Cap nhat toan bo (ca dong vua chen lan dong da ton tai truoc do)
+  // bang gia tri THO -- COALESCE/NULLIF dam bao khong ghi de ten/sdt that
+  // bang chuoi rong tu 1 entity thieu field, dung nguyen tac cua ban don le.
+  await pool.query(
+    `UPDATE staff SET
+       full_name = COALESCE(NULLIF(u.raw_full_name, ''), staff.full_name),
+       phone = COALESCE(NULLIF(u.phone, ''), staff.phone),
+       kiotviet_synced_at = now(),
+       updated_at = now()
+     FROM unnest($2::bigint[], $3::text[], $4::text[]) AS u(kiotviet_id, raw_full_name, phone)
+     WHERE staff.branch_id = $1 AND staff.kiotviet_id = u.kiotviet_id`,
+    [branch.id, kiotvietIds, rawFullNames, phones]
+  );
+
+  const result = await pool.query(
+    'SELECT kiotviet_id, id FROM staff WHERE branch_id = $1 AND kiotviet_id = ANY($2::bigint[])',
+    [branch.id, kiotvietIds]
+  );
+  const map = new Map();
+  for (const row of result.rows) map.set(String(row.kiotviet_id), row.id);
+  return map;
+}
+
+module.exports = { upsertStaffFromEntity, upsertStaffBatch };

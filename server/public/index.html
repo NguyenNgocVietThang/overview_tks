@@ -2760,6 +2760,14 @@
       animation: debtDetailFadeIn .18s var(--ease-out);
     }
 
+    .pr-detail-row>td {
+      background: var(--panel-2);
+    }
+
+    .pr-detail-row>td>* {
+      animation: debtDetailFadeIn .18s var(--ease-out);
+    }
+
     @keyframes debtDetailFadeIn {
       from {
         opacity: 0;
@@ -3030,8 +3038,7 @@
         <img src="/Logo.jpg" alt="TOKOSI Logo" width="44" height="44">
       </div>
       <div class="brand-text">
-        <h1>TOKOSI · Tổng hợp báo cáo</h1>
-        <p>Đồng bộ trực tiếp từ KiotViet qua Google Sheets</p>
+        <h1>Tổng kho gia dụng Tokosi</h1>
       </div>
     </div>
     <div class="status-line">
@@ -3046,146 +3053,7 @@
 
   <div class="shell">
     <div class="backdrop" id="backdrop" onclick="toggleSidebar()"></div>
-    <div class="sidebar" id="sidebar">
-      <div class="nav-group">
-        <button type="button" class="nav-group-toggle has-active" id="navGroupToggle" onclick="toggleNavGroup()"
-          aria-expanded="true" aria-controls="navGroupList">
-          <span>Báo cáo tổng hợp</span>
-          <svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="6 9 12 15 18 9"></polyline>
-          </svg>
-        </button>
-        <div class="nav-group-list" id="navGroupList">
-          <button type="button" class="nav-item active" data-view="overview" onclick="switchView('overview')"
-            aria-current="page">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <rect width="7" height="9" x="3" y="3" rx="1"></rect>
-              <rect width="7" height="5" x="14" y="3" rx="1"></rect>
-              <rect width="7" height="9" x="14" y="12" rx="1"></rect>
-              <rect width="7" height="5" x="3" y="16" rx="1"></rect>
-            </svg>
-            Tổng quan
-          </button>
-          <button type="button" class="nav-item" data-view="products" onclick="switchView('products')">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path
-                d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73Z">
-              </path>
-              <path d="M12 22V12"></path>
-              <polyline points="3.29 7 12 12 20.71 7"></polyline>
-              <path d="m7.5 4.27 9 5.15"></path>
-            </svg>
-            Hàng hóa
-          </button>
-          <button type="button" class="nav-item" data-view="invoices" onclick="switchView('invoices')">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path>
-              <path d="M14 8H8"></path>
-              <path d="M16 12H8"></path>
-              <path d="M13 16H8"></path>
-            </svg>
-            Hóa đơn
-          </button>
-          <button type="button" class="nav-item" data-view="customers" onclick="switchView('customers')">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M16 2v2"></path>
-              <path d="M8 2v2"></path>
-              <rect x="3" y="4" width="18" height="18" rx="2"></rect>
-              <circle cx="12" cy="11" r="3"></circle>
-              <path d="M8 18a4 4 0 0 1 8 0"></path>
-            </svg>
-            Khách hàng
-          </button>
-          <button type="button" class="nav-item" data-view="suppliers" onclick="switchView('suppliers')">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path>
-              <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path>
-              <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path>
-              <path d="M10 6h4"></path>
-              <path d="M10 10h4"></path>
-              <path d="M10 14h4"></path>
-              <path d="M10 18h4"></path>
-            </svg>
-            Nhà cung cấp
-          </button>
-          <button type="button" class="nav-item" data-view="debt" onclick="switchView('debt')">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path>
-              <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path>
-              <path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>
-            </svg>
-            Công nợ
-          </button>
-        </div>
-      </div>
-      <a href="/shipment/" class="nav-item">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-          stroke-linejoin="round" aria-hidden="true">
-          <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path>
-          <path d="M15 18H9"></path>
-          <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path>
-          <circle cx="17" cy="18" r="2"></circle>
-          <circle cx="7" cy="18" r="2"></circle>
-        </svg>
-        Quản lý vận chuyển
-      </a>
-      <div class="nav-group">
-        <button type="button" class="nav-group-toggle" id="hrGroupToggle" onclick="toggleNavGroup('hr')"
-          aria-expanded="false" aria-controls="hrGroupList">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round" aria-hidden="true">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-            <circle cx="9" cy="7" r="4"></circle>
-            <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-          </svg>
-          <span>Quản lý nhân sự</span>
-          <svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="6 9 12 15 18 9"></polyline>
-          </svg>
-        </button>
-        <div class="nav-group-list" id="hrGroupList" hidden>
-          <a href="/humanresources/#leave" class="nav-item">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-            Nghỉ phép
-          </a>
-        </div>
-      </div>
-      <div class="nav-group">
-        <button type="button" class="nav-group-toggle" id="accountGroupToggle" onclick="toggleNavGroup('account')"
-          aria-expanded="false" aria-controls="accountGroupList">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round" aria-hidden="true">
-            <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.8 17 5 19 5a1 1 0 0 1 1 1z"></path>
-            <path d="m9 12 2 2 4-4"></path>
-          </svg>
-          <span>Quản lý tài khoản</span>
-          <svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="6 9 12 15 18 9"></polyline>
-          </svg>
-        </button>
-        <div class="nav-group-list" id="accountGroupList" hidden>
-          <a href="/account/#profile" class="nav-item">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-            Quản lý hồ sơ
-          </a>
-          <a href="/account/#users" class="nav-item" id="navAccountUsers" style="display:none;">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="15" r="3"></circle><circle cx="9" cy="7" r="4"></circle><path d="M10 15H6a4 4 0 0 0-4 4v2"></path><path d="m21.7 16.4-.9-.3"></path><path d="m15.2 13.9-.9-.3"></path><path d="m16.6 18.7.3-.9"></path><path d="m19.1 12.2.3-.9"></path><path d="m19.6 18.7-.4-.8"></path><path d="m16.8 12.3-.4-.8"></path><path d="m14.3 16.6.8-.4"></path><path d="m20.7 13.8.8-.4"></path></svg>
-            Quản lý người dùng
-          </a>
-        </div>
-      </div>
-      <div class="sidebar-footer">TOKOSI · Dữ liệu từ Google Sheet · tự làm mới mỗi 10 phút</div>
-    </div>
+    <div class="sidebar" id="sidebar" data-tks-active-top="reports"></div>
 
     <div class="content">
       <div class="filterbar" id="filterBar">
@@ -3384,6 +3252,182 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">2</span>
+              <h2>Báo cáo doanh thu theo khách <span class="section-note">chọn 1 khách để xem doanh thu 90 ngày gần
+                  nhất</span></h2>
+            </div>
+            <div class="search-input-wrap" style="max-width:520px;">
+              <input class="search-input" id="cpCustomerSearchInput" type="search" autocomplete="off"
+                spellcheck="false" role="combobox" aria-autocomplete="list" aria-controls="cpCustomerSuggestions"
+                aria-expanded="false" placeholder="Tìm khách hàng theo mã hoặc tên"
+                oninput="handleCustomerProductSearchInput()" onkeydown="handleCustomerProductSearchKeydown(event)">
+              <button class="search-clear" id="cpCustomerClearBtn" type="button"
+                onclick="clearCustomerProductSelection()" aria-label="Bỏ chọn khách" hidden>
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                  </path>
+                </svg>
+              </button>
+              <div class="suggestions" id="cpCustomerSuggestions" role="listbox"></div>
+            </div>
+            <div class="table-note" id="cpEmptyState" style="margin-top:10px;">Chưa chọn khách hàng — hãy tìm và
+              chọn 1 khách ở trên.</div>
+
+            <div id="cpContent" hidden>
+              <div class="grid" style="margin-top:14px;">
+                <div class="panel col-12">
+                  <div class="panel-head">
+                    <h2><span id="cpSelectedCustomerName">—</span> <span class="tag"
+                        id="cpSelectedCustomerCode">—</span></h2>
+                    <span class="drill-hint">90 ngày gần đây</span>
+                  </div>
+                  <div class="search-input-wrap" style="margin-bottom:10px;">
+                    <input class="search-input" id="cpProductFilterInput" type="search" autocomplete="off"
+                      spellcheck="false" role="combobox" aria-autocomplete="list" aria-controls="cpProductSuggestions"
+                      aria-expanded="false" placeholder="Tất cả sản phẩm (90 ngày gần nhất)"
+                      oninput="handleCustomerProductFilterInput()" onkeydown="handleCustomerProductFilterKeydown(event)">
+                    <button class="search-clear" id="cpProductClearBtn" type="button"
+                      onclick="clearCustomerProductFilter()" aria-label="Bỏ lọc sản phẩm" hidden>
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                        </path>
+                      </svg>
+                    </button>
+                    <div class="suggestions" id="cpProductSuggestions" role="listbox"></div>
+                  </div>
+                  <div class="chart-box wide"><canvas id="chartCustomerProductRevenue" role="img"
+                      aria-label="Biểu đồ đường doanh thu theo ngày của khách hàng đã chọn"></canvas></div>
+                </div>
+              </div>
+
+              <div class="grid" style="margin-top:14px;">
+                <div class="panel col-12">
+                  <div class="panel-head">
+                    <h2>Doanh thu theo sản phẩm</h2>
+                    <span class="drill-hint" id="cpBarChartHint">Tất cả sản phẩm</span>
+                  </div>
+                  <div class="chart-box wide chart-scroll-x" id="cpBarChartBox">
+                    <div class="chart-scroll-inner" id="cpBarChartInner"><canvas id="chartCustomerProductBar" role="img"
+                        aria-label="Biểu đồ cột doanh thu theo sản phẩm của khách hàng đã chọn"></canvas></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid" style="margin-top:14px;">
+                <div class="panel col-6">
+                  <div class="panel-head">
+                    <h2>Bảng chi tiết sản phẩm <span class="tag" id="cpDetailCount">—</span></h2>
+                    <div class="panel-head-actions"><button class="export-button" type="button"
+                        onclick="openExportDialog('customers.productDetail')">Xuất Excel</button></div>
+                  </div>
+                  <div class="table-wrap scroll-list transaction-detail-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Tên hàng</th>
+                          <th>Số lượng</th>
+                          <th>Doanh số</th>
+                        </tr>
+                      </thead>
+                      <tbody id="cpDetailRows">
+                        <tr>
+                          <td colspan="3" class="table-note">Chưa có dữ liệu</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="pagination-controls" id="cpDetailPagination" hidden>
+                    <button type="button" id="cpDetailPrevPage">‹ Trước</button>
+                    <span id="cpDetailPageLabel">Trang 1/1</span>
+                    <button type="button" id="cpDetailNextPage">Sau ›</button>
+                  </div>
+                </div>
+                <div class="panel col-6">
+                  <div class="panel-head">
+                    <h2>Bảng so sánh doanh số theo tháng</h2>
+                    <div class="panel-head-actions"><button class="export-button" type="button"
+                        onclick="openExportDialog('customers.productMonthlyCompare')">Xuất Excel</button></div>
+                  </div>
+                  <div class="table-wrap scroll-list transaction-detail-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Tên hàng</th>
+                          <th>T.này</th>
+                          <th>T.trước</th>
+                          <th>T.trước nữa</th>
+                        </tr>
+                      </thead>
+                      <tbody id="cpMonthlyRows">
+                        <tr>
+                          <td colspan="4" class="table-note">Chưa có dữ liệu</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="pagination-controls" id="cpMonthlyPagination" hidden>
+                    <button type="button" id="cpMonthlyPrevPage">‹ Trước</button>
+                    <span id="cpMonthlyPageLabel">Trang 1/1</span>
+                    <button type="button" id="cpMonthlyNextPage">Sau ›</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-step">3</span>
+              <h2>Báo cáo doanh thu theo hàng <span class="section-note">tìm sản phẩm để xem doanh thu 90 ngày gần
+                  nhất</span></h2>
+            </div>
+            <div class="search-mode-toggle" role="group" aria-label="Chế độ tìm kiếm">
+              <button class="search-mode-button active" id="prSearchModeNormal" type="button" aria-pressed="true"
+                onclick="setProductRevenueSearchMode('normal')">Thông thường</button>
+              <button class="search-mode-button" id="prSearchModeCodes" type="button" aria-pressed="false"
+                onclick="setProductRevenueSearchMode('codes')">Nhiều mã</button>
+            </div>
+            <div class="search-input-wrap" style="max-width:520px;">
+              <input class="search-input" id="prSearchInput" type="search" autocomplete="off" spellcheck="false"
+                placeholder="Tìm sản phẩm theo mã hoặc tên" oninput="handleProductRevenueSearchInput()"
+                onpaste="handleProductRevenueSearchPaste(event)">
+              <button class="search-clear" id="prSearchClearBtn" type="button" onclick="clearProductRevenueSearch()"
+                aria-label="Xóa từ khóa" hidden>
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                  </path>
+                </svg>
+              </button>
+            </div>
+            <div class="search-status" id="prSearchStatus" aria-live="polite">Nhập mã hoặc tên sản phẩm để tìm, hoặc
+              chuyển sang "Nhiều mã" để dán một danh sách mã.</div>
+
+            <div class="grid" id="prResultsPanel" style="margin-top:14px;" hidden>
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Kết quả tìm kiếm <span class="tag" id="prResultCount">—</span></h2>
+                  <div class="panel-head-actions"><button class="export-button" type="button"
+                      onclick="openExportDialog('overview.productRevenueSearch')">Xuất Excel</button></div>
+                </div>
+                <div class="table-wrap scroll-list transaction-detail-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Mã SP</th>
+                        <th>Tên SP</th>
+                        <th>DS 90 ngày</th>
+                        <th>SL bán 90 ngày</th>
+                        <th>Tồn hiện tại</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="prResultRows"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-step">4</span>
               <h2>Xu hướng <span class="section-note">theo bộ lọc thời gian</span></h2>
             </div>
             <div class="grid">
@@ -3423,7 +3467,7 @@
 
 
           <section class="section">
-            <div class="section-head"><span class="section-step">3</span>
+            <div class="section-head"><span class="section-step">5</span>
               <h2>Phân tích &amp; dữ liệu chi tiết <span class="section-note">giao dịch trong khoảng thời gian đã
                   lọc</span></h2>
             </div>
@@ -3488,7 +3532,7 @@
           </section>
 
           <section class="section">
-            <div class="section-head"><span class="section-step">4</span>
+            <div class="section-head"><span class="section-step">6</span>
               <h2>Hàng nhập <span class="section-note">tổng hợp và danh sách phiếu nhập hàng theo khoảng thời gian đã
                   chọn ở trên</span></h2>
             </div>
@@ -3557,7 +3601,7 @@
           </section>
 
           <section class="section">
-            <div class="section-head"><span class="section-step">5</span>
+            <div class="section-head"><span class="section-step">7</span>
               <h2>Mã mới tạo <span class="section-note">các mã hàng có Ngày tạo trong khoảng thời gian đã chọn ở
                   trên</span></h2>
             </div>
@@ -4246,130 +4290,6 @@
               </div>
             </div>
           </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">4</span>
-              <h2>Báo cáo doanh thu theo khách <span class="section-note">chọn 1 khách để xem doanh thu 90 ngày gần
-                  nhất</span></h2>
-            </div>
-            <div class="search-input-wrap" style="max-width:520px;">
-              <input class="search-input" id="cpCustomerSearchInput" type="search" autocomplete="off"
-                spellcheck="false" role="combobox" aria-autocomplete="list" aria-controls="cpCustomerSuggestions"
-                aria-expanded="false" placeholder="Tìm khách hàng theo mã hoặc tên"
-                oninput="handleCustomerProductSearchInput()" onkeydown="handleCustomerProductSearchKeydown(event)">
-              <button class="search-clear" id="cpCustomerClearBtn" type="button"
-                onclick="clearCustomerProductSelection()" aria-label="Bỏ chọn khách" hidden>
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-                  </path>
-                </svg>
-              </button>
-              <div class="suggestions" id="cpCustomerSuggestions" role="listbox"></div>
-            </div>
-            <div class="table-note" id="cpEmptyState" style="margin-top:10px;">Chưa chọn khách hàng — hãy tìm và
-              chọn 1 khách ở trên.</div>
-
-            <div id="cpContent" hidden>
-              <div class="grid" style="margin-top:14px;">
-                <div class="panel col-12">
-                  <div class="panel-head">
-                    <h2><span id="cpSelectedCustomerName">—</span> <span class="tag"
-                        id="cpSelectedCustomerCode">—</span></h2>
-                    <span class="drill-hint">90 ngày gần đây</span>
-                  </div>
-                  <div class="search-input-wrap" style="margin-bottom:10px;">
-                    <input class="search-input" id="cpProductFilterInput" type="search" autocomplete="off"
-                      spellcheck="false" role="combobox" aria-autocomplete="list" aria-controls="cpProductSuggestions"
-                      aria-expanded="false" placeholder="Tất cả sản phẩm (90 ngày gần nhất)"
-                      oninput="handleCustomerProductFilterInput()" onkeydown="handleCustomerProductFilterKeydown(event)">
-                    <button class="search-clear" id="cpProductClearBtn" type="button"
-                      onclick="clearCustomerProductFilter()" aria-label="Bỏ lọc sản phẩm" hidden>
-                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-                        </path>
-                      </svg>
-                    </button>
-                    <div class="suggestions" id="cpProductSuggestions" role="listbox"></div>
-                  </div>
-                  <div class="chart-box wide"><canvas id="chartCustomerProductRevenue" role="img"
-                      aria-label="Biểu đồ đường doanh thu theo ngày của khách hàng đã chọn"></canvas></div>
-                </div>
-              </div>
-
-              <div class="grid" style="margin-top:14px;">
-                <div class="panel col-12">
-                  <div class="panel-head">
-                    <h2>Doanh thu theo sản phẩm</h2>
-                    <span class="drill-hint" id="cpBarChartHint">Tất cả sản phẩm</span>
-                  </div>
-                  <div class="chart-box wide chart-scroll-x" id="cpBarChartBox">
-                    <div class="chart-scroll-inner" id="cpBarChartInner"><canvas id="chartCustomerProductBar" role="img"
-                        aria-label="Biểu đồ cột doanh thu theo sản phẩm của khách hàng đã chọn"></canvas></div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="grid" style="margin-top:14px;">
-                <div class="panel col-6">
-                  <div class="panel-head">
-                    <h2>Bảng chi tiết sản phẩm <span class="tag" id="cpDetailCount">—</span></h2>
-                    <div class="panel-head-actions"><button class="export-button" type="button"
-                        onclick="openExportDialog('customers.productDetail')">Xuất Excel</button></div>
-                  </div>
-                  <div class="table-wrap scroll-list transaction-detail-scroll">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Tên hàng</th>
-                          <th>Số lượng</th>
-                          <th>Doanh số</th>
-                        </tr>
-                      </thead>
-                      <tbody id="cpDetailRows">
-                        <tr>
-                          <td colspan="3" class="table-note">Chưa có dữ liệu</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  <div class="pagination-controls" id="cpDetailPagination" hidden>
-                    <button type="button" id="cpDetailPrevPage">‹ Trước</button>
-                    <span id="cpDetailPageLabel">Trang 1/1</span>
-                    <button type="button" id="cpDetailNextPage">Sau ›</button>
-                  </div>
-                </div>
-                <div class="panel col-6">
-                  <div class="panel-head">
-                    <h2>Bảng so sánh doanh số theo tháng</h2>
-                    <div class="panel-head-actions"><button class="export-button" type="button"
-                        onclick="openExportDialog('customers.productMonthlyCompare')">Xuất Excel</button></div>
-                  </div>
-                  <div class="table-wrap scroll-list transaction-detail-scroll">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Tên hàng</th>
-                          <th>T.này</th>
-                          <th>T.trước</th>
-                          <th>T.trước nữa</th>
-                        </tr>
-                      </thead>
-                      <tbody id="cpMonthlyRows">
-                        <tr>
-                          <td colspan="4" class="table-note">Chưa có dữ liệu</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  <div class="pagination-controls" id="cpMonthlyPagination" hidden>
-                    <button type="button" id="cpMonthlyPrevPage">‹ Trước</button>
-                    <span id="cpMonthlyPageLabel">Trang 1/1</span>
-                    <button type="button" id="cpMonthlyNextPage">Sau ›</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
         </div>
 
         <!-- ============ NHÀ CUNG CẤP ============ -->
@@ -4654,7 +4574,7 @@
         busy: false,
         returnFocus: null
       },
-      // Tab Khách hàng, phần 4 — "Báo cáo doanh thu theo khách" (xem
+      // Tab Tổng quan, phần 2 — "Báo cáo doanh thu theo khách" (xem
       // renderCustomerProductReport() và các ham handleCustomerProduct*()).
       customerProductReport: {
         customer: null, // { code, name } sau khi chon khach
@@ -4663,6 +4583,17 @@
         productName: '',
         picker: { results: [], activeIndex: -1, timer: null, controller: null, requestId: 0 },
         productPicker: { activeIndex: -1, currentOptions: [] }
+      },
+      // Tab Tổng quan, phần 3 — "Báo cáo doanh thu theo hàng" (xem
+      // renderProductRevenueResults() và các ham handleProductRevenue*()).
+      productRevenueSearch: {
+        mode: 'normal', // 'normal' | 'codes'
+        query: '',
+        results: [],
+        total: 0,
+        timer: null,
+        requestId: 0,
+        controller: null
       }
     };
     Chart.defaults.font.family = 'Inter, sans-serif';
@@ -5354,7 +5285,9 @@
           debtFilter: (document.getElementById('debtFilterInput') || {}).value || '',
           customerProductCustomerCode: (state.customerProductReport.customer || {}).code || '',
           customerProductCustomerName: (state.customerProductReport.customer || {}).name || '',
-          customerProductCode: state.customerProductReport.productCode || ''
+          customerProductCode: state.customerProductReport.productCode || '',
+          productRevenueQuery: state.productRevenueSearch.query || '',
+          productRevenueMode: state.productRevenueSearch.mode || 'normal'
         }
       };
       if (tableKey === 'search.results') {
@@ -6081,22 +6014,19 @@
       menuBtn.setAttribute('aria-label', isOpen ? 'Đóng menu điều hướng' : 'Mở menu điều hướng');
     }
 
-    // Mo/dong 1 nhom trong sidebar (vd: "Báo cáo tổng hợp", "Quản lý nhân sự"), nho trang thai qua lan tai lai.
-    const NAV_GROUP_IDS = {
-      reports: { toggle: 'navGroupToggle', list: 'navGroupList' },
-      hr: { toggle: 'hrGroupToggle', list: 'hrGroupList' },
-      account: { toggle: 'accountGroupToggle', list: 'accountGroupList' }
-    };
-    function toggleNavGroup(key, forceExpanded) {
-      if (typeof key === 'boolean') { forceExpanded = key; key = 'reports'; } // tuong thich nguoc: toggleNavGroup(false)
-      const ids = NAV_GROUP_IDS[key] || NAV_GROUP_IDS.reports;
-      const toggle = document.getElementById(ids.toggle);
-      const list = document.getElementById(ids.list);
-      if (!toggle || !list) return;
-      const expanded = typeof forceExpanded === 'boolean' ? forceExpanded : toggle.getAttribute('aria-expanded') !== 'true';
-      toggle.setAttribute('aria-expanded', String(expanded));
-      list.hidden = !expanded;
-      try { localStorage.setItem('tks-dashboard-nav-group-' + key, expanded ? 'open' : 'closed'); } catch (err) { }
+    // Dong/mo nhom sidebar (vd: "Báo cáo tổng hợp") gio do TKSNav.renderTopSidebar dam nhiem
+    // (xem shared/shared-nav.js) — sidebar cua trang nay chi con la 1 mount point rong.
+
+    // Cap nhat class active cho cac nav-item bao cao trong sidebar dung chung (TKSNav render
+    // bang <a href="/#view">, khong con data-view), goi sau moi lan doi view hoac sau khi sidebar
+    // duoc TKSNav render xong (dung xong luc do vi sidebar con rong o lan goi dau).
+    function syncSidebarActiveView() {
+      document.querySelectorAll('.nav-item[href]').forEach(function (el) {
+        const hrefView = (el.getAttribute('href') || '').replace(/^\/?#/, '');
+        const isActive = hrefView === state.view;
+        el.classList.toggle('active', isActive);
+        if (isActive) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
+      });
     }
 
     // Thanh bo loc co dinh chi hien nhung nhom loc dung cho tab dang xem
@@ -6109,11 +6039,7 @@
 
     function switchView(view) {
       state.view = view;
-      document.querySelectorAll('.nav-item').forEach(function (el) {
-        const isActive = el.dataset.view === view;
-        el.classList.toggle('active', isActive);
-        if (isActive) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
-      });
+      syncSidebarActiveView();
       document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
       document.getElementById('view-' + view).classList.add('active');
       document.getElementById('sidebar').classList.remove('open');
@@ -6802,7 +6728,7 @@
       };
     }
 
-    // ===== Tab Khách hàng, phần 4 — "Báo cáo doanh thu theo khách" =====
+    // ===== Tab Tổng quan, phần 2 — "Báo cáo doanh thu theo khách" =====
     function hideCustomerProductSuggestions() {
       const box = document.getElementById('cpCustomerSuggestions');
       box.classList.remove('show');
@@ -7083,6 +7009,207 @@
       input.value = '';
       document.getElementById('cpProductClearBtn').hidden = true;
       renderCustomerProductReport();
+    }
+
+    // ===== Tab Tổng quan, phần 3 — "Báo cáo doanh thu theo hàng" =====
+    function updateProductRevenueSearchStatus() {
+      const status = document.getElementById('prSearchStatus');
+      const search = state.productRevenueSearch;
+      status.classList.remove('error');
+      if (!search.query) {
+        status.textContent = 'Nhập mã hoặc tên sản phẩm để tìm, hoặc chuyển sang "Nhiều mã" để dán một danh sách mã.';
+        return;
+      }
+      if (!search.results.length) {
+        status.textContent = search.mode === 'codes'
+          ? 'Không tìm thấy mã nào khớp trong danh sách đã dán.'
+          : 'Không có tên hoặc mã nào chứa từ khóa này.';
+        return;
+      }
+      status.textContent = search.mode === 'codes'
+        ? 'Tìm thấy ' + search.results.length + '/' + search.total + ' mã đã dán.'
+        : search.results.length + ' sản phẩm khớp từ khóa.';
+    }
+
+    function renderProductRevenueResults() {
+      const tbody = document.getElementById('prResultRows');
+      const results = state.productRevenueSearch.results;
+      const query = state.productRevenueSearch.query;
+      document.getElementById('prResultsPanel').hidden = !query;
+      document.getElementById('prResultCount').textContent = results.length ? String(results.length) : '—';
+
+      if (!query) {
+        tbody.innerHTML = '';
+        return;
+      }
+
+      if (!results.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="table-note">Không có sản phẩm nào khớp.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = results.map(function (p) {
+        const code = escapeHtml(p.code);
+        return '<tr class="pr-row" data-product-code="' + code + '">' +
+          '<td class="mono muted">' + code + '</td>' +
+          '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+          '<td class="mono" data-sort-value="' + p.ds90 + '">' + fmtMoney(p.ds90) + '</td>' +
+          '<td class="mono" data-sort-value="' + p.sl90 + '">' + fmtNumber(p.sl90) + '</td>' +
+          '<td class="mono" data-sort-value="' + p.tonKho + '">' + fmtNumber(p.tonKho) + '</td>' +
+          '<td><button class="export-button" type="button" aria-expanded="false" onclick="toggleProductRevenueDetail(this)">Chi tiết</button></td>' +
+          '</tr>' +
+          '<tr class="pr-detail-row" data-product-code="' + code + '" style="display:none;"><td colspan="6"></td></tr>';
+      }).join('');
+    }
+
+    function cancelProductRevenueSearchRequest() {
+      const search = state.productRevenueSearch;
+      if (search.timer) { clearTimeout(search.timer); search.timer = null; }
+      if (search.controller) { search.controller.abort(); search.controller = null; }
+    }
+
+    async function fetchProductRevenueResults(query) {
+      const search = state.productRevenueSearch;
+      const requestId = ++search.requestId;
+      const controller = new AbortController();
+      search.controller = controller;
+      try {
+        const response = await fetch('/api/product-revenue-search?q=' + encodeURIComponent(query) +
+          '&mode=' + encodeURIComponent(search.mode), { signal: controller.signal });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const data = await response.json();
+        if (requestId !== search.requestId) return;
+        search.results = data.results || [];
+        search.total = data.total || 0;
+        renderProductRevenueResults();
+        updateProductRevenueSearchStatus();
+      } catch (err) {
+        if (err.name === 'AbortError' || requestId !== search.requestId) return;
+        search.results = [];
+        search.total = 0;
+        renderProductRevenueResults();
+        const status = document.getElementById('prSearchStatus');
+        status.textContent = 'Không tìm kiếm được. Vui lòng thử lại.';
+        status.classList.add('error');
+      }
+    }
+
+    function handleProductRevenueSearchInput() {
+      const input = document.getElementById('prSearchInput');
+      const query = normalizeSearchQuery(input.value);
+      document.getElementById('prSearchClearBtn').hidden = !input.value;
+      cancelProductRevenueSearchRequest();
+      const search = state.productRevenueSearch;
+      search.query = query;
+
+      if (!query) {
+        search.results = [];
+        search.total = 0;
+        renderProductRevenueResults();
+        updateProductRevenueSearchStatus();
+        return;
+      }
+
+      search.timer = setTimeout(function () { fetchProductRevenueResults(query); }, 180);
+    }
+
+    function handleProductRevenueSearchPaste(event) {
+      const clipboard = event.clipboardData;
+      if (!clipboard) return;
+      event.preventDefault();
+      const input = event.currentTarget;
+      const pastedText = clipboard.getData('text');
+      const start = input.selectionStart === null ? input.value.length : input.selectionStart;
+      const end = input.selectionEnd === null ? start : input.selectionEnd;
+      input.value = normalizeSearchQuery(input.value.slice(0, start) + ' ' + pastedText + ' ' + input.value.slice(end));
+      input.setSelectionRange(input.value.length, input.value.length);
+      handleProductRevenueSearchInput();
+    }
+
+    function clearProductRevenueSearch() {
+      cancelProductRevenueSearchRequest();
+      const input = document.getElementById('prSearchInput');
+      input.value = '';
+      document.getElementById('prSearchClearBtn').hidden = true;
+      const search = state.productRevenueSearch;
+      search.query = '';
+      search.results = [];
+      search.total = 0;
+      renderProductRevenueResults();
+      updateProductRevenueSearchStatus();
+      input.focus();
+    }
+
+    function setProductRevenueSearchMode(mode) {
+      const nextMode = mode === 'codes' ? 'codes' : 'normal';
+      const search = state.productRevenueSearch;
+      if (search.mode === nextMode) return;
+      cancelProductRevenueSearchRequest();
+      search.mode = nextMode;
+      document.getElementById('prSearchModeNormal').classList.toggle('active', nextMode === 'normal');
+      document.getElementById('prSearchModeNormal').setAttribute('aria-pressed', String(nextMode === 'normal'));
+      document.getElementById('prSearchModeCodes').classList.toggle('active', nextMode === 'codes');
+      document.getElementById('prSearchModeCodes').setAttribute('aria-pressed', String(nextMode === 'codes'));
+      const input = document.getElementById('prSearchInput');
+      input.placeholder = nextMode === 'codes'
+        ? 'Dán tối đa 50 mã hàng, cách nhau bằng khoảng trắng'
+        : 'Tìm sản phẩm theo mã hoặc tên';
+      if (search.query) fetchProductRevenueResults(search.query);
+      input.focus();
+    }
+
+    function productRevenueDetailHtml(detail) {
+      const topCustomersText = (detail.topCustomers || [])
+        .map(function (c) { return c.customerName || c.customerCode; })
+        .join(' - ') || '—';
+      return '<table><thead><tr>' +
+        '<th>Trạng thái</th><th>Giá gốc</th><th>Giá bán</th>' +
+        '<th>Top 3 khách hàng (theo doanh số, toàn thời gian)</th>' +
+        '<th>T.này</th><th>T.trước</th><th>T.trước nữa</th>' +
+        '</tr></thead><tbody><tr>' +
+        '<td>' + escapeHtml(detail.status) + '</td>' +
+        '<td class="mono">' + fmtMoney(detail.cost) + '</td>' +
+        '<td class="mono">' + fmtMoney(detail.price) + '</td>' +
+        '<td>' + escapeHtml(topCustomersText) + '</td>' +
+        '<td class="mono">' + fmtMoney(detail.month1Revenue) + '</td>' +
+        '<td class="mono">' + fmtMoney(detail.month2Revenue) + '</td>' +
+        '<td class="mono">' + fmtMoney(detail.month3Revenue) + '</td>' +
+        '</tr></tbody></table>';
+    }
+
+    async function toggleProductRevenueDetail(button) {
+      const triggerRow = button.closest('tr');
+      const code = triggerRow.dataset.productCode;
+      const detailRow = triggerRow.parentElement
+        ? triggerRow.parentElement.querySelector('tr.pr-detail-row[data-product-code="' + CSS.escape(code) + '"]')
+        : null;
+      if (!detailRow) return;
+
+      const isOpening = detailRow.style.display === 'none';
+      if (isOpening && !detailRow.dataset.rendered) {
+        const cell = detailRow.querySelector('td');
+        cell.innerHTML = '<span class="table-note">Đang tải…</span>';
+        detailRow.style.display = 'table-row';
+        button.disabled = true;
+        try {
+          const response = await fetch('/api/product-revenue-detail?code=' + encodeURIComponent(code));
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          const detail = await response.json();
+          cell.innerHTML = productRevenueDetailHtml(detail);
+          detailRow.dataset.rendered = 'true';
+        } catch (err) {
+          cell.innerHTML = '<span class="table-note">Không tải được chi tiết. Vui lòng thử lại.</span>';
+        } finally {
+          button.disabled = false;
+        }
+        button.textContent = 'Ẩn bớt';
+        button.setAttribute('aria-expanded', 'true');
+        return;
+      }
+
+      detailRow.style.display = isOpening ? 'table-row' : 'none';
+      button.textContent = isOpening ? 'Ẩn bớt' : 'Chi tiết';
+      button.setAttribute('aria-expanded', String(isOpening));
     }
 
     function renderView(view) {
@@ -7572,14 +7699,6 @@
       }
     });
 
-    // Khoi phuc trang thai mo/dong nhom "Báo cáo tổng hợp" (mac dinh mo, khop
-    // hanh vi truoc khi co nhom cha), nhom "Quản lý nhân sự" va "Quản lý tài khoản".
-    try {
-      if (localStorage.getItem('tks-dashboard-nav-group-reports') === 'closed') toggleNavGroup('reports', false);
-      if (localStorage.getItem('tks-dashboard-nav-group-hr') === 'open') toggleNavGroup('hr', true);
-      if (localStorage.getItem('tks-dashboard-nav-group-account') === 'open') toggleNavGroup('account', true);
-    } catch (err) { }
-
     // Vao thang mot tab bao cao tu sidebar cua trang khac (vd /#products) —
     // cac trang khac dieu huong toi day bang hash roi trang nay tu chuyen view.
     const REPORT_VIEW_NAMES = ['overview', 'products', 'invoices', 'customers', 'suppliers', 'debt'];
@@ -7593,17 +7712,12 @@
     // Ranh gioi bao mat that su nam o server (authMiddleware tren /api/*).
     // authGuard() chi de dieu huong UX: redirect /login/ neu chua dang nhap,
     // roi moi hien noi dung (visibility:hidden duoc dat tu dau <head>).
+    // authGuard() cung tu render sidebar dung chung (nhom "Báo cáo tổng hợp"/"Quản lý nhân sự"/
+    // "Quản lý tài khoản", thanh chon co so, tay keo resize) — trang nay chi can dong bo lai
+    // class active cho view bao cao dang mo, vi sidebar dung chung khong biet state.view cua SPA.
     if (typeof TKSNav !== 'undefined' && TKSNav.authGuard) {
       TKSNav.authGuard().then(function(user){
-        if(user && user.vaiTro === 'Quản lý'){
-          var navUsers = document.getElementById('navAccountUsers');
-          if(navUsers) navUsers.style.display = 'flex';
-        }
-        var sidebar = document.getElementById('sidebar');
-        if(sidebar && user){
-          sidebar.insertAdjacentHTML('afterbegin', TKSNav._branchSwitcherHtml(user));
-          TKSNav._bindBranchSwitcher(sidebar);
-        }
+        syncSidebarActiveView();
       }).catch(function(err){
         document.documentElement.style.visibility = '';
       });

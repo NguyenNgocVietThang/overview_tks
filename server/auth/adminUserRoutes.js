@@ -12,6 +12,7 @@ const { ROLES, ACTIVE_STATUS, INACTIVE_STATUS, LOCKED_STATUS, PENDING_STATUS } =
 const { normalizePhone } = require('./userRepository');
 const notificationRepo = require('../notifications/notificationRepository');
 const { normalizeCoSo, BRANCH_VALUES } = require('../branch/branches');
+const contactChangeService = require('./contactChangeService');
 
 const router = express.Router();
 
@@ -32,7 +33,15 @@ function publicAdminUser(u) {
     trangThai: u.trangThai,
     ngayTao: u.ngayTao || '',
     dangNhapGanNhat: u.dangNhapGanNhat || '',
-    hasPassword: !!u.passwordHash
+    hasPassword: !!u.passwordHash,
+    hrManaged: !!u.hrManaged,
+    hrSourceBranch: u.hrSourceBranch || '',
+    sheetVaiTro: u.sheetVaiTro || '',
+    sheetCoSo: u.sheetCoSo || '',
+    vaiTroOverride: u.vaiTroOverride || '',
+    coSoOverride: u.coSoOverride || '',
+    roleSource: u.roleSource || (u.hrManaged ? 'sheet' : 'local'),
+    lockReason: u.lockReason || ''
   };
 }
 
@@ -143,7 +152,7 @@ router.post('/api/admin/users', async (req, res) => {
 router.put('/api/admin/users/:id', async (req, res) => {
   try {
     const targetId = req.params.id;
-    const targetUser = await localUserStore.getUserById(targetId);
+    let targetUser = await localUserStore.getUserById(targetId);
     if (!targetUser) {
       return res.status(404).json({ error: 'Không tìm thấy tài khoản cần chỉnh sửa.' });
     }
@@ -171,7 +180,11 @@ router.put('/api/admin/users/:id', async (req, res) => {
       if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
         return res.status(400).json({ error: 'Email không đúng định dạng.' });
       }
-      updates.email = email;
+      if (targetUser.hrManaged && email !== String(targetUser.email || '').toLowerCase()) {
+        targetUser = await contactChangeService.adminChange(targetUser, 'email', email);
+      } else {
+        updates.email = email;
+      }
     }
 
     if (req.body.soDienThoai !== undefined) {
@@ -181,7 +194,11 @@ router.put('/api/admin/users/:id', async (req, res) => {
         if (!/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(normPhone) && !/^[0-9]{10}$/.test(normPhone)) {
           return res.status(400).json({ error: 'Số điện thoại không đúng định dạng.' });
         }
-        updates.soDienThoai = normPhone;
+        if (targetUser.hrManaged && normPhone !== normalizePhone(targetUser.soDienThoai)) {
+          targetUser = await contactChangeService.adminChange(targetUser, 'phone', normPhone);
+        } else {
+          updates.soDienThoai = normPhone;
+        }
       } else {
         updates.soDienThoai = '';
       }
@@ -214,6 +231,41 @@ router.put('/api/admin/users/:id', async (req, res) => {
       updates.vaiTro = vaiTro;
     }
 
+    if (req.body.vaiTroOverride !== undefined) {
+      if (!targetUser.hrManaged) {
+        return res.status(409).json({ error: 'Chỉ tài khoản đồng bộ HR mới có ghi đè vai trò.' });
+      }
+      const vaiTroOverride = req.body.vaiTroOverride === null ? '' : String(req.body.vaiTroOverride).trim();
+      if (vaiTroOverride && !VALID_ROLES.includes(vaiTroOverride)) {
+        return res.status(400).json({ error: `Vai trò ghi đè không hợp lệ: ${vaiTroOverride}` });
+      }
+      if (isSelf && vaiTroOverride && vaiTroOverride !== ROLES.QUAN_LY) {
+        return res.status(400).json({ error: 'Bạn không thể tự hạ quyền Quản lý của chính mình.' });
+      }
+      if (isTargetHardcodedAdmin && vaiTroOverride !== ROLES.QUAN_LY) {
+        return res.status(400).json({ error: 'Không thể thay đổi ghi đè của tài khoản Quản trị viên hệ thống.' });
+      }
+      updates.vaiTroOverride = vaiTroOverride;
+      updates.vaiTro = vaiTroOverride || targetUser.sheetVaiTro || ROLES.KHACH;
+      updates.roleSource = vaiTroOverride ? 'override' : 'sheet';
+    }
+
+    if (req.body.coSoOverride !== undefined) {
+      if (!targetUser.hrManaged) {
+        return res.status(409).json({ error: 'Chỉ tài khoản đồng bộ HR mới có ghi đè cơ sở.' });
+      }
+      const rawOverride = req.body.coSoOverride === null ? '' : String(req.body.coSoOverride).trim();
+      const coSoOverride = rawOverride ? normalizeCoSo(rawOverride) : '';
+      if (rawOverride && !coSoOverride) {
+        return res.status(400).json({ error: `Cơ sở ghi đè không hợp lệ. Cho phép: ${BRANCH_VALUES.join(', ')}` });
+      }
+      if (isTargetHardcodedAdmin && coSoOverride !== 'Cả hai') {
+        return res.status(400).json({ error: 'Không thể thay đổi cơ sở của tài khoản Quản trị viên hệ thống.' });
+      }
+      updates.coSoOverride = coSoOverride;
+      updates.coSo = coSoOverride || targetUser.sheetCoSo || 'Cả hai';
+    }
+
     if (req.body.trangThai !== undefined) {
       const trangThai = String(req.body.trangThai).trim();
       if (!VALID_STATUSES.includes(trangThai)) {
@@ -230,6 +282,7 @@ router.put('/api/admin/users/:id', async (req, res) => {
         return res.status(400).json({ error: 'Không thể khóa tài khoản Quản trị viên hệ thống mặc định.' });
       }
       updates.trangThai = trangThai;
+      updates.lockReason = (trangThai === LOCKED_STATUS || trangThai === 'Khóa') ? 'manual' : '';
     }
 
     const updated = await localUserStore.updateUser(targetId, updates);
@@ -237,6 +290,9 @@ router.put('/api/admin/users/:id', async (req, res) => {
   } catch (err) {
     if (err && err.code === 'USER_EXISTS') {
       return res.status(409).json({ error: err.message });
+    }
+    if (err && err.statusCode && err.statusCode < 500) {
+      return res.status(err.statusCode).json({ error: err.message, code: err.code });
     }
     console.error('=== LOI PUT /api/admin/users/:id ===', err);
     res.status(500).json({ error: 'Không cập nhật được tài khoản.' });

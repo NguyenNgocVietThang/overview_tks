@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Quản lý vận chuyển · TOKOSI Dashboard</title>
+<title>Quản lý đơn hàng · TOKOSI Dashboard</title>
 <link rel="icon" type="image/jpeg" href="/Logo.jpg">
 <script>
   (function(){
@@ -75,7 +75,7 @@
       <div class="brand-mark">
         <img src="/Logo.jpg" alt="TOKOSI Logo" width="44" height="44">
       </div>
-      <div class="brand-text"><h1>TOKOSI · Quản lý vận chuyển</h1><p>Tra cứu trạng thái theo mã hóa đơn</p></div>
+      <div class="brand-text"><h1>Tổng kho gia dụng Tokosi</h1></div>
     </div>
     <div class="status-line">
       <button class="theme-toggle" id="themeToggle" type="button" aria-label="Chuyển chế độ giao diện" onclick="toggleTheme()">
@@ -97,27 +97,6 @@
     <div class="sidebar" id="sidebar" data-tks-active-top="shipment"></div>
     <main class="content">
       <div class="lookup-wrap">
-        <!-- Panel điều hướng nội bộ — ẩn mặc định, JS hiện sau khi xác thực role -->
-        <div id="internalNavPanel" style="display:none;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
-          <a href="/shipment/dispatch/" class="int-nav-card" style="text-decoration:none;">
-            <div class="int-nav-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M8 7v7"></path><path d="M12 7v4"></path><path d="M16 7v9"></path></svg>
-            </div>
-            <div>
-              <div class="int-nav-title">Điều phối vận chuyển</div>
-              <div class="int-nav-sub">Tạo đơn · Kanban · Quản lý xe</div>
-            </div>
-          </a>
-          <a href="/shipment/mobile/" class="int-nav-card" style="text-decoration:none;">
-            <div class="int-nav-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect><path d="M12 18h.01"></path></svg>
-            </div>
-            <div>
-              <div class="int-nav-title">Mobile — Thủ kho / Lái xe</div>
-              <div class="int-nav-sub">Nhặt hàng · Giao hàng · Báo sự cố</div>
-            </div>
-          </a>
-        </div>
         <div class="lookup-hero">
           <h2>Tra cứu trạng thái hóa đơn</h2>
           <p>Nhập chính xác một hoặc nhiều mã hóa đơn. Hệ thống chỉ hiển thị trạng thái của các mã bạn yêu cầu.</p>
@@ -236,14 +215,7 @@
         .finally(function(){ submitBtn.disabled = false; submitBtn.textContent = 'Tìm kiếm'; });
     });
 
-    TKSNav.authGuard().then(function(user) {
-      if (!user) return;
-      // Hiển thị panel điều hướng nội bộ cho các vai trò nội bộ
-      var internalRoles = ['Quản lý', 'Kế toán', 'Trưởng kho', 'Trợ lý', 'Lái xe', 'Nhân viên kho', 'Nhân viên sale'];
-      if (!internalRoles.includes(user.vaiTro)) return;
-      var nav = document.getElementById('internalNavPanel');
-      if (nav) nav.style.display = 'flex';
-    });
+    TKSNav.authGuard();
   </script>
   <script src="/shared/shooting-star.js?v=20260830"></script>
 </body>

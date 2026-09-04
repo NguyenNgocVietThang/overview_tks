@@ -237,3 +237,103 @@ test('runBackfill: KHONG dung den sync_checkpoints (chi ghi sync_run_log)', asyn
     assert.deepEqual(checkpoints.rows, []);
   });
 });
+
+// Fake client mo phong phan trang that (currentItem/pageSize/total) cua
+// KiotVietApiClient.fetchAllPages, co the ngat ngang o mot trang cu the cua
+// mot endpoint de gia lap backfill "bi dung lai".
+function makeFakeClientWithPages(itemsByEndpoint, { pageSize = 2, failEndpoint = null, failOnNthCallForEndpoint = null } = {}) {
+  const callCountByEndpoint = {};
+  const offsetsByEndpoint = {};
+  return {
+    async fetchAllPages(endpoint, query, onPage, options = {}) {
+      const items = itemsByEndpoint[endpoint] || [];
+      let currentItem = (options && options.startItem) || 0;
+      const total = items.length;
+      callCountByEndpoint[endpoint] = callCountByEndpoint[endpoint] || 0;
+      offsetsByEndpoint[endpoint] = offsetsByEndpoint[endpoint] || [];
+      while (currentItem < total) {
+        callCountByEndpoint[endpoint]++;
+        if (endpoint === failEndpoint && callCountByEndpoint[endpoint] === failOnNthCallForEndpoint) {
+          throw new Error('gian doan gia lap');
+        }
+        const pageItems = items.slice(currentItem, currentItem + pageSize);
+        offsetsByEndpoint[endpoint].push(currentItem);
+        currentItem += pageSize;
+        await onPage(pageItems, { nextItem: currentItem, total });
+        if (pageItems.length === 0) break;
+      }
+    },
+    callCountByEndpoint,
+    offsetsByEndpoint
+  };
+}
+
+test('runBackfill resume: entity khong chia thang (products) bi dung giua chung, chay lai tiep tuc dung tu offset da luu, khong keo lai trang da xong', async () => {
+  await withTestPool(async (pool, branch) => {
+    const products = Array.from({ length: 6 }, (_, i) => ({ id: i, code: `SP${i}`, name: `San pham ${i}` }));
+
+    const failingClient = makeFakeClientWithPages({ products }, { pageSize: 2, failEndpoint: 'products', failOnNthCallForEndpoint: 2 });
+    await runBackfill(pool, failingClient, branch, { from: '2026-01-01', to: '2026-01-31' });
+
+    assert.deepEqual(failingClient.offsetsByEndpoint.products, [0], 'chi trang dau (offset 0) duoc xu ly truoc khi bi ngat');
+
+    const errorLog = await pool.query(
+      `SELECT status FROM sync_run_log WHERE branch_id = $1 AND entity_name = 'products:backfill'`,
+      [branch.id]
+    );
+    assert.equal(errorLog.rows[0].status, 'error');
+
+    const progress = await pool.query(
+      `SELECT next_offset FROM backfill_progress WHERE branch_id = $1 AND log_name = 'products:backfill'`,
+      [branch.id]
+    );
+    assert.equal(progress.rows[0].next_offset, 2, 'offset da luu dung ngay sau trang thanh cong cuoi cung');
+
+    const resumingClient = makeFakeClientWithPages({ products }, { pageSize: 2 });
+    await runBackfill(pool, resumingClient, branch, { from: '2026-01-01', to: '2026-01-31' });
+
+    assert.deepEqual(resumingClient.offsetsByEndpoint.products, [2, 4], 'lan chay lai chi keo cac trang con thieu, bo qua offset 0 da xong');
+
+    const successLog = await pool.query(
+      `SELECT status FROM sync_run_log WHERE branch_id = $1 AND entity_name = 'products:backfill' ORDER BY started_at DESC LIMIT 1`,
+      [branch.id]
+    );
+    assert.equal(successLog.rows[0].status, 'success');
+
+    const clearedProgress = await pool.query(
+      `SELECT * FROM backfill_progress WHERE branch_id = $1 AND log_name = 'products:backfill'`,
+      [branch.id]
+    );
+    assert.deepEqual(clearedProgress.rows, [], 'offset phai duoc xoa sau khi hoan tat thanh cong');
+  });
+});
+
+test('runBackfill resume: entity chia theo thang (invoices) bi dung giua mot thang, chay lai tiep tuc dung tu offset cua thang do', async () => {
+  await withTestPool(async (pool, branch) => {
+    const invoices = Array.from({ length: 4 }, (_, i) => ({
+      id: i, code: `HD${i}`, total: 100000, purchaseDate: '2026-01-15T10:00:00'
+    }));
+
+    const failingClient = makeFakeClientWithPages({ invoices }, { pageSize: 2, failEndpoint: 'invoices', failOnNthCallForEndpoint: 2 });
+    await runBackfill(pool, failingClient, branch, { from: '2026-01-01', to: '2026-01-31' });
+
+    assert.deepEqual(failingClient.offsetsByEndpoint.invoices, [0]);
+
+    const progress = await pool.query(
+      `SELECT next_offset FROM backfill_progress WHERE branch_id = $1 AND log_name = 'invoices:backfill:2026-01'`,
+      [branch.id]
+    );
+    assert.equal(progress.rows[0].next_offset, 2);
+
+    const resumingClient = makeFakeClientWithPages({ invoices }, { pageSize: 2 });
+    await runBackfill(pool, resumingClient, branch, { from: '2026-01-01', to: '2026-01-31' });
+
+    assert.deepEqual(resumingClient.offsetsByEndpoint.invoices, [2], 'chi con 1 trang thieu (offset 2) can keo tiep');
+
+    const log = await pool.query(
+      `SELECT status FROM sync_run_log WHERE branch_id = $1 AND entity_name = 'invoices:backfill:2026-01' ORDER BY started_at DESC LIMIT 1`,
+      [branch.id]
+    );
+    assert.equal(log.rows[0].status, 'success');
+  });
+});

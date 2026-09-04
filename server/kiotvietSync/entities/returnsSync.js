@@ -97,16 +97,19 @@ function buildQuery(sinceIso) {
   return query;
 }
 
-async function syncReturns(pool, kiotVietClient, branch, sinceIso) {
+async function syncReturns(pool, kiotVietClient, branch, sinceIso, options = {}) {
   let fetched = 0;
   let upserted = 0;
 
-  await kiotVietClient.fetchAllPages('returns', buildQuery(sinceIso), async (items) => {
+  await kiotVietClient.fetchAllPages('returns', buildQuery(sinceIso), async (items, meta) => {
     fetched += items.length;
     for (const item of items) {
       upserted += await upsertReturn(pool, branch, item);
     }
-  });
+    if (options.onProgress && meta && typeof meta.nextItem === 'number') {
+      await options.onProgress(meta.nextItem);
+    }
+  }, { startItem: options.startItem || 0 });
 
   return { fetched, upserted };
 }

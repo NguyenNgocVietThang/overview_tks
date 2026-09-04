@@ -133,6 +133,26 @@ test('PATCH /api/role-requests/:id/status duyệt -> cập nhật vaiTro của u
   assert.equal(requesterNotifs[0].type, 'role_change_decision');
 });
 
+test('PATCH approved role request creates a persistent override for HR-managed user', async () => {
+  localUserStore.setInMemoryUsers([{
+    id: 'u1', username: 'nva', hoTen: 'Nguyễn Văn A', vaiTro: 'Trợ lý',
+    sheetVaiTro: 'Trợ lý', coSo: 'Cả hai', hrManaged: true, trangThai: 'Đang hoạt động'
+  }]);
+  roleRepo.setInMemoryRequests([]);
+  notificationRepo.setInMemoryNotifications([]);
+  const created = await roleRepo.createRequest({ userId: 'u1', username: 'nva', hoTen: 'Nguyễn Văn A', currentRole: 'Trợ lý', requestedRole: 'Kế toán', reason: 'x' });
+  const res = fakeRes();
+  await getRouteHandler(roleChangeRequestRoutes, 'patch', '/api/role-requests/:id/status')({
+    user: { id: 'm1', username: 'ql1', hoTen: 'Quản lý 1', vaiTro: 'Quản lý' },
+    params: { id: created.id },
+    body: { status: roleRepo.ROLE_REQUEST_STATUS.APPROVED, note: 'Đồng ý' }
+  }, res);
+  const updatedUser = await localUserStore.getUserById('u1');
+  assert.equal(updatedUser.vaiTro, 'Kế toán');
+  assert.equal(updatedUser.vaiTroOverride, 'Kế toán');
+  assert.equal(updatedUser.roleSource, 'override');
+});
+
 test('PATCH /api/role-requests/:id/status từ chối -> KHÔNG đổi vaiTro', async () => {
   localUserStore.setInMemoryUsers([
     { id: 'u1', username: 'nva', hoTen: 'Nguyễn Văn A', vaiTro: 'Trợ lý', trangThai: 'Đang hoạt động' }

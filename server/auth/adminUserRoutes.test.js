@@ -60,6 +60,50 @@ test('Admin User Management: GET /api/admin/users trả về danh sách user kh�
   assert.equal(res.body.users[0].hasPassword, true);
 });
 
+test('Admin User Management: exposes HR source and persistent override metadata', async () => {
+  localUserStore.setInMemoryUsers([{
+    id: 'u1', username: 'a@example.com', hoTen: 'A', email: 'a@example.com',
+    vaiTro: 'Trợ lý', coSo: 'Hà Nội', trangThai: 'Đang hoạt động', hrManaged: true,
+    sheetVaiTro: 'Kế toán', sheetCoSo: 'Cả hai', vaiTroOverride: 'Trợ lý',
+    coSoOverride: 'Hà Nội', roleSource: 'override', hrSourceBranch: 'Hà Nội'
+  }]);
+  const res = fakeRes();
+  await getRouteHandler(adminUserRoutes, 'get', '/api/admin/users')({ user: { id: 'admin', vaiTro: 'Quản lý' } }, res);
+  const user = res.body.users[0];
+  assert.equal(user.hrManaged, true);
+  assert.equal(user.sheetVaiTro, 'Kế toán');
+  assert.equal(user.vaiTroOverride, 'Trợ lý');
+  assert.equal(user.coSoOverride, 'Hà Nội');
+  assert.equal(user.roleSource, 'override');
+});
+
+test('Admin User Management: sets and independently clears HR role and branch overrides', async () => {
+  localUserStore.setInMemoryUsers([{
+    id: 'u1', username: 'a@example.com', hoTen: 'A', email: 'a@example.com',
+    vaiTro: 'Kế toán', coSo: 'Cả hai', trangThai: 'Đang hoạt động', hrManaged: true,
+    sheetVaiTro: 'Kế toán', sheetCoSo: 'Cả hai'
+  }]);
+  const handler = getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id');
+  let res = fakeRes();
+  await handler({
+    user: { id: 'admin', username: 'admin', vaiTro: 'Quản lý' }, params: { id: 'u1' },
+    body: { vaiTroOverride: 'Trợ lý', coSoOverride: 'Hà Nội' }
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.user.vaiTro, 'Trợ lý');
+  assert.equal(res.body.user.coSo, 'Hà Nội');
+
+  res = fakeRes();
+  await handler({
+    user: { id: 'admin', username: 'admin', vaiTro: 'Quản lý' }, params: { id: 'u1' },
+    body: { vaiTroOverride: null, coSoOverride: null }
+  }, res);
+  assert.equal(res.body.user.vaiTro, 'Kế toán');
+  assert.equal(res.body.user.coSo, 'Cả hai');
+  assert.equal(res.body.user.vaiTroOverride, '');
+  assert.equal(res.body.user.coSoOverride, '');
+});
+
 test('Admin User Management: POST /api/admin/users tạo user mới hợp lệ', async () => {
   localUserStore.setInMemoryUsers([]);
 
@@ -417,4 +461,3 @@ test('User Status & Deletion: Cho phép trạng thái Không hoạt động và 
   assert.ok(!returnedUsernames.includes('user3')); // u-3 đã bị xóa, không hiện
   assert.equal(getRes.body.users.find(u => u.username === 'user2').trangThai, 'Không hoạt động');
 });
-

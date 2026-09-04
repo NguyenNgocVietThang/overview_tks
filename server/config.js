@@ -11,6 +11,18 @@ function required(name) {
   return value;
 }
 
+const DEFAULT_AI_LEAVE_MODELS = Object.freeze([
+  'deepseek/deepseek-v4-pro',
+  'deepseek/deepseek-v4-flash',
+  'qwen/qwen3-max:free',
+  'mistralai/mistral-small-2603',
+  'mistralai/mistral-medium-3.5'
+]);
+
+function parseModelList(value) {
+  return String(value).split(',').map(model => model.trim()).filter(Boolean);
+}
+
 const CONFIG = {
   // SPREADSHEET_ID = co so HA NOI (bat buoc). Spreadsheet bao cao cua co so
   // SAI GON la optional — thieu bien nay thi co so Sai Gon tra 503
@@ -69,6 +81,18 @@ const CONFIG = {
   VC_SPREADSHEET_ID_SG: process.env.VC_SPREADSHEET_ID_SG || null,
   VC_DRIVE_FOLDER_ID_SG: process.env.VC_DRIVE_FOLDER_ID_SG || null,
 
+  // ==========================================
+  // VONG DOI DON HANG — spreadsheet RIENG do Bot Telegram + Apps Script NGOAI
+  // REPO NAY ghi truc tiep (2 tab DonHang_HN/DonHang_SG trong CUNG 1
+  // spreadsheet — khac pattern "1 spreadsheet/co so" o tren). Server CHI DOC.
+  // Xem docs/superpowers/specs/2026-09-04-order-lifecycle-status-lookup.md
+  // ==========================================
+  // Optional — fail-soft giong VC_SPREADSHEET_ID: thieu bien nay thi tinh
+  // nang tra 503 BRANCH_NOT_CONFIGURED, khong lam sap server.
+  ORDER_LIFECYCLE_SPREADSHEET_ID: process.env.ORDER_LIFECYCLE_SPREADSHEET_ID || null,
+  ORDER_LIFECYCLE_SHEET_HN: 'DonHang_HN',
+  ORDER_LIFECYCLE_SHEET_SG: 'DonHang_SG',
+
   // Ten 6 tab trong Spreadsheet van chuyen rieng (Tieng Viet truc quan, de su dung).
   VC_SHEET_ORDERS: 'Đơn vận chuyển',
   VC_SHEET_ORDER_ITEMS: 'Chi tiết vận chuyển',
@@ -113,15 +137,37 @@ const CONFIG = {
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || null,
 
   HR_SHEET_LEAVE_REQUESTS: 'Yêu cầu nghỉ phép',
+  HR_SHEET_EMPLOYEES: 'Danh sách nhân sự',
   HR_SHEET_TELEGRAM_LINKS: '_HR_TELEGRAM_LINKS',
 
-  // Nguong canh bao "nghi gap": thoi gian bat dau nghi - thoi gian nhan tin
-  // < nguong nay (gio) thi tu dong gan co, chi de canh bao, khong tu tu choi.
+  // Nguong bao truoc mac dinh (gio) dung khi tin nhan chi neu so buoi/ngay ma
+  // khong neu ngay bat dau — bot chon buoi gan nhat con cach thoi diem gui tin
+  // >= nguong nay. KHONG con dung cho co "nghi gap", xem HR_URGENT_LATE_NIGHT_HOUR.
   HR_URGENT_NOTICE_HOURS_THRESHOLD: Number(process.env.HR_URGENT_NOTICE_HOURS_THRESHOLD) || 10,
+  // Co "nghi gap": tin nhan gui tu gio nay tro di (gio Bangkok, 0-23) VA ca
+  // nghi bat dau ngay hom sau lien ke thi tu dong gan co, chi de canh bao,
+  // khong tu tu choi.
+  HR_URGENT_LATE_NIGHT_HOUR: Number(process.env.HR_URGENT_LATE_NIGHT_HOUR) || 22,
   // So lan nghi gap/thang vuot nguong nay thi hien badge canh bao cho Quan ly.
   HR_URGENT_FLAG_MONTHLY_THRESHOLD: Number(process.env.HR_URGENT_FLAG_MONTHLY_THRESHOLD) || 2,
   // Thoi han hieu luc cua ma lien ket Telegram (phut).
   HR_LINK_CODE_TTL_MINUTES: Number(process.env.HR_LINK_CODE_TTL_MINUTES) || 15,
+
+  // ==========================================
+  // AI PROXY (xKiro) — nhan dang tin nhan xin nghi bang AI, xem
+  // docs/superpowers/specs/2026-08-31-telegram-ai-leave-message-recognition.md
+  // ==========================================
+  // Optional — neu chua set thi pipeline AI tra loi "thu lai sau" cho nhan
+  // vien thay vi lam sap server (giong TELEGRAM_BOT_TOKEN/HR_SPREADSHEET_ID).
+  AI_LEAVE_API_KEY: process.env.AI_LEAVE_API_KEY || null,
+  AI_LEAVE_API_BASE_URL: process.env.AI_LEAVE_API_BASE_URL || 'https://api.xkiro.com/v1',
+  AI_LEAVE_API_MODEL: process.env.AI_LEAVE_API_MODEL || 'deepseek/deepseek-v4-pro',
+  AI_LEAVE_API_MODELS: process.env.AI_LEAVE_API_MODELS == null
+    ? [...DEFAULT_AI_LEAVE_MODELS]
+    : parseModelList(process.env.AI_LEAVE_API_MODELS),
+  AI_LEAVE_API_TIMEOUT_MS: Number(process.env.AI_LEAVE_API_TIMEOUT_MS) || 30000,
+  // Dung de dua vao prompt AI quy doi ngay tuong doi ("hom nay"/"ngay mai"...).
+  HR_TIME_ZONE: process.env.HR_TIME_ZONE || 'Asia/Bangkok',
 
   // ==========================================
   // POSTGRES — Phase 1 (dong bo KiotViet), xem PlanDB-Phase1-Spec.md

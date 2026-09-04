@@ -619,7 +619,7 @@ server/kiotvietSync/
 ### 7.3. Nhịp đồng bộ (áp dụng cho MỖI branch riêng biệt)
 
 | Tầng | Entity | Chu kỳ | Vì sao |
-|---|---|---|---|
+|---|---|----|---|
 | Nhanh | invoices, orders | ~90 giây | 2 bảng giá trị cao nhất theo yêu cầu |
 | Chậm | categories, products, customers, suppliers, purchases, returns, cash_flows | 15 phút | Bằng/tốt hơn tần suất polling hiện tại của GAS cho các bảng không có webhook (returns/suppliers/purchases hôm nay đã poll 15 phút) |
 | Miễn phí | staff | — | Suy ra ngay trong lúc sync invoices/orders/cash_flows, không cần lịch riêng |

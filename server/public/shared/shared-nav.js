@@ -129,7 +129,10 @@
       })
       .then(function(user){
         var path = window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') || '/';
-        var isGuestAllowed = (path === '/shipment' || path === '/account');
+        // '/shipment/lifecycle' cho phep Khach vao truc tiep de tra cuu don
+        // cua minh (Khu A cua trang nay danh cho moi vai tro, xem spec
+        // docs/superpowers/specs/2026-09-04-order-lifecycle-status-lookup.md).
+        var isGuestAllowed = (path === '/shipment' || path === '/shipment/lifecycle' || path === '/account');
         if(user.vaiTro === 'Khách' && !isGuestAllowed){
           window.location.href = '/shipment/';
           return new Promise(function(){});
@@ -692,6 +695,7 @@
     var shipmentActive = activeTop === 'shipment';
     var accountActive = activeTop === 'account';
     var hrActive = activeTop === 'hr';
+    var currentPath = (typeof window !== 'undefined' && window.location.pathname) ? window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') : '';
     // Nhom "Bao cao tong hop" — cac tab con la cac view cua trang chinh (index.html), dieu huong
     // bang hash (vd /#overview) roi index.html tu switchView() khi tai trang.
     var REPORT_VIEWS = [
@@ -719,12 +723,33 @@
           }).join('') +
         '</div>' +
       '</div>';
+    // Nhom "Quan ly van chuyen" — tab con "Tong quan" la trang /shipment/ hien
+    // co (tra cuu hoa don + cac the Dieu phoi/Mobile cho vai tro noi bo), tab
+    // con moi "Vong doi don hang" tro trang tra cuu moi (xem spec
+    // docs/superpowers/specs/2026-09-04-order-lifecycle-status-lookup.md).
+    // Ca hai deu la trang RIENG (khong dung hash nhu nhom "Bao cao tong hop"),
+    // nen active state theo currentPath giong nhom "Quan ly tai khoan".
     var NO_SHIPMENT_ROLES = ['Nhân viên mua hàng'];
+    var isLifecyclePage = currentPath === '/shipment/lifecycle';
+    var shipmentExpanded = shipmentActive || TKSNav._isNavGroupOpen('shipment');
     var shipmentLink = (user && NO_SHIPMENT_ROLES.indexOf(user.vaiTro) !== -1) ? '' :
-      '<a href="/shipment/" class="nav-item' + (shipmentActive ? ' active' : '') + '"' +
-        (shipmentActive ? ' aria-current="page"' : '') + '>' +
-        '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle></svg>' +
-        'Quản lý vận chuyển</a>';
+      '<div class="nav-group">' +
+        '<button type="button" class="nav-group-toggle' + (shipmentActive ? ' has-active' : '') + '" id="tksShipmentGroupToggle" data-tks-nav-group="shipment" aria-expanded="' + shipmentExpanded + '" aria-controls="tksShipmentGroupList">' +
+          '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle></svg>' +
+          '<span>Quản lý đơn hàng</span>' +
+          '<svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
+        '</button>' +
+        '<div class="nav-group-list" id="tksShipmentGroupList"' + (shipmentExpanded ? '' : ' hidden') + '>' +
+          '<a href="/shipment/" class="nav-item' + (shipmentActive && !isLifecyclePage ? ' active' : '') + '"' +
+            (shipmentActive && !isLifecyclePage ? ' aria-current="page"' : '') + '>' +
+            '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path></svg>' +
+            'Tổng quan</a>' +
+          '<a href="/shipment/lifecycle/" class="nav-item' + (isLifecyclePage ? ' active' : '') + '"' +
+            (isLifecyclePage ? ' aria-current="page"' : '') + '>' +
+            '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15.5 14"></polyline></svg>' +
+            'Vòng đời đơn hàng</a>' +
+        '</div>' +
+      '</div>';
     // Khach khong duoc xem du lieu nhan su noi bo (giong reportsLink) — an hoan toan.
     // Nhom "Quan ly nhan su" co the mo/dong, chua cac tab con (hien tai: Nghi phep) — them tab con
     // moi sau nay bang cach them 1 the <a> vao trong .nav-group-list.
@@ -745,7 +770,6 @@
       '</div>';
     // Nhom "Quan ly tai khoan" co the mo/dong, chua cac tab con (Quan ly ho so, Quan ly nguoi dung)
     var accountExpanded = accountActive || TKSNav._isNavGroupOpen('account');
-    var currentPath = (typeof window !== 'undefined' && window.location.pathname) ? window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') : '';
     var isAccountPage = (currentPath === '/account');
     var accountHash = (isAccountPage && typeof window !== 'undefined' && window.location.hash) ? window.location.hash.replace('#', '') : '';
     var isUsersTab = isAccountPage && (accountHash === 'users' || accountHash === 'adminUsers');
@@ -873,8 +897,8 @@
   var NAV_GROUP_STORAGE_PREFIX = 'tks-dashboard-nav-group-';
 
   TKSNav._isNavGroupOpen = function _isNavGroupOpen(key){
-    try{ return localStorage.getItem(NAV_GROUP_STORAGE_PREFIX + key) !== 'closed'; }
-    catch(err){ return true; }
+    try{ return localStorage.getItem(NAV_GROUP_STORAGE_PREFIX + key) === 'open'; }
+    catch(err){ return false; }
   };
 
   document.addEventListener('click', function(e){

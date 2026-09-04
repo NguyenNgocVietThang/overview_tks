@@ -215,10 +215,10 @@ Toàn bộ các tab dashboard hiện có được gộp vào 1 mục menu cha **
 |---|---|---|
 | **0 — Nền tảng Auth & Tài khoản** | JWT httpOnly cookie + bcrypt; đăng nhập nội bộ, Google Identity và form đăng ký riêng (Email/SĐT); vai trò `Khách` hoạt động ngay chỉ được vào Quản lý vận chuyển; bốn vai trò nội bộ giữ quyền dashboard; tab `Users`, Local Store bảo mật, OTP reset mật khẩu, giao diện `/account/` và công cụ quản trị Admin | [Hoan thanh] |
 | **0.5 — Tra cứu vận chuyển cho Khách** | `POST /api/shipment/invoice-status` khớp chính xác tối đa 50 mã từ sheet `Hóa đơn`, chỉ trả mã/trạng thái và cache 90 giây; trang `/shipment/` mặc định trống, menu/redirect theo vai trò | [Hoan thanh] |
-| **1 — MVP Vận chuyển Web-First (Kế hoạch thay thế)** | Spreadsheet vận chuyển riêng (`VC_Orders`/`VC_OrderItems`/`VC_StatusHistory`/`VC_Attachments`/`VC_Exceptions`/`VC_Vehicles`), State Machine 4 luồng 9 trạng thái, Web Desktop Điều phối (Kế toán) & Mobile Web 1-chạm (Kho & Lái xe chụp ảnh lưu Drive), Báo cáo Đối soát cuối ngày tự động | [Hoan thanh] |
-| **2 — Tự động hóa Bot Telegram & OCR (Khi chuẩn bị đủ bot)** | Bot Telegram nghe 9 nhóm gọi webhook vào API Phase 1, OCR bill ký nhận (Vision API), quy tắc tự động hoàn thành đơn hoặc chuyển hàng đợi soát thủ công | [Giai doan tiep theo] |
-| **3 — Vận hành nâng cao & Mở rộng** | KPI dashboard vận chuyển chuyên sâu, quản lý xe/tài xế & phân bổ tuyến, module cước phí | [Tuong lai] |
+| **1 — MVP Vận chuyển Web-First (Nền tảng Vận đơn)** | Spreadsheet vận chuyển riêng (`VC_Orders`/`VC_OrderItems`/`VC_StatusHistory`/`VC_Attachments`/`VC_Exceptions`/`VC_Vehicles`), State Machine 5 luồng 9 trạng thái, Web Desktop Điều phối (Kế toán) & Mobile Web 1-chạm (Kho & Lái xe chụp ảnh lưu Drive), Báo cáo Đối soát cuối ngày tự động | [Hoan thanh] |
+| **2 — Tự động hóa Bot Telegram & OCR (Đã hoàn thành)** | Hệ thống Bot Telegram & OCR (dev khác hoàn thành) lắng nghe 9 nhóm chat (20-28) nạp tự động dữ liệu vào Google Sheets `VC_*` và lưu ảnh Drive; Web Dashboard đọc trực tiếp dữ liệu đồng bộ từ Google Sheets | [Hoan thanh] |
+| **3 — Vận hành nâng cao & Mở rộng** | KPI dashboard vận chuyển chuyên sâu, quản lý xe/tài xế & phân bổ tuyến, module cước phí | [Giai doan tiep theo] |
 
 ---
 
-*Cập nhật lần cuối: 26/08/2026*
+*Cập nhật lần cuối: 31/08/2026*

@@ -1,7 +1,7 @@
 'use strict';
 
 const { parseKiotVietDateTime } = require('../vietnamTime');
-const { upsertStaffFromEntity } = require('./staffSync');
+const { upsertStaffFromEntity, upsertStaffBatch } = require('./staffSync');
 
 function pick(obj, keys) {
   for (const key of keys) {
@@ -23,7 +23,25 @@ async function resolveCustomerId(client, branch, kiotvietCustomerId) {
   return result.rows[0] ? result.rows[0].id : null;
 }
 
-async function upsertOrder(pool, branch, order) {
+// Dung cho ca 1 trang (~100 dong) truoc khi xu ly tung don hang -- xem ghi
+// chu tuong ung trong invoicesSync.js.
+async function batchResolveByKiotvietId(pool, branchId, table, kiotvietIds) {
+  const distinct = [...new Set(kiotvietIds.filter((v) => v !== null && v !== undefined))];
+  if (distinct.length === 0) return new Map();
+  const result = await pool.query(
+    `SELECT kiotviet_id, id FROM ${table} WHERE branch_id = $1 AND kiotviet_id = ANY($2::bigint[])`,
+    [branchId, distinct]
+  );
+  const map = new Map();
+  for (const row of result.rows) map.set(String(row.kiotviet_id), row.id);
+  return map;
+}
+
+// maps (tuy chon) = { customerMap, staffMap } da resolve san theo trang (xem
+// upsertOrdersPage). Khi khong truyen maps, giu nguyen hanh vi cu (tra
+// cuu/upsert truc tiep tung query) -- dung cho cac loi goi truc tiep khac
+// ngoai syncOrders neu co trong tuong lai.
+async function upsertOrder(pool, branch, order, maps = null) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -32,15 +50,17 @@ async function upsertOrder(pool, branch, order) {
     const orderCode = pick(order, ['code', 'Code', 'orderCode', 'OrderCode']);
     const orderDate = parseModifiedDate(pick(order, ['purchaseDate', 'PurchaseDate', 'orderDate', 'OrderDate']));
     const kiotvietCustomerId = pick(order, ['customerId', 'CustomerId']);
-    const customerId = await resolveCustomerId(client, branch, kiotvietCustomerId);
+    const customerId = maps
+      ? (kiotvietCustomerId ? (maps.customerMap.get(String(kiotvietCustomerId)) || null) : null)
+      : await resolveCustomerId(client, branch, kiotvietCustomerId);
     const customerCodeSnapshot = pick(order, ['customerCode', 'CustomerCode']);
     const customerNameSnapshot = pick(order, ['customerName', 'CustomerName']);
     const customerContactSnapshot = pick(order, ['customerContactNumber', 'CustomerContactNumber', 'contactNumber', 'ContactNumber']);
     const createdById = pick(order, ['soldById', 'SoldById', 'createdById', 'CreatedById']);
     const createdByName = pick(order, ['soldByName', 'SoldByName', 'createdByName', 'CreatedByName']);
-    const createdByStaffId = await upsertStaffFromEntity(client, branch, {
-      kiotvietId: createdById, fullName: createdByName, discoveredVia: 'order'
-    });
+    const createdByStaffId = maps
+      ? (createdById ? (maps.staffMap.get(String(createdById)) || null) : null)
+      : await upsertStaffFromEntity(client, branch, { kiotvietId: createdById, fullName: createdByName, discoveredVia: 'order' });
     const kiotvietBranchId = pick(order, ['branchId', 'BranchId']);
     const kiotvietBranchName = pick(order, ['branchName', 'BranchName']);
     const totalAmount = pick(order, ['total', 'Total']);
@@ -98,6 +118,28 @@ async function upsertOrder(pool, branch, order) {
   }
 }
 
+// Resolve customer/staff 1 lan cho ca trang truoc khi ghi -- tung don hang
+// van transaction rieng (upsertOrder), giu dung tinh chat 1 don loi khong
+// lam hong don khac trong cung trang (ordersSync.test.js).
+async function upsertOrdersPage(pool, branch, orders) {
+  if (orders.length === 0) return 0;
+
+  const customerKiotIds = orders.map((order) => pick(order, ['customerId', 'CustomerId']));
+  const customerMap = await batchResolveByKiotvietId(pool, branch.id, 'customers', customerKiotIds);
+
+  const staffEntries = orders.map((order) => ({
+    kiotvietId: pick(order, ['soldById', 'SoldById', 'createdById', 'CreatedById']),
+    fullName: pick(order, ['soldByName', 'SoldByName', 'createdByName', 'CreatedByName'])
+  }));
+  const staffMap = await upsertStaffBatch(pool, branch, staffEntries, 'order');
+
+  let upserted = 0;
+  for (const order of orders) {
+    upserted += await upsertOrder(pool, branch, order, { customerMap, staffMap });
+  }
+  return upserted;
+}
+
 function buildQuery(sinceIso) {
   // Live probe 2026-08-30 xac nhan fromOrderDate bi API bo qua hoan toan;
   // lastModifiedFrom la tham so duy nhat hoat dong cho /orders (khac giả
@@ -107,16 +149,17 @@ function buildQuery(sinceIso) {
   return query;
 }
 
-async function syncOrders(pool, kiotVietClient, branch, sinceIso) {
+async function syncOrders(pool, kiotVietClient, branch, sinceIso, options = {}) {
   let fetched = 0;
   let upserted = 0;
 
-  await kiotVietClient.fetchAllPages('orders', buildQuery(sinceIso), async (items) => {
+  await kiotVietClient.fetchAllPages('orders', buildQuery(sinceIso), async (items, meta) => {
     fetched += items.length;
-    for (const item of items) {
-      upserted += await upsertOrder(pool, branch, item);
+    upserted += await upsertOrdersPage(pool, branch, items);
+    if (options.onProgress && meta && typeof meta.nextItem === 'number') {
+      await options.onProgress(meta.nextItem);
     }
-  });
+  }, { startItem: options.startItem || 0 });
 
   return { fetched, upserted };
 }

@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vòng đời đơn hàng · TOKOSI Dashboard</title>
+<link rel="icon" type="image/jpeg" href="/Logo.jpg">
+<script>
+  (function(){
+    try{ document.documentElement.dataset.theme = localStorage.getItem('tks-dashboard-theme') === 'light' ? 'light' : 'dark'; }
+    catch(err){ document.documentElement.dataset.theme = 'dark'; }
+    document.documentElement.style.visibility = 'hidden';
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/shared/shared.css?v=20260830">
+<style>
+  .lookup-wrap{ width:100%; max-width:none; margin:0; }
+  .lookup-hero{ margin-bottom:20px; }
+  .lookup-hero h2{ margin:0 0 6px; font-family:var(--font-display); font-weight:800; font-size:22px; letter-spacing:-0.01em; color:var(--canvas-text); }
+  .lookup-hero p{ margin:0; color:var(--canvas-text); font-size:13.5px; line-height:1.55; font-weight:500; }
+  .lookup-panel{ padding:24px; margin-bottom:24px; }
+  .lookup-panel label{ display:block; margin-bottom:8px; font-size:13px; font-weight:600; color:var(--text-secondary); }
+  .lookup-row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .lookup-row input[type=text]{
+    flex:1; min-width:220px; padding:12px 16px; background:var(--panel-2); color:var(--text);
+    border:1px solid var(--border); border-radius:10px; font-family:var(--font-data); font-size:14px;
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  .lookup-row input[type=text]:focus{ outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(59,130,246,.2); }
+  .lookup-submit{ min-width:130px; min-height:44px; }
+  .lookup-message{ display:none; margin-top:14px; padding:12px 16px; border-radius:10px; font-size:13px; }
+  .lookup-message.show{ display:block; }
+  .lookup-message.error{ color:var(--red); background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.3); }
+
+  .lookup-result{ display:none; margin-top:18px; padding-top:18px; border-top:1px solid var(--border); }
+  .lookup-result.show{ display:flex; flex-wrap:wrap; align-items:center; gap:14px; justify-content:space-between; }
+  .lookup-result-info{ display:flex; flex-direction:column; gap:6px; }
+  .lookup-result-code{ font-family:var(--font-data); font-weight:700; font-size:15px; color:var(--text); }
+  .lookup-result-sub{ font-size:12.5px; color:var(--muted); }
+
+  .lc-badge{ display:inline-flex; align-items:center; padding:5px 12px; border-radius:8px; font-size:12.5px; font-weight:700; white-space:nowrap; }
+  .badge-not-sent{ color:var(--muted); background:var(--surface-hover); border:1px solid var(--border); }
+  .badge-sent{ color:var(--amber); background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.3); }
+  .badge-delivering{ color:var(--blue); background:rgba(59,130,246,.12); border:1px solid rgba(59,130,246,.3); }
+  .badge-delivered{ color:var(--green); background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.3); }
+
+  .bulk-panel{ padding:0; overflow:hidden; }
+  .bulk-panel[hidden]{ display:none; }
+  .bulk-header{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:16px 20px; border-bottom:1px solid var(--border); background:var(--panel-2); }
+  .bulk-header h3{ margin:0; font-family:var(--font-display); font-weight:700; font-size:15px; color:var(--text); }
+  .bulk-filters{ display:flex; gap:6px; }
+  .bulk-filter-btn{
+    padding:7px 14px; border-radius:8px; border:1px solid var(--border); background:var(--panel);
+    color:var(--muted); font-size:12.5px; font-weight:600; cursor:pointer; transition:all .15s ease;
+  }
+  .bulk-filter-btn:hover{ color:var(--text); border-color:var(--blue); }
+  .bulk-filter-btn.active{ color:#fff; background:var(--blue); border-color:var(--blue); }
+  .bulk-count{ color:var(--muted); font-size:12.5px; font-weight:600; }
+  .bulk-scroll{ overflow-x:auto; }
+  .bulk-table{ width:100%; border-collapse:collapse; }
+  .bulk-table th,.bulk-table td{ padding:12px 20px; text-align:left; border-bottom:1px solid var(--border); }
+  .bulk-table th{ color:var(--muted); font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; background:var(--surface-hover); }
+  .bulk-table td{ font-size:13.5px; }
+  .bulk-table td:first-child{ font-family:var(--font-data); font-weight:600; color:var(--text); }
+  .bulk-table tbody tr{ cursor:pointer; transition:background-color .12s ease; }
+  .bulk-table tbody tr:hover{ background:var(--surface-hover); }
+  .bulk-empty{ padding:32px 20px; text-align:center; color:var(--muted); font-size:13px; }
+
+  .lc-detail-dialog{ max-width:560px; }
+  .lc-detail-row{ display:flex; gap:14px; padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; }
+  .lc-detail-row:last-child{ border-bottom:none; }
+  .lc-detail-label{ flex:0 0 200px; color:var(--muted); font-weight:600; }
+  .lc-detail-value{ flex:1; color:var(--text); font-family:var(--font-data); word-break:break-word; }
+
+  @media(max-width:640px){
+    .lookup-row{ flex-direction:column; align-items:stretch; }
+    .lookup-submit{ width:100%; }
+    .lookup-result.show{ flex-direction:column; align-items:flex-start; }
+    .lc-detail-row{ flex-direction:column; gap:2px; }
+    .lc-detail-label{ flex:none; }
+  }
+</style>
+</head>
+<body>
+  <div class="receipt-header">
+    <div class="brand">
+      <button class="menu-btn" id="menuBtn" type="button" onclick="toggleSidebar()" aria-label="Mở menu điều hướng" aria-expanded="false" aria-controls="sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+      </button>
+      <div class="brand-mark">
+        <img src="/Logo.jpg" alt="TOKOSI Logo" width="44" height="44">
+      </div>
+      <div class="brand-text"><h1>Tổng kho gia dụng Tokosi</h1></div>
+    </div>
+    <div class="status-line">
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Chuyển chế độ giao diện" onclick="toggleTheme()">
+        <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"></path>
+        </svg>
+        <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+        </svg>
+        <span id="themeLabel">Chế độ sáng</span>
+      </button>
+      <div class="account-chip" id="accountChip"></div>
+    </div>
+  </div>
+
+  <div class="shell">
+    <div class="backdrop" id="backdrop" onclick="toggleSidebar()"></div>
+    <div class="sidebar" id="sidebar" data-tks-active-top="shipment"></div>
+    <main class="content">
+      <div class="lookup-wrap">
+        <div class="lookup-hero">
+          <h2>Vòng đời đơn hàng</h2>
+          <p>Theo dõi đơn hàng luồng Hà Nội (An Khánh) &amp; Sài Gòn (Tân Phú), xe công ty — trạng thái được cập nhật trực tiếp từ hệ thống Bot Telegram.</p>
+        </div>
+
+        <form class="panel lookup-panel" id="lookupForm">
+          <label for="orderCodeInput">Mã đơn hàng</label>
+          <div class="lookup-row">
+            <input type="text" id="orderCodeInput" placeholder="Ví dụ: HD000005" autocomplete="off">
+            <button class="btn-primary lookup-submit" id="lookupSubmit" type="submit">Tra cứu</button>
+          </div>
+          <div class="lookup-message error" id="lookupError" role="alert"></div>
+
+          <div class="lookup-result" id="lookupResult" aria-live="polite">
+            <div class="lookup-result-info">
+              <span class="lookup-result-code" id="lookupResultCode"></span>
+              <span class="lookup-result-sub" id="lookupResultSub"></span>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span class="lc-badge" id="lookupResultBadge"></span>
+              <button type="button" class="btn-secondary" id="lookupDetailBtn" hidden>Xem chi tiết</button>
+            </div>
+          </div>
+        </form>
+
+        <section class="panel bulk-panel" id="bulkPanel" hidden>
+          <div class="bulk-header">
+            <h3>Toàn bộ đơn hàng</h3>
+            <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+              <span class="bulk-count" id="bulkCount"></span>
+              <div class="bulk-filters" id="bulkFilters">
+                <button type="button" class="bulk-filter-btn active" data-branch="">Tất cả</button>
+                <button type="button" class="bulk-filter-btn" data-branch="HN">Hà Nội</button>
+                <button type="button" class="bulk-filter-btn" data-branch="SG">Sài Gòn</button>
+              </div>
+            </div>
+          </div>
+          <div class="bulk-scroll">
+            <table class="bulk-table">
+              <thead><tr><th>Mã đơn</th><th>Sale</th><th>Trạng thái</th><th>Cập nhật gần nhất</th></tr></thead>
+              <tbody id="bulkBody"></tbody>
+            </table>
+          </div>
+          <p class="bulk-empty" id="bulkEmpty" hidden>Chưa có đơn hàng nào.</p>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal chi tiet don — dung chung cho Khu A va Khu B -->
+  <div class="tks-profile-overlay" id="lcDetailOverlay" hidden>
+    <div class="tks-profile-dialog lc-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="lcDetailTitle">
+      <div class="tks-profile-header">
+        <h3 id="lcDetailTitle">Chi tiết đơn hàng</h3>
+        <button type="button" class="tks-profile-close" id="lcDetailClose" aria-label="Đóng">✕</button>
+      </div>
+      <div class="tks-profile-body" id="lcDetailBody"></div>
+    </div>
+  </div>
+
+  <!-- Dat o cuoi than <body> thay vi <head>: script chan phan tich cu phap trong <head> se lam dung viec xu ly toan bo tai lieu. Khong dung `defer` vi script inline ben duoi dung TKSNav o cap cao nhat, va script inline luon chay truoc script defer. -->
+  <script src="/shared/shared-nav.js?v=20260830"></script>
+
+  <script>
+    const THEME_STORAGE_KEY = 'tks-dashboard-theme';
+
+    function syncThemeControl(){
+      const isLight = document.documentElement.dataset.theme === 'light';
+      const button = document.getElementById('themeToggle');
+      const action = isLight ? 'Chuyển sang giao diện tối' : 'Chuyển sang giao diện sáng';
+      if(button){
+        button.setAttribute('aria-label', action);
+        button.setAttribute('aria-pressed', String(isLight));
+        button.title = action;
+      }
+      const label = document.getElementById('themeLabel');
+      if(label) label.textContent = isLight ? 'Chế độ tối' : 'Chế độ sáng';
+    }
+
+    function toggleTheme(){
+      const nextTheme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+      document.documentElement.dataset.theme = nextTheme;
+      try{ localStorage.setItem(THEME_STORAGE_KEY, nextTheme); } catch(err){}
+      syncThemeControl();
+    }
+    syncThemeControl();
+
+    function toggleSidebar(){
+      const isOpen = document.getElementById('sidebar').classList.toggle('open');
+      document.getElementById('backdrop').classList.toggle('show', isOpen);
+      const menuBtn = document.getElementById('menuBtn');
+      menuBtn.setAttribute('aria-expanded', String(isOpen));
+      menuBtn.setAttribute('aria-label', isOpen ? 'Đóng menu điều hướng' : 'Mở menu điều hướng');
+    }
+
+    // ---------- Du lieu tinh dung chung ----------
+    const DETAIL_FIELDS = [
+      { key: 'orderCode', label: 'Mã đơn hàng' },
+      { key: 'saleName', label: 'Nhân viên bán hàng' },
+      { key: 'saleSentAt', label: 'Sale gửi đơn cho kế toán' },
+      { key: 'accountantApprovedOrderAt', label: 'Kế toán duyệt đơn' },
+      { key: 'driverName', label: 'Lái xe' },
+      { key: 'driverConfirmedDeliveryAt', label: 'Tài xế gửi xác nhận giao hàng' },
+      { key: 'accountantApprovedDeliveryAt', label: 'Kế toán duyệt giao hàng' },
+      { key: 'deliveryConfirmedAt', label: 'Xác nhận đã giao/khách ký nhận' }
+    ];
+    const STATUS_BADGE_CLASS = {
+      NOT_SENT: 'badge-not-sent',
+      SENT_TO_ACCOUNTANT: 'badge-sent',
+      DELIVERING: 'badge-delivering',
+      DELIVERED: 'badge-delivered'
+    };
+    const BRANCH_LABEL = { HN: 'Hà Nội', SG: 'Sài Gòn' };
+    // Vai tro duoc xem Khu B (xem toan bo don) — khop ORDER_LIFECYCLE_BULK_ROLES
+    // o server/shipment/orderLifecycleRoutes.js. Day chi la lop UX (an/hien
+    // panel); ranh gioi bao mat that su nam o requireRole phia server.
+    const BULK_VIEW_ROLES = ['Kế toán', 'Trưởng kho', 'Quản lý', 'Trợ lý', 'Nhân viên sale'];
+
+    function escapeHtml(value){
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function renderBadge(summary){
+      const cls = STATUS_BADGE_CLASS[summary && summary.code] || 'badge-not-sent';
+      return '<span class="lc-badge ' + cls + '">' + escapeHtml((summary && summary.label) || '') + '</span>';
+    }
+
+    // ---------- Modal chi tiet (dung chung Khu A + Khu B) ----------
+    const detailOverlay = document.getElementById('lcDetailOverlay');
+    const detailBody = document.getElementById('lcDetailBody');
+
+    function openDetailModal(detail){
+      detailBody.innerHTML = DETAIL_FIELDS.map(function(field){
+        const raw = detail ? detail[field.key] : '';
+        const value = (raw === undefined || raw === null || String(raw).trim() === '') ? '—' : String(raw);
+        return '<div class="lc-detail-row"><span class="lc-detail-label">' + escapeHtml(field.label) + '</span>' +
+          '<span class="lc-detail-value">' + escapeHtml(value) + '</span></div>';
+      }).join('');
+      detailOverlay.hidden = false;
+      document.addEventListener('keydown', onDetailKeydown);
+    }
+    function closeDetailModal(){
+      detailOverlay.hidden = true;
+      document.removeEventListener('keydown', onDetailKeydown);
+    }
+    function onDetailKeydown(e){ if(e.key === 'Escape') closeDetailModal(); }
+    document.getElementById('lcDetailClose').addEventListener('click', closeDetailModal);
+    detailOverlay.addEventListener('click', function(e){ if(e.target === detailOverlay) closeDetailModal(); });
+
+    // ---------- Khu A: tra cuu 1 don ----------
+    const lookupForm = document.getElementById('lookupForm');
+    const orderCodeInput = document.getElementById('orderCodeInput');
+    const lookupSubmit = document.getElementById('lookupSubmit');
+    const lookupErrorBox = document.getElementById('lookupError');
+    const lookupResult = document.getElementById('lookupResult');
+    const lookupResultCode = document.getElementById('lookupResultCode');
+    const lookupResultSub = document.getElementById('lookupResultSub');
+    const lookupResultBadge = document.getElementById('lookupResultBadge');
+    const lookupDetailBtn = document.getElementById('lookupDetailBtn');
+    let lastLookupDetail = null;
+
+    function showLookupError(message){
+      lookupErrorBox.textContent = message;
+      lookupErrorBox.classList.add('show');
+    }
+    function clearLookupResult(){
+      lookupResult.classList.remove('show');
+      lookupDetailBtn.hidden = true;
+      lastLookupDetail = null;
+    }
+
+    lookupForm.addEventListener('submit', function(event){
+      event.preventDefault();
+      lookupErrorBox.classList.remove('show');
+      clearLookupResult();
+      const code = orderCodeInput.value.trim();
+      if(!code){ showLookupError('Vui lòng nhập mã đơn hàng.'); return; }
+
+      lookupSubmit.disabled = true;
+      lookupSubmit.textContent = 'Đang tìm...';
+      fetch('/api/shipment/lifecycle/' + encodeURIComponent(code), { credentials: 'same-origin' })
+        .then(function(res){
+          if(res.status === 401){ window.location.href = '/login/?next=%2Fshipment%2Flifecycle%2F'; return null; }
+          return res.json().then(function(body){ return { ok: res.ok, status: res.status, body: body }; });
+        })
+        .then(function(result){
+          if(!result) return;
+          if(!result.ok){
+            if(TKSNav.handleBranchError(result.body)) return;
+            throw new Error(result.body.error || 'Không tra cứu được đơn hàng.');
+          }
+          lookupResultCode.textContent = code;
+          lookupResultSub.textContent = result.body.found
+            ? ('Cơ sở: ' + (BRANCH_LABEL[result.body.branch] || result.body.branch))
+            : 'Không tìm thấy đơn hàng này trong hệ thống.';
+          lookupResultBadge.innerHTML = renderBadge(result.body.summary);
+          if(result.body.found && result.body.detail){
+            lastLookupDetail = result.body.detail;
+            lookupDetailBtn.hidden = false;
+          }
+          lookupResult.classList.add('show');
+        })
+        .catch(function(err){ showLookupError(err.message || 'Không tra cứu được đơn hàng.'); })
+        .finally(function(){ lookupSubmit.disabled = false; lookupSubmit.textContent = 'Tra cứu'; });
+    });
+
+    lookupDetailBtn.addEventListener('click', function(){
+      if(lastLookupDetail) openDetailModal(lastLookupDetail);
+    });
+
+    // ---------- Khu B: toan bo don (chi vai tro noi bo) ----------
+    const bulkPanel = document.getElementById('bulkPanel');
+    const bulkBody = document.getElementById('bulkBody');
+    const bulkCount = document.getElementById('bulkCount');
+    const bulkEmpty = document.getElementById('bulkEmpty');
+    const bulkFilters = document.getElementById('bulkFilters');
+    let activeBranchFilter = '';
+
+    function renderBulkRows(orders){
+      bulkBody.replaceChildren();
+      bulkEmpty.hidden = orders.length > 0;
+      bulkCount.textContent = orders.length + ' đơn';
+      orders.forEach(function(order){
+        const row = document.createElement('tr');
+        row.innerHTML =
+          '<td>' + escapeHtml(order.orderCode) + '</td>' +
+          '<td>' + escapeHtml(order.saleName || '—') + '</td>' +
+          '<td>' + renderBadge(order.summary) + '</td>' +
+          '<td>' + escapeHtml((order.summary && order.summary.at) || '—') + '</td>';
+        row.addEventListener('click', function(){ openDetailModal(order); });
+        bulkBody.appendChild(row);
+      });
+    }
+
+    function loadBulkOrders(){
+      bulkCount.textContent = 'Đang tải...';
+      const query = activeBranchFilter ? ('?branch=' + activeBranchFilter) : '';
+      fetch('/api/shipment/lifecycle' + query, { credentials: 'same-origin' })
+        .then(function(res){ return res.json().then(function(body){ return { ok: res.ok, body: body }; }); })
+        .then(function(result){
+          if(!result.ok){
+            const handledByBranchBanner = TKSNav.handleBranchError(result.body);
+            throw new Error(result.body.error || 'Không tải được danh sách đơn hàng.', { cause: { handledByBranchBanner } });
+          }
+          renderBulkRows(result.body.orders || []);
+        })
+        .catch(function(err){
+          bulkCount.textContent = '';
+          bulkEmpty.hidden = false;
+          // Banner rieng (goc tren trang) da giai thich ly do khi la loi co so
+          // (BRANCH_UNASSIGNED/BRANCH_NOT_CONFIGURED) — o day chi can dam bao
+          // bang KHONG con ket dinh "Đang tải..." mai mai, khong lap lai thong bao.
+          const handledByBranchBanner = err.cause && err.cause.handledByBranchBanner;
+          bulkEmpty.textContent = handledByBranchBanner
+            ? 'Xem thông báo phía trên để biết chi tiết.'
+            : (err.message || 'Không tải được danh sách đơn hàng.');
+        });
+    }
+
+    bulkFilters.addEventListener('click', function(e){
+      const btn = e.target.closest('.bulk-filter-btn');
+      if(!btn) return;
+      bulkFilters.querySelectorAll('.bulk-filter-btn').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      activeBranchFilter = btn.dataset.branch || '';
+      loadBulkOrders();
+    });
+
+    TKSNav.authGuard().then(function(user){
+      if(!user) return;
+      if(BULK_VIEW_ROLES.indexOf(user.vaiTro) === -1) return;
+      bulkPanel.hidden = false;
+      loadBulkOrders();
+    });
+  </script>
+  <script src="/shared/shooting-star.js?v=20260830"></script>
+</body>
+</html>

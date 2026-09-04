@@ -19,7 +19,8 @@ const COLUMN_WIDTHS = {
   thoi_gian_gui: 20, thoi_gian_bat_dau: 20, thoi_gian_ket_thuc: 20,
   tong_buoi_nghi: 14, tong_ngay_nghi: 18, nguoi_ban_giao: 18,
   trang_thai: 14, nguoi_duyet: 16, thoi_diem_duyet: 18, ghi_chu_duyet: 26,
-  co_nghi_gap: 10, co_tu_y_nghi: 10, created_at: 18, updated_at: 18
+  co_nghi_gap: 10, co_tu_y_nghi: 10, created_at: 18, updated_at: 18,
+  tin_nhan: 60
 };
 
 const SORTABLE_FIELDS = new Set(repo.LEAVE_SCHEMA_FIELD_KEYS);

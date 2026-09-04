@@ -595,6 +595,14 @@ function buildSearchFields(headers, row) {
   return fields;
 }
 
+// Doc 1 cot theo TEN COT tu ket qua buildSearchFields — dung cho cac tinh
+// nang doc them du lieu tu chi muc tim kiem san co (vd Ton kho/Gia von/Gia
+// ban) thay vi phai quet lai toan bo sheet "Hang hoa" mot lan nua.
+function searchFieldValue(fields, label) {
+  const field = fields.find(entry => entry.label === label);
+  return field && field.value !== '—' ? field.value : '';
+}
+
 /**
  * Tim ban ghi co ma hoac ten chua tu khoa trong pham vi dashboard hien tai.
  * Uu tien: trung hoan toan, trung tien to, chua cum tu, roi den du cac tu don.
@@ -1317,6 +1325,247 @@ function computeCustomerProductRevenue(sheets, customerCode, customerName, now) 
 async function getCustomerProductRevenueReport(customerCode, customerName, branch, now = new Date()) {
   const sheets = await getCachedDashboardSheets(branch);
   return computeCustomerProductRevenue(sheets, customerCode, customerName, now);
+}
+
+// ========================================================================
+// "Bao cao doanh thu theo hang" (tab Tong quan) — chieu nguoc lai cua
+// "Bao cao doanh thu theo khach" o tren: gop doanh thu 90 ngay THEO MA HANG
+// (khong loc theo 1 khach hang cu the).
+// ========================================================================
+
+/**
+ * Tong hop doanh thu/SL ban 90 ngay gan nhat cho TUNG MA HANG, dung chung
+ * logic loc hoa don ("Hoan thanh", trong 90 ngay) va bucket 3 thang
+ * (0-29/30-59/60-89 ngay) nhu computeCustomerProductRevenue — chi khac o cho
+ * KHONG loc theo khach hang. Ket qua phuc vu ca bang tong quan (DS/SL 90
+ * ngay) lan phan "Chi tiet" (3 moc doanh thu) ma khong can quet lai.
+ */
+function computeProductRevenueMap(sheets, now) {
+  const range = resolveFilterRange({ mode: 'days', days: CUSTOMER_PRODUCT_REVENUE_WINDOW_DAYS }, now);
+  const invData = sheets[CONFIG.SHEET_INVOICES] || [];
+  const detailData = sheets[CONFIG.SHEET_INVOICE_DETAILS] || [];
+
+  const invHeaders = invData[0] || [];
+  const invIndex = (header, fallback) => {
+    const idx = invHeaders.findIndex(h => String(h || '').trim() === header);
+    return idx >= 0 ? idx : fallback;
+  };
+  const invCodeIdx = invIndex('Mã hóa đơn', 0);
+  const invDateIdx = invIndex('Ngày bán', 1);
+  const invStatusIdx = invIndex('Trạng thái', 9);
+
+  // Ma hoa don (chi "Hoan thanh", trong 90 ngay) -> ngay ban.
+  const matchedInvoiceDates = new Map();
+  for (let r = 1; r < invData.length; r++) {
+    const row = invData[r];
+    const status = String(row[invStatusIdx] || 'Hoàn thành').trim();
+    if (status !== 'Hoàn thành') continue;
+
+    const dt = parseSheetDate(row[invDateIdx]);
+    if (!isWithinRange(dt, range)) continue;
+
+    const invoiceCode = String(row[invCodeIdx] || '').trim();
+    if (!invoiceCode) continue;
+    matchedInvoiceDates.set(invoiceCode, dt);
+  }
+
+  const dayKeys = [];
+  for (let cursor = range.start; cursor.getTime() <= range.end.getTime(); cursor = new Date(cursor.getTime() + DAY_MS)) {
+    dayKeys.push(formatDMY(cursor));
+  }
+  const ageByDateKey = new Map();
+  const lastDayIndex = dayKeys.length - 1;
+  dayKeys.forEach((key, index) => ageByDateKey.set(key, lastDayIndex - index));
+
+  const detHeaders = detailData[0] || [];
+  const detIndex = (header, fallback) => {
+    const idx = detHeaders.findIndex(h => String(h || '').trim() === header);
+    return idx >= 0 ? idx : fallback;
+  };
+  const detCodeIdx = detIndex('Mã hóa đơn', 0);
+  const detItemCodeIdx = detIndex('Mã hàng', 1);
+  const detItemNameIdx = detIndex('Tên hàng', 2);
+  const detQtyIdx = detIndex('Số lượng', 3);
+  const detTotalIdx = detIndex('Thành tiền', 6);
+
+  const productsByCode = new Map();
+
+  for (let r = 1; r < detailData.length; r++) {
+    const row = detailData[r];
+    const invoiceCode = String(row[detCodeIdx] || '').trim();
+    if (!invoiceCode || !matchedInvoiceDates.has(invoiceCode)) continue;
+
+    const itemCode = String(row[detItemCodeIdx] || '').trim();
+    if (!itemCode || isVatProductCode(itemCode)) continue;
+
+    const dt = matchedInvoiceDates.get(invoiceCode);
+    const dateKey = formatDMY(dt);
+    const quantity = Number(row[detQtyIdx]) || 0;
+    const revenue = Number(row[detTotalIdx]) || 0;
+    const itemName = String(row[detItemNameIdx] || '').trim() || itemCode;
+    const normalizedCode = normalizeSearchValue(itemCode);
+
+    if (!productsByCode.has(normalizedCode)) {
+      productsByCode.set(normalizedCode, {
+        code: itemCode,
+        name: itemName,
+        quantity: 0,
+        revenue: 0,
+        month1Revenue: 0,
+        month2Revenue: 0,
+        month3Revenue: 0
+      });
+    }
+    const product = productsByCode.get(normalizedCode);
+    product.quantity += quantity;
+    product.revenue += revenue;
+
+    // T.nay = 0-29 ngay truoc, T.truoc = 30-59, T.truoc nua = 60-89 (hoa don
+    // qua 90 ngay da bi loai o vong loc "Hoa don" phia tren).
+    const age = ageByDateKey.get(dateKey);
+    if (age !== undefined) {
+      if (age < CUSTOMER_PRODUCT_REVENUE_MONTH_DAYS) product.month1Revenue += revenue;
+      else if (age < CUSTOMER_PRODUCT_REVENUE_MONTH_DAYS * 2) product.month2Revenue += revenue;
+      else if (age < CUSTOMER_PRODUCT_REVENUE_MONTH_DAYS * 3) product.month3Revenue += revenue;
+    }
+  }
+
+  return productsByCode;
+}
+
+// Cache theo co so, khoa boi sheetsVersion (giong dashboardResultCache) — chi
+// 1 entry moi co so (khong co bo loc rieng nhu bang tong quan chinh) nen
+// khong can don dep entry cu theo TTL rieng.
+let productRevenueMapCacheByBranch = new Map();
+
+async function getProductRevenueMap(branch, now = new Date()) {
+  const sheets = await getCachedDashboardSheets(branch);
+  const version = dashboardSheetsCacheFor(branch).version;
+  const key = branch || BRANCHES.HANOI;
+  const cached = productRevenueMapCacheByBranch.get(key);
+  if (cached && cached.version === version) return cached.map;
+
+  const map = computeProductRevenueMap(sheets, now);
+  productRevenueMapCacheByBranch.set(key, { version, map });
+  return map;
+}
+
+/**
+ * Top 3 khach mua nhieu nhat theo DOANH SO (khong phai so luong), tinh tren
+ * TOAN BO lich su (khong loc ngay) cho 1 ma hang — dung cho phan "Chi tiet"
+ * cua "Bao cao doanh thu theo hang". Doc tu sheet "Khach theo hang hoa"
+ * giong searchTopCustomersByProducts, nhung KHONG ap dung isWithinRange va
+ * sap xep theo doanh thu truoc (searchTopCustomersByProducts sap theo so
+ * luong truoc nen khong tai dung duoc cho yeu cau nay).
+ */
+async function computeTopCustomersByRevenueForProduct(productCode, branch) {
+  const normalizedTargetCode = normalizeSearchValue(productCode);
+  const rows = await getCustomerProductTopSheet(branch);
+  const indexes = getRequiredCustomerProductHeaderIndexes(rows);
+  const customers = new Map();
+
+  for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
+    const row = rows[rowIndex] || [];
+    const rowProductCode = normalizeWhitespace(row[indexes.productCode]);
+    if (normalizeSearchValue(rowProductCode) !== normalizedTargetCode) continue;
+
+    const customerCode = normalizeWhitespace(row[indexes.customerCode]);
+    const customerName = normalizeWhitespace(row[indexes.customerName]) || 'Khách lẻ';
+    const customerKey = customerCode
+      ? `code:${normalizeSearchValue(customerCode)}`
+      : `name:${normalizeSearchValue(customerName)}`;
+
+    if (!customers.has(customerKey)) {
+      customers.set(customerKey, { customerCode, customerName, purchasedQuantity: 0, purchaseRevenue: 0 });
+    }
+    const customer = customers.get(customerKey);
+    customer.purchasedQuantity += Number(row[indexes.purchasedQuantity]) || 0;
+    customer.purchaseRevenue += Number(row[indexes.purchaseRevenue]) || 0;
+  }
+
+  return Array.from(customers.values())
+    .sort((a, b) =>
+      b.purchaseRevenue - a.purchaseRevenue ||
+      String(a.customerCode || a.customerName).localeCompare(
+        String(b.customerCode || b.customerName),
+        'vi',
+        { numeric: true, sensitivity: 'base' }
+      )
+    )
+    .slice(0, CUSTOMER_PRODUCT_TOP_LIMIT)
+    .map(({ customerCode, customerName, purchaseRevenue }) => ({ customerCode, customerName, purchaseRevenue }));
+}
+
+function productRevenueNotFoundError() {
+  const err = new Error('Không tìm thấy mã hàng.');
+  err.statusCode = 404;
+  err.code = 'PRODUCT_NOT_FOUND';
+  return err;
+}
+
+/**
+ * Bang tong quan cho "Bao cao doanh thu theo hang": tim san pham (thuong
+ * hoac dan nhieu ma — dung chung logic voi searchDashboardRecords, view
+ * 'products') roi gan them DS/SL 90 ngay va ton kho hien tai. KHONG gioi
+ * han/cat bot so dong ket qua.
+ */
+async function searchProductRevenueOverview(rawQuery, rawMode, branch, now = new Date()) {
+  const base = await searchDashboardRecords('products', rawQuery, 'all', rawMode, { mode: 'all' }, branch);
+  const revenueMap = await getProductRevenueMap(branch, now);
+
+  const results = base.results.map(record => {
+    const revenueEntry = revenueMap.get(normalizeSearchValue(record.code));
+    return {
+      code: record.code,
+      name: record.name,
+      ds90: revenueEntry ? revenueEntry.revenue : 0,
+      sl90: revenueEntry ? revenueEntry.quantity : 0,
+      tonKho: Number(searchFieldValue(record.fields, 'Tồn kho')) || 0
+    };
+  });
+
+  return {
+    mode: base.mode || 'normal',
+    query: base.query,
+    total: base.total,
+    results
+  };
+}
+
+/**
+ * Chi tiet mo rong cho 1 ma hang (nut "Chi tiet" trong bang tong quan):
+ * trang thai/gia von/gia ban doc tu chi muc tim kiem san co (khong quet lai
+ * sheet "Hang hoa"), doanh thu 3 moc 30 ngay tu getProductRevenueMap (khong
+ * quet lai hoa don), va top 3 khach hang toan lich su.
+ */
+async function getProductRevenueDetail(code, branch, now = new Date()) {
+  const targetCode = String(code || '').trim();
+  if (!targetCode || isVatProductCode(targetCode)) {
+    throw productRevenueNotFoundError();
+  }
+
+  const normalizedTargetCode = normalizeSearchValue(targetCode);
+  const indexedSources = await getSearchSheets(branch);
+  const productSource = indexedSources.products;
+  const record = productSource && productSource.records.find(r => r.normalizedCode === normalizedTargetCode);
+  if (!record) throw productRevenueNotFoundError();
+
+  const fields = buildSearchFields(productSource.headers, record.row);
+  const revenueMap = await getProductRevenueMap(branch, now);
+  const revenueEntry = revenueMap.get(normalizedTargetCode) || { month1Revenue: 0, month2Revenue: 0, month3Revenue: 0 };
+  const topCustomers = await computeTopCustomersByRevenueForProduct(targetCode, branch);
+
+  return {
+    code: record.code,
+    name: record.name,
+    status: searchFieldValue(fields, 'Trạng thái') || 'Đang kinh doanh',
+    cost: Math.max(Number(searchFieldValue(fields, 'Giá vốn')) || 0, 0),
+    price: Math.max(Number(searchFieldValue(fields, 'Giá bán')) || 0, 0),
+    month1Revenue: revenueEntry.month1Revenue,
+    month2Revenue: revenueEntry.month2Revenue,
+    month3Revenue: revenueEntry.month3Revenue,
+    topCustomers
+  };
 }
 
 /**
@@ -2177,6 +2426,8 @@ module.exports = {
   searchDashboardRecords,
   searchTopCustomersByProducts,
   getCustomerProductRevenueReport,
+  searchProductRevenueOverview,
+  getProductRevenueDetail,
   // Cac hook duoi day CHI phuc vu test (dashboardData.test.js) — khong dung
   // trong code san pham.
   __test__: {
@@ -2186,6 +2437,7 @@ module.exports = {
       customerProductTopSheetCacheByBranch = new Map();
       customerReportSearchCacheByBranch = new Map();
       dashboardResultCache = new Map();
+      productRevenueMapCacheByBranch = new Map();
       searchIndexBuildCountForTest = 0;
       computeCallCountForTest = 0;
     },

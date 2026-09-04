@@ -157,7 +157,13 @@ router.patch('/api/role-requests/:id/status', ...authManager, async (req, res) =
     // that bai (vd user da bi xoa), request VAN GIU trang thai Cho duyet thay
     // vi bi khoa vinh vien o trang thai "Da duyet" trong khi vaiTro chua doi.
     if (status === repo.ROLE_REQUEST_STATUS.APPROVED) {
-      await localUserStore.updateUser(target.userId, { vaiTro: target.requestedRole });
+      const targetUser = await localUserStore.getUserById(target.userId);
+      const roleUpdates = { vaiTro: target.requestedRole };
+      if (targetUser && targetUser.hrManaged) {
+        roleUpdates.vaiTroOverride = target.requestedRole;
+        roleUpdates.roleSource = 'override';
+      }
+      await localUserStore.updateUser(target.userId, roleUpdates);
     }
 
     const updated = await repo.updateRequestStatus(req.params.id, {

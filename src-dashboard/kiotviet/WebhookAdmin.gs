@@ -19,6 +19,18 @@ const KIOTVIET_SHIPMENT_DESCRIPTION_PREFIX = "Shipment lifecycle - ";
 const KIOTVIET_WEBHOOK_HEALTH_HANDLER_ = 'reconcileKiotVietAutoSyncHealth_';
 const KIOTVIET_INVOICE_RECONCILE_HANDLER_ = 'reconcileInvoicesDaily_';
 
+/**
+ * Tat toan bo lich tu dong cua project hien tai.
+ * Giu nguyen ma nguon, deployment va du lieu tren Google Sheets.
+ */
+function stopAllKiotVietTriggers() {
+  deleteAllOldWebhooks();
+  const triggers = ScriptApp.getProjectTriggers();
+  triggers.forEach(trigger => ScriptApp.deleteTrigger(trigger));
+  Logger.log("Da xoa " + triggers.length + " trigger cua project.");
+  return triggers.length;
+}
+
 function getKiotVietAutoSyncProfile_() {
   if (isShipmentLifecycleMode_()) {
     return {

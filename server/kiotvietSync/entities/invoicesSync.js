@@ -1,7 +1,7 @@
 'use strict';
 
 const { parseKiotVietDateTime } = require('../vietnamTime');
-const { upsertStaffFromEntity } = require('./staffSync');
+const { upsertStaffFromEntity, upsertStaffBatch } = require('./staffSync');
 
 function pick(obj, keys) {
   for (const key of keys) {
@@ -30,6 +30,22 @@ async function resolveProductId(client, branch, kiotvietProductId) {
     [branch.id, kiotvietProductId]
   );
   return result.rows[0] ? result.rows[0].id : null;
+}
+
+// Dung cho ca 1 trang (~100 dong) truoc khi xu ly tung hoa don -- gop N query
+// tra cuu rieng le thanh 1 query duy nhat theo bang, tranh N round-trip toi
+// Postgres o xa (Render). table la hang so noi bo ('customers'|'products'),
+// khong bao gio nhan tu input ben ngoai.
+async function batchResolveByKiotvietId(pool, branchId, table, kiotvietIds) {
+  const distinct = [...new Set(kiotvietIds.filter((v) => v !== null && v !== undefined))];
+  if (distinct.length === 0) return new Map();
+  const result = await pool.query(
+    `SELECT kiotviet_id, id FROM ${table} WHERE branch_id = $1 AND kiotviet_id = ANY($2::bigint[])`,
+    [branchId, distinct]
+  );
+  const map = new Map();
+  for (const row of result.rows) map.set(String(row.kiotviet_id), row.id);
+  return map;
 }
 
 async function insertLineItems(client, invoiceId, branch, details) {
@@ -62,7 +78,73 @@ async function insertLineItems(client, invoiceId, branch, details) {
   }
 }
 
-async function upsertInvoice(pool, branch, invoice) {
+// Ban bulk cua insertLineItems -- dung khi da co san productMap (resolve
+// truoc theo trang). Van XOA-CHEN-LAI nhu ban goc, nhung CHEN bang 1 cau
+// INSERT ... unnest() duy nhat thay vi loop N cau rieng.
+async function insertLineItemsBulk(client, invoiceId, branch, details, productMap) {
+  await client.query('DELETE FROM invoice_line_items WHERE invoice_id = $1', [invoiceId]);
+  if (details.length === 0) return;
+
+  const lineNos = [];
+  const productIds = [];
+  const kiotvietProductIds = [];
+  const productCodes = [];
+  const productNames = [];
+  const quantities = [];
+  const prices = [];
+  const discounts = [];
+  const discountRatios = [];
+  const lineAmounts = [];
+  const notes = [];
+
+  details.forEach((detail, lineNo) => {
+    const kiotvietProductId = pick(detail, ['productId', 'ProductId']);
+    const productId = kiotvietProductId ? (productMap.get(String(kiotvietProductId)) || null) : null;
+    const quantity = pick(detail, ['quantity', 'Quantity']);
+    const price = pick(detail, ['price', 'Price']);
+    const discount = pick(detail, ['discount', 'Discount']) || 0;
+    const discountRatio = pick(detail, ['discountRatio', 'DiscountRatio']);
+    const subTotal = pick(detail, ['subTotal', 'SubTotal']);
+    const lineAmount = subTotal !== null ? subTotal : (Number(price) || 0) * (Number(quantity) || 0) - Number(discount || 0);
+
+    lineNos.push(lineNo);
+    productIds.push(productId);
+    kiotvietProductIds.push(kiotvietProductId);
+    productCodes.push(pick(detail, ['productCode', 'ProductCode']));
+    productNames.push(pick(detail, ['productName', 'ProductName']));
+    quantities.push(quantity);
+    prices.push(price);
+    discounts.push(discount);
+    discountRatios.push(discountRatio);
+    lineAmounts.push(lineAmount);
+    notes.push(pick(detail, ['note', 'Note']));
+  });
+
+  await client.query(
+    `INSERT INTO invoice_line_items (
+       invoice_id, branch_id, line_no, product_id, kiotviet_product_id,
+       product_code_snapshot, product_name_snapshot, quantity, price, discount,
+       discount_ratio, line_amount, note
+     )
+     SELECT $1, $2, u.*
+     FROM unnest(
+       $3::int[], $4::bigint[], $5::bigint[], $6::text[], $7::text[],
+       $8::numeric[], $9::numeric[], $10::numeric[], $11::numeric[], $12::numeric[], $13::text[]
+     ) AS u(line_no, product_id, kiotviet_product_id, product_code_snapshot, product_name_snapshot,
+            quantity, price, discount, discount_ratio, line_amount, note)`,
+    [
+      invoiceId, branch.id, lineNos, productIds, kiotvietProductIds, productCodes, productNames,
+      quantities, prices, discounts, discountRatios, lineAmounts, notes
+    ]
+  );
+}
+
+// maps (tuy chon) = { customerMap, productMap, staffMap } da resolve san theo
+// trang (xem upsertInvoicesPage). Khi KHONG truyen maps (vd backfill.js goi
+// truc tiep tung hoa don rieng le, khong theo trang), giu nguyen hanh vi cu:
+// tra cuu/upsert truc tiep tung query -- cham hon nhung dung 100% nhu truoc,
+// khong lam hong backfill.
+async function upsertInvoice(pool, branch, invoice, maps = null) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -72,15 +154,17 @@ async function upsertInvoice(pool, branch, invoice) {
     const purchaseDate = parseModifiedDate(pick(invoice, ['purchaseDate', 'PurchaseDate']));
     const orderCode = pick(invoice, ['orderCode', 'OrderCode']);
     const kiotvietCustomerId = pick(invoice, ['customerId', 'CustomerId']);
-    const customerId = await resolveCustomerId(client, branch, kiotvietCustomerId);
+    const customerId = maps
+      ? (kiotvietCustomerId ? (maps.customerMap.get(String(kiotvietCustomerId)) || null) : null)
+      : await resolveCustomerId(client, branch, kiotvietCustomerId);
     const customerCodeSnapshot = pick(invoice, ['customerCode', 'CustomerCode']);
     const customerNameSnapshot = pick(invoice, ['customerName', 'CustomerName']);
     const customerContactSnapshot = pick(invoice, ['customerContactNumber', 'CustomerContactNumber', 'contactNumber', 'ContactNumber']);
     const soldById = pick(invoice, ['soldById', 'SoldById']);
     const soldByName = pick(invoice, ['soldByName', 'SoldByName']);
-    const soldByStaffId = await upsertStaffFromEntity(client, branch, {
-      kiotvietId: soldById, fullName: soldByName, discoveredVia: 'invoice'
-    });
+    const soldByStaffId = maps
+      ? (soldById ? (maps.staffMap.get(String(soldById)) || null) : null)
+      : await upsertStaffFromEntity(client, branch, { kiotvietId: soldById, fullName: soldByName, discoveredVia: 'invoice' });
     const kiotvietBranchId = pick(invoice, ['branchId', 'BranchId']);
     const kiotvietBranchName = pick(invoice, ['branchName', 'BranchName']);
     const totalAmount = pick(invoice, ['total', 'Total']);
@@ -130,7 +214,11 @@ async function upsertInvoice(pool, branch, invoice) {
     const invoiceId = result.rows[0].id;
 
     const details = pick(invoice, ['invoiceDetails', 'InvoiceDetails']) || [];
-    await insertLineItems(client, invoiceId, branch, details);
+    if (maps) {
+      await insertLineItemsBulk(client, invoiceId, branch, details, maps.productMap);
+    } else {
+      await insertLineItems(client, invoiceId, branch, details);
+    }
 
     await client.query('COMMIT');
     return 1;
@@ -140,6 +228,36 @@ async function upsertInvoice(pool, branch, invoice) {
   } finally {
     client.release();
   }
+}
+
+// Resolve customer/product/staff 1 lan cho ca trang (~100 hoa don) truoc khi
+// ghi -- xem ghi chu o upsertInvoice. Tung hoa don van transaction rieng
+// (upsertInvoice), giu dung tinh chat "1 hoa don loi khong lam hong hoa don
+// khac trong cung trang" (invoicesSync.test.js).
+async function upsertInvoicesPage(pool, branch, invoices) {
+  if (invoices.length === 0) return 0;
+
+  const customerKiotIds = invoices.map((inv) => pick(inv, ['customerId', 'CustomerId']));
+  const customerMap = await batchResolveByKiotvietId(pool, branch.id, 'customers', customerKiotIds);
+
+  const productKiotIds = [];
+  for (const inv of invoices) {
+    const details = pick(inv, ['invoiceDetails', 'InvoiceDetails']) || [];
+    for (const detail of details) productKiotIds.push(pick(detail, ['productId', 'ProductId']));
+  }
+  const productMap = await batchResolveByKiotvietId(pool, branch.id, 'products', productKiotIds);
+
+  const staffEntries = invoices.map((inv) => ({
+    kiotvietId: pick(inv, ['soldById', 'SoldById']),
+    fullName: pick(inv, ['soldByName', 'SoldByName'])
+  }));
+  const staffMap = await upsertStaffBatch(pool, branch, staffEntries, 'invoice');
+
+  let upserted = 0;
+  for (const invoice of invoices) {
+    upserted += await upsertInvoice(pool, branch, invoice, { customerMap, productMap, staffMap });
+  }
+  return upserted;
 }
 
 function buildQuery(sinceIso) {
@@ -154,9 +272,7 @@ async function syncInvoices(pool, kiotVietClient, branch, sinceIso) {
 
   await kiotVietClient.fetchAllPages('invoices', buildQuery(sinceIso), async (items) => {
     fetched += items.length;
-    for (const item of items) {
-      upserted += await upsertInvoice(pool, branch, item);
-    }
+    upserted += await upsertInvoicesPage(pool, branch, items);
   });
 
   return { fetched, upserted };

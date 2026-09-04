@@ -582,4 +582,4 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 
 ---
 
-*Cập nhật lần cuối: 29/08/2026*
+*Cập nhật lần cuối: 31/08/2026*

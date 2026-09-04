@@ -145,18 +145,42 @@ function formatLeaveBoundary(date, session) {
   return formattedDate ? `${session} ${formattedDate}` : null;
 }
 
+const BANGKOK_TIME_ZONE = 'Asia/Bangkok';
+
+/** Quy doi 1 thoi diem (instant) sang ngay-lich + gio theo gio Bangkok. */
+function getBangkokDateHour(instant) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: BANGKOK_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(instant);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return {
+    dateOnly: new Date(Number(values.year), Number(values.month) - 1, Number(values.day)),
+    hour: Number(values.hour)
+  };
+}
+
 /**
  * "Nghi gap" (tu dong gan co, KHONG tu tu choi — dung tinh than
- * CHINH-SACH-NGHI-PHEP.md dieu 6.6.3): thoi gian bat dau nghi cach thoi
- * diem nhan tin duoi nguong gio cau hinh.
+ * CHINH-SACH-NGHI-PHEP.md dieu 6.6.3): tin nhan gui tu HR_URGENT_LATE_NIGHT_HOUR
+ * tro di (gio Bangkok) VA ca nghi bat dau ngay hom sau lien ke (theo lich Bangkok).
  */
-function computeIsUrgent(startTime, messageTime, thresholdHours) {
-  const threshold = thresholdHours != null ? thresholdHours : CONFIG.HR_URGENT_NOTICE_HOURS_THRESHOLD;
+function computeIsUrgent(startTime, messageTime) {
   const startMs = new Date(startTime).getTime();
   const msgMs = new Date(messageTime).getTime();
   if (!isFinite(startMs) || !isFinite(msgMs)) return false;
-  const diffHours = (startMs - msgMs) / (60 * 60 * 1000);
-  return diffHours < threshold;
+
+  const msg = getBangkokDateHour(new Date(msgMs));
+  if (msg.hour < CONFIG.HR_URGENT_LATE_NIGHT_HOUR) return false;
+
+  const start = getBangkokDateHour(new Date(startMs));
+  const nextDay = new Date(msg.dateOnly);
+  nextDay.setDate(nextDay.getDate() + 1);
+  return start.dateOnly.getTime() === nextDay.getTime();
 }
 
 /**

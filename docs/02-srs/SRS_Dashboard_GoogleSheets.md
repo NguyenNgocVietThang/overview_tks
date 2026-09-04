@@ -13,21 +13,21 @@
 | Tài liệu liên quan | BRD v1.9 · BPMN v1.9 · Implementation Plan v2.3 · CSNS-NP-01 (Chính sách nghỉ phép) · Plan Process Automation · Lag Optimization Plan · Design System MASTER (mục 7 — ràng buộc hiệu năng) |
 | Trạng thái         | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1, Gói tối ưu hóa hiệu năng, Phân hệ HR Leave + Bot, Chuông thông báo, Đổi vai trò & Kiểm tra đứt hàng) |
 
-> **Ghi chú phiên bản 2.2:** Bổ sung Chuông thông báo toàn hệ thống, Cơ chế xin đổi & duyệt vai trò người dùng, Công cụ Kiểm tra đứt hàng đối chiếu file Excel với KiotViet API nền, Phân hệ Quản lý Nghỉ phép HR (HR Leave Management) & Telegram Bot theo chính sách CSNS-NP-01. Chuẩn hóa bộ kiểm thử tự động toàn diện đạt **434 unit tests**.
+> **Ghi chú phiên bản 2.3:** Cập nhật kiến trúc Quản lý Vận chuyển: Hệ thống Bot Telegram & OCR (Phase 2) nạp tự động dữ liệu từ 9 nhóm chat trực tiếp vào Google Sheets `VC_*` và Drive; Web Server Node.js/Express đóng vai trò đọc và quản trị dữ liệu từ Google Sheets. Chuẩn hóa bộ kiểm thử tự động toàn diện đạt **477 unit tests**.
 
 # 1. Giới thiệu
 
 ## 1.1. Mục đích
 
-Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi chức năng của hệ thống Website Dashboard TOKOSI, làm cơ sở cho đội phát triển thiết kế, xây dựng, kiểm thử phần mềm. Tài liệu cụ thể hóa các yêu cầu nghiệp vụ đã nêu trong BRD v1.8 thành các đặc tả kỹ thuật có thể triển khai được.
+Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi chức năng của hệ thống Website Dashboard TOKOSI, làm cơ sở cho đội phát triển thiết kế, xây dựng, kiểm thử phần mềm. Tài liệu cụ thể hóa các yêu cầu nghiệp vụ đã nêu trong BRD v1.9 thành các đặc tả kỹ thuật có thể triển khai được.
 
 ## 1.2. Phạm vi hệ thống
 
 Hệ thống là một Web Application nội bộ gồm các thành phần chính:
 
-1. **Apps Script tách theo Google Sheets:** `src-dashboard/` duy trì 9 tab vận hành, lịch sử/báo cáo và polling của Dashboard; `src-order-lifecycle/` duy trì sheet Vận chuyển độc lập và nhận `invoice.update` qua hàng đợi bền vững. Mỗi thư mục là một GAS project tự chứa với `rootDir`, manifest và cấu hình clasp riêng.
+1. **Apps Script & Telegram Bot nạp dữ liệu:** `src-dashboard/` duy trì 9 tab vận hành, lịch sử/báo cáo và polling của Dashboard; `src-order-lifecycle/` duy trì sheet Vận chuyển độc lập và nhận `invoice.update` qua hàng đợi bền vững; song song đó, Bot Telegram & OCR độc lập tự động trích xuất chứng từ/bill và cập nhật trạng thái đơn hàng vào 6 tab `VC_*` trên Google Sheet Vận chuyển.
 
-2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu, 3 tab công nợ HN1/HN3/HN7, tab `Users`, 6 tab vận chuyển `VC_*` và 3 tab nhân sự `HR_*` từ Google Spreadsheet qua Google Sheets API (Service Account), xác thực người dùng và phân quyền RBAC (JWT httpOnly cookie, bcrypt, Google OAuth, mã OTP 6 số, local backup store), tra cứu trạng thái vận chuyển đơn hàng, quản trị người dùng, quản lý ngày nghỉ phép nhân viên và tích hợp Telegram Bot, tính toán KPI, dữ liệu biểu đồ và báo cáo công nợ khách hàng 1/3/7 ngày, trả về cho frontend qua REST API. Tích hợp Result Cache tầng backend, phân trang bảng client-side và xuất file Excel đa worksheet. Frontend hiển thị Dashboard tương tác, trang tra cứu vận chuyển, cổng thông tin nhân sự, quản lý tài khoản và đăng nhập/đăng ký trên trình duyệt.
+2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu, 3 tab công nợ HN1/HN3/HN7, tab `Users`, 6 tab vận chuyển `VC_*` và 3 tab nhân sự `HR_*` từ Google Spreadsheet qua Google Sheets API (Service Account), xác thực người dùng và phân quyền RBAC (JWT httpOnly cookie, bcrypt, Google OAuth, mã OTP 6 số, local backup store), tra cứu trạng thái vận chuyển đơn hàng, quản trị người dùng, quản lý ngày nghỉ phép nhân viên và tích hợp Telegram Bot, tính toán KPI, dữ liệu biểu đồ và báo cáo công nợ khách hàng 1/3/7 ngày, trả về cho frontend qua REST API. Tích hợp Result Cache tầng backend, phân trang bảng client-side và xuất file Excel đa worksheet. Frontend hiển thị Dashboard tương tác, trang tra cứu vận chuyển, bảng điều phối, cổng thông tin nhân sự, quản lý tài khoản và đăng nhập/đăng ký trên trình duyệt.
 
 ## 1.3. Định nghĩa & thuật ngữ
 

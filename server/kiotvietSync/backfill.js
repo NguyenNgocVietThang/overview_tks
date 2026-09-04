@@ -13,6 +13,7 @@ const { syncReturns } = require('./entities/returnsSync');
 const { upsertInvoice } = require('./entities/invoicesSync');
 const { upsertPurchase } = require('./entities/purchasesSync');
 const { upsertCashFlow } = require('./entities/cashFlowsSync');
+const { getOffset, saveOffset, clearOffset } = require('./backfillProgressRepository');
 
 const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
@@ -79,6 +80,9 @@ async function logResult(pool, branchId, entityName, { status, fetched, upserted
   );
 }
 
+// Neu syncFn ho tro options.startItem/onProgress (6 entity dang-lap khong
+// chia thang), backfill se tiep tuc dung tu trang bi dung lai (offset luu o
+// backfill_progress) thay vi keo lai tu currentItem=0 khi bi gian doan.
 async function runOnceEntity(pool, kiotVietClient, branch, entityName, syncFn, sinceIsoParam) {
   const logName = `${entityName}:backfill`;
   if (await isAlreadyDone(pool, branch.id, logName)) {
@@ -87,8 +91,14 @@ async function runOnceEntity(pool, kiotVietClient, branch, entityName, syncFn, s
   }
   const startedAt = new Date();
   try {
-    const { fetched, upserted } = await syncFn(pool, kiotVietClient, branch, sinceIsoParam);
+    const startItem = await getOffset(pool, branch.id, logName);
+    if (startItem > 0) console.log(`[backfill] ${logName} tiep tuc tu vi tri ${startItem}.`);
+    const { fetched, upserted } = await syncFn(pool, kiotVietClient, branch, sinceIsoParam, {
+      startItem,
+      onProgress: (nextItem) => saveOffset(pool, branch.id, logName, nextItem)
+    });
     await logResult(pool, branch.id, logName, { status: 'success', fetched, upserted, startedAt, finishedAt: new Date() });
+    await clearOffset(pool, branch.id, logName);
     console.log(`[backfill] ${logName}: fetched=${fetched} upserted=${upserted}`);
   } catch (error) {
     await logResult(pool, branch.id, logName, { status: 'error', errorMessage: error.message, startedAt, finishedAt: new Date() });
@@ -96,15 +106,24 @@ async function runOnceEntity(pool, kiotVietClient, branch, entityName, syncFn, s
   }
 }
 
-async function fetchAndUpsert(kiotVietClient, endpoint, query, upsertFn, pool, branch) {
+// progressKey dinh danh rieng buoc fetch nay trong backfill_progress (vi du
+// mot thang cash_flows can 2 key rieng cho receipt/expense). Offset chi bi
+// xoa SAU KHI fetchAllPages hoan tat khong loi -- neu nem loi, offset da luu
+// o lan onPage gan nhat van con, lan chay sau se tiep tuc dung cho.
+async function fetchAndUpsert(kiotVietClient, endpoint, query, upsertFn, pool, branch, progressKey) {
   let fetched = 0;
   let upserted = 0;
-  await kiotVietClient.fetchAllPages(endpoint, query, async (items) => {
+  const startItem = await getOffset(pool, branch.id, progressKey);
+  await kiotVietClient.fetchAllPages(endpoint, query, async (items, meta) => {
     fetched += items.length;
     for (const item of items) {
       upserted += await upsertFn(pool, branch, item);
     }
-  });
+    if (meta && typeof meta.nextItem === 'number') {
+      await saveOffset(pool, branch.id, progressKey, meta.nextItem);
+    }
+  }, { startItem });
+  await clearOffset(pool, branch.id, progressKey);
   return { fetched, upserted };
 }
 
@@ -117,7 +136,7 @@ async function runMonthlyEntity(pool, branch, entityName, months, runMonthFn) {
     }
     const startedAt = new Date();
     try {
-      const { fetched, upserted } = await runMonthFn(month);
+      const { fetched, upserted } = await runMonthFn(month, logName);
       await logResult(pool, branch.id, logName, { status: 'success', fetched, upserted, startedAt, finishedAt: new Date() });
       console.log(`[backfill] ${logName}: fetched=${fetched} upserted=${upserted}`);
     } catch (error) {
@@ -150,38 +169,40 @@ async function runBackfill(pool, kiotVietClient, branch, { from, to }) {
   // invoices/purchases: co tham so ngay bi chan that su (fromPurchaseDate/
   // toPurchaseDate, da xac nhan qua production code + live probe) -- chia
   // duoc theo thang an toan.
-  await runMonthlyEntity(pool, branch, 'invoices', months, (month) =>
+  await runMonthlyEntity(pool, branch, 'invoices', months, (month, logName) =>
     fetchAndUpsert(
       kiotVietClient, 'invoices',
       {
         includePayment: 'true', includeInvoiceDelivery: 'true', IncludeSaleChannel: 'true',
         fromPurchaseDate: month.startQuery, toPurchaseDate: month.endQuery
       },
-      upsertInvoice, pool, branch
+      upsertInvoice, pool, branch, logName
     )
   );
-  await runMonthlyEntity(pool, branch, 'purchases', months, (month) =>
+  await runMonthlyEntity(pool, branch, 'purchases', months, (month, logName) =>
     fetchAndUpsert(
       // Endpoint la "purchaseorders", KHONG phai "/purchases".
       kiotVietClient, 'purchaseorders',
       { includePayment: 'true', includeOrderDelivery: 'true', fromPurchaseDate: month.startQuery, toPurchaseDate: month.endQuery },
-      upsertPurchase, pool, branch
+      upsertPurchase, pool, branch, logName
     )
   );
 
   // cash_flows: startDate/endDate bi chan that su, nhung can 2 luot goi
   // isReceipt=true/false rieng moi thang (API khong tra field isReceipt
-  // trong response, chi phan biet duoc qua query da goi).
-  await runMonthlyEntity(pool, branch, 'cash_flows', months, async (month) => {
+  // trong response, chi phan biet duoc qua query da goi). Moi luot dung
+  // progressKey rieng (":receipt"/":expense") de neu dut giua luot expense,
+  // luot receipt da xong khong bi keo lai.
+  await runMonthlyEntity(pool, branch, 'cash_flows', months, async (month, logName) => {
     const receipts = await fetchAndUpsert(
       kiotVietClient, 'cashflow',
       { includeAccount: 'true', includeBranch: 'true', includeUser: 'true', startDate: month.startQuery, endDate: month.endQuery, isReceipt: 'true' },
-      (p, b, item) => upsertCashFlow(p, b, item, true), pool, branch
+      (p, b, item) => upsertCashFlow(p, b, item, true), pool, branch, `${logName}:receipt`
     );
     const expenses = await fetchAndUpsert(
       kiotVietClient, 'cashflow',
       { includeAccount: 'true', includeBranch: 'true', includeUser: 'true', startDate: month.startQuery, endDate: month.endQuery, isReceipt: 'false' },
-      (p, b, item) => upsertCashFlow(p, b, item, false), pool, branch
+      (p, b, item) => upsertCashFlow(p, b, item, false), pool, branch, `${logName}:expense`
     );
     return { fetched: receipts.fetched + expenses.fetched, upserted: receipts.upserted + expenses.upserted };
   });

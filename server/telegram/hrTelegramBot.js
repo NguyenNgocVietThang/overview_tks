@@ -1,9 +1,17 @@
 // ==========================================
-// HR TELEGRAM BOT -- nhan dien tin nhan xin nghi phep, ghi thang vao Google
-// Sheet nhan su qua hrLeaveRepository (khong qua hang doi Apps Script).
+// HR TELEGRAM BOT -- nhan dien tin nhan xin nghi phep bang AI (mot tin nhan
+// tu nhien), ghi thang vao Google Sheet nhan su qua hrLeaveRepository (khong
+// qua hang doi Apps Script).
 //
 // Che do: polling (khong can webhook cong khai/HTTPS moi).
-// State hoi thoai: Map<chatId, state> trong bo nho.
+// State hoi thoai: ben ngoai (conversationStore, song sot qua restart).
+//
+// Pipeline (xem docs/superpowers/specs/2026-08-31-telegram-ai-leave-message-recognition.md):
+// moi tin nhan tu do tu chat da lien ket duoc goi qua leaveAiExtractor de
+// trich xuat y dinh/thoi gian/ly do/ban giao, roi qua leaveMessageResolver
+// (thuan tuy, khong goi AI) de tinh chinh xac khoang nghi. Bot chi hoi lai
+// dung phan con thieu (thoi gian | ly do | ban giao) truoc khi hien 1 man
+// hinh xac nhan duy nhat.
 //
 // TODO(branch): bot hien CHI phuc vu co so Ha Noi — moi loi goi repo o duoi
 // khong truyen `branch` nen mac dinh dung HR_SPREADSHEET_ID (Ha Noi). Mo rong
@@ -15,17 +23,15 @@
 const CONFIG = require('../config');
 const repo = require('../hr/hrLeaveRepository');
 const {
-  computeDurationSessions,
   computeIsUrgent,
-  computeSubmissionViolation,
-  getSessionStartTime,
-  formatVietnameseDate,
   formatLeaveBoundary,
-  resolveSenderIdentity,
-  parseVietnameseDate
+  resolveSenderIdentity
 } = require('../hr/hrLeaveService');
+const { getBangkokSessionStartTime, resolveLeaveMessage } = require('../hr/leaveMessageResolver');
+const leaveAiExtractor = require('./leaveAiConsensusExtractor');
 const { broadcastLeaveEvent, LEAVE_EVENT_TYPES } = require('../hr/hrLeaveEvents');
 const conversationStore = require('./conversationStore');
+const { getUserByUsername, ROLES } = require('../auth/localUserStore');
 
 let botInstance = null;
 
@@ -55,16 +61,16 @@ function clearProcessedMessageIds() {
   processedMessageIds.clear();
 }
 
-// ---- State machine hoi thoai -------------------------------------------------
+// ---- State hoi thoai (pipeline AI) --------------------------------------------
 const STEP = Object.freeze({
-  AWAITING_REASON:        'AWAITING_REASON',
-  AWAITING_START_DATE:    'AWAITING_START_DATE',
-  AWAITING_START_SESSION: 'AWAITING_START_SESSION',
-  AWAITING_END_DATE:      'AWAITING_END_DATE',
-  AWAITING_END_SESSION:   'AWAITING_END_SESSION',
-  AWAITING_HANDOVER:      'AWAITING_HANDOVER',
-  CONFIRM:                'CONFIRM'
+  AWAITING_CLARIFICATION: 'AWAITING_CLARIFICATION', // da trich xuat mot phan, con thieu 1 trong 3 nhom
+  CONFIRM: 'CONFIRM'                                 // du thong tin, cho bam Xac nhan/Huy
 });
+
+const FIELD = Object.freeze({ TIME: 'TIME', REASON: 'REASON', HANDOVER: 'HANDOVER' });
+
+// So lan hoi lai toi da cho CUNG 1 nhom truoc khi bot dung hoi va goi y /huy.
+const MAX_CLARIFICATION_ATTEMPTS = 3;
 
 function resetConversation(chatId) {
   conversationStore.deleteConversation(chatId);
@@ -79,29 +85,52 @@ function enqueueMessage(chatId, task) {
   });
 }
 
-// ---- Parse va normalize -------------------------------------------------------
-
-// (parseVietnameseDate duoc import tu hrLeaveService de tai su dung va test dong nhat)
-
-/**
- * Normalize buoi nguoi dung nhap thanh 'Sang' hoac 'Chieu' (Unicode).
- * Chap nhan: sang, morning, am, s  ->  Sang
- *            chieu, afternoon, pm, c  ->  Chieu
- */
-function normalizeSession(text) {
-  const t = String(text || '').trim().toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, '');
-  if (/^(sang|s|morning|am)$/.test(t)) return 'S\u00e1ng';
-  if (/^(chieu|c|afternoon|pm)$/.test(t)) return 'Chi\u1ec1u';
-  return null;
+function hasValue(value) {
+  return value != null && value !== '';
 }
 
-/**
- * Dinh dang ngay theo dd/mm/yyyy.
- */
-function formatDate(date) {
-  return formatVietnameseDate(date);
+function isBareDecline(value) {
+  return /^(?:không|khong)\s+(?:có|co|cần|can)(?:\s+(?:ạ|a))?[.!]?$/i.test(String(value || '').trim());
+}
+
+function buildExtractionTranscript(data) {
+  const labels = {
+    [FIELD.TIME]: 'THỜI GIAN',
+    [FIELD.REASON]: 'LÝ DO',
+    [FIELD.HANDOVER]: 'BÀN GIAO'
+  };
+  return data.messages.map((message, index) => {
+    const field = Array.isArray(data.messageFields) ? data.messageFields[index] : null;
+    return field ? `[Trả lời cho ${labels[field]}] ${message}` : message;
+  }).join('\n');
+}
+
+function applyBareDecline(extracted, data) {
+  if (!data.declinedFields || typeof data.declinedFields !== 'object') data.declinedFields = {};
+  let result = { ...extracted };
+  if (hasValue(extracted.reason)) delete data.declinedFields[FIELD.REASON];
+  else if (data.declinedFields[FIELD.REASON]) result = { ...result, reason: null, reason_declined: true };
+  if (hasValue(extracted.handover)) delete data.declinedFields[FIELD.HANDOVER];
+  else if (data.declinedFields[FIELD.HANDOVER]) result = { ...result, handover: null, handover_declined: true };
+
+  const lastIndex = data.messages.length - 1;
+  const field = Array.isArray(data.messageFields) ? data.messageFields[lastIndex] : null;
+  if (!isBareDecline(data.messages[lastIndex])) return result;
+  if (field === FIELD.REASON) {
+    data.declinedFields[FIELD.REASON] = true;
+    return { ...result, reason: null, reason_declined: true };
+  }
+  if (field === FIELD.HANDOVER) {
+    data.declinedFields[FIELD.HANDOVER] = true;
+    return { ...result, handover: null, handover_declined: true };
+  }
+  return result;
+}
+
+function messageTimestampIso(msg) {
+  return Number.isFinite(Number(msg.date))
+    ? new Date(Number(msg.date) * 1000).toISOString()
+    : new Date().toISOString();
 }
 
 // ---- Khoi tao bot -------------------------------------------------------------
@@ -109,7 +138,7 @@ function formatDate(date) {
 function startHrTelegramBot() {
   if (botInstance) return botInstance;
   if (!CONFIG.TELEGRAM_BOT_TOKEN) {
-    console.warn('[HR Telegram Bot] Thi\u1ebfu TELEGRAM_BOT_TOKEN -- bot kh\u00f4ng kh\u1edfi \u0111\u1ed9ng.');
+    console.warn('[HR Telegram Bot] Thiếu TELEGRAM_BOT_TOKEN -- bot không khởi động.');
     return null;
   }
 
@@ -117,7 +146,20 @@ function startHrTelegramBot() {
   const bot = new TelegramBot(CONFIG.TELEGRAM_BOT_TOKEN, { polling: true });
   botInstance = bot;
 
-  bot.on('polling_error', (err) => {
+  bot.on('polling_error', async (err) => {
+    const isConflict = err && (
+      (err.response && err.response.statusCode === 409) ||
+      /\b409\s+Conflict\b/i.test(String(err.message || ''))
+    );
+    if (isConflict) {
+      console.error('[HR Telegram Bot] Phát hiện bot instance khác đang polling; dừng polling ở instance này để tránh xử lý trùng.');
+      try {
+        await bot.stopPolling();
+      } catch (stopErr) {
+        console.error('[HR Telegram Bot] Không thể dừng polling sau xung đột:', stopErr.message);
+      }
+      return;
+    }
     console.warn('[HR Telegram Bot] Polling warning/error:', err.code || err.message);
   });
   bot.on('error', (err) => {
@@ -128,11 +170,11 @@ function startHrTelegramBot() {
     if (markProcessed(msg.chat.id, msg.message_id)) return;
     try {
       await bot.sendMessage(msg.chat.id,
-        'Ch\u00e0o b\u1ea1n! \u0110\u00e2y l\u00e0 bot xin ngh\u1ec9 ph\u00e9p c\u1ee7a TOKOSI.\n\n' +
+        'Chào bạn! Đây là bot xin nghỉ phép của TOKOSI.\n\n' +
         '1. Nếu tài khoản chưa liên kết với Bot Vào web Quản lý nhân sự > Liên kết Telegram để lấy mã 6 số.\n' +
         '2. Gõ /lienket <mã> để liên kết tài khoản.\n' +
-        '3. Sau khi liên kết, gõ /xinnghi để bắt đầu xin nghỉ.\n' +
-        'Dùng /huy để hủy yêu cầu.'
+        '3. Sau khi liên kết, gõ một câu tự nhiên để xin nghỉ, ví dụ: "Em xin nghỉ chiều mai vì khám bệnh, bàn giao cho Nguyễn B".\n' +
+        'Dùng /huy để hủy yêu cầu đang chờ xác nhận.'
       );
     } catch (err) {
       console.error('[HR Telegram Bot] Không gửi được hướng dẫn:', err.message);
@@ -145,9 +187,9 @@ function startHrTelegramBot() {
     const code = match && match[1];
     if (!code) {
       try {
-        await bot.sendMessage(chatId, 'Vui l\u00f2ng nh\u1eadp theo c\u00fa ph\u00e1p: /lienket <m\u00e3 6 s\u1ed1>');
+        await bot.sendMessage(chatId, 'Vui lòng nhập theo cú pháp: /lienket <mã 6 số>');
       } catch (err) {
-        console.error('[HR Telegram Bot] Kh\u00f4ng g\u1eedi \u0111\u01b0\u1ee3c h\u01b0\u1edbng d\u1eabn li\u00ean k\u1ebft:', err.message);
+        console.error('[HR Telegram Bot] Không gửi được hướng dẫn liên kết:', err.message);
       }
       return;
     }
@@ -156,12 +198,12 @@ function startHrTelegramBot() {
         chatId,
         telegramUsername: msg.from && msg.from.username ? '@' + msg.from.username : ''
       });
-      await bot.sendMessage(chatId, `Li\u00ean k\u1ebft th\u00e0nh c\u00f4ng v\u1edbi t\u00e0i kho\u1ea3n "${link.web_username}". B\u1ea1n c\u00f3 th\u1ec3 d\u00f9ng /xinnghi \u0111\u1ec3 xin ngh\u1ec9.`);
+      await bot.sendMessage(chatId, `Liên kết thành công với tài khoản "${link.web_username}". Bạn có thể gõ một câu tự nhiên để xin nghỉ.`);
     } catch (err) {
       try {
-        await bot.sendMessage(chatId, `Li\u00ean k\u1ebft th\u1ea5t b\u1ea1i: ${err.message}`);
+        await bot.sendMessage(chatId, `Liên kết thất bại: ${err.message}`);
       } catch (sendErr) {
-        console.error('[HR Telegram Bot] Kh\u00f4ng g\u1eedi \u0111\u01b0\u1ee3c k\u1ebft qu\u1ea3 li\u00ean k\u1ebft:', sendErr.message);
+        console.error('[HR Telegram Bot] Không gửi được kết quả liên kết:', sendErr.message);
       }
     }
   });
@@ -178,35 +220,14 @@ function startHrTelegramBot() {
 
   bot.onText(/^\/xinnghi/, async msg => {
     if (markProcessed(msg.chat.id, msg.message_id)) return;
-    const chatId = msg.chat.id;
     try {
-      const link = await repo.findLinkByChatId(chatId);
-      if (!link) {
-        await bot.sendMessage(chatId, 'Bạn chưa liên kết tài khoản web. Vào web Quản lý nhân sự để lấy mã, sau đó gõ /lienket <mã>.');
-        return;
-      }
-      const identity = await resolveSenderIdentity(link.web_username);
-      if (!identity) {
-        await bot.sendMessage(chatId, 'Không tìm thấy hồ sơ tài khoản đã liên kết, vui lòng liên hệ Quản lý.');
-        return;
-      }
-      conversationStore.setConversation(chatId, {
-        step: STEP.AWAITING_REASON,
-        data: {
-          link,
-          identity,
-          messageTime: Number.isFinite(Number(msg.date))
-            ? new Date(Number(msg.date) * 1000).toISOString()
-            : new Date().toISOString()
-        }
-      });
-      await bot.sendMessage(chatId, `Xin chào ${identity.hoTen}. Lý do nghỉ là gì?`);
+      await bot.sendMessage(msg.chat.id,
+        'Bạn chỉ cần gõ một câu tự nhiên để xin nghỉ, ví dụ:\n' +
+        '"Em xin nghỉ chiều mai vì khám bệnh, bàn giao cho Nguyễn B"\n' +
+        'Bot sẽ tự hiểu và hỏi lại nếu còn thiếu thông tin.'
+      );
     } catch (err) {
-      try {
-        await bot.sendMessage(chatId, `Có lỗi xảy ra: ${err.message}`);
-      } catch (sendErr) {
-        console.error('[HR Telegram Bot] Không gửi được lỗi khởi tạo phiên:', sendErr.message);
-      }
+      console.error('[HR Telegram Bot] Không gửi được hướng dẫn xin nghỉ:', err.message);
     }
   });
 
@@ -216,15 +237,12 @@ function startHrTelegramBot() {
     const chatId = msg.chat.id;
     if (markProcessed(chatId, msg.message_id)) return;
     return enqueueMessage(chatId, async () => {
-      const conv = conversationStore.getConversation(chatId);
-      if (!conv) return; // ngoai phien hoi thoai
       try {
-        await handleConversationStep(bot, chatId, conv, text.trim());
-        conversationStore.setConversation(chatId, conv);
+        await handleFreeTextMessage(bot, chatId, msg, text.trim());
       } catch (err) {
-        console.error('[HR Telegram Bot] Lỗi xử lý bước hội thoại:', err.message);
+        console.error('[HR Telegram Bot] Lỗi xử lý tin nhắn xin nghỉ:', err.message);
         try {
-          await bot.sendMessage(chatId, `Có lỗi xảy ra: ${err.message}. Bạn có thể gửi lại câu trả lời hoặc gõ /huy để bắt đầu lại.`);
+          await bot.sendMessage(chatId, 'Có lỗi xảy ra. Bạn có thể gửi lại tin nhắn hoặc gõ /huy để bắt đầu lại.');
         } catch (sendErr) {
           console.error('[HR Telegram Bot] Không gửi được thông báo lỗi hội thoại:', sendErr.message);
         }
@@ -243,6 +261,11 @@ function startHrTelegramBot() {
         }
         const conv = conversationStore.getConversation(chatId);
         if (!conv || conv.step !== STEP.CONFIRM) {
+          await bot.answerCallbackQuery(query.id);
+          return;
+        }
+        const confirmationMessageId = conv.data && conv.data.confirmationMessageId;
+        if (confirmationMessageId != null && messageId !== confirmationMessageId) {
           await bot.answerCallbackQuery(query.id);
           return;
         }
@@ -271,138 +294,267 @@ function startHrTelegramBot() {
     });
   });
 
-  console.log('[HR Telegram Bot] \u0110\u00e3 kh\u1edfi \u0111\u1ed9ng (polling).');
+  console.log('[HR Telegram Bot] Đã khởi động (polling).');
   return bot;
 }
 
-// ---- Xu ly tung buoc cua form -------------------------------------------------
+// ---- Pipeline AI: 1 tin nhan tu nhien -> trich xuat -> resolve -> hoi neu thieu -> xac nhan ----
 
-async function handleConversationStep(bot, chatId, conv, text) {
-  switch (conv.step) {
-    case STEP.AWAITING_REASON: {
-      conv.data.ly_do = text;
-      conv.step = STEP.AWAITING_START_DATE;
-      await bot.sendMessage(chatId, 'Ng\u00e0y b\u1eaft \u0111\u1ea7u ngh\u1ec9? (vd: 27/8, 27/08/2026, 27-8, ng\u00e0y mai)');
+async function handleFreeTextMessage(bot, chatId, msg, text) {
+  if (!text) return; // tin nhan khong co noi dung van ban (anh/sticker...) -> bo qua
+
+  let conv = conversationStore.getConversation(chatId);
+
+  if (!conv || conv.step === STEP.CONFIRM) {
+    // Bat dau draft moi: neu dang CONFIRM, tin nhan tu do moi nay thay the
+    // ban nhap cu (khong tao luong song song, quy tac #12 cua spec).
+    // Vo hieu hoa draft cu ngay lap tuc de nut Xac nhan cu khong the ghi Sheet
+    // neu pipeline cua tin thay the dung som (vi du AI proxy bi loi).
+    if (conv && conv.step === STEP.CONFIRM) resetConversation(chatId);
+    const link = await repo.findLinkByChatId(chatId);
+    if (!link) {
+      await bot.sendMessage(chatId, 'Bạn chưa liên kết tài khoản web. Vào web Quản lý nhân sự để lấy mã, sau đó gõ /lienket <mã>.');
       return;
     }
-    case STEP.AWAITING_START_DATE: {
-      const refDate = conv.data.messageTime ? new Date(conv.data.messageTime) : new Date();
-      const date = parseVietnameseDate(text, refDate);
-      if (!date) {
-        await bot.sendMessage(chatId, 'Kh\u00f4ng \u0111\u1ecdc \u0111\u01b0\u1ee3c ng\u00e0y, vui l\u00f2ng nh\u1eadp l\u1ea1i (vd: 27/8, 27/08/2026, 27-8, ng\u00e0y mai...).');
-        return;
-      }
-      conv.data.startDate = date;
-      conv.step = STEP.AWAITING_START_SESSION;
-      await bot.sendMessage(chatId, 'B\u1eaft \u0111\u1ea7u ngh\u1ec9 bu\u1ed5i S\u00e1ng hay Chi\u1ec1u?');
+    const identity = await resolveSenderIdentity(link.web_username);
+    if (!identity) {
+      await bot.sendMessage(chatId, 'Không tìm thấy hồ sơ tài khoản đã liên kết, vui lòng liên hệ Quản lý.');
       return;
     }
-    case STEP.AWAITING_START_SESSION: {
-      const session = normalizeSession(text);
-      if (!session) {
-        await bot.sendMessage(chatId, 'Vui l\u00f2ng nh\u1eadp "S\u00e1ng" ho\u1eb7c "Chi\u1ec1u".');
-        return;
+    conv = {
+      step: STEP.AWAITING_CLARIFICATION,
+      data: {
+        link,
+        identity,
+        messageTime: messageTimestampIso(msg),
+        messages: [text],
+        messageFields: [null],
+        pendingField: null,
+        declinedFields: {},
+        lastAskedField: null,
+        askCounts: { TIME: 0, REASON: 0, HANDOVER: 0 }
       }
-      conv.data.startSession = session;
-      conv.step = STEP.AWAITING_END_DATE;
+    };
+  } else {
+    if (!Array.isArray(conv.data.messageFields)) {
+      conv.data.messageFields = conv.data.messages.map(() => null);
+    }
+    conv.data.messages.push(text);
+    conv.data.messageFields.push(conv.data.pendingField || null);
+    conversationStore.setConversation(chatId, conv);
+  }
+
+  await runLeavePipeline(bot, chatId, conv);
+}
+
+async function runLeavePipeline(bot, chatId, conv) {
+  const d = conv.data;
+
+  let extracted;
+  try {
+    extracted = await leaveAiExtractor.extractLeaveMessage(
+      buildExtractionTranscript(d),
+      {
+        messageTime: d.messageTime,
+        timeZone: CONFIG.HR_TIME_ZONE,
+        noticeHours: CONFIG.HR_URGENT_NOTICE_HOURS_THRESHOLD
+      }
+    );
+    extracted = applyBareDecline(extracted, d);
+  } catch (err) {
+    console.error('[HR Telegram Bot] Lỗi AI trích xuất tin nhắn xin nghỉ:', err.code || err.message);
+    if (err && err.code === 'AI_LEAVE_NO_CONSENSUS') {
       await bot.sendMessage(chatId,
-        'Ng\u00e0y k\u1ebft th\u00fac ngh\u1ec9? (vd: 28/8, 28/08/2026, ng\u00e0y kia)\n\u0110\u1ec3 tr\u1ed1ng ho\u1eb7c g\u00f5 "-" n\u1ebfu ngh\u1ec9 c\u00f9ng ng\u00e0y.'
+        'Bot chưa có đủ hai model đồng thuận về yêu cầu này. Bạn vui lòng diễn đạt lại thời gian nghỉ rõ hơn.'
       );
-      return;
+    } else {
+      await bot.sendMessage(chatId, 'Bot chưa phân tích được tin nhắn lúc này. Bạn vui lòng gửi lại sau ít phút.');
     }
-    case STEP.AWAITING_END_DATE: {
-      const isEmpty = !text || text === '-' || text === '\u2014';
-      let date;
-      if (isEmpty) {
-        date = conv.data.startDate;
-      } else {
-        const refDate = conv.data.messageTime ? new Date(conv.data.messageTime) : new Date();
-        date = parseVietnameseDate(text, refDate);
-        if (!date) {
-          await bot.sendMessage(chatId, 'Kh\u00f4ng \u0111\u1ecdc \u0111\u01b0\u1ee3c ng\u00e0y, vui l\u00f2ng nh\u1eadp l\u1ea1i (vd: 28/8, 28/08/2026, ng\u00e0y kia) ho\u1eb7c \u0111\u1ec3 tr\u1ed1ng n\u1ebfu c\u00f9ng ng\u00e0y.');
-          return;
-        }
-      }
-      const startMidnight = new Date(
-        conv.data.startDate.getFullYear(),
-        conv.data.startDate.getMonth(),
-        conv.data.startDate.getDate()
-      );
-      const endMidnight = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-      if (endMidnight < startMidnight) {
-        await bot.sendMessage(chatId, 'Ng\u00e0y k\u1ebft th\u00fac kh\u00f4ng \u0111\u01b0\u1ee3c tr\u01b0\u1edbc ng\u00e0y b\u1eaft \u0111\u1ea7u. Vui l\u00f2ng nh\u1eadp l\u1ea1i.');
-        return;
-      }
-      conv.data.endDate = date;
-      conv.step = STEP.AWAITING_END_SESSION;
-      await bot.sendMessage(chatId, 'K\u1ebft th\u00fac ngh\u1ec9 bu\u1ed5i S\u00e1ng hay Chi\u1ec1u?');
-      return;
+    return;
+  }
+
+  if (extracted.intent !== 'leave_request') {
+    resetConversation(chatId);
+    await bot.sendMessage(chatId,
+      'Mình chỉ hỗ trợ xin nghỉ phép thôi nhé. Bạn có thể nhắn một câu tự nhiên, ví dụ: "Em xin nghỉ chiều mai vì khám bệnh, bàn giao cho Nguyễn B".'
+    );
+    return;
+  }
+
+  let resolved;
+  try {
+    resolved = resolveLeaveMessage(extracted, d.messageTime, { noticeHours: CONFIG.HR_URGENT_NOTICE_HOURS_THRESHOLD });
+  } catch (_err) {
+    await askOrGiveUp(bot, chatId, conv, FIELD.TIME,
+      'Mình chưa xác định chắc thời gian nghỉ. Bạn nhắn lại rõ hơn giúp mình, ví dụ: "nghỉ chiều mai", "nghỉ từ mai đến thứ 5", "nghỉ 3 ngày".'
+    );
+    return;
+  }
+
+  if (!hasValue(extracted.reason) && extracted.reason_declined !== true) {
+    await askOrGiveUp(bot, chatId, conv, FIELD.REASON, "Lý do nghỉ là gì? (Nếu không có, trả lời 'không có')");
+    return;
+  }
+
+  if (!hasValue(extracted.handover) && extracted.handover_declined !== true) {
+    await askOrGiveUp(bot, chatId, conv, FIELD.HANDOVER, "Người bàn giao công việc là ai? (Nếu không cần, trả lời 'không có')");
+    return;
+  }
+
+  await presentConfirmation(bot, chatId, conv, extracted, resolved);
+}
+
+async function askOrGiveUp(bot, chatId, conv, field, question) {
+  const d = conv.data;
+  d.askCounts[field] = d.lastAskedField === field ? (d.askCounts[field] || 0) + 1 : 1;
+  d.lastAskedField = field;
+  d.pendingField = field;
+  conv.step = STEP.AWAITING_CLARIFICATION;
+  conversationStore.setConversation(chatId, conv);
+
+  if (d.askCounts[field] > MAX_CLARIFICATION_ATTEMPTS) {
+    await bot.sendMessage(chatId,
+      'Mình vẫn chưa hiểu rõ yêu cầu này sau vài lần hỏi lại. Bạn vui lòng gõ /huy để hủy và liên hệ trực tiếp Quản lý/nhân sự để được hỗ trợ.'
+    );
+    return;
+  }
+  await bot.sendMessage(chatId, question);
+}
+
+/**
+ * Ghi chu nhung phan bot da tu suy ra mac dinh (khong nguoi dung neu ro), de
+ * nhan vien phat hien sai sot truoc khi xac nhan (spec muc 6, buoc 5).
+ */
+function buildDefaultNotes(extracted) {
+  const notes = [];
+  const hasStartDate = hasValue(extracted.start_date);
+  const hasStartSession = hasValue(extracted.start_session);
+  const hasEndDate = hasValue(extracted.end_date);
+  const hasEndSession = hasValue(extracted.end_session);
+  const hasDuration = extracted.duration_value != null;
+
+  if (hasStartDate && hasEndDate && (!hasStartSession || !hasEndSession)) {
+    const inferredBoundaries = [];
+    if (!hasStartSession) inferredBoundaries.push('bắt đầu buổi Sáng');
+    if (!hasEndSession) inferredBoundaries.push('kết thúc buổi Chiều');
+    notes.push(`(mặc định: ${inferredBoundaries.join(', ')})`);
+  } else if (hasStartDate && !hasStartSession && hasDuration) {
+    notes.push('(mặc định: bắt đầu buổi Sáng)');
+  } else if (hasStartDate && !hasStartSession && !hasEndDate) {
+    notes.push('(mặc định: nghỉ trọn ngày, Sáng đến Chiều)');
+  } else if (!hasStartDate && hasStartSession) {
+    notes.push('(mặc định: ngày hôm nay)');
+  } else if (!hasStartDate && !hasStartSession && hasDuration) {
+    notes.push('(mặc định: bắt đầu ở buổi gần nhất còn đủ thời gian báo trước)');
+  }
+  return notes;
+}
+
+async function presentConfirmation(bot, chatId, conv, extracted, resolved) {
+  const d = conv.data;
+  const sessionStartsAt = getBangkokSessionStartTime(resolved.startDate, resolved.startSession);
+  const urgent = computeIsUrgent(sessionStartsAt, d.messageTime);
+  const submittedAt = new Date(d.messageTime);
+  const violation = Number.isFinite(submittedAt.getTime())
+    && !!sessionStartsAt
+    && submittedAt.getTime() > sessionStartsAt.getTime();
+  const totalDays = resolved.totalSessions / 2;
+  const isRetroactive = !!sessionStartsAt && sessionStartsAt.getTime() < new Date(d.messageTime).getTime();
+
+  conv.step = STEP.CONFIRM;
+  conv.data.pendingField = null;
+  conv.data.resolved = {
+    startDate: resolved.startDate,
+    startSession: resolved.startSession,
+    endDate: resolved.endDate,
+    endSession: resolved.endSession,
+    totalSessions: resolved.totalSessions,
+    reason: resolved.reason,
+    handover: resolved.handover,
+    coNghiGap: urgent,
+    coViPham: violation
+  };
+
+  const lines = [
+    'Xác nhận yêu cầu nghỉ phép:',
+    `- Người gửi: ${d.identity.hoTen} (${d.identity.chucVu})`,
+    `- Lý do: ${resolved.reason || 'không có'}`,
+    `- Từ: ${formatLeaveBoundary(resolved.startDate, resolved.startSession)}`,
+    `- Đến: ${formatLeaveBoundary(resolved.endDate, resolved.endSession)}`,
+    `- Tổng buổi nghỉ: ${resolved.totalSessions} buổi (${totalDays} ngày)`,
+    `- Người bàn giao: ${resolved.handover || 'không có'}`
+  ];
+  buildDefaultNotes(extracted).forEach(note => lines.push(`  ${note}`));
+  if (isRetroactive) {
+    lines.push('⚠️ Thời gian nghỉ đã ở trong quá khứ so với lúc gửi tin. Vui lòng xác nhận lại nếu đây là xin nghỉ hồi tố.');
+  }
+  if (urgent) {
+    lines.push(`⚠️ Yêu cầu này được gửi sau ${CONFIG.HR_URGENT_LATE_NIGHT_HOUR}h cho ca nghỉ ngày mai (nghỉ gấp), sẽ được đánh dấu để Quản lý lưu ý.`);
+  }
+  if (violation) {
+    lines.push(`❌ Xin nghỉ phép không hợp lệ: thời gian gửi sau mốc bắt đầu ${resolved.startSession === 'Sáng' ? '07:45' : '12:30'}. Nếu vẫn xác nhận, đơn sẽ được ghi với trạng thái "Vi phạm".`);
+  }
+
+  const confirmationMessage = await bot.sendMessage(chatId, lines.join('\n'), {
+    reply_markup: {
+      inline_keyboard: [[
+        { text: 'Xác nhận', callback_data: 'confirm' },
+        { text: 'Hủy', callback_data: 'cancel' }
+      ]]
     }
-    case STEP.AWAITING_END_SESSION: {
-      const session = normalizeSession(text);
-      if (!session) {
-        await bot.sendMessage(chatId, 'Vui l\u00f2ng nh\u1eadp "S\u00e1ng" ho\u1eb7c "Chi\u1ec1u".');
-        return;
-      }
-      const buoi = computeDurationSessions(
-        conv.data.startDate, conv.data.startSession,
-        conv.data.endDate, session
-      );
-      if (buoi == null || buoi <= 0) {
-        await bot.sendMessage(chatId,
-          'Th\u1eddi gian k\u1ebft th\u00fac ph\u1ea3i sau th\u1eddi gian b\u1eaft \u0111\u1ea7u.\n' +
-          'V\u00ed d\u1ee5: kh\u00f4ng th\u1ec3 ngh\u1ec9 Chi\u1ec1u r\u1ed3i k\u1ebft th\u00fac S\u00e1ng c\u00f9ng ng\u00e0y.\n' +
-          'Vui l\u00f2ng nh\u1eadp l\u1ea1i bu\u1ed5i k\u1ebft th\u00fac.'
-        );
-        return;
-      }
-      conv.data.endSession = session;
-      conv.data.tong_buoi_nghi = buoi;
-      conv.step = STEP.AWAITING_HANDOVER;
-      await bot.sendMessage(chatId, 'Ng\u01b0\u1eddi b\u00e0n giao c\u00f4ng vi\u1ec7c thay th\u1ebf l\u00e0 ai?');
-      return;
+  });
+  conv.data.confirmationMessageId = confirmationMessage && confirmationMessage.message_id;
+  conversationStore.setConversation(chatId, conv);
+}
+
+/**
+ * Bao cho tat ca tai khoan da lien ket Telegram (tru tai khoan vai tro
+ * "Khách") biet co nhan vien vua xin nghi phep. Best-effort: loi gui toi
+ * tung nguoi khong lam hong luong tao don chinh.
+ */
+async function broadcastNewLeaveRequestToStaff(bot, record, branch) {
+  let links;
+  try {
+    links = await repo.findAllLinkedAccounts(branch);
+  } catch (err) {
+    console.error('[HR Telegram Bot] Không lấy được danh sách liên kết để thông báo:', err.message);
+    return;
+  }
+
+  const message = [
+    '🔔 Có nhân viên vừa xin nghỉ phép:',
+    `- Người gửi: ${record.ho_ten} (${record.chuc_vu})`,
+    `- Lý do: ${record.ly_do || 'không có'}`,
+    `- Từ: ${record.thoi_gian_bat_dau}`,
+    `- Đến: ${record.thoi_gian_ket_thuc}`,
+    `- Mã yêu cầu: ${record.request_id}`
+  ].join('\n');
+
+  const recipients = links.filter(link => (
+    String(link.telegram_chat_id) !== String(record.telegram_chat_id)
+  ));
+
+  for (const link of recipients) {
+    let user;
+    try {
+      user = await getUserByUsername(link.web_username);
+    } catch (err) {
+      console.error('[HR Telegram Bot] Không tra được tài khoản web để lọc thông báo:', err.message);
+      continue;
     }
-    case STEP.AWAITING_HANDOVER: {
-      conv.data.nguoi_ban_giao = text;
-      conv.step = STEP.CONFIRM;
-      const d = conv.data;
-      const sessionStartsAt = getSessionStartTime(d.startDate, d.startSession);
-      const urgent = computeIsUrgent(sessionStartsAt, d.messageTime);
-      const violation = computeSubmissionViolation(d.messageTime, d.startDate, d.startSession);
-      d.co_nghi_gap = urgent;
-      d.co_vi_pham = violation;
-      const totalDays = d.tong_buoi_nghi / 2;
-      const summary =
-        'X\u00e1c nh\u1eadn y\u00eau c\u1ea7u ngh\u1ec9 ph\u00e9p:\n' +
-        `- Ng\u01b0\u1eddi g\u1eedi: ${d.identity.hoTen} (${d.identity.chucVu})\n` +
-        `- L\u00fd do: ${d.ly_do}\n` +
-        `- T\u1eeb: ${d.startSession} ${formatDate(d.startDate)}\n` +
-        `- \u0110\u1ebfn: ${d.endSession} ${formatDate(d.endDate)}\n` +
-        `- T\u1ed5ng bu\u1ed5i ngh\u1ec9: ${d.tong_buoi_nghi} bu\u1ed5i (${totalDays} ng\u00e0y)\n` +
-        `- Ng\u01b0\u1eddi b\u00e0n giao: ${d.nguoi_ban_giao}` +
-        (urgent ? '\n\u26a0\ufe0f Y\u00eau c\u1ea7u n\u00e0y \u0111\u01b0\u1ee3c g\u1eedi kh\u00e1 s\u00e1t gi\u1edd ngh\u1ec9 (ngh\u1ec9 g\u1ea5p), s\u1ebd \u0111\u01b0\u1ee3c \u0111\u00e1nh d\u1ea5u \u0111\u1ec3 Qu\u1ea3n l\u00fd l\u01b0u \u00fd.' : '') +
-        (violation
-          ? `\n\u274c Xin ngh\u1ec9 ph\u00e9p kh\u00f4ng h\u1ee3p l\u1ec7: th\u1eddi gian g\u1eedi sau m\u1ed1c b\u1eaft \u0111\u1ea7u ${d.startSession === 'S\u00e1ng' ? '07:45' : '12:30'}. N\u1ebfu v\u1eabn x\u00e1c nh\u1eadn, \u0111\u01a1n s\u1ebd \u0111\u01b0\u1ee3c ghi v\u1edbi tr\u1ea1ng th\u00e1i "Vi ph\u1ea1m".`
-          : '');
-      await bot.sendMessage(chatId, summary, {
-        reply_markup: {
-          inline_keyboard: [[
-            { text: 'X\u00e1c nh\u1eadn', callback_data: 'confirm' },
-            { text: 'H\u1ee7y', callback_data: 'cancel' }
-          ]]
-        }
-      });
-      return;
+    if (!user || user.vaiTro === ROLES.KHACH) continue;
+
+    try {
+      await bot.sendMessage(link.telegram_chat_id, message);
+    } catch (err) {
+      console.error(`[HR Telegram Bot] Không gửi được thông báo nghỉ phép tới chat_id ${link.telegram_chat_id}:`, err.message);
     }
-    default:
-      resetConversation(chatId);
-      await bot.sendMessage(chatId, 'Phiên xin nghỉ không hợp lệ hoặc đã hết hạn. Vui lòng gõ /xinnghi để bắt đầu lại.');
-      return;
   }
 }
 
 async function submitLeaveRequest(bot, chatId, conv) {
   const d = conv.data;
+  const r = d.resolved;
   let record;
   try {
     record = await repo.createLeaveRequest({
@@ -411,21 +563,22 @@ async function submitLeaveRequest(bot, chatId, conv) {
       web_username: d.link.web_username,
       ho_ten: d.identity.hoTen,
       chuc_vu: d.identity.chucVu,
-      ly_do: d.ly_do,
+      ly_do: r.reason,
       loai_yeu_cau: repo.LEAVE_TYPE.REQUEST,
       thoi_gian_gui: d.messageTime,
-      thoi_gian_bat_dau: formatLeaveBoundary(d.startDate, d.startSession),
-      thoi_gian_ket_thuc: formatLeaveBoundary(d.endDate, d.endSession),
-      tong_buoi_nghi: d.tong_buoi_nghi,
-      nguoi_ban_giao: d.nguoi_ban_giao,
-      trang_thai: d.co_vi_pham ? repo.LEAVE_STATUS.VIOLATION : repo.LEAVE_STATUS.PENDING,
-      co_nghi_gap: d.co_nghi_gap
+      thoi_gian_bat_dau: formatLeaveBoundary(r.startDate, r.startSession),
+      thoi_gian_ket_thuc: formatLeaveBoundary(r.endDate, r.endSession),
+      tong_buoi_nghi: r.totalSessions,
+      nguoi_ban_giao: r.handover,
+      trang_thai: r.coViPham ? repo.LEAVE_STATUS.VIOLATION : repo.LEAVE_STATUS.PENDING,
+      co_nghi_gap: r.coNghiGap,
+      tin_nhan: d.messages.join(' | ')
     });
   } catch (err) {
     try {
-      await bot.sendMessage(chatId, `G\u1eedi y\u00eau c\u1ea7u th\u1ea5t b\u1ea1i: ${err.message}`);
+      await bot.sendMessage(chatId, `Gửi yêu cầu thất bại: ${err.message}`);
     } catch (sendErr) {
-      console.error('[HR Telegram Bot] Kh\u00f4ng g\u1eedi \u0111\u01b0\u1ee3c l\u1ed7i t\u1ea1o y\u00eau c\u1ea7u:', sendErr.message);
+      console.error('[HR Telegram Bot] Không gửi được lỗi tạo yêu cầu:', sendErr.message);
     }
     return false;
   }
@@ -437,11 +590,17 @@ async function submitLeaveRequest(bot, chatId, conv) {
   // Phat tin hieu realtime toi tat ca cac client web dang mo
   broadcastLeaveEvent(LEAVE_EVENT_TYPES.CREATED, record);
 
-  const statusText = d.co_vi_pham
-    ? 'Tr\u1ea1ng th\u00e1i: Vi ph\u1ea1m.'
-    : 'Ch\u1edd Qu\u1ea3n l\u00fd ph\u00ea duy\u1ec7t.';
+  // Bao cho tat ca tai khoan Telegram da lien ket (tru "Khách") biet co
+  // nhan vien vua xin nghi phep. Khong chan luong chinh neu gui loi.
+  broadcastNewLeaveRequestToStaff(bot, record).catch(err => {
+    console.error('[HR Telegram Bot] Lỗi khi broadcast thông báo nghỉ phép:', err.message);
+  });
+
+  const statusText = r.coViPham
+    ? 'Trạng thái: Vi phạm.'
+    : 'Chờ Quản lý phê duyệt.';
   try {
-    await bot.sendMessage(chatId, `\u0110\u00e3 g\u1eedi y\u00eau c\u1ea7u ngh\u1ec9 ph\u00e9p, m\u00e3: ${record.request_id}. ${statusText}`);
+    await bot.sendMessage(chatId, `Đã gửi yêu cầu nghỉ phép, mã: ${record.request_id}. ${statusText}`);
   } catch (err) {
     console.error('[HR Telegram Bot] Da ghi yeu cau nhung khong gui duoc xac nhan:', err.message);
   }
@@ -454,11 +613,11 @@ async function submitLeaveRequest(bot, chatId, conv) {
 async function notifyLeaveDecision(chatId, { status, note, requestId }) {
   if (!botInstance || !chatId) return;
   try {
-    const lines = [`Y\u00eau c\u1ea7u ngh\u1ec9 ph\u00e9p ${requestId ? '"' + requestId + '" ' : ''}\u0111\u00e3 \u0111\u01b0\u1ee3c c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i: ${status}.`];
-    if (note) lines.push(`Ghi ch\u00fa: ${note}`);
+    const lines = [`Yêu cầu nghỉ phép ${requestId ? '"' + requestId + '" ' : ''}đã được cập nhật trạng thái: ${status}.`];
+    if (note) lines.push(`Ghi chú: ${note}`);
     await botInstance.sendMessage(chatId, lines.join('\n'));
   } catch (err) {
-    console.error('[HR Telegram Bot] Kh\u00f4ng g\u1eedi \u0111\u01b0\u1ee3c th\u00f4ng b\u00e1o k\u1ebft qu\u1ea3 duy\u1ec7t:', err.message);
+    console.error('[HR Telegram Bot] Không gửi được thông báo kết quả duyệt:', err.message);
   }
 }
 
@@ -467,11 +626,12 @@ module.exports = {
   notifyLeaveDecision,
   isTelegramBotRuntimeEnabled,
   __test__: {
-    parseVietnameseDate,
-    normalizeSession,
+    STEP,
+    FIELD,
+    MAX_CLARIFICATION_ATTEMPTS,
     markProcessed,
     clearProcessedMessageIds,
-    handleConversationStep,
+    handleFreeTextMessage,
     submitLeaveRequest
   }
 };

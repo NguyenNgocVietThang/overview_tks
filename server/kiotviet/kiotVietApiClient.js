@@ -90,8 +90,8 @@ function createKiotVietClient(config) {
     }
   }
 
-  async function fetchAllPages(endpoint, query, onPage) {
-    let currentItem = 0;
+  async function fetchAllPages(endpoint, query, onPage, options = {}) {
+    let currentItem = options.startItem || 0;
     let total = Infinity;
     let pagesLoaded = 0;
     let recordsLoaded = 0;
@@ -103,10 +103,12 @@ function createKiotVietClient(config) {
       total = page.total || 0;
       pagesLoaded++;
       recordsLoaded += items.length;
-
-      await onPage(items, { pagesLoaded, recordsLoaded, total });
-
       currentItem += PAGE_SIZE;
+
+      // nextItem la vi tri de tiep tuc neu tien trinh bi dung ngay sau trang
+      // nay -- dung cho co che resume backfill (xem backfillProgressRepository.js).
+      await onPage(items, { pagesLoaded, recordsLoaded, total, nextItem: currentItem });
+
       if (items.length === 0) break;
     }
   }

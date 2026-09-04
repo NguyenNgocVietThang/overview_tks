@@ -186,6 +186,41 @@ test('fetchAllPages CHO onPage bat dong bo hoan tat truoc khi tai trang tiep the
   ]);
 });
 
+test('fetchAllPages tra nextItem trong meta de biet vi tri tiep tuc neu bi dung sau trang nay', async () => {
+  const allItems = Array.from({ length: 250 }, (_, i) => ({ id: i }));
+  const fetchImpl = tokenFetchImpl(async (url) => {
+    const u = new URL(url);
+    const currentItem = Number(u.searchParams.get('currentItem') || 0);
+    const pageItems = allItems.slice(currentItem, currentItem + 100);
+    return jsonResponse(200, { total: allItems.length, data: pageItems });
+  });
+  const client = createKiotVietClient({ clientId: 'id', clientSecret: 's', retailer: 'r', fetchImpl });
+
+  const nextItems = [];
+  await client.fetchAllPages('invoices', {}, (items, meta) => { nextItems.push(meta.nextItem); });
+
+  assert.deepEqual(nextItems, [100, 200, 300]);
+});
+
+test('fetchAllPages voi options.startItem bat dau phan trang tu offset da cho, bo qua cac trang truoc do', async () => {
+  const allItems = Array.from({ length: 250 }, (_, i) => ({ id: i }));
+  const requestedOffsets = [];
+  const fetchImpl = tokenFetchImpl(async (url) => {
+    const u = new URL(url);
+    const currentItem = Number(u.searchParams.get('currentItem') || 0);
+    requestedOffsets.push(currentItem);
+    const pageItems = allItems.slice(currentItem, currentItem + 100);
+    return jsonResponse(200, { total: allItems.length, data: pageItems });
+  });
+  const client = createKiotVietClient({ clientId: 'id', clientSecret: 's', retailer: 'r', fetchImpl });
+
+  let totalRecords = 0;
+  await client.fetchAllPages('invoices', {}, (items) => { totalRecords += items.length; }, { startItem: 200 });
+
+  assert.deepEqual(requestedOffsets, [200]);
+  assert.equal(totalRecords, 50, 'chi lay 50 ban ghi con lai tu offset 200, khong keo lai tu dau');
+});
+
 test('fetchProductOnHand cong dong onHand tat ca chi nhanh', async () => {
   const fetchImpl = tokenFetchImpl(async (url) => {
     assert.match(String(url), /\/products\/code\/SP001/);
