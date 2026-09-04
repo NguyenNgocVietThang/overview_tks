@@ -12,33 +12,32 @@
     document.documentElement.style.visibility = 'hidden';
   })();
 </script>
-<link rel="stylesheet" href="/shared/shared.css?v=20260822">
-<script src="/shared/shared-nav.js?v=20260822"></script>
-<script src="/vendor/chart.umd.min.js"></script>
-<script src="/shared/three-interactions.js" defer></script>
-<script src="/shared/three-loading.js" defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/shared/shared.css?v=20260830">
 <style>
   .hr-wrap{ width:100%; margin:0 auto; }
   .hr-header{ margin-bottom:20px; }
   .hr-header h2{
     margin:0 0 6px; font-family:var(--font-display); font-weight:800; font-size:24px;
-    letter-spacing:-0.02em; color:var(--text);
+    letter-spacing:-0.02em; color:var(--canvas-text);
   }
-  .hr-header p{ margin:0; color:var(--muted); font-size:13.5px; }
+  .hr-header p{ margin:0; color:var(--canvas-text); font-size:13.5px; font-weight:500; }
 
   .hr-subnav{
     display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:20px;
-    border-bottom:1px solid var(--border); padding-bottom:0;
+    border-bottom:1px solid var(--canvas-subnav-border); padding-bottom:0;
   }
   .hr-subnav-item{
     display:inline-flex; align-items:center; gap:6px; padding:9px 14px; margin-bottom:-1px;
     background:transparent; border:1px solid transparent; border-bottom:2px solid transparent;
-    border-radius:var(--radius-xs) var(--radius-xs) 0 0; color:var(--muted); font-family:var(--font-body);
-    font-size:13px; font-weight:600; cursor:pointer; transition:color .15s ease, border-color .15s ease;
+    border-radius:var(--radius-xs) var(--radius-xs) 0 0; color:var(--canvas-text); font-family:var(--font-body);
+    font-size:13px; font-weight:600; cursor:pointer; transition:color .15s ease, border-color .15s ease, opacity .15s ease;
   }
-  .hr-subnav-item svg{ width:15px; height:15px; flex-shrink:0; }
-  .hr-subnav-item:hover{ color:var(--text); }
-  .hr-subnav-item.active{ color:var(--blue); border-bottom-color:var(--blue); }
+  .hr-subnav-item svg{ width:15px; height:15px; flex-shrink:0; color:var(--canvas-text); }
+  .hr-subnav-item:hover{ color:var(--canvas-text); opacity:1; }
+  .hr-subnav-item.active{ color:var(--canvas-text); border-bottom-color:var(--blue); font-weight:700; }
   .hr-subtab-panel{ display:none; }
   .hr-subtab-panel.active{ display:block; }
 
@@ -67,7 +66,7 @@
   }
   .filter-select:focus{ outline:none; border-color:var(--blue); }
   .date-range-group{ display:flex; align-items:center; gap:6px; }
-  .date-range-group span{ color:var(--muted); font-size:12px; }
+  .date-range-group span{ color:var(--canvas-text); font-size:12px; font-weight:500; }
   .date-range-group input[type="date"]{
     min-height:38px; padding:6px 10px; background:var(--panel-2); color:var(--text);
     border:1px solid var(--border); border-radius:var(--radius-sm); font-family:var(--font-body); font-size:12.5px; cursor:pointer;
@@ -99,7 +98,10 @@
   .status-select{
     display:inline-flex; align-items:center; padding:3px 24px 3px 10px; border-radius:var(--radius-pill);
     font-family:var(--font-body); font-size:11.5px; font-weight:600; cursor:pointer;
-    border:1px solid transparent; outline:none; transition:all .15s ease;
+    border:1px solid transparent; outline:none;
+    /* Chỉ định các thuộc tính cụ thể, không dùng `all`: `all` buộc trình duyệt phải kiểm tra lại mọi
+       thuộc tính có thể chuyển động trên phần tử này mỗi khi có style thay đổi. */
+    transition:background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, opacity .15s ease;
     appearance:none; -webkit-appearance:none; -moz-appearance:none;
     background-repeat:no-repeat; background-position:right 7px center; background-size:11px 11px;
   }
@@ -321,7 +323,7 @@
               <option value="Vi phạm">Vi phạm</option>
             </select>
             <div class="date-range-group">
-              <span>Thời gian gửi: Từ</span>
+              <span>Thời gian nghỉ: Từ</span>
               <input type="date" id="fromDateFilter" onchange="handleFilterChange()">
               <span>đến</span>
               <input type="date" id="toDateFilter" onchange="handleFilterChange()">
@@ -490,6 +492,10 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
+  <!-- Đặt ở cuối thẻ <body> thay vì trong <head>: chart.umd.min.js nặng ~200 KB và sẽ làm nghẽn bộ phân tích cú pháp. Không dùng `defer` vì script inline bên dưới dùng TKSNav/Chart ở cấp cao nhất và script inline luôn chạy trước. -->
+  <script src="/shared/shared-nav.js?v=20260830"></script>
+  <script src="/vendor/chart.umd.min.js"></script>
+
   <script>
     const THEME_STORAGE_KEY = 'tks-dashboard-theme';
     let currentUser = null;
@@ -608,6 +614,22 @@
       return String(str == null ? '' : str).replace(/[&<>"']/g, c => ({
         '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
       }[c]));
+    }
+
+    function formatDateInputValue(d){
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    }
+
+    function initDefaultDateFilters(){
+      const fromEl = document.getElementById('fromDateFilter');
+      const toEl = document.getElementById('toDateFilter');
+      if(fromEl && toEl && !fromEl.value && !toEl.value){
+        const today = new Date();
+        const fromDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 2);
+        fromEl.value = formatDateInputValue(fromDate);
+        toEl.value = formatDateInputValue(today);
+      }
     }
 
     // ---------- Load danh sach ----------
@@ -1073,7 +1095,7 @@
 
     function toDayKey(value){
       if(!value) return null;
-      const boundary = String(value).match(/^(?:Sáng|Chiều)\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      const boundary = String(value).match(/(?:Sáng|Chiều)?\s*(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
       if(boundary){
         return `${boundary[3]}-${String(boundary[2]).padStart(2, '0')}-${String(boundary[1]).padStart(2, '0')}`;
       }
@@ -1083,24 +1105,51 @@
       return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
     }
 
+    function getDaysInRange(startDayKey, endDayKey, minDayKey, maxDayKey) {
+      if (!startDayKey) return [];
+      const endKey = endDayKey || startDayKey;
+      const [sy, sm, sd] = startDayKey.split('-').map(Number);
+      const [ey, em, ed] = endKey.split('-').map(Number);
+      const start = new Date(sy, sm - 1, sd);
+      const end = new Date(ey, em - 1, ed);
+      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
+        return [startDayKey];
+      }
+      const days = [];
+      for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const pad = n => String(n).padStart(2, '0');
+        const key = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+        if (minDayKey && key < minDayKey) continue;
+        if (maxDayKey && key > maxDayKey) continue;
+        days.push(key);
+      }
+      return days;
+    }
+
     function formatDayLabel(dayKey){
       const [y, m, d] = dayKey.split('-');
       return `${d}/${m}`;
     }
 
-    // Bieu do dem theo ngay bat dau nghi; bo loc danh sach doc lap va dung thoi_gian_gui.
+    // Bieu do dem theo ngay xin nghi thuc te (mo rong tat ca cac ngay trong dai nghi).
     function groupByDayAndChucVu(requests){
+      const fromDate = document.getElementById('fromDateFilter') ? document.getElementById('fromDateFilter').value : '';
+      const toDate = document.getElementById('toDateFilter') ? document.getElementById('toDateFilter').value : '';
       const dayKeys = [];
       const chucVus = [];
       const counts = {}; // dayKey -> { chucVu -> count }
       requests.forEach(r => {
-        const dayKey = toDayKey(r.thoi_gian_bat_dau);
-        if(!dayKey) return;
+        const startDayKey = toDayKey(r.thoi_gian_bat_dau);
+        const endDayKey = toDayKey(r.thoi_gian_ket_thuc) || startDayKey;
+        if(!startDayKey) return;
         const cv = chucVuKey(r);
-        if(dayKeys.indexOf(dayKey) === -1) dayKeys.push(dayKey);
         if(chucVus.indexOf(cv) === -1) chucVus.push(cv);
-        counts[dayKey] = counts[dayKey] || {};
-        counts[dayKey][cv] = (counts[dayKey][cv] || 0) + 1;
+        const activeDays = getDaysInRange(startDayKey, endDayKey, fromDate, toDate);
+        activeDays.forEach(dayKey => {
+          if(dayKeys.indexOf(dayKey) === -1) dayKeys.push(dayKey);
+          counts[dayKey] = counts[dayKey] || {};
+          counts[dayKey][cv] = (counts[dayKey][cv] || 0) + 1;
+        });
       });
       dayKeys.sort();
       return { dayKeys, chucVus, counts };
@@ -1402,6 +1451,7 @@
           }
           applyHrSubtabFromHash();
           initSortableTables();
+          initDefaultDateFilters();
           loadLeaveRequests();
           loadLinkStatus();
           setupLeaveRealtimeStream();
@@ -1415,11 +1465,6 @@
       });
     });
   </script>
-  <!-- 3D Background Particle System -->
-  <script src="/vendor/three.min.js"></script>
-  <script src="/shared/three-performance.js"></script>
-  <script src="/shared/three-memory.js"></script>
-  <script src="/shared/three-visibility.js"></script>
-  <script src="/shared/three-bg.js"></script>
+  <script src="/shared/shooting-star.js?v=20260830"></script>
 </body>
 </html>

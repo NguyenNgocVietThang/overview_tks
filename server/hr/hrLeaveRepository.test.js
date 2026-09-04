@@ -100,21 +100,21 @@ test('createLeaveRequest từ chối tổng buổi không hợp lệ', async () 
   }
 });
 
-test('getLeaveRequests lọc from/to theo thời gian gửi, không theo ngày nghỉ', async () => {
+test('getLeaveRequests lọc from/to theo ngày xin nghỉ thực tế', async () => {
   const ctxForSchema = freshRepository([]);
   const keys = ctxForSchema.repo.LEAVE_SCHEMA_FIELD_KEYS;
   ctxForSchema.restore();
   const row = values => keys.map(key => values[key] == null ? '' : values[key]);
   const rows = [
     keys,
-    row({ request_id: 'NP-1', thoi_gian_gui: '2026-08-21T17:30:00.000Z', thoi_gian_bat_dau: 'Sáng 25/08/2026', created_at: '2026-08-21T17:30:00.000Z' }),
-    row({ request_id: 'NP-2', thoi_gian_gui: '2026-08-22T10:00:00.000Z', thoi_gian_bat_dau: 'Sáng 21/08/2026', created_at: '2026-08-22T10:00:00.000Z' }),
-    row({ request_id: 'NP-3', thoi_gian_gui: '2026-08-22T17:30:00.000Z', thoi_gian_bat_dau: 'Sáng 22/08/2026', created_at: '2026-08-22T17:30:00.000Z' })
+    row({ request_id: 'NP-1', thoi_gian_gui: '2026-08-20T17:30:00.000Z', thoi_gian_bat_dau: 'Sáng 22/08/2026', thoi_gian_ket_thuc: 'Chiều 24/08/2026', created_at: '2026-08-20T17:30:00.000Z' }),
+    row({ request_id: 'NP-2', thoi_gian_gui: '2026-08-22T10:00:00.000Z', thoi_gian_bat_dau: 'Sáng 21/08/2026', thoi_gian_ket_thuc: 'Chiều 21/08/2026', created_at: '2026-08-22T10:00:00.000Z' }),
+    row({ request_id: 'NP-3', thoi_gian_gui: '2026-08-22T17:30:00.000Z', thoi_gian_bat_dau: 'Sáng 25/08/2026', thoi_gian_ket_thuc: 'Chiều 26/08/2026', created_at: '2026-08-22T17:30:00.000Z' })
   ];
   const ctx = freshRepository(rows);
   try {
     const items = await ctx.repo.getLeaveRequests({ from: '2026-08-22', to: '2026-08-22' });
-    assert.deepEqual(items.map(item => item.request_id), ['NP-2', 'NP-1']);
+    assert.deepEqual(items.map(item => item.request_id), ['NP-1']);
   } finally {
     ctx.restore();
   }

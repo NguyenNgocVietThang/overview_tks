@@ -10,8 +10,8 @@
 | Phiên bản          | 2.2                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
 | Ngày cập nhật      | 26/08/2026                                                 |
-| Tài liệu liên quan | BRD v1.9 · BPMN v1.9 · Implementation Plan v2.3 · CSNS-NP-01 (Chính sách nghỉ phép) · Plan Process Automation · 3D Design · Performance Optimization Report · Lag Optimization Plan · ROLLBACK |
-| Trạng thái         | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1, Lớp 3D, Gói tối ưu hóa hiệu năng, Phân hệ HR Leave + Bot, Chuông thông báo, Đổi vai trò & Kiểm tra đứt hàng) |
+| Tài liệu liên quan | BRD v1.9 · BPMN v1.9 · Implementation Plan v2.3 · CSNS-NP-01 (Chính sách nghỉ phép) · Plan Process Automation · Lag Optimization Plan · Design System MASTER (mục 7 — ràng buộc hiệu năng) |
+| Trạng thái         | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1, Gói tối ưu hóa hiệu năng, Phân hệ HR Leave + Bot, Chuông thông báo, Đổi vai trò & Kiểm tra đứt hàng) |
 
 > **Ghi chú phiên bản 2.2:** Bổ sung Chuông thông báo toàn hệ thống, Cơ chế xin đổi & duyệt vai trò người dùng, Công cụ Kiểm tra đứt hàng đối chiếu file Excel với KiotViet API nền, Phân hệ Quản lý Nghỉ phép HR (HR Leave Management) & Telegram Bot theo chính sách CSNS-NP-01. Chuẩn hóa bộ kiểm thử tự động toàn diện đạt **434 unit tests**.
 
@@ -249,7 +249,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 
 | **Mã**  | **Mô tả**                                                                                                                                                                     | **Ưu tiên** | **Trạng thái** |
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
-| FR-06.1 | `syncAllInitialData()`: đồng bộ toàn bộ dữ liệu KiotViet vào 9 sheet vận hành, cập nhật lịch sử hàng ngừng kinh doanh và làm mới các báo cáo; HN1/HN3/HN7 phải chạy sau khi tab Hàng hóa đã được làm mới. | Cao | Hoàn thành |
+| FR-06.1 | `syncAllInitialData()`: đồng bộ toàn bộ dữ liệu KiotViet vào 9 sheet vận hành và làm mới các báo cáo; HN1/HN3/HN7 phải chạy sau khi tab Hàng hóa đã được làm mới. | Cao | Hoàn thành |
 | FR-06.2 | `doPost(e)`: nhận webhook POST, hydrate bản ghi chi tiết rồi upsert/delete đúng sheet cho product/invoice/order/customer/category; hóa đơn đồng thời thay chi tiết hóa đơn và các dòng `Hàng bán theo khách`. | Cao | Hoàn thành |
 | FR-06.3 | `setupPollingTrigger()`: bật trigger 15 phút để sync Trả hàng + Nhà cung cấp + Nhập hàng (KiotViet không có webhook cho 3 loại này).                                          | Cao         | Hoàn thành     |
 | FR-06.4 | `setupRealtimeWebhook()`: đăng ký 9 loại event webhook với KiotViet API, xóa webhook cũ trước khi đăng ký mới.                                                               | Cao         | Hoàn thành     |
@@ -261,7 +261,6 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-06.10 | Webhook phải được ghi vào tab hàng đợi ẩn bền vững trước khi phản hồi thành công; chỉ xóa sau khi xử lý thành công. Lỗi được retry tối đa 10 lần rồi giữ ở trạng thái `ERROR` để xử lý thủ công. | Cao | Hoàn thành |
 | FR-06.11 | Full sync ghi dữ liệu mới trước khi dọn dòng cũ dư và khóa chung với luồng webhook, tránh xóa trắng hoặc ghi đè chéo khi cập nhật lỗi. | Cao | Hoàn thành |
 | FR-06.12 | `syncCustomerDebtReports()` dùng cùng luồng tính cho chạy riêng và `syncAllInitialData()`, ghi đè HN1/HN3/HN7 theo kỳ 1/3/7 ngày và tự cập nhật gần 15:00. | Cao | Hoàn thành |
-| FR-06.13 | Chỉ duy trì tab `Hàng ngừng kinh doanh`; dữ liệu lịch sử không bị xóa theo ngày, tab legacy `Hàng ngừng KD hôm nay` được gộp/dọn khi đồng bộ và lịch tự động cập nhật gần 07:30. | Cao | Hoàn thành |
 | FR-06.14 | Tab `Khách theo hàng hóa` có đúng 25 cột như file xuất KiotViet, tổng hợp toàn bộ lịch sử theo sản phẩm → khách hàng → chi tiết hóa đơn; chỉ cập nhật gần 07:00 hoặc qua `syncCustomerByProductReport()`, không nhận cập nhật webhook. | Cao | Hoàn thành |
 
 ## 3.7. FR-07: Giao diện người dùng & Tối ưu tương tác
@@ -303,7 +302,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-10.2 | Phép tính buổi tính chính xác từ đầu buổi bắt đầu đến hết cuối buổi kết thúc (ví dụ: Sáng - Sáng cùng ngày là 1 buổi, Chiều hôm trước - Sáng hôm sau là 2 buổi, Sáng - Chiều cùng ngày là 2 buổi). | Cao | Hoàn thành |
 | FR-10.3 | Bot dùng luồng nhập ngày và buổi, khôi phục được `startDate`/`endDate` sau restart và chống xử lý trùng theo `chatId:messageId`. | Cao | Hoàn thành |
 | FR-10.4 | Thời gian gửi sau 07:45 đối với buổi Sáng hoặc 12:30 đối với buổi Chiều được cảnh báo; nếu vẫn xác nhận, đơn được lưu với trạng thái `Vi phạm`. | Cao | Hoàn thành |
-| FR-10.5 | Tab Nghỉ phép hiển thị cột Thời gian gửi; bộ lọc `from`/`to` lọc theo trường này và mặc định để trống. | Cao | Hoàn thành |
+| FR-10.5 | Tab Nghỉ phép hiển thị cột Thời gian gửi; bộ lọc `from`/`to` lọc theo trường này và mặc định 3 ngày gần đây. | Cao | Hoàn thành |
 
 # 4. Yêu cầu phi chức năng (Non-functional Requirements)
 
@@ -320,7 +319,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | NFR-09 | Độ trễ đồng bộ       | Từ khi dữ liệu thay đổi trên KiotViet → Apps Script cập nhật Sheets qua webhook: mục tiêu dưới 2 phút. Trả hàng/NCC/Nhập hàng: tối đa 15 phút (polling). |
 | NFR-10 | Nhất quán thời gian  | Parse ngày từ Sheets, xác định ngày hiện tại, tạo bucket 7/30/90 ngày và format `updatedAt` theo Asia/Ho_Chi_Minh, độc lập timezone máy chủ.      |
 | NFR-11 | An toàn xuất dữ liệu | API xuất chỉ nhận khóa bảng, bộ lọc và danh sách trường hợp lệ; không nhận dòng dữ liệu từ client, chặn trường lạ và vô hiệu hóa chuỗi có thể bị Excel hiểu là công thức. |
-| NFR-12 | Kiểm thử tự động     | Duy trì bộ **324 unit tests** chuẩn `node:test` bao phủ HR leave, Telegram bot, conversation store, Apps Script sync, auth/Guest/SĐT, Admin CRUD, OTP reset, tra cứu vận chuyển, State Machine 9 trạng thái, VC repository, cache, phân trang, xuất Excel, tìm kiếm nâng cao và frontend 3D. |
+| NFR-12 | Kiểm thử tự động     | Duy trì bộ **417 unit tests** chuẩn `node:test` bao phủ HR leave, Telegram bot, conversation store, Apps Script sync, auth/Guest/SĐT, Admin CRUD, OTP reset, tra cứu vận chuyển, State Machine 9 trạng thái, VC repository, cache, phân trang, xuất Excel, tìm kiếm nâng cao và frontend (gồm `no-3d-effects.test.js` chặn lớp 3D quay lại). |
 
 
 # 5. Yêu cầu giao diện người dùng (UI Requirements)
@@ -672,7 +671,7 @@ Các cột nghiệp vụ nghỉ phép dùng `Thời gian gửi` (ISO), `Thời g
 | Giao diện, Phân trang & Xuất Excel (5.3, 5.4, 5.5) | FR-07.1 → FR-07.14        |
 | Đăng ký, Google Guest, Quản trị tài khoản & tra cứu vận chuyển | FR-08.1 → FR-08.7 |
 | Nghỉ phép theo buổi & Telegram Bot | FR-10.1 → FR-10.5 |
-| Lớp hiệu ứng 3D Visual & Giám sát hiệu năng thích ứng | FR-09.1 → FR-09.7 |
+| ~~Lớp hiệu ứng 3D Visual & Giám sát hiệu năng thích ứng~~ (FR-09.x đã thu hồi — lớp 3D bị gỡ bỏ vì hiệu năng) | — |
 
 # 9. Rủi ro kỹ thuật & phương án giảm thiểu
 

@@ -5,9 +5,23 @@
 /**
  * Khoa rieng luong ghi du lieu. Project bound dung DocumentLock; neu project
  * standalone thi dung UserLock (web app va trigger deu chay bang tai khoan deploy).
+ * Dung cho: chuoi master, polling-only (Tra hang/Nha cung cap/Nhap hang), va
+ * webhook cua cac bang khong phai Hoa don.
  */
 function getKiotVietDataLock_() {
   return LockService.getDocumentLock() || LockService.getUserLock();
+}
+
+/**
+ * Khoa rieng cho Hoa don + Chi tiet hoa don (backfill phan doan va webhook).
+ * Tach khoi getKiotVietDataLock_() de dong bo Hoa don khong bi doi vo han khi
+ * chuoi polling-only (Tra hang/Nha cung cap/Nhap hang) dang giu khoa chung
+ * nhieu phut lien tuc. Dung UserLock vi DocumentLock da danh cho luong con lai;
+ * trigger va web app deu chay bang tai khoan deploy nen UserLock van la mot
+ * khoa duy nhat, on dinh giua cac lan chay ke tiep nhau.
+ */
+function getKiotVietInvoiceLock_() {
+  return LockService.getUserLock();
 }
 
 /**
@@ -457,12 +471,12 @@ function ensureSpreadsheetCellHeadroom_(spreadsheet, additionalCells) {
 
 function createCompactSheet_(spreadsheet, sheetName, requiredRows, requiredColumns) {
   // Apps Script tao sheet moi voi lưới mac dinh 1.000 x 26. Can bao dam
-  // headroom truoc khi tao, sau do thu gon sheet trang con 1 x 1.
+  // headroom truoc khi tao. Khong truy cap sheet ngay sau insertSheet: tren file
+  // lon, Sheets co the timeout moi phep getMaxRows/getLastRow/hideSheet trong
+  // vai chuc giay dau. Lưới mac dinh du cho trang staging dau tien; cac lan ghi
+  // sau mo rong theo nhu cau qua ensureSheetGridCapacity_.
   ensureSpreadsheetCellHeadroom_(spreadsheet, 1000 * 26);
-  const sheet = spreadsheet.insertSheet(sheetName);
-  compactUnusedSheetGrid_(sheet);
-  ensureSheetGridCapacity_(sheet, requiredRows, requiredColumns);
-  return sheet;
+  return spreadsheet.insertSheet(sheetName);
 }
 
 function ensureSheetGridCapacity_(sheet, requiredRows, requiredColumns) {

@@ -262,3 +262,159 @@ test('Admin User Management: POST /api/admin/users tự đổi tên cơ sở cũ
   assert.equal(res.statusCode, 201);
   assert.equal(res.body.user.coSo, 'Hà Nội');
 });
+
+test('Admin User Management: POST /api/admin/users tạo user với các vai trò mới thành công', async () => {
+  localUserStore.setInMemoryUsers([]);
+
+  const newRoles = ['Nhân viên kho', 'Nhân viên sale', 'Nhân viên mua hàng'];
+  for (const role of newRoles) {
+    const handler = getRouteHandler(adminUserRoutes, 'post', '/api/admin/users');
+    const req = {
+      user: { id: 'admin-1', vaiTro: 'Quản lý' },
+      body: {
+        username: `user_${role.replace(/\s+/g, '_').toLowerCase()}`,
+        password: 'Password@123',
+        hoTen: `Họ tên ${role}`,
+        vaiTro: role,
+        coSo: 'Hà Nội'
+      }
+    };
+    const res = fakeRes();
+    await handler(req, res);
+
+    assert.equal(res.statusCode, 201, `Tạo tài khoản với vai trò ${role} thất bại`);
+    assert.equal(res.body.user.vaiTro, role);
+  }
+});
+
+test('Super Admin Protection: DELETE /api/admin/users/:id chặn xóa tài khoản thangnnv2003@gmail.com', async () => {
+  const thangUser = {
+    id: 'thang-id',
+    username: 'thangnnv2003@gmail.com',
+    hoTen: 'Nguyễn Ngọc Việt Thắng',
+    email: 'thangnnv2003@gmail.com',
+    vaiTro: 'Quản lý',
+    coSo: 'Cả hai',
+    trangThai: 'Đang hoạt động',
+    ngayTao: '01/01/2026'
+  };
+  localUserStore.setInMemoryUsers([thangUser]);
+
+  const handler = getRouteHandler(adminUserRoutes, 'delete', '/api/admin/users/:id');
+  const req = {
+    user: { id: 'other-admin', username: 'admin2', vaiTro: 'Quản lý' },
+    params: { id: 'thang-id' }
+  };
+  const res = fakeRes();
+
+  await handler(req, res);
+  assert.equal(res.statusCode, 400);
+  assert.match(res.body.error, /Không ai có quyền xóa tài khoản thangnnv2003@gmail\.com/);
+});
+
+test('Super Admin Protection: PUT /api/admin/users/:id chặn hạ quyền tài khoản thangnnv2003@gmail.com', async () => {
+  const thangUser = {
+    id: 'thang-id',
+    username: 'thangnnv2003@gmail.com',
+    hoTen: 'Nguyễn Ngọc Việt Thắng',
+    email: 'thangnnv2003@gmail.com',
+    vaiTro: 'Quản lý',
+    coSo: 'Cả hai',
+    trangThai: 'Đang hoạt động',
+    ngayTao: '01/01/2026'
+  };
+  localUserStore.setInMemoryUsers([thangUser]);
+
+  const handler = getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id');
+  const req = {
+    user: { id: 'other-admin', username: 'admin2', vaiTro: 'Quản lý' },
+    params: { id: 'thang-id' },
+    body: { vaiTro: 'Kế toán' }
+  };
+  const res = fakeRes();
+
+  await handler(req, res);
+  assert.equal(res.statusCode, 400);
+  assert.match(res.body.error, /Không ai có quyền hạ quyền/);
+});
+
+test('Super Admin Protection: PUT /api/admin/users/:id chặn khóa tài khoản thangnnv2003@gmail.com', async () => {
+  const thangUser = {
+    id: 'thang-id',
+    username: 'thangnnv2003@gmail.com',
+    hoTen: 'Nguyễn Ngọc Việt Thắng',
+    email: 'thangnnv2003@gmail.com',
+    vaiTro: 'Quản lý',
+    coSo: 'Cả hai',
+    trangThai: 'Đang hoạt động',
+    ngayTao: '01/01/2026'
+  };
+  localUserStore.setInMemoryUsers([thangUser]);
+
+  const handler = getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id');
+  const req = {
+    user: { id: 'other-admin', username: 'admin2', vaiTro: 'Quản lý' },
+    params: { id: 'thang-id' },
+    body: { trangThai: 'Khóa' }
+  };
+  const res = fakeRes();
+
+  await handler(req, res);
+  assert.equal(res.statusCode, 400);
+  assert.match(res.body.error, /Không ai có quyền khóa/);
+});
+
+test('User Status & Deletion: Cho phép trạng thái Không hoạt động và loại trừ user đã xóa', async () => {
+  const activeUser = {
+    id: 'u-1',
+    username: 'user1',
+    hoTen: 'User 1',
+    vaiTro: 'Kế toán',
+    coSo: 'Hà Nội',
+    trangThai: 'Đang hoạt động',
+    ngayTao: '01/01/2026'
+  };
+  const inactiveUser = {
+    id: 'u-2',
+    username: 'user2',
+    hoTen: 'User 2',
+    vaiTro: 'Lái xe',
+    coSo: 'Sài Gòn',
+    trangThai: 'Không hoạt động',
+    ngayTao: '01/01/2026'
+  };
+  const userToDelete = {
+    id: 'u-3',
+    username: 'user3',
+    hoTen: 'User 3',
+    vaiTro: 'Khách',
+    coSo: '',
+    trangThai: 'Đang hoạt động',
+    ngayTao: '01/01/2026'
+  };
+  localUserStore.setInMemoryUsers([activeUser, inactiveUser, userToDelete]);
+
+  // Xóa u-3
+  const deleteHandler = getRouteHandler(adminUserRoutes, 'delete', '/api/admin/users/:id');
+  const delReq = {
+    user: { id: 'admin-1', username: 'admin', vaiTro: 'Quản lý' },
+    params: { id: 'u-3' }
+  };
+  const delRes = fakeRes();
+  await deleteHandler(delReq, delRes);
+  assert.equal(delRes.statusCode, 200);
+
+  // Lấy danh sách qua GET /api/admin/users
+  const getHandler = getRouteHandler(adminUserRoutes, 'get', '/api/admin/users');
+  const getReq = { user: { id: 'admin-1', vaiTro: 'Quản lý' } };
+  const getRes = fakeRes();
+  await getHandler(getReq, getRes);
+
+  assert.equal(getRes.statusCode, 200);
+  const returnedUsernames = getRes.body.users.map(u => u.username);
+  assert.ok(returnedUsernames.includes('user1'));
+  assert.ok(returnedUsernames.includes('user2'));
+  assert.ok(!returnedUsernames.includes('user3')); // u-3 đã bị xóa, không hiện
+  assert.equal(getRes.body.users.find(u => u.username === 'user2').trangThai, 'Không hoạt động');
+});
+

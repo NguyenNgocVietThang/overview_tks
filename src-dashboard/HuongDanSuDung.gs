@@ -43,6 +43,18 @@ syncAllDataChunked()
 syncProductsChunk() / syncInvoicesChunk() / syncOrdersChunk() ...
   Khi dung : Khi chi muon dong bo phan doan 5.000 ban ghi cho rieng mot bang cu the.
   Tac dung : Tu dong checkpoint, ghi noi tiep vao Sheet va tu dong tao trigger tiep suc.
+  Luu y    : syncInvoicesChunk()/resumeSyncInvoicesChunk() dung khoa rieng
+             (getKiotVietInvoiceLock_) thay vi khoa chung, nen KHONG bi cac
+             chuoi khac (polling-only Tra hang/Nha cung cap/Nhap hang, hoac cac
+             buoc khac cua syncAllDataChunked) chan lai hang phut. Hoa don chi
+             cho khoa cua webhook Hoa don va buoc 'invoices' trong chuoi master.
+             Cac ham con lai (syncCategoriesChunk, syncProductsChunk,
+             syncOrdersChunk, syncReturnsChunk, syncCustomersChunk,
+             syncSuppliersChunk, syncPurchasesChunk) dung khoa chung
+             (getKiotVietDataLock_, qua runKiotVietDataLockedChunk_) giong het
+             chuoi master/polling-only, nen an toan de chay tay bat cu luc nao —
+             neu dung luc co tien trinh khac dang ghi cung bang, ham se tu len
+             lich trigger tiep suc thay vi ghi de khong khoa.
 
 restartInvoicesBackfill()
   Khi dung : Khi can nap lai day du rieng Hoa don va Chi tiet hoa don.
@@ -50,6 +62,7 @@ restartInvoicesBackfill()
              bo ca hai bang live sau khi tai du. Trigger tiep suc van la 1 phut.
   An toan   : Khong xoa checkpoint bang khac; webhook den trong luc backfill van
              nam ben vung trong queue va duoc xu ly sau khi khoa ghi duoc nha.
+             Dung khoa rieng getKiotVietInvoiceLock_ (xem ghi chu tren).
 
 getSyncProgressSummary()
   Khi dung : Bat cu luc nao muon xem tien do % cua cac bang dang dong bo.
@@ -60,15 +73,13 @@ resetAllSyncProgress()
 
 syncAllInitialData()
   Khi dung : Lan cai dat dau tien khi tong du lieu nho (duoi 3.000 - 5.000 ban ghi).
-  Tac dung : Lay token, migrate schema neu can, tai lai 9 tab van hanh; cap nhat
-             lich su Hang ngung kinh doanh; tao lai 3 tab bao cao khach hang va
-             3 tab HN1/HN3/HN7.
+  Tac dung : Lay token, migrate schema neu can, tai lai 9 tab van hanh; tao lai
+             3 tab bao cao khach hang va 3 tab HN1/HN3/HN7.
   Goi tiep : getKiotVietDataLock_()
              -> migrateKiotVietSheetsIfNeeded_()
              -> getKiotVietToken()
              -> syncCategoriesInitial()/syncProductsInitial()
              -> syncCustomerDebtReports()
-             -> syncHangNgungKinhDoanh_()
              -> cac ham syncXxxInitial() con lai
              -> syncCustomerReport()
   Luu y    : Khong dat ham nay lam trigger ngan han. Ham dung khoa ghi chung de
@@ -77,16 +88,14 @@ syncAllInitialData()
 setupKiotVietAutoSync()
   Khi dung : Mot lan sau khi deploy, hoac khi doi WEBHOOK_URL/deployment.
   Tac dung : Tao WEBHOOK_SECRET neu thieu; tao trigger queue 5 phut; polling
-             15 phut; ba bao cao khach hang 06:00/06:30/07:00; Hang ngung kinh
-             doanh 07:30; HN1/HN3/HN7 gan 15:00; doi chieu va dam bao du 9
-             webhook do he thong quan ly.
+             15 phut; ba bao cao khach hang 06:00/06:30/07:00; HN1/HN3/HN7
+             gan 15:00; doi chieu va dam bao du 9 webhook do he thong quan ly.
   Goi tiep : migrateKiotVietSheetsIfNeeded_()
              -> getKiotVietToken()
              -> ensureKiotVietWebhookSecret_()
              -> setupQueueProcessingTrigger()
              -> setupPollingTrigger()
              -> setupCustomerReportDailyTrigger()
-             -> setupHangNgungKinhDoanhTrigger_()
              -> setupCustomerDebtReportDailyTrigger()
              -> reconcileKiotVietAutoSyncWebhooks_().
   Luu y    : setupCustomerReport() van dung khi can lam moi ngay ca ba bao cao;
@@ -121,16 +130,6 @@ syncCustomerDebtReports()
   Tac dung : Lay du lieu khach hang/hoa don/tra hang/thu-chi 7 ngay gan nhat tu
              KiotViet, tinh cong no dau ky - cuoi ky cho tung khoang 1/3/7 ngay
              (tinh ca hom nay) va ghi de toan bo 3 tab HN1/HN3/HN7.
-
-syncHangNgungKinhDoanh()
-  Khi dung : Khi can doi soat rieng lich su hang ngung kinh doanh.
-  Tac dung : Cap nhat tab Hang ngung kinh doanh tu toan bo hang dang ngung tren
-             KiotViet, giu lai lich su cu va danh dau hang da kinh doanh lai.
-
-cauHinhLichHangNgungKinhDoanh()
-  Khi dung : Mot lan sau khi deploy de cap nhat lich su va tao lich 07:30.
-  Tac dung : Gop/xoa tab legacy Hang ngung KD hom nay, khoi tao trang thai an va
-             tao trigger capNhatHangNgungKinhDoanh().
 
 checkWebhookStatus()
   Khi dung : Sau cai dat, hoac khi nghi webhook bi mat/ngung hoat dong.
@@ -249,10 +248,6 @@ kiotviet/CustomerReport.gs
 kiotviet/CustomerDebtReport.gs
   Tinh va ghi bao cao cong no khach hang HN1/HN3/HN7 (1/3/7 ngay gan day, tinh
   ca hom nay); quan ly trigger hang ngay gan 15:00 va ham chay bu qua queue.
-
-kiotviet/DiscontinuedProducts.gs
-  Luu lich su Hang ngung kinh doanh tu truoc toi nay, don tab legacy va quan ly
-  trigger cap nhat 07:30 hang ngay.
 
 utils/Helpers.gs
   Khoa ghi chung, chuan hoa ngay/ma va tao dinh dang/dong Hang hoa.

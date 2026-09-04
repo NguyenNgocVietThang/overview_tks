@@ -1,14 +1,21 @@
 <!DOCTYPE html>
-<html lang="vi" data-theme="light">
+<html lang="vi">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Đăng nhập · TOKOSI Dashboard</title>
 <link rel="icon" type="image/jpeg" href="/Logo.jpg">
 <script>
-  document.documentElement.dataset.theme = 'light';
+  (function(){
+    try{ document.documentElement.dataset.theme = localStorage.getItem('tks-dashboard-theme') === 'light' ? 'light' : 'dark'; }
+    catch(e){ document.documentElement.dataset.theme = 'dark'; }
+    document.documentElement.style.visibility = 'hidden';
+  })();
 </script>
-<link rel="stylesheet" href="/shared/shared.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/shared/shared.css?v=20260830">
 <style>
   .login-shell{
     min-height:100vh;
@@ -17,6 +24,59 @@
     justify-content:center;
     padding:24px;
     position:relative;
+  }
+  .login-stack{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:16px;
+    width:100%;
+    max-width:400px;
+  }
+  .login-stack .theme-toggle-floating{
+    position:static;
+    top:auto;
+    right:auto;
+  }
+  /* Panel đăng nhập & modal quên mật khẩu luôn giữ giao diện sáng cố định,
+     bất kể data-theme trên <html> — chỉ nền trang + sao băng đổi theo dark/light.
+     Ghi đè token màu cục bộ tại đây (giá trị lấy từ :root[data-theme="light"] trong shared.css)
+     để mọi phần tử con dùng var(--...) tự động thừa hưởng bảng màu sáng. */
+  .login-card, .modal-box{
+    color-scheme:light;
+    --panel:#FFFFFF;
+    --panel-2:#F1F5F9;
+    --panel-3:#E2E8F0;
+    --border:#E2E8F0;
+    --border-subtle:#F1F5F9;
+    --border-focus:#2563EB;
+    --primary:#2563EB;
+    --primary-gradient:linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+    --primary-hover:linear-gradient(135deg, #1D4ED8 0%, #1E40AF 100%);
+    --primary-text:#FFFFFF;
+    --primary-shadow:0 4px 14px 0 rgba(37,99,235,0.22);
+    --amber:#D97706;
+    --green:#059669;
+    --red:#DC2626;
+    --blue:#2563EB;
+    --purple:#7C3AED;
+    --text:#0F172A;
+    --text-secondary:#334155;
+    --muted:#64748B;
+    --surface-hover:rgba(15,23,42,0.04);
+    --row-divider:rgba(15,23,42,0.06);
+    --card-shadow:0 10px 25px -5px rgba(0,0,0,0.05), 0 4px 10px -4px rgba(0,0,0,0.02), 0 0 1px 1px rgba(0,0,0,0.04);
+    --ambient-1:rgba(37,99,235,0.04);
+    --ambient-2:rgba(5,150,105,0.03);
+    --shadow-modal:0 20px 50px rgba(0,0,0,0.2);
+    --accent-blue-12:rgba(37,99,235,0.10);
+    --accent-blue-18:rgba(37,99,235,0.15);
+    --alert-warning-bg:rgba(217,119,6,0.08);
+    --alert-warning-border:rgba(217,119,6,0.25);
+    --alert-error-bg:rgba(220,38,38,0.08);
+    --alert-error-border:rgba(220,38,38,0.25);
+    --alert-success-bg:rgba(5,150,105,0.08);
+    --alert-success-border:rgba(5,150,105,0.25);
   }
   .login-card{
     width:100%;
@@ -52,7 +112,7 @@
     border:1px solid rgba(255,255,255,0.18);
     overflow:hidden;
   }
-  :root[data-theme="light"] .login-brand .brand-mark{
+  .login-brand .brand-mark{
     border:1px solid #E2E8F0;
     box-shadow:0 2px 10px rgba(0,0,0,0.06);
   }
@@ -249,14 +309,15 @@
 </style>
 </head>
 <body>
-  <div class="login-shell perspective-container">
-    <form class="login-card card-3d" id="loginForm" novalidate>
+  <div class="login-shell">
+    <div class="login-stack">
+    <form class="login-card" id="loginForm" novalidate>
       <div class="login-brand">
         <div class="brand-mark">
           <img src="/Logo.jpg" alt="TOKOSI Logo" width="48" height="48">
         </div>
         <div>
-          <h1>TOKOSI · Dashboard</h1>
+          <h1>TOKOSI</h1>
           <p>Báo cáo tổng hợp · Quản lý vận chuyển</p>
         </div>
       </div>
@@ -264,7 +325,7 @@
       <h2>Đăng nhập</h2>
       <p class="sub">Đăng nhập tài khoản nội bộ hoặc tài khoản tra cứu vận chuyển.</p>
 
-      <!-- Lockout Alert Banner -->
+      <!-- Banner cảnh báo tạm khóa -->
       <div id="loginLockoutAlert" class="lockout-alert" style="display:none;">
         <div id="lockoutAlertMsg">Tài khoản tạm thời bị khóa 5 phút do nhập sai mật khẩu quá 5 lần.</div>
         <div>
@@ -303,6 +364,21 @@
 
       <div class="login-footer">TOKOSI · Truy cập nội bộ</div>
     </form>
+
+    <button id="themeToggleBtn" class="theme-toggle-floating" type="button"
+            onclick="toggleTheme()" aria-label="Chuyển chế độ giao diện">
+      <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="4"></circle>
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"></path>
+      </svg>
+      <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+      </svg>
+      <span id="themeLabel">Chế độ sáng</span>
+    </button>
+    </div>
   </div>
 
   <!-- MODAL: QUÊN MẬT KHẨU / ĐẶT LẠI QUA MÃ OTP -->
@@ -397,6 +473,24 @@
   </div>
 
   <script>
+    /* ── Giao diện Theme ── */
+    const THEME_KEY = 'tks-dashboard-theme';
+
+    function syncThemeLabel() {
+      const isLight = document.documentElement.dataset.theme === 'light';
+      const label = document.getElementById('themeLabel');
+      if (label) label.textContent = isLight ? 'Chế độ tối' : 'Chế độ sáng';
+    }
+
+    function toggleTheme() {
+      const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+      document.documentElement.dataset.theme = next;
+      try { localStorage.setItem(THEME_KEY, next); } catch (_) {}
+      syncThemeLabel();
+    }
+
+    syncThemeLabel();
+
     let currentGoogleClientId = null;
     let lockoutTimerInterval = null;
     let verifiedIdentifier = '';
@@ -787,6 +881,9 @@
       })
       .then(function(user){ if(user) window.location.href = landingUrl(user); })
       .catch(function(){});
+
+    document.documentElement.style.visibility = '';
   </script>
+  <script src="/shared/shooting-star.js?v=20260830"></script>
 </body>
 </html>

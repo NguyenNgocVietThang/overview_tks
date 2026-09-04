@@ -49,21 +49,20 @@ Dưới đây là tất cả file có thể bị ảnh hưởng khi cấu trúc 
 - Thêm file `.gs` mới → ghi rõ tên hàm trong comment `← funcA(), funcB()`
 - Cập nhật dòng `*Cập nhật lần cuối:*` ở cuối file theo ngày hiện tại
 
-### 2.2 `.clasp.json` & `.clasp.order-lifecycle.json`
+### 2.2 `.clasp.json` & `.clasp.saigon.json`
 
-**Vị trí:** `d:\Web TKS Dashboard\.clasp.json` (Dashboard: `rootDir: "src-dashboard"`) và `d:\Web TKS Dashboard\.clasp.order-lifecycle.json` (Vận chuyển: `rootDir: "src-order-lifecycle"`).
+**Vị trí:** `d:\Web TKS Dashboard\.clasp.json` (KiotHN: `rootDir: "src-dashboard"`) và `d:\Web TKS Dashboard\.clasp.saigon.json` (KiotSG: `rootDir: "src-dashboard"`, dùng chung code với KiotHN).
 
 **Khi nào cập nhật:**
 - Thay đổi thư mục gốc chứa source code (`rootDir`)
 - Cấu hình Script ID cho từng project độc lập
 
 **Quy tắc:**
-- Project Dashboard load: `HuongDanSuDung.gs → config/ → kiotviet/ → sync/ → utils/`
-- Project Vận chuyển load: `HuongDanSuDung.gs → config/ → kiotviet/ → shipment/ → sync/ → utils/`
+- Project Dashboard (KiotHN/KiotSG) load: `HuongDanSuDung.gs → config/ → kiotviet/ → sync/ → utils/`
 
-### 2.3 `.claspignore` & `.claspignore.order-lifecycle`
+### 2.3 `.claspignore` & `.claspignore.saigon`
 
-**Vị trí:** `d:\Web TKS Dashboard\.claspignore` và `d:\Web TKS Dashboard\.claspignore.order-lifecycle`
+**Vị trí:** `d:\Web TKS Dashboard\.claspignore` và `d:\Web TKS Dashboard\.claspignore.saigon`
 
 **Khi nào cập nhật:**
 - Thêm thư mục/file mới KHÔNG nên push lên Google Apps Script
@@ -78,7 +77,7 @@ ten-thu-muc/
 
 ### 2.4 `appsscript.json`
 
-**Vị trí:** `d:\Web TKS Dashboard\src-dashboard\appsscript.json` và `d:\Web TKS Dashboard\src-order-lifecycle\appsscript.json`
+**Vị trí:** `d:\Web TKS Dashboard\src-dashboard\appsscript.json`
 
 **Khi nào cập nhật:**
 - Thêm OAuth scope mới (khi code mới cần quyền truy cập service GAS chưa có)

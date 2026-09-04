@@ -14,11 +14,14 @@ const {
   findUserByIdentifier,
   findUserById,
   ACTIVE_STATUS,
+  INACTIVE_STATUS,
   PENDING_STATUS,
+  LOCKED_STATUS,
   ROLES,
   normalizePhone,
   isHardcodedAdmin
 } = require('./userRepository');
+const { formatDateVN } = require('./localUserStore');
 const { createActiveGuest, activatePendingGuest, updateUserFields } = require('./userWriteRepository');
 const { verifyGoogleIdToken } = require('./googleAuthService');
 const { AUTH_COOKIE_NAME, AUTH_COOKIE_MAX_AGE_MS, requireAuth } = require('./authMiddleware');
@@ -52,9 +55,35 @@ const FORGOT_PW_MAX_PER_IP = 20;
 const forgotPwHitsByIdentifier = new Map(); // Map<string, { count, windowStart }>
 const forgotPwHitsByIp = new Map(); // Map<string, { count, windowStart }>
 
-function checkAndBumpRateLimit(map, key, max) {
+// failedLogins/forgotPwHits* duoc key bang chuoi do NGUOI DUNG CHUA XAC THUC
+// tu chon (username/identifier/IP bat ky, ke ca tai khoan khong ton tai) —
+// khong don dep thi ke tan cong co the lam 3 Map nay phinh to vo han
+// (memory-exhaustion DoS). Quet "lazy" theo request that (toi da 1 lan/5
+// phut) thay vi dung setInterval, vi authRoutes.test.js xoa require-cache
+// va require lai module nay lien tuc — moi setInterval o module-scope se
+// bi "mo coi" (khong the clearInterval) nhung van chay ngam vinh vien.
+const MAP_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+let lastMapSweepAt = 0;
+
+function sweepStaleAuthState(now) {
+  if (now - lastMapSweepAt < MAP_SWEEP_INTERVAL_MS) return;
+  lastMapSweepAt = now;
+
+  for (const [key, rec] of failedLogins) {
+    const stillLocked = rec.lockedUntil && now < rec.lockedUntil;
+    const idleMs = now - (rec.lastAttemptAt || 0);
+    if (!stillLocked && idleMs > LOCKOUT_DURATION_MS) failedLogins.delete(key);
+  }
+  for (const [key, rec] of forgotPwHitsByIdentifier) {
+    if (now - rec.windowStart > FORGOT_PW_WINDOW_MS) forgotPwHitsByIdentifier.delete(key);
+  }
+  for (const [key, rec] of forgotPwHitsByIp) {
+    if (now - rec.windowStart > FORGOT_PW_WINDOW_MS) forgotPwHitsByIp.delete(key);
+  }
+}
+
+function checkAndBumpRateLimit(map, key, max, now) {
   if (!key) return true;
-  const now = Date.now();
   const entry = map.get(key);
   if (!entry || now - entry.windowStart > FORGOT_PW_WINDOW_MS) {
     map.set(key, { count: 1, windowStart: now });
@@ -66,10 +95,12 @@ function checkAndBumpRateLimit(map, key, max) {
 }
 
 function forgotPasswordRateLimit(req, res, next) {
+  const now = Date.now();
+  sweepStaleAuthState(now);
   const identifierKey = String((req.body && req.body.identifier) || '').trim().toLowerCase();
   const ip = req.ip || (req.socket && req.socket.remoteAddress) || 'unknown';
-  const idOk = checkAndBumpRateLimit(forgotPwHitsByIdentifier, identifierKey, FORGOT_PW_MAX_PER_IDENTIFIER);
-  const ipOk = checkAndBumpRateLimit(forgotPwHitsByIp, ip, FORGOT_PW_MAX_PER_IP);
+  const idOk = checkAndBumpRateLimit(forgotPwHitsByIdentifier, identifierKey, FORGOT_PW_MAX_PER_IDENTIFIER, now);
+  const ipOk = checkAndBumpRateLimit(forgotPwHitsByIp, ip, FORGOT_PW_MAX_PER_IP, now);
   if (!idOk || !ipOk) {
     return res.status(429).json({ error: 'Bạn thao tác quá nhiều lần, vui lòng thử lại sau ít phút.' });
   }
@@ -158,6 +189,47 @@ function signIn(res, user) {
   return safeUser;
 }
 
+/**
+ * Ghi nhan 1 lan dang nhap sai cho `normIdentifier` — dung CHUNG cho ca 2
+ * truong hop "tai khoan khong ton tai" va "sai mat khau" (ghi nhan ngay ca
+ * khi khong tim thay user de tranh do pass qua enumeration). Tra ve
+ * { status, body } de route goi res.status(...).json(...) truc tiep.
+ */
+function registerFailedLoginAttempt(identifier, normIdentifier, now) {
+  let rec = failedLogins.get(normIdentifier) || { count: 0, lockedUntil: 0, lastAttemptAt: 0 };
+  const lockExpired = rec.lockedUntil && now >= rec.lockedUntil;
+  // Chua tung bi khoa nhung khong hoat dong qua lau -> coi nhu reset (tranh
+  // cong don loi nhap sai cach nhau hang thang, thang nam).
+  const idleTooLong = !rec.lockedUntil && rec.lastAttemptAt && now - rec.lastAttemptAt > LOCKOUT_DURATION_MS;
+  if (lockExpired || idleTooLong) rec = { count: 0, lockedUntil: 0, lastAttemptAt: 0 };
+
+  rec.count += 1;
+  rec.lastAttemptAt = now;
+
+  if (rec.count >= MAX_FAILED_ATTEMPTS) {
+    rec.lockedUntil = now + LOCKOUT_DURATION_MS;
+    failedLogins.set(normIdentifier, rec);
+    const remainingSec = Math.ceil(LOCKOUT_DURATION_MS / 1000);
+    return {
+      status: 423,
+      body: {
+        error: 'Bạn đã nhập sai mật khẩu quá 5 lần. Tài khoản bị tạm khóa 5 phút. Vui lòng đặt lại mật khẩu qua OTP.',
+        locked: true,
+        lockoutRemainingSeconds: remainingSec,
+        suggestReset: true,
+        identifier
+      }
+    };
+  }
+
+  failedLogins.set(normIdentifier, rec);
+  const remaining = MAX_FAILED_ATTEMPTS - rec.count;
+  return {
+    status: 401,
+    body: { error: `Tài khoản hoặc mật khẩu không đúng. (Còn ${remaining} lần thử)` }
+  };
+}
+
 // -------------------------------------------------------------
 // POST /api/auth/login
 // -------------------------------------------------------------
@@ -171,6 +243,7 @@ router.post('/api/auth/login', async (req, res) => {
 
     const normIdentifier = String(username).trim().toLowerCase();
     const now = Date.now();
+    sweepStaleAuthState(now);
 
     // Kiem tra trang thai tam khoa
     const lockRecord = failedLogins.get(normIdentifier);
@@ -187,51 +260,14 @@ router.post('/api/auth/login', async (req, res) => {
 
     let user = await findActiveUserByUsername(username);
     if (!user) {
-      // Ghi nhan lan thu sai ngay ca khi khong tim thay user de tranh do pass
-      let rec = failedLogins.get(normIdentifier) || { count: 0, lockedUntil: 0 };
-      if (rec.lockedUntil && now >= rec.lockedUntil) rec = { count: 0, lockedUntil: 0 };
-      rec.count += 1;
-      if (rec.count >= MAX_FAILED_ATTEMPTS) {
-        rec.lockedUntil = now + LOCKOUT_DURATION_MS;
-        failedLogins.set(normIdentifier, rec);
-        const remainingSec = Math.ceil(LOCKOUT_DURATION_MS / 1000);
-        return res.status(423).json({
-          error: `Bạn đã nhập sai mật khẩu quá 5 lần. Tài khoản bị tạm khóa 5 phút. Vui lòng đặt lại mật khẩu qua OTP.`,
-          locked: true,
-          lockoutRemainingSeconds: remainingSec,
-          suggestReset: true,
-          identifier: username
-        });
-      }
-      failedLogins.set(normIdentifier, rec);
-      const remaining = MAX_FAILED_ATTEMPTS - rec.count;
-      return res.status(401).json({
-        error: `Tài khoản hoặc mật khẩu không đúng. (Còn ${remaining} lần thử)`
-      });
+      const failResult = registerFailedLoginAttempt(username, normIdentifier, now);
+      return res.status(failResult.status).json(failResult.body);
     }
 
     const passwordOk = await comparePassword(password, user.passwordHash);
     if (!passwordOk) {
-      let rec = failedLogins.get(normIdentifier) || { count: 0, lockedUntil: 0 };
-      if (rec.lockedUntil && now >= rec.lockedUntil) rec = { count: 0, lockedUntil: 0 };
-      rec.count += 1;
-      if (rec.count >= MAX_FAILED_ATTEMPTS) {
-        rec.lockedUntil = now + LOCKOUT_DURATION_MS;
-        failedLogins.set(normIdentifier, rec);
-        const remainingSec = Math.ceil(LOCKOUT_DURATION_MS / 1000);
-        return res.status(423).json({
-          error: `Bạn đã nhập sai mật khẩu quá 5 lần. Tài khoản bị tạm khóa 5 phút. Vui lòng đặt lại mật khẩu qua OTP.`,
-          locked: true,
-          lockoutRemainingSeconds: remainingSec,
-          suggestReset: true,
-          identifier: username
-        });
-      }
-      failedLogins.set(normIdentifier, rec);
-      const remaining = MAX_FAILED_ATTEMPTS - rec.count;
-      return res.status(401).json({
-        error: `Tài khoản hoặc mật khẩu không đúng. (Còn ${remaining} lần thử)`
-      });
+      const failResult = registerFailedLoginAttempt(username, normIdentifier, now);
+      return res.status(failResult.status).json(failResult.body);
     }
 
     // Dang nhap thanh cong -> xoa bo dem loi
@@ -240,16 +276,25 @@ router.post('/api/auth/login', async (req, res) => {
     if (user.email) clearFailedLogins(user.email);
     if (user.soDienThoai) clearFailedLogins(user.soDienThoai);
 
-    if (isHardcodedAdmin(user.email) || isHardcodedAdmin(user.username)) {
+    const isTargetAdmin = isHardcodedAdmin(user.email) || isHardcodedAdmin(user.username);
+    if (isTargetAdmin) {
       user.vaiTro = ROLES.QUAN_LY;
       user.trangThai = ACTIVE_STATUS;
     }
 
+    const updates = {
+      dangNhapGanNhat: formatDateVN(new Date())
+    };
+    if (user.trangThai === INACTIVE_STATUS || user.trangThai === 'Không hoạt động' || user.trangThai === PENDING_STATUS) {
+      updates.trangThai = ACTIVE_STATUS;
+    }
+
     // Neu dang nhap bang email ma tai khoan chua co truong email -> cap nhat vao ho so
     if (normIdentifier.includes('@') && !user.email) {
-      const updated = await updateUserFields(user.id, { email: normIdentifier });
-      if (updated) user = updated;
+      updates.email = normIdentifier;
     }
+    const updated = await updateUserFields(user.id, updates);
+    if (updated) user = { ...user, ...updates, ...updated };
 
     res.status(200).json(signIn(res, user));
   } catch (err) {
@@ -413,9 +458,12 @@ router.post('/api/auth/forgot-password/send-otp', forgotPasswordRateLimit, async
       return res.status(400).json({ error: 'Kênh gửi mã không hợp lệ cho tài khoản này.' });
     }
 
-    const otpResult = otpService.generateResetOtp(user.username, chosen.targetRaw, chosen.channel);
-    if (!otpResult.success && otpResult.cooldown) {
-      return res.status(429).json({ error: `Vui lòng đợi ${otpResult.waitSeconds} giây trước khi yêu cầu mã mới.` });
+    const otpResult = await otpService.generateResetOtp(user.username, chosen.targetRaw, chosen.channel);
+    if (!otpResult.success) {
+      if (otpResult.cooldown) {
+        return res.status(429).json({ error: `Vui lòng đợi ${otpResult.waitSeconds} giây trước khi yêu cầu mã mới.` });
+      }
+      return res.status(502).json({ error: otpResult.error || 'Không gửi được mã OTP, vui lòng thử lại.' });
     }
 
     res.status(200).json({
@@ -529,19 +577,25 @@ router.post('/api/auth/google', async (req, res) => {
         email,
         vaiTro: assignedRole,
         coSo: isTargetAdmin ? 'Cả hai' : '',
-        trangThai: ACTIVE_STATUS
+        trangThai: ACTIVE_STATUS,
+        dangNhapGanNhat: formatDateVN(new Date())
       };
+      if (user && user.id) {
+        await updateUserFields(user.id, { dangNhapGanNhat: formatDateVN(new Date()) });
+      }
     } else {
       if (isTargetAdmin || isHardcodedAdmin(user.username)) {
         user.vaiTro = ROLES.QUAN_LY;
         user.trangThai = ACTIVE_STATUS;
       }
-      if (user.trangThai !== ACTIVE_STATUS && user.trangThai !== PENDING_STATUS) {
+      if (user.trangThai === LOCKED_STATUS || user.trangThai === 'Khóa') {
         return res.status(403).json({ error: 'Tài khoản đã bị khóa.' });
       }
 
-      // Tai khoan da ton tai -> dong bo ten va email tu Google vao ho so nguoi dung
-      const updates = {};
+      // Tai khoan da ton tai -> dong bo ten, email va dangNhapGanNhat tu Google vao ho so nguoi dung
+      const updates = {
+        dangNhapGanNhat: formatDateVN(new Date())
+      };
       if (!user.email || user.email.toLowerCase() !== email) {
         updates.email = email;
       }
@@ -554,6 +608,8 @@ router.post('/api/auth/google', async (req, res) => {
       } else if (user.trangThai === PENDING_STATUS) {
         await activatePendingGuest({ email, hoTen: googleName || user.hoTen });
         updates.vaiTro = ROLES.KHACH;
+        updates.trangThai = ACTIVE_STATUS;
+      } else if (user.trangThai === INACTIVE_STATUS || user.trangThai === 'Không hoạt động') {
         updates.trangThai = ACTIVE_STATUS;
       }
       if (Object.keys(updates).length > 0) {

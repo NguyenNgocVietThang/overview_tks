@@ -15,7 +15,7 @@
   - **Variance:** `6/10` (Modern, Balanced, Curated)
   - **Motion:** `5/10` (Standard, Tactile Micro-Interactions, 150–300ms)
   - **Density:** `8/10` (Dense / Real-time Data Grid)
-- **Visual Aesthetic:** **Rich Aesthetics & Visual Excellence** — Tận dụng tối đa bảng màu HSL/HEX tinh lọc, Dark Mode chiều sâu Obsidian, hiệu ứng Glassmorphism & Subtle Gradients, chuyển động Micro-animations sống động và lớp nâng cao 3D Three.js.
+- **Visual Aesthetic:** **Rich Aesthetics & Visual Excellence** — Tận dụng tối đa bảng màu HSL/HEX tinh lọc, Dark Mode chiều sâu Obsidian, hiệu ứng Glassmorphism & Subtle Gradients và chuyển động Micro-animations sống động. Chiều sâu tạo bằng màu, bóng đổ và khoảng trắng — **không** bằng biến đổi 3D (xem mục 7).
 
 ---
 
@@ -42,7 +42,7 @@
 1. **Cấu trúc & Ngôn ngữ Cốt lõi:**
    - **HTML5:** Cấu trúc ngữ nghĩa chuẩn (Semantic HTML: `<header>`, `<nav>`, `<main>`, `<aside>`, `<section>`, `<article>`, `<footer>`).
    - **CSS:** **Vanilla CSS** với hệ thống CSS Variables (`:root`), Flexbox/Grid, Native Dialog/Popover, `color-mix()`, `:has()`, `:focus-visible`. *Tránh sử dụng TailwindCSS trừ khi có yêu cầu đặc biệt từ người dùng.*
-   - **JavaScript:** Vanilla JS ES6+ / Three.js cho hiệu ứng 3D, module hóa rõ ràng, xử lý tác vụ bất đồng bộ tối ưu (`scheduler.yield`, `requestAnimationFrame`, `debounce`/`throttle`).
+   - **JavaScript:** Vanilla JS ES6+ (không bundler), module hóa rõ ràng, xử lý tác vụ bất đồng bộ tối ưu (`scheduler.yield`, `requestAnimationFrame`, `debounce`/`throttle`).
 2. **Hiệu năng & Khả năng tiếp cận (Performance & a11y):**
    - Tuân thủ chuẩn WCAG AA: Độ tương phản văn bản chữ ≥ 4.5:1; viền điều khiển UI ≥ 3:1.
    - Hỗ trợ đầy đủ `@media (prefers-reduced-motion: reduce)` để tắt hoàn toàn hoạt họa phức tạp cho người dùng nhạy cảm chuyển động.
@@ -443,21 +443,40 @@ Bắt buộc áp dụng toàn diện trên tất cả các file CSS và Script:
 
 ---
 
-## 7. 3D Progressive Enhancement Layer (Lớp Nâng Cao 3D Three.js)
+## 7. Ràng Buộc Hiệu Năng Giao Diện (Frontend Performance Constraints)
 
-Hệ thống tích hợp lớp **Progressive Enhancement 3D** tùy chọn (đáp ứng 7 trang nghiệp vụ), độc lập và không phá vỡ CSS nền tảng:
+Hệ thống **từng có** một lớp "Progressive Enhancement 3D" (Three.js particle background, card tilt,
+3D loading cube, FPS monitor). Lớp này **đã bị gỡ bỏ hoàn toàn khỏi mã nguồn** vì làm dashboard
+giật nặng trên máy cấu hình phổ thông. Mọi thiết kế mới phải tuân thủ các ràng buộc dưới đây.
 
-1. **Hạt nền Three.js (`three-bg.js`):** 300 hạt chuyển động đa chiều, đổi màu tự động theo theme dark/light, canvas mang `aria-hidden="true"`, z-index: -1.
-2. **Card Tilt 3D (`three-interactions.js`):** Xoay nhẹ góc 3D theo tọa độ chuột (`perspective(1000px) rotateX(...) rotateY(...)`).
-3. **Tactile Buttons & Navigation:** Hiệu ứng lún nút 3D và lan tỏa xúc giác (tactile feedback).
-4. **3D Loading Cube (`three-loading.js`):** Khối lập phương 3D xoay không gian khi tải dữ liệu (`role="status"`).
-5. **Biểu đồ 3D (`three-charts.js`):** Render biểu đồ cột 3D Three.js cho doanh thu trên trang tổng quan.
-6. **Cơ chế An toàn & Tối ưu Hiệu năng:**
-   - Tự động hạ tần số khung hình render khi FPS giảm (`three-performance.js`).
-   - Thu hồi bộ nhớ WebGL và giải phóng context khi rời trang (`three-memory.js`).
-   - Tạm dừng render hoạt họa khi tab trình duyệt bị ẩn (`three-visibility.js`).
-   - Tắt hoàn toàn khi bật `prefers-reduced-motion: reduce`.
-   - Có khả năng tắt hoặc gỡ bỏ tức thì mà không gây lỗi console (xem [ROLLBACK.md](../../ROLLBACK.md)).
+### 7.1. Cấm trong CSS
+
+| Cấm | Lý do |
+|---|---|
+| `transform-style: preserve-3d` | Đẩy phần tử thành compositor layer riêng. Rule cũ áp lên `tbody tr` (100 dòng/trang) là thủ phạm giật nặng nhất. |
+| `perspective`, `perspective-origin` | Tạo ngữ cảnh 3D, kéo theo chi phí layer như trên. |
+| `translateZ()`, `rotateX()`, `rotateY()`, `perspective()` | Biến đổi 3D trên phần tử lặp lại nhiều lần. |
+| `background-attachment: fixed` | Buộc vẽ lại toàn viewport (kể cả scale lại ảnh cover) trên **mỗi frame cuộn**. |
+| `backdrop-filter` trên overlay toàn màn hình | Blur cả viewport; `.loading-veil` hiện lên ở mỗi lần auto-refresh. |
+| `transition: all` | Buộc trình duyệt kiểm tra mọi thuộc tính animatable mỗi khi style đổi. Luôn liệt kê tên thuộc tính cụ thể. |
+
+### 7.2. Cách làm thay thế
+
+- **Hover card/KPI:** `box-shadow` + `border-color`. Không transform.
+- **Hover dòng bảng:** chỉ `background-color`. Bảng ở đây thường xuyên 100 dòng — đây là rule CSS "nóng" nhất trang.
+- **Focus input:** `box-shadow: 0 0 0 3px <màu>` làm focus ring. Không scale, không glow nhiều lớp.
+- **Nút bấm:** `translateY(-2px)` khi hover và `translateY(1px)` khi `:active` là chấp nhận được — transform 2D
+  trên số lượng phần tử nhỏ, được compositor xử lý rẻ.
+- **Nền trang:** vẽ một lần vào lớp `body::before` (`position: fixed; z-index: -1`), không dùng
+  `background-attachment: fixed` trên `<body>`.
+- **Loading:** spinner CSS xoay đơn giản (`.loader-spinner` trong `shared.css`), markup tĩnh trong HTML —
+  không sinh bằng JS lúc runtime.
+
+### 7.3. Khóa bằng test
+
+Các ràng buộc mục 7.1 được kiểm tra tự động ở
+[`server/test/frontend/no-3d-effects.test.js`](../../server/test/frontend/no-3d-effects.test.js).
+Test quét toàn bộ `shared.css` và 9 trang HTML; thêm lại bất kỳ khai báo nào ở trên sẽ làm test fail.
 
 ---
 
@@ -510,7 +529,7 @@ Mỗi khi phát triển hoặc cập nhật trang/component mới, tuân thủ 5
 - ❌ **Không gây giật bố cục khi Hover (Layout-shifting):** Tuyệt đối không dùng `margin`/`padding`/`border-width` biến thiên khi hover; chỉ dùng `transform` hoặc `backgroundColor`.
 - ❌ **Không tạo độ tương phản kém (Low Contrast):** Màu chữ trên nền phải đạt tối thiểu `4.5:1` (WCAG AA).
 - ❌ **Không ẩn outline Focus bàn phím:** Giữ nguyên `:focus-visible` với vòng sáng xanh rõ nét (`var(--shadow-focus-blue)`).
-- ❌ **Không để logic phụ thuộc cứng vào 3D/JS:** Giao diện cơ bản phải hoạt động hoàn hảo ngay cả khi Three.js hoặc WebGL bị tắt hoặc không được hỗ trợ.
+- ❌ **Không dùng biến đổi 3D hoặc `background-attachment: fixed`:** Xem danh sách cấm đầy đủ và lý do ở mục 7.1.
 
 ---
 
@@ -527,4 +546,4 @@ Trước khi nghiệm thu bất kỳ giao diện nào, lập trình viên phải
 - [ ] **Responsive:** Kiểm thử hiển thị không lỗi và không tràn màn hình ngang trên `375px`, `768px`, `1024px`, `1440px`.
 - [ ] **Touch Target:** Kích thước vùng bấm trên Mobile tối thiểu `44×44px`.
 - [ ] **Ngữ nghĩa HTML:** Có 1 thẻ `<h1>` duy nhất, cấu trúc thẻ semantic chuẩn.
-- [ ] **Rollback 3D:** Giao diện không phát sinh bất kỳ lỗi console nào khi tắt lớp 3D Three.js.
+- [ ] **Hiệu năng:** Không có `preserve-3d`/`perspective`/`translateZ`/`background-attachment: fixed`/`transition: all` (mục 7.1); `npm --prefix server test` xanh, gồm cả `no-3d-effects.test.js`.

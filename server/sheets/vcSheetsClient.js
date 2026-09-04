@@ -20,8 +20,8 @@ const { BRANCHES } = require('../branch/branches');
 // treo vo thoi han neu Google API cham/khong phan hoi.
 const VC_API_TIMEOUT_MS = 15000; // 15s
 
-// ---- Auth singleton (read + write scope) --------------------------------
-// Dung CHUNG cho moi co so — cung service account ghi ca hai spreadsheet.
+// ---- Singleton xác thực (phạm vi đọc + ghi) --------------------------------
+// Dùng CHUNG cho mọi cơ sở — cùng service account ghi cả hai spreadsheet.
 
 let vcSheetsApiPromise = null;
 
@@ -30,7 +30,7 @@ function getVcSheetsApi() {
     const credentials = JSON.parse(CONFIG.GOOGLE_SERVICE_ACCOUNT_JSON);
     const auth = new google.auth.GoogleAuth({
       credentials,
-      // Scope day du de doc va GHI (append/update/batchUpdate)
+      // Scope đầy đủ để đọc và GHI (append/update/batchUpdate)
       scopes: ['https://www.googleapis.com/auth/spreadsheets']
     });
     vcSheetsApiPromise = auth.getClient().then(authClient =>
@@ -40,7 +40,7 @@ function getVcSheetsApi() {
   return vcSheetsApiPromise;
 }
 
-// ---- Utility ----------------------------------------------------------------
+// ---- Tiện ích ----------------------------------------------------------------
 
 function quoteSheetName(name) {
   return `'${String(name).replace(/'/g, "''")}'`;

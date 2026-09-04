@@ -56,7 +56,7 @@ function freshRepo(mockData = {}) {
 
   const calls = { append: [], update: [], get: [], batchUpdate: [], getSheetId: [] };
 
-  // Default empty sheet data
+  // Dữ liệu sheet rỗng mặc định
   const ITEM_HEADERS = ['Mã vận đơn', 'Mã hàng', 'Tên hàng hóa', 'Số lượng đặt', 'Số lượng đã nhặt', 'Đơn vị tính', 'Ghi chú'];
   const HIST_HEADERS = ['Mã lịch sử', 'Mã vận đơn', 'Trạng thái trước', 'Trạng thái mới', 'Người thực hiện', 'Thời gian cập nhật', 'Ghi chú'];
   const ATT_HEADERS  = ['Mã chứng từ', 'Mã vận đơn', 'Loại chứng từ', 'Google Drive File ID', 'Link xem ảnh', 'Link thumbnail', 'Người tải lên', 'Thời gian tải lên', 'Nội dung OCR'];

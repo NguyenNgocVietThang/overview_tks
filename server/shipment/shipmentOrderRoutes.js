@@ -27,8 +27,17 @@ const CONFIG       = require('../config');
 // Phan quyen theo dac ta
 // ---------------------------------------------------------------------------
 
-// Quyen chung cho moi endpoint: 4 vai tro noi bo
-const authInternal = [requireAuth, requireRole(...INTERNAL_ROLES)];
+// Quyen xem don / chi tiet: cac vai tro noi bo duoc phep (Khach va Nhan vien mua hang khong duoc)
+const SHIPMENT_VIEW_ROLES = [
+  ROLES.QUAN_LY,
+  ROLES.KE_TOAN,
+  ROLES.TRUONG_KHO,
+  ROLES.TRO_LY,
+  ROLES.LAI_XE,
+  ROLES.NHAN_VIEN_KHO,
+  ROLES.NHAN_VIEN_SALE
+];
+const authInternal = [requireAuth, requireRole(...SHIPMENT_VIEW_ROLES)];
 
 // Quyen rieng cho hanh dong tao don + quan ly xe: chi Quan ly va Ke toan
 const DISPATCH_ROLES = [ROLES.QUAN_LY, ROLES.KE_TOAN];

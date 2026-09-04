@@ -9,8 +9,8 @@
 | Phiên bản tài liệu | 2.3                                                              |
 | Ngày tạo         | 27/07/2026                                                           |
 | Ngày cập nhật    | 26/08/2026                                                           |
-| Tài liệu liên quan | BRD v1.9 · SRS v2.2 · BPMN v2.0 · CSNS-NP-01 (Chính sách nghỉ phép) · Debt Spec 2026-08-05 · Cache/Pagination Plans · Lag Optimization Plan · Stagger Triggers Plan · Plan Process Automation · 3D Design · Performance Optimization Report · ROLLBACK |
-| Trạng thái       | Giai đoạn 1 (Dashboard, Vận chuyển, Auth, 3D, Performance), Phân hệ HR + Bot, Chuông thông báo, Đổi vai trò & Kiểm tra đứt hàng hoàn thành — đang vận hành |
+| Tài liệu liên quan | BRD v1.9 · SRS v2.2 · BPMN v2.0 · CSNS-NP-01 (Chính sách nghỉ phép) · Debt Spec 2026-08-05 · Cache/Pagination Plans · Lag Optimization Plan · Stagger Triggers Plan · Plan Process Automation · Design System MASTER (mục 7 — ràng buộc hiệu năng) |
+| Trạng thái       | Giai đoạn 1 (Dashboard, Vận chuyển, Auth, Performance), Phân hệ HR + Bot, Chuông thông báo, Đổi vai trò & Kiểm tra đứt hàng hoàn thành — đang vận hành |
 
 ---
 
@@ -19,7 +19,7 @@
 ```
 src-dashboard/              ← GAS project riêng cho Google Sheets Dashboard
 ├── HuongDanSuDung.gs · config/Config.gs · utils/Helpers.gs
-├── kiotviet/Auth.gs · CustomerDebtReport.gs · CustomerReport.gs · DiscontinuedProducts.gs · SheetSchemas.gs · SyncInitial.gs · WebhookAdmin.gs
+├── kiotviet/Auth.gs · CustomerDebtReport.gs · CustomerReport.gs · SheetSchemas.gs · SyncInitial.gs · WebhookAdmin.gs
 └── sync/UpdateHandlers.gs · WebhookQueue.gs
 
 src-order-lifecycle/        ← GAS project riêng cho Google Sheets Vận chuyển
@@ -47,7 +47,7 @@ server/                     ← Node.js/Express backend (Render.com)
 │   ├── dashboardData.js    ← Thống kê KPI, biểu đồ, tìm kiếm, Result Cache (90s)
 │   ├── dashboardData.test.js ← Unit test cache/aggregation/search
 │   ├── debtReport.js       ← Báo cáo công nợ khách hàng 1/3/7 ngày từ HN1/HN3/HN7
-│   ├── exportService.js    ← Registry 16 bảng và tạo file Excel .xlsx
+│   ├── exportService.js    ← Registry 15 bảng và tạo file Excel .xlsx
 │   ├── exportService.test.js ← Unit test xuất Excel
 │   └── stockoutCheck/      ← Kiểm tra đứt hàng đối chiếu file Excel với KiotViet API
 │       ├── concurrencyPool.js · excelParser.js · jobManager.js · kiotVietClient.js
@@ -93,37 +93,30 @@ server/                     ← Node.js/Express backend (Render.com)
 ├── test/
 │   ├── apps-script-sync.test.js ← Hồi quy URL webhook stale và typed-column Google Sheets
 │   ├── apps-script-report-schedule.test.js ← Unit test lịch phân bổ đồng bộ báo cáo
-│   └── frontend/           ← Bộ unit test frontend logic & 3D
+│   └── frontend/           ← Bộ unit test frontend logic
 │       ├── auth-guest-ui.test.js · content-full-width.test.js · export-ui.test.js
 │       ├── hr-leave-loading.test.js · hr-leave-realtime-status.test.js · notif-bell.test.js
-│       ├── pagination.test.js · role-request-ui.test.js · three-*.test.js
+│       ├── pagination.test.js · role-request-ui.test.js
+│       └── no-3d-effects.test.js ← Chặn lớp 3D quay lại & khóa các sửa lỗi hiệu năng cuộn
 └── public/
     ├── 404.html            ← Trang lỗi 404 tùy biến
     ├── index.html          ← Frontend Live Dashboard (KPI, biểu đồ, 13 bảng phân trang 100 dòng, xuất Excel)
     ├── Logo.jpg            # Logo thương hiệu frontend
-    ├── performance-test.html # Trang công cụ kiểm tra & đo lường hiệu năng 3D trực quan
     ├── account/
     │   └── index.html      ← Quản lý tài khoản (Hồ sơ cá nhân, Yêu cầu đổi vai trò & Quản trị người dùng)
     ├── humanresources/
     │   └── index.html      ← Cổng thông tin nhân sự (Nộp đơn nghỉ phép, tra cứu số dư, duyệt đơn realtime SSE)
     ├── js/
     │   └── pagination.js   ← Module phân trang bảng client-side (renderPaginatedRows)
-    ├── login/index.html    ← Giao diện đăng nhập nội bộ, Google Sign-In, OTP Reset (tải nhẹ, không 3D)
-    ├── register/index.html ← Giao diện đăng ký tài khoản Khách (tải nhẹ, không 3D)
+    ├── login/index.html    ← Giao diện đăng nhập nội bộ, Google Sign-In, OTP Reset
+    ├── register/index.html ← Giao diện đăng ký tài khoản Khách
     ├── shared/             ← shared-nav.js, shared.css, image-compress.js dùng chung
-    │   ├── three-bg.js     ← Hệ thống hạt 3D Particle Background toàn trang
-    │   ├── three-interactions.js ← Bộ xử lý 3D dynamic tilt (rAF throttle), 3D navigation và tactile buttons
-    │   ├── three-loading.js ← 3D rotating loading cube loader
-    │   ├── three-memory.js ← Bộ quản lý WebGL context và giải phóng bộ nhớ
-    │   ├── three-performance.js ← Bộ giám sát FPS và tự động điều chỉnh chất lượng 3D
-    │   └── three-visibility.js ← Bộ điều phối tạm dừng/tiếp tục hiệu ứng khi đổi tab
     ├── shipment/
     │   ├── index.html      ← Giao diện tra cứu trạng thái vận chuyển (Khách)
     │   ├── dispatch/       ← Giao diện Web Desktop: Bảng điều phối vận đơn (Kế toán/Quản lý)
     │   └── mobile/         ← Giao diện Mobile Web 1-chạm (Thủ kho & Lái xe)
     └── vendor/
-        ├── chart.umd.min.js
-        └── three.min.js    ← Thư viện đồ họa 3D THREE.js r159 UMD
+        └── chart.umd.min.js
 ```
 
 ---
@@ -143,18 +136,19 @@ server/                     ← Node.js/Express backend (Render.com)
 | 7     | CI/CD                                 | Auto-deploy khi push lên branch `main` của GitHub repo                                             | [Hoan thanh]   |
 | 8     | Health check & Debug route            | `GET /health` -> Render ping; `/api/debug` -> kiểm tra kết nối và liệt kê `sheetTabs`             | [Hoan thanh]   |
 | 9     | Báo cáo công nợ KH 1/3/7 ngày         | `CustomerDebtReport.gs` tự động tính và ghi đè HN1/HN3/HN7; backend `debtReport.js` đọc và hiển thị| [Hoan thanh]   |
-| 10    | Lịch sử hàng Ngừng kinh doanh | `DiscontinuedProducts.gs` cập nhật toàn bộ lịch sử trong tab `Hàng ngừng kinh doanh` gần 07:30 | [Hoan thanh]   |
+| 10    | ~~Lịch sử hàng Ngừng kinh doanh~~ | `DiscontinuedProducts.gs` cập nhật toàn bộ lịch sử trong tab `Hàng ngừng kinh doanh` gần 07:30 | **[Da go bo]** — trùng dữ liệu snapshot với tab Hàng hóa |
 | 11    | Khách theo hàng hóa | `CustomerReport.gs` tổng hợp toàn bộ lịch sử theo 25 cột sản phẩm -> khách -> hóa đơn, cập nhật gần 07:00 hoặc chạy tay | [Hoan thanh] |
-| 12    | Xuất Excel theo từng bảng | 16 bảng và kết quả tìm kiếm xuất `.xlsx`, chọn đủ trường Google Sheets, hỗ trợ workbook nhiều worksheet | [Hoan thanh] |
+| 12    | Xuất Excel theo từng bảng | 15 bảng và kết quả tìm kiếm xuất `.xlsx`, chọn đủ trường Google Sheets, hỗ trợ workbook nhiều worksheet | [Hoan thanh] |
 | 13    | Result Cache tầng backend | Cache dữ liệu thô 90s + Result Cache theo `(rawDataVersion, filters)`, search index chỉ build lại khi refetch | [Hoan thanh] |
 | 14    | Phân trang bảng client-side | `pagination.js` phân trang ~200 dòng/trang cho `allProducts` và `lowStock`, loại bỏ lag 3.5s khi mở tab Hàng hóa | [Hoan thanh] |
 | 15    | Tối ưu Motion & UI Transitions | Áp dụng shared `--ease-out`, chống re-animate biểu đồ khi chuyển tab/poll, transition mượt mà cho search suggestions, surfaces, debt rows | [Hoan thanh] |
-| 16    | Lớp hiệu ứng 3D Progressive Layer | Tích hợp Three.js r159 particle background, card 3D tilt, tactile buttons, 3D navigation, table staggered rows, 3D loading cube, adaptive performance monitor & memory disposal trên các trang chính | [Hoan thanh] |
-| 17    | Bộ kiểm thử tự động | Bộ **434 unit tests** chuẩn `node:test` bao phủ HR leave, Telegram bot, conversation store, Apps Script sync, auth/Guest/SĐT, Admin CRUD, OTP reset, yêu cầu đổi vai trò, chuông thông báo, kiểm tra đứt hàng Excel-KiotViet, tra cứu vận chuyển, State Machine 9 trạng thái, Repository VC, cache, pagination, excel export, và frontend | [Hoan thanh] |
-| 18    | Tối ưu hóa hiệu năng & Giảm lag (4 Phase) | (1) Gzip compression, Cache-Control static assets, script defer, fonts preconnect, gỡ 3D login/register; (2) rAF throttle `onCardHover`, scoped `TKS3D.refresh()`; (3) Phân trang 100 dòng/trang cho toàn bộ 13 bảng dữ liệu + lazy debt detail; (4) Backend cache 12s theo sheet `vcSheetsClient.js` kèm write invalidation, `vcBatchUpdate` cho `updateOrderItems`, 15s timeout cho Google Sheets API | [Hoan thanh] |
+| 16    | ~~Lớp hiệu ứng 3D Progressive Layer~~ | Tích hợp Three.js r159 particle background, card 3D tilt, tactile buttons, 3D navigation, table staggered rows, 3D loading cube, adaptive performance monitor & memory disposal | **[Da go bo]** — xem mục 22 |
+| 17    | Bộ kiểm thử tự động | Bộ **417 unit tests** chuẩn `node:test` bao phủ HR leave, Telegram bot, conversation store, Apps Script sync, auth/Guest/SĐT, Admin CRUD, OTP reset, yêu cầu đổi vai trò, chuông thông báo, kiểm tra đứt hàng Excel-KiotViet, tra cứu vận chuyển, State Machine 9 trạng thái, Repository VC, cache, pagination, excel export, và frontend | [Hoan thanh] |
+| 18    | Tối ưu hóa hiệu năng & Giảm lag (4 Phase) | (1) Gzip compression, Cache-Control static assets, script defer, fonts preconnect; (2) rAF throttle cho hover handler (các mục thuộc lớp 3D nay đã bị gỡ ở mục 22); (3) Phân trang 100 dòng/trang cho toàn bộ 13 bảng dữ liệu + lazy debt detail; (4) Backend cache 12s theo sheet `vcSheetsClient.js` kèm write invalidation, `vcBatchUpdate` cho `updateOrderItems`, 15s timeout cho Google Sheets API | [Hoan thanh] |
 | 19    | Phân hệ Quản lý Nghỉ phép HR & Telegram Bot | Nghỉ theo Sáng/Chiều, quy đổi số buổi/2, lọc theo thời gian gửi và ghi trạng thái `Vi phạm` khi gửi sau 07:45/12:30; đồng bộ Google Sheet, REST API, `/humanresources/`, Excel và Telegram Bot | [Hoan thanh] |
 | 20    | Chuông thông báo & Đổi vai trò người dùng | Chuông thông báo toàn hệ thống (`/api/notifications`), cơ chế người dùng tự gửi yêu cầu đổi vai trò kèm lý do, Quản lý phê duyệt/từ chối và tự động gửi thông báo | [Hoan thanh] |
 | 21    | Kiểm tra đứt hàng Excel & KiotViet API | Phân hệ `/api/products/stockout-check/*` đọc file Excel tải lên, đối chiếu trực tiếp tồn kho và giao dịch KiotViet API bất đồng bộ theo hàng đợi giới hạn tải, phân tích dòng thời gian và xuất báo cáo Excel | [Hoan thanh] |
+| 22    | Gỡ bỏ lớp hiệu ứng 3D & tối ưu hiệu năng frontend | Xóa hẳn `three.min.js` (~650KB) + 6 module `three-*.js` + `performance-test.html` khỏi 7 trang; hạ toàn bộ CSS 3D (`preserve-3d`/`perspective`/`translateZ`) về 2D — trọng tâm là rule `tbody tr` áp lên 100 dòng/trang; chuyển nền trang từ `background-attachment: fixed` (vẽ lại toàn viewport mỗi frame cuộn) sang lớp `body::before` cố định; bỏ `backdrop-filter` trên `.loading-veil` và thay cube loader bằng spinner CSS tĩnh; bỏ font Open Sans không dùng và thay `@import` bằng `<link>`+`preconnect`; chuyển `chart.umd.min.js`/`shared-nav.js` xuống cuối `<body>`; sắp xếp bảng qua `DocumentFragment` và chỉ sort đúng bảng vừa render; dùng instance `Intl.NumberFormat` tái sử dụng cho 34 điểm format số | [Hoan thanh] |
 
 ## 2.2. Tính năng đã vận hành
 
@@ -163,14 +157,13 @@ server/                     ← Node.js/Express backend (Render.com)
 - **Bảng chi tiết & Phân trang toàn diện (100 dòng/trang):** Áp dụng phân trang client-side (`renderPaginatedRows`) cho toàn bộ 13 bảng dữ liệu.
 - **Lazy-Render chi tiết công nợ:** Chỉ dựng DOM chi tiết giao dịch khi khách hàng bấm mở rộng dòng.
 - **Báo cáo công nợ KH 1/3/7 ngày:** Tự động tính toán từ KiotViet qua `CustomerDebtReport.gs`, ghi vào 3 tab HN1/HN3/HN7 và hiển thị trực quan qua `debtReport.js`.
-- **Theo dõi hàng Ngừng kinh doanh:** Duy trì lịch sử từ trước tới nay trong một tab duy nhất qua `DiscontinuedProducts.gs`.
 - **Đồng bộ tự động:** Webhook KiotViet (9 event) qua tab queue ẩn + polling 15 phút (Trả hàng/NCC/Nhập hàng).
 - **Backend Result Cache:** Phản hồi tức thì (<10ms) cho các lượt chuyển tab, thay đổi bộ lọc hoặc mở nhiều tab trình duyệt khi dữ liệu Sheets chưa đổi.
 - **Bảo vệ Quota Google Sheets API cho Vận đơn:** Bộ nhớ đệm ngắn hạn 12s theo sheet trong `vcSheetsClient.js` chống nghẽn khi nhiều tài xế/điều phối viên poll đồng thời, kết hợp cơ chế xóa cache chủ động khi ghi dữ liệu và batch write qua `vcBatchUpdate`.
 - **Giao tiếp mạng tối ưu (Network Delivery):** Gzip compression toàn diện, Cache-Control static headers, non-blocking script defer và Google Fonts preconnect.
 - **Tìm kiếm nâng cao:** Hỗ trợ tìm kiếm từ khóa thông thường, tìm chính xác tối đa 50 mã (`mode=codes`), và tìm Top 3 khách hàng theo danh sách mã sản phẩm từ `Khách theo hàng hóa`.
-- **Xuất Excel (16 bảng & HR Leave):** Nút riêng cho từng bảng, tùy chọn trường từ Google Sheets, hỗ trợ xuất báo cáo nghỉ phép nhân sự đa kỳ.
-- **Lớp hiệu ứng 3D Visual & Hiệu năng cao:** Hệ thống hạt 3D Particle Background tự động đổi màu theo theme, card 3D tilt xoay nhẹ theo vị trí chuột với rAF gating & cached rect, 3D rotating cube loader, tự động giảm tải xuống 30fps/50 particles khi máy yếu (`three-performance.js`), quản lý thu hồi bộ nhớ WebGL (`three-memory.js`), và tạm dừng animation khi chuyển tab (`three-visibility.js`).
+- **Xuất Excel (15 bảng & HR Leave):** Nút riêng cho từng bảng, tùy chọn trường từ Google Sheets, hỗ trợ xuất báo cáo nghỉ phép nhân sự đa kỳ.
+- **Giao diện 2D thuần, ưu tiên hiệu năng:** Lớp hiệu ứng 3D Three.js đã được gỡ bỏ hoàn toàn (mục 22). Chiều sâu thị giác tạo bằng màu, bóng đổ và khoảng trắng; hover/focus chỉ dùng `box-shadow`/`border-color`/`background-color`. Nền trang vẽ một lần vào lớp `body::before` cố định thay vì `background-attachment: fixed`.
 - **Phân hệ Quản lý Nghỉ phép HR & Telegram Bot:** Nhân viên nộp đơn xin nghỉ và tra cứu số dư ngày phép trên Cổng thông tin `/humanresources/` hoặc qua Telegram Bot 24/7; Quản lý/HR duyệt đơn trực tiếp trên Web và gửi thông báo tự động qua Telegram; xuất báo cáo đối soát công phép Excel.
 
 ---
@@ -181,7 +174,7 @@ server/                     ← Node.js/Express backend (Render.com)
 |-------|-------------------------------|--------------------------------------------------------------------------------------|-------------|----------------|
 | 1     | Phân quyền & Quản lý User     | Đăng nhập nội bộ (JWT httpOnly cookie + bcrypt), phân quyền 5 vai trò, Quản trị người dùng Admin (`/account`), Khôi phục OTP | Cao | [Hoan thanh] (Phase 0) |
 | 2     | Xuất báo cáo PDF              | Excel theo từng bảng đã hoàn thành; còn lại PDF cho KPI summary và báo cáo in        | Cao         | Đang lên kế hoạch |
-| 3     | Nâng cấp UI/UX & Hiệu ứng 3D  | Triển khai lớp hiệu ứng 3D toàn diện các trang giao diện theo `3D Design.md` & `docs/performance-optimization-report.md` | Cao | [Hoan thanh] |
+| 3     | Nâng cấp UI/UX                | Lớp hiệu ứng 3D đã triển khai rồi gỡ bỏ vì hiệu năng (Giai đoạn 1, mục 22). Hướng tiếp theo: tinh chỉnh typography, khoảng trắng và trạng thái rỗng/lỗi trong phạm vi 2D | Trung bình | Đang lên kế hoạch |
 | 4     | Phân hệ Nghỉ phép HR & Bot    | Quản lý ngày phép, số dư phép, nộp đơn qua Web & Bot Telegram, duyệt đơn và xuất báo cáo | Cao | [Hoan thanh] |
 | 5     | Theo dõi chu kỳ refresh       | Hiển thị countdown và cho phép cấu hình chu kỳ (logic auto-refresh 10 phút đã có)      | Trung bình  | Đang lên kế hoạch |
 | 6     | Cache tầng backend            | In-memory result cache và raw sheets cache 90s đã triển khai (`dashboardData.js`)     | Thấp        | [Hoan thanh] |

@@ -16,6 +16,13 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const app = express();
 
+// App chay sau reverse proxy (Firebase App Hosting/Cloud Run, co the co
+// Cloudflare phia truoc) — khong set trust proxy thi req.ip luon la IP cua
+// proxy (giong het nhau cho MOI request), khien rate-limit theo IP trong
+// authRoutes.js (forgotPasswordRateLimit) gop chung toan bo nguoi dung vao
+// 1 bucket va khoa nham ca site chi sau vai chuc request.
+app.set('trust proxy', 1);
+
 app.use(compression());
 // Mac dinh express.json() gioi han 100kb — khong du cho payload xuat Excel
 // ket qua kiem tra dut hang (hang tram dong, moi dong kem chi tiet cac dot dut hang).
@@ -42,7 +49,10 @@ app.use(express.static(path.join(__dirname, 'public'), {
     } else if (/\.(js|css)$/.test(filePath)) {
       // /shared/*, /js/* — luon revalidate de cap nhat UI tuc thi khi sua code
       res.setHeader('Cache-Control', 'no-cache, must-revalidate');
-    } else if (/\.(png|jpg|jpeg|svg|webp|ico)$/.test(filePath)) {
+    } else if (/\.jfif$/i.test(filePath)) {
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    } else if (/\.(png|jpg|jpeg|svg|webp|ico)$/i.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=604800'); // 7 ngay
     }
     // HTML: khong set — giu mac dinh (ETag revalidate), vi day la entry point

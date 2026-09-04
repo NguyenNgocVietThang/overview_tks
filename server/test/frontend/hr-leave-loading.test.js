@@ -8,7 +8,7 @@ const { JSDOM } = require('jsdom');
 
 const htmlPath = path.join(__dirname, '..', '..', 'public', 'humanresources', 'index.html');
 
-test('trang nhân sự tải toàn bộ yêu cầu khi mở lần đầu', async () => {
+test('trang nhân sự tải danh sách yêu cầu với mặc định 3 ngày gần đây khi mở lần đầu', async () => {
   const html = fs.readFileSync(htmlPath, 'utf8');
   const dom = new JSDOM(html, {
     runScripts: 'outside-only',
@@ -46,8 +46,17 @@ test('trang nhân sự tải toàn bộ yêu cầu khi mở lần đầu', async
   const initialListUrl = requestedUrls.find(url => url.startsWith('/api/hr/leave-requests?'));
   assert.ok(initialListUrl, 'frontend phải gọi API danh sách yêu cầu nghỉ phép');
   const query = new URL(initialListUrl, window.location.origin).searchParams;
-  assert.equal(query.has('from'), false, 'không tự giới hạn ngày bắt đầu vào hôm nay');
-  assert.equal(query.has('to'), false, 'không tự giới hạn ngày kết thúc vào hôm nay');
+
+  const pad = n => String(n).padStart(2, '0');
+  const now = new Date();
+  const expectedTo = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2);
+  const expectedFrom = `${fromDate.getFullYear()}-${pad(fromDate.getMonth() + 1)}-${pad(fromDate.getDate())}`;
+
+  assert.equal(query.get('from'), expectedFrom, 'mặc định ngày bắt đầu là 3 ngày gần đây');
+  assert.equal(query.get('to'), expectedTo, 'mặc định ngày kết thúc là hôm nay');
+  assert.equal(window.document.getElementById('fromDateFilter').value, expectedFrom);
+  assert.equal(window.document.getElementById('toDateFilter').value, expectedTo);
 
   dom.window.close();
 });
@@ -101,7 +110,7 @@ test('tab nghỉ phép hiển thị thời gian gửi, dữ liệu theo buổi v
   const headers = [...window.document.querySelectorAll('#leaveTable thead th')].map(th => th.textContent.trim());
   assert.ok(headers.some(header => header.includes('Thời gian gửi')));
   assert.ok(headers.some(header => header.includes('Tổng buổi / ngày')));
-  assert.match(window.document.querySelector('.date-range-group').textContent, /Thời gian gửi/);
+  assert.match(window.document.querySelector('.date-range-group').textContent, /Thời gian nghỉ/);
   assert.equal(window.document.getElementById('maStartDate').type, 'date');
   assert.equal(window.document.getElementById('maStartSession').tagName, 'SELECT');
 

@@ -1,0 +1,38 @@
+runConfig:
+  cpu: 1
+  memoryMiB: 1024
+  minInstances: 0
+  maxInstances: 1
+  concurrency: 80
+
+env:
+  - variable: NODE_ENV
+    value: production
+    availability:
+      - RUNTIME
+  - variable: TELEGRAM_BOT_ENABLED
+    value: "false"
+    availability:
+      - RUNTIME
+  - variable: SPREADSHEET_ID
+    secret: SPREADSHEET_ID
+  - variable: SPREADSHEET_ID_SG
+    secret: SPREADSHEET_ID_SG
+  - variable: GOOGLE_SERVICE_ACCOUNT_JSON
+    secret: GOOGLE_SERVICE_ACCOUNT_JSON
+  - variable: JWT_SECRET
+    secret: JWT_SECRET
+  - variable: GOOGLE_CLIENT_ID
+    secret: GOOGLE_CLIENT_ID
+  - variable: VC_SPREADSHEET_ID
+    secret: VC_SPREADSHEET_ID
+  - variable: HR_SPREADSHEET_ID
+    secret: HR_SPREADSHEET_ID
+  - variable: TELEGRAM_BOT_TOKEN
+    secret: TELEGRAM_BOT_TOKEN
+  - variable: KIOTVIET_CLIENT_ID
+    secret: KIOTVIET_CLIENT_ID
+  - variable: KIOTVIET_CLIENT_SECRET
+    secret: KIOTVIET_CLIENT_SECRET
+  - variable: KIOTVIET_RETAILER
+    secret: KIOTVIET_RETAILER

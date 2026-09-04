@@ -82,3 +82,15 @@ test('requireRole: Khach bi chan khoi route chi danh cho noi bo', () => {
   assert.equal(res.statusCode, 403);
   assert.equal(nextCalled, false);
 });
+
+test('requireRole: Nhan vien kho, Nhan vien sale, Nhan vien mua hang hop le khi nam trong allowedRoles', () => {
+  const middleware = requireRole('Nhân viên kho', 'Nhân viên sale', 'Nhân viên mua hàng');
+  for (const role of ['Nhân viên kho', 'Nhân viên sale', 'Nhân viên mua hàng']) {
+    const req = { user: { vaiTro: role } };
+    const res = fakeRes();
+    let nextCalled = false;
+    middleware(req, res, () => { nextCalled = true; });
+    assert.equal(nextCalled, true, `Role ${role} phai duoc phep`);
+    assert.equal(res.statusCode, null);
+  }
+});

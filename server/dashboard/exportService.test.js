@@ -47,18 +47,13 @@ function buildSnapshot() {
       ],
       ['CN1', 'PN-01', '14/08/2026 07:00:00', '', '', 'NCC-01', 'Nhà cung cấp A', '', '', '', '', 100000, 0, 100000, 0, '', '', 3, 2, 'Đã nhập hàng', '00123', 'Sản phẩm A', 1],
       ['CN1', 'PN-01', '14/08/2026 07:00:00', '', '', 'NCC-01', 'Nhà cung cấp A', '', '', '', '', 100000, 0, 100000, 0, '', '', 3, 2, 'Đã nhập hàng', 'SP-02', 'Sản phẩm B', 2]
-    ],
-    [CONFIG.SHEET_DEACTIVATED_TODAY]: [
-      ['Mã hàng', 'Tên hàng', 'Ngày sửa trên KiotViet', 'Trạng thái'],
-      ['00123', 'Sản phẩm A', '14/08/2026 06:00:00', 'Ngừng kinh doanh']
     ]
   };
 
   const dashboard = {
     overview: {
       endOfDayReport: { transactions: [{ code: 'HD-01', quantity: 2, quantityKnown: true }] },
-      todayNewProducts: { products: [{ code: '00123' }] },
-      deactivatedToday: { products: [{ code: '00123' }] }
+      todayNewProducts: { products: [{ code: '00123' }] }
     },
     newPurchases: { orders: [{ code: 'PN-01' }] },
     products: {
@@ -94,13 +89,13 @@ function buildSnapshot() {
 }
 
 const FIXED_TABLES = [
-  'overview.transactions', 'overview.purchases', 'overview.new-products', 'overview.deactivated',
+  'overview.transactions', 'overview.purchases', 'overview.new-products',
   'products.top-selling', 'products.low-stock', 'products.all', 'products.newly-imported',
   'products.child-categories', 'invoices.orders', 'invoices.returns', 'invoices.recent',
   'customers.revenue', 'customers.debt', 'suppliers.list', 'debt.period'
 ];
 
-test('registry dung du 16 bang va tao duoc metadata voi tat ca cot mac dinh duoc chon', () => {
+test('registry dung du 15 bang va tao duoc metadata voi tat ca cot mac dinh duoc chon', () => {
   const snapshot = buildSnapshot();
   FIXED_TABLES.forEach(tableKey => {
     const context = {
@@ -115,7 +110,7 @@ test('registry dung du 16 bang va tao duoc metadata voi tat ca cot mac dinh duoc
   });
 });
 
-test('ca 16 bang tao duoc file xlsx tu danh sach truong API tra ve', async () => {
+test('ca 15 bang tao duoc file xlsx tu danh sach truong API tra ve', async () => {
   const originalSnapshot = dashboardData.getDashboardExportSnapshot;
   dashboardData.getDashboardExportSnapshot = async () => buildSnapshot();
   try {

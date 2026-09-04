@@ -8,7 +8,10 @@
 <script>
   document.documentElement.dataset.theme = 'light';
 </script>
-<link rel="stylesheet" href="/shared/shared.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/shared/shared.css?v=20260830">
 <style>
   .register-shell{
     min-height:100vh;
@@ -152,8 +155,8 @@
 </style>
 </head>
 <body>
-  <div class="register-shell perspective-container">
-    <form class="register-card card-3d" id="registerForm" novalidate>
+  <div class="register-shell">
+    <form class="register-card" id="registerForm" novalidate>
       <div class="register-brand">
         <div class="brand-mark">
           <img src="/Logo.jpg" alt="TOKOSI Logo" width="48" height="48">
@@ -166,7 +169,7 @@
       <h2>Đăng ký tài khoản Khách</h2>
       <p class="sub">Tài khoản Khách dùng tra cứu tiến độ và trạng thái đơn hàng theo mã hóa đơn.</p>
 
-      <!-- Method Switcher: Email vs Phone -->
+      <!-- Bộ chuyển đổi phương thức: Email và Số điện thoại -->
       <div class="auth-nav-tabs" role="tablist">
         <button type="button" class="auth-nav-tab active" id="tabRegisterEmail" onclick="switchRegisterMethod('email')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
@@ -185,13 +188,13 @@
         <input id="hoTen" name="hoTen" autocomplete="name" maxlength="100" placeholder="Ví dụ: Nguyễn Văn A" required autofocus>
       </div>
 
-      <!-- Field Email -->
+      <!-- Trường nhập Email -->
       <div class="field" id="fieldEmailWrap">
         <label for="email">Địa chỉ Email *</label>
         <input type="email" id="email" name="email" autocomplete="email" maxlength="254" placeholder="email@domain.com">
       </div>
 
-      <!-- Field Số điện thoại -->
+      <!-- Trường nhập Số điện thoại -->
       <div class="field" id="fieldPhoneWrap" style="display:none;">
         <label for="soDienThoai">Số điện thoại *</label>
         <input type="tel" id="soDienThoai" name="soDienThoai" autocomplete="tel" maxlength="12" placeholder="Ví dụ: 0912345678">
@@ -330,6 +333,7 @@
       .then(function(res){ if(res.ok) window.location.href = '/shipment/'; })
       .catch(function(){});
   </script>
+  <script src="/shared/shooting-star.js?v=20260830"></script>
 </body>
 </html>
 

@@ -11,7 +11,7 @@
 | Ngày tạo          | 27/07/2026                                                          |
 | Ngày cập nhật     | 26/08/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo, nhân viên nội bộ công ty & khách hàng tra cứu        |
-| Trạng thái        | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1, 3D Layer, Phân hệ HR + Bot, Chuông thông báo, Đổi vai trò & Kiểm tra đứt hàng) |
+| Trạng thái        | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1, Phân hệ HR + Bot, Chuông thông báo, Đổi vai trò & Kiểm tra đứt hàng) |
 
 > **Ghi chú phiên bản 1.9:** Bổ sung Phân hệ Quản lý Nghỉ phép Nhân sự (HR Leave Management) & Telegram Bot theo chính sách CSNS-NP-01; Chuông thông báo toàn hệ thống; Cơ chế gửi & duyệt yêu cầu đổi vai trò người dùng; Công cụ Kiểm tra đứt hàng đối chiếu file Excel với KiotViet API nền; Tích hợp bộ kiểm thử tự động toàn diện **434 unit tests** chuẩn `node:test`.
 
@@ -23,7 +23,7 @@ Tài liệu này mô tả các yêu cầu nghiệp vụ cho Hệ thống Dashboa
 
 ## 1.2. Bối cảnh
 
-Công ty TOKOSI là một tổng kho sỉ phân phối hàng hóa, vận hành trên phần mềm **KiotViet** (quản lý bán hàng, kho, khách hàng). Dữ liệu KiotViet được đồng bộ tự động sang **Google Sheets** (qua hai project Apps Script độc lập `src-dashboard/` và `src-order-lifecycle/`) dưới dạng 9 tab dữ liệu vận hành, 1 tab lịch sử hàng ngừng kinh doanh, 3 tab báo cáo khách hàng, 3 tab báo cáo công nợ HN1/HN3/HN7, 6 tab vận chuyển `VC_*` và 3 tab nhân sự `HR_*`. Backend dashboard đọc các tab cần thiết để hiển thị KPI, biểu đồ, báo cáo công nợ khách hàng và quản lý nghỉ phép nhân sự.
+Công ty TOKOSI là một tổng kho sỉ phân phối hàng hóa, vận hành trên phần mềm **KiotViet** (quản lý bán hàng, kho, khách hàng). Dữ liệu KiotViet được đồng bộ tự động sang **Google Sheets** (qua hai project Apps Script độc lập `src-dashboard/` và `src-order-lifecycle/`) dưới dạng 9 tab dữ liệu vận hành, 3 tab báo cáo khách hàng, 3 tab báo cáo công nợ HN1/HN3/HN7, 6 tab vận chuyển `VC_*` và 3 tab nhân sự `HR_*`. Backend dashboard đọc các tab cần thiết để hiển thị KPI, biểu đồ, báo cáo công nợ khách hàng và quản lý nghỉ phép nhân sự.
 
 Trước đây, việc theo dõi số liệu phải thực hiện thủ công trên KiotViet và Google Sheets, gây mất thời gian tổng hợp và khó trực quan hóa xu hướng. Công ty cần một **Website Dashboard tập trung** đọc dữ liệu từ Google Sheets này, hiển thị các chỉ số quan trọng dưới dạng KPI card và biểu đồ, cập nhật gần thời gian thực mà không cần thao tác thủ công.
 
@@ -59,8 +59,6 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - Ba tab **HN1**, **HN3**, **HN7** là báo cáo công nợ khách hàng 1/3/7 ngày gần đây (tính cả hôm nay) do Apps Script tự động tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00, được backend Node.js đọc để hiển thị báo cáo công nợ trên Web Dashboard.
 
-- Tab **Hàng ngừng kinh doanh** lưu lịch sử từ trước tới nay trong một tab duy nhất, cập nhật khi full sync và tự động cập nhật gần 07:30.
-
 - **Phân hệ Quản lý Nghỉ phép HR & Telegram Bot:** Cung cấp kênh nộp đơn xin nghỉ phép, tra cứu số dư ngày phép trực tuyến 24/7 qua Web Portal và Telegram Bot, quy trình phê duyệt tự động gửi thông báo cho nhân viên.
 
 - Rút ngắn thời gian tổng hợp báo cáo, giúp lãnh đạo và nhân viên theo dõi số liệu bằng một cú truy cập web đơn giản.
@@ -71,7 +69,7 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 ## 3.1. Trong phạm vi (In-scope) — Giai đoạn 1 đã triển khai
 
-- **Nguồn dữ liệu cố định:** 1 Google Spreadsheet duy nhất (ID cố định theo cấu hình), chứa 9 tab vận hành, 1 tab lịch sử hàng ngừng kinh doanh, 2 tab báo cáo bán hàng, 3 tab báo cáo công nợ HN1/HN3/HN7, 6 tab vận chuyển `VC_*` và 3 tab nhân sự `HR_*` do Apps Script & Node.js duy trì:
+- **Nguồn dữ liệu cố định:** 1 Google Spreadsheet duy nhất (ID cố định theo cấu hình), chứa 9 tab vận hành, 2 tab báo cáo bán hàng, 3 tab báo cáo công nợ HN1/HN3/HN7, 6 tab vận chuyển `VC_*` và 3 tab nhân sự `HR_*` do Apps Script & Node.js duy trì:
 
   | Tab                | Dữ liệu                                                                  | Backend đọc |
   |--------------------|--------------------------------------------------------------------------|-------------|
@@ -86,7 +84,6 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
   | Nhập hàng          | Mã nhập, ngày nhập, NCC, chi nhánh, tổng tiền, trạng thái                | Có          |
   | Báo cáo bán hàng | 18 cột theo file xuất KiotViet: khách hàng, tổng hợp bán/trả và chi tiết từng giao dịch trong tháng hiện tại | Không |
   | Hàng bán theo khách | Khách hàng, mã hàng, tên hàng, SL mua chi tiết, thời gian của từng dòng hàng bán trong 90 ngày qua | Có |
-  | Hàng ngừng kinh doanh | Lịch sử các mã hàng từng ngừng kinh doanh và trạng thái hiện tại | Có |
   | HN1 / HN3 / HN7 | Báo cáo công nợ khách hàng 1/3/7 ngày do Apps Script `CustomerDebtReport.gs` tự động tính và ghi đè | Có (`debtReport.js`) |
   | VC_Orders / VC_* | 6 tab dữ liệu vận chuyển hàng hóa, theo dõi đơn và trạng thái giao | Có (`vcSheetsClient.js`) |
   | HR_Leaves / HR_* | 3 tab dữ liệu nhân sự, đơn xin nghỉ phép, danh sách nhân viên & chính sách phép | Có (`hrSheetsClient.js`) |
@@ -243,18 +240,17 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 - Nút "Làm mới" cập nhật dữ liệu mới nhất từ Sheets trong vòng vài giây; chuyển tab / đổi bộ lọc phản hồi tức thì (<10ms) nhờ Result Cache.
 - Dashboard tự làm mới sau mỗi 10 phút; khi quay lại tab đã ẩn quá 10 phút, dữ liệu được tải lại ngay.
 - KPI "hôm nay", chuỗi ngày trên biểu đồ và `updatedAt` thống nhất theo múi giờ Asia/Ho_Chi_Minh.
-- Hỗ trợ xuất Excel cho 16 bảng dữ liệu và kết quả tìm kiếm với đầy đủ tùy chọn trường, định dạng chuẩn.
+- Hỗ trợ xuất Excel cho 15 bảng dữ liệu và kết quả tìm kiếm với đầy đủ tùy chọn trường, định dạng chuẩn.
 - Bảng dữ liệu lớn (>7.000 dòng) được phân trang ~200 dòng/trang, chuyển trang mượt mà không lag.
 - Khi thiếu một tab nguồn, dashboard vẫn trả kết quả cho các phần dữ liệu còn lại và route `/api/debug` liệt kê được các tab thực tế.
 - HN1/HN3/HN7 do `CustomerDebtReport.gs` ghi theo schema báo cáo thống nhất; kết quả chạy `syncAllInitialData()` phải tương đương chạy riêng `syncCustomerDebtReports()` tại cùng thời điểm.
-- Chỉ còn tab `Hàng ngừng kinh doanh` để lưu lịch sử từ trước tới nay; tab theo ngày cũ không được tạo lại.
 - Hệ thống hoạt động ổn định trên Render.com, uptime >= 99% trong giờ hành chính.
 - Không lộ thông tin nhạy cảm (Service Account key, Spreadsheet ID) ra phía client.
 - Kiến trúc Giai đoạn 1 được tổ chức theo mô-đun rõ ràng, cho phép bổ sung module ở mục 3.3 mà không phải tái cấu trúc toàn bộ.
 
 # 9. Kế hoạch triển khai tổng quan
 
-## 9.1. Giai đoạn 1 — Dashboard & Lớp hiệu ứng 3D (đã hoàn thiện)
+## 9.1. Giai đoạn 1 — Dashboard (đã hoàn thiện)
 
 | **Bước**                          | **Nội dung**                                                                                      | **Trạng thái** |
 |-----------------------------------|---------------------------------------------------------------------------------------------------|----------------|
@@ -262,7 +258,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 | 2. Apps Script đồng bộ KiotViet    | `src/`: sync đủ trường, webhook qua queue bền vững, polling 15 phút cho 3 bảng không có webhook | Hoàn thành     |
 | 3. Backend Node.js/Express         | API `/api/dashboard`, `/api/search`, `/api/customer-product-top`, `/api/auth/*`, `/api/admin/*`, `/api/shipment/*`, Result Cache, 324 unit tests | Hoàn thành     |
 | 4. Frontend HTML/CSS/JS            | Dashboard, bộ lọc thời gian, phân trang bảng (`pagination.js`), motion tokens, transitions, quản trị tài khoản (`/account/`) | Hoàn thành     |
-| 5. Lớp hiệu ứng 3D Visual          | Three.js r159 particle background, card 3D tilt, tactile buttons, 3D rotating loading cube, FPS monitor & WebGL memory disposal trên cả 7 trang | Hoàn thành     |
+| 5. Lớp hiệu ứng 3D Visual          | Đã triển khai (Three.js r159 particle background, card tilt, 3D loading cube) rồi **gỡ bỏ hoàn toàn** vì gây giật trên máy cấu hình phổ thông. Giao diện hiện thuần 2D — xem Implementation Plan mục 22 | Đã gỡ bỏ       |
 | 6. Triển khai Render.com           | Deploy lên `tokosi.onrender.com`, cấu hình biến môi trường                                        | Hoàn thành     |
 | 7. Xuất Excel 16 bảng             | Module `exportService.js` tạo workbook `.xlsx` đa worksheet, tùy chọn trường                      | Hoàn thành     |
 
@@ -270,7 +266,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 
 | **Giai đoạn**                                   | **Nội dung chính**                                                                                      | **Ghi chú**                                                          |
 |-------------------------------------------------|---------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------|
-| Giai đoạn 2 — Phân quyền & xuất PDF             | Đăng nhập nội bộ, phân quyền Admin/Nhân viên, xuất PDF cho KPI summary và bản in                       | Đã hoàn thành phần Quản lý tài khoản & 3D; tiếp tục PDF               |
+| Giai đoạn 2 — Phân quyền & xuất PDF             | Đăng nhập nội bộ, phân quyền Admin/Nhân viên, xuất PDF cho KPI summary và bản in                       | Đã hoàn thành phần Quản lý tài khoản; tiếp tục PDF                    |
 | Giai đoạn 3 — Bán hàng/POS                      | Tạo đơn bán, quản lý khách hàng, công nợ, in hóa đơn — tương đương nghiệp vụ KiotViet                  | Sau Giai đoạn 2                                                      |
 | Giai đoạn 4 — Kho đa chi nhánh                  | Nhập/xuất/chuyển kho, tồn kho theo từng kho, kiểm kê định kỳ cho 5.000–20.000 SKU                      | Phụ thuộc dữ liệu chuẩn hoá từ Giai đoạn 3                           |
 | Giai đoạn 5 — Phân tích & phát hiện bất thường  | Phân tích doanh số, dự đoán nhu cầu nhập hàng, phát hiện sai lệch tồn kho/giá bất thường               | Cần dữ liệu lịch sử đủ lớn từ Giai đoạn 3–4                          |

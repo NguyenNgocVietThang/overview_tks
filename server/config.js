@@ -2,7 +2,7 @@
 // CAU HINH — doc tu bien moi truong (khong commit secret)
 // ==========================================
 if (process.env.NODE_ENV !== 'production') {
-  try { require('dotenv').config(); } catch (e) { /* dotenv optional in prod */ }
+  try { require('dotenv').config(); } catch (e) { /* dotenv là tùy chọn trong môi trường production */ }
 }
 
 function required(name) {
@@ -32,6 +32,29 @@ const CONFIG = {
   // lam sap server. Khong can GOOGLE_CLIENT_SECRET vi dung ID token flow
   // (Google Identity Services), khong dung authorization-code flow.
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || null,
+
+  // ==========================================
+  // GUI OTP QUEN MAT KHAU — Email (Gmail SMTP) + SMS (SpeedSMS)
+  // Ca hai deu OPTIONAL: thieu bien nao thi kenh do tu dong fallback ve
+  // console.log (che do dev), KHONG lam sap server. Xem server/notifications/.
+  // ==========================================
+  // Gmail SMTP: bat 2FA cho tai khoan Gmail dung de gui, roi tao "App
+  // Password" 16 ky tu tai https://myaccount.google.com/apppasswords —
+  // KHONG dung mat khau Gmail that.
+  SMTP_HOST: process.env.SMTP_HOST || 'smtp.gmail.com',
+  SMTP_PORT: Number(process.env.SMTP_PORT) || 465,
+  SMTP_USER: process.env.SMTP_USER || null,
+  SMTP_APP_PASSWORD: process.env.SMTP_APP_PASSWORD || null,
+  SMTP_FROM_NAME: process.env.SMTP_FROM_NAME || 'TOKOSI Dashboard',
+
+  // SpeedSMS (speedsms.vn): lay Access Token trong trang "Thong tin tai
+  // khoan". SPEEDSMS_SENDER tuy chon (brandname da dang ky) — de trong se
+  // gui bang dau so mac dinh cua tai khoan.
+  SPEEDSMS_ACCESS_TOKEN: process.env.SPEEDSMS_ACCESS_TOKEN || null,
+  SPEEDSMS_SENDER: process.env.SPEEDSMS_SENDER || null,
+  // sms_type cua SpeedSMS: 4 = "Notify" mac dinh (khong can dang ky brandname,
+  // phu hop OTP). Doi sang 3 + SPEEDSMS_SENDER neu tai khoan da co brandname rieng.
+  SPEEDSMS_SMS_TYPE: Number(process.env.SPEEDSMS_SMS_TYPE) || 4,
 
   // ==========================================
   // QUAN LY VAN CHUYEN — Spreadsheet rieng (VC_*) va Google Drive luu anh
@@ -71,7 +94,6 @@ const CONFIG = {
   SHEET_CUSTOMER_BY_PRODUCT_REPORT: 'Khách theo hàng hóa',
   SHEET_SUPPLIERS: 'Nhà cung cấp',
   SHEET_PURCHASES: 'Nhập hàng',
-  SHEET_DEACTIVATED_TODAY: 'Hàng ngừng kinh doanh',
 
   // HN1/HN3/HN7 do Apps Script tính từ dữ liệu KiotViet theo kỳ 1/3/7 ngày.
   // Server CHỈ ĐỌC — không được tạo/xóa/ghi ba tab này.
@@ -99,7 +121,20 @@ const CONFIG = {
   // So lan nghi gap/thang vuot nguong nay thi hien badge canh bao cho Quan ly.
   HR_URGENT_FLAG_MONTHLY_THRESHOLD: Number(process.env.HR_URGENT_FLAG_MONTHLY_THRESHOLD) || 2,
   // Thoi han hieu luc cua ma lien ket Telegram (phut).
-  HR_LINK_CODE_TTL_MINUTES: Number(process.env.HR_LINK_CODE_TTL_MINUTES) || 15
+  HR_LINK_CODE_TTL_MINUTES: Number(process.env.HR_LINK_CODE_TTL_MINUTES) || 15,
+
+  // ==========================================
+  // POSTGRES — Phase 1 (dong bo KiotViet), xem PlanDB-Phase1-Spec.md
+  // ==========================================
+  // Bat buoc: server/db/pool.js va server/db/migrate.js khong khoi dong duoc
+  // neu thieu, giong tinh than JWT_SECRET (ha tang loi, khong fallback im lang).
+  DATABASE_URL: required('DATABASE_URL'),
+  // Optional — mac dinh true khi production (Render Postgres managed can SSL),
+  // false khi dev local (Postgres qua Docker thuong khong bat SSL).
+  PGSSL: process.env.PGSSL ? process.env.PGSSL === 'true' : process.env.NODE_ENV === 'production',
+  // Optional — nhip dong bo invoices/orders (fast) va cac entity con lai (slow).
+  KIOTVIET_SYNC_FAST_INTERVAL_MS: Number(process.env.KIOTVIET_SYNC_FAST_INTERVAL_MS) || 90000,
+  KIOTVIET_SYNC_SLOW_INTERVAL_MS: Number(process.env.KIOTVIET_SYNC_SLOW_INTERVAL_MS) || 900000
 };
 
 module.exports = CONFIG;

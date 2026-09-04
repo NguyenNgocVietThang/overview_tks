@@ -34,7 +34,6 @@ function syncAllDataChunked() {
   }
   try {
     migrateKiotVietSheetsIfNeeded_();
-    migrateLegacyDiscontinuedSheet_(SpreadsheetApp.getActiveSpreadsheet());
 
     const props = PropertiesService.getScriptProperties();
     let masterState = {};
@@ -61,11 +60,31 @@ function syncAllDataChunked() {
       return;
     }
 
-    // Chay phan doan cho bang hien tai trong chuoi
-    const result = syncKiotVietTableChunk_(currentStep, {
-      resumeHandler: 'resumeMasterChainSync_',
-      autoSchedule: false
-    });
+    // Chay phan doan cho bang hien tai trong chuoi. Rieng Hoa don dung khoa
+    // rieng (getKiotVietInvoiceLock_) de dong bo voi resumeSyncInvoicesChunk
+    // va webhook Hoa don, tranh ghi de chong cheo len cung sheet Hoa don.
+    let result;
+    if (currentStep === 'invoices') {
+      const invoiceLock = getKiotVietInvoiceLock_();
+      if (!invoiceLock.tryLock(30000)) {
+        scheduleSpecificChunkTrigger_('resumeMasterChainSync_');
+        Logger.log('Hoa don dang duoc dong bo rieng o noi khac, se thu lai o luot sau.');
+        return;
+      }
+      try {
+        result = syncKiotVietTableChunk_(currentStep, {
+          resumeHandler: 'resumeMasterChainSync_',
+          autoSchedule: false
+        });
+      } finally {
+        invoiceLock.releaseLock();
+      }
+    } else {
+      result = syncKiotVietTableChunk_(currentStep, {
+        resumeHandler: 'resumeMasterChainSync_',
+        autoSchedule: false
+      });
+    }
 
     if (result.isCompleted) {
       // Bang nay da xong 100% -> Chuyen sang bang ke tiep
@@ -155,23 +174,55 @@ function stopMasterSyncChain() {
 // CAC HAM DONG BO PHAN DOAN RIENG CHO TUNG BANG
 // ----------------------------------------------------
 
+/**
+ * Boc syncKiotVietTableChunk_ bang getKiotVietDataLock_() cho cac bang dung
+ * chung khoa voi chuoi master/polling-only (moi thu ngoai tru Hoa don). Truoc
+ * ban sua nay, cac ham syncXxxChunk() duoi day khong lay khoa nao ca — trong
+ * khi HuongDanSuDung.gs khuyen dung chung de "chi dong bo rieng mot bang cu
+ * the". Neu chay dung luc chuoi master/polling dang dong bo cung bang, ca hai
+ * cung clearContents() + ghi de len nhau va de checkpoint chung
+ * (SYNC_CHUNK_STATE_<bang>) trong Script Properties, gay mat/trung du lieu.
+ * Neu khong lay duoc khoa (mot tien trinh khac dang ghi), len lich trigger
+ * tiep suc thay vi ghi de khong khoa.
+ */
+function runKiotVietDataLockedChunk_(schemaKey, resumeHandler) {
+  const dataLock = getKiotVietDataLock_();
+  if (!dataLock.tryLock(30000)) {
+    scheduleSpecificChunkTrigger_(resumeHandler);
+    Logger.log('[' + schemaKey + '] Co tien trinh khac dang ghi du lieu, se thu lai o luot trigger sau.');
+    return { schemaKey: schemaKey, isCompleted: false, waitingForLock: true };
+  }
+  try {
+    return syncKiotVietTableChunk_(schemaKey, { resumeHandler: resumeHandler });
+  } finally {
+    dataLock.releaseLock();
+  }
+}
+
 function syncCategoriesChunk() {
-  return syncKiotVietTableChunk_('categories', { resumeHandler: 'resumeSyncCategoriesChunk' });
+  return runKiotVietDataLockedChunk_('categories', 'resumeSyncCategoriesChunk');
 }
 function resumeSyncCategoriesChunk() {
   return syncCategoriesChunk();
 }
 
 function syncProductsChunk() {
-  return syncKiotVietTableChunk_('products', { resumeHandler: 'resumeSyncProductsChunk' });
+  return runKiotVietDataLockedChunk_('products', 'resumeSyncProductsChunk');
 }
 function resumeSyncProductsChunk() {
   return syncProductsChunk();
 }
 
+/**
+ * Dung khoa rieng (getKiotVietInvoiceLock_) thay vi khoa chung, de backfill
+ * Hoa don khong bao gio bi doi vo han khi chuoi polling-only (Tra hang/Nha
+ * cung cap/Nhap hang) dang giu khoa chung hang phut. Khoa rieng nay chi tranh
+ * chap voi webhook Hoa don va buoc 'invoices' trong chuoi master — hai noi
+ * duy nhat khac cung ghi vao sheet Hoa don/Chi tiet hoa don.
+ */
 function syncInvoicesChunk() {
-  const dataLock = getKiotVietDataLock_();
-  if (!dataLock.tryLock(30000)) {
+  const invoiceLock = getKiotVietInvoiceLock_();
+  if (!invoiceLock.tryLock(30000)) {
     scheduleSpecificChunkTrigger_('resumeSyncInvoicesChunk');
     Logger.log('Hoa don dang cho mot tien trinh ghi khac; se thu lai sau 1 phut.');
     return { schemaKey: 'invoices', isCompleted: false, waitingForLock: true };
@@ -180,12 +231,44 @@ function syncInvoicesChunk() {
     return syncKiotVietTableChunk_('invoices', {
       resumeHandler: 'resumeSyncInvoicesChunk'
     });
+  } catch (error) {
+    scheduleSpecificChunkTrigger_('resumeSyncInvoicesChunk');
+    Logger.log('Backfill Hoa don bi gian doan; se thu lai sau: ' + error.toString());
+    return {
+      schemaKey: 'invoices',
+      isCompleted: false,
+      error: String((error && error.message) || error)
+    };
   } finally {
-    dataLock.releaseLock();
+    invoiceLock.releaseLock();
   }
 }
 function resumeSyncInvoicesChunk() {
   return syncInvoicesChunk();
+}
+
+function hasInvoicesBackfillProgress_() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('SYNC_CHUNK_STATE_invoices')) return true;
+  if (typeof SpreadsheetApp === 'undefined' ||
+      typeof SpreadsheetApp.getActiveSpreadsheet !== 'function') return false;
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  return Boolean(
+    spreadsheet.getSheetByName(KIOTVIET_CHUNK_STAGING_SHEETS_.invoices) ||
+    spreadsheet.getSheetByName(KIOTVIET_INVOICE_DETAIL_STAGING_SHEET_)
+  );
+}
+
+/** Khoi phuc trigger mot lan neu backfill Hoa don con checkpoint/staging. */
+function ensureInvoicesBackfillResumeTrigger_() {
+  if (!hasInvoicesBackfillProgress_()) return false;
+  const hasResumeTrigger = ScriptApp.getProjectTriggers().some(function(trigger) {
+    return trigger.getHandlerFunction() === 'resumeSyncInvoicesChunk';
+  });
+  if (hasResumeTrigger) return false;
+  scheduleSpecificChunkTrigger_('resumeSyncInvoicesChunk');
+  Logger.log('Da khoi phuc trigger tiep suc backfill Hoa don.');
+  return true;
 }
 
 /**
@@ -193,8 +276,8 @@ function resumeSyncInvoicesChunk() {
  * cua bang khac; du lieu live chi duoc thay sau khi ca hai staging tai xong.
  */
 function restartInvoicesBackfill() {
-  const dataLock = getKiotVietDataLock_();
-  if (!dataLock.tryLock(30000)) {
+  const invoiceLock = getKiotVietInvoiceLock_();
+  if (!invoiceLock.tryLock(30000)) {
     throw new Error('Dang co tien trinh ghi du lieu khac; hay chay lai restartInvoicesBackfill sau.');
   }
   try {
@@ -219,40 +302,67 @@ function restartInvoicesBackfill() {
       resumeHandler: 'resumeSyncInvoicesChunk'
     });
   } finally {
+    invoiceLock.releaseLock();
+  }
+}
+
+/**
+ * Khoi dong lai rieng backfill Nhap hang, cung co che voi restartInvoicesBackfill:
+ * xoa checkpoint + staging cua Nhap hang, khong dung cac bang khac; du lieu live
+ * chi duoc thay sau khi staging tai xong toan bo.
+ */
+function restartPurchasesBackfill() {
+  const dataLock = getKiotVietDataLock_();
+  if (!dataLock.tryLock(30000)) {
+    throw new Error('Dang co tien trinh ghi du lieu khac; hay chay lai restartPurchasesBackfill sau.');
+  }
+  try {
+    const props = PropertiesService.getScriptProperties();
+    props.deleteProperty('SYNC_CHUNK_STATE_purchases');
+    removeSpecificChunkTrigger_('resumeSyncPurchasesChunk');
+
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const stagingSheet = spreadsheet.getSheetByName(KIOTVIET_CHUNK_STAGING_SHEETS_.purchases);
+    if (stagingSheet) spreadsheet.deleteSheet(stagingSheet);
+
+    return syncKiotVietTableChunk_('purchases', {
+      resumeHandler: 'resumeSyncPurchasesChunk'
+    });
+  } finally {
     dataLock.releaseLock();
   }
 }
 
 function syncOrdersChunk() {
-  return syncKiotVietTableChunk_('orders', { resumeHandler: 'resumeSyncOrdersChunk' });
+  return runKiotVietDataLockedChunk_('orders', 'resumeSyncOrdersChunk');
 }
 function resumeSyncOrdersChunk() {
   return syncOrdersChunk();
 }
 
 function syncReturnsChunk() {
-  return syncKiotVietTableChunk_('returns', { resumeHandler: 'resumeSyncReturnsChunk' });
+  return runKiotVietDataLockedChunk_('returns', 'resumeSyncReturnsChunk');
 }
 function resumeSyncReturnsChunk() {
   return syncReturnsChunk();
 }
 
 function syncCustomersChunk() {
-  return syncKiotVietTableChunk_('customers', { resumeHandler: 'resumeSyncCustomersChunk' });
+  return runKiotVietDataLockedChunk_('customers', 'resumeSyncCustomersChunk');
 }
 function resumeSyncCustomersChunk() {
   return syncCustomersChunk();
 }
 
 function syncSuppliersChunk() {
-  return syncKiotVietTableChunk_('suppliers', { resumeHandler: 'resumeSyncSuppliersChunk' });
+  return runKiotVietDataLockedChunk_('suppliers', 'resumeSyncSuppliersChunk');
 }
 function resumeSyncSuppliersChunk() {
   return syncSuppliersChunk();
 }
 
 function syncPurchasesChunk() {
-  return syncKiotVietTableChunk_('purchases', { resumeHandler: 'resumeSyncPurchasesChunk' });
+  return runKiotVietDataLockedChunk_('purchases', 'resumeSyncPurchasesChunk');
 }
 function resumeSyncPurchasesChunk() {
   return syncPurchasesChunk();
@@ -269,12 +379,15 @@ function resumeSyncPurchasesChunk() {
  * duoc su dung duoc bo sung o ben phai, khong kem cot JSON.
  */
 function syncAllInitialData() {
+  // Ham nay ghi tuan tu ca 9+7 sheet trong 1 lan chay, gom ca Hoa don, nen
+  // phai giu ca hai khoa (chung + rieng Hoa don) de khong bi ghi de boi
+  // resumeSyncInvoicesChunk/webhook hoac cac chuoi chunked khac chay song song.
   const dataLock = getKiotVietDataLock_();
   dataLock.waitLock(30000);
+  const invoiceLock = getKiotVietInvoiceLock_();
+  invoiceLock.waitLock(30000);
   try {
     migrateKiotVietSheetsIfNeeded_();
-    // Don tab legacy ngay tu dau; neu chi co tab cu thi doi ten de giu du lieu.
-    migrateLegacyDiscontinuedSheet_(SpreadsheetApp.getActiveSpreadsheet());
 
     const token = getKiotVietToken();
     if (!token) throw new Error('Khong lay duoc KiotViet token.');
@@ -290,9 +403,6 @@ function syncAllInitialData() {
     // syncCustomerDebtReports() rieng, nhung van chay som de tranh het thoi gian.
     Logger.log('Bat dau tao Bao cao cong no HN1/HN3/HN7...');
     syncCustomerDebtReports(token);
-
-    Logger.log('Bat dau cap nhat lich su Hang ngung kinh doanh...');
-    syncHangNgungKinhDoanh_(token);
 
     Logger.log('Bat dau dong bo Hoa don va Chi tiet hoa don...');
     syncInvoicesInitial(token);
@@ -317,6 +427,7 @@ function syncAllInitialData() {
 
     Logger.log('Hoan tat dong bo day du 9 sheet van hanh va 7 sheet tong hop/bao cao.');
   } finally {
+    invoiceLock.releaseLock();
     dataLock.releaseLock();
   }
 }
@@ -439,6 +550,33 @@ function syncPollingOnly_() {
 
 function resumePollingOnlyChunk_() {
   syncPollingOnly_();
+}
+
+/**
+ * Khoi phuc trigger tiep suc neu checkpoint polling con nhung trigger mot-lan
+ * da bi timeout/tieu thu. Khong xoa checkpoint hay staging dang tai do.
+ */
+function ensurePollingOnlyResumeTrigger_() {
+  const props = PropertiesService.getScriptProperties();
+  let tableIndexRaw = props.getProperty(POLLING_ONLY_STATE_PROPERTY);
+  if (tableIndexRaw === null || tableIndexRaw === '') {
+    for (let index = 0; index < POLLING_ONLY_CHAIN.length; index++) {
+      if (!props.getProperty('SYNC_CHUNK_STATE_' + POLLING_ONLY_CHAIN[index])) continue;
+      tableIndexRaw = String(index);
+      props.setProperty(POLLING_ONLY_STATE_PROPERTY, tableIndexRaw);
+      break;
+    }
+  }
+  if (tableIndexRaw === null || tableIndexRaw === '') return false;
+
+  const hasResumeTrigger = ScriptApp.getProjectTriggers().some(trigger =>
+    trigger.getHandlerFunction() === POLLING_ONLY_RESUME_HANDLER
+  );
+  if (hasResumeTrigger) return false;
+
+  scheduleSpecificChunkTrigger_(POLLING_ONLY_RESUME_HANDLER, POLLING_ONLY_RESUME_DELAY_MS);
+  Logger.log('Da khoi phuc trigger tiep suc cho polling tai buoc ' + tableIndexRaw + '.');
+  return true;
 }
 
 function setupPollingTrigger() {

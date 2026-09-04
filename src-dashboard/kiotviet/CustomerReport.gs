@@ -341,9 +341,30 @@ function salesCustomerReportFinalize_(data) {
   return buildCustomerSalesReportResult_(rows, summary, data.period);
 }
 
+/**
+ * updateCustomerProductReportFromInvoices_ (UpdateHandlers.gs) ghi incremental
+ * vao chinh sheet "Hang ban theo khach" duoi getKiotVietInvoiceLock_() (khi xu
+ * ly webhook Hoa don). Ham nay truoc day chi duoc bao ve boi ScriptLock rieng
+ * cua withCustomerReportLock_ — mot tai nguyen khoa KHAC, khong loai tru webhook
+ * — nen job doi soat toan bo va webhook realtime co the ghi de/xoa nham dong
+ * cua nhau cung mot luc. Lay them invoiceLock quanh dung buoc ghi sheet (khong
+ * lay quanh ca buoc fetch/aggregate) de giu cua so khoa ngan nhu cac noi khac
+ * trong codebase. Neu dang bi webhook giu khoa, nem loi de tick nay duoc thu
+ * lai o lan goi ke tiep (staging/state van con nguyen, xem runCustomerReportChunkedJob_).
+ */
 function customerProductReportFinalize_(data) {
   const rows = aggregateCustomerProductReport_(data.invoices, data.period);
-  writeCustomerProductReportSheet_(rows, data.period);
+  const invoiceLock = getKiotVietInvoiceLock_();
+  if (!invoiceLock.tryLock(20000)) {
+    throw new Error(
+      'Sheet Hang ban theo khach dang duoc webhook Hoa don ghi; se ghi lai o luot ke tiep.'
+    );
+  }
+  try {
+    writeCustomerProductReportSheet_(rows, data.period);
+  } finally {
+    invoiceLock.releaseLock();
+  }
   PropertiesService.getScriptProperties().setProperties({
     [CUSTOMER_PRODUCT_REPORT_LAST_SYNC_PROPERTY]: customerReportToday_(),
     [CUSTOMER_PRODUCT_REPORT_SCHEMA_PROPERTY]: CUSTOMER_PRODUCT_REPORT_SCHEMA_VERSION
@@ -428,9 +449,15 @@ function syncCustomerProductReport() {
 
 /**
  * Diem vao chay tay, chi dong bo tab "Khach theo hang hoa".
+ *
+ * Dung cua so cuon CUSTOMER_PRODUCT_REPORT_DAYS (90 ngay, giong tab "Hang ban
+ * theo khach") thay vi toan bo lich su: tab nay ghi 1 dong cho MOI luot ban
+ * (san pham x khach hang x hoa don), nen quet toan bo lich su se phinh to vo
+ * han va la nguyen nhan chinh khien bang tinh cham gioi han 10 trieu o cua
+ * Google Sheets (xem ArchiveOldData.gs).
  */
 function syncCustomerByProductReport() {
-  const period = getCustomerReportAllTimeRange_(new Date());
+  const period = getCustomerReportRollingRange_(new Date(), CUSTOMER_PRODUCT_REPORT_DAYS);
   return runCustomerReportChunkedJob_('byProduct', {
     period: period,
     needsReturns: true,
@@ -1558,7 +1585,7 @@ function writeCustomerByProductReportSheet_(reportRows, period) {
   sheet.getRange(1, 1).setNote(
     'Kiểu hiển thị: Báo cáo\n' +
     'Mối quan tâm: Khách theo hàng hóa\n' +
-    'Thời gian: Toàn bộ lịch sử (' + period.startLabel + ' - ' + period.endLabel + ')\n' +
+    'Thời gian: 90 ngày qua (' + period.startLabel + ' - ' + period.endLabel + ')\n' +
     'Chi tiết: Sản phẩm -> khách hàng -> từng dòng hóa đơn hoàn thành.\n' +
     'Tự động đối soát gần 07:00; có thể chạy tay syncCustomerByProductReport().\n' +
     'Nguồn API: https://www.kiotviet.vn/huong-dan-su-dung-kiotviet/retail-ket-noi-api/public-api/'

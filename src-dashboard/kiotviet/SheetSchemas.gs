@@ -826,16 +826,21 @@ const KIOTVIET_CHUNK_STAGING_SHEETS_ = Object.freeze({
 });
 const KIOTVIET_INVOICE_DETAIL_STAGING_SHEET_ = '_KV_SYNC_STAGING_INVOICE_DETAILS';
 
+// Tra ve {sheet, created} thay vi chi sheet: goi noi tiep theo can biet trang
+// vua duoc tao moi de bo qua cac thao tac khong can thiet (va de gay timeout
+// tren file lon) nhu don cot JSON cu hay kiem tra schema.
 function prepareKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema) {
   const stagingName = KIOTVIET_CHUNK_STAGING_SHEETS_[schemaKey];
-  if (!stagingName) return null;
+  if (!stagingName) return { sheet: null, created: false };
 
   let stagingSheet = spreadsheet.getSheetByName(stagingName);
+  let created = false;
   if (!stagingSheet) {
     stagingSheet = createCompactSheet_(spreadsheet, stagingName, 1, schema.headers.length);
+    created = true;
   }
-  stagingSheet.hideSheet();
-  return stagingSheet;
+  if (!created) stagingSheet.hideSheet();
+  return { sheet: stagingSheet, created: created };
 }
 
 function copyKiotVietChunkStagingToLive_(schema, liveSheet, stagingSheet, allowEmpty) {
@@ -879,6 +884,7 @@ function publishKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema, liveS
 function prepareInvoiceDetailStagingSheet_(spreadsheet) {
   const detailSchema = KIOTVIET_SHEET_SCHEMAS.invoiceDetails;
   let stagingSheet = spreadsheet.getSheetByName(KIOTVIET_INVOICE_DETAIL_STAGING_SHEET_);
+  let created = false;
   if (!stagingSheet) {
     stagingSheet = createCompactSheet_(
       spreadsheet,
@@ -886,9 +892,10 @@ function prepareInvoiceDetailStagingSheet_(spreadsheet) {
       1,
       detailSchema.headers.length
     );
+    created = true;
   }
-  stagingSheet.hideSheet();
-  return stagingSheet;
+  if (!created) stagingSheet.hideSheet();
+  return { sheet: stagingSheet, created: created };
 }
 
 function publishInvoiceStagingPair_(spreadsheet, invoiceSchema, invoiceLiveSheet, invoiceStagingSheet) {
@@ -1021,25 +1028,47 @@ function syncKiotVietTableChunk_(schemaKey, options) {
   // Neu lan cong bo truoc bi gian doan, thu lai tu staging ma khong tai trung
   // hay append trung chunk cu.
   if (state.phase === 'commit' && stagingName && stagingSheet) {
-    if (schemaKey === 'invoices') {
-      publishInvoiceStagingPair_(spreadsheet, schema, liveSheet, stagingSheet);
-      const publishedDetailSheet = spreadsheet.getSheetByName(
-        KIOTVIET_SHEET_SCHEMAS.invoiceDetails.sheetName
+    try {
+      if (schemaKey === 'invoices') {
+        publishInvoiceStagingPair_(spreadsheet, schema, liveSheet, stagingSheet);
+        const publishedDetailSheet = spreadsheet.getSheetByName(
+          KIOTVIET_SHEET_SCHEMAS.invoiceDetails.sheetName
+        );
+        props.setProperty(KIOTVIET_INVOICE_BACKFILL_LAST_RESULT_PROPERTY_, JSON.stringify({
+          completedAt: new Date().toISOString(),
+          total: Number(state.total) || currentItem,
+          invoiceCount: Number(state.invoiceCount) || currentItem,
+          invoiceDetailCount: Number(state.invoiceDetailCount) || 0,
+          invoiceRows: Math.max(0, liveSheet.getLastRow() - 1),
+          invoiceDetailRows: publishedDetailSheet
+            ? Math.max(0, publishedDetailSheet.getLastRow() - 1)
+            : 0
+        }));
+      } else {
+        publishKiotVietChunkStagingSheet_(
+          spreadsheet, schemaKey, schema, liveSheet, stagingSheet
+        );
+      }
+    } catch (publishError) {
+      // Thuong gap khi bang tinh cham gioi han 10 trieu o (SPREADSHEET_GRID_CELL_LIMIT_).
+      // Khong xoa checkpoint/staging o day: du lieu da tai van con nguyen trong
+      // staging, chi chua cong bo sang live duoc. Len lich thu lai thay vi de
+      // chuoi dong bo chet lang le (khong co watchdog nao khac theo doi rieng
+      // resumeSyncInvoicesChunk/resumeSyncPurchasesChunk/resumePollingOnlyChunk_).
+      Logger.log(
+        '[' + schema.sheetName + '] Cong bo staging that bai, se thu lai sau: ' + publishError
       );
-      props.setProperty(KIOTVIET_INVOICE_BACKFILL_LAST_RESULT_PROPERTY_, JSON.stringify({
-        completedAt: new Date().toISOString(),
+      if (resumeHandler) scheduleSpecificChunkTrigger_(resumeHandler);
+      return {
+        schemaKey: schemaKey,
+        sheetName: schema.sheetName,
+        isCompleted: false,
+        currentItem: currentItem,
         total: Number(state.total) || currentItem,
-        invoiceCount: Number(state.invoiceCount) || currentItem,
-        invoiceDetailCount: Number(state.invoiceDetailCount) || 0,
-        invoiceRows: Math.max(0, liveSheet.getLastRow() - 1),
-        invoiceDetailRows: publishedDetailSheet
-          ? Math.max(0, publishedDetailSheet.getLastRow() - 1)
-          : 0
-      }));
-    } else {
-      publishKiotVietChunkStagingSheet_(
-        spreadsheet, schemaKey, schema, liveSheet, stagingSheet
-      );
+        recordsProcessed: 0,
+        phase: 'commit',
+        error: String((publishError && publishError.message) || publishError)
+      };
     }
     props.deleteProperty(stateKey);
     if (resumeHandler) removeSpecificChunkTrigger_(resumeHandler);
@@ -1068,11 +1097,17 @@ function syncKiotVietTableChunk_(schemaKey, options) {
     invoiceDetailCount = 0;
   }
 
+  let stagingSheetJustCreated = false;
+  let invoiceDetailStagingSheetJustCreated = false;
   if (stagingName && !stagingSheet) {
-    stagingSheet = prepareKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema);
+    const prepared = prepareKiotVietChunkStagingSheet_(spreadsheet, schemaKey, schema);
+    stagingSheet = prepared.sheet;
+    stagingSheetJustCreated = prepared.created;
   }
   if (schemaKey === 'invoices' && !invoiceDetailStagingSheet) {
-    invoiceDetailStagingSheet = prepareInvoiceDetailStagingSheet_(spreadsheet);
+    const preparedDetail = prepareInvoiceDetailStagingSheet_(spreadsheet);
+    invoiceDetailStagingSheet = preparedDetail.sheet;
+    invoiceDetailStagingSheetJustCreated = preparedDetail.created;
   }
 
   // Neu lan chay truoc dung giua luc ghi mot trang, state van tro toi trang da
@@ -1127,25 +1162,51 @@ function syncKiotVietTableChunk_(schemaKey, options) {
   }
 
   const isFirstChunk = (currentItem === 0);
+  // Trang vua duoc tao trong chinh lan chay nay chac chan chua co cot JSON cu
+  // va header se duoc ghi lai ngay ben duoi, nen bo qua cac phep doc/ghi kiem
+  // tra schema — tren file lon (nhu spreadsheet Ha Noi) cac phep nay (getLastRow,
+  // getLastColumn...) co the bi Sheets tra ve loi timeout ngay sau insertSheet.
+  const sheetJustCreated = stagingName ? stagingSheetJustCreated : false;
 
   // Neu la lan dau tien: Don cot JSON cu, kiem tra schema, xoa trang noi dung cu va ghi Header
   if (isFirstChunk) {
-    removeLegacyKiotVietJsonColumns_(sheet);
-    ensureKiotVietSheetSchema_(sheet, schema);
-    sheet.clearContents();
-    sheet.getRange(1, 1, 1, schema.headers.length).setValues([schema.headers]);
+    try {
+      if (!sheetJustCreated) {
+        removeLegacyKiotVietJsonColumns_(sheet);
+        ensureKiotVietSheetSchema_(sheet, schema);
+      }
+      sheet.clearContents();
+      sheet.getRange(1, 1, 1, schema.headers.length).setValues([schema.headers]);
 
-    // Rieng voi Hoa don, chuan bi ca tab Chi tiet hoa don
-    if (schemaKey === 'invoices') {
-      const detailSchema = KIOTVIET_SHEET_SCHEMAS.invoiceDetails;
-      const detailSheet = invoiceDetailStagingSheet;
-      removeLegacyKiotVietJsonColumns_(detailSheet);
-      ensureKiotVietSheetSchema_(detailSheet, detailSchema);
-      detailSheet.clearContents();
-      detailSheet.getRange(1, 1, 1, detailSchema.headers.length).setValues([detailSchema.headers]);
-    }
-    if (typeof SpreadsheetApp !== 'undefined' && typeof SpreadsheetApp.flush === 'function') {
-      SpreadsheetApp.flush();
+      // Rieng voi Hoa don, chuan bi ca tab Chi tiet hoa don
+      if (schemaKey === 'invoices') {
+        const detailSchema = KIOTVIET_SHEET_SCHEMAS.invoiceDetails;
+        const detailSheet = invoiceDetailStagingSheet;
+        if (!invoiceDetailStagingSheetJustCreated) {
+          removeLegacyKiotVietJsonColumns_(detailSheet);
+          ensureKiotVietSheetSchema_(detailSheet, detailSchema);
+        }
+        detailSheet.clearContents();
+        detailSheet.getRange(1, 1, 1, detailSchema.headers.length).setValues([detailSchema.headers]);
+      }
+      if (typeof SpreadsheetApp !== 'undefined' && typeof SpreadsheetApp.flush === 'function') {
+        SpreadsheetApp.flush();
+      }
+    } catch (initializationError) {
+      Logger.log(
+        '[' + schema.sheetName + '] Khoi tao staging that bai, se thu lai sau: ' + initializationError
+      );
+      if (autoSchedule && resumeHandler) scheduleSpecificChunkTrigger_(resumeHandler);
+      return {
+        schemaKey: schemaKey,
+        sheetName: schema.sheetName,
+        isCompleted: false,
+        currentItem: 0,
+        total: Number(state.total) || 0,
+        recordsProcessed: 0,
+        phase: 'initialize',
+        error: String((initializationError && initializationError.message) || initializationError)
+      };
     }
   }
 
@@ -1173,14 +1234,34 @@ function syncKiotVietTableChunk_(schemaKey, options) {
 
     if (pageItems.length === 0) break;
 
-    const checkpointRows = writeKiotVietChunkPage_(
-      spreadsheet,
-      schemaKey,
-      schema,
-      sheet,
-      pageItems,
-      invoiceDetailStagingSheet
-    );
+    let checkpointRows;
+    try {
+      checkpointRows = writeKiotVietChunkPage_(
+        spreadsheet,
+        schemaKey,
+        schema,
+        sheet,
+        pageItems,
+        invoiceDetailStagingSheet
+      );
+    } catch (writeError) {
+      // Cung co the la loi cham gioi han 10 trieu o. Diem dung (checkpoint) gan
+      // nhat da luu tu trang truoc van con nguyen ven, nen an toan de thu lai
+      // thay vi de nguyen chuoi dong bo chet lang le khong ai biet.
+      Logger.log(
+        '[' + schema.sheetName + '] Ghi trang du lieu that bai, se thu lai sau: ' + writeError
+      );
+      if (autoSchedule && resumeHandler) scheduleSpecificChunkTrigger_(resumeHandler);
+      return {
+        schemaKey: schemaKey,
+        sheetName: schema.sheetName,
+        isCompleted: false,
+        currentItem: currentItem,
+        total: totalRecords,
+        recordsProcessed: recordsInThisRun,
+        error: String((writeError && writeError.message) || writeError)
+      };
+    }
     currentItem += pageItems.length;
     recordsInThisRun += pageItems.length;
     if (schemaKey === 'invoices') {

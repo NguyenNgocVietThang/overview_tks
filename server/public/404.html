@@ -6,7 +6,7 @@
 <title>404 — Không tìm thấy trang · TOKOSI</title>
 <meta name="description" content="Trang bạn đang tìm không tồn tại hoặc đã bị di chuyển.">
 <link rel="icon" type="image/jpeg" href="/Logo.jpg">
-<!-- Theme flash prevention — must run before CSS paint -->
+<!-- Chống nhấp nháy giao diện khi tải trang — phải chạy trước khi CSS render -->
 <script>
   (function(){
     try{ document.documentElement.dataset.theme = localStorage.getItem('tks-dashboard-theme') === 'light' ? 'light' : 'dark'; }
@@ -14,9 +14,12 @@
     document.documentElement.style.visibility = 'hidden';
   })();
 </script>
-<link rel="stylesheet" href="/shared/shared.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/shared/shared.css?v=20260830">
 <style>
-  /* ── 404 page layout ── */
+  /* ── Bố cục trang 404 ── */
   .page-404 {
     min-height: 100vh;
     display: flex;
@@ -29,7 +32,7 @@
     text-align: center;
   }
 
-  /* ── Starfield canvas ── */
+  /* ── Hiệu ứng bầu trời sao Canvas ── */
   #starCanvas {
     position: fixed;
     inset: 0;
@@ -37,7 +40,7 @@
     pointer-events: none;
   }
 
-  /* ── Ambient blobs ── */
+  /* ── Vùng sáng mờ Ambient blobs ── */
   .blob {
     position: fixed;
     border-radius: 50%;
@@ -70,7 +73,7 @@
     to   { transform: translate(30px, 20px) scale(1.08); }
   }
 
-  /* ── Card ── */
+  /* ── Khối thẻ Card ── */
   .card-404 {
     position: relative;
     z-index: 1;
@@ -93,7 +96,7 @@
     to   { opacity: 1; transform: translateY(0) scale(1); }
   }
 
-  /* ── Big 404 number ── */
+  /* ── Số lỗi 404 lớn ── */
   .err-code {
     font-family: var(--font-display);
     font-size: clamp(72px, 18vw, 110px);
@@ -124,7 +127,7 @@
     100% { background-position: 0% 50%; }
   }
 
-  /* ── Icon ── */
+  /* ── Biểu tượng Icon ── */
   .err-icon {
     display: flex;
     align-items: center;
@@ -148,7 +151,7 @@
     50%       { transform: translateY(-6px); }
   }
 
-  /* ── Text ── */
+  /* ── Văn bản Text ── */
   .err-title {
     font-family: var(--font-display);
     font-size: 22px;
@@ -164,7 +167,7 @@
     margin: 0 0 32px;
   }
 
-  /* ── Divider ── */
+  /* ── Đường phân cách ── */
   .err-divider {
     width: 48px; height: 3px;
     border-radius: 9999px;
@@ -173,7 +176,7 @@
     opacity: 0.6;
   }
 
-  /* ── Action buttons ── */
+  /* ── Các nút hành động ── */
   .err-actions {
     display: flex;
     gap: 10px;
@@ -182,7 +185,7 @@
   }
   .err-actions a { text-decoration: none; }
 
-  /* ── URL breadcrumb hint ── */
+  /* ── Đường dẫn URL gợi ý ── */
   .err-path {
     margin-top: 28px;
     padding: 10px 16px;
@@ -220,7 +223,7 @@
   .logo-name {
     font-family: var(--font-display);
     font-weight: 700; font-size: 15px;
-    color: var(--text);
+    color: var(--canvas-text);
   }
 </style>
 </head>
@@ -233,7 +236,7 @@
     <span class="logo-name">TOKOSI</span>
   </div>
 
-  <!-- Theme toggle (reuses .theme-toggle-floating from shared.css) -->
+  <!-- Nút chuyển đổi Theme (dùng lại .theme-toggle-floating từ shared.css) -->
   <button id="themeToggleBtn" class="theme-toggle-floating" type="button"
           onclick="toggleTheme()" aria-label="Chuyển chế độ giao diện">
     <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -248,17 +251,17 @@
     <span id="themeLabel">Chế độ sáng</span>
   </button>
 
-  <!-- Ambient blobs -->
+  <!-- Vùng sáng mờ xung quanh -->
   <div class="blob blob-1" aria-hidden="true"></div>
   <div class="blob blob-2" aria-hidden="true"></div>
 
-  <!-- Starfield -->
+  <!-- Bầu trời sao -->
   <canvas id="starCanvas" aria-hidden="true"></canvas>
 
-  <!-- Main content -->
+  <!-- Nội dung chính -->
   <main class="page-404" role="main">
     <div class="card-404">
-      <!-- Floating icon -->
+      <!-- Biểu tượng nổi -->
       <div class="err-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -268,7 +271,7 @@
         </svg>
       </div>
 
-      <!-- Big number -->
+      <!-- Số lỗi lớn -->
       <span class="err-code" aria-label="Lỗi 404">404</span>
 
       <div class="err-divider" aria-hidden="true"></div>
@@ -279,7 +282,7 @@
         hoặc bạn chưa có quyền truy cập vào địa chỉ này.
       </p>
 
-      <!-- Action buttons -->
+      <!-- Các nút hành động -->
       <div class="err-actions">
         <a href="/" class="btn-primary" id="btn404Home">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -300,7 +303,7 @@
         </button>
       </div>
 
-      <!-- Current URL hint -->
+      <!-- Gợi ý URL hiện tại -->
       <div class="err-path" aria-label="Địa chỉ không tồn tại">
         <span class="err-status">404</span> &mdash; <span id="errUrl"></span>
       </div>
@@ -308,7 +311,7 @@
   </main>
 
   <script>
-    /* ── Theme ── */
+    /* ── Giao diện Theme ── */
     const THEME_KEY = 'tks-dashboard-theme';
 
     function syncThemeLabel() {
@@ -326,13 +329,13 @@
 
     syncThemeLabel();
 
-    /* ── Show current path ── */
+    /* ── Hiển thị đường dẫn hiện tại ── */
     (function () {
       const el = document.getElementById('errUrl');
       if (el) el.textContent = location.pathname + location.search;
     })();
 
-    /* ── Starfield canvas ── */
+    /* ── Canvas bầu trời sao ── */
     (function () {
       const canvas = document.getElementById('starCanvas');
       if (!canvas) return;
@@ -381,8 +384,9 @@
       drawFrame();
     })();
 
-    /* ── Reveal after theme is applied ── */
+    /* ── Hiển thị trang sau khi áp dụng theme ── */
     document.documentElement.style.visibility = '';
   </script>
+  <script src="/shared/shooting-star.js?v=20260830"></script>
 </body>
 </html>

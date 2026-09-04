@@ -7,13 +7,24 @@ const WEBHOOK_QUEUE_HEADERS = Object.freeze([
   'ID', 'Thoi diem nhan', 'Loai su kien', 'Payload',
   'Trang thai', 'So lan thu', 'Thoi diem nhan xu ly', 'Loi gan nhat'
 ]);
-const WEBHOOK_QUEUE_BATCH_SIZE = 50;
+// Moi item co the hydrate API va ghi lai mot sheet lon. Batch 50 de vuot qua
+// gioi han 6 phut truoc khi finalize, lam ca batch bi claim lai vo han.
+const WEBHOOK_QUEUE_BATCH_SIZE = 100;
+const WEBHOOK_QUEUE_INVOICE_BATCH_SIZE = 50;
 const WEBHOOK_QUEUE_LEASE_MS = 10 * 60 * 1000;
 const WEBHOOK_QUEUE_MAX_ATTEMPTS = 10;
 
 /**
  * Nhan webhook va ghi ben vung vao mot tab an truoc khi tra QUEUED.
  * Neu khong ghi duoc, tra ERROR de khong xac nhan nham rang da nhan du lieu.
+ *
+ * Dung appendRow() thay vi getLastRow()+setValues() duoi ScriptLock: khi
+ * KiotViet gui burst lon (nhieu chi nhanh ban hang cung luc), moi doPost()
+ * truoc day phai xep hang cho ScriptLock (chi doi toi da 4s) trong khi lan
+ * ghi + flush truoc no chiem 3-5s — burst dong thoi se lam nhieu webhook bi
+ * roi vao nhanh timeout va MAT HAN, khong bao gio vao hang doi. Sheets API
+ * append rows an toan cho nhieu doPost() chay song song ma khong can khoa,
+ * nen bo ScriptLock o day de cac le nen chay that su song song.
  */
 function doPost(e) {
   try {
@@ -30,23 +41,13 @@ function doPost(e) {
     const eventType = String(
       (e.parameter && (e.parameter.eventType || e.parameter.type)) || ''
     ).toLowerCase();
-    const lock = LockService.getScriptLock();
-    if (!lock.tryLock(4000)) {
-      throw new Error('Hang doi dang ban; chua ghi payload.');
-    }
 
-    try {
-      const sheet = ensureWebhookQueueSheet_();
-      const id = Utilities.getUuid();
-      sheet.getRange(sheet.getLastRow() + 1, 1, 1, WEBHOOK_QUEUE_HEADERS.length)
-        .setValues([[
-          id, new Date(), eventType, e.postData.contents,
-          'PENDING', 0, '', ''
-        ]]);
-      SpreadsheetApp.flush();
-    } finally {
-      lock.releaseLock();
-    }
+    const sheet = ensureWebhookQueueSheet_();
+    const id = Utilities.getUuid();
+    sheet.appendRow([
+      id, new Date(), eventType, e.postData.contents,
+      'PENDING', 0, '', ''
+    ]);
 
     return ContentService.createTextOutput('QUEUED')
       .setMimeType(ContentService.MimeType.TEXT);
@@ -57,10 +58,19 @@ function doPost(e) {
   }
 }
 
+/**
+ * Duong dan thuong (sheet da ton tai) khong dung ScriptLock, de khong tro
+ * lai nut co chai cho doPost() dang chay song song. Lan dau tien (sheet
+ * chua ton tai) nhieu doPost() co the dua nhau tao sheet; nguoi thua cuoc
+ * se nhan loi "trung ten" tu insertSheet() va chi can lay lai sheet vua
+ * duoc nguoi thang tao.
+ */
 function ensureWebhookQueueSheet_() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = spreadsheet.getSheetByName(WEBHOOK_QUEUE_SHEET);
-  if (!sheet) {
+  if (sheet) return sheet;
+
+  try {
     sheet = spreadsheet.insertSheet(WEBHOOK_QUEUE_SHEET);
     sheet.getRange(1, 1, 1, WEBHOOK_QUEUE_HEADERS.length)
       .setValues([WEBHOOK_QUEUE_HEADERS])
@@ -70,8 +80,12 @@ function ensureWebhookQueueSheet_() {
       .setFontFamily('Open Sans');
     sheet.setFrozenRows(1);
     sheet.hideSheet();
+    return sheet;
+  } catch (error) {
+    sheet = spreadsheet.getSheetByName(WEBHOOK_QUEUE_SHEET);
+    if (sheet) return sheet;
+    throw error;
   }
-  return sheet;
 }
 
 function normalizeKiotVietWebhookNotifications_(payload, eventType) {
@@ -121,19 +135,63 @@ function claimWebhookQueueBatch_() {
       .getValues();
     const now = new Date();
     const claimed = [];
+    let queueStateChanged = false;
+    const invoicePriorityMode = values.some(row => {
+      const eventType = String(row[2] || '').toLowerCase();
+      const status = String(row[4] || 'PENDING');
+      return eventType.indexOf('invoice') !== -1 &&
+        (status === 'PENDING' || status === 'PROCESSING');
+    });
+    const batchLimit = invoicePriorityMode
+      ? WEBHOOK_QUEUE_INVOICE_BATCH_SIZE
+      : WEBHOOK_QUEUE_BATCH_SIZE;
 
-    values.forEach((row, index) => {
-      if (claimed.length >= WEBHOOK_QUEUE_BATCH_SIZE) return;
+    const candidateIndexes = values.map((row, index) => index);
+    candidateIndexes.sort((leftIndex, rightIndex) => {
+      const leftType = String(values[leftIndex][2] || '').toLowerCase();
+      const rightType = String(values[rightIndex][2] || '').toLowerCase();
+      const leftPriority = leftType.indexOf('invoice') !== -1 ? 0 : 1;
+      const rightPriority = rightType.indexOf('invoice') !== -1 ? 0 : 1;
+      return leftPriority - rightPriority || leftIndex - rightIndex;
+    });
+
+    candidateIndexes.forEach(index => {
+      if (claimed.length >= batchLimit) return;
+      const row = values[index];
+      const hasQueuePayload = String(row[0] || '').trim() &&
+        String(row[2] || '').trim() && String(row[3] || '').trim();
+      if (!hasQueuePayload) {
+        // Google Sheets co the giu lai cac dong luoi trong ben duoi bang.
+        // Khong coi cac dong rong la PENDING; dong thoi xoa lease/status rac
+        // do phien ban cu da danh dau nham de getLastRow() co the co lai.
+        if (row.slice(4, 8).some(value => value !== '' && value !== null)) {
+          row[4] = '';
+          row[5] = '';
+          row[6] = '';
+          row[7] = '';
+          queueStateChanged = true;
+        }
+        return;
+      }
+      if (invoicePriorityMode && String(row[2] || '').toLowerCase().indexOf('invoice') === -1) return;
       const status = String(row[4] || 'PENDING');
       const leaseTime = row[6] instanceof Date ? row[6].getTime() : new Date(row[6] || 0).getTime();
       const leaseExpired = status === 'PROCESSING' &&
         (!isFinite(leaseTime) || now.getTime() - leaseTime >= WEBHOOK_QUEUE_LEASE_MS);
       if (status !== 'PENDING' && !leaseExpired) return;
 
+      let attempts = Number(row[5] || 0);
+      if (leaseExpired && attempts >= WEBHOOK_QUEUE_MAX_ATTEMPTS) {
+        // Lease het han la loi ha tang/execution timeout, khong phai payload
+        // hong. Cap lai budget de su kien khong bi bo roi vinh vien.
+        attempts = 0;
+      }
+
       row[4] = 'PROCESSING';
-      row[5] = Number(row[5] || 0) + 1;
+      row[5] = attempts + 1;
       row[6] = now;
       row[7] = '';
+      queueStateChanged = true;
       claimed.push({
         id: String(row[0]),
         eventType: String(row[2] || '').toLowerCase(),
@@ -141,12 +199,82 @@ function claimWebhookQueueBatch_() {
       });
     });
 
-    if (claimed.length > 0) {
+    if (queueStateChanged) {
       sheet.getRange(2, 5, values.length, 4)
         .setValues(values.map(row => row.slice(4, 8)));
       SpreadsheetApp.flush();
     }
     return claimed;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Phuc hoi cac lease PROCESSING bi ket sau timeout ma khong xoa payload.
+ * Chay mot lan khi queue da bi un; trigger se xu ly lai theo batch nho.
+ */
+function recoverStuckWebhookQueue() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const sheet = ensureWebhookQueueSheet_();
+    if (sheet.getLastRow() <= 1) return 0;
+
+    const range = sheet.getRange(2, 1, sheet.getLastRow() - 1, WEBHOOK_QUEUE_HEADERS.length);
+    const values = range.getValues();
+    let recoveredCount = 0;
+    values.forEach(row => {
+      if (String(row[4] || '') !== 'PROCESSING') return;
+      row[4] = 'PENDING';
+      row[5] = 0;
+      row[6] = '';
+      row[7] = '';
+      recoveredCount++;
+    });
+    if (recoveredCount > 0) {
+      range.setValues(values);
+      SpreadsheetApp.flush();
+    }
+    Logger.log('Da phuc hoi ' + recoveredCount + ' webhook PROCESSING ve PENDING.');
+    return recoveredCount;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Sau khi giam batch 50 -> 10, dua cac dong ERROR do co che quarantine lease
+ * cu ve PENDING. Khong cham vao lease PROCESSING con hoat dong; claim batch se
+ * tu cap lai budget khi lease do thuc su het han.
+ */
+function recoverWebhookQueueAfterBatchResize_() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) return 0;
+  try {
+    const sheet = ensureWebhookQueueSheet_();
+    if (sheet.getLastRow() <= 1) return 0;
+
+    const range = sheet.getRange(2, 1, sheet.getLastRow() - 1, WEBHOOK_QUEUE_HEADERS.length);
+    const values = range.getValues();
+    let recoveredCount = 0;
+    values.forEach(row => {
+      const status = String(row[4] || '');
+      const isBatchResizeQuarantine = status === 'ERROR' &&
+        String(row[7] || '').indexOf('Lease xu ly het han qua ' + WEBHOOK_QUEUE_MAX_ATTEMPTS + ' lan') >= 0;
+      if (!isBatchResizeQuarantine) return;
+      row[4] = 'PENDING';
+      row[5] = 0;
+      row[6] = '';
+      row[7] = '';
+      recoveredCount++;
+    });
+    if (recoveredCount > 0) {
+      range.setValues(values);
+      SpreadsheetApp.flush();
+    }
+    Logger.log('Da tu dong phuc hoi ' + recoveredCount + ' quarantine lease legacy.');
+    return recoveredCount;
   } finally {
     lock.releaseLock();
   }
@@ -176,7 +304,7 @@ function processWebhookQueueItem_(queueItem) {
     if (action.indexOf('product') !== -1) {
       if (isDelete) deleteProductsFromWebhook(items); else updateProductsFromWebhook(items);
     } else if (action.indexOf('stock') !== -1) {
-      updateProductsFromWebhook(items);
+      updateProductStocksFromWebhook(items);
     } else if (action.indexOf('invoice') !== -1) {
       if (isDelete) {
         deleteInvoicesFromWebhook(items);
@@ -237,34 +365,213 @@ function forwardInvoiceWebhookToShipment_(action, items) {
   }
 }
 
-function finalizeWebhookQueueItem_(id, error) {
+function finalizeWebhookQueueItem_(id, error, skipAttemptPenalty) {
+  return finalizeWebhookQueueBatch_([{
+    id: id,
+    error: error,
+    skipAttemptPenalty: skipAttemptPenalty
+  }]);
+}
+
+/**
+ * Hoan tat ca lo webhook trong mot lan giu ScriptLock. Khi KiotViet gui burst
+ * lon, doPost() cung can khoa nay de append queue; xin khoa tung item se de bi
+ * starvation va lam ca trigger dung giua chung. Neu chua lay duoc khoa, giu
+ * nguyen lease PROCESSING de item tu duoc retry sau khi lease het han.
+ */
+function finalizeWebhookQueueBatch_(results) {
+  if (!results || results.length === 0) return true;
+
   const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  if (!lock.tryLock(30000)) {
+    Logger.log(
+      'Hang doi dang ban; hoan tat batch ' + results.length +
+      ' webhook se duoc retry sau khi lease het han.'
+    );
+    return false;
+  }
+
   try {
     const sheet = ensureWebhookQueueSheet_();
-    if (sheet.getLastRow() <= 1) return;
-    const ids = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
-    for (let index = 0; index < ids.length; index++) {
-      if (String(ids[index][0]) !== id) continue;
+    if (sheet.getLastRow() <= 1) return true;
+
+    const resultById = results.reduce((map, result) => {
+      map[String(result.id)] = result;
+      return map;
+    }, {});
+    const values = sheet
+      .getRange(2, 1, sheet.getLastRow() - 1, WEBHOOK_QUEUE_HEADERS.length)
+      .getValues();
+    const successfulRows = [];
+
+    values.forEach((row, index) => {
+      const id = String(row[0]);
+      const result = resultById[id];
+      if (!result) return;
+
       const rowNumber = index + 2;
-      if (!error) {
-        sheet.deleteRow(rowNumber);
+      if (!result.error) {
+        successfulRows.push(rowNumber);
       } else {
-        const attempts = Number(sheet.getRange(rowNumber, 6).getValue() || 0);
+        let attempts = Number(row[5] || 0);
+        // Cho khoa du lieu qua han (vi dong bo nang dang chay) khong phai loi
+        // xu ly that su: khong tinh vao so lan thu de item khong bi ERROR
+        // vinh vien chi vi trung thoi diem voi mot lan backfill.
+        if (result.skipAttemptPenalty && attempts > 0) attempts -= 1;
         const nextStatus = attempts >= WEBHOOK_QUEUE_MAX_ATTEMPTS ? 'ERROR' : 'PENDING';
         sheet.getRange(rowNumber, 5, 1, 4)
-          .setValues([[nextStatus, attempts, '', String(error).slice(0, 500)]]);
+          .setValues([[nextStatus, attempts, '', String(result.error).slice(0, 500)]]);
       }
-      return;
+    });
+
+    // Xoa tu duoi len de so dong cua cac item phia tren khong bi thay doi.
+    for (let index = successfulRows.length - 1; index >= 0;) {
+      const endRow = successfulRows[index];
+      let startRow = endRow;
+      index--;
+      while (index >= 0 && successfulRows[index] === startRow - 1) {
+        startRow = successfulRows[index];
+        index--;
+      }
+      sheet.deleteRows(startRow, endRow - startRow + 1);
     }
+
+    SpreadsheetApp.flush();
+    return true;
   } finally {
     lock.releaseLock();
   }
 }
 
+// Trigger xu ly (setupQueueProcessingTrigger, o duoi file nay) chay moi 1 phut.
+// Truoc day hang so nay la 4 phut: vi Apps Script KHONG bo qua lan trigger ke
+// tiep chi vi lan truoc chua chay xong, moi hang doi co viec deu de tao ra 3-4
+// lan processWebhookQueue() chay CHONG LAN nhau lien tuc — tang manh tan suat
+// va cham giua cac tien trinh dung dataLock/invoiceLock/ScriptLock khac nhau
+// (vd job doi soat bao cao chay trong pha bao tri o duoi cung file nay).
+// Giam xuong duoi 1 phut de gan nhu luon ket thuc truoc lan trigger ke tiep;
+// mot lo qua cham (hydrate nhieu item) van co the vuot nhe, chap nhan duoc vi
+// day tro thanh truong hop hiem thay vi la chuan.
+const WEBHOOK_QUEUE_MAX_RUN_MS = 45 * 1000;
+
+function webhookBatchItemKey_(item) {
+  if (item === null || item === undefined) return String(item);
+  if (typeof item !== 'object') return typeof item + ':' + String(item);
+  const id = item.Id !== undefined ? item.Id
+    : (item.id !== undefined ? item.id
+      : (item.ProductId !== undefined ? item.ProductId
+        : (item.productId !== undefined ? item.productId : '')));
+  return id !== '' ? 'id:' + String(id) : 'json:' + JSON.stringify(item);
+}
+
+/** Gom cac delivery cung event/action thanh mot lan hydrate + ghi sheet. */
+function coalesceWebhookQueueBatch_(batch) {
+  const groups = {};
+  const order = [];
+  (batch || []).forEach(queueItem => {
+    const eventType = String(queueItem.eventType || '').toLowerCase();
+    let payload;
+    let notifications;
+    try {
+      payload = JSON.parse(queueItem.payload);
+      notifications = normalizeKiotVietWebhookNotifications_(payload, eventType);
+    } catch (error) {
+      const invalidKey = '__invalid__' + queueItem.id;
+      groups[invalidKey] = { queueItems: [queueItem], syntheticItem: queueItem };
+      order.push(invalidKey);
+      return;
+    }
+
+    const key = eventType || '__unknown__';
+    if (!groups[key]) {
+      groups[key] = {
+        queueItems: [],
+        actions: {},
+        actionOrder: []
+      };
+      order.push(key);
+    }
+    const group = groups[key];
+    group.queueItems.push(queueItem);
+    notifications.forEach(notification => {
+      const action = String(notification.Action || notification.action || eventType).toLowerCase();
+      if (!group.actions[action]) {
+        group.actions[action] = { items: [], seen: {} };
+        group.actionOrder.push(action);
+      }
+      const actionGroup = group.actions[action];
+      const data = notification.Data !== undefined ? notification.Data : notification.data;
+      const items = Array.isArray(data) ? data : (data === undefined || data === null ? [] : [data]);
+      items.forEach(item => {
+        const itemKey = webhookBatchItemKey_(item);
+        if (actionGroup.seen[itemKey]) return;
+        actionGroup.seen[itemKey] = true;
+        actionGroup.items.push(item);
+      });
+    });
+  });
+
+  return order.map(key => {
+    const group = groups[key];
+    if (group.syntheticItem) return group;
+    group.syntheticItem = {
+      id: group.queueItems[0].id,
+      eventType: String(group.queueItems[0].eventType || '').toLowerCase(),
+      payload: JSON.stringify({
+        Notifications: group.actionOrder.map(action => ({
+          Action: action,
+          Data: group.actions[action].items
+        }))
+      })
+    };
+    return group;
+  });
+}
+
+/**
+ * Xu ly lo da gom; neu mot item lam ca fetchAll() loi thi chia doi de co lap
+ * item do ma van giu duoc loi ich hydrate/ghi theo lo cho cac item con lai.
+ */
+function processWebhookQueueGroupWithIsolation_(group) {
+  try {
+    processWebhookQueueItem_(group.syntheticItem);
+    return group.queueItems.map(item => ({
+      id: item.id, error: null, skipAttemptPenalty: false
+    }));
+  } catch (error) {
+    if (group.queueItems.length <= 1) {
+      Logger.log(
+        'Webhook ' + group.queueItems[0].id + ' van loi khi tach khoi lo: ' +
+        error.toString()
+      );
+      return [{
+        id: group.queueItems[0].id, error: error, skipAttemptPenalty: false
+      }];
+    }
+
+    const middle = Math.ceil(group.queueItems.length / 2);
+    const halves = [
+      group.queueItems.slice(0, middle),
+      group.queueItems.slice(middle)
+    ];
+    return halves.reduce((results, queueItems) => {
+      const subgroup = coalesceWebhookQueueBatch_(queueItems)[0];
+      return results.concat(processWebhookQueueGroupWithIsolation_(subgroup));
+    }, []);
+  }
+}
+
 function processWebhookQueue() {
+  recoverWebhookQueueAfterBatchResize_();
   if (!isShipmentLifecycleMode_()) {
+    if (typeof ensureKiotVietRecoveryTriggers_ === 'function') {
+      ensureKiotVietRecoveryTriggers_();
+    }
     ensureMasterChainResumeTrigger_();
+    ensurePollingOnlyResumeTrigger_();
+    if (typeof ensureInvoicesBackfillResumeTrigger_ === 'function') {
+      ensureInvoicesBackfillResumeTrigger_();
+    }
     const masterBackfillActive = Boolean(
       PropertiesService.getScriptProperties().getProperty('MASTER_CHAIN_SYNC_STATE')
     );
@@ -288,22 +595,48 @@ function processWebhookQueue() {
     }
   }
 
-  const batch = claimWebhookQueueBatch_();
-  if (batch.length === 0) return;
-  batch.forEach(queueItem => {
-    let itemError = null;
-    const dataLock = getKiotVietDataLock_();
-    try {
-      dataLock.waitLock(30000);
-      processWebhookQueueItem_(queueItem);
-    } catch (error) {
-      itemError = error;
-      Logger.log('Webhook ' + queueItem.id + ' loi, se thu lai: ' + error.toString());
-    } finally {
-      if (dataLock.hasLock()) dataLock.releaseLock();
-    }
-    finalizeWebhookQueueItem_(queueItem.id, itemError);
-  });
+  // Xu ly nhieu lo trong cung mot lan chay (thay vi cho trigger ke tiep) de
+  // hang doi khong bi don u khi luong webhook cao (vd chi nhanh nhieu don).
+  const startTime = Date.now();
+  while (Date.now() - startTime < WEBHOOK_QUEUE_MAX_RUN_MS) {
+    const batch = claimWebhookQueueBatch_();
+    if (batch.length === 0) break;
+
+    const finalizedResults = [];
+    const groups = coalesceWebhookQueueBatch_(batch);
+    groups.forEach(group => {
+      const queueItem = group.syntheticItem;
+      // Webhook Hoa don dung khoa rieng (getKiotVietInvoiceLock_) giong
+      // resumeSyncInvoicesChunk, de khong bi cac chuoi dong bo nang khac
+      // (polling-only, master chain o buoc khac Hoa don) chan mat nhieu phut.
+      const isInvoiceEvent = queueItem.eventType.indexOf('invoice') !== -1;
+      const dataLock = isInvoiceEvent ? getKiotVietInvoiceLock_() : getKiotVietDataLock_();
+      try {
+        dataLock.waitLock(30000);
+      } catch (lockError) {
+        Logger.log(
+          'Webhook ' + queueItem.id + ' cho khoa du lieu qua han (dang co dong bo ' +
+          'nang chay), se thu lai o lan sau: ' + lockError.toString()
+        );
+        group.queueItems.forEach(item => finalizedResults.push({
+          id: item.id, error: lockError, skipAttemptPenalty: true
+        }));
+        return;
+      }
+
+      let isolatedResults;
+      try {
+        isolatedResults = processWebhookQueueGroupWithIsolation_(group);
+      } finally {
+        if (dataLock.hasLock()) dataLock.releaseLock();
+      }
+      Array.prototype.push.apply(finalizedResults, isolatedResults);
+    });
+
+    if (finalizeWebhookQueueBatch_(finalizedResults) === false) break;
+
+    if (batch.length < WEBHOOK_QUEUE_BATCH_SIZE) break;
+  }
 }
 
 function getWebhookQueueStatus() {
@@ -368,8 +701,8 @@ function setupQueueProcessingTrigger() {
   ScriptApp.getProjectTriggers().forEach(trigger => {
     if (trigger.getHandlerFunction() === 'processWebhookQueue') ScriptApp.deleteTrigger(trigger);
   });
-  ScriptApp.newTrigger('processWebhookQueue').timeBased().everyMinutes(5).create();
-  Logger.log('Da bat trigger xu ly webhook moi 5 phut.');
+  ScriptApp.newTrigger('processWebhookQueue').timeBased().everyMinutes(1).create();
+  Logger.log('Da bat trigger xu ly webhook moi 1 phut.');
 }
 
 /**

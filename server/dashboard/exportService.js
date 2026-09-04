@@ -11,7 +11,6 @@ const TABLE_TITLES = Object.freeze({
   'overview.transactions': 'Chi tiết giao dịch',
   'overview.purchases': 'Danh sách nhập hàng',
   'overview.new-products': 'Danh sách mã mới',
-  'overview.deactivated': 'Hàng ngừng kinh doanh',
   'products.top-selling': 'Sản phẩm bán chạy',
   'products.low-stock': 'Hàng đã hết',
   'products.all': 'Tất cả mã hàng',
@@ -74,8 +73,7 @@ function normalizeFilters(rawFilters) {
     invoices,
     customers,
     newPurchases: normalizeFilterSpec(raw.newPurchases || overview),
-    newProducts: normalizeFilterSpec(raw.newProducts || overview),
-    deactivated: normalizeFilterSpec(raw.deactivated || overview)
+    newProducts: normalizeFilterSpec(raw.newProducts || overview)
   };
 }
 
@@ -222,12 +220,6 @@ function buildFixedDataset(tableKey, snapshot, context) {
       worksheets = [worksheetFromLogicalRows({
         key: 'new_products', name: 'Mã mới tạo', sheetRows: getSheet(snapshot, CONFIG.SHEET_PRODUCTS),
         logicalRows: (((d.overview || {}).todayNewProducts || {}).products || []), codeHeaders: ['Mã hàng']
-      })];
-      break;
-    case 'overview.deactivated':
-      worksheets = [worksheetFromLogicalRows({
-        key: 'deactivated', name: 'Ngừng kinh doanh', sheetRows: getSheet(snapshot, CONFIG.SHEET_DEACTIVATED_TODAY),
-        logicalRows: (((d.overview || {}).deactivatedToday || {}).products || []), codeHeaders: ['Mã hàng'], fallbackCodeIndex: 6
       })];
       break;
     case 'products.top-selling': {

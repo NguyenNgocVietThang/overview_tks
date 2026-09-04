@@ -44,9 +44,11 @@ router.post('/api/role-requests', requireAuth, async (req, res) => {
     if (!requestedRole || !VALID_ROLES.includes(requestedRole)) {
       return res.status(400).json({ error: `Vai trò không hợp lệ: ${requestedRole}`, code: 'INVALID_REQUEST' });
     }
-    if (localUserStore.isHardcodedAdmin(req.user.username) || localUserStore.isHardcodedAdmin(req.user.email)) {
+    const isTargetThang = (localUserStore.isProtectedSuperAdmin && (localUserStore.isProtectedSuperAdmin(req.user.username) || localUserStore.isProtectedSuperAdmin(req.user.email))) ||
+                          localUserStore.isHardcodedAdmin(req.user.username) || localUserStore.isHardcodedAdmin(req.user.email);
+    if (isTargetThang) {
       return res.status(400).json({
-        error: 'Tài khoản Quản trị viên hệ thống mặc định không thể đổi vai trò qua yêu cầu này.',
+        error: 'Tài khoản Quản trị viên hệ thống mặc định (thangnnv2003@gmail.com) không thể đổi vai trò qua yêu cầu này.',
         code: 'ROLE_REQUEST_HARDCODED_ADMIN'
       });
     }

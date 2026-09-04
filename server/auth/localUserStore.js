@@ -14,6 +14,7 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 const DEFAULT_STORE_PATH = path.join(DATA_DIR, 'users.json');
 
 const ACTIVE_STATUS = 'Đang hoạt động';
+const INACTIVE_STATUS = 'Không hoạt động';
 const LOCKED_STATUS = 'Khóa';
 const PENDING_STATUS = 'Chờ duyệt';
 
@@ -23,6 +24,9 @@ const ROLES = Object.freeze({
   TRUONG_KHO: 'Trưởng kho',
   TRO_LY: 'Trợ lý',
   LAI_XE: 'Lái xe',
+  NHAN_VIEN_KHO: 'Nhân viên kho',
+  NHAN_VIEN_SALE: 'Nhân viên sale',
+  NHAN_VIEN_MUA_HANG: 'Nhân viên mua hàng',
   KHACH: 'Khách'
 });
 
@@ -33,6 +37,12 @@ const HARDCODED_ADMINS = Object.freeze([
   'admin@tokosi.vn',
   'admin'
 ]);
+
+function isProtectedSuperAdmin(identifier) {
+  if (!identifier) return false;
+  const norm = String(identifier).trim().toLowerCase();
+  return norm === 'thangnnv2003@gmail.com' || norm === 'thangnnv2003@gmail' || norm === 'thangnnv2003';
+}
 
 function isHardcodedAdmin(identifier) {
   if (!identifier) return false;
@@ -229,11 +239,13 @@ function ensureLoaded() {
 }
 
 /**
- * Lấy danh sách toàn bộ người dùng (bản sao).
+ * Lấy danh sách toàn bộ người dùng (bản sao, loại trừ tài khoản đã bị xóa).
  */
 async function getAllUsers() {
   const users = ensureLoaded();
-  return users.map(u => ({ ...u }));
+  return users
+    .filter(u => !u.isDeleted && u.trangThai !== 'Đã xóa')
+    .map(u => ({ ...u }));
 }
 
 /**
@@ -242,7 +254,7 @@ async function getAllUsers() {
 async function getUserById(id) {
   if (!id) return null;
   const users = ensureLoaded();
-  const found = users.find(u => String(u.id) === String(id));
+  const found = users.find(u => String(u.id) === String(id) && !u.isDeleted && u.trangThai !== 'Đã xóa');
   return found ? { ...found } : null;
 }
 
@@ -253,7 +265,7 @@ async function getUserByUsername(username) {
   if (!username) return null;
   const target = normalize(username);
   const users = ensureLoaded();
-  const found = users.find(u => normalize(u.username) === target);
+  const found = users.find(u => normalize(u.username) === target && !u.isDeleted && u.trangThai !== 'Đã xóa');
   return found ? { ...found } : null;
 }
 
@@ -264,7 +276,7 @@ async function getUserByEmail(email) {
   if (!email) return null;
   const target = normalize(email);
   const users = ensureLoaded();
-  const found = users.find(u => normalize(u.email) === target);
+  const found = users.find(u => normalize(u.email) === target && !u.isDeleted && u.trangThai !== 'Đã xóa');
   return found ? { ...found } : null;
 }
 
@@ -277,9 +289,11 @@ async function getUserByPhone(phone) {
   if (!target) return null;
   const users = ensureLoaded();
   const found = users.find(u =>
-    normalizePhone(u.soDienThoai) === target ||
-    normalizePhone(u.username) === target ||
-    normalizePhone(u.sdtKhoiPhuc) === target
+    !u.isDeleted && u.trangThai !== 'Đã xóa' && (
+      normalizePhone(u.soDienThoai) === target ||
+      normalizePhone(u.username) === target ||
+      normalizePhone(u.sdtKhoiPhuc) === target
+    )
   );
   return found ? { ...found } : null;
 }
@@ -294,6 +308,7 @@ async function getUserByIdentifier(identifier) {
   const users = ensureLoaded();
 
   const found = users.find(u => {
+    if (u.isDeleted || u.trangThai === 'Đã xóa') return false;
     if (normalize(u.username) === target) return true;
     if (u.email && normalize(u.email) === target) return true;
     if (u.emailKhoiPhuc && normalize(u.emailKhoiPhuc) === target) return true;
@@ -309,7 +324,8 @@ async function getUserByIdentifier(identifier) {
 }
 
 /**
- * Tìm user hoạt động theo username, email hoặc số điện thoại.
+ * Tìm user hoạt động theo username, email hoặc số điện thoại để đăng nhập.
+ * Cho phép tài khoản "Đang hoạt động" và "Không hoạt động". Chặn tài khoản "Khóa" hoặc "Đã xóa".
  */
 async function getActiveUserByUsername(usernameOrIdentifier) {
   if (!usernameOrIdentifier) return null;
@@ -318,7 +334,7 @@ async function getActiveUserByUsername(usernameOrIdentifier) {
   const users = ensureLoaded();
 
   const found = users.find(u => {
-    if (u.trangThai !== ACTIVE_STATUS) return false;
+    if (u.trangThai === LOCKED_STATUS || u.isDeleted || u.trangThai === 'Đã xóa') return false;
     if (normalize(u.username) === target) return true;
     if (u.email && normalize(u.email) === target) return true;
     if (targetPhone && u.soDienThoai && normalizePhone(u.soDienThoai) === targetPhone) return true;
@@ -342,19 +358,19 @@ async function createUser(userData) {
 
   if (!username) throw new Error('Tên tài khoản không được để trống.');
 
-  if (users.some(u => normalize(u.username) === normalize(username))) {
+  if (users.some(u => !u.isDeleted && normalize(u.username) === normalize(username))) {
     const err = new Error('Tên tài khoản đã tồn tại.');
     err.code = 'USER_EXISTS';
     throw err;
   }
 
-  if (email && users.some(u => u.email && normalize(u.email) === email)) {
+  if (email && users.some(u => !u.isDeleted && u.email && normalize(u.email) === email)) {
     const err = new Error('Email này đã được sử dụng.');
     err.code = 'USER_EXISTS';
     throw err;
   }
 
-  if (soDienThoai && users.some(u => u.soDienThoai && normalizePhone(u.soDienThoai) === soDienThoai)) {
+  if (soDienThoai && users.some(u => !u.isDeleted && u.soDienThoai && normalizePhone(u.soDienThoai) === soDienThoai)) {
     const err = new Error('Số điện thoại này đã được sử dụng.');
     err.code = 'USER_EXISTS';
     throw err;
@@ -396,11 +412,12 @@ async function updateUser(id, updates) {
   }
 
   const current = users[index];
+  const isTargetThang = isProtectedSuperAdmin(current.email) || isProtectedSuperAdmin(current.username);
   const isTargetAdmin = isHardcodedAdmin(current.email) || isHardcodedAdmin(current.username);
 
   // Kiểm tra trùng username mới nếu có đổi
   if (updates.username && normalize(updates.username) !== normalize(current.username)) {
-    if (users.some((u, i) => i !== index && normalize(u.username) === normalize(updates.username))) {
+    if (users.some((u, i) => i !== index && !u.isDeleted && normalize(u.username) === normalize(updates.username))) {
       const err = new Error('Tên tài khoản mới đã tồn tại.');
       err.code = 'USER_EXISTS';
       throw err;
@@ -409,7 +426,7 @@ async function updateUser(id, updates) {
 
   // Kiểm tra trùng email mới nếu có đổi
   if (updates.email && normalize(updates.email) !== normalize(current.email)) {
-    if (users.some((u, i) => i !== index && u.email && normalize(u.email) === normalize(updates.email))) {
+    if (users.some((u, i) => i !== index && !u.isDeleted && u.email && normalize(u.email) === normalize(updates.email))) {
       const err = new Error('Email mới đã được sử dụng.');
       err.code = 'USER_EXISTS';
       throw err;
@@ -419,7 +436,7 @@ async function updateUser(id, updates) {
   // Kiểm tra trùng số điện thoại mới nếu có đổi
   if (updates.soDienThoai && normalizePhone(updates.soDienThoai) !== normalizePhone(current.soDienThoai)) {
     const newNormPhone = normalizePhone(updates.soDienThoai);
-    if (users.some((u, i) => i !== index && u.soDienThoai && normalizePhone(u.soDienThoai) === newNormPhone)) {
+    if (users.some((u, i) => i !== index && !u.isDeleted && u.soDienThoai && normalizePhone(u.soDienThoai) === newNormPhone)) {
       const err = new Error('Số điện thoại mới đã được sử dụng.');
       err.code = 'USER_EXISTS';
       throw err;
@@ -431,8 +448,13 @@ async function updateUser(id, updates) {
   const safeCoSo = isTargetAdmin
     ? BRANCH_BOTH
     : (updates.coSo !== undefined ? normalizeCoSo(updates.coSo) : normalizeCoSo(current.coSo));
-  const safeVaiTro = isTargetAdmin ? ROLES.QUAN_LY : (updates.vaiTro !== undefined ? String(updates.vaiTro).trim() : current.vaiTro);
-  const safeTrangThai = isTargetAdmin ? ACTIVE_STATUS : (updates.trangThai !== undefined ? String(updates.trangThai).trim() : current.trangThai);
+  // Bảo vệ tuyệt đối: thangnnv2003@gmail.com và các admin mặc định không thể bị hạ quyền hoặc khóa
+  const safeVaiTro = (isTargetThang || isTargetAdmin)
+    ? ROLES.QUAN_LY
+    : (updates.vaiTro !== undefined ? String(updates.vaiTro).trim() : current.vaiTro);
+  const safeTrangThai = (isTargetThang || isTargetAdmin)
+    ? ACTIVE_STATUS
+    : (updates.trangThai !== undefined ? String(updates.trangThai).trim() : current.trangThai);
 
   const updated = {
     ...current,
@@ -463,6 +485,9 @@ async function deleteUser(id) {
     throw new Error('Không tìm thấy tài khoản cần xóa.');
   }
   const target = users[index];
+  if (isProtectedSuperAdmin(target.email) || isProtectedSuperAdmin(target.username)) {
+    throw new Error('Không ai có quyền xóa tài khoản thangnnv2003@gmail.com.');
+  }
   if (isHardcodedAdmin(target.email) || isHardcodedAdmin(target.username)) {
     throw new Error('Không thể xóa tài khoản Quản trị viên hệ thống mặc định.');
   }
@@ -482,11 +507,13 @@ function setInMemoryUsers(users) {
 
 module.exports = {
   ACTIVE_STATUS,
+  INACTIVE_STATUS,
   LOCKED_STATUS,
   PENDING_STATUS,
   ROLES,
   HARDCODED_ADMINS,
   isHardcodedAdmin,
+  isProtectedSuperAdmin,
   initStore,
   getAllUsers,
   getUserById,

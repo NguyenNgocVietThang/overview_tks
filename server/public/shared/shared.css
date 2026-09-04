@@ -4,7 +4,10 @@
    Thiết kế cao cấp, đồng bộ Dark/Light Mode.
    ========================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Open+Sans:wght@400;500;600;700&display=swap');
+/* Phông chữ được tải qua thẻ <link rel="preconnect"> + <link rel="stylesheet"> trong phần <head>
+   của mỗi trang, KHÔNG dùng @import ở đây. Lệnh @import bên trong stylesheet không thể
+   bắt đầu tải xuống cho đến khi shared.css được tải về và phân tích, gây nghẽn render tuần tự;
+   dạng thẻ <link> sẽ chạy song song với file này. Hãy giữ đồng bộ danh sách khi thêm phông mới. */
 
 :root{
   color-scheme:dark;
@@ -42,8 +45,14 @@
   --ambient-1:rgba(59,130,246,0.08);
   --ambient-2:rgba(16,185,129,0.05);
 
-  --bg-image:url('images/bg-dark.jpg');
-  --bg-scrim:rgba(9,13,22,0.72);
+  --bg-image:url('/Dark%20mode.jfif?v=20260829');
+  --bg-scrim:transparent;
+
+  /* ── Token văn bản trực tiếp trên nền (ngoài frame/panel) ── */
+  --canvas-text:#FFFFFF;
+  --canvas-text-muted:#FFFFFF;
+  --canvas-border:rgba(255,255,255,0.3);
+  --canvas-subnav-border:rgba(255,255,255,0.35);
 
   --sidebar-w:210px;
   --ease-out:cubic-bezier(0.23, 1, 0.32, 1);
@@ -51,7 +60,7 @@
   --font-body:'Inter',sans-serif;
   --font-data:'IBM Plex Mono',monospace;
 
-  /* Spacing scale (see design-system/tks-dashboard/MASTER.md — Spacing Variables) */
+  /* Thang đo khoảng cách spacing (xem design-system/tks-dashboard/MASTER.md — Spacing Variables) */
   --space-xs:2px;
   --space-sm:4px;
   --space-md:8px;
@@ -60,25 +69,25 @@
   --space-2xl:24px;
   --space-3xl:32px;
 
-  /* ── Border Radius scale ── */
-  --radius-xs:6px;   /* chips, tiny badges */
-  --radius-sm:8px;   /* inputs, small buttons */
-  --radius-md:10px;  /* tabs, medium controls */
-  --radius-lg:12px;  /* KPI cards */
-  --radius-xl:14px;  /* panels, modals */
+  /* ── Thang đo Border Radius ── */
+  --radius-xs:6px;   /* thẻ chip, huy hiệu nhỏ */
+  --radius-sm:8px;   /* ô nhập liệu, nút nhỏ */
+  --radius-md:10px;  /* tab, thành phần điều khiển vừa */
+  --radius-lg:12px;  /* thẻ KPI */
+  --radius-xl:14px;  /* panel, hộp thoại modal */
   --radius-pill:9999px;
 
-  /* ── Shadow tokens ── */
+  /* ── Token đổ bóng Shadow ── */
   --shadow-modal:0 20px 50px rgba(0,0,0,0.4);
   --shadow-toast:0 8px 24px rgba(0,0,0,0.3);
   --shadow-focus-blue:0 15px 35px -10px rgba(59,130,246,0.4), 0 0 0 3px rgba(59,130,246,0.2), 0 0 25px rgba(59,130,246,0.25);
   --shadow-brand:0 4px 12px rgba(0,0,0,0.18);
 
-  /* ── Accent alpha ── */
+  /* ── Độ trong suốt Accent alpha ── */
   --accent-blue-12:rgba(59,130,246,0.12);
   --accent-blue-18:rgba(59,130,246,0.18);
 
-  /* ── Role badge tokens ── */
+  /* ── Token huy hiệu vai trò ── */
   --role-quan-ly-bg:rgba(139,92,246,0.16);
   --role-quan-ly-fg:#a78bfa;
   --role-quan-ly-border:rgba(139,92,246,0.3);
@@ -94,11 +103,20 @@
   --role-lai-xe-bg:rgba(249,115,22,0.14);
   --role-lai-xe-fg:#fb923c;
   --role-lai-xe-border:rgba(249,115,22,0.3);
+  --role-nhan-vien-kho-bg:rgba(217,119,6,0.14);
+  --role-nhan-vien-kho-fg:#f59e0b;
+  --role-nhan-vien-kho-border:rgba(217,119,6,0.3);
+  --role-nhan-vien-sale-bg:rgba(6,182,212,0.14);
+  --role-nhan-vien-sale-fg:#22d3ee;
+  --role-nhan-vien-sale-border:rgba(6,182,212,0.3);
+  --role-nhan-vien-mua-hang-bg:rgba(236,72,153,0.14);
+  --role-nhan-vien-mua-hang-fg:#f472b6;
+  --role-nhan-vien-mua-hang-border:rgba(236,72,153,0.3);
   --role-khach-bg:rgba(148,163,184,0.14);
   --role-khach-fg:#cbd5e1;
   --role-khach-border:rgba(148,163,184,0.3);
 
-  /* ── Alert box tokens ── */
+  /* ── Token hộp cảnh báo Alert box ── */
   --alert-warning-bg:rgba(245,158,11,0.12);
   --alert-warning-border:rgba(245,158,11,0.3);
   --alert-error-bg:rgba(239,68,68,0.12);
@@ -106,7 +124,7 @@
   --alert-success-bg:rgba(16,185,129,0.12);
   --alert-success-border:rgba(16,185,129,0.3);
 
-  /* ── Toast semantic tokens ── */
+  /* ── Token thông báo Toast ngữ nghĩa ── */
   --toast-success-bg:#064e3b;
   --toast-success-fg:#a7f3d0;
   --toast-success-border:#059669;
@@ -114,7 +132,7 @@
   --toast-error-fg:#fecaca;
   --toast-error-border:#dc2626;
 
-  /* ── Status pill tokens ── */
+  /* ── Token nhãn trạng thái Status pill ── */
   --status-active-bg:rgba(16,185,129,0.12);
   --status-locked-bg:rgba(239,68,68,0.12);
   --status-pending-bg:rgba(245,158,11,0.12);
@@ -156,20 +174,26 @@
   --ambient-1:rgba(37,99,235,0.04);
   --ambient-2:rgba(5,150,105,0.03);
 
-  --bg-image:url('images/bg-light.jpg');
-  --bg-scrim:rgba(248,250,252,0.80);
+  --bg-image:url('/Light%20mode.jfif?v=20260829_1645');
+  --bg-scrim:transparent;
 
-  /* ── Light mode shadow overrides ── */
+  /* ── Token văn bản trực tiếp trên nền (ngoài frame/panel) ── */
+  --canvas-text:#000000;
+  --canvas-text-muted:#000000;
+  --canvas-border:rgba(0,0,0,0.25);
+  --canvas-subnav-border:rgba(0,0,0,0.3);
+
+  /* ── Ghi đè đổ bóng chế độ sáng Light mode ── */
   --shadow-modal:0 20px 50px rgba(0,0,0,0.2);
   --shadow-toast:0 8px 24px rgba(0,0,0,0.12);
   --shadow-focus-blue:0 8px 20px -6px rgba(37,99,235,0.35), 0 0 0 3px rgba(37,99,235,0.18), 0 0 15px rgba(37,99,235,0.15);
   --shadow-brand:0 2px 8px rgba(0,0,0,0.08);
 
-  /* ── Light accent alpha ── */
+  /* ── Độ trong suốt Accent chế độ sáng ── */
   --accent-blue-12:rgba(37,99,235,0.10);
   --accent-blue-18:rgba(37,99,235,0.15);
 
-  /* ── Light role badge tokens ── */
+  /* ── Token huy hiệu vai trò chế độ sáng ── */
   --role-quan-ly-bg:rgba(109,40,217,0.10);
   --role-quan-ly-fg:#7C3AED;
   --role-quan-ly-border:rgba(109,40,217,0.25);
@@ -185,11 +209,20 @@
   --role-lai-xe-bg:rgba(234,88,12,0.10);
   --role-lai-xe-fg:#EA580C;
   --role-lai-xe-border:rgba(234,88,12,0.25);
+  --role-nhan-vien-kho-bg:rgba(180,83,9,0.10);
+  --role-nhan-vien-kho-fg:#B45309;
+  --role-nhan-vien-kho-border:rgba(180,83,9,0.25);
+  --role-nhan-vien-sale-bg:rgba(14,116,144,0.10);
+  --role-nhan-vien-sale-fg:#0E7490;
+  --role-nhan-vien-sale-border:rgba(14,116,144,0.25);
+  --role-nhan-vien-mua-hang-bg:rgba(190,24,93,0.10);
+  --role-nhan-vien-mua-hang-fg:#BE185D;
+  --role-nhan-vien-mua-hang-border:rgba(190,24,93,0.25);
   --role-khach-bg:rgba(100,116,139,0.10);
   --role-khach-fg:#475569;
   --role-khach-border:rgba(100,116,139,0.25);
 
-  /* ── Light alert box tokens ── */
+  /* ── Token hộp cảnh báo chế độ sáng ── */
   --alert-warning-bg:rgba(217,119,6,0.08);
   --alert-warning-border:rgba(217,119,6,0.25);
   --alert-error-bg:rgba(220,38,38,0.08);
@@ -197,7 +230,7 @@
   --alert-success-bg:rgba(5,150,105,0.08);
   --alert-success-border:rgba(5,150,105,0.25);
 
-  /* ── Light toast tokens ── */
+  /* ── Token thông báo Toast chế độ sáng ── */
   --toast-success-bg:#D1FAE5;
   --toast-success-fg:#065F46;
   --toast-success-border:#059669;
@@ -205,7 +238,7 @@
   --toast-error-fg:#991B1B;
   --toast-error-border:#DC2626;
 
-  /* ── Light status pill tokens ── */
+  /* ── Token nhãn trạng thái chế độ sáng ── */
   --status-active-bg:rgba(5,150,105,0.10);
   --status-locked-bg:rgba(220,38,38,0.10);
   --status-pending-bg:rgba(217,119,6,0.10);
@@ -215,21 +248,31 @@
 
 body{
   margin:0;
-  background:
-    radial-gradient(circle at 15% 0%, var(--ambient-1), transparent 45%),
-    radial-gradient(circle at 90% 10%, var(--ambient-2), transparent 40%),
-    linear-gradient(var(--bg-scrim), var(--bg-scrim)),
-    var(--bg-image) center/cover no-repeat fixed,
-    var(--bg);
+  background:var(--bg);
   color:var(--text);
   font-family:var(--font-body);
   min-height:100vh;
-  transition:color .2s ease, background-color .2s ease, background-image .3s ease;
+  transition:color .2s ease, background-color .2s ease;
   -webkit-font-smoothing:antialiased;
   -moz-osx-font-smoothing:grayscale;
 }
 
-/* ---------- Theme Switcher Floating (Login & Register) ---------- */
+/* Nền trang trí cho trang.
+   Trước đây là bốn lớp xếp chồng trên `body` với `background-attachment: fixed`
+   — điều này buộc trình duyệt phải vẽ lại toàn bộ viewport (kèm thay đổi kích thước ảnh nền)
+   trên MỖI khung hình cuộn. Vẽ một lần vào lớp cố định, không cuộn này mang lại giao diện giống hệt
+   với chi phí hiệu năng nhỏ hơn rất nhiều, giúp compositor hoàn toàn tách biệt khỏi luồng cuộn. */
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  z-index:-1;
+  pointer-events:none;
+  background:var(--bg-image) center/cover no-repeat;
+  background-color:var(--bg);
+}
+
+/* ---------- Nút chuyển đổi Theme nổi (Đăng nhập & Đăng ký) ---------- */
 .theme-toggle-floating{
   position:fixed;
   top:20px;
@@ -491,35 +534,26 @@ body{
 .sidebar{
   width:var(--sidebar-w); flex-shrink:0; background:var(--panel);
   border-right:1px solid var(--border); padding:18px 12px;
-  position:sticky; top:0; align-self:flex-start; height:calc(100vh - 78px);
+  position:sticky; top:0; align-self:flex-start; height:100vh;
+  overflow-y:auto; overflow-x:hidden; scrollbar-width:thin; box-sizing:border-box;
   transition:transform .28s var(--ease-out), background-color .2s ease, border-color .2s ease; z-index:20;
-  perspective:1000px;
-  perspective-origin:center center;
 }
-.sidebar-disp{
-  perspective:1000px;
-  perspective-origin:center center;
-}
+.sidebar::-webkit-scrollbar{ width:4px; }
+.sidebar::-webkit-scrollbar-thumb{ background:rgba(255,255,255,0.15); border-radius:4px; }
+:root[data-theme="light"] .sidebar::-webkit-scrollbar-thumb{ background:rgba(0,0,0,0.15); }
 .nav-item{
   display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px;
   width:100%; background:none; border:none; border-left:3px solid transparent;
   color:var(--muted); font-size:13.5px; font-weight:500; font-family:var(--font-body);
   text-align:left; text-decoration:none; cursor:pointer; margin-bottom:4px; min-height:42px;
-  transform-style:preserve-3d;
-  transition:transform 0.3s cubic-bezier(0.23, 1, 0.32, 1), background .15s ease, color .15s ease, border-color .15s ease, box-shadow 0.3s ease;
+  transition:background .15s ease, color .15s ease, border-color .15s ease;
 }
 .nav-item .ic{
   width:18px; height:18px; flex-shrink:0;
-  transform-style:preserve-3d;
-  transition:transform 0.3s ease;
 }
 .nav-item:hover:not(.active){
   background:var(--surface-hover);
   color:var(--text);
-  transform:perspective(800px) translateZ(10px) translateX(8px);
-}
-.nav-item:hover .ic{
-  animation:iconBounce 0.6s ease;
 }
 .nav-item:focus-visible{ outline:2px solid var(--blue); outline-offset:-2px; }
 .nav-item.active{
@@ -527,17 +561,11 @@ body{
   color:var(--blue);
   border-left-color:var(--blue);
   font-weight:600;
-  transform:perspective(800px) translateZ(15px);
-  box-shadow:-4px 0 12px rgba(59,130,246,0.4), inset 3px 0 0 var(--blue);
+  box-shadow:inset 3px 0 0 var(--blue);
 }
 
 :root[data-theme="light"] .nav-item.active{
-  box-shadow:-4px 0 12px rgba(37,99,235,0.25), inset 3px 0 0 var(--primary);
-}
-
-@keyframes iconBounce {
-  0%, 100% { transform: translateZ(0); }
-  50% { transform: translateZ(8px) rotateY(15deg); }
+  box-shadow:inset 3px 0 0 var(--primary);
 }
 
 .nav-group-toggle{
@@ -545,28 +573,21 @@ body{
   width:100%; background:none; border:none; border-left:3px solid transparent;
   color:var(--muted); font-size:13.5px; font-weight:500; font-family:var(--font-body);
   text-align:left; cursor:pointer; margin-bottom:2px; min-height:42px;
-  transform-style:preserve-3d;
-  transition:transform 0.3s cubic-bezier(0.23, 1, 0.32, 1), background .15s ease, color .15s ease, box-shadow 0.3s ease;
+  transition:background .15s ease, color .15s ease;
 }
 .nav-group-toggle .ic{
   width:18px; height:18px; flex-shrink:0;
-  transform-style:preserve-3d;
-  transition:transform 0.3s ease;
 }
 .nav-group-toggle span{ flex:1; }
 .nav-group-toggle:hover{
   background:var(--surface-hover);
   color:var(--text);
-  transform:perspective(800px) translateZ(8px) translateX(6px);
-}
-.nav-group-toggle:hover .ic{
-  animation:iconBounce 0.6s ease;
 }
 .nav-group-toggle:focus-visible{ outline:2px solid var(--blue); outline-offset:-2px; }
 .nav-group-toggle.has-active{ color:var(--text); font-weight:600; }
 .nav-group-chevron{ width:14px; height:14px; flex-shrink:0; transition:transform .18s var(--ease-out); }
 .nav-group-toggle[aria-expanded="false"] .nav-group-chevron{ transform:rotate(-90deg); }
-.nav-group-list{ padding-left:14px; margin-bottom:4px; perspective:800px; }
+.nav-group-list{ padding-left:14px; margin-bottom:4px; }
 .nav-group-list[hidden]{ display:none; }
 
 .sidebar-footer{ margin-top:18px; padding:12px; border-top:1px solid var(--border); font-size:11px; color:var(--muted); }
@@ -579,16 +600,34 @@ body{
   .sidebar.open{ transform:translateX(0); box-shadow:12px 0 32px rgba(0,0,0,.35); }
 }
 
-.content{ flex:1; min-width:0; padding:24px; position:relative; z-index:1; }
-.view-title{ font-family:var(--font-display); font-size:21px; font-weight:700; margin:0 0 4px; letter-spacing:-0.01em; }
-.view-sub{ font-size:12.5px; color:var(--muted); margin:0 0 18px; }
+/* ---------- Sidebar resize handle (keo ngang de mo rong/thu gon sidebar) ---------- */
+.sidebar-resize-handle{
+  width:8px; flex-shrink:0; cursor:col-resize; position:sticky; top:0;
+  align-self:flex-start; height:100vh; z-index:21; touch-action:none;
+  background:transparent; margin-left:-4px;
+}
+.sidebar-resize-handle::after{
+  content:''; position:absolute; top:0; bottom:0; left:3px; width:2px;
+  border-radius:2px; background:transparent; transition:background-color .15s ease;
+}
+.sidebar-resize-handle:hover::after,
+.sidebar-resize-handle.is-dragging::after{
+  background:var(--blue);
+}
+body.tks-sidebar-resizing{ cursor:col-resize !important; user-select:none; }
+body.tks-sidebar-resizing .sidebar{ transition:none; }
+@media (max-width:900px){
+  .sidebar-resize-handle{ display:none; }
+}
 
-/* ---------- Buttons (3D Enhanced) ---------- */
+.content{ flex:1; min-width:0; padding:24px; position:relative; z-index:1; }
+.view-title{ font-family:var(--font-display); font-size:21px; font-weight:700; margin:0 0 4px; letter-spacing:-0.01em; color:var(--canvas-text); }
+.view-sub{ font-size:12.5px; color:var(--canvas-text); margin:0 0 18px; font-weight:500; }
+
+/* ---------- Buttons ---------- */
 .btn-primary, .refresh-btn, .theme-toggle, .theme-toggle-floating, .btn-secondary, .btn-danger, .btn-outline, .btn-export, .export-button, .export-btn, .tks-btn-primary, .tks-btn-secondary, .tks-btn-danger, .profile-trigger, .menu-btn, .auth-nav-tab, .btn {
   position: relative;
-  overflow: hidden;
-  transform-style: preserve-3d;
-  transition: transform 0.15s cubic-bezier(0.23, 1, 0.32, 1),
+  transition: transform 0.15s var(--ease-out),
               box-shadow 0.15s ease,
               background-color 0.15s ease,
               border-color 0.15s ease,
@@ -620,11 +659,10 @@ body{
 .btn-primary:active:not(:disabled),
 .refresh-btn:active:not(:disabled),
 .tks-btn-primary:active:not(:disabled){
-  /* translateY only (no scale/perspective translateZ): shrinking or
-     foreshortening the box mid-click can slide its edge out from under
-     the cursor before mouseup, so the click lands on the parent element
-     instead of the button and the click is silently lost. See ROLLBACK.md
-     and the button click-loss fix note below. */
+  /* Chỉ dùng translateY (không dùng scale/perspective translateZ): việc thu nhỏ
+     hoặc phối cảnh hộp khi đang bấm chuột có thể làm trượt cạnh khỏi con trỏ
+     trước sự kiện mouseup, khiến cú nhấp rơi vào phần tử cha thay vì nút
+     và làm mất thao tác nhấp một cách âm thầm. Xem ROLLBACK.md và ghi chú bên dưới. */
   transform: translateY(1px);
   box-shadow: 0 5px 10px -4px rgba(59, 130, 246, 0.3);
 }
@@ -678,43 +716,13 @@ body{
 .btn-danger:disabled,
 .tks-btn-danger:disabled{ opacity:.55; cursor:not-allowed; transform:none !important; box-shadow:none !important; }
 
-/* ---------- Ripple Effect ---------- */
-.ripple-effect {
-  position: absolute;
-  border-radius: 50%;
-  transform: scale(0);
-  animation: rippleAnimation 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  background: rgba(255, 255, 255, 0.35);
-  pointer-events: none;
-  z-index: 10;
-}
-
-:root[data-theme="light"] .ripple-effect {
-  background: rgba(0, 0, 0, 0.12);
-}
-
-.btn-primary .ripple-effect,
-.refresh-btn .ripple-effect,
-.tks-btn-primary .ripple-effect,
-.btn-danger .ripple-effect,
-.tks-btn-danger .ripple-effect {
-  background: rgba(255, 255, 255, 0.45);
-}
-
-@keyframes rippleAnimation {
-  to {
-    transform: scale(3.5);
-    opacity: 0;
-  }
-}
-
 .panel{
   background:var(--panel); border:1px solid var(--border); border-radius:16px;
   padding:20px; box-shadow:var(--card-shadow);
   transition:background-color .2s ease, border-color .2s ease, box-shadow .2s ease;
 }
 
-/* ---------- Password Input with Toggle Button ---------- */
+/* ---------- Ô nhập mật khẩu kèm nút ẩn/hiện ---------- */
 .password-wrap{
   position:relative;
   display:flex;
@@ -758,7 +766,7 @@ body{
   pointer-events:none;
 }
 
-/* ---------- Auth Tabs (Switch between Email and Phone) ---------- */
+/* ---------- Tab xác thực (Chuyển đổi giữa Email và Số điện thoại) ---------- */
 .auth-nav-tabs{
   display:grid;
   grid-template-columns:1fr 1fr;
@@ -796,7 +804,7 @@ body{
   height:15px;
 }
 
-/* ---------- Lockout & Warning Banner ---------- */
+/* ---------- Banner cảnh báo & Tạm khóa ---------- */
 .lockout-alert{
   background:rgba(239,68,68,0.12);
   border:1px solid rgba(239,68,68,0.35);
@@ -825,30 +833,10 @@ body{
   width:100%;
 }
 
-/* ---------- 3D Background Canvas Layer ---------- */
-.tks-bg-canvas {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0.8;
-}
-
-/* ---------- 3D CSS Transforms for Cards and Panels ---------- */
-.perspective-container,
-.kpi-grid,
-.grid,
-.profile-grid,
-.kpi-row,
-.order-list,
-.kanban-cards,
-.login-shell,
-.register-shell {
-  perspective: 1000px;
-  perspective-origin: 50% 50%;
-}
-
-.card-3d,
+/* ---------- Thẻ Card và Panel ----------
+   Phản hồi khi di chuột (hover) chủ đích chỉ dùng box-shadow/border. Bất kỳ thuộc tính transform,
+   perspective hay transform-style nào ở đây cũng đưa mọi thẻ (và tệ hơn là mọi dòng bảng)
+   lên layer compositor riêng, khiến dashboard bị chậm trên máy cấu hình tầm trung. Hãy giữ khối này ở dạng 2D. */
 .kpi-card,
 .panel,
 .profile-card,
@@ -857,86 +845,50 @@ body{
 .login-card,
 .register-card,
 .order-card {
-  transform-style: preserve-3d;
-  transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1),
-              box-shadow 0.4s ease,
+  transition: box-shadow 0.2s ease,
               background-color 0.2s ease,
               border-color 0.2s ease;
 }
 
-.card-3d:hover,
 .kpi-card:hover,
 .kpi-stat:hover,
 .int-nav-card:hover,
 .order-card:hover {
-  transform: translateZ(20px) scale(1.02);
-  box-shadow: 
-    0 25px 50px -12px rgba(0, 0, 0, 0.5),
-    0 0 30px var(--primary),
-    0 0 1px 1px rgba(255, 255, 255, 0.1);
+  border-color: var(--blue);
+  box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.45);
 }
 
-:root[data-theme="light"] .card-3d:hover,
 :root[data-theme="light"] .kpi-card:hover,
 :root[data-theme="light"] .kpi-stat:hover,
 :root[data-theme="light"] .int-nav-card:hover,
 :root[data-theme="light"] .order-card:hover {
-  box-shadow: 
-    0 20px 40px -12px rgba(0, 0, 0, 0.12),
-    0 0 25px rgba(37, 99, 235, 0.22),
-    0 0 1px 1px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 8px 20px -8px rgba(15, 23, 42, 0.14);
 }
 
-/* ---------- 3D Table Row Effects ---------- */
+/* ---------- Di chuột qua dòng bảng ----------
+   Chỉ đổi background-color: các bảng dữ liệu thường kết xuất hàng trăm dòng, nên
+   bộ chọn này là quy tắc style có tần suất kích hoạt cao nhất trên trang. */
 tbody tr {
-  transform-style: preserve-3d;
-  transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1),
-              box-shadow 0.2s ease,
-              background-color 0.2s ease;
+  transition: background-color 0.15s ease;
 }
 
 tbody tr:hover {
-  transform: perspective(1000px) translateZ(5px);
-  box-shadow: 
-    0 10px 25px -5px rgba(0, 0, 0, 0.3),
-    0 0 1px rgba(59, 130, 246, 0.5);
   background: var(--panel-2);
 }
 
-:root[data-theme="light"] tbody tr:hover {
-  box-shadow: 
-    0 8px 20px -5px rgba(0, 0, 0, 0.1),
-    0 0 1px rgba(37, 99, 235, 0.35);
-  background: var(--panel-2);
-}
-
-/* ---------- 3D Search Box Enhancement ---------- */
-.search-input-wrap,
-.search-box,
-.export-search-wrap {
-  transform-style: preserve-3d;
-  perspective: 800px;
-}
-
+/* ---------- Search Box ---------- */
 .search-input,
 .search-box input,
 .export-field-search {
-  transform-style: preserve-3d;
-  transition: 
-    transform 0.3s cubic-bezier(0.23, 1, 0.32, 1),
-    box-shadow 0.3s ease,
-    border-color 0.3s ease,
-    background-color 0.2s ease;
+  transition: box-shadow 0.15s ease,
+              border-color 0.15s ease,
+              background-color 0.15s ease;
 }
 
 .search-input:focus,
 .search-box input:focus,
 .export-field-search:focus {
-  transform: perspective(800px) translateZ(15px) scale(1.02);
-  box-shadow: 
-    0 20px 40px -10px rgba(59, 130, 246, 0.4),
-    0 0 0 4px rgba(59, 130, 246, 0.2),
-    0 0 30px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
   border-color: var(--blue);
   outline: none;
 }
@@ -944,99 +896,76 @@ tbody tr:hover {
 :root[data-theme="light"] .search-input:focus,
 :root[data-theme="light"] .search-box input:focus,
 :root[data-theme="light"] .export-field-search:focus {
-  box-shadow: 
-    0 15px 35px -10px rgba(37, 99, 235, 0.25),
-    0 0 0 4px rgba(37, 99, 235, 0.15),
-    0 0 25px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
 }
 
 .suggestions {
-  transform-style: preserve-3d;
   transform-origin: top center;
 }
 
-.suggestions.show {
-  animation: dropdownExpand 0.4s cubic-bezier(0.23, 1, 0.32, 1);
-  transform: perspective(800px) translateZ(10px) rotateX(0) scale(1);
-}
-
-@keyframes dropdownExpand {
-  from {
-    opacity: 0;
-    transform: perspective(800px) translateZ(-30px) rotateX(-10deg) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: perspective(800px) translateZ(10px) rotateX(0) scale(1);
-  }
-}
-
 .suggestion-item {
-  transform-style: preserve-3d;
-  transition: transform 0.15s ease, background-color 0.15s ease;
+  transition: background-color 0.15s ease;
 }
 
-.suggestion-item:hover,
-.suggestion-item.active {
-  transform: perspective(600px) translateZ(4px);
-}
-
-/* ---------- 3D Loading Veil (three-loading.js) ----------
-   Base structural styles. Animation keyframes + cube transforms
-   are injected by three-loading.js at runtime.
-   These rules ensure the overlay layout is correct even before
-   the script runs.
-   ---------------------------------------------------------- */
+/* ---------- Màn hình chờ Loading Veil ----------
+   Không dùng backdrop-filter: thuộc tính này buộc phải render lại hiệu ứng mờ toàn màn hình
+   mỗi khi màn hình mờ hiện lên, trong khi dashboard hiển thị nó mỗi lần tự động làm mới. */
 .loading-veil {
   position: fixed;
   inset: 0;
   background: var(--veil, rgba(9,13,22,0.82));
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 16px;
   z-index: 9000;
   opacity: 0;
   pointer-events: none;
-  transition: opacity .3s var(--ease-out);
+  transition: opacity .2s var(--ease-out);
 }
 .loading-veil.show {
   opacity: 1;
   pointer-events: all;
 }
 
+/* Vòng quay spinner nhẹ nhàng + nhãn (thay thế cho khối CSS-3D cube loader cũ) */
+.loader-spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid rgba(59, 130, 246, 0.22);
+  border-top-color: var(--primary, #3B82F6);
+  animation: tks-spin 0.8s linear infinite;
+}
+.loader-text {
+  font-family: var(--font-data, 'IBM Plex Mono', monospace);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--primary, #3B82F6);
+  text-align: center;
+}
+@keyframes tks-spin {
+  to { transform: rotate(360deg); }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
+
 [hidden]{ display:none !important; }
 
 @media (prefers-reduced-motion: reduce){
   *{ animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; scroll-behavior:auto !important; }
-  .tks-bg-canvas { opacity: 0.4; }
-  .card-3d:hover,
-  .kpi-card:hover,
-  .kpi-stat:hover,
-  .int-nav-card:hover,
-  .order-card:hover,
-  .panel.card-3d:hover {
-    transform: none;
-    box-shadow: 0 0 0 2px var(--primary);
-  }
-  tbody tr:hover {
-    transform: none;
-    box-shadow: none;
-  }
-  .nav-item:hover:not(.active),
-  .nav-group-toggle:hover {
-    transform: none;
-  }
-  .nav-item.active {
-    transform: none;
-    box-shadow: inset 3px 0 0 var(--blue);
-  }
-  .nav-item:hover .ic,
-  .nav-group-toggle:hover .ic {
-    animation: none;
-  }
   .btn-primary:hover,
   .refresh-btn:hover,
   .theme-toggle:hover,
@@ -1048,10 +977,7 @@ tbody tr:hover {
   .tks-btn-secondary:hover,
   .tks-btn-danger:hover,
   .profile-trigger:hover,
-  .menu-btn:hover {
-    transform: none;
-    box-shadow: 0 0 0 2px var(--primary);
-  }
+  .menu-btn:hover,
   .btn-primary:active,
   .refresh-btn:active,
   .theme-toggle:active,
@@ -1066,42 +992,11 @@ tbody tr:hover {
   .menu-btn:active {
     transform: none;
   }
-  .search-input:focus,
-  .search-box input:focus,
-  .export-field-search:focus {
-    transform: none;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
-  }
-  .suggestions.show {
-    animation: none;
-    transform: none;
-  }
-  .suggestion-item:hover,
-  .suggestion-item.active {
-    transform: none;
-  }
-  .ripple-effect {
-    display: none !important;
+  /* Spinner là hiệu ứng chuyển động lặp duy nhất còn lại; đóng băng nó thay vì
+     để mức ghi đè toàn cục 0.001ms quay một lần với tốc độ cực nhanh. */
+  .loader-spinner {
     animation: none !important;
-  }
-  /* 3D Loading Cube — stop spin, show angled static cube */
-  .cube {
-    animation: none !important;
-    transform: rotateX(25deg) rotateY(30deg) !important;
-  }
-  .cube-core::before {
-    animation: none !important;
-    opacity: 0.9;
-  }
-  .loader-text {
-    animation: none !important;
-    opacity: 0.9;
-  }
-  .loader-ring::after {
-    animation: none !important;
-  }
-  .loader-3d {
-    transition: transform 0.15s ease, opacity 0.15s ease !important;
+    border-top-color: var(--primary, #3B82F6);
   }
 }
 
@@ -1146,19 +1041,17 @@ tbody tr:hover {
   margin: 0;
 }
 
-/* ---------- Windows High Contrast / forced-colors ----------
-   box-shadow is stripped under forced-colors mode, so any hover/focus
-   cue that relies only on a glow shadow becomes invisible. Fall back to
-   a visible outline (which forced-colors always respects) so 3D hover
-   states remain perceivable without breaking the system palette.
+/* ---------- Chế độ tương phản cao Windows / forced-colors ----------
+   box-shadow bị loại bỏ trong chế độ forced-colors, khiến các chỉ báo hover/focus
+   chỉ dựa vào shadow trở nên vô hình. Chuyển sang dùng viền outline hiển thị rõ ràng
+   (luôn được tôn trọng trong forced-colors) để trạng thái hover vẫn nhận biết được
+   mà không làm sai lệch bảng màu hệ thống.
    ------------------------------------------------------------ */
 @media (forced-colors: active) {
-  .card-3d:hover,
   .kpi-card:hover,
   .kpi-stat:hover,
   .int-nav-card:hover,
   .order-card:hover,
-  .panel.card-3d:hover,
   tbody tr:hover,
   .btn-primary:hover,
   .refresh-btn:hover,
@@ -1178,7 +1071,6 @@ tbody tr:hover {
   .nav-item.active {
     outline: 2px solid Highlight;
   }
-  .tks-bg-canvas { display: none; }
 }
 
 
@@ -1220,3 +1112,71 @@ tbody tr:hover {
   border-bottom:1px solid rgba(245,158,11,.4);
   font-size:13.5px; font-weight:600;
 }
+
+/* ==========================================
+   CHỮ TRỰC TIẾP TRÊN NỀN (NGOÀI FRAME / PANEL / CARD)
+   - Light mode: Chữ đen hẳn (#000000)
+   - Dark mode: Chữ trắng xóa (#FFFFFF)
+   ========================================== */
+.view-title,
+.account-header h2,
+.hr-header h2,
+.lookup-hero h2,
+.logo-name {
+  color: var(--canvas-text) !important;
+}
+
+.view-sub,
+.account-header p,
+.hr-header p,
+.lookup-hero p {
+  color: var(--canvas-text) !important;
+  font-weight: 500;
+}
+
+.account-subnav,
+.subnav-tabs,
+.hr-subnav {
+  border-bottom: 1px solid var(--canvas-subnav-border) !important;
+}
+
+.account-subnav-item,
+.subnav-tab,
+.hr-subnav-item {
+  color: var(--canvas-text) !important;
+}
+
+.account-subnav-item svg,
+.subnav-tab svg,
+.hr-subnav-item svg {
+  color: var(--canvas-text) !important;
+}
+
+.account-subnav-item:hover,
+.subnav-tab:hover,
+.hr-subnav-item:hover {
+  color: var(--canvas-text) !important;
+  opacity: 1 !important;
+}
+
+.account-subnav-item.active,
+.subnav-tab.active,
+.hr-subnav-item.active {
+  color: var(--canvas-text) !important;
+  border-bottom-color: var(--blue) !important;
+  font-weight: 700 !important;
+}
+
+.section-head h2 {
+  color: var(--canvas-text) !important;
+}
+
+.section-head .section-note {
+  color: var(--canvas-text) !important;
+  font-weight: 500;
+}
+
+.section-head::after {
+  background: var(--canvas-border) !important;
+}
+

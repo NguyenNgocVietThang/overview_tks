@@ -1,6 +1,6 @@
 # TOKOSI Dashboard — Node server
 
-Express server that reads three independent Google Sheets sources for Dashboard (`SPREADSHEET_ID`), Shipment (`VC_SPREADSHEET_ID`) and HR (`HR_SPREADSHEET_ID`). KiotViet dashboard data is maintained by `../src-dashboard/`; shipment ingestion is maintained by `../src-order-lifecycle/`. The Express backend reads Sheets via the Sheets API, computes KPIs/charts, manages users/auth (JWT + bcrypt + Google Identity + OTP recovery + Local User Store), and powers the 9-state shipment delivery lifecycle system (`VC_*` sheets and Google Drive attachments).
+Express server that reads three independent Google Sheets sources for Dashboard (`SPREADSHEET_ID`), Shipment (`VC_SPREADSHEET_ID`) and HR (`HR_SPREADSHEET_ID`). KiotViet dashboard data is maintained by `../src-dashboard/`. The Express backend reads Sheets via the Sheets API, computes KPIs/charts, manages users/auth (JWT + bcrypt + Google Identity + OTP recovery + Local User Store), and powers the 9-state shipment delivery lifecycle system (`VC_*` sheets and Google Drive attachments).
 
 ## 1. One-time setup
 
@@ -24,7 +24,7 @@ This is configured in the bound Google Apps Script project:
 cp .env.example .env
 # Điền SPREADSHEET_ID, VC_SPREADSHEET_ID, HR_SPREADSHEET_ID, DRIVE_UPLOAD_FOLDER_ID, GOOGLE_SERVICE_ACCOUNT_JSON, JWT_SECRET, GOOGLE_CLIENT_ID, TELEGRAM_BOT_TOKEN, TELEGRAM_HR_CHAT_ID
 npm install
-npm test      # Chạy 434 unit tests tự động (HR Leave & Telegram bot, auth/Guest/SĐT, Google OAuth, OTP reset, Admin CRUD, yêu cầu đổi vai trò, chuông thông báo, kiểm tra đứt hàng Excel-KiotViet, shipment lifecycle, State Machine 9 trạng thái, VC repository, cache, pagination, export, search, và 13 frontend test suites trong test/frontend/)
+npm test      # Chạy 477 unit tests tự động (HR Leave & Telegram bot, auth/Guest/SĐT, Google OAuth, OTP reset, Admin CRUD, yêu cầu đổi vai trò, chuông thông báo, kiểm tra đứt hàng Excel-KiotViet, shipment lifecycle, State Machine 9 trạng thái, VC repository, cache, pagination, export, search, và 13 frontend test suites trong test/frontend/)
 npm start     # Khởi chạy server tại http://localhost:3000 (tự động bật gzip compression và static Cache-Control headers)
 ```
 Truy cập `http://localhost:3000` — giao diện Live Dashboard tải số liệu thời gian thực từ Google Sheets. `GET /health` trả về `{"status":"ok"}`.
@@ -41,7 +41,7 @@ Truy cập `http://localhost:3000` — giao diện Live Dashboard tải số li�
 # Khởi tạo tab Users và tạo tài khoản Admin mặc định
 node scripts/setupUsersSheet.js init
 
-# Tạo tài khoản mới (vai trò: Quản lý | Kế toán | Trưởng kho | Trợ lý | Khách)
+# Tạo tài khoản mới (vai trò: Quản lý | Kế toán | Trưởng kho | Trợ lý | Lái xe | Nhân viên kho | Nhân viên sale | Nhân viên mua hàng | Khách)
 node scripts/setupUsersSheet.js add <username> <password> <vaiTro> [hoTen] [email]
 
 # Đổi mật khẩu tài khoản
@@ -86,7 +86,13 @@ node scripts/setupHrSheet.js init
 | `GET` | `/api/role-requests` | Quản lý | Xem danh sách tất cả yêu cầu đổi vai trò của người dùng. |
 | `PATCH` | `/api/role-requests/:id/decision` | Quản lý | Duyệt hoặc từ chối yêu cầu đổi vai trò, tự động gửi thông báo. |
 
-### 2.3. Chuông thông báo toàn hệ thống (`/api/notifications/*`)
+### 2.3. Cơ sở (`/api/branch`)
+| Method | Endpoint | Quyền | Mô tả |
+|---|---|---|---|
+| `GET` | `/api/branch` | Logged in | Trả về cơ sở đang chọn (`current`) và danh sách cơ sở được phép (`allowed`). |
+| `POST` | `/api/branch` | Logged in (chỉ `coSo = Cả hai`) | Đổi cơ sở đang xem, ghi cookie `tks_branch`. Trả `403 BRANCH_FORBIDDEN` nếu tài khoản không được phép truy cập cơ sở đó. |
+
+### 2.4. Chuông thông báo toàn hệ thống (`/api/notifications/*`)
 | Method | Endpoint | Quyền | Mô tả |
 |---|---|---|---|
 | `GET` | `/api/notifications` | Logged in | Lấy danh sách thông báo của tài khoản hiện tại và số lượng chưa đọc. |
@@ -95,7 +101,7 @@ node scripts/setupHrSheet.js init
 | `DELETE` | `/api/notifications/:id` | Logged in | Xóa một thông báo cụ thể. |
 | `DELETE` | `/api/notifications` | Logged in | Xóa tất cả thông báo của tài khoản hiện tại. |
 
-### 2.4. Vận chuyển & Điều phối (`/api/shipment/*`)
+### 2.5. Vận chuyển & Điều phối (`/api/shipment/*`)
 | Method | Endpoint | Quyền | Mô tả |
 |---|---|---|---|
 | `POST` | `/api/shipment/invoice-status` | Logged in | Tra cứu chính xác tối đa 50 mã hóa đơn (cache 90s). Dành cho Khách và nội bộ. |
@@ -109,7 +115,7 @@ node scripts/setupHrSheet.js init
 | `GET` | `/api/shipment/audit` | Nội bộ | Báo cáo đối soát cuối ngày lọc đơn thiếu ảnh nhặt, thiếu bill ký hoặc giao trễ. |
 | `GET` | `/api/shipment/vehicles` | Nội bộ | Danh mục phương tiện và tài xế từ tab VC_Vehicles. |
 
-### 2.5. Quản lý Nghỉ phép HR (`/api/hr/*`)
+### 2.6. Quản lý Nghỉ phép HR (`/api/hr/*`)
 | Method | Endpoint | Quyền | Mô tả |
 |---|---|---|---|
 | `GET` | `/api/hr/leave-requests` | Nội bộ | Danh sách đơn; `from`/`to` lọc theo `Thời gian gửi`. |
@@ -123,7 +129,7 @@ node scripts/setupHrSheet.js init
 
 Schema nghỉ phép dùng `Thời gian gửi`, `Thời gian bắt đầu/kết thúc` dạng `Sáng|Chiều dd/mm/yyyy`, `Tổng buổi nghỉ` và `Tổng ngày nghỉ quy đổi = số buổi / 2`. Đơn gửi sau 07:45 (Sáng) hoặc 12:30 (Chiều) vẫn được lưu với trạng thái `Vi phạm`.
 
-### 2.6. Kiểm tra đứt hàng (`/api/products/stockout-check/*`)
+### 2.7. Kiểm tra đứt hàng (`/api/products/stockout-check/*`)
 | Method | Endpoint | Quyền | Mô tả |
 |---|---|---|---|
 | `POST` | `/api/products/stockout-check/validate` | Nội bộ | Đọc và kiểm tra tính hợp lệ của file Excel danh sách sản phẩm tải lên. |
@@ -133,18 +139,35 @@ Schema nghỉ phép dùng `Thời gian gửi`, `Thời gian bắt đầu/kết t
 | `POST` | `/api/products/stockout-check/export/:jobId` | Nội bộ | Xuất báo cáo kết quả kiểm tra đứt hàng ra file Excel. |
 | `POST` | `/api/products/stockout-check/cancel/:jobId` | Nội bộ | Hủy tác vụ kiểm tra đứt hàng đang chạy. |
 
-### 2.7. Dashboard, Tìm kiếm & Tiện ích
+### 2.8. Dashboard, Tìm kiếm & Tiện ích
 | Method | Endpoint | Quyền | Mô tả |
 |---|---|---|---|
 | `GET` | `/api/dashboard?days={7\|30\|90}` | Nội bộ | Trả về toàn bộ KPI, biểu đồ, danh sách top/gần đây kèm Result Cache. |
 | `GET` | `/api/search` | Nội bộ | Tìm kiếm bản ghi trong tab hiện tại hoặc tìm chính xác nhiều mã (`mode=codes`). |
 | `GET` | `/api/customer-product-top` | Nội bộ | Tìm top 3 khách hàng mua nhiều nhất cho danh sách tối đa 50 mã sản phẩm. |
+| `GET` | `/api/customer-product-revenue?code=&name=` | Nội bộ | Báo cáo doanh thu của một khách hàng theo từng sản phẩm/mã đã mua. |
 | `POST` | `/api/export/fields` | Nội bộ | Trả về danh sách worksheet và các trường dữ liệu có thể chọn xuất Excel. |
 | `POST` | `/api/export` | Nội bộ | Tạo và tải file `.xlsx` theo các trường đã chọn và bộ lọc hiện tại. |
 | `GET` | `/health` | Public | Health check endpoint cho Render ping (`{"status":"ok"}`). |
 | `GET` | `/api/debug` | Nội bộ | Chẩn đoán biến môi trường, kết nối Google Sheets và danh sách tab. |
 
-## 3. Deploying on Render — exact values for the "New Web Service" form
+## 3. Deploying on Firebase App Hosting
+
+Firebase App Hosting chạy Express server trên Cloud Run và yêu cầu Firebase project ở gói Blaze.
+Cấu hình deploy nằm tại `../firebase.json`, `.firebaserc` và `apphosting.yaml`.
+
+```bash
+# Chạy từ thư mục gốc repository sau khi project đã bật Blaze
+firebase deploy --only apphosting:tokosi-dashboard
+```
+
+Các giá trị nhạy cảm trong `.env` phải được tạo trong Firebase Secret Manager theo
+các tên được tham chiếu bởi `apphosting.yaml`; tuyệt đối không commit `.env`.
+`maxInstances: 1` được giữ để các cache/job chạy trong bộ nhớ không bị chia giữa
+nhiều instance. Telegram bot mặc định tắt trên App Hosting để tránh nhiều tiến
+trình polling cùng một bot token.
+
+## 4. Deploying on Render — exact values for the "New Web Service" form
 
 | Field | Value |
 |---|---|

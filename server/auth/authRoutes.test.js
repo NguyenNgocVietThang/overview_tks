@@ -76,6 +76,11 @@ function freshAuthRoutes({
   userWriteRepository.activatePendingGuest = activatePendingGuest;
   userWriteRepository.updateUserFields = updateUserFields;
 
+  const emailSender = require('../notifications/emailSender');
+  emailSender.isConfigured = () => false;
+  const smsSender = require('../notifications/smsSender');
+  smsSender.isConfigured = () => false;
+
   return require('./authRoutes');
 }
 
@@ -357,7 +362,9 @@ test('POST /api/auth/google: cap nhat ten va email vao tai khoan nguoi dung', as
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.email, 'existing@gmail.com');
   assert.equal(res.body.hoTen, 'Nguyễn Văn A');
-  assert.deepEqual(updatedFields, { email: 'existing@gmail.com', hoTen: 'Nguyễn Văn A' });
+  assert.equal(updatedFields.email, 'existing@gmail.com');
+  assert.equal(updatedFields.hoTen, 'Nguyễn Văn A');
+  assert.ok(updatedFields.dangNhapGanNhat);
 });
 
 test('POST /api/auth/login: tu dong cap nhat email neu dang nhap bang email ma truong email rong', async () => {
@@ -390,7 +397,41 @@ test('POST /api/auth/login: tu dong cap nhat email neu dang nhap bang email ma t
   await handler({ body: { username: 'user_email@domain.com', password: 'password123' } }, res);
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.email, 'user_email@domain.com');
-  assert.deepEqual(updatedFields, { email: 'user_email@domain.com' });
+  assert.equal(updatedFields.email, 'user_email@domain.com');
+  assert.ok(updatedFields.dangNhapGanNhat);
+});
+
+test('POST /api/auth/login: tai khoan Không hoạt động dang nhap duoc va chuyen thanh Đang hoạt động', async () => {
+  let updatedFields = null;
+  const { hashPassword } = require('./authService');
+  const hashedPassword = await hashPassword('password123');
+
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    findActiveUserByUsername: async () => ({
+      id: 'user-inactive',
+      username: 'inactive_user',
+      hoTen: 'Người Dùng Inactive',
+      email: 'inactive@tokosi.vn',
+      passwordHash: hashedPassword,
+      vaiTro: 'Kế toán',
+      coSo: 'Hà Nội',
+      trangThai: 'Không hoạt động'
+    }),
+    updateUserFields: async (id, fields) => {
+      updatedFields = fields;
+      return { id, username: 'inactive_user', hoTen: 'Người Dùng Inactive', email: 'inactive@tokosi.vn', vaiTro: 'Kế toán', coSo: 'Hà Nội', ...fields };
+    }
+  });
+
+  const handler = getRouteHandler(router, 'post', '/api/auth/login');
+  const res = fakeRes();
+  await handler({ body: { username: 'inactive_user', password: 'password123' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(updatedFields.trangThai, 'Đang hoạt động');
+  assert.ok(updatedFields.dangNhapGanNhat);
 });
 
 test('POST /api/auth/google: thangnnv2003@gmail.com mac dinh nhan quyen Quan ly khi tao moi', async () => {

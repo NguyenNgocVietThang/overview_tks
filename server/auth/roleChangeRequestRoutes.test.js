@@ -195,3 +195,25 @@ test('POST /api/role-requests trả 400/ROLE_REQUEST_HARDCODED_ADMIN khi hardcod
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.code, 'ROLE_REQUEST_HARDCODED_ADMIN');
 });
+
+test('POST /api/role-requests chấp nhận yêu cầu chuyển sang các vai trò mới', async () => {
+  localUserStore.setInMemoryUsers([
+    { id: 'u1', username: 'nv1', hoTen: 'Nhân Viên 1', vaiTro: 'Khách', trangThai: 'Đang hoạt động' }
+  ]);
+  notificationRepo.setInMemoryNotifications([]);
+
+  const newRoles = ['Nhân viên kho', 'Nhân viên sale', 'Nhân viên mua hàng'];
+  for (const role of newRoles) {
+    roleRepo.setInMemoryRequests([]);
+    const handler = getRouteHandler(roleChangeRequestRoutes, 'post', '/api/role-requests');
+    const req = {
+      user: { id: 'u1', username: 'nv1', hoTen: 'Nhân Viên 1', vaiTro: 'Khách' },
+      body: { requestedRole: role, reason: `Xin chuyển sang ${role}` }
+    };
+    const res = fakeRes();
+    await handler(req, res);
+
+    assert.equal(res.statusCode, 201, `Yêu cầu đổi sang ${role} thất bại`);
+    assert.equal(res.body.request.requestedRole, role);
+  }
+});

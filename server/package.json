@@ -4,15 +4,23 @@
   "private": true,
   "description": "Node/Express backend for TOKOSI, reading separate Dashboard, Shipment and HR Google Sheets.",
   "main": "index.js",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
+    "build": "node -e \"console.log('Express app: no build step required')\"",
     "start": "node --max-old-space-size=512 index.js",
-    "dev": "node --max-old-space-size=1024 index.js",
+    "dev": "node --max-old-space-size=4096 index.js",
     "test": "node --test",
     "sync:customer-report": "node jobs/syncCustomerReport.js",
     "setup:users-sheet": "node scripts/setupUsersSheet.js",
     "setup:vc-sheet": "node scripts/setupVcSheet.js",
     "setup:hr-sheet": "node scripts/setupHrSheet.js",
-    "migrate:user-branches": "node scripts/migrateUserBranches.js"
+    "migrate:user-branches": "node scripts/migrateUserBranches.js",
+    "db:migrate": "node db/migrate.js",
+    "sync:once": "node kiotvietSync/runSyncEngine.js --once",
+    "sync:start": "node kiotvietSync/runSyncEngine.js",
+    "sync:backfill": "node kiotvietSync/backfill.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -24,7 +32,9 @@
     "googleapis": "^140.0.1",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.2.0",
-    "node-telegram-bot-api": "^0.66.0"
+    "node-telegram-bot-api": "^0.66.0",
+    "nodemailer": "^9.0.6",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "dotenv": "^16.4.5",

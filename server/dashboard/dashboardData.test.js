@@ -36,8 +36,7 @@ const BASE_FILTERS = {
   invoices: { mode: 'days', days: 30 },
   customers: { mode: 'all' },
   newPurchases: { mode: 'days', days: 30 },
-  newProducts: { mode: 'days', days: 30 },
-  deactivated: { mode: 'days', days: 30 }
+  newProducts: { mode: 'days', days: 30 }
 };
 
 test('rememberSearchSheets chi rebuild search index khi raw sheet data thuc su duoc fetch lai, khong phai moi lan goi getDashboardData', async () => {

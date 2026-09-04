@@ -307,7 +307,7 @@ function sumDetailQuantity(details) {
 }
 
 function aggregateCustomerProductReport(invoices, periodOrReturns, optionalPeriod) {
-  // optionalPeriod keeps compatibility with the former (invoices, returns, period) signature.
+  // optionalPeriod dùng để duy trì tính tương thích với định dạng tham số cũ (invoices, returns, period).
   const period = optionalPeriod || periodOrReturns;
   const rows = [];
 

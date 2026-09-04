@@ -155,8 +155,7 @@ router.get('/api/dashboard', async (req, res) => {
         mode: req.query.cuMode || 'all'
       },
       newPurchases: parseFilterSpec(req.query, 'pu'),
-      newProducts: parseFilterSpec(req.query, 'np'),
-      deactivated: parseFilterSpec(req.query, 'de')
+      newProducts: parseFilterSpec(req.query, 'np')
     };
     const data = await getDashboardData(filters, req.branch);
     res.status(200).json(data);

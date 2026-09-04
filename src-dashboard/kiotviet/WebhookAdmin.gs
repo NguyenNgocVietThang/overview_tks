@@ -16,6 +16,8 @@ const KIOTVIET_AUTO_SYNC_EVENT_TYPES = Object.freeze([
 const KIOTVIET_AUTO_SYNC_DESCRIPTION_PREFIX = "Auto-sync Google Sheets - ";
 const KIOTVIET_SHIPMENT_EVENT_TYPES = Object.freeze(["invoice.update"]);
 const KIOTVIET_SHIPMENT_DESCRIPTION_PREFIX = "Shipment lifecycle - ";
+const KIOTVIET_WEBHOOK_HEALTH_HANDLER_ = 'reconcileKiotVietAutoSyncHealth_';
+const KIOTVIET_INVOICE_RECONCILE_HANDLER_ = 'reconcileInvoicesDaily_';
 
 function getKiotVietAutoSyncProfile_() {
   if (isShipmentLifecycleMode_()) {
@@ -35,7 +37,6 @@ function getKiotVietAutoSyncProfile_() {
  * - Tao shared-secret neu chua co.
  * - Tao lai trigger hang doi 5 phut va polling 15 phut.
  * - Tao lai ba trigger bao cao khach hang luc 06:00, 06:30 va 07:00.
- * - Tao lai trigger lich su Hang ngung kinh doanh luc 07:30.
  * - Tao lai trigger cong no luc 15:00.
  * - Giu nguyen webhook cua he thong khac; chi thay webhook cu/trung cua dashboard.
  */
@@ -68,8 +69,8 @@ function setupKiotVietAutoSync() {
   if (!isShipmentLifecycleMode_()) {
     setupPollingTrigger();
     setupCustomerReportDailyTrigger();
-    setupHangNgungKinhDoanhTrigger_();
     setupCustomerDebtReportDailyTrigger();
+    setupKiotVietRecoveryTriggers();
   }
 
   const result = reconcileKiotVietAutoSyncWebhooks_(token, profile);
@@ -83,6 +84,74 @@ function setupKiotVietAutoSync() {
     throw new Error("Chua bat du webhook KiotViet cho che do hien tai: " + JSON.stringify(result));
   }
   return result;
+}
+
+function createKiotVietRecoveryTriggers_() {
+  ScriptApp.newTrigger(KIOTVIET_WEBHOOK_HEALTH_HANDLER_)
+    .timeBased()
+    .everyHours(1)
+    .create();
+  ScriptApp.newTrigger(KIOTVIET_INVOICE_RECONCILE_HANDLER_)
+    .timeBased()
+    .atHour(2)
+    .everyDays(1)
+    .create();
+  ScriptApp.newTrigger(KIOTVIET_INVOICE_RECONCILE_HANDLER_)
+    .timeBased()
+    .after(60 * 1000)
+    .create();
+}
+
+function setupKiotVietRecoveryTriggers() {
+  ScriptApp.getProjectTriggers().forEach(trigger => {
+    const handler = trigger.getHandlerFunction();
+    if (handler === KIOTVIET_WEBHOOK_HEALTH_HANDLER_ ||
+        handler === KIOTVIET_INVOICE_RECONCILE_HANDLER_) {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  });
+  createKiotVietRecoveryTriggers_();
+}
+
+function ensureKiotVietRecoveryTriggers_() {
+  const handlers = {};
+  ScriptApp.getProjectTriggers().forEach(trigger => {
+    handlers[trigger.getHandlerFunction()] = true;
+  });
+  if (!handlers[KIOTVIET_WEBHOOK_HEALTH_HANDLER_]) {
+    ScriptApp.newTrigger(KIOTVIET_WEBHOOK_HEALTH_HANDLER_)
+      .timeBased()
+      .everyHours(1)
+      .create();
+  }
+  if (!handlers[KIOTVIET_INVOICE_RECONCILE_HANDLER_]) {
+    ScriptApp.newTrigger(KIOTVIET_INVOICE_RECONCILE_HANDLER_)
+      .timeBased()
+      .atHour(2)
+      .everyDays(1)
+      .create();
+    ScriptApp.newTrigger(KIOTVIET_INVOICE_RECONCILE_HANDLER_)
+      .timeBased()
+      .after(60 * 1000)
+      .create();
+  }
+}
+
+function reconcileKiotVietAutoSyncHealth_() {
+  const token = getKiotVietToken();
+  if (!token) throw new Error('Khong lay duoc token de kiem tra webhook.');
+  const profile = getKiotVietAutoSyncProfile_();
+  const result = reconcileKiotVietAutoSyncWebhooks_(token, profile);
+  if (result.activeCount !== profile.eventTypes.length || result.failedCount > 0) {
+    throw new Error('Khong khoi phuc du webhook KiotViet: ' + JSON.stringify(result));
+  }
+  return result;
+}
+
+function reconcileInvoicesDaily_() {
+  return hasInvoicesBackfillProgress_()
+    ? syncInvoicesChunk()
+    : restartInvoicesBackfill();
 }
 
 /**
@@ -128,19 +197,19 @@ function getKiotVietWebhookBaseUrl_() {
     Logger.log('Khong doc duoc URL deployment hien tai: ' + error.toString());
   }
 
-  // WEBHOOK_URL co the tro thanh URL chet sau khi deployment cu bi xoa.
-  // ScriptApp.getService().getUrl() la nguon hien hanh; /dev va /exec dung
-  // chung deployment id nen chuan hoa sang /exec de KiotViet goi cong khai.
-  const url = currentDeployment || configured;
+  // WEBHOOK_URL phai tro vao deployment Web App da phat hanh cong khai.
+  // ScriptApp.getService().getUrl() co the tra deployment @HEAD /dev, URL nay
+  // khong phai endpoint versioned ma KiotViet co the goi on dinh.
+  const url = configured || currentDeployment;
   if (!url) {
     throw new Error(
       'Khong tim thay URL Web App /exec. Hay deploy Web App truoc khi bat auto-sync.'
     );
   }
 
-  if (currentDeployment && currentDeployment !== configured) {
+  if (!configured && currentDeployment) {
     properties.setProperty('WEBHOOK_URL', currentDeployment);
-    Logger.log('Da tu dong cap nhat WEBHOOK_URL sang deployment hien tai.');
+    Logger.log('Da khoi tao WEBHOOK_URL tu deployment hien tai.');
   }
   return url;
 }

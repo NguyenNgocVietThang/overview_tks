@@ -14,18 +14,15 @@
       }
       // An noi dung cho toi khi authGuard() xac nhan da dang nhap — tranh
       // nhap nhoang du lieu dashboard truoc khi kip redirect ve /login/.
-      document.documentElement.style.visibility = 'hidden';
+      if (window.location.protocol !== 'file:') {
+        document.documentElement.style.visibility = 'hidden';
+      }
     })();
   </script>
-  <script src="/vendor/chart.umd.min.js"></script>
-  <script src="/js/pagination.js"></script>
-  <link rel="stylesheet" href="/shared/shared.css?v=20260822">
-  <script src="/shared/shared-nav.js?v=20260822"></script>
-  <script src="/shared/three-interactions.js" defer></script>
-  <script src="/shared/three-loading.js" defer></script>
+  <link rel="stylesheet" href="/shared/shared.css?v=20260830">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Open+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
   <style>
 
     :root {
@@ -63,8 +60,14 @@
       --ambient-1: rgba(var(--primary-rgb-d), 0.08);
       --ambient-2: rgba(var(--glow-green-rgb), 0.05);
 
-      --bg-image: url('/shared/images/bg-dark.jpg');
-      --bg-scrim: rgba(9, 13, 22, 0.72);
+      --bg-image: url('/Dark%20mode.jfif?v=20260829');
+      --bg-scrim: transparent;
+
+      /* ── Token văn bản trực tiếp trên nền (ngoài frame/panel) ── */
+      --canvas-text: #FFFFFF;
+      --canvas-text-muted: #FFFFFF;
+      --canvas-border: rgba(255, 255, 255, 0.3);
+      --canvas-subnav-border: rgba(255, 255, 255, 0.35);
 
       --sidebar-w: 210px;
       --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -97,12 +100,11 @@
       --radius-pill: 999px;
       --radius-pill-lg: 9999px;
 
-      /* Phase A: fixed RGB channel aliases for hardcoded rgba() shadow and
-         background colors. Intentionally NOT theme-reactive - each alias
-         reproduces the exact literal value already hardcoded at every call
-         site (verified byte-for-byte with server/scripts/styleBaselineSnapshot.js),
-         so no visual change. Whether any of these should instead track
-         --primary / --red / --green per theme is a later design decision. */
+      /* Giai đoạn A: Định danh kênh RGB cố định cho màu đổ bóng và nền rgba() viết cứng.
+         Chủ đích KHÔNG phản ứng theo theme - mỗi định danh tái tạo chính xác giá trị gốc
+         đã được viết cứng tại mọi vị trí (được xác thực từng byte với server/scripts/styleBaselineSnapshot.js),
+         do đó không làm đổi giao diện. Việc có chuyển các giá trị này theo dõi
+         --primary / --red / --green theo từng theme hay không sẽ là quyết định thiết kế sau. */
       --white: #fff;
       --shadow-rgb: 0, 0, 0;
       --overlay-rgb: 255, 255, 255;
@@ -147,8 +149,14 @@
       --ambient-1: rgba(var(--primary-rgb-l), 0.04);
       --ambient-2: rgba(5, 150, 105, 0.03);
 
-      --bg-image: url('/shared/images/bg-light.jpg');
-      --bg-scrim: rgba(248, 250, 252, 0.80);
+      --bg-image: url('/Light%20mode.jfif?v=20260829_1645');
+      --bg-scrim: transparent;
+
+      /* ── Token văn bản trực tiếp trên nền (ngoài frame/panel) ── */
+      --canvas-text: #000000;
+      --canvas-text-muted: #000000;
+      --canvas-border: rgba(0, 0, 0, 0.25);
+      --canvas-subnav-border: rgba(0, 0, 0, 0.3);
     }
 
     * {
@@ -157,18 +165,26 @@
 
     body {
       margin: 0;
-      background:
-        radial-gradient(circle at 15% 0%, var(--ambient-1), transparent 45%),
-        radial-gradient(circle at 90% 10%, var(--ambient-2), transparent 40%),
-        linear-gradient(var(--bg-scrim), var(--bg-scrim)),
-        var(--bg-image) center/cover no-repeat fixed,
-        var(--bg);
+      background: var(--bg);
       color: var(--text);
       font-family: var(--font-body);
       min-height: 100vh;
-      transition: color .2s ease, background-color .2s ease, background-image .3s ease;
+      transition: color .2s ease, background-color .2s ease;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Nền trang trí được vẽ một lần vào một lớp cố định thay vì bốn lớp
+       `background-attachment: fixed` trên <body>, vốn gây render lại toàn bộ
+       viewport trên mỗi khung hình cuộn. Xem shared.css để biết giải pháp tương tự. */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background: var(--bg-image) center/cover no-repeat;
+      background-color: var(--bg);
     }
 
     .panel,
@@ -297,8 +313,6 @@
 
     .refresh-btn, .theme-toggle, .btn-primary, .btn-secondary, .export-button, .search-submit {
       position: relative;
-      overflow: hidden;
-      transform-style: preserve-3d;
       transition: transform 0.15s cubic-bezier(0.23, 1, 0.32, 1),
                   box-shadow 0.15s ease,
                   background-color 0.15s ease,
@@ -338,9 +352,9 @@
     }
 
     .refresh-btn:active:not(:disabled) {
-      /* translateY only — see shared.css .btn-primary:active for why
-         scale/translateZ here caused clicks to land on the parent element
-         instead of the button (mouseup landing outside the shrunk box). */
+      /* Chỉ dùng translateY — xem shared.css .btn-primary:active để biết lý do vì sao
+         scale/translateZ ở đây làm cú nhấp rơi vào phần tử cha thay vì nút
+         (sự kiện mouseup rơi ra ngoài khối bị co nhỏ). */
       transform: translateY(1px);
       box-shadow: 0 5px 10px -4px rgba(var(--primary-rgb-d), 0.3);
     }
@@ -404,34 +418,6 @@
       box-shadow: none !important;
     }
 
-    /* Ripple effect styling */
-    .ripple-effect {
-      position: absolute;
-      border-radius: 50%;
-      transform: scale(0);
-      animation: rippleAnimation 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-      background: rgba(var(--overlay-rgb), 0.35);
-      pointer-events: none;
-      z-index: 10;
-    }
-
-    :root[data-theme="light"] .ripple-effect {
-      background: rgba(var(--shadow-rgb), 0.12);
-    }
-
-    .btn-primary .ripple-effect,
-    .refresh-btn .ripple-effect,
-    .tks-btn-primary .ripple-effect {
-      background: rgba(var(--overlay-rgb), 0.45);
-    }
-
-    @keyframes rippleAnimation {
-      to {
-        transform: scale(3.5);
-        opacity: 0;
-      }
-    }
-
     .theme-toggle svg {
       width: 16px;
       height: 16px;
@@ -478,11 +464,23 @@
       position: sticky;
       top: 0;
       align-self: flex-start;
-      height: calc(100vh - 78px);
+      height: 100vh;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: thin;
+      box-sizing: border-box;
       transition: transform .28s var(--ease-out), background-color .2s ease, border-color .2s ease;
       z-index: 20;
-      perspective: 1000px;
-      perspective-origin: center center;
+    }
+    .sidebar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .sidebar::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+    }
+    :root[data-theme="light"] .sidebar::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.15);
     }
 
     .nav-item {
@@ -503,26 +501,18 @@
       cursor: pointer;
       margin-bottom: 4px;
       min-height: 42px;
-      transform-style: preserve-3d;
-      transition: transform 0.3s cubic-bezier(0.23, 1, 0.32, 1), background .15s ease, color .15s ease, border-color .15s ease, box-shadow 0.3s ease;
+      transition: background .15s ease, color .15s ease, border-color .15s ease;
     }
 
     .nav-item .ic {
       width: 18px;
       height: 18px;
       flex-shrink: 0;
-      transform-style: preserve-3d;
-      transition: transform 0.3s ease;
     }
 
     .nav-item:hover:not(.active) {
       background: var(--surface-hover);
       color: var(--text);
-      transform: perspective(800px) translateZ(10px) translateX(8px);
-    }
-
-    .nav-item:hover .ic {
-      animation: iconBounce 0.6s ease;
     }
 
     .nav-item:focus-visible {
@@ -535,17 +525,11 @@
       color: var(--blue);
       border-left-color: var(--blue);
       font-weight: 600;
-      transform: perspective(800px) translateZ(15px);
-      box-shadow: -4px 0 12px rgba(var(--primary-rgb-d), 0.4), inset 3px 0 0 var(--blue);
+      box-shadow: inset 3px 0 0 var(--blue);
     }
 
     :root[data-theme="light"] .nav-item.active {
-      box-shadow: -4px 0 12px rgba(var(--primary-rgb-l), 0.25), inset 3px 0 0 var(--primary);
-    }
-
-    @keyframes iconBounce {
-      0%, 100% { transform: translateZ(0); }
-      50% { transform: translateZ(8px) rotateY(15deg); }
+      box-shadow: inset 3px 0 0 var(--primary);
     }
 
     .nav-item[href] {
@@ -571,16 +555,13 @@
       cursor: pointer;
       margin-bottom: 2px;
       min-height: 42px;
-      transform-style: preserve-3d;
-      transition: transform 0.3s cubic-bezier(0.23, 1, 0.32, 1), background .15s ease, color .15s ease, box-shadow 0.3s ease;
+      transition: background .15s ease, color .15s ease;
     }
 
     .nav-group-toggle .ic {
       width: 18px;
       height: 18px;
       flex-shrink: 0;
-      transform-style: preserve-3d;
-      transition: transform 0.3s ease;
     }
 
     .nav-group-toggle span {
@@ -590,11 +571,6 @@
     .nav-group-toggle:hover {
       background: var(--surface-hover);
       color: var(--text);
-      transform: perspective(800px) translateZ(8px) translateX(6px);
-    }
-
-    .nav-group-toggle:hover .ic {
-      animation: iconBounce 0.6s ease;
     }
 
     .nav-group-toggle:focus-visible {
@@ -620,7 +596,6 @@
     .nav-group-list {
       padding-left: 14px;
       margin-bottom: 4px;
-      perspective: 800px;
     }
 
     .nav-group-list[hidden] {
@@ -936,129 +911,56 @@
       font-size: 21px;
       font-weight: 700;
       margin: 0 0 4px;
+      color: var(--canvas-text);
     }
 
     .view-sub {
       font-size: 12.5px;
-      color: var(--muted);
+      color: var(--canvas-text);
       margin: 0 0 18px;
+      font-weight: 500;
     }
 
-    /* ---------- 3D Background Canvas Layer ---------- */
-    .tks-bg-canvas {
-      position: fixed;
-      inset: 0;
-      z-index: -1;
-      pointer-events: none;
-      opacity: 0.8;
-    }
-
-    /* ---------- 3D CSS Transforms for Cards and Panels ---------- */
-    .perspective-container,
-    .kpi-grid,
-    .grid,
-    .profile-grid,
-    .kpi-row,
-    .order-list,
-    .kanban-cards,
-    .login-shell,
-    .register-shell {
-      perspective: 1000px;
-      perspective-origin: 50% 50%;
-    }
-
-    .card-3d,
+    /* ---------- Thẻ Card và Panel ----------
+       Phản hồi hover chỉ dùng box-shadow/border. Xem shared.css để biết lý do
+       không đưa transform/perspective vào khối này. */
     .kpi-card,
     .panel,
-    .profile-card,
     .kpi-stat,
     .int-nav-card,
-    .login-card,
-    .register-card,
     .order-card {
-      transform-style: preserve-3d;
-      transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1),
-        box-shadow 0.4s ease,
+      transition: box-shadow 0.2s ease,
         background-color 0.2s ease,
         border-color 0.2s ease;
     }
 
-    .card-3d:hover,
     .kpi-card:hover,
     .kpi-stat:hover,
     .int-nav-card:hover,
     .order-card:hover {
-      transform: translateZ(20px) scale(1.02);
-      box-shadow:
-        0 25px 50px -12px rgba(var(--shadow-rgb), 0.5),
-        0 0 30px var(--primary),
-        0 0 1px 1px rgba(var(--overlay-rgb), 0.1);
+      border-color: var(--blue);
+      box-shadow: 0 8px 20px -8px rgba(var(--shadow-rgb), 0.45);
     }
 
-    :root[data-theme="light"] .card-3d:hover,
     :root[data-theme="light"] .kpi-card:hover,
     :root[data-theme="light"] .kpi-stat:hover,
     :root[data-theme="light"] .int-nav-card:hover,
     :root[data-theme="light"] .order-card:hover {
-      box-shadow:
-        0 20px 40px -12px rgba(var(--shadow-rgb), 0.12),
-        0 0 25px rgba(var(--primary-rgb-l), 0.22),
-        0 0 1px 1px rgba(var(--shadow-rgb), 0.05);
+      box-shadow: 0 8px 20px -8px rgba(var(--shadow-rgb), 0.14);
     }
 
-    /* ---------- 3D Table Row Effects ---------- */
+    /* ---------- Di chuột qua dòng bảng ----------
+       Chỉ đổi background-color — trang này kết xuất hàng trăm dòng cho mỗi chế độ xem. */
     tbody tr {
-      transform-style: preserve-3d;
-      transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1),
-        box-shadow 0.2s ease,
-        background-color 0.2s ease;
+      transition: background-color 0.15s ease;
     }
 
     tbody tr:hover {
-      transform: perspective(1000px) translateZ(5px);
-      box-shadow:
-        0 10px 25px -5px rgba(var(--shadow-rgb), 0.3),
-        0 0 1px rgba(var(--primary-rgb-d), 0.5);
-      background: var(--panel-2);
-    }
-
-    :root[data-theme="light"] tbody tr:hover {
-      box-shadow:
-        0 8px 20px -5px rgba(var(--shadow-rgb), 0.1),
-        0 0 1px rgba(var(--primary-rgb-l), 0.35);
       background: var(--panel-2);
     }
 
     [hidden] {
       display: none !important;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      * {
-        animation-duration: 0.001ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.001ms !important;
-        scroll-behavior: auto !important;
-      }
-
-      .tks-bg-canvas {
-        opacity: 0.4;
-      }
-
-      .card-3d:hover,
-      .kpi-card:hover,
-      .kpi-stat:hover,
-      .int-nav-card:hover,
-      .order-card:hover,
-      .panel.card-3d:hover {
-        transform: none;
-        box-shadow: 0 0 0 2px var(--primary);
-      }
-
-      tbody tr:hover {
-        transform: none;
-        box-shadow: none;
-      }
     }
 
     /* ---------- Thanh bộ lọc (sidebar filter layout, dạng trên cùng) ---------- */
@@ -1192,8 +1094,6 @@
       position: relative;
       flex: 1;
       min-width: 0;
-      transform-style: preserve-3d;
-      perspective: 800px;
     }
 
     .search-icon {
@@ -1217,12 +1117,10 @@
       border-radius: var(--radius-8);
       font-family: var(--font-body);
       font-size: 16px;
-      transform-style: preserve-3d;
-      transition: 
-        transform 0.3s cubic-bezier(0.23, 1, 0.32, 1),
-        box-shadow 0.3s ease,
-        border-color 0.3s ease,
-        background-color 0.2s ease;
+      transition:
+        box-shadow 0.15s ease,
+        border-color 0.15s ease,
+        background-color 0.15s ease;
     }
 
     .search-input::placeholder {
@@ -1251,25 +1149,11 @@
     .search-input:focus {
       border-color: var(--blue);
       outline: none;
-      transform: perspective(800px) translateZ(15px) scale(1.02);
-      box-shadow: 
-        0 20px 40px -10px rgba(var(--primary-rgb-d), 0.4),
-        0 0 0 4px rgba(var(--primary-rgb-d), 0.2),
-        0 0 30px rgba(var(--primary-rgb-d), 0.3);
+      box-shadow: 0 0 0 3px rgba(var(--primary-rgb-d), 0.25);
     }
 
     :root[data-theme="light"] .search-input:focus {
-      box-shadow: 
-        0 15px 35px -10px rgba(var(--primary-rgb-l), 0.25),
-        0 0 0 4px rgba(var(--primary-rgb-l), 0.15),
-        0 0 25px rgba(var(--primary-rgb-l), 0.2);
-    }
-
-    .search-input:focus-visible {
-      box-shadow: 
-        0 20px 40px -10px rgba(var(--primary-rgb-d), 0.4),
-        0 0 0 4px rgba(var(--primary-rgb-d), 0.25),
-        0 0 30px rgba(var(--primary-rgb-d), 0.3);
+      box-shadow: 0 0 0 3px rgba(var(--primary-rgb-l), 0.2);
     }
 
     .search-clear {
@@ -1354,30 +1238,17 @@
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: var(--radius-10);
-      transform-style: preserve-3d;
       transform-origin: top center;
       opacity: 0;
-      transform: perspective(800px) translateZ(-30px) rotateX(-10deg) scale(0.95);
+      transform: translateY(-4px);
       pointer-events: none;
-      transition: opacity .18s var(--ease-out), transform .18s var(--ease-out);
+      transition: opacity .15s var(--ease-out), transform .15s var(--ease-out);
     }
 
     .suggestions.show {
       opacity: 1;
-      transform: perspective(800px) translateZ(10px) rotateX(0) scale(1);
+      transform: none;
       pointer-events: auto;
-      animation: dropdownExpand 0.4s cubic-bezier(0.23, 1, 0.32, 1);
-    }
-
-    @keyframes dropdownExpand {
-      from {
-        opacity: 0;
-        transform: perspective(800px) translateZ(-30px) rotateX(-10deg) scale(0.95);
-      }
-      to {
-        opacity: 1;
-        transform: perspective(800px) translateZ(10px) rotateX(0) scale(1);
-      }
     }
 
     .suggestion-item {
@@ -1394,14 +1265,12 @@
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
       gap: 8px;
-      transform-style: preserve-3d;
-      transition: transform 0.15s ease, background-color .15s ease;
+      transition: background-color .15s ease;
     }
 
     .suggestion-item:hover,
     .suggestion-item.active {
       background: var(--panel-2);
-      transform: perspective(600px) translateZ(4px);
     }
 
     .suggestion-name {
@@ -1773,13 +1642,13 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: .09em;
-      color: var(--text);
+      color: var(--canvas-text);
     }
 
     .section-head .section-note {
-      color: var(--muted);
+      color: var(--canvas-text);
       font-size: 11.5px;
-      font-weight: 400;
+      font-weight: 500;
       text-transform: none;
       letter-spacing: 0;
     }
@@ -1788,7 +1657,7 @@
       content: "";
       flex: 1;
       height: 1px;
-      background: var(--border);
+      background: var(--canvas-border);
     }
 
     .drill-hint {
@@ -2477,6 +2346,17 @@
       height: 180px;
     }
 
+    .chart-box.chart-scroll-x {
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+
+    .chart-box.chart-scroll-x .chart-scroll-inner {
+      position: relative;
+      height: 100%;
+      min-width: 100%;
+    }
+
     .newly-imported-feature-panel,
     .newly-imported-table-panel {
       align-self: stretch;
@@ -2909,10 +2789,8 @@
       font-size: 13px;
     }
 
-    /* .loading-veil base styles and 3D cube animations are provided by
-       three-loading.js (auto-injected) and shared.css. */
-
-    /* Ensure the veil is above everything on this page */
+    /* Kiểu cơ sở của .loading-veil / .loader-spinner nằm trong shared.css.
+       Đảm bảo màn che nằm phía trên tất cả các thành phần trên trang này. */
     .loading-veil { z-index: 9000; }
 
     .pagination-controls {
@@ -3061,28 +2939,6 @@
         transition-duration: .01ms !important;
         scroll-behavior: auto !important;
       }
-      .tks-bg-canvas { opacity: 0.4; }
-      .card-3d:hover,
-      .kpi-card:hover,
-      .kpi-stat:hover,
-      .int-nav-card:hover,
-      .order-card:hover,
-      .panel.card-3d:hover {
-        transform: none;
-        box-shadow: 0 0 0 2px var(--primary);
-      }
-      .nav-item:hover:not(.active),
-      .nav-group-toggle:hover {
-        transform: none;
-      }
-      .nav-item.active {
-        transform: none;
-        box-shadow: inset 3px 0 0 var(--blue);
-      }
-      .nav-item:hover .ic,
-      .nav-group-toggle:hover .ic {
-        animation: none;
-      }
       .refresh-btn:hover,
       .theme-toggle:hover,
       .btn-primary:hover,
@@ -3102,21 +2958,9 @@
       .menu-btn:active {
         transform: none;
       }
-      .search-input:focus {
-        transform: none;
-        box-shadow: 0 0 0 3px rgba(var(--primary-rgb-d), 0.3);
-      }
+      .suggestions,
       .suggestions.show {
-        animation: none;
         transform: none;
-      }
-      .suggestion-item:hover,
-      .suggestion-item.active {
-        transform: none;
-      }
-      .ripple-effect {
-        display: none !important;
-        animation: none !important;
       }
     }
 
@@ -3165,6 +3009,9 @@
 </head>
 
 <body>
+
+  <!-- ===== SHOOTING STAR CANVAS ===== -->
+  <canvas id="shooting-star-canvas" aria-hidden="true"></canvas>
 
   <div class="tks-toast-stack" id="tksToastStack" aria-live="polite"></div>
 
@@ -3745,46 +3592,6 @@
                   <button type="button" id="todayNewProductsPrevPage">‹ Trước</button>
                   <span id="todayNewProductsPageLabel">Trang 1/1</span>
                   <button type="button" id="todayNewProductsNextPage">Sau ›</button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">6</span>
-              <h2>Hàng ngừng kinh doanh <span class="section-note">các mã hàng chuyển sang Ngừng kinh doanh trong khoảng
-                  thời gian đã chọn ở trên</span></h2>
-            </div>
-            <div class="grid">
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Danh sách mã ngừng kinh doanh <span class="tag" id="tagDeactivatedTodayDate">—</span></h2>
-                  <div class="panel-head-actions"><span class="drill-hint" id="deactivated-today-count">—</span><button
-                      class="export-button" type="button" onclick="openExportDialog('overview.deactivated')">Xuất
-                      Excel</button></div>
-                </div>
-                <div class="scroll-list" style="max-height:420px;">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Mã hàng</th>
-                        <th>Tên hàng</th>
-                        <th>Nhóm hàng</th>
-                        <th>Ngày sửa trên KiotViet</th>
-                        <th>Trạng thái</th>
-                      </tr>
-                    </thead>
-                    <tbody id="deactivatedTodayRows">
-                      <tr>
-                        <td colspan="5" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="deactivatedTodayPagination" hidden>
-                  <button type="button" id="deactivatedTodayPrevPage">‹ Trước</button>
-                  <span id="deactivatedTodayPageLabel">Trang 1/1</span>
-                  <button type="button" id="deactivatedTodayNextPage">Sau ›</button>
                 </div>
               </div>
             </div>
@@ -4464,7 +4271,7 @@
 
             <div id="cpContent" hidden>
               <div class="grid" style="margin-top:14px;">
-                <div class="panel col-6">
+                <div class="panel col-12">
                   <div class="panel-head">
                     <h2><span id="cpSelectedCustomerName">—</span> <span class="tag"
                         id="cpSelectedCustomerCode">—</span></h2>
@@ -4484,21 +4291,26 @@
                     </button>
                     <div class="suggestions" id="cpProductSuggestions" role="listbox"></div>
                   </div>
-                  <div class="chart-box"><canvas id="chartCustomerProductRevenue" role="img"
+                  <div class="chart-box wide"><canvas id="chartCustomerProductRevenue" role="img"
                       aria-label="Biểu đồ đường doanh thu theo ngày của khách hàng đã chọn"></canvas></div>
-                </div>
-                <div class="panel col-6">
-                  <div class="panel-head">
-                    <h2>Doanh thu theo sản phẩm</h2>
-                    <span class="drill-hint" id="cpBarChartHint">Top 30 sản phẩm</span>
-                  </div>
-                  <div class="chart-box"><canvas id="chartCustomerProductBar" role="img"
-                      aria-label="Biểu đồ cột doanh thu theo sản phẩm của khách hàng đã chọn"></canvas></div>
                 </div>
               </div>
 
               <div class="grid" style="margin-top:14px;">
                 <div class="panel col-12">
+                  <div class="panel-head">
+                    <h2>Doanh thu theo sản phẩm</h2>
+                    <span class="drill-hint" id="cpBarChartHint">Tất cả sản phẩm</span>
+                  </div>
+                  <div class="chart-box wide chart-scroll-x" id="cpBarChartBox">
+                    <div class="chart-scroll-inner" id="cpBarChartInner"><canvas id="chartCustomerProductBar" role="img"
+                        aria-label="Biểu đồ cột doanh thu theo sản phẩm của khách hàng đã chọn"></canvas></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid" style="margin-top:14px;">
+                <div class="panel col-6">
                   <div class="panel-head">
                     <h2>Bảng chi tiết sản phẩm <span class="tag" id="cpDetailCount">—</span></h2>
                     <div class="panel-head-actions"><button class="export-button" type="button"
@@ -4526,10 +4338,7 @@
                     <button type="button" id="cpDetailNextPage">Sau ›</button>
                   </div>
                 </div>
-              </div>
-
-              <div class="grid" style="margin-top:14px;">
-                <div class="panel col-12">
+                <div class="panel col-6">
                   <div class="panel-head">
                     <h2>Bảng so sánh doanh số theo tháng</h2>
                     <div class="panel-head-actions"><button class="export-button" type="button"
@@ -4769,8 +4578,23 @@
     </section>
   </div>
 
-  <!-- 3D Loading Veil — upgraded by three-loading.js on DOMContentLoaded -->
-  <div class="loading-veil" id="veil" role="dialog" aria-modal="true" aria-label="Đang tải" aria-busy="false"></div>
+  <!-- Màn hình chờ tải dữ liệu. Sử dụng HTML tĩnh có chủ đích: trước đây được tạo động
+       bằng three-loading.js, làm tiêu tốn tài nguyên tải script chỉ để vẽ một vòng quay.
+       Style được định nghĩa trong shared.css (.loading-veil / .loader-spinner). -->
+  <div class="loading-veil" id="veil" role="dialog" aria-modal="true" aria-label="Đang tải" aria-busy="false">
+    <div class="loader-spinner" aria-hidden="true"></div>
+    <span class="loader-text" aria-hidden="true">Đang tải dữ liệu…</span>
+    <span class="sr-only" aria-live="polite" aria-atomic="true">Đang tải dữ liệu</span>
+  </div>
+
+  <!-- Tải ở cuối thẻ <body> thay vì trong <head>: riêng chart.umd.min.js đã nặng
+       ~200 KB và thẻ script chặn bộ phân tích trong <head> sẽ làm dừng render
+       tài liệu lớn này cho đến khi tải xong VÀ thực thi. Không thể dùng `defer`
+       vì inline script bên dưới dùng Chart, paginate() và TKSNav ở cấp cao nhất,
+       và inline script luôn chạy trước script defer — cách đặt này giữ đúng thứ tự mà không chặn parser. -->
+  <script src="/vendor/chart.umd.min.js"></script>
+  <script src="/js/pagination.js"></script>
+  <script src="/shared/shared-nav.js?v=20260830"></script>
 
   <script>
     // Toast thong bao inline — thay the window.alert() cho loi/canh bao (khong chan luong,
@@ -4967,7 +4791,15 @@
       }
     }
 
-    function fmtMoney(n) { n = Number(n) || 0; return n.toLocaleString('vi-VN') + '₫'; }
+    // Tái sử dụng các thực thể định dạng. Gọi toLocaleString('vi-VN') trên một số
+    // sẽ khởi tạo (hoặc tìm kiếm) một Intl.NumberFormat trong mỗi lần gọi; một trang bảng
+    // ở đây có 100 dòng với nhiều cột số, do đó hàm này chạy hàng nghìn lần mỗi lần kết xuất.
+    // Việc đưa instance định dạng ra ngoài giúp mỗi lệnh gọi trở thành format() trực tiếp mà không cần đàm phán locale.
+    const VN_NUMBER = new Intl.NumberFormat('vi-VN');
+    const VN_NUMBER_1DP = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
+
+    function fmtNumber(n) { return VN_NUMBER.format(Number(n) || 0); }
+    function fmtMoney(n) { return VN_NUMBER.format(Number(n) || 0) + '₫'; }
     function fmtMoneyShort(n) {
       n = Number(n) || 0;
       if (n >= 1000000000) return (n / 1000000000).toFixed(1).replace('.0', '').replace('.', ',') + ' tỷ₫';
@@ -4988,7 +4820,7 @@
 
       return value => {
         const scaledValue = (Number(value) || 0) / unit.divisor;
-        return scaledValue.toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + unit.suffix;
+        return VN_NUMBER_1DP.format(scaledValue) + unit.suffix;
       };
     }
 
@@ -5041,6 +4873,10 @@
         if (!row.hasAttribute('data-sort-original-index')) row.dataset.sortOriginalIndex = index;
       });
 
+      // Sắp xếp lại bên trong một DocumentFragment, sau đó gắn lại một lần duy nhất. Việc
+      // gắn từng dòng trực tiếp vào <tbody> đang hiển thị sẽ làm gián đoạn layout một lần cho mỗi
+      // dòng — với TABLE_PAGE_SIZE là 100 và applyActiveTableSorts() chạy sau mỗi lần render bảng, chi phí sẽ tăng rất nhanh.
+      const fragment = document.createDocumentFragment();
       rows
         .map(function (row, originalIndex) {
           return { row: row, originalIndex: originalIndex, value: getTableSortValue(row.cells[columnIndex]) };
@@ -5056,7 +4892,8 @@
           if (comparison === 0) return a.originalIndex - b.originalIndex;
           return direction === 'asc' ? comparison : -comparison;
         })
-        .forEach(function (item) { tbody.appendChild(item.row); });
+        .forEach(function (item) { fragment.appendChild(item.row); });
+      tbody.appendChild(fragment);
     }
 
     function updateTableSortHeader(tbodyId, columnIndex, direction) {
@@ -5097,11 +4934,13 @@
     function restoreTableRowOrder(tbodyId) {
       const tbody = document.getElementById(tbodyId);
       if (!tbody) return;
+      const fragment = document.createDocumentFragment();
       Array.from(tbody.rows)
         .sort(function (a, b) {
           return Number(a.dataset.sortOriginalIndex || 0) - Number(b.dataset.sortOriginalIndex || 0);
         })
-        .forEach(function (row) { tbody.appendChild(row); });
+        .forEach(function (row) { fragment.appendChild(row); });
+      tbody.appendChild(fragment);
     }
 
     function applyActiveTableSorts() {
@@ -5197,7 +5036,7 @@
           checkedAt: new Date().toISOString()
         };
         localStorage.setItem('stockoutCheck:lastState', JSON.stringify(payload));
-      } catch (err) { /* localStorage unavailable or quota exceeded — persistence is best-effort */ }
+      } catch (err) { /* localStorage không khả dụng hoặc vượt quá dung lượng lưu trữ — lưu trạng thái theo cơ chế nỗ lực tối đa */ }
     }
 
     function restoreStockoutCheckState() {
@@ -5500,8 +5339,7 @@
         invoices: cloneExportFilter(state.filters.invoices),
         customers: cloneExportFilter(state.filters.customers, 'all'),
         newPurchases: cloneExportFilter(state.filters.overview),
-        newProducts: cloneExportFilter(state.filters.overview),
-        deactivated: cloneExportFilter(state.filters.overview)
+        newProducts: cloneExportFilter(state.filters.overview)
       };
     }
 
@@ -5633,7 +5471,7 @@
             '<span class="export-field-label">' + escapeHtml(field.label) + '</span></label>';
         }).join('');
         return '<div class="export-group"><div class="export-group-head"><span class="export-group-title">' + escapeHtml(worksheet.name) + '</span>' +
-          '<span class="export-group-count">' + Number(worksheet.rowCount || 0).toLocaleString('vi-VN') + ' dòng · ' + worksheet.fields.length + ' trường</span></div>' +
+          '<span class="export-group-count">' + fmtNumber(Number(worksheet.rowCount || 0)) + ' dòng · ' + worksheet.fields.length + ' trường</span></div>' +
           '<div class="export-field-list">' + fields + '</div></div>';
       }).join('');
       updateExportSelectionStatus();
@@ -6055,7 +5893,7 @@
     function fmtFieldInt(value) {
       if (value === '—' || value === undefined || value === null || value === '') return '—';
       const n = Number(value);
-      return Number.isFinite(n) ? n.toLocaleString('vi-VN') : escapeHtml(String(value));
+      return Number.isFinite(n) ? fmtNumber(n) : escapeHtml(String(value));
     }
 
     function renderSearchResults(results, query) {
@@ -6162,9 +6000,9 @@
           '<td class="mono muted">' + escapeHtml(result.productCode || '—') + '</td>' +
           '<td class="name-cell">' + escapeHtml(result.productName || result.productCode || '—') + '</td>' +
           '<td class="name-cell">' + escapeHtml(result.customerName || 'Khách lẻ') + '</td>' +
-          '<td class="mono" data-sort-value="' + Number(result.purchasedQuantity || 0) + '">' + Number(result.purchasedQuantity || 0).toLocaleString('vi-VN') + '</td>' +
+          '<td class="mono" data-sort-value="' + Number(result.purchasedQuantity || 0) + '">' + fmtNumber(Number(result.purchasedQuantity || 0)) + '</td>' +
           '<td class="mono" data-sort-value="' + Number(result.purchaseRevenue || 0) + '">' + fmtMoney(result.purchaseRevenue) + '</td>' +
-          '<td class="mono" data-sort-value="' + Number(result.returnedQuantityAllTime || 0) + '">' + Number(result.returnedQuantityAllTime || 0).toLocaleString('vi-VN') + '</td>' +
+          '<td class="mono" data-sort-value="' + Number(result.returnedQuantityAllTime || 0) + '">' + fmtNumber(Number(result.returnedQuantityAllTime || 0)) + '</td>' +
           '<td class="mono" data-sort-value="' + Number(result.returnValueAllTime || 0) + '">' + fmtMoney(result.returnValueAllTime) + '</td>' +
           '<td class="mono" data-sort-value="' + Number(result.netRevenue || 0) + '">' + fmtMoney(result.netRevenue) + '</td>' +
           '<td class="mono muted">' + escapeHtml(result.lastPurchaseDate || '—') + '</td>' +
@@ -6574,7 +6412,7 @@
                   const item = customersList[context.dataIndex] || {};
                   return [
                     'Doanh thu: ' + fmtMoney(item.revenue),
-                    'SL đơn bán: ' + Number(item.saleOrderCount || 0).toLocaleString('vi-VN')
+                    'SL đơn bán: ' + fmtNumber(Number(item.saleOrderCount || 0))
                   ];
                 }
               }
@@ -6755,7 +6593,7 @@
               callbacks: {
                 label: context => context.dataset.yAxisID === 'value'
                   ? 'Giá trị: ' + fmtMoney(context.raw) + ' · ' + (totalValue ? (context.raw / totalValue * 100).toFixed(2) : (0).toFixed(2)) + '%'
-                  : 'Số lượng: ' + Number(context.raw || 0).toLocaleString('vi-VN') + ' · ' + (totalQuantity ? (context.raw / totalQuantity * 100).toFixed(2) : (0).toFixed(2)) + '%'
+                  : 'Số lượng: ' + fmtNumber(Number(context.raw || 0)) + ' · ' + (totalQuantity ? (context.raw / totalQuantity * 100).toFixed(2) : (0).toFixed(2)) + '%'
               }
             }
           },
@@ -6775,7 +6613,7 @@
               beginAtZero: true,
               position: 'right',
               title: { display: true, text: 'Số lượng tồn kho', color: theme.amber, font: { size: 10.5, weight: '600' } },
-              ticks: { color: theme.amber, precision: 0, callback: value => Number(value).toLocaleString('vi-VN'), font: { size: 10.5 } },
+              ticks: { color: theme.amber, precision: 0, callback: value => fmtNumber(Number(value)), font: { size: 10.5 } },
               grid: { drawOnChartArea: false }
             }
           }
@@ -6817,9 +6655,9 @@
         analysisRows,
         item => '<tr><td class="name-cell">' + escapeHtml(item.name) +
           (isParentCategory
-            ? '<br><span class="mono muted" style="font-size:10.5px;">' + Number(item.productCount || 0).toLocaleString('vi-VN') + ' mặt hàng</span>'
+            ? '<br><span class="mono muted" style="font-size:10.5px;">' + fmtNumber(Number(item.productCount || 0)) + ' mặt hàng</span>'
             : '<br><span class="mono muted" style="font-size:10.5px;">' + escapeHtml(item.code) + '</span>') +
-          '</td><td class="mono muted" data-sort-value="' + item.qty + '">' + Number(item.qty || 0).toLocaleString('vi-VN') +
+          '</td><td class="mono muted" data-sort-value="' + item.qty + '">' + fmtNumber(Number(item.qty || 0)) +
           '</td><td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td></tr>',
         3,
         'Chưa có dữ liệu chi tiết hóa đơn'
@@ -6874,7 +6712,7 @@
       const hasRows = rows.length > 0;
 
       document.getElementById('tagChildCategoryRevenue').textContent = hasRows ? fmtMoneyShort(rows.reduce((sum, c) => sum + c.revenue, 0)) : '0đ';
-      document.getElementById('tagChildCategoryQty').textContent = hasRows ? Number(rows.reduce((sum, c) => sum + c.qty, 0)).toLocaleString('vi-VN') : '0';
+      document.getElementById('tagChildCategoryQty').textContent = hasRows ? fmtNumber(Number(rows.reduce((sum, c) => sum + c.qty, 0))) : '0';
       document.getElementById('tagChildCategoryRows').textContent = rows.length;
 
       document.getElementById('chartChildCategoryRevenue').hidden = !hasRows;
@@ -6884,7 +6722,7 @@
 
       if (hasRows) {
         renderPieChartList('chartChildCategoryRevenue', 'childCategoryRevenue', rows, c => c.name, c => c.revenue, fmtMoney, 'Doanh thu');
-        renderPieChartList('chartChildCategoryQty', 'childCategoryQty', rows, c => c.name, c => c.qty, v => Number(v).toLocaleString('vi-VN'), 'Số lượng');
+        renderPieChartList('chartChildCategoryQty', 'childCategoryQty', rows, c => c.name, c => c.qty, v => fmtNumber(Number(v)), 'Số lượng');
       } else {
         destroyChart('childCategoryRevenue');
         destroyChart('childCategoryQty');
@@ -6895,7 +6733,7 @@
         { tbody: 'childCategoryRows', pagination: 'childCategoryPagination', prevBtn: 'childCategoryPrevPage', nextBtn: 'childCategoryNextPage', label: 'childCategoryPageLabel' },
         rows,
         c => '<tr><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
-          '<td class="mono muted" data-sort-value="' + c.qty + '">' + Number(c.qty || 0).toLocaleString('vi-VN') + '</td>' +
+          '<td class="mono muted" data-sort-value="' + c.qty + '">' + fmtNumber(Number(c.qty || 0)) + '</td>' +
           '<td class="mono" data-sort-value="' + c.revenue + '">' + fmtMoney(c.revenue) + '</td></tr>',
         3,
         'Chưa có dữ liệu'
@@ -6935,23 +6773,16 @@
         ? result.items.map(rowHtmlFn).join('')
         : '<tr><td colspan="' + emptyColspan + '" class="table-note">' + emptyMessage + '</td></tr>';
 
-      if (result.items.length && typeof animateTableRows === 'function') {
-        animateTableRows(tbody);
+      // Áp dụng lại trạng thái sắp xếp cột đang hoạt động của bảng này cho các dòng mới render.
+      // Nếu không có bước này, việc chuyển trang (Trước/Sau) sẽ để các dòng ở trang mới ở thứ tự
+      // chưa sắp xếp mặc dù tiêu đề cột vẫn hiển thị mũi tên sắp xếp.
+      // Chỉ bảng NÀY được sắp xếp lại: lệnh gọi applyActiveTableSorts() trước đây tại đây
+      // đã sắp xếp lại mọi bảng có lưu trạng thái sort trên mỗi lần render bảng, gây ra tối đa 100 thao tác di chuyển dòng cho mỗi bảng không liên quan mà không thay đổi kết quả hiển thị.
+      const activeSort = state.tableSorts[ids.tbody];
+      if (activeSort) {
+        sortTableRows(ids.tbody, activeSort.columnIndex, activeSort.direction);
+        updateTableSortHeader(ids.tbody, activeSort.columnIndex, activeSort.direction);
       }
-
-      // Re-apply any active column sort and hover-tilt effects to the freshly
-      // rendered rows. Without this, paging (Prev/Next) leaves the new page's
-      // rows in raw (unsorted) order even though the header still shows the
-      // sort arrow, and skips the hover-tilt init that other renders get.
-      // applyActiveTableSorts() is safe to call broadly: it iterates
-      // state.tableSorts keyed by tbodyId and only re-sorts tables that
-      // actually have an active sort recorded, so this has no effect on
-      // other tables beyond redundantly (but harmlessly/idempotently)
-      // re-applying their own already-applied sort.
-      if (typeof applyActiveTableSorts === 'function') {
-        applyActiveTableSorts();
-      }
-      if (window.TKS3D && window.TKS3D.refresh) window.TKS3D.refresh(tbody);
 
       const pagination = document.getElementById(ids.pagination);
       const prevBtn = document.getElementById(ids.prevBtn);
@@ -7118,17 +6949,24 @@
         : (data.totalRevenueByDay || []);
       renderRevenueChart('chartCustomerProductRevenue', 'cpRevenue', revenueByDay);
 
-      const barList = productCode ? filtered : data.products.slice(0, 30);
+      const barList = productCode ? filtered : data.products;
       const hint = document.getElementById('cpBarChartHint');
       if (hint) {
         hint.textContent = productCode
           ? '1 sản phẩm đang lọc'
-          : 'Top ' + Math.min(30, data.products.length) + ' sản phẩm';
+          : fmtNumber(Number(data.products.length || 0)) + ' sản phẩm';
       }
+      const barInner = document.getElementById('cpBarChartInner');
       if (barList.length) {
+        if (barInner) {
+          const barBox = document.getElementById('cpBarChartBox');
+          const minWidth = barBox ? barBox.clientWidth : 0;
+          barInner.style.width = Math.max(minWidth, barList.length * 64) + 'px';
+        }
         renderBarChartList('chartCustomerProductBar', 'cpBar', barList,
-          function (p) { return p.name; }, function (p) { return p.revenue; }, themeColor('--amber'), false);
+          function (p) { return p.name; }, function (p) { return p.revenue; }, themeColor('--amber'), true);
       } else {
+        if (barInner) barInner.style.width = '100%';
         destroyChart('cpBar');
       }
 
@@ -7139,7 +6977,7 @@
         filtered,
         function (p) {
           return '<tr><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-            '<td class="mono" data-sort-value="' + p.quantity + '">' + Number(p.quantity || 0).toLocaleString('vi-VN') + '</td>' +
+            '<td class="mono" data-sort-value="' + p.quantity + '">' + fmtNumber(Number(p.quantity || 0)) + '</td>' +
             '<td class="mono" data-sort-value="' + p.revenue + '">' + fmtMoney(p.revenue) + '</td></tr>';
         },
         3,
@@ -7254,10 +7092,10 @@
         const ov = d.overview || d;
         document.getElementById('ov-revenue').textContent = fmtMoney(d.kpi.revenueToday);
         document.getElementById('ov-revenue-sub').textContent = d.kpi.invoicesToday + ' hóa đơn' + (d.kpi.cancelledToday ? ' · ' + d.kpi.cancelledToday + ' đã hủy' : '');
-        document.getElementById('ov-stock').textContent = d.kpi.totalStock.toLocaleString('vi-VN');
+        document.getElementById('ov-stock').textContent = fmtNumber(d.kpi.totalStock);
         document.getElementById('ov-stock-sub').textContent = d.kpi.totalProducts + ' mặt hàng';
         document.getElementById('ov-lowstock').textContent = d.kpi.lowStockCount;
-        document.getElementById('ov-customers').textContent = d.kpi.totalCustomers.toLocaleString('vi-VN');
+        document.getElementById('ov-customers').textContent = fmtNumber(d.kpi.totalCustomers);
         document.getElementById('ov-customers-sub').textContent = d.kpi.customersWithDebt + ' đang nợ · ' + fmtMoney(d.kpi.totalDebt);
         document.getElementById('tagOverviewPeriod').textContent = (d.filters && d.filters.overview ? d.filters.overview.label : ((d.days || state.days) + ' ngày'));
         renderRevenueChart('chartOverviewRevenue', 'overviewRevenue', ov.revenueByDay || d.revenueByDay || []);
@@ -7265,13 +7103,13 @@
         const summary = report.summary || {};
         const transactions = report.transactions || [];
         document.getElementById('tagEndOfDayDate').textContent = report.date || 'Hôm nay';
-        document.getElementById('end-day-transactions').textContent = Number(summary.transactionCount || 0).toLocaleString('vi-VN');
+        document.getElementById('end-day-transactions').textContent = fmtNumber(Number(summary.transactionCount || 0));
         document.getElementById('end-day-cancelled').textContent = (summary.cancelledCount || 0) + ' giao dịch đã hủy';
         document.getElementById('end-day-revenue').textContent = fmtMoney(summary.revenue);
         document.getElementById('end-day-discount').textContent = fmtMoney(summary.discount);
         document.getElementById('end-day-paid').textContent = fmtMoney(summary.paid);
         document.getElementById('end-day-table-count').textContent = transactions.length + ' giao dịch theo bộ lọc';
-        document.getElementById('end-day-total-qty').textContent = summary.quantityKnown ? Number(summary.quantity || 0).toLocaleString('vi-VN') : '—';
+        document.getElementById('end-day-total-qty').textContent = summary.quantityKnown ? fmtNumber(Number(summary.quantity || 0)) : '—';
         document.getElementById('end-day-total-revenue').textContent = fmtMoney(summary.revenue);
         document.getElementById('end-day-total-discount').textContent = fmtMoney(summary.discount);
         document.getElementById('end-day-total-paid').textContent = fmtMoney(summary.paid);
@@ -7283,7 +7121,7 @@
             '<td class="mono muted">' + escapeHtml(item.time || '—') + '</td>' +
             '<td class="name-cell">' + escapeHtml(item.customer || '—') + '</td>' +
             '<td>' + escapeHtml(item.employee || '—') + '</td>' +
-            '<td class="mono" data-sort-value="' + item.quantity + '">' + (item.quantityKnown ? Number(item.quantity || 0).toLocaleString('vi-VN') : '—') + '</td>' +
+            '<td class="mono" data-sort-value="' + item.quantity + '">' + (item.quantityKnown ? fmtNumber(Number(item.quantity || 0)) : '—') + '</td>' +
             '<td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td>' +
             '<td class="mono" data-sort-value="' + item.discount + '">' + fmtMoney(item.discount) + '</td>' +
             '<td class="mono" data-sort-value="' + item.paid + '">' + fmtMoney(item.paid) + '</td>' +
@@ -7296,15 +7134,15 @@
         const newPurchases = d.newPurchases || { label: '—', orderCount: 0, totalAmount: 0, supplierCount: 0, bySupplier: [], orders: [] };
         const newPurchaseSuppliers = newPurchases.bySupplier || [];
         const newPurchaseOrders = newPurchases.orders || [];
-        document.getElementById('ov-purchase-count').textContent = Number(newPurchases.orderCount || 0).toLocaleString('vi-VN');
+        document.getElementById('ov-purchase-count').textContent = fmtNumber(Number(newPurchases.orderCount || 0));
         document.getElementById('ov-purchase-date').textContent = newPurchases.label || '—';
         document.getElementById('ov-purchase-total').textContent = fmtMoney(newPurchases.totalAmount);
-        document.getElementById('ov-purchase-suppliers').textContent = Number(newPurchases.supplierCount || 0).toLocaleString('vi-VN');
+        document.getElementById('ov-purchase-suppliers').textContent = fmtNumber(Number(newPurchases.supplierCount || 0));
         document.getElementById('ov-purchase-chart-hint').textContent = newPurchaseSuppliers.length
           ? newPurchaseSuppliers.length + ' nhà cung cấp · ' + (newPurchases.label || '—')
           : 'Chưa có phát sinh trong khoảng đã chọn';
         document.getElementById('tagPurchases').textContent = newPurchases.label || '—';
-        document.getElementById('ov-purchase-table-count').textContent = 'Tổng ' + Number(newPurchases.orderCount || 0).toLocaleString('vi-VN') + ' mã nhập hàng';
+        document.getElementById('ov-purchase-table-count').textContent = 'Tổng ' + fmtNumber(Number(newPurchases.orderCount || 0)) + ' mã nhập hàng';
         document.getElementById('chartOverviewPurchases').hidden = !newPurchaseSuppliers.length;
         document.getElementById('overviewPurchaseChartEmpty').hidden = !!newPurchaseSuppliers.length;
         if (newPurchaseSuppliers.length) {
@@ -7328,7 +7166,7 @@
         const todayNewProducts = ov.todayNewProducts || { label: '—', count: 0, dateColumnAvailable: true, products: [] };
         const newProductRows = todayNewProducts.products || [];
         document.getElementById('tagTodayNewProductsDate').textContent = todayNewProducts.label || '—';
-        document.getElementById('today-new-products-count').textContent = 'Tổng ' + Number(todayNewProducts.count || 0).toLocaleString('vi-VN') + ' mã mới';
+        document.getElementById('today-new-products-count').textContent = 'Tổng ' + fmtNumber(Number(todayNewProducts.count || 0)) + ' mã mới';
         renderPaginatedRows(
           'todayNewProducts',
           { tbody: 'todayNewProductRows', pagination: 'todayNewProductsPagination', prevBtn: 'todayNewProductsPrevPage', nextBtn: 'todayNewProductsNextPage', label: 'todayNewProductsPageLabel' },
@@ -7342,30 +7180,13 @@
           6,
           todayNewProducts.dateColumnAvailable === false ? 'Sheet Hàng hóa chưa có cột Ngày tạo' : 'Chưa có mã hàng mới tạo trong khoảng đã chọn'
         );
-
-        const deactivatedToday = ov.deactivatedToday || { label: '—', count: 0, products: [] };
-        const deactivatedRows = deactivatedToday.products || [];
-        document.getElementById('tagDeactivatedTodayDate').textContent = deactivatedToday.label || '—';
-        document.getElementById('deactivated-today-count').textContent = 'Tổng ' + Number(deactivatedToday.count || 0).toLocaleString('vi-VN') + ' mã ngừng kinh doanh';
-        renderPaginatedRows(
-          'deactivatedToday',
-          { tbody: 'deactivatedTodayRows', pagination: 'deactivatedTodayPagination', prevBtn: 'deactivatedTodayPrevPage', nextBtn: 'deactivatedTodayNextPage', label: 'deactivatedTodayPageLabel' },
-          deactivatedRows,
-          p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
-            '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-            '<td>' + escapeHtml(p.category || 'Chưa phân nhóm') + '</td>' +
-            '<td class="mono muted">' + (p.modifiedAt ? escapeHtml(p.modifiedAt) : '—') + '</td>' +
-            '<td>' + bizStatusPill(p.status) + '</td></tr>',
-          5,
-          'Chưa có mã ngừng kinh doanh trong khoảng đã chọn'
-        );
       }
       else if (view === 'products') {
         const productRangeLabel = d.filters && d.filters.products ? d.filters.products.label : '30 ngày';
         document.getElementById('productAnalysisPeriod').textContent = 'doanh thu: ' + productRangeLabel;
         document.getElementById('newlyImportedPeriod').textContent = 'ngày nhập đầu tiên: ' + productRangeLabel;
         document.getElementById('pr-total').textContent = d.kpi.totalProducts;
-        document.getElementById('pr-stock').textContent = d.kpi.inStockCodes.toLocaleString('vi-VN');
+        document.getElementById('pr-stock').textContent = fmtNumber(d.kpi.inStockCodes);
         document.getElementById('pr-lowstock').textContent = d.kpi.lowStockCount;
         document.getElementById('pr-inactive').textContent = d.kpi.inactiveProducts || 0;
         document.getElementById('tagLowStock').textContent = d.lowStock.length;
@@ -7444,14 +7265,14 @@
 
         if (hasNewlyImportedSales) {
           document.getElementById('tagNewlyImportedRevenue').textContent = fmtMoneyShort(salesRevenue);
-          document.getElementById('tagNewlyImportedQty').textContent = Number(salesQty).toLocaleString('vi-VN');
+          document.getElementById('tagNewlyImportedQty').textContent = fmtNumber(Number(salesQty));
           document.getElementById('chartNewlyImportedRevenue').hidden = false;
           document.getElementById('newlyImportedRevenueChartEmpty').hidden = true;
           document.getElementById('chartNewlyImportedQty').hidden = false;
           document.getElementById('newlyImportedQtyChartEmpty').hidden = true;
 
           renderPieChartList('chartNewlyImportedRevenue', 'newlyImportedRevenue', newlyImportedByCategory, c => c.name, c => c.revenue, fmtMoney, 'Doanh thu');
-          renderPieChartList('chartNewlyImportedQty', 'newlyImportedQty', newlyImportedByCategory, c => c.name, c => c.qty, v => Number(v).toLocaleString('vi-VN'), 'Số lượng');
+          renderPieChartList('chartNewlyImportedQty', 'newlyImportedQty', newlyImportedByCategory, c => c.name, c => c.qty, v => fmtNumber(Number(v)), 'Số lượng');
         } else if (hasNewlyImportedProducts) {
           document.getElementById('tagNewlyImportedRevenue').textContent = newlyImportedProductsList.length + ' mã';
           document.getElementById('tagNewlyImportedQty').textContent = newlyImportedCountByCategory.length + ' nhóm';
@@ -7484,9 +7305,9 @@
         const invoiceRangeLabel = d.filters && d.filters.invoices ? d.filters.invoices.label : ((d.days || state.days) + ' ngày');
         document.getElementById('in-revenue').textContent = fmtMoney(invoiceData.periodRevenue);
         document.getElementById('in-revenue-sub').textContent = invoiceRangeLabel;
-        document.getElementById('in-period-invoices').textContent = Number(invoiceData.periodInvoices || 0).toLocaleString('vi-VN');
+        document.getElementById('in-period-invoices').textContent = fmtNumber(Number(invoiceData.periodInvoices || 0));
         document.getElementById('in-period-sub').textContent = invoiceRangeLabel;
-        document.getElementById('in-cancelled').textContent = Number(invoiceData.periodCancelledInvoices || 0).toLocaleString('vi-VN');
+        document.getElementById('in-cancelled').textContent = fmtNumber(Number(invoiceData.periodCancelledInvoices || 0));
         document.getElementById('in-cancelled-sub').textContent = invoiceRangeLabel;
         const recentInvoices = invoiceData.recentInvoices || [];
         document.getElementById('tagInvoices').textContent = recentInvoices.length;
@@ -7501,9 +7322,9 @@
         );
         renderRevenueChart('chartInvoiceRevenue', 'invoiceRevenue', invoiceData.revenueByDay || []);
 
-        document.getElementById('in-pending-count').textContent = Number(invoiceData.pendingOrdersCount || 0).toLocaleString('vi-VN');
+        document.getElementById('in-pending-count').textContent = fmtNumber(Number(invoiceData.pendingOrdersCount || 0));
         document.getElementById('in-pending-total').textContent = fmtMoney(invoiceData.pendingOrdersTotal);
-        document.getElementById('in-returns-count').textContent = Number(invoiceData.returnsCount || 0).toLocaleString('vi-VN');
+        document.getElementById('in-returns-count').textContent = fmtNumber(Number(invoiceData.returnsCount || 0));
         document.getElementById('in-returns-total').textContent = fmtMoney(invoiceData.totalReturns);
 
         const recentOrders = invoiceData.recentOrders || [];
@@ -7534,7 +7355,7 @@
       else if (view === 'customers') {
         const customerData = d.customers || d;
         const topDebt = customerData.topDebt || [];
-        document.getElementById('cu-total').textContent = d.kpi.totalCustomers.toLocaleString('vi-VN');
+        document.getElementById('cu-total').textContent = fmtNumber(d.kpi.totalCustomers);
         document.getElementById('cu-debtcount').textContent = d.kpi.customersWithDebt;
         document.getElementById('cu-totaldebt').textContent = fmtMoney(d.kpi.totalDebt);
         document.getElementById('tagDebt').textContent = topDebt.length;
@@ -7559,7 +7380,7 @@
           { tbody: 'customerRevenueRows', pagination: 'customerRevenuePagination', prevBtn: 'customerRevenuePrevPage', nextBtn: 'customerRevenueNextPage', label: 'customerRevenuePageLabel' },
           top50,
           c => '<tr><td class="mono muted">' + escapeHtml(c.code) + '</td><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
-            '<td class="mono">' + Number(c.saleOrderCount || 0).toLocaleString('vi-VN') + '</td>' +
+            '<td class="mono">' + fmtNumber(Number(c.saleOrderCount || 0)) + '</td>' +
             '<td class="mono" data-sort-value="' + c.revenue + '">' + fmtMoney(c.revenue) + '</td></tr>',
           4,
           'Không có dữ liệu doanh thu trong khoảng đã chọn'
@@ -7604,9 +7425,6 @@
         renderDebtTable();
       }
       applyActiveTableSorts();
-      const viewEl = document.getElementById(view);
-      if (window.TKS3D && window.TKS3D.refresh) window.TKS3D.refresh(viewEl);
-      if (typeof animateTableRows === 'function') animateTableRows(viewEl);
     }
 
     function setDebtPeriod(period) {
@@ -7648,10 +7466,9 @@
         8,
         'Không có khách hàng nào trong kỳ này'
       );
-      // applyActiveTableSorts() and TKS3D.refresh() are now called inside
-      // renderPaginatedRows() itself (right after tbody.innerHTML is set), so
-      // every table using that shared helper gets this consistently — no
-      // need to repeat it here for the debt table specifically anymore.
+      // applyActiveTableSorts() hiện đã được gọi bên trong renderPaginatedRows()
+      // (ngay sau khi thiết lập tbody.innerHTML), vì vậy mọi bảng sử dụng hàm
+      // dùng chung đó đều nhận được xử lý nhất quán — không cần lặp lại ở đây riêng cho bảng công nợ nữa.
     }
 
     function toggleDebtDetail(triggerRow) {
@@ -7691,7 +7508,9 @@
     }
 
     function setLoading(isLoading) {
-      document.getElementById('veil').classList.toggle('show', isLoading);
+      const veil = document.getElementById('veil');
+      veil.classList.toggle('show', isLoading);
+      veil.setAttribute('aria-busy', isLoading ? 'true' : 'false');
     }
 
     const AUTO_REFRESH_MS = 10 * 60 * 1000; // toi da 10 phut/lan, tranh vuot han muc Google Sheets API
@@ -7774,20 +7593,23 @@
     // Ranh gioi bao mat that su nam o server (authMiddleware tren /api/*).
     // authGuard() chi de dieu huong UX: redirect /login/ neu chua dang nhap,
     // roi moi hien noi dung (visibility:hidden duoc dat tu dau <head>).
-    TKSNav.authGuard().then(function(user){
-      if(user && user.vaiTro === 'Quản lý'){
-        var navUsers = document.getElementById('navAccountUsers');
-        if(navUsers) navUsers.style.display = 'flex';
-      }
-      // Trang nay dung sidebar tinh rieng (giu logic switchView()/data-view dang
-      // chay tot) nen KHONG goi renderTopSidebar() nhu cac trang khac — chi chen
-      // them doan chon co so vao dau sidebar bang chinh ham dung chung.
-      var sidebar = document.getElementById('sidebar');
-      if(sidebar && user){
-        sidebar.insertAdjacentHTML('afterbegin', TKSNav._branchSwitcherHtml(user));
-        TKSNav._bindBranchSwitcher(sidebar);
-      }
-    });
+    if (typeof TKSNav !== 'undefined' && TKSNav.authGuard) {
+      TKSNav.authGuard().then(function(user){
+        if(user && user.vaiTro === 'Quản lý'){
+          var navUsers = document.getElementById('navAccountUsers');
+          if(navUsers) navUsers.style.display = 'flex';
+        }
+        var sidebar = document.getElementById('sidebar');
+        if(sidebar && user){
+          sidebar.insertAdjacentHTML('afterbegin', TKSNav._branchSwitcherHtml(user));
+          TKSNav._bindBranchSwitcher(sidebar);
+        }
+      }).catch(function(err){
+        document.documentElement.style.visibility = '';
+      });
+    } else {
+      document.documentElement.style.visibility = '';
+    }
 
     syncThemeControl();
     initSortableTables();
@@ -7808,12 +7630,8 @@
       }
     });
   </script>
-  <!-- 3D Background -->
-  <script src="/vendor/three.min.js"></script>
-  <script src="/shared/three-performance.js"></script>
-  <script src="/shared/three-memory.js"></script>
-  <script src="/shared/three-visibility.js"></script>
-  <script src="/shared/three-bg.js"></script>
+
+  <script src="/shared/shooting-star.js?v=20260830"></script>
 </body>
 
 </html>

@@ -284,7 +284,6 @@ const SHEET_NAMES = [
   CONFIG.SHEET_CUSTOMERS,
   CONFIG.SHEET_SUPPLIERS,
   CONFIG.SHEET_PURCHASES,
-  CONFIG.SHEET_DEACTIVATED_TODAY,
   CONFIG.SHEET_CUSTOMER_REPORT
 ];
 
@@ -385,9 +384,9 @@ function normalizeWhitespace(value) {
 
 function normalizeSearchValue(value) {
   return normalizeWhitespace(value)
-    // NFC keeps Vietnamese diacritics comparable even when the source and the
-    // query use different Unicode representations (for example, "a" + a tone
-    // mark versus the precomposed character). Case is intentionally ignored.
+    // Chuẩn NFC giúp so sánh dấu tiếng Việt nhất quán ngay cả khi nguồn dữ liệu và
+    // truy vấn dùng cách biểu diễn Unicode khác nhau (ví dụ: "a" + dấu tổ hợp so với
+    // ký tự dựng sẵn). Chữ hoa/thường được bỏ qua có chủ đích.
     .normalize('NFC')
     .toLocaleLowerCase('vi-VN');
 }
@@ -423,7 +422,7 @@ function buildSearchIndex(sheets) {
       const normalizedCode = normalizeSearchValue(code);
       const normalizedName = normalizeSearchValue(name);
       records.push({
-        row,
+        row: row.slice(0, 15), // chi giu cac cot dau can thiet cho hien thi search modal thay vi toan bo row dai
         rowIndex,
         code,
         name: name || code,
@@ -441,9 +440,9 @@ function buildSearchIndex(sheets) {
 }
 
 function rememberSearchSheets(sheets, branch) {
-  // Normalizing every cell and serializing every field on each keystroke was
-  // the hot path for large product sheets. Build the reusable search index when
-  // the Sheets cache changes instead.
+  // Việc chuẩn hóa từng ô và tuần tự hóa từng trường trong mỗi thao tác gõ phím từng
+  // là điểm nghẽn hiệu năng trên các sheet sản phẩm lớn. Thay vào đó, xây dựng chỉ mục tìm kiếm
+  // tái sử dụng khi cache Sheets có sự thay đổi.
   searchIndexBuildCountForTest += 1; // chi dung trong test, xem __test__ o cuoi file
   const cache = cacheEntryFor(searchSheetCacheByBranch, branch);
   cache.data = buildSearchIndex(sheets);
@@ -1469,7 +1468,6 @@ function computeDashboardData(sheets, filters, now) {
   const customersRange = resolveFilterRange(f.customers, now);
   const newPurchasesRange = resolveFilterRange(f.newPurchases, now);
   const newProductsRange = resolveFilterRange(f.newProducts, now);
-  const deactivatedRange = resolveFilterRange(f.deactivated, now);
 
   const debt = {};
   DEBT_SHEETS.forEach(entry => {
@@ -1486,7 +1484,6 @@ function computeDashboardData(sheets, filters, now) {
   const customerReportData = sheets[CONFIG.SHEET_CUSTOMER_REPORT] || [];
   const supplierData = sheets[CONFIG.SHEET_SUPPLIERS];
   const poData = sheets[CONFIG.SHEET_PURCHASES];
-  const deactivatedData = sheets[CONFIG.SHEET_DEACTIVATED_TODAY];
 
   // ---------- HÀNG HÓA ----------
   // Doc theo ten cot de schema co the bo cot khong dung ma khong lam lech KPI.
@@ -1573,55 +1570,6 @@ function computeDashboardData(sheets, filters, now) {
   lowStock.sort((a, b) => a.stock - b.stock);
   todayNewProducts.sort((a, b) => b._sortTime - a._sortTime);
   const todayNewProductRows = todayNewProducts.map(({ _sortTime, ...rest }) => rest);
-
-  // ---------- HÀNG NGỪNG KINH DOANH ----------
-  // Tab "Hàng ngừng kinh doanh" do src-dashboard/kiotviet/DiscontinuedProducts.gs ghi nhan
-  // moi khi 1 ma hang chuyen sang "Ngung kinh doanh". Loc lai theo
-  // "Ngay sua tren KiotViet" bang bo loc thoi gian cua tab Tong quan.
-  const deactivatedTodayProducts = [];
-  if (Array.isArray(deactivatedData) && deactivatedData.length > 1) {
-    const deactivatedHeaders = deactivatedData[0] || [];
-    const norm = str => String(str || '').toLowerCase().replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
-    const findCol = (...keywords) => deactivatedHeaders.findIndex(header => {
-      const h = norm(header);
-      return keywords.some(kw => h.includes(norm(kw)));
-    });
-
-    const modifiedAtIndex = findCol('Ngày sửa trên KiotViet', 'Ngày sửa KiotViet', 'Ngày sửa');
-    const statusIndex = findCol('Trạng thái hiện tại', 'Trạng thái');
-    const codeIndex = findCol('Mã hàng');
-    const nameIndex = findCol('Tên hàng');
-    const categoryIndex = findCol('Nhóm hàng');
-
-    for (let r = 1; r < deactivatedData.length; r++) {
-      const row = deactivatedData[r];
-      const code = codeIndex >= 0 ? row[codeIndex] : row[6];
-      if (!code) continue;
-
-      const modifiedAtDate = modifiedAtIndex >= 0 ? parseSheetDate(row[modifiedAtIndex]) : null;
-      const eventDate = modifiedAtDate || parseSheetDate(row[0]);
-
-      if (!isWithinRange(eventDate, deactivatedRange)) continue;
-
-      let displayDateStr = '';
-      if (eventDate) {
-        displayDateStr = formatDMYHMS(eventDate);
-      } else if (modifiedAtIndex >= 0 && row[modifiedAtIndex]) {
-        displayDateStr = String(row[modifiedAtIndex]);
-      }
-
-      deactivatedTodayProducts.push({
-        code,
-        name: (nameIndex >= 0 ? row[nameIndex] : row[8]) || code,
-        category: (categoryIndex >= 0 ? row[categoryIndex] : row[12]) || 'Chưa phân nhóm',
-        status: (statusIndex >= 0 ? row[statusIndex] : row[2]) || 'Ngừng kinh doanh',
-        modifiedAt: displayDateStr,
-        _sortTime: eventDate ? eventDate.getTime() : 0
-      });
-    }
-  }
-  deactivatedTodayProducts.sort((a, b) => b._sortTime - a._sortTime);
-  const deactivatedTodayRows = deactivatedTodayProducts.map(({ _sortTime, ...rest }) => rest);
 
   stockList.sort((a, b) => b.stock - a.stock);
 
@@ -1899,7 +1847,7 @@ function computeDashboardData(sheets, filters, now) {
   const newlyImportedSalesRevenue = newlyImportedByCategoryFull.reduce((sum, c) => sum + c.revenue, 0);
   const newlyImportedSalesQty = newlyImportedByCategoryFull.reduce((sum, c) => sum + c.qty, 0);
 
-  // Group newly imported products by parent category (count of products)
+  // Gom nhóm sản phẩm mới nhập theo nhóm hàng cha (số lượng sản phẩm)
   const newlyImportedProductCountMap = {};
   newlyImportedProducts.forEach(product => {
     const parentCategoryName = productParentCategoryByCode.get(String(product.code).trim()) || 'Chưa xác định';
@@ -2135,8 +2083,7 @@ function computeDashboardData(sheets, filters, now) {
       invoices: invoicesRange,
       customers: customersRange,
       newPurchases: newPurchasesRange,
-      newProducts: newProductsRange,
-      deactivated: deactivatedRange
+      newProducts: newProductsRange
     },
     kpi: {
       revenueToday,
@@ -2172,11 +2119,6 @@ function computeDashboardData(sheets, filters, now) {
         count: todayNewProductRows.length,
         dateColumnAvailable: productCreatedDateIndex >= 0,
         products: todayNewProductRows
-      },
-      deactivatedToday: {
-        label: deactivatedRange.label,
-        count: deactivatedTodayRows.length,
-        products: deactivatedTodayRows
       }
     },
     products: {

@@ -21,7 +21,8 @@ const {
   getSessionStartTime,
   formatVietnameseDate,
   formatLeaveBoundary,
-  resolveSenderIdentity
+  resolveSenderIdentity,
+  parseVietnameseDate
 } = require('../hr/hrLeaveService');
 const { broadcastLeaveEvent, LEAVE_EVENT_TYPES } = require('../hr/hrLeaveEvents');
 const conversationStore = require('./conversationStore');
@@ -80,21 +81,7 @@ function enqueueMessage(chatId, task) {
 
 // ---- Parse va normalize -------------------------------------------------------
 
-/**
- * Parse ngay theo dinh dang dd/mm/yyyy. Tra ve Date (00:00 local) hoac null.
- */
-function parseVietnameseDate(text) {
-  const trimmed = String(text || '').trim();
-  const m = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m) {
-    const date = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
-    if (date.getFullYear() !== Number(m[3]) ||
-        date.getMonth() !== Number(m[2]) - 1 ||
-        date.getDate() !== Number(m[1])) return null;
-    return date;
-  }
-  return null;
-}
+// (parseVietnameseDate duoc import tu hrLeaveService de tai su dung va test dong nhat)
 
 /**
  * Normalize buoi nguoi dung nhap thanh 'Sang' hoac 'Chieu' (Unicode).
@@ -142,13 +129,13 @@ function startHrTelegramBot() {
     try {
       await bot.sendMessage(msg.chat.id,
         'Ch\u00e0o b\u1ea1n! \u0110\u00e2y l\u00e0 bot xin ngh\u1ec9 ph\u00e9p c\u1ee7a TOKOSI.\n\n' +
-        '1. N\u1ebfu t\u00e0i kho\u1ea3n ch\u01b0a li\u00ean k\u1ebft v\u1edbi Bot V\u00e0o web Qu\u1ea3n l\u00fd nh\u00e2n s\u1ef1 > Li\u00ean k\u1ebft Telegram \u0111\u1ec3 l\u1ea5y m\u00e3 6 s\u1ed1.\n' +
-        '2. G\u00f5 /lienket <m\u00e3> \u0111\u1ec3 li\u00ean k\u1ebft t\u00e0i kho\u1ea3n.\n' +
-        '3. Sau khi li\u00ean k\u1ebft, g\u00f5 /xinnghi \u0111\u1ec3 b\u1eaft \u0111\u1ea7u xin ngh\u1ec9.\n' +
-        'D\u00f9ng /huy \u0111\u1ec3 h\u1ee7y phi\u00ean \u0111ang nh\u1eadp.'
+        '1. Nếu tài khoản chưa liên kết với Bot Vào web Quản lý nhân sự > Liên kết Telegram để lấy mã 6 số.\n' +
+        '2. Gõ /lienket <mã> để liên kết tài khoản.\n' +
+        '3. Sau khi liên kết, gõ /xinnghi để bắt đầu xin nghỉ.\n' +
+        'Dùng /huy để hủy yêu cầu.'
       );
     } catch (err) {
-      console.error('[HR Telegram Bot] Kh\u00f4ng g\u1eedi \u0111\u01b0\u1ee3c h\u01b0\u1edbng d\u1eabn:', err.message);
+      console.error('[HR Telegram Bot] Không gửi được hướng dẫn:', err.message);
     }
   });
 
@@ -183,9 +170,9 @@ function startHrTelegramBot() {
     if (markProcessed(msg.chat.id, msg.message_id)) return;
     resetConversation(msg.chat.id);
     try {
-      await bot.sendMessage(msg.chat.id, '\u0110\u00e3 h\u1ee7y phi\u00ean xin ngh\u1ec9 hi\u1ec7n t\u1ea1i.');
+      await bot.sendMessage(msg.chat.id, 'Đã hủy yêu cầu xin nghỉ phép.');
     } catch (err) {
-      console.error('[HR Telegram Bot] Kh\u00f4ng g\u1eedi \u0111\u01b0\u1ee3c x\u00e1c nh\u1eadn h\u1ee7y:', err.message);
+      console.error('[HR Telegram Bot] Không gửi được xác nhận hủy:', err.message);
     }
   });
 
@@ -195,12 +182,12 @@ function startHrTelegramBot() {
     try {
       const link = await repo.findLinkByChatId(chatId);
       if (!link) {
-        await bot.sendMessage(chatId, 'B\u1ea1n ch\u01b0a li\u00ean k\u1ebft t\u00e0i kho\u1ea3n web. V\u00e0o web Qu\u1ea3n l\u00fd nh\u00e2n s\u1ef1 \u0111\u1ec3 l\u1ea5y m\u00e3, sau \u0111\u00f3 g\u00f5 /lienket <m\u00e3>.');
+        await bot.sendMessage(chatId, 'Bạn chưa liên kết tài khoản web. Vào web Quản lý nhân sự để lấy mã, sau đó gõ /lienket <mã>.');
         return;
       }
       const identity = await resolveSenderIdentity(link.web_username);
       if (!identity) {
-        await bot.sendMessage(chatId, 'Kh\u00f4ng t\u00ecm th\u1ea5y h\u1ed3 s\u01a1 t\u00e0i kho\u1ea3n \u0111\u00e3 li\u00ean k\u1ebft, vui l\u00f2ng li\u00ean h\u1ec7 Qu\u1ea3n l\u00fd.');
+        await bot.sendMessage(chatId, 'Không tìm thấy hồ sơ tài khoản đã liên kết, vui lòng liên hệ Quản lý.');
         return;
       }
       conversationStore.setConversation(chatId, {
@@ -213,12 +200,12 @@ function startHrTelegramBot() {
             : new Date().toISOString()
         }
       });
-      await bot.sendMessage(chatId, `Xin ch\u00e0o ${identity.hoTen}. L\u00fd do ngh\u1ec9 l\u00e0 g\u00ec?`);
+      await bot.sendMessage(chatId, `Xin chào ${identity.hoTen}. Lý do nghỉ là gì?`);
     } catch (err) {
       try {
-        await bot.sendMessage(chatId, `C\u00f3 l\u1ed7i x\u1ea3y ra: ${err.message}`);
+        await bot.sendMessage(chatId, `Có lỗi xảy ra: ${err.message}`);
       } catch (sendErr) {
-        console.error('[HR Telegram Bot] Kh\u00f4ng g\u1eedi \u0111\u01b0\u1ee3c l\u1ed7i kh\u1edfi t\u1ea1o phi\u00ean:', sendErr.message);
+        console.error('[HR Telegram Bot] Không gửi được lỗi khởi tạo phiên:', sendErr.message);
       }
     }
   });
@@ -235,18 +222,19 @@ function startHrTelegramBot() {
         await handleConversationStep(bot, chatId, conv, text.trim());
         conversationStore.setConversation(chatId, conv);
       } catch (err) {
-        console.error('[HR Telegram Bot] L\u1ed7i x\u1eed l\u00fd b\u01b0\u1edbc h\u1ed9i tho\u1ea1i:', err.message);
+        console.error('[HR Telegram Bot] Lỗi xử lý bước hội thoại:', err.message);
         try {
-          await bot.sendMessage(chatId, `C\u00f3 l\u1ed7i x\u1ea3y ra: ${err.message}. B\u1ea1n c\u00f3 th\u1ec3 g\u1eedi l\u1ea1i c\u00e2u tr\u1ea3 l\u1eddi ho\u1eb7c g\u00f5 /huy \u0111\u1ec3 b\u1eaft \u0111\u1ea7u l\u1ea1i.`);
+          await bot.sendMessage(chatId, `Có lỗi xảy ra: ${err.message}. Bạn có thể gửi lại câu trả lời hoặc gõ /huy để bắt đầu lại.`);
         } catch (sendErr) {
-          console.error('[HR Telegram Bot] Kh\u00f4ng g\u1eedi \u0111\u01b0\u1ee3c th\u00f4ng b\u00e1o l\u1ed7i h\u1ed9i tho\u1ea1i:', sendErr.message);
+          console.error('[HR Telegram Bot] Không gửi được thông báo lỗi hội thoại:', sendErr.message);
         }
       }
     });
   });
 
   bot.on('callback_query', query => {
-    const chatId = query.message.chat.id;
+    const chatId = query.message && query.message.chat ? query.message.chat.id : query.from.id;
+    const messageId = query.message && query.message.message_id;
     return enqueueMessage(chatId, async () => {
       try {
         if (markProcessed(`callback:${chatId}`, query.id)) {
@@ -258,15 +246,27 @@ function startHrTelegramBot() {
           await bot.answerCallbackQuery(query.id);
           return;
         }
+
+        if (messageId && typeof bot.editMessageReplyMarkup === 'function') {
+          try {
+            await bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
+              chat_id: chatId,
+              message_id: messageId
+            });
+          } catch (_editErr) {
+            // Khong anh huong neu khong sua duoc markup
+          }
+        }
+
         if (query.data === 'confirm') {
           await submitLeaveRequest(bot, chatId, conv);
         } else {
           resetConversation(chatId);
-          await bot.sendMessage(chatId, '\u0110\u00e3 h\u1ee7y y\u00eau c\u1ea7u.');
+          await bot.sendMessage(chatId, 'Đã hủy yêu cầu xin nghỉ phép.');
         }
         await bot.answerCallbackQuery(query.id);
       } catch (err) {
-        console.error('[HR Telegram Bot] L\u1ed7i x\u1eed l\u00fd n\u00fat x\u00e1c nh\u1eadn:', err.message);
+        console.error('[HR Telegram Bot] Lỗi xử lý nút xác nhận:', err.message);
       }
     });
   });
@@ -282,13 +282,14 @@ async function handleConversationStep(bot, chatId, conv, text) {
     case STEP.AWAITING_REASON: {
       conv.data.ly_do = text;
       conv.step = STEP.AWAITING_START_DATE;
-      await bot.sendMessage(chatId, 'Ng\u00e0y b\u1eaft \u0111\u1ea7u ngh\u1ec9? (vd: 22/08/2026)');
+      await bot.sendMessage(chatId, 'Ng\u00e0y b\u1eaft \u0111\u1ea7u ngh\u1ec9? (vd: 27/8, 27/08/2026, 27-8, ng\u00e0y mai)');
       return;
     }
     case STEP.AWAITING_START_DATE: {
-      const date = parseVietnameseDate(text);
+      const refDate = conv.data.messageTime ? new Date(conv.data.messageTime) : new Date();
+      const date = parseVietnameseDate(text, refDate);
       if (!date) {
-        await bot.sendMessage(chatId, 'Kh\u00f4ng \u0111\u1ecdc \u0111\u01b0\u1ee3c ng\u00e0y, vui l\u00f2ng nh\u1eadp l\u1ea1i theo d\u1ea1ng dd/mm/yyyy (vd: 22/08/2026).');
+        await bot.sendMessage(chatId, 'Kh\u00f4ng \u0111\u1ecdc \u0111\u01b0\u1ee3c ng\u00e0y, vui l\u00f2ng nh\u1eadp l\u1ea1i (vd: 27/8, 27/08/2026, 27-8, ng\u00e0y mai...).');
         return;
       }
       conv.data.startDate = date;
@@ -305,7 +306,7 @@ async function handleConversationStep(bot, chatId, conv, text) {
       conv.data.startSession = session;
       conv.step = STEP.AWAITING_END_DATE;
       await bot.sendMessage(chatId,
-        'Ng\u00e0y k\u1ebft th\u00fac ngh\u1ec9? (vd: 25/08/2026)\n\u0110\u1ec3 tr\u1ed1ng ho\u1eb7c g\u00f5 "-" n\u1ebfu ngh\u1ec9 c\u00f9ng ng\u00e0y.'
+        'Ng\u00e0y k\u1ebft th\u00fac ngh\u1ec9? (vd: 28/8, 28/08/2026, ng\u00e0y kia)\n\u0110\u1ec3 tr\u1ed1ng ho\u1eb7c g\u00f5 "-" n\u1ebfu ngh\u1ec9 c\u00f9ng ng\u00e0y.'
       );
       return;
     }
@@ -315,9 +316,10 @@ async function handleConversationStep(bot, chatId, conv, text) {
       if (isEmpty) {
         date = conv.data.startDate;
       } else {
-        date = parseVietnameseDate(text);
+        const refDate = conv.data.messageTime ? new Date(conv.data.messageTime) : new Date();
+        date = parseVietnameseDate(text, refDate);
         if (!date) {
-          await bot.sendMessage(chatId, 'Kh\u00f4ng \u0111\u1ecdc \u0111\u01b0\u1ee3c ng\u00e0y, vui l\u00f2ng nh\u1eadp l\u1ea1i theo d\u1ea1ng dd/mm/yyyy ho\u1eb7c \u0111\u1ec3 tr\u1ed1ng n\u1ebfu c\u00f9ng ng\u00e0y.');
+          await bot.sendMessage(chatId, 'Kh\u00f4ng \u0111\u1ecdc \u0111\u01b0\u1ee3c ng\u00e0y, vui l\u00f2ng nh\u1eadp l\u1ea1i (vd: 28/8, 28/08/2026, ng\u00e0y kia) ho\u1eb7c \u0111\u1ec3 tr\u1ed1ng n\u1ebfu c\u00f9ng ng\u00e0y.');
           return;
         }
       }

@@ -18,6 +18,15 @@ function updateProductsFromWebhook(items) {
   upsertKiotVietSheetItems_(schema, validItems);
 }
 
+/**
+ * stock.update da co ma hang va cac truong ton kho moi nhat. Ghi truc tiep de
+ * tranh mot endpoint chi tiet loi lam tre ca burst; upsert se giu lai cac cot
+ * metadata hien co ma payload stock khong cung cap.
+ */
+function updateProductStocksFromWebhook(items) {
+  upsertKiotVietSheetItems_(KIOTVIET_SHEET_SCHEMAS.products, items);
+}
+
 function updateInvoicesFromWebhook(items) {
   const schema = KIOTVIET_SHEET_SCHEMAS.invoices;
   const hydratedItems = hydrateKiotVietItems_(items, schema);
@@ -119,11 +128,13 @@ function hydrateKiotVietItems_(items, schema) {
   try {
     responses = UrlFetchApp.fetchAll(requests);
   } catch (error) {
-    Logger.log('Loi lay chi tiet ' + schema.sheetName + ': ' + error.toString());
-    return items;
+    // Neu khong goi duoc API thi khong ghi du lieu thieu: nem loi de webhook
+    // duoc thu lai (item van PENDING) thay vi luu hoa don/chi tiet thieu cot.
+    throw new Error('Loi lay chi tiet ' + schema.sheetName + ': ' + error.toString());
   }
 
   const hydratedItems = items.slice();
+  let hydrationFailed = false;
   responses.forEach((response, responseIndex) => {
     const itemIndex = requestItemIndexes[responseIndex];
     const responseCode = response.getResponseCode();
@@ -132,6 +143,7 @@ function hydrateKiotVietItems_(items, schema) {
         'Khong lay duoc chi tiet ' + schema.sheetName + ', HTTP ' + responseCode +
         ': ' + response.getContentText()
       );
+      hydrationFailed = true;
       return;
     }
 
@@ -144,8 +156,17 @@ function hydrateKiotVietItems_(items, schema) {
       hydratedItems[itemIndex] = Object.assign({}, detail || {}, items[itemIndex]);
     } catch (error) {
       Logger.log('Khong parse duoc chi tiet ' + schema.sheetName + ': ' + error.toString());
+      hydrationFailed = true;
     }
   });
+
+  if (hydrationFailed) {
+    // Mot phan chi tiet khong lay duoc: khong ghi ban ghi thieu cot, de
+    // finalizeWebhookQueueItem_ dua item ve PENDING va thu lai o lan sau.
+    throw new Error(
+      'Khong lay du chi tiet ' + schema.sheetName + ' cho tat ca item, se thu lai.'
+    );
+  }
 
   return hydratedItems;
 }

@@ -18,8 +18,8 @@ const { BRANCHES } = require('../branch/branches');
 
 const HR_API_TIMEOUT_MS = 15000; // 15s
 
-// ---- Auth singleton (read + write scope) --------------------------------
-// Dung CHUNG cho moi co so — cung service account ghi ca hai spreadsheet.
+// ---- Singleton xác thực (phạm vi đọc + ghi) --------------------------------
+// Dùng CHUNG cho mọi cơ sở — cùng service account ghi cả hai spreadsheet.
 
 let hrSheetsApiPromise = null;
 
@@ -37,7 +37,7 @@ function getHrSheetsApi() {
   return hrSheetsApiPromise;
 }
 
-// ---- Utility ----------------------------------------------------------------
+// ---- Tiện ích ----------------------------------------------------------------
 
 function quoteSheetName(name) {
   return `'${String(name).replace(/'/g, "''")}'`;
