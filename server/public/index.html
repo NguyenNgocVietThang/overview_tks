@@ -1745,6 +1745,14 @@
       border-radius: var(--radius-12);
       padding: 18px 20px;
       margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel>.chart-box,
+    .panel>.scroll-list {
+      flex: 1 1 auto;
+      min-height: 0;
     }
 
     .panel-head {
@@ -2834,15 +2842,20 @@
     }
 
     .pagination-controls button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 30px;
       min-height: 30px;
-      padding: 0 12px;
+      padding: 0 8px;
       border: 1px solid var(--border);
       border-radius: var(--radius-7);
       background: var(--panel-2);
       color: var(--text);
       font-family: var(--font-body);
-      font-size: 11.5px;
+      font-size: 12.5px;
       font-weight: 600;
+      line-height: 1;
       cursor: pointer;
       transition: border-color .15s ease, opacity .15s ease;
     }
@@ -3345,9 +3358,11 @@
                     </table>
                   </div>
                   <div class="pagination-controls" id="cpDetailPagination" hidden>
-                    <button type="button" id="cpDetailPrevPage">‹ Trước</button>
+                    <button type="button" id="cpDetailFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                    <button type="button" id="cpDetailPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
                     <span id="cpDetailPageLabel">Trang 1/1</span>
-                    <button type="button" id="cpDetailNextPage">Sau ›</button>
+                    <button type="button" id="cpDetailNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                    <button type="button" id="cpDetailLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                   </div>
                 </div>
                 <div class="panel col-6">
@@ -3374,9 +3389,11 @@
                     </table>
                   </div>
                   <div class="pagination-controls" id="cpMonthlyPagination" hidden>
-                    <button type="button" id="cpMonthlyPrevPage">‹ Trước</button>
+                    <button type="button" id="cpMonthlyFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                    <button type="button" id="cpMonthlyPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
                     <span id="cpMonthlyPageLabel">Trang 1/1</span>
-                    <button type="button" id="cpMonthlyNextPage">Sau ›</button>
+                    <button type="button" id="cpMonthlyNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                    <button type="button" id="cpMonthlyLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                   </div>
                 </div>
               </div>
@@ -3532,9 +3549,11 @@
                   </table>
                 </div>
                 <div class="pagination-controls" id="endOfDayPagination" hidden>
-                  <button type="button" id="endOfDayPrevPage">‹ Trước</button>
+                  <button type="button" id="endOfDayFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="endOfDayPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
                   <span id="endOfDayPageLabel">Trang 1/1</span>
-                  <button type="button" id="endOfDayNextPage">Sau ›</button>
+                  <button type="button" id="endOfDayNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="endOfDayLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
             </div>
@@ -3562,7 +3581,7 @@
                 <div class="sub">Có phát sinh nhập hàng trong khoảng đã chọn</div>
               </div>
             </div>
-            <div class="grid">
+            <div class="grid transaction-analysis-grid">
               <div class="panel col-5">
                 <div class="panel-head">
                   <h2>Nhập hàng theo nhà cung cấp</h2>
@@ -3601,9 +3620,11 @@
                   </table>
                 </div>
                 <div class="pagination-controls" id="overviewPurchasePagination" hidden>
-                  <button type="button" id="overviewPurchasePrevPage">‹ Trước</button>
+                  <button type="button" id="overviewPurchaseFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="overviewPurchasePrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
                   <span id="overviewPurchasePageLabel">Trang 1/1</span>
-                  <button type="button" id="overviewPurchaseNextPage">Sau ›</button>
+                  <button type="button" id="overviewPurchaseNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="overviewPurchaseLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
             </div>
@@ -3642,9 +3663,11 @@
                   </table>
                 </div>
                 <div class="pagination-controls" id="todayNewProductsPagination" hidden>
-                  <button type="button" id="todayNewProductsPrevPage">‹ Trước</button>
+                  <button type="button" id="todayNewProductsFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="todayNewProductsPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
                   <span id="todayNewProductsPageLabel">Trang 1/1</span>
-                  <button type="button" id="todayNewProductsNextPage">Sau ›</button>
+                  <button type="button" id="todayNewProductsNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="todayNewProductsLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
             </div>
@@ -3736,9 +3759,11 @@
                   </table>
                 </div>
                 <div class="pagination-controls" id="topSellingPagination" hidden>
-                  <button type="button" id="topSellingPrevPage">‹ Trước</button>
+                  <button type="button" id="topSellingFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="topSellingPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
                   <span id="topSellingPageLabel">Trang 1/1</span>
-                  <button type="button" id="topSellingNextPage">Sau ›</button>
+                  <button type="button" id="topSellingNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="topSellingLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
             </div>
@@ -3773,9 +3798,11 @@
                   </table>
                 </div>
                 <div class="pagination-controls" id="stockPagination" hidden>
-                  <button type="button" id="stockPrevPage">‹ Trước</button>
+                  <button type="button" id="stockFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="stockPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
                   <span id="stockPageLabel">Trang 1/1</span>
-                  <button type="button" id="stockNextPage">Sau ›</button>
+                  <button type="button" id="stockNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="stockLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
               <div class="panel col-7">
@@ -3804,9 +3831,11 @@
                   </table>
                 </div>
                 <div class="pagination-controls" id="allProductsPagination" hidden>
-                  <button type="button" id="allProductsPrevPage">‹ Trước</button>
+                  <button type="button" id="allProductsFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="allProductsPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
                   <span id="allProductsPageLabel">Trang 1/1</span>
-                  <button type="button" id="allProductsNextPage">Sau ›</button>
+                  <button type="button" id="allProductsNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="allProductsLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
             </div>
@@ -3854,9 +3883,11 @@
                   </table>
                 </div>
                 <div class="pagination-controls" id="newlyImportedPagination" hidden>
-                  <button type="button" id="newlyImportedPrevPage">‹ Trước</button>
+                  <button type="button" id="newlyImportedFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="newlyImportedPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
                   <span id="newlyImportedPageLabel">Trang 1/1</span>
-                  <button type="button" id="newlyImportedNextPage">Sau ›</button>
+                  <button type="button" id="newlyImportedNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="newlyImportedLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
               <div class="panel col-6">
@@ -3944,9 +3975,11 @@
                   </table>
                 </div>
                 <div class="pagination-controls" id="childCategoryPagination" hidden>
-                  <button type="button" id="childCategoryPrevPage">‹ Trước</button>
+                  <button type="button" id="childCategoryFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="childCategoryPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
                   <span id="childCategoryPageLabel">Trang 1/1</span>
-                  <button type="button" id="childCategoryNextPage">Sau ›</button>
+                  <button type="button" id="childCategoryNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="childCategoryLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
             </div>
@@ -4105,9 +4138,11 @@
                   </table>
                 </div>
                 <div class="pagination-controls" id="ordersPagination" hidden>
-                  <button type="button" id="ordersPrevPage">‹ Trước</button>
+                  <button type="button" id="ordersFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="ordersPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
                   <span id="ordersPageLabel">Trang 1/1</span>
-                  <button type="button" id="ordersNextPage">Sau ›</button>
+                  <button type="button" id="ordersNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="ordersLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
               <div class="panel col-6">
@@ -4134,9 +4169,11 @@
                   </table>
                 </div>
                 <div class="pagination-controls" id="returnsPagination" hidden>
-                  <button type="button" id="returnsPrevPage">‹ Trước</button>
+                  <button type="button" id="returnsFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="returnsPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
                   <span id="returnsPageLabel">Trang 1/1</span>
-                  <button type="button" id="returnsNextPage">Sau ›</button>
+                  <button type="button" id="returnsNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="returnsLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
             </div>
@@ -4170,9 +4207,11 @@
                   </table>
                 </div>
                 <div class="pagination-controls" id="invoicesPagination" hidden>
-                  <button type="button" id="invoicesPrevPage">‹ Trước</button>
+                  <button type="button" id="invoicesFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="invoicesPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
                   <span id="invoicesPageLabel">Trang 1/1</span>
-                  <button type="button" id="invoicesNextPage">Sau ›</button>
+                  <button type="button" id="invoicesNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="invoicesLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
             </div>
@@ -4244,9 +4283,11 @@
                   </table>
                 </div>
                 <div class="pagination-controls" id="customerRevenuePagination" hidden>
-                  <button type="button" id="customerRevenuePrevPage">‹ Trước</button>
+                  <button type="button" id="customerRevenueFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="customerRevenuePrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
                   <span id="customerRevenuePageLabel">Trang 1/1</span>
-                  <button type="button" id="customerRevenueNextPage">Sau ›</button>
+                  <button type="button" id="customerRevenueNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="customerRevenueLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
             </div>
@@ -4292,9 +4333,11 @@
                   </table>
                 </div>
                 <div class="pagination-controls" id="topDebtPagination" hidden>
-                  <button type="button" id="topDebtPrevPage">‹ Trước</button>
+                  <button type="button" id="topDebtFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="topDebtPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
                   <span id="topDebtPageLabel">Trang 1/1</span>
-                  <button type="button" id="topDebtNextPage">Sau ›</button>
+                  <button type="button" id="topDebtNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="topDebtLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
             </div>
@@ -4332,30 +4375,23 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">2</span>
-              <h2>Phân tích <span class="section-note">nợ phải trả tập trung ở nhà cung cấp nào</span></h2>
+              <h2>Phân tích &amp; chi tiết <span class="section-note">nợ phải trả tập trung ở nhà cung cấp nào</span>
+              </h2>
             </div>
-            <div class="grid">
-              <div class="panel col-12">
+            <div class="grid transaction-analysis-grid">
+              <div class="panel col-5">
                 <div class="panel-head">
-                  <h2>Nhà cung cấp nợ cao nhất</h2>
-                  <span class="drill-hint">25 nhà cung cấp có dư nợ lớn nhất</span>
+                  <h2>Top 15 nhà cung cấp nợ cao nhất</h2>
+                  <span class="drill-hint">15 nhà cung cấp có dư nợ lớn nhất</span>
                 </div>
-                <div class="chart-box tall"><canvas id="chartSupplierDebt"></canvas></div>
+                <div class="chart-box top-transactions-chart"><canvas id="chartSupplierDebt"></canvas></div>
               </div>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">3</span>
-              <h2>Dữ liệu chi tiết <span class="section-note">danh sách nhà cung cấp</span></h2>
-            </div>
-            <div class="grid">
-              <div class="panel col-12">
+              <div class="panel col-7">
                 <div class="panel-head">
                   <h2>Danh sách nhà cung cấp <span class="tag" id="tagSuppliers">—</span></h2><button
                     class="export-button" type="button" onclick="openExportDialog('suppliers.list')">Xuất Excel</button>
                 </div>
-                <div class="scroll-list" style="max-height:380px;">
+                <div class="table-wrap scroll-list transaction-detail-scroll">
                   <table>
                     <thead>
                       <tr>
@@ -4373,9 +4409,11 @@
                   </table>
                 </div>
                 <div class="pagination-controls" id="supplierPagination" hidden>
-                  <button type="button" id="supplierPrevPage">‹ Trước</button>
+                  <button type="button" id="supplierFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="supplierPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
                   <span id="supplierPageLabel">Trang 1/1</span>
-                  <button type="button" id="supplierNextPage">Sau ›</button>
+                  <button type="button" id="supplierNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="supplierLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
             </div>
@@ -4463,9 +4501,11 @@
                   </table>
                 </div>
                 <div class="pagination-controls" id="debtPagination" hidden>
-                  <button type="button" id="debtPrevPage">‹ Trước</button>
+                  <button type="button" id="debtFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="debtPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
                   <span id="debtPageLabel">Trang 1/1</span>
-                  <button type="button" id="debtNextPage">Sau ›</button>
+                  <button type="button" id="debtNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="debtLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
             </div>
@@ -6389,7 +6429,7 @@
           plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => fmtMoney(c.raw) } } },
           scales: vertical
             ? { x: labelScale, y: valueScale }
-            : { x: valueScale, y: { ticks: { color: theme.text, font: { size: 11 } }, grid: { display: false } } }
+            : { x: valueScale, y: { ticks: { color: theme.text, font: { size: 11 }, autoSkip: false }, grid: { display: false } } }
         }
       });
     }
@@ -6586,7 +6626,7 @@
 
       renderPaginatedRows(
         'topSelling',
-        { tbody: 'topSellingRows', pagination: 'topSellingPagination', prevBtn: 'topSellingPrevPage', nextBtn: 'topSellingNextPage', label: 'topSellingPageLabel' },
+        { tbody: 'topSellingRows', pagination: 'topSellingPagination', firstBtn: 'topSellingFirstPage', prevBtn: 'topSellingPrevPage', nextBtn: 'topSellingNextPage', lastBtn: 'topSellingLastPage', label: 'topSellingPageLabel' },
         analysisRows,
         item => '<tr><td class="name-cell">' + escapeHtml(item.name) +
           (isParentCategory
@@ -6665,7 +6705,7 @@
 
       renderPaginatedRows(
         'childCategory',
-        { tbody: 'childCategoryRows', pagination: 'childCategoryPagination', prevBtn: 'childCategoryPrevPage', nextBtn: 'childCategoryNextPage', label: 'childCategoryPageLabel' },
+        { tbody: 'childCategoryRows', pagination: 'childCategoryPagination', firstBtn: 'childCategoryFirstPage', prevBtn: 'childCategoryPrevPage', nextBtn: 'childCategoryNextPage', lastBtn: 'childCategoryLastPage', label: 'childCategoryPageLabel' },
         rows,
         c => '<tr><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
           '<td class="mono muted" data-sort-value="' + c.qty + '">' + fmtNumber(Number(c.qty || 0)) + '</td>' +
@@ -6720,19 +6760,31 @@
       }
 
       const pagination = document.getElementById(ids.pagination);
+      const firstBtn = document.getElementById(ids.firstBtn);
       const prevBtn = document.getElementById(ids.prevBtn);
       const nextBtn = document.getElementById(ids.nextBtn);
+      const lastBtn = document.getElementById(ids.lastBtn);
       const label = document.getElementById(ids.label);
       pagination.hidden = result.totalPages <= 1;
       label.textContent = 'Trang ' + result.page + '/' + result.totalPages;
+      firstBtn.disabled = result.page <= 1;
       prevBtn.disabled = result.page <= 1;
       nextBtn.disabled = result.page >= result.totalPages;
+      lastBtn.disabled = result.page >= result.totalPages;
+      firstBtn.onclick = function () {
+        state.tablePages[tableKey] = 1;
+        renderPaginatedRows(tableKey, ids, items, rowHtmlFn, emptyColspan, emptyMessage);
+      };
       prevBtn.onclick = function () {
         state.tablePages[tableKey] = result.page - 1;
         renderPaginatedRows(tableKey, ids, items, rowHtmlFn, emptyColspan, emptyMessage);
       };
       nextBtn.onclick = function () {
         state.tablePages[tableKey] = result.page + 1;
+        renderPaginatedRows(tableKey, ids, items, rowHtmlFn, emptyColspan, emptyMessage);
+      };
+      lastBtn.onclick = function () {
+        state.tablePages[tableKey] = result.totalPages;
         renderPaginatedRows(tableKey, ids, items, rowHtmlFn, emptyColspan, emptyMessage);
       };
     }
@@ -6908,7 +6960,7 @@
       document.getElementById('cpDetailCount').textContent = filtered.length;
       renderPaginatedRows(
         'cpDetail',
-        { tbody: 'cpDetailRows', pagination: 'cpDetailPagination', prevBtn: 'cpDetailPrevPage', nextBtn: 'cpDetailNextPage', label: 'cpDetailPageLabel' },
+        { tbody: 'cpDetailRows', pagination: 'cpDetailPagination', firstBtn: 'cpDetailFirstPage', prevBtn: 'cpDetailPrevPage', nextBtn: 'cpDetailNextPage', lastBtn: 'cpDetailLastPage', label: 'cpDetailPageLabel' },
         filtered,
         function (p) {
           return '<tr><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
@@ -6921,7 +6973,7 @@
 
       renderPaginatedRows(
         'cpMonthly',
-        { tbody: 'cpMonthlyRows', pagination: 'cpMonthlyPagination', prevBtn: 'cpMonthlyPrevPage', nextBtn: 'cpMonthlyNextPage', label: 'cpMonthlyPageLabel' },
+        { tbody: 'cpMonthlyRows', pagination: 'cpMonthlyPagination', firstBtn: 'cpMonthlyFirstPage', prevBtn: 'cpMonthlyPrevPage', nextBtn: 'cpMonthlyNextPage', lastBtn: 'cpMonthlyLastPage', label: 'cpMonthlyPageLabel' },
         filtered,
         function (p) {
           return '<tr><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
@@ -7251,7 +7303,7 @@
         document.getElementById('end-day-total-paid').textContent = fmtMoney(summary.paid);
         renderPaginatedRows(
           'endOfDay',
-          { tbody: 'endOfDayRows', pagination: 'endOfDayPagination', prevBtn: 'endOfDayPrevPage', nextBtn: 'endOfDayNextPage', label: 'endOfDayPageLabel' },
+          { tbody: 'endOfDayRows', pagination: 'endOfDayPagination', firstBtn: 'endOfDayFirstPage', prevBtn: 'endOfDayPrevPage', nextBtn: 'endOfDayNextPage', lastBtn: 'endOfDayLastPage', label: 'endOfDayPageLabel' },
           transactions,
           item => '<tr><td class="mono name-cell">' + escapeHtml(item.code) + '</td>' +
             '<td class="mono muted">' + escapeHtml(item.time || '—') + '</td>' +
@@ -7282,13 +7334,13 @@
         document.getElementById('chartOverviewPurchases').hidden = !newPurchaseSuppliers.length;
         document.getElementById('overviewPurchaseChartEmpty').hidden = !!newPurchaseSuppliers.length;
         if (newPurchaseSuppliers.length) {
-          renderBarChartList('chartOverviewPurchases', 'overviewPurchases', newPurchaseSuppliers, s => s.name, s => s.total, themeColor('--amber'), true);
+          renderBarChartList('chartOverviewPurchases', 'overviewPurchases', newPurchaseSuppliers.slice(0, 15), s => s.name, s => s.total, themeColor('--amber'), false);
         } else {
           destroyChart('overviewPurchases');
         }
         renderPaginatedRows(
           'overviewPurchase',
-          { tbody: 'overviewPurchaseRows', pagination: 'overviewPurchasePagination', prevBtn: 'overviewPurchasePrevPage', nextBtn: 'overviewPurchaseNextPage', label: 'overviewPurchasePageLabel' },
+          { tbody: 'overviewPurchaseRows', pagination: 'overviewPurchasePagination', firstBtn: 'overviewPurchaseFirstPage', prevBtn: 'overviewPurchasePrevPage', nextBtn: 'overviewPurchaseNextPage', lastBtn: 'overviewPurchaseLastPage', label: 'overviewPurchasePageLabel' },
           newPurchaseOrders,
           p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
             '<td class="mono muted">' + (p.date ? escapeHtml(p.date) : '—') + '</td>' +
@@ -7305,7 +7357,7 @@
         document.getElementById('today-new-products-count').textContent = 'Tổng ' + fmtNumber(Number(todayNewProducts.count || 0)) + ' mã mới';
         renderPaginatedRows(
           'todayNewProducts',
-          { tbody: 'todayNewProductRows', pagination: 'todayNewProductsPagination', prevBtn: 'todayNewProductsPrevPage', nextBtn: 'todayNewProductsNextPage', label: 'todayNewProductsPageLabel' },
+          { tbody: 'todayNewProductRows', pagination: 'todayNewProductsPagination', firstBtn: 'todayNewProductsFirstPage', prevBtn: 'todayNewProductsPrevPage', nextBtn: 'todayNewProductsNextPage', lastBtn: 'todayNewProductsLastPage', label: 'todayNewProductsPageLabel' },
           newProductRows,
           p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
             '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
@@ -7328,7 +7380,7 @@
         document.getElementById('tagLowStock').textContent = d.lowStock.length;
         renderPaginatedRows(
           'lowStock',
-          { tbody: 'stockRows', pagination: 'stockPagination', prevBtn: 'stockPrevPage', nextBtn: 'stockNextPage', label: 'stockPageLabel' },
+          { tbody: 'stockRows', pagination: 'stockPagination', firstBtn: 'stockFirstPage', prevBtn: 'stockPrevPage', nextBtn: 'stockNextPage', lastBtn: 'stockLastPage', label: 'stockPageLabel' },
           d.lowStock,
           p => '<tr><td class="name-cell">' + escapeHtml(p.name) + '<br><span class="mono muted" style="font-size:10.5px;">' + escapeHtml(p.code) + '</span></td>' +
             '<td>' + (p.type ? escapeHtml(p.type) : '—') + '</td><td>' + bizStatusPill(p.status) + '</td>' +
@@ -7346,7 +7398,7 @@
         document.getElementById('tagAllProducts').textContent = filteredProducts.length;
         renderPaginatedRows(
           'allProducts',
-          { tbody: 'allProductRows', pagination: 'allProductsPagination', prevBtn: 'allProductsPrevPage', nextBtn: 'allProductsNextPage', label: 'allProductsPageLabel' },
+          { tbody: 'allProductRows', pagination: 'allProductsPagination', firstBtn: 'allProductsFirstPage', prevBtn: 'allProductsPrevPage', nextBtn: 'allProductsNextPage', lastBtn: 'allProductsLastPage', label: 'allProductsPageLabel' },
           filteredProducts,
           p => '<tr><td class="name-cell">' + escapeHtml(p.name) + '<br><span class="mono muted" style="font-size:10.5px;">' + escapeHtml(p.code) + '</span></td>' +
             '<td class="mono" data-sort-value="' + p.stock + '">' + stockPill(p.stock) + '</td><td class="mono muted" data-sort-value="' + p.reserved + '">' + p.reserved + '</td>' +
@@ -7359,7 +7411,7 @@
         document.getElementById('tagNewlyImported').textContent = newlyImported.length;
         renderPaginatedRows(
           'newlyImported',
-          { tbody: 'newlyImportedRows', pagination: 'newlyImportedPagination', prevBtn: 'newlyImportedPrevPage', nextBtn: 'newlyImportedNextPage', label: 'newlyImportedPageLabel' },
+          { tbody: 'newlyImportedRows', pagination: 'newlyImportedPagination', firstBtn: 'newlyImportedFirstPage', prevBtn: 'newlyImportedPrevPage', nextBtn: 'newlyImportedNextPage', lastBtn: 'newlyImportedLastPage', label: 'newlyImportedPageLabel' },
           newlyImported,
           p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
             '<td class="mono muted">' + escapeHtml(p.firstImportDate) + '</td>' +
@@ -7449,7 +7501,7 @@
         document.getElementById('tagInvoices').textContent = recentInvoices.length;
         renderPaginatedRows(
           'invoices',
-          { tbody: 'invoiceRows', pagination: 'invoicesPagination', prevBtn: 'invoicesPrevPage', nextBtn: 'invoicesNextPage', label: 'invoicesPageLabel' },
+          { tbody: 'invoiceRows', pagination: 'invoicesPagination', firstBtn: 'invoicesFirstPage', prevBtn: 'invoicesPrevPage', nextBtn: 'invoicesNextPage', lastBtn: 'invoicesLastPage', label: 'invoicesPageLabel' },
           recentInvoices,
           inv => '<tr><td class="mono muted">' + escapeHtml(inv.code) + '</td><td class="name-cell">' + (inv.customer ? escapeHtml(inv.customer) : 'Khách lẻ') + '</td>' +
             '<td class="mono" data-sort-value="' + inv.total + '">' + fmtMoney(inv.total) + '</td><td>' + statusPill(inv.status) + '</td></tr>',
@@ -7467,7 +7519,7 @@
         document.getElementById('tagOrders').textContent = recentOrders.length;
         renderPaginatedRows(
           'orders',
-          { tbody: 'orderRows', pagination: 'ordersPagination', prevBtn: 'ordersPrevPage', nextBtn: 'ordersNextPage', label: 'ordersPageLabel' },
+          { tbody: 'orderRows', pagination: 'ordersPagination', firstBtn: 'ordersFirstPage', prevBtn: 'ordersPrevPage', nextBtn: 'ordersNextPage', lastBtn: 'ordersLastPage', label: 'ordersPageLabel' },
           recentOrders,
           o => '<tr><td class="mono muted">' + escapeHtml(o.code) + '</td><td class="name-cell">' + (o.customer ? escapeHtml(o.customer) : 'Khách lẻ') + '</td>' +
             '<td class="mono" data-sort-value="' + o.total + '">' + fmtMoney(o.total) + '</td><td>' + genericStatusPill(o.status) + '</td></tr>',
@@ -7479,7 +7531,7 @@
         document.getElementById('tagReturns').textContent = recentReturns.length;
         renderPaginatedRows(
           'returns',
-          { tbody: 'returnRows', pagination: 'returnsPagination', prevBtn: 'returnsPrevPage', nextBtn: 'returnsNextPage', label: 'returnsPageLabel' },
+          { tbody: 'returnRows', pagination: 'returnsPagination', firstBtn: 'returnsFirstPage', prevBtn: 'returnsPrevPage', nextBtn: 'returnsNextPage', lastBtn: 'returnsLastPage', label: 'returnsPageLabel' },
           recentReturns,
           rt => '<tr><td class="mono muted">' + escapeHtml(rt.code) + '</td><td class="mono muted">' + (rt.originalInvoiceCode ? escapeHtml(rt.originalInvoiceCode) : '—') + '</td>' +
             '<td class="name-cell">' + (rt.customer ? escapeHtml(rt.customer) : 'Khách lẻ') + '</td>' +
@@ -7497,7 +7549,7 @@
         document.getElementById('tagDebt').textContent = topDebt.length;
         renderPaginatedRows(
           'topDebt',
-          { tbody: 'debtRows', pagination: 'topDebtPagination', prevBtn: 'topDebtPrevPage', nextBtn: 'topDebtNextPage', label: 'topDebtPageLabel' },
+          { tbody: 'debtRows', pagination: 'topDebtPagination', firstBtn: 'topDebtFirstPage', prevBtn: 'topDebtPrevPage', nextBtn: 'topDebtNextPage', lastBtn: 'topDebtLastPage', label: 'topDebtPageLabel' },
           topDebt,
           c => '<tr><td class="mono muted">' + escapeHtml(c.code) + '</td><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
             '<td class="mono muted">' + (c.phone ? escapeHtml(c.phone) : '—') + '</td><td class="mono" data-sort-value="' + c.debt + '" style="color:var(--red);">' + fmtMoney(c.debt) + '</td></tr>',
@@ -7513,7 +7565,7 @@
         document.getElementById('top-customer-revenue-count').textContent = topRevenue.label || '—';
         renderPaginatedRows(
           'customerRevenue',
-          { tbody: 'customerRevenueRows', pagination: 'customerRevenuePagination', prevBtn: 'customerRevenuePrevPage', nextBtn: 'customerRevenueNextPage', label: 'customerRevenuePageLabel' },
+          { tbody: 'customerRevenueRows', pagination: 'customerRevenuePagination', firstBtn: 'customerRevenueFirstPage', prevBtn: 'customerRevenuePrevPage', nextBtn: 'customerRevenueNextPage', lastBtn: 'customerRevenueLastPage', label: 'customerRevenuePageLabel' },
           top50,
           c => '<tr><td class="mono muted">' + escapeHtml(c.code) + '</td><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
             '<td class="mono">' + fmtNumber(Number(c.saleOrderCount || 0)) + '</td>' +
@@ -7529,14 +7581,14 @@
         document.getElementById('sp-totaldebt').textContent = fmtMoney(d.kpi.totalSupplierDebt);
         document.getElementById('sp-totalpurchase').textContent = fmtMoney(d.kpi.totalPurchaseSpend);
 
-        const topSupplierDebt = d.suppliers.filter(s => s.debt > 0).slice(0, 25);
-        if (topSupplierDebt.length) renderBarChartList('chartSupplierDebt', 'supplierDebt', topSupplierDebt, s => s.name, s => s.debt, themeColor('--red'), true);
+        const topSupplierDebt = d.suppliers.filter(s => s.debt > 0).slice(0, 15);
+        if (topSupplierDebt.length) renderBarChartList('chartSupplierDebt', 'supplierDebt', topSupplierDebt, s => s.name, s => s.debt, themeColor('--red'), false);
         else destroyChart('supplierDebt');
 
         document.getElementById('tagSuppliers').textContent = d.suppliers.length;
         renderPaginatedRows(
           'suppliers',
-          { tbody: 'supplierRows', pagination: 'supplierPagination', prevBtn: 'supplierPrevPage', nextBtn: 'supplierNextPage', label: 'supplierPageLabel' },
+          { tbody: 'supplierRows', pagination: 'supplierPagination', firstBtn: 'supplierFirstPage', prevBtn: 'supplierPrevPage', nextBtn: 'supplierNextPage', lastBtn: 'supplierLastPage', label: 'supplierPageLabel' },
           d.suppliers,
           s => '<tr><td class="mono muted">' + escapeHtml(s.code) + '</td><td class="name-cell">' + escapeHtml(s.name) + '</td>' +
             '<td class="mono muted">' + (s.phone ? escapeHtml(s.phone) : '—') + '</td>' +
@@ -7586,7 +7638,7 @@
 
       renderPaginatedRows(
         'debt',
-        { tbody: 'debtPeriodRows', pagination: 'debtPagination', prevBtn: 'debtPrevPage', nextBtn: 'debtNextPage', label: 'debtPageLabel' },
+        { tbody: 'debtPeriodRows', pagination: 'debtPagination', firstBtn: 'debtFirstPage', prevBtn: 'debtPrevPage', nextBtn: 'debtNextPage', lastBtn: 'debtLastPage', label: 'debtPageLabel' },
         filtered,
         c => '<tr class="debt-row" style="cursor:pointer;" tabindex="0" role="button" aria-expanded="false" data-customer-code="' + escapeHtml(c.code) + '" onclick="toggleDebtDetail(this)" onkeydown="handleDebtRowKeydown(event, this)">' +
           '<td class="mono muted">' + escapeHtml(c.code) + '</td>' +

@@ -1136,16 +1136,23 @@
       document.getElementById('statLockedUsers').textContent = users.filter(u => u.trangThai === 'Khóa').length;
     }
 
+    // Chuan hoa chuoi tim theo ten: bo dau cach thua/dau/cuoi, gop nhieu khoang
+    // trang lien tiep thanh 1, roi ha chu - de "  Nguyen   Van A" va "nguyen van a"
+    // khop cung mot ket qua.
+    function normalizeNameQuery(value){
+      return String(value || '').normalize('NFC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase('vi-VN');
+    }
+
     function handleFilterUsers(){
-      const q = (document.getElementById('userSearchInput').value || '').trim().toLowerCase();
+      const q = normalizeNameQuery(document.getElementById('userSearchInput').value);
       const roleFilter = document.getElementById('userRoleFilter').value;
       const facFilter = document.getElementById('userFacilityFilter').value;
       const stFilter = document.getElementById('userStatusFilter').value;
 
       let filtered = rawAdminUsers.filter(u => {
-        const matchQ = !q || (u.hoTen && u.hoTen.toLowerCase().includes(q)) ||
-                             (u.username && u.username.toLowerCase().includes(q)) ||
-                             (u.email && u.email.toLowerCase().includes(q));
+        const matchQ = !q || (u.hoTen && normalizeNameQuery(u.hoTen).includes(q)) ||
+                             (u.username && normalizeNameQuery(u.username).includes(q)) ||
+                             (u.email && normalizeNameQuery(u.email).includes(q));
         const matchRole = !roleFilter || u.vaiTro === roleFilter;
         // "Cả hai" trong bo loc = xem moi tai khoan da duoc gan co so (bat ky co so nao).
         const matchFac = !facFilter || (facFilter === 'Cả hai' ? !!u.coSo : u.coSo === facFilter);
