@@ -101,7 +101,8 @@ function extraction(overrides = {}) {
 function setupHarness({
   link = { web_username: 'test', telegram_username: '@test' },
   identity = { hoTen: 'Test User', chucVu: 'NV · Hà Nội' },
-  autoIdentity = null
+  autoIdentity = null,
+  manualLinkError = null
 } = {}) {
   const previousTelegramModule = require.cache[telegramModulePath];
   const previousRepoModule = require.cache[repoPath];
@@ -122,6 +123,10 @@ function setupHarness({
   const repoStub = {
     ...realRepo,
     findLinkByChatId: async () => linkResult,
+    findPendingLinkByCode: async () => ({ web_username: (linkResult && linkResult.web_username) || 'test' }),
+    consumeLinkCode: async (_code, { chatId, telegramUsername }) => ({
+      ...((linkResult || { web_username: 'test' })), telegram_chat_id: String(chatId), telegram_username: telegramUsername
+    }),
     createLeaveRequest: async (data, branch) => {
       created.push(data);
       createdBranches.push(branch);
@@ -167,7 +172,10 @@ function setupHarness({
     id: telegramIdentityServicePath,
     filename: telegramIdentityServicePath,
     loaded: true,
-    exports: { resolveChat: async () => autoIdentity || { status: 'not_found' } }
+    exports: {
+      resolveChat: async () => autoIdentity || { status: 'not_found' },
+      assertManualLinkAllowed: async () => { if (manualLinkError) throw manualLinkError; return true; }
+    }
   };
 
   config.TELEGRAM_BOT_TOKEN = 'test-token';
@@ -244,6 +252,19 @@ test('ID Telegram trong danh sách HR tự liên kết và định tuyến đơn
     await h.pressButton(900, 'confirm');
     assert.equal(h.createdBranches[0], 'Sài Gòn');
     assert.equal(h.created[0].web_username, 'a@example.com');
+  } finally {
+    h.teardown();
+  }
+});
+
+test('/lienket refuses to override a different Telegram ID declared in HR', async () => {
+  const mismatch = new Error('Sheet nhân sự đã chỉ định Telegram ID khác.');
+  mismatch.code = 'TELEGRAM_ID_MISMATCH';
+  const h = setupHarness({ manualLinkError: mismatch });
+  try {
+    await h.bot.triggerText('/lienket 123456', { chatId: 999, from: { username: 'other' } });
+    assert.match(h.bot.sent.at(-1).text, /Liên kết thất bại/);
+    assert.match(h.bot.sent.at(-1).text, /Telegram ID khác/);
   } finally {
     h.teardown();
   }
@@ -431,7 +452,7 @@ test('giá trị tường minh mới thay thế câu trả lời từ chối tr�
   }
 });
 
-test('tin nhắn tự do khi đang CONFIRM thay thế bản nháp cũ (không tạo luồng song song)', async () => {
+test('tin nhắn tự do khi đang CONFIRM được gộp vào bản nháp và tự động gửi lại xác nhận mới', async () => {
   const h = setupHarness();
   try {
     h.queueExtraction(extraction({
@@ -449,14 +470,17 @@ test('tin nhắn tự do khi đang CONFIRM thay thế bản nháp cũ (không t�
 
     const conv = h.store.getConversation(104);
     assert.equal(conv.step, 'CONFIRM');
-    assert.deepEqual(conv.data.messages, ['À quên, em xin nghỉ chiều ngày kia vì khám răng, bàn giao Nguyễn D']);
+    assert.deepEqual(conv.data.messages, [
+      'Em xin nghỉ sáng mai vì khám bệnh, bàn giao Nguyễn B',
+      'À quên, em xin nghỉ chiều ngày kia vì khám răng, bàn giao Nguyễn D'
+    ]);
     assert.match(h.bot.sent.at(-1).text, /Lý do: khám răng/);
   } finally {
     h.teardown();
   }
 });
 
-test('nút xác nhận của draft cũ không thể gửi draft thay thế mới', async () => {
+test('nút xác nhận của card cũ không thể gửi card đã được cập nhật thay thế', async () => {
   const h = setupHarness();
   try {
     h.queueExtraction(extraction({
@@ -479,7 +503,7 @@ test('nút xác nhận của draft cũ không thể gửi draft thay thế mới
   }
 });
 
-test('tin nhắn thay thế draft CONFIRM vô hiệu hóa nút cũ dù AI proxy lỗi', async () => {
+test('tin nhắn chỉnh sửa lỗi AI không làm mất card CONFIRM cũ, vẫn xác nhận được', async () => {
   const h = setupHarness();
   try {
     h.queueExtraction(extraction({
@@ -491,10 +515,103 @@ test('tin nhắn thay thế draft CONFIRM vô hiệu hóa nút cũ dù AI proxy 
 
     h.queueExtractionError(Object.assign(new Error('AI_LEAVE_PROVIDER_ERROR'), { code: 'AI_LEAVE_PROVIDER_ERROR' }));
     await h.sendText(112, 'À quên, em muốn đổi thời gian nghỉ');
-    await h.pressButton(112, 'confirm');
+    assert.equal(h.store.getConversation(112).step, 'CONFIRM');
+
+    await h.pressButton(112, 'confirm', 1);
+
+    assert.equal(h.created.length, 1);
+    assert.equal(h.store.getConversation(112), null);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('gõ ok/xác nhận/đồng ý/oke/oki khi đang CONFIRM tương đương bấm nút Xác nhận', async () => {
+  const h = setupHarness();
+  try {
+    const variants = ['ok', 'Xác nhận ạ', 'đồng ý', 'OKE', 'oki'];
+    for (let i = 0; i < variants.length; i += 1) {
+      const chatId = 200 + i;
+      h.queueExtraction(extraction({
+        start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+        reason: 'khám bệnh', handover: 'Nguyễn B'
+      }));
+      await h.sendText(chatId, 'Em xin nghỉ sáng mai vì khám bệnh, bàn giao Nguyễn B');
+      assert.equal(h.store.getConversation(chatId).step, 'CONFIRM');
+
+      await h.sendText(chatId, variants[i]);
+
+      assert.equal(h.created.length, i + 1);
+      assert.equal(h.store.getConversation(chatId), null);
+    }
+  } finally {
+    h.teardown();
+  }
+});
+
+test('gõ "hủy" khi đang CONFIRM tương đương bấm nút Hủy', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: 'Nguyễn B'
+    }));
+    await h.sendText(210, 'Em xin nghỉ sáng mai vì khám bệnh, bàn giao Nguyễn B');
+    assert.equal(h.store.getConversation(210).step, 'CONFIRM');
+
+    await h.sendText(210, 'Hủy');
 
     assert.equal(h.created.length, 0);
-    assert.equal(h.store.getConversation(112), null);
+    assert.equal(h.store.getConversation(210), null);
+    assert.match(h.bot.sent.at(-1).text, /Đã hủy yêu cầu xin nghỉ phép/);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('"không có" khi đang trả lời câu hỏi làm rõ không bị hiểu nhầm thành lệnh hủy', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: null
+    }));
+    await h.sendText(211, 'Em xin nghỉ sáng mai vì khám bệnh');
+    assert.equal(h.store.getConversation(211).step, 'AWAITING_CLARIFICATION');
+
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: null, handover_declined: true
+    }));
+    await h.sendText(211, 'không có');
+
+    assert.equal(h.store.getConversation(211).step, 'CONFIRM');
+    assert.equal(h.created.length, 0);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('câu chỉnh sửa chứa từ "ok" giữa câu không bị nhận nhầm là xác nhận', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: 'Nguyễn B'
+    }));
+    await h.sendText(212, 'Em xin nghỉ sáng mai vì khám bệnh, bàn giao Nguyễn B');
+    assert.equal(h.store.getConversation(212).step, 'CONFIRM');
+
+    h.queueExtraction(extraction({
+      start_date: '2026-08-24', start_session: 'Chiều', end_date: '2026-08-24', end_session: 'Chiều',
+      reason: 'khám bệnh', handover: 'Nguyễn B'
+    }));
+    await h.sendText(212, 'đổi giờ ok không ạ');
+
+    assert.equal(h.created.length, 0);
+    const conv = h.store.getConversation(212);
+    assert.equal(conv.step, 'CONFIRM');
+    assert.equal(conv.data.messages.length, 2);
   } finally {
     h.teardown();
   }

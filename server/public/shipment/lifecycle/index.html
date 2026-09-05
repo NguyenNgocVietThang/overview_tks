@@ -14,8 +14,8 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/shared/shared.css?v=20260830">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/shared/shared.css?v=20260905">
 <style>
   .lookup-wrap{ width:100%; max-width:none; margin:0; }
   .lookup-hero{ margin-bottom:20px; }
@@ -51,6 +51,22 @@
   .bulk-panel[hidden]{ display:none; }
   .bulk-header{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:16px 20px; border-bottom:1px solid var(--border); background:var(--panel-2); }
   .bulk-header h3{ margin:0; font-family:var(--font-display); font-weight:700; font-size:15px; color:var(--text); }
+  .bulk-search{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:12px 20px; border-bottom:1px solid var(--border); }
+  .bulk-search-modes{ display:flex; gap:6px; }
+  .bulk-mode-btn{
+    padding:7px 14px; border-radius:8px; border:1px solid var(--border); background:var(--panel);
+    color:var(--muted); font-size:12.5px; font-weight:600; cursor:pointer; transition:all .15s ease; white-space:nowrap;
+  }
+  .bulk-mode-btn:hover{ color:var(--text); border-color:var(--blue); }
+  .bulk-mode-btn.active{ color:#fff; background:var(--blue); border-color:var(--blue); }
+  .bulk-search input[type=text]{
+    flex:1; min-width:220px; padding:9px 12px; background:var(--panel-2); color:var(--text);
+    border:1px solid var(--border); border-radius:9px; font-size:13px;
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  .bulk-search input[type=text]:focus{ outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(59,130,246,.2); }
+  .bulk-search-submit{ min-width:96px; padding:9px 14px; font-size:13px; }
+  @media(max-width:640px){ .bulk-search{ flex-direction:column; align-items:stretch; } .bulk-search-submit{ width:100%; } }
   .bulk-filters{ display:flex; gap:6px; }
   .bulk-filter-btn{
     padding:7px 14px; border-radius:8px; border:1px solid var(--border); background:var(--panel);
@@ -58,11 +74,22 @@
   }
   .bulk-filter-btn:hover{ color:var(--text); border-color:var(--blue); }
   .bulk-filter-btn.active{ color:#fff; background:var(--blue); border-color:var(--blue); }
+  .bulk-status-select{
+    padding:7px 12px; border-radius:8px; border:1px solid var(--border); background:var(--panel);
+    color:var(--text); font-size:12.5px; font-weight:600; cursor:pointer;
+  }
+  .bulk-status-select:focus{ outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(59,130,246,.2); }
+  .bulk-export-btn{ padding:7px 14px; font-size:12.5px; white-space:nowrap; }
+  .bulk-export-btn:disabled{ opacity:.5; cursor:not-allowed; }
   .bulk-count{ color:var(--muted); font-size:12.5px; font-weight:600; }
   .bulk-scroll{ overflow-x:auto; }
   .bulk-table{ width:100%; border-collapse:collapse; }
   .bulk-table th,.bulk-table td{ padding:12px 20px; text-align:left; border-bottom:1px solid var(--border); }
   .bulk-table th{ color:var(--muted); font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; background:var(--surface-hover); }
+  .bulk-table th.sortable{ cursor:pointer; user-select:none; white-space:nowrap; }
+  .bulk-table th.sortable:hover{ color:var(--text); }
+  .bulk-table th .sort-ind{ display:inline-block; margin-left:4px; font-size:10px; opacity:.5; }
+  .bulk-table th.sort-active .sort-ind{ opacity:1; color:var(--blue); }
   .bulk-table td{ font-size:13.5px; }
   .bulk-table td:first-child{ font-family:var(--font-data); font-weight:600; color:var(--text); }
   .bulk-table tbody tr{ cursor:pointer; transition:background-color .12s ease; }
@@ -104,7 +131,7 @@
         <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
         </svg>
-        <span id="themeLabel">Chế độ sáng</span>
+        <span id="themeLabel">Light mode</span>
       </button>
       <div class="account-chip" id="accountChip"></div>
     </div>
@@ -145,16 +172,39 @@
             <h3>Toàn bộ đơn hàng</h3>
             <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
               <span class="bulk-count" id="bulkCount"></span>
+              <select class="bulk-status-select" id="bulkStatusFilter" aria-label="Lọc theo trạng thái">
+                <option value="">Tất cả trạng thái</option>
+                <option value="NOT_SENT">Chưa gửi kế toán</option>
+                <option value="SENT_TO_ACCOUNTANT">Đã gửi kế toán</option>
+                <option value="DELIVERING">Đang được giao</option>
+                <option value="DELIVERED">Đã giao thành công</option>
+              </select>
               <div class="bulk-filters" id="bulkFilters">
                 <button type="button" class="bulk-filter-btn active" data-branch="">Tất cả</button>
                 <button type="button" class="bulk-filter-btn" data-branch="HN">Hà Nội</button>
                 <button type="button" class="bulk-filter-btn" data-branch="SG">Sài Gòn</button>
               </div>
+              <button type="button" class="btn-secondary bulk-export-btn" id="bulkExportBtn" disabled>Xuất Excel</button>
             </div>
           </div>
+          <form class="bulk-search" id="bulkSearchForm">
+            <div class="bulk-search-modes" id="bulkSearchModes">
+              <button type="button" class="bulk-mode-btn active" data-mode="code">Theo mã</button>
+              <button type="button" class="bulk-mode-btn" data-mode="sale">Theo tên sale</button>
+              <button type="button" class="bulk-mode-btn" data-mode="customer">Theo tên khách</button>
+            </div>
+            <input type="text" id="bulkSearchInput" autocomplete="off">
+            <button type="submit" class="btn-secondary bulk-search-submit">Tìm kiếm</button>
+          </form>
           <div class="bulk-scroll">
             <table class="bulk-table">
-              <thead><tr><th>Mã đơn</th><th>Sale</th><th>Trạng thái</th><th>Cập nhật gần nhất</th></tr></thead>
+              <thead><tr id="bulkHeadRow">
+                <th class="sortable" data-sort="orderCode">Mã đơn<span class="sort-ind">▲</span></th>
+                <th class="sortable" data-sort="saleName">Sale<span class="sort-ind">▲</span></th>
+                <th class="sortable" data-sort="customerName">Khách hàng<span class="sort-ind">▲</span></th>
+                <th class="sortable" data-sort="status">Trạng thái<span class="sort-ind">▲</span></th>
+                <th class="sortable" data-sort="at">Cập nhật gần nhất<span class="sort-ind">▲</span></th>
+              </tr></thead>
               <tbody id="bulkBody"></tbody>
             </table>
           </div>
@@ -176,7 +226,7 @@
   </div>
 
   <!-- Dat o cuoi than <body> thay vi <head>: script chan phan tich cu phap trong <head> se lam dung viec xu ly toan bo tai lieu. Khong dung `defer` vi script inline ben duoi dung TKSNav o cap cao nhat, va script inline luon chay truoc script defer. -->
-  <script src="/shared/shared-nav.js?v=20260830"></script>
+  <script src="/shared/shared-nav.js?v=20260905"></script>
 
   <script>
     const THEME_STORAGE_KEY = 'tks-dashboard-theme';
@@ -191,7 +241,7 @@
         button.title = action;
       }
       const label = document.getElementById('themeLabel');
-      if(label) label.textContent = isLight ? 'Chế độ tối' : 'Chế độ sáng';
+      if(label) label.textContent = isLight ? 'Dark mode' : 'Light mode';
     }
 
     function toggleTheme(){
@@ -214,6 +264,7 @@
     const DETAIL_FIELDS = [
       { key: 'orderCode', label: 'Mã đơn hàng' },
       { key: 'saleName', label: 'Nhân viên bán hàng' },
+      { key: 'customerName', label: 'Khách hàng' },
       { key: 'saleSentAt', label: 'Sale gửi đơn cho kế toán' },
       { key: 'accountantApprovedOrderAt', label: 'Kế toán duyệt đơn' },
       { key: 'driverName', label: 'Lái xe' },
@@ -232,6 +283,13 @@
     // o server/shipment/orderLifecycleRoutes.js. Day chi la lop UX (an/hien
     // panel); ranh gioi bao mat that su nam o requireRole phia server.
     const BULK_VIEW_ROLES = ['Kế toán', 'Trưởng kho', 'Quản lý', 'Trợ lý', 'Nhân viên sale'];
+
+    function normalizeSearchText(value){
+      return String(value == null ? '' : value)
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+        .toLowerCase().trim();
+    }
 
     function escapeHtml(value){
       return String(value == null ? '' : value)
@@ -333,26 +391,212 @@
     const bulkCount = document.getElementById('bulkCount');
     const bulkEmpty = document.getElementById('bulkEmpty');
     const bulkFilters = document.getElementById('bulkFilters');
+    const bulkSearchForm = document.getElementById('bulkSearchForm');
+    const bulkSearchModes = document.getElementById('bulkSearchModes');
+    const bulkSearchInput = document.getElementById('bulkSearchInput');
+    const bulkStatusFilter = document.getElementById('bulkStatusFilter');
+    const bulkExportBtn = document.getElementById('bulkExportBtn');
+    const bulkHeadRow = document.getElementById('bulkHeadRow');
     let activeBranchFilter = '';
+    let activeStatusFilter = '';
+    let allBulkOrders = [];
+    let bulkSearchMode = 'code';
+    let sortKey = null;
+    let sortDir = 1; // 1 = tang dan, -1 = giam dan
+    let lastVisibleOrders = []; // danh sach dang hien tren bang (da loc + sap xep) — dung de xuat Excel
 
-    function renderBulkRows(orders){
-      bulkBody.replaceChildren();
-      bulkEmpty.hidden = orders.length > 0;
-      bulkCount.textContent = orders.length + ' đơn';
-      orders.forEach(function(order){
-        const row = document.createElement('tr');
-        row.innerHTML =
-          '<td>' + escapeHtml(order.orderCode) + '</td>' +
-          '<td>' + escapeHtml(order.saleName || '—') + '</td>' +
-          '<td>' + renderBadge(order.summary) + '</td>' +
-          '<td>' + escapeHtml((order.summary && order.summary.at) || '—') + '</td>';
-        row.addEventListener('click', function(){ openDetailModal(order); });
-        bulkBody.appendChild(row);
+    function parseVNDateTime(value){
+      const text = String(value == null ? '' : value).trim();
+      const m = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2})[:,](\d{2}))?/);
+      if(!m) return 0;
+      const day = Number(m[1]), month = Number(m[2]), year = Number(m[3]);
+      const hour = Number(m[4] || 0), minute = Number(m[5] || 0);
+      return new Date(year, month - 1, day, hour, minute).getTime();
+    }
+
+    const SORT_ACCESSORS = {
+      orderCode: function(o){ return normalizeSearchText(o.orderCode); },
+      saleName: function(o){ return normalizeSearchText(o.saleName); },
+      customerName: function(o){ return normalizeSearchText(o.customerName); },
+      status: function(o){ return normalizeSearchText(o.summary && o.summary.label); },
+      at: function(o){ return parseVNDateTime(o.summary && o.summary.at); }
+    };
+
+    function applySort(list){
+      if(!sortKey) return list;
+      const accessor = SORT_ACCESSORS[sortKey];
+      return list.slice().sort(function(a, b){
+        const av = accessor(a), bv = accessor(b);
+        if(av < bv) return -1 * sortDir;
+        if(av > bv) return 1 * sortDir;
+        return 0;
       });
     }
 
-    function loadBulkOrders(){
-      bulkCount.textContent = 'Đang tải...';
+    function syncSortHeaderUI(){
+      bulkHeadRow.querySelectorAll('th.sortable').forEach(function(th){
+        const isActive = th.dataset.sort === sortKey;
+        th.classList.toggle('sort-active', isActive);
+        const ind = th.querySelector('.sort-ind');
+        if(ind) ind.textContent = isActive ? (sortDir === 1 ? '▲' : '▼') : '▲';
+      });
+    }
+
+    bulkHeadRow.addEventListener('click', function(e){
+      const th = e.target.closest('th.sortable');
+      if(!th) return;
+      const key = th.dataset.sort;
+      if(sortKey !== key){
+        sortKey = key;
+        sortDir = 1;
+      } else if(sortDir === 1){
+        sortDir = -1;
+      } else {
+        sortKey = null;
+        sortDir = 1;
+      }
+      syncSortHeaderUI();
+      applyBulkFilters();
+    });
+
+    const BULK_SEARCH_PLACEHOLDER = {
+      code: 'Nhập mã đơn — cách nhau bằng khoảng trắng nếu tìm nhiều mã, nhấn Enter để tìm...',
+      sale: 'Nhập tên sale, nhấn Enter để tìm...',
+      customer: 'Nhập tên khách hàng, nhấn Enter để tìm...'
+    };
+
+    // Tach nhieu ma cach nhau boi 1 hoac nhieu dau space, chuan hoa + loai trung
+    // — cung logic voi parseSearchCodes o tab Tong quan (server/public/index.html).
+    function parseSearchCodes(value){
+      const normalized = String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+      if(!normalized) return [];
+      const seen = new Set();
+      return normalized.split(' ').filter(Boolean).filter(function(code){
+        const key = normalizeSearchText(code);
+        if(seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+
+    // Reconciliation theo key (ma don) thay vi xoa-dung lai toan bo <tbody> —
+    // moi lan auto-refresh (60s) chi dong cham DOM cua nhung dong THAY DOI
+    // (noi dung khac chu ky truoc) hoac dong moi/bi xoa; dong khong doi giu
+    // nguyen node cu (khong flash/giat khi user dang doc/cuon bang).
+    const bulkRowNodes = new Map(); // key (ma don chuan hoa) -> { tr, sig }
+
+    function rowKey(order){ return normalizeSearchText(order.orderCode); }
+
+    function rowSignature(order){
+      return JSON.stringify([
+        order.orderCode, order.saleName, order.customerName,
+        order.summary && order.summary.code, order.summary && order.summary.label, order.summary && order.summary.at
+      ]);
+    }
+
+    function rowInnerHtml(order){
+      return '<td>' + escapeHtml(order.orderCode) + '</td>' +
+        '<td>' + escapeHtml(order.saleName || '—') + '</td>' +
+        '<td>' + escapeHtml(order.customerName || '—') + '</td>' +
+        '<td>' + renderBadge(order.summary) + '</td>' +
+        '<td>' + escapeHtml((order.summary && order.summary.at) || '—') + '</td>';
+    }
+
+    function buildRow(order){
+      const tr = document.createElement('tr');
+      tr.innerHTML = rowInnerHtml(order);
+      tr._order = order;
+      tr.addEventListener('click', function(){ openDetailModal(tr._order); });
+      return tr;
+    }
+
+    function renderBulkRows(orders, total){
+      lastVisibleOrders = orders;
+      bulkExportBtn.disabled = orders.length === 0;
+      bulkEmpty.hidden = orders.length > 0;
+      const countText = (total !== undefined && total !== orders.length)
+        ? (orders.length + ' / ' + total + ' đơn')
+        : (orders.length + ' đơn');
+      if(bulkCount.textContent !== countText) bulkCount.textContent = countText;
+
+      const seenKeys = new Set();
+      let prevNode = null;
+      orders.forEach(function(order){
+        const key = rowKey(order);
+        seenKeys.add(key);
+        const sig = rowSignature(order);
+        let entry = bulkRowNodes.get(key);
+        if(!entry){
+          entry = { tr: buildRow(order), sig: sig };
+          bulkRowNodes.set(key, entry);
+        } else if(entry.sig !== sig){
+          entry.tr.innerHTML = rowInnerHtml(order);
+          entry.sig = sig;
+        }
+        entry.tr._order = order; // du khong doi noi dung hien thi, cap nhat detail moi nhat cho modal
+        const expectedNext = prevNode ? prevNode.nextSibling : bulkBody.firstChild;
+        if(expectedNext !== entry.tr) bulkBody.insertBefore(entry.tr, expectedNext);
+        prevNode = entry.tr;
+      });
+      // Go cac dong khong con trong danh sach moi (bi loc ra hoac da bi xoa khoi sheet)
+      bulkRowNodes.forEach(function(entry, key){
+        if(!seenKeys.has(key)){
+          entry.tr.remove();
+          bulkRowNodes.delete(key);
+        }
+      });
+    }
+
+    function applyBulkFilters(){
+      const rawQuery = bulkSearchInput.value;
+      let filtered = allBulkOrders;
+      if(bulkSearchMode === 'code'){
+        const codes = parseSearchCodes(rawQuery).map(normalizeSearchText);
+        if(codes.length){
+          filtered = allBulkOrders.filter(function(order){
+            const orderCode = normalizeSearchText(order.orderCode);
+            return codes.some(function(code){ return orderCode.indexOf(code) !== -1; });
+          });
+        }
+      } else {
+        const query = normalizeSearchText(rawQuery);
+        if(query){
+          const field = bulkSearchMode === 'sale' ? 'saleName' : 'customerName';
+          filtered = allBulkOrders.filter(function(order){
+            return normalizeSearchText(order[field]).indexOf(query) !== -1;
+          });
+        }
+      }
+      if(activeStatusFilter){
+        filtered = filtered.filter(function(order){ return order.summary && order.summary.code === activeStatusFilter; });
+      }
+      filtered = applySort(filtered);
+      renderBulkRows(filtered, allBulkOrders.length);
+    }
+
+    function setBulkSearchMode(mode){
+      if(bulkSearchMode === mode) return;
+      bulkSearchMode = mode;
+      bulkSearchModes.querySelectorAll('.bulk-mode-btn').forEach(function(btn){
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+      });
+      bulkSearchInput.placeholder = BULK_SEARCH_PLACEHOLDER[mode];
+      applyBulkFilters();
+      bulkSearchInput.focus();
+    }
+    bulkSearchInput.placeholder = BULK_SEARCH_PLACEHOLDER.code;
+
+    // Tu dong lam moi Khu B moi 60s (don hang cap nhat trang thai lien tuc qua
+    // Bot Telegram) — silent=true bo qua "Đang tải..." de khong lam giat
+    // giao dien khi dang xem/cuon bang; chi request khi tab dang hien (tranh
+    // ton tai nguyen o tab nen) va bo qua neu request truoc do chua xong.
+    const BULK_AUTO_REFRESH_MS = 60000;
+    let bulkLoadInFlight = false;
+
+    function loadBulkOrders(silent){
+      if(bulkLoadInFlight) return;
+      bulkLoadInFlight = true;
+      if(!silent) bulkCount.textContent = 'Đang tải...';
       const query = activeBranchFilter ? ('?branch=' + activeBranchFilter) : '';
       fetch('/api/shipment/lifecycle' + query, { credentials: 'same-origin' })
         .then(function(res){ return res.json().then(function(body){ return { ok: res.ok, body: body }; }); })
@@ -361,9 +605,12 @@
             const handledByBranchBanner = TKSNav.handleBranchError(result.body);
             throw new Error(result.body.error || 'Không tải được danh sách đơn hàng.', { cause: { handledByBranchBanner } });
           }
-          renderBulkRows(result.body.orders || []);
+          allBulkOrders = result.body.orders || [];
+          applyBulkFilters();
         })
         .catch(function(err){
+          if(silent) return; // giu nguyen bang cu neu refresh nen loi tam thoi
+          allBulkOrders = [];
           bulkCount.textContent = '';
           bulkEmpty.hidden = false;
           // Banner rieng (goc tren trang) da giai thich ly do khi la loi co so
@@ -373,8 +620,27 @@
           bulkEmpty.textContent = handledByBranchBanner
             ? 'Xem thông báo phía trên để biết chi tiết.'
             : (err.message || 'Không tải được danh sách đơn hàng.');
-        });
+        })
+        .finally(function(){ bulkLoadInFlight = false; });
     }
+
+    function startBulkAutoRefresh(){
+      setInterval(function(){
+        if(document.hidden || bulkPanel.hidden) return;
+        loadBulkOrders(true);
+      }, BULK_AUTO_REFRESH_MS);
+      // Quay lai tab sau khi an lau: lam moi ngay thay vi doi den ky tiep theo.
+      document.addEventListener('visibilitychange', function(){
+        if(!document.hidden && !bulkPanel.hidden) loadBulkOrders(true);
+      });
+    }
+
+    bulkSearchForm.addEventListener('submit', function(e){ e.preventDefault(); applyBulkFilters(); });
+    bulkSearchModes.addEventListener('click', function(e){
+      const btn = e.target.closest('.bulk-mode-btn');
+      if(!btn) return;
+      setBulkSearchMode(btn.dataset.mode);
+    });
 
     bulkFilters.addEventListener('click', function(e){
       const btn = e.target.closest('.bulk-filter-btn');
@@ -385,11 +651,54 @@
       loadBulkOrders();
     });
 
+    bulkStatusFilter.addEventListener('change', function(){
+      activeStatusFilter = bulkStatusFilter.value;
+      applyBulkFilters();
+    });
+
+    async function exportBulkOrders(){
+      if(!lastVisibleOrders.length || bulkExportBtn.disabled) return;
+      const originalText = bulkExportBtn.textContent;
+      bulkExportBtn.disabled = true;
+      bulkExportBtn.textContent = 'Đang tạo file...';
+      try{
+        const codes = lastVisibleOrders.map(function(o){ return o.orderCode; });
+        const res = await fetch('/api/shipment/lifecycle/export', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ codes: codes })
+        });
+        if(!res.ok){
+          const body = await res.json().catch(function(){ return {}; });
+          throw new Error(body.error || 'Không thể tạo file Excel.');
+        }
+        const blob = await res.blob();
+        const disposition = res.headers.get('Content-Disposition') || '';
+        const match = disposition.match(/filename="?([^";]+)"?/i);
+        const filename = match ? match[1] : 'TKS_Vong_doi_don_hang.xlsx';
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url; link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      } catch(err){
+        alert(err.message || 'Không thể tạo file Excel.');
+      } finally {
+        bulkExportBtn.disabled = lastVisibleOrders.length === 0;
+        bulkExportBtn.textContent = originalText;
+      }
+    }
+    bulkExportBtn.addEventListener('click', exportBulkOrders);
+
     TKSNav.authGuard().then(function(user){
       if(!user) return;
       if(BULK_VIEW_ROLES.indexOf(user.vaiTro) === -1) return;
+      lookupForm.hidden = true;
       bulkPanel.hidden = false;
       loadBulkOrders();
+      startBulkAutoRefresh();
     });
   </script>
   <script src="/shared/shooting-star.js?v=20260830"></script>

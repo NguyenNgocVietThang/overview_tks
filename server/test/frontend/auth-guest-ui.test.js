@@ -29,7 +29,8 @@ test('trang van chuyen mac dinh an ket qua va chi co hai cot cong khai', () => {
   const html = readPublic('shipment/index.html');
   assert.match(html, /class="panel results-panel"/);
   assert.match(html, /<th>Mã hóa đơn<\/th><th>Trạng thái<\/th>/);
-  assert.doesNotMatch(html, /SĐT khách|Tổng tiền hàng|Khách hàng<\/th>/);
+  const resultsTable = html.match(/<table class="results-table">[\s\S]*?<\/table>/)?.[0] || '';
+  assert.doesNotMatch(resultsTable, /SĐT khách|Tổng tiền hàng|Khách hàng<\/th>/);
 });
 
 test('shared nav an Bao cao tong hop voi Khach va chuyen Khach ve shipment khi vao trang cam', () => {

@@ -210,6 +210,13 @@ function makeError(message, statusCode, code) {
   return err;
 }
 
+// Chuan hoa chuoi tim theo ten: bo dau cach thua/dau/cuoi, gop nhieu khoang
+// trang lien tiep thanh 1, roi ha chu - de "  Van A" va "van a" khop cung mot
+// ket qua, khong phu thuoc cach nguoi dieu phoi go ten lai xe luc tao don.
+function normalizeNameQuery(value) {
+  return String(value || '').normalize('NFC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase('vi-VN');
+}
+
 // ---------------------------------------------------------------------------
 // getOrders — danh sach don, filter tuy chon
 // ---------------------------------------------------------------------------
@@ -224,11 +231,13 @@ async function getOrders(filter = {}, branch) {
   const rawRows = await client.vcGetValues(CONFIG.VC_SHEET_ORDERS);
   const orders = rowsToObjects(SCHEMA.orders.headers, SCHEMA.orders.fieldKeys, rawRows);
 
+  const driverNameNeedle = driverName ? normalizeNameQuery(driverName) : '';
+
   return orders.filter(o => {
     if (warehouse   && o.warehouse    !== warehouse)   return false;
     if (flow        && String(o.flow) !== String(flow)) return false;
     if (status      && o.current_status !== status)    return false;
-    if (driverName  && o.driver_name  !== driverName)  return false;
+    if (driverNameNeedle && !normalizeNameQuery(o.driver_name).includes(driverNameNeedle)) return false;
     if (dateFrom    && o.created_at   < dateFrom)       return false;
     if (dateTo      && o.created_at   > dateTo)         return false;
     return true;

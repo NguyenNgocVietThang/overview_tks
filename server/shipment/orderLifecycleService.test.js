@@ -33,6 +33,7 @@ function record(overrides) {
   return Object.assign({
     orderCode: 'HD001',
     saleName: '',
+    customerName: '',
     saleSentAt: '',
     accountantApprovedOrderAt: '',
     driverName: '',
@@ -172,6 +173,106 @@ test('listAllOrders: lọc theo branch và giữ nguyên thứ tự hàng trong 
 
     const hnOnly = await ctx.service.listAllOrders('HN');
     assert.deepEqual(hnOnly.map(o => o.orderCode), ['HD001', 'HD003']);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('toDetail (qua findOrder) trả kèm customerName', async () => {
+  const ctx = freshService([record({ orderCode: 'HD001', saleName: 'Sale A', customerName: 'KH A', saleSentAt: '01/09/2026' })]);
+  try {
+    const result = await ctx.service.findOrder('HD001');
+    assert.equal(result.detail.customerName, 'KH A');
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('findOrdersBulk: mã tồn tại -> trả sale/khách hàng/tên cột trạng thái/thời gian, bỏ qua cột kế toán duyệt', async () => {
+  const ctx = freshService([record({
+    orderCode: 'HD001', saleName: 'Sale A', customerName: 'KH A',
+    saleSentAt: '01/09/2026 08:00', accountantApprovedOrderAt: '01/09/2026 09:00'
+  })]);
+  try {
+    const results = await ctx.service.findOrdersBulk(['HD001']);
+    assert.equal(results.length, 1);
+    assert.equal(results[0].found, true);
+    assert.equal(results[0].saleName, 'Sale A');
+    assert.equal(results[0].customerName, 'KH A');
+    assert.equal(results[0].statusLabel, 'Sale gửi đơn cho kế toán');
+    assert.equal(results[0].at, '01/09/2026 08:00');
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('findOrdersBulk: mã không tồn tại -> found:false', async () => {
+  const ctx = freshService([record({ orderCode: 'HD001' })]);
+  try {
+    const results = await ctx.service.findOrdersBulk(['HD999']);
+    assert.deepEqual(results, [{ code: 'HD999', found: false }]);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('findOrdersBulk: quá 50 mã -> ném lỗi 400 TOO_MANY_CODES', async () => {
+  const ctx = freshService([]);
+  try {
+    const tooMany = Array.from({ length: 51 }, (_, i) => 'HD' + i);
+    await assert.rejects(
+      () => ctx.service.findOrdersBulk(tooMany),
+      err => err.statusCode === 400 && err.code === 'TOO_MANY_CODES'
+    );
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('findOrdersBulk: dedupe mã trùng (không phân biệt hoa/thường)', async () => {
+  const ctx = freshService([record({ orderCode: 'HD001', saleSentAt: '01/09/2026' })]);
+  try {
+    const results = await ctx.service.findOrdersBulk(['HD001', 'hd001', ' HD001 ']);
+    assert.equal(results.length, 1);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('exportOrdersByCodes: không truyền codes -> xuất toàn bộ, giữ thứ tự trong sheet', async () => {
+  const ctx = freshService([
+    record({ orderCode: 'HD001', _branch: 'HN' }),
+    record({ orderCode: 'HD002', _branch: 'SG' })
+  ]);
+  try {
+    const all = await ctx.service.exportOrdersByCodes();
+    assert.deepEqual(all.map(o => o.orderCode), ['HD001', 'HD002']);
+    assert.equal(all[0].branch, 'HN');
+    assert.ok(all[0].summary);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('exportOrdersByCodes: truyền codes -> xuất đúng thứ tự đã yêu cầu (khớp bảng đã lọc/sắp xếp trên UI)', async () => {
+  const ctx = freshService([
+    record({ orderCode: 'HD001', _branch: 'HN' }),
+    record({ orderCode: 'HD002', _branch: 'SG' }),
+    record({ orderCode: 'HD003', _branch: 'HN' })
+  ]);
+  try {
+    const result = await ctx.service.exportOrdersByCodes(['HD003', 'hd001']);
+    assert.deepEqual(result.map(o => o.orderCode), ['HD003', 'HD001']);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('exportOrdersByCodes: mã không tồn tại bị bỏ qua', async () => {
+  const ctx = freshService([record({ orderCode: 'HD001', _branch: 'HN' })]);
+  try {
+    const result = await ctx.service.exportOrdersByCodes(['HD001', 'HD999']);
+    assert.deepEqual(result.map(o => o.orderCode), ['HD001']);
   } finally {
     ctx.restore();
   }

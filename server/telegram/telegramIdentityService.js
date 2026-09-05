@@ -3,6 +3,7 @@
 const employeeDirectory = require('../hr/employeeDirectory');
 const effectiveUserResolver = require('../auth/effectiveUserResolver');
 const hrLeaveRepository = require('../hr/hrLeaveRepository');
+const localUserStore = require('../auth/localUserStore');
 
 class TelegramIdentityError extends Error {
   constructor(message, code, statusCode = 409) {
@@ -18,6 +19,7 @@ function createTelegramIdentityService(options = {}) {
   const findEmployeeByIdentifier = options.findEmployeeByIdentifier || employeeDirectory.findEmployeeByIdentifier;
   const resolver = options.resolver || effectiveUserResolver;
   const linkRepository = options.linkRepository || hrLeaveRepository;
+  const store = options.store || localUserStore;
 
   async function ensureLinkForUser(user, telegramUsername = '') {
     if (!user || !user.hrManaged) return null;
@@ -56,7 +58,22 @@ function createTelegramIdentityService(options = {}) {
     return { status: 'linked', employee, user, link, sourceBranch: employee.sourceBranch };
   }
 
-  return { ensureLinkForUser, resolveChat };
+  async function assertManualLinkAllowed(webUsername, chatId) {
+    const user = await store.getUserByUsername(webUsername);
+    if (!user) return true;
+    const snapshot = await directory.getSnapshot();
+    const employee = findEmployeeByIdentifier(snapshot.employees, {
+      email: user.email || user.username,
+      phone: user.soDienThoai || user.username
+    });
+    if (!employee || !employee.telegramId) return true;
+    if (String(employee.telegramId) !== String(chatId)) {
+      throw new TelegramIdentityError('Sheet nhân sự đã chỉ định một Telegram ID khác cho tài khoản này.', 'TELEGRAM_ID_MISMATCH', 409);
+    }
+    return true;
+  }
+
+  return { ensureLinkForUser, resolveChat, assertManualLinkAllowed };
 }
 
 const defaultService = createTelegramIdentityService();
@@ -65,6 +82,6 @@ module.exports = {
   TelegramIdentityError,
   createTelegramIdentityService,
   ensureLinkForUser: defaultService.ensureLinkForUser,
-  resolveChat: defaultService.resolveChat
+  resolveChat: defaultService.resolveChat,
+  assertManualLinkAllowed: defaultService.assertManualLinkAllowed
 };
-

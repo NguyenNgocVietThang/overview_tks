@@ -5,15 +5,24 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { AUTH_COOKIE_NAME } = require('../auth/authMiddleware');
 const { signToken } = require('../auth/authService');
+const localUserStore = require('../auth/localUserStore');
+const effectiveUserResolver = require('../auth/effectiveUserResolver');
+const testUsers = new Map();
+localUserStore.getUserById = async id => testUsers.get(String(id)) || null;
+effectiveUserResolver.resolveUser = async user => user;
+delete require.cache[require.resolve('../auth/authMiddleware')];
+delete require.cache[require.resolve('./orderLifecycleRoutes')];
+const { AUTH_COOKIE_NAME } = require('../auth/authMiddleware');
 const router = require('./orderLifecycleRoutes');
 const service = require('./orderLifecycleService');
 
 function fakeRes() {
-  const res = { statusCode: null, body: null };
+  const res = { statusCode: null, body: null, headers: {}, sentBuffer: null };
   res.status = code => { res.statusCode = code; return res; };
   res.json = payload => { res.body = payload; return res; };
+  res.setHeader = (name, value) => { res.headers[name] = value; return res; };
+  res.send = payload => { res.sentBuffer = payload; if (res.statusCode === null) res.statusCode = 200; return res; };
   return res;
 }
 
@@ -38,14 +47,19 @@ async function callRoute(method, routePath, req, res) {
   }
 }
 
-function reqAs(vaiTro, params, query) {
-  const token = signToken({ id: 'u1', username: 'u1', hoTen: 'Người dùng', vaiTro, coSo: 'Cả hai' });
-  return { cookies: { [AUTH_COOKIE_NAME]: token }, params: params || {}, query: query || {} };
+function reqAs(vaiTro, params, query, body) {
+  const id = `u-${vaiTro}`;
+  const user = { id, username: id, hoTen: 'Người dùng', vaiTro, coSo: 'Cả hai', trangThai: 'Đang hoạt động' };
+  testUsers.set(id, user);
+  const token = signToken(user);
+  return { cookies: { [AUTH_COOKIE_NAME]: token }, params: params || {}, query: query || {}, body: body || {} };
 }
 
 test.beforeEach(() => {
   service.findOrder = async () => ({ found: true, branch: 'HN', summary: { code: 'DELIVERED' }, detail: {} });
   service.listAllOrders = async () => ([{ orderCode: 'HD001' }]);
+  service.findOrdersBulk = async () => ([{ code: 'HD001', found: true }]);
+  service.exportOrdersByCodes = async () => ([{ orderCode: 'HD001', branch: 'HN', summary: { label: 'Đã giao' } }]);
 });
 
 test('GET /api/shipment/lifecycle/:orderCode — Khách gọi được (200)', async () => {
@@ -111,4 +125,79 @@ test('GET /api/shipment/lifecycle/:orderCode không đăng nhập -> 401', async
   const res = fakeRes();
   await callRoute('get', '/:orderCode', req, res);
   assert.equal(res.statusCode, 401);
+});
+
+test('POST /api/shipment/lifecycle/lookup — Khách gọi được (200)', async () => {
+  const req = reqAs('Khách', {}, {}, { codes: ['HD001'] });
+  const res = fakeRes();
+  await callRoute('post', '/lookup', req, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.results, [{ code: 'HD001', found: true }]);
+});
+
+for (const role of INTERNAL_ROLES) {
+  test(`POST /api/shipment/lifecycle/lookup — ${role} gọi được (200)`, async () => {
+    const req = reqAs(role, {}, {}, { codes: ['HD001'] });
+    const res = fakeRes();
+    await callRoute('post', '/lookup', req, res);
+    assert.equal(res.statusCode, 200);
+  });
+}
+
+for (const role of OUTSIDER_ROLES) {
+  test(`POST /api/shipment/lifecycle/lookup — ${role} bị 403`, async () => {
+    const req = reqAs(role, {}, {}, { codes: ['HD001'] });
+    const res = fakeRes();
+    await callRoute('post', '/lookup', req, res);
+    assert.equal(res.statusCode, 403);
+  });
+}
+
+test('POST /api/shipment/lifecycle/export — Khách bị 403', async () => {
+  const req = reqAs('Khách', {}, {}, { codes: ['HD001'] });
+  const res = fakeRes();
+  await callRoute('post', '/export', req, res);
+  assert.equal(res.statusCode, 403);
+});
+
+for (const role of INTERNAL_ROLES) {
+  test(`POST /api/shipment/lifecycle/export — ${role} gọi được (200, trả file xlsx)`, async () => {
+    const req = reqAs(role, {}, {}, { codes: ['HD001'] });
+    const res = fakeRes();
+    await callRoute('post', '/export', req, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.headers['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    assert.ok(res.sentBuffer && res.sentBuffer.length > 0);
+  });
+}
+
+for (const role of OUTSIDER_ROLES) {
+  test(`POST /api/shipment/lifecycle/export — ${role} bị 403`, async () => {
+    const req = reqAs(role, {}, {}, { codes: ['HD001'] });
+    const res = fakeRes();
+    await callRoute('post', '/export', req, res);
+    assert.equal(res.statusCode, 403);
+  });
+}
+
+test('POST /api/shipment/lifecycle/export — lỗi từ service được trả về đúng statusCode', async () => {
+  service.exportOrdersByCodes = async () => { throw new Error('Lỗi Google Sheets'); };
+  const req = reqAs('Quản lý', {}, {}, { codes: ['HD001'] });
+  const res = fakeRes();
+  await callRoute('post', '/export', req, res);
+  assert.equal(res.statusCode, 500);
+});
+
+test('POST /api/shipment/lifecycle/lookup — body không hợp lệ -> lỗi từ service được trả về đúng statusCode', async () => {
+  service.findOrdersBulk = async () => {
+    const err = new Error('Danh sách mã đơn hàng không hợp lệ.');
+    err.statusCode = 400;
+    err.code = 'INVALID_CODES';
+    throw err;
+  };
+  const req = reqAs('Quản lý', {}, {}, { codes: 'khong-phai-mang' });
+  const res = fakeRes();
+  await callRoute('post', '/lookup', req, res);
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.code, 'INVALID_CODES');
 });

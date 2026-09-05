@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/shared/shared.css?v=20260830">
+<link rel="stylesheet" href="/shared/shared.css?v=20260905">
 <style>
   .hr-wrap{ width:100%; margin:0 auto; }
   .hr-header{ margin-bottom:20px; }
@@ -41,7 +41,7 @@
   .hr-subtab-panel{ display:none; }
   .hr-subtab-panel.active{ display:block; }
 
-  .kpi-row{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; margin-bottom:20px; }
+  .kpi-row{ display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:14px; margin-bottom:20px; }
   @media (max-width:800px){ .kpi-row{ grid-template-columns:repeat(2, minmax(0, 1fr)); } }
   @media (max-width:480px){ .kpi-row{ grid-template-columns:1fr; } }
   .kpi-stat{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px 16px; }
@@ -222,29 +222,6 @@
     color:var(--blue); opacity:1;
   }
 
-  /* ---- Bieu do ---- */
-  .hr-charts-panel{ display:flex; flex-direction:column; gap:16px; margin-bottom:20px; }
-  .chart-card{
-    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-xl);
-    padding:18px 20px; box-shadow:var(--card-shadow);
-  }
-  .chart-card-title{
-    margin:0 0 14px; font-family:var(--font-display); font-size:14.5px; font-weight:700; color:var(--text);
-  }
-  .chart-card-row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  @media (max-width:820px){ .chart-card-row{ grid-template-columns:1fr; } }
-  .chart-canvas-wrap{ position:relative; height:260px; }
-  .chart-canvas-wrap.tall{ height:320px; }
-  .chart-empty-hint{ color:var(--muted); font-size:12.5px; text-align:center; padding:40px 12px; }
-  .chart-subtable-wrap{ margin-top:16px; overflow-x:auto; }
-  .chart-subtable{ width:100%; border-collapse:collapse; text-align:left; }
-  .chart-subtable th, .chart-subtable td{ padding:8px 12px; border-bottom:1px solid var(--border); font-size:12.5px; }
-  .chart-subtable th{
-    background:var(--panel-2); color:var(--muted); font-size:11px; font-weight:600;
-    text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;
-  }
-  .chucvu-drilldown-bar{ display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
-  .chucvu-drilldown-bar label{ font-size:12.5px; color:var(--muted); font-weight:600; }
 </style>
 </head>
 <body>
@@ -369,54 +346,6 @@
           </div>
         </div>
 
-        <!-- Bieu do thong ke nghi phep -->
-        <div class="hr-charts-panel">
-          <div class="chart-card">
-            <h3 class="chart-card-title">Số lượng nhân viên nghỉ theo ngày (theo chức vụ)</h3>
-            <div class="chart-canvas-wrap"><canvas id="chartDayChucVu"></canvas></div>
-            <div class="chart-subtable-wrap">
-              <table class="chart-subtable" id="dayChucVuTable">
-                <thead><tr id="dayChucVuTableHead"><th>Ngày</th></tr></thead>
-                <tbody id="dayChucVuTableBody"></tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="chart-card">
-            <h3 class="chart-card-title">Tỷ lệ &amp; số lượng nghỉ theo chức vụ</h3>
-            <div class="chart-card-row">
-              <div class="chart-canvas-wrap"><canvas id="chartChucVuPie"></canvas></div>
-              <div class="chart-canvas-wrap"><canvas id="chartChucVuBar"></canvas></div>
-            </div>
-            <div class="chart-subtable-wrap">
-              <table class="chart-subtable" id="chucVuTable">
-                <thead><tr><th>Chức vụ</th><th>Số yêu cầu</th><th>Tỷ lệ</th><th>Tổng ngày nghỉ</th></tr></thead>
-                <tbody id="chucVuTableBody"></tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="chart-card">
-            <h3 class="chart-card-title">Chi tiết theo nhân viên</h3>
-            <div class="chucvu-drilldown-bar">
-              <label for="chucVuDrilldownSelect">Xem chi tiết chức vụ:</label>
-              <select id="chucVuDrilldownSelect" class="filter-select" onchange="renderEmployeeChucVuChart()">
-                <option value="">— Chọn chức vụ để xem chi tiết —</option>
-              </select>
-            </div>
-            <div id="employeeChucVuEmptyHint" class="chart-empty-hint">Chọn 1 chức vụ ở trên để xem chi tiết theo nhân viên.</div>
-            <div id="employeeChucVuContent" style="display:none;">
-              <div class="chart-canvas-wrap tall"><canvas id="chartEmployeeChucVu"></canvas></div>
-              <div class="chart-subtable-wrap">
-                <table class="chart-subtable" id="employeeChucVuTable">
-                  <thead><tr><th>Họ tên</th><th>Số yêu cầu</th><th>Tổng ngày nghỉ</th></tr></thead>
-                  <tbody id="employeeChucVuTableBody"></tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <!-- Lien ket Telegram -->
         <div class="profile-card">
           <div class="profile-card-title">
@@ -496,9 +425,7 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
-  <!-- Đặt ở cuối thẻ <body> thay vì trong <head>: chart.umd.min.js nặng ~200 KB và sẽ làm nghẽn bộ phân tích cú pháp. Không dùng `defer` vì script inline bên dưới dùng TKSNav/Chart ở cấp cao nhất và script inline luôn chạy trước. -->
-  <script src="/shared/shared-nav.js?v=20260830"></script>
-  <script src="/vendor/chart.umd.min.js"></script>
+  <script src="/shared/shared-nav.js?v=20260905"></script>
 
   <script>
     const THEME_STORAGE_KEY = 'tks-dashboard-theme';
@@ -506,7 +433,7 @@
     let rawLeaveRequests = [];
     let urgentSummaryByUsername = {};
     let pendingDecision = null; // { id, status }
-    const state = { tableSorts: {}, charts: {} };
+    const state = { tableSorts: {} };
 
     function syncThemeControl(){
       const isLight = document.documentElement.dataset.theme === 'light';
@@ -526,7 +453,6 @@
       document.documentElement.dataset.theme = nextTheme;
       try{ localStorage.setItem(THEME_STORAGE_KEY, nextTheme); }catch(e){}
       syncThemeControl();
-      if(rawLeaveRequests.length) renderCharts(rawLeaveRequests);
     }
 
     function toggleSidebar(){
@@ -630,9 +556,10 @@
       const toEl = document.getElementById('toDateFilter');
       if(fromEl && toEl && !fromEl.value && !toEl.value){
         const today = new Date();
-        const fromDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 2);
+        const fromDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
+        const toDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7);
         fromEl.value = formatDateInputValue(fromDate);
-        toEl.value = formatDateInputValue(today);
+        toEl.value = formatDateInputValue(toDate);
       }
     }
 
@@ -662,7 +589,6 @@
         rawLeaveRequests = data.requests || [];
         renderStats(rawLeaveRequests);
         renderTable(rawLeaveRequests);
-        renderCharts(rawLeaveRequests);
         loadUrgentSummary();
       }catch(err){
         if(!silent) tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Lỗi kết nối máy chủ.</td></tr>';
@@ -690,6 +616,11 @@
       document.getElementById('statViolation').textContent = counts['Vi phạm'];
     }
 
+    function fmtSoNgay(n){
+      const v = Math.round((Number(n) || 0) * 100) / 100;
+      return v.toLocaleString('vi-VN');
+    }
+
     function renderTable(requests){
       const tbody = document.getElementById('leaveTableBody');
       if(!requests.length){
@@ -704,13 +635,10 @@
           ? `<span class="urgent-badge" title="Nghỉ gấp ${urgentEntry.count} lần trong tháng">⚠ ${urgentEntry.count} lần nghỉ gấp</span>` : '';
 
         let statusHtml = '';
-        if (isManager) {
+        if (isManager && r.trang_thai !== 'Vi phạm') {
           const options = ['Chưa duyệt', 'Đã duyệt', 'Từ chối'];
           if (r.trang_thai === 'Tạm duyệt' && !options.includes('Tạm duyệt')) {
             options.splice(1, 0, 'Tạm duyệt');
-          }
-          if (r.trang_thai === 'Vi phạm' && !options.includes('Vi phạm')) {
-            options.push('Vi phạm');
           }
           statusHtml = `
             <select class="status-select ${statusClass}" data-request-id="${escapeHtml(r.request_id)}" data-prev-status="${escapeHtml(r.trang_thai)}" onchange="handleStatusSelectChange(this, '${escapeHtml(r.request_id)}')" aria-label="Trạng thái cho đơn ${escapeHtml(r.request_id)}">
@@ -777,7 +705,6 @@
         }
 
         renderStats(rawLeaveRequests);
-        renderCharts(rawLeaveRequests);
       }catch(err){
         selectEl.value = prevStatus;
         selectEl.className = `status-select ${STATUS_CLASS[prevStatus] || 'leave-pending'}`;
@@ -945,7 +872,7 @@
         const label = button ? button.firstElementChild.textContent : th.textContent.trim();
         const isActive = index === columnIndex;
         th.setAttribute('aria-sort', isActive ? (direction === 'asc' ? 'ascending' : 'descending') : 'none');
-        if(indicator) indicator.textContent = isActive ? (direction === 'asc' ? '↓' : '↑') : '↕';
+        if(indicator) indicator.textContent = isActive ? (direction === 'asc' ? '▼' : '▲') : '↕';
         if(button){
           const nextAction = isActive
             ? (direction === 'asc' ? 'Sắp xếp giảm dần' : 'Bỏ sắp xếp')
@@ -1033,349 +960,6 @@
       }
     }
 
-    // ---------- Bieu do thong ke ----------
-    function themeColor(name){
-      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    }
-
-    function chartTheme(){
-      return {
-        text: themeColor('--text'), muted: themeColor('--muted'), panel: themeColor('--panel'),
-        grid: themeColor('--chart-grid')
-      };
-    }
-
-    const CATEGORY_PALETTE = [
-      '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#6366F1',
-      '#84CC16', '#D946EF', '#14B8A6', '#EF4444', '#0EA5E9', '#EAB308', '#A855F7', '#2DD4BF',
-      '#F43F5E', '#2563EB', '#059669', '#D97706', '#7C3AED', '#DB2777', '#0891B2', '#EA580C'
-    ];
-    const CATEGORY_OTHER_COLOR = '#64748B';
-
-    function isOtherCategory(name){
-      const s = String(name || '').trim().toLowerCase();
-      return s.indexOf('chưa phân loại') === 0 || s.indexOf('khác') === 0 || s === 'other' || s === 'others';
-    }
-
-    function categoryColor(name, index){
-      if(isOtherCategory(name)) return CATEGORY_OTHER_COLOR;
-      const idx = typeof index === 'number' ? index : 0;
-      if(idx < CATEGORY_PALETTE.length) return CATEGORY_PALETTE[idx];
-      const hue = Math.round((idx * 137.508) % 360);
-      return 'hsl(' + hue + ', 72%, 52%)';
-    }
-
-    // Chuyen hex #RRGGBB hoac hsl() sang rgba voi alpha cho mau trong suot
-    function hexToRgba(hex, alpha){
-      if(typeof hex === 'string' && hex.startsWith('#') && hex.length === 7){
-        const r = parseInt(hex.slice(1,3), 16);
-        const g = parseInt(hex.slice(3,5), 16);
-        const b = parseInt(hex.slice(5,7), 16);
-        return `rgba(${r},${g},${b},${alpha})`;
-      }
-      // hsl(...) → tra lai nhu cu voi opacity
-      if(typeof hex === 'string' && hex.startsWith('hsl')){
-        return hex.replace('hsl(', 'hsla(').replace(')', `,${alpha})`);
-      }
-      return hex;
-    }
-
-    // Mau nen trong suot (0.3) cho cot bieu do
-    function categoryColorFill(name, index){
-      const solid = categoryColor(name, index);
-      return hexToRgba(solid, 0.3);
-    }
-
-    // Mau vien solid cho cot bieu do
-    function categoryBorderColor(name, index){
-      return categoryColor(name, index);
-    }
-
-    function destroyChart(key){
-      if(state.charts[key]){ state.charts[key].destroy(); delete state.charts[key]; }
-    }
-
-    // "Chức vụ" = nguyen field chuc_vu (khong tach vaiTro/coSo, theo yeu cau nguoi dung).
-    function chucVuKey(r){
-      return String(r && r.chuc_vu || '').trim() || 'Chưa phân loại';
-    }
-
-    function toDayKey(value){
-      if(!value) return null;
-      const boundary = String(value).match(/(?:Sáng|Chiều)?\s*(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
-      if(boundary){
-        return `${boundary[3]}-${String(boundary[2]).padStart(2, '0')}-${String(boundary[1]).padStart(2, '0')}`;
-      }
-      const d = new Date(value);
-      if(isNaN(d.getTime())) return null;
-      const pad = n => String(n).padStart(2, '0');
-      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-    }
-
-    function getDaysInRange(startDayKey, endDayKey, minDayKey, maxDayKey) {
-      if (!startDayKey) return [];
-      const endKey = endDayKey || startDayKey;
-      const [sy, sm, sd] = startDayKey.split('-').map(Number);
-      const [ey, em, ed] = endKey.split('-').map(Number);
-      const start = new Date(sy, sm - 1, sd);
-      const end = new Date(ey, em - 1, ed);
-      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
-        return [startDayKey];
-      }
-      const days = [];
-      for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const pad = n => String(n).padStart(2, '0');
-        const key = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-        if (minDayKey && key < minDayKey) continue;
-        if (maxDayKey && key > maxDayKey) continue;
-        days.push(key);
-      }
-      return days;
-    }
-
-    function formatDayLabel(dayKey){
-      const [y, m, d] = dayKey.split('-');
-      return `${d}/${m}`;
-    }
-
-    // Bieu do dem theo ngay xin nghi thuc te (mo rong tat ca cac ngay trong dai nghi).
-    function groupByDayAndChucVu(requests){
-      const fromDate = document.getElementById('fromDateFilter') ? document.getElementById('fromDateFilter').value : '';
-      const toDate = document.getElementById('toDateFilter') ? document.getElementById('toDateFilter').value : '';
-      const dayKeys = [];
-      const chucVus = [];
-      const counts = {}; // dayKey -> { chucVu -> count }
-      requests.forEach(r => {
-        const startDayKey = toDayKey(r.thoi_gian_bat_dau);
-        const endDayKey = toDayKey(r.thoi_gian_ket_thuc) || startDayKey;
-        if(!startDayKey) return;
-        const cv = chucVuKey(r);
-        if(chucVus.indexOf(cv) === -1) chucVus.push(cv);
-        const activeDays = getDaysInRange(startDayKey, endDayKey, fromDate, toDate);
-        activeDays.forEach(dayKey => {
-          if(dayKeys.indexOf(dayKey) === -1) dayKeys.push(dayKey);
-          counts[dayKey] = counts[dayKey] || {};
-          counts[dayKey][cv] = (counts[dayKey][cv] || 0) + 1;
-        });
-      });
-      dayKeys.sort();
-      return { dayKeys, chucVus, counts };
-    }
-
-    function groupByChucVu(requests){
-      const map = new Map(); // chucVu -> { chucVu, soYeuCau, tongNgayNghi }
-      requests.forEach(r => {
-        const cv = chucVuKey(r);
-        const entry = map.get(cv) || { chucVu: cv, soYeuCau: 0, tongNgayNghi: 0 };
-        entry.soYeuCau += 1;
-        entry.tongNgayNghi += Number(r.tong_ngay_nghi) || 0;
-        map.set(cv, entry);
-      });
-      return Array.from(map.values()).sort((a, b) => b.soYeuCau - a.soYeuCau);
-    }
-
-    function groupByEmployeeInChucVu(requests, chucVu){
-      const map = new Map(); // hoTen+web_username -> { hoTen, soYeuCau, tongNgayNghi }
-      requests.filter(r => chucVuKey(r) === chucVu).forEach(r => {
-        const key = (r.web_username || r.ho_ten || '').toLowerCase() + '|' + (r.ho_ten || '');
-        const entry = map.get(key) || { hoTen: r.ho_ten || '—', soYeuCau: 0, tongNgayNghi: 0 };
-        entry.soYeuCau += 1;
-        entry.tongNgayNghi += Number(r.tong_ngay_nghi) || 0;
-        map.set(key, entry);
-      });
-      return Array.from(map.values())
-        .filter(e => e.tongNgayNghi > 0)
-        .sort((a, b) => b.tongNgayNghi - a.tongNgayNghi);
-    }
-
-    function fmtSoNgay(n){
-      const v = Math.round((Number(n) || 0) * 100) / 100;
-      return v.toLocaleString('vi-VN');
-    }
-
-    function renderStackedBarByDayChucVu(requests){
-      destroyChart('dayChucVu');
-      const { dayKeys, chucVus, counts } = groupByDayAndChucVu(requests);
-      const theme = chartTheme();
-      const canvas = document.getElementById('chartDayChucVu');
-      const wrap = canvas.closest('.chart-canvas-wrap');
-      if(!dayKeys.length){
-        canvas.style.display = 'none';
-        if(!wrap.querySelector('.chart-empty-hint')) wrap.insertAdjacentHTML('beforeend', '<div class="chart-empty-hint">Không có dữ liệu trong khoảng thời gian đã chọn.</div>');
-      } else {
-        canvas.style.display = '';
-        const hint = wrap.querySelector('.chart-empty-hint');
-        if(hint) hint.remove();
-        const ctx = canvas.getContext('2d');
-        state.charts.dayChucVu = new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: dayKeys.map(formatDayLabel),
-            datasets: chucVus.map((cv, i) => ({
-              label: cv,
-              data: dayKeys.map(dk => (counts[dk] && counts[dk][cv]) || 0),
-              backgroundColor: categoryColorFill(cv, i),
-              borderColor: categoryBorderColor(cv, i),
-              borderWidth: 1.5,
-              borderRadius: 3
-            }))
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            interaction: { mode: 'index', intersect: false, axis: 'x' },
-            plugins: { legend: { display: true, position: 'bottom', labels: { color: theme.text, font: { size: 11 } } } },
-            scales: {
-              x: { stacked: true, ticks: { color: theme.text, font: { size: 11 } }, grid: { display: false } },
-              y: { stacked: true, beginAtZero: true, ticks: { color: theme.muted, precision: 0, font: { size: 10.5 } }, grid: { color: theme.grid } }
-            }
-          }
-        });
-      }
-
-      // Bang tuong ung — so cot phu thuoc so chuc vu trong du lieu da loc, nen phai
-      // xoa co "da wire sort" moi lan render lai de gan lai nut sort dung cot moi.
-      const head = document.getElementById('dayChucVuTableHead');
-      head.innerHTML = '<th>Ngày</th>' + chucVus.map(cv => `<th>${escapeHtml(cv)}</th>`).join('') + '<th>Tổng</th>';
-      delete document.getElementById('dayChucVuTable').dataset.sortInited;
-      delete state.tableSorts['dayChucVuTableBody'];
-      const body = document.getElementById('dayChucVuTableBody');
-      body.innerHTML = dayKeys.length ? dayKeys.map(dk => {
-        const rowCounts = chucVus.map(cv => (counts[dk] && counts[dk][cv]) || 0);
-        const total = rowCounts.reduce((a, b) => a + b, 0);
-        return `<tr><td data-sort-value="${dk.replace(/-/g, '')}">${formatDayLabel(dk)}</td>${rowCounts.map(c => `<td data-sort-value="${c}">${c}</td>`).join('')}<td data-sort-value="${total}">${total}</td></tr>`;
-      }).join('') : `<tr class="empty-row"><td colspan="${chucVus.length + 2}">Không có dữ liệu.</td></tr>`;
-      initSortableTables();
-    }
-
-    let chucVuPieClickData = [];
-
-    function renderChucVuCharts(requests){
-      destroyChart('chucVuPie');
-      destroyChart('chucVuBar');
-      const list = groupByChucVu(requests);
-      chucVuPieClickData = list;
-      const theme = chartTheme();
-      const totalRequests = list.reduce((sum, e) => sum + e.soYeuCau, 0);
-
-      const pieCanvas = document.getElementById('chartChucVuPie');
-      if(list.length){
-        pieCanvas.style.display = '';
-        const pieCtx = pieCanvas.getContext('2d');
-        state.charts.chucVuPie = new Chart(pieCtx, {
-          type: 'doughnut',
-          data: {
-            labels: list.map(e => e.chucVu),
-            datasets: [{ data: list.map(e => e.soYeuCau), backgroundColor: list.map((e, i) => categoryColorFill(e.chucVu, i)), borderColor: list.map((e, i) => categoryBorderColor(e.chucVu, i)), borderWidth: 1.5 }]
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: {
-              legend: { display: true, position: 'bottom', labels: { color: theme.text, font: { size: 10.5 }, boxWidth: 10 } },
-              tooltip: { callbacks: { label: c => `${c.label}: ${c.raw} (${totalRequests ? Math.round(c.raw / totalRequests * 1000) / 10 : 0}%)` } }
-            }
-          }
-        });
-      }
-
-      const barCanvas = document.getElementById('chartChucVuBar');
-      if(list.length){
-        barCanvas.style.display = '';
-        const barCtx = barCanvas.getContext('2d');
-        state.charts.chucVuBar = new Chart(barCtx, {
-          type: 'bar',
-          data: {
-            labels: list.map(e => e.chucVu),
-            datasets: [{ data: list.map(e => e.soYeuCau), backgroundColor: list.map((e, i) => categoryColorFill(e.chucVu, i)), borderColor: list.map((e, i) => categoryBorderColor(e.chucVu, i)), borderWidth: 1.5, borderRadius: 4 }]
-          },
-          options: {
-            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-            interaction: { mode: 'index', intersect: false, axis: 'y' },
-            plugins: { legend: { display: false } },
-            scales: {
-              x: { beginAtZero: true, ticks: { color: theme.muted, precision: 0, font: { size: 10.5 } }, grid: { color: theme.grid } },
-              y: { ticks: { color: theme.text, font: { size: 10.5 }, autoSkip: false }, grid: { display: false } }
-            }
-          }
-        });
-      }
-
-      const body = document.getElementById('chucVuTableBody');
-      body.innerHTML = list.length ? list.map(e => {
-        const pct = totalRequests ? Math.round(e.soYeuCau / totalRequests * 1000) / 10 : 0;
-        return `<tr><td>${escapeHtml(e.chucVu)}</td><td data-sort-value="${e.soYeuCau}">${e.soYeuCau}</td><td data-sort-value="${pct}">${pct}%</td><td data-sort-value="${e.tongNgayNghi}">${fmtSoNgay(e.tongNgayNghi)}</td></tr>`;
-      }).join('') : '<tr class="empty-row"><td colspan="4">Không có dữ liệu.</td></tr>';
-      initSortableTables();
-
-      populateChucVuDrilldown(list);
-    }
-
-    function populateChucVuDrilldown(list){
-      const select = document.getElementById('chucVuDrilldownSelect');
-      const current = select.value;
-      select.innerHTML = '<option value="">— Chọn chức vụ để xem chi tiết —</option>' +
-        list.map(e => `<option value="${escapeHtml(e.chucVu)}">${escapeHtml(e.chucVu)}</option>`).join('');
-      if(list.some(e => e.chucVu === current)) select.value = current;
-      renderEmployeeChucVuChart();
-    }
-
-    function renderEmployeeChucVuChart(){
-      const select = document.getElementById('chucVuDrilldownSelect');
-      const chucVu = select.value;
-      const emptyHint = document.getElementById('employeeChucVuEmptyHint');
-      const content = document.getElementById('employeeChucVuContent');
-      destroyChart('employeeChucVu');
-
-      if(!chucVu){
-        emptyHint.style.display = '';
-        content.style.display = 'none';
-        return;
-      }
-      emptyHint.style.display = 'none';
-      content.style.display = '';
-
-      const list = groupByEmployeeInChucVu(rawLeaveRequests, chucVu);
-      const theme = chartTheme();
-      const canvas = document.getElementById('chartEmployeeChucVu');
-      const wrap = canvas.closest('.chart-canvas-wrap');
-      const oldHint = wrap.querySelector('.chart-empty-hint');
-      if(oldHint) oldHint.remove();
-
-      if(!list.length){
-        canvas.style.display = 'none';
-        wrap.insertAdjacentHTML('beforeend', '<div class="chart-empty-hint">Không có nhân viên nào có ngày nghỉ trong chức vụ này ở khoảng thời gian đã chọn.</div>');
-      } else {
-        canvas.style.display = '';
-        const ctx = canvas.getContext('2d');
-        state.charts.employeeChucVu = new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: list.map(e => e.hoTen),
-            datasets: [{ label: 'Tổng ngày nghỉ', data: list.map(e => e.tongNgayNghi), backgroundColor: 'rgba(59,130,246,0.3)', borderColor: '#3B82F6', borderWidth: 1.5, borderRadius: 4, maxBarThickness: 26 }]
-          },
-          options: {
-            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-            interaction: { mode: 'index', intersect: false, axis: 'y' },
-            plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${fmtSoNgay(c.raw)} ngày` } } },
-            scales: {
-              x: { beginAtZero: true, ticks: { color: theme.muted, font: { size: 10.5 } }, grid: { color: theme.grid } },
-              y: { ticks: { color: theme.text, font: { size: 10.5 }, autoSkip: false }, grid: { display: false } }
-            }
-          }
-        });
-      }
-
-      const body = document.getElementById('employeeChucVuTableBody');
-      body.innerHTML = list.length ? list.map(e =>
-        `<tr><td>${escapeHtml(e.hoTen)}</td><td data-sort-value="${e.soYeuCau}">${e.soYeuCau}</td><td data-sort-value="${e.tongNgayNghi}">${fmtSoNgay(e.tongNgayNghi)}</td></tr>`
-      ).join('') : '<tr class="empty-row"><td colspan="3">Không có dữ liệu.</td></tr>';
-      initSortableTables();
-    }
-
-    function renderCharts(requests){
-      renderStackedBarByDayChucVu(requests);
-      renderChucVuCharts(requests);
-    }
-
     // ---------- Real-time (SSE) cap nhat tu dong khong can reload ----------
     let leaveEventSource = null;
 
@@ -1404,7 +988,6 @@
                 rawLeaveRequests.unshift(updated);
               }
               renderStats(rawLeaveRequests);
-              renderCharts(rawLeaveRequests);
               renderTable(rawLeaveRequests);
 
               // Hieu ung highlight dong du lieu vua thay doi
@@ -1423,7 +1006,6 @@
                 rawLeaveRequests[reqIndex] = { ...rawLeaveRequests[reqIndex], ...created };
               }
               renderStats(rawLeaveRequests);
-              renderCharts(rawLeaveRequests);
               renderTable(rawLeaveRequests);
 
               // Hieu ung highlight don moi

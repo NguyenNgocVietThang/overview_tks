@@ -32,6 +32,7 @@ const leaveAiExtractor = require('./leaveAiConsensusExtractor');
 const { broadcastLeaveEvent, LEAVE_EVENT_TYPES } = require('../hr/hrLeaveEvents');
 const conversationStore = require('./conversationStore');
 const { getUserByUsername, ROLES } = require('../auth/localUserStore');
+const telegramIdentityService = require('./telegramIdentityService');
 
 let botInstance = null;
 
@@ -72,8 +73,39 @@ const FIELD = Object.freeze({ TIME: 'TIME', REASON: 'REASON', HANDOVER: 'HANDOVE
 // So lan hoi lai toi da cho CUNG 1 nhom truoc khi bot dung hoi va goi y /huy.
 const MAX_CLARIFICATION_ATTEMPTS = 3;
 
+// Tu khoa xac nhan/huy bang loi khi dang o CONFIRM (thay the cho bam nut).
+// So khop CHINH XAC toan bo tin nhan sau chuan hoa, khong phai substring, de
+// khong nham cau chinh sua co chua chu "ok"/"huy" o giua cau.
+const CONFIRM_TEXT_KEYWORDS = new Set(['ok', 'oke', 'oki', 'okay', 'dong y', 'xac nhan', 'confirm']);
+const CANCEL_TEXT_KEYWORDS = new Set(['huy', 'cancel']);
+
+function normalizeConfirmationReply(text) {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/đ/g, 'd') // 'đ' khong tach dau qua normalize('NFD') nen phai thay tay
+    .normalize('NFD').replace(/\p{Mn}/gu, '') // bo dau thanh/dau phu con lai
+    .replace(/[!.,?]+$/g, '') // bo dau cau cuoi cau
+    .replace(/\s+(a|nhe|nha|oi)$/g, '') // bo tieu tu lich su cuoi cau: a/nhe/nha/oi
+    .trim();
+}
+
 function resetConversation(chatId) {
   conversationStore.deleteConversation(chatId);
+}
+
+async function stripConfirmationButtons(bot, chatId, conv) {
+  const messageId = conv.data && conv.data.confirmationMessageId;
+  if (messageId && typeof bot.editMessageReplyMarkup === 'function') {
+    try {
+      await bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
+        chat_id: chatId,
+        message_id: messageId
+      });
+    } catch (_editErr) {
+      // Khong anh huong neu khong sua duoc markup
+    }
+  }
 }
 
 function enqueueMessage(chatId, task) {
@@ -146,18 +178,34 @@ function startHrTelegramBot() {
   const bot = new TelegramBot(CONFIG.TELEGRAM_BOT_TOKEN, { polling: true });
   botInstance = bot;
 
+  let conflictRecoveryTimer = null;
+  function scheduleConflictRecovery() {
+    conflictRecoveryTimer = setTimeout(async () => {
+      conflictRecoveryTimer = null;
+      try {
+        await bot.startPolling();
+        console.log('[HR Telegram Bot] Đã kết nối lại polling sau xung đột 409.');
+      } catch (startErr) {
+        console.error('[HR Telegram Bot] Kết nối lại polling thất bại, thử lại sau 10s:', startErr.message);
+        scheduleConflictRecovery();
+      }
+    }, 10000);
+    if (typeof conflictRecoveryTimer.unref === 'function') conflictRecoveryTimer.unref();
+  }
   bot.on('polling_error', async (err) => {
     const isConflict = err && (
       (err.response && err.response.statusCode === 409) ||
       /\b409\s+Conflict\b/i.test(String(err.message || ''))
     );
     if (isConflict) {
-      console.error('[HR Telegram Bot] Phát hiện bot instance khác đang polling; dừng polling ở instance này để tránh xử lý trùng.');
+      if (conflictRecoveryTimer) return; // da co 1 lan thu ket noi lai dang cho, tranh chong lap
+      console.error('[HR Telegram Bot] Phát hiện bot instance khác đang polling; tạm dừng và thử kết nối lại sau 10s.');
       try {
         await bot.stopPolling();
       } catch (stopErr) {
         console.error('[HR Telegram Bot] Không thể dừng polling sau xung đột:', stopErr.message);
       }
+      scheduleConflictRecovery();
       return;
     }
     console.warn('[HR Telegram Bot] Polling warning/error:', err.code || err.message);
@@ -194,6 +242,10 @@ function startHrTelegramBot() {
       return;
     }
     try {
+      const pendingLink = await repo.findPendingLinkByCode(code);
+      if (pendingLink) {
+        await telegramIdentityService.assertManualLinkAllowed(pendingLink.web_username, chatId);
+      }
       const link = await repo.consumeLinkCode(code, {
         chatId,
         telegramUsername: msg.from && msg.from.username ? '@' + msg.from.username : ''
@@ -270,16 +322,7 @@ function startHrTelegramBot() {
           return;
         }
 
-        if (messageId && typeof bot.editMessageReplyMarkup === 'function') {
-          try {
-            await bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
-              chat_id: chatId,
-              message_id: messageId
-            });
-          } catch (_editErr) {
-            // Khong anh huong neu khong sua duoc markup
-          }
-        }
+        await stripConfirmationButtons(bot, chatId, conv);
 
         if (query.data === 'confirm') {
           await submitLeaveRequest(bot, chatId, conv);
@@ -305,13 +348,32 @@ async function handleFreeTextMessage(bot, chatId, msg, text) {
 
   let conv = conversationStore.getConversation(chatId);
 
-  if (!conv || conv.step === STEP.CONFIRM) {
-    // Bat dau draft moi: neu dang CONFIRM, tin nhan tu do moi nay thay the
-    // ban nhap cu (khong tao luong song song, quy tac #12 cua spec).
-    // Vo hieu hoa draft cu ngay lap tuc de nut Xac nhan cu khong the ghi Sheet
-    // neu pipeline cua tin thay the dung som (vi du AI proxy bi loi).
-    if (conv && conv.step === STEP.CONFIRM) resetConversation(chatId);
-    const link = await repo.findLinkByChatId(chatId);
+  if (conv && conv.step === STEP.CONFIRM) {
+    const normalizedReply = normalizeConfirmationReply(text);
+    if (CONFIRM_TEXT_KEYWORDS.has(normalizedReply)) {
+      await stripConfirmationButtons(bot, chatId, conv);
+      await submitLeaveRequest(bot, chatId, conv);
+      return;
+    }
+    if (CANCEL_TEXT_KEYWORDS.has(normalizedReply)) {
+      await stripConfirmationButtons(bot, chatId, conv);
+      resetConversation(chatId);
+      await bot.sendMessage(chatId, 'Đã hủy yêu cầu xin nghỉ phép.');
+      return;
+    }
+  }
+
+  if (!conv) {
+    // Bat dau draft moi.
+    const telegramUsername = msg.from && msg.from.username ? '@' + msg.from.username : '';
+    const automaticIdentity = await telegramIdentityService.resolveChat(chatId, telegramUsername);
+    if (automaticIdentity.status === 'account_required') {
+      await bot.sendMessage(chatId, 'ID Telegram của bạn đã có trong danh sách nhân sự, nhưng chưa có tài khoản web. Vui lòng đăng ký bằng email hoặc số điện thoại trong danh sách.');
+      return;
+    }
+    const link = automaticIdentity.status === 'linked'
+      ? automaticIdentity.link
+      : await repo.findLinkByChatId(chatId);
     if (!link) {
       await bot.sendMessage(chatId, 'Bạn chưa liên kết tài khoản web. Vào web Quản lý nhân sự để lấy mã, sau đó gõ /lienket <mã>.');
       return;
@@ -326,6 +388,7 @@ async function handleFreeTextMessage(bot, chatId, msg, text) {
       data: {
         link,
         identity,
+        sourceBranch: automaticIdentity.status === 'linked' ? automaticIdentity.sourceBranch : undefined,
         messageTime: messageTimestampIso(msg),
         messages: [text],
         messageFields: [null],
@@ -363,12 +426,16 @@ async function runLeavePipeline(bot, chatId, conv) {
     extracted = applyBareDecline(extracted, d);
   } catch (err) {
     console.error('[HR Telegram Bot] Lỗi AI trích xuất tin nhắn xin nghỉ:', err.code || err.message);
-    if (err && err.code === 'AI_LEAVE_NO_CONSENSUS') {
-      await bot.sendMessage(chatId,
-        'Bot chưa có đủ hai model đồng thuận về yêu cầu này. Bạn vui lòng diễn đạt lại thời gian nghỉ rõ hơn.'
-      );
-    } else {
-      await bot.sendMessage(chatId, 'Bot chưa phân tích được tin nhắn lúc này. Bạn vui lòng gửi lại sau ít phút.');
+    try {
+      if (err && err.code === 'AI_LEAVE_NO_CONSENSUS') {
+        await bot.sendMessage(chatId,
+          'Bot chưa có đủ hai model đồng thuận về yêu cầu này. Bạn vui lòng diễn đạt lại thời gian nghỉ rõ hơn.'
+        );
+      } else {
+        await bot.sendMessage(chatId, 'Bot chưa phân tích được tin nhắn lúc này. Bạn vui lòng gửi lại sau ít phút.');
+      }
+    } catch (sendErr) {
+      console.error('[HR Telegram Bot] Không thể gửi phản hồi lỗi AI:', sendErr.message);
     }
     return;
   }
@@ -573,7 +640,7 @@ async function submitLeaveRequest(bot, chatId, conv) {
       trang_thai: r.coViPham ? repo.LEAVE_STATUS.VIOLATION : repo.LEAVE_STATUS.PENDING,
       co_nghi_gap: r.coNghiGap,
       tin_nhan: d.messages.join(' | ')
-    });
+    }, d.sourceBranch);
   } catch (err) {
     try {
       await bot.sendMessage(chatId, `Gửi yêu cầu thất bại: ${err.message}`);
@@ -592,7 +659,7 @@ async function submitLeaveRequest(bot, chatId, conv) {
 
   // Bao cho tat ca tai khoan Telegram da lien ket (tru "Khách") biet co
   // nhan vien vua xin nghi phep. Khong chan luong chinh neu gui loi.
-  broadcastNewLeaveRequestToStaff(bot, record).catch(err => {
+  broadcastNewLeaveRequestToStaff(bot, record, d.sourceBranch).catch(err => {
     console.error('[HR Telegram Bot] Lỗi khi broadcast thông báo nghỉ phép:', err.message);
   });
 

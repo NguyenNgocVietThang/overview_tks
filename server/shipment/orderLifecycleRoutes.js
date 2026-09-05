@@ -21,6 +21,7 @@ const { requireAuth, requireRole } = require('../auth/authMiddleware');
 const { ROLES } = require('../auth/userRepository');
 const { LIFECYCLE_BRANCH } = require('./orderLifecycleRepository');
 const service = require('./orderLifecycleService');
+const { createLifecycleExportFile } = require('./orderLifecycleExport');
 
 // Tra cuu 1 don: Khach (xem don cua minh) + 5 vai tro noi bo lien quan truc
 // tiep den luong don to/xe cong ty.
@@ -85,6 +86,41 @@ router.get('/:orderCode', ...authLookup, async (req, res) => {
     res.status(200).json(result);
   } catch (err) {
     handleError(res, err, 'GET /api/shipment/lifecycle/:orderCode');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/shipment/lifecycle/lookup — tra cuu NHIEU ma don cung luc (dung
+// cho khu vuc moi o tab "Tong quan"). Cung quyen voi GET /:orderCode.
+// ---------------------------------------------------------------------------
+
+router.post('/lookup', ...authLookup, async (req, res) => {
+  try {
+    const results = await service.findOrdersBulk(req.body.codes);
+    res.status(200).json({ results });
+  } catch (err) {
+    handleError(res, err, 'POST /api/shipment/lifecycle/lookup');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/shipment/lifecycle/export — xuat Excel bang "Toan bo don hang"
+// (chi 5 vai tro noi bo, cung quyen voi GET '/'). Body { codes: string[] }
+// tuy chon — danh sach + thu tu ma dang hien tren UI sau khi loc/sap xep;
+// khong truyen -> xuat toan bo theo thu tu trong sheet.
+// ---------------------------------------------------------------------------
+
+router.post('/export', ...authBulk, async (req, res) => {
+  try {
+    const codes = Array.isArray(req.body.codes) ? req.body.codes : undefined;
+    const orders = await service.exportOrdersByCodes(codes);
+    const file = await createLifecycleExportFile(orders);
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
+    res.setHeader('Content-Length', file.buffer.length);
+    res.status(200).send(file.buffer);
+  } catch (err) {
+    handleError(res, err, 'POST /api/shipment/lifecycle/export');
   }
 });
 

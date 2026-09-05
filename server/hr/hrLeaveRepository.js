@@ -14,6 +14,17 @@ const CONFIG = require('../config');
 const hrClient = require('../sheets/hrSheetsClient');
 const { invalidateHrSheetCache } = hrClient;
 
+// Chuan hoa chuoi tim theo ten: bo dau cach thua/dau/cuoi, gop nhieu khoang
+// trang lien tiep thanh 1, roi ha chu — de "  Nguyen   Van A" va "nguyen van a"
+// khop cung mot ket qua.
+function normalizeNameQuery(value) {
+  return String(value || '')
+    .normalize('NFC')
+    .replace(/\s+/gu, ' ')
+    .trim()
+    .toLocaleLowerCase('vi-VN');
+}
+
 // ---- Schema -------------------------------------------------------------
 
 const LEAVE_SCHEMA = {
@@ -184,10 +195,10 @@ async function getLeaveRequests(filters, branch) {
     items = items.filter(item => item.trang_thai === filters.status);
   }
   if (filters.employee) {
-    const needle = String(filters.employee).trim().toLowerCase();
+    const needle = normalizeNameQuery(filters.employee);
     items = items.filter(item =>
-      String(item.ho_ten || '').toLowerCase().includes(needle) ||
-      String(item.web_username || '').toLowerCase().includes(needle)
+      normalizeNameQuery(item.ho_ten).includes(needle) ||
+      normalizeNameQuery(item.web_username).includes(needle)
     );
   }
   if (filters.from) {

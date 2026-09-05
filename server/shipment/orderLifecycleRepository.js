@@ -18,11 +18,11 @@ const LIFECYCLE_BRANCH = Object.freeze({ HN: 'HN', SG: 'SG' });
 
 const SCHEMA = {
   headers: [
-    'Mã đơn hàng', 'Nhân viên bán hàng', 'Sale gửi đơn cho kế toán', 'Kế toán duyệt đơn',
+    'Mã đơn hàng', 'Nhân viên bán hàng', 'Khách hàng', 'Sale gửi đơn cho kế toán', 'Kế toán duyệt đơn',
     'Lái xe', 'Tài xế gửi xác nhận giao hàng', 'Kế toán duyệt giao hàng', 'Xác nhận đã giao/khách ký nhận'
   ],
   fieldKeys: [
-    'orderCode', 'saleName', 'saleSentAt', 'accountantApprovedOrderAt',
+    'orderCode', 'saleName', 'customerName', 'saleSentAt', 'accountantApprovedOrderAt',
     'driverName', 'driverConfirmedDeliveryAt', 'accountantApprovedDeliveryAt', 'deliveryConfirmedAt'
   ]
 };

@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/shared/shared.css?v=20260830">
+<link rel="stylesheet" href="/shared/shared.css?v=20260905">
 <style>
   .lookup-wrap{ width:100%; max-width:none; margin:0; }
   .lookup-hero{ margin-bottom:20px; }
@@ -117,12 +117,36 @@
             <table class="results-table"><thead><tr><th>Mã hóa đơn</th><th>Trạng thái</th></tr></thead><tbody id="resultsBody"></tbody></table>
           </div>
         </section>
+
+        <div class="lookup-hero" style="margin-top:32px;">
+          <h2>Tra cứu vòng đời đơn hàng</h2>
+          <p>Nhập mã đơn (không phải mã hóa đơn) để xem trạng thái mới nhất theo dữ liệu Bot Telegram — sale, khách hàng, trạng thái và thời gian cập nhật.</p>
+        </div>
+        <form class="panel lookup-panel" id="orderLookupForm" hidden>
+          <label for="orderCodesInput">Mã đơn hàng</label>
+          <textarea id="orderCodesInput" placeholder="Ví dụ: HD000005&#10;DHTP001" aria-describedby="orderLookupHint"></textarea>
+          <div class="lookup-actions">
+            <span class="lookup-hint" id="orderLookupHint">Tối đa 50 mã, phân cách bằng dấu phẩy, dấu chấm phẩy hoặc xuống dòng.</span>
+            <button class="btn-primary lookup-submit" id="orderLookupSubmit" type="submit">Tìm kiếm</button>
+          </div>
+          <div class="lookup-message error" id="orderLookupError" role="alert"></div>
+        </form>
+
+        <section class="panel results-panel" id="orderResultsPanel" aria-live="polite">
+          <div class="results-title"><h3>Kết quả tra cứu đơn hàng</h3><span class="results-count" id="orderResultsCount"></span></div>
+          <div class="results-scroll">
+            <table class="results-table">
+              <thead><tr><th>Mã đơn</th><th>Sale</th><th>Khách hàng</th><th>Trạng thái</th><th>Thời gian</th></tr></thead>
+              <tbody id="orderResultsBody"></tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </main>
   </div>
 
   <!-- Đặt ở cuối thẻ body thay vì trong <head>: script chặn phân tích cú pháp trong <head> sẽ làm dừng việc xử lý toàn bộ tài liệu. Không dùng `defer` vì script inline bên dưới dùng TKSNav ở cấp cao nhất, và script inline luôn chạy trước script defer. -->
-  <script src="/shared/shared-nav.js?v=20260830"></script>
+  <script src="/shared/shared-nav.js?v=20260905"></script>
 
   <script>
     const THEME_STORAGE_KEY = 'tks-dashboard-theme';
@@ -215,7 +239,75 @@
         .finally(function(){ submitBtn.disabled = false; submitBtn.textContent = 'Tìm kiếm'; });
     });
 
-    TKSNav.authGuard();
+    function escapeHtml(value){
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // ---------- Khu tra cứu vòng đời đơn hàng (mới) ----------
+    const ORDER_LOOKUP_VISIBLE_ROLES = ['Khách', 'Kế toán', 'Trưởng kho', 'Quản lý', 'Trợ lý', 'Nhân viên sale'];
+    const orderLookupForm = document.getElementById('orderLookupForm');
+    const orderCodesInput = document.getElementById('orderCodesInput');
+    const orderLookupSubmit = document.getElementById('orderLookupSubmit');
+    const orderLookupError = document.getElementById('orderLookupError');
+    const orderResultsPanel = document.getElementById('orderResultsPanel');
+    const orderResultsBody = document.getElementById('orderResultsBody');
+    const orderResultsCount = document.getElementById('orderResultsCount');
+
+    function clearOrderResults(){
+      orderResultsBody.replaceChildren();
+      orderResultsPanel.classList.remove('show');
+      orderResultsCount.textContent = '';
+    }
+    function showOrderError(message){ orderLookupError.textContent = message; orderLookupError.classList.add('show'); }
+    function parseOrderCodes(value){ return value.split(/[\n,;]+/).map(function(code){ return code.trim(); }).filter(Boolean); }
+    function renderOrderResults(results){
+      clearOrderResults();
+      results.forEach(function(result){
+        const row = document.createElement('tr');
+        row.innerHTML =
+          '<td>' + escapeHtml(result.code) + '</td>' +
+          '<td>' + (result.found ? escapeHtml(result.saleName || '—') : '') + '</td>' +
+          '<td>' + (result.found ? escapeHtml(result.customerName || '—') : '') + '</td>' +
+          '<td>' + (result.found ? '<span class="status-badge status-found">' + escapeHtml(result.statusLabel || 'Đơn chưa gửi kế toán') + '</span>' : '<span class="status-badge status-missing">Không tìm thấy</span>') + '</td>' +
+          '<td>' + (result.found ? escapeHtml(result.at || '—') : '') + '</td>';
+        orderResultsBody.appendChild(row);
+      });
+      orderResultsCount.textContent = results.length + ' mã';
+      orderResultsPanel.classList.toggle('show', results.length > 0);
+    }
+
+    orderCodesInput.addEventListener('input', function(){ if(!orderCodesInput.value.trim()){ orderLookupError.classList.remove('show'); clearOrderResults(); } });
+    orderLookupForm.addEventListener('submit', function(event){
+      event.preventDefault();
+      orderLookupError.classList.remove('show');
+      const codes = parseOrderCodes(orderCodesInput.value);
+      if(!codes.length){ clearOrderResults(); return; }
+      if(codes.length > 50){ showOrderError('Chỉ được tra cứu tối đa 50 mã đơn hàng mỗi lần.'); clearOrderResults(); return; }
+      orderLookupSubmit.disabled = true;
+      orderLookupSubmit.textContent = 'Đang tìm...';
+      fetch('/api/shipment/lifecycle/lookup', {
+        method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body:JSON.stringify({codes:codes})
+      })
+        .then(function(res){
+          if(res.status === 401){ window.location.href = '/login/?next=%2Fshipment%2F'; return null; }
+          return res.json().then(function(body){ return {ok:res.ok, body:body}; });
+        })
+        .then(function(result){
+          if(!result) return;
+          if(!result.ok) throw new Error((result.body && result.body.error) || 'Không tra cứu được vòng đời đơn hàng.');
+          renderOrderResults(result.body.results || []);
+        })
+        .catch(function(err){ clearOrderResults(); showOrderError(err.message || 'Không tra cứu được vòng đời đơn hàng.'); })
+        .finally(function(){ orderLookupSubmit.disabled = false; orderLookupSubmit.textContent = 'Tìm kiếm'; });
+    });
+
+    TKSNav.authGuard().then(function(user){
+      if(user && ORDER_LOOKUP_VISIBLE_ROLES.indexOf(user.vaiTro) !== -1){
+        orderLookupForm.hidden = false;
+      }
+    });
   </script>
   <script src="/shared/shooting-star.js?v=20260830"></script>
 </body>
