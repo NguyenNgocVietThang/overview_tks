@@ -21,6 +21,18 @@ const STATUS_LABEL = Object.freeze({
   [STATUS.DELIVERED]: 'Đơn đã giao thành công'
 });
 
+// Nhan TEN COT chinh xac (khac STATUS_LABEL la cau mo ta) — dung cho bang tra
+// cuu nhieu ma o tab "Tong quan" (yeu cau: "trang thai (tuong ung ten cot)").
+// Dung hang so co dinh theo SCHEMA_HEADERS, KHONG doc header that tu sheet vi
+// tab HN/SG co the ghi khac chu (da xac minh: tab SG ghi "Ke toan duyet" thay
+// vi "Ke toan duyet don" o cung vi tri cot) — dam bao nhan luon nhat quan.
+const STATUS_COLUMN_LABEL = Object.freeze({
+  [STATUS.NOT_SENT]: null,
+  [STATUS.SENT_TO_ACCOUNTANT]: 'Sale gửi đơn cho kế toán',
+  [STATUS.DELIVERING]: 'Tài xế gửi xác nhận giao hàng',
+  [STATUS.DELIVERED]: 'Xác nhận đã giao/khách kí nhận'
+});
+
 function hasValue(value) {
   return value !== undefined && value !== null && String(value).trim() !== '';
 }
@@ -66,6 +78,7 @@ function toDetail(record) {
   return {
     orderCode: record.orderCode,
     saleName: record.saleName,
+    customerName: record.customerName,
     saleSentAt: record.saleSentAt,
     accountantApprovedOrderAt: record.accountantApprovedOrderAt,
     driverName: record.driverName,
@@ -111,4 +124,81 @@ async function listAllOrders(branchFilter) {
   }));
 }
 
-module.exports = { STATUS, STATUS_LABEL, computeStatus, findOrder, listAllOrders };
+const MAX_LOOKUP_CODES = 50;
+
+function validateLookupCodes(rawCodes) {
+  if (!Array.isArray(rawCodes)) {
+    const err = new Error('Danh sách mã đơn hàng không hợp lệ.');
+    err.statusCode = 400;
+    err.code = 'INVALID_CODES';
+    throw err;
+  }
+  if (rawCodes.length > MAX_LOOKUP_CODES) {
+    const err = new Error(`Chỉ được tra cứu tối đa ${MAX_LOOKUP_CODES} mã đơn hàng mỗi lần.`);
+    err.statusCode = 400;
+    err.code = 'TOO_MANY_CODES';
+    throw err;
+  }
+  const seen = new Set();
+  const codes = [];
+  rawCodes.forEach(rawCode => {
+    if (typeof rawCode !== 'string' && typeof rawCode !== 'number') {
+      const err = new Error('Mỗi mã đơn hàng phải là chuỗi hoặc số.');
+      err.statusCode = 400;
+      err.code = 'INVALID_CODE';
+      throw err;
+    }
+    const code = String(rawCode).trim();
+    if (!code) return;
+    if (code.length > 100) {
+      const err = new Error('Mã đơn hàng không được dài quá 100 ký tự.');
+      err.statusCode = 400;
+      err.code = 'INVALID_CODE';
+      throw err;
+    }
+    const key = normalizeCode(code);
+    if (!seen.has(key)) {
+      seen.add(key);
+      codes.push({ code, key });
+    }
+  });
+  return codes;
+}
+
+/**
+ * Tra cuu NHIEU ma don cung luc (tab "Tong quan"). Voi moi ma: tra ve sale,
+ * khach hang, TEN COT co thoi gian moi nhat (bo qua 2 cot ke toan duyet —
+ * dung STATUS_COLUMN_LABEL, khong tao trang thai rieng cho D/G, giu dung logic
+ * computeStatus da co) + thoi gian tuong ung. Ma khong ton tai -> found:false.
+ */
+async function findOrdersBulk(rawCodes) {
+  const codes = validateLookupCodes(rawCodes);
+  if (!codes.length) return [];
+
+  const records = await repo.readAll();
+  const byKey = new Map();
+  records.forEach(record => {
+    const key = normalizeCode(record.orderCode);
+    if (!byKey.has(key)) byKey.set(key, record);
+  });
+
+  return codes.map(({ code, key }) => {
+    const record = byKey.get(key);
+    if (!record) return { code, found: false };
+    const summary = computeStatus(record);
+    return {
+      code,
+      found: true,
+      saleName: record.saleName || '',
+      customerName: record.customerName || '',
+      statusLabel: STATUS_COLUMN_LABEL[summary.code],
+      at: summary.at
+    };
+  });
+}
+
+module.exports = {
+  STATUS, STATUS_LABEL, STATUS_COLUMN_LABEL,
+  computeStatus, findOrder, listAllOrders, findOrdersBulk,
+  MAX_LOOKUP_CODES
+};
