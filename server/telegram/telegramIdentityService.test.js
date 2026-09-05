@@ -24,7 +24,8 @@ function fixture(employees = [employee], account = { id: 'u1', username: 'a@exam
     },
     linkRepository: {
       upsertAutomaticLink: async (data, branch) => { upserts.push({ data, branch }); return { ...data, telegram_chat_id: data.chatId }; }
-    }
+    },
+    store: { getUserByUsername: async () => account }
   });
   return { service, upserts };
 }
@@ -58,3 +59,11 @@ test('duplicate Telegram ID fails closed', async () => {
   await assert.rejects(service.resolveChat('123456'), err => err.code === 'TELEGRAM_ID_CONFLICT');
 });
 
+test('manual link cannot replace a different Telegram ID declared in HR sheet', async () => {
+  const { service } = fixture();
+  await assert.rejects(
+    service.assertManualLinkAllowed('a@example.com', '999999'),
+    err => err.code === 'TELEGRAM_ID_MISMATCH'
+  );
+  assert.equal(await service.assertManualLinkAllowed('a@example.com', '123456'), true);
+});

@@ -1,5 +1,5 @@
 'use strict';
-// Kiem tra nut chon co so tren thanh dieu huong (shared-nav.js):
+// Kiem tra nut chon co so tren Header (shared-nav.js):
 //  - >= 2 co so  -> hien <select> de doi co so
 //  - dung 1 co so -> hien nhan tinh (khong doi duoc)
 //  - chua gan co so -> hien canh bao
@@ -16,7 +16,7 @@ const navCode = fs.readFileSync(navPath, 'utf8');
 
 function loadNav() {
   const dom = new JSDOM(
-    '<!doctype html><html><body><nav id="sidebar" data-tks-active-top="reports"></nav></body></html>',
+    '<!doctype html><html><body><header><div class="status-line"><div id="accountChip"></div></div></header><nav id="sidebar" data-tks-active-top="reports"></nav></body></html>',
     { runScripts: 'outside-only', url: 'https://tokosi.example/' }
   );
   dom.window.eval(navCode);
@@ -28,40 +28,43 @@ function renderFor(user) {
   const { window } = dom;
   const sidebar = window.document.getElementById('sidebar');
   window.TKSNav.renderTopSidebar(sidebar, 'reports', user);
-  return { window, sidebar };
+  window.TKSNav.renderHeaderBranch(user);
+  const header = window.document.querySelector('header');
+  return { window, sidebar, header };
 }
 
-test('tai khoan phu trach ca hai co so thay o chon co so, dung co so hien tai', () => {
-  const { sidebar } = renderFor({
+test('tai khoan phu trach ca hai co so thay o chon co so tren header, dung co so hien tai', () => {
+  const { sidebar, header } = renderFor({
     vaiTro: 'Quản lý', hoTen: 'Quản trị', branches: ['Hà Nội', 'Sài Gòn'], branch: 'Sài Gòn'
   });
 
-  const select = sidebar.querySelector('#tksBranchSelect');
+  const select = header.querySelector('#tksBranchSelect');
   assert.ok(select, 'phai co o chon co so');
+  assert.equal(sidebar.querySelector('.tks-branch'), null, 'khong con hien o chon co so trong sidebar');
   assert.deepEqual([...select.options].map(o => o.value), ['Hà Nội', 'Sài Gòn']);
   assert.equal(select.value, 'Sài Gòn');
 });
 
-test('tai khoan mot co so chi thay nhan tinh, khong doi duoc co so', () => {
-  const { sidebar } = renderFor({
+test('tai khoan mot co so chi thay nhan tinh tren header, khong doi duoc co so', () => {
+  const { header } = renderFor({
     vaiTro: 'Kế toán', branches: ['Hà Nội'], branch: 'Hà Nội'
   });
 
-  assert.equal(sidebar.querySelector('#tksBranchSelect'), null, 'khong duoc co o chon co so');
-  const label = sidebar.querySelector('.tks-branch--fixed');
+  assert.equal(header.querySelector('#tksBranchSelect'), null, 'khong duoc co o chon co so');
+  const label = header.querySelector('.tks-branch--fixed');
   assert.ok(label);
   assert.match(label.textContent, /Hà Nội/);
 });
 
-test('tai khoan chua duoc gan co so thay canh bao', () => {
-  const { sidebar } = renderFor({ vaiTro: 'Lái xe', branches: [], branch: null });
+test('tai khoan chua duoc gan co so thay canh bao tren header', () => {
+  const { header } = renderFor({ vaiTro: 'Lái xe', branches: [], branch: null });
 
-  assert.equal(sidebar.querySelector('#tksBranchSelect'), null);
-  assert.match(sidebar.querySelector('.tks-branch--none').textContent, /Chưa được gán cơ sở/);
+  assert.equal(header.querySelector('#tksBranchSelect'), null);
+  assert.match(header.querySelector('.tks-branch--none').textContent, /Chưa được gán cơ sở/);
 });
 
 test('doi co so goi POST /api/branch roi tai lai trang', async () => {
-  const { window, sidebar } = renderFor({
+  const { window, header } = renderFor({
     vaiTro: 'Quản lý', branches: ['Hà Nội', 'Sài Gòn'], branch: 'Hà Nội'
   });
 
@@ -73,7 +76,7 @@ test('doi co so goi POST /api/branch roi tai lai trang', async () => {
   };
   window.TKSNav._reload = () => { reloaded = true; };
 
-  const select = sidebar.querySelector('#tksBranchSelect');
+  const select = header.querySelector('#tksBranchSelect');
   select.value = 'Sài Gòn';
   select.dispatchEvent(new window.Event('change'));
   await new Promise(resolve => setTimeout(resolve, 0));
@@ -101,6 +104,8 @@ test('handleBranchError hien bang thong bao rieng cho hai ma loi co so', () => {
 test('renderTopSidebar: kiem tra hien thi menu cho 3 vai tro moi', () => {
   const { sidebar: sbKho } = renderFor({ vaiTro: 'Nhân viên kho', branches: ['Hà Nội'], branch: 'Hà Nội' });
   assert.match(sbKho.innerHTML, /Quản lý đơn hàng/);
+  assert.match(sbKho.innerHTML, /Vòng đời đơn hàng/);
+  assert.doesNotMatch(sbKho.innerHTML, />Tổng quan<\/a>/);
   assert.match(sbKho.innerHTML, /Quản lý nhân sự/);
   assert.doesNotMatch(sbKho.innerHTML, /Báo cáo tổng hợp/);
 

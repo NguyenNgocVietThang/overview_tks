@@ -197,8 +197,35 @@ async function findOrdersBulk(rawCodes) {
   });
 }
 
+/**
+ * Danh sach don de xuat Excel — dung chung logic voi listAllOrders nhung theo
+ * dung THU TU cac ma duoc truyen vao (khop voi bang da loc/sap xep tren UI).
+ * Khong truyen codes (hoac mang rong) -> xuat toan bo (giu thu tu trong sheet).
+ */
+async function exportOrdersByCodes(codes) {
+  const records = await repo.readAll();
+  if (!Array.isArray(codes) || codes.length === 0) {
+    return records.map(record => Object.assign(toDetail(record), {
+      branch: record._branch,
+      summary: computeStatus(record)
+    }));
+  }
+  const byKey = new Map();
+  records.forEach(record => {
+    const key = normalizeCode(record.orderCode);
+    if (!byKey.has(key)) byKey.set(key, record);
+  });
+  return codes
+    .map(code => byKey.get(normalizeCode(code)))
+    .filter(Boolean)
+    .map(record => Object.assign(toDetail(record), {
+      branch: record._branch,
+      summary: computeStatus(record)
+    }));
+}
+
 module.exports = {
   STATUS, STATUS_LABEL, STATUS_COLUMN_LABEL,
-  computeStatus, findOrder, listAllOrders, findOrdersBulk,
+  computeStatus, findOrder, listAllOrders, findOrdersBulk, exportOrdersByCodes,
   MAX_LOOKUP_CODES
 };

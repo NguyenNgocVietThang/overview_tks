@@ -149,6 +149,7 @@
         }
         document.documentElement.style.visibility = '';
         TKSNav.renderAccountChip(user);
+        TKSNav.renderHeaderBranch(user);
         TKSNav.renderNotifBell(user);
         return user;
       })
@@ -723,12 +724,8 @@
           }).join('') +
         '</div>' +
       '</div>';
-    // Nhom "Quan ly van chuyen" — tab con "Tong quan" la trang /shipment/ hien
-    // co (tra cuu hoa don + cac the Dieu phoi/Mobile cho vai tro noi bo), tab
-    // con moi "Vong doi don hang" tro trang tra cuu moi (xem spec
-    // docs/superpowers/specs/2026-09-04-order-lifecycle-status-lookup.md).
-    // Ca hai deu la trang RIENG (khong dung hash nhu nhom "Bao cao tong hop"),
-    // nen active state theo currentPath giong nhom "Quan ly tai khoan".
+    // Nhom "Quan ly don hang" chi con tab "Vong doi don hang". Trang tong quan
+    // /shipment/ khong con duoc trinh bay trong dieu huong.
     var NO_SHIPMENT_ROLES = ['Nhân viên mua hàng'];
     var isLifecyclePage = currentPath === '/shipment/lifecycle';
     var shipmentExpanded = shipmentActive || TKSNav._isNavGroupOpen('shipment');
@@ -740,10 +737,6 @@
           '<svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
         '</button>' +
         '<div class="nav-group-list" id="tksShipmentGroupList"' + (shipmentExpanded ? '' : ' hidden') + '>' +
-          '<a href="/shipment/" class="nav-item' + (shipmentActive && !isLifecyclePage ? ' active' : '') + '"' +
-            (shipmentActive && !isLifecyclePage ? ' aria-current="page"' : '') + '>' +
-            '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path></svg>' +
-            'Tổng quan</a>' +
           '<a href="/shipment/lifecycle/" class="nav-item' + (isLifecyclePage ? ' active' : '') + '"' +
             (isLifecyclePage ? ' aria-current="page"' : '') + '>' +
             '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15.5 14"></polyline></svg>' +
@@ -796,8 +789,7 @@
           accountUsersSubItem +
         '</div>' +
       '</div>';
-    mountEl.innerHTML = TKSNav._branchSwitcherHtml(user) + reportsLink + shipmentLink + hrLink + accountLink;
-    TKSNav._bindBranchSwitcher(mountEl);
+    mountEl.innerHTML = reportsLink + shipmentLink + hrLink + accountLink;
   };
 
   // ---------- Chon co so (Ha Noi / Sai Gon) ----------
@@ -808,6 +800,21 @@
   var currentBranch = null;
 
   TKSNav.getCurrentBranch = function getCurrentBranch(){ return currentBranch; };
+
+  TKSNav.renderHeaderBranch = function renderHeaderBranch(user){
+    var accountChip = document.getElementById('accountChip');
+    if(!accountChip || !accountChip.parentNode) return;
+
+    var oldMount = document.getElementById('tksBranchSwitcher');
+    if(oldMount && oldMount.parentNode) oldMount.parentNode.removeChild(oldMount);
+
+    var mount = document.createElement('div');
+    mount.id = 'tksBranchSwitcher';
+    mount.className = 'tks-branch-mount';
+    mount.innerHTML = TKSNav._branchSwitcherHtml(user);
+    accountChip.parentNode.insertBefore(mount, accountChip);
+    TKSNav._bindBranchSwitcher(mount);
+  };
 
   TKSNav._branchSwitcherHtml = function _branchSwitcherHtml(user){
     var branches = (user && user.branches) || [];

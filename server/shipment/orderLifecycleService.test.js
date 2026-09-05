@@ -238,3 +238,42 @@ test('findOrdersBulk: dedupe mã trùng (không phân biệt hoa/thường)', as
     ctx.restore();
   }
 });
+
+test('exportOrdersByCodes: không truyền codes -> xuất toàn bộ, giữ thứ tự trong sheet', async () => {
+  const ctx = freshService([
+    record({ orderCode: 'HD001', _branch: 'HN' }),
+    record({ orderCode: 'HD002', _branch: 'SG' })
+  ]);
+  try {
+    const all = await ctx.service.exportOrdersByCodes();
+    assert.deepEqual(all.map(o => o.orderCode), ['HD001', 'HD002']);
+    assert.equal(all[0].branch, 'HN');
+    assert.ok(all[0].summary);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('exportOrdersByCodes: truyền codes -> xuất đúng thứ tự đã yêu cầu (khớp bảng đã lọc/sắp xếp trên UI)', async () => {
+  const ctx = freshService([
+    record({ orderCode: 'HD001', _branch: 'HN' }),
+    record({ orderCode: 'HD002', _branch: 'SG' }),
+    record({ orderCode: 'HD003', _branch: 'HN' })
+  ]);
+  try {
+    const result = await ctx.service.exportOrdersByCodes(['HD003', 'hd001']);
+    assert.deepEqual(result.map(o => o.orderCode), ['HD003', 'HD001']);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('exportOrdersByCodes: mã không tồn tại bị bỏ qua', async () => {
+  const ctx = freshService([record({ orderCode: 'HD001', _branch: 'HN' })]);
+  try {
+    const result = await ctx.service.exportOrdersByCodes(['HD001', 'HD999']);
+    assert.deepEqual(result.map(o => o.orderCode), ['HD001']);
+  } finally {
+    ctx.restore();
+  }
+});

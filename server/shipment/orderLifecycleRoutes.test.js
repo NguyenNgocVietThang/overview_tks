@@ -18,9 +18,11 @@ const router = require('./orderLifecycleRoutes');
 const service = require('./orderLifecycleService');
 
 function fakeRes() {
-  const res = { statusCode: null, body: null };
+  const res = { statusCode: null, body: null, headers: {}, sentBuffer: null };
   res.status = code => { res.statusCode = code; return res; };
   res.json = payload => { res.body = payload; return res; };
+  res.setHeader = (name, value) => { res.headers[name] = value; return res; };
+  res.send = payload => { res.sentBuffer = payload; if (res.statusCode === null) res.statusCode = 200; return res; };
   return res;
 }
 
@@ -57,6 +59,7 @@ test.beforeEach(() => {
   service.findOrder = async () => ({ found: true, branch: 'HN', summary: { code: 'DELIVERED' }, detail: {} });
   service.listAllOrders = async () => ([{ orderCode: 'HD001' }]);
   service.findOrdersBulk = async () => ([{ code: 'HD001', found: true }]);
+  service.exportOrdersByCodes = async () => ([{ orderCode: 'HD001', branch: 'HN', summary: { label: 'Đã giao' } }]);
 });
 
 test('GET /api/shipment/lifecycle/:orderCode — Khách gọi được (200)', async () => {
@@ -149,6 +152,41 @@ for (const role of OUTSIDER_ROLES) {
     assert.equal(res.statusCode, 403);
   });
 }
+
+test('POST /api/shipment/lifecycle/export — Khách bị 403', async () => {
+  const req = reqAs('Khách', {}, {}, { codes: ['HD001'] });
+  const res = fakeRes();
+  await callRoute('post', '/export', req, res);
+  assert.equal(res.statusCode, 403);
+});
+
+for (const role of INTERNAL_ROLES) {
+  test(`POST /api/shipment/lifecycle/export — ${role} gọi được (200, trả file xlsx)`, async () => {
+    const req = reqAs(role, {}, {}, { codes: ['HD001'] });
+    const res = fakeRes();
+    await callRoute('post', '/export', req, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.headers['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    assert.ok(res.sentBuffer && res.sentBuffer.length > 0);
+  });
+}
+
+for (const role of OUTSIDER_ROLES) {
+  test(`POST /api/shipment/lifecycle/export — ${role} bị 403`, async () => {
+    const req = reqAs(role, {}, {}, { codes: ['HD001'] });
+    const res = fakeRes();
+    await callRoute('post', '/export', req, res);
+    assert.equal(res.statusCode, 403);
+  });
+}
+
+test('POST /api/shipment/lifecycle/export — lỗi từ service được trả về đúng statusCode', async () => {
+  service.exportOrdersByCodes = async () => { throw new Error('Lỗi Google Sheets'); };
+  const req = reqAs('Quản lý', {}, {}, { codes: ['HD001'] });
+  const res = fakeRes();
+  await callRoute('post', '/export', req, res);
+  assert.equal(res.statusCode, 500);
+});
 
 test('POST /api/shipment/lifecycle/lookup — body không hợp lệ -> lỗi từ service được trả về đúng statusCode', async () => {
   service.findOrdersBulk = async () => {

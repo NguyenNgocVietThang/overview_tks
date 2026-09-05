@@ -19,7 +19,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="/shared/shared.css?v=20260830">
+  <link rel="stylesheet" href="/shared/shared.css?v=20260905">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
@@ -979,16 +979,20 @@
     }
 
     .filterbar-row {
-      display: flex;
-      align-items: flex-end;
-      gap: 14px;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: minmax(300px, 1fr);
+      grid-auto-columns: max-content;
+      grid-auto-flow: column;
+      grid-template-rows: repeat(4, auto);
+      align-items: start;
+      column-gap: 14px;
+      row-gap: 6px;
     }
 
     .filter-group {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
+      display: grid;
+      grid-template-rows: subgrid;
+      grid-row: 1 / span 4;
     }
 
     .filter-group[hidden] {
@@ -1012,6 +1016,19 @@
         position: static;
       }
 
+      .filterbar-row {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .dashboard-search,
+      .filter-group {
+        display: flex;
+        flex-direction: column;
+        grid-row: auto;
+      }
+
       .filter-group,
       .filter-input {
         width: 100%;
@@ -1024,7 +1041,9 @@
     }
 
     .dashboard-search {
-      flex: 1 1 340px;
+      display: grid;
+      grid-template-rows: subgrid;
+      grid-row: 1 / span 4;
       min-width: 0;
     }
 
@@ -1034,6 +1053,7 @@
       justify-content: space-between;
       gap: 12px;
       margin-bottom: 10px;
+      grid-row: 1;
     }
 
     .search-label {
@@ -1049,6 +1069,7 @@
 
     .search-mode-toggle {
       display: inline-flex;
+      justify-self: start;
       gap: 2px;
       margin-bottom: 8px;
       padding: 3px;
@@ -3098,9 +3119,7 @@
           </form>
 
           <div class="filter-group" data-filter-view="overview" hidden>
-            <span class="filter-label">Khoảng thời gian</span>
-            <span class="drill-hint" style="margin:-4px 0 2px;">Áp dụng cho toàn bộ dữ liệu tab Tổng quan</span>
-            <div class="mini-filter" data-filter-key="overview" style="margin:0;">
+            <div class="mini-filter" data-filter-key="overview" style="margin:0; grid-row:3;">
               <div class="period-toggle" data-mini-toggle>
                 <button type="button" data-days="1" onclick="setMiniFilterDays('overview',1)">1 ngày</button>
                 <button type="button" data-days="7" onclick="setMiniFilterDays('overview',7)">7 ngày</button>
@@ -3121,9 +3140,7 @@
           </div>
 
           <div class="filter-group" data-filter-view="invoices" hidden>
-            <span class="filter-label">Khoảng thời gian</span>
-            <span class="drill-hint" style="margin:-4px 0 2px;">Áp dụng cho toàn bộ dữ liệu tab Hóa đơn</span>
-            <div class="mini-filter" data-filter-key="invoices" style="margin:0;">
+            <div class="mini-filter" data-filter-key="invoices" style="margin:0; grid-row:3;">
               <div class="period-toggle" data-mini-toggle>
                 <button type="button" data-days="1" onclick="setMiniFilterDays('invoices',1)">1 ngày</button>
                 <button type="button" data-days="7" onclick="setMiniFilterDays('invoices',7)">7 ngày</button>
@@ -3144,10 +3161,7 @@
           </div>
 
           <div class="filter-group" data-filter-view="products" hidden>
-            <span class="filter-label">Khoảng thời gian</span>
-            <span class="drill-hint" style="margin:-4px 0 2px;">Áp dụng cho bán hàng và hàng mới nhập; tồn kho là số
-              hiện tại</span>
-            <div class="mini-filter" data-filter-key="products" style="margin:0;">
+            <div class="mini-filter" data-filter-key="products" style="margin:0; grid-row:3;">
               <div class="period-toggle" data-mini-toggle>
                 <button type="button" data-days="1" onclick="setMiniFilterDays('products',1)">1 ngày</button>
                 <button type="button" data-days="7" onclick="setMiniFilterDays('products',7)">7 ngày</button>
@@ -3168,10 +3182,7 @@
           </div>
 
           <div class="filter-group" data-filter-view="customers" hidden>
-            <span class="filter-label">Khoảng thời gian</span>
-            <span class="drill-hint" style="margin:-4px 0 2px;">Áp dụng cho toàn bộ tab Khách hàng (công nợ theo kỳ mua
-              &amp; Top khách doanh thu)</span>
-            <div class="mini-filter" data-filter-key="customers" style="margin:0;">
+            <div class="mini-filter" data-filter-key="customers" style="margin:0; grid-row:3;">
               <div class="period-toggle" data-mini-toggle>
                 <button type="button" data-days="1" onclick="setMiniFilterDays('customers',1)">1 ngày</button>
                 <button type="button" data-days="7" onclick="setMiniFilterDays('customers',7)">7 ngày</button>
@@ -3191,8 +3202,7 @@
           </div>
 
           <div class="filter-group" data-filter-view="products" hidden>
-            <span class="filter-label">Trạng thái kinh doanh</span>
-            <div class="period-toggle" id="productStatusToggle">
+            <div class="period-toggle" id="productStatusToggle" style="grid-row:3;">
               <button type="button" data-status="all" class="active" onclick="setProductStatus('all')">Tất cả</button>
               <button type="button" data-status="Đang kinh doanh" onclick="setProductStatus('Đang kinh doanh')">Đang
                 kinh doanh</button>
@@ -3202,8 +3212,7 @@
           </div>
 
           <div class="filter-group" data-filter-view="debt" hidden>
-            <span class="filter-label">Kỳ công nợ</span>
-            <div class="period-toggle" id="debtPeriodToggle">
+            <div class="period-toggle" id="debtPeriodToggle" style="grid-row:3;">
               <button type="button" class="active" data-period="1" onclick="setDebtPeriod(1)">1 ngày</button>
               <button type="button" data-period="3" onclick="setDebtPeriod(3)">3 ngày</button>
               <button type="button" data-period="7" onclick="setDebtPeriod(7)">7 ngày</button>
@@ -4514,7 +4523,7 @@
        và inline script luôn chạy trước script defer — cách đặt này giữ đúng thứ tự mà không chặn parser. -->
   <script src="/vendor/chart.umd.min.js"></script>
   <script src="/js/pagination.js"></script>
-  <script src="/shared/shared-nav.js?v=20260830"></script>
+  <script src="/shared/shared-nav.js?v=20260905"></script>
 
   <script>
     // Toast thong bao inline — thay the window.alert() cho loi/canh bao (khong chan luong,
@@ -4837,7 +4846,7 @@
         const label = button ? button.firstElementChild.textContent : th.textContent.trim();
         const isActive = index === columnIndex;
         th.setAttribute('aria-sort', isActive ? (direction === 'asc' ? 'ascending' : 'descending') : 'none');
-        if (indicator) indicator.textContent = isActive ? (direction === 'asc' ? '↓' : '↑') : '↕';
+        if (indicator) indicator.textContent = isActive ? (direction === 'asc' ? '▼' : '▲') : '↕';
         if (button) {
           const nextAction = isActive
             ? (direction === 'asc' ? 'Sắp xếp giảm dần' : 'Bỏ sắp xếp')
