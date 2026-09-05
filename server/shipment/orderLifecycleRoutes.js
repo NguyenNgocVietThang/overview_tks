@@ -88,4 +88,18 @@ router.get('/:orderCode', ...authLookup, async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// POST /api/shipment/lifecycle/lookup — tra cuu NHIEU ma don cung luc (dung
+// cho khu vuc moi o tab "Tong quan"). Cung quyen voi GET /:orderCode.
+// ---------------------------------------------------------------------------
+
+router.post('/lookup', ...authLookup, async (req, res) => {
+  try {
+    const results = await service.findOrdersBulk(req.body.codes);
+    res.status(200).json({ results });
+  } catch (err) {
+    handleError(res, err, 'POST /api/shipment/lifecycle/lookup');
+  }
+});
+
 module.exports = router;
