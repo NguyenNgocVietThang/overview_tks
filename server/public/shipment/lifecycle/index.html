@@ -154,7 +154,7 @@
           </div>
           <div class="bulk-scroll">
             <table class="bulk-table">
-              <thead><tr><th>Mã đơn</th><th>Sale</th><th>Trạng thái</th><th>Cập nhật gần nhất</th></tr></thead>
+              <thead><tr><th>Mã đơn</th><th>Sale</th><th>Khách hàng</th><th>Trạng thái</th><th>Cập nhật gần nhất</th></tr></thead>
               <tbody id="bulkBody"></tbody>
             </table>
           </div>
@@ -214,6 +214,7 @@
     const DETAIL_FIELDS = [
       { key: 'orderCode', label: 'Mã đơn hàng' },
       { key: 'saleName', label: 'Nhân viên bán hàng' },
+      { key: 'customerName', label: 'Khách hàng' },
       { key: 'saleSentAt', label: 'Sale gửi đơn cho kế toán' },
       { key: 'accountantApprovedOrderAt', label: 'Kế toán duyệt đơn' },
       { key: 'driverName', label: 'Lái xe' },
@@ -344,6 +345,7 @@
         row.innerHTML =
           '<td>' + escapeHtml(order.orderCode) + '</td>' +
           '<td>' + escapeHtml(order.saleName || '—') + '</td>' +
+          '<td>' + escapeHtml(order.customerName || '—') + '</td>' +
           '<td>' + renderBadge(order.summary) + '</td>' +
           '<td>' + escapeHtml((order.summary && order.summary.at) || '—') + '</td>';
         row.addEventListener('click', function(){ openDetailModal(order); });
