@@ -36,16 +36,16 @@ function freshRepository({ hn, sg }) {
 }
 
 const HEADERS = [
-  'Mã đơn hàng', 'Nhân viên bán hàng', 'Sale gửi đơn cho kế toán', 'Kế toán duyệt đơn',
+  'Mã đơn hàng', 'Nhân viên bán hàng', 'Khách hàng', 'Sale gửi đơn cho kế toán', 'Kế toán duyệt đơn',
   'Lái xe', 'Tài xế gửi xác nhận giao hàng', 'Kế toán duyệt giao hàng', 'Xác nhận đã giao/khách ký nhận'
 ];
 
-test('SCHEMA_HEADERS/SCHEMA_FIELD_KEYS khớp đúng 8 cột theo spec', () => {
+test('SCHEMA_HEADERS/SCHEMA_FIELD_KEYS khớp đúng 9 cột theo sheet thật', () => {
   const ctx = freshRepository({});
   try {
     assert.deepEqual(ctx.repo.SCHEMA_HEADERS, HEADERS);
     assert.deepEqual(ctx.repo.SCHEMA_FIELD_KEYS, [
-      'orderCode', 'saleName', 'saleSentAt', 'accountantApprovedOrderAt',
+      'orderCode', 'saleName', 'customerName', 'saleSentAt', 'accountantApprovedOrderAt',
       'driverName', 'driverConfirmedDeliveryAt', 'accountantApprovedDeliveryAt', 'deliveryConfirmedAt'
     ]);
   } finally {
@@ -56,9 +56,10 @@ test('SCHEMA_HEADERS/SCHEMA_FIELD_KEYS khớp đúng 8 cột theo spec', () => {
 test('rowToObject ánh xạ đúng vị trí cột, thiếu cột trả rỗng', () => {
   const ctx = freshRepository({});
   try {
-    const obj = ctx.repo.rowToObject(['HD001', 'Sale A'], ctx.repo.SCHEMA_FIELD_KEYS);
+    const obj = ctx.repo.rowToObject(['HD001', 'Sale A', 'KH A'], ctx.repo.SCHEMA_FIELD_KEYS);
     assert.equal(obj.orderCode, 'HD001');
     assert.equal(obj.saleName, 'Sale A');
+    assert.equal(obj.customerName, 'KH A');
     assert.equal(obj.saleSentAt, '');
     assert.equal(obj.deliveryConfirmedAt, '');
   } finally {
@@ -68,8 +69,8 @@ test('rowToObject ánh xạ đúng vị trí cột, thiếu cột trả rỗng',
 
 test('readAll đọc cả 2 tab, gộp lại và gắn đúng _branch', async () => {
   const ctx = freshRepository({
-    hn: [HEADERS, ['HD001', 'Sale A', '01/09/2026', '', '', '', '', '']],
-    sg: [HEADERS, ['HD002', 'Sale B', '02/09/2026', '', '', '', '', '']]
+    hn: [HEADERS, ['HD001', 'Sale A', 'KH A', '01/09/2026', '', '', '', '', '']],
+    sg: [HEADERS, ['HD002', 'Sale B', 'KH B', '02/09/2026', '', '', '', '', '']]
   });
   try {
     const rows = await ctx.repo.readAll();
@@ -85,7 +86,7 @@ test('readAll đọc cả 2 tab, gộp lại và gắn đúng _branch', async ()
 
 test('readAll bỏ hàng trống (mọi cột rỗng)', async () => {
   const ctx = freshRepository({
-    hn: [HEADERS, ['HD001', 'Sale A', '', '', '', '', '', ''], ['', '', '', '', '', '', '', '']],
+    hn: [HEADERS, ['HD001', 'Sale A', 'KH A', '', '', '', '', '', ''], ['', '', '', '', '', '', '', '', '']],
     sg: []
   });
   try {
