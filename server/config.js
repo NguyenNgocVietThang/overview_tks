@@ -118,6 +118,7 @@ const CONFIG = {
   SHEET_CUSTOMER_BY_PRODUCT_REPORT: 'Khách theo hàng hóa',
   SHEET_SUPPLIERS: 'Nhà cung cấp',
   SHEET_PURCHASES: 'Nhập hàng',
+  SHEET_SUPPLIER_RETURNS: 'Trả NCC',
 
   // HN1/HN3/HN7 do Apps Script tính từ dữ liệu KiotViet theo kỳ 1/3/7 ngày.
   // Server CHỈ ĐỌC — không được tạo/xóa/ghi ba tab này.
