@@ -1,25 +1,13 @@
 'use strict';
 
-const {
-  accumulateInvoiceEvents,
-  accumulatePurchaseOrderEvents,
-  accumulateReturnEvents,
-  reconstructDailyStock
-} = require('./timelineBuilder');
+const CONFIG = require('../../config');
 const { findStockoutPeriods } = require('./stockoutAnalyzer');
+const { accumulateReturnEvents, reconstructDailyStock } = require('./timelineBuilder');
 const { addDaysToDateKey, todayVnDateKey } = require('./dateHelpers');
+const { loadActiveCandidates, buildEventMapFromSheets } = require('./sheetTimelineBuilder');
 
 const DEFAULT_MIN_CONSECUTIVE_DAYS = 5;
-
-function isProductActive(product) {
-  const raw = product.isActive !== undefined ? product.isActive : product.IsActive;
-  return raw === undefined || raw === null ? true : raw;
-}
-
-function productOnHand(product) {
-  const inventories = product.inventories || product.Inventories || [];
-  return inventories.reduce((sum, inv) => sum + (inv.onHand || inv.onhand || 0), 0);
-}
+const DEFAULT_DAYS_BACK = 183;
 
 function emptyPageCounter() {
   return { pagesLoaded: 0, recordsLoaded: 0, total: 0 };
@@ -27,29 +15,28 @@ function emptyPageCounter() {
 
 async function runRecentStockoutScanJob(jobStore, jobId, deps = {}) {
   const {
+    sheetsClient,
     client,
-    daysBack = 183,
+    daysBack = DEFAULT_DAYS_BACK,
     todayKey = todayVnDateKey(),
     minConsecutiveDays = DEFAULT_MIN_CONSECUTIVE_DAYS
   } = deps;
 
   try {
-    const candidates = [];
-    let totalProductsScanned = 0;
+    jobStore.updateProgress(jobId, { progress: { phase: 1 } });
+    const sheets = await sheetsClient.getMultipleSheetValues([
+      CONFIG.SHEET_PRODUCTS,
+      CONFIG.SHEET_INVOICES,
+      CONFIG.SHEET_INVOICE_DETAILS,
+      CONFIG.SHEET_PURCHASES,
+      CONFIG.SHEET_SUPPLIER_RETURNS
+    ]);
 
-    jobStore.updateProgress(jobId, { progress: { phase: 1, phase1: emptyPageCounter(), phase2: null } });
-
-    await client.fetchAllPages('products', { includeInventory: 'true', includeSoftDeletedAttribute: 'false' }, (items, meta) => {
-      for (const product of items) {
-        if (!isProductActive(product)) continue;
-        if (productOnHand(product) !== 0) continue;
-        candidates.push({ code: product.code, name: product.name });
-      }
-      totalProductsScanned = meta.total || totalProductsScanned;
-      jobStore.updateProgress(jobId, {
-        progress: { phase1: { pagesLoaded: meta.pagesLoaded, recordsLoaded: meta.recordsLoaded, total: meta.total, candidatesFound: candidates.length } }
-      });
-    });
+    const { candidates: allActive, totalProductsScanned } = loadActiveCandidates(sheets[CONFIG.SHEET_PRODUCTS] || []);
+    // Giu nguyen ngu nghia cu cua "Hang dut gan day": chi bao cao ma DANG het
+    // hang (ton kho hien tai = 0) va van con dut den hom nay.
+    const candidates = allActive.filter((c) => c.currentOnHand === 0);
+    const fromDate = addDaysToDateKey(todayKey, -daysBack);
 
     if (candidates.length === 0) {
       jobStore.setResult(jobId, { asOfDate: todayKey, totalProductsScanned, totalCandidates: 0, rows: [] });
@@ -57,29 +44,13 @@ async function runRecentStockoutScanJob(jobStore, jobId, deps = {}) {
     }
 
     const validCodeSet = new Set(candidates.map((c) => c.code));
-    const eventMapByCode = new Map();
-    const fromDate = addDaysToDateKey(todayKey, -daysBack);
+    const eventMapByCode = buildEventMapFromSheets(sheets, validCodeSet, fromDate, todayKey);
 
-    const phase2Progress = { invoices: emptyPageCounter(), purchaseOrders: emptyPageCounter(), returns: emptyPageCounter() };
-    jobStore.updateProgress(jobId, { progress: { phase: 2, phase2: { ...phase2Progress } } });
-
-    await Promise.all([
-      client.fetchAllPages('invoices', { fromPurchaseDate: fromDate, toPurchaseDate: todayKey, status: '1' }, (items, meta) => {
-        accumulateInvoiceEvents(eventMapByCode, items, validCodeSet);
-        phase2Progress.invoices = meta;
-        jobStore.updateProgress(jobId, { progress: { phase2: { ...phase2Progress } } });
-      }),
-      client.fetchAllPages('purchaseorders', { fromPurchaseDate: fromDate, toPurchaseDate: todayKey }, (items, meta) => {
-        accumulatePurchaseOrderEvents(eventMapByCode, items, validCodeSet);
-        phase2Progress.purchaseOrders = meta;
-        jobStore.updateProgress(jobId, { progress: { phase2: { ...phase2Progress } } });
-      }),
-      client.fetchAllPages('returns', { lastModifiedFrom: fromDate }, (items, meta) => {
-        accumulateReturnEvents(eventMapByCode, items, validCodeSet);
-        phase2Progress.returns = meta;
-        jobStore.updateProgress(jobId, { progress: { phase2: { ...phase2Progress } } });
-      })
-    ]);
+    jobStore.updateProgress(jobId, { progress: { phase: 2, phase2: emptyPageCounter() } });
+    await client.fetchAllPages('returns', { lastModifiedFrom: fromDate }, (items, meta) => {
+      accumulateReturnEvents(eventMapByCode, items, validCodeSet);
+      jobStore.updateProgress(jobId, { progress: { phase2: meta } });
+    });
 
     const rows = [];
     for (const { code, name } of candidates) {
