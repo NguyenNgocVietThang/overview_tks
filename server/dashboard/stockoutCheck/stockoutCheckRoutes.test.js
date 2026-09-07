@@ -2,6 +2,9 @@
 process.env.KIOTVIET_CLIENT_ID = process.env.KIOTVIET_CLIENT_ID || 'test-client-id';
 process.env.KIOTVIET_CLIENT_SECRET = process.env.KIOTVIET_CLIENT_SECRET || 'test-client-secret';
 process.env.KIOTVIET_RETAILER = process.env.KIOTVIET_RETAILER || 'test-retailer';
+process.env.SPREADSHEET_ID = process.env.SPREADSHEET_ID || 'test-spreadsheet-id';
+process.env.GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}';
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -92,7 +95,7 @@ test('GET progress: job dang chay tra dung thong tin tien do', async () => {
   router.jobStore.updateProgress(jobId, {
     invalidCodes: ['SP999'],
     totalValidCodes: 2,
-    progress: { phase: 1, phase1: { invoices: { pagesLoaded: 2, recordsLoaded: 200, total: 250 } } }
+    progress: { phase: 2, phase2: { pagesLoaded: 2, recordsLoaded: 200, total: 250 } }
   });
 
   const handler = getRouteHandler('get', '/api/products/stockout-check/:jobId/progress');
@@ -102,7 +105,7 @@ test('GET progress: job dang chay tra dung thong tin tien do', async () => {
 
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.status, 'running');
-  assert.equal(res.body.phase, 1);
+  assert.equal(res.body.phase, 2);
   assert.equal(res.body.invalidCodes.length, 1);
   assert.equal(res.body.totalValidCodes, 2);
 });
@@ -195,6 +198,71 @@ test('GET /api/products/stockout-recent/:jobId/result: job xong tra 200 + result
   const jobId = router.jobStore.createJob();
   router.jobStore.setResult(jobId, { asOfDate: '2026-01-10', totalProductsScanned: 100, totalCandidates: 1, rows: [{ code: 'SP001', name: 'A', lastOutOfStockDate: '2026-01-05', daysOutOfStock: 6 }] });
   const handler = getRouteHandler('get', '/api/products/stockout-recent/:jobId/result');
+  const req = { params: { jobId } };
+  const res = fakeRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.result.rows.length, 1);
+});
+
+const stockout30dScanService = require('./stockout30dScanService');
+
+test('POST /api/products/stockout-30d/scan: tao job va tra 202 + jobId', async () => {
+  const original = stockout30dScanService.runStockout30dScanJob;
+  let called = false;
+  stockout30dScanService.runStockout30dScanJob = async () => { called = true; };
+  try {
+    const handler = getRouteHandler('post', '/api/products/stockout-30d/scan');
+    const req = { branch: 'Hà Nội' };
+    const res = fakeRes();
+
+    await handler(req, res);
+
+    assert.equal(res.statusCode, 202);
+    assert.equal(typeof res.body.jobId, 'string');
+    assert.equal(router.jobStore.getJob(res.body.jobId).status, 'running');
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(called, true);
+  } finally {
+    stockout30dScanService.runStockout30dScanJob = original;
+  }
+});
+
+test('GET /api/products/stockout-30d/:jobId/progress: job khong ton tai tra 404', async () => {
+  const handler = getRouteHandler('get', '/api/products/stockout-30d/:jobId/progress');
+  const req = { params: { jobId: 'khong-ton-tai' } };
+  const res = fakeRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.code, 'JOB_NOT_FOUND');
+});
+
+test('GET /api/products/stockout-30d/:jobId/result: job dang chay tra 409 JOB_NOT_READY', async () => {
+  const jobId = router.jobStore.createJob();
+  const handler = getRouteHandler('get', '/api/products/stockout-30d/:jobId/result');
+  const req = { params: { jobId } };
+  const res = fakeRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, 'JOB_NOT_READY');
+});
+
+test('GET /api/products/stockout-30d/:jobId/result: job xong tra 200 + result', async () => {
+  const jobId = router.jobStore.createJob();
+  router.jobStore.setResult(jobId, {
+    asOfDate: '2026-01-20',
+    fromDate: '2026-01-01',
+    totalProductsScanned: 100,
+    totalCandidates: 1,
+    rows: [{ code: 'SP001', name: 'A', stockoutCount: 1, totalStockoutDays: 6, currentOnHand: 2 }]
+  });
+  const handler = getRouteHandler('get', '/api/products/stockout-30d/:jobId/result');
   const req = { params: { jobId } };
   const res = fakeRes();
 
