@@ -1,17 +1,14 @@
 'use strict';
 
+const CONFIG = require('../../config');
 const { validateCodes, loadProductCatalogMap: defaultLoadProductCatalogMap } = require('./productCodeValidator');
-const {
-  accumulateInvoiceEvents,
-  accumulatePurchaseOrderEvents,
-  accumulateReturnEvents,
-  reconstructDailyStock
-} = require('./timelineBuilder');
+const { accumulateReturnEvents, reconstructDailyStock } = require('./timelineBuilder');
 const { findStockoutPeriods, summarizeStockoutPeriods } = require('./stockoutAnalyzer');
-const { runWithConcurrencyLimit } = require('./concurrencyPool');
+const { buildEventMapFromSheets } = require('./sheetTimelineBuilder');
 const { addDaysToDateKey, todayVnDateKey } = require('./dateHelpers');
 
 const MIN_STOCKOUT_DAYS = 7;
+const DEFAULT_DAYS_BACK = 183;
 
 function emptyPageCounter() {
   return { pagesLoaded: 0, recordsLoaded: 0, total: 0 };
@@ -20,10 +17,10 @@ function emptyPageCounter() {
 async function runStockoutCheckJob(jobStore, jobId, rawCodes, deps = {}) {
   const {
     loadProductCatalogMap = defaultLoadProductCatalogMap,
+    sheetsClient,
     client,
     branch,
-    concurrency = 4,
-    daysBack = 183,
+    daysBack = DEFAULT_DAYS_BACK,
     todayKey = todayVnDateKey()
   } = deps;
 
@@ -40,52 +37,35 @@ async function runStockoutCheckJob(jobStore, jobId, rawCodes, deps = {}) {
       return;
     }
 
-    const validCodeSet = new Set(validCodes.map((v) => v.code));
-    const eventMapByCode = new Map();
     const fromDate = addDaysToDateKey(todayKey, -daysBack);
+    const validCodeSet = new Set(validCodes.map((v) => v.code));
 
-    const phase1Progress = {
-      invoices: emptyPageCounter(),
-      purchaseOrders: emptyPageCounter(),
-      returns: emptyPageCounter()
-    };
-    jobStore.updateProgress(jobId, { progress: { phase: 1, phase1: { ...phase1Progress }, phase2: null } });
-
-    await Promise.all([
-      client.fetchAllPages('invoices', { fromPurchaseDate: fromDate, toPurchaseDate: todayKey, status: '1' }, (items, meta) => {
-        accumulateInvoiceEvents(eventMapByCode, items, validCodeSet);
-        phase1Progress.invoices = meta;
-        jobStore.updateProgress(jobId, { progress: { phase1: { ...phase1Progress } } });
-      }),
-      client.fetchAllPages('purchaseorders', { fromPurchaseDate: fromDate, toPurchaseDate: todayKey }, (items, meta) => {
-        accumulatePurchaseOrderEvents(eventMapByCode, items, validCodeSet);
-        phase1Progress.purchaseOrders = meta;
-        jobStore.updateProgress(jobId, { progress: { phase1: { ...phase1Progress } } });
-      }),
-      client.fetchAllPages('returns', { lastModifiedFrom: fromDate }, (items, meta) => {
-        accumulateReturnEvents(eventMapByCode, items, validCodeSet);
-        phase1Progress.returns = meta;
-        jobStore.updateProgress(jobId, { progress: { phase1: { ...phase1Progress } } });
-      })
+    jobStore.updateProgress(jobId, { progress: { phase: 1 } });
+    const sheets = await sheetsClient.getMultipleSheetValues([
+      CONFIG.SHEET_INVOICES,
+      CONFIG.SHEET_INVOICE_DETAILS,
+      CONFIG.SHEET_PURCHASES,
+      CONFIG.SHEET_SUPPLIER_RETURNS
     ]);
+    const eventMapByCode = buildEventMapFromSheets(sheets, validCodeSet, fromDate, todayKey);
 
-    jobStore.updateProgress(jobId, { progress: { phase: 2, phase2: { processed: 0, total: validCodes.length } } });
+    // Khach tra hang (Tra hang): sheet nay khong co chi tiet theo tung ma
+    // hang, nen van lay qua API KiotViet — nguon du lieu thu 4.
+    jobStore.updateProgress(jobId, { progress: { phase: 2, phase2: emptyPageCounter() } });
+    await client.fetchAllPages('returns', { lastModifiedFrom: fromDate }, (items, meta) => {
+      accumulateReturnEvents(eventMapByCode, items, validCodeSet);
+      jobStore.updateProgress(jobId, { progress: { phase2: meta } });
+    });
 
-    let processed = 0;
-    const rows = await runWithConcurrencyLimit(validCodes, concurrency, async ({ code, name }) => {
-      const onHandResult = await client.fetchProductOnHand(code);
+    const rows = validCodes.map(({ code, name, currentOnHand }) => {
       const events = eventMapByCode.get(code) || [];
-      const daily = reconstructDailyStock(onHandResult.onHand, events, todayKey, daysBack);
+      const daily = reconstructDailyStock(currentOnHand, events, todayKey, daysBack);
       const periods = findStockoutPeriods(daily, MIN_STOCKOUT_DAYS);
       const summary = summarizeStockoutPeriods(periods);
-
-      processed++;
-      jobStore.updateProgress(jobId, { progress: { phase2: { processed, total: validCodes.length } } });
-
       return {
         code,
         name,
-        currentOnHand: onHandResult.onHand,
+        currentOnHand,
         stockoutCount: summary.stockoutCount,
         totalStockoutDays: summary.totalStockoutDays,
         periods
