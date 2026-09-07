@@ -10,7 +10,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="/shared/shared.css?v=20260830">
 <style>
   .register-shell{
@@ -220,6 +220,18 @@
         </div>
       </div>
 
+      <div id="employeeOtpPanel" class="field" style="display:none; padding:14px; border:1px solid rgba(255,255,255,.18); border-radius:12px;">
+        <label>Xác minh hồ sơ nhân sự</label>
+        <p style="margin:6px 0 12px; opacity:.8; font-size:13px;">Chọn nơi nhận mã OTP để liên kết email và số điện thoại trên cùng một tài khoản.</p>
+        <div id="employeeOtpChannels"></div>
+        <button type="button" class="btn-primary" id="employeeSendOtp" style="margin-top:10px;">Gửi mã OTP</button>
+        <div class="field" id="employeeOtpInputWrap" style="display:none; margin-top:12px;">
+          <label for="employeeOtp">Mã OTP 6 số</label>
+          <input id="employeeOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}">
+          <button type="button" class="btn-primary" id="employeeVerifyOtp" style="margin-top:10px;">Xác minh và đăng ký</button>
+        </div>
+      </div>
+
       <button type="submit" class="btn-primary register-submit" id="registerSubmit">Đăng ký tài khoản</button>
       <a class="back-login" href="/login/">Đã có tài khoản? Đăng nhập</a>
     </form>
@@ -264,7 +276,54 @@
     const form = document.getElementById('registerForm');
     const errorBox = document.getElementById('registerError');
     const submitBtn = document.getElementById('registerSubmit');
+    let employeeChallengeId = '';
+    let pendingRegistration = null;
     function showError(message){ errorBox.textContent = message; errorBox.classList.add('show'); }
+
+    function apiPost(url, body){
+      return fetch(url, {
+        method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'same-origin',
+        body: JSON.stringify(body)
+      }).then(function(res){ return res.json().then(function(data){ return {ok:res.ok, body:data}; }); });
+    }
+
+    function showEmployeeChallenge(result){
+      employeeChallengeId = result.challengeId;
+      const channels = result.channels || [];
+      document.getElementById('employeeOtpChannels').innerHTML = channels.map(function(channel, index){
+        return '<label style="display:block; margin:7px 0;"><input type="radio" name="employeeOtpChannel" value="' + channel.channel + '" ' + (index === 0 ? 'checked' : '') + '> ' + channel.targetMasked + '</label>';
+      }).join('');
+      document.getElementById('employeeOtpPanel').style.display = 'block';
+      submitBtn.style.display = 'none';
+    }
+
+    document.getElementById('employeeSendOtp').addEventListener('click', function(){
+      const selected = document.querySelector('input[name="employeeOtpChannel"]:checked');
+      if(!selected) return showError('Không có kênh nhận OTP khả dụng.');
+      const button = this;
+      button.disabled = true;
+      apiPost('/api/auth/register/send-otp', { challengeId: employeeChallengeId, channel: selected.value })
+        .then(function(result){
+          button.disabled = false;
+          if(!result.ok) throw new Error(result.body.error || 'Không gửi được OTP.');
+          document.getElementById('employeeOtpInputWrap').style.display = 'block';
+          document.getElementById('employeeOtp').focus();
+        }).catch(function(err){ button.disabled = false; showError(err.message); });
+    });
+
+    document.getElementById('employeeVerifyOtp').addEventListener('click', function(){
+      const otp = document.getElementById('employeeOtp').value.trim();
+      if(!/^[0-9]{6}$/.test(otp)) return showError('Vui lòng nhập đúng mã OTP 6 số.');
+      const button = this;
+      button.disabled = true;
+      apiPost('/api/auth/register/verify', {
+        challengeId: employeeChallengeId, otp: otp,
+        hoTen: pendingRegistration.hoTen, password: pendingRegistration.password
+      }).then(function(result){
+        if(!result.ok) throw new Error(result.body.error || 'OTP không hợp lệ.');
+        window.location.href = result.body.vaiTro === 'Khách' ? '/shipment/lifecycle/' : '/account/';
+      }).catch(function(err){ button.disabled = false; showError(err.message); });
+    });
 
     form.addEventListener('submit', function(event){
       event.preventDefault();
@@ -311,16 +370,21 @@
       if(activeMethod === 'email') payload.email = email;
       else payload.soDienThoai = soDienThoai;
 
-      fetch('/api/auth/register', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        credentials:'same-origin',
-        body: JSON.stringify(payload)
-      })
-        .then(function(res){ return res.json().then(function(body){ return {ok:res.ok, body:body}; }); })
+      pendingRegistration = payload;
+      const identifier = activeMethod === 'email' ? email : soDienThoai;
+      apiPost('/api/auth/register/channels', { identifier: identifier })
         .then(function(result){
+          if(!result.ok) throw new Error((result.body && result.body.error) || 'Không kiểm tra được danh sách nhân sự.');
+          if(result.body.employeeMatch){
+            showEmployeeChallenge(result.body);
+            return null;
+          }
+          return apiPost('/api/auth/register', payload);
+        })
+        .then(function(result){
+          if(!result) return;
           if(!result.ok) throw new Error((result.body && result.body.error) || 'Đăng ký thất bại.');
-          window.location.href = '/shipment/';
+          window.location.href = '/shipment/lifecycle/';
         })
         .catch(function(err){
           showError(err.message || 'Đăng ký thất bại, vui lòng thử lại.');
@@ -330,10 +394,9 @@
     });
 
     fetch('/api/auth/me', {credentials:'same-origin'})
-      .then(function(res){ if(res.ok) window.location.href = '/shipment/'; })
+      .then(function(res){ if(res.ok) window.location.href = '/shipment/lifecycle/'; })
       .catch(function(){});
   </script>
   <script src="/shared/shooting-star.js?v=20260830"></script>
 </body>
 </html>
-
