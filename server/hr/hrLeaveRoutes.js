@@ -19,25 +19,13 @@ const {
   resolveApproverName,
   computeDurationSessions,
   parseIsoDateOnly,
-  formatLeaveBoundary
+  formatLeaveBoundary,
+  notifyOtherManagers
 } = require('./hrLeaveService');
 const { buildLeaveRequestsWorkbook } = require('./hrLeaveExportService');
 const { leaveEvents, LEAVE_EVENT_TYPES, broadcastLeaveEvent } = require('./hrLeaveEvents');
 const localUserStore = require('../auth/localUserStore');
 const notificationRepo = require('../notifications/notificationRepository');
-
-// Bao Quan ly khac (tru nguoi thao tac) - best-effort, KHONG duoc lam hong response chinh.
-async function notifyOtherManagers(actingUserId, payload) {
-  try {
-    const allUsers = await localUserStore.getAllUsers();
-    const managerIds = allUsers
-      .filter(u => u.vaiTro === ROLES.QUAN_LY && String(u.id) !== String(actingUserId))
-      .map(u => u.id);
-    await notificationRepo.createNotificationForUsers(managerIds, payload);
-  } catch (notifyErr) {
-    console.error('Lỗi báo thông báo nghỉ phép cho Quản lý:', notifyErr.message);
-  }
-}
 
 // Xem duoc: moi vai tro noi bo (Khach khong duoc).
 const authInternal = [requireAuth, requireRole(...INTERNAL_ROLES)];

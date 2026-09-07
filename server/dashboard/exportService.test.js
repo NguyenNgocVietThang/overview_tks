@@ -255,15 +255,22 @@ test('buildExportDataset: stockout.recentScan tra dung worksheet', async () => {
   const dataset = await exportService.__test__.buildExportDataset({
     tableKey: 'stockout.recentScan',
     recentStockoutResult: {
-      rows: [{ code: 'SP001', name: 'Ao thun', lastOutOfStockDate: '2026-01-05', daysOutOfStock: 6 }]
+      rows: [{
+        code: 'SP001', name: 'Ao thun', lastOutOfStockDate: '2026-01-05', daysOutOfStock: 6,
+        periods: [
+          { fromDate: '2026-01-01', toDate: '2026-01-05', days: 5 },
+          { fromDate: '2026-01-10', toDate: '2026-01-15', days: 6 }
+        ]
+      }]
     }
   });
 
   assert.equal(dataset.tableKey, 'stockout.recentScan');
   assert.equal(dataset.title, 'Hàng đứt gần đây');
   assert.equal(dataset.worksheets.length, 1);
-  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock']);
+  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'periods']);
   assert.equal(dataset.worksheets[0].rows[0].code, 'SP001');
+  assert.equal(dataset.worksheets[0].rows[0].periods, '01/01/2026 -> 05/01/2026\n10/01/2026 -> 15/01/2026');
 });
 
 test('buildExportDataset: stockout.recentScan khong co dong nao thi bao loi EXPORT_NO_DATA', async () => {
@@ -277,15 +284,43 @@ test('buildExportDataset: stockout.check30d tra dung worksheet', async () => {
   const dataset = await exportService.__test__.buildExportDataset({
     tableKey: 'stockout.check30d',
     stockout30dResult: {
-      rows: [{ code: 'SP001', name: 'Ao thun', stockoutCount: 2, totalStockoutDays: 10, currentOnHand: 3 }]
+      rows: [{
+        code: 'SP001', name: 'Ao thun', stockoutCount: 2, totalStockoutDays: 10, currentOnHand: 3,
+        periods: [
+          { fromDate: '2026-01-01', toDate: '2026-01-05', days: 5 },
+          { fromDate: '2026-01-10', toDate: '2026-01-14', days: 5 }
+        ]
+      }]
     }
   });
 
   assert.equal(dataset.tableKey, 'stockout.check30d');
   assert.equal(dataset.title, 'Kiểm tra đứt hàng 30 ngày');
   assert.equal(dataset.worksheets.length, 1);
-  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'currentOnHand']);
+  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'currentOnHand', 'periods']);
   assert.equal(dataset.worksheets[0].rows[0].code, 'SP001');
+  assert.equal(dataset.worksheets[0].rows[0].periods, '01/01/2026 -> 05/01/2026\n10/01/2026 -> 14/01/2026');
+});
+
+test('file Excel stockout bật wrap text cho cột Các đợt đứt hàng', async () => {
+  const file = await exportService.createExportWorkbook({
+    tableKey: 'stockout.recentScan',
+    recentStockoutResult: {
+      rows: [{
+        code: 'SP001', name: 'Áo thun', lastOutOfStockDate: '2026-01-01', daysOutOfStock: 10,
+        periods: [
+          { fromDate: '2026-01-01', toDate: '2026-01-05', days: 5 },
+          { fromDate: '2026-01-10', toDate: '2026-01-14', days: 5 }
+        ]
+      }]
+    },
+    columns: { recent_stockout_result: ['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'periods'] }
+  });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(file.buffer);
+  const periodsColumn = workbook.worksheets[0].getColumn(5);
+  assert.equal(periodsColumn.alignment.wrapText, true);
+  assert.match(workbook.worksheets[0].getCell('E2').value, /\n/);
 });
 
 test('buildExportDataset: stockout.check30d khong co dong nao thi bao loi EXPORT_NO_DATA', async () => {

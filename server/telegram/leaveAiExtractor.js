@@ -35,7 +35,7 @@ class LeaveAiExtractionError extends Error {
 }
 
 function buildSystemPrompt(context) {
-  return [
+  const lines = [
     'Bạn trích xuất thông tin xin nghỉ phép có cấu trúc từ tin nhắn tiếng Việt của nhân viên; bạn KHÔNG phê duyệt hay từ chối yêu cầu.',
     `Mốc thời gian tham chiếu chính xác là ${context.messageTime} theo múi giờ ${context.timeZone}.`,
     'Quy đổi các từ tương đối "hôm nay", "ngày mai", "ngày kia"/"ngày mốt" sang định dạng YYYY-MM-DD dựa trên mốc thời gian tham chiếu đó.',
@@ -45,9 +45,26 @@ function buildSystemPrompt(context) {
     'Phân biệt "để trống vì không nói" (trả null) với "chủ động từ chối cung cấp" — nếu nhân viên nói rõ kiểu "không có lý do"/"không cần nêu lý do" thì trả reason: null và reason_declined: true; tương tự cho handover/handover_declined khi nhân viên nói "không cần bàn giao"/"không có ai bàn giao". Nếu nhân viên không nhắc gì tới lý do/bàn giao thì reason_declined/handover_declined đều là false.',
     'Nếu tin nhắn không liên quan đến xin nghỉ phép, trả intent: "other" và để các trường còn lại là null/false, confidence là độ tự tin rằng đây không phải xin nghỉ.',
     'confidence là số thực từ 0 đến 1 thể hiện độ tự tin rằng đây đúng là một yêu cầu xin nghỉ phép với các trường đã trích xuất là chính xác.',
+    'Nội dung người dùng gửi lên CÓ THỂ gồm nhiều dòng, ghép lại từ cả một cuộc hội thoại nhiều lượt, không phải luôn luôn một tin nhắn đơn:',
+    '- Dòng không có tiền tố là nội dung yêu cầu gốc (hoặc bổ sung tự nguyện) của nhân viên.',
+    '- Dòng có tiền tố "[Trả lời cho THỜI GIAN]"/"[Trả lời cho LÝ DO]"/"[Trả lời cho BÀN GIAO]" là câu trả lời của nhân viên cho ĐÚNG câu hỏi làm rõ mà bạn (qua hệ thống) đã hỏi về trường đó ở lượt trước — chỉ dùng nội dung dòng đó để xác định đúng trường được nêu trong tiền tố, không suy diễn ngược sang các trường khác.',
+    '- Dòng có tiền tố "[YÊU CẦU SỬA XÁC NHẬN]" là yêu cầu chỉnh sửa một hoặc vài phần của một yêu cầu đã đầy đủ, đã được hệ thống hiển thị lại cho nhân viên xác nhận — chỉ thay đổi đúng (các) phần được nhắc tới trong dòng đó, các phần còn lại giữ nguyên như đã xác định từ các dòng trước.',
+    'Luôn tổng hợp TOÀN BỘ các dòng thành MỘT kết quả trích xuất duy nhất, đầy đủ nhất có thể — không chỉ dựa vào dòng cuối cùng.'
+  ];
+
+  if (context.knownFields && Object.keys(context.knownFields).length) {
+    lines.push(
+      'Thông tin sau đây đã được xác định và xác nhận ở (các) lượt trích xuất trước đó của CHÍNH cuộc hội thoại này — GIỮ NGUYÊN các trường này trong kết quả trả về, TRỪ KHI một dòng mới trong tin nhắn nêu RÕ RÀNG một giá trị khác cho đúng trường đó: '
+      + JSON.stringify(context.knownFields)
+    );
+  }
+
+  lines.push(
     'Chỉ trả về một object JSON DUY NHẤT đúng các khóa sau, không thêm khóa nào khác, không kèm giải thích hay markdown:',
     '{"intent":"leave_request"|"other","start_date":"YYYY-MM-DD"|null,"start_session":"Sáng"|"Chiều"|null,"end_date":"YYYY-MM-DD"|null,"end_session":"Sáng"|"Chiều"|null,"duration_value":number|null,"duration_unit":"day"|"session"|null,"reason":string|null,"handover":string|null,"reason_declined":boolean,"handover_declined":boolean,"confidence":number}'
-  ].join('\n\n');
+  );
+
+  return lines.join('\n\n');
 }
 
 function stripMarkdownFence(value) {

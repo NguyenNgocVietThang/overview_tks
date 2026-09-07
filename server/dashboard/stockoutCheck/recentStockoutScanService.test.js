@@ -12,8 +12,8 @@ const HEADERS = {
   products: ['Mã hàng', 'Tên hàng', 'Tồn kho', 'Trạng thái'],
   invoices: ['Mã hóa đơn', 'Ngày bán', 'Trạng thái'],
   invoiceDetails: ['Mã hóa đơn', 'Mã hàng', 'Số lượng'],
-  purchases: ['Mã hàng', 'Thời gian', 'Số lượng'],
-  purchaseReturns: ['Mã hàng', 'Thời gian', 'Số lượng']
+  purchases: ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
+  purchaseReturns: ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']
 };
 
 function fakeSheetsClient(sheets) {
@@ -35,6 +35,15 @@ function fakeReturnsClient(returnPages = []) {
   };
 }
 
+function fakeAllSourcesClient(calls) {
+  return {
+    async fetchAllPages(endpoint, query, onPage) {
+      calls.push({ endpoint, query });
+      await onPage([], { pagesLoaded: 1, recordsLoaded: 0, total: 0 });
+    }
+  };
+}
+
 test('chi lay ung vien dang kinh doanh va ton kho tong = 0', async () => {
   const store = createJobStore();
   const jobId = store.createJob();
@@ -51,7 +60,8 @@ test('chi lay ung vien dang kinh doanh va ton kho tong = 0', async () => {
     'Nhập hàng': [HEADERS.purchases],
     'Trả NCC': [HEADERS.purchaseReturns]
   });
-  const client = fakeReturnsClient([{ items: [], meta: { pagesLoaded: 1, recordsLoaded: 0, total: 0 } }]);
+  const apiCalls = [];
+  const client = fakeAllSourcesClient(apiCalls);
 
   await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, minConsecutiveDays: 5 });
 
@@ -59,6 +69,10 @@ test('chi lay ung vien dang kinh doanh va ton kho tong = 0', async () => {
   assert.equal(job.status, 'done');
   const codes = job.result.rows.map((r) => r.code).sort();
   assert.deepEqual(codes, ['SP002', 'SP004']);
+  assert.deepEqual(apiCalls.map(call => call.endpoint), ['invoices', 'purchaseorders', 'returns']);
+  assert.equal(job.result.sources.invoices, 'kiotviet-api');
+  assert.equal(job.result.sources.supplierReturns, 'google-sheets');
+  assert.deepEqual(job.result.warnings, []);
 });
 
 test('ung vien het hang du 5 ngay lien tuc tinh den hom nay thi liet ke, chua du 5 ngay thi bo qua', async () => {
@@ -89,6 +103,7 @@ test('ung vien het hang du 5 ngay lien tuc tinh den hom nay thi liet ke, chua du
   assert.equal(job.result.rows[0].code, 'SP001');
   assert.equal(job.result.rows[0].lastOutOfStockDate, '2026-01-06');
   assert.equal(job.result.rows[0].daysOutOfStock, 5);
+  assert.deepEqual(job.result.rows[0].periods, [{ fromDate: '2026-01-06', toDate: '2026-01-10', days: 5 }]);
 });
 
 test('khong co ung vien nao thi tra ket qua rong, khong goi API tra hang', async () => {

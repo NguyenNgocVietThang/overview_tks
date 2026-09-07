@@ -257,6 +257,55 @@ test('trả intent other với các trường ngữ nghĩa tùy chọn là null'
   assert.equal(result.handover, null);
 });
 
+test('system prompt giải thích định dạng transcript nhiều dòng và tiền tố nhãn', async () => {
+  let request;
+  const fakeFetch = async (url, options) => {
+    request = { url, headers: options.headers, body: JSON.parse(options.body) };
+    return responseFor(validExtraction);
+  };
+
+  await extractLeaveMessage('Em xin nghỉ sáng mai vì khám bệnh', {
+    messageTime: '2026-08-22T08:00:00+07:00', timeZone: 'Asia/Bangkok'
+  }, dependencies(fakeFetch));
+
+  const systemPrompt = request.body.messages[0].content;
+  assert.match(systemPrompt, /\[Trả lời cho THỜI GIAN\]/);
+  assert.match(systemPrompt, /\[YÊU CẦU SỬA XÁC NHẬN\]/);
+});
+
+test('system prompt liệt kê knownFields làm neo giữ nguyên thông tin đã biết', async () => {
+  let request;
+  const fakeFetch = async (url, options) => {
+    request = { url, headers: options.headers, body: JSON.parse(options.body) };
+    return responseFor(validExtraction);
+  };
+
+  await extractLeaveMessage('[Trả lời cho LÝ DO] Ốm', {
+    messageTime: '2026-08-22T08:00:00+07:00',
+    timeZone: 'Asia/Bangkok',
+    knownFields: { start_date: '2026-08-23', start_session: 'Chiều' }
+  }, dependencies(fakeFetch));
+
+  const systemPrompt = request.body.messages[0].content;
+  assert.match(systemPrompt, /GIỮ NGUYÊN/);
+  assert.match(systemPrompt, /"start_date":"2026-08-23"/);
+  assert.match(systemPrompt, /"start_session":"Chiều"/);
+});
+
+test('knownFields rỗng hoặc không truyền thì không thêm đoạn neo vào prompt', async () => {
+  let request;
+  const fakeFetch = async (url, options) => {
+    request = { url, headers: options.headers, body: JSON.parse(options.body) };
+    return responseFor(validExtraction);
+  };
+
+  await extractLeaveMessage('Em xin nghỉ', {
+    messageTime: '2026-08-22T08:00:00+07:00', timeZone: 'Asia/Bangkok', knownFields: null
+  }, dependencies(fakeFetch));
+
+  assert.doesNotMatch(request.body.messages[0].content, /GIỮ NGUYÊN/);
+});
+
 test('nhận diện reason_declined/handover_declined khi nhân viên chủ động từ chối cung cấp', async () => {
   const result = await extractLeaveMessage('Em xin nghỉ mai, không có lý do, không cần bàn giao', {
     messageTime: '2026-08-22T08:00:00+07:00', timeZone: 'Asia/Bangkok'

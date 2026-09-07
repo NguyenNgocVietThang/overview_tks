@@ -62,6 +62,28 @@ function readKiotVietConfig(branch) {
   return { clientId, clientSecret, retailer };
 }
 
+function buildStockoutProgressResponse(job, initialLabel) {
+  const progress = job.progress || {};
+  const phase = progress.phase || null;
+  let phaseLabel = initialLabel;
+  if (phase === 2 && progress.sourceLabel) {
+    if (progress.sourceStatus === 'fallback') {
+      phaseLabel = `Đang tải ${progress.sourceLabel} từ Google Sheets dự phòng`;
+    } else if (progress.source === 'supplierReturns') {
+      phaseLabel = `Đang tải ${progress.sourceLabel} từ Google Sheets`;
+    } else {
+      phaseLabel = `Đang tải ${progress.sourceLabel} từ API KiotViet`;
+    }
+  }
+  return {
+    phase,
+    phaseLabel,
+    phase2: progress.phase2 || null,
+    source: progress.source || null,
+    sourceStatus: progress.sourceStatus || null
+  };
+}
+
 router.post('/api/products/stockout-check', upload.single('file'), handleUploadError, async (req, res) => {
   try {
     if (!req.file) {
@@ -124,14 +146,9 @@ router.get('/api/products/stockout-check/:jobId/progress', (req, res) => {
     return res.json({ status: 'error', error: job.error.message, code: job.error.code });
   }
 
-  const phase = (job.progress && job.progress.phase) || null;
   res.status(200).json({
     status: job.status,
-    phase,
-    phaseLabel: phase === 2
-      ? 'Đang tải dữ liệu khách trả hàng từ KiotViet'
-      : 'Đang tải dữ liệu từ Google Sheets (Hóa đơn, Nhập hàng, Trả NCC)',
-    phase2: (job.progress && job.progress.phase2) || null,
+    ...buildStockoutProgressResponse(job, 'Đang đọc danh mục hàng hóa'),
     invalidCodes: job.invalidCodes,
     totalValidCodes: job.totalValidCodes
   });
@@ -178,14 +195,9 @@ router.get('/api/products/stockout-recent/:jobId/progress', (req, res) => {
     return res.json({ status: 'error', error: job.error.message, code: job.error.code });
   }
 
-  const phase = (job.progress && job.progress.phase) || null;
   res.status(200).json({
     status: job.status,
-    phase,
-    phaseLabel: phase === 2
-      ? 'Đang tải dữ liệu khách trả hàng từ KiotViet'
-      : 'Đang tải dữ liệu từ Google Sheets (Hàng hóa, Hóa đơn, Nhập hàng, Trả NCC)',
-    phase2: (job.progress && job.progress.phase2) || null
+    ...buildStockoutProgressResponse(job, 'Đang đọc danh mục hàng hóa')
   });
 });
 
@@ -230,14 +242,9 @@ router.get('/api/products/stockout-30d/:jobId/progress', (req, res) => {
     return res.json({ status: 'error', error: job.error.message, code: job.error.code });
   }
 
-  const phase = (job.progress && job.progress.phase) || null;
   res.status(200).json({
     status: job.status,
-    phase,
-    phaseLabel: phase === 2
-      ? 'Đang tải dữ liệu khách trả hàng từ KiotViet'
-      : 'Đang tải dữ liệu từ Google Sheets (Hàng hóa, Hóa đơn, Nhập hàng, Trả NCC)',
-    phase2: (job.progress && job.progress.phase2) || null
+    ...buildStockoutProgressResponse(job, 'Đang đọc danh mục hàng hóa')
   });
 });
 

@@ -4019,7 +4019,7 @@
                 <div class="stockout-upload-row">
                   <button class="export-button" type="button" id="stockoutCheckButton" onclick="startStockoutCheck()">Kiểm tra đứt hàng</button>
                 </div>
-                <div class="table-note">Định nghĩa đứt hàng: tồn kho về 0 liên tục từ 7 ngày trở lên, xét trong 6 tháng gần nhất. Dữ liệu lấy từ Google Sheets (Hóa đơn, Nhập hàng, Trả NCC) và KiotViet (Khách trả hàng).</div>
+                <div class="table-note">Định nghĩa đứt hàng: tồn kho về 0 liên tục từ 5 ngày trở lên, xét trong 6 tháng gần nhất. Hóa đơn, Nhập hàng và Khách trả lấy từ API KiotViet; Hóa đơn/Nhập hàng dùng Google Sheets dự phòng khi API lỗi; Trả NCC lấy từ Sheet.</div>
                 <div id="stockoutProgressBox" hidden>
                   <div class="table-note" id="stockoutProgressLabel">—</div>
                   <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="stockoutProgressFill"></div></div>
@@ -4042,11 +4042,12 @@
                         <th>Tên hàng</th>
                         <th>Số lần đứt hàng</th>
                         <th>Tổng ngày đứt hàng</th>
+                        <th>Các đợt đứt hàng</th>
                       </tr>
                     </thead>
                     <tbody id="stockoutResultRows">
                       <tr>
-                        <td colspan="4" class="table-note">Chưa có dữ liệu — hãy upload file Excel ở trên</td>
+                        <td colspan="5" class="table-note">Chưa có dữ liệu — hãy upload file Excel ở trên</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4059,7 +4060,7 @@
                 <div class="stockout-upload-row">
                   <button class="export-button" type="button" id="recentStockoutScanButton" onclick="startRecentStockoutScan()">Lấy danh sách đứt hàng gần đây</button>
                 </div>
-                <div class="table-note">Quét toàn bộ hàng hóa đang kinh doanh có tồn kho hiện tại = 0, liệt kê mã có số ngày đứt hàng liên tục (tính đến hôm nay) ≥ 5 ngày. Dữ liệu dựa trên Google Sheets và KiotViet (Khách trả hàng).</div>
+                <div class="table-note">Quét toàn bộ hàng hóa đang kinh doanh có tồn kho hiện tại = 0, liệt kê mã có số ngày đứt hàng liên tục (tính đến hôm nay) ≥ 5 ngày. Hóa đơn, Nhập hàng và Khách trả lấy từ API KiotViet; Trả NCC lấy từ Sheet.</div>
                 <div id="recentStockoutProgressBox" hidden>
                   <div class="table-note" id="recentStockoutProgressLabel">—</div>
                   <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="recentStockoutProgressFill"></div></div>
@@ -4081,11 +4082,12 @@
                         <th>Tên SP</th>
                         <th>Ngày hết hàng gần nhất</th>
                         <th>Số ngày đứt hàng</th>
+                        <th>Các đợt đứt hàng</th>
                       </tr>
                     </thead>
                     <tbody id="recentStockoutResultRows">
                       <tr>
-                        <td colspan="4" class="table-note">Chưa có dữ liệu — hãy ấn "Lấy danh sách đứt hàng gần đây"</td>
+                        <td colspan="5" class="table-note">Chưa có dữ liệu — hãy ấn "Lấy danh sách đứt hàng gần đây"</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4098,7 +4100,7 @@
                 <div class="stockout-upload-row">
                   <button class="export-button" type="button" id="stockout30dScanButton" onclick="startStockout30dScan()">Kiểm tra đứt hàng 30 ngày</button>
                 </div>
-                <div class="table-note">Quét toàn bộ hàng hóa đang kinh doanh trong 30 ngày gần đây (dựa trên Google Sheets: Hóa đơn, Nhập hàng, Trả NCC; riêng Khách trả hàng lấy trực tiếp từ KiotViet), liệt kê các đợt tồn kho về 0 liên tục ≥ 5 ngày (một mã có thể đứt hàng nhiều lần).</div>
+                <div class="table-note">Quét toàn bộ hàng hóa đang kinh doanh trong 30 ngày gần đây. Hóa đơn, Nhập hàng và Khách trả lấy từ API KiotViet; Hóa đơn/Nhập hàng dùng Google Sheets dự phòng khi API lỗi; Trả NCC lấy từ Sheet.</div>
                 <div id="stockout30dProgressBox" hidden>
                   <div class="table-note" id="stockout30dProgressLabel">—</div>
                   <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="stockout30dProgressFill"></div></div>
@@ -4121,11 +4123,12 @@
                         <th>Số lần đứt hàng</th>
                         <th>Số ngày đứt hàng</th>
                         <th>Tồn kho hiện tại</th>
+                        <th>Các đợt đứt hàng</th>
                       </tr>
                     </thead>
                     <tbody id="stockout30dResultRows">
                       <tr>
-                        <td colspan="5" class="table-note">Chưa có dữ liệu — hãy ấn "Kiểm tra đứt hàng 30 ngày"</td>
+                        <td colspan="6" class="table-note">Chưa có dữ liệu — hãy ấn "Kiểm tra đứt hàng 30 ngày"</td>
                       </tr>
                     </tbody>
                   </table>
@@ -5084,10 +5087,22 @@
         });
     }
 
+    const STOCKOUT_RESULT_SCHEMA_VERSION = 3;
+
+    function hasCurrentStockoutResultShape(result) {
+      return Boolean(result)
+        && Array.isArray(result.rows)
+        && result.rows.every(function (row) { return Array.isArray(row.periods); })
+        && Boolean(result.sources)
+        && typeof result.sources === 'object'
+        && Array.isArray(result.warnings);
+    }
+
     function saveStockoutCheckState() {
       try {
         const mode = state.stockoutCheck.mode;
         const payload = {
+          schemaVersion: STOCKOUT_RESULT_SCHEMA_VERSION,
           mode: mode,
           codesText: mode === 'codes' ? (document.getElementById('stockoutCodesInput').value || '') : '',
           fileName: mode === 'excel' ? (document.getElementById('stockoutFileName').textContent || '') : '',
@@ -5104,7 +5119,11 @@
         const raw = localStorage.getItem('stockoutCheck:lastState');
         if (raw) saved = JSON.parse(raw);
       } catch (err) { saved = null; }
-      if (!saved || !saved.result) return;
+      if (!saved) return;
+      if (saved.schemaVersion !== STOCKOUT_RESULT_SCHEMA_VERSION || !hasCurrentStockoutResultShape(saved.result)) {
+        try { localStorage.removeItem('stockoutCheck:lastState'); } catch (err) { /* bỏ qua */ }
+        return;
+      }
 
       state.stockoutCheck.result = saved.result;
       setStockoutInputMode(saved.mode || 'excel');
@@ -5127,10 +5146,16 @@
       }
 
       const note = document.getElementById('stockoutRestoredNote');
-      if (note && saved.checkedAt) {
-        const d = new Date(saved.checkedAt);
+      const warningText = formatStockoutSourceWarnings(saved.result);
+      if (note && (saved.checkedAt || warningText)) {
+        const messages = [];
+        if (saved.checkedAt) {
+          const d = new Date(saved.checkedAt);
+          messages.push('Đã phục hồi kết quả lần kiểm tra gần nhất (' + d.toLocaleString('vi-VN') + ').');
+        }
+        if (warningText) messages.push(warningText);
         note.hidden = false;
-        note.textContent = 'Đã phục hồi kết quả lần kiểm tra gần nhất (' + d.toLocaleString('vi-VN') + ').';
+        note.textContent = messages.join(' ');
       }
     }
     restoreStockoutCheckState();
@@ -5273,11 +5298,15 @@
         const response = await fetch('/api/products/stockout-check/' + encodeURIComponent(jobId) + '/result');
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || 'Không lấy được kết quả.');
+        if (!hasCurrentStockoutResultShape(payload.result)) {
+          throw new Error('Kết quả máy chủ chưa có dữ liệu các đợt đứt hàng và nguồn dữ liệu. Hãy khởi động lại máy chủ rồi kiểm tra lại.');
+        }
 
         state.stockoutCheck.result = payload.result;
         document.getElementById('stockoutProgressBox').hidden = true;
         document.getElementById('stockoutCheckButton').disabled = false;
         renderStockoutResultTable(payload.result);
+        showStockoutSourceWarnings(payload.result, 'stockoutRestoredNote');
         saveStockoutCheckState();
       } catch (err) {
         document.getElementById('stockoutCheckButton').disabled = false;
@@ -5285,6 +5314,29 @@
         errorBox.hidden = false;
         errorBox.textContent = err.message || 'Không lấy được kết quả kiểm tra đứt hàng.';
       }
+    }
+
+    function formatStockoutDate(dateKey) {
+      const match = String(dateKey || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      return match ? match[3] + '/' + match[2] + '/' + match[1] : '';
+    }
+
+    function formatStockoutPeriods(periods) {
+      return (Array.isArray(periods) ? periods : []).map(function (p) {
+        return escapeHtml(formatStockoutDate(p.fromDate)) + ' -&gt; ' + escapeHtml(formatStockoutDate(p.toDate));
+      }).join('<br>');
+    }
+
+    function formatStockoutSourceWarnings(result) {
+      return Array.isArray(result && result.warnings) ? result.warnings.join(' ') : '';
+    }
+
+    function showStockoutSourceWarnings(result, noteId) {
+      const note = document.getElementById(noteId);
+      if (!note) return;
+      const warningText = formatStockoutSourceWarnings(result);
+      note.hidden = !warningText;
+      note.textContent = warningText;
     }
 
     function renderStockoutResultTable(result) {
@@ -5297,26 +5349,22 @@
       if (exportButton) exportButton.disabled = rows.length === 0;
 
       if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="table-note">Không có mã hàng nào bị đứt hàng ≥ 7 ngày trong khoảng ' +
+        tbody.innerHTML = '<tr><td colspan="5" class="table-note">Không có mã hàng nào bị đứt hàng ≥ 5 ngày trong khoảng ' +
           escapeHtml(result.fromDate) + ' — ' + escapeHtml(result.toDate) + '</td></tr>';
         return;
       }
 
       const sorted = rows.slice().sort(function (a, b) { return b.totalStockoutDays - a.totalStockoutDays; });
 
-      tbody.innerHTML = sorted.map(function (row, index) {
-        const rowId = 'stockoutPeriods' + index;
-        const periodsHtml = (row.periods || []).map(function (p) {
-          return '<div>' + escapeHtml(p.fromDate) + ' — ' + escapeHtml(p.toDate) + ' · ' + p.days + ' ngày</div>';
-        }).join('');
+      tbody.innerHTML = sorted.map(function (row) {
         return (
-          '<tr class="stockout-toggle-row" onclick="toggleStockoutPeriods(\'' + rowId + '\')">' +
+          '<tr>' +
             '<td>' + escapeHtml(row.code) + '</td>' +
             '<td>' + escapeHtml(row.name) + '</td>' +
             '<td>' + row.stockoutCount + '</td>' +
             '<td>' + row.totalStockoutDays + '</td>' +
-          '</tr>' +
-          '<tr class="stockout-period-row" id="' + rowId + '" hidden><td colspan="4">' + periodsHtml + '</td></tr>'
+            '<td>' + formatStockoutPeriods(row.periods) + '</td>' +
+          '</tr>'
         );
       }).join('');
     }
@@ -5363,7 +5411,11 @@
 
     function saveRecentStockoutState() {
       try {
-        const payload = { result: state.recentStockout.result, checkedAt: new Date().toISOString() };
+        const payload = {
+          schemaVersion: STOCKOUT_RESULT_SCHEMA_VERSION,
+          result: state.recentStockout.result,
+          checkedAt: new Date().toISOString()
+        };
         localStorage.setItem('recentStockout:lastState', JSON.stringify(payload));
       } catch (err) { /* localStorage không khả dụng — bỏ qua, không chặn luồng chính */ }
     }
@@ -5374,16 +5426,26 @@
         const raw = localStorage.getItem('recentStockout:lastState');
         if (raw) saved = JSON.parse(raw);
       } catch (err) { saved = null; }
-      if (!saved || !saved.result) return;
+      if (!saved) return;
+      if (saved.schemaVersion !== STOCKOUT_RESULT_SCHEMA_VERSION || !hasCurrentStockoutResultShape(saved.result)) {
+        try { localStorage.removeItem('recentStockout:lastState'); } catch (err) { /* bỏ qua */ }
+        return;
+      }
 
       state.recentStockout.result = saved.result;
       renderRecentStockoutResultTable(saved.result);
 
       const note = document.getElementById('recentStockoutRestoredNote');
-      if (note && saved.checkedAt) {
-        const d = new Date(saved.checkedAt);
+      const warningText = formatStockoutSourceWarnings(saved.result);
+      if (note && (saved.checkedAt || warningText)) {
+        const messages = [];
+        if (saved.checkedAt) {
+          const d = new Date(saved.checkedAt);
+          messages.push('Đã phục hồi kết quả lần quét gần nhất (' + d.toLocaleString('vi-VN') + ').');
+        }
+        if (warningText) messages.push(warningText);
         note.hidden = false;
-        note.textContent = 'Đã phục hồi kết quả lần quét gần nhất (' + d.toLocaleString('vi-VN') + ').';
+        note.textContent = messages.join(' ');
       }
     }
     restoreRecentStockoutState();
@@ -5478,11 +5540,15 @@
         const response = await fetch('/api/products/stockout-recent/' + encodeURIComponent(jobId) + '/result');
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || 'Không lấy được kết quả.');
+        if (!hasCurrentStockoutResultShape(payload.result)) {
+          throw new Error('Kết quả máy chủ chưa có dữ liệu các đợt đứt hàng và nguồn dữ liệu. Hãy khởi động lại máy chủ rồi kiểm tra lại.');
+        }
 
         state.recentStockout.result = payload.result;
         document.getElementById('recentStockoutProgressBox').hidden = true;
         document.getElementById('recentStockoutScanButton').disabled = false;
         renderRecentStockoutResultTable(payload.result);
+        showStockoutSourceWarnings(payload.result, 'recentStockoutRestoredNote');
         saveRecentStockoutState();
       } catch (err) {
         document.getElementById('recentStockoutScanButton').disabled = false;
@@ -5504,7 +5570,7 @@
       if (exportButton) exportButton.disabled = rows.length === 0;
 
       if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục tính đến ' +
+        tbody.innerHTML = '<tr><td colspan="5" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục tính đến ' +
           escapeHtml(result ? result.asOfDate : '') + '</td></tr>';
         return;
       }
@@ -5518,6 +5584,7 @@
             '<td>' + escapeHtml(row.name) + '</td>' +
             '<td>' + escapeHtml(row.lastOutOfStockDate) + '</td>' +
             '<td>' + row.daysOutOfStock + '</td>' +
+            '<td>' + formatStockoutPeriods(row.periods) + '</td>' +
           '</tr>'
         );
       }).join('');
@@ -5534,7 +5601,7 @@
         const payload = {
           tableKey: 'stockout.recentScan',
           recentStockoutResult: result,
-          columns: { recent_stockout_result: ['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock'] }
+          columns: { recent_stockout_result: ['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'periods'] }
         };
         const response = await fetch('/api/export', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
@@ -5560,7 +5627,11 @@
 
     function saveStockout30dState() {
       try {
-        const payload = { result: state.stockout30d.result, checkedAt: new Date().toISOString() };
+        const payload = {
+          schemaVersion: STOCKOUT_RESULT_SCHEMA_VERSION,
+          result: state.stockout30d.result,
+          checkedAt: new Date().toISOString()
+        };
         localStorage.setItem('stockout30d:lastState', JSON.stringify(payload));
       } catch (err) { /* localStorage không khả dụng — bỏ qua, không chặn luồng chính */ }
     }
@@ -5571,16 +5642,26 @@
         const raw = localStorage.getItem('stockout30d:lastState');
         if (raw) saved = JSON.parse(raw);
       } catch (err) { saved = null; }
-      if (!saved || !saved.result) return;
+      if (!saved) return;
+      if (saved.schemaVersion !== STOCKOUT_RESULT_SCHEMA_VERSION || !hasCurrentStockoutResultShape(saved.result)) {
+        try { localStorage.removeItem('stockout30d:lastState'); } catch (err) { /* bỏ qua */ }
+        return;
+      }
 
       state.stockout30d.result = saved.result;
       renderStockout30dResultTable(saved.result);
 
       const note = document.getElementById('stockout30dRestoredNote');
-      if (note && saved.checkedAt) {
-        const d = new Date(saved.checkedAt);
+      const warningText = formatStockoutSourceWarnings(saved.result);
+      if (note && (saved.checkedAt || warningText)) {
+        const messages = [];
+        if (saved.checkedAt) {
+          const d = new Date(saved.checkedAt);
+          messages.push('Đã phục hồi kết quả lần kiểm tra gần nhất (' + d.toLocaleString('vi-VN') + ').');
+        }
+        if (warningText) messages.push(warningText);
         note.hidden = false;
-        note.textContent = 'Đã phục hồi kết quả lần kiểm tra gần nhất (' + d.toLocaleString('vi-VN') + ').';
+        note.textContent = messages.join(' ');
       }
     }
     restoreStockout30dState();
@@ -5675,11 +5756,15 @@
         const response = await fetch('/api/products/stockout-30d/' + encodeURIComponent(jobId) + '/result');
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || 'Không lấy được kết quả.');
+        if (!hasCurrentStockoutResultShape(payload.result)) {
+          throw new Error('Kết quả máy chủ chưa có dữ liệu các đợt đứt hàng và nguồn dữ liệu. Hãy khởi động lại máy chủ rồi kiểm tra lại.');
+        }
 
         state.stockout30d.result = payload.result;
         document.getElementById('stockout30dProgressBox').hidden = true;
         document.getElementById('stockout30dScanButton').disabled = false;
         renderStockout30dResultTable(payload.result);
+        showStockoutSourceWarnings(payload.result, 'stockout30dRestoredNote');
         saveStockout30dState();
       } catch (err) {
         document.getElementById('stockout30dScanButton').disabled = false;
@@ -5701,7 +5786,7 @@
       if (exportButton) exportButton.disabled = rows.length === 0;
 
       if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 30 ngày gần đây</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 30 ngày gần đây</td></tr>';
         return;
       }
 
@@ -5715,6 +5800,7 @@
             '<td>' + row.stockoutCount + '</td>' +
             '<td>' + row.totalStockoutDays + '</td>' +
             '<td>' + row.currentOnHand + '</td>' +
+            '<td>' + formatStockoutPeriods(row.periods) + '</td>' +
           '</tr>'
         );
       }).join('');
@@ -5731,7 +5817,7 @@
         const payload = {
           tableKey: 'stockout.check30d',
           stockout30dResult: result,
-          columns: { stockout_30d_result: ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'currentOnHand'] }
+          columns: { stockout_30d_result: ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'currentOnHand', 'periods'] }
         };
         const response = await fetch('/api/export', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)

@@ -1,29 +1,14 @@
 // ==========================================
-// USER REPOSITORY — Quản lý tài khoản người dùng qua localUserStore
-// (lưu trữ cục bộ tại server/data/users.json để bảo mật tuyệt đối,
-// không ghi ra Google Sheet).
+// USER REPOSITORY — Quản lý tài khoản người dùng qua localUserStore (cache
+// cục bộ tại server/data/users.json, đồng bộ hai chiều với Google Sheets —
+// xem đầu file localUserStore.js).
 // ==========================================
 const CONFIG = require('../config');
 const sheetsClient = require('../sheets/sheetsClient');
 const localUserStore = require('./localUserStore');
+const { USER_COLUMNS, buildColumnIndex, rowToUser } = require('./userSheetColumns');
 
 const originalGetValues = sheetsClient.getValues;
-
-const USER_COLUMNS = {
-  id: 'ID',
-  hoTen: 'Họ tên',
-  username: 'Tài khoản đăng nhập',
-  passwordHash: 'Mật khẩu (bcrypt hash)',
-  vaiTro: 'Vai trò',
-  coSo: 'Cơ sở phụ trách',
-  trangThai: 'Trạng thái tài khoản',
-  ngayTao: 'Ngày tạo',
-  dangNhapGanNhat: 'Đăng nhập gần nhất',
-  email: 'Email',
-  soDienThoai: 'Số điện thoại',
-  emailKhoiPhuc: 'Email khôi phục',
-  sdtKhoiPhuc: 'SĐT khôi phục'
-};
 
 const ACTIVE_STATUS = localUserStore.ACTIVE_STATUS;
 const INACTIVE_STATUS = localUserStore.INACTIVE_STATUS;
@@ -43,18 +28,6 @@ const INTERNAL_ROLES = Object.freeze([
   ROLES.NHAN_VIEN_MUA_HANG
 ]);
 
-function buildColumnIndex(headers) {
-  const index = {};
-  Object.entries(USER_COLUMNS).forEach(([key, headerName]) => {
-    index[key] = headers.findIndex(header => String(header || '').trim() === headerName);
-  });
-  return index;
-}
-
-function cell(row, colIndex) {
-  return colIndex >= 0 && colIndex < row.length ? row[colIndex] : undefined;
-}
-
 function normalizeUsername(raw) {
   return String(raw || '').trim().toLowerCase();
 }
@@ -65,22 +38,6 @@ function normalizeEmail(raw) {
 
 function normalizePhone(raw) {
   return localUserStore.normalizePhone(raw);
-}
-
-function rowToUser(row, colIndex) {
-  return {
-    id: String(cell(row, colIndex.id) || ''),
-    hoTen: String(cell(row, colIndex.hoTen) || ''),
-    username: String(cell(row, colIndex.username) || '').trim(),
-    passwordHash: String(cell(row, colIndex.passwordHash) || ''),
-    vaiTro: String(cell(row, colIndex.vaiTro) || ''),
-    coSo: String(cell(row, colIndex.coSo) || ''),
-    trangThai: String(cell(row, colIndex.trangThai) || ''),
-    email: String(cell(row, colIndex.email) || '').trim(),
-    soDienThoai: String(cell(row, colIndex.soDienThoai) || '').trim(),
-    emailKhoiPhuc: String(cell(row, colIndex.emailKhoiPhuc) || '').trim(),
-    sdtKhoiPhuc: String(cell(row, colIndex.sdtKhoiPhuc) || '').trim()
-  };
 }
 
 /**

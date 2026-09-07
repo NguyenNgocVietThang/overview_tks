@@ -64,14 +64,8 @@ function chooseWinner(votes) {
   ))[0];
 }
 
-async function extractLeaveMessage(text, context, dependencies = {}) {
-  const { models, singleModel, extractOne, resolver, now } = resolveDependencies(dependencies);
-  if (models.length < 2) {
-    const model = models[0] || singleModel;
-    return extractOne(text, context, { model });
-  }
-
-  return new Promise((resolve, reject) => {
+function raceForConsensus(text, context, { models, extractOne, resolver, now }) {
+  return new Promise(resolve => {
     const controllers = models.map(() => new AbortController());
     const votesByKey = new Map();
     let settled = 0;
@@ -81,7 +75,7 @@ async function extractLeaveMessage(text, context, dependencies = {}) {
       settled += 1;
       if (!finished && settled === models.length) {
         finished = true;
-        reject(new LeaveAiConsensusError('AI_LEAVE_NO_CONSENSUS'));
+        resolve(null);
       }
     };
 
@@ -118,6 +112,43 @@ async function extractLeaveMessage(text, context, dependencies = {}) {
         .finally(settleWithoutVote);
     });
   });
+}
+
+/**
+ * Du phong khi khong co 2/N model dong thuan: thu lai 1 lan voi model chinh
+ * (singleModel) truoc khi thuc su bao loi cho nguoi dung — trach nhiem tam
+ * thoi cua 1 model duy nhat van dang tin cay duoc hon la bat nguoi dung dien
+ * dat lai toan bo yeu cau chi vi 5 model khong khop tuyet doi voi nhau.
+ */
+async function fallbackSingleModel(text, context, { singleModel, extractOne, resolver }) {
+  if (!singleModel) throw new LeaveAiConsensusError('AI_LEAVE_NO_CONSENSUS');
+  let extraction;
+  try {
+    extraction = await extractOne(text, context, { model: singleModel });
+  } catch (_error) {
+    throw new LeaveAiConsensusError('AI_LEAVE_NO_CONSENSUS');
+  }
+  let vote;
+  try {
+    vote = buildVote(extraction, context, resolver);
+  } catch (_error) {
+    vote = null;
+  }
+  if (!vote) throw new LeaveAiConsensusError('AI_LEAVE_NO_CONSENSUS');
+  return extraction;
+}
+
+async function extractLeaveMessage(text, context, dependencies = {}) {
+  const { models, singleModel, extractOne, resolver, now } = resolveDependencies(dependencies);
+  if (models.length < 2) {
+    const model = models[0] || singleModel;
+    return extractOne(text, context, { model });
+  }
+
+  const consensusResult = await raceForConsensus(text, context, { models, extractOne, resolver, now });
+  if (consensusResult) return consensusResult;
+
+  return fallbackSingleModel(text, context, { singleModel, extractOne, resolver });
 }
 
 module.exports = {

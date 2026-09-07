@@ -153,6 +153,51 @@ test('hai vote intent other đồng thuận mà không gọi resolver', async ()
   assert.equal(resolverCalls, 0);
 });
 
+test('không có cặp đồng thuận -> thử lại 1 lần với model chính trước khi báo lỗi', async () => {
+  const fixtures = {
+    'model-a': extraction({ start_date: '2026-09-01', end_date: '2026-09-01' }),
+    'model-b': extraction({ start_date: '2026-09-02', end_date: '2026-09-02' }),
+    'model-c': extraction({ start_date: '2026-09-03', end_date: '2026-09-03' }),
+    'model-d': extraction({ start_date: '2026-09-04', end_date: '2026-09-04' }),
+    'model-e': extraction({ start_date: '2026-09-05', end_date: '2026-09-05' })
+  };
+  let fallbackCalls = 0;
+  // Phan biet cuoc goi du phong (khong kem `signal`) voi cuoc goi trong vong
+  // dua dong thuan (luon kem `signal` de co the abort).
+  const extractOne = async (_text, _context, { model, signal }) => {
+    if (model === 'model-a' && !signal) {
+      fallbackCalls += 1;
+      return extraction({ start_date: '2026-09-01', end_date: '2026-09-01', reason: 'phương án dự phòng' });
+    }
+    return fixtures[model];
+  };
+
+  const result = await extractLeaveMessage('xin nghỉ', CONTEXT, {
+    models: MODELS,
+    singleModel: 'model-a',
+    extractOne
+  });
+
+  assert.equal(result.reason, 'phương án dự phòng');
+  assert.equal(fallbackCalls, 1);
+});
+
+test('phương án dự phòng cũng thất bại -> vẫn báo AI_LEAVE_NO_CONSENSUS', async () => {
+  const fixtures = {
+    'model-a': extraction({ confidence: 0.5, start_date: '2026-09-01', end_date: '2026-09-01' }),
+    'model-b': extraction({ start_date: '2026-09-02', end_date: '2026-09-02' }),
+    'model-c': extraction({ start_date: '2026-09-03', end_date: '2026-09-03' }),
+    'model-d': extraction({ start_date: '2026-09-04', end_date: '2026-09-04' }),
+    'model-e': extraction({ start_date: '2026-09-05', end_date: '2026-09-05' })
+  };
+  const extractOne = async (_text, _context, { model }) => fixtures[model];
+
+  await assert.rejects(
+    extractLeaveMessage('xin nghỉ', CONTEXT, { models: MODELS, singleModel: 'model-a', extractOne }),
+    noConsensusCode
+  );
+});
+
 test('array model rỗng fallback sang AI_LEAVE_API_MODEL đơn', async () => {
   const calls = [];
   const expected = extraction({ reason: 'fallback' });

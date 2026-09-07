@@ -25,13 +25,14 @@ const repo = require('../hr/hrLeaveRepository');
 const {
   computeIsUrgent,
   formatLeaveBoundary,
-  resolveSenderIdentity
+  resolveSenderIdentity,
+  notifyOtherManagers
 } = require('../hr/hrLeaveService');
 const { getBangkokSessionStartTime, resolveLeaveMessage } = require('../hr/leaveMessageResolver');
 const leaveAiExtractor = require('./leaveAiConsensusExtractor');
 const { broadcastLeaveEvent, LEAVE_EVENT_TYPES } = require('../hr/hrLeaveEvents');
 const conversationStore = require('./conversationStore');
-const { getUserByUsername, ROLES } = require('../auth/localUserStore');
+const { getUserByUsername } = require('../auth/localUserStore');
 const telegramIdentityService = require('./telegramIdentityService');
 
 let botInstance = null;
@@ -69,6 +70,11 @@ const STEP = Object.freeze({
 });
 
 const FIELD = Object.freeze({ TIME: 'TIME', REASON: 'REASON', HANDOVER: 'HANDOVER' });
+
+// Nhan danh cho tin nhan gui trong luc dang CONFIRM (khong khop tu khoa xac
+// nhan/huy) -- danh dau day la yeu cau SUA 1 phan cua ban nhap da day du,
+// khac voi tin nhan tra loi cau hoi lam ro (FIELD.*) hoac tin nhan mo dau.
+const CONFIRM_EDIT_MARKER = 'CONFIRM_EDIT';
 
 // So lan hoi lai toi da cho CUNG 1 nhom truoc khi bot dung hoi va goi y /huy.
 const MAX_CLARIFICATION_ATTEMPTS = 3;
@@ -133,8 +139,29 @@ function buildExtractionTranscript(data) {
   };
   return data.messages.map((message, index) => {
     const field = Array.isArray(data.messageFields) ? data.messageFields[index] : null;
+    if (field === CONFIRM_EDIT_MARKER) return `[YÊU CẦU SỬA XÁC NHẬN] ${message}`;
     return field ? `[Trả lời cho ${labels[field]}] ${message}` : message;
   }).join('\n');
+}
+
+/**
+ * Rut cac truong da duoc trich xuat/xac nhan o lan goi AI truoc do lam "neo"
+ * cho lan goi tiep theo -- giup AI khong phai doan lai tu dau nhung phan da
+ * on dinh (vd: THOI GIAN da ro) chi vi transcript dai them ra, giam han xac
+ * suat 2 model lech nhau o mot truong von khong doi.
+ */
+function buildKnownFieldsContext(data) {
+  const last = data.lastExtraction;
+  if (!last) return null;
+  const known = {};
+  ['start_date', 'start_session', 'end_date', 'end_session', 'duration_value', 'duration_unit'].forEach(key => {
+    if (last[key] != null) known[key] = last[key];
+  });
+  if (hasValue(last.reason)) known.reason = last.reason;
+  else if (last.reason_declined) known.reason_declined = true;
+  if (hasValue(last.handover)) known.handover = last.handover;
+  else if (last.handover_declined) known.handover_declined = true;
+  return Object.keys(known).length ? known : null;
 }
 
 function applyBareDecline(extracted, data) {
@@ -403,7 +430,9 @@ async function handleFreeTextMessage(bot, chatId, msg, text) {
       conv.data.messageFields = conv.data.messages.map(() => null);
     }
     conv.data.messages.push(text);
-    conv.data.messageFields.push(conv.data.pendingField || null);
+    conv.data.messageFields.push(
+      conv.step === STEP.CONFIRM ? CONFIRM_EDIT_MARKER : (conv.data.pendingField || null)
+    );
     conversationStore.setConversation(chatId, conv);
   }
 
@@ -420,7 +449,8 @@ async function runLeavePipeline(bot, chatId, conv) {
       {
         messageTime: d.messageTime,
         timeZone: CONFIG.HR_TIME_ZONE,
-        noticeHours: CONFIG.HR_URGENT_NOTICE_HOURS_THRESHOLD
+        noticeHours: CONFIG.HR_URGENT_NOTICE_HOURS_THRESHOLD,
+        knownFields: buildKnownFieldsContext(d)
       }
     );
     extracted = applyBareDecline(extracted, d);
@@ -429,7 +459,7 @@ async function runLeavePipeline(bot, chatId, conv) {
     try {
       if (err && err.code === 'AI_LEAVE_NO_CONSENSUS') {
         await bot.sendMessage(chatId,
-          'Bot chưa có đủ hai model đồng thuận về yêu cầu này. Bạn vui lòng diễn đạt lại thời gian nghỉ rõ hơn.'
+          'Bot chưa xác định chắc chắn được yêu cầu này. Bạn vui lòng nhắn lại toàn bộ yêu cầu trong một câu rõ ràng (thời gian, lý do, người bàn giao nếu có).'
         );
       } else {
         await bot.sendMessage(chatId, 'Bot chưa phân tích được tin nhắn lúc này. Bạn vui lòng gửi lại sau ít phút.');
@@ -441,6 +471,17 @@ async function runLeavePipeline(bot, chatId, conv) {
   }
 
   if (extracted.intent !== 'leave_request') {
+    if (conv.step === STEP.CONFIRM) {
+      // Dang sua 1 ban nhap da day du -- KHONG xoa, chi bo qua dong vua gui de
+      // khong lam ban nhap sau nay them roi vi 1 cau AI hieu nham.
+      d.messages.pop();
+      if (Array.isArray(d.messageFields)) d.messageFields.pop();
+      conversationStore.setConversation(chatId, conv);
+      await bot.sendMessage(chatId,
+        'Mình chưa hiểu phần bạn muốn sửa, bạn diễn đạt lại rõ hơn phần cần đổi nhé (hoặc gõ /huy để huỷ hẳn).'
+      );
+      return;
+    }
     resetConversation(chatId);
     await bot.sendMessage(chatId,
       'Mình chỉ hỗ trợ xin nghỉ phép thôi nhé. Bạn có thể nhắn một câu tự nhiên, ví dụ: "Em xin nghỉ chiều mai vì khám bệnh, bàn giao cho Nguyễn B".'
@@ -457,6 +498,11 @@ async function runLeavePipeline(bot, chatId, conv) {
     );
     return;
   }
+
+  // Chi neo lai (anchor) sau khi resolver da xac nhan THOI GIAN hop le -- tranh
+  // luu lai gia tri thoi gian sai/mau thuan lam "neo" cho lan trich xuat sau.
+  d.lastExtraction = extracted;
+  conversationStore.setConversation(chatId, conv);
 
   if (!hasValue(extracted.reason) && extracted.reason_declined !== true) {
     await askOrGiveUp(bot, chatId, conv, FIELD.REASON, "Lý do nghỉ là gì? (Nếu không có, trả lời 'không có')");
@@ -517,8 +563,41 @@ function buildDefaultNotes(extracted) {
   return notes;
 }
 
+function sameDateValue(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const at = a instanceof Date ? a.getTime() : new Date(a).getTime();
+  const bt = b instanceof Date ? b.getTime() : new Date(b).getTime();
+  return at === bt;
+}
+
+/**
+ * So sanh 2 ban `resolved` lien tiep de hien thi "Đã cập nhật: ..." tren the
+ * xac nhan moi khi nguoi dung sua tai man hinh CONFIRM -- chi liet ke dung
+ * phan thuc su doi, giup nguoi dung nhan ra ngay sua co dung y hay khong.
+ */
+function buildChangeSummary(previous, next) {
+  if (!previous) return [];
+  const changed = [];
+  const timeChanged = !sameDateValue(previous.startDate, next.startDate)
+    || previous.startSession !== next.startSession
+    || !sameDateValue(previous.endDate, next.endDate)
+    || previous.endSession !== next.endSession;
+  if (timeChanged) changed.push('Thời gian');
+  if ((previous.reason || '') !== (next.reason || '')) changed.push('Lý do');
+  if ((previous.handover || '') !== (next.handover || '')) changed.push('Người bàn giao');
+  return changed;
+}
+
 async function presentConfirmation(bot, chatId, conv, extracted, resolved) {
   const d = conv.data;
+  const previousResolved = d.resolved || null;
+  if (d.confirmationMessageId) {
+    // The cu van con hien nut bam duoc -- go truoc khi gui the moi de tranh
+    // 2 the cung co nut xac nhan/huy cung luc.
+    await stripConfirmationButtons(bot, chatId, conv);
+  }
+
   const sessionStartsAt = getBangkokSessionStartTime(resolved.startDate, resolved.startSession);
   const urgent = computeIsUrgent(sessionStartsAt, d.messageTime);
   const submittedAt = new Date(d.messageTime);
@@ -542,15 +621,22 @@ async function presentConfirmation(bot, chatId, conv, extracted, resolved) {
     coViPham: violation
   };
 
+  const changeSummary = buildChangeSummary(previousResolved, conv.data.resolved);
+
   const lines = [
-    'Xác nhận yêu cầu nghỉ phép:',
+    'Xác nhận yêu cầu nghỉ phép:'
+  ];
+  if (changeSummary.length) {
+    lines.push(`✏️ Đã cập nhật: ${changeSummary.join(', ')}`);
+  }
+  lines.push(
     `- Người gửi: ${d.identity.hoTen} (${d.identity.chucVu})`,
     `- Lý do: ${resolved.reason || 'không có'}`,
     `- Từ: ${formatLeaveBoundary(resolved.startDate, resolved.startSession)}`,
     `- Đến: ${formatLeaveBoundary(resolved.endDate, resolved.endSession)}`,
     `- Tổng buổi nghỉ: ${resolved.totalSessions} buổi (${totalDays} ngày)`,
     `- Người bàn giao: ${resolved.handover || 'không có'}`
-  ];
+  );
   buildDefaultNotes(extracted).forEach(note => lines.push(`  ${note}`));
   if (isRetroactive) {
     lines.push('⚠️ Thời gian nghỉ đã ở trong quá khứ so với lúc gửi tin. Vui lòng xác nhận lại nếu đây là xin nghỉ hồi tố.');
@@ -575,48 +661,26 @@ async function presentConfirmation(bot, chatId, conv, extracted, resolved) {
 }
 
 /**
- * Bao cho tat ca tai khoan da lien ket Telegram (tru tai khoan vai tro
- * "Khách") biet co nhan vien vua xin nghi phep. Best-effort: loi gui toi
- * tung nguoi khong lam hong luong tao don chinh.
+ * Bao Quan ly (tru chinh nguoi xin nghi neu ho cung la Quan ly) qua thong bao
+ * chuong tren web -- dung chung ham notifyOtherManagers voi luong nhap tay
+ * tren web (hrLeaveRoutes.js) de nhat quan hanh vi. KHONG gui Telegram cho
+ * tat ca tai khoan da lien ket nhu truoc day (tung khien Telegram ca nhan cua
+ * Quan ly bi doi tin voi MOI yeu cau nghi phep cua bat ky nhan vien nao).
  */
-async function broadcastNewLeaveRequestToStaff(bot, record, branch) {
-  let links;
+async function notifyManagersOfNewLeaveRequest(webUsername, record) {
+  let actingUser = null;
   try {
-    links = await repo.findAllLinkedAccounts(branch);
+    actingUser = await getUserByUsername(webUsername);
   } catch (err) {
-    console.error('[HR Telegram Bot] Không lấy được danh sách liên kết để thông báo:', err.message);
-    return;
+    console.error('[HR Telegram Bot] Không tra được tài khoản web để báo Quản lý:', err.message);
   }
-
-  const message = [
-    '🔔 Có nhân viên vừa xin nghỉ phép:',
-    `- Người gửi: ${record.ho_ten} (${record.chuc_vu})`,
-    `- Lý do: ${record.ly_do || 'không có'}`,
-    `- Từ: ${record.thoi_gian_bat_dau}`,
-    `- Đến: ${record.thoi_gian_ket_thuc}`,
-    `- Mã yêu cầu: ${record.request_id}`
-  ].join('\n');
-
-  const recipients = links.filter(link => (
-    String(link.telegram_chat_id) !== String(record.telegram_chat_id)
-  ));
-
-  for (const link of recipients) {
-    let user;
-    try {
-      user = await getUserByUsername(link.web_username);
-    } catch (err) {
-      console.error('[HR Telegram Bot] Không tra được tài khoản web để lọc thông báo:', err.message);
-      continue;
-    }
-    if (!user || user.vaiTro === ROLES.KHACH) continue;
-
-    try {
-      await bot.sendMessage(link.telegram_chat_id, message);
-    } catch (err) {
-      console.error(`[HR Telegram Bot] Không gửi được thông báo nghỉ phép tới chat_id ${link.telegram_chat_id}:`, err.message);
-    }
-  }
+  await notifyOtherManagers(actingUser ? actingUser.id : null, {
+    type: 'leave_request_created',
+    title: 'Có nhân sự nghỉ phép mới',
+    message: `${record.ho_ten} vừa gửi yêu cầu nghỉ phép từ ${record.thoi_gian_bat_dau} đến ${record.thoi_gian_ket_thuc}.`,
+    relatedType: 'leaveRequest',
+    relatedId: record.request_id
+  });
 }
 
 async function submitLeaveRequest(bot, chatId, conv) {
@@ -657,10 +721,10 @@ async function submitLeaveRequest(bot, chatId, conv) {
   // Phat tin hieu realtime toi tat ca cac client web dang mo
   broadcastLeaveEvent(LEAVE_EVENT_TYPES.CREATED, record);
 
-  // Bao cho tat ca tai khoan Telegram da lien ket (tru "Khách") biet co
-  // nhan vien vua xin nghi phep. Khong chan luong chinh neu gui loi.
-  broadcastNewLeaveRequestToStaff(bot, record, d.sourceBranch).catch(err => {
-    console.error('[HR Telegram Bot] Lỗi khi broadcast thông báo nghỉ phép:', err.message);
+  // Bao Quan ly qua thong bao web (chuong thong bao) -- khong chan luong
+  // chinh neu gui loi.
+  notifyManagersOfNewLeaveRequest(d.link.web_username, record).catch(err => {
+    console.error('[HR Telegram Bot] Lỗi khi báo Quản lý về yêu cầu nghỉ phép mới:', err.message);
   });
 
   const statusText = r.coViPham

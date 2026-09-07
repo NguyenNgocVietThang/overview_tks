@@ -6,6 +6,7 @@
 
 const CONFIG = require('../config');
 const userRepository = require('../auth/userRepository');
+const notificationRepository = require('../notifications/notificationRepository');
 
 /**
  * Tinh so buoi nghi dua tren ngay + buoi bat dau/ket thuc.
@@ -200,6 +201,25 @@ function resolveApproverName(reqUser) {
   return (reqUser && (reqUser.hoTen || reqUser.username)) || 'unknown';
 }
 
+/**
+ * Bao Quan ly khac (tru nguoi thao tac) ve 1 su kien nghi phep, qua thong bao
+ * chuong tren web -- dung chung cho ca luong web nhap tay (hrLeaveRoutes.js)
+ * va luong Telegram (hrTelegramBot.js) de nhat quan "chi Quan ly thay tren
+ * web, khong broadcast Telegram cho tat ca tai khoan". Best-effort: loi bao
+ * thong bao khong duoc lam hong luong tao/duyet don chinh.
+ */
+async function notifyOtherManagers(actingUserId, payload) {
+  try {
+    const allUsers = await userRepository.getAllUsers();
+    const managerIds = allUsers
+      .filter(u => u.vaiTro === userRepository.ROLES.QUAN_LY && String(u.id) !== String(actingUserId))
+      .map(u => u.id);
+    await notificationRepository.createNotificationForUsers(managerIds, payload);
+  } catch (notifyErr) {
+    console.error('Lỗi báo thông báo nghỉ phép cho Quản lý:', notifyErr.message);
+  }
+}
+
 module.exports = {
   computeDurationSessions,
   getSessionStartTime,
@@ -210,5 +230,6 @@ module.exports = {
   formatLeaveBoundary,
   computeIsUrgent,
   resolveSenderIdentity,
-  resolveApproverName
+  resolveApproverName,
+  notifyOtherManagers
 };

@@ -12,8 +12,8 @@ const HEADERS = {
   products: ['Mã hàng', 'Tên hàng', 'Tồn kho', 'Trạng thái'],
   invoices: ['Mã hóa đơn', 'Ngày bán', 'Trạng thái'],
   invoiceDetails: ['Mã hóa đơn', 'Mã hàng', 'Số lượng'],
-  purchases: ['Mã hàng', 'Thời gian', 'Số lượng'],
-  purchaseReturns: ['Mã hàng', 'Thời gian', 'Số lượng']
+  purchases: ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
+  purchaseReturns: ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']
 };
 
 function fakeSheetsClient(sheets) {
@@ -42,7 +42,7 @@ test('quet toan bo ma dang kinh doanh, khong loc theo ton kho hien tai — hang 
     'Hàng hóa': [HEADERS.products, ['SP001', 'Con hang nhung tung dut 5 ngay', 5, 'Đang kinh doanh']],
     'Hóa đơn': [HEADERS.invoices, ['HD001', '06/01/2026 10:00:00', 'Hoàn thành']],
     'Chi tiết hóa đơn': [HEADERS.invoiceDetails, ['HD001', 'SP001', 5]],
-    'Nhập hàng': [HEADERS.purchases, ['SP001', '11/01/2026 08:00:00', 5]],
+    'Nhập hàng': [HEADERS.purchases, ['SP001', '11/01/2026 08:00:00', 5, 'Hoàn thành']],
     'Trả NCC': [HEADERS.purchaseReturns]
   });
   const client = fakeReturnsClient([{ items: [], meta: { pagesLoaded: 1, recordsLoaded: 0, total: 0 } }]);
@@ -56,6 +56,11 @@ test('quet toan bo ma dang kinh doanh, khong loc theo ton kho hien tai — hang 
   assert.equal(job.result.rows[0].stockoutCount, 1);
   assert.equal(job.result.rows[0].totalStockoutDays, 5);
   assert.equal(job.result.rows[0].currentOnHand, 5);
+  assert.equal(job.result.sources.invoices, 'google-sheets-fallback');
+  assert.equal(job.result.sources.purchases, 'google-sheets-fallback');
+  assert.equal(job.result.sources.customerReturns, 'kiotviet-api');
+  assert.equal(job.result.sources.supplierReturns, 'google-sheets');
+  assert.equal(job.result.warnings.length, 2);
 });
 
 test('nhieu dot dut hang trong 30 ngay duoc cong don dung so lan va tong so ngay', async () => {
@@ -67,8 +72,8 @@ test('nhieu dot dut hang trong 30 ngay duoc cong don dung so lan va tong so ngay
     'Chi tiết hóa đơn': [HEADERS.invoiceDetails, ['HD001', 'SP001', 10]],
     'Nhập hàng': [
       HEADERS.purchases,
-      ['SP001', '06/01/2026 08:00:00', 10],
-      ['SP001', '20/01/2026 08:00:00', 3]
+      ['SP001', '06/01/2026 08:00:00', 10, 'Hoàn thành'],
+      ['SP001', '20/01/2026 08:00:00', 3, 'Hoàn thành']
     ],
     'Trả NCC': [HEADERS.purchaseReturns]
   });
@@ -83,6 +88,10 @@ test('nhieu dot dut hang trong 30 ngay duoc cong don dung so lan va tong so ngay
   assert.equal(row.stockoutCount, 2);
   assert.equal(row.totalStockoutDays, 10);
   assert.equal(row.currentOnHand, 3);
+  assert.deepEqual(row.periods, [
+    { fromDate: '2026-01-01', toDate: '2026-01-05', days: 5 },
+    { fromDate: '2026-01-15', toDate: '2026-01-19', days: 5 }
+  ]);
 });
 
 test('nguon Tra NCC (Sheets) va Khach tra hang (API) cung gop vao 1 eventMap cho 1 ma', async () => {
@@ -94,7 +103,7 @@ test('nguon Tra NCC (Sheets) va Khach tra hang (API) cung gop vao 1 eventMap cho
     'Chi tiết hóa đơn': [HEADERS.invoiceDetails],
     'Nhập hàng': [HEADERS.purchases],
     // Tra 3 don vi ve NCC ngay 2026-01-06 -> tu 3 ve 0
-    'Trả NCC': [HEADERS.purchaseReturns, ['SP005', '06/01/2026 08:00:00', 3]]
+    'Trả NCC': [HEADERS.purchaseReturns, ['SP005', '06/01/2026 08:00:00', 3, 'Hoàn thành']]
   });
   const client = fakeReturnsClient([{
     items: [

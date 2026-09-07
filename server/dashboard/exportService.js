@@ -161,7 +161,8 @@ function aggregateWorksheet(key, name, columns, sourceRows) {
   const normalizedColumns = columns.map(column => ({
     key: column.key,
     label: column.label,
-    type: column.type || inferColumnType(column.label)
+    type: column.type || inferColumnType(column.label),
+    wrapText: column.wrapText === true
   }));
   const rows = (sourceRows || []).map(source => {
     const row = {};
@@ -495,6 +496,17 @@ async function buildProductRevenueSearchDataset(payload, branch) {
   };
 }
 
+function formatStockoutDate(dateKey) {
+  const match = String(dateKey || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : '';
+}
+
+function formatStockoutPeriods(periods) {
+  return (Array.isArray(periods) ? periods : [])
+    .map(period => `${formatStockoutDate(period.fromDate)} -> ${formatStockoutDate(period.toDate)}`)
+    .join('\n');
+}
+
 function buildStockoutResultDataset(payload) {
   const result = payload.stockoutResult && typeof payload.stockoutResult === 'object' ? payload.stockoutResult : null;
   const rows = result && Array.isArray(result.rows) ? result.rows : [];
@@ -505,7 +517,7 @@ function buildStockoutResultDataset(payload) {
     currentOnHand: row.currentOnHand,
     stockoutCount: row.stockoutCount,
     totalStockoutDays: row.totalStockoutDays,
-    periods: (row.periods || []).map(p => `${p.fromDate} — ${p.toDate} (${p.days} ngày)`).join('; ')
+    periods: formatStockoutPeriods(row.periods)
   }));
   const worksheet = aggregateWorksheet('stockout_result', 'Kết quả đứt hàng', [
     { key: 'code', label: 'Mã hàng', type: 'text' },
@@ -513,7 +525,7 @@ function buildStockoutResultDataset(payload) {
     { key: 'currentOnHand', label: 'Tồn kho hiện tại', type: 'number' },
     { key: 'stockoutCount', label: 'Số lần đứt hàng', type: 'number' },
     { key: 'totalStockoutDays', label: 'Tổng ngày đứt hàng', type: 'number' },
-    { key: 'periods', label: 'Chi tiết các đợt đứt hàng' }
+    { key: 'periods', label: 'Các đợt đứt hàng', wrapText: true }
   ], dataRows);
   return { tableKey: 'stockout.result', title: TABLE_TITLES['stockout.result'], selectionMode: 'custom', worksheets: [worksheet] };
 }
@@ -522,12 +534,14 @@ function buildRecentStockoutResultDataset(payload) {
   const result = payload.recentStockoutResult && typeof payload.recentStockoutResult === 'object' ? payload.recentStockoutResult : null;
   const rows = result && Array.isArray(result.rows) ? result.rows : [];
   if (rows.length === 0) throw exportError('Chưa có kết quả hàng đứt gần đây để xuất.', 400, 'EXPORT_NO_DATA');
+  const dataRows = rows.map(row => ({ ...row, periods: formatStockoutPeriods(row.periods) }));
   const worksheet = aggregateWorksheet('recent_stockout_result', 'Hàng đứt gần đây', [
     { key: 'code', label: 'Mã SP', type: 'text' },
     { key: 'name', label: 'Tên SP' },
     { key: 'lastOutOfStockDate', label: 'Ngày hết hàng gần nhất', type: 'date' },
-    { key: 'daysOutOfStock', label: 'Số ngày đứt hàng', type: 'number' }
-  ], rows);
+    { key: 'daysOutOfStock', label: 'Số ngày đứt hàng', type: 'number' },
+    { key: 'periods', label: 'Các đợt đứt hàng', wrapText: true }
+  ], dataRows);
   return { tableKey: 'stockout.recentScan', title: TABLE_TITLES['stockout.recentScan'], selectionMode: 'custom', worksheets: [worksheet] };
 }
 
@@ -535,14 +549,15 @@ function buildStockout30dResultDataset(payload) {
   const result = payload.stockout30dResult && typeof payload.stockout30dResult === 'object' ? payload.stockout30dResult : null;
   const rows = result && Array.isArray(result.rows) ? result.rows : [];
   if (rows.length === 0) throw exportError('Chưa có kết quả kiểm tra đứt hàng 30 ngày để xuất.', 400, 'EXPORT_NO_DATA');
-  // Chi 5 cot theo yeu cau: khong kem chi tiet tung dot dut hang (khac voi stockout.result).
+  const dataRows = rows.map(row => ({ ...row, periods: formatStockoutPeriods(row.periods) }));
   const worksheet = aggregateWorksheet('stockout_30d_result', 'Kiểm tra đứt hàng 30 ngày', [
     { key: 'code', label: 'Mã SP', type: 'text' },
     { key: 'name', label: 'Tên SP' },
     { key: 'stockoutCount', label: 'Số lần đứt hàng', type: 'number' },
     { key: 'totalStockoutDays', label: 'Số ngày đứt hàng', type: 'number' },
-    { key: 'currentOnHand', label: 'Tồn kho hiện tại', type: 'number' }
-  ], rows);
+    { key: 'currentOnHand', label: 'Tồn kho hiện tại', type: 'number' },
+    { key: 'periods', label: 'Các đợt đứt hàng', wrapText: true }
+  ], dataRows);
   return { tableKey: 'stockout.check30d', title: TABLE_TITLES['stockout.check30d'], selectionMode: 'custom', worksheets: [worksheet] };
 }
 
@@ -674,7 +689,7 @@ function styleWorksheet(worksheet, columns, rows) {
     if (column.type === 'number') excelColumn.numFmt = '#,##0.00;[Red]-#,##0.00';
     if (column.type === 'percent') excelColumn.numFmt = '0.00%';
     if (column.type === 'date') excelColumn.numFmt = 'dd/mm/yyyy hh:mm:ss';
-    excelColumn.alignment = { vertical: 'top', wrapText: false };
+    excelColumn.alignment = { vertical: 'top', wrapText: column.wrapText === true };
   });
 }
 

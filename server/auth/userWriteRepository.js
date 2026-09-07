@@ -1,6 +1,7 @@
 // ==========================================
 // USER WRITE REPOSITORY — Thao tác ghi dữ liệu người dùng vào localUserStore
-// (lưu trữ tại server/data/users.json, KHÔNG ghi ra Google Sheet để bảo mật).
+// (cache cục bộ tại server/data/users.json, đồng bộ hai chiều với Google
+// Sheets — xem đầu file localUserStore.js).
 // ==========================================
 const crypto = require('crypto');
 const localUserStore = require('./localUserStore');

@@ -95,7 +95,13 @@ test('GET progress: job dang chay tra dung thong tin tien do', async () => {
   router.jobStore.updateProgress(jobId, {
     invalidCodes: ['SP999'],
     totalValidCodes: 2,
-    progress: { phase: 2, phase2: { pagesLoaded: 2, recordsLoaded: 200, total: 250 } }
+    progress: {
+      phase: 2,
+      source: 'purchases',
+      sourceLabel: 'Nhập hàng',
+      sourceStatus: 'fallback',
+      phase2: { pagesLoaded: 2, recordsLoaded: 200, total: 250 }
+    }
   });
 
   const handler = getRouteHandler('get', '/api/products/stockout-check/:jobId/progress');
@@ -106,6 +112,9 @@ test('GET progress: job dang chay tra dung thong tin tien do', async () => {
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.status, 'running');
   assert.equal(res.body.phase, 2);
+  assert.equal(res.body.phaseLabel, 'Đang tải Nhập hàng từ Google Sheets dự phòng');
+  assert.equal(res.body.source, 'purchases');
+  assert.equal(res.body.sourceStatus, 'fallback');
   assert.equal(res.body.invalidCodes.length, 1);
   assert.equal(res.body.totalValidCodes, 2);
 });

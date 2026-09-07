@@ -11,8 +11,8 @@ const { createJobStore } = require('./jobManager');
 const HEADERS = {
   invoices: ['Mã hóa đơn', 'Ngày bán', 'Trạng thái'],
   invoiceDetails: ['Mã hóa đơn', 'Mã hàng', 'Số lượng'],
-  purchases: ['Mã hàng', 'Thời gian', 'Số lượng'],
-  purchaseReturns: ['Mã hàng', 'Thời gian', 'Số lượng']
+  purchases: ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
+  purchaseReturns: ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']
 };
 
 function catalogWith(entries) {
@@ -40,6 +40,15 @@ function fakeReturnsClient(returnPages = []) {
   };
 }
 
+function fakeAllSourcesClient(calls) {
+  return {
+    async fetchAllPages(endpoint, query, onPage) {
+      calls.push({ endpoint, query });
+      await onPage([], { pagesLoaded: 1, recordsLoaded: 0, total: 0 });
+    }
+  };
+}
+
 function emptySheets() {
   return {
     'Hóa đơn': [HEADERS.invoices],
@@ -53,7 +62,8 @@ test('chay thanh cong: tra ket qua dung cho ma hop le, giu lai ma khong hop le',
   const store = createJobStore();
   const jobId = store.createJob();
   const sheetsClient = fakeSheetsClient(emptySheets());
-  const client = fakeReturnsClient([{ items: [], meta: { pagesLoaded: 1, recordsLoaded: 0, total: 0 } }]);
+  const apiCalls = [];
+  const client = fakeAllSourcesClient(apiCalls);
 
   await runStockoutCheckJob(store, jobId, ['SP001', 'SP002', 'SP999'], {
     loadProductCatalogMap: catalogWith([['SP001', 'Bánh gạo lứt', 0], ['SP002', 'Nước suối', 5]]),
@@ -69,6 +79,14 @@ test('chay thanh cong: tra ket qua dung cho ma hop le, giu lai ma khong hop le',
   assert.equal(job.result.totalValidCodes, 2);
   assert.equal(job.result.fromDate, '2026-01-01');
   assert.equal(job.result.toDate, '2026-01-10');
+  assert.deepEqual(apiCalls.map(call => call.endpoint), ['invoices', 'purchaseorders', 'returns']);
+  assert.deepEqual(job.result.sources, {
+    invoices: 'kiotviet-api',
+    purchases: 'kiotviet-api',
+    customerReturns: 'kiotviet-api',
+    supplierReturns: 'google-sheets'
+  });
+  assert.deepEqual(job.result.warnings, []);
 
   const sp001 = job.result.rows.find((r) => r.code === 'SP001');
   const sp002 = job.result.rows.find((r) => r.code === 'SP002');
@@ -82,7 +100,7 @@ test('chay thanh cong: tra ket qua dung cho ma hop le, giu lai ma khong hop le',
   assert.equal(sp002.totalStockoutDays, 0);
 });
 
-test('cap nhat tien do dung 2 giai doan (doc Sheets, roi goi API tra hang)', async () => {
+test('cap nhat tien do theo tung nguon API va ket thuc o Tra NCC', async () => {
   const store = createJobStore();
   const jobId = store.createJob();
   const sheetsClient = fakeSheetsClient(emptySheets());
@@ -95,8 +113,26 @@ test('cap nhat tien do dung 2 giai doan (doc Sheets, roi goi API tra hang)', asy
 
   const job = store.getJob(jobId);
   assert.equal(job.progress.phase, 2);
-  assert.equal(job.progress.phase2.recordsLoaded, 3);
-  assert.equal(job.progress.phase2.total, 3);
+  assert.equal(job.progress.source, 'supplierReturns');
+  assert.equal(job.progress.sourceLabel, 'Trả NCC');
+  assert.equal(job.progress.sourceStatus, 'done');
+});
+
+test('tính năng upload dùng ngưỡng 5 ngày và trả danh sách periods', async () => {
+  const store = createJobStore();
+  const jobId = store.createJob();
+  await runStockoutCheckJob(store, jobId, ['SP001'], {
+    loadProductCatalogMap: catalogWith([['SP001', 'A', 0]]),
+    sheetsClient: fakeSheetsClient(emptySheets()),
+    client: fakeReturnsClient([{ items: [], meta: { pagesLoaded: 1, recordsLoaded: 0, total: 0 } }]),
+    todayKey: '2026-01-10',
+    daysBack: 4
+  });
+
+  const row = store.getJob(jobId).result.rows[0];
+  assert.equal(row.stockoutCount, 1);
+  assert.equal(row.totalStockoutDays, 5);
+  assert.deepEqual(row.periods, [{ fromDate: '2026-01-06', toDate: '2026-01-10', days: 5 }]);
 });
 
 test('khong co ma hop le nao thi bao loi NO_VALID_CODES, khong doc Sheets/goi API', async () => {

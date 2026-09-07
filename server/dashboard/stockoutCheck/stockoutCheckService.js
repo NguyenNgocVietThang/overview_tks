@@ -1,18 +1,12 @@
 'use strict';
 
-const CONFIG = require('../../config');
 const { validateCodes, loadProductCatalogMap: defaultLoadProductCatalogMap } = require('./productCodeValidator');
-const { accumulateReturnEvents, reconstructDailyStock } = require('./timelineBuilder');
-const { findStockoutPeriods, summarizeStockoutPeriods } = require('./stockoutAnalyzer');
-const { buildEventMapFromSheets } = require('./sheetTimelineBuilder');
+const { analyzeStockoutTimeline } = require('./stockoutEngine');
+const { loadStockoutEvents: defaultLoadStockoutEvents } = require('./stockoutEventLoader');
 const { addDaysToDateKey, todayVnDateKey } = require('./dateHelpers');
 
-const MIN_STOCKOUT_DAYS = 7;
+const MIN_STOCKOUT_DAYS = 5;
 const DEFAULT_DAYS_BACK = 183;
-
-function emptyPageCounter() {
-  return { pagesLoaded: 0, recordsLoaded: 0, total: 0 };
-}
 
 async function runStockoutCheckJob(jobStore, jobId, rawCodes, deps = {}) {
   const {
@@ -20,6 +14,7 @@ async function runStockoutCheckJob(jobStore, jobId, rawCodes, deps = {}) {
     sheetsClient,
     client,
     branch,
+    loadStockoutEvents = defaultLoadStockoutEvents,
     daysBack = DEFAULT_DAYS_BACK,
     todayKey = todayVnDateKey()
   } = deps;
@@ -38,30 +33,32 @@ async function runStockoutCheckJob(jobStore, jobId, rawCodes, deps = {}) {
     }
 
     const fromDate = addDaysToDateKey(todayKey, -daysBack);
+    const calculationFromDate = addDaysToDateKey(fromDate, -(MIN_STOCKOUT_DAYS - 1));
     const validCodeSet = new Set(validCodes.map((v) => v.code));
 
-    jobStore.updateProgress(jobId, { progress: { phase: 1 } });
-    const sheets = await sheetsClient.getMultipleSheetValues([
-      CONFIG.SHEET_INVOICES,
-      CONFIG.SHEET_INVOICE_DETAILS,
-      CONFIG.SHEET_PURCHASES,
-      CONFIG.SHEET_SUPPLIER_RETURNS
-    ]);
-    const eventMapByCode = buildEventMapFromSheets(sheets, validCodeSet, fromDate, todayKey);
-
-    // Khach tra hang (Tra hang): sheet nay khong co chi tiet theo tung ma
-    // hang, nen van lay qua API KiotViet — nguon du lieu thu 4.
-    jobStore.updateProgress(jobId, { progress: { phase: 2, phase2: emptyPageCounter() } });
-    await client.fetchAllPages('returns', { lastModifiedFrom: fromDate }, (items, meta) => {
-      accumulateReturnEvents(eventMapByCode, items, validCodeSet);
-      jobStore.updateProgress(jobId, { progress: { phase2: meta } });
+    jobStore.updateProgress(jobId, { progress: { phase: 2 } });
+    const { eventMapByCode, sources, warnings } = await loadStockoutEvents({
+      client,
+      sheetsClient,
+      validCodeSet,
+      fromDate: calculationFromDate,
+      toDate: todayKey,
+      onProgress(sourceProgress) {
+        jobStore.updateProgress(jobId, { progress: {
+          phase: 2,
+          source: sourceProgress.source,
+          sourceLabel: sourceProgress.label,
+          sourceStatus: sourceProgress.status,
+          phase2: sourceProgress
+        } });
+      }
     });
 
     const rows = validCodes.map(({ code, name, currentOnHand }) => {
       const events = eventMapByCode.get(code) || [];
-      const daily = reconstructDailyStock(currentOnHand, events, todayKey, daysBack);
-      const periods = findStockoutPeriods(daily, MIN_STOCKOUT_DAYS);
-      const summary = summarizeStockoutPeriods(periods);
+      const { periods, summary } = analyzeStockoutTimeline({
+        currentOnHand, events, todayKey, daysBack, minConsecutiveDays: MIN_STOCKOUT_DAYS
+      });
       return {
         code,
         name,
@@ -77,6 +74,8 @@ async function runStockoutCheckJob(jobStore, jobId, rawCodes, deps = {}) {
       toDate: todayKey,
       totalValidCodes: validCodes.length,
       invalidCodes,
+      sources,
+      warnings,
       rows
     });
   } catch (err) {

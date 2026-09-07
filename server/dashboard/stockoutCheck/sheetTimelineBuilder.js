@@ -4,6 +4,7 @@ const CONFIG = require('../../config');
 
 const ACTIVE_STATUS = 'Đang kinh doanh';
 const COMPLETED_INVOICE_STATUS = 'Hoàn thành';
+const COMPLETED_STOCK_MOVEMENT_STATUSES = new Set(['hoàn thành', 'đã nhập hàng', 'đã trả hàng']);
 
 function isVatProductCode(value) {
   return String(value || '').trim().toUpperCase().startsWith('VAT');
@@ -41,6 +42,11 @@ function pushEvent(eventMapByCode, code, dateKey, delta) {
   eventMapByCode.get(code).push({ dateKey, delta });
 }
 
+function isCompletedStockMovementStatus(value) {
+  if (Number(value) === 3) return true;
+  return COMPLETED_STOCK_MOVEMENT_STATUSES.has(String(value || '').trim().toLocaleLowerCase('vi-VN'));
+}
+
 function loadActiveCandidates(productRows) {
   const idx = headerIndexes(productRows, ['Mã hàng', 'Tên hàng', 'Tồn kho', 'Trạng thái']);
   const candidates = [];
@@ -64,9 +70,10 @@ function loadActiveCandidates(productRows) {
 function buildCompletedInvoiceDateMap(invoiceRows, fromDate, todayKey) {
   const idx = headerIndexes(invoiceRows, ['Mã hóa đơn', 'Ngày bán', 'Trạng thái']);
   const map = new Map();
+  if (idx['Trạng thái'] < 0) return map;
   for (let r = 1; r < invoiceRows.length; r++) {
     const row = invoiceRows[r];
-    const status = String(row[idx['Trạng thái']] || COMPLETED_INVOICE_STATUS).trim();
+    const status = String(row[idx['Trạng thái']] || '').trim();
     if (status !== COMPLETED_INVOICE_STATUS) continue;
     const dateKey = parseSheetDateKey(row[idx['Ngày bán']]);
     if (!dateKey || dateKey < fromDate || dateKey > todayKey) continue;
@@ -89,9 +96,11 @@ function accumulateSheetInvoiceEvents(eventMapByCode, invoiceDateByCode, detailR
 }
 
 function accumulateSheetPurchaseEvents(eventMapByCode, purchaseRows, validCodeSet, fromDate, todayKey) {
-  const idx = headerIndexes(purchaseRows, ['Mã hàng', 'Thời gian', 'Số lượng']);
+  const idx = headerIndexes(purchaseRows, ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']);
+  if (idx['Trạng thái'] < 0) return;
   for (let r = 1; r < purchaseRows.length; r++) {
     const row = purchaseRows[r];
+    if (!isCompletedStockMovementStatus(row[idx['Trạng thái']])) continue;
     const code = String(row[idx['Mã hàng']] || '').trim();
     if (!code || isVatProductCode(code) || !validCodeSet.has(code)) continue;
     const dateKey = parseSheetDateKey(row[idx['Thời gian']]);
@@ -101,9 +110,11 @@ function accumulateSheetPurchaseEvents(eventMapByCode, purchaseRows, validCodeSe
 }
 
 function accumulateSheetPurchaseReturnEvents(eventMapByCode, purchaseReturnRows, validCodeSet, fromDate, todayKey) {
-  const idx = headerIndexes(purchaseReturnRows, ['Mã hàng', 'Thời gian', 'Số lượng']);
+  const idx = headerIndexes(purchaseReturnRows, ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']);
+  if (idx['Trạng thái'] < 0) return;
   for (let r = 1; r < purchaseReturnRows.length; r++) {
     const row = purchaseReturnRows[r];
+    if (!isCompletedStockMovementStatus(row[idx['Trạng thái']])) continue;
     const code = String(row[idx['Mã hàng']] || '').trim();
     if (!code || isVatProductCode(code) || !validCodeSet.has(code)) continue;
     const dateKey = parseSheetDateKey(row[idx['Thời gian']]);
@@ -113,12 +124,38 @@ function accumulateSheetPurchaseReturnEvents(eventMapByCode, purchaseReturnRows,
   }
 }
 
-function buildEventMapFromSheets(sheets, validCodeSet, fromDate, todayKey) {
+function mergeEventMaps(target, source) {
+  for (const [code, events] of source) {
+    if (!target.has(code)) target.set(code, []);
+    target.get(code).push(...events);
+  }
+  return target;
+}
+
+function buildInvoiceEventMapFromSheets(sheets, validCodeSet, fromDate, todayKey) {
   const eventMapByCode = new Map();
   const invoiceDateByCode = buildCompletedInvoiceDateMap(sheets[CONFIG.SHEET_INVOICES] || [], fromDate, todayKey);
   accumulateSheetInvoiceEvents(eventMapByCode, invoiceDateByCode, sheets[CONFIG.SHEET_INVOICE_DETAILS] || [], validCodeSet);
+  return eventMapByCode;
+}
+
+function buildPurchaseEventMapFromSheets(sheets, validCodeSet, fromDate, todayKey) {
+  const eventMapByCode = new Map();
   accumulateSheetPurchaseEvents(eventMapByCode, sheets[CONFIG.SHEET_PURCHASES] || [], validCodeSet, fromDate, todayKey);
+  return eventMapByCode;
+}
+
+function buildSupplierReturnEventMapFromSheets(sheets, validCodeSet, fromDate, todayKey) {
+  const eventMapByCode = new Map();
   accumulateSheetPurchaseReturnEvents(eventMapByCode, sheets[CONFIG.SHEET_SUPPLIER_RETURNS] || [], validCodeSet, fromDate, todayKey);
+  return eventMapByCode;
+}
+
+function buildEventMapFromSheets(sheets, validCodeSet, fromDate, todayKey) {
+  const eventMapByCode = new Map();
+  mergeEventMaps(eventMapByCode, buildInvoiceEventMapFromSheets(sheets, validCodeSet, fromDate, todayKey));
+  mergeEventMaps(eventMapByCode, buildPurchaseEventMapFromSheets(sheets, validCodeSet, fromDate, todayKey));
+  mergeEventMaps(eventMapByCode, buildSupplierReturnEventMapFromSheets(sheets, validCodeSet, fromDate, todayKey));
   return eventMapByCode;
 }
 
@@ -126,5 +163,9 @@ module.exports = {
   isVatProductCode,
   parseSheetDateKey,
   loadActiveCandidates,
+  mergeEventMaps,
+  buildInvoiceEventMapFromSheets,
+  buildPurchaseEventMapFromSheets,
+  buildSupplierReturnEventMapFromSheets,
   buildEventMapFromSheets
 };

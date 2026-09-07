@@ -379,6 +379,12 @@ async function consumeLinkCode(code, { chatId, telegramUsername }, branch) {
   return updated;
 }
 
+async function findPendingLinkByCode(code, branch) {
+  const items = await readAll(LINK_SCHEMA, branch);
+  const found = items.find(item => String(item.link_code) === String(code));
+  return found ? stripRowIndex(found) : null;
+}
+
 async function findLinkByChatId(chatId, branch) {
   const items = await readAll(LINK_SCHEMA, branch);
   const found = items.find(item =>
@@ -479,6 +485,7 @@ module.exports = {
   getUrgentFlagSummary,
   createLinkCode,
   consumeLinkCode,
+  findPendingLinkByCode,
   findLinkByChatId,
   findLinkByWebUsername,
   findAllLinkedAccounts,

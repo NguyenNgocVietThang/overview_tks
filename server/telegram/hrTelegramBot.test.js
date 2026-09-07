@@ -14,6 +14,7 @@ const hrLeaveServicePath = require.resolve('../hr/hrLeaveService');
 const extractorPath = require.resolve('./leaveAiExtractor');
 const consensusExtractorPath = require.resolve('./leaveAiConsensusExtractor');
 const telegramIdentityServicePath = require.resolve('./telegramIdentityService');
+const localUserStorePath = require.resolve('../auth/localUserStore');
 
 const MESSAGE_TIME_SECONDS = Math.floor(new Date('2026-08-22T08:00:00+07:00').getTime() / 1000);
 
@@ -49,6 +50,7 @@ class FakeTelegramBot extends EventEmitter {
     this.sent = [];
     this.textHandlers = [];
     this.pollingStopped = false;
+    this.editedMarkup = [];
   }
 
   onText(regex, handler) {
@@ -64,7 +66,8 @@ class FakeTelegramBot extends EventEmitter {
     return Promise.resolve();
   }
 
-  editMessageReplyMarkup() {
+  editMessageReplyMarkup(markup, options) {
+    this.editedMarkup.push({ markup, options });
     return Promise.resolve();
   }
 
@@ -102,7 +105,8 @@ function setupHarness({
   link = { web_username: 'test', telegram_username: '@test' },
   identity = { hoTen: 'Test User', chucVu: 'NV · Hà Nội' },
   autoIdentity = null,
-  manualLinkError = null
+  manualLinkError = null,
+  webUser = { id: 'u-test', username: 'test' }
 } = {}) {
   const previousTelegramModule = require.cache[telegramModulePath];
   const previousRepoModule = require.cache[repoPath];
@@ -110,16 +114,20 @@ function setupHarness({
   const previousExtractorModule = require.cache[extractorPath];
   const previousConsensusExtractorModule = require.cache[consensusExtractorPath];
   const previousTelegramIdentityService = require.cache[telegramIdentityServicePath];
+  const previousLocalUserStoreModule = require.cache[localUserStorePath];
   const config = require('../config');
   const previousToken = config.TELEGRAM_BOT_TOKEN;
   const tmpFile = path.join(os.tmpdir(), `tks-hr-bot-test-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
 
   const realRepo = require('../hr/hrLeaveRepository');
   const realService = require('../hr/hrLeaveService');
+  const realLocalUserStore = require('../auth/localUserStore');
 
   const created = [];
   const createdBranches = [];
+  const notifyOtherManagersCalls = [];
   let linkResult = link;
+  let webUserResult = webUser;
   const repoStub = {
     ...realRepo,
     findLinkByChatId: async () => linkResult,
@@ -135,7 +143,14 @@ function setupHarness({
   };
   const serviceStub = {
     ...realService,
-    resolveSenderIdentity: async () => identity
+    resolveSenderIdentity: async () => identity,
+    notifyOtherManagers: async (actingUserId, payload) => {
+      notifyOtherManagersCalls.push({ actingUserId, payload });
+    }
+  };
+  const localUserStoreStub = {
+    ...realLocalUserStore,
+    getUserByUsername: async () => webUserResult
   };
 
   const extractionQueue = [];
@@ -177,6 +192,12 @@ function setupHarness({
       assertManualLinkAllowed: async () => { if (manualLinkError) throw manualLinkError; return true; }
     }
   };
+  require.cache[localUserStorePath] = {
+    id: localUserStorePath,
+    filename: localUserStorePath,
+    loaded: true,
+    exports: localUserStoreStub
+  };
 
   config.TELEGRAM_BOT_TOKEN = 'test-token';
   const store = require('./conversationStore');
@@ -191,7 +212,9 @@ function setupHarness({
     store,
     created,
     createdBranches,
+    notifyOtherManagersCalls,
     setLink(value) { linkResult = value; },
+    setWebUser(value) { webUserResult = value; },
     queueExtraction(value) { extractionQueue.push({ value }); },
     queueExtractionAsync(fn) { extractionQueue.push({ fn }); },
     queueExtractionError(err) { extractionQueue.push({ throw: err }); },
@@ -225,6 +248,8 @@ function setupHarness({
       else delete require.cache[extractorPath];
       if (previousConsensusExtractorModule) require.cache[consensusExtractorPath] = previousConsensusExtractorModule;
       else delete require.cache[consensusExtractorPath];
+      if (previousLocalUserStoreModule) require.cache[localUserStorePath] = previousLocalUserStoreModule;
+      else delete require.cache[localUserStorePath];
       if (previousTelegramIdentityService) require.cache[telegramIdentityServicePath] = previousTelegramIdentityService;
       else delete require.cache[telegramIdentityServicePath];
       fs.rmSync(tmpFile, { force: true });
@@ -640,7 +665,7 @@ test('không có cặp model đồng thuận -> không CONFIRM/ghi Sheet và yê
 
     assert.equal(h.created.length, 0);
     assert.notEqual(h.store.getConversation(121)?.step, 'CONFIRM');
-    assert.match(h.bot.sent.at(-1).text, /chưa có đủ hai model đồng thuận/i);
+    assert.match(h.bot.sent.at(-1).text, /chưa xác định chắc chắn được yêu cầu này/i);
     assert.doesNotMatch(h.bot.sent.at(-1).text, /response|Authorization|sk-xt-|AI_LEAVE_NO_CONSENSUS/i);
   } finally {
     h.teardown();
@@ -800,6 +825,150 @@ test('/start hướng dẫn ví dụ câu tự nhiên thay vì yêu cầu gõ /x
   try {
     await h.bot.triggerText('/start', { chatId: 110 });
     assert.match(h.bot.sent[0].text, /gõ một câu tự nhiên để xin nghỉ, ví dụ/);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('lượt gọi AI tiếp theo được neo bằng knownFields từ lần trích xuất trước', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: 'Nguyễn B'
+    }));
+    await h.sendText(130, 'Em xin nghỉ sáng mai vì khám bệnh, bàn giao Nguyễn B');
+
+    let capturedContext = null;
+    h.queueExtractionAsync(async (_text, context) => {
+      capturedContext = context;
+      return extraction({
+        start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+        reason: 'khám răng', handover: 'Nguyễn B'
+      });
+    });
+    await h.sendText(130, 'đổi lý do thành khám răng');
+
+    assert.ok(capturedContext.knownFields);
+    assert.equal(capturedContext.knownFields.start_date, '2026-08-23');
+    assert.equal(capturedContext.knownFields.reason, 'khám bệnh');
+    assert.equal(capturedContext.knownFields.handover, 'Nguyễn B');
+  } finally {
+    h.teardown();
+  }
+});
+
+test('sửa tại CONFIRM chỉ đổi lý do -> thẻ mới ghi "Đã cập nhật: Lý do", giữ nguyên thời gian/bàn giao', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: 'Nguyễn B'
+    }));
+    await h.sendText(131, 'Em xin nghỉ sáng mai vì khám bệnh, bàn giao Nguyễn B');
+
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám răng', handover: 'Nguyễn B'
+    }));
+    await h.sendText(131, 'đổi lý do thành khám răng');
+
+    const sent = h.bot.sent.at(-1).text;
+    assert.match(sent, /Đã cập nhật: Lý do/);
+    assert.doesNotMatch(sent, /Đã cập nhật:.*Thời gian/);
+    assert.doesNotMatch(sent, /Đã cập nhật:.*Người bàn giao/);
+    assert.match(sent, /Lý do: khám răng/);
+    assert.match(sent, /Người bàn giao: Nguyễn B/);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('AI hiểu nhầm ý định lúc đang CONFIRM không xoá bản nháp', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: 'Nguyễn B'
+    }));
+    await h.sendText(132, 'Em xin nghỉ sáng mai vì khám bệnh, bàn giao Nguyễn B');
+    assert.equal(h.store.getConversation(132).step, 'CONFIRM');
+
+    h.queueExtraction(extraction({ intent: 'other', confidence: 0.9 }));
+    await h.sendText(132, 'câu này AI hiểu nhầm');
+
+    const conv = h.store.getConversation(132);
+    assert.equal(conv.step, 'CONFIRM');
+    assert.deepEqual(conv.data.messages, ['Em xin nghỉ sáng mai vì khám bệnh, bàn giao Nguyễn B']);
+    assert.match(h.bot.sent.at(-1).text, /chưa hiểu phần bạn muốn sửa/);
+
+    await h.pressButton(132, 'confirm', 1);
+    assert.equal(h.created.length, 1);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('thẻ CONFIRM cũ bị gỡ nút khi thẻ mới được gửi sau khi sửa', async () => {
+  const h = setupHarness();
+  try {
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: 'Nguyễn B'
+    }));
+    await h.sendText(133, 'Em xin nghỉ sáng mai vì khám bệnh, bàn giao Nguyễn B');
+    assert.equal(h.bot.editedMarkup.length, 0);
+
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám răng', handover: 'Nguyễn B'
+    }));
+    await h.sendText(133, 'đổi lý do thành khám răng');
+
+    assert.equal(h.bot.editedMarkup.length, 1);
+    assert.equal(h.bot.editedMarkup[0].options.message_id, 1);
+  } finally {
+    h.teardown();
+  }
+});
+
+test('gửi yêu cầu nghỉ phép chỉ báo Quản lý qua thông báo web, KHÔNG gửi Telegram cho tài khoản khác', async () => {
+  const h = setupHarness({ webUser: { id: 'u-42', username: 'test' } });
+  try {
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: 'Nguyễn B'
+    }));
+    await h.sendText(140, 'Em xin nghỉ sáng mai vì khám bệnh, bàn giao Nguyễn B');
+    await h.pressButton(140, 'confirm');
+
+    assert.equal(h.created.length, 1);
+    assert.ok(h.bot.sent.every(m => m.chatId === 140), 'không có tin Telegram nào gửi cho chat khác 140');
+
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(h.notifyOtherManagersCalls.length, 1);
+    assert.equal(h.notifyOtherManagersCalls[0].actingUserId, 'u-42');
+    assert.equal(h.notifyOtherManagersCalls[0].payload.type, 'leave_request_created');
+    assert.equal(h.notifyOtherManagersCalls[0].payload.relatedType, 'leaveRequest');
+  } finally {
+    h.teardown();
+  }
+});
+
+test('không tra được tài khoản web khi báo Quản lý vẫn không làm hỏng luồng chính', async () => {
+  const h = setupHarness({ webUser: null });
+  try {
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: 'Nguyễn B'
+    }));
+    await h.sendText(141, 'Em xin nghỉ sáng mai vì khám bệnh, bàn giao Nguyễn B');
+    await h.pressButton(141, 'confirm');
+
+    assert.equal(h.created.length, 1);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(h.notifyOtherManagersCalls.length, 1);
+    assert.equal(h.notifyOtherManagersCalls[0].actingUserId, null);
   } finally {
     h.teardown();
   }

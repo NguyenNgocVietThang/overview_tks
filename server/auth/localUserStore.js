@@ -1,14 +1,45 @@
 // ==========================================
-// LOCAL USER STORE — Lưu trữ và quản lý tài khoản người dùng cục bộ tại
-// server/data/users.json. Đảm bảo an toàn thông tin, không ghi ra Google Sheet.
-// Hỗ trợ atomic write, cache in-memory, và kiểm soát đồng thời.
-// Hỗ trợ số điện thoại chính, email khôi phục và số điện thoại khôi phục.
+// LOCAL USER STORE — Cache cục bộ (server/data/users.json) cho tài khoản
+// người dùng, dùng cho đọc nhanh trong lúc server chạy. Atomic write, cache
+// in-memory, kiểm soát đồng thời. Hỗ trợ số điện thoại chính, email khôi phục
+// và số điện thoại khôi phục.
+//
+// NGUỒN LƯU TRỮ BỀN VỮNG là Google Sheets (tab "Users", spreadsheet KiotViet
+// — xem usersSheetsClient.js): đĩa cục bộ trên Render là ephemeral, mất sạch
+// mỗi khi container restart/redeploy. hydrateFromSheets() nạp lại từ Sheets
+// lúc server khởi động; createUser/updateUser/deleteUser đẩy thay đổi ngược
+// lại Sheets (trừ lần đổi chỉ có dangNhapGanNhat — xem TRACKED_SYNC_FIELDS).
+// Đồng bộ chỉ bật khi isUsersSheetSyncRuntimeEnabled() (mặc định bật trên
+// Render, tắt ở local/test để không ghi nhầm vào spreadsheet production).
 // ==========================================
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { normalizeCoSo, BRANCH_BOTH } = require('../branch/branches');
+const CONFIG = require('../config');
+const usersSheetsClient = require('../sheets/usersSheetsClient');
+const { USER_COLUMNS, buildColumnIndex, rowToUser, userToRow } = require('./userSheetColumns');
+
+// Cac truong duoc dong bo len Google Sheets (tab Users) khi thay doi — TRU
+// id/ngayTao (bat bien sau khi tao) va dangNhapGanNhat (doi o MOI lan dang
+// nhap cua MOI user; neu dong bo ca truong nay se ton 1 lan ghi Sheets API
+// moi lan dang nhap, khong can thiet va co the cham rate limit).
+const TRACKED_SYNC_FIELDS = Object.keys(USER_COLUMNS).filter(
+  key => key !== 'id' && key !== 'ngayTao' && key !== 'dangNhapGanNhat'
+);
+
+// Cung quy uoc voi isKiotVietSyncRuntimeEnabled/isTelegramBotRuntimeEnabled:
+// tu bat khi chay tren Render (RENDER=true, Render tu set), tat mac dinh o
+// local/test de KHONG vo tinh ghi du lieu test vao spreadsheet Users THAT
+// (SPREADSHEET_ID cuc local/test tro thang vao spreadsheet production, khong
+// co spreadsheet test rieng) — xem npm test trong server/auth/*.test.js.
+function isUsersSheetSyncRuntimeEnabled(env = process.env) {
+  if (env.USERS_SHEET_SYNC_ENABLED != null) {
+    return String(env.USERS_SHEET_SYNC_ENABLED).toLowerCase() === 'true';
+  }
+  return String(env.RENDER).toLowerCase() === 'true';
+}
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const DEFAULT_STORE_PATH = path.join(DATA_DIR, 'users.json');
@@ -239,6 +270,115 @@ function ensureLoaded() {
 }
 
 /**
+ * Vá thêm cột còn thiếu vào hàng header (hàng 1) của tab Users trên Sheets —
+ * không bắt admin phải tự chạy scripts/setupUsersSheet.js trước khi deploy.
+ * Chỉ APPEND cột thiếu vào cuối, không đụng cột đã có (an toàn với sheet đang chạy thật).
+ */
+async function ensureSheetHeadersUpToDate(currentHeaders) {
+  const expectedHeaders = Object.values(USER_COLUMNS);
+  const missing = expectedHeaders.filter(h => !currentHeaders.includes(h));
+  if (!missing.length) return currentHeaders;
+  const patched = currentHeaders.concat(missing);
+  await usersSheetsClient.usersUpdateRow(CONFIG.SHEET_USERS, 1, patched);
+  return patched;
+}
+
+/**
+ * Nạp lại toàn bộ danh sách người dùng từ Google Sheets (tab Users) — nguồn
+ * lưu trữ BỀN VỮNG, không bị mất khi container Render restart (đĩa cục bộ là
+ * ephemeral). Gọi 1 lần lúc server khởi động (server/index.js), KHÔNG tự động
+ * chạy bên trong ensureLoaded()/initStore() để không phá test hiện có
+ * (adminUserRoutes.test.js gọi initStore(tempPath) với file luôn luôn chưa
+ * tồn tại — nếu tự hydrate ở đó, test sẽ gọi Google Sheets API thật).
+ *
+ * Fail-soft: lỗi (chưa cấu hình SPREADSHEET_ID, mất mạng, sheet chưa share
+ * Editor cho service account...) chỉ log cảnh báo, KHÔNG throw — giữ nguyên
+ * trạng thái local đã có (file cũ hoặc 2 admin mặc định), đúng convention
+ * hiện có của codebase cho các tích hợp Sheets tuỳ chọn.
+ */
+async function hydrateFromSheets() {
+  if (!isUsersSheetSyncRuntimeEnabled()) {
+    console.warn('[Users] Đồng bộ Google Sheets đang tắt ở runtime này — đặt USERS_SHEET_SYNC_ENABLED=true để bật ngoài Render.');
+    return;
+  }
+  try {
+    const rawRows = await usersSheetsClient.usersGetValues(CONFIG.SHEET_USERS);
+    if (!rawRows || !rawRows.length) {
+      console.warn('[Users] Tab "Users" trên Google Sheets rỗng — giữ nguyên dữ liệu cục bộ hiện có.');
+      return;
+    }
+
+    const [headers, ...rows] = rawRows;
+    await ensureSheetHeadersUpToDate(headers).catch(err => {
+      console.error('[Users] Không thể vá header tab Users:', err.message);
+    });
+
+    const colIndex = buildColumnIndex(headers);
+    const usersFromSheet = rows
+      .filter(row => row.some(cellValue => cellValue !== '' && cellValue !== undefined))
+      .map(row => rowToUser(row, colIndex))
+      .filter(u => u.username); // bo qua hang rong/hong (khong co username)
+
+    if (!usersFromSheet.length) {
+      console.warn('[Users] Tab "Users" không có hàng dữ liệu hợp lệ — giữ nguyên dữ liệu cục bộ hiện có.');
+      return;
+    }
+
+    inMemoryUsers = usersFromSheet;
+    ensureHardcodedAdmins(inMemoryUsers);
+    saveToDisk(inMemoryUsers);
+    isInitialized = true;
+    console.log(`[Users] Đã đồng bộ ${usersFromSheet.length} tài khoản từ Google Sheets.`);
+  } catch (err) {
+    console.error('[Users] Không thể đồng bộ từ Google Sheets, dùng dữ liệu cục bộ hiện có:', err.message);
+  }
+}
+
+/**
+ * So sánh 2 user object trên tập TRACKED_SYNC_FIELDS — dùng để quyết định có
+ * cần đẩy lên Sheets hay không (bỏ qua các lần chỉ đổi dangNhapGanNhat).
+ */
+function hasTrackedChange(before, after) {
+  return TRACKED_SYNC_FIELDS.some(field => String(before ? before[field] || '' : '') !== String(after[field] || ''));
+}
+
+/**
+ * Đẩy 1 user (tạo mới/cập nhật/xoá mềm) lên tab Users trên Google Sheets —
+ * upsert theo cột ID (đọc-tìm-ghi, giống pattern hrLeaveRepository.upsertAutomaticLink).
+ * Best-effort: lỗi chỉ log, KHÔNG throw — thao tác local đã lưu thành công rồi,
+ * không được để lỗi đồng bộ Sheets làm hỏng phản hồi API.
+ */
+async function pushUserToSheet(user) {
+  if (!isUsersSheetSyncRuntimeEnabled()) return;
+  try {
+    const rawRows = await usersSheetsClient.usersGetValues(CONFIG.SHEET_USERS);
+    let headers = rawRows[0];
+    if (!headers || !headers.length) {
+      headers = Object.values(USER_COLUMNS);
+      await usersSheetsClient.usersUpdateRow(CONFIG.SHEET_USERS, 1, headers);
+    } else {
+      headers = await ensureSheetHeadersUpToDate(headers);
+    }
+
+    const rows = rawRows.slice(1);
+    const idColIndex = headers.indexOf(USER_COLUMNS.id);
+    const existingIndex = idColIndex >= 0
+      ? rows.findIndex(row => String(row[idColIndex] || '') === String(user.id))
+      : -1;
+
+    const row = userToRow(user, headers);
+    if (existingIndex >= 0) {
+      const rowNumber = existingIndex + 2; // +1 header, +1 vi Sheets 1-indexed
+      await usersSheetsClient.usersUpdateRow(CONFIG.SHEET_USERS, rowNumber, row);
+    } else {
+      await usersSheetsClient.usersAppendRow(CONFIG.SHEET_USERS, row);
+    }
+  } catch (err) {
+    console.error(`[Users] Không thể đồng bộ tài khoản "${user.username || user.id}" lên Google Sheets:`, err.message);
+  }
+}
+
+/**
  * Lấy danh sách toàn bộ người dùng (bản sao, loại trừ tài khoản đã bị xóa).
  */
 async function getAllUsers() {
@@ -398,6 +538,7 @@ async function createUser(userData) {
 
   users.push(newUser);
   saveToDisk(users);
+  await pushUserToSheet(newUser);
   return { ...newUser };
 }
 
@@ -472,6 +613,9 @@ async function updateUser(id, updates) {
 
   users[index] = updated;
   saveToDisk(users);
+  if (hasTrackedChange(current, updated)) {
+    await pushUserToSheet(updated);
+  }
   return { ...updated };
 }
 
@@ -493,6 +637,9 @@ async function deleteUser(id) {
   }
   const deleted = users.splice(index, 1)[0];
   saveToDisk(users);
+  // Xoa mem tren Sheets: giu lai hang (audit), chi danh dau trang thai — dung
+  // pattern xoa mem da dung o cac module khac trong repo (khong xoa vat ly hang).
+  await pushUserToSheet({ ...deleted, trangThai: 'Đã xóa' });
   return { ...deleted };
 }
 
@@ -527,5 +674,7 @@ module.exports = {
   deleteUser,
   setInMemoryUsers,
   formatDateVN,
-  normalizePhone
+  normalizePhone,
+  hydrateFromSheets,
+  isUsersSheetSyncRuntimeEnabled
 };

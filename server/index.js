@@ -6,6 +6,7 @@ const CONFIG = require('./config');
 const routes = require('./routes');
 const { startHrTelegramBot, isTelegramBotRuntimeEnabled } = require('./telegram/hrTelegramBot');
 const { main: runKiotVietSyncEngine, isKiotVietSyncRuntimeEnabled } = require('./kiotvietSync/runSyncEngine');
+const localUserStore = require('./auth/localUserStore');
 
 process.on('uncaughtException', (err) => {
   console.error('[Process] Uncaught exception:', err);
@@ -95,29 +96,44 @@ app.use((err, req, res, next) => {
 });
 // ─────────────────────────────────────────────────────────────────────────────
 
-app.listen(CONFIG.PORT, () => {
-  console.log(`TOKOSI dashboard server dang chay tren port ${CONFIG.PORT}`);
+// Khoi dong bat dong bo: nap tai khoan/phan quyen tu Google Sheets (nguon luu
+// tru BEN VUNG — xem localUserStore.js) TRUOC khi bat dau nhan request, de
+// request dau tien sau cold start (container Render bi wipe dia) da thay du
+// lieu phan quyen moi nhat, khong co khoang ho race. Bi loi (Sheets chua cau
+// hinh/mat mang) van fail-soft, khong chan server khoi dong (co timeout 15s
+// san o tang Sheets API).
+async function startServer() {
+  localUserStore.initStore();
+  await localUserStore.hydrateFromSheets().catch((err) => {
+    console.error('[Users] Lỗi không mong đợi khi đồng bộ từ Google Sheets:', err.message);
+  });
 
-  // Bot Telegram xin nghi phep — chi khoi dong khi da cau hinh du, khong lam
-  // crash server neu thieu (giong cach module Van chuyen xu ly VC_SPREADSHEET_ID).
-  if (isTelegramBotRuntimeEnabled() && CONFIG.TELEGRAM_BOT_TOKEN && CONFIG.HR_SPREADSHEET_ID) {
-    startHrTelegramBot();
-  } else if (!isTelegramBotRuntimeEnabled()) {
-    console.warn('[HR Telegram Bot] Đã tắt ở runtime này — đặt TELEGRAM_BOT_ENABLED=true để bật ngoài Render.');
-  } else {
-    console.warn('[HR Telegram Bot] Chưa cấu hình TELEGRAM_BOT_TOKEN/HR_SPREADSHEET_ID — bot không khởi động.');
-  }
+  app.listen(CONFIG.PORT, () => {
+    console.log(`TOKOSI dashboard server dang chay tren port ${CONFIG.PORT}`);
 
-  // KiotViet -> Postgres sync engine (server/kiotvietSync/) — chay ngay trong
-  // process web server nay de tan dung Render Web Service free tier (khong co
-  // Background Worker mien phi). Tu bat khi RENDER=true, tat o local tru khi
-  // dat KIOTVIET_SYNC_ENABLED=true (tranh chay song song 2 noi cung goi API
-  // KiotViet). Xem PlanDB-Phase1-Spec.md.
-  if (isKiotVietSyncRuntimeEnabled()) {
-    runKiotVietSyncEngine().catch((err) => {
-      console.error('[KiotViet Sync] Lỗi khởi động sync engine:', err.message);
-    });
-  } else {
-    console.warn('[KiotViet Sync] Đang tắt ở runtime này — đặt KIOTVIET_SYNC_ENABLED=true để bật ngoài Render.');
-  }
-});
+    // Bot Telegram xin nghi phep — chi khoi dong khi da cau hinh du, khong lam
+    // crash server neu thieu (giong cach module Van chuyen xu ly VC_SPREADSHEET_ID).
+    if (isTelegramBotRuntimeEnabled() && CONFIG.TELEGRAM_BOT_TOKEN && CONFIG.HR_SPREADSHEET_ID) {
+      startHrTelegramBot();
+    } else if (!isTelegramBotRuntimeEnabled()) {
+      console.warn('[HR Telegram Bot] Đã tắt ở runtime này — đặt TELEGRAM_BOT_ENABLED=true để bật ngoài Render.');
+    } else {
+      console.warn('[HR Telegram Bot] Chưa cấu hình TELEGRAM_BOT_TOKEN/HR_SPREADSHEET_ID — bot không khởi động.');
+    }
+
+    // KiotViet -> Postgres sync engine (server/kiotvietSync/) — chay ngay trong
+    // process web server nay de tan dung Render Web Service free tier (khong co
+    // Background Worker mien phi). Tu bat khi RENDER=true, tat o local tru khi
+    // dat KIOTVIET_SYNC_ENABLED=true (tranh chay song song 2 noi cung goi API
+    // KiotViet). Xem PlanDB-Phase1-Spec.md.
+    if (isKiotVietSyncRuntimeEnabled()) {
+      runKiotVietSyncEngine().catch((err) => {
+        console.error('[KiotViet Sync] Lỗi khởi động sync engine:', err.message);
+      });
+    } else {
+      console.warn('[KiotViet Sync] Đang tắt ở runtime này — đặt KIOTVIET_SYNC_ENABLED=true để bật ngoài Render.');
+    }
+  });
+}
+
+startServer();

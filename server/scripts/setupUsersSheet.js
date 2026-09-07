@@ -31,9 +31,10 @@ const ACTIVE_STATUS = 'Đang hoạt động';
 const LOCKED_STATUS = 'Khóa';
 const VALID_ROLES = ['Quản lý', 'Kế toán', 'Trưởng kho', 'Trợ lý', 'Lái xe', 'Nhân viên kho', 'Nhân viên sale', 'Nhân viên mua hàng', 'Khách'];
 
-// Phai khop CHINH XAC thu tu cot trong server/auth/userRepository.js (USER_COLUMNS).
-// "Email" them sau cung (cot cuoi, cho dang nhap Google — server/auth/
-// userWriteRepository.js) de khong lam lech vi tri cac cot cu.
+// Phai khop CHINH XAC danh sach cot trong server/auth/userSheetColumns.js
+// (USER_COLUMNS). "Email" them sau cung header goc, 3 cot khoi phuc them sau
+// nua (khi co tinh nang so dien thoai/email khoi phuc) — de khong lam lech
+// vi tri cac cot cu tren sheet dang chay that.
 const HEADERS = [
   'ID',
   'Họ tên',
@@ -44,7 +45,10 @@ const HEADERS = [
   'Trạng thái tài khoản',
   'Ngày tạo',
   'Đăng nhập gần nhất',
-  'Email'
+  'Email',
+  'Số điện thoại',
+  'Email khôi phục',
+  'SĐT khôi phục'
 ];
 
 function parseArgs(argv) {

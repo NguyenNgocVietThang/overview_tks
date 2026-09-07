@@ -6,7 +6,15 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const CONFIG = require('../../config');
-const { isVatProductCode, parseSheetDateKey, loadActiveCandidates, buildEventMapFromSheets } = require('./sheetTimelineBuilder');
+const {
+  isVatProductCode,
+  parseSheetDateKey,
+  loadActiveCandidates,
+  buildEventMapFromSheets,
+  buildInvoiceEventMapFromSheets,
+  buildPurchaseEventMapFromSheets,
+  buildSupplierReturnEventMapFromSheets
+} = require('./sheetTimelineBuilder');
 
 test('parseSheetDateKey doc dung dinh dang dd/MM/yyyy (co hoac khong co gio)', () => {
   assert.equal(parseSheetDateKey('06/01/2026 10:30:00'), '2026-01-06');
@@ -49,11 +57,29 @@ test('buildEventMapFromSheets: hoa don Hoan thanh lam giam ton kho, Da huy/Phieu
       ['HD001', 'SP001', 3],
       ['HD002', 'SP001', 999]
     ],
-    [CONFIG.SHEET_PURCHASES]: [['Mã hàng', 'Thời gian', 'Số lượng']],
-    [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng']]
+    [CONFIG.SHEET_PURCHASES]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']],
+    [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']]
   };
   const eventMap = buildEventMapFromSheets(sheets, new Set(['SP001']), '2026-01-01', '2026-01-20');
   assert.deepEqual(eventMap.get('SP001'), [{ dateKey: '2026-01-06', delta: -3 }]);
+});
+
+test('Hóa đơn Sheet thiếu hoặc trống Trạng thái không được mặc định là hoàn thành', () => {
+  const base = {
+    [CONFIG.SHEET_INVOICE_DETAILS]: [['Mã hóa đơn', 'Mã hàng', 'Số lượng'], ['HD001', 'SP001', 3]],
+    [CONFIG.SHEET_PURCHASES]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']],
+    [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']]
+  };
+  const missingStatus = {
+    ...base,
+    [CONFIG.SHEET_INVOICES]: [['Mã hóa đơn', 'Ngày bán'], ['HD001', '06/01/2026']]
+  };
+  const blankStatus = {
+    ...base,
+    [CONFIG.SHEET_INVOICES]: [['Mã hóa đơn', 'Ngày bán', 'Trạng thái'], ['HD001', '06/01/2026', '']]
+  };
+  assert.equal(buildEventMapFromSheets(missingStatus, new Set(['SP001']), '2026-01-01', '2026-01-20').size, 0);
+  assert.equal(buildEventMapFromSheets(blankStatus, new Set(['SP001']), '2026-01-01', '2026-01-20').size, 0);
 });
 
 test('buildEventMapFromSheets: Nhap hang lam tang ton kho, Tra NCC lam giam ton kho', () => {
@@ -61,12 +87,14 @@ test('buildEventMapFromSheets: Nhap hang lam tang ton kho, Tra NCC lam giam ton 
     [CONFIG.SHEET_INVOICES]: [['Mã hóa đơn', 'Ngày bán', 'Trạng thái']],
     [CONFIG.SHEET_INVOICE_DETAILS]: [['Mã hóa đơn', 'Mã hàng', 'Số lượng']],
     [CONFIG.SHEET_PURCHASES]: [
-      ['Mã hàng', 'Thời gian', 'Số lượng'],
-      ['SP001', '10/01/2026 08:00:00', 7]
+      ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
+      ['SP001', '10/01/2026 08:00:00', 7, 'Hoàn thành'],
+      ['SP001', '11/01/2026 08:00:00', 99, 'Đã hủy']
     ],
     [CONFIG.SHEET_SUPPLIER_RETURNS]: [
-      ['Mã hàng', 'Thời gian', 'Số lượng'],
-      ['SP001', '12/01/2026 08:00:00', 2]
+      ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
+      ['SP001', '12/01/2026 08:00:00', 2, 'Hoàn thành'],
+      ['SP001', '13/01/2026 08:00:00', 50, 'Phiếu tạm']
     ]
   };
   const eventMap = buildEventMapFromSheets(sheets, new Set(['SP001']), '2026-01-01', '2026-01-20');
@@ -84,8 +112,8 @@ test('buildEventMapFromSheets: bo qua ma VAT va ma khong nam trong validCodeSet'
       ['HD001', 'VAT', 1],
       ['HD001', 'SP999-KHONG-HOP-LE', 1]
     ],
-    [CONFIG.SHEET_PURCHASES]: [['Mã hàng', 'Thời gian', 'Số lượng']],
-    [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng']]
+    [CONFIG.SHEET_PURCHASES]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']],
+    [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']]
   };
   const eventMap = buildEventMapFromSheets(sheets, new Set(['SP001']), '2026-01-01', '2026-01-20');
   assert.equal(eventMap.size, 0);
@@ -95,9 +123,65 @@ test('buildEventMapFromSheets: bo qua su kien ngoai cua so ngay [fromDate, today
   const sheets = {
     [CONFIG.SHEET_INVOICES]: [['Mã hóa đơn', 'Ngày bán', 'Trạng thái'], ['HD001', '01/12/2025 08:00:00', 'Hoàn thành']],
     [CONFIG.SHEET_INVOICE_DETAILS]: [['Mã hóa đơn', 'Mã hàng', 'Số lượng'], ['HD001', 'SP001', 3]],
-    [CONFIG.SHEET_PURCHASES]: [['Mã hàng', 'Thời gian', 'Số lượng'], ['SP001', '01/12/2025 08:00:00', 3]],
-    [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng']]
+    [CONFIG.SHEET_PURCHASES]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'], ['SP001', '01/12/2025 08:00:00', 3, 'Hoàn thành']],
+    [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']]
   };
   const eventMap = buildEventMapFromSheets(sheets, new Set(['SP001']), '2026-01-01', '2026-01-20');
   assert.deepEqual(eventMap.get('SP001') || [], []);
+});
+
+test('buildEventMapFromSheets bỏ nguồn Nhập hàng/Trả NCC thiếu cột Trạng thái', () => {
+  const sheets = {
+    [CONFIG.SHEET_INVOICES]: [['Mã hóa đơn', 'Ngày bán', 'Trạng thái']],
+    [CONFIG.SHEET_INVOICE_DETAILS]: [['Mã hóa đơn', 'Mã hàng', 'Số lượng']],
+    [CONFIG.SHEET_PURCHASES]: [['Mã hàng', 'Thời gian', 'Số lượng'], ['SP001', '10/01/2026', 7]],
+    [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng'], ['SP001', '12/01/2026', 2]]
+  };
+  const eventMap = buildEventMapFromSheets(sheets, new Set(['SP001']), '2026-01-01', '2026-01-20');
+  assert.equal(eventMap.size, 0);
+});
+
+test('Nhập hàng Sheet dùng trạng thái số 3 là hoàn thành và bỏ trạng thái 4', () => {
+  const sheets = {
+    [CONFIG.SHEET_INVOICES]: [['Mã hóa đơn', 'Ngày bán', 'Trạng thái']],
+    [CONFIG.SHEET_INVOICE_DETAILS]: [['Mã hóa đơn', 'Mã hàng', 'Số lượng']],
+    [CONFIG.SHEET_PURCHASES]: [
+      ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
+      ['SP001', '10/01/2026', 7, 3],
+      ['SP001', '11/01/2026', 99, 4]
+    ],
+    [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']]
+  };
+  const eventMap = buildEventMapFromSheets(sheets, new Set(['SP001']), '2026-01-01', '2026-01-20');
+  assert.deepEqual(eventMap.get('SP001'), [{ dateKey: '2026-01-10', delta: 7 }]);
+});
+
+test('buildEventMapFromSheets đối chiếu chính xác từng mã sau khi trim', () => {
+  const sheets = {
+    [CONFIG.SHEET_INVOICES]: [['Mã hóa đơn', 'Ngày bán', 'Trạng thái']],
+    [CONFIG.SHEET_INVOICE_DETAILS]: [['Mã hóa đơn', 'Mã hàng', 'Số lượng']],
+    [CONFIG.SHEET_PURCHASES]: [
+      ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
+      [' SP001 ', '10/01/2026', 2, 'Hoàn thành'],
+      ['sp001', '10/01/2026', 9, 'Hoàn thành']
+    ],
+    [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']]
+  };
+  const eventMap = buildEventMapFromSheets(sheets, new Set(['SP001']), '2026-01-01', '2026-01-20');
+  assert.deepEqual(eventMap.get('SP001'), [{ dateKey: '2026-01-10', delta: 2 }]);
+  assert.equal(eventMap.has('sp001'), false);
+});
+
+test('các builder Sheet theo nguồn không kéo lẫn biến động của nguồn khác', () => {
+  const sheets = {
+    [CONFIG.SHEET_INVOICES]: [['Mã hóa đơn', 'Ngày bán', 'Trạng thái'], ['HD001', '10/01/2026', 'Hoàn thành']],
+    [CONFIG.SHEET_INVOICE_DETAILS]: [['Mã hóa đơn', 'Mã hàng', 'Số lượng'], ['HD001', 'SP001', 2]],
+    [CONFIG.SHEET_PURCHASES]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'], ['SP001', '10/01/2026', 3, 'Hoàn thành']],
+    [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'], ['SP001', '10/01/2026', 4, 'Hoàn thành']]
+  };
+  const args = [sheets, new Set(['SP001']), '2026-01-09', '2026-01-11'];
+
+  assert.deepEqual(buildInvoiceEventMapFromSheets(...args).get('SP001'), [{ dateKey: '2026-01-10', delta: -2 }]);
+  assert.deepEqual(buildPurchaseEventMapFromSheets(...args).get('SP001'), [{ dateKey: '2026-01-10', delta: 3 }]);
+  assert.deepEqual(buildSupplierReturnEventMapFromSheets(...args).get('SP001'), [{ dateKey: '2026-01-10', delta: -4 }]);
 });
