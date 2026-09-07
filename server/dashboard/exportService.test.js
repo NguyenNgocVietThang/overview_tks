@@ -272,3 +272,25 @@ test('buildExportDataset: stockout.recentScan khong co dong nao thi bao loi EXPO
     /EXPORT_NO_DATA|Chưa có kết quả/
   );
 });
+
+test('buildExportDataset: stockout.check30d tra dung worksheet', async () => {
+  const dataset = await exportService.__test__.buildExportDataset({
+    tableKey: 'stockout.check30d',
+    stockout30dResult: {
+      rows: [{ code: 'SP001', name: 'Ao thun', stockoutCount: 2, totalStockoutDays: 10, currentOnHand: 3 }]
+    }
+  });
+
+  assert.equal(dataset.tableKey, 'stockout.check30d');
+  assert.equal(dataset.title, 'Kiểm tra đứt hàng 30 ngày');
+  assert.equal(dataset.worksheets.length, 1);
+  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'currentOnHand']);
+  assert.equal(dataset.worksheets[0].rows[0].code, 'SP001');
+});
+
+test('buildExportDataset: stockout.check30d khong co dong nao thi bao loi EXPORT_NO_DATA', async () => {
+  await assert.rejects(
+    exportService.__test__.buildExportDataset({ tableKey: 'stockout.check30d', stockout30dResult: { rows: [] } }),
+    /EXPORT_NO_DATA|Chưa có kết quả/
+  );
+});

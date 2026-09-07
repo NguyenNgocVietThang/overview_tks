@@ -28,7 +28,8 @@ const TABLE_TITLES = Object.freeze({
   'debt.period': 'Công nợ theo kỳ',
   'search.results': 'Kết quả tìm kiếm',
   'stockout.result': 'Kết quả đứt hàng',
-  'stockout.recentScan': 'Hàng đứt gần đây'
+  'stockout.recentScan': 'Hàng đứt gần đây',
+  'stockout.check30d': 'Kiểm tra đứt hàng 30 ngày'
 });
 
 function exportError(message, statusCode = 400, code = 'EXPORT_INVALID_REQUEST') {
@@ -530,6 +531,21 @@ function buildRecentStockoutResultDataset(payload) {
   return { tableKey: 'stockout.recentScan', title: TABLE_TITLES['stockout.recentScan'], selectionMode: 'custom', worksheets: [worksheet] };
 }
 
+function buildStockout30dResultDataset(payload) {
+  const result = payload.stockout30dResult && typeof payload.stockout30dResult === 'object' ? payload.stockout30dResult : null;
+  const rows = result && Array.isArray(result.rows) ? result.rows : [];
+  if (rows.length === 0) throw exportError('Chưa có kết quả kiểm tra đứt hàng 30 ngày để xuất.', 400, 'EXPORT_NO_DATA');
+  // Chi 5 cot theo yeu cau: khong kem chi tiet tung dot dut hang (khac voi stockout.result).
+  const worksheet = aggregateWorksheet('stockout_30d_result', 'Kiểm tra đứt hàng 30 ngày', [
+    { key: 'code', label: 'Mã SP', type: 'text' },
+    { key: 'name', label: 'Tên SP' },
+    { key: 'stockoutCount', label: 'Số lần đứt hàng', type: 'number' },
+    { key: 'totalStockoutDays', label: 'Số ngày đứt hàng', type: 'number' },
+    { key: 'currentOnHand', label: 'Tồn kho hiện tại', type: 'number' }
+  ], rows);
+  return { tableKey: 'stockout.check30d', title: TABLE_TITLES['stockout.check30d'], selectionMode: 'custom', worksheets: [worksheet] };
+}
+
 async function buildExportDataset(payload, branch) {
   const tableKey = normalizeText(payload && payload.tableKey);
   if (!TABLE_TITLES[tableKey]) throw exportError('Bảng yêu cầu xuất không hợp lệ.', 400, 'EXPORT_TABLE_NOT_ALLOWED');
@@ -537,6 +553,7 @@ async function buildExportDataset(payload, branch) {
   if (tableKey === 'search.results') return buildSearchDataset(payload, filters, branch);
   if (tableKey === 'stockout.result') return buildStockoutResultDataset(payload);
   if (tableKey === 'stockout.recentScan') return buildRecentStockoutResultDataset(payload);
+  if (tableKey === 'stockout.check30d') return buildStockout30dResultDataset(payload);
   if (tableKey === 'customers.productDetail' || tableKey === 'customers.productMonthlyCompare') {
     return buildCustomerProductRevenueDataset(tableKey, payload, branch);
   }
