@@ -4019,7 +4019,7 @@
                 <div class="stockout-upload-row">
                   <button class="export-button" type="button" id="stockoutCheckButton" onclick="startStockoutCheck()">Kiểm tra đứt hàng</button>
                 </div>
-                <div class="table-note">Định nghĩa đứt hàng: tồn kho về 0 liên tục từ 7 ngày trở lên, xét trong 6 tháng gần nhất.</div>
+                <div class="table-note">Định nghĩa đứt hàng: tồn kho về 0 liên tục từ 7 ngày trở lên, xét trong 6 tháng gần nhất. Dữ liệu lấy từ Google Sheets (Hóa đơn, Nhập hàng, Trả NCC) và KiotViet (Khách trả hàng).</div>
                 <div id="stockoutProgressBox" hidden>
                   <div class="table-note" id="stockoutProgressLabel">—</div>
                   <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="stockoutProgressFill"></div></div>
@@ -4059,7 +4059,7 @@
                 <div class="stockout-upload-row">
                   <button class="export-button" type="button" id="recentStockoutScanButton" onclick="startRecentStockoutScan()">Lấy danh sách đứt hàng gần đây</button>
                 </div>
-                <div class="table-note">Quét toàn bộ hàng hóa đang kinh doanh trên KiotViet có tồn kho hiện tại = 0, liệt kê mã có số ngày đứt hàng liên tục (tính đến hôm nay) ≥ 5 ngày. Có thể mất 1-3 phút do phải quét toàn bộ danh mục.</div>
+                <div class="table-note">Quét toàn bộ hàng hóa đang kinh doanh có tồn kho hiện tại = 0, liệt kê mã có số ngày đứt hàng liên tục (tính đến hôm nay) ≥ 5 ngày. Dữ liệu dựa trên Google Sheets và KiotViet (Khách trả hàng).</div>
                 <div id="recentStockoutProgressBox" hidden>
                   <div class="table-note" id="recentStockoutProgressLabel">—</div>
                   <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="recentStockoutProgressFill"></div></div>
@@ -4086,6 +4086,46 @@
                     <tbody id="recentStockoutResultRows">
                       <tr>
                         <td colspan="4" class="table-note">Chưa có dữ liệu — hãy ấn "Lấy danh sách đứt hàng gần đây"</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Kiểm tra đứt hàng 30 ngày <span class="tag" id="tagStockout30dTotal">—</span></h2>
+                </div>
+                <div class="stockout-upload-row">
+                  <button class="export-button" type="button" id="stockout30dScanButton" onclick="startStockout30dScan()">Kiểm tra đứt hàng 30 ngày</button>
+                </div>
+                <div class="table-note">Quét toàn bộ hàng hóa đang kinh doanh trong 30 ngày gần đây (dựa trên Google Sheets: Hóa đơn, Nhập hàng, Trả NCC; riêng Khách trả hàng lấy trực tiếp từ KiotViet), liệt kê các đợt tồn kho về 0 liên tục ≥ 5 ngày (một mã có thể đứt hàng nhiều lần).</div>
+                <div id="stockout30dProgressBox" hidden>
+                  <div class="table-note" id="stockout30dProgressLabel">—</div>
+                  <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="stockout30dProgressFill"></div></div>
+                </div>
+                <div id="stockout30dErrorBox" class="table-note" hidden></div>
+                <div id="stockout30dRestoredNote" class="table-note" hidden></div>
+              </div>
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Kết quả kiểm tra đứt hàng 30 ngày <span class="tag" id="tagStockout30dRows">—</span></h2>
+                  <button class="export-button" type="button" id="stockout30dExportButton" disabled
+                    onclick="exportStockout30dResult()">Xuất Excel</button>
+                </div>
+                <div class="scroll-list" style="max-height:480px;">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Mã SP</th>
+                        <th>Tên SP</th>
+                        <th>Số lần đứt hàng</th>
+                        <th>Số ngày đứt hàng</th>
+                        <th>Tồn kho hiện tại</th>
+                      </tr>
+                    </thead>
+                    <tbody id="stockout30dResultRows">
+                      <tr>
+                        <td colspan="5" class="table-note">Chưa có dữ liệu — hãy ấn "Kiểm tra đứt hàng 30 ngày"</td>
                       </tr>
                     </tbody>
                   </table>
@@ -5205,18 +5245,14 @@
     function renderStockoutProgress(progress) {
       const label = document.getElementById('stockoutProgressLabel');
       const fill = document.getElementById('stockoutProgressFill');
-      let percent = 2;
+      let percent = 10;
       let text = progress.phaseLabel || 'Đang xử lý...';
 
-      if (progress.phase === 1 && progress.phase1) {
-        const loaded = ['invoices', 'purchaseOrders', 'returns']
-          .map(function (key) { return progress.phase1[key] ? progress.phase1[key].recordsLoaded : 0; })
-          .reduce(function (a, b) { return a + b; }, 0);
-        text = progress.phaseLabel + ' (đã tải ' + loaded + ' chứng từ)';
-        percent = 10;
-      } else if (progress.phase === 2 && progress.phase2 && progress.phase2.total > 0) {
-        percent = 15 + Math.round((progress.phase2.processed / progress.phase2.total) * 85);
-        text = progress.phaseLabel + ' (' + progress.phase2.processed + '/' + progress.phase2.total + ' mã hàng)';
+      if (progress.phase === 2 && progress.phase2 && progress.phase2.total > 0) {
+        percent = 40 + Math.round((progress.phase2.recordsLoaded / progress.phase2.total) * 55);
+        text = progress.phaseLabel + ' (' + progress.phase2.recordsLoaded + '/' + progress.phase2.total + ')';
+      } else if (progress.phase === 2) {
+        percent = 50;
       }
 
       label.textContent = text;
@@ -5423,18 +5459,14 @@
     function renderRecentStockoutProgress(progress) {
       const label = document.getElementById('recentStockoutProgressLabel');
       const fill = document.getElementById('recentStockoutProgressFill');
-      let percent = 2;
+      let percent = 10;
       let text = progress.phaseLabel || 'Đang xử lý...';
 
-      if (progress.phase === 1 && progress.phase1 && progress.phase1.total > 0) {
-        percent = 5 + Math.round((progress.phase1.recordsLoaded / progress.phase1.total) * 70);
-        text = progress.phaseLabel + ' (' + progress.phase1.recordsLoaded + '/' + progress.phase1.total + ' mã · tìm thấy ' + progress.phase1.candidatesFound + ' ứng viên)';
-      } else if (progress.phase === 2 && progress.phase2) {
-        const loaded = ['invoices', 'purchaseOrders', 'returns']
-          .map(function (key) { return progress.phase2[key] ? progress.phase2[key].recordsLoaded : 0; })
-          .reduce(function (a, b) { return a + b; }, 0);
-        text = progress.phaseLabel + ' (đã tải ' + loaded + ' chứng từ)';
-        percent = 80;
+      if (progress.phase === 2 && progress.phase2 && progress.phase2.total > 0) {
+        percent = 40 + Math.round((progress.phase2.recordsLoaded / progress.phase2.total) * 55);
+        text = progress.phaseLabel + ' (' + progress.phase2.recordsLoaded + '/' + progress.phase2.total + ')';
+      } else if (progress.phase === 2) {
+        percent = 50;
       }
 
       label.textContent = text;
@@ -5503,6 +5535,203 @@
           tableKey: 'stockout.recentScan',
           recentStockoutResult: result,
           columns: { recent_stockout_result: ['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock'] }
+        };
+        const response = await fetch('/api/export', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        });
+        if (!response.ok) throw new Error(await readExportError(response, 'Không thể tạo file Excel'));
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = downloadNameFromResponse(response);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      } catch (err) {
+        alert(err.message || 'Không thể xuất file Excel.');
+      } finally {
+        if (button) { button.disabled = rows.length === 0; button.textContent = originalLabel; }
+      }
+    }
+
+    state.stockout30d = { jobId: null, pollTimer: null, result: null };
+
+    function saveStockout30dState() {
+      try {
+        const payload = { result: state.stockout30d.result, checkedAt: new Date().toISOString() };
+        localStorage.setItem('stockout30d:lastState', JSON.stringify(payload));
+      } catch (err) { /* localStorage không khả dụng — bỏ qua, không chặn luồng chính */ }
+    }
+
+    function restoreStockout30dState() {
+      let saved = null;
+      try {
+        const raw = localStorage.getItem('stockout30d:lastState');
+        if (raw) saved = JSON.parse(raw);
+      } catch (err) { saved = null; }
+      if (!saved || !saved.result) return;
+
+      state.stockout30d.result = saved.result;
+      renderStockout30dResultTable(saved.result);
+
+      const note = document.getElementById('stockout30dRestoredNote');
+      if (note && saved.checkedAt) {
+        const d = new Date(saved.checkedAt);
+        note.hidden = false;
+        note.textContent = 'Đã phục hồi kết quả lần kiểm tra gần nhất (' + d.toLocaleString('vi-VN') + ').';
+      }
+    }
+    restoreStockout30dState();
+
+    async function startStockout30dScan() {
+      const button = document.getElementById('stockout30dScanButton');
+      const errorBox = document.getElementById('stockout30dErrorBox');
+      const progressBox = document.getElementById('stockout30dProgressBox');
+      const restoredNote = document.getElementById('stockout30dRestoredNote');
+
+      errorBox.hidden = true;
+      restoredNote.hidden = true;
+
+      if (state.stockout30d.pollTimer) {
+        clearInterval(state.stockout30d.pollTimer);
+        state.stockout30d.pollTimer = null;
+      }
+
+      button.disabled = true;
+      progressBox.hidden = false;
+      document.getElementById('stockout30dProgressLabel').textContent = 'Đang bắt đầu kiểm tra...';
+      document.getElementById('stockout30dProgressFill').style.width = '5%';
+
+      try {
+        const response = await fetch('/api/products/stockout-30d/scan', { method: 'POST' });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Yêu cầu thất bại.');
+
+        state.stockout30d.jobId = payload.jobId;
+        state.stockout30d.pollTimer = setInterval(pollStockout30dScan, 1500);
+      } catch (err) {
+        button.disabled = false;
+        progressBox.hidden = true;
+        errorBox.hidden = false;
+        errorBox.textContent = err.message || 'Không thể bắt đầu kiểm tra đứt hàng 30 ngày.';
+      }
+    }
+
+    async function pollStockout30dScan() {
+      const jobId = state.stockout30d.jobId;
+      if (!jobId) return;
+
+      try {
+        const response = await fetch('/api/products/stockout-30d/' + encodeURIComponent(jobId) + '/progress');
+        const progress = await response.json();
+        if (!response.ok) throw new Error(progress.error || 'Không lấy được tiến độ.');
+
+        renderStockout30dProgress(progress);
+
+        if (progress.status === 'done') {
+          clearInterval(state.stockout30d.pollTimer);
+          state.stockout30d.pollTimer = null;
+          await fetchStockout30dResult(jobId);
+        } else if (progress.status === 'error') {
+          clearInterval(state.stockout30d.pollTimer);
+          state.stockout30d.pollTimer = null;
+          document.getElementById('stockout30dScanButton').disabled = false;
+          document.getElementById('stockout30dProgressBox').hidden = true;
+          const errorBox = document.getElementById('stockout30dErrorBox');
+          errorBox.hidden = false;
+          errorBox.textContent = progress.error || 'Kiểm tra đứt hàng 30 ngày thất bại.';
+        }
+      } catch (err) {
+        clearInterval(state.stockout30d.pollTimer);
+        state.stockout30d.pollTimer = null;
+        document.getElementById('stockout30dScanButton').disabled = false;
+        const errorBox = document.getElementById('stockout30dErrorBox');
+        errorBox.hidden = false;
+        errorBox.textContent = err.message || 'Mất kết nối khi đang kiểm tra đứt hàng 30 ngày.';
+      }
+    }
+
+    function renderStockout30dProgress(progress) {
+      const label = document.getElementById('stockout30dProgressLabel');
+      const fill = document.getElementById('stockout30dProgressFill');
+      let percent = 10;
+      let text = progress.phaseLabel || 'Đang xử lý...';
+
+      if (progress.phase === 2 && progress.phase2 && progress.phase2.total > 0) {
+        percent = 40 + Math.round((progress.phase2.recordsLoaded / progress.phase2.total) * 55);
+        text = progress.phaseLabel + ' (' + progress.phase2.recordsLoaded + '/' + progress.phase2.total + ')';
+      } else if (progress.phase === 2) {
+        percent = 50;
+      }
+
+      label.textContent = text;
+      fill.style.width = Math.min(100, percent) + '%';
+    }
+
+    async function fetchStockout30dResult(jobId) {
+      try {
+        const response = await fetch('/api/products/stockout-30d/' + encodeURIComponent(jobId) + '/result');
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Không lấy được kết quả.');
+
+        state.stockout30d.result = payload.result;
+        document.getElementById('stockout30dProgressBox').hidden = true;
+        document.getElementById('stockout30dScanButton').disabled = false;
+        renderStockout30dResultTable(payload.result);
+        saveStockout30dState();
+      } catch (err) {
+        document.getElementById('stockout30dScanButton').disabled = false;
+        const errorBox = document.getElementById('stockout30dErrorBox');
+        errorBox.hidden = false;
+        errorBox.textContent = err.message || 'Không lấy được kết quả kiểm tra đứt hàng 30 ngày.';
+      }
+    }
+
+    function renderStockout30dResultTable(result) {
+      const tbody = document.getElementById('stockout30dResultRows');
+      const tag = document.getElementById('tagStockout30dRows');
+      const totalTag = document.getElementById('tagStockout30dTotal');
+      const rows = (result && result.rows) || [];
+
+      if (tag) tag.textContent = rows.length;
+      if (totalTag) totalTag.textContent = (result && result.totalProductsScanned != null) ? result.totalProductsScanned : '—';
+      const exportButton = document.getElementById('stockout30dExportButton');
+      if (exportButton) exportButton.disabled = rows.length === 0;
+
+      if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 30 ngày gần đây</td></tr>';
+        return;
+      }
+
+      const sorted = rows.slice().sort(function (a, b) { return b.totalStockoutDays - a.totalStockoutDays; });
+
+      tbody.innerHTML = sorted.map(function (row) {
+        return (
+          '<tr>' +
+            '<td>' + escapeHtml(row.code) + '</td>' +
+            '<td>' + escapeHtml(row.name) + '</td>' +
+            '<td>' + row.stockoutCount + '</td>' +
+            '<td>' + row.totalStockoutDays + '</td>' +
+            '<td>' + row.currentOnHand + '</td>' +
+          '</tr>'
+        );
+      }).join('');
+    }
+
+    async function exportStockout30dResult() {
+      const result = state.stockout30d.result;
+      const rows = (result && result.rows) || [];
+      if (!rows.length) return;
+      const button = document.getElementById('stockout30dExportButton');
+      const originalLabel = button ? button.textContent : '';
+      if (button) { button.disabled = true; button.textContent = 'Đang xuất…'; }
+      try {
+        const payload = {
+          tableKey: 'stockout.check30d',
+          stockout30dResult: result,
+          columns: { stockout_30d_result: ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'currentOnHand'] }
         };
         const response = await fetch('/api/export', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
