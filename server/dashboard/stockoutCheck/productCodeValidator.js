@@ -11,6 +11,7 @@ async function loadProductCatalogMap(branch) {
   const headers = rows[0];
   const codeIndex = headers.indexOf('Mã hàng');
   const nameIndex = headers.indexOf('Tên hàng');
+  const stockIndex = headers.indexOf('Tồn kho');
   if (codeIndex === -1) return map;
 
   for (let i = 1; i < rows.length; i++) {
@@ -18,7 +19,8 @@ async function loadProductCatalogMap(branch) {
     const code = String(row[codeIndex] || '').trim();
     if (!code) continue;
     const name = nameIndex !== -1 ? String(row[nameIndex] || '').trim() : '';
-    map.set(code.toUpperCase(), { code, name });
+    const currentOnHand = stockIndex !== -1 ? (Number(row[stockIndex]) || 0) : 0;
+    map.set(code.toUpperCase(), { code, name, currentOnHand });
   }
 
   return map;

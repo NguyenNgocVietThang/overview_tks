@@ -17,13 +17,13 @@ function freshProductCodeValidator() {
 test('loadProductCatalogMap doc cot theo ten header, key la ma hang viet hoa+trim', async () => {
   const { productCodeValidator, sheetsClient } = freshProductCodeValidator();
   sheetsClient.getValues = async () => [
-    ['Mã hàng', 'Tên hàng', 'Nhóm hàng'],
-    [' sp001 ', 'Bánh gạo lứt', 'Thực phẩm'],
-    ['SP002', 'Nước suối', 'Đồ uống']
+    ['Mã hàng', 'Tên hàng', 'Nhóm hàng', 'Tồn kho'],
+    [' sp001 ', 'Bánh gạo lứt', 'Thực phẩm', 12],
+    ['SP002', 'Nước suối', 'Đồ uống', 0]
   ];
   const map = await productCodeValidator.loadProductCatalogMap();
-  assert.deepEqual(map.get('SP001'), { code: 'sp001', name: 'Bánh gạo lứt' });
-  assert.deepEqual(map.get('SP002'), { code: 'SP002', name: 'Nước suối' });
+  assert.deepEqual(map.get('SP001'), { code: 'sp001', name: 'Bánh gạo lứt', currentOnHand: 12 });
+  assert.deepEqual(map.get('SP002'), { code: 'SP002', name: 'Nước suối', currentOnHand: 0 });
   assert.equal(map.size, 2);
 });
 
