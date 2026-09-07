@@ -27,7 +27,8 @@ const TABLE_TITLES = Object.freeze({
   'suppliers.list': 'Danh sách nhà cung cấp',
   'debt.period': 'Công nợ theo kỳ',
   'search.results': 'Kết quả tìm kiếm',
-  'stockout.result': 'Kết quả đứt hàng'
+  'stockout.result': 'Kết quả đứt hàng',
+  'stockout.recentScan': 'Hàng đứt gần đây'
 });
 
 function exportError(message, statusCode = 400, code = 'EXPORT_INVALID_REQUEST') {
@@ -516,12 +517,26 @@ function buildStockoutResultDataset(payload) {
   return { tableKey: 'stockout.result', title: TABLE_TITLES['stockout.result'], selectionMode: 'custom', worksheets: [worksheet] };
 }
 
+function buildRecentStockoutResultDataset(payload) {
+  const result = payload.recentStockoutResult && typeof payload.recentStockoutResult === 'object' ? payload.recentStockoutResult : null;
+  const rows = result && Array.isArray(result.rows) ? result.rows : [];
+  if (rows.length === 0) throw exportError('Chưa có kết quả hàng đứt gần đây để xuất.', 400, 'EXPORT_NO_DATA');
+  const worksheet = aggregateWorksheet('recent_stockout_result', 'Hàng đứt gần đây', [
+    { key: 'code', label: 'Mã SP', type: 'text' },
+    { key: 'name', label: 'Tên SP' },
+    { key: 'lastOutOfStockDate', label: 'Ngày hết hàng gần nhất', type: 'date' },
+    { key: 'daysOutOfStock', label: 'Số ngày đứt hàng', type: 'number' }
+  ], rows);
+  return { tableKey: 'stockout.recentScan', title: TABLE_TITLES['stockout.recentScan'], selectionMode: 'custom', worksheets: [worksheet] };
+}
+
 async function buildExportDataset(payload, branch) {
   const tableKey = normalizeText(payload && payload.tableKey);
   if (!TABLE_TITLES[tableKey]) throw exportError('Bảng yêu cầu xuất không hợp lệ.', 400, 'EXPORT_TABLE_NOT_ALLOWED');
   const filters = normalizeFilters(payload.filters);
   if (tableKey === 'search.results') return buildSearchDataset(payload, filters, branch);
   if (tableKey === 'stockout.result') return buildStockoutResultDataset(payload);
+  if (tableKey === 'stockout.recentScan') return buildRecentStockoutResultDataset(payload);
   if (tableKey === 'customers.productDetail' || tableKey === 'customers.productMonthlyCompare') {
     return buildCustomerProductRevenueDataset(tableKey, payload, branch);
   }

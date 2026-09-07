@@ -250,3 +250,25 @@ test('Bao cao doanh thu theo khach: xuat bang chi tiet + bang so sanh thang, loc
     dashboardData.getCustomerProductRevenueReport = originalReport;
   }
 });
+
+test('buildExportDataset: stockout.recentScan tra dung worksheet', async () => {
+  const dataset = await exportService.__test__.buildExportDataset({
+    tableKey: 'stockout.recentScan',
+    recentStockoutResult: {
+      rows: [{ code: 'SP001', name: 'Ao thun', lastOutOfStockDate: '2026-01-05', daysOutOfStock: 6 }]
+    }
+  });
+
+  assert.equal(dataset.tableKey, 'stockout.recentScan');
+  assert.equal(dataset.title, 'Hàng đứt gần đây');
+  assert.equal(dataset.worksheets.length, 1);
+  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock']);
+  assert.equal(dataset.worksheets[0].rows[0].code, 'SP001');
+});
+
+test('buildExportDataset: stockout.recentScan khong co dong nao thi bao loi EXPORT_NO_DATA', async () => {
+  await assert.rejects(
+    exportService.__test__.buildExportDataset({ tableKey: 'stockout.recentScan', recentStockoutResult: { rows: [] } }),
+    /EXPORT_NO_DATA|Chưa có kết quả/
+  );
+});

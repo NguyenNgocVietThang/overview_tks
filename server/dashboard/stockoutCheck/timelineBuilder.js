@@ -1,5 +1,7 @@
 'use strict';
 
+const { addDaysToDateKey } = require('./dateHelpers');
+
 const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 function toVnDateKey(isoDateTimeString) {
@@ -7,12 +9,6 @@ function toVnDateKey(isoDateTimeString) {
   if (!/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw)) raw += 'Z';
   const utcTime = new Date(raw).getTime();
   return new Date(utcTime + VN_OFFSET_MS).toISOString().slice(0, 10);
-}
-
-function addDaysToDateKey(dateKey, days) {
-  const d = new Date(dateKey + 'T00:00:00Z');
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
 }
 
 function pushEvent(eventMapByCode, code, dateKey, delta) {

@@ -9,19 +9,9 @@ const {
 } = require('./timelineBuilder');
 const { findStockoutPeriods, summarizeStockoutPeriods } = require('./stockoutAnalyzer');
 const { runWithConcurrencyLimit } = require('./concurrencyPool');
+const { addDaysToDateKey, todayVnDateKey } = require('./dateHelpers');
 
 const MIN_STOCKOUT_DAYS = 7;
-
-function addDaysToDateKey(dateKey, days) {
-  const d = new Date(dateKey + 'T00:00:00Z');
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-function todayVnDateKey() {
-  const vnNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
-  return vnNow.toISOString().slice(0, 10);
-}
 
 function emptyPageCounter() {
   return { pagesLoaded: 0, recordsLoaded: 0, total: 0 };

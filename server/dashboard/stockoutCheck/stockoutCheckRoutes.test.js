@@ -144,3 +144,62 @@ test('GET result: job loi tra 500 + thong tin loi', async () => {
   assert.equal(res.statusCode, 500);
   assert.equal(res.body.code, 'BOOM');
 });
+
+const recentStockoutScanService = require('./recentStockoutScanService');
+
+test('POST /api/products/stockout-recent/scan: tao job va tra 202 + jobId', async () => {
+  const original = recentStockoutScanService.runRecentStockoutScanJob;
+  let called = false;
+  recentStockoutScanService.runRecentStockoutScanJob = async () => { called = true; };
+  try {
+    const handler = getRouteHandler('post', '/api/products/stockout-recent/scan');
+    const req = {};
+    const res = fakeRes();
+
+    await handler(req, res);
+
+    assert.equal(res.statusCode, 202);
+    assert.equal(typeof res.body.jobId, 'string');
+    assert.equal(router.jobStore.getJob(res.body.jobId).status, 'running');
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(called, true);
+  } finally {
+    recentStockoutScanService.runRecentStockoutScanJob = original;
+  }
+});
+
+test('GET /api/products/stockout-recent/:jobId/progress: job khong ton tai tra 404', async () => {
+  const handler = getRouteHandler('get', '/api/products/stockout-recent/:jobId/progress');
+  const req = { params: { jobId: 'khong-ton-tai' } };
+  const res = fakeRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.code, 'JOB_NOT_FOUND');
+});
+
+test('GET /api/products/stockout-recent/:jobId/result: job dang chay tra 409 JOB_NOT_READY', async () => {
+  const jobId = router.jobStore.createJob();
+  const handler = getRouteHandler('get', '/api/products/stockout-recent/:jobId/result');
+  const req = { params: { jobId } };
+  const res = fakeRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, 'JOB_NOT_READY');
+});
+
+test('GET /api/products/stockout-recent/:jobId/result: job xong tra 200 + result', async () => {
+  const jobId = router.jobStore.createJob();
+  router.jobStore.setResult(jobId, { asOfDate: '2026-01-10', totalProductsScanned: 100, totalCandidates: 1, rows: [{ code: 'SP001', name: 'A', lastOutOfStockDate: '2026-01-05', daysOutOfStock: 6 }] });
+  const handler = getRouteHandler('get', '/api/products/stockout-recent/:jobId/result');
+  const req = { params: { jobId } };
+  const res = fakeRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.result.rows.length, 1);
+});
