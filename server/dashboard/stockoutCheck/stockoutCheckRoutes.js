@@ -7,6 +7,7 @@ const router = express.Router();
 
 const { createJobStore } = require('./jobManager');
 const stockoutCheckService = require('./stockoutCheckService');
+const recentStockoutScanService = require('./recentStockoutScanService');
 const { parseProductCodesFromWorkbookBuffer } = require('./excelParser');
 const { createKiotVietClient } = require('../../kiotviet/kiotVietApiClient');
 const { BRANCHES } = require('../../branch/branches');
@@ -137,6 +138,58 @@ router.get('/api/products/stockout-check/:jobId/result', (req, res) => {
   const job = jobStore.getJob(req.params.jobId);
   if (!job) {
     return res.status(404).json({ error: 'Không tìm thấy phiên kiểm tra hoặc đã hết hạn.', code: 'JOB_NOT_FOUND' });
+  }
+  if (job.status === 'running') {
+    return res.status(409).json({ error: 'Kết quả chưa sẵn sàng.', code: 'JOB_NOT_READY', status: 'running' });
+  }
+  if (job.status === 'error') {
+    return res.status(500).json({ error: job.error.message, code: job.error.code });
+  }
+  res.status(200).json({ result: job.result });
+});
+
+router.post('/api/products/stockout-recent/scan', async (req, res) => {
+  try {
+    const client = createKiotVietClient(readKiotVietConfig(req.branch));
+    const jobId = jobStore.createJob();
+    res.status(202).json({ jobId });
+
+    recentStockoutScanService.runRecentStockoutScanJob(jobStore, jobId, { client }).catch((err) => {
+      jobStore.setError(jobId, { message: err.message, code: 'UNEXPECTED_ERROR' });
+    });
+  } catch (err) {
+    if (!res.headersSent) {
+      res.status(err.statusCode || 500).json({ error: err.message, code: err.code || 'REQUEST_FAILED' });
+    }
+  }
+});
+
+router.get('/api/products/stockout-recent/:jobId/progress', (req, res) => {
+  const job = jobStore.getJob(req.params.jobId);
+  if (!job) {
+    return res.status(404).json({ error: 'Không tìm thấy phiên quét hoặc đã hết hạn.', code: 'JOB_NOT_FOUND' });
+  }
+
+  if (job.status === 'error') {
+    return res.json({ status: 'error', error: job.error.message, code: job.error.code });
+  }
+
+  const phase = (job.progress && job.progress.phase) || null;
+  res.status(200).json({
+    status: job.status,
+    phase,
+    phaseLabel: phase === 2
+      ? 'Đang tải hóa đơn / nhập hàng / trả hàng để tính số ngày đứt hàng'
+      : 'Đang quét toàn bộ danh mục hàng hóa từ KiotViet',
+    phase1: (job.progress && job.progress.phase1) || null,
+    phase2: (job.progress && job.progress.phase2) || null
+  });
+});
+
+router.get('/api/products/stockout-recent/:jobId/result', (req, res) => {
+  const job = jobStore.getJob(req.params.jobId);
+  if (!job) {
+    return res.status(404).json({ error: 'Không tìm thấy phiên quét hoặc đã hết hạn.', code: 'JOB_NOT_FOUND' });
   }
   if (job.status === 'running') {
     return res.status(409).json({ error: 'Kết quả chưa sẵn sàng.', code: 'JOB_NOT_READY', status: 'running' });
