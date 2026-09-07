@@ -61,7 +61,7 @@ Mỗi luồng có bộ nhóm chat Telegram riêng theo tên nghiệp vụ (khôn
 | 2. Lái xe xác nhận nhận hàng | **"[HN]-Lái xe chụp đơn"** / **"[SG]-Lái xe chụp đơn"** | Lái xe chụp ảnh đơn xác nhận đã nhận, đơn bị khóa (không cho thay đổi nữa) | Lái xe mở Mobile Web -> Thấy danh sách đơn của mình -> Bấm **"Bắt đầu giao"** | Bot ghi nhận ảnh xác nhận từ nhóm -> khóa đơn, cập nhật trạng thái `Đang giao` trên Sheet |
 | 3. Giao hàng & hoàn thành | **"Chụp bill ký nhận [HN]"** / **"Chụp bill ký nhận [SG]"** | Lái xe chụp bill ký nhận xác nhận hàng đã giao tới nơi -> Hoàn thành đơn | Lái xe bấm **[Chụp bill ký]** -> Bấm **"Đã giao / Hoàn thành"** | Bot OCR bill ký nhận -> khớp mã, lưu Drive, cập nhật `Đã giao` -> `Hoàn thành` trên Sheet |
 
-### 3.2. Luồng 5 & 4 — Đơn bé, giao qua shipper (An Khánh->HN/Trung, Tân Phú->Nam)
+### 3.2. Luồng 5 & 4 — Đơn bé, giao qua shipper (An Khánh->Bắc/Trung, Tân Phú->Nam)
 
 | Khâu | Nhóm chat (Luồng 5 - An Khánh / Luồng 4 - Tân Phú) | Trước đây (Thủ công qua Chat) | **Web Điều phối & Mobile 1-chạm** | **Bot Telegram & OCR (ghi Sheet)** |
 |---|---|---|---|---|
