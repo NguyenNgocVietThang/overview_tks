@@ -272,6 +272,63 @@ describe('Google Sheets typed-column formatting', () => {
 });
 
 describe('Separated dashboard and shipment projects', () => {
+  it('propagates a queue write failure so KiotViet receives a failed webhook request', () => {
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ], {
+      ContentService: {
+        MimeType: { TEXT: 'text' },
+        createTextOutput(value) {
+          return { value, setMimeType() { return this; } };
+        }
+      },
+      Utilities: { getUuid() { return 'webhook-1'; }, sleep() {} },
+      SpreadsheetApp: { flush() {} }
+    });
+    context.isValidWebhookSecret_ = () => true;
+    context.ensureWebhookQueueSheet_ = () => ({
+      appendRow() { throw new Error('Service Spreadsheets timed out'); }
+    });
+
+    assert.throws(() => context.doPost({
+      parameter: { eventType: 'invoice.update' },
+      postData: { contents: '{"Notifications":[]}' }
+    }), /Webhook was not queued/);
+  });
+
+  it('retries a transient queue append before acknowledging the webhook', () => {
+    let attempts = 0;
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ], {
+      ContentService: {
+        MimeType: { TEXT: 'text' },
+        createTextOutput(value) {
+          return { value, setMimeType() { return this; } };
+        }
+      },
+      Utilities: { getUuid() { return 'webhook-1'; }, sleep() {} },
+      SpreadsheetApp: { flush() {} }
+    });
+    context.isValidWebhookSecret_ = () => true;
+    context.ensureWebhookQueueSheet_ = () => ({
+      appendRow() {
+        attempts++;
+        if (attempts === 1) throw new Error('Service Spreadsheets timed out');
+      }
+    });
+
+    const response = context.doPost({
+      parameter: { eventType: 'invoice.update' },
+      postData: { contents: '{"Notifications":[]}' }
+    });
+
+    assert.equal(response.value, 'QUEUED');
+    assert.equal(attempts, 2);
+  });
+
   it('claims at most one hundred webhook items after same-type deliveries are coalesced', () => {
     const headers = ['ID', 'Received', 'Type', 'Payload', 'Status', 'Attempts', 'Lease', 'Error'];
     const rows = [headers];
@@ -509,6 +566,8 @@ describe('Separated dashboard and shipment projects', () => {
       'src-dashboard/sync/WebhookQueue.gs'
     ]);
     context.isShipmentLifecycleMode_ = () => true;
+    context.acquireWebhookQueueRunnerLease_ = () => 'test-runner';
+    context.releaseWebhookQueueRunnerLease_ = () => {};
     context.recoverWebhookQueueAfterBatchResize_ = () => 0;
     context.claimWebhookQueueBatch_ = () => {
       claimCalls++;
@@ -635,6 +694,8 @@ describe('Separated dashboard and shipment projects', () => {
       }
     });
     context.isShipmentLifecycleMode_ = () => false;
+    context.acquireWebhookQueueRunnerLease_ = () => 'test-runner';
+    context.releaseWebhookQueueRunnerLease_ = () => {};
     context.recoverWebhookQueueAfterBatchResize_ = () => 0;
     context.getKiotVietDataLock_ = () => ({ tryLock() { return false; } });
     context.claimWebhookQueueBatch_ = () => [];
@@ -646,6 +707,66 @@ describe('Separated dashboard and shipment projects', () => {
     assert.equal(watchdogCalls, 1);
   });
 
+  it('does not start a second queue runner while another trigger owns the lease', () => {
+    let claimCalls = 0;
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ]);
+    context.acquireWebhookQueueRunnerLease_ = () => null;
+    context.recoverWebhookQueueAfterBatchResize_ = () => 0;
+    context.isShipmentLifecycleMode_ = () => true;
+    context.claimWebhookQueueBatch_ = () => { claimCalls++; return []; };
+
+    context.processWebhookQueue();
+
+    assert.equal(claimCalls, 0);
+  });
+
+  it('drains more than one full invoice batch in the same queue execution', () => {
+    let claimCalls = 0;
+    let processedGroups = 0;
+    const invoiceBatch = Array.from({ length: 50 }, (_, index) => ({
+      id: 'invoice-' + index,
+      eventType: 'invoice.update',
+      payload: JSON.stringify({
+        Notifications: [{ Action: 'invoice.update', Data: [{ Id: index + 1 }] }]
+      })
+    }));
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() { return { getProperty() { return null; } }; }
+      }
+    });
+    context.acquireWebhookQueueRunnerLease_ = () => 'runner-1';
+    context.releaseWebhookQueueRunnerLease_ = () => {};
+    context.isShipmentLifecycleMode_ = () => true;
+    context.recoverWebhookQueueAfterBatchResize_ = () => 0;
+    context.claimWebhookQueueBatch_ = () => {
+      claimCalls++;
+      return claimCalls <= 2 ? invoiceBatch : [];
+    };
+    context.coalesceWebhookQueueBatch_ = batch => [{
+      syntheticItem: batch[0], queueItems: batch
+    }];
+    context.getKiotVietInvoiceLock_ = () => ({
+      waitLock() {}, hasLock() { return true; }, releaseLock() {}
+    });
+    context.processWebhookQueueGroupWithIsolation_ = group => {
+      processedGroups++;
+      return group.queueItems.map(item => ({ id: item.id, error: null }));
+    };
+    context.finalizeWebhookQueueBatch_ = () => true;
+
+    context.processWebhookQueue();
+
+    assert.equal(processedGroups, 2);
+    assert.equal(claimCalls, 3);
+  });
+
   it('merges same-type webhook deliveries into one sheet update and deduplicates item ids', () => {
     let claimCalls = 0;
     const processedPayloads = [];
@@ -655,6 +776,8 @@ describe('Separated dashboard and shipment projects', () => {
       'src-dashboard/sync/WebhookQueue.gs'
     ]);
     context.isShipmentLifecycleMode_ = () => true;
+    context.acquireWebhookQueueRunnerLease_ = () => 'test-runner';
+    context.releaseWebhookQueueRunnerLease_ = () => {};
     context.recoverWebhookQueueAfterBatchResize_ = () => 0;
     context.claimWebhookQueueBatch_ = () => {
       claimCalls++;
@@ -737,6 +860,8 @@ describe('Separated dashboard and shipment projects', () => {
       'src-dashboard/sync/WebhookQueue.gs'
     ]);
     context.isShipmentLifecycleMode_ = () => true;
+    context.acquireWebhookQueueRunnerLease_ = () => 'test-runner';
+    context.releaseWebhookQueueRunnerLease_ = () => {};
     context.recoverWebhookQueueAfterBatchResize_ = () => 0;
     context.claimWebhookQueueBatch_ = () => {
       claimCalls++;
@@ -795,6 +920,8 @@ describe('Separated dashboard and shipment projects', () => {
       }
     });
     context.isShipmentLifecycleMode_ = () => false;
+    context.acquireWebhookQueueRunnerLease_ = () => 'test-runner';
+    context.releaseWebhookQueueRunnerLease_ = () => {};
     context.recoverWebhookQueueAfterBatchResize_ = () => 0;
     context.getKiotVietDataLock_ = () => ({ tryLock() { return false; } });
     context.claimWebhookQueueBatch_ = () => [];
@@ -826,6 +953,8 @@ describe('Separated dashboard and shipment projects', () => {
       }
     });
     context.isShipmentLifecycleMode_ = () => false;
+    context.acquireWebhookQueueRunnerLease_ = () => 'test-runner';
+    context.releaseWebhookQueueRunnerLease_ = () => {};
     context.recoverWebhookQueueAfterBatchResize_ = () => 0;
     context.ensureMasterChainResumeTrigger_ = () => {};
     context.ensurePollingOnlyResumeTrigger_ = () => {};
@@ -849,6 +978,107 @@ describe('Separated dashboard and shipment projects', () => {
 });
 
 describe('Chunked sync with checkpoint and auto-resume', () => {
+  it('replaces every stale detail row for recently changed purchase orders', () => {
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs'
+    ]);
+    const purchaseHeaders = vm.runInContext('Array.from(PURCHASE_SHEET_HEADERS)', context);
+    const existingRows = [
+      Array.from(purchaseHeaders),
+      ['HN', 'PN-OLD', '01/09/2026', '', '', '', '', '', 100, 0, 100, 0, '', 2, 2, 'Phiếu tạm', 'SP-OLD-1'],
+      ['HN', 'PN-OLD', '01/09/2026', '', '', '', '', '', 100, 0, 100, 0, '', 2, 2, 'Phiếu tạm', 'SP-OLD-2'],
+      ['HN', 'PN-KEEP', '01/09/2026', '', '', '', '', '', 50, 0, 50, 0, '', 1, 1, 'Đã nhập hàng', 'SP-KEEP']
+    ];
+    const merged = context.mergeRecentPurchaseRows_(existingRows, [{
+      Code: 'PN-OLD',
+      BranchName: 'HN',
+      PurchaseDate: '2026-09-08T09:00:00+07:00',
+      Total: 300,
+      StatusValue: 'Đã nhập hàng',
+      PurchaseOrderDetails: [
+        { ProductCode: 'SP-NEW-1', Quantity: 1, Price: 100 },
+        { ProductCode: 'SP-NEW-2', Quantity: 2, Price: 100 }
+      ]
+    }]);
+
+    assert.deepEqual(
+      Array.from(merged.slice(1), row => [row[1], row[16]]),
+      [['PN-KEEP', 'SP-KEEP'], ['PN-OLD', 'SP-NEW-1'], ['PN-OLD', 'SP-NEW-2']]
+    );
+  });
+
+  it('polls a rolling purchase window and publishes it incrementally', () => {
+    const fetchedQueries = [];
+    const replaced = [];
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/kiotviet/SyncInitial.gs'
+    ], {
+      Utilities: {
+        formatDate(date) { return date.toISOString().slice(0, 10); }
+      }
+    });
+    context.getKiotVietDataLock_ = () => ({
+      tryLock() { return true; }, releaseLock() {}
+    });
+    context.getKiotVietToken = () => 'token';
+    context.fetchAllKiotVietPages_ = (schema, token, extraQuery) => {
+      fetchedQueries.push(extraQuery);
+      return [{ Code: 'PN-1' }];
+    };
+    context.replaceRecentPurchaseOrders_ = orders => replaced.push(...orders);
+
+    const result = context.syncRecentPurchases_(new Date('2026-09-08T05:00:00.000Z'));
+
+    assert.equal(fetchedQueries.length, 1);
+    assert.match(fetchedQueries[0], /fromPurchaseDate=2026-09-01/);
+    assert.match(fetchedQueries[0], /toPurchaseDate=2026-09-08/);
+    assert.deepEqual(replaced, [{ Code: 'PN-1' }]);
+    assert.equal(result.updatedOrders, 1);
+  });
+
+  it('installs a five-minute recent-purchase trigger beside the full reconciliation trigger', () => {
+    const deleted = [];
+    const created = [];
+    const oldFast = { getHandlerFunction() { return 'syncRecentPurchases_'; } };
+    const oldFull = { getHandlerFunction() { return 'syncPollingOnly_'; } };
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/kiotviet/SyncInitial.gs'
+    ], {
+      ScriptApp: {
+        getProjectTriggers() { return [oldFast, oldFull]; },
+        deleteTrigger(trigger) { deleted.push(trigger.getHandlerFunction()); },
+        newTrigger(handler) {
+          const record = { handler };
+          const builder = {
+            timeBased() { return builder; },
+            everyMinutes(minutes) { record.minutes = minutes; return builder; },
+            create() { created.push(record); }
+          };
+          return builder;
+        }
+      },
+      PropertiesService: {
+        getScriptProperties() { return { deleteProperty() {} }; }
+      }
+    });
+
+    context.setupPollingTrigger();
+
+    assert.deepEqual(deleted.sort(), ['syncPollingOnly_', 'syncRecentPurchases_']);
+    assert.deepEqual(created, [
+      { handler: 'syncPollingOnly_', minutes: 15 },
+      { handler: 'syncRecentPurchases_', minutes: 5 }
+    ]);
+  });
+
   it('does not access a newly inserted staging sheet before Sheets makes it available', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',

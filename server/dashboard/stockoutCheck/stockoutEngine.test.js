@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { analyzeStockoutTimeline, computeStockoutWindow } = require('./stockoutEngine');
+const { analyzeStockoutTimeline, computeStockoutWindow, maxDateKey, hasUnreliableZeroOnHand } = require('./stockoutEngine');
 const { daysBetweenInclusive } = require('./stockoutAnalyzer');
 
 test('analyzeStockoutTimeline dùng 4 ngày đệm để xác nhận đợt vắt qua biên nhưng chỉ cộng ngày trong kỳ', () => {
@@ -72,4 +72,40 @@ test('analyzeStockoutTimeline gioi han dot dut hang theo dataFromDateFloor khi d
     toDate: '2026-09-08',
     days: daysBetweenInclusive('2026-06-01', '2026-09-08')
   }]);
+});
+
+test('maxDateKey tra ve moc muon hon, coi null/rong la khong gioi han', () => {
+  assert.equal(maxDateKey('2026-06-01', '2026-08-04'), '2026-08-04');
+  assert.equal(maxDateKey('2026-08-04', '2026-06-01'), '2026-08-04');
+  assert.equal(maxDateKey(null, '2026-08-04'), '2026-08-04');
+  assert.equal(maxDateKey('2026-08-04', null), '2026-08-04');
+  assert.equal(maxDateKey(null, null), null);
+});
+
+test('hasUnreliableZeroOnHand: true khi su kien gan nhat la Nhap hang chua bi tieu thu', () => {
+  const events = [
+    { dateKey: '2026-08-01', delta: -5, source: 'invoices' },
+    { dateKey: '2026-09-05', delta: 400, source: 'purchases' }
+  ];
+  assert.equal(hasUnreliableZeroOnHand(events), true);
+});
+
+test('hasUnreliableZeroOnHand: false khi su kien gan nhat khong phai Nhap hang', () => {
+  const events = [
+    { dateKey: '2026-08-01', delta: 50, source: 'purchases' },
+    { dateKey: '2026-09-05', delta: 3, source: 'customerReturns' }
+  ];
+  assert.equal(hasUnreliableZeroOnHand(events), false);
+});
+
+test('hasUnreliableZeroOnHand: false khi Nhap hang trong ngay gan nhat bi tieu het cung ngay (net <= 0)', () => {
+  const events = [
+    { dateKey: '2026-09-05', delta: 400, source: 'purchases' },
+    { dateKey: '2026-09-05', delta: -400, source: 'invoices' }
+  ];
+  assert.equal(hasUnreliableZeroOnHand(events), false);
+});
+
+test('hasUnreliableZeroOnHand: false khi khong co su kien nao', () => {
+  assert.equal(hasUnreliableZeroOnHand([]), false);
 });

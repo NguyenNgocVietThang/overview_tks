@@ -148,9 +148,9 @@ setupQueueProcessingTrigger()
   Tac dung : Xoa trigger trung va tao dung 1 trigger moi chay moi phut.
 
 setupPollingTrigger() / removePollingTrigger()
-  Khi dung : Bat/tat dong bo dinh ky 15 phut.
-  Tac dung : Trigger chi lam moi Tra hang, Nha cung cap va Nhap hang - ba nguon
-             khong co webhook Public API.
+  Khi dung : Bat/tat dong bo dinh ky.
+  Tac dung : Tao trigger doi soat 15 phut cho Tra hang, Nha cung cap, Nhap hang
+             va trigger quet nhanh Nhap hang 7 ngay gan nhat moi 5 phut.
 
 removeCustomerDebtReportDailyTrigger()
   Khi dung : Khi can tam ngung tu dong cap nhat HN1/HN3/HN7 luc 15:00.
@@ -214,6 +214,11 @@ Trigger 15 phut
         (Tra hang, Nha cung cap, Nhap hang), moi lan toi da ~4.5 phut.
      -> Neu chua xong bang/chuoi: tu tao trigger 5 phut rieng
         (resumePollingOnlyChunk_) de tiep suc, khong doi trigger 15 phut ke tiep.
+
+Trigger 5 phut
+  -> syncRecentPurchases_()
+     -> Quet cua so 7 ngay va thay toan bo cac dong theo Ma nhap hang.
+     -> Full polling 15 phut van giu vai tro doi soat toan bo lich su.
 
 5. VAI TRO TUNG FILE
 -------------------------------------------------------------------------------

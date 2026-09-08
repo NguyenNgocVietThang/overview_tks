@@ -13,6 +13,28 @@ const WEBHOOK_QUEUE_BATCH_SIZE = 100;
 const WEBHOOK_QUEUE_INVOICE_BATCH_SIZE = 50;
 const WEBHOOK_QUEUE_LEASE_MS = 10 * 60 * 1000;
 const WEBHOOK_QUEUE_MAX_ATTEMPTS = 10;
+const WEBHOOK_QUEUE_APPEND_MAX_ATTEMPTS = 3;
+const WEBHOOK_QUEUE_RUNNER_PROPERTY = 'WEBHOOK_QUEUE_RUNNER_LEASE';
+// Keep the lease slightly longer than Apps Script's normal 6-minute execution
+// limit so a second owner's duplicate trigger cannot enter while this run is
+// still doing pre-queue maintenance.
+const WEBHOOK_QUEUE_RUNNER_LEASE_MS = 7 * 60 * 1000;
+
+function appendWebhookQueueRowWithRetry_(row) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= WEBHOOK_QUEUE_APPEND_MAX_ATTEMPTS; attempt++) {
+    try {
+      ensureWebhookQueueSheet_().appendRow(row);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < WEBHOOK_QUEUE_APPEND_MAX_ATTEMPTS) {
+        Utilities.sleep(250 * attempt);
+      }
+    }
+  }
+  throw lastError || new Error('Unknown queue append failure');
+}
 
 /**
  * Nhan webhook va ghi ben vung vao mot tab an truoc khi tra QUEUED.
@@ -42,9 +64,8 @@ function doPost(e) {
       (e.parameter && (e.parameter.eventType || e.parameter.type)) || ''
     ).toLowerCase();
 
-    const sheet = ensureWebhookQueueSheet_();
     const id = Utilities.getUuid();
-    sheet.appendRow([
+    appendWebhookQueueRowWithRetry_([
       id, new Date(), eventType, e.postData.contents,
       'PENDING', 0, '', ''
     ]);
@@ -53,8 +74,57 @@ function doPost(e) {
       .setMimeType(ContentService.MimeType.TEXT);
   } catch (error) {
     Logger.log('Loi khi ghi webhook vao hang doi: ' + error.toString());
-    return ContentService.createTextOutput('ERROR: webhook was not queued')
-      .setMimeType(ContentService.MimeType.TEXT);
+    // Apps Script ContentService luon tra HTTP 200 neu ham ket thuc binh thuong.
+    // Nem loi de request that su that bai, cho phep KiotViet thu lai thay vi
+    // danh dau thanh cong trong khi payload chua duoc luu ben vung.
+    throw new Error('Webhook was not queued: ' + error.toString());
+  }
+}
+
+function acquireWebhookQueueRunnerLease_() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return null;
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const now = Date.now();
+    let current = null;
+    try {
+      const raw = props.getProperty(WEBHOOK_QUEUE_RUNNER_PROPERTY);
+      if (raw) current = JSON.parse(raw);
+    } catch (error) {
+      current = null;
+    }
+    if (current && Number(current.expiresAt) > now) return null;
+
+    const token = Utilities.getUuid();
+    props.setProperty(WEBHOOK_QUEUE_RUNNER_PROPERTY, JSON.stringify({
+      token: token,
+      expiresAt: now + WEBHOOK_QUEUE_RUNNER_LEASE_MS
+    }));
+    return token;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function releaseWebhookQueueRunnerLease_(token) {
+  if (!token) return;
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return;
+  try {
+    const props = PropertiesService.getScriptProperties();
+    let current = null;
+    try {
+      const raw = props.getProperty(WEBHOOK_QUEUE_RUNNER_PROPERTY);
+      if (raw) current = JSON.parse(raw);
+    } catch (error) {
+      current = null;
+    }
+    if (current && current.token === token) {
+      props.deleteProperty(WEBHOOK_QUEUE_RUNNER_PROPERTY);
+    }
+  } finally {
+    lock.releaseLock();
   }
 }
 
@@ -562,8 +632,11 @@ function processWebhookQueueGroupWithIsolation_(group) {
 }
 
 function processWebhookQueue() {
-  recoverWebhookQueueAfterBatchResize_();
-  if (!isShipmentLifecycleMode_()) {
+  const runnerToken = acquireWebhookQueueRunnerLease_();
+  if (!runnerToken) return;
+  try {
+    recoverWebhookQueueAfterBatchResize_();
+    if (!isShipmentLifecycleMode_()) {
     if (typeof ensureKiotVietRecoveryTriggers_ === 'function') {
       ensureKiotVietRecoveryTriggers_();
     }
@@ -593,18 +666,18 @@ function processWebhookQueue() {
         }
       }
     }
-  }
+    }
 
-  // Xu ly nhieu lo trong cung mot lan chay (thay vi cho trigger ke tiep) de
-  // hang doi khong bi don u khi luong webhook cao (vd chi nhanh nhieu don).
-  const startTime = Date.now();
-  while (Date.now() - startTime < WEBHOOK_QUEUE_MAX_RUN_MS) {
-    const batch = claimWebhookQueueBatch_();
-    if (batch.length === 0) break;
+    // Xu ly nhieu lo trong cung mot lan chay (thay vi cho trigger ke tiep) de
+    // hang doi khong bi don u khi luong webhook cao (vd chi nhanh nhieu don).
+    const startTime = Date.now();
+    while (Date.now() - startTime < WEBHOOK_QUEUE_MAX_RUN_MS) {
+      const batch = claimWebhookQueueBatch_();
+      if (batch.length === 0) break;
 
-    const finalizedResults = [];
-    const groups = coalesceWebhookQueueBatch_(batch);
-    groups.forEach(group => {
+      const finalizedResults = [];
+      const groups = coalesceWebhookQueueBatch_(batch);
+      groups.forEach(group => {
       const queueItem = group.syntheticItem;
       // Webhook Hoa don dung khoa rieng (getKiotVietInvoiceLock_) giong
       // resumeSyncInvoicesChunk, de khong bi cac chuoi dong bo nang khac
@@ -631,11 +704,17 @@ function processWebhookQueue() {
         if (dataLock.hasLock()) dataLock.releaseLock();
       }
       Array.prototype.push.apply(finalizedResults, isolatedResults);
-    });
+      });
 
-    if (finalizeWebhookQueueBatch_(finalizedResults) === false) break;
+      if (finalizeWebhookQueueBatch_(finalizedResults) === false) break;
 
-    if (batch.length < WEBHOOK_QUEUE_BATCH_SIZE) break;
+      const batchCapacity = batch.some(item => item.eventType.indexOf('invoice') !== -1)
+        ? WEBHOOK_QUEUE_INVOICE_BATCH_SIZE
+        : WEBHOOK_QUEUE_BATCH_SIZE;
+      if (batch.length < batchCapacity) break;
+    }
+  } finally {
+    releaseWebhookQueueRunnerLease_(runnerToken);
   }
 }
 

@@ -49,7 +49,7 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 (đ
 
 - Phân trang mượt mà cho bảng dữ liệu lớn (trên 7.000 sản phẩm) nhằm đảm bảo giao diện luôn phản hồi nhanh chóng, không bị đơ giật.
 
-- Dữ liệu được đồng bộ **gần thời gian thực** từ KiotViet sang Google Sheets qua 2 cơ chế: (a) webhook KiotViet → hàng đợi bền vững Apps Script cho 6 nhóm dữ liệu chính, (b) lịch polling 15 phút cho 3 bảng KiotViet không có webhook (Trả hàng, Nhà cung cấp, Nhập hàng).
+- Dữ liệu được đồng bộ **gần thời gian thực** từ KiotViet sang Google Sheets qua 2 cơ chế: (a) webhook KiotViet → hàng đợi bền vững Apps Script cho 6 nhóm dữ liệu chính, (b) polling cho 3 bảng không có webhook; riêng Nhập hàng quét cửa sổ 7 ngày mỗi 5 phút và vẫn được đối soát toàn bộ theo lịch 15 phút.
 
 - Tab **Báo cáo bán hàng** bám theo file xuất KiotViet trong tháng hiện tại với 18 cột: thông tin khách hàng, số đơn/tổng tiền/giảm giá/doanh thu/trả hàng và chi tiết từng giao dịch; tự động đối soát hàng ngày lúc gần 06:00 theo múi giờ Việt Nam.
 
@@ -255,7 +255,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 | **Bước**                          | **Nội dung**                                                                                      | **Trạng thái** |
 |-----------------------------------|---------------------------------------------------------------------------------------------------|----------------|
 | 1. Phân tích & thiết kế            | Hoàn thiện BRD v1.7, SRS v1.9, BPMN v1.8; thiết kế kiến trúc kỹ thuật                            | Hoàn thành     |
-| 2. Apps Script đồng bộ KiotViet    | `src/`: sync đủ trường, webhook qua queue bền vững, polling 15 phút cho 3 bảng không có webhook | Hoàn thành     |
+| 2. Apps Script đồng bộ KiotViet    | `src-dashboard/`: sync đủ trường, webhook qua queue bền vững, Nhập hàng quét nhanh 5 phút + polling đối soát 15 phút | Hoàn thành     |
 | 3. Backend Node.js/Express         | API `/api/dashboard`, `/api/search`, `/api/customer-product-top`, `/api/auth/*`, `/api/admin/*`, `/api/shipment/*`, Result Cache, 324 unit tests | Hoàn thành     |
 | 4. Frontend HTML/CSS/JS            | Dashboard, bộ lọc thời gian, phân trang bảng (`pagination.js`), motion tokens, transitions, quản trị tài khoản (`/account/`) | Hoàn thành     |
 | 5. Lớp hiệu ứng 3D Visual          | Đã triển khai (Three.js r159 particle background, card tilt, 3D loading cube) rồi **gỡ bỏ hoàn toàn** vì gây giật trên máy cấu hình phổ thông. Giao diện hiện thuần 2D — xem Implementation Plan mục 22 | Đã gỡ bỏ       |

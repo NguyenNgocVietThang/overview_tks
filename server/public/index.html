@@ -1832,6 +1832,15 @@
       cursor: wait;
     }
 
+    .clear-button:hover:not(:disabled) {
+      border-color: var(--red);
+      background: color-mix(in srgb, var(--red) 10%, var(--panel-2));
+    }
+
+    .clear-button:focus-visible {
+      outline: 2px solid var(--red);
+    }
+
     .stockout-upload-row {
       display: flex;
       align-items: center;
@@ -3400,8 +3409,12 @@
               <div class="panel col-12" id="recentStockoutResultPanel" hidden>
                 <div class="panel-head">
                   <h2>Kết quả hàng đứt gần đây <span class="tag" id="tagRecentStockoutRows">—</span></h2>
-                  <button class="export-button" type="button" id="recentStockoutExportButton" disabled
-                    onclick="exportRecentStockoutResult()">Xuất Excel</button>
+                  <div class="panel-head-actions">
+                    <button class="export-button clear-button" type="button" id="recentStockoutClearButton"
+                      onclick="clearRecentStockoutResult()">Xóa danh sách</button>
+                    <button class="export-button" type="button" id="recentStockoutExportButton" disabled
+                      onclick="exportRecentStockoutResult()">Xuất Excel</button>
+                  </div>
                 </div>
                 <div class="scroll-list" style="max-height:480px;">
                   <table>
@@ -3436,8 +3449,12 @@
               <div class="panel col-12" id="stockout90dResultPanel" hidden>
                 <div class="panel-head">
                   <h2>Kết quả kiểm tra đứt hàng 90 ngày <span class="tag" id="tagStockout90dRows">—</span></h2>
-                  <button class="export-button" type="button" id="stockout90dExportButton" disabled
-                    onclick="exportStockout90dResult()">Xuất Excel</button>
+                  <div class="panel-head-actions">
+                    <button class="export-button clear-button" type="button" id="stockout90dClearButton"
+                      onclick="clearStockout90dResult()">Xóa danh sách</button>
+                    <button class="export-button" type="button" id="stockout90dExportButton" disabled
+                      onclick="exportStockout90dResult()">Xuất Excel</button>
+                  </div>
                 </div>
                 <div class="scroll-list" style="max-height:480px;">
                   <table>
@@ -4950,19 +4967,19 @@
           result: state.recentStockout.result,
           checkedAt: new Date().toISOString()
         };
-        localStorage.setItem('recentStockout:lastState', JSON.stringify(payload));
-      } catch (err) { /* localStorage không khả dụng — bỏ qua, không chặn luồng chính */ }
+        sessionStorage.setItem('recentStockout:lastState', JSON.stringify(payload));
+      } catch (err) { /* sessionStorage không khả dụng — bỏ qua, không chặn luồng chính */ }
     }
 
     function restoreRecentStockoutState() {
       let saved = null;
       try {
-        const raw = localStorage.getItem('recentStockout:lastState');
+        const raw = sessionStorage.getItem('recentStockout:lastState');
         if (raw) saved = JSON.parse(raw);
       } catch (err) { saved = null; }
       if (!saved) return;
       if (saved.schemaVersion !== STOCKOUT_RESULT_SCHEMA_VERSION || !hasCurrentStockoutResultShape(saved.result)) {
-        try { localStorage.removeItem('recentStockout:lastState'); } catch (err) { /* bỏ qua */ }
+        try { sessionStorage.removeItem('recentStockout:lastState'); } catch (err) { /* bỏ qua */ }
         return;
       }
 
@@ -5126,6 +5143,24 @@
       }).join('');
     }
 
+    function clearRecentStockoutResult() {
+      state.recentStockout.result = null;
+      try { sessionStorage.removeItem('recentStockout:lastState'); } catch (err) { /* bỏ qua */ }
+
+      const panel = document.getElementById('recentStockoutResultPanel');
+      if (panel) panel.hidden = true;
+      const tbody = document.getElementById('recentStockoutResultRows');
+      if (tbody) tbody.innerHTML = '';
+      const tag = document.getElementById('tagRecentStockoutRows');
+      if (tag) tag.textContent = '—';
+      const totalTag = document.getElementById('tagRecentStockoutTotal');
+      if (totalTag) totalTag.textContent = '—';
+      const exportButton = document.getElementById('recentStockoutExportButton');
+      if (exportButton) exportButton.disabled = true;
+      const restoredNote = document.getElementById('recentStockoutRestoredNote');
+      if (restoredNote) { restoredNote.hidden = true; restoredNote.textContent = ''; }
+    }
+
     async function exportRecentStockoutResult() {
       const result = state.recentStockout.result;
       const rows = (result && result.rows) || [];
@@ -5168,19 +5203,19 @@
           result: state.stockout90d.result,
           checkedAt: new Date().toISOString()
         };
-        localStorage.setItem('stockout90d:lastState', JSON.stringify(payload));
-      } catch (err) { /* localStorage không khả dụng — bỏ qua, không chặn luồng chính */ }
+        sessionStorage.setItem('stockout90d:lastState', JSON.stringify(payload));
+      } catch (err) { /* sessionStorage không khả dụng — bỏ qua, không chặn luồng chính */ }
     }
 
     function restoreStockout90dState() {
       let saved = null;
       try {
-        const raw = localStorage.getItem('stockout90d:lastState');
+        const raw = sessionStorage.getItem('stockout90d:lastState');
         if (raw) saved = JSON.parse(raw);
       } catch (err) { saved = null; }
       if (!saved) return;
       if (saved.schemaVersion !== STOCKOUT_RESULT_SCHEMA_VERSION || !hasCurrentStockoutResultShape(saved.result)) {
-        try { localStorage.removeItem('stockout90d:lastState'); } catch (err) { /* bỏ qua */ }
+        try { sessionStorage.removeItem('stockout90d:lastState'); } catch (err) { /* bỏ qua */ }
         return;
       }
 
@@ -5342,6 +5377,24 @@
           '</tr>'
         );
       }).join('');
+    }
+
+    function clearStockout90dResult() {
+      state.stockout90d.result = null;
+      try { sessionStorage.removeItem('stockout90d:lastState'); } catch (err) { /* bỏ qua */ }
+
+      const panel = document.getElementById('stockout90dResultPanel');
+      if (panel) panel.hidden = true;
+      const tbody = document.getElementById('stockout90dResultRows');
+      if (tbody) tbody.innerHTML = '';
+      const tag = document.getElementById('tagStockout90dRows');
+      if (tag) tag.textContent = '—';
+      const totalTag = document.getElementById('tagStockout90dTotal');
+      if (totalTag) totalTag.textContent = '—';
+      const exportButton = document.getElementById('stockout90dExportButton');
+      if (exportButton) exportButton.disabled = true;
+      const restoredNote = document.getElementById('stockout90dRestoredNote');
+      if (restoredNote) { restoredNote.hidden = true; restoredNote.textContent = ''; }
     }
 
     async function exportStockout90dResult() {

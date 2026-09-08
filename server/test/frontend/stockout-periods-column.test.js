@@ -27,7 +27,21 @@ test('cache kết quả stockout có version và không phục hồi payload cũ
   assert.match(html, /schemaVersion: STOCKOUT_RESULT_SCHEMA_VERSION/g);
   assert.match(html, /function hasCurrentStockoutResultShape/);
   assert.match(html, /saved\.schemaVersion !== STOCKOUT_RESULT_SCHEMA_VERSION/g);
-  assert.match(html, /localStorage\.removeItem\('stockout90d:lastState'\)/);
+  assert.match(html, /sessionStorage\.removeItem\('stockout90d:lastState'\)/);
+});
+
+test('ket qua dut hang dung sessionStorage (khong dung localStorage) de tranh lo du lieu giua cac tai khoan', () => {
+  assert.doesNotMatch(html, /localStorage\.(setItem|getItem|removeItem)\('recentStockout:lastState'\)/);
+  assert.doesNotMatch(html, /localStorage\.(setItem|getItem|removeItem)\('stockout90d:lastState'\)/);
+  assert.match(html, /sessionStorage\.setItem\('recentStockout:lastState'/);
+  assert.match(html, /sessionStorage\.setItem\('stockout90d:lastState'/);
+});
+
+test('moi bang ket qua dut hang co nut xoa danh sach', () => {
+  assert.match(html, /function clearRecentStockoutResult/);
+  assert.match(html, /function clearStockout90dResult/);
+  assert.match(html, /onclick="clearRecentStockoutResult\(\)"/);
+  assert.match(html, /onclick="clearStockout90dResult\(\)"/);
 });
 
 test('giao diện hiển thị cảnh báo khi một nguồn dùng Google Sheets dự phòng', () => {

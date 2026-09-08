@@ -154,9 +154,12 @@
         return user;
       })
       .catch(function(){
-        // Xoa cache dashboard (sessionStorage) de neu nguoi dung khac dang nhap
-        // tren cung tab sau khi phien nay het han, ho khong thay du lieu cu.
+        // Xoa cache dashboard + ket qua kiem tra dut hang (sessionStorage) de neu
+        // nguoi dung khac dang nhap tren cung tab sau khi phien nay het han,
+        // ho khong thay du lieu cu.
         try { sessionStorage.removeItem('tksDashboardCache'); } catch (err) { /* noop */ }
+        try { sessionStorage.removeItem('recentStockout:lastState'); } catch (err) { /* noop */ }
+        try { sessionStorage.removeItem('stockout90d:lastState'); } catch (err) { /* noop */ }
         var next = encodeURIComponent(window.location.pathname + window.location.search);
         window.location.href = '/login/?next=' + next;
         return new Promise(function(){});
@@ -169,9 +172,12 @@
     }
     return fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
       .finally(function(){
-        // Xoa cache dashboard (sessionStorage) de neu nguoi dung khac dang nhap
-        // tren cung tab/thiet bi, ho khong thay thoang qua du lieu cua nguoi truoc.
+        // Xoa cache dashboard + ket qua kiem tra dut hang (sessionStorage) de neu
+        // nguoi dung khac dang nhap tren cung tab/thiet bi, ho khong thay thoang
+        // qua du lieu cua nguoi truoc.
         try { sessionStorage.removeItem('tksDashboardCache'); } catch (err) { /* noop */ }
+        try { sessionStorage.removeItem('recentStockout:lastState'); } catch (err) { /* noop */ }
+        try { sessionStorage.removeItem('stockout90d:lastState'); } catch (err) { /* noop */ }
         window.location.href = '/login/';
       });
   };

@@ -58,6 +58,23 @@ test('loadActiveCandidates loc dung trang thai, mac dinh trong la dang kinh doan
   assert.equal(sp001.currentOnHand, 5);
 });
 
+test('loadActiveCandidates doc createdDateKey tu cot Thoi gian tao, null neu thieu cot hoac rong', () => {
+  const rows = [
+    ['Mã hàng', 'Tên hàng', 'Tồn kho', 'Trạng thái', 'Thời gian tạo'],
+    ['SP001', 'Ma moi tao', '0', 'Đang kinh doanh', '04/08/2026 09:44'],
+    ['SP002', 'Khong co ngay tao', '0', 'Đang kinh doanh', '']
+  ];
+  const { candidates } = loadActiveCandidates(rows);
+  assert.equal(candidates.find((c) => c.code === 'SP001').createdDateKey, '2026-08-04');
+  assert.equal(candidates.find((c) => c.code === 'SP002').createdDateKey, null);
+
+  const rowsNoColumn = [
+    ['Mã hàng', 'Tên hàng', 'Tồn kho', 'Trạng thái'],
+    ['SP001', 'Khong co cot Thoi gian tao', '0', 'Đang kinh doanh']
+  ];
+  assert.equal(loadActiveCandidates(rowsNoColumn).candidates[0].createdDateKey, null);
+});
+
 test('buildEventMapFromSheets: hoa don Hoan thanh lam giam ton kho, Da huy/Phieu tam bi loai', () => {
   const sheets = {
     [CONFIG.SHEET_INVOICES]: [

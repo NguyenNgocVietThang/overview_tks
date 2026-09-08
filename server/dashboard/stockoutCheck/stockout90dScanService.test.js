@@ -210,6 +210,56 @@ test('mac dinh khong truyen dataFromDateFloor thi tu dong ghim ve moc san cua ti
   assert.equal(job.result.rows[0].periods[0].toDate, '2026-09-08');
 });
 
+test('ma co Ton kho hien tai = 0 nhung giao dich gan nhat la Nhap hang chua tieu thu thi bi loai (Sheet Hang hoa da loi thoi)', async () => {
+  const store = createJobStore();
+  const jobId = store.createJob();
+  const sheetsClient = fakeSheetsClient({
+    'Hàng hóa': [HEADERS.products, ['SP001', 'Sheet Ton kho da loi thoi', 0, 'Đang kinh doanh']],
+    'Hóa đơn': [HEADERS.invoices],
+    'Chi tiết hóa đơn': [HEADERS.invoiceDetails],
+    // Nhap 400 ngay 05/09, khong co giao dich nao khac sau do — Ton kho
+    // that su phai la 400, khong phai 0 nhu Sheet Hang hoa dang bao.
+    'Nhập hàng': [HEADERS.purchases, ['SP001', '05/09/2026 16:14:00', 400, 'Hoàn thành']],
+    'Trả NCC': [HEADERS.purchaseReturns]
+  });
+  const client = fakeReturnsClient([{ items: [], meta: { pagesLoaded: 1, recordsLoaded: 0, total: 0 } }]);
+
+  await runStockout90dScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-09-08', daysBack: 89, minConsecutiveDays: 5, dataFromDateFloor: '2026-06-01' });
+
+  const job = store.getJob(jobId);
+  assert.equal(job.status, 'done');
+  assert.deepEqual(job.result.rows, []);
+});
+
+test('ma moi tao sau moc san khong bi bao dut hang truoc ngay no ton tai', async () => {
+  const store = createJobStore();
+  const jobId = store.createJob();
+  const sheetsClient = fakeSheetsClient({
+    'Hàng hóa': [
+      ['Mã hàng', 'Tên hàng', 'Tồn kho', 'Trạng thái', 'Thời gian tạo'],
+      ['SP001', 'Ma moi tao 04/08, chua tung co hang', 0, 'Đang kinh doanh', '04/08/2026 09:44:00']
+    ],
+    'Hóa đơn': [HEADERS.invoices],
+    'Chi tiết hóa đơn': [HEADERS.invoiceDetails],
+    'Nhập hàng': [HEADERS.purchases],
+    // Mot giao dich Tra NCC nho de khong bi loc boi quy tac "khong co giao
+    // dich nao trong ky" — dat dung ngay tao (ngay dau tien cua mang, delta
+    // ngay nay khong anh huong toi ket qua tinh nguoc) de khong lam lech dot
+    // dut hang; muc dich test la kiem tra moc san rieng theo ngay tao.
+    'Trả NCC': [HEADERS.purchaseReturns, ['SP001', '04/08/2026 09:44:00', 1, 'Hoàn thành']]
+  });
+  const client = fakeReturnsClient([{ items: [], meta: { pagesLoaded: 1, recordsLoaded: 0, total: 0 } }]);
+
+  await runStockout90dScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-09-08', daysBack: 89, minConsecutiveDays: 5, dataFromDateFloor: '2026-06-01' });
+
+  const job = store.getJob(jobId);
+  assert.equal(job.status, 'done');
+  assert.equal(job.result.rows.length, 1);
+  // Dot dut hang phai bat dau tu ngay tao (04/08), khong phai moc san chung
+  // he thong (01/06) — SP001 khong the "dut hang" truoc khi no ton tai.
+  assert.equal(job.result.rows[0].periods[0].fromDate, '2026-08-04');
+});
+
 test('ma khong co bat ky giao dich nao trong ky thi bi loai, du ton kho hien tai = 0', async () => {
   const store = createJobStore();
   const jobId = store.createJob();

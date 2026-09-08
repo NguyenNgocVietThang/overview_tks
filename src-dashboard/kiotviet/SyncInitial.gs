@@ -499,6 +499,7 @@ const POLLING_ONLY_CHAIN = Object.freeze(['returns', 'suppliers', 'purchases']);
 const POLLING_ONLY_STATE_PROPERTY = 'POLLING_ONLY_CHAIN_INDEX';
 const POLLING_ONLY_RESUME_HANDLER = 'resumePollingOnlyChunk_';
 const POLLING_ONLY_RESUME_DELAY_MS = 5 * 60 * 1000;
+const RECENT_PURCHASE_LOOKBACK_DAYS_ = 7;
 
 /**
  * Chay mot phan doan (chunk) cho bang dang den luot trong POLLING_ONLY_CHAIN,
@@ -553,6 +554,34 @@ function resumePollingOnlyChunk_() {
 }
 
 /**
+ * Duong nhanh cho Nhap hang: quet lai 7 ngay gan nhat moi 5 phut va thay the
+ * tron nhom dong cua tung ma phieu. Full polling ben tren van doi soat toan bo
+ * lich su, con ham nay giup phieu moi/sua xuat hien ma khong cho backfill nang.
+ */
+function syncRecentPurchases_(now) {
+  const dataLock = getKiotVietDataLock_();
+  if (!dataLock.tryLock(5000)) {
+    Logger.log('Bo qua quet Nhap hang gan day vi dang co tien trinh ghi khac.');
+    return { updatedOrders: 0, waitingForLock: true };
+  }
+  try {
+    const token = getKiotVietToken();
+    if (!token) throw new Error('Khong lay duoc KiotViet token.');
+    const end = now instanceof Date ? now : new Date();
+    const start = new Date(end.getTime() - RECENT_PURCHASE_LOOKBACK_DAYS_ * 24 * 60 * 60 * 1000);
+    const timezone = 'Asia/Ho_Chi_Minh';
+    const query = [
+      'fromPurchaseDate=' + encodeURIComponent(Utilities.formatDate(start, timezone, 'yyyy-MM-dd')),
+      'toPurchaseDate=' + encodeURIComponent(Utilities.formatDate(end, timezone, 'yyyy-MM-dd'))
+    ].join('&');
+    const orders = fetchAllKiotVietPages_(KIOTVIET_SHEET_SCHEMAS.purchases, token, query);
+    return { updatedOrders: replaceRecentPurchaseOrders_(orders) };
+  } finally {
+    dataLock.releaseLock();
+  }
+}
+
+/**
  * Khoi phuc trigger tiep suc neu checkpoint polling con nhung trigger mot-lan
  * da bi timeout/tieu thu. Khong xoa checkpoint hay staging dang tai do.
  */
@@ -585,7 +614,11 @@ function setupPollingTrigger() {
     .timeBased()
     .everyMinutes(15)
     .create();
-  Logger.log('Da bat polling 15 phut cho Tra hang, Nha cung cap va Nhap hang.');
+  ScriptApp.newTrigger('syncRecentPurchases_')
+    .timeBased()
+    .everyMinutes(5)
+    .create();
+  Logger.log('Da bat polling 15 phut va quet nhanh Nhap hang moi 5 phut.');
 }
 
 function removePollingTrigger() {
@@ -595,7 +628,8 @@ function removePollingTrigger() {
 
 function removePollingTrigger_() {
   ScriptApp.getProjectTriggers().forEach(trigger => {
-    if (trigger.getHandlerFunction() === 'syncPollingOnly_') {
+    if (trigger.getHandlerFunction() === 'syncPollingOnly_' ||
+        trigger.getHandlerFunction() === 'syncRecentPurchases_') {
       ScriptApp.deleteTrigger(trigger);
     }
   });

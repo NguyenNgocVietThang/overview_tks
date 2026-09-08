@@ -5,7 +5,6 @@ const cookieParser = require('cookie-parser');
 const CONFIG = require('./config');
 const routes = require('./routes');
 const { startHrTelegramBot, isTelegramBotRuntimeEnabled } = require('./telegram/hrTelegramBot');
-const { main: runKiotVietSyncEngine, isKiotVietSyncRuntimeEnabled } = require('./kiotvietSync/runSyncEngine');
 const localUserStore = require('./auth/localUserStore');
 
 process.on('uncaughtException', (err) => {
@@ -119,19 +118,6 @@ async function startServer() {
       console.warn('[HR Telegram Bot] Đã tắt ở runtime này — đặt TELEGRAM_BOT_ENABLED=true để bật ngoài Render.');
     } else {
       console.warn('[HR Telegram Bot] Chưa cấu hình TELEGRAM_BOT_TOKEN/HR_SPREADSHEET_ID — bot không khởi động.');
-    }
-
-    // KiotViet -> Postgres sync engine (server/kiotvietSync/) — chay ngay trong
-    // process web server nay de tan dung Render Web Service free tier (khong co
-    // Background Worker mien phi). Tu bat khi RENDER=true, tat o local tru khi
-    // dat KIOTVIET_SYNC_ENABLED=true (tranh chay song song 2 noi cung goi API
-    // KiotViet). Xem PlanDB-Phase1-Spec.md.
-    if (isKiotVietSyncRuntimeEnabled()) {
-      runKiotVietSyncEngine().catch((err) => {
-        console.error('[KiotViet Sync] Lỗi khởi động sync engine:', err.message);
-      });
-    } else {
-      console.warn('[KiotViet Sync] Đang tắt ở runtime này — đặt KIOTVIET_SYNC_ENABLED=true để bật ngoài Render.');
     }
   });
 }

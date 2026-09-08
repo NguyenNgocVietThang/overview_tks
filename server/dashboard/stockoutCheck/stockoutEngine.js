@@ -26,6 +26,36 @@ function computeStockoutWindow({ todayKey, daysBack, minConsecutiveDays = DEFAUL
   return { reportFromDate, calculationFromDate };
 }
 
+// dateKey lon hon giua 2 moc, coi null/rong la "khong gioi han" (thua ben
+// con lai). Dung de ghim rieng tung ma theo ngay tao (createdDateKey) ben
+// canh moc san chung ca he thong (dataFromDateFloor).
+function maxDateKey(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  return a > b ? a : b;
+}
+
+// Neu ngay co giao dich gan nhat cua 1 ma la ngay NET DUONG (vd Nhap hang
+// chua bi giao dich nao khac cung ngay tieu het), currentOnHand=0 lay tu
+// Sheet Hang hoa gan nhu chac chan da loi thoi (thuc te phai > 0) — Sheet
+// san pham khong co vong doi soat dinh ky nhu Tra hang/Nha cung cap/Nhap
+// hang nen 1 webhook that lac co the khien "Ton kho" ket qua sai vinh vien.
+function hasUnreliableZeroOnHand(events) {
+  if (!Array.isArray(events) || events.length === 0) return false;
+  let maxDate = null;
+  for (const e of events) {
+    if (maxDate === null || e.dateKey > maxDate) maxDate = e.dateKey;
+  }
+  let netOnMaxDate = 0;
+  let hasPurchaseOnMaxDate = false;
+  for (const e of events) {
+    if (e.dateKey !== maxDate) continue;
+    netOnMaxDate += e.delta;
+    if (e.source === 'purchases') hasPurchaseOnMaxDate = true;
+  }
+  return hasPurchaseOnMaxDate && netOnMaxDate > 0;
+}
+
 function analyzeStockoutTimeline(options) {
   const {
     currentOnHand,
@@ -60,5 +90,7 @@ module.exports = {
   DEFAULT_MIN_CONSECUTIVE_DAYS,
   STOCKOUT_DATA_FLOOR_DATE_KEY,
   computeStockoutWindow,
+  maxDateKey,
+  hasUnreliableZeroOnHand,
   analyzeStockoutTimeline
 };

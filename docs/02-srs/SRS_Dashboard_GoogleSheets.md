@@ -65,7 +65,7 @@ KiotViet POS / Telegram User / HR Portal
 Apps Script (`src-dashboard/`, `src-order-lifecycle/`) / Backend Node.js Express (Render.com)
     |                                   |
     | hydrate + upsert/delete           | time-based trigger (15 phút)
-    | (real-time cho 6 nhóm)            | (Trả hàng + NCC + Nhập hàng)
+    | (real-time cho 6 nhóm)            | (Trả hàng + NCC: 15 phút; Nhập hàng: 5 phút + đối soát)
     v                                   v
 Ba Google Spreadsheet độc lập (Dashboard / Vận chuyển / Nhân sự)
     |
@@ -251,7 +251,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
 | FR-06.1 | `syncAllInitialData()`: đồng bộ toàn bộ dữ liệu KiotViet vào 9 sheet vận hành và làm mới các báo cáo; HN1/HN3/HN7 phải chạy sau khi tab Hàng hóa đã được làm mới. | Cao | Hoàn thành |
 | FR-06.2 | `doPost(e)`: nhận webhook POST, hydrate bản ghi chi tiết rồi upsert/delete đúng sheet cho product/invoice/order/customer/category; hóa đơn đồng thời thay chi tiết hóa đơn và các dòng `Hàng bán theo khách`. | Cao | Hoàn thành |
-| FR-06.3 | `setupPollingTrigger()`: bật trigger 15 phút để sync Trả hàng + Nhà cung cấp + Nhập hàng (KiotViet không có webhook cho 3 loại này).                                          | Cao         | Hoàn thành     |
+| FR-06.3 | `setupPollingTrigger()`: bật trigger 15 phút để đối soát Trả hàng + Nhà cung cấp + Nhập hàng, đồng thời quét nhanh cửa sổ Nhập hàng 7 ngày mỗi 5 phút (KiotViet không có webhook cho 3 loại này). | Cao | Hoàn thành |
 | FR-06.4 | `setupRealtimeWebhook()`: đăng ký 9 loại event webhook với KiotViet API, xóa webhook cũ trước khi đăng ký mới.                                                               | Cao         | Hoàn thành     |
 | FR-06.5 | Retry tự động tối đa 5 lần (exponential backoff) khi gọi KiotViet API bị lỗi tạm thời (429/5xx/network error).                                                               | Cao         | Hoàn thành     |
 | FR-06.6 | `syncCustomerReport()`: tổng hợp toàn bộ lịch sử hóa đơn và trả hàng hoàn thành, ghi tab `Báo cáo bán hàng` đủ 18 cột như file xuất KiotViet, gồm thông tin khách, số đơn, tổng tiền, giảm giá, doanh thu và chi tiết từng giao dịch. | Cao | Hoàn thành |
@@ -316,7 +316,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | NFR-06 | Bảo trì              | Mã nguồn tổ chức theo module rõ ràng, comment tiếng Việt, dễ đọc và bảo trì.                                                                   |
 | NFR-07 | Giới hạn API         | Sau khi lấy metadata tab, dùng một `batchGet` duy nhất để đọc toàn bộ tab dữ liệu đang tồn tại; chu kỳ làm mới tự động là 10 phút.               |
 | NFR-08 | Nhật ký & debug      | Log chi tiết lỗi khi `/api/dashboard` thất bại; `/api/debug` kiểm tra kết nối và trả danh sách tab hiện có mà không lộ secret.                   |
-| NFR-09 | Độ trễ đồng bộ       | Từ khi dữ liệu thay đổi trên KiotViet → Apps Script cập nhật Sheets qua webhook: mục tiêu dưới 2 phút. Trả hàng/NCC/Nhập hàng: tối đa 15 phút (polling). |
+| NFR-09 | Độ trễ đồng bộ       | Từ khi dữ liệu thay đổi trên KiotViet → Apps Script cập nhật Sheets qua webhook: mục tiêu dưới 2 phút. Nhập hàng mới/sửa trong 7 ngày: tối đa 5 phút; Trả hàng/NCC và đối soát toàn lịch sử: 15 phút + thời gian backfill. |
 | NFR-10 | Nhất quán thời gian  | Parse ngày từ Sheets, xác định ngày hiện tại, tạo bucket 7/30/90 ngày và format `updatedAt` theo Asia/Ho_Chi_Minh, độc lập timezone máy chủ.      |
 | NFR-11 | An toàn xuất dữ liệu | API xuất chỉ nhận khóa bảng, bộ lọc và danh sách trường hợp lệ; không nhận dòng dữ liệu từ client, chặn trường lạ và vô hiệu hóa chuỗi có thể bị Excel hiểu là công thức. |
 | NFR-12 | Kiểm thử tự động     | Duy trì bộ **417 unit tests** chuẩn `node:test` bao phủ HR leave, Telegram bot, conversation store, Apps Script sync, auth/Guest/SĐT, Admin CRUD, OTP reset, tra cứu vận chuyển, State Machine 9 trạng thái, VC repository, cache, phân trang, xuất Excel, tìm kiếm nâng cao và frontend (gồm `no-3d-effects.test.js` chặn lớp 3D quay lại). |
@@ -644,7 +644,7 @@ Project `src-dashboard/` đăng ký 9 loại: `product.update`, `product.delete`
 
 KiotViet chỉ chấp nhận một webhook cho mỗi Type, vì vậy project Dashboard giữ đăng ký `invoice.update`. Sau khi cập nhật sheet Dashboard thành công, hàng đợi chuyển tiếp payload sang Web App `src-order-lifecycle/`; project Vận chuyển có queue một phút riêng và không đăng ký webhook trùng. Profile `COMBINED` không còn được sử dụng.
 
-**Lưu ý quan trọng:** KiotViet KHÔNG có webhook cho Trả hàng (`return.*`), Nhà cung cấp (`supplier.*`), Nhập hàng (`purchaseorder.*`) → dùng polling 15 phút để cân bằng độ mới dữ liệu và quota.
+**Lưu ý quan trọng:** KiotViet KHÔNG có webhook cho Trả hàng (`return.*`), Nhà cung cấp (`supplier.*`), Nhập hàng (`purchaseorder.*`). Trả hàng/NCC và full reconciliation dùng polling 15 phút; Nhập hàng có thêm polling cửa sổ 7 ngày mỗi 5 phút.
 
 ## 7.7. Format ngày tháng
 

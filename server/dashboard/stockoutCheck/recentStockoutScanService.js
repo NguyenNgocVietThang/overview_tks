@@ -1,7 +1,13 @@
 'use strict';
 
 const CONFIG = require('../../config');
-const { analyzeStockoutTimeline, computeStockoutWindow, STOCKOUT_DATA_FLOOR_DATE_KEY } = require('./stockoutEngine');
+const {
+  analyzeStockoutTimeline,
+  computeStockoutWindow,
+  maxDateKey,
+  hasUnreliableZeroOnHand,
+  STOCKOUT_DATA_FLOOR_DATE_KEY
+} = require('./stockoutEngine');
 const { todayVnDateKey } = require('./dateHelpers');
 const { loadActiveCandidates } = require('./sheetTimelineBuilder');
 const { loadStockoutEvents: defaultLoadStockoutEvents } = require('./stockoutEventLoader');
@@ -56,7 +62,7 @@ async function runRecentStockoutScanJob(jobStore, jobId, deps = {}) {
     });
 
     const rows = [];
-    for (const { code, name } of candidates) {
+    for (const { code, name, createdDateKey } of candidates) {
       const events = eventMapByCode.get(code) || [];
       // Khong co bat ky giao dich nao (ban/nhap/tra) trong ca ky nghia la
       // khong co bang chung thuc te ma nay tung "dut hang" — chi la ton kho
@@ -64,8 +70,16 @@ async function runRecentStockoutScanJob(jobStore, jobId, deps = {}) {
       // het ngay bat dau (dung diem san dataFromDateFloor) chi vi thieu du
       // lieu, khong phai vi thuc su dut hang.
       if (events.length === 0) continue;
+      // Ton kho hien tai = 0 nhung giao dich gan nhat la Nhap hang chua bi
+      // tieu thu — Sheet Hang hoa (khong co vong doi soat dinh ky) gan nhu
+      // chac chan da loi thoi. Bo qua thay vi bao dut hang sai tren du lieu
+      // khong dang tin.
+      if (hasUnreliableZeroOnHand(events)) continue;
       const { periods } = analyzeStockoutTimeline({
-        currentOnHand: 0, events, todayKey, daysBack, minConsecutiveDays, dataFromDateFloor
+        currentOnHand: 0, events, todayKey, daysBack, minConsecutiveDays,
+        // Mot ma moi tao (createdDateKey) khong the dut hang truoc khi no
+        // ton tai trong he thong — ghim moc san rieng cho ma nay.
+        dataFromDateFloor: maxDateKey(dataFromDateFloor, createdDateKey)
       });
       const lastPeriod = periods[periods.length - 1];
       if (!lastPeriod || lastPeriod.toDate !== todayKey) continue;

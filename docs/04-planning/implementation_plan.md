@@ -130,7 +130,7 @@ server/                     ← Node.js/Express backend (Render.com)
 | **#** | **Hạng mục**                          | **Nội dung**                                                                                       | **Trạng thái** |
 |-------|---------------------------------------|----------------------------------------------------------------------------------------------------|----------------|
 | 1     | Phân tích & thiết kế                  | Hoàn thiện BRD v1.9, SRS v2.2, BPMN v2.0; thiết kế kiến trúc kỹ thuật                            | [Hoan thanh]   |
-| 2     | Apps Script đồng bộ KiotViet          | `src-dashboard/`: sync đủ trường, webhook 9 event qua queue bền vững, polling 15 phút (Trả hàng/NCC/Nhập hàng) | [Hoan thanh]   |
+| 2     | Apps Script đồng bộ KiotViet          | `src-dashboard/`: sync đủ trường, webhook 9 event qua queue bền vững, Nhập hàng quét nhanh 5 phút + polling đối soát 15 phút | [Hoan thanh]   |
 | 3     | GAS Web Apps tách theo Sheet          | `src-dashboard/` và `src-order-lifecycle/` chỉ nhận `doPost()`, mỗi project có rootDir/manifest riêng | [Hoan thanh]   |
 | 4     | Backend Node.js/Express               | `server/`: liệt kê/lọc tab, `batchGet` tối đa 9 tab, xử lý tab thiếu và tính ngày giờ Việt Nam   | [Hoan thanh]   |
 | 5     | Frontend HTML/CSS/JS                  | Sidebar, KPI, biểu đồ/bảng, lọc 7/30/90 ngày, refresh tay + nền 10 phút + tải bù khi tab visible | [Hoan thanh]   |
@@ -159,7 +159,7 @@ server/                     ← Node.js/Express backend (Render.com)
 - **Bảng chi tiết & Phân trang toàn diện (100 dòng/trang):** Áp dụng phân trang client-side (`renderPaginatedRows`) cho toàn bộ 13 bảng dữ liệu.
 - **Lazy-Render chi tiết công nợ:** Chỉ dựng DOM chi tiết giao dịch khi khách hàng bấm mở rộng dòng.
 - **Báo cáo công nợ KH 1/3/7 ngày:** Tự động tính toán từ KiotViet qua `CustomerDebtReport.gs`, ghi vào 3 tab HN1/HN3/HN7 và hiển thị trực quan qua `debtReport.js`.
-- **Đồng bộ tự động:** Webhook KiotViet (9 event) qua tab queue ẩn + polling 15 phút (Trả hàng/NCC/Nhập hàng).
+- **Đồng bộ tự động:** Webhook KiotViet (9 event) qua tab queue ẩn; Nhập hàng quét nhanh 5 phút; polling 15 phút đối soát Trả hàng/NCC/Nhập hàng.
 - **Backend Result Cache:** Phản hồi tức thì (<10ms) cho các lượt chuyển tab, thay đổi bộ lọc hoặc mở nhiều tab trình duyệt khi dữ liệu Sheets chưa đổi.
 - **Bảo vệ Quota Google Sheets API cho Vận đơn:** Bộ nhớ đệm ngắn hạn 12s theo sheet trong `vcSheetsClient.js` chống nghẽn khi nhiều tài xế/điều phối viên poll đồng thời, kết hợp cơ chế xóa cache chủ động khi ghi dữ liệu và batch write qua `vcBatchUpdate`.
 - **Giao tiếp mạng tối ưu (Network Delivery):** Gzip compression toàn diện, Cache-Control static headers, non-blocking script defer và Google Fonts preconnect.

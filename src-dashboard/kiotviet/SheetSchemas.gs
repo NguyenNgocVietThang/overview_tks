@@ -744,7 +744,7 @@ const KIOTVIET_SHEET_SCHEMAS = Object.freeze({
   }
 });
 
-function fetchAllKiotVietPages_(schema, token) {
+function fetchAllKiotVietPages_(schema, token, extraQuery) {
   let allItems = [];
   let currentItem = 0;
   const pageSize = 100;
@@ -754,6 +754,7 @@ function fetchAllKiotVietPages_(schema, token) {
     let url = 'https://public.kiotapi.com/' + schema.endpoint +
       '?pageSize=' + pageSize + '&currentItem=' + currentItem;
     if (schema.listQuery) url += '&' + schema.listQuery;
+    if (extraQuery) url += '&' + String(extraQuery).replace(/^&+/, '');
 
     const result = fetchKiotVietJsonWithRetry_(url, token, schema.endpoint);
     const pageItems = Array.isArray(result.data) ? result.data : [];
@@ -764,6 +765,41 @@ function fetchAllKiotVietPages_(schema, token) {
   } while (currentItem < total);
 
   return allItems;
+}
+
+/**
+ * Hop nhat cua so Nhap hang moi vao du lieu hien co. Moi phieu nhap co nhieu
+ * dong mat hang, vi vay phai thay ca nhom theo Ma nhap hang thay vi upsert mot
+ * dong duy nhat (se de lai chi tiet cu hoac ghi de mat chi tiet).
+ */
+function mergeRecentPurchaseRows_(existingRows, purchaseOrders) {
+  const schema = KIOTVIET_SHEET_SCHEMAS.purchases;
+  const codeColumn = schema.headers.indexOf('Mã nhập hàng');
+  const replacementCodes = {};
+  (Array.isArray(purchaseOrders) ? purchaseOrders : []).forEach(order => {
+    const code = kiotVietText_(order, schema.codeKeys).trim();
+    if (code) replacementCodes[code] = true;
+  });
+
+  const sourceRows = Array.isArray(existingRows) ? existingRows : [];
+  const keptRows = sourceRows.slice(1).filter(row => {
+    const code = String((row || [])[codeColumn] || '').trim();
+    return !replacementCodes[code];
+  });
+  const replacementRows = buildPurchaseOrderWrappers_(purchaseOrders)
+    .map(wrapper => schema.buildRow(wrapper));
+  return [Array.from(schema.headers)].concat(keptRows, replacementRows);
+}
+
+function replaceRecentPurchaseOrders_(purchaseOrders) {
+  if (!Array.isArray(purchaseOrders) || purchaseOrders.length === 0) return 0;
+  const schema = KIOTVIET_SHEET_SCHEMAS.purchases;
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName(schema.sheetName) || spreadsheet.insertSheet(schema.sheetName);
+  ensureKiotVietSheetSchema_(sheet, schema);
+  const mergedRows = mergeRecentPurchaseRows_(sheet.getDataRange().getValues(), purchaseOrders);
+  writeKiotVietSheetRowsSafely_(sheet, schema, mergedRows.slice(1));
+  return purchaseOrders.length;
 }
 
 function fetchKiotVietJsonWithRetry_(url, token, endpoint) {

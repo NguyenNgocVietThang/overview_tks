@@ -23,7 +23,7 @@ Hệ thống dashboard thời gian thực cho cửa hàng CHhanoi và CHsaigon, 
 | **Nền tảng** | Google Apps Script (V8 Runtime) + Node.js/Express Backend |
 | **Lưu trữ dữ liệu** | Google Sheets (9 tab vận hành + 7 tab tổng hợp + 6 tab vận chuyển VC_* + tab Users) + Google Drive (Ảnh chứng từ) |
 | **Nguồn dữ liệu** | KiotViet Public API & Webhook |
-| **Cập nhật** | Webhook + hàng đợi bền vững trên tab ẩn; polling 15 phút cho nguồn không có webhook |
+| **Cập nhật** | Webhook + hàng đợi bền vững trên tab ẩn; Nhập hàng quét nhanh 5 phút và đối soát toàn bộ; nguồn không có webhook còn lại polling 15 phút |
 | **Apps Script** | Đồng bộ KiotViet -> Google Sheets; Web App `/exec` nhận HTTP POST; chuyển tiếp webhook vòng đời vận chuyển |
 | **Múi giờ** | Asia/Ho_Chi_Minh (GMT+7) |
 
@@ -357,8 +357,9 @@ Execution API (`executionApi.access = MYSELF`) để phục vụ kiểm tra và 
 
 Sau khi bật, thay đổi Hàng hóa, Tồn kho, Khách hàng, Hóa đơn, Đặt hàng và Nhóm hàng
 được nhận bằng webhook rồi ghi vào Sheets trong khoảng 5 phút. **Trả hàng**, **Nhà cung
-cấp** và **Nhập hàng** được quét dự phòng mỗi 15 phút vì KiotViet không phát webhook
-cho ba nhóm này.
+cấp** được quét dự phòng mỗi 15 phút vì KiotViet không phát webhook cho các nhóm
+này. **Nhập hàng** có thêm đường quét nhanh cửa sổ 7 ngày mỗi 5 phút; full polling
+vẫn đối soát toàn bộ lịch sử để tự sửa sai lệch.
 
 ### Bước 5 — Deploy Web App
 1. **Deploy -> New deployment -> Web App**
@@ -438,14 +439,15 @@ và in ra danh sách tài khoản có giá trị không hợp lệ cần Quản 
 | `syncAllInitialData()` | Làm mới 9 sheet vận hành, 3 báo cáo khách hàng và HN1/HN3/HN7; báo cáo công nợ chạy sau khi Hàng hóa đã cập nhật | Lần đầu hoặc khi cần full refresh |
 | `restartInvoicesBackfill()` | Reset riêng checkpoint Hóa đơn, tải Hóa đơn và Chi tiết hóa đơn vào staging rồi công bố đồng bộ; không ảnh hưởng checkpoint bảng khác | Khi Hóa đơn hoặc Chi tiết hóa đơn bị thiếu dữ liệu |
 | `removeJsonColumnsFromAllSheets()` | Xóa ngay các cột `(JSON)` cũ trên 9 sheet vận hành | Tùy chọn; trigger nền cũng tự chạy một lần sau khi deploy |
-| `setupKiotVietAutoSync()` | Bật hoặc khôi phục 9 webhook và toàn bộ 6 trigger định kỳ của Dashboard, không tạo trùng | 1 lần sau khi deploy |
+| `setupKiotVietAutoSync()` | Bật hoặc khôi phục 9 webhook và toàn bộ 7 trigger định kỳ của Dashboard, không tạo trùng theo từng chủ sở hữu | 1 lần sau khi deploy |
 | `initializeShipmentLifecycleSheets()` | Tạo/kiểm tra đủ 6 tab và header vận chuyển | Khi chuẩn bị sheet mới |
 | `syncShipmentLifecycleRecent7Days()` | Nạp hóa đơn 7 ngày gần nhất theo từng trang, tránh chạy full quá quota | Một lần ban đầu hoặc khi đối soát |
 | `setupShipmentLifecycleSync()` | Chọn chế độ vòng đời vận chuyển và tạo trigger queue; nhận `invoice.update` chuyển tiếp từ project cũ | Một lần trên dự án sheet mới |
 | `setupCombinedKiotVietSync()` | Chọn chế độ dùng chung; bật 9 webhook, polling/báo cáo và cập nhật cả dashboard lẫn vận chuyển | Một lần trên spreadsheet chứa cả hai nhóm tab |
-| `syncPollingOnly_()` | Làm mới Trả hàng, Nhà cung cấp, Nhập hàng; lượt tiếp sức nặng chờ 5 phút và tiếp tục từ checkpoint | Tự chạy bởi trigger 15 phút |
-| `setupPollingTrigger()` | Bật lịch làm mới 3 sheet không có webhook | 1 lần duy nhất |
-| `removePollingTrigger()` | Tắt lịch làm mới 15 phút | Khi bảo trì |
+| `syncPollingOnly_()` | Đối soát toàn bộ Trả hàng, Nhà cung cấp, Nhập hàng; lượt tiếp sức nặng chờ 5 phút và tiếp tục từ checkpoint | Tự chạy bởi trigger 15 phút |
+| `syncRecentPurchases_()` | Quét và thay đúng các phiếu Nhập hàng trong cửa sổ 7 ngày gần nhất | Tự chạy bởi trigger 5 phút |
+| `setupPollingTrigger()` | Bật lịch đối soát 15 phút và quét nhanh Nhập hàng 5 phút | 1 lần duy nhất |
+| `removePollingTrigger()` | Tắt cả hai lịch polling | Khi bảo trì |
 | `syncCustomerReport()` | Làm mới cả ba báo cáo khách hàng trong một lượt lấy API | Khi cần cập nhật/đối soát thủ công |
 | `syncSalesCustomerReport()` | Làm mới riêng Báo cáo bán hàng 18 cột | Khi cần cập nhật thủ công một sheet |
 | `syncCustomerProductReport()` | Làm mới riêng Hàng bán theo khách 5 cột | Khi cần cập nhật thủ công một sheet |

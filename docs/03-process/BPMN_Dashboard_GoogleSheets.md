@@ -59,7 +59,7 @@ Tài liệu này mô tả 5 luồng chính:
 
 ```
 Luồng A (liên tục, nền):  KiotViet -> Apps Script -> Google Sheets
-                                           ^ (polling 15 phút cho Trả hàng/NCC/Nhập hàng)
+                                           ^ (15 phút đối soát; Nhập hàng quét nhanh 5 phút)
 
 Luồng B (theo yêu cầu):   Người dùng -> Frontend -> Backend (Result Cache) -> Google Sheets API
                                            |
@@ -103,13 +103,13 @@ Luồng này chạy liên tục và tự động, không phụ thuộc vào ngư
      `-- Không -> giữ payload, retry; sau 10 lần chuyển `ERROR`
 
 --- SONG SONG: Polling trigger 15 phút ---
-[A7] [Start] Time-based trigger kích hoạt mỗi 15 phút
+[A7] [Start] Time-based trigger kích hoạt mỗi 15 phút; trigger Nhập hàng nhanh mỗi 5 phút
          |
 [A8] [Task] Apps Script chạy syncPollingOnly_():
      - syncReturns_()    -> ghi lại toàn bộ sheet "Trả hàng"
      - syncSuppliers()   -> ghi lại "Nhà cung cấp" + "Nhập hàng"
          |
-[A9] [End] Kết thúc — 3 sheet được cập nhật (tối đa trễ 15 phút)
+[A9] [End] Kết thúc — Nhập hàng gần đây tối đa trễ 5 phút; 3 sheet được đối soát toàn bộ
 ```
 
 | **Bước** | **Vai trò**      | **Mô tả**                                                                                           | **Tham chiếu** |
@@ -120,8 +120,8 @@ Luồng này chạy liên tục và tự động, không phụ thuộc vào ngư
 | A3       | Apps Script      | Trả `QUEUED`; nếu chưa ghi được thì trả lỗi và không xác nhận nhầm.                                 | FR-06.10       |
 | A4–A5    | Apps Script      | Trigger 1 phút phân loại và upsert/xóa đúng dòng trong sheet tương ứng.                             | FR-06.2        |
 | A6       | Apps Script      | Chỉ xóa payload khi thành công; lỗi được giữ để retry hoặc kiểm tra.                                | FR-06.10       |
-| A7       | Apps Script      | Time-based trigger kích hoạt mỗi 15 phút (do KiotViet không có webhook cho Trả hàng/NCC/Nhập hàng). | FR-06.3        |
-| A8       | Apps Script      | `syncPollingOnly_()`: ghi lại toàn bộ 3 sheet từ KiotViet API (full refresh, không upsert).         | FR-06.3        |
+| A7       | Apps Script      | Trigger 15 phút đối soát toàn bộ và trigger 5 phút quét Nhập hàng gần đây (KiotViet không có webhook cho 3 nguồn). | FR-06.3 |
+| A8       | Apps Script      | `syncPollingOnly_()` full refresh 3 sheet; `syncRecentPurchases_()` thay theo mã phiếu trong cửa sổ 7 ngày. | FR-06.3 |
 | A9       | —                | Kết thúc chu kỳ polling.                                                                            | —              |
 
 **Lỗi trong Luồng A:**
