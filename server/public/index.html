@@ -4529,7 +4529,6 @@
       productAnalysis: 'product',
       childCategoryParent: null,
       debtPeriod: 1,
-      lastFetchTime: 0,
       tableSorts: {},
       tablePages: {}, // { [tableKey]: currentPage } — xem renderPaginatedRows()
       filters: {
@@ -7795,10 +7794,40 @@
       veil.setAttribute('aria-busy', isLoading ? 'true' : 'false');
     }
 
-    const AUTO_REFRESH_MS = 10 * 60 * 1000; // toi da 10 phut/lan, tranh vuot han muc Google Sheets API
+    // Cache du lieu dashboard qua sessionStorage: dieu huong sang trang khac roi
+    // quay lai (khong phai bam Reload that su) se doc lai cache thay vi fetch moi.
+    // Chi F5/Ctrl+R (navigation type "reload") moi buoc fetch lai tu dau.
+    const DASHBOARD_CACHE_KEY = 'tksDashboardCache';
+
+    function saveDashboardCache(data) {
+      try {
+        sessionStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify({
+          data: data,
+          days: state.days,
+          filters: state.filters,
+          productStatus: state.productStatus
+        }));
+      } catch (err) { /* sessionStorage day/private mode - bo qua, khong anh huong chuc nang */ }
+    }
+
+    function readDashboardCache() {
+      try {
+        const raw = sessionStorage.getItem(DASHBOARD_CACHE_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch (err) {
+        return null;
+      }
+    }
+
+    function isHardReload() {
+      try {
+        const navEntries = performance.getEntriesByType && performance.getEntriesByType('navigation');
+        if (navEntries && navEntries.length) return navEntries[0].type === 'reload';
+      } catch (err) { /* noop */ }
+      return !!(performance.navigation && performance.navigation.type === 1);
+    }
 
     function loadData(days, isManualRefresh) {
-      state.lastFetchTime = Date.now();
       if (isManualRefresh) setLoading(true);
       const miniFilterQuery = buildMiniFilterQuery();
       fetch('/api/dashboard?days=' + encodeURIComponent(days) + (miniFilterQuery ? '&' + miniFilterQuery : ''))
@@ -7826,6 +7855,7 @@
           const changed = fingerprint !== state.lastFingerprint;
           state.lastFingerprint = fingerprint;
           state.data = data;
+          saveDashboardCache(data);
           if (changed || isManualRefresh) {
             try {
               state.chartAnimation = !!isManualRefresh;
@@ -7884,20 +7914,29 @@
     initSortableTables();
     updateFilterBar();
     updateSearchContext();
+
+    // Chi fetch du lieu 1 lan: dung lai cache (sessionStorage) khi vao trang qua
+    // dieu huong/quay lai, chi fetch moi khi nguoi dung bam Reload that su cua
+    // trinh duyet (F5/Ctrl+R) hoac chua co cache (lan dau, tab moi).
+    const dashboardCache = isHardReload() ? null : readDashboardCache();
+    if (dashboardCache && dashboardCache.data) {
+      state.data = dashboardCache.data;
+      state.days = dashboardCache.days || state.days;
+      state.filters = dashboardCache.filters || state.filters;
+      state.productStatus = dashboardCache.productStatus || state.productStatus;
+      const { updatedAt, ...rest } = dashboardCache.data;
+      state.lastFingerprint = JSON.stringify(rest);
+    }
     syncMiniFilterUI('overview');
     syncMiniFilterUI('products');
     syncMiniFilterUI('invoices');
     syncMiniFilterUI('customers');
-    loadData(state.days, true);
-    setInterval(function () { loadData(state.days, false); }, AUTO_REFRESH_MS);
-
-    // Tab bi an lau se bi trinh duyet tam dung setInterval (tiet kiem pin/RAM),
-    // khien gio "Cap nhat luc" dung yen. Fetch lai ngay khi tab duoc xem lai.
-    document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible' && Date.now() - state.lastFetchTime >= AUTO_REFRESH_MS) {
-        loadData(state.days, false);
-      }
-    });
+    document.querySelectorAll('#productStatusToggle button').forEach(b => b.classList.toggle('active', b.dataset.status === state.productStatus));
+    if (dashboardCache && dashboardCache.data) {
+      renderView(state.view);
+    } else {
+      loadData(state.days, true);
+    }
   </script>
 
   <script src="/shared/shooting-star.js?v=20260830"></script>

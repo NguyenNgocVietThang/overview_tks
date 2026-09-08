@@ -154,6 +154,9 @@
         return user;
       })
       .catch(function(){
+        // Xoa cache dashboard (sessionStorage) de neu nguoi dung khac dang nhap
+        // tren cung tab sau khi phien nay het han, ho khong thay du lieu cu.
+        try { sessionStorage.removeItem('tksDashboardCache'); } catch (err) { /* noop */ }
         var next = encodeURIComponent(window.location.pathname + window.location.search);
         window.location.href = '/login/?next=' + next;
         return new Promise(function(){});
@@ -165,7 +168,12 @@
       return Promise.resolve(false);
     }
     return fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
-      .finally(function(){ window.location.href = '/login/'; });
+      .finally(function(){
+        // Xoa cache dashboard (sessionStorage) de neu nguoi dung khac dang nhap
+        // tren cung tab/thiet bi, ho khong thay thoang qua du lieu cua nguoi truoc.
+        try { sessionStorage.removeItem('tksDashboardCache'); } catch (err) { /* noop */ }
+        window.location.href = '/login/';
+      });
   };
 
   /**
@@ -854,6 +862,9 @@
           // Tai lai ca trang thay vi refetch tung phan: moi tab dang giu cache/
           // state rieng cua co so cu (bo loc, ket qua tim kiem, SSE nhan su),
           // reload la cach chac chan nhat de khong tron du lieu hai co so.
+          // Xoa cache dashboard (sessionStorage) de trang Bao cao tong hop khong
+          // vo tinh doc lai du lieu cua co so cu khi dieu huong toi (khong reload).
+          try { sessionStorage.removeItem('tksDashboardCache'); } catch (err) { /* noop */ }
           TKSNav._reload();
         })
         .catch(function(){
