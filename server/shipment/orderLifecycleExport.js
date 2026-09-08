@@ -1,6 +1,6 @@
 // ==========================================
 // ORDER LIFECYCLE EXPORT — xuat Excel cho bang "Toan bo don hang" o
-// /shipment/lifecycle/. Cot xuat ra y het 8 cot cua Google Sheet nguon
+// /shipment/lifecycle/. Cot xuat ra y het 9 cot cua Google Sheet nguon
 // (xem SCHEMA o orderLifecycleRepository.js) + Co so + Trang thai hien thi
 // tren UI, KHONG parse ngay/gio thanh Date de tranh sai lech voi du lieu tho
 // trong sheet (co the co dinh dang loi nhu "15,35" thay vi "15:35").
@@ -24,6 +24,7 @@ const COLUMNS = [
   { key: 'driverConfirmedDeliveryAt', label: 'Tài xế gửi xác nhận giao hàng' },
   { key: 'accountantApprovedDeliveryAt', label: 'Kế toán duyệt giao hàng' },
   { key: 'deliveryConfirmedAt', label: 'Xác nhận đã giao/khách ký nhận' },
+  { key: 'shipReceivedAt', label: 'Ship nhận đơn' },
   { key: 'statusLabel', label: 'Trạng thái' }
 ];
 

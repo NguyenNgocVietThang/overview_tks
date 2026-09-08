@@ -10,6 +10,7 @@ test('createLifecycleExportFile: cột khớp y hệt sheet nguồn + Cơ sở +
     orderCode: 'HD001', branch: 'HN', saleName: 'Sale A', customerName: 'KH A',
     saleSentAt: '01/09/2026 08:00', accountantApprovedOrderAt: '',
     driverName: '', driverConfirmedDeliveryAt: '', accountantApprovedDeliveryAt: '', deliveryConfirmedAt: '',
+    shipReceivedAt: '',
     summary: { code: 'SENT_TO_ACCOUNTANT', label: 'Đơn đã gửi kế toán' }
   }];
 
@@ -25,14 +26,14 @@ test('createLifecycleExportFile: cột khớp y hệt sheet nguồn + Cơ sở +
     'Mã đơn hàng', 'Cơ sở', 'Nhân viên bán hàng', 'Khách hàng',
     'Sale gửi đơn cho kế toán', 'Kế toán duyệt đơn', 'Lái xe',
     'Tài xế gửi xác nhận giao hàng', 'Kế toán duyệt giao hàng',
-    'Xác nhận đã giao/khách ký nhận', 'Trạng thái'
+    'Xác nhận đã giao/khách ký nhận', 'Ship nhận đơn', 'Trạng thái'
   ]);
 
   const dataRow = worksheet.getRow(2).values.slice(1);
   assert.equal(dataRow[0], 'HD001');
   assert.equal(dataRow[1], 'Hà Nội');
   assert.equal(dataRow[4], '01/09/2026 08:00');
-  assert.equal(dataRow[10], 'Đơn đã gửi kế toán');
+  assert.equal(dataRow[11], 'Đơn đã gửi kế toán');
 });
 
 test('createLifecycleExportFile: danh sách rỗng vẫn tạo được file hợp lệ (chỉ có header)', async () => {

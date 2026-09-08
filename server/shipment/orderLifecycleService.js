@@ -1,5 +1,5 @@
 // ==========================================
-// ORDER LIFECYCLE SERVICE — suy ra trang thai tom tat 4 muc tu 8 cot sheet
+// ORDER LIFECYCLE SERVICE — suy ra trang thai tom tat 5 muc tu 9 cot sheet
 // "Vong doi don hang", theo dung dac ta muc 4 cua spec:
 // docs/superpowers/specs/2026-09-04-order-lifecycle-status-lookup.md
 // ==========================================
@@ -11,14 +11,16 @@ const STATUS = Object.freeze({
   NOT_SENT: 'NOT_SENT',
   SENT_TO_ACCOUNTANT: 'SENT_TO_ACCOUNTANT',
   DELIVERING: 'DELIVERING',
-  DELIVERED: 'DELIVERED'
+  DELIVERED: 'DELIVERED',
+  SHIP_RECEIVED: 'SHIP_RECEIVED'
 });
 
 const STATUS_LABEL = Object.freeze({
   [STATUS.NOT_SENT]: 'Đơn chưa gửi kế toán',
   [STATUS.SENT_TO_ACCOUNTANT]: 'Đơn đã gửi kế toán',
   [STATUS.DELIVERING]: 'Đơn đang được giao',
-  [STATUS.DELIVERED]: 'Đơn đã giao thành công'
+  [STATUS.DELIVERED]: 'Đơn đã giao thành công',
+  [STATUS.SHIP_RECEIVED]: 'Ship đã nhận đơn'
 });
 
 // Nhan TEN COT chinh xac (khac STATUS_LABEL la cau mo ta) — dung cho bang tra
@@ -30,7 +32,8 @@ const STATUS_COLUMN_LABEL = Object.freeze({
   [STATUS.NOT_SENT]: null,
   [STATUS.SENT_TO_ACCOUNTANT]: 'Sale gửi đơn cho kế toán',
   [STATUS.DELIVERING]: 'Tài xế gửi xác nhận giao hàng',
-  [STATUS.DELIVERED]: 'Xác nhận đã giao/khách kí nhận'
+  [STATUS.DELIVERED]: 'Xác nhận đã giao/khách kí nhận',
+  [STATUS.SHIP_RECEIVED]: 'Ship nhận đơn'
 });
 
 function hasValue(value) {
@@ -39,11 +42,16 @@ function hasValue(value) {
 
 /**
  * Trang thai hien tai = muc cao nhat ma cot moc tuong ung da co gia tri, xet
- * uu tien H > F > C — BO QUA D va G (chi theo sau C/F trong quy trinh that,
- * khong tao trang thai rieng). Edge case phong thu: D/G co gia tri nhung C/F
- * tuong ung trong (du lieu bot loi) van ap dung bang nay, KHONG doc D/G.
+ * uu tien J > H > F > C — BO QUA D va G (chi theo sau C/F trong quy trinh
+ * that, khong tao trang thai rieng). Cot J (Ship nhan don) la moc SAU CUNG
+ * trong quy trinh (sau khi khach da ky nhan o cot H) nen luon uu tien cao
+ * nhat. Edge case phong thu: D/G co gia tri nhung C/F tuong ung trong (du
+ * lieu bot loi) van ap dung bang nay, KHONG doc D/G.
  */
 function computeStatus(record) {
+  if (record && hasValue(record.shipReceivedAt)) {
+    return { code: STATUS.SHIP_RECEIVED, label: STATUS_LABEL[STATUS.SHIP_RECEIVED], actor: null, at: record.shipReceivedAt };
+  }
   if (record && hasValue(record.deliveryConfirmedAt)) {
     return { code: STATUS.DELIVERED, label: STATUS_LABEL[STATUS.DELIVERED], actor: null, at: record.deliveryConfirmedAt };
   }
@@ -71,7 +79,7 @@ function normalizeCode(value) {
 }
 
 /**
- * Chi tiet day du 8 cot, y het 1 hang trong Google Sheet (o trong hien "—" do
+ * Chi tiet day du 9 cot, y het 1 hang trong Google Sheet (o trong hien "—" do
  * client dam nhiem hien thi, o day chi tra chuoi rong nguyen ban).
  */
 function toDetail(record) {
@@ -84,7 +92,8 @@ function toDetail(record) {
     driverName: record.driverName,
     driverConfirmedDeliveryAt: record.driverConfirmedDeliveryAt,
     accountantApprovedDeliveryAt: record.accountantApprovedDeliveryAt,
-    deliveryConfirmedAt: record.deliveryConfirmedAt
+    deliveryConfirmedAt: record.deliveryConfirmedAt,
+    shipReceivedAt: record.shipReceivedAt
   };
 }
 

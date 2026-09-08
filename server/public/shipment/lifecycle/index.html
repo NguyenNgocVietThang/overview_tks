@@ -46,6 +46,7 @@
   .badge-sent{ color:var(--amber); background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.3); }
   .badge-delivering{ color:var(--blue); background:rgba(59,130,246,.12); border:1px solid rgba(59,130,246,.3); }
   .badge-delivered{ color:var(--green); background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.3); }
+  .badge-ship-received{ color:var(--purple); background:rgba(139,92,246,.12); border:1px solid rgba(139,92,246,.3); }
 
   .bulk-panel{ padding:0; overflow:hidden; }
   .bulk-panel[hidden]{ display:none; }
@@ -178,6 +179,7 @@
                 <option value="SENT_TO_ACCOUNTANT">Đã gửi kế toán</option>
                 <option value="DELIVERING">Đang được giao</option>
                 <option value="DELIVERED">Đã giao thành công</option>
+                <option value="SHIP_RECEIVED">Ship đã nhận đơn</option>
               </select>
               <div class="bulk-filters" id="bulkFilters">
                 <button type="button" class="bulk-filter-btn active" data-branch="">Tất cả</button>
@@ -270,13 +272,15 @@
       { key: 'driverName', label: 'Lái xe' },
       { key: 'driverConfirmedDeliveryAt', label: 'Tài xế gửi xác nhận giao hàng' },
       { key: 'accountantApprovedDeliveryAt', label: 'Kế toán duyệt giao hàng' },
-      { key: 'deliveryConfirmedAt', label: 'Xác nhận đã giao/khách ký nhận' }
+      { key: 'deliveryConfirmedAt', label: 'Xác nhận đã giao/khách ký nhận' },
+      { key: 'shipReceivedAt', label: 'Ship nhận đơn' }
     ];
     const STATUS_BADGE_CLASS = {
       NOT_SENT: 'badge-not-sent',
       SENT_TO_ACCOUNTANT: 'badge-sent',
       DELIVERING: 'badge-delivering',
-      DELIVERED: 'badge-delivered'
+      DELIVERED: 'badge-delivered',
+      SHIP_RECEIVED: 'badge-ship-received'
     };
     const BRANCH_LABEL = { HN: 'Hà Nội', SG: 'Sài Gòn' };
     // Vai tro duoc xem Khu B (xem toan bo don) — khop ORDER_LIFECYCLE_BULK_ROLES

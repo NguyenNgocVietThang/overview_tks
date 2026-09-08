@@ -40,6 +40,7 @@ function record(overrides) {
     driverConfirmedDeliveryAt: '',
     accountantApprovedDeliveryAt: '',
     deliveryConfirmedAt: '',
+    shipReceivedAt: '',
     _branch: 'HN'
   }, overrides);
 }
@@ -95,6 +96,33 @@ test('computeStatus: cột H có giá trị -> DELIVERED kèm thời gian', () =
     assert.equal(status.code, ctx.service.STATUS.DELIVERED);
     assert.equal(status.label, 'Đơn đã giao thành công');
     assert.equal(status.at, '03/09/2026 10:00');
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('computeStatus: cột Ship nhận đơn có giá trị -> SHIP_RECEIVED (trạng thái cuối cùng)', () => {
+  const ctx = freshService([]);
+  try {
+    const status = ctx.service.computeStatus(record({
+      saleSentAt: '01/09/2026', driverConfirmedDeliveryAt: '02/09/2026',
+      deliveryConfirmedAt: '03/09/2026 10:00', shipReceivedAt: '04/09/2026 08:00'
+    }));
+    assert.equal(status.code, ctx.service.STATUS.SHIP_RECEIVED);
+    assert.equal(status.label, 'Ship đã nhận đơn');
+    assert.equal(status.at, '04/09/2026 08:00');
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('computeStatus: cột Ship nhận đơn ưu tiên cao hơn cột H (Xác nhận đã giao)', () => {
+  const ctx = freshService([]);
+  try {
+    const status = ctx.service.computeStatus(record({
+      deliveryConfirmedAt: '03/09/2026 10:00', shipReceivedAt: '04/09/2026 08:00'
+    }));
+    assert.equal(status.code, ctx.service.STATUS.SHIP_RECEIVED);
   } finally {
     ctx.restore();
   }
