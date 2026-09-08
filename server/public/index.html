@@ -6915,6 +6915,7 @@
     function handleCustomerProductSearchInput() {
       const input = document.getElementById('cpCustomerSearchInput');
       const query = normalizeSearchQuery(input.value);
+      document.getElementById('cpCustomerClearBtn').hidden = !input.value && !state.customerProductReport.customer;
       cancelCustomerProductSearchRequest();
       if (!query) { hideCustomerProductSuggestions(); return; }
 
@@ -7182,15 +7183,19 @@
       }
       status.textContent = search.mode === 'codes'
         ? 'Tìm thấy ' + search.results.length + '/' + search.total + ' mã đã dán.'
-        : search.results.length + ' sản phẩm khớp từ khóa.';
+        : (search.total > search.results.length
+          ? search.results.length + ' trong ' + search.total + ' sản phẩm khớp từ khóa. Gõ thêm để thu hẹp kết quả.'
+          : search.results.length + ' sản phẩm khớp từ khóa.');
     }
 
     function renderProductRevenueResults() {
       const tbody = document.getElementById('prResultRows');
       const results = state.productRevenueSearch.results;
+      const total = state.productRevenueSearch.total;
       const query = state.productRevenueSearch.query;
       document.getElementById('prResultsPanel').hidden = !query;
-      document.getElementById('prResultCount').textContent = results.length ? String(results.length) : '—';
+      document.getElementById('prResultCount').textContent = !results.length ? '—'
+        : (total > results.length ? results.length + '/' + total : String(results.length));
 
       if (!query) {
         tbody.innerHTML = '';

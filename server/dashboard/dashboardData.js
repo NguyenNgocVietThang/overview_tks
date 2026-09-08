@@ -17,6 +17,7 @@ const MAX_MULTI_SEARCH_CODES = 50;
 const DASHBOARD_SHEETS_CACHE_TTL_MS = 90 * 1000;
 const CUSTOMER_PRODUCT_TOP_CACHE_TTL_MS = 90 * 1000;
 const CUSTOMER_PRODUCT_TOP_LIMIT = 3;
+const PRODUCT_REVENUE_SEARCH_LIVE_LIMIT = 200; // gioi han so dong render khi go tim truc tiep (khong ap dung cho xuat Excel)
 const PENDING_ORDER_STATUSES = new Set(['Phiếu tạm', 'Đang xử lý', 'Đã xác nhận']);
 const DASHBOARD_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const DASHBOARD_UTC_OFFSET = '+07:00';
@@ -723,7 +724,9 @@ async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode, filterS
       name: record.name,
       fields: buildSearchFields(indexedSource.headers, record.row)
     }));
-  await attachCustomerRevenue(view, results, filterSpec, branch);
+  // Doanh thu chi hien thi o bang ket qua day du (Enter/limit=all), khong hien
+  // thi trong dropdown goi y (limit=8) nen bo qua tinh toan de goi y tra nhanh.
+  if (limit === null) await attachCustomerRevenue(view, results, filterSpec, branch);
 
   return {
     view,
@@ -1506,14 +1509,19 @@ function productRevenueNotFoundError() {
 /**
  * Bang tong quan cho "Bao cao doanh thu theo hang": tim san pham (thuong
  * hoac dan nhieu ma — dung chung logic voi searchDashboardRecords, view
- * 'products') roi gan them DS/SL 90 ngay va ton kho hien tai. KHONG gioi
- * han/cat bot so dong ket qua.
+ * 'products') roi gan them DS/SL 90 ngay va ton kho hien tai. `total` luon la
+ * so luong khop thuc te; `resultLimit` (neu co) chi cat bot SO DONG TRA VE de
+ * ban go-tim-truc-tiep tren UI khong phai render hang nghin dong moi lan go
+ * phim — xuat Excel goi ham nay KHONG truyen resultLimit nen van lay day du.
  */
-async function searchProductRevenueOverview(rawQuery, rawMode, branch, now = new Date()) {
+async function searchProductRevenueOverview(rawQuery, rawMode, branch, now = new Date(), resultLimit) {
   const base = await searchDashboardRecords('products', rawQuery, 'all', rawMode, { mode: 'all' }, branch);
   const revenueMap = await getProductRevenueMap(branch, now);
+  const limitedRecords = Number.isFinite(resultLimit) && resultLimit > 0
+    ? base.results.slice(0, resultLimit)
+    : base.results;
 
-  const results = base.results.map(record => {
+  const results = limitedRecords.map(record => {
     const revenueEntry = revenueMap.get(normalizeSearchValue(record.code));
     return {
       code: record.code,

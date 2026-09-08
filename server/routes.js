@@ -265,7 +265,10 @@ router.get('/api/customer-product-revenue', async (req, res) => {
 
 router.get('/api/product-revenue-search', async (req, res) => {
   try {
-    const data = await searchProductRevenueOverview(req.query.q, req.query.mode, req.branch);
+    // Ban go-tim-truc-tiep chi can top 200 dong de UI khong bi cham khi go tung
+    // ky tu; nut "Xuat Excel" goi rieng exportService (khong truyen limit nay)
+    // nen van xuat day du.
+    const data = await searchProductRevenueOverview(req.query.q, req.query.mode, req.branch, undefined, 200);
     res.status(200).json(data);
   } catch (err) {
     const googleStatus = err?.response?.status;
