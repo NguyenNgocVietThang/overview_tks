@@ -58,7 +58,14 @@ test('chi lay ung vien dang kinh doanh va ton kho tong = 0', async () => {
     'Hóa đơn': [HEADERS.invoices],
     'Chi tiết hóa đơn': [HEADERS.invoiceDetails],
     'Nhập hàng': [HEADERS.purchases],
-    'Trả NCC': [HEADERS.purchaseReturns]
+    // SP002/SP004 can it nhat 1 giao dich trong ky de khong bi loc boi quy tac
+    // "khong co giao dich nao trong ky thi bo qua" — muc dich test nay la kiem
+    // tra bo loc ung vien (dang KD + ton kho 0), khong phai bo loc giao dich.
+    'Trả NCC': [
+      HEADERS.purchaseReturns,
+      ['SP002', '05/01/2026 08:00:00', 1, 'Hoàn thành'],
+      ['SP004', '05/01/2026 08:00:00', 1, 'Hoàn thành']
+    ]
   });
   const apiCalls = [];
   const client = fakeAllSourcesClient(apiCalls);
@@ -107,6 +114,25 @@ test('ung vien het hang du 5 ngay lien tuc tinh den hom nay thi liet ke, chua du
   assert.equal(job.result.rows[0].lastOutOfStockDate, '2026-01-06');
   assert.equal(job.result.rows[0].daysOutOfStock, 5);
   assert.deepEqual(job.result.rows[0].periods, [{ fromDate: '2026-01-06', toDate: '2026-01-10', days: 5 }]);
+});
+
+test('ma khong co bat ky giao dich nao trong ky thi bi loai, du ton kho hien tai = 0', async () => {
+  const store = createJobStore();
+  const jobId = store.createJob();
+  const sheetsClient = fakeSheetsClient({
+    'Hàng hóa': [HEADERS.products, ['SP001', 'Ton kho 0, khong dong tram', 0, 'Đang kinh doanh']],
+    'Hóa đơn': [HEADERS.invoices],
+    'Chi tiết hóa đơn': [HEADERS.invoiceDetails],
+    'Nhập hàng': [HEADERS.purchases],
+    'Trả NCC': [HEADERS.purchaseReturns]
+  });
+  const client = fakeReturnsClient([{ items: [], meta: { pagesLoaded: 1, recordsLoaded: 0, total: 0 } }]);
+
+  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, minConsecutiveDays: 5, dataFromDateFloor: null });
+
+  const job = store.getJob(jobId);
+  assert.equal(job.status, 'done');
+  assert.deepEqual(job.result.rows, []);
 });
 
 test('khong co ung vien nao thi tra ket qua rong, khong goi API tra hang', async () => {

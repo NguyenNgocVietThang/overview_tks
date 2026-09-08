@@ -58,6 +58,12 @@ async function runRecentStockoutScanJob(jobStore, jobId, deps = {}) {
     const rows = [];
     for (const { code, name } of candidates) {
       const events = eventMapByCode.get(code) || [];
+      // Khong co bat ky giao dich nao (ban/nhap/tra) trong ca ky nghia la
+      // khong co bang chung thuc te ma nay tung "dut hang" — chi la ton kho
+      // dung im o 0, khong ai dong tram. Bo qua de tranh hang loat ma trung
+      // het ngay bat dau (dung diem san dataFromDateFloor) chi vi thieu du
+      // lieu, khong phai vi thuc su dut hang.
+      if (events.length === 0) continue;
       const { periods } = analyzeStockoutTimeline({
         currentOnHand: 0, events, todayKey, daysBack, minConsecutiveDays, dataFromDateFloor
       });

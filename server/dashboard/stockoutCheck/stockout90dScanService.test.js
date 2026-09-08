@@ -185,9 +185,12 @@ test('mac dinh khong truyen dataFromDateFloor thi tu dong ghim ve moc san cua ti
   const store = createJobStore();
   const jobId = store.createJob();
   const sheetsClient = fakeSheetsClient({
-    'Hàng hóa': [HEADERS.products, ['SP001', 'Het hang lau', 0, 'Đang kinh doanh']],
-    'Hóa đơn': [HEADERS.invoices],
-    'Chi tiết hóa đơn': [HEADERS.invoiceDetails],
+    'Hàng hóa': [HEADERS.products, ['SP001', 'Het hang tu thang 7', 0, 'Đang kinh doanh']],
+    // Ban het toan bo 5 don vi ngay 01/07/2026 — sau moc san 2026-06-01 nen
+    // van nam trong cua so tinh toan, khong bi loc boi quy tac "khong co giao
+    // dich nao trong ky".
+    'Hóa đơn': [HEADERS.invoices, ['HD001', '01/07/2026 08:00:00', 'Hoàn thành']],
+    'Chi tiết hóa đơn': [HEADERS.invoiceDetails, ['HD001', 'SP001', 5]],
     'Nhập hàng': [HEADERS.purchases],
     'Trả NCC': [HEADERS.purchaseReturns]
   });
@@ -195,13 +198,33 @@ test('mac dinh khong truyen dataFromDateFloor thi tu dong ghim ve moc san cua ti
 
   // Khong truyen dataFromDateFloor — phai tu dong dung mac dinh
   // STOCKOUT_DATA_FLOOR_DATE_KEY ('2026-06-01') du daysBack=183 le ra keo lui
-  // toi 2026-03-09.
+  // toi 2026-03-09 (kiem tra qua job.result.fromDate, khong phu thuoc dot dut
+  // hang cu the cua SP001).
   await runStockout90dScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-09-08', daysBack: 183, minConsecutiveDays: 5 });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'done');
   assert.equal(job.result.fromDate, '2026-06-01');
   assert.equal(job.result.rows.length, 1);
-  assert.equal(job.result.rows[0].periods[0].fromDate, '2026-06-01');
+  assert.equal(job.result.rows[0].periods[0].fromDate, '2026-07-01');
   assert.equal(job.result.rows[0].periods[0].toDate, '2026-09-08');
+});
+
+test('ma khong co bat ky giao dich nao trong ky thi bi loai, du ton kho hien tai = 0', async () => {
+  const store = createJobStore();
+  const jobId = store.createJob();
+  const sheetsClient = fakeSheetsClient({
+    'Hàng hóa': [HEADERS.products, ['SP001', 'Ton kho 0, khong dong tram', 0, 'Đang kinh doanh']],
+    'Hóa đơn': [HEADERS.invoices],
+    'Chi tiết hóa đơn': [HEADERS.invoiceDetails],
+    'Nhập hàng': [HEADERS.purchases],
+    'Trả NCC': [HEADERS.purchaseReturns]
+  });
+  const client = fakeReturnsClient([{ items: [], meta: { pagesLoaded: 1, recordsLoaded: 0, total: 0 } }]);
+
+  await runStockout90dScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-20', daysBack: 19, minConsecutiveDays: 5, dataFromDateFloor: null });
+
+  const job = store.getJob(jobId);
+  assert.equal(job.status, 'done');
+  assert.deepEqual(job.result.rows, []);
 });
