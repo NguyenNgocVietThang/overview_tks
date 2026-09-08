@@ -51,9 +51,9 @@ function findEarliestSheetDateKey(rows, dateColumnName) {
   return earliest;
 }
 
-function pushEvent(eventMapByCode, code, dateKey, delta) {
+function pushEvent(eventMapByCode, code, dateKey, delta, source) {
   if (!eventMapByCode.has(code)) eventMapByCode.set(code, []);
-  eventMapByCode.get(code).push({ dateKey, delta });
+  eventMapByCode.get(code).push({ dateKey, delta, source });
 }
 
 function isCompletedStockMovementStatus(value) {
@@ -105,7 +105,7 @@ function accumulateSheetInvoiceEvents(eventMapByCode, invoiceDateByCode, detailR
     const invoiceCode = String(row[idx['Mã hóa đơn']] || '').trim();
     const dateKey = invoiceDateByCode.get(invoiceCode);
     if (!dateKey) continue;
-    pushEvent(eventMapByCode, code, dateKey, -(Number(row[idx['Số lượng']]) || 0));
+    pushEvent(eventMapByCode, code, dateKey, -(Number(row[idx['Số lượng']]) || 0), 'invoices');
   }
 }
 
@@ -119,7 +119,7 @@ function accumulateSheetPurchaseEvents(eventMapByCode, purchaseRows, validCodeSe
     if (!code || isVatProductCode(code) || !validCodeSet.has(code)) continue;
     const dateKey = parseSheetDateKey(row[idx['Thời gian']]);
     if (!dateKey || dateKey < fromDate || dateKey > todayKey) continue;
-    pushEvent(eventMapByCode, code, dateKey, Number(row[idx['Số lượng']]) || 0);
+    pushEvent(eventMapByCode, code, dateKey, Number(row[idx['Số lượng']]) || 0, 'purchases');
   }
 }
 
@@ -137,7 +137,7 @@ function accumulateSheetPurchaseReturnEvents(eventMapByCode, purchaseReturnRows,
     const dateKey = parseSheetDateKey(row[idx['Thời gian']]);
     if (!dateKey || dateKey < fromDate || dateKey > todayKey) continue;
     // Tra hang ve NCC lam GIAM ton kho cua minh (nguoc dau voi Nhap hang).
-    pushEvent(eventMapByCode, code, dateKey, -(Number(row[idx['Số lượng']]) || 0));
+    pushEvent(eventMapByCode, code, dateKey, -(Number(row[idx['Số lượng']]) || 0), 'supplierReturns');
   }
 }
 

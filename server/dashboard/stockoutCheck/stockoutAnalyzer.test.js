@@ -57,6 +57,24 @@ test('tồn kho âm sau khi chuẩn hóa được coi là hết hàng', () => {
   assert.equal(periods[0].days, 7);
 });
 
+test('ngay co hadPurchase=true ngat dot dut hang du ton cuoi ngay = 0', () => {
+  const daily = daysFrom('2026-01-01', 9, (i) => 0).map((row, i) =>
+    i === 4 ? { ...row, hadPurchase: true } : row
+  );
+  const periods = findStockoutPeriods(daily, 5);
+  // Ngay thu 5 (index 4, 2026-01-05) co Nhap hang nen ngat dot — 2 doan con
+  // lai deu chi 4 ngay (01-01..01-04 va 01-06..01-09), khong du
+  // minConsecutiveDays=5 nen khong duoc tinh dot nao ca.
+  assert.deepEqual(periods, []);
+});
+
+test('hadPurchase khong anh huong khi ton kho > 0 (khong co dot dut hang nao)', () => {
+  const daily = daysFrom('2026-01-01', 5, () => 3).map((row, i) =>
+    i === 2 ? { ...row, hadPurchase: true } : row
+  );
+  assert.deepEqual(findStockoutPeriods(daily, 5), []);
+});
+
 test('không có ngày nào hết hàng thì trả về mảng rỗng', () => {
   const daily = daysFrom('2026-01-01', 10, () => 5);
   assert.deepEqual(findStockoutPeriods(daily, 5), []);

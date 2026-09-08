@@ -15,9 +15,9 @@ function toVnDateKey(isoDateTimeString) {
   return new Date(utcTime + VN_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-function pushEvent(eventMapByCode, code, dateKey, delta) {
+function pushEvent(eventMapByCode, code, dateKey, delta, source) {
   if (!eventMapByCode.has(code)) eventMapByCode.set(code, []);
-  eventMapByCode.get(code).push({ dateKey, delta });
+  eventMapByCode.get(code).push({ dateKey, delta, source });
 }
 
 function inDateRange(dateKey, fromDate, toDate) {
@@ -39,7 +39,7 @@ function accumulateInvoiceEvents(eventMapByCode, invoicePage, validCodeSet, from
     for (const detail of invoice.invoiceDetails || []) {
       const code = String(detail.productCode || '').trim();
       if (!validCodeSet.has(code)) continue;
-      pushEvent(eventMapByCode, code, dateKey, -Number(detail.quantity || 0));
+      pushEvent(eventMapByCode, code, dateKey, -Number(detail.quantity || 0), 'invoices');
     }
   }
 }
@@ -52,7 +52,7 @@ function accumulatePurchaseOrderEvents(eventMapByCode, poPage, validCodeSet, fro
     for (const detail of po.purchaseOrderDetails || []) {
       const code = String(detail.productCode || '').trim();
       if (!validCodeSet.has(code)) continue;
-      pushEvent(eventMapByCode, code, dateKey, Number(detail.quantity || 0));
+      pushEvent(eventMapByCode, code, dateKey, Number(detail.quantity || 0), 'purchases');
     }
   }
 }
@@ -66,15 +66,21 @@ function accumulateReturnEvents(eventMapByCode, returnPage, validCodeSet, fromDa
     for (const detail of ret.returnDetails || []) {
       const code = String(detail.productCode || '').trim();
       if (!validCodeSet.has(code)) continue;
-      pushEvent(eventMapByCode, code, dateKey, Number(detail.quantity || 0));
+      pushEvent(eventMapByCode, code, dateKey, Number(detail.quantity || 0), 'customerReturns');
     }
   }
 }
 
 function reconstructDailyStock(currentOnHand, eventsForCode, todayKey, daysBack = 183) {
   const deltaByDate = new Map();
-  for (const { dateKey, delta } of eventsForCode) {
+  // Ngay co phieu Nhap hang (bat ke sau do ban/chuyen het trong ngay, net ve
+  // 0) van la ngay CO hang tren ke — chi tinh cong don delta hang ngay thi
+  // khong phan biet duoc voi ngay khong co giao dich gi (ca hai deu ra net
+  // 0). Theo doi rieng de findStockoutPeriods ngat dot dut hang tai do.
+  const purchaseDates = new Set();
+  for (const { dateKey, delta, source } of eventsForCode) {
     deltaByDate.set(dateKey, (deltaByDate.get(dateKey) || 0) + delta);
+    if (source === 'purchases') purchaseDates.add(dateKey);
   }
 
   const dates = [];
@@ -86,7 +92,7 @@ function reconstructDailyStock(currentOnHand, eventsForCode, todayKey, daysBack 
     stocks[i - 1] = stocks[i] - (deltaByDate.get(dates[i]) || 0);
   }
 
-  return dates.map((date, i) => ({ date, stock: Math.max(0, stocks[i]) }));
+  return dates.map((date, i) => ({ date, stock: Math.max(0, stocks[i]), hadPurchase: purchaseDates.has(date) }));
 }
 
 module.exports = {

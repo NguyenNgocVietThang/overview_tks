@@ -74,7 +74,7 @@ test('buildEventMapFromSheets: hoa don Hoan thanh lam giam ton kho, Da huy/Phieu
     [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']]
   };
   const eventMap = buildEventMapFromSheets(sheets, new Set(['SP001']), '2026-01-01', '2026-01-20');
-  assert.deepEqual(eventMap.get('SP001'), [{ dateKey: '2026-01-06', delta: -3 }]);
+  assert.deepEqual(eventMap.get('SP001'), [{ dateKey: '2026-01-06', delta: -3, source: 'invoices' }]);
 });
 
 test('Hóa đơn Sheet thiếu hoặc trống Trạng thái không được mặc định là hoàn thành', () => {
@@ -112,8 +112,8 @@ test('buildEventMapFromSheets: Nhap hang lam tang ton kho, Tra NCC lam giam ton 
   };
   const eventMap = buildEventMapFromSheets(sheets, new Set(['SP001']), '2026-01-01', '2026-01-20');
   assert.deepEqual(eventMap.get('SP001'), [
-    { dateKey: '2026-01-10', delta: 7 },
-    { dateKey: '2026-01-12', delta: -2 }
+    { dateKey: '2026-01-10', delta: 7, source: 'purchases' },
+    { dateKey: '2026-01-12', delta: -2, source: 'supplierReturns' }
   ]);
 });
 
@@ -151,7 +151,7 @@ test('buildEventMapFromSheets bỏ nguồn Nhập hàng thiếu cột Trạng th
     [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng'], ['SP001', '12/01/2026', 2]]
   };
   const eventMap = buildEventMapFromSheets(sheets, new Set(['SP001']), '2026-01-01', '2026-01-20');
-  assert.deepEqual(eventMap.get('SP001'), [{ dateKey: '2026-01-12', delta: -2 }]);
+  assert.deepEqual(eventMap.get('SP001'), [{ dateKey: '2026-01-12', delta: -2, source: 'supplierReturns' }]);
 });
 
 test('Nhập hàng Sheet dùng trạng thái số 3 là hoàn thành và bỏ trạng thái 4', () => {
@@ -166,7 +166,7 @@ test('Nhập hàng Sheet dùng trạng thái số 3 là hoàn thành và bỏ tr
     [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']]
   };
   const eventMap = buildEventMapFromSheets(sheets, new Set(['SP001']), '2026-01-01', '2026-01-20');
-  assert.deepEqual(eventMap.get('SP001'), [{ dateKey: '2026-01-10', delta: 7 }]);
+  assert.deepEqual(eventMap.get('SP001'), [{ dateKey: '2026-01-10', delta: 7, source: 'purchases' }]);
 });
 
 test('buildEventMapFromSheets đối chiếu chính xác từng mã sau khi trim', () => {
@@ -181,7 +181,7 @@ test('buildEventMapFromSheets đối chiếu chính xác từng mã sau khi trim
     [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']]
   };
   const eventMap = buildEventMapFromSheets(sheets, new Set(['SP001']), '2026-01-01', '2026-01-20');
-  assert.deepEqual(eventMap.get('SP001'), [{ dateKey: '2026-01-10', delta: 2 }]);
+  assert.deepEqual(eventMap.get('SP001'), [{ dateKey: '2026-01-10', delta: 2, source: 'purchases' }]);
   assert.equal(eventMap.has('sp001'), false);
 });
 
@@ -194,7 +194,7 @@ test('các builder Sheet theo nguồn không kéo lẫn biến động của ngu
   };
   const args = [sheets, new Set(['SP001']), '2026-01-09', '2026-01-11'];
 
-  assert.deepEqual(buildInvoiceEventMapFromSheets(...args).get('SP001'), [{ dateKey: '2026-01-10', delta: -2 }]);
-  assert.deepEqual(buildPurchaseEventMapFromSheets(...args).get('SP001'), [{ dateKey: '2026-01-10', delta: 3 }]);
-  assert.deepEqual(buildSupplierReturnEventMapFromSheets(...args).get('SP001'), [{ dateKey: '2026-01-10', delta: -4 }]);
+  assert.deepEqual(buildInvoiceEventMapFromSheets(...args).get('SP001'), [{ dateKey: '2026-01-10', delta: -2, source: 'invoices' }]);
+  assert.deepEqual(buildPurchaseEventMapFromSheets(...args).get('SP001'), [{ dateKey: '2026-01-10', delta: 3, source: 'purchases' }]);
+  assert.deepEqual(buildSupplierReturnEventMapFromSheets(...args).get('SP001'), [{ dateKey: '2026-01-10', delta: -4, source: 'supplierReturns' }]);
 });

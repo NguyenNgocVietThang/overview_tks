@@ -170,7 +170,7 @@ test('Trả NCC thiếu cột Trạng thái vẫn được tính vì sheet này 
 
   const result = await loadStockoutEvents(fixture.deps);
 
-  assert.deepEqual(result.eventMapByCode.get('SP001'), [{ dateKey: '2026-01-09', delta: -5 }]);
+  assert.deepEqual(result.eventMapByCode.get('SP001'), [{ dateKey: '2026-01-09', delta: -5, source: 'supplierReturns' }]);
   assert.deepEqual(result.warnings, []);
 });
 

@@ -29,7 +29,7 @@ test('accumulateInvoiceEvents chỉ tính hóa đơn status=1 (Hoàn thành), b�
     { status: 1, purchaseDate: '2026-08-03T03:00:00', invoiceDetails: [{ productCode: 'SP999', quantity: 2 }] }
   ];
   accumulateInvoiceEvents(map, page, validCodes);
-  assert.deepEqual(map.get('SP001'), [{ dateKey: '2026-08-01', delta: -5 }]);
+  assert.deepEqual(map.get('SP001'), [{ dateKey: '2026-08-01', delta: -5, source: 'invoices' }]);
   assert.equal(map.has('SP999'), false);
 });
 
@@ -41,7 +41,7 @@ test('accumulatePurchaseOrderEvents chỉ tính phiếu không phải draft, c�
     { isDraft: true, purchaseDate: '2026-08-02T03:00:00', purchaseOrderDetails: [{ productCode: 'SP001', quantity: 99 }] }
   ];
   accumulatePurchaseOrderEvents(map, page, validCodes);
-  assert.deepEqual(map.get('SP001'), [{ dateKey: '2026-08-01', delta: 20 }]);
+  assert.deepEqual(map.get('SP001'), [{ dateKey: '2026-08-01', delta: 20, source: 'purchases' }]);
 });
 
 test('accumulatePurchaseOrderEvents dùng status=3 khi API danh sách không trả isDraft', () => {
@@ -51,7 +51,7 @@ test('accumulatePurchaseOrderEvents dùng status=3 khi API danh sách không tr�
     { status: 4, purchaseDate: '2026-08-02T03:00:00', purchaseOrderDetails: [{ productCode: 'SP001', quantity: 9 }] }
   ];
   accumulatePurchaseOrderEvents(map, page, new Set(['SP001']));
-  assert.deepEqual(map.get('SP001'), [{ dateKey: '2026-08-01', delta: 5 }]);
+  assert.deepEqual(map.get('SP001'), [{ dateKey: '2026-08-01', delta: 5, source: 'purchases' }]);
 });
 
 test('accumulateReturnEvents chỉ tính phiếu trả status=1 (Đã trả), cộng dồn tồn kho', () => {
@@ -62,7 +62,7 @@ test('accumulateReturnEvents chỉ tính phiếu trả status=1 (Đã trả), c�
     { status: 2, returnDate: '2026-08-02T03:00:00', returnDetails: [{ productCode: 'SP001', quantity: 7 }] }
   ];
   accumulateReturnEvents(map, page, validCodes);
-  assert.deepEqual(map.get('SP001'), [{ dateKey: '2026-08-01', delta: 3 }]);
+  assert.deepEqual(map.get('SP001'), [{ dateKey: '2026-08-01', delta: 3, source: 'customerReturns' }]);
 });
 
 test('accumulate* gộp vào mảng events đã có sẵn của mã (gọi nhiều trang liên tiếp)', () => {
@@ -75,7 +75,7 @@ test('accumulate* gộp vào mảng events đã có sẵn của mã (gọi nhi�
   );
   assert.deepEqual(map.get('SP001'), [
     { dateKey: '2026-07-01', delta: -1 },
-    { dateKey: '2026-08-01', delta: -2 }
+    { dateKey: '2026-08-01', delta: -2, source: 'invoices' }
   ]);
 });
 
@@ -118,9 +118,22 @@ test('reconstructDailyStock gộp nhiều event trong cùng 1 ngày trước khi
   ];
   const result = reconstructDailyStock(0, events, '2026-01-03', 2);
   assert.deepEqual(result, [
-    { date: '2026-01-01', stock: 0 },
-    { date: '2026-01-02', stock: 8 },
-    { date: '2026-01-03', stock: 0 }
+    { date: '2026-01-01', stock: 0, hadPurchase: false },
+    { date: '2026-01-02', stock: 8, hadPurchase: false },
+    { date: '2026-01-03', stock: 0, hadPurchase: false }
+  ]);
+});
+
+test('reconstructDailyStock danh dau hadPurchase=true dung ngay co su kien source=purchases, du net ve 0', () => {
+  const events = [
+    { dateKey: '2026-01-02', delta: 50, source: 'purchases' },
+    { dateKey: '2026-01-02', delta: -50, source: 'invoices' }
+  ];
+  const result = reconstructDailyStock(0, events, '2026-01-03', 2);
+  assert.deepEqual(result, [
+    { date: '2026-01-01', stock: 0, hadPurchase: false },
+    { date: '2026-01-02', stock: 0, hadPurchase: true },
+    { date: '2026-01-03', stock: 0, hadPurchase: false }
   ]);
 });
 
@@ -135,8 +148,8 @@ test('reconstructDailyStock không có event nào thì tồn kho không đổi s
 test('reconstructDailyStock quy tồn âm về 0 trong kết quả cuối ngày', () => {
   const result = reconstructDailyStock(-2, [], '2026-01-05', 1);
   assert.deepEqual(result, [
-    { date: '2026-01-04', stock: 0 },
-    { date: '2026-01-05', stock: 0 }
+    { date: '2026-01-04', stock: 0, hadPurchase: false },
+    { date: '2026-01-05', stock: 0, hadPurchase: false }
   ]);
 });
 
@@ -151,7 +164,7 @@ test('accumulateReturnEvents trim mã nhưng không khớp khác chữ hoa thư�
       { productCode: 'sp001', quantity: 9 }
     ]
   }], validCodes);
-  assert.deepEqual(map.get('SP001'), [{ dateKey: '2026-08-01', delta: 2 }]);
+  assert.deepEqual(map.get('SP001'), [{ dateKey: '2026-08-01', delta: 2, source: 'customerReturns' }]);
   assert.equal(map.has('sp001'), false);
 });
 
@@ -173,9 +186,9 @@ test('API accumulators trim mã và chỉ giữ sự kiện trong khoảng ngày
     { status: 1, returnDate: '2026-01-10T00:00:00Z', returnDetails: [{ productCode: ' SP001 ', quantity: 4 }] }
   ], validCodes, '2026-01-09', '2026-01-11');
 
-  assert.deepEqual(invoiceMap.get('SP001'), [{ dateKey: '2026-01-10', delta: -2 }]);
-  assert.deepEqual(purchaseMap.get('SP001'), [{ dateKey: '2026-01-10', delta: 3 }]);
-  assert.deepEqual(returnMap.get('SP001'), [{ dateKey: '2026-01-10', delta: 4 }]);
+  assert.deepEqual(invoiceMap.get('SP001'), [{ dateKey: '2026-01-10', delta: -2, source: 'invoices' }]);
+  assert.deepEqual(purchaseMap.get('SP001'), [{ dateKey: '2026-01-10', delta: 3, source: 'purchases' }]);
+  assert.deepEqual(returnMap.get('SP001'), [{ dateKey: '2026-01-10', delta: 4, source: 'customerReturns' }]);
 });
 
 test('accumulateReturnEvents chuẩn hóa số lượng dạng chuỗi thành số', () => {
@@ -185,5 +198,5 @@ test('accumulateReturnEvents chuẩn hóa số lượng dạng chuỗi thành s�
     returnDate: '2026-01-10T00:00:00Z',
     returnDetails: [{ productCode: 'SP001', quantity: '3' }]
   }], new Set(['SP001']));
-  assert.deepEqual(map.get('SP001'), [{ dateKey: '2026-01-10', delta: 3 }]);
+  assert.deepEqual(map.get('SP001'), [{ dateKey: '2026-01-10', delta: 3, source: 'customerReturns' }]);
 });

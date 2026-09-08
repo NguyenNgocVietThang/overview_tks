@@ -25,8 +25,12 @@ function findStockoutPeriods(dailyStock, minConsecutiveDays = 5, reportFromDate 
   let runLength = 0;
 
   for (let i = 0; i < dailyStock.length; i++) {
-    const { date, stock } = dailyStock[i];
-    if (Math.max(0, Number(stock) || 0) === 0) {
+    const { date, stock, hadPurchase } = dailyStock[i];
+    // Ngay co phieu Nhap hang luon tinh la co hang tren ke, du sau do
+    // ban/chuyen het trong ngay khien ton cuoi ngay ve 0 — day la ngay CO
+    // giao dich, khac voi ngay khong co gi xay ra (ca hai deu ra net 0 neu
+    // chi nhin theo ton cuoi ngay).
+    if (Math.max(0, Number(stock) || 0) === 0 && !hadPurchase) {
       if (runStart === null) runStart = date;
       runLength++;
     } else if (runStart !== null) {
