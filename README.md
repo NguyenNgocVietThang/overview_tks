@@ -109,23 +109,27 @@ webtks-dashboard/
 │   │   ├── debtReport.js        # Báo cáo công nợ khách hàng 1/3/7 ngày từ HN1/HN3/HN7
 │   │   ├── exportService.js     # Registry 16 bảng và tạo workbook Excel
 │   │   ├── exportService.test.js # Unit test dữ liệu/file Excel
-│   │   └── stockoutCheck/       # Kiểm tra đứt hàng đối chiếu file Excel với KiotViet API
+│   │   └── stockoutCheck/       # Kiểm tra đứt hàng đối chiếu trực tiếp KiotViet API (hàng đứt gần đây + 90 ngày)
 │   │       ├── concurrencyPool.js # Quản lý hàng đợi tải đồng thời có giới hạn
 │   │       ├── concurrencyPool.test.js
-│   │       ├── excelParser.js   # Đọc và phân tích file Excel danh sách sản phẩm
-│   │       ├── excelParser.test.js
+│   │       ├── dateHelpers.js   # Tiện ích tính ngày (múi giờ VN)
+│   │       ├── dateHelpers.test.js
 │   │       ├── jobManager.js    # Quản lý vòng đời tác vụ kiểm tra bất đồng bộ
 │   │       ├── jobManager.test.js
-│   │       ├── kiotVietClient.js # Giao tiếp KiotViet API lấy chi tiết tồn/giao dịch
-│   │       ├── kiotVietClient.test.js
-│   │       ├── productCodeValidator.js # Xác thực mã sản phẩm hợp lệ
-│   │       ├── productCodeValidator.test.js
+│   │       ├── recentStockoutScanService.js # Quét hàng đang kinh doanh có tồn kho hiện tại = 0
+│   │       ├── recentStockoutScanService.test.js
+│   │       ├── sheetTimelineBuilder.js # Đọc danh mục hàng hóa còn kinh doanh từ Google Sheets
+│   │       ├── sheetTimelineBuilder.test.js
 │   │       ├── stockoutAnalyzer.js # Phân tích nguyên nhân và mốc đứt hàng
 │   │       ├── stockoutAnalyzer.test.js
-│   │       ├── stockoutCheckRoutes.js # API /api/products/stockout-check/*
+│   │       ├── stockoutCheckRoutes.js # API /api/products/stockout-recent/*, /api/products/stockout-90d/*
 │   │       ├── stockoutCheckRoutes.test.js
-│   │       ├── stockoutCheckService.js # Điều phối toàn bộ quy trình kiểm tra đứt hàng
-│   │       ├── stockoutCheckService.test.js
+│   │       ├── stockoutEngine.js # Ghép timeline + phân tích đợt đứt hàng
+│   │       ├── stockoutEngine.test.js
+│   │       ├── stockoutEventLoader.js # Tải Hóa đơn/Nhập hàng/Khách trả từ KiotViet API, dự phòng Google Sheets
+│   │       ├── stockoutEventLoader.test.js
+│   │       ├── stockout90dScanService.js # Quét toàn bộ hàng trong cửa sổ 90 ngày gần đây
+│   │       ├── stockout90dScanService.test.js
 │   │       ├── timelineBuilder.js # Xây dựng dòng thời gian biến động tồn kho
 │   │       └── timelineBuilder.test.js
 │   ├── data/
@@ -205,7 +209,7 @@ webtks-dashboard/
 │   ├── config.js                # Cấu hình môi trường Node.js server
 │   ├── index.js                 # Express server entry point
 │   ├── package.json             # Dependencies, Node 22 và lệnh build/start
-│   └── routes.js                # Định tuyến API endpoint (/api/dashboard/*, /api/auth/*, /api/admin/*, /api/branch, /api/shipment/*, /api/hr/*, /api/notifications/*, /api/role-requests/*, /api/products/stockout-check/*, /api/customer-product-revenue)
+│   └── routes.js                # Định tuyến API endpoint (/api/dashboard/*, /api/auth/*, /api/admin/*, /api/branch, /api/shipment/*, /api/hr/*, /api/notifications/*, /api/role-requests/*, /api/products/stockout-recent/*, /api/products/stockout-90d/*, /api/customer-product-revenue)
 │
 ├── src-dashboard/               # Apps Script riêng cho Google Sheets Dashboard
 │   ├── appsscript.json          # Manifest Apps Script Dashboard
@@ -284,7 +288,7 @@ Bộ test hiện gồm **477 bài kiểm thử tự động** (13 test suite):
 - Yêu cầu đổi vai trò người dùng (`roleChangeRequestRoutes.js`) & Chuông thông báo toàn hệ thống (`notificationRoutes.js`, `notif-bell.test.js`).
 - Khôi phục mật khẩu OTP 6 số (sinh mã, gửi giả lập qua Email/SĐT, giới hạn thử lại, chống brute-force và cơ chế lockout tạm thời 5 phút).
 - Quản lý hồ sơ cá nhân và đổi mật khẩu chủ động.
-- Kiểm tra đứt hàng đối chiếu Excel với KiotViet API (`stockoutCheckService.js`, `excelParser.js`, `timelineBuilder.js`, `stockoutAnalyzer.js`, `concurrencyPool.js`).
+- Kiểm tra đứt hàng đối chiếu trực tiếp KiotViet API — hàng đứt gần đây và 90 ngày (`recentStockoutScanService.js`, `stockout90dScanService.js`, `stockoutEventLoader.js`, `timelineBuilder.js`, `stockoutAnalyzer.js`, `concurrencyPool.js`).
 - Tra cứu trạng thái hóa đơn cho khách hàng (`invoiceStatusService.js` với cache 90s).
 - State Machine vận đơn 9 trạng thái (`orderStateMachine.js`) và CRUD kho dữ liệu 6 tab vận chuyển (`vcOrderRepository.js`).
 - Result Cache tầng backend tối ưu phản hồi tức thì (<10ms).

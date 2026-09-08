@@ -177,6 +177,24 @@ test('workbook giu ma co so 0 dau, chan chuoi cong thuc va bat freeze/autofilter
   }
 });
 
+test('ten file gan tien to HN_/SG_ theo co so dang xuat', async () => {
+  const originalSnapshot = dashboardData.getDashboardExportSnapshot;
+  dashboardData.getDashboardExportSnapshot = async () => buildSnapshot();
+  try {
+    const payload = {
+      tableKey: 'products.all',
+      filters: {},
+      columns: { all_products: ['c0', 'c1', 'c2'] }
+    };
+    const hn = await exportService.createExportWorkbook(payload, 'Hà Nội');
+    assert.match(hn.fileName, /^HN_Tat_ca_ma_hang_\d{8}_\d{4}\.xlsx$/);
+    const sg = await exportService.createExportWorkbook(payload, 'Sài Gòn');
+    assert.match(sg.fileName, /^SG_Tat_ca_ma_hang_\d{8}_\d{4}\.xlsx$/);
+  } finally {
+    dashboardData.getDashboardExportSnapshot = originalSnapshot;
+  }
+});
+
 test('tim kiem nhieu nguon tu dong xuat moi nguon mot worksheet va khong can gui cot', async () => {
   const originalSearch = dashboardData.searchDashboardRecords;
   dashboardData.searchDashboardRecords = async () => ({
@@ -280,10 +298,10 @@ test('buildExportDataset: stockout.recentScan khong co dong nao thi bao loi EXPO
   );
 });
 
-test('buildExportDataset: stockout.check30d tra dung worksheet', async () => {
+test('buildExportDataset: stockout.check90d tra dung worksheet', async () => {
   const dataset = await exportService.__test__.buildExportDataset({
-    tableKey: 'stockout.check30d',
-    stockout30dResult: {
+    tableKey: 'stockout.check90d',
+    stockout90dResult: {
       rows: [{
         code: 'SP001', name: 'Ao thun', stockoutCount: 2, totalStockoutDays: 10, currentOnHand: 3,
         periods: [
@@ -294,8 +312,8 @@ test('buildExportDataset: stockout.check30d tra dung worksheet', async () => {
     }
   });
 
-  assert.equal(dataset.tableKey, 'stockout.check30d');
-  assert.equal(dataset.title, 'Kiểm tra đứt hàng 30 ngày');
+  assert.equal(dataset.tableKey, 'stockout.check90d');
+  assert.equal(dataset.title, 'Kiểm tra đứt hàng 90 ngày');
   assert.equal(dataset.worksheets.length, 1);
   assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'currentOnHand', 'periods']);
   assert.equal(dataset.worksheets[0].rows[0].code, 'SP001');
@@ -323,9 +341,9 @@ test('file Excel stockout bật wrap text cho cột Các đợt đứt hàng', a
   assert.match(workbook.worksheets[0].getCell('E2').value, /\n/);
 });
 
-test('buildExportDataset: stockout.check30d khong co dong nao thi bao loi EXPORT_NO_DATA', async () => {
+test('buildExportDataset: stockout.check90d khong co dong nao thi bao loi EXPORT_NO_DATA', async () => {
   await assert.rejects(
-    exportService.__test__.buildExportDataset({ tableKey: 'stockout.check30d', stockout30dResult: { rows: [] } }),
+    exportService.__test__.buildExportDataset({ tableKey: 'stockout.check90d', stockout90dResult: { rows: [] } }),
     /EXPORT_NO_DATA|Chưa có kết quả/
   );
 });

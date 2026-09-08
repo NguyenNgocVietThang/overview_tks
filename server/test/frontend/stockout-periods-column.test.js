@@ -7,8 +7,8 @@ const path = require('node:path');
 
 const html = fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'index.html'), 'utf8');
 
-test('cả 3 bảng kết quả có cột Các đợt đứt hàng', () => {
-  assert.equal((html.match(/<th>Các đợt đứt hàng<\/th>/g) || []).length, 3);
+test('cả 2 bảng kết quả có cột Các đợt đứt hàng', () => {
+  assert.equal((html.match(/<th>Các đợt đứt hàng<\/th>/g) || []).length, 2);
 });
 
 test('giao diện định dạng mỗi đợt dd/mm/yyyy -> dd/mm/yyyy và nối bằng xuống dòng', () => {
@@ -17,9 +17,9 @@ test('giao diện định dạng mỗi đợt dd/mm/yyyy -> dd/mm/yyyy và nối
   assert.match(html, /formatStockoutDate\(p\.fromDate\).* -&gt; .*formatStockoutDate\(p\.toDate\)/s);
 });
 
-test('mô tả tính năng upload đã dùng ngưỡng 5 ngày', () => {
-  assert.doesNotMatch(html, /Định nghĩa đứt hàng:[^<]*7 ngày/);
-  assert.match(html, /Định nghĩa đứt hàng:[^<]*5 ngày/);
+test('mô tả tính năng hàng đứt gần đây dùng ngưỡng 5 ngày', () => {
+  assert.doesNotMatch(html, /liên tục \(tính đến hôm nay\) ≥ 7 ngày/);
+  assert.match(html, /liên tục \(tính đến hôm nay\) ≥ 5 ngày/);
 });
 
 test('cache kết quả stockout có version và không phục hồi payload cũ thiếu periods', () => {
@@ -27,7 +27,7 @@ test('cache kết quả stockout có version và không phục hồi payload cũ
   assert.match(html, /schemaVersion: STOCKOUT_RESULT_SCHEMA_VERSION/g);
   assert.match(html, /function hasCurrentStockoutResultShape/);
   assert.match(html, /saved\.schemaVersion !== STOCKOUT_RESULT_SCHEMA_VERSION/g);
-  assert.match(html, /localStorage\.removeItem\('stockout30d:lastState'\)/);
+  assert.match(html, /localStorage\.removeItem\('stockout90d:lastState'\)/);
 });
 
 test('giao diện hiển thị cảnh báo khi một nguồn dùng Google Sheets dự phòng', () => {

@@ -3,6 +3,7 @@
 const ExcelJS = require('exceljs');
 const CONFIG = require('../config');
 const dashboardData = require('./dashboardData');
+const { BRANCHES } = require('../branch/branches');
 
 const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const VALID_DEBT_PERIODS = new Set([1, 3, 7]);
@@ -27,9 +28,8 @@ const TABLE_TITLES = Object.freeze({
   'suppliers.list': 'Danh sách nhà cung cấp',
   'debt.period': 'Công nợ theo kỳ',
   'search.results': 'Kết quả tìm kiếm',
-  'stockout.result': 'Kết quả đứt hàng',
   'stockout.recentScan': 'Hàng đứt gần đây',
-  'stockout.check30d': 'Kiểm tra đứt hàng 30 ngày'
+  'stockout.check90d': 'Kiểm tra đứt hàng 90 ngày'
 });
 
 function exportError(message, statusCode = 400, code = 'EXPORT_INVALID_REQUEST') {
@@ -507,29 +507,6 @@ function formatStockoutPeriods(periods) {
     .join('\n');
 }
 
-function buildStockoutResultDataset(payload) {
-  const result = payload.stockoutResult && typeof payload.stockoutResult === 'object' ? payload.stockoutResult : null;
-  const rows = result && Array.isArray(result.rows) ? result.rows : [];
-  if (rows.length === 0) throw exportError('Chưa có kết quả kiểm tra đứt hàng để xuất.', 400, 'EXPORT_NO_DATA');
-  const dataRows = rows.map(row => ({
-    code: row.code,
-    name: row.name,
-    currentOnHand: row.currentOnHand,
-    stockoutCount: row.stockoutCount,
-    totalStockoutDays: row.totalStockoutDays,
-    periods: formatStockoutPeriods(row.periods)
-  }));
-  const worksheet = aggregateWorksheet('stockout_result', 'Kết quả đứt hàng', [
-    { key: 'code', label: 'Mã hàng', type: 'text' },
-    { key: 'name', label: 'Tên hàng' },
-    { key: 'currentOnHand', label: 'Tồn kho hiện tại', type: 'number' },
-    { key: 'stockoutCount', label: 'Số lần đứt hàng', type: 'number' },
-    { key: 'totalStockoutDays', label: 'Tổng ngày đứt hàng', type: 'number' },
-    { key: 'periods', label: 'Các đợt đứt hàng', wrapText: true }
-  ], dataRows);
-  return { tableKey: 'stockout.result', title: TABLE_TITLES['stockout.result'], selectionMode: 'custom', worksheets: [worksheet] };
-}
-
 function buildRecentStockoutResultDataset(payload) {
   const result = payload.recentStockoutResult && typeof payload.recentStockoutResult === 'object' ? payload.recentStockoutResult : null;
   const rows = result && Array.isArray(result.rows) ? result.rows : [];
@@ -545,12 +522,12 @@ function buildRecentStockoutResultDataset(payload) {
   return { tableKey: 'stockout.recentScan', title: TABLE_TITLES['stockout.recentScan'], selectionMode: 'custom', worksheets: [worksheet] };
 }
 
-function buildStockout30dResultDataset(payload) {
-  const result = payload.stockout30dResult && typeof payload.stockout30dResult === 'object' ? payload.stockout30dResult : null;
+function buildStockout90dResultDataset(payload) {
+  const result = payload.stockout90dResult && typeof payload.stockout90dResult === 'object' ? payload.stockout90dResult : null;
   const rows = result && Array.isArray(result.rows) ? result.rows : [];
-  if (rows.length === 0) throw exportError('Chưa có kết quả kiểm tra đứt hàng 30 ngày để xuất.', 400, 'EXPORT_NO_DATA');
+  if (rows.length === 0) throw exportError('Chưa có kết quả kiểm tra đứt hàng 90 ngày để xuất.', 400, 'EXPORT_NO_DATA');
   const dataRows = rows.map(row => ({ ...row, periods: formatStockoutPeriods(row.periods) }));
-  const worksheet = aggregateWorksheet('stockout_30d_result', 'Kiểm tra đứt hàng 30 ngày', [
+  const worksheet = aggregateWorksheet('stockout_90d_result', 'Kiểm tra đứt hàng 90 ngày', [
     { key: 'code', label: 'Mã SP', type: 'text' },
     { key: 'name', label: 'Tên SP' },
     { key: 'stockoutCount', label: 'Số lần đứt hàng', type: 'number' },
@@ -558,7 +535,7 @@ function buildStockout30dResultDataset(payload) {
     { key: 'currentOnHand', label: 'Tồn kho hiện tại', type: 'number' },
     { key: 'periods', label: 'Các đợt đứt hàng', wrapText: true }
   ], dataRows);
-  return { tableKey: 'stockout.check30d', title: TABLE_TITLES['stockout.check30d'], selectionMode: 'custom', worksheets: [worksheet] };
+  return { tableKey: 'stockout.check90d', title: TABLE_TITLES['stockout.check90d'], selectionMode: 'custom', worksheets: [worksheet] };
 }
 
 async function buildExportDataset(payload, branch) {
@@ -566,9 +543,8 @@ async function buildExportDataset(payload, branch) {
   if (!TABLE_TITLES[tableKey]) throw exportError('Bảng yêu cầu xuất không hợp lệ.', 400, 'EXPORT_TABLE_NOT_ALLOWED');
   const filters = normalizeFilters(payload.filters);
   if (tableKey === 'search.results') return buildSearchDataset(payload, filters, branch);
-  if (tableKey === 'stockout.result') return buildStockoutResultDataset(payload);
   if (tableKey === 'stockout.recentScan') return buildRecentStockoutResultDataset(payload);
-  if (tableKey === 'stockout.check30d') return buildStockout30dResultDataset(payload);
+  if (tableKey === 'stockout.check90d') return buildStockout90dResultDataset(payload);
   if (tableKey === 'customers.productDetail' || tableKey === 'customers.productMonthlyCompare') {
     return buildCustomerProductRevenueDataset(tableKey, payload, branch);
   }
@@ -707,6 +683,12 @@ function fileSlug(value) {
     .replace(/đ/gi, 'd').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'Du_lieu';
 }
 
+function branchFilePrefix(branch) {
+  if (branch === BRANCHES.HANOI) return 'HN';
+  if (branch === BRANCHES.SAIGON) return 'SG';
+  return 'TKS';
+}
+
 async function createExportWorkbook(payload, branch) {
   const dataset = await buildExportDataset(payload || {}, branch);
   const workbook = new ExcelJS.Workbook();
@@ -739,7 +721,7 @@ async function createExportWorkbook(payload, branch) {
   return {
     buffer,
     mimeType: EXCEL_MIME,
-    fileName: `TKS_${fileSlug(dataset.title)}_${fileTimestamp()}.xlsx`
+    fileName: `${branchFilePrefix(branch)}_${fileSlug(dataset.title)}_${fileTimestamp()}.xlsx`
   };
 }
 

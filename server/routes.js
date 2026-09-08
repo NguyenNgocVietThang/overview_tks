@@ -103,7 +103,7 @@ router.use('/api/product-revenue-detail', ...requireInternalUser);
 router.use('/api/export', ...requireInternalUser);
 router.use('/api/products', ...requireInternalUser);
 
-// Kiem tra dut hang (upload Excel, doi chieu truc tiep KiotViet API) — /api/products/stockout-check/*
+// Kiem tra dut hang, doi chieu truc tiep KiotViet API — /api/products/stockout-recent/*, /api/products/stockout-90d/*
 router.use(stockoutCheckRoutes);
 
 // Route kiem tra ket noi nhanh — chi xem duoc tren server, KHONG expose secret

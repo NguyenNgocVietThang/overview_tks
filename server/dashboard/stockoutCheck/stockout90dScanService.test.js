@@ -5,7 +5,7 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { runStockout30dScanJob } = require('./stockout30dScanService');
+const { runStockout90dScanJob } = require('./stockout90dScanService');
 const { createJobStore } = require('./jobManager');
 
 const HEADERS = {
@@ -47,7 +47,7 @@ test('quet toan bo ma dang kinh doanh, khong loc theo ton kho hien tai — hang 
   });
   const client = fakeReturnsClient([{ items: [], meta: { pagesLoaded: 1, recordsLoaded: 0, total: 0 } }]);
 
-  await runStockout30dScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-20', daysBack: 19, minConsecutiveDays: 5 });
+  await runStockout90dScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-20', daysBack: 19, minConsecutiveDays: 5 });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'done');
@@ -63,7 +63,7 @@ test('quet toan bo ma dang kinh doanh, khong loc theo ton kho hien tai — hang 
   assert.equal(job.result.warnings.length, 2);
 });
 
-test('nhieu dot dut hang trong 30 ngay duoc cong don dung so lan va tong so ngay', async () => {
+test('nhieu dot dut hang duoc cong don dung so lan va tong so ngay', async () => {
   const store = createJobStore();
   const jobId = store.createJob();
   const sheetsClient = fakeSheetsClient({
@@ -79,7 +79,7 @@ test('nhieu dot dut hang trong 30 ngay duoc cong don dung so lan va tong so ngay
   });
   const client = fakeReturnsClient([{ items: [], meta: { pagesLoaded: 1, recordsLoaded: 0, total: 0 } }]);
 
-  await runStockout30dScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-20', daysBack: 19, minConsecutiveDays: 5 });
+  await runStockout90dScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-20', daysBack: 19, minConsecutiveDays: 5 });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'done');
@@ -113,7 +113,7 @@ test('nguon Tra NCC (Sheets) va Khach tra hang (API) cung gop vao 1 eventMap cho
     meta: { pagesLoaded: 1, recordsLoaded: 1, total: 1 }
   }]);
 
-  await runStockout30dScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-20', daysBack: 19, minConsecutiveDays: 5 });
+  await runStockout90dScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-20', daysBack: 19, minConsecutiveDays: 5 });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'done');
@@ -137,7 +137,7 @@ test('khong co ung vien nao thi tra ket qua rong, khong goi API tra hang', async
   });
   const client = { async fetchAllPages() { returnsApiCalled = true; } };
 
-  await runStockout30dScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-20', daysBack: 19 });
+  await runStockout90dScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-20', daysBack: 19 });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'done');
@@ -152,7 +152,7 @@ test('loi khi doc Google Sheets thi job chuyen sang status error', async () => {
   const sheetsClient = { async getMultipleSheetValues() { throw new Error('Google Sheets timeout'); } };
   const client = fakeReturnsClient([]);
 
-  await runStockout30dScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-20', daysBack: 19 });
+  await runStockout90dScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-20', daysBack: 19 });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'error');
@@ -171,7 +171,7 @@ test('loi khi goi API tra hang thi job chuyen sang status error', async () => {
   });
   const client = { async fetchAllPages() { throw new Error('KiotViet returns API timeout'); } };
 
-  await runStockout30dScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-20', daysBack: 19 });
+  await runStockout90dScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-20', daysBack: 19 });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'error');

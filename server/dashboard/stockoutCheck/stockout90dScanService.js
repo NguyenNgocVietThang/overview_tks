@@ -7,9 +7,9 @@ const { loadActiveCandidates } = require('./sheetTimelineBuilder');
 const { loadStockoutEvents: defaultLoadStockoutEvents } = require('./stockoutEventLoader');
 
 const DEFAULT_MIN_CONSECUTIVE_DAYS = 5;
-const DEFAULT_DAYS_BACK = 29; // 29 ngay truoc + hom nay = dung 30 ngay
+const DEFAULT_DAYS_BACK = 89; // 89 ngay truoc + hom nay = dung 90 ngay
 
-async function runStockout30dScanJob(jobStore, jobId, deps = {}) {
+async function runStockout90dScanJob(jobStore, jobId, deps = {}) {
   const {
     sheetsClient,
     client,
@@ -81,4 +81,4 @@ async function runStockout30dScanJob(jobStore, jobId, deps = {}) {
   }
 }
 
-module.exports = { runStockout30dScanJob };
+module.exports = { runStockout90dScanJob };

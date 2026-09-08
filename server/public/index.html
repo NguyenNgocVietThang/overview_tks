@@ -1840,68 +1840,6 @@
       margin-bottom: 6px;
     }
 
-    .stockout-file-input {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
-      white-space: nowrap;
-    }
-
-    .stockout-file-picker {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex: 1 1 260px;
-      min-width: 220px;
-      padding: 4px;
-      border: 1px dashed var(--border);
-      border-radius: var(--radius-7);
-      background: var(--panel-2);
-    }
-
-    .stockout-file-label {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 7px 14px;
-      border-radius: var(--radius-7);
-      background: var(--panel);
-      border: 1px solid var(--border);
-      color: var(--text);
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: border-color .15s ease, color .15s ease;
-    }
-
-    .stockout-file-label:hover {
-      border-color: var(--green);
-      color: var(--green);
-    }
-
-    .stockout-file-label svg {
-      width: 14px;
-      height: 14px;
-      flex: none;
-    }
-
-    .stockout-file-name {
-      font-size: 11.5px;
-      color: var(--muted);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .stockout-file-hint {
-      font-size: 11px;
-      color: var(--muted);
-      margin: 0 0 10px;
-    }
-
     .stockout-progress-bar {
       width: 100%;
       height: 8px;
@@ -1930,19 +1868,6 @@
 
     .stockout-toggle-row:hover {
       background: color-mix(in srgb, var(--green) 6%, transparent);
-    }
-
-    .stockout-codes-input {
-      width: 100%;
-      resize: vertical;
-      padding: 8px 10px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-7);
-      background: var(--panel-2);
-      color: var(--text);
-      font: inherit;
-      font-size: 12.5px;
-      margin-bottom: 6px;
     }
 
     .export-button svg {
@@ -3454,6 +3379,87 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">4</span>
+              <h2>Kiểm tra đứt hàng <span class="section-note">đối chiếu trực tiếp KiotViet</span></h2>
+            </div>
+            <div class="grid">
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Hàng đứt gần đây <span class="tag" id="tagRecentStockoutTotal">—</span></h2>
+                </div>
+                <div class="stockout-upload-row">
+                  <button class="export-button" type="button" id="recentStockoutScanButton" onclick="startRecentStockoutScan()">Lấy danh sách đứt hàng gần đây</button>
+                </div>
+                <div class="table-note">Quét toàn bộ hàng hóa đang kinh doanh có tồn kho hiện tại = 0, liệt kê mã có số ngày đứt hàng liên tục (tính đến hôm nay) ≥ 5 ngày. Hóa đơn, Nhập hàng và Khách trả lấy từ API KiotViet; Trả NCC lấy từ Sheet.</div>
+                <div id="recentStockoutProgressBox" hidden>
+                  <div class="table-note" id="recentStockoutProgressLabel">—</div>
+                  <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="recentStockoutProgressFill"></div></div>
+                </div>
+                <div id="recentStockoutErrorBox" class="table-note" hidden></div>
+                <div id="recentStockoutRestoredNote" class="table-note" hidden></div>
+              </div>
+              <div class="panel col-12" id="recentStockoutResultPanel" hidden>
+                <div class="panel-head">
+                  <h2>Kết quả hàng đứt gần đây <span class="tag" id="tagRecentStockoutRows">—</span></h2>
+                  <button class="export-button" type="button" id="recentStockoutExportButton" disabled
+                    onclick="exportRecentStockoutResult()">Xuất Excel</button>
+                </div>
+                <div class="scroll-list" style="max-height:480px;">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Mã SP</th>
+                        <th>Tên SP</th>
+                        <th>Ngày hết hàng gần nhất</th>
+                        <th>Số ngày đứt hàng</th>
+                        <th>Các đợt đứt hàng</th>
+                      </tr>
+                    </thead>
+                    <tbody id="recentStockoutResultRows"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Kiểm tra đứt hàng 90 ngày <span class="tag" id="tagStockout90dTotal">—</span></h2>
+                </div>
+                <div class="stockout-upload-row">
+                  <button class="export-button" type="button" id="stockout90dScanButton" onclick="startStockout90dScan()">Kiểm tra đứt hàng 90 ngày</button>
+                </div>
+                <div class="table-note">Quét toàn bộ hàng hóa đang kinh doanh trong 90 ngày gần đây. Hóa đơn, Nhập hàng và Khách trả lấy từ API KiotViet; Hóa đơn/Nhập hàng dùng Google Sheets dự phòng khi API lỗi; Trả NCC lấy từ Sheet.</div>
+                <div id="stockout90dProgressBox" hidden>
+                  <div class="table-note" id="stockout90dProgressLabel">—</div>
+                  <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="stockout90dProgressFill"></div></div>
+                </div>
+                <div id="stockout90dErrorBox" class="table-note" hidden></div>
+                <div id="stockout90dRestoredNote" class="table-note" hidden></div>
+              </div>
+              <div class="panel col-12" id="stockout90dResultPanel" hidden>
+                <div class="panel-head">
+                  <h2>Kết quả kiểm tra đứt hàng 90 ngày <span class="tag" id="tagStockout90dRows">—</span></h2>
+                  <button class="export-button" type="button" id="stockout90dExportButton" disabled
+                    onclick="exportStockout90dResult()">Xuất Excel</button>
+                </div>
+                <div class="scroll-list" style="max-height:480px;">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Mã SP</th>
+                        <th>Tên SP</th>
+                        <th>Số lần đứt hàng</th>
+                        <th>Số ngày đứt hàng</th>
+                        <th>Tồn kho hiện tại</th>
+                        <th>Các đợt đứt hàng</th>
+                      </tr>
+                    </thead>
+                    <tbody id="stockout90dResultRows"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-step">5</span>
               <h2>Xu hướng <span class="section-note">theo bộ lọc thời gian</span></h2>
             </div>
             <div class="grid">
@@ -3493,7 +3499,7 @@
 
 
           <section class="section">
-            <div class="section-head"><span class="section-step">5</span>
+            <div class="section-head"><span class="section-step">6</span>
               <h2>Phân tích &amp; dữ liệu chi tiết <span class="section-note">giao dịch trong khoảng thời gian đã
                   lọc</span></h2>
             </div>
@@ -3560,7 +3566,7 @@
           </section>
 
           <section class="section">
-            <div class="section-head"><span class="section-step">6</span>
+            <div class="section-head"><span class="section-step">7</span>
               <h2>Hàng nhập <span class="section-note">tổng hợp và danh sách phiếu nhập hàng theo khoảng thời gian đã
                   chọn ở trên</span></h2>
             </div>
@@ -3631,7 +3637,7 @@
           </section>
 
           <section class="section">
-            <div class="section-head"><span class="section-step">7</span>
+            <div class="section-head"><span class="section-step">8</span>
               <h2>Mã mới tạo <span class="section-note">các mã hàng có Ngày tạo trong khoảng thời gian đã chọn ở
                   trên</span></h2>
             </div>
@@ -3980,158 +3986,6 @@
                   <span id="childCategoryPageLabel">Trang 1/1</span>
                   <button type="button" id="childCategoryNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
                   <button type="button" id="childCategoryLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">7</span>
-              <h2>Kiểm tra đứt hàng <span class="section-note">upload danh sách mã hàng · đối chiếu trực tiếp KiotViet · 6 tháng gần nhất</span></h2>
-            </div>
-            <div class="grid">
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Upload danh sách mã hàng <span class="tag" id="tagStockoutTotal">—</span></h2>
-                </div>
-                <div class="search-mode-toggle" role="group" aria-label="Cách nhập mã hàng">
-                  <button class="search-mode-button active" id="stockoutModeExcel" type="button" aria-pressed="true" onclick="setStockoutInputMode('excel')">Tải file Excel</button>
-                  <button class="search-mode-button" id="stockoutModeCodes" type="button" aria-pressed="false" onclick="setStockoutInputMode('codes')">Nhập nhiều mã</button>
-                </div>
-                <div id="stockoutExcelPanel">
-                  <p class="stockout-file-hint">Chọn file excel</p>
-                  <div class="stockout-upload-row">
-                    <div class="stockout-file-picker">
-                      <label class="stockout-file-label" for="stockoutFileInput">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        Chọn file
-                      </label>
-                      <span class="stockout-file-name" id="stockoutFileName">Chưa chọn file</span>
-                      <input type="file" class="stockout-file-input" id="stockoutFileInput" accept=".xlsx,.xls">
-                    </div>
-                  </div>
-                  <div class="table-note">File Excel chứa 1 cột mã hàng (tự nhận diện cột theo tên: "Mã hàng", "SKU"…).</div>
-                </div>
-                <div id="stockoutCodesPanel" hidden>
-                  <textarea id="stockoutCodesInput" class="stockout-codes-input" rows="3" placeholder="Dán hoặc gõ nhiều mã hàng, cách nhau bởi khoảng trắng, dấu phẩy hoặc xuống dòng"></textarea>
-                  <div class="stockout-file-hint">Tối đa 300 mã mỗi lần kiểm tra.</div>
-                </div>
-                <div class="stockout-upload-row">
-                  <button class="export-button" type="button" id="stockoutCheckButton" onclick="startStockoutCheck()">Kiểm tra đứt hàng</button>
-                </div>
-                <div class="table-note">Định nghĩa đứt hàng: tồn kho về 0 liên tục từ 5 ngày trở lên, xét trong 6 tháng gần nhất. Hóa đơn, Nhập hàng và Khách trả lấy từ API KiotViet; Hóa đơn/Nhập hàng dùng Google Sheets dự phòng khi API lỗi; Trả NCC lấy từ Sheet.</div>
-                <div id="stockoutProgressBox" hidden>
-                  <div class="table-note" id="stockoutProgressLabel">—</div>
-                  <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="stockoutProgressFill"></div></div>
-                </div>
-                <div id="stockoutInvalidBox" class="table-note" hidden></div>
-                <div id="stockoutErrorBox" class="table-note" hidden></div>
-                <div id="stockoutRestoredNote" class="table-note" hidden></div>
-              </div>
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Kết quả đứt hàng <span class="tag" id="tagStockoutRows">—</span></h2>
-                  <button class="export-button" type="button" id="stockoutExportButton" disabled
-                    onclick="exportStockoutResult()">Xuất Excel</button>
-                </div>
-                <div class="scroll-list" style="max-height:480px;">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Mã hàng</th>
-                        <th>Tên hàng</th>
-                        <th>Số lần đứt hàng</th>
-                        <th>Tổng ngày đứt hàng</th>
-                        <th>Các đợt đứt hàng</th>
-                      </tr>
-                    </thead>
-                    <tbody id="stockoutResultRows">
-                      <tr>
-                        <td colspan="5" class="table-note">Chưa có dữ liệu — hãy upload file Excel ở trên</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Hàng đứt gần đây <span class="tag" id="tagRecentStockoutTotal">—</span></h2>
-                </div>
-                <div class="stockout-upload-row">
-                  <button class="export-button" type="button" id="recentStockoutScanButton" onclick="startRecentStockoutScan()">Lấy danh sách đứt hàng gần đây</button>
-                </div>
-                <div class="table-note">Quét toàn bộ hàng hóa đang kinh doanh có tồn kho hiện tại = 0, liệt kê mã có số ngày đứt hàng liên tục (tính đến hôm nay) ≥ 5 ngày. Hóa đơn, Nhập hàng và Khách trả lấy từ API KiotViet; Trả NCC lấy từ Sheet.</div>
-                <div id="recentStockoutProgressBox" hidden>
-                  <div class="table-note" id="recentStockoutProgressLabel">—</div>
-                  <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="recentStockoutProgressFill"></div></div>
-                </div>
-                <div id="recentStockoutErrorBox" class="table-note" hidden></div>
-                <div id="recentStockoutRestoredNote" class="table-note" hidden></div>
-              </div>
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Kết quả hàng đứt gần đây <span class="tag" id="tagRecentStockoutRows">—</span></h2>
-                  <button class="export-button" type="button" id="recentStockoutExportButton" disabled
-                    onclick="exportRecentStockoutResult()">Xuất Excel</button>
-                </div>
-                <div class="scroll-list" style="max-height:480px;">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Mã SP</th>
-                        <th>Tên SP</th>
-                        <th>Ngày hết hàng gần nhất</th>
-                        <th>Số ngày đứt hàng</th>
-                        <th>Các đợt đứt hàng</th>
-                      </tr>
-                    </thead>
-                    <tbody id="recentStockoutResultRows">
-                      <tr>
-                        <td colspan="5" class="table-note">Chưa có dữ liệu — hãy ấn "Lấy danh sách đứt hàng gần đây"</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Kiểm tra đứt hàng 30 ngày <span class="tag" id="tagStockout30dTotal">—</span></h2>
-                </div>
-                <div class="stockout-upload-row">
-                  <button class="export-button" type="button" id="stockout30dScanButton" onclick="startStockout30dScan()">Kiểm tra đứt hàng 30 ngày</button>
-                </div>
-                <div class="table-note">Quét toàn bộ hàng hóa đang kinh doanh trong 30 ngày gần đây. Hóa đơn, Nhập hàng và Khách trả lấy từ API KiotViet; Hóa đơn/Nhập hàng dùng Google Sheets dự phòng khi API lỗi; Trả NCC lấy từ Sheet.</div>
-                <div id="stockout30dProgressBox" hidden>
-                  <div class="table-note" id="stockout30dProgressLabel">—</div>
-                  <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="stockout30dProgressFill"></div></div>
-                </div>
-                <div id="stockout30dErrorBox" class="table-note" hidden></div>
-                <div id="stockout30dRestoredNote" class="table-note" hidden></div>
-              </div>
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Kết quả kiểm tra đứt hàng 30 ngày <span class="tag" id="tagStockout30dRows">—</span></h2>
-                  <button class="export-button" type="button" id="stockout30dExportButton" disabled
-                    onclick="exportStockout30dResult()">Xuất Excel</button>
-                </div>
-                <div class="scroll-list" style="max-height:480px;">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Mã SP</th>
-                        <th>Tên SP</th>
-                        <th>Số lần đứt hàng</th>
-                        <th>Số ngày đứt hàng</th>
-                        <th>Tồn kho hiện tại</th>
-                        <th>Các đợt đứt hàng</th>
-                      </tr>
-                    </thead>
-                    <tbody id="stockout30dResultRows">
-                      <tr>
-                        <td colspan="6" class="table-note">Chưa có dữ liệu — hãy ấn "Kiểm tra đứt hàng 30 ngày"</td>
-                      </tr>
-                    </tbody>
-                  </table>
                 </div>
               </div>
             </div>
@@ -5049,44 +4903,6 @@
         .replace(/'/g, '&#039;');
     }
 
-    state.stockoutCheck = { jobId: null, pollTimer: null, result: null, mode: 'excel' };
-
-    (function initStockoutFileLabel() {
-      const input = document.getElementById('stockoutFileInput');
-      const nameEl = document.getElementById('stockoutFileName');
-      if (!input || !nameEl) return;
-      input.addEventListener('change', function () {
-        nameEl.textContent = (input.files && input.files[0]) ? input.files[0].name : 'Chưa chọn file';
-      });
-    })();
-
-    function setStockoutInputMode(mode) {
-      const nextMode = mode === 'codes' ? 'codes' : 'excel';
-      state.stockoutCheck.mode = nextMode;
-      document.getElementById('stockoutExcelPanel').hidden = nextMode !== 'excel';
-      document.getElementById('stockoutCodesPanel').hidden = nextMode !== 'codes';
-      const excelBtn = document.getElementById('stockoutModeExcel');
-      const codesBtn = document.getElementById('stockoutModeCodes');
-      excelBtn.classList.toggle('active', nextMode === 'excel');
-      excelBtn.setAttribute('aria-pressed', String(nextMode === 'excel'));
-      codesBtn.classList.toggle('active', nextMode === 'codes');
-      codesBtn.setAttribute('aria-pressed', String(nextMode === 'codes'));
-    }
-
-    function parseStockoutCodesInput(value) {
-      const seen = new Set();
-      return String(value || '')
-        .split(/[\s,]+/)
-        .map(function (code) { return code.trim(); })
-        .filter(Boolean)
-        .filter(function (code) {
-          const key = code.normalize('NFC').toLocaleLowerCase('vi-VN');
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-    }
-
     const STOCKOUT_RESULT_SCHEMA_VERSION = 3;
 
     function hasCurrentStockoutResultShape(result) {
@@ -5096,224 +4912,6 @@
         && Boolean(result.sources)
         && typeof result.sources === 'object'
         && Array.isArray(result.warnings);
-    }
-
-    function saveStockoutCheckState() {
-      try {
-        const mode = state.stockoutCheck.mode;
-        const payload = {
-          schemaVersion: STOCKOUT_RESULT_SCHEMA_VERSION,
-          mode: mode,
-          codesText: mode === 'codes' ? (document.getElementById('stockoutCodesInput').value || '') : '',
-          fileName: mode === 'excel' ? (document.getElementById('stockoutFileName').textContent || '') : '',
-          result: state.stockoutCheck.result,
-          checkedAt: new Date().toISOString()
-        };
-        localStorage.setItem('stockoutCheck:lastState', JSON.stringify(payload));
-      } catch (err) { /* localStorage không khả dụng hoặc vượt quá dung lượng lưu trữ — lưu trạng thái theo cơ chế nỗ lực tối đa */ }
-    }
-
-    function restoreStockoutCheckState() {
-      let saved = null;
-      try {
-        const raw = localStorage.getItem('stockoutCheck:lastState');
-        if (raw) saved = JSON.parse(raw);
-      } catch (err) { saved = null; }
-      if (!saved) return;
-      if (saved.schemaVersion !== STOCKOUT_RESULT_SCHEMA_VERSION || !hasCurrentStockoutResultShape(saved.result)) {
-        try { localStorage.removeItem('stockoutCheck:lastState'); } catch (err) { /* bỏ qua */ }
-        return;
-      }
-
-      state.stockoutCheck.result = saved.result;
-      setStockoutInputMode(saved.mode || 'excel');
-
-      if (saved.mode === 'codes') {
-        document.getElementById('stockoutCodesInput').value = saved.codesText || '';
-      } else if (saved.fileName) {
-        document.getElementById('stockoutFileName').textContent = saved.fileName;
-      }
-
-      renderStockoutResultTable(saved.result);
-
-      const totalTag = document.getElementById('tagStockoutTotal');
-      if (totalTag && saved.result.totalValidCodes != null) totalTag.textContent = saved.result.totalValidCodes;
-
-      if (saved.result.invalidCodes && saved.result.invalidCodes.length > 0) {
-        const invalidBox = document.getElementById('stockoutInvalidBox');
-        invalidBox.hidden = false;
-        invalidBox.textContent = 'Không tìm thấy ' + saved.result.invalidCodes.length + ' mã trong hệ thống: ' + saved.result.invalidCodes.join(', ');
-      }
-
-      const note = document.getElementById('stockoutRestoredNote');
-      const warningText = formatStockoutSourceWarnings(saved.result);
-      if (note && (saved.checkedAt || warningText)) {
-        const messages = [];
-        if (saved.checkedAt) {
-          const d = new Date(saved.checkedAt);
-          messages.push('Đã phục hồi kết quả lần kiểm tra gần nhất (' + d.toLocaleString('vi-VN') + ').');
-        }
-        if (warningText) messages.push(warningText);
-        note.hidden = false;
-        note.textContent = messages.join(' ');
-      }
-    }
-    restoreStockoutCheckState();
-
-    async function startStockoutCheck() {
-      const button = document.getElementById('stockoutCheckButton');
-      const errorBox = document.getElementById('stockoutErrorBox');
-      const invalidBox = document.getElementById('stockoutInvalidBox');
-      const progressBox = document.getElementById('stockoutProgressBox');
-      const restoredNote = document.getElementById('stockoutRestoredNote');
-
-      errorBox.hidden = true;
-      invalidBox.hidden = true;
-      restoredNote.hidden = true;
-
-      const mode = state.stockoutCheck.mode;
-      let requestFn;
-
-      if (mode === 'codes') {
-        const codesInput = document.getElementById('stockoutCodesInput');
-        const codes = parseStockoutCodesInput(codesInput.value);
-        if (codes.length === 0) {
-          errorBox.hidden = false;
-          errorBox.textContent = 'Vui lòng nhập ít nhất 1 mã hàng trước khi kiểm tra.';
-          return;
-        }
-        if (codes.length > 300) {
-          errorBox.hidden = false;
-          errorBox.textContent = 'Chỉ hỗ trợ tối đa 300 mã mỗi lần kiểm tra (đang nhập ' + codes.length + ' mã).';
-          return;
-        }
-        requestFn = function () {
-          return fetch('/api/products/stockout-check/codes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ codes: codes })
-          });
-        };
-      } else {
-        const input = document.getElementById('stockoutFileInput');
-        if (!input.files || !input.files[0]) {
-          errorBox.hidden = false;
-          errorBox.textContent = 'Vui lòng chọn 1 file Excel trước khi kiểm tra.';
-          return;
-        }
-        requestFn = function () {
-          const formData = new FormData();
-          formData.append('file', input.files[0]);
-          return fetch('/api/products/stockout-check', { method: 'POST', body: formData });
-        };
-      }
-
-      if (state.stockoutCheck.pollTimer) {
-        clearInterval(state.stockoutCheck.pollTimer);
-        state.stockoutCheck.pollTimer = null;
-      }
-
-      button.disabled = true;
-      progressBox.hidden = false;
-      document.getElementById('stockoutProgressLabel').textContent = mode === 'codes' ? 'Đang gửi danh sách mã...' : 'Đang tải file lên...';
-      document.getElementById('stockoutProgressFill').style.width = '2%';
-
-      try {
-        const response = await requestFn();
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error || 'Yêu cầu thất bại.');
-
-        state.stockoutCheck.jobId = payload.jobId;
-        state.stockoutCheck.pollTimer = setInterval(pollStockoutCheck, 1500);
-      } catch (err) {
-        button.disabled = false;
-        progressBox.hidden = true;
-        errorBox.hidden = false;
-        errorBox.textContent = err.message || 'Không thể bắt đầu kiểm tra đứt hàng.';
-      }
-    }
-
-    async function pollStockoutCheck() {
-      const jobId = state.stockoutCheck.jobId;
-      if (!jobId) return;
-
-      try {
-        const response = await fetch('/api/products/stockout-check/' + encodeURIComponent(jobId) + '/progress');
-        const progress = await response.json();
-        if (!response.ok) throw new Error(progress.error || 'Không lấy được tiến độ.');
-
-        renderStockoutProgress(progress);
-
-        if (progress.status === 'done') {
-          clearInterval(state.stockoutCheck.pollTimer);
-          state.stockoutCheck.pollTimer = null;
-          await fetchStockoutResult(jobId);
-        } else if (progress.status === 'error') {
-          clearInterval(state.stockoutCheck.pollTimer);
-          state.stockoutCheck.pollTimer = null;
-          document.getElementById('stockoutCheckButton').disabled = false;
-          document.getElementById('stockoutProgressBox').hidden = true;
-          const errorBox = document.getElementById('stockoutErrorBox');
-          errorBox.hidden = false;
-          errorBox.textContent = progress.error || 'Kiểm tra đứt hàng thất bại.';
-        }
-      } catch (err) {
-        clearInterval(state.stockoutCheck.pollTimer);
-        state.stockoutCheck.pollTimer = null;
-        document.getElementById('stockoutCheckButton').disabled = false;
-        const errorBox = document.getElementById('stockoutErrorBox');
-        errorBox.hidden = false;
-        errorBox.textContent = err.message || 'Mất kết nối khi đang kiểm tra đứt hàng.';
-      }
-    }
-
-    function renderStockoutProgress(progress) {
-      const label = document.getElementById('stockoutProgressLabel');
-      const fill = document.getElementById('stockoutProgressFill');
-      let percent = 10;
-      let text = progress.phaseLabel || 'Đang xử lý...';
-
-      if (progress.phase === 2 && progress.phase2 && progress.phase2.total > 0) {
-        percent = 40 + Math.round((progress.phase2.recordsLoaded / progress.phase2.total) * 55);
-        text = progress.phaseLabel + ' (' + progress.phase2.recordsLoaded + '/' + progress.phase2.total + ')';
-      } else if (progress.phase === 2) {
-        percent = 50;
-      }
-
-      label.textContent = text;
-      fill.style.width = Math.min(100, percent) + '%';
-
-      const tag = document.getElementById('tagStockoutTotal');
-      if (tag) tag.textContent = progress.totalValidCodes || '—';
-
-      const invalidBox = document.getElementById('stockoutInvalidBox');
-      if (progress.invalidCodes && progress.invalidCodes.length > 0) {
-        invalidBox.hidden = false;
-        invalidBox.textContent = 'Không tìm thấy ' + progress.invalidCodes.length + ' mã trong hệ thống: ' + progress.invalidCodes.join(', ');
-      }
-    }
-
-    async function fetchStockoutResult(jobId) {
-      try {
-        const response = await fetch('/api/products/stockout-check/' + encodeURIComponent(jobId) + '/result');
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error || 'Không lấy được kết quả.');
-        if (!hasCurrentStockoutResultShape(payload.result)) {
-          throw new Error('Kết quả máy chủ chưa có dữ liệu các đợt đứt hàng và nguồn dữ liệu. Hãy khởi động lại máy chủ rồi kiểm tra lại.');
-        }
-
-        state.stockoutCheck.result = payload.result;
-        document.getElementById('stockoutProgressBox').hidden = true;
-        document.getElementById('stockoutCheckButton').disabled = false;
-        renderStockoutResultTable(payload.result);
-        showStockoutSourceWarnings(payload.result, 'stockoutRestoredNote');
-        saveStockoutCheckState();
-      } catch (err) {
-        document.getElementById('stockoutCheckButton').disabled = false;
-        const errorBox = document.getElementById('stockoutErrorBox');
-        errorBox.hidden = false;
-        errorBox.textContent = err.message || 'Không lấy được kết quả kiểm tra đứt hàng.';
-      }
     }
 
     function formatStockoutDate(dateKey) {
@@ -5337,69 +4935,6 @@
       const warningText = formatStockoutSourceWarnings(result);
       note.hidden = !warningText;
       note.textContent = warningText;
-    }
-
-    function renderStockoutResultTable(result) {
-      const tbody = document.getElementById('stockoutResultRows');
-      const tag = document.getElementById('tagStockoutRows');
-      const rows = (result && result.rows) || [];
-
-      if (tag) tag.textContent = rows.length;
-      const exportButton = document.getElementById('stockoutExportButton');
-      if (exportButton) exportButton.disabled = rows.length === 0;
-
-      if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="table-note">Không có mã hàng nào bị đứt hàng ≥ 5 ngày trong khoảng ' +
-          escapeHtml(result.fromDate) + ' — ' + escapeHtml(result.toDate) + '</td></tr>';
-        return;
-      }
-
-      const sorted = rows.slice().sort(function (a, b) { return b.totalStockoutDays - a.totalStockoutDays; });
-
-      tbody.innerHTML = sorted.map(function (row) {
-        return (
-          '<tr>' +
-            '<td>' + escapeHtml(row.code) + '</td>' +
-            '<td>' + escapeHtml(row.name) + '</td>' +
-            '<td>' + row.stockoutCount + '</td>' +
-            '<td>' + row.totalStockoutDays + '</td>' +
-            '<td>' + formatStockoutPeriods(row.periods) + '</td>' +
-          '</tr>'
-        );
-      }).join('');
-    }
-
-    async function exportStockoutResult() {
-      const result = state.stockoutCheck.result;
-      const rows = (result && result.rows) || [];
-      if (!rows.length) return;
-      const button = document.getElementById('stockoutExportButton');
-      const originalLabel = button ? button.textContent : '';
-      if (button) { button.disabled = true; button.textContent = 'Đang xuất…'; }
-      try {
-        const payload = {
-          tableKey: 'stockout.result',
-          stockoutResult: result,
-          columns: { stockout_result: ['code', 'name', 'currentOnHand', 'stockoutCount', 'totalStockoutDays', 'periods'] }
-        };
-        const response = await fetch('/api/export', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-        });
-        if (!response.ok) throw new Error(await readExportError(response, 'Không thể tạo file Excel'));
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = downloadNameFromResponse(response);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-      } catch (err) {
-        alert(err.message || 'Không thể xuất file Excel.');
-      } finally {
-        if (button) { button.disabled = rows.length === 0; button.textContent = originalLabel; }
-      }
     }
 
     function toggleStockoutPeriods(rowId) {
@@ -5559,6 +5094,8 @@
     }
 
     function renderRecentStockoutResultTable(result) {
+      const panel = document.getElementById('recentStockoutResultPanel');
+      if (panel) panel.hidden = false;
       const tbody = document.getElementById('recentStockoutResultRows');
       const tag = document.getElementById('tagRecentStockoutRows');
       const totalTag = document.getElementById('tagRecentStockoutTotal');
@@ -5623,35 +5160,35 @@
       }
     }
 
-    state.stockout30d = { jobId: null, pollTimer: null, result: null };
+    state.stockout90d = { jobId: null, pollTimer: null, result: null };
 
-    function saveStockout30dState() {
+    function saveStockout90dState() {
       try {
         const payload = {
           schemaVersion: STOCKOUT_RESULT_SCHEMA_VERSION,
-          result: state.stockout30d.result,
+          result: state.stockout90d.result,
           checkedAt: new Date().toISOString()
         };
-        localStorage.setItem('stockout30d:lastState', JSON.stringify(payload));
+        localStorage.setItem('stockout90d:lastState', JSON.stringify(payload));
       } catch (err) { /* localStorage không khả dụng — bỏ qua, không chặn luồng chính */ }
     }
 
-    function restoreStockout30dState() {
+    function restoreStockout90dState() {
       let saved = null;
       try {
-        const raw = localStorage.getItem('stockout30d:lastState');
+        const raw = localStorage.getItem('stockout90d:lastState');
         if (raw) saved = JSON.parse(raw);
       } catch (err) { saved = null; }
       if (!saved) return;
       if (saved.schemaVersion !== STOCKOUT_RESULT_SCHEMA_VERSION || !hasCurrentStockoutResultShape(saved.result)) {
-        try { localStorage.removeItem('stockout30d:lastState'); } catch (err) { /* bỏ qua */ }
+        try { localStorage.removeItem('stockout90d:lastState'); } catch (err) { /* bỏ qua */ }
         return;
       }
 
-      state.stockout30d.result = saved.result;
-      renderStockout30dResultTable(saved.result);
+      state.stockout90d.result = saved.result;
+      renderStockout90dResultTable(saved.result);
 
-      const note = document.getElementById('stockout30dRestoredNote');
+      const note = document.getElementById('stockout90dRestoredNote');
       const warningText = formatStockoutSourceWarnings(saved.result);
       if (note && (saved.checkedAt || warningText)) {
         const messages = [];
@@ -5664,79 +5201,79 @@
         note.textContent = messages.join(' ');
       }
     }
-    restoreStockout30dState();
+    restoreStockout90dState();
 
-    async function startStockout30dScan() {
-      const button = document.getElementById('stockout30dScanButton');
-      const errorBox = document.getElementById('stockout30dErrorBox');
-      const progressBox = document.getElementById('stockout30dProgressBox');
-      const restoredNote = document.getElementById('stockout30dRestoredNote');
+    async function startStockout90dScan() {
+      const button = document.getElementById('stockout90dScanButton');
+      const errorBox = document.getElementById('stockout90dErrorBox');
+      const progressBox = document.getElementById('stockout90dProgressBox');
+      const restoredNote = document.getElementById('stockout90dRestoredNote');
 
       errorBox.hidden = true;
       restoredNote.hidden = true;
 
-      if (state.stockout30d.pollTimer) {
-        clearInterval(state.stockout30d.pollTimer);
-        state.stockout30d.pollTimer = null;
+      if (state.stockout90d.pollTimer) {
+        clearInterval(state.stockout90d.pollTimer);
+        state.stockout90d.pollTimer = null;
       }
 
       button.disabled = true;
       progressBox.hidden = false;
-      document.getElementById('stockout30dProgressLabel').textContent = 'Đang bắt đầu kiểm tra...';
-      document.getElementById('stockout30dProgressFill').style.width = '5%';
+      document.getElementById('stockout90dProgressLabel').textContent = 'Đang bắt đầu kiểm tra...';
+      document.getElementById('stockout90dProgressFill').style.width = '5%';
 
       try {
-        const response = await fetch('/api/products/stockout-30d/scan', { method: 'POST' });
+        const response = await fetch('/api/products/stockout-90d/scan', { method: 'POST' });
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || 'Yêu cầu thất bại.');
 
-        state.stockout30d.jobId = payload.jobId;
-        state.stockout30d.pollTimer = setInterval(pollStockout30dScan, 1500);
+        state.stockout90d.jobId = payload.jobId;
+        state.stockout90d.pollTimer = setInterval(pollStockout90dScan, 1500);
       } catch (err) {
         button.disabled = false;
         progressBox.hidden = true;
         errorBox.hidden = false;
-        errorBox.textContent = err.message || 'Không thể bắt đầu kiểm tra đứt hàng 30 ngày.';
+        errorBox.textContent = err.message || 'Không thể bắt đầu kiểm tra đứt hàng 90 ngày.';
       }
     }
 
-    async function pollStockout30dScan() {
-      const jobId = state.stockout30d.jobId;
+    async function pollStockout90dScan() {
+      const jobId = state.stockout90d.jobId;
       if (!jobId) return;
 
       try {
-        const response = await fetch('/api/products/stockout-30d/' + encodeURIComponent(jobId) + '/progress');
+        const response = await fetch('/api/products/stockout-90d/' + encodeURIComponent(jobId) + '/progress');
         const progress = await response.json();
         if (!response.ok) throw new Error(progress.error || 'Không lấy được tiến độ.');
 
-        renderStockout30dProgress(progress);
+        renderStockout90dProgress(progress);
 
         if (progress.status === 'done') {
-          clearInterval(state.stockout30d.pollTimer);
-          state.stockout30d.pollTimer = null;
-          await fetchStockout30dResult(jobId);
+          clearInterval(state.stockout90d.pollTimer);
+          state.stockout90d.pollTimer = null;
+          await fetchStockout90dResult(jobId);
         } else if (progress.status === 'error') {
-          clearInterval(state.stockout30d.pollTimer);
-          state.stockout30d.pollTimer = null;
-          document.getElementById('stockout30dScanButton').disabled = false;
-          document.getElementById('stockout30dProgressBox').hidden = true;
-          const errorBox = document.getElementById('stockout30dErrorBox');
+          clearInterval(state.stockout90d.pollTimer);
+          state.stockout90d.pollTimer = null;
+          document.getElementById('stockout90dScanButton').disabled = false;
+          document.getElementById('stockout90dProgressBox').hidden = true;
+          const errorBox = document.getElementById('stockout90dErrorBox');
           errorBox.hidden = false;
-          errorBox.textContent = progress.error || 'Kiểm tra đứt hàng 30 ngày thất bại.';
+          errorBox.textContent = progress.error || 'Kiểm tra đứt hàng 90 ngày thất bại.';
         }
       } catch (err) {
-        clearInterval(state.stockout30d.pollTimer);
-        state.stockout30d.pollTimer = null;
-        document.getElementById('stockout30dScanButton').disabled = false;
-        const errorBox = document.getElementById('stockout30dErrorBox');
+        clearInterval(state.stockout90d.pollTimer);
+        state.stockout90d.pollTimer = null;
+        document.getElementById('stockout90dScanButton').disabled = false;
+        const errorBox = document.getElementById('stockout90dErrorBox');
         errorBox.hidden = false;
-        errorBox.textContent = err.message || 'Mất kết nối khi đang kiểm tra đứt hàng 30 ngày.';
+        errorBox.textContent = err.message || 'Mất kết nối khi đang kiểm tra đứt hàng 90 ngày.';
       }
     }
 
-    function renderStockout30dProgress(progress) {
-      const label = document.getElementById('stockout30dProgressLabel');
-      const fill = document.getElementById('stockout30dProgressFill');
+    function renderStockout90dProgress(progress) {
+      const label = document.getElementById('stockout90dProgressLabel');
+      const fill = document.getElementById('stockout90dProgressFill');
       let percent = 10;
       let text = progress.phaseLabel || 'Đang xử lý...';
 
@@ -5751,42 +5288,44 @@
       fill.style.width = Math.min(100, percent) + '%';
     }
 
-    async function fetchStockout30dResult(jobId) {
+    async function fetchStockout90dResult(jobId) {
       try {
-        const response = await fetch('/api/products/stockout-30d/' + encodeURIComponent(jobId) + '/result');
+        const response = await fetch('/api/products/stockout-90d/' + encodeURIComponent(jobId) + '/result');
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || 'Không lấy được kết quả.');
         if (!hasCurrentStockoutResultShape(payload.result)) {
           throw new Error('Kết quả máy chủ chưa có dữ liệu các đợt đứt hàng và nguồn dữ liệu. Hãy khởi động lại máy chủ rồi kiểm tra lại.');
         }
 
-        state.stockout30d.result = payload.result;
-        document.getElementById('stockout30dProgressBox').hidden = true;
-        document.getElementById('stockout30dScanButton').disabled = false;
-        renderStockout30dResultTable(payload.result);
-        showStockoutSourceWarnings(payload.result, 'stockout30dRestoredNote');
-        saveStockout30dState();
+        state.stockout90d.result = payload.result;
+        document.getElementById('stockout90dProgressBox').hidden = true;
+        document.getElementById('stockout90dScanButton').disabled = false;
+        renderStockout90dResultTable(payload.result);
+        showStockoutSourceWarnings(payload.result, 'stockout90dRestoredNote');
+        saveStockout90dState();
       } catch (err) {
-        document.getElementById('stockout30dScanButton').disabled = false;
-        const errorBox = document.getElementById('stockout30dErrorBox');
+        document.getElementById('stockout90dScanButton').disabled = false;
+        const errorBox = document.getElementById('stockout90dErrorBox');
         errorBox.hidden = false;
-        errorBox.textContent = err.message || 'Không lấy được kết quả kiểm tra đứt hàng 30 ngày.';
+        errorBox.textContent = err.message || 'Không lấy được kết quả kiểm tra đứt hàng 90 ngày.';
       }
     }
 
-    function renderStockout30dResultTable(result) {
-      const tbody = document.getElementById('stockout30dResultRows');
-      const tag = document.getElementById('tagStockout30dRows');
-      const totalTag = document.getElementById('tagStockout30dTotal');
+    function renderStockout90dResultTable(result) {
+      const panel = document.getElementById('stockout90dResultPanel');
+      if (panel) panel.hidden = false;
+      const tbody = document.getElementById('stockout90dResultRows');
+      const tag = document.getElementById('tagStockout90dRows');
+      const totalTag = document.getElementById('tagStockout90dTotal');
       const rows = (result && result.rows) || [];
 
       if (tag) tag.textContent = rows.length;
       if (totalTag) totalTag.textContent = (result && result.totalProductsScanned != null) ? result.totalProductsScanned : '—';
-      const exportButton = document.getElementById('stockout30dExportButton');
+      const exportButton = document.getElementById('stockout90dExportButton');
       if (exportButton) exportButton.disabled = rows.length === 0;
 
       if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 30 ngày gần đây</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 90 ngày gần đây</td></tr>';
         return;
       }
 
@@ -5806,18 +5345,18 @@
       }).join('');
     }
 
-    async function exportStockout30dResult() {
-      const result = state.stockout30d.result;
+    async function exportStockout90dResult() {
+      const result = state.stockout90d.result;
       const rows = (result && result.rows) || [];
       if (!rows.length) return;
-      const button = document.getElementById('stockout30dExportButton');
+      const button = document.getElementById('stockout90dExportButton');
       const originalLabel = button ? button.textContent : '';
       if (button) { button.disabled = true; button.textContent = 'Đang xuất…'; }
       try {
         const payload = {
-          tableKey: 'stockout.check30d',
-          stockout30dResult: result,
-          columns: { stockout_30d_result: ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'currentOnHand', 'periods'] }
+          tableKey: 'stockout.check90d',
+          stockout90dResult: result,
+          columns: { stockout_90d_result: ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'currentOnHand', 'periods'] }
         };
         const response = await fetch('/api/export', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)

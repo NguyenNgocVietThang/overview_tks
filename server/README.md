@@ -129,15 +129,15 @@ node scripts/setupHrSheet.js init
 
 Schema nghỉ phép dùng `Thời gian gửi`, `Thời gian bắt đầu/kết thúc` dạng `Sáng|Chiều dd/mm/yyyy`, `Tổng buổi nghỉ` và `Tổng ngày nghỉ quy đổi = số buổi / 2`. Đơn gửi sau 07:45 (Sáng) hoặc 12:30 (Chiều) vẫn được lưu với trạng thái `Vi phạm`.
 
-### 2.7. Kiểm tra đứt hàng (`/api/products/stockout-check/*`)
+### 2.7. Kiểm tra đứt hàng (`/api/products/stockout-*`)
 | Method | Endpoint | Quyền | Mô tả |
 |---|---|---|---|
-| `POST` | `/api/products/stockout-check/validate` | Nội bộ | Đọc và kiểm tra tính hợp lệ của file Excel danh sách sản phẩm tải lên. |
-| `POST` | `/api/products/stockout-check/start` | Nội bộ | Khởi chạy tác vụ phân tích đứt hàng đối chiếu dữ liệu KiotViet API nền. |
-| `GET` | `/api/products/stockout-check/status/:jobId` | Nội bộ | Kiểm tra tiến độ phân tích đứt hàng theo jobId. |
-| `GET` | `/api/products/stockout-check/result/:jobId` | Nội bộ | Lấy kết quả phân tích đứt hàng và dòng thời gian biến động tồn kho. |
-| `POST` | `/api/products/stockout-check/export/:jobId` | Nội bộ | Xuất báo cáo kết quả kiểm tra đứt hàng ra file Excel. |
-| `POST` | `/api/products/stockout-check/cancel/:jobId` | Nội bộ | Hủy tác vụ kiểm tra đứt hàng đang chạy. |
+| `POST` | `/api/products/stockout-recent/scan` | Nội bộ | Khởi chạy tác vụ quét toàn bộ hàng đang kinh doanh có tồn kho hiện tại = 0. |
+| `GET` | `/api/products/stockout-recent/:jobId/progress` | Nội bộ | Kiểm tra tiến độ quét hàng đứt gần đây theo jobId. |
+| `GET` | `/api/products/stockout-recent/:jobId/result` | Nội bộ | Lấy kết quả quét hàng đứt gần đây. |
+| `POST` | `/api/products/stockout-90d/scan` | Nội bộ | Khởi chạy tác vụ kiểm tra đứt hàng trong cửa sổ 90 ngày gần đây. |
+| `GET` | `/api/products/stockout-90d/:jobId/progress` | Nội bộ | Kiểm tra tiến độ kiểm tra đứt hàng 90 ngày theo jobId. |
+| `GET` | `/api/products/stockout-90d/:jobId/result` | Nội bộ | Lấy kết quả kiểm tra đứt hàng 90 ngày. |
 
 ### 2.8. Dashboard, Tìm kiếm & Tiện ích
 | Method | Endpoint | Quyền | Mô tả |

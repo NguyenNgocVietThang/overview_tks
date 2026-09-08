@@ -31,7 +31,7 @@ src-order-lifecycle/        ← GAS project riêng cho Google Sheets Vận chuy�
 server/                     ← Node.js/Express backend (Render.com)
 ├── index.js                ← Express entry point (Gzip compression, static Cache-Control headers)
 ├── config.js
-├── routes.js               ← Định tuyến API (/api/dashboard/*, /api/auth/*, /api/admin/*, /api/shipment/*, /api/hr/*, /api/notifications/*, /api/role-requests/*, /api/products/stockout-check/*)
+├── routes.js               ← Định tuyến API (/api/dashboard/*, /api/auth/*, /api/admin/*, /api/shipment/*, /api/hr/*, /api/notifications/*, /api/role-requests/*, /api/products/stockout-recent/*, /api/products/stockout-90d/*)
 ├── auth/                   ← Xác thực JWT cookie, bcrypt, Google OAuth, OTP, Local User Store, phân quyền RBAC & đổi vai trò
 │   ├── adminUserRoutes.js · adminUserRoutes.test.js ← API quản trị người dùng Admin (/api/admin/users)
 │   ├── authMiddleware.js · authMiddleware.test.js   ← requireAuth, requireRole
@@ -49,10 +49,12 @@ server/                     ← Node.js/Express backend (Render.com)
 │   ├── debtReport.js       ← Báo cáo công nợ khách hàng 1/3/7 ngày từ HN1/HN3/HN7
 │   ├── exportService.js    ← Registry 15 bảng và tạo file Excel .xlsx
 │   ├── exportService.test.js ← Unit test xuất Excel
-│   └── stockoutCheck/      ← Kiểm tra đứt hàng đối chiếu file Excel với KiotViet API
-│       ├── concurrencyPool.js · excelParser.js · jobManager.js · kiotVietClient.js
-│       ├── productCodeValidator.js · stockoutAnalyzer.js · stockoutCheckRoutes.js
-│       ├── stockoutCheckService.js · timelineBuilder.js (+ Unit tests đầy đủ)
+│   └── stockoutCheck/      ← Kiểm tra đứt hàng đối chiếu trực tiếp KiotViet API (hàng đứt gần đây + 90 ngày)
+│       ├── concurrencyPool.js · jobManager.js · dateHelpers.js
+│       ├── stockoutAnalyzer.js · stockoutEngine.js · timelineBuilder.js
+│       ├── stockoutEventLoader.js · sheetTimelineBuilder.js
+│       ├── recentStockoutScanService.js · stockout90dScanService.js
+│       ├── stockoutCheckRoutes.js (+ Unit tests đầy đủ)
 ├── data/
 │   ├── notifications.json  ← Lưu trữ thông báo hệ thống cục bộ
 │   ├── roleChangeRequests.json ← Lưu trữ yêu cầu đổi vai trò cục bộ
@@ -147,7 +149,7 @@ server/                     ← Node.js/Express backend (Render.com)
 | 18    | Tối ưu hóa hiệu năng & Giảm lag (4 Phase) | (1) Gzip compression, Cache-Control static assets, script defer, fonts preconnect; (2) rAF throttle cho hover handler (các mục thuộc lớp 3D nay đã bị gỡ ở mục 22); (3) Phân trang 100 dòng/trang cho toàn bộ 13 bảng dữ liệu + lazy debt detail; (4) Backend cache 12s theo sheet `vcSheetsClient.js` kèm write invalidation, `vcBatchUpdate` cho `updateOrderItems`, 15s timeout cho Google Sheets API | [Hoan thanh] |
 | 19    | Phân hệ Quản lý Nghỉ phép HR & Telegram Bot | Nghỉ theo Sáng/Chiều, quy đổi số buổi/2, lọc theo thời gian gửi và ghi trạng thái `Vi phạm` khi gửi sau 07:45/12:30; đồng bộ Google Sheet, REST API, `/humanresources/`, Excel và Telegram Bot | [Hoan thanh] |
 | 20    | Chuông thông báo & Đổi vai trò người dùng | Chuông thông báo toàn hệ thống (`/api/notifications`), cơ chế người dùng tự gửi yêu cầu đổi vai trò kèm lý do, Quản lý phê duyệt/từ chối và tự động gửi thông báo | [Hoan thanh] |
-| 21    | Kiểm tra đứt hàng Excel & KiotViet API | Phân hệ `/api/products/stockout-check/*` đọc file Excel tải lên, đối chiếu trực tiếp tồn kho và giao dịch KiotViet API bất đồng bộ theo hàng đợi giới hạn tải, phân tích dòng thời gian và xuất báo cáo Excel | [Hoan thanh] |
+| 21    | ~~Kiểm tra đứt hàng theo Excel upload~~ | Phân hệ `/api/products/stockout-check/*` đọc file Excel tải lên, đối chiếu trực tiếp tồn kho và giao dịch KiotViet API bất đồng bộ theo hàng đợi giới hạn tải, phân tích dòng thời gian và xuất báo cáo Excel | **[Da go bo]** — thay bằng "Hàng đứt gần đây" + "Kiểm tra đứt hàng 90 ngày" quét toàn bộ hàng đang kinh doanh, không cần upload danh sách mã |
 | 22    | Gỡ bỏ lớp hiệu ứng 3D & tối ưu hiệu năng frontend | Xóa hẳn `three.min.js` (~650KB) + 6 module `three-*.js` + `performance-test.html` khỏi 7 trang; hạ toàn bộ CSS 3D (`preserve-3d`/`perspective`/`translateZ`) về 2D — trọng tâm là rule `tbody tr` áp lên 100 dòng/trang; chuyển nền trang từ `background-attachment: fixed` (vẽ lại toàn viewport mỗi frame cuộn) sang lớp `body::before` cố định; bỏ `backdrop-filter` trên `.loading-veil` và thay cube loader bằng spinner CSS tĩnh; bỏ font Open Sans không dùng và thay `@import` bằng `<link>`+`preconnect`; chuyển `chart.umd.min.js`/`shared-nav.js` xuống cuối `<body>`; sắp xếp bảng qua `DocumentFragment` và chỉ sort đúng bảng vừa render; dùng instance `Intl.NumberFormat` tái sử dụng cho 34 điểm format số | [Hoan thanh] |
 
 ## 2.2. Tính năng đã vận hành
