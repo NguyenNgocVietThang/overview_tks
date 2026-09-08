@@ -72,7 +72,10 @@ test('chi lay ung vien dang kinh doanh va ton kho tong = 0', async () => {
   assert.deepEqual(apiCalls.map(call => call.endpoint), ['invoices', 'purchaseorders', 'returns']);
   assert.equal(job.result.sources.invoices, 'kiotviet-api');
   assert.equal(job.result.sources.supplierReturns, 'google-sheets');
-  assert.deepEqual(job.result.warnings, []);
+  // Sheet Tra NCC rong hoan toan trong fixture nay nen canh bao thieu du lieu
+  // xuat hien, khong lien quan gi den fallback API.
+  assert.equal(job.result.warnings.length, 1);
+  assert.match(job.result.warnings[0], /Trả NCC/);
 });
 
 test('ung vien het hang du 5 ngay lien tuc tinh den hom nay thi liet ke, chua du 5 ngay thi bo qua', async () => {

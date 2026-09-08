@@ -64,7 +64,7 @@ function makeDeps({ pages = {}, sheets = emptySheets() } = {}) {
 
 test('ba API thành công và Trả NCC luôn lấy Sheet đúng một lần', async () => {
   const sheets = emptySheets();
-  sheets[CONFIG.SHEET_SUPPLIER_RETURNS].push(['SP001', '10/01/2026', 1, 'Hoàn thành']);
+  sheets[CONFIG.SHEET_SUPPLIER_RETURNS].push(['SP001', '09/01/2026', 1, 'Hoàn thành']);
   const fixture = makeDeps({
     sheets,
     pages: {
@@ -99,7 +99,11 @@ test('API thành công nhưng rỗng không kích hoạt fallback', async () => 
 
   assert.equal(result.eventMapByCode.size, 0);
   assert.deepEqual(fixture.sheetCalls, [[CONFIG.SHEET_SUPPLIER_RETURNS]]);
-  assert.deepEqual(result.warnings, []);
+  // Sheet Tra NCC rong hoan toan trong fixture nay nen canh bao thieu du lieu
+  // van xuat hien du 3 nguon API deu thanh cong — day la hanh vi dung, khong
+  // lien quan gi den fallback.
+  assert.equal(result.warnings.length, 1);
+  assert.match(result.warnings[0], /Trả NCC/);
 });
 
 test('invoices lỗi giữa phân trang bỏ dữ liệu API tạm và chỉ dùng Sheet fallback', async () => {
@@ -160,12 +164,39 @@ test('Trả NCC thiếu cột Trạng thái vẫn được tính vì sheet này 
   const sheets = emptySheets();
   sheets[CONFIG.SHEET_SUPPLIER_RETURNS] = [
     ['Mã hàng', 'Thời gian', 'Số lượng'],
-    ['SP001', '10/01/2026', 5]
+    ['SP001', '09/01/2026', 5]
   ];
   const fixture = makeDeps({ sheets });
 
   const result = await loadStockoutEvents(fixture.deps);
 
-  assert.deepEqual(result.eventMapByCode.get('SP001'), [{ dateKey: '2026-01-10', delta: -5 }]);
+  assert.deepEqual(result.eventMapByCode.get('SP001'), [{ dateKey: '2026-01-09', delta: -5 }]);
+  assert.deepEqual(result.warnings, []);
+});
+
+test('Trả NCC chỉ có dữ liệu muộn hơn mốc cần tính thì cảnh báo độ phủ dữ liệu', async () => {
+  const sheets = emptySheets();
+  sheets[CONFIG.SHEET_SUPPLIER_RETURNS] = [
+    ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
+    ['SP001', '10/01/2026', 5, 'Hoàn thành']
+  ];
+  const fixture = makeDeps({ sheets }); // fromDate mac dinh la '2026-01-09', som hon du lieu
+
+  const result = await loadStockoutEvents(fixture.deps);
+
+  assert.equal(result.warnings.length, 1);
+  assert.match(result.warnings[0], /Trả NCC.*2026-01-10.*2026-01-09/);
+});
+
+test('Trả NCC có dữ liệu từ đúng mốc cần tính thì không cảnh báo độ phủ', async () => {
+  const sheets = emptySheets();
+  sheets[CONFIG.SHEET_SUPPLIER_RETURNS] = [
+    ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
+    ['SP001', '09/01/2026', 5, 'Hoàn thành']
+  ];
+  const fixture = makeDeps({ sheets });
+
+  const result = await loadStockoutEvents(fixture.deps);
+
   assert.deepEqual(result.warnings, []);
 });

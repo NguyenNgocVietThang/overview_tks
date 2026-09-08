@@ -9,6 +9,7 @@ const CONFIG = require('../../config');
 const {
   isVatProductCode,
   parseSheetDateKey,
+  findEarliestSheetDateKey,
   loadActiveCandidates,
   buildEventMapFromSheets,
   buildInvoiceEventMapFromSheets,
@@ -22,6 +23,18 @@ test('parseSheetDateKey doc dung dinh dang dd/MM/yyyy (co hoac khong co gio)', (
   assert.equal(parseSheetDateKey(''), null);
   assert.equal(parseSheetDateKey(null), null);
   assert.equal(parseSheetDateKey('khong phai ngay'), null);
+});
+
+test('findEarliestSheetDateKey tra ve ngay som nhat, null neu thieu cot hoac rong', () => {
+  const rows = [
+    ['Mã hàng', 'Thời gian', 'Số lượng'],
+    ['SP001', '10/01/2026', 5],
+    ['SP002', '05/01/2026', 2],
+    ['SP003', '20/01/2026', 1]
+  ];
+  assert.equal(findEarliestSheetDateKey(rows, 'Thời gian'), '2026-01-05');
+  assert.equal(findEarliestSheetDateKey([['Mã hàng', 'Số lượng']], 'Thời gian'), null);
+  assert.equal(findEarliestSheetDateKey([['Thời gian']], 'Thời gian'), null);
 });
 
 test('isVatProductCode nhan dien ma VAT khong phan biet hoa thuong', () => {

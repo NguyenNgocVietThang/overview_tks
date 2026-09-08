@@ -37,6 +37,20 @@ function headerIndexes(rows, names) {
   return result;
 }
 
+// Ngay som nhat con du lieu trong 1 sheet giao dich — dung de phat hien sheet
+// chi giu mot cua so ngay gan day (vd Tra NCC dan tay, bi ghi de dinh ky) thay
+// vi giu du lich su can cho ca ky bao cao. Tra null neu sheet rong/khong co cot ngay.
+function findEarliestSheetDateKey(rows, dateColumnName) {
+  const idx = headerIndexes(rows, [dateColumnName]);
+  if (idx[dateColumnName] < 0) return null;
+  let earliest = null;
+  for (let r = 1; r < rows.length; r++) {
+    const dateKey = parseSheetDateKey(rows[r][idx[dateColumnName]]);
+    if (dateKey && (earliest === null || dateKey < earliest)) earliest = dateKey;
+  }
+  return earliest;
+}
+
 function pushEvent(eventMapByCode, code, dateKey, delta) {
   if (!eventMapByCode.has(code)) eventMapByCode.set(code, []);
   eventMapByCode.get(code).push({ dateKey, delta });
@@ -165,6 +179,7 @@ function buildEventMapFromSheets(sheets, validCodeSet, fromDate, todayKey) {
 module.exports = {
   isVatProductCode,
   parseSheetDateKey,
+  findEarliestSheetDateKey,
   loadActiveCandidates,
   mergeEventMaps,
   buildInvoiceEventMapFromSheets,

@@ -11,7 +11,8 @@ const {
   mergeEventMaps,
   buildInvoiceEventMapFromSheets,
   buildPurchaseEventMapFromSheets,
-  buildSupplierReturnEventMapFromSheets
+  buildSupplierReturnEventMapFromSheets,
+  findEarliestSheetDateKey
 } = require('./sheetTimelineBuilder');
 
 const API_SOURCE = 'kiotviet-api';
@@ -138,6 +139,18 @@ async function loadStockoutEvents(options) {
 
   onProgress({ source: 'supplierReturns', label: 'Trả NCC', status: 'loading' });
   const supplierReturnSheets = await sheetsClient.getMultipleSheetValues([CONFIG.SHEET_SUPPLIER_RETURNS]);
+  const supplierReturnRows = supplierReturnSheets[CONFIG.SHEET_SUPPLIER_RETURNS] || [];
+  // Sheet Tra NCC duoc nhap tay va thuong chi giu mot cua so ngay gan day (bi
+  // ghi de dinh ky) thay vi luu ca lich su — neu cua so do khong voi toi dau ky
+  // tinh toan, so ngay dut hang truoc moc do khong dang tin, phai canh bao ro
+  // thay vi bao ket qua nhu the la chinh xac tuyet doi.
+  const earliestSupplierReturnDate = findEarliestSheetDateKey(supplierReturnRows, 'Thời gian');
+  if (!earliestSupplierReturnDate || earliestSupplierReturnDate > fromDate) {
+    warnings.push(
+      `Sheet Trả NCC chỉ có dữ liệu từ ${earliestSupplierReturnDate || 'không rõ ngày'} (cần từ ${fromDate}); ` +
+      'số ngày đứt hàng trước mốc này có thể không chính xác do thiếu lịch sử trả hàng NCC.'
+    );
+  }
   mergeEventMaps(
     eventMapByCode,
     buildSupplierReturnEventMapFromSheets(supplierReturnSheets, validCodeSet, fromDate, toDate)

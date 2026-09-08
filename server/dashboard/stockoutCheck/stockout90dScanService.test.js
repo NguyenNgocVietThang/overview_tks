@@ -60,7 +60,10 @@ test('quet toan bo ma dang kinh doanh, khong loc theo ton kho hien tai — hang 
   assert.equal(job.result.sources.purchases, 'google-sheets-fallback');
   assert.equal(job.result.sources.customerReturns, 'kiotviet-api');
   assert.equal(job.result.sources.supplierReturns, 'google-sheets');
-  assert.equal(job.result.warnings.length, 2);
+  // 2 canh bao fallback (Hoa don, Nhap hang) + 1 canh bao do phu du lieu Tra
+  // NCC vi sheet trong fixture nay khong co dong nao.
+  assert.equal(job.result.warnings.length, 3);
+  assert.ok(job.result.warnings.some((w) => /Trả NCC/.test(w)));
 });
 
 test('nhieu dot dut hang duoc cong don dung so lan va tong so ngay', async () => {
