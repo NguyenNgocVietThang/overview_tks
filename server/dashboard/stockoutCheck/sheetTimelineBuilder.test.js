@@ -130,7 +130,7 @@ test('buildEventMapFromSheets: bo qua su kien ngoai cua so ngay [fromDate, today
   assert.deepEqual(eventMap.get('SP001') || [], []);
 });
 
-test('buildEventMapFromSheets bỏ nguồn Nhập hàng/Trả NCC thiếu cột Trạng thái', () => {
+test('buildEventMapFromSheets bỏ nguồn Nhập hàng thiếu cột Trạng thái nhưng vẫn tính Trả NCC (không có webhook, luôn hoàn tất)', () => {
   const sheets = {
     [CONFIG.SHEET_INVOICES]: [['Mã hóa đơn', 'Ngày bán', 'Trạng thái']],
     [CONFIG.SHEET_INVOICE_DETAILS]: [['Mã hóa đơn', 'Mã hàng', 'Số lượng']],
@@ -138,7 +138,7 @@ test('buildEventMapFromSheets bỏ nguồn Nhập hàng/Trả NCC thiếu cột 
     [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng'], ['SP001', '12/01/2026', 2]]
   };
   const eventMap = buildEventMapFromSheets(sheets, new Set(['SP001']), '2026-01-01', '2026-01-20');
-  assert.equal(eventMap.size, 0);
+  assert.deepEqual(eventMap.get('SP001'), [{ dateKey: '2026-01-12', delta: -2 }]);
 });
 
 test('Nhập hàng Sheet dùng trạng thái số 3 là hoàn thành và bỏ trạng thái 4', () => {

@@ -111,10 +111,13 @@ function accumulateSheetPurchaseEvents(eventMapByCode, purchaseRows, validCodeSe
 
 function accumulateSheetPurchaseReturnEvents(eventMapByCode, purchaseReturnRows, validCodeSet, fromDate, todayKey) {
   const idx = headerIndexes(purchaseReturnRows, ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']);
-  if (idx['Trạng thái'] < 0) return;
+  // Sheet Trả NCC hiện chưa có webhook đồng bộ trạng thái (khác Nhập hàng);
+  // dữ liệu được cấp sẵn ở đây luôn là chứng từ đã hoàn tất. Chỉ lọc theo
+  // Trạng thái khi cột đó thực sự tồn tại, tránh bỏ toàn bộ dữ liệu hợp lệ.
+  const hasStatusColumn = idx['Trạng thái'] >= 0;
   for (let r = 1; r < purchaseReturnRows.length; r++) {
     const row = purchaseReturnRows[r];
-    if (!isCompletedStockMovementStatus(row[idx['Trạng thái']])) continue;
+    if (hasStatusColumn && !isCompletedStockMovementStatus(row[idx['Trạng thái']])) continue;
     const code = String(row[idx['Mã hàng']] || '').trim();
     if (!code || isVatProductCode(code) || !validCodeSet.has(code)) continue;
     const dateKey = parseSheetDateKey(row[idx['Thời gian']]);

@@ -55,10 +55,6 @@ function wrapCustomerReturnError(err) {
   return wrapped;
 }
 
-function hasSheetHeader(rows, headerName) {
-  return Array.isArray(rows) && Array.isArray(rows[0]) && rows[0].includes(headerName);
-}
-
 async function loadStockoutEvents(options) {
   const {
     client,
@@ -142,10 +138,6 @@ async function loadStockoutEvents(options) {
 
   onProgress({ source: 'supplierReturns', label: 'Trả NCC', status: 'loading' });
   const supplierReturnSheets = await sheetsClient.getMultipleSheetValues([CONFIG.SHEET_SUPPLIER_RETURNS]);
-  const supplierReturnRows = supplierReturnSheets[CONFIG.SHEET_SUPPLIER_RETURNS] || [];
-  if (!hasSheetHeader(supplierReturnRows, 'Trạng thái')) {
-    warnings.push('Sheet Trả NCC thiếu cột Trạng thái; toàn bộ dòng Trả NCC đã được bỏ qua theo quy tắc chỉ tính chứng từ hoàn thành.');
-  }
   mergeEventMaps(
     eventMapByCode,
     buildSupplierReturnEventMapFromSheets(supplierReturnSheets, validCodeSet, fromDate, toDate)

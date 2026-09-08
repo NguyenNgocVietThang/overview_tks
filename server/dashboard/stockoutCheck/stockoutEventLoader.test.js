@@ -156,7 +156,7 @@ test('phản hồi hoàn thành thiếu mảng chi tiết fallback cho invoices 
   await assert.rejects(loadStockoutEvents(returnFixture.deps), /Khách trả hàng.*returnDetails/);
 });
 
-test('Trả NCC thiếu cột Trạng thái bị bỏ qua và trả cảnh báo rõ ràng', async () => {
+test('Trả NCC thiếu cột Trạng thái vẫn được tính vì sheet này không có webhook, luôn là chứng từ hoàn tất', async () => {
   const sheets = emptySheets();
   sheets[CONFIG.SHEET_SUPPLIER_RETURNS] = [
     ['Mã hàng', 'Thời gian', 'Số lượng'],
@@ -166,6 +166,6 @@ test('Trả NCC thiếu cột Trạng thái bị bỏ qua và trả cảnh báo 
 
   const result = await loadStockoutEvents(fixture.deps);
 
-  assert.equal(result.eventMapByCode.size, 0);
-  assert.match(result.warnings[0], /Trả NCC thiếu cột Trạng thái.*bỏ qua/);
+  assert.deepEqual(result.eventMapByCode.get('SP001'), [{ dateKey: '2026-01-10', delta: -5 }]);
+  assert.deepEqual(result.warnings, []);
 });
