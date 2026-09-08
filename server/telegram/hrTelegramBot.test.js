@@ -144,8 +144,8 @@ function setupHarness({
   const serviceStub = {
     ...realService,
     resolveSenderIdentity: async () => identity,
-    notifyOtherManagers: async (actingUserId, payload) => {
-      notifyOtherManagersCalls.push({ actingUserId, payload });
+    notifyOtherManagers: async (actingUserId, branch, payload) => {
+      notifyOtherManagersCalls.push({ actingUserId, branch, payload });
     }
   };
   const localUserStoreStub = {

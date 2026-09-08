@@ -7,6 +7,7 @@
 const CONFIG = require('../config');
 const userRepository = require('../auth/userRepository');
 const notificationRepository = require('../notifications/notificationRepository');
+const { BRANCHES, isBranchAllowed } = require('../branch/branches');
 
 /**
  * Tinh so buoi nghi dua tren ngay + buoi bat dau/ket thuc.
@@ -207,12 +208,22 @@ function resolveApproverName(reqUser) {
  * va luong Telegram (hrTelegramBot.js) de nhat quan "chi Quan ly thay tren
  * web, khong broadcast Telegram cho tat ca tai khoan". Best-effort: loi bao
  * thong bao khong duoc lam hong luong tao/duyet don chinh.
+ *
+ * Chi bao Quan ly duoc phep xem `branch` cua don nghi phep (isBranchAllowed) —
+ * Quan ly gan 1 co so cu the KHONG nhan thong bao cua co so kia; Quan ly
+ * "Ca hai" (hoac chua gan coSo, mac dinh xem Ca hai) van nhan ca hai ben.
+ * @param {string} branch - Co so cua don nghi phep ('Hà Nội' | 'Sài Gòn')
  */
-async function notifyOtherManagers(actingUserId, payload) {
+async function notifyOtherManagers(actingUserId, branch, payload) {
   try {
+    const effectiveBranch = branch || BRANCHES.HANOI;
     const allUsers = await userRepository.getAllUsers();
     const managerIds = allUsers
-      .filter(u => u.vaiTro === userRepository.ROLES.QUAN_LY && String(u.id) !== String(actingUserId))
+      .filter(u => (
+        u.vaiTro === userRepository.ROLES.QUAN_LY &&
+        String(u.id) !== String(actingUserId) &&
+        isBranchAllowed(u, effectiveBranch)
+      ))
       .map(u => u.id);
     await notificationRepository.createNotificationForUsers(managerIds, payload);
   } catch (notifyErr) {

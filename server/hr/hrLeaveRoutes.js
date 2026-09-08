@@ -201,7 +201,7 @@ router.post('/api/hr/leave-requests', ...authManager, async (req, res) => {
     // Phat tin hieu realtime toi tat ca cac client dang mo
     broadcastLeaveEvent(LEAVE_EVENT_TYPES.CREATED, record, req.branch);
 
-    notifyOtherManagers(req.user.id, {
+    notifyOtherManagers(req.user.id, req.branch, {
       type: 'leave_request_created',
       title: 'Có nhân sự nghỉ phép mới',
       message: `${record.ho_ten} vừa ${isManualAbsence ? 'được ghi nhận tự ý nghỉ' : 'gửi yêu cầu nghỉ phép'} từ ${record.thoi_gian_bat_dau} đến ${record.thoi_gian_ket_thuc}.`,
@@ -237,7 +237,7 @@ router.patch('/api/hr/leave-requests/:id/status', ...authManager, async (req, re
         .catch(() => {});
     }
 
-    notifyOtherManagers(req.user.id, {
+    notifyOtherManagers(req.user.id, req.branch, {
       type: 'leave_request_decision',
       title: 'Đơn nghỉ phép đã được cập nhật',
       message: `Đơn nghỉ phép của ${updated.ho_ten} đã chuyển sang trạng thái "${status}".`,

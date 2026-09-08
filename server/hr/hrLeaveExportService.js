@@ -9,6 +9,7 @@
 
 const ExcelJS = require('exceljs');
 const repo = require('./hrLeaveRepository');
+const { BRANCHES } = require('../branch/branches');
 
 const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -53,6 +54,12 @@ function safeFileNamePart(str) {
   return String(str || '').replace(/[^0-9A-Za-z-]/g, '');
 }
 
+function branchFilePrefix(branch) {
+  if (branch === BRANCHES.HANOI) return 'HN';
+  if (branch === BRANCHES.SAIGON) return 'SG';
+  return 'TKS';
+}
+
 /**
  * @param {Object} filters { status, employee, from, to, sortField, sortDir }
  * @returns {Promise<{ buffer: Buffer, fileName: string, mime: string }>}
@@ -95,7 +102,7 @@ async function buildLeaveRequestsWorkbook(filters, branch) {
   const buffer = await workbook.xlsx.writeBuffer();
   const fromPart = safeFileNamePart(filters.from) || 'tatca';
   const toPart = safeFileNamePart(filters.to) || 'tatca';
-  const fileName = `nghi-phep_${fromPart}_${toPart}.xlsx`;
+  const fileName = `${branchFilePrefix(branch)}_nghi-phep_${fromPart}_${toPart}.xlsx`;
 
   return { buffer, fileName, mime: EXCEL_MIME };
 }

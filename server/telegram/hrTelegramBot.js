@@ -667,14 +667,14 @@ async function presentConfirmation(bot, chatId, conv, extracted, resolved) {
  * tat ca tai khoan da lien ket nhu truoc day (tung khien Telegram ca nhan cua
  * Quan ly bi doi tin voi MOI yeu cau nghi phep cua bat ky nhan vien nao).
  */
-async function notifyManagersOfNewLeaveRequest(webUsername, record) {
+async function notifyManagersOfNewLeaveRequest(webUsername, record, branch) {
   let actingUser = null;
   try {
     actingUser = await getUserByUsername(webUsername);
   } catch (err) {
     console.error('[HR Telegram Bot] Không tra được tài khoản web để báo Quản lý:', err.message);
   }
-  await notifyOtherManagers(actingUser ? actingUser.id : null, {
+  await notifyOtherManagers(actingUser ? actingUser.id : null, branch, {
     type: 'leave_request_created',
     title: 'Có nhân sự nghỉ phép mới',
     message: `${record.ho_ten} vừa gửi yêu cầu nghỉ phép từ ${record.thoi_gian_bat_dau} đến ${record.thoi_gian_ket_thuc}.`,
@@ -723,7 +723,7 @@ async function submitLeaveRequest(bot, chatId, conv) {
 
   // Bao Quan ly qua thong bao web (chuong thong bao) -- khong chan luong
   // chinh neu gui loi.
-  notifyManagersOfNewLeaveRequest(d.link.web_username, record).catch(err => {
+  notifyManagersOfNewLeaveRequest(d.link.web_username, record, d.sourceBranch).catch(err => {
     console.error('[HR Telegram Bot] Lỗi khi báo Quản lý về yêu cầu nghỉ phép mới:', err.message);
   });
 
