@@ -1,8 +1,8 @@
 'use strict';
 
 const CONFIG = require('../../config');
-const { analyzeStockoutTimeline } = require('./stockoutEngine');
-const { addDaysToDateKey, todayVnDateKey } = require('./dateHelpers');
+const { analyzeStockoutTimeline, computeStockoutWindow, STOCKOUT_DATA_FLOOR_DATE_KEY } = require('./stockoutEngine');
+const { todayVnDateKey } = require('./dateHelpers');
 const { loadActiveCandidates } = require('./sheetTimelineBuilder');
 const { loadStockoutEvents: defaultLoadStockoutEvents } = require('./stockoutEventLoader');
 
@@ -16,7 +16,8 @@ async function runStockout90dScanJob(jobStore, jobId, deps = {}) {
     loadStockoutEvents = defaultLoadStockoutEvents,
     daysBack = DEFAULT_DAYS_BACK,
     todayKey = todayVnDateKey(),
-    minConsecutiveDays = DEFAULT_MIN_CONSECUTIVE_DAYS
+    minConsecutiveDays = DEFAULT_MIN_CONSECUTIVE_DAYS,
+    dataFromDateFloor = STOCKOUT_DATA_FLOOR_DATE_KEY
   } = deps;
 
   try {
@@ -24,8 +25,9 @@ async function runStockout90dScanJob(jobStore, jobId, deps = {}) {
     const sheets = await sheetsClient.getMultipleSheetValues([CONFIG.SHEET_PRODUCTS]);
 
     const { candidates, totalProductsScanned } = loadActiveCandidates(sheets[CONFIG.SHEET_PRODUCTS] || []);
-    const fromDate = addDaysToDateKey(todayKey, -daysBack);
-    const calculationFromDate = addDaysToDateKey(fromDate, -(minConsecutiveDays - 1));
+    const { reportFromDate: fromDate, calculationFromDate } = computeStockoutWindow({
+      todayKey, daysBack, minConsecutiveDays, dataFromDateFloor
+    });
 
     if (candidates.length === 0) {
       jobStore.setResult(jobId, { asOfDate: todayKey, fromDate, totalProductsScanned, totalCandidates: 0, sources: {}, warnings: [], rows: [] });
@@ -54,7 +56,7 @@ async function runStockout90dScanJob(jobStore, jobId, deps = {}) {
     for (const { code, name, currentOnHand } of candidates) {
       const events = eventMapByCode.get(code) || [];
       const { periods, summary } = analyzeStockoutTimeline({
-        currentOnHand, events, todayKey, daysBack, minConsecutiveDays
+        currentOnHand, events, todayKey, daysBack, minConsecutiveDays, dataFromDateFloor
       });
       if (periods.length === 0) continue;
       rows.push({

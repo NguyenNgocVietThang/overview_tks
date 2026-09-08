@@ -1,8 +1,8 @@
 'use strict';
 
 const CONFIG = require('../../config');
-const { analyzeStockoutTimeline } = require('./stockoutEngine');
-const { addDaysToDateKey, todayVnDateKey } = require('./dateHelpers');
+const { analyzeStockoutTimeline, computeStockoutWindow, STOCKOUT_DATA_FLOOR_DATE_KEY } = require('./stockoutEngine');
+const { todayVnDateKey } = require('./dateHelpers');
 const { loadActiveCandidates } = require('./sheetTimelineBuilder');
 const { loadStockoutEvents: defaultLoadStockoutEvents } = require('./stockoutEventLoader');
 
@@ -16,7 +16,8 @@ async function runRecentStockoutScanJob(jobStore, jobId, deps = {}) {
     loadStockoutEvents = defaultLoadStockoutEvents,
     daysBack = DEFAULT_DAYS_BACK,
     todayKey = todayVnDateKey(),
-    minConsecutiveDays = DEFAULT_MIN_CONSECUTIVE_DAYS
+    minConsecutiveDays = DEFAULT_MIN_CONSECUTIVE_DAYS,
+    dataFromDateFloor = STOCKOUT_DATA_FLOOR_DATE_KEY
   } = deps;
 
   try {
@@ -27,8 +28,9 @@ async function runRecentStockoutScanJob(jobStore, jobId, deps = {}) {
     // Giu nguyen ngu nghia cu cua "Hang dut gan day": chi bao cao ma DANG het
     // hang (ton kho hien tai = 0) va van con dut den hom nay.
     const candidates = allActive.filter((c) => c.currentOnHand === 0);
-    const fromDate = addDaysToDateKey(todayKey, -daysBack);
-    const calculationFromDate = addDaysToDateKey(fromDate, -(minConsecutiveDays - 1));
+    const { calculationFromDate } = computeStockoutWindow({
+      todayKey, daysBack, minConsecutiveDays, dataFromDateFloor
+    });
 
     if (candidates.length === 0) {
       jobStore.setResult(jobId, { asOfDate: todayKey, totalProductsScanned, totalCandidates: 0, sources: {}, warnings: [], rows: [] });
@@ -57,7 +59,7 @@ async function runRecentStockoutScanJob(jobStore, jobId, deps = {}) {
     for (const { code, name } of candidates) {
       const events = eventMapByCode.get(code) || [];
       const { periods } = analyzeStockoutTimeline({
-        currentOnHand: 0, events, todayKey, daysBack, minConsecutiveDays
+        currentOnHand: 0, events, todayKey, daysBack, minConsecutiveDays, dataFromDateFloor
       });
       const lastPeriod = periods[periods.length - 1];
       if (!lastPeriod || lastPeriod.toDate !== todayKey) continue;

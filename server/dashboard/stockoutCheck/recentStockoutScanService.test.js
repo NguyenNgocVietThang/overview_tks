@@ -63,7 +63,7 @@ test('chi lay ung vien dang kinh doanh va ton kho tong = 0', async () => {
   const apiCalls = [];
   const client = fakeAllSourcesClient(apiCalls);
 
-  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, minConsecutiveDays: 5 });
+  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, minConsecutiveDays: 5, dataFromDateFloor: null });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'done');
@@ -98,7 +98,7 @@ test('ung vien het hang du 5 ngay lien tuc tinh den hom nay thi liet ke, chua du
   });
   const client = fakeReturnsClient([{ items: [], meta: { pagesLoaded: 1, recordsLoaded: 0, total: 0 } }]);
 
-  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, minConsecutiveDays: 5 });
+  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, minConsecutiveDays: 5, dataFromDateFloor: null });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'done');
@@ -122,7 +122,7 @@ test('khong co ung vien nao thi tra ket qua rong, khong goi API tra hang', async
   });
   const client = { async fetchAllPages() { returnsApiCalled = true; } };
 
-  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9 });
+  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'done');
@@ -137,7 +137,7 @@ test('loi khi doc Google Sheets thi job chuyen sang status error', async () => {
   const sheetsClient = { async getMultipleSheetValues() { throw new Error('Google Sheets timeout'); } };
   const client = fakeReturnsClient([]);
 
-  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9 });
+  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'error');
@@ -156,7 +156,7 @@ test('loi khi goi API tra hang thi job chuyen sang status error', async () => {
   });
   const client = { async fetchAllPages() { throw new Error('KiotViet returns API timeout'); } };
 
-  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9 });
+  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'error');

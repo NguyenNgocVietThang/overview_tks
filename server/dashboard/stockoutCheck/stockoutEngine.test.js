@@ -2,7 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { analyzeStockoutTimeline } = require('./stockoutEngine');
+const { analyzeStockoutTimeline, computeStockoutWindow } = require('./stockoutEngine');
+const { daysBetweenInclusive } = require('./stockoutAnalyzer');
 
 test('analyzeStockoutTimeline dùng 4 ngày đệm để xác nhận đợt vắt qua biên nhưng chỉ cộng ngày trong kỳ', () => {
   const result = analyzeStockoutTimeline({
@@ -30,4 +31,45 @@ test('analyzeStockoutTimeline giữ tồn hiện tại khi mã không có ở b�
 
   assert.deepEqual(result.periods, []);
   assert.deepEqual(result.summary, { stockoutCount: 0, totalStockoutDays: 0 });
+});
+
+test('computeStockoutWindow khong gioi han khi cua so yeu cau da nam sau moc san', () => {
+  const window = computeStockoutWindow({
+    todayKey: '2026-09-08',
+    daysBack: 10,
+    minConsecutiveDays: 5,
+    dataFromDateFloor: '2026-06-01'
+  });
+  assert.equal(window.reportFromDate, '2026-08-29');
+  assert.equal(window.calculationFromDate, '2026-08-25');
+});
+
+test('computeStockoutWindow ghim reportFromDate va calculationFromDate vao dataFromDateFloor khi daysBack vuot qua moc', () => {
+  const window = computeStockoutWindow({
+    todayKey: '2026-09-08',
+    daysBack: 183,
+    minConsecutiveDays: 5,
+    dataFromDateFloor: '2026-06-01'
+  });
+  assert.equal(window.reportFromDate, '2026-06-01');
+  assert.equal(window.calculationFromDate, '2026-06-01');
+});
+
+test('analyzeStockoutTimeline gioi han dot dut hang theo dataFromDateFloor khi daysBack keo dai hon moc san', () => {
+  const result = analyzeStockoutTimeline({
+    currentOnHand: 0,
+    events: [],
+    todayKey: '2026-09-08',
+    daysBack: 183,
+    minConsecutiveDays: 5,
+    dataFromDateFloor: '2026-06-01'
+  });
+
+  assert.equal(result.reportFromDate, '2026-06-01');
+  assert.equal(result.calculationFromDate, '2026-06-01');
+  assert.deepEqual(result.periods, [{
+    fromDate: '2026-06-01',
+    toDate: '2026-09-08',
+    days: daysBetweenInclusive('2026-06-01', '2026-09-08')
+  }]);
 });

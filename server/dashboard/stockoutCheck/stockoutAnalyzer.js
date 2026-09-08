@@ -56,4 +56,4 @@ function summarizeStockoutPeriods(periods) {
   );
 }
 
-module.exports = { findStockoutPeriods, summarizeStockoutPeriods };
+module.exports = { findStockoutPeriods, summarizeStockoutPeriods, daysBetweenInclusive };
