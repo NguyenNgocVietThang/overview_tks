@@ -236,7 +236,7 @@ test('ma moi tao sau moc san khong bi bao dut hang truoc ngay no ton tai', async
   const jobId = store.createJob();
   const sheetsClient = fakeSheetsClient({
     'Hàng hóa': [
-      ['Mã hàng', 'Tên hàng', 'Tồn kho', 'Trạng thái', 'Thời gian tạo'],
+      ['Mã hàng', 'Tên hàng', 'Tồn kho', 'Trạng thái', 'Ngày tạo'],
       ['SP001', 'Ma moi tao 04/08, chua tung co hang', 0, 'Đang kinh doanh', '04/08/2026 09:44:00']
     ],
     'Hóa đơn': [HEADERS.invoices],

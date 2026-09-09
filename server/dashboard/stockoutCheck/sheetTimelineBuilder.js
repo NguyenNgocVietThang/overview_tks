@@ -62,7 +62,7 @@ function isCompletedStockMovementStatus(value) {
 }
 
 function loadActiveCandidates(productRows) {
-  const idx = headerIndexes(productRows, ['Mã hàng', 'Tên hàng', 'Tồn kho', 'Trạng thái', 'Thời gian tạo']);
+  const idx = headerIndexes(productRows, ['Mã hàng', 'Tên hàng', 'Tồn kho', 'Trạng thái', 'Ngày tạo']);
   const candidates = [];
   let totalProductsScanned = 0;
   for (let r = 1; r < productRows.length; r++) {
@@ -78,7 +78,7 @@ function loadActiveCandidates(productRows) {
       currentOnHand: Number(row[idx['Tồn kho']]) || 0,
       // Mot ma moi tao khong the "dut hang" truoc khi no ton tai — dung de
       // ghim rieng tung ma, khong cho dot dut hang keo lui truoc ngay tao.
-      createdDateKey: parseSheetDateKey(row[idx['Thời gian tạo']])
+      createdDateKey: parseSheetDateKey(row[idx['Ngày tạo']])
     });
   }
   return { candidates, totalProductsScanned };

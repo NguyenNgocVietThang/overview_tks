@@ -106,6 +106,17 @@ test('hasUnreliableZeroOnHand: false khi Nhap hang trong ngay gan nhat bi tieu h
   assert.equal(hasUnreliableZeroOnHand(events), false);
 });
 
+test('hasUnreliableZeroOnHand: false khi ngay gan nhat co Nhap hang VA nguon khac, du so luong khong can bang het (co the la typo Tra NCC)', () => {
+  // Giong truong hop thuc te ASTST16: Nhap +1200 va Tra NCC -1.2 cung ngay
+  // (nhieu kha nang loi nhap lieu so luong Tra NCC) — co bang chung mot no
+  // luc can doi that su, khong nen coi la Sheet Hang hoa loi thoi.
+  const events = [
+    { dateKey: '2026-08-28', delta: 1200, source: 'purchases' },
+    { dateKey: '2026-08-28', delta: -1.2, source: 'supplierReturns' }
+  ];
+  assert.equal(hasUnreliableZeroOnHand(events), false);
+});
+
 test('hasUnreliableZeroOnHand: false khi khong co su kien nao', () => {
   assert.equal(hasUnreliableZeroOnHand([]), false);
 });

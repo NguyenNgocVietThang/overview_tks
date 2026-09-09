@@ -35,25 +35,23 @@ function maxDateKey(a, b) {
   return a > b ? a : b;
 }
 
-// Neu ngay co giao dich gan nhat cua 1 ma la ngay NET DUONG (vd Nhap hang
-// chua bi giao dich nao khac cung ngay tieu het), currentOnHand=0 lay tu
-// Sheet Hang hoa gan nhu chac chan da loi thoi (thuc te phai > 0) — Sheet
+// Neu ngay co giao dich gan nhat cua 1 ma CHI CO Nhap hang, tuyet doi khong
+// co giao dich nao khac (kha nang webhook stock.update bi that lac, vi Sheet
 // san pham khong co vong doi soat dinh ky nhu Tra hang/Nha cung cap/Nhap
-// hang nen 1 webhook that lac co the khien "Ton kho" ket qua sai vinh vien.
+// hang), currentOnHand=0 lay tu Sheet Hang hoa gan nhu chac chan da loi thoi.
+// Chi xet "hoan toan khong co giao dich nao khac" (khong xet net theo so
+// luong) vi so luong Tra NCC nhap tay co the sai lech (typo/dinh dang) ma
+// van la 1 no luc that su can doi — khong nen coi la Sheet loi thoi.
 function hasUnreliableZeroOnHand(events) {
   if (!Array.isArray(events) || events.length === 0) return false;
   let maxDate = null;
   for (const e of events) {
     if (maxDate === null || e.dateKey > maxDate) maxDate = e.dateKey;
   }
-  let netOnMaxDate = 0;
-  let hasPurchaseOnMaxDate = false;
-  for (const e of events) {
-    if (e.dateKey !== maxDate) continue;
-    netOnMaxDate += e.delta;
-    if (e.source === 'purchases') hasPurchaseOnMaxDate = true;
-  }
-  return hasPurchaseOnMaxDate && netOnMaxDate > 0;
+  const eventsOnMaxDate = events.filter((e) => e.dateKey === maxDate);
+  const hasPurchase = eventsOnMaxDate.some((e) => e.source === 'purchases');
+  const hasOtherSource = eventsOnMaxDate.some((e) => e.source !== 'purchases');
+  return hasPurchase && !hasOtherSource;
 }
 
 function analyzeStockoutTimeline(options) {

@@ -60,7 +60,7 @@ test('loadActiveCandidates loc dung trang thai, mac dinh trong la dang kinh doan
 
 test('loadActiveCandidates doc createdDateKey tu cot Thoi gian tao, null neu thieu cot hoac rong', () => {
   const rows = [
-    ['Mã hàng', 'Tên hàng', 'Tồn kho', 'Trạng thái', 'Thời gian tạo'],
+    ['Mã hàng', 'Tên hàng', 'Tồn kho', 'Trạng thái', 'Ngày tạo'],
     ['SP001', 'Ma moi tao', '0', 'Đang kinh doanh', '04/08/2026 09:44'],
     ['SP002', 'Khong co ngay tao', '0', 'Đang kinh doanh', '']
   ];
