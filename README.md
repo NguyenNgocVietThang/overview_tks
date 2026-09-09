@@ -23,7 +23,7 @@ Hệ thống dashboard thời gian thực cho cửa hàng CHhanoi và CHsaigon, 
 | **Nền tảng** | Google Apps Script (V8 Runtime) + Node.js/Express Backend |
 | **Lưu trữ dữ liệu** | Google Sheets (9 tab vận hành + 7 tab tổng hợp + 6 tab vận chuyển VC_* + tab Users) + Google Drive (Ảnh chứng từ) |
 | **Nguồn dữ liệu** | KiotViet Public API & Webhook |
-| **Cập nhật** | Webhook + hàng đợi bền vững trên tab ẩn; Nhập hàng quét nhanh 5 phút và đối soát toàn bộ; nguồn không có webhook còn lại polling 15 phút |
+| **Cập nhật** | Webhook-first; Hóa đơn và Nhập hàng đối soát gia tăng mỗi 5 phút, Trả hàng/Nhà cung cấp mỗi 15 phút bằng `lastModifiedFrom` |
 | **Apps Script** | Đồng bộ KiotViet -> Google Sheets; Web App `/exec` nhận HTTP POST; chuyển tiếp webhook vòng đời vận chuyển |
 | **Múi giờ** | Asia/Ho_Chi_Minh (GMT+7) |
 
@@ -351,16 +351,21 @@ Execution API (`executionApi.access = MYSELF`) để phục vụ kiểm tra và 
 
 ### Bước 4 — Thiết lập lần đầu (chạy thủ công 1 lần)
 1. Kiểm tra đã khai báo `KIOTVIET_CLIENT_ID` và `KIOTVIET_CLIENT_SECRET` trong Script Properties. Chỉ trên dự án sheet tổng hợp cũ, chạy `syncAllInitialData()` để tải dữ liệu ban đầu.
-2. Với sheet tổng hợp cũ, chạy `setupKiotVietAutoSync()` một lần. Chế độ mặc định `FULL_DASHBOARD` tạo queue 5 phút, polling chính 15 phút, ba lịch báo cáo 06:00/06:30/07:00, công nợ 15:00 và 9 webhook. Nếu một lượt polling nặng chưa xong, trigger tiếp sức chờ 5 phút để giảm tải; checkpoint bảo đảm không bỏ trang dữ liệu.
+2. Với sheet tổng hợp cũ, chạy `setupKiotVietAutoSync()` một lần. Chế độ mặc định `FULL_DASHBOARD` tạo queue 5 phút, đối soát Hóa đơn/Nhập hàng mỗi 5 phút, Trả hàng/Nhà cung cấp mỗi 15 phút, ba lịch báo cáo 06:00/06:30/07:00, công nợ 15:00 và 9 webhook. Mỗi luồng gia tăng lưu checkpoint sau khi ghi thành công và đọc chồng 10 phút để không bỏ thay đổi đến trễ.
 3. Không dùng spreadsheet/profile `COMBINED`; Dashboard, Vận chuyển và Nhân sự phải trỏ đến ba Google Sheets độc lập. Project KiotSG (cửa hàng Sài Gòn) là một Google Sheet + Apps Script project độc lập thứ tư, dùng chung code `src-dashboard/` với KiotHN nhưng cấu hình/deploy riêng theo `.clasp.saigon.json` — xem chi tiết ở `src-dashboard/HuongDanSuDung.gs` mục "6b. CAI DAT PROJECT KIOTSG".
 4. `setupKiotVietAutoSync()` đã cài ba lịch báo cáo độc lập. Chỉ chạy `setupCustomerReport()` khi muốn làm mới ngay cả ba báo cáo: **Báo cáo bán hàng** gần **06:00**; **Hàng bán theo khách** được webhook cập nhật trong khoảng 5 phút và đối soát gần **06:30**; **Khách theo hàng hóa** gần **07:00**. Ba tab lần lượt giữ đủ 18, 5 và 25 cột.
 5. Ba tab **HN1**, **HN3**, **HN7** là báo cáo công nợ khách hàng 1/3/7 ngày gần đây (tính cả hôm nay) do Apps Script tự tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00, hoặc chạy tay `syncCustomerDebtReports()` bất cứ lúc nào cần cập nhật ngay.
 
 Sau khi bật, thay đổi Hàng hóa, Tồn kho, Khách hàng, Hóa đơn, Đặt hàng và Nhóm hàng
-được nhận bằng webhook rồi ghi vào Sheets trong khoảng 5 phút. **Trả hàng**, **Nhà cung
-cấp** được quét dự phòng mỗi 15 phút vì KiotViet không phát webhook cho các nhóm
-này. **Nhập hàng** có thêm đường quét nhanh cửa sổ 7 ngày mỗi 5 phút; full polling
-vẫn đối soát toàn bộ lịch sử để tự sửa sai lệch.
+được nhận bằng webhook rồi ghi vào Sheets trong khoảng 5 phút. Payload Hóa đơn đã
+có `InvoiceDetails` được ghi thẳng, không gọi lại API chi tiết. **Hóa đơn** và
+**Nhập hàng** có đối soát gia tăng mỗi 5 phút; **Trả hàng**, **Nhà cung cấp** được
+quét gia tăng mỗi 15 phút. Lần đầu mỗi luồng nhìn lại 48 giờ, các lần sau đọc chồng
+10 phút từ checkpoint. Full backfill lịch sử chỉ chạy thủ công khi cần sửa dữ liệu.
+
+Apps Script chỉ liệt kê/xóa installable trigger do tài khoản đang chạy tạo. Nếu
+project từng được nhiều tài khoản cài trigger, mỗi chủ sở hữu cũ cần tự xóa trigger
+không dùng nữa; ScriptLock và mốc chạy dùng chung vẫn ngăn các lượt trùng gọi API.
 
 ### Bước 5 — Deploy Web App
 1. **Deploy -> New deployment -> Web App**
@@ -440,15 +445,16 @@ và in ra danh sách tài khoản có giá trị không hợp lệ cần Quản 
 | `syncAllInitialData()` | Làm mới 9 sheet vận hành, 3 báo cáo khách hàng và HN1/HN3/HN7; báo cáo công nợ chạy sau khi Hàng hóa đã cập nhật | Lần đầu hoặc khi cần full refresh |
 | `restartInvoicesBackfill()` | Reset riêng checkpoint Hóa đơn, tải Hóa đơn và Chi tiết hóa đơn vào staging rồi công bố đồng bộ; không ảnh hưởng checkpoint bảng khác | Khi Hóa đơn hoặc Chi tiết hóa đơn bị thiếu dữ liệu |
 | `removeJsonColumnsFromAllSheets()` | Xóa ngay các cột `(JSON)` cũ trên 9 sheet vận hành | Tùy chọn; trigger nền cũng tự chạy một lần sau khi deploy |
-| `setupKiotVietAutoSync()` | Bật hoặc khôi phục 9 webhook và toàn bộ 7 trigger định kỳ của Dashboard, không tạo trùng theo từng chủ sở hữu | 1 lần sau khi deploy |
+| `setupKiotVietAutoSync()` | Bật hoặc khôi phục 9 webhook và các trigger gia tăng/báo cáo của Dashboard, không tạo trùng theo từng chủ sở hữu | 1 lần sau khi deploy |
 | `initializeShipmentLifecycleSheets()` | Tạo/kiểm tra đủ 6 tab và header vận chuyển | Khi chuẩn bị sheet mới |
 | `syncShipmentLifecycleRecent7Days()` | Nạp hóa đơn 7 ngày gần nhất theo từng trang, tránh chạy full quá quota | Một lần ban đầu hoặc khi đối soát |
 | `setupShipmentLifecycleSync()` | Chọn chế độ vòng đời vận chuyển và tạo trigger queue; nhận `invoice.update` chuyển tiếp từ project cũ | Một lần trên dự án sheet mới |
 | `setupCombinedKiotVietSync()` | Chọn chế độ dùng chung; bật 9 webhook, polling/báo cáo và cập nhật cả dashboard lẫn vận chuyển | Một lần trên spreadsheet chứa cả hai nhóm tab |
-| `syncPollingOnly_()` | Đối soát toàn bộ Trả hàng, Nhà cung cấp, Nhập hàng; lượt tiếp sức nặng chờ 5 phút và tiếp tục từ checkpoint | Tự chạy bởi trigger 15 phút |
-| `syncRecentPurchases_()` | Quét và thay đúng các phiếu Nhập hàng trong cửa sổ 7 ngày gần nhất | Tự chạy bởi trigger 5 phút |
-| `setupPollingTrigger()` | Bật lịch đối soát 15 phút và quét nhanh Nhập hàng 5 phút | 1 lần duy nhất |
-| `removePollingTrigger()` | Tắt cả hai lịch polling | Khi bảo trì |
+| `syncPollingOnly_()` | Đối soát gia tăng Trả hàng và Nhà cung cấp bằng `lastModifiedFrom` | Tự chạy bởi trigger 15 phút |
+| `syncRecentPurchases_()` | Đối soát gia tăng và thay đúng các dòng của phiếu Nhập hàng thay đổi | Tự chạy bởi trigger 5 phút |
+| `syncRecentInvoices_()` | Đối soát gia tăng Hóa đơn và Chi tiết hóa đơn, dự phòng khi webhook chậm/lỡ | Tự chạy bởi trigger 5 phút |
+| `setupPollingTrigger()` | Bật ba lịch đối soát gia tăng 5/5/15 phút | 1 lần duy nhất |
+| `removePollingTrigger()` | Tắt cả ba lịch đối soát gia tăng | Khi bảo trì |
 | `syncCustomerReport()` | Làm mới cả ba báo cáo khách hàng trong một lượt lấy API | Khi cần cập nhật/đối soát thủ công |
 | `syncSalesCustomerReport()` | Làm mới riêng Báo cáo bán hàng 18 cột | Khi cần cập nhật thủ công một sheet |
 | `syncCustomerProductReport()` | Làm mới riêng Hàng bán theo khách 5 cột | Khi cần cập nhật thủ công một sheet |
@@ -565,6 +571,7 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 | [Debt Dashboard Spec](docs/superpowers/specs/2026-08-05-debt-dashboard-design.md) | Đặc tả thiết kế module Báo cáo công nợ HN1/HN3/HN7 |
 | [HR Leave Sessions Spec](docs/superpowers/specs/2026-08-22-hr-leave-sessions-and-submission-time-design.md) | Đặc tả nghỉ phép theo buổi, thời gian gửi và trạng thái vi phạm |
 | [Near-real-time Invoice Sync Spec](docs/superpowers/specs/2026-09-09-near-realtime-invoice-sync-design.md) | Webhook-first, đối soát incremental và giảm quota Apps Script cho hóa đơn |
+| [Near-real-time Invoice Sync Plan](docs/superpowers/plans/2026-09-09-near-realtime-invoice-sync.md) | Kế hoạch kiểm thử, triển khai và phát hành đồng bộ hóa đơn gần thời gian thực |
 | [HR Leave Sessions Plan](docs/superpowers/plans/2026-08-22-hr-leave-sessions-submission-filter.md) | Kế hoạch triển khai đồng bộ Bot, Google Sheet, API và giao diện HR |
 | [Result Cache Plan](docs/superpowers/plans/2026-08-13-dashboard-result-cache.md) | Kế hoạch & chi tiết triển khai Result Cache tầng backend |
 | [Pagination Plan](docs/superpowers/plans/2026-08-13-dashboard-table-pagination.md) | Kế hoạch & chi tiết triển khai phân trang bảng client-side |

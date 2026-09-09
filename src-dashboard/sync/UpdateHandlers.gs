@@ -29,7 +29,7 @@ function updateProductStocksFromWebhook(items) {
 
 function updateInvoicesFromWebhook(items) {
   const schema = KIOTVIET_SHEET_SCHEMAS.invoices;
-  const hydratedItems = hydrateKiotVietItems_(items, schema);
+  const hydratedItems = hydrateIncompleteInvoiceWebhookItems_(items, schema);
   upsertKiotVietSheetItems_(schema, hydratedItems);
   replaceInvoiceDetailsForInvoices_(hydratedItems);
   try {
@@ -37,6 +37,37 @@ function updateInvoicesFromWebhook(items) {
   } catch (error) {
     Logger.log('Loi cap nhat real-time Hang ban theo khach: ' + error.toString());
   }
+}
+
+/**
+ * invoice.update cua KiotViet thuong da kem day du InvoiceDetails. Chi goi
+ * endpoint chi tiet cho payload thieu code hoac thieu mang chi tiet, de moi
+ * webhook binh thuong khong ton them mot UrlFetch request.
+ */
+function hydrateIncompleteInvoiceWebhookItems_(items, schema) {
+  if (!Array.isArray(items) || items.length === 0) return [];
+
+  const incompleteItems = [];
+  const incompleteIndexes = [];
+  items.forEach(function(item, index) {
+    const code = kiotVietText_(item, schema.codeKeys).trim();
+    const details = item && (
+      Array.isArray(item.InvoiceDetails) ? item.InvoiceDetails :
+      (Array.isArray(item.invoiceDetails) ? item.invoiceDetails : null)
+    );
+    if (code && details !== null) return;
+    incompleteItems.push(item);
+    incompleteIndexes.push(index);
+  });
+
+  if (incompleteItems.length === 0) return items.slice();
+
+  const hydratedIncompleteItems = hydrateKiotVietItems_(incompleteItems, schema);
+  const hydratedItems = items.slice();
+  incompleteIndexes.forEach(function(itemIndex, hydratedIndex) {
+    hydratedItems[itemIndex] = hydratedIncompleteItems[hydratedIndex];
+  });
+  return hydratedItems;
 }
 
 function updateOrdersFromWebhook(items) {

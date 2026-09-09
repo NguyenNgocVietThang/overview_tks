@@ -221,18 +221,19 @@ function resumeSyncProductsChunk() {
  * duy nhat khac cung ghi vao sheet Hoa don/Chi tiet hoa don.
  */
 function syncInvoicesChunk() {
+  const resumeHandler = 'resumeManualInvoicesBackfill_';
   const invoiceLock = getKiotVietInvoiceLock_();
   if (!invoiceLock.tryLock(30000)) {
-    scheduleSpecificChunkTrigger_('resumeSyncInvoicesChunk');
+    scheduleSpecificChunkTrigger_(resumeHandler);
     Logger.log('Hoa don dang cho mot tien trinh ghi khac; se thu lai sau 1 phut.');
     return { schemaKey: 'invoices', isCompleted: false, waitingForLock: true };
   }
   try {
     return syncKiotVietTableChunk_('invoices', {
-      resumeHandler: 'resumeSyncInvoicesChunk'
+      resumeHandler: resumeHandler
     });
   } catch (error) {
-    scheduleSpecificChunkTrigger_('resumeSyncInvoicesChunk');
+    scheduleSpecificChunkTrigger_(resumeHandler);
     Logger.log('Backfill Hoa don bi gian doan; se thu lai sau: ' + error.toString());
     return {
       schemaKey: 'invoices',
@@ -244,6 +245,10 @@ function syncInvoicesChunk() {
   }
 }
 function resumeSyncInvoicesChunk() {
+  Logger.log('Trigger backfill Hoa don cu da duoc chuyen sang doi soat incremental.');
+  return syncRecentInvoices_();
+}
+function resumeManualInvoicesBackfill_() {
   return syncInvoicesChunk();
 }
 
@@ -261,14 +266,8 @@ function hasInvoicesBackfillProgress_() {
 
 /** Khoi phuc trigger mot lan neu backfill Hoa don con checkpoint/staging. */
 function ensureInvoicesBackfillResumeTrigger_() {
-  if (!hasInvoicesBackfillProgress_()) return false;
-  const hasResumeTrigger = ScriptApp.getProjectTriggers().some(function(trigger) {
-    return trigger.getHandlerFunction() === 'resumeSyncInvoicesChunk';
-  });
-  if (hasResumeTrigger) return false;
-  scheduleSpecificChunkTrigger_('resumeSyncInvoicesChunk');
-  Logger.log('Da khoi phuc trigger tiep suc backfill Hoa don.');
-  return true;
+  removeSpecificChunkTrigger_('resumeSyncInvoicesChunk');
+  return false;
 }
 
 /**
@@ -285,6 +284,7 @@ function restartInvoicesBackfill() {
     props.deleteProperty('SYNC_CHUNK_STATE_invoices');
     props.deleteProperty(KIOTVIET_INVOICE_BACKFILL_LAST_RESULT_PROPERTY_);
     removeSpecificChunkTrigger_('resumeSyncInvoicesChunk');
+    removeSpecificChunkTrigger_('resumeManualInvoicesBackfill_');
 
     if (typeof SpreadsheetApp !== 'undefined' &&
         typeof SpreadsheetApp.getActiveSpreadsheet === 'function') {
@@ -299,7 +299,7 @@ function restartInvoicesBackfill() {
     }
 
     return syncKiotVietTableChunk_('invoices', {
-      resumeHandler: 'resumeSyncInvoicesChunk'
+      resumeHandler: 'resumeManualInvoicesBackfill_'
     });
   } finally {
     invoiceLock.releaseLock();
@@ -492,124 +492,107 @@ function syncPurchasesInitial(token) {
   return writeKiotVietSheet_(schema, wrappers);
 }
 
-/**
- * Ba endpoint nay khong co webhook Public API; polling 15 phut de giam quota.
- */
-const POLLING_ONLY_CHAIN = Object.freeze(['returns', 'suppliers', 'purchases']);
+/** Hai endpoint nay khong co webhook Public API; polling 15 phut de giam quota. */
+const POLLING_ONLY_CHAIN = Object.freeze(['returns', 'suppliers']);
 const POLLING_ONLY_STATE_PROPERTY = 'POLLING_ONLY_CHAIN_INDEX';
 const POLLING_ONLY_RESUME_HANDLER = 'resumePollingOnlyChunk_';
-const POLLING_ONLY_RESUME_DELAY_MS = 5 * 60 * 1000;
-const RECENT_PURCHASE_LOOKBACK_DAYS_ = 7;
+const KIOTVIET_INCREMENTAL_CHECKPOINT_PREFIX_ = 'KIOTVIET_INCREMENTAL_CHECKPOINT_';
+const KIOTVIET_INCREMENTAL_LAST_START_PREFIX_ = 'KIOTVIET_INCREMENTAL_LAST_START_';
+const KIOTVIET_INCREMENTAL_INITIAL_LOOKBACK_MS_ = 48 * 60 * 60 * 1000;
+const KIOTVIET_INCREMENTAL_OVERLAP_MS_ = 10 * 60 * 1000;
+const KIOTVIET_INCREMENTAL_MIN_INTERVAL_MS_ = 4 * 60 * 1000;
 
 /**
- * Chay mot phan doan (chunk) cho bang dang den luot trong POLLING_ONLY_CHAIN,
- * qua co che chunked/resumable dung chung voi syncAllDataChunked (xem
- * syncKiotVietTableChunk_ o SheetSchemas.gs). Moi lan chay toi da ~4.5 phut
- * (SYNC_CHUNK_CONFIG.MAX_RUN_SECONDS) roi nha lock, tranh timeout 6 phut cua
- * Apps Script va tranh giu lock qua lau lam chan processWebhookQueue.
- * Neu chua xong bang hien tai (hoac chua het chuoi), tu tao trigger 5 phut
- * (POLLING_ONLY_RESUME_HANDLER) doc lap voi trigger chinh 15 phut de tiep suc.
+ * Lay cac ban ghi thay doi tu checkpoint gan nhat. Cua so chong lan 10 phut
+ * giup bu cho webhook/trigger den tre; checkpoint chi duoc luu sau khi ghi xong.
  */
-function syncPollingOnly_() {
-  const dataLock = getKiotVietDataLock_();
-  if (!dataLock.tryLock(30000)) {
-    Logger.log('Bo qua polling lan nay vi dang co mot dot ghi du lieu khac.');
-    return;
+function syncKiotVietIncrementalTable_(schemaKey, now) {
+  const isInvoice = schemaKey === 'invoices';
+  const dataLock = isInvoice ? getKiotVietInvoiceLock_() : getKiotVietDataLock_();
+  if (!dataLock.tryLock(5000)) {
+    Logger.log('Bo qua incremental ' + schemaKey + ' vi dang co tien trinh ghi khac.');
+    return { schemaKey: schemaKey, updatedItems: 0, waitingForLock: true };
   }
   try {
     const props = PropertiesService.getScriptProperties();
-    let tableIndex = Number(props.getProperty(POLLING_ONLY_STATE_PROPERTY)) || 0;
-    if (tableIndex >= POLLING_ONLY_CHAIN.length) tableIndex = 0;
-
-    const schemaKey = POLLING_ONLY_CHAIN[tableIndex];
-    const result = syncKiotVietTableChunk_(schemaKey, {
-      resumeHandler: POLLING_ONLY_RESUME_HANDLER,
-      autoSchedule: false
-    });
-
-    if (!result.isCompleted) {
-      props.setProperty(POLLING_ONLY_STATE_PROPERTY, String(tableIndex));
-      scheduleSpecificChunkTrigger_(POLLING_ONLY_RESUME_HANDLER, POLLING_ONLY_RESUME_DELAY_MS);
-      Logger.log('[' + schemaKey + '] Polling chua xong, se tiep tuc sau 5 phut.');
-      return;
+    const runStartedAt = now && typeof now.getTime === 'function'
+      ? new Date(now.getTime())
+      : new Date();
+    const lastStartKey = KIOTVIET_INCREMENTAL_LAST_START_PREFIX_ + schemaKey;
+    const lastStart = new Date(props.getProperty(lastStartKey) || 0);
+    if (!isNaN(lastStart.getTime()) &&
+        runStartedAt.getTime() - lastStart.getTime() < KIOTVIET_INCREMENTAL_MIN_INTERVAL_MS_) {
+      return { schemaKey: schemaKey, updatedItems: 0, throttled: true };
     }
+    props.setProperty(lastStartKey, runStartedAt.toISOString());
 
-    tableIndex++;
-    if (tableIndex < POLLING_ONLY_CHAIN.length) {
-      props.setProperty(POLLING_ONLY_STATE_PROPERTY, String(tableIndex));
-      scheduleSpecificChunkTrigger_(POLLING_ONLY_RESUME_HANDLER, POLLING_ONLY_RESUME_DELAY_MS);
-      Logger.log('Da polling xong ' + schemaKey + ', tiep tuc ' + POLLING_ONLY_CHAIN[tableIndex] + ' sau 5 phut.');
+    const checkpointKey = KIOTVIET_INCREMENTAL_CHECKPOINT_PREFIX_ + schemaKey;
+    const checkpoint = new Date(props.getProperty(checkpointKey) || 0);
+    const startMs = !isNaN(checkpoint.getTime()) && checkpoint.getTime() > 0
+      ? checkpoint.getTime() - KIOTVIET_INCREMENTAL_OVERLAP_MS_
+      : runStartedAt.getTime() - KIOTVIET_INCREMENTAL_INITIAL_LOOKBACK_MS_;
+    const start = new Date(startMs);
+    const formattedStart = Utilities.formatDate(
+      start,
+      'Asia/Ho_Chi_Minh',
+      "yyyy-MM-dd'T'HH:mm:ss"
+    );
+    const token = getKiotVietToken();
+    if (!token) throw new Error('Khong lay duoc KiotViet token.');
+    const schema = KIOTVIET_SHEET_SCHEMAS[schemaKey];
+    const items = fetchAllKiotVietPages_(
+      schema,
+      token,
+      'lastModifiedFrom=' + encodeURIComponent(formattedStart)
+    );
+
+    if (schemaKey === 'invoices') {
+      updateInvoicesFromWebhook(items);
+    } else if (schemaKey === 'purchases') {
+      replaceRecentPurchaseOrders_(items);
     } else {
-      props.deleteProperty(POLLING_ONLY_STATE_PROPERTY);
-      removeSpecificChunkTrigger_(POLLING_ONLY_RESUME_HANDLER);
-      Logger.log('Da polling xong Tra hang, Nha cung cap va Nhap hang.');
+      upsertKiotVietSheetItems_(schema, items);
     }
+    props.setProperty(checkpointKey, runStartedAt.toISOString());
+    return { schemaKey: schemaKey, updatedItems: items.length };
   } finally {
     dataLock.releaseLock();
   }
+}
+
+function syncPollingOnly_(now) {
+  return POLLING_ONLY_CHAIN.map(function(schemaKey) {
+    return syncKiotVietIncrementalTable_(schemaKey, now);
+  });
 }
 
 function resumePollingOnlyChunk_() {
-  syncPollingOnly_();
+  return syncPollingOnly_();
 }
 
-/**
- * Duong nhanh cho Nhap hang: quet lai 7 ngay gan nhat moi 5 phut va thay the
- * tron nhom dong cua tung ma phieu. Full polling ben tren van doi soat toan bo
- * lich su, con ham nay giup phieu moi/sua xuat hien ma khong cho backfill nang.
- */
 function syncRecentPurchases_(now) {
-  const dataLock = getKiotVietDataLock_();
-  if (!dataLock.tryLock(5000)) {
-    Logger.log('Bo qua quet Nhap hang gan day vi dang co tien trinh ghi khac.');
-    return { updatedOrders: 0, waitingForLock: true };
-  }
-  try {
-    const token = getKiotVietToken();
-    if (!token) throw new Error('Khong lay duoc KiotViet token.');
-    const end = now instanceof Date ? now : new Date();
-    const start = new Date(end.getTime() - RECENT_PURCHASE_LOOKBACK_DAYS_ * 24 * 60 * 60 * 1000);
-    const timezone = 'Asia/Ho_Chi_Minh';
-    const query = [
-      'fromPurchaseDate=' + encodeURIComponent(Utilities.formatDate(start, timezone, 'yyyy-MM-dd')),
-      'toPurchaseDate=' + encodeURIComponent(Utilities.formatDate(end, timezone, 'yyyy-MM-dd'))
-    ].join('&');
-    const orders = fetchAllKiotVietPages_(KIOTVIET_SHEET_SCHEMAS.purchases, token, query);
-    return { updatedOrders: replaceRecentPurchaseOrders_(orders) };
-  } finally {
-    dataLock.releaseLock();
-  }
+  const result = syncKiotVietIncrementalTable_('purchases', now);
+  result.updatedOrders = result.updatedItems;
+  return result;
 }
 
-/**
- * Khoi phuc trigger tiep suc neu checkpoint polling con nhung trigger mot-lan
- * da bi timeout/tieu thu. Khong xoa checkpoint hay staging dang tai do.
- */
+function syncRecentInvoices_(now) {
+  const result = syncKiotVietIncrementalTable_('invoices', now);
+  result.updatedInvoices = result.updatedItems;
+  return result;
+}
+
+/** Don trigger/state cua co che full polling tu cac ban deploy cu. */
 function ensurePollingOnlyResumeTrigger_() {
   const props = PropertiesService.getScriptProperties();
-  let tableIndexRaw = props.getProperty(POLLING_ONLY_STATE_PROPERTY);
-  if (tableIndexRaw === null || tableIndexRaw === '') {
-    for (let index = 0; index < POLLING_ONLY_CHAIN.length; index++) {
-      if (!props.getProperty('SYNC_CHUNK_STATE_' + POLLING_ONLY_CHAIN[index])) continue;
-      tableIndexRaw = String(index);
-      props.setProperty(POLLING_ONLY_STATE_PROPERTY, tableIndexRaw);
-      break;
-    }
-  }
-  if (tableIndexRaw === null || tableIndexRaw === '') return false;
-
-  const hasResumeTrigger = ScriptApp.getProjectTriggers().some(trigger =>
-    trigger.getHandlerFunction() === POLLING_ONLY_RESUME_HANDLER
-  );
-  if (hasResumeTrigger) return false;
-
-  scheduleSpecificChunkTrigger_(POLLING_ONLY_RESUME_HANDLER, POLLING_ONLY_RESUME_DELAY_MS);
-  Logger.log('Da khoi phuc trigger tiep suc cho polling tai buoc ' + tableIndexRaw + '.');
-  return true;
+  removeSpecificChunkTrigger_(POLLING_ONLY_RESUME_HANDLER);
+  props.deleteProperty(POLLING_ONLY_STATE_PROPERTY);
+  return false;
 }
 
 function setupPollingTrigger() {
   removePollingTrigger_();
+  removeSpecificChunkTrigger_('resumeSyncInvoicesChunk');
   ScriptApp.newTrigger('syncPollingOnly_')
     .timeBased()
     .everyMinutes(15)
@@ -618,7 +601,11 @@ function setupPollingTrigger() {
     .timeBased()
     .everyMinutes(5)
     .create();
-  Logger.log('Da bat polling 15 phut va quet nhanh Nhap hang moi 5 phut.');
+  ScriptApp.newTrigger('syncRecentInvoices_')
+    .timeBased()
+    .everyMinutes(5)
+    .create();
+  Logger.log('Da bat doi soat incremental: Hoa don/Nhap hang 5 phut, Tra hang/NCC 15 phut.');
 }
 
 function removePollingTrigger() {
@@ -629,7 +616,8 @@ function removePollingTrigger() {
 function removePollingTrigger_() {
   ScriptApp.getProjectTriggers().forEach(trigger => {
     if (trigger.getHandlerFunction() === 'syncPollingOnly_' ||
-        trigger.getHandlerFunction() === 'syncRecentPurchases_') {
+        trigger.getHandlerFunction() === 'syncRecentPurchases_' ||
+        trigger.getHandlerFunction() === 'syncRecentInvoices_') {
       ScriptApp.deleteTrigger(trigger);
     }
   });

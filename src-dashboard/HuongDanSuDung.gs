@@ -43,7 +43,7 @@ syncAllDataChunked()
 syncProductsChunk() / syncInvoicesChunk() / syncOrdersChunk() ...
   Khi dung : Khi chi muon dong bo phan doan 5.000 ban ghi cho rieng mot bang cu the.
   Tac dung : Tu dong checkpoint, ghi noi tiep vao Sheet va tu dong tao trigger tiep suc.
-  Luu y    : syncInvoicesChunk()/resumeSyncInvoicesChunk() dung khoa rieng
+  Luu y    : syncInvoicesChunk()/resumeManualInvoicesBackfill_() dung khoa rieng
              (getKiotVietInvoiceLock_) thay vi khoa chung, nen KHONG bi cac
              chuoi khac (polling-only Tra hang/Nha cung cap/Nhap hang, hoac cac
              buoc khac cua syncAllDataChunked) chan lai hang phut. Hoa don chi
@@ -87,9 +87,10 @@ syncAllInitialData()
 
 setupKiotVietAutoSync()
   Khi dung : Mot lan sau khi deploy, hoac khi doi WEBHOOK_URL/deployment.
-  Tac dung : Tao WEBHOOK_SECRET neu thieu; tao trigger queue 5 phut; polling
-             15 phut; ba bao cao khach hang 06:00/06:30/07:00; HN1/HN3/HN7
-             gan 15:00; doi chieu va dam bao du 9 webhook do he thong quan ly.
+  Tac dung : Tao WEBHOOK_SECRET neu thieu; tao trigger queue 5 phut; doi soat
+             Hoa don/Nhap hang 5 phut, Tra hang/NCC 15 phut; ba bao cao khach
+             hang 06:00/06:30/07:00; HN1/HN3/HN7 gan 15:00; doi chieu va dam
+             bao du 9 webhook do he thong quan ly.
   Goi tiep : migrateKiotVietSheetsIfNeeded_()
              -> getKiotVietToken()
              -> ensureKiotVietWebhookSecret_()
@@ -209,16 +210,18 @@ syncAllInitialData()
 
 Trigger 15 phut
   -> syncPollingOnly_()
-     -> getKiotVietDataLock_()
-     -> syncKiotVietTableChunk_() cho tung bang trong POLLING_ONLY_CHAIN
-        (Tra hang, Nha cung cap, Nhap hang), moi lan toi da ~4.5 phut.
-     -> Neu chua xong bang/chuoi: tu tao trigger 5 phut rieng
-        (resumePollingOnlyChunk_) de tiep suc, khong doi trigger 15 phut ke tiep.
+     -> Doi soat Tra hang va Nha cung cap bang lastModifiedFrom.
+     -> Lan dau nhin lai 48 gio; lan sau doc chong 10 phut tu checkpoint.
 
 Trigger 5 phut
-  -> syncRecentPurchases_()
-     -> Quet cua so 7 ngay va thay toan bo cac dong theo Ma nhap hang.
-     -> Full polling 15 phut van giu vai tro doi soat toan bo lich su.
+  -> syncRecentInvoices_(): doi soat Hoa don + Chi tiet hoa don.
+  -> syncRecentPurchases_(): doi soat va thay cac dong cua phieu Nhap hang doi.
+  -> Hai ham dung checkpoint lastModifiedFrom; full backfill chi chay thu cong.
+
+Webhook invoice.update
+  -> Neu payload co Code + InvoiceDetails: ghi thang, khong goi API chi tiet.
+  -> Chi payload thieu moi hydrate tu endpoint chi tiet, giup tiet kiem UrlFetch.
+  -> ScriptLock + Script Properties chan trigger cua nhieu chu so huu goi trung.
 
 5. VAI TRO TUNG FILE
 -------------------------------------------------------------------------------

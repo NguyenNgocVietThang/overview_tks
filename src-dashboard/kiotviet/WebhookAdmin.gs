@@ -103,15 +103,6 @@ function createKiotVietRecoveryTriggers_() {
     .timeBased()
     .everyHours(1)
     .create();
-  ScriptApp.newTrigger(KIOTVIET_INVOICE_RECONCILE_HANDLER_)
-    .timeBased()
-    .atHour(2)
-    .everyDays(1)
-    .create();
-  ScriptApp.newTrigger(KIOTVIET_INVOICE_RECONCILE_HANDLER_)
-    .timeBased()
-    .after(60 * 1000)
-    .create();
 }
 
 function setupKiotVietRecoveryTriggers() {
@@ -128,23 +119,17 @@ function setupKiotVietRecoveryTriggers() {
 function ensureKiotVietRecoveryTriggers_() {
   const handlers = {};
   ScriptApp.getProjectTriggers().forEach(trigger => {
-    handlers[trigger.getHandlerFunction()] = true;
+    const handler = trigger.getHandlerFunction();
+    if (handler === KIOTVIET_INVOICE_RECONCILE_HANDLER_) {
+      ScriptApp.deleteTrigger(trigger);
+      return;
+    }
+    handlers[handler] = true;
   });
   if (!handlers[KIOTVIET_WEBHOOK_HEALTH_HANDLER_]) {
     ScriptApp.newTrigger(KIOTVIET_WEBHOOK_HEALTH_HANDLER_)
       .timeBased()
       .everyHours(1)
-      .create();
-  }
-  if (!handlers[KIOTVIET_INVOICE_RECONCILE_HANDLER_]) {
-    ScriptApp.newTrigger(KIOTVIET_INVOICE_RECONCILE_HANDLER_)
-      .timeBased()
-      .atHour(2)
-      .everyDays(1)
-      .create();
-    ScriptApp.newTrigger(KIOTVIET_INVOICE_RECONCILE_HANDLER_)
-      .timeBased()
-      .after(60 * 1000)
       .create();
   }
 }
@@ -161,9 +146,7 @@ function reconcileKiotVietAutoSyncHealth_() {
 }
 
 function reconcileInvoicesDaily_() {
-  return hasInvoicesBackfillProgress_()
-    ? syncInvoicesChunk()
-    : restartInvoicesBackfill();
+  return syncRecentInvoices_();
 }
 
 /**

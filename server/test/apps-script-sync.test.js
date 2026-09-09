@@ -654,6 +654,44 @@ describe('Separated dashboard and shipment projects', () => {
     ]);
   });
 
+  it('keeps recovery lightweight and does not schedule automatic invoice backfills', () => {
+    const created = [];
+    const oldHealth = { getHandlerFunction() { return 'reconcileKiotVietAutoSyncHealth_'; } };
+    const oldBackfill = { getHandlerFunction() { return 'reconcileInvoicesDaily_'; } };
+    const deleted = [];
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/kiotviet/WebhookAdmin.gs'
+    ], {
+      ScriptApp: {
+        getProjectTriggers() { return [oldHealth, oldBackfill]; },
+        deleteTrigger(trigger) { deleted.push(trigger.getHandlerFunction()); },
+        newTrigger(handler) {
+          const record = { handler };
+          const builder = {
+            timeBased() { return builder; },
+            everyHours(hours) { record.hours = hours; return builder; },
+            atHour(hour) { record.hour = hour; return builder; },
+            everyDays(days) { record.days = days; return builder; },
+            after(delayMs) { record.delayMs = delayMs; return builder; },
+            create() { created.push(record); }
+          };
+          return builder;
+        }
+      }
+    });
+
+    context.setupKiotVietRecoveryTriggers();
+
+    assert.deepEqual(deleted.sort(), [
+      'reconcileInvoicesDaily_',
+      'reconcileKiotVietAutoSyncHealth_'
+    ]);
+    assert.deepEqual(created, [{
+      handler: 'reconcileKiotVietAutoSyncHealth_', hours: 1
+    }]);
+  });
+
   it('does not write shipment rows inside the dashboard project', () => {
     const calls = [];
     const context = loadAppsScript([
@@ -906,7 +944,7 @@ describe('Separated dashboard and shipment projects', () => {
     assert.equal(processCalls, 7);
   });
 
-  it('checks for stalled polling and invoice backfills on every dashboard queue tick', () => {
+  it('does not resurrect an automatic invoice backfill on a dashboard queue tick', () => {
     let pollingWatchdogCalls = 0;
     let invoiceWatchdogCalls = 0;
     const context = loadAppsScript([
@@ -932,7 +970,7 @@ describe('Separated dashboard and shipment projects', () => {
     context.processWebhookQueue();
 
     assert.equal(pollingWatchdogCalls, 1);
-    assert.equal(invoiceWatchdogCalls, 1);
+    assert.equal(invoiceWatchdogCalls, 0);
   });
 
   it('skips heavy queue maintenance while the master backfill is active', () => {
@@ -977,6 +1015,83 @@ describe('Separated dashboard and shipment projects', () => {
   });
 });
 
+describe('Invoice webhook fast path and cross-owner locks', () => {
+  function loadInvoiceUpdater() {
+    return loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/sync/UpdateHandlers.gs'
+    ], {
+      LockService: {
+        getDocumentLock() { return null; },
+        getScriptLock() { return {}; },
+        getUserLock() { return {}; }
+      }
+    });
+  }
+
+  it('writes a complete invoice webhook without hydrating it from KiotViet', () => {
+    const context = loadInvoiceUpdater();
+    const writes = [];
+    context.hydrateKiotVietItems_ = () => {
+      throw new Error('complete invoice webhook must not consume UrlFetch quota');
+    };
+    context.upsertKiotVietSheetItems_ = (schema, items) => writes.push(['invoices', items]);
+    context.replaceInvoiceDetailsForInvoices_ = items => writes.push(['details', items]);
+    context.updateCustomerProductReportFromInvoices_ = items => writes.push(['report', items]);
+    const invoice = { Id: 1, Code: 'HD000001', InvoiceDetails: [{ ProductCode: 'SP1' }] };
+
+    context.updateInvoicesFromWebhook([invoice]);
+
+    assert.equal(writes.length, 3);
+    assert.deepEqual(JSON.parse(JSON.stringify(writes[0][1])), [invoice]);
+  });
+
+  it('hydrates only incomplete invoice webhook items and preserves their input order', () => {
+    const context = loadInvoiceUpdater();
+    const hydrateCalls = [];
+    const written = [];
+    const complete = { Id: 1, Code: 'HD1', InvoiceDetails: [] };
+    const incomplete = { Id: 2, Code: 'HD2' };
+    context.hydrateKiotVietItems_ = items => {
+      hydrateCalls.push(items);
+      return items.map(item => Object.assign({}, item, {
+        CustomerName: 'Hydrated',
+        InvoiceDetails: [{ ProductCode: 'SP2' }]
+      }));
+    };
+    context.upsertKiotVietSheetItems_ = (schema, items) => written.push(...items);
+    context.replaceInvoiceDetailsForInvoices_ = () => {};
+    context.updateCustomerProductReportFromInvoices_ = () => {};
+
+    context.updateInvoicesFromWebhook([complete, incomplete]);
+
+    assert.equal(hydrateCalls.length, 1);
+    assert.deepEqual(JSON.parse(JSON.stringify(hydrateCalls[0])), [incomplete]);
+    assert.deepEqual(written.map(item => item.Id), [1, 2]);
+    assert.equal(written[1].CustomerName, 'Hydrated');
+  });
+
+  it('uses a script-wide lock when no document lock exists', () => {
+    const scriptLock = { name: 'script' };
+    let userLockCalls = 0;
+    const context = loadAppsScript([
+      'src-dashboard/utils/Helpers.gs'
+    ], {
+      LockService: {
+        getDocumentLock() { return null; },
+        getScriptLock() { return scriptLock; },
+        getUserLock() { userLockCalls++; return { name: 'user' }; }
+      }
+    });
+
+    assert.equal(context.getKiotVietDataLock_(), scriptLock);
+    assert.equal(context.getKiotVietInvoiceLock_(), scriptLock);
+    assert.equal(userLockCalls, 0);
+  });
+});
+
 describe('Chunked sync with checkpoint and auto-resume', () => {
   it('replaces every stale detail row for recently changed purchase orders', () => {
     const context = loadAppsScript([
@@ -1009,9 +1124,10 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     );
   });
 
-  it('polls a rolling purchase window and publishes it incrementally', () => {
+  it('polls purchases from an incremental lastModified checkpoint', () => {
     const fetchedQueries = [];
     const replaced = [];
+    const properties = {};
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
@@ -1019,7 +1135,16 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
       Utilities: {
-        formatDate(date) { return date.toISOString().slice(0, 10); }
+        formatDate(date) { return date.toISOString().slice(0, 19); }
+      },
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return getTestScriptProperty(properties, name); },
+            setProperty(name, value) { properties[name] = value; },
+            deleteProperty(name) { delete properties[name]; }
+          };
+        }
       }
     });
     context.getKiotVietDataLock_ = () => ({
@@ -1035,17 +1160,134 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const result = context.syncRecentPurchases_(new Date('2026-09-08T05:00:00.000Z'));
 
     assert.equal(fetchedQueries.length, 1);
-    assert.match(fetchedQueries[0], /fromPurchaseDate=2026-09-01/);
-    assert.match(fetchedQueries[0], /toPurchaseDate=2026-09-08/);
+    assert.match(fetchedQueries[0], /lastModifiedFrom=2026-09-06T05%3A00%3A00/);
     assert.deepEqual(replaced, [{ Code: 'PN-1' }]);
     assert.equal(result.updatedOrders, 1);
+    assert.equal(
+      properties.KIOTVIET_INCREMENTAL_CHECKPOINT_purchases,
+      '2026-09-08T05:00:00.000Z'
+    );
   });
 
-  it('installs a five-minute recent-purchase trigger beside the full reconciliation trigger', () => {
+  it('reconciles invoices with overlap and advances checkpoint only after success', () => {
+    const fetchedQueries = [];
+    const written = [];
+    const properties = {
+      KIOTVIET_INCREMENTAL_CHECKPOINT_invoices: '2026-09-08T04:30:00.000Z',
+      KIOTVIET_INCREMENTAL_LAST_START_invoices: '2026-09-08T04:00:00.000Z'
+    };
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/kiotviet/SyncInitial.gs'
+    ], {
+      Utilities: {
+        formatDate(date) { return date.toISOString().slice(0, 19); }
+      },
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return getTestScriptProperty(properties, name); },
+            setProperty(name, value) { properties[name] = value; },
+            deleteProperty(name) { delete properties[name]; }
+          };
+        }
+      }
+    });
+    context.getKiotVietInvoiceLock_ = () => ({
+      tryLock() { return true; }, releaseLock() {}
+    });
+    context.getKiotVietToken = () => 'token';
+    context.fetchAllKiotVietPages_ = (schema, token, extraQuery) => {
+      fetchedQueries.push(extraQuery);
+      return [{ Code: 'HD-1', InvoiceDetails: [] }];
+    };
+    context.updateInvoicesFromWebhook = invoices => written.push(...invoices);
+
+    const result = context.syncRecentInvoices_(new Date('2026-09-08T05:00:00.000Z'));
+
+    assert.match(fetchedQueries[0], /lastModifiedFrom=2026-09-08T04%3A20%3A00/);
+    assert.equal(result.updatedInvoices, 1);
+    assert.deepEqual(written, [{ Code: 'HD-1', InvoiceDetails: [] }]);
+    assert.equal(
+      properties.KIOTVIET_INCREMENTAL_CHECKPOINT_invoices,
+      '2026-09-08T05:00:00.000Z'
+    );
+
+    properties.KIOTVIET_INCREMENTAL_LAST_START_invoices = '2026-09-08T05:01:00.000Z';
+    context.updateInvoicesFromWebhook = () => { throw new Error('sheet write failed'); };
+    assert.throws(
+      () => context.syncRecentInvoices_(new Date('2026-09-08T05:10:00.000Z')),
+      /sheet write failed/
+    );
+    assert.equal(
+      properties.KIOTVIET_INCREMENTAL_CHECKPOINT_invoices,
+      '2026-09-08T05:00:00.000Z'
+    );
+  });
+
+  it('throttles duplicate incremental invoice runs across trigger owners', () => {
+    let fetchCalls = 0;
+    const properties = {
+      KIOTVIET_INCREMENTAL_LAST_START_invoices: '2026-09-08T04:58:00.000Z'
+    };
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/kiotviet/SyncInitial.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return getTestScriptProperty(properties, name); },
+            setProperty(name, value) { properties[name] = value; },
+            deleteProperty(name) { delete properties[name]; }
+          };
+        }
+      }
+    });
+    context.getKiotVietInvoiceLock_ = () => ({
+      tryLock() { return true; }, releaseLock() {}
+    });
+    context.fetchAllKiotVietPages_ = () => { fetchCalls++; return []; };
+
+    const result = context.syncRecentInvoices_(new Date('2026-09-08T05:00:00.000Z'));
+
+    assert.equal(result.throttled, true);
+    assert.equal(fetchCalls, 0);
+  });
+
+  it('uses incremental polling for returns and suppliers instead of historical chunks', () => {
+    const schemaKeys = [];
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/kiotviet/SyncInitial.gs'
+    ]);
+    context.syncKiotVietIncrementalTable_ = schemaKey => {
+      schemaKeys.push(schemaKey);
+      return { schemaKey, updatedItems: 0 };
+    };
+    context.syncKiotVietTableChunk_ = () => {
+      throw new Error('incremental polling must not start a historical chunk');
+    };
+
+    const result = context.syncPollingOnly_(new Date('2026-09-08T05:00:00.000Z'));
+
+    assert.deepEqual(schemaKeys, ['returns', 'suppliers']);
+    assert.equal(result.length, 2);
+  });
+
+  it('installs near-real-time invoice and incremental polling triggers', () => {
     const deleted = [];
     const created = [];
     const oldFast = { getHandlerFunction() { return 'syncRecentPurchases_'; } };
     const oldFull = { getHandlerFunction() { return 'syncPollingOnly_'; } };
+    const oldInvoices = { getHandlerFunction() { return 'syncRecentInvoices_'; } };
+    const oldInvoiceBackfill = { getHandlerFunction() { return 'resumeSyncInvoicesChunk'; } };
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
@@ -1053,7 +1295,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
       ScriptApp: {
-        getProjectTriggers() { return [oldFast, oldFull]; },
+        getProjectTriggers() { return [oldFast, oldFull, oldInvoices, oldInvoiceBackfill]; },
         deleteTrigger(trigger) { deleted.push(trigger.getHandlerFunction()); },
         newTrigger(handler) {
           const record = { handler };
@@ -1072,10 +1314,14 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
 
     context.setupPollingTrigger();
 
-    assert.deepEqual(deleted.sort(), ['syncPollingOnly_', 'syncRecentPurchases_']);
+    assert.deepEqual(deleted.sort(), [
+      'resumeSyncInvoicesChunk', 'syncPollingOnly_',
+      'syncRecentInvoices_', 'syncRecentPurchases_'
+    ]);
     assert.deepEqual(created, [
       { handler: 'syncPollingOnly_', minutes: 15 },
-      { handler: 'syncRecentPurchases_', minutes: 5 }
+      { handler: 'syncRecentPurchases_', minutes: 5 },
+      { handler: 'syncRecentInvoices_', minutes: 5 }
     ]);
   });
 
@@ -1597,7 +1843,9 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
   });
 
   it('publishes invoices and details together after staging is complete', () => {
-    const properties = {};
+    const properties = {
+      KIOTVIET_INCREMENTAL_CHECKPOINT_invoices: '2026-08-27T00:00:00.000Z'
+    };
     const createdTriggers = [];
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
@@ -1712,6 +1960,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
       'Hóa đơn'
     ]);
     assert.equal(properties.SYNC_CHUNK_STATE_invoices, undefined);
+    assert.equal(properties.KIOTVIET_INCREMENTAL_CHECKPOINT_invoices, undefined);
     const audit = JSON.parse(properties.KIOTVIET_INVOICE_BACKFILL_LAST_RESULT);
     assert.equal(audit.total, 1);
     assert.equal(audit.invoiceCount, 1);
@@ -1741,7 +1990,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
       LockService: {
-        getUserLock() {
+        getScriptLock() {
           return {
             tryLock() { return true; },
             releaseLock() { lockReleased = true; }
@@ -1768,7 +2017,9 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
 
     assert.equal(result.schemaKey, 'invoices');
     assert.equal(syncCalls, 1);
-    assert.deepEqual(removedHandlers, ['resumeSyncInvoicesChunk']);
+    assert.deepEqual(removedHandlers, [
+      'resumeSyncInvoicesChunk', 'resumeManualInvoicesBackfill_'
+    ]);
     assert.equal(properties.SYNC_CHUNK_STATE_invoices, undefined);
     assert.equal(properties.KIOTVIET_INVOICE_BACKFILL_LAST_RESULT, undefined);
     assert.equal(properties.SYNC_CHUNK_STATE_orders, '{"currentItem":200}');
@@ -1784,7 +2035,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
       LockService: {
-        getUserLock() {
+        getScriptLock() {
           return { tryLock() { return true; }, releaseLock() {} };
         }
       }
@@ -1798,55 +2049,26 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
 
     assert.equal(result.isCompleted, false);
     assert.match(result.error, /timed out/);
-    assert.deepEqual(scheduled, ['resumeSyncInvoicesChunk']);
+    assert.deepEqual(scheduled, ['resumeManualInvoicesBackfill_']);
   });
 
-  it('waits five minutes before resuming a heavy polling chunk', () => {
-    const createdTriggers = [];
+  it('runs the legacy polling resume handler through incremental reconciliation', () => {
+    let pollingCalls = 0;
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/SyncInitial.gs'
-    ], {
-      PropertiesService: {
-        getScriptProperties() {
-          return {
-            getProperty(name) {
-              return name === 'KIOTVIET_RETAILER' ? 'CHhanoi' : null;
-            },
-            setProperty() {},
-            deleteProperty() {}
-          };
-        }
-      },
-      ScriptApp: {
-        getProjectTriggers() { return []; },
-        newTrigger(handler) {
-          return {
-            timeBased() { return this; },
-            after(delayMs) { this.delayMs = delayMs; return this; },
-            create() { createdTriggers.push({ handler, delayMs: this.delayMs }); }
-          };
-        }
-      }
-    });
-    context.getKiotVietDataLock_ = () => ({
-      tryLock() { return true; },
-      releaseLock() {}
-    });
-    context.syncKiotVietTableChunk_ = () => ({ isCompleted: false });
+    ]);
+    context.syncPollingOnly_ = () => { pollingCalls++; return []; };
 
-    context.syncPollingOnly_();
+    context.resumePollingOnlyChunk_();
 
-    assert.deepEqual(createdTriggers, [{
-      handler: 'resumePollingOnlyChunk_',
-      delayMs: 300000
-    }]);
+    assert.equal(pollingCalls, 1);
   });
 
-  it('restores a missing polling resume trigger without clearing purchase progress', () => {
-    const createdTriggers = [];
+  it('retires obsolete polling resume state without restarting historical chunks', () => {
+    const deletedTriggers = [];
     const properties = {
       POLLING_ONLY_CHAIN_INDEX: '2',
       SYNC_CHUNK_STATE_purchases: '{"currentItem":21320}'
@@ -1867,23 +2089,16 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
         }
       },
       ScriptApp: {
-        getProjectTriggers() { return []; },
-        newTrigger(handler) {
-          return {
-            timeBased() { return this; },
-            after(delayMs) { this.delayMs = delayMs; return this; },
-            create() { createdTriggers.push({ handler, delayMs: this.delayMs }); }
-          };
-        }
+        getProjectTriggers() {
+          return [{ getHandlerFunction() { return 'resumePollingOnlyChunk_'; } }];
+        },
+        deleteTrigger(trigger) { deletedTriggers.push(trigger.getHandlerFunction()); }
       }
     });
 
-    assert.equal(context.ensurePollingOnlyResumeTrigger_(), true);
-    assert.deepEqual(createdTriggers, [{
-      handler: 'resumePollingOnlyChunk_',
-      delayMs: 300000
-    }]);
-    assert.equal(properties.POLLING_ONLY_CHAIN_INDEX, '2');
+    assert.equal(context.ensurePollingOnlyResumeTrigger_(), false);
+    assert.deepEqual(deletedTriggers, ['resumePollingOnlyChunk_']);
+    assert.equal(properties.POLLING_ONLY_CHAIN_INDEX, undefined);
     assert.equal(properties.SYNC_CHUNK_STATE_purchases, '{"currentItem":21320}');
   });
 

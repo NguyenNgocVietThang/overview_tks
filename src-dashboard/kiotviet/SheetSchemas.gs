@@ -1080,6 +1080,7 @@ function syncKiotVietTableChunk_(schemaKey, options) {
             ? Math.max(0, publishedDetailSheet.getLastRow() - 1)
             : 0
         }));
+        props.deleteProperty('KIOTVIET_INCREMENTAL_CHECKPOINT_invoices');
       } else {
         publishKiotVietChunkStagingSheet_(
           spreadsheet, schemaKey, schema, liveSheet, stagingSheet

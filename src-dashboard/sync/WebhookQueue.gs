@@ -642,9 +642,6 @@ function processWebhookQueue() {
     }
     ensureMasterChainResumeTrigger_();
     ensurePollingOnlyResumeTrigger_();
-    if (typeof ensureInvoicesBackfillResumeTrigger_ === 'function') {
-      ensureInvoicesBackfillResumeTrigger_();
-    }
     const masterBackfillActive = Boolean(
       PropertiesService.getScriptProperties().getProperty('MASTER_CHAIN_SYNC_STATE')
     );
