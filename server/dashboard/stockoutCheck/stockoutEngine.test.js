@@ -74,6 +74,31 @@ test('analyzeStockoutTimeline gioi han dot dut hang theo dataFromDateFloor khi d
   }]);
 });
 
+test('analyzeStockoutTimeline tra ve hasUnreliableData=true khi co ngay trong ky bao cao bi loai vi ton tho am', () => {
+  // Ton hien tai = 0, nhung co 1 su kien +50 (vd Tra hang) ma khong co bang
+  // chung nao khac giai thich duoc — dung luoc tinh LUI se ra ton tho am cho
+  // ngay truoc do, nam trong ky bao cao (daysBack=5).
+  const result = analyzeStockoutTimeline({
+    currentOnHand: 0,
+    events: [{ dateKey: '2026-01-08', delta: 50 }],
+    todayKey: '2026-01-10',
+    daysBack: 5,
+    minConsecutiveDays: 5
+  });
+  assert.equal(result.hasUnreliableData, true);
+});
+
+test('analyzeStockoutTimeline tra ve hasUnreliableData=false khi khong co ngay nao bi loai', () => {
+  const result = analyzeStockoutTimeline({
+    currentOnHand: 3,
+    events: [],
+    todayKey: '2026-01-10',
+    daysBack: 5,
+    minConsecutiveDays: 5
+  });
+  assert.equal(result.hasUnreliableData, false);
+});
+
 test('maxDateKey tra ve moc muon hon, coi null/rong la khong gioi han', () => {
   assert.equal(maxDateKey('2026-06-01', '2026-08-04'), '2026-08-04');
   assert.equal(maxDateKey('2026-08-04', '2026-06-01'), '2026-08-04');

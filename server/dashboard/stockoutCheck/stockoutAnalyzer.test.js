@@ -68,6 +68,16 @@ test('ngay co hadPurchase=true ngat dot dut hang du ton cuoi ngay = 0', () => {
   assert.deepEqual(periods, []);
 });
 
+test('ngay co unreliable=true ngat dot dut hang du ton cuoi ngay = 0 (thieu du lieu, khong phai bang chung dut hang)', () => {
+  const daily = daysFrom('2026-01-01', 9, (i) => 0).map((row, i) =>
+    i === 4 ? { ...row, unreliable: true } : row
+  );
+  const periods = findStockoutPeriods(daily, 5);
+  // Giong het hanh vi hadPurchase: ngay thu 5 (index 4) khong con duoc tinh
+  // la dut hang nen ngat dot, 2 doan con lai deu chi 4 ngay, khong du 5.
+  assert.deepEqual(periods, []);
+});
+
 test('hadPurchase khong anh huong khi ton kho > 0 (khong co dot dut hang nao)', () => {
   const daily = daysFrom('2026-01-01', 5, () => 3).map((row, i) =>
     i === 2 ? { ...row, hadPurchase: true } : row

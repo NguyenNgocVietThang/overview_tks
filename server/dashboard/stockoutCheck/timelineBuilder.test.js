@@ -118,9 +118,11 @@ test('reconstructDailyStock gộp nhiều event trong cùng 1 ngày trước khi
   ];
   const result = reconstructDailyStock(0, events, '2026-01-03', 2);
   assert.deepEqual(result, [
-    { date: '2026-01-01', stock: 0, hadPurchase: false },
-    { date: '2026-01-02', stock: 8, hadPurchase: false },
-    { date: '2026-01-03', stock: 0, hadPurchase: false }
+    // Ton tho ngay 01-01 = 8 - 10 = -2 (am) voi bo events nay — danh dau
+    // unreliable=true, khong lien quan toi hanh vi gop event dang duoc test.
+    { date: '2026-01-01', stock: 0, hadPurchase: false, unreliable: true },
+    { date: '2026-01-02', stock: 8, hadPurchase: false, unreliable: false },
+    { date: '2026-01-03', stock: 0, hadPurchase: false, unreliable: false }
   ]);
 });
 
@@ -131,9 +133,9 @@ test('reconstructDailyStock danh dau hadPurchase=true dung ngay co su kien sourc
   ];
   const result = reconstructDailyStock(0, events, '2026-01-03', 2);
   assert.deepEqual(result, [
-    { date: '2026-01-01', stock: 0, hadPurchase: false },
-    { date: '2026-01-02', stock: 0, hadPurchase: true },
-    { date: '2026-01-03', stock: 0, hadPurchase: false }
+    { date: '2026-01-01', stock: 0, hadPurchase: false, unreliable: false },
+    { date: '2026-01-02', stock: 0, hadPurchase: true, unreliable: false },
+    { date: '2026-01-03', stock: 0, hadPurchase: false, unreliable: false }
   ]);
 });
 
@@ -145,11 +147,24 @@ test('reconstructDailyStock không có event nào thì tồn kho không đổi s
   );
 });
 
-test('reconstructDailyStock quy tồn âm về 0 trong kết quả cuối ngày', () => {
+test('reconstructDailyStock quy tồn âm về 0 trong kết quả cuối ngày, va danh dau unreliable=true', () => {
   const result = reconstructDailyStock(-2, [], '2026-01-05', 1);
   assert.deepEqual(result, [
-    { date: '2026-01-04', stock: 0, hadPurchase: false },
-    { date: '2026-01-05', stock: 0, hadPurchase: false }
+    { date: '2026-01-04', stock: 0, hadPurchase: false, unreliable: true },
+    { date: '2026-01-05', stock: 0, hadPurchase: false, unreliable: true }
+  ]);
+});
+
+test('reconstructDailyStock danh dau unreliable=true cho ngay ma dung luoc tinh LUI ra ton tho am (thieu du lieu, khong phai dut hang that)', () => {
+  // Ton kho thuc te khong the am. Gia tri tho am xuat hien khi 1 su kien lam
+  // tang ton (vd Tra NCC, nguon duy nhat khong co API) bi thieu khoi du lieu
+  // dau vao — dung luoc tinh LUI se "no ngay cang am" cho cac ngay truoc do.
+  const events = [{ dateKey: '2026-01-02', delta: 50 }];
+  const result = reconstructDailyStock(0, events, '2026-01-03', 2);
+  assert.deepEqual(result, [
+    { date: '2026-01-01', stock: 0, hadPurchase: false, unreliable: true },
+    { date: '2026-01-02', stock: 0, hadPurchase: false, unreliable: false },
+    { date: '2026-01-03', stock: 0, hadPurchase: false, unreliable: false }
   ]);
 });
 

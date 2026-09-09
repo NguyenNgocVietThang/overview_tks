@@ -92,7 +92,18 @@ function reconstructDailyStock(currentOnHand, eventsForCode, todayKey, daysBack 
     stocks[i - 1] = stocks[i] - (deltaByDate.get(dates[i]) || 0);
   }
 
-  return dates.map((date, i) => ({ date, stock: Math.max(0, stocks[i]), hadPurchase: purchaseDates.has(date) }));
+  // Ton kho khong the am that su — gia tri tho (truoc khi kep ve 0) bi am
+  // nghia la thieu it nhat 1 su kien lam tang ton (thuong la Tra NCC, nguon
+  // duy nhat khong co API, nhap tay va bi ghi de dinh ky). Vi day la dung
+  // luoc tinh LUI tu hien tai, sai so nay cong don vao MOI ngay truoc do —
+  // gan co rawStock am la tin hieu du lieu khong dang tin, khong phai bang
+  // chung dut hang that.
+  return dates.map((date, i) => ({
+    date,
+    stock: Math.max(0, stocks[i]),
+    hadPurchase: purchaseDates.has(date),
+    unreliable: stocks[i] < 0
+  }));
 }
 
 module.exports = {

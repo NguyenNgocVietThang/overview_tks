@@ -73,7 +73,7 @@ async function runStockout90dScanJob(jobStore, jobId, deps = {}) {
       // chac chan da loi thoi. Bo qua thay vi bao dut hang sai tren du lieu
       // khong dang tin.
       if (currentOnHand === 0 && hasUnreliableZeroOnHand(events)) continue;
-      const { periods, summary } = analyzeStockoutTimeline({
+      const { periods, summary, hasUnreliableData } = analyzeStockoutTimeline({
         currentOnHand, events, todayKey, daysBack, minConsecutiveDays,
         // Mot ma moi tao (createdDateKey) khong the dut hang truoc khi no
         // ton tai trong he thong — ghim moc san rieng cho ma nay.
@@ -86,7 +86,8 @@ async function runStockout90dScanJob(jobStore, jobId, deps = {}) {
         stockoutCount: summary.stockoutCount,
         totalStockoutDays: summary.totalStockoutDays,
         periods,
-        currentOnHand
+        currentOnHand,
+        hasUnreliableData
       });
     }
 

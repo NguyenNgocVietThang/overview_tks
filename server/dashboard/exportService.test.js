@@ -343,7 +343,7 @@ test('buildExportDataset: stockout.recentScan tra dung worksheet', async () => {
     recentStockoutResult: {
       branch: 'Hà Nội',
       rows: [{
-        code: 'SP001', name: 'Ao thun', lastOutOfStockDate: '2026-01-05', daysOutOfStock: 6,
+        code: 'SP001', name: 'Ao thun', lastOutOfStockDate: '2026-01-05', daysOutOfStock: 6, hasUnreliableData: true,
         periods: [
           { fromDate: '2026-01-01', toDate: '2026-01-05', days: 5 },
           { fromDate: '2026-01-10', toDate: '2026-01-15', days: 6 }
@@ -356,8 +356,9 @@ test('buildExportDataset: stockout.recentScan tra dung worksheet', async () => {
   assert.equal(dataset.title, 'Hàng đứt gần đây');
   assert.equal(dataset.sourceBranch, 'Hà Nội');
   assert.equal(dataset.worksheets.length, 1);
-  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'periods']);
+  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'dataWarning', 'periods']);
   assert.equal(dataset.worksheets[0].rows[0].code, 'SP001');
+  assert.equal(dataset.worksheets[0].rows[0].dataWarning, 'Thiếu dữ liệu Trả NCC trong kỳ — cần đối chiếu thủ công');
   assert.equal(dataset.worksheets[0].rows[0].periods, '01/01/2026 -> 05/01/2026\n10/01/2026 -> 15/01/2026');
 });
 
@@ -386,7 +387,7 @@ test('buildExportDataset: stockout.check90d tra dung worksheet', async () => {
     stockout90dResult: {
       branch: 'Sài Gòn',
       rows: [{
-        code: 'SP001', name: 'Ao thun', stockoutCount: 2, totalStockoutDays: 10, currentOnHand: 3,
+        code: 'SP001', name: 'Ao thun', stockoutCount: 2, totalStockoutDays: 10, currentOnHand: 3, hasUnreliableData: false,
         periods: [
           { fromDate: '2026-01-01', toDate: '2026-01-05', days: 5 },
           { fromDate: '2026-01-10', toDate: '2026-01-14', days: 5 }
@@ -399,8 +400,9 @@ test('buildExportDataset: stockout.check90d tra dung worksheet', async () => {
   assert.equal(dataset.title, 'Kiểm tra đứt hàng 90 ngày');
   assert.equal(dataset.sourceBranch, 'Sài Gòn');
   assert.equal(dataset.worksheets.length, 1);
-  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'periods']);
+  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'dataWarning', 'periods']);
   assert.equal(dataset.worksheets[0].rows[0].code, 'SP001');
+  assert.equal(dataset.worksheets[0].rows[0].dataWarning, '');
   assert.equal(dataset.worksheets[0].rows[0].periods, '01/01/2026 -> 05/01/2026\n10/01/2026 -> 14/01/2026');
 });
 

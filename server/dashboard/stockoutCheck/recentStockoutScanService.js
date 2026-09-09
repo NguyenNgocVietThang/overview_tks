@@ -76,7 +76,7 @@ async function runRecentStockoutScanJob(jobStore, jobId, deps = {}) {
       // chac chan da loi thoi. Bo qua thay vi bao dut hang sai tren du lieu
       // khong dang tin.
       if (hasUnreliableZeroOnHand(events)) continue;
-      const { periods } = analyzeStockoutTimeline({
+      const { periods, hasUnreliableData } = analyzeStockoutTimeline({
         currentOnHand: 0, events, todayKey, daysBack, minConsecutiveDays,
         // Mot ma moi tao (createdDateKey) khong the dut hang truoc khi no
         // ton tai trong he thong — ghim moc san rieng cho ma nay.
@@ -89,7 +89,8 @@ async function runRecentStockoutScanJob(jobStore, jobId, deps = {}) {
         name,
         lastOutOfStockDate: lastPeriod.fromDate,
         daysOutOfStock: lastPeriod.days,
-        periods
+        periods,
+        hasUnreliableData
       });
     }
 

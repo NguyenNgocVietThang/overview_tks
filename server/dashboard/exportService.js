@@ -508,16 +508,21 @@ function formatStockoutPeriods(periods) {
     .join('\n');
 }
 
+function stockoutDataWarning(row) {
+  return row.hasUnreliableData ? 'Thiếu dữ liệu Trả NCC trong kỳ — cần đối chiếu thủ công' : '';
+}
+
 function buildRecentStockoutResultDataset(payload) {
   const result = payload.recentStockoutResult && typeof payload.recentStockoutResult === 'object' ? payload.recentStockoutResult : null;
   const rows = result && Array.isArray(result.rows) ? result.rows : [];
   if (rows.length === 0) throw exportError('Chưa có kết quả hàng đứt gần đây để xuất.', 400, 'EXPORT_NO_DATA');
-  const dataRows = rows.map(row => ({ ...row, periods: formatStockoutPeriods(row.periods) }));
+  const dataRows = rows.map(row => ({ ...row, periods: formatStockoutPeriods(row.periods), dataWarning: stockoutDataWarning(row) }));
   const worksheet = aggregateWorksheet('recent_stockout_result', 'Hàng đứt gần đây', [
     { key: 'code', label: 'Mã SP', type: 'text' },
     { key: 'name', label: 'Tên SP' },
     { key: 'lastOutOfStockDate', label: 'Ngày hết hàng gần nhất', type: 'date' },
     { key: 'daysOutOfStock', label: 'Số ngày đứt hàng', type: 'number' },
+    { key: 'dataWarning', label: 'Cảnh báo dữ liệu', wrapText: true },
     { key: 'periods', label: 'Các đợt đứt hàng', wrapText: true }
   ], dataRows);
   return {
@@ -540,7 +545,8 @@ function buildStockout90dResultDataset(payload) {
   const dataRows = rows.map(row => ({
     ...row,
     avgStockoutDays: row.stockoutCount ? Math.round((row.totalStockoutDays / row.stockoutCount) * 100) / 100 : 0,
-    periods: formatStockoutPeriods(row.periods)
+    periods: formatStockoutPeriods(row.periods),
+    dataWarning: stockoutDataWarning(row)
   }));
   const worksheet = aggregateWorksheet('stockout_90d_result', 'Kiểm tra đứt hàng 90 ngày', [
     { key: 'code', label: 'Mã SP', type: 'text' },
@@ -549,6 +555,7 @@ function buildStockout90dResultDataset(payload) {
     { key: 'totalStockoutDays', label: 'Số ngày đứt hàng', type: 'number' },
     { key: 'avgStockoutDays', label: 'Số ngày đứt TB', type: 'number' },
     { key: 'currentOnHand', label: 'Tồn kho hiện tại', type: 'number' },
+    { key: 'dataWarning', label: 'Cảnh báo dữ liệu', wrapText: true },
     { key: 'periods', label: 'Các đợt đứt hàng', wrapText: true }
   ], dataRows);
   return {

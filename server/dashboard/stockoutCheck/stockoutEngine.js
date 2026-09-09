@@ -74,13 +74,20 @@ function analyzeStockoutTimeline(options) {
     reportFromDate,
     todayKey
   );
+  // Co it nhat 1 ngay trong ky bao cao bi loai vi thieu du lieu (xem
+  // timelineBuilder.js) — bao hieu cho tang tren de canh bao nguoi dung, du
+  // cac dot con lai van hop le.
+  const hasUnreliableData = dailyStock.some(
+    (d) => d.unreliable && d.date >= reportFromDate && d.date <= todayKey
+  );
 
   return {
     reportFromDate,
     calculationFromDate,
     dailyStock,
     periods,
-    summary: summarizeStockoutPeriods(periods)
+    summary: summarizeStockoutPeriods(periods),
+    hasUnreliableData
   };
 }
 
