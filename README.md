@@ -256,7 +256,8 @@ webtks-dashboard/
 │       └── specs/
 │           ├── 2026-08-05-debt-dashboard-design.md
 │           ├── 2026-08-20-stagger-customer-report-triggers-design.md
-│           └── 2026-08-22-hr-leave-sessions-and-submission-time-design.md
+│           ├── 2026-08-22-hr-leave-sessions-and-submission-time-design.md
+│           └── 2026-09-09-near-realtime-invoice-sync-design.md
 │
 └── future-phases/               # Khung rỗng cho các giai đoạn sau
     ├── sales-pos/               # Giai đoạn 2: POS bán hàng
@@ -563,6 +564,7 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 | [Design System Master](design-system/tks-dashboard/MASTER.md) | Hệ thống token, component và quy tắc giao diện |
 | [Debt Dashboard Spec](docs/superpowers/specs/2026-08-05-debt-dashboard-design.md) | Đặc tả thiết kế module Báo cáo công nợ HN1/HN3/HN7 |
 | [HR Leave Sessions Spec](docs/superpowers/specs/2026-08-22-hr-leave-sessions-and-submission-time-design.md) | Đặc tả nghỉ phép theo buổi, thời gian gửi và trạng thái vi phạm |
+| [Near-real-time Invoice Sync Spec](docs/superpowers/specs/2026-09-09-near-realtime-invoice-sync-design.md) | Webhook-first, đối soát incremental và giảm quota Apps Script cho hóa đơn |
 | [HR Leave Sessions Plan](docs/superpowers/plans/2026-08-22-hr-leave-sessions-submission-filter.md) | Kế hoạch triển khai đồng bộ Bot, Google Sheet, API và giao diện HR |
 | [Result Cache Plan](docs/superpowers/plans/2026-08-13-dashboard-result-cache.md) | Kế hoạch & chi tiết triển khai Result Cache tầng backend |
 | [Pagination Plan](docs/superpowers/plans/2026-08-13-dashboard-table-pagination.md) | Kế hoạch & chi tiết triển khai phân trang bảng client-side |
@@ -588,4 +590,4 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 
 ---
 
-*Cập nhật lần cuối: 31/08/2026*
+*Cập nhật lần cuối: 09/09/2026*
