@@ -177,6 +177,29 @@ test('workbook giu ma co so 0 dau, chan chuoi cong thuc va bat freeze/autofilter
   }
 });
 
+test('header khong to mau nen, chu den, an gridline', async () => {
+  const originalSnapshot = dashboardData.getDashboardExportSnapshot;
+  dashboardData.getDashboardExportSnapshot = async () => buildSnapshot();
+  try {
+    const file = await exportService.createExportWorkbook({
+      tableKey: 'products.all',
+      filters: {},
+      columns: { all_products: ['c0', 'c1', 'c2'] }
+    });
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file.buffer);
+    const worksheet = workbook.worksheets[0];
+    const header = worksheet.getRow(1);
+    assert.equal(header.font.color.argb, 'FF000000');
+    header.eachCell(cell => {
+      assert.equal(cell.fill === undefined || cell.fill.pattern === 'none', true);
+    });
+    assert.equal(worksheet.views[0].showGridLines, false);
+  } finally {
+    dashboardData.getDashboardExportSnapshot = originalSnapshot;
+  }
+});
+
 test('ten file gan tien to HN_/SG_ theo co so dang xuat', async () => {
   const originalSnapshot = dashboardData.getDashboardExportSnapshot;
   dashboardData.getDashboardExportSnapshot = async () => buildSnapshot();
@@ -273,6 +296,7 @@ test('buildExportDataset: stockout.recentScan tra dung worksheet', async () => {
   const dataset = await exportService.__test__.buildExportDataset({
     tableKey: 'stockout.recentScan',
     recentStockoutResult: {
+      branch: 'Hà Nội',
       rows: [{
         code: 'SP001', name: 'Ao thun', lastOutOfStockDate: '2026-01-05', daysOutOfStock: 6,
         periods: [
@@ -285,10 +309,23 @@ test('buildExportDataset: stockout.recentScan tra dung worksheet', async () => {
 
   assert.equal(dataset.tableKey, 'stockout.recentScan');
   assert.equal(dataset.title, 'Hàng đứt gần đây');
+  assert.equal(dataset.sourceBranch, 'Hà Nội');
   assert.equal(dataset.worksheets.length, 1);
   assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'periods']);
   assert.equal(dataset.worksheets[0].rows[0].code, 'SP001');
   assert.equal(dataset.worksheets[0].rows[0].periods, '01/01/2026 -> 05/01/2026\n10/01/2026 -> 15/01/2026');
+});
+
+test('createExportWorkbook: file stockout.recentScan dung ten co so LUC QUET (result.branch), khong phai co so dang xuat hien tai', async () => {
+  const file = await exportService.createExportWorkbook({
+    tableKey: 'stockout.recentScan',
+    recentStockoutResult: {
+      branch: 'Hà Nội',
+      rows: [{ code: 'SP001', name: 'Ao thun', lastOutOfStockDate: '2026-01-05', daysOutOfStock: 6, periods: [] }]
+    },
+    columns: { recent_stockout_result: ['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'periods'] }
+  }, 'Sài Gòn'); // req.branch hien tai la Sai Gon, nhung ban quet duoc chay o Ha Noi
+  assert.match(file.fileName, /^HN_/);
 });
 
 test('buildExportDataset: stockout.recentScan khong co dong nao thi bao loi EXPORT_NO_DATA', async () => {
@@ -302,6 +339,7 @@ test('buildExportDataset: stockout.check90d tra dung worksheet', async () => {
   const dataset = await exportService.__test__.buildExportDataset({
     tableKey: 'stockout.check90d',
     stockout90dResult: {
+      branch: 'Sài Gòn',
       rows: [{
         code: 'SP001', name: 'Ao thun', stockoutCount: 2, totalStockoutDays: 10, currentOnHand: 3,
         periods: [
@@ -314,6 +352,7 @@ test('buildExportDataset: stockout.check90d tra dung worksheet', async () => {
 
   assert.equal(dataset.tableKey, 'stockout.check90d');
   assert.equal(dataset.title, 'Kiểm tra đứt hàng 90 ngày');
+  assert.equal(dataset.sourceBranch, 'Sài Gòn');
   assert.equal(dataset.worksheets.length, 1);
   assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'currentOnHand', 'periods']);
   assert.equal(dataset.worksheets[0].rows[0].code, 'SP001');

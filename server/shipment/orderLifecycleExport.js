@@ -64,15 +64,14 @@ function buildLifecycleWorkbook(orders) {
     worksheet.addRow(row);
   });
 
-  worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+  worksheet.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }];
   worksheet.autoFilter = {
     from: { row: 1, column: 1 },
     to: { row: Math.max(orders.length + 1, 1), column: COLUMNS.length }
   };
   const header = worksheet.getRow(1);
   header.height = 24;
-  header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-  header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
+  header.font = { bold: true, color: { argb: 'FF000000' } };
   header.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
   header.eachCell(cell => {
     cell.border = { bottom: { style: 'thin', color: { argb: 'FFB8C4CE' } } };

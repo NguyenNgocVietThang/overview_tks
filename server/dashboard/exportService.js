@@ -519,7 +519,17 @@ function buildRecentStockoutResultDataset(payload) {
     { key: 'daysOutOfStock', label: 'Số ngày đứt hàng', type: 'number' },
     { key: 'periods', label: 'Các đợt đứt hàng', wrapText: true }
   ], dataRows);
-  return { tableKey: 'stockout.recentScan', title: TABLE_TITLES['stockout.recentScan'], selectionMode: 'custom', worksheets: [worksheet] };
+  return {
+    tableKey: 'stockout.recentScan',
+    title: TABLE_TITLES['stockout.recentScan'],
+    selectionMode: 'custom',
+    worksheets: [worksheet],
+    // Ket qua quet duoc client gui nguyen (khong truy van lai theo branch
+    // hien tai), nen ten file phai theo co so LUC QUET (result.branch), khong
+    // phai co so dang chon BAY GIO — tranh lech ten file neu doi co so hoac
+    // mo tab khac giua luc quet va luc bam Xuat Excel.
+    sourceBranch: result && result.branch
+  };
 }
 
 function buildStockout90dResultDataset(payload) {
@@ -535,7 +545,14 @@ function buildStockout90dResultDataset(payload) {
     { key: 'currentOnHand', label: 'Tồn kho hiện tại', type: 'number' },
     { key: 'periods', label: 'Các đợt đứt hàng', wrapText: true }
   ], dataRows);
-  return { tableKey: 'stockout.check90d', title: TABLE_TITLES['stockout.check90d'], selectionMode: 'custom', worksheets: [worksheet] };
+  return {
+    tableKey: 'stockout.check90d',
+    title: TABLE_TITLES['stockout.check90d'],
+    selectionMode: 'custom',
+    worksheets: [worksheet],
+    // Xem ghi chu tuong tu o buildRecentStockoutResultDataset.
+    sourceBranch: result && result.branch
+  };
 }
 
 async function buildExportDataset(payload, branch) {
@@ -643,15 +660,14 @@ function selectedColumnsForWorksheet(dataset, worksheet, requestColumns) {
 }
 
 function styleWorksheet(worksheet, columns, rows) {
-  worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+  worksheet.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }];
   worksheet.autoFilter = {
     from: { row: 1, column: 1 },
     to: { row: Math.max(rows.length + 1, 1), column: columns.length }
   };
   const header = worksheet.getRow(1);
   header.height = 24;
-  header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-  header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
+  header.font = { bold: true, color: { argb: 'FF000000' } };
   header.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
   header.eachCell(cell => {
     cell.border = { bottom: { style: 'thin', color: { argb: 'FFB8C4CE' } } };
@@ -721,7 +737,7 @@ async function createExportWorkbook(payload, branch) {
   return {
     buffer,
     mimeType: EXCEL_MIME,
-    fileName: `${branchFilePrefix(branch)}_${fileSlug(dataset.title)}_${fileTimestamp()}.xlsx`
+    fileName: `${branchFilePrefix(dataset.sourceBranch || branch)}_${fileSlug(dataset.title)}_${fileTimestamp()}.xlsx`
   };
 }
 

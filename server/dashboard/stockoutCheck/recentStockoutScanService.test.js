@@ -205,6 +205,26 @@ test('khong co ung vien nao thi tra ket qua rong, khong goi API tra hang', async
   assert.equal(returnsApiCalled, false);
 });
 
+test('ket qua luu lai co so luc quet (branch) de xuat Excel dung ten du sau do doi co so', async () => {
+  const store = createJobStore();
+  const jobId = store.createJob();
+  const sheetsClient = fakeSheetsClient({
+    'Hàng hóa': [HEADERS.products, ['SP001', 'Con hang', 10, 'Đang kinh doanh']],
+    'Hóa đơn': [HEADERS.invoices],
+    'Chi tiết hóa đơn': [HEADERS.invoiceDetails],
+    'Nhập hàng': [HEADERS.purchases],
+    'Trả NCC': [HEADERS.purchaseReturns]
+  });
+  const client = { async fetchAllPages() {} };
+
+  await runRecentStockoutScanJob(store, jobId, {
+    sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null, branch: 'Sài Gòn'
+  });
+
+  const job = store.getJob(jobId);
+  assert.equal(job.result.branch, 'Sài Gòn');
+});
+
 test('loi khi doc Google Sheets thi job chuyen sang status error', async () => {
   const store = createJobStore();
   const jobId = store.createJob();

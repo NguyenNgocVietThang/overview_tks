@@ -63,7 +63,7 @@ router.post('/api/products/stockout-recent/scan', async (req, res) => {
     const jobId = jobStore.createJob();
     res.status(202).json({ jobId });
 
-    recentStockoutScanService.runRecentStockoutScanJob(jobStore, jobId, { client, sheetsClient: branchSheetsClient }).catch((err) => {
+    recentStockoutScanService.runRecentStockoutScanJob(jobStore, jobId, { client, sheetsClient: branchSheetsClient, branch: req.branch }).catch((err) => {
       jobStore.setError(jobId, { message: err.message, code: 'UNEXPECTED_ERROR' });
     });
   } catch (err) {
@@ -110,7 +110,7 @@ router.post('/api/products/stockout-90d/scan', async (req, res) => {
     const jobId = jobStore.createJob();
     res.status(202).json({ jobId });
 
-    stockout90dScanService.runStockout90dScanJob(jobStore, jobId, { client, sheetsClient: branchSheetsClient }).catch((err) => {
+    stockout90dScanService.runStockout90dScanJob(jobStore, jobId, { client, sheetsClient: branchSheetsClient, branch: req.branch }).catch((err) => {
       jobStore.setError(jobId, { message: err.message, code: 'UNEXPECTED_ERROR' });
     });
   } catch (err) {

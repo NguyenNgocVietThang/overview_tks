@@ -278,3 +278,23 @@ test('ma khong co bat ky giao dich nao trong ky thi bi loai, du ton kho hien tai
   assert.equal(job.status, 'done');
   assert.deepEqual(job.result.rows, []);
 });
+
+test('ket qua luu lai co so luc quet (branch) de xuat Excel dung ten du sau do doi co so', async () => {
+  const store = createJobStore();
+  const jobId = store.createJob();
+  const sheetsClient = fakeSheetsClient({
+    'Hàng hóa': [HEADERS.products, ['SP001', 'A', 5, 'Đang kinh doanh']],
+    'Hóa đơn': [HEADERS.invoices],
+    'Chi tiết hóa đơn': [HEADERS.invoiceDetails],
+    'Nhập hàng': [HEADERS.purchases],
+    'Trả NCC': [HEADERS.purchaseReturns]
+  });
+  const client = fakeReturnsClient([{ items: [], meta: { pagesLoaded: 1, recordsLoaded: 0, total: 0 } }]);
+
+  await runStockout90dScanJob(store, jobId, {
+    sheetsClient, client, todayKey: '2026-01-20', daysBack: 19, dataFromDateFloor: null, branch: 'Hà Nội'
+  });
+
+  const job = store.getJob(jobId);
+  assert.equal(job.result.branch, 'Hà Nội');
+});

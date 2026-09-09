@@ -23,7 +23,8 @@ async function runStockout90dScanJob(jobStore, jobId, deps = {}) {
     daysBack = DEFAULT_DAYS_BACK,
     todayKey = todayVnDateKey(),
     minConsecutiveDays = DEFAULT_MIN_CONSECUTIVE_DAYS,
-    dataFromDateFloor = STOCKOUT_DATA_FLOOR_DATE_KEY
+    dataFromDateFloor = STOCKOUT_DATA_FLOOR_DATE_KEY,
+    branch = null
   } = deps;
 
   try {
@@ -36,7 +37,7 @@ async function runStockout90dScanJob(jobStore, jobId, deps = {}) {
     });
 
     if (candidates.length === 0) {
-      jobStore.setResult(jobId, { asOfDate: todayKey, fromDate, totalProductsScanned, totalCandidates: 0, sources: {}, warnings: [], rows: [] });
+      jobStore.setResult(jobId, { asOfDate: todayKey, fromDate, branch, totalProductsScanned, totalCandidates: 0, sources: {}, warnings: [], rows: [] });
       return;
     }
 
@@ -92,6 +93,7 @@ async function runStockout90dScanJob(jobStore, jobId, deps = {}) {
     jobStore.setResult(jobId, {
       asOfDate: todayKey,
       fromDate,
+      branch,
       totalProductsScanned,
       totalCandidates: candidates.length,
       sources,
