@@ -39,13 +39,9 @@ function buildStockoutProgressResponse(job, initialLabel) {
   const phase = progress.phase || null;
   let phaseLabel = initialLabel;
   if (phase === 2 && progress.sourceLabel) {
-    if (progress.sourceStatus === 'fallback') {
-      phaseLabel = `Đang tải ${progress.sourceLabel} từ Google Sheets dự phòng`;
-    } else if (progress.source === 'supplierReturns') {
-      phaseLabel = `Đang tải ${progress.sourceLabel} từ Google Sheets`;
-    } else {
-      phaseLabel = `Đang tải ${progress.sourceLabel} từ API KiotViet`;
-    }
+    phaseLabel = progress.source === 'supplierReturns'
+      ? `Đang tải ${progress.sourceLabel} từ Google Sheets`
+      : `Đang tải ${progress.sourceLabel} từ API KiotViet`;
   }
   return {
     phase,

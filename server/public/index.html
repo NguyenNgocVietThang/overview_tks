@@ -3398,7 +3398,7 @@
                 <div class="stockout-upload-row">
                   <button class="export-button" type="button" id="recentStockoutScanButton" onclick="startRecentStockoutScan()">Lấy danh sách đứt hàng gần đây</button>
                 </div>
-                <div class="table-note">Quét toàn bộ hàng hóa đang kinh doanh có tồn kho hiện tại = 0, liệt kê mã có số ngày đứt hàng liên tục (tính đến hôm nay) ≥ 5 ngày. Hóa đơn, Nhập hàng và Khách trả lấy từ API KiotViet; Trả NCC lấy từ Sheet.</div>
+                <div class="table-note">Quét toàn bộ hàng hóa đang kinh doanh có tồn kho hiện tại = 0, liệt kê mã có số ngày đứt hàng liên tục (tính đến hôm nay) ≥ 5 ngày. Hàng hóa, Hóa đơn, Nhập hàng và Khách trả lấy trực tiếp từ API KiotViet; chỉ riêng Trả NCC lấy từ Sheet (KiotViet không có API cho mục này).</div>
                 <div id="recentStockoutProgressBox" hidden>
                   <div class="table-note" id="recentStockoutProgressLabel">—</div>
                   <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="recentStockoutProgressFill"></div></div>
@@ -3439,7 +3439,7 @@
                 <div class="stockout-upload-row">
                   <button class="export-button" type="button" id="stockout90dScanButton" onclick="startStockout90dScan()">Kiểm tra đứt hàng 90 ngày</button>
                 </div>
-                <div class="table-note">Quét toàn bộ hàng hóa đang kinh doanh trong 90 ngày gần đây. Hóa đơn, Nhập hàng và Khách trả lấy từ API KiotViet; Hóa đơn/Nhập hàng dùng Google Sheets dự phòng khi API lỗi; Trả NCC lấy từ Sheet.</div>
+                <div class="table-note">Quét toàn bộ hàng hóa đang kinh doanh trong 90 ngày gần đây. Hàng hóa, Hóa đơn, Nhập hàng và Khách trả lấy trực tiếp từ API KiotViet; chỉ riêng Trả NCC lấy từ Sheet (KiotViet không có API cho mục này).</div>
                 <div id="stockout90dProgressBox" hidden>
                   <div class="table-note" id="stockout90dProgressLabel">—</div>
                   <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="stockout90dProgressFill"></div></div>

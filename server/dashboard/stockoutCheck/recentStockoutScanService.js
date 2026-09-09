@@ -1,6 +1,5 @@
 'use strict';
 
-const CONFIG = require('../../config');
 const {
   analyzeStockoutTimeline,
   computeStockoutWindow,
@@ -9,7 +8,7 @@ const {
   STOCKOUT_DATA_FLOOR_DATE_KEY
 } = require('./stockoutEngine');
 const { todayVnDateKey } = require('./dateHelpers');
-const { loadActiveCandidates } = require('./sheetTimelineBuilder');
+const { loadActiveCandidates: defaultLoadActiveCandidates } = require('./productLoader');
 const { loadStockoutEvents: defaultLoadStockoutEvents } = require('./stockoutEventLoader');
 
 const DEFAULT_MIN_CONSECUTIVE_DAYS = 5;
@@ -20,6 +19,7 @@ async function runRecentStockoutScanJob(jobStore, jobId, deps = {}) {
     sheetsClient,
     client,
     loadStockoutEvents = defaultLoadStockoutEvents,
+    loadActiveCandidates = defaultLoadActiveCandidates,
     daysBack = DEFAULT_DAYS_BACK,
     todayKey = todayVnDateKey(),
     minConsecutiveDays = DEFAULT_MIN_CONSECUTIVE_DAYS,
@@ -29,9 +29,7 @@ async function runRecentStockoutScanJob(jobStore, jobId, deps = {}) {
 
   try {
     jobStore.updateProgress(jobId, { progress: { phase: 1 } });
-    const sheets = await sheetsClient.getMultipleSheetValues([CONFIG.SHEET_PRODUCTS]);
-
-    const { candidates: allActive, totalProductsScanned } = loadActiveCandidates(sheets[CONFIG.SHEET_PRODUCTS] || []);
+    const { candidates: allActive, totalProductsScanned } = await loadActiveCandidates(client);
     // Giu nguyen ngu nghia cu cua "Hang dut gan day": chi bao cao ma DANG het
     // hang (ton kho hien tai = 0) va van con dut den hom nay.
     const candidates = allActive.filter((c) => c.currentOnHand === 0);

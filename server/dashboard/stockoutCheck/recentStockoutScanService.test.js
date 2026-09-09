@@ -5,16 +5,36 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const CONFIG = require('../../config');
 const { runRecentStockoutScanJob } = require('./recentStockoutScanService');
 const { createJobStore } = require('./jobManager');
 
-const HEADERS = {
-  products: ['Mã hàng', 'Tên hàng', 'Tồn kho', 'Trạng thái'],
-  invoices: ['Mã hóa đơn', 'Ngày bán', 'Trạng thái'],
-  invoiceDetails: ['Mã hóa đơn', 'Mã hàng', 'Số lượng'],
-  purchases: ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
-  purchaseReturns: ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']
-};
+function product(code, { name = code, onHand = 0, isActive = true, createdDate } = {}) {
+  return { productCode: code, fullName: name, isActive, inventories: [{ onHand }], createdDate };
+}
+
+function invoice(dateKey, details) {
+  return { status: 1, purchaseDate: `${dateKey}T08:00:00`, invoiceDetails: details };
+}
+
+function fakeClient(pagesByEndpoint = {}) {
+  return {
+    async fetchAllPages(endpoint, query, onPage) {
+      const pages = pagesByEndpoint[endpoint] || [[]];
+      let recordsLoaded = 0;
+      for (let index = 0; index < pages.length; index++) {
+        const page = pages[index];
+        if (page instanceof Error) throw page;
+        recordsLoaded += page.length;
+        await onPage(page, {
+          pagesLoaded: index + 1,
+          recordsLoaded,
+          total: pages.filter(item => Array.isArray(item)).reduce((sum, item) => sum + item.length, 0)
+        });
+      }
+    }
+  };
+}
 
 function fakeSheetsClient(sheets) {
   return {
@@ -26,49 +46,38 @@ function fakeSheetsClient(sheets) {
   };
 }
 
-function fakeReturnsClient(returnPages = []) {
-  return {
-    async fetchAllPages(endpoint, query, onPage) {
-      if (endpoint !== 'returns') throw new Error('unexpected endpoint: ' + endpoint);
-      for (const page of returnPages) await onPage(page.items, page.meta);
-    }
-  };
-}
-
-function fakeAllSourcesClient(calls) {
-  return {
-    async fetchAllPages(endpoint, query, onPage) {
-      calls.push({ endpoint, query });
-      await onPage([], { pagesLoaded: 1, recordsLoaded: 0, total: 0 });
-    }
-  };
+function emptySupplierReturnsSheet() {
+  return { [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']] };
 }
 
 test('chi lay ung vien dang kinh doanh va ton kho tong = 0', async () => {
   const store = createJobStore();
   const jobId = store.createJob();
   const sheetsClient = fakeSheetsClient({
-    'Hàng hóa': [
-      HEADERS.products,
-      ['SP001', 'Con hang', 3, 'Đang kinh doanh'],
-      ['SP002', 'Het hang, dang ban', 0, 'Đang kinh doanh'],
-      ['SP003', 'Het hang nhung ngung kinh doanh', 0, 'Ngừng kinh doanh'],
-      ['SP004', 'Khong ghi trang thai (mac dinh dang KD)', 0, '']
-    ],
-    'Hóa đơn': [HEADERS.invoices],
-    'Chi tiết hóa đơn': [HEADERS.invoiceDetails],
-    'Nhập hàng': [HEADERS.purchases],
     // SP002/SP004 can it nhat 1 giao dich trong ky de khong bi loc boi quy tac
     // "khong co giao dich nao trong ky thi bo qua" — muc dich test nay la kiem
     // tra bo loc ung vien (dang KD + ton kho 0), khong phai bo loc giao dich.
-    'Trả NCC': [
-      HEADERS.purchaseReturns,
+    [CONFIG.SHEET_SUPPLIER_RETURNS]: [
+      ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
       ['SP002', '05/01/2026 08:00:00', 1, 'Hoàn thành'],
       ['SP004', '05/01/2026 08:00:00', 1, 'Hoàn thành']
     ]
   });
   const apiCalls = [];
-  const client = fakeAllSourcesClient(apiCalls);
+  const client = {
+    async fetchAllPages(endpoint, query, onPage) {
+      apiCalls.push({ endpoint, query });
+      if (endpoint === 'products') {
+        return onPage([
+          product('SP001', { name: 'Con hang', onHand: 3 }),
+          product('SP002', { name: 'Het hang, dang ban', onHand: 0 }),
+          product('SP003', { name: 'Het hang nhung ngung kinh doanh', onHand: 0, isActive: false }),
+          product('SP004', { name: 'Khong ghi isActive (mac dinh dang KD)', onHand: 0, isActive: undefined })
+        ], { pagesLoaded: 1, recordsLoaded: 4, total: 4 });
+      }
+      return onPage([], { pagesLoaded: 1, recordsLoaded: 0, total: 0 });
+    }
+  };
 
   await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, minConsecutiveDays: 5, dataFromDateFloor: null });
 
@@ -76,7 +85,7 @@ test('chi lay ung vien dang kinh doanh va ton kho tong = 0', async () => {
   assert.equal(job.status, 'done');
   const codes = job.result.rows.map((r) => r.code).sort();
   assert.deepEqual(codes, ['SP002', 'SP004']);
-  assert.deepEqual(apiCalls.map(call => call.endpoint), ['invoices', 'purchaseorders', 'returns']);
+  assert.deepEqual(apiCalls.map(call => call.endpoint), ['products', 'invoices', 'purchaseorders', 'returns']);
   assert.equal(job.result.sources.invoices, 'kiotviet-api');
   assert.equal(job.result.sources.supplierReturns, 'google-sheets');
   // Sheet Tra NCC rong hoan toan trong fixture nay nen canh bao thieu du lieu
@@ -88,22 +97,17 @@ test('chi lay ung vien dang kinh doanh va ton kho tong = 0', async () => {
 test('ung vien het hang du 5 ngay lien tuc tinh den hom nay thi liet ke, chua du 5 ngay thi bo qua', async () => {
   const store = createJobStore();
   const jobId = store.createJob();
-  const sheetsClient = fakeSheetsClient({
-    'Hàng hóa': [
-      HEADERS.products,
-      ['SP001', 'Het 5 ngay', 0, 'Đang kinh doanh'],
-      ['SP002', 'Het 2 ngay', 0, 'Đang kinh doanh']
-    ],
-    'Hóa đơn': [
-      HEADERS.invoices,
-      ['HD001', '06/01/2026 08:00:00', 'Hoàn thành'],
-      ['HD002', '09/01/2026 08:00:00', 'Hoàn thành']
-    ],
-    'Chi tiết hóa đơn': [HEADERS.invoiceDetails, ['HD001', 'SP001', 3], ['HD002', 'SP002', 2]],
-    'Nhập hàng': [HEADERS.purchases],
-    'Trả NCC': [HEADERS.purchaseReturns]
+  const sheetsClient = fakeSheetsClient(emptySupplierReturnsSheet());
+  const client = fakeClient({
+    products: [[
+      product('SP001', { name: 'Het 5 ngay', onHand: 0 }),
+      product('SP002', { name: 'Het 2 ngay', onHand: 0 })
+    ]],
+    invoices: [[
+      invoice('2026-01-06', [{ productCode: 'SP001', quantity: 3 }]),
+      invoice('2026-01-09', [{ productCode: 'SP002', quantity: 2 }])
+    ]]
   });
-  const client = fakeReturnsClient([{ items: [], meta: { pagesLoaded: 1, recordsLoaded: 0, total: 0 } }]);
 
   await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, minConsecutiveDays: 5, dataFromDateFloor: null });
 
@@ -119,14 +123,10 @@ test('ung vien het hang du 5 ngay lien tuc tinh den hom nay thi liet ke, chua du
 test('ma khong co bat ky giao dich nao trong ky thi bi loai, du ton kho hien tai = 0', async () => {
   const store = createJobStore();
   const jobId = store.createJob();
-  const sheetsClient = fakeSheetsClient({
-    'Hàng hóa': [HEADERS.products, ['SP001', 'Ton kho 0, khong dong tram', 0, 'Đang kinh doanh']],
-    'Hóa đơn': [HEADERS.invoices],
-    'Chi tiết hóa đơn': [HEADERS.invoiceDetails],
-    'Nhập hàng': [HEADERS.purchases],
-    'Trả NCC': [HEADERS.purchaseReturns]
+  const sheetsClient = fakeSheetsClient(emptySupplierReturnsSheet());
+  const client = fakeClient({
+    products: [[product('SP001', { name: 'Ton kho 0, khong dong tram', onHand: 0 })]]
   });
-  const client = fakeReturnsClient([{ items: [], meta: { pagesLoaded: 1, recordsLoaded: 0, total: 0 } }]);
 
   await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, minConsecutiveDays: 5, dataFromDateFloor: null });
 
@@ -135,19 +135,16 @@ test('ma khong co bat ky giao dich nao trong ky thi bi loai, du ton kho hien tai
   assert.deepEqual(job.result.rows, []);
 });
 
-test('ma co Ton kho hien tai = 0 nhung giao dich gan nhat la Nhap hang chua tieu thu thi bi loai (Sheet Hang hoa da loi thoi)', async () => {
+test('ma co Ton kho hien tai = 0 nhung giao dich gan nhat la Nhap hang chua tieu thu thi bi loai (du lieu KiotViet chua kip cap nhat)', async () => {
   const store = createJobStore();
   const jobId = store.createJob();
-  const sheetsClient = fakeSheetsClient({
-    'Hàng hóa': [HEADERS.products, ['SP001', 'Sheet Ton kho da loi thoi', 0, 'Đang kinh doanh']],
-    'Hóa đơn': [HEADERS.invoices],
-    'Chi tiết hóa đơn': [HEADERS.invoiceDetails],
+  const sheetsClient = fakeSheetsClient(emptySupplierReturnsSheet());
+  const client = fakeClient({
+    products: [[product('SP001', { name: 'Ton kho chua kip cap nhat', onHand: 0 })]],
     // Nhap 400 ngay 05/09, khong co giao dich nao khac sau do — Ton kho
-    // that su phai la 400, khong phai 0 nhu Sheet Hang hoa dang bao.
-    'Nhập hàng': [HEADERS.purchases, ['SP001', '05/09/2026 16:14:00', 400, 'Hoàn thành']],
-    'Trả NCC': [HEADERS.purchaseReturns]
+    // that su phai la 400, khong phai 0 nhu API dang bao (do webhook/polling tre).
+    purchaseorders: [[{ status: 3, purchaseDate: '2026-09-05T16:14:00', purchaseOrderDetails: [{ productCode: 'SP001', quantity: 400 }] }]]
   });
-  const client = fakeReturnsClient([{ items: [], meta: { pagesLoaded: 1, recordsLoaded: 0, total: 0 } }]);
 
   await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-09-08', daysBack: 183, minConsecutiveDays: 5, dataFromDateFloor: '2026-06-01' });
 
@@ -160,18 +157,16 @@ test('ma moi tao sau moc san khong bi bao dut hang truoc ngay no ton tai', async
   const store = createJobStore();
   const jobId = store.createJob();
   const sheetsClient = fakeSheetsClient({
-    'Hàng hóa': [
-      ['Mã hàng', 'Tên hàng', 'Tồn kho', 'Trạng thái', 'Ngày tạo'],
-      ['SP001', 'Ma moi tao 04/08, chua tung co hang', 0, 'Đang kinh doanh', '04/08/2026 09:44:00']
-    ],
-    'Hóa đơn': [HEADERS.invoices],
-    'Chi tiết hóa đơn': [HEADERS.invoiceDetails],
-    'Nhập hàng': [HEADERS.purchases],
     // Dat dung ngay tao (ngay dau tien cua mang, delta ngay nay khong anh
     // huong toi ket qua tinh nguoc) de khong lam lech dot dut hang.
-    'Trả NCC': [HEADERS.purchaseReturns, ['SP001', '04/08/2026 09:44:00', 1, 'Hoàn thành']]
+    [CONFIG.SHEET_SUPPLIER_RETURNS]: [
+      ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
+      ['SP001', '04/08/2026 09:44:00', 1, 'Hoàn thành']
+    ]
   });
-  const client = fakeReturnsClient([{ items: [], meta: { pagesLoaded: 1, recordsLoaded: 0, total: 0 } }]);
+  const client = fakeClient({
+    products: [[product('SP001', { name: 'Ma moi tao 04/08, chua tung co hang', onHand: 0, createdDate: '2026-08-04T09:44:00' })]]
+  });
 
   await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-09-08', daysBack: 183, minConsecutiveDays: 5, dataFromDateFloor: '2026-06-01' });
 
@@ -187,14 +182,14 @@ test('khong co ung vien nao thi tra ket qua rong, khong goi API tra hang', async
   const store = createJobStore();
   const jobId = store.createJob();
   let returnsApiCalled = false;
-  const sheetsClient = fakeSheetsClient({
-    'Hàng hóa': [HEADERS.products, ['SP001', 'Con hang', 10, 'Đang kinh doanh']],
-    'Hóa đơn': [HEADERS.invoices],
-    'Chi tiết hóa đơn': [HEADERS.invoiceDetails],
-    'Nhập hàng': [HEADERS.purchases],
-    'Trả NCC': [HEADERS.purchaseReturns]
-  });
-  const client = { async fetchAllPages() { returnsApiCalled = true; } };
+  const sheetsClient = fakeSheetsClient(emptySupplierReturnsSheet());
+  const client = {
+    async fetchAllPages(endpoint, query, onPage) {
+      if (endpoint === 'products') return onPage([product('SP001', { name: 'Con hang', onHand: 10 })], { pagesLoaded: 1, recordsLoaded: 1, total: 1 });
+      if (endpoint === 'returns') returnsApiCalled = true;
+      return onPage([], { pagesLoaded: 1, recordsLoaded: 0, total: 0 });
+    }
+  };
 
   await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null });
 
@@ -208,14 +203,8 @@ test('khong co ung vien nao thi tra ket qua rong, khong goi API tra hang', async
 test('ket qua luu lai co so luc quet (branch) de xuat Excel dung ten du sau do doi co so', async () => {
   const store = createJobStore();
   const jobId = store.createJob();
-  const sheetsClient = fakeSheetsClient({
-    'Hàng hóa': [HEADERS.products, ['SP001', 'Con hang', 10, 'Đang kinh doanh']],
-    'Hóa đơn': [HEADERS.invoices],
-    'Chi tiết hóa đơn': [HEADERS.invoiceDetails],
-    'Nhập hàng': [HEADERS.purchases],
-    'Trả NCC': [HEADERS.purchaseReturns]
-  });
-  const client = { async fetchAllPages() {} };
+  const sheetsClient = fakeSheetsClient(emptySupplierReturnsSheet());
+  const client = fakeClient({ products: [[product('SP001', { name: 'Con hang', onHand: 10 })]] });
 
   await runRecentStockoutScanJob(store, jobId, {
     sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null, branch: 'Sài Gòn'
@@ -225,11 +214,11 @@ test('ket qua luu lai co so luc quet (branch) de xuat Excel dung ten du sau do d
   assert.equal(job.result.branch, 'Sài Gòn');
 });
 
-test('loi khi doc Google Sheets thi job chuyen sang status error', async () => {
+test('loi khi doc Google Sheets (Tra NCC) thi job chuyen sang status error', async () => {
   const store = createJobStore();
   const jobId = store.createJob();
   const sheetsClient = { async getMultipleSheetValues() { throw new Error('Google Sheets timeout'); } };
-  const client = fakeReturnsClient([]);
+  const client = fakeClient({ products: [[product('SP001', { onHand: 0 })]] });
 
   await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null });
 
@@ -238,17 +227,27 @@ test('loi khi doc Google Sheets thi job chuyen sang status error', async () => {
   assert.match(job.error.message, /Google Sheets timeout/);
 });
 
+test('loi khi goi API san pham thi job chuyen sang status error', async () => {
+  const store = createJobStore();
+  const jobId = store.createJob();
+  const sheetsClient = fakeSheetsClient(emptySupplierReturnsSheet());
+  const client = fakeClient({ products: [new Error('KiotViet products API timeout')] });
+
+  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null });
+
+  const job = store.getJob(jobId);
+  assert.equal(job.status, 'error');
+  assert.match(job.error.message, /KiotViet products API timeout/);
+});
+
 test('loi khi goi API tra hang thi job chuyen sang status error', async () => {
   const store = createJobStore();
   const jobId = store.createJob();
-  const sheetsClient = fakeSheetsClient({
-    'Hàng hóa': [HEADERS.products, ['SP001', 'A', 0, 'Đang kinh doanh']],
-    'Hóa đơn': [HEADERS.invoices],
-    'Chi tiết hóa đơn': [HEADERS.invoiceDetails],
-    'Nhập hàng': [HEADERS.purchases],
-    'Trả NCC': [HEADERS.purchaseReturns]
+  const sheetsClient = fakeSheetsClient(emptySupplierReturnsSheet());
+  const client = fakeClient({
+    products: [[product('SP001', { name: 'A', onHand: 0 })]],
+    returns: [new Error('KiotViet returns API timeout')]
   });
-  const client = { async fetchAllPages() { throw new Error('KiotViet returns API timeout'); } };
 
   await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null });
 

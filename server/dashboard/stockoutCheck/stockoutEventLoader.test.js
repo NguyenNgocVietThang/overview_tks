@@ -39,9 +39,6 @@ function makeSheetsClient(sheetValues, calls) {
 
 function emptySheets() {
   return {
-    [CONFIG.SHEET_INVOICES]: [['Mã hóa đơn', 'Ngày bán', 'Trạng thái']],
-    [CONFIG.SHEET_INVOICE_DETAILS]: [['Mã hóa đơn', 'Mã hàng', 'Số lượng']],
-    [CONFIG.SHEET_PURCHASES]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']],
     [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']]
   };
 }
@@ -93,25 +90,20 @@ test('ba API thành công và Trả NCC luôn lấy Sheet đúng một lần', a
   assert.deepEqual(result.eventMapByCode.get('SP001').map(event => event.delta), [-2, 3, 4, -1]);
 });
 
-test('API thành công nhưng rỗng không kích hoạt fallback', async () => {
+test('API tra ve rong van thanh cong, chi Tra NCC bi thieu du lieu moi canh bao', async () => {
   const fixture = makeDeps();
   const result = await loadStockoutEvents(fixture.deps);
 
   assert.equal(result.eventMapByCode.size, 0);
   assert.deepEqual(fixture.sheetCalls, [[CONFIG.SHEET_SUPPLIER_RETURNS]]);
   // Sheet Tra NCC rong hoan toan trong fixture nay nen canh bao thieu du lieu
-  // van xuat hien du 3 nguon API deu thanh cong — day la hanh vi dung, khong
-  // lien quan gi den fallback.
+  // van xuat hien du 3 nguon API deu thanh cong.
   assert.equal(result.warnings.length, 1);
   assert.match(result.warnings[0], /Trả NCC/);
 });
 
-test('invoices lỗi giữa phân trang bỏ dữ liệu API tạm và chỉ dùng Sheet fallback', async () => {
-  const sheets = emptySheets();
-  sheets[CONFIG.SHEET_INVOICES].push(['HD001', '10/01/2026', 'Hoàn thành']);
-  sheets[CONFIG.SHEET_INVOICE_DETAILS].push(['HD001', 'SP001', 2]);
+test('invoices loi giua phan trang lam loader loi luon, khong con fallback Sheet', async () => {
   const fixture = makeDeps({
-    sheets,
     pages: {
       invoices: [
         [{ status: 1, purchaseDate: '2026-01-10T00:00:00Z', invoiceDetails: [{ productCode: 'SP001', quantity: 99 }] }],
@@ -120,39 +112,30 @@ test('invoices lỗi giữa phân trang bỏ dữ liệu API tạm và chỉ dù
     }
   });
 
-  const result = await loadStockoutEvents(fixture.deps);
-  const deltas = result.eventMapByCode.get('SP001').map(event => event.delta);
-
-  assert.deepEqual(deltas, [-2]);
-  assert.equal(result.sources.invoices, 'google-sheets-fallback');
-  assert.match(result.warnings[0], /Hóa đơn.*Google Sheets dự phòng/);
-  assert.ok(fixture.sheetCalls.some(names => names.includes(CONFIG.SHEET_INVOICES)));
+  await assert.rejects(loadStockoutEvents(fixture.deps), /Hóa đơn.*invoice page 2 timeout/);
 });
 
-test('purchaseorders lỗi chỉ fallback Nhập hàng, các API khác vẫn chạy', async () => {
-  const sheets = emptySheets();
-  sheets[CONFIG.SHEET_PURCHASES].push(['SP001', '10/01/2026', 5, 'Hoàn thành']);
-  const fixture = makeDeps({ pages: { purchaseorders: [new Error('forbidden')] }, sheets });
+test('purchaseorders loi lam loader loi luon, khong con fallback Sheet', async () => {
+  const fixture = makeDeps({ pages: { purchaseorders: [new Error('forbidden')] } });
 
-  const result = await loadStockoutEvents(fixture.deps);
-
-  assert.equal(result.sources.purchases, 'google-sheets-fallback');
-  assert.equal(result.sources.invoices, 'kiotviet-api');
-  assert.equal(result.sources.customerReturns, 'kiotviet-api');
-  assert.deepEqual(result.eventMapByCode.get('SP001').map(event => event.delta), [5]);
+  await assert.rejects(loadStockoutEvents(fixture.deps), /Nhập hàng.*forbidden/);
 });
 
-test('returns lỗi làm toàn bộ loader lỗi vì Sheet không có chi tiết mã hàng', async () => {
+test('returns loi lam toan bo loader loi vi khong co nguon nao khac cho khach tra hang', async () => {
   const fixture = makeDeps({ pages: { returns: [new Error('returns timeout')] } });
   await assert.rejects(loadStockoutEvents(fixture.deps), /Khách trả hàng.*returns timeout/);
 });
 
-test('phản hồi hoàn thành thiếu mảng chi tiết fallback cho invoices nhưng làm lỗi returns', async () => {
+test('phan hoi hoan thanh thieu mang chi tiet lam loi tuong ung tung nguon (khong con fallback)', async () => {
   const invoiceFixture = makeDeps({
     pages: { invoices: [[{ status: 1, purchaseDate: '2026-01-10T00:00:00Z' }]] }
   });
-  const invoiceResult = await loadStockoutEvents(invoiceFixture.deps);
-  assert.equal(invoiceResult.sources.invoices, 'google-sheets-fallback');
+  await assert.rejects(loadStockoutEvents(invoiceFixture.deps), /Hóa đơn.*invoiceDetails/);
+
+  const purchaseFixture = makeDeps({
+    pages: { purchaseorders: [[{ status: 3, purchaseDate: '2026-01-10T00:00:00Z' }]] }
+  });
+  await assert.rejects(loadStockoutEvents(purchaseFixture.deps), /Nhập hàng.*purchaseOrderDetails/);
 
   const returnFixture = makeDeps({
     pages: { returns: [[{ status: 1, returnDate: '2026-01-10T00:00:00Z' }]] }
@@ -161,11 +144,12 @@ test('phản hồi hoàn thành thiếu mảng chi tiết fallback cho invoices 
 });
 
 test('Trả NCC thiếu cột Trạng thái vẫn được tính vì sheet này không có webhook, luôn là chứng từ hoàn tất', async () => {
-  const sheets = emptySheets();
-  sheets[CONFIG.SHEET_SUPPLIER_RETURNS] = [
-    ['Mã hàng', 'Thời gian', 'Số lượng'],
-    ['SP001', '09/01/2026', 5]
-  ];
+  const sheets = {
+    [CONFIG.SHEET_SUPPLIER_RETURNS]: [
+      ['Mã hàng', 'Thời gian', 'Số lượng'],
+      ['SP001', '09/01/2026', 5]
+    ]
+  };
   const fixture = makeDeps({ sheets });
 
   const result = await loadStockoutEvents(fixture.deps);
@@ -175,11 +159,12 @@ test('Trả NCC thiếu cột Trạng thái vẫn được tính vì sheet này 
 });
 
 test('Trả NCC chỉ có dữ liệu muộn hơn mốc cần tính thì cảnh báo độ phủ dữ liệu', async () => {
-  const sheets = emptySheets();
-  sheets[CONFIG.SHEET_SUPPLIER_RETURNS] = [
-    ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
-    ['SP001', '10/01/2026', 5, 'Hoàn thành']
-  ];
+  const sheets = {
+    [CONFIG.SHEET_SUPPLIER_RETURNS]: [
+      ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
+      ['SP001', '10/01/2026', 5, 'Hoàn thành']
+    ]
+  };
   const fixture = makeDeps({ sheets }); // fromDate mac dinh la '2026-01-09', som hon du lieu
 
   const result = await loadStockoutEvents(fixture.deps);
@@ -189,11 +174,12 @@ test('Trả NCC chỉ có dữ liệu muộn hơn mốc cần tính thì cảnh 
 });
 
 test('Trả NCC có dữ liệu từ đúng mốc cần tính thì không cảnh báo độ phủ', async () => {
-  const sheets = emptySheets();
-  sheets[CONFIG.SHEET_SUPPLIER_RETURNS] = [
-    ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
-    ['SP001', '09/01/2026', 5, 'Hoàn thành']
-  ];
+  const sheets = {
+    [CONFIG.SHEET_SUPPLIER_RETURNS]: [
+      ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
+      ['SP001', '09/01/2026', 5, 'Hoàn thành']
+    ]
+  };
   const fixture = makeDeps({ sheets });
 
   const result = await loadStockoutEvents(fixture.deps);

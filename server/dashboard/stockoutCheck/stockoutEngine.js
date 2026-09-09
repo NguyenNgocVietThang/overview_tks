@@ -36,12 +36,13 @@ function maxDateKey(a, b) {
 }
 
 // Neu ngay co giao dich gan nhat cua 1 ma CHI CO Nhap hang, tuyet doi khong
-// co giao dich nao khac (kha nang webhook stock.update bi that lac, vi Sheet
-// san pham khong co vong doi soat dinh ky nhu Tra hang/Nha cung cap/Nhap
-// hang), currentOnHand=0 lay tu Sheet Hang hoa gan nhu chac chan da loi thoi.
-// Chi xet "hoan toan khong co giao dich nao khac" (khong xet net theo so
-// luong) vi so luong Tra NCC nhap tay co the sai lech (typo/dinh dang) ma
-// van la 1 no luc that su can doi — khong nen coi la Sheet loi thoi.
+// co giao dich nao khac, currentOnHand=0 lay tu KiotViet /products gan nhu
+// chac chan chua kip cap nhat (do lech thoi gian giua luc phieu Nhap hang
+// hoan tat va luc API san pham phan anh ton kho moi — xem thuc te OTD10N,
+// tren 24h van chua cap nhat). Chi xet "hoan toan khong co giao dich nao
+// khac" (khong xet net theo so luong) vi so luong Tra NCC nhap tay co the sai
+// lech (typo/dinh dang) ma van la 1 no luc that su can doi — khong nen coi la
+// du lieu loi thoi.
 function hasUnreliableZeroOnHand(events) {
   if (!Array.isArray(events) || events.length === 0) return false;
   let maxDate = null;

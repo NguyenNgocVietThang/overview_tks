@@ -44,9 +44,12 @@ test('moi bang ket qua dut hang co nut xoa danh sach', () => {
   assert.match(html, /onclick="clearStockout90dResult\(\)"/);
 });
 
-test('giao diện hiển thị cảnh báo khi một nguồn dùng Google Sheets dự phòng', () => {
+test('giao diện hiển thị cảnh báo từ result.warnings (vd thiếu dữ liệu Trả NCC)', () => {
+  // Khong con fallback Sheets cho Hoa don/Nhap hang (chi API KiotViet, tru
+  // rieng Tra NCC) nen khong con canh bao dang "Google Sheets dự phòng" —
+  // co che hien thi canh bao chung (result.warnings) van con, vi Tra NCC van
+  // co canh bao do phu du lieu.
   assert.match(html, /function formatStockoutSourceWarnings/);
-  assert.match(html, /Google Sheets dự phòng/);
   assert.match(html, /result\.warnings/);
 });
 

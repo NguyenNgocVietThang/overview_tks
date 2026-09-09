@@ -1,6 +1,5 @@
 'use strict';
 
-const CONFIG = require('../../config');
 const {
   analyzeStockoutTimeline,
   computeStockoutWindow,
@@ -9,7 +8,7 @@ const {
   STOCKOUT_DATA_FLOOR_DATE_KEY
 } = require('./stockoutEngine');
 const { todayVnDateKey } = require('./dateHelpers');
-const { loadActiveCandidates } = require('./sheetTimelineBuilder');
+const { loadActiveCandidates: defaultLoadActiveCandidates } = require('./productLoader');
 const { loadStockoutEvents: defaultLoadStockoutEvents } = require('./stockoutEventLoader');
 
 const DEFAULT_MIN_CONSECUTIVE_DAYS = 5;
@@ -20,6 +19,7 @@ async function runStockout90dScanJob(jobStore, jobId, deps = {}) {
     sheetsClient,
     client,
     loadStockoutEvents = defaultLoadStockoutEvents,
+    loadActiveCandidates = defaultLoadActiveCandidates,
     daysBack = DEFAULT_DAYS_BACK,
     todayKey = todayVnDateKey(),
     minConsecutiveDays = DEFAULT_MIN_CONSECUTIVE_DAYS,
@@ -29,9 +29,7 @@ async function runStockout90dScanJob(jobStore, jobId, deps = {}) {
 
   try {
     jobStore.updateProgress(jobId, { progress: { phase: 1 } });
-    const sheets = await sheetsClient.getMultipleSheetValues([CONFIG.SHEET_PRODUCTS]);
-
-    const { candidates, totalProductsScanned } = loadActiveCandidates(sheets[CONFIG.SHEET_PRODUCTS] || []);
+    const { candidates, totalProductsScanned } = await loadActiveCandidates(client);
     const { reportFromDate: fromDate, calculationFromDate } = computeStockoutWindow({
       todayKey, daysBack, minConsecutiveDays, dataFromDateFloor
     });
