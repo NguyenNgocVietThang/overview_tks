@@ -660,6 +660,15 @@ function selectedColumnsForWorksheet(dataset, worksheet, requestColumns) {
   return selected;
 }
 
+function columnHasFraction(rows, key) {
+  return rows.some(row => {
+    const raw = row[key];
+    if (raw === undefined || raw === null || raw === '' || raw === '—') return false;
+    const numeric = typeof raw === 'number' ? raw : Number(raw);
+    return Number.isFinite(numeric) && !Number.isInteger(numeric);
+  });
+}
+
 function styleWorksheet(worksheet, columns, rows) {
   worksheet.views = frozenNoGridlinesView(1);
   worksheet.autoFilter = {
@@ -677,7 +686,12 @@ function styleWorksheet(worksheet, columns, rows) {
     const values = rows.slice(0, 100).map(row => normalizeText(row[column.key]));
     const width = Math.min(42, Math.max(12, column.label.length + 2, ...values.map(value => Math.min(value.length + 2, 42))));
     excelColumn.width = width;
-    if (column.type === 'number') excelColumn.numFmt = '#,##0.00;[Red]-#,##0.00';
+    // Chi hien .00 khi du lieu THUC SU co phan thap phan (vd ton kho hang can
+    // theo kg) — da so cot number (so luong, don gia VND) la so nguyen, hien
+    // ".00" co dinh se thua va gay kho doc.
+    if (column.type === 'number') {
+      excelColumn.numFmt = columnHasFraction(rows, column.key) ? '#,##0.00;[Red]-#,##0.00' : '#,##0;[Red]-#,##0';
+    }
     if (column.type === 'percent') excelColumn.numFmt = '0.00%';
     if (column.type === 'date') excelColumn.numFmt = 'dd/mm/yyyy hh:mm:ss';
     excelColumn.alignment = { vertical: 'top', wrapText: column.wrapText === true };

@@ -177,6 +177,46 @@ test('workbook giu ma co so 0 dau, chan chuoi cong thuc va bat freeze/autofilter
   }
 });
 
+test('cot number toan gia tri so nguyen thi khong hien .00', async () => {
+  const originalSnapshot = dashboardData.getDashboardExportSnapshot;
+  dashboardData.getDashboardExportSnapshot = async () => buildSnapshot(); // Giá bán = 150000 (nguyên)
+  try {
+    const file = await exportService.createExportWorkbook({
+      tableKey: 'products.all',
+      filters: {},
+      columns: { all_products: ['c0', 'c1', 'c2'] }
+    });
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file.buffer);
+    const giaBanColumn = workbook.worksheets[0].getColumn(3);
+    assert.equal(giaBanColumn.numFmt, '#,##0;[Red]-#,##0');
+  } finally {
+    dashboardData.getDashboardExportSnapshot = originalSnapshot;
+  }
+});
+
+test('cot number co it nhat 1 gia tri thap phan thi van hien .00', async () => {
+  const originalSnapshot = dashboardData.getDashboardExportSnapshot;
+  dashboardData.getDashboardExportSnapshot = async () => {
+    const snapshot = buildSnapshot();
+    snapshot.sheets[CONFIG.SHEET_PRODUCTS][1][2] = 150000.5; // Gia ban co phan thap phan
+    return snapshot;
+  };
+  try {
+    const file = await exportService.createExportWorkbook({
+      tableKey: 'products.all',
+      filters: {},
+      columns: { all_products: ['c0', 'c1', 'c2'] }
+    });
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file.buffer);
+    const giaBanColumn = workbook.worksheets[0].getColumn(3);
+    assert.equal(giaBanColumn.numFmt, '#,##0.00;[Red]-#,##0.00');
+  } finally {
+    dashboardData.getDashboardExportSnapshot = originalSnapshot;
+  }
+});
+
 test('header khong to mau nen, chu den, an gridline', async () => {
   const originalSnapshot = dashboardData.getDashboardExportSnapshot;
   dashboardData.getDashboardExportSnapshot = async () => buildSnapshot();
