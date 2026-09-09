@@ -36,6 +36,34 @@ test('createLifecycleExportFile: cột khớp y hệt sheet nguồn + Cơ sở +
   assert.equal(dataRow[11], 'Đơn đã gửi kế toán');
 });
 
+test('createLifecycleExportFile: header freeze, khong to mau, chu den, an gridline, full border', async () => {
+  const orders = [{
+    orderCode: 'HD001', branch: 'HN', saleName: 'Sale A', customerName: 'KH A',
+    saleSentAt: '', accountantApprovedOrderAt: '', driverName: '',
+    driverConfirmedDeliveryAt: '', accountantApprovedDeliveryAt: '', deliveryConfirmedAt: '',
+    shipReceivedAt: '', summary: { code: 'SENT_TO_ACCOUNTANT', label: 'Đơn đã gửi kế toán' }
+  }];
+  const file = await createLifecycleExportFile(orders);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(file.buffer);
+  const worksheet = workbook.worksheets[0];
+
+  assert.equal(worksheet.views[0].state, 'frozen');
+  assert.equal(worksheet.views[0].showGridLines, false);
+
+  const header = worksheet.getRow(1);
+  assert.equal(header.font.color.argb, 'FF000000');
+  header.eachCell(cell => {
+    assert.equal(cell.fill === undefined || cell.fill.pattern === 'none', true);
+    assert.ok(cell.border && cell.border.top && cell.border.left && cell.border.bottom && cell.border.right);
+  });
+
+  const dataRow = worksheet.getRow(2);
+  dataRow.eachCell(cell => {
+    assert.ok(cell.border && cell.border.top && cell.border.left && cell.border.bottom && cell.border.right);
+  });
+});
+
 test('createLifecycleExportFile: danh sách rỗng vẫn tạo được file hợp lệ (chỉ có header)', async () => {
   const file = await createLifecycleExportFile([]);
   const workbook = new ExcelJS.Workbook();

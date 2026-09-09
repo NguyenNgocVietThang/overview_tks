@@ -8,6 +8,7 @@
 'use strict';
 
 const ExcelJS = require('exceljs');
+const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
 
 const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -64,18 +65,16 @@ function buildLifecycleWorkbook(orders) {
     worksheet.addRow(row);
   });
 
-  worksheet.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }];
+  worksheet.views = frozenNoGridlinesView(1);
   worksheet.autoFilter = {
     from: { row: 1, column: 1 },
     to: { row: Math.max(orders.length + 1, 1), column: COLUMNS.length }
   };
   const header = worksheet.getRow(1);
   header.height = 24;
-  header.font = { bold: true, color: { argb: 'FF000000' } };
+  header.font = HEADER_FONT;
   header.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-  header.eachCell(cell => {
-    cell.border = { bottom: { style: 'thin', color: { argb: 'FFB8C4CE' } } };
-  });
+  applyFullTableBorder(worksheet, COLUMNS.length, orders.length + 1);
 
   COLUMNS.forEach((column, index) => {
     const excelColumn = worksheet.getColumn(index + 1);

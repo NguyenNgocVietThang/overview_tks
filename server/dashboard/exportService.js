@@ -4,6 +4,7 @@ const ExcelJS = require('exceljs');
 const CONFIG = require('../config');
 const dashboardData = require('./dashboardData');
 const { BRANCHES } = require('../branch/branches');
+const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
 
 const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const VALID_DEBT_PERIODS = new Set([1, 3, 7]);
@@ -660,18 +661,16 @@ function selectedColumnsForWorksheet(dataset, worksheet, requestColumns) {
 }
 
 function styleWorksheet(worksheet, columns, rows) {
-  worksheet.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }];
+  worksheet.views = frozenNoGridlinesView(1);
   worksheet.autoFilter = {
     from: { row: 1, column: 1 },
     to: { row: Math.max(rows.length + 1, 1), column: columns.length }
   };
   const header = worksheet.getRow(1);
   header.height = 24;
-  header.font = { bold: true, color: { argb: 'FF000000' } };
+  header.font = HEADER_FONT;
   header.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-  header.eachCell(cell => {
-    cell.border = { bottom: { style: 'thin', color: { argb: 'FFB8C4CE' } } };
-  });
+  applyFullTableBorder(worksheet, columns.length, rows.length + 1);
 
   columns.forEach((column, index) => {
     const excelColumn = worksheet.getColumn(index + 1);

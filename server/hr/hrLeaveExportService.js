@@ -10,6 +10,7 @@
 const ExcelJS = require('exceljs');
 const repo = require('./hrLeaveRepository');
 const { BRANCHES } = require('../branch/branches');
+const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
 
 const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -85,8 +86,6 @@ async function buildLeaveRequestsWorkbook(filters, branch) {
     key,
     width: COLUMN_WIDTHS[key] || 16
   }));
-  sheet.getRow(1).font = { bold: true };
-  sheet.getRow(1).alignment = { vertical: 'middle' };
 
   items.forEach(item => {
     const row = {};
@@ -96,6 +95,11 @@ async function buildLeaveRequestsWorkbook(filters, branch) {
     });
     sheet.addRow(row);
   });
+
+  sheet.views = frozenNoGridlinesView(1);
+  sheet.getRow(1).font = HEADER_FONT;
+  sheet.getRow(1).alignment = { vertical: 'middle' };
+  applyFullTableBorder(sheet, fieldKeys.length, items.length + 1);
 
   sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: fieldKeys.length } };
 

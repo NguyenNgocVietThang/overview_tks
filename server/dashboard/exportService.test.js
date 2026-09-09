@@ -193,8 +193,13 @@ test('header khong to mau nen, chu den, an gridline', async () => {
     assert.equal(header.font.color.argb, 'FF000000');
     header.eachCell(cell => {
       assert.equal(cell.fill === undefined || cell.fill.pattern === 'none', true);
+      assert.ok(cell.border && cell.border.top && cell.border.left && cell.border.bottom && cell.border.right);
     });
     assert.equal(worksheet.views[0].showGridLines, false);
+    const dataRow = worksheet.getRow(2);
+    dataRow.eachCell(cell => {
+      assert.ok(cell.border && cell.border.top && cell.border.left && cell.border.bottom && cell.border.right);
+    });
   } finally {
     dashboardData.getDashboardExportSnapshot = originalSnapshot;
   }
