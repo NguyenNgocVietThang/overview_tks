@@ -19,6 +19,76 @@ const EXPIRE_MS = 60 * 60 * 1000; // 60 phut
 let currentStorePath = DEFAULT_STORE_PATH;
 let cache = null;
 
+// ---- Ban sao du phong tren Google Sheets (chi Render) --------------------
+// Dia cuc bo tren Render la ephemeral, mat sach moi khi container
+// restart/redeploy (xem localUserStore.js). Neu dieu do xay ra giua luc mot
+// nhan vien dang xin nghi phep do dang, cache RAM + file dia cung mat, khien
+// bot xu ly tin nhan tiep theo nhu mo dau hoi thoai moi (vd: hoi lai danh
+// tinh dang giua chung tra loi Ly do/Ban giao). Cung quy uoc voi
+// isTelegramBotRuntimeEnabled/isUsersSheetSyncRuntimeEnabled: mac dinh CHI
+// bat tren Render, tranh may local/test ghi de len spreadsheet that.
+function isTelegramSessionSheetSyncEnabled(env = process.env) {
+  if (env.TELEGRAM_SESSION_SHEET_SYNC_ENABLED != null) {
+    return String(env.TELEGRAM_SESSION_SHEET_SYNC_ENABLED).toLowerCase() === 'true';
+  }
+  return String(env.RENDER).toLowerCase() === 'true';
+}
+
+let hrLeaveRepositoryModule = null;
+function getHrLeaveRepository() {
+  if (!hrLeaveRepositoryModule) hrLeaveRepositoryModule = require('../hr/hrLeaveRepository');
+  return hrLeaveRepositoryModule;
+}
+
+// Ghi/xoa ban sao tren Sheet chi la best-effort, chay ngam (khong await) —
+// KHONG duoc lam cham hoac lam hong luong tra loi Telegram chinh neu Sheets
+// API cham/loi.
+function mirrorSetToSheet(chatId, conv) {
+  if (!isTelegramSessionSheetSyncEnabled()) return;
+  getHrLeaveRepository().upsertTelegramSession(chatId, JSON.stringify(conv)).catch(err => {
+    console.error('[Telegram Conversation Store] Không đồng bộ được phiên lên Sheet:', err.message);
+  });
+}
+
+function mirrorDeleteToSheet(chatId) {
+  if (!isTelegramSessionSheetSyncEnabled()) return;
+  getHrLeaveRepository().deleteTelegramSession(chatId).catch(err => {
+    console.error('[Telegram Conversation Store] Không xoá được bản sao phiên trên Sheet:', err.message);
+  });
+}
+
+/**
+ * Goi 1 lan khi bot khoi dong — khoi phuc cac hoi thoai con hieu luc tu ban
+ * sao tren Sheet vao cache RAM/file cuc bo, phong truong hop container vua
+ * duoc tao moi (redeploy) va da mat sach du lieu cuc bo. KHONG ghi de hoi
+ * thoai da co san cuc bo (uu tien du lieu local moi hon).
+ */
+async function hydrateFromSheet() {
+  if (!isTelegramSessionSheetSyncEnabled()) return;
+  try {
+    const sessions = await getHrLeaveRepository().findAllTelegramSessions();
+    const all = load();
+    let changed = false;
+    for (const session of sessions) {
+      const chatId = String(session.telegram_chat_id || '').trim();
+      if (!chatId || !session.conv_json || all[chatId]) continue;
+      const updatedAtMs = Date.parse(session.updated_at);
+      if (!Number.isFinite(updatedAtMs) || Date.now() - updatedAtMs > EXPIRE_MS) continue;
+      let conv;
+      try {
+        conv = JSON.parse(session.conv_json);
+      } catch (_parseErr) {
+        continue;
+      }
+      all[chatId] = { conv, updatedAt: updatedAtMs };
+      changed = true;
+    }
+    if (changed) persist();
+  } catch (err) {
+    console.error('[Telegram Conversation Store] Không khôi phục được phiên từ Sheet:', err.message);
+  }
+}
+
 function ensureDataDir(filePath) {
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -89,6 +159,7 @@ function setConversation(chatId, conv) {
   const all = load();
   all[String(chatId)] = { conv, updatedAt: Date.now() };
   persist();
+  mirrorSetToSheet(chatId, conv);
 }
 
 function deleteConversation(chatId) {
@@ -96,6 +167,7 @@ function deleteConversation(chatId) {
   if (all[String(chatId)]) {
     delete all[String(chatId)];
     persist();
+    mirrorDeleteToSheet(chatId);
   }
 }
 
@@ -104,5 +176,7 @@ module.exports = {
   getConversation,
   setConversation,
   deleteConversation,
+  hydrateFromSheet,
+  isTelegramSessionSheetSyncEnabled,
   EXPIRE_MS
 };

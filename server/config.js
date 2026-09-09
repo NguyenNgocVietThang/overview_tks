@@ -140,6 +140,7 @@ const CONFIG = {
   HR_SHEET_LEAVE_REQUESTS: 'Yêu cầu nghỉ phép',
   HR_SHEET_EMPLOYEES: 'Danh sách nhân sự',
   HR_SHEET_TELEGRAM_LINKS: '_HR_TELEGRAM_LINKS',
+  HR_SHEET_TELEGRAM_SESSIONS: '_HR_TELEGRAM_SESSIONS',
 
   // Nguong bao truoc mac dinh (gio) dung khi tin nhan chi neu so buoi/ngay ma
   // khong neu ngay bat dau — bot chon buoi gan nhat con cach thoi diem gui tin

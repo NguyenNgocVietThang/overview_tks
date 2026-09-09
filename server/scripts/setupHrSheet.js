@@ -11,7 +11,10 @@ if (process.env.NODE_ENV !== 'production') {
 }
 const { google } = require('googleapis');
 const CONFIG = require('../config');
-const { LEAVE_SCHEMA_HEADERS, LEAVE_SCHEMA_FIELD_KEYS } = require('../hr/hrLeaveRepository');
+const {
+  LEAVE_SCHEMA_HEADERS, LEAVE_SCHEMA_FIELD_KEYS,
+  SESSION_SCHEMA_HEADERS, SESSION_SCHEMA_FIELD_KEYS
+} = require('../hr/hrLeaveRepository');
 
 // ---- Schema 2 tab Nhan su ---------------------------------------------------
 const HR_SCHEMAS = [
@@ -34,6 +37,13 @@ const HR_SCHEMAS = [
     ],
     hidden: true,
     description: 'Bảng liên kết Telegram chat_id với tài khoản web (nội bộ, ẩn)'
+  },
+  {
+    name: CONFIG.HR_SHEET_TELEGRAM_SESSIONS,
+    headers: SESSION_SCHEMA_HEADERS,
+    fieldKeys: SESSION_SCHEMA_FIELD_KEYS,
+    hidden: true,
+    description: 'Bản sao dự phòng của hội thoại xin nghỉ đang dở dang (nội bộ, ẩn) — bot Telegram tự tạo tab này nếu chưa có'
   }
 ];
 

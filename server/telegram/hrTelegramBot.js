@@ -201,6 +201,11 @@ function startHrTelegramBot() {
     return null;
   }
 
+  // Khoi phuc hoi thoai con hieu luc tu ban sao tren Sheet (phong khi container
+  // vua restart/redeploy va da mat sach du lieu cuc bo) -- chay ngam, khong
+  // chan viec khoi tao bot vi day chi la luoi an toan best-effort.
+  conversationStore.hydrateFromSheet().catch(() => {});
+
   const TelegramBot = require('node-telegram-bot-api');
   const bot = new TelegramBot(CONFIG.TELEGRAM_BOT_TOKEN, { polling: true });
   botInstance = bot;

@@ -63,6 +63,18 @@ const LINK_SCHEMA = {
   ]
 };
 
+// Ban sao du phong cua conversationStore.js (RAM + file dia cuc bo) — dia
+// cuc bo tren Render la ephemeral, mat sach moi khi container restart/deploy
+// (xem localUserStore.js), khien hoi thoai xin nghi dang do dang bi "quen"
+// giua chung va bot lai hoi lai danh tinh nhu tin nhan mo dau. Tab nay chi
+// duoc doc/ghi khi isTelegramSessionSheetSyncEnabled() bat (mac dinh: chi
+// Render) de khong dam vao spreadsheet that tu may local/test.
+const SESSION_SCHEMA = {
+  sheet: () => CONFIG.HR_SHEET_TELEGRAM_SESSIONS,
+  headers: ['Telegram chat_id', 'Cập nhật lần cuối', 'Dữ liệu hội thoại (JSON)'],
+  fieldKeys: ['telegram_chat_id', 'updated_at', 'conv_json']
+};
+
 function escapeUserEnteredFormula(value) {
   return typeof value === 'string' && /^\s*[=+\-@]/.test(value) ? `'${value}` : value;
 }
@@ -469,6 +481,48 @@ async function upsertAutomaticLink({ userId, webUsername, chatId, telegramUserna
   return record;
 }
 
+async function ensureTelegramSessionSheet(branch) {
+  const client = hrClient.getHrClient(branch);
+  try {
+    await client.hrGetSheetId(SESSION_SCHEMA.sheet());
+  } catch (_err) {
+    await client.hrBatchUpdate([{ addSheet: { properties: { title: SESSION_SCHEMA.sheet() } } }]);
+    await client.hrUpdateRow(SESSION_SCHEMA.sheet(), 1, SESSION_SCHEMA.headers);
+    client.hrInvalidateSheetTitlesCache();
+  }
+}
+
+async function findAllTelegramSessions(branch) {
+  const items = await readAll(SESSION_SCHEMA, branch);
+  return items.map(stripRowIndex);
+}
+
+async function upsertTelegramSession(chatId, convJson, branch) {
+  const normalizedChatId = String(chatId || '').trim();
+  if (!normalizedChatId) return;
+  await ensureTelegramSessionSheet(branch);
+  const items = await readAll(SESSION_SCHEMA, branch);
+  const existing = items.find(item => String(item.telegram_chat_id) === normalizedChatId);
+  const record = { telegram_chat_id: normalizedChatId, updated_at: nowIso(), conv_json: escapeUserEnteredFormula(convJson) };
+  const client = hrClient.getHrClient(branch);
+  if (existing) {
+    await client.hrUpdateRow(SESSION_SCHEMA.sheet(), existing._rowIndex, objectToRow(record, SESSION_SCHEMA.fieldKeys));
+  } else {
+    await client.hrAppendRow(SESSION_SCHEMA.sheet(), objectToRow(record, SESSION_SCHEMA.fieldKeys));
+  }
+}
+
+async function deleteTelegramSession(chatId, branch) {
+  const normalizedChatId = String(chatId || '').trim();
+  if (!normalizedChatId) return;
+  await ensureTelegramSessionSheet(branch);
+  const items = await readAll(SESSION_SCHEMA, branch);
+  const existing = items.find(item => String(item.telegram_chat_id) === normalizedChatId);
+  if (!existing) return;
+  const record = { telegram_chat_id: normalizedChatId, updated_at: '', conv_json: '' };
+  await hrClient.getHrClient(branch).hrUpdateRow(SESSION_SCHEMA.sheet(), existing._rowIndex, objectToRow(record, SESSION_SCHEMA.fieldKeys));
+}
+
 module.exports = {
   LEAVE_TYPE,
   LEAVE_STATUS,
@@ -477,7 +531,12 @@ module.exports = {
   LEAVE_SCHEMA_FIELD_KEYS: LEAVE_SCHEMA.fieldKeys,
   LINK_SCHEMA_HEADERS: LINK_SCHEMA.headers,
   LINK_SCHEMA_FIELD_KEYS: LINK_SCHEMA.fieldKeys,
+  SESSION_SCHEMA_HEADERS: SESSION_SCHEMA.headers,
+  SESSION_SCHEMA_FIELD_KEYS: SESSION_SCHEMA.fieldKeys,
   HrError,
+  findAllTelegramSessions,
+  upsertTelegramSession,
+  deleteTelegramSession,
   getLeaveRequests,
   getLeaveRequestById,
   createLeaveRequest,
