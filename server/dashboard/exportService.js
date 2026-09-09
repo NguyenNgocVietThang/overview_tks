@@ -537,12 +537,17 @@ function buildStockout90dResultDataset(payload) {
   const result = payload.stockout90dResult && typeof payload.stockout90dResult === 'object' ? payload.stockout90dResult : null;
   const rows = result && Array.isArray(result.rows) ? result.rows : [];
   if (rows.length === 0) throw exportError('Chưa có kết quả kiểm tra đứt hàng 90 ngày để xuất.', 400, 'EXPORT_NO_DATA');
-  const dataRows = rows.map(row => ({ ...row, periods: formatStockoutPeriods(row.periods) }));
+  const dataRows = rows.map(row => ({
+    ...row,
+    avgStockoutDays: row.stockoutCount ? Math.round((row.totalStockoutDays / row.stockoutCount) * 100) / 100 : 0,
+    periods: formatStockoutPeriods(row.periods)
+  }));
   const worksheet = aggregateWorksheet('stockout_90d_result', 'Kiểm tra đứt hàng 90 ngày', [
     { key: 'code', label: 'Mã SP', type: 'text' },
     { key: 'name', label: 'Tên SP' },
     { key: 'stockoutCount', label: 'Số lần đứt hàng', type: 'number' },
     { key: 'totalStockoutDays', label: 'Số ngày đứt hàng', type: 'number' },
+    { key: 'avgStockoutDays', label: 'Số ngày đứt TB', type: 'number' },
     { key: 'currentOnHand', label: 'Tồn kho hiện tại', type: 'number' },
     { key: 'periods', label: 'Các đợt đứt hàng', wrapText: true }
   ], dataRows);

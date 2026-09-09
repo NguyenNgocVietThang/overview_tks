@@ -399,7 +399,7 @@ test('buildExportDataset: stockout.check90d tra dung worksheet', async () => {
   assert.equal(dataset.title, 'Kiểm tra đứt hàng 90 ngày');
   assert.equal(dataset.sourceBranch, 'Sài Gòn');
   assert.equal(dataset.worksheets.length, 1);
-  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'currentOnHand', 'periods']);
+  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'periods']);
   assert.equal(dataset.worksheets[0].rows[0].code, 'SP001');
   assert.equal(dataset.worksheets[0].rows[0].periods, '01/01/2026 -> 05/01/2026\n10/01/2026 -> 14/01/2026');
 });

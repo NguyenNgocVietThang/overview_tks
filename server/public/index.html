@@ -3464,6 +3464,7 @@
                         <th>Tên SP</th>
                         <th>Số lần đứt hàng</th>
                         <th>Số ngày đứt hàng</th>
+                        <th>Số ngày đứt TB</th>
                         <th>Tồn kho hiện tại</th>
                         <th>Các đợt đứt hàng</th>
                       </tr>
@@ -5359,19 +5360,21 @@
       if (exportButton) exportButton.disabled = rows.length === 0;
 
       if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 90 ngày gần đây</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 90 ngày gần đây</td></tr>';
         return;
       }
 
       const sorted = rows.slice().sort(function (a, b) { return b.totalStockoutDays - a.totalStockoutDays; });
 
       tbody.innerHTML = sorted.map(function (row) {
+        const avgStockoutDays = row.stockoutCount ? (row.totalStockoutDays / row.stockoutCount) : 0;
         return (
           '<tr>' +
             '<td>' + escapeHtml(row.code) + '</td>' +
             '<td>' + escapeHtml(row.name) + '</td>' +
             '<td>' + row.stockoutCount + '</td>' +
             '<td>' + row.totalStockoutDays + '</td>' +
+            '<td>' + avgStockoutDays.toFixed(2) + '</td>' +
             '<td>' + row.currentOnHand + '</td>' +
             '<td>' + formatStockoutPeriods(row.periods) + '</td>' +
           '</tr>'
@@ -5408,7 +5411,7 @@
         const payload = {
           tableKey: 'stockout.check90d',
           stockout90dResult: result,
-          columns: { stockout_90d_result: ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'currentOnHand', 'periods'] }
+          columns: { stockout_90d_result: ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'periods'] }
         };
         const response = await fetch('/api/export', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
