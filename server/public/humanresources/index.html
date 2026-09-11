@@ -172,6 +172,24 @@
     border-radius:var(--radius-md); padding:12px 18px; display:inline-block; margin:8px 0;
   }
 
+  .doc-section{ margin-bottom:22px; }
+  .doc-section:last-child{ margin-bottom:0; }
+  .doc-section h4{
+    margin:0 0 10px; font-family:var(--font-display); font-size:13.5px; font-weight:700; color:var(--text);
+  }
+  .doc-section p{ margin:0 0 10px; font-size:12.5px; color:var(--muted); line-height:1.6; }
+  .doc-section ul{ margin:0 0 10px; padding-left:20px; }
+  .doc-section li{ font-size:12.5px; color:var(--muted); line-height:1.6; margin-bottom:4px; }
+  .doc-section li strong{ color:var(--text); }
+  .doc-table{ width:100%; border-collapse:collapse; margin:0 0 10px; }
+  .doc-table th, .doc-table td{ padding:8px 12px; border:1px solid var(--border); font-size:12.5px; text-align:left; }
+  .doc-table th{ background:var(--panel-2); color:var(--text); font-weight:600; }
+  .doc-table td{ color:var(--muted); }
+  .doc-note{
+    background:var(--panel-2); border:1px solid var(--border); border-radius:var(--radius-sm);
+    padding:10px 14px; font-size:12px; color:var(--text); line-height:1.55; margin:0;
+  }
+
   .form-group{ margin-bottom:16px; }
   .form-group label{ display:block; margin-bottom:6px; font-size:12.5px; font-weight:600; color:var(--text-secondary); }
   .form-control{
@@ -252,7 +270,7 @@
       <div class="hr-wrap">
         <div class="hr-header">
           <h2>Quản lý nhân sự</h2>
-          <p>Danh sách yêu cầu nghỉ phép gửi qua bot Telegram và ghi nhận thủ công. Toàn bộ nhân sự nội bộ xem được; chỉ Quản lý được phê duyệt.</p>
+          <p>Yêu cầu nghỉ phép gửi qua bot Telegram, ghi nhận thủ công và quy định công ty áp dụng cho toàn bộ nhân viên.</p>
         </div>
 
         <!-- Tab con cua "Quan ly nhan su" — them tab moi bang cach them 1 nut o day va 1 .hr-subtab-panel ben duoi -->
@@ -260,6 +278,10 @@
           <button type="button" class="hr-subnav-item active" data-subtab="leave" role="tab" aria-selected="true" onclick="switchHrSubtab('leave')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
             Nghỉ phép
+          </button>
+          <button type="button" class="hr-subnav-item" data-subtab="quydinh" role="tab" aria-selected="false" onclick="switchHrSubtab('quydinh')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>
+            Quy định công ty
           </button>
         </div>
 
@@ -365,6 +387,92 @@
           </div>
         </div>
         </div>
+
+        <!-- Quy dinh cong ty: thuan hien thi tai lieu, khong co chuc nang gi khac -->
+        <div class="hr-subtab-panel" id="hrSubtab-quydinh" role="tabpanel">
+          <div class="profile-card">
+            <div class="profile-card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              1. Quy định giờ giấc và chấm công
+            </div>
+            <p class="profile-card-desc">Để đảm bảo kỷ luật và công bằng trong công việc, công ty yêu cầu toàn thể nhân viên tuân thủ nghiêm túc các quy định sau.</p>
+
+            <div class="doc-section">
+              <h4>Giờ làm việc chính thức</h4>
+              <table class="doc-table">
+                <thead><tr><th>Khối</th><th>Buổi sáng</th><th>Buổi chiều</th></tr></thead>
+                <tbody>
+                  <tr><td>Kho vận</td><td>Ca 1: 08h00 – 11h30<br>Ca 2: 08h00 – 12h30</td><td>Ca 1: 12h30 – 17h00<br>Ca 2: 13h30 – 17h00</td></tr>
+                  <tr><td>Văn phòng</td><td>07h45 – 11h30</td><td>12h30 – 16h45</td></tr>
+                </tbody>
+              </table>
+              <p class="doc-note">☞ Nhân viên phải có mặt đúng giờ, không được tự ý nghỉ sớm.</p>
+            </div>
+
+            <div class="doc-section">
+              <h4>Quy định đi muộn, về sớm, quên chấm công</h4>
+              <ul>
+                <li>Mỗi tháng, nhân viên được phép đi muộn, về sớm hoặc quên chấm công tối đa <strong>03 lần</strong>.</li>
+                <li>Trường hợp vượt quá 03 lần: sẽ bị xử lý <strong>50.000đ/lần</strong>.</li>
+                <li>Quên chấm vào hoặc chấm ra: chỉ được kiểm tra camera trong khoảng <strong>±5 phút</strong> so với giờ vào/ra để xác nhận (sáng: 7h45 – 7h50; chiều: 16h45 – 16h50). Không thấy sẽ mặc định nghỉ buổi sáng hoặc chiều tương ứng.</li>
+                <li>Quên chấm cả 2 lần (vào và ra): không được tính công ngày đó.</li>
+              </ul>
+            </div>
+
+            <div class="doc-section">
+              <h4>Cách tính ngày công khi đi muộn/về sớm</h4>
+              <ul>
+                <li>Đi muộn hoặc về sớm <strong>≤ 30 phút</strong>: không bị trừ công (nhưng vẫn tính vào 03 lần trong tháng).</li>
+                <li>Đi muộn hoặc về sớm <strong>&gt; 30 phút</strong>: tính đi muộn và ngày công được tính theo công thức <strong>Ngày công = Số giờ làm việc thực tế trong ngày ÷ 8</strong>.</li>
+                <li>Ví dụ: nhân viên đi muộn 45 phút → thời gian làm việc còn lại 7h15 → số công = 7h15 ÷ 8 ≈ 0.90625 công và bị tính 1 lỗi đi muộn.</li>
+              </ul>
+              <p class="doc-note">Lưu ý: Việc đi muộn, về sớm nhiều lần sẽ ảnh hưởng trực tiếp đến lương, thưởng và xét tăng lương. Ban quản lý sẽ giám sát và xử lý nghiêm minh, không có ngoại lệ.</p>
+            </div>
+          </div>
+
+          <div class="profile-card">
+            <div class="profile-card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              2. Quy tắc xin nghỉ phép
+            </div>
+            <p class="profile-card-desc">Hướng dẫn và quy chế khi xin nghỉ phép qua bot Telegram và Cổng thông tin nhân sự.</p>
+
+            <div class="doc-section">
+              <h4>Cách xin nghỉ qua bot Telegram</h4>
+              <ul>
+                <li>Vào <strong>Quản lý nhân sự → Nghỉ phép</strong> trên web, bấm "Tạo mã liên kết" để lấy mã 6 số.</li>
+                <li>Mở Telegram, tìm bot xin nghỉ phép của công ty, gõ <strong>/lienket &lt;mã&gt;</strong> trong vòng 15 phút để liên kết tài khoản.</li>
+                <li>Sau khi liên kết, nhắn một câu tự nhiên để xin nghỉ, ví dụ: <em>"Em xin nghỉ chiều mai vì khám bệnh, bàn giao cho Nguyễn B"</em>.</li>
+                <li>Dùng lệnh <strong>/huy</strong> để hủy yêu cầu đang chờ xác nhận.</li>
+              </ul>
+            </div>
+
+            <div class="doc-section">
+              <h4>Đơn vị và mốc thời gian gửi đơn</h4>
+              <ul>
+                <li>Nghỉ phép được tính theo <strong>buổi</strong> (Sáng/Chiều); 1 ngày = 2 buổi.</li>
+                <li>Ca sáng: gửi yêu cầu trước <strong>07h45</strong> ngày bắt đầu nghỉ.</li>
+                <li>Ca chiều: gửi yêu cầu trước <strong>12h30</strong> ngày bắt đầu nghỉ.</li>
+                <li>Đơn gửi sau mốc giờ trên vẫn được ghi nhận nhưng sẽ tự động chuyển trạng thái <strong>"Vi phạm"</strong> để Quản lý và HR hậu kiểm.</li>
+              </ul>
+            </div>
+
+            <div class="doc-section">
+              <h4>Nghỉ khẩn cấp</h4>
+              <p>Trường hợp ốm đột xuất, tai nạn hoặc sự việc bất khả kháng khiến chưa thể gửi yêu cầu trước, hãy báo ngay cho quản lý trực tiếp qua điện thoại hoặc tin nhắn. Yêu cầu gửi sau đó sẽ được ghi nhận ở trạng thái <strong>"Tạm duyệt"</strong> và được quản lý hậu kiểm, kết luận trước khi công ty chốt công.</p>
+            </div>
+
+            <div class="doc-section">
+              <h4>Phê duyệt và trách nhiệm</h4>
+              <ul>
+                <li>Quản lý trực tiếp là người phê duyệt yêu cầu nghỉ, dựa trên khả năng bàn giao công việc và tình hình nhân sự.</li>
+                <li>Trạng thái đơn gồm: <strong>Chưa duyệt, Tạm duyệt, Đã duyệt, Từ chối, Vi phạm</strong>.</li>
+                <li>Nhân viên không được sử dụng vượt quá số ngày phép còn lại; phần vượt sẽ được xử lý theo loại nghỉ khác hoặc nghỉ không lương theo thỏa thuận.</li>
+                <li>Nhân viên có trách nhiệm gửi yêu cầu sớm nhất có thể, bàn giao công việc rõ ràng và cung cấp thông tin trung thực.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
   </div>
@@ -425,7 +533,7 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
-  <script src="/shared/shared-nav.js?v=20260905"></script>
+  <script src="/shared/shared-nav.js?v=20260909"></script>
 
   <script>
     const THEME_STORAGE_KEY = 'tks-dashboard-theme';
