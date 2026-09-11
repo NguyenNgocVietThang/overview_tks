@@ -35,10 +35,13 @@ function getKiotVietToken() {
     "timeoutSeconds": 45
   };
 
+  ensureKiotVietQuotaAvailable_();
+
   const maxAttempts = 3;
   let lastError = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
+      recordKiotVietQuotaUsage_();
       const response = UrlFetchApp.fetch(url, options);
       const responseCode = response.getResponseCode();
       const responseText = response.getContentText();
@@ -58,6 +61,10 @@ function getKiotVietToken() {
       }
     } catch (error) {
       lastError = error;
+      if (isKiotVietQuotaExceededError_(error)) {
+        tripKiotVietQuotaBreaker_('getKiotVietToken');
+        break;
+      }
     }
 
     if (attempt < maxAttempts) Utilities.sleep(1000 * Math.pow(2, attempt - 1));

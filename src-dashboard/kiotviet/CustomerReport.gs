@@ -700,6 +700,8 @@ function customerReportDateLabel_(dateText) {
 }
 
 function fetchCustomerReportJsonWithRetry_(url, token, endpoint) {
+  ensureKiotVietQuotaAvailable_();
+
   const maxAttempts = 5;
   let lastError = null;
   let attemptsMade = 0;
@@ -707,6 +709,7 @@ function fetchCustomerReportJsonWithRetry_(url, token, endpoint) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     attemptsMade = attempt;
     try {
+      recordKiotVietQuotaUsage_();
       const response = UrlFetchApp.fetch(url, {
         headers: {
           Authorization: 'Bearer ' + token,
@@ -730,6 +733,10 @@ function fetchCustomerReportJsonWithRetry_(url, token, endpoint) {
       if (responseCode !== 429 && responseCode < 500) break;
     } catch (error) {
       lastError = error;
+      if (isKiotVietQuotaExceededError_(error)) {
+        tripKiotVietQuotaBreaker_('fetchCustomerReportJsonWithRetry_: ' + endpoint);
+        break;
+      }
     }
 
     if (attempt < maxAttempts) {

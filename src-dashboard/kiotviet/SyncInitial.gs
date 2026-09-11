@@ -593,19 +593,24 @@ function ensurePollingOnlyResumeTrigger_() {
 function setupPollingTrigger() {
   removePollingTrigger_();
   removeSpecificChunkTrigger_('resumeSyncInvoicesChunk');
+  // Webhook-first: doPost/processWebhookQueue la duong chinh gan thoi gian
+  // thuc. Cac trigger polling duoi day chi la luoi an toan du phong, nen keo
+  // dai chu ky de giam UrlFetch/ngay (HN+SG dung chung 1 tai khoan Google nen
+  // chung 1 quota) - xem QuotaGuard.gs va docs/superpowers/specs/2026-09-11-
+  // webhook-first-quota-guard-design.md.
   ScriptApp.newTrigger('syncPollingOnly_')
     .timeBased()
-    .everyMinutes(15)
+    .everyHours(4)
     .create();
   ScriptApp.newTrigger('syncRecentPurchases_')
     .timeBased()
-    .everyMinutes(5)
+    .everyMinutes(60)
     .create();
   ScriptApp.newTrigger('syncRecentInvoices_')
     .timeBased()
-    .everyMinutes(5)
+    .everyMinutes(60)
     .create();
-  Logger.log('Da bat doi soat incremental: Hoa don/Nhap hang 5 phut, Tra hang/NCC 15 phut.');
+  Logger.log('Da bat doi soat incremental (luoi an toan du phong): Hoa don/Nhap hang moi 60 phut, Tra hang/NCC moi 4 gio.');
 }
 
 function removePollingTrigger() {

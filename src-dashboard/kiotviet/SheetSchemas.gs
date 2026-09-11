@@ -803,6 +803,11 @@ function replaceRecentPurchaseOrders_(purchaseOrders) {
 }
 
 function fetchKiotVietJsonWithRetry_(url, token, endpoint) {
+  // Kiem tra mot lan truoc vong lap: neu dang tam dung/da het ngan sach uoc
+  // luong, nem loi ngay va khong tieu bat ky request thuc te nao trong ca 5
+  // lan thu ben duoi.
+  ensureKiotVietQuotaAvailable_();
+
   const maxAttempts = 5;
   let lastError = null;
   let attemptsMade = 0;
@@ -810,6 +815,7 @@ function fetchKiotVietJsonWithRetry_(url, token, endpoint) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     attemptsMade = attempt;
     try {
+      recordKiotVietQuotaUsage_();
       const response = UrlFetchApp.fetch(url, {
         method: 'get',
         headers: {
@@ -832,6 +838,10 @@ function fetchKiotVietJsonWithRetry_(url, token, endpoint) {
       if (responseCode !== 429 && responseCode < 500) break;
     } catch (error) {
       lastError = error;
+      if (isKiotVietQuotaExceededError_(error)) {
+        tripKiotVietQuotaBreaker_('fetchKiotVietJsonWithRetry_: ' + endpoint);
+        break;
+      }
     }
 
     if (attempt < maxAttempts) Utilities.sleep(1000 * Math.pow(2, attempt - 1));

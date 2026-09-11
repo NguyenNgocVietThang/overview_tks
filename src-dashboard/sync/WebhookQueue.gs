@@ -417,14 +417,24 @@ function forwardInvoiceWebhookToShipment_(action, items) {
     baseUrl + '?secret=' + encodeURIComponent(secret),
     action || 'invoice.update'
   );
-  const response = UrlFetchApp.fetch(targetUrl, {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify({
-      Notifications: [{ Action: action || 'invoice.update', Data: items }]
-    }),
-    muteHttpExceptions: true
-  });
+  ensureKiotVietQuotaAvailable_();
+  recordKiotVietQuotaUsage_();
+  let response;
+  try {
+    response = UrlFetchApp.fetch(targetUrl, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({
+        Notifications: [{ Action: action || 'invoice.update', Data: items }]
+      }),
+      muteHttpExceptions: true
+    });
+  } catch (error) {
+    if (isKiotVietQuotaExceededError_(error)) {
+      tripKiotVietQuotaBreaker_('forwardInvoiceWebhookToShipment_');
+    }
+    throw error;
+  }
   const code = response.getResponseCode();
   const responseText = String(response.getContentText() || '').trim();
   if (code < 200 || code >= 300 || responseText !== 'QUEUED') {
@@ -610,12 +620,16 @@ function processWebhookQueueGroupWithIsolation_(group) {
     }));
   } catch (error) {
     if (group.queueItems.length <= 1) {
+      // Loi do dang tam dung/het quota UrlFetch khong phai loi du lieu cua
+      // item nay - hoan lai lan thu de item khong bi day dan toi ERROR chi vi
+      // trung luc quota can, va tu duoc xu ly lai binh thuong khi het backoff.
+      const isQuotaRelated = isKiotVietQuotaRelatedError_(error);
       Logger.log(
         'Webhook ' + group.queueItems[0].id + ' van loi khi tach khoi lo: ' +
-        error.toString()
+        error.toString() + (isQuotaRelated ? ' (lien quan quota, se thu lai sau khong tinh lan thu)' : '')
       );
       return [{
-        id: group.queueItems[0].id, error: error, skipAttemptPenalty: false
+        id: group.queueItems[0].id, error: error, skipAttemptPenalty: isQuotaRelated
       }];
     }
 
@@ -636,34 +650,10 @@ function processWebhookQueue() {
   if (!runnerToken) return;
   try {
     recoverWebhookQueueAfterBatchResize_();
-    if (!isShipmentLifecycleMode_()) {
-    if (typeof ensureKiotVietRecoveryTriggers_ === 'function') {
-      ensureKiotVietRecoveryTriggers_();
-    }
-    ensureMasterChainResumeTrigger_();
-    ensurePollingOnlyResumeTrigger_();
-    const masterBackfillActive = Boolean(
-      PropertiesService.getScriptProperties().getProperty('MASTER_CHAIN_SYNC_STATE')
-    );
-    if (!masterBackfillActive) {
-      const maintenanceLock = getKiotVietDataLock_();
-      if (maintenanceLock.tryLock(5000)) {
-        try {
-          try {
-            migrateKiotVietSheetsIfNeeded_();
-          } catch (migrationError) {
-            Logger.log('Loi cap nhat schema, se thu lai: ' + migrationError.toString());
-          }
-          syncCustomerReportIfDue_();
-
-          // Sau 15:00, chay bu bao cao cong no neu trigger ngay bi tre hoac loi.
-          syncCustomerDebtReportsIfDue_();
-        } finally {
-          maintenanceLock.releaseLock();
-        }
-      }
-    }
-    }
+    // CHI xu ly webhook o day. Bao cao/cong no/migrate schema/watchdog trigger
+    // da chuyen sang runKiotVietMaintenanceTick_() (MaintenanceSchedule.gs,
+    // trigger rieng moi 15 phut) de khong con canh tranh lock hay lam tre
+    // lan trigger webhook ke tiep.
 
     // Xu ly nhieu lo trong cung mot lan chay (thay vi cho trigger ke tiep) de
     // hang doi khong bi don u khi luong webhook cao (vd chi nhanh nhieu don).

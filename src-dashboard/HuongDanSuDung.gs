@@ -87,10 +87,13 @@ syncAllInitialData()
 
 setupKiotVietAutoSync()
   Khi dung : Mot lan sau khi deploy, hoac khi doi WEBHOOK_URL/deployment.
-  Tac dung : Tao WEBHOOK_SECRET neu thieu; tao trigger queue 5 phut; doi soat
-             Hoa don/Nhap hang 5 phut, Tra hang/NCC 15 phut; ba bao cao khach
-             hang 06:00/06:30/07:00; HN1/HN3/HN7 gan 15:00; doi chieu va dam
-             bao du 9 webhook do he thong quan ly.
+  Tac dung : Tao WEBHOOK_SECRET neu thieu; tao trigger queue webhook moi phut
+             (chi xu ly webhook); trigger bao tri (watchdog/migrate/chay bu
+             bao cao-cong no) moi 15 phut; doi soat Hoa don/Nhap hang moi 60
+             phut, Tra hang/NCC moi 4 gio (luoi an toan du phong, khong phai
+             duong cap nhat chinh); kiem tra webhook moi 6 gio; ba bao cao
+             khach hang 06:00/06:30/07:00; HN1/HN3/HN7 gan 15:00; doi chieu va
+             dam bao du 9 webhook do he thong quan ly.
   Goi tiep : migrateKiotVietSheetsIfNeeded_()
              -> getKiotVietToken()
              -> ensureKiotVietWebhookSecret_()
@@ -98,6 +101,8 @@ setupKiotVietAutoSync()
              -> setupPollingTrigger()
              -> setupCustomerReportDailyTrigger()
              -> setupCustomerDebtReportDailyTrigger()
+             -> setupKiotVietRecoveryTriggers()
+             -> setupMaintenanceTrigger()
              -> reconcileKiotVietAutoSyncWebhooks_().
   Luu y    : setupCustomerReport() van dung khi can lam moi ngay ca ba bao cao;
              khong can chay ham nay chi de tao trigger sau setupKiotVietAutoSync().
@@ -115,8 +120,9 @@ syncSalesCustomerReport(), syncCustomerProductReport(), syncCustomerByProductRep
   Tac dung : Chay theo phan doan (chunked/resumable) qua runCustomerReportChunkedJob_ -
              moi lan goi toi da ~4.5 phut, luu tien do vao Script Properties va sheet
              an tam. Neu du lieu nhieu, mot lan Run co the CHUA xong (khong bao loi,
-             chi la chua toi luot ghi sheet); trigger hang doi 5 phut (processWebhookQueue
-             -> syncCustomerReportIfDue_) se tu dong goi lai cho toi khi hoan tat va
+             chi la chua toi luot ghi sheet); trigger bao tri 15 phut
+             (runKiotVietMaintenanceTick_ -> syncCustomerReportIfDue_, tach
+             rieng khoi hang doi webhook) se tu dong goi lai cho toi khi hoan tat va
              cap nhat LAST_SYNC property. Neu chay tay va muon xong ngay khong doi
              trigger, bam Run nhieu lan lien tiep cho den khi Log hien "HOAN TAT".
 
@@ -149,9 +155,15 @@ setupQueueProcessingTrigger()
   Tac dung : Xoa trigger trung va tao dung 1 trigger moi chay moi phut.
 
 setupPollingTrigger() / removePollingTrigger()
-  Khi dung : Bat/tat dong bo dinh ky.
-  Tac dung : Tao trigger doi soat 15 phut cho Tra hang, Nha cung cap, Nhap hang
-             va trigger quet nhanh Nhap hang 7 ngay gan nhat moi 5 phut.
+  Khi dung : Bat/tat dong bo dinh ky (luoi an toan du phong, khong phai duong
+             cap nhat chinh - webhook moi la duong chinh).
+  Tac dung : Tao trigger doi soat moi 4 gio cho Tra hang/Nha cung cap, va
+             trigger doi soat Hoa don/Nhap hang moi 60 phut.
+
+setupMaintenanceTrigger()
+  Khi dung : Khi trigger bao tri (runKiotVietMaintenanceTick_) bi thieu.
+  Tac dung : Xoa trigger trung va tao dung 1 trigger moi chay moi 15 phut,
+             tach rieng khoi hang doi webhook (xem sync/MaintenanceSchedule.gs).
 
 removeCustomerDebtReportDailyTrigger()
   Khi dung : Khi can tam ngung tu dong cap nhat HN1/HN3/HN7 luc 15:00.
@@ -186,11 +198,30 @@ Trigger moi phut
      -> finalizeWebhookQueueItem_()
         -> thanh cong: xoa su kien
         -> that bai  : tra ve PENDING; sau 10 lan chuyen ERROR va van giu payload
+        -> loi lien quan Quota Guard (dang tam dung/het quota UrlFetch): tra ve
+           PENDING nhung KHONG tinh vao so lan thu (skipAttemptPenalty)
+
+Trigger moi 15 phut (rieng, tach khoi hang doi webhook)
+  -> runKiotVietMaintenanceTick_()                   [sync/MaintenanceSchedule.gs]
+     -> ensureKiotVietRecoveryTriggers_(), ensureMasterChainResumeTrigger_(),
+        ensurePollingOnlyResumeTrigger_()            watchdog, khong tieu UrlFetch
+     -> migrateKiotVietSheetsIfNeeded_()              khong tieu UrlFetch
+     -> neu dang bi Quota Guard tam dung: dung o day, khong chay 2 dong duoi
+     -> syncCustomerReportIfDue_()                    chay bu neu trigger rieng tre/loi
+     -> syncCustomerDebtReportsIfDue_()                chay bu neu trigger 15:00 tre/loi
 
 Moi updateXxxFromWebhook()
   -> hydrateKiotVietItems_()                         lay ban ghi day du moi nhat
+     (San pham/Dat hang/Khach hang/Nhom hang: chi hydrate-skip-neu-du-du-lieu
+     khi bat qua Script Property KIOTVIET_HYDRATE_SKIP_ENTITIES; mac dinh tat)
   -> getKiotVietToken()                              token cache
   -> upsertKiotVietSheetItems_()/delete...()         ghi dung dong theo schema
+
+Moi lenh goi UrlFetch (KiotViet API) deu di qua QuotaGuard.gs:
+  -> ensureKiotVietQuotaAvailable_()   chan truoc neu dang tam dung/het ngan sach
+  -> recordKiotVietQuotaUsage_()       dem so request uoc luong trong ngay
+  -> neu bat duoc dung loi "too many times for one day: urlfetch" cua Google
+     -> tripKiotVietQuotaBreaker_()    tam dung, backoff leo thang 1h/2h/3h trong ngay
 
 Rieng hoa don:
   updateInvoicesFromWebhook()
@@ -208,15 +239,19 @@ syncAllInitialData()
      -> writeKiotVietSheet_()                        ghi moi truoc, don dong du sau
   -> syncCustomerReport()
 
-Trigger 15 phut
+Trigger moi 4 gio (luoi an toan du phong)
   -> syncPollingOnly_()
      -> Doi soat Tra hang va Nha cung cap bang lastModifiedFrom.
      -> Lan dau nhin lai 48 gio; lan sau doc chong 10 phut tu checkpoint.
 
-Trigger 5 phut
+Trigger moi 60 phut (luoi an toan du phong)
   -> syncRecentInvoices_(): doi soat Hoa don + Chi tiet hoa don.
   -> syncRecentPurchases_(): doi soat va thay cac dong cua phieu Nhap hang doi.
   -> Hai ham dung checkpoint lastModifiedFrom; full backfill chi chay thu cong.
+  -> Ca hai deu di qua QuotaGuard.gs; bi bo qua neu dang trong thoi gian tam dung.
+
+Trigger moi 6 gio
+  -> reconcileKiotVietAutoSyncHealth_(): kiem tra/khoi phuc 9 webhook KiotViet.
 
 Webhook invoice.update
   -> Neu payload co Code + InvoiceDetails: ghi thang, khong goi API chi tiet.
@@ -237,16 +272,30 @@ kiotviet/SheetSchemas.gs
   upsert, xoa va migrate an toan.
 
 kiotviet/SyncInitial.gs
-  Full sync, cac ham sync tung tab va polling 15 phut.
+  Full sync (chi chay thu cong), cac ham sync tung tab va polling incremental
+  (luoi an toan du phong: Hoa don/Nhap hang moi 60 phut, Tra hang/NCC moi 4 gio).
 
 kiotviet/WebhookAdmin.gs
-  Tao/kiem tra/doi chieu webhook theo profile; URL dang ky tro toi doPost().
+  Tao/kiem tra/doi chieu webhook theo profile; URL dang ky tro toi doPost();
+  createKiotVietRecoveryTriggers_() bat trigger kiem tra webhook moi 6 gio.
+
+kiotviet/QuotaGuard.gs
+  Dem UrlFetch uoc luong trong ngay (rieng tung project), nhan dien loi qua
+  quota that su cua Google, va cau dao tam dung/backoff leo thang 1h-3h.
 
 sync/WebhookQueue.gs
-  Nhan webhook, queue ben vung, lease/retry va trigger xu ly moi phut.
+  Nhan webhook, queue ben vung, lease/retry va trigger xu ly moi phut - CHI
+  xu ly webhook, khong con bao cao/cong no/migrate schema (xem MaintenanceSchedule.gs).
+
+sync/MaintenanceSchedule.gs
+  Trigger bao tri rieng moi 15 phut: watchdog trigger, migrate schema, chay bu
+  bao cao/cong no khi lich rieng bi tre/loi; bo qua phan ton UrlFetch khi dang
+  bi Quota Guard tam dung.
 
 sync/UpdateHandlers.gs
-  Hydrate ban ghi va dieu phoi upsert/xoa cho tung loai webhook.
+  Hydrate ban ghi va dieu phoi upsert/xoa cho tung loai webhook. Hoa don luon
+  hydrate-skip-neu-du-du-lieu; San pham/Dat hang/Khach hang/Nhom hang co cung
+  co che nhung tat theo mac dinh sau Script Property KIOTVIET_HYDRATE_SKIP_ENTITIES.
 
 kiotviet/CustomerReport.gs
   Tao/doi soat Bao cao ban hang, Hang ban theo khach va Khach theo hang hoa;
@@ -255,7 +304,8 @@ kiotviet/CustomerReport.gs
 
 kiotviet/CustomerDebtReport.gs
   Tinh va ghi bao cao cong no khach hang HN1/HN3/HN7 (1/3/7 ngay gan day, tinh
-  ca hom nay); quan ly trigger hang ngay gan 15:00 va ham chay bu qua queue.
+  ca hom nay); quan ly trigger hang ngay gan 15:00 va ham chay bu qua trigger
+  bao tri moi 15 phut (runKiotVietMaintenanceTick_, xem MaintenanceSchedule.gs).
 
 utils/Helpers.gs
   Khoa ghi chung, chuan hoa ngay/ma va tao dinh dang/dong Hang hoa.

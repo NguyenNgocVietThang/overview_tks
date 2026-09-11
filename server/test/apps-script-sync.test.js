@@ -112,6 +112,7 @@ describe('Compact KiotViet sheet schemas', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs'
     ]);
     const checks = vm.runInContext(`(() => {
@@ -134,6 +135,7 @@ describe('Compact KiotViet sheet schemas', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/CustomerReport.gs',
       'src-dashboard/kiotviet/CustomerDebtReport.gs'
@@ -220,6 +222,7 @@ describe('Google Sheets typed-column formatting', () => {
   it('does not abort a full-sheet sync when a typed column rejects number formatting', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs'
     ]);
     const range = createFormatRange(typedColumnError);
@@ -239,6 +242,7 @@ describe('Google Sheets typed-column formatting', () => {
   it('does not return a webhook item to the retry queue for the same formatting-only error', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs'
     ]);
     const range = createFormatRange(typedColumnError);
@@ -255,6 +259,7 @@ describe('Google Sheets typed-column formatting', () => {
   it('does not abort after data is written when Sheets raises the typed-column error outside the cell formatter', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs'
     ]);
     const sheet = {
@@ -636,6 +641,7 @@ describe('Separated dashboard and shipment projects', () => {
     context.setupCustomerReportDailyTrigger = () => installed.push('customer-reports');
     context.setupCustomerDebtReportDailyTrigger = () => installed.push('debt');
     context.setupKiotVietRecoveryTriggers = () => installed.push('recovery');
+    context.setupMaintenanceTrigger = () => installed.push('maintenance');
     context.reconcileKiotVietAutoSyncWebhooks_ = () => ({
       activeCount: 9,
       createdCount: 0,
@@ -650,7 +656,8 @@ describe('Separated dashboard and shipment projects', () => {
       'polling',
       'customer-reports',
       'debt',
-      'recovery'
+      'recovery',
+      'maintenance'
     ]);
   });
 
@@ -688,7 +695,7 @@ describe('Separated dashboard and shipment projects', () => {
       'reconcileKiotVietAutoSyncHealth_'
     ]);
     assert.deepEqual(created, [{
-      handler: 'reconcileKiotVietAutoSyncHealth_', hours: 1
+      handler: 'reconcileKiotVietAutoSyncHealth_', hours: 6
     }]);
   });
 
@@ -719,8 +726,7 @@ describe('Separated dashboard and shipment projects', () => {
     assert.deepEqual(calls.map(call => call[0]), ['dashboard']);
   });
 
-  it('checks for a stalled master sync on every dashboard queue tick', () => {
-    let watchdogCalls = 0;
+  it('never calls report/debt-report/schema-migration maintenance from the webhook queue', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/sync/WebhookQueue.gs'
@@ -735,14 +741,27 @@ describe('Separated dashboard and shipment projects', () => {
     context.acquireWebhookQueueRunnerLease_ = () => 'test-runner';
     context.releaseWebhookQueueRunnerLease_ = () => {};
     context.recoverWebhookQueueAfterBatchResize_ = () => 0;
-    context.getKiotVietDataLock_ = () => ({ tryLock() { return false; } });
     context.claimWebhookQueueBatch_ = () => [];
-    context.ensureMasterChainResumeTrigger_ = () => { watchdogCalls++; };
-    context.ensurePollingOnlyResumeTrigger_ = () => {};
+    // processWebhookQueue() nay chi con xu ly webhook; bao cao/cong no/migrate
+    // schema/watchdog da chuyen het sang runKiotVietMaintenanceTick_ (xem
+    // MaintenanceSchedule.gs) de khong con canh tranh lock/lam tre webhook.
+    context.migrateKiotVietSheetsIfNeeded_ = () => {
+      throw new Error('processWebhookQueue must not migrate sheet schema anymore');
+    };
+    context.syncCustomerReportIfDue_ = () => {
+      throw new Error('processWebhookQueue must not run report catch-up anymore');
+    };
+    context.syncCustomerDebtReportsIfDue_ = () => {
+      throw new Error('processWebhookQueue must not run debt-report catch-up anymore');
+    };
+    context.ensureMasterChainResumeTrigger_ = () => {
+      throw new Error('processWebhookQueue must not run the master-chain watchdog anymore');
+    };
+    context.ensurePollingOnlyResumeTrigger_ = () => {
+      throw new Error('processWebhookQueue must not run the polling-only watchdog anymore');
+    };
 
-    context.processWebhookQueue();
-
-    assert.equal(watchdogCalls, 1);
+    assert.doesNotThrow(() => context.processWebhookQueue());
   });
 
   it('does not start a second queue runner while another trigger owns the lease', () => {
@@ -895,6 +914,7 @@ describe('Separated dashboard and shipment projects', () => {
     const finalizedBatches = [];
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/sync/WebhookQueue.gs'
     ]);
     context.isShipmentLifecycleMode_ = () => true;
@@ -944,56 +964,60 @@ describe('Separated dashboard and shipment projects', () => {
     assert.equal(processCalls, 7);
   });
 
-  it('does not resurrect an automatic invoice backfill on a dashboard queue tick', () => {
-    let pollingWatchdogCalls = 0;
-    let invoiceWatchdogCalls = 0;
-    const context = loadAppsScript([
+});
+
+describe('KiotViet maintenance tick (decoupled from the webhook queue)', () => {
+  function loadMaintenance(propertyOverrides, globals) {
+    const properties = Object.assign({}, propertyOverrides);
+    return loadAppsScript([
       'src-dashboard/config/Config.gs',
-      'src-dashboard/sync/WebhookQueue.gs'
-    ], {
+      'src-dashboard/sync/MaintenanceSchedule.gs'
+    ], Object.assign({
       PropertiesService: {
         getScriptProperties() {
-          return { getProperty() { return null; } };
+          return {
+            getProperty(name) { return getTestScriptProperty(properties, name); },
+            setProperty(name, value) { properties[name] = value; },
+            deleteProperty(name) { delete properties[name]; }
+          };
         }
       }
-    });
+    }, globals));
+  }
+
+  it('checks for a stalled master sync on every maintenance tick', () => {
+    let watchdogCalls = 0;
+    const context = loadMaintenance({});
     context.isShipmentLifecycleMode_ = () => false;
-    context.acquireWebhookQueueRunnerLease_ = () => 'test-runner';
-    context.releaseWebhookQueueRunnerLease_ = () => {};
-    context.recoverWebhookQueueAfterBatchResize_ = () => 0;
     context.getKiotVietDataLock_ = () => ({ tryLock() { return false; } });
-    context.claimWebhookQueueBatch_ = () => [];
+    context.ensureMasterChainResumeTrigger_ = () => { watchdogCalls++; };
+    context.ensurePollingOnlyResumeTrigger_ = () => {};
+
+    context.runKiotVietMaintenanceTick_();
+
+    assert.equal(watchdogCalls, 1);
+  });
+
+  it('does not resurrect an automatic invoice backfill on a maintenance tick', () => {
+    let pollingWatchdogCalls = 0;
+    let invoiceWatchdogCalls = 0;
+    const context = loadMaintenance({});
+    context.isShipmentLifecycleMode_ = () => false;
+    context.getKiotVietDataLock_ = () => ({ tryLock() { return false; } });
     context.ensureMasterChainResumeTrigger_ = () => {};
     context.ensurePollingOnlyResumeTrigger_ = () => { pollingWatchdogCalls++; };
     context.ensureInvoicesBackfillResumeTrigger_ = () => { invoiceWatchdogCalls++; };
 
-    context.processWebhookQueue();
+    context.runKiotVietMaintenanceTick_();
 
     assert.equal(pollingWatchdogCalls, 1);
     assert.equal(invoiceWatchdogCalls, 0);
   });
 
-  it('skips heavy queue maintenance while the master backfill is active', () => {
+  it('skips report/debt-report catch-up while the master backfill is active', () => {
     let maintenanceCalls = 0;
-    let claimedBatches = 0;
-    const context = loadAppsScript([
-      'src-dashboard/config/Config.gs',
-      'src-dashboard/sync/WebhookQueue.gs'
-    ], {
-      PropertiesService: {
-        getScriptProperties() {
-          return {
-            getProperty(name) {
-              return name === 'MASTER_CHAIN_SYNC_STATE' ? '{"currentIndex":3}' : null;
-            }
-          };
-        }
-      }
-    });
+    const context = loadMaintenance({ MASTER_CHAIN_SYNC_STATE: '{"currentIndex":3}' });
     context.isShipmentLifecycleMode_ = () => false;
-    context.acquireWebhookQueueRunnerLease_ = () => 'test-runner';
-    context.releaseWebhookQueueRunnerLease_ = () => {};
-    context.recoverWebhookQueueAfterBatchResize_ = () => 0;
     context.ensureMasterChainResumeTrigger_ = () => {};
     context.ensurePollingOnlyResumeTrigger_ = () => {};
     context.getKiotVietDataLock_ = () => ({
@@ -1003,15 +1027,329 @@ describe('Separated dashboard and shipment projects', () => {
     context.migrateKiotVietSheetsIfNeeded_ = () => { maintenanceCalls++; };
     context.syncCustomerReportIfDue_ = () => { maintenanceCalls++; };
     context.syncCustomerDebtReportsIfDue_ = () => { maintenanceCalls++; };
+
+    context.runKiotVietMaintenanceTick_();
+
+    assert.equal(maintenanceCalls, 0);
+  });
+
+  it('skips report/debt-report catch-up while quota is paused, but still runs schema migration', () => {
+    let migrateCalls = 0;
+    let reportCalls = 0;
+    const context = loadMaintenance({});
+    context.isShipmentLifecycleMode_ = () => false;
+    context.ensureMasterChainResumeTrigger_ = () => {};
+    context.ensurePollingOnlyResumeTrigger_ = () => {};
+    context.getKiotVietDataLock_ = () => ({
+      tryLock() { return true; },
+      releaseLock() {}
+    });
+    context.migrateKiotVietSheetsIfNeeded_ = () => { migrateCalls++; };
+    context.isKiotVietQuotaPaused_ = () => true;
+    context.syncCustomerReportIfDue_ = () => { reportCalls++; };
+    context.syncCustomerDebtReportsIfDue_ = () => { reportCalls++; };
+
+    context.runKiotVietMaintenanceTick_();
+
+    assert.equal(migrateCalls, 1);
+    assert.equal(reportCalls, 0);
+  });
+
+  it('runs report/debt-report catch-up when not backfilling and quota is available', () => {
+    let reportCalls = 0;
+    let debtCalls = 0;
+    const context = loadMaintenance({});
+    context.isShipmentLifecycleMode_ = () => false;
+    context.ensureMasterChainResumeTrigger_ = () => {};
+    context.ensurePollingOnlyResumeTrigger_ = () => {};
+    context.getKiotVietDataLock_ = () => ({
+      tryLock() { return true; },
+      releaseLock() {}
+    });
+    context.migrateKiotVietSheetsIfNeeded_ = () => {};
+    context.isKiotVietQuotaPaused_ = () => false;
+    context.syncCustomerReportIfDue_ = () => { reportCalls++; };
+    context.syncCustomerDebtReportsIfDue_ = () => { debtCalls++; };
+
+    context.runKiotVietMaintenanceTick_();
+
+    assert.equal(reportCalls, 1);
+    assert.equal(debtCalls, 1);
+  });
+
+  it('installs the 15-minute maintenance trigger idempotently', () => {
+    const created = [];
+    const deleted = [];
+    const oldTrigger = { getHandlerFunction() { return 'runKiotVietMaintenanceTick_'; } };
+    const context = loadMaintenance({}, {
+      ScriptApp: {
+        getProjectTriggers() { return [oldTrigger]; },
+        deleteTrigger(trigger) { deleted.push(trigger.getHandlerFunction()); },
+        newTrigger(handler) {
+          const record = { handler };
+          const builder = {
+            timeBased() { return builder; },
+            everyMinutes(minutes) { record.minutes = minutes; return builder; },
+            create() { created.push(record); }
+          };
+          return builder;
+        }
+      }
+    });
+
+    context.setupMaintenanceTrigger();
+
+    assert.deepEqual(deleted, ['runKiotVietMaintenanceTick_']);
+    assert.deepEqual(created, [{ handler: 'runKiotVietMaintenanceTick_', minutes: 15 }]);
+  });
+});
+
+describe('Quota-pause defers hydrate-needing webhooks without an attempt penalty', () => {
+  // createMemorySheet() (khai bao o dau file) chi mo phong deleteRows() bang
+  // cach giam maxRows cho cac test kiem tra gioi han luoi; no khong that su
+  // cat phan tu khoi mang rows noi bo. Test cuoi trong khoi nay can xac nhan
+  // mot dong DA THAT SU bi xoa sau khi xu ly thanh cong, nen dung mock rieng,
+  // don gian hon, co deleteRows() xoa dung mang rows.
+  function createDeletingQueueSheet(name, initialRows) {
+    let rows = initialRows.map(row => row.slice());
+    return {
+      getName() { return name; },
+      hideSheet() {},
+      getLastRow() { return rows.length; },
+      getRange(row, column, rowCount = 1, columnCount = 1) {
+        return {
+          getValues() {
+            return Array.from({ length: rowCount }, (_, rowOffset) =>
+              Array.from({ length: columnCount }, (_, columnOffset) =>
+                (rows[row - 1 + rowOffset] || [])[column - 1 + columnOffset] ?? ''
+              )
+            );
+          },
+          setValues(values) {
+            values.forEach((valueRow, rowOffset) => {
+              const targetRow = row - 1 + rowOffset;
+              if (!rows[targetRow]) rows[targetRow] = [];
+              valueRow.forEach((value, columnOffset) => {
+                rows[targetRow][column - 1 + columnOffset] = value;
+              });
+            });
+            return this;
+          }
+        };
+      },
+      deleteRows(start, count) { rows.splice(start - 1, count); },
+      getRows() { return rows.map(row => row.slice()); }
+    };
+  }
+
+  it('a quota-related failure on an isolated item is finalized with skipAttemptPenalty', () => {
+    let claimCalls = 0;
+    const finalizedBatches = [];
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ]);
+    context.isShipmentLifecycleMode_ = () => true;
+    context.acquireWebhookQueueRunnerLease_ = () => 'test-runner';
+    context.releaseWebhookQueueRunnerLease_ = () => {};
+    context.recoverWebhookQueueAfterBatchResize_ = () => 0;
+    context.getKiotVietDataLock_ = () => ({
+      waitLock() {}, hasLock() { return true; }, releaseLock() {}
+    });
     context.claimWebhookQueueBatch_ = () => {
-      claimedBatches++;
-      return [];
+      claimCalls++;
+      if (claimCalls > 1) return [];
+      return [{
+        id: 'queue-paused',
+        eventType: 'product.update',
+        payload: JSON.stringify({ Notifications: [{ Action: 'product.update', Data: [{ Id: 1 }] }] })
+      }];
+    };
+    context.processWebhookQueueItem_ = () => {
+      throw new Error('KIOTVIET_QUOTA_PAUSED: dang tam dung goi KiotViet API do het quota UrlFetch.');
+    };
+    context.finalizeWebhookQueueBatch_ = results => {
+      finalizedBatches.push(results);
+      return true;
     };
 
     context.processWebhookQueue();
 
-    assert.equal(maintenanceCalls, 0);
-    assert.equal(claimedBatches, 1);
+    assert.equal(finalizedBatches.length, 1);
+    assert.equal(finalizedBatches[0][0].id, 'queue-paused');
+    assert.equal(finalizedBatches[0][0].skipAttemptPenalty, true);
+  });
+
+  it('a non-quota failure on an isolated item is still finalized without the penalty (attempts still count)', () => {
+    const finalizedBatches = [];
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ]);
+    context.isShipmentLifecycleMode_ = () => true;
+    context.acquireWebhookQueueRunnerLease_ = () => 'test-runner';
+    context.releaseWebhookQueueRunnerLease_ = () => {};
+    context.recoverWebhookQueueAfterBatchResize_ = () => 0;
+    context.getKiotVietDataLock_ = () => ({
+      waitLock() {}, hasLock() { return true; }, releaseLock() {}
+    });
+    let claimCalls = 0;
+    context.claimWebhookQueueBatch_ = () => {
+      claimCalls++;
+      if (claimCalls > 1) return [];
+      return [{
+        id: 'queue-bad-data',
+        eventType: 'product.update',
+        payload: JSON.stringify({ Notifications: [{ Action: 'product.update', Data: [{ Id: 1 }] }] })
+      }];
+    };
+    context.processWebhookQueueItem_ = () => {
+      throw new Error('Loi khong lien quan quota: du lieu khong hop le.');
+    };
+    context.finalizeWebhookQueueBatch_ = results => {
+      finalizedBatches.push(results);
+      return true;
+    };
+
+    context.processWebhookQueue();
+
+    assert.equal(finalizedBatches[0][0].skipAttemptPenalty, false);
+  });
+
+  it('end-to-end: a webhook needing hydrate stays PENDING with unchanged attempts while quota is paused', () => {
+    const headers = ['ID', 'Received', 'Type', 'Payload', 'Status', 'Attempts', 'Lease', 'Error'];
+    const queueSheet = createMemorySheet('_KV_WEBHOOK_QUEUE', [
+      headers,
+      ['wh-1', new Date(), 'product.update', JSON.stringify({
+        Notifications: [{ Action: 'product.update', Data: [{ Id: 1, ProductCode: 'SP1' }] }]
+      }), 'PENDING', 0, '', '']
+    ], { maxRows: 10, maxColumns: 8 });
+    const properties = {
+      KIOTVIET_RETAILER: 'CHhanoi',
+      KIOTVIET_QUOTA_PAUSE_UNTIL: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    };
+    let fetchAllCalls = 0;
+
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/sync/UpdateHandlers.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return getTestScriptProperty(properties, name); },
+            setProperty(name, value) { properties[name] = value; },
+            deleteProperty(name) { delete properties[name]; }
+          };
+        }
+      },
+      LockService: {
+        getDocumentLock() { return null; },
+        getScriptLock() { return { tryLock() { return true; }, waitLock() {}, hasLock() { return true; }, releaseLock() {} }; }
+      },
+      SpreadsheetApp: {
+        getActiveSpreadsheet() {
+          return {
+            getSheetByName(name) { return name === '_KV_WEBHOOK_QUEUE' ? queueSheet : null; },
+            insertSheet(name) {
+              if (name === '_KV_WEBHOOK_QUEUE') return queueSheet;
+              throw new Error('unexpected sheet requested: ' + name);
+            }
+          };
+        },
+        flush() {}
+      },
+      Utilities: {
+        getUuid() { return 'lease-' + Math.random().toString(36).slice(2); },
+        formatDate(date) { return date.toISOString().slice(0, 10).replace(/-/g, ''); }
+      },
+      UrlFetchApp: {
+        fetchAll(requests) { fetchAllCalls++; return requests.map(() => ({ getResponseCode: () => 200, getContentText: () => '{}' })); }
+      }
+    });
+    context.getKiotVietToken = () => 'fake-token';
+
+    context.processWebhookQueue();
+
+    assert.equal(fetchAllCalls, 0, 'khong duoc goi fetchAll thuc te trong luc dang tam dung');
+    const rows = queueSheet.getRows();
+    assert.equal(rows.length, 2, 'webhook can hydrate phai con nam lai trong hang doi, khong bi xoa');
+    assert.equal(rows[1][0], 'wh-1');
+    assert.equal(rows[1][4], 'PENDING', 'trang thai phai quay lai PENDING, khong duoc danh dau ERROR');
+    assert.equal(rows[1][5], 0, 'so lan thu khong duoc tang len vi day la loi lien quan quota');
+  });
+
+  it('end-to-end: once the backoff window elapses, the deferred webhook is processed and removed from the queue', () => {
+    const headers = ['ID', 'Received', 'Type', 'Payload', 'Status', 'Attempts', 'Lease', 'Error'];
+    const queueSheet = createDeletingQueueSheet('_KV_WEBHOOK_QUEUE', [
+      headers,
+      ['wh-1', new Date(), 'product.update', JSON.stringify({
+        Notifications: [{ Action: 'product.update', Data: [{ Id: 1, ProductCode: 'SP1' }] }]
+      }), 'PENDING', 0, '', '']
+    ]);
+    // Khong dat KIOTVIET_QUOTA_PAUSE_UNTIL: mo phong thoi diem sau khi backoff da het han.
+    const properties = { KIOTVIET_RETAILER: 'CHhanoi' };
+
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/sync/UpdateHandlers.gs',
+      'src-dashboard/sync/WebhookQueue.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return getTestScriptProperty(properties, name); },
+            setProperty(name, value) { properties[name] = value; },
+            deleteProperty(name) { delete properties[name]; }
+          };
+        }
+      },
+      LockService: {
+        getDocumentLock() { return null; },
+        getScriptLock() { return { tryLock() { return true; }, waitLock() {}, hasLock() { return true; }, releaseLock() {} }; }
+      },
+      SpreadsheetApp: {
+        getActiveSpreadsheet() {
+          return {
+            getSheetByName(name) { return name === '_KV_WEBHOOK_QUEUE' ? queueSheet : null; },
+            insertSheet(name) {
+              if (name === '_KV_WEBHOOK_QUEUE') return queueSheet;
+              throw new Error('unexpected sheet requested: ' + name);
+            }
+          };
+        },
+        flush() {}
+      },
+      Utilities: {
+        getUuid() { return 'lease-' + Math.random().toString(36).slice(2); },
+        formatDate(date) { return date.toISOString().slice(0, 10).replace(/-/g, ''); }
+      },
+      UrlFetchApp: {
+        fetchAll(requests) {
+          return requests.map(() => ({
+            getResponseCode: () => 200,
+            getContentText: () => JSON.stringify({ data: { Id: 1, ProductCode: 'SP1' } })
+          }));
+        }
+      }
+    });
+    context.getKiotVietToken = () => 'fake-token';
+    context.upsertKiotVietSheetItems_ = () => {};
+    context.enrichProductTrademarkNames_ = () => {};
+
+    context.processWebhookQueue();
+
+    const rows = queueSheet.getRows();
+    assert.equal(rows.length, 1, 'webhook da xu ly xong phai bi xoa khoi hang doi, hang doi khong bi reset thu cong');
   });
 });
 
@@ -1020,6 +1358,7 @@ describe('Invoice webhook fast path and cross-owner locks', () => {
     return loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/sync/UpdateHandlers.gs'
     ], {
@@ -1092,11 +1431,127 @@ describe('Invoice webhook fast path and cross-owner locks', () => {
   });
 });
 
+describe('Flagged hydrate-skip for products/orders/customers/categories', () => {
+  function loadUpdater(hydrateSkipEntities) {
+    const properties = {
+      KIOTVIET_HYDRATE_SKIP_ENTITIES: hydrateSkipEntities || ''
+    };
+    return loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/sync/UpdateHandlers.gs'
+    ], {
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return getTestScriptProperty(properties, name); },
+            setProperty(name, value) { properties[name] = value; },
+            deleteProperty(name) { delete properties[name]; }
+          };
+        }
+      },
+      LockService: {
+        getDocumentLock() { return null; },
+        getScriptLock() { return {}; },
+        getUserLock() { return {}; }
+      }
+    });
+  }
+
+  const ENTITY_CASES = [
+    {
+      key: 'products', handler: 'updateProductsFromWebhook',
+      complete: { Id: 1, ProductCode: 'SP1', Inventories: [] },
+      incomplete: { Id: 2, ProductCode: 'SP2' }
+    },
+    {
+      key: 'orders', handler: 'updateOrdersFromWebhook',
+      complete: { Id: 1, OrderCode: 'DH1', OrderDetails: [] },
+      incomplete: { Id: 2, OrderCode: 'DH2' }
+    },
+    {
+      key: 'customers', handler: 'updateCustomersFromWebhook',
+      complete: { Id: 1, CustomerCode: 'KH1', Name: 'Khach A', GroupId: 5 },
+      incomplete: { Id: 2, CustomerCode: 'KH2', Name: 'Khach B' }
+    },
+    {
+      key: 'categories', handler: 'updateCategoriesFromWebhook',
+      complete: { Id: 1, CategoryId: 1, Name: 'Nhom A' },
+      incomplete: { Id: 2, CategoryId: 2 }
+    }
+  ];
+
+  ENTITY_CASES.forEach(function(entityCase) {
+    describe(entityCase.key, () => {
+      it('co bat KIOTVIET_HYDRATE_SKIP_ENTITIES nhung khong bat cho bang nay: van hydrate toan bo nhu cu (khong doi hanh vi mac dinh)', () => {
+        const context = loadUpdater('mot-bang-khac');
+        let hydrateCalls = 0;
+        context.hydrateKiotVietItems_ = items => {
+          hydrateCalls++;
+          return items;
+        };
+        context.enrichProductTrademarkNames_ = () => {};
+        context.getKiotVietToken = () => 'token';
+        context.upsertKiotVietSheetItems_ = () => {};
+        context.deleteKiotVietSheetItems_ = () => {};
+
+        context[entityCase.handler]([entityCase.complete, entityCase.incomplete]);
+
+        assert.equal(hydrateCalls, 1, 'khi co gan bat cho bang nay, van phai hydrate toan bo nhu truoc (mac dinh khong doi)');
+      });
+
+      it('bat cho bang nay: payload du du lieu khong hydrate, khong tieu UrlFetch', () => {
+        const context = loadUpdater(entityCase.key);
+        context.hydrateKiotVietItems_ = () => {
+          throw new Error('complete webhook payload must not consume UrlFetch quota');
+        };
+        context.enrichProductTrademarkNames_ = () => {};
+        context.getKiotVietToken = () => 'token';
+        const writes = [];
+        context.upsertKiotVietSheetItems_ = (schema, items) => writes.push(items);
+        context.deleteKiotVietSheetItems_ = () => {};
+
+        assert.doesNotThrow(() => context[entityCase.handler]([entityCase.complete]));
+      });
+
+      it('bat cho bang nay: chi hydrate item thieu du lieu, giu nguyen thu tu trong lo', () => {
+        const context = loadUpdater(entityCase.key);
+        const hydrateCalls = [];
+        context.hydrateKiotVietItems_ = items => {
+          hydrateCalls.push(items);
+          return items.map(item => Object.assign({}, item, { Hydrated: true }));
+        };
+        context.enrichProductTrademarkNames_ = () => {};
+        context.getKiotVietToken = () => 'token';
+        const writes = [];
+        context.upsertKiotVietSheetItems_ = (schema, items) => writes.push(...items);
+        context.deleteKiotVietSheetItems_ = () => {};
+
+        context[entityCase.handler]([entityCase.complete, entityCase.incomplete]);
+
+        assert.equal(hydrateCalls.length, 1);
+        assert.deepEqual(
+          JSON.parse(JSON.stringify(hydrateCalls[0])),
+          [entityCase.incomplete]
+        );
+        assert.equal(writes.length, 2);
+        assert.equal(writes[0].Id, entityCase.complete.Id);
+        assert.equal(writes[0].Hydrated, undefined);
+        assert.equal(writes[1].Id, entityCase.incomplete.Id);
+        assert.equal(writes[1].Hydrated, true);
+      });
+    });
+  });
+});
+
 describe('Chunked sync with checkpoint and auto-resume', () => {
   it('replaces every stale detail row for recently changed purchase orders', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs'
     ]);
     const purchaseHeaders = vm.runInContext('Array.from(PURCHASE_SHEET_HEADERS)', context);
@@ -1131,6 +1586,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
@@ -1179,6 +1635,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
@@ -1235,6 +1692,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
@@ -1264,6 +1722,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/SyncInitial.gs'
     ]);
@@ -1291,6 +1750,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
@@ -1302,6 +1762,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
           const builder = {
             timeBased() { return builder; },
             everyMinutes(minutes) { record.minutes = minutes; return builder; },
+            everyHours(hours) { record.hours = hours; return builder; },
             create() { created.push(record); }
           };
           return builder;
@@ -1319,9 +1780,9 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
       'syncRecentInvoices_', 'syncRecentPurchases_'
     ]);
     assert.deepEqual(created, [
-      { handler: 'syncPollingOnly_', minutes: 15 },
-      { handler: 'syncRecentPurchases_', minutes: 5 },
-      { handler: 'syncRecentInvoices_', minutes: 5 }
+      { handler: 'syncPollingOnly_', hours: 4 },
+      { handler: 'syncRecentPurchases_', minutes: 60 },
+      { handler: 'syncRecentInvoices_', minutes: 60 }
     ]);
   });
 
@@ -1329,6 +1790,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs'
     ]);
     const staging = createMemorySheet('_KV_SYNC_STAGING_INVOICES', [], {
@@ -1366,6 +1828,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs'
     ], {
       PropertiesService: {
@@ -1390,7 +1853,10 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
           };
         }
       },
-      Utilities: { sleep() {} }
+      Utilities: {
+        sleep() {},
+        formatDate(date) { return date.toISOString().slice(0, 10).replace(/-/g, ''); }
+      }
     });
     const purchaseHeaders = vm.runInContext('PURCHASE_SHEET_HEADERS.slice()', context);
     const liveSheet = createMemorySheet('Nhập hàng', [purchaseHeaders]);
@@ -1432,6 +1898,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs'
     ], {
       PropertiesService: {
@@ -1459,7 +1926,10 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
           throw new Error('KiotViet stalled on the next page');
         }
       },
-      Utilities: { sleep() {} }
+      Utilities: {
+        sleep() {},
+        formatDate(date) { return date.toISOString().slice(0, 10).replace(/-/g, ''); }
+      }
     });
     const purchaseHeaders = vm.runInContext('PURCHASE_SHEET_HEADERS.slice()', context);
     const existingPurchase = Array(purchaseHeaders.length).fill('existing');
@@ -1508,6 +1978,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs'
     ], {
       PropertiesService: {
@@ -1535,7 +2006,10 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
           throw new Error('KiotViet stalled on the next orders page');
         }
       },
-      Utilities: { sleep() {} }
+      Utilities: {
+        sleep() {},
+        formatDate(date) { return date.toISOString().slice(0, 10).replace(/-/g, ''); }
+      }
     });
     const orderHeaders = vm.runInContext('ORDER_SHEET_HEADERS.slice()', context);
     const liveSheet = createMemorySheet(
@@ -1575,6 +2049,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs'
     ], {
       PropertiesService: {
@@ -1607,7 +2082,10 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
           };
         }
       },
-      Utilities: { sleep() {} }
+      Utilities: {
+        sleep() {},
+        formatDate(date) { return date.toISOString().slice(0, 10).replace(/-/g, ''); }
+      }
     });
     const orderHeaders = vm.runInContext('ORDER_SHEET_HEADERS.slice()', context);
     const firstRow = Array(orderHeaders.length).fill('');
@@ -1638,6 +2116,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs'
     ], {
       PropertiesService: {
@@ -1654,7 +2133,10 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
       UrlFetchApp: {
         fetch() { throw new Error('KiotViet unavailable'); }
       },
-      Utilities: { sleep() {} }
+      Utilities: {
+        sleep() {},
+        formatDate(date) { return date.toISOString().slice(0, 10).replace(/-/g, ''); }
+      }
     });
     const purchaseHeaders = vm.runInContext('PURCHASE_SHEET_HEADERS.slice()', context);
 
@@ -1701,6 +2183,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs'
     ], {
       PropertiesService: {
@@ -1731,7 +2214,10 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
           };
         }
       },
-      Utilities: { sleep() {} }
+      Utilities: {
+        sleep() {},
+        formatDate(date) { return date.toISOString().slice(0, 10).replace(/-/g, ''); }
+      }
     });
     const purchaseHeaders = vm.runInContext('PURCHASE_SHEET_HEADERS.slice()', context);
     const existingPurchase = Array(31).fill('existing');
@@ -1787,6 +2273,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs'
     ], {
       PropertiesService: {
@@ -1801,7 +2288,10 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
       ScriptApp: { getProjectTriggers() { return []; } },
       SpreadsheetApp: { flush() {} },
       UrlFetchApp: { fetch() { throw new Error('KiotViet unavailable'); } },
-      Utilities: { sleep() {} }
+      Utilities: {
+        sleep() {},
+        formatDate(date) { return date.toISOString().slice(0, 10).replace(/-/g, ''); }
+      }
     });
     const invoiceHeaders = vm.runInContext('INVOICE_SHEET_HEADERS.slice()', context);
     const detailHeaders = vm.runInContext('INVOICE_DETAIL_SHEET_HEADERS.slice()', context);
@@ -1850,6 +2340,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs'
     ], {
       PropertiesService: {
@@ -1894,7 +2385,10 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
           };
         }
       },
-      Utilities: { sleep() {} }
+      Utilities: {
+        sleep() {},
+        formatDate(date) { return date.toISOString().slice(0, 10).replace(/-/g, ''); }
+      }
     });
     const invoiceHeaders = vm.runInContext('INVOICE_SHEET_HEADERS.slice()', context);
     const detailHeaders = vm.runInContext('INVOICE_DETAIL_SHEET_HEADERS.slice()', context);
@@ -1986,6 +2480,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
@@ -2031,6 +2526,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
@@ -2057,6 +2553,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/SyncInitial.gs'
     ]);
@@ -2076,6 +2573,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
@@ -2107,6 +2605,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
@@ -2141,6 +2640,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
@@ -2177,6 +2677,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
@@ -2216,6 +2717,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
@@ -2261,6 +2763,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
@@ -2295,6 +2798,7 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     const context = loadAppsScript([
       'src-dashboard/config/Config.gs',
       'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
       'src-dashboard/kiotviet/SheetSchemas.gs',
       'src-dashboard/kiotviet/SyncInitial.gs'
     ], {
@@ -2374,7 +2878,8 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
         }
       },
       Utilities: {
-        sleep() {}
+        sleep() {},
+        formatDate(date) { return date.toISOString().slice(0, 10).replace(/-/g, ''); }
       }
     });
 
@@ -2405,5 +2910,91 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     // Kiểm tra resetAllSyncProgress
     context.resetAllSyncProgress();
     assert.equal(properties.SYNC_CHUNK_STATE_categories, undefined);
+  });
+});
+
+describe('Full backfill stays manual-only (no periodic trigger)', () => {
+  const BACKFILL_RESUME_HANDLERS = [
+    'resumeMasterChainSync_',
+    'resumeSyncCategoriesChunk',
+    'resumeSyncProductsChunk',
+    'resumeSyncOrdersChunk',
+    'resumeSyncReturnsChunk',
+    'resumeSyncCustomersChunk',
+    'resumeSyncSuppliersChunk',
+    'resumeSyncPurchasesChunk',
+    'resumeManualInvoicesBackfill_',
+    'resumeSyncInvoicesChunk',
+    'syncAllDataChunked',
+    'syncAllInitialData'
+  ];
+
+  function createTriggerRecorder() {
+    const created = [];
+    const scriptApp = {
+      getProjectTriggers() { return []; },
+      deleteTrigger() {},
+      newTrigger(handler) {
+        const record = { handler };
+        const builder = {
+          timeBased() { return builder; },
+          everyMinutes(minutes) { record.everyMinutes = minutes; return builder; },
+          everyHours(hours) { record.everyHours = hours; return builder; },
+          everyDays(days) { record.everyDays = days; return builder; },
+          atHour(hour) { record.atHour = hour; return builder; },
+          nearMinute(minute) { record.nearMinute = minute; return builder; },
+          inTimezone(timezone) { record.timezone = timezone; return builder; },
+          create() { created.push(record); }
+        };
+        return builder;
+      }
+    };
+    return { scriptApp, created };
+  }
+
+  it('never installs a periodic trigger for any full-backfill handler', () => {
+    const { scriptApp, created } = createTriggerRecorder();
+    const properties = {};
+    const context = loadAppsScript([
+      'src-dashboard/config/Config.gs',
+      'src-dashboard/utils/Helpers.gs',
+      'src-dashboard/kiotviet/QuotaGuard.gs',
+      'src-dashboard/kiotviet/SheetSchemas.gs',
+      'src-dashboard/kiotviet/SyncInitial.gs',
+      'src-dashboard/sync/WebhookQueue.gs',
+      'src-dashboard/kiotviet/WebhookAdmin.gs',
+      'src-dashboard/kiotviet/CustomerReport.gs',
+      'src-dashboard/kiotviet/CustomerDebtReport.gs'
+    ], {
+      ScriptApp: scriptApp,
+      PropertiesService: {
+        getScriptProperties() {
+          return {
+            getProperty(name) { return getTestScriptProperty(properties, name); },
+            setProperty(name, value) { properties[name] = value; },
+            deleteProperty(name) { delete properties[name]; }
+          };
+        }
+      }
+    });
+
+    context.setupQueueProcessingTrigger();
+    context.setupPollingTrigger();
+    context.setupCustomerReportDailyTrigger();
+    context.setupCustomerDebtReportDailyTrigger();
+    context.setupKiotVietRecoveryTriggers();
+
+    const createdHandlers = created.map(record => record.handler);
+    const backfillTriggersCreated = createdHandlers.filter(
+      handler => BACKFILL_RESUME_HANDLERS.indexOf(handler) !== -1
+    );
+
+    assert.deepEqual(
+      backfillTriggersCreated,
+      [],
+      'setup*Trigger() functions must never schedule a periodic trigger for a full-backfill handler; ' +
+      'full backfill (syncAllDataChunked/syncAllInitialData and their resume handlers) is manual-only.'
+    );
+    assert.ok(createdHandlers.length > 0, 'sanity check: the setup functions should still install their own real triggers');
   });
 });

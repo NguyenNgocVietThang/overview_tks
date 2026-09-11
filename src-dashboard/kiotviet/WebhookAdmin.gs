@@ -83,6 +83,7 @@ function setupKiotVietAutoSync() {
     setupCustomerReportDailyTrigger();
     setupCustomerDebtReportDailyTrigger();
     setupKiotVietRecoveryTriggers();
+    setupMaintenanceTrigger();
   }
 
   const result = reconcileKiotVietAutoSyncWebhooks_(token, profile);
@@ -99,9 +100,11 @@ function setupKiotVietAutoSync() {
 }
 
 function createKiotVietRecoveryTriggers_() {
+  // Webhook-first: day la luoi an toan kiem tra/khoi phuc webhook, khong phai
+  // duong chinh, nen giam tan suat de bot ton UrlFetch quota chung giua HN/SG.
   ScriptApp.newTrigger(KIOTVIET_WEBHOOK_HEALTH_HANDLER_)
     .timeBased()
-    .everyHours(1)
+    .everyHours(6)
     .create();
 }
 
@@ -262,17 +265,27 @@ function reconcileKiotVietAutoSyncWebhooks_(token, profile) {
       Logger.log("Khong xoa duoc webhook cu vi thieu id: " + JSON.stringify(webhook));
       return;
     }
-    const deleteResponse = UrlFetchApp.fetch(
-      "https://public.kiotapi.com/webhooks/" + encodeURIComponent(webhookId),
-      {
-        method: "delete",
-        headers: {
-          Authorization: "Bearer " + token,
-          Retailer: CONFIG.RETAILER
-        },
-        muteHttpExceptions: true
+    ensureKiotVietQuotaAvailable_();
+    recordKiotVietQuotaUsage_();
+    let deleteResponse;
+    try {
+      deleteResponse = UrlFetchApp.fetch(
+        "https://public.kiotapi.com/webhooks/" + encodeURIComponent(webhookId),
+        {
+          method: "delete",
+          headers: {
+            Authorization: "Bearer " + token,
+            Retailer: CONFIG.RETAILER
+          },
+          muteHttpExceptions: true
+        }
+      );
+    } catch (error) {
+      if (isKiotVietQuotaExceededError_(error)) {
+        tripKiotVietQuotaBreaker_('reconcileKiotVietAutoSyncWebhooks_: xoa webhook cu');
       }
-    );
+      throw error;
+    }
     const deleteCode = deleteResponse.getResponseCode();
     if (deleteCode >= 200 && deleteCode < 300) removedCount++;
     else {
@@ -283,23 +296,33 @@ function reconcileKiotVietAutoSyncWebhooks_(token, profile) {
 
   profile.eventTypes.forEach(type => {
     if (activeTypes[type]) return;
-    const response = UrlFetchApp.fetch("https://public.kiotapi.com/webhooks", {
-      method: "post",
-      contentType: "application/json",
-      headers: {
-        Authorization: "Bearer " + token,
-        Retailer: CONFIG.RETAILER
-      },
-      payload: JSON.stringify({
-        Webhook: {
-          Type: type,
-          Url: buildKiotVietAutoSyncWebhookUrl_(type),
-          IsActive: true,
-          Description: profile.descriptionPrefix + type
-        }
-      }),
-      muteHttpExceptions: true
-    });
+    ensureKiotVietQuotaAvailable_();
+    recordKiotVietQuotaUsage_();
+    let response;
+    try {
+      response = UrlFetchApp.fetch("https://public.kiotapi.com/webhooks", {
+        method: "post",
+        contentType: "application/json",
+        headers: {
+          Authorization: "Bearer " + token,
+          Retailer: CONFIG.RETAILER
+        },
+        payload: JSON.stringify({
+          Webhook: {
+            Type: type,
+            Url: buildKiotVietAutoSyncWebhookUrl_(type),
+            IsActive: true,
+            Description: profile.descriptionPrefix + type
+          }
+        }),
+        muteHttpExceptions: true
+      });
+    } catch (error) {
+      if (isKiotVietQuotaExceededError_(error)) {
+        tripKiotVietQuotaBreaker_('reconcileKiotVietAutoSyncWebhooks_: dang ky webhook ' + type);
+      }
+      throw error;
+    }
     const responseCode = response.getResponseCode();
     if (responseCode >= 200 && responseCode < 300) {
       activeTypes[type] = true;

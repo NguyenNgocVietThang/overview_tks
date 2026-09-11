@@ -4,7 +4,9 @@
 
 function updateProductsFromWebhook(items) {
   const schema = KIOTVIET_SHEET_SCHEMAS.products;
-  const hydratedItems = hydrateKiotVietItems_(items, schema);
+  const hydratedItems = isKiotVietHydrateSkipEnabled_('products')
+    ? hydrateIncompleteWebhookItems_(items, schema, isCompleteProductWebhookItem_)
+    : hydrateKiotVietItems_(items, schema);
   const token = getKiotVietToken();
   if (token) enrichProductTrademarkNames_(hydratedItems, token);
 
@@ -70,21 +72,112 @@ function hydrateIncompleteInvoiceWebhookItems_(items, schema) {
   return hydratedItems;
 }
 
+/**
+ * Script Property danh sach cac bang (phan cach boi dau phay) duoc phep dung
+ * hydrate-skip-if-complete nhu Hoa don, vi du "products,orders". Mac dinh
+ * rong: giu nguyen hanh vi hydrate-toan-bo hien tai cho toi khi soi log
+ * _KV_WEBHOOK_QUEUE that xac nhan tieu chi "du du lieu" duoi day dung voi
+ * payload webhook that cua tung bang, roi moi bat tung bang mot qua Script
+ * Properties (khong can deploy lai code).
+ */
+const KIOTVIET_HYDRATE_SKIP_ENTITIES_PROPERTY_ = 'KIOTVIET_HYDRATE_SKIP_ENTITIES';
+
+function isKiotVietHydrateSkipEnabled_(entityKey) {
+  const raw = PropertiesService.getScriptProperties()
+    .getProperty(KIOTVIET_HYDRATE_SKIP_ENTITIES_PROPERTY_) || '';
+  return raw.split(',')
+    .map(function(value) { return value.trim().toLowerCase(); })
+    .indexOf(String(entityKey).toLowerCase()) !== -1;
+}
+
+/**
+ * Ban tong quat cua hydrateIncompleteInvoiceWebhookItems_ cho cac bang khac
+ * Hoa don: chi hydrate nhung item ma isItemComplete tra ve false, giu nguyen
+ * cac item da du du lieu de khong tieu UrlFetch.
+ */
+function hydrateIncompleteWebhookItems_(items, schema, isItemComplete) {
+  if (!Array.isArray(items) || items.length === 0) return [];
+
+  const incompleteItems = [];
+  const incompleteIndexes = [];
+  items.forEach(function(item, index) {
+    if (isItemComplete(item, schema)) return;
+    incompleteItems.push(item);
+    incompleteIndexes.push(index);
+  });
+
+  if (incompleteItems.length === 0) return items.slice();
+
+  const hydratedIncompleteItems = hydrateKiotVietItems_(incompleteItems, schema);
+  const hydratedItems = items.slice();
+  incompleteIndexes.forEach(function(itemIndex, hydratedIndex) {
+    hydratedItems[itemIndex] = hydratedIncompleteItems[hydratedIndex];
+  });
+  return hydratedItems;
+}
+
+/**
+ * Suy doan cau truc payload webhook (chua co mau that trong repo de doi
+ * chieu, khac voi Hoa don). Chi bat qua Script Property
+ * KIOTVIET_HYDRATE_SKIP_ENTITIES sau khi da soi log that xac nhan dung.
+ */
+function isCompleteProductWebhookItem_(item, schema) {
+  const code = kiotVietText_(item, schema.codeKeys).trim();
+  if (!code) return false;
+  const inventories = item && (
+    Array.isArray(item.Inventories) ? item.Inventories :
+    (Array.isArray(item.inventories) ? item.inventories : null)
+  );
+  return inventories !== null;
+}
+
+function isCompleteOrderWebhookItem_(item, schema) {
+  const code = kiotVietText_(item, schema.codeKeys).trim();
+  if (!code) return false;
+  const details = item && (
+    Array.isArray(item.OrderDetails) ? item.OrderDetails :
+    (Array.isArray(item.orderDetails) ? item.orderDetails : null)
+  );
+  return details !== null;
+}
+
+function isCompleteCustomerWebhookItem_(item, schema) {
+  const code = kiotVietText_(item, schema.codeKeys).trim();
+  if (!code) return false;
+  const name = pickKiotVietValue_(item, ['Name', 'name']);
+  if (!name.found || !String(name.value || '').trim()) return false;
+  const group = pickKiotVietValue_(item, ['GroupId', 'groupId', 'GroupName', 'groupName']);
+  return group.found;
+}
+
+function isCompleteCategoryWebhookItem_(item, schema) {
+  const code = kiotVietText_(item, schema.codeKeys).trim();
+  if (!code) return false;
+  const name = pickKiotVietValue_(item, ['Name', 'name']);
+  return name.found && Boolean(String(name.value || '').trim());
+}
+
 function updateOrdersFromWebhook(items) {
   const schema = KIOTVIET_SHEET_SCHEMAS.orders;
-  const hydratedItems = hydrateKiotVietItems_(items, schema);
+  const hydratedItems = isKiotVietHydrateSkipEnabled_('orders')
+    ? hydrateIncompleteWebhookItems_(items, schema, isCompleteOrderWebhookItem_)
+    : hydrateKiotVietItems_(items, schema);
   upsertKiotVietSheetItems_(schema, hydratedItems);
 }
 
 function updateCustomersFromWebhook(items) {
   const schema = KIOTVIET_SHEET_SCHEMAS.customers;
-  const hydratedItems = hydrateKiotVietItems_(items, schema);
+  const hydratedItems = isKiotVietHydrateSkipEnabled_('customers')
+    ? hydrateIncompleteWebhookItems_(items, schema, isCompleteCustomerWebhookItem_)
+    : hydrateKiotVietItems_(items, schema);
   upsertKiotVietSheetItems_(schema, hydratedItems);
 }
 
 function updateCategoriesFromWebhook(items) {
   const schema = KIOTVIET_SHEET_SCHEMAS.categories;
-  const hydratedItems = hydrateKiotVietItems_(items, schema);
+  const hydratedItems = isKiotVietHydrateSkipEnabled_('categories')
+    ? hydrateIncompleteWebhookItems_(items, schema, isCompleteCategoryWebhookItem_)
+    : hydrateKiotVietItems_(items, schema);
   upsertKiotVietSheetItems_(schema, hydratedItems);
 }
 
@@ -157,8 +250,16 @@ function hydrateKiotVietItems_(items, schema) {
 
   let responses;
   try {
+    // Token co the da nam san trong cache (khong tieu UrlFetch), nen phai
+    // kiem tra cau dao ngay truoc lenh fetchAll thuc su, khong chi dua vao
+    // ensureKiotVietQuotaAvailable_() da chay ben trong getKiotVietToken().
+    ensureKiotVietQuotaAvailable_();
+    recordKiotVietQuotaUsage_(requests.length);
     responses = UrlFetchApp.fetchAll(requests);
   } catch (error) {
+    if (isKiotVietQuotaExceededError_(error)) {
+      tripKiotVietQuotaBreaker_('hydrateKiotVietItems_: ' + schema.sheetName);
+    }
     // Neu khong goi duoc API thi khong ghi du lieu thieu: nem loi de webhook
     // duoc thu lai (item van PENDING) thay vi luu hoa don/chi tiet thieu cot.
     throw new Error('Loi lay chi tiet ' + schema.sheetName + ': ' + error.toString());

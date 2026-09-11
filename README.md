@@ -23,7 +23,7 @@ Hệ thống dashboard thời gian thực cho cửa hàng CHhanoi và CHsaigon, 
 | **Nền tảng** | Google Apps Script (V8 Runtime) + Node.js/Express Backend |
 | **Lưu trữ dữ liệu** | Google Sheets (9 tab vận hành + 7 tab tổng hợp + 6 tab vận chuyển VC_* + tab Users) + Google Drive (Ảnh chứng từ) |
 | **Nguồn dữ liệu** | KiotViet Public API & Webhook |
-| **Cập nhật** | Webhook-first; Hóa đơn và Nhập hàng đối soát gia tăng mỗi 5 phút, Trả hàng/Nhà cung cấp mỗi 15 phút bằng `lastModifiedFrom` |
+| **Cập nhật** | Webhook-first; `processWebhookQueue()` chạy mỗi 1 phút chỉ xử lý webhook. Hóa đơn/Nhập hàng đối soát gia tăng mỗi 60 phút, Trả hàng/Nhà cung cấp mỗi 4 giờ bằng `lastModifiedFrom` — đây là lưới an toàn dự phòng, không phải đường cập nhật chính. Có Quota Guard tự tạm dừng khi cạn quota UrlFetch (xem mục Quota Guard bên dưới) |
 | **Apps Script** | Đồng bộ KiotViet -> Google Sheets; Web App `/exec` nhận HTTP POST; chuyển tiếp webhook vòng đời vận chuyển |
 | **Múi giờ** | Asia/Ho_Chi_Minh (GMT+7) |
 
@@ -34,13 +34,19 @@ KiotViet ──POST──▶ doPost()          ← Xác thực và ghi bền v�
                       │
              _KV_WEBHOOK_QUEUE        ← Tab ẩn, không tự hết hạn
                       │
-               ┌── trigger/5 phút ──┐
+               ┌── trigger/1 phút ──┐
                ▼                    │
-    processWebhookQueue()           │  ← Đọc queue & ghi Sheet
+    processWebhookQueue()           │  ← CHỈ xử lý webhook (không báo cáo/công nợ/migrate)
                │                    │
      updateXxxFromWebhook()         └── LockService (tránh race condition)
                │
           Google Sheets
+
+runKiotVietMaintenanceTick_()  ← Trigger riêng mỗi 15 phút (MaintenanceSchedule.gs):
+                                   watchdog trigger, migrate schema, chạy bù
+                                   báo cáo/công nợ nếu lịch riêng bị trễ/lỗi.
+                                   Bỏ qua phần tốn UrlFetch khi Quota Guard
+                                   đang tạm dừng.
 ```
 
 ---
@@ -351,21 +357,105 @@ Execution API (`executionApi.access = MYSELF`) để phục vụ kiểm tra và 
 
 ### Bước 4 — Thiết lập lần đầu (chạy thủ công 1 lần)
 1. Kiểm tra đã khai báo `KIOTVIET_CLIENT_ID` và `KIOTVIET_CLIENT_SECRET` trong Script Properties. Chỉ trên dự án sheet tổng hợp cũ, chạy `syncAllInitialData()` để tải dữ liệu ban đầu.
-2. Với sheet tổng hợp cũ, chạy `setupKiotVietAutoSync()` một lần. Chế độ mặc định `FULL_DASHBOARD` tạo queue 5 phút, đối soát Hóa đơn/Nhập hàng mỗi 5 phút, Trả hàng/Nhà cung cấp mỗi 15 phút, ba lịch báo cáo 06:00/06:30/07:00, công nợ 15:00 và 9 webhook. Mỗi luồng gia tăng lưu checkpoint sau khi ghi thành công và đọc chồng 10 phút để không bỏ thay đổi đến trễ.
+2. Với sheet tổng hợp cũ, chạy `setupKiotVietAutoSync()` một lần. Chế độ mặc định `FULL_DASHBOARD` tạo queue webhook 1 phút, trigger bảo trì (báo cáo/công nợ/watchdog) 15 phút, đối soát Hóa đơn/Nhập hàng mỗi 60 phút, Trả hàng/Nhà cung cấp mỗi 4 giờ, kiểm tra webhook mỗi 6 giờ, ba lịch báo cáo 06:00/06:30/07:00, công nợ 15:00 và 9 webhook. Mỗi luồng gia tăng lưu checkpoint sau khi ghi thành công và đọc chồng 10 phút để không bỏ thay đổi đến trễ.
 3. Không dùng spreadsheet/profile `COMBINED`; Dashboard, Vận chuyển và Nhân sự phải trỏ đến ba Google Sheets độc lập. Project KiotSG (cửa hàng Sài Gòn) là một Google Sheet + Apps Script project độc lập thứ tư, dùng chung code `src-dashboard/` với KiotHN nhưng cấu hình/deploy riêng theo `.clasp.saigon.json` — xem chi tiết ở `src-dashboard/HuongDanSuDung.gs` mục "6b. CAI DAT PROJECT KIOTSG".
-4. `setupKiotVietAutoSync()` đã cài ba lịch báo cáo độc lập. Chỉ chạy `setupCustomerReport()` khi muốn làm mới ngay cả ba báo cáo: **Báo cáo bán hàng** gần **06:00**; **Hàng bán theo khách** được webhook cập nhật trong khoảng 5 phút và đối soát gần **06:30**; **Khách theo hàng hóa** gần **07:00**. Ba tab lần lượt giữ đủ 18, 5 và 25 cột.
+4. `setupKiotVietAutoSync()` đã cài ba lịch báo cáo độc lập. Chỉ chạy `setupCustomerReport()` khi muốn làm mới ngay cả ba báo cáo: **Báo cáo bán hàng** gần **06:00**; **Hàng bán theo khách** được webhook cập nhật gần thời gian thực và đối soát gần **06:30**; **Khách theo hàng hóa** gần **07:00**. Ba tab lần lượt giữ đủ 18, 5 và 25 cột.
 5. Ba tab **HN1**, **HN3**, **HN7** là báo cáo công nợ khách hàng 1/3/7 ngày gần đây (tính cả hôm nay) do Apps Script tự tính từ dữ liệu KiotViet và ghi đè mỗi ngày gần 15:00, hoặc chạy tay `syncCustomerDebtReports()` bất cứ lúc nào cần cập nhật ngay.
 
 Sau khi bật, thay đổi Hàng hóa, Tồn kho, Khách hàng, Hóa đơn, Đặt hàng và Nhóm hàng
-được nhận bằng webhook rồi ghi vào Sheets trong khoảng 5 phút. Payload Hóa đơn đã
-có `InvoiceDetails` được ghi thẳng, không gọi lại API chi tiết. **Hóa đơn** và
-**Nhập hàng** có đối soát gia tăng mỗi 5 phút; **Trả hàng**, **Nhà cung cấp** được
-quét gia tăng mỗi 15 phút. Lần đầu mỗi luồng nhìn lại 48 giờ, các lần sau đọc chồng
-10 phút từ checkpoint. Full backfill lịch sử chỉ chạy thủ công khi cần sửa dữ liệu.
+được nhận bằng webhook và ghi vào Sheets gần thời gian thực (trigger xử lý queue
+chạy mỗi 1 phút, **chỉ** xử lý webhook — không còn báo cáo/công nợ/migrate schema
+xen vào, xem mục Quota Guard bên dưới). Payload Hóa đơn đã có `InvoiceDetails`
+được ghi thẳng, không gọi lại API chi tiết; Sản phẩm/Đặt hàng/Khách hàng/Nhóm
+hàng cũng có cùng tối ưu này nhưng **tắt theo mặc định** sau cờ
+`KIOTVIET_HYDRATE_SKIP_ENTITIES` (xem bên dưới). **Hóa đơn** và **Nhập hàng** có
+đối soát gia tăng mỗi 60 phút; **Trả hàng**, **Nhà cung cấp** được quét gia tăng
+mỗi 4 giờ — đây là lưới an toàn dự phòng cho trường hợp webhook bị lỡ, không phải
+đường cập nhật chính. Lần đầu mỗi luồng nhìn lại 48 giờ, các lần sau đọc chồng
+10 phút từ checkpoint. Full backfill lịch sử chỉ chạy thủ công khi cần sửa dữ liệu
+(`syncAllDataChunked()`/`syncAllInitialData()` và các hàm `syncXxxChunk()` —
+không có trigger định kỳ nào tự động chạy các hàm này).
 
-Apps Script chỉ liệt kê/xóa installable trigger do tài khoản đang chạy tạo. Nếu
-project từng được nhiều tài khoản cài trigger, mỗi chủ sở hữu cũ cần tự xóa trigger
-không dùng nữa; ScriptLock và mốc chạy dùng chung vẫn ngăn các lượt trùng gọi API.
+#### Quota Guard — cầu dao tự động khi cạn quota UrlFetch
+
+KiotHN và KiotSG dùng chung một tài khoản Google, nên dùng chung một pool
+**20.000 UrlFetch/ngày** của Apps Script dù là hai project độc lập.
+`src-dashboard/kiotviet/QuotaGuard.gs` thêm một lớp bảo vệ:
+
+- Mỗi lệnh gọi KiotViet API (`fetchKiotVietJsonWithRetry_`, `getKiotVietToken`,
+  `fetchCustomerReportJsonWithRetry_`, `hydrateKiotVietItems_`, webhook quản
+  trị) đều đếm vào Script Property `KIOTVIET_URLFETCH_COUNT_<yyyyMMdd>`. Đây
+  là **số đếm riêng của từng project**, không thấy được project kia đã dùng
+  bao nhiêu — vì vậy ngân sách mặc định (`KIOTVIET_URLFETCH_DAILY_BUDGET`,
+  mặc định 8000) cố tình bảo thủ, chỉ nên tăng sau khi quan sát tỉ lệ dùng
+  thực tế giữa hai project.
+- Khi bắt được đúng thông điệp lỗi thật của Apps Script
+  (`Service invoked too many times for one day: urlfetch`) hoặc khi bộ đếm
+  chạm ngân sách ước lượng, `tripKiotVietQuotaBreaker_()` ghi
+  `KIOTVIET_QUOTA_PAUSE_UNTIL` và tạm dừng các lệnh gọi API tiếp theo. Backoff
+  leo thang trong cùng ngày: lần trip 1 → 1 giờ, lần 2 → 2 giờ, lần 3 trở đi →
+  3 giờ (không retry liên tục mỗi 5-15 phút).
+- Trong lúc tạm dừng: `doPost()` vẫn nhận và ghi webhook vào
+  `_KV_WEBHOOK_QUEUE` bình thường (không gọi KiotViet API). Với
+  `processWebhookQueue()`, item nào ghi thẳng được (đã đủ dữ liệu, hoặc
+  `stock.update`) vẫn xử lý bình thường; item cần gọi API hydrate bị hoãn lại
+  ở trạng thái `PENDING` **không tính vào số lần thử** (`skipAttemptPenalty`),
+  nên không bị đẩy dần thành `ERROR` chỉ vì trùng lúc quota cạn. Hàng đợi
+  **không bao giờ bị xóa hay reset** trong lúc tạm dừng.
+- `runKiotVietMaintenanceTick_()` (mỗi 15 phút) bỏ qua phần chạy bù báo
+  cáo/công nợ khi đang tạm dừng, nhưng vẫn chạy watchdog trigger và migrate
+  schema (không tốn UrlFetch).
+- Sau khi backoff hết hạn, các trigger đang chạy sẽ tự động xử lý lại toàn bộ
+  hàng đợi tồn đọng — không cần thao tác thủ công nào để "mở khóa" lại.
+- Mở lại cầu dao sớm bằng tay (khi đã xác nhận quota thật sự đã hồi phục):
+  chạy `resetKiotVietQuotaBreaker_()` từ Apps Script editor.
+
+#### Cờ hydrate-skip cho Sản phẩm/Đặt hàng/Khách hàng/Nhóm hàng
+
+Khác với Hóa đơn — nơi tiêu chí "payload đã đủ dữ liệu để ghi thẳng" được xác
+nhận qua sự cố thực tế — bốn bảng còn lại dùng tiêu chí suy đoán cấu trúc
+payload (xem `isCompleteProductWebhookItem_`/`isCompleteOrderWebhookItem_`/
+`isCompleteCustomerWebhookItem_`/`isCompleteCategoryWebhookItem_` trong
+`src-dashboard/sync/UpdateHandlers.gs`), nên **mặc định tắt**. Bật từng bảng
+một bằng Script Property `KIOTVIET_HYDRATE_SKIP_ENTITIES` (danh sách phân
+cách dấu phẩy, ví dụ `products,orders`) **sau khi** đã soi vài payload webhook
+thật trong `_KV_WEBHOOK_QUEUE` để xác nhận tiêu chí đúng với thực tế KiotViet
+đang gửi. Bảng không có trong danh sách vẫn hydrate toàn bộ như trước, không
+đổi hành vi.
+
+#### Trigger trùng khi nhiều tài khoản từng cài đặt project (đặc biệt là SG)
+
+Apps Script chỉ liệt kê/xóa installable trigger do tài khoản đang chạy tạo
+(`ScriptApp.getProjectTriggers()` bị giới hạn theo danh tính gọi hàm — đây là
+giới hạn của nền tảng, không sửa được bằng code). Nếu project từng được nhiều
+tài khoản Google cài đặt (đã xảy ra với KiotSG, gây trùng trigger giữa "Tôi"
+và "Người dùng khác" và nhân đôi tần suất gọi API), **mỗi chủ sở hữu cũ phải
+tự đăng nhập và dọn trigger của chính mình**:
+
+1. Xác định tất cả tài khoản Google từng chạy `setupKiotVietAutoSync()` (hoặc
+   bất kỳ hàm `setup*Trigger()` nào) trên project này.
+2. Với **từng tài khoản** đó: đăng nhập tài khoản đó, mở project Apps Script
+   (KiotHN hoặc KiotSG), vào menu **Trình kích hoạt** (Triggers) ở thanh bên
+   trái — giao diện Editor hiển thị được trigger của **mọi chủ sở hữu**, khác
+   với `ScriptApp.getProjectTriggers()` qua code (chỉ thấy trigger của chính
+   mình).
+3. Kiểm tra các handler sau có bị trùng (nhiều dòng cùng tên hàm, có thể khác
+   chủ sở hữu): `processWebhookQueue`, `runKiotVietMaintenanceTick_`,
+   `syncRecentInvoices_`, `syncRecentPurchases_`, `syncPollingOnly_`,
+   `reconcileKiotVietAutoSyncHealth_`, `syncSalesCustomerReport`,
+   `syncCustomerProductReport`, `syncCustomerByProductReport`,
+   `syncCustomerDebtReports`.
+4. Với mỗi handler bị trùng, xóa hết trừ lại **đúng 1 bản** (nên giữ bản
+   thuộc tài khoản vận hành chính thức của project).
+5. Sau khi dọn xong ở tất cả các tài khoản, đăng nhập lại tài khoản vận hành
+   chính thức và chạy `setupKiotVietAutoSync()` một lần để đảm bảo bộ trigger
+   cuối cùng khớp đúng với code hiện tại.
+
+Trong lúc chưa dọn xong, throttle bằng Script Properties
+(`KIOTVIET_INCREMENTAL_MIN_INTERVAL_MS_`, lease `WEBHOOK_QUEUE_RUNNER_LEASE_MS`)
+và bộ đếm Quota Guard vẫn ngăn phần lớn thiệt hại do hai tài khoản cùng gọi
+API — nhưng đây chỉ là giảm nhẹ hậu quả, không thay thế được việc dọn trigger
+trùng ở nguồn.
 
 ### Bước 5 — Deploy Web App
 1. **Deploy -> New deployment -> Web App**
@@ -450,10 +540,11 @@ và in ra danh sách tài khoản có giá trị không hợp lệ cần Quản 
 | `syncShipmentLifecycleRecent7Days()` | Nạp hóa đơn 7 ngày gần nhất theo từng trang, tránh chạy full quá quota | Một lần ban đầu hoặc khi đối soát |
 | `setupShipmentLifecycleSync()` | Chọn chế độ vòng đời vận chuyển và tạo trigger queue; nhận `invoice.update` chuyển tiếp từ project cũ | Một lần trên dự án sheet mới |
 | `setupCombinedKiotVietSync()` | Chọn chế độ dùng chung; bật 9 webhook, polling/báo cáo và cập nhật cả dashboard lẫn vận chuyển | Một lần trên spreadsheet chứa cả hai nhóm tab |
-| `syncPollingOnly_()` | Đối soát gia tăng Trả hàng và Nhà cung cấp bằng `lastModifiedFrom` | Tự chạy bởi trigger 15 phút |
-| `syncRecentPurchases_()` | Đối soát gia tăng và thay đúng các dòng của phiếu Nhập hàng thay đổi | Tự chạy bởi trigger 5 phút |
-| `syncRecentInvoices_()` | Đối soát gia tăng Hóa đơn và Chi tiết hóa đơn, dự phòng khi webhook chậm/lỡ | Tự chạy bởi trigger 5 phút |
-| `setupPollingTrigger()` | Bật ba lịch đối soát gia tăng 5/5/15 phút | 1 lần duy nhất |
+| `syncPollingOnly_()` | Đối soát gia tăng Trả hàng và Nhà cung cấp bằng `lastModifiedFrom` | Tự chạy bởi trigger mỗi 4 giờ (lưới an toàn dự phòng) |
+| `syncRecentPurchases_()` | Đối soát gia tăng và thay đúng các dòng của phiếu Nhập hàng thay đổi | Tự chạy bởi trigger mỗi 60 phút (lưới an toàn dự phòng) |
+| `syncRecentInvoices_()` | Đối soát gia tăng Hóa đơn và Chi tiết hóa đơn, dự phòng khi webhook chậm/lỡ | Tự chạy bởi trigger mỗi 60 phút (lưới an toàn dự phòng) |
+| `setupPollingTrigger()` | Bật ba lịch đối soát gia tăng: Hóa đơn/Nhập hàng 60 phút, Trả hàng/Nhà cung cấp 4 giờ | 1 lần duy nhất |
+| `setupMaintenanceTrigger()` | Bật trigger bảo trì `runKiotVietMaintenanceTick_` (watchdog/migrate/chạy bù báo cáo-công nợ) mỗi 15 phút, tách khỏi hàng đợi webhook | 1 lần duy nhất |
 | `removePollingTrigger()` | Tắt cả ba lịch đối soát gia tăng | Khi bảo trì |
 | `syncCustomerReport()` | Làm mới cả ba báo cáo khách hàng trong một lượt lấy API | Khi cần cập nhật/đối soát thủ công |
 | `syncSalesCustomerReport()` | Làm mới riêng Báo cáo bán hàng 18 cột | Khi cần cập nhật thủ công một sheet |
@@ -465,13 +556,14 @@ và in ra danh sách tài khoản có giá trị không hợp lệ cần Quản 
 | `setupCustomerDebtReports()` | Tạo báo cáo HN1/HN3/HN7 ngay và bật thêm lịch riêng gần 15:00 | Tùy chọn |
 | `setupCustomerDebtReportDailyTrigger()` | Tạo lại lịch cập nhật HN1/HN3/HN7 hàng ngày gần 15:00 | Khi cần khôi phục lịch |
 | `removeCustomerDebtReportDailyTrigger()` | Gỡ lịch cập nhật HN1/HN3/HN7 hàng ngày | Khi cần tạm dừng tự động cập nhật |
-| `setupQueueProcessingTrigger()` | Tạo trigger 5 phút | 1 lần duy nhất |
+| `setupQueueProcessingTrigger()` | Tạo trigger xử lý hàng đợi webhook mỗi 1 phút (chỉ xử lý webhook) | 1 lần duy nhất |
 | `getWebhookQueueStatus()` | Đếm sự kiện còn chờ trong hàng đợi bền vững | Khi kiểm tra vận hành |
 | `retryWebhookQueueErrors()` | Đưa sự kiện lỗi về hàng chờ sau khi đã sửa nguyên nhân | Khi queue có dòng `ERROR` |
 | `checkWebhookStatus()` | Kiểm tra webhook đang active | Khi debug |
 | `listRegisteredWebhooks()` | Liệt kê webhook đã đăng ký | Khi debug |
 | `deleteAllOldWebhooks()` | Xóa toàn bộ webhook cũ | Khi cần đăng ký lại |
 | `registerWebhookWithCorrectUrl()` | Đăng ký webhook mới với URL /exec | Sau khi deploy mới |
+| `resetKiotVietQuotaBreaker_()` | Mở lại cầu dao Quota Guard ngay lập tức, bỏ qua thời gian backoff còn lại | Chỉ khi đã xác nhận quota thật sự đã hồi phục |
 
 ---
 
