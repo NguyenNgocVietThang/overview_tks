@@ -461,3 +461,57 @@ test('User Status & Deletion: Cho phép trạng thái Không hoạt động và 
   assert.ok(!returnedUsernames.includes('user3')); // u-3 đã bị xóa, không hiện
   assert.equal(getRes.body.users.find(u => u.username === 'user2').trangThai, 'Không hoạt động');
 });
+
+function getRouteMiddlewareStack(router, method, routePath) {
+  const layer = router.stack.find(l => l.route && l.route.path === routePath && l.route.methods[method]);
+  if (!layer) throw new Error(`Không tìm thấy route: ${method.toUpperCase()} ${routePath}`);
+  return layer.route.stack.map(l => l.handle);
+}
+
+test('Phan quyen xem: GET /api/admin/users cho phep moi vai tro noi bo, chan Khach', () => {
+  const stack = getRouteMiddlewareStack(adminUserRoutes, 'get', '/api/admin/users');
+  const roleGuard = stack[stack.length - 2];
+  const internalRoles = ['Quản lý', 'Kế toán', 'Trưởng kho', 'Trợ lý', 'Lái xe', 'Nhân viên kho', 'Nhân viên sale', 'Nhân viên mua hàng'];
+
+  for (const role of internalRoles) {
+    const req = { user: { vaiTro: role } };
+    const res = fakeRes();
+    let nextCalled = false;
+    roleGuard(req, res, () => { nextCalled = true; });
+    assert.equal(nextCalled, true, `Vai tro ${role} phai xem duoc danh sach nguoi dung`);
+  }
+
+  const req = { user: { vaiTro: 'Khách' } };
+  const res = fakeRes();
+  let nextCalled = false;
+  roleGuard(req, res, () => { nextCalled = true; });
+  assert.equal(nextCalled, false);
+  assert.equal(res.statusCode, 403);
+});
+
+test('Phan quyen ghi: POST/PUT/DELETE/reset-password chi Quan ly moi duoc phep', () => {
+  const mutatingRoutes = [
+    ['post', '/api/admin/users'],
+    ['put', '/api/admin/users/:id'],
+    ['post', '/api/admin/users/:id/reset-password'],
+    ['delete', '/api/admin/users/:id']
+  ];
+
+  for (const [method, routePath] of mutatingRoutes) {
+    const stack = getRouteMiddlewareStack(adminUserRoutes, method, routePath);
+    const roleGuard = stack[stack.length - 2];
+
+    const blockedReq = { user: { vaiTro: 'Kế toán' } };
+    const blockedRes = fakeRes();
+    let blockedNext = false;
+    roleGuard(blockedReq, blockedRes, () => { blockedNext = true; });
+    assert.equal(blockedNext, false, `${method.toUpperCase()} ${routePath} khong duoc chan Ke toan`);
+    assert.equal(blockedRes.statusCode, 403);
+
+    const allowedReq = { user: { vaiTro: 'Quản lý' } };
+    const allowedRes = fakeRes();
+    let allowedNext = false;
+    roleGuard(allowedReq, allowedRes, () => { allowedNext = true; });
+    assert.equal(allowedNext, true, `${method.toUpperCase()} ${routePath} phai cho phep Quan ly`);
+  }
+});

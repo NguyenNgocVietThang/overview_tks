@@ -9,7 +9,7 @@ const bcrypt = require('bcryptjs');
 const { requireAuth, requireRole } = require('./authMiddleware');
 const localUserStore = require('./localUserStore');
 const { ROLES, ACTIVE_STATUS, INACTIVE_STATUS, LOCKED_STATUS, PENDING_STATUS } = localUserStore;
-const { normalizePhone } = require('./userRepository');
+const { normalizePhone, INTERNAL_ROLES } = require('./userRepository');
 const notificationRepo = require('../notifications/notificationRepository');
 const { normalizeCoSo, BRANCH_VALUES } = require('../branch/branches');
 const contactChangeService = require('./contactChangeService');
@@ -45,13 +45,14 @@ function publicAdminUser(u) {
   };
 }
 
-// Áp dụng bảo vệ toàn bộ route admin
-router.use('/api/admin/users', requireAuth, requireRole(ROLES.QUAN_LY));
+// Xem danh sach: moi vai tro noi bo (Khach khong duoc). Thao tac ghi: chi Quan ly.
+const authView = [requireAuth, requireRole(...INTERNAL_ROLES)];
+const authManage = [requireAuth, requireRole(ROLES.QUAN_LY)];
 
 /**
  * GET /api/admin/users — Danh sách tất cả người dùng trong hệ thống.
  */
-router.get('/api/admin/users', async (req, res) => {
+router.get('/api/admin/users', ...authView, async (req, res) => {
   try {
     const users = await localUserStore.getAllUsers();
     const result = users.map(publicAdminUser);
@@ -65,7 +66,7 @@ router.get('/api/admin/users', async (req, res) => {
 /**
  * POST /api/admin/users — Tạo mới một tài khoản người dùng.
  */
-router.post('/api/admin/users', async (req, res) => {
+router.post('/api/admin/users', ...authManage, async (req, res) => {
   try {
     const username = String(req.body.username || '').trim();
     const password = String(req.body.password || '');
@@ -149,7 +150,7 @@ router.post('/api/admin/users', async (req, res) => {
 /**
  * PUT /api/admin/users/:id — Chỉnh sửa thông tin tài khoản.
  */
-router.put('/api/admin/users/:id', async (req, res) => {
+router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
   try {
     const targetId = req.params.id;
     let targetUser = await localUserStore.getUserById(targetId);
@@ -302,7 +303,7 @@ router.put('/api/admin/users/:id', async (req, res) => {
 /**
  * POST /api/admin/users/:id/reset-password — Đặt lại mật khẩu cho user.
  */
-router.post('/api/admin/users/:id/reset-password', async (req, res) => {
+router.post('/api/admin/users/:id/reset-password', ...authManage, async (req, res) => {
   try {
     const targetId = req.params.id;
     const targetUser = await localUserStore.getUserById(targetId);
@@ -331,7 +332,7 @@ router.post('/api/admin/users/:id/reset-password', async (req, res) => {
 /**
  * DELETE /api/admin/users/:id — Xóa tài khoản người dùng.
  */
-router.delete('/api/admin/users/:id', async (req, res) => {
+router.delete('/api/admin/users/:id', ...authManage, async (req, res) => {
   try {
     const targetId = req.params.id;
     const targetUser = await localUserStore.getUserById(targetId);
