@@ -602,13 +602,15 @@ function setupPollingTrigger() {
     .timeBased()
     .everyHours(4)
     .create();
+  // Apps Script chi cho everyMinutes() nhan 1/5/10/15/30 - dung everyHours(1)
+  // de duoc dung 60 phut, khong dung everyMinutes(60) (se nem exception).
   ScriptApp.newTrigger('syncRecentPurchases_')
     .timeBased()
-    .everyMinutes(60)
+    .everyHours(1)
     .create();
   ScriptApp.newTrigger('syncRecentInvoices_')
     .timeBased()
-    .everyMinutes(60)
+    .everyHours(1)
     .create();
   Logger.log('Da bat doi soat incremental (luoi an toan du phong): Hoa don/Nhap hang moi 60 phut, Tra hang/NCC moi 4 gio.');
 }

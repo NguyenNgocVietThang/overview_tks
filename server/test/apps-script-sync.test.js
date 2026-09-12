@@ -1781,8 +1781,8 @@ describe('Chunked sync with checkpoint and auto-resume', () => {
     ]);
     assert.deepEqual(created, [
       { handler: 'syncPollingOnly_', hours: 4 },
-      { handler: 'syncRecentPurchases_', minutes: 60 },
-      { handler: 'syncRecentInvoices_', minutes: 60 }
+      { handler: 'syncRecentPurchases_', hours: 1 },
+      { handler: 'syncRecentInvoices_', hours: 1 }
     ]);
   });
 
