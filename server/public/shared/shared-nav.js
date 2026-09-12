@@ -102,6 +102,64 @@
     });
   };
 
+  // ---------- Thu gon/mo rong sidebar tren desktop (width ve 0, van "liem" trong layout) ----------
+  // Doc lap hoan toan voi co che drawer mobile (.open/#backdrop/#menuBtn) — cai do
+  // van giu nguyen nhu truoc, chi danh cho man hinh nho (xem media query trong shared.css).
+  var SIDEBAR_OPEN_KEY = 'tks-sidebar-open';
+
+  TKSNav._isSidebarOpen = function _isSidebarOpen(){
+    try{ return localStorage.getItem(SIDEBAR_OPEN_KEY) !== 'closed'; }
+    catch(err){ return true; }
+  };
+
+  var chevronLeftSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>';
+  var chevronRightSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+
+  /**
+   * Nut tron nho (</>) gan canh sidebar de thu gon/mo rong tren desktop — sidebar
+   * van nam trong flex flow binh thuong (khong overlay/backdrop), chi co width ve
+   * 0 khi thu gon nen .content ben canh tu gian ra lap day khoang trong. An di
+   * tren man hinh nho (xem shared.css) vi mobile da co #menuBtn/drawer rieng.
+   * Mac dinh MO khi chua co localStorage — chi thu gon khi nguoi dung chu dong
+   * bam an, va nho lai lua chon do cho lan tai trang sau.
+   */
+  TKSNav._initSidebarToggle = function _initSidebarToggle(sidebarEl){
+    // Bo qua bien the sidebar rieng cua trang dispatch (.sidebar-disp) — trang do
+    // co UX thu gon rieng, khong dung chung co che nay.
+    if(!sidebarEl || !sidebarEl.classList.contains('sidebar')) return;
+    if(document.getElementById('tksSidebarToggleBtn')) return;
+    var parent = sidebarEl.parentNode;
+    if(!parent) return;
+
+    var collapsed = !TKSNav._isSidebarOpen();
+    sidebarEl.classList.toggle('tks-collapsed', collapsed);
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'tksSidebarToggleBtn';
+    btn.className = 'sidebar-toggle-btn';
+    parent.insertBefore(btn, sidebarEl.nextSibling);
+
+    function sync(){
+      var isCollapsed = sidebarEl.classList.contains('tks-collapsed');
+      btn.classList.toggle('tks-collapsed', isCollapsed);
+      btn.innerHTML = isCollapsed ? chevronRightSvg : chevronLeftSvg;
+      btn.setAttribute('aria-expanded', String(!isCollapsed));
+      btn.setAttribute('aria-label', isCollapsed ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng');
+      try{ localStorage.setItem(SIDEBAR_OPEN_KEY, isCollapsed ? 'closed' : 'open'); }catch(err){}
+    }
+
+    btn.addEventListener('click', function(){
+      sidebarEl.classList.toggle('tks-collapsed');
+      sync();
+    });
+
+    if(typeof MutationObserver !== 'undefined'){
+      new MutationObserver(sync).observe(sidebarEl, { attributes: true, attributeFilter: ['class'] });
+    }
+    sync();
+  };
+
   var eyeSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
   var eyeOffSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
 
@@ -146,6 +204,7 @@
         if(sidebar && sidebar.dataset.tksActiveTop){
           TKSNav.renderTopSidebar(sidebar, sidebar.dataset.tksActiveTop, user);
           TKSNav._initSidebarResize(sidebar);
+          TKSNav._initSidebarToggle(sidebar);
         }
         document.documentElement.style.visibility = '';
         TKSNav.renderAccountChip(user);
@@ -452,7 +511,6 @@
               '<p class="tks-profile-section-title">Thông tin khôi phục & Bảo mật</p>' +
               '<p class="tks-profile-hint">Dùng để nhận mã OTP khi quên mật khẩu hoặc xác minh đăng nhập.</p>' +
               '<label class="tks-field"><span>Email khôi phục</span><input type="email" id="tksProfileRecoveryEmail" maxlength="254" placeholder="vd: recovery@domain.com"></label>' +
-              '<label class="tks-field"><span>Số điện thoại khôi phục</span><input type="tel" id="tksProfileRecoveryPhone" maxlength="12" placeholder="vd: 0987654321"></label>' +
               '<div class="tks-field" id="tksRecoveryPasswordField">' +
                 '<span>Mật khẩu hiện tại (Bắt buộc để lưu)</span>' +
                 '<div class="password-wrap">' +
@@ -515,7 +573,6 @@
       saveBtn: overlay.querySelector('#tksProfileSave'),
       // Recovery contacts
       recoveryEmail: overlay.querySelector('#tksProfileRecoveryEmail'),
-      recoveryPhone: overlay.querySelector('#tksProfileRecoveryPhone'),
       recoveryConfirmPassword: overlay.querySelector('#tksRecoveryConfirmPassword'),
       recoveryError: overlay.querySelector('#tksRecoveryError'),
       recoverySaveBtn: overlay.querySelector('#tksRecoverySave'),
@@ -600,7 +657,6 @@
     els.recoverySaveBtn.addEventListener('click', function(){
       showError(els.recoveryError, '');
       var emailKhoiPhuc = els.recoveryEmail.value.trim();
-      var sdtKhoiPhuc = els.recoveryPhone.value.trim();
       var matKhauXacNhan = els.recoveryConfirmPassword.value;
 
       els.recoverySaveBtn.disabled = true;
@@ -610,7 +666,6 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           emailKhoiPhuc: emailKhoiPhuc,
-          sdtKhoiPhuc: sdtKhoiPhuc,
           matKhauXacNhan: matKhauXacNhan
         })
       })
@@ -688,7 +743,6 @@
         els.role.value = profile.vaiTro || '';
         els.facility.value = profile.coSo || '';
         els.recoveryEmail.value = profile.emailKhoiPhuc || '';
-        els.recoveryPhone.value = profile.sdtKhoiPhuc || profile.soDienThoai || '';
         els.recoveryConfirmPassword.value = '';
         els.currentPasswordField.hidden = !profile.hasPassword;
         els.passwordHint.hidden = !!profile.hasPassword;
@@ -761,6 +815,10 @@
     // Nhom "Quan ly nhan su" co the mo/dong, chua cac tab con (hien tai: Nghi phep) — them tab con
     // moi sau nay bang cach them 1 the <a> vao trong .nav-group-list.
     var hrExpanded = hrActive || TKSNav._isNavGroupOpen('hr');
+    var isHrPage = (currentPath === '/humanresources');
+    var hrHash = (isHrPage && typeof window !== 'undefined' && window.location.hash) ? window.location.hash.replace('#', '') : '';
+    var isHrQuydinhTab = isHrPage && hrHash === 'quydinh';
+    var isHrLeaveTab = hrActive && !isHrQuydinhTab;
     var hrLink = user && user.vaiTro === 'Khách' ? '' :
       '<div class="nav-group">' +
         '<button type="button" class="nav-group-toggle' + (hrActive ? ' has-active' : '') + '" id="tksHrGroupToggle" data-tks-nav-group="hr" aria-expanded="' + hrExpanded + '" aria-controls="tksHrGroupList">' +
@@ -769,11 +827,12 @@
           '<svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
         '</button>' +
         '<div class="nav-group-list" id="tksHrGroupList"' + (hrExpanded ? '' : ' hidden') + '>' +
-          '<a href="/humanresources/#leave" class="nav-item' + (hrActive ? ' active' : '') + '"' +
-            (hrActive ? ' aria-current="page"' : '') + '>' +
+          '<a href="/humanresources/#leave" class="nav-item' + (isHrLeaveTab ? ' active' : '') + '"' +
+            (isHrLeaveTab ? ' aria-current="page"' : '') + ' data-hr-subtab="leave">' +
             '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>' +
             'Nghỉ phép</a>' +
-          '<a href="/humanresources/#quydinh" class="nav-item">' +
+          '<a href="/humanresources/#quydinh" class="nav-item' + (isHrQuydinhTab ? ' active' : '') + '"' +
+            (isHrQuydinhTab ? ' aria-current="page"' : '') + ' data-hr-subtab="quydinh">' +
             '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>' +
             'Quy định công ty</a>' +
         '</div>' +
@@ -785,7 +844,7 @@
     var isUsersTab = isAccountPage && (accountHash === 'users' || accountHash === 'adminUsers');
     var isProfileTab = isAccountPage && !isUsersTab;
 
-    var accountUsersSubItem = (user && user.vaiTro === 'Quản lý') ?
+    var accountUsersSubItem = (user && user.vaiTro !== 'Khách') ?
       '<a href="/account/#users" class="nav-item' + (isUsersTab ? ' active' : '') + '"' +
         (isUsersTab ? ' aria-current="page"' : '') + ' data-account-subtab="users">' +
         '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="15" r="3"></circle><circle cx="9" cy="7" r="4"></circle><path d="M10 15H6a4 4 0 0 0-4 4v2"></path><path d="m21.7 16.4-.9-.3"></path><path d="m15.2 13.9-.9-.3"></path><path d="m16.6 18.7.3-.9"></path><path d="m19.1 12.2.3-.9"></path><path d="m19.6 18.7-.4-.8"></path><path d="m16.8 12.3-.4-.8"></path><path d="m14.3 16.6.8-.4"></path><path d="m20.7 13.8.8-.4"></path></svg>' +
