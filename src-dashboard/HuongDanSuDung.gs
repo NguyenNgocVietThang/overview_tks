@@ -367,10 +367,23 @@ xem "6b. CAI DAT PROJECT KIOTSG" ngay ben duoi.
 - Full sync loi: du lieu cu khong bi xoa trang; sua quota/API roi chay lai.
 - Webhook URL thay doi: cap nhat WEBHOOK_URL va chay setupKiotVietAutoSync().
 - Trigger dung: tao lai bang setupQueueProcessingTrigger(), setupPollingTrigger(),
-  setupCustomerReportDailyTrigger() hoac setupCustomerDebtReportDailyTrigger() tuy loai.
+  setupCustomerReportDailyTrigger(), setupCustomerDebtReportDailyTrigger()
+  hoac setupMaintenanceTrigger() tuy loai.
 - HN1/HN3/HN7 khong cap nhat: kiem tra trigger bang setupCustomerDebtReportDailyTrigger();
-  neu can du lieu ngay, chay tay syncCustomerDebtReports(). Trigger 5 phut (processWebhookQueue)
-  cung tu chay bu qua syncCustomerDebtReportsIfDue_() neu sau 15:00 ma chua dong bo.
+  neu can du lieu ngay, chay tay syncCustomerDebtReports(). Trigger bao tri 15 phut
+  (runKiotVietMaintenanceTick_) cung tu chay bu qua syncCustomerDebtReportsIfDue_()
+  neu sau 15:00 ma chua dong bo (tru khi dang bi Quota Guard tam dung).
+- Dong bo dung dot ngot / KIOTVIET API loi "too many times for one day: urlfetch":
+  Quota Guard da tu tam dung (xem KIOTVIET_QUOTA_PAUSE_UNTIL trong Script
+  Properties); hang doi webhook van nhan va giu nguyen, khong can can thiep.
+  Chi chay resetKiotVietQuotaBreaker_() thu cong neu chac chan quota da het gio
+  gioi han cua Google va muon mo lai som hon backoff.
+- Trigger trung giua nhieu tai khoan Google (vd KiotSG tung bi ca "Toi" lan
+  "Nguoi dung khac" cung tao trigger): ScriptApp.getProjectTriggers() chi
+  thay/xoa duoc trigger cua tai khoan dang chay, KHONG sua duoc bang code. Xem
+  muc "Trigger trung khi nhieu tai khoan tung cai dat project" trong README.md
+  de biet cac buoc dang nhap tung tai khoan va don thu cong qua giao dien
+  Apps Script Editor (Trinh kich hoat / Triggers).
 - Lien he Nguyen Ngoc Viet Thang: 0974089295
 ===============================================================================
 */

@@ -664,6 +664,8 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 | [HR Leave Sessions Spec](docs/superpowers/specs/2026-08-22-hr-leave-sessions-and-submission-time-design.md) | Đặc tả nghỉ phép theo buổi, thời gian gửi và trạng thái vi phạm |
 | [Near-real-time Invoice Sync Spec](docs/superpowers/specs/2026-09-09-near-realtime-invoice-sync-design.md) | Webhook-first, đối soát incremental và giảm quota Apps Script cho hóa đơn |
 | [Near-real-time Invoice Sync Plan](docs/superpowers/plans/2026-09-09-near-realtime-invoice-sync.md) | Kế hoạch kiểm thử, triển khai và phát hành đồng bộ hóa đơn gần thời gian thực |
+| [Webhook-first Quota Guard Spec](docs/superpowers/specs/2026-09-11-webhook-first-quota-guard-design.md) | Tách hàng đợi webhook khỏi bảo trì, giảm tần suất polling, hydrate-skip có cờ và cầu dao tạm dừng khi cạn quota UrlFetch (HN + SG dùng chung tài khoản) |
+| [Webhook-first Quota Guard Plan](docs/superpowers/plans/2026-09-11-webhook-first-quota-guard.md) | Kế hoạch triển khai từng task, trạng thái hoàn thành và bước triển khai thủ công còn lại |
 | [HR Leave Sessions Plan](docs/superpowers/plans/2026-08-22-hr-leave-sessions-submission-filter.md) | Kế hoạch triển khai đồng bộ Bot, Google Sheet, API và giao diện HR |
 | [Result Cache Plan](docs/superpowers/plans/2026-08-13-dashboard-result-cache.md) | Kế hoạch & chi tiết triển khai Result Cache tầng backend |
 | [Pagination Plan](docs/superpowers/plans/2026-08-13-dashboard-table-pagination.md) | Kế hoạch & chi tiết triển khai phân trang bảng client-side |
