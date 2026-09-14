@@ -14,7 +14,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Noto+Serif:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="/shared/shared.css?v=20260914">
 <style>
   .hr-wrap{ width:100%; margin:0 auto; }
@@ -190,6 +190,50 @@
     padding:10px 14px; font-size:12px; color:var(--text); line-height:1.55; margin:0;
   }
 
+  /* ---- Quy dinh cong ty: hien thi dang van ban (giong docx/pdf) ---- */
+  .doc-toolbar{
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    margin-bottom:16px;
+  }
+  .doc-toolbar-info{ display:flex; flex-direction:column; gap:2px; }
+  .doc-toolbar-info strong{ font-family:var(--font-display); font-size:14px; font-weight:700; color:var(--canvas-text); }
+  .doc-toolbar-info span{ font-size:12px; color:var(--canvas-text); opacity:.7; }
+  .doc-download-btn{ display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
+  .doc-download-btn svg{ width:16px; height:16px; flex-shrink:0; }
+  .doc-download-btn[disabled]{ opacity:.6; cursor:wait; }
+
+  .doc-page-wrap{ display:flex; justify-content:center; margin-bottom:24px; }
+  .doc-page{
+    width:100%; max-width:820px; background:#fdfcf9; color:#23262f;
+    border-radius:6px; box-shadow:0 1px 2px rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.22);
+    padding:52px 60px 60px; font-family:'Noto Serif', Georgia, serif;
+  }
+  @media (max-width:640px){ .doc-page{ padding:32px 22px 40px; } }
+  .doc-page-header{ display:flex; align-items:center; gap:16px; margin-bottom:18px; }
+  .doc-page-header img{ width:52px; height:52px; border-radius:8px; object-fit:cover; flex-shrink:0; }
+  .doc-page-title h1{
+    margin:0; font-family:'Be Vietnam Pro', var(--font-display); font-size:22px; font-weight:800;
+    letter-spacing:.02em; color:#14161c;
+  }
+  .doc-page-title p{ margin:4px 0 0; font-family:'Inter', var(--font-body); font-size:12px; color:#6b6f7a; }
+  .doc-divider{ border:none; border-top:2px solid #14161c; margin:0 0 26px; }
+  .doc-page .doc-section{ margin-bottom:26px; break-inside:avoid; page-break-inside:avoid; }
+  .doc-page .profile-card-title{
+    font-family:'Be Vietnam Pro', var(--font-display); font-size:15px; font-weight:700; color:#14161c;
+    margin:0 0 8px; break-inside:avoid; page-break-inside:avoid;
+  }
+  .doc-page .profile-card-title svg{ color:#2563eb; }
+  .doc-page .profile-card-desc{ font-family:'Inter', var(--font-body); font-size:12.5px; color:#5b6472; margin:0 0 18px; }
+  .doc-page .doc-section h4{ font-family:'Be Vietnam Pro', var(--font-display); font-size:13.5px; font-weight:700; color:#14161c; }
+  .doc-page .doc-section p,
+  .doc-page .doc-section li{ font-family:'Noto Serif', Georgia, serif; font-size:13px; color:#31353f; line-height:1.7; }
+  .doc-page .doc-section li strong{ color:#14161c; }
+  .doc-page .doc-table th, .doc-page .doc-table td{ border-color:#d8d5cb; font-family:'Inter', var(--font-body); font-size:12.5px; }
+  .doc-page .doc-table th{ background:#f1efe8; color:#14161c; }
+  .doc-page .doc-table td{ color:#31353f; }
+  .doc-page .doc-note{ background:#f1efe8; border-color:#d8d5cb; color:#14161c; font-family:'Inter', var(--font-body); }
+  .doc-page-footer{ margin-top:36px; padding-top:14px; border-top:1px solid #d8d5cb; font-family:'Inter', var(--font-body); font-size:11px; color:#8a8d96; text-align:center; }
+
   .form-group{ margin-bottom:16px; }
   .form-group label{ display:block; margin-bottom:6px; font-size:12.5px; font-weight:600; color:var(--text-secondary); }
   .form-control{
@@ -282,6 +326,10 @@
           <button type="button" class="hr-subnav-item" data-subtab="quydinh" role="tab" aria-selected="false" onclick="switchHrSubtab('quydinh')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>
             Quy định công ty
+          </button>
+          <button type="button" class="hr-subnav-item" data-subtab="danhsach" role="tab" aria-selected="false" onclick="switchHrSubtab('danhsach')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            Danh sách nhân sự
           </button>
         </div>
 
@@ -390,7 +438,27 @@
 
         <!-- Quy dinh cong ty: thuan hien thi tai lieu, khong co chuc nang gi khac -->
         <div class="hr-subtab-panel" id="hrSubtab-quydinh" role="tabpanel">
-          <div class="profile-card">
+          <div class="doc-toolbar">
+            <div class="doc-toolbar-info">
+              <strong>Quy định công ty</strong>
+              <span>Áp dụng cho toàn thể nhân viên · Cập nhật lần cuối: 14/09/2026</span>
+            </div>
+            <button type="button" class="btn-primary doc-download-btn" id="quyDinhDownloadBtn" onclick="downloadQuyDinhPdf()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"></path><polyline points="7 10 12 15 17 10"></polyline><path d="M5 21h14"></path></svg>
+              Tải về PDF
+            </button>
+          </div>
+          <div class="doc-page-wrap">
+          <div class="doc-page" id="quyDinhDocPage">
+            <div class="doc-page-header">
+              <img src="/Logo.jpg" alt="TOKOSI">
+              <div class="doc-page-title">
+                <h1>QUY ĐỊNH CÔNG TY</h1>
+                <p>TOKOSI · Áp dụng cho toàn thể nhân viên · Ban hành: 14/09/2026</p>
+              </div>
+            </div>
+            <hr class="doc-divider">
+          <div class="profile-card" style="background:transparent; border:none; box-shadow:none; padding:0; margin-bottom:26px;">
             <div class="profile-card-title">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
               1. Quy định giờ giấc và chấm công
@@ -430,7 +498,7 @@
             </div>
           </div>
 
-          <div class="profile-card">
+          <div class="profile-card" style="background:transparent; border:none; box-shadow:none; padding:0; margin-bottom:0;">
             <div class="profile-card-title">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
               2. Quy tắc xin nghỉ phép
@@ -470,6 +538,39 @@
                 <li>Nhân viên không được sử dụng vượt quá số ngày phép còn lại; phần vượt sẽ được xử lý theo loại nghỉ khác hoặc nghỉ không lương theo thỏa thuận.</li>
                 <li>Nhân viên có trách nhiệm gửi yêu cầu sớm nhất có thể, bàn giao công việc rõ ràng và cung cấp thông tin trung thực.</li>
               </ul>
+            </div>
+          </div>
+            <div class="doc-page-footer">TOKOSI Dashboard · Tài liệu nội bộ · Vui lòng không sao chép hoặc chia sẻ ra bên ngoài công ty</div>
+          </div>
+          </div>
+        </div>
+
+        <!-- Danh sach nhan su: doc-only, lay tu tab "Danh sach nhan su" trong Google Sheet HR -->
+        <div class="hr-subtab-panel" id="hrSubtab-danhsach" role="tabpanel">
+          <div class="admin-toolbar">
+            <div class="admin-filters">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="employeeDirectorySearchInput" placeholder="Tìm theo tên, chức vụ, SĐT hoặc email..." oninput="renderEmployeeDirectoryTable()">
+              </div>
+            </div>
+          </div>
+
+          <div class="users-table-panel">
+            <div class="users-table-scroll">
+              <table class="users-table" id="employeeDirectoryTable">
+                <thead>
+                  <tr>
+                    <th>Họ và tên</th>
+                    <th>Chức vụ</th>
+                    <th>Số điện thoại</th>
+                    <th>Email</th>
+                  </tr>
+                </thead>
+                <tbody id="employeeDirectoryTableBody">
+                  <tr class="empty-row"><td colspan="4">Đang tải dữ liệu...</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -535,11 +636,13 @@
 
   <script src="/shared/shared-nav.js?v=20260914"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
+  <script src="/vendor/html2pdf.bundle.min.js"></script>
 
   <script>
     const THEME_STORAGE_KEY = 'tks-dashboard-theme';
     let currentUser = null;
     let rawLeaveRequests = [];
+    let rawEmployeeDirectory = [];
     let urgentSummaryByUsername = {};
     let pendingDecision = null; // { id, status }
     const state = { tableSorts: {} };
@@ -562,6 +665,30 @@
       document.documentElement.dataset.theme = nextTheme;
       try{ localStorage.setItem(THEME_STORAGE_KEY, nextTheme); }catch(e){}
       syncThemeControl();
+    }
+
+    function downloadQuyDinhPdf(){
+      const el = document.getElementById('quyDinhDocPage');
+      const btn = document.getElementById('quyDinhDownloadBtn');
+      if(!el || typeof html2pdf === 'undefined'){
+        showToast('Không thể tạo PDF, vui lòng thử lại.', 'error');
+        return;
+      }
+      const originalLabel = btn ? btn.innerHTML : '';
+      if(btn){ btn.disabled = true; btn.innerHTML = 'Đang tạo PDF…'; }
+      html2pdf().set({
+        margin: 0,
+        filename: 'Quy-dinh-cong-ty-TOKOSI.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fdfcf9' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'] }
+      }).from(el).save().then(function(){
+        if(btn){ btn.disabled = false; btn.innerHTML = originalLabel; }
+      }).catch(function(){
+        if(btn){ btn.disabled = false; btn.innerHTML = originalLabel; }
+        showToast('Tạo PDF thất bại, vui lòng thử lại.', 'error');
+      });
     }
 
     function toggleSidebar(){
@@ -867,6 +994,42 @@
       }
     }
 
+    // ---------- Danh sach nhan su ----------
+    async function loadEmployeeDirectory(){
+      const tbody = document.getElementById('employeeDirectoryTableBody');
+      try{
+        const res = await fetch('/api/hr/employees', { credentials: 'same-origin' });
+        const { ok, data } = await parseApiResponse(res);
+        if(!ok){
+          tbody.innerHTML = `<tr class="empty-row"><td colspan="4">${escapeHtml(data.error || 'Không tải được danh sách nhân sự.')}</td></tr>`;
+          return;
+        }
+        rawEmployeeDirectory = data.employees || [];
+        renderEmployeeDirectoryTable();
+      }catch(err){
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="4">Lỗi kết nối máy chủ.</td></tr>';
+      }
+    }
+
+    function renderEmployeeDirectoryTable(){
+      const tbody = document.getElementById('employeeDirectoryTableBody');
+      const keyword = (document.getElementById('employeeDirectorySearchInput').value || '').trim().toLowerCase();
+      const filtered = keyword
+        ? rawEmployeeDirectory.filter(e => [e.hoTen, e.boPhan, e.soDienThoai, e.email].some(v => String(v || '').toLowerCase().includes(keyword)))
+        : rawEmployeeDirectory;
+      if(!filtered.length){
+        tbody.innerHTML = `<tr class="empty-row"><td colspan="4">${rawEmployeeDirectory.length ? 'Không tìm thấy nhân sự phù hợp.' : 'Chưa có dữ liệu nhân sự.'}</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = filtered.map(e => `<tr>
+        <td>${escapeHtml(e.hoTen) || '—'}</td>
+        <td>${escapeHtml(e.boPhan) || '—'}</td>
+        <td>${escapeHtml(e.soDienThoai) || '—'}</td>
+        <td>${escapeHtml(e.email) || '—'}</td>
+      </tr>`).join('');
+      applyActiveTableSorts();
+    }
+
     // ---------- Lien ket Telegram ----------
     async function loadLinkStatus(){
       try{
@@ -1158,6 +1321,7 @@
           initDefaultDateFilters();
           loadLeaveRequests();
           loadLinkStatus();
+          loadEmployeeDirectory();
           setupLeaveRealtimeStream();
         });
       }

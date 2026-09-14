@@ -49,7 +49,9 @@ function overrideRow(overrides) {
     changed_by_role: 'Kế toán',
     changed_at: '2026-09-12 09:00:00',
     note: '',
-    message: 'Nguyễn Văn A - Kế toán đã cập nhật đơn hàng sang trạng thái Đơn đang được giao.'
+    message: 'Nguyễn Văn A - Kế toán đã cập nhật đơn hàng sang trạng thái Đơn đang được giao.',
+    from_status_code: '',
+    from_status_label: ''
   }, overrides);
 }
 
@@ -503,6 +505,133 @@ test('overrideStatus: ghi đúng câu tường thuật + trả về trạng thá
     assert.equal(ctx.appended[0].order_code, 'HD001');
     assert.equal(result.summary.code, ctx.service.STATUS.DELIVERED);
     assert.equal(result.summary.isOverride, true);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('overrideStatus: ghi kèm trạng thái cũ = trạng thái tính từ mốc thời gian (chưa có override trước đó)', async () => {
+  const ctx = freshService([record({ orderCode: 'HD001', saleName: 'Sale A', saleSentAt: '01/09/2026' })]);
+  try {
+    await ctx.service.overrideStatus('HD001', { code: 'SHIP_RECEIVED', changedBy: 'A', changedByRole: 'Quản lý' });
+    assert.equal(ctx.appended[0].from_status_code, ctx.service.STATUS.SENT_TO_ACCOUNTANT);
+    assert.equal(ctx.appended[0].from_status_label, ctx.service.STATUS_LABEL[ctx.service.STATUS.SENT_TO_ACCOUNTANT]);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('overrideStatus: ghi kèm trạng thái cũ = override GẦN NHẤT trước đó (không phải trạng thái tính từ mốc thời gian)', async () => {
+  const ctx = freshService(
+    [record({ orderCode: 'HD001' })],
+    [overrideRow({ order_code: 'HD001', to_status_code: 'EXCEPTION' })]
+  );
+  try {
+    await ctx.service.overrideStatus('HD001', { code: 'CANCELLED', changedBy: 'A', changedByRole: 'Quản lý' });
+    assert.equal(ctx.appended[0].from_status_code, 'EXCEPTION');
+  } finally {
+    ctx.restore();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// listHistory — tab "Lich su cap nhat" hien thi tren web (truoc gio chi doc
+// noi bo de tinh trang thai hieu luc)
+// ---------------------------------------------------------------------------
+
+test('listHistory: mới nhất hiển thị trước (sheet ghi nối tiếp -> đảo ngược mảng)', async () => {
+  const ctx = freshService(
+    [record({ orderCode: 'HD001' })],
+    [
+      overrideRow({ history_id: 'OVR-1', order_code: 'HD001', to_status_code: 'DELIVERING' }),
+      overrideRow({ history_id: 'OVR-2', order_code: 'HD001', to_status_code: 'SHIP_RECEIVED' })
+    ]
+  );
+  try {
+    const history = await ctx.service.listHistory();
+    assert.deepEqual(history.map(h => h.historyId), ['OVR-2', 'OVR-1']);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('listHistory: kèm branch join theo mã đơn từ bảng chính', async () => {
+  const ctx = freshService(
+    [record({ orderCode: 'HD001', _branch: 'HN' }), record({ orderCode: 'HD002', _branch: 'SG' })],
+    [
+      overrideRow({ history_id: 'OVR-1', order_code: 'HD001' }),
+      overrideRow({ history_id: 'OVR-2', order_code: 'HD002' })
+    ]
+  );
+  try {
+    const history = await ctx.service.listHistory();
+    const byId = Object.fromEntries(history.map(h => [h.historyId, h.branch]));
+    assert.equal(byId['OVR-1'], 'HN');
+    assert.equal(byId['OVR-2'], 'SG');
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('listHistory: mã đơn không còn trong bảng chính -> branch null (không throw)', async () => {
+  const ctx = freshService(
+    [record({ orderCode: 'HD001' })],
+    [overrideRow({ history_id: 'OVR-1', order_code: 'HD_DA_XOA' })]
+  );
+  try {
+    const history = await ctx.service.listHistory();
+    assert.equal(history[0].branch, null);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('listHistory: giữ nguyên statusLabel/changedBy/note/message từ dòng lịch sử', async () => {
+  const ctx = freshService(
+    [record({ orderCode: 'HD001' })],
+    [overrideRow({
+      history_id: 'OVR-1', order_code: 'HD001', to_status_code: 'CANCELLED', to_status_label: 'Đã hủy',
+      changed_by: 'Trần Thị B', changed_by_role: 'Quản lý', note: 'Khách hủy đơn'
+    })]
+  );
+  try {
+    const [entry] = await ctx.service.listHistory();
+    assert.equal(entry.statusCode, 'CANCELLED');
+    assert.equal(entry.statusLabel, 'Đã hủy');
+    assert.equal(entry.changedBy, 'Trần Thị B');
+    assert.equal(entry.changedByRole, 'Quản lý');
+    assert.equal(entry.note, 'Khách hủy đơn');
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('listHistory: trả kèm trạng thái cũ (from_status_code/label) từ dòng lịch sử', async () => {
+  const ctx = freshService(
+    [record({ orderCode: 'HD001' })],
+    [overrideRow({
+      history_id: 'OVR-1', order_code: 'HD001', to_status_code: 'CANCELLED',
+      from_status_code: 'DELIVERING', from_status_label: 'Đơn đang được giao'
+    })]
+  );
+  try {
+    const [entry] = await ctx.service.listHistory();
+    assert.equal(entry.fromStatusCode, 'DELIVERING');
+    assert.equal(entry.fromStatusLabel, 'Đơn đang được giao');
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('listHistory: dòng lịch sử cũ chưa có cột trạng thái cũ -> trả rỗng thay vì undefined', async () => {
+  const ctx = freshService(
+    [record({ orderCode: 'HD001' })],
+    [overrideRow({ history_id: 'OVR-1', order_code: 'HD001', from_status_code: undefined, from_status_label: undefined })]
+  );
+  try {
+    const [entry] = await ctx.service.listHistory();
+    assert.equal(entry.fromStatusCode, '');
+    assert.equal(entry.fromStatusLabel, '');
   } finally {
     ctx.restore();
   }

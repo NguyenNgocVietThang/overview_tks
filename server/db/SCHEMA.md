@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0006`. Mọi module đồng bộ ở Giai đoạn 2 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0008`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -40,8 +40,10 @@ Ba hệ định danh này khác nhau. Code sync phải nhận `branch` rõ ràng
 | `purchases` | Phiếu nhập hàng từ endpoint `/purchaseorders` | `(branch, id)` | `code`, `purchase_date`, `supplier_id`, `total`, `status`, các ngày |
 | `purchase_details` | Dòng hàng của phiếu nhập | `(branch, purchase_id, line_no)` | `product_id`, `quantity`, `price` |
 | `cash_flows` | Toàn bộ phiếu thu và phiếu chi | `(branch, id)` | `code`, `is_receipt`, `amount`, `method`, đối tác/người dùng, `trans_date` |
+| `webhook_events_raw` | Payload webhook thô để phân tích ở Task 7b | `id` | `received_at`, `payload` |
+| `backfill_progress` | Tiến độ backfill lịch sử (Giai đoạn 3), độc lập với `sync_checkpoints` | `(branch, entity, chunk_key)` | `status`, `next_item`, `records_synced`, `last_error` |
 
-Ngoài 16 bảng trên, runner quản lý bảng kỹ thuật `schema_migrations(filename, applied_at)` để mỗi file SQL chỉ được áp dụng một lần.
+Ngoài 16 bảng nghiệp vụ trên còn có bảng raw webhook, bảng tiến độ backfill, và runner quản lý bảng kỹ thuật `schema_migrations(filename, applied_at)` để mỗi file SQL chỉ được áp dụng một lần.
 
 ## Quan hệ và index
 
@@ -55,3 +57,11 @@ Ngoài 16 bảng trên, runner quản lý bảng kỹ thuật `schema_migrations
 1. `branch` là định danh nội bộ (`hanoi`/`saigon`), khác nhãn tiếng Việt trong `BRANCHES` và khác retailer code dùng để gọi API. Không trộn ba giá trị này.
 2. `line_no` là vị trí phần tử trong mảng payload, đánh số từ 0, không phải ID KiotViet. Khi cập nhật một entity cha, phải xóa toàn bộ dòng con cũ rồi chèn lại. Nếu payload thật có ID dòng ổn định, chỉ thay đổi chiến lược bằng một migration mới sau khi đã xác minh.
 3. `cash_flows` không có `modified_date`. Đồng bộ entity này phải dùng cửa sổ `startDate`/`endDate`; trạng thái cửa sổ được lưu trong `sync_checkpoints.note`, không dùng cơ chế `lastModifiedFrom` của các entity khác.
+
+## Một lưu ý bắt buộc cho Giai đoạn 3 (backfill)
+
+`backfill_progress` (migration `0008`) lưu tiến độ chạy `backfill.js` theo `(branch, entity, chunk_key)`,
+`chunk_key` là `'YYYY-MM'` cho entity có `backfillRangeParam` (chia theo tháng) hoặc `'full'` cho entity
+chạy 1 lượt duy nhất. Bảng này **độc lập hoàn toàn** với `sync_checkpoints` — polling (Giai đoạn 2) không
+đọc/ghi bảng này, và backfill không đọc/ghi `sync_checkpoints`. Ghi trùng dữ liệu nghiệp vụ giữa 2 tiến
+trình là an toàn vì mọi bảng dùng `UPSERT` theo `(branch, id)`.

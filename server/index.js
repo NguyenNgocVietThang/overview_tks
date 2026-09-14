@@ -6,6 +6,8 @@ const CONFIG = require('./config');
 const routes = require('./routes');
 const { startHrTelegramBot, isTelegramBotRuntimeEnabled } = require('./telegram/hrTelegramBot');
 const localUserStore = require('./auth/localUserStore');
+const { startPollingScheduler } = require('./kiotvietSync/scheduler');
+const { captureWebhookRawBody, webhookJsonErrorHandler } = require('./kiotviet/kiotvietWebhookRoutes');
 
 process.on('uncaughtException', (err) => {
   console.error('[Process] Uncaught exception:', err);
@@ -27,7 +29,10 @@ app.set('trust proxy', 1);
 app.use(compression());
 // Mac dinh express.json() gioi han 100kb — khong du cho payload xuat Excel
 // ket qua kiem tra dut hang (hang tram dong, moi dong kem chi tiet cac dot dut hang).
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '10mb', verify: captureWebhookRawBody }));
+// KiotViet cannot benefit from retrying permanently malformed JSON. Acknowledge
+// it and let the raw-event queue preserve the body for later inspection.
+app.use(webhookJsonErrorHandler);
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
@@ -118,6 +123,10 @@ async function startServer() {
       console.warn('[HR Telegram Bot] Đã tắt ở runtime này — đặt TELEGRAM_BOT_ENABLED=true để bật ngoài Render.');
     } else {
       console.warn('[HR Telegram Bot] Chưa cấu hình TELEGRAM_BOT_TOKEN/HR_SPREADSHEET_ID — bot không khởi động.');
+    }
+
+    if (CONFIG.KIOTVIET_SYNC_ENABLED) {
+      startPollingScheduler();
     }
   });
 }

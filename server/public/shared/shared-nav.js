@@ -792,10 +792,18 @@
           }).join('') +
         '</div>' +
       '</div>';
-    // Nhom "Quan ly don hang" chi con tab "Vong doi don hang". Trang tong quan
-    // /shipment/ khong con duoc trinh bay trong dieu huong.
+    // Nhom "Quan ly don hang" gom 2 tab con cua cung 1 trang /shipment/lifecycle/
+    // (Vong doi don hang + Lich su cap nhat, dieu huong bang hash). Trang tong
+    // quan /shipment/ khong con duoc trinh bay trong dieu huong.
     var NO_SHIPMENT_ROLES = ['Nhân viên mua hàng'];
     var isLifecyclePage = currentPath === '/shipment/lifecycle';
+    // Tab con cua "Vong doi don hang" dieu huong bang hash (giong pattern
+    // Nghi phep/Quy dinh cong ty o nhom "Quan ly nhan su" ben duoi): khong co
+    // hash (hoac hash la) -> "orders" (Toan bo don hang, mac dinh); "#history"
+    // -> "Lich su cap nhat".
+    var lifecycleHash = (isLifecyclePage && typeof window !== 'undefined' && window.location.hash) ? window.location.hash.replace('#', '') : '';
+    var isLifecycleHistoryTab = isLifecyclePage && lifecycleHash === 'history';
+    var isLifecycleOrdersTab = isLifecyclePage && !isLifecycleHistoryTab;
     var shipmentExpanded = shipmentActive || TKSNav._isNavGroupOpen('shipment');
     var shipmentLink = (user && NO_SHIPMENT_ROLES.indexOf(user.vaiTro) !== -1) ? '' :
       '<div class="nav-group">' +
@@ -805,10 +813,14 @@
           '<svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
         '</button>' +
         '<div class="nav-group-list" id="tksShipmentGroupList"' + (shipmentExpanded ? '' : ' hidden') + '>' +
-          '<a href="/shipment/lifecycle/" class="nav-item' + (isLifecyclePage ? ' active' : '') + '"' +
-            (isLifecyclePage ? ' aria-current="page"' : '') + '>' +
+          '<a href="/shipment/lifecycle/" class="nav-item' + (isLifecycleOrdersTab ? ' active' : '') + '"' +
+            (isLifecycleOrdersTab ? ' aria-current="page"' : '') + ' data-shipment-subtab="orders">' +
             '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15.5 14"></polyline></svg>' +
             'Vòng đời đơn hàng</a>' +
+          '<a href="/shipment/lifecycle/#history" class="nav-item' + (isLifecycleHistoryTab ? ' active' : '') + '"' +
+            (isLifecycleHistoryTab ? ' aria-current="page"' : '') + ' data-shipment-subtab="history">' +
+            '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path></svg>' +
+            'Lịch sử cập nhật</a>' +
         '</div>' +
       '</div>';
     // Khach khong duoc xem du lieu nhan su noi bo (giong reportsLink) — an hoan toan.
@@ -818,7 +830,8 @@
     var isHrPage = (currentPath === '/humanresources');
     var hrHash = (isHrPage && typeof window !== 'undefined' && window.location.hash) ? window.location.hash.replace('#', '') : '';
     var isHrQuydinhTab = isHrPage && hrHash === 'quydinh';
-    var isHrLeaveTab = hrActive && !isHrQuydinhTab;
+    var isHrDanhSachTab = isHrPage && hrHash === 'danhsach';
+    var isHrLeaveTab = hrActive && !isHrQuydinhTab && !isHrDanhSachTab;
     var hrLink = user && user.vaiTro === 'Khách' ? '' :
       '<div class="nav-group">' +
         '<button type="button" class="nav-group-toggle' + (hrActive ? ' has-active' : '') + '" id="tksHrGroupToggle" data-tks-nav-group="hr" aria-expanded="' + hrExpanded + '" aria-controls="tksHrGroupList">' +
@@ -835,6 +848,10 @@
             (isHrQuydinhTab ? ' aria-current="page"' : '') + ' data-hr-subtab="quydinh">' +
             '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>' +
             'Quy định công ty</a>' +
+          '<a href="/humanresources/#danhsach" class="nav-item' + (isHrDanhSachTab ? ' active' : '') + '"' +
+            (isHrDanhSachTab ? ' aria-current="page"' : '') + ' data-hr-subtab="danhsach">' +
+            '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>' +
+            'Danh sách nhân sự</a>' +
         '</div>' +
       '</div>';
     // Nhom "Quan ly tai khoan" co the mo/dong, chua cac tab con (Quan ly ho so, Quan ly nguoi dung)

@@ -19,10 +19,16 @@ if (process.env.NODE_ENV !== 'production') {
 const { google } = require('googleapis');
 const CONFIG = require('../config');
 
+// PHAI khop HISTORY_SCHEMA.headers trong server/shipment/orderLifecycleRepository.js.
+// 2 cot "trang thai cu" them ngay 2026-09-14 nam O CUOI (khong chen giua) —
+// script nay CHI ghi lai hang header (row 1), KHONG dong den cac dong du lieu
+// da co nen an toan chay lai nhieu lan, nhung chen cot o giua se lam lech du
+// lieu cac dong CU da ton tai (doc theo vi tri co dinh, xem HISTORY_SCHEMA).
 const SHEET_NAME = CONFIG.ORDER_LIFECYCLE_SHEET_HISTORY;
 const HEADERS = [
   'Mã lịch sử', 'Mã đơn hàng', 'Mã trạng thái', 'Trạng thái mới',
-  'Người thực hiện', 'Vai trò', 'Thời gian cập nhật', 'Ghi chú', 'Nội dung cập nhật'
+  'Người thực hiện', 'Vai trò', 'Thời gian cập nhật', 'Ghi chú', 'Nội dung cập nhật',
+  'Mã trạng thái cũ', 'Trạng thái cũ'
 ];
 
 function columnIndexToLetter(colIndex) {

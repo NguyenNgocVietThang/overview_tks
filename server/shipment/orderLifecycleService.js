@@ -223,6 +223,38 @@ async function listAllOrders(branchFilter) {
   }));
 }
 
+/**
+ * Toan bo lich su ghi de trang thai (tab "Lich su cap nhat" tren Google Sheet
+ * — truoc gio chi duoc doc noi bo de tinh trang thai hieu luc, chua co giao
+ * dien xem). Moi nhat hien truoc: sheet ghi noi tiep theo thu tu thoi gian
+ * (append-only) nen chi can dao nguoc mang, khong can parse/so sanh timestamp.
+ * Kem branch (join theo ma don voi bang chinh) de UI loc theo co so giong
+ * Khu B; don khong con trong bang chinh (vd ma go nham luc ghi de) -> branch null.
+ */
+async function listHistory() {
+  const [historyRows, records] = await Promise.all([repo.readOverrideHistory(), repo.readAll()]);
+  const branchByCode = new Map();
+  records.forEach(record => {
+    const key = normalizeCode(record.orderCode);
+    if (!branchByCode.has(key)) branchByCode.set(key, record._branch);
+  });
+  return historyRows.slice().reverse().map(row => ({
+    historyId: row.history_id,
+    orderCode: row.order_code,
+    branch: branchByCode.get(normalizeCode(row.order_code)) || null,
+    statusCode: row.to_status_code,
+    statusLabel: row.to_status_label,
+    // Cac dong ghi TRUOC khi co cot nay (2026-09-14) -> rong, xem HISTORY_SCHEMA.
+    fromStatusCode: row.from_status_code || '',
+    fromStatusLabel: row.from_status_label || '',
+    changedBy: row.changed_by,
+    changedByRole: row.changed_by_role,
+    changedAt: row.changed_at,
+    note: row.note,
+    message: row.message
+  }));
+}
+
 const MAX_LOOKUP_CODES = 50;
 
 function validateLookupCodes(rawCodes) {
@@ -336,17 +368,25 @@ async function overrideStatus(orderCode, { code, changedBy, changedByRole, note 
   }
 
   const target = normalizeCode(orderCode);
-  const records = await repo.readAll();
+  const [records, historyRows] = await Promise.all([repo.readAll(), repo.readOverrideHistory()]);
   const record = records.find(r => normalizeCode(r.orderCode) === target);
   if (!record) {
     throw makeError(`Không tìm thấy đơn hàng "${orderCode}" trong bảng vòng đời đơn hàng.`, 404, 'ORDER_NOT_FOUND');
   }
+
+  // Trang thai hieu luc NGAY TRUOC lan ghi de nay — luu lai de hien "trang
+  // thai cu" tren tab Lich su cap nhat (khong the suy nguoc tu cac dong lich
+  // su SAU nay vi override la mot "muc san", khong phai always-overwrite).
+  const overrides = latestOverrideByCode(historyRows);
+  const fromStatus = computeEffectiveStatus(record, overrides.get(target));
 
   const message = `${changedBy} - ${changedByRole} đã cập nhật đơn hàng sang trạng thái ${STATUS_LABEL[code]}.`;
   const entry = await repo.appendOverride({
     order_code: record.orderCode,
     to_status_code: code,
     to_status_label: STATUS_LABEL[code],
+    from_status_code: fromStatus.code,
+    from_status_label: fromStatus.label,
     changed_by: changedBy,
     changed_by_role: changedByRole,
     note,
@@ -363,6 +403,6 @@ async function overrideStatus(orderCode, { code, changedBy, changedByRole, note 
 module.exports = {
   STATUS, STATUS_LABEL, STATUS_COLUMN_LABEL, STATUS_RANK,
   computeStatus, computeEffectiveStatus, findOrder, listAllOrders, findOrdersBulk,
-  exportOrdersByCodes, overrideStatus,
+  exportOrdersByCodes, overrideStatus, listHistory,
   MAX_LOOKUP_CODES
 };

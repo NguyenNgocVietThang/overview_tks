@@ -15,6 +15,7 @@ const router = express.Router();
 const { requireAuth, requireRole } = require('../auth/authMiddleware');
 const { ROLES, INTERNAL_ROLES } = require('../auth/userRepository');
 const repo = require('./hrLeaveRepository');
+const employeeDirectory = require('./employeeDirectory');
 const {
   resolveApproverName,
   computeDurationSessions,
@@ -39,7 +40,7 @@ function handleError(res, err, context) {
   // "Co so chua duoc cau hinh nguon du lieu" la 503 nhung KHONG phai loi he
   // thong — giu nguyen thong diep de nguoi dung biet phai lam gi (bao Quan ly
   // cau hinh nguon), thay vi "Loi he thong, vui long thu lai sau".
-  if (err.code === 'BRANCH_NOT_CONFIGURED') {
+  if (err.code === 'BRANCH_NOT_CONFIGURED' || err.code === 'HR_DIRECTORY_UNAVAILABLE' || err.code === 'HR_DIRECTORY_SCHEMA_INVALID') {
     console.warn(`[${context}] ${err.detail || err.message}`);
     return res.status(err.statusCode || 503).json({ error: err.message, code: err.code });
   }
@@ -293,6 +294,28 @@ router.post('/api/hr/telegram/link-code/assign', ...authManager, async (req, res
     res.status(201).json({ code: link.link_code, expiresAt: link.expires_at, web_username });
   } catch (err) {
     handleError(res, err, 'POST /api/hr/telegram/link-code/assign');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/hr/employees — danh sach nhan su (ten, bo phan, sdt, email) cua co so dang xem
+// ---------------------------------------------------------------------------
+
+router.get('/api/hr/employees', ...authInternal, async (req, res) => {
+  try {
+    const snapshot = await employeeDirectory.getSnapshot();
+    const employees = snapshot.employees
+      .filter(employee => employee.sourceBranch === req.branch)
+      .map(employee => ({
+        hoTen: employee.hoTen,
+        boPhan: employee.boPhan,
+        soDienThoai: employee.soDienThoai,
+        email: employee.email
+      }))
+      .sort((a, b) => a.hoTen.localeCompare(b.hoTen, 'vi'));
+    res.status(200).json({ employees, stale: !!snapshot.stale });
+  } catch (err) {
+    handleError(res, err, 'GET /api/hr/employees');
   }
 });
 

@@ -117,6 +117,34 @@ test('readAll bỏ hàng trống (mọi cột rỗng)', async () => {
   }
 });
 
+test('readAll đọc đúng theo TÊN cột kể cả khi cột bị xóa/đảo vị trí trên sheet thật (bug 2026-09-14: tab SG mất cột "Xác nhận đã giao/khách ký nhận", lệch hết cột phía sau)', async () => {
+  const SHIFTED_HEADERS_MISSING_DELIVERY_CONFIRMED = [
+    'Mã đơn hàng', 'Nhân Viên Bán Hàng', 'Khách hàng', 'Sale gửi đơn cho kế toán', 'Kế toán duyệt',
+    'Lái Xe', 'Tài xế gửi xác nhận giao hàng', 'Kế toán duyệt giao hàng',
+    'Ship nhận đơn', 'Đơn đã ký nhận'
+  ];
+  const ctx = freshRepository({
+    sg: [
+      SHIFTED_HEADERS_MISSING_DELIVERY_CONFIRMED,
+      ['HD000005', 'Dương', 'ANH PHONG HÀ ĐÔNG', '14/09/2026 15:22', '14/09/2026 15:22',
+        'Tuấn Anh', '14/09/2026 15:20', '14/09/2026 15:21', '', '16/09/2026 15:21']
+    ]
+  });
+  try {
+    const rows = await ctx.repo.readAll();
+    assert.equal(rows.length, 1);
+    const row = rows[0];
+    assert.equal(row.orderCode, 'HD000005');
+    assert.equal(row.accountantApprovedOrderAt, '14/09/2026 15:22'); // alias "Kế toán duyệt"
+    assert.equal(row.accountantApprovedDeliveryAt, '14/09/2026 15:21');
+    assert.equal(row.deliveryConfirmedAt, ''); // cột đã bị xóa khỏi sheet -> rỗng, không đọc nhầm cột khác
+    assert.equal(row.shipReceivedAt, ''); // cột "Ship nhận đơn" đúng vị trí thật, không bị lệch
+    assert.equal(row.orderSignedAt, '16/09/2026 15:21'); // "Đơn đã ký nhận" đọc đúng dù đã dịch trái 1 cột
+  } finally {
+    ctx.restore();
+  }
+});
+
 test('readAll trả mảng rỗng khi tab không có dữ liệu (chỉ header hoặc trống hẳn)', async () => {
   const ctx = freshRepository({ hn: [HEADERS], sg: [] });
   try {

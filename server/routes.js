@@ -19,7 +19,7 @@ const { requireAuth, requireRole } = require('./auth/authMiddleware');
 const { resolveBranch, resolveBranchOptional } = require('./branch/branchMiddleware');
 const { BRANCHES } = require('./branch/branches');
 const branchRoutes = require('./branch/branchRoutes');
-const { INTERNAL_ROLES } = require('./auth/userRepository');
+const { INTERNAL_ROLES, ROLES } = require('./auth/userRepository');
 const { lookupInvoiceStatuses } = require('./shipment/invoiceStatusService');
 const shipmentOrderRoutes    = require('./shipment/shipmentOrderRoutes');
 const orderLifecycleRoutes   = require('./shipment/orderLifecycleRoutes');
@@ -28,6 +28,7 @@ const notificationRoutes     = require('./notifications/notificationRoutes');
 const roleChangeRequestRoutes = require('./auth/roleChangeRequestRoutes');
 const stockoutCheckRoutes    = require('./dashboard/stockoutCheck/stockoutCheckRoutes');
 const kiotvietWebhookRoutes  = require('./kiotviet/kiotvietWebhookRoutes');
+const kiotvietSyncStatusRoutes = require('./kiotvietSync/kiotvietSyncStatusRoutes');
 
 router.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
@@ -92,6 +93,10 @@ router.use(notificationRoutes);
 
 // Yeu cau doi vai tro tu than — /api/role-requests/* — Quan ly duyet/tu choi.
 router.use(roleChangeRequestRoutes);
+
+// Trang thai sync chi danh cho Quan ly; route tu fail-soft 503 neu chua co DB.
+router.use('/api/internal/kiotviet-sync/status', requireAuth, requireRole(ROLES.QUAN_LY));
+router.use(kiotvietSyncStatusRoutes);
 
 // Toan bo API "Bao cao tong hop" ben duoi day chi danh cho 4 vai tro noi bo;
 // Khach chi duoc dung route tra cuu van chuyen o tren. Day la ranh gioi bao mat,

@@ -61,6 +61,7 @@ test.beforeEach(() => {
   service.findOrdersBulk = async () => ([{ code: 'HD001', found: true }]);
   service.exportOrdersByCodes = async () => ([{ orderCode: 'HD001', branch: 'HN', summary: { label: 'Đã giao' } }]);
   service.overrideStatus = async () => ({ orderCode: 'HD001', branch: 'HN', summary: { code: 'CANCELLED', isOverride: true } });
+  service.listHistory = async () => ([{ historyId: 'OVR-1', orderCode: 'HD001', statusCode: 'CANCELLED' }]);
 });
 
 test('GET /api/shipment/lifecycle/:orderCode — Khách gọi được (200)', async () => {
@@ -112,6 +113,39 @@ for (const role of OUTSIDER_ROLES) {
     assert.equal(res.statusCode, 403);
   });
 }
+
+test('GET /api/shipment/lifecycle/history — Khách bị 403', async () => {
+  const req = reqAs('Khách');
+  const res = fakeRes();
+  await callRoute('get', '/history', req, res);
+  assert.equal(res.statusCode, 403);
+});
+
+for (const role of INTERNAL_ROLES) {
+  test(`GET /api/shipment/lifecycle/history — ${role} gọi được (200)`, async () => {
+    const req = reqAs(role);
+    const res = fakeRes();
+    await callRoute('get', '/history', req, res);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body.history, [{ historyId: 'OVR-1', orderCode: 'HD001', statusCode: 'CANCELLED' }]);
+  });
+}
+
+for (const role of OUTSIDER_ROLES) {
+  test(`GET /api/shipment/lifecycle/history — ${role} bị 403`, async () => {
+    const req = reqAs(role);
+    const res = fakeRes();
+    await callRoute('get', '/history', req, res);
+    assert.equal(res.statusCode, 403);
+  });
+}
+
+test('GET /api/shipment/lifecycle/history KHÔNG bị route /:orderCode nuốt mất (không lẫn với tra cứu mã đơn "history")', async () => {
+  const req = reqAs('Quản lý');
+  const res = fakeRes();
+  await callRoute('get', '/history', req, res);
+  assert.deepEqual(Object.keys(res.body), ['history']);
+});
 
 test('GET /api/shipment/lifecycle?branch=XX không hợp lệ -> 400', async () => {
   const req = reqAs('Quản lý', {}, { branch: 'XX' });

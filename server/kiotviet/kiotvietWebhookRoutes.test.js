@@ -2,37 +2,54 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const router = require('./kiotvietWebhookRoutes');
+const { createKiotVietWebhookRouter, createWebhookJsonErrorHandler } = require('./kiotvietWebhookRoutes');
 
-function fakeRes() {
-  const res = { statusCode: null, body: null };
-  res.status = (code) => { res.statusCode = code; return res; };
-  res.json = (payload) => { res.body = payload; return res; };
+function handlerFor(router) {
+  const layer = router.stack.find((item) => item.route?.path === '/api/kiotviet/webhook');
+  return layer.route.stack.at(-1).handle;
+}
+
+function fakeRes(events) {
+  const res = { statusCode:null, body:null };
+  res.status=(code)=>(res.statusCode=code,res);
+  res.json=(body)=>(events.push('response'),res.body=body,res);
   return res;
 }
 
-function getRouteHandler(method, routePath) {
-  const layer = router.stack.find((item) => item.route && item.route.path === routePath && item.route.methods[method]);
-  return layer.route.stack[layer.route.stack.length - 1].handle;
-}
-
-test('POST /api/kiotviet/webhook: tra 200 ngay lap tuc voi bat ky body nao', () => {
-  const handler = getRouteHandler('post', '/api/kiotviet/webhook');
-  const req = { body: { anything: 'khong quan trong o stub nay' } };
-  const res = fakeRes();
-
-  handler(req, res);
-
-  assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body, { received: true });
+test('webhook responds 200 before handing parsed payload to background queue', () => {
+  const events=[];
+  const router=createKiotVietWebhookRouter({enabled:true,enqueue:(payload)=>events.push(['enqueue',payload])});
+  const res=fakeRes(events);
+  handlerFor(router)({body:{sample:true}},res);
+  assert.equal(res.statusCode,200);
+  assert.deepEqual(events,['response',['enqueue',{sample:true}]]);
 });
 
-test('POST /api/kiotviet/webhook: tra 200 ke ca khi body rong', () => {
-  const handler = getRouteHandler('post', '/api/kiotviet/webhook');
-  const req = { body: undefined };
-  const res = fakeRes();
+test('webhook still responds 200 and queues an unparsed body for safe capture', () => {
+  const queued=[];
+  const router=createKiotVietWebhookRouter({enabled:true,enqueue:(payload)=>queued.push(payload)});
+  const res=fakeRes([]);
+  handlerFor(router)({body:'{not-json'},res);
+  assert.equal(res.statusCode,200);
+  assert.deepEqual(queued,['{not-json']);
+});
 
-  handler(req, res);
+test('disabled sync acknowledges webhook without touching the queue', () => {
+  let touched=false;
+  const router=createKiotVietWebhookRouter({enabled:false,enqueue:()=>{touched=true;}});
+  const res=fakeRes([]);
+  handlerFor(router)({body:{sample:true}},res);
+  assert.equal(res.statusCode,200);
+  assert.equal(touched,false);
+});
 
-  assert.equal(res.statusCode, 200);
+test('malformed application/json is acknowledged and queued by the JSON error boundary', () => {
+  const queued=[];
+  const events=[];
+  const handler=createWebhookJsonErrorHandler({enabled:true,enqueue:(body)=>queued.push(body)});
+  const res=fakeRes(events);
+  handler(new SyntaxError('Unexpected token'),{originalUrl:'/api/kiotviet/webhook',kiotvietRawBody:'{bad'},res,()=>events.push('next'));
+  assert.equal(res.statusCode,200);
+  assert.deepEqual(queued,['{bad']);
+  assert.deepEqual(events,['response']);
 });

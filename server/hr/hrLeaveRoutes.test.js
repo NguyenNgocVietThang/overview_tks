@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const repo = require('./hrLeaveRepository');
+const employeeDirectory = require('./employeeDirectory');
 const router = require('./hrLeaveRoutes');
 
 function fakeRes() {
@@ -106,6 +107,32 @@ test('PATCH status phát sự kiện LEAVE_STATUS_CHANGED qua hrLeaveEvents', as
   } finally {
     leaveEvents.removeListener('leave-event', onEvent);
     repo.updateLeaveRequestStatus = originalUpdate;
+  }
+});
+
+test('GET /api/hr/employees trả về nhân sự đúng cơ sở, đã lọc cột nhạy cảm', async () => {
+  const originalGetSnapshot = employeeDirectory.getSnapshot;
+  employeeDirectory.getSnapshot = async () => ({
+    employees: [
+      { sourceBranch: 'Hà Nội', hoTen: 'Nguyễn Văn B', boPhan: 'SALE', soDienThoai: '0900000001', email: 'b@x.com', telegramId: '123' },
+      { sourceBranch: 'Hà Nội', hoTen: 'Nguyễn Văn A', boPhan: 'KHO', soDienThoai: '0900000002', email: 'a@x.com', telegramId: '456' },
+      { sourceBranch: 'Sài Gòn', hoTen: 'Trần Thị C', boPhan: 'TRỢ LÝ', soDienThoai: '0900000003', email: 'c@x.com', telegramId: '789' }
+    ],
+    stale: false
+  });
+  try {
+    const handler = getRouteHandler('get', '/api/hr/employees');
+    const req = { branch: 'Hà Nội' };
+    const res = fakeRes();
+    await handler(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.employees.length, 2);
+    assert.equal(res.body.employees[0].hoTen, 'Nguyễn Văn A');
+    assert.equal(res.body.employees[1].hoTen, 'Nguyễn Văn B');
+    assert.deepEqual(Object.keys(res.body.employees[0]).sort(), ['boPhan', 'email', 'hoTen', 'soDienThoai']);
+  } finally {
+    employeeDirectory.getSnapshot = originalGetSnapshot;
   }
 });
 

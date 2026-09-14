@@ -22,7 +22,8 @@ const EXPECTED_TABLES = [
   'returns',
   'staff',
   'suppliers',
-  'sync_checkpoints'
+  'sync_checkpoints',
+  'webhook_events_raw'
 ];
 
 const EXPECTED_INTEGER_COLUMNS = [

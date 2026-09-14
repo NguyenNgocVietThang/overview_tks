@@ -1,27 +1,35 @@
-// ==========================================
-// KIOTVIET WEBHOOK ROUTES — endpoint nhan Webhook tu KiotViet (Giai doan 0).
-//
-// Mount trong server/routes.js:
-//   const kiotvietWebhookRoutes = require('./kiotviet/kiotvietWebhookRoutes');
-//   router.use(kiotvietWebhookRoutes);
-//
-// STUB TAM THOI (Giai doan 0): chi tra HTTP 200 ngay lap tuc, KHONG xac dinh
-// gian hang, KHONG ghi Postgres, KHONG queue xu ly nen. Muc dich duy nhat la
-// co san 1 URL public de dang ky Webhook tren KiotViet ngay bay gio, tranh
-// phai cho toi khi engine that duoc code o Giai doan 2. Giai doan 2 se thay
-// logic that vao route nay — xem
-// docs/04-planning/2026-09-14-roadmap-supabase-kiotviet-sync.md muc 5.
-//
-// Khong dung requireAuth/resolveBranch o day: nguoi goi la KiotViet, khong
-// phai nguoi dung da dang nhap, khong co cookie/session.
-// ==========================================
 'use strict';
 
 const express = require('express');
-const router = express.Router();
+const CONFIG = require('../config');
+const { createWebhookEventQueue } = require('./webhookEventQueue');
+const defaultQueue = createWebhookEventQueue();
 
-router.post('/api/kiotviet/webhook', (req, res) => {
-  res.status(200).json({ received: true });
-});
+function createKiotVietWebhookRouter({ enabled = CONFIG.KIOTVIET_SYNC_ENABLED, enqueue } = {}) {
+  const router = express.Router();
+  const push = enqueue || defaultQueue.enqueue;
+  router.post('/api/kiotviet/webhook', (req, res) => {
+    res.status(200).json({ received: true });
+    if (enabled) push(req.body);
+  });
+  return router;
+}
 
+function captureWebhookRawBody(req, _res, buffer) {
+  if (req.originalUrl === '/api/kiotviet/webhook') req.kiotvietRawBody = buffer.toString('utf8');
+}
+
+function createWebhookJsonErrorHandler({ enabled = CONFIG.KIOTVIET_SYNC_ENABLED, enqueue = defaultQueue.enqueue } = {}) {
+  return function webhookJsonErrorHandler(error, req, res, next) {
+    if (!(error instanceof SyntaxError) || req.originalUrl !== '/api/kiotviet/webhook') return next(error);
+    res.status(200).json({ received: true });
+    if (enabled) enqueue(req.kiotvietRawBody || '');
+  };
+}
+
+const router = createKiotVietWebhookRouter();
 module.exports = router;
+module.exports.createKiotVietWebhookRouter = createKiotVietWebhookRouter;
+module.exports.captureWebhookRawBody = captureWebhookRawBody;
+module.exports.createWebhookJsonErrorHandler = createWebhookJsonErrorHandler;
+module.exports.webhookJsonErrorHandler = createWebhookJsonErrorHandler();

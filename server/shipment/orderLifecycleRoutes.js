@@ -81,6 +81,23 @@ router.get('/', ...authBulk, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/shipment/lifecycle/history — toan bo lich su ghi de trang thai (tab
+// "Lich su cap nhat" tren Google Sheet, nay hien thi tren web). Cung quyen voi
+// GET '/' (5 vai tro noi bo). PHAI dat TRUOC GET '/:orderCode' o duoi, neu
+// khong Express se hieu "history" la 1 ma don hang (khop truoc theo thu tu
+// dang ky) va route nay se khong bao gio duoc goi toi.
+// ---------------------------------------------------------------------------
+
+router.get('/history', ...authBulk, async (req, res) => {
+  try {
+    const history = await service.listHistory();
+    res.status(200).json({ history });
+  } catch (err) {
+    handleError(res, err, 'GET /api/shipment/lifecycle/history');
+  }
+});
+
+// ---------------------------------------------------------------------------
 // GET /api/shipment/lifecycle/:orderCode — tra cuu 1 don (Khach + noi bo)
 // ---------------------------------------------------------------------------
 
