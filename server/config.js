@@ -169,17 +169,18 @@ const CONFIG = {
   HR_TIME_ZONE: process.env.HR_TIME_ZONE || 'Asia/Bangkok',
 
   // ==========================================
-  // POSTGRES — Phase 1 (dong bo KiotViet), xem PlanDB-Phase1-Spec.md
+  // SUPABASE POSTGRES — dong bo KiotViet, xem
+  // docs/04-planning/2026-09-14-roadmap-supabase-kiotviet-sync.md
   // ==========================================
-  // Bat buoc: server/db/pool.js va server/db/migrate.js khong khoi dong duoc
-  // neu thieu, giong tinh than JWT_SECRET (ha tang loi, khong fallback im lang).
-  DATABASE_URL: required('DATABASE_URL'),
-  // Optional — mac dinh true khi production (Render Postgres managed can SSL),
-  // false khi dev local (Postgres qua Docker thuong khong bat SSL).
+  // Optional — fail-soft giong VC_SPREADSHEET_ID: engine dong bo mac dinh TAT
+  // (KIOTVIET_SYNC_ENABLED=false), thieu bien nay khong duoc lam sap server.
+  SUPABASE_DB_URL: process.env.SUPABASE_DB_URL || null,
+  // Optional — mac dinh true khi production (Supabase Postgres can SSL), false
+  // khi dev local (Postgres qua Docker thuong khong bat SSL).
   PGSSL: process.env.PGSSL ? process.env.PGSSL === 'true' : process.env.NODE_ENV === 'production',
-  // Optional — nhip dong bo invoices/orders (fast) va cac entity con lai (slow).
-  KIOTVIET_SYNC_FAST_INTERVAL_MS: Number(process.env.KIOTVIET_SYNC_FAST_INTERVAL_MS) || 90000,
-  KIOTVIET_SYNC_SLOW_INTERVAL_MS: Number(process.env.KIOTVIET_SYNC_SLOW_INTERVAL_MS) || 900000
+  // Cong tac chinh cua toan bo engine dong bo KiotViet->Supabase (webhook +
+  // polling). Mac dinh TAT tuong minh — khong co logic tu bat theo NODE_ENV.
+  KIOTVIET_SYNC_ENABLED: process.env.KIOTVIET_SYNC_ENABLED === 'true'
 };
 
 module.exports = CONFIG;

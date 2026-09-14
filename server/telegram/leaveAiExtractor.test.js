@@ -61,7 +61,6 @@ test('config parse danh sách model xKiro từ biến môi trường', () => {
       SPREADSHEET_ID: 'test-sheet',
       GOOGLE_SERVICE_ACCOUNT_JSON: '{}',
       JWT_SECRET: 'test-secret',
-      DATABASE_URL: 'postgresql://test',
       AI_LEAVE_API_MODELS: ` ${models[0]},${models[1]}, ${models[2]},${models[3]}, ${models[4]} `
     }
   });

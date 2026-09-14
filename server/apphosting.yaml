@@ -36,3 +36,11 @@ env:
     secret: KIOTVIET_CLIENT_SECRET
   - variable: KIOTVIET_RETAILER
     secret: KIOTVIET_RETAILER
+  - variable: KIOTVIET_CLIENT_ID_SG
+    secret: KIOTVIET_CLIENT_ID_SG
+  - variable: KIOTVIET_CLIENT_SECRET_SG
+    secret: KIOTVIET_CLIENT_SECRET_SG
+  - variable: KIOTVIET_RETAILER_SG
+    secret: KIOTVIET_RETAILER_SG
+  - variable: SUPABASE_DB_URL
+    secret: SUPABASE_DB_URL
