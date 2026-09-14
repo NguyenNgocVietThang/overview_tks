@@ -1,7 +1,8 @@
 // ==========================================
-// ORDER LIFECYCLE SERVICE — suy ra trang thai tom tat 5 muc tu 9 cot sheet
+// ORDER LIFECYCLE SERVICE — suy ra trang thai tom tat 6 muc tu 10 cot sheet
 // "Vong doi don hang", theo dung dac ta muc 4 cua spec:
 // docs/superpowers/specs/2026-09-04-order-lifecycle-status-lookup.md
+// (cot K "Don da ky nhan" bo sung sau ngay 2026-09-14, khong nam trong spec goc)
 // ==========================================
 'use strict';
 
@@ -20,6 +21,7 @@ const STATUS = Object.freeze({
   DELIVERING: 'DELIVERING',
   DELIVERED: 'DELIVERED',
   SHIP_RECEIVED: 'SHIP_RECEIVED',
+  SIGNED: 'SIGNED',
   // 2 trang thai CHI dat duoc qua ghi de thu cong (Quan ly/Ke toan) — khong
   // co moc thoi gian tuong ung nen computeStatus() khong bao gio tra ve.
   EXCEPTION: 'EXCEPTION',
@@ -32,11 +34,12 @@ const STATUS_LABEL = Object.freeze({
   [STATUS.DELIVERING]: 'Đơn đang được giao',
   [STATUS.DELIVERED]: 'Đơn đã giao thành công',
   [STATUS.SHIP_RECEIVED]: 'Ship đã nhận đơn',
+  [STATUS.SIGNED]: 'Đơn đã ký nhận',
   [STATUS.EXCEPTION]: 'Sự cố',
   [STATUS.CANCELLED]: 'Đã hủy'
 });
 
-// Thu tu tien do cua 5 trang thai TINH TOAN duoc (khong bao gom EXCEPTION/
+// Thu tu tien do cua 6 trang thai TINH TOAN duoc (khong bao gom EXCEPTION/
 // CANCELLED — 2 trang thai nay khong nam trong luong tien do binh thuong nen
 // khong so sanh rank duoc, luon thang tuyet doi khi da ghi de — xem
 // computeEffectiveStatus).
@@ -45,7 +48,8 @@ const STATUS_RANK = Object.freeze({
   [STATUS.SENT_TO_ACCOUNTANT]: 1,
   [STATUS.DELIVERING]: 2,
   [STATUS.DELIVERED]: 3,
-  [STATUS.SHIP_RECEIVED]: 4
+  [STATUS.SHIP_RECEIVED]: 4,
+  [STATUS.SIGNED]: 5
 });
 
 // Nhan TEN COT chinh xac (khac STATUS_LABEL la cau mo ta) — dung cho bang tra
@@ -59,6 +63,7 @@ const STATUS_COLUMN_LABEL = Object.freeze({
   [STATUS.DELIVERING]: 'Tài xế gửi xác nhận giao hàng',
   [STATUS.DELIVERED]: 'Xác nhận đã giao/khách kí nhận',
   [STATUS.SHIP_RECEIVED]: 'Ship nhận đơn',
+  [STATUS.SIGNED]: 'Đơn đã ký nhận',
   // Khong co cot moc thoi gian tuong ung (chi den tu ghi de thu cong) — dung
   // lai STATUS_LABEL lam nhan hien thi.
   [STATUS.EXCEPTION]: STATUS_LABEL[STATUS.EXCEPTION],
@@ -71,13 +76,16 @@ function hasValue(value) {
 
 /**
  * Trang thai hien tai = muc cao nhat ma cot moc tuong ung da co gia tri, xet
- * uu tien J > H > F > C — BO QUA D va G (chi theo sau C/F trong quy trinh
- * that, khong tao trang thai rieng). Cot J (Ship nhan don) la moc SAU CUNG
- * trong quy trinh (sau khi khach da ky nhan o cot H) nen luon uu tien cao
- * nhat. Edge case phong thu: D/G co gia tri nhung C/F tuong ung trong (du
+ * uu tien K > J > H > F > C — BO QUA D va G (chi theo sau C/F trong quy
+ * trinh that, khong tao trang thai rieng). Cot K (Don da ky nhan) la moc SAU
+ * CUNG trong quy trinh (sau khi ship da nhan don o cot J) nen luon uu tien
+ * cao nhat. Edge case phong thu: D/G co gia tri nhung C/F tuong ung trong (du
  * lieu bot loi) van ap dung bang nay, KHONG doc D/G.
  */
 function computeStatus(record) {
+  if (record && hasValue(record.orderSignedAt)) {
+    return { code: STATUS.SIGNED, label: STATUS_LABEL[STATUS.SIGNED], actor: null, at: record.orderSignedAt };
+  }
   if (record && hasValue(record.shipReceivedAt)) {
     return { code: STATUS.SHIP_RECEIVED, label: STATUS_LABEL[STATUS.SHIP_RECEIVED], actor: null, at: record.shipReceivedAt };
   }
@@ -111,7 +119,7 @@ function normalizeCode(value) {
  * Ap dung ghi de (neu co) len trang thai tinh toan tu moc thoi gian.
  * - Khong co override -> giu nguyen computed.
  * - Override EXCEPTION/CANCELLED -> luon thang (khong co rank de so sanh).
- * - Override la 1 trong 5 trang thai thuong -> dong vai "muc san": trang
+ * - Override la 1 trong 6 trang thai thuong -> dong vai "muc san": trang
  *   thai nao co rank cao hon thi thang, de du lieu bot tien xa hon khong bi
  *   ket o trang thai da ghi de truoc do.
  */
@@ -158,7 +166,7 @@ function latestOverrideByCode(historyRows) {
 }
 
 /**
- * Chi tiet day du 9 cot, y het 1 hang trong Google Sheet (o trong hien "—" do
+ * Chi tiet day du 10 cot, y het 1 hang trong Google Sheet (o trong hien "—" do
  * client dam nhiem hien thi, o day chi tra chuoi rong nguyen ban).
  */
 function toDetail(record) {
@@ -172,7 +180,8 @@ function toDetail(record) {
     driverConfirmedDeliveryAt: record.driverConfirmedDeliveryAt,
     accountantApprovedDeliveryAt: record.accountantApprovedDeliveryAt,
     deliveryConfirmedAt: record.deliveryConfirmedAt,
-    shipReceivedAt: record.shipReceivedAt
+    shipReceivedAt: record.shipReceivedAt,
+    orderSignedAt: record.orderSignedAt
   };
 }
 

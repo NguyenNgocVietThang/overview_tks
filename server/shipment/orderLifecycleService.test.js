@@ -65,6 +65,7 @@ function record(overrides) {
     accountantApprovedDeliveryAt: '',
     deliveryConfirmedAt: '',
     shipReceivedAt: '',
+    orderSignedAt: '',
     _branch: 'HN'
   }, overrides);
 }
@@ -147,6 +148,34 @@ test('computeStatus: cột Ship nhận đơn ưu tiên cao hơn cột H (Xác nh
       deliveryConfirmedAt: '03/09/2026 10:00', shipReceivedAt: '04/09/2026 08:00'
     }));
     assert.equal(status.code, ctx.service.STATUS.SHIP_RECEIVED);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('computeStatus: cột Đơn đã ký nhận có giá trị -> SIGNED (trạng thái cuối cùng)', () => {
+  const ctx = freshService([]);
+  try {
+    const status = ctx.service.computeStatus(record({
+      saleSentAt: '01/09/2026', driverConfirmedDeliveryAt: '02/09/2026',
+      deliveryConfirmedAt: '03/09/2026 10:00', shipReceivedAt: '04/09/2026 08:00',
+      orderSignedAt: '05/09/2026 09:00'
+    }));
+    assert.equal(status.code, ctx.service.STATUS.SIGNED);
+    assert.equal(status.label, 'Đơn đã ký nhận');
+    assert.equal(status.at, '05/09/2026 09:00');
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('computeStatus: cột Đơn đã ký nhận ưu tiên cao hơn cột Ship nhận đơn', () => {
+  const ctx = freshService([]);
+  try {
+    const status = ctx.service.computeStatus(record({
+      shipReceivedAt: '04/09/2026 08:00', orderSignedAt: '05/09/2026 09:00'
+    }));
+    assert.equal(status.code, ctx.service.STATUS.SIGNED);
   } finally {
     ctx.restore();
   }

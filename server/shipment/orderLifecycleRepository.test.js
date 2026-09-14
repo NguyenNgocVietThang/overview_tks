@@ -55,17 +55,17 @@ function freshRepository({ hn, sg, historyRows, historyClientOverrides }) {
 const HEADERS = [
   'Mã đơn hàng', 'Nhân viên bán hàng', 'Khách hàng', 'Sale gửi đơn cho kế toán', 'Kế toán duyệt đơn',
   'Lái xe', 'Tài xế gửi xác nhận giao hàng', 'Kế toán duyệt giao hàng', 'Xác nhận đã giao/khách ký nhận',
-  'Ship nhận đơn'
+  'Ship nhận đơn', 'Đơn đã ký nhận'
 ];
 
-test('SCHEMA_HEADERS/SCHEMA_FIELD_KEYS khớp đúng 10 cột theo sheet thật', () => {
+test('SCHEMA_HEADERS/SCHEMA_FIELD_KEYS khớp đúng 11 cột theo sheet thật', () => {
   const ctx = freshRepository({});
   try {
     assert.deepEqual(ctx.repo.SCHEMA_HEADERS, HEADERS);
     assert.deepEqual(ctx.repo.SCHEMA_FIELD_KEYS, [
       'orderCode', 'saleName', 'customerName', 'saleSentAt', 'accountantApprovedOrderAt',
       'driverName', 'driverConfirmedDeliveryAt', 'accountantApprovedDeliveryAt', 'deliveryConfirmedAt',
-      'shipReceivedAt'
+      'shipReceivedAt', 'orderSignedAt'
     ]);
   } finally {
     ctx.restore();
@@ -88,8 +88,8 @@ test('rowToObject ánh xạ đúng vị trí cột, thiếu cột trả rỗng',
 
 test('readAll đọc cả 2 tab, gộp lại và gắn đúng _branch', async () => {
   const ctx = freshRepository({
-    hn: [HEADERS, ['HD001', 'Sale A', 'KH A', '01/09/2026', '', '', '', '', '', '']],
-    sg: [HEADERS, ['HD002', 'Sale B', 'KH B', '02/09/2026', '', '', '', '', '', '']]
+    hn: [HEADERS, ['HD001', 'Sale A', 'KH A', '01/09/2026', '', '', '', '', '', '', '']],
+    sg: [HEADERS, ['HD002', 'Sale B', 'KH B', '02/09/2026', '', '', '', '', '', '', '']]
   });
   try {
     const rows = await ctx.repo.readAll();
@@ -105,7 +105,7 @@ test('readAll đọc cả 2 tab, gộp lại và gắn đúng _branch', async ()
 
 test('readAll bỏ hàng trống (mọi cột rỗng)', async () => {
   const ctx = freshRepository({
-    hn: [HEADERS, ['HD001', 'Sale A', 'KH A', '', '', '', '', '', '', ''], ['', '', '', '', '', '', '', '', '', '']],
+    hn: [HEADERS, ['HD001', 'Sale A', 'KH A', '', '', '', '', '', '', '', ''], ['', '', '', '', '', '', '', '', '', '', '']],
     sg: []
   });
   try {

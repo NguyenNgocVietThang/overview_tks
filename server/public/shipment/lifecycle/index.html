@@ -47,6 +47,7 @@
   .badge-delivering{ color:var(--blue); background:rgba(59,130,246,.12); border:1px solid rgba(59,130,246,.3); }
   .badge-delivered{ color:var(--green); background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.3); }
   .badge-ship-received{ color:var(--purple); background:rgba(139,92,246,.12); border:1px solid rgba(139,92,246,.3); }
+  .badge-signed{ color:#14B8A6; background:rgba(20,184,166,.12); border:1px solid rgba(20,184,166,.3); }
   .badge-exception{ color:var(--red); background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.3); }
   .badge-cancelled{ color:var(--muted); background:var(--surface-hover); border:1px dashed var(--border); }
 
@@ -87,6 +88,10 @@
   .status-select.badge-ship-received{
     background-color:rgba(139,92,246,.12); color:var(--purple); border-color:rgba(139,92,246,.4);
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238B5CF6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .status-select.badge-signed{
+    background-color:rgba(20,184,166,.12); color:#14B8A6; border-color:rgba(20,184,166,.4);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2314B8A6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   }
   .status-select.badge-exception{
     background-color:rgba(239,68,68,.12); color:var(--red); border-color:rgba(239,68,68,.4);
@@ -238,6 +243,7 @@
                 <option value="DELIVERING">Đang được giao</option>
                 <option value="DELIVERED">Đã giao thành công</option>
                 <option value="SHIP_RECEIVED">Ship đã nhận đơn</option>
+                <option value="SIGNED">Đơn đã ký nhận</option>
               </select>
               <div class="bulk-filters" id="bulkFilters">
                 <button type="button" class="bulk-filter-btn active" data-branch="">Tất cả</button>
@@ -333,7 +339,8 @@
       { key: 'driverConfirmedDeliveryAt', label: 'Tài xế gửi xác nhận giao hàng' },
       { key: 'accountantApprovedDeliveryAt', label: 'Kế toán duyệt giao hàng' },
       { key: 'deliveryConfirmedAt', label: 'Xác nhận đã giao/khách ký nhận' },
-      { key: 'shipReceivedAt', label: 'Ship nhận đơn' }
+      { key: 'shipReceivedAt', label: 'Ship nhận đơn' },
+      { key: 'orderSignedAt', label: 'Đơn đã ký nhận' }
     ];
     const STATUS_BADGE_CLASS = {
       NOT_SENT: 'badge-not-sent',
@@ -341,11 +348,12 @@
       DELIVERING: 'badge-delivering',
       DELIVERED: 'badge-delivered',
       SHIP_RECEIVED: 'badge-ship-received',
+      SIGNED: 'badge-signed',
       EXCEPTION: 'badge-exception',
       CANCELLED: 'badge-cancelled'
     };
     // Khop STATUS_LABEL o server/shipment/orderLifecycleService.js — dung de
-    // dung dropdown ghi de trang thai (7 muc, ke ca 2 muc chi dat duoc qua
+    // dung dropdown ghi de trang thai (8 muc, ke ca 2 muc chi dat duoc qua
     // ghi de thu cong: EXCEPTION/CANCELLED).
     const STATUS_OPTIONS = [
       { code: 'NOT_SENT', label: 'Đơn chưa gửi kế toán' },
@@ -353,6 +361,7 @@
       { code: 'DELIVERING', label: 'Đơn đang được giao' },
       { code: 'DELIVERED', label: 'Đơn đã giao thành công' },
       { code: 'SHIP_RECEIVED', label: 'Ship đã nhận đơn' },
+      { code: 'SIGNED', label: 'Đơn đã ký nhận' },
       { code: 'EXCEPTION', label: 'Sự cố' },
       { code: 'CANCELLED', label: 'Đã hủy' }
     ];
