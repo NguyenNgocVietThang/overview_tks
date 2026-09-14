@@ -31,13 +31,6 @@ function createContactChangeService(options = {}) {
       }
       return email;
     }
-    if (field === 'phone') {
-      const phone = localUserStore.normalizePhone(value);
-      if (!/^0[35789][0-9]{8}$/.test(phone)) {
-        throw new ContactChangeError('Số điện thoại không hợp lệ.', 'INVALID_CONTACT');
-      }
-      return phone;
-    }
     throw new ContactChangeError('Trường liên hệ không hợp lệ.', 'INVALID_CONTACT_FIELD');
   }
 
@@ -49,16 +42,13 @@ function createContactChangeService(options = {}) {
     const users = await store.getAllUsers();
     const duplicate = users.find(candidate => {
       if (String(candidate.id) === String(user.id)) return false;
-      if (field === 'email') {
-        return String(candidate.email || '').trim().toLowerCase() === value ||
-          String(candidate.username || '').trim().toLowerCase() === value;
-      }
-      return localUserStore.normalizePhone(candidate.soDienThoai || candidate.username) === value;
+      return String(candidate.email || '').trim().toLowerCase() === value ||
+        String(candidate.username || '').trim().toLowerCase() === value;
     });
     if (duplicate) throw new ContactChangeError('Thông tin liên hệ đã được sử dụng.', 'USER_EXISTS', 409);
 
     const challengeId = randomUUID();
-    const channel = field === 'email' ? 'email' : 'phone';
+    const channel = 'email';
     const key = `hr-contact:${challengeId}`;
     const sent = await otp.generateResetOtp(key, value, channel);
     if (!sent.success) {
@@ -76,7 +66,7 @@ function createContactChangeService(options = {}) {
     return {
       challengeId,
       field,
-      targetMasked: field === 'email' ? otp.maskEmail(value) : otp.maskPhone(value),
+      targetMasked: otp.maskEmail(value),
       expiresInSeconds: sent.expiresInSeconds
     };
   }
@@ -98,11 +88,9 @@ function createContactChangeService(options = {}) {
     if (!employee) throw new ContactChangeError('Không tìm thấy dòng nhân sự hiện tại.', 'HR_EMPLOYEE_NOT_FOUND', 409);
 
     await directory.updateEmployeeContact(employee, challenge.field, challenge.value);
-    const localField = challenge.field === 'email' ? 'email' : 'soDienThoai';
-    const verifiedField = challenge.field === 'email' ? 'verifiedEmail' : 'verifiedPhone';
     const updated = await store.updateUser(user.id, {
-      [localField]: challenge.value,
-      [verifiedField]: true
+      email: challenge.value,
+      verifiedEmail: true
     });
     otp.clearResetOtp(otpKey);
     challenges.delete(challenge.id);
@@ -117,18 +105,14 @@ function createContactChangeService(options = {}) {
     const users = await store.getAllUsers();
     const duplicate = users.find(candidate => {
       if (String(candidate.id) === String(user.id)) return false;
-      return field === 'email'
-        ? String(candidate.email || candidate.username || '').trim().toLowerCase() === value
-        : localUserStore.normalizePhone(candidate.soDienThoai || candidate.username) === value;
+      return String(candidate.email || candidate.username || '').trim().toLowerCase() === value;
     });
     if (duplicate) throw new ContactChangeError('Thông tin liên hệ đã được sử dụng.', 'USER_EXISTS', 409);
     const snapshot = await directory.getSnapshot({ forceRefresh: true });
     const employee = findEmployeeByIdentifier(snapshot.employees, { email: user.email, phone: user.soDienThoai });
     if (!employee) throw new ContactChangeError('Không tìm thấy dòng nhân sự hiện tại.', 'HR_EMPLOYEE_NOT_FOUND', 409);
     await directory.updateEmployeeContact(employee, field, value);
-    const localField = field === 'email' ? 'email' : 'soDienThoai';
-    const verifiedField = field === 'email' ? 'verifiedEmail' : 'verifiedPhone';
-    return store.updateUser(user.id, { [localField]: value, [verifiedField]: true });
+    return store.updateUser(user.id, { email: value, verifiedEmail: true });
   }
 
   return { beginChange, confirmChange, adminChange };

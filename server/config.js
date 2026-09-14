@@ -46,9 +46,9 @@ const CONFIG = {
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || null,
 
   // ==========================================
-  // GUI OTP QUEN MAT KHAU — Email (Gmail SMTP) + SMS (SpeedSMS)
-  // Ca hai deu OPTIONAL: thieu bien nao thi kenh do tu dong fallback ve
-  // console.log (che do dev), KHONG lam sap server. Xem server/notifications/.
+  // GUI OTP QUEN MAT KHAU — Email (Gmail SMTP)
+  // OPTIONAL: thieu bien nao thi tu dong fallback ve console.log (che do dev),
+  // KHONG lam sap server. Xem server/notifications/.
   // ==========================================
   // Gmail SMTP: bat 2FA cho tai khoan Gmail dung de gui, roi tao "App
   // Password" 16 ky tu tai https://myaccount.google.com/apppasswords —
@@ -58,15 +58,6 @@ const CONFIG = {
   SMTP_USER: process.env.SMTP_USER || null,
   SMTP_APP_PASSWORD: process.env.SMTP_APP_PASSWORD || null,
   SMTP_FROM_NAME: process.env.SMTP_FROM_NAME || 'TOKOSI Dashboard',
-
-  // SpeedSMS (speedsms.vn): lay Access Token trong trang "Thong tin tai
-  // khoan". SPEEDSMS_SENDER tuy chon (brandname da dang ky) — de trong se
-  // gui bang dau so mac dinh cua tai khoan.
-  SPEEDSMS_ACCESS_TOKEN: process.env.SPEEDSMS_ACCESS_TOKEN || null,
-  SPEEDSMS_SENDER: process.env.SPEEDSMS_SENDER || null,
-  // sms_type cua SpeedSMS: 4 = "Notify" mac dinh (khong can dang ky brandname,
-  // phu hop OTP). Doi sang 3 + SPEEDSMS_SENDER neu tai khoan da co brandname rieng.
-  SPEEDSMS_SMS_TYPE: Number(process.env.SPEEDSMS_SMS_TYPE) || 4,
 
   // ==========================================
   // QUAN LY VAN CHUYEN — Spreadsheet rieng (VC_*) va Google Drive luu anh
@@ -84,7 +75,12 @@ const CONFIG = {
   // ==========================================
   // VONG DOI DON HANG — spreadsheet RIENG do Bot Telegram + Apps Script NGOAI
   // REPO NAY ghi truc tiep (2 tab DonHang_HN/DonHang_SG trong CUNG 1
-  // spreadsheet — khac pattern "1 spreadsheet/co so" o tren). Server CHI DOC.
+  // spreadsheet — khac pattern "1 spreadsheet/co so" o tren). Server CHI DOC
+  // 2 tab do (xem orderLifecycleSheetsClient.js, scope readonly).
+  // Tab "Lich su cap nhat" (ORDER_LIFECYCLE_SHEET_HISTORY) la NGOAI LE: do
+  // server tu tao/ghi (ghi de trang thai thu cong cua Quan ly/Ke toan), dung
+  // client rieng orderLifecycleHistoryClient.js voi scope ghi day du — service
+  // account can duoc cap quyen Editor (khong chi Viewer) tren spreadsheet nay.
   // Xem docs/superpowers/specs/2026-09-04-order-lifecycle-status-lookup.md
   // ==========================================
   // Optional — fail-soft giong VC_SPREADSHEET_ID: thieu bien nay thi tinh
@@ -92,6 +88,7 @@ const CONFIG = {
   ORDER_LIFECYCLE_SPREADSHEET_ID: process.env.ORDER_LIFECYCLE_SPREADSHEET_ID || null,
   ORDER_LIFECYCLE_SHEET_HN: 'DonHang_HN',
   ORDER_LIFECYCLE_SHEET_SG: 'DonHang_SG',
+  ORDER_LIFECYCLE_SHEET_HISTORY: 'Lịch sử cập nhật',
 
   // Ten 6 tab trong Spreadsheet van chuyen rieng (Tieng Viet truc quan, de su dung).
   VC_SHEET_ORDERS: 'Đơn vận chuyển',

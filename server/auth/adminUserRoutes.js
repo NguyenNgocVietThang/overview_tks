@@ -13,6 +13,7 @@ const { normalizePhone, INTERNAL_ROLES } = require('./userRepository');
 const notificationRepo = require('../notifications/notificationRepository');
 const { normalizeCoSo, BRANCH_VALUES } = require('../branch/branches');
 const contactChangeService = require('./contactChangeService');
+const employeeDirectory = require('../hr/employeeDirectory');
 
 const router = express.Router();
 
@@ -214,6 +215,8 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
       updates.coSo = coSo;
     }
 
+    let hrRoleToSync = null;
+
     if (req.body.vaiTro !== undefined) {
       const vaiTro = String(req.body.vaiTro).trim();
       if (!VALID_ROLES.includes(vaiTro)) {
@@ -230,6 +233,14 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
         return res.status(400).json({ error: 'Không thể hạ quyền của tài khoản Quản trị viên hệ thống mặc định.' });
       }
       updates.vaiTro = vaiTro;
+      // Tài khoản đồng bộ HR: resolveUser() luôn tính lại vaiTro từ Danh sách nhân sự
+      // trừ khi có vaiTroOverride — nếu không set override ở đây, thay đổi này sẽ
+      // bị ghi đè lại ngay ở lần requireAuth kế tiếp của user đó.
+      if (targetUser.hrManaged) {
+        updates.vaiTroOverride = vaiTro;
+        updates.roleSource = 'override';
+        hrRoleToSync = vaiTro;
+      }
     }
 
     if (req.body.vaiTroOverride !== undefined) {
@@ -249,6 +260,7 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
       updates.vaiTroOverride = vaiTroOverride;
       updates.vaiTro = vaiTroOverride || targetUser.sheetVaiTro || ROLES.KHACH;
       updates.roleSource = vaiTroOverride ? 'override' : 'sheet';
+      hrRoleToSync = vaiTroOverride || null;
     }
 
     if (req.body.coSoOverride !== undefined) {
@@ -287,6 +299,15 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
     }
 
     const updated = await localUserStore.updateUser(targetId, updates);
+
+    if (hrRoleToSync && targetUser.hrSourceBranch && targetUser.hrRowIndex) {
+      try {
+        await employeeDirectory.writeDepartmentForRole(targetUser.hrSourceBranch, targetUser.hrRowIndex, hrRoleToSync);
+      } catch (syncErr) {
+        console.error('=== LOI dong bo BO PHAN len Danh sach nhan su ===', syncErr);
+      }
+    }
+
     res.status(200).json({ user: publicAdminUser(updated) });
   } catch (err) {
     if (err && err.code === 'USER_EXISTS') {

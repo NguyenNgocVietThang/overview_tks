@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 const fs = require('fs');
 const localUserStore = require('./localUserStore');
+const employeeDirectory = require('../hr/employeeDirectory');
 const adminUserRoutes = require('./adminUserRoutes');
 
 const testDbPath = path.join(os.tmpdir(), `test-users-${Date.now()}.json`);
@@ -102,6 +103,61 @@ test('Admin User Management: sets and independently clears HR role and branch ov
   assert.equal(res.body.user.coSo, 'Cả hai');
   assert.equal(res.body.user.vaiTroOverride, '');
   assert.equal(res.body.user.coSoOverride, '');
+});
+
+test('Admin User Management: editing vaiTro directly on an hrManaged user makes it sticky via override and syncs the sheet', async () => {
+  localUserStore.setInMemoryUsers([{
+    id: 'u1', username: 'a@example.com', hoTen: 'A', email: 'a@example.com',
+    vaiTro: 'Kế toán', coSo: 'Cả hai', trangThai: 'Đang hoạt động', hrManaged: true,
+    sheetVaiTro: 'Kế toán', sheetCoSo: 'Cả hai', hrSourceBranch: 'Hà Nội', hrRowIndex: 5
+  }]);
+
+  const originalWrite = employeeDirectory.writeDepartmentForRole;
+  const calls = [];
+  employeeDirectory.writeDepartmentForRole = async (branch, rowIndex, role) => {
+    calls.push({ branch, rowIndex, role });
+    return true;
+  };
+  try {
+    const handler = getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id');
+    const res = fakeRes();
+    await handler({
+      user: { id: 'admin', username: 'admin', vaiTro: 'Quản lý' }, params: { id: 'u1' },
+      body: { vaiTro: 'Trợ lý' }
+    }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.user.vaiTro, 'Trợ lý');
+    // Vai trò phải "dính" qua override, không để resolveUser() tính lại từ sheet ở lần sau.
+    assert.equal(res.body.user.roleSource, 'override');
+    assert.deepEqual(calls, [{ branch: 'Hà Nội', rowIndex: 5, role: 'Trợ lý' }]);
+  } finally {
+    employeeDirectory.writeDepartmentForRole = originalWrite;
+  }
+});
+
+test('Admin User Management: PUT still succeeds even if the best-effort sheet sync fails', async () => {
+  localUserStore.setInMemoryUsers([{
+    id: 'u1', username: 'a@example.com', hoTen: 'A', email: 'a@example.com',
+    vaiTro: 'Kế toán', coSo: 'Cả hai', trangThai: 'Đang hoạt động', hrManaged: true,
+    sheetVaiTro: 'Kế toán', sheetCoSo: 'Cả hai', hrSourceBranch: 'Hà Nội', hrRowIndex: 5
+  }]);
+
+  const originalWrite = employeeDirectory.writeDepartmentForRole;
+  employeeDirectory.writeDepartmentForRole = async () => { throw new Error('sheet unreachable'); };
+  try {
+    const handler = getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id');
+    const res = fakeRes();
+    await handler({
+      user: { id: 'admin', username: 'admin', vaiTro: 'Quản lý' }, params: { id: 'u1' },
+      body: { vaiTro: 'Trợ lý' }
+    }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.user.vaiTro, 'Trợ lý');
+  } finally {
+    employeeDirectory.writeDepartmentForRole = originalWrite;
+  }
 });
 
 test('Admin User Management: POST /api/admin/users tạo user mới hợp lệ', async () => {

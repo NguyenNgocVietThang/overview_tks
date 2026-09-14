@@ -130,9 +130,7 @@ function fakeChannelsForIdentifier(identifier) {
 
 const FAKE_CHANNEL_LABELS = {
   email: 'Email chính',
-  recovery_email: 'Email khôi phục',
-  phone: 'Số điện thoại',
-  recovery_phone: 'Số điện thoại khôi phục'
+  recovery_email: 'Email khôi phục'
 };
 
 function fakeSendOtpResponse(identifier, channelType) {
@@ -830,7 +828,6 @@ router.post('/api/auth/recovery', requireAuth, async (req, res) => {
     const matKhauXacNhan = String((req.body && req.body.matKhauXacNhan) || '');
     const soDienThoai = String((req.body && req.body.soDienThoai) || '').trim();
     const emailKhoiPhuc = String((req.body && req.body.emailKhoiPhuc) || '').trim().toLowerCase();
-    const sdtKhoiPhuc = String((req.body && req.body.sdtKhoiPhuc) || '').trim();
 
     // Neu tai khoan co mat khau -> bat buoc xac thuc mat khau
     if (current.passwordHash) {
@@ -865,19 +862,7 @@ router.post('/api/auth/recovery', requireAuth, async (req, res) => {
       }
     }
 
-    // Validate SDT khoi phuc
-    let normRecoveryPhone = '';
-    if (sdtKhoiPhuc) {
-      normRecoveryPhone = normalizePhone(sdtKhoiPhuc);
-      if (!/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(normRecoveryPhone) && !/^[0-9]{10}$/.test(normRecoveryPhone)) {
-        return res.status(400).json({ error: 'Số điện thoại khôi phục không hợp lệ (yêu cầu 10 số).' });
-      }
-    }
-
-    const updates = {
-      emailKhoiPhuc,
-      sdtKhoiPhuc: normRecoveryPhone
-    };
+    const updates = { emailKhoiPhuc };
     if (hasPhoneInBody) {
       updates.soDienThoai = normPhone;
     }

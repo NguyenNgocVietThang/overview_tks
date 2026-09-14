@@ -100,8 +100,6 @@ function freshAuthRoutes({
 
   const emailSender = require('../notifications/emailSender');
   emailSender.isConfigured = () => false;
-  const smsSender = require('../notifications/smsSender');
-  smsSender.isConfigured = () => false;
 
   return require('./authRoutes');
 }

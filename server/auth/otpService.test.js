@@ -4,7 +4,6 @@ const assert = require('node:assert/strict');
 const emailSender = require('../notifications/emailSender');
 const {
   maskEmail,
-  maskPhone,
   getAvailableChannels,
   generateResetOtp,
   verifyResetOtp,
@@ -22,14 +21,6 @@ test('otpService: maskEmail che mo dung dinh dang', () => {
   assert.equal(maskEmail(null), '');
 });
 
-test('otpService: maskPhone che mo dung dinh dang', () => {
-  assert.equal(maskPhone('0912345678'), '09****678');
-  assert.equal(maskPhone('+84912345678'), '+8****678');
-  assert.equal(maskPhone('123'), '123');
-  assert.equal(maskPhone(''), '');
-  assert.equal(maskPhone(null), '');
-});
-
 test('otpService: getAvailableChannels tra ve day du cac kenh cua user', () => {
   const user = {
     username: 'testuser',
@@ -39,11 +30,9 @@ test('otpService: getAvailableChannels tra ve day du cac kenh cua user', () => {
     sdtKhoiPhuc: '0987654321'
   };
   const channels = getAvailableChannels(user);
-  assert.equal(channels.length, 4);
+  assert.equal(channels.length, 2);
   assert.equal(channels[0].channel, 'email');
   assert.equal(channels[1].channel, 'recovery_email');
-  assert.equal(channels[2].channel, 'phone');
-  assert.equal(channels[3].channel, 'recovery_phone');
 });
 
 test('otpService: sinh ma OTP, kiem tra dung ma va xoa ma', async () => {

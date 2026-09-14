@@ -5,7 +5,6 @@
 // ==========================================
 const crypto = require('crypto');
 const emailSender = require('../notifications/emailSender');
-const smsSender = require('../notifications/smsSender');
 
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 phút
 const MAX_OTP_ATTEMPTS = 5;
@@ -32,18 +31,6 @@ function maskEmail(email) {
   const start = user.slice(0, 2);
   const end = user.slice(-1);
   return `${start}***${end}@${domain}`;
-}
-
-/**
- * Che mờ số điện thoại để bảo mật khi hiển thị (vd: 0912345678 -> 09****5678).
- */
-function maskPhone(phone) {
-  if (!phone || typeof phone !== 'string') return '';
-  const clean = phone.trim().replace(/\s+/g, '');
-  if (clean.length < 6) return clean;
-  const start = clean.slice(0, 2);
-  const end = clean.slice(-3);
-  return `${start}****${end}`;
 }
 
 /**
@@ -74,49 +61,27 @@ function getAvailableChannels(user) {
     });
   }
 
-  // 3. Số điện thoại chính
-  if (user.soDienThoai && user.soDienThoai.trim()) {
-    channels.push({
-      channel: 'phone',
-      label: 'Số điện thoại',
-      targetMasked: maskPhone(user.soDienThoai),
-      targetRaw: user.soDienThoai.trim()
-    });
-  }
-
-  // 4. Số điện thoại khôi phục
-  if (user.sdtKhoiPhuc && user.sdtKhoiPhuc.trim() &&
-      normalize(user.sdtKhoiPhuc) !== normalize(user.soDienThoai)) {
-    channels.push({
-      channel: 'recovery_phone',
-      label: 'Số điện thoại khôi phục',
-      targetMasked: maskPhone(user.sdtKhoiPhuc),
-      targetRaw: user.sdtKhoiPhuc.trim()
-    });
-  }
-
   return channels;
 }
 
 /**
- * Gửi mã OTP THẬT qua Email (Gmail SMTP) hoặc SMS (SpeedSMS). Nếu kênh
- * tương ứng CHƯA được cấu hình (thiếu biến môi trường), fallback về
- * console.log — chỉ dùng cho dev/test local, KHÔNG áp dụng ở production
- * (production luôn set SMTP_USER/SPEEDSMS_ACCESS_TOKEN).
+ * Gửi mã OTP THẬT qua Email (Gmail SMTP). Nếu CHƯA được cấu hình (thiếu
+ * SMTP_USER/SMTP_APP_PASSWORD) và không phải production, fallback về
+ * console.log — chỉ dùng cho dev/test local. Ở production mà chưa cấu hình,
+ * báo lỗi thật thay vì âm thầm coi như đã gửi thành công.
  */
 async function deliverOtp(channelType, targetRaw, code, expiresInSeconds) {
-  const isEmailChannel = channelType.includes('email');
-  const sender = isEmailChannel ? emailSender : smsSender;
-
-  if (!sender.isConfigured()) {
+  if (!emailSender.isConfigured()) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error(`[OTP] Kênh "${channelType}" chưa cấu hình gửi thật (thiếu SMTP_USER/SMTP_APP_PASSWORD) — từ chối gửi OTP.`);
+      return { ok: false, error: 'EMAIL_NOT_CONFIGURED' };
+    }
     console.log(`\n[OTP DEV] Kênh "${channelType}" chưa cấu hình gửi thật — log mã để dev/test kiểm tra.`);
     console.log(`[OTP DEV] [${channelType} -> ${targetRaw}]: [${code}] (Hạn dùng ${Math.round(expiresInSeconds / 60)} phút)\n`);
     return { ok: true };
   }
 
-  return isEmailChannel
-    ? sender.sendOtpEmail({ to: targetRaw, code, expiresInSeconds })
-    : sender.sendOtpSms({ to: targetRaw, code, expiresInSeconds });
+  return emailSender.sendOtpEmail({ to: targetRaw, code, expiresInSeconds });
 }
 
 /**
@@ -157,7 +122,7 @@ async function generateResetOtp(identifier, targetRaw, channelType) {
 
   return {
     success: true,
-    targetMasked: channelType.includes('email') ? maskEmail(targetRaw) : maskPhone(targetRaw),
+    targetMasked: maskEmail(targetRaw),
     expiresInSeconds,
     code // Trả về cho mục đích test/dev nếu cần — KHÔNG forward field này ra response API
   };
@@ -222,7 +187,6 @@ module.exports = {
   OTP_TTL_MS,
   MAX_OTP_ATTEMPTS,
   maskEmail,
-  maskPhone,
   getAvailableChannels,
   generateResetOtp,
   verifyResetOtp,

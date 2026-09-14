@@ -34,8 +34,12 @@ const ORDER_LIFECYCLE_BULK_ROLES = [
   ROLES.KE_TOAN, ROLES.TRUONG_KHO, ROLES.QUAN_LY, ROLES.TRO_LY, ROLES.NHAN_VIEN_SALE
 ];
 
+// Ghi de trang thai thu cong: CHI Quan ly va Ke toan (chat hon ca authBulk).
+const OVERRIDE_ROLES = [ROLES.QUAN_LY, ROLES.KE_TOAN];
+
 const authLookup = [requireAuth, requireRole(...ORDER_LOOKUP_ROLES)];
 const authBulk = [requireAuth, requireRole(...ORDER_LIFECYCLE_BULK_ROLES)];
+const authOverride = [requireAuth, requireRole(...OVERRIDE_ROLES)];
 
 function handleError(res, err, context) {
   if (err.statusCode && err.statusCode < 500) {
@@ -86,6 +90,29 @@ router.get('/:orderCode', ...authLookup, async (req, res) => {
     res.status(200).json(result);
   } catch (err) {
     handleError(res, err, 'GET /api/shipment/lifecycle/:orderCode');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/shipment/lifecycle/:orderCode/override — ghi de trang thai thu
+// cong (chi Quan ly/Ke toan). Ghi 1 dong vao tab "Lich su cap nhat" va tra ve
+// trang thai hieu luc moi nhat cua don.
+// ---------------------------------------------------------------------------
+
+router.post('/:orderCode/override', ...authOverride, async (req, res) => {
+  try {
+    const { status, note } = req.body || {};
+    if (!status) {
+      return res.status(400).json({ error: 'Thiếu trường "status".', code: 'INVALID_REQUEST' });
+    }
+    const changedBy = (req.user && (req.user.hoTen || req.user.username)) || 'unknown';
+    const changedByRole = (req.user && req.user.vaiTro) || '';
+    const result = await service.overrideStatus(req.params.orderCode, {
+      code: status, changedBy, changedByRole, note
+    });
+    res.status(200).json({ order: result });
+  } catch (err) {
+    handleError(res, err, 'POST /api/shipment/lifecycle/:orderCode/override');
   }
 });
 

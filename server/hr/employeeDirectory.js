@@ -15,6 +15,19 @@ const REQUIRED_HEADERS = Object.freeze({
   telegramId: 'ID TELEGRAM'
 });
 
+const DEPARTMENT_FOR_ROLE = Object.freeze({
+  [ROLES.QUAN_LY]: 'BAN QUẢN LÝ',
+  [ROLES.KE_TOAN]: 'KẾ TOÁN',
+  [ROLES.TRUONG_KHO]: 'TRƯỞNG KHO',
+  [ROLES.TRO_LY]: 'TRỢ LÝ',
+  [ROLES.LAI_XE]: 'LÁI XE',
+  [ROLES.NHAN_VIEN_KHO]: 'KHO',
+  [ROLES.NHAN_VIEN_SALE]: 'SALE',
+  [ROLES.NHAN_VIEN_MUA_HANG]: 'MUA HÀNG'
+  // ROLES.KHACH: cố ý không map — không có phòng ban duy nhất để ghi ngược lại
+  // (MARKETING/HẬU CẦN/BẢO VỆ đều suy ra Khách), nên giữ nguyên BỘ PHẬN gốc.
+});
+
 class HrDirectoryError extends Error {
   constructor(message, code, statusCode = 409) {
     super(message);
@@ -97,7 +110,8 @@ function headerIndexes(values) {
   const index = new Map((values[0] || []).map((header, position) => [normalizeText(header), position]));
   return {
     email: index.get(normalizeText(REQUIRED_HEADERS.email)),
-    phone: index.get(normalizeText(REQUIRED_HEADERS.soDienThoai))
+    phone: index.get(normalizeText(REQUIRED_HEADERS.soDienThoai)),
+    boPhan: index.get(normalizeText(REQUIRED_HEADERS.boPhan))
   };
 }
 
@@ -208,7 +222,25 @@ function createEmployeeDirectory(options = {}) {
     return findEmployeeByIdentifier(refreshed.employees, normalizedValue);
   }
 
-  return { getSnapshot, clearCache, updateEmployeeContact };
+  async function writeDepartmentForRole(sourceBranch, rowIndex, role) {
+    const department = DEPARTMENT_FOR_ROLE[role];
+    if (!department || !sourceBranch || !rowIndex) return false;
+
+    const client = getClient(sourceBranch);
+    const sheetName = CONFIG.HR_SHEET_EMPLOYEES || 'Danh sách nhân sự';
+    const values = await client.hrGetValues(sheetName);
+    const indexes = headerIndexes(values);
+    if (indexes.boPhan === undefined) {
+      throw new HrDirectoryError(`Thiếu cột "${REQUIRED_HEADERS.boPhan}" trong Danh sách nhân sự.`, 'HR_DIRECTORY_SCHEMA_INVALID', 503);
+    }
+    const row = [...(values[rowIndex - 1] || [])];
+    row[indexes.boPhan] = department;
+    await client.hrUpdateRow(sheetName, rowIndex, row);
+    clearCache();
+    return true;
+  }
+
+  return { getSnapshot, clearCache, updateEmployeeContact, writeDepartmentForRole };
 }
 
 const defaultDirectory = createEmployeeDirectory();
@@ -217,6 +249,7 @@ module.exports = {
   FRESH_TTL_MS,
   STALE_TTL_MS,
   REQUIRED_HEADERS,
+  DEPARTMENT_FOR_ROLE,
   HrDirectoryError,
   normalizeText,
   normalizeEmail,
@@ -227,5 +260,6 @@ module.exports = {
   createEmployeeDirectory,
   getSnapshot: defaultDirectory.getSnapshot,
   clearCache: defaultDirectory.clearCache,
-  updateEmployeeContact: defaultDirectory.updateEmployeeContact
+  updateEmployeeContact: defaultDirectory.updateEmployeeContact,
+  writeDepartmentForRole: defaultDirectory.writeDepartmentForRole
 };

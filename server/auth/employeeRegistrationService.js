@@ -47,9 +47,8 @@ function createEmployeeRegistrationService(options = {}) {
 
     const channels = [];
     if (employee.email) channels.push({ channel: 'email', targetMasked: otp.maskEmail(employee.email) });
-    if (employee.soDienThoai) channels.push({ channel: 'phone', targetMasked: otp.maskPhone(employee.soDienThoai) });
     if (!channels.length) {
-      throw new EmployeeRegistrationError('Dòng nhân sự chưa có email hoặc số điện thoại.', 'HR_CONTACT_MISSING', 409);
+      throw new EmployeeRegistrationError('Dòng nhân sự chưa có email.', 'HR_CONTACT_MISSING', 409);
     }
 
     const challengeId = randomUUID();
@@ -64,9 +63,7 @@ function createEmployeeRegistrationService(options = {}) {
 
   async function sendOtp(challengeId, channel) {
     const challenge = getChallenge(challengeId);
-    const target = channel === 'email'
-      ? challenge.employee.email
-      : (channel === 'phone' ? challenge.employee.soDienThoai : '');
+    const target = channel === 'email' ? challenge.employee.email : '';
     if (!target) throw new EmployeeRegistrationError('Kênh OTP không hợp lệ.', 'INVALID_OTP_CHANNEL');
     const key = `hr-register:${challenge.id}`;
     const result = await otp.generateResetOtp(key, target, channel);
@@ -83,7 +80,7 @@ function createEmployeeRegistrationService(options = {}) {
     return {
       ok: true,
       channel,
-      targetMasked: channel === 'email' ? otp.maskEmail(target) : otp.maskPhone(target),
+      targetMasked: otp.maskEmail(target),
       expiresInSeconds: result.expiresInSeconds
     };
   }
@@ -126,15 +123,12 @@ function createEmployeeRegistrationService(options = {}) {
       });
     }
 
-    const verifiedFields = challenge.selectedChannel === 'email'
-      ? { verifiedEmail: true }
-      : { verifiedPhone: true };
     user = await store.updateUser(user.id, {
       email: employee.email,
       soDienThoai: employee.soDienThoai,
       hoTen: employee.hoTen || user.hoTen || String(hoTen || '').trim(),
       passwordHash,
-      ...verifiedFields
+      verifiedEmail: true
     });
     user = await resolver.resolveUser(user);
     otp.clearResetOtp(otpKey);

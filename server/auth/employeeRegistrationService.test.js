@@ -28,7 +28,6 @@ function makeService(overrides = {}) {
   const otp = {
     OTP_TTL_MS: 300000,
     maskEmail: value => `masked:${value}`,
-    maskPhone: value => `masked:${value}`,
     generateResetOtp: async (key, target, channel) => { sent.push({ key, target, channel }); return { success: true, expiresInSeconds: 300 }; },
     verifyResetOtp: () => ({ valid: true }),
     clearResetOtp: () => {}
@@ -51,23 +50,22 @@ function makeService(overrides = {}) {
   return { service, users, sent, otp };
 }
 
-test('registration channels expose both masked HR contacts', async () => {
+test('registration channels expose masked HR email contact', async () => {
   const { service } = makeService();
   const result = await service.createChallenge('a@example.com');
   assert.equal(result.employeeMatch, true);
   assert.equal(result.challengeId, 'challenge-1');
   assert.deepEqual(result.channels, [
-    { channel: 'email', targetMasked: 'masked:a@example.com' },
-    { channel: 'phone', targetMasked: 'masked:0912345678' }
+    { channel: 'email', targetMasked: 'masked:a@example.com' }
   ]);
 });
 
 test('sendOtp only sends to a contact belonging to the challenged HR row', async () => {
   const { service, sent } = makeService();
   await service.createChallenge('a@example.com');
-  await service.sendOtp('challenge-1', 'phone');
+  await service.sendOtp('challenge-1', 'email');
   assert.deepEqual(sent[0], {
-    key: 'hr-register:challenge-1', target: '0912345678', channel: 'phone'
+    key: 'hr-register:challenge-1', target: 'a@example.com', channel: 'email'
   });
   await assert.rejects(service.sendOtp('challenge-1', 'recovery_email'), err => err.code === 'INVALID_OTP_CHANNEL');
 });
@@ -91,14 +89,14 @@ test('verified OTP attaches to an existing account instead of duplicating it', a
   const { service, users } = makeService();
   users.push({ id: 'old', username: '0912345678', soDienThoai: '0912345678', vaiTro: 'Khách' });
   await service.createChallenge('a@example.com');
-  await service.sendOtp('challenge-1', 'phone');
+  await service.sendOtp('challenge-1', 'email');
   const user = await service.verifyAndRegister({
     challengeId: 'challenge-1', otp: '123456', hoTen: 'A', password: 'Password123'
   });
   assert.equal(users.length, 1);
   assert.equal(user.id, 'old');
   assert.equal(user.email, 'a@example.com');
-  assert.equal(user.verifiedPhone, true);
+  assert.equal(user.verifiedEmail, true);
 });
 
 test('non-HR identifier remains on the existing guest registration path', async () => {

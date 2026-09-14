@@ -153,3 +153,43 @@ test('updateEmployeeContact rejects a value already used by another HR row', asy
     err => err.code === 'HR_IDENTITY_CONFLICT'
   );
 });
+
+test('writeDepartmentForRole overwrites BỘ PHẬN with the canonical department for the new role', async () => {
+  let values = [HEADERS, ['A', 'KHO', '0912345678', 'a@example.com', '']];
+  let written = null;
+  const client = {
+    hrGetValues: async () => values.map(row => [...row]),
+    hrUpdateRow: async (sheet, rowIndex, row) => { written = { sheet, rowIndex, row }; values[rowIndex - 1] = row; }
+  };
+  const directory = createEmployeeDirectory({ branches: () => ['Hà Nội'], getClient: () => client });
+
+  const result = await directory.writeDepartmentForRole('Hà Nội', 2, 'Kế toán');
+
+  assert.equal(result, true);
+  assert.deepEqual(written, {
+    sheet: 'Danh sách nhân sự', rowIndex: 2,
+    row: ['A', 'KẾ TOÁN', '0912345678', 'a@example.com', '']
+  });
+});
+
+test('writeDepartmentForRole is a no-op for the Khách role (no unique department to write back)', async () => {
+  const client = {
+    hrGetValues: async () => assert.fail('must not read sheet for Khách'),
+    hrUpdateRow: async () => assert.fail('must not write for Khách')
+  };
+  const directory = createEmployeeDirectory({ branches: () => ['Hà Nội'], getClient: () => client });
+
+  const result = await directory.writeDepartmentForRole('Hà Nội', 2, 'Khách');
+
+  assert.equal(result, false);
+});
+
+test('writeDepartmentForRole is a no-op when branch or row index is missing', async () => {
+  const directory = createEmployeeDirectory({
+    branches: () => ['Hà Nội'],
+    getClient: () => ({ hrGetValues: async () => assert.fail('must not read'), hrUpdateRow: async () => assert.fail('must not write') })
+  });
+
+  assert.equal(await directory.writeDepartmentForRole('', 2, 'Kế toán'), false);
+  assert.equal(await directory.writeDepartmentForRole('Hà Nội', 0, 'Kế toán'), false);
+});

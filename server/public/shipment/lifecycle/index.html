@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
-<link rel="stylesheet" href="/shared/shared.css?v=20260905">
+<link rel="stylesheet" href="/shared/shared.css?v=20260914">
 <style>
   .lookup-wrap{ width:100%; max-width:none; margin:0; }
   .lookup-hero{ margin-bottom:20px; }
@@ -47,6 +47,64 @@
   .badge-delivering{ color:var(--blue); background:rgba(59,130,246,.12); border:1px solid rgba(59,130,246,.3); }
   .badge-delivered{ color:var(--green); background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.3); }
   .badge-ship-received{ color:var(--purple); background:rgba(139,92,246,.12); border:1px solid rgba(139,92,246,.3); }
+  .badge-exception{ color:var(--red); background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.3); }
+  .badge-cancelled{ color:var(--muted); background:var(--surface-hover); border:1px dashed var(--border); }
+
+  /* Thanh trang thai co the sua — dung y het pattern .status-select cua
+     server/public/humanresources/index.html (khu vuc Nghi phep): mot the
+     <select> duoc "trang diem" thanh hinh vien thuoc (pill) mau theo trang
+     thai, mui ten dropdown ve rieng bang SVG data-uri (khong dung appearance
+     mac dinh cua trinh duyet) — nhin y het badge tinh, chi khac la bam vao
+     mo duoc dropdown chon truc tiep. */
+  .status-select{
+    display:inline-flex; align-items:center; padding:5px 26px 5px 12px; border-radius:8px;
+    font-family:var(--font-body); font-size:12.5px; font-weight:700; cursor:pointer;
+    border:1px solid transparent; outline:none; white-space:nowrap;
+    transition:background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, opacity .15s ease;
+    appearance:none; -webkit-appearance:none; -moz-appearance:none;
+    background-repeat:no-repeat; background-position:right 8px center; background-size:11px 11px;
+  }
+  .status-select:focus{ box-shadow:0 0 0 2px var(--blue); }
+  .status-select:disabled{ opacity:.6; cursor:not-allowed; }
+  .status-select option{ background:var(--panel); color:var(--text); font-weight:500; }
+
+  .status-select.badge-not-sent{
+    background-color:var(--surface-hover); color:var(--muted); border-color:var(--border);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .status-select.badge-sent{
+    background-color:rgba(245,158,11,.12); color:var(--amber); border-color:rgba(245,158,11,.4);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23F59E0B' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .status-select.badge-delivering{
+    background-color:rgba(59,130,246,.12); color:var(--blue); border-color:rgba(59,130,246,.4);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233B82F6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .status-select.badge-delivered{
+    background-color:rgba(16,185,129,.12); color:var(--green); border-color:rgba(16,185,129,.4);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310B981' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .status-select.badge-ship-received{
+    background-color:rgba(139,92,246,.12); color:var(--purple); border-color:rgba(139,92,246,.4);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238B5CF6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .status-select.badge-exception{
+    background-color:rgba(239,68,68,.12); color:var(--red); border-color:rgba(239,68,68,.4);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23EF4444' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .status-select.badge-cancelled{
+    background-color:var(--surface-hover); color:var(--muted); border:1px dashed var(--border);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+
+  /* Toast — dung y het pattern cua server/public/humanresources/index.html */
+  .toast-container{ position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
+  .toast{
+    min-width:280px; max-width:400px; padding:12px 18px; border-radius:var(--radius-md); font-size:13px; font-weight:600;
+    box-shadow:var(--shadow-toast); display:flex; align-items:center; gap:10px; pointer-events:auto;
+  }
+  .toast.toast-success{ background:var(--toast-success-bg); color:var(--toast-success-fg); border:1px solid var(--toast-success-border); }
+  .toast.toast-error{ background:var(--toast-error-bg); color:var(--toast-error-fg); border:1px solid var(--toast-error-border); }
 
   .bulk-panel{ padding:0; overflow:hidden; }
   .bulk-panel[hidden]{ display:none; }
@@ -227,8 +285,10 @@
     </div>
   </div>
 
+  <div class="toast-container" id="toastContainer"></div>
+
   <!-- Dat o cuoi than <body> thay vi <head>: script chan phan tich cu phap trong <head> se lam dung viec xu ly toan bo tai lieu. Khong dung `defer` vi script inline ben duoi dung TKSNav o cap cao nhat, va script inline luon chay truoc script defer. -->
-  <script src="/shared/shared-nav.js?v=20260909"></script>
+  <script src="/shared/shared-nav.js?v=20260914"></script>
 
   <script>
     const THEME_STORAGE_KEY = 'tks-dashboard-theme';
@@ -280,13 +340,34 @@
       SENT_TO_ACCOUNTANT: 'badge-sent',
       DELIVERING: 'badge-delivering',
       DELIVERED: 'badge-delivered',
-      SHIP_RECEIVED: 'badge-ship-received'
+      SHIP_RECEIVED: 'badge-ship-received',
+      EXCEPTION: 'badge-exception',
+      CANCELLED: 'badge-cancelled'
     };
+    // Khop STATUS_LABEL o server/shipment/orderLifecycleService.js — dung de
+    // dung dropdown ghi de trang thai (7 muc, ke ca 2 muc chi dat duoc qua
+    // ghi de thu cong: EXCEPTION/CANCELLED).
+    const STATUS_OPTIONS = [
+      { code: 'NOT_SENT', label: 'Đơn chưa gửi kế toán' },
+      { code: 'SENT_TO_ACCOUNTANT', label: 'Đơn đã gửi kế toán' },
+      { code: 'DELIVERING', label: 'Đơn đang được giao' },
+      { code: 'DELIVERED', label: 'Đơn đã giao thành công' },
+      { code: 'SHIP_RECEIVED', label: 'Ship đã nhận đơn' },
+      { code: 'EXCEPTION', label: 'Sự cố' },
+      { code: 'CANCELLED', label: 'Đã hủy' }
+    ];
+    const STATUS_LABEL_BY_CODE = {};
+    STATUS_OPTIONS.forEach(function(opt){ STATUS_LABEL_BY_CODE[opt.code] = opt.label; });
     const BRANCH_LABEL = { HN: 'Hà Nội', SG: 'Sài Gòn' };
     // Vai tro duoc xem Khu B (xem toan bo don) — khop ORDER_LIFECYCLE_BULK_ROLES
     // o server/shipment/orderLifecycleRoutes.js. Day chi la lop UX (an/hien
     // panel); ranh gioi bao mat that su nam o requireRole phia server.
     const BULK_VIEW_ROLES = ['Kế toán', 'Trưởng kho', 'Quản lý', 'Trợ lý', 'Nhân viên sale'];
+    // Vai tro duoc GHI DE trang thai — khop OVERRIDE_ROLES o
+    // server/shipment/orderLifecycleRoutes.js. Chi la lop UX; ranh gioi bao
+    // mat that su nam o requireRole phia server.
+    const OVERRIDE_ROLES = ['Quản lý', 'Kế toán'];
+    let canOverride = false;
 
     function normalizeSearchText(value){
       return String(value == null ? '' : value)
@@ -301,9 +382,22 @@
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
-    function renderBadge(summary){
-      const cls = STATUS_BADGE_CLASS[summary && summary.code] || 'badge-not-sent';
-      return '<span class="lc-badge ' + cls + '">' + escapeHtml((summary && summary.label) || '') + '</span>';
+    // opts.editable=true -> render <select> "trang diem" thanh pill mau (dung
+    // y het pattern .status-select cua server/public/humanresources/index.html,
+    // khu vuc Nghi phep: STT_CLASS[trang_thai], onchange goi thang API, khong
+    // co buoc trung gian "bam de mo dropdown" — ban than select DA LA badge).
+    function renderBadge(summary, opts){
+      const code = (summary && summary.code) || 'NOT_SENT';
+      const cls = STATUS_BADGE_CLASS[code] || 'badge-not-sent';
+      if(!(opts && opts.editable)){
+        return '<span class="lc-badge ' + cls + '">' + escapeHtml((summary && summary.label) || '') + '</span>';
+      }
+      const options = STATUS_OPTIONS.map(function(opt){
+        return '<option value="' + escapeHtml(opt.code) + '"' + (opt.code === code ? ' selected' : '') + '>' + escapeHtml(opt.label) + '</option>';
+      }).join('');
+      return '<select class="status-select ' + cls + '" data-order-code="' + escapeHtml(opts.orderCode) + '" ' +
+        'data-prev-status="' + escapeHtml(code) + '" onchange="handleLifecycleStatusChange(this)" ' +
+        'aria-label="Trạng thái đơn ' + escapeHtml(opts.orderCode) + '">' + options + '</select>';
     }
 
     // ---------- Modal chi tiet (dung chung Khu A + Khu B) ----------
@@ -502,7 +596,7 @@
       return '<td>' + escapeHtml(order.orderCode) + '</td>' +
         '<td>' + escapeHtml(order.saleName || '—') + '</td>' +
         '<td>' + escapeHtml(order.customerName || '—') + '</td>' +
-        '<td>' + renderBadge(order.summary) + '</td>' +
+        '<td>' + renderBadge(order.summary, { editable: canOverride, orderCode: order.orderCode }) + '</td>' +
         '<td>' + escapeHtml((order.summary && order.summary.at) || '—') + '</td>';
     }
 
@@ -510,8 +604,77 @@
       const tr = document.createElement('tr');
       tr.innerHTML = rowInnerHtml(order);
       tr._order = order;
-      tr.addEventListener('click', function(){ openDetailModal(tr._order); });
+      tr.addEventListener('click', function(e){
+        // Thanh trang thai la 1 <select> that (xem renderBadge) — bam vao no
+        // de mo dropdown KHONG duoc coi la bam vao dong (khong mo modal chi tiet).
+        if(e.target.tagName === 'SELECT') return;
+        openDetailModal(tr._order);
+      });
       return tr;
+    }
+
+    // ---------- Ghi de trang thai thu cong (chi Quan ly/Ke toan) ----------
+    // Dung y het pattern handleStatusSelectChange cua
+    // server/public/humanresources/index.html (khu vuc Nghi phep): doi mau
+    // ngay khi chon, goi API, revert + toast loi neu that bai.
+    async function handleLifecycleStatusChange(selectEl){
+      const orderCode = selectEl.dataset.orderCode;
+      const prevStatus = selectEl.dataset.prevStatus;
+      const newStatus = selectEl.value;
+      if(prevStatus === newStatus) return;
+
+      selectEl.disabled = true;
+      selectEl.className = 'status-select ' + (STATUS_BADGE_CLASS[newStatus] || 'badge-not-sent');
+
+      try{
+        const res = await fetch('/api/shipment/lifecycle/' + encodeURIComponent(orderCode) + '/override', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ status: newStatus })
+        });
+        const body = await res.json().catch(function(){ return {}; });
+        if(!res.ok){
+          selectEl.value = prevStatus;
+          selectEl.className = 'status-select ' + (STATUS_BADGE_CLASS[prevStatus] || 'badge-not-sent');
+          showToast(body.error || 'Cập nhật trạng thái thất bại.', 'error');
+          return;
+        }
+
+        selectEl.dataset.prevStatus = newStatus;
+        showToast('Đã cập nhật đơn "' + orderCode + '" sang "' + (STATUS_LABEL_BY_CODE[newStatus] || newStatus) + '".', 'success');
+
+        const tr = selectEl.closest('tr');
+        const order = tr && tr._order;
+        if(order && body.order){
+          order.summary = body.order.summary;
+          const atCell = tr.children[4];
+          if(atCell) atCell.textContent = (order.summary && order.summary.at) || '—';
+          const entry = bulkRowNodes.get(rowKey(order));
+          if(entry) entry.sig = rowSignature(order);
+        }
+      }catch(err){
+        selectEl.value = prevStatus;
+        selectEl.className = 'status-select ' + (STATUS_BADGE_CLASS[prevStatus] || 'badge-not-sent');
+        showToast('Lỗi kết nối máy chủ.', 'error');
+      }finally{
+        selectEl.disabled = false;
+      }
+    }
+
+    // Toast — dung y het pattern showToast cua server/public/humanresources/index.html
+    function showToast(message, type){
+      const container = document.getElementById('toastContainer');
+      if(!container) return;
+      const toast = document.createElement('div');
+      toast.className = 'toast toast-' + (type || 'success');
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(function(){
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity .3s';
+        setTimeout(function(){ toast.remove(); }, 300);
+      }, 3500);
     }
 
     function renderBulkRows(orders, total){
@@ -699,6 +862,7 @@
     TKSNav.authGuard().then(function(user){
       if(!user) return;
       if(BULK_VIEW_ROLES.indexOf(user.vaiTro) === -1) return;
+      canOverride = OVERRIDE_ROLES.indexOf(user.vaiTro) !== -1;
       lookupForm.hidden = true;
       bulkPanel.hidden = false;
       loadBulkOrders();

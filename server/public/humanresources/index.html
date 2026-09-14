@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/shared/shared.css?v=20260905">
+<link rel="stylesheet" href="/shared/shared.css?v=20260914">
 <style>
   .hr-wrap{ width:100%; margin:0 auto; }
   .hr-header{ margin-bottom:20px; }
@@ -67,11 +67,11 @@
   .filter-select:focus{ outline:none; border-color:var(--blue); }
   .date-range-group{ display:flex; align-items:center; gap:6px; }
   .date-range-group span{ color:var(--canvas-text); font-size:12px; font-weight:500; }
-  .date-range-group input[type="date"]{
+  .date-range-group input{
     min-height:38px; padding:6px 10px; background:var(--panel-2); color:var(--text);
     border:1px solid var(--border); border-radius:var(--radius-sm); font-family:var(--font-body); font-size:12.5px; cursor:pointer;
   }
-  .date-range-group input[type="date"]:focus{ outline:none; border-color:var(--blue); }
+  .date-range-group input:focus{ outline:none; border-color:var(--blue); }
 
   .users-table-panel{
     background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-xl); overflow:hidden;
@@ -533,7 +533,8 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
-  <script src="/shared/shared-nav.js?v=20260909"></script>
+  <script src="/shared/shared-nav.js?v=20260914"></script>
+  <script src="/shared/dateInput.js?v=20260912"></script>
 
   <script>
     const THEME_STORAGE_KEY = 'tks-dashboard-theme';
@@ -598,6 +599,12 @@
       });
       document.querySelectorAll('.hr-subtab-panel').forEach(panel => {
         panel.classList.toggle('active', panel.id === `hrSubtab-${name}`);
+      });
+      document.querySelectorAll('#tksHrGroupList .nav-item').forEach(item => {
+        const active = item.dataset.hrSubtab === name;
+        item.classList.toggle('active', active);
+        if(active) item.setAttribute('aria-current', 'page');
+        else item.removeAttribute('aria-current');
       });
       if(history.replaceState) history.replaceState(null, '', `#${name}`);
     }

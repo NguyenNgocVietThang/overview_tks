@@ -536,8 +536,13 @@ body::before{
   border-right:1px solid var(--border); padding:18px 12px;
   position:sticky; top:0; align-self:flex-start; height:100vh;
   overflow-y:auto; overflow-x:hidden; scrollbar-width:thin; box-sizing:border-box;
-  transition:transform .28s var(--ease-out), background-color .2s ease, border-color .2s ease; z-index:20;
+  transition:transform .28s var(--ease-out), width .22s var(--ease-out), padding .22s var(--ease-out), background-color .2s ease, border-color .2s ease;
+  z-index:20;
 }
+/* Thu gon (chi tren man hinh rong — xem .sidebar-toggle-btn/media query ben duoi):
+   sidebar van "liem" trong flex flow nhu binh thuong, chi co dieu width ve 0 nen
+   .content ben canh tu gian ra lap day khoang trong, khong dung overlay/backdrop. */
+.sidebar.tks-collapsed{ width:0; padding-top:18px; padding-bottom:18px; padding-left:0; padding-right:0; border-right-color:transparent; }
 .sidebar::-webkit-scrollbar{ width:4px; }
 .sidebar::-webkit-scrollbar-thumb{ background:rgba(255,255,255,0.15); border-radius:4px; }
 :root[data-theme="light"] .sidebar::-webkit-scrollbar-thumb{ background:rgba(0,0,0,0.15); }
@@ -596,8 +601,11 @@ body::before{
 .backdrop.show{ display:block; }
 @media (max-width:900px){
   .menu-btn{ display:flex; }
+  /* Tren mobile giu nguyen co che cu: sidebar la drawer rieng, dieu khien boi
+     #menuBtn/.open — khong lien quan toi .tks-collapsed (chi danh cho desktop). */
   .sidebar{ position:fixed; top:0; left:0; bottom:0; height:100vh; transform:translateX(-100%); box-shadow:0 0 0 rgba(0,0,0,0); }
   .sidebar.open{ transform:translateX(0); box-shadow:12px 0 32px rgba(0,0,0,.35); }
+  .sidebar-toggle-btn{ display:none; }
 }
 
 /* ---------- Sidebar resize handle (keo ngang de mo rong/thu gon sidebar) ---------- */
@@ -616,9 +624,27 @@ body::before{
 }
 body.tks-sidebar-resizing{ cursor:col-resize !important; user-select:none; }
 body.tks-sidebar-resizing .sidebar{ transition:none; }
+.sidebar.tks-collapsed ~ .sidebar-resize-handle{ display:none; }
 @media (max-width:900px){
   .sidebar-resize-handle{ display:none; }
 }
+
+/* ---------- Nut tron thu gon/mo rong sidebar (chi tren man hinh rong — desktop) ---------- */
+/* Mac dinh MO (sidebar hien binh thuong, "liem" vao layout); bam nut moi thu gon
+   (width ve 0) — xem TKSNav._initSidebarToggle trong shared-nav.js. Tren mobile
+   nut nay an di (xem media query o tren), gio da co #menuBtn rieng. */
+.sidebar-toggle-btn{
+  position:fixed; top:50%; transform:translateY(-50%); left:calc(var(--sidebar-w) - 15px); z-index:22;
+  width:30px; height:30px; border-radius:50%; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+  cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,.45);
+  transition:left .22s var(--ease-out), background-color .15s ease, color .15s ease, border-color .15s ease, transform .15s ease;
+}
+.sidebar-toggle-btn.tks-collapsed{ left:6px; }
+.sidebar-toggle-btn:hover{ background:var(--surface-hover); border-color:var(--muted); transform:translateY(-50%) scale(1.08); }
+.sidebar-toggle-btn:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+.sidebar-toggle-btn svg{ width:14px; height:14px; }
 
 .content{ flex:1; min-width:0; padding:24px; position:relative; z-index:1; }
 .view-title{ font-family:var(--font-display); font-size:21px; font-weight:700; margin:0 0 4px; letter-spacing:-0.01em; color:var(--canvas-text); }
@@ -1190,5 +1216,178 @@ tbody tr:hover {
 
 .section-head::after {
   background: var(--canvas-border) !important;
+}
+
+/* ==========================================
+   BỘ LỌC NGÀY dd/mm/yyyy (server/public/shared/dateInput.js)
+   Trình duyệt luôn hiển thị input[type=date] theo locale hệ điều hành (không
+   sửa được bằng CSS/lang), nên dateInput.js thay input gốc bằng ô nhập văn
+   bản có định dạng cố định dd/mm/yyyy + lịch chọn ngày. CSS dưới đây chỉ định
+   hình cho phần thay thế đó, dùng chung token màu/spacing ở trên.
+   ========================================== */
+.dmy-date-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dmy-date-input {
+  width: 100px;
+  cursor: pointer;
+}
+
+.dmy-date-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+
+.dmy-date-trigger:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.dmy-calendar-popup {
+  display: none;
+  position: absolute;
+  z-index: 500;
+  width: 232px;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+  font-family: var(--font-body);
+}
+
+.dmy-calendar-popup.open {
+  display: block;
+}
+
+.dmy-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.dmy-cal-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.dmy-cal-nav {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.dmy-cal-nav:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.dmy-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.dmy-cal-weekdays span {
+  display: block;
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 2px 0 4px;
+}
+
+.dmy-cal-day {
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.dmy-cal-day:not([disabled]):hover {
+  border-color: var(--blue);
+}
+
+.dmy-cal-day.dmy-cal-outside {
+  color: var(--muted);
+  opacity: 0.4;
+  cursor: default;
+}
+
+.dmy-cal-day.dmy-cal-today {
+  font-weight: 700;
+  color: var(--blue);
+}
+
+.dmy-cal-day.dmy-cal-selected {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+  font-weight: 700;
+}
+
+.dmy-cal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.dmy-cal-link {
+  background: transparent;
+  border: none;
+  color: var(--blue);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.dmy-cal-link:hover {
+  text-decoration: underline;
+}
+
+/* Trong các form chiều rộng 100% (vd modal HR), ô ngày giãn hết chiều rộng
+   thay vì giữ kích thước cố định 100px như trong thanh lọc compact. */
+.form-control.dmy-date-input,
+.dmy-date-wrap.dmy-date-wrap-full {
+  width: 100%;
+}
+
+.form-group .dmy-date-wrap {
+  width: 100%;
+}
+
+.form-group .dmy-date-wrap .dmy-date-input {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 

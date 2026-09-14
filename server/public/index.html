@@ -19,7 +19,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="/shared/shared.css?v=20260905">
+  <link rel="stylesheet" href="/shared/shared.css?v=20260914">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
@@ -469,8 +469,17 @@
       overflow-x: hidden;
       scrollbar-width: thin;
       box-sizing: border-box;
-      transition: transform .28s var(--ease-out), background-color .2s ease, border-color .2s ease;
+      transition: transform .28s var(--ease-out), width .22s var(--ease-out), padding .22s var(--ease-out), background-color .2s ease, border-color .2s ease;
       z-index: 20;
+    }
+
+    /* Thu gon tren desktop: width ve 0, sidebar van "liem" trong flex flow (khong
+       overlay/backdrop) — xem TKSNav._initSidebarToggle trong shared-nav.js. */
+    .sidebar.tks-collapsed {
+      width: 0;
+      padding-left: 0;
+      padding-right: 0;
+      border-right-color: transparent;
     }
     .sidebar::-webkit-scrollbar {
       width: 4px;
@@ -2227,6 +2236,17 @@
         flex: 1;
         min-width: 0;
       }
+
+      .mini-filter-range .dmy-date-wrap {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .mini-filter-range .dmy-date-wrap .dmy-date-input {
+        width: auto;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
     }
 
     /* ---------- Chọn nhóm cha (drill-down nhóm con) ---------- */
@@ -2823,6 +2843,10 @@
 
       .backdrop.show {
         display: block;
+      }
+
+      .sidebar-toggle-btn {
+        display: none;
       }
 
       .content {
@@ -4519,7 +4543,8 @@
        và inline script luôn chạy trước script defer — cách đặt này giữ đúng thứ tự mà không chặn parser. -->
   <script src="/vendor/chart.umd.min.js"></script>
   <script src="/js/pagination.js"></script>
-  <script src="/shared/shared-nav.js?v=20260909"></script>
+  <script src="/shared/shared-nav.js?v=20260914"></script>
+  <script src="/shared/dateInput.js?v=20260912"></script>
 
   <script>
     // Toast thong bao inline — thay the window.alert() cho loi/canh bao (khong chan luong,

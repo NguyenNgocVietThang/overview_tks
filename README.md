@@ -293,7 +293,7 @@ Bộ test hiện gồm **477 bài kiểm thử tự động** (13 test suite):
 - Xác thực người dùng (JWT httpOnly cookie, mật khẩu bcrypt, Google Identity OAuth, đăng ký bằng Email/SĐT, bảo vệ route RBAC 5 vai trò).
 - Quản trị tài khoản Admin (CRUD danh sách người dùng, reset mật khẩu, kích hoạt/khóa tài khoản, xuất báo cáo).
 - Yêu cầu đổi vai trò người dùng (`roleChangeRequestRoutes.js`) & Chuông thông báo toàn hệ thống (`notificationRoutes.js`, `notif-bell.test.js`).
-- Khôi phục mật khẩu OTP 6 số (sinh mã, gửi giả lập qua Email/SĐT, giới hạn thử lại, chống brute-force và cơ chế lockout tạm thời 5 phút).
+- Khôi phục mật khẩu OTP 6 số (sinh mã, gửi qua Email, giới hạn thử lại, chống brute-force và cơ chế lockout tạm thời 5 phút).
 - Quản lý hồ sơ cá nhân và đổi mật khẩu chủ động.
 - Kiểm tra đứt hàng đối chiếu trực tiếp KiotViet API — hàng đứt gần đây và 90 ngày (`recentStockoutScanService.js`, `stockout90dScanService.js`, `stockoutEventLoader.js`, `timelineBuilder.js`, `stockoutAnalyzer.js`, `concurrencyPool.js`).
 - Tra cứu trạng thái hóa đơn cho khách hàng (`invoiceStatusService.js` với cache 90s).

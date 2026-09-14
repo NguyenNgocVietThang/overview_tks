@@ -7,12 +7,23 @@
 
 const repo = require('./orderLifecycleRepository');
 
+function makeError(message, statusCode, code) {
+  const err = new Error(message);
+  err.statusCode = statusCode;
+  err.code = code;
+  return err;
+}
+
 const STATUS = Object.freeze({
   NOT_SENT: 'NOT_SENT',
   SENT_TO_ACCOUNTANT: 'SENT_TO_ACCOUNTANT',
   DELIVERING: 'DELIVERING',
   DELIVERED: 'DELIVERED',
-  SHIP_RECEIVED: 'SHIP_RECEIVED'
+  SHIP_RECEIVED: 'SHIP_RECEIVED',
+  // 2 trang thai CHI dat duoc qua ghi de thu cong (Quan ly/Ke toan) — khong
+  // co moc thoi gian tuong ung nen computeStatus() khong bao gio tra ve.
+  EXCEPTION: 'EXCEPTION',
+  CANCELLED: 'CANCELLED'
 });
 
 const STATUS_LABEL = Object.freeze({
@@ -20,7 +31,21 @@ const STATUS_LABEL = Object.freeze({
   [STATUS.SENT_TO_ACCOUNTANT]: 'Đơn đã gửi kế toán',
   [STATUS.DELIVERING]: 'Đơn đang được giao',
   [STATUS.DELIVERED]: 'Đơn đã giao thành công',
-  [STATUS.SHIP_RECEIVED]: 'Ship đã nhận đơn'
+  [STATUS.SHIP_RECEIVED]: 'Ship đã nhận đơn',
+  [STATUS.EXCEPTION]: 'Sự cố',
+  [STATUS.CANCELLED]: 'Đã hủy'
+});
+
+// Thu tu tien do cua 5 trang thai TINH TOAN duoc (khong bao gom EXCEPTION/
+// CANCELLED — 2 trang thai nay khong nam trong luong tien do binh thuong nen
+// khong so sanh rank duoc, luon thang tuyet doi khi da ghi de — xem
+// computeEffectiveStatus).
+const STATUS_RANK = Object.freeze({
+  [STATUS.NOT_SENT]: 0,
+  [STATUS.SENT_TO_ACCOUNTANT]: 1,
+  [STATUS.DELIVERING]: 2,
+  [STATUS.DELIVERED]: 3,
+  [STATUS.SHIP_RECEIVED]: 4
 });
 
 // Nhan TEN COT chinh xac (khac STATUS_LABEL la cau mo ta) — dung cho bang tra
@@ -33,7 +58,11 @@ const STATUS_COLUMN_LABEL = Object.freeze({
   [STATUS.SENT_TO_ACCOUNTANT]: 'Sale gửi đơn cho kế toán',
   [STATUS.DELIVERING]: 'Tài xế gửi xác nhận giao hàng',
   [STATUS.DELIVERED]: 'Xác nhận đã giao/khách kí nhận',
-  [STATUS.SHIP_RECEIVED]: 'Ship nhận đơn'
+  [STATUS.SHIP_RECEIVED]: 'Ship nhận đơn',
+  // Khong co cot moc thoi gian tuong ung (chi den tu ghi de thu cong) — dung
+  // lai STATUS_LABEL lam nhan hien thi.
+  [STATUS.EXCEPTION]: STATUS_LABEL[STATUS.EXCEPTION],
+  [STATUS.CANCELLED]: STATUS_LABEL[STATUS.CANCELLED]
 });
 
 function hasValue(value) {
@@ -79,6 +108,56 @@ function normalizeCode(value) {
 }
 
 /**
+ * Ap dung ghi de (neu co) len trang thai tinh toan tu moc thoi gian.
+ * - Khong co override -> giu nguyen computed.
+ * - Override EXCEPTION/CANCELLED -> luon thang (khong co rank de so sanh).
+ * - Override la 1 trong 5 trang thai thuong -> dong vai "muc san": trang
+ *   thai nao co rank cao hon thi thang, de du lieu bot tien xa hon khong bi
+ *   ket o trang thai da ghi de truoc do.
+ */
+function computeEffectiveStatus(record, overrideEntry) {
+  const computed = computeStatus(record);
+  if (!overrideEntry) return computed;
+
+  const overrideCode = overrideEntry.to_status_code;
+  if (overrideCode === STATUS.EXCEPTION || overrideCode === STATUS.CANCELLED) {
+    return {
+      code: overrideCode,
+      label: STATUS_LABEL[overrideCode],
+      actor: overrideEntry.changed_by || null,
+      at: overrideEntry.changed_at || null,
+      isOverride: true
+    };
+  }
+
+  const computedRank = STATUS_RANK[computed.code];
+  const overrideRank = STATUS_RANK[overrideCode];
+  if (overrideRank === undefined || computedRank >= overrideRank) return computed;
+
+  return {
+    code: overrideCode,
+    label: STATUS_LABEL[overrideCode],
+    actor: overrideEntry.changed_by || null,
+    at: overrideEntry.changed_at || null,
+    isOverride: true
+  };
+}
+
+/**
+ * Xay map ma don (da chuan hoa) -> dong ghi de MOI NHAT tu tab "Lich su cap
+ * nhat". Sheets append luon theo thu tu thoi gian nen dong cuoi cung khop
+ * ma don chinh la ghi de hien hanh — khong can so sanh timestamp.
+ */
+function latestOverrideByCode(historyRows) {
+  const map = new Map();
+  historyRows.forEach(row => {
+    const key = normalizeCode(row.order_code);
+    if (key) map.set(key, row);
+  });
+  return map;
+}
+
+/**
  * Chi tiet day du 9 cot, y het 1 hang trong Google Sheet (o trong hien "—" do
  * client dam nhiem hien thi, o day chi tra chuoi rong nguyen ban).
  */
@@ -107,15 +186,16 @@ async function findOrder(orderCode) {
   if (!target) {
     return { found: false, summary: computeStatus(null) };
   }
-  const records = await repo.readAll();
+  const [records, historyRows] = await Promise.all([repo.readAll(), repo.readOverrideHistory()]);
   const record = records.find(r => normalizeCode(r.orderCode) === target);
   if (!record) {
     return { found: false, summary: computeStatus(null) };
   }
+  const overrides = latestOverrideByCode(historyRows);
   return {
     found: true,
     branch: record._branch,
-    summary: computeStatus(record),
+    summary: computeEffectiveStatus(record, overrides.get(target)),
     detail: toDetail(record)
   };
 }
@@ -125,11 +205,12 @@ async function findOrder(orderCode) {
  * tuy chon ('HN'|'SG') tu query string.
  */
 async function listAllOrders(branchFilter) {
-  const records = await repo.readAll();
+  const [records, historyRows] = await Promise.all([repo.readAll(), repo.readOverrideHistory()]);
+  const overrides = latestOverrideByCode(historyRows);
   const filtered = branchFilter ? records.filter(r => r._branch === branchFilter) : records;
   return filtered.map(record => Object.assign(toDetail(record), {
     branch: record._branch,
-    summary: computeStatus(record)
+    summary: computeEffectiveStatus(record, overrides.get(normalizeCode(record.orderCode)))
   }));
 }
 
@@ -184,7 +265,8 @@ async function findOrdersBulk(rawCodes) {
   const codes = validateLookupCodes(rawCodes);
   if (!codes.length) return [];
 
-  const records = await repo.readAll();
+  const [records, historyRows] = await Promise.all([repo.readAll(), repo.readOverrideHistory()]);
+  const overrides = latestOverrideByCode(historyRows);
   const byKey = new Map();
   records.forEach(record => {
     const key = normalizeCode(record.orderCode);
@@ -194,7 +276,7 @@ async function findOrdersBulk(rawCodes) {
   return codes.map(({ code, key }) => {
     const record = byKey.get(key);
     if (!record) return { code, found: false };
-    const summary = computeStatus(record);
+    const summary = computeEffectiveStatus(record, overrides.get(key));
     return {
       code,
       found: true,
@@ -212,11 +294,12 @@ async function findOrdersBulk(rawCodes) {
  * Khong truyen codes (hoac mang rong) -> xuat toan bo (giu thu tu trong sheet).
  */
 async function exportOrdersByCodes(codes) {
-  const records = await repo.readAll();
+  const [records, historyRows] = await Promise.all([repo.readAll(), repo.readOverrideHistory()]);
+  const overrides = latestOverrideByCode(historyRows);
   if (!Array.isArray(codes) || codes.length === 0) {
     return records.map(record => Object.assign(toDetail(record), {
       branch: record._branch,
-      summary: computeStatus(record)
+      summary: computeEffectiveStatus(record, overrides.get(normalizeCode(record.orderCode)))
     }));
   }
   const byKey = new Map();
@@ -229,12 +312,48 @@ async function exportOrdersByCodes(codes) {
     .filter(Boolean)
     .map(record => Object.assign(toDetail(record), {
       branch: record._branch,
-      summary: computeStatus(record)
+      summary: computeEffectiveStatus(record, overrides.get(normalizeCode(record.orderCode)))
     }));
 }
 
+/**
+ * Ghi de trang thai thu cong (Quan ly/Ke toan). Validate ma don co that (nam
+ * trong 2 tab DonHang_HN/SG) truoc khi ghi — tranh tao lich su cho ma khong
+ * ton tai. Tra ve trang thai hieu luc MOI NHAT sau khi ghi.
+ */
+async function overrideStatus(orderCode, { code, changedBy, changedByRole, note = '' }) {
+  if (!STATUS_LABEL[code]) {
+    throw makeError(`Trạng thái "${code}" không hợp lệ.`, 400, 'INVALID_STATUS');
+  }
+
+  const target = normalizeCode(orderCode);
+  const records = await repo.readAll();
+  const record = records.find(r => normalizeCode(r.orderCode) === target);
+  if (!record) {
+    throw makeError(`Không tìm thấy đơn hàng "${orderCode}" trong bảng vòng đời đơn hàng.`, 404, 'ORDER_NOT_FOUND');
+  }
+
+  const message = `${changedBy} - ${changedByRole} đã cập nhật đơn hàng sang trạng thái ${STATUS_LABEL[code]}.`;
+  const entry = await repo.appendOverride({
+    order_code: record.orderCode,
+    to_status_code: code,
+    to_status_label: STATUS_LABEL[code],
+    changed_by: changedBy,
+    changed_by_role: changedByRole,
+    note,
+    message
+  });
+
+  return {
+    orderCode: record.orderCode,
+    branch: record._branch,
+    summary: computeEffectiveStatus(record, entry)
+  };
+}
+
 module.exports = {
-  STATUS, STATUS_LABEL, STATUS_COLUMN_LABEL,
-  computeStatus, findOrder, listAllOrders, findOrdersBulk, exportOrdersByCodes,
+  STATUS, STATUS_LABEL, STATUS_COLUMN_LABEL, STATUS_RANK,
+  computeStatus, computeEffectiveStatus, findOrder, listAllOrders, findOrdersBulk,
+  exportOrdersByCodes, overrideStatus,
   MAX_LOOKUP_CODES
 };

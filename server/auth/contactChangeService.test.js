@@ -31,7 +31,6 @@ function fixture({ writeFails = false } = {}) {
     },
     otp: {
       maskEmail: value => `masked:${value}`,
-      maskPhone: value => `masked:${value}`,
       generateResetOtp: async () => ({ success: true, expiresInSeconds: 300 }),
       verifyResetOtp: () => ({ valid: true }),
       clearResetOtp: () => {}
@@ -51,11 +50,11 @@ test('beginChange sends OTP to the new primary contact', async () => {
 
 test('confirmChange writes HR sheet before local account and verifies the new identifier', async () => {
   const { service, state, events } = fixture();
-  await service.beginChange(state[0], 'phone', '0987 654 321');
+  await service.beginChange(state[0], 'email', 'new@example.com');
   const updated = await service.confirmChange(state[0], 'change-1', '123456');
-  assert.deepEqual(events, ['sheet:phone:0987654321', 'local']);
-  assert.equal(updated.soDienThoai, '0987654321');
-  assert.equal(updated.verifiedPhone, true);
+  assert.deepEqual(events, ['sheet:email:new@example.com', 'local']);
+  assert.equal(updated.email, 'new@example.com');
+  assert.equal(updated.verifiedEmail, true);
 });
 
 test('sheet write failure leaves local account untouched', async () => {

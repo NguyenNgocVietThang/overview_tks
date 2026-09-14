@@ -102,7 +102,6 @@ test('trang account co khu vuc thong tin khoi phuc voi mat khau xac nhan', () =>
   const html = readPublic('account/index.html');
   assert.match(html, /Thông tin khôi phục/);
   assert.match(html, /id="profRecoveryEmail"/);
-  assert.match(html, /id="profRecoveryPhone"/);
   assert.match(html, /id="recoveryConfirmPass"/);
   assert.match(html, /handleSaveRecovery/);
 });

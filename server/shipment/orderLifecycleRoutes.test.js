@@ -60,6 +60,7 @@ test.beforeEach(() => {
   service.listAllOrders = async () => ([{ orderCode: 'HD001' }]);
   service.findOrdersBulk = async () => ([{ code: 'HD001', found: true }]);
   service.exportOrdersByCodes = async () => ([{ orderCode: 'HD001', branch: 'HN', summary: { label: 'Đã giao' } }]);
+  service.overrideStatus = async () => ({ orderCode: 'HD001', branch: 'HN', summary: { code: 'CANCELLED', isOverride: true } });
 });
 
 test('GET /api/shipment/lifecycle/:orderCode — Khách gọi được (200)', async () => {
@@ -200,4 +201,84 @@ test('POST /api/shipment/lifecycle/lookup — body không hợp lệ -> lỗi t�
   await callRoute('post', '/lookup', req, res);
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.code, 'INVALID_CODES');
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/shipment/lifecycle/:orderCode/override — chi Quan ly/Ke toan
+// ---------------------------------------------------------------------------
+
+const OVERRIDE_ROLES = ['Quản lý', 'Kế toán'];
+const NON_OVERRIDE_INTERNAL_ROLES = ['Trưởng kho', 'Trợ lý', 'Nhân viên sale'];
+
+for (const role of OVERRIDE_ROLES) {
+  test(`POST /api/shipment/lifecycle/:orderCode/override — ${role} gọi được (200)`, async () => {
+    const req = reqAs(role, { orderCode: 'HD001' }, {}, { status: 'CANCELLED' });
+    const res = fakeRes();
+    await callRoute('post', '/:orderCode/override', req, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.order.summary.code, 'CANCELLED');
+  });
+}
+
+for (const role of NON_OVERRIDE_INTERNAL_ROLES) {
+  test(`POST /api/shipment/lifecycle/:orderCode/override — ${role} bị 403 (xem được nhưng không sửa được)`, async () => {
+    const req = reqAs(role, { orderCode: 'HD001' }, {}, { status: 'CANCELLED' });
+    const res = fakeRes();
+    await callRoute('post', '/:orderCode/override', req, res);
+    assert.equal(res.statusCode, 403);
+  });
+}
+
+for (const role of OUTSIDER_ROLES) {
+  test(`POST /api/shipment/lifecycle/:orderCode/override — ${role} bị 403`, async () => {
+    const req = reqAs(role, { orderCode: 'HD001' }, {}, { status: 'CANCELLED' });
+    const res = fakeRes();
+    await callRoute('post', '/:orderCode/override', req, res);
+    assert.equal(res.statusCode, 403);
+  });
+}
+
+test('POST /api/shipment/lifecycle/:orderCode/override — Khách bị 403', async () => {
+  const req = reqAs('Khách', { orderCode: 'HD001' }, {}, { status: 'CANCELLED' });
+  const res = fakeRes();
+  await callRoute('post', '/:orderCode/override', req, res);
+  assert.equal(res.statusCode, 403);
+});
+
+test('POST /api/shipment/lifecycle/:orderCode/override — thiếu "status" -> 400 INVALID_REQUEST', async () => {
+  const req = reqAs('Quản lý', { orderCode: 'HD001' }, {}, {});
+  const res = fakeRes();
+  await callRoute('post', '/:orderCode/override', req, res);
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.code, 'INVALID_REQUEST');
+});
+
+test('POST /api/shipment/lifecycle/:orderCode/override — truyền đúng changedBy/changedByRole từ req.user', async () => {
+  let received = null;
+  service.overrideStatus = async (orderCode, opts) => {
+    received = { orderCode, opts };
+    return { orderCode, branch: 'HN', summary: { code: opts.code, isOverride: true } };
+  };
+  const req = reqAs('Kế toán', { orderCode: 'HD001' }, {}, { status: 'EXCEPTION', note: 'khách báo hỏng hàng' });
+  const res = fakeRes();
+  await callRoute('post', '/:orderCode/override', req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(received.orderCode, 'HD001');
+  assert.equal(received.opts.code, 'EXCEPTION');
+  assert.equal(received.opts.changedByRole, 'Kế toán');
+  assert.equal(received.opts.note, 'khách báo hỏng hàng');
+});
+
+test('POST /api/shipment/lifecycle/:orderCode/override — lỗi từ service được trả về đúng statusCode', async () => {
+  service.overrideStatus = async () => {
+    const err = new Error('Không tìm thấy đơn hàng "HD999".');
+    err.statusCode = 404;
+    err.code = 'ORDER_NOT_FOUND';
+    throw err;
+  };
+  const req = reqAs('Quản lý', { orderCode: 'HD999' }, {}, { status: 'CANCELLED' });
+  const res = fakeRes();
+  await callRoute('post', '/:orderCode/override', req, res);
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.code, 'ORDER_NOT_FOUND');
 });
