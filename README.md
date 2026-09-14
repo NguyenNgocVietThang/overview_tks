@@ -143,6 +143,20 @@ webtks-dashboard/
 │   │   ├── roleChangeRequests.json # Lưu trữ yêu cầu đổi vai trò cục bộ
 │   │   ├── users.json           # Dữ liệu tài khoản người dùng cục bộ (local backup)
 │   │   └── users.json.example   # Bản mẫu cấu trúc dữ liệu người dùng
+│   ├── db/                       # Schema và kết nối Supabase Postgres cho đồng bộ KiotViet
+│   │   ├── migrations/           # Migration SQL thuần, chạy tuần tự và idempotent
+│   │   │   ├── 0001_core_master_data.sql
+│   │   │   ├── 0002_invoices.sql
+│   │   │   ├── 0003_orders.sql
+│   │   │   ├── 0004_returns.sql
+│   │   │   ├── 0005_purchases.sql
+│   │   │   └── 0006_cash_flows.sql
+│   │   ├── migrate.js            # Migration runner có transaction và schema_migrations
+│   │   ├── migrate.test.js       # Unit test thứ tự, idempotency và rollback
+│   │   ├── migrate.integration.test.js # Test schema tùy chọn khi có SUPABASE_DB_URL
+│   │   ├── pool.js               # pg.Pool lazy singleton, tối đa 5 kết nối
+│   │   ├── pool.test.js          # Unit test pool fail-soft và singleton
+│   │   └── SCHEMA.md             # Tài liệu 16 bảng và quy ước ánh xạ dữ liệu
 │   ├── hr/                      # Phân hệ Quản lý Nghỉ phép Nhân sự (HR Leave Management)
 │   │   ├── hrLeaveEvents.js     # EventEmitter singleton phát sự kiện SSE cập nhật realtime cho đơn nghỉ phép
 │   │   ├── hrLeaveExportService.js # Xuất báo cáo danh sách ngày nghỉ phép nhân sự ra Excel
@@ -652,6 +666,7 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 | [SRS](docs/02-srs/SRS_Dashboard_GoogleSheets.md) | Software Requirements Specification v2.2 |
 | [BPMN](docs/03-process/BPMN_Dashboard_GoogleSheets.md) | Sơ đồ quy trình nghiệp vụ v2.0 |
 | [Implementation Plan](docs/04-planning/implementation_plan.md) | Kế hoạch triển khai chi tiết & trạng thái v2.3 |
+| [KiotViet Supabase Schema](server/db/SCHEMA.md) | 16 bảng Postgres, khóa ghép theo cơ sở và quy ước cho engine đồng bộ |
 | [Chính sách nghỉ phép](CHINH-SACH-NGHI-PHEP.md) | Quy định & chính sách quản lý nghỉ phép nhân sự (CSNS-NP-01) |
 | [Plan Process Automation](Plan%20Process%20Automation.md) | Kế hoạch kiểm soát & tự động hóa quy trình vận chuyển hàng hóa |
 | [Manual Test Batch Update](docs/manual-test-batch-update-order-items.md) | Hướng dẫn kiểm thử production cập nhật hàng loạt đơn vận chuyển |
@@ -691,4 +706,4 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 
 ---
 
-*Cập nhật lần cuối: 09/09/2026*
+*Cập nhật lần cuối: 14/09/2026*

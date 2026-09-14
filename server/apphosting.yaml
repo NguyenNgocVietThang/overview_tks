@@ -43,6 +43,4 @@ env:
   - variable: KIOTVIET_RETAILER_SG
     secret: KIOTVIET_RETAILER_SG
   - variable: SUPABASE_DB_URL
-    value: "postgresql://postgres:TOKOSI%25123%25@db.hvraxtmkunyymqvgtura.supabase.co:5432/postgres"
-    availability:
-      - RUNTIME
+    secret: SUPABASE_DB_URL

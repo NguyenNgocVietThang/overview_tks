@@ -208,3 +208,70 @@ Roadmap `docs/04-planning/2026-09-14-roadmap-supabase-kiotviet-sync.md` đã đ�
 3. Deploy production — server khởi động thành công, các tính năng Sheets hiện có (đăng nhập, xem báo cáo, kiểm tra đứt hàng cả 2 cơ sở) hoạt động bình thường.
 4. `curl -X POST .../api/kiotviet/webhook` trên production trả `200`.
 5. Webhook KiotViet đã đăng ký cho cả 2 gian hàng, test gửi thử thành công.
+
+---
+
+## Domain production xác nhận
+
+**Trạng thái kiểm tra ngày 2026-09-14: CHƯA CÓ domain Firebase App Hosting production để xác nhận.**
+
+- Cấu hình local trỏ đúng Firebase project `tokosi-a02e0` và backend ID `tokosi-dashboard`.
+- Lệnh kiểm tra chính thức đã chạy:
+
+  ```powershell
+  firebase apphosting:backends:get tokosi-dashboard --project=tokosi-a02e0
+  ```
+
+- Firebase CLI trả về rằng project phải ở gói **Blaze (pay-as-you-go)** mới chạy được lệnh và API `firebaseapphosting.googleapis.com` chưa thể bật khi chưa nâng gói. Vì vậy backend App Hosting chưa thể được truy vấn/triển khai và chưa có URL production hợp lệ. Không dùng URL suy đoán để đăng ký Webhook.
+- Firebase App Hosting yêu cầu hoàn tất nâng project lên Blaze, tạo/triển khai backend, rồi chạy lại lệnh trên. Khi lệnh trả về backend, copy chính xác trường URL/domain (domain mặc định có dạng `<backend-id>--<project-id>.<region>.hosted.app`) vào dòng dưới:
+
+  ```text
+  Domain production: CHƯA XÁC NHẬN — chờ nâng Blaze và triển khai backend
+  Webhook endpoint: CHƯA KHẢ DỤNG — sau khi xác nhận sẽ là https://<domain-production>/api/kiotviet/webhook
+  ```
+
+- Trước khi cấu hình KiotViet, kiểm tra endpoint thật (không đưa secret vào câu lệnh hoặc log):
+
+  ```powershell
+  curl.exe -i -X POST "https://<domain-production>/api/kiotviet/webhook" -H "Content-Type: application/json" -d "{}"
+  ```
+
+  Kết quả đạt yêu cầu là HTTP `200` và body `{"received":true}`. Nếu chưa đạt, không đăng ký URL đó trên KiotViet.
+
+### Hướng dẫn đăng ký Webhook KiotViet cho Hà Nội và Sài Gòn
+
+Chỉ thực hiện các bước dưới đây **sau khi** phần trên có domain production thật và phép thử endpoint trả HTTP `200`. Hai gian hàng là hai tài khoản/retailer riêng nên phải cấu hình hai lần, nhưng cùng trỏ về một endpoint:
+
+```text
+https://<domain-production-đã-xác-nhận>/api/kiotviet/webhook
+```
+
+#### A. Gian hàng Hà Nội
+
+1. Đăng nhập trang quản trị KiotViet của gian hàng **Hà Nội** bằng tài khoản có quyền quản trị.
+2. Kiểm tra tên/mã gian hàng đang chọn để tránh cấu hình nhầm sang Sài Gòn.
+3. Mở biểu tượng bánh răng **Thiết lập/Cài đặt** → **Cửa hàng/Thiết lập cửa hàng** → **Kết nối Webhook** (tên mục có thể thay đổi nhẹ theo phiên bản giao diện).
+4. Bật **Thiết lập Webhook/Kết nối Webhook**.
+5. Nhập nguyên vẹn URL HTTPS ở trên vào ô **Webhook URL**; không thêm dấu `/` hoặc path khác ở cuối.
+6. Bật các sự kiện tạo/cập nhật tương ứng với **hóa đơn**, **đơn hàng**, và **hàng hóa/tồn kho**. Nếu giao diện yêu cầu tạo một đăng ký riêng cho từng loại sự kiện, dùng cùng URL cho tất cả các đăng ký.
+7. Nếu KiotViet cho phép đặt **Secret key**, tạo một giá trị ngẫu nhiên riêng cho gian hàng Hà Nội và lưu trong Secret Manager/trình quản lý mật khẩu. Không ghi secret vào file này, source code, ảnh chụp hoặc git. Stub Giai đoạn 0 chưa kiểm tra chữ ký; việc xác thực sẽ được bổ sung khi triển khai logic thật.
+8. Chọn **Lưu** và bảo đảm webhook ở trạng thái đang hoạt động.
+9. Nếu có nút **Test webhook/Gửi thử**, chạy thử và xác nhận KiotViet báo thành công; đồng thời kiểm tra log production thấy request `POST /api/kiotviet/webhook` nhận HTTP `200`.
+10. Nếu không có nút test, tạo hoặc cập nhật một bản ghi thử phù hợp (ưu tiên dữ liệu test), rồi kiểm tra log production. Ghi lại thời điểm và loại sự kiện để đối chiếu.
+
+#### B. Gian hàng Sài Gòn
+
+1. Đăng xuất/chuyển retailer và đăng nhập đúng trang quản trị KiotViet của gian hàng **Sài Gòn** bằng tài khoản có quyền quản trị.
+2. Kiểm tra lại tên/mã gian hàng; không tiếp tục nếu giao diện vẫn hiển thị Hà Nội.
+3. Lặp lại các bước 3-10 của gian hàng Hà Nội, dùng **chính xác cùng Webhook URL**.
+4. Nếu dùng Secret key, tạo giá trị **riêng cho Sài Gòn** và lưu an toàn ngoài git; không sao chép secret của Hà Nội nếu không có chủ đích quản trị rõ ràng.
+
+#### Checklist bàn giao thủ công
+
+- [ ] Domain production thật đã được điền thay cho placeholder và endpoint đã trả HTTP `200`.
+- [ ] Webhook Hà Nội đang hoạt động, đúng URL, đã bật sự kiện hóa đơn/đơn hàng/hàng hóa-tồn kho và test thành công.
+- [ ] Webhook Sài Gòn đang hoạt động, đúng URL, đã bật sự kiện hóa đơn/đơn hàng/hàng hóa-tồn kho và test thành công.
+- [ ] Log production cho thấy request từ từng gian hàng đi vào `POST /api/kiotviet/webhook` và nhận HTTP `200`.
+- [ ] Không có secret, mật khẩu, access token hoặc thông tin đăng nhập nào được ghi vào repository.
+
+Tài liệu tham chiếu: [Firebase App Hosting — Get started](https://firebase.google.com/docs/app-hosting/get-started), [KiotViet Retail Public API — Webhook](https://www.kiotviet.vn/huong-dan-su-dung-kiotviet/retail-ket-noi-api/public-api/).

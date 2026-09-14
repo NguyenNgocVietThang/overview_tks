@@ -12,6 +12,7 @@
     "start": "node --max-old-space-size=512 index.js",
     "dev": "node --max-old-space-size=4096 index.js",
     "test": "node --test",
+    "db:migrate": "node db/migrate.js",
     "sync:customer-report": "node jobs/syncCustomerReport.js",
     "setup:users-sheet": "node scripts/setupUsersSheet.js",
     "setup:vc-sheet": "node scripts/setupVcSheet.js",
@@ -29,7 +30,8 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.2.0",
     "node-telegram-bot-api": "^0.66.0",
-    "nodemailer": "^9.0.6"
+    "nodemailer": "^9.0.6",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "dotenv": "^16.4.5",
