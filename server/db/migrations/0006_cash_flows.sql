@@ -3,7 +3,7 @@ CREATE TABLE cash_flows (
   id           BIGINT NOT NULL,
   code         TEXT,
   is_receipt   BOOLEAN NOT NULL,
-  amount       NUMERIC(18,2),
+  amount       BIGINT,
   method       TEXT,
   customer_id  BIGINT,
   supplier_id  BIGINT,

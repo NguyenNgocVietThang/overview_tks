@@ -25,6 +25,30 @@ const EXPECTED_TABLES = [
   'sync_checkpoints'
 ];
 
+const EXPECTED_INTEGER_COLUMNS = [
+  ['cash_flows', 'amount', 'bigint'],
+  ['customers', 'debt', 'bigint'],
+  ['customers', 'total_revenue', 'bigint'],
+  ['invoice_details', 'discount', 'bigint'],
+  ['invoice_details', 'price', 'bigint'],
+  ['invoice_details', 'quantity', 'integer'],
+  ['invoice_payments', 'amount', 'bigint'],
+  ['invoices', 'total', 'bigint'],
+  ['invoices', 'total_payment', 'bigint'],
+  ['order_details', 'discount', 'bigint'],
+  ['order_details', 'price', 'bigint'],
+  ['order_details', 'quantity', 'integer'],
+  ['orders', 'total', 'bigint'],
+  ['products', 'base_price', 'bigint'],
+  ['purchase_details', 'price', 'bigint'],
+  ['purchase_details', 'quantity', 'integer'],
+  ['purchases', 'total', 'bigint'],
+  ['return_details', 'price', 'bigint'],
+  ['return_details', 'quantity', 'integer'],
+  ['returns', 'total', 'bigint'],
+  ['suppliers', 'debt', 'bigint']
+];
+
 test('migrations create the complete KiotViet schema on configured Supabase', {
   skip: CONFIG.SUPABASE_DB_URL ? false : 'SUPABASE_DB_URL chưa cấu hình — bỏ qua test tích hợp'
 }, async (t) => {
@@ -68,5 +92,20 @@ test('migrations create the complete KiotViet schema on configured Supabase', {
   assert.deepEqual(
     [...new Set(invoiceDetailsForeignKey.rows.map((row) => row.referenced_table))],
     ['invoices']
+  );
+
+  const integerColumns = await pool.query(`
+    SELECT table_name, column_name, data_type
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND (table_name, column_name) IN (
+        SELECT value->>0, value->>1
+        FROM jsonb_array_elements($1::jsonb) AS value
+      )
+    ORDER BY table_name, column_name
+  `, [JSON.stringify(EXPECTED_INTEGER_COLUMNS)]);
+  assert.deepEqual(
+    integerColumns.rows.map((row) => [row.table_name, row.column_name, row.data_type]),
+    EXPECTED_INTEGER_COLUMNS
   );
 });

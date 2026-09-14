@@ -45,7 +45,7 @@ Với việc **Webhook được xác nhận hỗ trợ**, thiết kế chính th
 ### Giai đoạn 1 — Thiết kế & tạo schema dữ liệu
 - Thiết kế bảng cho từng loại dữ liệu: nhóm hàng, sản phẩm, khách hàng, nhà cung cấp, hóa đơn (+ chi tiết dòng, + thanh toán), đơn hàng (+ chi tiết dòng), trả hàng (+ chi tiết dòng — thiếu ở lần trước, bổ sung lần này), nhập hàng (+ chi tiết dòng), thu chi, nhân viên (suy luận từ các bảng khác), và 1 bảng "checkpoint" theo dõi tiến độ đồng bộ của từng loại dữ liệu × từng cơ sở.
 - Nguyên tắc quan trọng: khóa chính mọi bảng là cặp **(cơ sở, id)**, không dùng id đơn lẻ — vì Hà Nội/Sài Gòn là 2 tài khoản KiotViet riêng, id có thể trùng nhau.
-- Cột tiền dùng kiểu số thập phân chính xác (không dùng số thực dấu phẩy động, tránh sai số).
+- Cột tiền là số nguyên VND và dùng `BIGINT`; cột số lượng là số nguyên và dùng `INTEGER`.
 - Viết migration SQL (thủ công, không dùng framework ORM) để tạo toàn bộ schema trên.
 
 ### Giai đoạn 2 — Xây dựng engine đồng bộ (Webhook + Polling đối soát)

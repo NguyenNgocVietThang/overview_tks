@@ -31,8 +31,8 @@ thiết kế bảng con.
   Postgres, tách biệt khỏi 2 hệ thống định danh cũ để tránh Giai đoạn 2 vô tình trộn lẫn 3 khái niệm
   "cơ sở nào" khác nhau. Việc map `KIOTVIET_RETAILER` ↔ `branch` (`'hanoi'`/`'saigon'`) sẽ làm ở
   Giai đoạn 2 khi viết entity sync module (mỗi module biết nó đang chạy cho branch nào từ config).
-- **Cột tiền dùng `NUMERIC(18,2)`** (hoặc `NUMERIC(18,3)` cho số lượng hàng hóa có thể có phần thập
-  phân như cân/kg) — không dùng `FLOAT`/`DOUBLE PRECISION`.
+- **Cột tiền là số nguyên VND và dùng `BIGINT`; số lượng hàng hóa là số nguyên và dùng `INTEGER`**
+  — không dùng `FLOAT`/`DOUBLE PRECISION`.
 - **Mỗi bảng nghiệp vụ có cột `raw JSONB NOT NULL`** lưu nguyên văn object KiotViet trả về cho bản
   ghi đó. Đây là quyết định mới so với roadmap gốc (bổ sung ở bước lập kế hoạch chi tiết này), lý do:
   KiotViet Public API không có tài liệu OpenAPI chính thức, `API_ENDPOINTS.md` mới xác minh tham số
@@ -149,7 +149,7 @@ CREATE TABLE products (
   code          TEXT NOT NULL,
   name          TEXT NOT NULL,
   category_id   BIGINT,
-  base_price    NUMERIC(18,2),
+  base_price    BIGINT,
   unit          TEXT,
   is_active     BOOLEAN,
   created_date  TIMESTAMPTZ,
@@ -167,8 +167,8 @@ CREATE TABLE customers (
   name          TEXT,
   phone         TEXT,
   group_id      BIGINT,
-  debt          NUMERIC(18,2),
-  total_revenue NUMERIC(18,2),
+  debt          BIGINT,
+  total_revenue BIGINT,
   created_date  TIMESTAMPTZ,
   modified_date TIMESTAMPTZ,
   raw           JSONB NOT NULL,
@@ -183,7 +183,7 @@ CREATE TABLE suppliers (
   name          TEXT,
   phone         TEXT,
   group_id      BIGINT,
-  debt          NUMERIC(18,2),
+  debt          BIGINT,
   created_date  TIMESTAMPTZ,
   modified_date TIMESTAMPTZ,
   raw           JSONB NOT NULL,
@@ -242,8 +242,8 @@ CREATE TABLE invoices (
   purchase_date   TIMESTAMPTZ,
   customer_id     BIGINT,
   sold_by_id      BIGINT,
-  total           NUMERIC(18,2),
-  total_payment   NUMERIC(18,2),
+  total           BIGINT,
+  total_payment   BIGINT,
   status          SMALLINT,
   created_date    TIMESTAMPTZ,
   modified_date   TIMESTAMPTZ,
@@ -258,9 +258,9 @@ CREATE TABLE invoice_details (
   invoice_id BIGINT NOT NULL,
   line_no    INT NOT NULL,
   product_id BIGINT,
-  quantity   NUMERIC(18,3),
-  price      NUMERIC(18,2),
-  discount   NUMERIC(18,2),
+  quantity   INTEGER,
+  price      BIGINT,
+  discount   BIGINT,
   raw        JSONB NOT NULL,
   PRIMARY KEY (branch, invoice_id, line_no),
   FOREIGN KEY (branch, invoice_id) REFERENCES invoices (branch, id) ON DELETE CASCADE
@@ -271,7 +271,7 @@ CREATE TABLE invoice_payments (
   invoice_id BIGINT NOT NULL,
   line_no    INT NOT NULL,
   method     TEXT,
-  amount     NUMERIC(18,2),
+  amount     BIGINT,
   trans_date TIMESTAMPTZ,
   raw        JSONB NOT NULL,
   PRIMARY KEY (branch, invoice_id, line_no),
@@ -316,7 +316,7 @@ CREATE TABLE orders (
   order_date    TIMESTAMPTZ,
   customer_id   BIGINT,
   sold_by_id    BIGINT,
-  total         NUMERIC(18,2),
+  total         BIGINT,
   status        SMALLINT,
   created_date  TIMESTAMPTZ,
   modified_date TIMESTAMPTZ,
@@ -331,9 +331,9 @@ CREATE TABLE order_details (
   order_id   BIGINT NOT NULL,
   line_no    INT NOT NULL,
   product_id BIGINT,
-  quantity   NUMERIC(18,3),
-  price      NUMERIC(18,2),
-  discount   NUMERIC(18,2),
+  quantity   INTEGER,
+  price      BIGINT,
+  discount   BIGINT,
   raw        JSONB NOT NULL,
   PRIMARY KEY (branch, order_id, line_no),
   FOREIGN KEY (branch, order_id) REFERENCES orders (branch, id) ON DELETE CASCADE
@@ -369,7 +369,7 @@ CREATE TABLE returns (
   invoice_id    BIGINT,
   customer_id   BIGINT,
   sold_by_id    BIGINT,
-  total         NUMERIC(18,2),
+  total         BIGINT,
   status        SMALLINT,
   created_date  TIMESTAMPTZ,
   modified_date TIMESTAMPTZ,
@@ -384,8 +384,8 @@ CREATE TABLE return_details (
   return_id  BIGINT NOT NULL,
   line_no    INT NOT NULL,
   product_id BIGINT,
-  quantity   NUMERIC(18,3),
-  price      NUMERIC(18,2),
+  quantity   INTEGER,
+  price      BIGINT,
   raw        JSONB NOT NULL,
   PRIMARY KEY (branch, return_id, line_no),
   FOREIGN KEY (branch, return_id) REFERENCES returns (branch, id) ON DELETE CASCADE
@@ -427,7 +427,7 @@ CREATE TABLE purchases (
   code           TEXT NOT NULL,
   purchase_date  TIMESTAMPTZ,
   supplier_id    BIGINT,
-  total          NUMERIC(18,2),
+  total          BIGINT,
   status         SMALLINT,
   created_date   TIMESTAMPTZ,
   modified_date  TIMESTAMPTZ,
@@ -442,8 +442,8 @@ CREATE TABLE purchase_details (
   purchase_id  BIGINT NOT NULL,
   line_no      INT NOT NULL,
   product_id   BIGINT,
-  quantity     NUMERIC(18,3),
-  price        NUMERIC(18,2),
+  quantity     INTEGER,
+  price        BIGINT,
   raw          JSONB NOT NULL,
   PRIMARY KEY (branch, purchase_id, line_no),
   FOREIGN KEY (branch, purchase_id) REFERENCES purchases (branch, id) ON DELETE CASCADE
@@ -477,7 +477,7 @@ CREATE TABLE cash_flows (
   id            BIGINT NOT NULL,
   code          TEXT,
   is_receipt    BOOLEAN NOT NULL,
-  amount        NUMERIC(18,2),
+  amount        BIGINT,
   method        TEXT,
   customer_id   BIGINT,
   supplier_id   BIGINT,

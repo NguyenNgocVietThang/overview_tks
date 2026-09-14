@@ -6,7 +6,7 @@ Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/00
 
 - Mọi bảng nghiệp vụ dùng `branch` với đúng hai giá trị nội bộ: `hanoi` và `saigon`.
 - ID KiotViet chỉ duy nhất trong phạm vi một gian hàng, nên khóa chính luôn bắt đầu bằng `branch`.
-- Tiền dùng `NUMERIC(18,2)`; số lượng hàng hóa dùng `NUMERIC(18,3)`.
+- Tiền là số nguyên VND và dùng `BIGINT`; số lượng hàng hóa là số nguyên và dùng `INTEGER`.
 - Các entity lấy trực tiếp từ KiotViet lưu toàn bộ object nguồn trong `raw JSONB`; các cột first-class dùng để join, lọc và sắp xếp.
 - `status` giữ nguyên mã `SMALLINT` từ KiotViet, không suy diễn nhãn trong tầng lưu trữ.
 - `synced_at` là thời điểm bản ghi được ghi vào Postgres, không thay thế `created_date` hoặc `modified_date` của KiotViet.
