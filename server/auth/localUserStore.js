@@ -80,12 +80,47 @@ function formatDateVN(date = new Date()) {
 let repository = appUsersRepository;
 let cache = createCache();
 
+// ------------------------------------------------------------------
+// TAI KHOAN DU PHONG KHAN CAP — CHI dung khi Postgres (app_users) hoan toan
+// khong ket noi duoc (thieu SUPABASE_DB_URL / chua chay migration 0009).
+// Song hoan toan trong bo nho, KHONG dung Postgres, TU DONG ngung dung ngay
+// khi Postgres ket noi lai duoc (xem onUnavailable ben duoi — fetch that
+// van duoc thu lai moi FRESH_TTL_MS, thanh cong thi ghi de ngay).
+// Mat khau "Admin@123" da san co trong ensureHardcodedAdminsInDb() ben duoi,
+// khong phai bi mat moi. XOA khoi nay sau khi Postgres production da on dinh.
+// ------------------------------------------------------------------
+const FALLBACK_ADMIN_ID = '__fallback-admin__';
+const FALLBACK_ADMIN_PASSWORD_HASH = bcrypt.hashSync('Admin@123', 10);
+
+function buildFallbackAdminUser() {
+  return {
+    id: FALLBACK_ADMIN_ID,
+    username: 'admin',
+    hoTen: 'Quản trị viên hệ thống (dự phòng — Postgres chưa kết nối)',
+    email: 'admin@tokosi.vn',
+    soDienThoai: '',
+    emailKhoiPhuc: '',
+    sdtKhoiPhuc: '',
+    passwordHash: FALLBACK_ADMIN_PASSWORD_HASH,
+    vaiTro: ROLES.QUAN_LY,
+    coSo: BRANCH_BOTH,
+    trangThai: ACTIVE_STATUS,
+    lockReason: '',
+    hrManaged: false,
+    ngayTao: '',
+    dangNhapGanNhat: ''
+  };
+}
+
 function createCache() {
   return createTtlSnapshotCache({
     fetch: async () => ({ users: await repository.selectAllRows() }),
     freshTtlMs: FRESH_TTL_MS,
     staleTtlMs: STALE_TTL_MS,
-    onUnavailable: err => { throw err; }
+    onUnavailable: err => {
+      console.error('[Users] CẢNH BÁO: Postgres (app_users) không kết nối được — dùng tạm tài khoản dự phòng "admin"/"Admin@123" (chỉ trong bộ nhớ, không lưu vĩnh viễn). Lỗi gốc:', err.message);
+      return { users: [buildFallbackAdminUser()] };
+    }
   });
 }
 
@@ -337,6 +372,12 @@ async function updateUser(id, updates) {
   const current = users.find(u => String(u.id) === String(id));
   if (!current) {
     throw new Error('Không tìm thấy tài khoản để cập nhật.');
+  }
+
+  if (String(id) === FALLBACK_ADMIN_ID) {
+    // Dang o che do du phong (Postgres chua ket noi) — khong co noi nao that
+    // de ghi, chi hop nhat tam trong bo nho de request hien tai khong bi loi.
+    return { ...current, ...updates, id: current.id };
   }
 
   const isTargetThang = isProtectedSuperAdmin(current.email) || isProtectedSuperAdmin(current.username);
