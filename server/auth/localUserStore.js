@@ -92,6 +92,11 @@ let cache = createCache();
 const FALLBACK_ADMIN_ID = '__fallback-admin__';
 const FALLBACK_ADMIN_PASSWORD_HASH = bcrypt.hashSync('Admin@123', 10);
 
+const FALLBACK_THANG_ID = 'c2619c62-e841-486a-9803-48c40ab0a398'; // trung ID voi ensureHardcodedAdminsInDb() ben duoi
+const FALLBACK_THANG_PASSWORD_HASH = bcrypt.hashSync('Thang@2026', 10);
+
+const FALLBACK_USER_IDS = new Set([FALLBACK_ADMIN_ID, FALLBACK_THANG_ID]);
+
 function buildFallbackAdminUser() {
   return {
     id: FALLBACK_ADMIN_ID,
@@ -112,14 +117,34 @@ function buildFallbackAdminUser() {
   };
 }
 
+function buildFallbackThangUser() {
+  return {
+    id: FALLBACK_THANG_ID,
+    username: 'thangnnv2003@gmail.com',
+    hoTen: 'Nguyễn Ngọc Việt Thắng (dự phòng — Postgres chưa kết nối)',
+    email: 'thangnnv2003@gmail.com',
+    soDienThoai: '',
+    emailKhoiPhuc: 'thangnnv2003@gmail.com',
+    sdtKhoiPhuc: '0974089295',
+    passwordHash: FALLBACK_THANG_PASSWORD_HASH,
+    vaiTro: ROLES.QUAN_LY,
+    coSo: BRANCH_BOTH,
+    trangThai: ACTIVE_STATUS,
+    lockReason: '',
+    hrManaged: false,
+    ngayTao: '',
+    dangNhapGanNhat: ''
+  };
+}
+
 function createCache() {
   return createTtlSnapshotCache({
     fetch: async () => ({ users: await repository.selectAllRows() }),
     freshTtlMs: FRESH_TTL_MS,
     staleTtlMs: STALE_TTL_MS,
     onUnavailable: err => {
-      console.error('[Users] CẢNH BÁO: Postgres (app_users) không kết nối được — dùng tạm tài khoản dự phòng "admin"/"Admin@123" (chỉ trong bộ nhớ, không lưu vĩnh viễn). Lỗi gốc:', err.message);
-      return { users: [buildFallbackAdminUser()] };
+      console.error('[Users] CẢNH BÁO: Postgres (app_users) không kết nối được — dùng tạm 2 tài khoản dự phòng "admin"/"Admin@123" và "thangnnv2003@gmail.com" (Google hoặc mật khẩu "Thang@2026") — chỉ trong bộ nhớ, không lưu vĩnh viễn. Lỗi gốc:', err.message);
+      return { users: [buildFallbackAdminUser(), buildFallbackThangUser()] };
     }
   });
 }
@@ -374,7 +399,7 @@ async function updateUser(id, updates) {
     throw new Error('Không tìm thấy tài khoản để cập nhật.');
   }
 
-  if (String(id) === FALLBACK_ADMIN_ID) {
+  if (FALLBACK_USER_IDS.has(String(id))) {
     // Dang o che do du phong (Postgres chua ket noi) — khong co noi nao that
     // de ghi, chi hop nhat tam trong bo nho de request hien tai khong bi loi.
     return { ...current, ...updates, id: current.id };
