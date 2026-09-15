@@ -305,6 +305,24 @@ test('knownFields rỗng hoặc không truyền thì không thêm đoạn neo v�
   assert.doesNotMatch(request.body.messages[0].content, /GIỮ NGUYÊN/);
 });
 
+test('system prompt tính sẵn bảng quy đổi ngày tương đối, phân biệt rõ "ngày mai" và "ngày kia"', async () => {
+  let request;
+  const fakeFetch = async (url, options) => {
+    request = { url, headers: options.headers, body: JSON.parse(options.body) };
+    return responseFor(validExtraction);
+  };
+
+  await extractLeaveMessage('Em xin nghỉ ngày kia', {
+    messageTime: '2026-08-22T08:00:00+07:00', timeZone: 'Asia/Bangkok'
+  }, dependencies(fakeFetch));
+
+  const systemPrompt = request.body.messages[0].content;
+  assert.match(systemPrompt, /"hôm nay"=2026-08-22/);
+  assert.match(systemPrompt, /"ngày mai"=2026-08-23/);
+  assert.match(systemPrompt, /"ngày kia"=2026-08-24/);
+  assert.match(systemPrompt, /"ngày mốt"=2026-08-24/);
+});
+
 test('nhận diện reason_declined/handover_declined khi nhân viên chủ động từ chối cung cấp', async () => {
   const result = await extractLeaveMessage('Em xin nghỉ mai, không có lý do, không cần bàn giao', {
     messageTime: '2026-08-22T08:00:00+07:00', timeZone: 'Asia/Bangkok'

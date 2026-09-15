@@ -37,6 +37,15 @@ const telegramIdentityService = require('./telegramIdentityService');
 
 let botInstance = null;
 
+// Bat len khi phat hien 1 bot instance khac cung dang polling (xung dot 409 —
+// vd 2 tien trinh cung dung chung TELEGRAM_BOT_TOKEN, hoac container cu/moi
+// chong lan trong luc Render redeploy). Trong luc nay, tin nhan ma tien trinh
+// NAY nhan duoc rat co the da/se duoc tien trinh KIA xu ly doc lap, khien 2
+// ben tra loi khac nhau cho cung 1 tin nhan xin nghi. Tam ngung gui phan hoi
+// khi co xung dot de tranh gui trung/gui sai — tat lai ngay khi ket noi lai
+// polling thanh cong.
+let pollingConflictActive = false;
+
 function isTelegramBotRuntimeEnabled(env = process.env) {
   if (env.TELEGRAM_BOT_ENABLED != null) {
     return String(env.TELEGRAM_BOT_ENABLED).toLowerCase() === 'true';
@@ -216,6 +225,7 @@ function startHrTelegramBot() {
       conflictRecoveryTimer = null;
       try {
         await bot.startPolling();
+        pollingConflictActive = false;
         console.log('[HR Telegram Bot] Đã kết nối lại polling sau xung đột 409.');
       } catch (startErr) {
         console.error('[HR Telegram Bot] Kết nối lại polling thất bại, thử lại sau 10s:', startErr.message);
@@ -230,6 +240,7 @@ function startHrTelegramBot() {
       /\b409\s+Conflict\b/i.test(String(err.message || ''))
     );
     if (isConflict) {
+      pollingConflictActive = true;
       if (conflictRecoveryTimer) return; // da co 1 lan thu ket noi lai dang cho, tranh chong lap
       console.error('[HR Telegram Bot] Phát hiện bot instance khác đang polling; tạm dừng và thử kết nối lại sau 10s.');
       try {
@@ -377,6 +388,10 @@ function startHrTelegramBot() {
 
 async function handleFreeTextMessage(bot, chatId, msg, text) {
   if (!text) return; // tin nhan khong co noi dung van ban (anh/sticker...) -> bo qua
+  if (pollingConflictActive) {
+    console.warn('[HR Telegram Bot] Bỏ qua xử lý tin nhắn vì đang có xung đột polling với instance khác.');
+    return;
+  }
 
   let conv = conversationStore.getConversation(chatId);
 
@@ -595,6 +610,10 @@ function buildChangeSummary(previous, next) {
 }
 
 async function presentConfirmation(bot, chatId, conv, extracted, resolved) {
+  if (pollingConflictActive) {
+    console.warn('[HR Telegram Bot] Bỏ qua gửi thẻ xác nhận vì đang có xung đột polling với instance khác.');
+    return;
+  }
   const d = conv.data;
   const previousResolved = d.resolved || null;
   if (d.confirmationMessageId) {
@@ -768,6 +787,8 @@ module.exports = {
     markProcessed,
     clearProcessedMessageIds,
     handleFreeTextMessage,
-    submitLeaveRequest
+    submitLeaveRequest,
+    setPollingConflictActive: value => { pollingConflictActive = value; },
+    isPollingConflictActive: () => pollingConflictActive
   }
 };

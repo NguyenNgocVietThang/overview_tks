@@ -34,11 +34,66 @@ class LeaveAiExtractionError extends Error {
   }
 }
 
+function pad2(value) {
+  return String(value).padStart(2, '0');
+}
+
+function formatIsoDateInZone(instant, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(instant);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function addDaysToIsoDate(isoDate, days) {
+  const [year, month, day] = isoDate.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
+}
+
+/**
+ * Tinh san bang quy doi tu tuong doi -> ngay cu the bang code thuan (khong
+ * goi AI) roi dua thang vao prompt, thay vi bat AI tu cong/tru ngay trong
+ * dau. AI lam toan ngay-thang tu nhien ngon rat khong on dinh giua cac model
+ * re dang chay song song de lay consensus -- vd hay nham "ngay kia" (+2) voi
+ * "ngay mai" (+1) vi ca hai deu la "mot ngay nao do sau hom nay" trong cach
+ * model "cam nhan" ngon ngu, du nghia tieng Viet la khac nhau ro rang.
+ */
+function buildRelativeDateGuide(context) {
+  const instant = new Date(context.messageTime);
+  if (Number.isNaN(instant.getTime())) return null;
+  const todayIso = formatIsoDateInZone(instant, context.timeZone);
+  return [
+    ['hôm qua', addDaysToIsoDate(todayIso, -1)],
+    ['hôm nay', todayIso],
+    ['ngày mai', addDaysToIsoDate(todayIso, 1)],
+    ['ngày kia', addDaysToIsoDate(todayIso, 2)],
+    ['ngày mốt', addDaysToIsoDate(todayIso, 2)]
+  ];
+}
+
 function buildSystemPrompt(context) {
   const lines = [
     'Bạn trích xuất thông tin xin nghỉ phép có cấu trúc từ tin nhắn tiếng Việt của nhân viên; bạn KHÔNG phê duyệt hay từ chối yêu cầu.',
     `Mốc thời gian tham chiếu chính xác là ${context.messageTime} theo múi giờ ${context.timeZone}.`,
-    'Quy đổi các từ tương đối "hôm nay", "ngày mai", "ngày kia"/"ngày mốt" sang định dạng YYYY-MM-DD dựa trên mốc thời gian tham chiếu đó.',
+    'Quy đổi các từ tương đối "hôm nay", "ngày mai", "ngày kia"/"ngày mốt" sang định dạng YYYY-MM-DD dựa trên mốc thời gian tham chiếu đó.'
+  ];
+
+  const relativeDateGuide = buildRelativeDateGuide(context);
+  if (relativeDateGuide) {
+    lines.push(
+      'Bảng quy đổi CHÍNH XÁC đã tính sẵn cho mốc tham chiếu ở trên -- dùng ĐÚNG các giá trị này khi tin nhắn nhắc đến từ tương ứng, KHÔNG tự cộng/trừ ngày theo cách khác: '
+      + relativeDateGuide.map(([term, date]) => `"${term}"=${date}`).join(', ')
+      + '. Lưu ý "ngày kia" và "ngày mốt" là ngày SAU "ngày mai" (cách hôm nay 2 ngày), khác với "ngày mai" (cách hôm nay 1 ngày) -- không được nhầm hai từ này với nhau.'
+    );
+  }
+
+  lines.push(
     'Buổi chỉ nhận giá trị "Sáng", "Chiều", hoặc null. Đơn vị thời lượng chỉ nhận "day", "session", hoặc null.',
     'Nếu nhân viên không nêu ngày/buổi nào, để null — KHÔNG tự suy đoán, việc suy luận mặc định do hệ thống khác đảm nhiệm.',
     'Không bao giờ tự bịa lý do, người bàn giao, hoặc ngày tháng không được nêu trong tin nhắn.',
@@ -50,7 +105,7 @@ function buildSystemPrompt(context) {
     '- Dòng có tiền tố "[Trả lời cho THỜI GIAN]"/"[Trả lời cho LÝ DO]"/"[Trả lời cho BÀN GIAO]" là câu trả lời của nhân viên cho ĐÚNG câu hỏi làm rõ mà bạn (qua hệ thống) đã hỏi về trường đó ở lượt trước — chỉ dùng nội dung dòng đó để xác định đúng trường được nêu trong tiền tố, không suy diễn ngược sang các trường khác.',
     '- Dòng có tiền tố "[YÊU CẦU SỬA XÁC NHẬN]" là yêu cầu chỉnh sửa một hoặc vài phần của một yêu cầu đã đầy đủ, đã được hệ thống hiển thị lại cho nhân viên xác nhận — chỉ thay đổi đúng (các) phần được nhắc tới trong dòng đó, các phần còn lại giữ nguyên như đã xác định từ các dòng trước.',
     'Luôn tổng hợp TOÀN BỘ các dòng thành MỘT kết quả trích xuất duy nhất, đầy đủ nhất có thể — không chỉ dựa vào dòng cuối cùng.'
-  ];
+  );
 
   if (context.knownFields && Object.keys(context.knownFields).length) {
     lines.push(

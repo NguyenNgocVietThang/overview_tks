@@ -252,12 +252,14 @@
       '<button type="button" class="profile-trigger" id="tksProfileTrigger">' +
         '<span class="avatar-badge">' + initial + '</span>' +
         '<span class="who"><span class="name"></span><span class="role"></span></span>' +
-      '</button>';
+      '</button>' +
+      '<button type="button" class="tks-btn-danger" id="tksHeaderLogout">Đăng xuất</button>';
     mount.querySelector('.name').textContent = user.hoTen || user.username;
     mount.querySelector('.role').textContent = user.vaiTro || '';
     mount.querySelector('#tksProfileTrigger').addEventListener('click', function(){
       window.location.href = '/account/';
     });
+    mount.querySelector('#tksHeaderLogout').addEventListener('click', TKSNav.logout);
   };
 
   // ---------- Chuong thong bao (dung chung moi trang, dat canh accountChip) ----------

@@ -42,6 +42,30 @@ test('dừng polling khi Telegram báo 409 do có bot instance khác', async () 
   }
 });
 
+test('bỏ qua xử lý tin nhắn khi đang xung đột polling với instance khác, xử lý lại bình thường sau khi hết xung đột', async () => {
+  const h = setupHarness();
+  try {
+    const { __test__ } = require('./hrTelegramBot');
+    __test__.setPollingConflictActive(true);
+
+    await h.sendText(500, 'Em xin nghỉ mai vì khám bệnh, bàn giao B');
+
+    assert.equal(h.bot.sent.length, 0, 'không gửi phản hồi trong lúc đang xung đột polling');
+    assert.equal(h.getExtractionCalls(), 0, 'không gọi AI trong lúc đang xung đột polling');
+
+    __test__.setPollingConflictActive(false);
+    h.queueExtraction(extraction({
+      start_date: '2026-08-23', start_session: 'Sáng', end_date: '2026-08-23', end_session: 'Sáng',
+      reason: 'khám bệnh', handover: 'B'
+    }));
+    await h.sendText(500, 'Em xin nghỉ sáng mai vì khám bệnh, bàn giao B');
+
+    assert.equal(h.bot.sent.length, 1);
+  } finally {
+    h.teardown();
+  }
+});
+
 class FakeTelegramBot extends EventEmitter {
   constructor(token, options) {
     super();
