@@ -2731,24 +2731,6 @@
       text-align: center;
     }
 
-    /* Drill-down: dòng cha bấm được, dòng chi tiết lùi nền để thấy rõ cấp dưới */
-    .debt-row:hover td {
-      background: var(--surface-hover);
-    }
-
-    .debt-row:focus-visible {
-      outline: 2px solid var(--blue);
-      outline-offset: -2px;
-    }
-
-    .debt-detail-row>td {
-      background: var(--panel-2);
-    }
-
-    .debt-detail-row>td>* {
-      animation: debtDetailFadeIn .18s var(--ease-out);
-    }
-
     .pr-detail-row>td {
       background: var(--panel-2);
     }
@@ -2766,6 +2748,157 @@
       to {
         opacity: 1;
         transform: none;
+      }
+    }
+
+    /* ---------- Quản lý công nợ ---------- */
+    .debt-warning-list {
+      display: grid;
+      gap: var(--space-md);
+      margin: var(--space-xl) 0 0;
+    }
+
+    .debt-warning-list[hidden] {
+      display: none;
+    }
+
+    .debt-warning-item {
+      padding: var(--space-lg) var(--space-xl);
+      border: 1px solid color-mix(in srgb, var(--amber) 42%, var(--border));
+      border-radius: var(--radius-8);
+      background: color-mix(in srgb, var(--amber) 10%, var(--panel));
+      color: var(--text-secondary);
+      font-size: 12.5px;
+    }
+
+    .debt-filter-controls {
+      display: flex;
+      align-items: end;
+      gap: var(--space-lg);
+      flex-wrap: wrap;
+      padding: var(--space-lg) 0 var(--space-xl);
+    }
+
+    .debt-filter-field {
+      display: grid;
+      gap: var(--space-sm);
+      min-width: 150px;
+    }
+
+    .debt-filter-field.search-field {
+      flex: 1 1 240px;
+    }
+
+    .debt-filter-field label {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    .debt-filter-field select,
+    .debt-filter-field input {
+      width: 100%;
+      min-height: 38px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-8);
+      background: var(--panel-2);
+      color: var(--text);
+      font: 500 12.5px var(--font-body);
+    }
+
+    .debt-filter-field select:focus-visible,
+    .debt-filter-field input:focus-visible,
+    .debt-status-select:focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: 2px;
+    }
+
+    .debt-table-wrap {
+      max-height: 580px;
+      overflow: auto;
+    }
+
+    .debt-table-wrap table {
+      min-width: 1320px;
+    }
+
+    .debt-table-wrap thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: var(--panel);
+    }
+
+    .debt-alerts {
+      display: flex;
+      gap: var(--space-sm);
+      flex-wrap: wrap;
+      min-width: 130px;
+    }
+
+    .debt-status-select {
+      display: inline-flex;
+      min-width: 124px;
+      padding: 4px 26px 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      appearance: none;
+      background-color: var(--panel-2);
+      color: var(--text);
+      font: 600 11.5px var(--font-body);
+      cursor: pointer;
+    }
+
+    .debt-status-select[data-status="Đang xử lý"] {
+      border-color: color-mix(in srgb, var(--blue) 45%, var(--border));
+      color: var(--blue);
+    }
+
+    .debt-status-select[data-status="Đã xử lý"] {
+      border-color: color-mix(in srgb, var(--green) 45%, var(--border));
+      color: var(--green);
+    }
+
+    .debt-status-select[data-status="Bỏ qua"] {
+      border-color: color-mix(in srgb, var(--muted) 55%, var(--border));
+      color: var(--muted);
+    }
+
+    .debt-status-select:disabled {
+      cursor: not-allowed;
+      opacity: .6;
+    }
+
+    .debt-chart-clickable canvas {
+      cursor: pointer;
+    }
+
+    @keyframes rowPulseHighlight {
+      0% { background-color: color-mix(in srgb, var(--green) 24%, transparent); }
+      100% { background-color: transparent; }
+    }
+
+    .row-highlight-update td {
+      animation: rowPulseHighlight 2.5s var(--ease-out);
+    }
+
+    @media (max-width:760px) {
+      .debt-filter-controls {
+        align-items: stretch;
+      }
+
+      .debt-filter-field,
+      .debt-filter-field.search-field {
+        flex: 1 1 100%;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .row-highlight-update td {
+        animation: none;
       }
     }
 
@@ -3187,15 +3320,6 @@
                 kinh doanh</button>
             </div>
           </div>
-
-          <div class="filter-group" data-filter-view="debt" hidden>
-            <div class="period-toggle" id="debtPeriodToggle" style="grid-row:3;">
-              <button type="button" class="active" data-period="1" onclick="setDebtPeriod(1)">1 ngày</button>
-              <button type="button" data-period="3" onclick="setDebtPeriod(3)">3 ngày</button>
-              <button type="button" data-period="7" onclick="setDebtPeriod(7)">7 ngày</button>
-            </div>
-          </div>
-
 
         </div>
       </div>
@@ -4414,92 +4538,144 @@
           </section>
         </div>
 
-        <!-- ============ CÔNG NỢ ============ -->
+        <!-- ============ QUẢN LÝ CÔNG NỢ ============ -->
         <div class="view" id="view-debt">
-          <div class="view-title">Công nợ khách hàng theo kỳ</div>
-          <div class="view-sub">Dữ liệu từ KiotViet (HN1/HN3/HN7) — Apps Script cập nhật hàng ngày, dashboard làm mới
-            mỗi 10 phút. Số liệu này khác "Tổng công nợ" (nợ lũy kế) ở tab Khách hàng — không đối chiếu chéo hai nguồn.
-          </div>
+          <div class="view-title">Quản lý công nợ</div>
+          <div class="view-sub">Theo dõi dư nợ, cảnh báo thu nợ và tiến độ xử lý theo cơ sở đang chọn.</div>
+          <div class="debt-warning-list" id="debtManagementWarnings" role="status" aria-live="polite" hidden></div>
 
           <section class="section">
             <div class="section-head"><span class="section-step">1</span>
-              <h2>Chỉ số then chốt <span class="section-note">kết quả của kỳ đang chọn</span></h2>
+              <h2>Chỉ số then chốt <span class="section-note" id="debtSourceLabel">nguồn công nợ đang tải</span></h2>
             </div>
             <div class="kpi-grid">
-              <div class="kpi-card accent-amber col-3">
-                <div class="eyebrow">Tổng dư nợ sau thanh toán mới nhất</div>
-                <div class="value" id="dt-closing">—</div>
+              <div class="kpi-card accent-blue col-3">
+                <div class="eyebrow">Tổng nợ hiện tại</div>
+                <div class="value" id="dm-current">—</div>
               </div>
               <div class="kpi-card accent-red col-3">
-                <div class="eyebrow">Tổng ghi nợ (phát sinh)</div>
-                <div class="value" id="dt-debit">—</div>
+                <div class="eyebrow">Tổng nợ quá hạn</div>
+                <div class="value" id="dm-overdue">—</div>
               </div>
-              <div class="kpi-card accent-blue col-3">
-                <div class="eyebrow">Tổng ghi có (đã thu)</div>
-                <div class="value" id="dt-credit">—</div>
+              <div class="kpi-card accent-amber col-3">
+                <div class="eyebrow">Khách cần xử lý</div>
+                <div class="value" id="dm-action-count">—</div>
               </div>
               <div class="kpi-card col-3">
-                <div class="eyebrow">Khách còn nợ</div>
-                <div class="value" id="dt-count">—</div>
+                <div class="eyebrow">Quá hạn / Doanh số</div>
+                <div class="value" id="dm-overdue-ratio">—</div>
               </div>
             </div>
           </section>
 
           <section class="section">
             <div class="section-head"><span class="section-step">2</span>
-              <h2>Phân tích <span class="section-note">mỗi khách lấy dư nợ của lần thanh toán mới nhất đến hiện
-                  tại</span></h2>
+              <h2>Phân tích phân bổ <span class="section-note">nhấn cột biểu đồ để lọc bảng</span></h2>
             </div>
             <div class="grid">
-              <div class="panel col-12">
+              <div class="panel col-7 debt-chart-clickable">
                 <div class="panel-head">
-                  <h2>Khách nợ cao nhất trong kỳ</h2>
-                  <span class="drill-hint">Đổi kỳ 1 / 3 / 7 ngày ở thanh bộ lọc phía trên</span>
+                  <h2>Nợ theo sale</h2>
+                  <span class="drill-hint">Tối đa 15 sale · xếp theo nợ quá hạn</span>
                 </div>
-                <div class="chart-box tall"><canvas id="chartDebtPeriod"></canvas></div>
+                <div class="chart-box tall"><canvas id="chartDebtBySale" role="img" aria-label="Nợ hiện tại và nợ quá hạn theo sale"></canvas></div>
+              </div>
+              <div class="panel col-5 debt-chart-clickable">
+                <div class="panel-head">
+                  <h2>Nợ theo lịch thanh toán</h2>
+                  <span class="drill-hint">Đủ lịch 1 / 3 / 7 / Hàng tuần</span>
+                </div>
+                <div class="chart-box tall"><canvas id="chartDebtBySchedule" role="img" aria-label="Nợ hiện tại và nợ quá hạn theo lịch thanh toán"></canvas></div>
               </div>
             </div>
           </section>
 
           <section class="section">
             <div class="section-head"><span class="section-step">3</span>
-              <h2>Dữ liệu chi tiết <span class="section-note">nhấn một dòng để mở từng giao dịch của khách</span></h2>
+              <h2>Khách hàng trọng điểm <span class="section-note">nhấn cột để tìm khách trong bảng</span></h2>
+            </div>
+            <div class="grid">
+              <div class="panel col-6 debt-chart-clickable">
+                <div class="panel-head">
+                  <h2>Top 10 nợ hiện tại</h2>
+                </div>
+                <div class="chart-box tall"><canvas id="chartTopCurrentDebt" role="img" aria-label="Top 10 khách nợ hiện tại"></canvas></div>
+              </div>
+              <div class="panel col-6 debt-chart-clickable">
+                <div class="panel-head"><h2>Top 10 nợ quá hạn</h2></div>
+                <div class="chart-box tall"><canvas id="chartTopOverdueDebt" role="img" aria-label="Top 10 khách nợ quá hạn"></canvas></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-step">4</span>
+              <h2>Danh sách thao tác <span class="section-note">100 khách mỗi trang · sort ba trạng thái trên mọi cột</span></h2>
             </div>
             <div class="grid">
               <div class="panel col-12">
                 <div class="panel-head">
-                  <h2>Chi tiết công nợ theo khách <span class="tag" id="tagDebtPeriod">—</span></h2>
-                  <div class="panel-head-actions"><span class="drill-hint">▸ Nhấn vào dòng để xem chi tiết giao
-                      dịch</span><button class="export-button" type="button"
-                      onclick="openExportDialog('debt.period')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button></div>
+                  <h2>Khách hàng <span class="tag" id="tagDebtManagement">—</span></h2>
+                  <button class="export-button" type="button" onclick="openExportDialog('debt.management')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button>
                 </div>
-                <div class="scroll-list" style="max-height:480px;">
-                  <table>
+                <div class="debt-filter-controls" aria-label="Bộ lọc công nợ">
+                  <div class="debt-filter-field">
+                    <label for="debtQueueFilter">Hàng chờ</label>
+                    <select id="debtQueueFilter" onchange="handleDebtFilterChange()">
+                      <option value="needsAction" selected>Cần xử lý</option>
+                      <option value="currentDebt">Còn nợ</option>
+                      <option value="overdue">Quá hạn</option>
+                      <option value="all">Tất cả</option>
+                    </select>
+                  </div>
+                  <div class="debt-filter-field">
+                    <label for="debtSaleFilter">Sale</label>
+                    <select id="debtSaleFilter" onchange="handleDebtFilterChange()"><option value="">Tất cả sale</option></select>
+                  </div>
+                  <div class="debt-filter-field">
+                    <label for="debtScheduleFilter">Lịch thanh toán</label>
+                    <select id="debtScheduleFilter" onchange="handleDebtFilterChange()">
+                      <option value="">Tất cả lịch</option>
+                      <option value="1">1 ngày</option>
+                      <option value="3">3 ngày</option>
+                      <option value="7">7 ngày</option>
+                      <option value="Hàng tuần">Hàng tuần</option>
+                    </select>
+                  </div>
+                  <div class="debt-filter-field search-field">
+                    <label for="debtManagementSearch">Tìm khách / sale</label>
+                    <input id="debtManagementSearch" type="search" autocomplete="off" placeholder="Nhập tên khách hoặc sale" oninput="handleDebtFilterChange()">
+                  </div>
+                </div>
+                <div class="debt-table-wrap">
+                  <table data-debt-management-table>
                     <thead>
                       <tr>
-                        <th>Mã KH</th>
                         <th>Khách hàng</th>
-                        <th>Điện thoại</th>
-                        <th>Nhóm KH</th>
+                        <th>Sale</th>
+                        <th>Lịch TT</th>
                         <th>Nợ đầu kỳ</th>
-                        <th>Ghi nợ</th>
-                        <th>Ghi có</th>
-                        <th>Dư nợ cuối (thanh toán mới nhất)</th>
+                        <th>Nợ hiện tại</th>
+                        <th>Nợ quá hạn</th>
+                        <th>% Nợ hiện tại/Doanh số</th>
+                        <th>% Quá hạn/Doanh số</th>
+                        <th>Cảnh báo tự động</th>
+                        <th>Trạng thái xử lý</th>
                       </tr>
                     </thead>
-                    <tbody id="debtPeriodRows">
+                    <tbody id="debtManagementRows">
                       <tr>
-                        <td colspan="8" class="table-note">Đang tải...</td>
+                        <td colspan="10" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
-                <div class="pagination-controls" id="debtPagination" hidden>
-                  <button type="button" id="debtFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="debtPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="debtPageLabel">Trang 1/1</span>
-                  <button type="button" id="debtNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="debtLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+                <div class="pagination-controls" id="debtManagementPagination" hidden>
+                  <button type="button" id="debtManagementFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="debtManagementPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                  <span id="debtManagementPageLabel">Trang 1/1</span>
+                  <button type="button" id="debtManagementNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="debtManagementLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
             </div>
@@ -4587,7 +4763,15 @@
       productStatus: 'all',
       productAnalysis: 'product',
       childCategoryParent: null,
-      debtPeriod: 1,
+      currentUser: null,
+      debtFilters: {
+        queue: 'needsAction',
+        sale: '',
+        schedule: '',
+        search: ''
+      },
+      debtVisibleCustomers: [],
+      debtFlashCustomerKey: '',
       tableSorts: {},
       tablePages: {}, // { [tableKey]: currentPage } — xem renderPaginatedRows()
       filters: {
@@ -4653,7 +4837,8 @@
     function chartTheme() {
       return {
         text: themeColor('--text'), muted: themeColor('--muted'), panel: themeColor('--panel'),
-        grid: themeColor('--chart-grid'), amber: themeColor('--amber')
+        grid: themeColor('--chart-grid'), amber: themeColor('--amber'),
+        blue: themeColor('--blue'), red: themeColor('--red')
       };
     }
 
@@ -4895,12 +5080,24 @@
       const current = state.tableSorts[tbodyId];
       if (current && current.columnIndex === columnIndex && current.direction === 'desc') {
         delete state.tableSorts[tbodyId];
+        if (tbodyId === 'debtManagementRows') {
+          state.tablePages.debtManagement = 1;
+          renderDebtManagementTable();
+          updateTableSortHeader(tbodyId, -1, null);
+          return;
+        }
         restoreTableRowOrder(tbodyId);
         updateTableSortHeader(tbodyId, -1, null);
         return;
       }
       const direction = current && current.columnIndex === columnIndex ? 'desc' : 'asc';
       state.tableSorts[tbodyId] = { columnIndex: columnIndex, direction: direction };
+      if (tbodyId === 'debtManagementRows') {
+        state.tablePages.debtManagement = 1;
+        renderDebtManagementTable();
+        updateTableSortHeader(tbodyId, columnIndex, direction);
+        return;
+      }
       sortTableRows(tbodyId, columnIndex, direction);
       updateTableSortHeader(tbodyId, columnIndex, direction);
     }
@@ -4920,6 +5117,10 @@
     function applyActiveTableSorts() {
       Object.keys(state.tableSorts).forEach(function (tbodyId) {
         const sort = state.tableSorts[tbodyId];
+        if (tbodyId === 'debtManagementRows') {
+          updateTableSortHeader(tbodyId, sort.columnIndex, sort.direction);
+          return;
+        }
         sortTableRows(tbodyId, sort.columnIndex, sort.direction);
         updateTableSortHeader(tbodyId, sort.columnIndex, sort.direction);
       });
@@ -4947,8 +5148,8 @@
         placeholder: 'Tìm mã, tên nhà cung cấp hoặc phiếu nhập'
       },
       debt: {
-        title: 'Tìm trong Công nợ',
-        placeholder: 'Dùng ô lọc bên dưới bảng công nợ để tìm khách hàng'
+        title: 'Quản lý công nợ',
+        placeholder: 'Dùng bộ lọc trong bảng để tìm khách hàng hoặc sale'
       }
     };
 
@@ -5522,8 +5723,11 @@
         context: {
           productAnalysis: state.productAnalysis,
           childCategoryParent: state.childCategoryParent || '',
-          debtPeriod: state.debtPeriod,
-          debtFilter: (document.getElementById('debtFilterInput') || {}).value || '',
+          debtQueue: state.debtFilters.queue,
+          debtSale: state.debtFilters.sale,
+          debtSchedule: state.debtFilters.schedule,
+          debtSearch: state.debtFilters.search,
+          debtSort: state.tableSorts.debtManagementRows || null,
           customerProductCustomerCode: (state.customerProductReport.customer || {}).code || '',
           customerProductCustomerName: (state.customerProductReport.customer || {}).name || '',
           customerProductCode: state.customerProductReport.productCode || '',
@@ -5727,6 +5931,7 @@
 
     function updateSearchContext() {
       const context = SEARCH_CONTEXT[state.view] || SEARCH_CONTEXT.overview;
+      document.getElementById('dashboardSearchForm').hidden = state.view === 'debt';
       document.getElementById('searchLabel').textContent = context.title;
       const input = document.getElementById('dashboardSearchInput');
       const isMultiCodeSearch = state.search.mode === 'codes';
@@ -6831,7 +7036,7 @@
       );
 
       const activeSort = state.tableSorts.topSellingRows;
-      if (activeSort) {
+      if (activeSort && ids.tbody !== 'debtManagementRows') {
         sortTableRows('topSellingRows', activeSort.columnIndex, activeSort.direction);
         updateTableSortHeader('topSellingRows', activeSort.columnIndex, activeSort.direction);
       } else {
@@ -7796,100 +8001,307 @@
 
       }
       else if (view === 'debt') {
-        const periodData = (d.debt && d.debt[state.debtPeriod]) || { customers: [], kpi: {} };
-        const kpi = periodData.kpi || {};
-        document.getElementById('dt-closing').textContent = fmtMoney(kpi.totalClosingDebt);
-        document.getElementById('dt-debit').textContent = fmtMoney(kpi.totalDebit);
-        document.getElementById('dt-credit').textContent = fmtMoney(kpi.totalCredit);
-        document.getElementById('dt-count').textContent = kpi.customersWithDebt || 0;
-
-        const chartList = (periodData.customers || []).filter(c => c.closingDebt > 0).slice(0, 25);
-        if (chartList.length) renderBarChartList('chartDebtPeriod', 'debtPeriod', chartList, c => c.name, c => c.closingDebt, themeColor('--red'), true);
-        else destroyChart('debtPeriod');
-
-        renderDebtTable();
+        renderDebtManagement();
       }
       applyActiveTableSorts();
     }
 
-    function setDebtPeriod(period) {
-      state.debtPeriod = period;
-      document.querySelectorAll('#debtPeriodToggle button').forEach(b => b.classList.toggle('active', Number(b.dataset.period) === period));
-      if (state.data) renderView('debt');
+    const DEBT_WORKFLOW_STATUSES = ['Chưa xử lý', 'Đang xử lý', 'Đã xử lý', 'Bỏ qua'];
+    const DEBT_SORT_FIELDS = [
+      'customerName', 'sale', 'paymentSchedule', 'openingDebt', 'currentDebt',
+      'overdueDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'alertCodes', 'workflowStatus'
+    ];
+
+    function normalizeDebtSearch(value) {
+      return String(value || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLocaleLowerCase('vi-VN');
     }
 
-    function renderDebtTable() {
-      const d = state.data;
-      if (!d || !d.debt) return;
-      const periodData = d.debt[state.debtPeriod] || { customers: [] };
-      const filterRaw = ((document.getElementById('debtFilterInput') || {}).value || '').trim().toLocaleLowerCase('vi-VN');
-      const customers = periodData.customers || [];
-      const filtered = filterRaw
-        ? customers.filter(c =>
-          String(c.code || '').toLocaleLowerCase('vi-VN').includes(filterRaw) ||
-          String(c.name || '').toLocaleLowerCase('vi-VN').includes(filterRaw))
-        : customers;
-
-      document.getElementById('tagDebtPeriod').textContent = filtered.length;
-      state.debtFilteredCustomers = filtered; // luu de toggleDebtDetail tra cuu theo code
-
-      renderPaginatedRows(
-        'debt',
-        { tbody: 'debtPeriodRows', pagination: 'debtPagination', firstBtn: 'debtFirstPage', prevBtn: 'debtPrevPage', nextBtn: 'debtNextPage', lastBtn: 'debtLastPage', label: 'debtPageLabel' },
-        filtered,
-        c => '<tr class="debt-row" style="cursor:pointer;" tabindex="0" role="button" aria-expanded="false" data-customer-code="' + escapeHtml(c.code) + '" onclick="toggleDebtDetail(this)" onkeydown="handleDebtRowKeydown(event, this)">' +
-          '<td class="mono muted">' + escapeHtml(c.code) + '</td>' +
-          '<td class="name-cell">' + escapeHtml(c.name) + '</td>' +
-          '<td class="mono muted">' + (c.phone ? escapeHtml(c.phone) : '—') + '</td>' +
-          '<td>' + (c.group ? escapeHtml(c.group) : '—') + '</td>' +
-          '<td class="mono muted" data-sort-value="' + c.openingDebt + '">' + fmtMoney(c.openingDebt) + '</td>' +
-          '<td class="mono" data-sort-value="' + c.debit + '">' + fmtMoney(c.debit) + '</td>' +
-          '<td class="mono" data-sort-value="' + c.credit + '">' + fmtMoney(c.credit) + '</td>' +
-          '<td class="mono" data-sort-value="' + c.closingDebt + '" style="color:' + (c.closingDebt > 0 ? 'var(--red)' : 'inherit') + ';">' + fmtMoney(c.closingDebt) + '</td>' +
-          '</tr>' +
-          '<tr class="debt-detail-row" data-customer-code="' + escapeHtml(c.code) + '" style="display:none;"><td colspan="8"></td></tr>', // KHONG render transactions san — lazy-render trong toggleDebtDetail
-        8,
-        'Không có khách hàng nào trong kỳ này'
-      );
-      // applyActiveTableSorts() hiện đã được gọi bên trong renderPaginatedRows()
-      // (ngay sau khi thiết lập tbody.innerHTML), vì vậy mọi bảng sử dụng hàm
-      // dùng chung đó đều nhận được xử lý nhất quán — không cần lặp lại ở đây riêng cho bảng công nợ nữa.
+    function formatNullableMoney(value) {
+      return value === null || value === undefined || value === '' ? '—' : fmtMoney(Number(value));
     }
 
-    function toggleDebtDetail(triggerRow) {
-      const code = triggerRow.dataset.customerCode;
-      // Tra bang data-customer-code thay vi nextElementSibling: sortTableRows() (dung
-      // chung, ngoai pham vi Task 3.3) chi di chuyen cac <tr> "trigger" (cell dau tien
-      // co colSpan===1) khi sap xep cot, KHONG di chuyen debt-detail-row di kem — nen
-      // sau khi sort, quan he ke nhau trong DOM giua 2 dong bi vo. Tra theo code giu
-      // dung cap du DOM co bi sap xep lai the nao.
-      const detailRow = triggerRow.parentElement
-        ? triggerRow.parentElement.querySelector('tr.debt-detail-row[data-customer-code="' + CSS.escape(code) + '"]')
-        : null;
-      if (!detailRow) return;
-      const isOpening = detailRow.style.display === 'none';
-      if (isOpening && !detailRow.dataset.rendered) {
-        const c = (state.debtFilteredCustomers || []).find(x => x.code === code);
-        const detailRows = ((c && c.transactions) || []).map(t =>
-          '<tr><td class="mono muted">' + escapeHtml(t.code || '—') + '</td>' +
-          '<td class="mono muted">' + escapeHtml(t.time || '—') + '</td>' +
-          '<td>' + escapeHtml(t.type || '—') + '</td>' +
-          '<td class="mono" data-sort-value="' + t.value + '">' + fmtMoney(t.value) + '</td>' +
-          '<td class="mono" data-sort-value="' + t.runningBalance + '">' + fmtMoney(t.runningBalance) + '</td></tr>'
-        ).join('');
-        detailRow.querySelector('td').innerHTML = detailRows
-          ? '<table><thead><tr><th>Mã giao dịch</th><th>Thời gian</th><th>Loại giao dịch</th><th>Giá trị</th><th>Dư nợ cuối</th></tr></thead><tbody>' + detailRows + '</tbody></table>'
-          : '<span class="table-note">Không có chi tiết giao dịch</span>';
-        detailRow.dataset.rendered = 'true';
+    function formatDebtRatio(value) {
+      if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+      return new Intl.NumberFormat('vi-VN', { style: 'percent', maximumFractionDigits: 1 }).format(Number(value));
+    }
+
+    function debtAlertHtml(customer) {
+      const badges = (customer.alertCodes || []).map(function (code) {
+        if (code === 'uncollected') return '<span class="pill warn">Chưa thu</span>';
+        if (code === 'overdue') return '<span class="pill bad">Quá hạn</span>';
+        return '';
+      }).filter(Boolean);
+      if ((customer.dataIssues || []).length) badges.push('<span class="pill bad">Lỗi dữ liệu</span>');
+      return badges.length ? '<div class="debt-alerts">' + badges.join('') + '</div>' : '—';
+    }
+
+    function debtWorkflowHtml(customer) {
+      const hasWorkflow = (customer.alertCodes || []).length || customer.workflowStatus !== 'Chưa xử lý';
+      if (!hasWorkflow) return '—';
+      if (customer.canEditStatus) {
+        return '<select class="debt-status-select" data-customer-key="' + escapeHtml(customer.customerKey) + '" ' +
+          'data-alert-signature="' + escapeHtml(customer.alertSignature) + '" data-previous-status="' + escapeHtml(customer.workflowStatus) + '" ' +
+          'data-status="' + escapeHtml(customer.workflowStatus) + '" onchange="handleDebtStatusChange(this)" ' +
+          'aria-label="Trạng thái xử lý của ' + escapeHtml(customer.customerName) + '">' +
+          DEBT_WORKFLOW_STATUSES.map(function (status) {
+            return '<option value="' + escapeHtml(status) + '"' + (status === customer.workflowStatus ? ' selected' : '') + '>' + escapeHtml(status) + '</option>';
+          }).join('') + '</select>';
       }
-      detailRow.style.display = isOpening ? 'table-row' : 'none';
-      triggerRow.setAttribute('aria-expanded', String(isOpening));
+      const className = customer.workflowStatus === 'Đã xử lý' ? 'ok' : customer.workflowStatus === 'Đang xử lý' ? 'warn' : '';
+      return '<span class="pill ' + className + '">' + escapeHtml(customer.workflowStatus) + '</span>';
     }
 
-    function handleDebtRowKeydown(event, triggerRow) {
-      if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
-      event.preventDefault();
-      toggleDebtDetail(triggerRow);
+    function getFilteredDebtCustomers() {
+      const debt = state.data && state.data.debtManagement;
+      const filters = state.debtFilters;
+      const query = normalizeDebtSearch(filters.search);
+      return ((debt && debt.customers) || []).filter(function (customer) {
+        if (filters.queue === 'needsAction' && !customer.needsAction) return false;
+        if (filters.queue === 'currentDebt' && !(Number(customer.currentDebt) > 0)) return false;
+        if (filters.queue === 'overdue' && !(Number(customer.overdueDebt) > 0)) return false;
+        if (filters.sale && customer.sale !== filters.sale) return false;
+        if (filters.schedule && customer.paymentSchedule !== filters.schedule) return false;
+        if (query && !normalizeDebtSearch(customer.customerName).includes(query) && !normalizeDebtSearch(customer.sale).includes(query)) return false;
+        return true;
+      });
+    }
+
+    function sortDebtCustomers(customers) {
+      const sort = state.tableSorts.debtManagementRows;
+      if (!sort) return customers.slice();
+      const field = DEBT_SORT_FIELDS[sort.columnIndex];
+      if (!field) return customers.slice();
+      return customers.map(function (customer, index) { return { customer: customer, index: index }; })
+        .sort(function (left, right) {
+          let a = left.customer[field];
+          let b = right.customer[field];
+          if (field === 'alertCodes') {
+            a = (a || []).join(',');
+            b = (b || []).join(',');
+          }
+          const aEmpty = a === null || a === undefined || a === '';
+          const bEmpty = b === null || b === undefined || b === '';
+          if (aEmpty !== bEmpty) return aEmpty ? 1 : -1;
+          let comparison = 0;
+          if (typeof a === 'number' && typeof b === 'number') comparison = a - b;
+          else comparison = String(a).localeCompare(String(b), 'vi', { numeric: true, sensitivity: 'base' });
+          if (comparison === 0) comparison = left.index - right.index;
+          return sort.direction === 'asc' ? comparison : -comparison;
+        })
+        .map(function (entry) { return entry.customer; });
+    }
+
+    function populateDebtSaleFilter(customers) {
+      const select = document.getElementById('debtSaleFilter');
+      const selected = state.debtFilters.sale;
+      const sales = Array.from(new Set(customers.map(function (customer) { return customer.sale; }).filter(Boolean)))
+        .sort(function (a, b) { return a.localeCompare(b, 'vi', { sensitivity: 'base' }); });
+      select.innerHTML = '<option value="">Tất cả sale</option>' + sales.map(function (sale) {
+        return '<option value="' + escapeHtml(sale) + '">' + escapeHtml(sale) + '</option>';
+      }).join('');
+      select.value = sales.includes(selected) ? selected : '';
+      if (select.value !== selected) state.debtFilters.sale = '';
+    }
+
+    function handleDebtFilterChange() {
+      state.debtFilters.queue = document.getElementById('debtQueueFilter').value;
+      state.debtFilters.sale = document.getElementById('debtSaleFilter').value;
+      state.debtFilters.schedule = document.getElementById('debtScheduleFilter').value;
+      state.debtFilters.search = document.getElementById('debtManagementSearch').value;
+      state.tablePages.debtManagement = 1;
+      renderDebtManagementTable();
+    }
+
+    function setDebtDimensionFilter(kind, value) {
+      if (kind === 'sale') {
+        state.debtFilters.sale = value;
+        document.getElementById('debtSaleFilter').value = value;
+      } else if (kind === 'schedule') {
+        state.debtFilters.schedule = value;
+        document.getElementById('debtScheduleFilter').value = value;
+      }
+      state.tablePages.debtManagement = 1;
+      renderDebtManagementTable();
+      document.getElementById('debtManagementSearch').focus({ preventScroll: true });
+    }
+
+    function setDebtCustomerFilter(customerName) {
+      state.debtFilters.queue = 'all';
+      state.debtFilters.search = customerName;
+      document.getElementById('debtQueueFilter').value = 'all';
+      document.getElementById('debtManagementSearch').value = customerName;
+      state.tablePages.debtManagement = 1;
+      renderDebtManagementTable();
+    }
+
+    function renderDebtComparisonChart(canvasId, key, list, labelField, filterKind) {
+      destroyChart(key);
+      const canvas = document.getElementById(canvasId);
+      if (!canvas || !list.length) return;
+      const labels = list.map(function (item) { return item[labelField]; });
+      const theme = chartTheme();
+      const values = list.flatMap(function (item) { return [Number(item.totalCurrentDebt) || 0, Number(item.totalOverdueDebt) || 0]; });
+      const formatAxisMoney = createMoneyAxisFormatter(values);
+      state.charts[key] = new Chart(canvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: 'Nợ hiện tại', data: list.map(function (item) { return Number(item.totalCurrentDebt) || 0; }), backgroundColor: colorWithAlpha(theme.blue, .5), borderColor: theme.blue, borderWidth: 1.5, borderRadius: 5 },
+            { label: 'Nợ quá hạn', data: list.map(function (item) { return Number(item.totalOverdueDebt) || 0; }), backgroundColor: colorWithAlpha(theme.red, .5), borderColor: theme.red, borderWidth: 1.5, borderRadius: 5 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: state.chartAnimation ? undefined : false,
+          onClick: function (event, elements) {
+            if (elements && elements[0]) setDebtDimensionFilter(filterKind, labels[elements[0].index]);
+          },
+          plugins: { legend: { labels: { color: theme.text } }, tooltip: { callbacks: { label: function (context) { return context.dataset.label + ': ' + fmtMoney(context.raw); } } } },
+          scales: {
+            x: { ticks: { color: theme.text, autoSkip: false, maxRotation: 45, minRotation: 0 }, grid: { display: false } },
+            y: { beginAtZero: true, ticks: { color: theme.muted, callback: formatAxisMoney }, grid: { color: theme.grid } }
+          }
+        }
+      });
+    }
+
+    function renderDebtTopChart(canvasId, key, list, valueField) {
+      destroyChart(key);
+      const canvas = document.getElementById(canvasId);
+      if (!canvas || !list.length) return;
+      const labels = list.map(function (item) { return item.customerName; });
+      const values = list.map(function (item) { return Number(item[valueField]) || 0; });
+      const theme = chartTheme();
+      const color = valueField === 'overdueDebt' ? theme.red : theme.blue;
+      state.charts[key] = new Chart(canvas.getContext('2d'), {
+        type: 'bar',
+        data: { labels: labels, datasets: [{ label: valueField === 'overdueDebt' ? 'Nợ quá hạn' : 'Nợ hiện tại', data: values, backgroundColor: colorWithAlpha(color, .5), borderColor: color, borderWidth: 1.5, borderRadius: 5 }] },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: state.chartAnimation ? undefined : false,
+          onClick: function (event, elements) {
+            if (elements && elements[0]) setDebtCustomerFilter(labels[elements[0].index]);
+          },
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (context) { return fmtMoney(context.raw); } } } },
+          scales: {
+            x: { beginAtZero: true, ticks: { color: theme.muted, callback: createMoneyAxisFormatter(values) }, grid: { color: theme.grid } },
+            y: { ticks: { color: theme.text, autoSkip: false }, grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    function renderDebtManagementTable() {
+      const debt = state.data && state.data.debtManagement;
+      const sorted = sortDebtCustomers(getFilteredDebtCustomers());
+      state.debtVisibleCustomers = sorted;
+      document.getElementById('tagDebtManagement').textContent = sorted.length;
+      renderPaginatedRows(
+        'debtManagement',
+        { tbody: 'debtManagementRows', pagination: 'debtManagementPagination', firstBtn: 'debtManagementFirstPage', prevBtn: 'debtManagementPrevPage', nextBtn: 'debtManagementNextPage', lastBtn: 'debtManagementLastPage', label: 'debtManagementPageLabel' },
+        sorted,
+        function (customer) {
+          const flashClass = customer.customerKey === state.debtFlashCustomerKey ? ' class="row-highlight-update"' : '';
+          return '<tr' + flashClass + ' data-customer-key="' + escapeHtml(customer.customerKey) + '">' +
+            '<td class="name-cell">' + escapeHtml(customer.customerName) + '</td>' +
+            '<td>' + escapeHtml(customer.sale) + '</td>' +
+            '<td class="mono">' + escapeHtml(customer.paymentSchedule || '—') + '</td>' +
+            '<td class="mono">' + formatNullableMoney(customer.openingDebt) + '</td>' +
+            '<td class="mono">' + formatNullableMoney(customer.currentDebt) + '</td>' +
+            '<td class="mono">' + formatNullableMoney(customer.overdueDebt) + '</td>' +
+            '<td class="mono">' + formatDebtRatio(customer.currentDebtToSalesRatio) + '</td>' +
+            '<td class="mono">' + formatDebtRatio(customer.overdueToSalesRatio) + '</td>' +
+            '<td>' + debtAlertHtml(customer) + '</td>' +
+            '<td>' + debtWorkflowHtml(customer) + '</td></tr>';
+        },
+        10,
+        debt && debt.available === false ? 'Nguồn công nợ chưa sẵn sàng' : 'Không có khách phù hợp bộ lọc'
+      );
+      const activeSort = state.tableSorts.debtManagementRows;
+      updateTableSortHeader('debtManagementRows', activeSort ? activeSort.columnIndex : -1, activeSort ? activeSort.direction : null);
+    }
+
+    function renderDebtManagement() {
+      const debt = state.data && state.data.debtManagement;
+      const warnings = document.getElementById('debtManagementWarnings');
+      const messages = (debt && debt.dataWarnings) || [];
+      warnings.hidden = messages.length === 0;
+      warnings.innerHTML = messages.map(function (message) { return '<div class="debt-warning-item">' + escapeHtml(message) + '</div>'; }).join('');
+      document.getElementById('debtSourceLabel').textContent = debt && debt.sourceSheet ? 'Sheet ' + debt.sourceSheet : 'nguồn chưa sẵn sàng';
+
+      const kpi = (debt && debt.kpi) || {};
+      document.getElementById('dm-current').textContent = debt && debt.available ? fmtMoney(kpi.totalCurrentDebt) : '—';
+      document.getElementById('dm-overdue').textContent = debt && debt.available ? fmtMoney(kpi.totalOverdueDebt) : '—';
+      document.getElementById('dm-action-count').textContent = debt && debt.available ? fmtNumber(Number(kpi.actionCustomerCount) || 0) : '—';
+      document.getElementById('dm-overdue-ratio').textContent = debt && debt.available ? formatDebtRatio(kpi.overdueToSalesRatio) : '—';
+
+      const customers = (debt && debt.customers) || [];
+      populateDebtSaleFilter(customers);
+      document.getElementById('debtQueueFilter').value = state.debtFilters.queue;
+      document.getElementById('debtScheduleFilter').value = state.debtFilters.schedule;
+      document.getElementById('debtManagementSearch').value = state.debtFilters.search;
+      renderDebtComparisonChart('chartDebtBySale', 'debtBySale', (debt && debt.bySale) || [], 'sale', 'sale');
+      renderDebtComparisonChart('chartDebtBySchedule', 'debtBySchedule', (debt && debt.byPaymentSchedule) || [], 'paymentSchedule', 'schedule');
+      renderDebtTopChart('chartTopCurrentDebt', 'topCurrentDebt', (debt && debt.topCurrentDebt) || [], 'currentDebt');
+      renderDebtTopChart('chartTopOverdueDebt', 'topOverdueDebt', (debt && debt.topOverdueDebt) || [], 'overdueDebt');
+      renderDebtManagementTable();
+    }
+
+    function recalculateDebtActionKpi() {
+      const debt = state.data && state.data.debtManagement;
+      if (!debt) return;
+      debt.kpi.actionCustomerCount = (debt.customers || []).filter(function (customer) { return customer.needsAction; }).length;
+    }
+
+    async function handleDebtStatusChange(selectEl) {
+      const previousStatus = selectEl.dataset.previousStatus;
+      const newStatus = selectEl.value;
+      if (previousStatus === newStatus) return;
+      selectEl.disabled = true;
+      selectEl.dataset.status = newStatus;
+
+      try {
+        const response = await fetch('/api/debt-management/status', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            customerKey: selectEl.dataset.customerKey,
+            status: newStatus,
+            alertSignature: selectEl.dataset.alertSignature
+          })
+        });
+        const payload = await response.json().catch(function () { return {}; });
+        if (!response.ok) throw new Error(payload.error || 'Cập nhật trạng thái thất bại.');
+
+        const debt = state.data && state.data.debtManagement;
+        const customer = debt && (debt.customers || []).find(function (item) { return item.customerKey === selectEl.dataset.customerKey; });
+        if (customer) {
+          customer.workflowStatus = payload.status || newStatus;
+          customer.updatedBy = payload.updatedBy || (state.currentUser && (state.currentUser.hoTen || state.currentUser.username)) || '';
+          customer.updatedAt = payload.updatedAt || new Date().toISOString();
+          customer.needsAction = (customer.alertCodes || []).length > 0 && !(customer.dataIssues || []).length && !['Đã xử lý', 'Bỏ qua'].includes(customer.workflowStatus);
+          state.debtFlashCustomerKey = customer.customerKey;
+          recalculateDebtActionKpi();
+          renderDebtManagement();
+          window.setTimeout(function () {
+            state.debtFlashCustomerKey = '';
+            const row = document.querySelector('#debtManagementRows tr[data-customer-key="' + customer.customerKey + '"]');
+            if (row) row.classList.remove('row-highlight-update');
+          }, 2600);
+        }
+        showToast('Đã cập nhật trạng thái thành "' + newStatus + '".');
+      } catch (error) {
+        selectEl.value = previousStatus;
+        selectEl.dataset.status = previousStatus;
+        showToast(error.message || 'Không thể cập nhật trạng thái xử lý.', 'error');
+      } finally {
+        if (selectEl.isConnected) selectEl.disabled = false;
+      }
     }
 
     function setLoading(isLoading) {
@@ -8006,6 +8418,7 @@
     // class active cho view bao cao dang mo, vi sidebar dung chung khong biet state.view cua SPA.
     if (typeof TKSNav !== 'undefined' && TKSNav.authGuard) {
       TKSNav.authGuard().then(function(user){
+        state.currentUser = user;
         syncSidebarActiveView();
       }).catch(function(err){
         document.documentElement.style.visibility = '';
