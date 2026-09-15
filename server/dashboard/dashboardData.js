@@ -6,6 +6,9 @@ const CONFIG = require('../config');
 const sheetsClient = require('../sheets/sheetsClient');
 const debtManagementSheetsClient = require('../sheets/debtManagementSheetsClient');
 const { BRANCHES } = require('../branch/branches');
+const { branchLabelToCode } = require('../branch/branches');
+const { ROLES } = require('../auth/userRepository');
+const debtCollectionStatusRepository = require('./debtCollectionStatusRepository');
 const { deriveDebtManagement } = require('./debtManagement');
 
 const OUT_OF_STOCK_LEVEL = 0;
@@ -979,6 +982,38 @@ async function getCachedDebtManagementSource(branch) {
   return loading;
 }
 
+let debtWorkflowCacheByBranch = new Map();
+
+function debtWorkflowCacheFor(branch) {
+  const key = branch || BRANCHES.HANOI;
+  if (!debtWorkflowCacheByBranch.has(key)) {
+    debtWorkflowCacheByBranch.set(key, { data: null, version: 0, expiresAt: 0, loading: null });
+  }
+  return debtWorkflowCacheByBranch.get(key);
+}
+
+async function getCachedDebtWorkflow(branch) {
+  const cache = debtWorkflowCacheFor(branch);
+  if (cache.data && Date.now() < cache.expiresAt) return cache.data;
+  if (cache.loading) return cache.loading;
+
+  const branchCode = branchLabelToCode(branch || BRANCHES.HANOI);
+  const loading = debtCollectionStatusRepository.listByBranch(branchCode)
+    .then(statuses => ({ available: true, statuses, error: null }))
+    .catch(error => ({ available: false, statuses: [], error }))
+    .then(data => {
+      cache.data = data;
+      cache.version += 1;
+      cache.expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
+      return data;
+    })
+    .finally(() => {
+      if (cache.loading === loading) cache.loading = null;
+    });
+  cache.loading = loading;
+  return loading;
+}
+
 /**
  * Gop cac hoa don trong `records` thanh chuoi doanh thu theo ngay trong
  * `range`. Voi "Tat ca" (khong gioi han), bucket theo tung ngay THUC SU CO
@@ -1693,14 +1728,16 @@ function dashboardResultCacheKey(branch, sourceVersions, filters) {
  * @param {Object} filters - xem computeDashboardData
  * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
  */
-async function getDashboardData(filters, branch) {
+async function getDashboardData(filters, branch, viewer) {
   const f = filters || {};
-  const [sheets, debtManagementSource] = await Promise.all([
+  const [sheets, debtManagementSource, debtWorkflow] = await Promise.all([
     getCachedDashboardSheets(branch),
-    getCachedDebtManagementSource(branch)
+    getCachedDebtManagementSource(branch),
+    getCachedDebtWorkflow(branch)
   ]);
-  const sourceVersions = `${dashboardSheetsCacheFor(branch).version}:${debtManagementSheetsCacheFor(branch).version}`;
-  const cacheKey = dashboardResultCacheKey(branch, sourceVersions, f);
+  const canEditDebtStatus = viewer?.vaiTro === ROLES.QUAN_LY || viewer?.vaiTro === ROLES.TRO_LY;
+  const sourceVersions = `${dashboardSheetsCacheFor(branch).version}:${debtManagementSheetsCacheFor(branch).version}:${debtWorkflowCacheFor(branch).version}`;
+  const cacheKey = dashboardResultCacheKey(branch, `${sourceVersions}:${canEditDebtStatus ? 'edit' : 'read'}`, f);
 
   const cached = dashboardResultCache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt) {
@@ -1713,12 +1750,12 @@ async function getDashboardData(filters, branch) {
   // khac co vong doi rieng.
   const branchPrefix = (branch || BRANCHES.HANOI) + '|';
   for (const key of dashboardResultCache.keys()) {
-    if (key.startsWith(branchPrefix) && !key.startsWith(branchPrefix + sourceVersions + '|')) {
+    if (key.startsWith(branchPrefix) && !key.startsWith(branchPrefix + sourceVersions + ':')) {
       dashboardResultCache.delete(key);
     }
   }
 
-  const data = computeDashboardData(sheets, f, new Date(), debtManagementSource, branch);
+  const data = computeDashboardData(sheets, f, new Date(), debtManagementSource, branch, debtWorkflow, canEditDebtStatus);
   dashboardResultCache.set(cacheKey, { data, expiresAt: Date.now() + DASHBOARD_RESULT_CACHE_TTL_MS });
   // Gioi han so entry trong Map — Map giu thu tu insertion nen phan tu dau tien
   // luon la entry cu nhat, xoa dan cho toi khi ve lai duoi muc tran.
@@ -1734,13 +1771,14 @@ async function getDashboardData(filters, branch) {
  * bi lech khi Sheets vua duoc dong bo giua hai request.
  */
 async function getDashboardExportSnapshot(filters, branch) {
-  const [sheets, debtManagementSource] = await Promise.all([
+  const [sheets, debtManagementSource, debtWorkflow] = await Promise.all([
     getCachedDashboardSheets(branch),
-    getCachedDebtManagementSource(branch)
+    getCachedDebtManagementSource(branch),
+    getCachedDebtWorkflow(branch)
   ]);
   // Tinh truc tiep tu chinh object `sheets` vua lay thay vi goi lai wrapper
   // cache; nhu vay du lieu goc va tap dong da loc chac chan cung mot snapshot.
-  const dashboard = computeDashboardData(sheets, filters || {}, new Date(), debtManagementSource, branch);
+  const dashboard = computeDashboardData(sheets, filters || {}, new Date(), debtManagementSource, branch, debtWorkflow, false);
   return { sheets, dashboard, debtManagementSource };
 }
 
@@ -1755,7 +1793,7 @@ async function getDashboardExportSnapshot(filters, branch) {
  * @param {Date} now
  * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
  */
-function computeDashboardData(sheets, filters, now, debtManagementSource, branch) {
+function computeDashboardData(sheets, filters, now, debtManagementSource, branch, debtWorkflow, canEditDebtStatus) {
   computeCallCountForTest += 1;
   const f = filters || {};
   const todayStr = formatDMY(now);
@@ -1780,7 +1818,10 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       HN1: sheets[CONFIG.SHEET_DEBT_1],
       HN3: sheets[CONFIG.SHEET_DEBT_3],
       HN7: sheets[CONFIG.SHEET_DEBT_7]
-    }
+    },
+    workflowStatuses: debtWorkflow?.statuses || [],
+    workflowAvailable: debtWorkflow?.available !== false,
+    userCanEdit: canEditDebtStatus
   });
   if (debtManagementSource?.error) {
     debtManagement.dataWarnings.unshift(`Không tải được workbook công nợ: ${debtManagementSource.error.message || 'Lỗi không xác định'}.`);
@@ -2483,9 +2524,21 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   };
 }
 
+function invalidateDebtWorkflowCache(branch) {
+  const cache = debtWorkflowCacheFor(branch);
+  cache.data = null;
+  cache.expiresAt = 0;
+  cache.version += 1;
+  const prefix = (branch || BRANCHES.HANOI) + '|';
+  for (const key of dashboardResultCache.keys()) {
+    if (key.startsWith(prefix)) dashboardResultCache.delete(key);
+  }
+}
+
 module.exports = {
   getDashboardData,
   getDashboardExportSnapshot,
+  invalidateDebtWorkflowCache,
   searchDashboardRecords,
   searchTopCustomersByProducts,
   getCustomerProductRevenueReport,
@@ -2497,6 +2550,7 @@ module.exports = {
     resetCaches() {
       dashboardSheetsCacheByBranch = new Map();
       debtManagementSheetsCacheByBranch = new Map();
+      debtWorkflowCacheByBranch = new Map();
       searchSheetCacheByBranch = new Map();
       customerProductTopSheetCacheByBranch = new Map();
       customerReportSearchCacheByBranch = new Map();

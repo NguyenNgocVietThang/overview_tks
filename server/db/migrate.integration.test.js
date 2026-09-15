@@ -2,14 +2,18 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { Pool } = require('pg');
 const CONFIG = require('../config');
-const { getPool } = require('./pool');
 const { runMigrations } = require('./migrate');
+
+const TEST_DB_URL = process.env.SUPABASE_TEST_DB_URL || '';
+const TEST_DB_IS_PRODUCTION = Boolean(TEST_DB_URL && CONFIG.SUPABASE_DB_URL && TEST_DB_URL === CONFIG.SUPABASE_DB_URL);
 
 const EXPECTED_TABLES = [
   'cash_flows',
   'categories',
   'customers',
+  'debt_collection_statuses',
   'invoice_details',
   'invoice_payments',
   'invoices',
@@ -51,9 +55,17 @@ const EXPECTED_INTEGER_COLUMNS = [
 ];
 
 test('migrations create the complete KiotViet schema on configured Supabase', {
-  skip: CONFIG.SUPABASE_DB_URL ? false : 'SUPABASE_DB_URL chưa cấu hình — bỏ qua test tích hợp'
+  skip: !TEST_DB_URL
+    ? 'SUPABASE_TEST_DB_URL chưa cấu hình — bỏ qua test tích hợp'
+    : TEST_DB_IS_PRODUCTION
+      ? 'SUPABASE_TEST_DB_URL trùng production — từ chối chạy migration test'
+      : false
 }, async (t) => {
-  const pool = getPool();
+  const pool = new Pool({
+    connectionString: TEST_DB_URL,
+    max: 2,
+    ssl: CONFIG.PGSSL ? { rejectUnauthorized: false } : false
+  });
   t.after(() => pool.end());
 
   await runMigrations({ pool, logger: { log() {} } });

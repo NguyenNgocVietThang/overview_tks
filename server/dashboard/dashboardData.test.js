@@ -15,14 +15,17 @@ function freshDashboardData() {
   delete require.cache[require.resolve('./dashboardData')];
   delete require.cache[require.resolve('../sheets/sheetsClient')];
   delete require.cache[require.resolve('../sheets/debtManagementSheetsClient')];
+  delete require.cache[require.resolve('./debtCollectionStatusRepository')];
   const sheetsClient = require('../sheets/sheetsClient');
   const debtManagementSheetsClient = require('../sheets/debtManagementSheetsClient');
   debtManagementSheetsClient.getDebtManagementSheet = async branch => ({
     sourceSheet: branch === 'Sài Gòn' ? 'Công nợ SG' : 'Công nợ HN',
     rows: []
   });
+  const debtCollectionStatusRepository = require('./debtCollectionStatusRepository');
+  debtCollectionStatusRepository.listByBranch = async () => [];
   const dashboardData = require('./dashboardData');
-  return { dashboardData, sheetsClient, debtManagementSheetsClient };
+  return { dashboardData, sheetsClient, debtManagementSheetsClient, debtCollectionStatusRepository };
 }
 
 // Thay the toan bo getMultipleSheetValues bang mock dem so lan goi — dashboardData.js
@@ -517,6 +520,50 @@ test('lỗi workbook công nợ chỉ làm debtManagement unavailable, không l�
   assert.equal(result.debtManagement.available, false);
   assert.ok(result.debtManagement.dataWarnings.some(warning => warning.includes('Workbook chưa cấu hình')));
   assert.ok(result.overview);
+});
+
+test('dashboard ghép workflow theo cơ sở, phân quyền sửa và khóa khi PostgreSQL lỗi', async () => {
+  const { dashboardData, sheetsClient, debtManagementSheetsClient, debtCollectionStatusRepository } = freshDashboardData();
+  const CONFIG = require('../config');
+  const { createAlertSignature } = require('./debtManagement');
+  sheetsClient.getMultipleSheetValues = async names => {
+    const result = Object.fromEntries(names.map(name => [name, []]));
+    result[CONFIG.SHEET_DEBT_1] = [['Khách hàng']];
+    result[CONFIG.SHEET_DEBT_3] = [['Khách hàng']];
+    result[CONFIG.SHEET_DEBT_7] = [['Khách hàng']];
+    return result;
+  };
+  debtManagementSheetsClient.getDebtManagementSheet = async () => ({
+    sourceSheet: 'Công nợ HN',
+    rows: [
+      ['Khách hàng', 'Sale', 'Lịch TT HN', 'Nợ đầu kỳ', 'Nợ hiện tại', 'Nợ quá hạn', '% nợ/Doanh số', '% quá hạn / TB DS', 'TB T6/26-T9/26'],
+      ['TỔNG'],
+      ['Khách A', 'Lan', 7, 0, 500000, 500000, 0.5, 0.5, 1000000]
+    ]
+  });
+  const signature = createAlertSignature(['overdue'], 500000, 500000);
+  debtCollectionStatusRepository.listByBranch = async branch => [{
+    branch,
+    customer_key: require('node:crypto').createHash('sha256').update('khách a').digest('hex'),
+    status: 'Đã xử lý',
+    alert_signature: signature,
+    updated_by_name: 'Quản lý'
+  }];
+  dashboardData.__test__.resetCaches();
+
+  const manager = await dashboardData.getDashboardData(BASE_FILTERS, 'Hà Nội', { vaiTro: 'Quản lý' });
+  assert.equal(manager.debtManagement.customers[0].workflowStatus, 'Đã xử lý');
+  assert.equal(manager.debtManagement.customers[0].needsAction, false);
+  assert.equal(manager.debtManagement.customers[0].canEditStatus, true);
+
+  const accountant = await dashboardData.getDashboardData(BASE_FILTERS, 'Hà Nội', { vaiTro: 'Kế toán' });
+  assert.equal(accountant.debtManagement.customers[0].canEditStatus, false);
+
+  dashboardData.__test__.resetCaches();
+  debtCollectionStatusRepository.listByBranch = async () => { throw new Error('db down'); };
+  const unavailable = await dashboardData.getDashboardData(BASE_FILTERS, 'Hà Nội', { vaiTro: 'Quản lý' });
+  assert.equal(unavailable.debtManagement.customers[0].canEditStatus, false);
+  assert.ok(unavailable.debtManagement.dataWarnings.some(warning => warning.includes('trạng thái xử lý')));
 });
 
 // ===== getCustomerProductRevenueReport (tab Khach hang, phan 4) =====

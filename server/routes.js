@@ -29,6 +29,7 @@ const roleChangeRequestRoutes = require('./auth/roleChangeRequestRoutes');
 const stockoutCheckRoutes    = require('./dashboard/stockoutCheck/stockoutCheckRoutes');
 const kiotvietWebhookRoutes  = require('./kiotviet/kiotvietWebhookRoutes');
 const kiotvietSyncStatusRoutes = require('./kiotvietSync/kiotvietSyncStatusRoutes');
+const debtManagementRoutes = require('./dashboard/debtManagementRoutes');
 
 router.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
@@ -93,6 +94,9 @@ router.use(notificationRoutes);
 
 // Yeu cau doi vai tro tu than — /api/role-requests/* — Quan ly duyet/tu choi.
 router.use(roleChangeRequestRoutes);
+
+// PATCH trạng thái công nợ tự mang auth/role/branch guard bên trong router.
+router.use(debtManagementRoutes);
 
 // Trang thai sync chi danh cho Quan ly; route tu fail-soft 503 neu chua co DB.
 router.use('/api/internal/kiotviet-sync/status', requireAuth, requireRole(ROLES.QUAN_LY));
@@ -179,7 +183,7 @@ router.get('/api/dashboard', async (req, res) => {
       newPurchases: parseFilterSpec(req.query, 'pu'),
       newProducts: parseFilterSpec(req.query, 'np')
     };
-    const data = await getDashboardData(filters, req.branch);
+    const data = await getDashboardData(filters, req.branch, req.user);
     res.status(200).json(data);
   } catch (err) {
     const googleStatus = err?.response?.status;
