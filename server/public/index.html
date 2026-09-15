@@ -5839,13 +5839,13 @@
     }
 
     function renderExportFields(metadata) {
-      document.getElementById('exportModalSubtitle').textContent = 'Mặc định đã chọn toàn bộ trường; bỏ tick các trường không cần.';
+      document.getElementById('exportModalSubtitle').textContent = 'Đã chọn sẵn các trường mặc định; có thể bổ sung hoặc bỏ các trường không cần.';
       document.getElementById('exportToolbar').hidden = false;
       document.getElementById('exportConfirmButton').hidden = false;
       document.getElementById('exportFields').innerHTML = metadata.worksheets.map(function (worksheet) {
         const fields = worksheet.fields.map(function (field) {
           return '<label class="export-field-item" data-export-label="' + escapeHtml(field.label.toLocaleLowerCase('vi-VN')) + '">' +
-            '<input type="checkbox" data-export-sheet="' + escapeHtml(worksheet.key) + '" value="' + escapeHtml(field.key) + '" checked onchange="updateExportSelectionStatus()">' +
+            '<input type="checkbox" data-export-sheet="' + escapeHtml(worksheet.key) + '" value="' + escapeHtml(field.key) + '"' + (field.selected !== false ? ' checked' : '') + ' onchange="updateExportSelectionStatus()">' +
             '<span class="export-field-label">' + escapeHtml(field.label) + '</span></label>';
         }).join('');
         return '<div class="export-group"><div class="export-group-head"><span class="export-group-title">' + escapeHtml(worksheet.name) + '</span>' +

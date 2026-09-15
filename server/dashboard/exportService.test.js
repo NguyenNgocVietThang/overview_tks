@@ -74,14 +74,27 @@ function buildSnapshot() {
       topDebt: [{ code: 'KH-01', periodRevenue: 300000 }]
     },
     suppliers: [{ code: 'NCC-01' }],
-    debt: {
-      1: {
-        customers: [{
-          code: 'KH-01', name: 'Khách A', phone: '0900123456', group: 'VIP',
-          openingDebt: 10, debit: 20, credit: 5, closingDebt: 25,
-          transactions: [{ code: 'GD-01', time: '14/08/2026 10:00:00', type: 'Thanh toán', value: 5, runningBalance: 25 }]
-        }]
-      }
+    debtManagement: {
+      available: true,
+      sourceSheet: 'Công nợ HN',
+      customers: [
+        {
+          customerKey: 'khach-a', customerName: 'Khách A', sale: 'Lan', paymentSchedule: '1',
+          openingDebt: 100000, currentDebt: 800000, overdueDebt: 500000,
+          currentDebtToSalesRatio: 0.4, overdueToSalesRatio: 0.25,
+          alertCodes: ['uncollected', 'overdue'], dataIssues: [],
+          workflowStatus: 'Chưa xử lý', needsAction: true,
+          updatedBy: '=Người cập nhật', updatedAt: '14/08/2026 10:00:00'
+        },
+        {
+          customerKey: 'khach-b', customerName: 'Khách B', sale: 'Minh', paymentSchedule: '7',
+          openingDebt: null, currentDebt: 1200000, overdueDebt: 0,
+          currentDebtToSalesRatio: null, overdueToSalesRatio: null,
+          alertCodes: [], dataIssues: ['duplicate_customer_name'],
+          workflowStatus: 'Đã xử lý', needsAction: false,
+          updatedBy: 'Quản lý', updatedAt: '15/08/2026 08:30:00'
+        }
+      ]
     }
   };
 
@@ -92,7 +105,7 @@ const FIXED_TABLES = [
   'overview.transactions', 'overview.purchases', 'overview.new-products',
   'products.top-selling', 'products.low-stock', 'products.all', 'products.newly-imported',
   'products.child-categories', 'invoices.orders', 'invoices.returns', 'invoices.recent',
-  'customers.revenue', 'customers.debt', 'suppliers.list', 'debt.period'
+  'customers.revenue', 'customers.debt', 'suppliers.list', 'debt.management'
 ];
 
 test('registry dung du 15 bang va tao duoc metadata voi tat ca cot mac dinh duoc chon', () => {
@@ -101,7 +114,7 @@ test('registry dung du 15 bang va tao duoc metadata voi tat ca cot mac dinh duoc
     const context = {
       productAnalysis: tableKey === 'products.top-selling' ? 'product' : undefined,
       childCategoryParent: 'Áo',
-      debtPeriod: 1
+      debtQueue: 'all'
     };
     const dataset = exportService.__test__.buildFixedDataset(tableKey, snapshot, context);
     assert.equal(dataset.tableKey, tableKey);
@@ -118,14 +131,18 @@ test('ca 15 bang tao duoc file xlsx tu danh sach truong API tra ve', async () =>
       const payload = {
         tableKey,
         filters: {},
-        context: { productAnalysis: 'product', childCategoryParent: 'Áo', debtPeriod: 1 }
+        context: { productAnalysis: 'product', childCategoryParent: 'Áo', debtQueue: 'all' }
       };
       const metadata = await exportService.getExportFields(payload);
       payload.columns = Object.fromEntries(metadata.worksheets.map(worksheet => [
         worksheet.key,
         worksheet.fields.map(field => field.key)
       ]));
-      assert.ok(metadata.worksheets.every(worksheet => worksheet.fields.every(field => field.selected)));
+      if (tableKey === 'debt.management') {
+        assert.equal(metadata.worksheets[0].fields.filter(field => field.selected).length, 10);
+      } else {
+        assert.ok(metadata.worksheets.every(worksheet => worksheet.fields.every(field => field.selected)));
+      }
       const file = await exportService.createExportWorkbook(payload);
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(file.buffer);
@@ -144,14 +161,87 @@ test('Nhap hang tao worksheet tong hop theo phieu va chi tiet tung mat hang', ()
   assert.ok(dataset.worksheets[1].columns.some(column => column.label === 'Mã hàng'));
 });
 
-test('Cong no tao worksheet tong hop va giao dich, co ap dung bo loc ma ten', () => {
+test('Quản lý công nợ xuất đúng một worksheet, lọc và sort trên toàn bộ tập khách', () => {
   const snapshot = buildSnapshot();
-  const matched = exportService.__test__.buildFixedDataset('debt.period', snapshot, { debtPeriod: 1, debtFilter: 'khách a' });
-  assert.equal(matched.worksheets[0].rows.length, 1);
-  assert.equal(matched.worksheets[1].rows.length, 1);
-  const missing = exportService.__test__.buildFixedDataset('debt.period', snapshot, { debtPeriod: 1, debtFilter: 'không có' });
-  assert.equal(missing.worksheets[0].rows.length, 0);
-  assert.equal(missing.worksheets[1].rows.length, 0);
+  const dataset = exportService.__test__.buildFixedDataset('debt.management', snapshot, {
+    debtQueue: 'all',
+    debtSale: '',
+    debtSchedule: '',
+    debtSearch: '',
+    debtSort: { columnIndex: 4, direction: 'desc' }
+  });
+  assert.equal(dataset.worksheets.length, 1);
+  assert.equal(dataset.worksheets[0].name, 'Công nợ HN');
+  assert.deepEqual(dataset.worksheets[0].rows.map(row => row.customerName), ['Khách B', 'Khách A']);
+  assert.equal(dataset.worksheets[0].columns.length, 12);
+  assert.equal(dataset.worksheets[0].columns.filter(column => column.selected !== false).length, 10);
+
+  const matched = exportService.__test__.buildFixedDataset('debt.management', snapshot, {
+    debtQueue: 'overdue', debtSale: 'Lan', debtSchedule: '1', debtSearch: 'khách a'
+  });
+  assert.deepEqual(matched.worksheets[0].rows.map(row => row.customerName), ['Khách A']);
+
+  const empty = exportService.__test__.buildFixedDataset('debt.management', snapshot, {
+    debtQueue: 'needsAction', debtSearch: 'không có'
+  });
+  assert.equal(empty.worksheets[0].rows.length, 0);
+});
+
+test('Quản lý công nợ phản ánh đủ bốn bộ lọc hàng chờ', () => {
+  const snapshot = buildSnapshot();
+  const names = queue => exportService.__test__.buildFixedDataset('debt.management', snapshot, { debtQueue: queue })
+    .worksheets[0].rows.map(row => row.customerName);
+  assert.deepEqual(names('needsAction'), ['Khách A']);
+  assert.deepEqual(names('currentDebt'), ['Khách A', 'Khách B']);
+  assert.deepEqual(names('overdue'), ['Khách A']);
+  assert.deepEqual(names('all'), ['Khách A', 'Khách B']);
+});
+
+test('Quản lý công nợ mặc định chọn 10 cột hiển thị và để 2 cột cập nhật là tùy chọn', async () => {
+  const originalSnapshot = dashboardData.getDashboardExportSnapshot;
+  dashboardData.getDashboardExportSnapshot = async () => buildSnapshot();
+  try {
+    const metadata = await exportService.getExportFields({ tableKey: 'debt.management', context: { debtQueue: 'all' } }, 'Hà Nội');
+    const fields = metadata.worksheets[0].fields;
+    assert.equal(fields.length, 12);
+    assert.equal(fields.filter(field => field.selected).length, 10);
+    assert.equal(fields.find(field => field.key === 'updatedBy').selected, false);
+    assert.equal(fields.find(field => field.key === 'updatedAt').selected, false);
+  } finally {
+    dashboardData.getDashboardExportSnapshot = originalSnapshot;
+  }
+});
+
+test('file Quản lý công nợ giữ kiểu số/phần trăm/text, freeze, AutoFilter và tên theo cơ sở', async () => {
+  const originalSnapshot = dashboardData.getDashboardExportSnapshot;
+  dashboardData.getDashboardExportSnapshot = async () => buildSnapshot();
+  try {
+    const payload = {
+      tableKey: 'debt.management', context: { debtQueue: 'all' },
+      columns: { debt_management: ['customerName', 'openingDebt', 'currentDebtToSalesRatio', 'updatedBy', 'updatedAt'] }
+    };
+    const hn = await exportService.createExportWorkbook(payload, 'Hà Nội');
+    assert.match(hn.fileName, /^HN_Quan_ly_cong_no_\d{8}_\d{4}\.xlsx$/);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(hn.buffer);
+    const worksheet = workbook.worksheets[0];
+    assert.equal(worksheet.name, 'Công nợ HN');
+    assert.equal(worksheet.getCell('B2').value, 100000);
+    assert.equal(worksheet.getCell('C2').value, 0.4);
+    assert.equal(worksheet.getColumn(3).numFmt, '0.00%');
+    assert.equal(worksheet.getCell('D2').value, "'=Người cập nhật");
+    assert.ok(worksheet.getCell('E2').value instanceof Date);
+    assert.equal(worksheet.views[0].ySplit, 1);
+    assert.ok(worksheet.autoFilter);
+
+    const sgSnapshot = buildSnapshot();
+    sgSnapshot.dashboard.debtManagement.sourceSheet = 'Công nợ SG';
+    dashboardData.getDashboardExportSnapshot = async () => sgSnapshot;
+    const sg = await exportService.createExportWorkbook(payload, 'Sài Gòn');
+    assert.match(sg.fileName, /^SG_Quan_ly_cong_no_\d{8}_\d{4}\.xlsx$/);
+  } finally {
+    dashboardData.getDashboardExportSnapshot = originalSnapshot;
+  }
 });
 
 test('workbook giu ma co so 0 dau, chan chuoi cong thuc va bat freeze/autofilter', async () => {

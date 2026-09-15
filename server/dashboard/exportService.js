@@ -7,7 +7,11 @@ const { BRANCHES } = require('../branch/branches');
 const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
 
 const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-const VALID_DEBT_PERIODS = new Set([1, 3, 7]);
+const DEBT_QUEUE_FILTERS = new Set(['needsAction', 'currentDebt', 'overdue', 'all']);
+const DEBT_SORT_FIELDS = [
+  'customerName', 'sale', 'paymentSchedule', 'openingDebt', 'currentDebt',
+  'overdueDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'automaticAlert', 'workflowStatus'
+];
 
 const TABLE_TITLES = Object.freeze({
   'overview.transactions': 'Chi tiết giao dịch',
@@ -27,7 +31,7 @@ const TABLE_TITLES = Object.freeze({
   'customers.productMonthlyCompare': 'Bảng so sánh doanh số theo tháng',
   'overview.productRevenueSearch': 'Doanh thu theo hàng',
   'suppliers.list': 'Danh sách nhà cung cấp',
-  'debt.period': 'Công nợ theo kỳ',
+  'debt.management': 'Quản lý công nợ',
   'search.results': 'Kết quả tìm kiếm',
   'stockout.recentScan': 'Hàng đứt gần đây',
   'stockout.check90d': 'Kiểm tra đứt hàng 90 ngày'
@@ -163,7 +167,8 @@ function aggregateWorksheet(key, name, columns, sourceRows) {
     key: column.key,
     label: column.label,
     type: column.type || inferColumnType(column.label),
-    wrapText: column.wrapText === true
+    wrapText: column.wrapText === true,
+    selected: column.selected !== false
   }));
   const rows = (sourceRows || []).map(source => {
     const row = {};
@@ -190,6 +195,83 @@ function getSheet(snapshot, name) {
 
 function customerRevenueRows(dashboard) {
   return (((dashboard.customers || {}).topRevenue || {}).top50 || []);
+}
+
+function normalizeDebtSearch(value) {
+  return normalizeText(value).normalize('NFC').replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN');
+}
+
+function debtAutomaticAlert(customer) {
+  const labels = (customer.alertCodes || []).map(code => {
+    if (code === 'uncollected') return 'Chưa thu';
+    if (code === 'overdue') return 'Quá hạn';
+    return '';
+  }).filter(Boolean);
+  if ((customer.dataIssues || []).length) labels.push('Lỗi dữ liệu');
+  return labels.join(', ');
+}
+
+function sortDebtManagementRows(rows, sort) {
+  const columnIndex = Number(sort && sort.columnIndex);
+  const direction = sort && sort.direction;
+  const field = Number.isInteger(columnIndex) ? DEBT_SORT_FIELDS[columnIndex] : '';
+  if (!field || !['asc', 'desc'].includes(direction)) return rows.slice();
+  return rows.map((row, index) => ({ row, index })).sort((left, right) => {
+    const a = left.row[field];
+    const b = right.row[field];
+    const aEmpty = a === null || a === undefined || a === '';
+    const bEmpty = b === null || b === undefined || b === '';
+    if (aEmpty !== bEmpty) return aEmpty ? 1 : -1;
+    let comparison = 0;
+    if (typeof a === 'number' && typeof b === 'number') comparison = a - b;
+    else comparison = String(a).localeCompare(String(b), 'vi', { numeric: true, sensitivity: 'base' });
+    if (comparison === 0) comparison = left.index - right.index;
+    return direction === 'asc' ? comparison : -comparison;
+  }).map(entry => entry.row);
+}
+
+function buildDebtManagementWorksheet(debtManagement, context) {
+  const debt = debtManagement && typeof debtManagement === 'object' ? debtManagement : {};
+  const queue = DEBT_QUEUE_FILTERS.has(context.debtQueue) ? context.debtQueue : 'needsAction';
+  const sale = normalizeText(context.debtSale);
+  const schedule = normalizeText(context.debtSchedule);
+  const query = normalizeDebtSearch(context.debtSearch);
+  const rows = (Array.isArray(debt.customers) ? debt.customers : []).filter(customer => {
+    if (queue === 'needsAction' && !customer.needsAction) return false;
+    if (queue === 'currentDebt' && !(Number(customer.currentDebt) > 0)) return false;
+    if (queue === 'overdue' && !(Number(customer.overdueDebt) > 0)) return false;
+    if (sale && customer.sale !== sale) return false;
+    if (schedule && customer.paymentSchedule !== schedule) return false;
+    if (query && !normalizeDebtSearch(customer.customerName).includes(query) && !normalizeDebtSearch(customer.sale).includes(query)) return false;
+    return true;
+  }).map(customer => ({
+    customerName: customer.customerName,
+    sale: customer.sale,
+    paymentSchedule: customer.paymentSchedule,
+    openingDebt: customer.openingDebt,
+    currentDebt: customer.currentDebt,
+    overdueDebt: customer.overdueDebt,
+    currentDebtToSalesRatio: customer.currentDebtToSalesRatio,
+    overdueToSalesRatio: customer.overdueToSalesRatio,
+    automaticAlert: debtAutomaticAlert(customer),
+    workflowStatus: customer.workflowStatus,
+    updatedBy: customer.updatedBy,
+    updatedAt: customer.updatedAt
+  }));
+  return aggregateWorksheet('debt_management', normalizeText(debt.sourceSheet) || 'Quản lý công nợ', [
+    { key: 'customerName', label: 'Khách hàng', type: 'text' },
+    { key: 'sale', label: 'Sale', type: 'text' },
+    { key: 'paymentSchedule', label: 'Lịch TT', type: 'text' },
+    { key: 'openingDebt', label: 'Nợ đầu kỳ', type: 'number' },
+    { key: 'currentDebt', label: 'Nợ hiện tại', type: 'number' },
+    { key: 'overdueDebt', label: 'Nợ quá hạn', type: 'number' },
+    { key: 'currentDebtToSalesRatio', label: '% Nợ hiện tại/Doanh số', type: 'percent' },
+    { key: 'overdueToSalesRatio', label: '% Quá hạn/Doanh số', type: 'percent' },
+    { key: 'automaticAlert', label: 'Cảnh báo tự động', type: 'text', wrapText: true },
+    { key: 'workflowStatus', label: 'Trạng thái xử lý', type: 'text' },
+    { key: 'updatedBy', label: 'Người cập nhật', type: 'text', selected: false },
+    { key: 'updatedAt', label: 'Cập nhật lúc', type: 'date', selected: false }
+  ], sortDebtManagementRows(rows, context.debtSort));
 }
 
 function buildFixedDataset(tableKey, snapshot, context) {
@@ -327,44 +409,8 @@ function buildFixedDataset(tableKey, snapshot, context) {
         logicalRows: d.suppliers || [], codeHeaders: ['Mã NCC']
       })];
       break;
-    case 'debt.period': {
-      const period = VALID_DEBT_PERIODS.has(Number(context.debtPeriod)) ? Number(context.debtPeriod) : 1;
-      const filter = normalizeText(context.debtFilter).toLocaleLowerCase('vi-VN');
-      const customers = (((d.debt || {})[period] || {}).customers || []).filter(customer => !filter ||
-        normalizeText(customer.code).toLocaleLowerCase('vi-VN').includes(filter) ||
-        normalizeText(customer.name).toLocaleLowerCase('vi-VN').includes(filter));
-      const summaryRows = customers.map(customer => ({
-        code: customer.code, name: customer.name, phone: customer.phone, group: customer.group,
-        openingDebt: customer.openingDebt, debit: customer.debit, credit: customer.credit, closingDebt: customer.closingDebt
-      }));
-      const transactionRows = [];
-      customers.forEach(customer => (customer.transactions || []).forEach(transaction => transactionRows.push({
-        customerCode: customer.code, customerName: customer.name, phone: customer.phone,
-        code: transaction.code, time: transaction.time, type: transaction.type,
-        value: transaction.value, runningBalance: transaction.runningBalance
-      })));
-      worksheets = [
-        aggregateWorksheet('debt_summary', `Tổng hợp HN${period}`, [
-          { key: 'code', label: 'Mã KH', type: 'text' },
-          { key: 'name', label: 'Khách hàng' },
-          { key: 'phone', label: 'Số điện thoại', type: 'text' },
-          { key: 'group', label: 'Nhóm khách hàng' },
-          { key: 'openingDebt', label: 'Nợ đầu kỳ', type: 'number' },
-          { key: 'debit', label: 'Ghi nợ', type: 'number' },
-          { key: 'credit', label: 'Ghi có', type: 'number' },
-          { key: 'closingDebt', label: 'Dư nợ cuối', type: 'number' }
-        ], summaryRows),
-        aggregateWorksheet('debt_transactions', 'Giao dịch', [
-          { key: 'customerCode', label: 'Mã KH', type: 'text' },
-          { key: 'customerName', label: 'Khách hàng' },
-          { key: 'phone', label: 'Số điện thoại', type: 'text' },
-          { key: 'code', label: 'Mã giao dịch', type: 'text' },
-          { key: 'time', label: 'Thời gian', type: 'date' },
-          { key: 'type', label: 'Loại giao dịch' },
-          { key: 'value', label: 'Giá trị', type: 'number' },
-          { key: 'runningBalance', label: 'Dư nợ cuối', type: 'number' }
-        ], transactionRows)
-      ];
+    case 'debt.management': {
+      worksheets = [buildDebtManagementWorksheet(d.debtManagement, context)];
       break;
     }
     default:
@@ -600,7 +646,7 @@ async function getExportFields(payload, branch) {
         key: column.key,
         label: column.label,
         type: column.type,
-        selected: true
+        selected: column.selected !== false
       }))
     }))
   };

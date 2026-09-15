@@ -33,6 +33,7 @@ test('modal co du dieu khien chon truong va script inline bien dich hop le', () 
   const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
     .map(match => match[1]).filter(script => script.trim());
   scripts.forEach(script => assert.doesNotThrow(() => new Function(script)));
+  assert.match(html, /field\.selected !== false \? ' checked' : ''/);
 });
 
 test('nut xuat ket qua tim kiem bi an rieng o tab Tong quan', () => {
