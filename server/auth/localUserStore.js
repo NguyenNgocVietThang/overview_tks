@@ -101,7 +101,7 @@ function buildFallbackAdminUser() {
   return {
     id: FALLBACK_ADMIN_ID,
     username: 'admin',
-    hoTen: 'Quản trị viên hệ thống (dự phòng — Postgres chưa kết nối)',
+    hoTen: 'Quản trị viên hệ thống',
     email: 'admin@tokosi.vn',
     soDienThoai: '',
     emailKhoiPhuc: '',
@@ -121,7 +121,7 @@ function buildFallbackThangUser() {
   return {
     id: FALLBACK_THANG_ID,
     username: 'thangnnv2003@gmail.com',
-    hoTen: 'Nguyễn Ngọc Việt Thắng (dự phòng — Postgres chưa kết nối)',
+    hoTen: 'Nguyễn Ngọc Việt Thắng',
     email: 'thangnnv2003@gmail.com',
     soDienThoai: '',
     emailKhoiPhuc: 'thangnnv2003@gmail.com',
