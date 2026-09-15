@@ -2,6 +2,7 @@
 // Test nay tu set bien moi truong gia de config.js khong throw khi thieu
 // .env that — khong dung tai khoan Google Sheets that trong test.
 process.env.SPREADSHEET_ID = process.env.SPREADSHEET_ID || 'test-spreadsheet-id';
+process.env.DEBT_MANAGEMENT_SPREADSHEET_ID = process.env.DEBT_MANAGEMENT_SPREADSHEET_ID || 'test-debt-management-spreadsheet-id';
 process.env.GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 
@@ -13,9 +14,15 @@ const assert = require('node:assert/strict');
 function freshDashboardData() {
   delete require.cache[require.resolve('./dashboardData')];
   delete require.cache[require.resolve('../sheets/sheetsClient')];
+  delete require.cache[require.resolve('../sheets/debtManagementSheetsClient')];
   const sheetsClient = require('../sheets/sheetsClient');
+  const debtManagementSheetsClient = require('../sheets/debtManagementSheetsClient');
+  debtManagementSheetsClient.getDebtManagementSheet = async branch => ({
+    sourceSheet: branch === 'Sài Gòn' ? 'Công nợ SG' : 'Công nợ HN',
+    rows: []
+  });
   const dashboardData = require('./dashboardData');
-  return { dashboardData, sheetsClient };
+  return { dashboardData, sheetsClient, debtManagementSheetsClient };
 }
 
 // Thay the toan bo getMultipleSheetValues bang mock dem so lan goi — dashboardData.js
@@ -395,7 +402,7 @@ test('getDashboardData tong hop topRevenue tu sheet Hoa don khi sheet Bao cao ba
 
 
 test('cache cua Ha Noi khong ro ri sang Sai Gon — moi co so fetch client rieng', async () => {
-  const { dashboardData, sheetsClient } = freshDashboardData();
+  const { dashboardData, sheetsClient, debtManagementSheetsClient } = freshDashboardData();
   const { BRANCHES } = require('../branch/branches');
   const seen = [];
   // Ghi de getSheetsClient de biet dashboardData hoi du lieu cua co so nao.
@@ -406,6 +413,10 @@ test('cache cua Ha Noi khong ro ri sang Sai Gon — moi co so fetch client rieng
       names.forEach(name => { result[name] = []; });
       return result;
     }
+  });
+  debtManagementSheetsClient.getDebtManagementSheet = async branch => ({
+    sourceSheet: branch === BRANCHES.SAIGON ? 'Công nợ SG' : 'Công nợ HN',
+    rows: []
   });
   dashboardData.__test__.resetCaches();
 
@@ -418,6 +429,94 @@ test('cache cua Ha Noi khong ro ri sang Sai Gon — moi co so fetch client rieng
     [BRANCHES.HANOI, BRANCHES.SAIGON],
     'moi co so fetch dung 1 lan; lan goi Ha Noi thu hai phai lay tu cache cua Ha Noi'
   );
+});
+
+test('dashboard tải song song nguồn vận hành và workbook công nợ rồi trả debtManagement thay cho debt cũ', async () => {
+  const { dashboardData, sheetsClient, debtManagementSheetsClient } = freshDashboardData();
+  const CONFIG = require('../config');
+  const started = [];
+  let releaseOperating;
+  let releaseDebt;
+  const operatingGate = new Promise(resolve => { releaseOperating = resolve; });
+  const debtGate = new Promise(resolve => { releaseDebt = resolve; });
+
+  sheetsClient.getMultipleSheetValues = async names => {
+    started.push('operating');
+    await operatingGate;
+    const result = {};
+    names.forEach(name => { result[name] = []; });
+    result[CONFIG.SHEET_DEBT_1] = [['Khách hàng']];
+    result[CONFIG.SHEET_DEBT_3] = [['Khách hàng'], ['Khách A']];
+    result[CONFIG.SHEET_DEBT_7] = [['Khách hàng']];
+    return result;
+  };
+  debtManagementSheetsClient.getDebtManagementSheet = async () => {
+    started.push('debt');
+    await debtGate;
+    return {
+      sourceSheet: 'Công nợ HN',
+      rows: [
+        ['Khách hàng', 'Sale', 'Lịch TT HN', 'Nợ đầu kỳ', 'Nợ hiện tại', 'Nợ quá hạn', '% nợ/Doanh số', '% quá hạn / TB DS', 'TB T6/26-T9/26'],
+        ['TỔNG'],
+        ['Khách A', 'Lan', 1, 0, 500000, 0, 0.5, 0, 1000000]
+      ]
+    };
+  };
+  dashboardData.__test__.resetCaches();
+
+  const pending = dashboardData.getDashboardData(BASE_FILTERS);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(started.sort(), ['debt', 'operating']);
+  releaseOperating();
+  releaseDebt();
+  const result = await pending;
+
+  assert.equal(result.debt, undefined);
+  assert.equal(result.debtManagement.available, true);
+  assert.deepEqual(result.debtManagement.customers[0].alertCodes, ['uncollected']);
+});
+
+test('cache nguồn công nợ độc lập 90 giây và phiên bản nguồn nằm trong cache key kết quả', async () => {
+  const { dashboardData, sheetsClient, debtManagementSheetsClient } = freshDashboardData();
+  let operatingFetches = 0;
+  let debtFetches = 0;
+  sheetsClient.getMultipleSheetValues = async names => {
+    operatingFetches += 1;
+    return Object.fromEntries(names.map(name => [name, []]));
+  };
+  debtManagementSheetsClient.getDebtManagementSheet = async () => {
+    debtFetches += 1;
+    return { sourceSheet: 'Công nợ HN', rows: [] };
+  };
+  dashboardData.__test__.resetCaches();
+
+  await dashboardData.getDashboardData(BASE_FILTERS);
+  await dashboardData.getDashboardData(BASE_FILTERS);
+  assert.equal(operatingFetches, 1);
+  assert.equal(debtFetches, 1);
+  assert.equal(dashboardData.__test__.getComputeCallCount(), 1);
+
+  dashboardData.__test__.expireDebtManagementCache();
+  await dashboardData.getDashboardData(BASE_FILTERS);
+  assert.equal(operatingFetches, 1);
+  assert.equal(debtFetches, 2);
+  assert.equal(dashboardData.__test__.getComputeCallCount(), 2);
+});
+
+test('lỗi workbook công nợ chỉ làm debtManagement unavailable, không làm sập dashboard', async () => {
+  const { dashboardData, sheetsClient, debtManagementSheetsClient } = freshDashboardData();
+  mockSheets(sheetsClient, { count: 0 });
+  debtManagementSheetsClient.getDebtManagementSheet = async () => {
+    const error = new Error('Workbook chưa cấu hình');
+    error.code = 'BRANCH_NOT_CONFIGURED';
+    throw error;
+  };
+  dashboardData.__test__.resetCaches();
+
+  const result = await dashboardData.getDashboardData(BASE_FILTERS);
+  assert.equal(result.debtManagement.available, false);
+  assert.ok(result.debtManagement.dataWarnings.some(warning => warning.includes('Workbook chưa cấu hình')));
+  assert.ok(result.overview);
 });
 
 // ===== getCustomerProductRevenueReport (tab Khach hang, phan 4) =====

@@ -4,8 +4,9 @@
 // ==========================================
 const CONFIG = require('../config');
 const sheetsClient = require('../sheets/sheetsClient');
+const debtManagementSheetsClient = require('../sheets/debtManagementSheetsClient');
 const { BRANCHES } = require('../branch/branches');
-const { parseDebtSheet } = require('./debtReport');
+const { deriveDebtManagement } = require('./debtManagement');
 
 const OUT_OF_STOCK_LEVEL = 0;
 const TOP_SELLING_LIMIT = 10;
@@ -291,9 +292,9 @@ const SHEET_NAMES = [
 // HN1/HN3/HN7 do KiotViet tu quan ly; gop vao cung 1 lan batchGet de khong
 // tang so request goi Google Sheets API. Server CHI DOC, khong bao gio ghi.
 const DEBT_SHEETS = [
-  { period: 1, name: CONFIG.SHEET_DEBT_1 },
-  { period: 3, name: CONFIG.SHEET_DEBT_3 },
-  { period: 7, name: CONFIG.SHEET_DEBT_7 }
+  CONFIG.SHEET_DEBT_1,
+  CONFIG.SHEET_DEBT_3,
+  CONFIG.SHEET_DEBT_7
 ];
 
 const SEARCH_SOURCES = {
@@ -921,9 +922,8 @@ async function getCachedDashboardSheets(branch) {
   }
   if (cache.loading) return cache.loading;
 
-  const debtSheetNames = DEBT_SHEETS.map(entry => entry.name);
   const loading = sheetsClient.getSheetsClient(branch)
-    .getMultipleSheetValues(SHEET_NAMES.concat(debtSheetNames))
+    .getMultipleSheetValues(SHEET_NAMES.concat(DEBT_SHEETS))
     .then(sheets => {
       cache.data = sheets;
       cache.version += 1;
@@ -933,6 +933,44 @@ async function getCachedDashboardSheets(branch) {
       // request /api/dashboard du raw data khong doi, ton CPU vo ich.
       rememberSearchSheets(sheets, branch);
       return sheets;
+    })
+    .finally(() => {
+      if (cache.loading === loading) cache.loading = null;
+    });
+  cache.loading = loading;
+  return loading;
+}
+
+// Workbook công nợ có vòng đời/cache riêng với spreadsheet vận hành. Mỗi cơ
+// sở đọc đúng một tab trong cùng workbook và giữ version riêng để cache kết
+// quả tổng hợp không thể che mất lần làm mới từ một trong hai nguồn.
+let debtManagementSheetsCacheByBranch = new Map();
+
+function debtManagementSheetsCacheFor(branch) {
+  const key = branch || BRANCHES.HANOI;
+  if (!debtManagementSheetsCacheByBranch.has(key)) {
+    debtManagementSheetsCacheByBranch.set(key, { data: null, version: 0, expiresAt: 0, loading: null });
+  }
+  return debtManagementSheetsCacheByBranch.get(key);
+}
+
+async function getCachedDebtManagementSource(branch) {
+  const cache = debtManagementSheetsCacheFor(branch);
+  if (cache.data && Date.now() < cache.expiresAt) return cache.data;
+  if (cache.loading) return cache.loading;
+
+  const loading = debtManagementSheetsClient.getDebtManagementSheet(branch)
+    .then(source => ({ ...source, error: null }))
+    .catch(error => ({
+      sourceSheet: branch === BRANCHES.SAIGON ? CONFIG.DEBT_MANAGEMENT_SHEET_SG : CONFIG.DEBT_MANAGEMENT_SHEET_HN,
+      rows: null,
+      error
+    }))
+    .then(source => {
+      cache.data = source;
+      cache.version += 1;
+      cache.expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
+      return source;
     })
     .finally(() => {
       if (cache.loading === loading) cache.loading = null;
@@ -1643,8 +1681,8 @@ let computeCallCountForTest = 0; // chi dung trong test, xem __test__ o cuoi fil
 
 // Co so nam TRONG key (khong phai Map rieng) de mot key cu the luon thuoc dung
 // mot co so — hai co so co the trung sheetsVersion nhung khong bao gio trung key.
-function dashboardResultCacheKey(branch, sheetsVersion, filters) {
-  return (branch || BRANCHES.HANOI) + '|' + sheetsVersion + '|' + JSON.stringify(filters || {});
+function dashboardResultCacheKey(branch, sourceVersions, filters) {
+  return (branch || BRANCHES.HANOI) + '|' + sourceVersions + '|' + JSON.stringify(filters || {});
 }
 
 /**
@@ -1657,9 +1695,12 @@ function dashboardResultCacheKey(branch, sheetsVersion, filters) {
  */
 async function getDashboardData(filters, branch) {
   const f = filters || {};
-  const sheets = await getCachedDashboardSheets(branch);
-  const sheetsVersion = dashboardSheetsCacheFor(branch).version;
-  const cacheKey = dashboardResultCacheKey(branch, sheetsVersion, f);
+  const [sheets, debtManagementSource] = await Promise.all([
+    getCachedDashboardSheets(branch),
+    getCachedDebtManagementSource(branch)
+  ]);
+  const sourceVersions = `${dashboardSheetsCacheFor(branch).version}:${debtManagementSheetsCacheFor(branch).version}`;
+  const cacheKey = dashboardResultCacheKey(branch, sourceVersions, f);
 
   const cached = dashboardResultCache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt) {
@@ -1672,12 +1713,12 @@ async function getDashboardData(filters, branch) {
   // khac co vong doi rieng.
   const branchPrefix = (branch || BRANCHES.HANOI) + '|';
   for (const key of dashboardResultCache.keys()) {
-    if (key.startsWith(branchPrefix) && !key.startsWith(branchPrefix + sheetsVersion + '|')) {
+    if (key.startsWith(branchPrefix) && !key.startsWith(branchPrefix + sourceVersions + '|')) {
       dashboardResultCache.delete(key);
     }
   }
 
-  const data = computeDashboardData(sheets, f, new Date());
+  const data = computeDashboardData(sheets, f, new Date(), debtManagementSource, branch);
   dashboardResultCache.set(cacheKey, { data, expiresAt: Date.now() + DASHBOARD_RESULT_CACHE_TTL_MS });
   // Gioi han so entry trong Map — Map giu thu tu insertion nen phan tu dau tien
   // luon la entry cu nhat, xoa dan cho toi khi ve lai duoi muc tran.
@@ -1693,11 +1734,14 @@ async function getDashboardData(filters, branch) {
  * bi lech khi Sheets vua duoc dong bo giua hai request.
  */
 async function getDashboardExportSnapshot(filters, branch) {
-  const sheets = await getCachedDashboardSheets(branch);
+  const [sheets, debtManagementSource] = await Promise.all([
+    getCachedDashboardSheets(branch),
+    getCachedDebtManagementSource(branch)
+  ]);
   // Tinh truc tiep tu chinh object `sheets` vua lay thay vi goi lai wrapper
   // cache; nhu vay du lieu goc va tap dong da loc chac chan cung mot snapshot.
-  const dashboard = computeDashboardData(sheets, filters || {}, new Date());
-  return { sheets, dashboard };
+  const dashboard = computeDashboardData(sheets, filters || {}, new Date(), debtManagementSource, branch);
+  return { sheets, dashboard, debtManagementSource };
 }
 
 /**
@@ -1711,7 +1755,7 @@ async function getDashboardExportSnapshot(filters, branch) {
  * @param {Date} now
  * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
  */
-function computeDashboardData(sheets, filters, now) {
+function computeDashboardData(sheets, filters, now, debtManagementSource, branch) {
   computeCallCountForTest += 1;
   const f = filters || {};
   const todayStr = formatDMY(now);
@@ -1726,10 +1770,21 @@ function computeDashboardData(sheets, filters, now) {
   const newPurchasesRange = resolveFilterRange(f.newPurchases, now);
   const newProductsRange = resolveFilterRange(f.newProducts, now);
 
-  const debt = {};
-  DEBT_SHEETS.forEach(entry => {
-    debt[entry.period] = parseDebtSheet(sheets[entry.name], now);
+  const debtManagement = deriveDebtManagement({
+    managementRows: debtManagementSource?.rows,
+    branch,
+    sourceSheet: debtManagementSource?.sourceSheet || (branch === BRANCHES.SAIGON
+      ? CONFIG.DEBT_MANAGEMENT_SHEET_SG
+      : CONFIG.DEBT_MANAGEMENT_SHEET_HN),
+    operationalSheets: {
+      HN1: sheets[CONFIG.SHEET_DEBT_1],
+      HN3: sheets[CONFIG.SHEET_DEBT_3],
+      HN7: sheets[CONFIG.SHEET_DEBT_7]
+    }
   });
+  if (debtManagementSource?.error) {
+    debtManagement.dataWarnings.unshift(`Không tải được workbook công nợ: ${debtManagementSource.error.message || 'Lỗi không xác định'}.`);
+  }
 
   const categoryData = sheets[CONFIG.SHEET_CATEGORIES];
   const prodData = sheets[CONFIG.SHEET_PRODUCTS];
@@ -2424,7 +2479,7 @@ function computeDashboardData(sheets, filters, now) {
       bySupplier: newPurchasesBySupplier,
       orders: newPurchaseOrders
     },
-    debt
+    debtManagement
   };
 }
 
@@ -2441,6 +2496,7 @@ module.exports = {
   __test__: {
     resetCaches() {
       dashboardSheetsCacheByBranch = new Map();
+      debtManagementSheetsCacheByBranch = new Map();
       searchSheetCacheByBranch = new Map();
       customerProductTopSheetCacheByBranch = new Map();
       customerReportSearchCacheByBranch = new Map();
@@ -2451,6 +2507,9 @@ module.exports = {
     },
     expireSheetsCache(branch) {
       dashboardSheetsCacheFor(branch).expiresAt = 0;
+    },
+    expireDebtManagementCache(branch) {
+      debtManagementSheetsCacheFor(branch).expiresAt = 0;
     },
     getSearchIndexBuildCount: () => searchIndexBuildCountForTest,
     getComputeCallCount: () => computeCallCountForTest,

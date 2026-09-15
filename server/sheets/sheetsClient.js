@@ -188,5 +188,6 @@ module.exports = {
   getValues: (...args) => hanoiClient.getValues(...args),
   getMultipleSheetValues: (...args) => hanoiClient.getMultipleSheetValues(...args),
   listSheetTitles: (...args) => hanoiClient.listSheetTitles(...args),
-  getSheetsClient
+  getSheetsClient,
+  createReadOnlyClient: createClient
 };

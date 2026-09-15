@@ -29,6 +29,9 @@ const CONFIG = {
   // BRANCH_NOT_CONFIGURED chu khong lam sap server (giong VC_SPREADSHEET_ID).
   SPREADSHEET_ID: required('SPREADSHEET_ID'),
   SPREADSHEET_ID_SG: process.env.SPREADSHEET_ID_SG || null,
+  // Workbook "Bảng Công nợ" dùng chung cho hai cơ sở, server chỉ đọc hai
+  // tab Công nợ HN/SG. Optional để thiếu cấu hình không làm sập dashboard.
+  DEBT_MANAGEMENT_SPREADSHEET_ID: process.env.DEBT_MANAGEMENT_SPREADSHEET_ID || null,
   GOOGLE_SERVICE_ACCOUNT_JSON: required('GOOGLE_SERVICE_ACCOUNT_JSON'),
   PORT: process.env.PORT || 3000,
 
@@ -122,6 +125,8 @@ const CONFIG = {
   SHEET_DEBT_1: 'HN1',
   SHEET_DEBT_3: 'HN3',
   SHEET_DEBT_7: 'HN7',
+  DEBT_MANAGEMENT_SHEET_HN: 'Công nợ HN',
+  DEBT_MANAGEMENT_SHEET_SG: 'Công nợ SG',
 
   // ==========================================
   // QUAN LY NHAN SU — Spreadsheet rieng (HR_*) + Bot Telegram xin nghi phep
