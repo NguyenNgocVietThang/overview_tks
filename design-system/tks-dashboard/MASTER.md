@@ -4,6 +4,10 @@
 > Nếu file trang tồn tại, các quy tắc trong đó sẽ **ghi đè (override)** file Master này.
 > Nếu không, bắt buộc tuân thủ nghiêm ngặt toàn bộ nguyên tắc và tokens trong file Master bên dưới.
 
+> **📋 Audit toàn diện gần nhất:** 2026-09-15 — rà soát 100% giao diện (7 trang: `index`, `account`, `humanresources`,
+> `login`, `register`, `shipment`, `404` + `shared.css`). Các component mới phát hiện đã được chuẩn hoá vào mục 5;
+> sai lệch/nợ thiết kế phát hiện được liệt kê đầy đủ ở **mục 12**. Chi tiết theo từng trang: `pages/*.md`.
+
 ---
 
 ## 1. Metadata & Design DNA
@@ -161,7 +165,47 @@
   --radius-md: 10px;   /* Tab buttons, dropdown menus */
   --radius-lg: 12px;   /* KPI cards, data cards */
   --radius-xl: 14px;   /* Large panels, modal dialogs */
+  --radius-2xl: 20px;  /* Auth card (login/register), trang lỗi 404 — xem 5.10 */
   --radius-pill: 9999px; /* Status pills, avatar circles, filter pills */
+}
+```
+
+> ⚠️ **Sai lệch đã phát hiện (audit 2026-09-15):** `index.html` tự định nghĩa một thang bo góc số
+> (`--radius-2/4/5/6/7/8/9/10/12/14`) song song với thang ngữ nghĩa ở trên, và `--radius-pill` ở đó
+> có giá trị `999px` thay vì `9999px`. Trang mới không được lặp lại kiểu đặt tên số này — luôn dùng
+> thang ngữ nghĩa (`--radius-xs…2xl`, `--radius-pill`). Xem mục 12.3.
+
+### 4.4b Token Kênh Màu RGB (RGB-Channel Tokens) — Mẫu dùng cho `rgba(var(--x-rgb), alpha)`
+
+`index.html` giới thiệu một kỹ thuật hữu ích chưa được chuẩn hoá: khai báo riêng phần kênh màu
+(không có `rgba()` bọc ngoài) để tái sử dụng ở nhiều độ mờ khác nhau ngay trong CSS, thay vì lặp lại
+hằng số màu ở dạng chuỗi. **Khuyến nghị áp dụng chính thức lên `shared.css`:**
+
+```css
+:root {
+  --shadow-rgb: 0, 0, 0;
+  --overlay-rgb: 0, 0, 0;
+  --primary-rgb: 59, 130, 246;
+  --glow-green-rgb: 16, 185, 129;
+  --glow-red-rgb: 239, 68, 68;
+}
+/* Dùng: box-shadow: 0 8px 20px -8px rgba(var(--shadow-rgb), 0.45); */
+```
+
+Đây là cách chuẩn để tạo box-shadow/glow ở nhiều độ mờ khác nhau **mà không hardcode lại mã màu** —
+ưu tiên kỹ thuật này thay vì viết `rgba(61, 214, 140, .13)` hay các giá trị rgba rời rạc không truy
+được về token nào (xem các vi phạm cụ thể ở mục 12.2).
+
+### 4.4c Token Chữ Tương Phản Trên Nền Đặc (Contrast Text Tokens)
+
+Một số nút/pill dùng nền đặc màu amber hoặc green (không phải nền mờ 12–18%) và cần chữ tối màu để
+đủ tương phản. Giá trị này hiện bị hardcode rải rác (`#1B1206` lặp lại 3 lần, `#07150d` 1 lần) —
+**chuẩn hoá thành token:**
+
+```css
+:root {
+  --amber-contrast-text: #1B1206; /* chữ trên nền --amber đặc (nút active period-toggle, search-submit) */
+  --green-contrast-text: #07150d; /* chữ trên nền --green đặc (nút export-confirm) */
 }
 ```
 
@@ -418,14 +462,253 @@
 }
 ```
 
+### 5.6 Role Badges & Status Pills (Huy Hiệu Vai Trò & Trạng Thái)
+
+Các token màu theo vai trò/trạng thái (`--role-*-bg/fg/border`, `--status-*-bg`) đã tồn tại toàn cục
+trong `shared.css` `:root`, nhưng component (`.role-badge`, `.status-pill` và các biến thể) hiện bị
+**lặp lại y hệt** ở `account/index.html` và `humanresources/index.html`. Chuẩn hoá tại đây, khuyến
+nghị đưa nguyên khối này vào `shared.css` để chỉ còn một nguồn duy nhất:
+
+```css
+.role-badge, .status-pill {
+  display: inline-flex; align-items: center; gap: var(--space-xs);
+  padding: 3px 10px; border-radius: var(--radius-pill);
+  font-size: 12px; font-weight: 600; border: 1px solid transparent;
+}
+.role-quan-ly { background: var(--role-quan-ly-bg); color: var(--role-quan-ly-fg); border-color: var(--role-quan-ly-border); }
+/* ... một khối tương tự cho: ke-toan, truong-kho, tro-ly, lai-xe,
+   nhan-vien-kho, nhan-vien-sale, nhan-vien-mua-hang, khach ── xem token đầy đủ ở mục 4.1 */
+
+.status-active  { background: var(--status-active-bg);  color: var(--green); }
+.status-locked  { background: var(--status-locked-bg);  color: var(--red); }
+.status-pending { background: var(--status-pending-bg); color: var(--amber); }
+```
+
+> ⚠️ `account/index.html` dùng `.status-inactive{ background:rgba(148,163,184,.12); border:1px solid
+> rgba(148,163,184,.25); }` — màu này **không tham chiếu token nào**. Khi chuẩn hoá component, bổ
+> sung `--status-inactive-bg: rgba(148,163,184,.12)` vào `shared.css :root` thay vì giữ giá trị rời.
+
+#### 5.6b Editable Status Select (Trạng thái có thể chỉnh sửa trực tiếp)
+
+Pattern mới, chất lượng tốt, xuất hiện ở `humanresources/index.html`: một `<select>` gốc được style
+lại (`appearance:none` + mũi tên SVG data-URI riêng cho từng màu trạng thái) để trông như status pill
+nhưng vẫn thao tác được bằng bàn phím/chuột như select thường — **ưu tiên pattern này** cho mọi nơi
+cần đổi trạng thái ngay trong bảng (thay vì mở modal riêng).
+
+```css
+.status-select {
+  appearance: none; -webkit-appearance: none;
+  padding: 4px 28px 4px 10px; border-radius: var(--radius-pill);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  background-repeat: no-repeat; background-position: right 8px center; background-size: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent-color) 40%, transparent);
+}
+/* .leave-pending, .leave-approved, .leave-rejected, .leave-violation:
+   mỗi biến thể đổi --accent-color (var(--amber)/--green/--red) + SVG chevron cùng màu */
+```
+
+Kỹ thuật `border-color: color-mix(in srgb, var(--X) 40%, transparent)` được **chấp thuận chính thức**
+làm cách tạo viền/nền tinh chỉnh độ mờ từ token màu gốc — ưu tiên hơn viết `rgba()` cố định mới.
+
+### 5.7 Modal Dialog (Hộp Thoại — Chuẩn Chung)
+
+Bốn nơi (`account`, `humanresources`, `login`, `index` — export modal) đang tự triển khai modal
+gần như giống hệt nhau (`.modal-overlay/.modal-box/.modal-header/.modal-body/.modal-footer`), tách
+biệt với modal hồ sơ cá nhân dùng chung (`.tks-profile-overlay/.tks-profile-dialog` trong
+`shared.css`). **Chuẩn hoá một component modal duy nhất** và đưa vào `shared.css`:
+
+```css
+.modal-overlay{
+  position: fixed; inset: 0; z-index: 200;
+  background: var(--overlay-bg); /* KHÔNG backdrop-filter — xem mục 7.1 và 12.1 */
+  display: flex; align-items: center; justify-content: center; padding: var(--space-xl);
+}
+.modal-box{
+  width: 100%; max-width: 480px; max-height: calc(100vh - var(--space-3xl) * 2);
+  overflow-y: auto; background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-modal);
+}
+.modal-header{ display:flex; align-items:center; justify-content:space-between;
+  padding: var(--space-lg) var(--space-xl); border-bottom: 1px solid var(--border); }
+.modal-body{ padding: var(--space-xl); }
+.modal-footer{ display:flex; justify-content:flex-end; gap: var(--space-md);
+  padding: var(--space-lg) var(--space-xl); border-top: 1px solid var(--border); }
+```
+
+**Quy tắc bắt buộc:** `.modal-overlay` chỉ dùng `background: var(--overlay-bg)` (nền đặc/bán trong
+suốt), **tuyệt đối không thêm `backdrop-filter`** — đây là overlay toàn màn hình, thuộc đúng nhóm bị
+cấm ở mục 7.1. Bốn bản triển khai hiện tại của `.modal-overlay` đều đang vi phạm quy tắc này bằng
+`backdrop-filter: blur(3px)` (xem mục 12.1 để biết vị trí chính xác cần sửa).
+
+### 5.8 Toast Notifications (Thông Báo Nổi)
+
+Thay thế `window.alert()`, xuất hiện độc lập ở `index.html` (`.tks-toast-*`), `account` và
+`humanresources` (`.toast-*`) — cùng ý tưởng, tên class khác nhau. Chuẩn hoá:
+
+```css
+.toast-container{ position: fixed; top: var(--space-xl); right: var(--space-xl); z-index: 500;
+  display: flex; flex-direction: column; gap: var(--space-md); }
+.toast{
+  min-width: 260px; max-width: 360px; padding: var(--space-lg) var(--space-xl);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-toast);
+  font-size: 13px; font-weight: 600;
+  animation: toastSlideIn .25s var(--ease-out);
+}
+.toast-success{ background: var(--toast-success-bg); color: var(--toast-success-fg); border: 1px solid var(--toast-success-border); }
+.toast-error{ background: var(--toast-error-bg); color: var(--toast-error-fg); border: 1px solid var(--toast-error-border); }
+@keyframes toastSlideIn{ from{ opacity:0; transform: translateY(20px); } to{ opacity:1; transform: translateY(0); } }
+```
+
+Animation chỉ dùng `opacity` + `translateY` — tuân thủ mục 6.1. Khi ẩn toast bằng JS, luôn liệt kê
+thuộc tính cụ thể (`transition: opacity .3s, transform .3s`), không dùng `transition: all`.
+
+### 5.9 Sub-nav Tabs (Tab Gạch Chân)
+
+Pattern tab chuyển view trong cùng một trang (VD: `account-subnav`, `hr-subnav`), dùng chung ý tưởng
+gạch chân dưới tab active — xuất hiện độc lập ở `account` và `humanresources`, nên chuẩn hoá 1 lần:
+
+```css
+.subnav-tabs{ display:flex; gap: var(--space-xl); border-bottom: 1px solid var(--canvas-subnav-border); margin-bottom: var(--space-xl); }
+.subnav-tab{
+  padding: var(--space-md) 0; border: none; border-bottom: 2px solid transparent;
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+  background: none; color: var(--canvas-text); font-family: var(--font-body); font-size: 13.5px; font-weight: 600;
+  cursor: pointer; transition: color .15s ease, border-color .15s ease, opacity .15s ease;
+}
+.subnav-tab.active{ color: var(--canvas-text); border-bottom-color: var(--blue); font-weight: 700; }
+```
+
+`account/index.html` và `humanresources/index.html` dùng 2 tên class song song
+(`account-subnav-item`/`subnav-tab`, `hr-subnav-item`/`subnav-tab`) — giữ `subnav-tab` làm tên chuẩn
+duy nhất khi viết trang mới; các tên cũ chỉ nên còn lại như alias tương thích ngược.
+
+### 5.10 Auth Card (Khung Thẻ Xác Thực — Login / Register / 404)
+
+`login-card`, `register-card` và `card-404` đều dùng chung một "khung" thị giác — bo góc 20px, đệm
+rộng, đổ bóng sâu, backdrop-blur nhẹ (không phải overlay toàn màn hình nên `backdrop-filter` ở đây
+được **chấp nhận**, khác với modal ở mục 5.7). Chuẩn hoá làm `--radius-2xl` (mục 4.4):
+
+```css
+.auth-card{
+  width:100%; max-width: 400px;
+  padding: 36px 30px 30px; border-radius: var(--radius-2xl);
+  background: var(--panel); border: 1px solid var(--border);
+  box-shadow: var(--card-shadow); backdrop-filter: blur(12px);
+}
+```
+
+**Khối "buộc sáng" (forced-light):** `login-card` ghi đè ~25 biến `:root[data-theme="light"]` ngay
+trên chính nó để card luôn hiển thị sáng bất kể theme trang đang là gì — trong khi `register` đạt
+cùng hiệu ứng đơn giản hơn bằng `<html data-theme="light">` toàn trang. **Khuyến nghị:** hợp nhất về
+một cách duy nhất (ưu tiên cách của `register` — gắn `data-theme="light"` ở gốc trang — vì không phải
+lặp lại thủ công toàn bộ bảng token màu sáng mỗi khi bảng màu gốc thay đổi).
+
+### 5.11 OTP Input (Ô Nhập Mã OTP)
+
+```css
+.otp-code-input{
+  font-family: var(--font-data); font-size: 22px; font-weight: 700;
+  letter-spacing: 6px; text-align: center;
+}
+```
+
+Component sạch, dùng đúng font số liệu — giữ nguyên làm chuẩn cho mọi luồng xác thực 2 bước sau này.
+
+### 5.12 Textarea (Vùng Nhập Nhiều Dòng)
+
+`shared.css` mục 5.4 mới chỉ định nghĩa `.form-input`/`.form-select`, thiếu biến thể `<textarea>`.
+Chuẩn hoá bổ sung (đồng bộ với input, không tạo bo góc/breakpoint riêng như `shipment` đang làm với
+`border-radius:12px` lệch thang):
+
+```css
+.form-textarea{
+  width: 100%; min-height: 130px; padding: 10px 14px;
+  background: var(--panel-2); color: var(--text); font-family: var(--font-data);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  resize: vertical; transition: border-color .15s ease, box-shadow .15s ease;
+}
+.form-textarea:focus{ border-color: var(--border-focus); box-shadow: var(--shadow-focus-blue); }
+```
+
+### 5.13 Sortable Table Header (Cột Bảng Có Thể Sắp Xếp)
+
+Xuất hiện độc lập ở `index.html` và `humanresources/index.html` — chuẩn hoá:
+
+```css
+th.sortable{ cursor: pointer; }
+.sort-button{ display:inline-flex; align-items:center; gap:4px; background:none; border:none;
+  color: var(--text-secondary); font: inherit; cursor: pointer; transition: color .15s ease; }
+.sort-button:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+th[aria-sort="ascending"] .sort-button,
+th[aria-sort="descending"] .sort-button{ color: var(--amber); font-weight:700; }
+```
+
+### 5.14 Dashboard Grid System (`.grid` / `.col-*`)
+
+`index.html` định nghĩa một hệ lưới 12 cột dùng xuyên suốt dashboard, chưa có trong tài liệu — chuẩn
+hoá làm hệ lưới chính thức cho mọi trang data-dense mới:
+
+```css
+.grid{ display:grid; grid-template-columns: repeat(12, 1fr); gap: var(--space-xl); }
+.col-3{ grid-column: span 3; } .col-4{ grid-column: span 4; } .col-5{ grid-column: span 5; }
+.col-6{ grid-column: span 6; } .col-7{ grid-column: span 7; } .col-8{ grid-column: span 8; }
+.col-12{ grid-column: span 12; }
+@media (max-width: 1180px){ [class^="col-"]{ grid-column: span 6; } }
+@media (max-width: 760px){ [class^="col-"]{ grid-column: span 12; } }
+```
+
+Kỹ thuật CSS Grid `subgrid` (`grid-template-rows: subgrid`) dùng trong `.filterbar` để canh hàng
+label/input theo cột — được **chấp thuận** làm kỹ thuật nâng cao cho các thanh filter phức tạp.
+
+### 5.15 Chart Container Heights (Khung Biểu Đồ)
+
+`index.html` hiện dùng 7 giá trị chiều cao cố định khác nhau cho `.chart-box` (220/260/300/340/380/
+420/460px) không theo thang nào. **Chuẩn hoá 4 mức** cho trang mới, tránh phát sinh thêm số lẻ:
+
+| Modifier | Height | Dùng cho |
+|---|---|---|
+| `.chart-box.small` | `240px` | Biểu đồ phụ, sparkline trong card |
+| `.chart-box` (mặc định) | `300px` | Biểu đồ tiêu chuẩn 1 cột |
+| `.chart-box.wide` | `340px` | Biểu đồ 2 cột (grid-2) |
+| `.chart-box.tall` | `420px` | Biểu đồ chi tiết, nhiều series |
+
+### 5.16 Row Update Flash (Hiệu Ứng Nhấp Nháy Dòng Vừa Cập Nhật)
+
+```css
+@keyframes rowPulseHighlight{
+  0%{ background-color: var(--accent-blue-18); }
+  100%{ background-color: transparent; }
+}
+.row-highlight-update{ animation: rowPulseHighlight 1.2s ease-out; }
+```
+
+Chỉ animate `background-color` — an toàn về hiệu năng trên bảng nhiều dòng, dùng làm phản hồi trực
+quan chuẩn khi một dòng dữ liệu vừa được cập nhật qua real-time sync (khớp mục 2.2).
+
+### 5.17 Trang "Tài liệu in" (Printable Document Surface) — Ngoại lệ có chủ đích
+
+`humanresources/index.html` có khối `.doc-page` hiển thị văn bản chính sách (VD: Chính sách nghỉ
+phép) mô phỏng một trang giấy in — dùng `font-family:'Noto Serif', Georgia, serif` và bảng màu
+**hardcode cố định** (`#fdfcf9`, `#23262f`, `#14161c`, `#d8d5cb`...) thay vì token `--panel`/`--text`.
+**Đây là ngoại lệ được chấp thuận, không phải lỗi**: nội dung dạng "giấy in" phải giữ nguyên màu sắc
+bất kể Dark/Light Mode của app, giống nguyên tắc "buộc sáng" ở mục 5.10. Không áp token theme lên
+`.doc-page` và các phần tử con của nó.
+
 ---
 
 ## 6. Motion & Micro-Interactions (Chuyển Động & Hiệu Ứng)
 
 ### 6.1 Chuẩn Hoạt Họa Giao Diện
 - **Thời lượng tiêu chuẩn:** `150ms – 300ms` (không vượt quá 300ms cho các tương tác UI nhằm tránh cảm giác chậm chạp).
-- **Easing Curve:** `--ease-out: cubic-bezier(0.23, 1, 0.32, 1)` cho phản hồi tự nhiên, sắc nét.
+- **Ngoại lệ — Hoạt họa xuất hiện trang (page-entrance):** hoạt họa chạy **một lần duy nhất** khi trang
+  vừa tải (VD: `.card-404` dùng `cardIn .55s`) được phép vượt trần 300ms vì không phải phản hồi tương
+  tác lặp lại; luôn dùng `var(--ease-out)` và luôn tôn trọng `prefers-reduced-motion` (mục 6.2).
+- **Easing Curve:** `--ease-out: cubic-bezier(0.23, 1, 0.32, 1)` cho phản hồi tự nhiên, sắc nét. Luôn
+  tham chiếu `var(--ease-out)`, không hardcode lại chuỗi `cubic-bezier(...)` (xem mục 12.3).
 - **Giới hạn Transform:** Chỉ sử dụng `translateY(-1px đến -2px)`, `scale(0.98)` (active), `opacity` và `backgroundColor`. Tuyệt đối tránh scale lớn làm biến dạng bố cục lưới.
+- **Nền màu hover tinh chỉnh độ mờ:** dùng `color-mix(in srgb, var(--token) X%, var(--panel-2))` để tạo
+  nền hover pha trộn (VD: `.clear-button:hover`) — **được chấp thuận**, ưu tiên hơn viết một giá trị
+  `rgba()` mới không truy được về token gốc.
 
 ### 6.2 Hỗ Trợ Giảm Chuyển Động (Reduced Motion)
 Bắt buộc áp dụng toàn diện trên tất cả các file CSS và Script:
@@ -547,3 +830,103 @@ Trước khi nghiệm thu bất kỳ giao diện nào, lập trình viên phải
 - [ ] **Touch Target:** Kích thước vùng bấm trên Mobile tối thiểu `44×44px`.
 - [ ] **Ngữ nghĩa HTML:** Có 1 thẻ `<h1>` duy nhất, cấu trúc thẻ semantic chuẩn.
 - [ ] **Hiệu năng:** Không có `preserve-3d`/`perspective`/`translateZ`/`background-attachment: fixed`/`transition: all` (mục 7.1); `npm --prefix server test` xanh, gồm cả `no-3d-effects.test.js`.
+
+---
+
+## 12. Nợ Thiết Kế & Sai Lệch Cần Khắc Phục (Audit Toàn Diện 2026-09-15)
+
+Danh sách này ghi nhận **hiện trạng thực tế** của mã nguồn so với các quy tắc ở trên, phát hiện qua
+audit toàn bộ 7 trang HTML + `shared.css`. Đây là backlog kỹ thuật, không phải lỗi chặn release —
+ưu tiên xử lý khi chạm vào các file liên quan; không tự ý sửa hàng loạt nếu không nằm trong phạm vi
+task đang làm.
+
+### 12.1 Mức Cao — Vi phạm quy tắc chống hiệu năng kém (mục 7.1)
+
+`backdrop-filter` trên overlay toàn màn hình (`position:fixed; inset:0`) xuất hiện ở **4 vị trí**,
+đều vi phạm quy tắc cấm ở mục 7.1 (lý do: buộc trình duyệt blur lại toàn viewport mỗi lần overlay
+hiện/ẩn — cùng nhóm lỗi đã khiến `.loading-veil` bị gỡ 3D trước đây):
+
+| Vị trí | Selector | Trạng thái |
+|---|---|---|
+| `server/public/account/index.html` | `.modal-overlay` (4 modal: tạo/sửa user, đổi mật khẩu, yêu cầu vai trò) | `backdrop-filter: blur(3px)` |
+| `server/public/login/index.html` | `.modal-overlay` (modal OTP) | `backdrop-filter: blur(3px)` |
+| `server/public/humanresources/index.html` | `.modal-overlay` (duyệt/từ chối nghỉ phép) | `backdrop-filter: blur(3px)` |
+| `server/public/index.html` | `.export-modal-backdrop` | `backdrop-filter: blur(3px)` + nền hardcode `rgba(5,10,18,.68)` không đổi theo Light Mode |
+
+**Cách sửa chuẩn:** áp dụng component `.modal-overlay` thống nhất ở mục 5.7 — bỏ hẳn
+`backdrop-filter`, chỉ dùng `background: var(--overlay-bg)`. `no-3d-effects.test.js` hiện chỉ quét
+`shared.css` + danh sách cố định, **chưa bắt được** 4 vi phạm này vì chúng nằm trong `<style>` nội
+tuyến của từng trang — cân nhắc mở rộng phạm vi quét của test này.
+
+Ngoài ra, `.backdrop` (drawer sidebar mobile, trong `shared.css`) cũng dùng `backdrop-filter:
+blur(2px)` — tần suất kích hoạt thấp hơn nhiều (chỉ khi mở menu mobile, không phải mỗi lần
+auto-refresh), nhưng về nguyên tắc nên thống nhất một câu trả lời chung cho "overlay toàn màn hình
+có được blur hay không" thay vì mỗi nơi một kiểu.
+
+### 12.2 Mức Trung Bình — Màu hardcode thay vì dùng token
+
+Token tương ứng đã tồn tại sẵn trong `shared.css :root` nhưng không được dùng:
+
+- **Hộp cảnh báo lỗi/chờ xử lý** hardcode `rgba(239,68,68,.12)` / `rgba(59,130,246,.12)` thay vì
+  `var(--alert-error-bg)` / `var(--alert-warning-bg)` đã có sẵn — đây là lỗi **lặp lại nhiều lần
+  nhất** trong toàn bộ audit: `.login-error`, `.login-pending` (`login/index.html`), `.form-error`
+  (`register/index.html`), `.lookup-message.error` (`shipment/index.html`).
+- `account/index.html`: `.status-inactive` dùng `rgba(148,163,184,.12)` rời, không truy được về token
+  nào — nên thêm `--status-inactive-bg` vào `shared.css` (xem mục 5.6).
+- `index.html`: "amber cũ" `rgba(240,166,58,…)` lệch hẳn với `--amber` (`#F59E0B`) hiện tại, dùng ở
+  `.suggestion-source`, `.search-result-source`, `.pill.warn` — nên đổi về `var(--amber)`/
+  `rgba(var(--glow-amber-rgb),…)` để đồng bộ khi đổi bảng màu.
+- `index.html`: `.pill.ok` (`rgba(61,214,140,.13)`) và `.pill.bad` (`rgba(241,97,106,.13)`) không
+  khớp `--green`/`--red` hiện hành — nên đổi sang `rgba(var(--glow-green-rgb),.13)` /
+  `rgba(var(--glow-red-rgb),.13)` (xem token mới ở mục 4.4b).
+- `index.html`: chữ trên nền đặc hardcode `#1B1206` (×3: `.search-submit`, `.period-toggle
+  button.active`, `.mini-filter-range.active .mini-filter-apply`) và `#07150d` (`.export-confirm`)
+  — chuẩn hoá thành `var(--amber-contrast-text)` / `var(--green-contrast-text)` (mục 4.4c).
+- `404.html`: `.blob-1`/`.blob-2` hardcode `rgba(59,130,246,.28)`/`rgba(139,92,246,.2)` thay vì tái
+  dùng `--ambient-1`/`--ambient-2` đã có sẵn cho đúng mục đích "vùng sáng nền dịu nhẹ".
+- `login/index.html`: `.login-brand .brand-mark` tự set shadow `0 4px 14px rgba(0,0,0,.14)` thay vì
+  `var(--shadow-brand)`; focus ring của `.field input` dùng `rgba(59,130,246,.22)` lệch nhẹ so với
+  spec `rgba(59,130,246,.2)` ở mục 5.4 — nên hợp nhất về một token `--shadow-focus-input` dùng chung.
+
+### 12.3 Mức Trung Bình — Trùng lặp component / đặt tên khác nhau cho cùng một thứ
+
+- **Class input form:** `MASTER.md` §5.4 định nghĩa `.form-input`, nhưng `account`, `login`,
+  `register` đều dùng `.form-control`/`.field input` với box model gần giống nhưng viết lại từ đầu.
+  Cần chọn **một** tên chuẩn (khuyến nghị giữ `.form-input` vì đã có trong tài liệu) khi viết mới;
+  không bắt buộc đổi tên hàng loạt code cũ.
+- **Radius lệch thang:** `.profile-card` (account) dùng `--radius-xl` (14px) trong khi `.card` chuẩn
+  ở §5.2 dùng `--radius-lg` (12px); `.end-day-stat` (index) dùng `--radius-9` trong khi `.kpi-card`
+  cùng vai trò dùng `--radius-12`; `.lookup-panel textarea` (shipment) dùng `border-radius:12px` —
+  không khớp bậc nào trong thang §4.4. `index.html` còn tự tạo thang số riêng (`--radius-2…14`) song
+  song với thang ngữ nghĩa — xem cảnh báo ở mục 4.4.
+- **Badge trạng thái tự chế:** `shipment/index.html` có `.status-found`/`.status-missing` làm lại y
+  hệt ý tưởng `.badge-success`/`.badge` (§5.3) bằng tên riêng và padding hơi khác (`4px 10px` thay vì
+  `3px 10px`) — nên dùng thẳng `.badge`/`.badge-success` khi viết trang mới.
+- **Avatar tròn:** `.user-avatar` (account) dùng `border-radius:50%` thay vì `var(--radius-pill)` —
+  tương đương về hình dạng nhưng nên dùng token cho nhất quán khi grep toàn bộ codebase theo token.
+- `.tks-profile-*` (modal hồ sơ cá nhân) bị **khai báo lại y hệt** trong `index.html` dù đã tồn tại ở
+  `shared.css` — không phải lỗi hiển thị nhưng là 2 nguồn cho cùng 1 component, dễ lệch khi 1 nơi
+  được sửa mà quên nơi kia.
+- `.export-button` được `humanresources/index.html` khai báo lại đầy đủ (gradient/shadow/hover) dù
+  `shared.css` đã có sẵn cùng selector trong nhóm dùng chung (dòng 654–723) — giá trị trùng khớp nên
+  không gây lỗi hiển thị, nhưng là code thừa.
+
+### 12.4 Mức Thấp — Thiếu sót so với quy tắc tương tác
+
+- `account/index.html`: `.action-icon-btn` (nút thao tác trong bảng) chỉ **32×32px**, dưới ngưỡng bắt
+  buộc 40×40px desktop ở mục 5.5.
+- `account/index.html`: bảng `.users-table` **không có** `position:sticky` trên `<th>` và **không có**
+  `tbody tr:hover` — cả hai đều là yêu cầu bắt buộc của mục 5.5 cho bảng dữ liệu dày đặc.
+- `account/index.html`: `.profile-card` không có trạng thái `:hover` nào — chưa đạt yêu cầu "mọi thẻ
+  thông tin phải có phản hồi hover rõ ràng" ở mục 2.2.
+- `shipment/index.html`: `.int-nav-card:hover` tự thêm `transform:translateY(-2px)` cục bộ, xung đột
+  với quy ước "card hover chỉ dùng box-shadow/border-color, không transform" đã ghi rõ trong comment
+  của chính `shared.css` (dòng ~863) — không phải lỗi 3D nhưng nên bỏ để nhất quán với card khác.
+
+### 12.5 Việc cần làm khi có thời gian (không khẩn cấp)
+
+Danh sách component nên chuyển từ "khai báo cục bộ trong `<style>` từng trang" sang `shared.css`
+dùng chung, vì đã xuất hiện ở ≥ 2 trang với nội dung gần như giống hệt: role badges + status pills
+(§5.6), modal dialog chuẩn (§5.7), toast notification (§5.8), sub-nav tabs (§5.9), auth card (§5.10).
+Việc hợp nhất giúp một lần sửa (VD: bỏ `backdrop-filter` khỏi modal) áp dụng ngay cho mọi trang thay
+vì phải sửa lặp lại 4 chỗ như hiện tại ở mục 12.1.
