@@ -2,6 +2,17 @@
 
 > **Đây là tài liệu roadmap (định hướng), KHÔNG PHẢI kế hoạch code chi tiết.** Mục đích: thống nhất hướng đi, các giai đoạn, và các quyết định kỹ thuật quan trọng trước khi bắt tay viết code. Chưa có dòng code nào được sửa trong tài liệu này.
 
+> **Cập nhật trạng thái (2026-09-15):** Phần code của Giai đoạn 0-4 đã merge (commit `e5e64eb`
+> và các commit trước đó) — `server/db/` (8 migration, `SCHEMA.md`), `server/kiotvietSync/` (entity
+> module, `syncDriver.js`/`scheduler.js`, `backfill.js`/`backfillPlan.js`/`backfillProgressRepository.js`,
+> `reconcileCounts.js`, `preflightCheck.js`), `server/kiotviet/webhookEventQueue.js` và route
+> `GET /api/internal/kiotviet-sync/status` đều tồn tại và có test tự động (`npm test` pass, 930 bài).
+> Các mục "Xác minh tổng thể"/"Câu hỏi cần quyết định" còn để trống trong `phase3`/`phase4-plan` là
+> thao tác vận hành thật (chạy backfill production, đối chiếu Supabase Dashboard, xác nhận
+> `KIOTVIET_SYNC_ENABLED=true` chạy ổn định nhiều ngày) — **chưa xác nhận đã thực hiện**, không suy
+> đoán là đã xong chỉ vì code đã có. Giai đoạn 5 (chuyển Dashboard sang đọc Postgres, chuyển hosting
+> sang Render) vẫn ngoài phạm vi, chưa bắt đầu.
+
 ## 1. Mục tiêu
 
 Xây dựng một lớp lưu trữ dữ liệu **bền vững, ổn định, cập nhật gần như thời gian thực** trên **Supabase Postgres (gói miễn phí)**, đồng bộ toàn bộ dữ liệu bán hàng từ KiotViet — hóa đơn, đơn hàng, trả hàng, sản phẩm, khách hàng, nhà cung cấp, nhập hàng, thu chi, nhóm hàng — cho **cả 2 cơ sở Hà Nội và Sài Gòn**.

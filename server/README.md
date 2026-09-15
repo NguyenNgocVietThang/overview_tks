@@ -24,7 +24,7 @@ This is configured in the bound Google Apps Script project:
 cp .env.example .env
 # Điền SPREADSHEET_ID, VC_SPREADSHEET_ID, HR_SPREADSHEET_ID, DRIVE_UPLOAD_FOLDER_ID, GOOGLE_SERVICE_ACCOUNT_JSON, JWT_SECRET, GOOGLE_CLIENT_ID, TELEGRAM_BOT_TOKEN, TELEGRAM_HR_CHAT_ID
 npm install
-npm test      # Chạy 477 unit tests tự động (HR Leave & Telegram bot, auth/Guest/SĐT, Google OAuth, OTP reset, Admin CRUD, yêu cầu đổi vai trò, chuông thông báo, kiểm tra đứt hàng Excel-KiotViet, shipment lifecycle, State Machine 9 trạng thái, VC repository, cache, pagination, export, search, và 13 frontend test suites trong test/frontend/)
+npm test      # Chạy 930 unit tests tự động (HR Leave & Telegram bot, danh sách nhân sự, auth/Guest/SĐT, Google OAuth, OTP reset, Admin CRUD, yêu cầu đổi vai trò, chuông thông báo, kiểm tra đứt hàng Excel-KiotViet, shipment lifecycle, State Machine 9 trạng thái, VC repository, cache, pagination, export, search, KiotViet->Supabase sync engine (entity module, backfill, reconcile, webhook queue) và các frontend test suite trong test/frontend/)
 npm start     # Khởi chạy server tại http://localhost:3000 (tự động bật gzip compression và static Cache-Control headers)
 ```
 Truy cập `http://localhost:3000` — giao diện Live Dashboard tải số liệu thời gian thực từ Google Sheets. `GET /health` trả về `{"status":"ok"}`.
@@ -126,6 +126,7 @@ node scripts/setupHrSheet.js init
 | `POST` | `/api/hr/leave-requests/export` | Nội bộ | Xuất danh sách đang lọc/sắp xếp ra Excel. |
 | `GET` | `/api/hr/leave-requests/summary/urgent-flags` | Nội bộ | Tổng hợp số lần nghỉ gấp theo tháng. |
 | `POST` | `/api/hr/telegram/link-code` | Nội bộ | Tạo mã liên kết Telegram cho tài khoản hiện tại. |
+| `GET` | `/api/hr/employees` | Nội bộ | Danh sách nhân sự (tên, chức vụ, SĐT, email) theo cơ sở đang xem, đọc từ Google Sheet HR. |
 
 Schema nghỉ phép dùng `Thời gian gửi`, `Thời gian bắt đầu/kết thúc` dạng `Sáng|Chiều dd/mm/yyyy`, `Tổng buổi nghỉ` và `Tổng ngày nghỉ quy đổi = số buổi / 2`. Đơn gửi sau 07:45 (Sáng) hoặc 12:30 (Chiều) vẫn được lưu với trạng thái `Vi phạm`.
 
@@ -150,6 +151,12 @@ Schema nghỉ phép dùng `Thời gian gửi`, `Thời gian bắt đầu/kết t
 | `POST` | `/api/export` | Nội bộ | Tạo và tải file `.xlsx` theo các trường đã chọn và bộ lọc hiện tại. |
 | `GET` | `/health` | Public | Health check endpoint cho Render ping (`{"status":"ok"}`). |
 | `GET` | `/api/debug` | Nội bộ | Chẩn đoán biến môi trường, kết nối Google Sheets và danh sách tab. |
+
+### 2.9. Đồng bộ KiotViet -> Supabase (`/api/internal/kiotviet-sync/*`)
+| Method | Endpoint | Quyền | Mô tả |
+|---|---|---|---|
+| `GET` | `/api/internal/kiotviet-sync/status` | Quản lý | Checkpoint mỗi entity/cơ sở, số bản ghi từng bảng, vài dòng mẫu và tổng quan tiến độ backfill (`503` nếu chưa cấu hình `SUPABASE_DB_URL`). |
+| `POST` | `/api/kiotviet/webhook` | Public (KiotViet gọi) | Nhận webhook KiotViet, trả `200` ngay và ghi sự kiện vào hàng đợi Postgres để xử lý nền. |
 
 ## 3. Deploying on Firebase App Hosting
 
@@ -190,3 +197,7 @@ trình polling cùng một bot token.
 - `KIOTVIET_CLIENT_ID` — KiotViet Public API client ID (cho job sync báo cáo)
 - `KIOTVIET_CLIENT_SECRET` — KiotViet Public API client secret (cho job sync báo cáo)
 - `KIOTVIET_RETAILER` — KiotViet retailer name (cho job sync báo cáo)
+- `SUPABASE_DB_URL` — Connection string Postgres (Direct connection, cổng 5432) cho engine đồng bộ KiotViet -> Supabase. Không set thì engine tắt, server vẫn chạy bình thường.
+- `PGSSL` — `true` để bật SSL khi kết nối Supabase (mặc định bật khi `NODE_ENV=production`).
+- `KIOTVIET_SYNC_ENABLED` — `true` để bật webhook + polling đối soát KiotViet -> Supabase. Mặc định tắt.
+- `KIOTVIET_SYNC_FAST_INTERVAL_MS` / `KIOTVIET_SYNC_SLOW_INTERVAL_MS` — nhịp polling đối soát cho nhóm giao dịch (hóa đơn/đơn hàng) và nhóm còn lại.

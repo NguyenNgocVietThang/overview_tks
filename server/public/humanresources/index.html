@@ -319,10 +319,6 @@
 
         <!-- Tab con cua "Quan ly nhan su" — them tab moi bang cach them 1 nut o day va 1 .hr-subtab-panel ben duoi -->
         <div class="hr-subnav" role="tablist">
-          <button type="button" class="hr-subnav-item active" data-subtab="leave" role="tab" aria-selected="true" onclick="switchHrSubtab('leave')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-            Nghỉ phép
-          </button>
           <button type="button" class="hr-subnav-item" data-subtab="quydinh" role="tab" aria-selected="false" onclick="switchHrSubtab('quydinh')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>
             Quy định công ty
@@ -330,6 +326,10 @@
           <button type="button" class="hr-subnav-item" data-subtab="danhsach" role="tab" aria-selected="false" onclick="switchHrSubtab('danhsach')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
             Danh sách nhân sự
+          </button>
+          <button type="button" class="hr-subnav-item active" data-subtab="leave" role="tab" aria-selected="true" onclick="switchHrSubtab('leave')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            Nghỉ phép
           </button>
         </div>
 
@@ -553,6 +553,12 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                 <input type="text" id="employeeDirectorySearchInput" placeholder="Tìm theo tên, chức vụ, SĐT hoặc email..." oninput="renderEmployeeDirectoryTable()">
               </div>
+            </div>
+            <div class="row-actions">
+              <button type="button" class="btn-mini" id="btnExportEmployeeDirectory" onclick="exportEmployeeDirectoryExcel()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                Xuất Excel
+              </button>
             </div>
           </div>
 
@@ -1227,6 +1233,37 @@
         const link = document.createElement('a');
         link.href = url;
         link.download = match ? match[1] : 'nghi-phep.xlsx';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }catch(err){
+        showToast('Lỗi kết nối máy chủ khi xuất Excel.', 'error');
+      }finally{
+        if(btn){ btn.disabled = false; }
+      }
+    }
+
+    async function exportEmployeeDirectoryExcel(){
+      const btn = document.getElementById('btnExportEmployeeDirectory');
+      const keyword = (document.getElementById('employeeDirectorySearchInput').value || '').trim();
+      if(btn){ btn.disabled = true; }
+      try{
+        const res = await fetch('/api/hr/employees/export?keyword=' + encodeURIComponent(keyword), {
+          credentials: 'same-origin'
+        });
+        if(!res.ok){
+          const { data } = await parseApiResponse(res);
+          showToast(data.error || 'Không xuất được file Excel.', 'error');
+          return;
+        }
+        const blob = await res.blob();
+        const disposition = res.headers.get('Content-Disposition') || '';
+        const match = /filename="?([^"]+)"?/.exec(disposition);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = match ? match[1] : 'danh-sach-nhan-su.xlsx';
         document.body.appendChild(link);
         link.click();
         link.remove();

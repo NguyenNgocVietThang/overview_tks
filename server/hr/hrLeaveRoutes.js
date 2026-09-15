@@ -24,6 +24,7 @@ const {
   notifyOtherManagers
 } = require('./hrLeaveService');
 const { buildLeaveRequestsWorkbook } = require('./hrLeaveExportService');
+const { buildEmployeeDirectoryWorkbook } = require('./hrEmployeeExportService');
 const { leaveEvents, LEAVE_EVENT_TYPES, broadcastLeaveEvent } = require('./hrLeaveEvents');
 const localUserStore = require('../auth/localUserStore');
 const notificationRepo = require('../notifications/notificationRepository');
@@ -316,6 +317,23 @@ router.get('/api/hr/employees', ...authInternal, async (req, res) => {
     res.status(200).json({ employees, stale: !!snapshot.stale });
   } catch (err) {
     handleError(res, err, 'GET /api/hr/employees');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/hr/employees/export — xuat Excel Danh sach nhan su dang tim kiem
+// ---------------------------------------------------------------------------
+// Dat TRUOC route /:id neu sau nay them (hien tai chua co, nhung giu quy uoc).
+
+router.get('/api/hr/employees/export', ...authInternal, async (req, res) => {
+  try {
+    const { keyword } = req.query || {};
+    const { buffer, fileName, mime } = await buildEmployeeDirectoryWorkbook({ keyword }, req.branch);
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.status(200).send(Buffer.from(buffer));
+  } catch (err) {
+    handleError(res, err, 'GET /api/hr/employees/export');
   }
 });
 

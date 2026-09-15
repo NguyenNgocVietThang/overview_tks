@@ -840,10 +840,6 @@
           '<svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
         '</button>' +
         '<div class="nav-group-list" id="tksHrGroupList"' + (hrExpanded ? '' : ' hidden') + '>' +
-          '<a href="/humanresources/#leave" class="nav-item' + (isHrLeaveTab ? ' active' : '') + '"' +
-            (isHrLeaveTab ? ' aria-current="page"' : '') + ' data-hr-subtab="leave">' +
-            '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>' +
-            'Nghỉ phép</a>' +
           '<a href="/humanresources/#quydinh" class="nav-item' + (isHrQuydinhTab ? ' active' : '') + '"' +
             (isHrQuydinhTab ? ' aria-current="page"' : '') + ' data-hr-subtab="quydinh">' +
             '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>' +
@@ -852,6 +848,10 @@
             (isHrDanhSachTab ? ' aria-current="page"' : '') + ' data-hr-subtab="danhsach">' +
             '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>' +
             'Danh sách nhân sự</a>' +
+          '<a href="/humanresources/#leave" class="nav-item' + (isHrLeaveTab ? ' active' : '') + '"' +
+            (isHrLeaveTab ? ' aria-current="page"' : '') + ' data-hr-subtab="leave">' +
+            '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>' +
+            'Nghỉ phép</a>' +
         '</div>' +
       '</div>';
     // Nhom "Quan ly tai khoan" co the mo/dong, chua cac tab con (Quan ly ho so, Quan ly nguoi dung)

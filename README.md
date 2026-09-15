@@ -10,6 +10,7 @@ Hệ thống dashboard thời gian thực cho cửa hàng CHhanoi và CHsaigon, 
 - [Cấu trúc thư mục](#cấu-trúc-thư-mục)
 - [Cài đặt & triển khai](#cài-đặt--triển-khai)
 - [Cấu hình đa cơ sở (Hà Nội / Sài Gòn)](#cấu-hình-đa-cơ-sở-hà-nội--sài-gòn)
+- [Đồng bộ KiotViet -> Supabase Postgres](#đồng-bộ-kiotviet---supabase-postgres)
 - [Cách sử dụng](#cách-sử-dụng)
 - [Lộ trình mở rộng](#lộ-trình-mở-rộng)
 - [Tài liệu kỹ thuật](#tài-liệu-kỹ-thuật)
@@ -150,23 +151,47 @@ webtks-dashboard/
 │   │   │   ├── 0003_orders.sql
 │   │   │   ├── 0004_returns.sql
 │   │   │   ├── 0005_purchases.sql
-│   │   │   └── 0006_cash_flows.sql
+│   │   │   ├── 0006_cash_flows.sql
+│   │   │   ├── 0007_webhook_events_raw.sql
+│   │   │   └── 0008_backfill_progress.sql
 │   │   ├── migrate.js            # Migration runner có transaction và schema_migrations
 │   │   ├── migrate.test.js       # Unit test thứ tự, idempotency và rollback
 │   │   ├── migrate.integration.test.js # Test schema tùy chọn khi có SUPABASE_DB_URL
 │   │   ├── pool.js               # pg.Pool lazy singleton, tối đa 5 kết nối
 │   │   ├── pool.test.js          # Unit test pool fail-soft và singleton
-│   │   └── SCHEMA.md             # Tài liệu 16 bảng và quy ước ánh xạ dữ liệu
+│   │   └── SCHEMA.md             # Tài liệu 16 bảng + webhook_events_raw/backfill_progress và quy ước ánh xạ dữ liệu
 │   ├── hr/                      # Phân hệ Quản lý Nghỉ phép Nhân sự (HR Leave Management)
 │   │   ├── hrLeaveEvents.js     # EventEmitter singleton phát sự kiện SSE cập nhật realtime cho đơn nghỉ phép
 │   │   ├── hrLeaveExportService.js # Xuất báo cáo danh sách ngày nghỉ phép nhân sự ra Excel
 │   │   ├── hrLeaveRepository.js # Tầng truy xuất dữ liệu ngày phép từ Google Sheets HR_Leaves
 │   │   ├── hrLeaveRepository.test.js # Unit test schema, quy đổi và lọc theo thời gian gửi
-│   │   ├── hrLeaveRoutes.js     # API /api/hr/leave/* (nộp đơn, tra cứu số dư, duyệt/từ chối, stream SSE, xuất báo cáo)
-│   │   ├── hrLeaveRoutes.test.js # Unit test API nhập nghỉ theo ngày/buổi
+│   │   ├── hrLeaveRoutes.js     # API /api/hr/leave/* (nộp đơn, tra cứu số dư, duyệt/từ chối, stream SSE, xuất báo cáo) + /api/hr/employees (danh sách nhân sự)
+│   │   ├── hrLeaveRoutes.test.js # Unit test API nhập nghỉ theo ngày/buổi và danh sách nhân sự
 │   │   └── hrLeaveService.js    # Tính buổi nghỉ theo Sáng/Chiều và kiểm tra mốc gửi 07:45/12:30
 │   ├── jobs/
 │   │   └── syncCustomerReport.js # Tác vụ đối soát từng báo cáo lúc 06:00, 06:30, 07:00
+│   ├── kiotviet/                # Client REST KiotViet Public API dùng chung cho sync engine
+│   │   ├── API_ENDPOINTS.md     # Tài liệu nguồn bắt buộc: endpoint, tham số incremental, live probe
+│   │   ├── kiotVietApiClient.js # getAccessToken(), fetchAllPages() có cache token và retry backoff
+│   │   ├── kiotvietWebhookRoutes.js # Nhận webhook KiotViet, ghi vào webhookEventQueue
+│   │   ├── kiotvietWebhookRoutes.test.js
+│   │   ├── webhookEventQueue.js # Hàng đợi sự kiện webhook trong Postgres (webhook_events_raw)
+│   │   └── webhookEventQueue.test.js
+│   ├── kiotvietSync/            # Engine đồng bộ KiotViet -> Supabase Postgres (webhook + polling + backfill)
+│   │   ├── config.js            # Cờ KIOTVIET_SYNC_ENABLED, getConfiguredBranches()
+│   │   ├── entities/            # Module upsertPage cho categories, products, customers, suppliers, invoices, orders, returns, purchases, cashFlows
+│   │   ├── checkpointRepository.js # Đọc/ghi sync_checkpoints (branch, entity)
+│   │   ├── syncDriver.js        # pollEntityOnce(): gọi API theo checkpoint, upsert theo trang, tiến checkpoint khi thành công
+│   │   ├── scheduler.js         # Lập lịch polling đối soát cho từng entity, 2 cơ sở song song
+│   │   ├── staffSync.js         # Suy luận nhân viên (staff) từ invoices/orders/returns/purchases/cash_flows
+│   │   ├── backfillPlan.js      # Tính danh sách chunk backfill theo tháng/full snapshot
+│   │   ├── backfillProgressRepository.js # Đọc/ghi backfill_progress (branch, entity, chunk_key)
+│   │   ├── backfill.js          # CLI backfill dữ liệu lịch sử, resume theo next_item
+│   │   ├── reconcileCounts.js   # Đối chiếu số bản ghi Postgres với total thật trên KiotViet
+│   │   ├── preflightCheck.js    # Khảo sát dữ liệu lịch sử & ước lượng dung lượng trước khi backfill
+│   │   ├── runWithConcurrencyLimit.js # Giới hạn số entity backfill chạy đồng thời
+│   │   ├── kiotvietSyncStatusRoutes.js # API nội bộ GET /api/internal/kiotviet-sync/status (checkpoint, counts, samples, backfill progress)
+│   │   └── integration/         # Test tích hợp end-to-end chạy thật trên Supabase (tự skip nếu thiếu SUPABASE_TEST_DB_URL)
 │   ├── notifications/           # Hệ thống thông báo dùng chung toàn hệ thống
 │   │   ├── notificationRepository.js # CRUD thông báo trong server/data/notifications.json
 │   │   ├── notificationRepository.test.js
@@ -229,7 +254,7 @@ webtks-dashboard/
 │   ├── config.js                # Cấu hình môi trường Node.js server
 │   ├── index.js                 # Express server entry point
 │   ├── package.json             # Dependencies, Node 22 và lệnh build/start
-│   └── routes.js                # Định tuyến API endpoint (/api/dashboard/*, /api/auth/*, /api/admin/*, /api/branch, /api/shipment/*, /api/hr/*, /api/notifications/*, /api/role-requests/*, /api/products/stockout-recent/*, /api/products/stockout-90d/*, /api/customer-product-revenue)
+│   └── routes.js                # Định tuyến API endpoint (/api/dashboard/*, /api/auth/*, /api/admin/*, /api/branch, /api/shipment/*, /api/hr/*, /api/notifications/*, /api/role-requests/*, /api/products/stockout-recent/*, /api/products/stockout-90d/*, /api/customer-product-revenue, /api/internal/kiotviet-sync/status)
 │
 ├── src-dashboard/               # Apps Script riêng cho Google Sheets Dashboard
 │   ├── appsscript.json          # Manifest Apps Script Dashboard
@@ -302,7 +327,7 @@ Thư mục `server/` tích hợp sẵn bộ unit tests (dùng `node:test` chuẩ
 cd server
 npm test
 ```
-Bộ test hiện gồm **477 bài kiểm thử tự động** (13 test suite):
+Bộ test hiện gồm **930 bài kiểm thử tự động** (22 test suite, 925 pass + 5 skip khi thiếu `SUPABASE_DB_URL`/`SUPABASE_TEST_DB_URL`):
 - Phân hệ Quản lý Nghỉ phép HR & Telegram Bot (`hrLeaveRoutes.js`, `hrLeaveService.js`, `hrLeaveExportService.js`, `hrTelegramBot.js`, `conversationStore.js`).
 - Xác thực người dùng (JWT httpOnly cookie, mật khẩu bcrypt, Google Identity OAuth, đăng ký bằng Email/SĐT, bảo vệ route RBAC 5 vai trò).
 - Quản trị tài khoản Admin (CRUD danh sách người dùng, reset mật khẩu, kích hoạt/khóa tài khoản, xuất báo cáo).
@@ -316,6 +341,8 @@ Bộ test hiện gồm **477 bài kiểm thử tự động** (13 test suite):
 - Phân trang client-side (`pagination.js`) và module Xuất Excel 16 bảng (`exportService.js`).
 - Tìm kiếm nhiều mã chính xác và Top 3 KH theo danh mục sản phẩm.
 - Phân quyền theo cơ sở (`branches.js`, `branchMiddleware.js`): chuẩn hóa `coSo`, chặn tài khoản chưa gán cơ sở, chống giả mạo cookie `tks_branch`, cách ly cache dữ liệu giữa hai cơ sở, và nút chọn cơ sở trên thanh điều hướng (`branch-switcher.test.js`).
+- Đồng bộ KiotViet -> Supabase Postgres (`server/kiotvietSync/`): entity module cho 9 loại dữ liệu, `syncDriver.js`/`scheduler.js` (webhook + polling đối soát), `backfill.js`/`backfillPlan.js`/`backfillProgressRepository.js` (dữ liệu lịch sử, resume theo `next_item`), `reconcileCounts.js`, `preflightCheck.js`, hàng đợi sự kiện webhook (`webhookEventQueue.js`) và route nội bộ `GET /api/internal/kiotviet-sync/status`.
+- Danh sách nhân sự (`GET /api/hr/employees`) và trạng thái vận đơn "Đơn đã ký nhận" trong vòng đời vận chuyển.
 
 ### Bước 1 — Clone & login
 ```bash
@@ -542,6 +569,34 @@ và in ra danh sách tài khoản có giá trị không hợp lệ cần Quản 
 
 ---
 
+## Đồng bộ KiotViet -> Supabase Postgres
+
+Song song với Dashboard đọc Google Sheets, `server/kiotvietSync/` đồng bộ dữ liệu KiotViet
+(nhóm hàng, sản phẩm, khách hàng, nhà cung cấp, hóa đơn, đơn hàng, trả hàng, nhập hàng, thu chi)
+sang Supabase Postgres cho cả hai cơ sở — nền tảng chuẩn bị cho việc chuyển Dashboard sang đọc
+Postgres ở giai đoạn sau (xem [Roadmap](docs/04-planning/2026-09-14-roadmap-supabase-kiotviet-sync.md)).
+**Chưa thay thế Dashboard Sheets hiện tại** — hai luồng chạy độc lập.
+
+- Webhook làm nguồn chính cho tốc độ; polling định kỳ (`KIOTVIET_SYNC_FAST_INTERVAL_MS`/
+  `KIOTVIET_SYNC_SLOW_INTERVAL_MS`) là lưới an toàn đối soát.
+- Toàn bộ engine tắt mặc định, chỉ chạy khi `KIOTVIET_SYNC_ENABLED=true` và có `SUPABASE_DB_URL`
+  hợp lệ — thiếu biến này server vẫn khởi động bình thường (fail-soft).
+- `npm run db:migrate` áp dụng 8 migration trong `server/db/migrations/` (idempotent, có
+  `schema_migrations`). Xem cấu trúc bảng đầy đủ ở [SCHEMA.md](server/db/SCHEMA.md).
+- Dữ liệu lịch sử dùng script backfill, resume được nếu bị dừng giữa chừng:
+  ```bash
+  npm run kiotviet-sync:preflight   # khảo sát trước: field dữ liệu cũ có bị cắt bớt, ước lượng dung lượng
+  npm run kiotviet-sync:backfill    # kéo dữ liệu lịch sử theo từng entity/cơ sở, idempotent
+  npm run kiotviet-sync:reconcile   # đối chiếu số bản ghi Postgres với total thật trên KiotViet
+  ```
+- Trạng thái đồng bộ (checkpoint, số bản ghi mỗi bảng, dòng mẫu, tiến độ backfill) xem tại
+  `GET /api/internal/kiotviet-sync/status` (chỉ vai trò Quản lý).
+- Tham số/hành vi thật của từng endpoint KiotViet (đã xác minh bằng live probe, không suy đoán)
+  nằm ở [API_ENDPOINTS.md](server/kiotviet/API_ENDPOINTS.md) — mọi module entity sync phải đọc
+  tài liệu này trước khi ánh xạ payload.
+
+---
+
 ## Cách sử dụng
 
 | Hàm | Mục đích | Khi nào chạy |
@@ -667,6 +722,9 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 | [BPMN](docs/03-process/BPMN_Dashboard_GoogleSheets.md) | Sơ đồ quy trình nghiệp vụ v2.0 |
 | [Implementation Plan](docs/04-planning/implementation_plan.md) | Kế hoạch triển khai chi tiết & trạng thái v2.3 |
 | [KiotViet Supabase Schema](server/db/SCHEMA.md) | 16 bảng Postgres, khóa ghép theo cơ sở và quy ước cho engine đồng bộ |
+| [KiotViet API Endpoints](server/kiotviet/API_ENDPOINTS.md) | Tham số incremental/backfill từng endpoint, đã xác minh bằng live probe |
+| [Supabase Sync Roadmap](docs/04-planning/2026-09-14-roadmap-supabase-kiotviet-sync.md) | Định hướng 5 giai đoạn đưa dữ liệu KiotViet lên Supabase Postgres, cận thời gian thực |
+| [Supabase Sync Phase 0-4 Plans](docs/04-planning/) | Kế hoạch chi tiết theo task cho từng giai đoạn (dọn dẹp, schema, engine, backfill, kiểm thử) |
 | [Chính sách nghỉ phép](CHINH-SACH-NGHI-PHEP.md) | Quy định & chính sách quản lý nghỉ phép nhân sự (CSNS-NP-01) |
 | [Plan Process Automation](Plan%20Process%20Automation.md) | Kế hoạch kiểm soát & tự động hóa quy trình vận chuyển hàng hóa |
 | [Manual Test Batch Update](docs/manual-test-batch-update-order-items.md) | Hướng dẫn kiểm thử production cập nhật hàng loạt đơn vận chuyển |
@@ -706,4 +764,4 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 
 ---
 
-*Cập nhật lần cuối: 14/09/2026*
+*Cập nhật lần cuối: 15/09/2026*
