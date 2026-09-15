@@ -8,6 +8,15 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { AUTH_COOKIE_NAME } = require('./authMiddleware');
 const { comparePassword } = require('./authService');
+const localUserStore = require('./localUserStore');
+const { createFakeAppUsersRepository } = require('./testHelpers/fakeAppUsersRepository');
+
+// authRoutes.js goi mot vai ham userRepository (vd findUserByPhone) khong
+// nam trong seam mock cua freshAuthRoutes() ben duoi — cac ham nay roi xuong
+// localUserStore that, nen can 1 repository gia (khong can SUPABASE_DB_URL)
+// de khong bi loi ket noi CSDL trong test. Repository gia rong la du vi cac
+// test nay khong dua vao du lieu user co san.
+localUserStore.initStore(null, { repository: createFakeAppUsersRepository() });
 
 function fakeRes() {
   const res = { statusCode: null, body: null, cookies: [] };

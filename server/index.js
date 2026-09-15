@@ -100,16 +100,16 @@ app.use((err, req, res, next) => {
 });
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Khoi dong bat dong bo: nap tai khoan/phan quyen tu Google Sheets (nguon luu
-// tru BEN VUNG — xem localUserStore.js) TRUOC khi bat dau nhan request, de
-// request dau tien sau cold start (container Render bi wipe dia) da thay du
-// lieu phan quyen moi nhat, khong co khoang ho race. Bi loi (Sheets chua cau
-// hinh/mat mang) van fail-soft, khong chan server khoi dong (co timeout 15s
-// san o tang Sheets API).
+// Khoi dong bat dong bo: dam bao 2 tai khoan Admin mac dinh ton tai trong
+// Postgres (nguon luu tru BEN VUNG — xem localUserStore.js) TRUOC khi bat dau
+// nhan request. Ten ham hydrateFromSheets() giu nguyen vi ly do lich su
+// (truoc day nap tu Google Sheets) — nay chi con lam nong cache + tao lai
+// admin mac dinh neu thieu. Bi loi (mat ket noi Postgres) van fail-soft,
+// khong chan server khoi dong.
 async function startServer() {
   localUserStore.initStore();
   await localUserStore.hydrateFromSheets().catch((err) => {
-    console.error('[Users] Lỗi không mong đợi khi đồng bộ từ Google Sheets:', err.message);
+    console.error('[Users] Lỗi không mong đợi khi khởi tạo tài khoản Admin mặc định:', err.message);
   });
 
   app.listen(CONFIG.PORT, () => {

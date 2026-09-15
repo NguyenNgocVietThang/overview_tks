@@ -1,178 +1,123 @@
 'use strict';
-process.env.SPREADSHEET_ID = process.env.SPREADSHEET_ID || 'test-spreadsheet-id';
-process.env.GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const os = require('os');
-const path = require('path');
-const fs = require('fs');
+const localUserStore = require('./localUserStore');
+const { createFakeAppUsersRepository } = require('./testHelpers/fakeAppUsersRepository');
 
-const HEADERS = ['ID', 'Họ tên', 'Tài khoản đăng nhập', 'Mật khẩu (bcrypt hash)', 'Vai trò', 'Cơ sở phụ trách', 'Trạng thái tài khoản', 'Ngày tạo', 'Đăng nhập gần nhất', 'Email', 'Số điện thoại', 'Email khôi phục', 'SĐT khôi phục'];
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Mirror pattern trong hrLeaveRepository.test.js: thay require.cache cua
-// usersSheetsClient TRUOC khi require lai localUserStore, roi initStore vao
-// 1 file tam rieng cho tung test (cach ly hoan toan, khong dung chung state).
-function freshStore(sheetValues, mockOverrides = {}) {
-  const clientPath = require.resolve('../sheets/usersSheetsClient');
-  const storePath = require.resolve('./localUserStore');
-  const previousClient = require.cache[clientPath];
+function freshStore() {
+  const repository = createFakeAppUsersRepository();
+  localUserStore.initStore(null, { repository });
+  return { store: localUserStore, repository };
+}
 
-  const appendedRows = [];
-  const updatedRows = [];
+test('createUser: tao tai khoan moi, sinh UUID va tra ve dung du lieu', async () => {
+  const { store } = freshStore();
+  const created = await store.createUser({
+    username: 'nv_moi',
+    hoTen: 'Nhân Viên Mới',
+    vaiTro: 'Kế toán',
+    coSo: 'Hà Nội',
+    passwordHash: 'hash-xyz'
+  });
+  assert.ok(UUID_RE.test(created.id));
+  assert.equal(created.username, 'nv_moi');
+  assert.equal(created.vaiTro, 'Kế toán');
+  assert.equal(created.coSo, 'Hà Nội');
 
-  const clientExports = {
-    usersGetValues: async () => sheetValues,
-    usersAppendRow: async (_sheet, row) => { appendedRows.push(row); },
-    usersUpdateRow: async (_sheet, rowIndex, row) => { updatedRows.push({ rowIndex, row }); },
-    ...mockOverrides
-  };
+  const found = await store.getUserByUsername('nv_moi');
+  assert.ok(found);
+  assert.equal(found.id, created.id);
+});
 
-  require.cache[clientPath] = {
-    id: clientPath,
-    filename: clientPath,
-    loaded: true,
-    exports: clientExports
-  };
-  delete require.cache[storePath];
-  const store = require('./localUserStore');
+test('createUser: trung ten tai khoan -> USER_EXISTS', async () => {
+  const { store } = freshStore();
+  await store.createUser({ username: 'trung_ten', hoTen: 'A', vaiTro: 'Trợ lý' });
+  await assert.rejects(
+    () => store.createUser({ username: 'trung_ten', hoTen: 'B', vaiTro: 'Trợ lý' }),
+    err => err.code === 'USER_EXISTS'
+  );
+});
 
-  const tempPath = path.join(os.tmpdir(), `test-localuserstore-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
-  store.initStore(tempPath);
+test('createUser: trung email -> USER_EXISTS', async () => {
+  const { store } = freshStore();
+  await store.createUser({ username: 'u1', email: 'a@tokosi.vn', vaiTro: 'Trợ lý' });
+  await assert.rejects(
+    () => store.createUser({ username: 'u2', email: 'a@tokosi.vn', vaiTro: 'Trợ lý' }),
+    err => err.code === 'USER_EXISTS'
+  );
+});
 
-  return {
-    store,
-    appendedRows,
-    updatedRows,
-    restore() {
-      delete require.cache[storePath];
-      if (previousClient) require.cache[clientPath] = previousClient;
-      else delete require.cache[clientPath];
-      if (fs.existsSync(tempPath)) {
-        try { fs.unlinkSync(tempPath); } catch (e) {}
-      }
+test('getAllUsers: loai tru tai khoan da xoa mem', async () => {
+  const { store } = freshStore();
+  const created = await store.createUser({ username: 'se_bi_xoa', vaiTro: 'Trợ lý' });
+  await store.deleteUser(created.id);
+  const users = await store.getAllUsers();
+  assert.ok(!users.some(u => u.id === created.id));
+});
+
+test('updateUser: cap nhat vaiTro va cache duoc lam moi dung', async () => {
+  const { store } = freshStore();
+  const created = await store.createUser({ username: 'nv_role', hoTen: 'A', vaiTro: 'Trợ lý' });
+  const updated = await store.updateUser(created.id, { vaiTro: 'Kế toán' });
+  assert.equal(updated.vaiTro, 'Kế toán');
+
+  const reloaded = await store.getUserById(created.id);
+  assert.equal(reloaded.vaiTro, 'Kế toán');
+});
+
+test('updateUser: khong tim thay id -> throw', async () => {
+  const { store } = freshStore();
+  await assert.rejects(() => store.updateUser('khong-ton-tai', { vaiTro: 'Kế toán' }));
+});
+
+test('deleteUser: khong ai xoa duoc thangnnv2003@gmail.com', async () => {
+  const { store, repository } = freshStore();
+  repository.seed([{
+    id: 'c2619c62-e841-486a-9803-48c40ab0a398',
+    username: 'thangnnv2003@gmail.com',
+    email: 'thangnnv2003@gmail.com',
+    vaiTro: 'Quản lý',
+    coSo: 'Cả hai',
+    trangThai: 'Đang hoạt động'
+  }]);
+  await assert.rejects(
+    () => store.deleteUser('c2619c62-e841-486a-9803-48c40ab0a398'),
+    /thangnnv2003@gmail\.com/
+  );
+});
+
+test('updateUser: khong the ha quyen/khoa tai khoan Admin mac dinh', async () => {
+  const { store, repository } = freshStore();
+  repository.seed([{
+    id: 'admin-1', username: 'admin', email: 'admin@tokosi.vn',
+    vaiTro: 'Quản lý', coSo: 'Cả hai', trangThai: 'Đang hoạt động'
+  }]);
+  const updated = await store.updateUser('admin-1', { vaiTro: 'Khách', trangThai: 'Khóa' });
+  assert.equal(updated.vaiTro, 'Quản lý');
+  assert.equal(updated.trangThai, 'Đang hoạt động');
+});
+
+test('hydrateFromSheets: dam bao thangnnv2003@gmail.com luon ton tai trong Postgres', async () => {
+  const { store } = freshStore();
+  await store.hydrateFromSheets();
+  const users = await store.getAllUsers();
+  const thang = users.find(u => u.email === 'thangnnv2003@gmail.com');
+  assert.ok(thang, 'phai tu tao lai admin cung neu Postgres chua co');
+  assert.equal(thang.vaiTro, 'Quản lý');
+});
+
+test('hydrateFromSheets: Postgres loi -> khong throw (fail-soft)', async () => {
+  localUserStore.initStore(null, {
+    repository: {
+      selectAllRows: async () => { throw new Error('gia lap mat ket noi Postgres'); },
+      insertUser: async u => ({ ...u }),
+      updateUserRow: async () => null,
+      softDeleteUser: async () => null
     }
-  };
-}
-
-function withSyncEnabled(fn) {
-  const previous = process.env.USERS_SHEET_SYNC_ENABLED;
-  process.env.USERS_SHEET_SYNC_ENABLED = 'true';
-  return Promise.resolve(fn()).finally(() => {
-    if (previous === undefined) delete process.env.USERS_SHEET_SYNC_ENABLED;
-    else process.env.USERS_SHEET_SYNC_ENABLED = previous;
   });
-}
-
-test('hydrateFromSheets: nap dung du lieu tu Sheets va van giu bat bien admin cung', async () => {
-  const { store, restore } = freshStore([
-    HEADERS,
-    ['u1', 'Kế Toán A', 'ketoan1', 'hash1', 'Kế toán', 'An Khánh', 'Đang hoạt động', '01/01/2026', '', '', '', '', '']
-  ]);
-  try {
-    await withSyncEnabled(() => store.hydrateFromSheets());
-    const users = await store.getAllUsers();
-    const ketoan = users.find(u => u.username === 'ketoan1');
-    assert.ok(ketoan);
-    assert.equal(ketoan.vaiTro, 'Kế toán');
-
-    const thang = users.find(u => u.email === 'thangnnv2003@gmail.com');
-    assert.ok(thang, 'ensureHardcodedAdmins phai tu them lai admin cung neu Sheets khong co');
-    assert.equal(thang.vaiTro, 'Quản lý');
-  } finally {
-    restore();
-  }
-});
-
-test('hydrateFromSheets: khong bi tat khi USERS_SHEET_SYNC_ENABLED khong bat (mac dinh tat o local/test)', async () => {
-  const { store, restore } = freshStore([
-    HEADERS,
-    ['u1', 'Kế Toán A', 'ketoan1', 'hash1', 'Kế toán', 'An Khánh', 'Đang hoạt động', '', '', '', '', '', '']
-  ]);
-  try {
-    delete process.env.USERS_SHEET_SYNC_ENABLED;
-    await store.hydrateFromSheets();
-    const users = await store.getAllUsers();
-    assert.ok(!users.some(u => u.username === 'ketoan1'), 'khong duoc goi Sheets khi flag tat');
-  } finally {
-    restore();
-  }
-});
-
-test('hydrateFromSheets: Sheets loi -> khong throw, giu nguyen du lieu cuc bo', async () => {
-  const { store, restore } = freshStore(null, {
-    usersGetValues: async () => { throw new Error('gia lap mat mang'); }
-  });
-  try {
-    const before = await store.getAllUsers();
-    await withSyncEnabled(() => store.hydrateFromSheets());
-    const after = await store.getAllUsers();
-    assert.deepEqual(after.map(u => u.id).sort(), before.map(u => u.id).sort());
-  } finally {
-    restore();
-  }
-});
-
-test('createUser: tai khoan moi -> day len Sheets (append) khi bat sync', async () => {
-  const { store, appendedRows, restore } = freshStore([HEADERS]);
-  try {
-    await withSyncEnabled(() => store.createUser({
-      username: 'nv_moi',
-      hoTen: 'Nhân Viên Mới',
-      vaiTro: 'Kế toán',
-      coSo: 'An Khánh',
-      passwordHash: 'hash-xyz'
-    }));
-    assert.equal(appendedRows.length, 1);
-    const usernameCol = HEADERS.indexOf('Tài khoản đăng nhập');
-    assert.equal(appendedRows[0][usernameCol], 'nv_moi');
-  } finally {
-    restore();
-  }
-});
-
-test('createUser: khong day len Sheets khi tat sync (mac dinh o local/test)', async () => {
-  const { store, appendedRows, restore } = freshStore([HEADERS]);
-  try {
-    delete process.env.USERS_SHEET_SYNC_ENABLED;
-    await store.createUser({ username: 'nv_moi_2', hoTen: 'A', vaiTro: 'Kế toán' });
-    assert.equal(appendedRows.length, 0);
-  } finally {
-    restore();
-  }
-});
-
-test('updateUser: doi truong duoc theo doi (vaiTro) -> day update len Sheets', async () => {
-  const { store, updatedRows, restore } = freshStore(null); // sheetValues khong dung toi vi mock rieng usersGetValues ben duoi
-  try {
-    const created = await store.createUser({ username: 'nv_role', hoTen: 'A', vaiTro: 'Trợ lý' });
-    // Mock usersGetValues tra ve 1 hang co san khop ID de pushUserToSheet tim thay va update thay vi append.
-    const clientPath = require.resolve('../sheets/usersSheetsClient');
-    require.cache[clientPath].exports.usersGetValues = async () => [
-      HEADERS,
-      [created.id, 'A', 'nv_role', '', 'Trợ lý', '', 'Đang hoạt động', created.ngayTao, '', '', '', '', '']
-    ];
-
-    await withSyncEnabled(() => store.updateUser(created.id, { vaiTro: 'Kế toán' }));
-    assert.equal(updatedRows.length, 1);
-    const roleCol = HEADERS.indexOf('Vai trò');
-    assert.equal(updatedRows[0].row[roleCol], 'Kế toán');
-  } finally {
-    restore();
-  }
-});
-
-test('updateUser: chi doi dangNhapGanNhat -> KHONG day len Sheets', async () => {
-  const { store, appendedRows, updatedRows, restore } = freshStore([HEADERS]);
-  try {
-    const created = await store.createUser({ username: 'nv_login', hoTen: 'A', vaiTro: 'Trợ lý' });
-    appendedRows.length = 0; // bo qua lan append luc tao
-
-    await withSyncEnabled(() => store.updateUser(created.id, { dangNhapGanNhat: '07/09/2026' }));
-    assert.equal(appendedRows.length, 0);
-    assert.equal(updatedRows.length, 0);
-  } finally {
-    restore();
-  }
+  await assert.doesNotReject(() => localUserStore.hydrateFromSheets());
 });

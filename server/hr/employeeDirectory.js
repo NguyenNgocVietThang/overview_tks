@@ -1,8 +1,8 @@
 'use strict';
 
-const CONFIG = require('../config');
-const hrSheetsClient = require('../sheets/hrSheetsClient');
-const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+const hrEmployeesRepository = require('./hrEmployeesRepository');
+const { createTtlSnapshotCache } = require('../lib/ttlSnapshotCache');
+const { BRANCH_BOTH, branchCodeToLabel } = require('../branch/branches');
 const { ROLES, normalizePhone } = require('../auth/localUserStore');
 
 const FRESH_TTL_MS = 10 * 1000;
@@ -41,7 +41,7 @@ function normalizeText(value) {
   return String(value == null ? '' : value)
     .trim()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .replace(/đ/g, 'd')
     .replace(/Đ/g, 'D')
     .replace(/\s+/g, ' ')
@@ -77,6 +77,11 @@ function roleForDepartment(value) {
   return roles[department] || ROLES.KHACH;
 }
 
+/**
+ * Parse hàng thô đọc từ tab "Danh sách nhân sự" (Google Sheets) thành object
+ * employee — CHỈ còn dùng bởi script backfill một lần (server/scripts/
+ * backfillUsersAndHrToPostgres.js); app đang chạy không còn đọc Sheet này.
+ */
 function parseEmployeeRows(values, sourceBranch) {
   if (!Array.isArray(values) || values.length === 0) {
     throw new HrDirectoryError('Tab Danh sách nhân sự không có hàng tiêu đề.', 'HR_DIRECTORY_SCHEMA_INVALID', 503);
@@ -106,15 +111,6 @@ function parseEmployeeRows(values, sourceBranch) {
   }));
 }
 
-function headerIndexes(values) {
-  const index = new Map((values[0] || []).map((header, position) => [normalizeText(header), position]));
-  return {
-    email: index.get(normalizeText(REQUIRED_HEADERS.email)),
-    phone: index.get(normalizeText(REQUIRED_HEADERS.soDienThoai)),
-    boPhan: index.get(normalizeText(REQUIRED_HEADERS.boPhan))
-  };
-}
-
 function uniqueMatch(employees, predicate) {
   const matches = employees.filter(predicate);
   if (matches.length > 1) {
@@ -131,56 +127,59 @@ function findEmployeeByIdentifier(employees, identifier) {
   const phone = normalizePhone(source.phone || source.soDienThoai);
   const byEmail = email ? uniqueMatch(employees, employee => employee.email === email) : null;
   const byPhone = phone ? uniqueMatch(employees, employee => employee.soDienThoai === phone) : null;
-  if (byEmail && byPhone && (byEmail.sourceBranch !== byPhone.sourceBranch || byEmail.rowIndex !== byPhone.rowIndex)) {
+  if (byEmail && byPhone && byEmail.rowIndex !== byPhone.rowIndex) {
     throw new HrDirectoryError('Email và số điện thoại đang trỏ tới hai nhân sự khác nhau.', 'HR_IDENTITY_CONFLICT');
   }
   return byEmail || byPhone || null;
 }
 
+/**
+ * `repo.selectAllActive()` trả về hàng thô (branch, hoTen, boPhan, email,
+ * soDienThoai, telegramId, id) từ bảng Postgres `hr_employees`. Hàm này ánh
+ * xạ sang hình dạng employee đã dùng khắp nơi (effectiveUserResolver.js,
+ * adminUserRoutes.js...): `sourceBranch` là nhãn tiếng Việt (như Sheet cũ),
+ * `rowIndex` giờ là `hr_employees.id` thật (ổn định, không lệch khi có dòng
+ * bị thêm/xoá — khác con trỏ số dòng Sheet cũ).
+ */
+function mapEmployeeRow(row) {
+  return {
+    sourceBranch: branchCodeToLabel(row.branch),
+    rowIndex: row.id,
+    hoTen: row.hoTen,
+    boPhan: row.boPhan,
+    email: row.email,
+    soDienThoai: row.soDienThoai,
+    telegramId: row.telegramId,
+    sheetVaiTro: roleForDepartment(row.boPhan),
+    sheetCoSo: BRANCH_BOTH
+  };
+}
+
 function createEmployeeDirectory(options = {}) {
   const now = options.now || (() => Date.now());
-  const getClient = options.getClient || (branch => hrSheetsClient.getHrClient(branch));
-  const branches = options.branches || (() => {
-    const result = [];
-    if (CONFIG.HR_SPREADSHEET_ID) result.push(BRANCHES.HANOI);
-    if (CONFIG.HR_SPREADSHEET_ID_SG) result.push(BRANCHES.SAIGON);
-    return result;
-  });
-  let lastSuccess = null;
-  let loading = null;
+  const repo = options.repo || hrEmployeesRepository;
 
   async function fetchSnapshot() {
-    const configuredBranches = branches();
-    if (!configuredBranches.length) {
-      throw new HrDirectoryError('Chưa cấu hình spreadsheet nhân sự.', 'HR_DIRECTORY_UNAVAILABLE', 503);
-    }
-    const groups = await Promise.all(configuredBranches.map(async branch => {
-      const values = await getClient(branch).hrGetValues(CONFIG.HR_SHEET_EMPLOYEES || 'Danh sách nhân sự');
-      return parseEmployeeRows(values, branch);
-    }));
-    return { employees: groups.flat(), loadedAt: now(), stale: false };
+    const rows = await repo.selectAllActive();
+    return { employees: rows.map(mapEmployeeRow) };
   }
 
-  async function getSnapshot(options = {}) {
-    const forceRefresh = !!options.forceRefresh;
-    if (!forceRefresh && lastSuccess && now() - lastSuccess.loadedAt < FRESH_TTL_MS) return lastSuccess;
-    if (loading) return loading;
-    loading = fetchSnapshot().then(snapshot => {
-      lastSuccess = snapshot;
-      return snapshot;
-    }).catch(err => {
-      if (lastSuccess && now() - lastSuccess.loadedAt <= STALE_TTL_MS) {
-        return { ...lastSuccess, stale: true };
-      }
-      if (err instanceof HrDirectoryError && err.code === 'HR_DIRECTORY_SCHEMA_INVALID') throw err;
+  const cache = createTtlSnapshotCache({
+    fetch: fetchSnapshot,
+    freshTtlMs: FRESH_TTL_MS,
+    staleTtlMs: STALE_TTL_MS,
+    now,
+    onUnavailable: () => {
       throw new HrDirectoryError('Không thể đối chiếu Danh sách nhân sự.', 'HR_DIRECTORY_UNAVAILABLE', 503);
-    }).finally(() => { loading = null; });
-    return loading;
+    }
+  });
+
+  async function getSnapshot(getOptions = {}) {
+    return cache.get(getOptions);
   }
 
   function clearCache() {
-    lastSuccess = null;
-    loading = null;
+    cache.clear();
   }
 
   async function updateEmployeeContact(originalEmployee, field, rawValue) {
@@ -191,32 +190,18 @@ function createEmployeeDirectory(options = {}) {
     if (!normalizedValue) throw new HrDirectoryError('Giá trị liên hệ không hợp lệ.', 'INVALID_CONTACT_VALUE', 400);
 
     const snapshot = await getSnapshot({ forceRefresh: true });
-    const duplicate = snapshot.employees.find(employee => {
-      const sameRow = employee.sourceBranch === originalEmployee.sourceBranch && employee.rowIndex === originalEmployee.rowIndex;
-      if (sameRow) return false;
-      return field === 'email' ? employee.email === normalizedValue : employee.soDienThoai === normalizedValue;
-    });
+    const duplicate = snapshot.employees.find(employee => (
+      employee.rowIndex !== originalEmployee.rowIndex &&
+      (field === 'email' ? employee.email === normalizedValue : employee.soDienThoai === normalizedValue)
+    ));
     if (duplicate) {
       throw new HrDirectoryError('Email hoặc số điện thoại đã thuộc nhân sự khác.', 'HR_IDENTITY_CONFLICT', 409);
     }
 
-    const sourceMatches = snapshot.employees.filter(employee => (
-      employee.sourceBranch === originalEmployee.sourceBranch &&
-      ((originalEmployee.email && employee.email === originalEmployee.email) ||
-       (originalEmployee.soDienThoai && employee.soDienThoai === originalEmployee.soDienThoai))
-    ));
-    if (sourceMatches.length !== 1) {
+    const updated = await repo.updateContactById(originalEmployee.rowIndex, field, normalizedValue);
+    if (!updated) {
       throw new HrDirectoryError('Không xác định duy nhất dòng nhân sự cần cập nhật.', 'HR_IDENTITY_CONFLICT', 409);
     }
-    const currentEmployee = sourceMatches[0];
-    const client = getClient(currentEmployee.sourceBranch);
-    if (client.invalidateHrSheetCache) client.invalidateHrSheetCache(CONFIG.HR_SHEET_EMPLOYEES || 'Danh sách nhân sự');
-    const values = await client.hrGetValues(CONFIG.HR_SHEET_EMPLOYEES || 'Danh sách nhân sự');
-    parseEmployeeRows(values, currentEmployee.sourceBranch);
-    const indexes = headerIndexes(values);
-    const row = [...(values[currentEmployee.rowIndex - 1] || [])];
-    row[field === 'email' ? indexes.email : indexes.phone] = normalizedValue;
-    await client.hrUpdateRow(CONFIG.HR_SHEET_EMPLOYEES || 'Danh sách nhân sự', currentEmployee.rowIndex, row);
     clearCache();
     const refreshed = await getSnapshot({ forceRefresh: true });
     return findEmployeeByIdentifier(refreshed.employees, normalizedValue);
@@ -225,17 +210,8 @@ function createEmployeeDirectory(options = {}) {
   async function writeDepartmentForRole(sourceBranch, rowIndex, role) {
     const department = DEPARTMENT_FOR_ROLE[role];
     if (!department || !sourceBranch || !rowIndex) return false;
-
-    const client = getClient(sourceBranch);
-    const sheetName = CONFIG.HR_SHEET_EMPLOYEES || 'Danh sách nhân sự';
-    const values = await client.hrGetValues(sheetName);
-    const indexes = headerIndexes(values);
-    if (indexes.boPhan === undefined) {
-      throw new HrDirectoryError(`Thiếu cột "${REQUIRED_HEADERS.boPhan}" trong Danh sách nhân sự.`, 'HR_DIRECTORY_SCHEMA_INVALID', 503);
-    }
-    const row = [...(values[rowIndex - 1] || [])];
-    row[indexes.boPhan] = department;
-    await client.hrUpdateRow(sheetName, rowIndex, row);
+    const updated = await repo.updateDepartmentById(rowIndex, department);
+    if (!updated) return false;
     clearCache();
     return true;
   }

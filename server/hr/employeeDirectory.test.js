@@ -13,6 +13,7 @@ const {
   createEmployeeDirectory,
   HrDirectoryError
 } = require('./employeeDirectory');
+const { createFakeHrEmployeesRepository } = require('./testHelpers/fakeHrEmployeesRepository');
 
 const HEADERS = ['HỌ VÀ TÊN', 'BỘ PHẬN', 'SĐT', 'EMAIL', 'ID TELEGRAM'];
 
@@ -87,30 +88,21 @@ test('findEmployeeByIdentifier rejects duplicate or split identity matches', () 
 
 test('directory cache is fresh for 10 seconds and stale-on-error for 15 minutes', async () => {
   let now = 1_000;
-  let calls = 0;
-  let shouldFail = false;
-  const directory = createEmployeeDirectory({
-    now: () => now,
-    branches: () => ['Hà Nội'],
-    getClient: () => ({
-      hrGetValues: async () => {
-        calls += 1;
-        if (shouldFail) throw new Error('google down');
-        return [HEADERS, ['A', 'KHO', '0912345678', 'a@example.com', '']];
-      }
-    })
-  });
+  const repo = createFakeHrEmployeesRepository([
+    { id: 1, branch: 'hanoi', hoTen: 'A', boPhan: 'KHO', soDienThoai: '0912345678', email: 'a@example.com', telegramId: '' }
+  ]);
+  const directory = createEmployeeDirectory({ now: () => now, repo });
 
   assert.equal((await directory.getSnapshot()).employees.length, 1);
   now += 9_000;
   await directory.getSnapshot();
-  assert.equal(calls, 1);
+  assert.equal(repo.calls, 1);
 
-  shouldFail = true;
+  repo.setShouldFail(true);
   now += 2_000;
   const stale = await directory.getSnapshot();
   assert.equal(stale.stale, true);
-  assert.equal(calls, 2);
+  assert.equal(repo.calls, 2);
 
   now += 15 * 60 * 1000;
   await assert.rejects(
@@ -120,33 +112,25 @@ test('directory cache is fresh for 10 seconds and stale-on-error for 15 minutes'
 });
 
 test('updateEmployeeContact writes one verified field to the source HR row and preserves other cells', async () => {
-  let values = [HEADERS, ['A', 'KHO', '0912345678', 'a@example.com', '123']];
-  let written = null;
-  const client = {
-    hrGetValues: async () => values.map(row => [...row]),
-    hrUpdateRow: async (sheet, rowIndex, row) => { written = { sheet, rowIndex, row }; values[rowIndex - 1] = row; },
-    invalidateHrSheetCache: () => {}
-  };
-  const directory = createEmployeeDirectory({ branches: () => ['Hà Nội'], getClient: () => client });
+  const repo = createFakeHrEmployeesRepository([
+    { id: 1, branch: 'hanoi', hoTen: 'A', boPhan: 'KHO', soDienThoai: '0912345678', email: 'a@example.com', telegramId: '123' }
+  ]);
+  const directory = createEmployeeDirectory({ repo });
   const employee = (await directory.getSnapshot()).employees[0];
   const updated = await directory.updateEmployeeContact(employee, 'email', 'new@example.com');
-  assert.deepEqual(written, {
-    sheet: 'Danh sách nhân sự', rowIndex: 2,
-    row: ['A', 'KHO', '0912345678', 'new@example.com', '123']
-  });
   assert.equal(updated.email, 'new@example.com');
+
+  const refreshed = (await directory.getSnapshot({ forceRefresh: true })).employees[0];
+  assert.equal(refreshed.email, 'new@example.com');
+  assert.equal(refreshed.soDienThoai, '0912345678', 'các cột khác không bị đụng tới');
 });
 
 test('updateEmployeeContact rejects a value already used by another HR row', async () => {
-  const values = [
-    HEADERS,
-    ['A', 'KHO', '0912345678', 'a@example.com', ''],
-    ['B', 'SALE', '0987654321', 'b@example.com', '']
-  ];
-  const directory = createEmployeeDirectory({
-    branches: () => ['Hà Nội'],
-    getClient: () => ({ hrGetValues: async () => values, hrUpdateRow: async () => assert.fail('must not write') })
-  });
+  const repo = createFakeHrEmployeesRepository([
+    { id: 1, branch: 'hanoi', hoTen: 'A', boPhan: 'KHO', soDienThoai: '0912345678', email: 'a@example.com', telegramId: '' },
+    { id: 2, branch: 'hanoi', hoTen: 'B', boPhan: 'SALE', soDienThoai: '0987654321', email: 'b@example.com', telegramId: '' }
+  ]);
+  const directory = createEmployeeDirectory({ repo });
   const employee = (await directory.getSnapshot()).employees[0];
   await assert.rejects(
     directory.updateEmployeeContact(employee, 'phone', '0987654321'),
@@ -155,40 +139,34 @@ test('updateEmployeeContact rejects a value already used by another HR row', asy
 });
 
 test('writeDepartmentForRole overwrites BỘ PHẬN with the canonical department for the new role', async () => {
-  let values = [HEADERS, ['A', 'KHO', '0912345678', 'a@example.com', '']];
-  let written = null;
-  const client = {
-    hrGetValues: async () => values.map(row => [...row]),
-    hrUpdateRow: async (sheet, rowIndex, row) => { written = { sheet, rowIndex, row }; values[rowIndex - 1] = row; }
-  };
-  const directory = createEmployeeDirectory({ branches: () => ['Hà Nội'], getClient: () => client });
+  const repo = createFakeHrEmployeesRepository([
+    { id: 1, branch: 'hanoi', hoTen: 'A', boPhan: 'KHO', soDienThoai: '0912345678', email: 'a@example.com', telegramId: '' }
+  ]);
+  const directory = createEmployeeDirectory({ repo });
 
-  const result = await directory.writeDepartmentForRole('Hà Nội', 2, 'Kế toán');
+  const result = await directory.writeDepartmentForRole('Hà Nội', 1, 'Kế toán');
 
   assert.equal(result, true);
-  assert.deepEqual(written, {
-    sheet: 'Danh sách nhân sự', rowIndex: 2,
-    row: ['A', 'KẾ TOÁN', '0912345678', 'a@example.com', '']
-  });
+  const refreshed = (await directory.getSnapshot({ forceRefresh: true })).employees[0];
+  assert.equal(refreshed.boPhan, 'KẾ TOÁN');
 });
 
 test('writeDepartmentForRole is a no-op for the Khách role (no unique department to write back)', async () => {
-  const client = {
-    hrGetValues: async () => assert.fail('must not read sheet for Khách'),
-    hrUpdateRow: async () => assert.fail('must not write for Khách')
-  };
-  const directory = createEmployeeDirectory({ branches: () => ['Hà Nội'], getClient: () => client });
+  const repo = createFakeHrEmployeesRepository([
+    { id: 1, branch: 'hanoi', hoTen: 'A', boPhan: 'KHO', soDienThoai: '0912345678', email: 'a@example.com', telegramId: '' }
+  ]);
+  const directory = createEmployeeDirectory({ repo });
 
-  const result = await directory.writeDepartmentForRole('Hà Nội', 2, 'Khách');
+  const result = await directory.writeDepartmentForRole('Hà Nội', 1, 'Khách');
 
   assert.equal(result, false);
+  const unchanged = (await directory.getSnapshot({ forceRefresh: true })).employees[0];
+  assert.equal(unchanged.boPhan, 'KHO');
 });
 
 test('writeDepartmentForRole is a no-op when branch or row index is missing', async () => {
-  const directory = createEmployeeDirectory({
-    branches: () => ['Hà Nội'],
-    getClient: () => ({ hrGetValues: async () => assert.fail('must not read'), hrUpdateRow: async () => assert.fail('must not write') })
-  });
+  const repo = createFakeHrEmployeesRepository([]);
+  const directory = createEmployeeDirectory({ repo });
 
   assert.equal(await directory.writeDepartmentForRole('', 2, 'Kế toán'), false);
   assert.equal(await directory.writeDepartmentForRole('Hà Nội', 0, 'Kế toán'), false);

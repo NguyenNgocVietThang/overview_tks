@@ -77,6 +77,158 @@ function buildRelativeDateGuide(context) {
   ];
 }
 
+function normalizeForMatch(value) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+function textHasTerm(normalizedText, normalizedTerm) {
+  const pattern = new RegExp(`(?:^|[^a-z0-9À-ỿ])${normalizedTerm}(?:[^a-z0-9À-ỿ]|$)`);
+  return pattern.test(normalizedText);
+}
+
+// index: 0=Chu nhat...6=Thu 7, cung quy uoc voi Date.prototype.getDay().
+const WEEKDAY_TERMS = [
+  { index: 0, patterns: ['chu nhat', 'cn'] },
+  { index: 1, patterns: ['thu hai', 'thu 2'] },
+  { index: 2, patterns: ['thu ba', 'thu 3'] },
+  { index: 3, patterns: ['thu tu', 'thu 4'] },
+  { index: 4, patterns: ['thu nam', 'thu 5'] },
+  { index: 5, patterns: ['thu sau', 'thu 6'] },
+  { index: 6, patterns: ['thu bay', 'thu 7'] }
+];
+const WEEKDAY_LABELS = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+
+const WEEK_QUALIFIER_TERMS = [
+  { weekOffset: 0, patterns: ['tuan nay'] },
+  { weekOffset: 1, patterns: ['tuan sau', 'tuan toi'] },
+  { weekOffset: -1, patterns: ['tuan truoc'] }
+];
+
+function findMatchedValues(normalizedText, terms, field) {
+  const matched = new Set();
+  for (const entry of terms) {
+    if (entry.patterns.some(pattern => textHasTerm(normalizedText, pattern))) matched.add(entry[field]);
+  }
+  return matched;
+}
+
+function dayOfWeekFromIso(isoDate) {
+  const [year, month, day] = isoDate.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+}
+
+function weekdayOffsetFromMonday(weekdayIndex) {
+  return weekdayIndex === 0 ? 6 : weekdayIndex - 1;
+}
+
+function mondayOfWeekIso(todayIso, weekOffset) {
+  const daysSinceMonday = (dayOfWeekFromIso(todayIso) + 6) % 7;
+  return addDaysToIsoDate(todayIso, weekOffset * 7 - daysSinceMonday);
+}
+
+/**
+ * weekOffset == null (khong neu "tuan nay/tuan sau/tuan truoc" di kem ten
+ * thu): hieu la thu GAN NHAT sap toi tinh ca hom nay (vd nhan tin bat ky ngay
+ * nao noi "thu 6" deu la thu 6 sap toi gan nhat, ke ca hom nay neu hom nay
+ * dung la thu 6).
+ */
+function computeWeekdayIso(todayIso, weekdayIndex, weekOffset) {
+  if (weekOffset != null) {
+    return addDaysToIsoDate(mondayOfWeekIso(todayIso, weekOffset), weekdayOffsetFromMonday(weekdayIndex));
+  }
+  const daysAhead = (weekdayIndex - dayOfWeekFromIso(todayIso) + 7) % 7;
+  return addDaysToIsoDate(todayIso, daysAhead);
+}
+
+/**
+ * Tinh san lich Thu 2 - CN cua "tuan nay" va "tuan sau" theo moc tham chieu,
+ * dua vao prompt de AI tra cuu thay vi tu dem ngay trong dau -- cung 1 ly do
+ * bat on nhu buildRelativeDateGuide, ap dung cho cau nhac ten thu (vd "thu 2
+ * tuan sau") hoac ca tuan (vd "nghi tuan sau").
+ */
+function buildWeekGuide(context) {
+  const instant = new Date(context.messageTime);
+  if (Number.isNaN(instant.getTime())) return null;
+  const todayIso = formatIsoDateInZone(instant, context.timeZone);
+  return [0, 1].map(weekOffset => ({
+    label: weekOffset === 0 ? 'tuần này' : 'tuần sau',
+    days: WEEKDAY_LABELS.map((label, index) => [label, computeWeekdayIso(todayIso, index, weekOffset)])
+  }));
+}
+
+/**
+ * Doi chieu van ban voi cac mau cau "map mo" pho bien (tu ngay tuong doi co
+ * san, ten thu +/- "tuan nay/tuan sau", hoac ca tuan khong neu thu cu the) de
+ * suy ra DUY NHAT 1 dien giai xac dinh bang code. Tra ve null neu van ban
+ * nhap nhang -- nhac >= 2 dien giai khac nhau (vd vua "ngay kia" vua "thu 2",
+ * hoac 2 ten thu khac nhau) -- de AI tu xu ly nhu cu thay vi code doan sai.
+ */
+function findDeterministicDateSignal(text, context) {
+  const instant = new Date(context.messageTime);
+  if (Number.isNaN(instant.getTime())) return null;
+  const todayIso = formatIsoDateInZone(instant, context.timeZone);
+  const normalizedText = normalizeForMatch(String(text || ''));
+
+  const dateCandidates = new Set();
+  for (const [term, isoDate] of buildRelativeDateGuide(context) || []) {
+    if (textHasTerm(normalizedText, normalizeForMatch(term))) dateCandidates.add(isoDate);
+  }
+
+  const weekdayMatches = findMatchedValues(normalizedText, WEEKDAY_TERMS, 'index');
+  const qualifierMatches = findMatchedValues(normalizedText, WEEK_QUALIFIER_TERMS, 'weekOffset');
+  const qualifierWeekOffset = qualifierMatches.size === 1 ? [...qualifierMatches][0] : null;
+
+  for (const weekdayIndex of weekdayMatches) {
+    dateCandidates.add(computeWeekdayIso(todayIso, weekdayIndex, qualifierWeekOffset));
+  }
+
+  let rangeCandidate = null;
+  if (weekdayMatches.size === 0 && qualifierMatches.size === 1) {
+    const monday = mondayOfWeekIso(todayIso, qualifierWeekOffset);
+    rangeCandidate = { start: monday, end: addDaysToIsoDate(monday, 5) };
+  }
+
+  const totalSignals = dateCandidates.size + (rangeCandidate ? 1 : 0);
+  if (totalSignals !== 1) return null;
+  return rangeCandidate ? { type: 'range', ...rangeCandidate } : { type: 'date', date: [...dateCandidates][0] };
+}
+
+/**
+ * Ghi de start_date/end_date (va ca duration, cho truong hop ca tuan) cua AI
+ * bang gia tri tinh san khi van ban chi cho phep suy ra DUY NHAT 1 dien giai
+ * khong nhap nhang -- dam bao ket qua on dinh, khong phu thuoc AI co doc dung
+ * cac bang quy doi trong prompt hay khong. Xem findDeterministicDateSignal.
+ */
+function applyRelativeDateOverride(text, context, extraction) {
+  if (extraction.intent !== 'leave_request') return extraction;
+  const signal = findDeterministicDateSignal(text, context);
+  if (!signal) return extraction;
+
+  if (signal.type === 'range') {
+    return {
+      ...extraction,
+      start_date: signal.start,
+      start_session: 'Sáng',
+      end_date: signal.end,
+      end_session: 'Chiều',
+      duration_value: null,
+      duration_unit: null
+    };
+  }
+
+  if (!extraction.start_date || signal.date === extraction.start_date) return extraction;
+  const sameDayEnd = extraction.end_date === extraction.start_date;
+  return {
+    ...extraction,
+    start_date: signal.date,
+    end_date: sameDayEnd ? signal.date : extraction.end_date
+  };
+}
+
 function buildSystemPrompt(context) {
   const lines = [
     'Bạn trích xuất thông tin xin nghỉ phép có cấu trúc từ tin nhắn tiếng Việt của nhân viên; bạn KHÔNG phê duyệt hay từ chối yêu cầu.',
@@ -93,8 +245,18 @@ function buildSystemPrompt(context) {
     );
   }
 
+  const weekGuide = buildWeekGuide(context);
+  if (weekGuide) {
+    lines.push(
+      'Bảng NGÀY TRONG TUẦN đã tính sẵn cho "tuần này" và "tuần sau" theo mốc tham chiếu ở trên -- dùng để quy đổi khi tin nhắn nhắc tên thứ (vd "thứ 3", "thứ 6 tuần sau", "chủ nhật tuần này"): '
+      + weekGuide.map(week => `${week.label}: ${week.days.map(([label, date]) => `${label}=${date}`).join(', ')}`).join(' | ')
+      + '. Nếu tin nhắn chỉ nhắc "tuần sau"/"tuần tới"/"tuần này" mà KHÔNG nêu thứ cụ thể nào, hiểu là nghỉ trọn tuần làm việc từ Thứ 2 đến Thứ 7 của tuần đó (Chủ nhật vốn đã là ngày nghỉ, không tính vào).'
+    );
+  }
+
   lines.push(
     'Buổi chỉ nhận giá trị "Sáng", "Chiều", hoặc null. Đơn vị thời lượng chỉ nhận "day", "session", hoặc null.',
+    'Khi nhân viên nêu số ngày/buổi nghỉ tính từ hiện tại mà KHÔNG neo vào một ngày cụ thể nào (vd "nghỉ 3 ngày tới", "nghỉ 2 buổi nữa"), hãy để start_date/end_date là null và dùng duration_value/duration_unit -- hệ thống sẽ tự tính chính xác ngày bắt đầu, không tự cộng ngày trong đầu.',
     'Nếu nhân viên không nêu ngày/buổi nào, để null — KHÔNG tự suy đoán, việc suy luận mặc định do hệ thống khác đảm nhiệm.',
     'Không bao giờ tự bịa lý do, người bàn giao, hoặc ngày tháng không được nêu trong tin nhắn.',
     'Phân biệt "để trống vì không nói" (trả null) với "chủ động từ chối cung cấp" — nếu nhân viên nói rõ kiểu "không có lý do"/"không cần nêu lý do" thì trả reason: null và reason_declined: true; tương tự cho handover/handover_declined khi nhân viên nói "không cần bàn giao"/"không có ai bàn giao". Nếu nhân viên không nhắc gì tới lý do/bàn giao thì reason_declined/handover_declined đều là false.',
@@ -275,11 +437,11 @@ async function extractLeaveMessage(text, context, dependencies = {}) {
     }
 
     if (!isValidExtraction(extraction)) throw new LeaveAiExtractionError('AI_LEAVE_INVALID_RESPONSE');
-    return {
+    return applyRelativeDateOverride(text, context, {
       ...extraction,
       reason: normalizeOptionalString(extraction.reason),
       handover: normalizeOptionalString(extraction.handover)
-    };
+    });
   } finally {
     clearTimeout(timer);
     if (externalSignal) externalSignal.removeEventListener('abort', abortFromExternal);

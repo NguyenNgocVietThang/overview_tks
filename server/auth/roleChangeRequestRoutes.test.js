@@ -7,19 +7,21 @@ const os = require('os');
 const path = require('path');
 const fs = require('fs');
 const localUserStore = require('./localUserStore');
+const { createFakeAppUsersRepository } = require('./testHelpers/fakeAppUsersRepository');
 const roleRepo = require('./roleChangeRequestRepository');
 const notificationRepo = require('../notifications/notificationRepository');
 const roleChangeRequestRoutes = require('./roleChangeRequestRoutes');
 
-const usersDbPath = path.join(os.tmpdir(), `test-users-${Date.now()}.json`);
 const requestsDbPath = path.join(os.tmpdir(), `test-role-requests-${Date.now()}.json`);
 const notificationsDbPath = path.join(os.tmpdir(), `test-notifications-${Date.now()}.json`);
-localUserStore.initStore(usersDbPath);
+// appUsersRepository that (Postgres) can SUPABASE_DB_URL — dung repository
+// gia trong bo nho cho localUserStore, xem adminUserRoutes.test.js.
+localUserStore.initStore(null, { repository: createFakeAppUsersRepository() });
 roleRepo.initStore(requestsDbPath);
 notificationRepo.initStore(notificationsDbPath);
 
 test.after(() => {
-  [usersDbPath, requestsDbPath, notificationsDbPath].forEach(p => {
+  [requestsDbPath, notificationsDbPath].forEach(p => {
     if (fs.existsSync(p)) { try { fs.unlinkSync(p); } catch (e) {} }
   });
 });

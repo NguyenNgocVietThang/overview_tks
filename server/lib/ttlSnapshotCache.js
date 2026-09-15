@@ -1,0 +1,68 @@
+// ==========================================
+// TTL SNAPSHOT CACHE — cache ngan han dung chung cho cac "snapshot" doc tu
+// nguon ngoai (Postgres/Sheets...): doc nhanh (cache hit) hau het thoi gian,
+// ghi o noi khac hien ra sau toi da freshTtlMs, va khi nguon ngoai loi tam
+// thoi thi tra ban stale (con trong staleTtlMs) thay vi lam fail moi request.
+//
+// Tach ra tu logic da co san trong server/hr/employeeDirectory.js (fresh
+// ~10s / stale-on-error ~15 phut) de server/auth/localUserStore.js dung lai
+// dung mot cach hanh xu da duoc kiem chung, khong viet lai lan hai.
+// ==========================================
+'use strict';
+
+function createTtlSnapshotCache(options = {}) {
+  const {
+    fetch,
+    freshTtlMs = 10 * 1000,
+    staleTtlMs = 15 * 60 * 1000,
+    now = () => Date.now(),
+    onUnavailable = err => { throw err; }
+  } = options;
+
+  if (typeof fetch !== 'function') {
+    throw new Error('createTtlSnapshotCache yêu cầu options.fetch là một hàm.');
+  }
+
+  let lastSuccess = null;
+  let loading = null;
+
+  async function get(getOptions = {}) {
+    const forceRefresh = !!getOptions.forceRefresh;
+    if (!forceRefresh && lastSuccess && now() - lastSuccess.loadedAt < freshTtlMs) {
+      return lastSuccess;
+    }
+    if (loading) return loading;
+
+    loading = fetch()
+      .then(data => {
+        const snapshot = { ...data, loadedAt: now(), stale: false };
+        lastSuccess = snapshot;
+        return snapshot;
+      })
+      .catch(err => {
+        if (lastSuccess && now() - lastSuccess.loadedAt <= staleTtlMs) {
+          return { ...lastSuccess, stale: true };
+        }
+        return onUnavailable(err);
+      })
+      .finally(() => { loading = null; });
+
+    return loading;
+  }
+
+  function clear() {
+    lastSuccess = null;
+    loading = null;
+  }
+
+  // Nap truc tiep 1 snapshot vao cache (khong goi fetch) — dung de seed du
+  // lieu gia trong unit test (xem localUserStore.setInMemoryUsers).
+  function set(data) {
+    lastSuccess = { ...data, loadedAt: now(), stale: false };
+    loading = null;
+  }
+
+  return { get, clear, set };
+}
+
+module.exports = { createTtlSnapshotCache };

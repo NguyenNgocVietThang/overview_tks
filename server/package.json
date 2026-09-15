@@ -20,7 +20,8 @@
     "setup:users-sheet": "node scripts/setupUsersSheet.js",
     "setup:vc-sheet": "node scripts/setupVcSheet.js",
     "setup:hr-sheet": "node scripts/setupHrSheet.js",
-    "migrate:user-branches": "node scripts/migrateUserBranches.js"
+    "migrate:user-branches": "node scripts/migrateUserBranches.js",
+    "backfill:users-hr": "node scripts/backfillUsersAndHrToPostgres.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

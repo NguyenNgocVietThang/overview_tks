@@ -3,21 +3,15 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const os = require('os');
-const path = require('path');
-const fs = require('fs');
 const localUserStore = require('./localUserStore');
 const employeeDirectory = require('../hr/employeeDirectory');
 const adminUserRoutes = require('./adminUserRoutes');
+const { createFakeAppUsersRepository } = require('./testHelpers/fakeAppUsersRepository');
 
-const testDbPath = path.join(os.tmpdir(), `test-users-${Date.now()}.json`);
-localUserStore.initStore(testDbPath);
-
-test.after(() => {
-  if (fs.existsSync(testDbPath)) {
-    try { fs.unlinkSync(testDbPath); } catch (e) {}
-  }
-});
+// appUsersRepository that (Postgres) can vao SUPABASE_DB_URL — test dung
+// repository gia trong bo nho de createUser/updateUser/deleteUser khong can
+// ket noi CSDL that. setInMemoryUsers() seed du lieu vao ca cache va repo gia.
+localUserStore.initStore(null, { repository: createFakeAppUsersRepository() });
 
 function fakeRes() {
   const res = { statusCode: null, body: null };

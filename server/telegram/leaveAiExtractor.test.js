@@ -323,6 +323,131 @@ test('system prompt tính sẵn bảng quy đổi ngày tương đối, phân bi
   assert.match(systemPrompt, /"ngày mốt"=2026-08-24/);
 });
 
+test('ghi đè start_date bằng giá trị tính sẵn khi AI đọc sai "ngày kia" (chỉ 1 tu tương đối, không nhập nhằng)', async () => {
+  const result = await extractLeaveMessage('Tôi nghỉ ngày kia do có việc bận', {
+    messageTime: '2026-08-22T08:00:00+07:00', timeZone: 'Asia/Bangkok'
+  }, dependencies(async () => responseFor({
+    ...validExtraction,
+    start_date: '2026-08-23', // AI nhầm thành "ngày mai" (+1) thay vì "ngày kia" (+2)
+    end_date: null
+  })));
+
+  assert.equal(result.start_date, '2026-08-24');
+  assert.equal(result.end_date, null);
+});
+
+test('ghi đè cả end_date khi AI đặt end_date trùng start_date (nghỉ 1 ngày)', async () => {
+  const result = await extractLeaveMessage('Tôi nghỉ ngày kia', {
+    messageTime: '2026-08-22T08:00:00+07:00', timeZone: 'Asia/Bangkok'
+  }, dependencies(async () => responseFor({
+    ...validExtraction,
+    start_date: '2026-08-23',
+    end_date: '2026-08-23',
+    end_session: 'Chiều'
+  })));
+
+  assert.equal(result.start_date, '2026-08-24');
+  assert.equal(result.end_date, '2026-08-24');
+});
+
+test('không ghi đè khi AI đã đọc đúng ngày tương đối', async () => {
+  const result = await extractLeaveMessage('Tôi nghỉ ngày kia', {
+    messageTime: '2026-08-22T08:00:00+07:00', timeZone: 'Asia/Bangkok'
+  }, dependencies(async () => responseFor({ ...validExtraction, start_date: '2026-08-24', end_date: null })));
+
+  assert.equal(result.start_date, '2026-08-24');
+});
+
+test('không ghi đè khi văn bản nhắc tới 2 từ tương đối khác ngày (nhập nhằng, để AI tự xử lý)', async () => {
+  const result = await extractLeaveMessage('Tôi nghỉ từ ngày mai đến ngày kia', {
+    messageTime: '2026-08-22T08:00:00+07:00', timeZone: 'Asia/Bangkok'
+  }, dependencies(async () => responseFor({
+    ...validExtraction,
+    start_date: '2026-08-23',
+    end_date: '2026-08-24',
+    end_session: 'Chiều'
+  })));
+
+  assert.equal(result.start_date, '2026-08-23');
+  assert.equal(result.end_date, '2026-08-24');
+});
+
+test('system prompt tính sẵn bảng ngày trong tuần cho "tuần này"/"tuần sau"', async () => {
+  let request;
+  const fakeFetch = async (url, options) => {
+    request = { url, headers: options.headers, body: JSON.parse(options.body) };
+    return responseFor(validExtraction);
+  };
+
+  // 2026-08-22 là Thứ 7 -> tuần này: Thứ 2=17/08 .. Thứ 7=22/08, CN=23/08.
+  // tuần sau: Thứ 2=24/08 .. Thứ 7=29/08, CN=30/08.
+  await extractLeaveMessage('Em xin nghỉ thứ 2 tuần sau', {
+    messageTime: '2026-08-22T08:00:00+07:00', timeZone: 'Asia/Bangkok'
+  }, dependencies(fakeFetch));
+
+  const systemPrompt = request.body.messages[0].content;
+  assert.match(systemPrompt, /tuần này:.*Thứ 2=2026-08-17/);
+  assert.match(systemPrompt, /tuần này:.*Chủ nhật=2026-08-23/);
+  assert.match(systemPrompt, /tuần sau:.*Thứ 2=2026-08-24/);
+  assert.match(systemPrompt, /tuần sau:.*Thứ 7=2026-08-29/);
+});
+
+test('ghi đè start_date theo tên thứ + "tuần sau" khi AI đọc sai', async () => {
+  const result = await extractLeaveMessage('Tôi nghỉ thứ 2 tuần sau, có việc bận', {
+    messageTime: '2026-08-22T08:00:00+07:00', timeZone: 'Asia/Bangkok'
+  }, dependencies(async () => responseFor({
+    ...validExtraction,
+    start_date: '2026-08-17', // AI nhầm sang Thứ 2 TUẦN NÀY thay vì tuần sau
+    end_date: null
+  })));
+
+  assert.equal(result.start_date, '2026-08-24');
+});
+
+test('thứ bare (không kèm "tuần này/tuần sau") hiểu là thứ gần nhất sắp tới, kể cả hôm nay', async () => {
+  const result = await extractLeaveMessage('Tôi xin nghỉ thứ 6', {
+    // 2026-08-22 là Thứ 7 -> Thứ 6 gần nhất sắp tới là 2026-08-28 (thứ 6 tuần sau)
+    messageTime: '2026-08-22T08:00:00+07:00', timeZone: 'Asia/Bangkok'
+  }, dependencies(async () => responseFor({ ...validExtraction, start_date: '2026-08-23', end_date: null })));
+
+  assert.equal(result.start_date, '2026-08-28');
+});
+
+test('"nghỉ tuần sau" không nêu thứ cụ thể -> chuẩn hóa thành trọn Thứ 2 - Thứ 7 tuần sau, xóa duration mâu thuẫn', async () => {
+  const result = await extractLeaveMessage('Tôi xin nghỉ tuần sau ạ', {
+    messageTime: '2026-08-22T08:00:00+07:00', timeZone: 'Asia/Bangkok'
+  }, dependencies(async () => responseFor({
+    ...validExtraction,
+    start_date: '2026-08-23',
+    start_session: 'Chiều',
+    end_date: '2026-08-23',
+    end_session: 'Chiều',
+    duration_value: 1,
+    duration_unit: 'day'
+  })));
+
+  assert.equal(result.start_date, '2026-08-24');
+  assert.equal(result.start_session, 'Sáng');
+  assert.equal(result.end_date, '2026-08-29');
+  assert.equal(result.end_session, 'Chiều');
+  assert.equal(result.duration_value, null);
+  assert.equal(result.duration_unit, null);
+});
+
+test('không ghi đè khi văn bản nhắc 2 tên thứ khác nhau (nhập nhằng, để AI tự xử lý)', async () => {
+  const result = await extractLeaveMessage('Tôi nghỉ thứ 2 và thứ 4 tuần sau', {
+    messageTime: '2026-08-22T08:00:00+07:00', timeZone: 'Asia/Bangkok'
+  }, dependencies(async () => responseFor({
+    ...validExtraction,
+    start_date: '2026-08-24',
+    end_date: '2026-08-26',
+    end_session: 'Chiều'
+  })));
+
+  assert.equal(result.start_date, '2026-08-24');
+  assert.equal(result.end_date, '2026-08-26');
+});
+
 test('nhận diện reason_declined/handover_declined khi nhân viên chủ động từ chối cung cấp', async () => {
   const result = await extractLeaveMessage('Em xin nghỉ mai, không có lý do, không cần bàn giao', {
     messageTime: '2026-08-22T08:00:00+07:00', timeZone: 'Asia/Bangkok'

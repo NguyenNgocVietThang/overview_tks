@@ -55,6 +55,21 @@ function defaultBranch(user) {
   return allowedBranches(user)[0] || null;
 }
 
+// Anh xa 2 chieu giua dinh danh noi bo cua Postgres ('hanoi'/'saigon' — xem
+// server/db/SCHEMA.md) va nhan hien thi BRANCHES ('Hà Nội'/'Sài Gòn'). Dung
+// boi appUsersRepository.js/hrEmployeesRepository.js khi doc/ghi cot `branch`
+// (KHONG co gia tri 'both' — khac voi co_so 3 trang thai cua app_users).
+const BRANCH_CODE_TO_LABEL = Object.freeze({ hanoi: BRANCHES.HANOI, saigon: BRANCHES.SAIGON });
+const BRANCH_LABEL_TO_CODE = Object.freeze({ [BRANCHES.HANOI]: 'hanoi', [BRANCHES.SAIGON]: 'saigon' });
+
+function branchCodeToLabel(code) {
+  return BRANCH_CODE_TO_LABEL[code] || '';
+}
+
+function branchLabelToCode(label) {
+  return BRANCH_LABEL_TO_CODE[normalizeCoSo(label)] || '';
+}
+
 module.exports = {
   BRANCHES,
   BRANCH_BOTH,
@@ -62,5 +77,7 @@ module.exports = {
   normalizeCoSo,
   allowedBranches,
   isBranchAllowed,
-  defaultBranch
+  defaultBranch,
+  branchCodeToLabel,
+  branchLabelToCode
 };
