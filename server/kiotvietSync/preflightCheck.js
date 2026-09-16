@@ -1,5 +1,13 @@
 'use strict';
 
+// Khi chay CLI truc tiep (khong qua server/index.js), khong co gi khac nap
+// .env truoc - cac script CLI khac (backfill.js, reconcileCounts.js) nap gian
+// tiep qua require('../config')/require('../db/pool'). Script nay khong dung
+// module nao trong 2 module do nen phai tu nap.
+if (process.env.NODE_ENV !== 'production') {
+  try { require('dotenv').config(); } catch (e) { /* dotenv là tùy chọn trong môi trường production */ }
+}
+
 // Script khao sat truoc khi chay backfill that (Giai doan 3, Task 6). CHI DOC
 // (GET) tu KiotViet - khong import server/db/pool.js, khong ghi bat cu thu gi
 // vao Postgres. Giai quyet 2 muc UNVERIFIED cua API_ENDPOINTS.md TRUOC KHI

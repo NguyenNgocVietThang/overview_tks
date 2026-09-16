@@ -1,12 +1,12 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0011`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0012`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
 - Mọi bảng nghiệp vụ dùng `branch` với đúng hai giá trị nội bộ: `hanoi` và `saigon`.
 - ID KiotViet chỉ duy nhất trong phạm vi một gian hàng, nên khóa chính luôn bắt đầu bằng `branch`.
-- Tiền là số nguyên VND và dùng `BIGINT`; số lượng hàng hóa là số nguyên và dùng `INTEGER`.
+- Cột tiền và số lượng dùng `NUMERIC` (đổi từ `BIGINT`/`INTEGER` ở migration `0012`, 2026-09-16). Giả định ban đầu "tiền/số lượng luôn là số nguyên" sai với dữ liệu thật — KiotViet trả giá/chiết khấu có phần lẻ xu và số lượng hàng bán theo cân không phải số nguyên (ví dụ `7.5`).
 - Các entity lấy trực tiếp từ KiotViet lưu toàn bộ object nguồn trong `raw JSONB`; các cột first-class dùng để join, lọc và sắp xếp.
 - `status` giữ nguyên mã `SMALLINT` từ KiotViet, không suy diễn nhãn trong tầng lưu trữ.
 - `synced_at` là thời điểm bản ghi được ghi vào Postgres, không thay thế `created_date` hoặc `modified_date` của KiotViet.

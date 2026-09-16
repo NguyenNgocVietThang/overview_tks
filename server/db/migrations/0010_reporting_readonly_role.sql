@@ -25,7 +25,11 @@ BEGIN
   END IF;
 END $$;
 
-GRANT CONNECT ON DATABASE current_database() TO reporting_readonly;
+DO $$
+BEGIN
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO reporting_readonly', current_database());
+END $$;
+
 GRANT USAGE ON SCHEMA public TO reporting_readonly;
 
 GRANT SELECT ON

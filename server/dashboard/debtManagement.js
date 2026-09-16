@@ -95,7 +95,8 @@ function findColumn(headers, aliases) {
 }
 
 function buildColumnIndex(headers, branch) {
-  const branchSuffix = branch === 'saigon' ? 'sg' : 'hn';
+  const normalizedBranch = normalizeHeader(branch);
+  const branchSuffix = normalizedBranch === 'saigon' || normalizedBranch === 'sai gon' ? 'sg' : 'hn';
   return {
     customerName: findColumn(headers, ['Khách hàng', 'Tên khách hàng']),
     sale: findColumn(headers, ['Sale', 'Nhân viên sale', 'Nhân viên bán hàng']),

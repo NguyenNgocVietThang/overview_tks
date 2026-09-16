@@ -36,6 +36,58 @@ function loadEntityModules() {
   };
 }
 
+const DEADLOCK_SQLSTATE = '40P01';
+const DEADLOCK_MAX_ATTEMPTS = 3;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Deadlock giua cac giao dich ghi dong thoi (vd 2 entity cung upsert bang
+// "staff" dung chung) la binh thuong trong Postgres - ben thua phai tu retry,
+// khong coi la loi that. Chi retry dung SQLSTATE 40P01, cac loi khac nem lai
+// ngay.
+async function withDeadlockRetry(work, { attempts = DEADLOCK_MAX_ATTEMPTS, log = console.log } = {}) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await work();
+    } catch (error) {
+      if (error.code !== DEADLOCK_SQLSTATE || attempt === attempts) throw error;
+      log(`[backfill] deadlock (lan ${attempt}/${attempts}), thu lai...`);
+      await sleep(200 * attempt + Math.floor(Math.random() * 200));
+    }
+  }
+}
+
+// cash_flows: API /cashflow BAT BUOC goi 2 lan (isReceipt=true va
+// isReceipt=false) roi gop - API khong tra field phan biet thu/chi trong
+// item, chi loc dung khi truyen isReceipt o query (xem API_ENDPOINTS.md).
+// syncDriver.js (polling) da lam dung dieu nay; backfill truoc day thieu,
+// khien is_receipt bi NULL va vi pham NOT NULL.
+async function backfillCashFlowsChunk(kiotVietClient, pool, branch, entityModule, chunk) {
+  const items = [];
+  for (const isReceipt of ['true', 'false']) {
+    await kiotVietClient.fetchAllPages(entityModule.endpoint, { ...chunk.query, isReceipt }, async (pageItems) => {
+      // API khong tra field phan biet thu/chi trong item - phai gan tu query
+      // da dung de lay item nay, khong doc tu item.
+      items.push(...pageItems.map((item) => ({ ...item, IsReceipt: isReceipt === 'true' })));
+    });
+  }
+  await withDeadlockRetry(async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await entityModule.upsertPage(client, branch, items);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  });
+}
+
 // Chay backfill cho 1 entity cua 1 co so. Tuan tu tung chunk (khong song song
 // trong cung entity) - don gian hoa resume va log tien do.
 async function backfillEntity(kiotVietClient, pool, branch, entityModule, {
@@ -54,22 +106,28 @@ async function backfillEntity(kiotVietClient, pool, branch, entityModule, {
     await progressRepo.markChunkStarted(pool, branch, entityModule.entity, chunk.chunkKey);
 
     try {
-      await kiotVietClient.fetchAllPages(entityModule.endpoint, chunk.query, async (items, pageInfo) => {
-        const client = await pool.connect();
-        try {
-          await client.query('BEGIN');
-          await entityModule.upsertPage(client, branch, items);
-          await progressRepo.advanceChunkProgress(client, branch, entityModule.entity, chunk.chunkKey, {
-            nextItem: pageInfo.nextItem, recordsInPage: items.length
-          });
-          await client.query('COMMIT');
-        } catch (error) {
-          await client.query('ROLLBACK');
-          throw error;
-        } finally {
-          client.release();
-        }
-      }, { startItem });
+      if (entityModule.entity === 'cash_flows') {
+        await backfillCashFlowsChunk(kiotVietClient, pool, branch, entityModule, chunk);
+      } else {
+        await kiotVietClient.fetchAllPages(entityModule.endpoint, chunk.query, async (items, pageInfo) => {
+          await withDeadlockRetry(async () => {
+            const client = await pool.connect();
+            try {
+              await client.query('BEGIN');
+              await entityModule.upsertPage(client, branch, items);
+              await progressRepo.advanceChunkProgress(client, branch, entityModule.entity, chunk.chunkKey, {
+                nextItem: pageInfo.nextItem, recordsInPage: items.length
+              });
+              await client.query('COMMIT');
+            } catch (error) {
+              await client.query('ROLLBACK');
+              throw error;
+            } finally {
+              client.release();
+            }
+          }, { log });
+        }, { startItem });
+      }
 
       await progressRepo.markChunkDone(pool, branch, entityModule.entity, chunk.chunkKey);
       log(`[backfill] ${branch}/${entityModule.entity}/${chunk.chunkKey}: xong`);

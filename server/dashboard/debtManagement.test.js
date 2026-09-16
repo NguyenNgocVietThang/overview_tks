@@ -122,6 +122,25 @@ test('đọc đúng cột Lịch TT SG theo cơ sở Sài Gòn', () => {
   assert.equal(result.customers[0].paymentSchedule, 'Hàng tuần');
 });
 
+test('đọc cột Lịch TT SG khi dashboard truyền nhãn cơ sở Sài Gòn', () => {
+  const result = deriveDebtManagement({
+    branch: 'Sài Gòn',
+    sourceSheet: 'Công nợ SG',
+    managementRows: managementRows('saigon', [customer({ schedule: 3 })]),
+    operationalSheets: {
+      HN1: operationalRows(),
+      HN3: operationalRows(),
+      HN7: operationalRows()
+    },
+    workflowStatuses: [],
+    workflowAvailable: true,
+    userCanEdit: false
+  });
+
+  assert.equal(result.available, true);
+  assert.equal(result.customers[0].paymentSchedule, '3');
+});
+
 test('lịch 1 cảnh báo Chưa thu khi chỉ tồn tại trong HN3 hoặc HN7', () => {
   for (const sheets of [
     { HN1: operationalRows(), HN3: operationalRows('Công ty Ánh Dương'), HN7: operationalRows() },

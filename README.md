@@ -159,7 +159,8 @@ webtks-dashboard/
 │   │   │   ├── 0008_backfill_progress.sql
 │   │   │   ├── 0009_app_users_hr_employees.sql
 │   │   │   ├── 0010_reporting_readonly_role.sql
-│   │   │   └── 0011_debt_collection_statuses.sql # Trạng thái xử lý công nợ theo cơ sở + khách
+│   │   │   ├── 0011_debt_collection_statuses.sql # Trạng thái xử lý công nợ theo cơ sở + khách
+│   │   │   └── 0012_numeric_money_quantity_columns.sql # Chuyển cột tiền và số lượng sang NUMERIC (nhận số lẻ xu/cân)
 │   │   ├── migrate.js            # Migration runner có transaction và schema_migrations
 │   │   ├── migrate.test.js       # Unit test thứ tự, idempotency và rollback
 │   │   ├── migrate.integration.test.js # Test schema tùy chọn khi có SUPABASE_DB_URL
@@ -595,7 +596,7 @@ Postgres ở giai đoạn sau (xem [Roadmap](docs/04-planning/2026-09-14-roadmap
   `KIOTVIET_SYNC_SLOW_INTERVAL_MS`) là lưới an toàn đối soát.
 - Toàn bộ engine tắt mặc định, chỉ chạy khi `KIOTVIET_SYNC_ENABLED=true` và có `SUPABASE_DB_URL`
   hợp lệ — thiếu biến này server vẫn khởi động bình thường (fail-soft).
-- `npm run db:migrate` áp dụng tuần tự các migration trong `server/db/migrations/` (hiện đến `0011`, idempotent, có
+- `npm run db:migrate` áp dụng tuần tự các migration trong `server/db/migrations/` (hiện đến `0012`, idempotent, có
   `schema_migrations`). Xem cấu trúc bảng đầy đủ ở [SCHEMA.md](server/db/SCHEMA.md).
 - Dữ liệu lịch sử dùng script backfill, resume được nếu bị dừng giữa chừng:
   ```bash

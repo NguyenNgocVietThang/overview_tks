@@ -29,7 +29,11 @@ function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints 
     for (const isReceipt of ['true', 'false']) {
       await kiotVietClient.fetchAllPages(entityModule.endpoint, {
         ...entityModule.listQuery, startDate, endDate: runEndIso, isReceipt
-      }, async (pageItems) => { items.push(...pageItems); });
+      }, async (pageItems) => {
+        // API khong tra field phan biet thu/chi trong item - phai gan tu
+        // query da dung de lay item nay, khong doc tu item.
+        items.push(...pageItems.map((item) => ({ ...item, IsReceipt: isReceipt === 'true' })));
+      });
     }
     await inTransaction(async (client) => {
       await entityModule.upsertPage(client, branch, items);

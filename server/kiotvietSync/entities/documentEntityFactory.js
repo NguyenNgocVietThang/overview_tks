@@ -17,13 +17,29 @@ function createDocumentEntity(options) {
     entity, endpoint, listQuery, incrementalParam: 'lastModifiedFrom', hasUpperBound,
     ...(backfillRangeParam ? { backfillRangeParam } : {}),
     async upsertPage(pgClient, branch, items) {
+      // Upsert "staff" (bang dung chung giua invoices/orders/returns/purchases)
+      // MOT LAN cho ca trang, theo thu tu id tang dan, TRUOC khi ghi cac bang
+      // rieng cua entity - phat hien deadlock that khi backfill production
+      // (2026-09-16): 2 entity ghi dong thoi, moi giao dich upsert staff xen
+      // ke theo thu tu item khac nhau -> thu tu khoa khong nhat quan giua 2
+      // giao dich -> deadlock. Thu tu id co dinh giua moi giao dich la cach
+      // chuan tranh deadlock kieu nay.
+      const staffById = new Map();
+      for (const item of items) {
+        const staffId = value(item, 'SoldById', 'soldById', 'CreatedById', 'createdById', 'UserId', 'userId', 'ReceivedById', 'receivedById');
+        if (staffId === null || staffId === undefined || staffId === '') continue;
+        if (!staffById.has(staffId)) {
+          staffById.set(staffId, value(item, 'SoldByName', 'soldByName', 'CreatedByName', 'createdByName', 'UserName', 'userName', 'ReceivedByName', 'receivedByName'));
+        }
+      }
+      for (const staffId of [...staffById.keys()].sort((a, b) => (a > b ? 1 : a < b ? -1 : 0))) {
+        await upsertStaffFromEntity(pgClient, branch, staffId, staffById.get(staffId));
+      }
+
       for (const item of items) {
         const parentValues = mapParent(item);
         const id = parentValues[0];
         await pgClient.query(parentSql, [branch, ...parentValues, item]);
-        const staffId = value(item, 'SoldById', 'soldById', 'CreatedById', 'createdById', 'UserId', 'userId', 'ReceivedById', 'receivedById');
-        const staffName = value(item, 'SoldByName', 'soldByName', 'CreatedByName', 'createdByName', 'UserName', 'userName', 'ReceivedByName', 'receivedByName');
-        await upsertStaffFromEntity(pgClient, branch, staffId, staffName);
         await pgClient.query(`DELETE FROM ${detailTable} WHERE branch=$1 AND ${parentIdColumn}=$2`, [branch, id]);
         const details = array(item, ...detailKeys);
         for (let lineNo = 0; lineNo < details.length; lineNo++) {

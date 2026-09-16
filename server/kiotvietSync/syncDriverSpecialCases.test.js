@@ -119,12 +119,16 @@ test('cash_flows (entity module that): syncDriver goi API dung 2 lan isReceipt=t
 
   const queries = [];
   const kiotVietClient = {
+    // Phat hien tu backfill production that (2026-09-16): API /cashflow
+    // KHONG tra field phan biet thu/chi trong item, du da loc bang query
+    // isReceipt - item mock o day CO Y khong co IsReceipt, giong du lieu
+    // that, de bat lai neu ai do lam is_receipt phu thuoc field nay.
     async fetchAllPages(endpoint, query, onPage) {
       queries.push({ endpoint, query });
       if (query.isReceipt === 'true') {
-        await onPage([{ Id: 501, Code: 'PT001', IsReceipt: true, Amount: 100000, UserId: 77, UserName: 'Nguyen Van A', TransDate: '2026-09-14T01:30:00Z', CreatedDate: '2026-09-14T01:30:00Z' }]);
+        await onPage([{ Id: 501, Code: 'PT001', Amount: 100000, UserId: 77, UserName: 'Nguyen Van A', TransDate: '2026-09-14T01:30:00Z', CreatedDate: '2026-09-14T01:30:00Z' }]);
       } else {
-        await onPage([{ Id: 502, Code: 'PC001', IsReceipt: false, Amount: 50000, UserId: 78, UserName: 'Tran Thi B', TransDate: '2026-09-14T01:45:00Z', CreatedDate: '2026-09-14T01:45:00Z' }]);
+        await onPage([{ Id: 502, Code: 'PC001', Amount: 50000, UserId: 78, UserName: 'Tran Thi B', TransDate: '2026-09-14T01:45:00Z', CreatedDate: '2026-09-14T01:45:00Z' }]);
       }
     }
   };
@@ -140,6 +144,10 @@ test('cash_flows (entity module that): syncDriver goi API dung 2 lan isReceipt=t
   const staffWrites = pool.businessWrites.filter((w) => w.sql.startsWith('INSERT INTO staff'));
   assert.equal(cashFlowWrites.length, 2, 'ca 2 item (thu va chi) phai duoc upsert vao cash_flows trong 1 transaction duy nhat');
   assert.equal(staffWrites.length, 2, 'staffSync that phai duoc goi cho ca 2 nhan vien (UserId 77 va 78)');
+
+  const byId = (id) => cashFlowWrites.find((w) => w.params[1] === id);
+  assert.equal(byId(501).params[3], true, 'item lay tu vong lap isReceipt=true phai duoc gan is_receipt=true du item goc khong co field nay');
+  assert.equal(byId(502).params[3], false, 'item lay tu vong lap isReceipt=false phai duoc gan is_receipt=false du item goc khong co field nay');
 
   const checkpoint = await checkpoints.getCheckpoint('saigon', 'cash_flows');
   assert.equal(checkpoint.note, '2026-09-14T02:00:00.000Z', 'cua so da dung (endDate) phai duoc luu vao note, khong dung last_synced_at de tinh khoang ngay lan sau');

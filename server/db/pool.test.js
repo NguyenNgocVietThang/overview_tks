@@ -8,7 +8,7 @@ const CONFIG_MODULE = require.resolve('../config');
 
 function loadPoolModule(databaseUrl) {
   if (databaseUrl === undefined) {
-    delete process.env.SUPABASE_DB_URL;
+    process.env.SUPABASE_DB_URL = '';
   } else {
     process.env.SUPABASE_DB_URL = databaseUrl;
   }

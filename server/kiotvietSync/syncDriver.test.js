@@ -72,7 +72,7 @@ test('cash flows use two independently paginated receipt branches and persist th
     { includeUser:'true', startDate:'2026-09-14T00:00:00.000Z', endDate:'2026-09-14T02:00:00.000Z', isReceipt:'true' },
     { includeUser:'true', startDate:'2026-09-14T00:00:00.000Z', endDate:'2026-09-14T02:00:00.000Z', isReceipt:'false' }
   ]);
-  assert.deepEqual(pages[0], [{ id:'true' }, { id:'false' }]);
+  assert.deepEqual(pages[0], [{ id:'true', IsReceipt:true }, { id:'false', IsReceipt:false }]);
   assert.equal(advances[0][3].note, '2026-09-14T02:00:00.000Z');
 });
 
