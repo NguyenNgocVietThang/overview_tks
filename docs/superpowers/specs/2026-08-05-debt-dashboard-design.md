@@ -2,9 +2,11 @@
 
 Ngày: 2026-08-05
 
-> Trạng thái: phần giả định “Apps Script không ghi HN1/HN3/HN7” đã được thay thế
-> bởi triển khai hiện tại trong `CustomerDebtReport.gs`; tài liệu này chỉ còn lưu
-> quyết định thiết kế dashboard phía server tại thời điểm ban đầu.
+> **Trạng thái: ĐÃ ĐƯỢC THAY THẾ.** Thiết kế màn hình kỳ 1/3/7 và payload `debt`
+> không còn được sử dụng. Kiến trúc hiện hành là `Quản lý công nợ` theo
+> [kế hoạch 15/09/2026](../plans/2026-09-15-debt-management-dashboard.md): số liệu
+> lấy từ workbook `Bảng Công nợ`, HN1/HN3/HN7 chỉ còn là nguồn đối chiếu cảnh báo,
+> trạng thái xử lý lưu PostgreSQL. Phần bên dưới chỉ được giữ làm lịch sử quyết định.
 
 ## Bối cảnh
 

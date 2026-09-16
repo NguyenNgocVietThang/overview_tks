@@ -22,7 +22,7 @@ Hệ thống dashboard thời gian thực cho cửa hàng CHhanoi và CHsaigon, 
 | Hạng mục | Chi tiết |
 |---|---|
 | **Nền tảng** | Google Apps Script (V8 Runtime) + Node.js/Express Backend |
-| **Lưu trữ dữ liệu** | Google Sheets (9 tab vận hành + 7 tab tổng hợp + 6 tab vận chuyển VC_* + tab Users) + Google Drive (Ảnh chứng từ) |
+| **Lưu trữ dữ liệu** | Google Sheets (nguồn vận hành theo cơ sở, workbook `Bảng Công nợ` chỉ đọc, 6 tab vận chuyển VC_* và nguồn nhân sự) + PostgreSQL/Supabase (tài khoản, trạng thái xử lý công nợ và dữ liệu đồng bộ KiotViet) + Google Drive (Ảnh chứng từ) |
 | **Nguồn dữ liệu** | KiotViet Public API & Webhook |
 | **Cập nhật** | Webhook-first; `processWebhookQueue()` chạy mỗi 1 phút chỉ xử lý webhook. Hóa đơn/Nhập hàng đối soát gia tăng mỗi 60 phút, Trả hàng/Nhà cung cấp mỗi 4 giờ bằng `lastModifiedFrom` — đây là lưới an toàn dự phòng, không phải đường cập nhật chính. Có Quota Guard tự tạm dừng khi cạn quota UrlFetch (xem mục Quota Guard bên dưới) |
 | **Apps Script** | Đồng bộ KiotViet -> Google Sheets; Web App `/exec` nhận HTTP POST; chuyển tiếp webhook vòng đời vận chuyển |
@@ -113,8 +113,11 @@ webtks-dashboard/
 │   ├── dashboard/
 │   │   ├── dashboardData.js     # Thống kê tổng quan KPI, biểu đồ, tìm kiếm và Result Cache
 │   │   ├── dashboardData.test.js # Unit test dữ liệu dashboard/tìm kiếm/cache
-│   │   ├── debtReport.js        # Báo cáo công nợ khách hàng 1/3/7 ngày từ HN1/HN3/HN7
-│   │   ├── exportService.js     # Registry 16 bảng và tạo workbook Excel
+│   │   ├── debtManagement.js    # Parse Bảng Công nợ, đối chiếu HN1/HN3/HN7, cảnh báo/KPI theo cơ sở
+│   │   ├── debtManagement.test.js # Unit test parser, ngưỡng và ma trận cảnh báo công nợ
+│   │   ├── debtCollectionStatusRepository.js # Đọc/upsert trạng thái thu nợ trong PostgreSQL
+│   │   ├── debtManagementRoutes.js # PATCH trạng thái xử lý công nợ theo req.branch
+│   │   ├── exportService.js     # Registry bảng và tạo workbook Excel, gồm debt.management
 │   │   ├── exportService.test.js # Unit test dữ liệu/file Excel
 │   │   └── stockoutCheck/       # Kiểm tra đứt hàng đối chiếu trực tiếp KiotViet API (hàng đứt gần đây + 90 ngày)
 │   │       ├── concurrencyPool.js # Quản lý hàng đợi tải đồng thời có giới hạn
@@ -153,7 +156,10 @@ webtks-dashboard/
 │   │   │   ├── 0005_purchases.sql
 │   │   │   ├── 0006_cash_flows.sql
 │   │   │   ├── 0007_webhook_events_raw.sql
-│   │   │   └── 0008_backfill_progress.sql
+│   │   │   ├── 0008_backfill_progress.sql
+│   │   │   ├── 0009_app_users_hr_employees.sql
+│   │   │   ├── 0010_reporting_readonly_role.sql
+│   │   │   └── 0011_debt_collection_statuses.sql # Trạng thái xử lý công nợ theo cơ sở + khách
 │   │   ├── migrate.js            # Migration runner có transaction và schema_migrations
 │   │   ├── migrate.test.js       # Unit test thứ tự, idempotency và rollback
 │   │   ├── migrate.integration.test.js # Test schema tùy chọn khi có SUPABASE_DB_URL
@@ -230,6 +236,7 @@ webtks-dashboard/
 │   │   ├── styleBaselineSnapshot.js # Chụp snapshot token CSS giao diện
 │   │   └── tokenizeHardcodedStyles.js # Tiện ích chuẩn hóa token style dùng chung
 │   ├── sheets/
+│   │   ├── debtManagementSheetsClient.js # Đọc-only Công nợ HN/SG từ workbook Bảng Công nợ, cache 90s
 │   │   ├── hrSheetsClient.js    # Đọc/ghi dữ liệu bảng nhân sự HR_Leaves, HR_Employees, HR_Policy
 │   │   ├── sheetsClient.js      # Đọc dữ liệu Google Sheets cho dashboard
 │   │   └── vcSheetsClient.js    # Đọc/ghi dữ liệu bảng vận chuyển VC_*
@@ -254,7 +261,7 @@ webtks-dashboard/
 │   ├── config.js                # Cấu hình môi trường Node.js server
 │   ├── index.js                 # Express server entry point
 │   ├── package.json             # Dependencies, Node 22 và lệnh build/start
-│   └── routes.js                # Định tuyến API endpoint (/api/dashboard/*, /api/auth/*, /api/admin/*, /api/branch, /api/shipment/*, /api/hr/*, /api/notifications/*, /api/role-requests/*, /api/products/stockout-recent/*, /api/products/stockout-90d/*, /api/customer-product-revenue, /api/internal/kiotviet-sync/status)
+│   └── routes.js                # Định tuyến API endpoint (/api/dashboard, /api/debt-management/status, auth/admin/branch/shipment/hr/export/...)
 │
 ├── src-dashboard/               # Apps Script riêng cho Google Sheets Dashboard
 │   ├── appsscript.json          # Manifest Apps Script Dashboard
@@ -567,6 +574,13 @@ và in ra danh sách tài khoản có giá trị không hợp lệ cần Quản 
 - Nguồn Vận chuyển / Nhân sự của Sài Gòn chưa được cấp; chỉ cần điền biến môi trường
   tương ứng là hai tab đó hoạt động ngay, không phải sửa code.
 
+### Quản lý công nợ
+
+- Tab `Quản lý công nợ` đọc workbook dùng chung qua `DEBT_MANAGEMENT_SPREADSHEET_ID`: Hà Nội dùng `Công nợ HN`, Sài Gòn dùng `Công nợ SG`. Service account chỉ cần quyền **Viewer** trên workbook này.
+- `HN1`, `HN3`, `HN7` trong spreadsheet vận hành chỉ còn là nguồn đối chiếu nội bộ để tạo cảnh báo `Chưa thu`; số nợ/KPI lấy từ workbook `Bảng Công nợ`.
+- Cơ sở luôn lấy từ `req.branch`. Chỉ `Quản lý` và `Trợ lý` được gọi `PATCH /api/debt-management/status`; các vai trò khác xem trạng thái ở chế độ chỉ đọc.
+- Trước production phải chạy migration `0011_debt_collection_statuses.sql`, tạo secret `DEBT_MANAGEMENT_SPREADSHEET_ID` và share workbook cho service account. Nếu Sheets hoặc PostgreSQL lỗi, số liệu/cảnh báo còn khả dụng sẽ hiển thị fail-soft, nhưng cập nhật trạng thái bị khóa khi DB lỗi.
+
 ---
 
 ## Đồng bộ KiotViet -> Supabase Postgres
@@ -581,7 +595,7 @@ Postgres ở giai đoạn sau (xem [Roadmap](docs/04-planning/2026-09-14-roadmap
   `KIOTVIET_SYNC_SLOW_INTERVAL_MS`) là lưới an toàn đối soát.
 - Toàn bộ engine tắt mặc định, chỉ chạy khi `KIOTVIET_SYNC_ENABLED=true` và có `SUPABASE_DB_URL`
   hợp lệ — thiếu biến này server vẫn khởi động bình thường (fail-soft).
-- `npm run db:migrate` áp dụng 8 migration trong `server/db/migrations/` (idempotent, có
+- `npm run db:migrate` áp dụng tuần tự các migration trong `server/db/migrations/` (hiện đến `0011`, idempotent, có
   `schema_migrations`). Xem cấu trúc bảng đầy đủ ở [SCHEMA.md](server/db/SCHEMA.md).
 - Dữ liệu lịch sử dùng script backfill, resume được nếu bị dừng giữa chừng:
   ```bash
@@ -733,7 +747,8 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 | [No-3D Regression Tests](server/test/frontend/no-3d-effects.test.js) | Test khóa việc gỡ bỏ lớp 3D và các sửa lỗi hiệu năng cuộn — xem mục "Hiệu năng frontend" |
 | [Server Guide](server/README.md) | Hướng dẫn triển khai, kiểm thử và tài liệu API backend Node.js |
 | [Design System Master](design-system/tks-dashboard/MASTER.md) | Hệ thống token, component và quy tắc giao diện |
-| [Debt Dashboard Spec](docs/superpowers/specs/2026-08-05-debt-dashboard-design.md) | Đặc tả thiết kế module Báo cáo công nợ HN1/HN3/HN7 |
+| [Debt Management Plan](docs/superpowers/plans/2026-09-15-debt-management-dashboard.md) | Kế hoạch triển khai Quản lý công nợ theo cơ sở, cảnh báo và workflow PostgreSQL |
+| [Debt Dashboard Spec (đã thay thế)](docs/superpowers/specs/2026-08-05-debt-dashboard-design.md) | Thiết kế lịch sử của màn hình công nợ kỳ HN1/HN3/HN7; không còn là kiến trúc hiện hành |
 | [HR Leave Sessions Spec](docs/superpowers/specs/2026-08-22-hr-leave-sessions-and-submission-time-design.md) | Đặc tả nghỉ phép theo buổi, thời gian gửi và trạng thái vi phạm |
 | [Near-real-time Invoice Sync Spec](docs/superpowers/specs/2026-09-09-near-realtime-invoice-sync-design.md) | Webhook-first, đối soát incremental và giảm quota Apps Script cho hóa đơn |
 | [Near-real-time Invoice Sync Plan](docs/superpowers/plans/2026-09-09-near-realtime-invoice-sync.md) | Kế hoạch kiểm thử, triển khai và phát hành đồng bộ hóa đơn gần thời gian thực |
@@ -764,4 +779,4 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 
 ---
 
-*Cập nhật lần cuối: 15/09/2026*
+*Cập nhật lần cuối: 16/09/2026*

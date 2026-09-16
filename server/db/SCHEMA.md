@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0008`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0011`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -59,6 +59,17 @@ Hai bảng này **khác** quy ước `branch` 2 giá trị nội bộ ở cột 
 Role Postgres cấp cho nhân viên dùng SQL client/BI tool để truy vấn trực tiếp — xem chi tiết và cách đặt mật khẩu trong `0010_reporting_readonly_role.sql`. Role này được `GRANT SELECT` trên các bảng báo cáo KiotViet (liệt kê rõ tên bảng, không dùng `GRANT ... ON ALL TABLES`), **tuyệt đối không** trên `app_users` (chứa `password_hash`) hoặc `hr_employees` (PII nhân sự).
 
 **Bắt buộc cho mọi migration tương lai**: vì migration `0010` có `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO reporting_readonly`, bất kỳ bảng mới nào chứa dữ liệu nhạy cảm (PII, secret, hash...) phải tự thêm `REVOKE SELECT ON <bảng> FROM reporting_readonly;` ngay trong migration tạo bảng đó — mặc định sẽ tự động được cấp quyền đọc nếu không revoke.
+
+### Trạng thái xử lý công nợ (migration `0011`)
+
+| Bảng | Mục đích | Khóa chính | Cột chính |
+|---|---|---|---|
+| `debt_collection_statuses` | Trạng thái thu nợ do Quản lý/Trợ lý cập nhật, tách khỏi workbook Google Sheets chỉ đọc | `(branch, customer_key)` | `status`, `alert_signature`, `updated_by_user_id`, `updated_by_name`, `updated_at` |
+
+- `branch` chỉ nhận `hanoi` hoặc `saigon`; route lấy giá trị từ session/middleware, không nhận cơ sở từ body client.
+- `status` chỉ nhận `Chưa xử lý`, `Đang xử lý`, `Đã xử lý`, `Bỏ qua`.
+- `alert_signature` là SHA-256 64 ký tự hex của cảnh báo và số nợ hiện tại. Khi chữ ký nguồn thay đổi, trạng thái kết thúc (`Đã xử lý`/`Bỏ qua`) không còn hiệu lực và dashboard mở lại khách ở `Chưa xử lý`.
+- Migration thu hồi quyền `SELECT` của `reporting_readonly` trên bảng này vì có định danh người cập nhật; bảng không thuộc nguồn BI.
 
 ## Quan hệ và index
 

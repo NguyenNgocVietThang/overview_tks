@@ -7,13 +7,15 @@
 | **Thông tin**      | **Nội dung**                                               |
 |--------------------|------------------------------------------------------------|
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                          |
-| Phiên bản          | 2.2                                                        |
+| Phiên bản          | 2.4                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 26/08/2026                                                 |
+| Ngày cập nhật      | 16/09/2026                                                 |
 | Tài liệu liên quan | BRD v1.9 · BPMN v1.9 · Implementation Plan v2.3 · CSNS-NP-01 (Chính sách nghỉ phép) · Plan Process Automation · Lag Optimization Plan · Design System MASTER (mục 7 — ràng buộc hiệu năng) |
-| Trạng thái         | Đang vận hành (Giai đoạn 1, Phase 0/0.5/1, Gói tối ưu hóa hiệu năng, Phân hệ HR Leave + Bot, Chuông thông báo, Đổi vai trò & Kiểm tra đứt hàng) |
+| Trạng thái         | Đang vận hành (Dashboard đa cơ sở, Quản lý công nợ, HR Leave + Bot, Vận chuyển, Đồng bộ KiotViet → PostgreSQL) |
 
 > **Ghi chú phiên bản 2.3:** Cập nhật kiến trúc Quản lý Vận chuyển: Hệ thống Bot Telegram & OCR (Phase 2) nạp tự động dữ liệu từ 9 nhóm chat trực tiếp vào Google Sheets `VC_*` và Drive; Web Server Node.js/Express đóng vai trò đọc và quản trị dữ liệu từ Google Sheets. Chuẩn hóa bộ kiểm thử tự động toàn diện đạt **477 unit tests**.
+
+> **Ghi chú phiên bản 2.4:** Thay màn hình Công nợ kỳ HN1/HN3/HN7 bằng `Quản lý công nợ`. Số liệu quản lý đọc từ workbook `Bảng Công nợ` theo cơ sở; HN1/HN3/HN7 chỉ dùng đối chiếu cảnh báo. Trạng thái xử lý lưu PostgreSQL và chỉ Quản lý/Trợ lý được cập nhật.
 
 # 1. Giới thiệu
 
@@ -27,7 +29,7 @@ Hệ thống là một Web Application nội bộ gồm các thành phần chín
 
 1. **Apps Script & Telegram Bot nạp dữ liệu:** `src-dashboard/` duy trì 9 tab vận hành, lịch sử/báo cáo và polling của Dashboard; `src-order-lifecycle/` duy trì sheet Vận chuyển độc lập và nhận `invoice.update` qua hàng đợi bền vững; song song đó, Bot Telegram & OCR độc lập tự động trích xuất chứng từ/bill và cập nhật trạng thái đơn hàng vào 6 tab `VC_*` trên Google Sheet Vận chuyển.
 
-2. **Web Server (Node.js/Express + HTML frontend):** đọc đủ 9 tab dữ liệu, 3 tab công nợ HN1/HN3/HN7, tab `Users`, 6 tab vận chuyển `VC_*` và 3 tab nhân sự `HR_*` từ Google Spreadsheet qua Google Sheets API (Service Account), xác thực người dùng và phân quyền RBAC (JWT httpOnly cookie, bcrypt, Google OAuth, mã OTP 6 số, local backup store), tra cứu trạng thái vận chuyển đơn hàng, quản trị người dùng, quản lý ngày nghỉ phép nhân viên và tích hợp Telegram Bot, tính toán KPI, dữ liệu biểu đồ và báo cáo công nợ khách hàng 1/3/7 ngày, trả về cho frontend qua REST API. Tích hợp Result Cache tầng backend, phân trang bảng client-side và xuất file Excel đa worksheet. Frontend hiển thị Dashboard tương tác, trang tra cứu vận chuyển, bảng điều phối, cổng thông tin nhân sự, quản lý tài khoản và đăng nhập/đăng ký trên trình duyệt.
+2. **Web Server (Node.js/Express + HTML frontend):** đọc nguồn vận hành theo cơ sở, workbook `Bảng Công nợ` chỉ đọc, nguồn vận chuyển/nhân sự qua Google Sheets API; lưu trạng thái xử lý công nợ và dữ liệu vận hành phù hợp trong PostgreSQL. Server xác thực người dùng, áp dụng RBAC và `req.branch`, tính KPI/biểu đồ/cảnh báo, xuất Excel và trả frontend qua REST API. HN1/HN3/HN7 không còn hiển thị như báo cáo kỳ mà chỉ là nguồn đối chiếu nội bộ cho cảnh báo `Chưa thu`.
 
 ## 1.3. Định nghĩa & thuật ngữ
 
@@ -35,7 +37,8 @@ Hệ thống là một Web Application nội bộ gồm các thành phần chín
 |-------------------------|---------------------------------------------------------------------------------------|
 | Dashboard               | Trang tổng hợp hiển thị số liệu và biểu đồ từ dữ liệu nguồn.                          |
 | KPI Card                | Thẻ hiển thị 1 chỉ số tổng hợp (vd: Doanh thu hôm nay, Tổng tồn kho).               |
-| Spreadsheet nguồn       | Ba Google Spreadsheet độc lập: Dashboard (`SPREADSHEET_ID`), Vận chuyển (`VC_SPREADSHEET_ID`) và Nhân sự (`HR_SPREADSHEET_ID`). |
+| Spreadsheet nguồn       | Nguồn Dashboard theo cơ sở, workbook `Bảng Công nợ` (`DEBT_MANAGEMENT_SPREADSHEET_ID`), Vận chuyển và Nhân sự. |
+| Chữ ký cảnh báo         | SHA-256 của loại cảnh báo và số nợ hiện tại; dùng để vô hiệu trạng thái kết thúc khi khoản nợ thay đổi. |
 | Service Account         | Tài khoản dịch vụ Google dùng để backend đọc/ghi Spreadsheet mà không cần OAuth user. |
 | Apps Script             | Hai GAS project trong `src-dashboard/` và `src-order-lifecycle/` đồng bộ dữ liệu theo từng tính năng. |
 | batchGet                | Gọi Google Sheets API đọc nhiều tab đang tồn tại cùng lúc trong 1 request HTTP.      |
@@ -67,7 +70,7 @@ Apps Script (`src-dashboard/`, `src-order-lifecycle/`) / Backend Node.js Express
     | hydrate + upsert/delete           | time-based trigger (15 phút)
     | (real-time cho 6 nhóm)            | (Trả hàng + NCC: 15 phút; Nhập hàng: 5 phút + đối soát)
     v                                   v
-Ba Google Spreadsheet độc lập (Dashboard / Vận chuyển / Nhân sự)
+Các Google Spreadsheet độc lập (Dashboard theo cơ sở / Bảng Công nợ / Vận chuyển / Nhân sự)
     |
     | Google Sheets API v4 — list tab → lọc tab hiện có → batchGet / append (Service Account)
     v
@@ -91,11 +94,14 @@ Backend: Node.js + Express
     - server/shipment/orderStateMachine.js : State Machine 9 trạng thái vận đơn
     - server/shipment/vcOrderRepository.js : CRUD 6 tab vận chuyển VC_*
     - server/sheets/sheetsClient.js   : gọi Google Sheets API (cache thô 90s, timeout 15s)
+    - server/sheets/debtManagementSheetsClient.js : đọc-only Công nợ HN/SG, cache 90s
     - server/sheets/vcSheetsClient.js : gọi Google Sheets API VC_* (cache 12s, write invalidation)
     - server/sheets/hrSheetsClient.js : gọi Google Sheets API HR_*
     - server/dashboard/dashboardData.js : tính toán KPI, biểu đồ & Result Cache
-    - server/dashboard/debtReport.js  : báo cáo công nợ khách hàng HN1/HN3/HN7
-    - server/dashboard/exportService.js : dịch vụ tạo file xuất Excel .xlsx 16 bảng
+    - server/dashboard/debtManagement.js : parser, đối chiếu cảnh báo, KPI và chữ ký công nợ
+    - server/dashboard/debtCollectionStatusRepository.js : trạng thái thu nợ trong PostgreSQL
+    - server/dashboard/debtManagementRoutes.js : PATCH trạng thái theo req.branch
+    - server/dashboard/exportService.js : dịch vụ tạo file xuất Excel .xlsx
     - server/scripts/setupUsersSheet.js : CLI quản trị tài khoản người dùng
     - server/scripts/setupHrSheet.js  : CLI khởi tạo các tab HR
     |
@@ -196,6 +202,9 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-01.5 | Nếu gọi API thất bại (timeout, 403, 500...), hệ thống trả HTTP 500 kèm thông tin lỗi chi tiết (message, Google API status).      | Cao         | Hoàn thành     |
 | FR-01.6 | Nếu một tab dữ liệu không tồn tại/đã đổi tên, tab đó được ánh xạ thành mảng rỗng; các phần dữ liệu còn lại vẫn được trả về.      | Cao         | Hoàn thành     |
 | FR-01.7 | Backend duy trì cache dữ liệu thô Sheets trong 90s (`dashboardSheetsCache`) và Result Cache theo `(rawDataVersion, filters)`; `rememberSearchSheets` chỉ build lại search index khi raw data thực sự được fetch mới. | Cao | Hoàn thành |
+| FR-01.8 | Workbook công nợ dùng `DEBT_MANAGEMENT_SPREADSHEET_ID`, ánh xạ Hà Nội → `Công nợ HN`, Sài Gòn → `Công nợ SG`; service account chỉ cần Viewer. | Cao | Hoàn thành |
+| FR-01.9 | Nguồn vận hành và workbook công nợ tải song song, cache riêng 90 giây; cache key kết quả chứa phiên bản của cả hai nguồn và cơ sở. | Cao | Hoàn thành |
+| FR-01.10 | Lỗi workbook công nợ không làm sập phần dashboard khác; lỗi PostgreSQL không tắt cảnh báo tự động nhưng khóa sửa trạng thái. | Cao | Hoàn thành |
 
 ## 3.2. FR-02: Tính toán KPI
 
@@ -276,9 +285,9 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-07.6 | Route `/health`: trả HTTP 200 `{"status":"ok"}` để Render health check.                                                  | Cao         | Hoàn thành     |
 | FR-07.8 | Thanh tìm kiếm có hai chế độ: thông thường và nhiều mã. Chế độ nhiều mã tách tối đa 50 mã theo khoảng trắng, khớp chính xác không phân biệt hoa thường, loại mã trùng và trả kết quả theo thứ tự nhập. | Cao | Hoàn thành |
 | FR-07.9 | Riêng tab Khách hàng có thêm chế độ `Top KH theo sản phẩm`: nhận tối đa 50 mã, trả tối đa 3 khách/mã theo SL mua trong kỳ; hiển thị doanh thu mua, tổng trả toàn thời gian, doanh thu thuần hỗn hợp và ngày mua cuối cùng. | Cao | Hoàn thành |
-| FR-07.10 | Mỗi bảng dữ liệu có nút `Xuất Excel`; người dùng chọn trường từ đầy đủ header Google Sheets, mặc định chọn tất cả. File giữ bộ lọc hiện tại, bỏ giới hạn phân trang nhưng giữ giới hạn Top/gần đây của bảng. | Cao | Hoàn thành |
+| FR-07.10 | Mỗi bảng dữ liệu có nút `Xuất Excel`; file giữ bộ lọc/sort hiện tại và bỏ giới hạn phân trang. Riêng Quản lý công nợ mặc định chọn 10 cột hiển thị và cho chọn thêm Người cập nhật/Cập nhật lúc. | Cao | Hoàn thành |
 | FR-07.11 | Kết quả tìm kiếm ngoài Tổng quan được xuất Excel; kết quả nhiều nguồn tạo một worksheet cho mỗi nguồn và tự lấy toàn bộ trường. Tìm kiếm Tổng quan không hỗ trợ xuất do trộn nhiều loại dữ liệu. | Cao | Hoàn thành |
-| FR-07.12 | Xuất Nhập hàng và Công nợ tạo hai worksheet tổng hợp/chi tiết; workbook cố định header, bật AutoFilter và giữ mã/SĐT dạng text. | Cao | Hoàn thành |
+| FR-07.12 | Xuất Nhập hàng giữ worksheet tổng hợp/chi tiết; Quản lý công nợ xuất một worksheet `Công nợ HN` hoặc `Công nợ SG`, giữ tiền/tỷ lệ ở kiểu số, cố định header, bật AutoFilter và trung hòa chuỗi công thức. | Cao | Hoàn thành |
 | FR-07.13 | Bảng tất cả hàng hóa (`allProducts`) và bảng hàng đã hết (`lowStock`) được phân trang client-side qua `pagination.js` (~200 dòng/trang), có điều khiển Trang trước / Trang sau, giữ nguyên thẻ đếm tổng số lượng. | Cao | Hoàn thành |
 | FR-07.14 | Biểu đồ Chart.js có animation gating (không animate lại khi chuyển tab, đổi theme hay background polling); các phần tử dropdown, surface theme và dòng chi tiết công nợ có transition mượt mà dùng chung token `--ease-out`. | Cao | Hoàn thành |
 
@@ -304,22 +313,34 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-10.4 | Thời gian gửi sau 07:45 đối với buổi Sáng hoặc 12:30 đối với buổi Chiều được cảnh báo; nếu vẫn xác nhận, đơn được lưu với trạng thái `Vi phạm`. | Cao | Hoàn thành |
 | FR-10.5 | Tab Nghỉ phép hiển thị cột Thời gian gửi; bộ lọc `from`/`to` lọc theo trường này và mặc định 3 ngày gần đây. | Cao | Hoàn thành |
 
+## 3.11. FR-11: Quản lý công nợ
+
+| **Mã** | **Mô tả** | **Ưu tiên** | **Trạng thái** |
+|---|---|---|---|
+| FR-11.1 | Parse workbook công nợ theo header/alias, bỏ hàng tổng số 2, giữ `null` cho ô trống/`#N/A`, hỗ trợ số và phần trăm Việt Nam. | Cao | Hoàn thành |
+| FR-11.2 | Ghép khách với HN1/HN3/HN7 bằng tên chuẩn hóa Unicode/khoảng trắng/hoa thường, không fuzzy matching; tên trùng bị đánh `Lỗi dữ liệu` và khóa sửa trạng thái. | Cao | Hoàn thành |
+| FR-11.3 | Lịch 1/3 tạo cảnh báo `Chưa thu` theo ma trận đối chiếu; mọi lịch tạo `Quá hạn` khi nợ quá hạn dương; chỉ miễn cảnh báo khi cả nợ hiện tại và nợ quá hạn đều dưới 400.000đ. | Cao | Hoàn thành |
+| FR-11.4 | Thiếu bất kỳ HN1/HN3/HN7 sẽ tắt riêng cảnh báo `Chưa thu`; cảnh báo `Quá hạn` vẫn hoạt động. | Cao | Hoàn thành |
+| FR-11.5 | Dashboard gồm 4 KPI, biểu đồ theo sale/lịch, top nợ hiện tại/quá hạn, bảng 10 cột; hỗ trợ lọc, tìm, click biểu đồ, sort ba trạng thái và phân trang 100 dòng. | Cao | Hoàn thành |
+| FR-11.6 | Trạng thái `Chưa xử lý/Đang xử lý/Đã xử lý/Bỏ qua` lưu theo `(branch, customer_key)`; Đã xử lý/Bỏ qua rời hàng chờ và tự hết hiệu lực khi chữ ký cảnh báo thay đổi. | Cao | Hoàn thành |
+| FR-11.7 | Chỉ Quản lý/Trợ lý được PATCH trạng thái. Cơ sở lấy từ `req.branch`, không nhận từ payload client; các vai trò khác chỉ thấy pill đọc-only. | Cao | Hoàn thành |
+
 # 4. Yêu cầu phi chức năng (Non-functional Requirements)
 
 | **Mã** | **Hạng mục**         | **Mô tả yêu cầu**                                                                                                                               |
 |--------|----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
 | NFR-01 | Hiệu năng            | API `/api/dashboard` phản hồi < 10ms khi cache hit (Result Cache); phản hồi trong vòng 5 giây khi phải gọi Google Sheets API (`batchGet`).     |
 | NFR-02 | Khả dụng             | Hệ thống hoạt động ổn định trên Render.com, mục tiêu uptime >= 99% trong giờ hành chính.                                                        |
-| NFR-03 | Bảo mật              | Toàn bộ giao tiếp qua HTTPS; Service Account key và Spreadsheet ID lưu trong biến môi trường, không commit vào repo.                             |
+| NFR-03 | Bảo mật              | Toàn bộ giao tiếp qua HTTPS; Service Account key và Spreadsheet ID lưu trong biến môi trường; cơ sở lấy từ session; workbook công nợ chỉ cấp Viewer. |
 | NFR-04 | Khả năng mở rộng     | Kiến trúc module rõ ràng (config, sheets, dashboard, routes) cho phép bổ sung module mới mà không phải rewrite code hiện tại.                    |
 | NFR-05 | Usability            | Giao diện trực quan, thao tác lọc thời gian và làm mới trong 1–2 cú nhấp chuột; bảng lớn chuyển trang tức thì không đơ UI; hỗ trợ desktop/tablet.|
 | NFR-06 | Bảo trì              | Mã nguồn tổ chức theo module rõ ràng, comment tiếng Việt, dễ đọc và bảo trì.                                                                   |
-| NFR-07 | Giới hạn API         | Sau khi lấy metadata tab, dùng một `batchGet` duy nhất để đọc toàn bộ tab dữ liệu đang tồn tại; chu kỳ làm mới tự động là 10 phút.               |
+| NFR-07 | Giới hạn API         | Nguồn vận hành dùng một `batchGet`; workbook công nợ dùng request read-only riêng. Hai nguồn tải song song, cache 90 giây và có version độc lập. |
 | NFR-08 | Nhật ký & debug      | Log chi tiết lỗi khi `/api/dashboard` thất bại; `/api/debug` kiểm tra kết nối và trả danh sách tab hiện có mà không lộ secret.                   |
 | NFR-09 | Độ trễ đồng bộ       | Từ khi dữ liệu thay đổi trên KiotViet → Apps Script cập nhật Sheets qua webhook: mục tiêu dưới 2 phút. Nhập hàng mới/sửa trong 7 ngày: tối đa 5 phút; Trả hàng/NCC và đối soát toàn lịch sử: 15 phút + thời gian backfill. |
 | NFR-10 | Nhất quán thời gian  | Parse ngày từ Sheets, xác định ngày hiện tại, tạo bucket 7/30/90 ngày và format `updatedAt` theo Asia/Ho_Chi_Minh, độc lập timezone máy chủ.      |
 | NFR-11 | An toàn xuất dữ liệu | API xuất chỉ nhận khóa bảng, bộ lọc và danh sách trường hợp lệ; không nhận dòng dữ liệu từ client, chặn trường lạ và vô hiệu hóa chuỗi có thể bị Excel hiểu là công thức. |
-| NFR-12 | Kiểm thử tự động     | Duy trì bộ **417 unit tests** chuẩn `node:test` bao phủ HR leave, Telegram bot, conversation store, Apps Script sync, auth/Guest/SĐT, Admin CRUD, OTP reset, tra cứu vận chuyển, State Machine 9 trạng thái, VC repository, cache, phân trang, xuất Excel, tìm kiếm nâng cao và frontend (gồm `no-3d-effects.test.js` chặn lớp 3D quay lại). |
+| NFR-12 | Kiểm thử tự động     | Duy trì bộ `node:test` bao phủ parser/cảnh báo/workflow/export công nợ, HR, auth, vận chuyển, cache, phân trang, đồng bộ và frontend; migration integration chỉ chạy với `SUPABASE_TEST_DB_URL` tách biệt. |
 
 
 # 5. Yêu cầu giao diện người dùng (UI Requirements)
@@ -331,6 +352,7 @@ Giao diện Dashboard gồm:
 - **Header (trên):** tên trang, timestamp cập nhật theo giờ Việt Nam, bộ lọc thời gian (7/30/90 ngày), nút "Làm mới".
 - **Khu vực KPI cards:** dãy thẻ số liệu tổng quan.
 - **Khu vực biểu đồ & bảng:** biểu đồ doanh thu theo ngày, bảng top sản phẩm, hàng đã hết, công nợ, đơn hàng gần nhất.
+- **Quản lý công nợ:** 4 KPI, biểu đồ sale/lịch thanh toán, top 10 nợ hiện tại/quá hạn và bảng thao tác 10 cột; mặc định lọc `Cần xử lý`, hỗ trợ keyboard focus, Light/Dark và reduced motion.
 
 ## 5.2. Trạng thái giao diện cần xử lý
 
@@ -345,7 +367,7 @@ Giao diện Dashboard gồm:
 
 ## 6.1. GET /api/dashboard
 
-**Mô tả:** Liệt kê tab thực tế, đọc tối đa 9 tab dữ liệu dashboard đang tồn tại từ Google Spreadsheet, rồi tính toán toàn bộ KPI và dữ liệu biểu đồ. Tab bị thiếu được xử lý như dữ liệu rỗng.
+**Mô tả:** Tải song song nguồn vận hành của cơ sở đang chọn và workbook công nợ dùng chung, rồi tính KPI, biểu đồ và cảnh báo. Cơ sở lấy từ middleware/session. Tab vận hành bị thiếu được xử lý fail-soft; lỗi workbook chỉ làm `debtManagement.available=false`, không làm hỏng các phần dashboard khác.
 
 **Query params:**
 - `days` (optional, number): frontend sử dụng 7, 30 hoặc 90; backend mặc định 30 nếu giá trị bị thiếu hoặc không chuyển được thành số.
@@ -397,7 +419,41 @@ Giao diện Dashboard gồm:
   "recentOrders": [{ "code": "", "date": "", "customer": "", "total": 0, "status": "" }],
   "recentReturns": [{ "code": "", "date": "", "originalInvoiceCode": "", "customer": "", "total": 0, "status": "" }],
   "suppliers": [{ "code": "", "name": "", "phone": "", "email": "", "address": "", "debt": 0 }],
-  "recentPurchaseOrders": [{ "code": "", "date": "", "supplier": "", "branch": "", "total": 0, "status": "" }]
+  "recentPurchaseOrders": [{ "code": "", "date": "", "supplier": "", "branch": "", "total": 0, "status": "" }],
+  "debtManagement": {
+    "available": true,
+    "sourceSheet": "Công nợ HN",
+    "dataWarnings": [],
+    "kpi": {
+      "totalCurrentDebt": 0,
+      "totalOverdueDebt": 0,
+      "actionCustomerCount": 0,
+      "overdueToSalesRatio": 0
+    },
+    "bySale": [],
+    "byPaymentSchedule": [],
+    "topCurrentDebt": [],
+    "topOverdueDebt": [],
+    "customers": [{
+      "customerKey": "",
+      "customerName": "",
+      "sale": "Chưa xác định",
+      "paymentSchedule": "1",
+      "openingDebt": 0,
+      "currentDebt": 0,
+      "overdueDebt": 0,
+      "currentDebtToSalesRatio": null,
+      "overdueToSalesRatio": null,
+      "alertCodes": ["uncollected", "overdue"],
+      "dataIssues": [],
+      "workflowStatus": "Chưa xử lý",
+      "needsAction": true,
+      "canEditStatus": true,
+      "alertSignature": "",
+      "updatedBy": "",
+      "updatedAt": null
+    }]
+  }
 }
 ```
 
@@ -509,6 +565,21 @@ Kết quả xếp theo SL mua giảm dần, sau đó doanh thu mua, ngày mua cu
 ```
 
 **Response (HTTP 200):** Binary stream file `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` kèm header `Content-Disposition: attachment; filename="..."`.
+
+## 6.7a. PATCH /api/debt-management/status
+
+**Quyền:** chỉ `Quản lý` và `Trợ lý`. Cơ sở luôn lấy từ session (`req.branch`).
+
+**Body (JSON):**
+```json
+{
+  "customerKey": "khach-hang-da-chuan-hoa",
+  "status": "Đang xử lý",
+  "alertSignature": "64-ky-tu-hex"
+}
+```
+
+Endpoint upsert theo `(branch, customer_key)`, từ chối status/chữ ký/khóa không hợp lệ và trả `503` nếu PostgreSQL không sẵn sàng. Body không có và không được phép quyết định cơ sở.
 
 ## 6.8. API xác thực & Hồ sơ cá nhân
 
@@ -671,6 +742,7 @@ Các cột nghiệp vụ nghỉ phép dùng `Thời gian gửi` (ISO), `Thời g
 | Giao diện, Phân trang & Xuất Excel (5.3, 5.4, 5.5) | FR-07.1 → FR-07.14        |
 | Đăng ký, Google Guest, Quản trị tài khoản & tra cứu vận chuyển | FR-08.1 → FR-08.7 |
 | Nghỉ phép theo buổi & Telegram Bot | FR-10.1 → FR-10.5 |
+| Quản lý công nợ theo cơ sở | FR-11.1 → FR-11.7 |
 | ~~Lớp hiệu ứng 3D Visual & Giám sát hiệu năng thích ứng~~ (FR-09.x đã thu hồi — lớp 3D bị gỡ bỏ vì hiệu năng) | — |
 
 # 9. Rủi ro kỹ thuật & phương án giảm thiểu

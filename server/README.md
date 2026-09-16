@@ -1,13 +1,13 @@
 # TOKOSI Dashboard — Node server
 
-Express server that reads three independent Google Sheets sources for Dashboard (`SPREADSHEET_ID`), Shipment (`VC_SPREADSHEET_ID`) and HR (`HR_SPREADSHEET_ID`). KiotViet dashboard data is maintained by `../src-dashboard/`. The Express backend reads Sheets via the Sheets API, computes KPIs/charts, manages users/auth (JWT + bcrypt + Google Identity + OTP recovery + Local User Store), and powers the 9-state shipment delivery lifecycle system (`VC_*` sheets and Google Drive attachments).
+Express server that reads the branch-specific Dashboard source (`SPREADSHEET_ID`/`SPREADSHEET_ID_SG`), the shared read-only debt workbook (`DEBT_MANAGEMENT_SPREADSHEET_ID`), Shipment (`VC_SPREADSHEET_ID`) and HR (`HR_SPREADSHEET_ID`). KiotViet dashboard data is maintained by `../src-dashboard/`. The Express backend reads Sheets via the Sheets API, computes KPIs/charts, stores debt collection workflow state in PostgreSQL, manages users/auth, and powers the shipment lifecycle system.
 
 ## 1. One-time setup
 
 ### Google service account (so this server can read/write Sheets and Drive)
 1. In Google Cloud Console, create a project (or reuse one), enable the **Google Sheets API** and **Google Drive API**.
 2. Create a **Service Account**, then create a JSON key for it and download it.
-3. Open the target Google Sheets (both the dashboard sheet and the VC shipment sheet) -> Share -> invite the service account's `...@...iam.gserviceaccount.com` email as **Editor**.
+3. Share each source with the service account email. Sources written by the server require **Editor**; the workbook `Bảng Công nợ` is read-only and only requires **Viewer**.
 4. Copy the spreadsheet IDs from their URLs.
 
 ### Real-time sync from KiotViet into the Sheet
@@ -22,9 +22,9 @@ This is configured in the bound Google Apps Script project:
 ### Local `.env` & Testing
 ```bash
 cp .env.example .env
-# Điền SPREADSHEET_ID, VC_SPREADSHEET_ID, HR_SPREADSHEET_ID, DRIVE_UPLOAD_FOLDER_ID, GOOGLE_SERVICE_ACCOUNT_JSON, JWT_SECRET, GOOGLE_CLIENT_ID, TELEGRAM_BOT_TOKEN, TELEGRAM_HR_CHAT_ID
+# Điền SPREADSHEET_ID, DEBT_MANAGEMENT_SPREADSHEET_ID, VC_SPREADSHEET_ID, HR_SPREADSHEET_ID, DRIVE_UPLOAD_FOLDER_ID, GOOGLE_SERVICE_ACCOUNT_JSON, JWT_SECRET, GOOGLE_CLIENT_ID, TELEGRAM_BOT_TOKEN, TELEGRAM_HR_CHAT_ID
 npm install
-npm test      # Chạy 930 unit tests tự động (HR Leave & Telegram bot, danh sách nhân sự, auth/Guest/SĐT, Google OAuth, OTP reset, Admin CRUD, yêu cầu đổi vai trò, chuông thông báo, kiểm tra đứt hàng Excel-KiotViet, shipment lifecycle, State Machine 9 trạng thái, VC repository, cache, pagination, export, search, KiotViet->Supabase sync engine (entity module, backfill, reconcile, webhook queue) và các frontend test suite trong test/frontend/)
+npm test      # Chạy toàn bộ unit/integration-skip/frontend tests, gồm parser/cảnh báo/workflow/export công nợ
 npm start     # Khởi chạy server tại http://localhost:3000 (tự động bật gzip compression và static Cache-Control headers)
 ```
 Truy cập `http://localhost:3000` — giao diện Live Dashboard tải số liệu thời gian thực từ Google Sheets. `GET /health` trả về `{"status":"ok"}`.
@@ -144,6 +144,7 @@ Schema nghỉ phép dùng `Thời gian gửi`, `Thời gian bắt đầu/kết t
 | Method | Endpoint | Quyền | Mô tả |
 |---|---|---|---|
 | `GET` | `/api/dashboard?days={7\|30\|90}` | Nội bộ | Trả về toàn bộ KPI, biểu đồ, danh sách top/gần đây kèm Result Cache. |
+| `PATCH` | `/api/debt-management/status` | Quản lý, Trợ lý | Upsert trạng thái xử lý theo `req.branch + customerKey`; trả `503` nếu PostgreSQL không sẵn sàng. |
 | `GET` | `/api/search` | Nội bộ | Tìm kiếm bản ghi trong tab hiện tại hoặc tìm chính xác nhiều mã (`mode=codes`). |
 | `GET` | `/api/customer-product-top` | Nội bộ | Tìm top 3 khách hàng mua nhiều nhất cho danh sách tối đa 50 mã sản phẩm. |
 | `GET` | `/api/customer-product-revenue?code=&name=` | Nội bộ | Báo cáo doanh thu của một khách hàng theo từng sản phẩm/mã đã mua. |
@@ -186,6 +187,7 @@ trình polling cùng một bot token.
 
 **Environment variables** (Render dashboard -> your service -> Environment):
 - `SPREADSHEET_ID` — Google Spreadsheet ID (Dashboard)
+- `DEBT_MANAGEMENT_SPREADSHEET_ID` — Workbook `Bảng Công nợ` dùng chung, gồm `Công nợ HN` và `Công nợ SG`; service account chỉ cần Viewer. Bỏ trống thì riêng `debtManagement` fail-soft.
 - `VC_SPREADSHEET_ID` — Google Spreadsheet ID (Vận chuyển VC_*)
 - `HR_SPREADSHEET_ID` — Google Spreadsheet ID (Nhân sự HR_*)
 - `DRIVE_UPLOAD_FOLDER_ID` — Google Drive Folder ID (Lưu ảnh chứng từ)
@@ -201,3 +203,10 @@ trình polling cùng một bot token.
 - `PGSSL` — `true` để bật SSL khi kết nối Supabase (mặc định bật khi `NODE_ENV=production`).
 - `KIOTVIET_SYNC_ENABLED` — `true` để bật webhook + polling đối soát KiotViet -> Supabase. Mặc định tắt.
 - `KIOTVIET_SYNC_FAST_INTERVAL_MS` / `KIOTVIET_SYNC_SLOW_INTERVAL_MS` — nhịp polling đối soát cho nhóm giao dịch (hóa đơn/đơn hàng) và nhóm còn lại.
+
+### Production gate cho Quản lý công nợ
+
+1. Chạy `npm run db:migrate` trên PostgreSQL production và xác nhận migration `0011_debt_collection_statuses.sql` thành công.
+2. Tạo secret `DEBT_MANAGEMENT_SPREADSHEET_ID` (đã được ánh xạ trong `apphosting.yaml`), không hardcode workbook ID vào mã nguồn.
+3. Share workbook `Bảng Công nợ` cho service account với quyền Viewer và xác nhận tồn tại đúng hai tab `Công nợ HN`, `Công nợ SG`.
+4. Kiểm tra từng cơ sở bằng branch switch trước khi deploy rộng; không dùng `SUPABASE_DB_URL` production cho migration integration test. Test tích hợp chỉ được chạy với `SUPABASE_TEST_DB_URL` tách biệt.
