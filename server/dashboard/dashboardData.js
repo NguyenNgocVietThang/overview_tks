@@ -1,10 +1,18 @@
 // ==========================================
 // DASHBOARD DATA — cung cap du lieu cho Web App (GET /api/dashboard)
-// Doc tu sheet KiotViet export 9-tab (dong bo boi Apps Script trong src-dashboard/)
+//
+// Nguon du lieu KiotViet (9 tab: Nhóm hàng/Hàng hóa/Hóa đơn/Chi tiết hóa
+// đơn/Đặt hàng/Trả hàng/Khách hàng/Nhà cung cấp/Nhập hàng) doc tu Supabase
+// Postgres qua dashboardPgReader.js — module do dung lai dung shape
+// `[header, ...rows]` cua Sheets nen toan bo logic tinh toan ben duoi KHONG
+// doi. Ba tab ky han no HN1/HN3/HN7 van doc tu Google Sheets (do Apps Script
+// tinh, chua co nguon Postgres tuong duong).
 // ==========================================
 const CONFIG = require('../config');
 const sheetsClient = require('../sheets/sheetsClient');
 const debtManagementSheetsClient = require('../sheets/debtManagementSheetsClient');
+const dashboardPgReader = require('./dashboardPgReader');
+const customerProductTopRepository = require('./customerProductTopRepository');
 const { BRANCHES } = require('../branch/branches');
 const { branchLabelToCode } = require('../branch/branches');
 const { ROLES } = require('../auth/userRepository');
@@ -19,7 +27,6 @@ const NEW_PURCHASES_SUPPLIER_LIMIT = 30; // top NCC cho bieu do 2 cot
 const SEARCH_CACHE_TTL_MS = 2 * 60 * 1000;
 const MAX_MULTI_SEARCH_CODES = 50;
 const DASHBOARD_SHEETS_CACHE_TTL_MS = 90 * 1000;
-const CUSTOMER_PRODUCT_TOP_CACHE_TTL_MS = 90 * 1000;
 const CUSTOMER_PRODUCT_TOP_LIMIT = 3;
 const PRODUCT_REVENUE_SEARCH_LIVE_LIMIT = 200; // gioi han so dong render khi go tim truc tiep (khong ap dung cho xuat Excel)
 const PENDING_ORDER_STATUSES = new Set(['Phiếu tạm', 'Đang xử lý', 'Đã xác nhận']);
@@ -279,19 +286,6 @@ function limitParentCategoryBars(categories) {
   });
 }
 
-const SHEET_NAMES = [
-  CONFIG.SHEET_CATEGORIES,
-  CONFIG.SHEET_PRODUCTS,
-  CONFIG.SHEET_INVOICES,
-  CONFIG.SHEET_INVOICE_DETAILS,
-  CONFIG.SHEET_ORDERS,
-  CONFIG.SHEET_RETURNS,
-  CONFIG.SHEET_CUSTOMERS,
-  CONFIG.SHEET_SUPPLIERS,
-  CONFIG.SHEET_PURCHASES,
-  CONFIG.SHEET_CUSTOMER_REPORT
-];
-
 // HN1/HN3/HN7 do KiotViet tu quan ly; gop vao cung 1 lan batchGet de khong
 // tang so request goi Google Sheets API. Server CHI DOC, khong bao gio ghi.
 const DEBT_SHEETS = [
@@ -357,9 +351,6 @@ const SEARCH_SCOPES = {
   customers: ['customers'],
   suppliers: ['suppliers', 'purchases']
 };
-const SEARCH_SHEET_NAMES = [...new Set(
-  Object.values(SEARCH_SOURCES).map(source => source.sheetName)
-)];
 
 // ---------- Cache THEO CO SO -------------------------------------------------
 // Moi cache duoi day deu keyed by branch: hai co so doc hai spreadsheet khac
@@ -376,7 +367,6 @@ function cacheEntryFor(cacheMap, branch) {
 }
 
 let searchSheetCacheByBranch = new Map();
-let customerProductTopSheetCacheByBranch = new Map();
 let searchIndexBuildCountForTest = 0; // chi dung trong test, xem __test__ o cuoi file
 
 function normalizeWhitespace(value) {
@@ -454,6 +444,9 @@ function rememberSearchSheets(sheets, branch) {
   cache.expiresAt = Date.now() + SEARCH_CACHE_TTL_MS;
 }
 
+// Chi muc tim kiem dung CHUNG du lieu tho voi dashboard (truoc day fetch
+// rieng mot lan nua tu Google Sheets). Nguon Postgres tra ve day du 9 tab nen
+// khong can lan doc thu hai — chi rebuild chi muc khi chinh no het han.
 async function getSearchSheets(branch) {
   const cache = cacheEntryFor(searchSheetCacheByBranch, branch);
   if (cache.data && Date.now() < cache.expiresAt) {
@@ -461,55 +454,11 @@ async function getSearchSheets(branch) {
   }
   if (cache.loading) return cache.loading;
 
-  const loading = sheetsClient.getSheetsClient(branch).getMultipleSheetValues(SEARCH_SHEET_NAMES)
+  const loading = getCachedDashboardSheets(branch)
     .then(sheets => {
-      rememberSearchSheets(sheets, branch);
-      return cache.data;
-    })
-    .finally(() => {
-      if (cache.loading === loading) cache.loading = null;
-    });
-  cache.loading = loading;
-  return loading;
-}
-
-async function getCustomerProductTopSheet(branch) {
-  const cache = cacheEntryFor(customerProductTopSheetCacheByBranch, branch);
-  if (cache.data && Date.now() < cache.expiresAt) {
-    return cache.data;
-  }
-  if (cache.loading) return cache.loading;
-
-  const loading = sheetsClient.getSheetsClient(branch)
-    .getMultipleSheetValues([CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT])
-    .then(sheets => {
-      cache.data = sheets[CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT] || [];
-      cache.expiresAt = Date.now() + CUSTOMER_PRODUCT_TOP_CACHE_TTL_MS;
-      return cache.data;
-    })
-    .finally(() => {
-      if (cache.loading === loading) {
-        cache.loading = null;
-      }
-    });
-  cache.loading = loading;
-  return loading;
-}
-
-let customerReportSearchCacheByBranch = new Map();
-
-async function getCustomerReportSheetForSearch(branch) {
-  const cache = cacheEntryFor(customerReportSearchCacheByBranch, branch);
-  if (cache.data && Date.now() < cache.expiresAt) {
-    return cache.data;
-  }
-  if (cache.loading) return cache.loading;
-
-  const loading = sheetsClient.getSheetsClient(branch)
-    .getMultipleSheetValues([CONFIG.SHEET_CUSTOMER_REPORT])
-    .then(sheets => {
-      cache.data = sheets[CONFIG.SHEET_CUSTOMER_REPORT] || [];
-      cache.expiresAt = Date.now() + SEARCH_CACHE_TTL_MS;
+      // getCachedDashboardSheets tu rebuild chi muc moi khi fetch lai du lieu
+      // tho; chi lam lai o day khi chi muc that su thieu/het han.
+      if (!cache.data || Date.now() >= cache.expiresAt) rememberSearchSheets(sheets, branch);
       return cache.data;
     })
     .finally(() => {
@@ -520,19 +469,21 @@ async function getCustomerReportSheetForSearch(branch) {
 }
 
 /**
- * Gan "Tong doanh thu" cho ket qua tim kiem tab Khach hang, tong hop tu sheet
- * "Bao cao ban hang" theo dung ky loc dang chon tren tab (giong cach tinh
- * "Top khach hang theo doanh thu"). Khong lam gi voi cac view khac.
+ * Gan "Tong doanh thu" cho ket qua tim kiem tab Khach hang theo dung ky loc
+ * dang chon tren tab (giong cach tinh "Top khach hang theo doanh thu").
+ * Khong lam gi voi cac view khac.
  */
 async function attachCustomerRevenue(view, results, filterSpec, branch) {
   if (view !== 'customers' || !results.length) return results;
   const range = resolveFilterRange(filterSpec, new Date());
-  const customerReportData = await getCustomerReportSheetForSearch(branch);
+  const rawSheets = await getCachedDashboardSheets(branch);
+  const customerReportData = rawSheets[CONFIG.SHEET_CUSTOMER_REPORT] || [];
   let revenueByCode;
   if (Array.isArray(customerReportData) && customerReportData.length > 1) {
     revenueByCode = aggregateCustomerReportRevenueByCode(range, customerReportData);
   } else {
-    const rawSheets = await getCachedDashboardSheets(branch);
+    // Nguon Postgres khong co tab tong hop "Báo cáo bán hàng" -> luon tinh
+    // truc tiep tu Hoa don + Khach hang + Tra hang.
     revenueByCode = aggregateCustomerRevenueFromSheetRows(
       range,
       rawSheets[CONFIG.SHEET_INVOICES] || [],
@@ -740,43 +691,11 @@ async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode, filterS
   };
 }
 
-function getRequiredCustomerProductHeaderIndexes(rows) {
-  const headers = rows[0] || [];
-  const normalizedHeaders = headers.map(normalizeSearchValue);
-  const required = {
-    productCode: 'Mã hàng',
-    productName: 'Tên hàng',
-    customerCode: 'Mã KH',
-    customerName: 'Khách hàng',
-    returnedQuantityAllTime: 'SL Trả (theo khách hàng)',
-    returnValueAllTime: 'Giá trị trả (theo khách hàng)',
-    purchaseTime: 'Thời gian',
-    purchasedQuantity: 'SL chi tiết',
-    purchaseRevenue: 'Thành tiền chi tiết'
-  };
-  const indexes = {};
-  const missing = [];
-
-  Object.entries(required).forEach(([key, label]) => {
-    const index = normalizedHeaders.indexOf(normalizeSearchValue(label));
-    indexes[key] = index;
-    if (index < 0) missing.push(label);
-  });
-
-  if (missing.length) {
-    const error = new Error(`Sheet "${CONFIG.SHEET_CUSTOMER_BY_PRODUCT_REPORT}" thieu cot: ${missing.join(', ')}.`);
-    error.statusCode = 500;
-    error.code = 'CUSTOMER_PRODUCT_SHEET_SCHEMA_INVALID';
-    throw error;
-  }
-  return indexes;
-}
-
 /**
  * Tim toi da 3 khach mua nhieu nhat cho tung ma hang trong ky da chon.
- * Du lieu mua duoc cong tu tung dong chi tiet; du lieu tra trong sheet chi la
- * tong toan lich su va bi lap lai tren moi dong hoa don, nen chi doc mot gia
- * tri dai dien cho moi cap san pham-khach hang, tuyet doi khong cong don.
+ * Nguon du lieu la SQL tren Postgres (customerProductTopRepository) thay cho
+ * sheet tong hop "Khách theo hàng hóa" — shape tra ve cho
+ * `/api/customer-product-top` KHONG doi.
  */
 // `branch` dung sau `now` (khong phai truoc) vi `now` la tham so tiem cho test
 // da co san — giu nguyen vi tri de moi loi goi cu khong phai sua.
@@ -798,98 +717,38 @@ async function searchTopCustomersByProducts(rawQuery, filterSpec, now = new Date
     };
   }
 
-  const rows = await getCustomerProductTopSheet(branch);
-  const indexes = getRequiredCustomerProductHeaderIndexes(rows);
-  const requestedByCode = new Map(codes.map(code => [code.normalizedValue, code]));
-  const products = new Map();
+  const requestOrderByCode = new Map(codes.map(code => [code.normalizedValue, code.order]));
+  const rows = await customerProductTopRepository.findTopCustomersByProducts({
+    branch,
+    codes: codes.map(code => code.value),
+    range,
+    limit: CUSTOMER_PRODUCT_TOP_LIMIT
+  });
 
-  for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
-    const row = rows[rowIndex] || [];
-    const productCode = normalizeWhitespace(row[indexes.productCode]);
-    const normalizedProductCode = normalizeSearchValue(productCode);
-    const requestedCode = requestedByCode.get(normalizedProductCode);
-    if (!requestedCode) continue;
-
-    const purchaseTime = parseSheetDate(row[indexes.purchaseTime]);
-    if (!isWithinRange(purchaseTime, range)) continue;
-
-    const productName = normalizeWhitespace(row[indexes.productName]) || productCode;
-    const customerCode = normalizeWhitespace(row[indexes.customerCode]);
-    const customerName = normalizeWhitespace(row[indexes.customerName]) || 'Khách lẻ';
-    const customerKey = customerCode
-      ? `code:${normalizeSearchValue(customerCode)}`
-      : `name:${normalizeSearchValue(customerName)}`;
-
-    if (!products.has(normalizedProductCode)) {
-      products.set(normalizedProductCode, {
-        requestOrder: requestedCode.order,
-        productCode,
-        productName,
-        customers: new Map()
-      });
-    }
-    const product = products.get(normalizedProductCode);
-    if (!product.productName && productName) product.productName = productName;
-
-    if (!product.customers.has(customerKey)) {
-      product.customers.set(customerKey, {
-        customerCode,
-        customerName,
-        purchasedQuantity: 0,
-        purchaseRevenue: 0,
-        returnedQuantityAllTime: Number(row[indexes.returnedQuantityAllTime]) || 0,
-        returnValueAllTime: Number(row[indexes.returnValueAllTime]) || 0,
-        lastPurchaseTime: purchaseTime
-      });
-    }
-
-    const customer = product.customers.get(customerKey);
-    customer.purchasedQuantity += Number(row[indexes.purchasedQuantity]) || 0;
-    customer.purchaseRevenue += Number(row[indexes.purchaseRevenue]) || 0;
-    if (!customer.lastPurchaseTime || purchaseTime.getTime() > customer.lastPurchaseTime.getTime()) {
-      customer.lastPurchaseTime = purchaseTime;
-    }
-    // Cac cot tra la snapshot toan lich su lap lai. Neu dong truoc bi trong,
-    // nhan gia tri hop le o dong sau; khong bao gio cong cac dong voi nhau.
-    const returnedQuantity = Number(row[indexes.returnedQuantityAllTime]);
-    const returnValue = Number(row[indexes.returnValueAllTime]);
-    if (Number.isFinite(returnedQuantity)) customer.returnedQuantityAllTime = returnedQuantity;
-    if (Number.isFinite(returnValue)) customer.returnValueAllTime = returnValue;
-  }
-
-  const results = [];
-  Array.from(products.values())
+  const matchedProductCodes = new Set();
+  const results = rows
+    .map(row => ({ row, requestOrder: requestOrderByCode.get(normalizeSearchValue(row.productCode)) ?? Number.MAX_SAFE_INTEGER }))
     .sort((left, right) => left.requestOrder - right.requestOrder)
-    .forEach(product => {
-      Array.from(product.customers.values())
-        .sort((left, right) =>
-          right.purchasedQuantity - left.purchasedQuantity ||
-          right.purchaseRevenue - left.purchaseRevenue ||
-          right.lastPurchaseTime.getTime() - left.lastPurchaseTime.getTime() ||
-          String(left.customerCode || left.customerName).localeCompare(
-            String(right.customerCode || right.customerName),
-            'vi',
-            { numeric: true, sensitivity: 'base' }
-          )
-        )
-        .slice(0, CUSTOMER_PRODUCT_TOP_LIMIT)
-        .forEach(customer => {
-          results.push({
-            productCode: product.productCode,
-            productName: product.productName,
-            customerCode: customer.customerCode,
-            customerName: customer.customerName,
-            purchasedQuantity: customer.purchasedQuantity,
-            purchaseRevenue: customer.purchaseRevenue,
-            returnedQuantityAllTime: customer.returnedQuantityAllTime,
-            returnValueAllTime: customer.returnValueAllTime,
-            netRevenue: customer.purchaseRevenue - customer.returnValueAllTime,
-            lastPurchaseDate: formatDMY(customer.lastPurchaseTime)
-          });
-        });
+    .map(({ row }) => {
+      matchedProductCodes.add(normalizeSearchValue(row.productCode));
+      return {
+        productCode: row.productCode,
+        productName: row.productName || row.productCode,
+        customerCode: row.customerCode,
+        customerName: row.customerName,
+        purchasedQuantity: row.purchasedQuantity,
+        purchaseRevenue: row.purchaseRevenue,
+        // Ten truong giu nguyen ("...AllTime") de khong doi contract cua
+        // /api/customer-product-top, nhung gia tri nay duoc loc theo DUNG ky
+        // dang chon giong so lieu mua — xem customerProductTopRepository.js.
+        returnedQuantityAllTime: row.returnedQuantity,
+        returnValueAllTime: row.returnValue,
+        netRevenue: row.purchaseRevenue - row.returnValue,
+        lastPurchaseDate: row.lastPurchaseDate ? formatDMY(row.lastPurchaseDate) : ''
+      };
     });
 
-  const matchedCount = products.size;
+  const matchedCount = matchedProductCodes.size;
   return {
     mode: 'customer-product-top',
     query: codes.map(code => code.value).join(' '),
@@ -902,11 +761,12 @@ async function searchTopCustomersByProducts(rawQuery, filterSpec, now = new Date
   };
 }
 
-// ---------- Cache ngan han cho du lieu tho doc tu Google Sheet ----------
+// ---------- Cache ngan han cho du lieu tho ----------
 // Truoc day moi lan goi /api/dashboard deu batchGet lai TOAN BO cac sheet.
 // Gio moi tab co bo loc rieng nen client co the goi API thuong xuyen hon han
-// (moi lan doi bo loc o bat ky tab nao) — cache vai chuc giay de tranh dam
-// vao han muc Google Sheets API; tinh toan loc theo ngay van chay tren du
+// (moi lan doi bo loc o bat ky tab nao) — cache vai chuc giay de khong phai
+// quet lai toan bo bang Postgres (va khong dam vao han muc Google Sheets API
+// cho 3 tab HN1/HN3/HN7 con lai); tinh toan loc theo ngay van chay tren du
 // lieu da cache nen van nhanh va luon phan anh dung bo loc moi nhat.
 let dashboardSheetsCacheByBranch = new Map();
 
@@ -925,9 +785,15 @@ async function getCachedDashboardSheets(branch) {
   }
   if (cache.loading) return cache.loading;
 
-  const loading = sheetsClient.getSheetsClient(branch)
-    .getMultipleSheetValues(SHEET_NAMES.concat(DEBT_SHEETS))
-    .then(sheets => {
+  // 9 tab KiotViet doc tu Postgres; 3 tab ky han no HN1/HN3/HN7 van tu Google
+  // Sheets (Apps Script tinh, chua co nguon Postgres) — tai song song roi gop
+  // lai thanh dung mot object `sheets` nhu truoc.
+  const loading = Promise.all([
+    dashboardPgReader.readDashboardSheets(branch),
+    sheetsClient.getSheetsClient(branch).getMultipleSheetValues(DEBT_SHEETS)
+  ])
+    .then(([pgSheets, debtSheets]) => {
+      const sheets = { ...pgSheets, ...debtSheets };
       cache.data = sheets;
       cache.version += 1;
       cache.expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
@@ -1529,47 +1395,21 @@ async function getProductRevenueMap(branch, now = new Date()) {
 /**
  * Top 3 khach mua nhieu nhat theo DOANH SO (khong phai so luong), tinh tren
  * TOAN BO lich su (khong loc ngay) cho 1 ma hang — dung cho phan "Chi tiet"
- * cua "Bao cao doanh thu theo hang". Doc tu sheet "Khach theo hang hoa"
- * giong searchTopCustomersByProducts, nhung KHONG ap dung isWithinRange va
- * sap xep theo doanh thu truoc (searchTopCustomersByProducts sap theo so
- * luong truoc nen khong tai dung duoc cho yeu cau nay).
+ * cua "Bao cao doanh thu theo hang". Cung nguon SQL voi
+ * searchTopCustomersByProducts nhung xep hang theo doanh thu va bo loc ngay.
  */
 async function computeTopCustomersByRevenueForProduct(productCode, branch) {
-  const normalizedTargetCode = normalizeSearchValue(productCode);
-  const rows = await getCustomerProductTopSheet(branch);
-  const indexes = getRequiredCustomerProductHeaderIndexes(rows);
-  const customers = new Map();
+  const rows = await customerProductTopRepository.findTopCustomersByRevenueForProduct({
+    branch,
+    code: productCode,
+    limit: CUSTOMER_PRODUCT_TOP_LIMIT
+  });
 
-  for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
-    const row = rows[rowIndex] || [];
-    const rowProductCode = normalizeWhitespace(row[indexes.productCode]);
-    if (normalizeSearchValue(rowProductCode) !== normalizedTargetCode) continue;
-
-    const customerCode = normalizeWhitespace(row[indexes.customerCode]);
-    const customerName = normalizeWhitespace(row[indexes.customerName]) || 'Khách lẻ';
-    const customerKey = customerCode
-      ? `code:${normalizeSearchValue(customerCode)}`
-      : `name:${normalizeSearchValue(customerName)}`;
-
-    if (!customers.has(customerKey)) {
-      customers.set(customerKey, { customerCode, customerName, purchasedQuantity: 0, purchaseRevenue: 0 });
-    }
-    const customer = customers.get(customerKey);
-    customer.purchasedQuantity += Number(row[indexes.purchasedQuantity]) || 0;
-    customer.purchaseRevenue += Number(row[indexes.purchaseRevenue]) || 0;
-  }
-
-  return Array.from(customers.values())
-    .sort((a, b) =>
-      b.purchaseRevenue - a.purchaseRevenue ||
-      String(a.customerCode || a.customerName).localeCompare(
-        String(b.customerCode || b.customerName),
-        'vi',
-        { numeric: true, sensitivity: 'base' }
-      )
-    )
-    .slice(0, CUSTOMER_PRODUCT_TOP_LIMIT)
-    .map(({ customerCode, customerName, purchaseRevenue }) => ({ customerCode, customerName, purchaseRevenue }));
+  return rows.map(({ customerCode, customerName, purchaseRevenue }) => ({
+    customerCode,
+    customerName,
+    purchaseRevenue
+  }));
 }
 
 function productRevenueNotFoundError() {
@@ -2552,8 +2392,6 @@ module.exports = {
       debtManagementSheetsCacheByBranch = new Map();
       debtWorkflowCacheByBranch = new Map();
       searchSheetCacheByBranch = new Map();
-      customerProductTopSheetCacheByBranch = new Map();
-      customerReportSearchCacheByBranch = new Map();
       dashboardResultCache = new Map();
       productRevenueMapCacheByBranch = new Map();
       searchIndexBuildCountForTest = 0;
