@@ -12,4 +12,5 @@ test('migration 0011 tạo khóa chính theo cơ sở + khách và ràng buộc 
   assert.match(sql, /'Chưa xử lý'.*'Đang xử lý'.*'Đã xử lý'.*'Bỏ qua'/s);
   assert.match(sql, /alert_signature ~ '\^\[0-9a-f\]\{64\}\$'/);
   assert.match(sql, /updated_by_user_id\s+UUID/);
+  assert.match(sql, /REVOKE SELECT ON debt_collection_statuses FROM reporting_readonly/);
 });

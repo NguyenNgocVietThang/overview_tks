@@ -15,3 +15,7 @@ CREATE TABLE debt_collection_statuses (
 
 CREATE INDEX debt_collection_statuses_updated_at_idx
   ON debt_collection_statuses (updated_at DESC);
+
+-- Migration 0010 grants SELECT on future tables to this BI role by default.
+-- Workflow status contains user identifiers and is not part of reporting data.
+REVOKE SELECT ON debt_collection_statuses FROM reporting_readonly;
