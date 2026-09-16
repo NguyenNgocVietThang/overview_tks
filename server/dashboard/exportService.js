@@ -5,6 +5,7 @@ const CONFIG = require('../config');
 const dashboardData = require('./dashboardData');
 const { BRANCHES } = require('../branch/branches');
 const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
+const { filterTableItems } = require('../public/js/table-explorer');
 
 const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const DEBT_QUEUE_FILTERS = new Set(['needsAction', 'currentDebt', 'overdue', 'all']);
@@ -274,7 +275,73 @@ function buildDebtManagementWorksheet(debtManagement, context) {
   ], sortDebtManagementRows(rows, context.debtSort));
 }
 
-function buildFixedDataset(tableKey, snapshot, context) {
+const EXPORT_PRIMARY_CODE_LABELS = Object.freeze({
+  'overview.transactions': ['Mã hóa đơn', 'Mã giao dịch'],
+  'overview.purchases': ['Mã nhập hàng'],
+  'overview.new-products': ['Mã hàng'],
+  'products.top-selling': ['Mã hàng'],
+  'products.low-stock': ['Mã hàng'],
+  'products.all': ['Mã hàng'],
+  'products.newly-imported': ['Mã hàng'],
+  'invoices.orders': ['Mã đặt hàng'],
+  'invoices.returns': ['Mã trả hàng'],
+  'invoices.recent': ['Mã hóa đơn'],
+  'customers.revenue': ['Mã khách hàng'],
+  'customers.debt': ['Mã khách hàng'],
+  'customers.productDetail': ['Mã hàng'],
+  'customers.productMonthlyCompare': ['Mã hàng'],
+  'overview.productRevenueSearch': ['Mã SP', 'Mã hàng'],
+  'suppliers.list': ['Mã NCC'],
+  'stockout.recentScan': ['Mã hàng'],
+  'stockout.check90d': ['Mã hàng']
+});
+
+function hasTableSearch(tableSearch) {
+  return !!normalizeText(tableSearch && tableSearch.query);
+}
+
+function findWorksheetCodeColumn(worksheet, tableKey) {
+  const labels = EXPORT_PRIMARY_CODE_LABELS[tableKey] || [];
+  return (worksheet.columns || []).find(column => labels.includes(column.label));
+}
+
+function filterWorksheetRows(worksheet, tableKey, tableSearch) {
+  if (!hasTableSearch(tableSearch)) return worksheet;
+  const codeColumn = findWorksheetCodeColumn(worksheet, tableKey);
+  const columns = worksheet.columns || [];
+  const filtered = filterTableItems(worksheet.rows || [], {
+    searchText: row => columns.map(column => row[column.key]).join(' '),
+    code: codeColumn ? row => row[codeColumn.key] : undefined
+  }, tableSearch);
+  return { ...worksheet, rows: filtered.items };
+}
+
+function applyTableSearchToWorksheets(tableKey, worksheets, tableSearch) {
+  if (!hasTableSearch(tableSearch)) return worksheets;
+  if (tableKey !== 'overview.purchases') {
+    return worksheets.map(worksheet => filterWorksheetRows(worksheet, tableKey, tableSearch));
+  }
+
+  const summary = filterWorksheetRows(worksheets[0], tableKey, tableSearch);
+  const summaryCodeColumn = findWorksheetCodeColumn(summary, tableKey);
+  const retainedCodes = new Set((summary.rows || []).map(row => normalizeCode(row[summaryCodeColumn.key])));
+  const detail = worksheets[1];
+  const detailCodeColumn = findWorksheetCodeColumn(detail, tableKey);
+  return [summary, {
+    ...detail,
+    rows: (detail.rows || []).filter(row => retainedCodes.has(normalizeCode(row[detailCodeColumn.key])))
+  }];
+}
+
+function applyTableSearchToDataset(dataset, tableSearch) {
+  if (!dataset || !hasTableSearch(tableSearch)) return dataset;
+  return {
+    ...dataset,
+    worksheets: applyTableSearchToWorksheets(dataset.tableKey, dataset.worksheets || [], tableSearch)
+  };
+}
+
+function buildFixedDataset(tableKey, snapshot, context, tableSearch = {}) {
   const d = snapshot.dashboard || {};
   const tableTitle = TABLE_TITLES[tableKey];
   let worksheets;
@@ -417,7 +484,12 @@ function buildFixedDataset(tableKey, snapshot, context) {
       throw exportError('Bảng yêu cầu xuất không hợp lệ.', 400, 'EXPORT_TABLE_NOT_ALLOWED');
   }
 
-  return { tableKey, title: tableTitle, selectionMode: 'custom', worksheets };
+  return {
+    tableKey,
+    title: tableTitle,
+    selectionMode: 'custom',
+    worksheets: applyTableSearchToWorksheets(tableKey, worksheets, tableSearch)
+  };
 }
 
 function fieldsToWorksheet(sourceKey, sourceLabel, results) {
@@ -496,9 +568,13 @@ async function buildCustomerProductRevenueDataset(tableKey, payload, branch) {
 
   const report = await dashboardData.getCustomerProductRevenueReport(customerCode, customerName, branch);
   const productCode = normalizeText(context.customerProductCode);
-  const products = productCode
+  const selectedProducts = productCode
     ? report.products.filter(p => normalizeCode(p.code) === normalizeCode(productCode))
     : report.products;
+  const products = filterTableItems(selectedProducts, {
+    searchText: product => Object.values(product).join(' '),
+    code: product => product.code
+  }, payload.tableSearch).items;
 
   if (tableKey === 'customers.productDetail') {
     return {
@@ -619,17 +695,26 @@ async function buildExportDataset(payload, branch) {
   if (!TABLE_TITLES[tableKey]) throw exportError('Bảng yêu cầu xuất không hợp lệ.', 400, 'EXPORT_TABLE_NOT_ALLOWED');
   const filters = normalizeFilters(payload.filters);
   if (tableKey === 'search.results') return buildSearchDataset(payload, filters, branch);
-  if (tableKey === 'stockout.recentScan') return buildRecentStockoutResultDataset(payload);
-  if (tableKey === 'stockout.check90d') return buildStockout90dResultDataset(payload);
+  if (tableKey === 'stockout.recentScan' || tableKey === 'stockout.check90d') {
+    const dataset = tableKey === 'stockout.recentScan'
+      ? buildRecentStockoutResultDataset(payload)
+      : buildStockout90dResultDataset(payload);
+    const filtered = applyTableSearchToDataset(dataset, payload.tableSearch);
+    if (filtered.worksheets.every(worksheet => worksheet.rows.length === 0)) {
+      throw exportError('Không có kết quả phù hợp bộ lọc để xuất.', 404, 'EXPORT_NO_DATA');
+    }
+    return filtered;
+  }
   if (tableKey === 'customers.productDetail' || tableKey === 'customers.productMonthlyCompare') {
     return buildCustomerProductRevenueDataset(tableKey, payload, branch);
   }
   if (tableKey === 'overview.productRevenueSearch') {
-    return buildProductRevenueSearchDataset(payload, branch);
+    const dataset = await buildProductRevenueSearchDataset(payload, branch);
+    return applyTableSearchToDataset(dataset, payload.tableSearch);
   }
   const context = payload.context && typeof payload.context === 'object' ? payload.context : {};
   const snapshot = await dashboardData.getDashboardExportSnapshot(filters, branch);
-  return buildFixedDataset(tableKey, snapshot, context);
+  return buildFixedDataset(tableKey, snapshot, context, payload.tableSearch);
 }
 
 async function getExportFields(payload, branch) {

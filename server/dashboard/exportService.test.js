@@ -123,6 +123,39 @@ test('registry dung du 15 bang va tao duoc metadata voi tat ca cot mac dinh duoc
   });
 });
 
+test('buildFixedDataset loc tim thuong va nhieu ma truoc khi tao worksheet', () => {
+  const snapshot = buildSnapshot();
+  const noMatch = exportService.__test__.buildFixedDataset(
+    'products.all', snapshot, {}, { mode: 'normal', query: 'không tồn tại' }
+  );
+  assert.equal(noMatch.worksheets[0].rows.length, 0);
+
+  const codes = exportService.__test__.buildFixedDataset(
+    'products.all', snapshot, {}, { mode: 'codes', query: '00123 SP-404' }
+  );
+  const codeColumn = codes.worksheets[0].columns.find(column => column.label === 'Mã hàng');
+  assert.ok(codeColumn);
+  assert.deepEqual(codes.worksheets[0].rows.map(row => row[codeColumn.key]), ['00123']);
+
+  const blank = exportService.__test__.buildFixedDataset('products.all', snapshot, {}, { mode: 'normal', query: '' });
+  assert.equal(blank.worksheets[0].rows.length, 1);
+});
+
+test('lọc danh sách nhập hàng giữ worksheet chi tiết cùng mã phiếu đã lọc', () => {
+  const snapshot = buildSnapshot();
+  const noMatch = exportService.__test__.buildFixedDataset(
+    'overview.purchases', snapshot, {}, { mode: 'codes', query: 'PN-404' }
+  );
+  assert.equal(noMatch.worksheets[0].rows.length, 0);
+  assert.equal(noMatch.worksheets[1].rows.length, 0);
+
+  const matched = exportService.__test__.buildFixedDataset(
+    'overview.purchases', snapshot, {}, { mode: 'codes', query: 'PN-01' }
+  );
+  assert.equal(matched.worksheets[0].rows.length, 1);
+  assert.equal(matched.worksheets[1].rows.length, 2);
+});
+
 test('ca 15 bang tao duoc file xlsx tu danh sach truong API tra ve', async () => {
   const originalSnapshot = dashboardData.getDashboardExportSnapshot;
   dashboardData.getDashboardExportSnapshot = async () => buildSnapshot();
@@ -418,6 +451,13 @@ test('Bao cao doanh thu theo khach: xuat bang chi tiet + bang so sanh thang, loc
     assert.equal(monthlyDataset.worksheets[0].rows[0].name, 'Sản phẩm hai');
     assert.deepEqual(monthlyDataset.worksheets[0].columns.map(c => c.label), ['Tên hàng', 'T.này', 'T.trước', 'T.trước nữa']);
 
+    const selectedWithSearch = await exportService.__test__.buildExportDataset({
+      tableKey: 'customers.productMonthlyCompare',
+      context: { customerProductCustomerCode: 'KH-01', customerProductCode: 'SP-02' },
+      tableSearch: { mode: 'normal', query: 'SP-02' }
+    });
+    assert.equal(selectedWithSearch.worksheets[0].rows.length, 1, 'ma san pham da chon khong bi loc mat khi worksheet an cot ma');
+
     await assert.rejects(
       exportService.__test__.buildExportDataset({ tableKey: 'customers.productDetail', context: {} }),
       error => error.statusCode === 400 && error.code === 'EXPORT_NO_CUSTOMER_SELECTED'
@@ -450,6 +490,21 @@ test('buildExportDataset: stockout.recentScan tra dung worksheet', async () => {
   assert.equal(dataset.worksheets[0].rows[0].code, 'SP001');
   assert.equal(dataset.worksheets[0].rows[0].dataWarning, 'Thiếu dữ liệu Trả NCC trong kỳ — cần đối chiếu thủ công');
   assert.equal(dataset.worksheets[0].rows[0].periods, '01/01/2026 -> 05/01/2026\n10/01/2026 -> 15/01/2026');
+});
+
+test('buildExportDataset loc ket qua stockout theo tableSearch hien tai', async () => {
+  const dataset = await exportService.__test__.buildExportDataset({
+    tableKey: 'stockout.recentScan',
+    tableSearch: { mode: 'normal', query: 'chổi lau nhà' },
+    recentStockoutResult: {
+      rows: [
+        { code: 'SP001', name: 'Chổi lau nhà lớn', lastOutOfStockDate: '2026-01-05', daysOutOfStock: 6, periods: [] },
+        { code: 'SP002', name: 'Nước lau sàn', lastOutOfStockDate: '2026-01-06', daysOutOfStock: 7, periods: [] }
+      ]
+    }
+  });
+
+  assert.deepEqual(dataset.worksheets[0].rows.map(row => row.code), ['SP001']);
 });
 
 test('createExportWorkbook: file stockout.recentScan dung ten co so LUC QUET (result.branch), khong phai co so dang xuat hien tai', async () => {
