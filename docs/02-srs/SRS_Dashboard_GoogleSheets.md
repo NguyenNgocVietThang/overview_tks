@@ -319,7 +319,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 |---|---|---|---|
 | FR-11.1 | Parse workbook công nợ theo header/alias, bỏ hàng tổng số 2, giữ `null` cho ô trống/`#N/A`, hỗ trợ số và phần trăm Việt Nam. | Cao | Hoàn thành |
 | FR-11.2 | Ghép khách với HN1/HN3/HN7 bằng tên chuẩn hóa Unicode/khoảng trắng/hoa thường, không fuzzy matching; tên trùng bị đánh `Lỗi dữ liệu` và khóa sửa trạng thái. | Cao | Hoàn thành |
-| FR-11.3 | Lịch 1/3 tạo cảnh báo `Chưa thu` theo ma trận đối chiếu; mọi lịch tạo `Quá hạn` khi nợ quá hạn dương; chỉ miễn cảnh báo khi cả nợ hiện tại và nợ quá hạn đều dưới 400.000đ. | Cao | Hoàn thành |
+| FR-11.3 | Lịch 1/3 tạo cảnh báo `Chưa thu` theo ma trận đối chiếu; mọi lịch chỉ tạo `Quá hạn` khi nợ quá hạn lớn hơn 400.000đ. Đúng 400.000đ chưa cảnh báo `Quá hạn`. | Cao | Hoàn thành |
 | FR-11.4 | Thiếu bất kỳ HN1/HN3/HN7 sẽ tắt riêng cảnh báo `Chưa thu`; cảnh báo `Quá hạn` vẫn hoạt động. | Cao | Hoàn thành |
 | FR-11.5 | Dashboard gồm 4 KPI, biểu đồ theo sale/lịch, top nợ hiện tại/quá hạn, bảng 10 cột; hỗ trợ lọc, tìm, click biểu đồ, sort ba trạng thái và phân trang 100 dòng. | Cao | Hoàn thành |
 | FR-11.6 | Trạng thái `Chưa xử lý/Đang xử lý/Đã xử lý/Bỏ qua` lưu theo `(branch, customer_key)`; Đã xử lý/Bỏ qua rời hàng chờ và tự hết hiệu lực khi chữ ký cảnh báo thay đổi. | Cao | Hoàn thành |

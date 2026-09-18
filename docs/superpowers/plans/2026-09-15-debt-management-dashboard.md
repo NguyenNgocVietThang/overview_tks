@@ -13,7 +13,7 @@
 - Workbook Bảng Công nợ chỉ đọc; không sửa cấu trúc hoặc công thức Google Sheet.
 - Cơ sở luôn lấy từ `req.branch`, không nhận từ payload client.
 - Ghép tên chuẩn hóa chính xác, không fuzzy matching.
-- Ngưỡng miễn cảnh báo: cả Nợ hiện tại và Nợ quá hạn đều nhỏ hơn 400.000đ; đúng 400.000đ vẫn cảnh báo.
+- Ngưỡng cảnh báo: `Chưa thu` giữ ma trận đối chiếu hiện tại; `Quá hạn` chỉ xuất hiện khi Nợ quá hạn lớn hơn 400.000đ, đúng 400.000đ chưa cảnh báo `Quá hạn`.
 - Chỉ Quản lý và Trợ lý được sửa trạng thái.
 - UI tuân thủ `design-system/tks-dashboard/MASTER.md` và `pages/index.md`.
 - Không hardcode spreadsheet ID; cấu hình bằng `DEBT_MANAGEMENT_SPREADSHEET_ID`.
@@ -30,7 +30,7 @@
 - Produces: `normalizeCustomerKey(value)`, `parseDebtManagementRows(rows, branch)`, `buildDebtManagementReport({ managementRows, debtPeriodRows, statuses, branch })`.
 
 - [x] Viết test thất bại cho header HN/SG, bỏ hàng tổng, tiền/phần trăm Việt Nam, `#N/A`, lịch thanh toán và tên chuẩn hóa.
-- [x] Viết test thất bại cho ma trận cảnh báo lịch 1/3/7/Hàng tuần, thiếu source sheet, biên 399.999/400.000 và tên trùng.
+- [x] Viết test thất bại cho ma trận cảnh báo lịch 1/3/7/Hàng tuần, thiếu source sheet, biên 400.000/400.001 và tên trùng.
 - [x] Chạy test và xác nhận thất bại do module/chức năng chưa tồn tại.
 - [x] Cài đặt parser thuần, KPI, dữ liệu biểu đồ, chữ ký SHA-256 và quy tắc trạng thái hết hiệu lực.
 - [x] Chạy test module và refactor khi đã xanh.
@@ -116,7 +116,7 @@
 ## Acceptance Criteria
 
 - HN/SG chỉ thấy tab công nợ thuộc cơ sở được phép.
-- Cảnh báo lịch 1/3 và quá hạn đúng ma trận; 399.999/400.000 đúng biên.
+- Cảnh báo lịch 1/3 và quá hạn đúng ma trận; `Quá hạn` đúng biên 400.000/400.001.
 - Đã xử lý/Bỏ qua ra khỏi hàng chờ và tự mở lại khi khoản nợ thay đổi.
 - Vai trò ngoài Quản lý/Trợ lý không sửa được status.
 - Dashboard, bộ lọc, sort và Excel dùng cùng tập dữ liệu.

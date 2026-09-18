@@ -12,6 +12,7 @@ design-system/
 .claude/
 *.md
 *.bpmn
+tasks/
 .gitignore
 README.md
 

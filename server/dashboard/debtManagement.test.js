@@ -173,17 +173,23 @@ test('lịch 3 chỉ cảnh báo Chưa thu khi vắng HN1/HN3 và có trong HN7'
   }
 });
 
-test('mọi lịch 1/3/7/Hàng tuần cảnh báo Quá hạn khi nợ quá hạn dương', () => {
+test('mọi lịch 1/3/7/Hàng tuần chỉ cảnh báo Quá hạn khi nợ quá hạn vượt 400.000', () => {
   for (const schedule of [1, 3, 7, 'Hàng tuần']) {
-    const result = derive(
-      [customer({ schedule, currentDebt: 500000, overdueDebt: 1000 })],
+    const atBoundary = derive(
+      [customer({ schedule, currentDebt: 500000, overdueDebt: 400000 })],
       { HN1: operationalRows(), HN3: operationalRows(), HN7: operationalRows() }
     );
-    assert.ok(result.customers[0].alertCodes.includes(ALERT_CODES.OVERDUE), String(schedule));
+    assert.equal(atBoundary.customers[0].alertCodes.includes(ALERT_CODES.OVERDUE), false, String(schedule));
+
+    const aboveBoundary = derive(
+      [customer({ schedule, currentDebt: 500000, overdueDebt: 400001 })],
+      { HN1: operationalRows(), HN3: operationalRows(), HN7: operationalRows() }
+    );
+    assert.equal(aboveBoundary.customers[0].alertCodes.includes(ALERT_CODES.OVERDUE), true, String(schedule));
   }
 });
 
-test('ngưỡng 399.999 bị loại khi cả hai khoản dưới ngưỡng; đúng 400.000 vẫn cảnh báo', () => {
+test('nợ hiện tại đúng 400.000 vẫn có thể Chưa thu; nợ quá hạn đúng 400.000 chưa cảnh báo Quá hạn', () => {
   const sheets = { HN1: operationalRows(), HN3: operationalRows(), HN7: operationalRows('Công ty Ánh Dương') };
   const below = derive([customer({ schedule: 1, currentDebt: 399999, overdueDebt: 399999 })], sheets);
   assert.deepEqual(below.customers[0].alertCodes, []);
@@ -192,7 +198,7 @@ test('ngưỡng 399.999 bị loại khi cả hai khoản dưới ngưỡng; đú
   assert.deepEqual(currentAtBoundary.customers[0].alertCodes, [ALERT_CODES.UNCOLLECTED]);
 
   const overdueAtBoundary = derive([customer({ schedule: 7, currentDebt: 0, overdueDebt: 400000 })], sheets);
-  assert.deepEqual(overdueAtBoundary.customers[0].alertCodes, [ALERT_CODES.OVERDUE]);
+  assert.deepEqual(overdueAtBoundary.customers[0].alertCodes, []);
 });
 
 test('thiếu một nguồn HN tắt Chưa thu nhưng vẫn giữ cảnh báo Quá hạn', () => {

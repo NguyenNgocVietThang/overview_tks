@@ -64,10 +64,8 @@ webtks-dashboard/
 ├── .clasp.saigon.json           # Project KiotSG (rootDir: "src-dashboard", dùng chung code với KiotHN)
 ├── .claspignore                 # Ignore profile cho project KiotHN / Dashboard
 ├── .claspignore.saigon          # Ignore profile cho project KiotSG
-├── .firebaserc                  # Firebase project mặc định: tokosi-a02e0
 ├── CHINH-SACH-NGHI-PHEP.md      # Quy định & chính sách quản lý nghỉ phép nhân sự (CSNS-NP-01)
 ├── ERD KiotViet.drawio          # Sơ đồ quan hệ thực thể KiotViet
-├── firebase.json                # Liên kết source server/ với Firebase App Hosting
 ├── Logo.jpg                     # Logo thương hiệu công ty
 ├── Plan Process Automation.md   # Kế hoạch kiểm soát & tự động hóa quy trình vận chuyển
 ├── README.md                    # Tài liệu hướng dẫn tổng quan dự án
@@ -83,8 +81,7 @@ webtks-dashboard/
 │   └── vendor/
 │       └── chart.umd.min.js
 │
-├── server/                      # Backend Node.js đọc/ghi Google Sheets & Web Server
-│   ├── apphosting.yaml          # Runtime, tài nguyên và Secret Manager cho Firebase App Hosting
+├── server/                      # Backend Node.js đọc/ghi Google Sheets & Web Server (deploy trên Render, xem server/README.md#4)
 │   ├── auth/                    # JWT, bcrypt, Google Identity, Users cục bộ bảo mật, OTP, phân quyền & đổi vai trò
 │   │   ├── adminUserRoutes.js   # API /api/admin/users (CRUD tài khoản, reset mật khẩu, phân quyền)
 │   │   ├── adminUserRoutes.test.js # Unit test routes quản trị người dùng
@@ -311,6 +308,10 @@ webtks-dashboard/
 │           ├── 2026-08-20-stagger-customer-report-triggers-design.md
 │           ├── 2026-08-22-hr-leave-sessions-and-submission-time-design.md
 │           └── 2026-09-09-near-realtime-invoice-sync-design.md
+│
+├── tasks/                       # Kế hoạch và danh sách công việc chi tiết
+│   ├── plan.md                  # Kế hoạch nâng cấp UI/UX Dashboard
+│   └── todo.md                  # Checklist chi tiết từng task và checkpoint
 │
 └── future-phases/               # Khung rỗng cho các giai đoạn sau
     ├── sales-pos/               # Giai đoạn 2: POS bán hàng
@@ -780,4 +781,4 @@ Dashboard áp dụng chiến lược Cache-Control rõ ràng cho từng loại f
 
 ---
 
-*Cập nhật lần cuối: 16/09/2026*
+*Cập nhật lần cuối: 18/09/2026*

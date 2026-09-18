@@ -242,7 +242,7 @@ function deriveAlerts(customer, operational, operationalComplete) {
       alertCodes.push(ALERT_CODES.UNCOLLECTED);
     }
   }
-  if (overdueDebt > 0) alertCodes.push(ALERT_CODES.OVERDUE);
+  if (overdueDebt > MINIMUM_ALERT_DEBT) alertCodes.push(ALERT_CODES.OVERDUE);
   return alertCodes;
 }
 
