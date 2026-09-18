@@ -2520,12 +2520,16 @@
       border-bottom: 1px solid var(--border);
       white-space: nowrap;
       vertical-align: middle;
-      text-align: left;
+      text-align: center;
     }
 
     .sort-button {
       display: inline-flex;
       align-items: center;
+      /* can giua nhan cot + mui ten sap xep nhu 1 khoi — thead th da doi
+         sang text-align:center nhung .sort-button la flex container nen
+         text-align cua the cha khong tu can no, phai tu dat justify-content. */
+      justify-content: center;
       gap: 0;
       background: none;
       border: none;
@@ -2572,6 +2576,7 @@
       border-bottom: 1px solid var(--row-divider);
       vertical-align: middle;
       font-size: 13px;
+      text-align: center;
     }
 
     tbody tr:last-child td {
@@ -2585,7 +2590,7 @@
     }
 
     td.mono {
-      text-align: right;
+      text-align: center;
     }
 
     .name-cell {
