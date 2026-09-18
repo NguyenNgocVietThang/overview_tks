@@ -1613,9 +1613,12 @@
     .table-search-input-wrap {
       display: flex;
       align-items: center;
+      /* flex-grow:1, KHONG con max-width — o duoc phep gian het phan con lai
+         cua hang (sau modes+count+gap) de ca hang .table-search-tools
+         (von da luon chiem 100% chieu ngang panel) nhin day, khong con
+         khoang trong ben phai o tim kiem. */
       flex: 1 1 190px;
       min-width: 180px;
-      max-width: 340px;
       border: 1px solid var(--border);
       border-radius: var(--radius-8);
       background: var(--panel-2);
@@ -2254,8 +2257,12 @@
        phai trong panel. table-layout van la "auto" (khong doi o day) nen cot
        van tu gian theo noi dung that; width:100% chi la MUC TIEU toi thieu —
        bang nhieu cot/du lieu dai van tran ngang binh thuong qua
-       .table-wrap{overflow-x:auto} o tren, khong bi ep nho lai. */
-    .table-wrap table {
+       overflow-x:auto (ca .table-wrap lan .scroll-list deu co san o tren),
+       khong bi ep nho lai. Ap dung ca 2 class bao boc bang dang dung trong
+       repo (.table-wrap va .scroll-list — 2 wrapper khac nhau cho cung 1
+       kieu bang, .scroll-list them gioi han max-height cuon doc). */
+    .table-wrap table,
+    .scroll-list table {
       width: 100%;
     }
 
@@ -2786,15 +2793,11 @@
     }
 
     @media (max-width:760px) {
-      .table-search-tools {
-        flex: 1 1 100%;
-        justify-content: stretch;
-      }
-
-      .table-search-input-wrap {
-        max-width: none;
-      }
-
+      /* .table-search-tools/.table-search-input-wrap: het can override rieng
+         cho mobile — ban desktop gio da luon 100% chieu ngang + input gian
+         het cho (xem 2 rule o tren), giong het hanh vi truoc day chi bat o
+         man hinh hep. Chi con .table-search-count can rieng: buoc xuong
+         dong cua no + can trai (desktop can phai). */
       .table-search-count {
         flex: 1 1 100%;
         text-align: left;
