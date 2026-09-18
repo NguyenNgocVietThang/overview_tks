@@ -44,7 +44,9 @@ function createDashboard(payload) {
     renderTopSidebar() {}
   };
   dom.window.fetch = () => new Promise(() => {});
-  dom.window.eval(fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'js', 'pagination.js'), 'utf8'));
+  ['pagination.js', 'table-explorer.js'].forEach(file => {
+    dom.window.eval(fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'js', file), 'utf8'));
+  });
   [...source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
     .map(match => match[1]).filter(script => script.trim())
     .forEach(script => dom.window.eval(script));
@@ -114,6 +116,31 @@ test('click biểu đồ nối vào bộ lọc và cập nhật trạng thái d�
   assert.match(dashboard, /selectEl\.value = previousStatus/);
   assert.match(dashboard, /row-highlight-update/);
   assert.match(dashboard, /customer\.canEditStatus/);
+});
+
+test('hover biểu đồ công nợ bám toàn bộ trục tương ứng cho cột dọc và ngang', () => {
+  const dom = createDashboard(debtPayload());
+
+  dom.window.renderDebtTopChart(
+    'chartTopCurrentDebt',
+    'topCurrentDebt',
+    [{ customerName: 'Khách A', currentDebt: 1200000 }],
+    'currentDebt'
+  );
+
+  const chartConfigs = dom.window.Chart.instances.map(chart => chart.config);
+  const verticalChart = chartConfigs.find(config => config.options.indexAxis !== 'y');
+  const horizontalChart = chartConfigs.find(config => config.options.indexAxis === 'y');
+
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(verticalChart.options.interaction)),
+    { mode: 'index', intersect: false, axis: 'x' }
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(horizontalChart.options.interaction)),
+    { mode: 'index', intersect: false, axis: 'y' }
+  );
+  dom.window.close();
 });
 
 test('script inline của dashboard vẫn biên dịch sau khi thay giao diện', () => {

@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { JSDOM } = require('jsdom');
 
 function readPublic(relativePath) {
   return fs.readFileSync(path.join(__dirname, '..', '..', 'public', relativePath), 'utf8');
@@ -10,6 +11,15 @@ function readPublic(relativePath) {
 
 function inlineScripts(html) {
   return [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
+}
+
+function loadPageWithSharedStyles(relativePath) {
+  const sharedCss = readPublic('shared/shared.css');
+  const html = readPublic(relativePath).replace(
+    /<link[^>]+shared\.css[^>]*>/i,
+    `<style>${sharedCss}</style>`
+  );
+  return new JSDOM(html, { runScripts: 'outside-only' });
 }
 
 test('login co nut dang ky rieng va giu nut Google', () => {
@@ -120,6 +130,41 @@ test('dong bo logo cong ty va favicon tren tat ca cac trang/tab', () => {
     const html = readPublic(page);
     assert.match(html, /<link rel="icon" type="image\/jpeg" href="\/Logo\.jpg">/, `Trang ${page} thieu favicon Logo.jpg`);
     assert.match(html, /<img [^>]*src="\/Logo\.jpg"/, `Trang ${page} thieu anh logo Logo.jpg`);
+  }
+});
+
+test('header dung chung co cung kich thuoc dieu khien tren bon tab chinh', () => {
+  const pages = ['index.html', 'shipment/index.html', 'humanresources/index.html', 'account/index.html'];
+
+  for (const page of pages) {
+    const dom = loadPageWithSharedStyles(page);
+    const { document } = dom.window;
+    const profile = document.createElement('button');
+    profile.className = 'profile-trigger';
+    document.querySelector('#accountChip').appendChild(profile);
+
+    const themeStyle = dom.window.getComputedStyle(document.querySelector('.theme-toggle'));
+    const profileStyle = dom.window.getComputedStyle(profile);
+    const brandStyle = dom.window.getComputedStyle(document.querySelector('.brand-mark'));
+
+    assert.equal(themeStyle.minHeight, '40px', `${page}: nut theme sai chieu cao`);
+    assert.equal(themeStyle.borderRadius, '9999px', `${page}: nut theme sai bo goc`);
+    assert.equal(profileStyle.minHeight, '40px', `${page}: nut ho so sai chieu cao`);
+    assert.equal(profileStyle.borderRadius, '10px', `${page}: nut ho so sai bo goc`);
+    assert.equal(brandStyle.width, '44px', `${page}: logo sai chieu rong`);
+    assert.equal(brandStyle.height, '44px', `${page}: logo sai chieu cao`);
+    assert.equal(brandStyle.borderRadius, '12px', `${page}: logo sai bo goc`);
+  }
+});
+
+test('bon tab chinh cung khai bao viewport de header responsive giong nhau', () => {
+  const pages = ['index.html', 'shipment/index.html', 'humanresources/index.html', 'account/index.html'];
+
+  for (const page of pages) {
+    const dom = new JSDOM(readPublic(page));
+    const viewport = dom.window.document.querySelector('meta[name="viewport"]');
+    assert.ok(viewport, `${page}: thieu viewport meta`);
+    assert.equal(viewport.getAttribute('content'), 'width=device-width, initial-scale=1');
   }
 });
 
