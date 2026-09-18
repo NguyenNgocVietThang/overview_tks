@@ -110,6 +110,10 @@ const HISTORY_SCHEMA = {
   ]
 };
 
+function isBlankRow(row) {
+  return !row.some(cell => String(cell == null ? '' : cell).trim() !== '');
+}
+
 function rowToObject(row, fieldKeys) {
   const obj = {};
   fieldKeys.forEach((key, i) => { obj[key] = row[i] !== undefined ? row[i] : ''; });
@@ -127,7 +131,7 @@ async function readTab(sheetName, branch) {
   const columnIndex = buildColumnIndex(values[0]);
   const dataRows = values.slice(1);
   return dataRows
-    .filter(row => row.some(cell => cell !== '' && cell !== undefined))
+    .filter(row => !isBlankRow(row))
     .map(row => Object.assign(readRowByHeader(row, columnIndex, SCHEMA.fieldKeys), { _branch: branch }));
 }
 
@@ -164,7 +168,7 @@ async function readOverrideHistory() {
   }
   if (!values || values.length === 0) return [];
   return values.slice(1)
-    .filter(row => row.some(cell => cell !== '' && cell !== undefined))
+    .filter(row => !isBlankRow(row))
     .map(row => rowToObject(row, HISTORY_SCHEMA.fieldKeys));
 }
 

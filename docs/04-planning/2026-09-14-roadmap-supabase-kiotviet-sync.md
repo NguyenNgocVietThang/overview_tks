@@ -46,9 +46,15 @@
 >    không phải thao tác UI), và job tự dọn `webhook_events_raw` cũ (mặc định giữ 30 ngày, tránh đầy free
 >    tier vì bảng log thô tăng vô hạn nếu không dọn).
 >
-> **Còn chặn trước khi bật `KIOTVIET_SYNC_ENABLED=true` trên production:** project Firebase
+> **Lưu trữ lịch sử — KHÔNG CÒN ÁP DỤNG (18/09/2026):** đoạn dưới đây mô tả một điểm chặn tạm thời
+> liên quan Firebase App Hosting (gói Blaze, Secret Manager) — hệ thống sau đó đã chuyển hẳn sang
+> **Render** cho hosting (biến môi trường khai báo trực tiếp trên Render dashboard, xem
+> `server/README.md`), không còn phụ thuộc Firebase ở bất kỳ thành phần nào. Giữ nguyên văn bản gốc
+> bên dưới chỉ để tham khảo lịch sử quyết định:
+>
+> ~~**Còn chặn trước khi bật `KIOTVIET_SYNC_ENABLED=true` trên production:** project Firebase
 > `tokosi-a02e0` cần nâng lên gói Blaze mới dùng được Secret Manager (lưu `SUPABASE_DB_URL`,
-> `KIOTVIET_WEBHOOK_SECRET`) — quyết định nâng cấp thuộc về người vận hành, đang chờ xác nhận. Supabase
+> `KIOTVIET_WEBHOOK_SECRET`) — quyết định nâng cấp thuộc về người vận hành, đang chờ xác nhận.~~ Supabase
 > giữ nguyên free tier theo lựa chọn của người vận hành (~500MB, hiện dùng ~235-280MB).
 
 ## 1. Mục tiêu
@@ -89,7 +95,7 @@ Với việc **Webhook được xác nhận hỗ trợ**, thiết kế chính th
 - Thêm cấu hình Supabase mới (`SUPABASE_DB_URL`, `PGSSL`, cờ bật/tắt `KIOTVIET_SYNC_ENABLED` mặc định TẮT).
 - Tạo project Supabase (gói free), lấy connection string dạng "Direct connection" (cổng 5432, không dùng pooler 6543 — vì đây là 1 tiến trình server chạy liên tục, không phải serverless).
 - Xác nhận đủ thông tin đăng nhập API KiotViet cho **cả 2 cơ sở** (Hà Nội đã có sẵn trong `apphosting.yaml`; Sài Gòn hiện chỉ có trong code kiểm tra đứt hàng, chưa khai báo secret production — cần bổ sung).
-- Đăng ký Webhook trên KiotViet cho **cả 2 gian hàng** (Hà Nội, Sài Gòn), trỏ về 1 endpoint chung của server (endpoint này cần public HTTPS — trên Firebase App Hosting đã có sẵn domain public nên không phát sinh thêm hạ tầng).
+- Đăng ký Webhook trên KiotViet cho **cả 2 gian hàng** (Hà Nội, Sài Gòn), trỏ về 1 endpoint chung của server (endpoint này cần public HTTPS — Render đã có sẵn domain public nên không phát sinh thêm hạ tầng).
 
 ### Giai đoạn 1 — Thiết kế & tạo schema dữ liệu
 - Thiết kế bảng cho từng loại dữ liệu: nhóm hàng, sản phẩm, khách hàng, nhà cung cấp, hóa đơn (+ chi tiết dòng, + thanh toán), đơn hàng (+ chi tiết dòng), trả hàng (+ chi tiết dòng — thiếu ở lần trước, bổ sung lần này), nhập hàng (+ chi tiết dòng), thu chi, nhân viên (suy luận từ các bảng khác), và 1 bảng "checkpoint" theo dõi tiến độ đồng bộ của từng loại dữ liệu × từng cơ sở.
@@ -117,7 +123,7 @@ Với việc **Webhook được xác nhận hỗ trợ**, thiết kế chính th
 
 ### Giai đoạn 5 (tương lai, ngoài phạm vi roadmap này)
 - Chuyển các trang Dashboard/báo cáo sang đọc dữ liệu từ Postgres thay vì Google Sheets.
-- Chuyển hosting ứng dụng từ Firebase App Hosting sang Render (gói $25/tháng).
+- ~~Chuyển hosting ứng dụng từ Firebase App Hosting sang Render (gói $25/tháng).~~ Đã hoàn thành — xem `server/README.md`.
 - Cân nhắc dùng API `/users` thật của KiotViet để có danh sách nhân viên đầy đủ hơn (hiện chỉ suy luận từ dữ liệu khác).
 
 ## 6. Những gì roadmap này KHÔNG bao gồm

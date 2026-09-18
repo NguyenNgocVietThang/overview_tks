@@ -2,6 +2,8 @@
 ### (từ Roadmap: Đưa dữ liệu KiotViet lên Supabase Postgres, cận thời gian thực, 2 cơ sở)
 
 > **Lưu trữ lịch sử (18/09/2026):** Tham chiếu `server/telegram/*` trong kế hoạch này thuộc cấu trúc cũ. Bot hiện nằm ngoài repository web trong deployment VPS độc lập.
+>
+> **Lưu trữ lịch sử (18/09/2026):** Toàn bộ nội dung liên quan Firebase App Hosting trong tài liệu này (file `apphosting.yaml`/`.firebaserc`/`firebase.json`, lệnh `firebase apphosting:secrets:set`, gói Blaze) **không còn áp dụng** — hệ thống đã chuyển hẳn sang **Render** cho hosting và **Supabase** cho Postgres, không dùng Firebase ở bất kỳ thành phần nào. Xem `server/README.md` mục "Deploying on Render" để biết cách khai báo biến môi trường hiện tại. Phần còn lại của tài liệu (phân tích `DATABASE_URL` cũ, kế hoạch dọn config) vẫn đúng về mặt lịch sử.
 
 ## Context
 

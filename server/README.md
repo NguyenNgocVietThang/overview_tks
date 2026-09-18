@@ -159,23 +159,7 @@ Schema nghỉ phép dùng `Thời gian gửi`, `Thời gian bắt đầu/kết t
 | `GET` | `/api/internal/kiotviet-sync/status` | Quản lý | Checkpoint mỗi entity/cơ sở, số bản ghi từng bảng, vài dòng mẫu và tổng quan tiến độ backfill (`503` nếu chưa cấu hình `SUPABASE_DB_URL`). |
 | `POST` | `/api/kiotviet/webhook` | Public (KiotViet gọi) | Nhận webhook KiotViet, trả `200` ngay và ghi sự kiện vào hàng đợi Postgres để xử lý nền. |
 
-## 3. Deploying on Firebase App Hosting
-
-Firebase App Hosting chạy Express server trên Cloud Run và yêu cầu Firebase project ở gói Blaze.
-Cấu hình deploy nằm tại `../firebase.json`, `.firebaserc` và `apphosting.yaml`.
-
-```bash
-# Chạy từ thư mục gốc repository sau khi project đã bật Blaze
-firebase deploy --only apphosting:tokosi-dashboard
-```
-
-Các giá trị nhạy cảm trong `.env` phải được tạo trong Firebase Secret Manager theo
-các tên được tham chiếu bởi `apphosting.yaml`; tuyệt đối không commit `.env`.
-`maxInstances: 1` được giữ để các cache/job chạy trong bộ nhớ không bị chia giữa
-nhiều instance. Telegram bot không còn nằm trong repository/package web; mã nguồn,
-biến môi trường và hướng dẫn systemd của bot được quản lý trong deployment VPS độc lập.
-
-## 4. Deploying on Render — exact values for the "New Web Service" form
+## 3. Deploying on Render — exact values for the "New Web Service" form
 
 | Field | Value |
 |---|---|
@@ -202,9 +186,12 @@ biến môi trường và hướng dẫn systemd của bot được quản lý t
 - `KIOTVIET_SYNC_ENABLED` — `true` để bật webhook + polling đối soát KiotViet -> Supabase. Mặc định tắt.
 - `KIOTVIET_SYNC_FAST_INTERVAL_MS` / `KIOTVIET_SYNC_SLOW_INTERVAL_MS` — nhịp polling đối soát cho nhóm giao dịch (hóa đơn/đơn hàng) và nhóm còn lại.
 
+Telegram bot không còn nằm trong repository/package web; mã nguồn, biến môi trường và
+hướng dẫn systemd của bot được quản lý trong deployment VPS độc lập.
+
 ### Production gate cho Quản lý công nợ
 
 1. Chạy `npm run db:migrate` trên PostgreSQL production và xác nhận migration `0011_debt_collection_statuses.sql` thành công.
-2. Tạo secret `DEBT_MANAGEMENT_SPREADSHEET_ID` (đã được ánh xạ trong `apphosting.yaml`), không hardcode workbook ID vào mã nguồn.
+2. Tạo biến môi trường `DEBT_MANAGEMENT_SPREADSHEET_ID` trên Render (Environment tab), không hardcode workbook ID vào mã nguồn.
 3. Share workbook `Bảng Công nợ` cho service account với quyền Viewer và xác nhận tồn tại đúng hai tab `Công nợ HN`, `Công nợ SG`.
 4. Kiểm tra từng cơ sở bằng branch switch trước khi deploy rộng; không dùng `SUPABASE_DB_URL` production cho migration integration test. Test tích hợp chỉ được chạy với `SUPABASE_TEST_DB_URL` tách biệt.
