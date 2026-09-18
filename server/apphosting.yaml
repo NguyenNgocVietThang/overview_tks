@@ -44,20 +44,10 @@ env:
     secret: KIOTVIET_CLIENT_SECRET_SG
   - variable: KIOTVIET_RETAILER_SG
     secret: KIOTVIET_RETAILER_SG
-  # Gia tri thang (khong qua Secret Manager) - quyet dinh tam thoi cua nguoi
-  # van hanh de tranh nang cap goi Firebase len Blaze (2026-09-18). Nghia la
-  # 2 gia tri nay nam trong git o dang ro (khong ma hoa) - neu chuyen sang
-  # Blaze sau nay, doi lai thanh "secret: ..." va XOAY (rotate) lai ca 2 gia
-  # tri nay (doi mat khau Supabase + tao KIOTVIET_WEBHOOK_SECRET moi) vi gia
-  # tri cu da tung nam trong lich su git.
   - variable: SUPABASE_DB_URL
-    value: "postgresql://postgres:gTqbhaBM4KEkmtGcKvY33V7EFgCVDp2-@db.hvraxtmkunyymqvgtura.supabase.co:5432/postgres"
-    availability:
-      - RUNTIME
+    secret: SUPABASE_DB_URL
   - variable: KIOTVIET_WEBHOOK_SECRET
-    value: "459f9a58a9be129f83110c3594c0310b"
-    availability:
-      - RUNTIME
+    secret: KIOTVIET_WEBHOOK_SECRET
   - variable: KIOTVIET_SYNC_ENABLED
     value: "true"
     availability:
