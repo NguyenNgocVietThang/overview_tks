@@ -13,6 +13,7 @@ const sheetsClient = require('../sheets/sheetsClient');
 const debtManagementSheetsClient = require('../sheets/debtManagementSheetsClient');
 const dashboardPgReader = require('./dashboardPgReader');
 const customerProductTopRepository = require('./customerProductTopRepository');
+const dashboardRollupRepository = require('./dashboardRollupRepository');
 const { BRANCHES } = require('../branch/branches');
 const { branchLabelToCode } = require('../branch/branches');
 const { ROLES } = require('../auth/userRepository');
@@ -205,6 +206,21 @@ function isWithinRange(date, range) {
 // true khi khoang loc chi gom dung 1 ngay (vd "1 ngày", hoac tuy chinh tu ngay = den ngay)
 function isSingleDayRange(range) {
   return range.mode !== 'all' && formatDMY(range.start) === formatDMY(range.end);
+}
+
+// Chuoi 'YYYY-MM-DD' theo LICH VN cua 1 Date — dung lam tham so $2/$3 (DATE)
+// cho cac truy van dashboardRollupRepository.js, tranh phai lap logic quy doi
+// mui gio o file do (xem ghi chu dau file dashboardRollupRepository.js).
+function toCalendarDateKey(date) {
+  const { day, month, year } = getDashboardDateParts(date);
+  return `${year}-${month}-${day}`;
+}
+
+// Quy doi 1 `range` (tu resolveFilterRange) sang cap {from, to} dang chuoi
+// 'YYYY-MM-DD' hoac null (che do "Tất cả" — khong gioi han ngay).
+function rangeToDateBounds(range) {
+  if (!range || range.mode === 'all') return { from: null, to: null };
+  return { from: toCalendarDateKey(range.start), to: toCalendarDateKey(range.end) };
 }
 
 function normalizeCategoryName(value) {
@@ -837,6 +853,68 @@ async function getCachedDashboardSheets(branch) {
   return loading;
 }
 
+// ---------- Cache "core" (7/9 tab, nhanh) — dung RIENG cho /api/dashboard ----------
+// Bo "Chi tiết hóa đơn"/"Nhập hàng" (2 tab nang nhat, ~14s/lan doc) — cac khoi
+// tung can 2 tab nay trong computeDashboardData() gio doc tu
+// dashboardRollupRepository.js thay the. KHONG goi rememberSearchSheets() —
+// chi muc tim kiem van chi xay tu cache "full" (getCachedDashboardSheets),
+// dung cho /api/search + /api/export nhu cu.
+let dashboardCoreSheetsCacheByBranch = new Map();
+
+function dashboardCoreSheetsCacheFor(branch) {
+  const key = branch || BRANCHES.HANOI;
+  if (!dashboardCoreSheetsCacheByBranch.has(key)) {
+    dashboardCoreSheetsCacheByBranch.set(key, { data: null, version: 0, expiresAt: 0, loading: null });
+  }
+  return dashboardCoreSheetsCacheByBranch.get(key);
+}
+
+function fetchAndCacheDashboardCoreSheets(branch, cache) {
+  return Promise.all([
+    dashboardPgReader.readCoreDashboardSheets(branch),
+    sheetsClient.getSheetsClient(branch).getMultipleSheetValues(DEBT_SHEETS)
+  ]).then(([pgSheets, debtSheets]) => {
+    const sheets = { ...pgSheets, ...debtSheets };
+    cache.data = sheets;
+    cache.version += 1;
+    cache.expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
+    return sheets;
+  });
+}
+
+// Y het pattern stale-while-revalidate cua getCachedDashboardSheets() o tren
+// (xem ghi chu tai do) — chi khac nguon fetch (7 tab thay vi 9) va khong
+// dong bo chi muc tim kiem.
+async function getCachedDashboardCoreSheets(branch) {
+  const cache = dashboardCoreSheetsCacheFor(branch);
+  const now = Date.now();
+  if (cache.data && now < cache.expiresAt) {
+    return cache.data;
+  }
+
+  const isUsableStale = cache.data && now < cache.expiresAt + DASHBOARD_SHEETS_MAX_STALE_MS;
+  if (isUsableStale) {
+    if (!cache.loading) {
+      cache.loading = fetchAndCacheDashboardCoreSheets(branch, cache)
+        .catch(err => {
+          console.error(`[Dashboard] Lam moi nen (core, stale-while-revalidate) that bai cho ${branch}, tiep tuc dung du lieu cu:`, err.message);
+        })
+        .finally(() => {
+          if (cache.loading) cache.loading = null;
+        });
+    }
+    return cache.data;
+  }
+
+  if (cache.loading) return cache.loading;
+  const loading = fetchAndCacheDashboardCoreSheets(branch, cache)
+    .finally(() => {
+      if (cache.loading === loading) cache.loading = null;
+    });
+  cache.loading = loading;
+  return loading;
+}
+
 // Workbook công nợ có vòng đời/cache riêng với spreadsheet vận hành. Mỗi cơ
 // sở đọc đúng một tab trong cùng workbook và giữ version riêng để cache kết
 // quả tổng hợp không thể che mất lần làm mới từ một trong hai nguồn.
@@ -943,6 +1021,54 @@ function buildRevenuePeriod(range, invoiceRecords) {
     if (!bucket) return;
     bucket.revenue += r.total;
     bucket.count += 1;
+  });
+
+  const revenueByDay = dayOrder.map(key => ({
+    date: key,
+    label: key.substring(0, 5),
+    revenue: dayBuckets[key].revenue,
+    count: dayBuckets[key].count
+  }));
+  const periodRevenue = revenueByDay.reduce((s, d) => s + d.revenue, 0);
+  const periodInvoices = revenueByDay.reduce((s, d) => s + d.count, 0);
+  return { revenueByDay, periodRevenue, periodInvoices };
+}
+
+/**
+ * Ban sao cua buildRevenuePeriod() nhung nguon la cac dong da tong hop san tu
+ * daily_invoice_summary (dashboardRollupRepository.getInvoiceRevenueByDay) —
+ * thay vi quet tung hoa don trong `invoiceRecords`. `rollupRows` da duoc SQL
+ * loc dung status=3 (Hoan thanh) va sap xep tang dan theo ngay, nen o day CHI
+ * can dien them cac ngay trong khoang khong phat sinh (che do 'days'/'range')
+ * hoac giu nguyen thu tu tra ve (che do 'all', chi gom ngay THUC SU CO du
+ * lieu — giong het hanh vi cu).
+ */
+function buildRevenuePeriodFromRollup(range, rollupRows) {
+  const dayBuckets = {};
+  const dayOrder = [];
+
+  if (range.mode === 'all') {
+    rollupRows.forEach(row => {
+      if (!dayBuckets[row.dateKey]) {
+        dayBuckets[row.dateKey] = { revenue: 0, count: 0 };
+        dayOrder.push(row.dateKey);
+      }
+    });
+  } else {
+    let cursor = range.start;
+    while (cursor.getTime() <= range.end.getTime()) {
+      const key = formatDMY(cursor);
+      dayBuckets[key] = { revenue: 0, count: 0 };
+      dayOrder.push(key);
+      cursor = new Date(cursor.getTime() + DAY_MS);
+    }
+  }
+
+  rollupRows.forEach(row => {
+    const bucket = dayBuckets[row.dateKey];
+    if (!bucket) return;
+    bucket.revenue += row.revenue;
+    bucket.count += row.invoiceCount;
   });
 
   const revenueByDay = dayOrder.map(key => ({
@@ -1588,22 +1714,62 @@ function dashboardResultCacheKey(branch, sourceVersions, filters) {
 }
 
 /**
+ * Goi song song toan bo du lieu tu dashboardRollupRepository.js can cho
+ * computeDashboardData() — thay cho viec quet "Chi tiết hóa đơn"/"Nhập hàng"
+ * trong Node.js. KHONG co cache rieng o day (moi bang rollup da nho + co
+ * index, ban than Postgres du nhanh); dashboardResultCache o getDashboardData
+ * chiu trach nhiem tranh goi lai ham nay khi bo loc + phien ban sheets/debt
+ * khong doi (xem "precheck" trong getDashboardData).
+ */
+async function fetchDashboardRollups(branch, { overviewRange, productsRange, invoicesRange, newPurchasesRange }) {
+  const overviewBounds = rangeToDateBounds(overviewRange);
+  const invoicesBounds = rangeToDateBounds(invoicesRange);
+  const productsBounds = rangeToDateBounds(productsRange);
+  const newPurchasesBounds = rangeToDateBounds(newPurchasesRange);
+
+  const [
+    overviewRevenueRows, invoicesRevenueRows, productSalesRows,
+    firstPurchaseRows, purchaseTotals, newPurchaseOrdersRaw, invoiceQuantityRows
+  ] = await Promise.all([
+    dashboardRollupRepository.getInvoiceRevenueByDay({ branch, from: overviewBounds.from, to: overviewBounds.to }),
+    dashboardRollupRepository.getInvoiceRevenueByDay({ branch, from: invoicesBounds.from, to: invoicesBounds.to }),
+    dashboardRollupRepository.getProductSalesBreakdown({ branch, from: productsBounds.from, to: productsBounds.to }),
+    dashboardRollupRepository.getFirstPurchaseDates({ branch }),
+    dashboardRollupRepository.getPurchaseTotals({ branch }),
+    dashboardRollupRepository.listPurchaseOrders({ branch, from: newPurchasesBounds.from, to: newPurchasesBounds.to }),
+    dashboardRollupRepository.getInvoiceQuantitiesByCode({ branch, from: overviewBounds.from, to: overviewBounds.to })
+  ]);
+
+  return {
+    overviewRevenueRows, invoicesRevenueRows, productSalesRows,
+    firstPurchaseRows, purchaseTotals, newPurchaseOrdersRaw, invoiceQuantityRows
+  };
+}
+
+/**
  * Ham chinh lay du lieu cho dashboard — wrapper them cache ket qua da tinh
  * theo tung bo loc, tranh chay lai toan bo tinh toan ben duoi khi client doi
- * tab/poll lai voi CUNG bo loc trong luc du lieu tho (dashboardSheetsCache)
+ * tab/poll lai voi CUNG bo loc trong luc du lieu tho (dashboardCoreSheetsCache)
  * chua het han.
  * @param {Object} filters - xem computeDashboardData
  * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
  */
 async function getDashboardData(filters, branch, viewer) {
   const f = filters || {};
-  const [sheets, debtManagementSource, debtWorkflow] = await Promise.all([
-    getCachedDashboardSheets(branch),
-    getCachedDebtManagementSource(branch),
-    getCachedDebtWorkflow(branch)
-  ]);
   const canEditDebtStatus = viewer?.vaiTro === ROLES.QUAN_LY || viewer?.vaiTro === ROLES.TRO_LY;
-  const sourceVersions = `${dashboardSheetsCacheFor(branch).version}:${debtManagementSheetsCacheFor(branch).version}:${debtWorkflowCacheFor(branch).version}`;
+  const now = new Date();
+  const overviewRange = resolveFilterRange(f.overview, now);
+  const productsRange = resolveFilterRange(f.products, now);
+  const invoicesRange = resolveFilterRange(f.invoices, now);
+  const newPurchasesRange = resolveFilterRange(f.newPurchases, now);
+
+  const [sheets, debtManagementSource, debtWorkflow, rollups] = await Promise.all([
+    getCachedDashboardCoreSheets(branch),
+    getCachedDebtManagementSource(branch),
+    getCachedDebtWorkflow(branch),
+    fetchDashboardRollups(branch, { overviewRange, productsRange, invoicesRange, newPurchasesRange })
+  ]);
+  const sourceVersions = `${dashboardCoreSheetsCacheFor(branch).version}:${debtManagementSheetsCacheFor(branch).version}:${debtWorkflowCacheFor(branch).version}`;
   const cacheKey = dashboardResultCacheKey(branch, `${sourceVersions}:${canEditDebtStatus ? 'edit' : 'read'}`, f);
 
   const cached = dashboardResultCache.get(cacheKey);
@@ -1622,7 +1788,7 @@ async function getDashboardData(filters, branch, viewer) {
     }
   }
 
-  const data = computeDashboardData(sheets, f, new Date(), debtManagementSource, branch, debtWorkflow, canEditDebtStatus);
+  const data = computeDashboardData(sheets, f, now, debtManagementSource, branch, debtWorkflow, canEditDebtStatus, rollups);
   dashboardResultCache.set(cacheKey, { data, expiresAt: Date.now() + DASHBOARD_RESULT_CACHE_TTL_MS });
   // Gioi han so entry trong Map — Map giu thu tu insertion nen phan tu dau tien
   // luon la entry cu nhat, xoa dan cho toi khi ve lai duoi muc tran.
@@ -1635,17 +1801,28 @@ async function getDashboardData(filters, branch, viewer) {
 /**
  * Snapshot dung rieng cho xuat file: du lieu dashboard da tinh va cac dong
  * Google Sheets goc phai cung mot phien ban cache de viec noi them cot khong
- * bi lech khi Sheets vua duoc dong bo giua hai request.
+ * bi lech khi Sheets vua duoc dong bo giua hai request. Van dung cache "full"
+ * (9 tab) cho `sheets` — /api/export can ca "Chi tiết hóa đơn"/"Nhập hàng" o
+ * cho khac (exportService.js), du computeDashboardData() gio khong con doc 2
+ * tab do nua cho cac khoi da chuyen sang rollup.
  */
 async function getDashboardExportSnapshot(filters, branch) {
-  const [sheets, debtManagementSource, debtWorkflow] = await Promise.all([
+  const f = filters || {};
+  const now = new Date();
+  const overviewRange = resolveFilterRange(f.overview, now);
+  const productsRange = resolveFilterRange(f.products, now);
+  const invoicesRange = resolveFilterRange(f.invoices, now);
+  const newPurchasesRange = resolveFilterRange(f.newPurchases, now);
+
+  const [sheets, debtManagementSource, debtWorkflow, rollups] = await Promise.all([
     getCachedDashboardSheets(branch),
     getCachedDebtManagementSource(branch),
-    getCachedDebtWorkflow(branch)
+    getCachedDebtWorkflow(branch),
+    fetchDashboardRollups(branch, { overviewRange, productsRange, invoicesRange, newPurchasesRange })
   ]);
   // Tinh truc tiep tu chinh object `sheets` vua lay thay vi goi lai wrapper
   // cache; nhu vay du lieu goc va tap dong da loc chac chan cung mot snapshot.
-  const dashboard = computeDashboardData(sheets, filters || {}, new Date(), debtManagementSource, branch, debtWorkflow, false);
+  const dashboard = computeDashboardData(sheets, f, now, debtManagementSource, branch, debtWorkflow, false, rollups);
   return { sheets, dashboard, debtManagementSource };
 }
 
@@ -1660,9 +1837,10 @@ async function getDashboardExportSnapshot(filters, branch) {
  * @param {Date} now
  * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
  */
-function computeDashboardData(sheets, filters, now, debtManagementSource, branch, debtWorkflow, canEditDebtStatus) {
+function computeDashboardData(sheets, filters, now, debtManagementSource, branch, debtWorkflow, canEditDebtStatus, rollups) {
   computeCallCountForTest += 1;
   const f = filters || {};
+  rollups = rollups || {};
   const todayStr = formatDMY(now);
 
   const overviewRange = resolveFilterRange(f.overview, now);
@@ -1697,13 +1875,14 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const categoryData = sheets[CONFIG.SHEET_CATEGORIES];
   const prodData = sheets[CONFIG.SHEET_PRODUCTS];
   const invData = sheets[CONFIG.SHEET_INVOICES];
-  const detailData = sheets[CONFIG.SHEET_INVOICE_DETAILS];
+  // "Chi tiết hóa đơn"/"Nhập hàng" KHONG con doc tu `sheets` o day — 2 tab
+  // nang nhat, da bo khoi cache "core" (xem getCachedDashboardCoreSheets()) va
+  // duoc thay bang dashboardRollupRepository.js qua tham so `rollups`.
   const orderData = sheets[CONFIG.SHEET_ORDERS];
   const returnData = sheets[CONFIG.SHEET_RETURNS];
   const custData = sheets[CONFIG.SHEET_CUSTOMERS];
   const customerReportData = sheets[CONFIG.SHEET_CUSTOMER_REPORT] || [];
   const supplierData = sheets[CONFIG.SHEET_SUPPLIERS];
-  const poData = sheets[CONFIG.SHEET_PURCHASES];
 
   // ---------- HÀNG HÓA ----------
   // Doc theo ten cot de schema co the bo cot khong dung ma khong lam lech KPI.
@@ -1812,44 +1991,27 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const stockValueByCategory = limitParentCategoryBars(allStockValueByCategory);
 
   // ---------- HÀNG MỚI NHẬP (theo bộ lọc Hàng hóa) ----------
-  // Lay ngay nhap SOM NHAT cho tung ma hang tu sheet "Nhap hang" (doc theo TEN
-  // COT thay vi index cung, vi schema sheet nay da doi sang cap dong hang —
-  // xem PURCHASE_SHEET_HEADERS trong SheetSchemas.gs). Mot ma chi xuat hien
-  // neu ngay nhap dau tien nam trong khoang cua tab Hang hoa va khop bo loc
-  // trang thai kinh doanh dang chon.
-  const poHeaders = poData[0] || [];
-  const poCodeIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Mã hàng');
-  const poNameIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Tên hàng');
-  const poTimeIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Thời gian');
-  const firstImportByCode = new Map();
-
-  if (poCodeIndex >= 0 && poTimeIndex >= 0) {
-    for (let r = 1; r < poData.length; r++) {
-      const row = poData[r];
-      const code = row[poCodeIndex];
-      if (!code || isVatProductCode(code)) continue;
-      const importDate = parseSheetDate(row[poTimeIndex]);
-      if (!importDate) continue;
-      const key = String(code).trim();
-      const existing = firstImportByCode.get(key);
-      if (!existing || importDate.getTime() < existing.date.getTime()) {
-        const name = (poNameIndex >= 0 && row[poNameIndex]) || (existing && existing.name) || code;
-        firstImportByCode.set(key, { code, name, date: importDate });
-      }
-    }
-  }
-
+  // Ngay nhap SOM NHAT cho tung ma hang, tu product_first_purchase (rollup
+  // toan bo lich su, khong gioi han cua so refresh — xem
+  // dashboardRollupRepository.getFirstPurchaseDates()) thay vi tu quet sheet
+  // "Nhập hàng" (da bo khoi cache "core", xem ke hoach rollup dashboard). Mot
+  // ma chi xuat hien neu ngay nhap dau tien nam trong khoang cua tab Hang hoa
+  // va khop bo loc trang thai kinh doanh dang chon.
+  const firstPurchaseRows = (rollups && rollups.firstPurchaseRows) || [];
   const newlyImportedProducts = [];
-  firstImportByCode.forEach(entry => {
-    if (!isWithinRange(entry.date, productsRange)) return;
-    const currentProductStatus = productStatusByCode.get(String(entry.code).trim());
+  firstPurchaseRows.forEach(entry => {
+    const code = entry.code;
+    if (!code || isVatProductCode(code)) return;
+    const importDate = parseSheetDate(entry.firstPurchaseDateText);
+    if (!importDate || !isWithinRange(importDate, productsRange)) return;
+    const currentProductStatus = productStatusByCode.get(String(code).trim());
     if (productStatusFilter !== 'all' && currentProductStatus !== productStatusFilter) return;
     newlyImportedProducts.push({
-      code: entry.code,
-      name: entry.name,
-      firstImportDate: formatDMY(entry.date),
-      daysOnHand: daysSince(entry.date),
-      _sortTime: entry.date.getTime()
+      code,
+      name: entry.name || code,
+      firstImportDate: formatDMY(importDate),
+      daysOnHand: daysSince(importDate),
+      _sortTime: importDate.getTime()
     });
   });
   newlyImportedProducts.sort((a, b) => b._sortTime - a._sortTime);
@@ -1857,18 +2019,17 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
 
   // ---------- HÓA ĐƠN: index 1 lần, dùng lại cho mọi bộ lọc ----------
   // Cột: [0]Mã hóa đơn [1]Ngày bán [2]Khách hàng [3]SĐT khách [4]Nhân viên bán [5]Chi nhánh [6]Tổng tiền hàng [7]Giảm giá [8]Khách đã trả [9]Trạng thái
-  // Tong so luong tung hoa don de bao cao co cot SL nhu KiotViet.
+  // Tong so luong tung hoa don de bao cao co cot SL nhu KiotViet — truy van
+  // rieng, gioi han theo overviewRange (dashboardRollupRepository truy van
+  // truc tiep invoice_details/invoices, KHONG dung "Chi tiết hóa đơn" da bo
+  // khoi cache "core"; xem fetchDashboardRollups()).
   const invoiceQuantityMap = new Map();
-  for (let r = 1; r < detailData.length; r++) {
-    const invoiceCode = String(detailData[r][0] || '').trim();
-    if (!invoiceCode) continue;
-    const quantity = Number(detailData[r][3]) || 0;
-    invoiceQuantityMap.set(invoiceCode, (invoiceQuantityMap.get(invoiceCode) || 0) + quantity);
-  }
+  ((rollups && rollups.invoiceQuantityRows) || []).forEach(row => {
+    invoiceQuantityMap.set(String(row.code || '').trim(), row.quantity);
+  });
 
   let revenueToday = 0, invoicesToday = 0, cancelledToday = 0;
   const invoiceRecords = [];
-  const invoiceIndexByCode = new Map();
 
   for (let r = 1; r < invData.length; r++) {
     const row = invData[r];
@@ -1909,13 +2070,15 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       _sortTime: dt ? dt.getTime() : 0
     };
     invoiceRecords.push(record);
-    invoiceIndexByCode.set(String(code).trim(), record);
   }
 
-  const overviewPeriod = buildRevenuePeriod(overviewRange, invoiceRecords);
+  // Doanh thu theo ngay cua tab Tong quan/Hoa don — tu daily_invoice_summary
+  // (rollup, chi gom status=3 Hoan thanh, xem dashboardRollupRepository.getInvoiceRevenueByDay())
+  // thay vi tu gom lai `invoiceRecords` trong JS moi request.
+  const overviewPeriod = buildRevenuePeriodFromRollup(overviewRange, (rollups && rollups.overviewRevenueRows) || []);
   const overviewReport = buildTransactionsReport(overviewRange, invoiceRecords, invoiceQuantityMap);
 
-  const invoicesPeriod = buildRevenuePeriod(invoicesRange, invoiceRecords);
+  const invoicesPeriod = buildRevenuePeriodFromRollup(invoicesRange, (rollups && rollups.invoicesRevenueRows) || []);
   const periodCancelledInvoices = invoiceRecords.filter(
     record => record.isCancelled && isWithinRange(record._dt, invoicesRange)
   ).length;
@@ -1925,28 +2088,29 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     .slice(0, 8)
     .map(r => ({ code: r.code, customer: r.customer, total: r.total, status: r.status, time: r.time }));
 
-  // ---------- CHI TIẾT HÓA ĐƠN -> TOP SẢN PHẨM BÁN CHẠY (theo bộ lọc Hàng hóa) ----------
-  // Cột: [0]Mã hóa đơn [1]Mã hàng [2]Tên hàng [3]Số lượng [4]Đơn giá [5]Giảm giá [6]Thành tiền
+  // ---------- SẢN PHẨM BÁN CHẠY -> TOP SẢN PHẨM/NHÓM HÀNG (theo bộ lọc Hàng hóa) ----------
+  // Nguon: daily_product_sales (rollup, da tong hop san theo ma hang cho
+  // productsRange, loai hoa don status=2 "Đã hủy" tu luc refresh — xem
+  // dashboardRollupRepository.getProductSalesBreakdown()) thay vi quet "Chi
+  // tiết hóa đơn" (da bo khoi cache "core"). Nhom cha/con van tra cuu qua
+  // productParentCategoryByCode/productChildCategoryByCode (tu tab Hang
+  // hoa/Nhom hang, van con trong cache "core").
   const productSalesMap = {};
   const parentCategorySalesMap = {};
   const childCategorySalesMap = {};
   const newlyImportedCategorySalesMap = {};
   const newlyImportedProductSalesMap = new Map();
-  for (let r = 1; r < detailData.length; r++) {
-    const row = detailData[r];
-    const invoiceCode = row[0];
-    const code = row[1];
-    if (!invoiceCode || !code) continue;
-    const invoiceEntry = invoiceIndexByCode.get(String(invoiceCode).trim());
-    if (!invoiceEntry || invoiceEntry.isCancelled) continue;
-    if (!isWithinRange(invoiceEntry._dt, productsRange)) continue;
-    const currentProductStatus = productStatusByCode.get(String(code).trim());
-    if (productStatusFilter !== 'all' && currentProductStatus !== productStatusFilter) continue;
-
-    const name = row[2] || code;
-    const qty = Number(row[3]) || 0;
-    const revenue = Number(row[6]) || 0;
+  const productSalesRows = (rollups && rollups.productSalesRows) || [];
+  productSalesRows.forEach(row => {
+    const code = row.code;
+    if (!code) return;
     const trimmedCode = String(code).trim();
+    const currentProductStatus = productStatusByCode.get(trimmedCode);
+    if (productStatusFilter !== 'all' && currentProductStatus !== productStatusFilter) return;
+
+    const name = row.name || code;
+    const qty = row.qty;
+    const revenue = row.revenue;
 
     if (!productSalesMap[code]) productSalesMap[code] = { code, name, qty: 0, revenue: 0 };
     productSalesMap[code].qty += qty;
@@ -1999,7 +2163,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       newlyImportedCategorySalesMap[parentCategoryName].revenue += revenue;
       newlyImportedCategorySalesMap[parentCategoryName].productCodes.add(trimmedCode);
     }
-  }
+  });
   const topSellingProducts = Object.values(productSalesMap)
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, TOP_SELLING_LIMIT);
@@ -2229,53 +2393,21 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const totalSuppliers = suppliers.length;
 
   // ---------- NHẬP HÀNG ----------
-  // Sheet "Nhập hàng" da doi sang cap dong hang (moi dong la mot mat hang
-  // trong phieu nhap, thong tin phieu duoc lap lai tren moi dong) - doc theo
-  // TEN COT thay vi index cung, xem PURCHASE_SHEET_HEADERS trong SheetSchemas.gs.
-  // Gom lai theo "Ma nhap hang" de moi phieu chi tinh 1 lan.
-  const poOrderCodeIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Mã nhập hàng');
-  const poOrderTimeIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Thời gian');
-  const poOrderSupplierIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Tên nhà cung cấp');
-  const poOrderBranchIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Chi nhánh');
-  const poOrderTotalIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Tổng tiền hàng');
-  const poOrderStatusIndex = poHeaders.findIndex(header => String(header || '').trim() === 'Trạng thái');
-
-  let purchaseOrdersCount = 0, totalPurchaseSpend = 0;
-  const purchaseRecords = [];
-  const seenPurchaseOrderCodes = new Set();
-  if (poOrderCodeIndex >= 0) {
-    for (let r = 1; r < poData.length; r++) {
-      const row = poData[r];
-      const code = row[poOrderCodeIndex];
-      if (!code || seenPurchaseOrderCodes.has(code)) continue;
-      seenPurchaseOrderCodes.add(code);
-      const dateVal = poOrderTimeIndex >= 0 ? row[poOrderTimeIndex] : '';
-      const dt = parseSheetDate(dateVal);
-      const total = poOrderTotalIndex >= 0 ? (Number(row[poOrderTotalIndex]) || 0) : 0;
-      purchaseOrdersCount++;
-      totalPurchaseSpend += total;
-      purchaseRecords.push({
-        code,
-        date: dateVal || '',
-        supplier: (poOrderSupplierIndex >= 0 && row[poOrderSupplierIndex]) || '(Không xác định)',
-        branch: (poOrderBranchIndex >= 0 && row[poOrderBranchIndex]) || '',
-        total,
-        status: (poOrderStatusIndex >= 0 && row[poOrderStatusIndex]) || '',
-        _dt: dt, _sortTime: dt ? dt.getTime() : 0
-      });
-    }
-  }
-  purchaseRecords.sort((a, b) => b._sortTime - a._sortTime);
+  // purchaseOrdersCount/totalPurchaseSpend la KPI TOAN THOI GIAN (khong loc
+  // ngay) — tu daily_purchase_summary (rollup), xem
+  // dashboardRollupRepository.getPurchaseTotals(). KHONG con quet sheet
+  // "Nhập hàng" (da bo khoi cache "core").
+  const purchaseTotalsRollup = (rollups && rollups.purchaseTotals) || { orderCount: 0, total: 0 };
+  const purchaseOrdersCount = purchaseTotalsRollup.orderCount;
+  const totalPurchaseSpend = purchaseTotalsRollup.total;
 
   // ---------- HÀNG NHẬP (tab Tổng quan) ----------
-  // Sheet "Nhập hàng" chỉ có dữ liệu cấp phiếu. Vì vậy "tổng số lượng mã" ở
-  // đây là số mã nhập hàng (số phiếu), không phải số mã sản phẩm bên trong.
-  // Gộp "hôm nay" + "gần đây" thành 1 danh sách loc theo bo loc thoi gian
-  // rieng cua section (mac dinh xem resolveFilterRange), thay vi tach rieng
-  // KPI "hôm nay" va bang "khong qua 90 ngay" nhu truoc.
-  const newPurchaseOrders = purchaseRecords
-    .filter(p => isWithinRange(p._dt, newPurchasesRange))
-    .map(({ _dt, _sortTime, ...rest }) => rest);
+  // Danh sach PHIEU NHAP rieng le trong newPurchasesRange — tu
+  // dashboardRollupRepository.listPurchaseOrders() (doc THANG tu bang
+  // `purchases`, KHONG dung bang rollup gom theo NCC vi can giu dung tung
+  // phieu rieng le cho bang UI; xem ghi chu o do). Da duoc SQL loc dung
+  // khoang ngay + sap xep moi nhat truoc, khong can loc/sap xep lai trong JS.
+  const newPurchaseOrders = (rollups && rollups.newPurchaseOrdersRaw) || [];
 
   const newPurchaseSupplierMap = {};
   newPurchaseOrders.forEach(p => {
@@ -2416,6 +2548,7 @@ module.exports = {
   __test__: {
     resetCaches() {
       dashboardSheetsCacheByBranch = new Map();
+      dashboardCoreSheetsCacheByBranch = new Map();
       debtManagementSheetsCacheByBranch = new Map();
       debtWorkflowCacheByBranch = new Map();
       searchSheetCacheByBranch = new Map();
@@ -2424,14 +2557,22 @@ module.exports = {
       searchIndexBuildCountForTest = 0;
       computeCallCountForTest = 0;
     },
+    // Cache "core" (7/9 tab) — dung cho getDashboardData()/getDashboardExportSnapshot.
     expireSheetsCache(branch) {
-      dashboardSheetsCacheFor(branch).expiresAt = 0;
+      dashboardCoreSheetsCacheFor(branch).expiresAt = 0;
     },
     // Khac expireSheetsCache(): dat "vua qua han" (con trong cua so
     // DASHBOARD_SHEETS_MAX_STALE_MS) de test duong stale-while-revalidate —
     // expireSheetsCache() dat expiresAt=0 lam cache qua han QUA LAU (roi vao
     // nhanh phai cho fetch that, khac hanh vi can test o day).
     expireSheetsCacheSoftly(branch) {
+      dashboardCoreSheetsCacheFor(branch).expiresAt = Date.now() - 1000;
+    },
+    // Cache "full" (9 tab) — dung cho /api/search + /api/export.
+    expireFullSheetsCache(branch) {
+      dashboardSheetsCacheFor(branch).expiresAt = 0;
+    },
+    expireFullSheetsCacheSoftly(branch) {
       dashboardSheetsCacheFor(branch).expiresAt = Date.now() - 1000;
     },
     expireDebtManagementCache(branch) {

@@ -12,12 +12,22 @@ const assert = require('node:assert/strict');
 // Require lai module tu dau cho moi test de cac cache module-level (let o
 // dashboardData.js) khong bi ro ri giua cac test.
 //
-// dashboardData.js gio doc 9 tab KiotViet qua dashboardPgReader.readDashboardSheets()
-// (Postgres) thay vi sheetsClient — sheetsClient chi con duoc dung cho 3 tab ky
-// han no HN1/HN3/HN7 (DEBT_SHEETS) va cho debtManagementSheetsClient (Bang Cong
-// no, khong lien quan). "Khach theo hang hoa" doc qua customerProductTopRepository
-// (SQL) thay vi 1 sheet rieng. Ca 2 mock module deu mac dinh tra rong o day —
-// tung test override lai khi can du lieu cu the.
+// dashboardData.js doc du lieu KiotViet qua dashboardPgReader (Postgres) thay
+// vi sheetsClient — sheetsClient chi con duoc dung cho 3 tab ky han no
+// HN1/HN3/HN7 (DEBT_SHEETS) va cho debtManagementSheetsClient (Bang Cong no,
+// khong lien quan). "Khach theo hang hoa" doc qua customerProductTopRepository
+// (SQL) thay vi 1 sheet rieng.
+//
+// getDashboardData()/getDashboardExportSnapshot() gio doc 2 nguon SONG SONG:
+//   - dashboardPgReader.readCoreDashboardSheets() — 7/9 tab (bo "Chi tiết hóa
+//     đơn"/"Nhập hàng") dung cho getDashboardData() (/api/dashboard).
+//   - dashboardPgReader.readDashboardSheets() — du 9 tab, dung cho search/
+//     export (getCachedDashboardSheets, khong doi).
+//   - dashboardRollupRepository.js — thay the 2 tab da bo (doanh thu theo
+//     ngay, top san pham, nhap hang theo NCC, ngay nhap dau tien...), dung
+//     boi CA getDashboardData() lan getDashboardExportSnapshot().
+// Ca 3 mock nguon deu mac dinh tra rong/0 o day — tung test override lai khi
+// can du lieu cu the.
 function freshDashboardData() {
   delete require.cache[require.resolve('./dashboardData')];
   delete require.cache[require.resolve('../sheets/sheetsClient')];
@@ -25,6 +35,7 @@ function freshDashboardData() {
   delete require.cache[require.resolve('./debtCollectionStatusRepository')];
   delete require.cache[require.resolve('./dashboardPgReader')];
   delete require.cache[require.resolve('./customerProductTopRepository')];
+  delete require.cache[require.resolve('./dashboardRollupRepository')];
   const sheetsClient = require('../sheets/sheetsClient');
   sheetsClient.getMultipleSheetValues = async (names) => {
     const result = {};
@@ -43,34 +54,84 @@ function freshDashboardData() {
   const customerProductTopRepository = require('./customerProductTopRepository');
   customerProductTopRepository.findTopCustomersByProducts = async () => [];
   customerProductTopRepository.findTopCustomersByRevenueForProduct = async () => [];
+  const dashboardRollupRepository = require('./dashboardRollupRepository');
+  mockDashboardRollups(dashboardRollupRepository, {});
   const dashboardData = require('./dashboardData');
   return {
     dashboardData, sheetsClient, debtManagementSheetsClient, debtCollectionStatusRepository,
-    dashboardPgReader, customerProductTopRepository
+    dashboardPgReader, customerProductTopRepository, dashboardRollupRepository
   };
 }
 
-// Ghi de dashboardPgReader.readDashboardSheets bang mock tra du lieu co san (rong
-// cho moi tab, tru cac tab duoc chi dinh trong `overrides`). dashboardData.js goi
-// ham nay (khong truyen `names`) de lay ca 9 tab KiotViet cung luc.
+// Ghi de dashboardPgReader.readDashboardSheets (du 9 tab, dung cho search/
+// export) VA readCoreDashboardSheets (7/9 tab, dung cho getDashboardData) bang
+// mock tra du lieu co san (rong cho moi tab, tru cac tab duoc chi dinh trong
+// `overrides`) — mot override cho tab nam ngoai 7 tab "core" (Chi tiết hóa
+// đơn/Nhập hàng) chi anh huong readDashboardSheets, khong anh huong
+// readCoreDashboardSheets (giong dung hanh vi that).
 function mockPgSheets(dashboardPgReader, overrides) {
+  // readDashboardSheets (full): giu hanh vi cu — merge THANG moi override vao
+  // ket qua, ke ca ten khong nam trong SHEET_NAMES (vd CONFIG.SHEET_CUSTOMER_REPORT,
+  // tab khong co that trong Postgres nhung mot so test can gia lap "neu co").
   dashboardPgReader.readDashboardSheets = async () => {
     const result = {};
     dashboardPgReader.SHEET_NAMES.forEach(name => { result[name] = []; });
     Object.assign(result, overrides);
     return result;
   };
-}
-
-// Nhu mockPgSheets nhung dem so lan goi thuc su (khong tinh lan lay tu cache) —
-// dung cho cac test kiem tra TTL cache 90s cua getCachedDashboardSheets.
-function mockPgSheetsCounted(dashboardPgReader, callCounter) {
-  dashboardPgReader.readDashboardSheets = async () => {
-    callCounter.count += 1;
+  // readCoreDashboardSheets (7/9 tab): CHI nhan override cho ten thuc su nam
+  // trong CORE_SHEET_NAMES — giong dung san pham that (khong bao gio tra "Chi
+  // tiết hóa đơn"/"Nhập hàng"/tab khong ton tai).
+  dashboardPgReader.readCoreDashboardSheets = async () => {
     const result = {};
-    dashboardPgReader.SHEET_NAMES.forEach(name => { result[name] = []; });
+    dashboardPgReader.CORE_SHEET_NAMES.forEach(name => { result[name] = []; });
+    Object.keys(overrides || {}).forEach(name => {
+      if (dashboardPgReader.CORE_SHEET_NAMES.includes(name)) result[name] = overrides[name];
+    });
     return result;
   };
+}
+
+// Nhu mockPgSheets nhung dem so lan goi thuc su (khong tinh lan lay tu cache).
+// `variant: 'full'` (mac dinh) dem readDashboardSheets (dung cho test lien
+// quan search/export cache); `variant: 'core'` dem readCoreDashboardSheets
+// (dung cho test lien quan cache cua getDashboardData).
+function mockPgSheetsCounted(dashboardPgReader, callCounter, { variant = 'full' } = {}) {
+  const fn = async () => {
+    callCounter.count += 1;
+    const names = variant === 'core' ? dashboardPgReader.CORE_SHEET_NAMES : dashboardPgReader.SHEET_NAMES;
+    const result = {};
+    names.forEach(name => { result[name] = []; });
+    return result;
+  };
+  if (variant === 'core') dashboardPgReader.readCoreDashboardSheets = fn;
+  else dashboardPgReader.readDashboardSheets = fn;
+}
+
+// Ghi de toan bo dashboardRollupRepository bang gia tri rong/0 mac dinh, roi
+// ap dung `overrides` (map tenHam -> gia tri tra ve, hoac tenHam -> function
+// async tuy chinh) — dung cho cac test can kiem soat du lieu rollup cu the.
+function mockDashboardRollups(dashboardRollupRepository, overrides = {}) {
+  const defaults = {
+    getInvoiceRevenueByDay: () => [],
+    getProductSalesBreakdown: () => [],
+    getTopSellingProducts: () => [],
+    getPurchasesBySupplier: () => [],
+    getPurchaseTotals: () => ({ orderCount: 0, total: 0 }),
+    getFirstPurchaseDates: () => [],
+    getInvoiceQuantitiesByCode: () => [],
+    listPurchaseOrders: () => []
+  };
+  Object.keys(defaults).forEach(name => {
+    const override = overrides[name];
+    if (typeof override === 'function') {
+      dashboardRollupRepository[name] = async (...args) => override(...args);
+    } else if (override !== undefined) {
+      dashboardRollupRepository[name] = async () => override;
+    } else {
+      dashboardRollupRepository[name] = async () => defaults[name]();
+    }
+  });
 }
 
 const BASE_FILTERS = {
@@ -82,32 +143,36 @@ const BASE_FILTERS = {
   newProducts: { mode: 'days', days: 30 }
 };
 
-test('rememberSearchSheets chi rebuild search index khi raw sheet data thuc su duoc fetch lai, khong phai moi lan goi getDashboardData', async () => {
+test('rememberSearchSheets chi rebuild search index khi raw sheet data (cache "full") thuc su duoc fetch lai, khong phai moi lan tim kiem', async () => {
+  // getDashboardData() (/api/dashboard) gio doc cache "core", KHONG con dong
+  // bo chi muc tim kiem nua (xem getCachedDashboardCoreSheets trong
+  // dashboardData.js) — chi muc chi con duoc dong bo boi cache "full" khi co
+  // request tim kiem thuc su (searchDashboardRecords -> getSearchSheets).
   const { dashboardData, dashboardPgReader } = freshDashboardData();
   const callCounter = { count: 0 };
-  mockPgSheetsCounted(dashboardPgReader, callCounter);
+  mockPgSheetsCounted(dashboardPgReader, callCounter, { variant: 'full' });
   dashboardData.__test__.resetCaches();
 
-  await dashboardData.getDashboardData(BASE_FILTERS);
-  await dashboardData.getDashboardData(BASE_FILTERS);
-  await dashboardData.getDashboardData({ ...BASE_FILTERS, products: { mode: 'days', days: 7 } });
+  await dashboardData.searchDashboardRecords('products', 'sp', 'all');
+  await dashboardData.searchDashboardRecords('products', 'sp', 'all');
+  await dashboardData.searchDashboardRecords('invoices', 'hd', 'all');
 
-  assert.equal(callCounter.count, 1, 'raw sheets phai duoc fetch dung 1 lan (con cache 90s)');
+  assert.equal(callCounter.count, 1, 'raw sheets (full) phai duoc fetch dung 1 lan (con cache 90s)');
   assert.equal(
     dashboardData.__test__.getSearchIndexBuildCount(),
     1,
-    'search index chi duoc rebuild 1 lan, khong phai moi lan goi getDashboardData'
+    'search index chi duoc rebuild 1 lan, khong phai moi lan tim kiem'
   );
 });
 
-test('getCachedDashboardSheets dung stale-while-revalidate: cache vua het han van tra du lieu cu ngay lap tuc, am tham lam moi o nen', async () => {
+test('getCachedDashboardCoreSheets dung stale-while-revalidate: cache vua het han van tra du lieu cu ngay lap tuc, am tham lam moi o nen', async () => {
   const { dashboardData, dashboardPgReader } = freshDashboardData();
   const callCounter = { count: 0 };
   let releaseSecondFetch;
-  dashboardPgReader.readDashboardSheets = async () => {
+  dashboardPgReader.readCoreDashboardSheets = async () => {
     callCounter.count += 1;
     const result = {};
-    dashboardPgReader.SHEET_NAMES.forEach(name => { result[name] = []; });
+    dashboardPgReader.CORE_SHEET_NAMES.forEach(name => { result[name] = []; });
     if (callCounter.count === 2) {
       await new Promise(resolve => { releaseSecondFetch = resolve; });
     }
@@ -310,12 +375,12 @@ test('top KH theo san pham chap nhan 50 ma va tu choi 51 ma', async () => {
   );
 });
 
-module.exports = { freshDashboardData, mockPgSheets, mockPgSheetsCounted, BASE_FILTERS };
+module.exports = { freshDashboardData, mockPgSheets, mockPgSheetsCounted, mockDashboardRollups, BASE_FILTERS };
 
 test('getDashboardData cache ket qua da tinh theo tung bo loc, khong tinh lai khi bo loc khong doi va raw sheets van con hieu luc', async () => {
   const { dashboardData, dashboardPgReader } = freshDashboardData();
   const callCounter = { count: 0 };
-  mockPgSheetsCounted(dashboardPgReader, callCounter);
+  mockPgSheetsCounted(dashboardPgReader, callCounter, { variant: 'core' });
   dashboardData.__test__.resetCaches();
 
   await dashboardData.getDashboardData(BASE_FILTERS);
@@ -335,7 +400,7 @@ test('getDashboardData cache ket qua da tinh theo tung bo loc, khong tinh lai kh
 test('dashboardResultCache khong phinh vo han trong cung 1 phien ban raw sheets khi bo loc khac nhau khong gioi han', async () => {
   const { dashboardData, dashboardPgReader } = freshDashboardData();
   const callCounter = { count: 0 };
-  mockPgSheetsCounted(dashboardPgReader, callCounter);
+  mockPgSheetsCounted(dashboardPgReader, callCounter, { variant: 'core' });
   dashboardData.__test__.resetCaches();
 
   // 40 bo loc khac nhau (> muc tran 32) nhung cung 1 phien ban raw sheets ->
@@ -451,12 +516,13 @@ test('cache cua Ha Noi khong ro ri sang Sai Gon — moi co so fetch rieng', asyn
   const { dashboardData, dashboardPgReader, sheetsClient, debtManagementSheetsClient } = freshDashboardData();
   const { BRANCHES } = require('../branch/branches');
   const seen = [];
-  // Ghi de dashboardPgReader.readDashboardSheets de biet dashboardData hoi du
-  // lieu cua co so nao (nguon chinh cua 9 tab KiotViet, nhan branch truc tiep).
-  dashboardPgReader.readDashboardSheets = async (branch) => {
+  // Ghi de dashboardPgReader.readCoreDashboardSheets de biet getDashboardData
+  // hoi du lieu cua co so nao (nguon chinh cho /api/dashboard, nhan branch
+  // truc tiep).
+  dashboardPgReader.readCoreDashboardSheets = async (branch) => {
     seen.push(branch);
     const result = {};
-    dashboardPgReader.SHEET_NAMES.forEach(name => { result[name] = []; });
+    dashboardPgReader.CORE_SHEET_NAMES.forEach(name => { result[name] = []; });
     return result;
   };
   // 3 tab HN1/HN3/HN7 van doc qua sheetsClient.getSheetsClient(branch) that —
@@ -966,4 +1032,205 @@ test('doanh thu theo hang: khong gioi han/cat bot so dong ket qua tra ve', async
 
   assert.equal(result.results.length, 60);
   assert.equal(result.total, 60);
+});
+
+// ===== getDashboardData: cac khoi da chuyen tu quet "Chi tiết hóa đơn"/
+// "Nhập hàng" (bo khoi cache "core") sang dashboardRollupRepository.js =====
+// Dung bo loc 'range' (tu ngay/den ngay co dinh) cho cac tab lien quan de
+// khong phu thuoc "now" that (BASE_FILTERS dung 'days' tuong doi, khong hop
+// de kiem tra tham so from/to truyen xuong repository mot cach xac dinh).
+
+const CATEGORY_HEADERS = ['Mã nhóm hàng', 'Tên nhóm hàng', 'Mã nhóm cha'];
+function categoryRow({ id, name, parentId = '' }) {
+  return [id, name, parentId];
+}
+
+test('getDashboardData: Hang moi nhap doc tu getFirstPurchaseDates (rollup), loc theo range + trang thai kinh doanh', async () => {
+  const { dashboardData, dashboardPgReader, dashboardRollupRepository } = freshDashboardData();
+  const CONFIG = require('../config');
+  mockPgSheets(dashboardPgReader, {
+    [CONFIG.SHEET_PRODUCTS]: [
+      PRODUCT_HEADERS,
+      productRow({ code: 'SP-01', name: 'Sản phẩm một', status: 'Đang kinh doanh' }),
+      productRow({ code: 'SP-02', name: 'Sản phẩm hai', status: 'Ngừng kinh doanh' })
+    ]
+  });
+  const calls = [];
+  mockDashboardRollups(dashboardRollupRepository, {
+    getFirstPurchaseDates: (args) => {
+      calls.push(args);
+      return [
+        { code: 'SP-01', name: 'Sản phẩm một', firstPurchaseDateText: '10/08/2026 09:00:00' },
+        { code: 'SP-02', name: 'Sản phẩm hai', firstPurchaseDateText: '10/08/2026 09:00:00' },
+        { code: 'VAT01', name: 'Thuế GTGT', firstPurchaseDateText: '10/08/2026 09:00:00' },
+        { code: 'SP-03', name: 'Ngoai ky', firstPurchaseDateText: '01/01/2020 09:00:00' }
+      ];
+    }
+  });
+  dashboardData.__test__.resetCaches();
+
+  const filters = {
+    ...BASE_FILTERS,
+    products: { mode: 'range', from: '2026-08-01', to: '2026-08-31', status: 'all' }
+  };
+  const data = await dashboardData.getDashboardData(filters);
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].branch, undefined, 'branch mac dinh Ha Noi khong truyen tuong minh o day');
+  assert.deepEqual(
+    data.products.newlyImported.products.map(p => p.code).sort(),
+    ['SP-01', 'SP-02'],
+    'SP-03 ngoai khoang productsRange va VAT01 la ma VAT deu bi loai'
+  );
+
+  const filteredActive = await dashboardData.getDashboardData({
+    ...filters,
+    products: { ...filters.products, status: 'Đang kinh doanh' }
+  });
+  assert.deepEqual(
+    filteredActive.products.newlyImported.products.map(p => p.code),
+    ['SP-01'],
+    'loc theo trang thai kinh doanh dung nhu productStatusByCode (tu tab Hang hoa)'
+  );
+});
+
+test('getDashboardData: Top san pham ban chay + nhom hang doc tu getProductSalesBreakdown (rollup)', async () => {
+  const { dashboardData, dashboardPgReader, dashboardRollupRepository } = freshDashboardData();
+  const CONFIG = require('../config');
+  const productWithCategory = (code, name) => {
+    const row = productRow({ code, name });
+    row[2] = 'Đồ uống'; // Nhóm hàng (ten)
+    row[11] = '1'; // Mã nhóm hàng (id) — khop id nhom cha trong CATEGORY_HEADERS
+    return row;
+  };
+  mockPgSheets(dashboardPgReader, {
+    [CONFIG.SHEET_CATEGORIES]: [CATEGORY_HEADERS, categoryRow({ id: '1', name: 'Đồ uống' })],
+    [CONFIG.SHEET_PRODUCTS]: [
+      PRODUCT_HEADERS,
+      productWithCategory('SP-01', 'Sản phẩm một'),
+      productWithCategory('SP-02', 'Sản phẩm hai')
+    ]
+  });
+  const calls = [];
+  mockDashboardRollups(dashboardRollupRepository, {
+    getProductSalesBreakdown: (args) => {
+      calls.push(args);
+      return [
+        { code: 'SP-01', name: 'Sản phẩm một', qty: 5, revenue: 500000 },
+        { code: 'SP-02', name: 'Sản phẩm hai', qty: 2, revenue: 100000 }
+      ];
+    }
+  });
+  dashboardData.__test__.resetCaches();
+
+  const filters = { ...BASE_FILTERS, products: { mode: 'range', from: '2026-08-01', to: '2026-08-31' } };
+  const data = await dashboardData.getDashboardData(filters);
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].from, '2026-08-01');
+  assert.equal(calls[0].to, '2026-08-31');
+  assert.deepEqual(
+    data.products.topSellingProducts.map(p => [p.code, p.revenue]),
+    [['SP-01', 500000], ['SP-02', 100000]]
+  );
+  assert.equal(data.products.topSellingParentCategories.length, 1);
+  assert.equal(data.products.topSellingParentCategories[0].revenue, 600000);
+});
+
+test('getDashboardData: doanh thu theo ngay (Tong quan/Hoa don) doc tu getInvoiceRevenueByDay (rollup)', async () => {
+  const { dashboardData, dashboardRollupRepository } = freshDashboardData();
+  const calls = [];
+  mockDashboardRollups(dashboardRollupRepository, {
+    getInvoiceRevenueByDay: (args) => {
+      calls.push(args);
+      return [{ dateKey: '10/08/2026', revenue: 500000, invoiceCount: 3 }];
+    }
+  });
+  dashboardData.__test__.resetCaches();
+
+  const filters = {
+    ...BASE_FILTERS,
+    overview: { mode: 'range', from: '2026-08-01', to: '2026-08-31' },
+    invoices: { mode: 'range', from: '2026-08-10', to: '2026-08-10' }
+  };
+  const data = await dashboardData.getDashboardData(filters);
+
+  assert.equal(calls.length, 2, 'goi rieng cho overviewRange va invoicesRange');
+  assert.deepEqual([calls[0].from, calls[0].to], ['2026-08-01', '2026-08-31']);
+  assert.deepEqual([calls[1].from, calls[1].to], ['2026-08-10', '2026-08-10']);
+
+  assert.equal(data.overview.periodRevenue, 500000);
+  assert.equal(data.overview.periodInvoices, 3);
+  const day = data.overview.revenueByDay.find(d => d.date === '10/08/2026');
+  assert.equal(day.revenue, 500000);
+  assert.equal(day.count, 3);
+
+  // invoicesRange chi 1 ngay (10/08 - 10/08) -> dung 1 dong, khop dong rollup.
+  assert.equal(data.invoices.periodRevenue, 500000);
+  assert.equal(data.invoices.periodInvoices, 3);
+});
+
+test('getDashboardData: NHẬP HÀNG (KPI toan thoi gian) doc tu getPurchaseTotals, HÀNG NHẬP (danh sach + NCC) doc tu listPurchaseOrders', async () => {
+  const { dashboardData, dashboardRollupRepository } = freshDashboardData();
+  const purchaseTotalsCalls = [];
+  const listCalls = [];
+  mockDashboardRollups(dashboardRollupRepository, {
+    getPurchaseTotals: (args) => {
+      purchaseTotalsCalls.push(args);
+      return { orderCount: 12, total: 34000000 };
+    },
+    listPurchaseOrders: (args) => {
+      listCalls.push(args);
+      return [
+        { code: 'PN-02', date: '11/08/2026 10:00', supplier: 'NCC A', branch: 'Hà Nội', total: 2000000, status: 'Hoàn thành' },
+        { code: 'PN-01', date: '10/08/2026 09:00', supplier: 'NCC A', branch: 'Hà Nội', total: 1000000, status: 'Hoàn thành' },
+        { code: 'PN-03', date: '10/08/2026 08:00', supplier: '', branch: 'Hà Nội', total: 500000, status: 'Đã hủy' }
+      ];
+    }
+  });
+  dashboardData.__test__.resetCaches();
+
+  const filters = { ...BASE_FILTERS, newPurchases: { mode: 'range', from: '2026-08-01', to: '2026-08-31' } };
+  const data = await dashboardData.getDashboardData(filters);
+
+  assert.equal(purchaseTotalsCalls.length, 1);
+  assert.equal(data.kpi.purchaseOrdersCount, 12, 'KPI toan thoi gian, khong loc theo newPurchasesRange');
+  assert.equal(data.kpi.totalPurchaseSpend, 34000000);
+
+  assert.equal(listCalls.length, 1);
+  assert.deepEqual([listCalls[0].from, listCalls[0].to], ['2026-08-01', '2026-08-31']);
+  assert.equal(data.newPurchases.orderCount, 3);
+  assert.equal(data.newPurchases.totalAmount, 3500000);
+  assert.equal(data.newPurchases.supplierCount, 2, '"NCC A" va "(Không xác định)" (fallback khi supplier rong)');
+  assert.deepEqual(
+    data.newPurchases.orders.map(o => o.code),
+    ['PN-02', 'PN-01', 'PN-03'],
+    'giu nguyen thu tu tra ve tu listPurchaseOrders (da sap xep moi nhat truoc trong SQL)'
+  );
+  const bySupplierA = data.newPurchases.bySupplier.find(s => s.name === 'NCC A');
+  assert.equal(bySupplierA.orderCount, 2);
+  assert.equal(bySupplierA.total, 3000000);
+});
+
+test('getDashboardData: cot SL cua "Chi tiết giao dịch" doc tu getInvoiceQuantitiesByCode (rollup)', async () => {
+  const { dashboardData, dashboardPgReader, dashboardRollupRepository } = freshDashboardData();
+  const CONFIG = require('../config');
+  mockPgSheets(dashboardPgReader, {
+    [CONFIG.SHEET_INVOICES]: [
+      INVOICE_HEADERS,
+      invoiceRow({ code: 'HD-01', date: '10/08/2026 10:00:00', status: 'Hoàn thành' })
+    ]
+  });
+  mockDashboardRollups(dashboardRollupRepository, {
+    getInvoiceQuantitiesByCode: () => [{ code: 'HD-01', quantity: 7 }]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const filters = { ...BASE_FILTERS, overview: { mode: 'range', from: '2026-08-01', to: '2026-08-31' } };
+  const data = await dashboardData.getDashboardData(filters);
+
+  const row = data.overview.endOfDayReport.transactions.find(t => t.code === 'HD-01');
+  assert.ok(row, 'hoa don HD-01 phai xuat hien trong bang chi tiet giao dich');
+  assert.equal(row.quantity, 7);
+  assert.equal(row.quantityKnown, true);
 });

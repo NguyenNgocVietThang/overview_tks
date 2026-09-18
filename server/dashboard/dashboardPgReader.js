@@ -70,11 +70,18 @@ function statusLabel(fallbackByCode, prefix = '') {
   return `COALESCE(NULLIF(${prefix}raw->>'statusValue', ''), ${fallback})`;
 }
 
-const INVOICE_STATUS_FALLBACK = { 1: 'Phiếu tạm', 2: 'Đã hủy', 3: 'Hoàn thành' };
+// Da doi chieu truc tiep voi du lieu that tren Supabase (2026-09-18, ca 2 co
+// so) qua `raw->>'statusValue'` — cac bang tra ma nay CHI dung khi payload
+// thieu statusValue (hiem, thuc te chua gap), nen sai truoc day khong lam
+// hong hien thi (statusLabel() luon uu tien statusValue that). Invoice/Return
+// da sua theo dung so lieu that; Order moi kiem chung status 1/3/4, giu
+// nguyen 2/5 (chua co du lieu that de xac nhan) — CAN THAN neu dua vao truc
+// tiep, uu tien statusValue nhu statusLabel() dang lam.
+const INVOICE_STATUS_FALLBACK = { 1: 'Hoàn thành', 2: 'Đã hủy', 3: 'Đang xử lý' };
 const ORDER_STATUS_FALLBACK = {
-  1: 'Phiếu tạm', 2: 'Đang xử lý', 3: 'Đã xác nhận', 4: 'Đã hủy', 5: 'Hoàn thành'
+  1: 'Phiếu tạm', 2: 'Đang xử lý', 3: 'Hoàn thành', 4: 'Đã hủy', 5: 'Hoàn thành'
 };
-const RETURN_STATUS_FALLBACK = { 1: 'Hoàn thành', 2: 'Đã hủy' };
+const RETURN_STATUS_FALLBACK = { 1: 'Đã trả', 2: 'Đã hủy' };
 
 // Cac cot Sheets KHONG co nguon trong Postgres hien tai. Giu chuoi rong (dung
 // nhu Apps Script lam khi payload thieu truong) thay vi bia du lieu:
@@ -483,6 +490,41 @@ const TABS = [
 
 const SHEET_NAMES = TABS.map(tab => tab.sheetName);
 
+// "Chi tiết hóa đơn" (~51K dong) va "Nhập hàng" (~30K dong, join
+// purchase_details+products) la 2 tab nang nhat (do luong that ~8.8s va
+// ~14s/lan) — /api/dashboard (getDashboardData) khong con can doc thang 2 tab
+// nay nua vi cac khoi lien quan da chuyen sang doc server/dashboard/
+// dashboardRollupRepository.js (ke hoach "melodic-juggling-karp"). 2 tab nay
+// van con can cho /api/search + /api/export (readDashboardSheets() day du,
+// KHONG doi) — CORE_TABS chi dung rieng cho readCoreDashboardSheets() ben duoi.
+const CORE_EXCLUDED_SHEET_NAMES = new Set([CONFIG.SHEET_INVOICE_DETAILS, CONFIG.SHEET_PURCHASES]);
+const CORE_TABS = TABS.filter(tab => !CORE_EXCLUDED_SHEET_NAMES.has(tab.sheetName));
+const CORE_SHEET_NAMES = CORE_TABS.map(tab => tab.sheetName);
+
+async function queryTabs(pool, tabs, branch) {
+  const branchCode = branchLabelToCode(branch || BRANCHES.HANOI);
+  if (!branchCode) {
+    const error = new Error(`Cơ sở không hợp lệ: ${branch}`);
+    error.code = 'INVALID_BRANCH';
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const results = await Promise.all(
+    tabs.map(tab => pool.query(tab.sql, [branchCode]))
+  );
+
+  const sheets = {};
+  tabs.forEach((tab, index) => {
+    const rows = (results[index] && results[index].rows) || [];
+    sheets[tab.sheetName] = [
+      tab.headers.slice(),
+      ...rows.map(row => tab.columns.map(column => row[column]))
+    ];
+  });
+  return sheets;
+}
+
 function createDashboardPgReader({ pool = getPool() } = {}) {
   /**
    * Doc 9 tab bao cao cua 1 co so tu Postgres.
@@ -490,30 +532,20 @@ function createDashboardPgReader({ pool = getPool() } = {}) {
    * @returns {Promise<Object<string, any[][]>>} map ten sheet -> [header, ...rows]
    */
   async function readDashboardSheets(branch) {
-    const branchCode = branchLabelToCode(branch || BRANCHES.HANOI);
-    if (!branchCode) {
-      const error = new Error(`Cơ sở không hợp lệ: ${branch}`);
-      error.code = 'INVALID_BRANCH';
-      error.statusCode = 400;
-      throw error;
-    }
-
-    const results = await Promise.all(
-      TABS.map(tab => pool.query(tab.sql, [branchCode]))
-    );
-
-    const sheets = {};
-    TABS.forEach((tab, index) => {
-      const rows = (results[index] && results[index].rows) || [];
-      sheets[tab.sheetName] = [
-        tab.headers.slice(),
-        ...rows.map(row => tab.columns.map(column => row[column]))
-      ];
-    });
-    return sheets;
+    return queryTabs(pool, TABS, branch);
   }
 
-  return { readDashboardSheets };
+  /**
+   * Doc 7/9 tab (bo "Chi tiết hóa đơn"/"Nhập hàng") — CHI chay 7 cau SQL nhe,
+   * KHONG chay 2 cau SQL nang nhat roi bo ket qua trong JS (vay se khong tiet
+   * kiem duoc gi). Dung cho getCachedDashboardCoreSheets() trong
+   * dashboardData.js — nguon cho /api/dashboard.
+   */
+  async function readCoreDashboardSheets(branch) {
+    return queryTabs(pool, CORE_TABS, branch);
+  }
+
+  return { readDashboardSheets, readCoreDashboardSheets };
 }
 
 const reader = createDashboardPgReader();
@@ -521,7 +553,9 @@ const reader = createDashboardPgReader();
 module.exports = {
   createDashboardPgReader,
   readDashboardSheets: (...args) => reader.readDashboardSheets(...args),
+  readCoreDashboardSheets: (...args) => reader.readCoreDashboardSheets(...args),
   SHEET_NAMES,
+  CORE_SHEET_NAMES,
   // Chi dung cho test/doi chieu: header phai y het Sheets that.
   __headers__: Object.fromEntries(TABS.map(tab => [tab.sheetName, tab.headers])),
   // Xuat de tai dung y het logic map trang thai hoa don (uu tien statusValue

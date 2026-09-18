@@ -250,5 +250,9 @@ module.exports = {
   findTopCustomersByProducts: (...args) => repository.findTopCustomersByProducts(...args),
   findTopCustomersByRevenueForProduct: (...args) => repository.findTopCustomersByRevenueForProduct(...args),
   DEFAULT_TOP_LIMIT,
+  // "Thanh tien" tren 1 dong invoice_details — dashboardRollupRefresh.js tai
+  // dung CHINH XAC cong thuc nay khi tinh daily_product_sales.revenue, tranh
+  // viet trung logic o 2 noi va lech so lieu.
+  DETAIL_AMOUNT_SQL,
   __test__: { toWallClockInstant, fromWallClockInstant }
 };

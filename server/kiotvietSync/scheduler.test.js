@@ -4,18 +4,30 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createPollingScheduler } = require('./scheduler');
 
-test('disabled scheduler creates no timers and touches no configuration, API, or database dependency', () => {
+test('disabled scheduler creates no timers and touches no configuration, API, database, or rollup dependency', () => {
   let touched = 0;
-  const scheduler = createPollingScheduler({ enabled:false, getConfiguredBranches:()=>{touched++;}, setIntervalFn:()=>{touched++;} });
+  const scheduler = createPollingScheduler({
+    enabled:false, getConfiguredBranches:()=>{touched++;}, setIntervalFn:()=>{touched++;},
+    getPool:()=>{touched++;}, startDashboardRollupSchedule:()=>{touched++;}
+  });
   assert.deepEqual(scheduler.startPollingScheduler(), []);
   assert.equal(touched, 0);
 });
 
-test('scheduler creates independent fast and slow timers at configured intervals', () => {
+test('scheduler creates independent fast and slow timers at configured intervals, plus a dashboard-rollup schedule', () => {
   const timers = [];
-  const scheduler = createPollingScheduler({ enabled:true, fastIntervalMs:7, slowIntervalMs:20, getConfiguredBranches:()=>[], setIntervalFn:(fn,ms)=>(timers.push({fn,ms}),ms) });
-  assert.deepEqual(scheduler.startPollingScheduler(), [7,20]);
+  const rollupCalls = [];
+  const scheduler = createPollingScheduler({
+    enabled:true, fastIntervalMs:7, slowIntervalMs:20, dashboardRollupIntervalMs:300000,
+    getConfiguredBranches:()=>[], setIntervalFn:(fn,ms)=>(timers.push({fn,ms}),ms),
+    getPool:()=>'fake-pool',
+    startDashboardRollupSchedule:(opts)=>{rollupCalls.push(opts); return 'rollup-handle';}
+  });
+  assert.deepEqual(scheduler.startPollingScheduler(), [7,20,'rollup-handle']);
   assert.deepEqual(timers.map((x)=>x.ms), [7,20]);
+  assert.equal(rollupCalls.length, 1);
+  assert.equal(rollupCalls[0].pool, 'fake-pool');
+  assert.equal(rollupCalls[0].intervalMs, 300000);
 });
 
 test('one branch/entity failure is recorded without blocking other work', async () => {
@@ -30,7 +42,9 @@ test('one branch/entity failure is recorded without blocking other work', async 
     createKiotVietClient:(config)=>({branch:config.retailer}),
     pollEntityOnce:async (_api,branch,entity)=>{ calls.push(`${branch}:${entity.entity}`); if(branch==='hanoi'&&entity.entity==='invoices') throw new Error('down'); },
     recordFailure:async (...args)=>failures.push(args),
-    setIntervalFn:(fn,ms)=>(timers.push({fn,ms}),ms)
+    setIntervalFn:(fn,ms)=>(timers.push({fn,ms}),ms),
+    getPool:()=>'fake-pool',
+    startDashboardRollupSchedule:()=>'rollup-handle'
   });
   scheduler.startPollingScheduler();
   await timers[0].fn();

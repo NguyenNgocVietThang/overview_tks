@@ -10,6 +10,7 @@ Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/00
 - Các entity lấy trực tiếp từ KiotViet lưu toàn bộ object nguồn trong `raw JSONB`; các cột first-class dùng để join, lọc và sắp xếp.
 - `status` giữ nguyên mã `SMALLINT` từ KiotViet, không suy diễn nhãn trong tầng lưu trữ.
 - `synced_at` là thời điểm bản ghi được ghi vào Postgres, không thay thế `created_date` hoặc `modified_date` của KiotViet.
+- 4 bảng rollup báo cáo Dashboard (migration `0013`) là ngoại lệ: không có `raw`, không theo quy ước `branch` là cột đầu PK duy nhất (khóa chính của chúng ghép thêm ngày/mã hàng/NCC vì là bảng tổng hợp, không phải bản sao 1-1 của KiotViet).
 
 ## Ánh xạ định danh cơ sở
 
@@ -70,6 +71,21 @@ Role Postgres cấp cho nhân viên dùng SQL client/BI tool để truy vấn tr
 - `status` chỉ nhận `Chưa xử lý`, `Đang xử lý`, `Đã xử lý`, `Bỏ qua`.
 - `alert_signature` là SHA-256 64 ký tự hex của cảnh báo và số nợ hiện tại. Khi chữ ký nguồn thay đổi, trạng thái kết thúc (`Đã xử lý`/`Bỏ qua`) không còn hiệu lực và dashboard mở lại khách ở `Chưa xử lý`.
 - Migration thu hồi quyền `SELECT` của `reporting_readonly` trên bảng này vì có định danh người cập nhật; bảng không thuộc nguồn BI.
+
+### Rollup báo cáo Dashboard theo ngày (migration `0013`)
+
+| Bảng | Mục đích | Khóa chính | Cột chính |
+|---|---|---|---|
+| `daily_invoice_summary` | Doanh thu/số hóa đơn theo ngày, dùng cho biểu đồ "Doanh thu theo ngày" ở tab Tổng quan/Hóa đơn | `(branch, sale_date)` | `revenue`/`invoice_count` (chỉ `raw->>'statusValue' = 'Hoàn thành'`), `cancelled_count` (`statusValue = 'Đã hủy'`) |
+| `daily_product_sales` | Số lượng/doanh thu bán theo ngày của từng mã hàng, dùng cho "Top sản phẩm bán chạy" và doanh thu theo nhóm hàng | `(branch, sale_date, product_id)` | `qty`, `revenue` (mọi hóa đơn `statusValue != 'Đã hủy'`, tức gồm cả Phiếu tạm/Đang xử lý — **khác** điều kiện `daily_invoice_summary`) |
+
+**Quan trọng — không được lọc theo số `status` trực tiếp**: mã số không có ý nghĩa cố định giữa các entity/cửa hàng (đối chiếu dữ liệu thật 2026-09-18 xác nhận `invoices.status=1` là "Hoàn thành", KHÔNG PHẢI `status=3` như giả định ban đầu — `status=3` thực ra là "Đang xử lý"). Luôn lọc qua `raw->>'statusValue'` (chuỗi thật từ KiotViet), không suy diễn số.
+| `daily_purchase_summary` | Số phiếu nhập/tổng tiền nhập theo ngày và theo NCC | `(branch, purchase_date, supplier_id)` | `order_count`, `total` (gộp trực tiếp trên `purchases`, không join `purchase_details`) |
+| `product_first_purchase` | Ngày nhập hàng đầu tiên của từng mã hàng (toàn bộ lịch sử, không giới hạn cửa sổ refresh) | `(branch, product_id)` | `first_purchase_date` (MIN, giữ mốc cũ hơn khi `ON CONFLICT` qua `LEAST`) |
+
+- Cả 4 bảng không có cột `raw`, chỉ lưu số đã tổng hợp — tên/nhóm hàng/trạng thái hiện tại luôn join trực tiếp với `products`/`categories`/`suppliers` tại thời điểm đọc, không lưu lại (bake) vào rollup để tránh phải tính lại khi đổi tên/nhóm.
+- Refresh bởi `server/kiotvietSync/dashboardRollupRefresh.js` mỗi 5 phút, cửa sổ 400 ngày gần nhất cho `daily_invoice_summary`/`daily_product_sales`/`daily_purchase_summary`; `product_first_purchase` luôn quét toàn bộ `purchases` (không giới hạn cửa sổ) vì ngày nhập đầu tiên có thể xa hơn 400 ngày.
+- Không `REVOKE SELECT FROM reporting_readonly` trên 4 bảng này — dữ liệu chỉ là số tổng hợp, không nhạy cảm.
 
 ## Quan hệ và index
 

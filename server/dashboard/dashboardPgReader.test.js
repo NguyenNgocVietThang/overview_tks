@@ -6,7 +6,7 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const CONFIG = require('../config');
-const { createDashboardPgReader, SHEET_NAMES, __headers__ } = require('./dashboardPgReader');
+const { createDashboardPgReader, SHEET_NAMES, CORE_SHEET_NAMES, __headers__ } = require('./dashboardPgReader');
 
 // pool gia: ghi lai TOAN BO cac lan goi query (theo dung thu tu TABS.map goi
 // dong bo tung phan tu — xem readDashboardSheets) va tra ve dong tuy chinh
@@ -120,4 +120,36 @@ test('SHEET_NAMES khop dung 9 tab KiotViet, KHONG bao gom Bao cao ban hang (SHEE
     CONFIG.SHEET_INVOICE_DETAILS, CONFIG.SHEET_ORDERS, CONFIG.SHEET_RETURNS,
     CONFIG.SHEET_CUSTOMERS, CONFIG.SHEET_SUPPLIERS, CONFIG.SHEET_PURCHASES
   ]);
+});
+
+test('CORE_SHEET_NAMES khop dung 7 tab, bo "Chi tiết hóa đơn"/"Nhập hàng" (2 tab nang nhat, thay bang dashboardRollupRepository.js)', () => {
+  assert.equal(CORE_SHEET_NAMES.length, 7);
+  assert.ok(!CORE_SHEET_NAMES.includes(CONFIG.SHEET_INVOICE_DETAILS));
+  assert.ok(!CORE_SHEET_NAMES.includes(CONFIG.SHEET_PURCHASES));
+  assert.deepEqual(CORE_SHEET_NAMES, [
+    CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES,
+    CONFIG.SHEET_ORDERS, CONFIG.SHEET_RETURNS, CONFIG.SHEET_CUSTOMERS, CONFIG.SHEET_SUPPLIERS
+  ]);
+});
+
+test('readCoreDashboardSheets: CHI chay 7 cau SQL (khong chay roi bo ket qua cua 2 tab nang nhat)', async () => {
+  const pool = fakePool();
+  const reader = createDashboardPgReader({ pool });
+  const sheets = await reader.readCoreDashboardSheets('Hà Nội');
+
+  assert.equal(pool.calls.length, CORE_SHEET_NAMES.length, 'khong duoc chay cau SQL cua "Chi tiết hóa đơn"/"Nhập hàng"');
+  assert.deepEqual(Object.keys(sheets).sort(), CORE_SHEET_NAMES.slice().sort());
+  assert.equal(sheets[CONFIG.SHEET_INVOICE_DETAILS], undefined);
+  assert.equal(sheets[CONFIG.SHEET_PURCHASES], undefined);
+  pool.calls.forEach(call => assert.deepEqual(call.params, ['hanoi']));
+});
+
+test('readCoreDashboardSheets tu choi branch khong hop le, khong query Postgres', async () => {
+  const pool = fakePool();
+  const reader = createDashboardPgReader({ pool });
+  await assert.rejects(
+    () => reader.readCoreDashboardSheets('Không tồn tại'),
+    err => err.statusCode === 400 && err.code === 'INVALID_BRANCH'
+  );
+  assert.equal(pool.calls.length, 0);
 });
