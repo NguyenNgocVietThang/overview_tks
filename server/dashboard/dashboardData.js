@@ -5,13 +5,15 @@
 // đơn/Đặt hàng/Trả hàng/Khách hàng/Nhà cung cấp/Nhập hàng) doc tu Supabase
 // Postgres qua dashboardPgReader.js — module do dung lai dung shape
 // `[header, ...rows]` cua Sheets nen toan bo logic tinh toan ben duoi KHONG
-// doi. Ba tab ky han no HN1/HN3/HN7 van doc tu Google Sheets (do Apps Script
-// tinh, chua co nguon Postgres tuong duong).
+// doi. Ba tab ky han no HN1/HN3/HN7 cung doc tu Postgres qua
+// customerDebtPgReader.js (bang da tinh san boi server/kiotvietSync/
+// customerDebtReportRefresh.js, xem 0014_customer_debt_report_lines.sql) —
+// khong con doc Google Sheets cho phan KPI/cong no nay.
 // ==========================================
 const CONFIG = require('../config');
-const sheetsClient = require('../sheets/sheetsClient');
 const debtManagementSheetsClient = require('../sheets/debtManagementSheetsClient');
 const dashboardPgReader = require('./dashboardPgReader');
+const customerDebtPgReader = require('./customerDebtPgReader');
 const customerProductTopRepository = require('./customerProductTopRepository');
 const dashboardRollupRepository = require('./dashboardRollupRepository');
 const { BRANCHES } = require('../branch/branches');
@@ -301,14 +303,6 @@ function limitParentCategoryBars(categories) {
     productCount: remainingCategories.reduce((sum, category) => sum + category.productCount, 0)
   });
 }
-
-// HN1/HN3/HN7 do KiotViet tu quan ly; gop vao cung 1 lan batchGet de khong
-// tang so request goi Google Sheets API. Server CHI DOC, khong bao gio ghi.
-const DEBT_SHEETS = [
-  CONFIG.SHEET_DEBT_1,
-  CONFIG.SHEET_DEBT_3,
-  CONFIG.SHEET_DEBT_7
-];
 
 const SEARCH_SOURCES = {
   products: {
@@ -781,9 +775,9 @@ async function searchTopCustomersByProducts(rawQuery, filterSpec, now = new Date
 // Truoc day moi lan goi /api/dashboard deu batchGet lai TOAN BO cac sheet.
 // Gio moi tab co bo loc rieng nen client co the goi API thuong xuyen hon han
 // (moi lan doi bo loc o bat ky tab nao) — cache vai chuc giay de khong phai
-// quet lai toan bo bang Postgres (va khong dam vao han muc Google Sheets API
-// cho 3 tab HN1/HN3/HN7 con lai); tinh toan loc theo ngay van chay tren du
-// lieu da cache nen van nhanh va luon phan anh dung bo loc moi nhat.
+// quet lai toan bo bang Postgres o moi request; tinh toan loc theo ngay van
+// chay tren du lieu da cache nen van nhanh va luon phan anh dung bo loc moi
+// nhat.
 let dashboardSheetsCacheByBranch = new Map();
 
 function dashboardSheetsCacheFor(branch) {
@@ -800,7 +794,7 @@ function dashboardSheetsCacheFor(branch) {
 function fetchAndCacheDashboardSheets(branch, cache) {
   return Promise.all([
     dashboardPgReader.readDashboardSheets(branch),
-    sheetsClient.getSheetsClient(branch).getMultipleSheetValues(DEBT_SHEETS)
+    customerDebtPgReader.readCustomerDebtReports(branch)
   ]).then(([pgSheets, debtSheets]) => {
     const sheets = { ...pgSheets, ...debtSheets };
     cache.data = sheets;
@@ -872,7 +866,7 @@ function dashboardCoreSheetsCacheFor(branch) {
 function fetchAndCacheDashboardCoreSheets(branch, cache) {
   return Promise.all([
     dashboardPgReader.readCoreDashboardSheets(branch),
-    sheetsClient.getSheetsClient(branch).getMultipleSheetValues(DEBT_SHEETS)
+    customerDebtPgReader.readCustomerDebtReports(branch)
   ]).then(([pgSheets, debtSheets]) => {
     const sheets = { ...pgSheets, ...debtSheets };
     cache.data = sheets;

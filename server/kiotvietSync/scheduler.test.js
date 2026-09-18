@@ -14,20 +14,25 @@ test('disabled scheduler creates no timers and touches no configuration, API, da
   assert.equal(touched, 0);
 });
 
-test('scheduler creates independent fast and slow timers at configured intervals, plus a dashboard-rollup schedule', () => {
+test('scheduler creates independent fast and slow timers at configured intervals, plus a dashboard-rollup and customer-debt-report schedule', () => {
   const timers = [];
   const rollupCalls = [];
+  const debtReportCalls = [];
   const scheduler = createPollingScheduler({
-    enabled:true, fastIntervalMs:7, slowIntervalMs:20, dashboardRollupIntervalMs:300000,
+    enabled:true, fastIntervalMs:7, slowIntervalMs:20, dashboardRollupIntervalMs:300000, customerDebtReportIntervalMs:300000,
     getConfiguredBranches:()=>[], setIntervalFn:(fn,ms)=>(timers.push({fn,ms}),ms),
     getPool:()=>'fake-pool',
-    startDashboardRollupSchedule:(opts)=>{rollupCalls.push(opts); return 'rollup-handle';}
+    startDashboardRollupSchedule:(opts)=>{rollupCalls.push(opts); return 'rollup-handle';},
+    startCustomerDebtReportRefreshSchedule:(pool,opts)=>{debtReportCalls.push({pool,...opts}); return 'debt-report-handle';}
   });
-  assert.deepEqual(scheduler.startPollingScheduler(), [7,20,'rollup-handle']);
+  assert.deepEqual(scheduler.startPollingScheduler(), [7,20,'rollup-handle','debt-report-handle']);
   assert.deepEqual(timers.map((x)=>x.ms), [7,20]);
   assert.equal(rollupCalls.length, 1);
   assert.equal(rollupCalls[0].pool, 'fake-pool');
   assert.equal(rollupCalls[0].intervalMs, 300000);
+  assert.equal(debtReportCalls.length, 1);
+  assert.equal(debtReportCalls[0].pool, 'fake-pool');
+  assert.equal(debtReportCalls[0].intervalMs, 300000);
 });
 
 test('one branch/entity failure is recorded without blocking other work', async () => {

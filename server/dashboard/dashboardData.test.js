@@ -13,10 +13,11 @@ const assert = require('node:assert/strict');
 // dashboardData.js) khong bi ro ri giua cac test.
 //
 // dashboardData.js doc du lieu KiotViet qua dashboardPgReader (Postgres) thay
-// vi sheetsClient — sheetsClient chi con duoc dung cho 3 tab ky han no
-// HN1/HN3/HN7 (DEBT_SHEETS) va cho debtManagementSheetsClient (Bang Cong no,
-// khong lien quan). "Khach theo hang hoa" doc qua customerProductTopRepository
-// (SQL) thay vi 1 sheet rieng.
+// vi sheetsClient — 3 tab ky han no HN1/HN3/HN7 gio doc qua
+// customerDebtPgReader (bang da tinh san customer_debt_report_lines, xem
+// 0014_customer_debt_report_lines.sql), sheetsClient chi con dung boi
+// debtManagementSheetsClient (Bang Cong no, khong lien quan). "Khach theo
+// hang hoa" doc qua customerProductTopRepository (SQL) thay vi 1 sheet rieng.
 //
 // getDashboardData()/getDashboardExportSnapshot() gio doc 2 nguon SONG SONG:
 //   - dashboardPgReader.readCoreDashboardSheets() — 7/9 tab (bo "Chi tiết hóa
@@ -30,18 +31,12 @@ const assert = require('node:assert/strict');
 // can du lieu cu the.
 function freshDashboardData() {
   delete require.cache[require.resolve('./dashboardData')];
-  delete require.cache[require.resolve('../sheets/sheetsClient')];
   delete require.cache[require.resolve('../sheets/debtManagementSheetsClient')];
   delete require.cache[require.resolve('./debtCollectionStatusRepository')];
   delete require.cache[require.resolve('./dashboardPgReader')];
+  delete require.cache[require.resolve('./customerDebtPgReader')];
   delete require.cache[require.resolve('./customerProductTopRepository')];
   delete require.cache[require.resolve('./dashboardRollupRepository')];
-  const sheetsClient = require('../sheets/sheetsClient');
-  sheetsClient.getMultipleSheetValues = async (names) => {
-    const result = {};
-    names.forEach(name => { result[name] = []; });
-    return result;
-  };
   const debtManagementSheetsClient = require('../sheets/debtManagementSheetsClient');
   debtManagementSheetsClient.getDebtManagementSheet = async branch => ({
     sourceSheet: branch === 'Sài Gòn' ? 'Công nợ SG' : 'Công nợ HN',
@@ -51,6 +46,13 @@ function freshDashboardData() {
   debtCollectionStatusRepository.listByBranch = async () => [];
   const dashboardPgReader = require('./dashboardPgReader');
   mockPgSheets(dashboardPgReader, {});
+  const customerDebtPgReader = require('./customerDebtPgReader');
+  customerDebtPgReader.readCustomerDebtReports = async () => {
+    const CONFIG = require('../config');
+    const result = {};
+    [CONFIG.SHEET_DEBT_1, CONFIG.SHEET_DEBT_3, CONFIG.SHEET_DEBT_7].forEach(name => { result[name] = []; });
+    return result;
+  };
   const customerProductTopRepository = require('./customerProductTopRepository');
   customerProductTopRepository.findTopCustomersByProducts = async () => [];
   customerProductTopRepository.findTopCustomersByRevenueForProduct = async () => [];
@@ -58,8 +60,8 @@ function freshDashboardData() {
   mockDashboardRollups(dashboardRollupRepository, {});
   const dashboardData = require('./dashboardData');
   return {
-    dashboardData, sheetsClient, debtManagementSheetsClient, debtCollectionStatusRepository,
-    dashboardPgReader, customerProductTopRepository, dashboardRollupRepository
+    dashboardData, debtManagementSheetsClient, debtCollectionStatusRepository,
+    dashboardPgReader, customerDebtPgReader, customerProductTopRepository, dashboardRollupRepository
   };
 }
 
@@ -513,7 +515,7 @@ test('getDashboardData tong hop topRevenue tu sheet Hoa don khi sheet Bao cao ba
 
 
 test('cache cua Ha Noi khong ro ri sang Sai Gon — moi co so fetch rieng', async () => {
-  const { dashboardData, dashboardPgReader, sheetsClient, debtManagementSheetsClient } = freshDashboardData();
+  const { dashboardData, dashboardPgReader, debtManagementSheetsClient } = freshDashboardData();
   const { BRANCHES } = require('../branch/branches');
   const seen = [];
   // Ghi de dashboardPgReader.readCoreDashboardSheets de biet getDashboardData
@@ -525,12 +527,6 @@ test('cache cua Ha Noi khong ro ri sang Sai Gon — moi co so fetch rieng', asyn
     dashboardPgReader.CORE_SHEET_NAMES.forEach(name => { result[name] = []; });
     return result;
   };
-  // 3 tab HN1/HN3/HN7 van doc qua sheetsClient.getSheetsClient(branch) that —
-  // ghi de bang client gia de khong dung toi SPREADSHEET_ID_SAIGON that
-  // (khong duoc cau hinh trong moi truong test).
-  sheetsClient.getSheetsClient = () => ({
-    getMultipleSheetValues: async names => Object.fromEntries(names.map(name => [name, []]))
-  });
   debtManagementSheetsClient.getDebtManagementSheet = async branch => ({
     sourceSheet: branch === BRANCHES.SAIGON ? 'Công nợ SG' : 'Công nợ HN',
     rows: []
@@ -549,7 +545,7 @@ test('cache cua Ha Noi khong ro ri sang Sai Gon — moi co so fetch rieng', asyn
 });
 
 test('dashboard tải song song nguồn vận hành và workbook công nợ rồi trả debtManagement thay cho debt cũ', async () => {
-  const { dashboardData, sheetsClient, debtManagementSheetsClient } = freshDashboardData();
+  const { dashboardData, customerDebtPgReader, debtManagementSheetsClient } = freshDashboardData();
   const CONFIG = require('../config');
   const started = [];
   let releaseOperating;
@@ -557,11 +553,11 @@ test('dashboard tải song song nguồn vận hành và workbook công nợ rồ
   const operatingGate = new Promise(resolve => { releaseOperating = resolve; });
   const debtGate = new Promise(resolve => { releaseDebt = resolve; });
 
-  sheetsClient.getMultipleSheetValues = async names => {
+  customerDebtPgReader.readCustomerDebtReports = async () => {
     started.push('operating');
     await operatingGate;
     const result = {};
-    names.forEach(name => { result[name] = []; });
+    [CONFIG.SHEET_DEBT_1, CONFIG.SHEET_DEBT_3, CONFIG.SHEET_DEBT_7].forEach(name => { result[name] = []; });
     result[CONFIG.SHEET_DEBT_1] = [['Khách hàng']];
     result[CONFIG.SHEET_DEBT_3] = [['Khách hàng'], ['Khách A']];
     result[CONFIG.SHEET_DEBT_7] = [['Khách hàng']];
@@ -594,12 +590,15 @@ test('dashboard tải song song nguồn vận hành và workbook công nợ rồ
 });
 
 test('cache nguồn công nợ độc lập 90 giây và phiên bản nguồn nằm trong cache key kết quả', async () => {
-  const { dashboardData, sheetsClient, debtManagementSheetsClient } = freshDashboardData();
+  const { dashboardData, customerDebtPgReader, debtManagementSheetsClient } = freshDashboardData();
+  const CONFIG = require('../config');
   let operatingFetches = 0;
   let debtFetches = 0;
-  sheetsClient.getMultipleSheetValues = async names => {
+  customerDebtPgReader.readCustomerDebtReports = async () => {
     operatingFetches += 1;
-    return Object.fromEntries(names.map(name => [name, []]));
+    const result = {};
+    [CONFIG.SHEET_DEBT_1, CONFIG.SHEET_DEBT_3, CONFIG.SHEET_DEBT_7].forEach(name => { result[name] = []; });
+    return result;
   };
   debtManagementSheetsClient.getDebtManagementSheet = async () => {
     debtFetches += 1;
@@ -636,11 +635,12 @@ test('lỗi workbook công nợ chỉ làm debtManagement unavailable, không l�
 });
 
 test('dashboard ghép workflow theo cơ sở, phân quyền sửa và khóa khi PostgreSQL lỗi', async () => {
-  const { dashboardData, sheetsClient, debtManagementSheetsClient, debtCollectionStatusRepository } = freshDashboardData();
+  const { dashboardData, customerDebtPgReader, debtManagementSheetsClient, debtCollectionStatusRepository } = freshDashboardData();
   const CONFIG = require('../config');
   const { createAlertSignature } = require('./debtManagement');
-  sheetsClient.getMultipleSheetValues = async names => {
-    const result = Object.fromEntries(names.map(name => [name, []]));
+  customerDebtPgReader.readCustomerDebtReports = async () => {
+    const result = {};
+    [CONFIG.SHEET_DEBT_1, CONFIG.SHEET_DEBT_3, CONFIG.SHEET_DEBT_7].forEach(name => { result[name] = []; });
     result[CONFIG.SHEET_DEBT_1] = [['Khách hàng']];
     result[CONFIG.SHEET_DEBT_3] = [['Khách hàng']];
     result[CONFIG.SHEET_DEBT_7] = [['Khách hàng']];
@@ -818,16 +818,10 @@ test('bao cao doanh thu theo khach: thieu ma khach hang thi bao loi ro rang, kho
 });
 
 test('bao cao doanh thu theo khach: co lap theo chi nhanh, khong ro ri du lieu giua Ha Noi va Sai Gon', async () => {
-  const { dashboardData, dashboardPgReader, sheetsClient } = freshDashboardData();
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
   const { BRANCHES } = require('../branch/branches');
   const CONFIG = require('../config');
   const seen = [];
-  // getCachedDashboardSheets van goi sheetsClient.getSheetsClient(branch)
-  // song song de lay 3 tab HN1/HN3/HN7 — ghi de bang client gia de khong
-  // dung toi SPREADSHEET_ID_SAIGON that (khong duoc cau hinh trong test).
-  sheetsClient.getSheetsClient = () => ({
-    getMultipleSheetValues: async names => Object.fromEntries(names.map(name => [name, []]))
-  });
   dashboardPgReader.readDashboardSheets = async branch => {
     seen.push(branch);
     const result = {};

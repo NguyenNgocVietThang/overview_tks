@@ -87,6 +87,17 @@ Role Postgres cấp cho nhân viên dùng SQL client/BI tool để truy vấn tr
 - Refresh bởi `server/kiotvietSync/dashboardRollupRefresh.js` mỗi 5 phút, cửa sổ 400 ngày gần nhất cho `daily_invoice_summary`/`daily_product_sales`/`daily_purchase_summary`; `product_first_purchase` luôn quét toàn bộ `purchases` (không giới hạn cửa sổ) vì ngày nhập đầu tiên có thể xa hơn 400 ngày.
 - Không `REVOKE SELECT FROM reporting_readonly` trên 4 bảng này — dữ liệu chỉ là số tổng hợp, không nhạy cảm.
 
+### Báo cáo công nợ khách hàng HN1/HN3/HN7 (migration `0014`)
+
+| Bảng | Mục đích | Khóa chính | Cột chính |
+|---|---|---|---|
+| `customer_debt_report_lines` | Sổ chi tiết công nợ khách hàng 1/3/7 ngày gần đây (thay 3 tab Google Sheets HN1/HN3/HN7 — xem `src-dashboard/kiotviet/CustomerDebtReport.gs`), tính sẵn để web chỉ đọc | `(branch, period_days, seq)` | `customer_code`, `opening_debt`/`debit`/`credit`/`closing_debt`, `txn_code`/`txn_time`/`txn_type`/`txn_value`/`running_debt`, `product_code`/`price`/`quantity`/`amount`/`discount` |
+
+- Mỗi dòng ứng với 1 dòng hiển thị trên báo cáo (dòng "Dư nợ đầu kỳ", 1 dòng/giao dịch hoặc 1 dòng/mặt hàng nếu giao dịch nhiều mặt hàng) — **không phải** 1 dòng = 1 giao dịch KiotViet. `seq` giữ đúng thứ tự hiển thị (không có khóa nghiệp vụ tự nhiên vì đây là bảng dẫn xuất).
+- `product_code`/`product_name`/`category_name`/`price`/`quantity`/`amount`/`discount` là `NULL` khi dòng không gắn với 1 dòng hàng cụ thể (dòng "Dư nợ đầu kỳ", thanh toán, điều chỉnh) — đọc qua `server/dashboard/customerDebtPgReader.js` trả về `''` cho các cột này, giống hệt hành vi Apps Script cũ.
+- Thuật toán (số dư chạy theo từng giao dịch, tách dòng theo mặt hàng, bút toán khởi tạo cho khách mới) quá phức tạp để viết thành 1 câu SQL `GROUP BY` đơn thuần như 4 bảng ở `0013` — tính trong Node.js (`server/kiotvietSync/customerDebtReportCompute.js`) rồi ghi kết quả xuống bảng này, refresh mỗi 5 phút bởi `server/kiotvietSync/customerDebtReportRefresh.js` (XÓA hết dòng của 1 cơ sở rồi ghi lại từ đầu trong 1 transaction, không dùng `ON CONFLICT` vì không có khóa nghiệp vụ ổn định giữa 2 lần refresh).
+- Không `REVOKE SELECT FROM reporting_readonly` — dữ liệu (mã số/điện thoại/công nợ khách hàng) không nhạy cảm hơn bảng `customers` nguồn, đã được GRANT sẵn ở `0010_reporting_readonly_role.sql`.
+
 ## Quan hệ và index
 
 - Các bảng `invoice_details`, `invoice_payments`, `order_details`, `return_details`, `purchase_details` có foreign key ghép tới bảng cha cùng `branch`, với `ON DELETE CASCADE`.
