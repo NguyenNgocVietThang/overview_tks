@@ -100,6 +100,37 @@ test('rememberSearchSheets chi rebuild search index khi raw sheet data thuc su d
   );
 });
 
+test('getCachedDashboardSheets dung stale-while-revalidate: cache vua het han van tra du lieu cu ngay lap tuc, am tham lam moi o nen', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const callCounter = { count: 0 };
+  let releaseSecondFetch;
+  dashboardPgReader.readDashboardSheets = async () => {
+    callCounter.count += 1;
+    const result = {};
+    dashboardPgReader.SHEET_NAMES.forEach(name => { result[name] = []; });
+    if (callCounter.count === 2) {
+      await new Promise(resolve => { releaseSecondFetch = resolve; });
+    }
+    return result;
+  };
+  dashboardData.__test__.resetCaches();
+
+  await dashboardData.getDashboardData(BASE_FILTERS);
+  assert.equal(callCounter.count, 1, 'lan goi dau tien phai fetch that');
+
+  dashboardData.__test__.expireSheetsCacheSoftly();
+
+  const startedAt = Date.now();
+  await dashboardData.getDashboardData(BASE_FILTERS);
+  const elapsedMs = Date.now() - startedAt;
+
+  assert.equal(callCounter.count, 2, 'cache het han phai kich hoat lam moi nen ngay');
+  assert.ok(elapsedMs < 500, `khong duoc cho fetch nen (dang treo) hoan tat, nhung mat ${elapsedMs}ms`);
+
+  releaseSecondFetch();
+  await new Promise(resolve => setImmediate(resolve));
+});
+
 test('tim nhieu ma khop chinh xac, bo ma trung va giu thu tu ma nhap', async () => {
   const { dashboardData, dashboardPgReader } = freshDashboardData();
   const CONFIG = require('../config');

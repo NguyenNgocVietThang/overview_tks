@@ -778,31 +778,58 @@ function dashboardSheetsCacheFor(branch) {
   return dashboardSheetsCacheByBranch.get(key);
 }
 
-async function getCachedDashboardSheets(branch) {
-  const cache = dashboardSheetsCacheFor(branch);
-  if (cache.data && Date.now() < cache.expiresAt) {
-    return cache.data;
-  }
-  if (cache.loading) return cache.loading;
-
-  // 9 tab KiotViet doc tu Postgres; 3 tab ky han no HN1/HN3/HN7 van tu Google
-  // Sheets (Apps Script tinh, chua co nguon Postgres) — tai song song roi gop
-  // lai thanh dung mot object `sheets` nhu truoc.
-  const loading = Promise.all([
+// Fetch Postgres/Sheets that su, khong dong bo voi request nao ca — dung
+// chung cho ca duong "cho fetch xong" (cache rong/qua han qua lau) lan
+// duong "lam moi nen" (stale-while-revalidate, xem getCachedDashboardSheets).
+function fetchAndCacheDashboardSheets(branch, cache) {
+  return Promise.all([
     dashboardPgReader.readDashboardSheets(branch),
     sheetsClient.getSheetsClient(branch).getMultipleSheetValues(DEBT_SHEETS)
-  ])
-    .then(([pgSheets, debtSheets]) => {
-      const sheets = { ...pgSheets, ...debtSheets };
-      cache.data = sheets;
-      cache.version += 1;
-      cache.expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
-      // Rebuild o day (chi khi vua fetch lai tu Google) thay vi trong
-      // getDashboardData — truoc day rememberSearchSheets() bi goi lai o MOI
-      // request /api/dashboard du raw data khong doi, ton CPU vo ich.
-      rememberSearchSheets(sheets, branch);
-      return sheets;
-    })
+  ]).then(([pgSheets, debtSheets]) => {
+    const sheets = { ...pgSheets, ...debtSheets };
+    cache.data = sheets;
+    cache.version += 1;
+    cache.expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
+    // Rebuild o day (chi khi vua fetch lai) thay vi trong getDashboardData —
+    // truoc day rememberSearchSheets() bi goi lai o MOI request /api/dashboard
+    // du raw data khong doi, ton CPU vo ich.
+    rememberSearchSheets(sheets, branch);
+    return sheets;
+  });
+}
+
+// Doc Postgres ca 9 tab tren 1 co so mat ~14s (do luong that 2026-09-18,
+// truy van "Nhap hang"/"Chi tiet hoa don" nang nhat) — neu de nguoi dung dau
+// tien sau moi lan cache het han (90s) phai cho tron 14s thi rat cham. Ap
+// dung stale-while-revalidate: qua han thi VAN tra du lieu cu ngay lap tuc,
+// dong thoi am tham lam moi o nen — chi khi du lieu cu qua cu (qua
+// MAX_STALE_MS, vd server moi khoi dong lai lau hoac Postgres loi lien tuc)
+// moi bat nguoi dung dau tien cho fetch that.
+const DASHBOARD_SHEETS_MAX_STALE_MS = 10 * 60 * 1000; // 10 phut
+
+async function getCachedDashboardSheets(branch) {
+  const cache = dashboardSheetsCacheFor(branch);
+  const now = Date.now();
+  if (cache.data && now < cache.expiresAt) {
+    return cache.data;
+  }
+
+  const isUsableStale = cache.data && now < cache.expiresAt + DASHBOARD_SHEETS_MAX_STALE_MS;
+  if (isUsableStale) {
+    if (!cache.loading) {
+      cache.loading = fetchAndCacheDashboardSheets(branch, cache)
+        .catch(err => {
+          console.error(`[Dashboard] Lam moi nen (stale-while-revalidate) that bai cho ${branch}, tiep tuc dung du lieu cu:`, err.message);
+        })
+        .finally(() => {
+          if (cache.loading) cache.loading = null;
+        });
+    }
+    return cache.data;
+  }
+
+  if (cache.loading) return cache.loading;
+  const loading = fetchAndCacheDashboardSheets(branch, cache)
     .finally(() => {
       if (cache.loading === loading) cache.loading = null;
     });
@@ -2399,6 +2426,13 @@ module.exports = {
     },
     expireSheetsCache(branch) {
       dashboardSheetsCacheFor(branch).expiresAt = 0;
+    },
+    // Khac expireSheetsCache(): dat "vua qua han" (con trong cua so
+    // DASHBOARD_SHEETS_MAX_STALE_MS) de test duong stale-while-revalidate —
+    // expireSheetsCache() dat expiresAt=0 lam cache qua han QUA LAU (roi vao
+    // nhanh phai cho fetch that, khac hanh vi can test o day).
+    expireSheetsCacheSoftly(branch) {
+      dashboardSheetsCacheFor(branch).expiresAt = Date.now() - 1000;
     },
     expireDebtManagementCache(branch) {
       debtManagementSheetsCacheFor(branch).expiresAt = 0;
