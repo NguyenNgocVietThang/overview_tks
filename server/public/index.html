@@ -1574,8 +1574,14 @@
       align-items: center;
       justify-content: flex-end;
       gap: 6px;
-      flex: 1 1 320px;
-      min-width: min(100%, 260px);
+      /* flex-basis 100% — LUON chiem tron 1 hang, buoc xuong dong RIENG duoi
+         h2/.export-button trong .panel-head (flex-wrap:wrap o do). Truoc day
+         "flex: 1 1 320px" chi xuong dong khi khong du cho — tuy theo panel
+         rong/hep hoac co them chu thich (vd "Tổng 334 mã...") ma co panel 1
+         hang, co panel 2 hang, nhin khong dong bo giua cac bang. Co dinh
+         xuong dong luon cho MOI panel — don gian, khong con truong hop vua
+         du/vua thieu cho gay le. */
+      flex: 1 1 100%;
       flex-wrap: wrap;
     }
 
