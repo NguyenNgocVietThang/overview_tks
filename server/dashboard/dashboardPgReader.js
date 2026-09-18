@@ -78,15 +78,29 @@ const RETURN_STATUS_FALLBACK = { 1: 'Hoàn thành', 2: 'Đã hủy' };
 
 // Cac cot Sheets KHONG co nguon trong Postgres hien tai. Giu chuoi rong (dung
 // nhu Apps Script lam khi payload thieu truong) thay vi bia du lieu:
-//   - "Giá vốn"/"Tồn kho"/"Khách đặt"/"Vị trí" (Hàng hóa): nam trong mang
-//     `inventories`/`productShelves` cua KiotViet, nhung `products.raw` trong
-//     Postgres khong co hai mang nay (kiem tra 2026-09-16: 0/10525 dong co).
 //   - "SĐT khách" (Hóa đơn): payload /invoices khong tra so dien thoai khach
 //     (cot nay cung RONG trong Sheets san xuat — da doi chieu truc tiep).
 //   - "Nhóm khách hàng" (Khách hàng): `customers.raw` khong co `groups`/
 //     `customerGroupDetails`.
 //   - "Có nhóm con" (Nhóm hàng): `categories.raw` khong co `hasChild`.
 const MISSING = `''`;
+
+// "Giá vốn"/"Tồn kho"/"Khách đặt"/"Vị trí" (Hàng hóa): nam trong mang
+// `inventories`/`productShelves` cua payload KiotViet (co that khi goi API
+// voi includeInventory/IncludeProductShelves — da xac minh truc tiep tren
+// KiotViet 2026-09-16). Truoc day `products.raw` trong Postgres thieu 2 mang
+// nay do bug backfillPlan.js khong gop entityModule.listQuery vao chunk
+// backfill (da sua, xem kiotvietSync/backfillPlan.js) — sau khi backfill lai
+// products, cac bieu thuc duoi day se doc dung du lieu; truoc do van an toan
+// (tra 0/rong vi jsonb_array_elements tren mang rong).
+const INVENTORY_ONHAND_SQL = `(SELECT COALESCE(SUM((inv->>'onHand')::float8), 0)
+  FROM jsonb_array_elements(COALESCE(raw->'inventories', '[]'::jsonb)) inv)`;
+const INVENTORY_RESERVED_SQL = `(SELECT COALESCE(SUM((inv->>'reserved')::float8), 0)
+  FROM jsonb_array_elements(COALESCE(raw->'inventories', '[]'::jsonb)) inv)`;
+const INVENTORY_COST_SQL = `(SELECT AVG((inv->>'cost')::float8)
+  FROM jsonb_array_elements(COALESCE(raw->'inventories', '[]'::jsonb)) inv)`;
+const PRODUCT_SHELVES_SQL = `(SELECT string_agg(NULLIF(shelf->>'productShelves', ''), ', ')
+  FROM jsonb_array_elements(COALESCE(raw->'productShelves', '[]'::jsonb)) shelf)`;
 
 const TABS = [
   {
@@ -138,14 +152,14 @@ const TABS = [
           WHEN '3' THEN 'Dịch vụ'
           ELSE 'Hàng hóa'
         END                                                    AS loai_hang,
-        ${MISSING}                                             AS gia_von,
+        COALESCE(${INVENTORY_COST_SQL}, 0)                     AS gia_von,
         ${num('base_price')}                                   AS gia_ban,
-        ${MISSING}                                             AS ton_kho,
-        ${MISSING}                                             AS khach_dat,
+        ${INVENTORY_ONHAND_SQL}                                AS ton_kho,
+        ${INVENTORY_RESERVED_SQL}                               AS khach_dat,
         CASE WHEN is_active IS FALSE THEN 'Ngừng kinh doanh' ELSE 'Đang kinh doanh' END AS trang_thai,
         ${fmtTs('COALESCE(modified_date, created_date)')}      AS ngay_sua_cuoi,
         COALESCE(category_id::text, '')                        AS ma_nhom_hang,
-        ${MISSING}                                             AS vi_tri,
+        COALESCE(${PRODUCT_SHELVES_SQL}, '')                   AS vi_tri,
         COALESCE(id::text, '')                                 AS id_hang_hoa,
         ${text(`raw->>'retailerId'`)}                          AS id_gian_hang,
         ${boolText(`raw->>'allowsSale'`)}                      AS duoc_phep_ban,

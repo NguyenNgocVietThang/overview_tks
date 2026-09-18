@@ -53,6 +53,25 @@ test('fromDate cung thang voi now (case bien) chi tra 1 chunk duy nhat', () => {
   assert.equal(chunks[0].query.endDate, now.toISOString());
 });
 
+test('listQuery cua entity module (vd includeInventory cua products) duoc gop vao MOI chunk - bug 2026-09-16: KiotViet tra ve object thieu inventories/productShelves khi backfill vi truoc day query rong', () => {
+  const listQuery = { includeInventory: 'true', includeQuantity: 'true', IncludeProductShelves: 'true' };
+
+  const flatEntity = { hasUpperBound: true, incrementalParam: 'lastModifiedFrom', listQuery };
+  const flatChunks = buildBackfillPlan(flatEntity, { fromDate: new Date('2026-01-01T00:00:00Z'), now: new Date('2026-09-14T08:00:00Z') });
+  assert.deepEqual(flatChunks[0].query, listQuery);
+
+  const noUpperBoundEntity = { hasUpperBound: false, incrementalParam: 'lastModifiedFrom', listQuery };
+  const fromDate = new Date('2026-01-01T00:00:00Z');
+  const noUpperBoundChunks = buildBackfillPlan(noUpperBoundEntity, { fromDate, now: new Date('2026-09-14T08:00:00Z') });
+  assert.deepEqual(noUpperBoundChunks[0].query, { ...listQuery, lastModifiedFrom: fromDate.toISOString() });
+
+  const rangeEntity = { backfillRangeParam: { from: 'fromPurchaseDate', to: 'toPurchaseDate' }, listQuery };
+  const rangeFromDate = new Date('2026-09-01T00:00:00Z');
+  const rangeNow = new Date('2026-09-14T08:00:00Z');
+  const rangeChunks = buildBackfillPlan(rangeEntity, { fromDate: rangeFromDate, now: rangeNow });
+  assert.deepEqual(rangeChunks[0].query, { ...listQuery, fromPurchaseDate: rangeFromDate.toISOString(), toPurchaseDate: rangeNow.toISOString() });
+});
+
 test('ham khong goi Date.now() truc tiep - ket qua chi phu thuoc tham so now duoc tiem vao', () => {
   const entityModule = { backfillRangeParam: { from: 'a', to: 'b' } };
   const fromDate = new Date('2020-01-01T00:00:00Z');

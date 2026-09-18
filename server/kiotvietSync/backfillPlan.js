@@ -15,6 +15,14 @@ function startOfMonthUtc(date) {
 }
 
 function buildBackfillPlan(entityModule, { fromDate, now }) {
+  // entityModule.listQuery mang cac tham so KHONG doi theo chunk (vd
+  // includeInventory/includeQuantity cua products) - phai gop vao MOI chunk,
+  // giong het cach syncDriver.js lam cho polling. Truoc day ham nay tra query
+  // rong/chi co tham so ngay, lam mat toan bo listQuery khi backfill (bug:
+  // KiotViet tra ve object thieu inventories/productShelves/pricebook... du
+  // entity module co khai bao yeu cau - da xac minh bang API that 2026-09-16).
+  const baseQuery = entityModule.listQuery || {};
+
   if (entityModule.backfillRangeParam) {
     const { from, to } = entityModule.backfillRangeParam;
     const chunks = [];
@@ -24,7 +32,7 @@ function buildBackfillPlan(entityModule, { fromDate, now }) {
       const chunkEnd = nextMonthStart < now ? nextMonthStart : now;
       chunks.push({
         chunkKey: monthKey(cursor),
-        query: { [from]: cursor.toISOString(), [to]: chunkEnd.toISOString() }
+        query: { ...baseQuery, [from]: cursor.toISOString(), [to]: chunkEnd.toISOString() }
       });
       cursor = nextMonthStart;
     }
@@ -32,12 +40,12 @@ function buildBackfillPlan(entityModule, { fromDate, now }) {
   }
 
   if (entityModule.hasUpperBound === false) {
-    return [{ chunkKey: 'full', query: { [entityModule.incrementalParam]: fromDate.toISOString() } }];
+    return [{ chunkKey: 'full', query: { ...baseQuery, [entityModule.incrementalParam]: fromDate.toISOString() } }];
   }
 
   // Du lieu nen (categories, products, customers, suppliers): 1 lan chay day
   // du, khong loc theo ngay - day la "hien trang", khong phai log giao dich.
-  return [{ chunkKey: 'full', query: {} }];
+  return [{ chunkKey: 'full', query: { ...baseQuery } }];
 }
 
 module.exports = { buildBackfillPlan };

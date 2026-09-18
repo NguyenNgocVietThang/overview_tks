@@ -36,18 +36,17 @@ const USERS_JSON_PATH = path.join(__dirname, '..', 'data', 'users.json');
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function parseArgs(argv) {
-  return { execute: argv.includes('--execute') };
+  return { execute: argv.includes('--execute'), hrOnly: argv.includes('--hr-only') };
 }
 
 async function readUsersFromSheetAndDisk() {
-  const rawRows = await usersSheetsClient.usersGetValues(CONFIG.SHEET_USERS);
-  if (!rawRows || !rawRows.length) return [];
-  const [headers, ...rows] = rawRows;
-  const colIndex = buildColumnIndex(headers);
-  const sheetUsers = rows
-    .filter(row => row.some(cell => cell !== '' && cell !== undefined))
-    .map(row => rowToUser(row, colIndex))
-    .filter(u => u.username);
+  let rawRows = [];
+  try {
+    rawRows = await usersSheetsClient.usersGetValues(CONFIG.SHEET_USERS);
+  } catch (err) {
+    console.warn(`[backfill] Không đọc được tab "${CONFIG.SHEET_USERS}" trên Sheets (có thể chưa từng được tạo) — dùng ${USERS_JSON_PATH} làm nguồn duy nhất. Lỗi gốc: ${err.message}`);
+    rawRows = [];
+  }
 
   let diskUsers = [];
   if (fs.existsSync(USERS_JSON_PATH)) {
@@ -58,6 +57,16 @@ async function readUsersFromSheetAndDisk() {
       console.warn(`[backfill] Không đọc được ${USERS_JSON_PATH}: ${err.message}`);
     }
   }
+
+  if (!rawRows || !rawRows.length) return diskUsers;
+
+  const [headers, ...rows] = rawRows;
+  const colIndex = buildColumnIndex(headers);
+  const sheetUsers = rows
+    .filter(row => row.some(cell => cell !== '' && cell !== undefined))
+    .map(row => rowToUser(row, colIndex))
+    .filter(u => u.username);
+
   const diskById = new Map(diskUsers.map(u => [String(u.id), u]));
 
   // Sheet la nguon dung cho cac cot co tren Sheet; users.json bo sung field
@@ -126,11 +135,19 @@ async function main() {
     return;
   }
 
-  const mergedUsers = await readUsersFromSheetAndDisk();
-  const { users, remaps } = remapInvalidIds(mergedUsers);
   const employees = await readHrEmployees();
+  let users = [];
+  let remaps = [];
+  if (!args.hrOnly) {
+    const mergedUsers = await readUsersFromSheetAndDisk();
+    ({ users, remaps } = remapInvalidIds(mergedUsers));
+  }
 
-  console.log(`[backfill] Đọc được ${users.length} tài khoản (tab "Users") và ${employees.length} nhân sự (Danh sách nhân sự).`);
+  if (args.hrOnly) {
+    console.log(`[backfill] --hr-only: chỉ ghi hr_employees, bỏ qua app_users. Đọc được ${employees.length} nhân sự (Danh sách nhân sự).`);
+  } else {
+    console.log(`[backfill] Đọc được ${users.length} tài khoản (tab "Users") và ${employees.length} nhân sự (Danh sách nhân sự).`);
+  }
   if (remaps.length) {
     console.log(`[backfill] ${remaps.length} tài khoản có id không phải UUID hợp lệ, sẽ được sinh lại:`);
     remaps.forEach(r => console.log(`  - ${r.username}: "${r.oldId}" -> "${r.newId}"`));
@@ -164,8 +181,10 @@ async function main() {
     }
 
     // 2) app_users — map hrSourceBranch/hrRowIndex cu sang hr_employee_id moi.
+    // Bo qua hoan toan neu --hr-only (quyet dinh 2026-09-16: giu 2 tai khoan
+    // mac dinh, khong backfill app_users tu users.json).
     let unmatchedHrPointers = 0;
-    for (const u of users) {
+    for (const u of args.hrOnly ? [] : users) {
       let hrEmployeeId = null;
       if (u.hrManaged && u.hrSourceBranch && u.hrRowIndex) {
         const key = `${u.hrSourceBranch}#${u.hrRowIndex}`;
@@ -199,7 +218,9 @@ async function main() {
     }
 
     await client.query('COMMIT');
-    console.log(`[backfill] Đã ghi ${employees.length} dòng hr_employees và ${users.length} dòng app_users.`);
+    console.log(args.hrOnly
+      ? `[backfill] Đã ghi ${employees.length} dòng hr_employees (bỏ qua app_users theo --hr-only).`
+      : `[backfill] Đã ghi ${employees.length} dòng hr_employees và ${users.length} dòng app_users.`);
     if (unmatchedHrPointers) {
       console.log(`[backfill] ${unmatchedHrPointers} tài khoản hrManaged trỏ tới dòng nhân sự không còn tồn tại — sẽ tự khớp lại ở lần đăng nhập sau (effectiveUserResolver).`);
     }
