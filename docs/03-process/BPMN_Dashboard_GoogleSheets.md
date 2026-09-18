@@ -35,7 +35,8 @@ Tài liệu này mô tả 5 luồng chính:
 | KiotViet POS               | Phần mềm quản lý bán hàng: phát sinh thay đổi dữ liệu, gửi webhook POST JSON đến Apps Script Web App URL.                       |
 | Apps Script                | Hai project trong `src-dashboard/` và `src-order-lifecycle/` chạy độc lập theo từng Google Sheets: lưu webhook vào queue bền vững, polling và đồng bộ dữ liệu. |
 | Google Sheets              | Spreadsheet nguồn chứa 9 tab đồng bộ, 3 tab báo cáo khách hàng, 6 tab vận chuyển VC_*, tab Users và HN1/HN3/HN7.               |
-| Backend (Node.js/Express)  | Server trên Render.com: quản lý Result Cache, đọc Google Sheets qua Service Account, tính toán KPI, xác thực JWT/bcrypt/OTP, tạo file Excel và phục vụ API. |
+| Backend Web (Node.js/Express) | Web runtime: quản lý Result Cache, đọc Google Sheets qua Service Account, tính toán KPI, xác thực JWT/bcrypt/OTP, tạo file Excel và phục vụ API; không khởi động Telegram Bot. |
+| Telegram Bot (Node.js/VPS) | Tiến trình long polling ở repository/deployment độc lập ngoài web; đọc/ghi Google Sheets HR trực tiếp và tự quét trạng thái duyệt để gửi thông báo. |
 | Người dùng / Frontend      | Truy cập Web Dashboard: tương tác KPI, chuyển tab tức thì (<10ms), phân trang, quản lý tài khoản `/account/`, tra cứu vận chuyển và tải file Excel. |
 
 ---
@@ -322,15 +323,15 @@ Luồng này do IT Admin thực hiện khi triển khai lần đầu hoặc khi 
 [E1.3] Backend xác thực dữ liệu, ghi nhận đơn vào tab `HR_Leaves` ở trạng thái PENDING
 [E1.4] Telegram Bot tự động gửi thông báo đến nhóm Quản lý/HR kèm nút bấm hoặc thông tin duyệt đơn
 
---- Nhánh E2: Tương tác qua Telegram Bot (hrTelegramBot.js) ---
+--- Nhánh E2: Tương tác qua Telegram Bot độc lập trên VPS ---
 [E2.1] Nhân viên gửi tin nhắn /start hoặc /nghiphep đến Telegram Bot
-[E2.2] Bot đối soát tài khoản qua conversationStore -> Hướng dẫn nhân viên chọn loại nghỉ và thời gian
-[E2.3] Nhân viên xác nhận -> Bot gọi API nội bộ tạo đơn nghỉ phép và phản hồi mã đơn
+[E2.2] Bot đối soát danh tính và trạng thái hội thoại trực tiếp qua Google Sheets -> phân tích nội dung xin nghỉ
+[E2.3] Nhân viên xác nhận -> Bot ghi đơn trực tiếp vào Google Sheets HR và phản hồi mã đơn
 
 --- Nhánh E3: Phê duyệt đơn & Xuất báo cáo (Quản lý / HR) ---
 [E3.1] Quản lý mở Cổng thông tin duyệt đơn (GET /api/hr/leave/admin/requests)
 [E3.2] Quản lý duyệt (POST .../approve) hoặc từ chối kèm lý do (POST .../reject)
-[E3.3] Backend cập nhật trạng thái đơn, tính toán trừ số dư ngày phép trong năm
+[E3.3] Backend cập nhật trạng thái đơn trong Google Sheets; bot VPS phát hiện thay đổi và gửi kết quả cho nhân viên
 [E3.4] Telegram Bot gửi thông báo kết quả tức thì đến nhân viên
 [E3.5] HR xuất báo cáo đối soát ngày nghỉ phép ra file Excel .xlsx (GET /api/hr/leave/export)
 ```

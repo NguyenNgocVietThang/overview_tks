@@ -4,7 +4,6 @@ const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const CONFIG = require('./config');
 const routes = require('./routes');
-const { startHrTelegramBot, isTelegramBotRuntimeEnabled } = require('./telegram/hrTelegramBot');
 const localUserStore = require('./auth/localUserStore');
 const { startPollingScheduler } = require('./kiotvietSync/scheduler');
 const { captureWebhookRawBody, webhookJsonErrorHandler } = require('./kiotviet/kiotvietWebhookRoutes');
@@ -114,16 +113,6 @@ async function startServer() {
 
   app.listen(CONFIG.PORT, () => {
     console.log(`TOKOSI dashboard server dang chay tren port ${CONFIG.PORT}`);
-
-    // Bot Telegram xin nghi phep — chi khoi dong khi da cau hinh du, khong lam
-    // crash server neu thieu (giong cach module Van chuyen xu ly VC_SPREADSHEET_ID).
-    if (isTelegramBotRuntimeEnabled() && CONFIG.TELEGRAM_BOT_TOKEN && CONFIG.HR_SPREADSHEET_ID) {
-      startHrTelegramBot();
-    } else if (!isTelegramBotRuntimeEnabled()) {
-      console.warn('[HR Telegram Bot] Đã tắt ở runtime này — đặt TELEGRAM_BOT_ENABLED=true để bật ngoài Render.');
-    } else {
-      console.warn('[HR Telegram Bot] Chưa cấu hình TELEGRAM_BOT_TOKEN/HR_SPREADSHEET_ID — bot không khởi động.');
-    }
 
     if (CONFIG.KIOTVIET_SYNC_ENABLED) {
       startPollingScheduler();

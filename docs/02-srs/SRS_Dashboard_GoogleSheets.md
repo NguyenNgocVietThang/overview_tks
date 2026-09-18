@@ -61,11 +61,11 @@ Hệ thống là một Web Application nội bộ gồm các thành phần chín
 ## 2.1. Kiến trúc tổng quan — Giai đoạn 1 & Phase 0/0.5/1 & HR Module (đã triển khai)
 
 ```
-KiotViet POS / Telegram User / HR Portal
+KiotViet POS / HR Portal
     |
-    | (webhook POST JSON — 9 loại event / Telegram Bot webhook / HTTP REST)
+    | (webhook POST JSON — 9 loại event / HTTP REST)
     v
-Apps Script (`src-dashboard/`, `src-order-lifecycle/`) / Backend Node.js Express (Render.com)
+Apps Script (`src-dashboard/`, `src-order-lifecycle/`) / Backend Node.js Express
     |                                   |
     | hydrate + upsert/delete           | time-based trigger (15 phút)
     | (real-time cho 6 nhóm)            | (Trả hàng + NCC: 15 phút; Nhập hàng: 5 phút + đối soát)
@@ -89,7 +89,6 @@ Backend: Node.js + Express
     - server/hr/hrLeaveService.js     : nghiệp vụ tính hạn mức và trừ ngày phép
     - server/hr/hrLeaveRepository.js  : CRUD dữ liệu Google Sheets HR_Leaves
     - server/hr/hrLeaveExportService.js : xuất báo cáo ngày nghỉ phép nhân viên ra Excel
-    - server/telegram/hrTelegramBot.js : Telegram Bot nộp đơn, tra cứu ngày phép & thông báo duyệt
     - server/shipment/invoiceStatusService.js : tra cứu trạng thái hóa đơn (cache 90s)
     - server/shipment/orderStateMachine.js : State Machine 9 trạng thái vận đơn
     - server/shipment/vcOrderRepository.js : CRUD 6 tab vận chuyển VC_*
@@ -122,6 +121,16 @@ Frontend: HTML/CSS/JS tĩnh (server/public/)
     |
     v
 Người dùng (trình duyệt) — tokosi.onrender.com / localhost:3000
+
+Telegram User
+    |
+    | Telegram long polling
+    v
+Telegram Bot độc lập (repository/deployment VPS riêng)
+    |
+    | Google Sheets API v4 (đọc nhân sự/mã liên kết/trạng thái; ghi đơn nghỉ)
+    v
+Google Spreadsheet Nhân sự
 ```
 
 ## 2.2. Stack công nghệ thực tế
@@ -131,7 +140,7 @@ Người dùng (trình duyệt) — tokosi.onrender.com / localhost:3000
 - **Framework:** Express.js v4
 - **Dependencies:** `googleapis` (Google Sheets API client), `bcryptjs` / `bcrypt`, `jsonwebtoken`, `exceljs` / export builder, `dotenv` (dev only)
 - **Entry point:** `server/index.js`
-- **Testing:** `node:test` + `node:assert/strict` (324 unit tests tự động)
+- **Testing:** `node:test` + `node:assert/strict` (984 test: 979 pass + 5 skip khi thiếu database test)
 - **API:** REST; endpoints:
   - Auth: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/google`, `GET /api/auth/google-config`, `GET /api/auth/me`, `PUT /api/auth/profile`, `POST /api/auth/change-password`, `POST /api/auth/request-reset-otp`, `POST /api/auth/verify-reset-otp`, `POST /api/auth/reset-password-otp`, `POST /api/auth/logout`
   - Admin: `GET /api/admin/users`, `POST /api/admin/users`, `PATCH /api/admin/users/:username`, `POST /api/admin/users/:username/reset-password`, `DELETE /api/admin/users/:username`
@@ -155,9 +164,10 @@ Người dùng (trình duyệt) — tokosi.onrender.com / localhost:3000
 
 ### Hạ tầng & triển khai
 - **Hosting:** Render.com (Web Service)
+- **Telegram Bot:** VPS Linux riêng, Node.js 22 + systemd; không chạy chung tiến trình web và không gọi Render.
 - **Domain:** `tokosi.onrender.com`
 - **CI/CD:** tự động deploy khi push lên branch `main` của GitHub repo
-- **Biến môi trường:** cấu hình trực tiếp trên Render dashboard
+- **Biến môi trường:** cấu hình web trên Render; token Telegram và `AI_LEAVE_*` chỉ nằm trong `.env` của deployment bot trên VPS, ngoài repository này.
 
 ### Apps Script
 - **Dashboard:** `src-dashboard/` qua `.clasp.json` (`rootDir: "src-dashboard"`)

@@ -6,7 +6,7 @@
 const { verifyToken } = require('./authService');
 const localUserStore = require('./localUserStore');
 const effectiveUserResolver = require('./effectiveUserResolver');
-const telegramIdentityService = require('../telegram/telegramIdentityService');
+const telegramLinkService = require('../hr/telegramLinkService');
 
 const AUTH_COOKIE_NAME = 'tks_auth';
 const AUTH_COOKIE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // khop JWT_EXPIRES_IN mac dinh (12h)
@@ -24,7 +24,7 @@ function createRequireAuth(dependencies = {}) {
   const verify = dependencies.verifyToken || verifyToken;
   const findUserById = dependencies.findUserById || localUserStore.getUserById;
   const resolveUser = dependencies.resolveUser || effectiveUserResolver.resolveUser;
-  const ensureTelegramLink = dependencies.ensureTelegramLink || telegramIdentityService.ensureLinkForUser;
+  const ensureTelegramLink = dependencies.ensureTelegramLink || telegramLinkService.ensureLinkForUser;
 
   return async function liveAuthGuard(req, res, next) {
     if (req.effectiveUserResolved && req.user) return next();

@@ -81,7 +81,7 @@ webtks-dashboard/
 │   └── vendor/
 │       └── chart.umd.min.js
 │
-├── server/                      # Backend Node.js đọc/ghi Google Sheets & Web Server (deploy trên Render, xem server/README.md#4)
+├── server/                      # Backend web Node.js; không chứa/khởi động Telegram Bot (xem server/README.md#4)
 │   ├── auth/                    # JWT, bcrypt, Google Identity, Users cục bộ bảo mật, OTP, phân quyền & đổi vai trò
 │   │   ├── adminUserRoutes.js   # API /api/admin/users (CRUD tài khoản, reset mật khẩu, phân quyền)
 │   │   ├── adminUserRoutes.test.js # Unit test routes quản trị người dùng
@@ -171,7 +171,8 @@ webtks-dashboard/
 │   │   ├── hrLeaveRepository.test.js # Unit test schema, quy đổi và lọc theo thời gian gửi
 │   │   ├── hrLeaveRoutes.js     # API /api/hr/leave/* (nộp đơn, tra cứu số dư, duyệt/từ chối, stream SSE, xuất báo cáo) + /api/hr/employees (danh sách nhân sự)
 │   │   ├── hrLeaveRoutes.test.js # Unit test API nhập nghỉ theo ngày/buổi và danh sách nhân sự
-│   │   └── hrLeaveService.js    # Tính buổi nghỉ theo Sáng/Chiều và kiểm tra mốc gửi 07:45/12:30
+│   │   ├── hrLeaveService.js    # Tính buổi nghỉ theo Sáng/Chiều và kiểm tra mốc gửi 07:45/12:30
+│   │   └── telegramLinkService.js # Web đồng bộ Telegram ID HR vào tab liên kết; không chạy bot
 │   ├── jobs/
 │   │   └── syncCustomerReport.js # Tác vụ đối soát từng báo cáo lúc 06:00, 06:30, 07:00
 │   ├── kiotviet/                # Client REST KiotViet Public API dùng chung cho sync engine
@@ -247,11 +248,6 @@ webtks-dashboard/
 │   │   ├── shipmentOrderRoutes.js # REST API vận đơn, điều phối, ảnh chứng từ, sự cố, đối soát
 │   │   ├── vcOrderRepository.js # Thao tác CRUD 6 tab vận chuyển VC_*
 │   │   └── vcOrderRepository.test.js # Unit test repository vận đơn
-│   ├── telegram/                # Tích hợp Telegram Bot tương tác HR & thông báo
-│   │   ├── conversationStore.js # Quản lý hội thoại đa bước của người dùng với Telegram Bot
-│   │   ├── conversationStore.test.js # Unit test lưu trữ hội thoại bot
-│   │   ├── hrTelegramBot.js     # Telegram Bot nộp đơn xin nghỉ, tra cứu số dư phép, thông báo duyệt đơn
-│   │   └── hrTelegramBot.test.js # Unit test HR Telegram Bot
 │   ├── test/
 │   │   ├── apps-script-sync.test.js # Hồi quy URL webhook stale và typed-column Google Sheets
 │   │   ├── apps-script-report-schedule.test.js # Unit test lịch phân bổ đồng bộ báo cáo
@@ -336,8 +332,8 @@ Thư mục `server/` tích hợp sẵn bộ unit tests (dùng `node:test` chuẩ
 cd server
 npm test
 ```
-Bộ test hiện gồm **930 bài kiểm thử tự động** (22 test suite, 925 pass + 5 skip khi thiếu `SUPABASE_DB_URL`/`SUPABASE_TEST_DB_URL`):
-- Phân hệ Quản lý Nghỉ phép HR & Telegram Bot (`hrLeaveRoutes.js`, `hrLeaveService.js`, `hrLeaveExportService.js`, `hrTelegramBot.js`, `conversationStore.js`).
+Bộ test web hiện gồm **984 bài kiểm thử tự động** (979 pass + 5 skip khi thiếu `SUPABASE_DB_URL`/`SUPABASE_TEST_DB_URL`):
+- Phân hệ Quản lý Nghỉ phép HR trên web (`server/hr/`) trao đổi dữ liệu với Telegram Bot ở repository VPS độc lập qua Google Sheets; repository web không chứa hoặc khởi động bot.
 - Xác thực người dùng (JWT httpOnly cookie, mật khẩu bcrypt, Google Identity OAuth, đăng ký bằng Email/SĐT, bảo vệ route RBAC 5 vai trò).
 - Quản trị tài khoản Admin (CRUD danh sách người dùng, reset mật khẩu, kích hoạt/khóa tài khoản, xuất báo cáo).
 - Yêu cầu đổi vai trò người dùng (`roleChangeRequestRoutes.js`) & Chuông thông báo toàn hệ thống (`notificationRoutes.js`, `notif-bell.test.js`).
@@ -571,8 +567,8 @@ và in ra danh sách tài khoản có giá trị không hợp lệ cần Quản 
 
 ### Giới hạn hiện tại
 
-- Bot Telegram xin nghỉ phép (`hrTelegramBot.js`) hiện chỉ phục vụ cơ sở Hà Nội — sẽ
-  mở rộng khi có `HR_SPREADSHEET_ID_SG`.
+- Bot Telegram xin nghỉ phép đã được chuyển sang repository/deployment VPS độc lập, hỗ trợ các cơ sở đã cấu hình
+  `HR_SPREADSHEET_ID`/`HR_SPREADSHEET_ID_SG`, chạy long polling và không phụ thuộc repository web hoặc Render.
 - Nguồn Vận chuyển / Nhân sự của Sài Gòn chưa được cấp; chỉ cần điền biến môi trường
   tương ứng là hai tab đó hoạt động ngay, không phải sửa code.
 

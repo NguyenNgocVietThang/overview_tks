@@ -1,5 +1,7 @@
 # HR Leave Days Input Implementation Plan
 
+> **Lưu trữ lịch sử (18/09/2026):** Các đường dẫn `server/telegram/*` bên dưới mô tả cấu trúc tại thời điểm kế hoạch được viết. Bot hiện đã được chuyển ra repository/deployment VPS độc lập; không dùng các đường dẫn này để triển khai mới.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Chuyển quy trình xin nghỉ từ “thời gian bắt đầu + thời gian kết thúc + tổng giờ” sang “thời gian bắt đầu + số ngày nghỉ”, đồng thời tự nhận diện định dạng ngày giờ tiếng Việt và chuẩn hóa số ngày theo đơn vị 0,5 ngày trên bot, API, Google Sheets và web.

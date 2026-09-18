@@ -1,5 +1,7 @@
 # HR Leave Sessions and Submission Filter Implementation Plan
 
+> **Lưu trữ lịch sử (18/09/2026):** Các đường dẫn `server/telegram/*` bên dưới mô tả cấu trúc tại thời điểm kế hoạch được viết. Bot hiện đã được chuyển ra repository/deployment VPS độc lập; không dùng các đường dẫn này để triển khai mới.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace hour-based HR leave data with morning/afternoon sessions, exclude Sundays, flag late submissions, and filter the HR web list by submission time.

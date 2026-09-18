@@ -1,6 +1,8 @@
 # Kế hoạch chi tiết: Giai đoạn 0 — Dọn dẹp & chuẩn bị hạ tầng
 ### (từ Roadmap: Đưa dữ liệu KiotViet lên Supabase Postgres, cận thời gian thực, 2 cơ sở)
 
+> **Lưu trữ lịch sử (18/09/2026):** Tham chiếu `server/telegram/*` trong kế hoạch này thuộc cấu trúc cũ. Bot hiện nằm ngoài repository web trong deployment VPS độc lập.
+
 ## Context
 
 Roadmap `docs/04-planning/2026-09-14-roadmap-supabase-kiotviet-sync.md` đã được thống nhất: xây một lớp lưu trữ Supabase Postgres đồng bộ dữ liệu KiotViet cho cả 2 cơ sở (Hà Nội, Sài Gòn), tách biệt hoàn toàn với Dashboard Google Sheets hiện tại. Trước khi viết schema/engine (Giai đoạn 1-2), Giai đoạn 0 phải dọn sạch tàn dư của lần triển khai Postgres trước đó (đã bị hủy và xóa code ngày 2026-09-08, nhưng để sót cấu hình) và chuẩn bị hạ tầng bên ngoài (Supabase project, thông tin đăng nhập KiotViet Sài Gòn, đăng ký Webhook).

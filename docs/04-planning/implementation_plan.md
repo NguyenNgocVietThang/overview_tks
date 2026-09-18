@@ -65,7 +65,8 @@ server/                     ← Node.js/Express backend (Render.com)
 │   ├── hrLeaveExportService.js ← Xuất báo cáo ngày nghỉ phép Excel
 │   ├── hrLeaveRepository.js   ← CRUD Google Sheets HR_Leaves
 │   ├── hrLeaveRoutes.js       ← REST API /api/hr/leave/* (nộp đơn, tra cứu, duyệt/từ chối, stream SSE, xuất Excel)
-│   └── hrLeaveService.js      ← Nghiệp vụ tính hạn mức, buổi nghỉ Sáng/Chiều và mốc gửi 07:45/12:30
+│   ├── hrLeaveService.js      ← Nghiệp vụ tính hạn mức, buổi nghỉ Sáng/Chiều và mốc gửi 07:45/12:30
+│   └── telegramLinkService.js ← Chỉ đồng bộ Telegram ID HR vào tab liên kết, không khởi động bot
 ├── jobs/syncCustomerReport.js ← Đối soát Báo cáo bán hàng 06:00, Hàng bán theo khách 06:30, Khách theo hàng hóa 07:00
 ├── notifications/          ← Hệ thống thông báo dùng chung toàn hệ thống
 │   ├── notificationRepository.js · notificationRepository.test.js
@@ -89,9 +90,6 @@ server/                     ← Node.js/Express backend (Render.com)
 │   ├── hrSheetsClient.js   ← Đọc/ghi dữ liệu HR_Leaves, HR_Employees, HR_Policy
 │   ├── sheetsClient.js     ← Đọc dữ liệu Google Sheets cho dashboard (cache 90s, timeout 15s)
 │   └── vcSheetsClient.js   ← Đọc/ghi dữ liệu VC_* (cache theo sheet 12s, write invalidation, timeout 15s)
-├── telegram/               ← Tích hợp Telegram Bot tương tác HR & thông báo
-│   ├── conversationStore.js · conversationStore.test.js ← Quản lý hội thoại đa bước của bot
-│   ├── hrTelegramBot.js · hrTelegramBot.test.js ← Bot nộp đơn xin nghỉ, tra cứu ngày phép, thông báo duyệt đơn
 ├── test/
 │   ├── apps-script-sync.test.js ← Hồi quy URL webhook stale và typed-column Google Sheets
 │   ├── apps-script-report-schedule.test.js ← Unit test lịch phân bổ đồng bộ báo cáo
@@ -119,7 +117,10 @@ server/                     ← Node.js/Express backend (Render.com)
     │   └── mobile/         ← Giao diện Mobile Web 1-chạm (Thủ kho & Lái xe)
     └── vendor/
         └── chart.umd.min.js
+
 ```
+
+> Telegram Bot đã được chuyển hoàn toàn sang repository/deployment VPS riêng, không còn là một thư mục trong cây web phía trên. Hai runtime chỉ chia sẻ dữ liệu qua Google Sheets.
 
 ---
 
@@ -151,6 +152,7 @@ server/                     ← Node.js/Express backend (Render.com)
 | 20    | Chuông thông báo & Đổi vai trò người dùng | Chuông thông báo toàn hệ thống (`/api/notifications`), cơ chế người dùng tự gửi yêu cầu đổi vai trò kèm lý do, Quản lý phê duyệt/từ chối và tự động gửi thông báo | [Hoan thanh] |
 | 21    | ~~Kiểm tra đứt hàng theo Excel upload~~ | Phân hệ `/api/products/stockout-check/*` đọc file Excel tải lên, đối chiếu trực tiếp tồn kho và giao dịch KiotViet API bất đồng bộ theo hàng đợi giới hạn tải, phân tích dòng thời gian và xuất báo cáo Excel | **[Da go bo]** — thay bằng "Hàng đứt gần đây" + "Kiểm tra đứt hàng 90 ngày" quét toàn bộ hàng đang kinh doanh, không cần upload danh sách mã |
 | 22    | Gỡ bỏ lớp hiệu ứng 3D & tối ưu hiệu năng frontend | Xóa hẳn `three.min.js` (~650KB) + 6 module `three-*.js` + `performance-test.html` khỏi 7 trang; hạ toàn bộ CSS 3D (`preserve-3d`/`perspective`/`translateZ`) về 2D — trọng tâm là rule `tbody tr` áp lên 100 dòng/trang; chuyển nền trang từ `background-attachment: fixed` (vẽ lại toàn viewport mỗi frame cuộn) sang lớp `body::before` cố định; bỏ `backdrop-filter` trên `.loading-veil` và thay cube loader bằng spinner CSS tĩnh; bỏ font Open Sans không dùng và thay `@import` bằng `<link>`+`preconnect`; chuyển `chart.umd.min.js`/`shared-nav.js` xuống cuối `<body>`; sắp xếp bảng qua `DocumentFragment` và chỉ sort đúng bảng vừa render; dùng instance `Intl.NumberFormat` tái sử dụng cho 34 điểm format số | [Hoan thanh] |
+| 23    | Tách Telegram Bot khỏi web runtime | Di chuyển bot ra repository/deployment VPS riêng bằng systemd, đọc/ghi và đồng bộ quyết định qua Google Sheets; web không còn chứa/import/khởi động bot | [Hoan thanh] |
 
 ## 2.2. Tính năng đã vận hành
 
@@ -205,7 +207,7 @@ server/                     ← Node.js/Express backend (Render.com)
 
 > **Múi giờ:** Backend cố định `Asia/Ho_Chi_Minh`/UTC+07:00 cho parse ngày, KPI "hôm nay", bucket 7/30/90 ngày và `updatedAt`; không phụ thuộc timezone mặc định của Render.
 
-> **Biến môi trường Render:** `SPREADSHEET_ID`, `VC_SPREADSHEET_ID`, `HR_SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_JSON`, `JWT_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_HR_CHAT_ID` — không commit vào repo.
+> **Biến môi trường:** web runtime giữ `SPREADSHEET_ID`, `VC_SPREADSHEET_ID`, `HR_SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_JSON`, `JWT_SECRET`. `TELEGRAM_BOT_TOKEN` và `AI_LEAVE_*` chỉ cấu hình trong `.env` của deployment bot trên VPS, ngoài repository web; không commit secret.
 
 ---
 

@@ -22,7 +22,7 @@ This is configured in the bound Google Apps Script project:
 ### Local `.env` & Testing
 ```bash
 cp .env.example .env
-# Điền SPREADSHEET_ID, DEBT_MANAGEMENT_SPREADSHEET_ID, VC_SPREADSHEET_ID, HR_SPREADSHEET_ID, DRIVE_UPLOAD_FOLDER_ID, GOOGLE_SERVICE_ACCOUNT_JSON, JWT_SECRET, GOOGLE_CLIENT_ID, TELEGRAM_BOT_TOKEN, TELEGRAM_HR_CHAT_ID
+# Điền SPREADSHEET_ID, DEBT_MANAGEMENT_SPREADSHEET_ID, VC_SPREADSHEET_ID, HR_SPREADSHEET_ID, DRIVE_UPLOAD_FOLDER_ID, GOOGLE_SERVICE_ACCOUNT_JSON, JWT_SECRET, GOOGLE_CLIENT_ID
 npm install
 npm test      # Chạy toàn bộ unit/integration-skip/frontend tests, gồm parser/cảnh báo/workflow/export công nợ
 npm start     # Khởi chạy server tại http://localhost:3000 (tự động bật gzip compression và static Cache-Control headers)
@@ -172,8 +172,8 @@ firebase deploy --only apphosting:tokosi-dashboard
 Các giá trị nhạy cảm trong `.env` phải được tạo trong Firebase Secret Manager theo
 các tên được tham chiếu bởi `apphosting.yaml`; tuyệt đối không commit `.env`.
 `maxInstances: 1` được giữ để các cache/job chạy trong bộ nhớ không bị chia giữa
-nhiều instance. Telegram bot mặc định tắt trên App Hosting để tránh nhiều tiến
-trình polling cùng một bot token.
+nhiều instance. Telegram bot không còn nằm trong repository/package web; mã nguồn,
+biến môi trường và hướng dẫn systemd của bot được quản lý trong deployment VPS độc lập.
 
 ## 4. Deploying on Render — exact values for the "New Web Service" form
 
@@ -194,8 +194,6 @@ trình polling cùng một bot token.
 - `GOOGLE_SERVICE_ACCOUNT_JSON` — The full service account JSON key (one line)
 - `JWT_SECRET` — Secret key để ký và xác thực token JWT
 - `GOOGLE_CLIENT_ID` — Google OAuth Client ID cho tính năng Google Sign-In (tùy chọn)
-- `TELEGRAM_BOT_TOKEN` — Telegram Bot Token cho bot thông báo & tương tác HR
-- `TELEGRAM_HR_CHAT_ID` — Telegram Chat ID nhóm Quản lý/HR nhận thông báo đơn xin nghỉ
 - `KIOTVIET_CLIENT_ID` — KiotViet Public API client ID (cho job sync báo cáo)
 - `KIOTVIET_CLIENT_SECRET` — KiotViet Public API client secret (cho job sync báo cáo)
 - `KIOTVIET_RETAILER` — KiotViet retailer name (cho job sync báo cáo)
