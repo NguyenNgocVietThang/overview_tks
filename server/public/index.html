@@ -3,6 +3,7 @@
 
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tổng hợp báo cáo · TOKOSI Dashboard</title>
   <link rel="icon" type="image/jpeg" href="/Logo.jpg">
   <script>
@@ -195,103 +196,6 @@
       transition: background-color .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease;
     }
 
-    /* ---------- Header kiểu "hoá đơn giấy" ---------- */
-    .receipt-header {
-      background: var(--panel);
-      border-bottom: 1px solid var(--border);
-      position: relative;
-      padding: 16px 24px 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      flex-wrap: wrap;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .menu-btn {
-      display: none;
-      align-items: center;
-      justify-content: center;
-      background: var(--panel-2);
-      border: 1px solid var(--border);
-      color: var(--text);
-      width: 42px;
-      height: 42px;
-      border-radius: var(--radius-10);
-      cursor: pointer;
-      flex-shrink: 0;
-      transition: border-color .15s ease, background-color .15s ease;
-    }
-
-    .menu-btn:hover {
-      border-color: var(--muted);
-      background: var(--surface-hover);
-    }
-
-    .menu-btn:focus-visible {
-      outline: 2px solid var(--blue);
-      outline-offset: 2px;
-    }
-
-    .menu-btn svg {
-      width: 20px;
-      height: 20px;
-    }
-
-    .brand-mark {
-      width: 44px;
-      height: 44px;
-      border-radius: var(--radius-12);
-      background: var(--white);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      box-shadow: 0 4px 12px rgba(var(--shadow-rgb), 0.18);
-      padding: 3px;
-      border: 1px solid rgba(var(--overlay-rgb), 0.15);
-      overflow: hidden;
-    }
-
-    :root[data-theme="light"] .brand-mark {
-      box-shadow: 0 2px 8px rgba(var(--shadow-rgb), 0.08);
-      border: 1px solid var(--border);
-    }
-
-    .brand-mark svg,
-    .brand-mark img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      display: block;
-    }
-
-    .brand-text h1 {
-      margin: 0;
-      font-family: var(--font-display);
-      font-weight: 700;
-      font-size: 17px;
-      letter-spacing: -0.01em;
-    }
-
-    .brand-text p {
-      margin: 2px 0 0;
-      font-size: 11.5px;
-      color: var(--muted);
-    }
-
-    .status-line {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
     .clock {
       font-family: var(--font-data);
       font-size: 12.5px;
@@ -311,7 +215,7 @@
       box-shadow: 0 0 0 3px rgba(var(--glow-green-rgb), 0.22);
     }
 
-    .refresh-btn, .theme-toggle, .btn-primary, .btn-secondary, .export-button, .search-submit {
+    .refresh-btn, .btn-primary, .btn-secondary, .export-button, .search-submit {
       position: relative;
       transition: transform 0.15s cubic-bezier(0.23, 1, 0.32, 1),
                   box-shadow 0.15s ease,
@@ -376,64 +280,6 @@
       height: 16px;
       flex-shrink: 0;
       transition: transform .15s ease;
-    }
-
-    .theme-toggle {
-      min-height: 40px;
-      padding: 0 14px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: var(--panel-2);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-pill-lg);
-      font-family: var(--font-body);
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    .theme-toggle:hover:not(:disabled) {
-      border-color: var(--muted);
-      background: var(--surface-hover);
-      transform: translateY(-2px);
-      box-shadow: 0 12px 24px -6px rgba(var(--shadow-rgb), 0.25), 0 0 15px rgba(var(--primary-rgb-d), 0.15);
-    }
-
-    .theme-toggle:active:not(:disabled) {
-      transform: translateY(1px);
-      box-shadow: 0 2px 6px -2px rgba(var(--shadow-rgb), 0.2);
-    }
-
-    .theme-toggle:focus-visible {
-      outline: 2px solid var(--blue);
-      outline-offset: 2px;
-    }
-
-    .theme-toggle:disabled {
-      opacity: .55;
-      cursor: not-allowed;
-      transform: none !important;
-      box-shadow: none !important;
-    }
-
-    .theme-toggle svg {
-      width: 16px;
-      height: 16px;
-      flex-shrink: 0;
-    }
-
-    .theme-icon-moon {
-      display: none;
-    }
-
-    :root[data-theme="light"] .theme-icon-sun {
-      display: none;
-    }
-
-    :root[data-theme="light"] .theme-icon-moon {
-      display: block;
     }
 
     .spinning {
@@ -611,75 +457,8 @@
       display: none;
     }
 
-    #accountChip {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
     #accountChip:empty {
       display: none;
-    }
-
-    .profile-trigger {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-height: 44px;
-      padding: 0 12px 0 6px;
-      background: var(--panel-2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-8);
-      font-size: 12.5px;
-      cursor: pointer;
-      font-family: var(--font-body);
-      transition: border-color .15s ease, background-color .15s ease, transform .15s ease;
-    }
-
-    .profile-trigger:hover {
-      border-color: var(--muted);
-      background: var(--surface-hover);
-      transform: translateY(-1px);
-    }
-
-    .profile-trigger:active {
-      transform: translateY(0);
-    }
-
-    .profile-trigger:focus-visible {
-      outline: 2px solid var(--blue);
-      outline-offset: 2px;
-    }
-
-    .profile-trigger .avatar-badge {
-      width: 26px;
-      height: 26px;
-      flex-shrink: 0;
-      border-radius: var(--radius-circle);
-      background: var(--blue);
-      color: var(--white);
-      font-weight: 700;
-      font-size: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .profile-trigger .who {
-      display: flex;
-      flex-direction: column;
-      line-height: 1.25;
-      text-align: left;
-    }
-
-    .profile-trigger .who .name {
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .profile-trigger .who .role {
-      color: var(--muted);
-      font-size: 11px;
     }
 
     .logout-btn-standalone {
@@ -1766,7 +1545,15 @@
 
     .panel-head {
       display: flex;
-      align-items: center;
+      /* flex-start, khong phai center: .table-search-tools co the tu xuong
+         dong noi bo (modes+input khong du cho tren cung 1 hang voi
+         h2/.export-button o panel hep, xem .table-search-tools ben duoi) -
+         voi align-items:center, chieu cao khoi do (54px khi xuong dong) keo
+         .export-button (32-34px) bi can giua theo ca khoi, nam THAP hon ro
+         ret so voi dong dau cua nhom loc — flex-start giu moi phan tu bat
+         dau tu mep tren, dong dau luon thang hang bat ke .table-search-tools
+         co xuong dong noi bo hay khong. */
+      align-items: flex-start;
       justify-content: space-between;
       flex-wrap: wrap;
       gap: 10px;
@@ -1780,6 +1567,89 @@
       justify-content: flex-end;
       gap: 8px;
       flex-wrap: wrap;
+    }
+
+    .table-search-tools {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+      flex: 1 1 320px;
+      min-width: min(100%, 260px);
+      flex-wrap: wrap;
+    }
+
+    .table-search-modes {
+      display: inline-flex;
+      padding: 2px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      background: var(--panel-2);
+    }
+
+    .table-search-mode {
+      min-height: 28px;
+      padding: 0 9px;
+      border: 0;
+      border-radius: var(--radius-pill);
+      background: transparent;
+      color: var(--muted);
+      font: 600 10.5px var(--font-body);
+      cursor: pointer;
+    }
+
+    .table-search-mode.active {
+      background: var(--surface-hover);
+      color: var(--text);
+      box-shadow: inset 0 0 0 1px var(--border);
+    }
+
+    .table-search-input-wrap {
+      display: flex;
+      align-items: center;
+      flex: 1 1 190px;
+      min-width: 180px;
+      max-width: 340px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-8);
+      background: var(--panel-2);
+    }
+
+    .table-search-input {
+      width: 100%;
+      min-width: 0;
+      min-height: 32px;
+      padding: 6px 8px;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--text);
+      font: 500 11.5px var(--font-body);
+    }
+
+    .table-search-clear {
+      width: 28px;
+      height: 28px;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 17px;
+      line-height: 1;
+    }
+
+    .table-search-mode:focus-visible,
+    .table-search-input:focus-visible,
+    .table-search-clear:focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: 2px;
+    }
+
+    .table-search-count {
+      min-width: 64px;
+      color: var(--muted);
+      font: 600 10.5px var(--font-data);
+      text-align: right;
     }
 
     .panel h2 {
@@ -1809,7 +1679,10 @@
     }
 
     .export-button {
-      min-height: 32px;
+      /* 34px de khop chieu cao voi .table-search-modes/.table-search-input-wrap
+         (28px noi dung + 2*2px padding + 2*1px border = 34px) cung hang trong
+         .panel-head — truoc la 32px, lech 2px khien nut nam thap hon ro rang. */
+      min-height: 34px;
       padding: 0 12px;
       border: none;
       border-radius: var(--radius-7);
@@ -2370,6 +2243,16 @@
       overflow-x: auto;
     }
 
+    /* Bang mac dinh KHONG co width — trinh duyet tu co theo noi dung, nen
+       bang it cot (vd Nha cung cap chi 4 cot) de thua nhieu khoang trong ben
+       phai trong panel. table-layout van la "auto" (khong doi o day) nen cot
+       van tu gian theo noi dung that; width:100% chi la MUC TIEU toi thieu —
+       bang nhieu cot/du lieu dai van tran ngang binh thuong qua
+       .table-wrap{overflow-x:auto} o tren, khong bi ep nho lai. */
+    .table-wrap table {
+      width: 100%;
+    }
+
     .end-day-summary {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2881,11 +2764,36 @@
       100% { background-color: transparent; }
     }
 
+    @keyframes tableTargetPulse {
+      0%, 35% { background-color: color-mix(in srgb, var(--blue) 24%, transparent); }
+      100% { background-color: transparent; }
+    }
+
+    .table-row-target td {
+      animation: tableTargetPulse 2.5s var(--ease-out);
+      box-shadow: inset 0 1px 0 color-mix(in srgb, var(--blue) 55%, transparent),
+        inset 0 -1px 0 color-mix(in srgb, var(--blue) 55%, transparent);
+    }
+
     .row-highlight-update td {
       animation: rowPulseHighlight 2.5s var(--ease-out);
     }
 
     @media (max-width:760px) {
+      .table-search-tools {
+        flex: 1 1 100%;
+        justify-content: stretch;
+      }
+
+      .table-search-input-wrap {
+        max-width: none;
+      }
+
+      .table-search-count {
+        flex: 1 1 100%;
+        text-align: left;
+      }
+
       .debt-filter-controls {
         align-items: stretch;
       }
@@ -2897,7 +2805,8 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .row-highlight-update td {
+      .row-highlight-update td,
+      .table-row-target td {
         animation: none;
       }
     }
@@ -2963,10 +2872,6 @@
     }
 
     @media (max-width:760px) {
-      .menu-btn {
-        display: block;
-      }
-
       .sidebar {
         position: fixed;
         left: 0;
@@ -3079,22 +2984,18 @@
         scroll-behavior: auto !important;
       }
       .refresh-btn:hover,
-      .theme-toggle:hover,
       .btn-primary:hover,
       .btn-secondary:hover,
       .export-button:hover,
-      .search-submit:hover,
-      .menu-btn:hover {
+      .search-submit:hover {
         transform: none;
         box-shadow: 0 0 0 2px var(--primary);
       }
       .refresh-btn:active,
-      .theme-toggle:active,
       .btn-primary:active,
       .btn-secondary:active,
       .export-button:active,
-      .search-submit:active,
-      .menu-btn:active {
+      .search-submit:active {
         transform: none;
       }
       .suggestions,
@@ -4733,6 +4634,7 @@
        và inline script luôn chạy trước script defer — cách đặt này giữ đúng thứ tự mà không chặn parser. -->
   <script src="/vendor/chart.umd.min.js"></script>
   <script src="/js/pagination.js"></script>
+  <script src="/js/table-explorer.js"></script>
   <script src="/shared/shared-nav.js?v=20260914"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
 
@@ -4774,6 +4676,10 @@
       debtFlashCustomerKey: '',
       tableSorts: {},
       tablePages: {}, // { [tableKey]: currentPage } — xem renderPaginatedRows()
+      tableSearches: {},
+      tableDatasets: {},
+      tableRenderers: {},
+      tableTableBodies: {},
       filters: {
         overview: { mode: 'days', days: 30 },
         products: { mode: 'days', days: 30 },
@@ -5359,23 +5265,29 @@
       const tag = document.getElementById('tagRecentStockoutRows');
       const totalTag = document.getElementById('tagRecentStockoutTotal');
       const rows = (result && result.rows) || [];
+      const sorted = rows.slice().sort(function (a, b) { return b.daysOutOfStock - a.daysOutOfStock; });
+      const config = TABLE_EXPLORER_CONFIGS.recentStockout;
+      const searchState = getTableSearchState('recentStockout');
+      const filtered = filterTableItems(sorted, config, searchState);
+      state.tableDatasets.recentStockout = sorted;
+      state.tableRenderers.recentStockout = function () { renderRecentStockoutResultTable(result); };
+      ensureTableSearchControls('recentStockout', tbody);
+      syncTableSearchControls('recentStockout', filtered, sorted.length);
 
-      if (tag) tag.textContent = rows.length;
+      if (tag) tag.textContent = searchState.query.trim() ? filtered.items.length + '/' + rows.length : rows.length;
       if (totalTag) totalTag.textContent = (result && result.totalProductsScanned != null) ? result.totalProductsScanned : '—';
       const exportButton = document.getElementById('recentStockoutExportButton');
-      if (exportButton) exportButton.disabled = rows.length === 0;
+      if (exportButton) exportButton.disabled = filtered.items.length === 0;
 
-      if (rows.length === 0) {
+      if (filtered.items.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục tính đến ' +
           escapeHtml(result ? result.asOfDate : '') + '</td></tr>';
         return;
       }
 
-      const sorted = rows.slice().sort(function (a, b) { return b.daysOutOfStock - a.daysOutOfStock; });
-
-      tbody.innerHTML = sorted.map(function (row) {
+      tbody.innerHTML = filtered.items.map(function (row) {
         return (
-          '<tr>' +
+          '<tr data-table-item-id="' + escapeHtml(row.code) + '">' +
             '<td>' + escapeHtml(row.code) + '</td>' +
             '<td>' + escapeHtml(row.name) + '</td>' +
             '<td>' + escapeHtml(row.lastOutOfStockDate) + '</td>' +
@@ -5416,6 +5328,10 @@
         const payload = {
           tableKey: 'stockout.recentScan',
           recentStockoutResult: result,
+          tableSearch: {
+            mode: getTableSearchState('recentStockout').mode,
+            query: getTableSearchState('recentStockout').query
+          },
           columns: { recent_stockout_result: ['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'dataWarning', 'periods'] }
         };
         const response = await fetch('/api/export', {
@@ -5596,23 +5512,29 @@
       const tag = document.getElementById('tagStockout90dRows');
       const totalTag = document.getElementById('tagStockout90dTotal');
       const rows = (result && result.rows) || [];
+      const sorted = rows.slice().sort(function (a, b) { return b.totalStockoutDays - a.totalStockoutDays; });
+      const config = TABLE_EXPLORER_CONFIGS.stockout90d;
+      const searchState = getTableSearchState('stockout90d');
+      const filtered = filterTableItems(sorted, config, searchState);
+      state.tableDatasets.stockout90d = sorted;
+      state.tableRenderers.stockout90d = function () { renderStockout90dResultTable(result); };
+      ensureTableSearchControls('stockout90d', tbody);
+      syncTableSearchControls('stockout90d', filtered, sorted.length);
 
-      if (tag) tag.textContent = rows.length;
+      if (tag) tag.textContent = searchState.query.trim() ? filtered.items.length + '/' + rows.length : rows.length;
       if (totalTag) totalTag.textContent = (result && result.totalProductsScanned != null) ? result.totalProductsScanned : '—';
       const exportButton = document.getElementById('stockout90dExportButton');
-      if (exportButton) exportButton.disabled = rows.length === 0;
+      if (exportButton) exportButton.disabled = filtered.items.length === 0;
 
-      if (rows.length === 0) {
+      if (filtered.items.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 90 ngày gần đây</td></tr>';
         return;
       }
 
-      const sorted = rows.slice().sort(function (a, b) { return b.totalStockoutDays - a.totalStockoutDays; });
-
-      tbody.innerHTML = sorted.map(function (row) {
+      tbody.innerHTML = filtered.items.map(function (row) {
         const avgStockoutDays = row.stockoutCount ? (row.totalStockoutDays / row.stockoutCount) : 0;
         return (
-          '<tr>' +
+          '<tr data-table-item-id="' + escapeHtml(row.code) + '">' +
             '<td>' + escapeHtml(row.code) + '</td>' +
             '<td>' + escapeHtml(row.name) + '</td>' +
             '<td>' + row.stockoutCount + '</td>' +
@@ -5655,6 +5577,10 @@
         const payload = {
           tableKey: 'stockout.check90d',
           stockout90dResult: result,
+          tableSearch: {
+            mode: getTableSearchState('stockout90d').mode,
+            query: getTableSearchState('stockout90d').query
+          },
           columns: { stockout_90d_result: ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'dataWarning', 'periods'] }
         };
         const response = await fetch('/api/export', {
@@ -5716,6 +5642,27 @@
       };
     }
 
+    const EXPORT_TABLE_SEARCH_KEYS = {
+      'overview.transactions': 'endOfDay',
+      'overview.purchases': 'overviewPurchase',
+      'overview.new-products': 'todayNewProducts',
+      'products.top-selling': 'topSelling',
+      'products.low-stock': 'lowStock',
+      'products.all': 'allProducts',
+      'products.newly-imported': 'newlyImported',
+      'products.child-categories': 'childCategory',
+      'invoices.orders': 'orders',
+      'invoices.returns': 'returns',
+      'invoices.recent': 'invoices',
+      'customers.revenue': 'customerRevenue',
+      'customers.debt': 'topDebt',
+      'customers.productDetail': 'cpDetail',
+      'customers.productMonthlyCompare': 'cpMonthly',
+      'overview.productRevenueSearch': 'productRevenueSearch',
+      'suppliers.list': 'suppliers',
+      'debt.management': 'debtManagement'
+    };
+
     function buildExportPayload(tableKey) {
       const payload = {
         tableKey: tableKey,
@@ -5735,6 +5682,14 @@
           productRevenueMode: state.productRevenueSearch.mode || 'normal'
         }
       };
+      const tableSearchKey = EXPORT_TABLE_SEARCH_KEYS[tableKey];
+      if (tableSearchKey) {
+        const tableSearch = getTableSearchState(tableSearchKey);
+        payload.tableSearch = {
+          mode: tableSearch.mode === 'codes' ? 'codes' : 'normal',
+          query: tableSearch.query || ''
+        };
+      }
       if (tableKey === 'search.results') {
         payload.search = {
           view: state.view,
@@ -6688,6 +6643,8 @@
       const revenueValues = transactions.map(item => Number(item.revenue) || 0);
       const formatAxisMoney = createMoneyAxisFormatter(revenueValues);
       const theme = chartTheme();
+      canvas.style.cursor = transactions.length ? 'pointer' : '';
+      canvas.title = transactions.length ? 'Nhấn cột để xem dòng tương ứng' : '';
       const countLabel = document.getElementById('top-transactions-count');
       if (countLabel) {
         countLabel.textContent = transactions.length
@@ -6715,6 +6672,9 @@
           responsive: true,
           maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false, axis: 'y' },
+          onClick: function (event, elements) {
+            if (elements && elements[0]) navigateChartToTable('endOfDay', transactions[elements[0].index].code);
+          },
           plugins: {
             legend: { display: false },
             tooltip: {
@@ -6751,6 +6711,8 @@
       const revenueValues = customersList.map(item => Number(item.revenue) || 0);
       const formatAxisMoney = createMoneyAxisFormatter(revenueValues);
       const theme = chartTheme();
+      canvas.style.cursor = customersList.length ? 'pointer' : '';
+      canvas.title = customersList.length ? 'Nhấn cột để xem dòng tương ứng' : '';
 
       state.charts.topCustomerRevenue = new Chart(canvas.getContext('2d'), {
         type: 'bar',
@@ -6772,6 +6734,9 @@
           responsive: true,
           maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false, axis: 'y' },
+          onClick: function (event, elements) {
+            if (elements && elements[0]) navigateChartToTable('customerRevenue', customersList[elements[0].index].code);
+          },
           plugins: {
             legend: { display: false },
             tooltip: {
@@ -6798,9 +6763,12 @@
       });
     }
 
-    function renderBarChartList(canvasId, key, list, labelFn, valueFn, color, vertical) {
+    function renderBarChartList(canvasId, key, list, labelFn, valueFn, color, vertical, drilldown) {
       destroyChart(key);
-      const ctx = document.getElementById(canvasId).getContext('2d');
+      const canvas = document.getElementById(canvasId);
+      const ctx = canvas.getContext('2d');
+      canvas.style.cursor = drilldown ? 'pointer' : '';
+      canvas.title = drilldown ? 'Nhấn cột để xem dòng tương ứng' : '';
       const theme = chartTheme();
       const valueScale = { ticks: { color: theme.muted, callback: v => fmtMoneyShort(v), font: { size: 10.5 } }, grid: { color: theme.grid } };
       const labelScale = { ticks: { color: theme.text, font: { size: 10.5 }, autoSkip: false, maxRotation: 60, minRotation: 40 }, grid: { display: false } };
@@ -6823,6 +6791,11 @@
           animation: chartAnimationOption(),
           indexAxis: vertical ? 'x' : 'y', responsive: true, maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false, axis: vertical ? 'x' : 'y' },
+          onClick: drilldown ? function (event, elements) {
+            if (!elements || !elements[0]) return;
+            const item = list[elements[0].index];
+            navigateChartToTable(drilldown.tableKey, drilldown.identity(item));
+          } : undefined,
           plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => fmtMoney(c.raw) } } },
           scales: vertical
             ? { x: labelScale, y: valueScale }
@@ -6831,11 +6804,13 @@
       });
     }
 
-    function renderPieChartList(canvasId, key, list, labelFn, valueFn, formatFn, centerLabel) {
+    function renderPieChartList(canvasId, key, list, labelFn, valueFn, formatFn, centerLabel, drilldown) {
       destroyChart(key);
       const canvas = document.getElementById(canvasId);
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
+      canvas.style.cursor = drilldown ? 'pointer' : '';
+      canvas.title = drilldown ? 'Nhấn phần biểu đồ để xem dòng tương ứng' : '';
       const theme = chartTheme();
       const format = formatFn || (v => fmtMoney(v));
       const values = list.map(valueFn);
@@ -6882,6 +6857,11 @@
           animation: chartAnimationOption(),
           responsive: true, maintainAspectRatio: false,
           cutout: '68%',
+          onClick: drilldown ? function (event, elements) {
+            if (!elements || !elements[0]) return;
+            const item = list[elements[0].index];
+            navigateChartToTable(drilldown.tableKey, drilldown.identity(item));
+          } : undefined,
           plugins: {
             legend: {
               position: 'right',
@@ -7016,7 +6996,11 @@
       else nameHeader.textContent = firstColumnLabel;
 
       if (analysisRows.length) {
-        renderBarChartList('chartTopSelling', 'topSelling', analysisRows, item => item.name, item => item.revenue, themeColor('--green'));
+        renderBarChartList(
+          'chartTopSelling', 'topSelling', analysisRows, item => item.name, item => item.revenue,
+          themeColor('--green'), false,
+          { tableKey: 'topSelling', identity: item => state.productAnalysis === 'product' ? item.code : 'parent:' + item.name }
+        );
       } else {
         destroyChart('topSelling');
       }
@@ -7093,8 +7077,9 @@
       document.getElementById('childCategoryQtyChartEmpty').hidden = hasRows;
 
       if (hasRows) {
-        renderPieChartList('chartChildCategoryRevenue', 'childCategoryRevenue', rows, c => c.name, c => c.revenue, fmtMoney, 'Doanh thu');
-        renderPieChartList('chartChildCategoryQty', 'childCategoryQty', rows, c => c.name, c => c.qty, v => fmtNumber(Number(v)), 'Số lượng');
+        const childDrilldown = { tableKey: 'childCategory', identity: c => JSON.stringify([state.childCategoryParent || '', c.name]) };
+        renderPieChartList('chartChildCategoryRevenue', 'childCategoryRevenue', rows, c => c.name, c => c.revenue, fmtMoney, 'Doanh thu', childDrilldown);
+        renderPieChartList('chartChildCategoryQty', 'childCategoryQty', rows, c => c.name, c => c.qty, v => fmtNumber(Number(v)), 'Số lượng', childDrilldown);
       } else {
         destroyChart('childCategoryRevenue');
         destroyChart('childCategoryQty');
@@ -7129,6 +7114,235 @@
       return '<span class="pill ok">' + stock + '</span>';
     }
 
+    function tableSearchText(item) {
+      const values = [];
+      (function collect(value) {
+        if (value === undefined || value === null) return;
+        if (Array.isArray(value)) { value.forEach(collect); return; }
+        if (typeof value === 'object') { Object.keys(value).forEach(function (key) { collect(value[key]); }); return; }
+        values.push(String(value));
+      })(item);
+      return values.join(' ');
+    }
+
+    const TABLE_EXPLORER_CONFIGS = {
+      cpDetail: { title: 'Bảng chi tiết sản phẩm', searchText: tableSearchText, identity: p => p.code || p.name, customControl: true },
+      cpMonthly: { title: 'Bảng so sánh doanh số theo tháng', searchText: tableSearchText, identity: p => p.code || p.name, customControl: true },
+      productRevenueSearch: { title: 'Kết quả doanh thu theo hàng', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true, customControl: true },
+      recentStockout: { title: 'Kết quả hàng đứt gần đây', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      stockout90d: { title: 'Kết quả kiểm tra đứt hàng 90 ngày', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      endOfDay: { title: 'Chi tiết giao dịch', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      overviewPurchase: { title: 'Danh sách nhập hàng', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      todayNewProducts: { title: 'Danh sách mã mới', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      topSelling: {
+        title: 'Chi tiết sản phẩm bán chạy', searchText: tableSearchText,
+        code: p => state.productAnalysis === 'product' ? p.code : '',
+        identity: p => state.productAnalysis === 'product' ? p.code : 'parent:' + p.name,
+        supportsCodes: () => state.productAnalysis === 'product'
+      },
+      lowStock: { title: 'Hàng đã hết', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      allProducts: { title: 'Tất cả mã hàng', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      newlyImported: { title: 'Hàng mới nhập', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      childCategory: {
+        title: 'Chi tiết nhóm con', searchText: tableSearchText,
+        identity: p => JSON.stringify([state.childCategoryParent || '', p.name])
+      },
+      orders: { title: 'Đặt hàng gần đây', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      returns: { title: 'Trả hàng gần đây', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      invoices: { title: 'Hóa đơn gần đây', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      customerRevenue: { title: 'Chi tiết doanh thu theo khách', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      topDebt: { title: 'Chi tiết khách nợ', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      suppliers: { title: 'Danh sách nhà cung cấp', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      debtManagement: { title: 'Khách hàng công nợ', searchText: tableSearchText, identity: p => p.customerKey, customControl: true }
+    };
+    window.TABLE_EXPLORER_CONFIGS = TABLE_EXPLORER_CONFIGS;
+
+    function getTableSearchState(tableKey) {
+      if (!state.tableSearches[tableKey]) {
+        state.tableSearches[tableKey] = { mode: 'normal', query: '', requestedCodes: [], missingCodes: [] };
+      }
+      return state.tableSearches[tableKey];
+    }
+
+    function tableSupportsCodes(tableKey) {
+      const config = TABLE_EXPLORER_CONFIGS[tableKey];
+      if (!config || !config.code) return false;
+      return typeof config.supportsCodes === 'function' ? !!config.supportsCodes() : !!config.supportsCodes;
+    }
+
+    function ensureTableSearchControls(tableKey, tbody) {
+      const config = TABLE_EXPLORER_CONFIGS[tableKey];
+      if (!config || config.customControl || !tbody) return null;
+      let tools = document.querySelector('[data-table-search="' + tableKey + '"]');
+      if (tools) return tools;
+      const panel = tbody.closest('.panel');
+      const head = panel && panel.querySelector('.panel-head');
+      if (!head) return null;
+
+      tools = document.createElement('div');
+      tools.className = 'table-search-tools';
+      tools.dataset.tableSearch = tableKey;
+
+      const modes = document.createElement('div');
+      modes.className = 'table-search-modes';
+      modes.setAttribute('role', 'group');
+      modes.setAttribute('aria-label', 'Chế độ tìm kiếm ' + config.title);
+      [['normal', 'Thông thường'], ['codes', 'Nhiều mã']].forEach(function (entry) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'table-search-mode';
+        button.dataset.tableSearchMode = entry[0];
+        button.textContent = entry[1];
+        button.onclick = function () { setTableSearchMode(tableKey, entry[0]); };
+        modes.appendChild(button);
+      });
+      tools.appendChild(modes);
+
+      const inputWrap = document.createElement('div');
+      inputWrap.className = 'table-search-input-wrap';
+      const input = document.createElement('input');
+      input.type = 'search';
+      input.className = 'table-search-input';
+      input.autocomplete = 'off';
+      input.setAttribute('aria-label', 'Tìm trong bảng ' + config.title);
+      input.oninput = function () { handleTableSearchInput(tableKey, input.value); };
+      input.onkeydown = function (event) {
+        if (event.key === 'Escape') { event.preventDefault(); clearTableSearch(tableKey); }
+      };
+      inputWrap.appendChild(input);
+      const clear = document.createElement('button');
+      clear.type = 'button';
+      clear.className = 'table-search-clear';
+      clear.setAttribute('aria-label', 'Xóa tìm kiếm ' + config.title);
+      clear.textContent = '×';
+      clear.onclick = function () { clearTableSearch(tableKey); };
+      inputWrap.appendChild(clear);
+      tools.appendChild(inputWrap);
+
+      const count = document.createElement('span');
+      count.className = 'table-search-count';
+      count.dataset.tableSearchCount = tableKey;
+      count.setAttribute('aria-live', 'polite');
+      tools.appendChild(count);
+      head.appendChild(tools);
+      return tools;
+    }
+
+    function syncTableSearchControls(tableKey, filtered, total) {
+      const tools = document.querySelector('[data-table-search="' + tableKey + '"]');
+      if (!tools) return;
+      const searchState = getTableSearchState(tableKey);
+      const supportsCodes = tableSupportsCodes(tableKey);
+      if (!supportsCodes && searchState.mode === 'codes') searchState.mode = 'normal';
+      const modes = tools.querySelector('.table-search-modes');
+      if (modes) modes.hidden = !supportsCodes;
+      tools.querySelectorAll('[data-table-search-mode]').forEach(function (button) {
+        const active = button.dataset.tableSearchMode === searchState.mode;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
+      const input = tools.querySelector('.table-search-input');
+      if (input && input.value !== searchState.query) input.value = searchState.query;
+      if (input) input.placeholder = searchState.mode === 'codes' ? 'Dán danh sách mã…' : 'Nhập từ khóa…';
+      const clear = tools.querySelector('.table-search-clear');
+      if (clear) clear.hidden = !searchState.query;
+      const count = tools.querySelector('[data-table-search-count]');
+      if (!count) return;
+      if (searchState.mode === 'codes' && filtered.requestedCodes.length) {
+        const found = filtered.requestedCodes.length - filtered.missingCodes.length;
+        const missing = filtered.missingCodes.slice(0, 3);
+        count.textContent = 'Đã tìm thấy ' + found + '/' + filtered.requestedCodes.length + ' mã' +
+          (missing.length ? ' · Thiếu: ' + missing.join(', ') + (filtered.missingCodes.length > 3 ? ' +' + (filtered.missingCodes.length - 3) : '') : '');
+      } else if (searchState.query.trim()) {
+        count.textContent = filtered.items.length + ' / ' + total;
+      } else {
+        count.textContent = String(total);
+      }
+    }
+
+    function rerenderTable(tableKey) {
+      const render = state.tableRenderers[tableKey];
+      if (typeof render === 'function') render();
+    }
+
+    function handleTableSearchInput(tableKey, value) {
+      const searchState = getTableSearchState(tableKey);
+      searchState.query = String(value == null ? '' : value);
+      state.tablePages[tableKey] = 1;
+      rerenderTable(tableKey);
+    }
+
+    function setTableSearchMode(tableKey, mode) {
+      const searchState = getTableSearchState(tableKey);
+      searchState.mode = mode === 'codes' && tableSupportsCodes(tableKey) ? 'codes' : 'normal';
+      state.tablePages[tableKey] = 1;
+      rerenderTable(tableKey);
+      const input = document.querySelector('[data-table-search="' + tableKey + '"] .table-search-input');
+      if (input) input.focus();
+    }
+
+    function clearTableSearch(tableKey) {
+      const searchState = getTableSearchState(tableKey);
+      searchState.query = '';
+      searchState.requestedCodes = [];
+      searchState.missingCodes = [];
+      state.tablePages[tableKey] = 1;
+      rerenderTable(tableKey);
+      const input = document.querySelector('[data-table-search="' + tableKey + '"] .table-search-input');
+      if (input) input.focus();
+    }
+
+    function setTableNavigationStatus(message) {
+      let status = document.getElementById('tableNavigationStatus');
+      if (!status) {
+        status = document.createElement('div');
+        status.id = 'tableNavigationStatus';
+        status.className = 'sr-only';
+        status.setAttribute('aria-live', 'polite');
+        status.setAttribute('aria-atomic', 'true');
+        document.body.appendChild(status);
+      }
+      status.textContent = message;
+    }
+
+    function navigateChartToTable(tableKey, identity) {
+      const config = TABLE_EXPLORER_CONFIGS[tableKey];
+      const items = state.tableDatasets[tableKey] || [];
+      if (!config || typeof config.identity !== 'function') return false;
+      const target = findTableItemPage(items, identity, config.identity, TABLE_PAGE_SIZE);
+      if (!target || typeof state.tableRenderers[tableKey] !== 'function') {
+        setTableNavigationStatus('Không còn tìm thấy dòng tương ứng');
+        return false;
+      }
+
+      const searchState = getTableSearchState(tableKey);
+      searchState.query = '';
+      searchState.requestedCodes = [];
+      searchState.missingCodes = [];
+      state.tablePages[tableKey] = target.page;
+      rerenderTable(tableKey);
+
+      const expected = String(identity);
+      const tbodyId = state.tableTableBodies && state.tableTableBodies[tableKey];
+      const tbody = tbodyId ? document.getElementById(tbodyId) : null;
+      const row = tbody && Array.from(tbody.querySelectorAll('tr[data-table-item-id]')).find(function (candidate) {
+        return candidate.dataset.tableItemId.toLocaleLowerCase('vi-VN') === expected.toLocaleLowerCase('vi-VN');
+      });
+      if (!row) {
+        setTableNavigationStatus('Không còn tìm thấy dòng tương ứng');
+        return false;
+      }
+
+      const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const panel = tbody.closest('.panel');
+      if (panel && panel.scrollIntoView) panel.scrollIntoView({ block: 'nearest', behavior: reducedMotion ? 'auto' : 'smooth' });
+      if (row.scrollIntoView) row.scrollIntoView({ block: 'center', behavior: reducedMotion ? 'auto' : 'smooth' });
+      row.classList.add('table-row-target');
+      window.setTimeout(function () { row.classList.remove('table-row-target'); }, 2500);
+      setTableNavigationStatus('Đã chuyển tới dòng tương ứng trong ' + config.title);
+      return true;
+    }
+
     const TABLE_PAGE_SIZE = 100; // Giam tu 200 xuong 100 — du lieu demo hien it dong nhung du lieu KiotViet that se lon hon nhieu; 100 dong/trang muot hon cho moi bang dung chung renderPaginatedRows() (xem docs/superpowers/plans/2026-08-13-dashboard-table-pagination.md)
 
     /**
@@ -7138,12 +7352,36 @@
      */
     function renderPaginatedRows(tableKey, ids, items, rowHtmlFn, emptyColspan, emptyMessage) {
       const tbody = document.getElementById(ids.tbody);
-      const result = paginate(items, state.tablePages[tableKey] || 1, TABLE_PAGE_SIZE);
+      const config = TABLE_EXPLORER_CONFIGS[tableKey];
+      const sourceItems = Array.isArray(items) ? items : [];
+      const searchState = getTableSearchState(tableKey);
+      const filtered = config
+        ? filterTableItems(sourceItems, config, searchState)
+        : { items: sourceItems, requestedCodes: [], missingCodes: [] };
+      state.tableDatasets[tableKey] = sourceItems;
+      state.tableTableBodies = state.tableTableBodies || {};
+      state.tableTableBodies[tableKey] = ids.tbody;
+      state.tableRenderers[tableKey] = function () {
+        renderPaginatedRows(tableKey, ids, sourceItems, rowHtmlFn, emptyColspan, emptyMessage);
+      };
+      ensureTableSearchControls(tableKey, tbody);
+      syncTableSearchControls(tableKey, filtered, sourceItems.length);
+      const result = paginate(filtered.items, state.tablePages[tableKey] || 1, TABLE_PAGE_SIZE);
       state.tablePages[tableKey] = result.page;
 
       tbody.innerHTML = result.items.length
         ? result.items.map(rowHtmlFn).join('')
-        : '<tr><td colspan="' + emptyColspan + '" class="table-note">' + emptyMessage + '</td></tr>';
+        : '<tr><td colspan="' + emptyColspan + '" class="table-note">' +
+          (searchState.query.trim() ? 'Không có dòng nào chứa “' + escapeHtml(searchState.query.trim()) + '”' : emptyMessage) +
+          '</td></tr>';
+
+      if (config && result.items.length) {
+        Array.from(tbody.children).forEach(function (row, index) {
+          const item = result.items[index];
+          if (!item || typeof config.identity !== 'function') return;
+          row.dataset.tableItemId = String(config.identity(item));
+        });
+      }
 
       // Áp dụng lại trạng thái sắp xếp cột đang hoạt động của bảng này cho các dòng mới render.
       // Nếu không có bước này, việc chuyển trang (Trước/Sau) sẽ để các dòng ở trang mới ở thứ tự
@@ -7170,19 +7408,19 @@
       lastBtn.disabled = result.page >= result.totalPages;
       firstBtn.onclick = function () {
         state.tablePages[tableKey] = 1;
-        renderPaginatedRows(tableKey, ids, items, rowHtmlFn, emptyColspan, emptyMessage);
+        rerenderTable(tableKey);
       };
       prevBtn.onclick = function () {
         state.tablePages[tableKey] = result.page - 1;
-        renderPaginatedRows(tableKey, ids, items, rowHtmlFn, emptyColspan, emptyMessage);
+        rerenderTable(tableKey);
       };
       nextBtn.onclick = function () {
         state.tablePages[tableKey] = result.page + 1;
-        renderPaginatedRows(tableKey, ids, items, rowHtmlFn, emptyColspan, emptyMessage);
+        rerenderTable(tableKey);
       };
       lastBtn.onclick = function () {
         state.tablePages[tableKey] = result.totalPages;
-        renderPaginatedRows(tableKey, ids, items, rowHtmlFn, emptyColspan, emptyMessage);
+        rerenderTable(tableKey);
       };
     }
 
@@ -7271,6 +7509,8 @@
       state.customerProductReport.customer = { code: result.code, name: result.name || result.code };
       state.customerProductReport.productCode = '';
       state.customerProductReport.productName = '';
+      getTableSearchState('cpDetail').query = '';
+      getTableSearchState('cpMonthly').query = '';
       loadCustomerProductReport();
     }
 
@@ -7319,8 +7559,12 @@
       const data = state.customerProductReport.data;
       if (!data) return [];
       const productCode = state.customerProductReport.productCode;
-      if (!productCode) return data.products;
-      return data.products.filter(function (p) { return p.code === productCode; });
+      if (productCode) return data.products.filter(function (p) { return p.code === productCode; });
+      return filterTableItems(
+        data.products,
+        TABLE_EXPLORER_CONFIGS.cpDetail,
+        getTableSearchState('cpDetail')
+      ).items;
     }
 
     function renderCustomerProductReport() {
@@ -7349,7 +7593,8 @@
           barInner.style.width = Math.max(minWidth, barList.length * 64) + 'px';
         }
         renderBarChartList('chartCustomerProductBar', 'cpBar', barList,
-          function (p) { return p.name; }, function (p) { return p.revenue; }, themeColor('--amber'), true);
+          function (p) { return p.name; }, function (p) { return p.revenue; }, themeColor('--amber'), true,
+          { tableKey: 'cpDetail', identity: function (p) { return p.code || p.name; } });
       } else {
         if (barInner) barInner.style.width = '100%';
         destroyChart('cpBar');
@@ -7421,9 +7666,18 @@
 
     function handleCustomerProductFilterInput() {
       const input = document.getElementById('cpProductFilterInput');
+      state.customerProductReport.productCode = '';
+      state.customerProductReport.productName = '';
+      getTableSearchState('cpDetail').query = '';
+      getTableSearchState('cpMonthly').query = '';
+      getTableSearchState('cpDetail').query = input.value;
+      getTableSearchState('cpMonthly').query = input.value;
+      state.tablePages.cpDetail = 1;
+      state.tablePages.cpMonthly = 1;
       state.customerProductReport.productPicker.activeIndex = -1;
       document.getElementById('cpProductClearBtn').hidden = !input.value;
       renderCustomerProductFilterSuggestions(customerProductFilterOptions(input.value));
+      renderCustomerProductReport();
     }
 
     function handleCustomerProductFilterKeydown(event) {
@@ -7454,6 +7708,8 @@
       hideCustomerProductFilterSuggestions();
       state.customerProductReport.productCode = option.code;
       state.customerProductReport.productName = option.code ? option.name : '';
+      getTableSearchState('cpDetail').query = option.code || '';
+      getTableSearchState('cpMonthly').query = option.code || '';
       const input = document.getElementById('cpProductFilterInput');
       input.value = option.code ? (option.code + ' - ' + option.name) : '';
       document.getElementById('cpProductClearBtn').hidden = !option.code;
@@ -7464,6 +7720,8 @@
       hideCustomerProductFilterSuggestions();
       state.customerProductReport.productCode = '';
       state.customerProductReport.productName = '';
+      getTableSearchState('cpDetail').query = '';
+      getTableSearchState('cpMonthly').query = '';
       const input = document.getElementById('cpProductFilterInput');
       input.value = '';
       document.getElementById('cpProductClearBtn').hidden = true;
@@ -7497,6 +7755,11 @@
       const results = state.productRevenueSearch.results;
       const total = state.productRevenueSearch.total;
       const query = state.productRevenueSearch.query;
+      const searchState = getTableSearchState('productRevenueSearch');
+      searchState.mode = state.productRevenueSearch.mode;
+      searchState.query = query;
+      state.tableDatasets.productRevenueSearch = results;
+      state.tableRenderers.productRevenueSearch = renderProductRevenueResults;
       document.getElementById('prResultsPanel').hidden = !query;
       document.getElementById('prResultCount').textContent = !results.length ? '—'
         : (total > results.length ? results.length + '/' + total : String(results.length));
@@ -7513,7 +7776,7 @@
 
       tbody.innerHTML = results.map(function (p) {
         const code = escapeHtml(p.code);
-        return '<tr class="pr-row" data-product-code="' + code + '">' +
+        return '<tr class="pr-row" data-product-code="' + code + '" data-table-item-id="' + code + '">' +
           '<td class="mono muted">' + code + '</td>' +
           '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
           '<td class="mono" data-sort-value="' + p.ds90 + '">' + fmtMoney(p.ds90) + '</td>' +
@@ -7837,7 +8100,9 @@
             topNewlyImportedByRevenue,
             p => p.name,
             p => p.revenue,
-            themeColor('--amber')
+            themeColor('--amber'),
+            false,
+            { tableKey: 'newlyImported', identity: p => p.code }
           );
         } else {
           destroyChart('newlyImportedTopRevenue');
@@ -7959,7 +8224,10 @@
           'Không có khách hàng nợ'
         );
         const topDebtChart = topDebt.slice(0, 15);
-        if (topDebtChart.length) renderBarChartList('chartDebt', 'debt', topDebtChart, c => c.name, c => c.debt, themeColor('--red'), false); else destroyChart('debt');
+        if (topDebtChart.length) renderBarChartList(
+          'chartDebt', 'debt', topDebtChart, c => c.name, c => c.debt, themeColor('--red'), false,
+          { tableKey: 'topDebt', identity: c => c.code }
+        ); else destroyChart('debt');
 
         const topRevenue = customerData.topRevenue || { top15: [], top50: [], label: '—' };
         const top50 = topRevenue.top50 || [];
@@ -7984,7 +8252,10 @@
         document.getElementById('sp-totalpurchase').textContent = fmtMoney(d.kpi.totalPurchaseSpend);
 
         const topSupplierDebt = d.suppliers.filter(s => s.debt > 0).slice(0, 15);
-        if (topSupplierDebt.length) renderBarChartList('chartSupplierDebt', 'supplierDebt', topSupplierDebt, s => s.name, s => s.debt, themeColor('--red'), false);
+        if (topSupplierDebt.length) renderBarChartList(
+          'chartSupplierDebt', 'supplierDebt', topSupplierDebt, s => s.name, s => s.debt, themeColor('--red'), false,
+          { tableKey: 'suppliers', identity: s => s.code }
+        );
         else destroyChart('supplierDebt');
 
         document.getElementById('tagSuppliers').textContent = d.suppliers.length;
@@ -8061,7 +8332,7 @@
         if (filters.queue === 'overdue' && !(Number(customer.overdueDebt) > 0)) return false;
         if (filters.sale && customer.sale !== filters.sale) return false;
         if (filters.schedule && customer.paymentSchedule !== filters.schedule) return false;
-        if (query && !normalizeDebtSearch(customer.customerName).includes(query) && !normalizeDebtSearch(customer.sale).includes(query)) return false;
+        if (query && !normalizeDebtSearch(tableSearchText(customer)).includes(query)) return false;
         return true;
       });
     }
@@ -8108,6 +8379,7 @@
       state.debtFilters.sale = document.getElementById('debtSaleFilter').value;
       state.debtFilters.schedule = document.getElementById('debtScheduleFilter').value;
       state.debtFilters.search = document.getElementById('debtManagementSearch').value;
+      getTableSearchState('debtManagement').query = state.debtFilters.search;
       state.tablePages.debtManagement = 1;
       renderDebtManagementTable();
     }
@@ -8128,6 +8400,7 @@
     function setDebtCustomerFilter(customerName) {
       state.debtFilters.queue = 'all';
       state.debtFilters.search = customerName;
+      getTableSearchState('debtManagement').query = customerName;
       document.getElementById('debtQueueFilter').value = 'all';
       document.getElementById('debtManagementSearch').value = customerName;
       state.tablePages.debtManagement = 1;
@@ -8155,6 +8428,7 @@
           responsive: true,
           maintainAspectRatio: false,
           animation: state.chartAnimation ? undefined : false,
+          interaction: { mode: 'index', intersect: false, axis: 'x' },
           onClick: function (event, elements) {
             if (elements && elements[0]) setDebtDimensionFilter(filterKind, labels[elements[0].index]);
           },
@@ -8183,6 +8457,7 @@
           responsive: true,
           maintainAspectRatio: false,
           animation: state.chartAnimation ? undefined : false,
+          interaction: { mode: 'index', intersect: false, axis: 'y' },
           onClick: function (event, elements) {
             if (elements && elements[0]) setDebtCustomerFilter(labels[elements[0].index]);
           },
