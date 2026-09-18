@@ -12,6 +12,44 @@
 > `KIOTVIET_SYNC_ENABLED=true` chạy ổn định nhiều ngày) — **chưa xác nhận đã thực hiện**, không suy
 > đoán là đã xong chỉ vì code đã có. Giai đoạn 5 (chuyển Dashboard sang đọc Postgres, chuyển hosting
 > sang Render) vẫn ngoài phạm vi, chưa bắt đầu.
+>
+> **Cập nhật trạng thái (2026-09-16):** Đã có `SUPABASE_DB_URL` thật (Supabase project
+> `hvraxtmkunyymqvgtura`), chạy migration 0001-0012 thành công, và **chạy backfill production thật**
+> cho cả 2 cơ sở (từ 2026-06-01, do preflight cho thấy backfill toàn bộ từ đầu năm sẽ vượt ngưỡng
+> 500MB free tier — người vận hành đã chọn thu hẹp cửa sổ thay vì nâng gói Supabase). Đối chiếu bằng
+> `reconcileCounts.js --since=2026-06-01T00:00:00Z` cho kết quả sạch (lệch vài bản ghi do có giao dịch
+> mới phát sinh trong lúc đối chiếu — bình thường). Trong quá trình này phát hiện và sửa **6 bug thật**
+> (không phải giả định — xác nhận bằng dữ liệu KiotViet thật):
+> 1. **`0010_reporting_readonly_role.sql` lỗi cú pháp** (`GRANT ... ON DATABASE current_database()`
+>    không hợp lệ) — migration tự rollback, không có dữ liệu hỏng. Đã sửa bằng `EXECUTE format(...)`.
+> 2. **Cột tiền/số lượng `BIGINT`/`INTEGER` sai giả định** — dữ liệu KiotViet thật có phần thập phân
+>    (giá/chiết khấu lẻ xu, số lượng hàng bán theo cân không phải số nguyên). Migration `0012` đổi toàn
+>    bộ sang `NUMERIC`.
+> 3. **`cash_flows` backfill thiếu bước gọi API 2 lần** (`isReceipt=true`/`false`) — API không trả field
+>    phân biệt thu/chi trong item dù đã lọc theo query, khiến `is_receipt` bị NULL. `syncDriver.js`
+>    (polling) đã làm đúng từ đầu; `backfill.js` thiếu, nay đã đồng bộ logic.
+> 4. **Deadlock Postgres khi nhiều entity ghi đồng thời vào bảng `staff` dùng chung** — sửa bằng cách
+>    gom + sắp xếp id tăng dần trước khi ghi (thứ tự khóa nhất quán giữa các giao dịch) thay vì ghi xen
+>    kẽ theo thứ tự item; đồng thời thêm retry cho deadlock thoáng qua còn sót.
+> 5. **`preflightCheck.js`/`reconcileCounts.js` thiếu bootstrap `dotenv`/tham số bắt buộc của KiotViet
+>    API** — `preflightCheck.js` không tự nạp `.env` khi chạy CLI trực tiếp; `reconcileCounts.js` gọi
+>    `/cashflow` thiếu `isReceipt` (total sai nặng) và gọi `/invoices` thiếu `toPurchaseDate` đi kèm
+>    `fromPurchaseDate` (KiotViet âm thầm bỏ qua filter nếu thiếu 1 trong 2) — cả hai khiến số liệu đối
+>    chiếu sai lệch lớn, tưởng nhầm là lỗi ghi trùng dữ liệu. Đã sửa, thêm `--since` để so sánh đúng
+>    phạm vi đã backfill thay vì tổng trọn đời.
+> 6. **Endpoint webhook chỉ lưu payload thô (`webhook_events_raw`), CHƯA CÓ code áp dụng vào bảng
+>    nghiệp vụ thật** — phát hiện khi rà lại trước khi bật đồng bộ thật, dù roadmap mô tả webhook là
+>    "nguồn chính". Đã xây `kiotvietSync/webhookConsumer.js` (port lại logic đã chạy ổn định từ
+>    `src-dashboard/sync/UpdateHandlers.gs` — hydrate item thiếu dữ liệu, xử lý update/delete), thêm xác
+>    thực secret (`KIOTVIET_WEBHOOK_SECRET`, tách biệt secret Apps Script cũ), script đăng ký webhook tự
+>    động (`kiotvietSync/registerWebhooks.js`, gọi thẳng `POST https://public.kiotapi.com/webhooks` —
+>    không phải thao tác UI), và job tự dọn `webhook_events_raw` cũ (mặc định giữ 30 ngày, tránh đầy free
+>    tier vì bảng log thô tăng vô hạn nếu không dọn).
+>
+> **Còn chặn trước khi bật `KIOTVIET_SYNC_ENABLED=true` trên production:** project Firebase
+> `tokosi-a02e0` cần nâng lên gói Blaze mới dùng được Secret Manager (lưu `SUPABASE_DB_URL`,
+> `KIOTVIET_WEBHOOK_SECRET`) — quyết định nâng cấp thuộc về người vận hành, đang chờ xác nhận. Supabase
+> giữ nguyên free tier theo lựa chọn của người vận hành (~500MB, hiện dùng ~235-280MB).
 
 ## 1. Mục tiêu
 

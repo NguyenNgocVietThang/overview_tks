@@ -189,7 +189,18 @@ const CONFIG = {
   KIOTVIET_SYNC_FAST_INTERVAL_MS: Number(process.env.KIOTVIET_SYNC_FAST_INTERVAL_MS) > 0
     ? Number(process.env.KIOTVIET_SYNC_FAST_INTERVAL_MS) : 7 * 60 * 1000,
   KIOTVIET_SYNC_SLOW_INTERVAL_MS: Number(process.env.KIOTVIET_SYNC_SLOW_INTERVAL_MS) > 0
-    ? Number(process.env.KIOTVIET_SYNC_SLOW_INTERVAL_MS) : 20 * 60 * 1000
+    ? Number(process.env.KIOTVIET_SYNC_SLOW_INTERVAL_MS) : 20 * 60 * 1000,
+  // So ngay giu lai ban ghi trong webhook_events_raw (log tho, khong phai du
+  // lieu nghiep vu - xem kiotvietSync/webhookEventsCleanup.js). Mac dinh 30
+  // ngay, du de dieu tra su co ma khong lam day free tier Supabase (500MB).
+  KIOTVIET_WEBHOOK_EVENTS_RETENTION_DAYS: Number(process.env.KIOTVIET_WEBHOOK_EVENTS_RETENTION_DAYS) > 0
+    ? Number(process.env.KIOTVIET_WEBHOOK_EVENTS_RETENTION_DAYS) : 30,
+  // Shared-secret tu chon (khong phai do KiotViet cap) - gan vao query string
+  // khi dang ky webhook (?secret=...), doi chieu lai khi nhan request. Rieng
+  // biet voi WEBHOOK_SECRET cua Apps Script cu (khong dung chung). Optional —
+  // thieu bien nay thi endpoint webhook tu choi moi request (fail-closed),
+  // khong lam sap server.
+  KIOTVIET_WEBHOOK_SECRET: process.env.KIOTVIET_WEBHOOK_SECRET || null
 };
 
 module.exports = CONFIG;

@@ -35,13 +35,15 @@ function formatReportTable(rows) {
   return lines.join('\n');
 }
 
-// Lay `total` that tu KiotViet cho 1 entity, khong filter (ky thuat live-probe
-// da dung de viet API_ENDPOINTS.md). Chi doc trang dau roi dung.
-async function fetchKiotVietTotal(kiotVietClient, entityModule) {
+const EPOCH_ISO = '2000-01-01T00:00:00Z';
+
+// Chi doc trang dau (pageInfo.total) roi dung ngay - khong tai het du lieu chi
+// de dem so luong.
+async function fetchTotalForQuery(kiotVietClient, endpoint, query) {
   let total = 0;
   const STOP = Symbol('stop');
   try {
-    await kiotVietClient.fetchAllPages(entityModule.endpoint, {}, async (items, pageInfo) => {
+    await kiotVietClient.fetchAllPages(endpoint, query, async (items, pageInfo) => {
       total = pageInfo.total;
       throw STOP;
     });
@@ -51,25 +53,60 @@ async function fetchKiotVietTotal(kiotVietClient, entityModule) {
   return total;
 }
 
+// Lay `total` that tu KiotViet cho 1 entity. QUAN TRONG: khong the goi mot
+// cach chung chung voi query rong cho MOI entity -
+//   - cash_flows: API /cashflow tra `total` SAI (thieu) neu goi khong co
+//     isReceipt + startDate/endDate - PHAI goi 2 lan (isReceipt=true/false)
+//     roi cong lai, dung y het backfill.js/syncDriver.js (xem
+//     API_ENDPOINTS.md). Phat hien that qua doi chieu sai lech -21654 dong
+//     (2026-09-16) - tuong la loi ghi trung, hoa ra la loi doc total o day.
+//   - invoices/purchases (backfillRangeParam) va orders/returns
+//     (hasUpperBound:false, dung incrementalParam): khi co `since`, loc theo
+//     dung khoang da backfill de so sanh cung mot pham vi - khong thi tong
+//     "tron doi" tu KiotViet se luon lon hon nhieu so voi Postgres (chi co
+//     du lieu tu ngay backfill --from), bao "error" gia tao dai da so.
+async function fetchKiotVietTotal(kiotVietClient, entityModule, { since } = {}) {
+  if (entityModule.entity === 'cash_flows') {
+    const startDate = since || EPOCH_ISO;
+    const endDate = new Date().toISOString();
+    const totalTrue = await fetchTotalForQuery(kiotVietClient, entityModule.endpoint, { isReceipt: 'true', startDate, endDate });
+    const totalFalse = await fetchTotalForQuery(kiotVietClient, entityModule.endpoint, { isReceipt: 'false', startDate, endDate });
+    return totalTrue + totalFalse;
+  }
+  if (since && entityModule.backfillRangeParam) {
+    // KiotViet im lang BO QUA fromPurchaseDate/fromXDate neu thieu doi tac
+    // toXDate di kem - phai truyen ca 2, khac voi incrementalParam
+    // (lastModifiedFrom) o nhanh duoi chi can 1 tham so la du. Phat hien that
+    // khi doi chieu invoices van tra tong tron doi (25913) du da truyen since.
+    const { from, to } = entityModule.backfillRangeParam;
+    return fetchTotalForQuery(kiotVietClient, entityModule.endpoint, { [from]: since, [to]: new Date().toISOString() });
+  }
+  if (since && entityModule.hasUpperBound === false && entityModule.incrementalParam) {
+    return fetchTotalForQuery(kiotVietClient, entityModule.endpoint, { [entityModule.incrementalParam]: since });
+  }
+  return fetchTotalForQuery(kiotVietClient, entityModule.endpoint, {});
+}
+
 async function fetchPostgresCount(pool, entityModule, branch) {
   const result = await pool.query(`SELECT COUNT(*)::int AS count FROM ${entityModule.entity} WHERE branch = $1`, [branch]);
   return result.rows[0].count;
 }
 
-async function reconcileEntity(kiotVietClient, pool, branch, entityModule) {
+async function reconcileEntity(kiotVietClient, pool, branch, entityModule, { since } = {}) {
   const [kiotVietTotal, postgresCount] = await Promise.all([
-    fetchKiotVietTotal(kiotVietClient, entityModule),
+    fetchKiotVietTotal(kiotVietClient, entityModule, { since }),
     fetchPostgresCount(pool, entityModule, branch)
   ]);
   return { branch, ...computeDiff(entityModule.entity, kiotVietTotal, postgresCount) };
 }
 
-async function reconcileAll(kiotVietClient, pool, branch, entityModules, { log = console.log } = {}) {
+async function reconcileAll(kiotVietClient, pool, branch, entityModules, { log = console.log, since } = {}) {
   const rows = [];
   for (const entityModule of entityModules) {
-    rows.push(await reconcileEntity(kiotVietClient, pool, branch, entityModule));
+    rows.push(await reconcileEntity(kiotVietClient, pool, branch, entityModule, { since }));
   }
   log(formatReportTable(rows));
+  if (since) log(`(So sanh theo dung khoang da backfill: since=${since}. Cac entity nen "co so" (categories/products/customers/suppliers) van so sanh tron doi vi khong loc duoc theo ngay.)`);
   const hardErrors = rows.filter((r) => r.severity === 'error');
   if (hardErrors.length) {
     log(`CANH BAO: ${hardErrors.length} entity lech khong nam trong nguong chap nhan duoc - can dieu tra thu cong.`);
@@ -82,6 +119,7 @@ function parseArgs(argv) {
   for (const arg of argv) {
     const [key, value] = arg.replace(/^--/, '').split('=');
     if (key === 'branch') args.branch = value;
+    if (key === 'since') args.since = value;
   }
   return args;
 }
@@ -106,7 +144,7 @@ async function main() {
 
   const kiotVietClient = createKiotVietClient(branchConfig);
   const pool = getPool();
-  await reconcileAll(kiotVietClient, pool, args.branch, entityModules);
+  await reconcileAll(kiotVietClient, pool, args.branch, entityModules, { since: args.since });
 }
 
 if (require.main === module) {

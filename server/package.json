@@ -16,6 +16,8 @@
     "kiotviet-sync:preflight": "node kiotvietSync/preflightCheck.js",
     "kiotviet-sync:backfill": "node kiotvietSync/backfill.js",
     "kiotviet-sync:reconcile": "node kiotvietSync/reconcileCounts.js",
+    "kiotviet-sync:seed-checkpoints": "node kiotvietSync/seedCheckpoints.js",
+    "kiotviet-sync:register-webhooks": "node kiotvietSync/registerWebhooks.js",
     "sync:customer-report": "node jobs/syncCustomerReport.js",
     "setup:users-sheet": "node scripts/setupUsersSheet.js",
     "setup:vc-sheet": "node scripts/setupVcSheet.js",

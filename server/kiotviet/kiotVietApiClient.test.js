@@ -240,3 +240,20 @@ test('fetchProductOnHand tra found=false khi khong tim thay ma hang (404)', asyn
   const result = await client.fetchProductOnHand('KHONGTONTAI');
   assert.deepEqual(result, { code: 'KHONGTONTAI', found: false, onHand: 0 });
 });
+
+test('fetchById goi dung endpoint/id, them query, tra data ben trong neu co', async () => {
+  const fetchImpl = tokenFetchImpl(async (url) => {
+    assert.match(String(url), /\/invoices\/123\?includePayment=true/);
+    return jsonResponse(200, { data: { Id: 123, Code: 'HD123' } });
+  });
+  const client = createKiotVietClient({ clientId: 'id', clientSecret: 's', retailer: 'r', fetchImpl });
+  const result = await client.fetchById('invoices', 123, { includePayment: 'true' });
+  assert.deepEqual(result, { Id: 123, Code: 'HD123' });
+});
+
+test('fetchById tra nguyen response neu khong co field data dang object (vd endpoint /code/...)', async () => {
+  const fetchImpl = tokenFetchImpl(async () => jsonResponse(200, { Id: 5, Code: 'SP5' }));
+  const client = createKiotVietClient({ clientId: 'id', clientSecret: 's', retailer: 'r', fetchImpl });
+  const result = await client.fetchById('products', 5);
+  assert.deepEqual(result, { Id: 5, Code: 'SP5' });
+});

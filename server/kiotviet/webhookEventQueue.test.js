@@ -40,3 +40,47 @@ test('a database failure does not drop or block later queued payloads', async ()
   await queue.onIdle();
   assert.deepEqual(saved,[{event:2}]);
 });
+
+test('enqueue({branch,eventType,payload}) preserves metadata and forwards it to processEvent after the raw insert', async () => {
+  const inserted=[];
+  const processed=[];
+  const queue=createWebhookEventQueue({
+    pool:{query:async (_sql,params)=>{inserted.push(params[0]);}},
+    logger:{error(){}},
+    processEvent:async (event)=>{processed.push(event);}
+  });
+  queue.enqueue({branch:'hanoi',eventType:'invoice.update',payload:{Id:1}});
+  await queue.onIdle();
+  assert.deepEqual(inserted,[{Id:1}]);
+  assert.deepEqual(processed,[{branch:'hanoi',eventType:'invoice.update',payload:{Id:1}}]);
+});
+
+test('a processEvent failure is logged but does not stop later payloads (raw insert already durable)', async () => {
+  const processed=[];
+  const errors=[];
+  const queue=createWebhookEventQueue({
+    pool:{query:async ()=>{}},
+    logger:{error:(message)=>errors.push(message)},
+    processEvent:async (event)=>{
+      processed.push(event.eventType);
+      if (event.eventType==='order.update') throw new Error('boom');
+    }
+  });
+  queue.enqueue({branch:'hanoi',eventType:'order.update',payload:{}});
+  queue.enqueue({branch:'hanoi',eventType:'invoice.update',payload:{}});
+  await queue.onIdle();
+  assert.deepEqual(processed,['order.update','invoice.update']);
+  assert.equal(errors.length,1);
+});
+
+test('bare payload without a "payload" key stays backward compatible (branch/eventType default to null)', async () => {
+  const processed=[];
+  const queue=createWebhookEventQueue({
+    pool:{query:async ()=>{}},
+    logger:{error(){}},
+    processEvent:async (event)=>{processed.push(event);}
+  });
+  queue.enqueue({event:1});
+  await queue.onIdle();
+  assert.deepEqual(processed,[{branch:null,eventType:null,payload:{event:1}}]);
+});

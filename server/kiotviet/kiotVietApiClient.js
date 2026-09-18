@@ -113,6 +113,15 @@ function createKiotVietClient(config) {
     }
   }
 
+  // Lay 1 ban ghi day du theo id - dung de "hydrate" item thieu du lieu tu
+  // webhook (KiotViet thuong chi gui cac truong vua thay doi, khong kem day
+  // du OrderDetails/InvoiceDetails/Inventories).
+  async function fetchById(endpoint, id, query = {}) {
+    const params = new URLSearchParams(query);
+    const result = await authorizedRequest(`/${endpoint}/${encodeURIComponent(id)}`, params);
+    return result && result.data && !Array.isArray(result.data) ? result.data : result;
+  }
+
   async function fetchProductOnHand(code) {
     try {
       const params = new URLSearchParams({ includeInventory: 'true' });
@@ -125,7 +134,7 @@ function createKiotVietClient(config) {
     }
   }
 
-  return { getAccessToken, fetchJsonWithRetry, fetchAllPages, fetchProductOnHand };
+  return { getAccessToken, fetchJsonWithRetry, fetchAllPages, fetchById, fetchProductOnHand };
 }
 
 module.exports = { createKiotVietClient };
