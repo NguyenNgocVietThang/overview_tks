@@ -12,7 +12,7 @@ Lịch mục tiêu theo múi giờ `Asia/Ho_Chi_Minh`:
 | 06:30 | `Hàng bán theo khách` |
 | 07:00 | `Khách theo hàng hóa` |
 | 07:30 | `Hàng ngừng kinh doanh` |
-| 15:00 | `HN1`, `HN3`, `HN7` (giữ nguyên) |
+| 15:00 | `CN1`, `CN3`, `CN7` (giữ nguyên) |
 
 Webhook mỗi phút và polling 15 phút cho `Trả hàng`, `Nhà cung cấp`, `Nhập hàng` được giữ nguyên.
 

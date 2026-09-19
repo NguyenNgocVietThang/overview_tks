@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Thay thế tab Công nợ theo kỳ bằng màn hình Quản lý công nợ theo cơ sở, kết hợp workbook Bảng Công nợ, HN1/HN3/HN7 và trạng thái xử lý lưu trong PostgreSQL.
+**Goal:** Thay thế tab Công nợ theo kỳ bằng màn hình Quản lý công nợ theo cơ sở, kết hợp workbook Bảng Công nợ, CN1/CN3/CN7 (trước đây là HN1/HN3/HN7) và trạng thái xử lý lưu trong PostgreSQL.
 
 **Architecture:** `/api/dashboard` đọc song song spreadsheet vận hành theo cơ sở và workbook Bảng Công nợ dùng chung, cache riêng 90 giây rồi ghép dữ liệu bằng tên khách chuẩn hóa. Cảnh báo tự động là dữ liệu chỉ đọc; trạng thái xử lý do Quản lý/Trợ lý cập nhật qua PATCH và lưu PostgreSQL.
 
@@ -50,7 +50,7 @@
 - [x] Viết test thất bại cho ánh xạ Hà Nội/Sài Gòn, fail-soft, cache và cách ly cơ sở.
 - [x] Thêm cấu hình optional và client Sheets read-only.
 - [x] Tải hai nguồn song song, đưa cả hai version vào cache key và ghép report.
-- [x] Loại payload `debt` cũ khỏi response nhưng giữ HN1/HN3/HN7 làm nguồn đối chiếu.
+- [x] Loại payload `debt` cũ khỏi response nhưng giữ CN1/CN3/CN7 (trước đây là HN1/HN3/HN7) làm nguồn đối chiếu.
 - [x] Chạy test Sheets/dashboard và commit `feat(debt): integrate branch-aware debt management source`.
 
 ## Task 3: PostgreSQL và API trạng thái

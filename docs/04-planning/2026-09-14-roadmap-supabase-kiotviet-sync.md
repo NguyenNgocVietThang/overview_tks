@@ -2,16 +2,7 @@
 
 > **Đây là tài liệu roadmap (định hướng), KHÔNG PHẢI kế hoạch code chi tiết.** Mục đích: thống nhất hướng đi, các giai đoạn, và các quyết định kỹ thuật quan trọng trước khi bắt tay viết code. Chưa có dòng code nào được sửa trong tài liệu này.
 
-> **Cập nhật trạng thái (2026-09-15):** Phần code của Giai đoạn 0-4 đã merge (commit `e5e64eb`
-> và các commit trước đó) — `server/db/` (8 migration, `SCHEMA.md`), `server/kiotvietSync/` (entity
-> module, `syncDriver.js`/`scheduler.js`, `backfill.js`/`backfillPlan.js`/`backfillProgressRepository.js`,
-> `reconcileCounts.js`, `preflightCheck.js`), `server/kiotviet/webhookEventQueue.js` và route
-> `GET /api/internal/kiotviet-sync/status` đều tồn tại và có test tự động (`npm test` pass, 930 bài).
-> Các mục "Xác minh tổng thể"/"Câu hỏi cần quyết định" còn để trống trong `phase3`/`phase4-plan` là
-> thao tác vận hành thật (chạy backfill production, đối chiếu Supabase Dashboard, xác nhận
-> `KIOTVIET_SYNC_ENABLED=true` chạy ổn định nhiều ngày) — **chưa xác nhận đã thực hiện**, không suy
-> đoán là đã xong chỉ vì code đã có. Giai đoạn 5 (chuyển Dashboard sang đọc Postgres, chuyển hosting
-> sang Render) vẫn ngoài phạm vi, chưa bắt đầu.
+> **Cập nhật trạng thái (2026-09-19):** **Giai đoạn 5 đã hoàn thành.** Dashboard đã chuyển sang đọc hoàn toàn từ Supabase PostgreSQL (`dashboardPgReader.js`). Apps Script KiotViet (`src-dashboard`) đã được gỡ bỏ hoàn toàn. Bảng `customer_debt_activity_periods` (CN1/CN3/CN7, migration 0014) thay thế các tab công nợ cũ. Hai Google Sheets Kiot HN/SG chỉ còn đọc tab `Trả NCC`. Vòng đời đơn hàng tiếp tục được duy trì qua Google Sheets (`ORDER_LIFECYCLE_SPREADSHEET_ID`). Tài khoản ứng dụng lưu trong bảng `app_users`.
 
 ## 1. Mục tiêu
 
@@ -77,17 +68,15 @@ Với việc **Webhook được xác nhận hỗ trợ**, thiết kế chính th
 - Thêm 1 API nội bộ (chỉ dùng để tự kiểm tra thủ công, có đăng nhập, không phải tính năng cho người dùng cuối) để xem tình trạng đồng bộ: checkpoint gần nhất, số bản ghi mỗi loại, vài dòng dữ liệu mẫu — dùng để đối chiếu thủ công với giao diện KiotViet.
 - Xác nhận Dashboard Sheets hiện tại **vẫn hoạt động bình thường, không bị ảnh hưởng** trong suốt quá trình này.
 
-### Giai đoạn 5 (tương lai, ngoài phạm vi roadmap này)
-- Chuyển các trang Dashboard/báo cáo sang đọc dữ liệu từ Postgres thay vì Google Sheets.
-- Ứng dụng đã được triển khai trên Render (dùng database Supabase PostgreSQL).
-- Cân nhắc dùng API `/users` thật của KiotViet để có danh sách nhân viên đầy đủ hơn (hiện chỉ suy luận từ dữ liệu khác).
+### Giai đoạn 5 (Đã hoàn thành — 2026-09-19)
+- Chuyển toàn bộ các trang Dashboard/báo cáo sang đọc dữ liệu từ Supabase Postgres (`dashboardPgReader.js`) thay vì Google Sheets.
+- Ứng dụng triển khai trên Render (dùng database Supabase PostgreSQL).
+- Triển khai bảng `customer_debt_activity_periods` cho công nợ 1/3/7 ngày (CN1/CN3/CN7, thay thế các tab HN cũ).
+- Xóa bỏ hoàn toàn Apps Script `src-dashboard`. Google Sheets Kiot HN/SG chỉ giữ lại đọc tab `Trả NCC`. Vòng đời đơn hàng vẫn dùng Google Sheets (`ORDER_LIFECYCLE_SPREADSHEET_ID`).
 
-## 6. Những gì roadmap này KHÔNG bao gồm
+## 6. Những gì roadmap này từng KHÔNG bao gồm (Lịch sử)
 
-- Không sửa Dashboard hiện tại (`dashboardData.js`, `debtReport.js`, `exportService.js`) — vẫn đọc Google Sheets như cũ.
-- Không đụng đến Apps Script đồng bộ Sheets (`src-dashboard/`).
-- Không làm việc chuyển hosting sang Render trong roadmap này.
-- Không giải mã mã trạng thái số của KiotViet thành nhãn tiếng Việt (dữ liệu gốc đã biết là không nhất quán giữa 2 nguồn tài liệu cũ, giữ nguyên số thô cho an toàn).
+- Ban đầu chưa sửa Dashboard đọc Sheets và chưa đụng đến Apps Script. Đến ngày 19/09/2026, toàn bộ quá trình di chuyển sang Supabase Postgres đã hoàn thành đầy đủ.
 
 ## 7. Rủi ro & điều cần xác minh trước khi code
 

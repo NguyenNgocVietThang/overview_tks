@@ -7,29 +7,27 @@
 | **Thông tin**      | **Nội dung**                                               |
 |--------------------|------------------------------------------------------------|
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                          |
-| Phiên bản          | 2.4                                                        |
+| Phiên bản          | 2.5                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 16/09/2026                                                 |
-| Tài liệu liên quan | BRD v1.9 · BPMN v1.9 · Implementation Plan v2.3 · CSNS-NP-01 (Chính sách nghỉ phép) · Plan Process Automation · Lag Optimization Plan · Design System MASTER (mục 7 — ràng buộc hiệu năng) |
-| Trạng thái         | Đang vận hành (Dashboard đa cơ sở, Quản lý công nợ, HR Leave + Bot, Vận chuyển, Đồng bộ KiotViet → PostgreSQL) |
+| Ngày cập nhật      | 19/09/2026                                                 |
+| Tài liệu liên quan | BRD v2.0 · BPMN v2.1 · Implementation Plan v2.4 · CSNS-NP-01 (Chính sách nghỉ phép) · Design System MASTER (mục 7 — ràng buộc hiệu năng) |
+| Trạng thái         | Đang vận hành (Supabase PostgreSQL, Quản lý công nợ CN1/CN3/CN7, HR Leave, Vòng đời đơn hàng, 711 unit tests) |
 
-> **Ghi chú phiên bản 2.3:** Cập nhật kiến trúc Quản lý Vận chuyển: Hệ thống Bot Telegram & OCR (Phase 2) nạp tự động dữ liệu từ 9 nhóm chat trực tiếp vào Google Sheets `VC_*` và Drive; Web Server Node.js/Express đóng vai trò đọc và quản trị dữ liệu từ Google Sheets. Chuẩn hóa bộ kiểm thử tự động toàn diện đạt **477 unit tests**.
-
-> **Ghi chú phiên bản 2.4:** Thay màn hình Công nợ kỳ HN1/HN3/HN7 bằng `Quản lý công nợ`. Số liệu quản lý đọc từ workbook `Bảng Công nợ` theo cơ sở; HN1/HN3/HN7 chỉ dùng đối chiếu cảnh báo. Trạng thái xử lý lưu PostgreSQL và chỉ Quản lý/Trợ lý được cập nhật.
+> **Ghi chú phiên bản 2.5 (19/09/2026):** Chuyển đổi toàn diện dữ liệu KiotViet từ Google Sheets sang **Supabase PostgreSQL**. Toàn bộ dữ liệu vận hành do Node.js Sync Engine (`server/kiotvietSync/`) nạp và cập nhật (Webhook + Polling). Google Sheets Kiot HN/SG chỉ còn đọc tab **`Trả NCC`**. Tính năng **Vòng đời đơn hàng** (`ORDER_LIFECYCLE_SPREADSHEET_ID`) và **Nhân sự** (`HR_SPREADSHEET_ID`) tiếp tục duy trì qua Google Sheets. Chuẩn hóa ba kỳ công nợ 1/3/7 ngày thành **CN1 / CN3 / CN7**, lưu trong bảng Supabase `customer_debt_activity_periods` và làm mới tự động qua `customerDebtReportRefresh.js`. Màn hình `Quản lý công nợ` kết hợp Bảng Công nợ chỉ đọc và đối chiếu CN1/CN3/CN7. Apps Script (`src-dashboard`) và module vận chuyển cũ nghỉ hưu hoàn toàn. Tài khoản ứng dụng lưu trong bảng PostgreSQL `app_users`. Chuẩn hóa bộ kiểm thử tự động đạt **711 unit tests** chuẩn `node:test`.
 
 # 1. Giới thiệu
 
 ## 1.1. Mục đích
 
-Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi chức năng của hệ thống Website Dashboard TOKOSI, làm cơ sở cho đội phát triển thiết kế, xây dựng, kiểm thử phần mềm. Tài liệu cụ thể hóa các yêu cầu nghiệp vụ đã nêu trong BRD v1.9 thành các đặc tả kỹ thuật có thể triển khai được.
+Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi chức năng của hệ thống Website Dashboard TOKOSI, làm cơ sở cho đội phát triển thiết kế, xây dựng, kiểm thử phần mềm. Tài liệu cụ thể hóa các yêu cầu nghiệp vụ đã nêu trong BRD v2.0 thành các đặc tả kỹ thuật có thể triển khai được.
 
 ## 1.2. Phạm vi hệ thống
 
 Hệ thống là một Web Application nội bộ gồm các thành phần chính:
 
-1. **Apps Script & Telegram Bot nạp dữ liệu:** `src-dashboard/` duy trì 9 tab vận hành, lịch sử/báo cáo và polling của Dashboard; `src-order-lifecycle/` duy trì sheet Vận chuyển độc lập và nhận `invoice.update` qua hàng đợi bền vững; song song đó, Bot Telegram & OCR độc lập tự động trích xuất chứng từ/bill và cập nhật trạng thái đơn hàng vào 6 tab `VC_*` trên Google Sheet Vận chuyển.
+1. **Engine đồng bộ KiotViet (Node.js):** `server/kiotvietSync/` nhận webhook KiotViet và polling đối soát tự động, nạp và duy trì toàn bộ dữ liệu bán hàng KiotViet vào database Supabase PostgreSQL.
 
-2. **Web Server (Node.js/Express + HTML frontend):** đọc nguồn vận hành theo cơ sở, workbook `Bảng Công nợ` chỉ đọc, nguồn vận chuyển/nhân sự qua Google Sheets API; lưu trạng thái xử lý công nợ và dữ liệu vận hành phù hợp trong PostgreSQL. Server xác thực người dùng, áp dụng RBAC và `req.branch`, tính KPI/biểu đồ/cảnh báo, xuất Excel và trả frontend qua REST API. HN1/HN3/HN7 không còn hiển thị như báo cáo kỳ mà chỉ là nguồn đối chiếu nội bộ cho cảnh báo `Chưa thu`.
+2. **Web Server (Node.js/Express + HTML frontend):** đọc dữ liệu KiotViet từ Supabase PostgreSQL qua `dashboardPgReader.js`, tab `Trả NCC` từ Google Sheets Kiot HN/SG, workbook `Bảng Công nợ` chỉ đọc (`DEBT_MANAGEMENT_SPREADSHEET_ID`), nguồn vòng đời đơn hàng (`ORDER_LIFECYCLE_SPREADSHEET_ID`) và nhân sự (`HR_SPREADSHEET_ID`) qua Google Sheets API; lưu trạng thái xử lý công nợ và tài khoản người dùng (`app_users`) trong PostgreSQL. Server xác thực người dùng, áp dụng RBAC và `req.branch`, tính KPI/biểu đồ/cảnh báo, xuất Excel và trả frontend qua REST API. Ba kỳ công nợ **CN1 / CN3 / CN7** (1/3/7 ngày, trước đây gọi là HN1/HN3/HN7) đọc từ bảng `customer_debt_activity_periods` làm nguồn đối chiếu nội bộ cho cảnh báo `Chưa thu`.
 
 ## 1.3. Định nghĩa & thuật ngữ
 
@@ -37,88 +35,88 @@ Hệ thống là một Web Application nội bộ gồm các thành phần chín
 |-------------------------|---------------------------------------------------------------------------------------|
 | Dashboard               | Trang tổng hợp hiển thị số liệu và biểu đồ từ dữ liệu nguồn.                          |
 | KPI Card                | Thẻ hiển thị 1 chỉ số tổng hợp (vd: Doanh thu hôm nay, Tổng tồn kho).               |
-| Spreadsheet nguồn       | Nguồn Dashboard theo cơ sở, workbook `Bảng Công nợ` (`DEBT_MANAGEMENT_SPREADSHEET_ID`), Vận chuyển và Nhân sự. |
+| CN1 / CN3 / CN7         | Báo cáo hoạt động công nợ khách hàng 1 ngày, 3 ngày, 7 ngày gần nhất (trước đây gọi là HN1/HN3/HN7), lưu trong bảng `customer_debt_activity_periods` của Supabase PostgreSQL. |
+| Spreadsheet nguồn       | Hai file Kiot HN/SG (chỉ đọc `Trả NCC`), workbook `Bảng Công nợ` (`DEBT_MANAGEMENT_SPREADSHEET_ID`), Vòng đời đơn hàng (`ORDER_LIFECYCLE_SPREADSHEET_ID`) và Nhân sự (`HR_SPREADSHEET_ID`). |
 | Chữ ký cảnh báo         | SHA-256 của loại cảnh báo và số nợ hiện tại; dùng để vô hiệu trạng thái kết thúc khi khoản nợ thay đổi. |
-| Service Account         | Tài khoản dịch vụ Google dùng để backend đọc/ghi Spreadsheet mà không cần OAuth user. |
-| Apps Script             | Hai GAS project trong `src-dashboard/` và `src-order-lifecycle/` đồng bộ dữ liệu theo từng tính năng. |
-| batchGet                | Gọi Google Sheets API đọc nhiều tab đang tồn tại cùng lúc trong 1 request HTTP.      |
-| KiotViet webhook        | KiotViet Public API gửi POST JSON về Web App URL của Apps Script khi có thay đổi.    |
-| Polling trigger         | Apps Script time-based trigger chạy mỗi 15 phút cho 3 bảng không có KiotViet webhook. |
+| Service Account         | Tài khoản dịch vụ Google dùng để backend đọc `Trả NCC` và quản lý Sheets Vòng đời đơn hàng / Nhân sự mà không cần OAuth user. |
 | Result Cache            | Cơ chế lưu đệm kết quả KPI/biểu đồ đã tính theo phiên bản dữ liệu thô và bộ lọc.    |
 | OTP                     | One-Time Password mã xác thực dùng một lần 6 số dùng để khôi phục mật khẩu.         |
 | HR Leave                | Phân hệ quản lý đơn nghỉ phép, tính toán số dư ngày phép theo chính sách CSNS-NP-01. |
+| Vòng đời đơn hàng       | Tính năng tra cứu trạng thái đơn hàng theo mã đơn qua Google Sheets.                 |
 
 ## 1.4. Tài liệu tham khảo
 
-- BRD v1.8 — Hệ thống Dashboard nội bộ TOKOSI.
+- BRD v2.0 — Hệ thống Dashboard nội bộ TOKOSI.
 - CSNS-NP-01 — Quy định & Chính sách quản lý nghỉ phép nhân sự.
+- Supabase PostgreSQL Documentation.
 - Google Sheets API v4 Documentation.
 - KiotViet Public API Documentation.
-- Google Apps Script Documentation.
 
 # 2. Mô tả tổng quan hệ thống
 
 ## 2.1. Kiến trúc tổng quan — Giai đoạn 1 & Phase 0/0.5/1 & HR Module (đã triển khai)
 
 ```
-KiotViet POS / Telegram User / HR Portal
+```
+KiotViet API / Webhook
     |
-    | (webhook POST JSON — 9 loại event / Telegram Bot webhook / HTTP REST)
+    | (webhook POST JSON / Polling REST)
     v
-Apps Script (`src-dashboard/`, `src-order-lifecycle/`) / Backend Node.js Express (Render.com)
-    |                                   |
-    | hydrate + upsert/delete           | time-based trigger (15 phút)
-    | (real-time cho 6 nhóm)            | (Trả hàng + NCC: 15 phút; Nhập hàng: 5 phút + đối soát)
-    v                                   v
-Các Google Spreadsheet độc lập (Dashboard theo cơ sở / Bảng Công nợ / Vận chuyển / Nhân sự)
+Node.js Sync Engine (server/kiotvietSync/ trên Render.com)
+    ├── server/kiotviet/webhookEventQueue.js : nhận webhook POST, hàng đợi nền
+    ├── server/kiotvietSync/syncDriver.js    : driver đồng bộ entity incremental/full
+    ├── server/kiotvietSync/scheduler.js     : polling & đối soát định kỳ
+    ├── server/kiotvietSync/customerDebtReportRefresh.js : tổng hợp CN1/CN3/CN7
+    └── server/kiotvietSync/dashboardRollupRefresh.js   : rollup theo ngày (5 phút)
     |
-    | Google Sheets API v4 — list tab → lọc tab hiện có → batchGet / append (Service Account)
-    v
-Backend: Node.js + Express
+    v (UPSERT / Query)
+Cơ sở dữ liệu Supabase PostgreSQL
+    ├── categories, products, customers, suppliers, staff
+    ├── invoices, invoice_details, invoice_payments
+    ├── orders, order_details, returns, return_details
+    ├── purchases, purchase_details, cash_flows
+    ├── daily_invoice_summary, daily_product_sales, daily_purchase_summary, product_first_purchase
+    ├── customer_debt_activity_periods (CN1/CN3/CN7)
+    ├── app_users, hr_employees, debt_collection_statuses
+    └── webhook_events_raw, sync_checkpoints, backfill_progress
+
+Google Sheets (chỉ đọc có chọn lọc qua Google Sheets API v4)
+    ├── Kiot HN / SG: chỉ đọc tab `Trả NCC` (dữ liệu nhập thủ công)
+    ├── Bảng Công nợ: `DEBT_MANAGEMENT_SPREADSHEET_ID` (Quản lý công nợ)
+    ├── Vòng đời đơn hàng: `ORDER_LIFECYCLE_SPREADSHEET_ID` (DonHang_HN, DonHang_SG, Lịch sử cập nhật)
+    └── Nhân sự: `HR_SPREADSHEET_ID` (HR_Leaves)
+
+Backend Web Server: Node.js + Express
     - server/index.js                 : khởi động server Express (Gzip, Cache-Control)
-    - server/config.js                : đọc biến môi trường (JWT_SECRET, SPREADSHEET_ID...)
+    - server/config.js                : đọc biến môi trường (SUPABASE_DB_URL, JWT_SECRET...)
     - server/routes.js                : định nghĩa endpoints & phân quyền middleware
     - server/auth/authMiddleware.js   : requireAuth, requireRole bọc route
     - server/auth/authRoutes.js       : /api/auth/* (register, login, google, profile, otp reset)
-    - server/auth/adminUserRoutes.js  : /api/admin/users (CRUD tài khoản, phân quyền)
-    - server/auth/otpService.js       : sinh mã OTP 6 số, mask Email/SĐT, kiểm tra thời hạn
-    - server/auth/localUserStore.js   : lưu trữ tài khoản cục bộ bảo mật (server/data/users.json)
-    - server/auth/userRepository.js   : đọc/tìm người dùng từ sheet Users & local store
-    - server/auth/userWriteRepository.js : tạo/cập nhật user vào sheet Users & local store
+    - server/auth/userRepository.js   : đọc/tìm người dùng từ PostgreSQL app_users
     - server/hr/hrLeaveRoutes.js      : /api/hr/leave/* (nộp đơn, tra cứu, duyệt/từ chối, xuất Excel)
     - server/hr/hrLeaveService.js     : nghiệp vụ tính hạn mức và trừ ngày phép
-    - server/hr/hrLeaveRepository.js  : CRUD dữ liệu Google Sheets HR_Leaves
-    - server/hr/hrLeaveExportService.js : xuất báo cáo ngày nghỉ phép nhân viên ra Excel
-    - server/telegram/hrTelegramBot.js : Telegram Bot nộp đơn, tra cứu ngày phép & thông báo duyệt
-    - server/shipment/invoiceStatusService.js : tra cứu trạng thái hóa đơn (cache 90s)
-    - server/shipment/orderStateMachine.js : State Machine 9 trạng thái vận đơn
-    - server/shipment/vcOrderRepository.js : CRUD 6 tab vận chuyển VC_*
-    - server/sheets/sheetsClient.js   : gọi Google Sheets API (cache thô 90s, timeout 15s)
-    - server/sheets/debtManagementSheetsClient.js : đọc-only Công nợ HN/SG, cache 90s
-    - server/sheets/vcSheetsClient.js : gọi Google Sheets API VC_* (cache 12s, write invalidation)
-    - server/sheets/hrSheetsClient.js : gọi Google Sheets API HR_*
-    - server/dashboard/dashboardData.js : tính toán KPI, biểu đồ & Result Cache
+    - server/sheets/sheetsClient.js   : gọi Google Sheets API đọc Trả NCC (cache thô 90s)
+    - server/sheets/debtManagementSheetsClient.js : đọc-only Bảng Công nợ HN/SG, cache 90s
+    - server/sheets/orderLifecycleSheetsClient.js : đọc/ghi Vòng đời đơn hàng
+    - server/dashboard/dashboardPgReader.js : đọc dữ liệu vận hành từ Supabase PostgreSQL
+    - server/dashboard/customerDebtActivityRepository.js : đọc CN1/CN3/CN7 từ PostgreSQL
     - server/dashboard/debtManagement.js : parser, đối chiếu cảnh báo, KPI và chữ ký công nợ
     - server/dashboard/debtCollectionStatusRepository.js : trạng thái thu nợ trong PostgreSQL
     - server/dashboard/debtManagementRoutes.js : PATCH trạng thái theo req.branch
     - server/dashboard/exportService.js : dịch vụ tạo file xuất Excel .xlsx
-    - server/scripts/setupUsersSheet.js : CLI quản trị tài khoản người dùng
-    - server/scripts/setupHrSheet.js  : CLI khởi tạo các tab HR
     |
-    | REST APIs: /api/auth/*, /api/admin/*, /api/shipment/*, /api/hr/*, /api/dashboard, /api/search, /api/export
+    | REST APIs: /api/auth/*, /api/dashboard, /api/search, /api/export, /api/shipment/*, /api/hr/*
     v
 Frontend: HTML/CSS/JS tĩnh (server/public/)
-    - server/public/index.html        : Live Dashboard (KPI, biểu đồ, phân trang, xuất Excel)
+    - server/public/index.html        : Live Dashboard (KPI, biểu đồ, Quản lý công nợ, xuất Excel)
     - server/public/account/index.html: Quản lý tài khoản (Hồ sơ & Quản trị người dùng)
     - server/public/humanresources/   : Cổng thông tin nhân sự (Nộp đơn nghỉ phép, tra cứu, phê duyệt)
     - server/public/login/index.html   : Đăng nhập nội bộ, Google Sign-In & Quên mật khẩu OTP
     - server/public/register/index.html: Đăng ký tài khoản Khách (Email / Số điện thoại)
-    - server/public/shipment/index.html: Tra cứu trạng thái vận chuyển hóa đơn
-    - server/public/shipment/dispatch/: Bảng điều phối vận đơn Web Desktop (Kế toán)
-    - server/public/shipment/mobile/  : Mobile Web 1-chạm (Thủ kho & Lái xe)
+    - server/public/shipment/lifecycle/: Tra cứu vòng đời đơn hàng theo mã đơn
     - server/public/shared/shared-nav.js : Điều hướng dùng chung đa trang & auth guard
     - server/public/js/pagination.js  : Phân trang bảng client-side
-    - Chart.js (biểu đồ với animation gating)
+    - Chart.js (biểu đồ 2D)
     |
     v
 Người dùng (trình duyệt) — tokosi.onrender.com / localhost:3000
@@ -129,15 +127,18 @@ Người dùng (trình duyệt) — tokosi.onrender.com / localhost:3000
 ### Backend
 - **Runtime:** Node.js (>= 18)
 - **Framework:** Express.js v4
-- **Dependencies:** `googleapis` (Google Sheets API client), `bcryptjs` / `bcrypt`, `jsonwebtoken`, `exceljs` / export builder, `dotenv` (dev only)
+- **Database:** Supabase PostgreSQL (kết nối pooling & direct qua thư viện `pg`)
+- **Dependencies:** `pg`, `googleapis` (Google Sheets API client), `bcryptjs` / `bcrypt`, `jsonwebtoken`, `exceljs` / export builder, `dotenv` (dev only)
 - **Entry point:** `server/index.js`
-- **Testing:** `node:test` + `node:assert/strict` (324 unit tests tự động)
+- **Testing:** `node:test` + `node:assert/strict` (711 unit tests tự động)
 - **API:** REST; endpoints:
-  - Auth: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/google`, `GET /api/auth/google-config`, `GET /api/auth/me`, `PUT /api/auth/profile`, `POST /api/auth/change-password`, `POST /api/auth/request-reset-otp`, `POST /api/auth/verify-reset-otp`, `POST /api/auth/reset-password-otp`, `POST /api/auth/logout`
-  - Admin: `GET /api/admin/users`, `POST /api/admin/users`, `PATCH /api/admin/users/:username`, `POST /api/admin/users/:username/reset-password`, `DELETE /api/admin/users/:username`
-  - Shipment: `POST /api/shipment/invoice-status`, `GET /api/shipment/orders`, `POST /api/shipment/orders`, `GET /api/shipment/orders/:id`, `POST /api/shipment/orders/:id/transition`, `POST /api/shipment/orders/:id/assign-driver`, `POST /api/shipment/orders/:id/photos`, `POST /api/shipment/orders/:id/exception`, `GET /api/shipment/audit`, `GET /api/shipment/vehicles`
-  - HR Leave: `GET /api/hr/leave/history`, `POST /api/hr/leave/requests`, `GET /api/hr/leave/balance`, `GET /api/hr/leave/admin/requests`, `POST /api/hr/leave/admin/requests/:id/approve`, `POST /api/hr/leave/admin/requests/:id/reject`, `GET /api/hr/leave/export`
+  - Auth: `/api/auth/*` (register, login, google, profile, otp reset, logout)
+  - Role Requests & Admin: `/api/role-requests/*`, `/api/admin/users/*`
+  - Shipment / Vòng đời đơn hàng: `/api/shipment/order-lifecycle/*`
+  - HR Leave: `/api/hr/leave/*`
   - Dashboard & Analytics: `GET /api/dashboard`, `GET /api/search`, `GET /api/customer-product-top`
+  - Quản lý công nợ: `PATCH /api/dashboard/debt-management/status`
+  - Sync nội bộ: `POST /api/internal/kiotviet-sync/webhook`, `GET /api/internal/kiotviet-sync/status`
   - Export: `POST /api/export/fields`, `POST /api/export`
   - System: `GET /health`, `GET /api/debug`
 
@@ -149,9 +150,10 @@ Người dùng (trình duyệt) — tokosi.onrender.com / localhost:3000
 - **Không dùng:** React, Next.js, TailwindCSS, TypeScript
 
 ### Dữ liệu & Caching
-- **Nguồn:** ba Google Spreadsheet, cấu hình qua `SPREADSHEET_ID`, `VC_SPREADSHEET_ID`, `HR_SPREADSHEET_ID`
-- **Xác thực:** Google Service Account JSON (env var `GOOGLE_SERVICE_ACCOUNT_JSON`)
-- **Caching:** Cache dữ liệu thô Sheets 90s (`dashboardSheetsCache`) + Result Cache in-memory theo key `(rawDataVersion, filters)`
+- **Nguồn chính:** Supabase PostgreSQL (`SUPABASE_DB_URL`) cho toàn bộ thực thể KiotViet, tài khoản và công nợ CN1/CN3/CN7.
+- **Nguồn bổ trợ:** Google Sheets cho `Trả NCC` (`SPREADSHEET_ID`, `SPREADSHEET_ID_SG`), Bảng Công nợ (`DEBT_MANAGEMENT_SPREADSHEET_ID`), Vòng đời đơn hàng (`ORDER_LIFECYCLE_SPREADSHEET_ID`), và Nhân sự (`HR_SPREADSHEET_ID`).
+- **Xác thực Google:** Google Service Account JSON (`GOOGLE_SERVICE_ACCOUNT_JSON`).
+- **Caching:** Result Cache in-memory theo key `(rawDataVersion, filters)` + Cache thô Sheets 90s cho các tab phụ trợ.
 
 ### Hạ tầng & triển khai
 - **Hosting:** Render.com (Web Service)
@@ -159,26 +161,25 @@ Người dùng (trình duyệt) — tokosi.onrender.com / localhost:3000
 - **CI/CD:** tự động deploy khi push lên branch `main` của GitHub repo
 - **Biến môi trường:** cấu hình trực tiếp trên Render dashboard
 
-### Apps Script
-- **Dashboard:** `src-dashboard/` qua `.clasp.json` (`rootDir: "src-dashboard"`)
-- **Vận chuyển:** `src-order-lifecycle/` qua `.clasp.order-lifecycle.json` (`rootDir: "src-order-lifecycle"`)
-- **Nơi chạy:** hai Google Apps Script project gắn với hai Google Spreadsheet tương ứng
-- **Chức năng:** webhook receiver (`doPost`), queue bền vững, hydrate + upsert/delete; Dashboard có thêm full sync và polling 15 phút
+### Sync Engine KiotViet
+- **Vị trí:** `server/kiotvietSync/` và `server/kiotviet/`
+- **Cơ chế:** Webhook KiotViet đẩy trực tiếp vào server (xử lý qua queue nền) + Polling/scheduler đối soát mỗi 5-15 phút.
+- **Dữ liệu công nợ:** Job `customerDebtReportRefresh.js` tự động tính và ghi ba kỳ CN1/CN3/CN7 vào `customer_debt_activity_periods`.
 
-## 2.3. Đối tượng người dùng (Giai đoạn 1)
+## 2.3. Đối tượng người dùng
 
 | **Vai trò**  | **Mô tả**                                                              |
 |--------------|------------------------------------------------------------------------|
 | Người xem    | Mọi người dùng nội bộ có URL — xem KPI, lọc thời gian, phân trang, xuất Excel, làm mới dữ liệu. |
-| IT Admin     | Cấu hình biến môi trường Render, quản lý Apps Script trigger/webhook.   |
+| Quản lý / Trợ lý | Toàn quyền xem và cập nhật trạng thái xử lý Quản lý công nợ, duyệt nghỉ phép HR. |
+| IT Admin     | Cấu hình biến môi trường Render, quản trị database và tài khoản hệ thống. |
 
 ## 2.4. Giả định & phụ thuộc
 
-- Apps Script `src-dashboard/kiotviet/SheetSchemas.gs` duy trì schema cố định cho 9 tab; backend dùng các cột tương thích bên trái và tab Nhóm hàng để ánh xạ nhóm con về nhóm cha.
-- Service Account đã được share quyền Viewer trên Spreadsheet nguồn.
-- KiotViet webhook đang active và trỏ đúng Web App URL của Apps Script.
-- Render.com có biến môi trường `SPREADSHEET_ID` và `GOOGLE_SERVICE_ACCOUNT_JSON` đúng.
-- Hệ thống phụ thuộc vào tính khả dụng của Google Sheets API (rate limit, quota).
+- Database Supabase PostgreSQL hoạt động ổn định với schema chuẩn hóa `0001` đến `0014`.
+- Service Account Google được cấp quyền Viewer trên Sheets Kiot HN/SG (để đọc `Trả NCC`) và quyền truy cập các file Vòng đời đơn hàng, HR.
+- Webhook KiotViet đang hoạt động và trỏ đúng endpoint server `/api/internal/kiotviet-sync/webhook`.
+- Render.com có đầy đủ biến môi trường kết nối database và credentials KiotViet.
 
 ## 2.5. Định hướng kiến trúc mở rộng dài hạn
 
@@ -254,23 +255,18 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-05.4 | Frontend tự gọi lại API mỗi 10 phút; nếu payload nghiệp vụ không đổi thì chỉ cập nhật timestamp, không render lại toàn bộ view. | Trung bình | Hoàn thành     |
 | FR-05.5 | Khi tab trở lại trạng thái `visible` sau ít nhất 10 phút kể từ lần fetch gần nhất, frontend phải gọi API ngay để bù chu kỳ bị trình duyệt trì hoãn. | Trung bình | Hoàn thành |
 
-## 3.6. FR-06: Apps Script — Đồng bộ KiotViet tự động
+## 3.6. FR-06: Node.js Sync Engine — Đồng bộ KiotViet tự động vào Supabase PostgreSQL
 
 | **Mã**  | **Mô tả**                                                                                                                                                                     | **Ưu tiên** | **Trạng thái** |
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
-| FR-06.1 | `syncAllInitialData()`: đồng bộ toàn bộ dữ liệu KiotViet vào 9 sheet vận hành và làm mới các báo cáo; HN1/HN3/HN7 phải chạy sau khi tab Hàng hóa đã được làm mới. | Cao | Hoàn thành |
-| FR-06.2 | `doPost(e)`: nhận webhook POST, hydrate bản ghi chi tiết rồi upsert/delete đúng sheet cho product/invoice/order/customer/category; hóa đơn đồng thời thay chi tiết hóa đơn và các dòng `Hàng bán theo khách`. | Cao | Hoàn thành |
-| FR-06.3 | `setupPollingTrigger()`: bật trigger 15 phút để đối soát Trả hàng + Nhà cung cấp + Nhập hàng, đồng thời quét nhanh cửa sổ Nhập hàng 7 ngày mỗi 5 phút (KiotViet không có webhook cho 3 loại này). | Cao | Hoàn thành |
-| FR-06.4 | `setupRealtimeWebhook()`: đăng ký 9 loại event webhook với KiotViet API, xóa webhook cũ trước khi đăng ký mới.                                                               | Cao         | Hoàn thành     |
-| FR-06.5 | Retry tự động tối đa 5 lần (exponential backoff) khi gọi KiotViet API bị lỗi tạm thời (429/5xx/network error).                                                               | Cao         | Hoàn thành     |
-| FR-06.6 | `syncCustomerReport()`: tổng hợp toàn bộ lịch sử hóa đơn và trả hàng hoàn thành, ghi tab `Báo cáo bán hàng` đủ 18 cột như file xuất KiotViet, gồm thông tin khách, số đơn, tổng tiền, giảm giá, doanh thu và chi tiết từng giao dịch. | Cao | Hoàn thành |
-| FR-06.7 | Tab `Hàng bán theo khách` giữ đúng 5 cột Khách hàng, Mã hàng, Tên hàng, SL mua chi tiết, Thời gian; mỗi chi tiết hàng hóa của hóa đơn hoàn thành trong 90 ngày là một dòng. | Cao | Hoàn thành |
-| FR-06.8 | Webhook hóa đơn thay/xóa đúng các dòng `Hàng bán theo khách` trong chu kỳ hàng đợi 1 phút; `syncCustomerReportIfDue_()` đối soát độc lập `Báo cáo bán hàng` gần 06:00, `Hàng bán theo khách` gần 06:30 và `Khách theo hàng hóa` gần 07:00. Hàng đợi kiểm tra mỗi phút và chạy bù riêng báo cáo nào đã đến lịch nhưng chưa đồng bộ thành công. | Cao | Hoàn thành |
-| FR-06.9 | 9 sheet giữ các cột dashboard ở bên trái và các trường KiotViet dạng phẳng đang dùng ở bên phải; không lưu object/mảng hoặc payload gốc dạng JSON. Trigger nền tự xóa vật lý các cột `(JSON)` của schema cũ sau khi deploy. | Cao | Hoàn thành |
-| FR-06.10 | Webhook phải được ghi vào tab hàng đợi ẩn bền vững trước khi phản hồi thành công; chỉ xóa sau khi xử lý thành công. Lỗi được retry tối đa 10 lần rồi giữ ở trạng thái `ERROR` để xử lý thủ công. | Cao | Hoàn thành |
-| FR-06.11 | Full sync ghi dữ liệu mới trước khi dọn dòng cũ dư và khóa chung với luồng webhook, tránh xóa trắng hoặc ghi đè chéo khi cập nhật lỗi. | Cao | Hoàn thành |
-| FR-06.12 | `syncCustomerDebtReports()` dùng cùng luồng tính cho chạy riêng và `syncAllInitialData()`, ghi đè HN1/HN3/HN7 theo kỳ 1/3/7 ngày và tự cập nhật gần 15:00. | Cao | Hoàn thành |
-| FR-06.14 | Tab `Khách theo hàng hóa` có đúng 25 cột như file xuất KiotViet, tổng hợp toàn bộ lịch sử theo sản phẩm → khách hàng → chi tiết hóa đơn; chỉ cập nhật gần 07:00 hoặc qua `syncCustomerByProductReport()`, không nhận cập nhật webhook. | Cao | Hoàn thành |
+| FR-06.1 | `preflightCheck` & `backfill.js`: Kiểm tra kết nối API KiotViet và database, đồng bộ toàn bộ dữ liệu lịch sử vào Supabase PostgreSQL cho cả hai cơ sở Hà Nội và Sài Gòn. | Cao | Hoàn thành |
+| FR-06.2 | `POST /api/internal/kiotviet-sync/webhook`: Nhận webhook POST từ KiotViet, phản hồi `HTTP 200` tức thì và đưa vào hàng đợi nền `webhookEventQueue.js` để upsert/delete vào database mà không nghẽn luồng. | Cao | Hoàn thành |
+| FR-06.3 | `scheduler.js` & `syncDriver.js`: Lập lịch polling đối soát định kỳ mỗi 5-15 phút, cập nhật checkpoint tăng dần `lastModifiedFrom` và bù đắp các bản ghi bị sót. | Cao | Hoàn thành |
+| FR-06.4 | Cấu hình đăng ký webhook KiotViet trỏ về endpoint của server trên Render, phân biệt cơ sở bằng thông tin gian hàng trong payload. | Cao | Hoàn thành |
+| FR-06.5 | Retry tự động (exponential backoff) khi gọi KiotViet API bị lỗi tạm thời (429/5xx/network error). | Cao | Hoàn thành |
+| FR-06.6 | `dashboardRollupRefresh.js`: Tự động tổng hợp 4 bảng rollup theo ngày (`daily_invoice_summary`, `daily_product_sales`, `daily_purchase_summary`, `product_first_purchase`) mỗi 5 phút để phục vụ KPI dashboard tức thì. | Cao | Hoàn thành |
+| FR-06.12 | `customerDebtReportRefresh.js`: Tự động tính toán khách hàng có giao dịch trong 1/3/7 ngày gần nhất và ghi vào bảng `customer_debt_activity_periods` (**CN1 / CN3 / CN7**, trước đây gọi là HN1/HN3/HN7) gần 15:00 hàng ngày để phục vụ cảnh báo "Chưa thu" trên màn hình Quản lý công nợ. | Cao | Hoàn thành |
+
 
 ## 3.7. FR-07: Giao diện người dùng & Tối ưu tương tác
 
@@ -318,9 +314,9 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | **Mã** | **Mô tả** | **Ưu tiên** | **Trạng thái** |
 |---|---|---|---|
 | FR-11.1 | Parse workbook công nợ theo header/alias, bỏ hàng tổng số 2, giữ `null` cho ô trống/`#N/A`, hỗ trợ số và phần trăm Việt Nam. | Cao | Hoàn thành |
-| FR-11.2 | Ghép khách với HN1/HN3/HN7 bằng tên chuẩn hóa Unicode/khoảng trắng/hoa thường, không fuzzy matching; tên trùng bị đánh `Lỗi dữ liệu` và khóa sửa trạng thái. | Cao | Hoàn thành |
+| FR-11.2 | Ghép khách với CN1/CN3/CN7 bằng tên chuẩn hóa Unicode/khoảng trắng/hoa thường, không fuzzy matching; tên trùng bị đánh `Lỗi dữ liệu` và khóa sửa trạng thái. | Cao | Hoàn thành |
 | FR-11.3 | Lịch 1/3 tạo cảnh báo `Chưa thu` theo ma trận đối chiếu; mọi lịch tạo `Quá hạn` khi nợ quá hạn dương; chỉ miễn cảnh báo khi cả nợ hiện tại và nợ quá hạn đều dưới 400.000đ. | Cao | Hoàn thành |
-| FR-11.4 | Thiếu bất kỳ HN1/HN3/HN7 sẽ tắt riêng cảnh báo `Chưa thu`; cảnh báo `Quá hạn` vẫn hoạt động. | Cao | Hoàn thành |
+| FR-11.4 | Thiếu bất kỳ CN1/CN3/CN7 sẽ tắt riêng cảnh báo `Chưa thu`; cảnh báo `Quá hạn` vẫn hoạt động. | Cao | Hoàn thành |
 | FR-11.5 | Dashboard gồm 4 KPI, biểu đồ theo sale/lịch, top nợ hiện tại/quá hạn, bảng 10 cột; hỗ trợ lọc, tìm, click biểu đồ, sort ba trạng thái và phân trang 100 dòng. | Cao | Hoàn thành |
 | FR-11.6 | Trạng thái `Chưa xử lý/Đang xử lý/Đã xử lý/Bỏ qua` lưu theo `(branch, customer_key)`; Đã xử lý/Bỏ qua rời hàng chờ và tự hết hiệu lực khi chữ ký cảnh báo thay đổi. | Cao | Hoàn thành |
 | FR-11.7 | Chỉ Quản lý/Trợ lý được PATCH trạng thái. Cơ sở lấy từ `req.branch`, không nhận từ payload client; các vai trò khác chỉ thấy pill đọc-only. | Cao | Hoàn thành |
@@ -702,20 +698,18 @@ lần qua trigger nền sẽ xóa vật lý các cột `(JSON)` của schema cũ
 - Sheet không nhận webhook. `syncCustomerByProductReport()` tự động đối soát gần 07:00 và cho phép cập nhật thủ công bất kỳ lúc nào.
 - Dashboard chỉ đọc sheet này khi gọi `/api/customer-product-top` và giữ cache riêng 90 giây; luồng `/api/dashboard` thông thường không tải sheet lớn này.
 
-## 7.5. Các tab HN1/HN3/HN7 do Apps Script duy trì
+## 7.5. Dữ liệu công nợ CN1/CN3/CN7 trong database (Supabase PostgreSQL)
 
-- `CustomerDebtReport.gs` lấy dữ liệu khách hàng, hóa đơn, trả hàng và thu/chi từ KiotViet rồi ghi HN1/HN3/HN7 theo các kỳ 1/3/7 ngày.
-- `syncAllInitialData()` làm mới tab Hàng hóa trước khi dựng ba báo cáo để thông tin mã hàng, tên hàng, thương hiệu và nhóm hàng giống kết quả chạy `syncCustomerDebtReports()` riêng.
-- Trigger hàng ngày chạy gần 15:00; hàng đợi một phút có cơ chế chạy bù nếu lịch ngày bị trễ hoặc lỗi.
-- Backend dashboard chỉ đọc ba tab này và không ghi ngược lại.
+- Scheduler job `server/kiotvietSync/customerDebtReportRefresh.js` tính toán khách hàng có phát sinh giao dịch trong 1/3/7 ngày gần nhất (CN1/CN3/CN7, trước đây gọi là HN1/HN3/HN7) trực tiếp từ database PostgreSQL (`invoices`, `returns`, `cash_flows`, `customers`).
+- Kết quả được ghi vào bảng `customer_debt_activity_periods` gần 15:00 hàng ngày hoặc khi chạy tác vụ làm mới.
+- Dashboard đọc dữ liệu này qua `customerDebtActivityRepository.js` để làm nguồn đối chiếu cảnh báo "Chưa thu" trên màn hình Quản lý công nợ, hoàn toàn không phụ thuộc Google Sheets.
 
-## 7.6. Webhook KiotViet — hai project độc lập
+## 7.6. Cơ chế Webhook KiotViet & Polling Sync Engine
 
-Project `src-dashboard/` đăng ký 9 loại: `product.update`, `product.delete`, `stock.update`, `customer.update`, `customer.delete`, `invoice.update`, `order.update`, `category.update`, `category.delete`.
-
-KiotViet chỉ chấp nhận một webhook cho mỗi Type, vì vậy project Dashboard giữ đăng ký `invoice.update`. Sau khi cập nhật sheet Dashboard thành công, hàng đợi chuyển tiếp payload sang Web App `src-order-lifecycle/`; project Vận chuyển có queue một phút riêng và không đăng ký webhook trùng. Profile `COMBINED` không còn được sử dụng.
-
-**Lưu ý quan trọng:** KiotViet KHÔNG có webhook cho Trả hàng (`return.*`), Nhà cung cấp (`supplier.*`), Nhập hàng (`purchaseorder.*`). Trả hàng/NCC và full reconciliation dùng polling 15 phút; Nhập hàng có thêm polling cửa sổ 7 ngày mỗi 5 phút.
+- Endpoint nhận webhook: `POST /api/internal/kiotviet-sync/webhook` nhận sự kiện trực tiếp từ KiotViet API, phản hồi `HTTP 200` tức thì và xử lý nền qua `webhookEventQueue.js`.
+- KiotViet đăng ký webhook cho các loại: `product.update`, `product.delete`, `stock.update`, `customer.update`, `customer.delete`, `invoice.update`, `order.update`, `category.update`, `category.delete`.
+- KiotViet không có webhook cho Trả hàng, Nhà cung cấp, Nhập hàng: scheduler `server/kiotvietSync/scheduler.js` chạy polling đối soát định kỳ mỗi 5-15 phút để đảm bảo toàn vẹn dữ liệu.
+- Apps Script cũ (`src-dashboard`) đã được gỡ bỏ hoàn toàn.
 
 ## 7.7. Format ngày tháng
 

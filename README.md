@@ -7,9 +7,9 @@ Dashboard nội bộ cho hai cơ sở Hà Nội và Sài Gòn.
 - **Supabase PostgreSQL** là nguồn dữ liệu KiotViet chính cho dashboard: hàng hóa, hóa đơn, đặt hàng, trả hàng, khách hàng, nhà cung cấp, nhập hàng và các bảng tổng hợp.
 - Engine `server/kiotvietSync/` đồng bộ KiotViet API vào Supabase bằng webhook/polling phía Node.js.
 - Hai Google Sheets Kiot HN/SG chỉ còn tab **`Trả NCC`**. Đây là dữ liệu nhập thủ công; server chỉ đọc tab này bằng Google Sheets API.
-- HN1/HN3/HN7 được tính từ Supabase và lưu trong `customer_debt_activity_periods`.
+- CN1/CN3/CN7 (công nợ 1/3/7 ngày, trước đây gọi là HN1/HN3/HN7) được tính từ Supabase và lưu trong `customer_debt_activity_periods`.
 - Tài khoản ứng dụng được lưu trong PostgreSQL; không còn tab `Users`.
-- Apps Script Kiot HN/SG và module vận chuyển đã được nghỉ hưu hoàn toàn.
+- Apps Script Kiot HN/SG và module vận chuyển cũ đã được nghỉ hưu hoàn toàn; tính năng tra cứu vòng đời đơn hàng tiếp tục được duy trì qua Google Sheets (`ORDER_LIFECYCLE_SPREADSHEET_ID`).
 - Nguồn nhân sự vẫn sử dụng workbook HR riêng khi được cấu hình.
 
 ## Chạy local
@@ -33,8 +33,9 @@ Mở `http://localhost:3000`.
 | `KIOTVIET_CLIENT_ID`, `KIOTVIET_CLIENT_SECRET`, `KIOTVIET_RETAILER` | KiotViet Hà Nội |
 | `KIOTVIET_CLIENT_ID_SG`, `KIOTVIET_CLIENT_SECRET_SG`, `KIOTVIET_RETAILER_SG` | KiotViet Sài Gòn |
 | `SPREADSHEET_ID`, `SPREADSHEET_ID_SG` | Hai file Sheets chỉ chứa tab `Trả NCC` |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | Quyền Viewer để đọc `Trả NCC` |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Quyền Viewer để đọc `Trả NCC` và quản lý vòng đời đơn hàng / HR |
 | `DEBT_MANAGEMENT_SPREADSHEET_ID` | Workbook công nợ dùng chung |
+| `ORDER_LIFECYCLE_SPREADSHEET_ID` | Workbook tra cứu vòng đời đơn hàng (`DonHang_HN`, `DonHang_SG`, `Lịch sử cập nhật`) |
 | `HR_SPREADSHEET_ID`, `HR_SPREADSHEET_ID_SG` | Workbook nhân sự |
 | `JWT_SECRET` | Ký phiên đăng nhập |
 
@@ -53,14 +54,15 @@ server/
 ├── kiotvietSync/         # Webhook, polling, backfill và rollup
 ├── public/               # Frontend
 ├── sheets/               # Google Sheets client
+├── shipment/             # Tra cứu vòng đời đơn hàng
 ├── index.js
 └── routes.js
 ```
 
-## Dữ liệu công nợ HN1/HN3/HN7
+## Dữ liệu công nợ CN1/CN3/CN7
 
-Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba kỳ 1/3/7 ngày. Scheduler gọi `customerDebtReportRefresh.js`; dashboard đọc bảng này qua `customerDebtActivityRepository.js`, không đọc Google Sheets.
+Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba kỳ 1/3/7 ngày (CN1/CN3/CN7, trước đây gọi là HN1/HN3/HN7). Scheduler gọi `customerDebtReportRefresh.js`; dashboard đọc bảng này qua `customerDebtActivityRepository.js`, không đọc Google Sheets.
 
 ## Cập nhật gần nhất
 
-2026-09-19 — chuyển dữ liệu KiotViet sang Supabase, chỉ giữ `Trả NCC` trên Sheets, xóa Apps Script và module vận chuyển.
+2026-09-19 — chuyển dữ liệu KiotViet sang Supabase, chỉ giữ `Trả NCC` trên Sheets Kiot, duy trì vòng đời đơn hàng trên Sheets, xóa Apps Script và chuẩn hóa tên gọi công nợ 1/3/7 ngày thành CN1/CN3/CN7.

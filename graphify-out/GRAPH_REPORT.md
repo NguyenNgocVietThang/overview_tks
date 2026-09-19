@@ -201,7 +201,7 @@
 ## Surprising Connections (you probably didn't know these)
 - `Phase 3 Vận hành nâng cao (KPI xe, cước phí)` --semantically_similar_to--> `Giai đoạn 5: chuyển Dashboard sang Postgres + Render (tương lai)`  [INFERRED] [semantically similar]
   Plan Process Automation.md → docs/04-planning/2026-09-14-roadmap-supabase-kiotviet-sync.md
-- `HN1/HN3/HN7 debt reports kept unchanged at ~15:00` --semantically_similar_to--> `HN1/HN3/HN7 debt sheets (1/3/7-day periods, same column schema)`  [INFERRED] [semantically similar]
+- `CN1/CN3/CN7 debt reports (formerly HN1/HN3/HN7)` --semantically_similar_to--> `CN1/CN3/CN7 debt periods (1/3/7-day periods, same schema)`  [INFERRED] [semantically similar]
   docs/superpowers/specs/2026-08-20-stagger-customer-report-triggers-design.md → docs/superpowers/specs/2026-08-05-debt-dashboard-design.md
 - `Roadmap Supabase KiotViet Sync` --conceptually_related_to--> `Quota Guard (UrlFetch circuit breaker)`  [INFERRED]
   docs/04-planning/2026-09-14-roadmap-supabase-kiotviet-sync.md → README.md
@@ -216,7 +216,7 @@
 ## Hyperedges (group relationships)
 - **Table Pagination Pattern Reused Across Dashboard Optimization Plans** — docs_superpowers_plans_2026_08_13_dashboard_table_pagination, docs_superpowers_plans_2026_08_13_dashboard_table_pagination_tablepagesize, docs_superpowers_plans_2026_08_19_tks_lag_optimization_tablepagesize100 [EXTRACTED 1.00]
 - **HR Telegram Leave Bot Feature Evolution** — docs_superpowers_plans_2026_08_21_hr_leave_days_input, docs_superpowers_plans_2026_08_22_hr_leave_sessions_submission_filter, docs_superpowers_specs_2026_08_22_hr_leave_sessions_and_submission_time_design, docs_superpowers_plans_2026_08_22_gemini_one_message_leave_request, docs_superpowers_specs_2026_08_31_telegram_ai_leave_message_recognition, docs_superpowers_specs_2026_08_31_xkiro_free_model_consensus_design, docs_superpowers_plans_2026_08_31_xkiro_five_model_consensus [INFERRED 0.85]
-- **CustomerDebtReport.gs as Shared Source for Debt/Payment Reporting** — docs_superpowers_specs_2026_08_05_debt_dashboard_design_customerdebtreportgs, docs_superpowers_specs_2026_09_04_invoice_payments_return_line_items_customerdebtreportgs, docs_superpowers_specs_2026_08_20_stagger_customer_report_triggers_design_hn1hn3hn7 [INFERRED 0.85]
+- **CustomerDebtReport / customer_debt_activity_periods as Shared Source for Debt/Payment Reporting** — docs_superpowers_specs_2026_08_05_debt_dashboard_design_customerdebtreportgs, docs_superpowers_specs_2026_09_04_invoice_payments_return_line_items_customerdebtreportgs, docs_superpowers_specs_2026_08_20_stagger_customer_report_triggers_design_cn1cn3cn7 [INFERRED 0.85]
 - **Shipment order lifecycle: Telegram bot + Sheets VC_* + State Machine + Web Dispatch/Mobile** — plan_process_automation_bot_telegram_ocr, plan_process_automation_vc_sheets, plan_process_automation_state_machine_9_trang_thai, plan_process_automation_web_dispatch, plan_process_automation_mobile_web [INFERRED 0.85]
 - **Supabase KiotViet sync pipeline: schema, driver, scheduler, checkpoint, backfill** — phase1_plan_supabase_kiotviet_sync_migrations_0001_0006, server_kiotvietsync_syncdriver, server_kiotvietsync_scheduler, server_kiotvietsync_checkpointrepository, server_kiotvietsync_backfill, phase3_plan_supabase_kiotviet_sync_backfill_progress_table [INFERRED 0.90]
 - **Apps Script sync resilience: Quota Guard, Maintenance Schedule, hydrate-skip flag, trigger dedup runbook** — webhook_first_quota_guard_plan_quotaguard_gs, webhook_first_quota_guard_plan_maintenanceschedule_gs, readme_hydrate_skip_flag, readme_trigger_duplication_runbook [EXTRACTED 1.00]
@@ -545,7 +545,7 @@ Nodes (16): .clasp.json / .clasp.saigon.json, .claspignore / .claspignore.saigon
 
 ### Community 74 - "Docs Superpowers #2"
 Cohesion: 0.15
-Nodes (17): Stagger Customer Report Triggers Implementation Plan, Stagger triggers 06:00/06:30/07:00/07:30 to reduce Apps Script execution-time risk, syncCustomerByProductReport() handler, syncCustomerProductReport() handler, syncSalesCustomerReport() handler, Thiết kế: Dashboard Công nợ 1/3/7 ngày (HN1/HN3/HN7), CustomerDebtReport.gs (Apps Script computing HN1/HN3/HN7), HN1/HN3/HN7 debt sheets (1/3/7-day periods, same column schema) (+9 more)
+Nodes (17): Stagger Customer Report Triggers Implementation Plan, Stagger triggers 06:00/06:30/07:00/07:30 to reduce Apps Script execution-time risk, syncCustomerByProductReport() handler, syncCustomerProductReport() handler, syncSalesCustomerReport() handler, Thiết kế: Dashboard Công nợ 1/3/7 ngày (CN1/CN3/CN7), CustomerDebtReport / customer_debt_activity_periods (CN1/CN3/CN7), CN1/CN3/CN7 debt periods (1/3/7-day periods, same schema) (+9 more)
 
 ### Community 75 - "Auth Otpservice"
 Cohesion: 0.21

@@ -368,7 +368,7 @@ Use these exact meanings throughout source comments, spreadsheet notes, and guid
 - `Hàng bán theo khách`: webhook trong khoảng một phút; đối soát toàn bộ gần 06:30.
 - `Khách theo hàng hóa`: tự động đối soát gần 07:00.
 - `Hàng ngừng kinh doanh`: tự động cập nhật gần 07:30.
-- `HN1/HN3/HN7`: giữ nguyên gần 15:00.
+- `CN1/CN3/CN7` (trước đây là `HN1/HN3/HN7`): giữ nguyên gần 15:00.
 
 Update `setupCustomerReport()` documentation to state it immediately refreshes all three reports and installs three independent schedules. Document `syncSalesCustomerReport()`, `syncCustomerProductReport()`, and `syncCustomerByProductReport()` as manual one-sheet entry points. Update `WebhookAdmin.gs` only to correct the discontinued schedule comment; do not make `setupKiotVietAutoSync()` install customer-report triggers because that would change established operator behavior beyond the approved spec.
 

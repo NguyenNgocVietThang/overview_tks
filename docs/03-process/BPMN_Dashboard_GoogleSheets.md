@@ -7,23 +7,23 @@
 | **Thông tin**      | **Nội dung**                                                         |
 |--------------------|----------------------------------------------------------------------|
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                                    |
-| Phiên bản          | 2.0                                                                  |
+| Phiên bản          | 2.1                                                                  |
 | Ngày tạo           | 27/07/2026                                                           |
-| Ngày cập nhật      | 26/08/2026                                                           |
-| Tài liệu liên quan | BRD v1.9 · SRS v2.2 · Implementation Plan v2.3 · CSNS-NP-01 · Plan Process Automation · Design System MASTER |
-| Trạng thái         | Đang vận hành                                                        |
+| Ngày cập nhật      | 19/09/2026                                                           |
+| Tài liệu liên quan | BRD v2.0 · SRS v2.5 · Implementation Plan v2.4 · CSNS-NP-01 · Design System MASTER |
+| Trạng thái         | Đang vận hành (Supabase PostgreSQL, Quản lý công nợ CN1/CN3/CN7, HR Leave, Vòng đời đơn hàng, 711 unit tests) |
 
 ---
 
 # 1. Giới thiệu
 
-Tài liệu này mô tả chi tiết các luồng quy trình vận hành của Hệ thống Website Dashboard TOKOSI theo chuẩn BPMN 2.0 (mô tả dưới dạng text diagram và bảng bước chi tiết). Các file `.bpmn` chuẩn XML đặt tại thư mục `docs/03-process/bpmn/` để mở bằng các công cụ như Camunda Modeler, bpmn.io hoặc draw.io.
+Tài liệu này mô tả chi tiết các luồng quy trình vận hành của Hệ thống Website Dashboard TOKOSI theo chuẩn BPMN 2.0 (mô tả dưới dạng text diagram và bảng bước chi tiết).
 
 Tài liệu này mô tả 5 luồng chính:
-- **Luồng A:** Đồng bộ dữ liệu KiotViet -> Google Sheets qua Apps Script (Webhook + Polling).
-- **Luồng B:** Người dùng sử dụng Dashboard & Tiện ích (Result Cache, Phân trang, Xuất Excel).
-- **Luồng C:** Cấu hình và triển khai hệ thống (Render.com + Apps Script Web App).
-- **Luồng D:** Xác thực, Quản lý tài khoản & Khôi phục mật khẩu OTP.
+- **Luồng A:** Đồng bộ dữ liệu KiotViet -> Supabase PostgreSQL qua Node.js Sync Engine (Webhook + Polling đối soát).
+- **Luồng B:** Người dùng sử dụng Dashboard & Tiện ích (đọc từ Supabase PostgreSQL, đối chiếu CN1/CN3/CN7, đọc Trả NCC Sheets, Result Cache, Phân trang, Xuất Excel).
+- **Luồng C:** Cấu hình và triển khai hệ thống (Render.com + Supabase PostgreSQL migrations).
+- **Luồng D:** Xác thực, Quản lý tài khoản & Khôi phục mật khẩu OTP (PostgreSQL `app_users`).
 - **Luồng E:** Đăng ký, Phê duyệt Nghỉ phép Nhân sự & Tương tác Telegram Bot.
 
 ---
@@ -32,11 +32,12 @@ Tài liệu này mô tả 5 luồng chính:
 
 | **Vai trò (Lane)**         | **Mô tả trách nhiệm**                                                                                                           |
 |----------------------------|---------------------------------------------------------------------------------------------------------------------------------|
-| KiotViet POS               | Phần mềm quản lý bán hàng: phát sinh thay đổi dữ liệu, gửi webhook POST JSON đến Apps Script Web App URL.                       |
-| Apps Script                | Hai project trong `src-dashboard/` và `src-order-lifecycle/` chạy độc lập theo từng Google Sheets: lưu webhook vào queue bền vững, polling và đồng bộ dữ liệu. |
-| Google Sheets              | Spreadsheet nguồn chứa 9 tab đồng bộ, 3 tab báo cáo khách hàng, 6 tab vận chuyển VC_*, tab Users và HN1/HN3/HN7.               |
-| Backend (Node.js/Express)  | Server trên Render.com: quản lý Result Cache, đọc Google Sheets qua Service Account, tính toán KPI, xác thực JWT/bcrypt/OTP, tạo file Excel và phục vụ API. |
-| Người dùng / Frontend      | Truy cập Web Dashboard: tương tác KPI, chuyển tab tức thì (<10ms), phân trang, quản lý tài khoản `/account/`, tra cứu vận chuyển và tải file Excel. |
+| KiotViet POS / Public API  | Phần mềm quản lý bán hàng: phát sinh thay đổi dữ liệu, gửi webhook POST JSON đến Webhook endpoint server hoặc phục vụ polling GET. |
+| Node.js Sync Engine        | Engine `server/kiotvietSync/` chạy trên server: nhận webhook vào hàng đợi nền, lập lịch polling đối soát và tổng hợp CN1/CN3/CN7. |
+| Supabase PostgreSQL        | Cơ sở dữ liệu trung tâm: lưu trữ dữ liệu KiotViet, tài khoản `app_users`, trạng thái công nợ và `customer_debt_activity_periods` (CN1/CN3/CN7). |
+| Google Sheets              | Nguồn dữ liệu bổ trợ: chỉ đọc tab `Trả NCC` trên file Kiot HN/SG; lưu trữ Bảng Công nợ, Vòng đời đơn hàng (`DonHang_*`) và `HR_Leaves`. |
+| Backend (Node.js/Express)  | Server trên Render.com: quản lý Result Cache, đọc PostgreSQL qua `dashboardPgReader.js`, đọc Sheets qua Service Account, tính KPI, xác thực JWT/bcrypt/OTP, tạo file Excel và phục vụ REST API. |
+| Người dùng / Frontend      | Truy cập Web Dashboard: tương tác KPI, chuyển tab tức thì (<10ms), phân trang, quản lý tài khoản `/account/`, tra cứu vòng đời đơn hàng và tải file Excel. |
 
 ---
 
@@ -58,77 +59,56 @@ Tài liệu này mô tả 5 luồng chính:
 # 4. Sơ đồ tổng quan
 
 ```
-Luồng A (liên tục, nền):  KiotViet -> Apps Script -> Google Sheets
-                                           ^ (15 phút đối soát; Nhập hàng quét nhanh 5 phút)
+Luồng A (liên tục, nền):  KiotViet -> Node.js Sync Engine -> Supabase PostgreSQL
+                                            ^ (5-15 phút đối soát; Rollup mỗi 5 phút; CN1/CN3/CN7 mỗi ngày)
 
-Luồng B (theo yêu cầu):   Người dùng -> Frontend -> Backend (Result Cache) -> Google Sheets API
-                                           |
-                                      Hiển thị Dashboard / Xuất Excel / Phân trang
+Luồng B (theo yêu cầu):   Người dùng -> Frontend -> Backend (Result Cache) -> Supabase PostgreSQL / Google Sheets (Trả NCC)
+                                            |
+                                       Hiển thị Dashboard / Quản lý công nợ (CN1/CN3/CN7) / Xuất Excel / Phân trang
 
-Luồng C (một lần):        IT Admin cấu hình Render env vars + Apps Script trigger/webhook
+Luồng C (một lần):        IT Admin cấu hình Render env vars + Supabase PostgreSQL migration (npm run db:migrate)
 
-Luồng D (theo sự kiện):   Người dùng / Admin -> Đăng nhập / Đăng ký SĐT / Đổi MK / OTP Reset / Admin CRUD
+Luồng D (theo sự kiện):   Người dùng / Admin -> Đăng nhập / Đăng ký SĐT / Đổi MK / OTP Reset / Quản trị app_users
 ```
 
-Luồng A chạy hoàn toàn độc lập với Luồng B. Backend (Luồng B) không nhận push từ Apps Script — chỉ đọc Sheets theo yêu cầu của frontend.
+Luồng A chạy hoàn toàn độc lập với Luồng B. Backend (Luồng B) đọc trực tiếp từ PostgreSQL và Google Sheets (Trả NCC) theo yêu cầu của frontend.
 
 ---
 
-# 5. Luồng A — Đồng bộ KiotViet -> Google Sheets (Apps Script)
+# 5. Luồng A — Đồng bộ KiotViet -> Supabase PostgreSQL (Node.js Sync Engine)
 
 Luồng này chạy liên tục và tự động, không phụ thuộc vào người dùng web dashboard.
 
 ```
-[A0] [Start] KiotViet phát sinh thay đổi dữ liệu
-     (Hàng hóa/Hóa đơn/Đặt hàng/Khách hàng/Nhóm hàng)
+[A0] [Start] KiotViet phát sinh thay đổi dữ liệu (sản phẩm, hóa đơn, đơn hàng, khách hàng...)
          |
-[A1] [Task] KiotViet gửi POST JSON đến Apps Script Web App URL
-     (action: product.update, invoice.update, order.update, customer.update, category.update...)
+[A1] [Task] KiotViet gửi POST JSON đến endpoint /api/internal/kiotviet-sync/webhook
          |
-[A2] [Task] Apps Script `doPost(e)` xác thực và ghi payload vào tab ẩn `_KV_WEBHOOK_QUEUE`
+[A2] [Task] Server phản hồi HTTP 200 tức thì và đưa payload vào hàng đợi nền `webhookEventQueue.js`
          |
-[A3] [Task] `doPost()` trả `QUEUED` sau khi Google Sheets xác nhận ghi thành công
+[A3] [Task] Worker nền lấy sự kiện từ hàng đợi, upsert/delete vào Supabase PostgreSQL
          |
-[A4] [Event] Trigger 1 phút gọi `processWebhookQueue()`, nhận tối đa 50 sự kiện
-         |
-[A5] [Decision] Cổng quyết định: loại action là gì?
-     |-- product/stock -> updateProductsFromWebhook() -> "Hàng hóa"
-     |-- invoice       -> updateInvoicesFromWebhook() -> "Hóa đơn" + "Chi tiết hóa đơn"
-     |-- order         -> updateOrdersFromWebhook() -> "Đặt hàng"
-     |-- customer      -> updateCustomersFromWebhook() -> "Khách hàng"
-     `-- category      -> updateCategoriesFromWebhook() -> "Nhóm hàng"
-         |
-[A6] [Decision] Thành công?
-     |-- Có -> xóa sự kiện khỏi queue
-     `-- Không -> giữ payload, retry; sau 10 lần chuyển `ERROR`
+[A4] [Decision] Thành công?
+     |-- Có -> Hoàn tất xử lý sự kiện
+     `-- Không -> Ghi log lỗi, chuyển tiếp để đối soát polling bắt bù
 
---- SONG SONG: Polling trigger 15 phút ---
-[A7] [Start] Time-based trigger kích hoạt mỗi 15 phút; trigger Nhập hàng nhanh mỗi 5 phút
+--- SONG SONG: Polling đối soát & Rollup định kỳ ---
+[A5] [Start] Scheduler kích hoạt:
+         |-- Mỗi 5 phút: dashboardRollupRefresh.js tổng hợp 4 bảng rollup theo ngày
+         |-- Mỗi 5-15 phút: syncDriver.js polling đối soát theo lastModifiedFrom
+         `-- Gần 15:00 hàng ngày: customerDebtReportRefresh.js tổng hợp CN1/CN3/CN7 vào customer_debt_activity_periods
          |
-[A8] [Task] Apps Script chạy syncPollingOnly_():
-     - syncReturns_()    -> ghi lại toàn bộ sheet "Trả hàng"
-     - syncSuppliers()   -> ghi lại "Nhà cung cấp" + "Nhập hàng"
-         |
-[A9] [End] Kết thúc — Nhập hàng gần đây tối đa trễ 5 phút; 3 sheet được đối soát toàn bộ
+[A6] [End] Kết thúc chu kỳ — Database luôn sẵn sàng dữ liệu mới nhất
 ```
 
-| **Bước** | **Vai trò**      | **Mô tả**                                                                                           | **Tham chiếu** |
-|----------|------------------|-----------------------------------------------------------------------------------------------------|----------------|
-| A0       | KiotViet         | Sự kiện bắt đầu: dữ liệu thay đổi trên KiotViet (bán hàng, nhập hàng, cập nhật tồn kho...).        | —              |
-| A1       | KiotViet         | Gửi POST JSON đến Apps Script Web App URL với payload chứa action và data.                          | FR-06.2        |
-| A2       | Apps Script      | `doPost(e)` xác thực và ghi payload bền vững trước khi phản hồi.                                    | FR-06.2, FR-06.10 |
-| A3       | Apps Script      | Trả `QUEUED`; nếu chưa ghi được thì trả lỗi và không xác nhận nhầm.                                 | FR-06.10       |
-| A4–A5    | Apps Script      | Trigger 1 phút phân loại và upsert/xóa đúng dòng trong sheet tương ứng.                             | FR-06.2        |
-| A6       | Apps Script      | Chỉ xóa payload khi thành công; lỗi được giữ để retry hoặc kiểm tra.                                | FR-06.10       |
-| A7       | Apps Script      | Trigger 15 phút đối soát toàn bộ và trigger 5 phút quét Nhập hàng gần đây (KiotViet không có webhook cho 3 nguồn). | FR-06.3 |
-| A8       | Apps Script      | `syncPollingOnly_()` full refresh 3 sheet; `syncRecentPurchases_()` thay theo mã phiếu trong cửa sổ 7 ngày. | FR-06.3 |
-| A9       | —                | Kết thúc chu kỳ polling.                                                                            | —              |
-
-**Lỗi trong Luồng A:**
-- Nếu KiotViet API trả 429/5xx: Apps Script retry tối đa 5 lần với exponential backoff (FR-06.5).
-- Nếu `doPost` không ghi được queue: trả lỗi và không xóa payload chưa được lưu.
-- Nếu handler lỗi: giữ nguyên payload; retry tối đa 10 lần rồi chuyển `ERROR`.
-- Nếu polling trigger bị xóa: Trả hàng/NCC/Nhập hàng sẽ không được cập nhật tự động; IT Admin cần chạy lại `setupPollingTrigger()`.
+| **Bước** | **Vai trò**           | **Mô tả**                                                                                           | **Tham chiếu** |
+|----------|-----------------------|-----------------------------------------------------------------------------------------------------|----------------|
+| A0       | KiotViet              | Sự kiện bắt đầu: dữ liệu thay đổi trên KiotViet (bán hàng, nhập hàng, cập nhật tồn kho...).        | —              |
+| A1       | KiotViet              | Gửi POST JSON đến webhook endpoint của server trên Render.                                          | FR-06.2        |
+| A2       | Server Webhook Queue  | Trả HTTP 200 ngay lập tức, lưu payload vào hàng đợi nền tránh timeout.                             | FR-06.2        |
+| A3–A4    | Sync Driver           | Ghi nhận và đồng bộ bản ghi vào Supabase PostgreSQL tương ứng.                                     | FR-06.1, FR-06.2 |
+| A5       | Scheduler             | Polling đối soát dữ liệu và tổng hợp bảng rollup, bảng công nợ CN1/CN3/CN7.                         | FR-06.3, FR-06.6, FR-06.12 |
+| A6       | —                     | Dữ liệu sẵn sàng phục vụ Dashboard.                                                                 | —              |
 
 ---
 
@@ -144,29 +124,37 @@ Luồng này xảy ra mỗi khi người dùng truy cập hoặc tương tác v�
 [B2] [Decision] Backend kiểm tra Result Cache:
      | Có cache hợp lệ cho key (rawDataVersion, filters)?
      |-- [B2-Hit] Có (Cache Hit) -> Trả ngay JSON đã tính toán (<10ms) -> chuyển đến B6
-     `-- [B2-Miss] Không (Cache Miss) -> Kiểm tra cache thô Sheets 90s:
-            |-- Còn hạn 90s -> Dùng dữ liệu thô hiện tại
-            `-- Hết hạn -> Gọi Google Sheets API (spreadsheets.get + values.batchGet)
+     `-- [B2-Miss] Không (Cache Miss) -> Đọc dữ liệu từ Supabase PostgreSQL qua dashboardPgReader.js & Trả NCC từ Sheets:
+            - Đọc 9 bảng thực thể và 4 bảng rollup từ PostgreSQL
+            - Đọc tab Trả NCC từ Google Sheets API (cache thô 90s)
+            - Đọc CN1/CN3/CN7 từ customer_debt_activity_periods qua customerDebtActivityRepository.js
+            - Đọc Bảng Công nợ từ debtManagementSheetsClient.js
                     |
-[B3] [Decision] Cổng quyết định: Google Sheets API có trả dữ liệu thành công?
-     |-- Thất bại (403/500/timeout) ->
+[B3] [Decision] Cổng quyết định: Đọc dữ liệu thành công?
+     |-- Thất bại ->
      |   [B3-No] [Task] Backend log chi tiết lỗi và trả HTTP 500 JSON
      |   [B3-No] [Task] Frontend hiển thị thông báo lỗi cho người dùng [End]
      `-- Thành công ->
          [B4] [Task] Backend tính toán `computeDashboardData()`:
-              - Tính KPI, revenueByDay, Top sản phẩm, bảng gần nhất...
-              - Lưu kết quả vào `dashboardResultCache` theo `(rawDataVersion, filters)`
+              - Tính KPI, revenueByDay, Top sản phẩm, Quản lý công nợ (đối chiếu CN1/CN3/CN7)...
+              - Lưu kết quả vào `dashboardResultCache`
                     |
 [B5] [Task] Backend trả HTTP 200 JSON toàn bộ dữ liệu
          |
 [B6] [Task] Frontend render:
      - KPI cards (doanh thu, tồn kho, công nợ...)
-     - Biểu đồ doanh thu theo ngày (Chart.js với animation gating chống giật)
-     - Bảng dữ liệu có phân trang (`pagination.js` ~200 dòng/trang cho Hàng hóa & Hàng đã hết)
+     - Biểu đồ doanh thu theo ngày (Chart.js 2D)
+     - Màn hình Quản lý công nợ (lọc, tìm, đối chiếu CN1/CN3/CN7)
+     - Bảng dữ liệu có phân trang (`pagination.js`)
      - Hiển thị updatedAt theo giờ Việt Nam
          |
 [B7] [Event] Dashboard sẵn sàng sử dụng
 ```
+
+**Xử lý lỗi & Tự phục hồi trong Luồng B:**
+- Nếu Supabase PostgreSQL gặp sự cố tạm thời: trả HTTP 500 kèm thông báo lỗi rõ ràng.
+- Nếu Google Sheets API (tab Trả NCC) bị lỗi hạn mức/timeout: trả dữ liệu với phần Trả NCC rỗng hoặc cache cũ có kiểm soát.
+- Result Cache tự động giải phóng bộ nhớ khi quá hạn hoặc khi có dữ liệu mới.
 
 ---
 
@@ -235,7 +223,7 @@ Luồng này xảy ra mỗi khi người dùng truy cập hoặc tương tác v�
 | B0       | Người dùng     | Mở URL Web Dashboard.                                                                               | —                   |
 | B1       | Frontend       | Tự động gọi API khi page load xong, mặc định days=30.                                               | FR-04.1             |
 | B2       | Backend        | Kiểm tra Result Cache theo `(rawDataVersion, filters)`; phục vụ <10ms nếu hit.                      | FR-01.7, NFR-01     |
-| B3–B5    | Backend        | Fetch Sheets nếu hết hạn 90s, tính KPI qua `computeDashboardData`, lưu cache và trả JSON.           | FR-01.x, FR-02.x    |
+| B3–B5    | Backend        | Đọc Supabase PostgreSQL & tab Trả NCC Google Sheets, tính KPI qua `computeDashboardData`, lưu cache. | FR-01.x, FR-02.x    |
 | B6       | Frontend       | Render giao diện với Chart.js animation gating, phân trang client-side (`pagination.js`).           | FR-07.x, FR-07.13   |
 | B8–B9    | Người dùng     | Đổi bộ lọc thời gian -> gọi API với days mới (phản hồi tức thì nhờ cache).                           | FR-04.1, FR-04.3    |
 | B14–B21  | Người dùng/Dev | Quy trình mở modal chọn trường và xuất workbook `.xlsx` 16 bảng / tìm kiếm.                          | FR-07.10 -> FR-07.12|
@@ -250,41 +238,41 @@ Luồng này do IT Admin thực hiện khi triển khai lần đầu hoặc khi 
 ```
 [C0] [Start] Bắt đầu: cần triển khai/cấu hình lại hệ thống
 
---- Phần 1: Cấu hình Render.com ---
-[C1] [Task] IT Admin tạo/cập nhật Web Service trên Render.com
+--- Phần 1: Cấu hình Render.com & Supabase PostgreSQL ---
+[C1] [Task] IT Admin tạo/cập nhật Web Service trên Render.com và Database trên Supabase
 [C2] [Task] Cấu hình biến môi trường:
-     - SPREADSHEET_ID = {ID của Google Spreadsheet Dashboard}
-     - VC_SPREADSHEET_ID = {ID của Google Spreadsheet Vận chuyển}
+     - SUPABASE_DATABASE_URL = {PostgreSQL Connection URI}
+     - SPREADSHEET_ID = {ID của Google Spreadsheet Dashboard (đọc tab Trả NCC)}
+     - ORDER_LIFECYCLE_SPREADSHEET_ID = {ID của Google Spreadsheet Vòng đời đơn hàng}
+     - HR_SPREADSHEET_ID = {ID của Google Spreadsheet Nhân sự}
      - GOOGLE_SERVICE_ACCOUNT_JSON = {nội dung JSON của Service Account key}
      - JWT_SECRET = {Secret key JWT}
      - KIOTVIET_CLIENT_ID, KIOTVIET_CLIENT_SECRET, KIOTVIET_RETAILER
-[C3] [Task] Render tự động deploy từ GitHub branch main (chạy `npm install` và `npm test` với 141 tests)
+[C3] [Task] Render tự động deploy từ GitHub branch main (chạy `npm install` và `npm test` với 711 tests)
 [C4] [Decision] Deploy thành công?
      |-- Không -> kiểm tra logs Render -> quay lại C1
      `-- Có ->
-[C5] [Task] Truy cập /api/debug để kiểm tra kết nối Sheets và danh sách tab
-[C6] [Decision] sheetsTest OK và sheetTabs đủ schema kỳ vọng?
-     |-- Không -> kiểm tra quyền Service Account hoặc tên tab -> quay lại C2/C5
+[C5] [Task] Chạy migration database Supabase: `npm run db:migrate` (0001 -> 0014)
+[C6] [Decision] Kết nối Database và Google Sheets OK?
+     |-- Không -> kiểm tra URI PostgreSQL hoặc quyền Service Account -> quay lại C2/C5
      `-- Có ->
 
---- Phần 2: Cấu hình Apps Script ---
-[C7] [Task] Dùng clasp push riêng `src-dashboard/` và `src-order-lifecycle/` lên hai dự án Apps Script
-[C8] [Task] Lưu -> Deploy -> New deployment -> Web app (Execute as: Me, Access: Anyone) -> Copy URL
-[C9] [Task] Chạy `syncAllInitialData()` để tải dữ liệu ban đầu
-[C10] [Task] Chạy `setupKiotVietAutoSync()` để tự tạo secret, trigger 1 phút, polling 15 phút và đăng ký 9 webhook
-[C11] [End] Hệ thống đã cấu hình hoàn chỉnh, sẵn sàng vận hành
+--- Phần 2: Cấu hình Webhook & Đồng bộ KiotViet ---
+[C7] [Task] Đăng ký Webhook KiotViet trỏ về Node.js Sync Engine trên Render
+[C8] [Task] Khởi chạy sync ban đầu / scheduler đối soát nền (5-15 phút) và tổng hợp CN1/CN3/CN7
+[C9] [Task] Khởi tạo tài khoản quản trị hệ thống trong bảng PostgreSQL `app_users`
+[C10] [End] Hệ thống đã cấu hình hoàn chỉnh, sẵn sàng vận hành
 ```
 
 | **Bước** | **Vai trò**  | **Mô tả**                                                                                       | **Tham chiếu** |
 |----------|--------------|-------------------------------------------------------------------------------------------------|----------------|
 | C0       | IT Admin     | Sự kiện bắt đầu: triển khai lần đầu hoặc cấu hình lại.                                          | —              |
-| C1–C2    | IT Admin     | Cấu hình Web Service và biến môi trường trên Render.com.                                        | NFR-03, FR-01.3|
-| C3–C4    | Render.com   | Auto-deploy từ GitHub, chạy bộ test tự động và kiểm tra kết quả deploy.                         | NFR-02, NFR-12 |
-| C5–C6    | IT Admin     | Dùng `/api/debug` để xác nhận kết nối và đối chiếu danh sách tab Google Sheets thực tế.         | FR-07.5        |
-| C7–C8    | IT Admin     | Triển khai Apps Script làm Web App để nhận webhook từ KiotViet.                                 | FR-06.4        |
-| C9       | IT Admin     | Đồng bộ toàn bộ dữ liệu KiotViet lần đầu vào Spreadsheet.                                      | FR-06.1        |
-| C10      | IT Admin     | Bật auto sync: trigger 1 phút, polling 15 phút, báo cáo hàng ngày và đăng ký 9 webhook KiotViet. | FR-06.3, FR-06.4 |
-| C11      | —            | Hệ thống sẵn sàng vận hành đầy đủ.                                                              | —              |
+| C1–C2    | IT Admin     | Cấu hình Web Service, Supabase PostgreSQL và biến môi trường trên Render.com.                   | NFR-03, FR-01.3|
+| C3–C4    | Render.com   | Auto-deploy từ GitHub, chạy bộ test tự động (711 tests) và kiểm tra kết quả deploy.            | NFR-02, NFR-12 |
+| C5–C6    | IT Admin     | Chạy migration PostgreSQL `0001` - `0014`, kiểm tra kết nối Supabase và Sheets.                 | FR-06.1, FR-07.5 |
+| C7–C8    | IT Admin/Sys | Đăng ký webhook KiotViet, chạy sync ban đầu và bật scheduler định kỳ (kèm rollup, CN1/CN3/CN7).| FR-06.2, FR-06.3 |
+| C9       | IT Admin     | Tạo tài khoản quản trị đầu tiên trong bảng `app_users`.                                         | FR-08.1        |
+| C10      | —            | Hệ thống sẵn sàng vận hành đầy đủ.                                                              | —              |
 
 ---
 
@@ -353,13 +341,14 @@ Mỗi bước trong các luồng đã được gắn mã yêu cầu chức năng
 
 # 10. Ghi chú & khuyến nghị
 
-- **Điểm mấu chốt:** Backend web (Luồng B) và Apps Script (Luồng A) hoạt động hoàn toàn độc lập — backend không nhận push từ Apps Script, chỉ pull từ Sheets khi có request. Tích hợp Result Cache giúp việc chuyển tab và đổi bộ lọc diễn ra tức thì (<10ms).
-- **Bảo mật đăng nhập & Tài khoản:** Cơ chế lockout 5 phút ngăn chặn tấn công dò mật khẩu (brute-force); mã OTP 6 số hết hạn sau 5 phút đảm bảo an toàn tối đa cho quy trình khôi phục tài khoản.
-- **Phân hệ HR & Telegram Bot:** Phối hợp linh hoạt giữa Web Portal và Telegram Bot cho phép nhân viên đăng ký nghỉ phép mọi lúc, quản lý duyệt đơn nhanh chóng và dữ liệu được đồng bộ bền vững trên Google Sheets `HR_Leaves`.
-- **Khả năng suy giảm có kiểm soát:** Một tab nguồn bị thiếu/đổi tên chỉ làm rỗng section tương ứng; IT Admin dùng `sheetTabs` từ `/api/debug` để xác định sai lệch schema.
+- **Điểm mấu chốt:** Node.js Sync Engine (Luồng A) nhận webhook và đối soát polling trực tiếp từ KiotViet API vào Supabase PostgreSQL, thay thế hoàn toàn Apps Script. Tab "Trả NCC" duy trì trên Google Sheets. Tích hợp Result Cache giúp việc chuyển tab và đổi bộ lọc diễn ra tức thì (<10ms).
+- **Phân tích công nợ chuyên sâu:** Dữ liệu CN1/CN3/CN7 được tổng hợp tự động vào bảng `customer_debt_activity_periods` định kỳ, phục vụ đối soát và cảnh báo công nợ khách hàng chưa thu theo chi nhánh.
+- **Bảo mật đăng nhập & Tài khoản:** Xác thực JWT cookie kết hợp bảng PostgreSQL `app_users`; cơ chế lockout 5 phút ngăn chặn brute-force; mã OTP 6 số hết hạn sau 5 phút đảm bảo an toàn quy trình khôi phục tài khoản.
+- **Phân hệ HR & Vòng đời đơn hàng:** Vòng đời đơn hàng đọc trực tiếp từ `ORDER_LIFECYCLE_SPREADSHEET_ID`; phân hệ HR Leave phối hợp linh hoạt giữa Web Portal và Telegram Bot lưu trữ trên Google Sheets `HR_Leaves`.
+- **Khả năng suy giảm có kiểm soát:** Một bảng hoặc tab nguồn bị lỗi tạm thời chỉ làm rỗng section tương ứng, không làm sập toàn bộ Dashboard.
 - **Nhất quán thời gian:** Backend xử lý ngày và `updatedAt` theo Asia/Ho_Chi_Minh.
-- **Kiểm thử liên tục:** Trước khi commit hoặc deploy, luôn chạy `npm test` tại `server/` để kiểm tra toàn bộ **434 bài kiểm thử tự động**.
+- **Kiểm thử liên tục:** Trước khi commit hoặc deploy, luôn chạy `npm test` tại `server/` để kiểm tra toàn bộ **711 bài kiểm thử tự động**.
 
 ---
 
-*Hết tài liệu BPMN v2.0*
+*Hết tài liệu BPMN v2.1*

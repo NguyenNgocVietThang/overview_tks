@@ -3,7 +3,7 @@ name: update-file
 description: >
   Khi cấu trúc thư mục dự án thay đổi (thêm file/thư mục, đổi tên, di chuyển, xóa),
   skill này hướng dẫn cách phát hiện và cập nhật đồng bộ TẤT CẢ các file liên quan
-  như README.md, .clasp.json, .claspignore, appsscript.json và các tài liệu docs/.
+  như README.md, server/README.md, SCHEMA.md, package.json và các tài liệu docs/.
   Trigger: "cập nhật cấu trúc", "thêm file mới", "đổi tên thư mục", "update README",
   "thay đổi cây thư mục", "sync tài liệu", "update file liên quan".
 ---
@@ -22,10 +22,11 @@ phải cập nhật **đồng bộ** tất cả các file phụ thuộc vào c�
 Chạy lệnh sau để lấy cây thư mục hiện tại của dự án:
 
 ```powershell
-tree "d:\Web TKS Dashboard" /F
+Get-ChildItem -Path "d:\Web TKS Dashboard" -Exclude "node_modules", ".git", ".worktrees", ".claude"
+Get-ChildItem -Path "d:\Web TKS Dashboard\server" -Exclude "node_modules"
 ```
 
-So sánh output với cây thư mục đang được mô tả trong `README.md` (mục "Cấu trúc thư mục").
+So sánh output với cây thư mục đang được mô tả trong `README.md` (mục "Cấu trúc chính") và `server/README.md`.
 Nếu có sự khác biệt → tiến hành cập nhật các file bên dưới.
 
 ---
@@ -35,63 +36,43 @@ Nếu có sự khác biệt → tiến hành cập nhật các file bên dưới
 Dưới đây là tất cả file có thể bị ảnh hưởng khi cấu trúc thay đổi.
 Đánh giá từng file và chỉ cập nhật những file **thực sự bị ảnh hưởng**.
 
-### 2.1 `README.md`
+### 2.1 `README.md` & `server/README.md`
 
-**Vị trí:** `d:\Web TKS Dashboard\README.md`
+**Vị trí:** `d:\Web TKS Dashboard\README.md` và `d:\Web TKS Dashboard\server\README.md`
 
-**Phần cần cập nhật:** Section `## Cấu trúc thư mục` — cây ASCII tree.
+**Phần cần cập nhật:** Section `## Cấu trúc chính` — cây ASCII tree, danh sách biến môi trường và nguồn dữ liệu.
 
 **Quy tắc:**
-- Thêm file/thư mục mới → thêm vào đúng chỗ trong cây
-- Xóa file/thư mục → gỡ khỏi cây
+- Thêm module/thư mục mới trong `server/` → thêm vào đúng vị trí trong cây
+- Xóa module/tính năng → gỡ khỏi cây và ghi chú vào mục lịch sử thay đổi
 - Đổi tên → cập nhật tên trong cây + comment giải thích bên cạnh
-- Thêm module `future-phases/` mới → thêm vào cả mục `## Lộ trình mở rộng` (bảng)
-- Thêm file `.gs` mới → ghi rõ tên hàm trong comment `← funcA(), funcB()`
-- Cập nhật dòng `*Cập nhật lần cuối:*` ở cuối file theo ngày hiện tại
+- Thêm biến môi trường mới → cập nhật bảng `## Biến môi trường chính` và `server/.env.example`
+- Cập nhật dòng `## Cập nhật gần nhất` ở cuối file theo ngày hiện tại
 
-### 2.2 `.clasp.json` & `.clasp.saigon.json`
+### 2.2 `server/package.json`
 
-**Vị trí:** `d:\Web TKS Dashboard\.clasp.json` (KiotHN: `rootDir: "src-dashboard"`) và `d:\Web TKS Dashboard\.clasp.saigon.json` (KiotSG: `rootDir: "src-dashboard"`, dùng chung code với KiotHN).
-
-**Khi nào cập nhật:**
-- Thay đổi thư mục gốc chứa source code (`rootDir`)
-- Cấu hình Script ID cho từng project độc lập
-
-**Quy tắc:**
-- Project Dashboard (KiotHN/KiotSG) load: `HuongDanSuDung.gs → config/ → kiotviet/ → sync/ → utils/`
-
-### 2.3 `.claspignore` & `.claspignore.saigon`
-
-**Vị trí:** `d:\Web TKS Dashboard\.claspignore` và `d:\Web TKS Dashboard\.claspignore.saigon`
+**Vị trí:** `d:\Web TKS Dashboard\server\package.json`
 
 **Khi nào cập nhật:**
-- Thêm thư mục/file mới KHÔNG nên push lên Google Apps Script
-  (ví dụ: thư mục tài liệu, scripts test, file config local)
+- Thêm thư viện hoặc script chạy mới (ví dụ: job sync, migrate, test)
+- Đổi tên script lệnh khởi chạy hoặc tác vụ nền
 
-**Quy tắc:**
-```
-# Thêm dòng mới cho mỗi thư mục/pattern cần loại trừ
-ten-thu-muc/
-*.extension-can-bo-qua
-```
+### 2.3 `server/db/SCHEMA.md` & `server/db/migrations/`
 
-### 2.4 `appsscript.json`
-
-**Vị trí:** `d:\Web TKS Dashboard\src-dashboard\appsscript.json`
+**Vị trí:** `d:\Web TKS Dashboard\server\db\SCHEMA.md`
 
 **Khi nào cập nhật:**
-- Thêm OAuth scope mới (khi code mới cần quyền truy cập service GAS chưa có)
-- Thêm thư viện GAS (Libraries)
-- Thêm advanced services (Drive, Sheets advanced API...)
-- Thay đổi `webapp.executeAs` hoặc `webapp.access`
+- Thêm migration SQL mới trong `server/db/migrations/`
+- Thêm bảng, thay đổi kiểu dữ liệu hoặc thêm index trên Supabase PostgreSQL
+- Cập nhật bảng dữ liệu tổng hợp (rollup) hoặc bảng công nợ (`customer_debt_activity_periods` cho CN1/CN3/CN7)
 
-**Danh sách scope phổ biến cần bổ sung:**
-| Tính năng mới | Scope cần thêm |
-|---|---|
-| Gửi email | `https://www.googleapis.com/auth/gmail.send` |
-| Đọc Drive | `https://www.googleapis.com/auth/drive.readonly` |
-| Calendar | `https://www.googleapis.com/auth/calendar` |
-| BigQuery | `https://www.googleapis.com/auth/bigquery` |
+### 2.4 `server/routes.js` & `server/index.js`
+
+**Vị trí:** `d:\Web TKS Dashboard\server\routes.js` và `server\index.js`
+
+**Khi nào cập nhật:**
+- Thêm route API mới cho frontend hoặc webhook KiotViet
+- Đổi đường dẫn endpoint hoặc thay đổi middleware phân quyền/cơ sở
 
 ### 2.5 `docs/04-planning/implementation_plan.md`
 
@@ -99,77 +80,55 @@ ten-thu-muc/
 
 **Khi nào cập nhật:**
 - Thêm giai đoạn mới hoặc thay đổi lớn về kiến trúc
-- Đánh dấu task đã hoàn thành (nếu file dùng checkbox `[ ]` / `[x]`)
+- Cập nhật trạng thái các task vận hành và triển khai
 
-### 2.6 `docs/02-srs/SRS_Dashboard_GoogleSheets.md`
+### 2.6 `docs/02-srs/SRS_Dashboard_GoogleSheets.md` & `docs/01-brd/BRD_Dashboard_GoogleSheets.md`
 
-**Vị trí:** `d:\Web TKS Dashboard\docs\02-srs\SRS_Dashboard_GoogleSheets.md`
+**Vị trí:** `d:\Web TKS Dashboard\docs\02-srs\SRS_Dashboard_GoogleSheets.md` và `docs\01-brd\BRD_Dashboard_GoogleSheets.md`
 
 **Khi nào cập nhật:**
-- Thêm module/tính năng mới → cập nhật mục danh sách tính năng
-- Thay đổi yêu cầu phi chức năng (performance, security)
+- Thêm/thay đổi module/tính năng mới → cập nhật danh sách tính năng (FR-xx)
+- Thay đổi nguồn dữ liệu (PostgreSQL vs Google Sheets) hoặc yêu cầu phi chức năng (performance, security)
 
 ---
 
 ## Bước 3 — Quy trình thực hiện
 
-```
-1. Chạy: tree "d:\Web TKS Dashboard" /F
-2. So sánh với README.md hiện tại
+```text
+1. Liệt kê cấu trúc thư mục thực tế trong workspace
+2. So sánh với README.md và server/README.md hiện tại
 3. Xác định loại thay đổi:
-   ├── Thêm file .gs mới          → Cập nhật README.md (cây + tên hàm)
-   ├── Thêm thư mục src/ mới      → README.md + .claspignore (nếu không cần push)
-   ├── Thêm future-phases/ mới    → README.md (cây + bảng lộ trình)
-   ├── Thêm scope GAS mới         → appsscript.json
-   ├── Xóa/đổi tên file           → README.md
-   └── Thay đổi rootDir           → .clasp.json
+   ├── Thêm module backend mới        → server/routes.js, README.md
+   ├── Thêm migration SQL mới         → server/db/SCHEMA.md, README.md
+   ├── Thêm biến môi trường mới       → server/.env.example, README.md
+   ├── Thêm script npm mới            → server/package.json, server/README.md
+   ├── Thay đổi nguồn/quy tắc dữ liệu → docs/ (BRD, SRS, implementation_plan)
+   └── Xóa/gỡ bỏ tính năng cũ         → README.md, docs/
 4. Cập nhật từng file bị ảnh hưởng
-5. Xác nhận bằng cách đọc lại từng file đã cập nhật
+5. Chạy kiểm thử: cd server && npm test
+6. Xác nhận bằng cách đọc lại từng file đã cập nhật
 ```
 
 ---
 
-## Bước 4 — Template cập nhật README.md
-
-Khi thêm 1 file `.gs` mới vào `src/`, dùng format:
-
-```
-│   ├── ten-thu-muc/
-│   │   └── TenFile.gs           # hamChinh(), hamPhu()
-```
-
-Khi thêm 1 thư mục `future-phases/` mới:
-1. Thêm dòng trong cây:
-```
-    └── ten-module/              # Giai đoạn X: Mô tả ngắn
-```
-2. Thêm hàng trong bảng `## Lộ trình mở rộng`:
-```
-| **X** [Chua bat dau] | `future-phases/ten-module/` | Mô tả đầy đủ |
-```
-
----
-
-## Bước 5 — Kiểm tra sau cập nhật
+## Bước 4 — Kiểm tra sau cập nhật
 
 Sau khi cập nhật xong, xác nhận:
 
 ```powershell
-# 1. Xem cây thư mục thực tế
-tree "d:\Web TKS Dashboard" /F
+# 1. Chạy unit tests đảm bảo hệ thống ổn định
+cd "d:\Web TKS Dashboard\server"; npm test
 
-# 2. Kiểm tra .claspignore không bỏ sót thư mục docs/future-phases
-Get-Content "d:\Web TKS Dashboard\.claspignore"
-
-# 3. Xem phần cây trong README để đối chiếu
-Select-String -Path "d:\Web TKS Dashboard\README.md" -Pattern "src/" -Context 0,30
+# 2. Xem phần cây trong README để đối chiếu
+Select-String -Path "d:\Web TKS Dashboard\README.md" -Pattern "server/" -Context 0,20
 ```
 
 ---
 
 ## Ghi chú quan trọng
 
-- **KHÔNG** cập nhật `docs/03-process/bpmn/*.bpmn` — đây là file nhị phân BPMN, không chứa đường dẫn cứng
-- **KHÔNG** cập nhật `docs/01-brd/BRD*.md` trừ khi có thay đổi nghiệp vụ thực sự
-- Thứ tự ưu tiên cập nhật: `README.md` → `.claspignore` → `appsscript.json` → `.clasp.json` → `docs/`
-- Luôn cập nhật dòng `*Cập nhật lần cuối:*` ở cuối `README.md`
+- **KHÔNG CÒN APPS SCRIPT**: Toàn bộ `src-dashboard` và `.clasp.json` đã được xóa/nghỉ hưu; không tạo lại hay nhắc đến clasp/Apps Script trong quy trình mới.
+- **DỮ LIỆU CÔNG NỢ 1/3/7 NGÀY**: Thuật ngữ chuẩn hóa là **CN1/CN3/CN7**, lưu trữ trong bảng `customer_debt_activity_periods` của Supabase PostgreSQL.
+- **GOOGLE SHEETS**: Chỉ sử dụng cho tab `Trả NCC` (read-only), `Bảng Công nợ`, `Vòng đời đơn hàng` (`ORDER_LIFECYCLE_SPREADSHEET_ID`), và `Nhân sự` (`HR_SPREADSHEET_ID`).
+- Thứ tự ưu tiên cập nhật: `README.md` → `server/README.md` → `SCHEMA.md` → `docs/`.
+- Luôn cập nhật ngày cập nhật mới nhất ở cuối `README.md`.

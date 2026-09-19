@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0012`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0014`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -86,6 +86,17 @@ Role Postgres cấp cho nhân viên dùng SQL client/BI tool để truy vấn tr
 - Cả 4 bảng không có cột `raw`, chỉ lưu số đã tổng hợp — tên/nhóm hàng/trạng thái hiện tại luôn join trực tiếp với `products`/`categories`/`suppliers` tại thời điểm đọc, không lưu lại (bake) vào rollup để tránh phải tính lại khi đổi tên/nhóm.
 - Refresh bởi `server/kiotvietSync/dashboardRollupRefresh.js` mỗi 5 phút, cửa sổ 400 ngày gần nhất cho `daily_invoice_summary`/`daily_product_sales`/`daily_purchase_summary`; `product_first_purchase` luôn quét toàn bộ `purchases` (không giới hạn cửa sổ) vì ngày nhập đầu tiên có thể xa hơn 400 ngày.
 - Không `REVOKE SELECT FROM reporting_readonly` trên 4 bảng này — dữ liệu chỉ là số tổng hợp, không nhạy cảm.
+
+### Hoạt động công nợ theo kỳ CN1/CN3/CN7 (migration `0014`)
+
+| Bảng | Mục đích | Khóa chính | Cột chính |
+|---|---|---|---|
+| `customer_debt_activity_periods` | Khách hàng có phát sinh giao dịch trong 1/3/7 ngày gần nhất (CN1/CN3/CN7, trước đây gọi là HN1/HN3/HN7), thay thế các tab Google Sheets cũ | `(branch, period_days, customer_id)` | `customer_name`, `refreshed_at` |
+
+- `period_days` nhận một trong ba giá trị: `1`, `3`, `7` tương ứng kỳ CN1, CN3, CN7.
+- Index lookup: `(branch, period_days, customer_name)`.
+- Bảng chỉ lưu tập tên/ID cần thiết phục vụ cảnh báo "Chưa thu" trên màn hình Quản lý công nợ Dashboard; dữ liệu nguồn tính trực tiếp từ các bảng KiotViet (`invoices`, `returns`, `cash_flows`, `customers`) trong PostgreSQL.
+- Làm mới tự động bởi scheduler job `server/kiotvietSync/customerDebtReportRefresh.js`.
 
 ## Quan hệ và index
 
