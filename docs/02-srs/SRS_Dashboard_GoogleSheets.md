@@ -11,9 +11,9 @@
 | Ngày tạo           | 27/07/2026                                                 |
 | Ngày cập nhật      | 19/09/2026                                                 |
 | Tài liệu liên quan | BRD v2.0 · BPMN v2.1 · Implementation Plan v2.4 · CSNS-NP-01 (Chính sách nghỉ phép) · Design System MASTER (mục 7 — ràng buộc hiệu năng) |
-| Trạng thái         | Đang vận hành (Supabase PostgreSQL, Quản lý công nợ CN1/CN3/CN7, HR Leave, Vòng đời đơn hàng, 711 unit tests) |
+| Trạng thái         | Đang vận hành (Supabase PostgreSQL, Quản lý công nợ CN1/CN3/CN7, HR Leave, Vòng đời đơn hàng, 717 unit tests) |
 
-> **Ghi chú phiên bản 2.5 (19/09/2026):** Chuyển đổi toàn diện dữ liệu KiotViet từ Google Sheets sang **Supabase PostgreSQL**. Toàn bộ dữ liệu vận hành do Node.js Sync Engine (`server/kiotvietSync/`) nạp và cập nhật (Webhook + Polling). Google Sheets Kiot HN/SG chỉ còn đọc tab **`Trả NCC`**. Tính năng **Vòng đời đơn hàng** (`ORDER_LIFECYCLE_SPREADSHEET_ID`) và **Nhân sự** (`HR_SPREADSHEET_ID`) tiếp tục duy trì qua Google Sheets. Chuẩn hóa ba kỳ công nợ 1/3/7 ngày thành **CN1 / CN3 / CN7**, lưu trong bảng Supabase `customer_debt_activity_periods` và làm mới tự động qua `customerDebtReportRefresh.js`. Màn hình `Quản lý công nợ` kết hợp Bảng Công nợ chỉ đọc và đối chiếu CN1/CN3/CN7. Apps Script (`src-dashboard`) và module vận chuyển cũ nghỉ hưu hoàn toàn. Tài khoản ứng dụng lưu trong bảng PostgreSQL `app_users`. Chuẩn hóa bộ kiểm thử tự động đạt **711 unit tests** chuẩn `node:test`.
+> **Ghi chú phiên bản 2.6 (19/09/2026):** Telegram ID được lưu lâu dài tại `app_users.telegram_id` trong Supabase PostgreSQL. Luồng tạo mã liên kết qua tab `_HR_TELEGRAM_LINKS` của Google Sheets tạm ngừng; bot sẽ tích hợp trực tiếp với database ở giai đoạn sau. Các nguồn Google Sheets nghiệp vụ khác không đổi.
 
 # 1. Giới thiệu
 
@@ -112,7 +112,7 @@ Frontend: HTML/CSS/JS tĩnh (server/public/)
     - server/public/account/index.html: Quản lý tài khoản (Hồ sơ & Quản trị người dùng)
     - server/public/humanresources/   : Cổng thông tin nhân sự (Nộp đơn nghỉ phép, tra cứu, phê duyệt)
     - server/public/login/index.html   : Đăng nhập nội bộ, Google Sign-In & Quên mật khẩu OTP
-    - server/public/register/index.html: Đăng ký tài khoản Khách (Email / Số điện thoại)
+    - server/public/register/index.html: Đăng ký tài khoản Khách bằng Email
     - server/public/shipment/lifecycle/: Tra cứu vòng đời đơn hàng theo mã đơn
     - server/public/shared/shared-nav.js : Điều hướng dùng chung đa trang & auth guard
     - server/public/js/pagination.js  : Phân trang bảng client-side
@@ -130,7 +130,7 @@ Người dùng (trình duyệt) — tokosi.onrender.com / localhost:3000
 - **Database:** Supabase PostgreSQL (kết nối pooling & direct qua thư viện `pg`)
 - **Dependencies:** `pg`, `googleapis` (Google Sheets API client), `bcryptjs` / `bcrypt`, `jsonwebtoken`, `exceljs` / export builder, `dotenv` (dev only)
 - **Entry point:** `server/index.js`
-- **Testing:** `node:test` + `node:assert/strict` (711 unit tests tự động)
+- **Testing:** `node:test` + `node:assert/strict` (717 unit tests tự động)
 - **API:** REST; endpoints:
   - Auth: `/api/auth/*` (register, login, google, profile, otp reset, logout)
   - Role Requests & Admin: `/api/role-requests/*`, `/api/admin/users/*`
@@ -176,7 +176,7 @@ Người dùng (trình duyệt) — tokosi.onrender.com / localhost:3000
 
 ## 2.4. Giả định & phụ thuộc
 
-- Database Supabase PostgreSQL hoạt động ổn định với schema chuẩn hóa `0001` đến `0014`.
+- Database Supabase PostgreSQL hoạt động ổn định với schema chuẩn hóa `0001` đến `0015`.
 - Service Account Google được cấp quyền Viewer trên Sheets Kiot HN/SG (để đọc `Trả NCC`) và quyền truy cập các file Vòng đời đơn hàng, HR.
 - Webhook KiotViet đang hoạt động và trỏ đúng endpoint server `/api/internal/kiotviet-sync/webhook`.
 - Render.com có đầy đủ biến môi trường kết nối database và credentials KiotViet.
@@ -291,7 +291,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 
 | **Mã** | **Mô tả** | **Ưu tiên** | **Trạng thái** |
 |--------|-----------|-------------|----------------|
-| FR-08.1 | Form đăng ký riêng nhận họ tên, email hoặc số điện thoại và mật khẩu; mật khẩu được băm bcrypt, tài khoản `Khách` hoạt động và tự đăng nhập ngay. | Cao | Hoàn thành |
+| FR-08.1 | Form đăng ký riêng nhận họ tên, email và mật khẩu; mật khẩu được băm bcrypt, tài khoản `Khách` hoạt động và tự đăng nhập ngay. | Cao | Hoàn thành |
 | FR-08.2 | Google Identity cho phép email xác minh đăng nhập ngay: email mới nhận vai trò `Khách`, tài khoản nội bộ giữ vai trò hiện có, tài khoản khóa bị từ chối và bản ghi legacy `Chờ duyệt` chuyển thành `Khách`. | Cao | Hoàn thành |
 | FR-08.3 | `Khách` chỉ thấy mục Quản lý vận chuyển và bị backend chặn khỏi dashboard, tìm kiếm, xuất Excel và debug; bốn vai trò nội bộ giữ quyền hiện tại. | Cao | Hoàn thành |
 | FR-08.4 | Tra cứu vận chuyển nhận tối đa 50 mã hóa đơn, khớp chính xác không phân biệt hoa/thường, loại trùng và chỉ trả `code`, `found`, `status`; giao diện không hiển thị dữ liệu trước khi tìm. | Cao | Hoàn thành |
@@ -305,9 +305,10 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 |---|---|---|---|
 | FR-10.1 | Đơn nghỉ lưu mốc bắt đầu/kết thúc dạng `Sáng|Chiều dd/mm/yyyy`, tổng số buổi và tổng ngày quy đổi bằng số buổi chia 2. | Cao | Hoàn thành |
 | FR-10.2 | Phép tính buổi tính chính xác từ đầu buổi bắt đầu đến hết cuối buổi kết thúc (ví dụ: Sáng - Sáng cùng ngày là 1 buổi, Chiều hôm trước - Sáng hôm sau là 2 buổi, Sáng - Chiều cùng ngày là 2 buổi). | Cao | Hoàn thành |
-| FR-10.3 | Bot dùng luồng nhập ngày và buổi, khôi phục được `startDate`/`endDate` sau restart và chống xử lý trùng theo `chatId:messageId`. | Cao | Hoàn thành |
+| FR-10.3 | Bot dùng luồng nhập ngày và buổi, khôi phục được `startDate`/`endDate` sau restart và chống xử lý trùng theo `chatId:messageId`. | Cao | Tạm ngừng tích hợp |
 | FR-10.4 | Thời gian gửi sau 07:45 đối với buổi Sáng hoặc 12:30 đối với buổi Chiều được cảnh báo; nếu vẫn xác nhận, đơn được lưu với trạng thái `Vi phạm`. | Cao | Hoàn thành |
 | FR-10.5 | Tab Nghỉ phép hiển thị cột Thời gian gửi; bộ lọc `from`/`to` lọc theo trường này và mặc định 3 ngày gần đây. | Cao | Hoàn thành |
+| FR-10.6 | Telegram ID lưu ở `app_users.telegram_id` trong PostgreSQL, duy nhất giữa các tài khoản chưa xoá; API tạo mã cũ không được đọc/ghi `_HR_TELEGRAM_LINKS`. | Cao | Hoàn thành |
 
 ## 3.11. FR-11: Quản lý công nợ
 
@@ -579,7 +580,7 @@ Endpoint upsert theo `(branch, customer_key)`, từ chối status/chữ ký/khó
 
 ## 6.8. API xác thực & Hồ sơ cá nhân
 
-- `POST /api/auth/register`: nhận `{ "hoTen": "...", "email": "...", "phone": "...", "password": "..." }`; tạo tài khoản `Khách`, cookie JWT và trả user với HTTP 201.
+- `POST /api/auth/register`: nhận `{ "hoTen": "...", "email": "...", "password": "..." }`; chỉ chấp nhận đăng ký trực tiếp bằng email, tạo tài khoản `Khách`, cookie JWT và trả user với HTTP 201.
 - `POST /api/auth/login`: đăng nhập username/password, cấp JWT cookie `tks_auth`; kích hoạt lockout 5 phút nếu nhập sai 5 lần liên tiếp.
 - `POST /api/auth/google`: xác minh Google ID token; email mới hoặc legacy `Chờ duyệt` vào ngay với vai trò `Khách`, email nội bộ giữ nguyên vai trò, tài khoản khóa trả 403.
 - `GET /api/auth/me` và `POST /api/auth/logout`: dùng chung cho tài khoản nội bộ và Khách.

@@ -11,9 +11,9 @@
 | Ngày tạo          | 27/07/2026                                                          |
 | Ngày cập nhật     | 19/09/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo, nhân viên nội bộ công ty & khách hàng tra cứu        |
-| Trạng thái        | Đang vận hành (Kiến trúc Supabase PostgreSQL, Quản lý công nợ CN1/CN3/CN7, HR Leave, Vòng đời đơn hàng, 711 unit tests) |
+| Trạng thái        | Đang vận hành (Kiến trúc Supabase PostgreSQL, Quản lý công nợ CN1/CN3/CN7, HR Leave, Vòng đời đơn hàng, 717 unit tests) |
 
-> **Ghi chú phiên bản 2.0:** Chuyển đổi toàn diện dữ liệu KiotViet từ Google Sheets sang **Supabase PostgreSQL** làm kho lưu trữ chính. Engine `server/kiotvietSync/` (Node.js) đồng bộ KiotViet trực tiếp qua Webhook + Polling. Hai file Google Sheets Kiot HN/SG chỉ còn đọc tab **`Trả NCC`**. Tính năng **Vòng đời đơn hàng** (`ORDER_LIFECYCLE_SPREADSHEET_ID`) và **Nhân sự** (`HR_SPREADSHEET_ID`) tiếp tục duy trì qua Google Sheets. Chuẩn hóa ba kỳ công nợ 1/3/7 ngày thành **CN1 / CN3 / CN7** lưu trong bảng Supabase `customer_debt_activity_periods`. Nghỉ hưu hoàn toàn Apps Script (`src-dashboard`) và module vận chuyển cũ. Quản trị tài khoản chuyển sang bảng PostgreSQL `app_users`. Hệ thống đạt **711 unit tests** chuẩn `node:test`.
+> **Ghi chú phiên bản 2.0:** Chuyển đổi toàn diện dữ liệu KiotViet từ Google Sheets sang **Supabase PostgreSQL** làm kho lưu trữ chính. Engine `server/kiotvietSync/` (Node.js) đồng bộ KiotViet trực tiếp qua Webhook + Polling. Hai file Google Sheets Kiot HN/SG chỉ còn đọc tab **`Trả NCC`**. Tính năng **Vòng đời đơn hàng** (`ORDER_LIFECYCLE_SPREADSHEET_ID`) và **Nhân sự** (`HR_SPREADSHEET_ID`) tiếp tục duy trì qua Google Sheets. Chuẩn hóa ba kỳ công nợ 1/3/7 ngày thành **CN1 / CN3 / CN7** lưu trong bảng Supabase `customer_debt_activity_periods`. Nghỉ hưu hoàn toàn Apps Script (`src-dashboard`) và module vận chuyển cũ. Quản trị tài khoản chuyển sang bảng PostgreSQL `app_users`. Hệ thống đạt **717 unit tests** chuẩn `node:test`.
 
 # 1. Giới thiệu
 
@@ -190,7 +190,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 ## 5.6. Truy cập & bảo mật
 
 - Hệ thống xác thực người dùng qua JWT cookie, mật khẩu mã hóa bcrypt, cơ chế lockout 5 phút chống dò mật khẩu, và khôi phục mật khẩu bằng OTP 6 số.
-- Tài khoản và vai trò người dùng được lưu trữ trong bảng PostgreSQL `app_users` (hỗ trợ phân quyền Quản lý, Nhân viên, Khách theo cơ sở).
+- Tài khoản, vai trò và Telegram ID người dùng được lưu trữ trong bảng PostgreSQL `app_users` (hỗ trợ phân quyền Quản lý, Nhân viên, Khách theo cơ sở). Luồng liên kết Telegram qua Google Sheets tạm ngừng; bot sẽ liên kết trực tiếp bằng database ở giai đoạn sau.
 - Dữ liệu nhạy cảm (Service Account key, DB URL, JWT secret, KiotViet secret) lưu trong biến môi trường trên Render, không commit vào mã nguồn.
 - Toàn bộ giao tiếp qua **HTTPS**.
 
@@ -228,7 +228,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 - Bảng dữ liệu lớn (>7.000 dòng) được phân trang ~200 dòng/trang, chuyển trang mượt mà không lag.
 - Ba kỳ công nợ CN1/CN3/CN7 (1/3/7 ngày) được tính toán chính xác và lưu trong bảng `customer_debt_activity_periods`; cảnh báo "Chưa thu" trên màn hình Quản lý công nợ đối chiếu đúng với dữ liệu.
 - Hệ thống hoạt động ổn định trên Render.com, uptime >= 99% trong giờ hành chính.
-- Toàn bộ hệ thống vượt qua kiểm thử tự động **711 unit tests**.
+- Toàn bộ hệ thống vượt qua kiểm thử tự động **717 unit tests**.
 
 # 9. Kế hoạch triển khai tổng quan
 
@@ -238,7 +238,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 |-----------------------------------|---------------------------------------------------------------------------------------------------|----------------|
 | 1. Phân tích & thiết kế            | Hoàn thiện BRD v2.0, SRS v2.5, BPMN v2.1; thiết kế kiến trúc Supabase PostgreSQL                 | Hoàn thành     |
 | 2. Engine đồng bộ KiotViet        | `server/kiotvietSync/`: webhook queue, syncDriver, backfill, reconcile, scheduler                | Hoàn thành     |
-| 3. Backend Node.js/Express         | API `/api/dashboard`, `/api/search`, `/api/export`, Quản lý công nợ, Auth PostgreSQL, 711 unit tests | Hoàn thành     |
+| 3. Backend Node.js/Express         | API `/api/dashboard`, `/api/search`, `/api/export`, Quản lý công nợ, Auth PostgreSQL, 717 unit tests | Hoàn thành     |
 | 4. Frontend HTML/CSS/JS            | Dashboard, Quản lý công nợ, phân trang bảng (`pagination.js`), quản trị tài khoản (`/account/`) | Hoàn thành     |
 | 5. Lớp hiệu ứng 3D Visual          | Đã gỡ bỏ hoàn toàn; giao diện thuần 2D hiện đại, tối ưu hiệu năng                                | Đã gỡ bỏ       |
 | 6. Triển khai Render.com           | Deploy lên `tokosi.onrender.com`, kết nối Supabase DB                                             | Hoàn thành     |

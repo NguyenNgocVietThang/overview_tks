@@ -8,7 +8,8 @@ const localUserStore = require('./localUserStore');
 const { ACTIVE_STATUS, ROLES, normalizePhone } = require('./userRepository');
 
 /**
- * Tạo tài khoản Khách hoạt động ngay cho đăng ký email, số điện thoại hoặc Google.
+ * Tạo tài khoản Khách hoạt động ngay cho đăng ký email/Google; trường số điện
+ * thoại vẫn được dùng khi luồng xác minh nhân sự gắn đủ định danh vào tài khoản.
  */
 async function createActiveGuest({ id, email = '', soDienThoai = '', hoTen = '', username = '', passwordHash = '', vaiTro = '' }) {
   const normalizedEmail = String(email || '').trim().toLowerCase();

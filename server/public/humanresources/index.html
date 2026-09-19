@@ -428,24 +428,6 @@
           </div>
         </div>
 
-        <!-- Lien ket Telegram -->
-        <div class="profile-card">
-          <div class="profile-card-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13"></path><path d="M22 2 15 22l-4-9-9-4 20-7z"></path></svg>
-            Liên kết Telegram
-          </div>
-          <p class="profile-card-desc" id="linkStatusDesc">Đang kiểm tra trạng thái liên kết...</p>
-          <div id="linkStatusOk" style="display:none;">
-            <span class="status-pill leave-approved">Đã liên kết với @<span id="linkedTgUsername"></span></span>
-          </div>
-          <div id="linkStatusNeeded" style="display:none;">
-            <button type="button" class="btn-primary" onclick="handleCreateLinkCode()">Tạo mã liên kết</button>
-            <div id="linkCodeResult" style="display:none; margin-top:12px;">
-              <div class="link-code-display" id="linkCodeValue">------</div>
-              <p class="profile-card-desc" style="margin:8px 0 0;">Mở Telegram, tìm bot xin nghỉ phép của công ty, gõ <code>/lienket &lt;mã&gt;</code> trong vòng <span id="linkCodeTtl">15</span> phút.</p>
-            </div>
-          </div>
-        </div>
         </div>
 
         <!-- Quy dinh cong ty: thuan hien thi tai lieu, khong co chuc nang gi khac -->
@@ -1048,46 +1030,6 @@
       applyActiveTableSorts();
     }
 
-    // ---------- Lien ket Telegram ----------
-    async function loadLinkStatus(){
-      try{
-        const res = await fetch('/api/hr/telegram/link-status', { credentials: 'same-origin' });
-        const { ok, data } = await parseApiResponse(res);
-        const descEl = document.getElementById('linkStatusDesc');
-        if(!ok){
-          descEl.textContent = 'Không tải được trạng thái liên kết.';
-          return;
-        }
-        if(data.linked){
-          descEl.textContent = 'Tài khoản của bạn đã liên kết với Telegram, bot sẽ nhận diện đúng danh tính khi bạn xin nghỉ.';
-          document.getElementById('linkedTgUsername').textContent = (data.telegram_username || '').replace(/^@/, '');
-          document.getElementById('linkStatusOk').style.display = 'block';
-          document.getElementById('linkStatusNeeded').style.display = 'none';
-        } else {
-          descEl.textContent = 'Bạn chưa liên kết tài khoản Telegram. Tạo mã bên dưới rồi gõ /lienket <mã> với bot xin nghỉ phép.';
-          document.getElementById('linkStatusOk').style.display = 'none';
-          document.getElementById('linkStatusNeeded').style.display = 'block';
-        }
-      }catch(err){
-        document.getElementById('linkStatusDesc').textContent = 'Lỗi kết nối máy chủ.';
-      }
-    }
-
-    async function handleCreateLinkCode(){
-      try{
-        const res = await fetch('/api/hr/telegram/link-code', { method: 'POST', credentials: 'same-origin' });
-        const { ok, data } = await parseApiResponse(res);
-        if(!ok){
-          showToast(data.error || 'Không tạo được mã liên kết.', 'error');
-          return;
-        }
-        document.getElementById('linkCodeValue').textContent = data.code;
-        document.getElementById('linkCodeResult').style.display = 'block';
-      }catch(err){
-        showToast('Lỗi kết nối máy chủ.', 'error');
-      }
-    }
-
     // ---------- Sort bang (port tu server/public/index.html) ----------
     function initSortableTables(){
       document.querySelectorAll('table').forEach(function (table) {
@@ -1369,7 +1311,6 @@
           initSortableTables();
           initDefaultDateFilters();
           loadLeaveRequests();
-          loadLinkStatus();
           loadEmployeeDirectory();
           setupLeaveRealtimeStream();
         });

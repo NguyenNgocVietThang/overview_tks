@@ -80,11 +80,14 @@ test('cac trang login, register, account co nut an hien mat khau password-toggle
   }
 });
 
-test('trang register co tab va input dang ky bang so dien thoai', () => {
+test('trang register chi cho phep dang ky bang email', () => {
   const html = readPublic('register/index.html');
-  assert.match(html, /id="tabRegisterPhone"/);
-  assert.match(html, /id="fieldPhoneWrap"/);
-  assert.match(html, /id="soDienThoai"/);
+  const dom = new JSDOM(html);
+  const document = dom.window.document;
+  assert.ok(document.querySelector('#email'));
+  assert.equal(document.querySelector('#tabRegisterPhone'), null);
+  assert.equal(document.querySelector('#fieldPhoneWrap'), null);
+  assert.equal(document.querySelector('#soDienThoai'), null);
 });
 
 test('trang login co banner dem nguoc lockout 5 phut va modal reset mat khau OTP', () => {

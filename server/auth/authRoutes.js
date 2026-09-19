@@ -330,7 +330,7 @@ router.post('/api/auth/login', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// POST /api/auth/register (Email hoac So dien thoai)
+// POST /api/auth/register (chi Email)
 // -------------------------------------------------------------
 function sendEmployeeRegistrationError(res, err) {
   if (err && err.statusCode) {
@@ -374,7 +374,6 @@ router.post('/api/auth/register', async (req, res) => {
   try {
     const hoTen = String((req.body && req.body.hoTen) || '').trim();
     const email = String((req.body && req.body.email) || '').trim().toLowerCase();
-    const soDienThoai = String((req.body && req.body.soDienThoai) || '').trim();
     const password = String((req.body && req.body.password) || '');
 
     if (!hoTen) {
@@ -384,21 +383,12 @@ router.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: 'Họ tên không được dài quá 100 ký tự.' });
     }
 
-    if (!email && !soDienThoai) {
-      return res.status(400).json({ error: 'Vui lòng nhập email hoặc số điện thoại để đăng ký.' });
+    if (!email) {
+      return res.status(400).json({ error: 'Vui lòng nhập email để đăng ký.' });
     }
 
-    if (email) {
-      if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        return res.status(400).json({ error: 'Email không hợp lệ.' });
-      }
-    }
-
-    if (soDienThoai) {
-      const normPhone = normalizePhone(soDienThoai);
-      if (!/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(normPhone) && !/^[0-9]{10}$/.test(normPhone)) {
-        return res.status(400).json({ error: 'Số điện thoại không hợp lệ (yêu cầu 10 số).' });
-      }
+    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Email không hợp lệ.' });
     }
 
     if (password.length < 8) {
@@ -409,32 +399,21 @@ router.post('/api/auth/register', async (req, res) => {
     }
 
     // Kiem tra trung lap
-    if (email) {
-      const existingByEmail = await findUserByEmail(email);
-      const existingByUsername = existingByEmail ? null : await findUserByUsername(email);
-      if (existingByEmail || existingByUsername) {
-        return res.status(409).json({ error: 'Email này đã được đăng ký.' });
-      }
-    }
-
-    if (soDienThoai) {
-      const normPhone = normalizePhone(soDienThoai);
-      const existingByPhone = await findUserByPhone(normPhone);
-      const existingByUsername = existingByPhone ? null : await findUserByUsername(normPhone);
-      if (existingByPhone || existingByUsername) {
-        return res.status(409).json({ error: 'Số điện thoại này đã được đăng ký.' });
-      }
+    const existingByEmail = await findUserByEmail(email);
+    const existingByUsername = existingByEmail ? null : await findUserByUsername(email);
+    if (existingByEmail || existingByUsername) {
+      return res.status(409).json({ error: 'Email này đã được đăng ký.' });
     }
 
     const passwordHash = await hashPassword(password);
-    const username = email || normalizePhone(soDienThoai);
+    const username = email;
     const isTargetAdmin = isHardcodedAdmin(email) || isHardcodedAdmin(username);
     const user = {
       id: crypto.randomUUID(),
       username,
       hoTen,
       email,
-      soDienThoai: normalizePhone(soDienThoai),
+      soDienThoai: '',
       vaiTro: isTargetAdmin ? ROLES.QUAN_LY : ROLES.KHACH,
       coSo: isTargetAdmin ? 'Cả hai' : ''
     };

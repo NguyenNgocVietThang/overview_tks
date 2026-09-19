@@ -1,5 +1,5 @@
 // ==========================================
-// HR LEAVE ROUTES — /api/hr/* : quan ly yeu cau nghi phep + lien ket Telegram.
+// HR LEAVE ROUTES — /api/hr/* : quan ly yeu cau nghi phep.
 //
 // Mount trong server/routes.js:
 //   const hrLeaveRoutes = require('./hr/hrLeaveRoutes');
@@ -265,30 +265,22 @@ router.patch('/api/hr/leave-requests/:id/status', ...authManager, async (req, re
 // POST /api/hr/telegram/link-code — tu sinh ma lien ket cho chinh minh
 // ---------------------------------------------------------------------------
 
-router.post('/api/hr/telegram/link-code', ...authInternal, async (req, res) => {
-  try {
-    const link = await repo.createLinkCode(req.user.username, req.branch);
-    res.status(201).json({ code: link.link_code, expiresAt: link.expires_at });
-  } catch (err) {
-    handleError(res, err, 'POST /api/hr/telegram/link-code');
-  }
+router.post('/api/hr/telegram/link-code', ...authInternal, (_req, res) => {
+  res.status(410).json({
+    error: 'Luồng liên kết Telegram qua Google Sheets đã tạm ngừng. Bot sẽ liên kết trực tiếp qua tài khoản trong Postgres.',
+    code: 'TELEGRAM_SHEET_LINK_DISABLED'
+  });
 });
 
 // ---------------------------------------------------------------------------
 // POST /api/hr/telegram/link-code/assign — Quan ly sinh ma ho nhan vien khac
 // ---------------------------------------------------------------------------
 
-router.post('/api/hr/telegram/link-code/assign', ...authManager, async (req, res) => {
-  try {
-    const { web_username } = req.body || {};
-    if (!web_username) {
-      return res.status(400).json({ error: 'Thiếu trường "web_username".', code: 'INVALID_REQUEST' });
-    }
-    const link = await repo.createLinkCode(web_username, req.branch);
-    res.status(201).json({ code: link.link_code, expiresAt: link.expires_at, web_username });
-  } catch (err) {
-    handleError(res, err, 'POST /api/hr/telegram/link-code/assign');
-  }
+router.post('/api/hr/telegram/link-code/assign', ...authManager, (_req, res) => {
+  res.status(410).json({
+    error: 'Luồng liên kết Telegram qua Google Sheets đã tạm ngừng. Bot sẽ liên kết trực tiếp qua tài khoản trong Postgres.',
+    code: 'TELEGRAM_SHEET_LINK_DISABLED'
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -334,17 +326,12 @@ router.get('/api/hr/employees/export', ...authInternal, async (req, res) => {
 // GET /api/hr/telegram/link-status — da lien ket Telegram hay chua
 // ---------------------------------------------------------------------------
 
-router.get('/api/hr/telegram/link-status', ...authInternal, async (req, res) => {
-  try {
-    const link = await repo.findLinkByWebUsername(req.user.username, req.branch);
-    res.status(200).json({
-      linked: !!link,
-      telegram_username: link ? link.telegram_username : null,
-      linked_at: link ? link.linked_at : null
-    });
-  } catch (err) {
-    handleError(res, err, 'GET /api/hr/telegram/link-status');
-  }
+router.get('/api/hr/telegram/link-status', ...authInternal, (req, res) => {
+  res.status(200).json({
+    linked: !!String(req.user.telegramId || '').trim(),
+    telegramId: req.user.telegramId || '',
+    source: 'postgres'
+  });
 });
 
 module.exports = router;

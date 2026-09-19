@@ -418,35 +418,19 @@ test('GET /api/auth/google-config: chua cau hinh -> clientId null (de trang logi
   }
 });
 
-test('POST /api/auth/register: dang ky bang so dien thoai hop le', async () => {
-  let createdWith = null;
-  const router = freshAuthRoutes({
-    verifyGoogleIdToken: NEVER_CALL,
-    findUserByEmail: async () => null,
-    findUserByUsername: async () => null,
-    createActiveGuest: async args => { createdWith = args; }
-  });
-  const handler = getRouteHandler(router, 'post', '/api/auth/register');
-  const res = fakeRes();
-  await handler({ body: { hoTen: 'Khách Phone', soDienThoai: '0912345678', password: 'Password123' } }, res);
-  assert.equal(res.statusCode, 201);
-  assert.equal(res.body.username, '0912345678');
-  assert.equal(res.body.vaiTro, 'Khách');
-  assert.equal(createdWith.soDienThoai, '0912345678');
-  assert.equal(res.cookies.length, 1);
-});
-
-test('POST /api/auth/register: so dien thoai khong hop le -> 400', async () => {
+test('POST /api/auth/register: tu choi dang ky chi bang so dien thoai', async () => {
   const router = freshAuthRoutes({
     verifyGoogleIdToken: NEVER_CALL,
     findUserByEmail: NEVER_CALL,
+    findUserByUsername: NEVER_CALL,
     createActiveGuest: NEVER_CALL
   });
   const handler = getRouteHandler(router, 'post', '/api/auth/register');
   const res = fakeRes();
-  await handler({ body: { hoTen: 'A', soDienThoai: '123', password: 'Password123' } }, res);
+  await handler({ body: { hoTen: 'Khách Phone', soDienThoai: '0912345678', password: 'Password123' } }, res);
   assert.equal(res.statusCode, 400);
-  assert.match(res.body.error, /Số điện thoại không hợp lệ/);
+  assert.match(res.body.error, /email/i);
+  assert.equal(res.cookies.length, 0);
 });
 
 test('POST /api/auth/login: nhap sai 5 lan -> 423 Locked kem lockoutRemainingSeconds va suggestReset', async () => {

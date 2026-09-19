@@ -136,3 +136,34 @@ test('GET /api/hr/employees trả về nhân sự đúng cơ sở, đã lọc c�
   }
 });
 
+test('luồng tạo mã Telegram cũ đã ngừng và không ghi Google Sheets', async () => {
+  const originalCreateLinkCode = repo.createLinkCode;
+  let sheetCalled = false;
+  repo.createLinkCode = async () => { sheetCalled = true; };
+  try {
+    const handler = getRouteHandler('post', '/api/hr/telegram/link-code');
+    const res = fakeRes();
+    await handler({ user: { username: 'employee' } }, res);
+    assert.equal(res.statusCode, 410);
+    assert.equal(res.body.code, 'TELEGRAM_SHEET_LINK_DISABLED');
+    assert.equal(sheetCalled, false);
+  } finally {
+    repo.createLinkCode = originalCreateLinkCode;
+  }
+});
+
+test('trạng thái Telegram đọc từ app_users qua req.user, không đọc Google Sheets', async () => {
+  const originalFindLink = repo.findLinkByWebUsername;
+  let sheetCalled = false;
+  repo.findLinkByWebUsername = async () => { sheetCalled = true; };
+  try {
+    const handler = getRouteHandler('get', '/api/hr/telegram/link-status');
+    const res = fakeRes();
+    await handler({ user: { telegramId: '6205968899' } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, { linked: true, telegramId: '6205968899', source: 'postgres' });
+    assert.equal(sheetCalled, false);
+  } finally {
+    repo.findLinkByWebUsername = originalFindLink;
+  }
+});

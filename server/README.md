@@ -10,7 +10,7 @@ Express backend cho dashboard TOKOSI.
 - Công nợ quản lý: workbook `DEBT_MANAGEMENT_SPREADSHEET_ID`.
 - Nhân sự: workbook HR riêng.
 - Vòng đời đơn hàng: Google Sheets workbook `ORDER_LIFECYCLE_SPREADSHEET_ID` (`DonHang_HN`, `DonHang_SG`, `Lịch sử cập nhật`).
-- Tài khoản: PostgreSQL `app_users`; không dùng tab `Users`.
+- Tài khoản và Telegram ID: PostgreSQL `app_users`; không dùng tab `Users` hoặc `_HR_TELEGRAM_LINKS` để liên kết.
 
 Không còn Apps Script KiotViet. Đã gỡ bỏ tính năng vận chuyển cũ (chỉ giữ lại tính năng vòng đời đơn hàng).
 
@@ -37,4 +37,4 @@ Service account chỉ cần quyền Viewer trên hai file Kiot HN/SG vì server 
 
 ## Cấu hình Supabase
 
-Đặt `SUPABASE_DB_URL`, sau đó chạy `npm run db:migrate`. Migration `0014_customer_debt_activity_periods.sql` cung cấp dữ liệu CN1/CN3/CN7 từ database.
+Đặt `SUPABASE_DB_URL`, sau đó chạy `npm run db:migrate`. Migration `0014_customer_debt_activity_periods.sql` cung cấp dữ liệu CN1/CN3/CN7; migration `0015_app_users_telegram_id.sql` thêm Telegram ID lâu dài vào tài khoản. Bot chưa được nối trong repo và sẽ đọc/ghi cột này trực tiếp sau.

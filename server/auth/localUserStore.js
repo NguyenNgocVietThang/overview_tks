@@ -375,6 +375,7 @@ async function createUser(userData) {
     hoTen: String(userData.hoTen || username).trim(),
     email,
     soDienThoai: userData.soDienThoai ? String(userData.soDienThoai).trim() : '',
+    telegramId: String(userData.telegramId || '').trim(),
     emailKhoiPhuc,
     sdtKhoiPhuc: userData.sdtKhoiPhuc ? String(userData.sdtKhoiPhuc).trim() : '',
     passwordHash: userData.passwordHash || '',
@@ -453,6 +454,7 @@ async function updateUser(id, updates) {
     username: updates.username !== undefined ? String(updates.username).trim() : current.username,
     email: updates.email !== undefined ? String(updates.email).trim().toLowerCase() : current.email,
     soDienThoai: updates.soDienThoai !== undefined ? String(updates.soDienThoai).trim() : (current.soDienThoai || ''),
+    telegramId: updates.telegramId !== undefined ? String(updates.telegramId || '').trim() : (current.telegramId || ''),
     emailKhoiPhuc: updates.emailKhoiPhuc !== undefined ? String(updates.emailKhoiPhuc).trim().toLowerCase() : (current.emailKhoiPhuc || ''),
     sdtKhoiPhuc: updates.sdtKhoiPhuc !== undefined ? String(updates.sdtKhoiPhuc).trim() : (current.sdtKhoiPhuc || '')
   };
