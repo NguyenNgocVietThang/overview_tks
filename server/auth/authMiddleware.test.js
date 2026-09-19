@@ -52,12 +52,10 @@ test('requireAuth: cookie khong hop le -> 401, khong goi next()', async () => {
 });
 
 test('requireAuth: hydrates the effective user instead of trusting the JWT role', async () => {
-  let telegramLinked = false;
   const middleware = createRequireAuth({
     verifyToken: () => ({ id: 'u1', username: 'a@example.com', vaiTro: 'Quản lý' }),
     findUserById: async () => ({ id: 'u1', username: 'a@example.com', vaiTro: 'Quản lý' }),
     resolveUser: async user => ({ ...user, vaiTro: 'Khách', coSo: 'Cả hai', hrManaged: true }),
-    ensureTelegramLink: async () => { telegramLinked = true; }
   });
   const req = { cookies: { [AUTH_COOKIE_NAME]: 'valid' } };
   const res = fakeRes();
@@ -65,7 +63,7 @@ test('requireAuth: hydrates the effective user instead of trusting the JWT role'
   await middleware(req, res, () => { nextCalled = true; });
   assert.equal(nextCalled, true);
   assert.equal(req.user.vaiTro, 'Khách');
-  assert.equal(telegramLinked, true);
+  // Bot VPS tự quản lý liên kết Telegram — authMiddleware không còn gọi ensureTelegramLink nữa.
 });
 
 test('requireAuth: returns structured resolver errors without trusting stale JWT permissions', async () => {

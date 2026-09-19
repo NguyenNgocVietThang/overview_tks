@@ -232,13 +232,6 @@ router.patch('/api/hr/leave-requests/:id/status', ...authManager, async (req, re
     // Phat tin hieu realtime toi tat ca cac client dang mo
     broadcastLeaveEvent(LEAVE_EVENT_TYPES.STATUS_CHANGED, updated, req.branch);
 
-    // Bao Telegram best-effort, KHONG duoc lam hong response da tra o tren.
-    if (updated.telegram_chat_id) {
-      require('../telegram/hrTelegramBot')
-        .notifyLeaveDecision(updated.telegram_chat_id, { status, note, requestId: updated.request_id })
-        .catch(() => {});
-    }
-
     notifyOtherManagers(req.user.id, req.branch, {
       type: 'leave_request_decision',
       title: 'Đơn nghỉ phép đã được cập nhật',
