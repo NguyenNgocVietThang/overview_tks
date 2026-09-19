@@ -9,9 +9,10 @@ Express backend cho dashboard TOKOSI.
 - Trả NCC: tab `Trả NCC` trong `SPREADSHEET_ID` hoặc `SPREADSHEET_ID_SG`.
 - Công nợ quản lý: workbook `DEBT_MANAGEMENT_SPREADSHEET_ID`.
 - Nhân sự: workbook HR riêng.
+- Vòng đời đơn hàng: Google Sheets workbook `ORDER_LIFECYCLE_SPREADSHEET_ID` (`DonHang_HN`, `DonHang_SG`, `Lịch sử cập nhật`).
 - Tài khoản: PostgreSQL `app_users`; không dùng tab `Users`.
 
-Không còn Apps Script KiotViet và không còn API/giao diện vận chuyển.
+Không còn Apps Script KiotViet. Đã gỡ bỏ tính năng vận chuyển (chỉ giữ lại tính năng vòng đời đơn hàng).
 
 ## Lệnh
 

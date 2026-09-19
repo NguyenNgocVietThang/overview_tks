@@ -11,18 +11,6 @@ function required(name) {
   return value;
 }
 
-const DEFAULT_AI_LEAVE_MODELS = Object.freeze([
-  'deepseek/deepseek-v4-pro',
-  'deepseek/deepseek-v4-flash',
-  'qwen/qwen3-max:free',
-  'mistralai/mistral-small-2603',
-  'mistralai/mistral-medium-3.5'
-]);
-
-function parseModelList(value) {
-  return String(value).split(',').map(model => model.trim()).filter(Boolean);
-}
-
 const CONFIG = {
   // SPREADSHEET_ID = co so HA NOI (bat buoc). Spreadsheet bao cao cua co so
   // SAI GON la optional — thieu bien nay thi co so Sai Gon tra 503
@@ -80,7 +68,18 @@ const CONFIG = {
   DEBT_MANAGEMENT_SHEET_SG: 'Công nợ SG',
 
   // ==========================================
-  // QUAN LY NHAN SU — Spreadsheet rieng (HR_*) + Bot Telegram xin nghi phep
+  // VONG DOI DON HANG — spreadsheet RIENG (2 tab DonHang_HN/DonHang_SG trong
+  // CUNG 1 spreadsheet). Server CHI DOC 2 tab do.
+  // Tab "Lich su cap nhat" (ORDER_LIFECYCLE_SHEET_HISTORY) la NGOAI LE: do
+  // server tu tao/ghi (ghi de trang thai thu cong cua Quan ly/Ke toan).
+  // ==========================================
+  ORDER_LIFECYCLE_SPREADSHEET_ID: process.env.ORDER_LIFECYCLE_SPREADSHEET_ID || null,
+  ORDER_LIFECYCLE_SHEET_HN: 'DonHang_HN',
+  ORDER_LIFECYCLE_SHEET_SG: 'DonHang_SG',
+  ORDER_LIFECYCLE_SHEET_HISTORY: 'Lịch sử cập nhật',
+
+  // ==========================================
+  // QUAN LY NHAN SU — Spreadsheet rieng (HR_*)
   // ==========================================
   // Optional — neu chua set thi log canh bao khi module HR duoc goi, khong
   // lam crash server hien tai.
@@ -88,17 +87,12 @@ const CONFIG = {
   // Nguon nhan su rieng cua co so Sai Gon (se cung cap sau) — bo trong thi tab
   // "Quan ly nhan su" o co so Sai Gon bao "Chua duoc cau hinh".
   HR_SPREADSHEET_ID_SG: process.env.HR_SPREADSHEET_ID_SG || null,
-  TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || null,
 
   HR_SHEET_LEAVE_REQUESTS: 'Yêu cầu nghỉ phép',
   HR_SHEET_EMPLOYEES: 'Danh sách nhân sự',
   HR_SHEET_TELEGRAM_LINKS: '_HR_TELEGRAM_LINKS',
   HR_SHEET_TELEGRAM_SESSIONS: '_HR_TELEGRAM_SESSIONS',
 
-  // Nguong bao truoc mac dinh (gio) dung khi tin nhan chi neu so buoi/ngay ma
-  // khong neu ngay bat dau — bot chon buoi gan nhat con cach thoi diem gui tin
-  // >= nguong nay. KHONG con dung cho co "nghi gap", xem HR_URGENT_LATE_NIGHT_HOUR.
-  HR_URGENT_NOTICE_HOURS_THRESHOLD: Number(process.env.HR_URGENT_NOTICE_HOURS_THRESHOLD) || 10,
   // Co "nghi gap": tin nhan gui tu gio nay tro di (gio Bangkok, 0-23) VA ca
   // nghi bat dau ngay hom sau lien ke thi tu dong gan co, chi de canh bao,
   // khong tu tu choi.
@@ -107,22 +101,6 @@ const CONFIG = {
   HR_URGENT_FLAG_MONTHLY_THRESHOLD: Number(process.env.HR_URGENT_FLAG_MONTHLY_THRESHOLD) || 2,
   // Thoi han hieu luc cua ma lien ket Telegram (phut).
   HR_LINK_CODE_TTL_MINUTES: Number(process.env.HR_LINK_CODE_TTL_MINUTES) || 15,
-
-  // ==========================================
-  // AI PROXY (xKiro) — nhan dang tin nhan xin nghi bang AI, xem
-  // docs/superpowers/specs/2026-08-31-telegram-ai-leave-message-recognition.md
-  // ==========================================
-  // Optional — neu chua set thi pipeline AI tra loi "thu lai sau" cho nhan
-  // vien thay vi lam sap server (giong TELEGRAM_BOT_TOKEN/HR_SPREADSHEET_ID).
-  AI_LEAVE_API_KEY: process.env.AI_LEAVE_API_KEY || null,
-  AI_LEAVE_API_BASE_URL: process.env.AI_LEAVE_API_BASE_URL || 'https://api.xkiro.com/v1',
-  AI_LEAVE_API_MODEL: process.env.AI_LEAVE_API_MODEL || 'deepseek/deepseek-v4-pro',
-  AI_LEAVE_API_MODELS: process.env.AI_LEAVE_API_MODELS == null
-    ? [...DEFAULT_AI_LEAVE_MODELS]
-    : parseModelList(process.env.AI_LEAVE_API_MODELS),
-  AI_LEAVE_API_TIMEOUT_MS: Number(process.env.AI_LEAVE_API_TIMEOUT_MS) || 30000,
-  // Dung de dua vao prompt AI quy doi ngay tuong doi ("hom nay"/"ngay mai"...).
-  HR_TIME_ZONE: process.env.HR_TIME_ZONE || 'Asia/Bangkok',
 
   // ==========================================
   // SUPABASE POSTGRES — dong bo KiotViet, xem

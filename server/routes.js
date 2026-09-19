@@ -26,6 +26,7 @@ const stockoutCheckRoutes    = require('./dashboard/stockoutCheck/stockoutCheckR
 const kiotvietWebhookRoutes  = require('./kiotviet/kiotvietWebhookRoutes');
 const kiotvietSyncStatusRoutes = require('./kiotvietSync/kiotvietSyncStatusRoutes');
 const debtManagementRoutes = require('./dashboard/debtManagementRoutes');
+const orderLifecycleRoutes = require('./shipment/orderLifecycleRoutes');
 
 router.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
@@ -64,8 +65,11 @@ router.use(debtManagementRoutes);
 router.use('/api/internal/kiotviet-sync/status', requireAuth, requireRole(ROLES.QUAN_LY));
 router.use(kiotvietSyncStatusRoutes);
 
+// Tra cuu & quan ly vong doi don hang — Khach (xem don cua minh) + vai tro noi bo.
+router.use('/api/shipment/lifecycle', requireAuth, orderLifecycleRoutes);
+
 // Toan bo API "Bao cao tong hop" ben duoi day chi danh cho 4 vai tro noi bo;
-// Khach chi duoc dung route tra cuu van chuyen o tren. Day la ranh gioi bao mat,
+// Khach chi duoc dung route tra cuu vong doi don hang o tren. Day la ranh gioi bao mat,
 // voi auth-guard phia client chi de dieu huong UX. Trang tra cuu cong khai
 // cho khach hang (Phase 1) se nam o route rieng, KHONG qua requireAuth.
 const requireInternalUser = [requireAuth, requireRole(...INTERNAL_ROLES), resolveBranch];

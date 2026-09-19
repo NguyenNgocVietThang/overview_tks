@@ -103,14 +103,14 @@ test('handleBranchError hien bang thong bao rieng cho hai ma loi co so', () => {
 
 test('renderTopSidebar: kiem tra hien thi menu cho 3 vai tro moi', () => {
   const { sidebar: sbKho } = renderFor({ vaiTro: 'Nhân viên kho', branches: ['Hà Nội'], branch: 'Hà Nội' });
-  assert.doesNotMatch(sbKho.innerHTML, /Quản lý đơn hàng/);
-  assert.doesNotMatch(sbKho.innerHTML, /Vòng đời đơn hàng/);
+  assert.match(sbKho.innerHTML, /Quản lý đơn hàng/);
+  assert.match(sbKho.innerHTML, /Vòng đời đơn hàng/);
   assert.doesNotMatch(sbKho.innerHTML, />Tổng quan<\/a>/);
   assert.match(sbKho.innerHTML, /Quản lý nhân sự/);
   assert.doesNotMatch(sbKho.innerHTML, /Báo cáo tổng hợp/);
 
   const { sidebar: sbSale } = renderFor({ vaiTro: 'Nhân viên sale', branches: ['Hà Nội'], branch: 'Hà Nội' });
-  assert.doesNotMatch(sbSale.innerHTML, /Quản lý đơn hàng/);
+  assert.match(sbSale.innerHTML, /Quản lý đơn hàng/);
   assert.match(sbSale.innerHTML, /Quản lý nhân sự/);
   assert.doesNotMatch(sbSale.innerHTML, /Báo cáo tổng hợp/);
 

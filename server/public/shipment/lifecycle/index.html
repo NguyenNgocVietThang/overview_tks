@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vòng đời đơn hàng · TOKOSI Dashboard</title>
+<link rel="icon" type="image/jpeg" href="/Logo.jpg">
+<script>
+  (function(){
+    try{ document.documentElement.dataset.theme = localStorage.getItem('tks-dashboard-theme') === 'light' ? 'light' : 'dark'; }
+    catch(err){ document.documentElement.dataset.theme = 'dark'; }
+    document.documentElement.style.visibility = 'hidden';
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/shared/shared.css?v=20260914">
+<style>
+  .lookup-wrap{ width:100%; max-width:none; margin:0; }
+  .lookup-hero{ margin-bottom:20px; }
+  .lookup-hero h2{ margin:0 0 6px; font-family:var(--font-display); font-weight:800; font-size:22px; letter-spacing:-0.01em; color:var(--canvas-text); }
+  .lookup-hero p{ margin:0; color:var(--canvas-text); font-size:13.5px; line-height:1.55; font-weight:500; }
+  .lookup-panel{ padding:24px; margin-bottom:24px; }
+  .lookup-panel label{ display:block; margin-bottom:8px; font-size:13px; font-weight:600; color:var(--text-secondary); }
+  .lookup-row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .lookup-row input[type=text]{
+    flex:1; min-width:220px; padding:12px 16px; background:var(--panel-2); color:var(--text);
+    border:1px solid var(--border); border-radius:10px; font-family:var(--font-data); font-size:14px;
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  .lookup-row input[type=text]:focus{ outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(59,130,246,.2); }
+  .lookup-submit{ min-width:130px; min-height:44px; }
+  .lookup-message{ display:none; margin-top:14px; padding:12px 16px; border-radius:10px; font-size:13px; }
+  .lookup-message.show{ display:block; }
+  .lookup-message.error{ color:var(--red); background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.3); }
+
+  .lookup-result{ display:none; margin-top:18px; padding-top:18px; border-top:1px solid var(--border); }
+  .lookup-result.show{ display:flex; flex-wrap:wrap; align-items:center; gap:14px; justify-content:space-between; }
+  .lookup-result-info{ display:flex; flex-direction:column; gap:6px; }
+  .lookup-result-code{ font-family:var(--font-data); font-weight:700; font-size:15px; color:var(--text); }
+  .lookup-result-sub{ font-size:12.5px; color:var(--muted); }
+
+  /* Tab con cua khu vuc noi bo (Toan bo don hang / Lich su cap nhat) — dung y
+     het pattern .account-subnav/.subnav-tabs cua server/public/account/index.html. */
+  .lc-subnav, .subnav-tabs{
+    display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:16px;
+    border-bottom:1px solid var(--canvas-subnav-border); padding-bottom:0;
+  }
+  .lc-subnav-item, .subnav-tab{
+    display:inline-flex; align-items:center; gap:6px; padding:9px 14px; margin-bottom:-1px;
+    background:transparent; border:1px solid transparent; border-bottom:2px solid transparent;
+    border-radius:var(--radius-xs) var(--radius-xs) 0 0; color:var(--canvas-text); font-family:var(--font-body);
+    font-size:13px; font-weight:600; cursor:pointer; transition:color .15s ease, border-color .15s ease, opacity .15s ease;
+  }
+  .lc-subnav-item:hover, .subnav-tab:hover{ color:var(--canvas-text); opacity:1; }
+  .lc-subnav-item.active, .subnav-tab.active{ color:var(--canvas-text); border-bottom-color:var(--blue); font-weight:700; background:transparent; }
+  .lc-subnav-item svg, .subnav-tab svg{ width:15px; height:15px; flex-shrink:0; color:var(--canvas-text); }
+  .lc-subtab-panel{ display:none; }
+  .lc-subtab-panel.active{ display:block; }
+  .lc-history-hint{ margin:0; padding:12px 20px; color:var(--muted); font-size:12.5px; line-height:1.5; border-bottom:1px solid var(--border); background:var(--panel-2); }
+  .lc-history-actor{ display:flex; flex-direction:column; gap:2px; }
+  .lc-history-role{ font-size:11.5px; color:var(--muted); font-weight:500; }
+  .lc-history-note{ color:var(--muted); font-size:12.5px; max-width:280px; }
+  .lc-history-change{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .lc-history-from{ opacity:.55; }
+  .lc-history-arrow{ color:var(--muted); font-weight:700; }
+
+  .lc-badge{ display:inline-flex; align-items:center; padding:5px 12px; border-radius:8px; font-size:12.5px; font-weight:700; white-space:nowrap; }
+  .badge-not-sent{ color:var(--muted); background:var(--surface-hover); border:1px solid var(--border); }
+  .badge-sent{ color:var(--amber); background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.3); }
+  .badge-delivering{ color:var(--blue); background:rgba(59,130,246,.12); border:1px solid rgba(59,130,246,.3); }
+  .badge-delivered{ color:var(--green); background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.3); }
+  .badge-ship-received{ color:var(--purple); background:rgba(139,92,246,.12); border:1px solid rgba(139,92,246,.3); }
+  .badge-signed{ color:#14B8A6; background:rgba(20,184,166,.12); border:1px solid rgba(20,184,166,.3); }
+  .badge-exception{ color:var(--red); background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.3); }
+  .badge-cancelled{ color:var(--muted); background:var(--surface-hover); border:1px dashed var(--border); }
+
+  /* Thanh trang thai co the sua — dung y het pattern .status-select cua
+     server/public/humanresources/index.html (khu vuc Nghi phep): mot the
+     <select> duoc "trang diem" thanh hinh vien thuoc (pill) mau theo trang
+     thai, mui ten dropdown ve rieng bang SVG data-uri (khong dung appearance
+     mac dinh cua trinh duyet) — nhin y het badge tinh, chi khac la bam vao
+     mo duoc dropdown chon truc tiep. */
+  .status-select{
+    display:inline-flex; align-items:center; padding:5px 26px 5px 12px; border-radius:8px;
+    font-family:var(--font-body); font-size:12.5px; font-weight:700; cursor:pointer;
+    border:1px solid transparent; outline:none; white-space:nowrap;
+    transition:background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, opacity .15s ease;
+    appearance:none; -webkit-appearance:none; -moz-appearance:none;
+    background-repeat:no-repeat; background-position:right 8px center; background-size:11px 11px;
+  }
+  .status-select:focus{ box-shadow:0 0 0 2px var(--blue); }
+  .status-select:disabled{ opacity:.6; cursor:not-allowed; }
+  .status-select option{ background:var(--panel); color:var(--text); font-weight:500; }
+
+  .status-select.badge-not-sent{
+    background-color:var(--surface-hover); color:var(--muted); border-color:var(--border);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .status-select.badge-sent{
+    background-color:rgba(245,158,11,.12); color:var(--amber); border-color:rgba(245,158,11,.4);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23F59E0B' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .status-select.badge-delivering{
+    background-color:rgba(59,130,246,.12); color:var(--blue); border-color:rgba(59,130,246,.4);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233B82F6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .status-select.badge-delivered{
+    background-color:rgba(16,185,129,.12); color:var(--green); border-color:rgba(16,185,129,.4);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310B981' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .status-select.badge-ship-received{
+    background-color:rgba(139,92,246,.12); color:var(--purple); border-color:rgba(139,92,246,.4);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238B5CF6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .status-select.badge-signed{
+    background-color:rgba(20,184,166,.12); color:#14B8A6; border-color:rgba(20,184,166,.4);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2314B8A6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .status-select.badge-exception{
+    background-color:rgba(239,68,68,.12); color:var(--red); border-color:rgba(239,68,68,.4);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23EF4444' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .status-select.badge-cancelled{
+    background-color:var(--surface-hover); color:var(--muted); border:1px dashed var(--border);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+
+  /* Toast — dung y het pattern cua server/public/humanresources/index.html */
+  .toast-container{ position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
+  .toast{
+    min-width:280px; max-width:400px; padding:12px 18px; border-radius:var(--radius-md); font-size:13px; font-weight:600;
+    box-shadow:var(--shadow-toast); display:flex; align-items:center; gap:10px; pointer-events:auto;
+  }
+  .toast.toast-success{ background:var(--toast-success-bg); color:var(--toast-success-fg); border:1px solid var(--toast-success-border); }
+  .toast.toast-error{ background:var(--toast-error-bg); color:var(--toast-error-fg); border:1px solid var(--toast-error-border); }
+
+  .bulk-panel{ padding:0; overflow:hidden; }
+  .bulk-panel[hidden]{ display:none; }
+  .bulk-header{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:16px 20px; border-bottom:1px solid var(--border); background:var(--panel-2); }
+  .bulk-header h3{ margin:0; font-family:var(--font-display); font-weight:700; font-size:15px; color:var(--text); }
+  .bulk-search{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:12px 20px; border-bottom:1px solid var(--border); }
+  .bulk-search-modes{
+    display:inline-flex; gap:2px; padding:3px; border:1px solid var(--border); border-radius:8px; background:var(--panel-2);
+  }
+  .bulk-mode-btn{
+    min-height:32px; padding:0 12px; border:0; border-radius:6px; background:transparent;
+    color:var(--muted); font-size:12px; font-weight:600; cursor:pointer; transition:all .15s ease; white-space:nowrap;
+  }
+  .bulk-mode-btn:hover{ color:var(--text); }
+  .bulk-mode-btn.active{ color:var(--text); background:var(--surface-hover); }
+  .bulk-mode-btn:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+  .bulk-search input[type=text]{
+    flex:1; min-width:220px; padding:9px 12px; background:var(--panel-2); color:var(--text);
+    border:1px solid var(--border); border-radius:9px; font-size:13px;
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  .bulk-search input[type=text]:focus{ outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(59,130,246,.2); }
+  .bulk-search-submit{ min-width:96px; padding:9px 14px; font-size:13px; }
+  @media(max-width:640px){ .bulk-search{ flex-direction:column; align-items:stretch; } .bulk-search-submit{ width:100%; } }
+  .bulk-filters{ display:flex; gap:6px; }
+  .bulk-filter-btn{
+    padding:7px 14px; border-radius:8px; border:1px solid var(--border); background:var(--panel);
+    color:var(--muted); font-size:12.5px; font-weight:600; cursor:pointer; transition:all .15s ease;
+  }
+  .bulk-filter-btn:hover{ color:var(--text); border-color:var(--blue); }
+  .bulk-filter-btn.active{ color:#fff; background:var(--blue); border-color:var(--blue); }
+  .bulk-status-select{
+    padding:7px 12px; border-radius:8px; border:1px solid var(--border); background:var(--panel);
+    color:var(--text); font-size:12.5px; font-weight:600; cursor:pointer;
+  }
+  .bulk-status-select:focus{ outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(59,130,246,.2); }
+  .export-button{
+    min-height:32px; padding:0 12px; border:none; border-radius:8px; cursor:pointer;
+    background:var(--primary-gradient); color:var(--primary-text); font-family:var(--font-body);
+    font-size:12.5px; font-weight:700; display:inline-flex; align-items:center; justify-content:center;
+    gap:6px; box-shadow:var(--primary-shadow); white-space:nowrap;
+    transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+  }
+  .export-button svg{ width:15px; height:15px; flex:none; }
+  .export-button:hover:not(:disabled){ transform:translateY(-1px); opacity:.96; }
+  .export-button:active:not(:disabled){ transform:translateY(1px); }
+  .export-button:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+  .export-button:disabled{ opacity:.55; cursor:not-allowed; transform:none; }
+  .bulk-count{ color:var(--muted); font-size:12.5px; font-weight:600; }
+  .bulk-scroll{ overflow-x:auto; }
+  .bulk-table{ width:100%; border-collapse:collapse; }
+  .bulk-table th,.bulk-table td{ padding:12px 20px; text-align:left; border-bottom:1px solid var(--border); }
+  .bulk-table th{ color:var(--muted); font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; background:var(--surface-hover); }
+  .bulk-table th.sortable{ cursor:pointer; user-select:none; white-space:nowrap; }
+  .bulk-table th.sortable:hover{ color:var(--text); }
+  .bulk-table th .sort-ind{ display:inline-block; margin-left:4px; font-size:10px; opacity:.5; }
+  .bulk-table th.sort-active .sort-ind{ opacity:1; color:var(--blue); }
+  .bulk-table td{ font-size:13.5px; }
+  .bulk-table td:first-child{ font-family:var(--font-data); font-weight:600; color:var(--text); }
+  .bulk-table tbody tr{ cursor:pointer; transition:background-color .12s ease; }
+  .bulk-table tbody tr:hover{ background:var(--surface-hover); }
+  .bulk-empty{ padding:32px 20px; text-align:center; color:var(--muted); font-size:13px; }
+
+  .lc-detail-dialog{ max-width:560px; }
+  .lc-detail-row{ display:flex; gap:14px; padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; }
+  .lc-detail-row:last-child{ border-bottom:none; }
+  .lc-detail-label{ flex:0 0 200px; color:var(--text); font-weight:600; }
+  .lc-detail-value{ flex:1; color:var(--text); font-weight:500; word-break:break-word; }
+
+  @media(max-width:640px){
+    .lookup-row{ flex-direction:column; align-items:stretch; }
+    .lookup-submit{ width:100%; }
+    .lookup-result.show{ flex-direction:column; align-items:flex-start; }
+    .lc-detail-row{ flex-direction:column; gap:2px; }
+    .lc-detail-label{ flex:none; }
+  }
+</style>
+</head>
+<body>
+  <div class="receipt-header">
+    <div class="brand">
+      <button class="menu-btn" id="menuBtn" type="button" onclick="toggleSidebar()" aria-label="Mở menu điều hướng" aria-expanded="false" aria-controls="sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+      </button>
+      <div class="brand-mark">
+        <img src="/Logo.jpg" alt="TOKOSI Logo" width="44" height="44">
+      </div>
+      <div class="brand-text"><h1>Tổng kho gia dụng Tokosi</h1></div>
+    </div>
+    <div class="status-line">
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Chuyển chế độ giao diện" onclick="toggleTheme()">
+        <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"></path>
+        </svg>
+        <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+        </svg>
+        <span id="themeLabel">Light mode</span>
+      </button>
+      <div class="account-chip" id="accountChip"></div>
+    </div>
+  </div>
+
+  <div class="shell">
+    <div class="backdrop" id="backdrop" onclick="toggleSidebar()"></div>
+    <div class="sidebar" id="sidebar" data-tks-active-top="shipment"></div>
+    <main class="content">
+      <div class="lookup-wrap">
+        <div class="lookup-hero">
+          <h2>Vòng đời đơn hàng</h2>
+          <p>Theo dõi đơn hàng luồng Hà Nội (An Khánh) &amp; Sài Gòn (Tân Phú), xe công ty — trạng thái được cập nhật trực tiếp từ hệ thống Bot Telegram.</p>
+        </div>
+
+        <form class="panel lookup-panel" id="lookupForm">
+          <label for="orderCodeInput">Mã đơn hàng</label>
+          <div class="lookup-row">
+            <input type="text" id="orderCodeInput" placeholder="Ví dụ: HD000005" autocomplete="off">
+            <button class="btn-primary lookup-submit" id="lookupSubmit" type="submit">Tra cứu</button>
+          </div>
+          <div class="lookup-message error" id="lookupError" role="alert"></div>
+
+          <div class="lookup-result" id="lookupResult" aria-live="polite">
+            <div class="lookup-result-info">
+              <span class="lookup-result-code" id="lookupResultCode"></span>
+              <span class="lookup-result-sub" id="lookupResultSub"></span>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span class="lc-badge" id="lookupResultBadge"></span>
+              <button type="button" class="btn-secondary" id="lookupDetailBtn" hidden>Xem chi tiết</button>
+            </div>
+          </div>
+        </form>
+
+        <div class="lc-internal-wrap" id="lcInternalWrap" hidden>
+          <div class="lc-subnav subnav-tabs" role="tablist">
+            <button type="button" class="lc-subnav-item subnav-tab active" data-subtab="orders" role="tab" aria-selected="true" onclick="switchLcSubtab('orders')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle></svg>
+              Toàn bộ đơn hàng
+            </button>
+            <button type="button" class="lc-subnav-item subnav-tab" data-subtab="history" role="tab" aria-selected="false" onclick="switchLcSubtab('history')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path></svg>
+              Lịch sử cập nhật
+            </button>
+          </div>
+
+          <section class="panel bulk-panel lc-subtab-panel active" id="lcSubtab-orders" role="tabpanel">
+            <div class="bulk-header">
+              <h3>Toàn bộ đơn hàng</h3>
+              <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+                <span class="bulk-count" id="bulkCount"></span>
+                <select class="bulk-status-select" id="bulkStatusFilter" aria-label="Lọc theo trạng thái">
+                  <option value="">Tất cả trạng thái</option>
+                  <option value="NOT_SENT">Chưa gửi kế toán</option>
+                  <option value="SENT_TO_ACCOUNTANT">Đã gửi kế toán</option>
+                  <option value="DELIVERING">Đang được giao</option>
+                  <option value="DELIVERED">Đã giao thành công</option>
+                  <option value="SHIP_RECEIVED">Ship đã nhận đơn</option>
+                  <option value="SIGNED">Đơn đã ký nhận</option>
+                </select>
+                <div class="bulk-filters" id="bulkFilters">
+                  <button type="button" class="bulk-filter-btn active" data-branch="">Tất cả</button>
+                  <button type="button" class="bulk-filter-btn" data-branch="HN">Hà Nội</button>
+                  <button type="button" class="bulk-filter-btn" data-branch="SG">Sài Gòn</button>
+                </div>
+                <button type="button" class="export-button" id="bulkExportBtn" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button>
+              </div>
+            </div>
+            <form class="bulk-search" id="bulkSearchForm">
+              <div class="bulk-search-modes" id="bulkSearchModes">
+                <button type="button" class="bulk-mode-btn active" data-mode="code">Theo mã</button>
+                <button type="button" class="bulk-mode-btn" data-mode="sale">Theo tên sale</button>
+                <button type="button" class="bulk-mode-btn" data-mode="customer">Theo tên khách</button>
+              </div>
+              <input type="text" id="bulkSearchInput" autocomplete="off">
+              <button type="submit" class="btn-secondary bulk-search-submit">Tìm kiếm</button>
+            </form>
+            <div class="bulk-scroll">
+              <table class="bulk-table">
+                <thead><tr id="bulkHeadRow">
+                  <th class="sortable" data-sort="orderCode">Mã đơn<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="saleName">Sale<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="customerName">Khách hàng<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="status">Trạng thái<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="at">Cập nhật gần nhất<span class="sort-ind">▲</span></th>
+                </tr></thead>
+                <tbody id="bulkBody"></tbody>
+              </table>
+            </div>
+            <p class="bulk-empty" id="bulkEmpty" hidden>Chưa có đơn hàng nào.</p>
+          </section>
+
+          <section class="panel bulk-panel lc-subtab-panel" id="lcSubtab-history" role="tabpanel">
+            <div class="bulk-header">
+              <h3>Lịch sử cập nhật</h3>
+              <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+                <span class="bulk-count" id="historyCount"></span>
+                <select class="bulk-status-select" id="historyStatusFilter" aria-label="Lọc theo trạng thái">
+                  <option value="">Tất cả trạng thái</option>
+                  <option value="NOT_SENT">Đơn chưa gửi kế toán</option>
+                  <option value="SENT_TO_ACCOUNTANT">Đơn đã gửi kế toán</option>
+                  <option value="DELIVERING">Đơn đang được giao</option>
+                  <option value="DELIVERED">Đơn đã giao thành công</option>
+                  <option value="SHIP_RECEIVED">Ship đã nhận đơn</option>
+                  <option value="SIGNED">Đơn đã ký nhận</option>
+                  <option value="EXCEPTION">Sự cố</option>
+                  <option value="CANCELLED">Đã hủy</option>
+                </select>
+                <div class="bulk-filters" id="historyBranchFilters">
+                  <button type="button" class="bulk-filter-btn active" data-branch="">Tất cả</button>
+                  <button type="button" class="bulk-filter-btn" data-branch="HN">Hà Nội</button>
+                  <button type="button" class="bulk-filter-btn" data-branch="SG">Sài Gòn</button>
+                </div>
+              </div>
+            </div>
+            <p class="lc-history-hint">Chỉ ghi nhận các lần Kế toán/Quản lý <strong>ghi đè trạng thái thủ công</strong> — không bao gồm các mốc cập nhật tự động từ Bot Telegram (xem ở tab "Toàn bộ đơn hàng"). Bấm vào 1 dòng để xem chi tiết đơn hàng.</p>
+            <form class="bulk-search" id="historySearchForm">
+              <input type="text" id="historySearchInput" placeholder="Nhập mã đơn hoặc tên người thực hiện, nhấn Enter để tìm..." autocomplete="off">
+              <button type="submit" class="btn-secondary bulk-search-submit">Tìm kiếm</button>
+            </form>
+            <div class="bulk-scroll">
+              <table class="bulk-table">
+                <thead><tr id="historyHeadRow">
+                  <th class="sortable" data-sort="orderCode">Mã đơn<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="statusLabel">Thay đổi trạng thái<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="changedBy">Người thực hiện<span class="sort-ind">▲</span></th>
+                  <th>Ghi chú</th>
+                  <th class="sortable" data-sort="changedAt">Thời gian cập nhật<span class="sort-ind">▼</span></th>
+                </tr></thead>
+                <tbody id="historyBody"></tbody>
+              </table>
+            </div>
+            <p class="bulk-empty" id="historyEmpty" hidden>Chưa có lịch sử cập nhật nào.</p>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal chi tiet don — dung chung cho Khu A va Khu B -->
+  <div class="tks-profile-overlay" id="lcDetailOverlay" hidden>
+    <div class="tks-profile-dialog lc-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="lcDetailTitle">
+      <div class="tks-profile-header">
+        <h3 id="lcDetailTitle">Chi tiết đơn hàng</h3>
+        <button type="button" class="tks-profile-close" id="lcDetailClose" aria-label="Đóng">✕</button>
+      </div>
+      <div class="tks-profile-body" id="lcDetailBody"></div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Dat o cuoi than <body> thay vi <head>: script chan phan tich cu phap trong <head> se lam dung viec xu ly toan bo tai lieu. Khong dung `defer` vi script inline ben duoi dung TKSNav o cap cao nhat, va script inline luon chay truoc script defer. -->
+  <script src="/shared/shared-nav.js?v=20260914"></script>
+
+  <script>
+    const THEME_STORAGE_KEY = 'tks-dashboard-theme';
+
+    function syncThemeControl(){
+      const isLight = document.documentElement.dataset.theme === 'light';
+      const button = document.getElementById('themeToggle');
+      const action = isLight ? 'Chuyển sang giao diện tối' : 'Chuyển sang giao diện sáng';
+      if(button){
+        button.setAttribute('aria-label', action);
+        button.setAttribute('aria-pressed', String(isLight));
+        button.title = action;
+      }
+      const label = document.getElementById('themeLabel');
+      if(label) label.textContent = isLight ? 'Dark mode' : 'Light mode';
+    }
+
+    function toggleTheme(){
+      const nextTheme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+      document.documentElement.dataset.theme = nextTheme;
+      try{ localStorage.setItem(THEME_STORAGE_KEY, nextTheme); } catch(err){}
+      syncThemeControl();
+    }
+    syncThemeControl();
+
+    function toggleSidebar(){
+      const isOpen = document.getElementById('sidebar').classList.toggle('open');
+      document.getElementById('backdrop').classList.toggle('show', isOpen);
+      const menuBtn = document.getElementById('menuBtn');
+      menuBtn.setAttribute('aria-expanded', String(isOpen));
+      menuBtn.setAttribute('aria-label', isOpen ? 'Đóng menu điều hướng' : 'Mở menu điều hướng');
+    }
+
+    // ---------- Du lieu tinh dung chung ----------
+    const DETAIL_FIELDS = [
+      { key: 'orderCode', label: 'Mã đơn hàng' },
+      { key: 'saleName', label: 'Nhân viên bán hàng' },
+      { key: 'customerName', label: 'Khách hàng' },
+      { key: 'saleSentAt', label: 'Sale gửi đơn cho kế toán' },
+      { key: 'accountantApprovedOrderAt', label: 'Kế toán duyệt đơn' },
+      { key: 'driverName', label: 'Lái xe' },
+      { key: 'driverConfirmedDeliveryAt', label: 'Tài xế gửi xác nhận giao hàng' },
+      { key: 'accountantApprovedDeliveryAt', label: 'Kế toán duyệt giao hàng' },
+      { key: 'deliveryConfirmedAt', label: 'Xác nhận đã giao/khách ký nhận' },
+      { key: 'shipReceivedAt', label: 'Ship nhận đơn' },
+      { key: 'orderSignedAt', label: 'Đơn đã ký nhận' }
+    ];
+    const STATUS_BADGE_CLASS = {
+      NOT_SENT: 'badge-not-sent',
+      SENT_TO_ACCOUNTANT: 'badge-sent',
+      DELIVERING: 'badge-delivering',
+      DELIVERED: 'badge-delivered',
+      SHIP_RECEIVED: 'badge-ship-received',
+      SIGNED: 'badge-signed',
+      EXCEPTION: 'badge-exception',
+      CANCELLED: 'badge-cancelled'
+    };
+    // Khop STATUS_LABEL o server/shipment/orderLifecycleService.js — dung de
+    // dung dropdown ghi de trang thai (8 muc, ke ca 2 muc chi dat duoc qua
+    // ghi de thu cong: EXCEPTION/CANCELLED).
+    const STATUS_OPTIONS = [
+      { code: 'NOT_SENT', label: 'Đơn chưa gửi kế toán' },
+      { code: 'SENT_TO_ACCOUNTANT', label: 'Đơn đã gửi kế toán' },
+      { code: 'DELIVERING', label: 'Đơn đang được giao' },
+      { code: 'DELIVERED', label: 'Đơn đã giao thành công' },
+      { code: 'SHIP_RECEIVED', label: 'Ship đã nhận đơn' },
+      { code: 'SIGNED', label: 'Đơn đã ký nhận' },
+      { code: 'EXCEPTION', label: 'Sự cố' },
+      { code: 'CANCELLED', label: 'Đã hủy' }
+    ];
+    const STATUS_LABEL_BY_CODE = {};
+    STATUS_OPTIONS.forEach(function(opt){ STATUS_LABEL_BY_CODE[opt.code] = opt.label; });
+    const BRANCH_LABEL = { HN: 'Hà Nội', SG: 'Sài Gòn' };
+    // Vai tro duoc xem Khu B (xem toan bo don) — khop ORDER_LIFECYCLE_BULK_ROLES
+    // o server/shipment/orderLifecycleRoutes.js. Day chi la lop UX (an/hien
+    // panel); ranh gioi bao mat that su nam o requireRole phia server.
+    const BULK_VIEW_ROLES = ['Kế toán', 'Trưởng kho', 'Quản lý', 'Trợ lý', 'Nhân viên sale'];
+    // Vai tro duoc GHI DE trang thai — khop OVERRIDE_ROLES o
+    // server/shipment/orderLifecycleRoutes.js. Chi la lop UX; ranh gioi bao
+    // mat that su nam o requireRole phia server.
+    const OVERRIDE_ROLES = ['Quản lý', 'Kế toán'];
+    let canOverride = false;
+
+    function normalizeSearchText(value){
+      return String(value == null ? '' : value)
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+        .toLowerCase().trim();
+    }
+
+    function escapeHtml(value){
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // opts.editable=true -> render <select> "trang diem" thanh pill mau (dung
+    // y het pattern .status-select cua server/public/humanresources/index.html,
+    // khu vuc Nghi phep: STT_CLASS[trang_thai], onchange goi thang API, khong
+    // co buoc trung gian "bam de mo dropdown" — ban than select DA LA badge).
+    function renderBadge(summary, opts){
+      const code = (summary && summary.code) || 'NOT_SENT';
+      const cls = STATUS_BADGE_CLASS[code] || 'badge-not-sent';
+      if(!(opts && opts.editable)){
+        return '<span class="lc-badge ' + cls + '">' + escapeHtml((summary && summary.label) || '') + '</span>';
+      }
+      const options = STATUS_OPTIONS.map(function(opt){
+        return '<option value="' + escapeHtml(opt.code) + '"' + (opt.code === code ? ' selected' : '') + '>' + escapeHtml(opt.label) + '</option>';
+      }).join('');
+      return '<select class="status-select ' + cls + '" data-order-code="' + escapeHtml(opts.orderCode) + '" ' +
+        'data-prev-status="' + escapeHtml(code) + '" onchange="handleLifecycleStatusChange(this)" ' +
+        'aria-label="Trạng thái đơn ' + escapeHtml(opts.orderCode) + '">' + options + '</select>';
+    }
+
+    // ---------- Modal chi tiet (dung chung Khu A + Khu B) ----------
+    const detailOverlay = document.getElementById('lcDetailOverlay');
+    const detailBody = document.getElementById('lcDetailBody');
+
+    function openDetailModal(detail){
+      detailBody.innerHTML = DETAIL_FIELDS.map(function(field){
+        const raw = detail ? detail[field.key] : '';
+        const value = (raw === undefined || raw === null || String(raw).trim() === '') ? '—' : String(raw);
+        return '<div class="lc-detail-row"><span class="lc-detail-label">' + escapeHtml(field.label) + '</span>' +
+          '<span class="lc-detail-value">' + escapeHtml(value) + '</span></div>';
+      }).join('');
+      detailOverlay.hidden = false;
+      document.addEventListener('keydown', onDetailKeydown);
+    }
+    function closeDetailModal(){
+      detailOverlay.hidden = true;
+      document.removeEventListener('keydown', onDetailKeydown);
+    }
+    function onDetailKeydown(e){ if(e.key === 'Escape') closeDetailModal(); }
+    document.getElementById('lcDetailClose').addEventListener('click', closeDetailModal);
+    detailOverlay.addEventListener('click', function(e){ if(e.target === detailOverlay) closeDetailModal(); });
+
+    // ---------- Khu A: tra cuu 1 don ----------
+    const lookupForm = document.getElementById('lookupForm');
+    const orderCodeInput = document.getElementById('orderCodeInput');
+    const lookupSubmit = document.getElementById('lookupSubmit');
+    const lookupErrorBox = document.getElementById('lookupError');
+    const lookupResult = document.getElementById('lookupResult');
+    const lookupResultCode = document.getElementById('lookupResultCode');
+    const lookupResultSub = document.getElementById('lookupResultSub');
+    const lookupResultBadge = document.getElementById('lookupResultBadge');
+    const lookupDetailBtn = document.getElementById('lookupDetailBtn');
+    let lastLookupDetail = null;
+
+    function showLookupError(message){
+      lookupErrorBox.textContent = message;
+      lookupErrorBox.classList.add('show');
+    }
+    function clearLookupResult(){
+      lookupResult.classList.remove('show');
+      lookupDetailBtn.hidden = true;
+      lastLookupDetail = null;
+    }
+
+    lookupForm.addEventListener('submit', function(event){
+      event.preventDefault();
+      lookupErrorBox.classList.remove('show');
+      clearLookupResult();
+      const code = orderCodeInput.value.trim();
+      if(!code){ showLookupError('Vui lòng nhập mã đơn hàng.'); return; }
+
+      lookupSubmit.disabled = true;
+      lookupSubmit.textContent = 'Đang tìm...';
+      fetch('/api/shipment/lifecycle/' + encodeURIComponent(code), { credentials: 'same-origin' })
+        .then(function(res){
+          if(res.status === 401){ window.location.href = '/login/?next=%2Fshipment%2Flifecycle%2F'; return null; }
+          return res.json().then(function(body){ return { ok: res.ok, status: res.status, body: body }; });
+        })
+        .then(function(result){
+          if(!result) return;
+          if(!result.ok){
+            if(TKSNav.handleBranchError(result.body)) return;
+            throw new Error(result.body.error || 'Không tra cứu được đơn hàng.');
+          }
+          lookupResultCode.textContent = code;
+          lookupResultSub.textContent = result.body.found
+            ? ('Cơ sở: ' + (BRANCH_LABEL[result.body.branch] || result.body.branch))
+            : 'Không tìm thấy đơn hàng này trong hệ thống.';
+          lookupResultBadge.innerHTML = renderBadge(result.body.summary);
+          if(result.body.found && result.body.detail){
+            lastLookupDetail = result.body.detail;
+            lookupDetailBtn.hidden = false;
+          }
+          lookupResult.classList.add('show');
+        })
+        .catch(function(err){ showLookupError(err.message || 'Không tra cứu được đơn hàng.'); })
+        .finally(function(){ lookupSubmit.disabled = false; lookupSubmit.textContent = 'Tra cứu'; });
+    });
+
+    lookupDetailBtn.addEventListener('click', function(){
+      if(lastLookupDetail) openDetailModal(lastLookupDetail);
+    });
+
+    // ---------- Tab con cua khu vuc noi bo (Toan bo don hang / Lich su cap nhat) ----------
+    const lcInternalWrap = document.getElementById('lcInternalWrap');
+
+    function switchLcSubtab(name){
+      document.querySelectorAll('.lc-subnav-item').forEach(function(btn){
+        const active = btn.dataset.subtab === name;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-selected', String(active));
+      });
+      document.querySelectorAll('.lc-subtab-panel').forEach(function(panel){
+        panel.classList.toggle('active', panel.id === 'lcSubtab-' + name);
+      });
+      const groupList = document.getElementById('tksShipmentGroupList');
+      if(groupList){
+        groupList.querySelectorAll('.nav-item').forEach(function(item){
+          const active = item.dataset.shipmentSubtab === name;
+          item.classList.toggle('active', active);
+          if(active) item.setAttribute('aria-current', 'page');
+          else item.removeAttribute('aria-current');
+        });
+      }
+      if(history.replaceState) history.replaceState(null, '', name === 'orders' ? window.location.pathname : ('#' + name));
+      if(name === 'history' && !historyLoaded) loadHistory();
+    }
+
+    // Sidebar (nhom "Quan ly don hang") lien ket toi tab con bang hash, vd
+    // /shipment/lifecycle/#history — giong pattern applyHrSubtabFromHash cua
+    // server/public/humanresources/index.html.
+    function applyLcSubtabFromHash(){
+      const name = (window.location.hash || '').replace('#', '');
+      if(name === 'history') switchLcSubtab('history');
+    }
+    window.addEventListener('hashchange', applyLcSubtabFromHash);
+
+    // ---------- Khu B: toan bo don (chi vai tro noi bo) ----------
+    const bulkPanel = document.getElementById('lcSubtab-orders');
+    const bulkBody = document.getElementById('bulkBody');
+    const bulkCount = document.getElementById('bulkCount');
+    const bulkEmpty = document.getElementById('bulkEmpty');
+    const bulkFilters = document.getElementById('bulkFilters');
+    const bulkSearchForm = document.getElementById('bulkSearchForm');
+    const bulkSearchModes = document.getElementById('bulkSearchModes');
+    const bulkSearchInput = document.getElementById('bulkSearchInput');
+    const bulkStatusFilter = document.getElementById('bulkStatusFilter');
+    const bulkExportBtn = document.getElementById('bulkExportBtn');
+    const bulkHeadRow = document.getElementById('bulkHeadRow');
+    let activeBranchFilter = '';
+    let activeStatusFilter = '';
+    let allBulkOrders = [];
+    let bulkSearchMode = 'code';
+    let sortKey = null;
+    let sortDir = 1; // 1 = tang dan, -1 = giam dan
+    let lastVisibleOrders = []; // danh sach dang hien tren bang (da loc + sap xep) — dung de xuat Excel
+
+    function parseVNDateTime(value){
+      const text = String(value == null ? '' : value).trim();
+      const m = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2})[:,](\d{2}))?/);
+      if(!m) return 0;
+      const day = Number(m[1]), month = Number(m[2]), year = Number(m[3]);
+      const hour = Number(m[4] || 0), minute = Number(m[5] || 0);
+      return new Date(year, month - 1, day, hour, minute).getTime();
+    }
+
+    const SORT_ACCESSORS = {
+      orderCode: function(o){ return normalizeSearchText(o.orderCode); },
+      saleName: function(o){ return normalizeSearchText(o.saleName); },
+      customerName: function(o){ return normalizeSearchText(o.customerName); },
+      status: function(o){ return normalizeSearchText(o.summary && o.summary.label); },
+      at: function(o){ return parseVNDateTime(o.summary && o.summary.at); }
+    };
+
+    function applySort(list){
+      if(!sortKey) return list;
+      const accessor = SORT_ACCESSORS[sortKey];
+      return list.slice().sort(function(a, b){
+        const av = accessor(a), bv = accessor(b);
+        if(av < bv) return -1 * sortDir;
+        if(av > bv) return 1 * sortDir;
+        return 0;
+      });
+    }
+
+    function syncSortHeaderUI(){
+      bulkHeadRow.querySelectorAll('th.sortable').forEach(function(th){
+        const isActive = th.dataset.sort === sortKey;
+        th.classList.toggle('sort-active', isActive);
+        const ind = th.querySelector('.sort-ind');
+        if(ind) ind.textContent = isActive ? (sortDir === 1 ? '▲' : '▼') : '▲';
+      });
+    }
+
+    bulkHeadRow.addEventListener('click', function(e){
+      const th = e.target.closest('th.sortable');
+      if(!th) return;
+      const key = th.dataset.sort;
+      if(sortKey !== key){
+        sortKey = key;
+        sortDir = 1;
+      } else if(sortDir === 1){
+        sortDir = -1;
+      } else {
+        sortKey = null;
+        sortDir = 1;
+      }
+      syncSortHeaderUI();
+      applyBulkFilters();
+    });
+
+    const BULK_SEARCH_PLACEHOLDER = {
+      code: 'Nhập mã đơn — cách nhau bằng khoảng trắng nếu tìm nhiều mã, nhấn Enter để tìm...',
+      sale: 'Nhập tên sale, nhấn Enter để tìm...',
+      customer: 'Nhập tên khách hàng, nhấn Enter để tìm...'
+    };
+
+    // Tach nhieu ma cach nhau boi 1 hoac nhieu dau space, chuan hoa + loai trung
+    // — cung logic voi parseSearchCodes o tab Tong quan (server/public/index.html).
+    function parseSearchCodes(value){
+      const normalized = String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+      if(!normalized) return [];
+      const seen = new Set();
+      return normalized.split(' ').filter(Boolean).filter(function(code){
+        const key = normalizeSearchText(code);
+        if(seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+
+    // Reconciliation theo key (ma don) thay vi xoa-dung lai toan bo <tbody> —
+    // moi lan auto-refresh (60s) chi dong cham DOM cua nhung dong THAY DOI
+    // (noi dung khac chu ky truoc) hoac dong moi/bi xoa; dong khong doi giu
+    // nguyen node cu (khong flash/giat khi user dang doc/cuon bang).
+    const bulkRowNodes = new Map(); // key (ma don chuan hoa) -> { tr, sig }
+
+    function rowKey(order){ return normalizeSearchText(order.orderCode); }
+
+    function rowSignature(order){
+      return JSON.stringify([
+        order.orderCode, order.saleName, order.customerName,
+        order.summary && order.summary.code, order.summary && order.summary.label, order.summary && order.summary.at
+      ]);
+    }
+
+    function rowInnerHtml(order){
+      return '<td>' + escapeHtml(order.orderCode) + '</td>' +
+        '<td>' + escapeHtml(order.saleName || '—') + '</td>' +
+        '<td>' + escapeHtml(order.customerName || '—') + '</td>' +
+        '<td>' + renderBadge(order.summary, { editable: canOverride, orderCode: order.orderCode }) + '</td>' +
+        '<td>' + escapeHtml((order.summary && order.summary.at) || '—') + '</td>';
+    }
+
+    function buildRow(order){
+      const tr = document.createElement('tr');
+      tr.innerHTML = rowInnerHtml(order);
+      tr._order = order;
+      tr.addEventListener('click', function(e){
+        // Thanh trang thai la 1 <select> that (xem renderBadge) — bam vao no
+        // de mo dropdown KHONG duoc coi la bam vao dong (khong mo modal chi tiet).
+        if(e.target.tagName === 'SELECT') return;
+        openDetailModal(tr._order);
+      });
+      return tr;
+    }
+
+    // ---------- Ghi de trang thai thu cong (chi Quan ly/Ke toan) ----------
+    // Dung y het pattern handleStatusSelectChange cua
+    // server/public/humanresources/index.html (khu vuc Nghi phep): doi mau
+    // ngay khi chon, goi API, revert + toast loi neu that bai.
+    async function handleLifecycleStatusChange(selectEl){
+      const orderCode = selectEl.dataset.orderCode;
+      const prevStatus = selectEl.dataset.prevStatus;
+      const newStatus = selectEl.value;
+      if(prevStatus === newStatus) return;
+
+      selectEl.disabled = true;
+      selectEl.className = 'status-select ' + (STATUS_BADGE_CLASS[newStatus] || 'badge-not-sent');
+
+      try{
+        const res = await fetch('/api/shipment/lifecycle/' + encodeURIComponent(orderCode) + '/override', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ status: newStatus })
+        });
+        const body = await res.json().catch(function(){ return {}; });
+        if(!res.ok){
+          selectEl.value = prevStatus;
+          selectEl.className = 'status-select ' + (STATUS_BADGE_CLASS[prevStatus] || 'badge-not-sent');
+          showToast(body.error || 'Cập nhật trạng thái thất bại.', 'error');
+          return;
+        }
+
+        selectEl.dataset.prevStatus = newStatus;
+        showToast('Đã cập nhật đơn "' + orderCode + '" sang "' + (STATUS_LABEL_BY_CODE[newStatus] || newStatus) + '".', 'success');
+
+        const tr = selectEl.closest('tr');
+        const order = tr && tr._order;
+        if(order && body.order){
+          order.summary = body.order.summary;
+          const atCell = tr.children[4];
+          if(atCell) atCell.textContent = (order.summary && order.summary.at) || '—';
+          const entry = bulkRowNodes.get(rowKey(order));
+          if(entry) entry.sig = rowSignature(order);
+        }
+      }catch(err){
+        selectEl.value = prevStatus;
+        selectEl.className = 'status-select ' + (STATUS_BADGE_CLASS[prevStatus] || 'badge-not-sent');
+        showToast('Lỗi kết nối máy chủ.', 'error');
+      }finally{
+        selectEl.disabled = false;
+      }
+    }
+
+    // Toast — dung y het pattern showToast cua server/public/humanresources/index.html
+    function showToast(message, type){
+      const container = document.getElementById('toastContainer');
+      if(!container) return;
+      const toast = document.createElement('div');
+      toast.className = 'toast toast-' + (type || 'success');
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(function(){
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity .3s';
+        setTimeout(function(){ toast.remove(); }, 300);
+      }, 3500);
+    }
+
+    function renderBulkRows(orders, total){
+      lastVisibleOrders = orders;
+      bulkExportBtn.disabled = orders.length === 0;
+      bulkEmpty.hidden = orders.length > 0;
+      const countText = (total !== undefined && total !== orders.length)
+        ? (orders.length + ' / ' + total + ' đơn')
+        : (orders.length + ' đơn');
+      if(bulkCount.textContent !== countText) bulkCount.textContent = countText;
+
+      const seenKeys = new Set();
+      let prevNode = null;
+      orders.forEach(function(order){
+        const key = rowKey(order);
+        seenKeys.add(key);
+        const sig = rowSignature(order);
+        let entry = bulkRowNodes.get(key);
+        if(!entry){
+          entry = { tr: buildRow(order), sig: sig };
+          bulkRowNodes.set(key, entry);
+        } else if(entry.sig !== sig){
+          entry.tr.innerHTML = rowInnerHtml(order);
+          entry.sig = sig;
+        }
+        entry.tr._order = order; // du khong doi noi dung hien thi, cap nhat detail moi nhat cho modal
+        const expectedNext = prevNode ? prevNode.nextSibling : bulkBody.firstChild;
+        if(expectedNext !== entry.tr) bulkBody.insertBefore(entry.tr, expectedNext);
+        prevNode = entry.tr;
+      });
+      // Go cac dong khong con trong danh sach moi (bi loc ra hoac da bi xoa khoi sheet)
+      bulkRowNodes.forEach(function(entry, key){
+        if(!seenKeys.has(key)){
+          entry.tr.remove();
+          bulkRowNodes.delete(key);
+        }
+      });
+    }
+
+    function applyBulkFilters(){
+      const rawQuery = bulkSearchInput.value;
+      let filtered = allBulkOrders;
+      if(bulkSearchMode === 'code'){
+        const codes = parseSearchCodes(rawQuery).map(normalizeSearchText);
+        if(codes.length){
+          filtered = allBulkOrders.filter(function(order){
+            const orderCode = normalizeSearchText(order.orderCode);
+            return codes.some(function(code){ return orderCode.indexOf(code) !== -1; });
+          });
+        }
+      } else {
+        const query = normalizeSearchText(rawQuery);
+        if(query){
+          const field = bulkSearchMode === 'sale' ? 'saleName' : 'customerName';
+          filtered = allBulkOrders.filter(function(order){
+            return normalizeSearchText(order[field]).indexOf(query) !== -1;
+          });
+        }
+      }
+      if(activeStatusFilter){
+        filtered = filtered.filter(function(order){ return order.summary && order.summary.code === activeStatusFilter; });
+      }
+      filtered = applySort(filtered);
+      renderBulkRows(filtered, allBulkOrders.length);
+    }
+
+    function setBulkSearchMode(mode){
+      if(bulkSearchMode === mode) return;
+      bulkSearchMode = mode;
+      bulkSearchModes.querySelectorAll('.bulk-mode-btn').forEach(function(btn){
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+      });
+      bulkSearchInput.placeholder = BULK_SEARCH_PLACEHOLDER[mode];
+      applyBulkFilters();
+      bulkSearchInput.focus();
+    }
+    bulkSearchInput.placeholder = BULK_SEARCH_PLACEHOLDER.code;
+
+    // Tu dong lam moi Khu B moi 60s (don hang cap nhat trang thai lien tuc qua
+    // Bot Telegram) — silent=true bo qua "Đang tải..." de khong lam giat
+    // giao dien khi dang xem/cuon bang; chi request khi tab dang hien (tranh
+    // ton tai nguyen o tab nen) va bo qua neu request truoc do chua xong.
+    const BULK_AUTO_REFRESH_MS = 60000;
+    let bulkLoadInFlight = false;
+
+    function loadBulkOrders(silent){
+      if(bulkLoadInFlight) return;
+      bulkLoadInFlight = true;
+      if(!silent) bulkCount.textContent = 'Đang tải...';
+      const query = activeBranchFilter ? ('?branch=' + activeBranchFilter) : '';
+      fetch('/api/shipment/lifecycle' + query, { credentials: 'same-origin' })
+        .then(function(res){ return res.json().then(function(body){ return { ok: res.ok, body: body }; }); })
+        .then(function(result){
+          if(!result.ok){
+            const handledByBranchBanner = TKSNav.handleBranchError(result.body);
+            throw new Error(result.body.error || 'Không tải được danh sách đơn hàng.', { cause: { handledByBranchBanner } });
+          }
+          allBulkOrders = result.body.orders || [];
+          applyBulkFilters();
+        })
+        .catch(function(err){
+          if(silent) return; // giu nguyen bang cu neu refresh nen loi tam thoi
+          allBulkOrders = [];
+          bulkCount.textContent = '';
+          bulkEmpty.hidden = false;
+          // Banner rieng (goc tren trang) da giai thich ly do khi la loi co so
+          // (BRANCH_UNASSIGNED/BRANCH_NOT_CONFIGURED) — o day chi can dam bao
+          // bang KHONG con ket dinh "Đang tải..." mai mai, khong lap lai thong bao.
+          const handledByBranchBanner = err.cause && err.cause.handledByBranchBanner;
+          bulkEmpty.textContent = handledByBranchBanner
+            ? 'Xem thông báo phía trên để biết chi tiết.'
+            : (err.message || 'Không tải được danh sách đơn hàng.');
+        })
+        .finally(function(){ bulkLoadInFlight = false; });
+    }
+
+    function startBulkAutoRefresh(){
+      setInterval(function(){
+        if(document.hidden || lcInternalWrap.hidden || !bulkPanel.classList.contains('active')) return;
+        loadBulkOrders(true);
+      }, BULK_AUTO_REFRESH_MS);
+      // Quay lai tab sau khi an lau: lam moi ngay thay vi doi den ky tiep theo.
+      document.addEventListener('visibilitychange', function(){
+        if(!document.hidden && !lcInternalWrap.hidden && bulkPanel.classList.contains('active')) loadBulkOrders(true);
+      });
+    }
+
+    bulkSearchForm.addEventListener('submit', function(e){ e.preventDefault(); applyBulkFilters(); });
+    bulkSearchModes.addEventListener('click', function(e){
+      const btn = e.target.closest('.bulk-mode-btn');
+      if(!btn) return;
+      setBulkSearchMode(btn.dataset.mode);
+    });
+
+    bulkFilters.addEventListener('click', function(e){
+      const btn = e.target.closest('.bulk-filter-btn');
+      if(!btn) return;
+      bulkFilters.querySelectorAll('.bulk-filter-btn').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      activeBranchFilter = btn.dataset.branch || '';
+      loadBulkOrders();
+    });
+
+    bulkStatusFilter.addEventListener('change', function(){
+      activeStatusFilter = bulkStatusFilter.value;
+      applyBulkFilters();
+    });
+
+    // ---------- Khu C: lich su cap nhat (chi vai tro noi bo, cung quyen Khu B) ----------
+    const historyBody = document.getElementById('historyBody');
+    const historyCount = document.getElementById('historyCount');
+    const historyEmpty = document.getElementById('historyEmpty');
+    const historyBranchFilters = document.getElementById('historyBranchFilters');
+    const historySearchForm = document.getElementById('historySearchForm');
+    const historySearchInput = document.getElementById('historySearchInput');
+    const historyStatusFilter = document.getElementById('historyStatusFilter');
+    const historyHeadRow = document.getElementById('historyHeadRow');
+    let historyActiveBranchFilter = '';
+    let historyActiveStatusFilter = '';
+    let allHistoryRows = [];
+    let historySortKey = 'changedAt'; // mac dinh moi nhat truoc — khop thu tu API da tra ve san
+    let historySortDir = -1;
+    let historyLoaded = false;
+    const historyRowNodes = new Map(); // history_id -> { tr, sig } — reconciliation giong bulkRowNodes
+
+    // changed_at ghi boi repo.appendOverride() dung Date#toLocaleString('sv-SE', ...)
+    // -> dinh dang "YYYY-MM-DD HH:mm:ss", KHAC voi cac cot dd/MM/yyyy con lai cua
+    // sheet chinh nen KHONG dung parseVNDateTime o day.
+    function parseHistoryDateTime(value){
+      const text = String(value == null ? '' : value).trim();
+      const m = text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+      if(!m) return 0;
+      return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] || 0)).getTime();
+    }
+    function formatHistoryDateTime(value){
+      const text = String(value == null ? '' : value).trim();
+      const m = text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+      if(!m) return text || '—';
+      return m[3] + '/' + m[2] + '/' + m[1] + ' ' + m[4] + ':' + m[5];
+    }
+
+    const HISTORY_SORT_ACCESSORS = {
+      orderCode: function(e){ return normalizeSearchText(e.orderCode); },
+      statusLabel: function(e){ return normalizeSearchText(e.statusLabel); },
+      changedBy: function(e){ return normalizeSearchText(e.changedBy); },
+      changedAt: function(e){ return parseHistoryDateTime(e.changedAt); }
+    };
+
+    function applyHistorySort(list){
+      if(!historySortKey) return list;
+      const accessor = HISTORY_SORT_ACCESSORS[historySortKey];
+      return list.slice().sort(function(a, b){
+        const av = accessor(a), bv = accessor(b);
+        if(av < bv) return -1 * historySortDir;
+        if(av > bv) return 1 * historySortDir;
+        return 0;
+      });
+    }
+
+    function syncHistorySortHeaderUI(){
+      historyHeadRow.querySelectorAll('th.sortable').forEach(function(th){
+        const isActive = th.dataset.sort === historySortKey;
+        th.classList.toggle('sort-active', isActive);
+        const ind = th.querySelector('.sort-ind');
+        if(ind) ind.textContent = isActive ? (historySortDir === 1 ? '▲' : '▼') : '▲';
+      });
+    }
+    syncHistorySortHeaderUI();
+
+    historyHeadRow.addEventListener('click', function(e){
+      const th = e.target.closest('th.sortable');
+      if(!th) return;
+      const key = th.dataset.sort;
+      if(historySortKey !== key){
+        historySortKey = key;
+        historySortDir = 1;
+      } else if(historySortDir === 1){
+        historySortDir = -1;
+      } else {
+        historySortKey = null;
+        historySortDir = 1;
+      }
+      syncHistorySortHeaderUI();
+      applyHistoryFilters();
+    });
+
+    function historyRowKey(entry){ return entry.historyId || (entry.orderCode + '|' + entry.changedAt); }
+
+    function historyRowSignature(entry){
+      return JSON.stringify([
+        entry.orderCode, entry.statusCode, entry.statusLabel, entry.fromStatusCode, entry.fromStatusLabel,
+        entry.changedBy, entry.changedByRole, entry.note, entry.changedAt
+      ]);
+    }
+
+    // entry.fromStatusCode rong voi cac dong ghi TRUOC khi co cot "Trang thai
+    // cu" (2026-09-14) -> chi hien trang thai moi, khong ve mui ten "tu dau".
+    function historyStatusChangeHtml(entry){
+      const toBadge = renderBadge({ code: entry.statusCode, label: entry.statusLabel });
+      if(!entry.fromStatusCode) return '<div class="lc-history-change">' + toBadge + '</div>';
+      const fromBadge = renderBadge({ code: entry.fromStatusCode, label: entry.fromStatusLabel });
+      return '<div class="lc-history-change"><span class="lc-history-from">' + fromBadge + '</span>' +
+        '<span class="lc-history-arrow">→</span>' + toBadge + '</div>';
+    }
+
+    function historyRowInnerHtml(entry){
+      const noteText = (entry.note && String(entry.note).trim()) ? entry.note : (entry.message || '—');
+      return '<td>' + escapeHtml(entry.orderCode) + '</td>' +
+        '<td>' + historyStatusChangeHtml(entry) + '</td>' +
+        '<td><div class="lc-history-actor"><span>' + escapeHtml(entry.changedBy || '—') + '</span>' +
+          '<span class="lc-history-role">' + escapeHtml(entry.changedByRole || '') + '</span></div></td>' +
+        '<td class="lc-history-note">' + escapeHtml(noteText) + '</td>' +
+        '<td>' + escapeHtml(formatHistoryDateTime(entry.changedAt)) + '</td>';
+    }
+
+    function openHistoryOrderDetail(orderCode){
+      fetch('/api/shipment/lifecycle/' + encodeURIComponent(orderCode), { credentials: 'same-origin' })
+        .then(function(res){ return res.json().then(function(body){ return { ok: res.ok, body: body }; }); })
+        .then(function(result){
+          if(!result.ok || !result.body.found || !result.body.detail){
+            showToast('Không tìm thấy đơn hàng "' + orderCode + '".', 'error');
+            return;
+          }
+          openDetailModal(result.body.detail);
+        })
+        .catch(function(){ showToast('Lỗi kết nối máy chủ.', 'error'); });
+    }
+
+    function buildHistoryRow(entry){
+      const tr = document.createElement('tr');
+      tr.innerHTML = historyRowInnerHtml(entry);
+      tr._entry = entry;
+      tr.addEventListener('click', function(){ openHistoryOrderDetail(entry.orderCode); });
+      return tr;
+    }
+
+    function renderHistoryRows(rows, total){
+      historyEmpty.hidden = rows.length > 0;
+      const countText = (total !== undefined && total !== rows.length)
+        ? (rows.length + ' / ' + total + ' lượt')
+        : (rows.length + ' lượt');
+      if(historyCount.textContent !== countText) historyCount.textContent = countText;
+
+      const seenKeys = new Set();
+      let prevNode = null;
+      rows.forEach(function(entry){
+        const key = historyRowKey(entry);
+        seenKeys.add(key);
+        const sig = historyRowSignature(entry);
+        let node = historyRowNodes.get(key);
+        if(!node){
+          node = { tr: buildHistoryRow(entry), sig: sig };
+          historyRowNodes.set(key, node);
+        } else if(node.sig !== sig){
+          node.tr.innerHTML = historyRowInnerHtml(entry);
+          node.tr._entry = entry;
+          node.sig = sig;
+        }
+        const expectedNext = prevNode ? prevNode.nextSibling : historyBody.firstChild;
+        if(expectedNext !== node.tr) historyBody.insertBefore(node.tr, expectedNext);
+        prevNode = node.tr;
+      });
+      historyRowNodes.forEach(function(node, key){
+        if(!seenKeys.has(key)){ node.tr.remove(); historyRowNodes.delete(key); }
+      });
+    }
+
+    function applyHistoryFilters(){
+      const query = normalizeSearchText(historySearchInput.value);
+      let filtered = allHistoryRows;
+      if(query){
+        filtered = filtered.filter(function(entry){
+          return normalizeSearchText(entry.orderCode).indexOf(query) !== -1 ||
+            normalizeSearchText(entry.changedBy).indexOf(query) !== -1 ||
+            normalizeSearchText(entry.note).indexOf(query) !== -1;
+        });
+      }
+      if(historyActiveBranchFilter){
+        filtered = filtered.filter(function(entry){ return entry.branch === historyActiveBranchFilter; });
+      }
+      if(historyActiveStatusFilter){
+        filtered = filtered.filter(function(entry){ return entry.statusCode === historyActiveStatusFilter; });
+      }
+      filtered = applyHistorySort(filtered);
+      renderHistoryRows(filtered, allHistoryRows.length);
+    }
+
+    let historyLoadInFlight = false;
+    function loadHistory(silent){
+      if(historyLoadInFlight) return;
+      historyLoadInFlight = true;
+      if(!silent) historyCount.textContent = 'Đang tải...';
+      fetch('/api/shipment/lifecycle/history', { credentials: 'same-origin' })
+        .then(function(res){ return res.json().then(function(body){ return { ok: res.ok, body: body }; }); })
+        .then(function(result){
+          if(!result.ok){
+            const handledByBranchBanner = TKSNav.handleBranchError(result.body);
+            throw new Error(result.body.error || 'Không tải được lịch sử cập nhật.', { cause: { handledByBranchBanner } });
+          }
+          historyLoaded = true;
+          allHistoryRows = result.body.history || [];
+          applyHistoryFilters();
+        })
+        .catch(function(err){
+          if(silent) return; // giu nguyen bang cu neu refresh nen loi tam thoi
+          allHistoryRows = [];
+          historyCount.textContent = '';
+          historyEmpty.hidden = false;
+          const handledByBranchBanner = err.cause && err.cause.handledByBranchBanner;
+          historyEmpty.textContent = handledByBranchBanner
+            ? 'Xem thông báo phía trên để biết chi tiết.'
+            : (err.message || 'Không tải được lịch sử cập nhật.');
+        })
+        .finally(function(){ historyLoadInFlight = false; });
+    }
+
+    historySearchForm.addEventListener('submit', function(e){ e.preventDefault(); applyHistoryFilters(); });
+    historyStatusFilter.addEventListener('change', function(){
+      historyActiveStatusFilter = historyStatusFilter.value;
+      applyHistoryFilters();
+    });
+    historyBranchFilters.addEventListener('click', function(e){
+      const btn = e.target.closest('.bulk-filter-btn');
+      if(!btn) return;
+      historyBranchFilters.querySelectorAll('.bulk-filter-btn').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      historyActiveBranchFilter = btn.dataset.branch || '';
+      applyHistoryFilters();
+    });
+
+    // Tu dong lam moi giong Khu B — lich su cap nhat co the co them dong moi
+    // do nguoi khac (Ke toan/Quan ly) vua ghi de trang thai o may khac.
+    const HISTORY_AUTO_REFRESH_MS = 60000;
+    function startHistoryAutoRefresh(){
+      const historyPanel = document.getElementById('lcSubtab-history');
+      setInterval(function(){
+        if(document.hidden || lcInternalWrap.hidden || !historyPanel.classList.contains('active')) return;
+        loadHistory(true);
+      }, HISTORY_AUTO_REFRESH_MS);
+      document.addEventListener('visibilitychange', function(){
+        if(!document.hidden && !lcInternalWrap.hidden && historyPanel.classList.contains('active')) loadHistory(true);
+      });
+    }
+
+    async function exportBulkOrders(){
+      if(!lastVisibleOrders.length || bulkExportBtn.disabled) return;
+      const originalHtml = bulkExportBtn.innerHTML;
+      bulkExportBtn.disabled = true;
+      bulkExportBtn.textContent = 'Đang tạo file...';
+      try{
+        const codes = lastVisibleOrders.map(function(o){ return o.orderCode; });
+        const res = await fetch('/api/shipment/lifecycle/export', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ codes: codes })
+        });
+        if(!res.ok){
+          const body = await res.json().catch(function(){ return {}; });
+          throw new Error(body.error || 'Không thể tạo file Excel.');
+        }
+        const blob = await res.blob();
+        const disposition = res.headers.get('Content-Disposition') || '';
+        const match = disposition.match(/filename="?([^";]+)"?/i);
+        const filename = match ? match[1] : 'TKS_Vong_doi_don_hang.xlsx';
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url; link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      } catch(err){
+        alert(err.message || 'Không thể tạo file Excel.');
+      } finally {
+        bulkExportBtn.disabled = lastVisibleOrders.length === 0;
+        bulkExportBtn.innerHTML = originalHtml;
+      }
+    }
+    bulkExportBtn.addEventListener('click', exportBulkOrders);
+
+    TKSNav.authGuard().then(function(user){
+      if(!user) return;
+      if(BULK_VIEW_ROLES.indexOf(user.vaiTro) === -1) return;
+      canOverride = OVERRIDE_ROLES.indexOf(user.vaiTro) !== -1;
+      lookupForm.hidden = true;
+      lcInternalWrap.hidden = false;
+      loadBulkOrders();
+      startBulkAutoRefresh();
+      startHistoryAutoRefresh();
+      applyLcSubtabFromHash();
+    });
+  </script>
+  <script src="/shared/shooting-star.js?v=20260830"></script>
+</body>
+</html>
