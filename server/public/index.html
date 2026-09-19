@@ -1481,6 +1481,17 @@
       gap: 14px;
     }
 
+    /* 5 thẻ trên 1 hàng ở màn hình máy tính; dưới 1180px dùng lại lưới 12 cột với các lớp col-* */
+    @media (min-width:1181px) {
+      .kpi-grid.kpi-grid-5 {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+
+      .kpi-grid.kpi-grid-5>.kpi-card {
+        grid-column: auto;
+      }
+    }
+
     .kpi-card {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -4099,7 +4110,7 @@
             <div class="section-head"><span class="section-step">1</span>
               <h2>Chỉ số then chốt <span class="section-note">tổng hợp theo khoảng thời gian đang chọn</span></h2>
             </div>
-            <div class="kpi-grid">
+            <div class="kpi-grid kpi-grid-5">
               <div class="kpi-card accent-green col-4">
                 <div class="eyebrow">Doanh thu trong kỳ</div>
                 <div class="value" id="in-revenue">—</div>
