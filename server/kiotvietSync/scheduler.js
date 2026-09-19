@@ -24,6 +24,7 @@ function createPollingScheduler({
   pollEntityOnce: poll = pollEntityOnce,
   recordFailure: record = recordFailure,
   setIntervalFn = setInterval,
+  scheduleImmediate = queueMicrotask,
   getPool: getPoolFn = getPool,
   startDashboardRollupSchedule: startRollup = startDashboardRollupSchedule,
   startCustomerDebtReportRefreshSchedule: startCustomerDebtReportRefresh = startCustomerDebtReportRefreshSchedule,
@@ -51,6 +52,13 @@ function createPollingScheduler({
 
   function startPollingScheduler() {
     if (!enabled) return [];
+    // Chạy một lượt nền ngay khi service khởi động để bù khoảng trống từ
+    // checkpoint gần nhất (ví dụ Render vừa ngủ/redeploy). Không await ở đây
+    // để HTTP server vẫn sẵn sàng nhận request trong lúc đồng bộ catch-up.
+    scheduleImmediate(() => {
+      runGroup(fastEntities).catch((error) => logger.error('[KiotViet Sync] Lỗi lượt fast ban đầu:', error.message));
+      runGroup(slowEntities).catch((error) => logger.error('[KiotViet Sync] Lỗi lượt slow ban đầu:', error.message));
+    });
     return [
       setIntervalFn(() => runGroup(fastEntities), fastIntervalMs),
       setIntervalFn(() => runGroup(slowEntities), slowIntervalMs),

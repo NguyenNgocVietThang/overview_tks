@@ -31,6 +31,10 @@ npm run kiotviet-sync:backfill
 npm run kiotviet-sync:reconcile
 ```
 
+Khi `KIOTVIET_SYNC_ENABLED=true`, service chạy một lượt catch-up nền ngay lúc
+khởi động từ checkpoint gần nhất, sau đó tiếp tục polling theo
+`KIOTVIET_SYNC_FAST_INTERVAL_MS` và `KIOTVIET_SYNC_SLOW_INTERVAL_MS`.
+
 ## Cấu hình Sheets
 
 Service account chỉ cần quyền Viewer trên hai file Kiot HN/SG vì server chỉ đọc `Trả NCC`. Không tạo thêm tab và không có tác vụ Node/Apps Script ghi vào hai file này.
