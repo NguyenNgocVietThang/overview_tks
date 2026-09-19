@@ -268,7 +268,7 @@
       <button class="theme-toggle" id="themeToggle" type="button" aria-label="Chuyển chế độ giao diện" onclick="toggleTheme()">
         <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"></path></svg>
         <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
-        <span id="themeLabel">Chế độ sáng</span>
+        <span id="themeLabel">Light mode</span>
       </button>
       <div class="account-chip" id="accountChip"></div>
     </div>
@@ -767,7 +767,7 @@
         button.title = action;
       }
       const label = document.getElementById('themeLabel');
-      if(label) label.textContent = isLight ? 'Chế độ tối' : 'Chế độ sáng';
+      if(label) label.textContent = isLight ? 'Dark mode' : 'Light mode';
     }
 
     function toggleTheme(){

@@ -248,7 +248,7 @@
          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
     </svg>
-    <span id="themeLabel">Chế độ sáng</span>
+    <span id="themeLabel">Light mode</span>
   </button>
 
   <!-- Vùng sáng mờ xung quanh -->
@@ -317,7 +317,7 @@
     function syncThemeLabel() {
       const isLight = document.documentElement.dataset.theme === 'light';
       const label = document.getElementById('themeLabel');
-      if (label) label.textContent = isLight ? 'Chế độ tối' : 'Chế độ sáng';
+      if (label) label.textContent = isLight ? 'Dark mode' : 'Light mode';
     }
 
     function toggleTheme() {
