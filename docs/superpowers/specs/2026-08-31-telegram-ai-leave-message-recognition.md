@@ -30,7 +30,7 @@ Thay luồng phỏng vấn từng bước hiện tại của bot Telegram HR b�
 - Business logic thuần túy (không phụ thuộc Telegram) nằm ở `server/hr/hrLeaveService.js`: `computeDurationSessions`, `getSessionStartTime` (Sáng=07:45, Chiều=12:30), `computeSubmissionViolation`, `computeIsUrgent`, `parseVietnameseDate`, `formatLeaveBoundary`, `resolveSenderIdentity`.
 - Ghi Sheet qua `server/hr/hrLeaveRepository.js` (`LEAVE_SCHEMA` 22 cột, sheet "Yêu cầu nghỉ phép") → `server/sheets/hrSheetsClient.js` (Google Sheets API, service account).
 - Trạng thái hội thoại theo `chat_id` được lưu bền vững qua `server/telegram/conversationStore.js` (file JSON, sống sót qua restart, hết hạn sau 60 phút).
-- Cấu hình tập trung tại `server/config.js`, secret nằm trong `server/.env` (gitignored) / Firebase secret khi deploy — không hardcode.
+- Cấu hình tập trung tại `server/config.js`, secret nằm trong `server/.env` (gitignored) / Render Environment Variables khi deploy — không hardcode.
 - **Tài sản tái sử dụng được từ nhánh cũ `codex/gemini-one-message-leave`** (chưa merge, không phụ thuộc Gemini): thuật toán trong `server/hr/leaveMessageResolver.js` — quy tắc suy luận buổi/ngày mặc định, xử lý "chỉ nêu số ngày" (chọn buổi đầu tiên cách thời điểm nhắn tin ≥ N giờ), và các mã lỗi (`NOT_LEAVE_REQUEST`, `LOW_CONFIDENCE`, `INVALID_DATE`, `CONTRADICTORY_INTERVAL`, `MISSING_LEAVE_INTERVAL`, `UNSUPPORTED_DURATION_UNIT`) — đây là logic thuần Vietnamese-domain, không gọi AI, nên giữ gần như nguyên vẹn, chỉ đổi tên module cho trung lập nhà cung cấp.
 
 ## 4. Hợp đồng dữ liệu AI extraction (provider-agnostic)

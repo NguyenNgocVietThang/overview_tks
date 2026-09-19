@@ -18,7 +18,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const app = express();
 
-// App chay sau reverse proxy (Firebase App Hosting/Cloud Run, co the co
+// App chay sau reverse proxy (Render, co the co
 // Cloudflare phia truoc) — khong set trust proxy thi req.ip luon la IP cua
 // proxy (giong het nhau cho MOI request), khien rate-limit theo IP trong
 // authRoutes.js (forgotPasswordRateLimit) gop chung toan bo nguoi dung vao
