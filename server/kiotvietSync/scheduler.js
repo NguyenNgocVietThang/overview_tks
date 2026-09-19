@@ -7,6 +7,7 @@ const { pollEntityOnce } = require('./syncDriver');
 const { recordFailure } = require('./checkpointRepository');
 const { getPool } = require('../db/pool');
 const { startDashboardRollupSchedule } = require('./dashboardRollupRefresh');
+const { startCustomerDebtReportRefreshSchedule } = require('./customerDebtReportRefresh');
 
 const fastEntities = [require('./entities/invoices'), require('./entities/orders')];
 const slowEntities = [require('./entities/categories'), require('./entities/products'), require('./entities/customers'),
@@ -17,6 +18,7 @@ function createPollingScheduler({
   fastIntervalMs = CONFIG.KIOTVIET_SYNC_FAST_INTERVAL_MS,
   slowIntervalMs = CONFIG.KIOTVIET_SYNC_SLOW_INTERVAL_MS,
   dashboardRollupIntervalMs = 5 * 60 * 1000,
+  customerDebtReportIntervalMs = 5 * 60 * 1000,
   getConfiguredBranches: getBranches = getConfiguredBranches,
   createKiotVietClient: createClient = createKiotVietClient,
   pollEntityOnce: poll = pollEntityOnce,
@@ -24,6 +26,7 @@ function createPollingScheduler({
   setIntervalFn = setInterval,
   getPool: getPoolFn = getPool,
   startDashboardRollupSchedule: startRollup = startDashboardRollupSchedule,
+  startCustomerDebtReportRefreshSchedule: startCustomerDebtReportRefresh = startCustomerDebtReportRefreshSchedule,
   logger = console
 } = {}) {
   async function runGroup(entities) {
@@ -57,6 +60,13 @@ function createPollingScheduler({
       startRollup({
         pool: getPoolFn(),
         intervalMs: dashboardRollupIntervalMs,
+        setIntervalFn,
+        log: logger.log ? logger.log.bind(logger) : logger
+      }),
+      // Bao cao cong no khach hang HN1/HN3/HN7 (server/db/migrations/0014) -
+      // cung 1 ly do nhet chung khoi khoi dong nay nhu rollup Dashboard o tren.
+      startCustomerDebtReportRefresh(getPoolFn(), {
+        intervalMs: customerDebtReportIntervalMs,
         setIntervalFn,
         log: logger.log ? logger.log.bind(logger) : logger
       })

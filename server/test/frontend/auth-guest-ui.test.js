@@ -28,46 +28,34 @@ test('login co nut dang ky rieng va giu nut Google', () => {
   assert.match(html, /googleBtnWrap/);
 });
 
-test('trang dang ky va trang van chuyen co script inline hop le', () => {
-  for (const page of ['register/index.html', 'shipment/index.html', 'account/index.html']) {
+test('trang dang ky va trang account co script inline hop le', () => {
+  for (const page of ['register/index.html', 'account/index.html']) {
     const html = readPublic(page);
     inlineScripts(html).forEach(script => assert.doesNotThrow(() => new Function(script)));
   }
 });
 
-test('trang van chuyen mac dinh an ket qua va chi co hai cot cong khai', () => {
-  const html = readPublic('shipment/index.html');
-  assert.match(html, /class="panel results-panel"/);
-  assert.match(html, /<th>Mã hóa đơn<\/th><th>Trạng thái<\/th>/);
-  const resultsTable = html.match(/<table class="results-table">[\s\S]*?<\/table>/)?.[0] || '';
-  assert.doesNotMatch(resultsTable, /SĐT khách|Tổng tiền hàng|Khách hàng<\/th>/);
-});
-
-test('shared nav an Bao cao tong hop voi Khach va chuyen Khach ve shipment khi vao trang cam', () => {
+test('shared nav an Bao cao tong hop voi Khach va chuyen Khach ve account khi vao trang cam', () => {
   const script = readPublic('shared/shared-nav.js');
   assert.doesNotThrow(() => new Function(script));
   assert.match(script, /user\.vaiTro === 'Khách'/);
-  assert.match(script, /window\.location\.href = '\/shipment\/'/);
+  assert.match(script, /window\.location\.href = '\/account\/'/);
   assert.match(script, /\/account/);
 });
 
-test('logic route guard cho phep Khach vao /shipment va /account nhung chan cac trang khac', () => {
+test('logic route guard chi cho phep Khach vao /account', () => {
   function checkGuestAllowed(pathname) {
     const path = pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') || '/';
-    return (path === '/shipment' || path === '/account');
+    return path === '/account';
   }
 
-  assert.equal(checkGuestAllowed('/shipment/'), true);
-  assert.equal(checkGuestAllowed('/shipment'), true);
-  assert.equal(checkGuestAllowed('/shipment/index.html'), true);
   assert.equal(checkGuestAllowed('/account/'), true);
   assert.equal(checkGuestAllowed('/account'), true);
   assert.equal(checkGuestAllowed('/account/index.html'), true);
 
   assert.equal(checkGuestAllowed('/'), false);
   assert.equal(checkGuestAllowed('/index.html'), false);
-  assert.equal(checkGuestAllowed('/shipment/dispatch/'), false);
-  assert.equal(checkGuestAllowed('/shipment/mobile/'), false);
+  assert.equal(checkGuestAllowed('/shipment/'), false);
 });
 
 test('shared nav logout co xac nhan confirm va khong de nut dang xuat roi rac tren topbar', () => {
@@ -121,10 +109,7 @@ test('dong bo logo cong ty va favicon tren tat ca cac trang/tab', () => {
     'index.html',
     'login/index.html',
     'register/index.html',
-    'account/index.html',
-    'shipment/index.html',
-    'shipment/dispatch/index.html',
-    'shipment/mobile/index.html'
+    'account/index.html'
   ];
   for (const page of pages) {
     const html = readPublic(page);
@@ -134,7 +119,7 @@ test('dong bo logo cong ty va favicon tren tat ca cac trang/tab', () => {
 });
 
 test('header dung chung co cung kich thuoc dieu khien tren bon tab chinh', () => {
-  const pages = ['index.html', 'shipment/index.html', 'humanresources/index.html', 'account/index.html'];
+  const pages = ['index.html', 'humanresources/index.html', 'account/index.html'];
 
   for (const page of pages) {
     const dom = loadPageWithSharedStyles(page);
@@ -157,8 +142,8 @@ test('header dung chung co cung kich thuoc dieu khien tren bon tab chinh', () =>
   }
 });
 
-test('bon tab chinh cung khai bao viewport de header responsive giong nhau', () => {
-  const pages = ['index.html', 'shipment/index.html', 'humanresources/index.html', 'account/index.html'];
+test('ba tab chinh cung khai bao viewport de header responsive giong nhau', () => {
+  const pages = ['index.html', 'humanresources/index.html', 'account/index.html'];
 
   for (const page of pages) {
     const dom = new JSDOM(readPublic(page));

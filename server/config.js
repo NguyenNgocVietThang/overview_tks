@@ -26,7 +26,7 @@ function parseModelList(value) {
 const CONFIG = {
   // SPREADSHEET_ID = co so HA NOI (bat buoc). Spreadsheet bao cao cua co so
   // SAI GON la optional — thieu bien nay thi co so Sai Gon tra 503
-  // BRANCH_NOT_CONFIGURED chu khong lam sap server (giong VC_SPREADSHEET_ID).
+  // BRANCH_NOT_CONFIGURED chu khong lam sap server.
   SPREADSHEET_ID: required('SPREADSHEET_ID'),
   SPREADSHEET_ID_SG: process.env.SPREADSHEET_ID_SG || null,
   // Workbook "Bảng Công nợ" dùng chung cho hai cơ sở, server chỉ đọc hai
@@ -63,50 +63,6 @@ const CONFIG = {
   SMTP_FROM_NAME: process.env.SMTP_FROM_NAME || 'TOKOSI Dashboard',
 
   // ==========================================
-  // QUAN LY VAN CHUYEN — Spreadsheet rieng (VC_*) va Google Drive luu anh
-  // ==========================================
-  // Optional — neu chua set thi log canh bao khi module van chuyen duoc goi,
-  // khong lam crash server hien tai. Phai set truoc khi dung Phase 1B+.
-  VC_SPREADSHEET_ID: process.env.VC_SPREADSHEET_ID || null,
-  VC_DRIVE_FOLDER_ID: process.env.VC_DRIVE_FOLDER_ID || null,
-
-  // Nguon van chuyen rieng cua co so Sai Gon (se cung cap sau) — bo trong thi
-  // tab "Quan ly van chuyen" o co so Sai Gon bao "Chua duoc cau hinh".
-  VC_SPREADSHEET_ID_SG: process.env.VC_SPREADSHEET_ID_SG || null,
-  VC_DRIVE_FOLDER_ID_SG: process.env.VC_DRIVE_FOLDER_ID_SG || null,
-
-  // ==========================================
-  // VONG DOI DON HANG — spreadsheet RIENG do Bot Telegram + Apps Script NGOAI
-  // REPO NAY ghi truc tiep (2 tab DonHang_HN/DonHang_SG trong CUNG 1
-  // spreadsheet — khac pattern "1 spreadsheet/co so" o tren). Server CHI DOC
-  // 2 tab do (xem orderLifecycleSheetsClient.js, scope readonly).
-  // Tab "Lich su cap nhat" (ORDER_LIFECYCLE_SHEET_HISTORY) la NGOAI LE: do
-  // server tu tao/ghi (ghi de trang thai thu cong cua Quan ly/Ke toan), dung
-  // client rieng orderLifecycleHistoryClient.js voi scope ghi day du — service
-  // account can duoc cap quyen Editor (khong chi Viewer) tren spreadsheet nay.
-  // Xem docs/superpowers/specs/2026-09-04-order-lifecycle-status-lookup.md
-  // ==========================================
-  // Optional — fail-soft giong VC_SPREADSHEET_ID: thieu bien nay thi tinh
-  // nang tra 503 BRANCH_NOT_CONFIGURED, khong lam sap server.
-  ORDER_LIFECYCLE_SPREADSHEET_ID: process.env.ORDER_LIFECYCLE_SPREADSHEET_ID || null,
-  ORDER_LIFECYCLE_SHEET_HN: 'DonHang_HN',
-  ORDER_LIFECYCLE_SHEET_SG: 'DonHang_SG',
-  ORDER_LIFECYCLE_SHEET_HISTORY: 'Lịch sử cập nhật',
-
-  // Ten 6 tab trong Spreadsheet van chuyen rieng (Tieng Viet truc quan, de su dung).
-  VC_SHEET_ORDERS: 'Đơn vận chuyển',
-  VC_SHEET_ORDER_ITEMS: 'Chi tiết vận chuyển',
-  VC_SHEET_STATUS_HISTORY: 'Lịch sử trạng thái',
-  VC_SHEET_ATTACHMENTS: 'Ảnh chứng từ',
-  VC_SHEET_EXCEPTIONS: 'Sự cố vận chuyển',
-  VC_SHEET_VEHICLES: 'Danh mục xe',
-
-  // Tab "Users" nam CHUNG spreadsheet KiotViet hien co (khong tao spreadsheet
-  // rieng cho tab nay) — vi tab Users KHONG bao gio duoc bot Telegram/GAS
-  // ghi tu dong (chi Quan ly tao/sua tai khoan qua script setup), nen khong
-  // co rui ro race condition can spreadsheet rieng bao ve.
-  SHEET_USERS: 'Users',
-
   SHEET_CATEGORIES: 'Nhóm hàng',
   SHEET_PRODUCTS: 'Hàng hóa',
   SHEET_INVOICES: 'Hóa đơn',
@@ -120,11 +76,6 @@ const CONFIG = {
   SHEET_PURCHASES: 'Nhập hàng',
   SHEET_SUPPLIER_RETURNS: 'Trả NCC',
 
-  // HN1/HN3/HN7 do Apps Script tính từ dữ liệu KiotViet theo kỳ 1/3/7 ngày.
-  // Server CHỈ ĐỌC — không được tạo/xóa/ghi ba tab này.
-  SHEET_DEBT_1: 'HN1',
-  SHEET_DEBT_3: 'HN3',
-  SHEET_DEBT_7: 'HN7',
   DEBT_MANAGEMENT_SHEET_HN: 'Công nợ HN',
   DEBT_MANAGEMENT_SHEET_SG: 'Công nợ SG',
 
@@ -132,7 +83,7 @@ const CONFIG = {
   // QUAN LY NHAN SU — Spreadsheet rieng (HR_*) + Bot Telegram xin nghi phep
   // ==========================================
   // Optional — neu chua set thi log canh bao khi module HR duoc goi, khong
-  // lam crash server hien tai (giong VC_SPREADSHEET_ID).
+  // lam crash server hien tai.
   HR_SPREADSHEET_ID: process.env.HR_SPREADSHEET_ID || null,
   // Nguon nhan su rieng cua co so Sai Gon (se cung cap sau) — bo trong thi tab
   // "Quan ly nhan su" o co so Sai Gon bao "Chua duoc cau hinh".
@@ -177,7 +128,7 @@ const CONFIG = {
   // SUPABASE POSTGRES — dong bo KiotViet, xem
   // docs/04-planning/2026-09-14-roadmap-supabase-kiotviet-sync.md
   // ==========================================
-  // Optional — fail-soft giong VC_SPREADSHEET_ID: engine dong bo mac dinh TAT
+  // Optional — fail-soft: engine dong bo mac dinh TAT
   // (KIOTVIET_SYNC_ENABLED=false), thieu bien nay khong duoc lam sap server.
   SUPABASE_DB_URL: process.env.SUPABASE_DB_URL || null,
   // Optional — mac dinh true khi production (Supabase Postgres can SSL), false

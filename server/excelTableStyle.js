@@ -3,7 +3,7 @@
 // ==========================================
 // EXCEL TABLE STYLE — quy tac dinh dang dung chung cho MOI bang xuat Excel
 // cua du an (dashboard/exportService.js, hr/hrLeaveExportService.js,
-// shipment/orderLifecycleExport.js): freeze header, khong to mau nen, chu
+// cac file xuat Excel: freeze header, khong to mau nen, chu
 // den, tat gridline mac dinh, full border quanh tung o.
 // ==========================================
 

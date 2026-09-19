@@ -6,10 +6,9 @@
 //
 // Muc tieu: KHONG doi logic nghiep vu trong dashboardData.js/exportService.js
 // (van tra cuu theo TEN COT tieng Viet, doi khi theo VI TRI cot), nen:
-//   - Ten header phai y het Sheets that (lay tu src-dashboard/kiotviet/
-//     SheetSchemas.gs + xac minh truc tiep bang Sheets API tren spreadsheet
-//     san xuat) — KHONG duoc doi ten/thu tu.
-//   - Cach dung gia tri cung phai giong Apps Script: nhan trang thai lay tu
+//   - Ten header giu shape tuong thich voi dashboardData.js — KHONG duoc doi
+//     ten/thu tu neu chua cap nhat cac consumer.
+//   - Cach dung gia tri giu quy uoc cu: nhan trang thai lay tu
 //     `statusValue`, ngay dinh dang "dd/MM/yyyy HH:mm", tien/so luong la so.
 //
 // LUU Y QUAN TRONG VE MUI GIO: cac cot TIMESTAMPTZ duoc engine dong bo ghi tu
@@ -22,7 +21,7 @@ const CONFIG = require('../config');
 const { getPool } = require('../db/pool');
 const { BRANCHES, branchLabelToCode } = require('../branch/branches');
 
-// Dinh dang y het formatDate() trong src-dashboard/utils/Helpers.gs.
+// Dinh dang tuong thich shape du lieu dashboard.
 const SHEET_DATE_FORMAT = 'DD/MM/YYYY HH24:MI';
 
 /** Format 1 cot TIMESTAMPTZ ve chuoi ngay kieu Sheets (xem ghi chu mui gio o dau file). */
@@ -84,7 +83,7 @@ const ORDER_STATUS_FALLBACK = {
 const RETURN_STATUS_FALLBACK = { 1: 'Đã trả', 2: 'Đã hủy' };
 
 // Cac cot Sheets KHONG co nguon trong Postgres hien tai. Giu chuoi rong (dung
-// nhu Apps Script lam khi payload thieu truong) thay vi bia du lieu:
+// khi payload thieu truong) thay vi bia du lieu:
 //   - "SĐT khách" (Hóa đơn): payload /invoices khong tra so dien thoai khach
 //     (cot nay cung RONG trong Sheets san xuat — da doi chieu truc tiep).
 //   - "Nhóm khách hàng" (Khách hàng): `customers.raw` khong co `groups`/

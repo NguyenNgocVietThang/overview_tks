@@ -3,12 +3,7 @@
 // cục bộ tại server/data/users.json, đồng bộ hai chiều với Google Sheets —
 // xem đầu file localUserStore.js).
 // ==========================================
-const CONFIG = require('../config');
-const sheetsClient = require('../sheets/sheetsClient');
 const localUserStore = require('./localUserStore');
-const { USER_COLUMNS, buildColumnIndex, rowToUser } = require('./userSheetColumns');
-
-const originalGetValues = sheetsClient.getValues;
 
 const ACTIVE_STATUS = localUserStore.ACTIVE_STATUS;
 const INACTIVE_STATUS = localUserStore.INACTIVE_STATUS;
@@ -41,20 +36,9 @@ function normalizePhone(raw) {
 }
 
 /**
- * Đọc toàn bộ user từ localUserStore.
- * Hỗ trợ mock sheetsClient.getValues trong unit test.
+ * Đọc toàn bộ user từ PostgreSQL qua localUserStore.
  */
 async function getAllUsers() {
-  if (sheetsClient && sheetsClient.getValues !== originalGetValues) {
-    const rawRows = await sheetsClient.getValues(CONFIG.SHEET_USERS);
-    if (!rawRows || !rawRows.length) return [];
-    const [headers, ...rows] = rawRows;
-    const colIndex = buildColumnIndex(headers);
-    return rows
-      .filter(row => row.some(cellValue => cellValue !== '' && cellValue !== undefined))
-      .map(row => rowToUser(row, colIndex));
-  }
-
   return localUserStore.getAllUsers();
 }
 
@@ -154,7 +138,6 @@ module.exports = {
   INACTIVE_STATUS,
   PENDING_STATUS,
   LOCKED_STATUS,
-  USER_COLUMNS,
   HARDCODED_ADMINS: localUserStore.HARDCODED_ADMINS,
   isHardcodedAdmin: localUserStore.isHardcodedAdmin,
   isProtectedSuperAdmin: localUserStore.isProtectedSuperAdmin,

@@ -26,8 +26,6 @@ env:
     secret: JWT_SECRET
   - variable: GOOGLE_CLIENT_ID
     secret: GOOGLE_CLIENT_ID
-  - variable: VC_SPREADSHEET_ID
-    secret: VC_SPREADSHEET_ID
   - variable: HR_SPREADSHEET_ID
     secret: HR_SPREADSHEET_ID
   - variable: TELEGRAM_BOT_TOKEN

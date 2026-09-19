@@ -4,7 +4,7 @@
 // xem co so nao, roi doc dung spreadsheet cua co so do.
 //
 // KHONG lien quan den ten KHO ('An Khanh'/'Tan Phu') trong
-// server/shipment/orderStateMachine.js — ten kho la khai niem khac va giu nguyen.
+// Ten kho trong nghiep vu KiotViet la khai niem khac va giu nguyen.
 // ==========================================
 const BRANCHES = Object.freeze({ HANOI: 'Hà Nội', SAIGON: 'Sài Gòn' });
 const BRANCH_BOTH = 'Cả hai';

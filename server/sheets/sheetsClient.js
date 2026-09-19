@@ -1,9 +1,8 @@
 // ==========================================
-// GOOGLE SHEETS CLIENT — doc du lieu tu sheet KiotViet export (Apps Script
-// rieng ben ngoai chiu trach nhiem dong bo/ghi; server nay chi DOC)
+// GOOGLE SHEETS CLIENT — chi doc tab "Tra NCC" duoc paste thu cong.
 //
 // DA CO SO: moi co so (Ha Noi / Sai Gon) co spreadsheet rieng nhung TEN TAB
-// giong het nhau. Vi vay client duoc tao theo tung co so qua createClient(),
+// giong nhau. Vi vay client duoc tao theo tung co so qua createClient(),
 // moi client giu cache danh sach tab RIENG (dung chung cache se lam
 // getMultipleSheetValues loc nham tab giua hai spreadsheet).
 // ==========================================

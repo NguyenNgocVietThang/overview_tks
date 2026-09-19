@@ -21,10 +21,3 @@ test('account content wrapper fills the available content width', () => {
   assert.equal(style.width, '100%');
   assert.equal(style.maxWidth, 'none');
 });
-
-test('shipment content wrapper fills the available content width', () => {
-  const style = readComputedStyle(path.join('shipment', 'index.html'), '.lookup-wrap');
-
-  assert.equal(style.width, '100%');
-  assert.equal(style.maxWidth, 'none');
-});

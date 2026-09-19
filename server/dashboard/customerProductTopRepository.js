@@ -2,11 +2,9 @@
 // ==========================================
 // KHACH THEO HANG HOA — top khach mua nhieu nhat cho tung ma hang, tinh
 // truc tiep bang SQL tren Supabase Postgres thay cho sheet tong hop
-// "Khách theo hàng hóa" (truoc day do Apps Script CustomerReport.gs dung 1
-// lan/ngay roi ghi ra Sheets).
+// "Khách theo hàng hóa" truoc day.
 //
-// Ngu nghia duoc giu y het aggregateCustomerByProductReport_ trong
-// src-dashboard/kiotviet/CustomerReport.gs:
+// Ngu nghia bao cao duoc giu nguyen:
 //   - Chi tinh hoa don `status = 1` (da doi chieu du lieu that: status 1 <->
 //     statusValue "Hoàn thành") va phieu tra `status = 1` ("Đã trả").
 //   - "Thành tiền" = `subTotal` cua KiotViet neu co, neu khong thi

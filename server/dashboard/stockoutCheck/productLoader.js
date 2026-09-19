@@ -3,7 +3,7 @@
 const { toVnDateKey } = require('./timelineBuilder');
 
 // KiotViet /products tra ve field da xac nhan qua san xuat (xem
-// kiotVietApiClient.js::fetchProductOnHand va src-dashboard Helpers.gs) —
+// kiotVietApiClient.js::fetchProductOnHand) —
 // giu vai key du phong vi tung endpoint/hydrate path co the khac casing.
 const CODE_KEYS = ['productCode', 'code'];
 const NAME_KEYS = ['fullName', 'name'];

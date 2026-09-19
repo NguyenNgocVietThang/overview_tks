@@ -10,19 +10,15 @@ const {
 
 const router = express.Router();
 
-const sheetsClient = require('./sheets/sheetsClient');
 const { getExportFields, createExportWorkbook } = require('./dashboard/exportService');
-const CONFIG = require('./config');
 const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
 const { requireAuth, requireRole } = require('./auth/authMiddleware');
-const { resolveBranch, resolveBranchOptional } = require('./branch/branchMiddleware');
-const { BRANCHES } = require('./branch/branches');
+const { resolveBranch } = require('./branch/branchMiddleware');
+const { branchLabelToCode } = require('./branch/branches');
 const branchRoutes = require('./branch/branchRoutes');
 const { INTERNAL_ROLES, ROLES } = require('./auth/userRepository');
-const { lookupInvoiceStatuses } = require('./shipment/invoiceStatusService');
-const shipmentOrderRoutes    = require('./shipment/shipmentOrderRoutes');
-const orderLifecycleRoutes   = require('./shipment/orderLifecycleRoutes');
+const { getPool } = require('./db/pool');
 const hrLeaveRoutes          = require('./hr/hrLeaveRoutes');
 const notificationRoutes     = require('./notifications/notificationRoutes');
 const roleChangeRequestRoutes = require('./auth/roleChangeRequestRoutes');
@@ -48,42 +44,8 @@ router.use(adminUserRoutes);
 // chinh hai route nay quyet dinh gia tri cookie ma resolveBranch se doc.
 router.use(branchRoutes);
 
-// Tra cuu trang thai hoa don — route DUY NHAT trong /api/shipment/* ma vai tro
-// "Khách" duoc dung, ma khach thi khong duoc gan co so nao. Vi vay dang ky
-// TRUOC guard co so ben duoi va dung ban "mem" resolveBranchOptional (khong
-// bao gio 403, mac dinh Ha Noi) de khong chan khach hang.
-router.post('/api/shipment/invoice-status', requireAuth, resolveBranchOptional, async (req, res) => {
-  try {
-    const results = await lookupInvoiceStatuses(req.body && req.body.codes, req.branch);
-    res.status(200).json({ results });
-  } catch (err) {
-    console.error('=== LOI TRA CUU TRANG THAI HOA DON ===');
-    console.error(err.stack);
-    console.error('======================================');
-    res.status(err.statusCode || 500).json({
-      error: err.statusCode && err.statusCode < 500
-        ? err.message
-        : 'Không tra cứu được trạng thái hóa đơn.',
-      code: err.code
-    });
-  }
-});
-
-// Tra cuu "Vong doi don hang" — Khach (xem don cua minh) + 5 vai tro noi bo.
-// Dang ky TRUOC gate co so ben duoi (giong invoice-status o tren): nguon du
-// lieu la 1 spreadsheet RIENG (2 tab HN/SG gop lai), khong doc theo co so
-// dang dang nhap nen KHONG can resolveBranch — chi requireAuth roi ROUTER TU
-// phan quyen tung endpoint (xem orderLifecycleRoutes.js).
-router.use('/api/shipment/lifecycle', requireAuth, orderLifecycleRoutes);
-
-// Toan bo /api/shipment/* va /api/hr/* con lai deu la du lieu THEO CO SO — gan
-// resolveBranch truoc cac router con de moi handler ben trong luon co req.branch,
-// va tai khoan chua duoc gan co so bi chan ngay tu vong ngoai.
-router.use('/api/shipment', requireAuth, resolveBranch);
+// Toan bo /api/hr/* la du lieu THEO CO SO — gan resolveBranch truoc router con.
 router.use('/api/hr', requireAuth, resolveBranch);
-
-// Cac endpoint quan ly van chuyen Phase 1B — /api/shipment/* (tru invoice-status o tren)
-router.use(shipmentOrderRoutes);
 
 // Cac endpoint quan ly nhan su (nghi phep) — /api/hr/* — phan quyen rieng
 // tung route ben trong hrLeaveRoutes.js (xem het ho so vs chi Quan ly duyet).
@@ -122,31 +84,17 @@ router.use(stockoutCheckRoutes);
 
 // Route kiem tra ket noi nhanh — chi xem duoc tren server, KHONG expose secret
 router.get('/api/debug', async (req, res) => {
-  // Doc theo dung co so dang chon de kiem tra nhanh "co so nay dang tro toi
-  // spreadsheet nao" — day cung la cach xac minh nhanh nhat khi doi co so.
-  const branchSheets = sheetsClient.getSheetsClient(req.branch);
-  const branchSpreadsheetId = req.branch === BRANCHES.SAIGON ? CONFIG.SPREADSHEET_ID_SG : CONFIG.SPREADSHEET_ID;
+  const branchCode = branchLabelToCode(req.branch);
   const checks = {
-    SPREADSHEET_ID: !!process.env.SPREADSHEET_ID,
-    GOOGLE_SERVICE_ACCOUNT_JSON: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
-    SPREADSHEET_ID_SG: !!process.env.SPREADSHEET_ID_SG,
     branch: req.branch,
-    spreadsheetId: branchSpreadsheetId ? branchSpreadsheetId.substring(0, 8) + '...' : null,
-    sheetsTest: null,
-    sheetsError: null,
-    sheetTabs: null,
-    sheetTabsError: null,
+    databaseTest: null,
+    databaseError: null
   };
   try {
-    const data = await branchSheets.getValues(CONFIG.SHEET_INVOICES);
-    checks.sheetsTest = `OK — ${data.length} rows tu sheet "${CONFIG.SHEET_INVOICES}"`;
+    const result = await getPool().query('SELECT COUNT(*)::int AS count FROM invoices WHERE branch = $1', [branchCode]);
+    checks.databaseTest = `OK — ${result.rows[0].count} hóa đơn từ Supabase`;
   } catch (e) {
-    checks.sheetsError = { message: e.message, googleStatus: e?.response?.status };
-  }
-  try {
-    checks.sheetTabs = await branchSheets.listSheetTitles();
-  } catch (e) {
-    checks.sheetTabsError = e.message;
+    checks.databaseError = { message: e.message };
   }
   res.json(checks);
 });

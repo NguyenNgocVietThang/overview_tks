@@ -5,7 +5,7 @@
 //   const hrLeaveRoutes = require('./hr/hrLeaveRoutes');
 //   router.use(hrLeaveRoutes);
 //
-// Xem: mo hinh quyen han va handleError() theo dung shipmentOrderRoutes.js.
+// Routes nghi phep su dung cung chuan phan quyen va handleError() cua server.
 // ==========================================
 'use strict';
 

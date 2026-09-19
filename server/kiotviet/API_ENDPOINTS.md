@@ -14,7 +14,7 @@ Content-Type: application/x-www-form-urlencoded
 grant_type=client_credentials&client_id=<id>&client_secret=<secret>&scopes=PublicApi.Access
 ```
 
-Nguồn: `src-dashboard/kiotviet/Auth.gs:23-29` (đang chạy production cho cả 2 chi nhánh) — cùng
+Nguồn xác thực hiện tại: `server/kiotviet/kiotVietApiClient.js` — cùng
 implementation đã copy đúng vào `kiotVietApiClient.js:getAccessToken` (trích xuất từ
 `server/dashboard/stockoutCheck/kiotVietClient.js`, đã di dời — không còn file cũ).
 
@@ -47,14 +47,14 @@ Nếu tham số được API tôn trọng, `total` phải về 0.
 | Entity | Endpoint | `listQuery` cố định | Tham số incremental | Nguồn xác minh |
 |---|---|---|---|---|
 | categories | `/categories` | `hierachicalData=false` (đúng chính tả lỗi của KiotViet — không sửa) | `lastModifiedFrom` | Live probe: total 98→0. `modifiedFrom` bị thử và **không hoạt động** (total không đổi) — không dùng tên này. |
-| products | `/products` | `includeInventory=true&includeQuantity=true&IncludeProductShelves=true&includePricebook=true&IncludeSerials=true&IncludeBatchExpires=true&includeWarranties=true&includeMaterial=true&includeSoftDeletedAttribute=false` | `lastModifiedFrom` | Live probe: total 10378→0. Nguồn `listQuery`: `src-dashboard/kiotviet/SheetSchemas.gs:589-599`. |
+| products | `/products` | `includeInventory=true&includeQuantity=true&IncludeProductShelves=true&includePricebook=true&IncludeSerials=true&IncludeBatchExpires=true&includeWarranties=true&includeMaterial=true&includeSoftDeletedAttribute=false` | `lastModifiedFrom` | Live probe: total 10378→0. Cấu hình hiện nằm trong engine `server/kiotvietSync/`. |
 | customers | `/customers` | `includeTotal=true&includeCustomerGroup=true&includeCustomerSocial=true` | `lastModifiedFrom` | Live probe: total 5246→0. |
 | suppliers | `/suppliers` | `includeTotal=true&includeSupplierGroup=true` | `lastModifiedFrom` | Live probe: total 122→0. |
-| invoices | `/invoices` | `includePayment=true&includeInvoiceDelivery=true&IncludeSaleChannel=true` | `lastModifiedFrom` | Live probe: total 23988→0. (`fromPurchaseDate`/`toPurchaseDate` cũng hoạt động — đã dùng production ở `CustomerDebtReport.gs:53-54` và `syncCustomerReport.js` — nhưng lọc theo *ngày bán*, không bắt được hóa đơn cũ bị **sửa**. Dùng `lastModifiedFrom` cho checkpoint incremental vì đúng ngữ nghĩa "đã thay đổi từ mốc nào".) Line items nằm trong `InvoiceDetails[]`/`invoiceDetails[]` của cùng response. |
+| invoices | `/invoices` | `includePayment=true&includeInvoiceDelivery=true&IncludeSaleChannel=true` | `lastModifiedFrom` | Live probe: total 23988→0. `fromPurchaseDate`/`toPurchaseDate` lọc theo *ngày bán*, không bắt được hóa đơn cũ bị **sửa**; dùng `lastModifiedFrom` cho checkpoint incremental. Line items nằm trong `InvoiceDetails[]`/`invoiceDetails[]` của cùng response. |
 | orders | `/orders` | `includePayment=true&includeOrderDelivery=true` | `lastModifiedFrom` | **Live probe: `fromOrderDate` bị API bỏ qua hoàn toàn (total không đổi khi set = ngày tương lai) — khác giả định ban đầu trong PlanDB-Phase1-Spec.md §9.1.** `lastModifiedFrom` được xác nhận hoạt động (total 34972→0). Dùng `lastModifiedFrom`, không dùng `fromOrderDate`/`toOrderDate`. |
 | returns | `/returns` | `includePayment=true` | `lastModifiedFrom` | Live probe: total 1348→0. Khớp cách `server/dashboard/stockoutCheck/stockoutEventLoader.js` đã gọi `client.fetchAllPages('returns', { lastModifiedFrom: fromDate }, ...)` trong production. |
 | purchases | `/purchaseorders` (**không phải** `/purchases`) | `includePayment=true&includeOrderDelivery=true` | `lastModifiedFrom` | Live probe: total 3276→0. `fromPurchaseDate`/`toPurchaseDate` cũng xác nhận hoạt động (đã dùng production ở `stockoutEventLoader.js`), nhưng dùng `lastModifiedFrom` để nhất quán và bắt được phiếu nhập cũ bị sửa. |
-| cash_flows | `/cashflow` | `includeAccount=true&includeBranch=true&includeUser=true` | `startDate` + `endDate` (**`lastModifiedFrom` bị API bỏ qua** — live probe xác nhận total không đổi) | Gọi **2 lần**: `isReceipt=true` và `isReceipt=false`, gộp kết quả. Nguồn: `CustomerDebtReport.gs:65-79` (production, cùng scope `PublicApi.Access` — không cần scope riêng, đã xác minh live). |
+| cash_flows | `/cashflow` | `includeAccount=true&includeBranch=true&includeUser=true` | `startDate` + `endDate` (**`lastModifiedFrom` bị API bỏ qua** — live probe xác nhận total không đổi) | Gọi **2 lần**: `isReceipt=true` và `isReceipt=false`, gộp kết quả; cùng scope `PublicApi.Access`. |
 | staff | *(không gọi endpoint riêng)* | — | — | Suy ra từ `SoldById`/`CreatedById`/`UserId`... trong response của invoices/orders/returns/purchases/cash_flows qua `staffSync.upsertStaffFromEntity()`. Quyết định giữ nguyên như spec dù `GET /users` đã xác nhận tồn tại (xem ghi chú bên dưới). |
 
 ## Ghi chú quan trọng: `GET /users`
@@ -100,6 +100,6 @@ vì giả vờ chia theo tháng trong khi API không thực sự hỗ trợ.
 
 ## Đã xác minh nhưng KHÔNG dùng trong Phase 1
 
-- `partnerType=C` trên `/cashflow` (lọc theo khách hàng, dùng trong `CustomerDebtReport.gs`) —
+- `partnerType=C` trên `/cashflow` (lọc theo khách hàng) —
   Phase 1 lấy **toàn bộ** `cash_flows` (cả khách hàng lẫn nhà cung cấp) vì bảng `cash_flows` có
   cả `customer_id` lẫn `supplier_id`, không lọc `partnerType` ở tầng sync.

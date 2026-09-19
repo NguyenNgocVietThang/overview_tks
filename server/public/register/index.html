@@ -320,7 +320,7 @@
         .then(function(res){ return res.json().then(function(body){ return {ok:res.ok, body:body}; }); })
         .then(function(result){
           if(!result.ok) throw new Error((result.body && result.body.error) || 'Đăng ký thất bại.');
-          window.location.href = '/shipment/';
+          window.location.href = '/account/';
         })
         .catch(function(err){
           showError(err.message || 'Đăng ký thất bại, vui lòng thử lại.');
@@ -330,10 +330,9 @@
     });
 
     fetch('/api/auth/me', {credentials:'same-origin'})
-      .then(function(res){ if(res.ok) window.location.href = '/shipment/'; })
+      .then(function(res){ if(res.ok) window.location.href = '/account/'; })
       .catch(function(){});
   </script>
   <script src="/shared/shooting-star.js?v=20260830"></script>
 </body>
 </html>
-

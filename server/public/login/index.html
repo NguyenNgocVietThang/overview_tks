@@ -348,7 +348,7 @@
         </div>
         <div>
           <h1>TOKOSI</h1>
-          <p>Báo cáo tổng hợp · Quản lý đơn hàng</p>
+          <p>Báo cáo tổng hợp · Quản lý vận hành</p>
         </div>
       </div>
 
@@ -566,7 +566,7 @@
     const lockoutAlertMsg = document.getElementById('lockoutAlertMsg');
 
     function landingUrl(user){
-      return user && user.vaiTro === 'Khách' ? '/shipment/' : getNextUrl();
+      return user && user.vaiTro === 'Khách' ? '/account/' : getNextUrl();
     }
 
     function showError(message){

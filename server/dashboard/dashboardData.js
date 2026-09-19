@@ -5,13 +5,13 @@
 // đơn/Đặt hàng/Trả hàng/Khách hàng/Nhà cung cấp/Nhập hàng) doc tu Supabase
 // Postgres qua dashboardPgReader.js — module do dung lai dung shape
 // `[header, ...rows]` cua Sheets nen toan bo logic tinh toan ben duoi KHONG
-// doi. Ba tab ky han no HN1/HN3/HN7 van doc tu Google Sheets (do Apps Script
-// tinh, chua co nguon Postgres tuong duong).
+// doi. Tap khach hang co giao dich 1/3/7 ngay doc tu Supabase qua
+// customerDebtActivityRepository, khong con phu thuoc cac tab HN1/HN3/HN7.
 // ==========================================
 const CONFIG = require('../config');
-const sheetsClient = require('../sheets/sheetsClient');
 const debtManagementSheetsClient = require('../sheets/debtManagementSheetsClient');
 const dashboardPgReader = require('./dashboardPgReader');
+const customerDebtActivityRepository = require('./customerDebtActivityRepository');
 const customerProductTopRepository = require('./customerProductTopRepository');
 const dashboardRollupRepository = require('./dashboardRollupRepository');
 const { BRANCHES } = require('../branch/branches');
@@ -301,14 +301,6 @@ function limitParentCategoryBars(categories) {
     productCount: remainingCategories.reduce((sum, category) => sum + category.productCount, 0)
   });
 }
-
-// HN1/HN3/HN7 do KiotViet tu quan ly; gop vao cung 1 lan batchGet de khong
-// tang so request goi Google Sheets API. Server CHI DOC, khong bao gio ghi.
-const DEBT_SHEETS = [
-  CONFIG.SHEET_DEBT_1,
-  CONFIG.SHEET_DEBT_3,
-  CONFIG.SHEET_DEBT_7
-];
 
 const SEARCH_SOURCES = {
   products: {
@@ -781,8 +773,7 @@ async function searchTopCustomersByProducts(rawQuery, filterSpec, now = new Date
 // Truoc day moi lan goi /api/dashboard deu batchGet lai TOAN BO cac sheet.
 // Gio moi tab co bo loc rieng nen client co the goi API thuong xuyen hon han
 // (moi lan doi bo loc o bat ky tab nao) — cache vai chuc giay de khong phai
-// quet lai toan bo bang Postgres (va khong dam vao han muc Google Sheets API
-// cho 3 tab HN1/HN3/HN7 con lai); tinh toan loc theo ngay van chay tren du
+// quet lai toan bo bang Postgres; tinh toan loc theo ngay van chay tren du
 // lieu da cache nen van nhanh va luon phan anh dung bo loc moi nhat.
 let dashboardSheetsCacheByBranch = new Map();
 
@@ -794,15 +785,15 @@ function dashboardSheetsCacheFor(branch) {
   return dashboardSheetsCacheByBranch.get(key);
 }
 
-// Fetch Postgres/Sheets that su, khong dong bo voi request nao ca — dung
+// Fetch Postgres that su, khong dong bo voi request nao ca — dung
 // chung cho ca duong "cho fetch xong" (cache rong/qua han qua lau) lan
 // duong "lam moi nen" (stale-while-revalidate, xem getCachedDashboardSheets).
 function fetchAndCacheDashboardSheets(branch, cache) {
   return Promise.all([
     dashboardPgReader.readDashboardSheets(branch),
-    sheetsClient.getSheetsClient(branch).getMultipleSheetValues(DEBT_SHEETS)
-  ]).then(([pgSheets, debtSheets]) => {
-    const sheets = { ...pgSheets, ...debtSheets };
+    customerDebtActivityRepository.readOperationalPeriods(branch)
+  ]).then(([pgSheets, debtPeriods]) => {
+    const sheets = { ...pgSheets, ...debtPeriods };
     cache.data = sheets;
     cache.version += 1;
     cache.expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
@@ -872,9 +863,9 @@ function dashboardCoreSheetsCacheFor(branch) {
 function fetchAndCacheDashboardCoreSheets(branch, cache) {
   return Promise.all([
     dashboardPgReader.readCoreDashboardSheets(branch),
-    sheetsClient.getSheetsClient(branch).getMultipleSheetValues(DEBT_SHEETS)
-  ]).then(([pgSheets, debtSheets]) => {
-    const sheets = { ...pgSheets, ...debtSheets };
+    customerDebtActivityRepository.readOperationalPeriods(branch)
+  ]).then(([pgSheets, debtPeriods]) => {
+    const sheets = { ...pgSheets, ...debtPeriods };
     cache.data = sheets;
     cache.version += 1;
     cache.expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
@@ -1860,9 +1851,9 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       ? CONFIG.DEBT_MANAGEMENT_SHEET_SG
       : CONFIG.DEBT_MANAGEMENT_SHEET_HN),
     operationalSheets: {
-      HN1: sheets[CONFIG.SHEET_DEBT_1],
-      HN3: sheets[CONFIG.SHEET_DEBT_3],
-      HN7: sheets[CONFIG.SHEET_DEBT_7]
+      HN1: sheets.HN1,
+      HN3: sheets.HN3,
+      HN7: sheets.HN7
     },
     workflowStatuses: debtWorkflow?.statuses || [],
     workflowAvailable: debtWorkflow?.available !== false,

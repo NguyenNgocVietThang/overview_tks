@@ -76,7 +76,7 @@ const requireAuth = createRequireAuth();
 
 /**
  * Bat buoc vai tro nam trong danh sach cho phep — PHAI dat sau requireAuth.
- * vd: router.post('/api/shipment/orders', requireAuth, requireRole('Quản lý', 'Kế toán'), handler)
+ * vd: router.post('/api/admin/action', requireAuth, requireRole('Quản lý', 'Kế toán'), handler)
  */
 function requireRole(...allowedRoles) {
   return function roleGuard(req, res, next) {

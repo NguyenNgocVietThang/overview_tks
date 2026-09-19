@@ -1,7 +1,7 @@
 // ==========================================
 // HR TELEGRAM BOT -- nhan dien tin nhan xin nghi phep bang AI (mot tin nhan
 // tu nhien), ghi thang vao Google Sheet nhan su qua hrLeaveRepository (khong
-// qua hang doi Apps Script).
+// qua hang doi trung gian).
 //
 // Che do: polling (khong can webhook cong khai/HTTPS moi).
 // State hoi thoai: ben ngoai (conversationStore, song sot qua restart).

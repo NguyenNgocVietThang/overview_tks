@@ -187,12 +187,9 @@
       })
       .then(function(user){
         var path = window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') || '/';
-        // '/shipment/lifecycle' cho phep Khach vao truc tiep de tra cuu don
-        // cua minh (Khu A cua trang nay danh cho moi vai tro, xem spec
-        // docs/superpowers/specs/2026-09-04-order-lifecycle-status-lookup.md).
-        var isGuestAllowed = (path === '/shipment' || path === '/shipment/lifecycle' || path === '/account');
+        var isGuestAllowed = (path === '/account');
         if(user.vaiTro === 'Khách' && !isGuestAllowed){
-          window.location.href = '/shipment/';
+          window.location.href = '/account/';
           return new Promise(function(){});
         }
         var isPurchasingAllowed = (path === '/humanresources' || path === '/account');
@@ -763,7 +760,6 @@
     if(!mountEl) return;
     mountEl.dataset.tksActiveTop = activeTop;
     var reportsActive = activeTop === 'reports';
-    var shipmentActive = activeTop === 'shipment';
     var accountActive = activeTop === 'account';
     var hrActive = activeTop === 'hr';
     var currentPath = (typeof window !== 'undefined' && window.location.pathname) ? window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') : '';
@@ -792,37 +788,6 @@
               '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + v.icon + '</svg>' +
               v.label + '</a>';
           }).join('') +
-        '</div>' +
-      '</div>';
-    // Nhom "Quan ly don hang" gom 2 tab con cua cung 1 trang /shipment/lifecycle/
-    // (Vong doi don hang + Lich su cap nhat, dieu huong bang hash). Trang tong
-    // quan /shipment/ khong con duoc trinh bay trong dieu huong.
-    var NO_SHIPMENT_ROLES = ['Nhân viên mua hàng'];
-    var isLifecyclePage = currentPath === '/shipment/lifecycle';
-    // Tab con cua "Vong doi don hang" dieu huong bang hash (giong pattern
-    // Nghi phep/Quy dinh cong ty o nhom "Quan ly nhan su" ben duoi): khong co
-    // hash (hoac hash la) -> "orders" (Toan bo don hang, mac dinh); "#history"
-    // -> "Lich su cap nhat".
-    var lifecycleHash = (isLifecyclePage && typeof window !== 'undefined' && window.location.hash) ? window.location.hash.replace('#', '') : '';
-    var isLifecycleHistoryTab = isLifecyclePage && lifecycleHash === 'history';
-    var isLifecycleOrdersTab = isLifecyclePage && !isLifecycleHistoryTab;
-    var shipmentExpanded = shipmentActive || TKSNav._isNavGroupOpen('shipment');
-    var shipmentLink = (user && NO_SHIPMENT_ROLES.indexOf(user.vaiTro) !== -1) ? '' :
-      '<div class="nav-group">' +
-        '<button type="button" class="nav-group-toggle' + (shipmentActive ? ' has-active' : '') + '" id="tksShipmentGroupToggle" data-tks-nav-group="shipment" aria-expanded="' + shipmentExpanded + '" aria-controls="tksShipmentGroupList">' +
-          '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle></svg>' +
-          '<span>Quản lý đơn hàng</span>' +
-          '<svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
-        '</button>' +
-        '<div class="nav-group-list" id="tksShipmentGroupList"' + (shipmentExpanded ? '' : ' hidden') + '>' +
-          '<a href="/shipment/lifecycle/" class="nav-item' + (isLifecycleOrdersTab ? ' active' : '') + '"' +
-            (isLifecycleOrdersTab ? ' aria-current="page"' : '') + ' data-shipment-subtab="orders">' +
-            '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15.5 14"></polyline></svg>' +
-            'Vòng đời đơn hàng</a>' +
-          '<a href="/shipment/lifecycle/#history" class="nav-item' + (isLifecycleHistoryTab ? ' active' : '') + '"' +
-            (isLifecycleHistoryTab ? ' aria-current="page"' : '') + ' data-shipment-subtab="history">' +
-            '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path></svg>' +
-            'Lịch sử cập nhật</a>' +
         '</div>' +
       '</div>';
     // Khach khong duoc xem du lieu nhan su noi bo (giong reportsLink) — an hoan toan.
@@ -884,7 +849,7 @@
           accountUsersSubItem +
         '</div>' +
       '</div>';
-    mountEl.innerHTML = reportsLink + shipmentLink + hrLink + accountLink;
+    mountEl.innerHTML = reportsLink + hrLink + accountLink;
   };
 
   // ---------- Chon co so (Ha Noi / Sai Gon) ----------

@@ -27,9 +27,6 @@ const PAGES = [
   { name: 'humanresources/index.html', file: 'humanresources/index.html' },
   { name: 'login/index.html', file: 'login/index.html' },
   { name: 'register/index.html', file: 'register/index.html' },
-  { name: 'shipment/index.html', file: 'shipment/index.html' },
-  { name: 'shipment/dispatch/index.html', file: 'shipment/dispatch/index.html' },
-  { name: 'shipment/mobile/index.html', file: 'shipment/mobile/index.html' },
   { name: '404.html', file: '404.html' }
 ];
 
@@ -169,13 +166,13 @@ test('stacking hierarchy keeps content above the background layer', () => {
 });
 
 test('pages with a sidebar still have valid navigation structure', () => {
-  ['index.html', 'account/index.html', 'shipment/index.html', 'shipment/dispatch/index.html'].forEach((file) => {
+  ['index.html', 'account/index.html'].forEach((file) => {
     assert.match(readPage(file), /id=["']sidebar["']/, `${file} must contain a sidebar element`);
   });
 });
 
 test('pages with tables still have valid table structure', () => {
-  ['index.html', 'account/index.html', 'shipment/index.html'].forEach((file) => {
+  ['index.html', 'account/index.html'].forEach((file) => {
     assert.match(readPage(file), /<tbody[\s>]/, `${file} must contain tbody elements`);
   });
 });

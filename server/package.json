@@ -2,7 +2,7 @@
   "name": "tokosi-dashboard-server",
   "version": "1.0.0",
   "private": true,
-  "description": "Node/Express backend for TOKOSI, reading separate Dashboard, Shipment and HR Google Sheets.",
+  "description": "Node/Express backend for TOKOSI Dashboard, Supabase and HR Google Sheets.",
   "main": "index.js",
   "engines": {
     "node": "22.x"
@@ -16,12 +16,8 @@
     "kiotviet-sync:preflight": "node kiotvietSync/preflightCheck.js",
     "kiotviet-sync:backfill": "node kiotvietSync/backfill.js",
     "kiotviet-sync:reconcile": "node kiotvietSync/reconcileCounts.js",
-    "sync:customer-report": "node jobs/syncCustomerReport.js",
-    "setup:users-sheet": "node scripts/setupUsersSheet.js",
-    "setup:vc-sheet": "node scripts/setupVcSheet.js",
     "setup:hr-sheet": "node scripts/setupHrSheet.js",
-    "migrate:user-branches": "node scripts/migrateUserBranches.js",
-    "backfill:users-hr": "node scripts/backfillUsersAndHrToPostgres.js"
+    "migrate:user-branches": "node scripts/migrateUserBranches.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
