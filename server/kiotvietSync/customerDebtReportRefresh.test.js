@@ -17,6 +17,7 @@ test('refresh công nợ 1/3/7 chạy cho từng cơ sở cấu hình', async ()
   assert.deepEqual(result, [{ branch: 'hanoi', rowCount: 4 }, { branch: 'saigon', rowCount: 4 }]);
   assert.match(__sql__.REFRESH_SQL, /customer_debt_activity_periods/);
   assert.match(__sql__.REFRESH_SQL, /VALUES \(1\), \(3\), \(7\)/);
+  assert.match(__sql__.REFRESH_SQL, /ON CONFLICT \(branch, period_days, customer_id\) DO UPDATE/);
 });
 
 test('scheduler đăng ký interval và fail-soft khi refresh lỗi', async () => {

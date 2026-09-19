@@ -65,8 +65,7 @@ function createPollingScheduler({
       // Rollup bao cao Dashboard (server/db/migrations/0013) - doc lap voi
       // polling KiotViet, nhung nhet chung khoi khoi dong nay (chi bat khi
       // KIOTVIET_SYNC_ENABLED=true) de khong can 1 co che enable/disable rieng.
-      startRollup({
-        pool: getPoolFn(),
+      startRollup(getPoolFn(), {
         intervalMs: dashboardRollupIntervalMs,
         setIntervalFn,
         log: logger.log ? logger.log.bind(logger) : logger

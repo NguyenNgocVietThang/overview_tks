@@ -24,7 +24,7 @@ test('scheduler creates independent fast and slow timers at configured intervals
     getConfiguredBranches:()=>[], setIntervalFn:(fn,ms)=>(timers.push({fn,ms}),ms),
     scheduleImmediate:(fn)=>immediate.push(fn),
     getPool:()=>'fake-pool',
-    startDashboardRollupSchedule:(opts)=>{rollupCalls.push(opts); return 'rollup-handle';},
+    startDashboardRollupSchedule:(pool,opts)=>{rollupCalls.push({pool,...opts}); return 'rollup-handle';},
     startCustomerDebtReportRefreshSchedule:(pool,opts)=>{debtReportCalls.push({pool,...opts}); return 'debt-report-handle';}
   });
   assert.deepEqual(scheduler.startPollingScheduler(), [7,20,'rollup-handle','debt-report-handle']);

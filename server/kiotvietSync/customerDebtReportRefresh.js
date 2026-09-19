@@ -40,7 +40,10 @@ const REFRESH_SQL = `
   INSERT INTO customer_debt_activity_periods
     (branch, period_days, customer_id, customer_name, refreshed_at)
   SELECT branch, period_days, customer_id, customer_name, now()
-  FROM current_rows`;
+  FROM current_rows
+  ON CONFLICT (branch, period_days, customer_id) DO UPDATE SET
+    customer_name = EXCLUDED.customer_name,
+    refreshed_at = EXCLUDED.refreshed_at`;
 
 async function refreshCustomerDebtReports(pool, {
   getConfiguredBranches: getBranches = getConfiguredBranches,
