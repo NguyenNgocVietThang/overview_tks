@@ -2,14 +2,15 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const CONFIG = require('../config');
-const { getPool } = require('../db/pool');
 const { createCheckpointRepository } = require('./checkpointRepository');
 
-test('checkpoint repository round-trips on configured Supabase', {
-  skip: CONFIG.SUPABASE_DB_URL ? false : 'SUPABASE_DB_URL chưa cấu hình — bỏ qua test tích hợp'
+const TEST_DB_URL = process.env.SUPABASE_TEST_DB_URL || '';
+
+test('checkpoint repository round-trips on dedicated test database', {
+  skip: TEST_DB_URL ? false : 'SUPABASE_TEST_DB_URL chưa cấu hình — bỏ qua test tích hợp'
 }, async (t) => {
-  const pool = getPool();
+  const { Pool } = require('pg');
+  const pool = new Pool({ connectionString: TEST_DB_URL });
   const repo = createCheckpointRepository({ pool });
   const client = await pool.connect();
   await client.query('BEGIN');
