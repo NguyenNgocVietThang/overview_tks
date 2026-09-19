@@ -5900,7 +5900,10 @@
 
     function updateSearchContext() {
       const context = SEARCH_CONTEXT[state.view] || SEARCH_CONTEXT.overview;
-      document.getElementById('dashboardSearchForm').hidden = state.view === 'debt';
+      // Tab công nợ không có ô tìm kiếm chung lẫn nhóm lọc nào, ẩn cả khung để không còn panel trống.
+      const hasNoGlobalFilters = state.view === 'debt';
+      document.getElementById('dashboardSearchForm').hidden = hasNoGlobalFilters;
+      document.getElementById('filterBar').hidden = hasNoGlobalFilters;
       document.getElementById('searchLabel').textContent = context.title;
       const input = document.getElementById('dashboardSearchInput');
       const isMultiCodeSearch = state.search.mode === 'codes';
