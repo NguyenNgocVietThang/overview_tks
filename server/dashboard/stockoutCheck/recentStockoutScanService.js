@@ -17,7 +17,7 @@ const DEFAULT_DAYS_BACK = 183;
 async function runRecentStockoutScanJob(jobStore, jobId, deps = {}) {
   const {
     sheetsClient,
-    client,
+    source,
     loadStockoutEvents = defaultLoadStockoutEvents,
     loadActiveCandidates = defaultLoadActiveCandidates,
     daysBack = DEFAULT_DAYS_BACK,
@@ -29,7 +29,7 @@ async function runRecentStockoutScanJob(jobStore, jobId, deps = {}) {
 
   try {
     jobStore.updateProgress(jobId, { progress: { phase: 1 } });
-    const { candidates: allActive, totalProductsScanned } = await loadActiveCandidates(client);
+    const { candidates: allActive, totalProductsScanned } = await loadActiveCandidates(source);
     // Giu nguyen ngu nghia cu cua "Hang dut gan day": chi bao cao ma DANG het
     // hang (ton kho hien tai = 0) va van con dut den hom nay.
     const candidates = allActive.filter((c) => c.currentOnHand === 0);
@@ -44,7 +44,7 @@ async function runRecentStockoutScanJob(jobStore, jobId, deps = {}) {
 
     const validCodeSet = new Set(candidates.map((c) => c.code));
     const { eventMapByCode, sources, warnings } = await loadStockoutEvents({
-      client,
+      source,
       sheetsClient,
       validCodeSet,
       fromDate: calculationFromDate,

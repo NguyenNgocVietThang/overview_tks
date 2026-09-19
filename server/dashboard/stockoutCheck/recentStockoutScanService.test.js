@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 const CONFIG = require('../../config');
 const { runRecentStockoutScanJob } = require('./recentStockoutScanService');
 const { createJobStore } = require('./jobManager');
+const { fakeStockoutSource } = require('./stockoutTestSource');
 
 function product(code, { name = code, onHand = 0, isActive = true, createdDate } = {}) {
   return { productCode: code, fullName: name, isActive, inventories: [{ onHand }], createdDate };
@@ -15,25 +16,6 @@ function product(code, { name = code, onHand = 0, isActive = true, createdDate }
 
 function invoice(dateKey, details) {
   return { status: 1, purchaseDate: `${dateKey}T08:00:00`, invoiceDetails: details };
-}
-
-function fakeClient(pagesByEndpoint = {}) {
-  return {
-    async fetchAllPages(endpoint, query, onPage) {
-      const pages = pagesByEndpoint[endpoint] || [[]];
-      let recordsLoaded = 0;
-      for (let index = 0; index < pages.length; index++) {
-        const page = pages[index];
-        if (page instanceof Error) throw page;
-        recordsLoaded += page.length;
-        await onPage(page, {
-          pagesLoaded: index + 1,
-          recordsLoaded,
-          total: pages.filter(item => Array.isArray(item)).reduce((sum, item) => sum + item.length, 0)
-        });
-      }
-    }
-  };
 }
 
 function fakeSheetsClient(sheets) {
@@ -63,33 +45,26 @@ test('chi lay ung vien dang kinh doanh va ton kho tong = 0', async () => {
       ['SP004', '05/01/2026 08:00:00', 1, 'Hoàn thành']
     ]
   });
-  const apiCalls = [];
-  const client = {
-    async fetchAllPages(endpoint, query, onPage) {
-      apiCalls.push({ endpoint, query });
-      if (endpoint === 'products') {
-        return onPage([
-          product('SP001', { name: 'Con hang', onHand: 3 }),
-          product('SP002', { name: 'Het hang, dang ban', onHand: 0 }),
-          product('SP003', { name: 'Het hang nhung ngung kinh doanh', onHand: 0, isActive: false }),
-          product('SP004', { name: 'Khong ghi isActive (mac dinh dang KD)', onHand: 0, isActive: undefined })
-        ], { pagesLoaded: 1, recordsLoaded: 4, total: 4 });
-      }
-      return onPage([], { pagesLoaded: 1, recordsLoaded: 0, total: 0 });
-    }
-  };
+  const source = fakeStockoutSource({
+    products: [[
+      product('SP001', { name: 'Con hang', onHand: 3 }),
+      product('SP002', { name: 'Het hang, dang ban', onHand: 0 }),
+      product('SP003', { name: 'Het hang nhung ngung kinh doanh', onHand: 0, isActive: false }),
+      product('SP004', { name: 'Khong ghi isActive (mac dinh dang KD)', onHand: 0, isActive: undefined })
+    ]]
+  });
 
-  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, minConsecutiveDays: 5, dataFromDateFloor: null });
+  await runRecentStockoutScanJob(store, jobId, { sheetsClient, source, todayKey: '2026-01-10', daysBack: 9, minConsecutiveDays: 5, dataFromDateFloor: null });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'done');
   const codes = job.result.rows.map((r) => r.code).sort();
   assert.deepEqual(codes, ['SP002', 'SP004']);
-  assert.deepEqual(apiCalls.map(call => call.endpoint), ['products', 'invoices', 'purchaseorders', 'returns']);
-  assert.equal(job.result.sources.invoices, 'kiotviet-api');
+  assert.deepEqual(source.calls.map(call => call.kind || call.method), ['listProducts', 'invoices', 'purchases', 'customerReturns', 'getSyncStatus']);
+  assert.equal(job.result.sources.invoices, 'postgres');
   assert.equal(job.result.sources.supplierReturns, 'google-sheets');
   // Sheet Tra NCC rong hoan toan trong fixture nay nen canh bao thieu du lieu
-  // xuat hien, khong lien quan gi den fallback API.
+  // xuat hien, khong lien quan gi den nguon Postgres.
   assert.equal(job.result.warnings.length, 1);
   assert.match(job.result.warnings[0], /Trả NCC/);
 });
@@ -98,7 +73,7 @@ test('ung vien het hang du 5 ngay lien tuc tinh den hom nay thi liet ke, chua du
   const store = createJobStore();
   const jobId = store.createJob();
   const sheetsClient = fakeSheetsClient(emptySupplierReturnsSheet());
-  const client = fakeClient({
+  const source = fakeStockoutSource({
     products: [[
       product('SP001', { name: 'Het 5 ngay', onHand: 0 }),
       product('SP002', { name: 'Het 2 ngay', onHand: 0 })
@@ -109,7 +84,7 @@ test('ung vien het hang du 5 ngay lien tuc tinh den hom nay thi liet ke, chua du
     ]]
   });
 
-  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, minConsecutiveDays: 5, dataFromDateFloor: null });
+  await runRecentStockoutScanJob(store, jobId, { sheetsClient, source, todayKey: '2026-01-10', daysBack: 9, minConsecutiveDays: 5, dataFromDateFloor: null });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'done');
@@ -124,11 +99,11 @@ test('ma khong co bat ky giao dich nao trong ky thi bi loai, du ton kho hien tai
   const store = createJobStore();
   const jobId = store.createJob();
   const sheetsClient = fakeSheetsClient(emptySupplierReturnsSheet());
-  const client = fakeClient({
+  const source = fakeStockoutSource({
     products: [[product('SP001', { name: 'Ton kho 0, khong dong tram', onHand: 0 })]]
   });
 
-  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, minConsecutiveDays: 5, dataFromDateFloor: null });
+  await runRecentStockoutScanJob(store, jobId, { sheetsClient, source, todayKey: '2026-01-10', daysBack: 9, minConsecutiveDays: 5, dataFromDateFloor: null });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'done');
@@ -139,14 +114,14 @@ test('ma co Ton kho hien tai = 0 nhung giao dich gan nhat la Nhap hang chua tieu
   const store = createJobStore();
   const jobId = store.createJob();
   const sheetsClient = fakeSheetsClient(emptySupplierReturnsSheet());
-  const client = fakeClient({
+  const source = fakeStockoutSource({
     products: [[product('SP001', { name: 'Ton kho chua kip cap nhat', onHand: 0 })]],
     // Nhap 400 ngay 05/09, khong co giao dich nao khac sau do — Ton kho
     // that su phai la 400, khong phai 0 nhu API dang bao (do webhook/polling tre).
     purchaseorders: [[{ status: 3, purchaseDate: '2026-09-05T16:14:00', purchaseOrderDetails: [{ productCode: 'SP001', quantity: 400 }] }]]
   });
 
-  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-09-08', daysBack: 183, minConsecutiveDays: 5, dataFromDateFloor: '2026-06-01' });
+  await runRecentStockoutScanJob(store, jobId, { sheetsClient, source, todayKey: '2026-09-08', daysBack: 183, minConsecutiveDays: 5, dataFromDateFloor: '2026-06-01' });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'done');
@@ -164,11 +139,11 @@ test('ma moi tao sau moc san khong bi bao dut hang truoc ngay no ton tai', async
       ['SP001', '04/08/2026 09:44:00', 1, 'Hoàn thành']
     ]
   });
-  const client = fakeClient({
+  const source = fakeStockoutSource({
     products: [[product('SP001', { name: 'Ma moi tao 04/08, chua tung co hang', onHand: 0, createdDate: '2026-08-04T09:44:00' })]]
   });
 
-  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-09-08', daysBack: 183, minConsecutiveDays: 5, dataFromDateFloor: '2026-06-01' });
+  await runRecentStockoutScanJob(store, jobId, { sheetsClient, source, todayKey: '2026-09-08', daysBack: 183, minConsecutiveDays: 5, dataFromDateFloor: '2026-06-01' });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'done');
@@ -178,36 +153,29 @@ test('ma moi tao sau moc san khong bi bao dut hang truoc ngay no ton tai', async
   assert.equal(job.result.rows[0].lastOutOfStockDate, '2026-08-04');
 });
 
-test('khong co ung vien nao thi tra ket qua rong, khong goi API tra hang', async () => {
+test('khong co ung vien nao thi tra ket qua rong, khong doc phieu tra hang', async () => {
   const store = createJobStore();
   const jobId = store.createJob();
-  let returnsApiCalled = false;
   const sheetsClient = fakeSheetsClient(emptySupplierReturnsSheet());
-  const client = {
-    async fetchAllPages(endpoint, query, onPage) {
-      if (endpoint === 'products') return onPage([product('SP001', { name: 'Con hang', onHand: 10 })], { pagesLoaded: 1, recordsLoaded: 1, total: 1 });
-      if (endpoint === 'returns') returnsApiCalled = true;
-      return onPage([], { pagesLoaded: 1, recordsLoaded: 0, total: 0 });
-    }
-  };
+  const source = fakeStockoutSource({ products: [[product('SP001', { name: 'Con hang', onHand: 10 })]] });
 
-  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null });
+  await runRecentStockoutScanJob(store, jobId, { sheetsClient, source, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'done');
   assert.deepEqual(job.result.rows, []);
   assert.equal(job.result.totalCandidates, 0);
-  assert.equal(returnsApiCalled, false);
+  assert.equal(source.calls.some(call => call.kind === 'customerReturns'), false);
 });
 
 test('ket qua luu lai co so luc quet (branch) de xuat Excel dung ten du sau do doi co so', async () => {
   const store = createJobStore();
   const jobId = store.createJob();
   const sheetsClient = fakeSheetsClient(emptySupplierReturnsSheet());
-  const client = fakeClient({ products: [[product('SP001', { name: 'Con hang', onHand: 10 })]] });
+  const source = fakeStockoutSource({ products: [[product('SP001', { name: 'Con hang', onHand: 10 })]] });
 
   await runRecentStockoutScanJob(store, jobId, {
-    sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null, branch: 'Sài Gòn'
+    sheetsClient, source, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null, branch: 'Sài Gòn'
   });
 
   const job = store.getJob(jobId);
@@ -218,40 +186,40 @@ test('loi khi doc Google Sheets (Tra NCC) thi job chuyen sang status error', asy
   const store = createJobStore();
   const jobId = store.createJob();
   const sheetsClient = { async getMultipleSheetValues() { throw new Error('Google Sheets timeout'); } };
-  const client = fakeClient({ products: [[product('SP001', { onHand: 0 })]] });
+  const source = fakeStockoutSource({ products: [[product('SP001', { onHand: 0 })]] });
 
-  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null });
+  await runRecentStockoutScanJob(store, jobId, { sheetsClient, source, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'error');
   assert.match(job.error.message, /Google Sheets timeout/);
 });
 
-test('loi khi goi API san pham thi job chuyen sang status error', async () => {
+test('loi khi doc san pham tu Postgres thi job chuyen sang status error', async () => {
   const store = createJobStore();
   const jobId = store.createJob();
   const sheetsClient = fakeSheetsClient(emptySupplierReturnsSheet());
-  const client = fakeClient({ products: [new Error('KiotViet products API timeout')] });
+  const source = fakeStockoutSource({ products: [new Error('products db timeout')] });
 
-  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null });
+  await runRecentStockoutScanJob(store, jobId, { sheetsClient, source, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'error');
-  assert.match(job.error.message, /KiotViet products API timeout/);
+  assert.match(job.error.message, /products db timeout/);
 });
 
-test('loi khi goi API tra hang thi job chuyen sang status error', async () => {
+test('loi khi doc phieu tra hang tu Postgres thi job chuyen sang status error', async () => {
   const store = createJobStore();
   const jobId = store.createJob();
   const sheetsClient = fakeSheetsClient(emptySupplierReturnsSheet());
-  const client = fakeClient({
+  const source = fakeStockoutSource({
     products: [[product('SP001', { name: 'A', onHand: 0 })]],
-    returns: [new Error('KiotViet returns API timeout')]
+    returns: [new Error('returns db timeout')]
   });
 
-  await runRecentStockoutScanJob(store, jobId, { sheetsClient, client, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null });
+  await runRecentStockoutScanJob(store, jobId, { sheetsClient, source, todayKey: '2026-01-10', daysBack: 9, dataFromDateFloor: null });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'error');
-  assert.match(job.error.message, /KiotViet returns API timeout/);
+  assert.match(job.error.message, /returns db timeout/);
 });

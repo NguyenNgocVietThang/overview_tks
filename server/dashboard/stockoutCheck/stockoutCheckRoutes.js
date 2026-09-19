@@ -7,32 +7,10 @@ const router = express.Router();
 const { createJobStore } = require('./jobManager');
 const recentStockoutScanService = require('./recentStockoutScanService');
 const stockout90dScanService = require('./stockout90dScanService');
-const { createKiotVietClient } = require('../../kiotviet/kiotVietApiClient');
+const { createStockoutPgSource } = require('./stockoutPgSource');
 const sheetsClient = require('../../sheets/sheetsClient');
-const { BRANCHES } = require('../../branch/branches');
 
 const jobStore = createJobStore();
-
-// Moi co so la mot gian hang KiotViet rieng (CHhanoi / CHsaigon). Sai Gon dung
-// bien *_SG, thieu bien nao thi lay bien goc (truong hop dung chung 1 tai khoan
-// KiotViet cho ca hai gian hang). Thieu ten gian hang Sai Gon => 503 giong cac
-// nguon du lieu khac chua duoc cau hinh.
-function readKiotVietConfig(branch) {
-  const isSaigon = branch === BRANCHES.SAIGON;
-  const clientId = (isSaigon && process.env.KIOTVIET_CLIENT_ID_SG) || process.env.KIOTVIET_CLIENT_ID;
-  const clientSecret = (isSaigon && process.env.KIOTVIET_CLIENT_SECRET_SG) || process.env.KIOTVIET_CLIENT_SECRET;
-  const retailer = isSaigon ? process.env.KIOTVIET_RETAILER_SG : process.env.KIOTVIET_RETAILER;
-  if (isSaigon && !retailer) {
-    const err = new Error('Cơ sở Sài Gòn chưa được cấu hình gian hàng KiotViet (KIOTVIET_RETAILER_SG).');
-    err.code = 'BRANCH_NOT_CONFIGURED';
-    err.statusCode = 503;
-    throw err;
-  }
-  if (!clientId || !clientSecret || !retailer) {
-    throw new Error('Thiếu cấu hình KIOTVIET_CLIENT_ID / KIOTVIET_CLIENT_SECRET / KIOTVIET_RETAILER.');
-  }
-  return { clientId, clientSecret, retailer };
-}
 
 function buildStockoutProgressResponse(job, initialLabel) {
   const progress = job.progress || {};
@@ -41,7 +19,7 @@ function buildStockoutProgressResponse(job, initialLabel) {
   if (phase === 2 && progress.sourceLabel) {
     phaseLabel = progress.source === 'supplierReturns'
       ? `Đang tải ${progress.sourceLabel} từ Google Sheets`
-      : `Đang tải ${progress.sourceLabel} từ API KiotViet`;
+      : `Đang đọc ${progress.sourceLabel} từ cơ sở dữ liệu`;
   }
   return {
     phase,
@@ -54,12 +32,12 @@ function buildStockoutProgressResponse(job, initialLabel) {
 
 router.post('/api/products/stockout-recent/scan', async (req, res) => {
   try {
-    const client = createKiotVietClient(readKiotVietConfig(req.branch));
+    const source = createStockoutPgSource({ branch: req.branch });
     const branchSheetsClient = sheetsClient.getSheetsClient(req.branch);
     const jobId = jobStore.createJob();
     res.status(202).json({ jobId });
 
-    recentStockoutScanService.runRecentStockoutScanJob(jobStore, jobId, { client, sheetsClient: branchSheetsClient, branch: req.branch }).catch((err) => {
+    recentStockoutScanService.runRecentStockoutScanJob(jobStore, jobId, { source, sheetsClient: branchSheetsClient, branch: req.branch }).catch((err) => {
       jobStore.setError(jobId, { message: err.message, code: 'UNEXPECTED_ERROR' });
     });
   } catch (err) {
@@ -101,12 +79,12 @@ router.get('/api/products/stockout-recent/:jobId/result', (req, res) => {
 
 router.post('/api/products/stockout-90d/scan', async (req, res) => {
   try {
-    const client = createKiotVietClient(readKiotVietConfig(req.branch));
+    const source = createStockoutPgSource({ branch: req.branch });
     const branchSheetsClient = sheetsClient.getSheetsClient(req.branch);
     const jobId = jobStore.createJob();
     res.status(202).json({ jobId });
 
-    stockout90dScanService.runStockout90dScanJob(jobStore, jobId, { client, sheetsClient: branchSheetsClient, branch: req.branch }).catch((err) => {
+    stockout90dScanService.runStockout90dScanJob(jobStore, jobId, { source, sheetsClient: branchSheetsClient, branch: req.branch }).catch((err) => {
       jobStore.setError(jobId, { message: err.message, code: 'UNEXPECTED_ERROR' });
     });
   } catch (err) {

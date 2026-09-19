@@ -2,120 +2,99 @@
 
 const CONFIG = require('../../config');
 const {
-  accumulateInvoiceEvents,
-  accumulatePurchaseOrderEvents,
-  accumulateReturnEvents,
-  isCompletedPurchaseOrder
-} = require('./timelineBuilder');
-const {
   mergeEventMaps,
   buildSupplierReturnEventMapFromSheets,
   findEarliestSheetDateKey
 } = require('./sheetTimelineBuilder');
 
-const API_SOURCE = 'kiotviet-api';
+const DB_SOURCE = 'postgres';
 const SHEET_SOURCE = 'google-sheets';
 
-function isCompletedInvoice(item) {
-  return Number(item && item.status) === 1;
-}
+// Lan dong bo thanh cong gan nhat cua 1 thuc the cu hon moc nay thi ket qua quet
+// (doc tu Postgres) co the thieu giao dich moi — bo dong bo chay moi ~7-20 phut
+// nen 60 phut la dau hieu dong bo dang loi/dung.
+const STALE_SYNC_THRESHOLD_MS = 60 * 60 * 1000;
 
-function isCompletedReturn(item) {
-  return Number(item && item.status) === 1;
-}
+const SYNC_ENTITY_LABELS = {
+  products: 'Hàng hóa',
+  invoices: 'Hóa đơn',
+  purchases: 'Nhập hàng',
+  returns: 'Khách trả hàng'
+};
 
-function validateDetailedPage(items, { label, isCompleted, dateField, detailsField }) {
-  if (!Array.isArray(items)) throw new Error(`${label}: dữ liệu phân trang không phải mảng.`);
-  for (const item of items) {
-    if (!isCompleted(item)) continue;
-    if (!item || !item[dateField]) throw new Error(`${label}: thiếu ${dateField}.`);
-    if (!Array.isArray(item[detailsField])) throw new Error(`${label}: thiếu ${detailsField}.`);
-    for (const detail of item[detailsField]) {
-      if (!String(detail && detail.productCode || '').trim()) {
-        throw new Error(`${label}: chi tiết thiếu productCode.`);
-      }
-      if (!Number.isFinite(Number(detail.quantity))) {
-        throw new Error(`${label}: chi tiết có quantity không hợp lệ.`);
-      }
-    }
-  }
-}
+// Delta ton kho theo tung loai chung tu: ban ra tru, nhap/khach tra cong.
+const MOVEMENT_SOURCES = [
+  { kind: 'invoices', label: 'Hóa đơn', sign: -1 },
+  { kind: 'purchases', label: 'Nhập hàng', sign: 1 },
+  { kind: 'customerReturns', label: 'Khách trả hàng', sign: 1 }
+];
 
-// Khong con fallback Sheets cho bat ky nguon nao ngoai Tra NCC (khong co API
-// cong khai) — API loi thi bao loi that, khong am tham dung du lieu Sheet co
-// the da loi thoi (xem stockout_calc bugs: Sheet phu thuoc webhook, co the
-// dung yen hang gio/ngay ma khong co dau hieu).
-function wrapApiError(label, err) {
-  const wrapped = new Error(`API ${label} lỗi: ${err && err.message ? err.message : 'không rõ nguyên nhân'}`);
-  wrapped.code = 'STOCKOUT_API_SOURCE_UNAVAILABLE';
+function wrapDbError(label, err) {
+  const wrapped = new Error(`Đọc ${label} từ cơ sở dữ liệu lỗi: ${err && err.message ? err.message : 'không rõ nguyên nhân'}`);
+  wrapped.code = 'STOCKOUT_DB_SOURCE_UNAVAILABLE';
   wrapped.cause = err;
   return wrapped;
 }
 
+function buildSyncFreshnessWarnings(syncStatus, now) {
+  const warnings = [];
+  for (const { entity, lastSuccessAt } of syncStatus) {
+    const label = SYNC_ENTITY_LABELS[entity] || entity;
+    const syncedMs = lastSuccessAt ? new Date(lastSuccessAt).getTime() : NaN;
+    if (!Number.isFinite(syncedMs)) {
+      warnings.push(`Dữ liệu ${label} chưa từng được đồng bộ từ KiotViet; kết quả có thể thiếu giao dịch.`);
+    } else if (now.getTime() - syncedMs > STALE_SYNC_THRESHOLD_MS) {
+      const minutes = Math.round((now.getTime() - syncedMs) / 60000);
+      warnings.push(`Dữ liệu ${label} đồng bộ lần cuối cách đây ${minutes} phút; kết quả có thể thiếu giao dịch mới.`);
+    }
+  }
+  return warnings;
+}
+
 async function loadStockoutEvents(options) {
   const {
-    client,
+    source,
     sheetsClient,
     validCodeSet,
     fromDate,
     toDate,
+    now = new Date(),
     onProgress = () => {}
   } = options;
 
   const eventMapByCode = new Map();
   const warnings = [];
   const sources = {
-    invoices: API_SOURCE,
-    purchases: API_SOURCE,
-    customerReturns: API_SOURCE,
+    invoices: DB_SOURCE,
+    purchases: DB_SOURCE,
+    customerReturns: DB_SOURCE,
     supplierReturns: SHEET_SOURCE
   };
 
-  async function loadApiSource({ source, label, endpoint, query, validation, accumulate }) {
-    const temporary = new Map();
-    onProgress({ source, label, status: 'loading', pagesLoaded: 0, recordsLoaded: 0, total: 0 });
+  // Khong con fallback Google Sheets cho bat ky nguon nao ngoai Tra NCC (khong
+  // co bang trong Postgres) — doc DB loi thi bao loi that, khong am tham dung
+  // du lieu Sheet co the da loi thoi.
+  for (const { kind, label, sign } of MOVEMENT_SOURCES) {
+    onProgress({ source: kind, label, status: 'loading', pagesLoaded: 0, recordsLoaded: 0, total: 0 });
+    let movements;
     try {
-      await client.fetchAllPages(endpoint, query, async (items, meta) => {
-        validateDetailedPage(items, validation);
-        accumulate(temporary, items, validCodeSet, fromDate, toDate);
-        onProgress({ source, label, status: 'loading', ...meta });
-      });
+      movements = await source.listStockMovements({ kind, codes: validCodeSet, fromDate, toDate });
     } catch (err) {
-      throw wrapApiError(label, err);
+      throw wrapDbError(label, err);
     }
-    onProgress({ source, label, status: 'done' });
-    return temporary;
+    for (const { code, dateKey, quantity } of movements) {
+      if (!validCodeSet.has(code)) continue;
+      if (!eventMapByCode.has(code)) eventMapByCode.set(code, []);
+      eventMapByCode.get(code).push({ dateKey, delta: sign * quantity, source: kind });
+    }
+    onProgress({ source: kind, label, status: 'done' });
   }
 
-  const invoiceEvents = await loadApiSource({
-    source: 'invoices',
-    label: 'Hóa đơn',
-    endpoint: 'invoices',
-    query: { fromPurchaseDate: fromDate, toPurchaseDate: toDate },
-    validation: { label: 'Hóa đơn', isCompleted: isCompletedInvoice, dateField: 'purchaseDate', detailsField: 'invoiceDetails' },
-    accumulate: accumulateInvoiceEvents
-  });
-  mergeEventMaps(eventMapByCode, invoiceEvents);
-
-  const purchaseEvents = await loadApiSource({
-    source: 'purchases',
-    label: 'Nhập hàng',
-    endpoint: 'purchaseorders',
-    query: { fromPurchaseDate: fromDate, toPurchaseDate: toDate, status: '3' },
-    validation: { label: 'Nhập hàng', isCompleted: isCompletedPurchaseOrder, dateField: 'purchaseDate', detailsField: 'purchaseOrderDetails' },
-    accumulate: accumulatePurchaseOrderEvents
-  });
-  mergeEventMaps(eventMapByCode, purchaseEvents);
-
-  const returnEvents = await loadApiSource({
-    source: 'customerReturns',
-    label: 'Khách trả hàng',
-    endpoint: 'returns',
-    query: { lastModifiedFrom: fromDate },
-    validation: { label: 'Khách trả hàng', isCompleted: isCompletedReturn, dateField: 'returnDate', detailsField: 'returnDetails' },
-    accumulate: accumulateReturnEvents
-  });
-  mergeEventMaps(eventMapByCode, returnEvents);
+  try {
+    warnings.push(...buildSyncFreshnessWarnings(await source.getSyncStatus(), now));
+  } catch (err) {
+    throw wrapDbError('trạng thái đồng bộ', err);
+  }
 
   onProgress({ source: 'supplierReturns', label: 'Trả NCC', status: 'loading' });
   const supplierReturnSheets = await sheetsClient.getMultipleSheetValues([CONFIG.SHEET_SUPPLIER_RETURNS]);
@@ -142,5 +121,6 @@ async function loadStockoutEvents(options) {
 
 module.exports = {
   loadStockoutEvents,
-  validateDetailedPage
+  buildSyncFreshnessWarnings,
+  STALE_SYNC_THRESHOLD_MS
 };
