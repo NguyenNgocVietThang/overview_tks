@@ -1,83 +1,41 @@
 // ==========================================
-// HR LEAVE REPOSITORY — CRUD cho 2 tab nhan su:
-//   - "Yêu cầu nghỉ phép" (du lieu chinh)
-//   - "_HR_TELEGRAM_LINKS" (lien ket chat_id Telegram <-> tai khoan web, an)
+// HR LEAVE REPOSITORY — bang Postgres `hr_leave_requests` (migration 0016).
 //
-// Theo mau repository/service/routes cua Phase 1B (vcOrderRepository.js):
-// SCHEMA anh xa header Tieng Viet <-> fieldKeys, doc/ghi qua hrSheetsClient.
+// Web chi doc + tao ban ghi nhap tay ("tu y nghi") + doi trang thai phe duyet.
+// Don do bot Telegram (chay ngoai repo nay) tu INSERT thang vao cung bang;
+// lien ket Telegram (`hr_telegram_links`) va phien hoi thoai
+// (`hr_telegram_sessions`) do bot so huu hoan toan — web khong doc/ghi.
+//
+// Hinh dang ban ghi tra ve GIU NGUYEN nhu thoi con Google Sheets (chuoi
+// "Sáng 22/08/2026" cho moc nghi, co_* la boolean...) de frontend/Excel export
+// khong phai doi; cot that trong DB la ngay + buoi rieng (xem migration).
 // ==========================================
 'use strict';
 
 const CONFIG = require('../config');
-// Moi ham nghiep vu nhan `branch` (tham so CUOI, mac dinh = Ha Noi) roi lay
-// client cua dung co so — hai co so dung hai spreadsheet nhan su rieng.
-const hrClient = require('../sheets/hrSheetsClient');
-const { invalidateHrSheetCache } = hrClient;
+const { getPool } = require('../db/pool');
+const { BRANCHES, branchLabelToCode } = require('../branch/branches');
 
-// Chuan hoa chuoi tim theo ten: bo dau cach thua/dau/cuoi, gop nhieu khoang
-// trang lien tiep thanh 1, roi ha chu — de "  Nguyen   Van A" va "nguyen van a"
-// khop cung mot ket qua.
-function normalizeNameQuery(value) {
-  return String(value || '')
-    .normalize('NFC')
-    .replace(/\s+/gu, ' ')
-    .trim()
-    .toLocaleLowerCase('vi-VN');
-}
+// Thu tu = thu tu cot trong file Excel xuat ra (hrLeaveExportService.js).
+const LEAVE_SCHEMA_HEADERS = [
+  'Mã yêu cầu', 'Telegram chat_id', 'Telegram username', 'Tài khoản web',
+  'Họ tên', 'Chức vụ', 'Lý do nghỉ', 'Loại yêu cầu',
+  'Thời gian gửi', 'Thời gian bắt đầu', 'Thời gian kết thúc',
+  'Tổng buổi nghỉ', 'Tổng ngày nghỉ quy đổi', 'Người bàn giao',
+  'Trạng thái phê duyệt', 'Người phê duyệt', 'Thời điểm phê duyệt', 'Ghi chú/lý do từ chối',
+  'Cờ nghỉ gấp', 'Cờ tự ý nghỉ', 'Thời gian tạo', 'Cập nhật lần cuối',
+  'Tin nhắn'
+];
 
-// ---- Schema -------------------------------------------------------------
-
-const LEAVE_SCHEMA = {
-  sheet: () => CONFIG.HR_SHEET_LEAVE_REQUESTS,
-  headers: [
-    'Mã yêu cầu', 'Telegram chat_id', 'Telegram username', 'Tài khoản web',
-    'Họ tên', 'Chức vụ', 'Lý do nghỉ', 'Loại yêu cầu',
-    'Thời gian gửi', 'Thời gian bắt đầu', 'Thời gian kết thúc',
-    'Tổng buổi nghỉ', 'Tổng ngày nghỉ quy đổi', 'Người bàn giao',
-    'Trạng thái phê duyệt', 'Người phê duyệt', 'Thời điểm phê duyệt', 'Ghi chú/lý do từ chối',
-    'Cờ nghỉ gấp', 'Cờ tự ý nghỉ', 'Thời gian tạo', 'Cập nhật lần cuối',
-    'Tin nhắn'
-  ],
-  fieldKeys: [
-    'request_id', 'telegram_chat_id', 'telegram_username', 'web_username',
-    'ho_ten', 'chuc_vu', 'ly_do', 'loai_yeu_cau',
-    'thoi_gian_gui', 'thoi_gian_bat_dau', 'thoi_gian_ket_thuc',
-    'tong_buoi_nghi', 'tong_ngay_nghi', 'nguoi_ban_giao',
-    'trang_thai', 'nguoi_duyet', 'thoi_diem_duyet', 'ghi_chu_duyet',
-    'co_nghi_gap', 'co_tu_y_nghi', 'created_at', 'updated_at',
-    'tin_nhan'
-  ]
-};
-
-const LINK_SCHEMA = {
-  sheet: () => CONFIG.HR_SHEET_TELEGRAM_LINKS,
-  headers: [
-    'Mã liên kết', 'Tài khoản web', 'Trạng thái', 'Telegram chat_id',
-    'Telegram username', 'Thời gian tạo', 'Thời gian hết hạn', 'Thời gian liên kết',
-    'User ID'
-  ],
-  fieldKeys: [
-    'link_code', 'web_username', 'status', 'telegram_chat_id',
-    'telegram_username', 'created_at', 'expires_at', 'linked_at',
-    'user_id'
-  ]
-};
-
-// Ban sao du phong cua conversationStore.js (RAM + file dia cuc bo) — dia
-// cuc bo tren Render la ephemeral, mat sach moi khi container restart/deploy
-// (xem localUserStore.js), khien hoi thoai xin nghi dang do dang bi "quen"
-// giua chung va bot lai hoi lai danh tinh nhu tin nhan mo dau. Tab nay chi
-// duoc doc/ghi khi isTelegramSessionSheetSyncEnabled() bat (mac dinh: chi
-// Render) de khong dam vao spreadsheet that tu may local/test.
-const SESSION_SCHEMA = {
-  sheet: () => CONFIG.HR_SHEET_TELEGRAM_SESSIONS,
-  headers: ['Telegram chat_id', 'Cập nhật lần cuối', 'Dữ liệu hội thoại (JSON)'],
-  fieldKeys: ['telegram_chat_id', 'updated_at', 'conv_json']
-};
-
-function escapeUserEnteredFormula(value) {
-  return typeof value === 'string' && /^\s*[=+\-@]/.test(value) ? `'${value}` : value;
-}
+const LEAVE_SCHEMA_FIELD_KEYS = [
+  'request_id', 'telegram_chat_id', 'telegram_username', 'web_username',
+  'ho_ten', 'chuc_vu', 'ly_do', 'loai_yeu_cau',
+  'thoi_gian_gui', 'thoi_gian_bat_dau', 'thoi_gian_ket_thuc',
+  'tong_buoi_nghi', 'tong_ngay_nghi', 'nguoi_ban_giao',
+  'trang_thai', 'nguoi_duyet', 'thoi_diem_duyet', 'ghi_chu_duyet',
+  'co_nghi_gap', 'co_tu_y_nghi', 'created_at', 'updated_at',
+  'tin_nhan'
+];
 
 const LEAVE_TYPE = Object.freeze({
   REQUEST: 'Xin nghỉ phép',
@@ -92,12 +50,10 @@ const LEAVE_STATUS = Object.freeze({
   VIOLATION: 'Vi phạm'
 });
 
-const LINK_STATUS = Object.freeze({
-  UNUSED: 'CHUA_SU_DUNG',
-  LINKED: 'DA_LIEN_KET',
-  EXPIRED: 'HET_HAN',
-  REPLACED: 'DA_THAY_THE'
-});
+const SESSIONS = Object.freeze(['Sáng', 'Chiều']);
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const ISO_MONTH = /^\d{4}-\d{2}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ---- Loi nghiep vu (statusCode < 500 duoc handleError() o routes tra thang) ---
 
@@ -109,444 +65,260 @@ class HrError extends Error {
   }
 }
 
-// ---- Utility chung: doc toan bo 1 tab thanh mang object theo fieldKeys -------
+// ---- Tien ich -------------------------------------------------------------
 
-function rowToObject(row, fieldKeys) {
-  const obj = {};
-  fieldKeys.forEach((key, i) => { obj[key] = row[i] !== undefined ? row[i] : ''; });
-  return obj;
+// Chuan hoa chuoi tim theo ten: gop khoang trang, ha chu — de "  Nguyen   Van A"
+// va "nguyen van a" khop nhau. Loc o JS (khong o SQL) vi lower()/ILIKE cua
+// Postgres phu thuoc collation cua DB va co the khong ha chu duoc tieng Viet.
+function normalizeNameQuery(value) {
+  return String(value || '')
+    .normalize('NFC')
+    .replace(/\s+/gu, ' ')
+    .trim()
+    .toLocaleLowerCase('vi-VN');
 }
 
-function objectToRow(obj, fieldKeys) {
-  return fieldKeys.map(key => {
-    const v = obj[key];
-    if (v === undefined || v === null) return '';
-    if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
-    return v;
-  });
+function toBranchCode(branch) {
+  const code = branchLabelToCode(branch || BRANCHES.HANOI);
+  if (!code) throw new HrError(`Cơ sở không hợp lệ: "${branch}".`, 400, 'INVALID_BRANCH');
+  return code;
 }
 
-function objectToLeaveRow(record) {
-  const row = objectToRow(record, LEAVE_SCHEMA.fieldKeys);
-  row[LEAVE_SCHEMA.fieldKeys.indexOf('tin_nhan')] = escapeUserEnteredFormula(record.tin_nhan);
-  return row;
+// Tai khoan hard-code (admin) co the khong co id dang UUID -> luu NULL thay vi
+// de Postgres nem loi 22P02.
+function uuidOrNull(value) {
+  const text = String(value || '').trim();
+  return UUID.test(text) ? text : null;
 }
 
-/**
- * Doc toan bo tab, tra ve { rows: [{...obj, _rowIndex}], headers }.
- * _rowIndex la vi tri dong 1-based tren Sheet that (2 = dong du lieu dau tien),
- * dung cho hrUpdateRow.
- */
-async function readAll(schema, branch) {
-  const values = await hrClient.getHrClient(branch).hrGetValues(schema.sheet());
-  if (!values || values.length === 0) return [];
-  const dataRows = values.slice(1);
-  return dataRows
-    .map((row, i) => ({ row, rowIndex: i + 2 }))
-    .filter(({ row }) => row.some(cell => cell !== '' && cell !== undefined))
-    .map(({ row, rowIndex }) => Object.assign(rowToObject(row, schema.fieldKeys), { _rowIndex: rowIndex }));
-}
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function generateRequestId() {
-  const stamp = new Date();
-  const y = stamp.getFullYear();
-  const m = String(stamp.getMonth() + 1).padStart(2, '0');
-  const d = String(stamp.getDate()).padStart(2, '0');
-  const rand = Math.floor(Math.random() * 9000 + 1000);
-  return `NP-${y}${m}${d}-${rand}`;
-}
-
-function generateLinkCode() {
-  return String(Math.floor(Math.random() * 900000 + 100000)); // 6 chu so
-}
-
-function submissionDateKey(value) {
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return '';
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Bangkok',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(date);
-  const get = type => parts.find(part => part.type === type)?.value || '';
-  return `${get('year')}-${get('month')}-${get('day')}`;
-}
-
-function extractIsoDateFromBoundary(value) {
-  if (!value) return null;
-  const str = String(value).trim();
-  const match = str.match(/(?:Sáng|Chiều)?\s*(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/i);
-  if (match) {
-    const day = String(match[1]).padStart(2, '0');
-    const month = String(match[2]).padStart(2, '0');
-    const year = match[3];
-    return `${year}-${month}-${day}`;
+function isoDateOrThrow(value, field) {
+  const text = String(value || '').trim().slice(0, 10);
+  if (!ISO_DATE.test(text)) {
+    throw new HrError(`"${field}" phải có dạng YYYY-MM-DD.`, 400, 'INVALID_DATE');
   }
-  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoMatch) {
-    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-  }
-  return null;
+  return text;
 }
 
-// ---- Leave requests -------------------------------------------------------
+function toIso(value) {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : '';
+}
 
-/**
- * @param {Object} filters { status, employee, from, to } — from/to dạng 'YYYY-MM-DD', lọc theo ngày xin nghỉ thực tế
- */
-async function getLeaveRequests(filters, branch) {
-  filters = filters || {};
-  let items = await readAll(LEAVE_SCHEMA, branch);
+// 'YYYY-MM-DD' (DATE::text) + buoi -> 'Sáng 22/08/2026'.
+function boundaryLabel(isoDate, session) {
+  const [year, month, day] = String(isoDate).split('-');
+  return `${session} ${day}/${month}/${year}`;
+}
 
-  if (filters.status) {
-    items = items.filter(item => item.trang_thai === filters.status);
-  }
-  if (filters.employee) {
-    const needle = normalizeNameQuery(filters.employee);
-    items = items.filter(item =>
-      normalizeNameQuery(item.ho_ten).includes(needle) ||
-      normalizeNameQuery(item.web_username).includes(needle)
+const SELECT_COLUMNS = `
+  request_id, telegram_chat_id, telegram_username, web_username,
+  ho_ten, chuc_vu, ly_do, loai_yeu_cau, thoi_gian_gui,
+  start_date::text AS start_date, start_session,
+  end_date::text AS end_date, end_session,
+  tong_buoi_nghi, tong_ngay_nghi, nguoi_ban_giao,
+  trang_thai, nguoi_duyet, thoi_diem_duyet, ghi_chu_duyet,
+  co_nghi_gap, co_tu_y_nghi, created_at, updated_at, tin_nhan`;
+
+function rowToRequest(row) {
+  return {
+    request_id: row.request_id,
+    telegram_chat_id: row.telegram_chat_id || '',
+    telegram_username: row.telegram_username || '',
+    web_username: row.web_username || '',
+    ho_ten: row.ho_ten || '',
+    chuc_vu: row.chuc_vu || '',
+    ly_do: row.ly_do || '',
+    loai_yeu_cau: row.loai_yeu_cau,
+    thoi_gian_gui: toIso(row.thoi_gian_gui),
+    thoi_gian_bat_dau: boundaryLabel(row.start_date, row.start_session),
+    thoi_gian_ket_thuc: boundaryLabel(row.end_date, row.end_session),
+    tong_buoi_nghi: Number(row.tong_buoi_nghi),
+    tong_ngay_nghi: Number(row.tong_ngay_nghi),
+    nguoi_ban_giao: row.nguoi_ban_giao || '',
+    trang_thai: row.trang_thai,
+    nguoi_duyet: row.nguoi_duyet || '',
+    thoi_diem_duyet: toIso(row.thoi_diem_duyet),
+    ghi_chu_duyet: row.ghi_chu_duyet || '',
+    co_nghi_gap: !!row.co_nghi_gap,
+    co_tu_y_nghi: !!row.co_tu_y_nghi,
+    created_at: toIso(row.created_at),
+    updated_at: toIso(row.updated_at),
+    tin_nhan: row.tin_nhan || ''
+  };
+}
+
+function createHrLeaveRepository({ pool = getPool() } = {}) {
+  /**
+   * @param {Object} filters { status, employee, from, to } — from/to 'YYYY-MM-DD',
+   *   loc theo KHOANG NGHI thuc te (giao voi [from, to]), khong theo ngay gui.
+   */
+  async function getLeaveRequests(filters, branch) {
+    filters = filters || {};
+    const params = [toBranchCode(branch)];
+    const where = ['branch = $1'];
+
+    if (filters.status) {
+      params.push(filters.status);
+      where.push(`trang_thai = $${params.length}`);
+    }
+    if (filters.from) {
+      params.push(isoDateOrThrow(filters.from, 'from'));
+      where.push(`end_date >= $${params.length}::date`);
+    }
+    if (filters.to) {
+      params.push(isoDateOrThrow(filters.to, 'to'));
+      where.push(`start_date <= $${params.length}::date`);
+    }
+
+    const { rows } = await pool.query(
+      `SELECT ${SELECT_COLUMNS} FROM hr_leave_requests
+        WHERE ${where.join(' AND ')}
+        ORDER BY thoi_gian_gui DESC, id DESC`,
+      params
     );
+    let items = rows.map(rowToRequest);
+
+    if (filters.employee) {
+      const needle = normalizeNameQuery(filters.employee);
+      items = items.filter(item =>
+        normalizeNameQuery(item.ho_ten).includes(needle) ||
+        normalizeNameQuery(item.web_username).includes(needle)
+      );
+    }
+    return items;
   }
-  if (filters.from) {
-    const fromDate = String(filters.from).slice(0, 10);
-    items = items.filter(item => {
-      const endLeaveDate = extractIsoDateFromBoundary(item.thoi_gian_ket_thuc) ||
-                           extractIsoDateFromBoundary(item.thoi_gian_bat_dau);
-      if (endLeaveDate) return endLeaveDate >= fromDate;
-      return submissionDateKey(item.thoi_gian_gui) >= fromDate;
+
+  async function getLeaveRequestById(id, branch) {
+    const { rows } = await pool.query(
+      `SELECT ${SELECT_COLUMNS} FROM hr_leave_requests WHERE request_id = $1 AND branch = $2`,
+      [id, toBranchCode(branch)]
+    );
+    return rows[0] ? rowToRequest(rows[0]) : null;
+  }
+
+  /**
+   * Tao 1 yeu cau nghi phep nhap tay (Quan ly ghi nhan). Don tu Telegram do bot
+   * INSERT truc tiep, khong qua ham nay.
+   * Khoang nghi truyen dang cau truc: start_date/end_date 'YYYY-MM-DD' +
+   * start_session/end_session ('Sáng' | 'Chiều').
+   */
+  async function createLeaveRequest(data, branch) {
+    const totalSessions = Number(data.tong_buoi_nghi);
+    if (!Number.isInteger(totalSessions) || totalSessions <= 0) {
+      throw new HrError('Tổng buổi nghỉ phải là số nguyên dương.', 400, 'INVALID_TOTAL_SESSIONS');
+    }
+    if (!SESSIONS.includes(data.start_session) || !SESSIONS.includes(data.end_session)) {
+      throw new HrError('Buổi nghỉ phải là "Sáng" hoặc "Chiều".', 400, 'INVALID_LEAVE_RANGE');
+    }
+    const startDate = isoDateOrThrow(data.start_date, 'start_date');
+    const endDate = isoDateOrThrow(data.end_date, 'end_date');
+    const decidedAt = data.thoi_diem_duyet || null;
+
+    const { rows } = await pool.query(
+      `INSERT INTO hr_leave_requests (
+         branch, source, user_id, web_username, ho_ten, chuc_vu,
+         telegram_chat_id, telegram_username,
+         loai_yeu_cau, ly_do, tin_nhan, nguoi_ban_giao, thoi_gian_gui,
+         start_date, start_session, end_date, end_session, tong_buoi_nghi,
+         trang_thai, nguoi_duyet, approver_user_id, thoi_diem_duyet, ghi_chu_duyet,
+         decision_notified_at, co_nghi_gap, co_tu_y_nghi
+       ) VALUES (
+         $1, $2,
+         COALESCE($3::uuid, (SELECT id FROM app_users
+                              WHERE lower(username) = lower(NULLIF($4, '')) AND NOT is_deleted)),
+         $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE($13::timestamptz, now()),
+         $14::date, $15, $16::date, $17, $18,
+         $19, $20, $21, $22::timestamptz, $23,
+         CASE WHEN $22::timestamptz IS NOT NULL THEN now() END, $24, $25
+       )
+       RETURNING ${SELECT_COLUMNS}`,
+      [
+        toBranchCode(branch), data.source || 'web', uuidOrNull(data.user_id),
+        data.web_username || '', data.ho_ten || '', data.chuc_vu || '',
+        data.telegram_chat_id || '', data.telegram_username || '',
+        data.loai_yeu_cau || LEAVE_TYPE.REQUEST, data.ly_do || '', data.tin_nhan || '',
+        data.nguoi_ban_giao || '', data.thoi_gian_gui || null,
+        startDate, data.start_session, endDate, data.end_session, totalSessions,
+        data.trang_thai || LEAVE_STATUS.PENDING, data.nguoi_duyet || '',
+        uuidOrNull(data.approver_user_id), decidedAt, data.ghi_chu_duyet || '',
+        !!data.co_nghi_gap, !!data.co_tu_y_nghi
+      ]
+    );
+    return rowToRequest(rows[0]);
+  }
+
+  /**
+   * Doi trang thai phe duyet 1 yeu cau. Trigger DB tu xoa decision_notified_at
+   * khi trang_thai doi de bot bao lai cho nhan vien.
+   */
+  async function updateLeaveRequestStatus(id, { status, approver, approverUserId, note }, branch) {
+    if (!Object.values(LEAVE_STATUS).includes(status)) {
+      throw new HrError(`Trạng thái không hợp lệ: "${status}".`, 400, 'INVALID_STATUS');
+    }
+    const { rows } = await pool.query(
+      `UPDATE hr_leave_requests SET
+         trang_thai = $3,
+         nguoi_duyet = COALESCE(NULLIF($4, ''), nguoi_duyet),
+         approver_user_id = COALESCE($5::uuid, approver_user_id),
+         thoi_diem_duyet = now(),
+         ghi_chu_duyet = COALESCE($6, ghi_chu_duyet)
+       WHERE request_id = $1 AND branch = $2
+       RETURNING ${SELECT_COLUMNS}`,
+      [id, toBranchCode(branch), status, approver || '', uuidOrNull(approverUserId), note != null ? note : null]
+    );
+    if (!rows[0]) {
+      throw new HrError(`Không tìm thấy yêu cầu nghỉ phép "${id}".`, 404, 'LEAVE_REQUEST_NOT_FOUND');
+    }
+    return rowToRequest(rows[0]);
+  }
+
+  /**
+   * Dem so lan "nghi gap" theo tung nhan vien trong 1 thang (theo ngay bat dau
+   * nghi) — badge canh bao.
+   * @param {string} month 'YYYY-MM', mac dinh la thang hien tai
+   */
+  async function getUrgentFlagSummary(month, branch) {
+    const targetMonth = month || new Date().toISOString().slice(0, 7);
+    if (!ISO_MONTH.test(targetMonth)) {
+      throw new HrError('"month" phải có dạng YYYY-MM.', 400, 'INVALID_MONTH');
+    }
+    const { rows } = await pool.query(
+      `SELECT web_username, ho_ten FROM hr_leave_requests
+        WHERE branch = $1 AND co_nghi_gap
+          AND start_date >= ($2 || '-01')::date
+          AND start_date <  (($2 || '-01')::date + interval '1 month')`,
+      [toBranchCode(branch), targetMonth]
+    );
+
+    const counts = new Map(); // web_username || ho_ten -> { web_username, ho_ten, count }
+    rows.forEach(row => {
+      const key = row.web_username || row.ho_ten || 'unknown';
+      const entry = counts.get(key) || { web_username: row.web_username, ho_ten: row.ho_ten, count: 0 };
+      entry.count += 1;
+      counts.set(key, entry);
     });
-  }
-  if (filters.to) {
-    const toDate = String(filters.to).slice(0, 10);
-    items = items.filter(item => {
-      const startLeaveDate = extractIsoDateFromBoundary(item.thoi_gian_bat_dau) ||
-                             extractIsoDateFromBoundary(item.thoi_gian_ket_thuc);
-      if (startLeaveDate) return startLeaveDate <= toDate;
-      return submissionDateKey(item.thoi_gian_gui) <= toDate;
-    });
+    return Array.from(counts.values()).map(entry => Object.assign(entry, {
+      month: targetMonth,
+      isOverThreshold: entry.count > CONFIG.HR_URGENT_FLAG_MONTHLY_THRESHOLD
+    }));
   }
 
-  // Moi nhat truoc
-  items.sort((a, b) => String(b.thoi_gian_gui || b.created_at).localeCompare(String(a.thoi_gian_gui || a.created_at)));
-  return items.map(stripRowIndex);
+  return { getLeaveRequests, getLeaveRequestById, createLeaveRequest, updateLeaveRequestStatus, getUrgentFlagSummary };
 }
 
-async function getLeaveRequestById(id, branch) {
-  const items = await readAll(LEAVE_SCHEMA, branch);
-  const found = items.find(item => item.request_id === id);
-  return found ? stripRowIndex(found) : null;
-}
-
-function stripRowIndex(item) {
-  const copy = Object.assign({}, item);
-  delete copy._rowIndex;
-  return copy;
-}
-
-/**
- * Tao 1 yeu cau nghi phep moi (dung boi bot Telegram hoac Quan ly nhap tay).
- */
-async function createLeaveRequest(data, branch) {
-  const ts = nowIso();
-  const totalSessions = Number(data.tong_buoi_nghi);
-  if (!Number.isInteger(totalSessions) || totalSessions <= 0) {
-    throw new HrError('Tổng buổi nghỉ phải là số nguyên dương.', 400, 'INVALID_TOTAL_SESSIONS');
-  }
-  const record = {
-    request_id: generateRequestId(),
-    telegram_chat_id: data.telegram_chat_id || '',
-    telegram_username: data.telegram_username || '',
-    web_username: data.web_username || '',
-    ho_ten: data.ho_ten || '',
-    chuc_vu: data.chuc_vu || '',
-    ly_do: data.ly_do || '',
-    loai_yeu_cau: data.loai_yeu_cau || LEAVE_TYPE.REQUEST,
-    thoi_gian_gui: data.thoi_gian_gui || ts,
-    thoi_gian_bat_dau: data.thoi_gian_bat_dau || '',
-    thoi_gian_ket_thuc: data.thoi_gian_ket_thuc || '',
-    tong_buoi_nghi: totalSessions,
-    tong_ngay_nghi: Number((totalSessions / 2).toFixed(2)),
-    nguoi_ban_giao: data.nguoi_ban_giao || '',
-    trang_thai: data.trang_thai || LEAVE_STATUS.PENDING,
-    nguoi_duyet: data.nguoi_duyet || '',
-    thoi_diem_duyet: data.thoi_diem_duyet || '',
-    ghi_chu_duyet: data.ghi_chu_duyet || '',
-    co_nghi_gap: !!data.co_nghi_gap,
-    co_tu_y_nghi: !!data.co_tu_y_nghi,
-    created_at: ts,
-    updated_at: ts,
-    tin_nhan: data.tin_nhan || ''
-  };
-  await hrClient.getHrClient(branch).hrAppendRow(LEAVE_SCHEMA.sheet(), objectToLeaveRow(record));
-  return record;
-}
-
-/**
- * Doi trang thai phe duyet 1 yeu cau. Ghi nguoi duyet + thoi diem duyet.
- */
-async function updateLeaveRequestStatus(id, { status, approver, note }, branch) {
-  if (!Object.values(LEAVE_STATUS).includes(status)) {
-    throw new HrError(`Trạng thái không hợp lệ: "${status}".`, 400, 'INVALID_STATUS');
-  }
-  const items = await readAll(LEAVE_SCHEMA, branch);
-  const found = items.find(item => item.request_id === id);
-  if (!found) {
-    throw new HrError(`Không tìm thấy yêu cầu nghỉ phép "${id}".`, 404, 'LEAVE_REQUEST_NOT_FOUND');
-  }
-
-  const ts = nowIso();
-  const updated = Object.assign({}, found, {
-    trang_thai: status,
-    nguoi_duyet: approver || found.nguoi_duyet,
-    thoi_diem_duyet: ts,
-    ghi_chu_duyet: note != null ? note : found.ghi_chu_duyet,
-    updated_at: ts
-  });
-  const rowIndex = updated._rowIndex;
-  delete updated._rowIndex;
-
-  await hrClient.getHrClient(branch).hrUpdateRow(LEAVE_SCHEMA.sheet(), rowIndex, objectToLeaveRow(updated));
-  return updated;
-}
-
-/**
- * Tinh so lan "nghi gap" theo tung nhan vien trong 1 thang (badge canh bao).
- * @param {string} month 'YYYY-MM', mac dinh la thang hien tai
- */
-async function getUrgentFlagSummary(month, branch) {
-  const targetMonth = month || nowIso().slice(0, 7);
-  const items = await readAll(LEAVE_SCHEMA, branch);
-  const counts = new Map(); // web_username -> { ho_ten, count }
-
-  items.forEach(item => {
-    if (!item.co_nghi_gap || String(item.co_nghi_gap).toUpperCase() !== 'TRUE') return;
-    const dateMatch = String(item.thoi_gian_bat_dau || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (!dateMatch) return;
-    const leaveMonth = `${dateMatch[3]}-${String(dateMatch[2]).padStart(2, '0')}`;
-    if (leaveMonth !== targetMonth) return;
-    const key = item.web_username || item.ho_ten || 'unknown';
-    const entry = counts.get(key) || { web_username: item.web_username, ho_ten: item.ho_ten, count: 0 };
-    entry.count += 1;
-    counts.set(key, entry);
-  });
-
-  return Array.from(counts.values()).map(entry => Object.assign(entry, {
-    month: targetMonth,
-    isOverThreshold: entry.count > CONFIG.HR_URGENT_FLAG_MONTHLY_THRESHOLD
-  }));
-}
-
-// ---- Mã liên kết Telegram ----------------------------------------------------
-
-async function createLinkCode(webUsername, branch) {
-  if (!webUsername) throw new HrError('Thiếu tài khoản web để tạo mã liên kết.', 400, 'INVALID_REQUEST');
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + CONFIG.HR_LINK_CODE_TTL_MINUTES * 60 * 1000);
-  const record = {
-    link_code: generateLinkCode(),
-    web_username: webUsername,
-    status: LINK_STATUS.UNUSED,
-    telegram_chat_id: '',
-    telegram_username: '',
-    created_at: now.toISOString(),
-    expires_at: expiresAt.toISOString(),
-    linked_at: ''
-  };
-  await hrClient.getHrClient(branch).hrAppendRow(LINK_SCHEMA.sheet(), objectToRow(record, LINK_SCHEMA.fieldKeys));
-  return record;
-}
-
-/**
- * Nhan vien go /lienket <code> tren bot -> xac nhan ma va rang buoc chat_id.
- */
-async function consumeLinkCode(code, { chatId, telegramUsername }, branch) {
-  const items = await readAll(LINK_SCHEMA, branch);
-  const found = items.find(item => String(item.link_code) === String(code));
-  if (!found) {
-    throw new HrError('Mã liên kết không tồn tại.', 404, 'LINK_CODE_NOT_FOUND');
-  }
-  if (found.status === LINK_STATUS.LINKED) {
-    throw new HrError('Mã liên kết này đã được sử dụng.', 400, 'LINK_CODE_ALREADY_USED');
-  }
-  if (new Date(found.expires_at).getTime() < Date.now()) {
-    throw new HrError('Mã liên kết đã hết hạn, vui lòng tạo mã mới trên web.', 400, 'LINK_CODE_EXPIRED');
-  }
-
-  const updated = Object.assign({}, found, {
-    status: LINK_STATUS.LINKED,
-    telegram_chat_id: String(chatId),
-    telegram_username: telegramUsername || '',
-    linked_at: nowIso()
-  });
-  const rowIndex = updated._rowIndex;
-  delete updated._rowIndex;
-
-  await hrClient.getHrClient(branch).hrUpdateRow(LINK_SCHEMA.sheet(), rowIndex, objectToRow(updated, LINK_SCHEMA.fieldKeys));
-  return updated;
-}
-
-async function findPendingLinkByCode(code, branch) {
-  const items = await readAll(LINK_SCHEMA, branch);
-  const found = items.find(item => String(item.link_code) === String(code));
-  return found ? stripRowIndex(found) : null;
-}
-
-async function findLinkByChatId(chatId, branch) {
-  const items = await readAll(LINK_SCHEMA, branch);
-  const found = items.find(item =>
-    item.status === LINK_STATUS.LINKED && String(item.telegram_chat_id) === String(chatId)
-  );
-  return found ? stripRowIndex(found) : null;
-}
-
-async function findLinkByWebUsername(webUsername, branch) {
-  const items = await readAll(LINK_SCHEMA, branch);
-  const found = items
-    .filter(item => item.web_username === webUsername && item.status === LINK_STATUS.LINKED)
-    .sort((a, b) => String(b.linked_at).localeCompare(String(a.linked_at)))[0];
-  return found ? stripRowIndex(found) : null;
-}
-
-/**
- * Tra ve toan bo lien ket Telegram dang hoat dong (DA_LIEN_KET), dung de
- * broadcast thong bao (vd: co nhan vien xin nghi phep) toi tat ca chat_id.
- */
-async function findAllLinkedAccounts(branch) {
-  const items = await readAll(LINK_SCHEMA, branch);
-  return items
-    .filter(item => item.status === LINK_STATUS.LINKED && item.telegram_chat_id)
-    .map(stripRowIndex);
-}
-
-async function upsertAutomaticLink({ userId, webUsername, chatId, telegramUsername = '' }, branch) {
-  const normalizedUserId = String(userId || '').trim();
-  const normalizedUsername = String(webUsername || '').trim();
-  const normalizedChatId = String(chatId || '').trim();
-  if (!normalizedUserId || !normalizedUsername || !normalizedChatId) {
-    throw new HrError('Thiếu thông tin liên kết Telegram tự động.', 400, 'INVALID_TELEGRAM_LINK');
-  }
-  const items = await readAll(LINK_SCHEMA, branch);
-  const chatLink = items.find(item => item.status === LINK_STATUS.LINKED && String(item.telegram_chat_id) === normalizedChatId);
-  if (chatLink &&
-      ((chatLink.user_id && String(chatLink.user_id) !== normalizedUserId) ||
-       (!chatLink.user_id && chatLink.web_username && chatLink.web_username !== normalizedUsername))) {
-    throw new HrError('Telegram ID đã được liên kết với tài khoản khác.', 409, 'TELEGRAM_LINK_CONFLICT');
-  }
-
-  const accountLinks = items.filter(item => item.status === LINK_STATUS.LINKED && (
-    String(item.user_id || '') === normalizedUserId ||
-    (!item.user_id && item.web_username === normalizedUsername)
-  ));
-  const sameLink = accountLinks.find(item => String(item.telegram_chat_id) === normalizedChatId) || chatLink;
-  if (sameLink) {
-    const updated = {
-      ...sameLink,
-      web_username: normalizedUsername,
-      telegram_username: telegramUsername || sameLink.telegram_username || '',
-      user_id: normalizedUserId,
-      linked_at: sameLink.linked_at || nowIso()
-    };
-    const rowIndex = updated._rowIndex;
-    delete updated._rowIndex;
-    await hrClient.getHrClient(branch).hrUpdateRow(LINK_SCHEMA.sheet(), rowIndex, objectToRow(updated, LINK_SCHEMA.fieldKeys));
-    return updated;
-  }
-
-  for (const oldLink of accountLinks) {
-    const replaced = { ...oldLink, status: LINK_STATUS.REPLACED };
-    const rowIndex = replaced._rowIndex;
-    delete replaced._rowIndex;
-    await hrClient.getHrClient(branch).hrUpdateRow(LINK_SCHEMA.sheet(), rowIndex, objectToRow(replaced, LINK_SCHEMA.fieldKeys));
-  }
-
-  const linkedAt = nowIso();
-  const record = {
-    link_code: '',
-    web_username: normalizedUsername,
-    status: LINK_STATUS.LINKED,
-    telegram_chat_id: normalizedChatId,
-    telegram_username: telegramUsername,
-    created_at: linkedAt,
-    expires_at: '',
-    linked_at: linkedAt,
-    user_id: normalizedUserId
-  };
-  await hrClient.getHrClient(branch).hrAppendRow(LINK_SCHEMA.sheet(), objectToRow(record, LINK_SCHEMA.fieldKeys));
-  return record;
-}
-
-async function ensureTelegramSessionSheet(branch) {
-  const client = hrClient.getHrClient(branch);
-  try {
-    await client.hrGetSheetId(SESSION_SCHEMA.sheet());
-  } catch (_err) {
-    await client.hrBatchUpdate([{ addSheet: { properties: { title: SESSION_SCHEMA.sheet() } } }]);
-    await client.hrUpdateRow(SESSION_SCHEMA.sheet(), 1, SESSION_SCHEMA.headers);
-    client.hrInvalidateSheetTitlesCache();
-  }
-}
-
-async function findAllTelegramSessions(branch) {
-  const items = await readAll(SESSION_SCHEMA, branch);
-  return items.map(stripRowIndex);
-}
-
-async function upsertTelegramSession(chatId, convJson, branch) {
-  const normalizedChatId = String(chatId || '').trim();
-  if (!normalizedChatId) return;
-  await ensureTelegramSessionSheet(branch);
-  const items = await readAll(SESSION_SCHEMA, branch);
-  const existing = items.find(item => String(item.telegram_chat_id) === normalizedChatId);
-  const record = { telegram_chat_id: normalizedChatId, updated_at: nowIso(), conv_json: escapeUserEnteredFormula(convJson) };
-  const client = hrClient.getHrClient(branch);
-  if (existing) {
-    await client.hrUpdateRow(SESSION_SCHEMA.sheet(), existing._rowIndex, objectToRow(record, SESSION_SCHEMA.fieldKeys));
-  } else {
-    await client.hrAppendRow(SESSION_SCHEMA.sheet(), objectToRow(record, SESSION_SCHEMA.fieldKeys));
-  }
-}
-
-async function deleteTelegramSession(chatId, branch) {
-  const normalizedChatId = String(chatId || '').trim();
-  if (!normalizedChatId) return;
-  await ensureTelegramSessionSheet(branch);
-  const items = await readAll(SESSION_SCHEMA, branch);
-  const existing = items.find(item => String(item.telegram_chat_id) === normalizedChatId);
-  if (!existing) return;
-  const record = { telegram_chat_id: normalizedChatId, updated_at: '', conv_json: '' };
-  await hrClient.getHrClient(branch).hrUpdateRow(SESSION_SCHEMA.sheet(), existing._rowIndex, objectToRow(record, SESSION_SCHEMA.fieldKeys));
-}
+const repository = createHrLeaveRepository();
 
 module.exports = {
   LEAVE_TYPE,
   LEAVE_STATUS,
-  LINK_STATUS,
-  LEAVE_SCHEMA_HEADERS: LEAVE_SCHEMA.headers,
-  LEAVE_SCHEMA_FIELD_KEYS: LEAVE_SCHEMA.fieldKeys,
-  LINK_SCHEMA_HEADERS: LINK_SCHEMA.headers,
-  LINK_SCHEMA_FIELD_KEYS: LINK_SCHEMA.fieldKeys,
-  SESSION_SCHEMA_HEADERS: SESSION_SCHEMA.headers,
-  SESSION_SCHEMA_FIELD_KEYS: SESSION_SCHEMA.fieldKeys,
+  LEAVE_SCHEMA_HEADERS,
+  LEAVE_SCHEMA_FIELD_KEYS,
   HrError,
-  findAllTelegramSessions,
-  upsertTelegramSession,
-  deleteTelegramSession,
-  getLeaveRequests,
-  getLeaveRequestById,
-  createLeaveRequest,
-  updateLeaveRequestStatus,
-  getUrgentFlagSummary,
-  createLinkCode,
-  consumeLinkCode,
-  findPendingLinkByCode,
-  findLinkByChatId,
-  findLinkByWebUsername,
-  findAllLinkedAccounts,
-  upsertAutomaticLink
+  createHrLeaveRepository,
+  getLeaveRequests: (...args) => repository.getLeaveRequests(...args),
+  getLeaveRequestById: (...args) => repository.getLeaveRequestById(...args),
+  createLeaveRequest: (...args) => repository.createLeaveRequest(...args),
+  updateLeaveRequestStatus: (...args) => repository.updateLeaveRequestStatus(...args),
+  getUrgentFlagSummary: (...args) => repository.getUrgentFlagSummary(...args)
 };

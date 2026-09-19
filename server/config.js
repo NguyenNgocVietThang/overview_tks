@@ -88,10 +88,7 @@ const CONFIG = {
   // "Quan ly nhan su" o co so Sai Gon bao "Chua duoc cau hinh".
   HR_SPREADSHEET_ID_SG: process.env.HR_SPREADSHEET_ID_SG || null,
 
-  HR_SHEET_LEAVE_REQUESTS: 'Yêu cầu nghỉ phép',
   HR_SHEET_EMPLOYEES: 'Danh sách nhân sự',
-  HR_SHEET_TELEGRAM_LINKS: '_HR_TELEGRAM_LINKS',
-  HR_SHEET_TELEGRAM_SESSIONS: '_HR_TELEGRAM_SESSIONS',
 
   // Co "nghi gap": tin nhan gui tu gio nay tro di (gio Bangkok, 0-23) VA ca
   // nghi bat dau ngay hom sau lien ke thi tu dong gan co, chi de canh bao,
@@ -99,8 +96,6 @@ const CONFIG = {
   HR_URGENT_LATE_NIGHT_HOUR: Number(process.env.HR_URGENT_LATE_NIGHT_HOUR) || 22,
   // So lan nghi gap/thang vuot nguong nay thi hien badge canh bao cho Quan ly.
   HR_URGENT_FLAG_MONTHLY_THRESHOLD: Number(process.env.HR_URGENT_FLAG_MONTHLY_THRESHOLD) || 2,
-  // Thoi han hieu luc cua ma lien ket Telegram (phut).
-  HR_LINK_CODE_TTL_MINUTES: Number(process.env.HR_LINK_CODE_TTL_MINUTES) || 15,
 
   // ==========================================
   // SUPABASE POSTGRES — dong bo KiotViet, xem

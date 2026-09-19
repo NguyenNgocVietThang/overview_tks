@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0015`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0016`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -55,7 +55,40 @@ Ngoài 16 bảng nghiệp vụ trên còn có bảng raw webhook, bảng tiến 
 
 Hai bảng này **khác** quy ước `branch` 2 giá trị nội bộ ở cột `co_so` của `app_users`: `co_so` có 3 trạng thái + rỗng (`hanoi`/`saigon`/`both`/`''`) vì một tài khoản có thể phụ trách cả hai cơ sở — không nhầm với `branch` (chỉ `hanoi`/`saigon`) dùng ở `hr_employees` và mọi bảng KiotViet khác. `app_users.hr_employee_id` là FK tới `hr_employees(id)` (`ON DELETE SET NULL`) — thay cho cặp con trỏ sheet cũ `(hrSourceBranch, hrRowIndex)`; xoá nhân sự dùng `is_active = false` (soft-delete), không `DELETE` vật lý, để logic khoá tài khoản `hr_removed` (`server/auth/effectiveUserResolver.js`) còn hoạt động được.
 
-Migration `0015` thêm `app_users.telegram_id` dạng `TEXT` để không phụ thuộc giới hạn số nguyên JavaScript và hỗ trợ Telegram ID dài. ID khác rỗng là duy nhất giữa các tài khoản chưa xoá. Đây là nguồn bền vững cho bot tích hợp trực tiếp về sau; luồng tạo mã và bảng `_HR_TELEGRAM_LINKS` trên Google Sheets không còn được ứng dụng sử dụng.
+Migration `0015` thêm `app_users.telegram_id` dạng `TEXT` để không phụ thuộc giới hạn số nguyên JavaScript và hỗ trợ Telegram ID dài. ID khác rỗng là duy nhất giữa các tài khoản chưa xoá. Từ migration `0016`, cột này là **bản đọc** được trigger đồng bộ từ `hr_telegram_links` (xem mục "Nghỉ phép và bot Telegram"); nguồn sự thật của liên kết Telegram là bảng đó. Tab `_HR_TELEGRAM_LINKS` trên Google Sheets không còn được ứng dụng sử dụng.
+
+### Nghỉ phép và bot Telegram (migration `0016`)
+
+Thay 3 tab Google Sheets (`Yêu cầu nghỉ phép`, `_HR_TELEGRAM_LINKS`, `_HR_TELEGRAM_SESSIONS`). Bot Telegram chạy **ngoài repo này** (VPS riêng) và đọc/ghi thẳng 3 bảng bằng SQL; web chỉ đọc `hr_leave_requests`, nhập tay bản ghi "tự ý nghỉ" và đổi trạng thái phê duyệt. Cả 3 bảng đã `REVOKE SELECT` khỏi `reporting_readonly` (PII/nội dung tin nhắn).
+
+| Bảng | Mục đích | Khóa chính | Ai ghi |
+|---|---|---|---|
+| `hr_leave_requests` | Đơn xin nghỉ / bản ghi tự ý nghỉ | `id` (BIGSERIAL), `request_id` UNIQUE | bot (đơn Telegram), web (nhập tay + duyệt) |
+| `hr_telegram_links` | Liên kết Telegram chat ↔ tài khoản (`app_users`) | `id` | bot |
+| `hr_telegram_sessions` | Trạng thái hội thoại xin nghỉ đang dở, mỗi chat một dòng | `telegram_chat_id` | bot |
+
+**`hr_leave_requests`** — bot chỉ cần `INSERT` các cột không có DEFAULT: `branch` (`hanoi`/`saigon`), `start_date`, `start_session`, `end_date`, `end_session`, `tong_buoi_nghi`. Mọi cột còn lại có DEFAULT, kể cả:
+- `request_id` DB tự sinh dạng `NP-YYYYMMDD-NNNN` (sequence, không trùng) — **bot không tự tạo mã**.
+- `tong_ngay_nghi` là cột `GENERATED` = `tong_buoi_nghi / 2` — không `INSERT` được.
+- Khoảng nghỉ lưu bằng ngày (`DATE`) + buổi (`'Sáng'`/`'Chiều'`); mỗi ngày 2 buổi, khoảng tính gồm cả buổi đầu và cuối. CHECK `hr_leave_requests_range_check` chặn `end < start` và "Chiều → Sáng" cùng ngày. Web dựng lại chuỗi `"Sáng 22/08/2026"` khi trả API — DB không lưu chuỗi đó.
+- `ho_ten`, `chuc_vu`, `web_username` là **bản chụp** tại thời điểm gửi; `user_id`/`hr_employee_id` là khóa thật (`ON DELETE SET NULL`), bot nên điền cả hai. `source` mặc định `'telegram'`.
+- `co_nghi_gap`/`co_tu_y_nghi` là boolean; `tin_nhan` giữ nguyên văn tin nhắn gốc; `thoi_gian_gui` là giờ nhận tin (khác `created_at` = giờ ghi DB).
+- `trang_thai` ∈ `Chưa duyệt | Tạm duyệt | Đã duyệt | Từ chối | Vi phạm`; `loai_yeu_cau` ∈ `Xin nghỉ phép | Tự ý nghỉ (HR ghi nhận)`.
+
+**Báo kết quả duyệt cho nhân viên** (thay cho việc bot cũ quét Sheet): hàng cần báo là
+
+```sql
+SELECT * FROM hr_leave_requests
+ WHERE thoi_diem_duyet IS NOT NULL AND decision_notified_at IS NULL;
+```
+
+Sau khi nhắn Telegram thành công, bot `UPDATE ... SET decision_notified_at = now()`. Trigger `hr_leave_requests_before_update` tự đặt lại `decision_notified_at = NULL` mỗi khi `trang_thai` đổi (trừ khi câu `UPDATE` tự đặt giá trị), nên đổi ý duyệt → từ chối được báo lại. Bản ghi web nhập tay đã duyệt sẵn được đánh dấu đã báo ngay từ đầu. Index từng phần `hr_leave_requests_pending_notice_idx` phục vụ đúng truy vấn này.
+
+**`hr_telegram_links`** — vòng đời `pending` (có `link_code` + `code_expires_at`, chờ nhân viên gõ mã) → `linked` (có `telegram_chat_id`, `linked_at`) → `revoked` (bị thay/huỷ); hoặc `pending` → `expired`. Bot cũng có thể tạo thẳng dòng `linked` với `link_method = 'hr_directory'` khi `telegram_chat_id` khớp `hr_employees.telegram_id` (không cần mã). Ràng buộc: mỗi chat chỉ `linked` cho 1 tài khoản, mỗi tài khoản chỉ 1 chat `linked`, mã `pending` duy nhất — muốn đổi liên kết phải `revoke` dòng cũ **trước** (cùng transaction) rồi thêm dòng `linked` mới. Trigger `hr_telegram_links_sync_app_user` giữ `app_users.telegram_id` khớp với dòng `linked` (đặt khi `linked`, xoá khi `revoked`/xoá dòng) → bot không cần ghi `app_users`. `telegram_chat_id` là `TEXT` (kiểu chuỗi tránh mất chính xác số lớn).
+
+**`hr_telegram_sessions`** — `step` (tên bước của bot, không CHECK vì thuộc về bot), `data JSONB` (ngày lưu dạng chuỗi ISO), `expires_at` mặc định +60 phút; bot gia hạn `expires_at` mỗi lần ghi, coi dòng quá hạn là không tồn tại và dọn định kỳ bằng `DELETE FROM hr_telegram_sessions WHERE expires_at < now()`. Ghi phiên bằng `INSERT ... ON CONFLICT (telegram_chat_id) DO UPDATE`.
+
+`updated_at` của cả 3 bảng do trigger tự đặt, bot không cần set.
 
 ### Vai trò chỉ-đọc `reporting_readonly` (migration `0010`)
 

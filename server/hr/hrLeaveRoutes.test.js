@@ -18,7 +18,7 @@ function getRouteHandler(method, routePath) {
   return layer.route.stack[layer.route.stack.length - 1].handle;
 }
 
-test('route nhập tay tính đúng số buổi và định dạng mốc nghỉ', async () => {
+test('route nhập tay tính đúng số buổi và chuyển khoảng nghỉ dạng cấu trúc', async () => {
   const originalCreate = repo.createLeaveRequest;
   let received;
   repo.createLeaveRequest = async payload => { received = payload; return payload; };
@@ -40,8 +40,10 @@ test('route nhập tay tính đúng số buổi và định dạng mốc nghỉ'
     await handler(req, res);
 
     assert.equal(res.statusCode, 201);
-    assert.equal(received.thoi_gian_bat_dau, 'Chiều 22/08/2026');
-    assert.equal(received.thoi_gian_ket_thuc, 'Sáng 24/08/2026');
+    assert.equal(received.start_date, '2026-08-22');
+    assert.equal(received.start_session, 'Chiều');
+    assert.equal(received.end_date, '2026-08-24');
+    assert.equal(received.end_session, 'Sáng');
     assert.equal(received.tong_buoi_nghi, 4);
   } finally {
     repo.createLeaveRequest = originalCreate;

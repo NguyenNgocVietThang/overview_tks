@@ -20,7 +20,6 @@ const {
   resolveApproverName,
   computeDurationSessions,
   parseIsoDateOnly,
-  formatLeaveBoundary,
   notifyOtherManagers
 } = require('./hrLeaveService');
 const { buildLeaveRequestsWorkbook } = require('./hrLeaveExportService');
@@ -188,13 +187,14 @@ router.post('/api/hr/leave-requests', ...authManager, async (req, res) => {
       chuc_vu,
       ly_do,
       loai_yeu_cau: isManualAbsence ? repo.LEAVE_TYPE.MANUAL_ABSENCE : repo.LEAVE_TYPE.REQUEST,
-      thoi_gian_bat_dau: formatLeaveBoundary(startDate, start_session),
-      thoi_gian_ket_thuc: formatLeaveBoundary(endDate, end_session),
+      start_date, start_session,
+      end_date: end_date || start_date, end_session,
       tong_buoi_nghi: totalSessions,
       nguoi_ban_giao,
       // Ban ghi "tu y nghi" la ghi nhan, khong phai don cho duyet -> mac dinh Da duyet.
       trang_thai: isManualAbsence ? repo.LEAVE_STATUS.APPROVED : repo.LEAVE_STATUS.PENDING,
       nguoi_duyet: isManualAbsence ? resolveApproverName(req.user) : undefined,
+      approver_user_id: isManualAbsence ? req.user.id : undefined,
       thoi_diem_duyet: isManualAbsence ? new Date().toISOString() : undefined,
       co_tu_y_nghi: isManualAbsence
     }, req.branch);
@@ -226,7 +226,9 @@ router.patch('/api/hr/leave-requests/:id/status', ...authManager, async (req, re
       return res.status(400).json({ error: 'Thiếu trường "status".', code: 'INVALID_REQUEST' });
     }
     const approver = resolveApproverName(req.user);
-    const updated = await repo.updateLeaveRequestStatus(req.params.id, { status, approver, note }, req.branch);
+    const updated = await repo.updateLeaveRequestStatus(
+      req.params.id, { status, approver, approverUserId: req.user && req.user.id, note }, req.branch
+    );
     res.status(200).json({ request: updated });
 
     // Phat tin hieu realtime toi tat ca cac client dang mo

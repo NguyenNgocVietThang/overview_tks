@@ -41,4 +41,4 @@ Service account chỉ cần quyền Viewer trên hai file Kiot HN/SG vì server 
 
 ## Cấu hình Supabase
 
-Đặt `SUPABASE_DB_URL`, sau đó chạy `npm run db:migrate`. Migration `0014_customer_debt_activity_periods.sql` cung cấp dữ liệu CN1/CN3/CN7; migration `0015_app_users_telegram_id.sql` thêm Telegram ID lâu dài vào tài khoản. Bot chưa được nối trong repo và sẽ đọc/ghi cột này trực tiếp sau.
+Đặt `SUPABASE_DB_URL`, sau đó chạy `npm run db:migrate`. Migration `0014_customer_debt_activity_periods.sql` cung cấp dữ liệu CN1/CN3/CN7; migration `0015_app_users_telegram_id.sql` thêm Telegram ID lâu dài vào tài khoản; migration `0016_hr_leave_telegram.sql` tạo 3 bảng nghỉ phép (`hr_leave_requests`, `hr_telegram_links`, `hr_telegram_sessions`) thay cho 3 tab Google Sheets cũ. Bot Telegram chạy ngoài repo và đọc/ghi 3 bảng này trực tiếp — hợp đồng dữ liệu ở `db/SCHEMA.md`.

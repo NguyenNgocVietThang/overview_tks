@@ -16,7 +16,6 @@
     "kiotviet-sync:preflight": "node kiotvietSync/preflightCheck.js",
     "kiotviet-sync:backfill": "node kiotvietSync/backfill.js",
     "kiotviet-sync:reconcile": "node kiotvietSync/reconcileCounts.js",
-    "setup:hr-sheet": "node scripts/setupHrSheet.js",
     "migrate:user-branches": "node scripts/migrateUserBranches.js"
   },
   "dependencies": {
