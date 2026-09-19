@@ -161,6 +161,29 @@ test('fetchAllPages voi nhieu trang goi onPage nhieu lan va dung dung khi het du
   assert.equal(totalRecords, 250);
 });
 
+test('fetchAllPages ton trong pageSize nho hon cho entity co giao dich DB nang', async () => {
+  const allItems = Array.from({ length: 45 }, (_, i) => ({ id: i }));
+  const requestedOffsets = [];
+  const fetchImpl = tokenFetchImpl(async (url) => {
+    const u = new URL(url);
+    const currentItem = Number(u.searchParams.get('currentItem') || 0);
+    const pageSize = Number(u.searchParams.get('pageSize'));
+    requestedOffsets.push(currentItem);
+    assert.equal(pageSize, 20);
+    return jsonResponse(200, {
+      total: allItems.length,
+      data: allItems.slice(currentItem, currentItem + pageSize)
+    });
+  });
+  const client = createKiotVietClient({ clientId: 'id', clientSecret: 's', retailer: 'r', fetchImpl });
+
+  const nextItems = [];
+  await client.fetchAllPages('orders', { pageSize: '20' }, (_items, meta) => nextItems.push(meta.nextItem));
+
+  assert.deepEqual(requestedOffsets, [0, 20, 40]);
+  assert.deepEqual(nextItems, [20, 40, 60]);
+});
+
 test('fetchAllPages CHO onPage bat dong bo hoan tat truoc khi tai trang tiep theo (can thiet cho entity sync ghi DB theo tung trang)', async () => {
   const allItems = Array.from({ length: 250 }, (_, i) => ({ id: i }));
   const order = [];

@@ -91,19 +91,23 @@ function createKiotVietClient(config) {
   }
 
   async function fetchAllPages(endpoint, query, onPage, options = {}) {
+    const requestedPageSize = Number(query.pageSize);
+    const pageSize = Number.isInteger(requestedPageSize) && requestedPageSize > 0 && requestedPageSize <= PAGE_SIZE
+      ? requestedPageSize
+      : PAGE_SIZE;
     let currentItem = options.startItem || 0;
     let total = Infinity;
     let pagesLoaded = 0;
     let recordsLoaded = 0;
 
     while (currentItem < total) {
-      const params = new URLSearchParams({ ...query, pageSize: String(PAGE_SIZE), currentItem: String(currentItem) });
+      const params = new URLSearchParams({ ...query, pageSize: String(pageSize), currentItem: String(currentItem) });
       const page = await authorizedRequest(`/${endpoint}`, params);
       const items = page.data || [];
       total = page.total || 0;
       pagesLoaded++;
       recordsLoaded += items.length;
-      currentItem += PAGE_SIZE;
+      currentItem += pageSize;
 
       // nextItem la vi tri de tiep tuc neu tien trinh bi dung ngay sau trang
       // nay -- dung cho co che resume backfill (xem backfillProgressRepository.js).

@@ -82,7 +82,7 @@ test('orders (hasUpperBound:false, entity module that) khong bi syncDriver gan t
   await driver.pollEntityOnce(noopKiotVietClient(queries), 'hanoi', ordersEntity);
   assert.equal(queries.length, 1);
   assert.deepEqual(queries[0].query, {
-    includePayment: 'true', includeOrderDelivery: 'true', lastModifiedFrom: '2026-09-14T04:00:00.000Z'
+    includePayment: 'true', includeOrderDelivery: 'true', pageSize: '20', lastModifiedFrom: '2026-09-14T04:00:00.000Z'
   });
 });
 
