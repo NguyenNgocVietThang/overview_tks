@@ -1424,31 +1424,62 @@ test('Ca hai: bang thuc the doc ca hai co so theo ma va gop cung quy tac man hin
   });
 });
 
-test('Ca hai: xuat Quan ly cong no theo tung dong co so (branchDetails) kem cot "Cơ sở"', async () => {
-  const detail = (branch, currentDebt, needsAction, workflowStatus) => ({
-    branch, sourceSheet: `Công nợ ${branch}`, customerName: 'Khách A', sale: 'Lan', paymentSchedule: '1',
-    openingDebt: 0, currentDebt, overdueDebt: 0, alertCodes: [], dataIssues: [], workflowStatus, needsAction,
+test('Ca hai: loc Quan ly cong no tren hang GOP nhu man hinh, roi moi tach tung co so kem cot "Cơ sở"', async () => {
+  const detail = (customerName, branch, currentDebt, needsAction, workflowStatus) => ({
+    branch, sourceSheet: `Công nợ ${branch}`, customerName, sale: 'Lan', paymentSchedule: '1',
+    openingDebt: 0, currentDebt, overdueDebt: Math.max(currentDebt, 0), alertCodes: [], dataIssues: [], workflowStatus, needsAction,
     updatedBy: '', updatedAt: ''
+  });
+  // Hang gop nhu mergeDebtManagementSources: cong no cong don, needsAction la OR cua cac co so.
+  const merged = (customerName, currentDebt, needsAction, branchDetails) => ({
+    customerName, sale: 'Lan', paymentSchedule: '1', openingDebt: 0, currentDebt, overdueDebt: Math.max(currentDebt, 0),
+    needsAction, alertCodes: [], dataIssues: [], workflowStatus: 'Đã xử lý', branchDetails
   });
   const dashboard = {
     debtManagement: {
       available: true,
       sourceSheet: 'Công nợ Hà Nội + Công nợ Sài Gòn',
-      customers: [{
-        customerName: 'Khách A', sale: 'Lan', paymentSchedule: '1', currentDebt: 300, needsAction: true,
-        alertCodes: [], dataIssues: [], workflowStatus: 'Đã xử lý',
-        branchDetails: [detail(HN, 100, false, 'Đã xử lý'), detail(SG, 200, true, 'Chưa xử lý')]
-      }]
+      customers: [
+        // A: HN khong can xu ly (100), SG can xu ly (200) -> man hinh: 1 hang 300, needsAction = true.
+        merged('Khách A', 300, true, [detail('Khách A', HN, 100, false, 'Đã xử lý'), detail('Khách A', SG, 200, true, 'Chưa xử lý')]),
+        // B: cong no HN +500 va SG -500 bu tru nhau -> man hinh: 0, khong thuoc hang "Con no".
+        merged('Khách B', 0, false, [detail('Khách B', HN, 500, false, 'Đã xử lý'), detail('Khách B', SG, -500, false, 'Đã xử lý')]),
+        // C: cong no lon hon A nhung chi co 1 co so (khong co branchDetails).
+        merged('Khách C', 900, false, undefined)
+      ]
     }
   };
+  const build = context => exportService.__test__.buildFixedDataset('debt.management', { dashboard: dashboard_, branch: BOTH }, context);
+  let dashboard_;
   await withStubs({ dashboard }, async stubs => {
-    const all = await exportService.__test__.buildFixedDataset('debt.management', { dashboard: stubs.dashboard, branch: BOTH }, { debtQueue: 'all' });
+    dashboard_ = stubs.dashboard;
+    const all = await build({ debtQueue: 'all' });
     assert.equal(all.worksheets[0].columns[1].label, 'Cơ sở');
     assert.deepEqual(all.worksheets[0].rows.map(row => [row.customerName, row.branch, row.currentDebt, row.workflowStatus]), [
-      ['Khách A', HN, 100, 'Đã xử lý'], ['Khách A', SG, 200, 'Chưa xử lý']
+      ['Khách A', HN, 100, 'Đã xử lý'], ['Khách A', SG, 200, 'Chưa xử lý'],
+      ['Khách B', HN, 500, 'Đã xử lý'], ['Khách B', SG, -500, 'Đã xử lý'],
+      ['Khách C', '', 900, 'Đã xử lý']
     ]);
-    const needs = await exportService.__test__.buildFixedDataset('debt.management', { dashboard: stubs.dashboard, branch: BOTH }, { debtQueue: 'needsAction' });
-    assert.deepEqual(needs.worksheets[0].rows.map(row => row.branch), [SG]);
+
+    // needsAction loc theo hang gop (OR cac co so): giu CA HAI dong cua A, khong bo cong no 100 cua Ha Noi.
+    const needs = await build({ debtQueue: 'needsAction' });
+    assert.deepEqual(needs.worksheets[0].rows.map(row => [row.customerName, row.branch, row.currentDebt]), [
+      ['Khách A', HN, 100], ['Khách A', SG, 200]
+    ]);
+
+    // currentDebt loc theo tong gop: B (500 - 500 = 0) bi an nhu tren man hinh, ke ca dong Ha Noi +500.
+    const owing = await build({ debtQueue: 'currentDebt' });
+    assert.deepEqual(owing.worksheets[0].rows.map(row => [row.customerName, row.branch]), [
+      ['Khách A', 'Hà Nội'], ['Khách A', 'Sài Gòn'], ['Khách C', '']
+    ]);
+    const overdue = await build({ debtQueue: 'overdue' });
+    assert.deepEqual(overdue.worksheets[0].rows.map(row => row.customerName), ['Khách A', 'Khách A', 'Khách C']);
+
+    // Sap xep theo gia tri GOP (cot "Nợ hiện tại"): C (900) truoc A (300), cac dong co so di cung khach.
+    const sorted = await build({ debtQueue: 'currentDebt', debtSort: { columnIndex: 4, direction: 'desc' } });
+    assert.deepEqual(sorted.worksheets[0].rows.map(row => [row.customerName, row.branch]), [
+      ['Khách C', ''], ['Khách A', HN], ['Khách A', SG]
+    ]);
     assert.equal(stubs.calls.rows.length, 0, 'bang cong no khong doc them Postgres');
   });
 });

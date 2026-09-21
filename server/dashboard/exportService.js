@@ -560,14 +560,10 @@ function debtManagementRows(debtManagement, context, aggregate = false) {
   const sale = normalizeText(context.debtSale);
   const schedule = normalizeText(context.debtSchedule);
   const query = normalizeDebtSearch(context.debtSearch);
-  let customers = Array.isArray(debt.customers) ? debt.customers : [];
-  // "Ca hai": hang gop tren man hinh khong the hien ty le/trang thai xu ly rieng cua tung co so, nen
-  // xuat tung dong theo co so (branchDetails, moi dong co day du chi so cua chinh co so do).
-  if (aggregate) {
-    customers = customers.flatMap(customer =>
-      (Array.isArray(customer.branchDetails) && customer.branchDetails.length ? customer.branchDetails : [customer]));
-  }
-  const rows = customers.filter(customer => {
+  // Loc va sap xep LUON tren hang cua man hinh (o "Ca hai" la hang da gop theo khach), giong duong
+  // co so vat ly; chi sau do moi tach thanh cac dong theo co so de xuat.
+  const customers = Array.isArray(debt.customers) ? debt.customers : [];
+  const retained = customers.filter(customer => {
     if (queue === 'needsAction' && !customer.needsAction) return false;
     if (queue === 'currentDebt' && !(Number(customer.currentDebt) > 0)) return false;
     if (queue === 'overdue' && !(Number(customer.overdueDebt) > 0)) return false;
@@ -575,7 +571,8 @@ function debtManagementRows(debtManagement, context, aggregate = false) {
     if (schedule && customer.paymentSchedule !== schedule) return false;
     if (query && !normalizeDebtSearch(customer.customerName).includes(query) && !normalizeDebtSearch(customer.sale).includes(query)) return false;
     return true;
-  }).map(customer => ({
+  });
+  const toRow = customer => ({
     customerName: customer.customerName,
     branch: normalizeText(customer.branch),
     sale: customer.sale,
@@ -589,8 +586,23 @@ function debtManagementRows(debtManagement, context, aggregate = false) {
     workflowStatus: customer.workflowStatus,
     updatedBy: customer.updatedBy,
     updatedAt: customer.updatedAt
-  }));
-  return { rows: sortDebtManagementRows(rows, context.debtSort), name: normalizeText(debt.sourceSheet) };
+  });
+  const customerByRow = new Map();
+  const rows = retained.map(customer => {
+    const row = toRow(customer);
+    customerByRow.set(row, customer);
+    return row;
+  });
+  const sorted = sortDebtManagementRows(rows, context.debtSort);
+  if (!aggregate) return { rows: sorted, name: normalizeText(debt.sourceSheet) };
+  // "Ca hai": hang gop khong the hien ty le/trang thai xu ly rieng cua tung co so, nen moi khach giu lai
+  // duoc tach thanh cac dong theo co so (branchDetails, day du chi so cua chinh co so do).
+  const expanded = sorted.flatMap(row => {
+    const customer = customerByRow.get(row);
+    const details = Array.isArray(customer.branchDetails) && customer.branchDetails.length ? customer.branchDetails : [customer];
+    return details.map(toRow);
+  });
+  return { rows: expanded, name: normalizeText(debt.sourceSheet) };
 }
 
 // Worksheet cua bang khong doc dashboard/Postgres (du lieu tu bao cao rieng hoac payload).
