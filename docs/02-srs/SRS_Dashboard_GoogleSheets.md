@@ -37,6 +37,8 @@ Hệ thống là một Web Application nội bộ gồm các thành phần chín
 | KPI Card                | Thẻ hiển thị 1 chỉ số tổng hợp (vd: Doanh thu hôm nay, Tổng tồn kho).               |
 | CN1 / CN3 / CN7         | Báo cáo hoạt động công nợ khách hàng 1 ngày, 3 ngày, 7 ngày gần nhất (trước đây gọi là HN1/HN3/HN7), lưu trong bảng `customer_debt_activity_periods` của Supabase PostgreSQL. |
 | Spreadsheet nguồn       | Hai file Kiot HN/SG (chỉ đọc `Trả NCC`), workbook `Bảng Công nợ` (`DEBT_MANAGEMENT_SPREADSHEET_ID`), Vòng đời đơn hàng (`ORDER_LIFECYCLE_SPREADSHEET_ID`) và Nhân sự (`HR_SPREADSHEET_ID`). |
+| Cơ sở vật lý            | `Hà Nội` hoặc `Sài Gòn` — giá trị duy nhất được phép lưu vào các cột nghiệp vụ (`branch` = `hanoi`/`saigon` trong PostgreSQL). |
+| `Cả hai` (BRANCH_BOTH)  | Lựa chọn phạm vi XEM dành cho tài khoản được phép cả hai cơ sở vật lý. `allowedBranches(user)` chỉ trả cơ sở vật lý, `selectableBranches(user)` mới thêm `Cả hai`; `resolveBranchScope('Cả hai')` quy về `['Hà Nội','Sài Gòn']` trước mọi truy vấn dữ liệu. |
 | Chữ ký cảnh báo         | SHA-256 của loại cảnh báo và số nợ hiện tại; dùng để vô hiệu trạng thái kết thúc khi khoản nợ thay đổi. |
 | Service Account         | Tài khoản dịch vụ Google dùng để backend đọc `Trả NCC` và quản lý Sheets Vòng đời đơn hàng / Nhân sự mà không cần OAuth user. |
 | Result Cache            | Cơ chế lưu đệm kết quả KPI/biểu đồ đã tính theo phiên bản dữ liệu thô và bộ lọc.    |
@@ -102,7 +104,8 @@ Backend Web Server: Node.js + Express
     - server/dashboard/customerDebtActivityRepository.js : đọc CN1/CN3/CN7 từ PostgreSQL
     - server/dashboard/debtManagement.js : parser, đối chiếu cảnh báo, KPI và chữ ký công nợ
     - server/dashboard/debtCollectionStatusRepository.js : trạng thái thu nợ trong PostgreSQL
-    - server/dashboard/debtManagementRoutes.js : PATCH trạng thái theo req.branch
+    - server/dashboard/debtManagementRoutes.js : PATCH trạng thái theo req.branch ("Cả hai" ghi hai cơ sở trong một transaction)
+    - server/branch/branches.js       : cơ sở vật lý, phạm vi "Cả hai" và quy đổi nhãn <-> mã branch
     - server/dashboard/exportService.js : dịch vụ lấy danh sách trường và tạo file xuất Excel .xlsx (đọc thẳng PostgreSQL theo mã)
     - server/dashboard/exportFieldCatalog.js : từ điển trường xuất Excel (nhãn tiếng Việt chuẩn hóa, nguồn sự thật duy nhất)
     |
@@ -326,6 +329,22 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-11.5 | Dashboard gồm 4 KPI, biểu đồ theo sale/lịch, top nợ hiện tại/quá hạn, bảng 10 cột; hỗ trợ lọc, tìm, click biểu đồ, sort ba trạng thái và phân trang 100 dòng. | Cao | Hoàn thành |
 | FR-11.6 | Trạng thái `Chưa xử lý/Đang xử lý/Đã xử lý/Bỏ qua` lưu theo `(branch, customer_key)`; Đã xử lý/Bỏ qua rời hàng chờ và tự hết hiệu lực khi chữ ký cảnh báo thay đổi. | Cao | Hoàn thành |
 | FR-11.7 | Chỉ Quản lý/Trợ lý được PATCH trạng thái. Cơ sở lấy từ `req.branch`, không nhận từ payload client; các vai trò khác chỉ thấy pill đọc-only. | Cao | Hoàn thành |
+| FR-11.8 | Ở phạm vi `Cả hai`, một PATCH ghi trạng thái cho cả hai cơ sở vật lý trong đúng một transaction PostgreSQL (xem FR-12.6). | Cao | Hoàn thành |
+
+## 3.12. FR-12: Phạm vi dữ liệu "Cả hai" cơ sở
+
+| **Mã** | **Mô tả** | **Ưu tiên** | **Trạng thái** |
+|---|---|---|---|
+| FR-12.1 | `Cả hai` chỉ xuất hiện trong `selectableBranches(user)` khi tài khoản được phép **cả** `Hà Nội` và `Sài Gòn`; `allowedBranches(user)` luôn chỉ trả cơ sở vật lý và là ranh giới phân quyền đọc/ghi. `POST /api/branch` từ chối giá trị không nằm trong danh sách chọn được. | Cao | Hoàn thành |
+| FR-12.2 | Mọi lớp truy vấn dữ liệu nhận cơ sở vật lý: route quy `req.branch` qua `resolveBranchScope` trước khi gọi repository/sheets. `branchLabelToCode('Cả hai')` trả chuỗi rỗng nên không route nào được truyền thẳng `req.branch` xuống cột `branch`; `Cả hai`/`both` không bao giờ được ghi vào database. | Cao | Hoàn thành |
+| FR-12.3 | `GET /api/dashboard` ở `Cả hai` cộng KPI/bucket của hai cơ sở, gộp thực thể trùng mã theo mã (cộng số lượng/công nợ, giá vốn bình quân theo tồn, lấy tên thật đầu tiên HN→SG) rồi mới xếp hạng; giao dịch riêng lẻ giữ khóa `(cơ sở, mã)` kèm nhãn cơ sở. Cache kết quả `Cả hai` có khóa chứa phiên bản nguồn của **cả hai** cơ sở. | Cao | Hoàn thành |
+| FR-12.4 | `/api/search`, `/api/customer-product-top`, `/api/customer-product-revenue`, `/api/product-revenue-search`, `/api/product-revenue-detail` ở `Cả hai` chạy trên dữ liệu đã gộp theo cùng quy tắc; phản hồi ở cơ sở vật lý giữ nguyên hình dạng cũ, chế độ gộp chỉ **thêm** trường (`branch` cho dòng giao dịch, `branchDetails` cho chi tiết hàng hóa). | Cao | Hoàn thành |
+| FR-12.5 | Xuất Excel ở `Cả hai` thêm cột `Cơ sở` cho các worksheet giao dịch và kết quả tìm kiếm, ghép dữ liệu theo `(cơ sở, mã)`, dùng tiền tố tên file `TKS_`. Bảng Quản lý công nợ lọc/sắp xếp trên **dòng gộp** rồi mới tách một dòng cho mỗi cơ sở của khách hàng. | Cao | Hoàn thành |
+| FR-12.6 | PATCH trạng thái công nợ ở `Cả hai` ghi cùng `(customer_key, trạng thái, chữ ký)` cho **mọi cơ sở vật lý trong phạm vi** bằng một transaction (`BEGIN`/`COMMIT`, lỗi bất kỳ → `ROLLBACK` toàn bộ). Chỉ ghi cơ sở thực sự có khách hàng trong nguồn công nợ; không cơ sở nào có → `404 DEBT_CUSTOMER_NOT_FOUND`; cơ sở không đọc được nguồn vẫn được ghi để hai cơ sở không lệch trạng thái. Cache workflow/dashboard của từng cơ sở chỉ bị xóa **sau** khi COMMIT thành công. | Cao | Hoàn thành |
+| FR-12.7 | HR đọc theo `allowedBranches` nên tài khoản `Cả hai` thấy cả hai cơ sở kèm cột `Cơ sở` và bộ lọc cơ sở; ghi nhận đơn nghỉ phép ở `Cả hai` suy cơ sở từ hồ sơ nhân sự, không suy được hoặc trùng tên ở hai cơ sở → `400 LEAVE_BRANCH_UNRESOLVED`. SSE và thông báo dùng cơ sở vật lý của bản ghi. | Cao | Hoàn thành |
+| FR-12.8 | Quét đứt hàng ở `Cả hai` chạy tuần tự hai cơ sở như job con rồi gộp kết quả (mỗi dòng kèm cơ sở, cảnh báo ghi rõ cơ sở); một cơ sở lỗi thì job cha báo lỗi, không trả kết quả một nửa. `/api/debug` đếm gộp hai cơ sở bằng `branch = ANY($1::text[])`. | Trung bình | Hoàn thành |
+
+**Giới hạn đã biết của FR-12:** (a) dòng công nợ gộp hiển thị trạng thái và chữ ký cảnh báo của cơ sở xuất hiện trước (Hà Nội trước Sài Gòn) — ghi trạng thái ở `Cả hai` lưu chữ ký của dòng gộp cho cả hai cơ sở, nên khi xem riêng một cơ sở, trạng thái kết thúc có thể bị coi là hết hiệu lực nếu chữ ký của cơ sở đó khác; (b) quét đứt hàng ở `Cả hai` tốn gấp đôi thời gian và hạn mức Google Sheets.
 
 # 4. Yêu cầu phi chức năng (Non-functional Requirements)
 
@@ -608,6 +627,14 @@ Tìm kiếm trong bảng (`tableSearch`) được áp dụng lên dữ liệu đ
 
 Endpoint upsert theo `(branch, customer_key)`, từ chối status/chữ ký/khóa không hợp lệ và trả `503` nếu PostgreSQL không sẵn sàng. Body không có và không được phép quyết định cơ sở.
 
+**Ở một cơ sở vật lý:** một lệnh upsert, phản hồi `{ customerKey, status, alertSignature, updatedBy, updatedAt }` — không đổi so với trước.
+
+**Ở phạm vi `Cả hai`** (xem FR-12.6):
+- Server hỏi nguồn công nợ của từng cơ sở vật lý xem `customerKey` có tồn tại không (dùng lại cache workbook của dashboard). Cơ sở có khách → ghi; cơ sở **không đọc được** workbook → vẫn ghi (không âm thầm bỏ sót); không cơ sở nào có khách → `404` `{ "code": "DEBT_CUSTOMER_NOT_FOUND" }`.
+- Toàn bộ upsert nằm trong **một transaction** (`BEGIN` → upsert từng cơ sở → `COMMIT`; lỗi bất kỳ → `ROLLBACK` và trả `503 DEBT_STATUS_UNAVAILABLE`). Cột `branch` chỉ nhận `hanoi`/`saigon` — repository ném lỗi với mọi mã khác nên `Cả hai`/`both` không thể xuống database.
+- Cache `invalidateDebtWorkflowCache` được gọi cho **từng cơ sở đã ghi** và chỉ **sau khi COMMIT**; khóa cache kết quả `Cả hai` chứa phiên bản workflow của cả hai cơ sở nên bản tổng hợp cũng tươi lại.
+- Phản hồi giữ nguyên hình dạng cũ, **thêm** `branches` — danh sách nhãn cơ sở đã được ghi, ví dụ `["Hà Nội", "Sài Gòn"]`.
+
 ## 6.8. API xác thực & Hồ sơ cá nhân
 
 - `POST /api/auth/register`: nhận `{ "hoTen": "...", "email": "...", "password": "..." }`; chỉ chấp nhận đăng ký trực tiếp bằng email, tạo tài khoản `Khách`, cookie JWT và trả user với HTTP 201.
@@ -767,7 +794,8 @@ Các cột nghiệp vụ nghỉ phép dùng `Thời gian gửi` (ISO), `Thời g
 | Giao diện, Phân trang & Xuất Excel (5.3, 5.4, 5.5) | FR-07.1 → FR-07.18        |
 | Đăng ký, Google Guest, Quản trị tài khoản & tra cứu vận chuyển | FR-08.1 → FR-08.7 |
 | Nghỉ phép theo buổi & Telegram Bot | FR-10.1 → FR-10.5 |
-| Quản lý công nợ theo cơ sở | FR-11.1 → FR-11.7 |
+| Quản lý công nợ theo cơ sở | FR-11.1 → FR-11.8 |
+| Phạm vi dữ liệu theo cơ sở — Hà Nội / Sài Gòn / Cả hai (5.7) | FR-12.1 → FR-12.8 |
 | ~~Lớp hiệu ứng 3D Visual & Giám sát hiệu năng thích ứng~~ (FR-09.x đã thu hồi — lớp 3D bị gỡ bỏ vì hiệu năng) | — |
 
 # 9. Rủi ro kỹ thuật & phương án giảm thiểu

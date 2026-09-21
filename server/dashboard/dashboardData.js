@@ -17,7 +17,7 @@ const dashboardRollupRepository = require('./dashboardRollupRepository');
 const { BRANCHES, BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
 const { ROLES } = require('../auth/userRepository');
 const debtCollectionStatusRepository = require('./debtCollectionStatusRepository');
-const { deriveDebtManagement, PAYMENT_SCHEDULES, DEBT_TOTAL_AVERAGE_SALES } = require('./debtManagement');
+const { deriveDebtManagement, parseManagementSheet, PAYMENT_SCHEDULES, DEBT_TOTAL_AVERAGE_SALES } = require('./debtManagement');
 
 const OUT_OF_STOCK_LEVEL = 0;
 const TOP_SELLING_LIMIT = 15;
@@ -1028,6 +1028,31 @@ async function getCachedDebtWorkflow(branch) {
     });
   cache.loading = loading;
   return loading;
+}
+
+/**
+ * Cac co so (trong `branches`) that su co dong cong no cua `customerKey`.
+ * Dung khi GHI trang thai o pham vi "Cả hai": mot dong da gop co the chi ton
+ * tai o mot co so, khong duoc tao dong trang thai cho co so khong co khach
+ * nay. Co so khong doc duoc workbook (loi Sheets) tra ve trong `undetermined`
+ * — nguoi goi tu quyet dinh, o day KHONG doan la "khong co".
+ * Dung lai cache workbook cong no cua dashboard nen thuong khong ton them
+ * luot doc Sheets.
+ * @returns {Promise<{found: string[], undetermined: string[]}>}
+ */
+async function findDebtCustomerBranches(customerKey, branches) {
+  const key = String(customerKey || '').trim().toLowerCase();
+  const scope = Array.isArray(branches) ? branches : [];
+  const results = await Promise.all(scope.map(async branch => {
+    const source = await getCachedDebtManagementSource(branch);
+    const parsed = parseManagementSheet(source?.rows, branch);
+    if (!parsed.available) return { branch, determined: false, has: false };
+    return { branch, determined: true, has: parsed.customers.some(customer => customer.customerKey === key) };
+  }));
+  return {
+    found: results.filter(item => item.determined && item.has).map(item => item.branch),
+    undetermined: results.filter(item => !item.determined).map(item => item.branch)
+  };
 }
 
 /**
@@ -3074,6 +3099,7 @@ function invalidateDebtWorkflowCache(branch) {
 
 module.exports = {
   getDashboardData,
+  findDebtCustomerBranches,
   invalidateDebtWorkflowCache,
   searchDashboardRecords,
   searchTopCustomersByProducts,

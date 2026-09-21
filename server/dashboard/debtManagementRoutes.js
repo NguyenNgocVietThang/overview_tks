@@ -2,7 +2,7 @@
 
 const express = require('express');
 const { requireAuth, requireRole } = require('../auth/authMiddleware');
-const { branchLabelToCode } = require('../branch/branches');
+const { BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
 const branchMiddleware = require('../branch/branchMiddleware');
 const { ROLES } = require('../auth/userRepository');
 const repository = require('./debtCollectionStatusRepository');
@@ -37,6 +37,17 @@ function validatePayload(body) {
   return { customerKey, status, alertSignature };
 }
 
+function statusResponse(row) {
+  const stored = row || {};
+  return {
+    customerKey: stored.customer_key || stored.customerKey,
+    status: stored.status,
+    alertSignature: stored.alert_signature || stored.alertSignature,
+    updatedBy: stored.updated_by_name || stored.updatedBy || '',
+    updatedAt: stored.updated_at || stored.updatedAt || null
+  };
+}
+
 router.patch(
   '/api/debt-management/status',
   requireAuth,
@@ -50,27 +61,52 @@ router.patch(
       return res.status(error.statusCode).json({ error: error.message, code: error.code });
     }
 
-    const branch = branchLabelToCode(req.branch);
-    if (!branch) {
+    const isBothBranches = req.branch === BRANCH_BOTH;
+    const branch = isBothBranches ? '' : branchLabelToCode(req.branch);
+    if (!isBothBranches && !branch) {
       return res.status(400).json({ error: 'Cơ sở không hợp lệ.', code: 'INVALID_BRANCH' });
     }
 
     try {
       const userId = UUID.test(String(req.user?.id || '')) ? req.user.id : null;
-      const row = await repository.upsertStatus({
-        branch,
+      const writePayload = {
         ...payload,
         userId,
         userName: req.user?.hoTen || req.user?.username || ''
-      });
+      };
+
+      // "Cả hai": dong khach hang tren man hinh la dong DA GOP cua 2 co so, nen
+      // trang thai phai ap cho ca 2 dong nguon trong MOT transaction — khong
+      // duoc de HN da doi con SG thi chua.
+      if (isBothBranches) {
+        const scope = resolveBranchScope(req.branch);
+        const { found, undetermined } = await dashboardData.findDebtCustomerBranches(payload.customerKey, scope);
+        // Co so khong doc duoc nguon van duoc ghi: tha ghi thua mot dong vo
+        // hai (dong trang thai chi hien khi khop customer_key luc doc) con hon
+        // am tham bo sot mot co so, lam 2 co so lech trang thai.
+        const targets = scope.filter(item => found.includes(item) || undetermined.includes(item));
+        if (!targets.length) {
+          return res.status(404).json({
+            error: 'Không tìm thấy khách hàng này trong công nợ của cơ sở nào.',
+            code: 'DEBT_CUSTOMER_NOT_FOUND'
+          });
+        }
+        const rows = await repository.upsertStatusForBranches({
+          branches: targets.map(branchLabelToCode),
+          ...writePayload
+        });
+        // CHI xoa cache sau khi COMMIT. Khoa cache ket qua "Cả hai" chua phien
+        // ban debt workflow cua CA HAI co so vat ly (dashboardSourceVersion),
+        // nen xoa theo tung co so vat ly la du de ban tong hop cung tuoi lai.
+        targets.forEach(item => dashboardData.invalidateDebtWorkflowCache(item));
+        // Cac dong chi khac nhau o cot branch — lay dong dau lam phan hoi, kem
+        // danh sach co so da ghi (truong THEM, phan hoi mot co so giu nguyen).
+        return res.status(200).json({ ...statusResponse(rows[0]), branches: targets });
+      }
+
+      const row = await repository.upsertStatus({ branch, ...writePayload });
       dashboardData.invalidateDebtWorkflowCache(req.branch);
-      return res.status(200).json({
-        customerKey: row.customer_key || row.customerKey,
-        status: row.status,
-        alertSignature: row.alert_signature || row.alertSignature,
-        updatedBy: row.updated_by_name || row.updatedBy || '',
-        updatedAt: row.updated_at || row.updatedAt || null
-      });
+      return res.status(200).json(statusResponse(row));
     } catch (error) {
       console.error('[DebtManagement] Không thể cập nhật trạng thái:', error.message);
       return res.status(503).json({

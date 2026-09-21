@@ -690,6 +690,35 @@ test('dashboard ghép workflow theo cơ sở, phân quyền sửa và khóa khi 
   assert.ok(unavailable.debtManagement.dataWarnings.some(warning => warning.includes('trạng thái xử lý')));
 });
 
+test('findDebtCustomerBranches chi tra co so that su co khach hang, co so khong doc duoc la "chua xac dinh"', async () => {
+  const { dashboardData, debtManagementSheetsClient } = freshDashboardData();
+  const crypto = require('node:crypto');
+  const headerFor = branch => ['Khách hàng', 'Sale', branch === 'Sài Gòn' ? 'Lịch TT SG' : 'Lịch TT HN',
+    'Nợ đầu kỳ', 'Nợ hiện tại', 'Nợ quá hạn', '% nợ/Doanh số', '% quá hạn / TB DS', 'TB T6/26-T9/26'];
+  debtManagementSheetsClient.getDebtManagementSheet = async branch => ({
+    sourceSheet: branch === 'Sài Gòn' ? 'Công nợ SG' : 'Công nợ HN',
+    rows: [headerFor(branch), ['TỔNG'], branch === 'Sài Gòn'
+      ? ['Khách B', 'Lan', 7, 0, 100, 0, 0, 0, 0]
+      : ['Khách A', 'Lan', 7, 0, 100, 0, 0, 0, 0]]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const keyA = crypto.createHash('sha256').update('khách a').digest('hex');
+  const onlyHanoi = await dashboardData.findDebtCustomerBranches(keyA, ['Hà Nội', 'Sài Gòn']);
+  assert.deepEqual(onlyHanoi, { found: ['Hà Nội'], undetermined: [] });
+
+  const missing = await dashboardData.findDebtCustomerBranches('f'.repeat(64), ['Hà Nội', 'Sài Gòn']);
+  assert.deepEqual(missing, { found: [], undetermined: [] });
+
+  dashboardData.__test__.resetCaches();
+  debtManagementSheetsClient.getDebtManagementSheet = async branch => {
+    if (branch === 'Sài Gòn') throw new Error('Sheets loi');
+    return { sourceSheet: 'Công nợ HN', rows: [headerFor(branch), ['TỔNG'], ['Khách A', 'Lan', 7, 0, 100, 0, 0, 0, 0]] };
+  };
+  const partial = await dashboardData.findDebtCustomerBranches(keyA, ['Hà Nội', 'Sài Gòn']);
+  assert.deepEqual(partial, { found: ['Hà Nội'], undetermined: ['Sài Gòn'] });
+});
+
 test('Ca hai cong KPI/bucket va gop thuc the trung ma truoc khi xep hang', async () => {
   const { dashboardData, dashboardPgReader, dashboardRollupRepository } = freshDashboardData();
   const CONFIG = require('../config');

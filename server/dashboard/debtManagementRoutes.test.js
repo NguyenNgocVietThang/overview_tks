@@ -89,6 +89,159 @@ test('PATCH lấy cơ sở từ session, upsert và xóa cache sau khi thành c�
   }
 });
 
+// ----- Pham vi "Cả hai": ghi nguyen tu cho ca hai co so vat ly -----
+
+function bothBranchesHarness({
+  upsertForBranches,
+  customerBranches = { found: ['Hà Nội', 'Sài Gòn'], undetermined: [] }
+} = {}) {
+  const originals = {
+    upsertStatus: repository.upsertStatus,
+    upsertStatusForBranches: repository.upsertStatusForBranches,
+    invalidate: dashboardData.invalidateDebtWorkflowCache,
+    findBranches: dashboardData.findDebtCustomerBranches
+  };
+  const log = [];
+  const state = { singleBranchCalls: 0, writtenBranches: null, invalidated: [], log };
+  repository.upsertStatus = async () => { state.singleBranchCalls += 1; return {}; };
+  repository.upsertStatusForBranches = async payload => {
+    state.writtenBranches = payload.branches;
+    log.push('write');
+    if (upsertForBranches) return upsertForBranches(payload);
+    return payload.branches.map(branch => ({
+      branch,
+      customer_key: payload.customerKey,
+      status: payload.status,
+      alert_signature: payload.alertSignature,
+      updated_by_name: payload.userName,
+      updated_at: '2026-09-21T00:00:00.000Z'
+    }));
+  };
+  dashboardData.findDebtCustomerBranches = async () => customerBranches;
+  dashboardData.invalidateDebtWorkflowCache = branch => {
+    state.invalidated.push(branch);
+    log.push(`invalidate:${branch}`);
+  };
+  state.restore = () => {
+    repository.upsertStatus = originals.upsertStatus;
+    repository.upsertStatusForBranches = originals.upsertStatusForBranches;
+    dashboardData.invalidateDebtWorkflowCache = originals.invalidate;
+    dashboardData.findDebtCustomerBranches = originals.findBranches;
+  };
+  return state;
+}
+
+function bothBranchesRequest() {
+  return {
+    branch: 'Cả hai',
+    user: { id: '9ad42989-90ef-4da8-bf87-da505551ed15', hoTen: 'Quản lý A', vaiTro: 'Quản lý' },
+    body: { customerKey: 'a'.repeat(64), status: 'Đã xử lý', alertSignature: 'b'.repeat(64) }
+  };
+}
+
+test('PATCH ở "Cả hai" ghi cả hai cơ sở vật lý rồi xóa cache sau khi commit', async () => {
+  const handler = routeStack().at(-1);
+  const harness = bothBranchesHarness();
+  try {
+    const res = fakeRes();
+    await handler(bothBranchesRequest(), res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(harness.writtenBranches, ['hanoi', 'saigon']);
+    assert.equal(harness.singleBranchCalls, 0, 'không được dùng đường ghi một cơ sở');
+    assert.deepEqual(harness.invalidated, ['Hà Nội', 'Sài Gòn']);
+    assert.deepEqual(harness.log, ['write', 'invalidate:Hà Nội', 'invalidate:Sài Gòn'], 'chỉ xóa cache SAU khi ghi xong');
+    assert.deepEqual(res.body.branches, ['Hà Nội', 'Sài Gòn']);
+    assert.equal(res.body.status, 'Đã xử lý');
+  } finally {
+    harness.restore();
+  }
+});
+
+test('PATCH ở "Cả hai" không xóa cache khi transaction thất bại', async () => {
+  const handler = routeStack().at(-1);
+  const harness = bothBranchesHarness({
+    upsertForBranches: async () => { throw new Error('rollback'); }
+  });
+  try {
+    const res = fakeRes();
+    await handler(bothBranchesRequest(), res);
+
+    assert.equal(res.statusCode, 503);
+    assert.equal(res.body.code, 'DEBT_STATUS_UNAVAILABLE');
+    assert.deepEqual(harness.invalidated, []);
+  } finally {
+    harness.restore();
+  }
+});
+
+test('PATCH ở "Cả hai" chỉ ghi cơ sở thực sự có khách hàng này', async () => {
+  const handler = routeStack().at(-1);
+  const harness = bothBranchesHarness({ customerBranches: { found: ['Sài Gòn'], undetermined: [] } });
+  try {
+    const res = fakeRes();
+    await handler(bothBranchesRequest(), res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(harness.writtenBranches, ['saigon']);
+    assert.deepEqual(harness.invalidated, ['Sài Gòn']);
+    assert.deepEqual(res.body.branches, ['Sài Gòn']);
+  } finally {
+    harness.restore();
+  }
+});
+
+test('PATCH ở "Cả hai" trả 404 khi không cơ sở nào có khách hàng này', async () => {
+  const handler = routeStack().at(-1);
+  const harness = bothBranchesHarness({ customerBranches: { found: [], undetermined: [] } });
+  try {
+    const res = fakeRes();
+    await handler(bothBranchesRequest(), res);
+
+    assert.equal(res.statusCode, 404);
+    assert.equal(res.body.code, 'DEBT_CUSTOMER_NOT_FOUND');
+    assert.equal(harness.writtenBranches, null);
+    assert.deepEqual(harness.invalidated, []);
+  } finally {
+    harness.restore();
+  }
+});
+
+test('PATCH ở "Cả hai" vẫn ghi cơ sở không đọc được nguồn công nợ (không âm thầm bỏ qua)', async () => {
+  const handler = routeStack().at(-1);
+  const harness = bothBranchesHarness({ customerBranches: { found: ['Hà Nội'], undetermined: ['Sài Gòn'] } });
+  try {
+    const res = fakeRes();
+    await handler(bothBranchesRequest(), res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(harness.writtenBranches, ['hanoi', 'saigon']);
+  } finally {
+    harness.restore();
+  }
+});
+
+test('PATCH một cơ sở vật lý giữ nguyên đường ghi cũ (không mở transaction hai cơ sở)', async () => {
+  const handler = routeStack().at(-1);
+  const harness = bothBranchesHarness();
+  try {
+    const res = fakeRes();
+    await handler({
+      branch: 'Hà Nội',
+      user: { id: '9ad42989-90ef-4da8-bf87-da505551ed15', hoTen: 'Quản lý A', vaiTro: 'Quản lý' },
+      body: { customerKey: 'a'.repeat(64), status: 'Đã xử lý', alertSignature: 'b'.repeat(64) }
+    }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(harness.singleBranchCalls, 1);
+    assert.equal(harness.writtenBranches, null, 'một cơ sở không được đi qua ghi hai cơ sở');
+    assert.deepEqual(harness.invalidated, ['Hà Nội']);
+    assert.equal(res.body.branches, undefined, 'phản hồi một cơ sở giữ nguyên hình dạng cũ');
+  } finally {
+    harness.restore();
+  }
+});
+
 test('PATCH trả 503 khi PostgreSQL lỗi', async () => {
   const handler = routeStack().at(-1);
   const originalUpsert = repository.upsertStatus;
