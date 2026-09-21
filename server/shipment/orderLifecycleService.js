@@ -321,6 +321,9 @@ async function findOrdersBulk(rawCodes) {
     return {
       code,
       found: true,
+      // Nhan co so nguon ('HN'|'SG'): ket qua tra cuu luon gom ca 2 tab nen
+      // moi dong phai tu noi no den tu co so nao.
+      branch: record._branch,
       saleName: record.saleName || '',
       customerName: record.customerName || '',
       statusLabel: STATUS_COLUMN_LABEL[summary.code],

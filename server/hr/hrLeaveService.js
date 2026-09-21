@@ -7,7 +7,8 @@
 const CONFIG = require('../config');
 const userRepository = require('../auth/userRepository');
 const notificationRepository = require('../notifications/notificationRepository');
-const { BRANCHES, isBranchAllowed } = require('../branch/branches');
+const employeeDirectory = require('./employeeDirectory');
+const { BRANCHES, isBranchAllowed, normalizeCoSo } = require('../branch/branches');
 
 /**
  * Tinh so buoi nghi dua tren ngay + buoi bat dau/ket thuc.
@@ -197,6 +198,52 @@ async function resolveSenderIdentity(webUsername) {
   return { hoTen: user.hoTen, chucVu, vaiTro: user.vaiTro };
 }
 
+/**
+ * Co so VAT LY cua mot ban ghi nghi phep khi nguoi dung dang xem "Cả hai".
+ * "Cả hai" chi la lua chon giao dien, KHONG phai gia tri nghiep vu — cot
+ * `branch` cua hr_leave_requests chi nhan hanoi/saigon — nen co so phai lay tu
+ * HO SO NHAN SU: uu tien tai khoan web (web_username), sau do doi chieu ho ten
+ * voi Danh sach nhan su. Khong suy ra duoc thi bao loi de nguoi dung chon ro
+ * co so, tuyet doi khong doan bua.
+ *
+ * @param {{webUsername?: string, hoTen?: string}} employee
+ * @param {string[]} allowed Cac co so vat ly tai khoan duoc phep ghi
+ * @returns {Promise<string>} 'Hà Nội' | 'Sài Gòn'
+ */
+async function resolveEmployeeBranch({ webUsername, hoTen } = {}, allowed = []) {
+  const username = String(webUsername || '').trim();
+  if (username) {
+    const user = await userRepository.findUserByUsername(username);
+    const fromProfile = normalizeCoSo(user && (user.hrSourceBranch || user.coSo));
+    if (allowed.includes(fromProfile)) return fromProfile;
+  }
+
+  const name = employeeDirectory.normalizeText(hoTen);
+  const displayName = String(hoTen || '').trim();
+  const hint = 'Hãy chọn cơ sở Hà Nội hoặc Sài Gòn ở thanh điều hướng rồi ghi nhận lại.';
+  if (name) {
+    const snapshot = await employeeDirectory.getSnapshot();
+    const branches = Array.from(new Set(
+      (snapshot.employees || [])
+        .filter(item => employeeDirectory.normalizeText(item.hoTen) === name)
+        .map(item => item.sourceBranch)
+        .filter(branch => allowed.includes(branch))
+    ));
+    if (branches.length === 1) return branches[0];
+    if (branches.length > 1) {
+      throw leaveBranchError(`Nhân sự "${displayName}" có hồ sơ ở cả hai cơ sở. ${hint}`);
+    }
+  }
+  throw leaveBranchError(`Không xác định được cơ sở của nhân sự "${displayName}". ${hint}`);
+}
+
+function leaveBranchError(message) {
+  const err = new Error(message);
+  err.statusCode = 400;
+  err.code = 'LEAVE_BRANCH_UNRESOLVED';
+  return err;
+}
+
 /** Nguoi duyet lay truc tiep tu req.user (JWT), khong can doc lai users.json. */
 function resolveApproverName(reqUser) {
   return (reqUser && (reqUser.hoTen || reqUser.username)) || 'unknown';
@@ -242,5 +289,6 @@ module.exports = {
   computeIsUrgent,
   resolveSenderIdentity,
   resolveApproverName,
+  resolveEmployeeBranch,
   notifyOtherManagers
 };

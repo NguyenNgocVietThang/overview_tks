@@ -3738,6 +3738,7 @@
                   <table>
                     <thead>
                       <tr>
+                        <th id="recentStockoutBranchHead" hidden>Cơ sở</th>
                         <th>Mã SP</th>
                         <th>Tên SP</th>
                         <th>Ngày hết hàng gần nhất</th>
@@ -3779,6 +3780,7 @@
                   <table>
                     <thead>
                       <tr>
+                        <th id="stockout90dBranchHead" hidden>Cơ sở</th>
                         <th>Mã SP</th>
                         <th>Tên SP</th>
                         <th>Số lần đứt hàng</th>
@@ -5196,6 +5198,22 @@
       }).join('<br>');
     }
 
+    // Ket qua quet o "Cả hai" gop dong cua 2 co so (cung ma hang co the xuat
+    // hien hai lan) -> phai hien cot nguon. Cot luon nam trong DOM, chi an/hien
+    // de chi so cot (dung cho sap xep) khong bi lech.
+    function isMergedStockoutResult(result) {
+      return !!(result && result.branch === 'Cả hai');
+    }
+
+    function stockoutBranchCell(row, merged) {
+      return '<td' + (merged ? '' : ' hidden') + '>' + escapeHtml((row && row.branch) || '') + '</td>';
+    }
+
+    function syncStockoutBranchHead(headId, merged) {
+      const head = document.getElementById(headId);
+      if (head) head.hidden = !merged;
+    }
+
     function formatStockoutSourceWarnings(result) {
       return Array.isArray(result && result.warnings) ? result.warnings.join(' ') : '';
     }
@@ -5371,6 +5389,8 @@
       const tag = document.getElementById('tagRecentStockoutRows');
       const totalTag = document.getElementById('tagRecentStockoutTotal');
       const rows = (result && result.rows) || [];
+      const merged = isMergedStockoutResult(result);
+      syncStockoutBranchHead('recentStockoutBranchHead', merged);
       const sorted = rows.slice().sort(function (a, b) { return b.daysOutOfStock - a.daysOutOfStock; });
       const config = TABLE_EXPLORER_CONFIGS.recentStockout;
       const searchState = getTableSearchState('recentStockout');
@@ -5386,7 +5406,7 @@
       if (exportButton) exportButton.disabled = filtered.items.length === 0;
 
       if (filtered.items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục tính đến ' +
+        tbody.innerHTML = '<tr><td colspan="' + (merged ? 7 : 6) + '" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục tính đến ' +
           escapeHtml(result ? result.asOfDate : '') + '</td></tr>';
         return;
       }
@@ -5394,6 +5414,7 @@
       tbody.innerHTML = filtered.items.map(function (row) {
         return (
           '<tr data-table-item-id="' + escapeHtml(row.code) + '">' +
+            stockoutBranchCell(row, merged) +
             '<td>' + escapeHtml(row.code) + '</td>' +
             '<td>' + escapeHtml(row.name) + '</td>' +
             '<td>' + escapeHtml(row.lastOutOfStockDate) + '</td>' +
@@ -5440,7 +5461,12 @@
             mode: getTableSearchState('recentStockout').mode,
             query: getTableSearchState('recentStockout').query
           },
-          columns: { recent_stockout_result: ['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'dataWarning', 'periods'] }
+          // Ket qua quet o "Cả hai" moi co cot nguon (theo ket qua da quet, khong
+          // theo co so dang chon) — gui thua khoa nay o mot co so se bi tu choi.
+          columns: {
+            recent_stockout_result: (isMergedStockoutResult(result) ? ['branch'] : [])
+              .concat(['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'dataWarning', 'periods'])
+          }
         };
         const response = await exportFetch('/api/export', payload, request);
         if (!response.ok) throw new Error(await readExportError(response, 'Không thể tạo file Excel'));
@@ -5612,6 +5638,8 @@
       const tag = document.getElementById('tagStockout90dRows');
       const totalTag = document.getElementById('tagStockout90dTotal');
       const rows = (result && result.rows) || [];
+      const merged = isMergedStockoutResult(result);
+      syncStockoutBranchHead('stockout90dBranchHead', merged);
       const sorted = rows.slice().sort(function (a, b) { return b.totalStockoutDays - a.totalStockoutDays; });
       const config = TABLE_EXPLORER_CONFIGS.stockout90d;
       const searchState = getTableSearchState('stockout90d');
@@ -5627,7 +5655,7 @@
       if (exportButton) exportButton.disabled = filtered.items.length === 0;
 
       if (filtered.items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 90 ngày gần đây</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="' + (merged ? 9 : 8) + '" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 90 ngày gần đây</td></tr>';
         return;
       }
 
@@ -5635,6 +5663,7 @@
         const avgStockoutDays = row.stockoutCount ? (row.totalStockoutDays / row.stockoutCount) : 0;
         return (
           '<tr data-table-item-id="' + escapeHtml(row.code) + '">' +
+            stockoutBranchCell(row, merged) +
             '<td>' + escapeHtml(row.code) + '</td>' +
             '<td>' + escapeHtml(row.name) + '</td>' +
             '<td>' + row.stockoutCount + '</td>' +
@@ -5683,7 +5712,11 @@
             mode: getTableSearchState('stockout90d').mode,
             query: getTableSearchState('stockout90d').query
           },
-          columns: { stockout_90d_result: ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'dataWarning', 'periods'] }
+          // Xem ghi chu tuong tu o exportRecentStockoutResult().
+          columns: {
+            stockout_90d_result: (isMergedStockoutResult(result) ? ['branch'] : [])
+              .concat(['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'dataWarning', 'periods'])
+          }
         };
         const response = await exportFetch('/api/export', payload, request);
         if (!response.ok) throw new Error(await readExportError(response, 'Không thể tạo file Excel'));

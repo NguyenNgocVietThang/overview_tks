@@ -145,3 +145,87 @@ test('GET /api/products/stockout-90d/:jobId/result: job xong tra 200 + result', 
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.result.rows.length, 1);
 });
+
+// ---------------------------------------------------------------------------
+// Co so "Cả hai": chay job con cho tung co so vat ly roi gop ket qua.
+// ---------------------------------------------------------------------------
+
+test('POST /api/products/stockout-recent/scan ở "Cả hai": quét cả hai cơ sở vật lý và gộp kết quả', async () => {
+  const original = recentStockoutScanService.runRecentStockoutScanJob;
+  const scannedBranches = [];
+  recentStockoutScanService.runRecentStockoutScanJob = async (store, jobId, deps) => {
+    scannedBranches.push(deps.branch);
+    store.setResult(jobId, {
+      asOfDate: '2026-09-21', branch: deps.branch, totalProductsScanned: 5, totalCandidates: 1,
+      sources: {}, warnings: [], rows: [{ code: 'SP001', name: 'A', periods: [] }]
+    });
+  };
+  try {
+    const handler = getRouteHandler('post', '/api/products/stockout-recent/scan');
+    const req = { branch: 'Cả hai' };
+    const res = fakeRes();
+
+    await handler(req, res);
+    assert.equal(res.statusCode, 202);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.deepEqual(scannedBranches, ['Hà Nội', 'Sài Gòn']);
+    const job = router.jobStore.getJob(res.body.jobId);
+    assert.equal(job.status, 'done');
+    assert.equal(job.result.branch, 'Cả hai');
+    assert.deepEqual(job.result.rows.map((row) => row.branch), ['Hà Nội', 'Sài Gòn']);
+  } finally {
+    recentStockoutScanService.runRecentStockoutScanJob = original;
+  }
+});
+
+test('POST /api/products/stockout-90d/scan ở "Cả hai": quét cả hai cơ sở vật lý và gộp kết quả', async () => {
+  const original = stockout90dScanService.runStockout90dScanJob;
+  const scannedBranches = [];
+  stockout90dScanService.runStockout90dScanJob = async (store, jobId, deps) => {
+    scannedBranches.push(deps.branch);
+    store.setResult(jobId, {
+      asOfDate: '2026-09-21', fromDate: '2026-06-23', branch: deps.branch,
+      totalProductsScanned: 5, totalCandidates: 1, sources: {}, warnings: [],
+      rows: [{ code: 'SP001', name: 'A', periods: [] }]
+    });
+  };
+  try {
+    const handler = getRouteHandler('post', '/api/products/stockout-90d/scan');
+    const req = { branch: 'Cả hai' };
+    const res = fakeRes();
+
+    await handler(req, res);
+    assert.equal(res.statusCode, 202);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.deepEqual(scannedBranches, ['Hà Nội', 'Sài Gòn']);
+    const job = router.jobStore.getJob(res.body.jobId);
+    assert.equal(job.status, 'done');
+    assert.equal(job.result.branch, 'Cả hai');
+    assert.equal(job.result.fromDate, '2026-06-23');
+  } finally {
+    stockout90dScanService.runStockout90dScanJob = original;
+  }
+});
+
+test('POST /api/products/stockout-recent/scan ở cơ sở vật lý: vẫn chỉ quét đúng cơ sở đó', async () => {
+  const original = recentStockoutScanService.runRecentStockoutScanJob;
+  const scannedBranches = [];
+  recentStockoutScanService.runRecentStockoutScanJob = async (_store, _jobId, deps) => {
+    scannedBranches.push(deps.branch);
+  };
+  try {
+    const handler = getRouteHandler('post', '/api/products/stockout-recent/scan');
+    const req = { branch: 'Sài Gòn' };
+    const res = fakeRes();
+
+    await handler(req, res);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(res.statusCode, 202);
+    assert.deepEqual(scannedBranches, ['Sài Gòn']);
+  } finally {
+    recentStockoutScanService.runRecentStockoutScanJob = original;
+  }
+});

@@ -636,3 +636,19 @@ test('listHistory: dòng lịch sử cũ chưa có cột trạng thái cũ -> tr
     ctx.restore();
   }
 });
+
+test('findOrdersBulk: mỗi dòng tìm thấy kèm nhãn cơ sở nguồn của đơn', async () => {
+  const ctx = freshService([
+    record({ orderCode: 'HD001', _branch: 'HN' }),
+    record({ orderCode: 'HD002', _branch: 'SG' })
+  ]);
+  try {
+    const results = await ctx.service.findOrdersBulk(['HD001', 'HD002', 'HD999']);
+    assert.equal(results[0].branch, 'HN');
+    assert.equal(results[1].branch, 'SG');
+    assert.equal(results[2].found, false);
+    assert.equal(results[2].branch, undefined, 'mã không tồn tại không gán cơ sở');
+  } finally {
+    ctx.restore();
+  }
+});

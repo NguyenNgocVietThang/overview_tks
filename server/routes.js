@@ -15,7 +15,7 @@ const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
 const { requireAuth, requireRole } = require('./auth/authMiddleware');
 const { resolveBranch } = require('./branch/branchMiddleware');
-const { branchLabelToCode } = require('./branch/branches');
+const { branchLabelToCode, resolveBranchScope } = require('./branch/branches');
 const branchRoutes = require('./branch/branchRoutes');
 const { INTERNAL_ROLES, ROLES } = require('./auth/userRepository');
 const { getPool } = require('./db/pool');
@@ -93,14 +93,16 @@ router.use(stockoutCheckRoutes);
 
 // Route kiem tra ket noi nhanh — chi xem duoc tren server, KHONG expose secret
 router.get('/api/debug', async (req, res) => {
-  const branchCode = branchLabelToCode(req.branch);
+  // "Cả hai" khong phai ma co so trong DB — doi ra pham vi co so VAT LY roi
+  // dem gop, thay vi gui chuoi rong xuong Postgres va luon thay 0 hoa don.
+  const branchCodes = resolveBranchScope(req.branch).map(branchLabelToCode);
   const checks = {
     branch: req.branch,
     databaseTest: null,
     databaseError: null
   };
   try {
-    const result = await getPool().query('SELECT COUNT(*)::int AS count FROM invoices WHERE branch = $1', [branchCode]);
+    const result = await getPool().query('SELECT COUNT(*)::int AS count FROM invoices WHERE branch = ANY($1::text[])', [branchCodes]);
     checks.databaseTest = `OK — ${result.rows[0].count} hóa đơn từ Supabase`;
   } catch (e) {
     checks.databaseError = { message: e.message };

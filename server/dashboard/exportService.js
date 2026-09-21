@@ -296,6 +296,11 @@ const STOCKOUT_RECENT_COLUMNS = [
   aggregateColumn('periods', 'Các đợt đứt hàng', undefined, 'Từng đợt đứt hàng, mỗi đợt một dòng (từ ngày -> đến ngày).', { wrapText: true })
 ];
 
+// Ket qua quet o "Cả hai" gop dong cua 2 co so (cung ma hang co the xuat hien
+// hai lan) — bat buoc phai co cot nguon. Cot nay PHU THUOC KET QUA DA QUET
+// (result.branch), khong phu thuoc co so dang chon luc bam Xuat Excel.
+const STOCKOUT_BRANCH_COLUMN = aggregateColumn('branch', 'Cơ sở', 'text', 'Cơ sở (Hà Nội hoặc Sài Gòn) phát sinh kết quả đứt hàng.');
+
 const STOCKOUT_90D_COLUMNS = [
   aggregateColumn('code', 'Mã hàng', 'text', 'Mã hàng được kiểm tra.'),
   aggregateColumn('name', 'Tên hàng', undefined, 'Tên hàng được kiểm tra.'),
@@ -957,6 +962,11 @@ function formatStockoutPeriods(periods) {
     .join('\n');
 }
 
+function withStockoutBranchColumn(worksheet, result) {
+  if (!result || result.branch !== BRANCH_BOTH) return worksheet;
+  return { ...worksheet, columns: [STOCKOUT_BRANCH_COLUMN, ...worksheet.columns] };
+}
+
 function stockoutDataWarning(row) {
   return row.hasUnreliableData ? 'Thiếu dữ liệu trả hàng nhà cung cấp trong kỳ — cần đối chiếu thủ công' : '';
 }
@@ -966,7 +976,7 @@ function buildRecentStockoutResultDataset(description, payload) {
   const rows = result && Array.isArray(result.rows) ? result.rows : [];
   if (rows.length === 0) throw exportError('Chưa có kết quả hàng đứt gần đây để xuất.', 400, 'EXPORT_NO_DATA');
   const dataRows = rows.map(row => ({ ...row, periods: formatStockoutPeriods(row.periods), dataWarning: stockoutDataWarning(row) }));
-  const worksheet = description.worksheets[0];
+  const worksheet = withStockoutBranchColumn(description.worksheets[0], result);
   return {
     tableKey: 'stockout.recentScan',
     title: TABLE_TITLES['stockout.recentScan'],
@@ -990,7 +1000,7 @@ function buildStockout90dResultDataset(description, payload) {
     periods: formatStockoutPeriods(row.periods),
     dataWarning: stockoutDataWarning(row)
   }));
-  const worksheet = description.worksheets[0];
+  const worksheet = withStockoutBranchColumn(description.worksheets[0], result);
   return {
     tableKey: 'stockout.check90d',
     title: TABLE_TITLES['stockout.check90d'],
@@ -1038,6 +1048,10 @@ function describeExport(payload, branch) {
       throw exportError('Không có kết quả phù hợp bộ lọc để xuất.', 404, 'EXPORT_NO_DATA');
     }
     description.dataset = filtered;
+    // Cot cua bang stockout phu thuoc ket qua da quet ("Cả hai" co them cot
+    // "Cơ sở") nen phai validate lua chon cot theo worksheet cua ket qua, chu
+    // khong theo dinh nghia tinh trong TABLE_SPECS.
+    description.worksheets = filtered.worksheets;
   }
   return description;
 }

@@ -240,3 +240,164 @@ test('trạng thái Telegram đọc từ app_users qua req.user, không đọc G
     repo.findLinkByWebUsername = originalFindLink;
   }
 });
+
+// ---------------------------------------------------------------------------
+// Co so "Cả hai": ban ghi nghi phep PHAI lay co so tu ho so nhan su, khong bao
+// gio luu/phat di gia tri "Cả hai" (cot branch cua DB chi nhan hanoi/saigon).
+// ---------------------------------------------------------------------------
+
+const userRepository = require('../auth/userRepository');
+const { leaveEvents } = require('./hrLeaveEvents');
+
+function stubHrProfileSources({ employees = [], users = [] } = {}) {
+  const originalSnapshot = employeeDirectory.getSnapshot;
+  const originalFindUser = userRepository.findUserByUsername;
+  employeeDirectory.getSnapshot = async () => ({ employees });
+  userRepository.findUserByUsername = async username =>
+    users.find(user => user.username === username) || null;
+  return () => {
+    employeeDirectory.getSnapshot = originalSnapshot;
+    userRepository.findUserByUsername = originalFindUser;
+  };
+}
+
+function manualAbsenceBody(overrides) {
+  return Object.assign({
+    ho_ten: 'Nhân viên A',
+    ly_do: 'HR ghi nhận',
+    start_date: '2026-08-22',
+    start_session: 'Sáng',
+    end_date: '2026-08-22',
+    end_session: 'Chiều',
+    co_tu_y_nghi: true
+  }, overrides);
+}
+
+async function postLeaveRequest({ branch, body, employees, users, onCreate }) {
+  const originalCreate = repo.createLeaveRequest;
+  const restoreProfiles = stubHrProfileSources({ employees, users });
+  const calls = [];
+  repo.createLeaveRequest = async (payload, createBranch) => {
+    calls.push({ payload, branch: createBranch });
+    return onCreate ? onCreate(payload, createBranch) : Object.assign({}, payload, { id: 'REQ-1', co_so: createBranch });
+  };
+  const events = [];
+  const onEvent = payload => events.push(payload);
+  leaveEvents.on('leave-event', onEvent);
+  try {
+    const handler = getRouteHandler('post', '/api/hr/leave-requests');
+    const req = { user: MANAGER_BOTH, branch, body };
+    const res = fakeRes();
+    await handler(req, res);
+    await new Promise(resolve => setImmediate(resolve));
+    return { res, calls, events };
+  } finally {
+    leaveEvents.removeListener('leave-event', onEvent);
+    restoreProfiles();
+    repo.createLeaveRequest = originalCreate;
+  }
+}
+
+test('tạo đơn ở "Cả hai": cơ sở lấy từ hồ sơ nhân sự (họ tên), không phải cơ sở đang chọn', async () => {
+  const { res, calls } = await postLeaveRequest({
+    branch: 'Cả hai',
+    body: manualAbsenceBody({ ho_ten: 'Nhân viên A' }),
+    employees: [
+      { hoTen: 'Nhân viên A', sourceBranch: 'Sài Gòn' },
+      { hoTen: 'Nhân viên B', sourceBranch: 'Hà Nội' }
+    ]
+  });
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].branch, 'Sài Gòn');
+});
+
+test('tạo đơn ở "Cả hai": cơ sở lấy từ tài khoản web khi có web_username', async () => {
+  const { res, calls } = await postLeaveRequest({
+    branch: 'Cả hai',
+    body: manualAbsenceBody({ ho_ten: 'Nhân viên A', web_username: 'nva' }),
+    users: [{ username: 'nva', hrSourceBranch: 'Hà Nội', coSo: 'Cả hai' }],
+    employees: [{ hoTen: 'Nhân viên A', sourceBranch: 'Sài Gòn' }]
+  });
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(calls[0].branch, 'Hà Nội');
+});
+
+test('tạo đơn ở "Cả hai": không xác định được cơ sở của nhân sự -> 400, không ghi bản ghi', async () => {
+  const { res, calls } = await postLeaveRequest({
+    branch: 'Cả hai',
+    body: manualAbsenceBody({ ho_ten: 'Người lạ' }),
+    employees: [{ hoTen: 'Nhân viên A', sourceBranch: 'Hà Nội' }]
+  });
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.code, 'LEAVE_BRANCH_UNRESOLVED');
+  assert.match(res.body.error, /cơ sở/i);
+  assert.equal(calls.length, 0);
+});
+
+test('tạo đơn ở "Cả hai": trùng tên ở cả hai cơ sở -> 400, không đoán bừa cơ sở', async () => {
+  const { res, calls } = await postLeaveRequest({
+    branch: 'Cả hai',
+    body: manualAbsenceBody({ ho_ten: 'Nhân viên A' }),
+    employees: [
+      { hoTen: 'Nhân viên A', sourceBranch: 'Hà Nội' },
+      { hoTen: 'Nhân viên A', sourceBranch: 'Sài Gòn' }
+    ]
+  });
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.code, 'LEAVE_BRANCH_UNRESOLVED');
+  assert.equal(calls.length, 0);
+});
+
+test('tạo đơn ở "Cả hai": sự kiện realtime mang cơ sở vật lý của bản ghi', async () => {
+  const { events } = await postLeaveRequest({
+    branch: 'Cả hai',
+    body: manualAbsenceBody({ ho_ten: 'Nhân viên A' }),
+    employees: [{ hoTen: 'Nhân viên A', sourceBranch: 'Sài Gòn' }],
+    // Ban ghi tra ve thieu co_so (phong thu) — su kien van khong duoc mang "Cả hai".
+    onCreate: payload => Object.assign({}, payload, { id: 'REQ-1', co_so: '' })
+  });
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].branch, 'Sài Gòn');
+});
+
+test('tạo đơn ở cơ sở vật lý: giữ nguyên hành vi cũ (không tra hồ sơ nhân sự)', async () => {
+  const { res, calls } = await postLeaveRequest({
+    branch: 'Hà Nội',
+    body: manualAbsenceBody({ ho_ten: 'Người lạ' }),
+    employees: []
+  });
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(calls[0].branch, 'Hà Nội');
+});
+
+test('đổi trạng thái ở "Cả hai": sự kiện realtime không bao giờ mang nhãn "Cả hai"', async () => {
+  const originalUpdate = repo.updateLeaveRequestStatus;
+  repo.updateLeaveRequestStatus = async () => ({ id: 'REQ-1', ho_ten: 'Nhân viên A', co_so: '' });
+  const events = [];
+  const onEvent = payload => events.push(payload);
+  leaveEvents.on('leave-event', onEvent);
+  try {
+    const handler = getRouteHandler('patch', '/api/hr/leave-requests/:id/status');
+    const req = {
+      user: MANAGER_BOTH, branch: 'Cả hai',
+      params: { id: 'REQ-1' }, body: { status: 'Đã duyệt' }
+    };
+    const res = fakeRes();
+    await handler(req, res);
+    await new Promise(resolve => setImmediate(resolve));
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(events.length, 1);
+    assert.notEqual(events[0].branch, 'Cả hai');
+  } finally {
+    leaveEvents.removeListener('leave-event', onEvent);
+    repo.updateLeaveRequestStatus = originalUpdate;
+  }
+});

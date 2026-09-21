@@ -16,15 +16,16 @@ const { requireAuth, requireRole } = require('../auth/authMiddleware');
 const { ROLES, INTERNAL_ROLES } = require('../auth/userRepository');
 const repo = require('./hrLeaveRepository');
 const employeeDirectory = require('./employeeDirectory');
+const hrLeaveService = require('./hrLeaveService');
 const {
   resolveApproverName,
   computeDurationSessions,
   parseIsoDateOnly,
   notifyOtherManagers
-} = require('./hrLeaveService');
+} = hrLeaveService;
 const { buildLeaveRequestsWorkbook } = require('./hrLeaveExportService');
 const { buildEmployeeDirectoryWorkbook } = require('./hrEmployeeExportService');
-const { BRANCHES, allowedBranches, normalizeCoSo } = require('../branch/branches');
+const { BRANCHES, BRANCH_BOTH, allowedBranches, normalizeCoSo } = require('../branch/branches');
 const { leaveEvents, LEAVE_EVENT_TYPES, broadcastLeaveEvent } = require('./hrLeaveEvents');
 const localUserStore = require('../auth/localUserStore');
 const notificationRepo = require('../notifications/notificationRepository');
@@ -49,6 +50,12 @@ function resolveBranchScope(req, requested) {
     throw new repo.HrError('Bạn không có quyền xem cơ sở này.', 403, 'BRANCH_FORBIDDEN');
   }
   return [branch];
+}
+
+// req.branch co the la "Cả hai" — day KHONG phai co so vat ly nen khong duoc
+// dung lam nhan co so cho ban ghi hay cho thong bao/SSE.
+function physicalBranchOrNull(branch) {
+  return branch === BRANCHES.HANOI || branch === BRANCHES.SAIGON ? branch : null;
 }
 
 function handleError(res, err, context) {
@@ -205,6 +212,15 @@ router.post('/api/hr/leave-requests', ...authManager, async (req, res) => {
       });
     }
 
+    // Dang xem "Cả hai" thi khong co co so nao "dang chon" de gan cho don —
+    // lay co so tu ho so nhan su, khong suy ra duoc thi bao loi (4xx) thay vi
+    // ghi bua vao mot co so.
+    const recordBranch = req.branch === BRANCH_BOTH
+      ? await hrLeaveService.resolveEmployeeBranch(
+        { webUsername: web_username, hoTen: ho_ten }, allowedBranches(req.user)
+      )
+      : req.branch;
+
     const isManualAbsence = !!co_tu_y_nghi || loai_yeu_cau === repo.LEAVE_TYPE.MANUAL_ABSENCE;
     const record = await repo.createLeaveRequest({
       web_username,
@@ -222,13 +238,13 @@ router.post('/api/hr/leave-requests', ...authManager, async (req, res) => {
       approver_user_id: isManualAbsence ? req.user.id : undefined,
       thoi_diem_duyet: isManualAbsence ? new Date().toISOString() : undefined,
       co_tu_y_nghi: isManualAbsence
-    }, req.branch);
+    }, recordBranch);
     res.status(201).json({ request: record });
 
     // Phat tin hieu realtime toi tat ca cac client dang mo
-    broadcastLeaveEvent(LEAVE_EVENT_TYPES.CREATED, record, record.co_so || req.branch);
+    broadcastLeaveEvent(LEAVE_EVENT_TYPES.CREATED, record, record.co_so || recordBranch);
 
-    notifyOtherManagers(req.user.id, record.co_so || req.branch, {
+    notifyOtherManagers(req.user.id, record.co_so || recordBranch, {
       type: 'leave_request_created',
       title: 'Có nhân sự nghỉ phép mới',
       message: `${record.ho_ten} vừa ${isManualAbsence ? 'được ghi nhận tự ý nghỉ' : 'gửi yêu cầu nghỉ phép'} từ ${record.thoi_gian_bat_dau} đến ${record.thoi_gian_ket_thuc}.`,
@@ -256,7 +272,7 @@ router.patch('/api/hr/leave-requests/:id/status', ...authManager, async (req, re
     const updated = await repo.updateLeaveRequestStatus(
       req.params.id, { status, approver, approverUserId: req.user && req.user.id, note }, allowedBranches(req.user)
     );
-    const requestBranch = updated.co_so || req.branch;
+    const requestBranch = updated.co_so || physicalBranchOrNull(req.branch);
     res.status(200).json({ request: updated });
 
     // Phat tin hieu realtime toi tat ca cac client dang mo

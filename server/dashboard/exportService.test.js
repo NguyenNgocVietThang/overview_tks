@@ -1526,3 +1526,44 @@ test('Ca hai: ket qua tim kiem giao dich them cot "Cơ sở" tu provenance cua t
     dashboardData.searchDashboardRecords = originalSearch;
   }
 });
+
+// ---------- Xuat ket qua dut hang quet o "Cả hai" ----------
+
+test('buildExportDataset: ket qua stockout quet o "Cả hai" them cot Co so o dau worksheet', async () => {
+  const dataset = await exportService.__test__.buildExportDataset({
+    tableKey: 'stockout.recentScan',
+    recentStockoutResult: {
+      branch: 'Cả hai',
+      rows: [
+        { code: 'SP001', name: 'Ao thun', branch: 'Hà Nội', lastOutOfStockDate: '2026-01-05', daysOutOfStock: 6, periods: [] },
+        { code: 'SP001', name: 'Ao thun', branch: 'Sài Gòn', lastOutOfStockDate: '2026-01-07', daysOutOfStock: 4, periods: [] }
+      ]
+    }
+  });
+
+  assert.equal(dataset.worksheets[0].columns[0].key, 'branch');
+  assert.equal(dataset.worksheets[0].columns[0].label, 'Cơ sở');
+  assert.deepEqual(dataset.worksheets[0].rows.map(row => row.branch), ['Hà Nội', 'Sài Gòn']);
+});
+
+test('buildExportDataset: ket qua stockout quet o mot co so KHONG co cot Co so', async () => {
+  const dataset = await exportService.__test__.buildExportDataset({
+    tableKey: 'stockout.check90d',
+    stockout90dResult: { branch: 'Hà Nội', rows: STOCKOUT_ROWS }
+  });
+
+  assert.equal(dataset.worksheets[0].columns.some(column => column.key === 'branch'), false);
+});
+
+test('createExportWorkbook: chap nhan truong "branch" khi ket qua stockout quet o "Cả hai"', async () => {
+  const file = await exportService.createExportWorkbook({
+    tableKey: 'stockout.recentScan',
+    recentStockoutResult: {
+      branch: 'Cả hai',
+      rows: [{ code: 'SP001', name: 'Ao thun', branch: 'Sài Gòn', lastOutOfStockDate: '2026-01-05', daysOutOfStock: 6, periods: [] }]
+    },
+    columns: { recent_stockout_result: ['branch', 'code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'periods'] }
+  }, 'Cả hai');
+
+  assert.ok(file.buffer.byteLength > 0);
+});
