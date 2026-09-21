@@ -24,6 +24,7 @@ const {
 } = require('./hrLeaveService');
 const { buildLeaveRequestsWorkbook } = require('./hrLeaveExportService');
 const { buildEmployeeDirectoryWorkbook } = require('./hrEmployeeExportService');
+const { BRANCHES, allowedBranches, normalizeCoSo } = require('../branch/branches');
 const { leaveEvents, LEAVE_EVENT_TYPES, broadcastLeaveEvent } = require('./hrLeaveEvents');
 const localUserStore = require('../auth/localUserStore');
 const notificationRepo = require('../notifications/notificationRepository');
@@ -32,6 +33,23 @@ const notificationRepo = require('../notifications/notificationRepository');
 const authInternal = [requireAuth, requireRole(...INTERNAL_ROLES)];
 // Doi trang thai phe duyet / nhap tay: chi Quan ly.
 const authManager = [requireAuth, requireRole(ROLES.QUAN_LY)];
+
+// Bo loc "Co so" cua trang: bo trong / 'all' = TAT CA co so tai khoan duoc xem
+// (khong phu thuoc co so dang chon o thanh dieu huong); 1 co so cu the phai
+// nam trong pham vi duoc phep, neu khong 403 — server luon xac thuc lai.
+function resolveBranchScope(req, requested) {
+  const allowed = allowedBranches(req.user);
+  const wanted = String(requested == null ? '' : requested).trim();
+  if (!wanted || wanted === 'all') return allowed;
+  const branch = normalizeCoSo(wanted);
+  if (branch !== BRANCHES.HANOI && branch !== BRANCHES.SAIGON) {
+    throw new repo.HrError(`Cơ sở không hợp lệ: "${wanted}".`, 400, 'INVALID_BRANCH');
+  }
+  if (!allowed.includes(branch)) {
+    throw new repo.HrError('Bạn không có quyền xem cơ sở này.', 403, 'BRANCH_FORBIDDEN');
+  }
+  return [branch];
+}
 
 function handleError(res, err, context) {
   if (err.statusCode && err.statusCode < 500) {
@@ -66,9 +84,10 @@ router.get('/api/hr/leave-requests/stream', ...authInternal, (req, res) => {
   // Gui initial ping xac nhan ket noi thanh cong
   res.write(': connected\n\n');
 
+  const watchedBranches = allowedBranches(req.user);
   const onLeaveEvent = (payload) => {
-    // Chi day su kien cua DUNG co so client dang xem.
-    if (payload && payload.branch && payload.branch !== req.branch) return;
+    // Chi day su kien cua cac co so tai khoan nay duoc phep xem.
+    if (payload && payload.branch && !watchedBranches.includes(payload.branch)) return;
     try {
       res.write(`data: ${JSON.stringify(payload)}\n\n`);
     } catch (err) {
@@ -94,13 +113,16 @@ router.get('/api/hr/leave-requests/stream', ...authInternal, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// GET /api/hr/leave-requests — danh sach, loc theo status/employee/from-to (thoi gian gui)
+// GET /api/hr/leave-requests — danh sach, loc theo status/employee/department/branch/from-to
 // ---------------------------------------------------------------------------
 
 router.get('/api/hr/leave-requests', ...authInternal, async (req, res) => {
   try {
-    const { status, employee, from, to } = req.query;
-    const requests = await repo.getLeaveRequests({ status, employee, from, to }, req.branch);
+    const { status, employee, department, branch, from, to } = req.query;
+    const requests = await repo.getLeaveRequests(
+      { status, employee, department, from, to },
+      resolveBranchScope(req, branch)
+    );
     res.status(200).json({ requests });
   } catch (err) {
     handleError(res, err, 'GET /api/hr/leave-requests');
@@ -114,7 +136,7 @@ router.get('/api/hr/leave-requests', ...authInternal, async (req, res) => {
 
 router.get('/api/hr/leave-requests/summary/urgent-flags', ...authInternal, async (req, res) => {
   try {
-    const summary = await repo.getUrgentFlagSummary(req.query.month, req.branch);
+    const summary = await repo.getUrgentFlagSummary(req.query.month, allowedBranches(req.user));
     res.status(200).json({ summary });
   } catch (err) {
     handleError(res, err, 'GET /api/hr/leave-requests/summary/urgent-flags');
@@ -128,8 +150,11 @@ router.get('/api/hr/leave-requests/summary/urgent-flags', ...authInternal, async
 
 router.post('/api/hr/leave-requests/export', ...authInternal, async (req, res) => {
   try {
-    const { status, employee, from, to, sortField, sortDir } = req.body || {};
-    const { buffer, fileName, mime } = await buildLeaveRequestsWorkbook({ status, employee, from, to, sortField, sortDir }, req.branch);
+    const { status, employee, department, branch, from, to, sortField, sortDir } = req.body || {};
+    const { buffer, fileName, mime } = await buildLeaveRequestsWorkbook(
+      { status, employee, department, from, to, sortField, sortDir },
+      resolveBranchScope(req, branch)
+    );
     res.setHeader('Content-Type', mime);
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     res.status(200).send(Buffer.from(buffer));
@@ -144,7 +169,7 @@ router.post('/api/hr/leave-requests/export', ...authInternal, async (req, res) =
 
 router.get('/api/hr/leave-requests/:id', ...authInternal, async (req, res) => {
   try {
-    const request = await repo.getLeaveRequestById(req.params.id, req.branch);
+    const request = await repo.getLeaveRequestById(req.params.id, allowedBranches(req.user));
     if (!request) {
       return res.status(404).json({ error: `Không tìm thấy yêu cầu "${req.params.id}".`, code: 'LEAVE_REQUEST_NOT_FOUND' });
     }
@@ -201,9 +226,9 @@ router.post('/api/hr/leave-requests', ...authManager, async (req, res) => {
     res.status(201).json({ request: record });
 
     // Phat tin hieu realtime toi tat ca cac client dang mo
-    broadcastLeaveEvent(LEAVE_EVENT_TYPES.CREATED, record, req.branch);
+    broadcastLeaveEvent(LEAVE_EVENT_TYPES.CREATED, record, record.co_so || req.branch);
 
-    notifyOtherManagers(req.user.id, req.branch, {
+    notifyOtherManagers(req.user.id, record.co_so || req.branch, {
       type: 'leave_request_created',
       title: 'Có nhân sự nghỉ phép mới',
       message: `${record.ho_ten} vừa ${isManualAbsence ? 'được ghi nhận tự ý nghỉ' : 'gửi yêu cầu nghỉ phép'} từ ${record.thoi_gian_bat_dau} đến ${record.thoi_gian_ket_thuc}.`,
@@ -226,15 +251,18 @@ router.patch('/api/hr/leave-requests/:id/status', ...authManager, async (req, re
       return res.status(400).json({ error: 'Thiếu trường "status".', code: 'INVALID_REQUEST' });
     }
     const approver = resolveApproverName(req.user);
+    // Don co the thuoc bat ky co so nao tai khoan duoc xem (danh sach co the dang
+    // o "Tat ca co so"), nen tim theo tat ca chu khong chi co so dang chon.
     const updated = await repo.updateLeaveRequestStatus(
-      req.params.id, { status, approver, approverUserId: req.user && req.user.id, note }, req.branch
+      req.params.id, { status, approver, approverUserId: req.user && req.user.id, note }, allowedBranches(req.user)
     );
+    const requestBranch = updated.co_so || req.branch;
     res.status(200).json({ request: updated });
 
     // Phat tin hieu realtime toi tat ca cac client dang mo
-    broadcastLeaveEvent(LEAVE_EVENT_TYPES.STATUS_CHANGED, updated, req.branch);
+    broadcastLeaveEvent(LEAVE_EVENT_TYPES.STATUS_CHANGED, updated, requestBranch);
 
-    notifyOtherManagers(req.user.id, req.branch, {
+    notifyOtherManagers(req.user.id, requestBranch, {
       type: 'leave_request_decision',
       title: 'Đơn nghỉ phép đã được cập nhật',
       message: `Đơn nghỉ phép của ${updated.ho_ten} đã chuyển sang trạng thái "${status}".`,
@@ -286,17 +314,20 @@ router.post('/api/hr/telegram/link-code/assign', ...authManager, (_req, res) => 
 });
 
 // ---------------------------------------------------------------------------
-// GET /api/hr/employees — danh sach nhan su (ten, bo phan, sdt, email) cua co so dang xem
+// GET /api/hr/employees — danh sach nhan su (ten, bo phan, co so, sdt, email)
+// cua moi co so tai khoan duoc xem; trang loc theo co so/phong ban phia client.
 // ---------------------------------------------------------------------------
 
 router.get('/api/hr/employees', ...authInternal, async (req, res) => {
   try {
+    const branches = allowedBranches(req.user);
     const snapshot = await employeeDirectory.getSnapshot();
     const employees = snapshot.employees
-      .filter(employee => employee.sourceBranch === req.branch)
+      .filter(employee => branches.includes(employee.sourceBranch))
       .map(employee => ({
         hoTen: employee.hoTen,
         boPhan: employee.boPhan,
+        coSo: employee.sourceBranch,
         soDienThoai: employee.soDienThoai,
         email: employee.email
       }))
@@ -314,8 +345,11 @@ router.get('/api/hr/employees', ...authInternal, async (req, res) => {
 
 router.get('/api/hr/employees/export', ...authInternal, async (req, res) => {
   try {
-    const { keyword } = req.query || {};
-    const { buffer, fileName, mime } = await buildEmployeeDirectoryWorkbook({ keyword }, req.branch);
+    const { keyword, department, branch } = req.query || {};
+    const { buffer, fileName, mime } = await buildEmployeeDirectoryWorkbook(
+      { keyword, department },
+      resolveBranchScope(req, branch)
+    );
     res.setHeader('Content-Type', mime);
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     res.status(200).send(Buffer.from(buffer));

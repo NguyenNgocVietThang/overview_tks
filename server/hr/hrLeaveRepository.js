@@ -14,7 +14,8 @@
 
 const CONFIG = require('../config');
 const { getPool } = require('../db/pool');
-const { BRANCHES, branchLabelToCode } = require('../branch/branches');
+const { BRANCHES, branchLabelToCode, branchCodeToLabel } = require('../branch/branches');
+const { matchesDepartment } = require('./hrDepartment');
 
 // Thu tu = thu tu cot trong file Excel xuat ra (hrLeaveExportService.js).
 const LEAVE_SCHEMA_HEADERS = [
@@ -24,7 +25,7 @@ const LEAVE_SCHEMA_HEADERS = [
   'Tổng buổi nghỉ', 'Tổng ngày nghỉ quy đổi', 'Người bàn giao',
   'Trạng thái phê duyệt', 'Người phê duyệt', 'Thời điểm phê duyệt', 'Ghi chú/lý do từ chối',
   'Cờ nghỉ gấp', 'Cờ tự ý nghỉ', 'Thời gian tạo', 'Cập nhật lần cuối',
-  'Tin nhắn'
+  'Tin nhắn', 'Cơ sở', 'Phòng ban'
 ];
 
 const LEAVE_SCHEMA_FIELD_KEYS = [
@@ -34,7 +35,7 @@ const LEAVE_SCHEMA_FIELD_KEYS = [
   'tong_buoi_nghi', 'tong_ngay_nghi', 'nguoi_ban_giao',
   'trang_thai', 'nguoi_duyet', 'thoi_diem_duyet', 'ghi_chu_duyet',
   'co_nghi_gap', 'co_tu_y_nghi', 'created_at', 'updated_at',
-  'tin_nhan'
+  'tin_nhan', 'co_so', 'bo_phan'
 ];
 
 const LEAVE_TYPE = Object.freeze({
@@ -84,6 +85,13 @@ function toBranchCode(branch) {
   return code;
 }
 
+// Nhan 1 co so hoac danh sach co so (nguoi dung xem "Tat ca co so") -> mang ma.
+// Mang rong = khong co co so nao duoc phep => khong truy van duoc du lieu nao.
+function toBranchCodes(branches) {
+  const list = Array.isArray(branches) ? branches : [branches];
+  return Array.from(new Set(list.map(toBranchCode)));
+}
+
 // Tai khoan hard-code (admin) co the khong co id dang UUID -> luu NULL thay vi
 // de Postgres nem loi 22P02.
 function uuidOrNull(value) {
@@ -111,6 +119,9 @@ function boundaryLabel(isoDate, session) {
   return `${session} ${day}/${month}/${year}`;
 }
 
+// Phong ban = bo_phan cua nhan su (hr_employees) gan voi don: khoa that
+// hr_employee_id cua don, neu bot chua dien thi di vong qua tai khoan (user_id).
+// Dung subquery (khong JOIN) de cung dung duoc trong RETURNING cua INSERT/UPDATE.
 const SELECT_COLUMNS = `
   request_id, telegram_chat_id, telegram_username, web_username,
   ho_ten, chuc_vu, ly_do, loai_yeu_cau, thoi_gian_gui,
@@ -118,7 +129,13 @@ const SELECT_COLUMNS = `
   end_date::text AS end_date, end_session,
   tong_buoi_nghi, tong_ngay_nghi, nguoi_ban_giao,
   trang_thai, nguoi_duyet, thoi_diem_duyet, ghi_chu_duyet,
-  co_nghi_gap, co_tu_y_nghi, created_at, updated_at, tin_nhan`;
+  co_nghi_gap, co_tu_y_nghi, created_at, updated_at, tin_nhan,
+  branch,
+  (SELECT e.bo_phan FROM hr_employees e
+    WHERE e.id = COALESCE(
+      hr_leave_requests.hr_employee_id,
+      (SELECT u.hr_employee_id FROM app_users u WHERE u.id = hr_leave_requests.user_id)
+    )) AS bo_phan`;
 
 function rowToRequest(row) {
   return {
@@ -144,19 +161,22 @@ function rowToRequest(row) {
     co_tu_y_nghi: !!row.co_tu_y_nghi,
     created_at: toIso(row.created_at),
     updated_at: toIso(row.updated_at),
-    tin_nhan: row.tin_nhan || ''
+    tin_nhan: row.tin_nhan || '',
+    co_so: branchCodeToLabel(row.branch),
+    bo_phan: row.bo_phan || ''
   };
 }
 
 function createHrLeaveRepository({ pool = getPool() } = {}) {
   /**
-   * @param {Object} filters { status, employee, from, to } — from/to 'YYYY-MM-DD',
+   * @param {Object} filters { status, employee, department, from, to } — from/to 'YYYY-MM-DD',
    *   loc theo KHOANG NGHI thuc te (giao voi [from, to]), khong theo ngay gui.
+   * @param {string|string[]} branch Co so, hoac danh sach co so (xem "Tat ca co so").
    */
   async function getLeaveRequests(filters, branch) {
     filters = filters || {};
-    const params = [toBranchCode(branch)];
-    const where = ['branch = $1'];
+    const params = [toBranchCodes(branch)];
+    const where = ['branch = ANY($1::text[])'];
 
     if (filters.status) {
       params.push(filters.status);
@@ -186,13 +206,16 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
         normalizeNameQuery(item.web_username).includes(needle)
       );
     }
+    if (filters.department) {
+      items = items.filter(item => matchesDepartment(item.bo_phan, filters.department));
+    }
     return items;
   }
 
   async function getLeaveRequestById(id, branch) {
     const { rows } = await pool.query(
-      `SELECT ${SELECT_COLUMNS} FROM hr_leave_requests WHERE request_id = $1 AND branch = $2`,
-      [id, toBranchCode(branch)]
+      `SELECT ${SELECT_COLUMNS} FROM hr_leave_requests WHERE request_id = $1 AND branch = ANY($2::text[])`,
+      [id, toBranchCodes(branch)]
     );
     return rows[0] ? rowToRequest(rows[0]) : null;
   }
@@ -263,9 +286,9 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
          approver_user_id = COALESCE($5::uuid, approver_user_id),
          thoi_diem_duyet = now(),
          ghi_chu_duyet = COALESCE($6, ghi_chu_duyet)
-       WHERE request_id = $1 AND branch = $2
+       WHERE request_id = $1 AND branch = ANY($2::text[])
        RETURNING ${SELECT_COLUMNS}`,
-      [id, toBranchCode(branch), status, approver || '', uuidOrNull(approverUserId), note != null ? note : null]
+      [id, toBranchCodes(branch), status, approver || '', uuidOrNull(approverUserId), note != null ? note : null]
     );
     if (!rows[0]) {
       throw new HrError(`Không tìm thấy yêu cầu nghỉ phép "${id}".`, 404, 'LEAVE_REQUEST_NOT_FOUND');
@@ -285,10 +308,10 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
     }
     const { rows } = await pool.query(
       `SELECT web_username, ho_ten FROM hr_leave_requests
-        WHERE branch = $1 AND co_nghi_gap
+        WHERE branch = ANY($1::text[]) AND co_nghi_gap
           AND start_date >= ($2 || '-01')::date
           AND start_date <  (($2 || '-01')::date + interval '1 month')`,
-      [toBranchCode(branch), targetMonth]
+      [toBranchCodes(branch), targetMonth]
     );
 
     const counts = new Map(); // web_username || ho_ten -> { web_username, ho_ten, count }

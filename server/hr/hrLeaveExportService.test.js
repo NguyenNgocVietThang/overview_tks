@@ -50,3 +50,33 @@ test('buildLeaveRequestsWorkbook: ten file gan tien to SG_ cho co so Sai Gon', a
     assert.match(fileName, /^SG_nghi-phep_/);
   });
 });
+
+test('buildLeaveRequestsWorkbook: nhiều cơ sở dùng tiền tố TKS_, có cột Cơ sở/Phòng ban, chuyển bộ lọc phòng ban', async () => {
+  const original = repo.getLeaveRequests;
+  let received;
+  repo.getLeaveRequests = async (filters, branch) => {
+    received = { filters, branch };
+    return [{ request_id: 'R1', co_so: 'Sài Gòn', bo_phan: 'KHO' }];
+  };
+  try {
+    const { buffer, fileName } = await buildLeaveRequestsWorkbook({ department: 'KHO' }, [BRANCHES.HANOI, BRANCHES.SAIGON]);
+    assert.match(fileName, /^TKS_nghi-phep_/);
+    assert.equal(received.filters.department, 'KHO');
+    assert.deepEqual(received.branch, [BRANCHES.HANOI, BRANCHES.SAIGON]);
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const sheet = workbook.worksheets[0];
+    const headers = sheet.getRow(1).values.slice(1);
+    const coSoCol = headers.indexOf('Cơ sở') + 1;
+    const boPhanCol = headers.indexOf('Phòng ban') + 1;
+    assert.ok(coSoCol > 0 && boPhanCol > 0);
+    assert.equal(sheet.getRow(2).getCell(coSoCol).value, 'Sài Gòn');
+    assert.equal(sheet.getRow(2).getCell(boPhanCol).value, 'KHO');
+
+    const single = await buildLeaveRequestsWorkbook({}, [BRANCHES.SAIGON]);
+    assert.match(single.fileName, /^SG_nghi-phep_/);
+  } finally {
+    repo.getLeaveRequests = original;
+  }
+});

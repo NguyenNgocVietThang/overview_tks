@@ -22,10 +22,23 @@ function sectionTitles(name) {
   }));
 }
 
-test('Tổng quan chỉ còn 4 phần đầu, không còn giao dịch/hàng nhập/mã mới tạo', () => {
-  assert.deepEqual(sectionTitles('overview').map(s => s.step), ['1', '2', '3', '4']);
+test('Tổng quan có 5 phần: thêm Doanh thu sản phẩm theo nhóm hàng, không còn giao dịch/hàng nhập/mã mới tạo', () => {
+  const titles = sectionTitles('overview');
+  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3', '4', '5']);
+  assert.equal(titles[1].title, 'Doanh thu sản phẩm theo nhóm hàng');
   ['endOfDayRows', 'chartTopTransactions', 'overviewPurchaseRows', 'chartOverviewPurchases', 'todayNewProductRows'].forEach(id => {
     assert.equal(view('overview').querySelector('#' + id), null, id + ' khong duoc nam o Tong quan');
+  });
+});
+
+test('Doanh thu theo nhóm hàng gộp 2 biểu đồ tròn + nhóm con vào 1 phần ở Tổng quan, Hàng hóa không còn', () => {
+  const section = [...view('overview').querySelectorAll(':scope > section.section')][1];
+  ['chartGroupRevenue', 'chartGroupQty', 'childCategoryParentSelect', 'chartChildCategoryRevenue',
+    'chartChildCategoryQty', 'childCategoryRows'].forEach(id => {
+    assert.ok(section.querySelector('#' + id), id + ' phai nam trong phan Doanh thu san pham theo nhom hang');
+  });
+  ['chartNewlyImportedRevenue', 'chartNewlyImportedQty', 'childCategoryParentSelect', 'childCategoryRows'].forEach(id => {
+    assert.equal(view('products').querySelector('#' + id), null, id + ' da bi go khoi Hang hoa');
   });
 });
 
@@ -52,15 +65,19 @@ test('Nhà cung cấp chứa phần Hàng nhập giữa Chỉ số và Phân tí
 
 test('Hàng hóa chứa phần Mã mới tạo sau Hàng mới nhập', () => {
   const titles = sectionTitles('products');
-  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3', '4', '5', '6', '7']);
-  assert.deepEqual(titles.slice(4).map(s => s.title), ['Hàng mới nhập', 'Mã mới tạo', 'Chi tiết theo nhóm con']);
+  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3', '4', '5', '6']);
+  assert.deepEqual(titles.slice(4).map(s => s.title), ['Hàng mới nhập', 'Mã mới tạo']);
   assert.ok(view('products').querySelector('#todayNewProductRows'));
 });
 
-test('mỗi tab có thời gian lọc riêng: Tổng quan không còn, Nhà cung cấp mới có', () => {
+test('mỗi tab có thời gian lọc riêng: Tổng quan dùng chung bộ lọc Hàng hóa cho phần nhóm hàng', () => {
   const groups = [...document.querySelectorAll('#filterBar .filter-group')]
     .flatMap(group => (group.dataset.filterView || '').split(/\s+/));
-  assert.ok(!groups.includes('overview'), 'Tong quan khong con bo loc thoi gian');
+  assert.ok(groups.includes('overview'), 'Tong quan phai hien bo loc thoi gian cho phan nhom hang');
+  const overviewGroups = [...document.querySelectorAll('#filterBar .filter-group')]
+    .filter(group => (group.dataset.filterView || '').split(/\s+/).includes('overview'));
+  assert.ok(overviewGroups.every(group => group.dataset.filterView.split(/\s+/).includes('products')),
+    'bo loc o Tong quan phai la bo loc Hang hoa dung chung, khong tach rieng');
   ['products', 'invoices', 'suppliers', 'customers'].forEach(name => {
     assert.ok(groups.includes(name), name + ' phai co nhom loc');
     assert.ok(document.getElementById('miniFrom-' + name) || name === 'products', 'thieu o chon ngay cua ' + name);
@@ -156,7 +173,65 @@ test('render: giao dịch hiện ở Hóa đơn, phiếu nhập ở Nhà cung c�
   dom.window.eval("switchView('products')");
   assert.match(text('todayNewProductRows'), /MOI-01/);
   assert.match(text('today-new-products-count'), /1 mã mới/);
+  // Bảng chỉ còn 4 cột (bỏ Giá vốn/Giá bán) và có biểu đồ tỷ lệ số mã theo nhóm
+  assert.equal(doc.querySelectorAll('#todayNewProductRows tr:first-child td').length, 4);
+  assert.equal(doc.querySelector('#todayNewProductRows').closest('table').querySelectorAll('th').length, 4);
+  assert.equal(text('tagNewProductsCategory'), '1 nhóm');
+  assert.equal(doc.getElementById('chartNewProductsCategory').hidden, false);
 
   // Chuyển về Tổng quan không được ném lỗi dù dữ liệu tab khác có mặt
   assert.doesNotThrow(() => dom.window.eval("switchView('overview')"));
+});
+
+test('render: Tổng quan vẽ biểu đồ doanh thu + số lượng theo nhóm hàng, nhấn lát để xem nhóm con', () => {
+  const payload = samplePayload();
+  const child = (name, qty, revenue) => ({ name, qty, revenue, productCount: 1 });
+  payload.products.childCategorySalesByParent = {
+    'NHÀ BẾP': [child('Nồi', 10, 5000000), child('Chảo', 5, 3000000)],
+    'PHÒNG ĂN': [child('Bát', 100, 2000000)],
+    'Chưa xác định': [child('Chưa phân nhóm', 1, 100000)]
+  };
+  payload.products.availableParentCategories = ['NHÀ BẾP', 'PHÒNG ĂN', 'KHO TRỐNG'];
+  const dom = createRenderedDashboard(payload);
+  const doc = dom.window.document;
+  const text = id => doc.getElementById(id).textContent;
+
+  dom.window.eval("switchView('overview')");
+  assert.equal(doc.getElementById('chartGroupRevenue').hidden, false);
+  assert.equal(doc.getElementById('chartGroupQty').hidden, false);
+  assert.equal(text('tagGroupRevenue'), '10.1tr₫');
+  assert.equal(text('tagGroupQty'), '116');
+  assert.match(text('groupRevenuePeriod'), /30 ngày/);
+
+  // Ô Nhóm cha gồm nhóm có bán, nhóm chưa có doanh thu và nhóm chỉ có trong dữ liệu bán
+  const options = [...doc.querySelectorAll('#childCategoryParentSelect option')].map(o => o.value);
+  assert.deepEqual(options, ['', 'Chưa xác định', 'KHO TRỐNG', 'NHÀ BẾP', 'PHÒNG ĂN']);
+  assert.equal(doc.getElementById('childCategoryPanels').hidden, true);
+
+  // Chọn nhóm cha -> hiện biểu đồ số lượng + doanh thu nhóm con và bảng chi tiết
+  dom.window.eval("selectChildCategoryParentFromChart({ name: 'NHÀ BẾP' })");
+  assert.equal(doc.getElementById('childCategoryParentSelect').value, 'NHÀ BẾP');
+  assert.equal(doc.getElementById('childCategoryPanels').hidden, false);
+  assert.equal(doc.getElementById('chartChildCategoryRevenue').hidden, false);
+  assert.equal(doc.getElementById('chartChildCategoryQty').hidden, false);
+  assert.equal(doc.querySelectorAll('#childCategoryRows tr').length, 2);
+
+  // Lát "Khác" không phải nhóm thật nên bấm vào không đổi lựa chọn
+  dom.window.eval("selectChildCategoryParentFromChart({ name: 'Khác (2 nhóm)', isOther: true })");
+  assert.equal(doc.getElementById('childCategoryParentSelect').value, 'NHÀ BẾP');
+
+  // Hàng hóa không còn phần này nhưng vẫn render bình thường
+  assert.doesNotThrow(() => dom.window.eval("switchView('products')"));
+});
+
+test('biểu đồ nhóm hàng gộp phần nhỏ vào "Khác (N nhóm)" và bỏ nhóm không có giá trị dương', () => {
+  const dom = createRenderedDashboard(samplePayload());
+  const groups = Array.from({ length: 12 }, (_, index) => ({ name: 'G' + index, qty: 12 - index, revenue: (12 - index) * 1000 }));
+  groups.push({ name: 'ZERO', qty: 0, revenue: 0 });
+  dom.window.eval('window.__groups = ' + JSON.stringify(groups));
+  const slices = dom.window.eval("groupChartSlices(window.__groups, 'revenue')");
+  assert.equal(slices.length, 8);
+  assert.equal(slices[7].name, 'Khác (5 nhóm)');
+  assert.equal(slices[7].revenue, (5 + 4 + 3 + 2 + 1) * 1000);
+  assert.ok(!slices.some(slice => slice.name === 'ZERO'));
 });

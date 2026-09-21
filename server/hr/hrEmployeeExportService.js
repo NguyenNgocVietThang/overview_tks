@@ -10,21 +10,26 @@
 const ExcelJS = require('exceljs');
 const employeeDirectory = require('./employeeDirectory');
 const { BRANCHES } = require('../branch/branches');
+const { matchesDepartment } = require('./hrDepartment');
 const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
 
 const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-const HEADERS = ['Họ và tên', 'Chức vụ', 'Số điện thoại', 'Email'];
-const COLUMN_WIDTHS = [24, 28, 18, 26];
+const HEADERS = ['Họ và tên', 'Chức vụ', 'Cơ sở', 'Số điện thoại', 'Email'];
+const COLUMN_WIDTHS = [24, 28, 12, 18, 26];
 
+// `branch` la 1 co so hoac danh sach co so dang xuat; chi 1 co so moi gan HN/SG.
 function branchFilePrefix(branch) {
-  if (branch === BRANCHES.HANOI) return 'HN';
-  if (branch === BRANCHES.SAIGON) return 'SG';
+  const only = Array.isArray(branch) ? (branch.length === 1 ? branch[0] : null) : branch;
+  if (only === BRANCHES.HANOI) return 'HN';
+  if (only === BRANCHES.SAIGON) return 'SG';
   return 'TKS';
 }
 
 /**
- * @param {Object} filters { keyword } — loc theo tu khoa dang go tren o tim kiem cua bang.
+ * @param {Object} filters { keyword, department } — loc theo tu khoa dang go tren o tim kiem
+ *   va phong ban dang chon cua bang.
+ * @param {string|string[]} branch Co so, hoac danh sach co so dang xuat.
  * @returns {Promise<{ buffer: Buffer, fileName: string, mime: string }>}
  */
 async function buildEmployeeDirectoryWorkbook(filters, branch) {
@@ -32,11 +37,14 @@ async function buildEmployeeDirectoryWorkbook(filters, branch) {
   const keyword = String(filters.keyword || '').trim().toLowerCase();
 
   const snapshot = await employeeDirectory.getSnapshot();
+  const branches = Array.isArray(branch) ? branch : [branch];
   let items = snapshot.employees
-    .filter(employee => employee.sourceBranch === branch)
+    .filter(employee => branches.includes(employee.sourceBranch))
+    .filter(employee => matchesDepartment(employee.boPhan, filters.department))
     .map(employee => ({
       hoTen: employee.hoTen,
       boPhan: employee.boPhan,
+      coSo: employee.sourceBranch,
       soDienThoai: employee.soDienThoai,
       email: employee.email
     }));
@@ -54,7 +62,7 @@ async function buildEmployeeDirectoryWorkbook(filters, branch) {
   sheet.columns = HEADERS.map((header, i) => ({ header, key: `c${i}`, width: COLUMN_WIDTHS[i] || 18 }));
 
   items.forEach(item => {
-    sheet.addRow({ c0: item.hoTen, c1: item.boPhan, c2: item.soDienThoai, c3: item.email });
+    sheet.addRow({ c0: item.hoTen, c1: item.boPhan, c2: item.coSo, c3: item.soDienThoai, c4: item.email });
   });
 
   sheet.views = frozenNoGridlinesView(1);

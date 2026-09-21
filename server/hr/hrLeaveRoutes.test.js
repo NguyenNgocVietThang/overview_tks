@@ -13,6 +13,9 @@ function fakeRes() {
   return res;
 }
 
+const MANAGER_BOTH = { vaiTro: 'Quản lý', coSo: 'Cả hai', username: 'manager', hoTen: 'Quản lý' };
+const STAFF_HANOI = { vaiTro: 'Nhân viên kho', coSo: 'Hà Nội', username: 'staff' };
+
 function getRouteHandler(method, routePath) {
   const layer = router.stack.find(item => item.route && item.route.path === routePath && item.route.methods[method]);
   return layer.route.stack[layer.route.stack.length - 1].handle;
@@ -95,7 +98,7 @@ test('PATCH status phát sự kiện LEAVE_STATUS_CHANGED qua hrLeaveEvents', as
     const handler = getRouteHandler('patch', '/api/hr/leave-requests/:id/status');
     const req = {
       params: { id: 'NP-20260822-005' },
-      user: { username: 'manager', hoTen: 'Quản lý Nguyễn' },
+      user: { ...MANAGER_BOTH, hoTen: 'Quản lý Nguyễn' },
       body: { status: 'Đã duyệt' }
     };
     const res = fakeRes();
@@ -112,7 +115,7 @@ test('PATCH status phát sự kiện LEAVE_STATUS_CHANGED qua hrLeaveEvents', as
   }
 });
 
-test('GET /api/hr/employees trả về nhân sự đúng cơ sở, đã lọc cột nhạy cảm', async () => {
+test('GET /api/hr/employees trả về nhân sự mọi cơ sở được phép kèm cơ sở, đã lọc cột nhạy cảm', async () => {
   const originalGetSnapshot = employeeDirectory.getSnapshot;
   employeeDirectory.getSnapshot = async () => ({
     employees: [
@@ -124,17 +127,85 @@ test('GET /api/hr/employees trả về nhân sự đúng cơ sở, đã lọc c�
   });
   try {
     const handler = getRouteHandler('get', '/api/hr/employees');
-    const req = { branch: 'Hà Nội' };
-    const res = fakeRes();
-    await handler(req, res);
 
-    assert.equal(res.statusCode, 200);
-    assert.equal(res.body.employees.length, 2);
-    assert.equal(res.body.employees[0].hoTen, 'Nguyễn Văn A');
-    assert.equal(res.body.employees[1].hoTen, 'Nguyễn Văn B');
-    assert.deepEqual(Object.keys(res.body.employees[0]).sort(), ['boPhan', 'email', 'hoTen', 'soDienThoai']);
+    const resAll = fakeRes();
+    await handler({ user: MANAGER_BOTH, query: {} }, resAll);
+    assert.equal(resAll.statusCode, 200);
+    assert.deepEqual(resAll.body.employees.map(e => e.hoTen), ['Nguyễn Văn A', 'Nguyễn Văn B', 'Trần Thị C']);
+    assert.deepEqual(resAll.body.employees.map(e => e.coSo), ['Hà Nội', 'Hà Nội', 'Sài Gòn']);
+    assert.deepEqual(Object.keys(resAll.body.employees[0]).sort(), ['boPhan', 'coSo', 'email', 'hoTen', 'soDienThoai']);
+
+    const resOne = fakeRes();
+    await handler({ user: STAFF_HANOI, query: {} }, resOne);
+    assert.deepEqual(resOne.body.employees.map(e => e.hoTen), ['Nguyễn Văn A', 'Nguyễn Văn B'], 'tài khoản 1 cơ sở không thấy cơ sở khác');
   } finally {
     employeeDirectory.getSnapshot = originalGetSnapshot;
+  }
+});
+
+test('GET /api/hr/leave-requests mặc định gộp mọi cơ sở được phép và chuyển bộ lọc phòng ban', async () => {
+  const originalGet = repo.getLeaveRequests;
+  let received;
+  repo.getLeaveRequests = async (filters, branch) => { received = { filters, branch }; return []; };
+  try {
+    const handler = getRouteHandler('get', '/api/hr/leave-requests');
+
+    await handler({ user: MANAGER_BOTH, query: { department: 'KHO' } }, fakeRes());
+    assert.deepEqual(received.branch, ['Hà Nội', 'Sài Gòn'], 'mặc định = tất cả cơ sở được phép');
+    assert.equal(received.filters.department, 'KHO');
+
+    await handler({ user: MANAGER_BOTH, query: { branch: 'Sài Gòn' } }, fakeRes());
+    assert.deepEqual(received.branch, ['Sài Gòn']);
+
+    await handler({ user: STAFF_HANOI, query: {} }, fakeRes());
+    assert.deepEqual(received.branch, ['Hà Nội'], '"Tất cả" không vượt quá cơ sở được phép');
+  } finally {
+    repo.getLeaveRequests = originalGet;
+  }
+});
+
+test('GET /api/hr/leave-requests từ chối cơ sở ngoài quyền hoặc không hợp lệ, không chạm DB', async () => {
+  const originalGet = repo.getLeaveRequests;
+  let called = false;
+  repo.getLeaveRequests = async () => { called = true; return []; };
+  try {
+    const handler = getRouteHandler('get', '/api/hr/leave-requests');
+
+    const forbidden = fakeRes();
+    await handler({ user: STAFF_HANOI, query: { branch: 'Sài Gòn' } }, forbidden);
+    assert.equal(forbidden.statusCode, 403);
+    assert.equal(forbidden.body.code, 'BRANCH_FORBIDDEN');
+
+    const invalid = fakeRes();
+    await handler({ user: MANAGER_BOTH, query: { branch: 'Đà Nẵng' } }, invalid);
+    assert.equal(invalid.statusCode, 400);
+    assert.equal(invalid.body.code, 'INVALID_BRANCH');
+    assert.equal(called, false);
+  } finally {
+    repo.getLeaveRequests = originalGet;
+  }
+});
+
+test('PATCH status tìm đơn ở mọi cơ sở được phép và phát sự kiện đúng cơ sở của đơn', async () => {
+  const { leaveEvents } = require('./hrLeaveEvents');
+  const originalUpdate = repo.updateLeaveRequestStatus;
+  let searchedBranches;
+  repo.updateLeaveRequestStatus = async (id, data, branch) => {
+    searchedBranches = branch;
+    return { request_id: id, trang_thai: data.status, nguoi_duyet: data.approver, co_so: 'Sài Gòn' };
+  };
+  let broadcast = null;
+  const onEvent = payload => { broadcast = payload; };
+  leaveEvents.on('leave-event', onEvent);
+  try {
+    const handler = getRouteHandler('patch', '/api/hr/leave-requests/:id/status');
+    // Quản lý đang chọn Hà Nội ở thanh điều hướng nhưng sửa đơn của Sài Gòn từ danh sách "Tất cả cơ sở".
+    await handler({ params: { id: 'NP-SG-1' }, branch: 'Hà Nội', user: MANAGER_BOTH, body: { status: 'Đã duyệt' } }, fakeRes());
+    assert.deepEqual(searchedBranches, ['Hà Nội', 'Sài Gòn']);
+    assert.equal(broadcast.branch, 'Sài Gòn');
+  } finally {
+    leaveEvents.removeListener('leave-event', onEvent);
+    repo.updateLeaveRequestStatus = originalUpdate;
   }
 });
 

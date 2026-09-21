@@ -8,7 +8,7 @@ const { JSDOM } = require('jsdom');
 
 const htmlPath = path.join(__dirname, '..', '..', 'public', 'humanresources', 'index.html');
 
-test('cột Trạng thái và Hành động được gộp thành 1 cột Trạng thái ở cuối bảng (tổng 9 cột)', async () => {
+test('cột Trạng thái và Hành động được gộp thành 1 cột Trạng thái ở cuối bảng (tổng 10 cột gồm Cơ sở)', async () => {
   const html = fs.readFileSync(htmlPath, 'utf8');
   const dom = new JSDOM(html, {
     runScripts: 'outside-only',
@@ -57,10 +57,11 @@ test('cột Trạng thái và Hành động được gộp thành 1 cột Trạn
   await new Promise(resolve => setTimeout(resolve, 0));
 
   const headers = [...window.document.querySelectorAll('#leaveTable thead th')].map(th => th.textContent.replace('↕', '').replace('↑', '').replace('↓', '').trim());
-  assert.equal(headers.length, 9, 'Bảng phải có đúng 9 cột sau khi gộp');
+  assert.equal(headers.length, 10, 'Bảng phải có đúng 10 cột sau khi gộp (thêm cột Cơ sở)');
   assert.equal(headers[headers.length - 1], 'Trạng thái', 'Cột cuối cùng phải là Trạng thái');
   assert.ok(!headers.includes('Hành động'), 'Không còn cột Hành động riêng biệt');
-  assert.equal(headers[7], 'Người duyệt', 'Cột thứ 8 là Người duyệt');
+  assert.equal(headers[2], 'Cơ sở', 'Cột thứ 3 là Cơ sở');
+  assert.equal(headers[8], 'Người duyệt', 'Cột thứ 9 là Người duyệt');
 
   // Kiểm tra Quản lý thấy dropdown select trạng thái
   const statusSelect = window.document.querySelector('#leaveTableBody select.status-select');

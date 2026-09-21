@@ -385,6 +385,12 @@
               <option value="Từ chối">Từ chối</option>
               <option value="Vi phạm">Vi phạm</option>
             </select>
+            <select id="branchFilter" class="filter-select" aria-label="Lọc theo cơ sở" onchange="handleLeaveBranchChange()">
+              <option value="">Tất cả cơ sở</option>
+            </select>
+            <select id="departmentFilter" class="filter-select" aria-label="Lọc theo phòng ban" onchange="handleFilterChange()">
+              <option value="">Tất cả phòng ban</option>
+            </select>
             <div class="date-range-group">
               <span>Thời gian nghỉ: Từ</span>
               <input type="date" id="fromDateFilter" onchange="handleFilterChange()">
@@ -412,6 +418,7 @@
                 <tr>
                   <th>Mã yêu cầu</th>
                   <th>Người gửi</th>
+                  <th>Cơ sở</th>
                   <th>Thời gian gửi</th>
                   <th>Lý do</th>
                   <th>Thời gian nghỉ</th>
@@ -422,7 +429,7 @@
                 </tr>
               </thead>
               <tbody id="leaveTableBody">
-                <tr class="empty-row"><td colspan="9">Đang tải dữ liệu...</td></tr>
+                <tr class="empty-row"><td colspan="10">Đang tải dữ liệu...</td></tr>
               </tbody>
             </table>
           </div>
@@ -547,6 +554,12 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                 <input type="text" id="employeeDirectorySearchInput" placeholder="Tìm theo tên, chức vụ, SĐT hoặc email..." oninput="renderEmployeeDirectoryTable()">
               </div>
+              <select id="employeeBranchFilter" class="filter-select" aria-label="Lọc theo cơ sở" onchange="handleEmployeeBranchChange()">
+                <option value="">Tất cả cơ sở</option>
+              </select>
+              <select id="employeeDepartmentFilter" class="filter-select" aria-label="Lọc theo phòng ban" onchange="renderEmployeeDirectoryTable()">
+                <option value="">Tất cả phòng ban</option>
+              </select>
             </div>
             <div class="row-actions">
               <button type="button" class="export-button" id="btnExportEmployeeDirectory" onclick="exportEmployeeDirectoryExcel()">
@@ -563,12 +576,13 @@
                   <tr>
                     <th>Họ và tên</th>
                     <th>Chức vụ</th>
+                    <th>Cơ sở</th>
                     <th>Số điện thoại</th>
                     <th>Email</th>
                   </tr>
                 </thead>
                 <tbody id="employeeDirectoryTableBody">
-                  <tr class="empty-row"><td colspan="4">Đang tải dữ liệu...</td></tr>
+                  <tr class="empty-row"><td colspan="5">Đang tải dữ liệu...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -805,6 +819,60 @@
       }
     }
 
+    // ---------- Bo loc Co so / Phong ban (dung chung cho tab Nghi phep va Danh sach nhan su) ----------
+    // Ban sao phia server: departmentKey() trong server/hr/hrDepartment.js — sua o day thi phai sua ca do.
+    function departmentKey(value){
+      return String(value == null ? '' : value).normalize('NFC').replace(/\s+/g, ' ').trim().toLocaleLowerCase('vi-VN');
+    }
+
+    // Co so = cac co so tai khoan duoc xem (user.branches); mac dinh "Tat ca co so".
+    function populateBranchFilters(user){
+      const branches = (user && user.branches) || [];
+      ['branchFilter', 'employeeBranchFilter'].forEach(id => {
+        const select = document.getElementById(id);
+        if(!select) return;
+        select.innerHTML = '<option value="">Tất cả cơ sở</option>'
+          + branches.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
+      });
+    }
+
+    // Phong ban = cac BO PHAN dang co nhan su (trong co so dang loc), mac dinh "Tat ca phong ban".
+    // Giu lai lua chon hien tai neu no van con trong danh sach.
+    function populateDepartmentFilter(selectId, branch){
+      const select = document.getElementById(selectId);
+      if(!select) return;
+      const previousKey = departmentKey(select.value);
+      const byKey = new Map();
+      rawEmployeeDirectory.forEach(e => {
+        if(branch && e.coSo !== branch) return;
+        const key = departmentKey(e.boPhan);
+        if(key && !byKey.has(key)) byKey.set(key, String(e.boPhan).trim());
+      });
+      const labels = [...byKey.values()].sort((a, b) => a.localeCompare(b, 'vi'));
+      select.innerHTML = '<option value="">Tất cả phòng ban</option>'
+        + labels.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('');
+      select.value = byKey.has(previousKey) ? byKey.get(previousKey) : '';
+    }
+
+    // Don moi/doi trang thai qua SSE chi duoc chen vao bang neu khop bo loc co so/phong ban dang chon.
+    function matchesLeaveScope(request){
+      const branch = document.getElementById('branchFilter').value;
+      const department = document.getElementById('departmentFilter').value;
+      if(branch && request.co_so !== branch) return false;
+      if(department && departmentKey(request.bo_phan) !== departmentKey(department)) return false;
+      return true;
+    }
+
+    function handleLeaveBranchChange(){
+      populateDepartmentFilter('departmentFilter', document.getElementById('branchFilter').value);
+      loadLeaveRequests();
+    }
+
+    function handleEmployeeBranchChange(){
+      populateDepartmentFilter('employeeDepartmentFilter', document.getElementById('employeeBranchFilter').value);
+      renderEmployeeDirectoryTable();
+    }
+
     // ---------- Load danh sach ----------
     function handleFilterChange(){ loadLeaveRequests(); }
 
@@ -814,10 +882,14 @@
       const employee = document.getElementById('employeeSearchInput').value.trim();
       const fromDate = document.getElementById('fromDateFilter').value;
       const toDate = document.getElementById('toDateFilter').value;
+      const branch = document.getElementById('branchFilter').value;
+      const department = document.getElementById('departmentFilter').value;
 
       const params = new URLSearchParams();
       if(status) params.set('status', status);
       if(employee) params.set('employee', employee);
+      if(branch) params.set('branch', branch);
+      if(department) params.set('department', department);
       if(fromDate) params.set('from', fromDate);
       if(toDate) params.set('to', toDate);
 
@@ -825,7 +897,7 @@
         const res = await fetch(`/api/hr/leave-requests?${params.toString()}`, { credentials: 'same-origin' });
         const { ok, data } = await parseApiResponse(res);
         if(!ok){
-          if(!silent) tbody.innerHTML = `<tr class="empty-row"><td colspan="9">${escapeHtml(data.error || 'Không tải được danh sách.')}</td></tr>`;
+          if(!silent) tbody.innerHTML = `<tr class="empty-row"><td colspan="10">${escapeHtml(data.error || 'Không tải được danh sách.')}</td></tr>`;
           return;
         }
         rawLeaveRequests = data.requests || [];
@@ -833,7 +905,7 @@
         renderTable(rawLeaveRequests);
         loadUrgentSummary();
       }catch(err){
-        if(!silent) tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Lỗi kết nối máy chủ.</td></tr>';
+        if(!silent) tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Lỗi kết nối máy chủ.</td></tr>';
       }
     }
 
@@ -866,7 +938,7 @@
     function renderTable(requests){
       const tbody = document.getElementById('leaveTableBody');
       if(!requests.length){
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Chưa có yêu cầu nghỉ phép nào.</td></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Chưa có yêu cầu nghỉ phép nào.</td></tr>';
         return;
       }
       const isManager = currentUser && currentUser.vaiTro === 'Quản lý';
@@ -894,6 +966,7 @@
         return `<tr id="leave-row-${escapeHtml(r.request_id)}">
           <td>${escapeHtml(r.request_id)}${r.co_nghi_gap === true || r.co_nghi_gap === 'TRUE' ? ' <span class="urgent-badge">Nghỉ gấp</span>' : ''}</td>
           <td>${escapeHtml(r.ho_ten)}${r.chuc_vu ? ` - <span style="color:var(--muted); font-size:11.5px;">${escapeHtml(r.chuc_vu)}</span>` : ''}${urgentBadge}</td>
+          <td>${escapeHtml(r.co_so) || '—'}</td>
           <td data-sort-value="${new Date(r.thoi_gian_gui).getTime() || ''}">${formatDateTime(r.thoi_gian_gui)}</td>
           <td>${escapeHtml(r.ly_do)}${r.co_tu_y_nghi === true || r.co_tu_y_nghi === 'TRUE' ? '<br><span style="color:var(--red); font-size:11px; font-weight:600;">Tự ý nghỉ (HR ghi nhận)</span>' : ''}</td>
           <td data-sort-value="${leaveBoundaryToTimestamp(r.thoi_gian_bat_dau)}">${escapeHtml(r.thoi_gian_bat_dau) || '—'}<br>→ ${escapeHtml(r.thoi_gian_ket_thuc) || '—'}</td>
@@ -1001,29 +1074,36 @@
         const res = await fetch('/api/hr/employees', { credentials: 'same-origin' });
         const { ok, data } = await parseApiResponse(res);
         if(!ok){
-          tbody.innerHTML = `<tr class="empty-row"><td colspan="4">${escapeHtml(data.error || 'Không tải được danh sách nhân sự.')}</td></tr>`;
+          tbody.innerHTML = `<tr class="empty-row"><td colspan="5">${escapeHtml(data.error || 'Không tải được danh sách nhân sự.')}</td></tr>`;
           return;
         }
         rawEmployeeDirectory = data.employees || [];
+        populateDepartmentFilter('departmentFilter', document.getElementById('branchFilter').value);
+        populateDepartmentFilter('employeeDepartmentFilter', document.getElementById('employeeBranchFilter').value);
         renderEmployeeDirectoryTable();
       }catch(err){
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="4">Lỗi kết nối máy chủ.</td></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Lỗi kết nối máy chủ.</td></tr>';
       }
     }
 
     function renderEmployeeDirectoryTable(){
       const tbody = document.getElementById('employeeDirectoryTableBody');
       const keyword = (document.getElementById('employeeDirectorySearchInput').value || '').trim().toLowerCase();
-      const filtered = keyword
-        ? rawEmployeeDirectory.filter(e => [e.hoTen, e.boPhan, e.soDienThoai, e.email].some(v => String(v || '').toLowerCase().includes(keyword)))
-        : rawEmployeeDirectory;
+      const branch = document.getElementById('employeeBranchFilter').value;
+      const department = departmentKey(document.getElementById('employeeDepartmentFilter').value);
+      const filtered = rawEmployeeDirectory.filter(e => {
+        if(branch && e.coSo !== branch) return false;
+        if(department && departmentKey(e.boPhan) !== department) return false;
+        return !keyword || [e.hoTen, e.boPhan, e.soDienThoai, e.email].some(v => String(v || '').toLowerCase().includes(keyword));
+      });
       if(!filtered.length){
-        tbody.innerHTML = `<tr class="empty-row"><td colspan="4">${rawEmployeeDirectory.length ? 'Không tìm thấy nhân sự phù hợp.' : 'Chưa có dữ liệu nhân sự.'}</td></tr>`;
+        tbody.innerHTML = `<tr class="empty-row"><td colspan="5">${rawEmployeeDirectory.length ? 'Không tìm thấy nhân sự phù hợp.' : 'Chưa có dữ liệu nhân sự.'}</td></tr>`;
         return;
       }
       tbody.innerHTML = filtered.map(e => `<tr>
         <td>${escapeHtml(e.hoTen) || '—'}</td>
         <td>${escapeHtml(e.boPhan) || '—'}</td>
+        <td>${escapeHtml(e.coSo) || '—'}</td>
         <td>${escapeHtml(e.soDienThoai) || '—'}</td>
         <td>${escapeHtml(e.email) || '—'}</td>
       </tr>`).join('');
@@ -1161,8 +1241,10 @@
       const fromDate = document.getElementById('fromDateFilter').value;
       const toDate = document.getElementById('toDateFilter').value;
       const leaveSort = state.tableSorts['leaveTableBody'];
-      const SORT_FIELD_BY_COLUMN = ['request_id', 'ho_ten', 'thoi_gian_gui', 'ly_do', 'thoi_gian_bat_dau', 'tong_buoi_nghi', 'nguoi_ban_giao', 'nguoi_duyet', 'trang_thai'];
-      const payload = { status, employee, from: fromDate, to: toDate };
+      const SORT_FIELD_BY_COLUMN = ['request_id', 'ho_ten', 'co_so', 'thoi_gian_gui', 'ly_do', 'thoi_gian_bat_dau', 'tong_buoi_nghi', 'nguoi_ban_giao', 'nguoi_duyet', 'trang_thai'];
+      const branch = document.getElementById('branchFilter').value;
+      const department = document.getElementById('departmentFilter').value;
+      const payload = { status, employee, branch, department, from: fromDate, to: toDate };
       if(leaveSort && SORT_FIELD_BY_COLUMN[leaveSort.columnIndex]){
         payload.sortField = SORT_FIELD_BY_COLUMN[leaveSort.columnIndex];
         payload.sortDir = leaveSort.direction;
@@ -1201,9 +1283,14 @@
     async function exportEmployeeDirectoryExcel(){
       const btn = document.getElementById('btnExportEmployeeDirectory');
       const keyword = (document.getElementById('employeeDirectorySearchInput').value || '').trim();
+      const params = new URLSearchParams({ keyword });
+      const branch = document.getElementById('employeeBranchFilter').value;
+      const department = document.getElementById('employeeDepartmentFilter').value;
+      if(branch) params.set('branch', branch);
+      if(department) params.set('department', department);
       if(btn){ btn.disabled = true; }
       try{
-        const res = await fetch('/api/hr/employees/export?keyword=' + encodeURIComponent(keyword), {
+        const res = await fetch('/api/hr/employees/export?' + params.toString(), {
           credentials: 'same-origin'
         });
         if(!res.ok){
@@ -1247,6 +1334,8 @@
           try{
             const payload = JSON.parse(event.data);
             if(!payload || !payload.type) return;
+
+            if(payload.data && !matchesLeaveScope(payload.data)) return;
 
             if(payload.type === 'LEAVE_STATUS_CHANGED' && payload.data){
               const updated = payload.data;
@@ -1303,6 +1392,7 @@
       if(window.TKSNav && window.TKSNav.authGuard){
         window.TKSNav.authGuard().then(user => {
           currentUser = user;
+          populateBranchFilters(user);
           if(sidebar) window.TKSNav.renderTopSidebar(sidebar, 'hr', user);
           if(user.vaiTro === 'Quản lý'){
             document.getElementById('btnManualAbsence').style.display = 'inline-flex';

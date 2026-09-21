@@ -2300,6 +2300,18 @@
       max-height: 420px;
     }
 
+    /* Biểu đồ cơ cấu nhóm cao bằng bảng danh sách mã mới bên cạnh; flex-basis 0
+       để canvas không tự làm cao hàng lưới. */
+    .new-products-chart-panel {
+      align-self: stretch;
+    }
+
+    .new-products-chart-panel>.chart-box {
+      flex: 1 1 0;
+      height: auto;
+      min-height: 320px;
+    }
+
     /* .scroll-list (max-height 340px) khai báo sau nên thắng selector đơn lớp;
        .panel> tăng độ ưu tiên; flex-basis 0 để bảng không tự làm cao hàng lưới mà
        lấp đầy đúng chiều cao panel biểu đồ bên cạnh (420px + tiêu đề) rồi cuộn. */
@@ -3297,7 +3309,7 @@
             </div>
           </div>
 
-          <div class="filter-group" data-filter-view="products" hidden>
+          <div class="filter-group" data-filter-view="overview products" hidden>
             <div class="mini-filter" data-filter-key="products" style="margin:0; grid-row:3;">
               <div class="period-toggle" data-mini-toggle>
                 <button type="button" data-days="1" onclick="setMiniFilterDays('products',1)">1 ngày</button>
@@ -3338,7 +3350,7 @@
             </div>
           </div>
 
-          <div class="filter-group" data-filter-view="products" hidden>
+          <div class="filter-group" data-filter-view="overview products" hidden>
             <div class="period-toggle" id="productStatusToggle" style="grid-row:3;">
               <button type="button" data-status="all" class="active" onclick="setProductStatus('all')">Tất cả</button>
               <button type="button" data-status="Đang kinh doanh" onclick="setProductStatus('Đang kinh doanh')">Đang
@@ -3357,7 +3369,7 @@
         <!-- ============ TỔNG QUAN ============ -->
         <div class="view active" id="view-overview">
           <div class="view-title">Tổng quan</div>
-          <div class="view-sub">Chỉ số hôm nay → báo cáo doanh thu theo khách và theo hàng → kiểm tra đứt hàng</div>
+          <div class="view-sub">Chỉ số hôm nay → doanh thu theo nhóm hàng → báo cáo doanh thu theo khách và theo hàng → kiểm tra đứt hàng</div>
 
           <section class="section">
             <div class="section-head"><span class="section-step">1</span>
@@ -3389,6 +3401,97 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">2</span>
+              <h2>Doanh thu sản phẩm theo nhóm hàng <span class="section-note" id="groupRevenuePeriod">theo bộ lọc thời gian phía trên · nhấn vào một nhóm hoặc chọn nhóm cha để xem nhóm con</span></h2>
+            </div>
+            <div class="grid">
+              <div class="panel col-6">
+                <div class="panel-head">
+                  <h2>Doanh thu theo nhóm hàng <span class="tag" id="tagGroupRevenue">—</span></h2>
+                </div>
+                <div class="chart-box">
+                  <canvas id="chartGroupRevenue" role="img"
+                    aria-label="Biểu đồ tròn doanh thu sản phẩm theo nhóm hàng"></canvas>
+                  <div class="chart-empty" id="groupRevenueChartEmpty" hidden>Chưa có doanh thu theo nhóm hàng trong khoảng đã chọn</div>
+                </div>
+              </div>
+              <div class="panel col-6">
+                <div class="panel-head">
+                  <h2>Số lượng bán theo nhóm hàng <span class="tag" id="tagGroupQty">—</span></h2>
+                </div>
+                <div class="chart-box">
+                  <canvas id="chartGroupQty" role="img"
+                    aria-label="Biểu đồ tròn số lượng bán sản phẩm theo nhóm hàng"></canvas>
+                  <div class="chart-empty" id="groupQtyChartEmpty" hidden>Chưa có dữ liệu số lượng bán theo nhóm hàng</div>
+                </div>
+              </div>
+            </div>
+            <div class="child-category-controls" style="margin-top:14px;">
+              <label class="child-category-label" for="childCategoryParentSelect">Nhóm cha</label>
+              <select class="child-category-select" id="childCategoryParentSelect"
+                onchange="setChildCategoryParent(this.value)">
+                <option value="">— Chọn nhóm cha —</option>
+              </select>
+            </div>
+            <div class="table-note" id="childCategoryPlaceholder">Chọn 1 nhóm cha ở trên để xem chi tiết doanh thu và số
+              lượng bán theo nhóm con</div>
+            <div class="grid" id="childCategoryPanels" hidden>
+              <div class="panel col-6">
+                <div class="panel-head">
+                  <h2>Doanh thu theo nhóm con <span class="tag" id="tagChildCategoryRevenue">—</span></h2>
+                </div>
+                <div class="chart-box">
+                  <canvas id="chartChildCategoryRevenue" role="img"
+                    aria-label="Biểu đồ doanh thu theo nhóm con"></canvas>
+                  <div class="chart-empty" id="childCategoryRevenueChartEmpty" hidden>Chưa có doanh thu theo nhóm con
+                    trong khoảng đã chọn</div>
+                </div>
+              </div>
+              <div class="panel col-6">
+                <div class="panel-head">
+                  <h2>Số lượng bán theo nhóm con <span class="tag" id="tagChildCategoryQty">—</span></h2>
+                </div>
+                <div class="chart-box">
+                  <canvas id="chartChildCategoryQty" role="img"
+                    aria-label="Biểu đồ số lượng bán theo nhóm con"></canvas>
+                  <div class="chart-empty" id="childCategoryQtyChartEmpty" hidden>Chưa có dữ liệu số lượng bán theo nhóm
+                    con</div>
+                </div>
+              </div>
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Chi tiết nhóm con <span class="tag" id="tagChildCategoryRows">—</span></h2><button
+                    class="export-button" type="button" onclick="openExportDialog('products.child-categories')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất
+                    Excel</button>
+                </div>
+                <div class="scroll-list" style="max-height:320px;">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Nhóm con</th>
+                        <th>SL bán</th>
+                        <th>Doanh thu</th>
+                      </tr>
+                    </thead>
+                    <tbody id="childCategoryRows">
+                      <tr>
+                        <td colspan="3" class="table-note">Chưa có dữ liệu</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="pagination-controls" id="childCategoryPagination" hidden>
+                  <button type="button" id="childCategoryFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="childCategoryPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                  <span id="childCategoryPageLabel">Trang 1/1</span>
+                  <button type="button" id="childCategoryNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="childCategoryLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-step">3</span>
               <h2>Báo cáo doanh thu theo khách <span class="section-note">chọn 1 khách để xem doanh thu 90 ngày gần
                   nhất</span></h2>
             </div>
@@ -3520,7 +3623,7 @@
           </section>
 
           <section class="section">
-            <div class="section-head"><span class="section-step">3</span>
+            <div class="section-head"><span class="section-step">4</span>
               <h2>Báo cáo doanh thu theo hàng <span class="section-note">tìm sản phẩm để xem doanh thu 90 ngày gần
                   nhất</span></h2>
             </div>
@@ -3576,7 +3679,7 @@
           </section>
 
           <section class="section">
-            <div class="section-head"><span class="section-step">4</span>
+            <div class="section-head"><span class="section-step">5</span>
               <h2>Kiểm tra đứt hàng <span class="section-note">đối chiếu dữ liệu KiotViet đã đồng bộ</span></h2>
             </div>
             <div class="grid">
@@ -3671,7 +3774,7 @@
         <!-- ============ HÀNG HÓA ============ -->
         <div class="view" id="view-products">
           <div class="view-title">Hàng hóa</div>
-          <div class="view-sub">Chỉ số tồn kho → cơ cấu theo nhóm → sản phẩm bán chạy → chi tiết từng mã hàng → hàng mới nhập và mã mới tạo → nhóm con</div>
+          <div class="view-sub">Chỉ số tồn kho → cơ cấu theo nhóm → sản phẩm bán chạy → chi tiết từng mã hàng → hàng mới nhập và mã mới tạo</div>
 
           <section class="section">
             <div class="section-head"><span class="section-step">1</span>
@@ -3887,28 +3990,6 @@
                   <button type="button" id="newlyImportedLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
-              <div class="panel col-6">
-                <div class="panel-head">
-                  <h2>Doanh thu theo nhóm hàng <span class="tag" id="tagNewlyImportedRevenue">—</span></h2>
-                </div>
-                <div class="chart-box">
-                  <canvas id="chartNewlyImportedRevenue" role="img"
-                    aria-label="Biểu đồ doanh thu hàng mới nhập theo nhóm hàng"></canvas>
-                  <div class="chart-empty" id="newlyImportedRevenueChartEmpty" hidden>Chưa có doanh thu từ hàng mới nhập
-                    trong khoảng đã chọn</div>
-                </div>
-              </div>
-              <div class="panel col-6">
-                <div class="panel-head">
-                  <h2>Số lượng bán theo nhóm hàng <span class="tag" id="tagNewlyImportedQty">—</span></h2>
-                </div>
-                <div class="chart-box">
-                  <canvas id="chartNewlyImportedQty" role="img"
-                    aria-label="Biểu đồ số lượng bán hàng mới nhập theo nhóm hàng"></canvas>
-                  <div class="chart-empty" id="newlyImportedQtyChartEmpty" hidden>Chưa có dữ liệu số lượng bán hàng mới
-                    nhập</div>
-                </div>
-              </div>
             </div>
           </section>
 
@@ -3918,7 +3999,7 @@
                   trên</span></h2>
             </div>
             <div class="grid">
-              <div class="panel col-12">
+              <div class="panel col-8">
                 <div class="panel-head">
                   <h2>Danh sách mã mới <span class="tag" id="tagTodayNewProductsDate">—</span></h2>
                   <div class="panel-head-actions"><span class="drill-hint" id="today-new-products-count">—</span><button
@@ -3933,13 +4014,11 @@
                         <th>Tên</th>
                         <th>Nhóm hàng</th>
                         <th>Thời gian tạo mã</th>
-                        <th>Giá vốn</th>
-                        <th>Giá bán</th>
                       </tr>
                     </thead>
                     <tbody id="todayNewProductRows">
                       <tr>
-                        <td colspan="6" class="table-note">Đang tải...</td>
+                        <td colspan="4" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -3952,74 +4031,15 @@
                   <button type="button" id="todayNewProductsLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">7</span>
-              <h2>Chi tiết theo nhóm con <span class="section-note">chọn 1 nhóm cha để xem doanh thu và số lượng bán
-                  theo nhóm con</span></h2>
-            </div>
-            <div class="child-category-controls">
-              <label class="child-category-label" for="childCategoryParentSelect">Nhóm cha</label>
-              <select class="child-category-select" id="childCategoryParentSelect"
-                onchange="setChildCategoryParent(this.value)">
-                <option value="">— Chọn nhóm cha —</option>
-              </select>
-            </div>
-            <div class="table-note" id="childCategoryPlaceholder">Chọn 1 nhóm cha ở trên để xem chi tiết doanh thu và số
-              lượng bán theo nhóm con</div>
-            <div class="grid" id="childCategoryPanels" hidden>
-              <div class="panel col-6">
+              <div class="panel col-4 new-products-chart-panel">
                 <div class="panel-head">
-                  <h2>Doanh thu theo nhóm con <span class="tag" id="tagChildCategoryRevenue">—</span></h2>
+                  <h2>Tỷ lệ số mã theo nhóm hàng <span class="tag" id="tagNewProductsCategory">—</span></h2>
                 </div>
-                <div class="chart-box">
-                  <canvas id="chartChildCategoryRevenue" role="img"
-                    aria-label="Biểu đồ doanh thu theo nhóm con"></canvas>
-                  <div class="chart-empty" id="childCategoryRevenueChartEmpty" hidden>Chưa có doanh thu theo nhóm con
-                    trong khoảng đã chọn</div>
-                </div>
-              </div>
-              <div class="panel col-6">
-                <div class="panel-head">
-                  <h2>Số lượng bán theo nhóm con <span class="tag" id="tagChildCategoryQty">—</span></h2>
-                </div>
-                <div class="chart-box">
-                  <canvas id="chartChildCategoryQty" role="img"
-                    aria-label="Biểu đồ số lượng bán theo nhóm con"></canvas>
-                  <div class="chart-empty" id="childCategoryQtyChartEmpty" hidden>Chưa có dữ liệu số lượng bán theo nhóm
-                    con</div>
-                </div>
-              </div>
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Chi tiết nhóm con <span class="tag" id="tagChildCategoryRows">—</span></h2><button
-                    class="export-button" type="button" onclick="openExportDialog('products.child-categories')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất
-                    Excel</button>
-                </div>
-                <div class="scroll-list" style="max-height:320px;">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Nhóm con</th>
-                        <th>SL bán</th>
-                        <th>Doanh thu</th>
-                      </tr>
-                    </thead>
-                    <tbody id="childCategoryRows">
-                      <tr>
-                        <td colspan="3" class="table-note">Chưa có dữ liệu</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="childCategoryPagination" hidden>
-                  <button type="button" id="childCategoryFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="childCategoryPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="childCategoryPageLabel">Trang 1/1</span>
-                  <button type="button" id="childCategoryNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="childCategoryLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+                <div class="chart-box" id="newProductsCategoryChartBox">
+                  <canvas id="chartNewProductsCategory" role="img"
+                    aria-label="Biểu đồ tròn tỷ lệ số lượng mã mới tạo theo nhóm hàng"></canvas>
+                  <div class="chart-empty" id="newProductsCategoryChartEmpty" hidden>Chưa có mã hàng mới tạo trong khoảng
+                    đã chọn</div>
                 </div>
               </div>
             </div>
@@ -6995,7 +7015,7 @@
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
       canvas.style.cursor = drilldown ? 'pointer' : '';
-      canvas.title = drilldown ? 'Nhấn phần biểu đồ để xem dòng tương ứng' : '';
+      canvas.title = drilldown ? (drilldown.hint || 'Nhấn phần biểu đồ để xem dòng tương ứng') : '';
       const theme = chartTheme();
       const format = formatFn || (v => fmtMoney(v));
       const values = list.map(valueFn);
@@ -7045,7 +7065,8 @@
           onClick: drilldown ? function (event, elements) {
             if (!elements || !elements[0]) return;
             const item = list[elements[0].index];
-            navigateChartToTable(drilldown.tableKey, drilldown.identity(item));
+            if (drilldown.onSelect) drilldown.onSelect(item);
+            else navigateChartToTable(drilldown.tableKey, drilldown.identity(item));
           } : undefined,
           plugins: {
             legend: {
@@ -7219,6 +7240,74 @@
       }
     }
 
+    // Mục "Doanh thu sản phẩm theo nhóm hàng" (Tổng quan): 2 biểu đồ tròn theo nhóm cha, nhấn 1 lát
+    // (hoặc chọn ở ô "Nhóm cha") để xem nhóm con. Tổng theo nhóm cha cộng từ childCategorySalesByParent
+    // (không bị cắt top 15 như topSellingParentCategories) nên khớp với phần nhóm con bên dưới.
+    const GROUP_CHART_TOP = 7;
+
+    function buildParentGroupSales(byParent) {
+      return Object.keys(byParent || {}).map(name => ({
+        name: name,
+        qty: byParent[name].reduce((sum, c) => sum + (Number(c.qty) || 0), 0),
+        revenue: byParent[name].reduce((sum, c) => sum + (Number(c.revenue) || 0), 0)
+      }));
+    }
+
+    // Giữ GROUP_CHART_TOP nhóm lớn nhất theo `valueKey`, phần còn lại gộp vào "Khác (N nhóm)".
+    function groupChartSlices(groups, valueKey) {
+      const sorted = groups.filter(g => g[valueKey] > 0).sort((a, b) => b[valueKey] - a[valueKey]);
+      if (sorted.length <= GROUP_CHART_TOP + 1) return sorted;
+      const rest = sorted.slice(GROUP_CHART_TOP);
+      return sorted.slice(0, GROUP_CHART_TOP).concat({
+        name: 'Khác (' + rest.length + ' nhóm)',
+        qty: rest.reduce((sum, g) => sum + g.qty, 0),
+        revenue: rest.reduce((sum, g) => sum + g.revenue, 0),
+        isOther: true
+      });
+    }
+
+    function selectChildCategoryParentFromChart(slice) {
+      if (!slice || slice.isOther) return;
+      setChildCategoryParent(slice.name);
+      const panels = document.getElementById('childCategoryPanels');
+      if (panels && panels.scrollIntoView) {
+        const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        panels.scrollIntoView({ block: 'nearest', behavior: reducedMotion ? 'auto' : 'smooth' });
+      }
+    }
+
+    function renderGroupRevenueSection(d) {
+      const productsData = d.products || {};
+      const byParent = productsData.childCategorySalesByParent || {};
+      const rangeLabel = d.filters && d.filters.products ? d.filters.products.label : '30 ngày';
+      document.getElementById('groupRevenuePeriod').textContent =
+        'doanh thu: ' + rangeLabel + ' · nhấn vào một nhóm hoặc chọn nhóm cha để xem nhóm con';
+
+      const groups = buildParentGroupSales(byParent);
+      const revenueSlices = groupChartSlices(groups, 'revenue');
+      const qtySlices = groupChartSlices(groups, 'qty');
+      const hasRevenue = revenueSlices.length > 0;
+      const hasQty = qtySlices.length > 0;
+      const select = { onSelect: selectChildCategoryParentFromChart, hint: 'Nhấn vào một nhóm để xem nhóm con' };
+
+      document.getElementById('tagGroupRevenue').textContent = hasRevenue ? fmtMoneyShort(groups.reduce((sum, g) => sum + Math.max(g.revenue, 0), 0)) : '0đ';
+      document.getElementById('tagGroupQty').textContent = hasQty ? fmtNumber(groups.reduce((sum, g) => sum + Math.max(g.qty, 0), 0)) : '0';
+      document.getElementById('chartGroupRevenue').hidden = !hasRevenue;
+      document.getElementById('groupRevenueChartEmpty').hidden = hasRevenue;
+      document.getElementById('chartGroupQty').hidden = !hasQty;
+      document.getElementById('groupQtyChartEmpty').hidden = hasQty;
+
+      if (hasRevenue) renderPieChartList('chartGroupRevenue', 'groupRevenue', revenueSlices, g => g.name, g => g.revenue, fmtMoney, 'Doanh thu', select);
+      else destroyChart('groupRevenue');
+      if (hasQty) renderPieChartList('chartGroupQty', 'groupQty', qtySlices, g => g.name, g => g.qty, v => fmtNumber(Number(v)), 'Số lượng', select);
+      else destroyChart('groupQty');
+
+      // Ô "Nhóm cha": gồm cả nhóm chưa có doanh thu trong kỳ và nhóm chỉ có trong dữ liệu bán
+      const parents = new Set((productsData.availableParentCategories || []).concat(Object.keys(byParent)));
+      populateChildCategoryParentSelect([...parents].sort((a, b) => a.localeCompare(b, 'vi')));
+      renderChildCategoryBreakdown(d);
+    }
+
     function populateChildCategoryParentSelect(list) {
       const select = document.getElementById('childCategoryParentSelect');
       const options = Array.isArray(list) ? list : [];
@@ -7235,6 +7324,7 @@
 
     function setChildCategoryParent(name) {
       state.childCategoryParent = name || null;
+      document.getElementById('childCategoryParentSelect').value = name || '';
       renderChildCategoryBreakdown(state.data);
     }
 
@@ -8141,6 +8231,7 @@
         document.getElementById('ov-lowstock').textContent = d.kpi.lowStockCount;
         document.getElementById('ov-customers').textContent = fmtNumber(d.kpi.totalCustomers);
         document.getElementById('ov-customers-sub').textContent = d.kpi.customersWithDebt + ' đang nợ · ' + fmtMoney(d.kpi.totalDebt);
+        renderGroupRevenueSection(d);
       }
       else if (view === 'products') {
         const productRangeLabel = d.filters && d.filters.products ? d.filters.products.label : '30 ngày';
@@ -8216,47 +8307,6 @@
           destroyChart('newlyImportedTopRevenue');
         }
 
-        const newlyImportedByCategory = newlyImportedInfo.salesByCategory || [];
-        const newlyImportedCountByCategory = newlyImportedInfo.countByCategory || [];
-        const newlyImportedProductsList = newlyImportedInfo.products || [];
-
-        const salesRevenue = newlyImportedInfo.salesRevenue || 0;
-        const salesQty = newlyImportedInfo.salesQty || 0;
-
-        const hasNewlyImportedSales = newlyImportedByCategory.length > 0 && (salesRevenue > 0 || salesQty > 0);
-        const hasNewlyImportedProducts = newlyImportedProductsList.length > 0 && newlyImportedCountByCategory.length > 0;
-
-        if (hasNewlyImportedSales) {
-          document.getElementById('tagNewlyImportedRevenue').textContent = fmtMoneyShort(salesRevenue);
-          document.getElementById('tagNewlyImportedQty').textContent = fmtNumber(Number(salesQty));
-          document.getElementById('chartNewlyImportedRevenue').hidden = false;
-          document.getElementById('newlyImportedRevenueChartEmpty').hidden = true;
-          document.getElementById('chartNewlyImportedQty').hidden = false;
-          document.getElementById('newlyImportedQtyChartEmpty').hidden = true;
-
-          renderPieChartList('chartNewlyImportedRevenue', 'newlyImportedRevenue', newlyImportedByCategory, c => c.name, c => c.revenue, fmtMoney, 'Doanh thu');
-          renderPieChartList('chartNewlyImportedQty', 'newlyImportedQty', newlyImportedByCategory, c => c.name, c => c.qty, v => fmtNumber(Number(v)), 'Số lượng');
-        } else if (hasNewlyImportedProducts) {
-          document.getElementById('tagNewlyImportedRevenue').textContent = newlyImportedProductsList.length + ' mã';
-          document.getElementById('tagNewlyImportedQty').textContent = newlyImportedCountByCategory.length + ' nhóm';
-          document.getElementById('chartNewlyImportedRevenue').hidden = false;
-          document.getElementById('newlyImportedRevenueChartEmpty').hidden = true;
-          document.getElementById('chartNewlyImportedQty').hidden = false;
-          document.getElementById('newlyImportedQtyChartEmpty').hidden = true;
-
-          renderPieChartList('chartNewlyImportedRevenue', 'newlyImportedRevenue', newlyImportedCountByCategory, c => c.name, c => c.productCount, v => v + ' mã', 'Số mã hàng');
-          renderPieChartList('chartNewlyImportedQty', 'newlyImportedQty', newlyImportedCountByCategory, c => c.name, c => c.productCount, v => v + ' mã', 'Cơ cấu nhóm');
-        } else {
-          document.getElementById('tagNewlyImportedRevenue').textContent = '0đ';
-          document.getElementById('tagNewlyImportedQty').textContent = '0';
-          document.getElementById('chartNewlyImportedRevenue').hidden = true;
-          document.getElementById('newlyImportedRevenueChartEmpty').hidden = false;
-          document.getElementById('chartNewlyImportedQty').hidden = true;
-          document.getElementById('newlyImportedQtyChartEmpty').hidden = false;
-          destroyChart('newlyImportedRevenue');
-          destroyChart('newlyImportedQty');
-        }
-
         const todayNewProducts = (d.products && d.products.newProducts) || { label: '—', count: 0, dateColumnAvailable: true, products: [] };
         const newProductRows = todayNewProducts.products || [];
         document.getElementById('tagTodayNewProductsDate').textContent = todayNewProducts.label || '—';
@@ -8268,18 +8318,40 @@
           p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
             '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
             '<td>' + escapeHtml(p.category || 'Chưa phân nhóm') + '</td>' +
-            '<td class="mono muted">' + escapeHtml(p.createdAt || '—') + '</td>' +
-            '<td class="mono muted" data-sort-value="' + p.cost + '">' + fmtMoney(p.cost) + '</td>' +
-            '<td class="mono" data-sort-value="' + p.price + '">' + fmtMoney(p.price) + '</td></tr>',
-          6,
+            '<td class="mono muted">' + escapeHtml(p.createdAt || '—') + '</td></tr>',
+          4,
           todayNewProducts.dateColumnAvailable === false ? 'Sheet Hàng hóa chưa có cột Ngày tạo' : 'Chưa có mã hàng mới tạo trong khoảng đã chọn'
         );
 
+        // Tỷ lệ số mã theo nhóm: đếm trên toàn bộ danh sách (không theo trang), gom nhóm nhỏ vào "Còn lại"
+        const newProductCategoryCounts = new Map();
+        newProductRows.forEach(p => {
+          const name = String(p.category || '').trim() || 'Chưa phân nhóm';
+          newProductCategoryCounts.set(name, (newProductCategoryCounts.get(name) || 0) + 1);
+        });
+        const newProductCategories = [...newProductCategoryCounts.entries()]
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'vi'));
+        const NEW_PRODUCT_CHART_TOP = 8;
+        if (newProductCategories.length > NEW_PRODUCT_CHART_TOP + 1) {
+          const rest = newProductCategories.splice(NEW_PRODUCT_CHART_TOP);
+          newProductCategories.push({
+            name: 'Còn lại (' + rest.length + ' nhóm)',
+            count: rest.reduce((sum, c) => sum + c.count, 0)
+          });
+        }
+        const hasNewProductChart = newProductCategories.length > 0;
+        document.getElementById('tagNewProductsCategory').textContent = hasNewProductChart ? newProductCategoryCounts.size + ' nhóm' : '0 nhóm';
+        document.getElementById('newProductsCategoryChartBox').classList.toggle('is-empty', !hasNewProductChart);
+        document.getElementById('chartNewProductsCategory').hidden = !hasNewProductChart;
+        document.getElementById('newProductsCategoryChartEmpty').hidden = hasNewProductChart;
+        if (hasNewProductChart) {
+          renderPieChartList('chartNewProductsCategory', 'newProductsCategory', newProductCategories, c => c.name, c => c.count, v => fmtNumber(Number(v)) + ' mã', 'Tổng số mã');
+        } else {
+          destroyChart('newProductsCategory');
+        }
+
         renderProductSalesAnalysis(d);
-
-        populateChildCategoryParentSelect((d.products && d.products.availableParentCategories) || []);
-        renderChildCategoryBreakdown(d);
-
       }
       else if (view === 'invoices') {
         const invoiceData = d.invoices || d;

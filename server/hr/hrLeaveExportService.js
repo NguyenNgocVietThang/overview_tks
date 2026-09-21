@@ -22,7 +22,7 @@ const COLUMN_WIDTHS = {
   tong_buoi_nghi: 14, tong_ngay_nghi: 18, nguoi_ban_giao: 18,
   trang_thai: 14, nguoi_duyet: 16, thoi_diem_duyet: 18, ghi_chu_duyet: 26,
   co_nghi_gap: 10, co_tu_y_nghi: 10, created_at: 18, updated_at: 18,
-  tin_nhan: 60
+  tin_nhan: 60, co_so: 12, bo_phan: 20
 };
 
 const SORTABLE_FIELDS = new Set(repo.LEAVE_SCHEMA_FIELD_KEYS);
@@ -55,20 +55,22 @@ function safeFileNamePart(str) {
   return String(str || '').replace(/[^0-9A-Za-z-]/g, '');
 }
 
+// `branch` la 1 co so hoac danh sach co so dang xuat; chi 1 co so moi gan HN/SG.
 function branchFilePrefix(branch) {
-  if (branch === BRANCHES.HANOI) return 'HN';
-  if (branch === BRANCHES.SAIGON) return 'SG';
+  const only = Array.isArray(branch) ? (branch.length === 1 ? branch[0] : null) : branch;
+  if (only === BRANCHES.HANOI) return 'HN';
+  if (only === BRANCHES.SAIGON) return 'SG';
   return 'TKS';
 }
 
 /**
- * @param {Object} filters { status, employee, from, to, sortField, sortDir }
+ * @param {Object} filters { status, employee, department, from, to, sortField, sortDir }
  * @returns {Promise<{ buffer: Buffer, fileName: string, mime: string }>}
  */
 async function buildLeaveRequestsWorkbook(filters, branch) {
   filters = filters || {};
   const items = applySort(
-    await repo.getLeaveRequests({ status: filters.status, employee: filters.employee, from: filters.from, to: filters.to }, branch),
+    await repo.getLeaveRequests({ status: filters.status, employee: filters.employee, department: filters.department, from: filters.from, to: filters.to }, branch),
     filters.sortField,
     filters.sortDir
   );

@@ -33,6 +33,8 @@ function dbRow(overrides = {}) {
     created_at: new Date('2026-08-19T08:00:01.000Z'),
     updated_at: new Date('2026-08-19T08:00:01.000Z'),
     tin_nhan: '',
+    branch: 'hanoi',
+    bo_phan: 'KHO',
     ...overrides
   };
 }
@@ -60,6 +62,8 @@ test('getLeaveRequests ánh xạ hàng DB về hình dạng cũ (mốc nghỉ d�
   assert.equal(item.tong_ngay_nghi, 3);
   assert.equal(item.co_nghi_gap, true);
   assert.equal(item.co_tu_y_nghi, false);
+  assert.equal(item.co_so, 'Hà Nội');
+  assert.equal(item.bo_phan, 'KHO');
 });
 
 test('getLeaveRequests lọc cơ sở/trạng thái/khoảng nghỉ trong SQL và cơ sở đổi sang mã', async () => {
@@ -70,8 +74,8 @@ test('getLeaveRequests lọc cơ sở/trạng thái/khoảng nghỉ trong SQL v�
   );
 
   const { sql, params } = pool.calls[0];
-  assert.deepEqual(params, ['saigon', 'Đã duyệt', '2026-08-01', '2026-08-31']);
-  assert.match(sql, /branch = \$1/);
+  assert.deepEqual(params, [['saigon'], 'Đã duyệt', '2026-08-01', '2026-08-31']);
+  assert.match(sql, /branch = ANY\(\$1::text\[\]\)/);
   assert.match(sql, /trang_thai = \$2/);
   assert.match(sql, /end_date >= \$3::date/);
   assert.match(sql, /start_date <= \$4::date/);
@@ -81,11 +85,41 @@ test('getLeaveRequests mặc định Hà Nội và từ chối cơ sở/ngày kh
   const pool = fakePool([]);
   const repo = createHrLeaveRepository({ pool });
   await repo.getLeaveRequests({});
-  assert.equal(pool.calls[0].params[0], 'hanoi');
+  assert.deepEqual(pool.calls[0].params[0], ['hanoi']);
 
   await assert.rejects(repo.getLeaveRequests({}, 'Đà Nẵng'), err => err.code === 'INVALID_BRANCH');
   await assert.rejects(repo.getLeaveRequests({ from: '22/08/2026' }, 'Hà Nội'), err => err.code === 'INVALID_DATE');
   assert.equal(pool.calls.length, 1, 'không được chạy SQL khi tham số sai');
+});
+
+test('getLeaveRequests nhận danh sách cơ sở (Tất cả cơ sở) và gộp thành một truy vấn', async () => {
+  const pool = fakePool([
+    dbRow({ request_id: 'HN1', branch: 'hanoi' }),
+    dbRow({ request_id: 'SG1', branch: 'saigon' })
+  ]);
+  const items = await createHrLeaveRepository({ pool }).getLeaveRequests({}, ['Hà Nội', 'Sài Gòn']);
+
+  assert.equal(pool.calls.length, 1);
+  assert.deepEqual(pool.calls[0].params[0], ['hanoi', 'saigon']);
+  assert.deepEqual(items.map(i => i.co_so), ['Hà Nội', 'Sài Gòn']);
+  await assert.rejects(
+    createHrLeaveRepository({ pool }).getLeaveRequests({}, ['Hà Nội', 'Đà Nẵng']),
+    err => err.code === 'INVALID_BRANCH'
+  );
+});
+
+test('getLeaveRequests lọc theo phòng ban (không phân biệt hoa thường/khoảng trắng)', async () => {
+  const pool = fakePool([
+    dbRow({ request_id: 'A', bo_phan: 'KHO' }),
+    dbRow({ request_id: 'B', bo_phan: 'TRỢ LÝ' }),
+    dbRow({ request_id: 'C', bo_phan: null })
+  ]);
+  const repo = createHrLeaveRepository({ pool });
+
+  assert.deepEqual((await repo.getLeaveRequests({ department: ' kho ' }, 'Hà Nội')).map(r => r.request_id), ['A']);
+  assert.deepEqual((await repo.getLeaveRequests({ department: 'Trợ Lý' }, 'Hà Nội')).map(r => r.request_id), ['B']);
+  assert.deepEqual((await repo.getLeaveRequests({ department: '' }, 'Hà Nội')).map(r => r.request_id), ['A', 'B', 'C']);
+  assert.match(pool.calls[0].sql, /FROM hr_employees e/, 'phòng ban lấy từ hr_employees của nhân sự gắn với đơn');
 });
 
 test('getLeaveRequests lọc theo tên nhân viên không phân biệt hoa thường/khoảng trắng', async () => {
@@ -103,7 +137,7 @@ test('getLeaveRequestById trả null khi không có và có ràng buộc cơ s�
   const pool = fakePool([]);
   const repo = createHrLeaveRepository({ pool });
   assert.equal(await repo.getLeaveRequestById('NP-X', 'Hà Nội'), null);
-  assert.deepEqual(pool.calls[0].params, ['NP-X', 'hanoi']);
+  assert.deepEqual(pool.calls[0].params, ['NP-X', ['hanoi']]);
 });
 
 test('createLeaveRequest ghi khoảng nghỉ dạng cấu trúc và để DB sinh mã/số ngày quy đổi', async () => {
@@ -166,7 +200,7 @@ test('updateLeaveRequestStatus cập nhật theo mã + cơ sở, 404 khi không 
     { status: LEAVE_STATUS.APPROVED, approver: 'Quản lý', approverUserId: USER_ID, note: null },
     'Hà Nội'
   );
-  assert.deepEqual(pool.calls[0].params, ['NP-20260819-0001', 'hanoi', 'Đã duyệt', 'Quản lý', USER_ID, null]);
+  assert.deepEqual(pool.calls[0].params, ['NP-20260819-0001', ['hanoi'], 'Đã duyệt', 'Quản lý', USER_ID, null]);
   assert.equal(updated.thoi_diem_duyet, '2026-08-20T01:00:00.000Z');
 
   await assert.rejects(
@@ -187,7 +221,7 @@ test('getUrgentFlagSummary gộp theo nhân viên và đánh dấu vượt ngư�
   const pool = fakePool(rows);
 
   const summary = await createHrLeaveRepository({ pool }).getUrgentFlagSummary('2026-08', 'Hà Nội');
-  assert.deepEqual(pool.calls[0].params, ['hanoi', '2026-08']);
+  assert.deepEqual(pool.calls[0].params, [['hanoi'], '2026-08']);
   assert.equal(summary.length, 2);
   assert.equal(summary.find(e => e.ho_ten === 'A').count, over);
   assert.equal(summary.find(e => e.ho_ten === 'A').isOverThreshold, true);

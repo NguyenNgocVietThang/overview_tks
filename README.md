@@ -67,4 +67,4 @@ Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để b
 
 ## Cập nhật gần nhất
 
-2026-09-21 — nâng cấp xuất Excel tùy chọn trường dữ liệu, chuyển phần hàng nhập sang tab Nhà cung cấp, giao dịch sang tab Hóa đơn và đồng bộ bộ lọc thời gian.
+2026-09-21 — bổ sung bộ lọc Cơ sở và Phòng ban cho phân hệ Nhân sự & Nghỉ phép, hỗ trợ xuất Excel theo phạm vi lọc; nâng cấp xuất Excel tùy chọn trường và cấu trúc lại tab báo cáo.
