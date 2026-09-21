@@ -35,14 +35,19 @@ const authInternal = [requireAuth, requireRole(...INTERNAL_ROLES)];
 // Doi trang thai phe duyet / nhap tay: chi Quan ly.
 const authManager = [requireAuth, requireRole(ROLES.QUAN_LY)];
 
-// Bo loc "Co so" cua trang: bo trong / 'all' = TAT CA co so tai khoan duoc xem
-// (khong phu thuoc co so dang chon o thanh dieu huong); 1 co so cu the phai
-// nam trong pham vi duoc phep, neu khong 403 — server luon xac thuc lai.
+// Bo loc "Co so" cua trang: bo trong / 'all' / "Cả hai" = TAT CA co so tai
+// khoan duoc xem (khong phu thuoc co so dang chon o thanh dieu huong); 1 co so
+// cu the phai nam trong pham vi duoc phep, neu khong 403 — server luon xac
+// thuc lai.
 function resolveBranchScope(req, requested) {
   const allowed = allowedBranches(req.user);
   const wanted = String(requested == null ? '' : requested).trim();
   if (!wanted || wanted === 'all') return allowed;
   const branch = normalizeCoSo(wanted);
+  // "Cả hai" la lua chon giao dien, khong phai mot co so vat ly. Voi bo loc cua
+  // trang no dong nghia "Tat ca co so" — va van bi gioi han trong allowedBranches
+  // nen KHONG BAO GIO mo rong pham vi cua tai khoan (vd tai khoan 1 co so).
+  if (branch === BRANCH_BOTH) return allowed;
   if (branch !== BRANCHES.HANOI && branch !== BRANCHES.SAIGON) {
     throw new repo.HrError(`Cơ sở không hợp lệ: "${wanted}".`, 400, 'INVALID_BRANCH');
   }

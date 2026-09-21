@@ -18,13 +18,13 @@ const EMPLOYEES = [
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 
-async function openPage() {
+async function openPage({ branches = ['Hà Nội', 'Sài Gòn'] } = {}) {
   const html = fs.readFileSync(htmlPath, 'utf8');
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://tokosi.example/humanresources/' });
   const { window } = dom;
   const requestedUrls = [];
   window.TKSNav = {
-    authGuard: async () => ({ username: 'manager', vaiTro: 'Quản lý', branches: ['Hà Nội', 'Sài Gòn'] }),
+    authGuard: async () => ({ username: 'manager', vaiTro: 'Quản lý', branches }),
     renderTopSidebar() {}
   };
   window.fetch = async url => {
@@ -170,5 +170,84 @@ test('matchesLeaveScope: sự kiện realtime ngoài cơ sở/phòng ban đang l
   choose(window, 'departmentFilter', 'KHO');
   assert.equal(window.matchesLeaveScope(row), true);
   assert.equal(window.matchesLeaveScope({ co_so: 'Sài Gòn', bo_phan: 'SALE' }), false);
+  dom.window.close();
+});
+
+// ---------------------------------------------------------------------------
+// /api/auth/me tra `branches` = selectableBranches(user), tuc co ca "Cả hai"
+// cho tai khoan hai co so. Day la LUA CHON GIAO DIEN cua thanh dieu huong,
+// khong phai mot co so loc duoc — server tu choi no bang 400 INVALID_BRANCH.
+// ---------------------------------------------------------------------------
+
+const BRANCHES_WITH_BOTH = ['Hà Nội', 'Sài Gòn', 'Cả hai'];
+
+test('bộ lọc Cơ sở không chào "Cả hai" (đã có sẵn "Tất cả cơ sở")', async () => {
+  const { dom, window } = await openPage({ branches: BRANCHES_WITH_BOTH });
+
+  assert.deepEqual(optionValues(window.document.getElementById('branchFilter')), ['', 'Hà Nội', 'Sài Gòn']);
+  assert.deepEqual(optionValues(window.document.getElementById('employeeBranchFilter')), ['', 'Hà Nội', 'Sài Gòn']);
+  dom.window.close();
+});
+
+test('bộ lọc Cơ sở nhận giá trị "Cả hai": hiểu là Tất cả, không gửi tham số branch lên API', async () => {
+  const { dom, window, requestedUrls } = await openPage({ branches: BRANCHES_WITH_BOTH });
+  const select = window.document.getElementById('branchFilter');
+  // Mo phong gia tri "Cả hai" lot vao o loc (vd tu ban HTML cu dang mo trong tab khac).
+  select.insertAdjacentHTML('beforeend', '<option value="Cả hai">Cả hai</option>');
+  choose(window, 'branchFilter', 'Cả hai');
+  await tick();
+
+  const query = new URL(listUrls(requestedUrls).at(-1), window.location.origin).searchParams;
+  assert.equal(query.has('branch'), false, '"Cả hai" không được gửi xuống server');
+  assert.deepEqual(
+    optionValues(window.document.getElementById('departmentFilter')),
+    ['', 'KHO', 'SALE', 'TRỢ LÝ'],
+    'phòng ban vẫn gộp cả hai cơ sở'
+  );
+  dom.window.close();
+});
+
+test('matchesLeaveScope: đang lọc "Cả hai" vẫn nhận sự kiện realtime của cả hai cơ sở', async () => {
+  const { dom, window } = await openPage({ branches: BRANCHES_WITH_BOTH });
+  const select = window.document.getElementById('branchFilter');
+  select.insertAdjacentHTML('beforeend', '<option value="Cả hai">Cả hai</option>');
+  choose(window, 'branchFilter', 'Cả hai');
+
+  assert.equal(window.matchesLeaveScope({ co_so: 'Hà Nội', bo_phan: 'KHO' }), true);
+  assert.equal(window.matchesLeaveScope({ co_so: 'Sài Gòn', bo_phan: 'KHO' }), true);
+  dom.window.close();
+});
+
+test('xuất Excel khi đang lọc "Cả hai": không gửi cơ sở "Cả hai" xuống server', async () => {
+  const { dom, window, requestedUrls } = await openPage({ branches: BRANCHES_WITH_BOTH });
+  ['branchFilter', 'employeeBranchFilter'].forEach(id => {
+    const select = window.document.getElementById(id);
+    select.insertAdjacentHTML('beforeend', '<option value="Cả hai">Cả hai</option>');
+  });
+  choose(window, 'employeeBranchFilter', 'Cả hai');
+  choose(window, 'branchFilter', 'Cả hai');
+  await tick();
+
+  window.fetch = async (url, options) => {
+    requestedUrls.push(String(url));
+    window.__lastOptions = options;
+    return { ok: false, status: 500, headers: { get: () => 'application/json' }, json: async () => ({ error: 'stop' }), text: async () => '{}' };
+  };
+  await window.exportEmployeeDirectoryExcel();
+  assert.equal(new URL(requestedUrls.at(-1), window.location.origin).searchParams.has('branch'), false);
+
+  await window.exportLeaveExcel();
+  assert.equal(JSON.parse(window.__lastOptions.body).branch, '');
+  dom.window.close();
+});
+
+test('danh sách nhân sự lọc "Cả hai": hiện nhân sự của cả hai cơ sở', async () => {
+  const { dom, window } = await openPage({ branches: BRANCHES_WITH_BOTH });
+  const doc = window.document;
+  doc.getElementById('employeeBranchFilter').insertAdjacentHTML('beforeend', '<option value="Cả hai">Cả hai</option>');
+  choose(window, 'employeeBranchFilter', 'Cả hai');
+
+  const names = [...doc.querySelectorAll('#employeeDirectoryTableBody tr')].map(tr => tr.cells[0].textContent);
+  assert.deepEqual(names, ['An Kho', 'Bình Sale', 'Cường Kho', 'Dũng Trợ Lý', 'Em Kho']);
   dom.window.close();
 });

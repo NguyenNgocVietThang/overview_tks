@@ -825,9 +825,26 @@
       return String(value == null ? '' : value).normalize('NFC').replace(/\s+/g, ' ').trim().toLocaleLowerCase('vi-VN');
     }
 
-    // Co so = cac co so tai khoan duoc xem (user.branches); mac dinh "Tat ca co so".
+    // "Cả hai" la LUA CHON CUA THANH DIEU HUONG (selectableBranches), khong phai
+    // mot co so vat ly: bang nay khong bao gio co dong nao mang co_so = "Cả hai",
+    // va server tu choi no o tham so branch. Voi bo loc cua trang no dong nghia
+    // "Tất cả cơ sở" — nen khong chao no lam lua chon rieng, va moi cho so sanh
+    // deu quy no ve rong.
+    const BRANCH_BOTH_LABEL = 'Cả hai';
+
+    function branchFilterValue(rawValue){
+      const branch = String(rawValue == null ? '' : rawValue).trim();
+      return (branch === 'all' || branch === BRANCH_BOTH_LABEL) ? '' : branch;
+    }
+
+    function selectedBranch(selectId){
+      const select = document.getElementById(selectId);
+      return branchFilterValue(select && select.value);
+    }
+
+    // Co so = cac co so VAT LY tai khoan duoc xem (user.branches); mac dinh "Tat ca co so".
     function populateBranchFilters(user){
-      const branches = (user && user.branches) || [];
+      const branches = ((user && user.branches) || []).filter(b => b !== BRANCH_BOTH_LABEL);
       ['branchFilter', 'employeeBranchFilter'].forEach(id => {
         const select = document.getElementById(id);
         if(!select) return;
@@ -838,9 +855,10 @@
 
     // Phong ban = cac BO PHAN dang co nhan su (trong co so dang loc), mac dinh "Tat ca phong ban".
     // Giu lai lua chon hien tai neu no van con trong danh sach.
-    function populateDepartmentFilter(selectId, branch){
+    function populateDepartmentFilter(selectId, rawBranch){
       const select = document.getElementById(selectId);
       if(!select) return;
+      const branch = branchFilterValue(rawBranch);
       const previousKey = departmentKey(select.value);
       const byKey = new Map();
       rawEmployeeDirectory.forEach(e => {
@@ -856,7 +874,7 @@
 
     // Don moi/doi trang thai qua SSE chi duoc chen vao bang neu khop bo loc co so/phong ban dang chon.
     function matchesLeaveScope(request){
-      const branch = document.getElementById('branchFilter').value;
+      const branch = selectedBranch('branchFilter');
       const department = document.getElementById('departmentFilter').value;
       if(branch && request.co_so !== branch) return false;
       if(department && departmentKey(request.bo_phan) !== departmentKey(department)) return false;
@@ -882,7 +900,7 @@
       const employee = document.getElementById('employeeSearchInput').value.trim();
       const fromDate = document.getElementById('fromDateFilter').value;
       const toDate = document.getElementById('toDateFilter').value;
-      const branch = document.getElementById('branchFilter').value;
+      const branch = selectedBranch('branchFilter');
       const department = document.getElementById('departmentFilter').value;
 
       const params = new URLSearchParams();
@@ -1089,7 +1107,7 @@
     function renderEmployeeDirectoryTable(){
       const tbody = document.getElementById('employeeDirectoryTableBody');
       const keyword = (document.getElementById('employeeDirectorySearchInput').value || '').trim().toLowerCase();
-      const branch = document.getElementById('employeeBranchFilter').value;
+      const branch = selectedBranch('employeeBranchFilter');
       const department = departmentKey(document.getElementById('employeeDepartmentFilter').value);
       const filtered = rawEmployeeDirectory.filter(e => {
         if(branch && e.coSo !== branch) return false;
@@ -1242,7 +1260,7 @@
       const toDate = document.getElementById('toDateFilter').value;
       const leaveSort = state.tableSorts['leaveTableBody'];
       const SORT_FIELD_BY_COLUMN = ['request_id', 'ho_ten', 'co_so', 'thoi_gian_gui', 'ly_do', 'thoi_gian_bat_dau', 'tong_buoi_nghi', 'nguoi_ban_giao', 'nguoi_duyet', 'trang_thai'];
-      const branch = document.getElementById('branchFilter').value;
+      const branch = selectedBranch('branchFilter');
       const department = document.getElementById('departmentFilter').value;
       const payload = { status, employee, branch, department, from: fromDate, to: toDate };
       if(leaveSort && SORT_FIELD_BY_COLUMN[leaveSort.columnIndex]){
@@ -1284,7 +1302,7 @@
       const btn = document.getElementById('btnExportEmployeeDirectory');
       const keyword = (document.getElementById('employeeDirectorySearchInput').value || '').trim();
       const params = new URLSearchParams({ keyword });
-      const branch = document.getElementById('employeeBranchFilter').value;
+      const branch = selectedBranch('employeeBranchFilter');
       const department = document.getElementById('employeeDepartmentFilter').value;
       if(branch) params.set('branch', branch);
       if(department) params.set('department', department);

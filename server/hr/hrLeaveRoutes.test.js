@@ -401,3 +401,53 @@ test('đổi trạng thái ở "Cả hai": sự kiện realtime không bao giờ
     repo.updateLeaveRequestStatus = originalUpdate;
   }
 });
+
+// ---------------------------------------------------------------------------
+// Bo loc "Cơ sở" cua trang co the mang gia tri "Cả hai" (lua chon giao dien) —
+// phai hieu la "Tất cả cơ sở" TRONG pham vi tai khoan, khong phai co so la.
+// ---------------------------------------------------------------------------
+
+test('GET /api/hr/leave-requests?branch="Cả hai": lọc theo mọi cơ sở được phép, không báo lỗi', async () => {
+  const originalGet = repo.getLeaveRequests;
+  let received;
+  repo.getLeaveRequests = async (filters, branch) => { received = { filters, branch }; return []; };
+  try {
+    const handler = getRouteHandler('get', '/api/hr/leave-requests');
+
+    const res = fakeRes();
+    await handler({ user: MANAGER_BOTH, query: { branch: 'Cả hai' } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(received.branch, ['Hà Nội', 'Sài Gòn']);
+
+    // Tai khoan mot co so: "Cả hai" KHONG duoc mo rong pham vi.
+    const staffRes = fakeRes();
+    await handler({ user: STAFF_HANOI, query: { branch: 'Cả hai' } }, staffRes);
+    assert.equal(staffRes.statusCode, 200);
+    assert.deepEqual(received.branch, ['Hà Nội']);
+  } finally {
+    repo.getLeaveRequests = originalGet;
+  }
+});
+
+test('GET /api/hr/employees/export?branch="Cả hai": xuất được, không báo cơ sở không hợp lệ', async () => {
+  const originalGetSnapshot = employeeDirectory.getSnapshot;
+  employeeDirectory.getSnapshot = async () => ({
+    employees: [
+      { hoTen: 'A', boPhan: 'KHO', sourceBranch: 'Hà Nội', soDienThoai: '0900000001', email: 'a@x.com' },
+      { hoTen: 'B', boPhan: 'KHO', sourceBranch: 'Sài Gòn', soDienThoai: '0900000002', email: 'b@x.com' }
+    ]
+  });
+  try {
+    const handler = getRouteHandler('get', '/api/hr/employees/export');
+    const sent = [];
+    const res = fakeRes();
+    res.setHeader = () => res;
+    res.send = payload => { sent.push(payload); return res; };
+
+    await handler({ user: MANAGER_BOTH, query: { branch: 'Cả hai' } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(sent.length, 1);
+  } finally {
+    employeeDirectory.getSnapshot = originalGetSnapshot;
+  }
+});
