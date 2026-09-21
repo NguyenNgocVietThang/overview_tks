@@ -1481,3 +1481,240 @@ test('getDashboardData: cot SL cua "Chi tiết giao dịch" doc tu getInvoiceQua
   assert.equal(row.quantity, 7);
   assert.equal(row.quantityKnown, true);
 });
+
+// ---------- Ca hai: tim kiem, chi tiet, bao cao doanh thu ----------
+
+const AGG_PRODUCT_HEADER = ['Mã hàng', 'Tên hàng', 'Nhóm hàng', 'Loại hàng', 'Giá vốn', 'Giá bán', 'Tồn kho', 'Khách đặt', 'Trạng thái'];
+const AGG_CUSTOMER_HEADER = ['Mã khách hàng', 'Tên khách hàng', 'Điện thoại', 'Nợ hiện tại'];
+const AGG_INVOICE_HEADER = ['Mã hóa đơn', 'Ngày bán', 'Khách hàng', 'SĐT khách', 'Chi nhánh', 'Tổng tiền hàng', 'Trạng thái', 'Mã khách hàng'];
+const AGG_DETAIL_HEADER = ['Mã hóa đơn', 'Mã hàng', 'Tên hàng', 'Số lượng', 'Đơn giá', 'Giảm giá', 'Thành tiền'];
+
+// readDashboardSheets (9 tab, dung cho search/export) theo tung co so VAT LY:
+// `byBranch` = { [branch]: { [sheetName]: rows } }. Ghi lai moi co so duoc doc.
+function mockFullSheetsByBranch(dashboardPgReader, byBranch, seenBranches = []) {
+  dashboardPgReader.readDashboardSheets = async branch => {
+    seenBranches.push(branch);
+    const result = {};
+    dashboardPgReader.SHEET_NAMES.forEach(name => { result[name] = []; });
+    return Object.assign(result, byBranch[branch] || {});
+  };
+}
+
+test('Ca hai tim kiem gop ma trung, ap dung limit sau khi gop va chi doc co so vat ly', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const CONFIG = require('../config');
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  const seen = [];
+  mockFullSheetsByBranch(dashboardPgReader, {
+    [BRANCHES.HANOI]: {
+      [CONFIG.SHEET_PRODUCTS]: [AGG_PRODUCT_HEADER,
+        ['SP-1', 'Áo Hà Nội', '', '', 10, 20, 2, 0, 'Đang kinh doanh'],
+        ['SP-2', 'Áo hai', '', '', 5, 9, 1, 0, 'Đang kinh doanh']]
+    },
+    [BRANCHES.SAIGON]: {
+      [CONFIG.SHEET_PRODUCTS]: [AGG_PRODUCT_HEADER,
+        ['SP-1', 'Áo Sài Gòn', '', '', 20, 25, 3, 0, 'Đang kinh doanh'],
+        ['SP-3', 'Áo ba', '', '', 5, 9, 4, 0, 'Đang kinh doanh']]
+    }
+  }, seen);
+  dashboardData.__test__.resetCaches();
+
+  const result = await dashboardData.searchDashboardRecords('products', 'áo', 2, undefined, undefined, BRANCH_BOTH);
+
+  assert.equal(result.total, 3, 'SP-1 trung ma chi tinh 1 lan');
+  assert.deepEqual(result.results.map(item => item.code), ['SP-1', 'SP-2'], 'limit ap dung sau khi gop');
+  assert.equal(result.results[0].name, 'Áo Hà Nội');
+  const stock = result.results[0].fields.find(field => field.label === 'Tồn kho');
+  const cost = result.results[0].fields.find(field => field.label === 'Giá vốn');
+  assert.equal(stock.value, '5');
+  assert.equal(cost.value, '16', 'gia von tinh binh quan theo ton kho');
+  assert.deepEqual(seen.sort(), [BRANCHES.HANOI, BRANCHES.SAIGON]);
+
+  await dashboardData.searchDashboardRecords('products', 'sp-3', 8, undefined, undefined, BRANCH_BOTH);
+  assert.equal(seen.length, 2, 'chi muc gop duoc cache, khong doc lai khi version khong doi');
+});
+
+test('Ca hai tim nhieu ma giu thu tu nhap, giu giao dich trung ma theo co so va dem thieu dung', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const CONFIG = require('../config');
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  mockFullSheetsByBranch(dashboardPgReader, {
+    [BRANCHES.HANOI]: {
+      [CONFIG.SHEET_INVOICES]: [AGG_INVOICE_HEADER,
+        ['HD-TRUNG', '10/08/2026 10:00:00', 'Khách HN', '', 'Kho A', 100, 'Hoàn thành', 'KH-1']]
+    },
+    [BRANCHES.SAIGON]: {
+      [CONFIG.SHEET_INVOICES]: [AGG_INVOICE_HEADER,
+        ['HD-RIENG', '10/08/2026 11:00:00', 'Khách SG', '', 'Kho B', 50, 'Hoàn thành', 'KH-2'],
+        ['HD-TRUNG', '10/08/2026 12:00:00', 'Khách SG', '', 'Kho B', 200, 'Hoàn thành', 'KH-2']]
+    }
+  });
+  dashboardData.__test__.resetCaches();
+
+  const result = await dashboardData.searchDashboardRecords(
+    'invoices', 'hd-rieng HD-TRUNG KHONG-CO', 'all', 'codes', undefined, BRANCH_BOTH
+  );
+
+  assert.deepEqual(result.results.map(item => [item.code, item.branch]), [
+    ['HD-RIENG', BRANCHES.SAIGON], ['HD-TRUNG', BRANCHES.HANOI], ['HD-TRUNG', BRANCHES.SAIGON]
+  ]);
+  assert.equal(result.requestedCount, 3);
+  assert.equal(result.matchedCount, 2);
+  assert.equal(result.missingCount, 1);
+  assert.equal(result.total, 3);
+  const totals = result.results.filter(item => item.code === 'HD-TRUNG')
+    .map(item => item.fields.find(field => field.label === 'Tổng tiền hàng').value);
+  assert.deepEqual(totals, ['100', '200']);
+});
+
+test('Ca hai tim khach cong doanh thu theo ma khach cua ca hai co so', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const CONFIG = require('../config');
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  mockFullSheetsByBranch(dashboardPgReader, {
+    [BRANCHES.HANOI]: {
+      [CONFIG.SHEET_CUSTOMERS]: [AGG_CUSTOMER_HEADER, ['KH-1', 'Khách Hà Nội', '0901', 100]],
+      [CONFIG.SHEET_INVOICES]: [AGG_INVOICE_HEADER,
+        ['HD-1', '10/08/2026 10:00:00', 'Khách Hà Nội', '', '', 100, 'Hoàn thành', 'KH-1']]
+    },
+    [BRANCHES.SAIGON]: {
+      [CONFIG.SHEET_CUSTOMERS]: [AGG_CUSTOMER_HEADER, ['KH-1', 'Khách Sài Gòn', '0901', 200]],
+      [CONFIG.SHEET_INVOICES]: [AGG_INVOICE_HEADER,
+        ['HD-1', '11/08/2026 10:00:00', 'Khách Sài Gòn', '', '', 200, 'Hoàn thành', 'KH-1']]
+    }
+  });
+  dashboardData.__test__.resetCaches();
+
+  const result = await dashboardData.searchDashboardRecords(
+    'customers', 'KH-1', 'all', undefined, { mode: 'all' }, BRANCH_BOTH
+  );
+
+  assert.equal(result.total, 1);
+  assert.equal(result.results[0].name, 'Khách Hà Nội');
+  assert.equal(result.results[0].revenue, 300);
+});
+
+function aggregateRevenueSheets(BRANCHES, CONFIG) {
+  return {
+    [BRANCHES.HANOI]: {
+      [CONFIG.SHEET_PRODUCTS]: [AGG_PRODUCT_HEADER, ['SP-1', 'Áo Hà Nội', '', '', 10, 20, 2, 0, 'Đang kinh doanh']],
+      [CONFIG.SHEET_INVOICES]: [AGG_INVOICE_HEADER,
+        ['HD-1', '18/08/2026 10:00:00', 'Khách 1', '', '', 100, 'Hoàn thành', 'KH-1']],
+      [CONFIG.SHEET_INVOICE_DETAILS]: [AGG_DETAIL_HEADER, ['HD-1', 'SP-1', 'Áo Hà Nội', 1, 100, 0, 100]]
+    },
+    [BRANCHES.SAIGON]: {
+      [CONFIG.SHEET_PRODUCTS]: [AGG_PRODUCT_HEADER, ['SP-1', 'Áo Sài Gòn', '', '', 20, 25, 3, 0, 'Đang kinh doanh']],
+      [CONFIG.SHEET_INVOICES]: [AGG_INVOICE_HEADER,
+        ['HD-1', '18/08/2026 11:00:00', 'Khách 9', '', '', 999, 'Hoàn thành', 'KH-9'],
+        ['HD-2', '19/08/2026 09:00:00', 'Khách 1', '', '', 350, 'Hoàn thành', 'KH-1']],
+      [CONFIG.SHEET_INVOICE_DETAILS]: [AGG_DETAIL_HEADER,
+        ['HD-1', 'SP-1', 'Áo Sài Gòn', 5, 200, 0, 999],
+        ['HD-2', 'SP-1', 'Áo Sài Gòn', 2, 150, 0, 300],
+        ['HD-2', 'SP-2', 'Hàng hai', 1, 50, 0, 50]]
+    }
+  };
+}
+
+test('Ca hai bao cao doanh thu theo khach cong theo ma hang va ngay, khong ghep hoa don trung ma giua co so', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const CONFIG = require('../config');
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  const seen = [];
+  mockFullSheetsByBranch(dashboardPgReader, aggregateRevenueSheets(BRANCHES, CONFIG), seen);
+  dashboardData.__test__.resetCaches();
+
+  const report = await dashboardData.getCustomerProductRevenueReport(
+    'KH-1', 'Khách 1', BRANCH_BOTH, new Date('2026-08-20T03:00:00.000Z')
+  );
+
+  assert.deepEqual(report.products.map(product => [product.code, product.name, product.quantity, product.revenue]), [
+    ['SP-1', 'Áo Hà Nội', 3, 400], ['SP-2', 'Hàng hai', 1, 50]
+  ]);
+  assert.equal(report.totalRevenue, 450);
+  assert.equal(report.totalQuantity, 4);
+  assert.equal(report.products[0].month1Revenue, 400);
+  const dayRevenue = date => report.totalRevenueByDay.find(day => day.date === date).revenue;
+  assert.equal(dayRevenue('18/08/2026'), 100);
+  assert.equal(dayRevenue('19/08/2026'), 350);
+  assert.equal(report.products[0].revenueByDay.find(day => day.date === '19/08/2026').revenue, 300);
+  assert.deepEqual(seen.sort(), [BRANCHES.HANOI, BRANCHES.SAIGON]);
+});
+
+test('Ca hai doanh thu theo hang: tong quan gop qua co so, chi tiet giu tung co so va top khach gop', async () => {
+  const { dashboardData, dashboardPgReader, customerProductTopRepository } = freshDashboardData();
+  const CONFIG = require('../config');
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  mockFullSheetsByBranch(dashboardPgReader, aggregateRevenueSheets(BRANCHES, CONFIG));
+  const topCalls = [];
+  customerProductTopRepository.findTopCustomersByRevenueForProduct = async params => {
+    topCalls.push(params);
+    return [{ customerCode: 'KH-1', customerName: 'Khách 1', purchaseRevenue: 400 }];
+  };
+  dashboardData.__test__.resetCaches();
+  const now = new Date('2026-08-20T03:00:00.000Z');
+
+  const overview = await dashboardData.searchProductRevenueOverview('sp-1', 'normal', BRANCH_BOTH, now);
+  assert.deepEqual(overview.results, [
+    { code: 'SP-1', name: 'Áo Hà Nội', ds90: 1399, sl90: 8, tonKho: 5 }
+  ]);
+
+  const detail = await dashboardData.getProductRevenueDetail('SP-1', BRANCH_BOTH, now);
+  assert.equal(detail.name, 'Áo Hà Nội');
+  assert.equal(detail.price, 20);
+  assert.equal(detail.cost, 16);
+  assert.equal(detail.month1Revenue, 1399);
+  assert.deepEqual(detail.topCustomers, [{ customerCode: 'KH-1', customerName: 'Khách 1', purchaseRevenue: 400 }]);
+  assert.deepEqual(topCalls.map(call => call.branch), [BRANCH_BOTH]);
+  assert.deepEqual(detail.branchDetails.map(item => [item.branch, item.stock, item.cost, item.month1Revenue]), [
+    [BRANCHES.HANOI, 2, 10, 100], [BRANCHES.SAIGON, 3, 20, 1299]
+  ]);
+
+  await assert.rejects(dashboardData.getProductRevenueDetail('KHONG-CO', BRANCH_BOTH, now), error => error.statusCode === 404);
+  const physical = await dashboardData.getProductRevenueDetail('SP-1', BRANCHES.HANOI, now);
+  assert.equal(physical.branchDetails, undefined, 'co so vat ly giu nguyen shape');
+});
+
+test('Ca hai top khach theo san pham giu thu tu ma nhap va chuyen pham vi gop xuong repository', async () => {
+  const { dashboardData, customerProductTopRepository } = freshDashboardData();
+  const { BRANCH_BOTH } = require('../branch/branches');
+  const calls = [];
+  customerProductTopRepository.findTopCustomersByProducts = async params => {
+    calls.push(params);
+    return [
+      { productCode: 'SP-2', productName: 'Hai', customerCode: 'KH-1', customerName: 'A', purchasedQuantity: 1, purchaseRevenue: 10, returnedQuantity: 0, returnValue: 0, lastPurchaseDate: null },
+      { productCode: 'SP-1', productName: 'Một', customerCode: 'KH-2', customerName: 'B', purchasedQuantity: 2, purchaseRevenue: 20, returnedQuantity: 0, returnValue: 0, lastPurchaseDate: null }
+    ];
+  };
+  dashboardData.__test__.resetCaches();
+
+  const result = await dashboardData.searchTopCustomersByProducts('SP-1 SP-2 SP-9', { mode: 'all' }, undefined, BRANCH_BOTH);
+
+  assert.equal(calls[0].branch, BRANCH_BOTH);
+  assert.deepEqual(result.results.map(row => row.productCode), ['SP-1', 'SP-2']);
+  assert.equal(result.missingCount, 1);
+});
+
+test('Ca hai chi muc tim kiem dung lai khi nguon khong doi va xay lai khi mot co so vat ly lam moi', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const CONFIG = require('../config');
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  const seen = [];
+  const byBranch = {
+    [BRANCHES.HANOI]: { [CONFIG.SHEET_PRODUCTS]: [AGG_PRODUCT_HEADER, ['SP-1', 'Áo', '', '', 10, 20, 2, 0, 'Đang kinh doanh']] },
+    [BRANCHES.SAIGON]: { [CONFIG.SHEET_PRODUCTS]: [AGG_PRODUCT_HEADER] }
+  };
+  mockFullSheetsByBranch(dashboardPgReader, byBranch, seen);
+  dashboardData.__test__.resetCaches();
+
+  await dashboardData.searchDashboardRecords('products', 'sp', 8, undefined, undefined, BRANCH_BOTH);
+  await dashboardData.searchDashboardRecords('products', 'sp', 8, undefined, undefined, BRANCH_BOTH);
+  const buildsBeforeRefresh = dashboardData.__test__.getSearchIndexBuildCount();
+
+  byBranch[BRANCHES.SAIGON][CONFIG.SHEET_PRODUCTS] = [AGG_PRODUCT_HEADER, ['SP-9', 'Áo mới ở Sài Gòn', '', '', 1, 2, 7, 0, 'Đang kinh doanh']];
+  dashboardData.__test__.expireFullSheetsCache(BRANCHES.SAIGON);
+  const result = await dashboardData.searchDashboardRecords('products', 'sp-9', 8, undefined, undefined, BRANCH_BOTH);
+
+  assert.deepEqual(result.results.map(item => item.code), ['SP-9']);
+  assert.deepEqual(seen.sort(), [BRANCHES.HANOI, BRANCHES.SAIGON, BRANCHES.SAIGON]);
+  assert.ok(dashboardData.__test__.getSearchIndexBuildCount() > buildsBeforeRefresh, 'chi muc gop phai duoc xay lai');
+});

@@ -150,3 +150,37 @@ test('toWallClockInstant/fromWallClockInstant: doi gio 2 chieu dung, khong lech 
   const backToReal = fromWallClockInstant(wallClockInDb);
   assert.equal(backToReal.getTime(), real.getTime(), 'doi nguoc lai phai ra dung thoi diem thuc ban dau');
 });
+
+test('Ca hai: chi truyen ma co so vat ly, dung SQL gop theo khach qua ANY($1) va top-N tinh sau khi gop', async () => {
+  const pool = fakePool();
+  const repository = createCustomerProductTopRepository({ pool });
+  await repository.findTopCustomersByProducts({
+    branch: 'Cả hai', codes: [' SP-01 '], range: { mode: 'all' }, limit: 3
+  });
+  await repository.findTopCustomersByRevenueForProduct({ branch: 'Cả hai', code: 'SP-01' });
+
+  assert.equal(pool.calls.length, 2);
+  const [byQuantity, byRevenue] = pool.calls;
+  assert.deepEqual(byQuantity.params[0], ['hanoi', 'saigon'], 'chi ma co so vat ly, khong bao gio "Cả hai"');
+  assert.deepEqual(byQuantity.params.slice(1), [['sp-01'], null, null, 3]);
+  assert.deepEqual(byRevenue.params, [['hanoi', 'saigon'], ['sp-01'], null, null, DEFAULT_TOP_LIMIT]);
+  [byQuantity.sql, byRevenue.sql].forEach(sql => {
+    assert.match(sql, /d\.branch = ANY\(\$1::text\[\]\)/);
+    assert.match(sql, /rd\.branch = ANY\(\$1::text\[\]\)/);
+    assert.doesNotMatch(sql, /\.branch = \$1/, 'khong con so khop mot co so');
+    assert.match(sql, /GROUP BY product_key, customer_key/, 'gop theo (hang, khach), khong theo co so');
+    assert.match(sql, /rn <= \$5/);
+  });
+  assert.match(byQuantity.sql, /qty DESC, revenue DESC/);
+  assert.match(byRevenue.sql, /revenue DESC, qty DESC/);
+  assert.match(byQuantity.sql, /CASE branch WHEN 'hanoi' THEN 0/, 'ten hien thi uu tien Ha Noi -> Sai Gon');
+});
+
+test('co so vat ly: SQL va tham so giu nguyen (khong dung ANY)', async () => {
+  const pool = fakePool();
+  const repository = createCustomerProductTopRepository({ pool });
+  await repository.findTopCustomersByProducts({ branch: 'Sài Gòn', codes: ['SP-01'], range: { mode: 'all' } });
+  assert.equal(pool.calls[0].params[0], 'saigon');
+  assert.match(pool.calls[0].sql, /d\.branch = \$1/);
+  assert.doesNotMatch(pool.calls[0].sql, /ANY\(\$1/);
+});

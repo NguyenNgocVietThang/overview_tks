@@ -17,7 +17,7 @@
 // so sanh — xem toWallClockInstant().
 // ==========================================
 const { getPool } = require('../db/pool');
-const { BRANCHES, branchLabelToCode } = require('../branch/branches');
+const { BRANCHES, BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
 
 const DEFAULT_TOP_LIMIT = 3;
 const WALL_CLOCK_TIME_ZONE = 'Asia/Ho_Chi_Minh';
@@ -82,14 +82,25 @@ const RETURN_AMOUNT_SQL = `CASE
     ELSE abs(COALESCE(rd.price, 0)::float8 * COALESCE(rd.quantity, 0)::float8)
   END`;
 
+// Thu tu uu tien co so khi gop ten hien thi qua cac co so ("Cả hai"): Ha Noi truoc.
+const BRANCH_RANK_SQL = `CASE branch WHEN 'hanoi' THEN 0 WHEN 'saigon' THEN 1 ELSE 2 END`;
+
 /**
- * $1 branch, $2 danh sach ma hang (da lower), $3 tu ngay, $4 den ngay,
- * $5 so khach toi da moi ma hang.
+ * $1 branch (aggregate: text[] cac co so vat ly), $2 danh sach ma hang (da
+ * lower), $3 tu ngay, $4 den ngay, $5 so khach toi da moi ma hang.
+ *
+ * aggregate = true ("Cả hai"): ban ghi ban/tra cua CA hai co so duoc gom theo
+ * (hang, khach) TRUOC khi xep hang top-N — khong the gop hai top-N rieng cua tung
+ * co so vi khach hang co the chi vao top khi cong ca hai co so.
  */
-function buildTopCustomersQuery(rankBy) {
+function buildTopCustomersQuery(rankBy, aggregate = false) {
   const rankOrder = rankBy === 'revenue'
     ? 'revenue DESC, qty DESC'
     : 'qty DESC, revenue DESC';
+  const branchPredicate = column => (aggregate ? `${column} = ANY($1::text[])` : `${column} = $1`);
+  const firstByBranch = (column, avoid) => (aggregate
+    ? `(array_agg(${column} ORDER BY ${avoid ? `(${column} = ${avoid}), ` : ''}${BRANCH_RANK_SQL}, ${column}))[1]`
+    : `min(${column})`);
 
   return `
     WITH sales AS (
@@ -102,12 +113,12 @@ function buildTopCustomersQuery(rankBy) {
         ${customerNameSql('i')}                      AS customer_name,
         COALESCE(d.quantity, 0)::float8              AS quantity,
         ${DETAIL_AMOUNT_SQL}                         AS amount,
-        i.purchase_date                              AS purchase_date
+        i.purchase_date                              AS purchase_date${aggregate ? ', d.branch AS branch' : ''}
       FROM invoice_details d
       JOIN invoices i ON i.branch = d.branch AND i.id = d.invoice_id
       LEFT JOIN products p ON p.branch = d.branch AND p.id = d.product_id
       LEFT JOIN customers c ON c.branch = i.branch AND c.id = i.customer_id
-      WHERE d.branch = $1
+      WHERE ${branchPredicate('d.branch')}
         AND i.status = 1
         AND lower(${PRODUCT_CODE_SQL}) = ANY($2)
         AND ($3::timestamptz IS NULL OR i.purchase_date >= $3)
@@ -116,11 +127,11 @@ function buildTopCustomersQuery(rankBy) {
     sales_agg AS (
       SELECT
         product_key,
-        min(product_code)   AS product_code,
-        min(product_name)   AS product_name,
+        ${firstByBranch('product_code')}   AS product_code,
+        ${firstByBranch('product_name', "''")}   AS product_name,
         customer_key,
-        min(customer_code)  AS customer_code,
-        min(customer_name)  AS customer_name,
+        ${firstByBranch('customer_code')}  AS customer_code,
+        ${firstByBranch('customer_name', "'Khách lẻ'")}  AS customer_name,
         sum(quantity)       AS qty,
         sum(amount)         AS revenue,
         max(purchase_date)  AS last_purchase_date
@@ -137,7 +148,7 @@ function buildTopCustomersQuery(rankBy) {
       JOIN returns r ON r.branch = rd.branch AND r.id = rd.return_id
       LEFT JOIN products rp ON rp.branch = rd.branch AND rp.id = rd.product_id
       LEFT JOIN customers c ON c.branch = r.branch AND c.id = r.customer_id
-      WHERE rd.branch = $1
+      WHERE ${branchPredicate('rd.branch')}
         AND r.status = 1
         AND lower(${RETURN_PRODUCT_CODE_SQL}) = ANY($2)
         AND ($3::timestamptz IS NULL OR r.return_date >= $3)
@@ -168,6 +179,8 @@ function buildTopCustomersQuery(rankBy) {
 
 const TOP_BY_QUANTITY_SQL = buildTopCustomersQuery('quantity');
 const TOP_BY_REVENUE_SQL = buildTopCustomersQuery('revenue');
+const TOP_BY_QUANTITY_AGGREGATE_SQL = buildTopCustomersQuery('quantity', true);
+const TOP_BY_REVENUE_AGGREGATE_SQL = buildTopCustomersQuery('revenue', true);
 
 function normalizeCodes(codes) {
   return (codes || [])
@@ -202,6 +215,21 @@ function createCustomerProductTopRepository({ pool = getPool() } = {}) {
   }
 
   /**
+   * "Cả hai" -> mang ma co so VAT LY (chi qua branchLabelToCode tung co so vat
+   * ly, khong bao gio chuyen "Cả hai" nhu mot co so) + SQL gop; co so vat ly ->
+   * 1 ma vo huong + SQL cu.
+   */
+  function resolveScope(branch, sqlPair) {
+    if (branch === BRANCH_BOTH) {
+      return {
+        branchParam: resolveBranchScope(BRANCH_BOTH).map(resolveBranchCode),
+        sql: sqlPair.aggregate
+      };
+    }
+    return { branchParam: resolveBranchCode(branch), sql: sqlPair.physical };
+  }
+
+  /**
    * Top khach mua NHIEU NHAT (theo so luong) cho tung ma hang trong khoang
    * `range` — thay cho sheet "Khách theo hàng hóa" o searchTopCustomersByProducts.
    * @param {Object} params
@@ -214,14 +242,15 @@ function createCustomerProductTopRepository({ pool = getPool() } = {}) {
     const normalizedCodes = normalizeCodes(codes);
     if (!normalizedCodes.length) return [];
     const isAll = !range || range.mode === 'all';
+    const scope = resolveScope(branch, { physical: TOP_BY_QUANTITY_SQL, aggregate: TOP_BY_QUANTITY_AGGREGATE_SQL });
     const params = [
-      resolveBranchCode(branch),
+      scope.branchParam,
       normalizedCodes,
       isAll ? null : toWallClockInstant(range.start),
       isAll ? null : toWallClockInstant(range.end),
       limit
     ];
-    const result = await pool.query(TOP_BY_QUANTITY_SQL, params);
+    const result = await pool.query(scope.sql, params);
     return result.rows.map(mapRow);
   }
 
@@ -233,8 +262,9 @@ function createCustomerProductTopRepository({ pool = getPool() } = {}) {
   async function findTopCustomersByRevenueForProduct({ branch, code, limit = DEFAULT_TOP_LIMIT }) {
     const normalizedCodes = normalizeCodes([code]);
     if (!normalizedCodes.length) return [];
-    const params = [resolveBranchCode(branch), normalizedCodes, null, null, limit];
-    const result = await pool.query(TOP_BY_REVENUE_SQL, params);
+    const scope = resolveScope(branch, { physical: TOP_BY_REVENUE_SQL, aggregate: TOP_BY_REVENUE_AGGREGATE_SQL });
+    const params = [scope.branchParam, normalizedCodes, null, null, limit];
+    const result = await pool.query(scope.sql, params);
     return result.rows.map(mapRow);
   }
 

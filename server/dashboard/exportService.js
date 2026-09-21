@@ -19,7 +19,7 @@ const ExcelJS = require('exceljs');
 const dashboardData = require('./dashboardData');
 const dashboardPgReader = require('./dashboardPgReader');
 const exportFieldCatalog = require('./exportFieldCatalog');
-const { BRANCHES } = require('../branch/branches');
+const { BRANCHES, BRANCH_BOTH, resolveBranchScope } = require('../branch/branches');
 const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
 const { filterTableItems } = require('../public/js/table-explorer');
 
@@ -236,6 +236,8 @@ const DEBT_COLUMNS = [
   aggregateColumn('updatedAt', 'Cập nhật lúc', 'date', 'Thời điểm cập nhật trạng thái xử lý gần nhất.', { selected: false })
 ];
 
+const DEBT_BRANCH_COLUMN = aggregateColumn('branch', 'Cơ sở', 'text', 'Cơ sở (Hà Nội hoặc Sài Gòn) của khoản công nợ.');
+
 const PARENT_CATEGORY_COLUMNS = [
   aggregateColumn('name', 'Nhóm cha', undefined, 'Tên nhóm hàng cấp cha.'),
   aggregateColumn('qty', 'Số lượng bán', 'number', 'Tổng số lượng hàng bán ra của nhóm trong kỳ.'),
@@ -333,11 +335,11 @@ function pickSourceValues(row, columns, sourceRow) {
   return row;
 }
 
-function buildLogicalRows(items, byCode, columns, derivedValues) {
+function buildLogicalRows(items, byCode, columns, derivedValues, keyOf = item => normalizeCode(item.code)) {
   const sourceColumnsList = columns.filter(column => !column.derivedKey);
   const derivedColumns = columns.filter(column => column.derivedKey);
   return items.map(item => {
-    const matches = byCode.get(normalizeCode(item.code)) || [];
+    const matches = byCode.get(keyOf(item)) || [];
     const row = pickSourceValues({}, sourceColumnsList, matches[0]);
     derivedColumns.forEach(column => {
       const compute = derivedValues && derivedValues[column.derivedKey];
@@ -362,30 +364,105 @@ async function readSourceRows(source, env, codes) {
   return (result && result.rows) || [];
 }
 
+// "Ca hai": khoa ghep gom co so vat ly + ma chuan hoa — cung ma chung tu co the ton tai o
+// ca hai co so nen KHONG duoc ghep theo ma don le.
+function compositeKey(branch, code) {
+  return `${normalizeText(branch)}\u0000${normalizeCode(code)}`;
+}
+
+/**
+ * Gop dong tho cua cac co so vat ly cho nguon THUC THE (san pham/khach/NCC) bang dung
+ * quy tac cua man hinh (dashboardData.mergeEntityRows): cot cong don duoc cong, gia von
+ * binh quan theo ton kho, cot con lai lay gia tri that dau tien theo Ha Noi -> Sai Gon.
+ */
+function mergeEntitySourceRows(source, rowsByBranch) {
+  const fields = exportFieldCatalog.getSourceFields(source.key);
+  const keys = fields.map(item => item.key);
+  const headers = fields.map(item => item.sheetHeader);
+  const sources = rowsByBranch.map(({ branch, rows }) => ({
+    branch,
+    sheets: { [source.sheetName]: [headers, ...rows.map(row => keys.map(key => row[key]))] }
+  }));
+  const merged = dashboardData.mergeEntityRows(sources, source.sheetName);
+  if (!merged) return rowsByBranch.flatMap(group => group.rows);
+  return merged.slice(1).map(values => Object.fromEntries(keys.map((key, index) => [key, values[index]])));
+}
+
+/**
+ * Nap dong tho cho danh sach dong logic va tra ve cach ghep:
+ *   - co so vat ly: doc 1 co so, ghep theo ma (nhu cu);
+ *   - "Ca hai" + nguon giao dich (perBranch): moi co so vat ly chi doc cac ma cua CHINH no,
+ *     ghep theo (co so, ma);
+ *   - "Ca hai" + nguon thuc the: doc moi ma o ca hai co so roi gop theo ma.
+ * Khong bao gio truyen "Ca hai" cho readRowsByCodes.
+ */
+async function loadSourceRowsForItems(source, env, items, perBranch) {
+  const codes = items.map(item => item.code);
+  const byCodeKey = item => normalizeCode(item.code);
+  if (env.branch !== BRANCH_BOTH) {
+    const sourceRows = await readSourceRows(source, env, codes);
+    return { byKey: rowsByCode(sourceRows, source.codeKey), keyOf: byCodeKey };
+  }
+  const scope = resolveBranchScope(BRANCH_BOTH);
+  if (perBranch) {
+    const groups = await Promise.all(scope.map(async physicalBranch => ({
+      branch: physicalBranch,
+      rows: await readSourceRows(
+        source,
+        { ...env, branch: physicalBranch },
+        items.filter(item => item.branch === physicalBranch).map(item => item.code)
+      )
+    })));
+    const byKey = new Map();
+    groups.forEach(({ branch, rows }) => rows.forEach(row => {
+      const key = compositeKey(branch, row[source.codeKey]);
+      if (!byKey.has(key)) byKey.set(key, []);
+      byKey.get(key).push(row);
+    }));
+    return { byKey, keyOf: item => compositeKey(item.branch, item.code) };
+  }
+  const groups = await Promise.all(scope.map(async physicalBranch => ({
+    branch: physicalBranch,
+    rows: await readSourceRows(source, { ...env, branch: physicalBranch }, codes)
+  })));
+  return { byKey: rowsByCode(mergeEntitySourceRows(source, groups), source.codeKey), keyOf: byCodeKey };
+}
+
 // ---------- Dinh nghia tung bang (worksheets + ham nap dong) ----------
 
 function customerRevenueRows(dashboard) {
   return (((dashboard.customers || {}).topRevenue || {}).top50 || []);
 }
 
+const BRANCH_COLUMN_LABEL = 'Cơ sở';
+const BRANCH_COLUMN_DESCRIPTION = 'Cơ sở (Hà Nội hoặc Sài Gòn) nơi phát sinh chứng từ.';
+const BRANCH_ITEM_VALUE = item => normalizeText(item.branch);
+
+function branchDerivedColumn() {
+  return derivedColumn('branch', BRANCH_COLUMN_LABEL, 'text', BRANCH_COLUMN_DESCRIPTION);
+}
+
 /** Bang 1 worksheet: cac dong logic (ma) ghep voi dong tho cua 1 nguon catalogue. */
 function singleSourceTable(options) {
-  const { key, name, sourceKey, derived = [], derivedValues, items } = options;
+  const { key, name, sourceKey, derived = [], items, branchColumn = false } = options;
   const source = exportFieldCatalog.getSource(sourceKey);
+  // "Ca hai" + bang giao dich: them cot "Cơ sở" va ghep dong tho theo (co so, ma).
+  const derivedValues = branchColumn ? { ...options.derivedValues, branch: BRANCH_ITEM_VALUE } : options.derivedValues;
   const worksheet = {
     key,
     name,
     codeKey: source.codeKey,
     columns: sourceColumns(sourceKey).concat(
-      derived.map(def => derivedColumn(def.key, def.label, def.type, def.description))
+      derived.map(def => derivedColumn(def.key, def.label, def.type, def.description)),
+      branchColumn ? [branchDerivedColumn()] : []
     )
   };
   return {
     worksheets: [worksheet],
     async loadRows(env, activeFor) {
       const list = items(env.dashboard, env.context) || [];
-      const sourceRows = await readSourceRows(source, env, list.map(item => item.code));
-      return [{ rows: buildLogicalRows(list, rowsByCode(sourceRows, source.codeKey), activeFor(worksheet), derivedValues) }];
+      const { byKey, keyOf } = await loadSourceRowsForItems(source, env, list, branchColumn);
+      return [{ rows: buildLogicalRows(list, byKey, activeFor(worksheet), derivedValues, keyOf) }];
     }
   };
 }
@@ -405,32 +482,39 @@ function aggregateTable(options) {
   };
 }
 
-function purchasesTable() {
+function purchasesTable(aggregate = false) {
   const source = exportFieldCatalog.getSource('purchases');
+  const extraColumns = aggregate ? [branchDerivedColumn()] : [];
+  const derivedValues = aggregate ? { branch: BRANCH_ITEM_VALUE } : undefined;
   const summary = {
     key: 'purchase_summary', name: 'Tổng hợp phiếu', codeKey: source.codeKey,
-    columns: sourceColumns('purchases', exportFieldCatalog.PURCHASE_SUMMARY_KEYS)
+    columns: sourceColumns('purchases', exportFieldCatalog.PURCHASE_SUMMARY_KEYS).concat(extraColumns)
   };
   const details = {
     key: 'purchase_details', name: 'Chi tiết mặt hàng', codeKey: source.codeKey,
-    columns: sourceColumns('purchases')
+    columns: sourceColumns('purchases').concat(extraColumns)
   };
   return {
     worksheets: [summary, details],
     async loadRows(env, activeFor) {
       const items = ((env.dashboard.newPurchases || {}).orders || []);
-      const sourceRows = await readSourceRows(source, env, items.map(item => item.code));
-      const byCode = rowsByCode(sourceRows, source.codeKey);
-      const summaryRows = buildLogicalRows(items, byCode, activeFor(summary));
+      const { byKey, keyOf } = await loadSourceRowsForItems(source, env, items, aggregate);
+      const summaryRows = buildLogicalRows(items, byKey, activeFor(summary), derivedValues, keyOf);
       const detailColumns = activeFor(details);
+      const detailSourceColumns = detailColumns.filter(column => !column.derivedKey);
+      const detailDerivedColumns = detailColumns.filter(column => column.derivedKey);
       const detailRows = [];
       const seen = new Set();
       items.forEach(item => {
         if (detailColumns.length === 0) return; // khong chon cot nao cua worksheet chi tiet
-        const code = normalizeCode(item.code);
-        if (seen.has(code)) return;
-        seen.add(code);
-        (byCode.get(code) || []).forEach(sourceRow => detailRows.push(pickSourceValues({}, detailColumns, sourceRow)));
+        const key = keyOf(item);
+        if (seen.has(key)) return;
+        seen.add(key);
+        (byKey.get(key) || []).forEach(sourceRow => {
+          const row = pickSourceValues({}, detailSourceColumns, sourceRow);
+          detailDerivedColumns.forEach(column => { row[column.key] = derivedValues[column.derivedKey](item); });
+          detailRows.push(row);
+        });
       });
       return [{ rows: summaryRows }, { rows: detailRows }];
     }
@@ -470,13 +554,20 @@ function sortDebtManagementRows(rows, sort) {
   }).map(entry => entry.row);
 }
 
-function debtManagementRows(debtManagement, context) {
+function debtManagementRows(debtManagement, context, aggregate = false) {
   const debt = debtManagement && typeof debtManagement === 'object' ? debtManagement : {};
   const queue = DEBT_QUEUE_FILTERS.has(context.debtQueue) ? context.debtQueue : 'needsAction';
   const sale = normalizeText(context.debtSale);
   const schedule = normalizeText(context.debtSchedule);
   const query = normalizeDebtSearch(context.debtSearch);
-  const rows = (Array.isArray(debt.customers) ? debt.customers : []).filter(customer => {
+  let customers = Array.isArray(debt.customers) ? debt.customers : [];
+  // "Ca hai": hang gop tren man hinh khong the hien ty le/trang thai xu ly rieng cua tung co so, nen
+  // xuat tung dong theo co so (branchDetails, moi dong co day du chi so cua chinh co so do).
+  if (aggregate) {
+    customers = customers.flatMap(customer =>
+      (Array.isArray(customer.branchDetails) && customer.branchDetails.length ? customer.branchDetails : [customer]));
+  }
+  const rows = customers.filter(customer => {
     if (queue === 'needsAction' && !customer.needsAction) return false;
     if (queue === 'currentDebt' && !(Number(customer.currentDebt) > 0)) return false;
     if (queue === 'overdue' && !(Number(customer.overdueDebt) > 0)) return false;
@@ -486,6 +577,7 @@ function debtManagementRows(debtManagement, context) {
     return true;
   }).map(customer => ({
     customerName: customer.customerName,
+    branch: normalizeText(customer.branch),
     sale: customer.sale,
     paymentSchedule: customer.paymentSchedule,
     openingDebt: customer.openingDebt,
@@ -509,13 +601,13 @@ function reportWorksheet(key, name, columns) {
 // tableKey -> (context) => { worksheets, loadRows? }. Bang co loadRows doc tu dashboard
 // (getDashboardData) + Postgres; bang khong co loadRows duoc dung rieng (xem buildExportDataset).
 const TABLE_SPECS = {
-  'overview.transactions': () => singleSourceTable({
-    key: 'transactions', name: 'Chi tiết giao dịch', sourceKey: 'invoices',
+  'overview.transactions': (context, scope) => singleSourceTable({
+    key: 'transactions', name: 'Chi tiết giao dịch', sourceKey: 'invoices', branchColumn: scope.aggregate,
     items: dashboard => (((dashboard.invoices || {}).transactionsReport || {}).transactions) || [],
     derived: [{ key: 'quantity', label: 'Số lượng', type: 'number', description: 'Tổng số lượng hàng của hóa đơn; để trống nếu chưa xác định được.' }],
     derivedValues: { quantity: item => (item.quantityKnown ? item.quantity : '') }
   }),
-  'overview.purchases': () => purchasesTable(),
+  'overview.purchases': (context, scope) => purchasesTable(scope.aggregate),
   'overview.new-products': () => singleSourceTable({
     key: 'new_products', name: 'Mã mới tạo', sourceKey: 'products',
     items: dashboard => (((dashboard.products || {}).newProducts || {}).products) || []
@@ -570,12 +662,12 @@ const TABLE_SPECS = {
       }));
     }
   }),
-  'invoices.orders': () => singleSourceTable({
-    key: 'orders', name: 'Đặt hàng', sourceKey: 'orders',
+  'invoices.orders': (context, scope) => singleSourceTable({
+    key: 'orders', name: 'Đặt hàng', sourceKey: 'orders', branchColumn: scope.aggregate,
     items: dashboard => (dashboard.invoices || {}).periodOrders || []
   }),
-  'invoices.returns': () => singleSourceTable({
-    key: 'returns', name: 'Trả hàng', sourceKey: 'returns',
+  'invoices.returns': (context, scope) => singleSourceTable({
+    key: 'returns', name: 'Trả hàng', sourceKey: 'returns', branchColumn: scope.aggregate,
     items: dashboard => (dashboard.invoices || {}).periodReturns || []
   }),
   'customers.revenue': () => singleSourceTable({
@@ -597,9 +689,10 @@ const TABLE_SPECS = {
     key: 'suppliers', name: 'Nhà cung cấp', sourceKey: 'suppliers',
     items: dashboard => dashboard.suppliers || []
   }),
-  'debt.management': context => aggregateTable({
-    key: 'debt_management', name: 'Quản lý công nợ', columns: DEBT_COLUMNS,
-    rows: dashboard => debtManagementRows(dashboard.debtManagement, context)
+  'debt.management': (context, scope) => aggregateTable({
+    key: 'debt_management', name: 'Quản lý công nợ',
+    columns: scope.aggregate ? [DEBT_COLUMNS[0], DEBT_BRANCH_COLUMN, ...DEBT_COLUMNS.slice(1)] : DEBT_COLUMNS,
+    rows: dashboard => debtManagementRows(dashboard.debtManagement, context, scope.aggregate)
   }),
   // Cac bang duoi day khong co loadRows: nguon du lieu rieng (bao cao khach/hang, payload quet ton).
   'customers.productDetail': () => ({
@@ -619,11 +712,11 @@ const TABLE_SPECS = {
   })
 };
 
-function getTableSpec(tableKey, context) {
+function getTableSpec(tableKey, context, branch) {
   // hasOwnProperty: khoa cua Object.prototype ('__proto__', 'constructor'...) khong duoc lot qua.
   const factory = Object.prototype.hasOwnProperty.call(TABLE_SPECS, tableKey) ? TABLE_SPECS[tableKey] : null;
   if (typeof factory !== 'function') throw exportError('Bảng yêu cầu xuất không hợp lệ.', 400, 'EXPORT_TABLE_NOT_ALLOWED');
-  return factory(plainObject(context));
+  return factory(plainObject(context), { aggregate: branch === BRANCH_BOTH });
 }
 
 // ---------- Tim kiem trong bang ----------
@@ -650,11 +743,14 @@ function applyTableSearchToWorksheets(tableKey, worksheets, tableSearch) {
   }
 
   const summary = filterWorksheetRows(worksheets[0], tableSearch);
-  const retainedCodes = new Set((summary.rows || []).map(row => normalizeCode(row[summary.codeKey])));
+  // "Ca hai": cung ma phieu o hai co so la hai phieu khac nhau -> giu theo (co so, ma). Bang co
+  // so vat ly khong co cot "d_branch" nen khoa chi con la ma nhu cu.
+  const retentionKey = (row, codeKey) => compositeKey(row.d_branch, row[codeKey]);
+  const retainedCodes = new Set((summary.rows || []).map(row => retentionKey(row, summary.codeKey)));
   const detail = worksheets[1];
   return [summary, {
     ...detail,
-    rows: (detail.rows || []).filter(row => retainedCodes.has(normalizeCode(row[detail.codeKey])))
+    rows: (detail.rows || []).filter(row => retainedCodes.has(retentionKey(row, detail.codeKey)))
   }];
 }
 
@@ -689,7 +785,7 @@ function projectWorksheetRows(worksheet, keys) {
  * @param {Object<string,string[]>} [selection] worksheetKey -> key cot da chon; co thi chi giu cot do
  */
 async function buildFixedDataset(tableKey, env, context, tableSearch = {}, selection) {
-  const spec = getTableSpec(tableKey, context);
+  const spec = getTableSpec(tableKey, context, env.branch);
   if (typeof spec.loadRows !== 'function') {
     throw exportError('Bảng yêu cầu xuất không hợp lệ.', 400, 'EXPORT_TABLE_NOT_ALLOWED');
   }
@@ -744,6 +840,11 @@ function fieldsToWorksheet(sourceKey, sourceLabel, results) {
     });
     return row;
   });
+  // "Ca hai": ket qua giao dich mang co so vat ly cua tung dong (ma co the trung giua hai co so).
+  if (results.length > 0 && results.every(result => typeof result.branch === 'string')) {
+    columns.push({ key: 'co_so', label: BRANCH_COLUMN_LABEL, type: 'text' });
+    rows.forEach((row, index) => { row.co_so = results[index].branch; });
+  }
   return { key: `search_${sourceKey}`, name: sourceLabel, columns, rows };
 }
 
@@ -774,7 +875,11 @@ async function buildSearchDataset(payload, filters, branch, signal) {
     };
   }
 
-  const result = await dashboardData.searchDashboardRecords(view, query, 'all', mode === 'codes' ? 'codes' : undefined, branch);
+  // Doi so thu 5 la bo loc thoi gian (chi tab Khach hang dung de tinh doanh thu), doi so thu 6 moi la co so.
+  const result = await dashboardData.searchDashboardRecords(
+    view, query, 'all', mode === 'codes' ? 'codes' : undefined,
+    view === 'customers' ? filters.customers : undefined, branch
+  );
   throwIfAborted(signal);
   const groups = new Map();
   (result.results || []).forEach(item => {
@@ -890,7 +995,7 @@ function buildStockout90dResultDataset(description, payload) {
  * (khong I/O) nen duoc dung luon de giu dung loi EXPORT_NO_DATA cu.
  * search.results co worksheets dong (phu thuoc ket qua tim kiem) -> dynamic = true.
  */
-function describeExport(payload) {
+function describeExport(payload, branch) {
   const request = plainObject(payload);
   const tableKey = normalizeText(request.tableKey);
   if (!Object.prototype.hasOwnProperty.call(TABLE_TITLES, tableKey)) throw exportError('Bảng yêu cầu xuất không hợp lệ.', 400, 'EXPORT_TABLE_NOT_ALLOWED');
@@ -900,7 +1005,7 @@ function describeExport(payload) {
     return { tableKey, title: TABLE_TITLES[tableKey], selectionMode: 'custom', dynamic: true, filters, context, worksheets: null };
   }
 
-  const spec = getTableSpec(tableKey, context);
+  const spec = getTableSpec(tableKey, context, branch);
   const description = {
     tableKey, title: TABLE_TITLES[tableKey], selectionMode: 'custom', dynamic: false,
     filters, context, worksheets: spec.worksheets, spec
@@ -934,7 +1039,7 @@ async function buildExportDataset(payload, branch, options = {}) {
   const request = plainObject(payload);
   const signal = options.signal;
   throwIfAborted(signal);
-  const description = options.description || describeExport(request);
+  const description = options.description || describeExport(request, branch);
   const { tableKey } = description;
   if (description.dynamic) return buildSearchDataset(request, description.filters, branch, signal);
   if (description.dataset) return description.dataset;
@@ -963,7 +1068,7 @@ function toFieldMeta(column) {
  */
 async function getExportFields(payload, branch) {
   const request = plainObject(payload);
-  const description = describeExport(request);
+  const description = describeExport(request, branch);
   let source = description;
   let rowCountOf = () => null;
   if (description.dynamic) {
@@ -1134,7 +1239,7 @@ async function createExportWorkbook(payload, branch, options = {}) {
 
   // Kiem tra re (khong I/O) TRUOC khi xin slot: yeu cau sai khong chiem hang doi va
   // khong cham DB.
-  const description = describeExport(request);
+  const description = describeExport(request, branch);
   const selection = description.dynamic
     ? undefined
     : resolveSelection(description.selectionMode, description.worksheets, request.columns);
