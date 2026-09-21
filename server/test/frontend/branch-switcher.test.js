@@ -33,16 +33,16 @@ function renderFor(user) {
   return { window, sidebar, header };
 }
 
-test('tai khoan phu trach ca hai co so thay o chon co so tren header, dung co so hien tai', () => {
+test('tai khoan phu trach ca hai co so thay o chon Ca hai tren header, dung lua chon hien tai', () => {
   const { sidebar, header } = renderFor({
-    vaiTro: 'Quản lý', hoTen: 'Quản trị', branches: ['Hà Nội', 'Sài Gòn'], branch: 'Sài Gòn'
+    vaiTro: 'Quản lý', hoTen: 'Quản trị', branches: ['Hà Nội', 'Sài Gòn', 'Cả hai'], branch: 'Cả hai'
   });
 
   const select = header.querySelector('#tksBranchSelect');
   assert.ok(select, 'phai co o chon co so');
   assert.equal(sidebar.querySelector('.tks-branch'), null, 'khong con hien o chon co so trong sidebar');
-  assert.deepEqual([...select.options].map(o => o.value), ['Hà Nội', 'Sài Gòn']);
-  assert.equal(select.value, 'Sài Gòn');
+  assert.deepEqual([...select.options].map(o => o.value), ['Hà Nội', 'Sài Gòn', 'Cả hai']);
+  assert.equal(select.value, 'Cả hai');
 });
 
 test('tai khoan mot co so chi thay nhan tinh tren header, khong doi duoc co so', () => {

@@ -25,7 +25,7 @@ const { formatDateVN } = require('./localUserStore');
 const { createActiveGuest, activatePendingGuest, updateUserFields } = require('./userWriteRepository');
 const { verifyGoogleIdToken } = require('./googleAuthService');
 const { AUTH_COOKIE_NAME, AUTH_COOKIE_MAX_AGE_MS, requireAuth } = require('./authMiddleware');
-const { allowedBranches } = require('../branch/branches');
+const { selectableBranches } = require('../branch/branches');
 const { currentBranchFor } = require('../branch/branchMiddleware');
 const otpService = require('./otpService');
 const employeeRegistrationService = require('./employeeRegistrationService');
@@ -701,7 +701,7 @@ router.get('/api/auth/me', requireAuth, async (req, res) => {
     // Kem danh sach co so duoc phep + co so dang chon: thanh dieu huong dua vao
     // day de quyet dinh co hien nut chon co so hay khong (chi khi co >= 2).
     res.status(200).json(Object.assign(publicUser(user), {
-      branches: allowedBranches(user),
+      branches: selectableBranches(user),
       branch: currentBranchFor(req, user)
     }));
   } catch (err) {

@@ -885,8 +885,9 @@
     mountEl.innerHTML = reportsLink + shipmentLink + hrLink + accountLink;
   };
 
-  // ---------- Chon co so (Ha Noi / Sai Gon) ----------
-  // Chi hien o dang SELECT khi tai khoan phu trach ca hai co so; mot co so thi
+  // ---------- Chon co so (Ha Noi / Sai Gon / Ca hai) ----------
+  // Tai khoan co ca hai co so se thay ca ba lua chon, gom gia tri tong hop
+  // "Cả hai"; mot co so thi
   // hien nhan tinh de nguoi dung luon biet dang xem du lieu cua co so nao.
   // Day chi la UX — server luon tu xac thuc lai co so theo coSo trong JWT.
 

@@ -6,7 +6,7 @@
 // chieu lai voi coSo trong JWT, nen sua cookie bang tay khong the xem duoc du
 // lieu cua co so minh khong phu trach — cung lam se bi rot ve co so hop le.
 // ==========================================
-const { BRANCHES, allowedBranches, isBranchAllowed, defaultBranch } = require('./branches');
+const { BRANCHES, allowedBranches, isBranchSelectable, defaultBranch } = require('./branches');
 
 const BRANCH_COOKIE_NAME = 'tks_branch';
 const BRANCH_COOKIE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // khop tuoi tho cookie dang nhap (JWT_EXPIRES_IN mac dinh 12h)
@@ -29,7 +29,7 @@ function branchCookieOptions() {
 function currentBranchFor(req, user) {
   const target = user || req.user;
   const fromCookie = (req.cookies && req.cookies[BRANCH_COOKIE_NAME]) || null;
-  if (fromCookie && isBranchAllowed(target, fromCookie)) return fromCookie;
+  if (fromCookie && isBranchSelectable(target, fromCookie)) return fromCookie;
   return defaultBranch(target);
 }
 
@@ -47,7 +47,7 @@ function resolveBranch(req, res, next) {
   }
 
   const fromCookie = (req.cookies && req.cookies[BRANCH_COOKIE_NAME]) || null;
-  if (fromCookie && isBranchAllowed(req.user, fromCookie)) {
+  if (fromCookie && isBranchSelectable(req.user, fromCookie)) {
     req.branch = fromCookie;
     return next();
   }

@@ -5,7 +5,7 @@ process.env.SPREADSHEET_ID = process.env.SPREADSHEET_ID || 'hn-id';
 process.env.GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
 
-const { BRANCHES } = require('./branches');
+const { BRANCHES, BRANCH_BOTH } = require('./branches');
 const { resolveBranch, currentBranchFor, BRANCH_COOKIE_NAME } = require('./branchMiddleware');
 
 function run(user, cookieValue) {
@@ -54,4 +54,19 @@ test('currentBranchFor dung chung logic nhung khong ghi cookie', () => {
   assert.equal(currentBranchFor(req, { coSo: 'Cả hai' }), BRANCHES.SAIGON);
   assert.equal(currentBranchFor(req, { coSo: 'Hà Nội' }), BRANCHES.HANOI);
   assert.equal(currentBranchFor(req, { coSo: '' }), null);
+});
+
+test('Ca hai la lua chon hop le cho tai khoan co du hai co so', () => {
+  const { req, nexted } = run({ coSo: 'Cả hai' }, BRANCH_BOTH);
+  assert.equal(nexted, true);
+  assert.equal(req.branch, BRANCH_BOTH);
+  assert.equal(currentBranchFor({ cookies: { [BRANCH_COOKIE_NAME]: BRANCH_BOTH } }, { coSo: 'Cả hai' }), BRANCH_BOTH);
+});
+
+test('cookie Ca hai bi thu hoi quyen phai rot ve co so vat ly mac dinh va viet lai cookie', () => {
+  const { req, res, nexted } = run({ coSo: 'Hà Nội' }, BRANCH_BOTH);
+  assert.equal(nexted, true);
+  assert.equal(req.branch, BRANCHES.HANOI);
+  assert.equal(res.cookies[BRANCH_COOKIE_NAME], BRANCHES.HANOI);
+  assert.equal(currentBranchFor({ cookies: { [BRANCH_COOKIE_NAME]: BRANCH_BOTH } }, { coSo: 'Hà Nội' }), BRANCHES.HANOI);
 });

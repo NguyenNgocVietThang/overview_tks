@@ -47,8 +47,35 @@ function allowedBranches(user) {
   return [];
 }
 
+/**
+ * Danh sach gia tri co the chon tren giao dien. Khac voi allowedBranches,
+ * danh sach nay co them "Cả hai" chi khi nguoi dung duoc phep ca hai co so
+ * vat ly; tuyet doi khong dung no lam ranh gioi doc/ghi du lieu nghiep vu.
+ */
+function selectableBranches(user) {
+  const allowed = allowedBranches(user);
+  if (allowed.includes(BRANCHES.HANOI) && allowed.includes(BRANCHES.SAIGON)) {
+    return [...allowed, BRANCH_BOTH];
+  }
+  return allowed;
+}
+
 function isBranchAllowed(user, branch) {
   return allowedBranches(user).includes(branch);
+}
+
+function isBranchSelectable(user, branch) {
+  return selectableBranches(user).includes(branch);
+}
+
+/**
+ * Chuyen lua chon UI thanh pham vi co so vat ly de cac lop truy van du lieu
+ * khong bao gio nhan "Cả hai" nhu mot gia tri branch nghiep vu.
+ */
+function resolveBranchScope(branch) {
+  if (branch === BRANCH_BOTH) return [BRANCHES.HANOI, BRANCHES.SAIGON];
+  if (branch === BRANCHES.HANOI || branch === BRANCHES.SAIGON) return [branch];
+  return [];
 }
 
 function defaultBranch(user) {
@@ -76,7 +103,10 @@ module.exports = {
   BRANCH_VALUES,
   normalizeCoSo,
   allowedBranches,
+  selectableBranches,
   isBranchAllowed,
+  isBranchSelectable,
+  resolveBranchScope,
   defaultBranch,
   branchCodeToLabel,
   branchLabelToCode

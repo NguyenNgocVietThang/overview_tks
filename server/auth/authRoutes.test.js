@@ -61,6 +61,7 @@ async function callRoute(router, method, routePath, req, res) {
 function freshAuthRoutes({
   verifyGoogleIdToken,
   findUserByEmail,
+  findUserById = async () => null,
   findUserByUsername = async () => null,
   findActiveUserByUsername = async () => null,
   findUserByIdentifier = async () => null,
@@ -79,6 +80,7 @@ function freshAuthRoutes({
 
   const userRepository = require('./userRepository');
   userRepository.findUserByEmail = findUserByEmail;
+  userRepository.findUserById = findUserById;
   userRepository.findUserByUsername = findUserByUsername;
   userRepository.findActiveUserByUsername = findActiveUserByUsername;
   userRepository.findUserByIdentifier = findUserByIdentifier;
@@ -431,6 +433,28 @@ test('POST /api/auth/register: tu choi dang ky chi bang so dien thoai', async ()
   assert.equal(res.statusCode, 400);
   assert.match(res.body.error, /email/i);
   assert.equal(res.cookies.length, 0);
+});
+
+test('GET /api/auth/me exposes selectable branches and keeps an authorized Ca hai cookie', async () => {
+  const dualBranchUser = {
+    id: 'u1', username: 'a@example.com', hoTen: 'A', email: 'a@example.com',
+    vaiTro: 'Kế toán', coSo: 'Cả hai', trangThai: 'Đang hoạt động'
+  };
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    findUserById: async () => dualBranchUser
+  });
+  const res = fakeRes();
+  await getRouteHandler(router, 'get', '/api/auth/me')({
+    user: dualBranchUser,
+    cookies: { tks_branch: 'Cả hai' }
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.branches, ['Hà Nội', 'Sài Gòn', 'Cả hai']);
+  assert.equal(res.body.branch, 'Cả hai');
 });
 
 test('POST /api/auth/login: nhap sai 5 lan -> 423 Locked kem lockoutRemainingSeconds va suggestReset', async () => {
