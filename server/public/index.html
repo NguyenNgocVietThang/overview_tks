@@ -18,6 +18,32 @@
       if (window.location.protocol !== 'file:') {
         document.documentElement.style.visibility = 'hidden';
       }
+      function unhide() {
+        document.documentElement.style.visibility = '';
+      }
+      window.addEventListener('error', function (e) {
+        unhide();
+        try {
+          var payload = JSON.stringify({
+            msg: e.message,
+            src: e.filename,
+            line: e.lineno,
+            col: e.colno,
+            stack: e.error && e.error.stack
+          });
+          if (navigator.sendBeacon) navigator.sendBeacon('/api/client-log', payload);
+        } catch (_) {}
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        unhide();
+        try {
+          var payload = JSON.stringify({
+            reason: (e.reason && (e.reason.stack || e.reason.message)) || String(e.reason)
+          });
+          if (navigator.sendBeacon) navigator.sendBeacon('/api/client-log', payload);
+        } catch (_) {}
+      });
+      setTimeout(unhide, 1200);
     })();
   </script>
   <link rel="stylesheet" href="/shared/shared.css?v=20260914">
@@ -4807,11 +4833,13 @@
         controller: null
       }
     };
-    Chart.defaults.font.family = 'Inter, sans-serif';
-    Chart.defaults.font.weight = '400';
-    Chart.defaults.animation.duration = 300;
-    Chart.defaults.plugins.tooltip.titleFont = { family: 'Inter, sans-serif', weight: '600' };
-    Chart.defaults.plugins.tooltip.bodyFont = { family: 'Roboto, sans-serif', weight: '500' };
+    if (typeof Chart !== 'undefined') {
+      Chart.defaults.font.family = 'Inter, sans-serif';
+      Chart.defaults.font.weight = '400';
+      Chart.defaults.animation.duration = 300;
+      Chart.defaults.plugins.tooltip.titleFont = { family: 'Inter, sans-serif', weight: '600' };
+      Chart.defaults.plugins.tooltip.bodyFont = { family: 'Roboto, sans-serif', weight: '500' };
+    }
     const THEME_STORAGE_KEY = 'tks-dashboard-theme';
 
     function themeColor(name) {

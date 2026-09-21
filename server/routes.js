@@ -32,6 +32,11 @@ router.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
+router.post('/api/client-log', express.text({ type: '*/*' }), (req, res) => {
+  console.warn('[Browser Client Error]', req.body);
+  res.status(200).json({ ok: true });
+});
+
 // Webhook tu KiotViet (nguoi goi la KiotViet, khong phai nguoi dung dang
 // nhap) — mount TRUOC moi guard auth/co so. Xem server/kiotviet/kiotvietWebhookRoutes.js.
 router.use(kiotvietWebhookRoutes);

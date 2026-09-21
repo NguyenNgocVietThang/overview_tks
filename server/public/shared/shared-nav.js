@@ -211,6 +211,7 @@
         return user;
       })
       .catch(function(){
+        document.documentElement.style.visibility = '';
         // Xoa cache dashboard + ket qua kiem tra dut hang (sessionStorage) de neu
         // nguoi dung khac dang nhap tren cung tab sau khi phien nay het han,
         // ho khong thay du lieu cu.
