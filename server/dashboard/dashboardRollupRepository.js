@@ -92,7 +92,7 @@ const PRODUCT_SALES_BASE_SQL = `
   SELECT
     d.product_id AS product_id,
     COALESCE(p.code, 'PID-' || d.product_id::text) AS code,
-    COALESCE(p.name, p.code, 'PID-' || d.product_id::text) AS name,
+    NULLIF(p.name, '') AS name,
     SUM(d.qty)::float8 AS qty,
     SUM(d.revenue)::float8 AS revenue
   FROM daily_product_sales d
@@ -106,6 +106,7 @@ const TOP_SELLING_PRODUCTS_SQL = `${PRODUCT_SALES_BASE_SQL} ORDER BY revenue DES
 
 const PURCHASES_BY_SUPPLIER_SQL = `
   SELECT
+    COALESCE(su.code, '') AS code,
     COALESCE(su.name, '(Không xác định)') AS name,
     SUM(dps.order_count)::int AS order_count,
     SUM(dps.total)::float8 AS total
@@ -114,7 +115,7 @@ const PURCHASES_BY_SUPPLIER_SQL = `
   WHERE dps.branch = $1
     AND ($2::date IS NULL OR dps.purchase_date >= $2::date)
     AND ($3::date IS NULL OR dps.purchase_date <= $3::date)
-  GROUP BY COALESCE(su.name, '(Không xác định)')
+  GROUP BY COALESCE(su.code, ''), COALESCE(su.name, '(Không xác định)')
   ORDER BY total DESC
   LIMIT $4`;
 
@@ -162,6 +163,7 @@ function buildRecentPurchaseOrdersSql() {
     SELECT
       pu.code AS code,
       to_char(pu.purchase_date AT TIME ZONE 'UTC', 'DD/MM/YYYY HH24:MI') AS date,
+      COALESCE(NULLIF(pu.raw->>'supplierCode', ''), su.code, '') AS supplier_code,
       COALESCE(NULLIF(pu.raw->>'supplierName', ''), su.name, '') AS supplier,
       COALESCE(pu.raw->>'branchName', '') AS branch,
       COALESCE(pu.total, 0)::float8 AS total,
@@ -198,13 +200,39 @@ function createDashboardRollupRepository({ pool = getPool() } = {}) {
     });
   }
 
-  function mapProductSalesRow(row) {
-    return {
+  function mapProductSalesRow(row, preserveNameSource = false) {
+    const mapped = {
       code: row.code || '',
       name: row.name || row.code || '',
       qty: Number(row.qty) || 0,
       revenue: Number(row.revenue) || 0
     };
+    if (preserveNameSource) mapped._hasDisplayName = Boolean(String(row.name || '').trim());
+    return mapped;
+  }
+
+  function mergeProductSalesGroups(groups, { sort, preserveNameSource = false } = {}) {
+    const merged = new Map();
+    groups.forEach(({ rows }) => rows.forEach(row => {
+      const key = String(row.code || '').trim().toLocaleLowerCase('vi-VN');
+      if (!merged.has(key)) {
+        merged.set(key, { ...row, qty: 0, revenue: 0 });
+      }
+      const target = merged.get(key);
+      if (target._hasDisplayName === false && row._hasDisplayName === true) {
+        target.name = row.name;
+        target._hasDisplayName = true;
+      }
+      target.qty += Number(row.qty) || 0;
+      target.revenue += Number(row.revenue) || 0;
+    }));
+    const rows = Array.from(merged.values());
+    if (sort) rows.sort(sort);
+    return rows.map(row => {
+      const result = { code: row.code, name: row.name || row.code || '', qty: row.qty, revenue: row.revenue };
+      if (preserveNameSource) result._hasDisplayName = row._hasDisplayName;
+      return result;
+    });
   }
 
   /**
@@ -215,16 +243,12 @@ function createDashboardRollupRepository({ pool = getPool() } = {}) {
    * productParentCategoryByCode/productChildCategoryByCode tu tab Hang hoa)
    * thay vi lap lai logic do trong SQL.
    */
-  async function getProductSalesBreakdown({ branch, from = null, to = null }) {
+  async function getProductSalesBreakdown({ branch, from = null, to = null, preserveNameSource = false }) {
     const groups = await queryPhysicalBranches(branch, async (_physicalBranch, branchCode) => {
       const result = await pool.query(`${PRODUCT_SALES_BASE_SQL}`, [branchCode, from, to]);
-      return result.rows.map(mapProductSalesRow);
+      return result.rows.map(row => mapProductSalesRow(row, true));
     });
-    return mergeAdditiveRows(groups, {
-      keyOf: row => String(row.code || '').trim().toLocaleLowerCase('vi-VN'),
-      firstFields: ['code', 'name'],
-      additiveFields: ['qty', 'revenue']
-    });
+    return mergeProductSalesGroups(groups, { preserveNameSource });
   }
 
   /**
@@ -236,20 +260,18 @@ function createDashboardRollupRepository({ pool = getPool() } = {}) {
     const perBranchLimit = scope.length > 1 ? null : limit;
     const groups = await Promise.all(scope.map(async physicalBranch => {
       const result = await pool.query(TOP_SELLING_PRODUCTS_SQL, [resolveBranchCode(physicalBranch), from, to, perBranchLimit]);
-      return { branch: physicalBranch, rows: result.rows.map(mapProductSalesRow) };
+      return { branch: physicalBranch, rows: result.rows.map(row => mapProductSalesRow(row, true)) };
     }));
-    const rows = mergeAdditiveRows(groups, {
-      keyOf: row => String(row.code || '').trim().toLocaleLowerCase('vi-VN'),
-      firstFields: ['code', 'name'],
-      additiveFields: ['qty', 'revenue'],
+    const rows = mergeProductSalesGroups(groups, {
       sort: (a, b) => b.revenue - a.revenue || b.qty - a.qty
     });
     return limit == null ? rows : rows.slice(0, limit);
   }
 
   /**
-   * Tong tien/so phieu nhap theo NCC (gom theo TEN NCC, '(Không xác định)'
-   * neu khong co) trong khoang [from, to] — tu daily_purchase_summary.
+   * Tong tien/so phieu nhap theo MA NCC trong khoang [from, to] — tu
+   * daily_purchase_summary. Ten hien thi giu gia tri dau tien theo thu tu
+   * Ha Noi -> Sai Gon; NCC thieu ma moi fallback ve ten.
    */
   async function getPurchasesBySupplier({ branch, from = null, to = null, limit = null }) {
     const scope = resolvePhysicalBranches(branch);
@@ -259,6 +281,7 @@ function createDashboardRollupRepository({ pool = getPool() } = {}) {
       return {
         branch: physicalBranch,
         rows: result.rows.map(row => ({
+          code: row.code || '',
           name: row.name || '(Không xác định)',
           orderCount: Number(row.order_count) || 0,
           total: Number(row.total) || 0
@@ -266,12 +289,16 @@ function createDashboardRollupRepository({ pool = getPool() } = {}) {
       };
     }));
     const rows = mergeAdditiveRows(groups, {
-      keyOf: row => String(row.name || '').trim().toLocaleLowerCase('vi-VN'),
-      firstFields: ['name'],
+      keyOf: row => {
+        const code = String(row.code || '').trim().toLocaleLowerCase('vi-VN');
+        return code ? `code:${code}` : `name:${String(row.name || '').trim().toLocaleLowerCase('vi-VN')}`;
+      },
+      firstFields: ['code', 'name'],
       additiveFields: ['orderCount', 'total'],
       sort: (a, b) => b.total - a.total
     });
-    return limit == null ? rows : rows.slice(0, limit);
+    const limitedRows = limit == null ? rows : rows.slice(0, limit);
+    return limitedRows.map(({ code, ...row }) => row);
   }
 
   /** Tong so phieu nhap/tong tien nhap TOAN THOI GIAN (khong loc ngay). */
@@ -341,6 +368,7 @@ function createDashboardRollupRepository({ pool = getPool() } = {}) {
       return result.rows.map(row => ({
         code: row.code || '',
         date: row.date || '',
+        supplierCode: row.supplier_code || '',
         supplier: row.supplier || '',
         branch: row.branch || '',
         total: Number(row.total) || 0,

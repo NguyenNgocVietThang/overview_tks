@@ -860,6 +860,70 @@ test('Ca hai fail request neu nguon van han cua mot co so loi', async () => {
   await assert.rejects(dashboardData.getDashboardData(BASE_FILTERS, BRANCH_BOTH), /Supabase SG lỗi/);
 });
 
+test('Ca hai gom thong ke phieu nhap theo ma NCC chuan hoa, khong theo ten hien thi', async () => {
+  const { dashboardData, dashboardRollupRepository } = freshDashboardData();
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  mockDashboardRollups(dashboardRollupRepository, {
+    listPurchaseOrders: ({ branch }) => branch === BRANCHES.HANOI
+      ? [
+          { code: 'PN-HN-1', date: '10/08/2026 09:00', supplierCode: 'NCC-1', supplier: 'Tên Hà Nội', total: 100, status: 'Hoàn thành' },
+          { code: 'PN-HN-2', date: '10/08/2026 08:00', supplierCode: 'NCC-2', supplier: 'Trùng tên', total: 50, status: 'Hoàn thành' }
+        ]
+      : [
+          { code: 'PN-SG-1', date: '11/08/2026 09:00', supplierCode: ' ncc-1 ', supplier: 'Tên Sài Gòn', total: 200, status: 'Hoàn thành' },
+          { code: 'PN-SG-2', date: '11/08/2026 08:00', supplierCode: 'NCC-3', supplier: 'Trùng tên', total: 70, status: 'Hoàn thành' }
+        ]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData({ ...BASE_FILTERS, newPurchases: { mode: 'all' } }, BRANCH_BOTH);
+
+  assert.equal(data.newPurchases.supplierCount, 3);
+  assert.deepEqual(data.newPurchases.bySupplier, [
+    { name: 'Tên Hà Nội', orderCount: 2, total: 300 },
+    { name: 'Trùng tên', orderCount: 1, total: 70 },
+    { name: 'Trùng tên', orderCount: 1, total: 50 }
+  ]);
+});
+
+test('Ca hai lay ten that dau tien HN-SG cho product rollup thay vi giu fallback ma', async () => {
+  const { dashboardData, dashboardRollupRepository } = freshDashboardData();
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  mockDashboardRollups(dashboardRollupRepository, {
+    getProductSalesBreakdown: ({ branch }) => branch === BRANCHES.HANOI
+      ? [{ code: 'SP-CHUNG', name: 'SP-CHUNG', _hasDisplayName: false, qty: 1, revenue: 100 }]
+      : [{ code: 'SP-CHUNG', name: 'Tên thật Sài Gòn', _hasDisplayName: true, qty: 2, revenue: 200 }]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData({ ...BASE_FILTERS, products: { mode: 'all' } }, BRANCH_BOTH);
+
+  assert.deepEqual(data.products.topSellingProducts, [
+    { code: 'SP-CHUNG', name: 'Tên thật Sài Gòn', qty: 3, revenue: 300 }
+  ]);
+});
+
+test('Ca hai cong truc tiep averageSales ke ca nguon co no qua han bang 0', async () => {
+  const { dashboardData, debtManagementSheetsClient } = freshDashboardData();
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  debtManagementSheetsClient.getDebtManagementSheet = async branch => ({
+    sourceSheet: branch === BRANCHES.HANOI ? 'Công nợ HN' : 'Công nợ SG',
+    rows: [
+      ['Khách hàng', 'Sale', branch === BRANCHES.HANOI ? 'Lịch TT HN' : 'Lịch TT SG', 'Nợ đầu kỳ', 'Nợ hiện tại', 'Nợ quá hạn', '% nợ/Doanh số', '% quá hạn / TB DS', 'TB T6/26-T9/26'],
+      ['TỔNG'],
+      branch === BRANCHES.HANOI
+        ? ['Khách HN', 'Lan', 7, 0, 500000, 0, 0.5, 0, 1000000]
+        : ['Khách SG', 'Mai', 7, 0, 500000, 100000, 0.5, 0.1, 1000000]
+    ]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData(BASE_FILTERS, BRANCH_BOTH);
+
+  assert.equal(data.debtManagement.kpi.totalOverdueDebt, 100000);
+  assert.equal(data.debtManagement.kpi.overdueToSalesRatio, 0.05);
+});
+
 // ===== getCustomerProductRevenueReport (tab Khach hang, phan 4) =====
 
 const INVOICE_HEADERS = [

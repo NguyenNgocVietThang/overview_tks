@@ -14,6 +14,15 @@ const DATA_ISSUES = Object.freeze({
 const PAYMENT_SCHEDULES = Object.freeze(['1', '3', '7', 'Hàng tuần']);
 const TERMINAL_WORKFLOW_STATUSES = new Set(['Đã xử lý', 'Bỏ qua']);
 const MINIMUM_ALERT_DEBT = 400000;
+const DEBT_TOTAL_AVERAGE_SALES = Symbol('debtTotalAverageSales');
+
+function withTotalAverageSales(result, totalAverageSales) {
+  Object.defineProperty(result, DEBT_TOTAL_AVERAGE_SALES, {
+    value: Number(totalAverageSales) || 0,
+    enumerable: false
+  });
+  return result;
+}
 
 function normalizeUnicodeText(raw) {
   return String(raw ?? '')
@@ -300,6 +309,7 @@ function buildSummary(customers) {
   });
 
   return {
+    totalAverageSales: kpi.totalAverageSales,
     kpi: {
       totalCurrentDebt: kpi.totalCurrentDebt,
       totalOverdueDebt: kpi.totalOverdueDebt,
@@ -332,7 +342,7 @@ function deriveDebtManagement({
 }) {
   const parsed = parseManagementSheet(managementRows, branch);
   if (!parsed.available) {
-    return {
+    return withTotalAverageSales({
       available: false,
       sourceSheet,
       dataWarnings: parsed.dataWarnings,
@@ -342,7 +352,7 @@ function deriveDebtManagement({
       topCurrentDebt: [],
       topOverdueDebt: [],
       customers: []
-    };
+    }, 0);
   }
 
   const dataWarnings = [...parsed.dataWarnings];
@@ -393,14 +403,14 @@ function deriveDebtManagement({
     };
   });
 
-  const summary = buildSummary(customers);
-  return {
+  const { totalAverageSales, ...summary } = buildSummary(customers);
+  return withTotalAverageSales({
     available: true,
     sourceSheet,
     dataWarnings,
     ...summary,
     customers: customers.map(({ averageSales, ...publicCustomer }) => publicCustomer)
-  };
+  }, totalAverageSales);
 }
 
 module.exports = {
@@ -408,6 +418,7 @@ module.exports = {
   DATA_ISSUES,
   MINIMUM_ALERT_DEBT,
   PAYMENT_SCHEDULES,
+  DEBT_TOTAL_AVERAGE_SALES,
   createAlertSignature,
   deriveDebtManagement,
   normalizeCustomerName,

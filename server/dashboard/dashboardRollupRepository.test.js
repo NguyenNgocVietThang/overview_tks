@@ -98,6 +98,33 @@ test('getPurchasesBySupplier: gom theo ten NCC, fallback "(Không xác định)"
   ]);
 });
 
+test('getPurchasesBySupplier: Ca hai merge theo ma NCC chuan hoa va giu ten HN dau tien', async () => {
+  const pool = {
+    calls: [],
+    async query(sql, params) {
+      this.calls.push({ sql, params });
+      return { rows: params[0] === 'hanoi'
+        ? [
+            { code: 'NCC-1', name: 'Tên Hà Nội', order_count: '1', total: '100' },
+            { code: 'NCC-2', name: 'Trùng tên', order_count: '1', total: '50' }
+          ]
+        : [
+            { code: ' ncc-1 ', name: 'Tên Sài Gòn', order_count: '1', total: '200' },
+            { code: 'NCC-3', name: 'Trùng tên', order_count: '1', total: '70' }
+          ] };
+    }
+  };
+  const repository = createDashboardRollupRepository({ pool });
+
+  const rows = await repository.getPurchasesBySupplier({ branch: 'Cả hai', limit: 30 });
+
+  assert.deepEqual(rows, [
+    { name: 'Tên Hà Nội', orderCount: 2, total: 300 },
+    { name: 'Trùng tên', orderCount: 1, total: 70 },
+    { name: 'Trùng tên', orderCount: 1, total: 50 }
+  ]);
+});
+
 test('getPurchaseTotals: khong loc ngay, chi truyen branch', async () => {
   const pool = fakePool([{ order_count: '42', total: '12345678' }]);
   const repository = createDashboardRollupRepository({ pool });
@@ -127,7 +154,7 @@ test('getFirstPurchaseDates: tra chuoi ngay dang DD/MM/YYYY HH24:MI:SS de parseS
 
 test('listPurchaseOrders: doc thang tu purchases (khong dung bang rollup), truyen dung from/to', async () => {
   const pool = fakePool([
-    { code: 'PN-01', date: '10/08/2026 09:00', supplier: 'NCC A', branch: 'Hà Nội', total: '500000', status: 'Hoàn thành' }
+    { code: 'PN-01', date: '10/08/2026 09:00', supplier_code: 'NCC-01', supplier: 'NCC A', branch: 'Hà Nội', total: '500000', status: 'Hoàn thành' }
   ]);
   const repository = createDashboardRollupRepository({ pool });
   const rows = await repository.listPurchaseOrders({ branch: 'Hà Nội', from: '2026-08-01', to: '2026-08-30' });
@@ -135,8 +162,29 @@ test('listPurchaseOrders: doc thang tu purchases (khong dung bang rollup), truye
   assert.doesNotMatch(pool.calls[0].sql, /purchase_details/);
   assert.deepEqual(pool.calls[0].params, ['hanoi', '2026-08-01', '2026-08-30']);
   assert.deepEqual(rows, [{
-    code: 'PN-01', date: '10/08/2026 09:00', supplier: 'NCC A', branch: 'Hà Nội', total: 500000, status: 'Hoàn thành'
+    code: 'PN-01', date: '10/08/2026 09:00', supplierCode: 'NCC-01', supplier: 'NCC A', branch: 'Hà Nội', total: 500000, status: 'Hoàn thành'
   }]);
+});
+
+test('getProductSalesBreakdown: Ca hai uu tien ten that SG khi HN chi co fallback ma', async () => {
+  const pool = {
+    calls: [],
+    async query(sql, params) {
+      this.calls.push({ sql, params });
+      return { rows: [{
+        product_id: params[0] === 'hanoi' ? '1' : '2',
+        code: 'SP-CHUNG',
+        name: params[0] === 'hanoi' ? null : 'Tên thật Sài Gòn',
+        qty: '1',
+        revenue: params[0] === 'hanoi' ? '100' : '200'
+      }] };
+    }
+  };
+  const repository = createDashboardRollupRepository({ pool });
+
+  const rows = await repository.getProductSalesBreakdown({ branch: 'Cả hai' });
+
+  assert.deepEqual(rows, [{ code: 'SP-CHUNG', name: 'Tên thật Sài Gòn', qty: 2, revenue: 300 }]);
 });
 
 test('getInvoiceRevenueByDay: Ca hai cong bucket trung ngay sau khi doc tung co so vat ly', async () => {
@@ -161,7 +209,7 @@ test('listPurchaseOrders: Ca hai giu hai phieu trung ma va gan co so vat ly', as
     async query(sql, params) {
       this.calls.push({ sql, params });
       return { rows: [{
-        code: 'PN-TRUNG', date: '10/08/2026 09:00', supplier: 'NCC A',
+        code: 'PN-TRUNG', date: '10/08/2026 09:00', supplier_code: 'NCC-1', supplier: 'NCC A',
         branch: 'ten-kho', total: params[0] === 'hanoi' ? '100' : '200', status: 'Hoàn thành'
       }] };
     }
@@ -170,8 +218,8 @@ test('listPurchaseOrders: Ca hai giu hai phieu trung ma va gan co so vat ly', as
 
   const rows = await repository.listPurchaseOrders({ branch: 'Cả hai' });
 
-  assert.deepEqual(rows.map(row => [row.code, row.branch, row.total]), [
-    ['PN-TRUNG', 'Hà Nội', 100],
-    ['PN-TRUNG', 'Sài Gòn', 200]
+  assert.deepEqual(rows.map(row => [row.code, row.supplierCode, row.branch, row.total]), [
+    ['PN-TRUNG', 'NCC-1', 'Hà Nội', 100],
+    ['PN-TRUNG', 'NCC-1', 'Sài Gòn', 200]
   ]);
 });

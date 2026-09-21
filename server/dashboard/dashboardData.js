@@ -17,7 +17,7 @@ const dashboardRollupRepository = require('./dashboardRollupRepository');
 const { BRANCHES, BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
 const { ROLES } = require('../auth/userRepository');
 const debtCollectionStatusRepository = require('./debtCollectionStatusRepository');
-const { deriveDebtManagement, PAYMENT_SCHEDULES } = require('./debtManagement');
+const { deriveDebtManagement, PAYMENT_SCHEDULES, DEBT_TOTAL_AVERAGE_SALES } = require('./debtManagement');
 
 const OUT_OF_STOCK_LEVEL = 0;
 const TOP_SELLING_LIMIT = 15;
@@ -1838,7 +1838,13 @@ function mergeRollupRows(branchSources, field, keyOf, additiveFields, sort) {
         additiveFields.forEach(additiveField => {
           target[additiveField] = (Number(target[additiveField]) || 0) + (Number(row[additiveField]) || 0);
         });
-        if (!target.name && row.name) target.name = row.name;
+        if (
+          (!target.name && row.name) ||
+          (target._hasDisplayName === false && row._hasDisplayName === true)
+        ) {
+          target.name = row.name;
+          if (row._hasDisplayName === true) target._hasDisplayName = true;
+        }
       }
     });
   });
@@ -1962,9 +1968,7 @@ function mergeDebtManagementSources(branchSources, canEditDebtStatus) {
   const totalCurrentDebt = customers.reduce((sum, customer) => sum + (Number(customer.currentDebt) || 0), 0);
   const totalOverdueDebt = customers.reduce((sum, customer) => sum + (Number(customer.overdueDebt) || 0), 0);
   const totalAverageSales = derivedSources.reduce((sum, item) => {
-    const overdue = Number(item.data.kpi?.totalOverdueDebt) || 0;
-    const ratio = Number(item.data.kpi?.overdueToSalesRatio) || 0;
-    return sum + (ratio > 0 ? overdue / ratio : 0);
+    return sum + (Number(item.data[DEBT_TOTAL_AVERAGE_SALES]) || 0);
   }, 0);
   const toTopItem = customer => ({
     customerKey: customer.customerKey,
@@ -2050,7 +2054,12 @@ async function fetchDashboardRollups(branch, { overviewRange, productsRange, inv
   ] = await Promise.all([
     dashboardRollupRepository.getInvoiceRevenueByDay({ branch, from: overviewBounds.from, to: overviewBounds.to }),
     dashboardRollupRepository.getInvoiceRevenueByDay({ branch, from: invoicesBounds.from, to: invoicesBounds.to }),
-    dashboardRollupRepository.getProductSalesBreakdown({ branch, from: productsBounds.from, to: productsBounds.to }),
+    dashboardRollupRepository.getProductSalesBreakdown({
+      branch,
+      from: productsBounds.from,
+      to: productsBounds.to,
+      preserveNameSource: true
+    }),
     dashboardRollupRepository.getFirstPurchaseDates({ branch }),
     dashboardRollupRepository.getPurchaseTotals({ branch }),
     dashboardRollupRepository.listPurchaseOrders({ branch, from: newPurchasesBounds.from, to: newPurchasesBounds.to }),
@@ -2734,22 +2743,35 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   // khoang ngay + sap xep moi nhat truoc, khong can loc/sap xep lai trong JS.
   const newPurchaseOrders = (rollups && rollups.newPurchaseOrdersRaw) || [];
 
-  const newPurchaseSupplierMap = {};
+  const newPurchaseSupplierMap = new Map();
   newPurchaseOrders.forEach(p => {
-    const supplierName = p.supplier || '(Không xác định)';
-    if (!newPurchaseSupplierMap[supplierName]) {
-      newPurchaseSupplierMap[supplierName] = { name: supplierName, orderCount: 0, total: 0 };
+    const supplierName = String(p.supplier || '').trim();
+    const normalizedSupplierCode = normalizeSearchValue(p.supplierCode);
+    const normalizedSupplierName = normalizeSearchValue(supplierName);
+    const supplierKey = normalizedSupplierCode
+      ? `code:${normalizedSupplierCode}`
+      : `name:${normalizedSupplierName || '(không xác định)'}`;
+    if (!newPurchaseSupplierMap.has(supplierKey)) {
+      newPurchaseSupplierMap.set(supplierKey, { name: '', namePriority: Infinity, orderCount: 0, total: 0 });
     }
-    newPurchaseSupplierMap[supplierName].orderCount += 1;
-    newPurchaseSupplierMap[supplierName].total += p.total;
+    const supplier = newPurchaseSupplierMap.get(supplierKey);
+    const sourceBranch = branch === BRANCH_BOTH ? p.branch : branch;
+    const namePriority = sourceBranch === BRANCHES.HANOI ? 0 : sourceBranch === BRANCHES.SAIGON ? 1 : 2;
+    if (supplierName && namePriority < supplier.namePriority) {
+      supplier.name = supplierName;
+      supplier.namePriority = namePriority;
+    }
+    supplier.orderCount += 1;
+    supplier.total += p.total;
   });
-  const newPurchasesBySupplier = Object.values(newPurchaseSupplierMap)
+  const newPurchasesBySupplier = Array.from(newPurchaseSupplierMap.values())
+    .map(({ namePriority, ...supplier }) => ({ ...supplier, name: supplier.name || '(Không xác định)' }))
     .sort((a, b) => b.total - a.total)
     .slice(0, NEW_PURCHASES_SUPPLIER_LIMIT);
 
   const newPurchasesOrderCount = newPurchaseOrders.length;
   const newPurchasesTotalAmount = newPurchaseOrders.reduce((sum, p) => sum + p.total, 0);
-  const newPurchasesSupplierCount = Object.keys(newPurchaseSupplierMap).length;
+  const newPurchasesSupplierCount = newPurchaseSupplierMap.size;
 
   return {
     updatedAt: formatDMYHMS(now),
