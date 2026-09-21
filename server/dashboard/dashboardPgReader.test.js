@@ -157,6 +157,36 @@ test('readCoreDashboardSheets tu choi branch khong hop le, khong query Postgres'
   assert.equal(pool.calls.length, 0);
 });
 
+test('readCoreDashboardSheets mo rong Ca hai thanh hai nguon vat ly va gan provenance cho giao dich', async () => {
+  const invoiceColumns = __tabs__[CONFIG.SHEET_INVOICES].columns;
+  const pool = {
+    calls: [],
+    async query(sql, params) {
+      this.calls.push({ sql, params });
+      if (!sql.includes(`-- tab: ${CONFIG.SHEET_INVOICES}`)) return { rows: [] };
+      const row = Object.fromEntries(invoiceColumns.map(column => [column, '']));
+      row.ma_hoa_don = 'HD-TRUNG';
+      row.chi_nhanh = 'ten-kho-khong-dung-lam-provenance';
+      return { rows: [row] };
+    }
+  };
+  const reader = createDashboardPgReader({ pool });
+
+  const sheets = await reader.readCoreDashboardSheets('Cả hai');
+
+  assert.equal(pool.calls.length, CORE_SHEET_NAMES.length * 2);
+  assert.deepEqual(
+    pool.calls.map(call => call.params[0]),
+    [...Array(CORE_SHEET_NAMES.length).fill('hanoi'), ...Array(CORE_SHEET_NAMES.length).fill('saigon')]
+  );
+  const header = sheets[CONFIG.SHEET_INVOICES][0];
+  const branchIndex = header.indexOf('Chi nhánh');
+  assert.deepEqual(
+    sheets[CONFIG.SHEET_INVOICES].slice(1).map(row => [row[0], row[branchIndex]]),
+    [['HD-TRUNG', 'Hà Nội'], ['HD-TRUNG', 'Sài Gòn']]
+  );
+});
+
 // ==========================================
 // readRowsByCodes — doc THEO MA phuc vu Xuat Excel (chi 7 tab xuat duoc).
 // Loc theo ma o phia Postgres bang tham so `$2` (text[]); khong nap ca tab.

@@ -18,7 +18,7 @@
 // truyen xuong, tranh lap logic quy doi mui gio o 2 noi.
 // ==========================================
 const { getPool } = require('../db/pool');
-const { BRANCHES, branchLabelToCode } = require('../branch/branches');
+const { BRANCHES, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
 const { statusLabel } = require('./dashboardPgReader');
 
 function resolveBranchCode(branch) {
@@ -30,6 +30,47 @@ function resolveBranchCode(branch) {
     throw error;
   }
   return branchCode;
+}
+
+function resolvePhysicalBranches(branch) {
+  const requestedBranch = branch || BRANCHES.HANOI;
+  const scope = resolveBranchScope(requestedBranch);
+  if (!scope.length) resolveBranchCode(requestedBranch);
+  return scope;
+}
+
+async function queryPhysicalBranches(branch, query) {
+  return Promise.all(resolvePhysicalBranches(branch).map(async physicalBranch => ({
+    branch: physicalBranch,
+    rows: await query(physicalBranch, resolveBranchCode(physicalBranch))
+  })));
+}
+
+function mergeAdditiveRows(groups, { keyOf, firstFields, additiveFields, sort }) {
+  const merged = new Map();
+  groups.forEach(({ rows }) => rows.forEach(row => {
+    const key = keyOf(row);
+    if (!merged.has(key)) {
+      const initial = {};
+      firstFields.forEach(field => { initial[field] = row[field]; });
+      additiveFields.forEach(field => { initial[field] = 0; });
+      merged.set(key, initial);
+    }
+    const target = merged.get(key);
+    firstFields.forEach(field => {
+      if (!target[field] && row[field]) target[field] = row[field];
+    });
+    additiveFields.forEach(field => { target[field] += Number(row[field]) || 0; });
+  }));
+  const rows = Array.from(merged.values());
+  if (sort) rows.sort(sort);
+  return rows;
+}
+
+function dateTextSortValue(value) {
+  const match = String(value || '').match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+  if (!match) return 0;
+  return Date.UTC(Number(match[3]), Number(match[2]) - 1, Number(match[1]), Number(match[4] || 0), Number(match[5] || 0));
 }
 
 const INVOICE_REVENUE_BY_DAY_SQL = `
@@ -141,12 +182,20 @@ function createDashboardRollupRepository({ pool = getPool() } = {}) {
    * dashboardData.js. Chi gom hoa don status=3 (Hoan thanh).
    */
   async function getInvoiceRevenueByDay({ branch, from = null, to = null }) {
-    const result = await pool.query(INVOICE_REVENUE_BY_DAY_SQL, [resolveBranchCode(branch), from, to]);
-    return result.rows.map(row => ({
-      dateKey: row.date_key,
-      revenue: Number(row.revenue) || 0,
-      invoiceCount: Number(row.invoice_count) || 0
-    }));
+    const groups = await queryPhysicalBranches(branch, async (_physicalBranch, branchCode) => {
+      const result = await pool.query(INVOICE_REVENUE_BY_DAY_SQL, [branchCode, from, to]);
+      return result.rows.map(row => ({
+        dateKey: row.date_key,
+        revenue: Number(row.revenue) || 0,
+        invoiceCount: Number(row.invoice_count) || 0
+      }));
+    });
+    return mergeAdditiveRows(groups, {
+      keyOf: row => row.dateKey,
+      firstFields: ['dateKey'],
+      additiveFields: ['revenue', 'invoiceCount'],
+      sort: (a, b) => dateTextSortValue(a.dateKey) - dateTextSortValue(b.dateKey)
+    });
   }
 
   function mapProductSalesRow(row) {
@@ -167,8 +216,15 @@ function createDashboardRollupRepository({ pool = getPool() } = {}) {
    * thay vi lap lai logic do trong SQL.
    */
   async function getProductSalesBreakdown({ branch, from = null, to = null }) {
-    const result = await pool.query(`${PRODUCT_SALES_BASE_SQL}`, [resolveBranchCode(branch), from, to]);
-    return result.rows.map(mapProductSalesRow);
+    const groups = await queryPhysicalBranches(branch, async (_physicalBranch, branchCode) => {
+      const result = await pool.query(`${PRODUCT_SALES_BASE_SQL}`, [branchCode, from, to]);
+      return result.rows.map(mapProductSalesRow);
+    });
+    return mergeAdditiveRows(groups, {
+      keyOf: row => String(row.code || '').trim().toLocaleLowerCase('vi-VN'),
+      firstFields: ['code', 'name'],
+      additiveFields: ['qty', 'revenue']
+    });
   }
 
   /**
@@ -176,8 +232,19 @@ function createDashboardRollupRepository({ pool = getPool() } = {}) {
    * gioi han ngay trong SQL (LIMIT null = khong gioi han).
    */
   async function getTopSellingProducts({ branch, from = null, to = null, limit = null }) {
-    const result = await pool.query(TOP_SELLING_PRODUCTS_SQL, [resolveBranchCode(branch), from, to, limit]);
-    return result.rows.map(mapProductSalesRow);
+    const scope = resolvePhysicalBranches(branch);
+    const perBranchLimit = scope.length > 1 ? null : limit;
+    const groups = await Promise.all(scope.map(async physicalBranch => {
+      const result = await pool.query(TOP_SELLING_PRODUCTS_SQL, [resolveBranchCode(physicalBranch), from, to, perBranchLimit]);
+      return { branch: physicalBranch, rows: result.rows.map(mapProductSalesRow) };
+    }));
+    const rows = mergeAdditiveRows(groups, {
+      keyOf: row => String(row.code || '').trim().toLocaleLowerCase('vi-VN'),
+      firstFields: ['code', 'name'],
+      additiveFields: ['qty', 'revenue'],
+      sort: (a, b) => b.revenue - a.revenue || b.qty - a.qty
+    });
+    return limit == null ? rows : rows.slice(0, limit);
   }
 
   /**
@@ -185,19 +252,39 @@ function createDashboardRollupRepository({ pool = getPool() } = {}) {
    * neu khong co) trong khoang [from, to] — tu daily_purchase_summary.
    */
   async function getPurchasesBySupplier({ branch, from = null, to = null, limit = null }) {
-    const result = await pool.query(PURCHASES_BY_SUPPLIER_SQL, [resolveBranchCode(branch), from, to, limit]);
-    return result.rows.map(row => ({
-      name: row.name || '(Không xác định)',
-      orderCount: Number(row.order_count) || 0,
-      total: Number(row.total) || 0
+    const scope = resolvePhysicalBranches(branch);
+    const perBranchLimit = scope.length > 1 ? null : limit;
+    const groups = await Promise.all(scope.map(async physicalBranch => {
+      const result = await pool.query(PURCHASES_BY_SUPPLIER_SQL, [resolveBranchCode(physicalBranch), from, to, perBranchLimit]);
+      return {
+        branch: physicalBranch,
+        rows: result.rows.map(row => ({
+          name: row.name || '(Không xác định)',
+          orderCount: Number(row.order_count) || 0,
+          total: Number(row.total) || 0
+        }))
+      };
     }));
+    const rows = mergeAdditiveRows(groups, {
+      keyOf: row => String(row.name || '').trim().toLocaleLowerCase('vi-VN'),
+      firstFields: ['name'],
+      additiveFields: ['orderCount', 'total'],
+      sort: (a, b) => b.total - a.total
+    });
+    return limit == null ? rows : rows.slice(0, limit);
   }
 
   /** Tong so phieu nhap/tong tien nhap TOAN THOI GIAN (khong loc ngay). */
   async function getPurchaseTotals({ branch }) {
-    const result = await pool.query(PURCHASE_TOTALS_SQL, [resolveBranchCode(branch)]);
-    const row = result.rows[0] || { order_count: 0, total: 0 };
-    return { orderCount: Number(row.order_count) || 0, total: Number(row.total) || 0 };
+    const groups = await queryPhysicalBranches(branch, async (_physicalBranch, branchCode) => {
+      const result = await pool.query(PURCHASE_TOTALS_SQL, [branchCode]);
+      const row = result.rows[0] || { order_count: 0, total: 0 };
+      return [{ orderCount: Number(row.order_count) || 0, total: Number(row.total) || 0 }];
+    });
+    return groups.reduce((total, group) => ({
+      orderCount: total.orderCount + group.rows[0].orderCount,
+      total: total.total + group.rows[0].total
+    }), { orderCount: 0, total: 0 });
   }
 
   /**
@@ -207,12 +294,25 @@ function createDashboardRollupRepository({ pool = getPool() } = {}) {
    * parseSheetDate() — giu logic quy doi mui gio tap trung 1 noi.
    */
   async function getFirstPurchaseDates({ branch }) {
-    const result = await pool.query(FIRST_PURCHASE_DATES_SQL, [resolveBranchCode(branch)]);
-    return result.rows.map(row => ({
-      code: row.code || '',
-      name: row.name || row.code || '',
-      firstPurchaseDateText: row.first_purchase_date_text || ''
+    const groups = await queryPhysicalBranches(branch, async (_physicalBranch, branchCode) => {
+      const result = await pool.query(FIRST_PURCHASE_DATES_SQL, [branchCode]);
+      return result.rows.map(row => ({
+        code: row.code || '',
+        name: row.name || row.code || '',
+        firstPurchaseDateText: row.first_purchase_date_text || ''
+      }));
+    });
+    const merged = new Map();
+    groups.forEach(({ rows }) => rows.forEach(row => {
+      const key = String(row.code || '').trim().toLocaleLowerCase('vi-VN');
+      const current = merged.get(key);
+      if (!current) {
+        merged.set(key, { ...row });
+      } else if (dateTextSortValue(row.firstPurchaseDateText) < dateTextSortValue(current.firstPurchaseDateText)) {
+        current.firstPurchaseDateText = row.firstPurchaseDateText;
+      }
     }));
+    return Array.from(merged.values());
   }
 
   /**
@@ -221,8 +321,12 @@ function createDashboardRollupRepository({ pool = getPool() } = {}) {
    * dashboardData.js). Xem ghi chu o INVOICE_QUANTITIES_SQL.
    */
   async function getInvoiceQuantitiesByCode({ branch, from = null, to = null }) {
-    const result = await pool.query(INVOICE_QUANTITIES_SQL, [resolveBranchCode(branch), from, to]);
-    return result.rows.map(row => ({ code: row.code || '', quantity: Number(row.quantity) || 0 }));
+    const groups = await queryPhysicalBranches(branch, async (_physicalBranch, branchCode) => {
+      const result = await pool.query(INVOICE_QUANTITIES_SQL, [branchCode, from, to]);
+      return result.rows.map(row => ({ code: row.code || '', quantity: Number(row.quantity) || 0 }));
+    });
+    if (groups.length === 1) return groups[0].rows;
+    return groups.flatMap(group => group.rows.map(row => ({ ...row, branch: group.branch })));
   }
 
   /**
@@ -232,15 +336,21 @@ function createDashboardRollupRepository({ pool = getPool() } = {}) {
    * bang rollup vi can giu dung tung phieu, khong gom).
    */
   async function listPurchaseOrders({ branch, from = null, to = null }) {
-    const result = await pool.query(RECENT_PURCHASE_ORDERS_SQL, [resolveBranchCode(branch), from, to]);
-    return result.rows.map(row => ({
-      code: row.code || '',
-      date: row.date || '',
-      supplier: row.supplier || '',
-      branch: row.branch || '',
-      total: Number(row.total) || 0,
-      status: row.status || ''
-    }));
+    const groups = await queryPhysicalBranches(branch, async (_physicalBranch, branchCode) => {
+      const result = await pool.query(RECENT_PURCHASE_ORDERS_SQL, [branchCode, from, to]);
+      return result.rows.map(row => ({
+        code: row.code || '',
+        date: row.date || '',
+        supplier: row.supplier || '',
+        branch: row.branch || '',
+        total: Number(row.total) || 0,
+        status: row.status || ''
+      }));
+    });
+    if (groups.length === 1) return groups[0].rows;
+    return groups
+      .flatMap(group => group.rows.map(row => ({ ...row, branch: group.branch })))
+      .sort((a, b) => dateTextSortValue(b.date) - dateTextSortValue(a.date));
   }
 
   return {

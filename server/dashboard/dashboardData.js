@@ -14,11 +14,10 @@ const dashboardPgReader = require('./dashboardPgReader');
 const customerDebtActivityRepository = require('./customerDebtActivityRepository');
 const customerProductTopRepository = require('./customerProductTopRepository');
 const dashboardRollupRepository = require('./dashboardRollupRepository');
-const { BRANCHES } = require('../branch/branches');
-const { branchLabelToCode } = require('../branch/branches');
+const { BRANCHES, BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
 const { ROLES } = require('../auth/userRepository');
 const debtCollectionStatusRepository = require('./debtCollectionStatusRepository');
-const { deriveDebtManagement } = require('./debtManagement');
+const { deriveDebtManagement, PAYMENT_SCHEDULES } = require('./debtManagement');
 
 const OUT_OF_STOCK_LEVEL = 0;
 const TOP_SELLING_LIMIT = 15;
@@ -1639,20 +1638,27 @@ async function getProductRevenueDetail(code, branch, now = new Date()) {
  * BO giao dich trong ky; danh sach chi tiet (transactions) gioi han
  * MAX_REPORT_TRANSACTIONS dong gan nhat de khong lam nang trang khi chon ky dai.
  */
-function buildTransactionsReport(range, invoiceRecords, invoiceQuantityMap) {
+function invoiceIdentity(branch, code) {
+  return `${String(branch || '').trim()}\u0000${String(code || '').trim()}`;
+}
+
+function buildTransactionsReport(range, invoiceRecords, invoiceQuantityMap, includeBranch = false) {
   const singleDay = isSingleDayRange(range);
   const inRangeRecords = invoiceRecords.filter(r => isWithinRange(r._dt, range));
 
   const allTransactions = inRangeRecords
     .map(r => {
       const normalizedCode = String(r.code).trim();
+      const branchQuantityKey = invoiceIdentity(r.branch, normalizedCode);
+      const quantityKey = r.branch && invoiceQuantityMap.has(branchQuantityKey) ? branchQuantityKey : normalizedCode;
       return {
         code: r.code,
+        ...(includeBranch ? { branch: r.branch } : {}),
         time: r._dt ? (singleDay ? formatHM(r._dt) : formatDMYHM(r._dt)) : '—',
         customer: r.customer,
         employee: r.employee,
-        quantity: invoiceQuantityMap.get(normalizedCode) || 0,
-        quantityKnown: invoiceQuantityMap.has(normalizedCode),
+        quantity: invoiceQuantityMap.get(quantityKey) || 0,
+        quantityKnown: invoiceQuantityMap.has(quantityKey),
         revenue: r.total,
         discount: r.discount,
         paid: r.paid,
@@ -1690,6 +1696,326 @@ function buildTransactionsReport(range, invoiceRecords, invoiceQuantityMap) {
     transactions,
     topTransactions,
     summary
+  };
+}
+
+function sheetHeaderIndex(headers, name) {
+  return headers.findIndex(header => String(header || '').trim() === name);
+}
+
+function alignSheetRow(sourceHeaders, targetHeaders, row) {
+  const sourceIndex = new Map(sourceHeaders.map((header, index) => [String(header || '').trim(), index]));
+  return targetHeaders.map(header => {
+    const index = sourceIndex.get(String(header || '').trim());
+    return index === undefined ? '' : row[index];
+  });
+}
+
+function firstSheetHeaders(branchSources, sheetName) {
+  for (const source of branchSources) {
+    const sheet = source.sheets[sheetName];
+    if (Array.isArray(sheet) && Array.isArray(sheet[0])) return sheet[0].slice();
+  }
+  return null;
+}
+
+function mergeEntitySheet(branchSources, sheetName, codeHeader, additiveHeaders = [], options = {}) {
+  const targetHeaders = firstSheetHeaders(branchSources, sheetName);
+  if (!targetHeaders) return [];
+  const codeIndex = sheetHeaderIndex(targetHeaders, codeHeader);
+  const additiveIndexes = new Map(additiveHeaders.map(header => [header, sheetHeaderIndex(targetHeaders, header)]));
+  const costIndex = options.weightedInventoryCost ? sheetHeaderIndex(targetHeaders, 'Giá vốn') : -1;
+  const stockIndex = options.weightedInventoryCost ? sheetHeaderIndex(targetHeaders, 'Tồn kho') : -1;
+  const entities = new Map();
+
+  branchSources.forEach(source => {
+    const sheet = source.sheets[sheetName];
+    if (!Array.isArray(sheet) || !Array.isArray(sheet[0])) return;
+    const sourceHeaders = sheet[0];
+    for (let index = 1; index < sheet.length; index += 1) {
+      const aligned = alignSheetRow(sourceHeaders, targetHeaders, sheet[index] || []);
+      const code = String(aligned[codeIndex] || '').trim();
+      if (!code) continue;
+      const key = normalizeSearchValue(code);
+      if (!entities.has(key)) {
+        entities.set(key, {
+          row: new Array(targetHeaders.length).fill(''),
+          sums: new Map(additiveHeaders.map(header => [header, 0])),
+          inventoryValue: 0
+        });
+      }
+      const entity = entities.get(key);
+      aligned.forEach((value, columnIndex) => {
+        if ((entity.row[columnIndex] === '' || entity.row[columnIndex] == null) && value !== '' && value != null) {
+          entity.row[columnIndex] = value;
+        }
+      });
+      additiveHeaders.forEach(header => {
+        const columnIndex = additiveIndexes.get(header);
+        entity.sums.set(header, entity.sums.get(header) + (Number(aligned[columnIndex]) || 0));
+      });
+      if (costIndex >= 0 && stockIndex >= 0) {
+        entity.inventoryValue += Math.max(Number(aligned[stockIndex]) || 0, 0) * Math.max(Number(aligned[costIndex]) || 0, 0);
+      }
+    }
+  });
+
+  const rows = Array.from(entities.values()).map(entity => {
+    additiveHeaders.forEach(header => {
+      const columnIndex = additiveIndexes.get(header);
+      if (columnIndex >= 0) entity.row[columnIndex] = entity.sums.get(header);
+    });
+    if (costIndex >= 0 && stockIndex >= 0) {
+      const positiveStock = Math.max(Number(entity.row[stockIndex]) || 0, 0);
+      if (positiveStock > 0) entity.row[costIndex] = entity.inventoryValue / positiveStock;
+    }
+    return entity.row;
+  });
+  return [targetHeaders, ...rows];
+}
+
+function mergeTransactionalSheet(branchSources, sheetName) {
+  const targetHeaders = firstSheetHeaders(branchSources, sheetName);
+  if (!targetHeaders) return [];
+  const branchIndex = sheetHeaderIndex(targetHeaders, 'Chi nhánh');
+  const rows = [];
+  branchSources.forEach(source => {
+    const sheet = source.sheets[sheetName];
+    if (!Array.isArray(sheet) || !Array.isArray(sheet[0])) return;
+    for (let index = 1; index < sheet.length; index += 1) {
+      const aligned = alignSheetRow(sheet[0], targetHeaders, sheet[index] || []);
+      if (branchIndex >= 0) aligned[branchIndex] = source.branch;
+      rows.push(aligned);
+    }
+  });
+  return [targetHeaders, ...rows];
+}
+
+function concatenateSheet(branchSources, sheetName) {
+  const targetHeaders = firstSheetHeaders(branchSources, sheetName);
+  if (!targetHeaders) return [];
+  const rows = [];
+  branchSources.forEach(source => {
+    const sheet = source.sheets[sheetName];
+    if (!Array.isArray(sheet) || !Array.isArray(sheet[0])) return;
+    for (let index = 1; index < sheet.length; index += 1) {
+      rows.push(alignSheetRow(sheet[0], targetHeaders, sheet[index] || []));
+    }
+  });
+  return [targetHeaders, ...rows];
+}
+
+function mergeDashboardSheets(branchSources) {
+  const sheetNames = new Set(branchSources.flatMap(source => Object.keys(source.sheets || {})));
+  const merged = {};
+  sheetNames.forEach(sheetName => {
+    if ([CONFIG.SHEET_INVOICES, CONFIG.SHEET_ORDERS, CONFIG.SHEET_RETURNS, CONFIG.SHEET_INVOICE_DETAILS, CONFIG.SHEET_PURCHASES].includes(sheetName)) {
+      merged[sheetName] = mergeTransactionalSheet(branchSources, sheetName);
+    } else if (sheetName === CONFIG.SHEET_PRODUCTS) {
+      merged[sheetName] = mergeEntitySheet(branchSources, sheetName, 'Mã hàng', ['Tồn kho', 'Khách đặt'], { weightedInventoryCost: true });
+    } else if (sheetName === CONFIG.SHEET_CUSTOMERS) {
+      merged[sheetName] = mergeEntitySheet(branchSources, sheetName, 'Mã khách hàng', ['Nợ hiện tại', 'Tổng bán', 'Tổng doanh thu']);
+    } else if (sheetName === CONFIG.SHEET_SUPPLIERS) {
+      merged[sheetName] = mergeEntitySheet(branchSources, sheetName, 'Mã NCC', ['Nợ cần trả', 'Tổng mua', 'Tổng mua trừ trả hàng']);
+    } else if (sheetName === CONFIG.SHEET_CATEGORIES) {
+      merged[sheetName] = mergeEntitySheet(branchSources, sheetName, 'Mã nhóm hàng');
+    } else {
+      merged[sheetName] = concatenateSheet(branchSources, sheetName);
+    }
+  });
+  return merged;
+}
+
+function mergeRollupRows(branchSources, field, keyOf, additiveFields, sort) {
+  const merged = new Map();
+  branchSources.forEach(source => {
+    const rows = source.rollups[field] || [];
+    rows.forEach(row => {
+      const key = keyOf(row);
+      if (!merged.has(key)) merged.set(key, { ...row });
+      else {
+        const target = merged.get(key);
+        additiveFields.forEach(additiveField => {
+          target[additiveField] = (Number(target[additiveField]) || 0) + (Number(row[additiveField]) || 0);
+        });
+        if (!target.name && row.name) target.name = row.name;
+      }
+    });
+  });
+  const rows = Array.from(merged.values());
+  if (sort) rows.sort(sort);
+  return rows;
+}
+
+function mergeDashboardRollups(branchSources) {
+  const firstPurchaseByCode = new Map();
+  branchSources.forEach(source => (source.rollups.firstPurchaseRows || []).forEach(row => {
+    const key = normalizeSearchValue(row.code);
+    const current = firstPurchaseByCode.get(key);
+    const date = parseSheetDate(row.firstPurchaseDateText);
+    const currentDate = current && parseSheetDate(current.firstPurchaseDateText);
+    if (!current) firstPurchaseByCode.set(key, { ...row });
+    else if (date && (!currentDate || date.getTime() < currentDate.getTime())) current.firstPurchaseDateText = row.firstPurchaseDateText;
+  }));
+
+  const newPurchaseOrdersRaw = branchSources
+    .flatMap(source => (source.rollups.newPurchaseOrdersRaw || []).map(row => ({ ...row, branch: source.branch })))
+    .sort((a, b) => (parseSheetDate(b.date)?.getTime() || 0) - (parseSheetDate(a.date)?.getTime() || 0));
+  const invoiceQuantityRows = branchSources.flatMap(source =>
+    (source.rollups.invoiceQuantityRows || []).map(row => ({ ...row, branch: source.branch }))
+  );
+
+  return {
+    overviewRevenueRows: mergeRollupRows(
+      branchSources,
+      'overviewRevenueRows',
+      row => row.dateKey,
+      ['revenue', 'invoiceCount'],
+      (a, b) => (parseSheetDate(a.dateKey)?.getTime() || 0) - (parseSheetDate(b.dateKey)?.getTime() || 0)
+    ),
+    invoicesRevenueRows: mergeRollupRows(
+      branchSources,
+      'invoicesRevenueRows',
+      row => row.dateKey,
+      ['revenue', 'invoiceCount'],
+      (a, b) => (parseSheetDate(a.dateKey)?.getTime() || 0) - (parseSheetDate(b.dateKey)?.getTime() || 0)
+    ),
+    productSalesRows: mergeRollupRows(
+      branchSources,
+      'productSalesRows',
+      row => normalizeSearchValue(row.code),
+      ['qty', 'revenue']
+    ),
+    firstPurchaseRows: Array.from(firstPurchaseByCode.values()),
+    purchaseTotals: branchSources.reduce((totals, source) => ({
+      orderCount: totals.orderCount + (Number(source.rollups.purchaseTotals?.orderCount) || 0),
+      total: totals.total + (Number(source.rollups.purchaseTotals?.total) || 0)
+    }), { orderCount: 0, total: 0 }),
+    newPurchaseOrdersRaw,
+    invoiceQuantityRows
+  };
+}
+
+function buildDebtManagementForBranch(source, canEditDebtStatus) {
+  const debtManagement = deriveDebtManagement({
+    managementRows: source.debtManagementSource?.rows,
+    branch: source.branch,
+    sourceSheet: source.debtManagementSource?.sourceSheet || (source.branch === BRANCHES.SAIGON
+      ? CONFIG.DEBT_MANAGEMENT_SHEET_SG
+      : CONFIG.DEBT_MANAGEMENT_SHEET_HN),
+    operationalSheets: {
+      HN1: source.sheets.HN1,
+      HN3: source.sheets.HN3,
+      HN7: source.sheets.HN7
+    },
+    workflowStatuses: source.debtWorkflow?.statuses || [],
+    workflowAvailable: source.debtWorkflow?.available !== false,
+    userCanEdit: canEditDebtStatus
+  });
+  if (source.debtManagementSource?.error) {
+    debtManagement.dataWarnings.unshift(`Không tải được workbook công nợ: ${source.debtManagementSource.error.message || 'Lỗi không xác định'}.`);
+  }
+  return debtManagement;
+}
+
+function mergeDebtManagementSources(branchSources, canEditDebtStatus) {
+  const derivedSources = branchSources.map(source => ({
+    branch: source.branch,
+    source: source.debtManagementSource,
+    data: buildDebtManagementForBranch(source, canEditDebtStatus)
+  }));
+  const sources = derivedSources.map(item => ({
+    branch: item.branch,
+    sourceSheet: item.data.sourceSheet,
+    available: item.data.available,
+    error: item.source?.error?.message || null
+  }));
+  const dataWarnings = derivedSources.flatMap(item =>
+    (item.data.dataWarnings || []).map(warning => `${item.branch}: ${warning}`)
+  );
+  const customersByKey = new Map();
+  derivedSources.forEach(item => (item.data.customers || []).forEach(customer => {
+    const key = customer.customerKey || normalizeSearchValue(customer.customerName);
+    const detail = { branch: item.branch, sourceSheet: item.data.sourceSheet, ...customer };
+    if (!customersByKey.has(key)) {
+      customersByKey.set(key, {
+        ...customer,
+        openingDebt: 0,
+        currentDebt: 0,
+        overdueDebt: 0,
+        alertCodes: [],
+        dataIssues: [],
+        branchDetails: []
+      });
+    }
+    const merged = customersByKey.get(key);
+    merged.openingDebt += Number(customer.openingDebt) || 0;
+    merged.currentDebt += Number(customer.currentDebt) || 0;
+    merged.overdueDebt += Number(customer.overdueDebt) || 0;
+    merged.alertCodes = Array.from(new Set([...merged.alertCodes, ...(customer.alertCodes || [])]));
+    merged.dataIssues = Array.from(new Set([...merged.dataIssues, ...(customer.dataIssues || [])]));
+    merged.needsAction = Boolean(merged.needsAction || customer.needsAction);
+    merged.canEditStatus = Boolean(merged.canEditStatus || customer.canEditStatus);
+    merged.branchDetails.push(detail);
+  }));
+  const customers = Array.from(customersByKey.values());
+  const totalCurrentDebt = customers.reduce((sum, customer) => sum + (Number(customer.currentDebt) || 0), 0);
+  const totalOverdueDebt = customers.reduce((sum, customer) => sum + (Number(customer.overdueDebt) || 0), 0);
+  const totalAverageSales = derivedSources.reduce((sum, item) => {
+    const overdue = Number(item.data.kpi?.totalOverdueDebt) || 0;
+    const ratio = Number(item.data.kpi?.overdueToSalesRatio) || 0;
+    return sum + (ratio > 0 ? overdue / ratio : 0);
+  }, 0);
+  const toTopItem = customer => ({
+    customerKey: customer.customerKey,
+    customerName: customer.customerName,
+    sale: customer.sale,
+    paymentSchedule: customer.paymentSchedule,
+    currentDebt: customer.currentDebt,
+    overdueDebt: customer.overdueDebt,
+    needsAction: customer.needsAction
+  });
+  const summarizeBy = (field, values) => {
+    const map = new Map((values || []).map(value => [value, {
+      [field]: value, totalCurrentDebt: 0, totalOverdueDebt: 0, actionCustomerCount: 0, customerCount: 0
+    }]));
+    customers.forEach(customer => {
+      const value = customer[field];
+      if (!map.has(value)) map.set(value, {
+        [field]: value, totalCurrentDebt: 0, totalOverdueDebt: 0, actionCustomerCount: 0, customerCount: 0
+      });
+      const summary = map.get(value);
+      summary.totalCurrentDebt += Number(customer.currentDebt) || 0;
+      summary.totalOverdueDebt += Number(customer.overdueDebt) || 0;
+      summary.customerCount += 1;
+      if (customer.needsAction) summary.actionCustomerCount += 1;
+    });
+    return Array.from(map.values());
+  };
+  const bySale = summarizeBy('sale')
+    .sort((a, b) => b.totalOverdueDebt - a.totalOverdueDebt || b.totalCurrentDebt - a.totalCurrentDebt || String(a.sale).localeCompare(String(b.sale), 'vi'))
+    .slice(0, 15);
+  const scheduleSummaries = summarizeBy('paymentSchedule', PAYMENT_SCHEDULES);
+  const scheduleMap = new Map(scheduleSummaries.map(summary => [summary.paymentSchedule, summary]));
+
+  return {
+    available: derivedSources.some(item => item.data.available),
+    sourceSheet: sources.map(source => source.sourceSheet).filter(Boolean).join(' + '),
+    sources,
+    dataWarnings,
+    kpi: {
+      totalCurrentDebt,
+      totalOverdueDebt,
+      actionCustomerCount: customers.filter(customer => customer.needsAction).length,
+      overdueToSalesRatio: totalAverageSales > 0 ? totalOverdueDebt / totalAverageSales : 0
+    },
+    bySale,
+    byPaymentSchedule: PAYMENT_SCHEDULES.map(paymentSchedule => scheduleMap.get(paymentSchedule)),
+    topCurrentDebt: customers.filter(customer => customer.currentDebt > 0)
+      .sort((a, b) => b.currentDebt - a.currentDebt).slice(0, 10).map(toTopItem),
+    topOverdueDebt: customers.filter(customer => customer.overdueDebt > 0)
+      .sort((a, b) => b.overdueDebt - a.overdueDebt).slice(0, 10).map(toTopItem),
+    customers
   };
 }
 
@@ -1737,6 +2063,20 @@ async function fetchDashboardRollups(branch, { overviewRange, productsRange, inv
   };
 }
 
+async function loadDashboardBranchSources(branch, ranges, physicalBranch = branch || BRANCHES.HANOI) {
+  const [sheets, debtManagementSource, debtWorkflow, rollups] = await Promise.all([
+    getCachedDashboardCoreSheets(branch),
+    getCachedDebtManagementSource(branch),
+    getCachedDebtWorkflow(branch),
+    fetchDashboardRollups(branch, ranges)
+  ]);
+  return { branch: physicalBranch, sheets, debtManagementSource, debtWorkflow, rollups };
+}
+
+function dashboardSourceVersion(branch) {
+  return `${branch}:${dashboardCoreSheetsCacheFor(branch).version}:${debtManagementSheetsCacheFor(branch).version}:${debtWorkflowCacheFor(branch).version}`;
+}
+
 /**
  * Ham chinh lay du lieu cho dashboard — wrapper them cache ket qua da tinh
  * theo tung bo loc, tranh chay lai toan bo tinh toan ben duoi khi client doi
@@ -1748,20 +2088,26 @@ async function fetchDashboardRollups(branch, { overviewRange, productsRange, inv
 async function getDashboardData(filters, branch, viewer) {
   const f = filters || {};
   const canEditDebtStatus = viewer?.vaiTro === ROLES.QUAN_LY || viewer?.vaiTro === ROLES.TRO_LY;
+  const requestedBranch = branch || BRANCHES.HANOI;
+  const branchScope = resolveBranchScope(requestedBranch);
+  if (!branchScope.length) {
+    const error = new Error(`Cơ sở không hợp lệ: ${branch}`);
+    error.code = 'INVALID_BRANCH';
+    error.statusCode = 400;
+    throw error;
+  }
   const now = new Date();
   const overviewRange = resolveFilterRange(f.overview, now);
   const productsRange = resolveFilterRange(f.products, now);
   const invoicesRange = resolveFilterRange(f.invoices, now);
   const newPurchasesRange = resolveFilterRange(f.newPurchases, now);
-
-  const [sheets, debtManagementSource, debtWorkflow, rollups] = await Promise.all([
-    getCachedDashboardCoreSheets(branch),
-    getCachedDebtManagementSource(branch),
-    getCachedDebtWorkflow(branch),
-    fetchDashboardRollups(branch, { overviewRange, productsRange, invoicesRange, newPurchasesRange })
-  ]);
-  const sourceVersions = `${dashboardCoreSheetsCacheFor(branch).version}:${debtManagementSheetsCacheFor(branch).version}:${debtWorkflowCacheFor(branch).version}`;
-  const cacheKey = dashboardResultCacheKey(branch, `${sourceVersions}:${canEditDebtStatus ? 'edit' : 'read'}`, f);
+  const ranges = { overviewRange, productsRange, invoicesRange, newPurchasesRange };
+  const branchSources = await Promise.all(branchScope.map(physicalBranch => {
+    const sourceArgument = branch == null && branchScope.length === 1 ? undefined : physicalBranch;
+    return loadDashboardBranchSources(sourceArgument, ranges, physicalBranch);
+  }));
+  const sourceVersions = branchScope.map(dashboardSourceVersion).join(';');
+  const cacheKey = dashboardResultCacheKey(requestedBranch, `${sourceVersions}:${canEditDebtStatus ? 'edit' : 'read'}`, f);
 
   const cached = dashboardResultCache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt) {
@@ -1772,14 +2118,40 @@ async function getDashboardData(filters, branch, viewer) {
   // tinh tu du lieu cu, don sach de Map khong phinh vo han qua nhieu phien ban.
   // Chi don entry CUA CHINH CO SO nay (tien to `${branch}|`) — entry cua co so
   // khac co vong doi rieng.
-  const branchPrefix = (branch || BRANCHES.HANOI) + '|';
+  const branchPrefix = requestedBranch + '|';
   for (const key of dashboardResultCache.keys()) {
     if (key.startsWith(branchPrefix) && !key.startsWith(branchPrefix + sourceVersions + ':')) {
       dashboardResultCache.delete(key);
     }
   }
 
-  const data = computeDashboardData(sheets, f, now, debtManagementSource, branch, debtWorkflow, canEditDebtStatus, rollups);
+  let data;
+  if (branchSources.length === 1) {
+    const source = branchSources[0];
+    data = computeDashboardData(
+      source.sheets,
+      f,
+      now,
+      source.debtManagementSource,
+      source.branch,
+      source.debtWorkflow,
+      canEditDebtStatus,
+      source.rollups
+    );
+  } else {
+    const debtManagement = mergeDebtManagementSources(branchSources, canEditDebtStatus);
+    data = computeDashboardData(
+      mergeDashboardSheets(branchSources),
+      f,
+      now,
+      null,
+      BRANCH_BOTH,
+      null,
+      canEditDebtStatus,
+      mergeDashboardRollups(branchSources),
+      debtManagement
+    );
+  }
   dashboardResultCache.set(cacheKey, { data, expiresAt: Date.now() + DASHBOARD_RESULT_CACHE_TTL_MS });
   // Gioi han so entry trong Map — Map giu thu tu insertion nen phan tu dau tien
   // luon la entry cu nhat, xoa dan cho toi khi ve lai duoi muc tran.
@@ -1800,7 +2172,7 @@ async function getDashboardData(filters, branch, viewer) {
  * @param {Date} now
  * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
  */
-function computeDashboardData(sheets, filters, now, debtManagementSource, branch, debtWorkflow, canEditDebtStatus, rollups) {
+function computeDashboardData(sheets, filters, now, debtManagementSource, branch, debtWorkflow, canEditDebtStatus, rollups, debtManagementOverride) {
   computeCallCountForTest += 1;
   const f = filters || {};
   rollups = rollups || {};
@@ -1816,24 +2188,12 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const newPurchasesRange = resolveFilterRange(f.newPurchases, now);
   const newProductsRange = resolveFilterRange(f.newProducts, now);
 
-  const debtManagement = deriveDebtManagement({
-    managementRows: debtManagementSource?.rows,
+  const debtManagement = debtManagementOverride || buildDebtManagementForBranch({
     branch,
-    sourceSheet: debtManagementSource?.sourceSheet || (branch === BRANCHES.SAIGON
-      ? CONFIG.DEBT_MANAGEMENT_SHEET_SG
-      : CONFIG.DEBT_MANAGEMENT_SHEET_HN),
-    operationalSheets: {
-      HN1: sheets.HN1,
-      HN3: sheets.HN3,
-      HN7: sheets.HN7
-    },
-    workflowStatuses: debtWorkflow?.statuses || [],
-    workflowAvailable: debtWorkflow?.available !== false,
-    userCanEdit: canEditDebtStatus
-  });
-  if (debtManagementSource?.error) {
-    debtManagement.dataWarnings.unshift(`Không tải được workbook công nợ: ${debtManagementSource.error.message || 'Lỗi không xác định'}.`);
-  }
+    sheets,
+    debtManagementSource,
+    debtWorkflow
+  }, canEditDebtStatus);
 
   const categoryData = sheets[CONFIG.SHEET_CATEGORIES];
   const prodData = sheets[CONFIG.SHEET_PRODUCTS];
@@ -1988,11 +2348,14 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   // khoi cache "core"; xem fetchDashboardRollups()).
   const invoiceQuantityMap = new Map();
   ((rollups && rollups.invoiceQuantityRows) || []).forEach(row => {
-    invoiceQuantityMap.set(String(row.code || '').trim(), row.quantity);
+    const code = String(row.code || '').trim();
+    invoiceQuantityMap.set(row.branch ? invoiceIdentity(row.branch, code) : code, row.quantity);
   });
 
   let revenueToday = 0, invoicesToday = 0, cancelledToday = 0;
   const invoiceRecords = [];
+  const invoiceHeaders = invData[0] || [];
+  const invoiceBranchIndex = sheetHeaderIndex(invoiceHeaders, 'Chi nhánh');
 
   for (let r = 1; r < invData.length; r++) {
     const row = invData[r];
@@ -2018,6 +2381,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
 
     const record = {
       code,
+      branch: branch === BRANCH_BOTH ? row[invoiceBranchIndex] || '' : undefined,
       customer,
       phone,
       employee,
@@ -2039,7 +2403,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   // (rollup, chi gom status=3 Hoan thanh, xem dashboardRollupRepository.getInvoiceRevenueByDay())
   // thay vi tu gom lai `invoiceRecords` trong JS moi request.
   const overviewPeriod = buildRevenuePeriodFromRollup(overviewRange, (rollups && rollups.overviewRevenueRows) || []);
-  const transactionsReport = buildTransactionsReport(invoicesRange, invoiceRecords, invoiceQuantityMap);
+  const transactionsReport = buildTransactionsReport(invoicesRange, invoiceRecords, invoiceQuantityMap, branch === BRANCH_BOTH);
 
   const invoicesPeriod = buildRevenuePeriodFromRollup(invoicesRange, (rollups && rollups.invoicesRevenueRows) || []);
   const periodCancelledInvoices = invoiceRecords.filter(
@@ -2226,6 +2590,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     const dt = parseSheetDate(row[1]);
     orderRecords.push({
       code, date: row[1] || '', customer: row[2], total: Number(row[5]) || 0, status: row[6] || '',
+      ...(branch === BRANCH_BOTH ? { branch: row[4] || '' } : {}),
       _dt: dt, _sortTime: dt ? dt.getTime() : 0
     });
   }
@@ -2251,6 +2616,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const returnCustomerIndex = returnIndex('Khách hàng', 3);
   const returnTotalIndex = returnIndex('Tổng tiền trả', 4);
   const returnStatusIndex = returnIndex('Trạng thái', 5);
+  const returnBranchIndex = returnIndex('Chi nhánh', -1);
   const returnRecords = [];
   for (let r = 1; r < returnData.length; r++) {
     const row = returnData[r];
@@ -2260,6 +2626,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     returnRecords.push({
       code, date: row[returnDateIndex] || '', originalInvoiceCode: '', customer: row[returnCustomerIndex] || '',
       total: Number(row[returnTotalIndex]) || 0, status: row[returnStatusIndex] || '',
+      ...(branch === BRANCH_BOTH ? { branch: returnBranchIndex >= 0 ? row[returnBranchIndex] || '' : '' } : {}),
       _dt: dt, _sortTime: dt ? dt.getTime() : 0
     });
   }

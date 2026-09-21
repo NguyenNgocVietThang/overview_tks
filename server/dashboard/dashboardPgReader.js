@@ -19,7 +19,7 @@
 // ==========================================
 const CONFIG = require('../config');
 const { getPool } = require('../db/pool');
-const { BRANCHES, branchLabelToCode } = require('../branch/branches');
+const { BRANCHES, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
 
 // Dinh dang tuong thich shape du lieu dashboard.
 const SHEET_DATE_FORMAT = 'DD/MM/YYYY HH24:MI';
@@ -578,19 +578,26 @@ function normalizeCodes(codes) {
 }
 
 async function queryTabs(pool, tabs, branch) {
-  const branchCode = resolveBranchCode(branch);
+  const requestedBranch = branch || BRANCHES.HANOI;
+  const scope = resolveBranchScope(requestedBranch);
+  if (!scope.length) resolveBranchCode(requestedBranch);
 
-  const results = await Promise.all(
-    tabs.map(tab => pool.query(tab.sql, [branchCode]))
-  );
+  const resultsByBranch = await Promise.all(scope.map(async physicalBranch => ({
+    branch: physicalBranch,
+    results: await Promise.all(tabs.map(tab => pool.query(tab.sql, [resolveBranchCode(physicalBranch)])))
+  })));
 
-  const sheets = {};
-  tabs.forEach((tab, index) => {
-    const rows = (results[index] && results[index].rows) || [];
-    sheets[tab.sheetName] = [
-      tab.headers.slice(),
-      ...rows.map(row => tab.columns.map(column => row[column]))
-    ];
+  const sheets = Object.fromEntries(tabs.map(tab => [tab.sheetName, [tab.headers.slice()]]));
+  resultsByBranch.forEach(({ branch: physicalBranch, results }) => {
+    tabs.forEach((tab, index) => {
+      const rows = (results[index] && results[index].rows) || [];
+      const branchIndex = tab.headers.indexOf('Chi nhánh');
+      rows.forEach(row => {
+        const values = tab.columns.map(column => row[column]);
+        if (scope.length > 1 && branchIndex >= 0) values[branchIndex] = physicalBranch;
+        sheets[tab.sheetName].push(values);
+      });
+    });
   });
   return sheets;
 }

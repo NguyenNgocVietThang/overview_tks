@@ -138,3 +138,40 @@ test('listPurchaseOrders: doc thang tu purchases (khong dung bang rollup), truye
     code: 'PN-01', date: '10/08/2026 09:00', supplier: 'NCC A', branch: 'Hà Nội', total: 500000, status: 'Hoàn thành'
   }]);
 });
+
+test('getInvoiceRevenueByDay: Ca hai cong bucket trung ngay sau khi doc tung co so vat ly', async () => {
+  const pool = {
+    calls: [],
+    async query(sql, params) {
+      this.calls.push({ sql, params });
+      return { rows: [{ date_key: '10/08/2026', revenue: params[0] === 'hanoi' ? '100' : '250', invoice_count: '1' }] };
+    }
+  };
+  const repository = createDashboardRollupRepository({ pool });
+
+  const rows = await repository.getInvoiceRevenueByDay({ branch: 'Cả hai', from: '2026-08-10', to: '2026-08-10' });
+
+  assert.deepEqual(pool.calls.map(call => call.params[0]), ['hanoi', 'saigon']);
+  assert.deepEqual(rows, [{ dateKey: '10/08/2026', revenue: 350, invoiceCount: 2 }]);
+});
+
+test('listPurchaseOrders: Ca hai giu hai phieu trung ma va gan co so vat ly', async () => {
+  const pool = {
+    calls: [],
+    async query(sql, params) {
+      this.calls.push({ sql, params });
+      return { rows: [{
+        code: 'PN-TRUNG', date: '10/08/2026 09:00', supplier: 'NCC A',
+        branch: 'ten-kho', total: params[0] === 'hanoi' ? '100' : '200', status: 'Hoàn thành'
+      }] };
+    }
+  };
+  const repository = createDashboardRollupRepository({ pool });
+
+  const rows = await repository.listPurchaseOrders({ branch: 'Cả hai' });
+
+  assert.deepEqual(rows.map(row => [row.code, row.branch, row.total]), [
+    ['PN-TRUNG', 'Hà Nội', 100],
+    ['PN-TRUNG', 'Sài Gòn', 200]
+  ]);
+});

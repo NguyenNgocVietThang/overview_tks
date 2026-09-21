@@ -690,6 +690,176 @@ test('dashboard ghép workflow theo cơ sở, phân quyền sửa và khóa khi 
   assert.ok(unavailable.debtManagement.dataWarnings.some(warning => warning.includes('trạng thái xử lý')));
 });
 
+test('Ca hai cong KPI/bucket va gop thuc the trung ma truoc khi xep hang', async () => {
+  const { dashboardData, dashboardPgReader, dashboardRollupRepository } = freshDashboardData();
+  const CONFIG = require('../config');
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  const productHeader = ['Mã hàng', 'Tên hàng', 'Nhóm hàng', 'Loại hàng', 'Giá vốn', 'Giá bán', 'Tồn kho', 'Khách đặt', 'Trạng thái', 'Ngày sửa cuối', 'Mã nhóm hàng'];
+  const customerHeader = ['Mã khách hàng', 'Tên khách hàng', 'Điện thoại', 'Nợ hiện tại'];
+  const supplierHeader = ['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Nợ cần trả'];
+  dashboardPgReader.readCoreDashboardSheets = async branch => {
+    const result = Object.fromEntries(dashboardPgReader.CORE_SHEET_NAMES.map(name => [name, []]));
+    result[CONFIG.SHEET_CATEGORIES] = [['Mã nhóm hàng', 'Tên nhóm hàng', 'Mã nhóm cha']];
+    result[CONFIG.SHEET_PRODUCTS] = branch === BRANCHES.HANOI
+      ? [productHeader, ['SP-1', 'Tên Hà Nội', '', 'Hàng hóa', 10, 20, 2, 0, 'Đang kinh doanh', '', ''], ['SP-2', 'SP 2', '', 'Hàng hóa', 10, 20, 1, 0, 'Đang kinh doanh', '', '']]
+      : [productHeader, ['SP-1', 'Tên Sài Gòn', '', 'Hàng hóa', 10, 20, 3, 0, 'Đang kinh doanh', '', ''], ['SP-3', 'SP 3', '', 'Hàng hóa', 10, 20, 4, 0, 'Đang kinh doanh', '', '']];
+    result[CONFIG.SHEET_CUSTOMERS] = branch === BRANCHES.HANOI
+      ? [customerHeader, ['KH-1', 'Khách Hà Nội', '0901', 100], ['KH-2', 'Khách 2', '0902', 50]]
+      : [customerHeader, ['KH-1', 'Khách Sài Gòn', '0901', 200], ['KH-3', 'Khách 3', '0903', 70]];
+    result[CONFIG.SHEET_SUPPLIERS] = branch === BRANCHES.HANOI
+      ? [supplierHeader, ['NCC-1', 'NCC Hà Nội', '', '', 300]]
+      : [supplierHeader, ['NCC-1', 'NCC Sài Gòn', '', '', 400], ['NCC-2', 'NCC 2', '', '', 50]];
+    return result;
+  };
+  mockDashboardRollups(dashboardRollupRepository, {
+    getInvoiceRevenueByDay: ({ branch }) => branch === BRANCHES.HANOI
+      ? [
+          { dateKey: '10/08/2026', revenue: 1000, invoiceCount: 1 },
+          { dateKey: '12/08/2026', revenue: 1200, invoiceCount: 1 }
+        ]
+      : [
+          { dateKey: '10/08/2026', revenue: 2500, invoiceCount: 1 },
+          { dateKey: '11/08/2026', revenue: 1100, invoiceCount: 1 }
+        ],
+    getProductSalesBreakdown: ({ branch }) => branch === BRANCHES.HANOI
+      ? [{ code: 'SP-1', name: 'Tên Hà Nội', qty: 1, revenue: 100 }, { code: 'SP-2', name: 'SP 2', qty: 1, revenue: 80 }]
+      : [{ code: 'SP-1', name: 'Tên Sài Gòn', qty: 2, revenue: 300 }]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData({
+    ...BASE_FILTERS,
+    overview: { mode: 'all' }, products: { mode: 'all' }, invoices: { mode: 'all' }
+  }, BRANCH_BOTH);
+
+  assert.equal(data.kpi.totalProducts, 3);
+  assert.equal(data.kpi.totalStock, 10);
+  assert.equal(data.kpi.totalCustomers, 3);
+  assert.equal(data.kpi.totalDebt, 420);
+  assert.equal(data.kpi.totalSuppliers, 2);
+  assert.equal(data.kpi.totalSupplierDebt, 750);
+  assert.deepEqual(data.overview.revenueByDay, [
+    { date: '10/08/2026', label: '10/08', revenue: 3500, count: 2 },
+    { date: '11/08/2026', label: '11/08', revenue: 1100, count: 1 },
+    { date: '12/08/2026', label: '12/08', revenue: 1200, count: 1 }
+  ]);
+  assert.deepEqual(data.products.topSellingProducts[0], { code: 'SP-1', name: 'Tên Hà Nội', qty: 3, revenue: 400 });
+  assert.equal(data.allProducts.find(product => product.code === 'SP-1').name, 'Tên Hà Nội');
+  assert.equal(data.suppliers.find(supplier => supplier.code === 'NCC-1').name, 'NCC Hà Nội');
+});
+
+test('Ca hai giu giao dich trung ma theo (co so, ma) va gan provenance', async () => {
+  const { dashboardData, dashboardPgReader, dashboardRollupRepository } = freshDashboardData();
+  const CONFIG = require('../config');
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  dashboardPgReader.readCoreDashboardSheets = async branch => {
+    const result = Object.fromEntries(dashboardPgReader.CORE_SHEET_NAMES.map(name => [name, []]));
+    result[CONFIG.SHEET_CATEGORIES] = [['Mã nhóm hàng', 'Tên nhóm hàng', 'Mã nhóm cha']];
+    result[CONFIG.SHEET_PRODUCTS] = [['Mã hàng', 'Tên hàng', 'Nhóm hàng', 'Loại hàng', 'Giá vốn', 'Giá bán', 'Tồn kho', 'Khách đặt', 'Trạng thái']];
+    result[CONFIG.SHEET_CUSTOMERS] = [['Mã khách hàng', 'Tên khách hàng', 'Điện thoại', 'Nợ hiện tại']];
+    result[CONFIG.SHEET_SUPPLIERS] = [['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Nợ cần trả']];
+    result[CONFIG.SHEET_INVOICES] = [
+      ['Mã hóa đơn', 'Ngày bán', 'Khách hàng', 'SĐT khách', 'Nhân viên bán', 'Chi nhánh', 'Tổng tiền hàng', 'Giảm giá', 'Khách đã trả', 'Trạng thái'],
+      ['HD-TRUNG', '10/08/2026 10:00:00', 'Khách', '', '', '', branch === BRANCHES.HANOI ? 100 : 200, 0, 0, 'Hoàn thành']
+    ];
+    result[CONFIG.SHEET_ORDERS] = [
+      ['Mã đặt hàng', 'Ngày đặt', 'Khách hàng', 'Nhân viên lập', 'Chi nhánh', 'Tổng tiền', 'Trạng thái'],
+      ['DH-TRUNG', '10/08/2026 11:00:00', 'Khách', '', '', 10, 'Phiếu tạm']
+    ];
+    result[CONFIG.SHEET_RETURNS] = [
+      ['Mã trả hàng', 'Ngày trả', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái', 'Chi nhánh'],
+      ['TH-TRUNG', '10/08/2026 12:00:00', 'Khách', 5, 'Đã trả', '']
+    ];
+    return result;
+  };
+  mockDashboardRollups(dashboardRollupRepository, {
+    getInvoiceQuantitiesByCode: ({ branch }) => [{ code: 'HD-TRUNG', quantity: branch === BRANCHES.HANOI ? 1 : 2 }],
+    listPurchaseOrders: ({ branch }) => [{ code: 'PN-TRUNG', date: '10/08/2026 13:00', supplier: 'NCC', branch: 'ten-kho', total: 7, status: 'Hoàn thành' }]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData({
+    ...BASE_FILTERS, invoices: { mode: 'all' }, newPurchases: { mode: 'all' }
+  }, BRANCH_BOTH);
+
+  assert.deepEqual(data.invoices.transactionsReport.transactions.map(row => [row.code, row.branch, row.quantity]), [
+    ['HD-TRUNG', BRANCHES.HANOI, 1], ['HD-TRUNG', BRANCHES.SAIGON, 2]
+  ]);
+  assert.deepEqual(data.invoices.periodOrders.map(row => [row.code, row.branch]), [
+    ['DH-TRUNG', BRANCHES.HANOI], ['DH-TRUNG', BRANCHES.SAIGON]
+  ]);
+  assert.deepEqual(data.invoices.periodReturns.map(row => [row.code, row.branch]), [
+    ['TH-TRUNG', BRANCHES.HANOI], ['TH-TRUNG', BRANCHES.SAIGON]
+  ]);
+  assert.deepEqual(data.newPurchases.orders.map(row => [row.code, row.branch]), [
+    ['PN-TRUNG', BRANCHES.HANOI], ['PN-TRUNG', BRANCHES.SAIGON]
+  ]);
+});
+
+test('cache Ca hai co scope rieng va doi key khi version mot nguon vat ly thay doi', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  const calls = { [BRANCHES.HANOI]: 0, [BRANCHES.SAIGON]: 0 };
+  dashboardPgReader.readCoreDashboardSheets = async branch => {
+    calls[branch] += 1;
+    return Object.fromEntries(dashboardPgReader.CORE_SHEET_NAMES.map(name => [name, []]));
+  };
+  dashboardData.__test__.resetCaches();
+
+  await dashboardData.getDashboardData(BASE_FILTERS, BRANCHES.HANOI);
+  await dashboardData.getDashboardData(BASE_FILTERS, BRANCHES.SAIGON);
+  const physicalComputeCount = dashboardData.__test__.getComputeCallCount();
+  await dashboardData.getDashboardData(BASE_FILTERS, BRANCH_BOTH);
+  const aggregateComputeCount = dashboardData.__test__.getComputeCallCount();
+  await dashboardData.getDashboardData(BASE_FILTERS, BRANCH_BOTH);
+
+  assert.equal(aggregateComputeCount, physicalComputeCount + 1);
+  assert.equal(dashboardData.__test__.getComputeCallCount(), aggregateComputeCount, 'lan hai phai dung aggregate cache');
+  dashboardData.__test__.expireSheetsCache(BRANCHES.SAIGON);
+  await dashboardData.getDashboardData(BASE_FILTERS, BRANCH_BOTH);
+  assert.deepEqual(calls, { [BRANCHES.HANOI]: 1, [BRANCHES.SAIGON]: 2 });
+  assert.equal(dashboardData.__test__.getComputeCallCount(), aggregateComputeCount + 1);
+});
+
+test('Ca hai giu cong no nguon con lai khi mot workbook loi va neu ro nguon that bai', async () => {
+  const { dashboardData, debtManagementSheetsClient } = freshDashboardData();
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  debtManagementSheetsClient.getDebtManagementSheet = async branch => {
+    if (branch === BRANCHES.SAIGON) throw new Error('Workbook SG lỗi');
+    return {
+      sourceSheet: 'Công nợ HN',
+      rows: [
+        ['Khách hàng', 'Sale', 'Lịch TT HN', 'Nợ đầu kỳ', 'Nợ hiện tại', 'Nợ quá hạn', '% nợ/Doanh số', '% quá hạn / TB DS', 'TB'],
+        ['TỔNG'],
+        ['Khách A', 'Lan', 7, 10, 500000, 100000, 0.5, 0.1, 1000000]
+      ]
+    };
+  };
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData(BASE_FILTERS, BRANCH_BOTH);
+
+  assert.equal(data.debtManagement.available, true);
+  assert.equal(data.debtManagement.kpi.totalCurrentDebt, 500000);
+  assert.deepEqual(data.debtManagement.sources.map(source => [source.branch, source.available]), [
+    [BRANCHES.HANOI, true], [BRANCHES.SAIGON, false]
+  ]);
+  assert.ok(data.debtManagement.dataWarnings.some(warning => warning.includes('Sài Gòn') && warning.includes('Workbook SG lỗi')));
+  assert.deepEqual(data.debtManagement.customers[0].branchDetails.map(detail => detail.branch), [BRANCHES.HANOI]);
+});
+
+test('Ca hai fail request neu nguon van han cua mot co so loi', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  dashboardPgReader.readCoreDashboardSheets = async branch => {
+    if (branch === BRANCHES.SAIGON) throw new Error('Supabase SG lỗi');
+    return Object.fromEntries(dashboardPgReader.CORE_SHEET_NAMES.map(name => [name, []]));
+  };
+  dashboardData.__test__.resetCaches();
+
+  await assert.rejects(dashboardData.getDashboardData(BASE_FILTERS, BRANCH_BOTH), /Supabase SG lỗi/);
+});
+
 // ===== getCustomerProductRevenueReport (tab Khach hang, phan 4) =====
 
 const INVOICE_HEADERS = [
