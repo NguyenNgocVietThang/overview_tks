@@ -21,7 +21,7 @@ const debtCollectionStatusRepository = require('./debtCollectionStatusRepository
 const { deriveDebtManagement } = require('./debtManagement');
 
 const OUT_OF_STOCK_LEVEL = 0;
-const TOP_SELLING_LIMIT = 10;
+const TOP_SELLING_LIMIT = 15;
 const NEWLY_IMPORTED_REVENUE_LIMIT = 15;
 const MAX_PARENT_CATEGORY_BARS = 30;
 const NEW_PURCHASES_SUPPLIER_LIMIT = 30; // top NCC cho bieu do 2 cot
@@ -849,7 +849,7 @@ async function getCachedDashboardSheets(branch) {
 // tung can 2 tab nay trong computeDashboardData() gio doc tu
 // dashboardRollupRepository.js thay the. KHONG goi rememberSearchSheets() —
 // chi muc tim kiem van chi xay tu cache "full" (getCachedDashboardSheets),
-// dung cho /api/search + /api/export nhu cu.
+// dung cho /api/search (xuat Excel khong con dung cache nay, xem exportService.js).
 let dashboardCoreSheetsCacheByBranch = new Map();
 
 function dashboardCoreSheetsCacheFor(branch) {
@@ -1634,8 +1634,8 @@ async function getProductRevenueDetail(code, branch, now = new Date()) {
 }
 
 /**
- * Bao cao chi tiet giao dich trong `range` cho tab Tong quan (thay cho khai
- * niem "cuoi ngay" co dinh truoc day). Tong hop (summary) luon tinh tren TOAN
+ * Bao cao chi tiet giao dich trong `range` cho tab Hoa don (truoc day nam o tab
+ * Tong quan, thay cho khai niem "cuoi ngay" co dinh). Tong hop (summary) luon tinh tren TOAN
  * BO giao dich trong ky; danh sach chi tiet (transactions) gioi han
  * MAX_REPORT_TRANSACTIONS dong gan nhat de khong lam nang trang khi chon ky dai.
  */
@@ -1728,7 +1728,7 @@ async function fetchDashboardRollups(branch, { overviewRange, productsRange, inv
     dashboardRollupRepository.getFirstPurchaseDates({ branch }),
     dashboardRollupRepository.getPurchaseTotals({ branch }),
     dashboardRollupRepository.listPurchaseOrders({ branch, from: newPurchasesBounds.from, to: newPurchasesBounds.to }),
-    dashboardRollupRepository.getInvoiceQuantitiesByCode({ branch, from: overviewBounds.from, to: overviewBounds.to })
+    dashboardRollupRepository.getInvoiceQuantitiesByCode({ branch, from: invoicesBounds.from, to: invoicesBounds.to })
   ]);
 
   return {
@@ -1787,34 +1787,6 @@ async function getDashboardData(filters, branch, viewer) {
     dashboardResultCache.delete(dashboardResultCache.keys().next().value);
   }
   return data;
-}
-
-/**
- * Snapshot dung rieng cho xuat file: du lieu dashboard da tinh va cac dong
- * Google Sheets goc phai cung mot phien ban cache de viec noi them cot khong
- * bi lech khi Sheets vua duoc dong bo giua hai request. Van dung cache "full"
- * (9 tab) cho `sheets` — /api/export can ca "Chi tiết hóa đơn"/"Nhập hàng" o
- * cho khac (exportService.js), du computeDashboardData() gio khong con doc 2
- * tab do nua cho cac khoi da chuyen sang rollup.
- */
-async function getDashboardExportSnapshot(filters, branch) {
-  const f = filters || {};
-  const now = new Date();
-  const overviewRange = resolveFilterRange(f.overview, now);
-  const productsRange = resolveFilterRange(f.products, now);
-  const invoicesRange = resolveFilterRange(f.invoices, now);
-  const newPurchasesRange = resolveFilterRange(f.newPurchases, now);
-
-  const [sheets, debtManagementSource, debtWorkflow, rollups] = await Promise.all([
-    getCachedDashboardSheets(branch),
-    getCachedDebtManagementSource(branch),
-    getCachedDebtWorkflow(branch),
-    fetchDashboardRollups(branch, { overviewRange, productsRange, invoicesRange, newPurchasesRange })
-  ]);
-  // Tinh truc tiep tu chinh object `sheets` vua lay thay vi goi lai wrapper
-  // cache; nhu vay du lieu goc va tap dong da loc chac chan cung mot snapshot.
-  const dashboard = computeDashboardData(sheets, f, now, debtManagementSource, branch, debtWorkflow, false, rollups);
-  return { sheets, dashboard, debtManagementSource };
 }
 
 /**
@@ -2011,7 +1983,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   // ---------- HÓA ĐƠN: index 1 lần, dùng lại cho mọi bộ lọc ----------
   // Cột: [0]Mã hóa đơn [1]Ngày bán [2]Khách hàng [3]SĐT khách [4]Nhân viên bán [5]Chi nhánh [6]Tổng tiền hàng [7]Giảm giá [8]Khách đã trả [9]Trạng thái
   // Tong so luong tung hoa don de bao cao co cot SL nhu KiotViet — truy van
-  // rieng, gioi han theo overviewRange (dashboardRollupRepository truy van
+  // rieng, gioi han theo invoicesRange (dashboardRollupRepository truy van
   // truc tiep invoice_details/invoices, KHONG dung "Chi tiết hóa đơn" da bo
   // khoi cache "core"; xem fetchDashboardRollups()).
   const invoiceQuantityMap = new Map();
@@ -2067,17 +2039,12 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   // (rollup, chi gom status=3 Hoan thanh, xem dashboardRollupRepository.getInvoiceRevenueByDay())
   // thay vi tu gom lai `invoiceRecords` trong JS moi request.
   const overviewPeriod = buildRevenuePeriodFromRollup(overviewRange, (rollups && rollups.overviewRevenueRows) || []);
-  const overviewReport = buildTransactionsReport(overviewRange, invoiceRecords, invoiceQuantityMap);
+  const transactionsReport = buildTransactionsReport(invoicesRange, invoiceRecords, invoiceQuantityMap);
 
   const invoicesPeriod = buildRevenuePeriodFromRollup(invoicesRange, (rollups && rollups.invoicesRevenueRows) || []);
   const periodCancelledInvoices = invoiceRecords.filter(
     record => record.isCancelled && isWithinRange(record._dt, invoicesRange)
   ).length;
-  const recentInvoices = invoiceRecords
-    .filter(r => isWithinRange(r._dt, invoicesRange))
-    .sort((a, b) => b._sortTime - a._sortTime)
-    .slice(0, 8)
-    .map(r => ({ code: r.code, customer: r.customer, total: r.total, status: r.status, time: r.time }));
 
   // ---------- SẢN PHẨM BÁN CHẠY -> TOP SẢN PHẨM/NHÓM HÀNG (theo bộ lọc Hàng hóa) ----------
   // Nguon: daily_product_sales (rollup, da tong hop san theo ma hang cho
@@ -2267,10 +2234,10 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   ordersInRange.forEach(o => {
     if (PENDING_ORDER_STATUSES.has(o.status)) { pendingOrdersCount++; pendingOrdersTotal += o.total; }
   });
-  const recentOrders = ordersInRange
+  // Toan bo dat hang trong khoang loc (khong cat top-N) — bang FE tu phan trang 100 dong/trang.
+  const periodOrders = ordersInRange
     .slice()
     .sort((a, b) => b._sortTime - a._sortTime)
-    .slice(0, 8)
     .map(({ _dt, _sortTime, ...rest }) => rest);
 
   // ---------- TRẢ HÀNG (theo bộ lọc Hóa đơn) ----------
@@ -2299,10 +2266,10 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const returnsInRange = returnRecords.filter(rt => isWithinRange(rt._dt, invoicesRange));
   const returnsCount = returnsInRange.length;
   const totalReturns = returnsInRange.reduce((sum, rt) => sum + rt.total, 0);
-  const recentReturns = returnsInRange
+  // Toan bo tra hang trong khoang loc (khong cat top-N).
+  const periodReturns = returnsInRange
     .slice()
     .sort((a, b) => b._sortTime - a._sortTime)
-    .slice(0, 8)
     .map(({ _dt, _sortTime, ...rest }) => rest);
 
   // ---------- KHÁCH HÀNG ----------
@@ -2392,7 +2359,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const purchaseOrdersCount = purchaseTotalsRollup.orderCount;
   const totalPurchaseSpend = purchaseTotalsRollup.total;
 
-  // ---------- HÀNG NHẬP (tab Tổng quan) ----------
+  // ---------- HÀNG NHẬP (tab Nhà cung cấp) ----------
   // Danh sach PHIEU NHAP rieng le trong newPurchasesRange — tu
   // dashboardRollupRepository.listPurchaseOrders() (doc THANG tu bang
   // `purchases`, KHONG dung bang rollup gom theo NCC vi can giu dung tung
@@ -2455,16 +2422,15 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     overview: {
       revenueByDay: overviewPeriod.revenueByDay,
       periodRevenue: overviewPeriod.periodRevenue,
-      periodInvoices: overviewPeriod.periodInvoices,
-      endOfDayReport: overviewReport,
-      todayNewProducts: {
+      periodInvoices: overviewPeriod.periodInvoices
+    },
+    products: {
+      newProducts: {
         label: newProductsRange.label,
         count: todayNewProductRows.length,
         dateColumnAvailable: productCreatedDateIndex >= 0,
         products: todayNewProductRows
-      }
-    },
-    products: {
+      },
       topSellingProducts,
       topSellingParentCategories,
       childCategorySalesByParent,
@@ -2485,9 +2451,9 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       periodRevenue: invoicesPeriod.periodRevenue,
       periodInvoices: invoicesPeriod.periodInvoices,
       periodCancelledInvoices,
-      recentInvoices,
-      recentOrders,
-      recentReturns,
+      transactionsReport,
+      periodOrders,
+      periodReturns,
       pendingOrdersCount,
       pendingOrdersTotal,
       returnsCount,
@@ -2527,7 +2493,6 @@ function invalidateDebtWorkflowCache(branch) {
 
 module.exports = {
   getDashboardData,
-  getDashboardExportSnapshot,
   invalidateDebtWorkflowCache,
   searchDashboardRecords,
   searchTopCustomersByProducts,
@@ -2548,7 +2513,7 @@ module.exports = {
       searchIndexBuildCountForTest = 0;
       computeCallCountForTest = 0;
     },
-    // Cache "core" (7/9 tab) — dung cho getDashboardData()/getDashboardExportSnapshot.
+    // Cache "core" (7/9 tab) — dung cho getDashboardData() (kem xuat Excel qua exportService.js).
     expireSheetsCache(branch) {
       dashboardCoreSheetsCacheFor(branch).expiresAt = 0;
     },
@@ -2559,7 +2524,7 @@ module.exports = {
     expireSheetsCacheSoftly(branch) {
       dashboardCoreSheetsCacheFor(branch).expiresAt = Date.now() - 1000;
     },
-    // Cache "full" (9 tab) — dung cho /api/search + /api/export.
+    // Cache "full" (9 tab) — dung cho /api/search.
     expireFullSheetsCache(branch) {
       dashboardSheetsCacheFor(branch).expiresAt = 0;
     },

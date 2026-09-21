@@ -28,7 +28,7 @@
 ### 2.1 Rich Aesthetics & Visual Excellence (Thẩm mỹ Cao cấp & Đẳng cấp)
 - **Ấn tượng thị giác mạnh mẽ (WOW factor):** Giao diện phải mang lại cảm giác hiện đại, chỉn chu ngay từ cái nhìn đầu tiên với chiều sâu không gian, gradient tinh tế và đường viền phát sáng nhẹ (ambient glow/subtle border).
 - **Tránh màu sắc thô, đơn điệu (No Generic Colors):** Tuyệt đối không dùng các màu cơ bản (plain red, plain blue, plain green). Bắt buộc sử dụng bảng màu được phối hợp hài hòa (Curated Palettes: Deep Sapphire, Emerald Green, Warm Amber, Slate Obsidian).
-- **Typography hiện đại:** Sử dụng bộ font thương hiệu chuẩn quốc tế kết hợp hỗ trợ tiếng Việt tối đa (`Be Vietnam Pro` cho tiêu đề, `Inter` cho nội dung, `IBM Plex Mono` cho số liệu tài chính/tồn kho).
+- **Typography hiện đại:** Sử dụng bộ font thương hiệu chuẩn quốc tế kết hợp hỗ trợ tiếng Việt tối đa (`Be Vietnam Pro` cho tiêu đề, `Inter` cho nội dung, `Roboto` cho số liệu tài chính/tồn kho).
 - **Không sử dụng hình ảnh/icon tạm bợ (No Placeholders):** Tuyệt đối không dùng emoji làm icon hoặc placeholder sơ sài. Mọi icon phải là SVG chuẩn (Heroicons / Lucide phong cách đồng nhất).
 
 ### 2.2 Dynamic & Alive (Giao diện Sống động & Phản hồi Tức thì)
@@ -109,20 +109,20 @@
 
 - **Display & Heading Font:** `Be Vietnam Pro` (Weights: 600, 700, 800) — Thiết kế cho các tiêu đề `<h1>`–`<h4>`, Action Buttons, Modal Headers; hỗ trợ hoàn hảo dấu tiếng Việt.
 - **Body Font:** `Inter` (Weights: 400, 500, 600, 700) — Dành cho văn bản hiển thị chung, nhãn form, bảng dữ liệu mô tả.
-- **Data & Numeric Font:** `IBM Plex Mono` (Weights: 500, 600, 700) — Dành cho số lượng kho, mã SKU, barcode, đơn giá tiền tệ VNĐ, tỷ lệ %, đồng hồ thời gian thực (`font-variant-numeric: tabular-nums`).
+- **Data & Numeric Font:** `Roboto` (Weights: 400, 500, 600, 700) — Dành cho số lượng kho, mã SKU, barcode, đơn giá tiền tệ VNĐ, tỷ lệ %, đồng hồ thời gian thực (`font-variant-numeric: tabular-nums`).
 
 ```html
 <!-- Google Fonts Embed Link -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
 ```
 
 ```css
 :root {
   --font-display: 'Be Vietnam Pro', sans-serif;
   --font-body: 'Inter', sans-serif;
-  --font-data: 'IBM Plex Mono', monospace;
+  --font-data: 'Roboto', sans-serif;
 }
 ```
 

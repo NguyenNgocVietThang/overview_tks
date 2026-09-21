@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/shared/shared.css?v=20260914">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
   <style>
 
     :root {
@@ -74,7 +74,7 @@
       --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
       --font-display: 'Be Vietnam Pro', sans-serif;
       --font-body: 'Inter', sans-serif;
-      --font-data: 'IBM Plex Mono', monospace;
+      --font-data: 'Roboto', sans-serif;
 
       /* Spacing scale (see design-system/tks-dashboard/MASTER.md — Spacing Variables) */
       --space-xs: 2px;
@@ -1379,8 +1379,18 @@
       grid-column: span 7;
     }
 
+    /* Hai bảng chi tiết ngang hàng chia đôi đều nhau; xuống hàng sớm hơn .col-6
+       vì mỗi bảng có 6 cột, hẹp hơn 1180px sẽ bị chật. */
+    .col-half {
+      grid-column: span 6;
+    }
+
     .col-8 {
       grid-column: span 8;
+    }
+
+    .col-9 {
+      grid-column: span 9;
     }
 
     .col-12 {
@@ -1398,7 +1408,9 @@
 
       .col-5,
       .col-7,
-      .col-8 {
+      .col-8,
+      .col-9,
+      .col-half {
         grid-column: span 12;
       }
     }
@@ -1410,7 +1422,8 @@
       .col-5,
       .col-6,
       .col-7,
-      .col-8 {
+      .col-8,
+      .col-9 {
         grid-column: span 12;
       }
     }
@@ -1647,6 +1660,26 @@
       font: 500 11.5px var(--font-body);
     }
 
+    /* Nut × tuy chinh (.table-search-clear) da co san — an nut × mac dinh
+       cua trinh duyet de khong hien 2 dau × khac nhau. */
+    .table-search-input[type="search"] {
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    .table-search-input[type="search"]::-webkit-search-cancel-button,
+    .table-search-input[type="search"]::-webkit-search-decoration {
+      display: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .table-search-input[type="search"]::-ms-clear {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+
     .table-search-clear {
       width: 28px;
       height: 28px;
@@ -1757,6 +1790,15 @@
       margin-bottom: 6px;
     }
 
+    /* Chú thích mô tả nguồn dữ liệu / cách quét — chữ nhỏ, xám, căn trái */
+    .stockout-note {
+      margin: 0 0 6px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 400;
+      line-height: 1.5;
+    }
+
     .stockout-progress-bar {
       width: 100%;
       height: 8px;
@@ -1802,8 +1844,9 @@
       align-items: center;
       justify-content: center;
       padding: 20px;
-      background: rgba(5, 10, 18, .68);
-      backdrop-filter: blur(3px);
+      /* Khong dung backdrop-filter: lop mo toan man hinh buoc trinh duyet ve lai ca trang dashboard
+         (nhieu bieu do + bang) moi khung hinh khi hop thoai dang mo; chi dung nen toi mo la du. */
+      background: rgba(5, 10, 18, .74);
     }
 
     .export-modal-backdrop[hidden] {
@@ -1996,6 +2039,7 @@
     }
 
     .export-cancel,
+    .export-retry,
     .export-confirm {
       min-height: 36px;
       padding: 0 14px;
@@ -2006,10 +2050,15 @@
       font-weight: 650;
     }
 
-    .export-cancel {
+    .export-cancel,
+    .export-retry {
       border: 1px solid var(--border);
       background: var(--panel-2);
       color: var(--text);
+    }
+
+    .export-retry {
+      border-color: var(--green);
     }
 
     .export-confirm {
@@ -2220,7 +2269,8 @@
       height: 380px;
     }
 
-    .chart-box.newly-imported-top {
+    .chart-box.newly-imported-top,
+    .chart-box.top-selling-top {
       height: 420px;
     }
 
@@ -2240,12 +2290,22 @@
     }
 
     .newly-imported-feature-panel,
-    .newly-imported-table-panel {
+    .newly-imported-table-panel,
+    .top-selling-feature-panel,
+    .top-selling-table-panel {
       align-self: stretch;
     }
 
     .newly-imported-table-scroll {
       max-height: 420px;
+    }
+
+    /* .scroll-list (max-height 340px) khai báo sau nên thắng selector đơn lớp;
+       .panel> tăng độ ưu tiên; flex-basis 0 để bảng không tự làm cao hàng lưới mà
+       lấp đầy đúng chiều cao panel biểu đồ bên cạnh (420px + tiêu đề) rồi cuộn. */
+    .panel>.top-selling-table-scroll {
+      flex: 1 1 0;
+      max-height: none;
     }
 
     .chart-empty {
@@ -2314,6 +2374,22 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .end-day-stat.accent-green .number {
+      color: var(--green);
+    }
+
+    .end-day-stat.accent-blue .number {
+      color: var(--blue);
+    }
+
+    .end-day-stat.accent-red .number {
+      color: var(--red);
+    }
+
+    .end-day-stat.accent-amber .number {
+      color: var(--amber);
+    }
+
     .end-day-stat .note {
       display: block;
       margin-top: 4px;
@@ -2357,6 +2433,29 @@
     .transaction-analysis-grid>.panel {
       height: 100%;
       margin-bottom: 0;
+    }
+
+    /* Tab Hoa don: bieu do doanh thu (trai) gian cao bang panel "Chi so then chot" (phai) */
+    .invoice-trend-grid {
+      align-items: stretch;
+    }
+
+    .invoice-trend-grid>.panel {
+      margin-bottom: 0;
+    }
+
+    @media (max-width:1180px) {
+      .invoice-trend-grid>.col-3 {
+        grid-column: span 12;
+      }
+    }
+
+    .invoice-trend-grid .end-day-summary.stack {
+      gap: 8px;
+    }
+
+    .invoice-trend-grid .end-day-stat {
+      padding: 9px 14px;
     }
 
     .top-transactions-chart {
@@ -2531,16 +2630,16 @@
       border-bottom: 1px solid var(--border);
       white-space: nowrap;
       vertical-align: middle;
-      text-align: center;
+      text-align: left;
     }
 
     .sort-button {
       display: inline-flex;
       align-items: center;
-      /* can giua nhan cot + mui ten sap xep nhu 1 khoi — thead th da doi
-         sang text-align:center nhung .sort-button la flex container nen
-         text-align cua the cha khong tu can no, phai tu dat justify-content. */
-      justify-content: center;
+      /* can trai nhan cot + mui ten sap xep nhu 1 khoi — .sort-button la
+         flex container nen text-align cua the cha khong tu can no, phai tu
+         dat justify-content. */
+      justify-content: flex-start;
       gap: 0;
       background: none;
       border: none;
@@ -2587,7 +2686,7 @@
       border-bottom: 1px solid var(--row-divider);
       vertical-align: middle;
       font-size: 13px;
-      text-align: center;
+      text-align: left;
     }
 
     tbody tr:last-child td {
@@ -2601,7 +2700,7 @@
     }
 
     td.mono {
-      text-align: center;
+      text-align: left;
     }
 
     .name-cell {
@@ -2863,9 +2962,10 @@
       justify-content: center;
       gap: 10px;
       margin-top: 10px;
-      font-family: var(--font-body);
+      font-family: var(--font-data);
       font-size: 11.5px;
       color: var(--muted);
+      font-variant-numeric: tabular-nums;
     }
 
     .pagination-controls button {
@@ -2879,9 +2979,10 @@
       border-radius: var(--radius-7);
       background: var(--panel-2);
       color: var(--text);
-      font-family: var(--font-body);
+      font-family: var(--font-data);
       font-size: 12.5px;
       font-weight: 600;
+      font-variant-numeric: tabular-nums;
       line-height: 1;
       cursor: pointer;
       transition: border-color .15s ease, opacity .15s ease;
@@ -3154,27 +3255,6 @@
             <div class="search-status" id="searchStatus" aria-live="polite">Có thể dùng phím ↑ ↓ để chọn gợi ý</div>
           </form>
 
-          <div class="filter-group" data-filter-view="overview" hidden>
-            <div class="mini-filter" data-filter-key="overview" style="margin:0; grid-row:3;">
-              <div class="period-toggle" data-mini-toggle>
-                <button type="button" data-days="1" onclick="setMiniFilterDays('overview',1)">1 ngày</button>
-                <button type="button" data-days="7" onclick="setMiniFilterDays('overview',7)">7 ngày</button>
-                <button type="button" data-days="30" class="active" onclick="setMiniFilterDays('overview',30)">30
-                  ngày</button>
-                <button type="button" data-days="90" onclick="setMiniFilterDays('overview',90)">90 ngày</button>
-                <button type="button" data-custom onclick="focusMiniFilterRange('overview')">Tùy chọn</button>
-                <button type="button" data-all onclick="setMiniFilterAll('overview')">Tất cả</button>
-              </div>
-              <div class="mini-filter-range">
-                <input type="date" class="mini-date" id="miniFrom-overview">
-                <span class="mini-filter-sep">đến</span>
-                <input type="date" class="mini-date" id="miniTo-overview">
-                <button type="button" class="mini-filter-apply" onclick="applyMiniFilterRange('overview')">Áp
-                  dụng</button>
-              </div>
-            </div>
-          </div>
-
           <div class="filter-group" data-filter-view="invoices" hidden>
             <div class="mini-filter" data-filter-key="invoices" style="margin:0; grid-row:3;">
               <div class="period-toggle" data-mini-toggle>
@@ -3191,6 +3271,27 @@
                 <span class="mini-filter-sep">đến</span>
                 <input type="date" class="mini-date" id="miniTo-invoices">
                 <button type="button" class="mini-filter-apply" onclick="applyMiniFilterRange('invoices')">Áp
+                  dụng</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="filter-group" data-filter-view="suppliers" hidden>
+            <div class="mini-filter" data-filter-key="suppliers" style="margin:0; grid-row:3;">
+              <div class="period-toggle" data-mini-toggle>
+                <button type="button" data-days="1" onclick="setMiniFilterDays('suppliers',1)">1 ngày</button>
+                <button type="button" data-days="7" onclick="setMiniFilterDays('suppliers',7)">7 ngày</button>
+                <button type="button" data-days="30" class="active" onclick="setMiniFilterDays('suppliers',30)">30
+                  ngày</button>
+                <button type="button" data-days="90" onclick="setMiniFilterDays('suppliers',90)">90 ngày</button>
+                <button type="button" data-custom onclick="focusMiniFilterRange('suppliers')">Tùy chọn</button>
+                <button type="button" data-all onclick="setMiniFilterAll('suppliers')">Tất cả</button>
+              </div>
+              <div class="mini-filter-range">
+                <input type="date" class="mini-date" id="miniFrom-suppliers">
+                <span class="mini-filter-sep">đến</span>
+                <input type="date" class="mini-date" id="miniTo-suppliers">
+                <button type="button" class="mini-filter-apply" onclick="applyMiniFilterRange('suppliers')">Áp
                   dụng</button>
               </div>
             </div>
@@ -3256,7 +3357,7 @@
         <!-- ============ TỔNG QUAN ============ -->
         <div class="view active" id="view-overview">
           <div class="view-title">Tổng quan</div>
-          <div class="view-sub">Chỉ số hôm nay → xu hướng doanh thu → phân tích giao dịch → chi tiết cuối ngày</div>
+          <div class="view-sub">Chỉ số hôm nay → báo cáo doanh thu theo khách và theo hàng → kiểm tra đứt hàng</div>
 
           <section class="section">
             <div class="section-head"><span class="section-step">1</span>
@@ -3452,7 +3553,7 @@
               <div class="panel col-12">
                 <div class="panel-head">
                   <h2>Kết quả tìm kiếm <span class="tag" id="prResultCount">—</span></h2>
-                  <div class="panel-head-actions"><button class="export-button" type="button"
+                  <div class="panel-head-actions"><button class="export-button" type="button" id="prExportButton"
                       onclick="openExportDialog('overview.productRevenueSearch')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button></div>
                 </div>
                 <div class="table-wrap scroll-list transaction-detail-scroll">
@@ -3476,7 +3577,7 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">4</span>
-              <h2>Kiểm tra đứt hàng <span class="section-note">đối chiếu trực tiếp KiotViet</span></h2>
+              <h2>Kiểm tra đứt hàng <span class="section-note">đối chiếu dữ liệu KiotViet đã đồng bộ</span></h2>
             </div>
             <div class="grid">
               <div class="panel col-12">
@@ -3486,7 +3587,7 @@
                 <div class="stockout-upload-row">
                   <button class="export-button" type="button" id="recentStockoutScanButton" onclick="startRecentStockoutScan()">Lấy danh sách đứt hàng gần đây</button>
                 </div>
-                <div class="table-note">Quét toàn bộ hàng hóa đang kinh doanh có tồn kho hiện tại = 0, liệt kê mã có số ngày đứt hàng liên tục (tính đến hôm nay) ≥ 5 ngày. Hàng hóa, Hóa đơn, Nhập hàng và Khách trả lấy trực tiếp từ API KiotViet; chỉ riêng Trả NCC lấy từ Sheet (KiotViet không có API cho mục này).</div>
+                <div class="stockout-note">Quét các hàng hóa đang kinh doanh có tồn kho hiện tại = 0 và liệt kê mã có số ngày đứt hàng liên tục (tính đến hôm nay) ≥ 5 ngày. Dữ liệu Hàng hóa, Hóa đơn, Nhập hàng và Khách trả lấy từ cơ sở dữ liệu đã đồng bộ với KiotViet (có thể chậm vài phút đến khoảng 20 phút); riêng Trả NCC lấy từ Google Sheet vì KiotViet không có API cho mục này.</div>
                 <div id="recentStockoutProgressBox" hidden>
                   <div class="table-note" id="recentStockoutProgressLabel">—</div>
                   <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="recentStockoutProgressFill"></div></div>
@@ -3527,7 +3628,7 @@
                 <div class="stockout-upload-row">
                   <button class="export-button" type="button" id="stockout90dScanButton" onclick="startStockout90dScan()">Kiểm tra đứt hàng 90 ngày</button>
                 </div>
-                <div class="table-note">Quét toàn bộ hàng hóa đang kinh doanh trong 90 ngày gần đây. Hàng hóa, Hóa đơn, Nhập hàng và Khách trả lấy trực tiếp từ API KiotViet; chỉ riêng Trả NCC lấy từ Sheet (KiotViet không có API cho mục này).</div>
+                <div class="stockout-note">Quét các hàng hóa đang kinh doanh và liệt kê những mã có đợt đứt hàng trong 90 ngày gần đây (tính cả hôm nay). Dữ liệu Hàng hóa, Hóa đơn, Nhập hàng và Khách trả lấy từ cơ sở dữ liệu đã đồng bộ với KiotViet (có thể chậm vài phút đến khoảng 20 phút); riêng Trả NCC lấy từ Google Sheet vì KiotViet không có API cho mục này.</div>
                 <div id="stockout90dProgressBox" hidden>
                   <div class="table-note" id="stockout90dProgressLabel">—</div>
                   <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="stockout90dProgressFill"></div></div>
@@ -3565,233 +3666,12 @@
               </div>
             </div>
           </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">5</span>
-              <h2>Xu hướng <span class="section-note">theo bộ lọc thời gian</span></h2>
-            </div>
-            <div class="grid">
-              <div class="panel col-8">
-                <div class="panel-head">
-                  <h2>Doanh thu theo ngày <span class="tag" id="tagOverviewPeriod">—</span></h2>
-                </div>
-                <div class="chart-box"><canvas id="chartOverviewRevenue" role="img"
-                    aria-label="Biểu đồ xu hướng doanh thu theo ngày"></canvas></div>
-              </div>
-              <div class="panel col-4">
-                <div class="panel-head">
-                  <h2>Toàn kỳ <span class="tag" id="tagEndOfDayDate">—</span></h2>
-                </div>
-                <div class="end-day-summary stack">
-                  <div class="end-day-stat">
-                    <span class="label">Giao dịch hoàn thành</span>
-                    <strong class="number" id="end-day-transactions">—</strong>
-                    <span class="note" id="end-day-cancelled">—</span>
-                  </div>
-                  <div class="end-day-stat">
-                    <span class="label">Doanh thu</span>
-                    <strong class="number" id="end-day-revenue">—</strong>
-                  </div>
-                  <div class="end-day-stat">
-                    <span class="label">Giảm giá</span>
-                    <strong class="number" id="end-day-discount">—</strong>
-                  </div>
-                  <div class="end-day-stat">
-                    <span class="label">Thực thu</span>
-                    <strong class="number" id="end-day-paid">—</strong>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">6</span>
-              <h2>Phân tích &amp; dữ liệu chi tiết <span class="section-note">giao dịch trong khoảng thời gian đã
-                  lọc</span></h2>
-            </div>
-            <div class="grid transaction-analysis-grid">
-              <div class="panel col-5">
-                <div class="panel-head">
-                  <h2>Top 15 giao dịch lớn nhất</h2>
-                  <span class="drill-hint" id="top-transactions-count">Xếp theo doanh thu · không gồm giao dịch đã
-                    hủy</span>
-                </div>
-                <div class="chart-box top-transactions-chart">
-                  <canvas id="chartTopTransactions" role="img"
-                    aria-label="Biểu đồ cột ngang top 15 giao dịch có doanh thu lớn nhất theo bộ lọc"></canvas>
-                </div>
-              </div>
-              <div class="panel col-7 end-day-table">
-                <div class="panel-head">
-                  <h2>Chi tiết giao dịch</h2>
-                  <div class="panel-head-actions"><span class="drill-hint" id="end-day-table-count">—</span><button
-                      class="export-button" type="button" onclick="openExportDialog('overview.transactions')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất
-                      Excel</button></div>
-                </div>
-                <div class="table-wrap scroll-list transaction-detail-scroll">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Mã giao dịch</th>
-                        <th>Thời gian</th>
-                        <th>Khách hàng</th>
-                        <th>Nhân viên bán hàng</th>
-                        <th>SL</th>
-                        <th>Doanh thu</th>
-                        <th>Giảm giá</th>
-                        <th>Thực thu</th>
-                        <th>Trạng thái</th>
-                      </tr>
-                    </thead>
-                    <tbody id="endOfDayRows">
-                      <tr>
-                        <td colspan="9" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                    <tfoot>
-                      <tr>
-                        <td colspan="4">Tổng theo bộ lọc</td>
-                        <td class="mono" id="end-day-total-qty">—</td>
-                        <td class="mono" id="end-day-total-revenue">—</td>
-                        <td class="mono" id="end-day-total-discount">—</td>
-                        <td class="mono" id="end-day-total-paid">—</td>
-                        <td></td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="endOfDayPagination" hidden>
-                  <button type="button" id="endOfDayFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="endOfDayPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="endOfDayPageLabel">Trang 1/1</span>
-                  <button type="button" id="endOfDayNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="endOfDayLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">7</span>
-              <h2>Hàng nhập <span class="section-note">tổng hợp và danh sách phiếu nhập hàng theo khoảng thời gian đã
-                  chọn ở trên</span></h2>
-            </div>
-            <div class="kpi-grid" style="margin-bottom:14px;">
-              <div class="kpi-card accent-amber col-4">
-                <div class="eyebrow">Tổng mã nhập hàng</div>
-                <div class="value" id="ov-purchase-count">—</div>
-                <div class="sub" id="ov-purchase-date">—</div>
-              </div>
-              <div class="kpi-card accent-green col-4">
-                <div class="eyebrow">Tổng tiền nhập</div>
-                <div class="value" id="ov-purchase-total">—</div>
-                <div class="sub">Tính trên các mã nhập trong khoảng đã chọn</div>
-              </div>
-              <div class="kpi-card accent-blue col-4">
-                <div class="eyebrow">Nhà cung cấp</div>
-                <div class="value" id="ov-purchase-suppliers">—</div>
-                <div class="sub">Có phát sinh nhập hàng trong khoảng đã chọn</div>
-              </div>
-            </div>
-            <div class="grid transaction-analysis-grid">
-              <div class="panel col-5">
-                <div class="panel-head">
-                  <h2>Nhập hàng theo nhà cung cấp</h2>
-                  <span class="drill-hint" id="ov-purchase-chart-hint">—</span>
-                </div>
-                <div class="chart-box">
-                  <canvas id="chartOverviewPurchases" role="img"
-                    aria-label="Biểu đồ nhập hàng theo nhà cung cấp"></canvas>
-                  <div class="chart-empty" id="overviewPurchaseChartEmpty" hidden>Chưa có dữ liệu nhập hàng trong khoảng
-                    đã chọn</div>
-                </div>
-              </div>
-              <div class="panel col-7">
-                <div class="panel-head">
-                  <h2>Danh sách nhập hàng <span class="tag" id="tagPurchases">—</span></h2>
-                  <div class="panel-head-actions"><span class="drill-hint" id="ov-purchase-table-count">—</span><button
-                      class="export-button" type="button" onclick="openExportDialog('overview.purchases')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất
-                      Excel</button></div>
-                </div>
-                <div class="scroll-list" style="max-height:420px;">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Mã nhập hàng</th>
-                        <th>Ngày nhập</th>
-                        <th>Nhà cung cấp</th>
-                        <th>Tổng tiền</th>
-                        <th>Trạng thái</th>
-                      </tr>
-                    </thead>
-                    <tbody id="overviewPurchaseRows">
-                      <tr>
-                        <td colspan="5" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="overviewPurchasePagination" hidden>
-                  <button type="button" id="overviewPurchaseFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="overviewPurchasePrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="overviewPurchasePageLabel">Trang 1/1</span>
-                  <button type="button" id="overviewPurchaseNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="overviewPurchaseLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">8</span>
-              <h2>Mã mới tạo <span class="section-note">các mã hàng có Ngày tạo trong khoảng thời gian đã chọn ở
-                  trên</span></h2>
-            </div>
-            <div class="grid">
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Danh sách mã mới <span class="tag" id="tagTodayNewProductsDate">—</span></h2>
-                  <div class="panel-head-actions"><span class="drill-hint" id="today-new-products-count">—</span><button
-                      class="export-button" type="button" onclick="openExportDialog('overview.new-products')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất
-                      Excel</button></div>
-                </div>
-                <div class="scroll-list" style="max-height:420px;">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Mã</th>
-                        <th>Tên</th>
-                        <th>Nhóm hàng</th>
-                        <th>Thời gian tạo mã</th>
-                        <th>Giá vốn</th>
-                        <th>Giá bán</th>
-                      </tr>
-                    </thead>
-                    <tbody id="todayNewProductRows">
-                      <tr>
-                        <td colspan="6" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="todayNewProductsPagination" hidden>
-                  <button type="button" id="todayNewProductsFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="todayNewProductsPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="todayNewProductsPageLabel">Trang 1/1</span>
-                  <button type="button" id="todayNewProductsNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="todayNewProductsLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-            </div>
-          </section>
         </div>
 
         <!-- ============ HÀNG HÓA ============ -->
         <div class="view" id="view-products">
           <div class="view-title">Hàng hóa</div>
-          <div class="view-sub">Chỉ số tồn kho → cơ cấu theo nhóm → sản phẩm bán chạy → chi tiết từng mã hàng</div>
+          <div class="view-sub">Chỉ số tồn kho → cơ cấu theo nhóm → sản phẩm bán chạy → chi tiết từng mã hàng → hàng mới nhập và mã mới tạo → nhóm con</div>
 
           <section class="section">
             <div class="section-head"><span class="section-step">1</span>
@@ -3844,22 +3724,23 @@
                 nhóm cha</button>
             </div>
             <div class="grid">
-              <div class="panel col-7">
+              <div class="panel col-7 top-selling-feature-panel">
                 <div class="panel-head">
                   <h2><span id="topSellingChartTitle">Top sản phẩm bán chạy</span> <span class="tag"
                       id="tagTopSelling">—</span></h2>
                 </div>
-                <div class="chart-box small"><canvas id="chartTopSelling"></canvas></div>
+                <div class="chart-box top-selling-top"><canvas id="chartTopSelling"></canvas></div>
               </div>
-              <div class="panel col-5">
+              <div class="panel col-5 top-selling-table-panel">
                 <div class="panel-head">
                   <h2 id="topSellingTableTitle">Chi tiết sản phẩm bán chạy</h2><button class="export-button"
                     type="button" onclick="openExportDialog('products.top-selling')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button>
                 </div>
-                <div class="scroll-list" style="max-height:220px;">
+                <div class="scroll-list top-selling-table-scroll">
                   <table>
                     <thead>
                       <tr>
+                        <th id="topSellingCodeHeader">Mã hàng</th>
                         <th id="topSellingNameHeader">Sản phẩm</th>
                         <th>SL bán</th>
                         <th>Doanh thu</th>
@@ -3867,7 +3748,7 @@
                     </thead>
                     <tbody id="topSellingRows">
                       <tr>
-                        <td colspan="3" class="table-note">Đang tải...</td>
+                        <td colspan="4" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -3888,7 +3769,7 @@
               <h2>Dữ liệu chi tiết <span class="section-note">hàng cần nhập gấp và toàn bộ danh mục</span></h2>
             </div>
             <div class="grid">
-              <div class="panel col-5">
+              <div class="panel col-half">
                 <div class="panel-head">
                   <h2>Hàng đã hết <span class="tag" id="tagLowStock">—</span></h2><button class="export-button"
                     type="button" onclick="openExportDialog('products.low-stock')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button>
@@ -3897,7 +3778,8 @@
                   <table>
                     <thead>
                       <tr>
-                        <th>Sản phẩm</th>
+                        <th>Mã hàng</th>
+                        <th>Tên sản phẩm</th>
                         <th>Loại</th>
                         <th>Trạng thái kinh doanh</th>
                         <th>Giá vốn</th>
@@ -3906,7 +3788,7 @@
                     </thead>
                     <tbody id="stockRows">
                       <tr>
-                        <td colspan="5" class="table-note">Đang tải...</td>
+                        <td colspan="6" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -3919,7 +3801,7 @@
                   <button type="button" id="stockLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
-              <div class="panel col-7">
+              <div class="panel col-half">
                 <div class="panel-head">
                   <h2>Tất cả mã hàng <span class="tag" id="tagAllProducts">—</span></h2>
                   <div class="panel-head-actions"><span class="drill-hint">Lọc theo trạng thái ở thanh bộ lọc phía
@@ -3930,7 +3812,8 @@
                   <table>
                     <thead>
                       <tr>
-                        <th>Sản phẩm</th>
+                        <th>Mã hàng</th>
+                        <th>Tên sản phẩm</th>
                         <th>Tồn</th>
                         <th>Đặt</th>
                         <th>Tỷ lệ</th>
@@ -3939,7 +3822,7 @@
                     </thead>
                     <tbody id="allProductRows">
                       <tr>
-                        <td colspan="5" class="table-note">Đang tải...</td>
+                        <td colspan="6" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4031,6 +3914,49 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">6</span>
+              <h2>Mã mới tạo <span class="section-note">các mã hàng có Ngày tạo trong khoảng thời gian đã chọn ở
+                  trên</span></h2>
+            </div>
+            <div class="grid">
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Danh sách mã mới <span class="tag" id="tagTodayNewProductsDate">—</span></h2>
+                  <div class="panel-head-actions"><span class="drill-hint" id="today-new-products-count">—</span><button
+                      class="export-button" type="button" onclick="openExportDialog('overview.new-products')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất
+                      Excel</button></div>
+                </div>
+                <div class="scroll-list" style="max-height:420px;">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Mã</th>
+                        <th>Tên</th>
+                        <th>Nhóm hàng</th>
+                        <th>Thời gian tạo mã</th>
+                        <th>Giá vốn</th>
+                        <th>Giá bán</th>
+                      </tr>
+                    </thead>
+                    <tbody id="todayNewProductRows">
+                      <tr>
+                        <td colspan="6" class="table-note">Đang tải...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="pagination-controls" id="todayNewProductsPagination" hidden>
+                  <button type="button" id="todayNewProductsFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="todayNewProductsPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                  <span id="todayNewProductsPageLabel">Trang 1/1</span>
+                  <button type="button" id="todayNewProductsNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="todayNewProductsLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-step">7</span>
               <h2>Chi tiết theo nhóm con <span class="section-note">chọn 1 nhóm cha để xem doanh thu và số lượng bán
                   theo nhóm con</span></h2>
             </div>
@@ -4103,53 +4029,121 @@
         <!-- ============ HÓA ĐƠN ============ -->
         <div class="view" id="view-invoices">
           <div class="view-title">Hóa đơn</div>
-          <div class="view-sub">Chỉ số bán hàng → xu hướng doanh thu → phân tích đơn chờ và trả hàng → chi tiết hóa đơn
+          <div class="view-sub">Chỉ số bán hàng → xu hướng doanh thu → giao dịch lớn nhất và chi tiết → phân tích đơn chờ và trả
+            hàng
           </div>
 
           <section class="section">
             <div class="section-head"><span class="section-step">1</span>
-              <h2>Chỉ số then chốt <span class="section-note">tổng hợp theo khoảng thời gian đang chọn</span></h2>
+              <h2>Xu hướng <span class="section-note">doanh thu theo ngày trong kỳ</span></h2>
             </div>
-            <div class="kpi-grid kpi-grid-5">
-              <div class="kpi-card accent-green col-4">
-                <div class="eyebrow">Doanh thu trong kỳ</div>
-                <div class="value" id="in-revenue">—</div>
-                <div class="sub" id="in-revenue-sub">—</div>
+            <div class="grid invoice-trend-grid">
+              <div class="panel col-9">
+                <div class="panel-head">
+                  <h2>Doanh thu theo ngày</h2>
+                  <span class="drill-hint">Đổi khoảng thời gian ở thanh bộ lọc phía trên</span>
+                </div>
+                <div class="chart-box"><canvas id="chartInvoiceRevenue"></canvas></div>
               </div>
-              <div class="kpi-card accent-blue col-4">
-                <div class="eyebrow">Hóa đơn hoàn thành trong kỳ</div>
-                <div class="value" id="in-period-invoices">—</div>
-                <div class="sub" id="in-period-sub">—</div>
-              </div>
-              <div class="kpi-card accent-red col-4">
-                <div class="eyebrow">Hóa đơn hủy trong kỳ</div>
-                <div class="value" id="in-cancelled">—</div>
-                <div class="sub" id="in-cancelled-sub">—</div>
-              </div>
-              <div class="kpi-card accent-amber col-6">
-                <div class="eyebrow">Đặt hàng đang chờ</div>
-                <div class="value" id="in-pending-count">—</div>
-                <div class="sub" id="in-pending-total">—</div>
-              </div>
-              <div class="kpi-card col-6">
-                <div class="eyebrow">Trả hàng</div>
-                <div class="value" id="in-returns-count">—</div>
-                <div class="sub" id="in-returns-total">—</div>
+              <div class="panel col-3">
+                <div class="panel-head">
+                  <h2>Chỉ số then chốt</h2>
+                  <span class="drill-hint">Theo khoảng thời gian đang chọn</span>
+                </div>
+                <div class="end-day-summary stack">
+                  <div class="end-day-stat accent-green">
+                    <span class="label">Doanh thu trong kỳ</span>
+                    <strong class="number" id="in-revenue">—</strong>
+                    <span class="note" id="in-revenue-sub">—</span>
+                  </div>
+                  <div class="end-day-stat accent-blue">
+                    <span class="label">Hóa đơn hoàn thành trong kỳ</span>
+                    <strong class="number" id="in-period-invoices">—</strong>
+                    <span class="note" id="in-period-sub">—</span>
+                  </div>
+                  <div class="end-day-stat accent-red">
+                    <span class="label">Hóa đơn hủy trong kỳ</span>
+                    <strong class="number" id="in-cancelled">—</strong>
+                    <span class="note" id="in-cancelled-sub">—</span>
+                  </div>
+                  <div class="end-day-stat accent-amber">
+                    <span class="label">Đặt hàng đang chờ</span>
+                    <strong class="number" id="in-pending-count">—</strong>
+                    <span class="note" id="in-pending-total">—</span>
+                  </div>
+                  <div class="end-day-stat">
+                    <span class="label">Trả hàng</span>
+                    <strong class="number" id="in-returns-count">—</strong>
+                    <span class="note" id="in-returns-total">—</span>
+                  </div>
+                </div>
               </div>
             </div>
           </section>
 
           <section class="section">
             <div class="section-head"><span class="section-step">2</span>
-              <h2>Xu hướng <span class="section-note">doanh thu theo ngày trong kỳ</span></h2>
+              <h2>Giao dịch <span class="section-note">top 15 giao dịch lớn nhất và chi tiết từng giao dịch trong khoảng thời gian
+                  đã chọn</span></h2>
             </div>
-            <div class="grid">
-              <div class="panel col-12">
+            <div class="grid transaction-analysis-grid">
+              <div class="panel col-5">
                 <div class="panel-head">
-                  <h2>Doanh thu theo ngày</h2>
-                  <span class="drill-hint">Đổi khoảng thời gian ở thanh bộ lọc phía trên</span>
+                  <h2>Top 15 giao dịch lớn nhất</h2>
+                  <span class="drill-hint" id="top-transactions-count">Xếp theo doanh thu · không gồm giao dịch đã
+                    hủy</span>
                 </div>
-                <div class="chart-box"><canvas id="chartInvoiceRevenue"></canvas></div>
+                <div class="chart-box top-transactions-chart">
+                  <canvas id="chartTopTransactions" role="img"
+                    aria-label="Biểu đồ cột ngang top 15 giao dịch có doanh thu lớn nhất theo bộ lọc"></canvas>
+                </div>
+              </div>
+              <div class="panel col-7 end-day-table">
+                <div class="panel-head">
+                  <h2>Chi tiết giao dịch</h2>
+                  <div class="panel-head-actions"><span class="drill-hint" id="end-day-table-count">—</span><button
+                      class="export-button" type="button" onclick="openExportDialog('overview.transactions')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất
+                      Excel</button></div>
+                </div>
+                <div class="table-wrap scroll-list transaction-detail-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Mã giao dịch</th>
+                        <th>Thời gian</th>
+                        <th>Khách hàng</th>
+                        <th>Nhân viên bán hàng</th>
+                        <th>SL</th>
+                        <th>Doanh thu</th>
+                        <th>Giảm giá</th>
+                        <th>Thực thu</th>
+                        <th>Trạng thái</th>
+                      </tr>
+                    </thead>
+                    <tbody id="endOfDayRows">
+                      <tr>
+                        <td colspan="9" class="table-note">Đang tải...</td>
+                      </tr>
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colspan="4">Tổng theo bộ lọc</td>
+                        <td class="mono" id="end-day-total-qty">—</td>
+                        <td class="mono" id="end-day-total-revenue">—</td>
+                        <td class="mono" id="end-day-total-discount">—</td>
+                        <td class="mono" id="end-day-total-paid">—</td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+                <div class="pagination-controls" id="endOfDayPagination" hidden>
+                  <button type="button" id="endOfDayFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="endOfDayPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                  <span id="endOfDayPageLabel">Trang 1/1</span>
+                  <button type="button" id="endOfDayNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="endOfDayLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+                </div>
               </div>
             </div>
           </section>
@@ -4161,7 +4155,7 @@
             <div class="grid">
               <div class="panel col-6">
                 <div class="panel-head">
-                  <h2>Đặt hàng gần đây <span class="tag" id="tagOrders">—</span></h2><button class="export-button"
+                  <h2>Danh sách đặt hàng <span class="tag" id="tagOrders">—</span></h2><button class="export-button"
                     type="button" onclick="openExportDialog('invoices.orders')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button>
                 </div>
                 <div class="scroll-list" style="max-height:320px;">
@@ -4191,7 +4185,7 @@
               </div>
               <div class="panel col-6">
                 <div class="panel-head">
-                  <h2>Trả hàng gần đây <span class="tag" id="tagReturns">—</span></h2><button class="export-button"
+                  <h2>Danh sách trả hàng <span class="tag" id="tagReturns">—</span></h2><button class="export-button"
                     type="button" onclick="openExportDialog('invoices.returns')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button>
                 </div>
                 <div class="scroll-list" style="max-height:320px;">
@@ -4218,44 +4212,6 @@
                   <span id="returnsPageLabel">Trang 1/1</span>
                   <button type="button" id="returnsNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
                   <button type="button" id="returnsLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">4</span>
-              <h2>Dữ liệu chi tiết <span class="section-note">từng hóa đơn phát sinh</span></h2>
-            </div>
-            <div class="grid">
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Hóa đơn gần đây <span class="tag" id="tagInvoices">—</span></h2><button class="export-button"
-                    type="button" onclick="openExportDialog('invoices.recent')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button>
-                </div>
-                <div class="scroll-list" style="max-height:420px;">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Mã HĐ</th>
-                        <th>Khách hàng</th>
-                        <th>Tổng tiền</th>
-                        <th>Trạng thái</th>
-                      </tr>
-                    </thead>
-                    <tbody id="invoiceRows">
-                      <tr>
-                        <td colspan="4" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="invoicesPagination" hidden>
-                  <button type="button" id="invoicesFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="invoicesPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="invoicesPageLabel">Trang 1/1</span>
-                  <button type="button" id="invoicesNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="invoicesLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
             </div>
@@ -4391,7 +4347,7 @@
         <!-- ============ NHÀ CUNG CẤP ============ -->
         <div class="view" id="view-suppliers">
           <div class="view-title">Nhà cung cấp</div>
-          <div class="view-sub">Chỉ số phải trả → phân tích nợ tập trung → chi tiết nhà cung cấp và phiếu nhập</div>
+          <div class="view-sub">Chỉ số phải trả → hàng nhập trong kỳ → phân tích nợ tập trung → chi tiết nhà cung cấp</div>
 
           <section class="section">
             <div class="section-head"><span class="section-step">1</span>
@@ -4419,6 +4375,77 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">2</span>
+              <h2>Hàng nhập <span class="section-note">tổng hợp và danh sách phiếu nhập hàng theo khoảng thời gian đã
+                  chọn ở trên</span></h2>
+            </div>
+            <div class="kpi-grid" style="margin-bottom:14px;">
+              <div class="kpi-card accent-amber col-4">
+                <div class="eyebrow">Tổng mã nhập hàng</div>
+                <div class="value" id="sp-purchase-count">—</div>
+                <div class="sub" id="sp-purchase-date">—</div>
+              </div>
+              <div class="kpi-card accent-green col-4">
+                <div class="eyebrow">Tổng tiền nhập</div>
+                <div class="value" id="sp-purchase-total">—</div>
+                <div class="sub">Tính trên các mã nhập trong khoảng đã chọn</div>
+              </div>
+              <div class="kpi-card accent-blue col-4">
+                <div class="eyebrow">Nhà cung cấp</div>
+                <div class="value" id="sp-purchase-suppliers">—</div>
+                <div class="sub">Có phát sinh nhập hàng trong khoảng đã chọn</div>
+              </div>
+            </div>
+            <div class="grid transaction-analysis-grid">
+              <div class="panel col-5">
+                <div class="panel-head">
+                  <h2>Nhập hàng theo nhà cung cấp</h2>
+                  <span class="drill-hint" id="sp-purchase-chart-hint">—</span>
+                </div>
+                <div class="chart-box">
+                  <canvas id="chartOverviewPurchases" role="img"
+                    aria-label="Biểu đồ nhập hàng theo nhà cung cấp"></canvas>
+                  <div class="chart-empty" id="overviewPurchaseChartEmpty" hidden>Chưa có dữ liệu nhập hàng trong khoảng
+                    đã chọn</div>
+                </div>
+              </div>
+              <div class="panel col-7">
+                <div class="panel-head">
+                  <h2>Danh sách nhập hàng <span class="tag" id="tagPurchases">—</span></h2>
+                  <div class="panel-head-actions"><span class="drill-hint" id="sp-purchase-table-count">—</span><button
+                      class="export-button" type="button" onclick="openExportDialog('overview.purchases')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất
+                      Excel</button></div>
+                </div>
+                <div class="scroll-list" style="max-height:420px;">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Mã nhập hàng</th>
+                        <th>Ngày nhập</th>
+                        <th>Nhà cung cấp</th>
+                        <th>Tổng tiền</th>
+                        <th>Trạng thái</th>
+                      </tr>
+                    </thead>
+                    <tbody id="overviewPurchaseRows">
+                      <tr>
+                        <td colspan="5" class="table-note">Đang tải...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="pagination-controls" id="overviewPurchasePagination" hidden>
+                  <button type="button" id="overviewPurchaseFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="overviewPurchasePrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                  <span id="overviewPurchasePageLabel">Trang 1/1</span>
+                  <button type="button" id="overviewPurchaseNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="overviewPurchaseLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-step">3</span>
               <h2>Phân tích &amp; chi tiết <span class="section-note">nợ phải trả tập trung ở nhà cung cấp nào</span>
               </h2>
             </div>
@@ -4635,6 +4662,7 @@
       <div class="export-modal-foot">
         <div class="export-status" id="exportStatus" aria-live="polite"></div>
         <div class="export-foot-actions">
+          <button class="export-retry" id="exportRetryButton" type="button" onclick="retryExport()" hidden>Thử lại</button>
           <button class="export-cancel" id="exportCancelButton" type="button" onclick="closeExportDialog()">Hủy</button>
           <button class="export-confirm" id="exportConfirmButton" type="button" onclick="confirmExport()" hidden>Xuất
             Excel</button>
@@ -4706,9 +4734,9 @@
       tableRenderers: {},
       tableTableBodies: {},
       filters: {
-        overview: { mode: 'days', days: 30 },
         products: { mode: 'days', days: 30 },
         invoices: { mode: 'days', days: 30 },
+        suppliers: { mode: 'days', days: 30 },
         customers: { mode: 'all' }
       },
       search: {
@@ -4730,7 +4758,12 @@
         payload: null,
         metadata: null,
         busy: false,
-        returnFocus: null
+        returnFocus: null,
+        // Chong race: token tang dan moi lan mo dialog/tai file; request = { token, controller, timer, timedOut }
+        token: 0,
+        request: null,
+        step: '', // 'fields' (dang lay danh sach truong) | 'file' (dang tao file) — de "Thu lai" biet lap lai buoc nao
+        autoAll: false
       },
       // Tab Tổng quan, phần 2 — "Báo cáo doanh thu theo khách" (xem
       // renderCustomerProductReport() và các ham handleCustomerProduct*()).
@@ -4758,7 +4791,7 @@
     Chart.defaults.font.weight = '400';
     Chart.defaults.animation.duration = 300;
     Chart.defaults.plugins.tooltip.titleFont = { family: 'Inter, sans-serif', weight: '600' };
-    Chart.defaults.plugins.tooltip.bodyFont = { family: 'IBM Plex Mono, monospace', weight: '500' };
+    Chart.defaults.plugins.tooltip.bodyFont = { family: 'Roboto, sans-serif', weight: '500' };
     const THEME_STORAGE_KEY = 'tks-dashboard-theme';
 
     function themeColor(name) {
@@ -5349,6 +5382,8 @@
       const button = document.getElementById('recentStockoutExportButton');
       const originalLabel = button ? button.innerHTML : '';
       if (button) { button.disabled = true; button.textContent = 'Đang xuất…'; }
+      // Co timeout + AbortController de nut khong bi ket o "Đang xuất…" khi may chu phan hoi qua cham.
+      const request = createExportRequest(EXPORT_FILE_TIMEOUT_MS);
       try {
         const payload = {
           tableKey: 'stockout.recentScan',
@@ -5359,22 +5394,14 @@
           },
           columns: { recent_stockout_result: ['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'dataWarning', 'periods'] }
         };
-        const response = await fetch('/api/export', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-        });
+        const response = await exportFetch('/api/export', payload, request);
         if (!response.ok) throw new Error(await readExportError(response, 'Không thể tạo file Excel'));
         const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = downloadNameFromResponse(response);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        saveExportBlob(blob, downloadNameFromResponse(response));
       } catch (err) {
-        alert(err.message || 'Không thể xuất file Excel.');
+        alert(describeExportError(err, request, EXPORT_FILE_TIMEOUT_MESSAGE, 'Không thể xuất file Excel.'));
       } finally {
+        clearTimeout(request.timer);
         if (button) { button.disabled = rows.length === 0; button.innerHTML = originalLabel; }
       }
     }
@@ -5598,6 +5625,8 @@
       const button = document.getElementById('stockout90dExportButton');
       const originalLabel = button ? button.innerHTML : '';
       if (button) { button.disabled = true; button.textContent = 'Đang xuất…'; }
+      // Co timeout + AbortController de nut khong bi ket o "Đang xuất…" khi may chu phan hoi qua cham.
+      const request = createExportRequest(EXPORT_FILE_TIMEOUT_MS);
       try {
         const payload = {
           tableKey: 'stockout.check90d',
@@ -5608,22 +5637,14 @@
           },
           columns: { stockout_90d_result: ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'dataWarning', 'periods'] }
         };
-        const response = await fetch('/api/export', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-        });
+        const response = await exportFetch('/api/export', payload, request);
         if (!response.ok) throw new Error(await readExportError(response, 'Không thể tạo file Excel'));
         const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = downloadNameFromResponse(response);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        saveExportBlob(blob, downloadNameFromResponse(response));
       } catch (err) {
-        alert(err.message || 'Không thể xuất file Excel.');
+        alert(describeExportError(err, request, EXPORT_FILE_TIMEOUT_MESSAGE, 'Không thể xuất file Excel.'));
       } finally {
+        clearTimeout(request.timer);
         if (button) { button.disabled = rows.length === 0; button.innerHTML = originalLabel; }
       }
     }
@@ -5654,16 +5675,14 @@
     }
 
     function currentExportFilters() {
-      const overview = cloneExportFilter(state.filters.overview);
       const products = cloneExportFilter(state.filters.products);
       products.status = state.productStatus;
       return {
-        overview: overview,
         products: products,
         invoices: cloneExportFilter(state.filters.invoices),
         customers: cloneExportFilter(state.filters.customers, 'all'),
-        newPurchases: cloneExportFilter(state.filters.overview),
-        newProducts: cloneExportFilter(state.filters.overview)
+        newPurchases: cloneExportFilter(state.filters.suppliers),
+        newProducts: cloneExportFilter(state.filters.products)
       };
     }
 
@@ -5678,7 +5697,6 @@
       'products.child-categories': 'childCategory',
       'invoices.orders': 'orders',
       'invoices.returns': 'returns',
-      'invoices.recent': 'invoices',
       'customers.revenue': 'customerRevenue',
       'customers.debt': 'topDebt',
       'customers.productDetail': 'cpDetail',
@@ -5730,41 +5748,139 @@
       return '<button class="export-button" type="button" onclick="openExportDialog(\'search.results\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button>';
     }
 
-    function setExportStatus(message, isError) {
+    // Xuat Excel: moi request (lay danh sach truong / tao file) huy duoc bang AbortController, co timeout
+    // rieng va mang token tang dan; phan hoi tre cua request cu (da dong / mo lai / thu lai) bi bo qua.
+    const EXPORT_FIELDS_TIMEOUT_MS = 30000; // danh sach truong chi doc catalogue nen phai tra ve nhanh
+    const EXPORT_FILE_TIMEOUT_MS = 180000; // tao file voi du lieu lon co the mat vai chuc giay
+    const EXPORT_FIELDS_TIMEOUT_MESSAGE = 'Máy chủ phản hồi quá lâu khi lấy danh sách trường. Vui lòng thử lại.';
+    const EXPORT_FILE_TIMEOUT_MESSAGE = 'Máy chủ phản hồi quá lâu khi tạo file Excel. Vui lòng thử lại.';
+    const EXPORT_NETWORK_MESSAGE = 'Không kết nối được máy chủ. Vui lòng kiểm tra đường truyền rồi thử lại.';
+
+    function setExportStatus(message, isError, canRetry) {
       const status = document.getElementById('exportStatus');
+      const retryButton = document.getElementById('exportRetryButton');
+      const retryHadFocus = document.activeElement === retryButton;
       status.textContent = message || '';
       status.classList.toggle('error', !!isError);
+      retryButton.hidden = !canRetry;
+      // Ban phim: khi loi hien nut Thu lai thi chuyen tieu diem vao do; nut Thu lai vua bi an khi dang giu
+      // tieu diem thi tra ve nut Huy de khong roi ra trang phia sau hop thoai.
+      if (canRetry) retryButton.focus();
+      else if (retryHadFocus) document.getElementById('exportCancelButton').focus();
     }
 
+    // Chi khoa nhung control thuc su can khi dang cho. Nut X, nut Huy, phim Esc va click nen KHONG bao gio
+    // bi khoa de nguoi dung luon dong duoc hop thoai (khong con bi ket khi may chu tra loi cham).
     function setExportBusy(isBusy) {
       state.exportDialog.busy = isBusy;
-      document.querySelectorAll('.export-button').forEach(button => { button.disabled = isBusy; });
+      const focused = document.activeElement;
       document.getElementById('exportConfirmButton').disabled = isBusy;
-      document.getElementById('exportCancelButton').disabled = isBusy;
-      document.getElementById('exportModalClose').disabled = isBusy;
+      document.getElementById('exportModalBackdrop').setAttribute('aria-busy', isBusy ? 'true' : 'false');
       document.querySelectorAll('#exportToolbar button, #exportToolbar input, #exportFields input').forEach(control => { control.disabled = isBusy; });
+      // Control dang giu tieu diem vua bi khoa (vd nut Xuat Excel vua bam bang ban phim) -> chuyen sang nut Huy
+      // de nguoi dung ban phim van dong / huy duoc hop thoai.
+      if (isBusy && focused && focused.disabled) document.getElementById('exportCancelButton').focus();
+    }
+
+    function createExportRequest(timeoutMs) {
+      const request = { controller: new AbortController(), timer: 0, timedOut: false };
+      request.timer = setTimeout(function () {
+        request.timedOut = true;
+        request.controller.abort();
+      }, timeoutMs);
+      return request;
+    }
+
+    // Huy request dang chay (neu co) va vo hieu hoa moi phan hoi tre cua no bang cach tang token.
+    function abortExportRequest() {
+      const dialog = state.exportDialog;
+      const request = dialog.request;
+      dialog.request = null;
+      dialog.token += 1;
+      if (!request) return;
+      clearTimeout(request.timer);
+      request.controller.abort();
+    }
+
+    function beginExportRequest(timeoutMs) {
+      const dialog = state.exportDialog;
+      abortExportRequest(); // khong bao gio de hai request cua hop thoai chay chong nhau
+      const request = createExportRequest(timeoutMs);
+      request.token = ++dialog.token;
+      dialog.request = request;
+      return request;
+    }
+
+    function endExportRequest(request) {
+      clearTimeout(request.timer);
+      if (state.exportDialog.request === request) state.exportDialog.request = null;
+    }
+
+    function isExportRequestCurrent(request) {
+      return request.token === state.exportDialog.token;
+    }
+
+    async function exportFetch(url, payload, request) {
+      try {
+        return await fetch(url, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: request.controller.signal
+        });
+      } catch (err) {
+        if (err && err.name === 'AbortError') throw err;
+        throw new Error(EXPORT_NETWORK_MESSAGE);
+      }
+    }
+
+    // Thong bao loi tieng Viet: timeout (do chinh ta abort) phai phan biet voi nguoi dung chu dong huy.
+    function describeExportError(err, request, timeoutMessage, fallback) {
+      if (request.timedOut) return timeoutMessage;
+      if (!err || err.name === 'AbortError' || err.name === 'SyntaxError') return fallback;
+      // Mat ket noi giua luc doc body (response.json()/blob()) nem TypeError tieng Anh cua trinh duyet.
+      if (err.name === 'TypeError') return EXPORT_NETWORK_MESSAGE;
+      return err.message || fallback;
+    }
+
+    function saveExportBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
     }
 
     function showExportDialog() {
       const backdrop = document.getElementById('exportModalBackdrop');
-      state.exportDialog.returnFocus = document.activeElement;
+      // Mo lai khi hop thoai dang hien thi thi giu nut da mo ban dau, khong lay phan tu ben trong hop thoai.
+      const freshOpen = backdrop.hidden;
+      if (freshOpen) state.exportDialog.returnFocus = document.activeElement;
       backdrop.hidden = false;
       document.body.style.overflow = 'hidden';
+      // Dua tieu diem vao hop thoai ngay khi mo (trong luc cho danh sach truong) de Tab/Enter khong tac dong len trang phia sau.
+      if (freshOpen) document.getElementById('exportCancelButton').focus();
     }
 
+    // Luon dong duoc ngay, ke ca khi dang lay danh sach truong hoac dang tao file: huy request dang chay
+    // de phan hoi tre khong ve de len hop thoai da dong va khong tu tai file.
     function closeExportDialog() {
-      if (state.exportDialog.busy) return;
+      const dialog = state.exportDialog;
       document.getElementById('exportModalBackdrop').hidden = true;
       document.body.style.overflow = '';
+      abortExportRequest();
+      setExportBusy(false);
       document.getElementById('exportToolbar').hidden = true;
       document.getElementById('exportConfirmButton').hidden = true;
       document.getElementById('exportFields').innerHTML = '';
       document.getElementById('exportFieldSearch').value = '';
       setExportStatus('');
-      state.exportDialog.payload = null;
-      state.exportDialog.metadata = null;
-      const returnFocus = state.exportDialog.returnFocus;
-      state.exportDialog.returnFocus = null;
+      dialog.payload = null;
+      dialog.metadata = null;
+      dialog.step = '';
+      dialog.autoAll = false;
+      const returnFocus = dialog.returnFocus;
+      dialog.returnFocus = null;
       if (returnFocus && typeof returnFocus.focus === 'function') returnFocus.focus();
     }
 
@@ -5781,41 +5897,63 @@
       }
     }
 
+    // Bam lien tiep nhieu nut Xuat Excel (hoac mo lai khi dang cho): loadExportFields() -> beginExportRequest()
+    // huy request cu truoc, nen khong bao gio co hai request chong nhau va phan hoi tre cua lan truoc bi bo qua.
     async function openExportDialog(tableKey) {
-      if (state.exportDialog.busy) return;
-      state.exportDialog.payload = buildExportPayload(tableKey);
-      state.exportDialog.metadata = null;
+      const dialog = state.exportDialog;
+      dialog.payload = buildExportPayload(tableKey);
+      dialog.metadata = null;
+      dialog.autoAll = false;
       document.getElementById('exportModalTitle').textContent = 'Xuất Excel';
-      document.getElementById('exportModalSubtitle').textContent = 'Đang lấy đầy đủ các trường từ Google Sheets…';
+      document.getElementById('exportFieldSearch').value = '';
+      showExportDialog();
+      await loadExportFields();
+    }
+
+    function showExportFieldsFailure(message) {
+      setExportBusy(false);
+      document.getElementById('exportModalSubtitle').textContent = 'Chưa lấy được danh sách trường từ cơ sở dữ liệu.';
+      document.getElementById('exportFields').innerHTML = '<div class="export-loading">Không thể tải danh sách trường.</div>';
+      setExportStatus(message, true, true);
+    }
+
+    async function loadExportFields() {
+      const dialog = state.exportDialog;
+      dialog.step = 'fields';
+      document.getElementById('exportModalSubtitle').textContent = 'Đang lấy danh sách trường từ cơ sở dữ liệu…';
       document.getElementById('exportFields').innerHTML = '<div class="export-loading">Đang lấy danh sách trường…</div>';
       document.getElementById('exportToolbar').hidden = true;
       document.getElementById('exportConfirmButton').hidden = true;
       setExportStatus('');
-      showExportDialog();
+      const request = beginExportRequest(EXPORT_FIELDS_TIMEOUT_MS);
       setExportBusy(true);
+      let metadata = null;
       try {
-        const response = await fetch('/api/export/fields', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state.exportDialog.payload)
-        });
+        const response = await exportFetch('/api/export/fields', dialog.payload, request);
         if (!response.ok) throw new Error(await readExportError(response, 'Không lấy được danh sách trường'));
-        const metadata = await response.json();
-        state.exportDialog.metadata = metadata;
-        document.getElementById('exportModalTitle').textContent = 'Xuất Excel · ' + metadata.title;
-        if (metadata.selectionMode === 'all-only') {
-          document.getElementById('exportModalSubtitle').textContent = 'Kết quả có nhiều nguồn; mỗi nguồn sẽ nằm trong một worksheet riêng.';
-          document.getElementById('exportFields').innerHTML = '<div class="export-loading">Đang tạo file với toàn bộ trường của ' + metadata.worksheets.length + ' nguồn dữ liệu…</div>';
-          setExportBusy(false);
-          await downloadExportFile(true);
-          return;
-        }
-        renderExportFields(metadata);
-        setExportBusy(false);
-        document.getElementById('exportFieldSearch').focus();
+        metadata = await response.json();
       } catch (err) {
-        setExportBusy(false);
-        document.getElementById('exportFields').innerHTML = '<div class="export-loading">Không thể tải danh sách trường.</div>';
-        setExportStatus(err.message || 'Không thể chuẩn bị file Excel', true);
+        if (!isExportRequestCurrent(request)) return; // da dong / mo lai / huy: im lang, khong ve de
+        showExportFieldsFailure(describeExportError(err, request, EXPORT_FIELDS_TIMEOUT_MESSAGE, 'Không thể lấy danh sách trường.'));
+        return;
+      } finally {
+        endExportRequest(request);
       }
+      if (!isExportRequestCurrent(request)) return;
+      if (!metadata || !Array.isArray(metadata.worksheets)) {
+        showExportFieldsFailure('Danh sách trường máy chủ trả về không hợp lệ. Vui lòng thử lại.');
+        return;
+      }
+      dialog.metadata = metadata;
+      document.getElementById('exportModalTitle').textContent = metadata.title ? 'Xuất Excel · ' + metadata.title : 'Xuất Excel';
+      if (metadata.selectionMode === 'all-only') {
+        document.getElementById('exportModalSubtitle').textContent = 'Kết quả có nhiều nguồn; mỗi nguồn sẽ nằm trong một worksheet riêng.';
+        await downloadExportFile(true);
+        return;
+      }
+      renderExportFields(metadata);
+      setExportBusy(false);
+      document.getElementById('exportFieldSearch').focus();
     }
 
     function renderExportFields(metadata) {
@@ -5823,13 +5961,18 @@
       document.getElementById('exportToolbar').hidden = false;
       document.getElementById('exportConfirmButton').hidden = false;
       document.getElementById('exportFields').innerHTML = metadata.worksheets.map(function (worksheet) {
-        const fields = worksheet.fields.map(function (field) {
-          return '<label class="export-field-item" data-export-label="' + escapeHtml(field.label.toLocaleLowerCase('vi-VN')) + '">' +
+        const worksheetFields = worksheet.fields || [];
+        const fields = worksheetFields.map(function (field) {
+          const label = String(field.label || field.key || '');
+          // description (neu co) hien thi nhu tooltip cua muc truong.
+          return '<label class="export-field-item" data-export-label="' + escapeHtml(label.toLocaleLowerCase('vi-VN')) + '"' + (field.description ? ' title="' + escapeHtml(field.description) + '"' : '') + '>' +
             '<input type="checkbox" data-export-sheet="' + escapeHtml(worksheet.key) + '" value="' + escapeHtml(field.key) + '"' + (field.selected !== false ? ' checked' : '') + ' onchange="updateExportSelectionStatus()">' +
-            '<span class="export-field-label">' + escapeHtml(field.label) + '</span></label>';
+            '<span class="export-field-label">' + escapeHtml(label) + '</span></label>';
         }).join('');
+        // rowCount la null khi may chu khong dem truoc so dong: chi hien "M trường".
+        const rowCountText = Number.isFinite(worksheet.rowCount) ? fmtNumber(worksheet.rowCount) + ' dòng · ' : '';
         return '<div class="export-group"><div class="export-group-head"><span class="export-group-title">' + escapeHtml(worksheet.name) + '</span>' +
-          '<span class="export-group-count">' + fmtNumber(Number(worksheet.rowCount || 0)) + ' dòng · ' + worksheet.fields.length + ' trường</span></div>' +
+          '<span class="export-group-count">' + rowCountText + worksheetFields.length + ' trường</span></div>' +
           '<div class="export-field-list">' + fields + '</div></div>';
       }).join('');
       updateExportSelectionStatus();
@@ -5871,7 +6014,9 @@
     }
 
     async function downloadExportFile(autoAllFields) {
-      const payload = Object.assign({}, state.exportDialog.payload);
+      const dialog = state.exportDialog;
+      if (!dialog.payload) return; // hop thoai da dong
+      const payload = Object.assign({}, dialog.payload);
       if (!autoAllFields) {
         const columns = selectedExportColumns();
         const selectedCount = Object.values(columns).reduce((sum, list) => sum + list.length, 0);
@@ -5881,32 +6026,43 @@
         }
         payload.columns = columns;
       }
+      dialog.step = 'file';
+      dialog.autoAll = !!autoAllFields;
+      if (autoAllFields) {
+        const sourceCount = dialog.metadata && dialog.metadata.worksheets ? dialog.metadata.worksheets.length : 0;
+        document.getElementById('exportFields').innerHTML = '<div class="export-loading">Đang tạo file với toàn bộ trường của ' + sourceCount + ' nguồn dữ liệu…</div>';
+      }
+      const request = beginExportRequest(EXPORT_FILE_TIMEOUT_MS);
       setExportBusy(true);
-      setExportStatus('Đang tạo file Excel…');
+      setExportStatus('Đang tạo file Excel… (dữ liệu lớn có thể mất vài chục giây)');
       try {
-        const response = await fetch('/api/export', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-        });
+        const response = await exportFetch('/api/export', payload, request);
         if (!response.ok) throw new Error(await readExportError(response, 'Không thể tạo file Excel'));
         const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = downloadNameFromResponse(response);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-        setExportBusy(false);
+        if (!isExportRequestCurrent(request)) return; // da dong hop thoai trong luc cho: khong tu tai file
+        saveExportBlob(blob, downloadNameFromResponse(response));
         closeExportDialog();
       } catch (err) {
+        if (!isExportRequestCurrent(request)) return;
         setExportBusy(false);
-        setExportStatus(err.message || 'Không thể tạo file Excel', true);
+        if (autoAllFields) document.getElementById('exportFields').innerHTML = '<div class="export-loading">Không thể tạo file Excel.</div>';
+        setExportStatus(describeExportError(err, request, EXPORT_FILE_TIMEOUT_MESSAGE, 'Không thể tạo file Excel.'), true, true);
+      } finally {
+        endExportRequest(request);
       }
     }
 
     function confirmExport() {
       downloadExportFile(false);
+    }
+
+    // "Thu lai" lap lai dung buoc vua loi: lay danh sach truong hoac tao file (giu nguyen cac truong da chon).
+    function retryExport() {
+      const dialog = state.exportDialog;
+      if (!dialog.payload) return;
+      setExportStatus('');
+      if (dialog.step === 'file') downloadExportFile(dialog.autoAll);
+      else loadExportFields();
     }
 
     function updateSearchContext() {
@@ -6499,12 +6655,13 @@
       if (state.data) renderProductSalesAnalysis(state.data);
     }
 
-    // Moi tab nho mot bo loc thoi gian doc lap. Tong quan can gui cung lua chon
-    // cho 4 khoi backend; Hang hoa va Hoa don moi tab dung mot prefix rieng.
+    // Moi tab nho mot bo loc thoi gian doc lap; 1 bo loc co the gui cho nhieu khoi
+    // backend. Hang hoa: pr (ban chay/hang moi nhap) + np (ma moi tao). Hoa don: in
+    // (bao gom bang chi tiet giao dich). Nha cung cap: pu (phieu nhap hang).
     const TAB_FILTER_PREFIXES = {
-      overview: ['ov', 'pu', 'np', 'de'],
-      products: ['pr'],
+      products: ['pr', 'np'],
       invoices: ['in'],
+      suppliers: ['pu'],
       customers: ['cu']
     };
 
@@ -6862,7 +7019,7 @@
           ctx.fillStyle = theme.muted;
           ctx.fillText(centerLabel || 'Tổng', centerX, centerY - 10);
 
-          ctx.font = '600 12.5px "IBM Plex Mono", monospace';
+          ctx.font = '600 12.5px "Roboto", sans-serif';
           ctx.fillStyle = theme.text;
           ctx.fillText(format(total), centerX, centerY + 9);
           ctx.restore();
@@ -7018,10 +7175,15 @@
       document.getElementById('topSellingTableTitle').textContent = tableTitle;
       document.getElementById('tagTopSelling').textContent = analysisRows.length;
 
-      const nameHeader = document.getElementById('topSellingNameHeader');
-      const nameHeaderButton = nameHeader.querySelector('.sort-button');
-      if (nameHeaderButton) nameHeaderButton.firstElementChild.textContent = firstColumnLabel;
-      else nameHeader.textContent = firstColumnLabel;
+      [
+        ['topSellingCodeHeader', isParentCategory ? 'Số mặt hàng' : 'Mã hàng'],
+        ['topSellingNameHeader', firstColumnLabel]
+      ].forEach(function (header) {
+        const headerCell = document.getElementById(header[0]);
+        const headerButton = headerCell.querySelector('.sort-button');
+        if (headerButton) headerButton.firstElementChild.textContent = header[1];
+        else headerCell.textContent = header[1];
+      });
 
       if (analysisRows.length) {
         renderBarChartList(
@@ -7037,13 +7199,14 @@
         'topSelling',
         { tbody: 'topSellingRows', pagination: 'topSellingPagination', firstBtn: 'topSellingFirstPage', prevBtn: 'topSellingPrevPage', nextBtn: 'topSellingNextPage', lastBtn: 'topSellingLastPage', label: 'topSellingPageLabel' },
         analysisRows,
-        item => '<tr><td class="name-cell">' + escapeHtml(item.name) +
+        item => '<tr>' +
           (isParentCategory
-            ? '<br><span class="mono muted" style="font-size:10.5px;">' + fmtNumber(Number(item.productCount || 0)) + ' mặt hàng</span>'
-            : '<br><span class="mono muted" style="font-size:10.5px;">' + escapeHtml(item.code) + '</span>') +
-          '</td><td class="mono muted" data-sort-value="' + item.qty + '">' + fmtNumber(Number(item.qty || 0)) +
+            ? '<td class="mono muted" data-sort-value="' + Number(item.productCount || 0) + '">' + fmtNumber(Number(item.productCount || 0)) + '</td>'
+            : '<td class="mono muted">' + escapeHtml(item.code) + '</td>') +
+          '<td class="name-cell">' + escapeHtml(item.name) + '</td>' +
+          '<td class="mono muted" data-sort-value="' + item.qty + '">' + fmtNumber(Number(item.qty || 0)) +
           '</td><td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td></tr>',
-        3,
+        4,
         'Chưa có dữ liệu chi tiết hóa đơn'
       );
 
@@ -7175,9 +7338,8 @@
         title: 'Chi tiết nhóm con', searchText: tableSearchText,
         identity: p => JSON.stringify([state.childCategoryParent || '', p.name])
       },
-      orders: { title: 'Đặt hàng gần đây', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
-      returns: { title: 'Trả hàng gần đây', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
-      invoices: { title: 'Hóa đơn gần đây', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      orders: { title: 'Danh sách đặt hàng', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      returns: { title: 'Danh sách trả hàng', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       customerRevenue: { title: 'Chi tiết doanh thu theo khách', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       topDebt: { title: 'Chi tiết khách nợ', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       suppliers: { title: 'Danh sách nhà cung cấp', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
@@ -7789,6 +7951,8 @@
       state.tableDatasets.productRevenueSearch = results;
       state.tableRenderers.productRevenueSearch = renderProductRevenueResults;
       document.getElementById('prResultsPanel').hidden = !query;
+      // Khong co san pham khop thi khong co gi de xuat (may chu se tra EXPORT_NO_DATA o buoc tao file).
+      document.getElementById('prExportButton').disabled = !results.length;
       document.getElementById('prResultCount').textContent = !results.length ? '—'
         : (total > results.length ? results.length + '/' + total : String(results.length));
 
@@ -7970,7 +8134,6 @@
       const d = state.data;
       if (!d) return;
       if (view === 'overview') {
-        const ov = d.overview || d;
         document.getElementById('ov-revenue').textContent = fmtMoney(d.kpi.revenueToday);
         document.getElementById('ov-revenue-sub').textContent = d.kpi.invoicesToday + ' hóa đơn' + (d.kpi.cancelledToday ? ' · ' + d.kpi.cancelledToday + ' đã hủy' : '');
         document.getElementById('ov-stock').textContent = fmtNumber(d.kpi.totalStock);
@@ -7978,89 +8141,6 @@
         document.getElementById('ov-lowstock').textContent = d.kpi.lowStockCount;
         document.getElementById('ov-customers').textContent = fmtNumber(d.kpi.totalCustomers);
         document.getElementById('ov-customers-sub').textContent = d.kpi.customersWithDebt + ' đang nợ · ' + fmtMoney(d.kpi.totalDebt);
-        document.getElementById('tagOverviewPeriod').textContent = (d.filters && d.filters.overview ? d.filters.overview.label : ((d.days || state.days) + ' ngày'));
-        renderRevenueChart('chartOverviewRevenue', 'overviewRevenue', ov.revenueByDay || d.revenueByDay || []);
-        const report = ov.endOfDayReport || d.endOfDayReport || { date: '—', transactions: [], hourly: [], summary: {} };
-        const summary = report.summary || {};
-        const transactions = report.transactions || [];
-        document.getElementById('tagEndOfDayDate').textContent = report.date || 'Hôm nay';
-        document.getElementById('end-day-transactions').textContent = fmtNumber(Number(summary.transactionCount || 0));
-        document.getElementById('end-day-cancelled').textContent = (summary.cancelledCount || 0) + ' giao dịch đã hủy';
-        document.getElementById('end-day-revenue').textContent = fmtMoney(summary.revenue);
-        document.getElementById('end-day-discount').textContent = fmtMoney(summary.discount);
-        document.getElementById('end-day-paid').textContent = fmtMoney(summary.paid);
-        document.getElementById('end-day-table-count').textContent = transactions.length + ' giao dịch theo bộ lọc';
-        document.getElementById('end-day-total-qty').textContent = summary.quantityKnown ? fmtNumber(Number(summary.quantity || 0)) : '—';
-        document.getElementById('end-day-total-revenue').textContent = fmtMoney(summary.revenue);
-        document.getElementById('end-day-total-discount').textContent = fmtMoney(summary.discount);
-        document.getElementById('end-day-total-paid').textContent = fmtMoney(summary.paid);
-        renderPaginatedRows(
-          'endOfDay',
-          { tbody: 'endOfDayRows', pagination: 'endOfDayPagination', firstBtn: 'endOfDayFirstPage', prevBtn: 'endOfDayPrevPage', nextBtn: 'endOfDayNextPage', lastBtn: 'endOfDayLastPage', label: 'endOfDayPageLabel' },
-          transactions,
-          item => '<tr><td class="mono name-cell">' + escapeHtml(item.code) + '</td>' +
-            '<td class="mono muted">' + escapeHtml(item.time || '—') + '</td>' +
-            '<td class="name-cell">' + escapeHtml(item.customer || '—') + '</td>' +
-            '<td>' + escapeHtml(item.employee || '—') + '</td>' +
-            '<td class="mono" data-sort-value="' + item.quantity + '">' + (item.quantityKnown ? fmtNumber(Number(item.quantity || 0)) : '—') + '</td>' +
-            '<td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td>' +
-            '<td class="mono" data-sort-value="' + item.discount + '">' + fmtMoney(item.discount) + '</td>' +
-            '<td class="mono" data-sort-value="' + item.paid + '">' + fmtMoney(item.paid) + '</td>' +
-            '<td>' + statusPill(item.status) + '</td></tr>',
-          9,
-          'Chưa có giao dịch trong ngày'
-        );
-        renderTopTransactionsChart(report);
-
-        const newPurchases = d.newPurchases || { label: '—', orderCount: 0, totalAmount: 0, supplierCount: 0, bySupplier: [], orders: [] };
-        const newPurchaseSuppliers = newPurchases.bySupplier || [];
-        const newPurchaseOrders = newPurchases.orders || [];
-        document.getElementById('ov-purchase-count').textContent = fmtNumber(Number(newPurchases.orderCount || 0));
-        document.getElementById('ov-purchase-date').textContent = newPurchases.label || '—';
-        document.getElementById('ov-purchase-total').textContent = fmtMoney(newPurchases.totalAmount);
-        document.getElementById('ov-purchase-suppliers').textContent = fmtNumber(Number(newPurchases.supplierCount || 0));
-        document.getElementById('ov-purchase-chart-hint').textContent = newPurchaseSuppliers.length
-          ? newPurchaseSuppliers.length + ' nhà cung cấp · ' + (newPurchases.label || '—')
-          : 'Chưa có phát sinh trong khoảng đã chọn';
-        document.getElementById('tagPurchases').textContent = newPurchases.label || '—';
-        document.getElementById('ov-purchase-table-count').textContent = 'Tổng ' + fmtNumber(Number(newPurchases.orderCount || 0)) + ' mã nhập hàng';
-        document.getElementById('chartOverviewPurchases').hidden = !newPurchaseSuppliers.length;
-        document.getElementById('overviewPurchaseChartEmpty').hidden = !!newPurchaseSuppliers.length;
-        if (newPurchaseSuppliers.length) {
-          renderBarChartList('chartOverviewPurchases', 'overviewPurchases', newPurchaseSuppliers.slice(0, 15), s => s.name, s => s.total, themeColor('--amber'), false);
-        } else {
-          destroyChart('overviewPurchases');
-        }
-        renderPaginatedRows(
-          'overviewPurchase',
-          { tbody: 'overviewPurchaseRows', pagination: 'overviewPurchasePagination', firstBtn: 'overviewPurchaseFirstPage', prevBtn: 'overviewPurchasePrevPage', nextBtn: 'overviewPurchaseNextPage', lastBtn: 'overviewPurchaseLastPage', label: 'overviewPurchasePageLabel' },
-          newPurchaseOrders,
-          p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
-            '<td class="mono muted">' + (p.date ? escapeHtml(p.date) : '—') + '</td>' +
-            '<td class="name-cell">' + (p.supplier ? escapeHtml(p.supplier) : '—') + '</td>' +
-            '<td class="mono" data-sort-value="' + p.total + '">' + fmtMoney(p.total) + '</td>' +
-            '<td>' + genericStatusPill(p.status) + '</td></tr>',
-          5,
-          'Không có hàng nhập trong khoảng thời gian đã chọn'
-        );
-
-        const todayNewProducts = ov.todayNewProducts || { label: '—', count: 0, dateColumnAvailable: true, products: [] };
-        const newProductRows = todayNewProducts.products || [];
-        document.getElementById('tagTodayNewProductsDate').textContent = todayNewProducts.label || '—';
-        document.getElementById('today-new-products-count').textContent = 'Tổng ' + fmtNumber(Number(todayNewProducts.count || 0)) + ' mã mới';
-        renderPaginatedRows(
-          'todayNewProducts',
-          { tbody: 'todayNewProductRows', pagination: 'todayNewProductsPagination', firstBtn: 'todayNewProductsFirstPage', prevBtn: 'todayNewProductsPrevPage', nextBtn: 'todayNewProductsNextPage', lastBtn: 'todayNewProductsLastPage', label: 'todayNewProductsPageLabel' },
-          newProductRows,
-          p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
-            '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-            '<td>' + escapeHtml(p.category || 'Chưa phân nhóm') + '</td>' +
-            '<td class="mono muted">' + escapeHtml(p.createdAt || '—') + '</td>' +
-            '<td class="mono muted" data-sort-value="' + p.cost + '">' + fmtMoney(p.cost) + '</td>' +
-            '<td class="mono" data-sort-value="' + p.price + '">' + fmtMoney(p.price) + '</td></tr>',
-          6,
-          todayNewProducts.dateColumnAvailable === false ? 'Sheet Hàng hóa chưa có cột Ngày tạo' : 'Chưa có mã hàng mới tạo trong khoảng đã chọn'
-        );
       }
       else if (view === 'products') {
         const productRangeLabel = d.filters && d.filters.products ? d.filters.products.label : '30 ngày';
@@ -8075,10 +8155,10 @@
           'lowStock',
           { tbody: 'stockRows', pagination: 'stockPagination', firstBtn: 'stockFirstPage', prevBtn: 'stockPrevPage', nextBtn: 'stockNextPage', lastBtn: 'stockLastPage', label: 'stockPageLabel' },
           d.lowStock,
-          p => '<tr><td class="name-cell">' + escapeHtml(p.name) + '<br><span class="mono muted" style="font-size:10.5px;">' + escapeHtml(p.code) + '</span></td>' +
+          p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
             '<td>' + (p.type ? escapeHtml(p.type) : '—') + '</td><td>' + bizStatusPill(p.status) + '</td>' +
             '<td class="mono muted" data-sort-value="' + p.cost + '">' + fmtMoney(p.cost) + '</td><td class="mono" data-sort-value="' + p.price + '">' + fmtMoney(p.price) + '</td></tr>',
-          5,
+          6,
           'Không có sản phẩm đã hết hàng'
         );
         const categoryValues = d.stockValueByCategory || [];
@@ -8093,10 +8173,10 @@
           'allProducts',
           { tbody: 'allProductRows', pagination: 'allProductsPagination', firstBtn: 'allProductsFirstPage', prevBtn: 'allProductsPrevPage', nextBtn: 'allProductsNextPage', lastBtn: 'allProductsLastPage', label: 'allProductsPageLabel' },
           filteredProducts,
-          p => '<tr><td class="name-cell">' + escapeHtml(p.name) + '<br><span class="mono muted" style="font-size:10.5px;">' + escapeHtml(p.code) + '</span></td>' +
+          p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
             '<td class="mono" data-sort-value="' + p.stock + '">' + stockPill(p.stock) + '</td><td class="mono muted" data-sort-value="' + p.reserved + '">' + p.reserved + '</td>' +
             '<td class="mono muted" data-sort-value="' + p.pct + '">' + p.pct.toFixed(2) + '%</td><td>' + bizStatusPill(p.status) + '</td></tr>',
-          5,
+          6,
           'Không có dữ liệu'
         );
 
@@ -8177,6 +8257,24 @@
           destroyChart('newlyImportedQty');
         }
 
+        const todayNewProducts = (d.products && d.products.newProducts) || { label: '—', count: 0, dateColumnAvailable: true, products: [] };
+        const newProductRows = todayNewProducts.products || [];
+        document.getElementById('tagTodayNewProductsDate').textContent = todayNewProducts.label || '—';
+        document.getElementById('today-new-products-count').textContent = 'Tổng ' + fmtNumber(Number(todayNewProducts.count || 0)) + ' mã mới';
+        renderPaginatedRows(
+          'todayNewProducts',
+          { tbody: 'todayNewProductRows', pagination: 'todayNewProductsPagination', firstBtn: 'todayNewProductsFirstPage', prevBtn: 'todayNewProductsPrevPage', nextBtn: 'todayNewProductsNextPage', lastBtn: 'todayNewProductsLastPage', label: 'todayNewProductsPageLabel' },
+          newProductRows,
+          p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
+            '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+            '<td>' + escapeHtml(p.category || 'Chưa phân nhóm') + '</td>' +
+            '<td class="mono muted">' + escapeHtml(p.createdAt || '—') + '</td>' +
+            '<td class="mono muted" data-sort-value="' + p.cost + '">' + fmtMoney(p.cost) + '</td>' +
+            '<td class="mono" data-sort-value="' + p.price + '">' + fmtMoney(p.price) + '</td></tr>',
+          6,
+          todayNewProducts.dateColumnAvailable === false ? 'Sheet Hàng hóa chưa có cột Ngày tạo' : 'Chưa có mã hàng mới tạo trong khoảng đã chọn'
+        );
+
         renderProductSalesAnalysis(d);
 
         populateChildCategoryParentSelect((d.products && d.products.availableParentCategories) || []);
@@ -8192,42 +8290,57 @@
         document.getElementById('in-period-sub').textContent = invoiceRangeLabel;
         document.getElementById('in-cancelled').textContent = fmtNumber(Number(invoiceData.periodCancelledInvoices || 0));
         document.getElementById('in-cancelled-sub').textContent = invoiceRangeLabel;
-        const recentInvoices = invoiceData.recentInvoices || [];
-        document.getElementById('tagInvoices').textContent = recentInvoices.length;
-        renderPaginatedRows(
-          'invoices',
-          { tbody: 'invoiceRows', pagination: 'invoicesPagination', firstBtn: 'invoicesFirstPage', prevBtn: 'invoicesPrevPage', nextBtn: 'invoicesNextPage', lastBtn: 'invoicesLastPage', label: 'invoicesPageLabel' },
-          recentInvoices,
-          inv => '<tr><td class="mono muted">' + escapeHtml(inv.code) + '</td><td class="name-cell">' + (inv.customer ? escapeHtml(inv.customer) : 'Khách lẻ') + '</td>' +
-            '<td class="mono" data-sort-value="' + inv.total + '">' + fmtMoney(inv.total) + '</td><td>' + statusPill(inv.status) + '</td></tr>',
-          4,
-          'Chưa có hóa đơn nào'
-        );
         renderRevenueChart('chartInvoiceRevenue', 'invoiceRevenue', invoiceData.revenueByDay || []);
+
+        const report = invoiceData.transactionsReport || { date: '—', transactions: [], topTransactions: [], summary: {} };
+        const summary = report.summary || {};
+        const transactions = report.transactions || [];
+        document.getElementById('end-day-table-count').textContent = transactions.length + ' giao dịch theo bộ lọc';
+        document.getElementById('end-day-total-qty').textContent = summary.quantityKnown ? fmtNumber(Number(summary.quantity || 0)) : '—';
+        document.getElementById('end-day-total-revenue').textContent = fmtMoney(summary.revenue);
+        document.getElementById('end-day-total-discount').textContent = fmtMoney(summary.discount);
+        document.getElementById('end-day-total-paid').textContent = fmtMoney(summary.paid);
+        renderPaginatedRows(
+          'endOfDay',
+          { tbody: 'endOfDayRows', pagination: 'endOfDayPagination', firstBtn: 'endOfDayFirstPage', prevBtn: 'endOfDayPrevPage', nextBtn: 'endOfDayNextPage', lastBtn: 'endOfDayLastPage', label: 'endOfDayPageLabel' },
+          transactions,
+          item => '<tr><td class="mono name-cell">' + escapeHtml(item.code) + '</td>' +
+            '<td class="mono muted">' + escapeHtml(item.time || '—') + '</td>' +
+            '<td class="name-cell">' + escapeHtml(item.customer || '—') + '</td>' +
+            '<td>' + escapeHtml(item.employee || '—') + '</td>' +
+            '<td class="mono" data-sort-value="' + item.quantity + '">' + (item.quantityKnown ? fmtNumber(Number(item.quantity || 0)) : '—') + '</td>' +
+            '<td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td>' +
+            '<td class="mono" data-sort-value="' + item.discount + '">' + fmtMoney(item.discount) + '</td>' +
+            '<td class="mono" data-sort-value="' + item.paid + '">' + fmtMoney(item.paid) + '</td>' +
+            '<td>' + statusPill(item.status) + '</td></tr>',
+          9,
+          'Chưa có giao dịch trong khoảng đã chọn'
+        );
+        renderTopTransactionsChart(report);
 
         document.getElementById('in-pending-count').textContent = fmtNumber(Number(invoiceData.pendingOrdersCount || 0));
         document.getElementById('in-pending-total').textContent = fmtMoney(invoiceData.pendingOrdersTotal);
         document.getElementById('in-returns-count').textContent = fmtNumber(Number(invoiceData.returnsCount || 0));
         document.getElementById('in-returns-total').textContent = fmtMoney(invoiceData.totalReturns);
 
-        const recentOrders = invoiceData.recentOrders || [];
-        document.getElementById('tagOrders').textContent = recentOrders.length;
+        const periodOrders = invoiceData.periodOrders || [];
+        document.getElementById('tagOrders').textContent = periodOrders.length;
         renderPaginatedRows(
           'orders',
           { tbody: 'orderRows', pagination: 'ordersPagination', firstBtn: 'ordersFirstPage', prevBtn: 'ordersPrevPage', nextBtn: 'ordersNextPage', lastBtn: 'ordersLastPage', label: 'ordersPageLabel' },
-          recentOrders,
+          periodOrders,
           o => '<tr><td class="mono muted">' + escapeHtml(o.code) + '</td><td class="name-cell">' + (o.customer ? escapeHtml(o.customer) : 'Khách lẻ') + '</td>' +
             '<td class="mono" data-sort-value="' + o.total + '">' + fmtMoney(o.total) + '</td><td>' + genericStatusPill(o.status) + '</td></tr>',
           4,
           'Chưa có đặt hàng nào'
         );
 
-        const recentReturns = invoiceData.recentReturns || [];
-        document.getElementById('tagReturns').textContent = recentReturns.length;
+        const periodReturns = invoiceData.periodReturns || [];
+        document.getElementById('tagReturns').textContent = periodReturns.length;
         renderPaginatedRows(
           'returns',
           { tbody: 'returnRows', pagination: 'returnsPagination', firstBtn: 'returnsFirstPage', prevBtn: 'returnsPrevPage', nextBtn: 'returnsNextPage', lastBtn: 'returnsLastPage', label: 'returnsPageLabel' },
-          recentReturns,
+          periodReturns,
           rt => '<tr><td class="mono muted">' + escapeHtml(rt.code) + '</td><td class="mono muted">' + (rt.originalInvoiceCode ? escapeHtml(rt.originalInvoiceCode) : '—') + '</td>' +
             '<td class="name-cell">' + (rt.customer ? escapeHtml(rt.customer) : 'Khách lẻ') + '</td>' +
             '<td class="mono" data-sort-value="' + rt.total + '">' + fmtMoney(rt.total) + '</td><td>' + genericStatusPill(rt.status) + '</td></tr>',
@@ -8278,6 +8391,38 @@
         document.getElementById('sp-debtcount').textContent = d.kpi.suppliersWithDebt;
         document.getElementById('sp-totaldebt').textContent = fmtMoney(d.kpi.totalSupplierDebt);
         document.getElementById('sp-totalpurchase').textContent = fmtMoney(d.kpi.totalPurchaseSpend);
+
+        const newPurchases = d.newPurchases || { label: '—', orderCount: 0, totalAmount: 0, supplierCount: 0, bySupplier: [], orders: [] };
+        const newPurchaseSuppliers = newPurchases.bySupplier || [];
+        const newPurchaseOrders = newPurchases.orders || [];
+        document.getElementById('sp-purchase-count').textContent = fmtNumber(Number(newPurchases.orderCount || 0));
+        document.getElementById('sp-purchase-date').textContent = newPurchases.label || '—';
+        document.getElementById('sp-purchase-total').textContent = fmtMoney(newPurchases.totalAmount);
+        document.getElementById('sp-purchase-suppliers').textContent = fmtNumber(Number(newPurchases.supplierCount || 0));
+        document.getElementById('sp-purchase-chart-hint').textContent = newPurchaseSuppliers.length
+          ? newPurchaseSuppliers.length + ' nhà cung cấp · ' + (newPurchases.label || '—')
+          : 'Chưa có phát sinh trong khoảng đã chọn';
+        document.getElementById('tagPurchases').textContent = newPurchases.label || '—';
+        document.getElementById('sp-purchase-table-count').textContent = 'Tổng ' + fmtNumber(Number(newPurchases.orderCount || 0)) + ' mã nhập hàng';
+        document.getElementById('chartOverviewPurchases').hidden = !newPurchaseSuppliers.length;
+        document.getElementById('overviewPurchaseChartEmpty').hidden = !!newPurchaseSuppliers.length;
+        if (newPurchaseSuppliers.length) {
+          renderBarChartList('chartOverviewPurchases', 'overviewPurchases', newPurchaseSuppliers.slice(0, 15), s => s.name, s => s.total, themeColor('--amber'), false);
+        } else {
+          destroyChart('overviewPurchases');
+        }
+        renderPaginatedRows(
+          'overviewPurchase',
+          { tbody: 'overviewPurchaseRows', pagination: 'overviewPurchasePagination', firstBtn: 'overviewPurchaseFirstPage', prevBtn: 'overviewPurchasePrevPage', nextBtn: 'overviewPurchaseNextPage', lastBtn: 'overviewPurchaseLastPage', label: 'overviewPurchasePageLabel' },
+          newPurchaseOrders,
+          p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
+            '<td class="mono muted">' + (p.date ? escapeHtml(p.date) : '—') + '</td>' +
+            '<td class="name-cell">' + (p.supplier ? escapeHtml(p.supplier) : '—') + '</td>' +
+            '<td class="mono" data-sort-value="' + p.total + '">' + fmtMoney(p.total) + '</td>' +
+            '<td>' + genericStatusPill(p.status) + '</td></tr>',
+          5,
+          'Không có hàng nhập trong khoảng thời gian đã chọn'
+        );
 
         const topSupplierDebt = d.suppliers.filter(s => s.debt > 0).slice(0, 15);
         if (topSupplierDebt.length) renderBarChartList(
@@ -8742,14 +8887,15 @@
     if (dashboardCache && dashboardCache.data) {
       state.data = dashboardCache.data;
       state.days = dashboardCache.days || state.days;
-      state.filters = dashboardCache.filters || state.filters;
+      // Gop voi mac dinh de cache cu (chua co bo loc "suppliers") khong lam mat bo loc moi.
+      state.filters = Object.assign({}, state.filters, dashboardCache.filters);
       state.productStatus = dashboardCache.productStatus || state.productStatus;
       const { updatedAt, ...rest } = dashboardCache.data;
       state.lastFingerprint = JSON.stringify(rest);
     }
-    syncMiniFilterUI('overview');
     syncMiniFilterUI('products');
     syncMiniFilterUI('invoices');
+    syncMiniFilterUI('suppliers');
     syncMiniFilterUI('customers');
     document.querySelectorAll('#productStatusToggle button').forEach(b => b.classList.toggle('active', b.dataset.status === state.productStatus));
     if (dashboardCache && dashboardCache.data) {

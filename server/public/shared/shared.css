@@ -58,7 +58,7 @@
   --ease-out:cubic-bezier(0.23, 1, 0.32, 1);
   --font-display:'Be Vietnam Pro',sans-serif;
   --font-body:'Inter',sans-serif;
-  --font-data:'IBM Plex Mono',monospace;
+  --font-data:'Roboto',sans-serif;
 
   /* Thang đo khoảng cách spacing (xem design-system/tks-dashboard/MASTER.md — Spacing Variables) */
   --space-xs:2px;
@@ -965,7 +965,7 @@ tbody tr:hover {
   animation: tks-spin 0.8s linear infinite;
 }
 .loader-text {
-  font-family: var(--font-data, 'IBM Plex Mono', monospace);
+  font-family: var(--font-data, 'Roboto', sans-serif);
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -1235,6 +1235,8 @@ tbody tr:hover {
 .dmy-date-input {
   width: 100px;
   cursor: pointer;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
 }
 
 .dmy-date-trigger {
@@ -1325,7 +1327,8 @@ tbody tr:hover {
   background: transparent;
   color: var(--text);
   font-size: 12px;
-  font-family: var(--font-body);
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
 

@@ -17,14 +17,14 @@ const assert = require('node:assert/strict');
 // "Khach theo hang hoa" doc qua customerProductTopRepository
 // (SQL) thay vi 1 sheet rieng.
 //
-// getDashboardData()/getDashboardExportSnapshot() gio doc 2 nguon SONG SONG:
+// getDashboardData() gio doc 2 nguon SONG SONG:
 //   - dashboardPgReader.readCoreDashboardSheets() — 7/9 tab (bo "Chi tiết hóa
 //     đơn"/"Nhập hàng") dung cho getDashboardData() (/api/dashboard).
 //   - dashboardPgReader.readDashboardSheets() — du 9 tab, dung cho search/
 //     export (getCachedDashboardSheets, khong doi).
 //   - dashboardRollupRepository.js — thay the 2 tab da bo (doanh thu theo
 //     ngay, top san pham, nhap hang theo NCC, ngay nhap dau tien...), dung
-//     boi CA getDashboardData() lan getDashboardExportSnapshot().
+//     boi getDashboardData().
 // Ca 3 mock nguon deu mac dinh tra rong/0 o day — tung test override lai khi
 // can du lieu cu the.
 function freshDashboardData() {
@@ -506,6 +506,34 @@ test('getDashboardData tong hop topRevenue tu sheet Hoa don khi sheet Bao cao ba
   assert.equal(topRevenue.top15[1].code, 'KH-01');
   assert.equal(topRevenue.top15[1].revenue, 800000);
   assert.equal(topRevenue.top15[1].saleOrderCount, 2);
+});
+
+test('getDashboardData tra toan bo dat hang/tra hang trong khoang loc, khong cat 8 dong, moi nhat len dau', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const CONFIG = require('../config');
+  const pad = n => String(n).padStart(2, '0');
+  const orderRows = [];
+  const returnRows = [];
+  for (let i = 1; i <= 12; i++) {
+    orderRows.push([`DH-${pad(i)}`, `${pad(i)}/08/2026 09:00:00`, 'Khách A', '', '', '', 100000 * i, 'Phiếu tạm']);
+    returnRows.push([`TH-${pad(i)}`, `${pad(i)}/08/2026 10:00:00`, 'HD-01', 'Khách A', 50000 * i, 'Đã trả hàng']);
+  }
+  mockPgSheets(dashboardPgReader, {
+    [CONFIG.SHEET_ORDERS]: [['Mã đặt hàng', 'Ngày đặt', 'Khách hàng', 'Nhân viên lập', 'Chi nhánh', 'Tổng tiền', 'Trạng thái'], ...orderRows]
+      .map((row, index) => index === 0 ? row : [row[0], row[1], row[2], row[3], row[4], row[6], row[7]]),
+    [CONFIG.SHEET_RETURNS]: [['Mã trả hàng', 'Ngày trả', 'Mã hóa đơn', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái'], ...returnRows]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData({ ...BASE_FILTERS, invoices: { mode: 'all' } });
+
+  assert.equal(data.invoices.periodOrders.length, 12);
+  assert.equal(data.invoices.periodOrders[0].code, 'DH-12');
+  assert.equal(data.invoices.periodOrders[11].code, 'DH-01');
+  assert.equal(data.invoices.periodReturns.length, 12);
+  assert.equal(data.invoices.periodReturns[0].code, 'TH-12');
+  assert.equal(data.invoices.recentOrders, undefined);
+  assert.equal(data.invoices.recentReturns, undefined);
 });
 
 
@@ -1206,10 +1234,15 @@ test('getDashboardData: cot SL cua "Chi tiết giao dịch" doc tu getInvoiceQua
   });
   dashboardData.__test__.resetCaches();
 
-  const filters = { ...BASE_FILTERS, overview: { mode: 'range', from: '2026-08-01', to: '2026-08-31' } };
+  // Bao cao giao dich thuoc tab Hoa don nen theo bo loc "invoices", khong phai "overview".
+  const filters = {
+    ...BASE_FILTERS,
+    overview: { mode: 'days', days: 1 },
+    invoices: { mode: 'range', from: '2026-08-01', to: '2026-08-31' }
+  };
   const data = await dashboardData.getDashboardData(filters);
 
-  const row = data.overview.endOfDayReport.transactions.find(t => t.code === 'HD-01');
+  const row = data.invoices.transactionsReport.transactions.find(t => t.code === 'HD-01');
   assert.ok(row, 'hoa don HD-01 phai xuat hien trong bang chi tiet giao dich');
   assert.equal(row.quantity, 7);
   assert.equal(row.quantityKnown, true);

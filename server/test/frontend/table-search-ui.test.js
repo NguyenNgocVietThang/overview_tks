@@ -39,12 +39,12 @@ function createDashboard() {
   return dom;
 }
 
-test('registry bao phủ đủ 20 bảng trong Báo cáo tổng hợp', () => {
+test('registry bao phủ đủ 19 bảng trong Báo cáo tổng hợp', () => {
   const dom = createDashboard();
   const expected = [
     'cpDetail', 'cpMonthly', 'productRevenueSearch', 'recentStockout', 'stockout90d',
     'endOfDay', 'overviewPurchase', 'todayNewProducts', 'topSelling', 'lowStock',
-    'allProducts', 'newlyImported', 'childCategory', 'orders', 'returns', 'invoices',
+    'allProducts', 'newlyImported', 'childCategory', 'orders', 'returns',
     'customerRevenue', 'topDebt', 'suppliers', 'debtManagement'
   ];
   const actual = Object.keys(dom.window.TABLE_EXPLORER_CONFIGS);
@@ -234,4 +234,9 @@ test('payload xuất Excel mang theo chế độ và từ khóa của đúng b�
     query: 'SP001 SP404'
   });
   dom.window.close();
+});
+
+test('ô tìm kiếm bảng ẩn nút × mặc định của trình duyệt để chỉ còn một nút xóa', () => {
+  const source = fs.readFileSync(indexPath, 'utf8');
+  assert.match(source, /\.table-search-input\[type="search"\]::-webkit-search-cancel-button/);
 });

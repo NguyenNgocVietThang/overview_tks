@@ -133,6 +133,20 @@ Role Postgres cấp cho nhân viên dùng SQL client/BI tool để truy vấn tr
 - Bảng chỉ lưu tập tên/ID cần thiết phục vụ cảnh báo "Chưa thu" trên màn hình Quản lý công nợ Dashboard; dữ liệu nguồn tính trực tiếp từ các bảng KiotViet (`invoices`, `returns`, `cash_flows`, `customers`) trong PostgreSQL.
 - Làm mới tự động bởi scheduler job `server/kiotvietSync/customerDebtReportRefresh.js`.
 
+### Xuất Excel đọc trực tiếp bảng nào
+
+`POST /api/export` không đọc Google Sheets. Sau khi lấy danh sách mã dòng từ `getDashboardData()`, `dashboardPgReader.readRowsByCodes(tab, cơ sở, mã)` chạy một truy vấn lọc theo mã (`code = ANY($2::text[])`, mã là tham số) trên các bảng dưới đây; chỉ 7 tab sau được phép xuất, tab khác bị từ chối `EXPORT_SOURCE_NOT_ALLOWED`. Nhãn/kiểu/mô tả cột nằm ở `server/dashboard/exportFieldCatalog.js`.
+
+| Tab xuất | Bảng đọc chính | Bảng ghép thêm |
+|---|---|---|
+| Hàng hóa | `products` | (không; nhóm hàng, tồn kho lấy từ cột `raw` của chính bảng) |
+| Hóa đơn | `invoices` | `staff` |
+| Đặt hàng | `orders` | |
+| Trả hàng | `returns` | |
+| Khách hàng | `customers` | |
+| Nhà cung cấp | `suppliers` | |
+| Nhập hàng | `purchases` | `purchase_details`, `suppliers`, `products` |
+
 ## Quan hệ và index
 
 - Các bảng `invoice_details`, `invoice_payments`, `order_details`, `return_details`, `purchase_details` có foreign key ghép tới bảng cha cùng `branch`, với `ON DELETE CASCADE`.

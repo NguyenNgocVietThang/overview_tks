@@ -103,7 +103,8 @@ Backend Web Server: Node.js + Express
     - server/dashboard/debtManagement.js : parser, đối chiếu cảnh báo, KPI và chữ ký công nợ
     - server/dashboard/debtCollectionStatusRepository.js : trạng thái thu nợ trong PostgreSQL
     - server/dashboard/debtManagementRoutes.js : PATCH trạng thái theo req.branch
-    - server/dashboard/exportService.js : dịch vụ tạo file xuất Excel .xlsx
+    - server/dashboard/exportService.js : dịch vụ lấy danh sách trường và tạo file xuất Excel .xlsx (đọc thẳng PostgreSQL theo mã)
+    - server/dashboard/exportFieldCatalog.js : từ điển trường xuất Excel (nhãn tiếng Việt chuẩn hóa, nguồn sự thật duy nhất)
     |
     | REST APIs: /api/auth/*, /api/dashboard, /api/search, /api/export, /api/shipment/*, /api/hr/*
     v
@@ -232,7 +233,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-03.5 | Tạo `stockValueByCategory`: tổng `Giá vốn × max(Tồn kho, 0)` theo nhóm cha; tối đa 30 phần tử (29 nhóm lớn nhất và `Khác` nếu vượt giới hạn).          | Cao         | Hoàn thành     |
 | FR-03.6 | Tạo `allProducts`: toàn bộ danh sách sản phẩm kèm tỉ lệ % tồn kho.                                                                                | Trung bình  | Hoàn thành     |
 | FR-03.7 | Tạo `topDebt`: top 8 khách hàng có công nợ cao nhất.                                                                                               | Cao         | Hoàn thành     |
-| FR-03.8 | Tạo `recentInvoices`, `recentOrders`, `recentReturns`, `recentPurchaseOrders`: 8 bản ghi gần nhất (sort theo thời gian giảm dần).                  | Cao         | Hoàn thành     |
+| FR-03.8 | Tạo `periodOrders`, `periodReturns` (toàn bộ trong khoảng lọc) và `recentPurchaseOrders` (8 bản ghi gần nhất), sort theo thời gian giảm dần.                  | Cao         | Hoàn thành     |
 | FR-03.9 | Tạo `suppliers`: danh sách tất cả nhà cung cấp, sắp xếp giảm dần theo nợ.                                                                         | Trung bình  | Hoàn thành     |
 | FR-03.10 | Tạo `products.childCategorySalesByParent`: doanh thu và SL bán theo nhóm con, gom theo từng nhóm cha (từ Chi tiết hóa đơn, loại trừ hóa đơn đã hủy), phục vụ phần "Chi tiết theo nhóm con" ở tab Hàng hóa. | Trung bình  | Hoàn thành     |
 | FR-03.11 | Tạo `products.availableParentCategories`: danh sách tên nhóm cha (từ `parentCategoryMap`, sắp xếp theo bảng chữ cái), dùng để đổ vào dropdown chọn nhóm cha thay vì nhập liệu tự do. | Trung bình  | Hoàn thành     |
@@ -281,11 +282,15 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-07.6 | Route `/health`: trả HTTP 200 `{"status":"ok"}` để Render health check.                                                  | Cao         | Hoàn thành     |
 | FR-07.8 | Thanh tìm kiếm có hai chế độ: thông thường và nhiều mã. Chế độ nhiều mã tách tối đa 50 mã theo khoảng trắng, khớp chính xác không phân biệt hoa thường, loại mã trùng và trả kết quả theo thứ tự nhập. | Cao | Hoàn thành |
 | FR-07.9 | Riêng tab Khách hàng có thêm chế độ `Top KH theo sản phẩm`: nhận tối đa 50 mã, trả tối đa 3 khách/mã theo SL mua trong kỳ; hiển thị doanh thu mua, tổng trả toàn thời gian, doanh thu thuần hỗn hợp và ngày mua cuối cùng. | Cao | Hoàn thành |
-| FR-07.10 | Mỗi bảng dữ liệu có nút `Xuất Excel`; file giữ bộ lọc/sort hiện tại và bỏ giới hạn phân trang. Riêng Quản lý công nợ mặc định chọn 10 cột hiển thị và cho chọn thêm Người cập nhật/Cập nhật lúc. | Cao | Hoàn thành |
+| FR-07.10 | Mỗi bảng dữ liệu có nút `Xuất Excel`; file giữ bộ lọc/sort hiện tại và bỏ giới hạn phân trang (danh sách mã dòng lấy từ kết quả dashboard đã cache, cột dữ liệu gốc đọc thẳng từ Supabase PostgreSQL theo các mã đó, không đọc Google Sheets). Riêng Quản lý công nợ mặc định chọn 10 cột hiển thị và cho chọn thêm Người cập nhật/Cập nhật lúc. | Cao | Hoàn thành |
 | FR-07.11 | Kết quả tìm kiếm ngoài Tổng quan được xuất Excel; kết quả nhiều nguồn tạo một worksheet cho mỗi nguồn và tự lấy toàn bộ trường. Tìm kiếm Tổng quan không hỗ trợ xuất do trộn nhiều loại dữ liệu. | Cao | Hoàn thành |
 | FR-07.12 | Xuất Nhập hàng giữ worksheet tổng hợp/chi tiết; Quản lý công nợ xuất một worksheet `Công nợ HN` hoặc `Công nợ SG`, giữ tiền/tỷ lệ ở kiểu số, cố định header, bật AutoFilter và trung hòa chuỗi công thức. | Cao | Hoàn thành |
 | FR-07.13 | Bảng tất cả hàng hóa (`allProducts`) và bảng hàng đã hết (`lowStock`) được phân trang client-side qua `pagination.js` (~200 dòng/trang), có điều khiển Trang trước / Trang sau, giữ nguyên thẻ đếm tổng số lượng. | Cao | Hoàn thành |
 | FR-07.14 | Biểu đồ Chart.js có animation gating (không animate lại khi chuyển tab, đổi theme hay background polling); các phần tử dropdown, surface theme và dòng chi tiết công nợ có transition mượt mà dùng chung token `--ease-out`. | Cao | Hoàn thành |
+| FR-07.15 | `POST /api/export/fields` với các bảng cố định trả danh sách worksheet và trường ngay từ từ điển tĩnh (`rowCount = null`, mỗi trường có `description` hiển thị dạng tooltip), không gọi `getDashboardData`, không đọc PostgreSQL/Google Sheets. Riêng `search.results` (worksheet phụ thuộc kết quả tìm kiếm) vẫn chạy tìm kiếm thật và trả `rowCount` là số dòng thực. | Cao | Hoàn thành |
+| FR-07.16 | `POST /api/export` lấy danh sách mã dòng từ `dashboardData.getDashboardData()` (kết quả cache, chỉ nạp 7 tab lõi), đọc cột gốc bằng `dashboardPgReader.readRowsByCodes(tab, cơ sở, mã)` chỉ cho các mã đó rồi ghi bằng ExcelJS. Chỉ 7 nguồn được phép (Hàng hóa, Hóa đơn, Đặt hàng, Trả hàng, Khách hàng, Nhà cung cấp, Nhập hàng); nguồn khác bị từ chối `400 EXPORT_SOURCE_NOT_ALLOWED`. Mã khớp chính xác, trùng bị loại, danh sách rỗng thì không truy vấn, hơn 20.000 mã được chia lô 5.000 mã chạy tuần tự. | Cao | Hoàn thành |
+| FR-07.17 | Modal Xuất Excel hủy được mọi lúc (nút X, nút Hủy, phím Esc, bấm nền) bằng `AbortController`; danh sách trường timeout 30 giây, tạo file timeout 180 giây, hết giờ hoặc lỗi thì hiện thông báo tiếng Việt cùng nút `Thử lại` lặp lại đúng bước vừa lỗi; phản hồi trễ của yêu cầu cũ (đã đóng, mở lại, thử lại) bị bỏ qua. Khi trình duyệt ngắt kết nối, máy chủ hủy việc đang làm và nhả chỗ xuất file. | Cao | Hoàn thành |
+| FR-07.18 | Nhãn trường tiếng Việt chuẩn hóa: có dấu, không dùng tên biến tiếng Anh/`snake_case`, không viết tắt (Số lượng, Doanh số, Khách hàng, Nhà cung cấp, Tháng...), cùng khái niệm dùng cùng một nhãn ở mọi nguồn, nhãn tối đa 40 ký tự và duy nhất trong một worksheet. Quy ước áp dụng cho cả cột dữ liệu gốc, cột dashboard tính thêm và cột bảng tổng hợp. Từ điển nằm tại `server/dashboard/exportFieldCatalog.js` và là nguồn sự thật duy nhất cho nhãn/kiểu/mô tả trường của 7 nguồn PostgreSQL; cột dashboard tính thêm không thuộc từ điển này mà được khai báo trong `exportService.js`. | Cao | Hoàn thành |
 
 ## 3.8. FR-08: Đăng ký, Google Guest, Quản trị tài khoản & Tra cứu vận chuyển
 
@@ -336,8 +341,11 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | NFR-08 | Nhật ký & debug      | Log chi tiết lỗi khi `/api/dashboard` thất bại; `/api/debug` kiểm tra kết nối và trả danh sách tab hiện có mà không lộ secret.                   |
 | NFR-09 | Độ trễ đồng bộ       | Từ khi dữ liệu thay đổi trên KiotViet → Apps Script cập nhật Sheets qua webhook: mục tiêu dưới 2 phút. Nhập hàng mới/sửa trong 7 ngày: tối đa 5 phút; Trả hàng/NCC và đối soát toàn lịch sử: 15 phút + thời gian backfill. |
 | NFR-10 | Nhất quán thời gian  | Parse ngày từ Sheets, xác định ngày hiện tại, tạo bucket 7/30/90 ngày và format `updatedAt` theo Asia/Ho_Chi_Minh, độc lập timezone máy chủ.      |
-| NFR-11 | An toàn xuất dữ liệu | API xuất chỉ nhận khóa bảng, bộ lọc và danh sách trường hợp lệ; không nhận dòng dữ liệu từ client, chặn trường lạ và vô hiệu hóa chuỗi có thể bị Excel hiểu là công thức. |
+| NFR-11 | An toàn xuất dữ liệu | API xuất chỉ nhận khóa bảng, bộ lọc và danh sách trường hợp lệ (`columns`: khóa worksheet -> danh sách khóa trường); chặn bảng lạ (`EXPORT_TABLE_NOT_ALLOWED`) và trường lạ (`EXPORT_FIELD_NOT_ALLOWED`), kiểm tra hợp lệ trước khi nạp dữ liệu, mã truyền vào SQL bằng tham số và vô hiệu hóa chuỗi có thể bị Excel hiểu là công thức. Hai bảng đứt hàng nhận kết quả quét do client gửi nhưng chỉ ghi các cột khai báo sẵn. |
 | NFR-12 | Kiểm thử tự động     | Duy trì bộ `node:test` bao phủ parser/cảnh báo/workflow/export công nợ, HR, auth, vận chuyển, cache, phân trang, đồng bộ và frontend; migration integration chỉ chạy với `SUPABASE_TEST_DB_URL` tách biệt. |
+| NFR-13 | Tải xuất Excel | Tối đa 2 file xuất chạy đồng thời và tối đa 8 yêu cầu xếp hàng chờ; vượt trần trả `503 EXPORT_BUSY`. Yêu cầu bị hủy khi đang chờ thì bị bỏ khỏi hàng đợi, chỗ xuất file luôn được nhả kể cả khi lỗi. Mỗi lần xuất chỉ đọc PostgreSQL theo mã của các dòng cần xuất, không nạp toàn bộ 9 tab như luồng cũ, để không chiếm hết pool kết nối và bộ nhớ của các API khác. |
+| NFR-14 | Độ trễ lấy danh sách trường | Với bảng cố định, `POST /api/export/fields` phải trả dưới 1 giây vì không thực hiện truy vấn nặng (không `getDashboardData`, không `readRowsByCodes`, không tìm kiếm); có test đếm số lần gọi bằng 0. |
+| NFR-15 | Chuẩn nhãn trường xuất | Nhãn trường tiếng Việt chuẩn hóa theo FR-07.18; việc dùng viết tắt, tên biến tiếng Anh hoặc `snake_case` trong nhãn/mô tả bị test tự động (`exportFieldCatalog.test.js`, `exportService.test.js`) chặn. |
 
 
 # 5. Yêu cầu giao diện người dùng (UI Requirements)
@@ -402,7 +410,6 @@ Giao diện Dashboard gồm:
     "totalPurchaseSpend": 0
   },
   "revenueByDay": [{ "date": "dd/MM/yyyy", "label": "dd/MM", "revenue": 0, "count": 0 }],
-  "recentInvoices": [{ "code": "", "customer": "", "total": 0, "status": "", "time": "" }],
   "lowStock": [{ "code": "", "name": "", "stock": 0, "reserved": 0, "status": "" }],
   "stockValueByCategory": [{ "name": "", "stockValue": 0, "stock": 0, "productCount": 0 }],
   "allProducts": [{ "code": "", "name": "", "stock": 0, "reserved": 0, "status": "", "pct": 0 }],
@@ -413,8 +420,8 @@ Giao diện Dashboard gồm:
     "childCategorySalesByParent": { "<Tên nhóm cha>": [{ "name": "", "qty": 0, "revenue": 0, "productCount": 0 }] },
     "availableParentCategories": [""]
   },
-  "recentOrders": [{ "code": "", "date": "", "customer": "", "total": 0, "status": "" }],
-  "recentReturns": [{ "code": "", "date": "", "originalInvoiceCode": "", "customer": "", "total": 0, "status": "" }],
+  "periodOrders": [{ "code": "", "date": "", "customer": "", "total": 0, "status": "" }],
+  "periodReturns": [{ "code": "", "date": "", "originalInvoiceCode": "", "customer": "", "total": 0, "status": "" }],
   "suppliers": [{ "code": "", "name": "", "phone": "", "email": "", "address": "", "debt": 0 }],
   "recentPurchaseOrders": [{ "code": "", "date": "", "supplier": "", "branch": "", "total": 0, "status": "" }],
   "debtManagement": {
@@ -515,53 +522,76 @@ Kết quả xếp theo SL mua giảm dần, sau đó doanh thu mua, ngày mua cu
 
 ## 6.6. POST /api/export/fields
 
-**Mô tả:** Lấy danh sách các worksheet và trường dữ liệu hợp lệ có thể chọn để xuất Excel cho một bảng dữ liệu hoặc kết quả tìm kiếm cụ thể.
+**Mô tả:** Trả danh sách worksheet và trường có thể chọn để xuất Excel cho một bảng dữ liệu hoặc kết quả tìm kiếm. Với các bảng cố định, dữ liệu trả **ngay** từ từ điển tĩnh (`exportFieldCatalog.js` cùng cột dashboard tính thêm trong `exportService.js`): không gọi `getDashboardData`, không đọc PostgreSQL hay Google Sheets, nên `rowCount` luôn là `null`. Chỉ `tableKey = "search.results"` chạy tìm kiếm thật để biết các nguồn/worksheet và trả `rowCount` là số dòng thực. Yêu cầu sai (bảng lạ, thiếu khách/từ khóa...) vẫn bị từ chối ngay ở bước này.
 
-**Body (JSON):**
+**Quyền:** đã đăng nhập bằng tài khoản nội bộ (cùng nhóm vai trò với các API dashboard); cơ sở lấy từ session.
+
+**Body (JSON):** `tableKey` (bắt buộc, một trong các khóa như `products.all`, `invoices.orders`, `debt.management`, `search.results`...), `filters` (bộ lọc kỳ của các tab), `context` (nhóm cha, bộ lọc công nợ, khách/hàng đang xem...), `tableSearch` (tìm kiếm trong bảng, nếu có) và `search` (chỉ với `search.results`).
 ```json
 {
-  "tableKey": "allProducts",
-  "searchContext": null
+  "tableKey": "products.all",
+  "filters": { "products": { "mode": "days", "days": 30, "status": "all" } },
+  "context": {}
 }
 ```
 
 **Response (HTTP 200):**
 ```json
 {
-  "tableKey": "allProducts",
-  "defaultFilename": "tat-ca-ma-hang_14-08-2026.xlsx",
-  "sheets": [
+  "tableKey": "products.all",
+  "title": "Tất cả mã hàng",
+  "selectionMode": "custom",
+  "worksheets": [
     {
-      "sheetKey": "allProducts",
-      "sheetTitle": "Tất cả mã hàng",
+      "key": "all_products",
+      "name": "Tất cả mã hàng",
+      "rowCount": null,
       "fields": [
-        { "key": "code", "label": "Mã hàng", "default": true },
-        { "key": "name", "label": "Tên hàng", "default": true },
-        { "key": "category", "label": "Nhóm hàng", "default": true },
-        { "key": "stock", "label": "Tồn kho", "default": true },
-        { "key": "costPrice", "label": "Giá vốn", "default": true }
+        {
+          "key": "ma_hang",
+          "label": "Mã hàng",
+          "type": "text",
+          "description": "Mã hàng hiển thị trên KiotViet, dùng để tra cứu và ghép với hóa đơn, phiếu nhập.",
+          "selected": true
+        }
       ]
     }
   ]
 }
 ```
 
+- `selectionMode`: `custom` (người dùng chọn trường) hoặc `all-only` (kết quả tìm kiếm nhiều nguồn: modal tự xuất toàn bộ trường, mỗi nguồn một worksheet).
+- `fields[].key` là khóa để gửi lại trong `columns` của `POST /api/export`; `type` là `text | number | date | percent | general`; `description` có thể vắng và được modal hiển thị dạng tooltip; `selected` là lựa chọn mặc định.
+- Nhãn `label` theo quy ước chuẩn hóa ở FR-07.18. Mỗi bảng cố định có một hoặc nhiều worksheet gồm các trường của nguồn PostgreSQL tương ứng theo từ điển, cộng cột dashboard tính thêm (ví dụ `Số lượng bán`, `Doanh thu`) nếu có.
+
+**Lỗi:** HTTP `400` với `EXPORT_TABLE_NOT_ALLOWED`, `EXPORT_NO_CUSTOMER_SELECTED`, `EXPORT_NO_QUERY`, `EXPORT_OVERVIEW_SEARCH_DISABLED`...; `EXPORT_NO_DATA` (`400` khi bảng đứt hàng chưa có kết quả quét, `404` khi tìm kiếm hoặc bộ lọc không còn dòng nào). Body lỗi có `error`, `detail`, `code`.
+
 ## 6.7. POST /api/export
 
-**Mô tả:** Nhận cấu hình trường cần xuất và ngữ cảnh bộ lọc/tìm kiếm, đọc dữ liệu thực tế từ Google Sheets trên server và tạo file `.xlsx` định dạng hoàn chỉnh (cố định hàng tiêu đề, bật AutoFilter, ép kiểu text cho mã/SĐT).
+**Mô tả:** Nhận khóa bảng, bộ lọc/ngữ cảnh và danh sách trường đã chọn, tạo file `.xlsx` định dạng hoàn chỉnh (cố định hàng tiêu đề, bật AutoFilter, ép kiểu text cho mã/SĐT, trung hòa chuỗi công thức). Luồng dữ liệu **không còn đọc Google Sheets**:
+
+1. Kiểm tra hợp lệ (bảng, trường, `columns`) trước khi xin chỗ xuất file; yêu cầu sai không chiếm hàng đợi và không chạm cơ sở dữ liệu.
+2. Xin một trong tối đa 2 chỗ xuất file đồng thời (hàng đợi tối đa 8, vượt trần trả `503 EXPORT_BUSY`, xem NFR-13).
+3. Lấy danh sách mã dòng logic (đã lọc/xếp hạng) từ `dashboardData.getDashboardData()` — kết quả cache 90 giây, chỉ nạp 7 tab lõi.
+4. Với bảng có nguồn PostgreSQL, gọi `dashboardPgReader.readRowsByCodes(tab, cơ sở, mã)` để đọc thẳng Supabase PostgreSQL chỉ các dòng có mã đang hiển thị, ghép theo mã và cắt theo cột đã chọn. Bảng tổng hợp (công nợ, nhóm hàng, bảng theo khách...) dùng trực tiếp dữ liệu dashboard đã tính; bảng đứt hàng dùng kết quả quét do client gửi lên.
+5. Ghi workbook bằng ExcelJS và trả file. Nếu client ngắt kết nối hoặc hủy, tiến trình dừng sau bước đang chạy và nhả chỗ xuất file.
+
+Tìm kiếm trong bảng (`tableSearch`) được áp dụng lên dữ liệu đầy đủ cột rồi mới cắt cột đã chọn; kết quả tìm kiếm ngoài Tổng quan (`search.results`) dùng chính dữ liệu tìm kiếm và không cần gửi `columns` khi có nhiều nguồn.
 
 **Body (JSON):**
 ```json
 {
-  "tableKey": "allProducts",
-  "selectedFields": {
-    "allProducts": ["code", "name", "category", "stock", "costPrice"]
-  },
-  "searchContext": null
+  "tableKey": "products.all",
+  "filters": { "products": { "mode": "days", "days": 30, "status": "all" } },
+  "context": {},
+  "columns": {
+    "all_products": ["ma_hang", "ten_hang", "nhom_hang"]
+  }
 }
 ```
+`columns` là ánh xạ khóa worksheet (`worksheets[].key` ở 6.6) -> danh sách khóa trường; khóa lạ bị từ chối `400 EXPORT_FIELD_NOT_ALLOWED`, thiếu worksheet `400 EXPORT_FIELDS_REQUIRED`, không chọn trường nào `400 EXPORT_NO_FIELDS_SELECTED`.
 
-**Response (HTTP 200):** Binary stream file `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` kèm header `Content-Disposition: attachment; filename="..."`.
+**Response (HTTP 200):** Binary stream file `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` kèm header `Content-Disposition: attachment; filename="..."` (tên file dạng `<HN|SG|TKS>_<tên bảng không dấu>_<yyyymmdd_hhmm>.xlsx`). Lỗi trả JSON `error`, `detail`, `code`: `400` (yêu cầu sai), `404 EXPORT_NO_DATA`, `503 EXPORT_BUSY`, `499 EXPORT_ABORTED` (yêu cầu đã hủy, thường client không nhận được body).
 
 ## 6.7a. PATCH /api/debt-management/status
 
@@ -734,7 +764,7 @@ Các cột nghiệp vụ nghỉ phép dùng `Thời gian gửi` (ISO), `Thời g
 | Bộ lọc 7/30/90 ngày (5.4)               | FR-04.1, FR-04.2, FR-04.3           |
 | Cập nhật dashboard (5.5)                 | FR-05.1 → FR-05.5                   |
 | Đồng bộ tự động — Apps Script (5.5)     | FR-06.1 → FR-06.14                  |
-| Giao diện, Phân trang & Xuất Excel (5.3, 5.4, 5.5) | FR-07.1 → FR-07.14        |
+| Giao diện, Phân trang & Xuất Excel (5.3, 5.4, 5.5) | FR-07.1 → FR-07.18        |
 | Đăng ký, Google Guest, Quản trị tài khoản & tra cứu vận chuyển | FR-08.1 → FR-08.7 |
 | Nghỉ phép theo buổi & Telegram Bot | FR-10.1 → FR-10.5 |
 | Quản lý công nợ theo cơ sở | FR-11.1 → FR-11.7 |

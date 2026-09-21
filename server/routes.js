@@ -10,7 +10,7 @@ const {
 
 const router = express.Router();
 
-const { getExportFields, createExportWorkbook } = require('./dashboard/exportService');
+const { getExportFields, createExportWorkbook, buildExportErrorBody } = require('./dashboard/exportService');
 const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
 const { requireAuth, requireRole } = require('./auth/authMiddleware');
@@ -273,19 +273,13 @@ router.get('/api/product-revenue-detail', async (req, res) => {
 });
 
 function sendExportError(res, err, fallbackMessage) {
-  const googleStatus = err?.response?.status;
   console.error('=== LOI XUAT EXCEL ===');
   console.error('Message:', err.message);
   console.error('Code:', err.code);
-  console.error('Google API status:', googleStatus);
   console.error('Stack:', err.stack);
   console.error('======================');
-  res.status(err.statusCode || 500).json({
-    error: fallbackMessage,
-    detail: err.message,
-    code: err.code,
-    googleStatus
-  });
+  // Luong xuat doc Postgres (khong con Google); chi tra detail cho loi da biet.
+  res.status(err.statusCode || 500).json(buildExportErrorBody(err, fallbackMessage));
 }
 
 router.post('/api/export/fields', async (req, res) => {
@@ -298,13 +292,21 @@ router.post('/api/export/fields', async (req, res) => {
 });
 
 router.post('/api/export', async (req, res) => {
+  // Client ngat ket noi (dong modal/huy) truoc khi ghi xong -> huy viec dang lam
+  // de nha slot xuat file; khong tra body cho ket noi da dong.
+  const abortController = new AbortController();
+  res.on('close', () => {
+    if (!res.writableFinished) abortController.abort();
+  });
   try {
-    const file = await createExportWorkbook(req.body || {}, req.branch);
+    const file = await createExportWorkbook(req.body || {}, req.branch, { signal: abortController.signal });
+    if (abortController.signal.aborted) return;
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
     res.setHeader('Content-Length', file.buffer.length);
     res.status(200).send(file.buffer);
   } catch (err) {
+    if (abortController.signal.aborted) return;
     sendExportError(res, err, 'Không thể tạo file Excel.');
   }
 });

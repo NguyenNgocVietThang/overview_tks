@@ -108,6 +108,23 @@ const INVENTORY_COST_SQL = `(SELECT AVG((inv->>'cost')::float8)
 const PRODUCT_SHELVES_SQL = `(SELECT string_agg(NULLIF(shelf->>'productShelves', ''), ', ')
   FROM jsonb_array_elements(COALESCE(raw->'productShelves', '[]'::jsonb)) shelf)`;
 
+// LOC THEO MA (chi readRowsByCodes dung): `$2` la MANG text[] cac ma, THAM SO
+// HOA HOAN TOAN — tuyet doi khong noi chuoi ma vao SQL. Khi khong loc theo ma
+// (byCode falsy) cac helper duoi day tra chuoi rong nen SQL cua tab y het ban
+// goc (readDashboardSheets/readCoreDashboardSheets khong doi). `column` la
+// bieu thuc cot ma cua bang goc (vd 'i.code'), KHONG phai alias trong SELECT.
+function codeFilter(byCode, column) {
+  return byCode ? `\n        AND ${column} = ANY($2::text[])` : '';
+}
+
+// "Nhập hàng": CTE detail_totals mac dinh quet TOAN BO purchase_details cua co
+// so — khi loc theo ma chi gom cac phieu nhap duoc chon de truy van nhanh.
+function purchaseDetailsCodeFilter(byCode) {
+  return byCode
+    ? `\n          AND purchase_id IN (SELECT id FROM purchases WHERE branch = $1 AND code = ANY($2::text[]))`
+    : '';
+}
+
 const TABS = [
   {
     sheetName: CONFIG.SHEET_CATEGORIES,
@@ -148,7 +165,8 @@ const TABS = [
       'mo_ta', 'gia_tri_quy_doi', 'co_thuoc_tinh', 'dang_hoat_dong',
       'ngay_tao', 'ngay_cap_nhat', 'ma_loai_hang'
     ],
-    sql: `-- tab: Hàng hóa
+    codeColumn: 'ma_hang',
+    buildSql: byCode => `-- tab: Hàng hóa
       SELECT
         ${text('code')}                                        AS ma_hang,
         COALESCE(NULLIF(raw->>'fullName', ''), name, '')       AS ten_hang,
@@ -178,7 +196,7 @@ const TABS = [
         ${fmtTs('modified_date')}                              AS ngay_cap_nhat,
         ${text(`raw->>'type'`)}                                AS ma_loai_hang
       FROM products
-      WHERE branch = $1
+      WHERE branch = $1${codeFilter(byCode, 'code')}
       ORDER BY code`
   },
   {
@@ -197,7 +215,8 @@ const TABS = [
       'id_khach_hang', 'ma_khach_hang', 'ma_trang_thai', 'ten_trang_thai_api',
       'ghi_chu', 'thu_ho_cod', 'ngay_tao'
     ],
-    sql: `-- tab: Hóa đơn
+    codeColumn: 'ma_hoa_don',
+    buildSql: byCode => `-- tab: Hóa đơn
       SELECT
         ${text('i.code')}                                          AS ma_hoa_don,
         ${fmtTs('i.purchase_date')}                                AS ngay_ban,
@@ -222,7 +241,7 @@ const TABS = [
         ${fmtTs('i.created_date')}                                 AS ngay_tao
       FROM invoices i
       LEFT JOIN staff s ON s.branch = i.branch AND s.id = i.sold_by_id
-      WHERE i.branch = $1
+      WHERE i.branch = $1${codeFilter(byCode, 'i.code')}
       ORDER BY i.purchase_date DESC NULLS LAST, i.id DESC`
   },
   {
@@ -275,7 +294,8 @@ const TABS = [
       'giam_gia_pct', 'giam_gia', 'ma_trang_thai', 'ten_trang_thai_api',
       'ghi_chu', 'thu_ho_cod', 'ngay_tao', 'ngay_cap_nhat'
     ],
-    sql: `-- tab: Đặt hàng
+    codeColumn: 'ma_dat_hang',
+    buildSql: byCode => `-- tab: Đặt hàng
       SELECT
         ${text('code')}                                        AS ma_dat_hang,
         ${fmtTs('order_date')}                                 AS ngay_dat,
@@ -300,7 +320,7 @@ const TABS = [
         ${fmtTs('created_date')}                               AS ngay_tao,
         ${fmtTs('modified_date')}                              AS ngay_cap_nhat
       FROM orders
-      WHERE branch = $1
+      WHERE branch = $1${codeFilter(byCode, 'code')}
       ORDER BY order_date DESC NULLS LAST, id DESC`
   },
   {
@@ -319,7 +339,8 @@ const TABS = [
       'giam_gia_tra_hang', 'phi_tra_hang', 'tong_thanh_toan', 'ma_trang_thai',
       'ten_trang_thai_api', 'ngay_tao', 'ngay_cap_nhat'
     ],
-    sql: `-- tab: Trả hàng
+    codeColumn: 'ma_tra_hang',
+    buildSql: byCode => `-- tab: Trả hàng
       SELECT
         ${text('code')}                                        AS ma_tra_hang,
         ${fmtTs('return_date')}                                AS ngay_tra,
@@ -342,7 +363,7 @@ const TABS = [
         ${fmtTs('created_date')}                               AS ngay_tao,
         ${fmtTs('modified_date')}                              AS ngay_cap_nhat
       FROM returns
-      WHERE branch = $1
+      WHERE branch = $1${codeFilter(byCode, 'code')}
       ORDER BY return_date DESC NULLS LAST, id DESC`
   },
   {
@@ -357,7 +378,8 @@ const TABS = [
       'dia_chi', 'no_hien_tai', 'tong_ban', 'id_khach_hang', 'dien_thoai_phu',
       'cong_ty', 'tong_doanh_thu', 'id_gian_hang', 'ngay_tao'
     ],
-    sql: `-- tab: Khách hàng
+    codeColumn: 'ma_khach_hang',
+    buildSql: byCode => `-- tab: Khách hàng
       SELECT
         ${text('code')}                          AS ma_khach_hang,
         ${text('name')}                          AS ten_khach_hang,
@@ -373,7 +395,7 @@ const TABS = [
         ${text(`raw->>'retailerId'`)}            AS id_gian_hang,
         ${fmtTs('created_date')}                 AS ngay_tao
       FROM customers
-      WHERE branch = $1
+      WHERE branch = $1${codeFilter(byCode, 'code')}
       ORDER BY code`
   },
   {
@@ -390,7 +412,8 @@ const TABS = [
       'id_gian_hang', 'id_chi_nhanh_tao', 'nguoi_tao', 'tong_mua',
       'tong_mua_tru_tra_hang'
     ],
-    sql: `-- tab: Nhà cung cấp
+    codeColumn: 'ma_ncc',
+    buildSql: byCode => `-- tab: Nhà cung cấp
       SELECT
         ${text('code')}                                    AS ma_ncc,
         ${text('name')}                                    AS ten_ncc,
@@ -407,7 +430,7 @@ const TABS = [
         ${num(`raw->>'totalInvoiced'`)}                    AS tong_mua,
         ${num(`raw->>'totalInvoicedWithoutReturn'`)}       AS tong_mua_tru_tra_hang
       FROM suppliers
-      WHERE branch = $1
+      WHERE branch = $1${codeFilter(byCode, 'code')}
       ORDER BY code`
   },
   {
@@ -428,16 +451,17 @@ const TABS = [
       'ten_hang', 'don_gia', 'giam_gia_pct', 'giam_gia', 'gia_nhap',
       'thanh_tien', 'so_luong'
     ],
+    codeColumn: 'ma_nhap_hang',
     // Sheet "Nhập hàng" la dang "flatten": moi dong = 1 mat hang, thong tin
     // phieu nhap duoc lap lai tren tung dong (xem buildPurchaseSheetRow_).
     // LEFT JOIN de phieu nhap khong co dong hang nao van con 1 dong tren sheet.
-    sql: `-- tab: Nhập hàng
+    buildSql: byCode => `-- tab: Nhập hàng
       WITH detail_totals AS (
         SELECT purchase_id,
                SUM(COALESCE(quantity, 0))::float8 AS total_quantity,
                COUNT(*)::float8                   AS line_count
         FROM purchase_details
-        WHERE branch = $1
+        WHERE branch = $1${purchaseDetailsCodeFilter(byCode)}
         GROUP BY purchase_id
       )
       SELECT
@@ -482,10 +506,20 @@ const TABS = [
       LEFT JOIN detail_totals dt ON dt.purchase_id = pu.id
       LEFT JOIN suppliers su ON su.branch = pu.branch AND su.id = pu.supplier_id
       LEFT JOIN products p ON p.branch = pu.branch AND p.id = d.product_id
-      WHERE pu.branch = $1
+      WHERE pu.branch = $1${codeFilter(byCode, 'pu.code')}
       ORDER BY pu.purchase_date DESC NULLS LAST, pu.id DESC, d.line_no`
   }
 ];
+
+// 7 tab co `buildSql(byCode)`: `sql` = ban KHONG loc (y het ban goc, dung cho
+// readDashboardSheets/readCoreDashboardSheets), `sqlByCodes` = ban loc theo ma
+// (chi readRowsByCodes dung, can them tham so `$2` = text[]). 2 tab con lai
+// ("Nhóm hàng", "Chi tiết hóa đơn") khong xuat Excel nen giu `sql` co san.
+TABS.forEach(tab => {
+  if (!tab.buildSql) return;
+  tab.sql = tab.buildSql(false);
+  tab.sqlByCodes = tab.buildSql(true);
+});
 
 const SHEET_NAMES = TABS.map(tab => tab.sheetName);
 
@@ -500,7 +534,21 @@ const CORE_EXCLUDED_SHEET_NAMES = new Set([CONFIG.SHEET_INVOICE_DETAILS, CONFIG.
 const CORE_TABS = TABS.filter(tab => !CORE_EXCLUDED_SHEET_NAMES.has(tab.sheetName));
 const CORE_SHEET_NAMES = CORE_TABS.map(tab => tab.sheetName);
 
-async function queryTabs(pool, tabs, branch) {
+// 7 tab xuat duoc Excel = cac tab co `codeColumn` (alias cot ma, xem TABS):
+// Hàng hóa, Hóa đơn, Đặt hàng, Trả hàng, Khách hàng, Nhà cung cấp, Nhập hàng.
+// KHONG gom "Nhóm hàng" va "Chi tiết hóa đơn". Dung cho readRowsByCodes().
+const EXPORT_TABS = TABS.filter(tab => tab.codeColumn);
+const EXPORT_SHEET_NAMES = EXPORT_TABS.map(tab => tab.sheetName);
+const EXPORT_TABS_BY_NAME = new Map(EXPORT_TABS.map(tab => [tab.sheetName, tab]));
+
+// readRowsByCodes(): danh sach ma > CODE_BATCH_THRESHOLD thi chia lo
+// CODE_BATCH_SIZE ma/cau truy van, chay TUAN TU (de 1 lan xuat khong chiem het
+// pool 12 ket noi cua cac API khac). <= nguong thi chay dung 1 cau truy van.
+const CODE_BATCH_THRESHOLD = 20000;
+const CODE_BATCH_SIZE = 5000;
+
+/** Nhan co so ('Hà Nội'/'Sài Gòn', mac dinh Hà Nội khi bo trong) -> ma Postgres ('hanoi'/'saigon'). */
+function resolveBranchCode(branch) {
   const branchCode = branchLabelToCode(branch || BRANCHES.HANOI);
   if (!branchCode) {
     const error = new Error(`Cơ sở không hợp lệ: ${branch}`);
@@ -508,6 +556,29 @@ async function queryTabs(pool, tabs, branch) {
     error.statusCode = 400;
     throw error;
   }
+  return branchCode;
+}
+
+/**
+ * Chuan hoa danh sach ma dau vao: khu trung lap (giu thu tu xuat hien dau
+ * tien), bo phan tu khong phai chuoi / rong / chi gom khoang trang / chua ky
+ * tu NUL (Postgres `text` khong luu duoc NUL — de lot vao se lam LOI CA cau
+ * truy van). KHONG trim: ma duoc so khop chinh xac tung ky tu.
+ */
+function normalizeCodes(codes) {
+  const list = Array.isArray(codes) ? codes : (codes instanceof Set ? Array.from(codes) : []);
+  const seen = new Set();
+  const unique = [];
+  for (const code of list) {
+    if (typeof code !== 'string' || !code.trim() || code.includes('\x00') || seen.has(code)) continue;
+    seen.add(code);
+    unique.push(code);
+  }
+  return unique;
+}
+
+async function queryTabs(pool, tabs, branch) {
+  const branchCode = resolveBranchCode(branch);
 
   const results = await Promise.all(
     tabs.map(tab => pool.query(tab.sql, [branchCode]))
@@ -544,7 +615,61 @@ function createDashboardPgReader({ pool = getPool() } = {}) {
     return queryTabs(pool, CORE_TABS, branch);
   }
 
-  return { readDashboardSheets, readCoreDashboardSheets };
+  /**
+   * Doc CHI cac dong cua 1 tab (trong 7 tab xuat duoc, xem EXPORT_SHEET_NAMES)
+   * co ma nam trong `codes` — 1 cau SQL loc theo ma o phia Postgres thay vi nap
+   * ca tab roi loc trong JS. Ma truyen bang THAM SO ($2 = text[]), khong noi
+   * chuoi vao SQL.
+   *
+   * @param {string} sheetName ten tab (CONFIG.SHEET_*), phai thuoc EXPORT_SHEET_NAMES
+   * @param {string} branch nhan co so ('Hà Nội'/'Sài Gòn'), bo trong = Hà Nội (giong queryTabs)
+   * @param {string[]} codes ma can lay (khu trung lap, bo rong/khong phai chuoi;
+   *   khong con ma hop le => KHONG query, tra rows [])
+   * @param {{signal?: AbortSignal}} [options] `signal` da huy -> dung TRUOC moi lo
+   *   (throw code EXPORT_ABORTED, statusCode 499) de khong chay not cac lo con lai
+   * @returns {Promise<{columns: string[], rows: Object[]}>} `columns` = alias cot
+   *   theo dung thu tu tab; moi row la object khoa theo alias (gia tri y het
+   *   readDashboardSheets: ngay 'DD/MM/YYYY HH24:MI', so la number...). Thu tu
+   *   dong = ORDER BY cua tab; > CODE_BATCH_THRESHOLD ma thi chia lo nen thu tu
+   *   la theo lo roi moi theo ORDER BY trong tung lo.
+   * @throws statusCode 400 + code EXPORT_SOURCE_NOT_ALLOWED (tab khong xuat duoc)
+   *   hoac INVALID_BRANCH (co so khong hop le) — kiem tra TRUOC khi xet `codes`.
+   */
+  async function readRowsByCodes(sheetName, branch, codes, options = {}) {
+    const signal = options && options.signal;
+    const tab = EXPORT_TABS_BY_NAME.get(sheetName);
+    if (!tab) {
+      const error = new Error(`Nguồn dữ liệu không hỗ trợ xuất Excel: ${String(sheetName)}`);
+      error.code = 'EXPORT_SOURCE_NOT_ALLOWED';
+      error.statusCode = 400;
+      throw error;
+    }
+    const branchCode = resolveBranchCode(branch);
+    const columns = tab.columns.slice();
+    const uniqueCodes = normalizeCodes(codes);
+    if (!uniqueCodes.length) return { columns, rows: [] };
+
+    const batchSize = uniqueCodes.length > CODE_BATCH_THRESHOLD ? CODE_BATCH_SIZE : uniqueCodes.length;
+    const rows = [];
+    for (let start = 0; start < uniqueCodes.length; start += batchSize) {
+      if (signal && signal.aborted) {
+        const error = new Error('Yêu cầu xuất file đã bị hủy.');
+        error.code = 'EXPORT_ABORTED';
+        error.statusCode = 499;
+        throw error;
+      }
+      const batch = uniqueCodes.slice(start, start + batchSize);
+      const result = await pool.query(tab.sqlByCodes, [branchCode, batch]);
+      for (const row of (result && result.rows) || []) {
+        const projected = {};
+        for (const column of columns) projected[column] = row[column];
+        rows.push(projected);
+      }
+    }
+    return { columns, rows };
+  }
+
+  return { readDashboardSheets, readCoreDashboardSheets, readRowsByCodes };
 }
 
 const reader = createDashboardPgReader();
@@ -553,10 +678,21 @@ module.exports = {
   createDashboardPgReader,
   readDashboardSheets: (...args) => reader.readDashboardSheets(...args),
   readCoreDashboardSheets: (...args) => reader.readCoreDashboardSheets(...args),
+  readRowsByCodes: (...args) => reader.readRowsByCodes(...args),
   SHEET_NAMES,
   CORE_SHEET_NAMES,
+  // 7 tab xuat duoc Excel (readRowsByCodes chi nhan cac ten nay).
+  EXPORT_SHEET_NAMES,
   // Chi dung cho test/doi chieu: header phai y het Sheets that.
   __headers__: Object.fromEntries(TABS.map(tab => [tab.sheetName, tab.headers])),
+  // Metadata tung tab (BAN SAO, sua khong anh huong TABS): headers (nhan hien
+  // thi cu), columns (alias SQL, cung thu tu voi headers) va codeColumn (alias
+  // cot ma; null voi 2 tab khong xuat duoc: "Nhóm hàng", "Chi tiết hóa đơn").
+  __tabs__: Object.fromEntries(TABS.map(tab => [tab.sheetName, {
+    headers: tab.headers.slice(),
+    columns: tab.columns.slice(),
+    codeColumn: tab.codeColumn || null
+  }])),
   // Xuat de tai dung y het logic map trang thai hoa don (uu tien statusValue
   // cua API, fallback bang ma) o noi khac (vd invoiceStatusService.js) —
   // tranh viet trung 1 bang tra ma o 2 file.

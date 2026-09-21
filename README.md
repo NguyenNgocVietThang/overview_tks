@@ -67,4 +67,4 @@ Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để b
 
 ## Cập nhật gần nhất
 
-2026-09-19 — thêm Telegram ID vào `app_users` trên Supabase và tạm ngừng luồng liên kết Telegram qua Google Sheets.
+2026-09-21 — nâng cấp xuất Excel tùy chọn trường dữ liệu, chuyển phần hàng nhập sang tab Nhà cung cấp, giao dịch sang tab Hóa đơn và đồng bộ bộ lọc thời gian.

@@ -179,26 +179,37 @@ Luồng này xảy ra mỗi khi người dùng truy cập hoặc tương tác v�
 
 ---
 
-## 6.2. Luồng Xuất Excel (16 Bảng & Tìm kiếm)
+## 6.2. Luồng Xuất Excel (Bảng dữ liệu & Tìm kiếm)
 
 ```
 [B14] [Task] Người dùng click nút "Xuất Excel" trên một bảng dữ liệu hoặc kết quả tìm kiếm
           |
-[B15] [Task] Frontend gọi POST /api/export/fields với tableKey tương ứng
+[B15] [Task] Frontend mở Modal (hủy được mọi lúc: X / Hủy / Esc / bấm nền), gọi POST /api/export/fields
+              với tableKey + filters + context (AbortController, timeout 30 giây)
           |
-[B16] [Task] Backend trả danh sách worksheets và fields có thể chọn
+[B16] [Task] Backend exportService.getExportFields trả NGAY danh sách worksheets/fields từ từ điển tĩnh
+              (exportFieldCatalog.js + cột dashboard tính thêm); rowCount = null, không đọc DB/Sheets.
+              Ngoại lệ: search.results chạy tìm kiếm thật và trả rowCount.
+          |-- Lỗi/timeout 30 giây -> Modal báo lỗi tiếng Việt + nút "Thử lại" (lặp lại bước lấy trường)
           |
-[B17] [Task] Frontend mở Modal chọn trường (mặc định chọn tất cả)
+[B17] [Task] Frontend hiển thị danh sách trường (mặc định chọn sẵn, description là tooltip);
+              kết quả tìm kiếm nhiều nguồn (all-only) bỏ qua bước chọn và xuất toàn bộ trường
           |
 [B18] [Task] Người dùng xác nhận chọn trường và click "Tải file Excel"
           |
-[B19] [Task] Frontend gọi POST /api/export kèm selectedFields và filterContext
+[B19] [Task] Frontend gọi POST /api/export kèm columns (worksheetKey -> khóa trường) và filters/context
+              (AbortController, timeout 180 giây)
           |
-[B20] [Task] Backend exportService.js đọc dữ liệu từ Sheets, tạo file .xlsx:
-      - Áp dụng bộ lọc hiện tại
-      - Đóng băng hàng tiêu đề (Freeze pane)
-      - Bật AutoFilter
-      - Ép kiểu text cho mã hàng, mã HĐ, số điện thoại
+[B20] [Task] Backend exportService.createExportWorkbook:
+      - Kiểm tra bảng/trường hợp lệ (chưa chạm DB); xin chỗ xuất file (tối đa 2 đồng thời,
+        hàng đợi 8, vượt trần -> 503 EXPORT_BUSY)
+      - dashboardData.getDashboardData(filters, cơ sở): danh sách mã dòng đã lọc/xếp hạng (cache 90 giây)
+      - dashboardPgReader.readRowsByCodes(tab, cơ sở, mã): đọc thẳng Supabase PostgreSQL chỉ các mã
+        đang hiển thị (không đọc Google Sheets); ghép theo mã, cắt theo cột đã chọn, áp tìm kiếm trong bảng
+      - ExcelJS tạo .xlsx: đóng băng hàng tiêu đề, bật AutoFilter, ép kiểu text cho mã hàng/mã HĐ/SĐT,
+        trung hòa chuỗi công thức
+          |-- Người dùng hủy/đóng modal hoặc ngắt kết nối -> Backend dừng sau bước đang chạy, nhả chỗ xuất file
+          |-- Lỗi/timeout 180 giây -> Modal báo lỗi + nút "Thử lại" (giữ nguyên các trường đã chọn)
           |
 [B21] [End] Trình duyệt tải về file .xlsx hoàn chỉnh
 ```
@@ -226,7 +237,7 @@ Luồng này xảy ra mỗi khi người dùng truy cập hoặc tương tác v�
 | B3–B5    | Backend        | Đọc Supabase PostgreSQL & tab Trả NCC Google Sheets, tính KPI qua `computeDashboardData`, lưu cache. | FR-01.x, FR-02.x    |
 | B6       | Frontend       | Render giao diện với Chart.js animation gating, phân trang client-side (`pagination.js`).           | FR-07.x, FR-07.13   |
 | B8–B9    | Người dùng     | Đổi bộ lọc thời gian -> gọi API với days mới (phản hồi tức thì nhờ cache).                           | FR-04.1, FR-04.3    |
-| B14–B21  | Người dùng/Dev | Quy trình mở modal chọn trường và xuất workbook `.xlsx` 16 bảng / tìm kiếm.                          | FR-07.10 -> FR-07.12|
+| B14–B21  | Người dùng/Dev | Lấy danh sách trường tĩnh, tạo workbook `.xlsx` từ PostgreSQL theo mã (hủy/timeout, giới hạn 2 file đồng thời). | FR-07.10 -> FR-07.18, NFR-13, NFR-14 |
 | B22–B24  | Người dùng/Dev | Tìm kiếm thông thường, tìm nhiều mã và Top 3 KH theo danh mục sản phẩm.                            | FR-07.8, FR-07.9    |
 
 ---
