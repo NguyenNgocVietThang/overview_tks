@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+const multer = require('multer');
 
 const router = express.Router();
 
@@ -10,8 +11,9 @@ const stockout90dScanService = require('./stockout90dScanService');
 const stockout30dScanService = require('./stockout30dScanService');
 const { createStockoutPgSource } = require('./stockoutPgSource');
 const { runBothBranchesScan } = require('./bothBranchesScan');
-const sheetsClient = require('../../sheets/sheetsClient');
-const { resolveBranchScope } = require('../../branch/branches');
+const { resolveBranchScope, branchLabelToCode, isBranchAllowed } = require('../../branch/branches');
+const { getPool } = require('../../db/pool');
+const supplierReturnImportService = require('./supplierReturnImportService');
 
 const jobStore = createJobStore();
 
@@ -24,7 +26,6 @@ function buildScanDeps(req) {
   const scope = resolveBranchScope(req.branch);
   return (scope.length ? scope : [req.branch]).map(branch => ({
     source: createStockoutPgSource({ branch }),
-    sheetsClient: sheetsClient.getSheetsClient(branch),
     branch
   }));
 }
@@ -41,9 +42,7 @@ function buildStockoutProgressResponse(job, initialLabel) {
   const phase = progress.phase || null;
   let phaseLabel = initialLabel;
   if (phase === 2 && progress.sourceLabel) {
-    phaseLabel = progress.source === 'supplierReturns'
-      ? `Đang tải ${progress.sourceLabel} từ Google Sheets`
-      : `Đang đọc ${progress.sourceLabel} từ cơ sở dữ liệu`;
+    phaseLabel = `Đang đọc ${progress.sourceLabel} từ cơ sở dữ liệu`;
   }
   return {
     phase,
@@ -190,6 +189,69 @@ router.get('/api/products/stockout-30d/:jobId/result', (req, res) => {
     return res.status(500).json({ error: job.error.message, code: job.error.code });
   }
   res.status(200).json({ result: job.result });
+});
+
+// ==========================================
+// IMPORT TRA NCC TU EXCEL KIOTVIET — thay the tab Google Sheet dan tay. Xu ly
+// dong bo trong 1 request (khong qua jobStore nhu 3 loai quet o tren): parse
+// + ghi ~9k dong la viec nhe, khong can job/queue rieng.
+// ==========================================
+const supplierReturnUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }
+});
+
+router.post('/api/products/supplier-returns/import', supplierReturnUpload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Thiếu file Excel để nhập.', code: 'SUPPLIER_RETURN_IMPORT_NO_FILE' });
+    }
+    const targetBranch = req.body && req.body.branch;
+    if (!isBranchAllowed(req.user, targetBranch)) {
+      return res.status(403).json({ error: 'Bạn không có quyền nhập dữ liệu cho cơ sở này.', code: 'BRANCH_NOT_ALLOWED' });
+    }
+    const branchCode = branchLabelToCode(targetBranch);
+    if (!branchCode) {
+      return res.status(400).json({ error: `Cơ sở không hợp lệ: ${targetBranch}`, code: 'INVALID_BRANCH' });
+    }
+
+    const { rows, skipped, totalDataRows } = supplierReturnImportService.parseSupplierReturnWorkbook(req.file.buffer);
+    await supplierReturnImportService.replaceSupplierReturnImport({
+      pool: getPool(),
+      branch: branchCode,
+      rows,
+      sourceFile: req.file.originalname || '',
+      importedBy: (req.user && req.user.username) || ''
+    });
+
+    const dateKeys = rows.map((r) => r.dateKey);
+    res.status(200).json({
+      branch: targetBranch,
+      totalRows: totalDataRows,
+      imported: rows.length,
+      skipped: skipped.length,
+      skippedDetails: skipped.slice(0, 50),
+      earliestDate: dateKeys.length ? dateKeys.reduce((a, b) => (a < b ? a : b)) : null,
+      latestDate: dateKeys.length ? dateKeys.reduce((a, b) => (a > b ? a : b)) : null
+    });
+  } catch (err) {
+    res.status(err.statusCode || 400).json({ error: err.message, code: err.code || 'SUPPLIER_RETURN_IMPORT_FAILED' });
+  }
+});
+
+router.get('/api/products/supplier-returns/import-status', async (req, res) => {
+  try {
+    const scope = resolveBranchScope(req.branch);
+    const branches = scope.length ? scope : [req.branch].filter(Boolean);
+    const pool = getPool();
+    const statuses = await Promise.all(branches.map(async (branch) => {
+      const status = await supplierReturnImportService.getSupplierReturnImportStatus({ pool, branch: branchLabelToCode(branch) });
+      return { ...status, branch };
+    }));
+    res.status(200).json({ statuses });
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ error: err.message, code: err.code || 'SUPPLIER_RETURN_STATUS_FAILED' });
+  }
 });
 
 router.jobStore = jobStore;

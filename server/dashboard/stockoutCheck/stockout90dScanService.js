@@ -16,7 +16,6 @@ const DEFAULT_DAYS_BACK = 89; // 89 ngay truoc + hom nay = dung 90 ngay
 
 async function runStockout90dScanJob(jobStore, jobId, deps = {}) {
   const {
-    sheetsClient,
     source,
     loadStockoutEvents = defaultLoadStockoutEvents,
     loadActiveCandidates = defaultLoadActiveCandidates,
@@ -42,7 +41,6 @@ async function runStockout90dScanJob(jobStore, jobId, deps = {}) {
     const validCodeSet = new Set(candidates.map((c) => c.code));
     const { eventMapByCode, sources, warnings } = await loadStockoutEvents({
       source,
-      sheetsClient,
       validCodeSet,
       fromDate: calculationFromDate,
       toDate: todayKey,

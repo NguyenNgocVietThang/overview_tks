@@ -3715,12 +3715,26 @@
             <div class="grid">
               <div class="panel col-12">
                 <div class="panel-head">
+                  <h2>Nhập dữ liệu Trả NCC</h2>
+                </div>
+                <div class="stockout-upload-row">
+                  <select id="supplierReturnImportBranch" hidden></select>
+                  <input type="file" id="supplierReturnImportFile" accept=".xlsx">
+                  <button class="export-button" type="button" id="supplierReturnImportButton" onclick="submitSupplierReturnImport()">Nhập dữ liệu</button>
+                </div>
+                <div class="stockout-note">Xuất file Excel từ màn hình "Trả hàng nhập" trên KiotViet rồi nhập vào đây (đọc đúng 4 cột Thời gian, Mã hàng, Tên hàng, Số lượng). Mỗi lần nhập sẽ THAY THẾ toàn bộ dữ liệu Trả NCC cũ của cơ sở đã chọn — hãy xuất file mới nhất chứa đủ lịch sử cần thiết trước khi nhập.</div>
+                <div id="supplierReturnImportStatusBox" class="table-note"></div>
+                <div id="supplierReturnImportErrorBox" class="table-note" hidden></div>
+                <div id="supplierReturnImportResultBox" class="table-note" hidden></div>
+              </div>
+              <div class="panel col-12">
+                <div class="panel-head">
                   <h2>Hàng đứt gần đây <span class="tag" id="tagRecentStockoutTotal">—</span></h2>
                 </div>
                 <div class="stockout-upload-row">
                   <button class="export-button" type="button" id="recentStockoutScanButton" onclick="startRecentStockoutScan()">Lấy danh sách đứt hàng gần đây</button>
                 </div>
-                <div class="stockout-note">Quét các hàng hóa đang kinh doanh có tồn kho hiện tại = 0 và liệt kê mã có số ngày đứt hàng liên tục (tính đến hôm nay) ≥ 5 ngày. Dữ liệu Hàng hóa, Hóa đơn, Nhập hàng và Khách trả lấy từ cơ sở dữ liệu đã đồng bộ với KiotViet (có thể chậm vài phút đến khoảng 20 phút); riêng Trả NCC lấy từ Google Sheet vì KiotViet không có API cho mục này.</div>
+                <div class="stockout-note">Quét các hàng hóa đang kinh doanh có tồn kho hiện tại = 0 và liệt kê mã có số ngày đứt hàng liên tục (tính đến hôm nay) ≥ 5 ngày. Dữ liệu Hàng hóa, Hóa đơn, Nhập hàng, Khách trả và Trả NCC lấy từ cơ sở dữ liệu đã đồng bộ với KiotViet hoặc đã nhập ở trên (có thể chậm vài phút đến khoảng 20 phút).</div>
                 <div id="recentStockoutProgressBox" hidden>
                   <div class="table-note" id="recentStockoutProgressLabel">—</div>
                   <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="recentStockoutProgressFill"></div></div>
@@ -3762,7 +3776,7 @@
                 <div class="stockout-upload-row">
                   <button class="export-button" type="button" id="stockout90dScanButton" onclick="startStockout90dScan()">Kiểm tra đứt hàng 90 ngày</button>
                 </div>
-                <div class="stockout-note">Quét các hàng hóa đang kinh doanh và liệt kê những mã có đợt đứt hàng trong 90 ngày gần đây (tính cả hôm nay). Dữ liệu Hàng hóa, Hóa đơn, Nhập hàng và Khách trả lấy từ cơ sở dữ liệu đã đồng bộ với KiotViet (có thể chậm vài phút đến khoảng 20 phút); riêng Trả NCC lấy từ Google Sheet vì KiotViet không có API cho mục này.</div>
+                <div class="stockout-note">Quét các hàng hóa đang kinh doanh và liệt kê những mã có đợt đứt hàng trong 90 ngày gần đây (tính cả hôm nay). Dữ liệu Hàng hóa, Hóa đơn, Nhập hàng, Khách trả và Trả NCC lấy từ cơ sở dữ liệu đã đồng bộ với KiotViet hoặc đã nhập ở trên (có thể chậm vài phút đến khoảng 20 phút).</div>
                 <div id="stockout90dProgressBox" hidden>
                   <div class="table-note" id="stockout90dProgressLabel">—</div>
                   <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="stockout90dProgressFill"></div></div>
@@ -3806,7 +3820,7 @@
                 <div class="stockout-upload-row">
                   <button class="export-button" type="button" id="stockout30dScanButton" onclick="startStockout30dScan()">Kiểm tra đứt hàng 30 ngày</button>
                 </div>
-                <div class="stockout-note">Quét các hàng hóa đang kinh doanh và liệt kê những mã có đợt đứt hàng trong 30 ngày gần đây (tính cả hôm nay). Dữ liệu Hàng hóa, Hóa đơn, Nhập hàng và Khách trả lấy từ cơ sở dữ liệu đã đồng bộ với KiotViet (có thể chậm vài phút đến khoảng 20 phút); riêng Trả NCC lấy từ Google Sheet vì KiotViet không có API cho mục này.</div>
+                <div class="stockout-note">Quét các hàng hóa đang kinh doanh và liệt kê những mã có đợt đứt hàng trong 30 ngày gần đây (tính cả hôm nay). Dữ liệu Hàng hóa, Hóa đơn, Nhập hàng, Khách trả và Trả NCC lấy từ cơ sở dữ liệu đã đồng bộ với KiotViet hoặc đã nhập ở trên (có thể chậm vài phút đến khoảng 20 phút).</div>
                 <div id="stockout30dProgressBox" hidden>
                   <div class="table-note" id="stockout30dProgressLabel">—</div>
                   <div class="stockout-progress-bar"><div class="stockout-progress-fill" id="stockout30dProgressFill"></div></div>
@@ -4815,6 +4829,7 @@
       productAnalysis: 'product',
       childCategoryParent: null,
       currentUser: null,
+      supplierReturnImport: { submitting: false },
       debtFilters: {
         queue: 'needsAction',
         sale: '',
@@ -5325,6 +5340,91 @@
     // dung TABLE_EXPLORER_CONFIGS — mot `const` khai bao ben duoi, con nam trong TDZ
     // luc nay. Cac loi goi that su duoc dat cuoi script, sau khi TABLE_EXPLORER_CONFIGS
     // da khoi tao xong.
+
+    // ==========================================
+    // NHAP TRA NCC TU EXCEL KIOTVIET — thay the tab Google Sheet dan tay.
+    // Panel dung chung cho ca 3 loai quet dut hang ben duoi (cung 1 du lieu
+    // Tra NCC theo co so). Chi hien dropdown chon co so khi tai khoan duoc
+    // xem ca hai co so vat ly — 1 file chi thuoc ve 1 co so vat ly (khong the
+    // "Cả hai", xem branches.js).
+    // ==========================================
+    function initSupplierReturnImportPanel(user) {
+      const select = document.getElementById('supplierReturnImportBranch');
+      const physicalBranches = ((user && user.branches) || []).filter((b) => b !== 'Cả hai');
+      select.innerHTML = physicalBranches.map((b) => '<option value="' + b + '">' + b + '</option>').join('');
+      select.hidden = physicalBranches.length <= 1;
+      refreshSupplierReturnImportStatus();
+    }
+
+    function formatSupplierReturnStatus(status) {
+      if (!status.rowCount) return status.branch + ': chưa nhập dữ liệu';
+      const imported = status.importedAt ? new Date(status.importedAt).toLocaleString('vi-VN') : '—';
+      return status.branch + ': ' + status.rowCount.toLocaleString('vi-VN') + ' dòng, từ ' +
+        formatDdMmYyyy(status.earliestDate) + ' đến ' + formatDdMmYyyy(status.latestDate) +
+        ' (nhập lúc ' + imported + (status.importedBy ? ' bởi ' + status.importedBy : '') + ')';
+    }
+
+    function formatDdMmYyyy(dateKey) {
+      if (!dateKey) return '—';
+      const [y, m, d] = dateKey.split('-');
+      return d + '/' + m + '/' + y;
+    }
+
+    async function refreshSupplierReturnImportStatus() {
+      const box = document.getElementById('supplierReturnImportStatusBox');
+      try {
+        const response = await fetch('/api/products/supplier-returns/import-status');
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Không lấy được trạng thái nhập Trả NCC.');
+        box.textContent = payload.statuses.map(formatSupplierReturnStatus).join(' · ');
+      } catch (err) {
+        box.textContent = err.message || 'Không lấy được trạng thái nhập Trả NCC.';
+      }
+    }
+
+    async function submitSupplierReturnImport() {
+      const fileInput = document.getElementById('supplierReturnImportFile');
+      const branchSelect = document.getElementById('supplierReturnImportBranch');
+      const button = document.getElementById('supplierReturnImportButton');
+      const errorBox = document.getElementById('supplierReturnImportErrorBox');
+      const resultBox = document.getElementById('supplierReturnImportResultBox');
+
+      errorBox.hidden = true;
+      resultBox.hidden = true;
+
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) {
+        errorBox.hidden = false;
+        errorBox.textContent = 'Vui lòng chọn file Excel Trả NCC trước.';
+        return;
+      }
+
+      const branch = branchSelect.value || (state.currentUser && state.currentUser.branch) || (state.currentUser && (state.currentUser.branches || [])[0]);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('branch', branch);
+
+      button.disabled = true;
+      button.textContent = 'Đang nhập...';
+      try {
+        const response = await fetch('/api/products/supplier-returns/import', { method: 'POST', body: formData });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Nhập dữ liệu Trả NCC thất bại.');
+
+        resultBox.hidden = false;
+        resultBox.textContent = 'Đã nhập ' + payload.imported.toLocaleString('vi-VN') + ' dòng' +
+          (payload.skipped ? ', bỏ qua ' + payload.skipped + ' dòng lỗi' : '') +
+          ' cho ' + branch + ' (từ ' + formatDdMmYyyy(payload.earliestDate) + ' đến ' + formatDdMmYyyy(payload.latestDate) + ').';
+        fileInput.value = '';
+        await refreshSupplierReturnImportStatus();
+      } catch (err) {
+        errorBox.hidden = false;
+        errorBox.textContent = err.message || 'Nhập dữ liệu Trả NCC thất bại.';
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Nhập dữ liệu';
+      }
+    }
 
     async function startRecentStockoutScan() {
       const button = document.getElementById('recentStockoutScanButton');
@@ -9324,6 +9424,7 @@
       TKSNav.authGuard().then(function(user){
         state.currentUser = user;
         syncSidebarActiveView();
+        initSupplierReturnImportPanel(user);
       }).catch(function(err){
         document.documentElement.style.visibility = '';
       });

@@ -16,7 +16,6 @@ const DEFAULT_DAYS_BACK = 183;
 
 async function runRecentStockoutScanJob(jobStore, jobId, deps = {}) {
   const {
-    sheetsClient,
     source,
     loadStockoutEvents = defaultLoadStockoutEvents,
     loadActiveCandidates = defaultLoadActiveCandidates,
@@ -45,7 +44,6 @@ async function runRecentStockoutScanJob(jobStore, jobId, deps = {}) {
     const validCodeSet = new Set(candidates.map((c) => c.code));
     const { eventMapByCode, sources, warnings } = await loadStockoutEvents({
       source,
-      sheetsClient,
       validCodeSet,
       fromDate: calculationFromDate,
       toDate: todayKey,

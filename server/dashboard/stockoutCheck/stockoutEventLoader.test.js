@@ -5,7 +5,6 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const CONFIG = require('../../config');
 const { loadStockoutEvents, STALE_SYNC_THRESHOLD_MS } = require('./stockoutEventLoader');
 
 const NOW = new Date('2026-01-11T12:00:00Z');
@@ -13,9 +12,9 @@ const FRESH_AT = new Date(NOW.getTime() - 5 * 60 * 1000).toISOString();
 const FRESH_SYNC = ['products', 'invoices', 'purchases', 'returns']
   .map((entity) => ({ entity, lastSuccessAt: FRESH_AT }));
 
-// Nguon Postgres gia: movements = { invoices: [...], purchases: [...], customerReturns: [...] },
+// Nguon Postgres gia: movements = { invoices: [...], purchases: [...], customerReturns: [...], supplierReturns: [...] },
 // moi phan tu la { code, dateKey, quantity } giong stockoutPgSource.listStockMovements().
-function makeSource({ movements = {}, syncStatus = FRESH_SYNC, errors = {} } = {}, calls) {
+function makeSource({ movements = {}, syncStatus = FRESH_SYNC, errors = {}, supplierReturnCoverage } = {}, calls) {
   return {
     async listStockMovements(query) {
       calls.push(query);
@@ -25,70 +24,54 @@ function makeSource({ movements = {}, syncStatus = FRESH_SYNC, errors = {} } = {
     async getSyncStatus() {
       if (errors.syncStatus) throw errors.syncStatus;
       return syncStatus;
+    },
+    async getSupplierReturnCoverage() {
+      if (errors.supplierReturnCoverage) throw errors.supplierReturnCoverage;
+      return supplierReturnCoverage || { rowCount: 0, earliestDate: null };
     }
   };
 }
 
-function makeSheetsClient(sheetValues, calls) {
-  return {
-    async getMultipleSheetValues(names) {
-      calls.push(names.slice());
-      return Object.fromEntries(names.map(name => [name, sheetValues[name] || []]));
-    }
-  };
-}
-
-function emptySheets() {
-  return {
-    [CONFIG.SHEET_SUPPLIER_RETURNS]: [['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái']]
-  };
-}
-
-function makeDeps({ source: sourceOptions = {}, sheets = emptySheets() } = {}) {
+function makeDeps({ source: sourceOptions = {} } = {}) {
   const sourceCalls = [];
-  const sheetCalls = [];
   return {
     deps: {
       source: makeSource(sourceOptions, sourceCalls),
-      sheetsClient: makeSheetsClient(sheets, sheetCalls),
       validCodeSet: new Set(['SP001']),
       fromDate: '2026-01-09',
       toDate: '2026-01-11',
       now: NOW
     },
-    sourceCalls,
-    sheetCalls
+    sourceCalls
   };
 }
 
-test('ba nguon Postgres thanh cong va Trả NCC luon lay Sheet dung mot lan', async () => {
-  const sheets = emptySheets();
-  sheets[CONFIG.SHEET_SUPPLIER_RETURNS].push(['SP001', '09/01/2026', 1, 'Hoàn thành']);
+test('bon nguon Postgres (gom Tra NCC) thanh cong, dung dau moi loai', async () => {
   const fixture = makeDeps({
-    sheets,
     source: {
       movements: {
         invoices: [{ code: 'SP001', dateKey: '2026-01-10', quantity: 2 }],
         purchases: [{ code: 'SP001', dateKey: '2026-01-10', quantity: 3 }],
-        customerReturns: [{ code: 'SP001', dateKey: '2026-01-10', quantity: 4 }]
-      }
+        customerReturns: [{ code: 'SP001', dateKey: '2026-01-10', quantity: 4 }],
+        supplierReturns: [{ code: 'SP001', dateKey: '2026-01-09', quantity: 1 }]
+      },
+      supplierReturnCoverage: { rowCount: 10, earliestDate: '2026-01-01' }
     }
   });
 
   const result = await loadStockoutEvents(fixture.deps);
 
-  assert.deepEqual(fixture.sourceCalls.map(call => call.kind), ['invoices', 'purchases', 'customerReturns']);
+  assert.deepEqual(fixture.sourceCalls.map(call => call.kind), ['invoices', 'purchases', 'customerReturns', 'supplierReturns']);
   for (const call of fixture.sourceCalls) {
     assert.equal(call.fromDate, '2026-01-09');
     assert.equal(call.toDate, '2026-01-11');
     assert.equal(call.codes, fixture.deps.validCodeSet);
   }
-  assert.deepEqual(fixture.sheetCalls, [[CONFIG.SHEET_SUPPLIER_RETURNS]]);
   assert.deepEqual(result.sources, {
     invoices: 'postgres',
     purchases: 'postgres',
     customerReturns: 'postgres',
-    supplierReturns: 'google-sheets'
+    supplierReturns: 'postgres'
   });
   assert.deepEqual(result.warnings, []);
   assert.deepEqual(result.eventMapByCode.get('SP001'), [
@@ -101,26 +84,27 @@ test('ba nguon Postgres thanh cong va Trả NCC luon lay Sheet dung mot lan', as
 
 test('bo qua ma khong nam trong validCodeSet du nguon tra ve', async () => {
   const fixture = makeDeps({
-    source: { movements: { invoices: [{ code: 'SP999', dateKey: '2026-01-10', quantity: 5 }] } }
+    source: {
+      movements: { invoices: [{ code: 'SP999', dateKey: '2026-01-10', quantity: 5 }] },
+      supplierReturnCoverage: { rowCount: 10, earliestDate: '2026-01-01' }
+    }
   });
   const result = await loadStockoutEvents(fixture.deps);
   assert.equal(result.eventMapByCode.size, 0);
 });
 
-test('Postgres tra ve rong van thanh cong, chi Tra NCC bi thieu du lieu moi canh bao', async () => {
+test('chua import Tra NCC cho co so nay thi canh bao ro', async () => {
   const fixture = makeDeps();
   const result = await loadStockoutEvents(fixture.deps);
 
   assert.equal(result.eventMapByCode.size, 0);
-  assert.deepEqual(fixture.sheetCalls, [[CONFIG.SHEET_SUPPLIER_RETURNS]]);
   assert.equal(result.warnings.length, 1);
-  assert.match(result.warnings[0], /Trả NCC/);
+  assert.match(result.warnings[0], /Chưa import dữ liệu Trả NCC/);
 });
 
-test('doc hoa don tu Postgres loi lam loader loi luon, khong con fallback Sheet', async () => {
+test('doc hoa don tu Postgres loi lam loader loi luon', async () => {
   const fixture = makeDeps({ source: { errors: { invoices: new Error('invoice query timeout') } } });
   await assert.rejects(loadStockoutEvents(fixture.deps), /Hóa đơn.*invoice query timeout/);
-  assert.deepEqual(fixture.sheetCalls, []);
 });
 
 test('doc nhap hang tu Postgres loi lam loader loi luon', async () => {
@@ -133,22 +117,22 @@ test('doc khach tra hang tu Postgres loi lam toan bo loader loi', async () => {
   await assert.rejects(loadStockoutEvents(fixture.deps), /Khách trả hàng.*returns timeout/);
 });
 
+test('doc Tra NCC tu Postgres loi lam toan bo loader loi', async () => {
+  const fixture = makeDeps({ source: { errors: { supplierReturns: new Error('supplier returns timeout') } } });
+  await assert.rejects(loadStockoutEvents(fixture.deps), /Trả NCC.*supplier returns timeout/);
+});
+
 test('canh bao khi thuc the dong bo cu hon nguong hoac chua tung dong bo', async () => {
   const staleAt = new Date(NOW.getTime() - STALE_SYNC_THRESHOLD_MS - 5 * 60 * 1000).toISOString();
   const fixture = makeDeps({
-    sheets: {
-      [CONFIG.SHEET_SUPPLIER_RETURNS]: [
-        ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
-        ['SP001', '09/01/2026', 1, 'Hoàn thành']
-      ]
-    },
     source: {
       syncStatus: [
         { entity: 'products', lastSuccessAt: FRESH_AT },
         { entity: 'invoices', lastSuccessAt: staleAt },
         { entity: 'purchases', lastSuccessAt: null },
         { entity: 'returns', lastSuccessAt: FRESH_AT }
-      ]
+      ],
+      supplierReturnCoverage: { rowCount: 10, earliestDate: '2026-01-01' }
     }
   });
 
@@ -159,29 +143,10 @@ test('canh bao khi thuc the dong bo cu hon nguong hoac chua tung dong bo', async
   assert.match(result.warnings[1], /Nhập hàng.*chưa từng/);
 });
 
-test('Trả NCC thiếu cột Trạng thái vẫn được tính vì sheet này không có webhook, luôn là chứng từ hoàn tất', async () => {
-  const sheets = {
-    [CONFIG.SHEET_SUPPLIER_RETURNS]: [
-      ['Mã hàng', 'Thời gian', 'Số lượng'],
-      ['SP001', '09/01/2026', 5]
-    ]
-  };
-  const fixture = makeDeps({ sheets });
-
-  const result = await loadStockoutEvents(fixture.deps);
-
-  assert.deepEqual(result.eventMapByCode.get('SP001'), [{ dateKey: '2026-01-09', delta: -5, source: 'supplierReturns' }]);
-  assert.deepEqual(result.warnings, []);
-});
-
-test('Trả NCC chỉ có dữ liệu muộn hơn mốc cần tính thì cảnh báo độ phủ dữ liệu', async () => {
-  const sheets = {
-    [CONFIG.SHEET_SUPPLIER_RETURNS]: [
-      ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
-      ['SP001', '10/01/2026', 5, 'Hoàn thành']
-    ]
-  };
-  const fixture = makeDeps({ sheets }); // fromDate mac dinh la '2026-01-09', som hon du lieu
+test('Tra NCC da import nhung chi tu ngay muon hon moc can tinh thi canh bao do phu du lieu', async () => {
+  const fixture = makeDeps({
+    source: { supplierReturnCoverage: { rowCount: 5, earliestDate: '2026-01-10' } }
+  }); // fromDate mac dinh la '2026-01-09', som hon du lieu
 
   const result = await loadStockoutEvents(fixture.deps);
 
@@ -189,14 +154,10 @@ test('Trả NCC chỉ có dữ liệu muộn hơn mốc cần tính thì cảnh 
   assert.match(result.warnings[0], /Trả NCC.*2026-01-10.*2026-01-09/);
 });
 
-test('Trả NCC có dữ liệu từ đúng mốc cần tính thì không cảnh báo độ phủ', async () => {
-  const sheets = {
-    [CONFIG.SHEET_SUPPLIER_RETURNS]: [
-      ['Mã hàng', 'Thời gian', 'Số lượng', 'Trạng thái'],
-      ['SP001', '09/01/2026', 5, 'Hoàn thành']
-    ]
-  };
-  const fixture = makeDeps({ sheets });
+test('Tra NCC co du lieu tu dung moc can tinh thi khong canh bao do phu', async () => {
+  const fixture = makeDeps({
+    source: { supplierReturnCoverage: { rowCount: 5, earliestDate: '2026-01-09' } }
+  });
 
   const result = await loadStockoutEvents(fixture.deps);
 

@@ -274,6 +274,96 @@ test('POST /api/products/stockout-90d/scan ở "Cả hai": quét cả hai cơ s�
   }
 });
 
+// ---------------------------------------------------------------------------
+// Import Tra NCC tu Excel KiotViet.
+// ---------------------------------------------------------------------------
+
+const supplierReturnImportService = require('./supplierReturnImportService');
+
+test('POST /api/products/supplier-returns/import: thieu file tra 400', async () => {
+  const handler = getRouteHandler('post', '/api/products/supplier-returns/import');
+  const req = { file: null, body: { branch: 'Hà Nội' }, user: { vaiTro: 'Quản lý' } };
+  const res = fakeRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.code, 'SUPPLIER_RETURN_IMPORT_NO_FILE');
+});
+
+test('POST /api/products/supplier-returns/import: co so nguoi dung khong duoc phep xem tra 403', async () => {
+  const handler = getRouteHandler('post', '/api/products/supplier-returns/import');
+  const req = {
+    file: { buffer: Buffer.from(''), originalname: 'file.xlsx' },
+    body: { branch: 'Sài Gòn' },
+    user: { coSo: 'Hà Nội', vaiTro: 'Nhân viên' }
+  };
+  const res = fakeRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.code, 'BRANCH_NOT_ALLOWED');
+});
+
+test('POST /api/products/supplier-returns/import: thanh cong thi ghi Postgres va tra tom tat', async () => {
+  const originalParse = supplierReturnImportService.parseSupplierReturnWorkbook;
+  const originalReplace = supplierReturnImportService.replaceSupplierReturnImport;
+  let replaceCall = null;
+  supplierReturnImportService.parseSupplierReturnWorkbook = () => ({
+    rows: [
+      { code: 'SP001', name: 'Hàng A', dateKey: '2026-06-01', quantity: 5 },
+      { code: 'SP002', name: 'Hàng B', dateKey: '2026-09-22', quantity: 10 }
+    ],
+    skipped: [{ row: 5, reason: 'Thiếu Mã hàng' }],
+    totalDataRows: 3
+  });
+  supplierReturnImportService.replaceSupplierReturnImport = async (args) => { replaceCall = args; };
+  try {
+    const handler = getRouteHandler('post', '/api/products/supplier-returns/import');
+    const req = {
+      file: { buffer: Buffer.from('fake'), originalname: 'TraNCC.xlsx' },
+      body: { branch: 'Hà Nội' },
+      user: { vaiTro: 'Quản lý', username: 'thangnnv' }
+    };
+    const res = fakeRes();
+
+    await handler(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.imported, 2);
+    assert.equal(res.body.skipped, 1);
+    assert.equal(res.body.earliestDate, '2026-06-01');
+    assert.equal(res.body.latestDate, '2026-09-22');
+    assert.equal(replaceCall.branch, 'hanoi');
+    assert.equal(replaceCall.sourceFile, 'TraNCC.xlsx');
+    assert.equal(replaceCall.importedBy, 'thangnnv');
+  } finally {
+    supplierReturnImportService.parseSupplierReturnWorkbook = originalParse;
+    supplierReturnImportService.replaceSupplierReturnImport = originalReplace;
+  }
+});
+
+test('GET /api/products/supplier-returns/import-status: "Cả hai" tra trang thai ca 2 co so', async () => {
+  const original = supplierReturnImportService.getSupplierReturnImportStatus;
+  supplierReturnImportService.getSupplierReturnImportStatus = async ({ branch }) => ({
+    branch, rowCount: branch === 'hanoi' ? 100 : 0, earliestDate: null, latestDate: null, importedAt: null, importedBy: '', sourceFile: ''
+  });
+  try {
+    const handler = getRouteHandler('get', '/api/products/supplier-returns/import-status');
+    const req = { branch: 'Cả hai' };
+    const res = fakeRes();
+
+    await handler(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body.statuses.map((s) => s.branch), ['Hà Nội', 'Sài Gòn']);
+    assert.equal(res.body.statuses[0].rowCount, 100);
+  } finally {
+    supplierReturnImportService.getSupplierReturnImportStatus = original;
+  }
+});
+
 test('POST /api/products/stockout-recent/scan ở cơ sở vật lý: vẫn chỉ quét đúng cơ sở đó', async () => {
   const original = recentStockoutScanService.runRecentStockoutScanJob;
   const scannedBranches = [];

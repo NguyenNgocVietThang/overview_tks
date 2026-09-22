@@ -55,6 +55,20 @@ test('listStockMovements dung dung cau SQL, trang thai hoan thanh va tham so tun
   assert.doesNotMatch(MOVEMENT_QUERIES.invoices, /Asia\/Ho_Chi_Minh/);
 });
 
+test('listStockMovements ho tro kind supplierReturns (bang import Excel Tra NCC, khong parent+detail)', async () => {
+  const pool = makePool(() => [{ code: 'SP001', date_key: '2026-01-10', quantity: '5' }]);
+  const source = createStockoutPgSource({ pool, branch: 'Hà Nội' });
+
+  const movements = await source.listStockMovements({
+    kind: 'supplierReturns', codes: new Set(['SP001']), fromDate: '2026-01-01', toDate: '2026-01-31'
+  });
+
+  assert.deepEqual(movements, [{ code: 'SP001', dateKey: '2026-01-10', quantity: 5 }]);
+  assert.equal(pool.calls[0].sql, MOVEMENT_QUERIES.supplierReturns);
+  assert.deepEqual(pool.calls[0].params, ['hanoi', ['SP001'], '2026-01-01', '2026-01-31']);
+  assert.match(MOVEMENT_QUERIES.supplierReturns, /FROM supplier_return_imports/);
+});
+
 test('listStockMovements khong truy van khi khong co ma hang nao', async () => {
   const pool = makePool(() => { throw new Error('khong duoc goi'); });
   const source = createStockoutPgSource({ pool, branch: 'Hà Nội' });

@@ -33,7 +33,7 @@ function sumOnHand(inventories) {
   return (inventories || []).reduce((sum, inv) => sum + (Number(inv.onHand) || 0), 0);
 }
 
-function fakeStockoutSource(pagesByEndpoint = {}, { syncStatus, calls = [] } = {}) {
+function fakeStockoutSource(pagesByEndpoint = {}, { syncStatus, calls = [], supplierReturnCoverage } = {}) {
   return {
     calls,
     async listProducts() {
@@ -47,6 +47,25 @@ function fakeStockoutSource(pagesByEndpoint = {}, { syncStatus, calls = [] } = {
       }));
     },
     async listStockMovements({ kind, codes, fromDate, toDate }) {
+      // Tra NCC khong co dang parent+detail KiotViet nhu 3 loai kia (day la
+      // du lieu da IMPORT tu Excel, xem supplierReturnImportService.js) — fixture
+      // truyen thang mang { code, dateKey, quantity } phang, giong dung dau ra
+      // that cua supplier_return_imports.
+      if (kind === 'supplierReturns') {
+        calls.push({ method: 'listStockMovements', kind, endpoint: 'supplierReturns', fromDate, toDate });
+        const totals = new Map();
+        for (const item of flattenPages(pagesByEndpoint, 'supplierReturns')) {
+          const code = String(item.code || '').trim();
+          if (!codes.has(code)) continue;
+          if (item.dateKey < fromDate || item.dateKey > toDate) continue;
+          const key = `${code}|${item.dateKey}`;
+          const current = totals.get(key) || { code, dateKey: item.dateKey, quantity: 0 };
+          current.quantity += Number(item.quantity) || 0;
+          totals.set(key, current);
+        }
+        return Array.from(totals.values());
+      }
+
       const spec = MOVEMENT_ENDPOINTS[kind];
       calls.push({ method: 'listStockMovements', kind, endpoint: spec.endpoint, fromDate, toDate });
       const totals = new Map();
@@ -70,6 +89,17 @@ function fakeStockoutSource(pagesByEndpoint = {}, { syncStatus, calls = [] } = {
       const now = new Date().toISOString();
       return syncStatus || ['products', 'invoices', 'purchases', 'returns']
         .map((entity) => ({ entity, lastSuccessAt: now }));
+    },
+    // Do phu du lieu Tra NCC — mac dinh suy tu chinh fixture supplierReturns
+    // (rowCount + ngay som nhat), ghi de bang { supplierReturnCoverage } khi
+    // test can canh bao khac voi du lieu thuc su truyen vao.
+    async getSupplierReturnCoverage() {
+      calls.push({ method: 'getSupplierReturnCoverage' });
+      if (supplierReturnCoverage) return supplierReturnCoverage;
+      const rows = flattenPages(pagesByEndpoint, 'supplierReturns');
+      if (rows.length === 0) return { rowCount: 0, earliestDate: null };
+      const earliestDate = rows.reduce((min, r) => (min === null || r.dateKey < min ? r.dateKey : min), null);
+      return { rowCount: rows.length, earliestDate };
     }
   };
 }

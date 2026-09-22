@@ -1,14 +1,6 @@
 'use strict';
 
-const CONFIG = require('../../config');
-const {
-  mergeEventMaps,
-  buildSupplierReturnEventMapFromSheets,
-  findEarliestSheetDateKey
-} = require('./sheetTimelineBuilder');
-
 const DB_SOURCE = 'postgres';
-const SHEET_SOURCE = 'google-sheets';
 
 // Lan dong bo thanh cong gan nhat cua 1 thuc the cu hon moc nay thi ket qua quet
 // (doc tu Postgres) co the thieu giao dich moi — bo dong bo chay moi ~7-20 phut
@@ -22,11 +14,15 @@ const SYNC_ENTITY_LABELS = {
   returns: 'Khách trả hàng'
 };
 
-// Delta ton kho theo tung loai chung tu: ban ra tru, nhap/khach tra cong.
+// Delta ton kho theo tung loai chung tu: ban ra tru, nhap/khach tra cong, tra
+// NCC tru (nguoc voi nhap hang). Ca 4 loai deu doc tu Postgres — Tra NCC tu
+// bang supplier_return_imports (nguoi dung tu import Excel KiotViet, xem
+// supplierReturnImportService.js), khong con doc Google Sheets.
 const MOVEMENT_SOURCES = [
   { kind: 'invoices', label: 'Hóa đơn', sign: -1 },
   { kind: 'purchases', label: 'Nhập hàng', sign: 1 },
-  { kind: 'customerReturns', label: 'Khách trả hàng', sign: 1 }
+  { kind: 'customerReturns', label: 'Khách trả hàng', sign: 1 },
+  { kind: 'supplierReturns', label: 'Trả NCC', sign: -1 }
 ];
 
 function wrapDbError(label, err) {
@@ -51,10 +47,24 @@ function buildSyncFreshnessWarnings(syncStatus, now) {
   return warnings;
 }
 
+// Tra NCC duoc nguoi dung import theo tung dot (thay the toan bo du lieu cu
+// cua co so, xem supplierReturnImportService.js) thay vi dong bo lien tuc nhu
+// 3 nguon con lai — neu chua import hoac file import khong voi toi dau ky tinh
+// toan, so ngay dut hang truoc moc do khong dang tin, phai canh bao ro.
+function buildSupplierReturnCoverageWarning(coverage, fromDate) {
+  if (!coverage.rowCount) {
+    return 'Chưa import dữ liệu Trả NCC cho cơ sở này; số ngày đứt hàng có thể không chính xác do thiếu lịch sử trả hàng NCC.';
+  }
+  if (!coverage.earliestDate || coverage.earliestDate > fromDate) {
+    return `Dữ liệu Trả NCC đã import chỉ có từ ${coverage.earliestDate || 'không rõ ngày'} (cần từ ${fromDate}); ` +
+      'số ngày đứt hàng trước mốc này có thể không chính xác do thiếu lịch sử trả hàng NCC.';
+  }
+  return null;
+}
+
 async function loadStockoutEvents(options) {
   const {
     source,
-    sheetsClient,
     validCodeSet,
     fromDate,
     toDate,
@@ -64,16 +74,8 @@ async function loadStockoutEvents(options) {
 
   const eventMapByCode = new Map();
   const warnings = [];
-  const sources = {
-    invoices: DB_SOURCE,
-    purchases: DB_SOURCE,
-    customerReturns: DB_SOURCE,
-    supplierReturns: SHEET_SOURCE
-  };
+  const sources = Object.fromEntries(MOVEMENT_SOURCES.map(({ kind }) => [kind, DB_SOURCE]));
 
-  // Khong con fallback Google Sheets cho bat ky nguon nao ngoai Tra NCC (khong
-  // co bang trong Postgres) — doc DB loi thi bao loi that, khong am tham dung
-  // du lieu Sheet co the da loi thoi.
   for (const { kind, label, sign } of MOVEMENT_SOURCES) {
     onProgress({ source: kind, label, status: 'loading', pagesLoaded: 0, recordsLoaded: 0, total: 0 });
     let movements;
@@ -96,25 +98,12 @@ async function loadStockoutEvents(options) {
     throw wrapDbError('trạng thái đồng bộ', err);
   }
 
-  onProgress({ source: 'supplierReturns', label: 'Trả NCC', status: 'loading' });
-  const supplierReturnSheets = await sheetsClient.getMultipleSheetValues([CONFIG.SHEET_SUPPLIER_RETURNS]);
-  const supplierReturnRows = supplierReturnSheets[CONFIG.SHEET_SUPPLIER_RETURNS] || [];
-  // Sheet Tra NCC duoc nhap tay va thuong chi giu mot cua so ngay gan day (bi
-  // ghi de dinh ky) thay vi luu ca lich su — neu cua so do khong voi toi dau ky
-  // tinh toan, so ngay dut hang truoc moc do khong dang tin, phai canh bao ro
-  // thay vi bao ket qua nhu the la chinh xac tuyet doi.
-  const earliestSupplierReturnDate = findEarliestSheetDateKey(supplierReturnRows, 'Thời gian');
-  if (!earliestSupplierReturnDate || earliestSupplierReturnDate > fromDate) {
-    warnings.push(
-      `Sheet Trả NCC chỉ có dữ liệu từ ${earliestSupplierReturnDate || 'không rõ ngày'} (cần từ ${fromDate}); ` +
-      'số ngày đứt hàng trước mốc này có thể không chính xác do thiếu lịch sử trả hàng NCC.'
-    );
+  try {
+    const coverageWarning = buildSupplierReturnCoverageWarning(await source.getSupplierReturnCoverage(), fromDate);
+    if (coverageWarning) warnings.push(coverageWarning);
+  } catch (err) {
+    throw wrapDbError('độ phủ dữ liệu Trả NCC', err);
   }
-  mergeEventMaps(
-    eventMapByCode,
-    buildSupplierReturnEventMapFromSheets(supplierReturnSheets, validCodeSet, fromDate, toDate)
-  );
-  onProgress({ source: 'supplierReturns', label: 'Trả NCC', status: 'done' });
 
   return { eventMapByCode, sources, warnings };
 }
