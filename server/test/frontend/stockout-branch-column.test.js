@@ -115,3 +115,20 @@ test('Kiểm tra đứt hàng 90 ngày quét ở một cơ sở: không thêm c�
   assert.equal(visibleHeaders(dom.window.document, 'stockout90dResultRows').includes('Cơ sở'), false);
   dom.window.close();
 });
+
+test('Kiểm tra đứt hàng 30 ngày quét ở "Cả hai": bảng có cột Cơ sở và mỗi dòng ghi rõ nguồn', () => {
+  const dom = createDashboard();
+  dom.window.renderStockout30dResultTable({ ...NINETY_BOTH, fromDate: '2026-08-23' });
+
+  assert.equal(visibleHeaders(dom.window.document, 'stockout30dResultRows')[0], 'Cơ sở');
+  assert.deepEqual(visibleCells(dom.window.document, 'stockout30dResultRows').map(cells => cells[0]), ['Hà Nội', 'Sài Gòn']);
+  dom.window.close();
+});
+
+test('Kiểm tra đứt hàng 30 ngày quét ở một cơ sở: không thêm cột Cơ sở', () => {
+  const dom = createDashboard();
+  dom.window.renderStockout30dResultTable({ ...NINETY_BOTH, branch: 'Sài Gòn', rows: [NINETY_BOTH.rows[1]] });
+
+  assert.equal(visibleHeaders(dom.window.document, 'stockout30dResultRows').includes('Cơ sở'), false);
+  dom.window.close();
+});

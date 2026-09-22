@@ -79,7 +79,9 @@ function resolveBranchScope(branch) {
 }
 
 function defaultBranch(user) {
-  return allowedBranches(user)[0] || null;
+  const allowed = allowedBranches(user);
+  if (allowed.includes(BRANCHES.HANOI) && allowed.includes(BRANCHES.SAIGON)) return BRANCH_BOTH;
+  return allowed[0] || null;
 }
 
 // Anh xa 2 chieu giua dinh danh noi bo cua Postgres ('hanoi'/'saigon' — xem

@@ -184,6 +184,7 @@ function payloadFor(tableKey, extra = {}) {
   if (tableKey === 'overview.productRevenueSearch') payload.context = { productRevenueQuery: 'ao' };
   if (tableKey === 'stockout.recentScan') payload.recentStockoutResult = { branch: 'Hà Nội', rows: STOCKOUT_ROWS };
   if (tableKey === 'stockout.check90d') payload.stockout90dResult = { branch: 'Hà Nội', rows: STOCKOUT_ROWS };
+  if (tableKey === 'stockout.check30d') payload.stockout30dResult = { branch: 'Hà Nội', rows: STOCKOUT_ROWS };
   return payload;
 }
 
@@ -1040,6 +1041,39 @@ test('buildExportDataset: stockout.check90d tra dung worksheet', async () => {
   assert.equal(dataset.worksheets[0].rows[0].dataWarning, '');
   assert.equal(dataset.worksheets[0].rows[0].avgStockoutDays, 5);
   assert.equal(dataset.worksheets[0].rows[0].periods, '01/01/2026 -> 05/01/2026\n10/01/2026 -> 14/01/2026');
+});
+
+test('buildExportDataset: stockout.check30d tra dung worksheet', async () => {
+  const dataset = await exportService.__test__.buildExportDataset({
+    tableKey: 'stockout.check30d',
+    stockout30dResult: {
+      branch: 'Sài Gòn',
+      rows: [{
+        code: 'SP001', name: 'Ao thun', stockoutCount: 2, totalStockoutDays: 10, currentOnHand: 3, hasUnreliableData: false,
+        periods: [
+          { fromDate: '2026-01-01', toDate: '2026-01-05', days: 5 },
+          { fromDate: '2026-01-10', toDate: '2026-01-14', days: 5 }
+        ]
+      }]
+    }
+  });
+
+  assert.equal(dataset.tableKey, 'stockout.check30d');
+  assert.equal(dataset.title, 'Kiểm tra đứt hàng 30 ngày');
+  assert.equal(dataset.sourceBranch, 'Sài Gòn');
+  assert.equal(dataset.worksheets.length, 1);
+  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'dataWarning', 'periods']);
+  assert.equal(dataset.worksheets[0].rows[0].code, 'SP001');
+  assert.equal(dataset.worksheets[0].rows[0].dataWarning, '');
+  assert.equal(dataset.worksheets[0].rows[0].avgStockoutDays, 5);
+  assert.equal(dataset.worksheets[0].rows[0].periods, '01/01/2026 -> 05/01/2026\n10/01/2026 -> 14/01/2026');
+});
+
+test('buildExportDataset: stockout.check30d khong co dong nao thi bao loi EXPORT_NO_DATA', async () => {
+  await assert.rejects(
+    exportService.__test__.buildExportDataset({ tableKey: 'stockout.check30d', stockout30dResult: { rows: [] } }),
+    /EXPORT_NO_DATA|Chưa có kết quả/
+  );
 });
 
 test('file Excel stockout bật wrap text cho cột Các đợt đứt hàng', async () => {

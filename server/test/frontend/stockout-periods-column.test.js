@@ -7,8 +7,8 @@ const path = require('node:path');
 
 const html = fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'index.html'), 'utf8');
 
-test('cả 2 bảng kết quả có cột Các đợt đứt hàng', () => {
-  assert.equal((html.match(/<th>Các đợt đứt hàng<\/th>/g) || []).length, 2);
+test('cả 3 bảng kết quả có cột Các đợt đứt hàng', () => {
+  assert.equal((html.match(/<th>Các đợt đứt hàng<\/th>/g) || []).length, 3);
 });
 
 test('giao diện định dạng mỗi đợt dd/mm/yyyy -> dd/mm/yyyy và nối bằng xuống dòng', () => {

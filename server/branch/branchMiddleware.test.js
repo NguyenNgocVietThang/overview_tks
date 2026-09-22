@@ -43,10 +43,16 @@ test('cookie hop le duoc ton trong voi tai khoan phu trach ca hai co so', () => 
   assert.equal(req.branch, BRANCHES.SAIGON);
 });
 
-test('khong co cookie thi dung co so dau tien va viet lai cookie', () => {
+test('khong co cookie thi mac dinh Ca hai cho tai khoan phu trach ca hai co so va viet lai cookie', () => {
   const { req, res } = run({ coSo: 'Cả hai' });
-  assert.equal(req.branch, BRANCHES.HANOI);
-  assert.equal(res.cookies[BRANCH_COOKIE_NAME], BRANCHES.HANOI);
+  assert.equal(req.branch, 'Cả hai');
+  assert.equal(res.cookies[BRANCH_COOKIE_NAME], 'Cả hai');
+});
+
+test('khong co cookie thi dung co so duy nhat va viet lai cookie', () => {
+  const { req, res } = run({ coSo: 'Sài Gòn' });
+  assert.equal(req.branch, BRANCHES.SAIGON);
+  assert.equal(res.cookies[BRANCH_COOKIE_NAME], BRANCHES.SAIGON);
 });
 
 test('currentBranchFor dung chung logic nhung khong ghi cookie', () => {

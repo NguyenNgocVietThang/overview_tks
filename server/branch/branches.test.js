@@ -37,7 +37,7 @@ test('allowedBranches mac dinh Quan ly ve Ca hai khi chua duoc gan co so', () =>
 test('isBranchAllowed va defaultBranch', () => {
   assert.equal(isBranchAllowed({ coSo: 'Hà Nội' }, BRANCHES.SAIGON), false);
   assert.equal(isBranchAllowed({ coSo: 'Cả hai' }, BRANCHES.SAIGON), true);
-  assert.equal(defaultBranch({ coSo: 'Cả hai' }), BRANCHES.HANOI);
+  assert.equal(defaultBranch({ coSo: 'Cả hai' }), BRANCH_BOTH);
   assert.equal(defaultBranch({ coSo: 'Tân Phú' }), BRANCHES.SAIGON);
   assert.equal(defaultBranch({ coSo: '' }), null);
 });

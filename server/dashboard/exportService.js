@@ -55,7 +55,8 @@ const TABLE_TITLES = Object.freeze({
   'debt.management': 'Quản lý công nợ',
   'search.results': 'Kết quả tìm kiếm',
   'stockout.recentScan': 'Hàng đứt gần đây',
-  'stockout.check90d': 'Kiểm tra đứt hàng 90 ngày'
+  'stockout.check90d': 'Kiểm tra đứt hàng 90 ngày',
+  'stockout.check30d': 'Kiểm tra đứt hàng 30 ngày'
 });
 
 function exportError(message, statusCode = 400, code = 'EXPORT_INVALID_REQUEST') {
@@ -306,6 +307,17 @@ const STOCKOUT_90D_COLUMNS = [
   aggregateColumn('name', 'Tên hàng', undefined, 'Tên hàng được kiểm tra.'),
   aggregateColumn('stockoutCount', 'Số lần đứt hàng', 'number', 'Số đợt đứt hàng trong 90 ngày gần nhất.'),
   aggregateColumn('totalStockoutDays', 'Số ngày đứt hàng', 'number', 'Tổng số ngày đứt hàng trong 90 ngày gần nhất.'),
+  aggregateColumn('avgStockoutDays', 'Số ngày đứt hàng trung bình', 'number', 'Tổng số ngày đứt hàng chia cho số lần đứt hàng.'),
+  aggregateColumn('currentOnHand', 'Tồn kho hiện tại', 'number', 'Số lượng tồn kho hiện tại của mặt hàng.'),
+  aggregateColumn('dataWarning', 'Cảnh báo dữ liệu', undefined, 'Cảnh báo khi dữ liệu chưa đủ tin cậy để kết luận.', { wrapText: true }),
+  aggregateColumn('periods', 'Các đợt đứt hàng', undefined, 'Từng đợt đứt hàng, mỗi đợt một dòng (từ ngày -> đến ngày).', { wrapText: true })
+];
+
+const STOCKOUT_30D_COLUMNS = [
+  aggregateColumn('code', 'Mã hàng', 'text', 'Mã hàng được kiểm tra.'),
+  aggregateColumn('name', 'Tên hàng', undefined, 'Tên hàng được kiểm tra.'),
+  aggregateColumn('stockoutCount', 'Số lần đứt hàng', 'number', 'Số đợt đứt hàng trong 30 ngày gần nhất.'),
+  aggregateColumn('totalStockoutDays', 'Số ngày đứt hàng', 'number', 'Tổng số ngày đứt hàng trong 30 ngày gần nhất.'),
   aggregateColumn('avgStockoutDays', 'Số ngày đứt hàng trung bình', 'number', 'Tổng số ngày đứt hàng chia cho số lần đứt hàng.'),
   aggregateColumn('currentOnHand', 'Tồn kho hiện tại', 'number', 'Số lượng tồn kho hiện tại của mặt hàng.'),
   aggregateColumn('dataWarning', 'Cảnh báo dữ liệu', undefined, 'Cảnh báo khi dữ liệu chưa đủ tin cậy để kết luận.', { wrapText: true }),
@@ -726,6 +738,9 @@ const TABLE_SPECS = {
   }),
   'stockout.check90d': () => ({
     worksheets: [reportWorksheet('stockout_90d_result', 'Kiểm tra đứt hàng 90 ngày', STOCKOUT_90D_COLUMNS)]
+  }),
+  'stockout.check30d': () => ({
+    worksheets: [reportWorksheet('stockout_30d_result', 'Kiểm tra đứt hàng 30 ngày', STOCKOUT_30D_COLUMNS)]
   })
 };
 
@@ -1011,6 +1026,27 @@ function buildStockout90dResultDataset(description, payload) {
   };
 }
 
+function buildStockout30dResultDataset(description, payload) {
+  const result = payload.stockout30dResult && typeof payload.stockout30dResult === 'object' ? payload.stockout30dResult : null;
+  const rows = result && Array.isArray(result.rows) ? result.rows : [];
+  if (rows.length === 0) throw exportError('Chưa có kết quả kiểm tra đứt hàng 30 ngày để xuất.', 400, 'EXPORT_NO_DATA');
+  const dataRows = rows.map(row => ({
+    ...row,
+    avgStockoutDays: row.stockoutCount ? Math.round((row.totalStockoutDays / row.stockoutCount) * 100) / 100 : 0,
+    periods: formatStockoutPeriods(row.periods),
+    dataWarning: stockoutDataWarning(row)
+  }));
+  const worksheet = withStockoutBranchColumn(description.worksheets[0], result);
+  return {
+    tableKey: 'stockout.check30d',
+    title: TABLE_TITLES['stockout.check30d'],
+    selectionMode: 'custom',
+    worksheets: [{ ...worksheet, rows: pickAggregateRows(dataRows, worksheet.columns) }],
+    // Xem ghi chu tuong tu o buildRecentStockoutResultDataset.
+    sourceBranch: result && result.branch
+  };
+}
+
 /**
  * Kiem tra yeu cau + tra ve dinh nghia worksheets TINH — KHONG I/O (khong goi
  * getDashboardData/readRowsByCodes/Google/DB). Bang stockout co dataset tu payload
@@ -1039,10 +1075,12 @@ function describeExport(payload, branch) {
     }
   } else if (tableKey === 'overview.productRevenueSearch') {
     if (!normalizeText(context.productRevenueQuery)) throw exportError('Chưa có từ khóa tìm kiếm để xuất.', 400, 'EXPORT_NO_QUERY');
-  } else if (tableKey === 'stockout.recentScan' || tableKey === 'stockout.check90d') {
+  } else if (tableKey === 'stockout.recentScan' || tableKey === 'stockout.check90d' || tableKey === 'stockout.check30d') {
     const dataset = tableKey === 'stockout.recentScan'
       ? buildRecentStockoutResultDataset(description, request)
-      : buildStockout90dResultDataset(description, request);
+      : tableKey === 'stockout.check90d'
+        ? buildStockout90dResultDataset(description, request)
+        : buildStockout30dResultDataset(description, request);
     const filtered = applyTableSearchToDataset(dataset, request.tableSearch);
     if (filtered.worksheets.every(worksheet => worksheet.rows.length === 0)) {
       throw exportError('Không có kết quả phù hợp bộ lọc để xuất.', 404, 'EXPORT_NO_DATA');
