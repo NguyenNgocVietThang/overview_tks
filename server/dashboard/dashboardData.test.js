@@ -690,22 +690,36 @@ test('dashboard ghép workflow theo cơ sở, phân quyền sửa và khóa khi 
   assert.ok(unavailable.debtManagement.dataWarnings.some(warning => warning.includes('trạng thái xử lý')));
 });
 
-test('findDebtCustomerBranches chi tra co so that su co khach hang, co so khong doc duoc la "chua xac dinh"', async () => {
+test('findDebtCustomerBranches tra chu ky canh bao RIENG cua tung co so, co so khong doc duoc la "chua xac dinh"', async () => {
   const { dashboardData, debtManagementSheetsClient } = freshDashboardData();
   const crypto = require('node:crypto');
+  const { createAlertSignature } = require('./debtManagement');
   const headerFor = branch => ['Khách hàng', 'Sale', branch === 'Sài Gòn' ? 'Lịch TT SG' : 'Lịch TT HN',
     'Nợ đầu kỳ', 'Nợ hiện tại', 'Nợ quá hạn', '% nợ/Doanh số', '% quá hạn / TB DS', 'TB T6/26-T9/26'];
+  // Cung mot khach o CA HAI co so nhung so no khac nhau -> chu ky canh bao
+  // khac nhau: Ha Noi co no qua han (canh bao "Quá hạn"), Sai Gon thi khong.
+  const rowFor = branch => (branch === 'Sài Gòn'
+    ? ['Khách A', 'Lan', 7, 0, 700000, 0, 0, 0, 0]
+    : ['Khách A', 'Lan', 7, 0, 500000, 500000, 0, 0, 0]);
   debtManagementSheetsClient.getDebtManagementSheet = async branch => ({
     sourceSheet: branch === 'Sài Gòn' ? 'Công nợ SG' : 'Công nợ HN',
-    rows: [headerFor(branch), ['TỔNG'], branch === 'Sài Gòn'
-      ? ['Khách B', 'Lan', 7, 0, 100, 0, 0, 0, 0]
-      : ['Khách A', 'Lan', 7, 0, 100, 0, 0, 0, 0]]
+    rows: [headerFor(branch), ['TỔNG'], rowFor(branch)]
   });
   dashboardData.__test__.resetCaches();
 
   const keyA = crypto.createHash('sha256').update('khách a').digest('hex');
-  const onlyHanoi = await dashboardData.findDebtCustomerBranches(keyA, ['Hà Nội', 'Sài Gòn']);
-  assert.deepEqual(onlyHanoi, { found: ['Hà Nội'], undetermined: [] });
+  const hanoiSignature = createAlertSignature(['overdue'], 500000, 500000);
+  const saigonSignature = createAlertSignature([], 700000, 0);
+  assert.notEqual(hanoiSignature, saigonSignature);
+
+  const both = await dashboardData.findDebtCustomerBranches(keyA, ['Hà Nội', 'Sài Gòn']);
+  assert.deepEqual(both, {
+    found: [
+      { branch: 'Hà Nội', alertSignature: hanoiSignature },
+      { branch: 'Sài Gòn', alertSignature: saigonSignature }
+    ],
+    undetermined: []
+  });
 
   const missing = await dashboardData.findDebtCustomerBranches('f'.repeat(64), ['Hà Nội', 'Sài Gòn']);
   assert.deepEqual(missing, { found: [], undetermined: [] });
@@ -713,10 +727,75 @@ test('findDebtCustomerBranches chi tra co so that su co khach hang, co so khong 
   dashboardData.__test__.resetCaches();
   debtManagementSheetsClient.getDebtManagementSheet = async branch => {
     if (branch === 'Sài Gòn') throw new Error('Sheets loi');
-    return { sourceSheet: 'Công nợ HN', rows: [headerFor(branch), ['TỔNG'], ['Khách A', 'Lan', 7, 0, 100, 0, 0, 0, 0]] };
+    return { sourceSheet: 'Công nợ HN', rows: [headerFor(branch), ['TỔNG'], rowFor(branch)] };
   };
   const partial = await dashboardData.findDebtCustomerBranches(keyA, ['Hà Nội', 'Sài Gòn']);
-  assert.deepEqual(partial, { found: ['Hà Nội'], undetermined: ['Sài Gòn'] });
+  assert.deepEqual(partial, {
+    found: [{ branch: 'Hà Nội', alertSignature: hanoiSignature }],
+    undetermined: ['Sài Gòn']
+  });
+});
+
+test('Ca hai: trang thai ket thuc ghi kem chu ky RIENG tung co so thi khong bi het hieu luc o co so con lai', async () => {
+  const { dashboardData, debtManagementSheetsClient, debtCollectionStatusRepository } = freshDashboardData();
+  const crypto = require('node:crypto');
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  const { createAlertSignature } = require('./debtManagement');
+  const headerFor = branch => ['Khách hàng', 'Sale', branch === BRANCHES.SAIGON ? 'Lịch TT SG' : 'Lịch TT HN',
+    'Nợ đầu kỳ', 'Nợ hiện tại', 'Nợ quá hạn', '% nợ/Doanh số', '% quá hạn / TB DS', 'TB'];
+  debtManagementSheetsClient.getDebtManagementSheet = async branch => ({
+    sourceSheet: branch === BRANCHES.SAIGON ? 'Công nợ SG' : 'Công nợ HN',
+    rows: [headerFor(branch), ['TỔNG'], branch === BRANCHES.SAIGON
+      ? ['Khách A', 'Lan', 7, 0, 800000, 800000, 0, 0, 0]
+      : ['Khách A', 'Lan', 7, 0, 500000, 500000, 0, 0, 0]]
+  });
+  const customerKey = crypto.createHash('sha256').update('khách a').digest('hex');
+  const signatureByBranch = {
+    [BRANCHES.HANOI]: createAlertSignature(['overdue'], 500000, 500000),
+    [BRANCHES.SAIGON]: createAlertSignature(['overdue'], 800000, 800000)
+  };
+  const storedStatus = (branch, alertSignature) => [{
+    branch, customer_key: customerKey, status: 'Đã xử lý', alert_signature: alertSignature, updated_by_name: 'Quản lý'
+  }];
+
+  // Sau khi sua: moi co so giu chu ky cua chinh no.
+  debtCollectionStatusRepository.listByBranch = async branchCode => storedStatus(
+    branchCode,
+    branchCode === 'saigon' ? signatureByBranch[BRANCHES.SAIGON] : signatureByBranch[BRANCHES.HANOI]
+  );
+  dashboardData.__test__.resetCaches();
+  const fixed = await dashboardData.getDashboardData(BASE_FILTERS, BRANCH_BOTH, { vaiTro: 'Quản lý' });
+  const mergedFixed = fixed.debtManagement.customers.find(customer => customer.customerKey === customerKey);
+  assert.equal(mergedFixed.workflowStatus, 'Đã xử lý');
+  assert.equal(mergedFixed.needsAction, false, 'khong con mau thuan "Đã xử lý" nhung van nam trong hang cho');
+
+  const saigonOnly = await dashboardData.getDashboardData(BASE_FILTERS, BRANCHES.SAIGON, { vaiTro: 'Quản lý' });
+  assert.equal(saigonOnly.debtManagement.customers[0].workflowStatus, 'Đã xử lý', 'xem rieng Sai Gon van la Đã xử lý');
+
+  // Loi cu: nhan ban chu ky Ha Noi sang Sai Gon -> Sai Gon het hieu luc.
+  debtCollectionStatusRepository.listByBranch = async branchCode => storedStatus(branchCode, signatureByBranch[BRANCHES.HANOI]);
+  dashboardData.__test__.resetCaches();
+  const broken = await dashboardData.getDashboardData(BASE_FILTERS, BRANCHES.SAIGON, { vaiTro: 'Quản lý' });
+  assert.equal(broken.debtManagement.customers[0].workflowStatus, 'Chưa xử lý');
+});
+
+test('findDebtCustomerBranches dung dung chu ky ma dashboard tinh cho tung co so', async () => {
+  const { dashboardData, debtManagementSheetsClient } = freshDashboardData();
+  const crypto = require('node:crypto');
+  const header = ['Khách hàng', 'Sale', 'Lịch TT SG', 'Nợ đầu kỳ', 'Nợ hiện tại', 'Nợ quá hạn', '% nợ/Doanh số', '% quá hạn / TB DS', 'TB T6/26-T9/26'];
+  debtManagementSheetsClient.getDebtManagementSheet = async () => ({
+    sourceSheet: 'Công nợ SG',
+    rows: [header, ['TỔNG'], ['Khách A', 'Lan', 7, 0, 900000, 300000, 0, 0, 0]]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const keyA = crypto.createHash('sha256').update('khách a').digest('hex');
+  const { found } = await dashboardData.findDebtCustomerBranches(keyA, ['Sài Gòn']);
+  const dashboard = await dashboardData.getDashboardData(BASE_FILTERS, 'Sài Gòn', { vaiTro: 'Quản lý' });
+  const onScreen = dashboard.debtManagement.customers.find(customer => customer.customerKey === keyA);
+
+  assert.equal(found[0].alertSignature, onScreen.alertSignature,
+    'chu ky luu xuong DB phai trung chu ky debtManagement.js so sanh khi doc');
 });
 
 test('Ca hai cong KPI/bucket va gop thuc the trung ma truoc khi xep hang', async () => {

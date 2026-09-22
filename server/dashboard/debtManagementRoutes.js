@@ -81,18 +81,32 @@ router.patch(
       if (isBothBranches) {
         const scope = resolveBranchScope(req.branch);
         const { found, undetermined } = await dashboardData.findDebtCustomerBranches(payload.customerKey, scope);
+        const signatureByBranch = new Map(found.map(item => [item.branch, item.alertSignature]));
         // Co so khong doc duoc nguon van duoc ghi: tha ghi thua mot dong vo
         // hai (dong trang thai chi hien khi khop customer_key luc doc) con hon
         // am tham bo sot mot co so, lam 2 co so lech trang thai.
-        const targets = scope.filter(item => found.includes(item) || undetermined.includes(item));
+        const targets = scope.filter(item => signatureByBranch.has(item) || undetermined.includes(item));
         if (!targets.length) {
           return res.status(404).json({
             error: 'Không tìm thấy khách hàng này trong công nợ của cơ sở nào.',
             code: 'DEBT_CUSTOMER_NOT_FOUND'
           });
         }
+        // Dong GOP tren man hinh mang chu ky cua co so DAU TIEN co khach nay,
+        // nen chu ky client gui len phai trung chu ky do. Neu khong trung thi
+        // man hinh da cu: giu nguyen chu ky client cho moi co so de trang thai
+        // ket thuc tu het hieu luc o lan doc sau — dung nhu duong mot co so.
+        const mergedSignature = scope.map(item => signatureByBranch.get(item)).find(Boolean);
+        const clientViewIsCurrent = mergedSignature === payload.alertSignature;
         const rows = await repository.upsertStatusForBranches({
-          branches: targets.map(branchLabelToCode),
+          targets: targets.map(item => ({
+            branch: branchLabelToCode(item),
+            // Moi co so ghi chu ky cua CHINH NO; co so khong doc duoc nguon
+            // (khong co chu ky) dung tam chu ky client gui len.
+            alertSignature: clientViewIsCurrent
+              ? (signatureByBranch.get(item) || payload.alertSignature)
+              : payload.alertSignature
+          })),
           ...writePayload
         });
         // CHI xoa cache sau khi COMMIT. Khoa cache ket qua "Cả hai" chua phien

@@ -17,7 +17,7 @@ const dashboardRollupRepository = require('./dashboardRollupRepository');
 const { BRANCHES, BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
 const { ROLES } = require('../auth/userRepository');
 const debtCollectionStatusRepository = require('./debtCollectionStatusRepository');
-const { deriveDebtManagement, parseManagementSheet, PAYMENT_SCHEDULES, DEBT_TOTAL_AVERAGE_SALES } = require('./debtManagement');
+const { deriveDebtManagement, PAYMENT_SCHEDULES, DEBT_TOTAL_AVERAGE_SALES } = require('./debtManagement');
 
 const OUT_OF_STOCK_LEVEL = 0;
 const TOP_SELLING_LIMIT = 15;
@@ -1031,26 +1031,43 @@ async function getCachedDebtWorkflow(branch) {
 }
 
 /**
- * Cac co so (trong `branches`) that su co dong cong no cua `customerKey`.
- * Dung khi GHI trang thai o pham vi "Cả hai": mot dong da gop co the chi ton
- * tai o mot co so, khong duoc tao dong trang thai cho co so khong co khach
- * nay. Co so khong doc duoc workbook (loi Sheets) tra ve trong `undetermined`
- * — nguoi goi tu quyet dinh, o day KHONG doan la "khong co".
- * Dung lai cache workbook cong no cua dashboard nen thuong khong ton them
- * luot doc Sheets.
- * @returns {Promise<{found: string[], undetermined: string[]}>}
+ * Cac co so (trong `branches`) that su co dong cong no cua `customerKey`, kem
+ * CHU KY CANH BAO RIENG cua co so do.
+ *
+ * Dung khi GHI trang thai o pham vi "Cả hai". Hai vai tro:
+ *  1. Mot dong da gop co the chi ton tai o mot co so — khong tao dong trang
+ *     thai cho co so khong co khach nay.
+ *  2. `debtManagement.js` huy trang thai ket thuc khi chu ky luu != chu ky
+ *     TINH LAI TU SO LIEU CUA CHINH CO SO DO, nen moi co so phai duoc ghi chu
+ *     ky cua chinh no (dong gop chi mang chu ky cua co so dau tien).
+ *
+ * Chu ky duoc tinh bang dung ham va dung nguon ma /api/dashboard dung
+ * (`buildDebtManagementForBranch` + cache workbook cong no + cache 7 tab core
+ * kem CN1/CN3/CN7), nen khong the lech voi luc doc. Co so khong doc duoc mot
+ * trong hai nguon tra ve trong `undetermined` — o day KHONG doan la "khong
+ * co" va cung khong doan chu ky.
+ * @returns {Promise<{found: Array<{branch: string, alertSignature: string}>, undetermined: string[]}>}
  */
 async function findDebtCustomerBranches(customerKey, branches) {
   const key = String(customerKey || '').trim().toLowerCase();
   const scope = Array.isArray(branches) ? branches : [];
   const results = await Promise.all(scope.map(async branch => {
-    const source = await getCachedDebtManagementSource(branch);
-    const parsed = parseManagementSheet(source?.rows, branch);
-    if (!parsed.available) return { branch, determined: false, has: false };
-    return { branch, determined: true, has: parsed.customers.some(customer => customer.customerKey === key) };
+    const [debtManagementSource, sheets] = await Promise.all([
+      getCachedDebtManagementSource(branch),
+      getCachedDashboardCoreSheets(branch).catch(() => null)
+    ]);
+    // Thieu CN1/CN3/CN7 se lam tat canh bao "Chưa thu" va cho ra chu ky khac
+    // voi luc doc — coi nhu chua xac dinh thay vi ghi chu ky sai.
+    if (!sheets) return { branch, determined: false };
+    const derived = buildDebtManagementForBranch({ branch, sheets, debtManagementSource }, false);
+    if (!derived.available) return { branch, determined: false };
+    const customer = (derived.customers || []).find(item => item.customerKey === key);
+    return { branch, determined: true, alertSignature: customer?.alertSignature || '' };
   }));
   return {
-    found: results.filter(item => item.determined && item.has).map(item => item.branch),
+    found: results
+      .filter(item => item.determined && item.alertSignature)
+      .map(item => ({ branch: item.branch, alertSignature: item.alertSignature })),
     undetermined: results.filter(item => !item.determined).map(item => item.branch)
   };
 }

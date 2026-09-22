@@ -204,7 +204,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 
 - **Tìm kiếm & xuất Excel:** tìm kiếm chạy trên dữ liệu đã gộp theo đúng quy tắc của màn hình; file xuất ở phạm vi `Cả hai` thêm cột `Cơ sở` cho các bảng giao dịch và dùng tiền tố tên file `TKS_` thay cho `HN_`/`SG_`.
 
-- **Quản lý công nợ:** mỗi khách hàng là một dòng gộp theo khóa khách hàng (cộng nợ đầu kỳ/hiện tại/quá hạn, gộp cảnh báo), kèm chi tiết từng cơ sở. Khi Quản lý/Trợ lý đổi trạng thái xử lý ở phạm vi `Cả hai`, trạng thái được ghi cho **cả hai cơ sở trong một giao dịch database duy nhất**: hoặc cả hai cùng đổi, hoặc không có gì đổi (không tồn tại trạng thái ghi một nửa). Khách hàng chỉ có công nợ ở một cơ sở thì chỉ cơ sở đó được ghi. File Excel công nợ ở `Cả hai` tách một dòng cho mỗi cơ sở của khách hàng sau khi đã lọc trên dòng gộp.
+- **Quản lý công nợ:** mỗi khách hàng là một dòng gộp theo khóa khách hàng (cộng nợ đầu kỳ/hiện tại/quá hạn, gộp cảnh báo), kèm chi tiết từng cơ sở. Khi Quản lý/Trợ lý đổi trạng thái xử lý ở phạm vi `Cả hai`, trạng thái được ghi cho **cả hai cơ sở trong một giao dịch database duy nhất**: hoặc cả hai cùng đổi, hoặc không có gì đổi (không tồn tại trạng thái ghi một nửa). Mỗi cơ sở được lưu kèm **chữ ký cảnh báo tính trên số liệu của chính cơ sở đó**, nên sau khi cập nhật, chuyển thanh điều hướng sang từng cơ sở riêng vẫn thấy đúng trạng thái vừa đặt (trạng thái chỉ hết hiệu lực khi khoản nợ của cơ sở đó thay đổi sau này — đúng như ở chế độ một cơ sở). Khách hàng chỉ có công nợ ở một cơ sở thì chỉ cơ sở đó được ghi. File Excel công nợ ở `Cả hai` tách một dòng cho mỗi cơ sở của khách hàng sau khi đã lọc trên dòng gộp.
 
 - **Nhân sự, Vòng đời đơn hàng, Đứt hàng:** danh sách nhân sự và đơn nghỉ phép hiển thị cả hai cơ sở kèm cột `Cơ sở` và bộ lọc cơ sở. Ghi nhận đơn nghỉ phép ở `Cả hai` lấy cơ sở từ hồ sơ nhân sự; không xác định được (không có hồ sơ, hoặc trùng tên ở cả hai cơ sở) thì hệ thống yêu cầu chọn `Hà Nội`/`Sài Gòn` rồi ghi lại thay vì đoán. Tra cứu vòng đời đơn hàng vốn đã đọc cả hai cơ sở và gắn nhãn cơ sở cho từng đơn. Kiểm tra đứt hàng ở `Cả hai` quét lần lượt từng cơ sở rồi gộp kết quả, mỗi dòng kèm cơ sở; một cơ sở lỗi thì cả lần quét báo lỗi thay vì trả kết quả một nửa.
 
@@ -244,7 +244,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 - Bảng dữ liệu lớn (>7.000 dòng) được phân trang ~200 dòng/trang, chuyển trang mượt mà không lag.
 - Ba kỳ công nợ CN1/CN3/CN7 (1/3/7 ngày) được tính toán chính xác và lưu trong bảng `customer_debt_activity_periods`; cảnh báo "Chưa thu" trên màn hình Quản lý công nợ đối chiếu đúng với dữ liệu.
 - Tài khoản được cả hai cơ sở chọn `Cả hai` thì KPI/biểu đồ cộng dồn hai cơ sở, thực thể trùng mã chỉ hiện một dòng, giao dịch trùng mã vẫn giữ hai dòng kèm nhãn cơ sở, và không có giá trị `Cả hai` nào được ghi vào dữ liệu nghiệp vụ.
-- Đổi trạng thái công nợ ở `Cả hai` hoặc cập nhật thành công cho cả hai cơ sở, hoặc không thay đổi gì khi có lỗi.
+- Đổi trạng thái công nợ ở `Cả hai` hoặc cập nhật thành công cho cả hai cơ sở, hoặc không thay đổi gì khi có lỗi; sau khi cập nhật, xem riêng từng cơ sở đều thấy đúng trạng thái vừa đặt.
 - Hệ thống hoạt động ổn định trên Render.com, uptime >= 99% trong giờ hành chính.
 - Toàn bộ hệ thống vượt qua kiểm thử tự động **924 unit tests** (3 test migration integration chỉ chạy khi cấu hình `SUPABASE_TEST_DB_URL`).
 

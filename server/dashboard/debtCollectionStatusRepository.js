@@ -55,17 +55,25 @@ function createDebtCollectionStatusRepository({ pool = getPool() } = {}) {
    * o pham vi "Cả hai", mot khach hang la mot dong da gop tu 2 co so nen
    * khong duoc phep ton tai trang thai ghi mot nua (HN da doi, SG chua).
    * Bat ky loi nao cung ROLLBACK toan bo.
+   *
+   * `targets` la mang `{ branch, alertSignature }` — MOI co so mang chu ky
+   * canh bao cua chinh no (xem dashboardData.findDebtCustomerBranches); dung
+   * chung mot chu ky cho ca hai co so se lam trang thai ket thuc cua co so
+   * con lai bi coi la het hieu luc ngay lan doc sau.
    */
-  async function upsertStatusForBranches({ branches, ...payload }) {
-    const targets = (Array.isArray(branches) ? branches : []).map(assertBranchCode);
-    if (!targets.length) throw new Error('Danh sách cơ sở cần ghi đang rỗng.');
+  async function upsertStatusForBranches({ targets, ...payload }) {
+    const writes = (Array.isArray(targets) ? targets : []).map(target => ({
+      branch: assertBranchCode(target?.branch),
+      alertSignature: target?.alertSignature || payload.alertSignature
+    }));
+    if (!writes.length) throw new Error('Danh sách cơ sở cần ghi đang rỗng.');
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       const rows = [];
-      for (const branch of targets) {
-        const result = await client.query(UPSERT_STATUS_SQL, upsertParams({ ...payload, branch }));
+      for (const { branch, alertSignature } of writes) {
+        const result = await client.query(UPSERT_STATUS_SQL, upsertParams({ ...payload, branch, alertSignature }));
         rows.push(result.rows[0]);
       }
       await client.query('COMMIT');

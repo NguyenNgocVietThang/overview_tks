@@ -91,9 +91,21 @@ test('PATCH lấy cơ sở từ session, upsert và xóa cache sau khi thành c�
 
 // ----- Pham vi "Cả hai": ghi nguyen tu cho ca hai co so vat ly -----
 
+// Chu ky cua dong GOP tren man hinh = chu ky cua co so dau tien co khach hang
+// (Ha Noi truoc Sai Gon) — do la thu client gui len.
+const HANOI_SIGNATURE = 'b'.repeat(64);
+const SAIGON_SIGNATURE = 'c'.repeat(64);
+const STALE_SIGNATURE = 'd'.repeat(64);
+
 function bothBranchesHarness({
   upsertForBranches,
-  customerBranches = { found: ['Hà Nội', 'Sài Gòn'], undetermined: [] }
+  customerBranches = {
+    found: [
+      { branch: 'Hà Nội', alertSignature: HANOI_SIGNATURE },
+      { branch: 'Sài Gòn', alertSignature: SAIGON_SIGNATURE }
+    ],
+    undetermined: []
+  }
 } = {}) {
   const originals = {
     upsertStatus: repository.upsertStatus,
@@ -102,17 +114,23 @@ function bothBranchesHarness({
     findBranches: dashboardData.findDebtCustomerBranches
   };
   const log = [];
-  const state = { singleBranchCalls: 0, writtenBranches: null, invalidated: [], log };
-  repository.upsertStatus = async () => { state.singleBranchCalls += 1; return {}; };
+  const state = { singleBranchCalls: 0, writtenTargets: null, invalidated: [], log };
+  Object.defineProperty(state, 'writtenBranches', {
+    get: () => (state.writtenTargets ? state.writtenTargets.map(target => target.branch) : null)
+  });
+  repository.upsertStatus = async payload => {
+    state.singleBranchCalls += 1;
+    return { branch: payload.branch, customer_key: payload.customerKey, status: payload.status };
+  };
   repository.upsertStatusForBranches = async payload => {
-    state.writtenBranches = payload.branches;
+    state.writtenTargets = payload.targets;
     log.push('write');
     if (upsertForBranches) return upsertForBranches(payload);
-    return payload.branches.map(branch => ({
-      branch,
+    return payload.targets.map(target => ({
+      branch: target.branch,
       customer_key: payload.customerKey,
       status: payload.status,
-      alert_signature: payload.alertSignature,
+      alert_signature: target.alertSignature,
       updated_by_name: payload.userName,
       updated_at: '2026-09-21T00:00:00.000Z'
     }));
@@ -131,11 +149,11 @@ function bothBranchesHarness({
   return state;
 }
 
-function bothBranchesRequest() {
+function bothBranchesRequest(alertSignature = HANOI_SIGNATURE) {
   return {
     branch: 'Cả hai',
     user: { id: '9ad42989-90ef-4da8-bf87-da505551ed15', hoTen: 'Quản lý A', vaiTro: 'Quản lý' },
-    body: { customerKey: 'a'.repeat(64), status: 'Đã xử lý', alertSignature: 'b'.repeat(64) }
+    body: { customerKey: 'a'.repeat(64), status: 'Đã xử lý', alertSignature }
   };
 }
 
@@ -153,6 +171,40 @@ test('PATCH ở "Cả hai" ghi cả hai cơ sở vật lý rồi xóa cache sau 
     assert.deepEqual(harness.log, ['write', 'invalidate:Hà Nội', 'invalidate:Sài Gòn'], 'chỉ xóa cache SAU khi ghi xong');
     assert.deepEqual(res.body.branches, ['Hà Nội', 'Sài Gòn']);
     assert.equal(res.body.status, 'Đã xử lý');
+  } finally {
+    harness.restore();
+  }
+});
+
+test('PATCH ở "Cả hai" lưu CHỮ KÝ RIÊNG của từng cơ sở, không nhân bản chữ ký Hà Nội sang Sài Gòn', async () => {
+  const handler = routeStack().at(-1);
+  const harness = bothBranchesHarness();
+  try {
+    const res = fakeRes();
+    await handler(bothBranchesRequest(), res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(harness.writtenTargets, [
+      { branch: 'hanoi', alertSignature: HANOI_SIGNATURE },
+      { branch: 'saigon', alertSignature: SAIGON_SIGNATURE }
+    ]);
+  } finally {
+    harness.restore();
+  }
+});
+
+test('PATCH ở "Cả hai" giữ chữ ký client gửi lên khi màn hình đã cũ (trạng thái sẽ tự hết hiệu lực như một cơ sở)', async () => {
+  const handler = routeStack().at(-1);
+  const harness = bothBranchesHarness();
+  try {
+    const res = fakeRes();
+    await handler(bothBranchesRequest(STALE_SIGNATURE), res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(harness.writtenTargets, [
+      { branch: 'hanoi', alertSignature: STALE_SIGNATURE },
+      { branch: 'saigon', alertSignature: STALE_SIGNATURE }
+    ]);
   } finally {
     harness.restore();
   }
@@ -177,13 +229,16 @@ test('PATCH ở "Cả hai" không xóa cache khi transaction thất bại', asyn
 
 test('PATCH ở "Cả hai" chỉ ghi cơ sở thực sự có khách hàng này', async () => {
   const handler = routeStack().at(-1);
-  const harness = bothBranchesHarness({ customerBranches: { found: ['Sài Gòn'], undetermined: [] } });
+  const harness = bothBranchesHarness({
+    customerBranches: { found: [{ branch: 'Sài Gòn', alertSignature: SAIGON_SIGNATURE }], undetermined: [] }
+  });
   try {
     const res = fakeRes();
-    await handler(bothBranchesRequest(), res);
+    // Khach chi co o Sai Gon nen dong gop mang chu ky cua Sai Gon.
+    await handler(bothBranchesRequest(SAIGON_SIGNATURE), res);
 
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(harness.writtenBranches, ['saigon']);
+    assert.deepEqual(harness.writtenTargets, [{ branch: 'saigon', alertSignature: SAIGON_SIGNATURE }]);
     assert.deepEqual(harness.invalidated, ['Sài Gòn']);
     assert.deepEqual(res.body.branches, ['Sài Gòn']);
   } finally {
@@ -207,15 +262,23 @@ test('PATCH ở "Cả hai" trả 404 khi không cơ sở nào có khách hàng n
   }
 });
 
-test('PATCH ở "Cả hai" vẫn ghi cơ sở không đọc được nguồn công nợ (không âm thầm bỏ qua)', async () => {
+test('PATCH ở "Cả hai" vẫn ghi cơ sở không đọc được nguồn công nợ (không âm thầm bỏ qua), dùng chữ ký client gửi lên cho cơ sở đó', async () => {
   const handler = routeStack().at(-1);
-  const harness = bothBranchesHarness({ customerBranches: { found: ['Hà Nội'], undetermined: ['Sài Gòn'] } });
+  const harness = bothBranchesHarness({
+    customerBranches: {
+      found: [{ branch: 'Hà Nội', alertSignature: HANOI_SIGNATURE }],
+      undetermined: ['Sài Gòn']
+    }
+  });
   try {
     const res = fakeRes();
     await handler(bothBranchesRequest(), res);
 
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(harness.writtenBranches, ['hanoi', 'saigon']);
+    assert.deepEqual(harness.writtenTargets, [
+      { branch: 'hanoi', alertSignature: HANOI_SIGNATURE },
+      { branch: 'saigon', alertSignature: HANOI_SIGNATURE }
+    ]);
   } finally {
     harness.restore();
   }

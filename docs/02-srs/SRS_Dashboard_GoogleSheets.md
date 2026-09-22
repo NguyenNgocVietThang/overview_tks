@@ -340,11 +340,12 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-12.3 | `GET /api/dashboard` ở `Cả hai` cộng KPI/bucket của hai cơ sở, gộp thực thể trùng mã theo mã (cộng số lượng/công nợ, giá vốn bình quân theo tồn, lấy tên thật đầu tiên HN→SG) rồi mới xếp hạng; giao dịch riêng lẻ giữ khóa `(cơ sở, mã)` kèm nhãn cơ sở. Cache kết quả `Cả hai` có khóa chứa phiên bản nguồn của **cả hai** cơ sở. | Cao | Hoàn thành |
 | FR-12.4 | `/api/search`, `/api/customer-product-top`, `/api/customer-product-revenue`, `/api/product-revenue-search`, `/api/product-revenue-detail` ở `Cả hai` chạy trên dữ liệu đã gộp theo cùng quy tắc; phản hồi ở cơ sở vật lý giữ nguyên hình dạng cũ, chế độ gộp chỉ **thêm** trường (`branch` cho dòng giao dịch, `branchDetails` cho chi tiết hàng hóa). | Cao | Hoàn thành |
 | FR-12.5 | Xuất Excel ở `Cả hai` thêm cột `Cơ sở` cho các worksheet giao dịch và kết quả tìm kiếm, ghép dữ liệu theo `(cơ sở, mã)`, dùng tiền tố tên file `TKS_`. Bảng Quản lý công nợ lọc/sắp xếp trên **dòng gộp** rồi mới tách một dòng cho mỗi cơ sở của khách hàng. | Cao | Hoàn thành |
-| FR-12.6 | PATCH trạng thái công nợ ở `Cả hai` ghi cùng `(customer_key, trạng thái, chữ ký)` cho **mọi cơ sở vật lý trong phạm vi** bằng một transaction (`BEGIN`/`COMMIT`, lỗi bất kỳ → `ROLLBACK` toàn bộ). Chỉ ghi cơ sở thực sự có khách hàng trong nguồn công nợ; không cơ sở nào có → `404 DEBT_CUSTOMER_NOT_FOUND`; cơ sở không đọc được nguồn vẫn được ghi để hai cơ sở không lệch trạng thái. Cache workflow/dashboard của từng cơ sở chỉ bị xóa **sau** khi COMMIT thành công. | Cao | Hoàn thành |
-| FR-12.7 | HR đọc theo `allowedBranches` nên tài khoản `Cả hai` thấy cả hai cơ sở kèm cột `Cơ sở` và bộ lọc cơ sở; ghi nhận đơn nghỉ phép ở `Cả hai` suy cơ sở từ hồ sơ nhân sự, không suy được hoặc trùng tên ở hai cơ sở → `400 LEAVE_BRANCH_UNRESOLVED`. SSE và thông báo dùng cơ sở vật lý của bản ghi. | Cao | Hoàn thành |
-| FR-12.8 | Quét đứt hàng ở `Cả hai` chạy tuần tự hai cơ sở như job con rồi gộp kết quả (mỗi dòng kèm cơ sở, cảnh báo ghi rõ cơ sở); một cơ sở lỗi thì job cha báo lỗi, không trả kết quả một nửa. `/api/debug` đếm gộp hai cơ sở bằng `branch = ANY($1::text[])`. | Trung bình | Hoàn thành |
+| FR-12.6 | PATCH trạng thái công nợ ở `Cả hai` ghi cùng `(customer_key, trạng thái)` cho **mọi cơ sở vật lý trong phạm vi** bằng một transaction (`BEGIN`/`COMMIT`, lỗi bất kỳ → `ROLLBACK` toàn bộ). Chỉ ghi cơ sở thực sự có khách hàng trong nguồn công nợ; không cơ sở nào có → `404 DEBT_CUSTOMER_NOT_FOUND`; cơ sở không đọc được nguồn vẫn được ghi để hai cơ sở không lệch trạng thái. Cache workflow/dashboard của từng cơ sở chỉ bị xóa **sau** khi COMMIT thành công. | Cao | Hoàn thành |
+| FR-12.7 | Mỗi cơ sở được ghi **chữ ký cảnh báo của chính cơ sở đó** — tính lại bằng đúng hàm và đúng nguồn mà `/api/dashboard` dùng cho cơ sở đó — nên trạng thái kết thúc không bị coi là hết hiệu lực khi xem riêng cơ sở còn lại. Nếu chữ ký client gửi lên không khớp chữ ký hiện tại của dòng gộp (màn hình đã cũ), chữ ký client được giữ nguyên cho mọi cơ sở để trạng thái tự hết hiệu lực ở lần đọc sau — y hệt chế độ một cơ sở. Cơ sở không đọc được nguồn thì dùng tạm chữ ký client gửi lên. | Cao | Hoàn thành |
+| FR-12.8 | HR đọc theo `allowedBranches` nên tài khoản `Cả hai` thấy cả hai cơ sở kèm cột `Cơ sở` và bộ lọc cơ sở; ghi nhận đơn nghỉ phép ở `Cả hai` suy cơ sở từ hồ sơ nhân sự, không suy được hoặc trùng tên ở hai cơ sở → `400 LEAVE_BRANCH_UNRESOLVED`. SSE và thông báo dùng cơ sở vật lý của bản ghi. | Cao | Hoàn thành |
+| FR-12.9 | Quét đứt hàng ở `Cả hai` chạy tuần tự hai cơ sở như job con rồi gộp kết quả (mỗi dòng kèm cơ sở, cảnh báo ghi rõ cơ sở); một cơ sở lỗi thì job cha báo lỗi, không trả kết quả một nửa. `/api/debug` đếm gộp hai cơ sở bằng `branch = ANY($1::text[])`. | Trung bình | Hoàn thành |
 
-**Giới hạn đã biết của FR-12:** (a) dòng công nợ gộp hiển thị trạng thái và chữ ký cảnh báo của cơ sở xuất hiện trước (Hà Nội trước Sài Gòn) — ghi trạng thái ở `Cả hai` lưu chữ ký của dòng gộp cho cả hai cơ sở, nên khi xem riêng một cơ sở, trạng thái kết thúc có thể bị coi là hết hiệu lực nếu chữ ký của cơ sở đó khác; (b) quét đứt hàng ở `Cả hai` tốn gấp đôi thời gian và hạn mức Google Sheets.
+**Giới hạn đã biết của FR-12:** (a) dòng công nợ gộp hiển thị **trạng thái** của cơ sở xuất hiện trước (Hà Nội trước Sài Gòn) và không tính lại — ngay sau khi cập nhật thì hai cơ sở thống nhất, nhưng nếu về sau chỉ một cơ sở đổi số nợ, trạng thái kết thúc của riêng cơ sở đó hết hiệu lực trong khi pill trên dòng gộp vẫn hiện trạng thái cũ (khách quay lại hàng chờ — an toàn, không bao giờ giấu cảnh báo); (b) quét đứt hàng ở `Cả hai` tốn gấp đôi thời gian và hạn mức Google Sheets.
 
 # 4. Yêu cầu phi chức năng (Non-functional Requirements)
 
@@ -629,8 +630,9 @@ Endpoint upsert theo `(branch, customer_key)`, từ chối status/chữ ký/khó
 
 **Ở một cơ sở vật lý:** một lệnh upsert, phản hồi `{ customerKey, status, alertSignature, updatedBy, updatedAt }` — không đổi so với trước.
 
-**Ở phạm vi `Cả hai`** (xem FR-12.6):
-- Server hỏi nguồn công nợ của từng cơ sở vật lý xem `customerKey` có tồn tại không (dùng lại cache workbook của dashboard). Cơ sở có khách → ghi; cơ sở **không đọc được** workbook → vẫn ghi (không âm thầm bỏ sót); không cơ sở nào có khách → `404` `{ "code": "DEBT_CUSTOMER_NOT_FOUND" }`.
+**Ở phạm vi `Cả hai`** (xem FR-12.6, FR-12.7):
+- Server dựng lại dữ liệu công nợ của **từng cơ sở vật lý** bằng đúng hàm và đúng nguồn mà `/api/dashboard` dùng (cache workbook công nợ + cache 7 tab core kèm CN1/CN3/CN7), lấy ra dòng của `customerKey` **và chữ ký cảnh báo riêng của cơ sở đó**. Cơ sở có khách → ghi; cơ sở **không đọc được** nguồn → vẫn ghi với chữ ký client gửi lên (không âm thầm bỏ sót); không cơ sở nào có khách → `404` `{ "code": "DEBT_CUSTOMER_NOT_FOUND" }`.
+- Mỗi cơ sở được lưu **chữ ký của chính nó**, không nhân bản chữ ký của dòng gộp; nhờ vậy `debtManagement.js` không coi trạng thái kết thúc là hết hiệu lực khi xem riêng cơ sở còn lại. Nếu `alertSignature` client gửi lên khác chữ ký hiện tại của dòng gộp (màn hình đã cũ), server giữ nguyên chữ ký client cho mọi cơ sở — trạng thái sẽ tự hết hiệu lực ở lần đọc sau, đúng như chế độ một cơ sở.
 - Toàn bộ upsert nằm trong **một transaction** (`BEGIN` → upsert từng cơ sở → `COMMIT`; lỗi bất kỳ → `ROLLBACK` và trả `503 DEBT_STATUS_UNAVAILABLE`). Cột `branch` chỉ nhận `hanoi`/`saigon` — repository ném lỗi với mọi mã khác nên `Cả hai`/`both` không thể xuống database.
 - Cache `invalidateDebtWorkflowCache` được gọi cho **từng cơ sở đã ghi** và chỉ **sau khi COMMIT**; khóa cache kết quả `Cả hai` chứa phiên bản workflow của cả hai cơ sở nên bản tổng hợp cũng tươi lại.
 - Phản hồi giữ nguyên hình dạng cũ, **thêm** `branches` — danh sách nhãn cơ sở đã được ghi, ví dụ `["Hà Nội", "Sài Gòn"]`.
@@ -795,7 +797,7 @@ Các cột nghiệp vụ nghỉ phép dùng `Thời gian gửi` (ISO), `Thời g
 | Đăng ký, Google Guest, Quản trị tài khoản & tra cứu vận chuyển | FR-08.1 → FR-08.7 |
 | Nghỉ phép theo buổi & Telegram Bot | FR-10.1 → FR-10.5 |
 | Quản lý công nợ theo cơ sở | FR-11.1 → FR-11.8 |
-| Phạm vi dữ liệu theo cơ sở — Hà Nội / Sài Gòn / Cả hai (5.7) | FR-12.1 → FR-12.8 |
+| Phạm vi dữ liệu theo cơ sở — Hà Nội / Sài Gòn / Cả hai (5.7) | FR-12.1 → FR-12.9 |
 | ~~Lớp hiệu ứng 3D Visual & Giám sát hiệu năng thích ứng~~ (FR-09.x đã thu hồi — lớp 3D bị gỡ bỏ vì hiệu năng) | — |
 
 # 9. Rủi ro kỹ thuật & phương án giảm thiểu

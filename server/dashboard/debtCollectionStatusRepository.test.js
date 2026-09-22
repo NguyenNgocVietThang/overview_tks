@@ -101,19 +101,24 @@ function transactionalPool({ failOnBranch = '' } = {}) {
   return { pool, client, committed };
 }
 
+const HANOI_SIGNATURE = 'b'.repeat(64);
+const SAIGON_SIGNATURE = 'c'.repeat(64);
 const BOTH_BASE = {
   customerKey: 'a'.repeat(64),
   status: 'Đã xử lý',
-  alertSignature: 'b'.repeat(64),
   userId: '9ad42989-90ef-4da8-bf87-da505551ed15',
   userName: 'Quản lý'
 };
+const BOTH_TARGETS = [
+  { branch: 'hanoi', alertSignature: HANOI_SIGNATURE },
+  { branch: 'saigon', alertSignature: SAIGON_SIGNATURE }
+];
 
 test('upsertStatusForBranches ghi hai cơ sở trong đúng một transaction rồi COMMIT', async () => {
   const { pool, client, committed } = transactionalPool();
   const repository = createDebtCollectionStatusRepository({ pool });
 
-  const rows = await repository.upsertStatusForBranches({ branches: ['hanoi', 'saigon'], ...BOTH_BASE });
+  const rows = await repository.upsertStatusForBranches({ targets: BOTH_TARGETS, ...BOTH_BASE });
 
   assert.deepEqual(client.queries.map(call => (call.sql === 'BEGIN' || call.sql === 'COMMIT' || call.sql === 'ROLLBACK' ? call.sql : call.params[0])),
     ['BEGIN', 'hanoi', 'saigon', 'COMMIT']);
@@ -122,12 +127,26 @@ test('upsertStatusForBranches ghi hai cơ sở trong đúng một transaction r�
   assert.equal(client.released, 1);
 });
 
+test('upsertStatusForBranches ghi CHỮ KÝ CẢNH BÁO RIÊNG của từng cơ sở', async () => {
+  const { pool, client, committed } = transactionalPool();
+  const repository = createDebtCollectionStatusRepository({ pool });
+
+  const rows = await repository.upsertStatusForBranches({ targets: BOTH_TARGETS, ...BOTH_BASE });
+
+  const signatureByBranch = Object.fromEntries(client.queries
+    .filter(call => Array.isArray(call.params))
+    .map(call => [call.params[0], call.params[3]]));
+  assert.deepEqual(signatureByBranch, { hanoi: HANOI_SIGNATURE, saigon: SAIGON_SIGNATURE });
+  assert.deepEqual(rows.map(row => row.alert_signature), [HANOI_SIGNATURE, SAIGON_SIGNATURE]);
+  assert.equal(committed.get(`saigon|${BOTH_BASE.customerKey}`).alert_signature, SAIGON_SIGNATURE);
+});
+
 test('upsertStatusForBranches ROLLBACK toàn bộ khi một cơ sở lỗi', async () => {
   const { pool, client, committed } = transactionalPool({ failOnBranch: 'saigon' });
   const repository = createDebtCollectionStatusRepository({ pool });
 
   await assert.rejects(
-    repository.upsertStatusForBranches({ branches: ['hanoi', 'saigon'], ...BOTH_BASE }),
+    repository.upsertStatusForBranches({ targets: BOTH_TARGETS, ...BOTH_BASE }),
     /mat ket noi giua transaction/
   );
 
@@ -143,12 +162,12 @@ test('repository từ chối mọi mã cơ sở ngoài hanoi/saigon — "Cả ha
 
   for (const branch of ['both', 'Cả hai', '', null]) {
     await assert.rejects(
-      repository.upsertStatusForBranches({ branches: [branch], ...BOTH_BASE }),
+      repository.upsertStatusForBranches({ targets: [{ branch, alertSignature: HANOI_SIGNATURE }], ...BOTH_BASE }),
       /Mã cơ sở không hợp lệ/,
       String(branch)
     );
     await assert.rejects(
-      repository.upsertStatus({ branch, ...BOTH_BASE }),
+      repository.upsertStatus({ branch, alertSignature: HANOI_SIGNATURE, ...BOTH_BASE }),
       /Mã cơ sở không hợp lệ/,
       String(branch)
     );
