@@ -660,6 +660,13 @@ body.tks-sidebar-resizing .sidebar{ transition:none; }
               opacity 0.15s ease;
 }
 
+/* .theme-toggle-floating phai la position:fixed (dat goc man hinh, tren cac
+   trang doc lap nhu 404/login) — nhung rule dung chung o tren gan
+   position:relative cho MOI nut (de lam goc cho hieu ung transform), ghi de
+   mat position:fixed vi cung do dac ta va dung sau trong thu tu CSS. Khoi
+   phuc lai fixed o day, ngay sau khoi do. */
+.theme-toggle-floating{ position: fixed; }
+
 .btn-primary{
   background:var(--primary-gradient); color:var(--primary-text); border:none; border-radius:10px;
   padding:11px 20px; font-family:var(--font-display); font-weight:700; font-size:13.5px;

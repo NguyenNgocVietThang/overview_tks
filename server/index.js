@@ -45,6 +45,14 @@ app.use('/api', (req, res, next) => {
 // API + auth routes TRUOC static (tranh express.static chop mat /api/*)
 app.use(routes);
 
+// "/reports" la duong dan tuong duong "tab lon" cua trang bao cao tong hop
+// (public/index.html o thu muc goc), de khop pattern URL "tab lon/#tab nho"
+// giong /shipment/lifecycle/, /humanresources/, /account/ — khong doi ten/vi
+// tri file de tranh vo cac test doc truc tiep public/index.html.
+app.get(['/reports', '/reports/'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Static files (html, css, js, images...)
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders(res, filePath) {

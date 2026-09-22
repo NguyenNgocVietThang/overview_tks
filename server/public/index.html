@@ -1825,6 +1825,122 @@
       line-height: 1.5;
     }
 
+    /* ---------- Nhap du lieu Tra NCC — file upload + banner trang thai ---------- */
+    .stockout-branch-select {
+      display: inline-flex;
+      min-height: 34px;
+      min-width: 108px;
+      padding: 0 26px 0 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-7);
+      appearance: none;
+      background-color: var(--panel-2);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      background-size: 14px;
+      color: var(--text);
+      font: 600 11.5px var(--font-body);
+      cursor: pointer;
+    }
+
+    .stockout-branch-select:focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: 2px;
+    }
+
+    .stockout-file-field {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .stockout-file-field input[type="file"] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .stockout-file-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      padding: 0 14px;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-7);
+      background: var(--panel-2);
+      color: var(--muted);
+      font: 600 11.5px var(--font-body);
+      white-space: nowrap;
+      max-width: 320px;
+      overflow: hidden;
+      transition: border-color .15s ease, color .15s ease;
+    }
+
+    .stockout-file-trigger svg {
+      width: 15px;
+      height: 15px;
+      flex: none;
+      stroke: currentColor;
+    }
+
+    .stockout-file-trigger span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .stockout-file-field:hover .stockout-file-trigger {
+      border-color: var(--blue);
+      color: var(--text);
+    }
+
+    .stockout-file-field.has-file .stockout-file-trigger {
+      border-style: solid;
+      border-color: color-mix(in srgb, var(--blue) 45%, var(--border));
+      color: var(--text);
+    }
+
+    .stockout-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin: 0 0 6px;
+      padding: 9px 12px;
+      border-radius: var(--radius-8);
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.5;
+      text-align: left;
+    }
+
+    .stockout-banner svg {
+      width: 15px;
+      height: 15px;
+      flex: none;
+      margin-top: 1px;
+      stroke: currentColor;
+    }
+
+    .stockout-banner--error {
+      border-color: color-mix(in srgb, var(--red) 40%, var(--border));
+      background: color-mix(in srgb, var(--red) 8%, var(--panel-2));
+      color: var(--red);
+    }
+
+    .stockout-banner--success {
+      border-color: color-mix(in srgb, var(--green) 40%, var(--border));
+      background: color-mix(in srgb, var(--green) 8%, var(--panel-2));
+      color: var(--green);
+    }
+
     .stockout-progress-bar {
       width: 100%;
       height: 8px;
@@ -3718,14 +3834,26 @@
                   <h2>Nhập dữ liệu Trả NCC</h2>
                 </div>
                 <div class="stockout-upload-row">
-                  <select id="supplierReturnImportBranch" hidden></select>
-                  <input type="file" id="supplierReturnImportFile" accept=".xlsx">
+                  <select id="supplierReturnImportBranch" class="stockout-branch-select" hidden></select>
+                  <label class="stockout-file-field" id="supplierReturnImportFileField">
+                    <input type="file" id="supplierReturnImportFile" accept=".xlsx" onchange="handleSupplierReturnFileChange(this)">
+                    <span class="stockout-file-trigger">
+                      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                      <span id="supplierReturnImportFileLabel">Chọn file Excel (.xlsx)</span>
+                    </span>
+                  </label>
                   <button class="export-button" type="button" id="supplierReturnImportButton" onclick="submitSupplierReturnImport()">Nhập dữ liệu</button>
                 </div>
                 <div class="stockout-note">Xuất file Excel từ màn hình "Trả hàng nhập" trên KiotViet rồi nhập vào đây (đọc đúng 4 cột Thời gian, Mã hàng, Tên hàng, Số lượng). Mỗi lần nhập sẽ THAY THẾ toàn bộ dữ liệu Trả NCC cũ của cơ sở đã chọn — hãy xuất file mới nhất chứa đủ lịch sử cần thiết trước khi nhập.</div>
-                <div id="supplierReturnImportStatusBox" class="table-note"></div>
-                <div id="supplierReturnImportErrorBox" class="table-note" hidden></div>
-                <div id="supplierReturnImportResultBox" class="table-note" hidden></div>
+                <div id="supplierReturnImportStatusBox" class="stockout-banner"></div>
+                <div id="supplierReturnImportErrorBox" class="stockout-banner stockout-banner--error" hidden>
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                  <span id="supplierReturnImportErrorText"></span>
+                </div>
+                <div id="supplierReturnImportResultBox" class="stockout-banner stockout-banner--success" hidden>
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                  <span id="supplierReturnImportResultText"></span>
+                </div>
               </div>
               <div class="panel col-12">
                 <div class="panel-head">
@@ -5382,12 +5510,22 @@
       }
     }
 
+    function handleSupplierReturnFileChange(input) {
+      const field = document.getElementById('supplierReturnImportFileField');
+      const label = document.getElementById('supplierReturnImportFileLabel');
+      const file = input.files && input.files[0];
+      field.classList.toggle('has-file', !!file);
+      label.textContent = file ? file.name : 'Chọn file Excel (.xlsx)';
+    }
+
     async function submitSupplierReturnImport() {
       const fileInput = document.getElementById('supplierReturnImportFile');
       const branchSelect = document.getElementById('supplierReturnImportBranch');
       const button = document.getElementById('supplierReturnImportButton');
       const errorBox = document.getElementById('supplierReturnImportErrorBox');
+      const errorText = document.getElementById('supplierReturnImportErrorText');
       const resultBox = document.getElementById('supplierReturnImportResultBox');
+      const resultText = document.getElementById('supplierReturnImportResultText');
 
       errorBox.hidden = true;
       resultBox.hidden = true;
@@ -5395,7 +5533,7 @@
       const file = fileInput.files && fileInput.files[0];
       if (!file) {
         errorBox.hidden = false;
-        errorBox.textContent = 'Vui lòng chọn file Excel Trả NCC trước.';
+        errorText.textContent = 'Vui lòng chọn file Excel Trả NCC trước.';
         return;
       }
 
@@ -5412,14 +5550,15 @@
         if (!response.ok) throw new Error(payload.error || 'Nhập dữ liệu Trả NCC thất bại.');
 
         resultBox.hidden = false;
-        resultBox.textContent = 'Đã nhập ' + payload.imported.toLocaleString('vi-VN') + ' dòng' +
+        resultText.textContent = 'Đã nhập ' + payload.imported.toLocaleString('vi-VN') + ' dòng' +
           (payload.skipped ? ', bỏ qua ' + payload.skipped + ' dòng lỗi' : '') +
           ' cho ' + branch + ' (từ ' + formatDdMmYyyy(payload.earliestDate) + ' đến ' + formatDdMmYyyy(payload.latestDate) + ').';
         fileInput.value = '';
+        handleSupplierReturnFileChange(fileInput);
         await refreshSupplierReturnImportStatus();
       } catch (err) {
         errorBox.hidden = false;
-        errorBox.textContent = err.message || 'Nhập dữ liệu Trả NCC thất bại.';
+        errorText.textContent = err.message || 'Nhập dữ liệu Trả NCC thất bại.';
       } finally {
         button.disabled = false;
         button.textContent = 'Nhập dữ liệu';
@@ -7084,11 +7223,11 @@
     // (xem shared/shared-nav.js) — sidebar cua trang nay chi con la 1 mount point rong.
 
     // Cap nhat class active cho cac nav-item bao cao trong sidebar dung chung (TKSNav render
-    // bang <a href="/#view">, khong con data-view), goi sau moi lan doi view hoac sau khi sidebar
-    // duoc TKSNav render xong (dung xong luc do vi sidebar con rong o lan goi dau).
+    // bang <a href="/reports/#view">, khong con data-view), goi sau moi lan doi view hoac sau khi
+    // sidebar duoc TKSNav render xong (dung xong luc do vi sidebar con rong o lan goi dau).
     function syncSidebarActiveView() {
       document.querySelectorAll('.nav-item[href]').forEach(function (el) {
-        const hrefView = (el.getAttribute('href') || '').replace(/^\/?#/, '');
+        const hrefView = (el.getAttribute('href') || '').replace(/^[^#]*#/, '');
         const isActive = hrefView === state.view;
         el.classList.toggle('active', isActive);
         if (isActive) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
@@ -9404,7 +9543,7 @@
       }
     });
 
-    // Vao thang mot tab bao cao tu sidebar cua trang khac (vd /#products) —
+    // Vao thang mot tab bao cao tu sidebar cua trang khac (vd /reports/#products) —
     // cac trang khac dieu huong toi day bang hash roi trang nay tu chuyen view.
     const REPORT_VIEW_NAMES = ['overview', 'products', 'invoices', 'customers', 'suppliers', 'debt'];
     function applyReportViewFromHash() {

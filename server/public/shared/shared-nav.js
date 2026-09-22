@@ -766,8 +766,9 @@
     var accountActive = activeTop === 'account';
     var hrActive = activeTop === 'hr';
     var currentPath = (typeof window !== 'undefined' && window.location.pathname) ? window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') : '';
-    // Nhom "Bao cao tong hop" — cac tab con la cac view cua trang chinh (index.html), dieu huong
-    // bang hash (vd /#overview) roi index.html tu switchView() khi tai trang.
+    // Nhom "Bao cao tong hop" — cac tab con la cac view cua trang chinh (index.html, phuc vu them
+    // tai "/reports/" - xem server/index.js), dieu huong bang hash (vd /reports/#overview) roi
+    // index.html tu switchView() khi tai trang.
     var REPORT_VIEWS = [
       { view: 'overview', label: 'Tổng quan', icon: '<rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect>' },
       { view: 'products', label: 'Hàng hóa', icon: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73Z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path>' },
@@ -787,7 +788,7 @@
         '</button>' +
         '<div class="nav-group-list" id="tksReportsGroupList"' + (reportsExpanded ? '' : ' hidden') + '>' +
           REPORT_VIEWS.map(function(v){
-            return '<a href="/#' + v.view + '" class="nav-item">' +
+            return '<a href="/reports/#' + v.view + '" class="nav-item">' +
               '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + v.icon + '</svg>' +
               v.label + '</a>';
           }).join('') +
