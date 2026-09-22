@@ -708,7 +708,10 @@ async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode, filterS
     tokens: normalizedQuery.split(' ').filter(Boolean)
   };
   const wantsAllResults = String(rawLimit || '').toLocaleLowerCase('vi-VN') === 'all';
-  const limit = wantsAllResults ? null : Math.min(Math.max(Number(rawLimit) || 8, 1), 50);
+  // Tran tren duoc nang tu 50 len 200 de searchProductRevenueOverview co the
+  // truyen thang gioi han hien thi (200) vao day thay vi xin 'all' roi tu cat —
+  // tranh buildSearchFields chay tren hang nghin dong khop moi lan go phim.
+  const limit = wantsAllResults ? null : Math.min(Math.max(Number(rawLimit) || 8, 1), 200);
   if (!query.value) return { view, query: queryText, total: 0, results: [] };
 
   const indexedSources = await getSearchSheets(branch);
@@ -1754,13 +1757,16 @@ function productRevenueNotFoundError() {
  * phim — xuat Excel goi ham nay KHONG truyen resultLimit nen van lay day du.
  */
 async function searchProductRevenueOverview(rawQuery, rawMode, branch, now = new Date(), resultLimit) {
-  const base = await searchDashboardRecords('products', rawQuery, 'all', rawMode, { mode: 'all' }, branch);
+  // Truyen thang resultLimit lam gioi han cho searchDashboardRecords (thay vi
+  // 'all' roi tu cat sau) de no CHI dung toSearchResult/buildSearchFields tren
+  // so dong thuc su can hien thi — tranh dung fields cho hang nghin san pham
+  // khop tu khoa ngan (vd go 1 ky tu dau tien) tren MOI lan go phim. `total`
+  // van chinh xac vi duoc dem tu buoc quet ban dau, truoc khi cat.
+  const hasResultLimit = Number.isFinite(resultLimit) && resultLimit > 0;
+  const base = await searchDashboardRecords('products', rawQuery, hasResultLimit ? resultLimit : 'all', rawMode, { mode: 'all' }, branch);
   const revenueMap = await getProductRevenueMap(branch, now);
-  const limitedRecords = Number.isFinite(resultLimit) && resultLimit > 0
-    ? base.results.slice(0, resultLimit)
-    : base.results;
 
-  const results = limitedRecords.map(record => {
+  const results = base.results.map(record => {
     const revenueEntry = revenueMap.get(normalizeSearchValue(record.code));
     return {
       code: record.code,
