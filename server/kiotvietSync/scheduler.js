@@ -10,7 +10,7 @@ const { startDashboardRollupSchedule } = require('./dashboardRollupRefresh');
 const { startCustomerDebtReportRefreshSchedule } = require('./customerDebtReportRefresh');
 const { startProductReportSchedule } = require('./productReportRefresh');
 
-const fastEntities = [require('./entities/invoices'), require('./entities/orders')];
+const fastEntities = [require('./entities/invoices'), require('./entities/orders'), require('./entities/productOnHands')];
 const slowEntities = [require('./entities/categories'), require('./entities/products'), require('./entities/customers'),
   require('./entities/suppliers'), require('./entities/returns'), require('./entities/purchases'), require('./entities/cashFlows')];
 

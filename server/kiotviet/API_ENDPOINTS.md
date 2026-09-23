@@ -56,6 +56,7 @@ Nếu tham số được API tôn trọng, `total` phải về 0.
 | purchases | `/purchaseorders` (**không phải** `/purchases`) | `includePayment=true&includeOrderDelivery=true` | `lastModifiedFrom` | Live probe: total 3276→0. `fromPurchaseDate`/`toPurchaseDate` cũng xác nhận hoạt động (đã dùng production ở `stockoutEventLoader.js`), nhưng dùng `lastModifiedFrom` để nhất quán và bắt được phiếu nhập cũ bị sửa. |
 | cash_flows | `/cashflow` | `includeAccount=true&includeBranch=true&includeUser=true` | `startDate` + `endDate` (**`lastModifiedFrom` bị API bỏ qua** — live probe xác nhận total không đổi) | Gọi **2 lần**: `isReceipt=true` và `isReceipt=false`, gộp kết quả; cùng scope `PublicApi.Access`. |
 | staff | *(không gọi endpoint riêng)* | — | — | Suy ra từ `SoldById`/`CreatedById`/`UserId`... trong response của invoices/orders/returns/purchases/cash_flows qua `staffSync.upsertStaffFromEntity()`. Quyết định giữ nguyên như spec dù `GET /users` đã xác nhận tồn tại (xem ghi chú bên dưới). |
+| product_on_hands | `/productOnHands` (**endpoint chuyên ton kho, KHAC** `/products`) | *(không có — xem ghi chú bên dưới)* | `lastModifiedFrom` | Live probe 2026-09-23 (mã `010GDYE`, tài khoản Hà Nội thật): total 0 khi `lastModifiedFrom=2027-01-01` → tham số hoạt động đúng. |
 
 ## Ghi chú quan trọng: `GET /users`
 
@@ -68,6 +69,44 @@ kế Phase 1 hiện tại** — không dùng `/users`, `staffSync.js` chỉ là 
 checkpoint riêng. Việc này chỉ ghi lại ở đây để Phase 3 hoặc một cải tiến sau này có thể cân
 nhắc dùng `/users` làm nguồn staff đầy đủ hơn (vai trò, SĐT, trạng thái hoạt động) — **không**
 thay đổi phạm vi Phase 1.
+
+## Ghi chú: `GET /productOnHands` — endpoint ton kho chuyen dung, doc lap voi `/products`
+
+Live probe 2026-09-23 (mã `010GDYE`, tài khoản Hà Nội thật, dùng thẳng `fetchProductOnHand()` để
+đối chiếu) phát hiện: Postgres (`products`, đồng bộ qua `lastModifiedFrom` trên `/products`) đang
+kẹt `onHand=60` (`modified_date` KiotViet = 2026-09-22 08:53 giờ VN, tức bản ghi sản phẩm không
+đổi từ lúc đó), trong khi thực tế trên KiotViet UI và `GET /products/code/010GDYE?includeInventory=true`
+đều trả `onHand=0`. Nguyên nhân: `modifiedDate` của `/products` chỉ đổi khi đổi **thông tin sản
+phẩm** (tên/giá/category...), không đổi khi chỉ có biến động tồn kho (chuyển kho, trả NCC...) —
+nên `raw->'inventories'` có thể kẹt dữ liệu cũ vô thời hạn cho các mã như vậy.
+
+`GET /productOnHands` (endpoint **chưa từng dùng ở đâu trong repo** trước bản này) giải quyết
+đúng vấn đề này:
+- `modifiedDate` của item trong response này cập nhật **độc lập** và **đúng lúc** có biến động
+  tồn kho — xác nhận qua probe: tìm đúng mã `010GDYE` với `onHand=0` (đúng) và
+  `modifiedDate=2026-09-23T08:38:28`, mới hơn hẳn `modified_date` kẹt ở `/products`.
+- `lastModifiedFrom` hoạt động đúng (total 0 khi set tương lai `2027-01-01`).
+- **KHÔNG hỗ trợ lọc theo `code`/`codes`** — tham số này bị API bỏ qua hoàn toàn, luôn trả toàn
+  bộ danh sách theo trang. Vì vậy `listQuery` không có tham số cố định nào, chỉ dựa vào
+  `lastModifiedFrom` + phân trang chuẩn.
+- Payload mỗi item **nhẹ hơn nhiều** so với `/products`: `{id, code, createdDate, modifiedDate,
+  inventories: [{branchId, onHand, reserved}]}` — không có tên/giá/category, phù hợp để poll tần
+  suất cao (nhóm `fastEntities` trong `scheduler.js`) mà không tốn băng thông/dung lượng như
+  `/products` đầy đủ.
+
+Entity sync `product_on_hands` (`server/kiotvietSync/entities/productOnHands.js`) dùng checkpoint
+riêng (khác `products`) và **chỉ `UPDATE` phần `raw->'inventories'`** của dòng `products` khớp
+`(branch, id)` — không `INSERT` dòng mới, vì response thiếu name/code/giá (không đủ để tạo dòng
+hợp lệ). Không tạo bảng riêng để không phải sửa lại các nơi đang đọc
+`products.raw->'inventories'` (`stockoutPgSource.js`, `dashboardPgReader.js`,
+`productReportRefresh.js`).
+
+**Quyết định về `fetchProductOnHand()` (`kiotVietApiClient.js`, gọi `/products/code/{code}`):**
+giữ lại nguyên trạng — hàm này hiện là dead code trong production (chỉ có test gọi), nhưng vẫn có
+giá trị riêng: gọi API cho **đúng 1 mã tại 1 thời điểm** (đọc trực tiếp `/products/code/...`, không
+qua `/productOnHands` vốn không lọc theo code), phù hợp cho một tính năng "làm mới tồn kho ngay
+lập tức 1 mã cụ thể" sau này nếu cần — nay đã có `product_on_hands` lo phần poll hàng loạt định
+kỳ nên không cấp thiết phải xóa hay nối dây hàm này ngay.
 
 ## Ghi chú cho `backfill.js`: không có tham số chặn trên (upper bound) cho orders/returns
 
