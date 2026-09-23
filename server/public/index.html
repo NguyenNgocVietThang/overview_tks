@@ -8924,7 +8924,7 @@
           todayNewProducts.dateColumnAvailable === false ? 'Sheet Hàng hóa chưa có cột Ngày tạo' : 'Chưa có mã hàng mới tạo trong khoảng đã chọn'
         );
 
-        // Tỷ lệ số mã theo nhóm: đếm trên toàn bộ danh sách (không theo trang), gom nhóm nhỏ vào "Còn lại"
+        // Tỷ lệ số mã theo nhóm cha: đếm trên toàn bộ danh sách (không theo trang), hiển thị đủ từng nhóm cha (không gộp "Còn lại")
         const newProductCategoryCounts = new Map();
         newProductRows.forEach(p => {
           const name = String(p.parentCategory || p.category || '').trim() || 'Chưa phân nhóm';
@@ -8933,14 +8933,6 @@
         const newProductCategories = [...newProductCategoryCounts.entries()]
           .map(([name, count]) => ({ name, count }))
           .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'vi'));
-        const NEW_PRODUCT_CHART_TOP = 8;
-        if (newProductCategories.length > NEW_PRODUCT_CHART_TOP + 1) {
-          const rest = newProductCategories.splice(NEW_PRODUCT_CHART_TOP);
-          newProductCategories.push({
-            name: 'Còn lại (' + rest.length + ' nhóm)',
-            count: rest.reduce((sum, c) => sum + c.count, 0)
-          });
-        }
         const hasNewProductChart = newProductCategories.length > 0;
         document.getElementById('tagNewProductsCategory').textContent = hasNewProductChart ? newProductCategoryCounts.size + ' nhóm' : '0 nhóm';
         document.getElementById('newProductsCategoryChartBox').classList.toggle('is-empty', !hasNewProductChart);
