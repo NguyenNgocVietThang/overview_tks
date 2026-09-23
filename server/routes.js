@@ -27,6 +27,7 @@ const kiotvietWebhookRoutes  = require('./kiotviet/kiotvietWebhookRoutes');
 const kiotvietSyncStatusRoutes = require('./kiotvietSync/kiotvietSyncStatusRoutes');
 const debtManagementRoutes = require('./dashboard/debtManagementRoutes');
 const orderLifecycleRoutes = require('./shipment/orderLifecycleRoutes');
+const { dashboardRollupEvents } = require('./kiotvietSync/dashboardRollupEvents');
 
 router.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
@@ -161,6 +162,42 @@ router.get('/api/dashboard', async (req, res) => {
       code: err.code
     });
   }
+});
+
+// Server-Sent Events: bao cho trinh duyet biet ngay khi rollup Dashboard vua
+// refresh xong (moi 5 phut, xem dashboardRollupRefresh.js) de trang "Bao cao
+// tong hop" tu goi lai /api/dashboard, khong can F5 hay poll lien tuc. CHI
+// bao "co du lieu moi" (khong keo payload) - frontend tu goi lai voi bo loc
+// va quyen/co so cua chinh phien dang nhap do, nen khong can phat rieng theo
+// co so o day.
+router.get('/api/dashboard/events', (req, res) => {
+  req.socket.setTimeout(0); // Node mac dinh timeout socket sau ~2 phut khong hoat dong
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no' // tat buffer o Cloudflare/Render de event toi ngay, khong bi giu lai
+  });
+
+  const write = (chunk) => {
+    res.write(chunk);
+    // compression() (server/index.js) boc res trong 1 stream gzip co buffer
+    // rieng - khong flush thu cong thi event co the bi giu lai vai KB trong
+    // buffer thay vi toi trinh duyet ngay.
+    if (typeof res.flush === 'function') res.flush();
+  };
+
+  write(':ok\n\n');
+  const onUpdated = (payload) => write(`event: dashboard-updated\ndata: ${JSON.stringify(payload)}\n\n`);
+  dashboardRollupEvents.on('updated', onUpdated);
+
+  // Giu ket noi song qua proxy hay tu ngat sau vai chuc giay khong co byte nao.
+  const heartbeat = setInterval(() => write(':heartbeat\n\n'), 25000);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    dashboardRollupEvents.off('updated', onUpdated);
+  });
 });
 
 router.get('/api/search', async (req, res) => {

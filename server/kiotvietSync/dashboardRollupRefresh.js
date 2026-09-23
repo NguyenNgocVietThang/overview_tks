@@ -17,6 +17,7 @@ if (process.env.NODE_ENV !== 'production') {
 const { getConfiguredBranches } = require('./config');
 const { getPool } = require('../db/pool');
 const { DETAIL_AMOUNT_SQL } = require('../dashboard/customerProductTopRepository');
+const { dashboardRollupEvents } = require('./dashboardRollupEvents');
 
 const DEFAULT_WINDOW_DAYS = 400;
 
@@ -162,12 +163,18 @@ async function refreshDashboardRollups(pool, {
 function startDashboardRollupSchedule(pool, {
   intervalMs = 5 * 60 * 1000, windowDays = DEFAULT_WINDOW_DAYS,
   setIntervalFn = setInterval, log = console.log,
-  getConfiguredBranches: getBranches = getConfiguredBranches
+  getConfiguredBranches: getBranches = getConfiguredBranches,
+  events = dashboardRollupEvents
 } = {}) {
   return setIntervalFn(() => {
-    refreshDashboardRollups(pool, { windowDays, log, getConfiguredBranches: getBranches }).catch((error) => {
-      log(`[dashboardRollupRefresh] Loi khi refresh: ${error.message}`);
-    });
+    refreshDashboardRollups(pool, { windowDays, log, getConfiguredBranches: getBranches })
+      // Bao cho client dang mo SSE (/api/dashboard/events) biet co du lieu
+      // moi de tu goi lai /api/dashboard - CHI phat khi refresh thanh cong,
+      // tranh bao "co du lieu moi" trong khi rollup vua that bai giua chung.
+      .then(() => events.emit('updated', { at: Date.now() }))
+      .catch((error) => {
+        log(`[dashboardRollupRefresh] Loi khi refresh: ${error.message}`);
+      });
   }, intervalMs);
 }
 

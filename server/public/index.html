@@ -9590,6 +9590,28 @@
     } else {
       loadData(state.days, true);
     }
+
+    // Cap nhat gan thoi gian thuc: server phat SSE moi lan rollup Dashboard
+    // vua refresh xong (5 phut/lan, xem dashboardRollupRefresh.js), khong keo
+    // payload - chi bao "co du lieu moi" de goi lai loadData() voi dung bo
+    // loc/tab dang xem. loadData() da tu so sanh fingerprint (xem tren) nen
+    // se khong render lai/giat man hinh neu du lieu thuc ra khong doi.
+    (function setupDashboardLiveUpdates() {
+      if (typeof EventSource === 'undefined') return;
+      let consecutiveErrors = 0;
+      let es = new EventSource('/api/dashboard/events');
+      es.addEventListener('dashboard-updated', function () {
+        loadData(state.days, false);
+      });
+      es.onopen = function () { consecutiveErrors = 0; };
+      es.onerror = function () {
+        consecutiveErrors++;
+        // Phien dang nhap het han hoac server tam ngung lau dai - ngung thu
+        // lai vo han (EventSource mac dinh tu retry) de khong spam request;
+        // nguoi dung chi can tai lai trang khi quay lai lam viec.
+        if (consecutiveErrors >= 5) es.close();
+      };
+    })();
   </script>
 
   <script src="/shared/shooting-star.js?v=20260830"></script>
