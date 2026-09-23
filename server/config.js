@@ -12,11 +12,6 @@ function required(name) {
 }
 
 const CONFIG = {
-  // SPREADSHEET_ID = co so HA NOI (bat buoc). Spreadsheet bao cao cua co so
-  // SAI GON la optional — thieu bien nay thi co so Sai Gon tra 503
-  // BRANCH_NOT_CONFIGURED chu khong lam sap server.
-  SPREADSHEET_ID: required('SPREADSHEET_ID'),
-  SPREADSHEET_ID_SG: process.env.SPREADSHEET_ID_SG || null,
   // Workbook "Bảng Công nợ" dùng chung cho hai cơ sở, server chỉ đọc hai
   // tab Công nợ HN/SG. Optional để thiếu cấu hình không làm sập dashboard.
   DEBT_MANAGEMENT_SPREADSHEET_ID: process.env.DEBT_MANAGEMENT_SPREADSHEET_ID || null,

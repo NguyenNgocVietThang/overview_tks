@@ -1,7 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-process.env.SPREADSHEET_ID = process.env.SPREADSHEET_ID || 'hn-id';
 process.env.GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
 

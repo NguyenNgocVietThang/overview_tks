@@ -1,14 +1,9 @@
 // ==========================================
-// GOOGLE SHEETS CLIENT — chi doc tab "Tra NCC" duoc paste thu cong.
-//
-// DA CO SO: moi co so (Ha Noi / Sai Gon) co spreadsheet rieng nhung TEN TAB
-// giong nhau. Vi vay client duoc tao theo tung co so qua createClient(),
-// moi client giu cache danh sach tab RIENG (dung chung cache se lam
-// getMultipleSheetValues loc nham tab giua hai spreadsheet).
+// GOOGLE SHEETS CLIENT — factory doc-only dung chung cho cac spreadsheet
+// con lai (hien tai: "Bảng Công nợ", xem debtManagementSheetsClient.js).
 // ==========================================
 const { google } = require('googleapis');
 const CONFIG = require('../config');
-const { BRANCHES } = require('../branch/branches');
 
 // Gioi han tren cho moi lan goi Google Sheets API — tranh request Express bi
 // treo vo thoi han neu Google API cham/khong phan hoi.
@@ -169,24 +164,6 @@ function createClient(getSpreadsheetId, branchLabel) {
   return { getValues, getMultipleSheetValues, listSheetTitles };
 }
 
-const hanoiClient = createClient(() => CONFIG.SPREADSHEET_ID, BRANCHES.HANOI);
-const saigonClient = createClient(() => CONFIG.SPREADSHEET_ID_SG, BRANCHES.SAIGON);
-
-/**
- * Client doc du lieu cua 1 co so. Mac dinh (branch khong xac dinh) = Ha Noi,
- * giu nguyen hanh vi cu cho moi caller chua truyen branch.
- *
- * Ha Noi tra ve CHINH module.exports (khong phai hanoiClient) de cac test dang
- * monkey-patch sheetsClient.getMultipleSheetValues van chan duoc loi goi.
- */
-function getSheetsClient(branch) {
-  return branch === BRANCHES.SAIGON ? saigonClient : module.exports;
-}
-
 module.exports = {
-  getValues: (...args) => hanoiClient.getValues(...args),
-  getMultipleSheetValues: (...args) => hanoiClient.getMultipleSheetValues(...args),
-  listSheetTitles: (...args) => hanoiClient.listSheetTitles(...args),
-  getSheetsClient,
   createReadOnlyClient: createClient
 };

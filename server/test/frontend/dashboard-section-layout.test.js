@@ -224,14 +224,14 @@ test('render: Tổng quan vẽ biểu đồ doanh thu + số lượng theo nhóm
   assert.doesNotThrow(() => dom.window.eval("switchView('products')"));
 });
 
-test('biểu đồ nhóm hàng gộp phần nhỏ vào "Khác (N nhóm)" và bỏ nhóm không có giá trị dương', () => {
+test('biểu đồ nhóm hàng hiển thị đủ từng nhóm (không gộp "Khác") và bỏ nhóm không có giá trị dương', () => {
   const dom = createRenderedDashboard(samplePayload());
   const groups = Array.from({ length: 12 }, (_, index) => ({ name: 'G' + index, qty: 12 - index, revenue: (12 - index) * 1000 }));
   groups.push({ name: 'ZERO', qty: 0, revenue: 0 });
   dom.window.eval('window.__groups = ' + JSON.stringify(groups));
   const slices = dom.window.eval("groupChartSlices(window.__groups, 'revenue')");
-  assert.equal(slices.length, 8);
-  assert.equal(slices[7].name, 'Khác (5 nhóm)');
-  assert.equal(slices[7].revenue, (5 + 4 + 3 + 2 + 1) * 1000);
+  assert.equal(slices.length, 12);
+  assert.equal(slices[0].name, 'G0');
+  assert.equal(slices[11].name, 'G11');
   assert.ok(!slices.some(slice => slice.name === 'ZERO'));
 });

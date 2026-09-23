@@ -1,5 +1,4 @@
 'use strict';
-process.env.SPREADSHEET_ID = process.env.SPREADSHEET_ID || 'test-spreadsheet-id';
 process.env.GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 // Test chi doc du lieu tinh + header cua pg reader, tuyet doi khong cham DB that.
