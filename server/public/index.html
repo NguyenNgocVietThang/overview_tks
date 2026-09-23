@@ -8927,7 +8927,7 @@
         // Tỷ lệ số mã theo nhóm: đếm trên toàn bộ danh sách (không theo trang), gom nhóm nhỏ vào "Còn lại"
         const newProductCategoryCounts = new Map();
         newProductRows.forEach(p => {
-          const name = String(p.category || '').trim() || 'Chưa phân nhóm';
+          const name = String(p.parentCategory || p.category || '').trim() || 'Chưa phân nhóm';
           newProductCategoryCounts.set(name, (newProductCategoryCounts.get(name) || 0) + 1);
         });
         const newProductCategories = [...newProductCategoryCounts.entries()]

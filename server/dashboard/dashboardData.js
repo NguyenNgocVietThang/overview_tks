@@ -2496,12 +2496,17 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     const reserved = Number(row[productReservedIndex]) || 0;
     const status = String(row[productStatusIndex] || 'Đang kinh doanh').trim();
     productStatusByCode.set(String(code).trim(), status);
+    const categoryName = (row[productCategoryIndex] && String(row[productCategoryIndex]).trim()) || '';
+    const categoryId = productCategoryIdIndex >= 0 ? row[productCategoryIdIndex] : '';
+    const parentCategoryName = resolveParentCategory(categoryName, categoryId);
+
     const createdAt = productCreatedDateIndex >= 0 ? parseSheetDate(row[productCreatedDateIndex]) : null;
     if (createdAt && isWithinRange(createdAt, newProductsRange)) {
       todayNewProducts.push({
         code,
         name: row[productNameIndex] || code,
         category: row[productCategoryIndex] || 'Chưa phân nhóm',
+        parentCategory: parentCategoryName,
         createdAt: formatDMYHMS(createdAt),
         cost,
         price,
@@ -2526,9 +2531,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       });
     }
 
-    const categoryName = (row[productCategoryIndex] && String(row[productCategoryIndex]).trim()) || '';
-    const categoryId = productCategoryIdIndex >= 0 ? row[productCategoryIdIndex] : '';
-    const parentCategoryName = resolveParentCategory(categoryName, categoryId);
     productParentCategoryByCode.set(String(code).trim(), parentCategoryName);
     productChildCategoryByCode.set(String(code).trim(), categoryName || 'Chưa phân nhóm');
     if (!parentCategoryMap[parentCategoryName]) {
