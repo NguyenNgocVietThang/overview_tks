@@ -5275,6 +5275,34 @@
       return { empty: !textValue || textValue === '—', number: null, text: textValue };
     }
 
+    // Sap xep TOAN BO `items` (truoc khi phan trang) theo cot columnIndex, bang
+    // cach dung tam HTML cua tat ca items qua rowHtmlFn de doc dung data-sort-value/
+    // noi dung hien thi cua tung o — cung quy tac doc gia tri voi getTableSortValue.
+    // Dung de sort dung tren toan bo du lieu da loc thay vi chi 100 dong cua trang
+    // dang xem (xem renderPaginatedRows()).
+    function sortItemsByRenderedColumn(items, rowHtmlFn, columnIndex, direction) {
+      if (!items.length) return items;
+      const scratch = document.createElement('tbody');
+      scratch.innerHTML = items.map(rowHtmlFn).join('');
+      const rows = Array.from(scratch.children);
+      return rows
+        .map(function (row, index) {
+          return { item: items[index], index: index, value: getTableSortValue(row.cells[columnIndex]) };
+        })
+        .sort(function (a, b) {
+          if (a.value.empty !== b.value.empty) return a.value.empty ? 1 : -1;
+          let comparison = 0;
+          if (a.value.number !== null && b.value.number !== null) {
+            comparison = a.value.number - b.value.number;
+          } else {
+            comparison = a.value.text.localeCompare(b.value.text, 'vi', { numeric: true, sensitivity: 'base' });
+          }
+          if (comparison === 0) return a.index - b.index;
+          return direction === 'asc' ? comparison : -comparison;
+        })
+        .map(function (entry) { return entry.item; });
+    }
+
     function sortTableRows(tbodyId, columnIndex, direction) {
       const tbody = document.getElementById(tbodyId);
       if (!tbody) return;
@@ -5331,13 +5359,30 @@
       });
     }
 
+    // Tim tableKey (vd 'allProducts') tuong ung voi mot tbodyId (vd 'allProductRows'),
+    // dua vao map duoc ghi trong renderPaginatedRows(). Chi cac bang co phan trang
+    // (dung renderPaginatedRows) moi co trong map nay — nhung bang khac (render het
+    // toan bo hang, khong cat trang) khong can duoc sort lai qua renderer rieng vi
+    // sortTableRows() thao tac tren toan bo <tr> dang co san trong DOM la du dung.
+    function getTableKeyForTbody(tbodyId) {
+      const map = state.tableTableBodies || {};
+      return Object.keys(map).find(function (key) { return map[key] === tbodyId; });
+    }
+
     function setTableSort(tbodyId, columnIndex) {
       const current = state.tableSorts[tbodyId];
+      const tableKey = getTableKeyForTbody(tbodyId);
       if (current && current.columnIndex === columnIndex && current.direction === 'desc') {
         delete state.tableSorts[tbodyId];
         if (tbodyId === 'debtManagementRows') {
           state.tablePages.debtManagement = 1;
           renderDebtManagementTable();
+          updateTableSortHeader(tbodyId, -1, null);
+          return;
+        }
+        if (tableKey && typeof state.tableRenderers[tableKey] === 'function') {
+          state.tablePages[tableKey] = 1;
+          state.tableRenderers[tableKey]();
           updateTableSortHeader(tbodyId, -1, null);
           return;
         }
@@ -5350,6 +5395,16 @@
       if (tbodyId === 'debtManagementRows') {
         state.tablePages.debtManagement = 1;
         renderDebtManagementTable();
+        updateTableSortHeader(tbodyId, columnIndex, direction);
+        return;
+      }
+      if (tableKey && typeof state.tableRenderers[tableKey] === 'function') {
+        // Sap xep toan bo du lieu da loc (khong chi trang dang xem) roi ve trang 1 —
+        // xem sortItemsByRenderedColumn() va renderPaginatedRows(). Neu chi sort cac
+        // <tr> dang co san trong DOM (sortTableRows) thi ket qua se sai vi tbody luc
+        // nay chi chua dung 1 trang (TABLE_PAGE_SIZE dong) trong toan bo du lieu.
+        state.tablePages[tableKey] = 1;
+        state.tableRenderers[tableKey]();
         updateTableSortHeader(tbodyId, columnIndex, direction);
         return;
       }
@@ -8272,8 +8327,14 @@
      * Render 1 bang lon theo trang thay vi day het toan bo `items` vao DOM cung
      * luc. Giu nguyen trang dang xem trong state.tablePages qua cac lan
      * re-render (vi du sau khi loadData() refresh du lieu).
+     *
+     * `preSorted`: truyen true khi ham goi da tu sap xep `items` theo dung
+     * cot/chieu dang active trong state.tableSorts (vd renderDebtManagementTable()
+     * sap xep truc tiep theo field goc thay vi qua rowHtmlFn) — de tranh sap xep lai
+     * lan 2 co the cho ra thu tu khac (vi getTableSortValue doc tu HTML da render,
+     * co the khong khop 100% voi so sanh theo field goc cho cac cot dang badge/list).
      */
-    function renderPaginatedRows(tableKey, ids, items, rowHtmlFn, emptyColspan, emptyMessage) {
+    function renderPaginatedRows(tableKey, ids, items, rowHtmlFn, emptyColspan, emptyMessage, preSorted) {
       const tbody = document.getElementById(ids.tbody);
       const config = TABLE_EXPLORER_CONFIGS[tableKey];
       const sourceItems = Array.isArray(items) ? items : [];
@@ -8285,11 +8346,20 @@
       state.tableTableBodies = state.tableTableBodies || {};
       state.tableTableBodies[tableKey] = ids.tbody;
       state.tableRenderers[tableKey] = function () {
-        renderPaginatedRows(tableKey, ids, sourceItems, rowHtmlFn, emptyColspan, emptyMessage);
+        renderPaginatedRows(tableKey, ids, sourceItems, rowHtmlFn, emptyColspan, emptyMessage, preSorted);
       };
       ensureTableSearchControls(tableKey, tbody);
       syncTableSearchControls(tableKey, filtered, sourceItems.length);
-      const result = paginate(filtered.items, state.tablePages[tableKey] || 1, TABLE_PAGE_SIZE);
+
+      // Sap xep TOAN BO du lieu da loc TRUOC khi phan trang — sort chi ap dung cho
+      // cac dong da render cua trang hien tai (nhu truoc day) se cho ket qua sai vi
+      // moi trang chi co toi da TABLE_PAGE_SIZE dong trong tong so du lieu.
+      const activeSort = state.tableSorts[ids.tbody];
+      const sortedItems = (activeSort && !preSorted)
+        ? sortItemsByRenderedColumn(filtered.items, rowHtmlFn, activeSort.columnIndex, activeSort.direction)
+        : filtered.items;
+
+      const result = paginate(sortedItems, state.tablePages[tableKey] || 1, TABLE_PAGE_SIZE);
       state.tablePages[tableKey] = result.page;
 
       tbody.innerHTML = result.items.length
@@ -8306,14 +8376,7 @@
         });
       }
 
-      // Áp dụng lại trạng thái sắp xếp cột đang hoạt động của bảng này cho các dòng mới render.
-      // Nếu không có bước này, việc chuyển trang (Trước/Sau) sẽ để các dòng ở trang mới ở thứ tự
-      // chưa sắp xếp mặc dù tiêu đề cột vẫn hiển thị mũi tên sắp xếp.
-      // Chỉ bảng NÀY được sắp xếp lại: lệnh gọi applyActiveTableSorts() trước đây tại đây
-      // đã sắp xếp lại mọi bảng có lưu trạng thái sort trên mỗi lần render bảng, gây ra tối đa 100 thao tác di chuyển dòng cho mỗi bảng không liên quan mà không thay đổi kết quả hiển thị.
-      const activeSort = state.tableSorts[ids.tbody];
       if (activeSort) {
-        sortTableRows(ids.tbody, activeSort.columnIndex, activeSort.direction);
         updateTableSortHeader(ids.tbody, activeSort.columnIndex, activeSort.direction);
       }
 
@@ -9446,7 +9509,8 @@
             '<td>' + debtWorkflowHtml(customer) + '</td></tr>';
         },
         10,
-        debt && debt.available === false ? 'Nguồn công nợ chưa sẵn sàng' : 'Không có khách phù hợp bộ lọc'
+        debt && debt.available === false ? 'Nguồn công nợ chưa sẵn sàng' : 'Không có khách phù hợp bộ lọc',
+        true // sortDebtCustomers() da sap xep toan bo `sorted` o tren, khong can sort lai
       );
       const activeSort = state.tableSorts.debtManagementRows;
       updateTableSortHeader('debtManagementRows', activeSort ? activeSort.columnIndex : -1, activeSort ? activeSort.direction : null);

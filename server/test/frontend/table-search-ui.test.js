@@ -87,6 +87,41 @@ test('tìm từng bảng lọc toàn bộ dữ liệu trước phân trang và g
   dom.window.close();
 });
 
+test('sort cột áp dụng cho toàn bộ dữ liệu đã lọc, không chỉ trang đang xem', () => {
+  const dom = createDashboard();
+  const document = dom.window.document;
+  // stock giam dan theo thu tu nguon: dong dau co stock lon nhat (249), dong cuoi co
+  // stock nho nhat (0) — trang 1 (100 dong dau) truoc khi sort chi chua cac gia tri
+  // stock tu 150 den 249, khong chua gia tri nho nhat nao.
+  const products = Array.from({ length: 250 }, (_, index) => ({
+    code: `SP${index}`,
+    stock: 249 - index
+  }));
+  const ids = {
+    tbody: 'allProductRows', pagination: 'allProductsPagination',
+    firstBtn: 'allProductsFirstPage', prevBtn: 'allProductsPrevPage',
+    nextBtn: 'allProductsNextPage', lastBtn: 'allProductsLastPage', label: 'allProductsPageLabel'
+  };
+  dom.window.renderPaginatedRows('allProducts', ids, products,
+    item => `<tr><td>${item.code}</td><td data-sort-value="${item.stock}">${item.stock}</td></tr>`,
+    2, 'Không có dữ liệu');
+
+  dom.window.setTableSort('allProductRows', 1); // sort tang dan theo cot stock (cot index 1)
+
+  const stocksOnPage1 = [...document.querySelectorAll('#allProductRows tr td:nth-child(2)')]
+    .map(td => Number(td.getAttribute('data-sort-value')));
+  assert.equal(stocksOnPage1.length, 100);
+  assert.deepEqual(stocksOnPage1, Array.from({ length: 100 }, (_, i) => i));
+  assert.match(document.getElementById('allProductsPageLabel').textContent, /Trang 1\/3/);
+
+  document.getElementById('allProductsNextPage').click();
+  const stocksOnPage2 = [...document.querySelectorAll('#allProductRows tr td:nth-child(2)')]
+    .map(td => Number(td.getAttribute('data-sort-value')));
+  assert.deepEqual(stocksOnPage2, Array.from({ length: 100 }, (_, i) => i + 100));
+
+  dom.window.close();
+});
+
 test('chế độ nhiều mã khớp chính xác trên toàn bộ bảng và báo mã thiếu', () => {
   const dom = createDashboard();
   const document = dom.window.document;
