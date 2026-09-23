@@ -1148,8 +1148,10 @@
                              (u.username && normalizeNameQuery(u.username).includes(q)) ||
                              (u.email && normalizeNameQuery(u.email).includes(q));
         const matchRole = !roleFilter || u.vaiTro === roleFilter;
-        // "Cả hai" trong bo loc = xem moi tai khoan da duoc gan co so (bat ky co so nao).
-        const matchFac = !facFilter || (facFilter === 'Cả hai' ? !!u.coSo : u.coSo === facFilter);
+        // Loc HN/SG: gom ca tai khoan lam o "Cả hai" vi ho cung lam viec o co so do.
+        // Loc "Cả hai": chi rieng cac tai khoan duoc gan lam viec ca 2 co so.
+        const matchFac = !facFilter || u.coSo === facFilter ||
+          (facFilter !== 'Cả hai' && u.coSo === 'Cả hai');
         const matchStatus = !stFilter || u.trangThai === stFilter;
         return matchQ && matchRole && matchFac && matchStatus;
       });
