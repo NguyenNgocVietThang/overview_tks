@@ -3,7 +3,7 @@
 const { getPool } = require('../db/pool');
 const checkpointRepository = require('./checkpointRepository');
 
-function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints = checkpointRepository, now = Date.now } = {}) {
+function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints = checkpointRepository, now = Date.now, logger = console } = {}) {
   async function inTransaction(work) {
     const client = await pool.connect();
     try {
@@ -46,6 +46,30 @@ function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints 
     const runEndIso = new Date(now()).toISOString();
     if (entityModule.entity === 'cash_flows') {
       return pollCashFlows(kiotVietClient, branch, entityModule, checkpoint, runEndIso);
+    }
+    const neverSynced = !checkpoint?.last_synced_at;
+    // Entity CHUA TUNG dong bo thanh cong (checkpoint rong) va khong can
+    // chunk theo thang (khong co backfillRangeParam - dang "snapshot" nhu
+    // categories/products/customers/suppliers/product_on_hands, giong tieu
+    // chi backfillPlan.js dung de goi 1 chunk 'full' khong loc ngay): quet
+    // TOAN BO du lieu hien tai ngay trong lan poll dau tien, thay vi fallback
+    // "1 gio gan nhat" (fallback nay chi hop ly cho truong hop da co checkpoint
+    // cu, dung de bu khoang trong ngan do server restart/redeploy - ap dung
+    // no cho entity moi hoan toan se bo sot toan bo du lieu cu, dung nguyen
+    // nhan gay sai lech ton kho hang loat 2026-09-23, xem product_on_hands).
+    // Entity co backfillRangeParam (vd invoices, log giao dich lon) van giu
+    // fallback 1 gio - lan dau cho entity dang nay phai chay qua CLI
+    // backfill.js (co chunk theo thang) de tranh 1 request khong gioi han.
+    if (neverSynced && !entityModule.backfillRangeParam) {
+      logger.log(`[KiotViet Sync] ${branch}/${entityModule.entity}: chua co checkpoint - quet toan bo lan dau.`);
+      const query = { ...entityModule.listQuery };
+      await kiotVietClient.fetchAllPages(entityModule.endpoint, query, async (items) => {
+        await inTransaction(async (client) => {
+          await entityModule.upsertPage(client, branch, items);
+          await checkpoints.advanceCheckpoint(branch, entityModule.entity, runEndIso, { client });
+        });
+      });
+      return;
     }
     const sinceIso = checkpoint?.last_synced_at
       ? new Date(checkpoint.last_synced_at).toISOString()

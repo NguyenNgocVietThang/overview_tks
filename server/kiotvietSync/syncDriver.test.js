@@ -24,7 +24,7 @@ function fakePool({ failUpsertAt = 0 } = {}) {
   };
 }
 
-test('empty checkpoint polls from exactly one hour ago and commits checkpoint with each page', async () => {
+test('empty checkpoint on a snapshot entity (no backfillRangeParam) does a full sweep, no date filter', async () => {
   const pool = fakePool();
   const advances = [];
   const queries = [];
@@ -39,9 +39,25 @@ test('empty checkpoint polls from exactly one hour ago and commits checkpoint wi
   }};
   const entity = { entity: 'products', endpoint: 'products', listQuery: { includeInventory: 'true' }, incrementalParam: 'lastModifiedFrom', upsertPage: pool.upsert };
   await driver.pollEntityOnce(api, 'hanoi', entity);
-  assert.deepEqual(queries[0], ['products', { includeInventory: 'true', lastModifiedFrom: '2026-09-14T01:00:00.000Z' }]);
+  assert.deepEqual(queries[0], ['products', { includeInventory: 'true' }]);
   assert.equal(advances.length, 2);
   assert.ok(pool.transactions.every((tx) => tx.join(',') === 'BEGIN,COMMIT,RELEASE'));
+});
+
+test('empty checkpoint on a chunked entity (has backfillRangeParam) still falls back to one hour ago', async () => {
+  const pool = fakePool();
+  const queries = [];
+  const driver = createSyncDriver({ pool, now: () => Date.parse('2026-09-14T02:00:00Z'), checkpointRepository: {
+    getCheckpoint: async () => null,
+    advanceCheckpoint: async () => {}
+  }});
+  const api = { fetchAllPages: async (endpoint, query, onPage) => { queries.push([endpoint, query]); await onPage([{ id: 1 }]); } };
+  const entity = {
+    entity: 'invoices', endpoint: 'invoices', listQuery: {}, incrementalParam: 'lastModifiedFrom',
+    backfillRangeParam: { from: 'fromPurchaseDate', to: 'toPurchaseDate' }, upsertPage: pool.upsert
+  };
+  await driver.pollEntityOnce(api, 'hanoi', entity);
+  assert.deepEqual(queries[0], ['invoices', { lastModifiedFrom: '2026-09-14T01:00:00.000Z' }]);
 });
 
 test('a failed page rolls back only that page and does not advance its checkpoint', async () => {
