@@ -7843,7 +7843,6 @@
     // Mục "Doanh thu sản phẩm theo nhóm hàng" (Tổng quan): 2 biểu đồ tròn theo nhóm cha, nhấn 1 lát
     // (hoặc chọn ở ô "Nhóm cha") để xem nhóm con. Tổng theo nhóm cha cộng từ childCategorySalesByParent
     // (không bị cắt top 15 như topSellingParentCategories) nên khớp với phần nhóm con bên dưới.
-    const GROUP_CHART_TOP = 7;
 
     function buildParentGroupSales(byParent) {
       return Object.keys(byParent || {}).map(name => ({
@@ -7853,17 +7852,9 @@
       }));
     }
 
-    // Giữ GROUP_CHART_TOP nhóm lớn nhất theo `valueKey`, phần còn lại gộp vào "Khác (N nhóm)".
+    // Hiển thị đủ từng nhóm cha có giá trị > 0, không gộp nhóm nhỏ vào "Khác".
     function groupChartSlices(groups, valueKey) {
-      const sorted = groups.filter(g => g[valueKey] > 0).sort((a, b) => b[valueKey] - a[valueKey]);
-      if (sorted.length <= GROUP_CHART_TOP + 1) return sorted;
-      const rest = sorted.slice(GROUP_CHART_TOP);
-      return sorted.slice(0, GROUP_CHART_TOP).concat({
-        name: 'Khác (' + rest.length + ' nhóm)',
-        qty: rest.reduce((sum, g) => sum + g.qty, 0),
-        revenue: rest.reduce((sum, g) => sum + g.revenue, 0),
-        isOther: true
-      });
+      return groups.filter(g => g[valueKey] > 0).sort((a, b) => b[valueKey] - a[valueKey]);
     }
 
     function selectChildCategoryParentFromChart(slice) {
