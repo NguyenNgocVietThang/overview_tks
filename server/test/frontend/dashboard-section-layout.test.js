@@ -22,9 +22,9 @@ function sectionTitles(name) {
   }));
 }
 
-test('Tổng quan có 5 phần: thêm Doanh thu sản phẩm theo nhóm hàng, không còn giao dịch/hàng nhập/mã mới tạo', () => {
+test('Tổng quan có 6 phần: thêm Doanh thu sản phẩm theo nhóm hàng, không còn giao dịch/hàng nhập/mã mới tạo', () => {
   const titles = sectionTitles('overview');
-  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3', '4', '5']);
+  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3', '4', '5', '6']);
   assert.equal(titles[1].title, 'Doanh thu sản phẩm theo nhóm hàng');
   ['endOfDayRows', 'chartTopTransactions', 'overviewPurchaseRows', 'chartOverviewPurchases', 'todayNewProductRows'].forEach(id => {
     assert.equal(view('overview').querySelector('#' + id), null, id + ' khong duoc nam o Tong quan');

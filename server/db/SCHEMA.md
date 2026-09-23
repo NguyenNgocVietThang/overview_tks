@@ -167,3 +167,9 @@ Role Postgres cấp cho nhân viên dùng SQL client/BI tool để truy vấn tr
 chạy 1 lượt duy nhất. Bảng này **độc lập hoàn toàn** với `sync_checkpoints` — polling (Giai đoạn 2) không
 đọc/ghi bảng này, và backfill không đọc/ghi `sync_checkpoints`. Ghi trùng dữ liệu nghiệp vụ giữa 2 tiến
 trình là an toàn vì mọi bảng dùng `UPSERT` theo `(branch, id)`.
+
+### Báo cáo hàng hóa (migration `0018`)
+
+`product_report` là bảng tổng hợp cho tab "Tổng quan" — cùng ngoại lệ như 4 bảng rollup ở migration `0013` (không có `raw`, khóa chính không bắt đầu bằng `branch` vì mỗi dòng gộp dữ liệu **cả 2 cơ sở** cho 1 mã hàng). Khóa chính là `product_code`. Được `TRUNCATE` + nạp lại toàn bộ **đúng 1 lần/đêm** bởi `server/kiotvietSync/productReportRefresh.js` (không phải mỗi 5 phút như các rollup khác — truy vấn quét 90 ngày hóa đơn cả 2 cơ sở là nặng, xem comment đầu file đó), route `GET /api/product-report` chỉ đọc thẳng bảng này.
+
+Cột `available_to_sell` = tồn 2 cơ sở trừ số lượng đang bị giữ trong **đơn đặt hàng của khách** (bảng `orders`, trạng thái `Phiếu tạm`/`Đang xử lý`/`Đã xác nhận`) — không liên quan đến `purchases` (phiếu đặt NCC). Cột `qty_sold_30d`/`revenue_90d` cộng từ `daily_product_sales` (migration `0013`) trong cửa sổ kết thúc **hôm qua** theo lịch VN (không tính hôm nay). Cột `customer_count_90d`/`top_customer_*` tính trực tiếp từ `invoice_details`/`invoices`/`customers` trong 90 ngày, dùng chung định nghĩa "hóa đơn hợp lệ" (`statusValue != 'Đã hủy'`) với `revenue_90d` để `top_customer_share` không bao giờ vượt 100%.

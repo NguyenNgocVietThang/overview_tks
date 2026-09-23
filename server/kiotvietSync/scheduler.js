@@ -8,6 +8,7 @@ const { recordFailure } = require('./checkpointRepository');
 const { getPool } = require('../db/pool');
 const { startDashboardRollupSchedule } = require('./dashboardRollupRefresh');
 const { startCustomerDebtReportRefreshSchedule } = require('./customerDebtReportRefresh');
+const { startProductReportSchedule } = require('./productReportRefresh');
 
 const fastEntities = [require('./entities/invoices'), require('./entities/orders')];
 const slowEntities = [require('./entities/categories'), require('./entities/products'), require('./entities/customers'),
@@ -19,6 +20,7 @@ function createPollingScheduler({
   slowIntervalMs = CONFIG.KIOTVIET_SYNC_SLOW_INTERVAL_MS,
   dashboardRollupIntervalMs = 5 * 60 * 1000,
   customerDebtReportIntervalMs = 5 * 60 * 1000,
+  productReportIntervalMs = 5 * 60 * 1000,
   getConfiguredBranches: getBranches = getConfiguredBranches,
   createKiotVietClient: createClient = createKiotVietClient,
   pollEntityOnce: poll = pollEntityOnce,
@@ -28,6 +30,7 @@ function createPollingScheduler({
   getPool: getPoolFn = getPool,
   startDashboardRollupSchedule: startRollup = startDashboardRollupSchedule,
   startCustomerDebtReportRefreshSchedule: startCustomerDebtReportRefresh = startCustomerDebtReportRefreshSchedule,
+  startProductReportSchedule: startProductReport = startProductReportSchedule,
   logger = console
 } = {}) {
   async function runGroup(entities) {
@@ -75,6 +78,15 @@ function createPollingScheduler({
       startCustomerDebtReportRefresh(getPoolFn(), {
         intervalMs: customerDebtReportIntervalMs,
         setIntervalFn,
+        log: logger.log ? logger.log.bind(logger) : logger
+      }),
+      // Bao cao hang hoa (server/db/migrations/0018) - CHI tinh lai 1 lan/dem
+      // (ham refreshProductReportIfDue tu kiem tra ngay VN, xem
+      // productReportRefresh.js) du duoc kiem tra moi 5 phut nhu cac job tren.
+      startProductReport(getPoolFn(), {
+        intervalMs: productReportIntervalMs,
+        setIntervalFn,
+        scheduleImmediate,
         log: logger.log ? logger.log.bind(logger) : logger
       })
     ];

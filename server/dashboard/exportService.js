@@ -18,6 +18,7 @@
 const ExcelJS = require('exceljs');
 const dashboardData = require('./dashboardData');
 const dashboardPgReader = require('./dashboardPgReader');
+const productReportRepository = require('./productReportRepository');
 const exportFieldCatalog = require('./exportFieldCatalog');
 const { BRANCHES, BRANCH_BOTH, resolveBranchScope } = require('../branch/branches');
 const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
@@ -51,6 +52,7 @@ const TABLE_TITLES = Object.freeze({
   'customers.productDetail': 'Bảng chi tiết sản phẩm theo khách',
   'customers.productMonthlyCompare': 'Bảng so sánh doanh số theo tháng',
   'overview.productRevenueSearch': 'Doanh thu theo hàng',
+  'overview.productReport': 'Báo cáo hàng hóa',
   'suppliers.list': 'Danh sách nhà cung cấp',
   'debt.management': 'Quản lý công nợ',
   'search.results': 'Kết quả tìm kiếm',
@@ -273,6 +275,23 @@ const PRODUCT_REVENUE_SEARCH_COLUMNS = [
   aggregateColumn('ds90', 'Doanh thu 90 ngày', 'number', 'Doanh thu của mặt hàng trong 90 ngày gần nhất (VNĐ).'),
   aggregateColumn('sl90', 'Số lượng bán 90 ngày', 'number', 'Số lượng hàng bán ra trong 90 ngày gần nhất.'),
   aggregateColumn('tonKho', 'Tồn kho hiện tại', 'number', 'Số lượng tồn kho hiện tại của mặt hàng.')
+];
+
+// Bao cao hang hoa (tab Tong quan) - doc thang tu bang product_report da tinh
+// san 1 lan/dem (xem productReportRepository.js/productReportRefresh.js).
+const PRODUCT_REPORT_COLUMNS = [
+  aggregateColumn('code', 'Mã sản phẩm', 'text', 'Mã sản phẩm.'),
+  aggregateColumn('name', 'Tên sản phẩm', undefined, 'Tên sản phẩm.'),
+  aggregateColumn('stockHanoi', 'Tồn Hà Nội', 'number', 'Tồn kho hiện tại tại cơ sở Hà Nội.'),
+  aggregateColumn('stockSaigon', 'Tồn Sài Gòn', 'number', 'Tồn kho hiện tại tại cơ sở Sài Gòn.'),
+  aggregateColumn('availableToSell', 'Tổng tồn có thể bán', 'number',
+    'Tổng tồn 2 cơ sở trừ số lượng đang bị giữ chỗ trong đơn đặt hàng của khách chưa hoàn tất.'),
+  aggregateColumn('qtySold30d', 'Số lượng bán 30 ngày', 'number', 'Tổng số lượng bán ra trong 30 ngày gần nhất (tính đến hết hôm qua).'),
+  aggregateColumn('revenue90d', 'Doanh số 90 ngày', 'number', 'Doanh số trong 90 ngày gần nhất (tính đến hết hôm qua, đơn vị tiền Việt Nam).'),
+  aggregateColumn('customerCount90d', 'Số lượng khách mua', 'number', 'Số khách hàng khác nhau đã mua mã này trong 90 ngày.'),
+  aggregateColumn('topCustomerRevenue90d', 'Doanh số khách lớn nhất', 'number', 'Doanh số của khách mua nhiều nhất trong 90 ngày.'),
+  aggregateColumn('topCustomerName', 'Khách lớn nhất', 'text', 'Tên khách hàng mua nhiều nhất trong 90 ngày.'),
+  aggregateColumn('topCustomerShare', 'Tỷ lệ khách lớn nhất', 'percent', 'Doanh số khách lớn nhất chia cho doanh số 90 ngày.')
 ];
 
 const CUSTOMER_PRODUCT_TOP_COLUMNS = [
@@ -733,6 +752,9 @@ const TABLE_SPECS = {
   'overview.productRevenueSearch': () => ({
     worksheets: [reportWorksheet('product_revenue_search', 'Doanh thu theo hàng', PRODUCT_REVENUE_SEARCH_COLUMNS)]
   }),
+  'overview.productReport': () => ({
+    worksheets: [reportWorksheet('product_report', 'Báo cáo hàng hóa', PRODUCT_REPORT_COLUMNS)]
+  }),
   'stockout.recentScan': () => ({
     worksheets: [reportWorksheet('recent_stockout_result', 'Hàng đứt gần đây', STOCKOUT_RECENT_COLUMNS)]
   }),
@@ -966,6 +988,24 @@ async function buildProductRevenueSearchDataset(description, payload, branch, si
   }, payload.tableSearch);
 }
 
+/**
+ * Bao cao hang hoa - khac productRevenueSearch o cho KHONG can tu khoa (bang
+ * hien toan bo, tim kiem tren UI chi loc phia client) - doc thang bang da
+ * tinh san, ap lai dung bo loc mã/tên dang hien thi (payload.tableSearch) de
+ * file xuat khop dung phan dang xem.
+ */
+async function buildProductReportDataset(description, payload, signal) {
+  const data = await productReportRepository.getProductReport();
+  throwIfAborted(signal);
+  if (!data.rows.length) throw exportError('Chưa có dữ liệu báo cáo hàng hóa để xuất.', 404, 'EXPORT_NO_DATA');
+
+  const worksheet = description.worksheets[0];
+  return applyTableSearchToDataset({
+    tableKey: 'overview.productReport', title: TABLE_TITLES['overview.productReport'], selectionMode: 'custom',
+    worksheets: [{ ...worksheet, rows: pickAggregateRows(data.rows, worksheet.columns) }]
+  }, payload.tableSearch);
+}
+
 function formatStockoutDate(dateKey) {
   const match = String(dateKey || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return match ? `${match[3]}/${match[2]}/${match[1]}` : '';
@@ -1112,6 +1152,9 @@ async function buildExportDataset(payload, branch, options = {}) {
   }
   if (tableKey === 'overview.productRevenueSearch') {
     return buildProductRevenueSearchDataset(description, request, branch, signal);
+  }
+  if (tableKey === 'overview.productReport') {
+    return buildProductReportDataset(description, request, signal);
   }
   // Viewer bo trong = khong quyen sua cong no (giong xuat file truoc day). Ket qua
   // nam trong cache dung chung nen chi DOC, khong sua.

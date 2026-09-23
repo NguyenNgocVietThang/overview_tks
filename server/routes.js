@@ -11,6 +11,7 @@ const {
 const router = express.Router();
 
 const { getExportFields, createExportWorkbook, buildExportErrorBody } = require('./dashboard/exportService');
+const { getProductReport } = require('./dashboard/productReportRepository');
 const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
 const { requireAuth, requireRole } = require('./auth/authMiddleware');
@@ -86,6 +87,7 @@ router.use('/api/customer-product-top', ...requireInternalUser);
 router.use('/api/customer-product-revenue', ...requireInternalUser);
 router.use('/api/product-revenue-search', ...requireInternalUser);
 router.use('/api/product-revenue-detail', ...requireInternalUser);
+router.use('/api/product-report', ...requireInternalUser);
 router.use('/api/export', ...requireInternalUser);
 router.use('/api/products', ...requireInternalUser);
 
@@ -312,6 +314,23 @@ router.get('/api/product-revenue-detail', async (req, res) => {
       detail: err.message,
       code: err.code,
       googleStatus
+    });
+  }
+});
+
+router.get('/api/product-report', async (req, res) => {
+  try {
+    const data = await getProductReport();
+    res.status(200).json(data);
+  } catch (err) {
+    console.error('=== LOI /api/product-report ===');
+    console.error('Message:', err.message);
+    console.error('Stack:', err.stack);
+    console.error('================================');
+    res.status(err.statusCode || 500).json({
+      error: err.statusCode && err.statusCode < 500 ? err.message : 'Không lấy được báo cáo hàng hóa.',
+      detail: err.message,
+      code: err.code
     });
   }
 });

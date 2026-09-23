@@ -3515,7 +3515,7 @@
         <!-- ============ TỔNG QUAN ============ -->
         <div class="view active" id="view-overview">
           <div class="view-title">Tổng quan</div>
-          <div class="view-sub">Chỉ số hôm nay → doanh thu theo nhóm hàng → báo cáo doanh thu theo khách và theo hàng → kiểm tra đứt hàng</div>
+          <div class="view-sub">Chỉ số hôm nay → doanh thu theo nhóm hàng → báo cáo doanh thu theo khách và theo hàng → kiểm tra đứt hàng → báo cáo hàng hóa</div>
 
           <section class="section">
             <div class="section-head"><span class="section-step">1</span>
@@ -3983,6 +3983,55 @@
                     </thead>
                     <tbody id="stockout30dResultRows"></tbody>
                   </table>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-step">6</span>
+              <h2>Báo cáo hàng hóa <span class="section-note" id="productReportUpdatedAt">—</span></h2>
+            </div>
+            <div class="grid">
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Báo cáo hàng hóa <span class="tag" id="tagProductReportRows">—</span></h2>
+                  <div class="panel-head-actions">
+                    <button class="export-button" type="button" onclick="openExportDialog('overview.productReport')">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel
+                    </button>
+                  </div>
+                </div>
+                <div class="scroll-list" style="max-height:600px;">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Mã SP</th>
+                        <th>Tên SP</th>
+                        <th>Tồn Hà Nội</th>
+                        <th>Tồn Sài Gòn</th>
+                        <th>Tổng tồn có thể bán</th>
+                        <th>Tổng SL 30 ngày</th>
+                        <th>DS 90 ngày</th>
+                        <th>SL khách bán</th>
+                        <th>DS Khách lớn nhất</th>
+                        <th>Khách lớn nhất</th>
+                        <th>% Khách lớn nhất</th>
+                      </tr>
+                    </thead>
+                    <tbody id="productReportRows">
+                      <tr>
+                        <td colspan="11" class="table-note">Đang tải...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="pagination-controls" id="productReportPagination" hidden>
+                  <button type="button" id="productReportFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="productReportPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                  <span id="productReportPageLabel">Trang 1/1</span>
+                  <button type="button" id="productReportNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="productReportLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
             </div>
@@ -4958,6 +5007,7 @@
       childCategoryParent: null,
       currentUser: null,
       supplierReturnImport: { submitting: false },
+      productReport: { rows: [], computedAt: null, loaded: false },
       debtFilters: {
         queue: 'needsAction',
         sale: '',
@@ -6322,6 +6372,7 @@
       'customers.productDetail': 'cpDetail',
       'customers.productMonthlyCompare': 'cpMonthly',
       'overview.productRevenueSearch': 'productRevenueSearch',
+      'overview.productReport': 'productReport',
       'suppliers.list': 'suppliers',
       'debt.management': 'debtManagement'
     };
@@ -8296,6 +8347,78 @@
       };
     }
 
+    // ===== Tab Tổng quan, phần 6 — "Báo cáo hàng hóa" (bảng đã tính sẵn trong
+    // DB 1 lần/đêm — xem server/dashboard/productReportRepository.js — trang
+    // chỉ gọi API 1 lần khi tải trang, KHÔNG tham gia vòng lặp loadData()/SSE
+    // của các bảng theo bộ lọc thời gian vì dữ liệu chỉ đổi 1 lần/ngày) =====
+    TABLE_EXPLORER_CONFIGS.productReport = {
+      title: 'Báo cáo hàng hóa', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true
+    };
+
+    function formatProductReportUpdatedAt(computedAt) {
+      if (!computedAt) return '—';
+      const date = new Date(computedAt);
+      if (isNaN(date.getTime())) return '—';
+      return 'Dữ liệu cập nhật lúc ' + date.toLocaleString('vi-VN', {
+        hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric'
+      });
+    }
+
+    function productReportRowHtml(p) {
+      const code = escapeHtml(p.code);
+      const shareValue = p.topCustomerShare === null || p.topCustomerShare === undefined ? -1 : p.topCustomerShare;
+      return '<tr data-table-item-id="' + code + '">' +
+        '<td class="mono muted">' + code + '</td>' +
+        '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+        '<td class="mono" data-sort-value="' + p.stockHanoi + '">' + fmtNumber(p.stockHanoi) + '</td>' +
+        '<td class="mono" data-sort-value="' + p.stockSaigon + '">' + fmtNumber(p.stockSaigon) + '</td>' +
+        '<td class="mono" data-sort-value="' + p.availableToSell + '">' + fmtNumber(p.availableToSell) + '</td>' +
+        '<td class="mono" data-sort-value="' + p.qtySold30d + '">' + fmtNumber(p.qtySold30d) + '</td>' +
+        '<td class="mono" data-sort-value="' + p.revenue90d + '">' + fmtMoney(p.revenue90d) + '</td>' +
+        '<td class="mono" data-sort-value="' + p.customerCount90d + '">' + fmtNumber(p.customerCount90d) + '</td>' +
+        '<td class="mono" data-sort-value="' + p.topCustomerRevenue90d + '">' + fmtMoney(p.topCustomerRevenue90d) + '</td>' +
+        '<td>' + (p.topCustomerName ? escapeHtml(p.topCustomerName) : '<span class="muted">—</span>') + '</td>' +
+        '<td class="mono" data-sort-value="' + shareValue + '">' + formatDebtRatio(p.topCustomerShare) + '</td>' +
+        '</tr>';
+    }
+
+    function renderProductReport() {
+      const rows = state.productReport.rows;
+      document.getElementById('tagProductReportRows').textContent = rows.length ? String(rows.length) : '—';
+      document.getElementById('productReportUpdatedAt').textContent = formatProductReportUpdatedAt(state.productReport.computedAt);
+      renderPaginatedRows(
+        'productReport',
+        {
+          tbody: 'productReportRows', pagination: 'productReportPagination', firstBtn: 'productReportFirstPage',
+          prevBtn: 'productReportPrevPage', nextBtn: 'productReportNextPage', lastBtn: 'productReportLastPage', label: 'productReportPageLabel'
+        },
+        rows,
+        productReportRowHtml,
+        11,
+        state.productReport.loaded ? 'Chưa có dữ liệu báo cáo hàng hóa.' : 'Đang tải...'
+      );
+    }
+
+    function loadProductReport() {
+      fetch('/api/product-report')
+        .then(function (res) {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        })
+        .then(function (data) {
+          state.productReport.rows = (data && data.rows) || [];
+          state.productReport.computedAt = data && data.computedAt;
+          state.productReport.loaded = true;
+          renderProductReport();
+        })
+        .catch(function (err) {
+          console.error('Không tải được báo cáo hàng hóa:', err);
+          state.productReport.loaded = true;
+          document.getElementById('productReportRows').innerHTML =
+            '<tr><td colspan="11" class="table-note">Không tải được báo cáo hàng hóa.</td></tr>';
+        });
+    }
+
     // ===== Tab Tổng quan, phần 2 — "Báo cáo doanh thu theo khách" =====
     function hideCustomerProductSuggestions() {
       const box = document.getElementById('cpCustomerSuggestions');
@@ -9566,6 +9689,11 @@
     restoreRecentStockoutState();
     restoreStockout90dState();
     restoreStockout30dState();
+
+    // Bao cao hang hoa: bang tinh san 1 lan/dem, khong phu thuoc bo loc thoi
+    // gian/cache dashboard nen goi rieng 1 lan khi vao trang (khong qua
+    // loadData()/SSE o duoi).
+    loadProductReport();
 
     // Chi fetch du lieu 1 lan: dung lai cache (sessionStorage) khi vao trang qua
     // dieu huong/quay lai, chi fetch moi khi nguoi dung bam Reload that su cua

@@ -11,6 +11,7 @@ const ExcelJS = require('exceljs');
 const CONFIG = require('../config');
 const dashboardData = require('./dashboardData');
 const dashboardPgReader = require('./dashboardPgReader');
+const productReportRepository = require('./productReportRepository');
 const catalog = require('./exportFieldCatalog');
 const exportService = require('./exportService');
 
@@ -412,12 +413,20 @@ test('buoc lay truong van validate re: bang khong hop le, thieu khach/tu khoa, t
 test('cot o buoc lay truong == cot cua dataset o buoc xuat cho moi bang co dinh', async () => {
   const originals = {
     report: dashboardData.getCustomerProductRevenueReport,
-    revenue: dashboardData.searchProductRevenueOverview
+    revenue: dashboardData.searchProductRevenueOverview,
+    productReport: productReportRepository.getProductReport
   };
   dashboardData.getCustomerProductRevenueReport = async () => ({
     products: [{ code: 'SP-01', name: 'Sản phẩm một', quantity: 3, revenue: 300, month1Revenue: 1, month2Revenue: 2, month3Revenue: 3 }]
   });
   dashboardData.searchProductRevenueOverview = async () => ({ results: [{ code: 'SP-01', name: 'Sản phẩm một', ds90: 1, sl90: 2, tonKho: 3 }] });
+  productReportRepository.getProductReport = async () => ({
+    rows: [{
+      code: 'SP-01', name: 'Sản phẩm một', stockHanoi: 1, stockSaigon: 2, availableToSell: 3, qtySold30d: 4,
+      revenue90d: 5, customerCount90d: 6, topCustomerRevenue90d: 7, topCustomerName: 'Khách A', topCustomerShare: 0.5
+    }],
+    computedAt: '2026-09-23T00:05:00.000Z'
+  });
   try {
     await withStubs({}, async () => {
       const payloads = ALL_STATIC_TABLES.map(tableKey => payloadFor(tableKey));
@@ -439,6 +448,7 @@ test('cot o buoc lay truong == cot cua dataset o buoc xuat cho moi bang co dinh'
   } finally {
     dashboardData.getCustomerProductRevenueReport = originals.report;
     dashboardData.searchProductRevenueOverview = originals.revenue;
+    productReportRepository.getProductReport = originals.productReport;
   }
 });
 
