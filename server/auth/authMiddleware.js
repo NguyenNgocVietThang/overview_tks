@@ -6,6 +6,7 @@
 const { verifyToken } = require('./authService');
 const localUserStore = require('./localUserStore');
 const effectiveUserResolver = require('./effectiveUserResolver');
+const featureRegistry = require('./featureRegistry');
 
 const AUTH_COOKIE_NAME = 'tks_auth';
 const AUTH_COOKIE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // khop JWT_EXPIRES_IN mac dinh (12h)
@@ -48,7 +49,11 @@ function createRequireAuth(dependencies = {}) {
       if (effectiveUser.trangThai === localUserStore.LOCKED_STATUS) {
         return res.status(403).json({ error: 'Tài khoản đã bị khóa.', code: 'ACCOUNT_LOCKED' });
       }
-      req.user = effectiveUser;
+      // Quyen duoc GIAI LAI moi request (khong nam trong JWT) de Quan ly bat/
+      // tat quyen la co hieu luc ngay, giong nhu doi vai tro.
+      req.user = Object.assign({}, effectiveUser, {
+        permissions: featureRegistry.resolvePermissions(effectiveUser)
+      });
       req.effectiveUserResolved = true;
       return next();
     } catch (err) {
@@ -70,6 +75,29 @@ const requireAuth = createRequireAuth();
  * Bat buoc vai tro nam trong danh sach cho phep — PHAI dat sau requireAuth.
  * vd: router.post('/api/admin/action', requireAuth, requireRole('Quản lý', 'Kế toán'), handler)
  */
+/**
+ * Bat buoc co it nhat MOT trong cac quyen tinh nang — PHAI dat sau requireAuth.
+ * Day la cong chinh cua he phan quyen; requireRole chi con dung cho cac quy
+ * tac thuan danh tinh (vd chan ha quyen Quan tri vien he thong).
+ *
+ * vd: router.get('/api/hr/employees', requireAuth, requireFeature('hr.employees'), handler)
+ */
+function requireFeature(...requiredFeatures) {
+  return function featureGuard(req, res, next) {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Chưa đăng nhập.' });
+    }
+    if (!featureRegistry.hasFeature(req.user, ...requiredFeatures)) {
+      return res.status(403).json({
+        error: 'Tài khoản không có quyền sử dụng tính năng này.',
+        code: 'FEATURE_FORBIDDEN',
+        feature: requiredFeatures[0]
+      });
+    }
+    return next();
+  };
+}
+
 function requireRole(...allowedRoles) {
   return function roleGuard(req, res, next) {
     if (!req.user) {
@@ -82,4 +110,4 @@ function requireRole(...allowedRoles) {
   };
 }
 
-module.exports = { AUTH_COOKIE_NAME, AUTH_COOKIE_MAX_AGE_MS, createRequireAuth, requireAuth, requireRole };
+module.exports = { AUTH_COOKIE_NAME, AUTH_COOKIE_MAX_AGE_MS, createRequireAuth, requireAuth, requireRole, requireFeature };

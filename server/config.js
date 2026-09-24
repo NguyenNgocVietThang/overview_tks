@@ -107,7 +107,15 @@ const CONFIG = {
   KIOTVIET_SYNC_FAST_INTERVAL_MS: Number(process.env.KIOTVIET_SYNC_FAST_INTERVAL_MS) > 0
     ? Number(process.env.KIOTVIET_SYNC_FAST_INTERVAL_MS) : 7 * 60 * 1000,
   KIOTVIET_SYNC_SLOW_INTERVAL_MS: Number(process.env.KIOTVIET_SYNC_SLOW_INTERVAL_MS) > 0
-    ? Number(process.env.KIOTVIET_SYNC_SLOW_INTERVAL_MS) : 20 * 60 * 1000
+    ? Number(process.env.KIOTVIET_SYNC_SLOW_INTERVAL_MS) : 20 * 60 * 1000,
+  // Bi mat gan vao duong dan webhook KiotViet: cau hinh ben KiotViet tro toi
+  // /api/kiotviet/webhook/<secret>. Bat buoc de nhan su kien — de trong thi
+  // duong dan co secret bi tat hoan toan (404).
+  KIOTVIET_WEBHOOK_SECRET: process.env.KIOTVIET_WEBHOOK_SECRET || '',
+  // Duong dan cu KHONG co secret (/api/kiotviet/webhook) — giu bat trong giai
+  // doan chuyen tiep de khong mat su kien truoc khi doi cau hinh ben KiotViet.
+  // Doi URL ben KiotViet xong thi dat bien nay = 'false'.
+  KIOTVIET_WEBHOOK_LEGACY_PATH_ENABLED: process.env.KIOTVIET_WEBHOOK_LEGACY_PATH_ENABLED !== 'false'
 };
 
 module.exports = CONFIG;

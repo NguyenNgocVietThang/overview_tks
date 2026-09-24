@@ -12,8 +12,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { requireAuth, requireRole } = require('../auth/authMiddleware');
-const { ROLES, INTERNAL_ROLES } = require('../auth/userRepository');
+const { requireAuth, requireFeature } = require('../auth/authMiddleware');
 const repo = require('./hrLeaveRepository');
 const employeeDirectory = require('./employeeDirectory');
 const hrLeaveService = require('./hrLeaveService');
@@ -30,10 +29,13 @@ const { leaveEvents, LEAVE_EVENT_TYPES, broadcastLeaveEvent } = require('./hrLea
 const localUserStore = require('../auth/localUserStore');
 const notificationRepo = require('../notifications/notificationRepository');
 
-// Xem duoc: moi vai tro noi bo (Khach khong duoc).
-const authInternal = [requireAuth, requireRole(...INTERNAL_ROLES)];
-// Doi trang thai phe duyet / nhap tay: chi Quan ly.
-const authManager = [requireAuth, requireRole(ROLES.QUAN_LY)];
+// Phan quyen theo TINH NANG (server/auth/featureRegistry.js).
+//   hr.leave        — xem ho so nghi phep (mac dinh: moi vai tro noi bo)
+//   hr.employees    — xem Danh sach nhan su
+//   hr.leave.manage — tao / duyet nghi phep (mac dinh: chi Quan ly)
+const authInternal = [requireAuth, requireFeature('hr.leave')];
+const authEmployees = [requireAuth, requireFeature('hr.employees')];
+const authManager = [requireAuth, requireFeature('hr.leave.manage')];
 
 // Bo loc "Co so" cua trang: bo trong / 'all' / "Cả hai" = TAT CA co so tai
 // khoan duoc xem (khong phu thuoc co so dang chon o thanh dieu huong); 1 co so
@@ -339,7 +341,7 @@ router.post('/api/hr/telegram/link-code/assign', ...authManager, (_req, res) => 
 // cua moi co so tai khoan duoc xem; trang loc theo co so/phong ban phia client.
 // ---------------------------------------------------------------------------
 
-router.get('/api/hr/employees', ...authInternal, async (req, res) => {
+router.get('/api/hr/employees', ...authEmployees, async (req, res) => {
   try {
     const branches = allowedBranches(req.user);
     const snapshot = await employeeDirectory.getSnapshot();
@@ -364,7 +366,7 @@ router.get('/api/hr/employees', ...authInternal, async (req, res) => {
 // ---------------------------------------------------------------------------
 // Dat TRUOC route /:id neu sau nay them (hien tai chua co, nhung giu quy uoc).
 
-router.get('/api/hr/employees/export', ...authInternal, async (req, res) => {
+router.get('/api/hr/employees/export', ...authEmployees, async (req, res) => {
   try {
     const { keyword, department, branch } = req.query || {};
     const { buffer, fileName, mime } = await buildEmployeeDirectoryWorkbook(

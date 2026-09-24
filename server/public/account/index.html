@@ -179,6 +179,7 @@
   .role-lai-xe{ background:var(--role-lai-xe-bg); color:var(--role-lai-xe-fg); border:1px solid var(--role-lai-xe-border); }
   .role-nhan-vien-kho{ background:var(--role-nhan-vien-kho-bg); color:var(--role-nhan-vien-kho-fg); border:1px solid var(--role-nhan-vien-kho-border); }
   .role-nhan-vien-sale{ background:var(--role-nhan-vien-sale-bg); color:var(--role-nhan-vien-sale-fg); border:1px solid var(--role-nhan-vien-sale-border); }
+  .role-nhan-vien-marketing{ background:var(--role-nhan-vien-marketing-bg); color:var(--role-nhan-vien-marketing-fg); border:1px solid var(--role-nhan-vien-marketing-border); }
   .role-nhan-vien-mua-hang{ background:var(--role-nhan-vien-mua-hang-bg); color:var(--role-nhan-vien-mua-hang-fg); border:1px solid var(--role-nhan-vien-mua-hang-border); }
   .role-khach{ background:var(--role-khach-bg); color:var(--role-khach-fg); border:1px solid var(--role-khach-border); }
 
@@ -201,6 +202,36 @@
   }
   .action-icon-btn:hover{ color:var(--text); border-color:var(--muted); background:var(--surface-hover); }
   .action-icon-btn svg{ width:15px; height:15px; }
+
+  /* Phan quyen chi tiet */
+  .perm-modal-box{ max-width:620px; }
+  .perm-intro{
+    margin:0 0 14px; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-xs);
+    background:var(--panel-2); font-size:12.5px; line-height:1.55; color:var(--text-secondary);
+  }
+  .perm-intro strong{ color:var(--text); }
+  .perm-group{ border:1px solid var(--border); border-radius:var(--radius-xs); margin-bottom:12px; overflow:hidden; }
+  .perm-group-head{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:9px 12px; background:var(--panel-2); border-bottom:1px solid var(--border);
+  }
+  .perm-group-title{ font-size:12.5px; font-weight:700; color:var(--text); }
+  .perm-group-reset{
+    border:none; background:none; padding:0; cursor:pointer; font-size:11.5px; color:var(--blue);
+  }
+  .perm-group-reset:hover{ text-decoration:underline; }
+  .perm-row{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:8px 12px; border-top:1px solid var(--border);
+  }
+  .perm-group-head + .perm-row{ border-top:none; }
+  .perm-row-label{ font-size:12.5px; color:var(--text); }
+  .perm-row-hint{ display:block; font-size:11px; color:var(--muted); margin-top:2px; }
+  .perm-row select{ flex:0 0 190px; }
+  .perm-badge{
+    display:inline-block; margin-left:6px; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:700;
+    background:var(--accent-blue-18); color:var(--blue);
+  }
 
   /* Modals */
   .modal-overlay{
@@ -475,6 +506,7 @@
                 <option value="Lái xe">Lái xe</option>
                 <option value="Nhân viên kho">Nhân viên kho</option>
                 <option value="Nhân viên sale">Nhân viên sale</option>
+                <option value="Nhân viên marketing">Nhân viên marketing</option>
                 <option value="Nhân viên mua hàng">Nhân viên mua hàng</option>
                 <option value="Khách">Khách</option>
               </select>
@@ -570,6 +602,7 @@
               <option value="Lái xe">Lái xe</option>
               <option value="Nhân viên kho">Nhân viên kho</option>
               <option value="Nhân viên sale">Nhân viên sale</option>
+              <option value="Nhân viên marketing">Nhân viên marketing</option>
               <option value="Nhân viên mua hàng">Nhân viên mua hàng</option>
               <option value="Khách" selected>Khách</option>
             </select>
@@ -632,6 +665,7 @@
               <option value="Lái xe">Lái xe</option>
               <option value="Nhân viên kho">Nhân viên kho</option>
               <option value="Nhân viên sale">Nhân viên sale</option>
+              <option value="Nhân viên marketing">Nhân viên marketing</option>
               <option value="Nhân viên mua hàng">Nhân viên mua hàng</option>
               <option value="Khách">Khách</option>
             </select>
@@ -659,6 +693,28 @@
         <div class="modal-footer">
           <button type="button" class="btn-secondary" onclick="closeModal('editUserModal')">Hủy</button>
           <button type="submit" id="btnSubmitEdit" class="btn-primary">Lưu thay đổi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: PHÂN QUYỀN CHI TIẾT -->
+  <div class="modal-overlay" id="permissionsModal" hidden>
+    <div class="modal-box perm-modal-box">
+      <div class="modal-header">
+        <h3>Phân quyền chi tiết</h3>
+        <button type="button" class="modal-close" onclick="closeModal('permissionsModal')">✕</button>
+      </div>
+      <form id="permissionsForm" onsubmit="handleSavePermissions(event)">
+        <div class="modal-body">
+          <p class="perm-intro" id="permIntro"></p>
+          <div id="permGroups"></div>
+          <div id="permissionsError" class="alert-box alert-error" style="display:none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="resetAllPermissions()">Đặt lại tất cả về mặc định</button>
+          <button type="button" class="btn-secondary" onclick="closeModal('permissionsModal')">Hủy</button>
+          <button type="submit" id="btnSubmitPermissions" class="btn-primary">Lưu thay đổi</button>
         </div>
       </form>
     </div>
@@ -725,6 +781,7 @@
               <option value="Lái xe">Lái xe</option>
               <option value="Nhân viên kho">Nhân viên kho</option>
               <option value="Nhân viên sale">Nhân viên sale</option>
+              <option value="Nhân viên marketing">Nhân viên marketing</option>
               <option value="Nhân viên mua hàng">Nhân viên mua hàng</option>
               <option value="Khách">Khách</option>
             </select>
@@ -753,6 +810,13 @@
     const THEME_STORAGE_KEY = 'tks-dashboard-theme';
     let currentUser = null;
     let isManager = false;
+    let canViewUsers = false;
+    let canEditPermissions = false;
+
+    /** Quyen cua phien hien tai — nguon: user.permissions tu /api/auth/me. */
+    function accountCan(feature){
+      return !!(window.TKSNav && typeof window.TKSNav.can === 'function' && window.TKSNav.can(feature));
+    }
     let rawAdminUsers = [];
     let sortField = 'ngayTao';
     let sortAsc = false;
@@ -806,8 +870,8 @@
     function switchAccountTab(tabName, skipHashUpdate){
       const validTab = (tabName === 'users' || tabName === 'adminUsers') ? 'users' : 'profile';
       
-      // Nếu chọn tab users mà là Khách (hoặc chưa đăng nhập) thì quay về profile
-      if(validTab === 'users' && (!currentUser || currentUser.vaiTro === 'Khách')){
+      // Không có quyền 'account.users' (hoặc chưa đăng nhập) thì quay về profile
+      if(validTab === 'users' && (!currentUser || !canViewUsers)){
         return switchAccountTab('profile', skipHashUpdate);
       }
 
@@ -1205,6 +1269,7 @@
       else if(r === 'Lái xe') cls = 'role-lai-xe';
       else if(r === 'Nhân viên kho') cls = 'role-nhan-vien-kho';
       else if(r === 'Nhân viên sale') cls = 'role-nhan-vien-sale';
+      else if(r === 'Nhân viên marketing') cls = 'role-nhan-vien-marketing';
       else if(r === 'Nhân viên mua hàng') cls = 'role-nhan-vien-mua-hang';
       return `<span class="role-badge ${cls}">${escapeHtml(r)}</span>`;
     }
@@ -1255,7 +1320,7 @@
             </td>
             <td><code style="font-family:var(--font-data);color:var(--text-secondary);">${escapeHtml(u.username)}</code></td>
             <td>${escapeHtml(u.email || '—')}</td>
-            <td>${getRoleBadgeHtml(u.vaiTro)}</td>
+            <td>${getRoleBadgeHtml(u.vaiTro)}${hasCustomPermissions(u) ? '<span class="perm-badge" title="Tài khoản này có quyền được tuỳ chỉnh riêng, khác mặc định của vai trò">tuỳ chỉnh</span>' : ''}</td>
             <td>${escapeHtml(u.coSo || '—')}</td>
             <td>${getStatusPillHtml(u.trangThai)}</td>
             <td style="font-family:var(--font-data);font-size:12px;color:var(--muted);">${escapeHtml(u.ngayTao || '—')}</td>
@@ -1268,6 +1333,11 @@
                 <button type="button" class="action-icon-btn" title="Đặt lại mật khẩu" onclick="openResetPasswordModal('${u.id}', '${escapeHtml(u.username)}')">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-1.5 1.5L10 13l-4 1 1-4 7.5-7.5m1.5-1.5L21 2z"></path></svg>
                 </button>
+                ${canEditPermissions && !isThang ? `
+                <button type="button" class="action-icon-btn" title="Phân quyền chi tiết" onclick="openPermissionsModal('${u.id}')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
+                </button>
+                ` : ''}
                 ${canLockOrDelete ? `
                   <button type="button" class="action-icon-btn" title="${lockTitle}" onclick="toggleUserLock('${u.id}', '${u.trangThai}')">
                     ${lockIcon}
@@ -1282,6 +1352,158 @@
           </tr>
         `;
       }).join('');
+    }
+
+    // ---------- Phân quyền chi tiết ----------
+    // Danh mục tính năng + mặc định theo vai trò đến từ
+    // GET /api/admin/permissions/catalog (server/auth/featureRegistry.js) —
+    // trang này KHÔNG chép lại danh sách quyền hay nhãn tiếng Việt.
+    let permCatalog = null;
+    let permTargetUser = null;
+
+    function hasCustomPermissions(u){
+      return !!(u && u.featurePermissions && Object.keys(u.featurePermissions).length > 0);
+    }
+
+    function loadPermissionsCatalog(){
+      if(permCatalog) return Promise.resolve(permCatalog);
+      return fetch('/api/admin/permissions/catalog', { credentials: 'same-origin' })
+        .then(parseApiResponse)
+        .then(result => {
+          if(!result.ok) throw new Error(result.data.error || 'Không tải được danh mục quyền.');
+          permCatalog = result.data;
+          return permCatalog;
+        });
+    }
+
+    function openPermissionsModal(id){
+      const u = rawAdminUsers.find(x => String(x.id) === String(id));
+      if(!u) return;
+      permTargetUser = u;
+      document.getElementById('permissionsError').style.display = 'none';
+      document.getElementById('permGroups').innerHTML =
+        '<p style="color:var(--muted);font-size:12.5px;padding:8px 0;">Đang tải phân quyền...</p>';
+      document.getElementById('permIntro').textContent = '';
+      openModal('permissionsModal');
+
+      Promise.all([
+        loadPermissionsCatalog(),
+        fetch(`/api/admin/users/${encodeURIComponent(id)}/permissions`, { credentials: 'same-origin' })
+          .then(parseApiResponse)
+      ])
+        .then(([catalog, result]) => {
+          if(!result.ok) throw new Error(result.data.error || 'Không tải được phân quyền.');
+          renderPermissionsForm(catalog, result.data);
+        })
+        .catch(err => {
+          document.getElementById('permGroups').innerHTML = '';
+          const errEl = document.getElementById('permissionsError');
+          errEl.textContent = err.message || 'Lỗi kết nối, vui lòng thử lại.';
+          errEl.style.display = 'block';
+        });
+    }
+
+    function renderPermissionsForm(catalog, data){
+      const defaults = new Set(data.defaults || []);
+      const overrides = data.overrides || {};
+
+      document.getElementById('permIntro').innerHTML =
+        `Tài khoản <strong>${escapeHtml(data.hoTen || data.username)}</strong> (@${escapeHtml(data.username)}) — ` +
+        `vai trò <strong>${escapeHtml(data.vaiTro)}</strong>. Mỗi mục để ở <em>Theo vai trò</em> sẽ đi theo quyền mặc định ` +
+        `của vai trò; chỉ những mục bạn đổi khác mặc định mới được lưu riêng cho tài khoản này.`;
+
+      const html = catalog.groups.map(group => {
+        const features = catalog.features.filter(f => f.groupKey === group.key);
+        if(!features.length) return '';
+        const rows = features.map(f => {
+          const isDefaultOn = defaults.has(f.key);
+          const current = Object.prototype.hasOwnProperty.call(overrides, f.key)
+            ? (overrides[f.key] ? 'allow' : 'deny')
+            : 'default';
+          if(f.alwaysOn){
+            return `
+              <div class="perm-row">
+                <span class="perm-row-label">${escapeHtml(f.label)}
+                  <span class="perm-row-hint">Quyền cơ bản, không thể thu hồi</span>
+                </span>
+                <select class="form-control" disabled><option>Luôn bật</option></select>
+              </div>`;
+          }
+          return `
+            <div class="perm-row">
+              <span class="perm-row-label">${escapeHtml(f.label)}
+                <span class="perm-row-hint">Mặc định của vai trò: ${isDefaultOn ? 'Có' : 'Không'}</span>
+              </span>
+              <select class="form-control perm-select" data-feature="${escapeHtml(f.key)}">
+                <option value="default"${current === 'default' ? ' selected' : ''}>Theo vai trò (${isDefaultOn ? 'Có' : 'Không'})</option>
+                <option value="allow"${current === 'allow' ? ' selected' : ''}>Cho phép</option>
+                <option value="deny"${current === 'deny' ? ' selected' : ''}>Chặn</option>
+              </select>
+            </div>`;
+        }).join('');
+        return `
+          <div class="perm-group">
+            <div class="perm-group-head">
+              <span class="perm-group-title">${escapeHtml(group.label)}</span>
+              <button type="button" class="perm-group-reset" onclick="resetPermissionGroup('${escapeHtml(group.key)}')">Về mặc định</button>
+            </div>
+            ${rows}
+          </div>`;
+      }).join('');
+
+      document.getElementById('permGroups').innerHTML = html;
+    }
+
+    function resetPermissionGroup(groupKey){
+      if(!permCatalog) return;
+      const keys = permCatalog.features.filter(f => f.groupKey === groupKey).map(f => f.key);
+      document.querySelectorAll('#permGroups .perm-select').forEach(select => {
+        if(keys.indexOf(select.dataset.feature) !== -1) select.value = 'default';
+      });
+    }
+
+    function resetAllPermissions(){
+      document.querySelectorAll('#permGroups .perm-select').forEach(select => { select.value = 'default'; });
+    }
+
+    function handleSavePermissions(e){
+      e.preventDefault();
+      if(!permTargetUser) return;
+      const overrides = {};
+      document.querySelectorAll('#permGroups .perm-select').forEach(select => {
+        if(select.value === 'allow') overrides[select.dataset.feature] = true;
+        else if(select.value === 'deny') overrides[select.dataset.feature] = false;
+        // 'default' -> không gửi: server hiểu là quay về mặc định theo vai trò
+      });
+
+      const errEl = document.getElementById('permissionsError');
+      const btn = document.getElementById('btnSubmitPermissions');
+      errEl.style.display = 'none';
+      btn.disabled = true;
+
+      fetch(`/api/admin/users/${encodeURIComponent(permTargetUser.id)}/permissions`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ overrides })
+      })
+        .then(parseApiResponse)
+        .then(result => {
+          btn.disabled = false;
+          if(!result.ok){
+            errEl.textContent = result.data.error || 'Không lưu được phân quyền.';
+            errEl.style.display = 'block';
+            return;
+          }
+          closeModal('permissionsModal');
+          showToast(`Đã cập nhật quyền cho "${permTargetUser.username}".`);
+          loadAdminUsers();
+        })
+        .catch(() => {
+          btn.disabled = false;
+          errEl.textContent = 'Lỗi kết nối, vui lòng thử lại.';
+          errEl.style.display = 'block';
+        });
     }
 
     // Modal Create
@@ -1545,27 +1767,26 @@
         window.TKSNav.authGuard()
           .then(user => {
             currentUser = user;
-            isManager = (user.vaiTro === 'Quản lý');
+            // Quyen lay tu user.permissions (/api/auth/me) — CUNG MOT nguon voi
+            // requireFeature o server/auth/adminUserRoutes.js.
+            isManager = accountCan('account.users.manage');
+            canViewUsers = accountCan('account.users');
+            canEditPermissions = accountCan('account.permissions');
             if(sidebar) window.TKSNav.renderTopSidebar(sidebar, 'account', user);
 
-            // Moi vai tro tru Khach deu xem duoc tab Quan ly người dùng
-            if(user.vaiTro !== 'Khách'){
+            if(canViewUsers){
               const adminTabBtn = document.getElementById('tabBtnAdminUsers');
               if(adminTabBtn) adminTabBtn.style.display = 'inline-flex';
             }
 
-            // Chi Quan ly moi duoc them tai khoan moi
+            // Chi ai co quyen 'account.users.manage' moi duoc them tai khoan moi
             const btnAddUser = document.getElementById('btnAddUserAccount');
             if(btnAddUser) btnAddUser.style.display = isManager ? 'inline-flex' : 'none';
 
             // Áp dụng tab từ hash URL nếu có (ví dụ /account/#users hoặc /account/#profile)
             const initialHash = (window.location.hash || '').replace('#', '');
-            if(initialHash === 'users' || initialHash === 'adminUsers'){
-              if(user.vaiTro !== 'Khách'){
-                switchAccountTab('users', true);
-              } else {
-                switchAccountTab('profile', true);
-              }
+            if((initialHash === 'users' || initialHash === 'adminUsers') && canViewUsers){
+              switchAccountTab('users', true);
             } else {
               switchAccountTab('profile', true);
             }

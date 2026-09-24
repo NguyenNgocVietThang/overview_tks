@@ -461,15 +461,12 @@
     const STATUS_LABEL_BY_CODE = {};
     STATUS_OPTIONS.forEach(function(opt){ STATUS_LABEL_BY_CODE[opt.code] = opt.label; });
     const BRANCH_LABEL = { HN: 'Hà Nội', SG: 'Sài Gòn' };
-    // Vai tro duoc xem Khu B (xem toan bo don) — khop ORDER_LIFECYCLE_BULK_ROLES
-    // o server/shipment/orderLifecycleRoutes.js. Day chi la lop UX (an/hien
-    // panel); ranh gioi bao mat that su nam o requireRole phia server.
-    const BULK_VIEW_ROLES = ['Kế toán', 'Trưởng kho', 'Quản lý', 'Trợ lý', 'Nhân viên sale'];
-    // Vai tro duoc GHI DE trang thai — khop OVERRIDE_ROLES o
-    // server/shipment/orderLifecycleRoutes.js. Chi la lop UX; ranh gioi bao
-    // mat that su nam o requireRole phia server.
-    const OVERRIDE_ROLES = ['Quản lý', 'Kế toán'];
+    // Quyen xem Khu B (toan bo don) / ghi de trang thai lay tu TKSNav.can(),
+    // tuc tu user.permissions do /api/auth/me tra ve — CUNG MOT nguon voi
+    // requireFeature o server/shipment/orderLifecycleRoutes.js, nen giao dien
+    // va API khong the lech nhau nua.
     let canOverride = false;
+    let canViewHistory = false;
 
     function normalizeSearchText(value){
       return String(value == null ? '' : value)
@@ -589,6 +586,9 @@
     const lcInternalWrap = document.getElementById('lcInternalWrap');
 
     function switchLcSubtab(name){
+      // Khong co quyen 'shipment.history' thi khong doi sang tab do (du go
+      // hash thu cong) — API /history cung se 403.
+      if(name === 'history' && !canViewHistory) return;
       document.querySelectorAll('.lc-subnav-item').forEach(function(btn){
         const active = btn.dataset.subtab === name;
         btn.classList.toggle('active', active);
@@ -615,7 +615,7 @@
     // server/public/humanresources/index.html.
     function applyLcSubtabFromHash(){
       const name = (window.location.hash || '').replace('#', '');
-      if(name === 'history') switchLcSubtab('history');
+      if(name === 'history' && canViewHistory) switchLcSubtab('history');
     }
     window.addEventListener('hashchange', applyLcSubtabFromHash);
 
@@ -815,7 +815,7 @@
 
     function renderBulkRows(orders, total){
       lastVisibleOrders = orders;
-      bulkExportBtn.disabled = orders.length === 0;
+      bulkExportBtn.disabled = orders.length === 0 || !TKSNav.can('shipment.export');
       bulkEmpty.hidden = orders.length > 0;
       const countText = (total !== undefined && total !== orders.length)
         ? (orders.length + ' / ' + total + ' đơn')
@@ -1233,13 +1233,22 @@
 
     TKSNav.authGuard().then(function(user){
       if(!user) return;
-      if(BULK_VIEW_ROLES.indexOf(user.vaiTro) === -1) return;
-      canOverride = OVERRIDE_ROLES.indexOf(user.vaiTro) !== -1;
+      if(!TKSNav.can('shipment.lifecycle')) return;
+      canOverride = TKSNav.can('shipment.override');
       lookupForm.hidden = true;
       lcInternalWrap.hidden = false;
+      // Quyen "Lich su cap nhat" va "Xuat Excel" co the bi thu hoi rieng cho
+      // tung tai khoan (xem /account/#users) — an dung phan giao dien do,
+      // khong de bam roi nhan 403.
+      canViewHistory = TKSNav.can('shipment.history');
+      if(!canViewHistory){
+        const historyTabBtn = document.querySelector('.lc-subnav-item[data-subtab="history"]');
+        if(historyTabBtn) historyTabBtn.hidden = true;
+      }
+      if(!TKSNav.can('shipment.export')) bulkExportBtn.hidden = true;
       loadBulkOrders();
       startBulkAutoRefresh();
-      startHistoryAutoRefresh();
+      if(canViewHistory) startHistoryAutoRefresh();
       applyLcSubtabFromHash();
     });
   </script>

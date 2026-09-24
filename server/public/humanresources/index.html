@@ -731,8 +731,36 @@
     }
 
     // ---------- Tab con (Nghi phep, ...) ----------
+    // Tab con -> quyen tuong ung (khop requireFeature o server/hr/hrLeaveRoutes.js).
+    const HR_SUBTAB_FEATURE = { quydinh: 'hr.rules', danhsach: 'hr.employees', leave: 'hr.leave' };
+
+    /** Quyen cua phien hien tai — nguon: user.permissions tu /api/auth/me. */
+    function hrCan(feature){
+      return !!(window.TKSNav && typeof window.TKSNav.can === 'function' && window.TKSNav.can(feature));
+    }
+
+    function canViewHrSubtab(name){
+      const feature = HR_SUBTAB_FEATURE[name];
+      if(!feature) return true;
+      return hrCan(feature);
+    }
+
+    /** An nut tab con + chuyen sang tab dau tien duoc phep neu tab mac dinh bi chan. */
+    function applyHrSubtabPermissions(){
+      document.querySelectorAll('.hr-subnav-item').forEach(btn => {
+        if(!canViewHrSubtab(btn.dataset.subtab)) btn.hidden = true;
+      });
+      const activeBtn = document.querySelector('.hr-subnav-item.active');
+      if(activeBtn && !canViewHrSubtab(activeBtn.dataset.subtab)){
+        const firstAllowed = Array.from(document.querySelectorAll('.hr-subnav-item'))
+          .find(btn => canViewHrSubtab(btn.dataset.subtab));
+        if(firstAllowed) switchHrSubtab(firstAllowed.dataset.subtab);
+      }
+    }
+
     function switchHrSubtab(name){
       if(!document.getElementById(`hrSubtab-${name}`)) return;
+      if(!canViewHrSubtab(name)) return;
       document.querySelectorAll('.hr-subnav-item').forEach(btn => {
         const active = btn.dataset.subtab === name;
         btn.classList.toggle('active', active);
@@ -959,7 +987,7 @@
         tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Chưa có yêu cầu nghỉ phép nào.</td></tr>';
         return;
       }
-      const isManager = currentUser && currentUser.vaiTro === 'Quản lý';
+      const isManager = hrCan('hr.leave.manage');
       tbody.innerHTML = requests.map(r => {
         const statusClass = STATUS_CLASS[r.trang_thai] || 'leave-pending';
         const urgentEntry = urgentSummaryByUsername[r.web_username || r.ho_ten];
@@ -1412,15 +1440,18 @@
           currentUser = user;
           populateBranchFilters(user);
           if(sidebar) window.TKSNav.renderTopSidebar(sidebar, 'hr', user);
-          if(user.vaiTro === 'Quản lý'){
+          if(hrCan('hr.leave.manage')){
             document.getElementById('btnManualAbsence').style.display = 'inline-flex';
           }
+          // An tab con khong co quyen — quyen co the bi thu hoi rieng cho tung
+          // tai khoan tai /account/#users, khong chi theo vai tro.
+          applyHrSubtabPermissions();
           applyHrSubtabFromHash();
           initSortableTables();
           initDefaultDateFilters();
-          loadLeaveRequests();
-          loadEmployeeDirectory();
-          setupLeaveRealtimeStream();
+          if(hrCan('hr.leave')) loadLeaveRequests();
+          if(hrCan('hr.employees')) loadEmployeeDirectory();
+          if(hrCan('hr.leave')) setupLeaveRealtimeStream();
         });
       }
 

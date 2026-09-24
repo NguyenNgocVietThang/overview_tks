@@ -14,11 +14,16 @@ const { getExportFields, createExportWorkbook, buildExportErrorBody } = require(
 const { getProductReport } = require('./dashboard/productReportRepository');
 const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
-const { requireAuth, requireRole } = require('./auth/authMiddleware');
+const { requireAuth, requireFeature } = require('./auth/authMiddleware');
+const { ANY_REPORTS_FEATURES } = require('./auth/featureRegistry');
+const {
+  filterDashboardForUser,
+  searchFeatureForView,
+  allowedSearchEntities
+} = require('./dashboard/dashboardPermissionFilter');
 const { resolveBranch } = require('./branch/branchMiddleware');
 const { branchLabelToCode, resolveBranchScope } = require('./branch/branches');
 const branchRoutes = require('./branch/branchRoutes');
-const { REPORTS_ROLES, ROLES } = require('./auth/userRepository');
 const { getPool } = require('./db/pool');
 const hrLeaveRoutes          = require('./hr/hrLeaveRoutes');
 const notificationRoutes     = require('./notifications/notificationRoutes');
@@ -68,32 +73,36 @@ router.use(roleChangeRequestRoutes);
 // PATCH trạng thái công nợ tự mang auth/role/branch guard bên trong router.
 router.use(debtManagementRoutes);
 
-// Trang thai sync chi danh cho Quan ly; route tu fail-soft 503 neu chua co DB.
-router.use('/api/internal/kiotviet-sync/status', requireAuth, requireRole(ROLES.QUAN_LY));
+// Trang thai sync chi danh cho ai co quyen 'system.syncStatus' (mac dinh:
+// Quan ly); route tu fail-soft 503 neu chua co DB.
+router.use('/api/internal/kiotviet-sync/status', requireAuth, requireFeature('system.syncStatus'));
 router.use(kiotvietSyncStatusRoutes);
 
 // Tra cuu & quan ly vong doi don hang — Khach (xem don cua minh) + vai tro noi bo.
 router.use('/api/shipment/lifecycle', requireAuth, orderLifecycleRoutes);
 
-// Toan bo API "Bao cao tong hop" ben duoi day CHI danh cho REPORTS_ROLES (Quan
-// ly, Tro ly) — khop voi NO_REPORTS_ROLES an muc menu trong shared-nav.js. Cac
-// vai tro noi bo khac (Ke toan, Truong kho, Lai xe, Nhan vien kho/sale/mua
-// hang) co INTERNAL_ROLES cho cac tinh nang khac (HR, quan ly tai khoan...)
-// nhung KHONG duoc doc du lieu bao cao tong hop qua day. Day la ranh gioi bao
-// mat that su; auth-guard phia client (shared-nav.js) chi de dieu huong UX.
+// Toan bo API "Bao cao tong hop" ben duoi day duoc gac bang QUYEN TINH NANG
+// (server/auth/featureRegistry.js), khong con bang mang vai tro. Mac dinh chi
+// Quan ly + Tro ly co cac quyen reports.*, nhung Quan ly co the cap/thu tung
+// quyen cho tung tai khoan tai /account/#users. Day la ranh gioi bao mat that
+// su; shared-nav.js chi dung menu tu danh sach quyen server tra ve.
 // Khach chi duoc dung route tra cuu vong doi don hang o tren. Trang tra cuu
 // cong khai cho khach hang (Phase 1) se nam o route rieng, KHONG qua requireAuth.
-const requireReportsUser = [requireAuth, requireRole(...REPORTS_ROLES), resolveBranch];
-router.use('/api/debug', ...requireReportsUser);
-router.use('/api/dashboard', ...requireReportsUser);
-router.use('/api/search', ...requireReportsUser);
-router.use('/api/customer-product-top', ...requireReportsUser);
-router.use('/api/customer-product-revenue', ...requireReportsUser);
-router.use('/api/product-revenue-search', ...requireReportsUser);
-router.use('/api/product-revenue-detail', ...requireReportsUser);
-router.use('/api/product-report', ...requireReportsUser);
-router.use('/api/export', ...requireReportsUser);
-router.use('/api/products', ...requireReportsUser);
+const reportsUser = (...features) => [requireAuth, requireFeature(...features), resolveBranch];
+// /api/dashboard va /api/search phuc vu CA 6 tab bao cao nen chi doi hoi "co it
+// nhat mot quyen reports.*"; phan du lieu cua tung tab duoc cat bot sau do
+// (dashboardPermissionFilter.js). Cac endpoint rieng cua tung tab thi doi hoi
+// dung quyen cua tab do.
+router.use('/api/debug', ...reportsUser(...ANY_REPORTS_FEATURES));
+router.use('/api/dashboard', ...reportsUser(...ANY_REPORTS_FEATURES));
+router.use('/api/search', ...reportsUser(...ANY_REPORTS_FEATURES));
+router.use('/api/customer-product-top', ...reportsUser('reports.customers'));
+router.use('/api/customer-product-revenue', ...reportsUser('reports.customers'));
+router.use('/api/product-revenue-search', ...reportsUser('reports.products'));
+router.use('/api/product-revenue-detail', ...reportsUser('reports.products'));
+router.use('/api/product-report', ...reportsUser('reports.products'));
+router.use('/api/export', ...reportsUser('reports.export'));
+router.use('/api/products', ...reportsUser('reports.products'));
 
 // Kiem tra dut hang, doi chieu truc tiep KiotViet API — /api/products/stockout-recent/*, /api/products/stockout-90d/*
 router.use(stockoutCheckRoutes);
@@ -150,7 +159,9 @@ router.get('/api/dashboard', async (req, res) => {
       newProducts: parseFilterSpec(req.query, 'np')
     };
     const data = await getDashboardData(filters, req.branch, req.user);
-    res.status(200).json(data);
+    // Object tra ve co the den tu cache dung chung — filterDashboardForUser()
+    // dung object MOI, khong sua data tai cho (xem dashboardPermissionFilter.js).
+    res.status(200).json(filterDashboardForUser(data, req.user.permissions));
   } catch (err) {
     const googleStatus = err?.response?.status;
     const googleMessage = err?.response?.data?.error?.message || err?.response?.data;
@@ -208,8 +219,21 @@ router.get('/api/dashboard/events', (req, res) => {
 
 router.get('/api/search', async (req, res) => {
   try {
+    const viewFeature = searchFeatureForView(req.query.view);
+    if (!req.user.permissions.includes(viewFeature)) {
+      return res.status(403).json({
+        error: 'Tài khoản không có quyền sử dụng tính năng này.',
+        code: 'FEATURE_FORBIDDEN',
+        feature: viewFeature
+      });
+    }
     const filterSpec = req.query.view === 'customers' ? parseFilterSpec(req.query, 'cu') : undefined;
-    const data = await searchDashboardRecords(req.query.view, req.query.q, req.query.limit, req.query.mode, filterSpec, req.branch);
+    // view 'overview' quet moi nhom du lieu — gioi han lai theo quyen de nguoi
+    // bi chan tab Khach hang/Nha cung cap khong tim thay du lieu do qua day.
+    const data = await searchDashboardRecords(
+      req.query.view, req.query.q, req.query.limit, req.query.mode, filterSpec, req.branch,
+      allowedSearchEntities(req.user.permissions)
+    );
     res.status(200).json(data);
   } catch (err) {
     const googleStatus = err?.response?.status;

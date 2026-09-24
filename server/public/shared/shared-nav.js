@@ -1,20 +1,70 @@
 // ==========================================
 // SHARED-NAV.JS — auth guard + user chip + logout dung chung cho moi trang.
-// RANH GIOI BAO MAT THAT SU nam o server (authMiddleware tren /api/*) — script
-// nay CHI de dieu huong UX (an noi dung/redirect ve /login/ khi chua dang nhap),
-// khong phai lop bao ve du lieu.
+// RANH GIOI BAO MAT THAT SU nam o server: authMiddleware (requireFeature tren
+// /api/*) va pageGuard (chan mo trang HTML). Script nay la LOP THU HAI, lo
+// phan UX — dung menu va dieu huong cho khop, tranh hien trang trong/loi.
+//
+// KHONG CON MANG VAI TRO NAO O DAY. Menu + dieu huong deu dua tren
+// `permissions` (danh sach key tinh nang) va `pageFeatures` (duong dan -> quyen)
+// do /api/auth/me tra ve, sinh tu server/auth/featureRegistry.js — mot nguon
+// su that duy nhat cho ca giao dien lan API.
 // ==========================================
 (function(){
   'use strict';
 
   var TKSNav = {};
 
-  // Vai tro KHONG duoc xem "Bao cao tong hop" — dung chung boi authGuard (chan
-  // dieu huong thang toi /reports/) va renderTopSidebar (an muc menu). Day
-  // van CHI la UX; ranh gioi bao mat that su la REPORTS_ROLES phia server
-  // (server/auth/userRepository.js, ap dung cho toan bo API /api/dashboard,
-  // /api/search, /api/export, /api/products...) — sua 1 ben thi phai sua ca 2.
-  var NO_REPORTS_ROLES = ['Khách', 'Lái xe', 'Kế toán', 'Trưởng kho', 'Nhân viên kho', 'Nhân viên sale', 'Nhân viên mua hàng'];
+  // ---------- Quyen tinh nang cua phien hien tai ----------
+  var currentPermissions = [];
+  var currentPageFeatures = [];
+
+  /** Nap quyen tu object user cua /api/auth/me. Goi tu authGuard/renderTopSidebar. */
+  TKSNav.setPermissions = function setPermissions(user){
+    currentPermissions = (user && Array.isArray(user.permissions)) ? user.permissions.slice() : [];
+    currentPageFeatures = (user && Array.isArray(user.pageFeatures)) ? user.pageFeatures.slice() : [];
+  };
+
+  TKSNav.getPermissions = function getPermissions(){ return currentPermissions.slice(); };
+
+  /** true neu co IT NHAT MOT trong cac quyen truyen vao. */
+  TKSNav.can = function can(){
+    for(var i = 0; i < arguments.length; i++){
+      var key = arguments[i];
+      if(Array.isArray(key)){
+        if(TKSNav.can.apply(null, key)) return true;
+      } else if(currentPermissions.indexOf(key) !== -1){
+        return true;
+      }
+    }
+    return false;
+  };
+
+  TKSNav._normalizePagePath = function _normalizePagePath(pathname){
+    var cleaned = String(pathname || '')
+      .split('?')[0]
+      .split('#')[0]
+      .replace(/\/index\.html$/, '')
+      .replace(/\/+$/, '');
+    // '/' phuc vu chinh public/index.html giong '/reports' (xem server/index.js).
+    return cleaned || '/reports';
+  };
+
+  TKSNav._pageRuleFor = function _pageRuleFor(pathname){
+    var normalized = TKSNav._normalizePagePath(pathname);
+    for(var i = 0; i < currentPageFeatures.length; i++){
+      if(currentPageFeatures[i].path === normalized) return currentPageFeatures[i];
+    }
+    return null;
+  };
+
+  /** Trang dau tien tai khoan nay vao duoc — dung khi phai dieu huong di noi khac. */
+  TKSNav._landingPath = function _landingPath(){
+    for(var i = 0; i < currentPageFeatures.length; i++){
+      var rule = currentPageFeatures[i];
+      if(rule && rule.anyOf && TKSNav.can(rule.anyOf)) return rule.href;
+    }
+    return '/account/';
+  };
 
   // Tach rieng de test co the gia lap (khong thuc su dieu huong trong jsdom).
   TKSNav._navigate = function(url){ window.location.href = url; };
@@ -193,27 +243,14 @@
         return res.json();
       })
       .then(function(user){
-        var path = window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') || '/';
-        // '/shipment/lifecycle' cho phep Khach vao truc tiep de tra cuu don cua minh
-        var isGuestAllowed = (path === '/shipment/lifecycle' || path === '/account');
-        if(user.vaiTro === 'Khách' && !isGuestAllowed){
-          window.location.href = '/shipment/lifecycle/';
-          return new Promise(function(){});
-        }
-        var isPurchasingAllowed = (path === '/humanresources' || path === '/account');
-        if(user.vaiTro === 'Nhân viên mua hàng' && !isPurchasingAllowed){
-          window.location.href = '/humanresources/';
-          return new Promise(function(){});
-        }
-        // Vai tro khong duoc xem "Bao cao tong hop" khong duoc o lai trang bao
-        // cao du vao thang bang URL/bookmark — public/index.html (chinh trang
-        // nay) duoc static server phuc vu CA O "/" (mac dinh) LAN "/reports/"
-        // (xem server/index.js), nen phai chan ca hai duong dan. API
-        // /api/dashboard... da 403 phia server (REPORTS_ROLES) — day chi tranh
-        // hien trang rong/loi cho nguoi dung.
-        var isReportsPage = (path === '/reports' || path === '/');
-        if(isReportsPage && NO_REPORTS_ROLES.indexOf(user.vaiTro) !== -1){
-          window.location.href = '/account/';
+        TKSNav.setPermissions(user);
+        // Trang nay doi hoi quyen gi? Bang pageFeatures do server gui xuong,
+        // KHONG chep lai o client (xem server/auth/featureRegistry.js).
+        // server/auth/pageGuard.js da chan that bang cung bang do — nhanh duoi
+        // day chi de trang khong hien ra rong roi moi nhay.
+        var rule = TKSNav._pageRuleFor(window.location.pathname);
+        if(rule && !TKSNav.can(rule.anyOf)){
+          window.location.href = TKSNav._landingPath();
           return new Promise(function(){});
         }
         var sidebar = document.getElementById('sidebar');
@@ -368,7 +405,7 @@
       }
       list.innerHTML = notifications.map(function(n){
         var actions = '';
-        if(n.type === 'role_change_request' && !n.isRead && user.vaiTro === 'Quản lý'){
+        if(n.type === 'role_change_request' && !n.isRead && TKSNav.can('account.users.manage')){
           actions =
             '<div class="tks-notif-actions">' +
               '<button type="button" class="tks-notif-approve" data-request-id="' + escapeHtml(n.relatedId) + '">Duyệt</button>' +
@@ -774,134 +811,153 @@
   };
 
   /**
-   * Render sidebar 3 muc cap cao nhat
+   * Render sidebar theo QUYEN cua tai khoan — KHONG con mang vai tro nao o day.
+   * Moi muc menu khai bao `feature` (hoac mang feature: co mot la du); muc
+   * khong co quyen thi bi loc bo, va ca NHOM bi an neu khong con muc con nao.
+   * Danh sach quyen den tu /api/auth/me (server/auth/featureRegistry.js).
    */
+  var NAV_CHEVRON = '<svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+
+  function navIcon(inner){
+    return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+  }
+
+  function navItemHtml(item){
+    var attrs = item.dataAttr ? ' ' + item.dataAttr : '';
+    return '<a href="' + item.href + '" class="nav-item' + (item.active ? ' active' : '') + '"' +
+      (item.active ? ' aria-current="page"' : '') + attrs + '>' +
+      navIcon(item.icon) + item.label + '</a>';
+  }
+
+  function navGroupHtml(group){
+    var items = group.items.filter(function(item){ return TKSNav.can(item.feature); });
+    if(!items.length) return '';
+    var capitalized = group.key.charAt(0).toUpperCase() + group.key.slice(1);
+    var expanded = group.active || TKSNav._isNavGroupOpen(group.key);
+    return '<div class="nav-group">' +
+      '<button type="button" class="nav-group-toggle' + (group.active ? ' has-active' : '') + '"' +
+        ' id="tks' + capitalized + 'GroupToggle" data-tks-nav-group="' + group.key + '"' +
+        ' aria-expanded="' + expanded + '" aria-controls="tks' + capitalized + 'GroupList">' +
+        navIcon(group.icon) +
+        '<span>' + group.label + '</span>' +
+        NAV_CHEVRON +
+      '</button>' +
+      '<div class="nav-group-list" id="tks' + capitalized + 'GroupList"' + (expanded ? '' : ' hidden') + '>' +
+        items.map(navItemHtml).join('') +
+      '</div>' +
+      '</div>';
+  }
+
   TKSNav.renderTopSidebar = function renderTopSidebar(mountEl, activeTop, user){
     if(!mountEl) return;
+    // Trang co the goi thang renderTopSidebar sau authGuard — nap lai quyen tu
+    // user de khong phu thuoc thu tu goi.
+    if(user && Array.isArray(user.permissions)) TKSNav.setPermissions(user);
     mountEl.dataset.tksActiveTop = activeTop;
-    var reportsActive = activeTop === 'reports';
-    var shipmentActive = activeTop === 'shipment';
-    var accountActive = activeTop === 'account';
-    var hrActive = activeTop === 'hr';
-    var currentPath = (typeof window !== 'undefined' && window.location.pathname) ? window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') : '';
-    // Nhom "Bao cao tong hop" — cac tab con la cac view cua trang chinh (index.html, phuc vu them
-    // tai "/reports/" - xem server/index.js), dieu huong bang hash (vd /reports/#overview) roi
-    // index.html tu switchView() khi tai trang.
-    var REPORT_VIEWS = [
-      { view: 'overview', label: 'Tổng quan', icon: '<rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect>' },
-      { view: 'products', label: 'Hàng hóa', icon: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73Z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path>' },
-      { view: 'invoices', label: 'Hóa đơn', icon: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path>' },
-      { view: 'customers', label: 'Khách hàng', icon: '<path d="M16 2v2"></path><path d="M8 2v2"></path><rect x="3" y="4" width="18" height="18" rx="2"></rect><circle cx="12" cy="11" r="3"></circle><path d="M8 18a4 4 0 0 1 8 0"></path>' },
-      { view: 'suppliers', label: 'Nhà cung cấp', icon: '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path><path d="M10 6h4"></path><path d="M10 10h4"></path><path d="M10 14h4"></path><path d="M10 18h4"></path>' },
-      { view: 'debt', label: 'Quản lý công nợ', icon: '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>' }
-    ];
-    var reportsExpanded = reportsActive || TKSNav._isNavGroupOpen('reports');
-    var reportsLink = user && NO_REPORTS_ROLES.indexOf(user.vaiTro) !== -1 ? '' :
-      '<div class="nav-group">' +
-        '<button type="button" class="nav-group-toggle' + (reportsActive ? ' has-active' : '') + '" id="tksReportsGroupToggle" data-tks-nav-group="reports" aria-expanded="' + reportsExpanded + '" aria-controls="tksReportsGroupList">' +
-          '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="8" y1="18" x2="8" y2="14"></line><line x1="16" y1="18" x2="16" y2="16"></line></svg>' +
-          '<span>Báo cáo tổng hợp</span>' +
-          '<svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
-        '</button>' +
-        '<div class="nav-group-list" id="tksReportsGroupList"' + (reportsExpanded ? '' : ' hidden') + '>' +
-          REPORT_VIEWS.map(function(v){
-            return '<a href="/reports/#' + v.view + '" class="nav-item">' +
-              '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + v.icon + '</svg>' +
-              v.label + '</a>';
-          }).join('') +
-        '</div>' +
-      '</div>';
-    // Nhom "Quan ly don hang" gom 2 tab con cua cung 1 trang /shipment/lifecycle/
-    // (Vong doi don hang + Lich su cap nhat, dieu huong bang hash). Trang tong
-    // quan /shipment/ khong con duoc trinh bay trong dieu huong.
-    var NO_SHIPMENT_ROLES = ['Nhân viên mua hàng'];
+
+    var currentPath = (typeof window !== 'undefined' && window.location.pathname)
+      ? window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '')
+      : '';
+    var currentHash = (typeof window !== 'undefined' && window.location.hash)
+      ? window.location.hash.replace('#', '')
+      : '';
+
+    // Nhom "Bao cao tong hop": cac tab con la view cua public/index.html (phuc
+    // vu ca o "/" lan "/reports/" - xem server/index.js), dieu huong bang hash.
+    var reportItems = [
+      { feature: 'reports.overview', view: 'overview', label: 'T\u1ed5ng quan', icon: '<rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect>' },
+      { feature: 'reports.products', view: 'products', label: 'H\u00e0ng h\u00f3a', icon: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73Z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path>' },
+      { feature: 'reports.invoices', view: 'invoices', label: 'H\u00f3a \u0111\u01a1n', icon: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path>' },
+      { feature: 'reports.customers', view: 'customers', label: 'Kh\u00e1ch h\u00e0ng', icon: '<path d="M16 2v2"></path><path d="M8 2v2"></path><rect x="3" y="4" width="18" height="18" rx="2"></rect><circle cx="12" cy="11" r="3"></circle><path d="M8 18a4 4 0 0 1 8 0"></path>' },
+      { feature: 'reports.suppliers', view: 'suppliers', label: 'Nh\u00e0 cung c\u1ea5p', icon: '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path><path d="M10 6h4"></path><path d="M10 10h4"></path><path d="M10 14h4"></path><path d="M10 18h4"></path>' },
+      { feature: 'reports.debt', view: 'debt', label: 'Qu\u1ea3n l\u00fd c\u00f4ng n\u1ee3', icon: '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>' }
+    ].map(function(v){
+      return { feature: v.feature, href: '/reports/#' + v.view, label: v.label, icon: v.icon };
+    });
+
+    // Nhom "Quan ly don hang": 2 tab con cua cung trang /shipment/lifecycle/.
+    // Muc dau tien mo cho ca Khach (quyen shipment.lookup) vi do la trang tra
+    // cuu don duy nhat ho co.
     var isLifecyclePage = currentPath === '/shipment/lifecycle';
-    // Tab con cua "Vong doi don hang" dieu huong bang hash (giong pattern
-    // Nghi phep/Quy dinh cong ty o nhom "Quan ly nhan su" ben duoi): khong co
-    // hash (hoac hash la) -> "orders" (Toan bo don hang, mac dinh); "#history"
-    // -> "Lich su cap nhat".
-    var lifecycleHash = (isLifecyclePage && typeof window !== 'undefined' && window.location.hash) ? window.location.hash.replace('#', '') : '';
-    var isLifecycleHistoryTab = isLifecyclePage && lifecycleHash === 'history';
+    var isLifecycleHistoryTab = isLifecyclePage && currentHash === 'history';
     var isLifecycleOrdersTab = isLifecyclePage && !isLifecycleHistoryTab;
-    var shipmentExpanded = shipmentActive || TKSNav._isNavGroupOpen('shipment');
-    var shipmentLink = (user && NO_SHIPMENT_ROLES.indexOf(user.vaiTro) !== -1) ? '' :
-      '<div class="nav-group">' +
-        '<button type="button" class="nav-group-toggle' + (shipmentActive ? ' has-active' : '') + '" id="tksShipmentGroupToggle" data-tks-nav-group="shipment" aria-expanded="' + shipmentExpanded + '" aria-controls="tksShipmentGroupList">' +
-          '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle></svg>' +
-          '<span>Quản lý đơn hàng</span>' +
-          '<svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
-        '</button>' +
-        '<div class="nav-group-list" id="tksShipmentGroupList"' + (shipmentExpanded ? '' : ' hidden') + '>' +
-          '<a href="/shipment/lifecycle/" class="nav-item' + (isLifecycleOrdersTab ? ' active' : '') + '"' +
-            (isLifecycleOrdersTab ? ' aria-current="page"' : '') + ' data-shipment-subtab="orders">' +
-            '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15.5 14"></polyline></svg>' +
-            'Vòng đời đơn hàng</a>' +
-          '<a href="/shipment/lifecycle/#history" class="nav-item' + (isLifecycleHistoryTab ? ' active' : '') + '"' +
-            (isLifecycleHistoryTab ? ' aria-current="page"' : '') + ' data-shipment-subtab="history">' +
-            '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path></svg>' +
-            'Lịch sử cập nhật</a>' +
-        '</div>' +
-      '</div>';
-    // Khach khong duoc xem du lieu nhan su noi bo (giong reportsLink) — an hoan toan.
-    // Nhom "Quan ly nhan su" co the mo/dong, chua cac tab con (hien tai: Nghi phep) — them tab con
-    // moi sau nay bang cach them 1 the <a> vao trong .nav-group-list.
-    var hrExpanded = hrActive || TKSNav._isNavGroupOpen('hr');
-    var isHrPage = (currentPath === '/humanresources');
-    var hrHash = (isHrPage && typeof window !== 'undefined' && window.location.hash) ? window.location.hash.replace('#', '') : '';
-    var isHrQuydinhTab = isHrPage && hrHash === 'quydinh';
-    var isHrDanhSachTab = isHrPage && hrHash === 'danhsach';
-    var isHrLeaveTab = hrActive && !isHrQuydinhTab && !isHrDanhSachTab;
-    var hrLink = user && user.vaiTro === 'Khách' ? '' :
-      '<div class="nav-group">' +
-        '<button type="button" class="nav-group-toggle' + (hrActive ? ' has-active' : '') + '" id="tksHrGroupToggle" data-tks-nav-group="hr" aria-expanded="' + hrExpanded + '" aria-controls="tksHrGroupList">' +
-          '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>' +
-          '<span>Quản lý nhân sự</span>' +
-          '<svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
-        '</button>' +
-        '<div class="nav-group-list" id="tksHrGroupList"' + (hrExpanded ? '' : ' hidden') + '>' +
-          '<a href="/humanresources/#quydinh" class="nav-item' + (isHrQuydinhTab ? ' active' : '') + '"' +
-            (isHrQuydinhTab ? ' aria-current="page"' : '') + ' data-hr-subtab="quydinh">' +
-            '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>' +
-            'Quy định công ty</a>' +
-          '<a href="/humanresources/#danhsach" class="nav-item' + (isHrDanhSachTab ? ' active' : '') + '"' +
-            (isHrDanhSachTab ? ' aria-current="page"' : '') + ' data-hr-subtab="danhsach">' +
-            '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>' +
-            'Danh sách nhân sự</a>' +
-          '<a href="/humanresources/#leave" class="nav-item' + (isHrLeaveTab ? ' active' : '') + '"' +
-            (isHrLeaveTab ? ' aria-current="page"' : '') + ' data-hr-subtab="leave">' +
-            '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>' +
-            'Nghỉ phép</a>' +
-        '</div>' +
-      '</div>';
-    // Nhom "Quan ly tai khoan" co the mo/dong, chua cac tab con (Quan ly ho so, Quan ly nguoi dung)
-    var accountExpanded = accountActive || TKSNav._isNavGroupOpen('account');
-    var isAccountPage = (currentPath === '/account');
-    var accountHash = (isAccountPage && typeof window !== 'undefined' && window.location.hash) ? window.location.hash.replace('#', '') : '';
-    var isUsersTab = isAccountPage && (accountHash === 'users' || accountHash === 'adminUsers');
+    var shipmentItems = [
+      {
+        feature: ['shipment.lookup', 'shipment.lifecycle'],
+        href: '/shipment/lifecycle/',
+        label: 'V\u00f2ng \u0111\u1eddi \u0111\u01a1n h\u00e0ng',
+        active: isLifecycleOrdersTab,
+        dataAttr: 'data-shipment-subtab="orders"',
+        icon: '<circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15.5 14"></polyline>'
+      },
+      {
+        feature: 'shipment.history',
+        href: '/shipment/lifecycle/#history',
+        label: 'L\u1ecbch s\u1eed c\u1eadp nh\u1eadt',
+        active: isLifecycleHistoryTab,
+        dataAttr: 'data-shipment-subtab="history"',
+        icon: '<path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path>'
+      }
+    ];
+
+    var isHrPage = currentPath === '/humanresources';
+    var isHrQuydinhTab = isHrPage && currentHash === 'quydinh';
+    var isHrDanhSachTab = isHrPage && currentHash === 'danhsach';
+    var isHrLeaveTab = isHrPage && !isHrQuydinhTab && !isHrDanhSachTab;
+    var hrItems = [
+      {
+        feature: 'hr.rules', href: '/humanresources/#quydinh', label: 'Quy \u0111\u1ecbnh c\u00f4ng ty',
+        active: isHrQuydinhTab, dataAttr: 'data-hr-subtab="quydinh"',
+        icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line>'
+      },
+      {
+        feature: 'hr.employees', href: '/humanresources/#danhsach', label: 'Danh s\u00e1ch nh\u00e2n s\u1ef1',
+        active: isHrDanhSachTab, dataAttr: 'data-hr-subtab="danhsach"',
+        icon: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>'
+      },
+      {
+        feature: 'hr.leave', href: '/humanresources/#leave', label: 'Ngh\u1ec9 ph\u00e9p',
+        active: isHrLeaveTab, dataAttr: 'data-hr-subtab="leave"',
+        icon: '<rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>'
+      }
+    ];
+
+    var isAccountPage = currentPath === '/account';
+    var isUsersTab = isAccountPage && (currentHash === 'users' || currentHash === 'adminUsers');
     var isProfileTab = isAccountPage && !isUsersTab;
+    var accountItems = [
+      {
+        feature: 'account.profile', href: '/account/#profile', label: 'Qu\u1ea3n l\u00fd h\u1ed3 s\u01a1',
+        active: isProfileTab, dataAttr: 'data-account-subtab="profile"',
+        icon: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>'
+      },
+      {
+        feature: 'account.users', href: '/account/#users', label: 'Qu\u1ea3n l\u00fd ng\u01b0\u1eddi d\u00f9ng',
+        active: isUsersTab, dataAttr: 'data-account-subtab="users"',
+        icon: '<circle cx="18" cy="15" r="3"></circle><circle cx="9" cy="7" r="4"></circle><path d="M10 15H6a4 4 0 0 0-4 4v2"></path><path d="m21.7 16.4-.9-.3"></path><path d="m15.2 13.9-.9-.3"></path><path d="m16.6 18.7.3-.9"></path><path d="m19.1 12.2.3-.9"></path><path d="m19.6 18.7-.4-.8"></path><path d="m16.8 12.3-.4-.8"></path><path d="m14.3 16.6.8-.4"></path><path d="m20.7 13.8.8-.4"></path>'
+      }
+    ];
 
-    var accountUsersSubItem = (user && user.vaiTro !== 'Khách') ?
-      '<a href="/account/#users" class="nav-item' + (isUsersTab ? ' active' : '') + '"' +
-        (isUsersTab ? ' aria-current="page"' : '') + ' data-account-subtab="users">' +
-        '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="15" r="3"></circle><circle cx="9" cy="7" r="4"></circle><path d="M10 15H6a4 4 0 0 0-4 4v2"></path><path d="m21.7 16.4-.9-.3"></path><path d="m15.2 13.9-.9-.3"></path><path d="m16.6 18.7.3-.9"></path><path d="m19.1 12.2.3-.9"></path><path d="m19.6 18.7-.4-.8"></path><path d="m16.8 12.3-.4-.8"></path><path d="m14.3 16.6.8-.4"></path><path d="m20.7 13.8.8-.4"></path></svg>' +
-        'Quản lý người dùng</a>' : '';
+    var groups = [
+      {
+        key: 'reports', label: 'B\u00e1o c\u00e1o t\u1ed5ng h\u1ee3p', active: activeTop === 'reports', items: reportItems,
+        icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="8" y1="18" x2="8" y2="14"></line><line x1="16" y1="18" x2="16" y2="16"></line>'
+      },
+      {
+        key: 'shipment', label: 'Qu\u1ea3n l\u00fd \u0111\u01a1n h\u00e0ng', active: activeTop === 'shipment', items: shipmentItems,
+        icon: '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle>'
+      },
+      {
+        key: 'hr', label: 'Qu\u1ea3n l\u00fd nh\u00e2n s\u1ef1', active: activeTop === 'hr', items: hrItems,
+        icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>'
+      },
+      {
+        key: 'account', label: 'Qu\u1ea3n l\u00fd t\u00e0i kho\u1ea3n', active: activeTop === 'account', items: accountItems,
+        icon: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.8 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path>'
+      }
+    ];
 
-    var accountLink =
-      '<div class="nav-group">' +
-        '<button type="button" class="nav-group-toggle' + (accountActive ? ' has-active' : '') + '" id="tksAccountGroupToggle" data-tks-nav-group="account" aria-expanded="' + accountExpanded + '" aria-controls="tksAccountGroupList">' +
-          '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.8 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>' +
-          '<span>Quản lý tài khoản</span>' +
-          '<svg class="nav-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
-        '</button>' +
-        '<div class="nav-group-list" id="tksAccountGroupList"' + (accountExpanded ? '' : ' hidden') + '>' +
-          '<a href="/account/#profile" class="nav-item' + (isProfileTab ? ' active' : '') + '"' +
-            (isProfileTab ? ' aria-current="page"' : '') + ' data-account-subtab="profile">' +
-            '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>' +
-            'Quản lý hồ sơ</a>' +
-          accountUsersSubItem +
-        '</div>' +
-      '</div>';
-    mountEl.innerHTML = reportsLink + shipmentLink + hrLink + accountLink;
+    mountEl.innerHTML = groups.map(navGroupHtml).join('');
   };
 
   // ---------- Chon co so (Ha Noi / Sai Gon / Ca hai) ----------

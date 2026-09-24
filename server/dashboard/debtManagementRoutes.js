@@ -1,10 +1,9 @@
 'use strict';
 
 const express = require('express');
-const { requireAuth, requireRole } = require('../auth/authMiddleware');
+const { requireAuth, requireFeature } = require('../auth/authMiddleware');
 const { BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
 const branchMiddleware = require('../branch/branchMiddleware');
-const { ROLES } = require('../auth/userRepository');
 const repository = require('./debtCollectionStatusRepository');
 const dashboardData = require('./dashboardData');
 
@@ -51,7 +50,7 @@ function statusResponse(row) {
 router.patch(
   '/api/debt-management/status',
   requireAuth,
-  requireRole(ROLES.QUAN_LY, ROLES.TRO_LY),
+  requireFeature('reports.debt.edit'),
   branchMiddleware.resolveBranch,
   async (req, res) => {
     let payload;

@@ -6626,6 +6626,9 @@
     // Bam lien tiep nhieu nut Xuat Excel (hoac mo lai khi dang cho): loadExportFields() -> beginExportRequest()
     // huy request cu truoc, nen khong bao gio co hai request chong nhau va phan hoi tre cua lan truoc bi bo qua.
     async function openExportDialog(tableKey) {
+      // Quyen 'reports.export' co the bi thu hoi rieng cho tung tai khoan
+      // (/account/#users) — khop requireFeature tren /api/export.
+      if (typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && !TKSNav.can('reports.export')) return;
       const dialog = state.exportDialog;
       dialog.payload = buildExportPayload(tableKey);
       dialog.metadata = null;
@@ -7348,7 +7351,14 @@
       });
     }
 
+    /** Quyen xem mot tab bao cao — khop requireFeature/loc payload phia server. */
+    function canViewReport(view) {
+      return !!(typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && TKSNav.can('reports.' + view));
+    }
+
     function switchView(view) {
+      // Chan doi sang tab khong co quyen (vd go thang /reports/#debt).
+      if (!canViewReport(view)) return;
       state.view = view;
       syncSidebarActiveView();
       document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
@@ -9723,6 +9733,28 @@
     applyReportViewFromHash();
     window.addEventListener('hashchange', applyReportViewFromHash);
 
+    /**
+     * Sau khi authGuard() nap xong quyen: neu tab dang mo khong duoc phep thi
+     * chuyen sang tab dau tien duoc phep. /api/dashboard cung da cat bo phan
+     * du lieu cua cac tab bi chan (server/dashboard/dashboardPermissionFilter.js)
+     * nen day chi la lop giao dien cho khop.
+     */
+    function applyReportViewPermissions() {
+      if (canViewReport(state.view)) {
+        applyReportViewFromHash();
+        return;
+      }
+      const firstAllowed = REPORT_VIEW_NAMES.find(canViewReport);
+      if (firstAllowed) switchView(firstAllowed);
+    }
+
+    /** An moi nut "Xuat Excel" khi tai khoan khong co quyen reports.export. */
+    function applyExportPermission() {
+      if (typeof TKSNav === 'undefined' || typeof TKSNav.can !== 'function') return;
+      if (TKSNav.can('reports.export')) return;
+      document.querySelectorAll('.export-button').forEach(function (btn) { btn.hidden = true; });
+    }
+
     // Ranh gioi bao mat that su nam o server (authMiddleware tren /api/*).
     // authGuard() chi de dieu huong UX: redirect /login/ neu chua dang nhap,
     // roi moi hien noi dung (visibility:hidden duoc dat tu dau <head>).
@@ -9732,6 +9764,8 @@
     if (typeof TKSNav !== 'undefined' && TKSNav.authGuard) {
       TKSNav.authGuard().then(function(user){
         state.currentUser = user;
+        applyReportViewPermissions();
+        applyExportPermission();
         syncSidebarActiveView();
         initSupplierReturnImportPanel(user);
       }).catch(function(err){

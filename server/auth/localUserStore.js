@@ -30,6 +30,7 @@ const ROLES = Object.freeze({
   LAI_XE: 'Lái xe',
   NHAN_VIEN_KHO: 'Nhân viên kho',
   NHAN_VIEN_SALE: 'Nhân viên sale',
+  NHAN_VIEN_MARKETING: 'Nhân viên marketing',
   NHAN_VIEN_MUA_HANG: 'Nhân viên mua hàng',
   KHACH: 'Khách'
 });
@@ -385,7 +386,12 @@ async function createUser(userData) {
     coSo: normalizeCoSo(userData.coSo) || (isTargetAdmin ? BRANCH_BOTH : ''),
     trangThai: isTargetAdmin ? ACTIVE_STATUS : (userData.trangThai || ACTIVE_STATUS),
     ngayTao: userData.ngayTao || formatDateVN(),
-    dangNhapGanNhat: userData.dangNhapGanNhat || ''
+    dangNhapGanNhat: userData.dangNhapGanNhat || '',
+    // Ghi de quyen theo tung tai khoan (featureRegistry.js) — tai khoan moi
+    // luon bat dau bang quyen mac dinh cua vai tro, khong co ghi de nao.
+    featurePermissions: (userData.featurePermissions && typeof userData.featurePermissions === 'object')
+      ? userData.featurePermissions
+      : {}
   };
 
   const inserted = await repository.insertUser(newUser);

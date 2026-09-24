@@ -1,9 +1,9 @@
 // ==========================================
 // ORDER LIFECYCLE ROUTES — /api/shipment/lifecycle/* : tra cuu "Vong doi don
 // hang" (spreadsheet RIENG, doc-only). Router RIENG (khong gop vao
-// shipmentOrderRoutes.js) vi mo hinh quyen khac han: MOI vai tro da dang nhap
-// (ke ca Khach) duoc dung lookup; bulk-list (xem toan bo don) danh cho MOI
-// vai tro NOI BO — tuc INTERNAL_ROLES, chi Khach khong duoc dung.
+// shipmentOrderRoutes.js) vi mo hinh quyen khac han: lookup mo cho moi tai
+// khoan (ke ca Khach) qua quyen 'shipment.lookup'; bulk-list yeu cau quyen
+// 'shipment.lifecycle' (mac dinh: moi vai tro noi bo).
 //
 // Mount trong server/routes.js TRUOC gate '/api/shipment' chung (giong cach
 // POST /api/shipment/invoice-status duoc dac cach cho Khach):
@@ -18,24 +18,23 @@
 const express = require('express');
 const router = express.Router();
 
-const { requireAuth, requireRole } = require('../auth/authMiddleware');
-const { ROLES, INTERNAL_ROLES } = require('../auth/userRepository');
+const { requireAuth, requireFeature } = require('../auth/authMiddleware');
 const { LIFECYCLE_BRANCH } = require('./orderLifecycleRepository');
 const service = require('./orderLifecycleService');
 const { createLifecycleExportFile } = require('./orderLifecycleExport');
 
-// Xem toan bo don (nhu mo ca bang Google Sheet): moi vai tro NOI BO
-// (INTERNAL_ROLES), CHI Khach khong duoc dung.
-const ORDER_LIFECYCLE_BULK_ROLES = INTERNAL_ROLES;
-
-// Ghi de trang thai thu cong: CHI Quan ly va Ke toan (chat hon ca authBulk).
-const OVERRIDE_ROLES = [ROLES.QUAN_LY, ROLES.KE_TOAN];
-
-// Tra cuu 1 don (GET /:orderCode va POST /lookup): AI DA DANG NHAP cung tra
-// cuu duoc — khong gioi han vai tro, ke ca Khach.
-const authLookup = [requireAuth];
-const authBulk = [requireAuth, requireRole(...ORDER_LIFECYCLE_BULK_ROLES)];
-const authOverride = [requireAuth, requireRole(...OVERRIDE_ROLES)];
+// Phan quyen theo TINH NANG (server/auth/featureRegistry.js), khong con theo
+// mang vai tro — cung mot nguon su that voi menu phia client.
+//   shipment.lookup    — tra cuu 1 don (mac dinh: moi tai khoan, ke ca Khach)
+//   shipment.lifecycle — xem toan bo don (mac dinh: moi vai tro noi bo)
+//   shipment.history   — lich su cap nhat
+//   shipment.export    — xuat Excel
+//   shipment.override  — ghi de trang thai thu cong (mac dinh: Quan ly, Ke toan)
+const authLookup = [requireAuth, requireFeature('shipment.lookup')];
+const authBulk = [requireAuth, requireFeature('shipment.lifecycle')];
+const authHistory = [requireAuth, requireFeature('shipment.history')];
+const authExport = [requireAuth, requireFeature('shipment.export')];
+const authOverride = [requireAuth, requireFeature('shipment.override')];
 
 function handleError(res, err, context) {
   if (err.statusCode && err.statusCode < 500) {
@@ -84,7 +83,7 @@ router.get('/', ...authBulk, async (req, res) => {
 // dang ky) va route nay se khong bao gio duoc goi toi.
 // ---------------------------------------------------------------------------
 
-router.get('/history', ...authBulk, async (req, res) => {
+router.get('/history', ...authHistory, async (req, res) => {
   try {
     const history = await service.listHistory();
     res.status(200).json({ history });
@@ -150,7 +149,7 @@ router.post('/lookup', ...authLookup, async (req, res) => {
 // khong truyen -> xuat toan bo theo thu tu trong sheet.
 // ---------------------------------------------------------------------------
 
-router.post('/export', ...authBulk, async (req, res) => {
+router.post('/export', ...authExport, async (req, res) => {
   try {
     const codes = Array.isArray(req.body.codes) ? req.body.codes : undefined;
     const orders = await service.exportOrdersByCodes(codes);

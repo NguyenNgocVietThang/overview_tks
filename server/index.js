@@ -7,6 +7,7 @@ const routes = require('./routes');
 const localUserStore = require('./auth/localUserStore');
 const { startPollingScheduler } = require('./kiotvietSync/scheduler');
 const { captureWebhookRawBody, webhookJsonErrorHandler } = require('./kiotviet/kiotvietWebhookRoutes');
+const { pageGuard } = require('./auth/pageGuard');
 
 process.on('uncaughtException', (err) => {
   console.error('[Process] Uncaught exception:', err);
@@ -44,6 +45,12 @@ app.use('/api', (req, res, next) => {
 
 // API + auth routes TRUOC static (tranh express.static chop mat /api/*)
 app.use(routes);
+
+// Chan mo TRANG HTML noi bo ngay o server (xem server/auth/pageGuard.js) —
+// dat TRUOC ca route /reports lan express.static de bookmark/tab cu khong con
+// tai duoc trang ma tai khoan khong co quyen. Tai nguyen tinh (/shared/*,
+// /js/*, /vendor/*) va trang dang nhap/dang ky khong bi anh huong.
+app.use(pageGuard);
 
 // "/reports" la duong dan tuong duong "tab lon" cua trang bao cao tong hop
 // (public/index.html o thu muc goc), de khop pattern URL "tab lon/#tab nho"

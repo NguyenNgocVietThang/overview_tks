@@ -23,9 +23,10 @@ const DEPARTMENT_FOR_ROLE = Object.freeze({
   [ROLES.LAI_XE]: 'LÁI XE',
   [ROLES.NHAN_VIEN_KHO]: 'KHO',
   [ROLES.NHAN_VIEN_SALE]: 'SALE',
+  [ROLES.NHAN_VIEN_MARKETING]: 'MARKETING',
   [ROLES.NHAN_VIEN_MUA_HANG]: 'MUA HÀNG'
   // ROLES.KHACH: cố ý không map — không có phòng ban duy nhất để ghi ngược lại
-  // (MARKETING/HẬU CẦN/BẢO VỆ đều suy ra Khách), nên giữ nguyên BỘ PHẬN gốc.
+  // (HẬU CẦN/BẢO VỆ đều suy ra Khách), nên giữ nguyên BỘ PHẬN gốc.
 });
 
 class HrDirectoryError extends Error {
@@ -70,7 +71,7 @@ function roleForDepartment(value) {
     'SALE': ROLES.NHAN_VIEN_SALE,
     'MUA HANG': ROLES.NHAN_VIEN_MUA_HANG,
     'DAT HANG': ROLES.NHAN_VIEN_MUA_HANG,
-    'MARKETING': ROLES.KHACH,
+    'MARKETING': ROLES.NHAN_VIEN_MARKETING,
     'HAU CAN': ROLES.KHACH,
     'BAO VE': ROLES.KHACH
   };

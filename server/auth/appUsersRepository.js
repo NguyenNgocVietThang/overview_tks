@@ -81,6 +81,9 @@ function rowToUser(row) {
     vaiTroOverride: row.vai_tro_override || '',
     coSoOverride: row.co_so_override || '',
     roleSource: row.role_source || '',
+    featurePermissions: (row.feature_permissions && typeof row.feature_permissions === 'object')
+      ? row.feature_permissions
+      : {},
     legacyOverride: !!row.legacy_override,
     verifiedEmail: !!row.verified_email,
     verifiedPhone: !!row.verified_phone,
@@ -115,6 +118,9 @@ const WRITABLE_COLUMNS = Object.freeze([
   ['vaiTroOverride', 'vai_tro_override', v => String(v || '')],
   ['coSoOverride', 'co_so_override', v => String(v || '')],
   ['roleSource', 'role_source', v => String(v || '')],
+  // Ghi de quyen theo tung tai khoan — xem featureRegistry.js. Luon ghi mot
+  // object JSON (JSONB), gia tri la se thanh {} thay vi lam hong hang.
+  ['featurePermissions', 'feature_permissions', v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {})],
   ['legacyOverride', 'legacy_override', v => !!v],
   ['verifiedEmail', 'verified_email', v => !!v],
   ['verifiedPhone', 'verified_phone', v => !!v],

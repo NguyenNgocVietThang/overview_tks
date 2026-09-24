@@ -6,10 +6,11 @@
 const express = require('express');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
-const { requireAuth, requireRole } = require('./authMiddleware');
+const { requireAuth, requireFeature } = require('./authMiddleware');
 const localUserStore = require('./localUserStore');
 const { ROLES, ACTIVE_STATUS, INACTIVE_STATUS, LOCKED_STATUS, PENDING_STATUS } = localUserStore;
-const { normalizePhone, INTERNAL_ROLES } = require('./userRepository');
+const { normalizePhone } = require('./userRepository');
+const featureRegistry = require('./featureRegistry');
 const notificationRepo = require('../notifications/notificationRepository');
 const { normalizeCoSo, BRANCH_VALUES } = require('../branch/branches');
 const contactChangeService = require('./contactChangeService');
@@ -42,13 +43,20 @@ function publicAdminUser(u) {
     vaiTroOverride: u.vaiTroOverride || '',
     coSoOverride: u.coSoOverride || '',
     roleSource: u.roleSource || (u.hrManaged ? 'sheet' : 'local'),
-    lockReason: u.lockReason || ''
+    lockReason: u.lockReason || '',
+    // Ghi de quyen rieng cua tai khoan (DELTA so voi mac dinh theo vai tro) —
+    // bang nguoi dung dua vao day de hien nhan "đã tuỳ chỉnh quyền".
+    featurePermissions: featureRegistry.sanitizeOverrides(u.featurePermissions)
   };
 }
 
-// Xem danh sach: moi vai tro noi bo (Khach khong duoc). Thao tac ghi: chi Quan ly.
-const authView = [requireAuth, requireRole(...INTERNAL_ROLES)];
-const authManage = [requireAuth, requireRole(ROLES.QUAN_LY)];
+// Phan quyen theo TINH NANG (featureRegistry.js):
+//   account.users         — xem danh sach (mac dinh: moi vai tro noi bo)
+//   account.users.manage  — them/sua/khoa/xoa (mac dinh: chi Quan ly)
+//   account.permissions   — phan quyen chi tiet (mac dinh: chi Quan ly)
+const authView = [requireAuth, requireFeature('account.users')];
+const authManage = [requireAuth, requireFeature('account.users.manage')];
+const authPermissions = [requireAuth, requireFeature('account.permissions')];
 
 /**
  * GET /api/admin/users — Danh sách tất cả người dùng trong hệ thống.
@@ -386,6 +394,138 @@ router.delete('/api/admin/users/:id', ...authManage, async (req, res) => {
   } catch (err) {
     console.error('=== LOI DELETE /api/admin/users/:id ===', err);
     res.status(500).json({ error: 'Không xóa được tài khoản.' });
+  }
+});
+
+// -------------------------------------------------------------
+// PHAN QUYEN CHI TIET THEO TUNG TAI KHOAN
+// Quyen mac dinh tinh theo vai tro (featureRegistry.js); moi tai khoan co the
+// duoc ghi de tung key mot. Cot app_users.feature_permissions chi luu DELTA.
+// -------------------------------------------------------------
+
+/**
+ * GET /api/admin/permissions/catalog — danh muc tinh nang + mac dinh theo vai
+ * tro, de giao dien dung bang phan quyen ma khong chep lai nhan tieng Viet.
+ */
+router.get('/api/admin/permissions/catalog', ...authView, (req, res) => {
+  const roleDefaults = {};
+  for (const role of VALID_ROLES) roleDefaults[role] = featureRegistry.defaultsForRole(role);
+  res.status(200).json({
+    groups: featureRegistry.FEATURE_GROUPS,
+    features: featureRegistry.FEATURES.map(f => ({
+      key: f.key,
+      label: f.label,
+      groupKey: f.groupKey,
+      alwaysOn: !!f.alwaysOn
+    })),
+    roleDefaults
+  });
+});
+
+/**
+ * Chan sua quyen cua Quan tri vien he thong, va chan tu thao go quyen quan tri
+ * cua CHINH MINH (khoa chet: khong con ai vao duoc man hinh phan quyen).
+ */
+const SELF_LOCKOUT_KEYS = ['account.permissions', 'account.users.manage'];
+
+function assertPermissionsEditable(req, targetUser, overrides) {
+  const isTargetProtected = localUserStore.isProtectedSuperAdmin(targetUser.email) ||
+                            localUserStore.isProtectedSuperAdmin(targetUser.username) ||
+                            localUserStore.isHardcodedAdmin(targetUser.email) ||
+                            localUserStore.isHardcodedAdmin(targetUser.username);
+  if (isTargetProtected) {
+    return 'Không thể thay đổi quyền của tài khoản Quản trị viên hệ thống.';
+  }
+  const isSelf = String(req.user.id) === String(targetUser.id) ||
+                 String(req.user.username || '').toLowerCase() === String(targetUser.username || '').toLowerCase();
+  if (isSelf && overrides) {
+    const blocked = SELF_LOCKOUT_KEYS.filter(key => overrides[key] === false);
+    if (blocked.length) {
+      return 'Bạn không thể tự thu hồi quyền quản trị của chính mình.';
+    }
+  }
+  return null;
+}
+
+function permissionsPayload(user) {
+  return {
+    userId: user.id,
+    username: user.username,
+    hoTen: user.hoTen || '',
+    vaiTro: user.vaiTro,
+    defaults: featureRegistry.defaultsForRole(user.vaiTro),
+    overrides: featureRegistry.sanitizeOverrides(user.featurePermissions),
+    effective: featureRegistry.resolvePermissions(user)
+  };
+}
+
+/**
+ * GET /api/admin/users/:id/permissions — quyen mac dinh + ghi de + hieu luc.
+ */
+router.get('/api/admin/users/:id/permissions', ...authPermissions, async (req, res) => {
+  try {
+    const targetUser = await localUserStore.getUserById(req.params.id);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Không tìm thấy tài khoản.' });
+    }
+    res.status(200).json(permissionsPayload(targetUser));
+  } catch (err) {
+    console.error('=== LOI GET /api/admin/users/:id/permissions ===', err);
+    res.status(500).json({ error: 'Không tải được phân quyền của tài khoản.' });
+  }
+});
+
+/**
+ * PUT /api/admin/users/:id/permissions — ghi de THAY THE TOAN BO delta hien co.
+ * Body: { overrides: { "<key>": true | false | null } } — null (hoac vang mat)
+ * nghia la "quay ve mac dinh theo vai tro".
+ */
+router.put('/api/admin/users/:id/permissions', ...authPermissions, async (req, res) => {
+  try {
+    const targetUser = await localUserStore.getUserById(req.params.id);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Không tìm thấy tài khoản.' });
+    }
+
+    const raw = req.body && req.body.overrides;
+    if (raw !== undefined && raw !== null && (typeof raw !== 'object' || Array.isArray(raw))) {
+      return res.status(400).json({ error: 'Trường "overrides" phải là một object.' });
+    }
+
+    const unknown = featureRegistry.unknownOverrideKeys(raw);
+    if (unknown.length) {
+      return res.status(400).json({
+        error: `Quyền không hợp lệ: ${unknown.join(', ')}.`,
+        code: 'UNKNOWN_FEATURE',
+        validKeys: featureRegistry.FEATURE_KEYS
+      });
+    }
+
+    const overrides = featureRegistry.sanitizeOverrides(raw);
+    const blockedReason = assertPermissionsEditable(req, targetUser, overrides);
+    if (blockedReason) {
+      return res.status(400).json({ error: blockedReason });
+    }
+
+    const updated = await localUserStore.updateUser(targetUser.id, { featurePermissions: overrides });
+    res.status(200).json(permissionsPayload(updated));
+
+    // Bao cho chinh chu tai khoan biet quyen vua doi — best-effort, KHONG duoc
+    // lam hong response da tra o tren.
+    try {
+      await notificationRepo.createNotificationForUsers([targetUser.id], {
+        type: 'permissions_changed',
+        title: 'Quyền truy cập đã được cập nhật',
+        message: `${req.user.hoTen || req.user.username} vừa điều chỉnh quyền truy cập tài khoản của bạn. Tải lại trang để áp dụng.`,
+        relatedType: 'permissionsChanged',
+        relatedId: targetUser.id
+      });
+    } catch (notifyErr) {
+      console.error('Lỗi báo thông báo đổi quyền:', notifyErr.message);
+    }
+  } catch (err) {
+    console.error('=== LOI PUT /api/admin/users/:id/permissions ===', err);
+    res.status(500).json({ error: 'Không lưu được phân quyền.' });
   }
 });
 

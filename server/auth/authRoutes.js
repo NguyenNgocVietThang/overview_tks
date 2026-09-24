@@ -30,6 +30,7 @@ const { currentBranchFor } = require('../branch/branchMiddleware');
 const otpService = require('./otpService');
 const employeeRegistrationService = require('./employeeRegistrationService');
 const effectiveUserResolver = require('./effectiveUserResolver');
+const featureRegistry = require('./featureRegistry');
 const contactChangeService = require('./contactChangeService');
 
 const router = express.Router();
@@ -700,12 +701,24 @@ router.get('/api/auth/me', requireAuth, async (req, res) => {
     }
     // Kem danh sach co so duoc phep + co so dang chon: thanh dieu huong dua vao
     // day de quyet dinh co hien nut chon co so hay khong (chi khi co >= 2).
+    //
+    // `permissions` + `pageFeatures` la NGUON DUY NHAT cho phia client dung
+    // menu va dieu huong (shared-nav.js khong con mang vai tro nao). CO Y
+    // KHONG dua vao JWT: token song 12h, con quyen phai co hieu luc ngay khi
+    // Quan ly bat/tat, giong nhu doi vai tro.
     res.status(200).json(Object.assign(publicUser(user), {
       branches: selectableBranches(user),
-      branch: currentBranchFor(req, user)
+      branch: currentBranchFor(req, user),
+      permissions: featureRegistry.resolvePermissions(user),
+      pageFeatures: featureRegistry.PAGE_FEATURES
     }));
   } catch (err) {
-    res.status(200).json(req.user);
+    // Duong fail-soft: dung publicUser() chu KHONG tra thang req.user — object
+    // do la ban ghi day du tu localUserStore (co ca passwordHash).
+    res.status(200).json(Object.assign(publicUser(req.user), {
+      permissions: req.user.permissions || featureRegistry.resolvePermissions(req.user),
+      pageFeatures: featureRegistry.PAGE_FEATURES
+    }));
   }
 });
 

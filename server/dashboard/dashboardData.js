@@ -15,7 +15,7 @@ const customerDebtActivityRepository = require('./customerDebtActivityRepository
 const customerProductTopRepository = require('./customerProductTopRepository');
 const dashboardRollupRepository = require('./dashboardRollupRepository');
 const { BRANCHES, BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
-const { ROLES } = require('../auth/userRepository');
+const { hasFeature } = require('../auth/featureRegistry');
 const debtCollectionStatusRepository = require('./debtCollectionStatusRepository');
 const { deriveDebtManagement, PAYMENT_SCHEDULES, DEBT_TOTAL_AVERAGE_SALES } = require('./debtManagement');
 
@@ -639,8 +639,14 @@ function toSearchResult(source, indexedSource, record, aggregate) {
  * Uu tien: trung hoan toan, trung tien to, chua cum tu, roi den du cac tu don.
  * Ket qua kem toan bo cot cua dong nguon de giao dien hien thi dung nhu Sheet.
  */
-async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode, filterSpec, branch) {
-  const scope = SEARCH_SCOPES[view] || SEARCH_SCOPES.overview;
+async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode, filterSpec, branch, allowedEntities) {
+  const rawScope = SEARCH_SCOPES[view] || SEARCH_SCOPES.overview;
+  // allowedEntities (neu duoc truyen) la cac nhom du lieu tai khoan duoc phep
+  // tim kiem — xem dashboardPermissionFilter.js. View 'overview' quet moi nhom
+  // nen khong giao cat thi nguoi bi chan tab van tim thay du lieu cua tab do.
+  const scope = Array.isArray(allowedEntities)
+    ? rawScope.filter(entity => allowedEntities.includes(entity))
+    : rawScope;
   const isMultiCodeSearch = String(rawMode || '').toLocaleLowerCase('vi-VN') === 'codes';
   const normalizedInput = normalizeWhitespace(rawQuery);
   const queryText = isMultiCodeSearch ? normalizedInput : normalizedInput.slice(0, 120);
@@ -2336,7 +2342,9 @@ function dashboardSourceVersion(branch) {
  */
 async function getDashboardData(filters, branch, viewer) {
   const f = filters || {};
-  const canEditDebtStatus = viewer?.vaiTro === ROLES.QUAN_LY || viewer?.vaiTro === ROLES.TRO_LY;
+  // Khop CHINH XAC voi guard cua PATCH /api/debt-management/status — neu khac
+  // thi nut sua trong bang se hien ra roi API tra 403 (hoac nguoc lai).
+  const canEditDebtStatus = hasFeature(viewer, 'reports.debt.edit');
   const requestedBranch = branch || BRANCHES.HANOI;
   const branchScope = resolveBranchScope(requestedBranch);
   if (!branchScope.length) {
