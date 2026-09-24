@@ -6,6 +6,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { JSDOM } = require('jsdom');
 
+// TKSNav that dung TKSNav.can(<quyen>) (nguon: user.permissions tu /api/auth/me)
+// thay cho kiem tra vai tro cung — mock phai co ham do, lay dung quyen mac dinh
+// cua vai tro tu server/auth/featureRegistry.js.
+const { defaultsForRole } = require('../../auth/featureRegistry');
+function fakeCan(vaiTro) {
+  const permissions = defaultsForRole(vaiTro);
+  return (...keys) => keys.some(key => (Array.isArray(key) ? key : [key]).some(k => permissions.includes(k)));
+}
+
+
 const htmlPath = path.join(__dirname, '..', '..', 'public', 'shipment', 'lifecycle', 'index.html');
 const html = fs.readFileSync(htmlPath, 'utf8');
 
@@ -22,6 +32,7 @@ async function renderLifecycleTable() {
   window.setInterval = () => 1;
   window.TKSNav = {
     authGuard: () => Promise.resolve({ vaiTro: 'Quản lý' }),
+    can: fakeCan('Quản lý'),
     handleBranchError: () => false
   };
   window.fetch = async () => ({

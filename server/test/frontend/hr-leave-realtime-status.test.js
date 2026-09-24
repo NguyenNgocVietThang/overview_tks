@@ -6,6 +6,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { JSDOM } = require('jsdom');
 
+// TKSNav that dung TKSNav.can(<quyen>) (nguon: user.permissions tu /api/auth/me)
+// thay cho kiem tra vai tro cung — mock phai co ham do, lay dung quyen mac dinh
+// cua vai tro tu server/auth/featureRegistry.js.
+const { defaultsForRole } = require('../../auth/featureRegistry');
+function fakeCan(vaiTro) {
+  const permissions = defaultsForRole(vaiTro);
+  return (...keys) => keys.some(key => (Array.isArray(key) ? key : [key]).some(k => permissions.includes(k)));
+}
+
+
 const htmlPath = path.join(__dirname, '..', '..', 'public', 'humanresources', 'index.html');
 
 test('cột Trạng thái và Hành động được gộp thành 1 cột Trạng thái ở cuối bảng (tổng 10 cột gồm Cơ sở)', async () => {
@@ -19,6 +29,7 @@ test('cột Trạng thái và Hành động được gộp thành 1 cột Trạn
   window.Chart = class FakeChart { destroy() {} };
   window.TKSNav = {
     authGuard: async () => ({ username: 'manager', vaiTro: 'Quản lý' }),
+    can: fakeCan('Quản lý'),
     renderTopSidebar() {}
   };
   window.fetch = async url => {
@@ -76,7 +87,7 @@ test('cột Trạng thái và Hành động được gộp thành 1 cột Trạn
   dom.window.close();
 });
 
-test('tài khoản không phải Quản lý chỉ thấy badge nhãn trạng thái tĩnh', async () => {
+test('tài khoản không có quyền duyệt nghỉ phép chỉ thấy badge nhãn trạng thái tĩnh', async () => {
   const html = fs.readFileSync(htmlPath, 'utf8');
   const dom = new JSDOM(html, {
     runScripts: 'outside-only',
@@ -86,7 +97,8 @@ test('tài khoản không phải Quản lý chỉ thấy badge nhãn trạng th�
   window.HTMLCanvasElement.prototype.getContext = () => ({});
   window.Chart = class FakeChart { destroy() {} };
   window.TKSNav = {
-    authGuard: async () => ({ username: 'nhanvien', vaiTro: 'Nhân viên' }),
+    authGuard: async () => ({ username: 'nhanvien', vaiTro: 'Nhân viên kho' }),
+    can: fakeCan('Nhân viên kho'),
     renderTopSidebar() {}
   };
   window.fetch = async url => {
@@ -125,10 +137,10 @@ test('tài khoản không phải Quản lý chỉ thấy badge nhãn trạng th�
   await new Promise(resolve => setTimeout(resolve, 0));
 
   const select = window.document.querySelector('#leaveTableBody select.status-select');
-  assert.equal(select, null, 'Nhân viên không được hiển thị dropdown sửa trạng thái');
+  assert.equal(select, null, 'Nhân viên kho không được hiển thị dropdown sửa trạng thái');
 
   const pill = window.document.querySelector('#leaveTableBody .status-pill.leave-pending');
-  assert.ok(pill, 'Nhân viên thấy badge trạng thái tĩnh');
+  assert.ok(pill, 'Nhân viên kho thấy badge trạng thái tĩnh');
   assert.equal(pill.textContent.trim(), 'Chưa duyệt');
 
   dom.window.close();
@@ -145,6 +157,7 @@ test('Quản lý thay đổi trạng thái gọi API PATCH và cập nhật Ngư
   window.Chart = class FakeChart { destroy() {} };
   window.TKSNav = {
     authGuard: async () => ({ username: 'manager1', hoTen: 'Nguyễn Quản Lý', vaiTro: 'Quản lý' }),
+    can: fakeCan('Quản lý'),
     renderTopSidebar() {}
   };
 

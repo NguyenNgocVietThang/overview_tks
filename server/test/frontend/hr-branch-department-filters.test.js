@@ -6,6 +6,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { JSDOM } = require('jsdom');
 
+// TKSNav that dung TKSNav.can(<quyen>) (nguon: user.permissions tu /api/auth/me)
+// thay cho kiem tra vai tro cung — mock phai co ham do, lay dung quyen mac dinh
+// cua vai tro tu server/auth/featureRegistry.js.
+const { defaultsForRole } = require('../../auth/featureRegistry');
+function fakeCan(vaiTro) {
+  const permissions = defaultsForRole(vaiTro);
+  return (...keys) => keys.some(key => (Array.isArray(key) ? key : [key]).some(k => permissions.includes(k)));
+}
+
+
 const htmlPath = path.join(__dirname, '..', '..', 'public', 'humanresources', 'index.html');
 
 const EMPLOYEES = [
@@ -25,6 +35,7 @@ async function openPage({ branches = ['Hà Nội', 'Sài Gòn'] } = {}) {
   const requestedUrls = [];
   window.TKSNav = {
     authGuard: async () => ({ username: 'manager', vaiTro: 'Quản lý', branches }),
+    can: fakeCan('Quản lý'),
     renderTopSidebar() {}
   };
   window.fetch = async url => {

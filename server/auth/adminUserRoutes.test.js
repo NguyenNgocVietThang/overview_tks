@@ -565,3 +565,129 @@ test('Phan quyen ghi: POST/PUT/DELETE/reset-password chi Quan ly moi duoc phep',
     assert.equal(allowedNext, true, `${method.toUpperCase()} ${routePath} phai cho phep Quan ly`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// PHAN QUYEN CHI TIET THEO TUNG TAI KHOAN
+// ---------------------------------------------------------------------------
+
+const featureRegistry = require('./featureRegistry');
+
+function manager(id = 'admin-1', username = 'manager') {
+  return { id, username, hoTen: 'Quản lý', vaiTro: 'Quản lý' };
+}
+
+test('GET /api/admin/permissions/catalog tra ve danh muc + mac dinh theo vai tro', async () => {
+  localUserStore.setInMemoryUsers([]);
+  const handler = getRouteHandler(adminUserRoutes, 'get', '/api/admin/permissions/catalog');
+  const res = fakeRes();
+  await handler({ user: manager() }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.ok(Array.isArray(res.body.groups) && res.body.groups.length > 0);
+  assert.equal(res.body.features.length, featureRegistry.FEATURE_KEYS.length);
+  assert.ok(res.body.features.every(f => f.key && f.label && f.groupKey));
+  assert.deepEqual(res.body.roleDefaults['Nhân viên marketing'], res.body.roleDefaults['Nhân viên sale']);
+  assert.ok(res.body.features.find(f => f.key === 'account.profile').alwaysOn);
+});
+
+test('GET /api/admin/users/:id/permissions tra ve mac dinh, ghi de va hieu luc', async () => {
+  localUserStore.setInMemoryUsers([
+    { id: 'u1', username: 'ketoan', hoTen: 'Kế toán', vaiTro: 'Kế toán', trangThai: 'Đang hoạt động',
+      featurePermissions: { 'reports.overview': true } }
+  ]);
+  const handler = getRouteHandler(adminUserRoutes, 'get', '/api/admin/users/:id/permissions');
+  const res = fakeRes();
+  await handler({ user: manager(), params: { id: 'u1' } }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.vaiTro, 'Kế toán');
+  assert.ok(!res.body.defaults.includes('reports.overview'), 'mac dinh cua Ke toan khong co bao cao');
+  assert.deepEqual(res.body.overrides, { 'reports.overview': true });
+  assert.ok(res.body.effective.includes('reports.overview'), 'quyen hieu luc da tinh ghi de');
+});
+
+test('PUT /api/admin/users/:id/permissions luu ghi de va tra ve trang thai moi', async () => {
+  localUserStore.setInMemoryUsers([
+    { id: 'u1', username: 'troly', hoTen: 'Trợ lý', vaiTro: 'Trợ lý', trangThai: 'Đang hoạt động' }
+  ]);
+  const handler = getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id/permissions');
+  const res = fakeRes();
+  await handler({ user: manager(), params: { id: 'u1' }, body: { overrides: { 'reports.debt': false } } }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.overrides, { 'reports.debt': false });
+  assert.ok(!res.body.effective.includes('reports.debt'));
+
+  const saved = await localUserStore.getUserById('u1');
+  assert.deepEqual(saved.featurePermissions, { 'reports.debt': false });
+});
+
+test('PUT /api/admin/users/:id/permissions: gui object rong = xoa het ghi de', async () => {
+  localUserStore.setInMemoryUsers([
+    { id: 'u1', username: 'troly', vaiTro: 'Trợ lý', trangThai: 'Đang hoạt động',
+      featurePermissions: { 'reports.debt': false } }
+  ]);
+  const handler = getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id/permissions');
+  const res = fakeRes();
+  await handler({ user: manager(), params: { id: 'u1' }, body: { overrides: {} } }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.overrides, {});
+  assert.ok(res.body.effective.includes('reports.debt'), 'quay ve mac dinh cua vai tro');
+});
+
+test('PUT /api/admin/users/:id/permissions tu choi key khong ton tai', async () => {
+  localUserStore.setInMemoryUsers([{ id: 'u1', username: 'troly', vaiTro: 'Trợ lý', trangThai: 'Đang hoạt động' }]);
+  const handler = getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id/permissions');
+  const res = fakeRes();
+  await handler({ user: manager(), params: { id: 'u1' }, body: { overrides: { 'khong.ton.tai': true } } }, res);
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.code, 'UNKNOWN_FEATURE');
+  assert.match(res.body.error, /khong\.ton\.tai/);
+});
+
+test('PUT /api/admin/users/:id/permissions chan sua quyen cua Quan tri vien he thong', async () => {
+  localUserStore.setInMemoryUsers([
+    { id: 'sa', username: 'thangnnv2003@gmail.com', email: 'thangnnv2003@gmail.com',
+      vaiTro: 'Quản lý', trangThai: 'Đang hoạt động' }
+  ]);
+  const handler = getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id/permissions');
+  const res = fakeRes();
+  await handler({ user: manager(), params: { id: 'sa' }, body: { overrides: { 'reports.debt': false } } }, res);
+
+  assert.equal(res.statusCode, 400);
+  assert.match(res.body.error, /Quản trị viên hệ thống/);
+});
+
+test('PUT /api/admin/users/:id/permissions chan TU THU HOI quyen quan tri cua chinh minh', async () => {
+  localUserStore.setInMemoryUsers([
+    { id: 'admin-1', username: 'manager', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động' }
+  ]);
+  const handler = getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id/permissions');
+
+  for (const key of ['account.permissions', 'account.users.manage']) {
+    const res = fakeRes();
+    await handler({ user: manager(), params: { id: 'admin-1' }, body: { overrides: { [key]: false } } }, res);
+    assert.equal(res.statusCode, 400, key);
+    assert.match(res.body.error, /chính mình/);
+  }
+
+  // Tu CAP them quyen cho chinh minh thi van duoc.
+  const res = fakeRes();
+  await handler({ user: manager(), params: { id: 'admin-1' }, body: { overrides: { 'shipment.override': true } } }, res);
+  assert.equal(res.statusCode, 200);
+});
+
+test('GET /api/admin/users kem featurePermissions de bang hien nhan "tuy chinh"', async () => {
+  localUserStore.setInMemoryUsers([
+    { id: 'u1', username: 'a', vaiTro: 'Trợ lý', trangThai: 'Đang hoạt động',
+      featurePermissions: { 'reports.debt': false, 'khong.ton.tai': true } }
+  ]);
+  const handler = getRouteHandler(adminUserRoutes, 'get', '/api/admin/users');
+  const res = fakeRes();
+  await handler({ user: manager() }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.users[0].featurePermissions, { 'reports.debt': false }, 'key la bi loai');
+});

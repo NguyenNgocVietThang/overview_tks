@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 const {
   parseEmployeeRows,
   roleForDepartment,
+  DEPARTMENT_FOR_ROLE,
   findEmployeeByIdentifier,
   createEmployeeDirectory,
   HrDirectoryError
@@ -48,7 +49,7 @@ test('roleForDepartment implements the approved department matrix', () => {
     ['SALE', 'Nhân viên sale'],
     ['MUA HÀNG', 'Nhân viên mua hàng'],
     ['ĐẶT HÀNG', 'Nhân viên mua hàng'],
-    ['MARKETING', 'Khách'],
+    ['MARKETING', 'Nhân viên marketing'],
     ['HẬU CẦN', 'Khách'],
     ['BẢO VỆ', 'Khách'],
     ['BỘ PHẬN MỚI', 'Khách']
@@ -169,4 +170,12 @@ test('writeDepartmentForRole is a no-op when branch or row index is missing', as
 
   assert.equal(await directory.writeDepartmentForRole('', 2, 'Kế toán'), false);
   assert.equal(await directory.writeDepartmentForRole('Hà Nội', 0, 'Kế toán'), false);
+});
+
+test('bo phan MARKETING anh xa hai chieu sang vai tro Nhan vien marketing', () => {
+  for (const variant of ['MARKETING', 'Marketing', ' marketing ']) {
+    assert.equal(roleForDepartment(variant), 'Nhân viên marketing', variant);
+  }
+  assert.equal(DEPARTMENT_FOR_ROLE['Nhân viên marketing'], 'MARKETING');
+  assert.equal(roleForDepartment(DEPARTMENT_FOR_ROLE['Nhân viên marketing']), 'Nhân viên marketing');
 });

@@ -35,47 +35,89 @@ test('trang dang ky va trang account co script inline hop le', () => {
   }
 });
 
-test('shared nav an Bao cao tong hop voi Khach va chuyen Khach ve account khi vao trang cam', () => {
+// shared-nav.js khong con mang vai tro nao: menu va dieu huong deu dua tren
+// `permissions` + `pageFeatures` do /api/auth/me tra ve (nguon:
+// server/auth/featureRegistry.js). Cac test duoi day nap script that trong
+// jsdom thay vi do chuoi nguon.
+const { PAGE_FEATURES } = require('../../auth/featureRegistry');
+const { defaultsForRole } = require('../../auth/featureRegistry');
+
+function loadSharedNav(url) {
+  const dom = new JSDOM(
+    '<html><body><header><div id="accountChip"></div></header><div id="sidebar" data-tks-active-top="reports"></div></body></html>',
+    { runScripts: 'outside-only', url }
+  );
+  dom.window.eval(readPublic('shared/shared-nav.js'));
+  return dom;
+}
+
+test('shared nav khong con mang vai tro cung — menu dung tu danh sach quyen', () => {
   const script = readPublic('shared/shared-nav.js');
   assert.doesNotThrow(() => new Function(script));
-  assert.match(script, /user\.vaiTro === 'Khách'/);
-  assert.match(script, /window\.location\.href = '\/account\/'/);
-  assert.match(script, /\/account/);
+  assert.doesNotMatch(script, /NO_REPORTS_ROLES/);
+  assert.doesNotMatch(script, /NO_SHIPMENT_ROLES/);
+  assert.doesNotMatch(script, /'Nhân viên mua hàng'/);
+  assert.match(script, /TKSNav\.can/);
 });
 
-test('logic route guard chi cho phep Khach vao /account', () => {
-  function checkGuestAllowed(pathname) {
-    const path = pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') || '/';
-    return path === '/account';
-  }
+test('sidebar cua Khach: chi con tra cuu don hang va ho so ca nhan', () => {
+  const dom = loadSharedNav('https://tokosi.example/account/');
+  const { window } = dom;
+  const sidebar = window.document.getElementById('sidebar');
+  window.TKSNav.renderTopSidebar(sidebar, 'account', {
+    vaiTro: 'Khách',
+    permissions: defaultsForRole('Khách'),
+    pageFeatures: PAGE_FEATURES
+  });
 
-  assert.equal(checkGuestAllowed('/account/'), true);
-  assert.equal(checkGuestAllowed('/account'), true);
-  assert.equal(checkGuestAllowed('/account/index.html'), true);
-
-  assert.equal(checkGuestAllowed('/'), false);
-  assert.equal(checkGuestAllowed('/index.html'), false);
-  assert.equal(checkGuestAllowed('/shipment/'), false);
+  assert.doesNotMatch(sidebar.innerHTML, /Báo cáo tổng hợp/);
+  assert.doesNotMatch(sidebar.innerHTML, /Quản lý nhân sự/);
+  assert.doesNotMatch(sidebar.innerHTML, /Quản lý người dùng/);
+  assert.match(sidebar.innerHTML, /Vòng đời đơn hàng/);
+  assert.match(sidebar.innerHTML, /Quản lý hồ sơ/);
 });
 
-test('shared nav chan vai tro khong duoc xem Bao cao tong hop, ca khi vao qua "/" (public/index.html duoc phuc vu o ca "/" va "/reports/")', () => {
-  const script = readPublic('shared/shared-nav.js');
-  assert.doesNotThrow(() => new Function(script));
-  assert.match(script, /NO_REPORTS_ROLES.indexOf\(user\.vaiTro\) !== -1/);
+test('bang PAGE_FEATURES: Khach chi vao duoc trang tra cuu don va trang tai khoan', () => {
+  const dom = loadSharedNav('https://tokosi.example/account/');
+  const { window } = dom;
+  window.TKSNav.setPermissions({ permissions: defaultsForRole('Khách'), pageFeatures: PAGE_FEATURES });
 
-  function checkIsReportsPage(pathname) {
-    const path = pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') || '/';
-    return path === '/reports' || path === '/';
+  const allowed = pathname => {
+    const rule = window.TKSNav._pageRuleFor(pathname);
+    return !rule || window.TKSNav.can(rule.anyOf);
+  };
+
+  assert.equal(allowed('/account/'), true);
+  assert.equal(allowed('/account/index.html'), true);
+  assert.equal(allowed('/shipment/lifecycle/'), true);
+
+  assert.equal(allowed('/'), false);
+  assert.equal(allowed('/index.html'), false);
+  assert.equal(allowed('/reports/'), false);
+  assert.equal(allowed('/humanresources/'), false);
+
+  assert.equal(window.TKSNav._landingPath(), '/shipment/lifecycle/');
+});
+
+test('trang bao cao duoc phuc vu o ca "/" lan "/reports/" nen ca hai cung mot quy tac quyen', () => {
+  const dom = loadSharedNav('https://tokosi.example/');
+  const { window } = dom;
+  window.TKSNav.setPermissions({ permissions: defaultsForRole('Kế toán'), pageFeatures: PAGE_FEATURES });
+
+  for (const pathname of ['/', '/index.html', '/reports', '/reports/']) {
+    const rule = window.TKSNav._pageRuleFor(pathname);
+    assert.ok(rule, `${pathname} phai co quy tac quyen`);
+    assert.equal(rule.path, '/reports', pathname);
+    assert.equal(window.TKSNav.can(rule.anyOf), false, `Kế toán khong duoc xem ${pathname}`);
   }
 
-  assert.equal(checkIsReportsPage('/'), true);
-  assert.equal(checkIsReportsPage('/index.html'), true);
-  assert.equal(checkIsReportsPage('/reports'), true);
-  assert.equal(checkIsReportsPage('/reports/'), true);
+  for (const pathname of ['/account', '/humanresources', '/shipment/lifecycle']) {
+    assert.notEqual(window.TKSNav._pageRuleFor(pathname).path, '/reports', pathname);
+  }
 
-  assert.equal(checkIsReportsPage('/account'), false);
-  assert.equal(checkIsReportsPage('/humanresources'), false);
-  assert.equal(checkIsReportsPage('/shipment/lifecycle'), false);
+  // Tro ly co quyen bao cao -> vao duoc chinh trang do.
+  window.TKSNav.setPermissions({ permissions: defaultsForRole('Trợ lý'), pageFeatures: PAGE_FEATURES });
+  assert.equal(window.TKSNav.can(window.TKSNav._pageRuleFor('/').anyOf), true);
 });
 
 test('shared nav logout co xac nhan confirm va khong de nut dang xuat roi rac tren topbar', () => {
