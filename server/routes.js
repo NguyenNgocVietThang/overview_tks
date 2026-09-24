@@ -18,7 +18,7 @@ const { requireAuth, requireRole } = require('./auth/authMiddleware');
 const { resolveBranch } = require('./branch/branchMiddleware');
 const { branchLabelToCode, resolveBranchScope } = require('./branch/branches');
 const branchRoutes = require('./branch/branchRoutes');
-const { INTERNAL_ROLES, ROLES } = require('./auth/userRepository');
+const { REPORTS_ROLES, ROLES } = require('./auth/userRepository');
 const { getPool } = require('./db/pool');
 const hrLeaveRoutes          = require('./hr/hrLeaveRoutes');
 const notificationRoutes     = require('./notifications/notificationRoutes');
@@ -75,21 +75,25 @@ router.use(kiotvietSyncStatusRoutes);
 // Tra cuu & quan ly vong doi don hang — Khach (xem don cua minh) + vai tro noi bo.
 router.use('/api/shipment/lifecycle', requireAuth, orderLifecycleRoutes);
 
-// Toan bo API "Bao cao tong hop" ben duoi day chi danh cho 4 vai tro noi bo;
-// Khach chi duoc dung route tra cuu vong doi don hang o tren. Day la ranh gioi bao mat,
-// voi auth-guard phia client chi de dieu huong UX. Trang tra cuu cong khai
-// cho khach hang (Phase 1) se nam o route rieng, KHONG qua requireAuth.
-const requireInternalUser = [requireAuth, requireRole(...INTERNAL_ROLES), resolveBranch];
-router.use('/api/debug', ...requireInternalUser);
-router.use('/api/dashboard', ...requireInternalUser);
-router.use('/api/search', ...requireInternalUser);
-router.use('/api/customer-product-top', ...requireInternalUser);
-router.use('/api/customer-product-revenue', ...requireInternalUser);
-router.use('/api/product-revenue-search', ...requireInternalUser);
-router.use('/api/product-revenue-detail', ...requireInternalUser);
-router.use('/api/product-report', ...requireInternalUser);
-router.use('/api/export', ...requireInternalUser);
-router.use('/api/products', ...requireInternalUser);
+// Toan bo API "Bao cao tong hop" ben duoi day CHI danh cho REPORTS_ROLES (Quan
+// ly, Tro ly) — khop voi NO_REPORTS_ROLES an muc menu trong shared-nav.js. Cac
+// vai tro noi bo khac (Ke toan, Truong kho, Lai xe, Nhan vien kho/sale/mua
+// hang) co INTERNAL_ROLES cho cac tinh nang khac (HR, quan ly tai khoan...)
+// nhung KHONG duoc doc du lieu bao cao tong hop qua day. Day la ranh gioi bao
+// mat that su; auth-guard phia client (shared-nav.js) chi de dieu huong UX.
+// Khach chi duoc dung route tra cuu vong doi don hang o tren. Trang tra cuu
+// cong khai cho khach hang (Phase 1) se nam o route rieng, KHONG qua requireAuth.
+const requireReportsUser = [requireAuth, requireRole(...REPORTS_ROLES), resolveBranch];
+router.use('/api/debug', ...requireReportsUser);
+router.use('/api/dashboard', ...requireReportsUser);
+router.use('/api/search', ...requireReportsUser);
+router.use('/api/customer-product-top', ...requireReportsUser);
+router.use('/api/customer-product-revenue', ...requireReportsUser);
+router.use('/api/product-revenue-search', ...requireReportsUser);
+router.use('/api/product-revenue-detail', ...requireReportsUser);
+router.use('/api/product-report', ...requireReportsUser);
+router.use('/api/export', ...requireReportsUser);
+router.use('/api/products', ...requireReportsUser);
 
 // Kiem tra dut hang, doi chieu truc tiep KiotViet API — /api/products/stockout-recent/*, /api/products/stockout-90d/*
 router.use(stockoutCheckRoutes);

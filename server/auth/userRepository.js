@@ -23,6 +23,15 @@ const INTERNAL_ROLES = Object.freeze([
   ROLES.NHAN_VIEN_MUA_HANG
 ]);
 
+// Vai tro duoc xem "Bao cao tong hop" (/reports/* + toan bo API lien quan —
+// xem requireReportsUser trong routes.js). PHAI khop voi NO_REPORTS_ROLES trong
+// server/public/shared/shared-nav.js (danh sach do chi an muc menu — day moi la
+// ranh gioi bao mat that su); sua 1 ben thi phai sua ca 2.
+const REPORTS_ROLES = Object.freeze([
+  ROLES.QUAN_LY,
+  ROLES.TRO_LY
+]);
+
 function normalizeUsername(raw) {
   return String(raw || '').trim().toLowerCase();
 }
@@ -134,6 +143,7 @@ async function findUserByIdentifier(identifier) {
 module.exports = {
   ROLES,
   INTERNAL_ROLES,
+  REPORTS_ROLES,
   ACTIVE_STATUS,
   INACTIVE_STATUS,
   PENDING_STATUS,

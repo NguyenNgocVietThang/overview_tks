@@ -9,6 +9,13 @@
 
   var TKSNav = {};
 
+  // Vai tro KHONG duoc xem "Bao cao tong hop" — dung chung boi authGuard (chan
+  // dieu huong thang toi /reports/) va renderTopSidebar (an muc menu). Day
+  // van CHI la UX; ranh gioi bao mat that su la REPORTS_ROLES phia server
+  // (server/auth/userRepository.js, ap dung cho toan bo API /api/dashboard,
+  // /api/search, /api/export, /api/products...) — sua 1 ben thi phai sua ca 2.
+  var NO_REPORTS_ROLES = ['Khách', 'Lái xe', 'Kế toán', 'Trưởng kho', 'Nhân viên kho', 'Nhân viên sale', 'Nhân viên mua hàng'];
+
   // Tach rieng de test co the gia lap (khong thuc su dieu huong trong jsdom).
   TKSNav._navigate = function(url){ window.location.href = url; };
   TKSNav._reload = function(){ window.location.reload(); };
@@ -196,6 +203,17 @@
         var isPurchasingAllowed = (path === '/humanresources' || path === '/account');
         if(user.vaiTro === 'Nhân viên mua hàng' && !isPurchasingAllowed){
           window.location.href = '/humanresources/';
+          return new Promise(function(){});
+        }
+        // Vai tro khong duoc xem "Bao cao tong hop" khong duoc o lai trang bao
+        // cao du vao thang bang URL/bookmark — public/index.html (chinh trang
+        // nay) duoc static server phuc vu CA O "/" (mac dinh) LAN "/reports/"
+        // (xem server/index.js), nen phai chan ca hai duong dan. API
+        // /api/dashboard... da 403 phia server (REPORTS_ROLES) — day chi tranh
+        // hien trang rong/loi cho nguoi dung.
+        var isReportsPage = (path === '/reports' || path === '/');
+        if(isReportsPage && NO_REPORTS_ROLES.indexOf(user.vaiTro) !== -1){
+          window.location.href = '/account/';
           return new Promise(function(){});
         }
         var sidebar = document.getElementById('sidebar');
@@ -778,7 +796,6 @@
       { view: 'debt', label: 'Quản lý công nợ', icon: '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>' }
     ];
     var reportsExpanded = reportsActive || TKSNav._isNavGroupOpen('reports');
-    var NO_REPORTS_ROLES = ['Khách', 'Lái xe', 'Kế toán', 'Trưởng kho', 'Nhân viên kho', 'Nhân viên sale', 'Nhân viên mua hàng'];
     var reportsLink = user && NO_REPORTS_ROLES.indexOf(user.vaiTro) !== -1 ? '' :
       '<div class="nav-group">' +
         '<button type="button" class="nav-group-toggle' + (reportsActive ? ' has-active' : '') + '" id="tksReportsGroupToggle" data-tks-nav-group="reports" aria-expanded="' + reportsExpanded + '" aria-controls="tksReportsGroupList">' +

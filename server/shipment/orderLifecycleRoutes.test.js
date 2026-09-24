@@ -77,7 +77,14 @@ test('GET /api/shipment/lifecycle — Khách bị 403', async () => {
   assert.equal(res.statusCode, 403);
 });
 
-const INTERNAL_ROLES = ['Kế toán', 'Trưởng kho', 'Quản lý', 'Trợ lý', 'Nhân viên sale'];
+// Tra cuu 1 don (GET /:orderCode, POST /lookup) mo cho MOI vai tro da dang
+// nhap. Xem toan bo don (GET /, GET /history, POST /export) mo cho MOI vai
+// tro NOI BO (tuc INTERNAL_ROLES — tru Khach ra thi ai cung xem duoc toan bo
+// don, khong chi 5 vai tro "lien quan truc tiep" nhu truoc).
+const INTERNAL_ROLES = [
+  'Kế toán', 'Trưởng kho', 'Quản lý', 'Trợ lý', 'Nhân viên sale',
+  'Lái xe', 'Nhân viên kho', 'Nhân viên mua hàng'
+];
 
 for (const role of INTERNAL_ROLES) {
   test(`GET /api/shipment/lifecycle/:orderCode — ${role} gọi được (200)`, async () => {
@@ -95,24 +102,6 @@ for (const role of INTERNAL_ROLES) {
   });
 }
 
-const OUTSIDER_ROLES = ['Lái xe', 'Nhân viên kho', 'Nhân viên mua hàng'];
-
-for (const role of OUTSIDER_ROLES) {
-  test(`GET /api/shipment/lifecycle/:orderCode — ${role} bị 403`, async () => {
-    const req = reqAs(role, { orderCode: 'HD001' });
-    const res = fakeRes();
-    await callRoute('get', '/:orderCode', req, res);
-    assert.equal(res.statusCode, 403);
-  });
-
-  test(`GET /api/shipment/lifecycle — ${role} bị 403`, async () => {
-    const req = reqAs(role);
-    const res = fakeRes();
-    await callRoute('get', '/', req, res);
-    assert.equal(res.statusCode, 403);
-  });
-}
-
 test('GET /api/shipment/lifecycle/history — Khách bị 403', async () => {
   const req = reqAs('Khách');
   const res = fakeRes();
@@ -127,15 +116,6 @@ for (const role of INTERNAL_ROLES) {
     await callRoute('get', '/history', req, res);
     assert.equal(res.statusCode, 200);
     assert.deepEqual(res.body.history, [{ historyId: 'OVR-1', orderCode: 'HD001', statusCode: 'CANCELLED' }]);
-  });
-}
-
-for (const role of OUTSIDER_ROLES) {
-  test(`GET /api/shipment/lifecycle/history — ${role} bị 403`, async () => {
-    const req = reqAs(role);
-    const res = fakeRes();
-    await callRoute('get', '/history', req, res);
-    assert.equal(res.statusCode, 403);
   });
 }
 
@@ -178,15 +158,6 @@ for (const role of INTERNAL_ROLES) {
   });
 }
 
-for (const role of OUTSIDER_ROLES) {
-  test(`POST /api/shipment/lifecycle/lookup — ${role} bị 403`, async () => {
-    const req = reqAs(role, {}, {}, { codes: ['HD001'] });
-    const res = fakeRes();
-    await callRoute('post', '/lookup', req, res);
-    assert.equal(res.statusCode, 403);
-  });
-}
-
 test('POST /api/shipment/lifecycle/export — Khách bị 403', async () => {
   const req = reqAs('Khách', {}, {}, { codes: ['HD001'] });
   const res = fakeRes();
@@ -202,15 +173,6 @@ for (const role of INTERNAL_ROLES) {
     assert.equal(res.statusCode, 200);
     assert.equal(res.headers['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     assert.ok(res.sentBuffer && res.sentBuffer.length > 0);
-  });
-}
-
-for (const role of OUTSIDER_ROLES) {
-  test(`POST /api/shipment/lifecycle/export — ${role} bị 403`, async () => {
-    const req = reqAs(role, {}, {}, { codes: ['HD001'] });
-    const res = fakeRes();
-    await callRoute('post', '/export', req, res);
-    assert.equal(res.statusCode, 403);
   });
 }
 
@@ -241,7 +203,9 @@ test('POST /api/shipment/lifecycle/lookup — body không hợp lệ -> lỗi t�
 // ---------------------------------------------------------------------------
 
 const OVERRIDE_ROLES = ['Quản lý', 'Kế toán'];
-const NON_OVERRIDE_INTERNAL_ROLES = ['Trưởng kho', 'Trợ lý', 'Nhân viên sale'];
+const NON_OVERRIDE_INTERNAL_ROLES = [
+  'Trưởng kho', 'Trợ lý', 'Nhân viên sale', 'Lái xe', 'Nhân viên kho', 'Nhân viên mua hàng'
+];
 
 for (const role of OVERRIDE_ROLES) {
   test(`POST /api/shipment/lifecycle/:orderCode/override — ${role} gọi được (200)`, async () => {
@@ -255,15 +219,6 @@ for (const role of OVERRIDE_ROLES) {
 
 for (const role of NON_OVERRIDE_INTERNAL_ROLES) {
   test(`POST /api/shipment/lifecycle/:orderCode/override — ${role} bị 403 (xem được nhưng không sửa được)`, async () => {
-    const req = reqAs(role, { orderCode: 'HD001' }, {}, { status: 'CANCELLED' });
-    const res = fakeRes();
-    await callRoute('post', '/:orderCode/override', req, res);
-    assert.equal(res.statusCode, 403);
-  });
-}
-
-for (const role of OUTSIDER_ROLES) {
-  test(`POST /api/shipment/lifecycle/:orderCode/override — ${role} bị 403`, async () => {
     const req = reqAs(role, { orderCode: 'HD001' }, {}, { status: 'CANCELLED' });
     const res = fakeRes();
     await callRoute('post', '/:orderCode/override', req, res);

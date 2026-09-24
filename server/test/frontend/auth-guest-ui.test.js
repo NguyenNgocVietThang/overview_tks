@@ -58,6 +58,26 @@ test('logic route guard chi cho phep Khach vao /account', () => {
   assert.equal(checkGuestAllowed('/shipment/'), false);
 });
 
+test('shared nav chan vai tro khong duoc xem Bao cao tong hop, ca khi vao qua "/" (public/index.html duoc phuc vu o ca "/" va "/reports/")', () => {
+  const script = readPublic('shared/shared-nav.js');
+  assert.doesNotThrow(() => new Function(script));
+  assert.match(script, /NO_REPORTS_ROLES.indexOf\(user\.vaiTro\) !== -1/);
+
+  function checkIsReportsPage(pathname) {
+    const path = pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') || '/';
+    return path === '/reports' || path === '/';
+  }
+
+  assert.equal(checkIsReportsPage('/'), true);
+  assert.equal(checkIsReportsPage('/index.html'), true);
+  assert.equal(checkIsReportsPage('/reports'), true);
+  assert.equal(checkIsReportsPage('/reports/'), true);
+
+  assert.equal(checkIsReportsPage('/account'), false);
+  assert.equal(checkIsReportsPage('/humanresources'), false);
+  assert.equal(checkIsReportsPage('/shipment/lifecycle'), false);
+});
+
 test('shared nav logout co xac nhan confirm va khong de nut dang xuat roi rac tren topbar', () => {
   const script = readPublic('shared/shared-nav.js');
   assert.match(script, /confirm\(['"]Bạn có chắc chắn muốn đăng xuất\?['"]\)/);

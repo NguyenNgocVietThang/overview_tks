@@ -1,8 +1,9 @@
 // ==========================================
 // ORDER LIFECYCLE ROUTES — /api/shipment/lifecycle/* : tra cuu "Vong doi don
 // hang" (spreadsheet RIENG, doc-only). Router RIENG (khong gop vao
-// shipmentOrderRoutes.js) vi mo hinh quyen khac han: Khach duoc dung lookup,
-// 5 vai tro noi bo duoc ca lookup + bulk-list.
+// shipmentOrderRoutes.js) vi mo hinh quyen khac han: MOI vai tro da dang nhap
+// (ke ca Khach) duoc dung lookup; bulk-list (xem toan bo don) danh cho MOI
+// vai tro NOI BO — tuc INTERNAL_ROLES, chi Khach khong duoc dung.
 //
 // Mount trong server/routes.js TRUOC gate '/api/shipment' chung (giong cach
 // POST /api/shipment/invoice-status duoc dac cach cho Khach):
@@ -18,26 +19,21 @@ const express = require('express');
 const router = express.Router();
 
 const { requireAuth, requireRole } = require('../auth/authMiddleware');
-const { ROLES } = require('../auth/userRepository');
+const { ROLES, INTERNAL_ROLES } = require('../auth/userRepository');
 const { LIFECYCLE_BRANCH } = require('./orderLifecycleRepository');
 const service = require('./orderLifecycleService');
 const { createLifecycleExportFile } = require('./orderLifecycleExport');
 
-// Tra cuu 1 don: Khach (xem don cua minh) + 5 vai tro noi bo lien quan truc
-// tiep den luong don to/xe cong ty.
-const ORDER_LOOKUP_ROLES = [
-  ROLES.KHACH, ROLES.KE_TOAN, ROLES.TRUONG_KHO, ROLES.QUAN_LY, ROLES.TRO_LY, ROLES.NHAN_VIEN_SALE
-];
-// Xem toan bo don (nhu mo ca bang Google Sheet): CHI 5 vai tro noi bo, Khach
-// khong duoc dung.
-const ORDER_LIFECYCLE_BULK_ROLES = [
-  ROLES.KE_TOAN, ROLES.TRUONG_KHO, ROLES.QUAN_LY, ROLES.TRO_LY, ROLES.NHAN_VIEN_SALE
-];
+// Xem toan bo don (nhu mo ca bang Google Sheet): moi vai tro NOI BO
+// (INTERNAL_ROLES), CHI Khach khong duoc dung.
+const ORDER_LIFECYCLE_BULK_ROLES = INTERNAL_ROLES;
 
 // Ghi de trang thai thu cong: CHI Quan ly va Ke toan (chat hon ca authBulk).
 const OVERRIDE_ROLES = [ROLES.QUAN_LY, ROLES.KE_TOAN];
 
-const authLookup = [requireAuth, requireRole(...ORDER_LOOKUP_ROLES)];
+// Tra cuu 1 don (GET /:orderCode va POST /lookup): AI DA DANG NHAP cung tra
+// cuu duoc — khong gioi han vai tro, ke ca Khach.
+const authLookup = [requireAuth];
 const authBulk = [requireAuth, requireRole(...ORDER_LIFECYCLE_BULK_ROLES)];
 const authOverride = [requireAuth, requireRole(...OVERRIDE_ROLES)];
 
