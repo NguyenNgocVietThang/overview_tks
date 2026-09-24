@@ -181,7 +181,6 @@ function payloadFor(tableKey, extra = {}) {
   if (tableKey === 'customers.productDetail' || tableKey === 'customers.productMonthlyCompare') {
     payload.context = { customerProductCustomerCode: 'KH-01', customerProductCustomerName: 'Khách A' };
   }
-  if (tableKey === 'overview.productRevenueSearch') payload.context = { productRevenueQuery: 'ao' };
   if (tableKey === 'stockout.recentScan') payload.recentStockoutResult = { branch: 'Hà Nội', rows: STOCKOUT_ROWS };
   if (tableKey === 'stockout.check90d') payload.stockout90dResult = { branch: 'Hà Nội', rows: STOCKOUT_ROWS };
   if (tableKey === 'stockout.check30d') payload.stockout30dResult = { branch: 'Hà Nội', rows: STOCKOUT_ROWS };
@@ -348,12 +347,10 @@ test('Quản lý công nợ mặc định chọn 10 cột hiển thị và để
 test('buoc lay truong KHONG goi getDashboardData/readRowsByCodes/tim kiem voi moi bang co dinh (dem = 0), rowCount = null', async () => {
   const originals = {
     report: dashboardData.getCustomerProductRevenueReport,
-    revenue: dashboardData.searchProductRevenueOverview,
     search: dashboardData.searchDashboardRecords
   };
   const forbidden = () => { throw new Error('khong duoc goi khi lay danh sach truong'); };
   dashboardData.getCustomerProductRevenueReport = forbidden;
-  dashboardData.searchProductRevenueOverview = forbidden;
   dashboardData.searchDashboardRecords = forbidden;
   try {
     await withStubs({}, async stubs => {
@@ -375,7 +372,6 @@ test('buoc lay truong KHONG goi getDashboardData/readRowsByCodes/tim kiem voi mo
     });
   } finally {
     dashboardData.getCustomerProductRevenueReport = originals.report;
-    dashboardData.searchProductRevenueOverview = originals.revenue;
     dashboardData.searchDashboardRecords = originals.search;
   }
 });
@@ -389,10 +385,6 @@ test('buoc lay truong van validate re: bang khong hop le, thieu khach/tu khoa, t
   await assert.rejects(
     exportService.getExportFields({ tableKey: 'customers.productMonthlyCompare', context: {} }),
     error => error.code === 'EXPORT_NO_CUSTOMER_SELECTED'
-  );
-  await assert.rejects(
-    exportService.getExportFields({ tableKey: 'overview.productRevenueSearch', context: {} }),
-    error => error.statusCode === 400 && error.code === 'EXPORT_NO_QUERY'
   );
   await assert.rejects(
     exportService.getExportFields({ tableKey: 'stockout.recentScan', recentStockoutResult: { rows: [] } }),
@@ -413,13 +405,11 @@ test('buoc lay truong van validate re: bang khong hop le, thieu khach/tu khoa, t
 test('cot o buoc lay truong == cot cua dataset o buoc xuat cho moi bang co dinh', async () => {
   const originals = {
     report: dashboardData.getCustomerProductRevenueReport,
-    revenue: dashboardData.searchProductRevenueOverview,
     productReport: productReportRepository.getProductReport
   };
   dashboardData.getCustomerProductRevenueReport = async () => ({
     products: [{ code: 'SP-01', name: 'Sản phẩm một', quantity: 3, revenue: 300, month1Revenue: 1, month2Revenue: 2, month3Revenue: 3 }]
   });
-  dashboardData.searchProductRevenueOverview = async () => ({ results: [{ code: 'SP-01', name: 'Sản phẩm một', ds90: 1, sl90: 2, tonKho: 3 }] });
   productReportRepository.getProductReport = async () => ({
     rows: [{
       code: 'SP-01', name: 'Sản phẩm một', stockHanoi: 1, stockSaigon: 2, availableToSell: 3, qtySold30d: 4,
@@ -447,7 +437,6 @@ test('cot o buoc lay truong == cot cua dataset o buoc xuat cho moi bang co dinh'
     });
   } finally {
     dashboardData.getCustomerProductRevenueReport = originals.report;
-    dashboardData.searchProductRevenueOverview = originals.revenue;
     productReportRepository.getProductReport = originals.productReport;
   }
 });
@@ -506,8 +495,6 @@ test('nhan derived/aggregate da doi theo quy uoc chuan hoa', async () => {
     const metadata = await exportService.getExportFields(payloadFor(tableKey, extra), 'Hà Nội');
     return metadata.worksheets[0].fields.map(field => field.label);
   };
-  assert.deepEqual(await labelsOf('overview.productRevenueSearch'),
-    ['Mã hàng', 'Tên hàng', 'Doanh thu 90 ngày', 'Số lượng bán 90 ngày', 'Tồn kho hiện tại']);
   assert.deepEqual(await labelsOf('customers.productMonthlyCompare'),
     ['Tên hàng', 'Doanh thu tháng này', 'Doanh thu tháng trước', 'Doanh thu 2 tháng trước']);
   assert.deepEqual(await labelsOf('customers.productDetail'), ['Tên hàng', 'Số lượng', 'Doanh thu']);
@@ -942,28 +929,6 @@ test('Bao cao doanh thu theo khach: xuat bang chi tiet + bang so sanh thang, loc
     assert.equal((await loadWorkbook(file)).worksheets[0].getCell('B2').value, 100);
   } finally {
     dashboardData.getCustomerProductRevenueReport = originalReport;
-  }
-});
-
-test('Doanh thu theo hang: xuat theo nhan chuan hoa, tu choi khi khong co ket qua', async () => {
-  const originalSearch = dashboardData.searchProductRevenueOverview;
-  dashboardData.searchProductRevenueOverview = async () => ({
-    results: [{ code: '00123', name: 'Hàng A', ds90: 900, sl90: 9, tonKho: 5 }]
-  });
-  try {
-    const payload = { tableKey: 'overview.productRevenueSearch', context: { productRevenueQuery: 'a' } };
-    const metadata = await exportService.getExportFields(payload);
-    payload.columns = { product_revenue_search: metadata.worksheets[0].fields.map(field => field.key) };
-    const workbook = await loadWorkbook(await exportService.createExportWorkbook(payload));
-    assert.deepEqual(workbook.worksheets[0].getRow(1).values.slice(1),
-      ['Mã hàng', 'Tên hàng', 'Doanh thu 90 ngày', 'Số lượng bán 90 ngày', 'Tồn kho hiện tại']);
-    assert.equal(workbook.worksheets[0].getCell('A2').value, '00123');
-
-    dashboardData.searchProductRevenueOverview = async () => ({ results: [] });
-    await assert.rejects(exportService.createExportWorkbook(payload), error => error.statusCode === 404 && error.code === 'EXPORT_NO_DATA');
-    assert.deepEqual(exportService.__test__.limiterState(), { active: 0, queued: 0 });
-  } finally {
-    dashboardData.searchProductRevenueOverview = originalSearch;
   }
 });
 

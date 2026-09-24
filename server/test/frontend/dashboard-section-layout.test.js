@@ -22,13 +22,16 @@ function sectionTitles(name) {
   }));
 }
 
-test('Tổng quan có 6 phần: thêm Doanh thu sản phẩm theo nhóm hàng, không còn giao dịch/hàng nhập/mã mới tạo', () => {
+test('Tổng quan có 5 phần: Báo cáo hàng hóa thay cho Báo cáo doanh thu theo hàng ở phần 4', () => {
   const titles = sectionTitles('overview');
-  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3', '4', '5', '6']);
+  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3', '4', '5']);
   assert.equal(titles[1].title, 'Doanh thu sản phẩm theo nhóm hàng');
+  assert.equal(titles[3].title, 'Báo cáo hàng hóa');
+  assert.equal(titles[4].title, 'Kiểm tra đứt hàng');
   ['endOfDayRows', 'chartTopTransactions', 'overviewPurchaseRows', 'chartOverviewPurchases', 'todayNewProductRows'].forEach(id => {
     assert.equal(view('overview').querySelector('#' + id), null, id + ' khong duoc nam o Tong quan');
   });
+  assert.ok(view('overview').querySelector('#productReportRows'), 'productReportRows phai nam o Tong quan');
 });
 
 test('Doanh thu theo nhóm hàng gộp 2 biểu đồ tròn + nhóm con vào 1 phần ở Tổng quan, Hàng hóa không còn', () => {

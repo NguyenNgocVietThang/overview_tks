@@ -13,15 +13,15 @@ function readDashboardHtml() {
   return fs.readFileSync(htmlPath, 'utf8');
 }
 
-test('giao dien gan dung 18 nut xuat Excel cho 18 bang co dinh', () => {
+test('giao dien gan dung 17 nut xuat Excel cho 17 bang co dinh', () => {
   const html = readDashboardHtml();
   const matches = [...html.matchAll(/openExportDialog\('([^']+)'\)/g)].map(match => match[1]);
-  assert.equal(matches.length, 18);
-  assert.equal(new Set(matches).size, 18);
+  assert.equal(matches.length, 17);
+  assert.equal(new Set(matches).size, 17);
   assert.deepEqual(matches.sort(), [
     'customers.debt', 'customers.productDetail', 'customers.productMonthlyCompare', 'customers.revenue', 'debt.management',
     'invoices.orders', 'invoices.returns',
-    'overview.new-products', 'overview.productReport', 'overview.productRevenueSearch', 'overview.purchases', 'overview.transactions',
+    'overview.new-products', 'overview.productReport', 'overview.purchases', 'overview.transactions',
     'products.all', 'products.child-categories', 'products.low-stock', 'products.newly-imported', 'products.top-selling',
     'suppliers.list'
   ].sort());
@@ -590,14 +590,3 @@ test('mat ket noi giua luc doc body (TypeError cua trinh duyet) van hien thong b
   h.win.close();
 });
 
-test('nut Xuat Excel cua ket qua tim kiem doanh thu theo hang bi khoa khi khong co san pham khop', () => {
-  const h = createExportDashboard();
-  const button = h.document.getElementById('prExportButton');
-  assert.ok(button, 'nut phai co id de khoa/mo');
-  assert.match(button.getAttribute('onclick'), /openExportDialog\('overview\.productRevenueSearch'\)/);
-  button.disabled = false;
-  h.win.renderProductRevenueResults(); // trang thai ban dau: chua co ket qua nao
-  assert.equal(button.disabled, true);
-  assert.match(readDashboardHtml(), /getElementById\('prExportButton'\)\.disabled = !results\.length/);
-  h.win.close();
-});

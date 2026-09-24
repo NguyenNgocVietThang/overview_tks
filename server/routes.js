@@ -3,9 +3,7 @@ const {
   getDashboardData,
   searchDashboardRecords,
   searchTopCustomersByProducts,
-  getCustomerProductRevenueReport,
-  searchProductRevenueOverview,
-  getProductRevenueDetail
+  getCustomerProductRevenueReport
 } = require('./dashboard/dashboardData');
 
 const router = express.Router();
@@ -98,8 +96,6 @@ router.use('/api/dashboard', ...reportsUser(...ANY_REPORTS_FEATURES));
 router.use('/api/search', ...reportsUser(...ANY_REPORTS_FEATURES));
 router.use('/api/customer-product-top', ...reportsUser('reports.customers'));
 router.use('/api/customer-product-revenue', ...reportsUser('reports.customers'));
-router.use('/api/product-revenue-search', ...reportsUser('reports.products'));
-router.use('/api/product-revenue-detail', ...reportsUser('reports.products'));
 router.use('/api/product-report', ...reportsUser('reports.products'));
 router.use('/api/export', ...reportsUser('reports.export'));
 router.use('/api/products', ...reportsUser('reports.products'));
@@ -296,49 +292,6 @@ router.get('/api/customer-product-revenue', async (req, res) => {
     console.error('==========================================');
     res.status(err.statusCode || 500).json({
       error: err.statusCode && err.statusCode < 500 ? err.message : 'Khong lay duoc bao cao doanh thu theo khach.',
-      detail: err.message,
-      code: err.code,
-      googleStatus
-    });
-  }
-});
-
-router.get('/api/product-revenue-search', async (req, res) => {
-  try {
-    // Ban go-tim-truc-tiep chi can top 200 dong de UI khong bi cham khi go tung
-    // ky tu; nut "Xuat Excel" goi rieng exportService (khong truyen limit nay)
-    // nen van xuat day du.
-    const data = await searchProductRevenueOverview(req.query.q, req.query.mode, req.branch, undefined, 200);
-    res.status(200).json(data);
-  } catch (err) {
-    const googleStatus = err?.response?.status;
-    console.error('=== LOI /api/product-revenue-search ===');
-    console.error('Message:', err.message);
-    console.error('Google API status:', googleStatus);
-    console.error('Stack:', err.stack);
-    console.error('========================================');
-    res.status(err.statusCode || 500).json({
-      error: err.statusCode && err.statusCode < 500 ? err.message : 'Khong tim kiem duoc doanh thu theo hang.',
-      detail: err.message,
-      code: err.code,
-      googleStatus
-    });
-  }
-});
-
-router.get('/api/product-revenue-detail', async (req, res) => {
-  try {
-    const data = await getProductRevenueDetail(req.query.code, req.branch);
-    res.status(200).json(data);
-  } catch (err) {
-    const googleStatus = err?.response?.status;
-    console.error('=== LOI /api/product-revenue-detail ===');
-    console.error('Message:', err.message);
-    console.error('Google API status:', googleStatus);
-    console.error('Stack:', err.stack);
-    console.error('========================================');
-    res.status(err.statusCode || 500).json({
-      error: err.statusCode && err.statusCode < 500 ? err.message : 'Khong lay duoc chi tiet doanh thu theo hang.',
       detail: err.message,
       code: err.code,
       googleStatus

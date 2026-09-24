@@ -51,7 +51,6 @@ const TABLE_TITLES = Object.freeze({
   'customers.debt': 'Chi tiết khách nợ',
   'customers.productDetail': 'Bảng chi tiết sản phẩm theo khách',
   'customers.productMonthlyCompare': 'Bảng so sánh doanh số theo tháng',
-  'overview.productRevenueSearch': 'Doanh thu theo hàng',
   'overview.productReport': 'Báo cáo hàng hóa',
   'suppliers.list': 'Danh sách nhà cung cấp',
   'debt.management': 'Quản lý công nợ',
@@ -267,14 +266,6 @@ const CUSTOMER_PRODUCT_MONTHLY_COLUMNS = [
   aggregateColumn('month1Revenue', 'Doanh thu tháng này', 'number', 'Doanh thu của mặt hàng với khách trong tháng hiện tại (VNĐ).'),
   aggregateColumn('month2Revenue', 'Doanh thu tháng trước', 'number', 'Doanh thu của mặt hàng với khách trong tháng trước (VNĐ).'),
   aggregateColumn('month3Revenue', 'Doanh thu 2 tháng trước', 'number', 'Doanh thu của mặt hàng với khách cách đây hai tháng (VNĐ).')
-];
-
-const PRODUCT_REVENUE_SEARCH_COLUMNS = [
-  aggregateColumn('code', 'Mã hàng', 'text', 'Mã hàng tìm thấy theo từ khóa.'),
-  aggregateColumn('name', 'Tên hàng', undefined, 'Tên hàng tìm thấy theo từ khóa.'),
-  aggregateColumn('ds90', 'Doanh thu 90 ngày', 'number', 'Doanh thu của mặt hàng trong 90 ngày gần nhất (VNĐ).'),
-  aggregateColumn('sl90', 'Số lượng bán 90 ngày', 'number', 'Số lượng hàng bán ra trong 90 ngày gần nhất.'),
-  aggregateColumn('tonKho', 'Tồn kho hiện tại', 'number', 'Số lượng tồn kho hiện tại của mặt hàng.')
 ];
 
 // Bao cao hang hoa (tab Tong quan) - doc thang tu bang product_report da tinh
@@ -749,9 +740,6 @@ const TABLE_SPECS = {
   'customers.productMonthlyCompare': () => ({
     worksheets: [reportWorksheet('customer_product_monthly_compare', 'Bảng so sánh doanh số theo tháng', CUSTOMER_PRODUCT_MONTHLY_COLUMNS)]
   }),
-  'overview.productRevenueSearch': () => ({
-    worksheets: [reportWorksheet('product_revenue_search', 'Doanh thu theo hàng', PRODUCT_REVENUE_SEARCH_COLUMNS)]
-  }),
   'overview.productReport': () => ({
     worksheets: [reportWorksheet('product_report', 'Báo cáo hàng hóa', PRODUCT_REPORT_COLUMNS)]
   }),
@@ -972,27 +960,10 @@ async function buildCustomerProductRevenueDataset(tableKey, description, payload
   };
 }
 
-async function buildProductRevenueSearchDataset(description, payload, branch, signal) {
-  const context = description.context;
-  const query = normalizeText(context.productRevenueQuery);
-  const mode = normalizeText(context.productRevenueMode) || 'normal';
-
-  const data = await dashboardData.searchProductRevenueOverview(query, mode, branch);
-  throwIfAborted(signal);
-  if (!data.results.length) throw exportError('Không có kết quả tìm kiếm để xuất.', 404, 'EXPORT_NO_DATA');
-
-  const worksheet = description.worksheets[0];
-  return applyTableSearchToDataset({
-    tableKey: 'overview.productRevenueSearch', title: TABLE_TITLES['overview.productRevenueSearch'], selectionMode: 'custom',
-    worksheets: [{ ...worksheet, rows: pickAggregateRows(data.results, worksheet.columns) }]
-  }, payload.tableSearch);
-}
-
 /**
- * Bao cao hang hoa - khac productRevenueSearch o cho KHONG can tu khoa (bang
- * hien toan bo, tim kiem tren UI chi loc phia client) - doc thang bang da
- * tinh san, ap lai dung bo loc mã/tên dang hien thi (payload.tableSearch) de
- * file xuat khop dung phan dang xem.
+ * Bao cao hang hoa - bang hien toan bo, tim kiem tren UI chi loc phia client -
+ * doc thang bang da tinh san, ap lai dung bo loc mã/tên dang hien thi
+ * (payload.tableSearch) de file xuat khop dung phan dang xem.
  */
 async function buildProductReportDataset(description, payload, signal) {
   const data = await productReportRepository.getProductReport();
@@ -1113,8 +1084,6 @@ function describeExport(payload, branch) {
     if (!normalizeText(context.customerProductCustomerCode)) {
       throw exportError('Chưa chọn khách hàng để xuất.', 400, 'EXPORT_NO_CUSTOMER_SELECTED');
     }
-  } else if (tableKey === 'overview.productRevenueSearch') {
-    if (!normalizeText(context.productRevenueQuery)) throw exportError('Chưa có từ khóa tìm kiếm để xuất.', 400, 'EXPORT_NO_QUERY');
   } else if (tableKey === 'stockout.recentScan' || tableKey === 'stockout.check90d' || tableKey === 'stockout.check30d') {
     const dataset = tableKey === 'stockout.recentScan'
       ? buildRecentStockoutResultDataset(description, request)
@@ -1149,9 +1118,6 @@ async function buildExportDataset(payload, branch, options = {}) {
   if (description.dataset) return description.dataset;
   if (tableKey === 'customers.productDetail' || tableKey === 'customers.productMonthlyCompare') {
     return buildCustomerProductRevenueDataset(tableKey, description, request, branch, signal);
-  }
-  if (tableKey === 'overview.productRevenueSearch') {
-    return buildProductRevenueSearchDataset(description, request, branch, signal);
   }
   if (tableKey === 'overview.productReport') {
     return buildProductReportDataset(description, request, signal);
