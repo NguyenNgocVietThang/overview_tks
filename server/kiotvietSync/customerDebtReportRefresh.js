@@ -61,14 +61,19 @@ async function refreshCustomerDebtReports(pool, {
 function startCustomerDebtReportRefreshSchedule(pool, {
   intervalMs = 5 * 60 * 1000,
   setIntervalFn = setInterval,
+  scheduleImmediate = queueMicrotask,
   log = console.log,
   getConfiguredBranches: getBranches = getConfiguredBranches
 } = {}) {
-  return setIntervalFn(() => {
+  const run = () => {
     refreshCustomerDebtReports(pool, { log, getConfiguredBranches: getBranches }).catch(error => {
       log(`[customerDebtReportRefresh] Loi khi refresh: ${error.message}`);
     });
-  }, intervalMs);
+  };
+  // Chay ngay mot luot khi khoi dong — cung ly do nhu dashboardRollupRefresh.js:
+  // chi dua vao setInterval thi sau moi lan restart bao cao se cu het mot chu ky.
+  scheduleImmediate(run);
+  return setIntervalFn(run, intervalMs);
 }
 
 async function main() {

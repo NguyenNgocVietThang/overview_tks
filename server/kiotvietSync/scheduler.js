@@ -6,7 +6,9 @@ const { createKiotVietClient } = require('../kiotviet/kiotVietApiClient');
 const { pollEntityOnce } = require('./syncDriver');
 const { recordFailure } = require('./checkpointRepository');
 const { getPool } = require('../db/pool');
-const { startDashboardRollupSchedule } = require('./dashboardRollupRefresh');
+const {
+  startDashboardRollupSchedule, refreshDashboardRollupsAndNotify, HOT_WINDOW_DAYS
+} = require('./dashboardRollupRefresh');
 const { startCustomerDebtReportRefreshSchedule } = require('./customerDebtReportRefresh');
 const { startProductReportSchedule } = require('./productReportRefresh');
 
@@ -18,7 +20,10 @@ function createPollingScheduler({
   enabled = CONFIG.KIOTVIET_SYNC_ENABLED,
   fastIntervalMs = CONFIG.KIOTVIET_SYNC_FAST_INTERVAL_MS,
   slowIntervalMs = CONFIG.KIOTVIET_SYNC_SLOW_INTERVAL_MS,
-  dashboardRollupIntervalMs = 5 * 60 * 1000,
+  // Luot rollup DAY DU (400 ngay, ~6,4s + ghi de ~61.000 dong do 2026-09-24)
+  // chi con phai lo phan lich su: nhung ngay gan day da duoc luot "nong" chay
+  // ngay sau moi luot sync fast lam moi. Vi vay gian ra 30 phut thay vi 5 phut.
+  dashboardRollupIntervalMs = 30 * 60 * 1000,
   customerDebtReportIntervalMs = 5 * 60 * 1000,
   productReportIntervalMs = 5 * 60 * 1000,
   getConfiguredBranches: getBranches = getConfiguredBranches,
@@ -29,6 +34,7 @@ function createPollingScheduler({
   scheduleImmediate = queueMicrotask,
   getPool: getPoolFn = getPool,
   startDashboardRollupSchedule: startRollup = startDashboardRollupSchedule,
+  refreshDashboardRollupsAndNotify: refreshHotRollup = refreshDashboardRollupsAndNotify,
   startCustomerDebtReportRefreshSchedule: startCustomerDebtReportRefresh = startCustomerDebtReportRefreshSchedule,
   startProductReportSchedule: startProductReport = startProductReportSchedule,
   logger = console
@@ -53,24 +59,44 @@ function createPollingScheduler({
     }));
   }
 
+  /**
+   * Luot sync "fast" (hoa don/don hang/ton kho) roi tinh lai NGAY rollup cua
+   * vai ngay gan nhat. Truoc day hai viec nay chay theo hai nhip doc lap nen
+   * do tre cua Dashboard bang nhip sync CONG nhip rollup; noi lai thi du lieu
+   * vua keo ve xuat hien tren bao cao ngay trong cung luot, va SSE chi bao
+   * "co du lieu moi" sau khi rollup da thuc su xong.
+   */
+  async function runFastGroupAndRollup() {
+    await runGroup(fastEntities);
+    await refreshHotRollup(getPoolFn(), {
+      windowDays: HOT_WINDOW_DAYS,
+      includeFirstPurchase: false,
+      getConfiguredBranches: getBranches,
+      log: logger.log ? logger.log.bind(logger) : logger
+    });
+  }
+
   function startPollingScheduler() {
     if (!enabled) return [];
     // Chạy một lượt nền ngay khi service khởi động để bù khoảng trống từ
     // checkpoint gần nhất (ví dụ Render vừa ngủ/redeploy). Không await ở đây
     // để HTTP server vẫn sẵn sàng nhận request trong lúc đồng bộ catch-up.
     scheduleImmediate(() => {
-      runGroup(fastEntities).catch((error) => logger.error('[KiotViet Sync] Lỗi lượt fast ban đầu:', error.message));
+      runFastGroupAndRollup().catch((error) => logger.error('[KiotViet Sync] Lỗi lượt fast ban đầu:', error.message));
       runGroup(slowEntities).catch((error) => logger.error('[KiotViet Sync] Lỗi lượt slow ban đầu:', error.message));
     });
     return [
-      setIntervalFn(() => runGroup(fastEntities), fastIntervalMs),
+      setIntervalFn(() => runFastGroupAndRollup(), fastIntervalMs),
       setIntervalFn(() => runGroup(slowEntities), slowIntervalMs),
-      // Rollup bao cao Dashboard (server/db/migrations/0013) - doc lap voi
-      // polling KiotViet, nhung nhet chung khoi khoi dong nay (chi bat khi
+      // Rollup bao cao Dashboard (server/db/migrations/0013), luot DAY DU: lo
+      // phan lich su xa hon HOT_WINDOW_DAYS (vd hoa don cu bi sua trong
+      // KiotViet), vi nhung ngay gan day da co luot "nong" sau moi luot sync
+      // fast lo. Nhet chung khoi khoi dong nay (chi bat khi
       // KIOTVIET_SYNC_ENABLED=true) de khong can 1 co che enable/disable rieng.
       startRollup(getPoolFn(), {
         intervalMs: dashboardRollupIntervalMs,
         setIntervalFn,
+        scheduleImmediate,
         log: logger.log ? logger.log.bind(logger) : logger
       }),
       // Bao cao cong no khach hang HN1/HN3/HN7 (server/db/migrations/0014) -
@@ -78,6 +104,7 @@ function createPollingScheduler({
       startCustomerDebtReportRefresh(getPoolFn(), {
         intervalMs: customerDebtReportIntervalMs,
         setIntervalFn,
+        scheduleImmediate,
         log: logger.log ? logger.log.bind(logger) : logger
       }),
       // Bao cao hang hoa (server/db/migrations/0018) - CHI tinh lai 1 lan/dem

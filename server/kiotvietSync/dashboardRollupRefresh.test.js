@@ -3,7 +3,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  refreshDashboardRollups, startDashboardRollupSchedule, DEFAULT_WINDOW_DAYS
+  refreshDashboardRollups, refreshDashboardRollupsAndNotify, startDashboardRollupSchedule,
+  DEFAULT_WINDOW_DAYS, HOT_WINDOW_DAYS
 } = require('./dashboardRollupRefresh');
 
 function fakePool(rowCountByCallIndex = []) {
@@ -71,7 +72,7 @@ test('startDashboardRollupSchedule dang ky dung interval, chay refresh khi trigg
   const pool = fakePool([1, 1, 1, 1]);
   const logs = [];
   const handle = startDashboardRollupSchedule(pool, {
-    intervalMs: 5000, setIntervalFn, log: (m) => logs.push(m),
+    intervalMs: 5000, setIntervalFn, scheduleImmediate: () => {}, log: (m) => logs.push(m),
     getConfiguredBranches: () => [{ branch: 'hanoi' }]
   });
 
@@ -82,6 +83,27 @@ test('startDashboardRollupSchedule dang ky dung interval, chay refresh khi trigg
   assert.equal(pool.calls.length, 4, '1 co so x 4 cau SQL phai duoc chay khi trigger');
 });
 
+// Thieu lan chay ngay nay chinh la nguyen nhan Dashboard treo o so lieu cu sau
+// moi lan restart/redeploy (quan sat tren Supabase 2026-09-24: server len luc
+// 06:47 nhung rollup den 06:52 moi chay).
+test('startDashboardRollupSchedule chay NGAY mot luot khi khoi dong, khong doi het interval', async () => {
+  const pool = fakePool([1, 1, 1, 1]);
+  const events = { emit: () => {} };
+  let immediateFn;
+  startDashboardRollupSchedule(pool, {
+    setIntervalFn: () => 'h',
+    scheduleImmediate: (fn) => { immediateFn = fn; },
+    log: () => {},
+    events,
+    getConfiguredBranches: () => [{ branch: 'hanoi' }]
+  });
+
+  assert.equal(typeof immediateFn, 'function', 'phai dang ky mot luot chay ngay');
+  assert.equal(pool.calls.length, 0, 'chua chay gi truoc khi scheduleImmediate kich hoat');
+  await immediateFn();
+  assert.equal(pool.calls.length, 4, 'luot chay ngay phai tinh lai du 4 bang');
+});
+
 test('startDashboardRollupSchedule khong nem loi ra ngoai neu refresh that bai', async () => {
   let scheduledFn;
   const setIntervalFn = (fn) => { scheduledFn = fn; return 'h'; };
@@ -89,11 +111,70 @@ test('startDashboardRollupSchedule khong nem loi ra ngoai neu refresh that bai',
   const logs = [];
   startDashboardRollupSchedule(pool, {
     setIntervalFn,
+    scheduleImmediate: () => {},
     log: (m) => logs.push(m),
     getConfiguredBranches: () => [{ branch: 'hanoi' }]
   });
   assert.doesNotThrow(() => scheduledFn());
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(logs.length, 1);
+  assert.match(logs[0], /Loi khi refresh/);
+});
+
+test('luot "nong" bo qua product_first_purchase va chi tinh HOT_WINDOW_DAYS ngay', async () => {
+  const pool = fakePool([2, 2, 2]);
+  const results = await refreshDashboardRollups(pool, {
+    windowDays: HOT_WINDOW_DAYS,
+    includeFirstPurchase: false,
+    log: () => {},
+    getConfiguredBranches: () => [{ branch: 'hanoi' }]
+  });
+
+  assert.equal(pool.calls.length, 3, 'chi 3 cau SQL - khong dung toi product_first_purchase');
+  assert.ok(!pool.calls.some((c) => /product_first_purchase/.test(c.sql)));
+  assert.deepEqual(pool.calls[0].params, ['hanoi', HOT_WINDOW_DAYS]);
+  assert.equal(results[0].productFirstPurchase, 0);
+});
+
+test('hai luot rollup goi chong nhau duoc noi tiep, khong dam vao cung dong', async () => {
+  const order = [];
+  const slowPool = {
+    query: async () => {
+      order.push('day-du:bat-dau');
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      order.push('day-du:xong');
+      return { rowCount: 0 };
+    }
+  };
+  const fastPool = {
+    query: async () => { order.push('nong'); return { rowCount: 0 }; }
+  };
+  const events = { emit: () => {} };
+  const opts = { events, log: () => {}, getConfiguredBranches: () => [{ branch: 'hanoi' }] };
+
+  await Promise.all([
+    refreshDashboardRollupsAndNotify(slowPool, { ...opts, includeFirstPurchase: false }),
+    refreshDashboardRollupsAndNotify(fastPool, { ...opts, includeFirstPurchase: false })
+  ]);
+
+  const firstHot = order.indexOf('nong');
+  assert.ok(firstHot > order.lastIndexOf('day-du:xong'),
+    'luot "nong" chi duoc chay sau khi luot day du ket thuc, thu tu thuc te: ' + order.join(','));
+});
+
+test('refreshDashboardRollupsAndNotify chi phat su kien khi refresh thanh cong', async () => {
+  const emitted = [];
+  const events = { emit: (name) => emitted.push(name) };
+
+  await refreshDashboardRollupsAndNotify(fakePool(), {
+    events, log: () => {}, getConfiguredBranches: () => [{ branch: 'hanoi' }]
+  });
+  assert.deepEqual(emitted, ['updated']);
+
+  const logs = [];
+  await refreshDashboardRollupsAndNotify({ query: async () => { throw new Error('db down'); } }, {
+    events, log: (m) => logs.push(m), getConfiguredBranches: () => [{ branch: 'hanoi' }]
+  });
+  assert.deepEqual(emitted, ['updated'], 'refresh loi thi KHONG duoc bao "co du lieu moi"');
   assert.match(logs[0], /Loi khi refresh/);
 });

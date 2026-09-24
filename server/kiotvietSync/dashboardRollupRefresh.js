@@ -21,6 +21,13 @@ const { dashboardRollupEvents } = require('./dashboardRollupEvents');
 
 const DEFAULT_WINDOW_DAYS = 400;
 
+// Cua so cua luot rollup "nong" chay ngay sau moi luot sync KiotViet
+// (scheduler.js). Chon 7 ngay vi do la pham vi thuc te cua hoa don vua tao
+// hoac vua bi sua; xa hon the do luot rollup day du (DEFAULT_WINDOW_DAYS) lo.
+// Do luong 2026-09-24 tren du lieu that: 7 ngay ~1,4s ca 2 co so, trong khi
+// 400 ngay ~6,4s va ghi de ~61.000 dong.
+const HOT_WINDOW_DAYS = 7;
+
 // LUU Y MUI GIO (khac voi dashboardPgReader.js): `now()` la TIMESTAMPTZ THAT,
 // gan dung nhan mui gio, KHAC voi cac cot purchase_date/sale_date (luu "gio
 // treo tuong VN mang nhan UTC" — doc dung phai qua `AT TIME ZONE 'UTC'`, xem
@@ -126,12 +133,16 @@ const FIRST_PURCHASE_SQL = `
     updated_at = now()`;
 
 /**
- * Chay lai toan bo 4 bang rollup cho tung co so da cau hinh credentials.
+ * Chay lai cac bang rollup cho tung co so da cau hinh credentials.
  * Idempotent (UPSERT), an toan chay lai nhieu lan/gap loi giua duong.
+ * @param {number} windowDays So ngay tinh lai: DEFAULT_WINDOW_DAYS (luot day du)
+ *   hoac HOT_WINDOW_DAYS (luot "nong" sau moi luot sync).
+ * @param {boolean} includeFirstPurchase false = bo qua product_first_purchase.
  * @returns {Promise<Array<{branch, dailyInvoiceSummary, dailyProductSales, dailyPurchaseSummary, productFirstPurchase}>>}
  */
 async function refreshDashboardRollups(pool, {
   windowDays = DEFAULT_WINDOW_DAYS,
+  includeFirstPurchase = true,
   getConfiguredBranches: getBranches = getConfiguredBranches,
   log = console.log
 } = {}) {
@@ -142,40 +153,81 @@ async function refreshDashboardRollups(pool, {
     const invoiceSummary = await pool.query(INVOICE_SUMMARY_SQL, [branch, windowDays]);
     const productSales = await pool.query(PRODUCT_SALES_SQL, [branch, windowDays]);
     const purchaseSummary = await pool.query(PURCHASE_SUMMARY_SQL, [branch, windowDays]);
-    const firstPurchase = await pool.query(FIRST_PURCHASE_SQL, [branch]);
+    // FIRST_PURCHASE_SQL quet TOAN BO purchase_details (khong co cua so ngay,
+    // xem ghi chu o tren) nen la cau dat nhat trong 4 cau, trong khi "ngay nhap
+    // som nhat cua mot ma hang" gan nhu khong doi giua hai luot. Luot "nong" bo
+    // qua no, luot day du van chay dinh ky.
+    const firstPurchase = includeFirstPurchase
+      ? await pool.query(FIRST_PURCHASE_SQL, [branch])
+      : null;
 
     const row = {
       branch,
       dailyInvoiceSummary: invoiceSummary.rowCount || 0,
       dailyProductSales: productSales.rowCount || 0,
       dailyPurchaseSummary: purchaseSummary.rowCount || 0,
-      productFirstPurchase: firstPurchase.rowCount || 0
+      productFirstPurchase: firstPurchase ? firstPurchase.rowCount || 0 : 0
     };
     results.push(row);
-    log(`[dashboardRollupRefresh] ${branch}: daily_invoice_summary=${row.dailyInvoiceSummary}, ` +
+    log(`[dashboardRollupRefresh] ${branch} (${windowDays} ngay): daily_invoice_summary=${row.dailyInvoiceSummary}, ` +
       `daily_product_sales=${row.dailyProductSales}, daily_purchase_summary=${row.dailyPurchaseSummary}, ` +
-      `product_first_purchase=${row.productFirstPurchase}`);
+      `product_first_purchase=${includeFirstPurchase ? row.productFirstPurchase : 'bo qua'}`);
   }
 
   return results;
 }
 
+// Gio co NHIEU nguon cung kich hoat rollup: luot "nong" sau moi luot sync
+// fast, luot day du theo interval, va luot chay ngay luc khoi dong. Chung
+// UPSERT vao cung nhung dong cua daily_invoice_summary/daily_product_sales
+// nhung quet theo thu tu khac nhau (cua so ngay khac nhau => ke hoach truy van
+// khac nhau), nen hai luot chong nhau co the cho khoa lan nhau hoac deadlock.
+// Noi tiep trong tien trinh: moi luc chi mot luot duoc chay.
+let rollupChain = Promise.resolve();
+
+function runRollupExclusive(task) {
+  const next = rollupChain.then(task, task);
+  rollupChain = next.then(() => {}, () => {});
+  return next;
+}
+
+/**
+ * Chay rollup roi bao cho client dang mo SSE (/api/dashboard/events) biet co du
+ * lieu moi de tu goi lai /api/dashboard. CHI phat khi refresh thanh cong, tranh
+ * bao "co du lieu moi" trong khi rollup vua that bai giua chung. Khong bao gio
+ * nem loi ra ngoai — nguoi goi (interval, luot sync) khong co cho nao de bat.
+ */
+function refreshDashboardRollupsAndNotify(pool, {
+  events = dashboardRollupEvents,
+  log = console.log,
+  ...options
+} = {}) {
+  return runRollupExclusive(() => refreshDashboardRollups(pool, { ...options, log }))
+    .then(() => { events.emit('updated', { at: Date.now() }); })
+    .catch((error) => {
+      log(`[dashboardRollupRefresh] Loi khi refresh: ${error.message}`);
+    });
+}
+
 function startDashboardRollupSchedule(pool, {
   intervalMs = 5 * 60 * 1000, windowDays = DEFAULT_WINDOW_DAYS,
-  setIntervalFn = setInterval, log = console.log,
+  setIntervalFn = setInterval, scheduleImmediate = queueMicrotask, log = console.log,
   getConfiguredBranches: getBranches = getConfiguredBranches,
   events = dashboardRollupEvents
 } = {}) {
-  return setIntervalFn(() => {
-    refreshDashboardRollups(pool, { windowDays, log, getConfiguredBranches: getBranches })
-      // Bao cho client dang mo SSE (/api/dashboard/events) biet co du lieu
-      // moi de tu goi lai /api/dashboard - CHI phat khi refresh thanh cong,
-      // tranh bao "co du lieu moi" trong khi rollup vua that bai giua chung.
-      .then(() => events.emit('updated', { at: Date.now() }))
-      .catch((error) => {
-        log(`[dashboardRollupRefresh] Loi khi refresh: ${error.message}`);
-      });
-  }, intervalMs);
+  const run = () => refreshDashboardRollupsAndNotify(pool, {
+    windowDays, log, getConfiguredBranches: getBranches, events
+  });
+
+  // CHAY NGAY mot luot khi khoi dong, giong nhom polling KiotViet
+  // (scheduler.js) va productReportRefresh.js. Neu chi dua vao setInterval thi
+  // sau moi lan restart/redeploy/thuc day, Dashboard se doc so lieu cu cho
+  // den het mot chu ky intervalMs — trong khi lan sync ngay luc khoi dong da
+  // keo hoa don moi ve bang `invoices` roi. Da quan sat truc tiep tren
+  // Supabase 2026-09-24: server khoi dong lai luc 06:47, rollup den 06:52 moi
+  // chay, Dashboard treo o 94 hoa don trong khi thuc te da la 99.
+  scheduleImmediate(run);
+  return setIntervalFn(run, intervalMs);
 }
 
 async function main() {
@@ -193,7 +245,9 @@ if (require.main === module) {
 
 module.exports = {
   refreshDashboardRollups,
+  refreshDashboardRollupsAndNotify,
   startDashboardRollupSchedule,
   DEFAULT_WINDOW_DAYS,
+  HOT_WINDOW_DAYS,
   __sql__: { INVOICE_SUMMARY_SQL, PRODUCT_SALES_SQL, PURCHASE_SUMMARY_SQL, FIRST_PURCHASE_SQL }
 };

@@ -25,6 +25,7 @@ test('scheduler đăng ký interval và fail-soft khi refresh lỗi', async () =
   const handle = startCustomerDebtReportRefreshSchedule(
     { query: async () => { throw new Error('db down'); } },
     { intervalMs: 123, setIntervalFn: (fn, ms) => { scheduled = { fn, ms }; return 'handle'; },
+      scheduleImmediate: () => {},
       getConfiguredBranches: () => [{ branch: 'hanoi' }], log: message => logs.push(message) }
   );
   assert.equal(handle, 'handle');
@@ -32,4 +33,19 @@ test('scheduler đăng ký interval và fail-soft khi refresh lỗi', async () =
   scheduled.fn();
   await new Promise(resolve => setImmediate(resolve));
   assert.match(logs[0], /Loi khi refresh/);
+});
+
+test('scheduler chạy ngay một lượt lúc khởi động, không đợi hết interval', async () => {
+  const calls = [];
+  let immediateFn;
+  startCustomerDebtReportRefreshSchedule(
+    { query: async () => { calls.push('query'); return { rowCount: 0 }; } },
+    { setIntervalFn: () => 'handle', scheduleImmediate: fn => { immediateFn = fn; },
+      getConfiguredBranches: () => [{ branch: 'hanoi' }], log: () => {} }
+  );
+  assert.equal(typeof immediateFn, 'function');
+  assert.equal(calls.length, 0);
+  immediateFn();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls.length, 1);
 });

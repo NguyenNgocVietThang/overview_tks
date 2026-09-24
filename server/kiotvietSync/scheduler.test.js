@@ -35,6 +35,10 @@ test('scheduler creates independent fast and slow timers at configured intervals
   assert.equal(rollupCalls.length, 1);
   assert.equal(rollupCalls[0].pool, 'fake-pool');
   assert.equal(rollupCalls[0].intervalMs, 300000);
+  // Ca 3 lich con deu phai nhan scheduleImmediate de con chay ngay luc khoi dong.
+  assert.equal(typeof rollupCalls[0].scheduleImmediate, 'function');
+  assert.equal(typeof debtReportCalls[0].scheduleImmediate, 'function');
+  assert.equal(typeof productReportCalls[0].scheduleImmediate, 'function');
   assert.equal(debtReportCalls.length, 1);
   assert.equal(debtReportCalls[0].pool, 'fake-pool');
   assert.equal(debtReportCalls[0].intervalMs, 300000);
@@ -46,6 +50,7 @@ test('scheduler creates independent fast and slow timers at configured intervals
 test('scheduler schedules an immediate background catch-up from persisted checkpoints', async () => {
   const immediate = [];
   const calls = [];
+  const hotRollups = [];
   const scheduler = createPollingScheduler({
     enabled:true,
     getConfiguredBranches:()=>[{branch:'hanoi',clientId:'1',clientSecret:'2',retailer:'hn'}],
@@ -54,6 +59,7 @@ test('scheduler schedules an immediate background catch-up from persisted checkp
     setIntervalFn:()=>({}),
     scheduleImmediate:(fn)=>immediate.push(fn),
     getPool:()=>({}),
+    refreshDashboardRollupsAndNotify:async (_pool,opts)=>{hotRollups.push(opts);},
     startDashboardRollupSchedule:()=>({}),
     startCustomerDebtReportRefreshSchedule:()=>({}),
     startProductReportSchedule:()=>({})
@@ -65,6 +71,31 @@ test('scheduler schedules an immediate background catch-up from persisted checkp
   await new Promise(resolve => setImmediate(resolve));
   assert.ok(calls.includes('hanoi:invoices'));
   assert.ok(calls.includes('hanoi:cash_flows'));
+});
+
+test('moi luot sync fast keo theo mot luot rollup "nong" ngay sau do', async () => {
+  const timers = [];
+  const order = [];
+  const scheduler = createPollingScheduler({
+    enabled:true,
+    getConfiguredBranches:()=>[{branch:'hanoi',clientId:'1',clientSecret:'2',retailer:'hn'}],
+    createKiotVietClient:()=>({}),
+    pollEntityOnce:async (_api,branch,entity)=>order.push(`sync:${entity.entity}`),
+    setIntervalFn:(fn,ms)=>(timers.push({fn,ms}),ms),
+    scheduleImmediate:()=>{},
+    getPool:()=>'fake-pool',
+    refreshDashboardRollupsAndNotify:async (pool,opts)=>{order.push(`rollup:${pool}:${opts.windowDays}:${opts.includeFirstPurchase}`);},
+    startDashboardRollupSchedule:()=>'rollup-handle',
+    startCustomerDebtReportRefreshSchedule:()=>'debt-handle',
+    startProductReportSchedule:()=>'product-handle'
+  });
+
+  scheduler.startPollingScheduler();
+  await timers[0].fn(); // nhip fast
+
+  assert.ok(order.includes('sync:invoices'));
+  // Rollup phai chay SAU khi sync xong, neu khong thi van tong hop du lieu cu.
+  assert.equal(order[order.length - 1], 'rollup:fake-pool:7:false');
 });
 
 test('one branch/entity failure is recorded without blocking other work', async () => {
@@ -82,6 +113,7 @@ test('one branch/entity failure is recorded without blocking other work', async 
     setIntervalFn:(fn,ms)=>(timers.push({fn,ms}),ms),
     scheduleImmediate:()=>{},
     getPool:()=>'fake-pool',
+    refreshDashboardRollupsAndNotify:async ()=>{},
     startDashboardRollupSchedule:()=>'rollup-handle'
   });
   scheduler.startPollingScheduler();

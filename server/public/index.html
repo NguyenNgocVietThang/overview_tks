@@ -9650,6 +9650,17 @@
       fetch('/api/dashboard?days=' + encodeURIComponent(days) + (miniFilterQuery ? '&' + miniFilterQuery : ''))
         .then(function (res) {
           if (!res.ok) {
+            // Phien dang nhap het han (JWT 12h) trong luc tab van mo: di theo
+            // dung loi authGuard() da dung - don cache roi ve /login/ - thay vi
+            // nem toast "HTTP 401" kho hieu moi lan trang tu lam moi o nen.
+            if (res.status === 401) {
+              try { sessionStorage.removeItem(DASHBOARD_CACHE_KEY); } catch (err) { /* noop */ }
+              window.location.href = '/login/?next=' +
+                encodeURIComponent(window.location.pathname + window.location.search);
+              const expired = new Error('HTTP 401');
+              expired.handled = true;
+              throw expired;
+            }
             // Loi CO SO (chua duoc gan co so / co so chua cau hinh nguon du lieu)
             // can thong bao rieng thay vi "Khong the tai du lieu" chung chung.
             return res.json().catch(function () { return null; }).then(function (payload) {
@@ -9672,6 +9683,7 @@
           const changed = fingerprint !== state.lastFingerprint;
           state.lastFingerprint = fingerprint;
           state.data = data;
+          state.lastFetchAt = Date.now();
           saveDashboardCache(data);
           hideDashboardLoadError();
           if (changed || isManualRefresh) {
@@ -9812,7 +9824,12 @@
     syncMiniFilterUI('customers');
     document.querySelectorAll('#productStatusToggle button').forEach(b => b.classList.toggle('active', b.dataset.status === state.productStatus));
     if (dashboardCache && dashboardCache.data) {
+      // Ve ngay tu cache de khong nhap nhay, nhung VAN goi lai server o nen:
+      // cache chi de tranh man hinh trang, khong duoc phep quyet dinh du lieu
+      // nguoi dung nhin thay cu den bao gio. loadData(false) khong bat man che
+      // va da tu so sanh fingerprint nen neu du lieu khong doi thi khong render lai.
       renderView(state.view);
+      loadData(state.days, false);
     } else {
       loadData(state.days, true);
     }
@@ -9823,20 +9840,67 @@
     // loc/tab dang xem. loadData() da tu so sanh fingerprint (xem tren) nen
     // se khong render lai/giat man hinh neu du lieu thuc ra khong doi.
     (function setupDashboardLiveUpdates() {
-      if (typeof EventSource === 'undefined') return;
+      // Sau 5 loi lien tiep thi ngung vong retry cua chinh EventSource (server
+      // ngung lau dai hoac phien dang nhap het han -> /api/dashboard/events tra
+      // 401) de khong spam request. Nhung KHONG duoc bo cuoc han: truoc day
+      // stream dong vinh vien va trang treo o so lieu cu cho den khi nguoi dung
+      // tu F5. Thay vao do thu mo lai theo chu ky thua dan, va bat ky luc nao
+      // nguoi dung quay lai tab cung vua lam moi du lieu vua noi lai stream.
+      const RETRY_DELAYS_MS = [60000, 5 * 60 * 1000, 15 * 60 * 1000];
+      const STALE_AFTER_MS = 60000;
+      let stream = null;
+      let retryTimer = null;
+      let retryCount = 0;
       let consecutiveErrors = 0;
-      let es = new EventSource('/api/dashboard/events');
-      es.addEventListener('dashboard-updated', function () {
+
+      function refreshIfStale() {
+        if (Date.now() - (state.lastFetchAt || 0) < STALE_AFTER_MS) return;
         loadData(state.days, false);
+      }
+
+      function scheduleRetry() {
+        if (retryTimer) return;
+        const delay = RETRY_DELAYS_MS[Math.min(retryCount, RETRY_DELAYS_MS.length - 1)];
+        retryCount++;
+        retryTimer = setTimeout(function () { retryTimer = null; connect(); }, delay);
+      }
+
+      function connect() {
+        if (typeof EventSource === 'undefined') return;
+        if (stream) stream.close();
+        consecutiveErrors = 0;
+        stream = new EventSource('/api/dashboard/events');
+        stream.addEventListener('dashboard-updated', function () {
+          loadData(state.days, false);
+        });
+        stream.onopen = function () {
+          consecutiveErrors = 0;
+          retryCount = 0;
+          // Noi lai duoc nghia la phien van con hieu luc; trong luc dut ket noi
+          // co the da bo lo vai luot rollup nen keo lai du lieu mot lan.
+          refreshIfStale();
+        };
+        stream.onerror = function () {
+          consecutiveErrors++;
+          if (consecutiveErrors < 5) return;
+          stream.close();
+          scheduleRetry();
+        };
+      }
+
+      // Tab bi an lau (may ngu, nguoi dung sang viec khac) la luc stream de
+      // chet nhat, va cung la luc quay lai can so lieu dung nhat.
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState !== 'visible') return;
+        refreshIfStale();
+        if (!stream || stream.readyState === 2 /* CLOSED */) {
+          if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+          retryCount = 0;
+          connect();
+        }
       });
-      es.onopen = function () { consecutiveErrors = 0; };
-      es.onerror = function () {
-        consecutiveErrors++;
-        // Phien dang nhap het han hoac server tam ngung lau dai - ngung thu
-        // lai vo han (EventSource mac dinh tu retry) de khong spam request;
-        // nguoi dung chi can tai lai trang khi quay lai lam viec.
-        if (consecutiveErrors >= 5) es.close();
-      };
+
+      connect();
     })();
   </script>
 
