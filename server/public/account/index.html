@@ -232,6 +232,11 @@
     display:inline-block; margin-left:6px; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:700;
     background:var(--accent-blue-18); color:var(--blue);
   }
+  /* Man hinh hep: xep doc thay vi ep nhan xuong dong lien tuc canh o chon. */
+  @media (max-width: 560px){
+    .perm-row{ flex-direction:column; align-items:stretch; gap:6px; }
+    .perm-row select{ flex:1 1 auto; width:100%; }
+  }
 
   /* Modals */
   .modal-overlay{

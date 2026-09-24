@@ -13,14 +13,18 @@
 const express = require('express');
 const router = express.Router();
 
-const { requireAuth, requireRole } = require('./authMiddleware');
+const { requireAuth, requireFeature } = require('./authMiddleware');
+const { hasFeature } = require('./featureRegistry');
 const localUserStore = require('./localUserStore');
 const { ROLES } = localUserStore;
 const repo = require('./roleChangeRequestRepository');
 const notificationRepo = require('../notifications/notificationRepository');
 
 const VALID_ROLES = Object.values(ROLES);
-const authManager = [requireAuth, requireRole(ROLES.QUAN_LY)];
+// Duyet/tu choi yeu cau doi vai tro = mot thao tac quan tri tai khoan, nen
+// dung dung quyen 'account.users.manage' — khop voi dieu kien hien nut
+// Duyet/Tu choi tren chuong thong bao (shared-nav.js renderNotifBell).
+const authManager = [requireAuth, requireFeature('account.users.manage')];
 
 function handleError(res, err, context) {
   if (err.statusCode && err.statusCode < 500) {
@@ -68,10 +72,13 @@ router.post('/api/role-requests', requireAuth, async (req, res) => {
       reason
     });
 
-    // Bao toan bo Quan ly best-effort — KHONG duoc lam hong response da tao request.
+    // Bao cho MOI NGUOI CO QUYEN DUYET (khong chi vai tro Quan ly) best-effort
+    // — KHONG duoc lam hong response da tao request.
     try {
       const allUsers = await localUserStore.getAllUsers();
-      const managerIds = allUsers.filter(u => u.vaiTro === ROLES.QUAN_LY).map(u => u.id);
+      const managerIds = allUsers
+        .filter(u => hasFeature(u, 'account.users.manage'))
+        .map(u => u.id);
       await notificationRepo.createNotificationForUsers(managerIds, {
         type: 'role_change_request',
         title: 'Yêu cầu đổi vai trò mới',
@@ -96,7 +103,7 @@ router.post('/api/role-requests', requireAuth, async (req, res) => {
 
 router.get('/api/role-requests', requireAuth, async (req, res) => {
   try {
-    const isManager = req.user.vaiTro === ROLES.QUAN_LY;
+    const isManager = hasFeature(req.user, 'account.users.manage');
     const requests = await repo.listRequests({
       status: req.query.status,
       userId: isManager ? undefined : req.user.id
@@ -117,7 +124,7 @@ router.get('/api/role-requests/:id', requireAuth, async (req, res) => {
     if (!request) {
       return res.status(404).json({ error: 'Không tìm thấy yêu cầu.', code: 'ROLE_REQUEST_NOT_FOUND' });
     }
-    const isManager = req.user.vaiTro === ROLES.QUAN_LY;
+    const isManager = hasFeature(req.user, 'account.users.manage');
     if (!isManager && request.userId !== String(req.user.id)) {
       return res.status(403).json({ error: 'Bạn không có quyền xem yêu cầu này.', code: 'ROLE_REQUEST_FORBIDDEN' });
     }

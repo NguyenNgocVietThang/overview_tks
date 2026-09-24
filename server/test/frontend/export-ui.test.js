@@ -66,7 +66,7 @@ function createExportDashboard() {
   };
   win.setInterval = () => 1;
   win.requestAnimationFrame = callback => callback();
-  win.TKSNav = { authGuard: () => new Promise(() => {}), handleBranchError: () => false, renderTopSidebar() {} };
+  win.TKSNav = { authGuard: () => new Promise(() => {}), can: () => true, handleBranchError: () => false, renderTopSidebar() {} };
 
   const harness = { win, document: win.document, calls: [], timers: [], downloads: [], alerts: [], routes: {}, ignoreAbort: false };
   // setTimeout do test dieu khien: ghi lai do tre de kiem tra timeout 30s / 180s va kich hoat ngay lap tuc.

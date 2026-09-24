@@ -40,6 +40,10 @@ function createDashboard(payload) {
   dom.window.requestAnimationFrame = callback => callback();
   dom.window.TKSNav = {
     authGuard: () => new Promise(() => {}),
+    // Trang bao cao goi TKSNav.can('reports.<tab>') de biet tab nao duoc xem
+    // (nguon: user.permissions tu /api/auth/me) — test nay khong kiem tra phan
+    // quyen nen mo het.
+    can: () => true,
     handleBranchError: () => false,
     renderTopSidebar() {}
   };

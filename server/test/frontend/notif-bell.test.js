@@ -6,6 +6,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { JSDOM } = require('jsdom');
 
+// Nut Duyet/Tu choi tren thong bao doi vai tro gac bang quyen
+// 'account.users.manage' (khong con kiem tra vaiTro === 'Quản lý') — user gia
+// phai mang danh sach quyen giong /api/auth/me tra ve.
+const { defaultsForRole } = require('../../auth/featureRegistry');
+function fakeUser(id, vaiTro) {
+  return { id, vaiTro, permissions: defaultsForRole(vaiTro) };
+}
+
 const MODULE_PATH = path.join(__dirname, '..', '..', 'public', 'shared', 'shared-nav.js');
 const moduleSource = fs.readFileSync(MODULE_PATH, 'utf8');
 
@@ -25,10 +33,10 @@ function createEnv(user, fetchImpl) {
 }
 
 test('renderNotifBell chèn nút chuông ngay trước #accountChip', () => {
-  const { window, document } = createEnv({ id: 'u1', vaiTro: 'Trợ lý' }, async () => ({
+  const { window, document } = createEnv(fakeUser('u1', 'Trợ lý'), async () => ({
     ok: true, json: async () => ({ count: 0 })
   }));
-  window.TKSNav.renderNotifBell({ id: 'u1', vaiTro: 'Trợ lý' });
+  window.TKSNav.renderNotifBell(fakeUser('u1', 'Trợ lý'));
   const bell = document.getElementById('tksNotifBell');
   assert.ok(bell, 'phải có phần tử #tksNotifBell');
   assert.equal(bell.nextElementSibling.id, 'accountChip', 'chuông phải nằm ngay trước #accountChip');
@@ -36,13 +44,13 @@ test('renderNotifBell chèn nút chuông ngay trước #accountChip', () => {
 });
 
 test('renderNotifBell hiển thị badge đúng số thông báo chưa đọc', async () => {
-  const { window, document } = createEnv({ id: 'u1', vaiTro: 'Trợ lý' }, async (url) => {
+  const { window, document } = createEnv(fakeUser('u1', 'Trợ lý'), async (url) => {
     if (String(url).includes('/unread-count')) {
       return { ok: true, json: async () => ({ count: 3 }) };
     }
     return { ok: true, json: async () => ({ notifications: [] }) };
   });
-  window.TKSNav.renderNotifBell({ id: 'u1', vaiTro: 'Trợ lý' });
+  window.TKSNav.renderNotifBell(fakeUser('u1', 'Trợ lý'));
   await new Promise(resolve => setTimeout(resolve, 0));
   const badge = document.getElementById('tksNotifBadge');
   assert.equal(badge.hidden, false);
@@ -52,7 +60,7 @@ test('renderNotifBell hiển thị badge đúng số thông báo chưa đọc', 
 
 test('click vào chuông mở dropdown và tải danh sách thông báo', async () => {
   const requestedUrls = [];
-  const { window, document } = createEnv({ id: 'u1', vaiTro: 'Trợ lý' }, async (url) => {
+  const { window, document } = createEnv(fakeUser('u1', 'Trợ lý'), async (url) => {
     requestedUrls.push(String(url));
     if (String(url).includes('/unread-count')) return { ok: true, json: async () => ({ count: 1 }) };
     return {
@@ -62,7 +70,7 @@ test('click vào chuông mở dropdown và tải danh sách thông báo', async 
       ] })
     };
   });
-  window.TKSNav.renderNotifBell({ id: 'u1', vaiTro: 'Trợ lý' });
+  window.TKSNav.renderNotifBell(fakeUser('u1', 'Trợ lý'));
   await new Promise(resolve => setTimeout(resolve, 0));
 
   document.getElementById('tksNotifBellBtn').click();
@@ -77,7 +85,7 @@ test('click vào chuông mở dropdown và tải danh sách thông báo', async 
 
 test('Quản lý thấy nút Duyệt/Từ chối trên thông báo yêu cầu đổi vai trò chưa đọc, và click Duyệt gọi đúng API', async () => {
   const patchCalls = [];
-  const { window, document } = createEnv({ id: 'm1', vaiTro: 'Quản lý' }, async (url, opts) => {
+  const { window, document } = createEnv(fakeUser('m1', 'Quản lý'), async (url, opts) => {
     if (String(url).includes('/unread-count')) return { ok: true, json: async () => ({ count: 1 }) };
     if (opts && opts.method === 'PATCH' && String(url).includes('/api/role-requests/')) {
       patchCalls.push({ url: String(url), body: JSON.parse(opts.body) });
@@ -90,7 +98,7 @@ test('Quản lý thấy nút Duyệt/Từ chối trên thông báo yêu cầu đ
       ] })
     };
   });
-  window.TKSNav.renderNotifBell({ id: 'm1', vaiTro: 'Quản lý' });
+  window.TKSNav.renderNotifBell(fakeUser('m1', 'Quản lý'));
   await new Promise(resolve => setTimeout(resolve, 0));
   document.getElementById('tksNotifBellBtn').click();
   await new Promise(resolve => setTimeout(resolve, 0));
@@ -108,7 +116,7 @@ test('Quản lý thấy nút Duyệt/Từ chối trên thông báo yêu cầu đ
 
 test('click vào thông báo có relatedType đánh dấu đã đọc rồi điều hướng đúng URL', async () => {
   const calledUrls = [];
-  const { window, document } = createEnv({ id: 'u1', vaiTro: 'Quản lý' }, async (url, opts) => {
+  const { window, document } = createEnv(fakeUser('u1', 'Quản lý'), async (url, opts) => {
     calledUrls.push({ url: String(url), method: opts && opts.method });
     if (String(url).includes('/unread-count')) return { ok: true, json: async () => ({ count: 1 }) };
     if (opts && opts.method === 'PATCH' && String(url).includes('/read')) {
@@ -123,7 +131,7 @@ test('click vào thông báo có relatedType đánh dấu đã đọc rồi đi�
   });
   let navigatedTo = null;
   window.TKSNav._navigate = url => { navigatedTo = url; };
-  window.TKSNav.renderNotifBell({ id: 'u1', vaiTro: 'Quản lý' });
+  window.TKSNav.renderNotifBell(fakeUser('u1', 'Quản lý'));
   await new Promise(resolve => setTimeout(resolve, 0));
   document.getElementById('tksNotifBellBtn').click();
   await new Promise(resolve => setTimeout(resolve, 0));
@@ -138,7 +146,7 @@ test('click vào thông báo có relatedType đánh dấu đã đọc rồi đi�
 
 test('click icon xóa trên thông báo gọi DELETE /api/notifications/:id', async () => {
   const calledUrls = [];
-  const { window, document } = createEnv({ id: 'u1', vaiTro: 'Trợ lý' }, async (url, opts) => {
+  const { window, document } = createEnv(fakeUser('u1', 'Trợ lý'), async (url, opts) => {
     calledUrls.push({ url: String(url), method: opts && opts.method });
     if (String(url).includes('/unread-count')) return { ok: true, json: async () => ({ count: 1 }) };
     if (opts && opts.method === 'DELETE') return { ok: true, json: async () => ({ deleted: true }) };
@@ -149,7 +157,7 @@ test('click icon xóa trên thông báo gọi DELETE /api/notifications/:id', as
       ] })
     };
   });
-  window.TKSNav.renderNotifBell({ id: 'u1', vaiTro: 'Trợ lý' });
+  window.TKSNav.renderNotifBell(fakeUser('u1', 'Trợ lý'));
   await new Promise(resolve => setTimeout(resolve, 0));
   document.getElementById('tksNotifBellBtn').click();
   await new Promise(resolve => setTimeout(resolve, 0));
@@ -163,7 +171,7 @@ test('click icon xóa trên thông báo gọi DELETE /api/notifications/:id', as
 
 test('click "Xóa tất cả" gọi DELETE /api/notifications', async () => {
   const calledUrls = [];
-  const { window, document } = createEnv({ id: 'u1', vaiTro: 'Trợ lý' }, async (url, opts) => {
+  const { window, document } = createEnv(fakeUser('u1', 'Trợ lý'), async (url, opts) => {
     calledUrls.push({ url: String(url), method: opts && opts.method });
     if (String(url).includes('/unread-count')) return { ok: true, json: async () => ({ count: 1 }) };
     if (opts && opts.method === 'DELETE') return { ok: true, json: async () => ({ deleted: 1 }) };
@@ -174,7 +182,7 @@ test('click "Xóa tất cả" gọi DELETE /api/notifications', async () => {
       ] })
     };
   });
-  window.TKSNav.renderNotifBell({ id: 'u1', vaiTro: 'Trợ lý' });
+  window.TKSNav.renderNotifBell(fakeUser('u1', 'Trợ lý'));
   await new Promise(resolve => setTimeout(resolve, 0));
   document.getElementById('tksNotifBellBtn').click();
   await new Promise(resolve => setTimeout(resolve, 0));

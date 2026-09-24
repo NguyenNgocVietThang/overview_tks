@@ -111,7 +111,7 @@ function createRenderedDashboard(data) {
   };
   dom.window.setInterval = () => 1;
   dom.window.requestAnimationFrame = callback => callback();
-  dom.window.TKSNav = { authGuard: () => new Promise(() => {}), handleBranchError: () => false, renderTopSidebar() {} };
+  dom.window.TKSNav = { authGuard: () => new Promise(() => {}), can: () => true, handleBranchError: () => false, renderTopSidebar() {} };
   dom.window.fetch = () => new Promise(() => {});
   ['pagination.js', 'table-explorer.js'].forEach(file => {
     dom.window.eval(fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'js', file), 'utf8'));

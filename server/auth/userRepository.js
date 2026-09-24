@@ -24,10 +24,11 @@ const INTERNAL_ROLES = Object.freeze([
   ROLES.NHAN_VIEN_MUA_HANG
 ]);
 
-// Vai tro duoc xem "Bao cao tong hop" (/reports/* + toan bo API lien quan —
-// xem requireReportsUser trong routes.js). PHAI khop voi NO_REPORTS_ROLES trong
-// server/public/shared/shared-nav.js (danh sach do chi an muc menu — day moi la
-// ranh gioi bao mat that su); sua 1 ben thi phai sua ca 2.
+// Vai tro MAC DINH duoc xem "Bao cao tong hop". Day chi la du lieu dau vao cho
+// bang mac dinh trong server/auth/featureRegistry.js (cac quyen reports.*);
+// KHONG dung truc tiep lam route guard nua — moi route gac bang
+// requireFeature(), va client dung menu tu danh sach quyen server tra ve, nen
+// khong con canh "sua 1 ben quen ben kia".
 const REPORTS_ROLES = Object.freeze([
   ROLES.QUAN_LY,
   ROLES.TRO_LY

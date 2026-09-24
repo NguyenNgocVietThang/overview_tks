@@ -131,11 +131,12 @@ router.post('/api/admin/users', ...authManage, async (req, res) => {
 
     res.status(201).json({ user: publicAdminUser(newUser) });
 
-    // Bao cac Quan ly khac biet - best-effort, KHONG duoc lam hong response da tra o tren.
+    // Bao cho nhung nguoi khac co quyen quan ly tai khoan - best-effort,
+    // KHONG duoc lam hong response da tra o tren.
     try {
       const allUsers = await localUserStore.getAllUsers();
       const managerIds = allUsers
-        .filter(u => u.vaiTro === ROLES.QUAN_LY && String(u.id) !== String(req.user.id))
+        .filter(u => featureRegistry.hasFeature(u, 'account.users.manage') && String(u.id) !== String(req.user.id))
         .map(u => u.id);
       await notificationRepo.createNotificationForUsers(managerIds, {
         type: 'account_created',

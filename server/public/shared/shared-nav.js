@@ -335,6 +335,10 @@
   var trashSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>';
 
   TKSNav.renderNotifBell = function renderNotifBell(user){
+    // Nut Duyet/Tu choi doi vai tro gac bang quyen 'account.users.manage' —
+    // nap lai quyen tu user de ham nay goi doc lap duoc (khong phu thuoc
+    // authGuard da chay truoc hay chua).
+    if(user && Array.isArray(user.permissions)) TKSNav.setPermissions(user);
     var chipMount = document.getElementById('accountChip');
     if(!chipMount || !chipMount.parentNode) return;
     if(document.getElementById('tksNotifBell')) return;
@@ -865,12 +869,12 @@
     // Nhom "Bao cao tong hop": cac tab con la view cua public/index.html (phuc
     // vu ca o "/" lan "/reports/" - xem server/index.js), dieu huong bang hash.
     var reportItems = [
-      { feature: 'reports.overview', view: 'overview', label: 'T\u1ed5ng quan', icon: '<rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect>' },
-      { feature: 'reports.products', view: 'products', label: 'H\u00e0ng h\u00f3a', icon: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73Z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path>' },
-      { feature: 'reports.invoices', view: 'invoices', label: 'H\u00f3a \u0111\u01a1n', icon: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path>' },
-      { feature: 'reports.customers', view: 'customers', label: 'Kh\u00e1ch h\u00e0ng', icon: '<path d="M16 2v2"></path><path d="M8 2v2"></path><rect x="3" y="4" width="18" height="18" rx="2"></rect><circle cx="12" cy="11" r="3"></circle><path d="M8 18a4 4 0 0 1 8 0"></path>' },
-      { feature: 'reports.suppliers', view: 'suppliers', label: 'Nh\u00e0 cung c\u1ea5p', icon: '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path><path d="M10 6h4"></path><path d="M10 10h4"></path><path d="M10 14h4"></path><path d="M10 18h4"></path>' },
-      { feature: 'reports.debt', view: 'debt', label: 'Qu\u1ea3n l\u00fd c\u00f4ng n\u1ee3', icon: '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>' }
+      { feature: 'reports.overview', view: 'overview', label: 'Tổng quan', icon: '<rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect>' },
+      { feature: 'reports.products', view: 'products', label: 'Hàng hóa', icon: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73Z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path>' },
+      { feature: 'reports.invoices', view: 'invoices', label: 'Hóa đơn', icon: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path>' },
+      { feature: 'reports.customers', view: 'customers', label: 'Khách hàng', icon: '<path d="M16 2v2"></path><path d="M8 2v2"></path><rect x="3" y="4" width="18" height="18" rx="2"></rect><circle cx="12" cy="11" r="3"></circle><path d="M8 18a4 4 0 0 1 8 0"></path>' },
+      { feature: 'reports.suppliers', view: 'suppliers', label: 'Nhà cung cấp', icon: '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path><path d="M10 6h4"></path><path d="M10 10h4"></path><path d="M10 14h4"></path><path d="M10 18h4"></path>' },
+      { feature: 'reports.debt', view: 'debt', label: 'Quản lý công nợ', icon: '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>' }
     ].map(function(v){
       return { feature: v.feature, href: '/reports/#' + v.view, label: v.label, icon: v.icon };
     });
@@ -885,7 +889,7 @@
       {
         feature: ['shipment.lookup', 'shipment.lifecycle'],
         href: '/shipment/lifecycle/',
-        label: 'V\u00f2ng \u0111\u1eddi \u0111\u01a1n h\u00e0ng',
+        label: 'Vòng đời đơn hàng',
         active: isLifecycleOrdersTab,
         dataAttr: 'data-shipment-subtab="orders"',
         icon: '<circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15.5 14"></polyline>'
@@ -893,7 +897,7 @@
       {
         feature: 'shipment.history',
         href: '/shipment/lifecycle/#history',
-        label: 'L\u1ecbch s\u1eed c\u1eadp nh\u1eadt',
+        label: 'Lịch sử cập nhật',
         active: isLifecycleHistoryTab,
         dataAttr: 'data-shipment-subtab="history"',
         icon: '<path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path>'
@@ -906,17 +910,17 @@
     var isHrLeaveTab = isHrPage && !isHrQuydinhTab && !isHrDanhSachTab;
     var hrItems = [
       {
-        feature: 'hr.rules', href: '/humanresources/#quydinh', label: 'Quy \u0111\u1ecbnh c\u00f4ng ty',
+        feature: 'hr.rules', href: '/humanresources/#quydinh', label: 'Quy định công ty',
         active: isHrQuydinhTab, dataAttr: 'data-hr-subtab="quydinh"',
         icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line>'
       },
       {
-        feature: 'hr.employees', href: '/humanresources/#danhsach', label: 'Danh s\u00e1ch nh\u00e2n s\u1ef1',
+        feature: 'hr.employees', href: '/humanresources/#danhsach', label: 'Danh sách nhân sự',
         active: isHrDanhSachTab, dataAttr: 'data-hr-subtab="danhsach"',
         icon: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>'
       },
       {
-        feature: 'hr.leave', href: '/humanresources/#leave', label: 'Ngh\u1ec9 ph\u00e9p',
+        feature: 'hr.leave', href: '/humanresources/#leave', label: 'Nghỉ phép',
         active: isHrLeaveTab, dataAttr: 'data-hr-subtab="leave"',
         icon: '<rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>'
       }
@@ -927,12 +931,12 @@
     var isProfileTab = isAccountPage && !isUsersTab;
     var accountItems = [
       {
-        feature: 'account.profile', href: '/account/#profile', label: 'Qu\u1ea3n l\u00fd h\u1ed3 s\u01a1',
+        feature: 'account.profile', href: '/account/#profile', label: 'Quản lý hồ sơ',
         active: isProfileTab, dataAttr: 'data-account-subtab="profile"',
         icon: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>'
       },
       {
-        feature: 'account.users', href: '/account/#users', label: 'Qu\u1ea3n l\u00fd ng\u01b0\u1eddi d\u00f9ng',
+        feature: 'account.users', href: '/account/#users', label: 'Quản lý người dùng',
         active: isUsersTab, dataAttr: 'data-account-subtab="users"',
         icon: '<circle cx="18" cy="15" r="3"></circle><circle cx="9" cy="7" r="4"></circle><path d="M10 15H6a4 4 0 0 0-4 4v2"></path><path d="m21.7 16.4-.9-.3"></path><path d="m15.2 13.9-.9-.3"></path><path d="m16.6 18.7.3-.9"></path><path d="m19.1 12.2.3-.9"></path><path d="m19.6 18.7-.4-.8"></path><path d="m16.8 12.3-.4-.8"></path><path d="m14.3 16.6.8-.4"></path><path d="m20.7 13.8.8-.4"></path>'
       }
@@ -940,19 +944,19 @@
 
     var groups = [
       {
-        key: 'reports', label: 'B\u00e1o c\u00e1o t\u1ed5ng h\u1ee3p', active: activeTop === 'reports', items: reportItems,
+        key: 'reports', label: 'Báo cáo tổng hợp', active: activeTop === 'reports', items: reportItems,
         icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="8" y1="18" x2="8" y2="14"></line><line x1="16" y1="18" x2="16" y2="16"></line>'
       },
       {
-        key: 'shipment', label: 'Qu\u1ea3n l\u00fd \u0111\u01a1n h\u00e0ng', active: activeTop === 'shipment', items: shipmentItems,
+        key: 'shipment', label: 'Quản lý đơn hàng', active: activeTop === 'shipment', items: shipmentItems,
         icon: '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle>'
       },
       {
-        key: 'hr', label: 'Qu\u1ea3n l\u00fd nh\u00e2n s\u1ef1', active: activeTop === 'hr', items: hrItems,
+        key: 'hr', label: 'Quản lý nhân sự', active: activeTop === 'hr', items: hrItems,
         icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>'
       },
       {
-        key: 'account', label: 'Qu\u1ea3n l\u00fd t\u00e0i kho\u1ea3n', active: activeTop === 'account', items: accountItems,
+        key: 'account', label: 'Quản lý tài khoản', active: activeTop === 'account', items: accountItems,
         icon: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.8 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path>'
       }
     ];

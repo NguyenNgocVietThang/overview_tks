@@ -120,3 +120,25 @@ test('two local accounts matching one HR row fail closed', async () => {
   await assert.rejects(resolver.resolveUser(store.state[0]), err => err.code === 'HR_IDENTITY_CONFLICT');
 });
 
+test('dong bo HR KHONG xoa ghi de quyen rieng cua tai khoan (feature_permissions)', async () => {
+  const overrides = { 'reports.overview': true, 'hr.leave': false };
+  const store = memoryStore([{
+    id: 'u1', username: '0912345678', email: '', soDienThoai: '0912345678',
+    verifiedPhone: true, vaiTro: 'Khách', coSo: '', trangThai: 'Đang hoạt động',
+    featurePermissions: overrides
+  }]);
+  const resolver = createEffectiveUserResolver({
+    store,
+    directory: { getSnapshot: async () => ({ employees: [employee], stale: false }) }
+  });
+
+  const resolved = await resolver.resolveUser(store.state[0]);
+
+  // Vai tro duoc dong bo lai tu Danh sach nhan su...
+  assert.equal(resolved.vaiTro, 'Kế toán');
+  assert.equal(resolved.hrManaged, true);
+  // ...nhung ghi de quyen do Quan ly dat phai con nguyen, ca trong ket qua tra
+  // ve lan trong ban ghi da luu.
+  assert.deepEqual(resolved.featurePermissions, overrides);
+  assert.deepEqual(store.state[0].featurePermissions, overrides);
+});
