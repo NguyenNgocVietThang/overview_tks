@@ -8464,7 +8464,7 @@
         const controller = new AbortController();
         picker.controller = controller;
         try {
-          const response = await fetch('/api/search?view=customers&q=' + encodeURIComponent(query) + '&limit=8', { signal: controller.signal });
+          const response = await fetch('/api/customer-suggest?q=' + encodeURIComponent(query) + '&limit=8', { signal: controller.signal });
           if (!response.ok) throw new Error('HTTP ' + response.status);
           const payload = await response.json();
           if (requestId !== picker.requestId) return;

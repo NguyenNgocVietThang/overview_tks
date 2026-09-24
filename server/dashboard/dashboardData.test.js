@@ -34,6 +34,7 @@ function freshDashboardData() {
   delete require.cache[require.resolve('./dashboardPgReader')];
   delete require.cache[require.resolve('./customerProductTopRepository')];
   delete require.cache[require.resolve('./dashboardRollupRepository')];
+  delete require.cache[require.resolve('./customerDirectoryRepository')];
   const customerDebtActivityRepository = require('./customerDebtActivityRepository');
   customerDebtActivityRepository.readOperationalPeriods = async () => ({
     HN1: [['Khách hàng']], HN3: [['Khách hàng']], HN7: [['Khách hàng']]
@@ -52,10 +53,12 @@ function freshDashboardData() {
   customerProductTopRepository.findTopCustomersByRevenueForProduct = async () => [];
   const dashboardRollupRepository = require('./dashboardRollupRepository');
   mockDashboardRollups(dashboardRollupRepository, {});
+  const customerDirectoryRepository = require('./customerDirectoryRepository');
+  customerDirectoryRepository.readCustomerDirectory = async () => [];
   const dashboardData = require('./dashboardData');
   return {
     dashboardData, customerDebtActivityRepository, debtManagementSheetsClient, debtCollectionStatusRepository,
-    dashboardPgReader, customerProductTopRepository, dashboardRollupRepository
+    dashboardPgReader, customerProductTopRepository, dashboardRollupRepository, customerDirectoryRepository
   };
 }
 
@@ -1615,4 +1618,52 @@ test('Ca hai chi muc tim kiem dung lai khi nguon khong doi va xay lai khi mot co
   assert.deepEqual(result.results.map(item => item.code), ['SP-9']);
   assert.deepEqual(seen.sort(), [BRANCHES.HANOI, BRANCHES.SAIGON, BRANCHES.SAIGON]);
   assert.ok(dashboardData.__test__.getSearchIndexBuildCount() > buildsBeforeRefresh, 'chi muc gop phai duoc xay lai');
+});
+
+// searchCustomerDirectory: goi y nhanh cho o tim kiem "Bao cao doanh thu theo
+// khach" (tab Tong quan) — nguon rieng (customerDirectoryRepository), KHONG
+// dung getCachedDashboardSheets/getSearchSheets (9-tab, cham khi cache nguoi).
+test('searchCustomerDirectory: tim theo ma hoac ten, uu tien trung/tien to truoc chua cum tu', async () => {
+  const { dashboardData, customerDirectoryRepository } = freshDashboardData();
+  const calls = [];
+  customerDirectoryRepository.readCustomerDirectory = async branch => {
+    calls.push(branch);
+    return [
+      { branch: 'hanoi', code: 'KH01', name: 'Trần Thị Bình' },
+      { branch: 'hanoi', code: 'KH02', name: 'Nguyễn Văn An' },
+      { branch: 'hanoi', code: 'AN9', name: 'Khách lẻ' }
+    ];
+  };
+  dashboardData.__test__.resetCaches();
+
+  const result = await dashboardData.searchCustomerDirectory('Hà Nội', 'an', 8);
+
+  assert.deepEqual(calls, ['Hà Nội']);
+  // "AN9" trung tien to ma -> xep truoc "Nguyễn Văn An" (chua cum tu trong ten).
+  assert.deepEqual(result.results.map(r => r.code), ['AN9', 'KH02']);
+});
+
+test('searchCustomerDirectory: cache danh ba trong TTL, khong query lai Postgres moi lan go phim', async () => {
+  const { dashboardData, customerDirectoryRepository } = freshDashboardData();
+  let callCount = 0;
+  customerDirectoryRepository.readCustomerDirectory = async () => {
+    callCount += 1;
+    return [{ branch: 'hanoi', code: 'KH01', name: 'Trần Thị Bình' }];
+  };
+  dashboardData.__test__.resetCaches();
+
+  await dashboardData.searchCustomerDirectory('Hà Nội', 'binh', 8);
+  await dashboardData.searchCustomerDirectory('Hà Nội', 'bình', 8);
+
+  assert.equal(callCount, 1);
+});
+
+test('searchCustomerDirectory: chuoi rong tra ket qua rong, khong goi repository', async () => {
+  const { dashboardData, customerDirectoryRepository } = freshDashboardData();
+  customerDirectoryRepository.readCustomerDirectory = async () => assert.fail('không được query khi chưa gõ gì');
+  dashboardData.__test__.resetCaches();
+
+  const result = await dashboardData.searchCustomerDirectory('Hà Nội', '   ', 8);
+
+  assert.deepEqual(result.results, []);
 });

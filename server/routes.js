@@ -2,6 +2,7 @@ const express = require('express');
 const {
   getDashboardData,
   searchDashboardRecords,
+  searchCustomerDirectory,
   searchTopCustomersByProducts,
   getCustomerProductRevenueReport
 } = require('./dashboard/dashboardData');
@@ -94,6 +95,7 @@ const reportsUser = (...features) => [requireAuth, requireFeature(...features), 
 router.use('/api/debug', ...reportsUser(...ANY_REPORTS_FEATURES));
 router.use('/api/dashboard', ...reportsUser(...ANY_REPORTS_FEATURES));
 router.use('/api/search', ...reportsUser(...ANY_REPORTS_FEATURES));
+router.use('/api/customer-suggest', ...reportsUser('reports.customers'));
 router.use('/api/customer-product-top', ...reportsUser('reports.customers'));
 router.use('/api/customer-product-revenue', ...reportsUser('reports.customers'));
 router.use('/api/product-report', ...reportsUser('reports.products'));
@@ -243,6 +245,26 @@ router.get('/api/search', async (req, res) => {
       detail: err.message,
       code: err.code,
       googleStatus
+    });
+  }
+});
+
+// Goi y ten/ma khach hang cho o tim kiem "Bao cao doanh thu theo khach" (tab
+// Tong quan) — nguon rieng, NHE (chi bang "customers"), tach khoi /api/search
+// dung chung cache 9-tab dashboard de khong bi cham theo cac tab khac.
+router.get('/api/customer-suggest', async (req, res) => {
+  try {
+    const data = await searchCustomerDirectory(req.branch, req.query.q, req.query.limit);
+    res.status(200).json(data);
+  } catch (err) {
+    console.error('=== LOI /api/customer-suggest ===');
+    console.error('Message:', err.message);
+    console.error('Stack:', err.stack);
+    console.error('==================================');
+    res.status(err.statusCode || 500).json({
+      error: 'Khong tim duoc goi y khach hang.',
+      detail: err.message,
+      code: err.code
     });
   }
 });

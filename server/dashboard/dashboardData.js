@@ -12,6 +12,7 @@ const CONFIG = require('../config');
 const debtManagementSheetsClient = require('../sheets/debtManagementSheetsClient');
 const dashboardPgReader = require('./dashboardPgReader');
 const customerDebtActivityRepository = require('./customerDebtActivityRepository');
+const customerDirectoryRepository = require('./customerDirectoryRepository');
 const customerProductTopRepository = require('./customerProductTopRepository');
 const dashboardRollupRepository = require('./dashboardRollupRepository');
 const { BRANCHES, BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
@@ -521,6 +522,95 @@ async function getAggregateSearchIndex() {
 /** Nguon "full" cua 1 pham vi: co so vat ly doc cache rieng, "Ca hai" doc ban da gop. */
 function getFullSheetsForScope(branch) {
   return branch === BRANCH_BOTH ? getAggregateFullSheets() : getCachedDashboardSheets(branch);
+}
+
+// ---------- Danh ba khach hang (rieng, nhe) — goi y tim khach o phan "Bao cao
+// doanh thu theo khach" (tab Tong quan) ----------------------------------
+// Cache TACH BIET voi searchSheetCacheByBranch/dashboardSheetsCacheByBranch:
+// o day chi doc bang "customers" (nhe, xem customerDirectoryRepository.js)
+// thay vi phai cho ca 9 bang dashboard (~14s luc cache nguoi) chi de goi y
+// ten/ma khach hang. Du lieu day du (doanh thu 90 ngay) van chi tai SAU khi
+// nguoi dung chon 1 khach cu the, qua /api/customer-product-revenue.
+const CUSTOMER_DIRECTORY_CACHE_TTL_MS = 90 * 1000;
+let customerDirectoryCacheByBranch = new Map();
+const CUSTOMER_DIRECTORY_BRANCH_RANK = { hanoi: 0, saigon: 1 };
+
+// Gop danh sach cua "Ca hai" ve 1 dong moi khach (uu tien Ha Noi truoc, giong
+// BRANCH_RANK_SQL trong customerProductTopRepository.js) — tranh goi y hien
+// trung mot khach hai lan khi ma khach trung giua hai co so.
+function dedupeCustomerDirectoryRows(rows) {
+  const sorted = rows.slice().sort((a, b) =>
+    (CUSTOMER_DIRECTORY_BRANCH_RANK[a.branch] ?? 99) - (CUSTOMER_DIRECTORY_BRANCH_RANK[b.branch] ?? 99));
+  const seen = new Map();
+  sorted.forEach(row => {
+    const key = normalizeSearchValue(row.code) || (row.name ? 'name:' + normalizeSearchValue(row.name) : '');
+    if (!key || seen.has(key)) return;
+    seen.set(key, { code: row.code, name: row.name || row.code });
+  });
+  return Array.from(seen.values());
+}
+
+async function getCustomerDirectory(branch) {
+  const cache = cacheEntryFor(customerDirectoryCacheByBranch, branch);
+  const now = Date.now();
+  if (cache.data && now < cache.expiresAt) return cache.data;
+  if (cache.loading) return cache.loading;
+
+  const loading = customerDirectoryRepository.readCustomerDirectory(branch)
+    .then(rows => {
+      cache.data = dedupeCustomerDirectoryRows(rows);
+      cache.expiresAt = Date.now() + CUSTOMER_DIRECTORY_CACHE_TTL_MS;
+      return cache.data;
+    })
+    .finally(() => {
+      if (cache.loading === loading) cache.loading = null;
+    });
+  cache.loading = loading;
+  return loading;
+}
+
+/**
+ * Goi y ten/ma khach hang NHANH cho o tim kiem o phan "Bao cao doanh thu theo
+ * khach" — dung rieng danh ba khach hang (getCustomerDirectory) thay vi chi
+ * muc tim kiem dung chung 9-tab dashboard (searchDashboardRecords), de khong
+ * bi cho theo cache nang cua cac tab khac (Hoa don/Nhap hang...).
+ */
+async function searchCustomerDirectory(branch, rawQuery, rawLimit) {
+  const queryText = normalizeWhitespace(rawQuery).slice(0, 120);
+  if (!queryText) return { query: queryText, results: [] };
+  const limit = Math.min(Math.max(Number(rawLimit) || 8, 1), 50);
+
+  const normalizedQuery = normalizeSearchValue(queryText);
+  const query = {
+    value: normalizedQuery,
+    compactValue: compactSearchValue(normalizedQuery),
+    tokens: normalizedQuery.split(' ').filter(Boolean)
+  };
+
+  const directory = await getCustomerDirectory(branch);
+  const matches = [];
+  directory.forEach(customer => {
+    const normalizedCode = normalizeSearchValue(customer.code);
+    const normalizedName = normalizeSearchValue(customer.name);
+    const rank = getSearchMatchRank({
+      normalizedCode,
+      normalizedName,
+      compactCode: compactSearchValue(normalizedCode),
+      compactName: compactSearchValue(normalizedName)
+    }, query);
+    if (rank < 0) return;
+    matches.push({ customer, rank });
+  });
+
+  matches.sort((a, b) =>
+    a.rank - b.rank ||
+    a.customer.code.localeCompare(b.customer.code, 'vi', { numeric: true, sensitivity: 'base' }) ||
+    a.customer.name.localeCompare(b.customer.name, 'vi', { sensitivity: 'base' }));
+
+  return {
+    query: queryText,
+    results: matches.slice(0, limit).map(({ customer }) => ({ code: customer.code, name: customer.name || customer.code }))
+  };
 }
 
 /**
@@ -2854,6 +2944,7 @@ module.exports = {
   findDebtCustomerBranches,
   invalidateDebtWorkflowCache,
   searchDashboardRecords,
+  searchCustomerDirectory,
   searchTopCustomersByProducts,
   getCustomerProductRevenueReport,
   mergeEntityRows,
@@ -2866,6 +2957,7 @@ module.exports = {
       debtManagementSheetsCacheByBranch = new Map();
       debtWorkflowCacheByBranch = new Map();
       searchSheetCacheByBranch = new Map();
+      customerDirectoryCacheByBranch = new Map();
       aggregateFullSheetsCache = null;
       dashboardResultCache = new Map();
       searchIndexBuildCountForTest = 0;
