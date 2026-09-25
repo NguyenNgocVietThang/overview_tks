@@ -153,7 +153,7 @@ function samplePayload() {
       newlyImported: { products: [], topByRevenue: [], salesByCategory: [], countByCategory: [], salesRevenue: 0, salesQty: 0 }
     },
     lowStock: [], stockValueByCategory: [], allProducts: [], stockByCategory: [], suppliers: [],
-    customers: { topDebt: [], topRevenue: { top15: [], top50: [], label: '—' } }
+    customers: { topDebt: [], topRevenue: { top15: [], all: [], label: '—' } }
   };
 }
 

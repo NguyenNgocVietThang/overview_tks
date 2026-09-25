@@ -4492,7 +4492,7 @@
               <div class="panel col-7">
                 <div class="panel-head">
                   <h2>Chi tiết doanh thu theo khách <span class="tag" id="tagCustomerRevenue">—</span></h2>
-                  <div class="panel-head-actions"><span class="drill-hint">Top 50 khách theo doanh thu trong
+                  <div class="panel-head-actions"><span class="drill-hint">Tất cả khách có doanh thu trong
                       kỳ</span><button class="export-button" type="button"
                       onclick="openExportDialog('customers.revenue')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button></div>
                 </div>
@@ -8939,14 +8939,15 @@
           { tableKey: 'topDebt', identity: c => c.code }
         ); else destroyChart('debt');
 
-        const topRevenue = customerData.topRevenue || { top15: [], top50: [], label: '—' };
-        const top50 = topRevenue.top50 || [];
-        document.getElementById('tagCustomerRevenue').textContent = top50.length;
+        const topRevenue = customerData.topRevenue || { top15: [], all: [], label: '—' };
+        // top50 is retained as a fallback while older cached dashboard payloads expire.
+        const allCustomerRevenue = topRevenue.all || topRevenue.top50 || [];
+        document.getElementById('tagCustomerRevenue').textContent = allCustomerRevenue.length;
         document.getElementById('top-customer-revenue-count').textContent = topRevenue.label || '—';
         renderPaginatedRows(
           'customerRevenue',
           { tbody: 'customerRevenueRows', pagination: 'customerRevenuePagination', firstBtn: 'customerRevenueFirstPage', prevBtn: 'customerRevenuePrevPage', nextBtn: 'customerRevenueNextPage', lastBtn: 'customerRevenueLastPage', label: 'customerRevenuePageLabel' },
-          top50,
+          allCustomerRevenue,
           c => '<tr><td class="mono muted">' + escapeHtml(c.code) + '</td><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
             '<td class="mono">' + fmtNumber(Number(c.saleOrderCount || 0)) + '</td>' +
             '<td class="mono" data-sort-value="' + c.revenue + '">' + fmtMoney(c.revenue) + '</td></tr>',

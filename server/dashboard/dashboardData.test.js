@@ -500,6 +500,7 @@ test('getDashboardData tong hop topRevenue tu sheet Hoa don khi sheet Bao cao ba
   const topRevenue = data.customers.topRevenue;
   assert.ok(topRevenue, 'co topRevenue trong customers');
   assert.equal(topRevenue.top15.length, 2, 'co dung 2 khach hoan thanh giao dich');
+  assert.equal(topRevenue.all.length, 2, 'bang chi tiet co tat ca khach hang co doanh thu');
   // KH-02: 1,200,000 - 200,000 = 1,000,000
   assert.equal(topRevenue.top15[0].code, 'KH-02');
   assert.equal(topRevenue.top15[0].revenue, 1000000);
@@ -508,6 +509,26 @@ test('getDashboardData tong hop topRevenue tu sheet Hoa don khi sheet Bao cao ba
   assert.equal(topRevenue.top15[1].code, 'KH-01');
   assert.equal(topRevenue.top15[1].revenue, 800000);
   assert.equal(topRevenue.top15[1].saleOrderCount, 2);
+});
+
+test('getDashboardData tra toan bo khach hang trong bang chi tiet doanh thu, khong gioi han 50', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const CONFIG = require('../config');
+  const invoiceHeader = ['Mã hóa đơn', 'Ngày bán', 'Khách hàng', 'SĐT khách', 'Nhân viên bán', 'Chi nhánh', 'Tổng tiền hàng', 'Giảm giá', 'Khách đã trả', 'Trạng thá', 'ID', 'ID gian', 'Mã đặt', 'ID CN', 'ID NV', 'ID KH', 'Mã khách hàng'];
+  const invoiceRows = Array.from({ length: 55 }, (_, index) => {
+    const number = String(index + 1).padStart(2, '0');
+    return [`HD-${number}`, '10/08/2026 10:00:00', `Khách ${number}`, '', '', '', 100000 - index, 0, 100000 - index, 'Hoàn thành', '', '', '', '', '', '', `KH-${number}`];
+  });
+  mockPgSheets(dashboardPgReader, {
+    [CONFIG.SHEET_INVOICES]: [invoiceHeader, ...invoiceRows]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData(BASE_FILTERS);
+
+  assert.equal(data.customers.topRevenue.top15.length, 15, 'bieu do van chi hien top 15');
+  assert.equal(data.customers.topRevenue.all.length, 55, 'bang chi tiet tra du 55 khach hang');
+  assert.equal(data.customers.topRevenue.all[54].code, 'KH-55');
 });
 
 test('getDashboardData tra toan bo dat hang/tra hang trong khoang loc, khong cat 8 dong, moi nhat len dau', async () => {

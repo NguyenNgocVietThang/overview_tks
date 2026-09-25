@@ -458,7 +458,8 @@ async function loadSourceRowsForItems(source, env, items, perBranch) {
 // ---------- Dinh nghia tung bang (worksheets + ham nap dong) ----------
 
 function customerRevenueRows(dashboard) {
-  return (((dashboard.customers || {}).topRevenue || {}).top50 || []);
+  const topRevenue = ((dashboard.customers || {}).topRevenue || {});
+  return topRevenue.all || topRevenue.top50 || [];
 }
 
 const BRANCH_COLUMN_LABEL = 'Cơ sở';

@@ -83,7 +83,7 @@ function buildDashboard() {
       periodReturns: [{ code: 'TH-01' }]
     },
     customers: {
-      topRevenue: { top50: [{ code: 'KH-01', saleOrderCount: 2, revenue: 300000 }] },
+      topRevenue: { all: [{ code: 'KH-01', saleOrderCount: 2, revenue: 300000 }] },
       topDebt: [{ code: 'KH-01', periodRevenue: 300000 }]
     },
     suppliers: [{ code: 'NCC-01' }],

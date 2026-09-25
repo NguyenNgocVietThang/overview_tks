@@ -38,7 +38,6 @@ const MAX_RANGE_DAYS = 3660; // ~10 nam — chan vong lap tao bucket ngay bi vo 
 const MAX_REPORT_TRANSACTIONS = 500; // gioi han so dong bang "Chi tiet giao dich" khi loc ca ky dai
 const TOP_REPORT_TRANSACTIONS = 15;
 const TOP_CUSTOMER_REVENUE_CHART_LIMIT = 15;
-const TOP_CUSTOMER_REVENUE_TABLE_LIMIT = 50;
 const CUSTOMER_PRODUCT_REVENUE_WINDOW_DAYS = 90;
 const CUSTOMER_PRODUCT_REVENUE_MONTH_DAYS = 30;
 
@@ -1421,7 +1420,7 @@ function buildTopCustomersByRevenue(range, customerReportData, invData, custData
   return {
     label: range.label,
     top15: sorted.slice(0, TOP_CUSTOMER_REVENUE_CHART_LIMIT),
-    top50: sorted.slice(0, TOP_CUSTOMER_REVENUE_TABLE_LIMIT)
+    all: sorted
   };
 }
 
