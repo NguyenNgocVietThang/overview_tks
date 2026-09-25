@@ -660,12 +660,14 @@ const TABLE_SPECS = {
     if (context.productAnalysis === 'parentCategory') {
       return aggregateTable({
         key: 'top_parent_categories', name: 'Top nhóm cha', columns: PARENT_CATEGORY_COLUMNS,
-        rows: dashboard => (dashboard.products || {}).topSellingParentCategories || []
+        rows: dashboard => (dashboard.products || {}).allSellingParentCategories
+          || (dashboard.products || {}).topSellingParentCategories || []
       });
     }
     return singleSourceTable({
       key: 'top_products', name: 'Top sản phẩm', sourceKey: 'products',
-      items: dashboard => (dashboard.products || {}).topSellingProducts || [],
+      items: dashboard => (dashboard.products || {}).allSellingProducts
+        || (dashboard.products || {}).topSellingProducts || [],
       derived: [
         { key: 'sold_qty', label: 'Số lượng bán', type: 'number', description: 'Tổng số lượng hàng bán ra trong kỳ.' },
         { key: 'sales_revenue', label: 'Doanh thu', type: 'number', description: 'Tổng doanh thu bán hàng trong kỳ (VNĐ).' }

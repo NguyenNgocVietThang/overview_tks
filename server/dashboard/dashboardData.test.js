@@ -531,6 +531,43 @@ test('getDashboardData tra toan bo khach hang trong bang chi tiet doanh thu, kho
   assert.equal(data.customers.topRevenue.all[54].code, 'KH-55');
 });
 
+test('getDashboardData tra toan bo giao dich trong bang chi tiet, bieu do van chi top 15', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const CONFIG = require('../config');
+  const invoiceHeader = ['Mã hóa đơn', 'Ngày bán', 'Khách hàng', 'SĐT khách', 'Nhân viên bán', 'Chi nhánh', 'Tổng tiền hàng', 'Giảm giá', 'Khách đã trả', 'Trạng thái'];
+  const invoiceRows = Array.from({ length: 505 }, (_, index) => [
+    `HD-${String(index + 1).padStart(3, '0')}`, '10/08/2026 10:00:00', 'Khách', '', 'Sale', '', index + 1, 0, index + 1, 'Hoàn thành'
+  ]);
+  mockPgSheets(dashboardPgReader, { [CONFIG.SHEET_INVOICES]: [invoiceHeader, ...invoiceRows] });
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData({ ...BASE_FILTERS, invoices: { mode: 'all' } });
+  const report = data.invoices.transactionsReport;
+
+  assert.equal(report.transactions.length, 505, 'bang chi tiet khong bi cat o 500 dong');
+  assert.equal(report.topTransactions.length, 15, 'bieu do van chi hien top 15');
+  assert.equal(report.truncated, false);
+});
+
+test('getDashboardData tra day du san pham cho bang, bieu do van chi top 15', async () => {
+  const { dashboardData, dashboardRollupRepository } = freshDashboardData();
+  mockDashboardRollups(dashboardRollupRepository, {
+    getProductSalesBreakdown: () => Array.from({ length: 18 }, (_, index) => ({
+      code: `SP-${String(index + 1).padStart(2, '0')}`,
+      name: `Sản phẩm ${index + 1}`,
+      qty: index + 1,
+      revenue: index + 1
+    }))
+  });
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData({ ...BASE_FILTERS, products: { mode: 'all' } });
+
+  assert.equal(data.products.allSellingProducts.length, 18, 'bang chi tiet co du san pham');
+  assert.equal(data.products.topSellingProducts.length, 15, 'bieu do van chi hien top 15');
+  assert.equal(data.products.allSellingProducts[0].code, 'SP-18');
+});
+
 test('getDashboardData tra toan bo dat hang/tra hang trong khoang loc, khong cat 8 dong, moi nhat len dau', async () => {
   const { dashboardData, dashboardPgReader } = freshDashboardData();
   const CONFIG = require('../config');

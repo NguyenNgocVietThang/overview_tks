@@ -7858,9 +7858,12 @@
     function renderProductSalesAnalysis(d) {
       const productsData = d.products || {};
       const isParentCategory = state.productAnalysis === 'parentCategory';
-      const analysisRows = isParentCategory
+      const chartRows = isParentCategory
         ? (productsData.topSellingParentCategories || [])
         : (productsData.topSellingProducts || d.topSellingProducts || []);
+      const analysisRows = isParentCategory
+        ? (productsData.allSellingParentCategories || chartRows)
+        : (productsData.allSellingProducts || chartRows);
       const chartTitle = isParentCategory ? 'Top nhóm cha theo doanh thu' : 'Top sản phẩm bán chạy';
       const tableTitle = isParentCategory ? 'Chi tiết doanh thu theo nhóm cha' : 'Chi tiết sản phẩm bán chạy';
       const firstColumnLabel = isParentCategory ? 'Nhóm cha' : 'Sản phẩm';
@@ -7882,9 +7885,9 @@
         else headerCell.textContent = header[1];
       });
 
-      if (analysisRows.length) {
+      if (chartRows.length) {
         renderBarChartList(
-          'chartTopSelling', 'topSelling', analysisRows, item => item.name, item => item.revenue,
+          'chartTopSelling', 'topSelling', chartRows, item => item.name, item => item.revenue,
           themeColor('--green'), false,
           { tableKey: 'topSelling', identity: item => state.productAnalysis === 'product' ? item.code : 'parent:' + item.name }
         );

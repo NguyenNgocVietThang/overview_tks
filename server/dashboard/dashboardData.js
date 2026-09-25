@@ -35,7 +35,6 @@ const DASHBOARD_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const DASHBOARD_UTC_OFFSET = '+07:00';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_RANGE_DAYS = 3660; // ~10 nam — chan vong lap tao bucket ngay bi vo tan/qua lon
-const MAX_REPORT_TRANSACTIONS = 500; // gioi han so dong bang "Chi tiet giao dich" khi loc ca ky dai
 const TOP_REPORT_TRANSACTIONS = 15;
 const TOP_CUSTOMER_REVENUE_CHART_LIMIT = 15;
 const CUSTOMER_PRODUCT_REVENUE_WINDOW_DAYS = 90;
@@ -1669,8 +1668,8 @@ async function getCustomerProductRevenueReport(customerCode, customerName, branc
 /**
  * Bao cao chi tiet giao dich trong `range` cho tab Hoa don (truoc day nam o tab
  * Tong quan, thay cho khai niem "cuoi ngay" co dinh). Tong hop (summary) luon tinh tren TOAN
- * BO giao dich trong ky; danh sach chi tiet (transactions) gioi han
- * MAX_REPORT_TRANSACTIONS dong gan nhat de khong lam nang trang khi chon ky dai.
+ * BO giao dich trong ky. Danh sach chi tiet (transactions) tra ve day du de
+ * bang co the phan trang tren toan bo ky; rieng bieu do van chi dung top 15.
  */
 function invoiceIdentity(branch, code) {
   return `${String(branch || '').trim()}\u0000${String(code || '').trim()}`;
@@ -1719,13 +1718,12 @@ function buildTransactionsReport(range, invoiceRecords, invoiceQuantityMap, incl
   };
 
   const transactions = allTransactions
-    .slice(0, MAX_REPORT_TRANSACTIONS)
     .map(({ _sortTime, ...rest }) => rest);
 
   return {
     date: range.label,
     singleDay,
-    truncated: allTransactions.length > MAX_REPORT_TRANSACTIONS,
+    truncated: false,
     totalInRange: allTransactions.length,
     transactions,
     topTransactions,
@@ -2553,18 +2551,18 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       newlyImportedCategorySalesMap[parentCategoryName].productCodes.add(trimmedCode);
     }
   });
-  const topSellingProducts = Object.values(productSalesMap)
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, TOP_SELLING_LIMIT);
-  const topSellingParentCategories = Object.values(parentCategorySalesMap)
+  const allSellingProducts = Object.values(productSalesMap)
+    .sort((a, b) => b.revenue - a.revenue);
+  const allSellingParentCategories = Object.values(parentCategorySalesMap)
     .map(category => ({
       name: category.name,
       qty: category.qty,
       revenue: category.revenue,
       productCount: category.productCodes.size
     }))
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, TOP_SELLING_LIMIT);
+    .sort((a, b) => b.revenue - a.revenue);
+  const topSellingProducts = allSellingProducts.slice(0, TOP_SELLING_LIMIT);
+  const topSellingParentCategories = allSellingParentCategories.slice(0, TOP_SELLING_LIMIT);
 
   // ---------- DOANH THU/SL BÁN THEO NHÓM CON, GOM THEO TỪNG NHÓM CHA ----------
   // Dung cho phan "chon 1 nhom cha -> xem chi tiet nhom con" o tab Hang hoa.
@@ -2880,6 +2878,8 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       },
       topSellingProducts,
       topSellingParentCategories,
+      allSellingProducts,
+      allSellingParentCategories,
       childCategorySalesByParent,
       availableParentCategories,
       newlyImported: {
