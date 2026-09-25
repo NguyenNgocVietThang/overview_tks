@@ -1578,6 +1578,7 @@ test('createExportWorkbook: chap nhan truong "branch" khi ket qua stockout quet 
 
 // ---------- Xuat bao cao HTML (renderer thu hai, dung chung tang dataset) ----------
 
+const zlib = require('node:zlib');
 const { JSDOM } = require('jsdom');
 const exportHtmlReport = require('./exportHtmlReport');
 
@@ -1586,16 +1587,34 @@ const DEBT_HTML_EXPORT = {
   columns: { debt_management: ['customerName', 'sale', 'currentDebt', 'overdueDebt', 'currentDebtToSalesRatio', 'workflowStatus'] }
 };
 
-function openHtmlReport(file) {
+/** Doc du lieu nhung (gzip + base64) giong trinh duyet. */
+function embeddedData(html) {
+  const doc = new JSDOM(html).window.document;
+  const node = doc.getElementById('report-data');
+  assert.equal(node.getAttribute('data-encoding'), 'gzip-base64');
+  return JSON.parse(zlib.gunzipSync(Buffer.from(node.textContent, 'base64')).toString('utf8'));
+}
+
+// Mo bao cao trong jsdom; jsdom khong co DecompressionStream/Response nen muon cua Node
+// (cung API chuan cua trinh duyet). Cho den khi bang da render xong tu du lieu giai nen.
+async function openHtmlReport(file, options = {}) {
   const html = file.buffer.toString('utf8');
   const dom = new JSDOM(html, {
     runScripts: 'dangerously',
     beforeParse(win) {
       win.HTMLCanvasElement.prototype.getContext = () => null; // jsdom khong co canvas
       win.console.error = () => {};
+      if (!options.legacyBrowser) {
+        win.DecompressionStream = DecompressionStream;
+        win.Response = Response;
+      }
     }
   });
-  return { html, dom, doc: dom.window.document };
+  const doc = dom.window.document;
+  for (let attempt = 0; attempt < 200 && /Đang mở dữ liệu/.test(doc.getElementById('tbody').textContent); attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+  return { html, dom, doc };
 }
 
 test('createExport: khong gui format -> Excel nhu cu; format sai bi tu choi TRUOC khi cham du lieu', async () => {
@@ -1621,8 +1640,7 @@ test('Excel va HTML dung chung getExportDataset: cung cot da chon, cung dong, cu
     const file = await exportService.createExport(DEBT_HTML_EXPORT, 'Hà Nội');
     assert.match(file.fileName, /^HN_Quan_ly_cong_no_\d{8}_\d{4}\.html$/);
     assert.equal(file.mimeType, 'text/html; charset=utf-8');
-    const { doc } = openHtmlReport(file);
-    const embedded = JSON.parse(doc.getElementById('report-data').textContent);
+    const embedded = embeddedData(file.buffer.toString('utf8'));
     assert.deepEqual(embedded.worksheets[0].columns.map(column => column.key), DEBT_HTML_EXPORT.columns.debt_management);
     assert.equal(embedded.worksheets[0].rows.length, 2);
     // Cot khong chon (updatedBy) khong duoc lot vao file.
@@ -1635,7 +1653,7 @@ test('Excel va HTML dung chung getExportDataset: cung cot da chon, cung dong, cu
 test('bao cao HTML tu chua: KPI render san, Chart.js inline, khong tai tai nguyen ngoai, co CSP', async () => {
   await withStubs({}, async () => {
     const file = await exportService.createExport(DEBT_HTML_EXPORT, 'Sài Gòn');
-    const { html, doc } = openHtmlReport(file);
+    const { html, doc } = await openHtmlReport(file);
     assert.doesNotMatch(html, /<script[^>]+src=/i, 'khong script ngoai');
     assert.doesNotMatch(html, /<link[^>]+href=/i, 'khong stylesheet ngoai');
     assert.doesNotMatch(html, /XMLHttpRequest|\/api\//, 'khong goi API sau khi mo');
@@ -1661,7 +1679,7 @@ test('bao cao HTML tu chua: KPI render san, Chart.js inline, khong tai tai nguye
 test('bao cao HTML: tim kiem khong dau, loc va sap xep chay hoan toan tren du lieu nhung', async () => {
   await withStubs({}, async () => {
     const file = await exportService.createExport(DEBT_HTML_EXPORT, 'Hà Nội');
-    const { dom, doc } = openHtmlReport(file);
+    const { dom, doc } = await openHtmlReport(file);
     const win = dom.window;
     const rows = () => [...doc.querySelectorAll('#tbody tr')].map(row => row.cells[0].textContent);
     const input = doc.getElementById('q');
@@ -1689,8 +1707,9 @@ test('bao cao HTML: tim kiem khong dau, loc va sap xep chay hoan toan tren du li
   });
 });
 
-test('bao cao HTML vuot HTML_MAX_ROWS thi bao loi goi y dung Excel va nha slot', async () => {
-  const many = Array.from({ length: exportService.HTML_MAX_ROWS + 1 }, (_, index) => ({ code: `SP${index}` }));
+test('bao cao HTML vuot HTML_MAX_CELLS (dong x cot) thi bao loi goi y dung Excel va nha slot', async () => {
+  // QUICK_EXPORT chon 1 cot -> so o = so dong.
+  const many = Array.from({ length: exportService.HTML_MAX_CELLS + 1 }, (_, index) => ({ code: `SP${index}` }));
   await withStubs({ dashboard: { ...buildDashboard(), allProducts: many } }, async () => {
     await assert.rejects(
       exportService.createExport({ ...QUICK_EXPORT, format: 'html' }, 'Hà Nội'),
@@ -1720,15 +1739,52 @@ test('bao cao HTML dung chung hang doi voi Excel (khong co hang doi rieng)', asy
   });
 });
 
-test('du lieu nhung khong the dong the script (chong XSS tu du lieu)', () => {
-  const json = exportHtmlReport.__test__.safeJson({ name: '</script><script>alert(1)</script><!--' });
-  assert.doesNotMatch(json, /<|>/);
-  assert.equal(JSON.parse(json).name, '</script><script>alert(1)</script><!--');
-  const file = exportHtmlReport.renderHtmlReport({
+test('du lieu nhung khong the dong the script (chong XSS tu du lieu)', async () => {
+  const file = await exportHtmlReport.renderHtmlReport({
     meta: { title: '<img src=x onerror=alert(1)>', branch: 'Hà Nội', generatedAt: new Date(), fileBase: 'HN_X' },
-    worksheets: [{ key: 'a', name: 'A', columns: [{ key: 'n', label: '<b>Tên</b>', type: 'text' }], rows: [{ n: '</script>' }] }]
+    worksheets: [{ key: 'a', name: 'A', columns: [{ key: 'n', label: '<b>Tên</b>', type: 'text' }], rows: [{ n: '</script><!--' }] }]
   });
   const html = file.buffer.toString('utf8');
   assert.doesNotMatch(html, /<img src=x/);
   assert.equal((html.match(/<\/script>/g) || []).length, 3, 'chi co 3 the script cua chinh bao cao');
+  assert.equal(embeddedData(html).worksheets[0].rows[0][0], '</script><!--');
+});
+
+test('du lieu nhung duoc nen gzip: nho hon nhieu lan JSON tho va giai nen ra dung du lieu', async () => {
+  const rows = Array.from({ length: 20000 }, (_, index) => ({
+    code: `SP${index}`, name: `Sản phẩm mẫu số ${index % 500}`, group: ['Áo', 'Quần', 'Mũ'][index % 3], qty: index % 97, amount: (index % 1000) * 1500
+  }));
+  const columns = [
+    { key: 'code', label: 'Mã hàng', type: 'text' }, { key: 'name', label: 'Tên hàng', type: 'text' },
+    { key: 'group', label: 'Nhóm hàng', type: 'text' }, { key: 'qty', label: 'Số lượng', type: 'number' },
+    { key: 'amount', label: 'Doanh thu', type: 'number' }
+  ];
+  const file = await exportHtmlReport.renderHtmlReport({
+    meta: { title: 'Lớn', branch: 'Hà Nội', generatedAt: new Date(), fileBase: 'HN_L' },
+    worksheets: [{ key: 'a', name: 'A', columns, rows }]
+  });
+  const html = file.buffer.toString('utf8');
+  const rawJsonBytes = Buffer.byteLength(JSON.stringify(rows.map(row => columns.map(column => row[column.key]))));
+  const embeddedBytes = new JSDOM(html).window.document.getElementById('report-data').textContent.length;
+  assert.ok(embeddedBytes * 4 < rawJsonBytes, `nen chua du: ${embeddedBytes} vs ${rawJsonBytes}`);
+  const data = embeddedData(html);
+  assert.equal(data.worksheets[0].rows.length, 20000);
+  assert.deepEqual(data.worksheets[0].rows[19999], ['SP19999', 'Sản phẩm mẫu số 499', 'Quần', 19999 % 97, 999 * 1500]);
+
+  const { dom, doc } = await openHtmlReport(file);
+  const input = doc.getElementById('q');
+  input.value = 'sp19999 quan';
+  input.dispatchEvent(new dom.window.Event('input'));
+  assert.match(doc.getElementById('count').textContent, /Hiển thị 1 \/ 20\.000 dòng/);
+  dom.window.close();
+});
+
+test('trinh duyet khong co DecompressionStream thi bao ro thay vi trang trang', async () => {
+  const file = await exportHtmlReport.renderHtmlReport({
+    meta: { title: 'X', branch: 'Hà Nội', generatedAt: new Date(), fileBase: 'HN_X' },
+    worksheets: [{ key: 'a', name: 'A', columns: [{ key: 'n', label: 'Tên', type: 'text' }], rows: [{ n: 'a' }] }]
+  });
+  const { dom, doc } = await openHtmlReport(file, { legacyBrowser: true });
+  assert.match(doc.getElementById('tbody').textContent, /Trình duyệt này quá cũ/);
+  dom.window.close();
 });

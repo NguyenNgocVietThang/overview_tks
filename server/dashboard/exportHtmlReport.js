@@ -6,7 +6,9 @@
 // Nhan dataset da tong hop tu exportService.getExportDataset() va tao MOT file
 // .html mo duoc qua file:// ma khong can mang:
 //   - KPI render san phia server;
-//   - Chart.js (ban vendor trong public/vendor) nhung inline, du lieu nhung JSON;
+//   - Chart.js (ban vendor trong public/vendor) nhung inline;
+//   - du lieu nhung dang JSON nen gzip + base64 (giai nen bang DecompressionStream co
+//     san trong trinh duyet) — nho hon ~8-10 lan, cho phep bao cao hang chuc nghin dong;
 //   - bang + tim kiem/loc/sap xep/phan trang chay bang JS thuan tren du lieu nhung.
 // Logic tinh KPI/bieu do nam trong createReportKit() — ham TU CHUA duoc goi o
 // server de render san va duoc nhung nguyen van (toString) vao file de tinh lai
@@ -16,6 +18,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 
 const CHART_JS_PATH = path.join(__dirname, '..', 'public', 'vendor', 'chart.umd.min.js');
 let chartJsSource = null;
@@ -359,14 +362,37 @@ function embedWorksheet(worksheet) {
   return { key: worksheet.key, name: worksheet.name, columns, rows };
 }
 
-/** JSON an toan trong <script>: khong the dong the hay tao comment HTML. */
-function safeJson(value) {
-  return JSON.stringify(value)
-    .replace(/</g, '\\u003c')
-    .replace(/>/g, '\\u003e')
-    .replace(/&/g, '\\u0026')
-    .split(String.fromCharCode(0x2028)).join('\\u2028')
-    .split(String.fromCharCode(0x2029)).join('\\u2029');
+const GZIP_ROW_CHUNK = 1000;
+
+/**
+ * Nen { worksheets } thanh gzip theo tung khoi dong: khong bao gio dung mot chuoi
+ * JSON cho ca bao cao (RAM server tang theo kich thuoc NEN, khong theo JSON tho).
+ */
+async function gzipWorksheets(worksheets) {
+  const gzip = zlib.createGzip({ level: 6 });
+  const chunks = [];
+  gzip.on('data', chunk => chunks.push(chunk));
+  const finished = new Promise((resolve, reject) => {
+    gzip.on('end', resolve);
+    gzip.on('error', reject);
+  });
+  const write = text => (gzip.write(text) ? null : new Promise(resolve => gzip.once('drain', resolve)));
+
+  await write('{"worksheets":[');
+  for (let index = 0; index < worksheets.length; index += 1) {
+    const worksheet = worksheets[index];
+    const head = JSON.stringify({ key: worksheet.key, name: worksheet.name, columns: worksheet.columns });
+    await write(`${index ? ',' : ''}${head.slice(0, -1)},"rows":[`);
+    for (let start = 0; start < worksheet.rows.length; start += GZIP_ROW_CHUNK) {
+      const part = worksheet.rows.slice(start, start + GZIP_ROW_CHUNK).map(row => JSON.stringify(row)).join(',');
+      await write(start ? `,${part}` : part);
+    }
+    await write(']}');
+  }
+  await write(']}');
+  gzip.end();
+  await finished;
+  return Buffer.concat(chunks);
 }
 
 function formatGeneratedAt(date) {
@@ -460,28 +486,64 @@ const REPORT_SCRIPT = `
 (function () {
   'use strict';
   var kit = (${createReportKit.toString()})();
-  var DATA = JSON.parse(document.getElementById('report-data').textContent);
+  var $ = function (id) { return document.getElementById(id); };
+
+  // Du lieu nhung: gzip + base64 -> giai nen bang DecompressionStream (co san, chay ca qua file://).
+  function loadData() {
+    var node = $('report-data');
+    if (node.getAttribute('data-encoding') !== 'gzip-base64') return Promise.resolve(JSON.parse(node.textContent));
+    if (typeof DecompressionStream === 'undefined' || typeof Response === 'undefined') {
+      return Promise.reject(new Error('unsupported'));
+    }
+    var binary = atob(node.textContent.trim());
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return new Response(new Response(bytes).body.pipeThrough(new DecompressionStream('gzip'))).text().then(JSON.parse);
+  }
+
+  function showLoadError(message) {
+    $('tbody').innerHTML = '<tr><td class="no-rows">' + kit.escapeHtml(message) + '</td></tr>';
+    $('charts').innerHTML = '';
+    $('count').textContent = '';
+  }
+
+  $('tbody').innerHTML = '<tr><td class="no-rows">Đang mở dữ liệu…</td></tr>';
+  loadData().then(start, function (err) {
+    showLoadError(err && err.message === 'unsupported'
+      ? 'Trình duyệt này quá cũ để mở bảng dữ liệu. Vui lòng mở bằng Chrome, Edge, Firefox hoặc Safari bản mới, hoặc dùng file Excel.'
+      : 'Không đọc được dữ liệu trong báo cáo (file có thể đã bị hỏng).');
+  });
+
+  function start(DATA) {
   var PAGE_SIZE = 50;
   var charts = [];
   var state = { sheet: 0, query: '', category: '', sort: null, page: 0 };
-  var $ = function (id) { return document.getElementById(id); };
 
   function fold(text) {
     return String(text).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
   }
 
-  // Chuoi tim kiem moi dong tinh 1 lan (gom ca gia tri da dinh dang de go "1.500.000" van khop).
   var prepared = DATA.worksheets.map(function (sheet) {
-    var plan = kit.planFor(sheet.columns, sheet.rows);
-    return {
-      plan: plan,
-      haystack: sheet.rows.map(function (row) {
-        return fold(row.map(function (value, index) {
-          return value === null ? '' : value + ' ' + kit.formatCell(value, sheet.columns[index]);
-        }).join(' | '));
-      })
-    };
+    return { plan: kit.planFor(sheet.columns, sheet.rows), haystack: null };
   });
+
+  // Chuoi tim kiem chi dung khi nguoi xem go lan dau (mo file nhanh, it RAM). Cot so/phan tram
+  // chi giu gia tri tho; cot ngay them dang dd/mm/yyyy de go dung nhu tren bang van khop.
+  function haystackOf(sheetIndex) {
+    var prep = prepared[sheetIndex];
+    if (prep.haystack) return prep.haystack;
+    var ws = DATA.worksheets[sheetIndex];
+    prep.haystack = ws.rows.map(function (row) {
+      var parts = [];
+      for (var c = 0; c < row.length; c += 1) {
+        var value = row[c];
+        if (value === null) continue;
+        parts.push(ws.columns[c].type === 'date' ? value + ' ' + kit.formatCell(value, ws.columns[c]) : value);
+      }
+      return fold(parts.join(' | '));
+    });
+    return prep.haystack;
+  }
 
   function sheet() { return DATA.worksheets[state.sheet]; }
 
@@ -490,11 +552,12 @@ const REPORT_SCRIPT = `
     var prep = prepared[state.sheet];
     var terms = fold(state.query).split(/\\s+/).filter(Boolean);
     var catIndex = prep.plan.category;
+    var haystack = terms.length ? haystackOf(state.sheet) : null;
     var rows = [];
     for (var i = 0; i < ws.rows.length; i += 1) {
       var row = ws.rows[i];
       if (state.category && catIndex >= 0 && String(row[catIndex] === null ? '(Trống)' : row[catIndex]) !== state.category) continue;
-      var hay = prep.haystack[i];
+      var hay = haystack ? haystack[i] : '';
       var ok = true;
       for (var t = 0; t < terms.length; t += 1) if (hay.indexOf(terms[t]) < 0) { ok = false; break; }
       if (ok) rows.push(row);
@@ -718,6 +781,7 @@ const REPORT_SCRIPT = `
   renderFilter();
   refresh(false);
   renderCharts(kit.buildSummary(sheet().columns, sheet().rows, prepared[0].plan));
+  }
 })();
 `;
 
@@ -727,7 +791,7 @@ const SEARCH_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" 
  * Render dataset { meta, worksheets } thanh file HTML tu chua.
  * @returns {{ buffer: Buffer, mimeType: string, fileName: string }}
  */
-function renderHtmlReport(dataset) {
+async function renderHtmlReport(dataset) {
   const escape = kit.escapeHtml;
   const meta = dataset.meta;
   const worksheets = dataset.worksheets.map(embedWorksheet);
@@ -735,6 +799,8 @@ function renderHtmlReport(dataset) {
   const summary = kit.buildSummary(first.columns, first.rows);
   const totalRows = worksheets.reduce((sum, worksheet) => sum + worksheet.rows.length, 0);
   const generatedAt = formatGeneratedAt(meta.generatedAt || new Date());
+  // base64 chi gom [A-Za-z0-9+/=] nen khong the dong the <script>.
+  const payload = (await gzipWorksheets(worksheets)).toString('base64');
   const tabs = worksheets.length > 1
     ? `<div class="tabs" id="tabs" role="tablist" aria-label="Nguồn dữ liệu">${worksheets.map((worksheet, index) =>
       `<button type="button" role="tab" data-sheet="${index}" aria-selected="${index === 0}">${escape(worksheet.name)}</button>`).join('')}</div>`
@@ -785,7 +851,7 @@ function renderHtmlReport(dataset) {
 
   <p class="foot">Báo cáo tĩnh — số liệu chụp tại thời điểm xuất, không tự cập nhật. Dùng file Excel khi cần xử lý số liệu chi tiết.</p>
 </div>
-<script type="application/json" id="report-data">${safeJson({ worksheets })}</script>
+<script type="application/octet-stream" id="report-data" data-encoding="gzip-base64">${payload}</script>
 <script>${getChartJsSource()}</script>
 <script>${REPORT_SCRIPT}</script>
 </body>
@@ -800,5 +866,5 @@ function renderHtmlReport(dataset) {
 
 module.exports = {
   renderHtmlReport,
-  __test__: { createReportKit, safeJson, embedWorksheet }
+  __test__: { createReportKit, embedWorksheet, gzipWorksheets }
 };

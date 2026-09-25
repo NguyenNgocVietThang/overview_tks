@@ -1309,10 +1309,12 @@ function branchFilePrefix(branch) {
 
 const EXPORT_FORMATS = new Set(['xlsx', 'html']);
 
-// Ngan tran cho bao cao HTML: toan bo dong nhung thang vao file (JSON) va loc/sap xep
-// bang JS tren trinh duyet. ~5.000 dong x ~25 cot da la 2-4MB file va vai tram MB RAM
-// tab trinh duyet; lon hon nua thi Excel (AutoFilter, khong gioi han) phu hop hon.
-const HTML_MAX_ROWS = 5000;
+// Ngan tran cho bao cao HTML, tinh theo O (dong x cot) vi chi phi ti le voi so o chu khong
+// voi so dong: du lieu nen gzip ~8-10 lan nen 1 trieu o ~ 5-8MB file, va tab trinh duyet
+// (giai nen + loc/sap xep tren mang JS) van muot tren may van phong. Bang it cot (Bao cao
+// hang hoa 11 cot) ~90.000 dong; nhieu cot (Chi tiet nhap hang 24 cot) ~40.000 dong.
+// Lon hon nua thi Excel (AutoFilter, khong gioi han) phu hop hon.
+const HTML_MAX_CELLS = 1000000;
 
 function normalizeExportFormat(value) {
   const format = normalizeText(value).toLowerCase() || 'xlsx';
@@ -1426,9 +1428,10 @@ function createExportWorkbook(payload, branch, options = {}) {
 function createExportHtml(payload, branch, options = {}) {
   return runExport(payload, branch, options, (dataset, signal) => {
     const totalRows = dataset.worksheets.reduce((sum, worksheet) => sum + worksheet.rows.length, 0);
-    if (totalRows > HTML_MAX_ROWS) {
+    const totalCells = dataset.worksheets.reduce((sum, worksheet) => sum + worksheet.rows.length * worksheet.columns.length, 0);
+    if (totalCells > HTML_MAX_CELLS) {
       throw exportError(
-        `Dữ liệu có ${totalRows.toLocaleString('vi-VN')} dòng, vượt giới hạn ${HTML_MAX_ROWS.toLocaleString('vi-VN')} dòng của báo cáo HTML. Vui lòng thu hẹp bộ lọc hoặc dùng Xuất Excel.`,
+        `Dữ liệu có ${totalRows.toLocaleString('vi-VN')} dòng (${totalCells.toLocaleString('vi-VN')} ô), vượt giới hạn ${HTML_MAX_CELLS.toLocaleString('vi-VN')} ô của báo cáo HTML. Vui lòng bỏ bớt cột, thu hẹp bộ lọc hoặc dùng Xuất Excel.`,
         413, 'EXPORT_HTML_TOO_LARGE'
       );
     }
@@ -1461,7 +1464,7 @@ module.exports = {
   TABLE_TITLES,
   EXPORT_MAX_CONCURRENT,
   EXPORT_MAX_QUEUED,
-  HTML_MAX_ROWS,
+  HTML_MAX_CELLS,
   getExportFields,
   getExportDataset,
   createExport,
