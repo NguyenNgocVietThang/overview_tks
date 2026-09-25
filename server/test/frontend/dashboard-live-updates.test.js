@@ -73,9 +73,18 @@ test('mo ket noi SSE ngay khi trang chay', () => {
   assert.equal(app.streams[0].url, '/api/dashboard/events');
 });
 
-test('su kien dashboard-updated keo lai du lieu o nen (khong bat man che)', () => {
+test('su kien dashboard-updated giai nhip bang setTimeout ngau nhien 0-3s roi moi keo lai du lieu o nen (khong bat man che)', () => {
   const app = run();
   app.latestStream().emit('dashboard-updated');
+
+  // Chua goi loadData ngay - phai qua setTimeout truoc de rai request giua
+  // nhieu tab, tranh don tai pool ket noi DB ngay sau luot rollup.
+  assert.deepEqual(app.loadCalls, []);
+  assert.equal(app.timeouts.length, 1, 'phai len lich dung 1 timeout moi (khong co retry/scheduleRetry nao khac trong kich ban nay)');
+  const entry = app.timeouts[app.timeouts.length - 1];
+  assert.ok(entry.ms >= 0 && entry.ms < 3000, 'do tre phai nam trong khoang [0, 3000)');
+
+  entry.fn();
   assert.deepEqual(app.loadCalls, [{ days: 30, manual: false }]);
 });
 

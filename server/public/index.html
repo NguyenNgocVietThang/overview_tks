@@ -9395,10 +9395,20 @@
       return !!(performance.navigation && performance.navigation.type === 1);
     }
 
+    // Danh so + huy request cu: doi bo loc nhanh (A -> B) ma response A ve SAU
+    // response B se ghi de man hinh bang du lieu cu (sai bo loc) neu khong huy.
+    let dashboardRequestSeq = 0;
+    let dashboardRequestController = null;
+
     function loadData(days, isManualRefresh) {
       if (isManualRefresh) setLoading(true);
+      const seq = ++dashboardRequestSeq;
+      if (dashboardRequestController) dashboardRequestController.abort();
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      dashboardRequestController = controller;
       const miniFilterQuery = buildMiniFilterQuery();
-      fetch('/api/dashboard?days=' + encodeURIComponent(days) + (miniFilterQuery ? '&' + miniFilterQuery : ''))
+      fetch('/api/dashboard?days=' + encodeURIComponent(days) + (miniFilterQuery ? '&' + miniFilterQuery : ''),
+        controller ? { signal: controller.signal } : undefined)
         .then(function (res) {
           if (!res.ok) {
             // Phien dang nhap het han (JWT 12h) trong luc tab van mo: di theo
@@ -9426,6 +9436,9 @@
           return res.json();
         })
         .then(function (data) {
+          // Request nay da bi thay the boi mot request moi hon (seq da tang) ->
+          // du lieu ve tay cham, bo qua, khong dung gi den state/render.
+          if (seq !== dashboardRequestSeq) return;
           // So sanh du lieu (tru updatedAt vi truong nay luon doi moi lan goi) de
           // biet Google Sheets co thuc su thay doi khong, tranh render lai/giat
           // man hinh khi du lieu y het lan truoc.
@@ -9451,6 +9464,14 @@
           if (isManualRefresh) setLoading(false);
         })
         .catch(function (err) {
+          if (err && err.name === 'AbortError') {
+            // Bi huy chu dong (co request moi hon thay the) - khong phai loi
+            // that, khong hien toast. Neu request bi huy la request thu cong
+            // (spinner dang bat) thi phai tat spinner, vi request thay the
+            // (vd request nen tu SSE) se khong tu tat spinner ho.
+            if (isManualRefresh) setLoading(false);
+            return;
+          }
           console.error(err);
           if (isManualRefresh) setLoading(false);
           if (err && err.handled) return; // da hien bang thong bao co so
@@ -9622,7 +9643,11 @@
         consecutiveErrors = 0;
         stream = new EventSource('/api/dashboard/events');
         stream.addEventListener('dashboard-updated', function () {
-          loadData(state.days, false);
+          // Giai nhip: nhieu tab cung mo se nhan SSE gan nhu cung luc sau moi
+          // luot rollup (~7 phut) - neu goi loadData() ngay, tat ca goi
+          // /api/dashboard dong thoi, don tai pool ket noi DB. Tre ngau nhien
+          // 0-3s de rai request ra.
+          setTimeout(function () { loadData(state.days, false); }, Math.floor(Math.random() * 3000));
         });
         stream.onopen = function () {
           consecutiveErrors = 0;
