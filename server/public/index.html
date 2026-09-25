@@ -6725,7 +6725,11 @@
         const blob = await response.blob();
         if (!isExportRequestCurrent(request)) return; // da dong hop thoai trong luc cho: khong tu tai file
         const fileName = downloadNameFromResponse(response);
-        saveExportBlob(blob, isHtml ? fileName.replace(/\.xlsx$/i, '.html') : fileName);
+        // May chu cu (chua ho tro format html) van tra .xlsx: bao loi thay vi luu file Excel mang duoi .html.
+        if (isHtml && !/\.html$/i.test(fileName)) {
+          throw new Error('Máy chủ chưa hỗ trợ xuất HTML (có thể chưa được khởi động lại sau khi cập nhật). Vui lòng thử lại sau hoặc dùng Xuất Excel.');
+        }
+        saveExportBlob(blob, fileName);
         closeExportDialog();
       } catch (err) {
         if (!isExportRequestCurrent(request)) return;

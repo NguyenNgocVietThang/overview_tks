@@ -620,3 +620,15 @@ test('nut Xuat HTML canh Xuat Excel gui format html cung cac truong da chon, loi
   assert.equal('format' in h.fileCalls()[2].body, false);
   h.win.close();
 });
+
+test('Xuat HTML ma may chu tra file .xlsx (server cu) thi bao loi, khong luu file sai dinh dang', async () => {
+  const h = createExportDashboard();
+  await openExportWithFields(h, twoSheetMetadata());
+  h.click('exportHtmlButton');
+  h.respondFile(h.fileCalls()[0], 'HN_San_pham_20260925_1000.xlsx');
+  await flush();
+  assert.equal(h.downloads.length, 0);
+  assert.match(h.text('exportStatus'), /chưa hỗ trợ xuất HTML/);
+  assert.equal(h.exportStatusIsError(), true);
+  h.win.close();
+});
