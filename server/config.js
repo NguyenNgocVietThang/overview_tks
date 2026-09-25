@@ -115,7 +115,12 @@ const CONFIG = {
   // Duong dan cu KHONG co secret (/api/kiotviet/webhook) — giu bat trong giai
   // doan chuyen tiep de khong mat su kien truoc khi doi cau hinh ben KiotViet.
   // Doi URL ben KiotViet xong thi dat bien nay = 'false'.
-  KIOTVIET_WEBHOOK_LEGACY_PATH_ENABLED: process.env.KIOTVIET_WEBHOOK_LEGACY_PATH_ENABLED !== 'false'
+  KIOTVIET_WEBHOOK_LEGACY_PATH_ENABLED: process.env.KIOTVIET_WEBHOOK_LEGACY_PATH_ENABLED !== 'false',
+
+  // Nap san cache "nguon re" cho dashboard luc server khoi dong, tranh nguoi
+  // dung dau tien sau restart/redeploy phai cho doc 7 tab (~13.5s). Mac dinh
+  // BAT — tat bang DASHBOARD_PREWARM=false (vd moi truong dev khong can).
+  DASHBOARD_PREWARM: process.env.DASHBOARD_PREWARM !== 'false'
 };
 
 module.exports = CONFIG;

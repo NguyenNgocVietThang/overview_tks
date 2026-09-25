@@ -2984,6 +2984,29 @@ function invalidateDebtWorkflowCache(branch) {
   }
 }
 
+/**
+ * Nap san cache "nguon re" (7 tab core + cong no + workflow) cho MOI co so
+ * vat ly, goi 1 lan luc server khoi dong (xem server/index.js) de nguoi dung
+ * dau tien sau restart/redeploy khong phai cho doc 7 tab (~13.5s). Duyet
+ * TUAN TU (khong Promise.all) — tranh chiem pool ket noi Postgres dung luc
+ * luot sync khoi dong (neu KIOTVIET_SYNC_ENABLED) cung dang chay. Loi tung co
+ * so chi log, khong nem — co so chua cau hinh nguon du lieu khong duoc lam
+ * crash server.
+ */
+async function prewarmDashboardCaches({ log } = {}) {
+  const logFn = typeof log === 'function' ? log : () => {};
+  for (const physicalBranch of resolveBranchScope(BRANCH_BOTH)) {
+    try {
+      await getCachedDashboardCoreSheets(physicalBranch);
+      await getCachedDebtManagementSource(physicalBranch);
+      await getCachedDebtWorkflow(physicalBranch);
+      logFn(`[Dashboard] Prewarm xong cho co so ${physicalBranch}`);
+    } catch (err) {
+      logFn(`[Dashboard] Prewarm loi cho co so ${physicalBranch}, bo qua: ${err.message}`);
+    }
+  }
+}
+
 module.exports = {
   getDashboardData,
   findDebtCustomerBranches,
@@ -2993,6 +3016,7 @@ module.exports = {
   searchTopCustomersByProducts,
   getCustomerProductRevenueReport,
   mergeEntityRows,
+  prewarmDashboardCaches,
   // Cac hook duoi day CHI phuc vu test (dashboardData.test.js) — khong dung
   // trong code san pham.
   __test__: {

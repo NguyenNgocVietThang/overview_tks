@@ -6,6 +6,7 @@ const CONFIG = require('./config');
 const routes = require('./routes');
 const localUserStore = require('./auth/localUserStore');
 const { startPollingScheduler } = require('./kiotvietSync/scheduler');
+const { prewarmDashboardCaches } = require('./dashboard/dashboardData');
 const { captureWebhookRawBody, webhookJsonErrorHandler } = require('./kiotviet/kiotvietWebhookRoutes');
 const { pageGuard } = require('./auth/pageGuard');
 
@@ -132,6 +133,17 @@ async function startServer() {
 
     if (CONFIG.KIOTVIET_SYNC_ENABLED) {
       startPollingScheduler();
+    }
+
+    // Nap san cache dashboard ngay sau khi server san sang nhan request, KHONG
+    // await de khong chan callback nay — chay nen, nguoi dung dau tien van
+    // duoc phuc vu ngay (co the cho DB neu prewarm chua xong), chi la khong
+    // phai la nguoi kich hoat lan doc 7 tab dau tien. Tat bang
+    // DASHBOARD_PREWARM=false (vd moi truong dev khong can).
+    if (CONFIG.DASHBOARD_PREWARM) {
+      prewarmDashboardCaches({ log: console.log }).catch((err) => {
+        console.error('[Dashboard] Prewarm that bai:', err.message);
+      });
     }
   });
 }

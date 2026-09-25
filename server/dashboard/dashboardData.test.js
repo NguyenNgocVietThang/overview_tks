@@ -500,6 +500,42 @@ test('getDashboardData gop nhieu request TRUNG cacheKey toi cung luc tren cache 
   assert.equal(second, third, 'ca 3 ket qua phai la cung 1 object reference (den tu chung 1 promise)');
 });
 
+test('prewarmDashboardCaches nap san cache "nguon re" cho ca hai co so, getDashboardData sau do khong doc lai Postgres', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const callCounter = { count: 0 };
+  mockPgSheetsCounted(dashboardPgReader, callCounter, { variant: 'core' });
+  dashboardData.__test__.resetCaches();
+
+  await assert.doesNotReject(dashboardData.prewarmDashboardCaches());
+  const countAfterPrewarm = callCounter.count;
+  assert.equal(countAfterPrewarm, 2, 'prewarm phai doc Postgres dung 1 lan cho MOI co so vat ly (Ha Noi + Sai Gon)');
+
+  // BASE_FILTERS khong truyen branch -> mac dinh Ha Noi, phai dung lai cache
+  // da nap san boi prewarm, KHONG doc lai Postgres.
+  await dashboardData.getDashboardData(BASE_FILTERS);
+  assert.equal(callCounter.count, countAfterPrewarm, 'getDashboardData sau prewarm phai dung lai cache, khong doc lai Postgres');
+});
+
+test('prewarmDashboardCaches van resolve (khong nem loi) va chi log loi khi mot co so khong doc duoc Postgres', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  let callCount = 0;
+  dashboardPgReader.readCoreDashboardSheets = async branch => {
+    callCount += 1;
+    if (branch === 'Sài Gòn') throw new Error('Gia lap mat ket noi Postgres');
+    const result = {};
+    dashboardPgReader.CORE_SHEET_NAMES.forEach(name => { result[name] = []; });
+    return result;
+  };
+  dashboardData.__test__.resetCaches();
+
+  const logs = [];
+  await assert.doesNotReject(dashboardData.prewarmDashboardCaches({ log: msg => logs.push(msg) }));
+
+  assert.equal(callCount, 2, 'phai thu doc ca 2 co so du 1 co so loi (khong dung giua chung)');
+  assert.ok(logs.some(msg => msg.includes('Hà Nội') && msg.includes('xong')), 'co so thanh cong phai duoc log');
+  assert.ok(logs.some(msg => msg.includes('Sài Gòn') && msg.includes('loi')), 'co so loi phai duoc log loi, khong lam prewarm crash');
+});
+
 test('tim khach hang gan them revenue tong hop tu sheet Bao cao ban hang theo ky loc', async () => {
   // GHI CHU: dashboardPgReader.readDashboardSheets() THAT (production) khong
   // bao gio tra CONFIG.SHEET_CUSTOMER_REPORT (khong co bang Postgres tuong
