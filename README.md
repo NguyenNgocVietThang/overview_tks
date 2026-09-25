@@ -33,7 +33,7 @@ Mở `http://localhost:3000`.
 | `SUPABASE_DB_URL` | PostgreSQL dùng cho dữ liệu KiotViet, tài khoản và workflow |
 | `KIOTVIET_CLIENT_ID`, `KIOTVIET_CLIENT_SECRET`, `KIOTVIET_RETAILER` | KiotViet Hà Nội |
 | `KIOTVIET_CLIENT_ID_SG`, `KIOTVIET_CLIENT_SECRET_SG`, `KIOTVIET_RETAILER_SG` | KiotViet Sài Gòn |
-| `SPREADSHEET_ID`, `SPREADSHEET_ID_SG` | Bắt buộc bởi cấu hình hiện tại, không còn phục vụ `Trả NCC` (đã chuyển sang import Excel) |
+| `SPREADSHEET_ID`, `SPREADSHEET_ID_SG` | Lự do lịch sử — không còn phục vụ `Trả NCC` (đã chuyển sang upload Excel vào Postgres `supplier_return_imports`); bỏ trống vẫn chạy được |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Quyền Viewer để quản lý vòng đời đơn hàng / HR |
 | `DEBT_MANAGEMENT_SPREADSHEET_ID` | Workbook công nợ dùng chung |
 | `ORDER_LIFECYCLE_SPREADSHEET_ID` | Workbook tra cứu vòng đời đơn hàng (`DonHang_HN`, `DonHang_SG`, `Lịch sử cập nhật`) |
@@ -46,15 +46,20 @@ Xem [server/.env.example](server/.env.example) để biết đầy đủ cấu h
 
 ```text
 server/
-├── auth/                 # Tài khoản và phân quyền PostgreSQL
+├── auth/                 # Tài khoản, phân quyền, OTP, Google OAuth
 ├── branch/               # Phân tách Hà Nội / Sài Gòn
-├── dashboard/            # Tổng hợp dashboard và đọc Trả NCC
-├── db/                   # Migration Supabase
+├── dashboard/            # Tổng hợp dashboard, xuất Excel/HTML, kiểm tra đứt hàng
+│   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel
+├── data/                 # Dữ liệu lưu trữ local (users.json, notifications.json, ...)
+├── db/                   # Migration Supabase (0001–0020)
 ├── hr/                   # Nhân sự và nghỉ phép
-├── kiotviet/             # KiotViet API client
+├── kiotviet/             # KiotViet API client và webhook receiver
 ├── kiotvietSync/         # Webhook, polling, backfill và rollup
-├── public/               # Frontend
-├── sheets/               # Google Sheets client
+├── lib/                  # Thư viện tiện ích nội bộ (TTL cache, ...)
+├── notifications/        # Chuông thông báo + gửi email OTP
+├── public/               # Frontend HTML/CSS/JS
+├── scripts/              # Script thủ công (migrate dữ liệu, cài đặt ban đầu)
+├── sheets/               # Google Sheets client (Công nợ, Vòng đời, HR)
 ├── shipment/             # Tra cứu vòng đời đơn hàng
 ├── index.js
 └── routes.js
@@ -72,4 +77,4 @@ Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để b
 
 2026-09-22 — chuyển nguồn dữ liệu Trả NCC (kiểm tra đứt hàng) từ tab Google Sheets đọc tay sang người dùng tự upload file Excel xuất trực tiếp từ KiotViet; thêm bảng Postgres `supplier_return_imports` (thay thế toàn bộ theo cơ sở mỗi lần import), gộp vào cùng pipeline Postgres với Hóa đơn/Nhập hàng/Khách trả, loại bỏ hoàn toàn nhánh đọc Sheets riêng cho Trả NCC.
 
-2026-09-25 — thông báo yêu cầu nghỉ phép mới cho toàn bộ tài khoản, cho phép quản lý duyệt/từ chối ngay trên chuông thông báo; bộ lọc nghỉ phép mặc định chỉ hiển thị lịch nghỉ giao với ngày hôm nay.
+2026-09-25 — thông báo yêu cầu nghỉ phép mới cho toàn bộ tài khoản, cho phép quản lý duyệt/từ chối ngay trên chuông thông báo; bộ lọc nghỉ phép mặc định chỉ hiển thị lịch nghỉ giao với ngày hôm nay; bổ sung vai trò `Nhân viên marketing` (migration `0019`) và phân quyền theo tính năng từng tài khoản `feature_permissions JSONB` (migration `0020`).

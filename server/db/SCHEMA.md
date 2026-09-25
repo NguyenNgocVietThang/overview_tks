@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0016`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0020`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -173,3 +173,29 @@ trình là an toàn vì mọi bảng dùng `UPSERT` theo `(branch, id)`.
 `product_report` là bảng tổng hợp cho tab "Tổng quan" — cùng ngoại lệ như 4 bảng rollup ở migration `0013` (không có `raw`, khóa chính không bắt đầu bằng `branch` vì mỗi dòng gộp dữ liệu **cả 2 cơ sở** cho 1 mã hàng). Khóa chính là `product_code`. Được `TRUNCATE` + nạp lại toàn bộ **đúng 1 lần/đêm** bởi `server/kiotvietSync/productReportRefresh.js` (không phải mỗi 5 phút như các rollup khác — truy vấn quét 90 ngày hóa đơn cả 2 cơ sở là nặng, xem comment đầu file đó), route `GET /api/product-report` chỉ đọc thẳng bảng này.
 
 Cột `available_to_sell` = tồn 2 cơ sở trừ số lượng đang bị giữ trong **đơn đặt hàng của khách** (bảng `orders`, trạng thái `Phiếu tạm`/`Đang xử lý`/`Đã xác nhận`) — không liên quan đến `purchases` (phiếu đặt NCC). Cột `qty_sold_30d`/`revenue_90d` cộng từ `daily_product_sales` (migration `0013`) trong cửa sổ kết thúc **hôm qua** theo lịch VN (không tính hôm nay). Cột `customer_count_90d`/`top_customer_*` tính trực tiếp từ `invoice_details`/`invoices`/`customers` trong 90 ngày, dùng chung định nghĩa "hóa đơn hợp lệ" (`statusValue != 'Đã hủy'`) với `revenue_90d` để `top_customer_share` không bao giờ vượt 100%.
+
+### Trả NCC upload Excel (migration `0017`)
+
+`supplier_return_imports` là bảng phẳng lưu dữ liệu xuất từ KiotViet ("Trả hàng nhập") do người dùng tự upload file Excel. Không có quan hệ parent+detail như `invoices`/`purchases`.
+
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `id` | BIGSERIAL PK | |
+| `branch` | TEXT | `hanoi`/`saigon` |
+| `product_code` | TEXT | Mã hàng KiotViet |
+| `product_name` | TEXT | Tên hàng tại thời điểm import |
+| `return_date` | DATE | Ngày trả |
+| `quantity` | NUMERIC | Số lượng trả |
+| `imported_at` | TIMESTAMPTZ | Thời điểm import |
+| `imported_by` | TEXT | Tên/username người thực hiện upload |
+| `source_file` | TEXT | Tên file Excel nguồn |
+
+- Mỗi lần upload cho 1 cơ sở **thay thế toàn bộ** dữ liệu cũ của cơ sở đó (`DELETE` rồi `INSERT` lại — xem `supplierReturnImportService.js`).
+- Index `(branch, product_code, return_date)` phục vụ pipeline kiểm tra đứt hàng (`stockoutPgSource.js`).
+- Không REVOKE SELECT khỏi `reporting_readonly` (không chứa PII, tương tự `purchases`/`returns`).
+
+### Phân quyền tính năng theo tài khoản (migration `0019`–`0020`)
+
+**Migration `0019`**: Bổ sung vai trò `Nhân viên marketing` vào constraint CHECK `app_users.vai_tro`. Constraint cũ bị DROP và tạo lại với danh sách đầy đủ: `Quản lý`, `Kế toán`, `Trưởng kho`, `Trợ lý`, `Lái xe`, `Nhân viên kho`, `Nhân viên sale`, `Nhân viên marketing`, `Nhân viên mua hàng`, `Khách`.
+
+**Migration `0020`**: Thêm cột `app_users.feature_permissions JSONB NOT NULL DEFAULT '{}'` để lưu **delta** quyền tính năng so với mặc định của vai trò. Ví dụ `{"reports.debt": false, "reports.overview": true}`. Logic phân quyền thực tế nằm ở `server/auth/featureRegistry.js` — bảng chỉ lưu phần override cá nhân, không snapshot toàn bộ quyền của vai trò.
