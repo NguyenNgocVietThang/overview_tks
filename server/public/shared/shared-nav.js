@@ -409,11 +409,13 @@
       }
       list.innerHTML = notifications.map(function(n){
         var actions = '';
-        if(n.type === 'role_change_request' && !n.isRead && TKSNav.can('account.users.manage')){
+        var canHandleRoleRequest = n.type === 'role_change_request' && TKSNav.can('account.users.manage');
+        var canHandleLeaveRequest = n.type === 'leave_request_created' && TKSNav.can('hr.leave.manage');
+        if(!n.isRead && (canHandleRoleRequest || canHandleLeaveRequest)){
           actions =
             '<div class="tks-notif-actions">' +
-              '<button type="button" class="tks-notif-approve" data-request-id="' + escapeHtml(n.relatedId) + '">Duyệt</button>' +
-              '<button type="button" class="tks-notif-reject" data-request-id="' + escapeHtml(n.relatedId) + '">Từ chối</button>' +
+              '<button type="button" class="tks-notif-approve" data-request-kind="' + (canHandleLeaveRequest ? 'leave' : 'role') + '" data-request-id="' + escapeHtml(n.relatedId) + '" data-notif-id="' + escapeHtml(n.id) + '">Duyệt</button>' +
+              '<button type="button" class="tks-notif-reject" data-request-kind="' + (canHandleLeaveRequest ? 'leave' : 'role') + '" data-request-id="' + escapeHtml(n.relatedId) + '" data-notif-id="' + escapeHtml(n.id) + '">Từ chối</button>' +
             '</div>';
         }
         var clickable = !!NOTIF_NAV_TARGETS[n.relatedType];
@@ -503,15 +505,27 @@
 
       if(actionBtn){
         var requestId = actionBtn.dataset.requestId;
+        var requestKind = actionBtn.dataset.requestKind;
         var status = approveBtn ? 'Đã duyệt' : 'Từ chối';
         actionBtn.disabled = true;
-        fetch('/api/role-requests/' + requestId + '/status', {
+        var actionUrl = requestKind === 'leave'
+          ? '/api/hr/leave-requests/' + encodeURIComponent(requestId) + '/status'
+          : '/api/role-requests/' + encodeURIComponent(requestId) + '/status';
+        fetch(actionUrl, {
           method: 'PATCH',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: status })
         })
-          .then(function(res){ return res.json(); })
+          .then(function(res){
+            if(!res.ok) return res.json().then(function(data){ throw new Error(data.error || 'Không thể cập nhật yêu cầu.'); });
+            return res.json();
+          })
+          .then(function(){
+            return fetch('/api/notifications/' + actionBtn.dataset.notifId + '/read', {
+              method: 'PATCH', credentials: 'same-origin'
+            });
+          })
           .then(function(){ loadList(); refreshCount(); })
           .catch(function(){ actionBtn.disabled = false; });
         return;

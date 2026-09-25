@@ -53,7 +53,7 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 & N
 
 - Ba kỳ công nợ **CN1**, **CN3**, **CN7** (công nợ khách hàng 1/3/7 ngày gần đây, trước đây gọi là HN1/HN3/HN7) do scheduler `customerDebtReportRefresh.js` tự động tính từ database và lưu vào `customer_debt_activity_periods`, phục vụ cảnh báo "Chưa thu" trên màn hình Quản lý công nợ.
 
-- **Phân hệ Quản lý Nghỉ phép HR & Telegram Bot:** Cung cấp kênh nộp đơn xin nghỉ phép, tra cứu số dư ngày phép trực tuyến 24/7 qua Web Portal và Telegram Bot, quy trình phê duyệt tự động gửi thông báo cho nhân viên.
+- **Phân hệ Quản lý Nghỉ phép HR & Telegram Bot:** Cung cấp kênh nộp đơn xin nghỉ phép, tra cứu số dư ngày phép trực tuyến 24/7 qua Web Portal và Telegram Bot. Yêu cầu nghỉ mới được thông báo trên web cho toàn bộ tài khoản; quản lý có thể duyệt hoặc từ chối ngay trong thông báo, và kết quả được báo lại cho nhân viên.
 
 - **Tra cứu Vòng đời đơn hàng:** Cho phép khách hàng và nhân viên nội bộ tra cứu trạng thái đơn hàng theo mã đơn qua Google Sheets `ORDER_LIFECYCLE_SPREADSHEET_ID`.
 

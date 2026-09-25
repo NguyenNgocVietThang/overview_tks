@@ -18,7 +18,7 @@ function fakeCan(vaiTro) {
 
 const htmlPath = path.join(__dirname, '..', '..', 'public', 'humanresources', 'index.html');
 
-test('trang nhân sự tải danh sách yêu cầu với mặc định 7 ngày gần đây khi mở lần đầu', async () => {
+test('trang nhân sự mặc định chỉ tải các lịch nghỉ giao với ngày hôm nay', async () => {
   const html = fs.readFileSync(htmlPath, 'utf8');
   const dom = new JSDOM(html, {
     runScripts: 'outside-only',
@@ -60,15 +60,12 @@ test('trang nhân sự tải danh sách yêu cầu với mặc định 7 ngày g
 
   const pad = n => String(n).padStart(2, '0');
   const now = new Date();
-  const toDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
-  const expectedTo = `${toDate.getFullYear()}-${pad(toDate.getMonth() + 1)}-${pad(toDate.getDate())}`;
-  const fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
-  const expectedFrom = `${fromDate.getFullYear()}-${pad(fromDate.getMonth() + 1)}-${pad(fromDate.getDate())}`;
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
-  assert.equal(query.get('from'), expectedFrom, 'mặc định ngày bắt đầu là 7 ngày trước');
-  assert.equal(query.get('to'), expectedTo, 'mặc định ngày kết thúc là 7 ngày sau');
-  assert.equal(window.document.getElementById('fromDateFilter').value, expectedFrom);
-  assert.equal(window.document.getElementById('toDateFilter').value, expectedTo);
+  assert.equal(query.get('from'), today, 'mặc định ngày bắt đầu là hôm nay');
+  assert.equal(query.get('to'), today, 'mặc định ngày kết thúc là hôm nay');
+  assert.equal(window.document.getElementById('fromDateFilter').value, today);
+  assert.equal(window.document.getElementById('toDateFilter').value, today);
 
   dom.window.close();
 });

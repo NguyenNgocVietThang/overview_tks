@@ -250,17 +250,22 @@ function resolveApproverName(reqUser) {
 }
 
 /**
- * Bao Quan ly khac (tru nguoi thao tac) ve 1 su kien nghi phep, qua thong bao
- * chuong tren web -- dung chung cho ca luong web nhap tay (hrLeaveRoutes.js)
- * va luong Telegram (hrTelegramBot.js) de nhat quan "chi Quan ly thay tren
- * web, khong broadcast Telegram cho tat ca tai khoan". Best-effort: loi bao
- * thong bao khong duoc lam hong luong tao/duyet don chinh.
- *
- * Chi bao Quan ly duoc phep xem `branch` cua don nghi phep (isBranchAllowed) —
- * Quan ly gan 1 co so cu the KHONG nhan thong bao cua co so kia; Quan ly
- * "Ca hai" (hoac chua gan coSo, mac dinh xem Ca hai) van nhan ca hai ben.
- * @param {string} branch - Co so cua don nghi phep ('Hà Nội' | 'Sài Gòn')
+ * Bao tat ca tai khoan ve mot nhan su nghi phep qua chuong tren web.
+ * Quyen thao tac tren thong bao van duoc giao dien va API kiem tra rieng.
+ * Best-effort: loi thong bao khong duoc lam hong luong tao don chinh.
  */
+async function notifyAllUsers(_actingUserId, _branch, payload) {
+  try {
+    const allUsers = await userRepository.getAllUsers();
+    const userIds = allUsers
+      .filter(u => u && u.id != null)
+      .map(u => u.id);
+    await notificationRepository.createNotificationForUsers(userIds, payload);
+  } catch (notifyErr) {
+    console.error('Lỗi báo thông báo nghỉ phép cho người dùng:', notifyErr.message);
+  }
+}
+
 async function notifyOtherManagers(actingUserId, branch, payload) {
   try {
     const effectiveBranch = branch || BRANCHES.HANOI;
@@ -290,5 +295,6 @@ module.exports = {
   resolveSenderIdentity,
   resolveApproverName,
   resolveEmployeeBranch,
+  notifyAllUsers,
   notifyOtherManagers
 };

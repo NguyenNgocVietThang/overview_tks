@@ -9208,7 +9208,7 @@
           onClick: function (event, elements) {
             if (elements && elements[0]) setDebtDimensionFilter(filterKind, labels[elements[0].index]);
           },
-          plugins: { legend: { labels: { color: theme.text } }, tooltip: { callbacks: { label: function (context) { return context.dataset.label + ': ' + fmtMoney(context.raw); } } } },
+          plugins: { legend: { position: 'bottom', labels: { color: theme.text, usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, padding: 16 } }, tooltip: { callbacks: { label: function (context) { return context.dataset.label + ': ' + fmtMoney(context.raw); } } } },
           scales: {
             x: { ticks: { color: theme.text, autoSkip: false, maxRotation: 45, minRotation: 0 }, grid: { display: false } },
             y: { beginAtZero: true, ticks: { color: theme.muted, callback: formatAxisMoney }, grid: { color: theme.grid } }

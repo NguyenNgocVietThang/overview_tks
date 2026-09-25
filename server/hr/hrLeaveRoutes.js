@@ -20,6 +20,7 @@ const {
   resolveApproverName,
   computeDurationSessions,
   parseIsoDateOnly,
+  notifyAllUsers,
   notifyOtherManagers
 } = hrLeaveService;
 const { buildLeaveRequestsWorkbook } = require('./hrLeaveExportService');
@@ -251,8 +252,8 @@ router.post('/api/hr/leave-requests', ...authManager, async (req, res) => {
     // Phat tin hieu realtime toi tat ca cac client dang mo
     broadcastLeaveEvent(LEAVE_EVENT_TYPES.CREATED, record, record.co_so || recordBranch);
 
-    notifyOtherManagers(req.user.id, record.co_so || recordBranch, {
-      type: 'leave_request_created',
+    notifyAllUsers(req.user.id, record.co_so || recordBranch, {
+      type: isManualAbsence ? 'leave_absence_recorded' : 'leave_request_created',
       title: 'Có nhân sự nghỉ phép mới',
       message: `${record.ho_ten} vừa ${isManualAbsence ? 'được ghi nhận tự ý nghỉ' : 'gửi yêu cầu nghỉ phép'} từ ${record.thoi_gian_bat_dau} đến ${record.thoi_gian_ket_thuc}.`,
       relatedType: 'leaveRequest',

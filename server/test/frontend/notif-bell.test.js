@@ -114,6 +114,38 @@ test('Quản lý thấy nút Duyệt/Từ chối trên thông báo yêu cầu đ
   window.close();
 });
 
+test('người có quyền quản lý nghỉ phép duyệt đơn trực tiếp từ thông báo', async () => {
+  const patchCalls = [];
+  const { window, document } = createEnv(fakeUser('m1', 'Quản lý'), async (url, opts) => {
+    const method = opts && opts.method;
+    if (String(url).includes('/unread-count')) return { ok: true, json: async () => ({ count: 1 }) };
+    if (method === 'PATCH') {
+      patchCalls.push({ url: String(url), body: opts.body ? JSON.parse(opts.body) : null });
+      return { ok: true, json: async () => ({ request: { id: 'lv1', trang_thai: 'Đã duyệt' } }) };
+    }
+    return {
+      ok: true,
+      json: async () => ({ notifications: [
+        { id: 'n1', type: 'leave_request_created', title: 'Có nhân sự nghỉ phép', message: 'A nghỉ phép', isRead: false, relatedType: 'leaveRequest', relatedId: 'lv1' }
+      ] })
+    };
+  });
+
+  window.TKSNav.renderNotifBell(fakeUser('m1', 'Quản lý'));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  document.getElementById('tksNotifBellBtn').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+
+  document.querySelector('.tks-notif-approve').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise(resolve => setTimeout(resolve, 0));
+
+  assert.equal(patchCalls[0].url, '/api/hr/leave-requests/lv1/status');
+  assert.deepEqual(patchCalls[0].body, { status: 'Đã duyệt' });
+  assert.equal(patchCalls[1].url, '/api/notifications/n1/read');
+  window.close();
+});
+
 test('click vào thông báo có relatedType đánh dấu đã đọc rồi điều hướng đúng URL', async () => {
   const calledUrls = [];
   const { window, document } = createEnv(fakeUser('u1', 'Quản lý'), async (url, opts) => {

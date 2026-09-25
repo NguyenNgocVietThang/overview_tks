@@ -315,8 +315,9 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-10.2 | Phép tính buổi tính chính xác từ đầu buổi bắt đầu đến hết cuối buổi kết thúc (ví dụ: Sáng - Sáng cùng ngày là 1 buổi, Chiều hôm trước - Sáng hôm sau là 2 buổi, Sáng - Chiều cùng ngày là 2 buổi). | Cao | Hoàn thành |
 | FR-10.3 | Bot dùng luồng nhập ngày và buổi, khôi phục được `startDate`/`endDate` sau restart và chống xử lý trùng theo `chatId:messageId`. | Cao | Tạm ngừng tích hợp |
 | FR-10.4 | Thời gian gửi sau 07:45 đối với buổi Sáng hoặc 12:30 đối với buổi Chiều được cảnh báo; nếu vẫn xác nhận, đơn được lưu với trạng thái `Vi phạm`. | Cao | Hoàn thành |
-| FR-10.5 | Tab Nghỉ phép hiển thị cột Thời gian gửi; bộ lọc `from`/`to` lọc theo trường này và mặc định 3 ngày gần đây. | Cao | Hoàn thành |
-| FR-10.6 | Telegram ID lưu ở `app_users.telegram_id` trong PostgreSQL, duy nhất giữa các tài khoản chưa xoá; API tạo mã cũ không được đọc/ghi `_HR_TELEGRAM_LINKS`. | Cao | Hoàn thành |
+| FR-10.5 | Tab Nghỉ phép hiển thị cột Thời gian gửi; bộ lọc `from`/`to` lọc các khoảng nghỉ giao với khoảng ngày đã chọn và mặc định cả hai mốc là ngày hôm nay, để bảng chỉ hiện người có lịch nghỉ trong hôm nay. | Cao | Hoàn thành |
+| FR-10.6 | Khi ghi nhận một yêu cầu nghỉ phép mới, chuông web tạo thông báo cho toàn bộ tài khoản. Người có quyền `hr.leave.manage` được Duyệt/Từ chối trực tiếp trên thông báo; API vẫn kiểm tra quyền trước khi đổi trạng thái. | Cao | Hoàn thành |
+| FR-10.7 | Telegram ID lưu ở `app_users.telegram_id` trong PostgreSQL, duy nhất giữa các tài khoản chưa xoá; API tạo mã cũ không được đọc/ghi `_HR_TELEGRAM_LINKS`. | Cao | Hoàn thành |
 
 ## 3.11. FR-11: Quản lý công nợ
 
