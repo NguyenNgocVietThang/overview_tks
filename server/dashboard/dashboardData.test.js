@@ -478,6 +478,28 @@ test('getDashboardData het hieu luc cache ket qua ngay khi dashboardRollupEvents
   assert.equal(dashboardData.__test__.getComputeCallCount(), 2, 'phien ban rollup doi -> phai tinh lai du bo loc khong doi');
 });
 
+test('getDashboardData gop nhieu request TRUNG cacheKey toi cung luc tren cache trong thanh 1 lan fetch rollup + compute (single-flight)', async () => {
+  const { dashboardData, dashboardRollupRepository } = freshDashboardData();
+  const callCounter = { count: 0 };
+  mockDashboardRollupsCounted(dashboardRollupRepository, callCounter);
+  dashboardData.__test__.resetCaches();
+
+  const [first, second, third] = await Promise.all([
+    dashboardData.getDashboardData(BASE_FILTERS),
+    dashboardData.getDashboardData(BASE_FILTERS),
+    dashboardData.getDashboardData(BASE_FILTERS)
+  ]);
+
+  assert.equal(dashboardData.__test__.getComputeCallCount(), 1, '3 request trung cacheKey cung luc chi duoc tinh 1 lan, khong phai 3');
+  // fetchDashboardRollups() goi 7 ham rollup cho 1 co so (getInvoiceRevenueByDay
+  // goi 2 lan cho overview/invoices range, 5 ham con lai goi 1 lan) — BASE_FILTERS
+  // ung voi 1 co so vat ly (Ha Noi mac dinh) nen dung 1 lan fetchDashboardRollups
+  // duy nhat cho ca 3 request; neu khong gop (single-flight) con so nay se la 21 (x3).
+  assert.equal(callCounter.count, 7, 'ca 3 request trung cacheKey chi duoc goi rollup 1 luot (khong phai 3 luot => 21)');
+  assert.equal(first, second, 'ca 3 ket qua phai la cung 1 object reference (den tu chung 1 promise)');
+  assert.equal(second, third, 'ca 3 ket qua phai la cung 1 object reference (den tu chung 1 promise)');
+});
+
 test('tim khach hang gan them revenue tong hop tu sheet Bao cao ban hang theo ky loc', async () => {
   // GHI CHU: dashboardPgReader.readDashboardSheets() THAT (production) khong
   // bao gio tra CONFIG.SHEET_CUSTOMER_REPORT (khong co bang Postgres tuong

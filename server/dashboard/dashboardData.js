@@ -2083,6 +2083,9 @@ function mergeDebtManagementSources(branchSources, canEditDebtStatus) {
 const DASHBOARD_RESULT_CACHE_TTL_MS = DASHBOARD_SHEETS_CACHE_TTL_MS; // ket qua tinh toan khong the "tuoi" hon du lieu tho dung de tinh ra no
 const DASHBOARD_RESULT_CACHE_MAX_ENTRIES = 32; // chan bo nho: filters den tu query string nen so bo loc khac nhau la khong gioi han
 let dashboardResultCache = new Map(); // key: `${branch}|${sheetsVersion}|${JSON.stringify(filters)}` -> { data, expiresAt }
+// Gop nhieu request TRUNG cacheKey toi gan nhu cung luc thanh 1 lan fetch
+// rollup + compute (single-flight) — xem cach dung trong getDashboardData().
+let dashboardResultInflight = new Map(); // cacheKey -> Promise<data>
 let computeCallCountForTest = 0; // chi dung trong test, xem __test__ o cuoi file
 
 // Co so nam TRONG key (khong phai Map rieng) de mot key cu the luon thuoc dung
@@ -2193,62 +2196,78 @@ async function getDashboardData(filters, branch, viewer) {
     return cached.data;
   }
 
-  // Du lieu tho hoac rollup da sang phien ban moi -> moi ket qua cache cu deu
-  // tinh tu du lieu cu, don sach de Map khong phinh vo han qua nhieu phien ban.
-  // Chi don entry CUA CHINH CO SO nay (tien to `${branch}|`) — entry cua co so
-  // khac co vong doi rieng.
-  const branchPrefix = requestedBranch + '|';
-  for (const key of dashboardResultCache.keys()) {
-    if (key.startsWith(branchPrefix) && !key.startsWith(branchPrefix + versionTag + ':')) {
-      dashboardResultCache.delete(key);
+  // Nhieu request TRUNG cacheKey toi gan nhu cung luc (vd moi tab trinh duyet
+  // dang mo nhan SSE 'dashboard-updated' roi tu goi lai /api/dashboard cung
+  // bo loc) -> gop lai thanh 1 lan fetch rollup + compute duy nhat, tranh moi
+  // request tu chay rieng roi dong pool ket noi DB (xem Task 1.2).
+  const inflight = dashboardResultInflight.get(cacheKey);
+  if (inflight) return inflight;
+
+  const computing = (async () => {
+    // Du lieu tho hoac rollup da sang phien ban moi -> moi ket qua cache cu deu
+    // tinh tu du lieu cu, don sach de Map khong phinh vo han qua nhieu phien ban.
+    // Chi don entry CUA CHINH CO SO nay (tien to `${branch}|`) — entry cua co so
+    // khac co vong doi rieng.
+    const branchPrefix = requestedBranch + '|';
+    for (const key of dashboardResultCache.keys()) {
+      if (key.startsWith(branchPrefix) && !key.startsWith(branchPrefix + versionTag + ':')) {
+        dashboardResultCache.delete(key);
+      }
     }
-  }
 
-  // Cache ket qua mien -> gio moi goi rollup (7 cau SQL/co so). Gan thang
-  // vao tung branchSource (object moi tao rieng cho request nay, khong phai
-  // object dung chung tu cache) de giu dung shape ma computeDashboardData/
-  // mergeDashboardSheets/mergeDebtManagementSources/mergeDashboardRollups
-  // dang mong doi (doc branchSources[i].rollups).
-  await Promise.all(branchSources.map((source, index) =>
-    fetchDashboardRollups(sourceArguments[index], ranges).then(rollups => {
-      source.rollups = rollups;
-    })
-  ));
+    // Cache ket qua mien -> gio moi goi rollup (7 cau SQL/co so). Gan thang
+    // vao tung branchSource (object moi tao rieng cho request nay, khong phai
+    // object dung chung tu cache) de giu dung shape ma computeDashboardData/
+    // mergeDashboardSheets/mergeDebtManagementSources/mergeDashboardRollups
+    // dang mong doi (doc branchSources[i].rollups).
+    await Promise.all(branchSources.map((source, index) =>
+      fetchDashboardRollups(sourceArguments[index], ranges).then(rollups => {
+        source.rollups = rollups;
+      })
+    ));
 
-  let data;
-  if (branchSources.length === 1) {
-    const source = branchSources[0];
-    data = computeDashboardData(
-      source.sheets,
-      f,
-      now,
-      source.debtManagementSource,
-      source.branch,
-      source.debtWorkflow,
-      canEditDebtStatus,
-      source.rollups
-    );
-  } else {
-    const debtManagement = mergeDebtManagementSources(branchSources, canEditDebtStatus);
-    data = computeDashboardData(
-      mergeDashboardSheets(branchSources),
-      f,
-      now,
-      null,
-      BRANCH_BOTH,
-      null,
-      canEditDebtStatus,
-      mergeDashboardRollups(branchSources),
-      debtManagement
-    );
-  }
-  dashboardResultCache.set(cacheKey, { data, expiresAt: Date.now() + DASHBOARD_RESULT_CACHE_TTL_MS });
-  // Gioi han so entry trong Map — Map giu thu tu insertion nen phan tu dau tien
-  // luon la entry cu nhat, xoa dan cho toi khi ve lai duoi muc tran.
-  while (dashboardResultCache.size > DASHBOARD_RESULT_CACHE_MAX_ENTRIES) {
-    dashboardResultCache.delete(dashboardResultCache.keys().next().value);
-  }
-  return data;
+    let data;
+    if (branchSources.length === 1) {
+      const source = branchSources[0];
+      data = computeDashboardData(
+        source.sheets,
+        f,
+        now,
+        source.debtManagementSource,
+        source.branch,
+        source.debtWorkflow,
+        canEditDebtStatus,
+        source.rollups
+      );
+    } else {
+      const debtManagement = mergeDebtManagementSources(branchSources, canEditDebtStatus);
+      data = computeDashboardData(
+        mergeDashboardSheets(branchSources),
+        f,
+        now,
+        null,
+        BRANCH_BOTH,
+        null,
+        canEditDebtStatus,
+        mergeDashboardRollups(branchSources),
+        debtManagement
+      );
+    }
+    dashboardResultCache.set(cacheKey, { data, expiresAt: Date.now() + DASHBOARD_RESULT_CACHE_TTL_MS });
+    // Gioi han so entry trong Map — Map giu thu tu insertion nen phan tu dau tien
+    // luon la entry cu nhat, xoa dan cho toi khi ve lai duoi muc tran.
+    while (dashboardResultCache.size > DASHBOARD_RESULT_CACHE_MAX_ENTRIES) {
+      dashboardResultCache.delete(dashboardResultCache.keys().next().value);
+    }
+    return data;
+  })().finally(() => {
+    // Loi (fetch rollup hoac compute nem loi) TU LAN ra ngoai cho moi nguoi
+    // dang cho tai day — khong bat loi de cache, giu dung hanh vi hien tai
+    // (lan sau se tu thu lai tu dau vi entry inflight da bi xoa).
+    if (dashboardResultInflight.get(cacheKey) === computing) dashboardResultInflight.delete(cacheKey);
+  });
+  dashboardResultInflight.set(cacheKey, computing);
+  return computing;
 }
 
 /**
@@ -2986,6 +3005,7 @@ module.exports = {
       customerDirectoryCacheByBranch = new Map();
       aggregateFullSheetsCache = null;
       dashboardResultCache = new Map();
+      dashboardResultInflight = new Map();
       searchIndexBuildCountForTest = 0;
       computeCallCountForTest = 0;
     },
