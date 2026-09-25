@@ -590,3 +590,33 @@ test('mat ket noi giua luc doc body (TypeError cua trinh duyet) van hien thong b
   h.win.close();
 });
 
+
+test('nut Xuat HTML canh Xuat Excel gui format html cung cac truong da chon, loi thi Thu lai dung dinh dang', async () => {
+  const h = createExportDashboard();
+  const { document } = h;
+  assert.equal(document.getElementById('exportHtmlButton').hidden, true, 'chua co danh sach truong thi an');
+  await openExportWithFields(h, twoSheetMetadata());
+  assert.equal(document.getElementById('exportHtmlButton').hidden, false);
+
+  assert.equal(h.click('exportHtmlButton'), true);
+  const call = h.fileCalls()[0];
+  assert.equal(call.body.format, 'html');
+  assert.deepEqual(call.body.columns, { products: ['code', 'name'], sales: ['qty'] });
+  assert.equal(h.text('exportStatus'), 'Đang tạo báo cáo HTML… (dữ liệu lớn có thể mất vài chục giây)');
+  assert.equal(document.getElementById('exportHtmlButton').disabled, true, 'dang tao file thi khoa nut');
+
+  h.respondJson(call, { error: 'Không thể tạo báo cáo HTML.', detail: 'Dữ liệu có 6.000 dòng, vượt giới hạn — dùng Xuất Excel.' }, 413);
+  await flush();
+  assert.match(h.text('exportStatus'), /Xuất Excel/);
+  assert.equal(h.click('exportRetryButton'), true);
+  assert.equal(h.fileCalls()[1].body.format, 'html', 'Thu lai giu dinh dang HTML');
+  h.respondFile(h.fileCalls()[1], 'HN_San_pham_20260925_1000.html');
+  await flush();
+  assert.equal(h.downloads[0].name, 'HN_San_pham_20260925_1000.html');
+
+  // Nut Xuat Excel van gui yeu cau KHONG co format (giu hanh vi cu).
+  await openExportWithFields(h, twoSheetMetadata());
+  h.click('exportConfirmButton');
+  assert.equal('format' in h.fileCalls()[2].body, false);
+  h.win.close();
+});

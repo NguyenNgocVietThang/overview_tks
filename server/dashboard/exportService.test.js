@@ -1575,3 +1575,160 @@ test('createExportWorkbook: chap nhan truong "branch" khi ket qua stockout quet 
 
   assert.ok(file.buffer.byteLength > 0);
 });
+
+// ---------- Xuat bao cao HTML (renderer thu hai, dung chung tang dataset) ----------
+
+const { JSDOM } = require('jsdom');
+const exportHtmlReport = require('./exportHtmlReport');
+
+const DEBT_HTML_EXPORT = {
+  tableKey: 'debt.management', format: 'html', context: { debtQueue: 'all' },
+  columns: { debt_management: ['customerName', 'sale', 'currentDebt', 'overdueDebt', 'currentDebtToSalesRatio', 'workflowStatus'] }
+};
+
+function openHtmlReport(file) {
+  const html = file.buffer.toString('utf8');
+  const dom = new JSDOM(html, {
+    runScripts: 'dangerously',
+    beforeParse(win) {
+      win.HTMLCanvasElement.prototype.getContext = () => null; // jsdom khong co canvas
+      win.console.error = () => {};
+    }
+  });
+  return { html, dom, doc: dom.window.document };
+}
+
+test('createExport: khong gui format -> Excel nhu cu; format sai bi tu choi TRUOC khi cham du lieu', async () => {
+  await withStubs({}, async stubs => {
+    const xlsx = await exportService.createExport(QUICK_EXPORT, 'Hà Nội');
+    assert.match(xlsx.fileName, /^HN_.+\.xlsx$/);
+    assert.equal(xlsx.mimeType, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    await assert.rejects(
+      exportService.createExport({ ...QUICK_EXPORT, format: 'pdf' }, 'Hà Nội'),
+      error => error.statusCode === 400 && error.code === 'EXPORT_FORMAT_INVALID'
+    );
+    assert.equal(stubs.calls.dashboard.length, 1, 'format sai khong duoc nap du lieu');
+  });
+});
+
+test('Excel va HTML dung chung getExportDataset: cung cot da chon, cung dong, cung co so', async () => {
+  await withStubs({}, async stubs => {
+    const dataset = await exportService.getExportDataset(DEBT_HTML_EXPORT, 'Hà Nội');
+    assert.deepEqual(dataset.worksheets[0].columns.map(column => column.key), DEBT_HTML_EXPORT.columns.debt_management);
+    assert.equal(dataset.worksheets[0].rows.length, 2);
+    assert.equal(dataset.meta.branch, 'Hà Nội');
+
+    const file = await exportService.createExport(DEBT_HTML_EXPORT, 'Hà Nội');
+    assert.match(file.fileName, /^HN_Quan_ly_cong_no_\d{8}_\d{4}\.html$/);
+    assert.equal(file.mimeType, 'text/html; charset=utf-8');
+    const { doc } = openHtmlReport(file);
+    const embedded = JSON.parse(doc.getElementById('report-data').textContent);
+    assert.deepEqual(embedded.worksheets[0].columns.map(column => column.key), DEBT_HTML_EXPORT.columns.debt_management);
+    assert.equal(embedded.worksheets[0].rows.length, 2);
+    // Cot khong chon (updatedBy) khong duoc lot vao file.
+    assert.doesNotMatch(file.buffer.toString('utf8'), /Người cập nhật/);
+    assert.deepEqual(stubs.calls.dashboard.map(args => args[1]), ['Hà Nội', 'Hà Nội'], 'dung co so cua req.branch');
+    assert.deepEqual(exportService.__test__.limiterState(), { active: 0, queued: 0 });
+  });
+});
+
+test('bao cao HTML tu chua: KPI render san, Chart.js inline, khong tai tai nguyen ngoai, co CSP', async () => {
+  await withStubs({}, async () => {
+    const file = await exportService.createExport(DEBT_HTML_EXPORT, 'Sài Gòn');
+    const { html, doc } = openHtmlReport(file);
+    assert.doesNotMatch(html, /<script[^>]+src=/i, 'khong script ngoai');
+    assert.doesNotMatch(html, /<link[^>]+href=/i, 'khong stylesheet ngoai');
+    assert.doesNotMatch(html, /XMLHttpRequest|\/api\//, 'khong goi API sau khi mo');
+    assert.match(html, /Content-Security-Policy" content="default-src 'none'/);
+    assert.match(html, /Chart\.js v4/, 'thu vien Chart.js nam ngay trong file');
+    assert.equal(doc.title, 'Quản lý công nợ · TOKOSI');
+
+    // KPI co trong HTML goc (khong can JS): so dong + tong no hien tai.
+    const staticDoc = new JSDOM(html).window.document;
+    const kpis = [...staticDoc.querySelectorAll('#kpis .kpi')].map(card => card.textContent);
+    assert.ok(kpis.length >= 2 && kpis.length <= 4);
+    assert.match(kpis[0], /Số dòng dữ liệu\s*2/);
+    assert.ok(kpis.some(text => /Tổng nợ hiện tại/.test(text) && /2\.000\.000/.test(text)), kpis.join(' | '));
+
+    // Bang render tu du lieu nhung, dinh dang so/phan tram tieng Viet.
+    const cells = [...doc.querySelectorAll('#tbody tr')].map(row => [...row.cells].map(cell => cell.textContent));
+    assert.equal(cells.length, 2);
+    assert.deepEqual(cells[0].slice(0, 5), ['Khách A', 'Lan', '800.000', '500.000', '40%']);
+    assert.equal(cells[1][4], '—', 'o trong hien gach ngang');
+  });
+});
+
+test('bao cao HTML: tim kiem khong dau, loc va sap xep chay hoan toan tren du lieu nhung', async () => {
+  await withStubs({}, async () => {
+    const file = await exportService.createExport(DEBT_HTML_EXPORT, 'Hà Nội');
+    const { dom, doc } = openHtmlReport(file);
+    const win = dom.window;
+    const rows = () => [...doc.querySelectorAll('#tbody tr')].map(row => row.cells[0].textContent);
+    const input = doc.getElementById('q');
+    input.value = 'khach b';
+    input.dispatchEvent(new win.Event('input'));
+    assert.deepEqual(rows(), ['Khách B']);
+    assert.match(doc.getElementById('count').textContent, /Hiển thị 1 \/ 2 dòng/);
+
+    input.value = 'khong co';
+    input.dispatchEvent(new win.Event('input'));
+    assert.match(doc.getElementById('tbody').textContent, /Không có dòng nào khớp bộ lọc/);
+
+    doc.getElementById('reset').click();
+    assert.deepEqual(rows(), ['Khách A', 'Khách B']);
+    // Bam tieu de "Nợ hiện tại" -> giam dan (1.200.000 truoc).
+    doc.querySelector('#thead button[data-col="2"]').click();
+    assert.deepEqual(rows(), ['Khách B', 'Khách A']);
+    // Cot phan loai (Sale / Trang thai) duoc dua len bo loc.
+    const select = doc.getElementById('category');
+    assert.equal(select.hidden, false);
+    select.value = [...select.options].find(option => option.value === 'Lan' || option.value === 'Chưa xử lý').value;
+    select.dispatchEvent(new win.Event('change'));
+    assert.deepEqual(rows(), ['Khách A']);
+    win.close();
+  });
+});
+
+test('bao cao HTML vuot HTML_MAX_ROWS thi bao loi goi y dung Excel va nha slot', async () => {
+  const many = Array.from({ length: exportService.HTML_MAX_ROWS + 1 }, (_, index) => ({ code: `SP${index}` }));
+  await withStubs({ dashboard: { ...buildDashboard(), allProducts: many } }, async () => {
+    await assert.rejects(
+      exportService.createExport({ ...QUICK_EXPORT, format: 'html' }, 'Hà Nội'),
+      error => error.statusCode === 413 && error.code === 'EXPORT_HTML_TOO_LARGE' && /Xuất Excel/.test(error.message)
+    );
+    assert.deepEqual(exportService.__test__.limiterState(), { active: 0, queued: 0 });
+    // Excel khong bi gioi han nay.
+    const xlsx = await exportService.createExport(QUICK_EXPORT, 'Hà Nội');
+    assert.match(xlsx.fileName, /\.xlsx$/);
+  });
+});
+
+test('bao cao HTML dung chung hang doi voi Excel (khong co hang doi rieng)', async () => {
+  const gate = createGate();
+  await withStubs({ onDashboard: () => gate.promise }, async () => {
+    const jobs = [
+      exportService.createExport(QUICK_EXPORT, 'Hà Nội'),
+      exportService.createExport({ ...QUICK_EXPORT, format: 'html' }, 'Hà Nội'),
+      exportService.createExport({ ...QUICK_EXPORT, format: 'html' }, 'Hà Nội')
+    ];
+    await tick();
+    assert.deepEqual(exportService.__test__.limiterState(), { active: 2, queued: 1 });
+    gate.open();
+    const files = await Promise.all(jobs);
+    assert.deepEqual(files.map(file => file.fileName.split('.').pop()), ['xlsx', 'html', 'html']);
+    assert.deepEqual(exportService.__test__.limiterState(), { active: 0, queued: 0 });
+  });
+});
+
+test('du lieu nhung khong the dong the script (chong XSS tu du lieu)', () => {
+  const json = exportHtmlReport.__test__.safeJson({ name: '</script><script>alert(1)</script><!--' });
+  assert.doesNotMatch(json, /<|>/);
+  assert.equal(JSON.parse(json).name, '</script><script>alert(1)</script><!--');
+  const file = exportHtmlReport.renderHtmlReport({
+    meta: { title: '<img src=x onerror=alert(1)>', branch: 'Hà Nội', generatedAt: new Date(), fileBase: 'HN_X' },
+    worksheets: [{ key: 'a', name: 'A', columns: [{ key: 'n', label: '<b>Tên</b>', type: 'text' }], rows: [{ n: '</script>' }] }]
+  });
+  const html = file.buffer.toString('utf8');
+  assert.doesNotMatch(html, /<img src=x/);
+  assert.equal((html.match(/<\/script>/g) || []).length, 3, 'chi co 3 the script cua chinh bao cao');
+});

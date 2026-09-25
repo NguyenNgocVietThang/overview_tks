@@ -2182,6 +2182,7 @@
 
     .export-cancel,
     .export-retry,
+    .export-html,
     .export-confirm {
       min-height: 36px;
       padding: 0 14px;
@@ -2209,7 +2210,15 @@
       color: #07150d;
     }
 
+    /* Phuong an phu (bao cao HTML xem nhanh): vien xanh, khong to nen de Excel van la nut chinh. */
+    .export-html {
+      border: 1px solid var(--green);
+      background: var(--panel-2);
+      color: var(--text);
+    }
+
     .export-cancel:disabled,
+    .export-html:disabled,
     .export-confirm:disabled {
       opacity: .55;
       cursor: wait;
@@ -3224,6 +3233,7 @@
       }
 
       .export-cancel,
+      .export-html,
       .export-confirm {
         flex: 1;
       }
@@ -4895,6 +4905,8 @@
         <div class="export-foot-actions">
           <button class="export-retry" id="exportRetryButton" type="button" onclick="retryExport()" hidden>Thử lại</button>
           <button class="export-cancel" id="exportCancelButton" type="button" onclick="closeExportDialog()">Hủy</button>
+          <button class="export-html" id="exportHtmlButton" type="button" onclick="confirmExport('html')" hidden
+            title="Báo cáo xem nhanh (số liệu tổng quan, biểu đồ, bảng có tìm kiếm) — mở được khi không có mạng">Xuất HTML</button>
           <button class="export-confirm" id="exportConfirmButton" type="button" onclick="confirmExport()" hidden>Xuất
             Excel</button>
         </div>
@@ -4996,7 +5008,8 @@
         token: 0,
         request: null,
         step: '', // 'fields' (dang lay danh sach truong) | 'file' (dang tao file) — de "Thu lai" biet lap lai buoc nao
-        autoAll: false
+        autoAll: false,
+        format: 'xlsx'
       },
       // Tab Tổng quan, phần 2 — "Báo cáo doanh thu theo khách" (xem
       // renderCustomerProductReport() và các ham handleCustomerProduct*()).
@@ -6431,6 +6444,7 @@
       state.exportDialog.busy = isBusy;
       const focused = document.activeElement;
       document.getElementById('exportConfirmButton').disabled = isBusy;
+      document.getElementById('exportHtmlButton').disabled = isBusy;
       document.getElementById('exportModalBackdrop').setAttribute('aria-busy', isBusy ? 'true' : 'false');
       document.querySelectorAll('#exportToolbar button, #exportToolbar input, #exportFields input').forEach(control => { control.disabled = isBusy; });
       // Control dang giu tieu diem vua bi khoa (vd nut Xuat Excel vua bam bang ban phim) -> chuyen sang nut Huy
@@ -6528,6 +6542,7 @@
       setExportBusy(false);
       document.getElementById('exportToolbar').hidden = true;
       document.getElementById('exportConfirmButton').hidden = true;
+      document.getElementById('exportHtmlButton').hidden = true;
       document.getElementById('exportFields').innerHTML = '';
       document.getElementById('exportFieldSearch').value = '';
       setExportStatus('');
@@ -6535,6 +6550,7 @@
       dialog.metadata = null;
       dialog.step = '';
       dialog.autoAll = false;
+      dialog.format = 'xlsx';
       const returnFocus = dialog.returnFocus;
       dialog.returnFocus = null;
       if (returnFocus && typeof returnFocus.focus === 'function') returnFocus.focus();
@@ -6583,6 +6599,7 @@
       document.getElementById('exportFields').innerHTML = '<div class="export-loading">Đang lấy danh sách trường…</div>';
       document.getElementById('exportToolbar').hidden = true;
       document.getElementById('exportConfirmButton').hidden = true;
+      document.getElementById('exportHtmlButton').hidden = true;
       setExportStatus('');
       const request = beginExportRequest(EXPORT_FIELDS_TIMEOUT_MS);
       setExportBusy(true);
@@ -6619,6 +6636,7 @@
       document.getElementById('exportModalSubtitle').textContent = 'Đã chọn sẵn các trường mặc định; có thể bổ sung hoặc bỏ các trường không cần.';
       document.getElementById('exportToolbar').hidden = false;
       document.getElementById('exportConfirmButton').hidden = false;
+      document.getElementById('exportHtmlButton').hidden = false;
       document.getElementById('exportFields').innerHTML = metadata.worksheets.map(function (worksheet) {
         const worksheetFields = worksheet.fields || [];
         const fields = worksheetFields.map(function (field) {
@@ -6672,10 +6690,14 @@
       return match ? match[1] : 'TKS_Du_lieu.xlsx';
     }
 
-    async function downloadExportFile(autoAllFields) {
+    // format: 'xlsx' (mac dinh) | 'html' — bao cao HTML tu chua de xem nhanh, dung chung truong da chon.
+    async function downloadExportFile(autoAllFields, format) {
       const dialog = state.exportDialog;
       if (!dialog.payload) return; // hop thoai da dong
+      const isHtml = format === 'html';
+      const failMessage = isHtml ? 'Không thể tạo báo cáo HTML.' : 'Không thể tạo file Excel.';
       const payload = Object.assign({}, dialog.payload);
+      if (isHtml) payload.format = 'html';
       if (!autoAllFields) {
         const columns = selectedExportColumns();
         const selectedCount = Object.values(columns).reduce((sum, list) => sum + list.length, 0);
@@ -6687,32 +6709,36 @@
       }
       dialog.step = 'file';
       dialog.autoAll = !!autoAllFields;
+      dialog.format = isHtml ? 'html' : 'xlsx';
       if (autoAllFields) {
         const sourceCount = dialog.metadata && dialog.metadata.worksheets ? dialog.metadata.worksheets.length : 0;
         document.getElementById('exportFields').innerHTML = '<div class="export-loading">Đang tạo file với toàn bộ trường của ' + sourceCount + ' nguồn dữ liệu…</div>';
       }
       const request = beginExportRequest(EXPORT_FILE_TIMEOUT_MS);
       setExportBusy(true);
-      setExportStatus('Đang tạo file Excel… (dữ liệu lớn có thể mất vài chục giây)');
+      setExportStatus(isHtml
+        ? 'Đang tạo báo cáo HTML… (dữ liệu lớn có thể mất vài chục giây)'
+        : 'Đang tạo file Excel… (dữ liệu lớn có thể mất vài chục giây)');
       try {
         const response = await exportFetch('/api/export', payload, request);
-        if (!response.ok) throw new Error(await readExportError(response, 'Không thể tạo file Excel'));
+        if (!response.ok) throw new Error(await readExportError(response, failMessage.replace(/\.$/, '')));
         const blob = await response.blob();
         if (!isExportRequestCurrent(request)) return; // da dong hop thoai trong luc cho: khong tu tai file
-        saveExportBlob(blob, downloadNameFromResponse(response));
+        const fileName = downloadNameFromResponse(response);
+        saveExportBlob(blob, isHtml ? fileName.replace(/\.xlsx$/i, '.html') : fileName);
         closeExportDialog();
       } catch (err) {
         if (!isExportRequestCurrent(request)) return;
         setExportBusy(false);
-        if (autoAllFields) document.getElementById('exportFields').innerHTML = '<div class="export-loading">Không thể tạo file Excel.</div>';
-        setExportStatus(describeExportError(err, request, EXPORT_FILE_TIMEOUT_MESSAGE, 'Không thể tạo file Excel.'), true, true);
+        if (autoAllFields) document.getElementById('exportFields').innerHTML = '<div class="export-loading">' + failMessage + '</div>';
+        setExportStatus(describeExportError(err, request, EXPORT_FILE_TIMEOUT_MESSAGE, failMessage), true, true);
       } finally {
         endExportRequest(request);
       }
     }
 
-    function confirmExport() {
-      downloadExportFile(false);
+    function confirmExport(format) {
+      downloadExportFile(false, format === 'html' ? 'html' : 'xlsx');
     }
 
     // "Thu lai" lap lai dung buoc vua loi: lay danh sach truong hoac tao file (giu nguyen cac truong da chon).
@@ -6720,7 +6746,7 @@
       const dialog = state.exportDialog;
       if (!dialog.payload) return;
       setExportStatus('');
-      if (dialog.step === 'file') downloadExportFile(dialog.autoAll);
+      if (dialog.step === 'file') downloadExportFile(dialog.autoAll, dialog.format);
       else loadExportFields();
     }
 

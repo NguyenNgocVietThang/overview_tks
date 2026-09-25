@@ -9,7 +9,7 @@ const {
 
 const router = express.Router();
 
-const { getExportFields, createExportWorkbook, buildExportErrorBody } = require('./dashboard/exportService');
+const { getExportFields, createExport, buildExportErrorBody } = require('./dashboard/exportService');
 const { getProductReport } = require('./dashboard/productReportRepository');
 const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
@@ -357,6 +357,8 @@ router.post('/api/export/fields', async (req, res) => {
   }
 });
 
+// body.format: 'xlsx' (mac dinh, giu hanh vi cu khi khong gui) | 'html' (bao cao tu chua).
+// Hai dinh dang dung chung tang dataset, phan quyen/co so (req.branch) va hang doi xuat file.
 router.post('/api/export', async (req, res) => {
   // Client ngat ket noi (dong modal/huy) truoc khi ghi xong -> huy viec dang lam
   // de nha slot xuat file; khong tra body cho ket noi da dong.
@@ -365,7 +367,7 @@ router.post('/api/export', async (req, res) => {
     if (!res.writableFinished) abortController.abort();
   });
   try {
-    const file = await createExportWorkbook(req.body || {}, req.branch, { signal: abortController.signal });
+    const file = await createExport(req.body || {}, req.branch, { signal: abortController.signal });
     if (abortController.signal.aborted) return;
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
@@ -373,7 +375,8 @@ router.post('/api/export', async (req, res) => {
     res.status(200).send(file.buffer);
   } catch (err) {
     if (abortController.signal.aborted) return;
-    sendExportError(res, err, 'Không thể tạo file Excel.');
+    const isHtml = String((req.body && req.body.format) || '').toLowerCase() === 'html';
+    sendExportError(res, err, isHtml ? 'Không thể tạo báo cáo HTML.' : 'Không thể tạo file Excel.');
   }
 });
 

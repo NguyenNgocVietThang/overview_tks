@@ -13,6 +13,9 @@
 //      roi ghep theo ma; nhan/kieu/mo ta cot theo exportFieldCatalog.js.
 //   4. Buoc lay truong voi bang co dinh KHONG cham DB/Google (rowCount = null).
 //   5. Gioi han tai: toi da 2 file dong thoi + hang doi 8; tran -> 503 EXPORT_BUSY.
+//   6. getExportDataset() la tang lay/tong hop DUNG CHUNG; chi buoc render khac nhau:
+//      renderExcelWorkbook (ExcelJS) va exportHtmlReport.renderHtmlReport (HTML tu chua).
+//      runExport() boc ca hai trong cung slot/hang doi va AbortSignal.
 // ==========================================
 
 const ExcelJS = require('exceljs');
@@ -23,6 +26,7 @@ const exportFieldCatalog = require('./exportFieldCatalog');
 const { BRANCHES, BRANCH_BOTH, resolveBranchScope } = require('../branch/branches');
 const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
 const { filterTableItems } = require('../public/js/table-explorer');
+const htmlReportRenderer = require('./exportHtmlReport');
 
 const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const DEBT_QUEUE_FILTERS = new Set(['needsAction', 'currentDebt', 'overdue', 'all']);
@@ -1301,12 +1305,66 @@ function branchFilePrefix(branch) {
   return 'TKS';
 }
 
+// ---------- Tang dataset dung chung (Excel + HTML) ----------
+
+const EXPORT_FORMATS = new Set(['xlsx', 'html']);
+
+// Ngan tran cho bao cao HTML: toan bo dong nhung thang vao file (JSON) va loc/sap xep
+// bang JS tren trinh duyet. ~5.000 dong x ~25 cot da la 2-4MB file va vai tram MB RAM
+// tab trinh duyet; lon hon nua thi Excel (AutoFilter, khong gioi han) phu hop hon.
+const HTML_MAX_ROWS = 5000;
+
+function normalizeExportFormat(value) {
+  const format = normalizeText(value).toLowerCase() || 'xlsx';
+  if (!EXPORT_FORMATS.has(format)) throw exportError('Định dạng xuất không hợp lệ.', 400, 'EXPORT_FORMAT_INVALID');
+  return format;
+}
+
 /**
- * Tao file Excel. Toi da EXPORT_MAX_CONCURRENT file chay dong thoi (them EXPORT_MAX_QUEUED
- * cho trong hang doi, tran -> 503 EXPORT_BUSY). `options.signal` (AbortSignal) huy yeu cau:
- * bo qua muc dang cho + dung sau moi buoc nap du lieu (loi EXPORT_ABORTED).
+ * Lay + tong hop du lieu xuat, DUNG CHUNG cho moi renderer. Tra ve
+ * { meta, worksheets: [{ key, name, columns, rows }] } voi columns = dung cac cot
+ * da chon (theo thu tu cot nguon) — renderer chi viec ve, khong tu loc/chon cot.
+ * Goi ben trong slot xuat file (xem runExport). `options.description`/`selection`
+ * da validate san thi truyen vao de khong tinh lai.
  */
-async function createExportWorkbook(payload, branch, options = {}) {
+async function getExportDataset(payload, branch, options = {}) {
+  const request = plainObject(payload);
+  const signal = options.signal;
+  const description = options.description || describeExport(request, branch);
+  const selection = options.selection !== undefined || description.dynamic
+    ? options.selection
+    : resolveSelection(description.selectionMode, description.worksheets, request.columns);
+  const dataset = await buildExportDataset(request, branch, { signal, description, selection });
+  throwIfAborted(signal);
+
+  const worksheets = dataset.worksheets.map(sourceWorksheet => ({
+    key: sourceWorksheet.key,
+    name: sourceWorksheet.name,
+    columns: selectedColumnsForWorksheet(dataset.selectionMode, sourceWorksheet, request.columns),
+    rows: sourceWorksheet.rows
+  })).filter(worksheet => worksheet.columns.length > 0);
+  if (worksheets.length === 0) {
+    throw exportError('Vui lòng chọn ít nhất một trường để xuất.', 400, 'EXPORT_NO_FIELDS_SELECTED');
+  }
+  const fileBranch = dataset.sourceBranch || branch;
+  return {
+    meta: {
+      tableKey: dataset.tableKey,
+      title: dataset.title,
+      branch: fileBranch || '',
+      generatedAt: new Date(),
+      fileBase: `${branchFilePrefix(fileBranch)}_${fileSlug(dataset.title)}_${fileTimestamp()}`
+    },
+    worksheets
+  };
+}
+
+/**
+ * Khung chung cua moi lan xuat: validate re (khong I/O) -> xin slot (dung chung
+ * EXPORT_MAX_CONCURRENT/EXPORT_MAX_QUEUED cho MOI dinh dang) -> getExportDataset ->
+ * render. Slot giu ca buoc render vi ghi workbook/HTML cung ton RAM.
+ */
+async function runExport(payload, branch, options, render) {
   const request = plainObject(payload);
   const signal = options && options.signal;
   throwIfAborted(signal);
@@ -1321,45 +1379,68 @@ async function createExportWorkbook(payload, branch, options = {}) {
   const release = await acquireExportSlot(signal);
   try {
     throwIfAborted(signal);
-    const dataset = await buildExportDataset(request, branch, { signal, description, selection });
+    const dataset = await getExportDataset(request, branch, { signal, description, selection });
     throwIfAborted(signal);
-
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'TOKOSI Dashboard';
-    workbook.created = new Date();
-    workbook.modified = new Date();
-    workbook.properties.date1904 = false;
-    const usedNames = new Set();
-    let exportedWorksheetCount = 0;
-
-    dataset.worksheets.forEach(sourceWorksheet => {
-      const columns = selectedColumnsForWorksheet(dataset.selectionMode, sourceWorksheet, request.columns);
-      if (columns.length === 0) return;
-      exportedWorksheetCount += 1;
-      const worksheet = workbook.addWorksheet(safeWorksheetName(sourceWorksheet.name, usedNames));
-      worksheet.columns = columns.map(column => ({ header: column.label, key: column.key }));
-      sourceWorksheet.rows.forEach(sourceRow => {
-        const output = {};
-        columns.forEach(column => { output[column.key] = toExcelValue(sourceRow[column.key], column.type); });
-        worksheet.addRow(output);
-      });
-      styleWorksheet(worksheet, columns, sourceWorksheet.rows);
-    });
-
-    if (exportedWorksheetCount === 0) {
-      throw exportError('Vui lòng chọn ít nhất một trường để xuất.', 400, 'EXPORT_NO_FIELDS_SELECTED');
-    }
-
-    throwIfAborted(signal);
-    const buffer = await workbook.xlsx.writeBuffer();
-    return {
-      buffer,
-      mimeType: EXCEL_MIME,
-      fileName: `${branchFilePrefix(dataset.sourceBranch || branch)}_${fileSlug(dataset.title)}_${fileTimestamp()}.xlsx`
-    };
+    return await render(dataset, signal);
   } finally {
     release();
   }
+}
+
+// ---------- Renderer: Excel ----------
+
+async function renderExcelWorkbook(dataset) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'TOKOSI Dashboard';
+  workbook.created = new Date();
+  workbook.modified = new Date();
+  workbook.properties.date1904 = false;
+  const usedNames = new Set();
+
+  dataset.worksheets.forEach(sourceWorksheet => {
+    const columns = sourceWorksheet.columns;
+    const worksheet = workbook.addWorksheet(safeWorksheetName(sourceWorksheet.name, usedNames));
+    worksheet.columns = columns.map(column => ({ header: column.label, key: column.key }));
+    sourceWorksheet.rows.forEach(sourceRow => {
+      const output = {};
+      columns.forEach(column => { output[column.key] = toExcelValue(sourceRow[column.key], column.type); });
+      worksheet.addRow(output);
+    });
+    styleWorksheet(worksheet, columns, sourceWorksheet.rows);
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return { buffer, mimeType: EXCEL_MIME, fileName: `${dataset.meta.fileBase}.xlsx` };
+}
+
+/**
+ * Tao file Excel. Toi da EXPORT_MAX_CONCURRENT file chay dong thoi (them EXPORT_MAX_QUEUED
+ * cho trong hang doi, tran -> 503 EXPORT_BUSY). `options.signal` (AbortSignal) huy yeu cau:
+ * bo qua muc dang cho + dung sau moi buoc nap du lieu (loi EXPORT_ABORTED).
+ */
+function createExportWorkbook(payload, branch, options = {}) {
+  return runExport(payload, branch, options, renderExcelWorkbook);
+}
+
+/** Bao cao HTML tu chua (KPI + bieu do + bang loc offline); chung hang doi voi Excel. */
+function createExportHtml(payload, branch, options = {}) {
+  return runExport(payload, branch, options, (dataset, signal) => {
+    const totalRows = dataset.worksheets.reduce((sum, worksheet) => sum + worksheet.rows.length, 0);
+    if (totalRows > HTML_MAX_ROWS) {
+      throw exportError(
+        `Dữ liệu có ${totalRows.toLocaleString('vi-VN')} dòng, vượt giới hạn ${HTML_MAX_ROWS.toLocaleString('vi-VN')} dòng của báo cáo HTML. Vui lòng thu hẹp bộ lọc hoặc dùng Xuất Excel.`,
+        413, 'EXPORT_HTML_TOO_LARGE'
+      );
+    }
+    throwIfAborted(signal);
+    return htmlReportRenderer.renderHtmlReport(dataset);
+  });
+}
+
+/** Chon renderer theo `payload.format` ('xlsx' mac dinh — giu hanh vi cu khi khong gui). */
+async function createExport(payload, branch, options = {}) {
+  const format = normalizeExportFormat(plainObject(payload).format);
+  return format === 'html' ? createExportHtml(payload, branch, options) : createExportWorkbook(payload, branch, options);
 }
 
 // Ma loi cho phep tra thong diep (tieng Viet) cho client: EXPORT_* (exportService/
@@ -1380,8 +1461,12 @@ module.exports = {
   TABLE_TITLES,
   EXPORT_MAX_CONCURRENT,
   EXPORT_MAX_QUEUED,
+  HTML_MAX_ROWS,
   getExportFields,
+  getExportDataset,
+  createExport,
   createExportWorkbook,
+  createExportHtml,
   buildExportErrorBody,
   __test__: {
     buildFixedDataset,
