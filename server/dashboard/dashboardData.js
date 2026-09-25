@@ -19,6 +19,11 @@ const { BRANCHES, BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require
 const { hasFeature } = require('../auth/featureRegistry');
 const debtCollectionStatusRepository = require('./debtCollectionStatusRepository');
 const { deriveDebtManagement, PAYMENT_SCHEDULES, DEBT_TOTAL_AVERAGE_SALES } = require('./debtManagement');
+const { dashboardRollupEvents } = require('../kiotvietSync/dashboardRollupEvents');
+// Tang moi lan rollup refresh xong — nam trong khoa dashboardResultCache de
+// ket qua tinh tu rollup cu tu het hieu luc ngay khi co rollup moi.
+let rollupVersion = 0;
+dashboardRollupEvents.on('updated', () => { rollupVersion += 1; });
 
 const OUT_OF_STOCK_LEVEL = 0;
 const TOP_SELLING_LIMIT = 15;
@@ -2090,9 +2095,9 @@ function dashboardResultCacheKey(branch, sourceVersions, filters) {
  * Goi song song toan bo du lieu tu dashboardRollupRepository.js can cho
  * computeDashboardData() — thay cho viec quet "Chi tiết hóa đơn"/"Nhập hàng"
  * trong Node.js. KHONG co cache rieng o day (moi bang rollup da nho + co
- * index, ban than Postgres du nhanh); dashboardResultCache o getDashboardData
- * chiu trach nhiem tranh goi lai ham nay khi bo loc + phien ban sheets/debt
- * khong doi (xem "precheck" trong getDashboardData).
+ * index, ban than Postgres du nhanh); getDashboardData() CHI goi ham nay SAU
+ * khi da tra dashboardResultCache va bi mien (cache trung thi ham nay khong
+ * duoc goi — xem versionTag/cacheKey trong getDashboardData).
  */
 async function fetchDashboardRollups(branch, { overviewRange, productsRange, invoicesRange, newPurchasesRange }) {
   const overviewBounds = rangeToDateBounds(overviewRange);
@@ -2124,14 +2129,16 @@ async function fetchDashboardRollups(branch, { overviewRange, productsRange, inv
   };
 }
 
-async function loadDashboardBranchSources(branch, ranges, physicalBranch = branch || BRANCHES.HANOI) {
-  const [sheets, debtManagementSource, debtWorkflow, rollups] = await Promise.all([
+// Chi doc nguon "re" (cache trong bo nho, thuong tuc thi) — KHONG goi rollup
+// (7 cau SQL) o day nua. getDashboardData() chi goi fetchDashboardRollups()
+// rieng, SAU khi da tra dashboardResultCache va bi mien (xem Task 1.1).
+async function loadDashboardBaseSources(branch, physicalBranch = branch || BRANCHES.HANOI) {
+  const [sheets, debtManagementSource, debtWorkflow] = await Promise.all([
     getCachedDashboardCoreSheets(branch),
     getCachedDebtManagementSource(branch),
-    getCachedDebtWorkflow(branch),
-    fetchDashboardRollups(branch, ranges)
+    getCachedDebtWorkflow(branch)
   ]);
-  return { branch: physicalBranch, sheets, debtManagementSource, debtWorkflow, rollups };
+  return { branch: physicalBranch, sheets, debtManagementSource, debtWorkflow };
 }
 
 function dashboardSourceVersion(branch) {
@@ -2165,28 +2172,48 @@ async function getDashboardData(filters, branch, viewer) {
   const invoicesRange = resolveFilterRange(f.invoices, now);
   const newPurchasesRange = resolveFilterRange(f.newPurchases, now);
   const ranges = { overviewRange, productsRange, invoicesRange, newPurchasesRange };
-  const branchSources = await Promise.all(branchScope.map(physicalBranch => {
-    const sourceArgument = branch == null && branchScope.length === 1 ? undefined : physicalBranch;
-    return loadDashboardBranchSources(sourceArgument, ranges, physicalBranch);
-  }));
+  // sourceArguments[i] la tham so branch thuc su truyen cho pgReader/rollup —
+  // dung lai y het cho ca loadDashboardBaseSources va fetchDashboardRollups
+  // ben duoi de tranh lech logic giua 2 cho.
+  const sourceArguments = branchScope.map(physicalBranch =>
+    (branch == null && branchScope.length === 1 ? undefined : physicalBranch)
+  );
+  const branchSources = await Promise.all(branchScope.map((physicalBranch, index) =>
+    loadDashboardBaseSources(sourceArguments[index], physicalBranch)
+  ));
   const sourceVersions = branchScope.map(dashboardSourceVersion).join(';');
-  const cacheKey = dashboardResultCacheKey(requestedBranch, `${sourceVersions}:${canEditDebtStatus ? 'edit' : 'read'}`, f);
+  // Chup rollupVersion NGAY TAI DAY, truoc khi fetch rollup o duoi — neu rollup
+  // doi phien ban giua chung luc dang fetch, ket qua tinh xong van duoc luu
+  // duoi khoa cu (versionTag da chup), chi lang phi 1 lan tinh, khong sai so.
+  const versionTag = sourceVersions + ':r' + rollupVersion;
+  const cacheKey = dashboardResultCacheKey(requestedBranch, `${versionTag}:${canEditDebtStatus ? 'edit' : 'read'}`, f);
 
   const cached = dashboardResultCache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt) {
     return cached.data;
   }
 
-  // Du lieu tho da sang phien ban moi (fetch lai) -> moi ket qua cache cu deu
+  // Du lieu tho hoac rollup da sang phien ban moi -> moi ket qua cache cu deu
   // tinh tu du lieu cu, don sach de Map khong phinh vo han qua nhieu phien ban.
   // Chi don entry CUA CHINH CO SO nay (tien to `${branch}|`) — entry cua co so
   // khac co vong doi rieng.
   const branchPrefix = requestedBranch + '|';
   for (const key of dashboardResultCache.keys()) {
-    if (key.startsWith(branchPrefix) && !key.startsWith(branchPrefix + sourceVersions + ':')) {
+    if (key.startsWith(branchPrefix) && !key.startsWith(branchPrefix + versionTag + ':')) {
       dashboardResultCache.delete(key);
     }
   }
+
+  // Cache ket qua mien -> gio moi goi rollup (7 cau SQL/co so). Gan thang
+  // vao tung branchSource (object moi tao rieng cho request nay, khong phai
+  // object dung chung tu cache) de giu dung shape ma computeDashboardData/
+  // mergeDashboardSheets/mergeDebtManagementSources/mergeDashboardRollups
+  // dang mong doi (doc branchSources[i].rollups).
+  await Promise.all(branchSources.map((source, index) =>
+    fetchDashboardRollups(sourceArguments[index], ranges).then(rollups => {
+      source.rollups = rollups;
+    })
+  ));
 
   let data;
   if (branchSources.length === 1) {

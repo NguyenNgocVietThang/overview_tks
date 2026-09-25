@@ -133,6 +133,32 @@ function mockDashboardRollups(dashboardRollupRepository, overrides = {}) {
   });
 }
 
+// Nhu mockDashboardRollups nhung dem so lan MOI HAM rollup duoc goi THAT SU
+// (khong tinh lan lay tu dashboardResultCache/tai su dung) — dung de kiem tra
+// Task 1.1 (rollup chi duoc goi khi cache ket qua mien, khong goi truoc khi
+// tra cache).
+function mockDashboardRollupsCounted(dashboardRollupRepository, callCounter, overrides = {}) {
+  const defaults = {
+    getInvoiceRevenueByDay: () => [],
+    getProductSalesBreakdown: () => [],
+    getTopSellingProducts: () => [],
+    getPurchasesBySupplier: () => [],
+    getPurchaseTotals: () => ({ orderCount: 0, total: 0 }),
+    getFirstPurchaseDates: () => [],
+    getInvoiceQuantitiesByCode: () => [],
+    listPurchaseOrders: () => []
+  };
+  Object.keys(defaults).forEach(name => {
+    const override = overrides[name];
+    dashboardRollupRepository[name] = async (...args) => {
+      callCounter.count += 1;
+      if (typeof override === 'function') return override(...args);
+      if (override !== undefined) return override;
+      return defaults[name]();
+    };
+  });
+}
+
 const BASE_FILTERS = {
   overview: { mode: 'days', days: 30 },
   products: { mode: 'days', days: 30 },
@@ -374,7 +400,9 @@ test('top KH theo san pham chap nhan 50 ma va tu choi 51 ma', async () => {
   );
 });
 
-module.exports = { freshDashboardData, mockPgSheets, mockPgSheetsCounted, mockDashboardRollups, BASE_FILTERS };
+module.exports = {
+  freshDashboardData, mockPgSheets, mockPgSheetsCounted, mockDashboardRollups, mockDashboardRollupsCounted, BASE_FILTERS
+};
 
 test('getDashboardData cache ket qua da tinh theo tung bo loc, khong tinh lai khi bo loc khong doi va raw sheets van con hieu luc', async () => {
   const { dashboardData, dashboardPgReader } = freshDashboardData();
@@ -414,6 +442,40 @@ test('dashboardResultCache khong phinh vo han trong cung 1 phien ban raw sheets 
     dashboardData.__test__.getResultCacheSize() <= 32,
     `dashboardResultCache phai bi gioi han <= 32 entry, hien tai la ${dashboardData.__test__.getResultCacheSize()}`
   );
+});
+
+test('getDashboardData tra dashboardResultCache TRUOC khi goi rollup: lan goi thu 2 cung bo loc tren cache con hieu luc khong duoc goi lai bat ky ham rollup nao', async () => {
+  const { dashboardData, dashboardRollupRepository } = freshDashboardData();
+  const callCounter = { count: 0 };
+  mockDashboardRollupsCounted(dashboardRollupRepository, callCounter);
+  dashboardData.__test__.resetCaches();
+
+  await dashboardData.getDashboardData(BASE_FILTERS);
+  const countAfterFirstCall = callCounter.count;
+  assert.ok(countAfterFirstCall > 0, 'lan dau tren cache trong phai goi rollup that su');
+  assert.equal(dashboardData.__test__.getComputeCallCount(), 1);
+
+  await dashboardData.getDashboardData(BASE_FILTERS); // cung bo loc, cache ket qua con hieu luc
+  assert.equal(callCounter.count, countAfterFirstCall, 'trung dashboardResultCache -> khong duoc goi lai bat ky ham rollup nao');
+  assert.equal(dashboardData.__test__.getComputeCallCount(), 1, 'trung cache -> khong tinh lai');
+});
+
+test('getDashboardData het hieu luc cache ket qua ngay khi dashboardRollupEvents phat "updated", du con trong TTL 90s', async () => {
+  const { dashboardData, dashboardRollupRepository } = freshDashboardData();
+  const callCounter = { count: 0 };
+  mockDashboardRollupsCounted(dashboardRollupRepository, callCounter);
+  dashboardData.__test__.resetCaches();
+
+  await dashboardData.getDashboardData(BASE_FILTERS);
+  const countAfterFirstCall = callCounter.count;
+  assert.equal(dashboardData.__test__.getComputeCallCount(), 1);
+
+  const { dashboardRollupEvents } = require('../kiotvietSync/dashboardRollupEvents');
+  dashboardRollupEvents.emit('updated', { at: Date.now() });
+
+  await dashboardData.getDashboardData(BASE_FILTERS); // cung bo loc nhung rollup da sang phien ban moi
+  assert.ok(callCounter.count > countAfterFirstCall, 'sau su kien updated, rollup phai duoc goi lai du bo loc giong het lan truoc');
+  assert.equal(dashboardData.__test__.getComputeCallCount(), 2, 'phien ban rollup doi -> phai tinh lai du bo loc khong doi');
 });
 
 test('tim khach hang gan them revenue tong hop tu sheet Bao cao ban hang theo ky loc', async () => {
