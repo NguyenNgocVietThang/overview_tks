@@ -191,7 +191,7 @@ test('hop thoai lay danh sach truong voi chu thich tieng Viet, khong con nhac Go
   await flush();
 
   assert.equal(h.activeTimeouts(30000), 0, 'timeout phai duoc go khi da co phan hoi');
-  assert.equal(h.text('exportModalTitle'), 'Xuất Excel · Tất cả sản phẩm');
+  assert.equal(h.text('exportModalTitle'), 'Xuất file · Tất cả sản phẩm');
   assert.equal(h.text('exportModalSubtitle'), 'Đã chọn sẵn các trường mặc định; có thể bổ sung hoặc bỏ các trường không cần.');
   const boxes = [...document.querySelectorAll('#exportFields input[type="checkbox"]')];
   assert.deepEqual(boxes.map(box => [box.value, box.checked]), [['code', true], ['name', true], ['category', false]]);
@@ -287,11 +287,11 @@ test('phan hoi tre sau khi da dong hoac mo lai khong ve de len hop thoai', async
   h.respondJson(second, exportMetadata({ title: 'Lần hai' }));
   await flush();
   assert.equal(h.text('exportFields'), 'Đang lấy danh sách trường…', 'phan hoi cu khong duoc ve de len lan mo moi');
-  assert.equal(h.text('exportModalTitle'), 'Xuất Excel');
+  assert.equal(h.text('exportModalTitle'), 'Xuất file');
 
   h.respondJson(third, exportMetadata({ title: 'Lần ba' }));
   await flush();
-  assert.equal(h.text('exportModalTitle'), 'Xuất Excel · Lần ba');
+  assert.equal(h.text('exportModalTitle'), 'Xuất file · Lần ba');
   assert.equal(document.querySelectorAll('#exportFields input[type="checkbox"]').length, 3);
 
   h.win.closeExportDialog();

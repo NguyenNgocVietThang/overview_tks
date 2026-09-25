@@ -1977,7 +1977,7 @@
       flex: none;
     }
 
-    /* ---------- Xuất Excel ---------- */
+    /* ---------- Xuất file ---------- */
     .export-modal-backdrop {
       position: fixed;
       inset: 0;
@@ -2210,11 +2210,11 @@
       color: #07150d;
     }
 
-    /* Phuong an phu (bao cao HTML xem nhanh): vien xanh, khong to nen de Excel van la nut chinh. */
+    /* Phuong an phu (bao cao HTML xem nhanh): mau cam de phan biet voi nut Excel. */
     .export-html {
-      border: 1px solid var(--green);
-      background: var(--panel-2);
-      color: var(--text);
+      border: 1px solid var(--amber);
+      background: var(--amber);
+      color: #211400;
     }
 
     .export-cancel:disabled,
@@ -3617,7 +3617,7 @@
                 <div class="panel-head">
                   <h2>Chi tiết nhóm con <span class="tag" id="tagChildCategoryRows">—</span></h2><button
                     class="export-button" type="button" onclick="openExportDialog('products.child-categories')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất
-                    Excel</button>
+                    file</button>
                 </div>
                 <div class="scroll-list" style="max-height:320px;">
                   <table>
@@ -3717,7 +3717,7 @@
                   <div class="panel-head">
                     <h2>Bảng chi tiết sản phẩm <span class="tag" id="cpDetailCount">—</span></h2>
                     <div class="panel-head-actions"><button class="export-button" type="button"
-                        onclick="openExportDialog('customers.productDetail')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button></div>
+                        onclick="openExportDialog('customers.productDetail')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button></div>
                   </div>
                   <div class="table-wrap scroll-list transaction-detail-scroll">
                     <table>
@@ -3747,7 +3747,7 @@
                   <div class="panel-head">
                     <h2>Bảng so sánh doanh số theo tháng</h2>
                     <div class="panel-head-actions"><button class="export-button" type="button"
-                        onclick="openExportDialog('customers.productMonthlyCompare')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button></div>
+                        onclick="openExportDialog('customers.productMonthlyCompare')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button></div>
                   </div>
                   <div class="table-wrap scroll-list transaction-detail-scroll">
                     <table>
@@ -3788,7 +3788,7 @@
                   <h2>Báo cáo hàng hóa <span class="tag" id="tagProductReportRows">—</span></h2>
                   <div class="panel-head-actions">
                     <button class="export-button" type="button" onclick="openExportDialog('overview.productReport')">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file
                     </button>
                   </div>
                 </div>
@@ -4058,7 +4058,7 @@
               <div class="panel col-5 top-selling-table-panel">
                 <div class="panel-head">
                   <h2 id="topSellingTableTitle">Chi tiết sản phẩm bán chạy</h2><button class="export-button"
-                    type="button" onclick="openExportDialog('products.top-selling')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button>
+                    type="button" onclick="openExportDialog('products.top-selling')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
                 </div>
                 <div class="scroll-list top-selling-table-scroll">
                   <table>
@@ -4096,7 +4096,7 @@
               <div class="panel col-half">
                 <div class="panel-head">
                   <h2>Hàng đã hết <span class="tag" id="tagLowStock">—</span></h2><button class="export-button"
-                    type="button" onclick="openExportDialog('products.low-stock')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button>
+                    type="button" onclick="openExportDialog('products.low-stock')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
                 </div>
                 <div class="scroll-list" style="max-height:420px;">
                   <table>
@@ -4130,7 +4130,7 @@
                   <h2>Tất cả mã hàng <span class="tag" id="tagAllProducts">—</span></h2>
                   <div class="panel-head-actions"><span class="drill-hint">Lọc theo trạng thái ở thanh bộ lọc phía
                       trên</span><button class="export-button" type="button"
-                      onclick="openExportDialog('products.all')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button></div>
+                      onclick="openExportDialog('products.all')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button></div>
                 </div>
                 <div class="scroll-list" style="max-height:420px;">
                   <table>
@@ -4183,7 +4183,7 @@
               <div class="panel col-5 newly-imported-table-panel">
                 <div class="panel-head">
                   <h2>Hàng mới nhập <span class="tag" id="tagNewlyImported">—</span></h2><button class="export-button"
-                    type="button" onclick="openExportDialog('products.newly-imported')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button>
+                    type="button" onclick="openExportDialog('products.newly-imported')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
                 </div>
                 <div class="scroll-list newly-imported-table-scroll">
                   <table>
@@ -4225,7 +4225,7 @@
                   <h2>Danh sách mã mới <span class="tag" id="tagTodayNewProductsDate">—</span></h2>
                   <div class="panel-head-actions"><span class="drill-hint" id="today-new-products-count">—</span><button
                       class="export-button" type="button" onclick="openExportDialog('overview.new-products')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất
-                      Excel</button></div>
+                      file</button></div>
                 </div>
                 <div class="scroll-list" style="max-height:420px;">
                   <table>
@@ -4344,7 +4344,7 @@
                   <h2>Chi tiết giao dịch</h2>
                   <div class="panel-head-actions"><span class="drill-hint" id="end-day-table-count">—</span><button
                       class="export-button" type="button" onclick="openExportDialog('overview.transactions')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất
-                      Excel</button></div>
+                      file</button></div>
                 </div>
                 <div class="table-wrap scroll-list transaction-detail-scroll">
                   <table>
@@ -4397,7 +4397,7 @@
               <div class="panel col-6">
                 <div class="panel-head">
                   <h2>Danh sách đặt hàng <span class="tag" id="tagOrders">—</span></h2><button class="export-button"
-                    type="button" onclick="openExportDialog('invoices.orders')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button>
+                    type="button" onclick="openExportDialog('invoices.orders')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
                 </div>
                 <div class="scroll-list" style="max-height:320px;">
                   <table>
@@ -4427,7 +4427,7 @@
               <div class="panel col-6">
                 <div class="panel-head">
                   <h2>Danh sách trả hàng <span class="tag" id="tagReturns">—</span></h2><button class="export-button"
-                    type="button" onclick="openExportDialog('invoices.returns')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button>
+                    type="button" onclick="openExportDialog('invoices.returns')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
                 </div>
                 <div class="scroll-list" style="max-height:320px;">
                   <table>
@@ -4504,7 +4504,7 @@
                   <h2>Chi tiết doanh thu theo khách <span class="tag" id="tagCustomerRevenue">—</span></h2>
                   <div class="panel-head-actions"><span class="drill-hint">Tất cả khách có doanh thu trong
                       kỳ</span><button class="export-button" type="button"
-                      onclick="openExportDialog('customers.revenue')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button></div>
+                      onclick="openExportDialog('customers.revenue')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button></div>
                 </div>
                 <div class="table-wrap scroll-list transaction-detail-scroll">
                   <table>
@@ -4554,7 +4554,7 @@
                   <h2>Chi tiết khách nợ <span class="tag" id="tagDebt">—</span></h2>
                   <div class="panel-head-actions"><span class="drill-hint">Xem diễn biến nợ theo kỳ ở tab Công
                       nợ</span><button class="export-button" type="button"
-                      onclick="openExportDialog('customers.debt')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button></div>
+                      onclick="openExportDialog('customers.debt')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button></div>
                 </div>
                 <div class="table-wrap scroll-list transaction-detail-scroll">
                   <table>
@@ -4654,7 +4654,7 @@
                   <h2>Danh sách nhập hàng <span class="tag" id="tagPurchases">—</span></h2>
                   <div class="panel-head-actions"><span class="drill-hint" id="sp-purchase-table-count">—</span><button
                       class="export-button" type="button" onclick="openExportDialog('overview.purchases')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất
-                      Excel</button></div>
+                      file</button></div>
                 </div>
                 <div class="scroll-list" style="max-height:420px;">
                   <table>
@@ -4701,7 +4701,7 @@
               <div class="panel col-7">
                 <div class="panel-head">
                   <h2>Danh sách nhà cung cấp <span class="tag" id="tagSuppliers">—</span></h2><button
-                    class="export-button" type="button" onclick="openExportDialog('suppliers.list')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button>
+                    class="export-button" type="button" onclick="openExportDialog('suppliers.list')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
                 </div>
                 <div class="table-wrap scroll-list transaction-detail-scroll">
                   <table>
@@ -4810,7 +4810,7 @@
               <div class="panel col-12">
                 <div class="panel-head">
                   <h2>Khách hàng <span class="tag" id="tagDebtManagement">—</span></h2>
-                  <button class="export-button" type="button" onclick="openExportDialog('debt.management')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button>
+                  <button class="export-button" type="button" onclick="openExportDialog('debt.management')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
                 </div>
                 <div class="debt-filter-controls" aria-label="Bộ lọc công nợ">
                   <div class="debt-filter-field">
@@ -4885,7 +4885,7 @@
       aria-describedby="exportModalSubtitle">
       <div class="export-modal-head">
         <div>
-          <h2 class="export-modal-title" id="exportModalTitle">Xuất Excel</h2>
+          <h2 class="export-modal-title" id="exportModalTitle">Xuất file</h2>
           <p class="export-modal-subtitle" id="exportModalSubtitle">Chọn các trường cần đưa vào file</p>
         </div>
         <button class="export-modal-close" id="exportModalClose" type="button" onclick="closeExportDialog()"
@@ -6414,7 +6414,7 @@
 
     function searchExportButtonHtml() {
       if (state.view === 'overview' || !state.search.results.length) return '';
-      return '<button class="export-button" type="button" onclick="openExportDialog(\'search.results\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button>';
+      return '<button class="export-button" type="button" onclick="openExportDialog(\'search.results\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>';
     }
 
     // Xuat Excel: moi request (lay danh sach truong / tao file) huy duoc bang AbortController, co timeout
@@ -6579,7 +6579,7 @@
       dialog.payload = buildExportPayload(tableKey);
       dialog.metadata = null;
       dialog.autoAll = false;
-      document.getElementById('exportModalTitle').textContent = 'Xuất Excel';
+      document.getElementById('exportModalTitle').textContent = 'Xuất file';
       document.getElementById('exportFieldSearch').value = '';
       showExportDialog();
       await loadExportFields();
@@ -6621,7 +6621,7 @@
         return;
       }
       dialog.metadata = metadata;
-      document.getElementById('exportModalTitle').textContent = metadata.title ? 'Xuất Excel · ' + metadata.title : 'Xuất Excel';
+      document.getElementById('exportModalTitle').textContent = metadata.title ? 'Xuất file · ' + metadata.title : 'Xuất file';
       if (metadata.selectionMode === 'all-only') {
         document.getElementById('exportModalSubtitle').textContent = 'Kết quả có nhiều nguồn; mỗi nguồn sẽ nằm trong một worksheet riêng.';
         await downloadExportFile(true);
