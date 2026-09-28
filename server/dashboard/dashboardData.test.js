@@ -1033,6 +1033,9 @@ test('Ca hai cong KPI/bucket va gop thuc the trung ma truoc khi xep hang', async
   ]);
   assert.deepEqual(data.products.topSellingProducts[0], { code: 'SP-1', name: 'Tên Hà Nội', qty: 3, revenue: 400 });
   assert.equal(data.allProducts.find(product => product.code === 'SP-1').name, 'Tên Hà Nội');
+  const mergedSp1 = data.allProducts.find(product => product.code === 'SP-1');
+  assert.equal(mergedSp1.cost, 10);
+  assert.equal(mergedSp1.stockValue, mergedSp1.stock * 10);
   assert.equal(data.suppliers.find(supplier => supplier.code === 'NCC-1').name, 'NCC Hà Nội');
 });
 

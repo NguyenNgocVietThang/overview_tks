@@ -48,7 +48,7 @@ test('registry bao phủ đủ 20 bảng trong Báo cáo tổng hợp', () => {
   const expected = [
     'cpDetail', 'productReport', 'recentStockout', 'stockout90d', 'stockout30d',
     'endOfDay', 'overviewPurchase', 'todayNewProducts', 'topSelling', 'lowStock',
-    'allProducts', 'newlyImported', 'childCategory', 'orders', 'returns',
+    'allProducts', 'inventoryValue', 'newlyImported', 'childCategory', 'orders', 'returns',
     'customerRevenue', 'topDebt', 'suppliers', 'debtManagement'
   ];
   const actual = Object.keys(dom.window.TABLE_EXPLORER_CONFIGS);

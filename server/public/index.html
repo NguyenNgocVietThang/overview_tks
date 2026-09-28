@@ -46,7 +46,7 @@
       setTimeout(unhide, 1200);
     })();
   </script>
-  <link rel="stylesheet" href="/shared/shared.css?v=20260914">
+  <link rel="stylesheet" href="/shared/shared.css?v=20260928">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
@@ -3996,14 +3996,52 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">2</span>
-              <h2>Cơ cấu tồn kho <span class="section-note">giá trị hiện tại và số lượng theo nhóm cha</span></h2>
+              <h2>Cơ cấu tồn kho <span class="section-note">giá trị tồn hiện tại theo sản phẩm hoặc nhóm cha</span></h2>
+            </div>
+            <div class="period-toggle analysis-toggle" id="inventoryViewToggle" role="group"
+              aria-label="Kiểu xem cơ cấu tồn kho">
+              <button type="button" class="active" data-inventory-view="product"
+                onclick="setInventoryView('product')">Theo sản phẩm</button>
+              <button type="button" data-inventory-view="parentCategory"
+                onclick="setInventoryView('parentCategory')">Theo nhóm cha</button>
             </div>
             <div class="grid">
-              <div class="panel col-12">
+              <div class="panel col-half top-selling-feature-panel">
                 <div class="panel-head">
-                  <h2>Tỷ lệ tồn kho theo nhóm cha <span class="tag" id="tagCategoryValue">—</span></h2>
+                  <h2><span id="inventoryChartTitle">Top 15 sản phẩm theo giá trị tồn</span> <span class="tag"
+                      id="tagInventoryValue">—</span></h2>
                 </div>
-                <div class="chart-box wide"><canvas id="chartCategoryValue"></canvas></div>
+                <div class="chart-box top-selling-top"><canvas id="chartInventoryValue"></canvas></div>
+              </div>
+              <div class="panel col-half top-selling-table-panel">
+                <div class="panel-head">
+                  <h2>Chi tiết tồn kho theo sản phẩm <span class="tag" id="tagInventoryTable">—</span></h2>
+                </div>
+                <div class="scroll-list top-selling-table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Mã hàng</th>
+                        <th>Tên sản phẩm</th>
+                        <th title="Giá vốn; giá trị tồn = giá vốn × tồn kho">Đơn giá</th>
+                        <th>Tồn kho</th>
+                        <th>Giá trị tồn</th>
+                      </tr>
+                    </thead>
+                    <tbody id="inventoryValueRows">
+                      <tr>
+                        <td colspan="5" class="table-note">Đang tải...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="pagination-controls" id="inventoryValuePagination" hidden>
+                  <button type="button" id="inventoryValueFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="inventoryValuePrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                  <span id="inventoryValuePageLabel">Trang 1/1</span>
+                  <button type="button" id="inventoryValueNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="inventoryValueLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+                </div>
               </div>
             </div>
           </section>
@@ -4904,6 +4942,7 @@
   <script src="/js/pagination.js"></script>
   <script src="/js/table-explorer.js"></script>
   <script src="/shared/shared-nav.js?v=20260914"></script>
+  <script src="/shared/table-align.js?v=20260928"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
 
   <script>
@@ -4932,6 +4971,7 @@
       chartAnimation: true,
       productStatus: 'all',
       productAnalysis: 'product',
+      inventoryView: 'product',
       childCategoryParent: null,
       currentUser: null,
       supplierReturnImport: { submitting: false },
@@ -7313,6 +7353,12 @@
       loadData(state.days, false);
     }
 
+    function setInventoryView(mode) {
+      if (mode !== 'product' && mode !== 'parentCategory') return;
+      state.inventoryView = mode;
+      if (state.data) renderInventoryStructure(state.data);
+    }
+
     function setProductAnalysis(mode) {
       if (mode !== 'product' && mode !== 'parentCategory') return;
       state.productAnalysis = mode;
@@ -7748,82 +7794,114 @@
       });
     }
 
-    function renderCategoryValueChart(list) {
-      destroyChart('categoryValue');
-      const ctx = document.getElementById('chartCategoryValue').getContext('2d');
-      const totalValue = list.reduce((sum, category) => sum + category.stockValue, 0);
-      const totalQuantity = list.reduce((sum, category) => sum + category.stock, 0);
+    const INVENTORY_CHART_TOP = 15;
+
+    function truncateChartLabel(text, max) {
+      text = String(text == null ? '' : text);
+      return text.length > max ? text.slice(0, max - 1).trimEnd() + '…' : text;
+    }
+
+    // Biểu đồ cột ngang top 15 giá trị tồn kho: theo sản phẩm (mỗi mã hàng) hoặc theo nhóm cha.
+    // Bảng bên cạnh luôn liệt kê đầy đủ mọi sản phẩm nên không bị cắt top 15.
+    function renderInventoryValueChart(items, byProduct, totalValue) {
+      destroyChart('inventoryValue');
+      const canvas = document.getElementById('chartInventoryValue');
+      const ctx = canvas.getContext('2d');
+      canvas.style.cursor = byProduct ? 'pointer' : '';
+      canvas.title = byProduct ? 'Nhấn cột để xem dòng tương ứng trong bảng' : '';
       const theme = chartTheme();
-      const greenSolid = themeColor('--green') || '#10B981';
-      const amberSolid = theme.amber || '#F59E0B';
-      state.charts.categoryValue = new Chart(ctx, {
+      const solidColor = themeColor('--green') || '#10B981';
+      const formatAxisMoney = createMoneyAxisFormatter(items.map(item => item.stockValue));
+      state.charts.inventoryValue = new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: list.map(category => category.name),
-          datasets: [
-            {
-              label: 'Giá trị',
-              data: list.map(category => category.stockValue),
-              yAxisID: 'value',
-              backgroundColor: colorWithAlpha(greenSolid, 0.5),
-              borderColor: greenSolid,
-              borderWidth: 1.5,
-              borderRadius: 5,
-              maxBarThickness: 34
-            },
-            {
-              label: 'Số lượng',
-              data: list.map(category => category.stock),
-              yAxisID: 'quantity',
-              backgroundColor: colorWithAlpha(amberSolid, 0.5),
-              borderColor: amberSolid,
-              borderWidth: 1.5,
-              borderRadius: 5,
-              maxBarThickness: 34
-            }
-          ]
+          labels: items.map(item => item.name),
+          datasets: [{
+            data: items.map(item => item.stockValue),
+            backgroundColor: colorWithAlpha(solidColor, 0.5),
+            borderColor: solidColor,
+            borderWidth: 1.5,
+            borderRadius: 5,
+            maxBarThickness: 22
+          }]
         },
         options: {
           animation: chartAnimationOption(),
+          indexAxis: 'y',
           responsive: true,
           maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
+          interaction: { mode: 'index', intersect: false, axis: 'y' },
+          onClick: byProduct ? function (event, elements) {
+            if (!elements || !elements[0]) return;
+            navigateChartToTable('inventoryValue', items[elements[0].index].code);
+          } : undefined,
           plugins: {
-            legend: {
-              display: true,
-              position: 'bottom',
-              labels: { color: theme.text, usePointStyle: true, boxWidth: 8, padding: 16, font: { size: 10.5 } }
-            },
+            legend: { display: false },
             tooltip: {
               callbacks: {
-                label: context => context.dataset.yAxisID === 'value'
-                  ? 'Giá trị: ' + fmtMoney(context.raw) + ' · ' + (totalValue ? (context.raw / totalValue * 100).toFixed(2) : (0).toFixed(2)) + '%'
-                  : 'Số lượng: ' + fmtNumber(Number(context.raw || 0)) + ' · ' + (totalQuantity ? (context.raw / totalQuantity * 100).toFixed(2) : (0).toFixed(2)) + '%'
+                title: contexts => contexts.length ? items[contexts[0].dataIndex].name : '',
+                label: context => {
+                  const item = items[context.dataIndex];
+                  const pct = totalValue > 0 ? (item.stockValue / totalValue * 100).toFixed(2) : '0.00';
+                  const lines = ['Giá trị tồn: ' + fmtMoney(item.stockValue) + ' · ' + pct + '%', 'Tồn kho: ' + fmtNumber(item.stock)];
+                  if (byProduct) lines.unshift('Mã hàng: ' + item.code);
+                  else lines.push('Số mặt hàng: ' + fmtNumber(item.productCount));
+                  return lines;
+                }
               }
             }
           },
           scales: {
             x: {
-              ticks: { color: theme.text, autoSkip: false, maxTicksLimit: 30, minRotation: 20, maxRotation: 45, font: { size: 10.5 } },
-              grid: { display: false }
-            },
-            value: {
               beginAtZero: true,
-              position: 'left',
-              title: { display: true, text: 'Giá trị tồn kho', color: themeColor('--green'), font: { size: 10.5, weight: '600' } },
-              ticks: { color: themeColor('--green'), callback: value => fmtMoneyShort(value), font: { size: 10.5 } },
+              ticks: { color: theme.muted, callback: value => formatAxisMoney(value), font: { size: 10.5 } },
               grid: { color: theme.grid }
             },
-            quantity: {
-              beginAtZero: true,
-              position: 'right',
-              title: { display: true, text: 'Số lượng tồn kho', color: theme.amber, font: { size: 10.5, weight: '600' } },
-              ticks: { color: theme.amber, precision: 0, callback: value => fmtNumber(Number(value)), font: { size: 10.5 } },
-              grid: { drawOnChartArea: false }
+            y: {
+              ticks: {
+                color: theme.text,
+                font: { size: 11 },
+                autoSkip: false,
+                callback: function (value) { return truncateChartLabel(this.getLabelForValue(value), 30); }
+              },
+              grid: { display: false }
             }
           }
         }
       });
+    }
+
+    function renderInventoryStructure(d) {
+      const byProduct = state.inventoryView === 'product';
+      const totalValue = Number(d.kpi && d.kpi.totalInventoryValue) || 0;
+      document.querySelectorAll('#inventoryViewToggle button').forEach(function (button) {
+        button.classList.toggle('active', button.dataset.inventoryView === state.inventoryView);
+      });
+
+      const products = (d.allProducts || []).slice().sort((a, b) => (b.stockValue || 0) - (a.stockValue || 0) || (b.stock || 0) - (a.stock || 0));
+      const chartItems = byProduct
+        ? products.slice(0, INVENTORY_CHART_TOP)
+        : (d.stockValueByCategory || []).slice(0, INVENTORY_CHART_TOP);
+      document.getElementById('inventoryChartTitle').textContent =
+        'Top ' + chartItems.length + (byProduct ? ' sản phẩm' : ' nhóm cha') + ' theo giá trị tồn';
+      document.getElementById('tagInventoryValue').textContent = byProduct
+        ? fmtNumber(products.length) + ' sản phẩm · ' + fmtMoneyShort(totalValue)
+        : (d.kpi.inventoryValueCategoryCount || 0) + ' nhóm · ' + fmtMoneyShort(totalValue);
+      if (chartItems.length) renderInventoryValueChart(chartItems, byProduct, totalValue);
+      else destroyChart('inventoryValue');
+
+      document.getElementById('tagInventoryTable').textContent = fmtNumber(products.length);
+      renderPaginatedRows(
+        'inventoryValue',
+        { tbody: 'inventoryValueRows', pagination: 'inventoryValuePagination', firstBtn: 'inventoryValueFirstPage', prevBtn: 'inventoryValuePrevPage', nextBtn: 'inventoryValueNextPage', lastBtn: 'inventoryValueLastPage', label: 'inventoryValuePageLabel' },
+        products,
+        p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+          '<td class="mono muted" data-sort-value="' + (p.cost || 0) + '">' + fmtMoney(p.cost) + '</td>' +
+          '<td class="mono" data-sort-value="' + p.stock + '">' + fmtNumber(p.stock) + '</td>' +
+          '<td class="mono" data-sort-value="' + (p.stockValue || 0) + '">' + fmtMoney(p.stockValue) + '</td></tr>',
+        5,
+        'Không có dữ liệu'
+      );
     }
 
     function renderProductSalesAnalysis(d) {
@@ -8063,6 +8141,7 @@
       },
       lowStock: { title: 'Hàng đã hết', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       allProducts: { title: 'Tất cả mã hàng', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      inventoryValue: { title: 'Chi tiết tồn kho theo sản phẩm', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       newlyImported: { title: 'Hàng mới nhập', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       childCategory: {
         title: 'Chi tiết nhóm con', searchText: tableSearchText,
@@ -8742,11 +8821,7 @@
           6,
           'Không có sản phẩm đã hết hàng'
         );
-        const categoryValues = d.stockValueByCategory || [];
-        document.getElementById('tagCategoryValue').textContent =
-          (d.kpi.inventoryValueCategoryCount || 0) + ' nhóm · ' + fmtMoneyShort(d.kpi.totalInventoryValue || 0);
-        if (categoryValues.length) renderCategoryValueChart(categoryValues);
-        else destroyChart('categoryValue');
+        renderInventoryStructure(d);
 
         const filteredProducts = d.allProducts || [];
         document.getElementById('tagAllProducts').textContent = filteredProducts.length;

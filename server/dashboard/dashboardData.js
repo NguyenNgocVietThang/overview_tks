@@ -2379,7 +2379,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     if (status === 'Ngừng kinh doanh') inactiveProducts++; else activeProducts++;
     totalStock += ton;
     if (ton > 0) inStockCodes++;
-    stockList.push({ code, name: row[productNameIndex], stock: ton, reserved, status });
+    stockList.push({ code, name: row[productNameIndex], stock: ton, reserved, status, cost, stockValue });
     if (ton === OUT_OF_STOCK_LEVEL) {
       lowStock.push({
         code,
@@ -2412,6 +2412,8 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     stock: p.stock,
     reserved: p.reserved,
     status: p.status,
+    cost: p.cost,
+    stockValue: p.stockValue,
     pct: totalStock > 0 ? (p.stock / totalStock) * 100 : 0
   }));
 
