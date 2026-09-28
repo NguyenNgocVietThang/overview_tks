@@ -4331,22 +4331,10 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">2</span>
-              <h2>Giao dịch <span class="section-note">top 15 giao dịch lớn nhất và chi tiết từng giao dịch trong khoảng thời gian
-                  đã chọn</span></h2>
+              <h2>Giao dịch <span class="section-note">chi tiết từng giao dịch trong khoảng thời gian đã chọn</span></h2>
             </div>
             <div class="grid transaction-analysis-grid">
-              <div class="panel col-5">
-                <div class="panel-head">
-                  <h2>Top 15 giao dịch lớn nhất</h2>
-                  <span class="drill-hint" id="top-transactions-count">Xếp theo doanh thu · không gồm giao dịch đã
-                    hủy</span>
-                </div>
-                <div class="chart-box top-transactions-chart">
-                  <canvas id="chartTopTransactions" role="img"
-                    aria-label="Biểu đồ cột ngang top 15 giao dịch có doanh thu lớn nhất theo bộ lọc"></canvas>
-                </div>
-              </div>
-              <div class="panel col-7 end-day-table">
+              <div class="panel col-12 end-day-table">
                 <div class="panel-head">
                   <h2>Chi tiết giao dịch</h2>
                   <div class="panel-head-actions"><span class="drill-hint" id="end-day-table-count">—</span><button
@@ -7485,27 +7473,36 @@
       if (state.charts[key]) { state.charts[key].destroy(); delete state.charts[key]; }
     }
 
-    function renderRevenueChart(canvasId, key, revenueByDay) {
+    function renderRevenueChart(canvasId, key, revenueByDay, asBar) {
       destroyChart(key);
       const ctx = document.getElementById(canvasId).getContext('2d');
       const theme = chartTheme();
       const revenueValues = revenueByDay.map(d => Number(d.revenue) || 0);
       const formatAxisMoney = createMoneyAxisFormatter(revenueValues);
+      const dataset = asBar
+        ? {
+          label: 'Doanh thu',
+          data: revenueValues,
+          backgroundColor: theme.amber,
+          borderRadius: 3,
+          maxBarThickness: 28
+        }
+        : {
+          label: 'Doanh thu',
+          data: revenueValues,
+          backgroundColor: 'rgba(240,166,58,0.35)',
+          borderColor: theme.amber,
+          borderWidth: 2,
+          borderRadius: 3,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0
+        };
       state.charts[key] = new Chart(ctx, {
-        type: 'line',
+        type: asBar ? 'bar' : 'line',
         data: {
           labels: revenueByDay.map(d => d.label),
-          datasets: [{
-            label: 'Doanh thu',
-            data: revenueValues,
-            backgroundColor: 'rgba(240,166,58,0.35)',
-            borderColor: theme.amber,
-            borderWidth: 2,
-            borderRadius: 3,
-            fill: true,
-            tension: 0.3,
-            pointRadius: 0
-          }]
+          datasets: [dataset]
         },
         options: {
           animation: chartAnimationOption(),
@@ -7518,77 +7515,6 @@
           scales: {
             x: { ticks: { color: theme.muted, maxTicksLimit: 10, font: { size: 10.5 } }, grid: { display: false } },
             y: { beginAtZero: true, ticks: { color: theme.muted, callback: formatAxisMoney, font: { size: 10.5 } }, grid: { color: theme.grid } }
-          }
-        }
-      });
-    }
-
-    function renderTopTransactionsChart(report) {
-      destroyChart('topTransactions');
-      const canvas = document.getElementById('chartTopTransactions');
-      if (!canvas || !report) return;
-
-      const transactions = (report.topTransactions || report.transactions || [])
-        .filter(item => item && item.status === 'Hoàn thành')
-        .sort((a, b) => (Number(b.revenue) || 0) - (Number(a.revenue) || 0))
-        .slice(0, 15);
-      const revenueValues = transactions.map(item => Number(item.revenue) || 0);
-      const formatAxisMoney = createMoneyAxisFormatter(revenueValues);
-      const theme = chartTheme();
-      canvas.style.cursor = transactions.length ? 'pointer' : '';
-      canvas.title = transactions.length ? 'Nhấn cột để xem dòng tương ứng' : '';
-      const countLabel = document.getElementById('top-transactions-count');
-      if (countLabel) {
-        countLabel.textContent = transactions.length
-          ? transactions.length + ' giao dịch hoàn thành · xếp theo doanh thu'
-          : 'Chưa có giao dịch hoàn thành';
-      }
-
-      state.charts.topTransactions = new Chart(canvas.getContext('2d'), {
-        type: 'bar',
-        data: {
-          labels: transactions.map(item => item.code || '—'),
-          datasets: [{
-            label: 'Doanh thu',
-            data: revenueValues,
-            backgroundColor: 'rgba(240,166,58,0.5)',
-            borderColor: theme.amber,
-            borderWidth: 1.5,
-            borderRadius: 5,
-            maxBarThickness: 38
-          }]
-        },
-        options: {
-          indexAxis: 'y',
-          animation: chartAnimationOption(),
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false, axis: 'y' },
-          onClick: function (event, elements) {
-            if (elements && elements[0]) navigateChartToTable('endOfDay', transactions[elements[0].index].code);
-          },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                title: items => {
-                  const item = transactions[items[0].dataIndex] || {};
-                  return (item.code || '—') + (item.time ? ' · ' + item.time : '');
-                },
-                label: context => {
-                  const item = transactions[context.dataIndex] || {};
-                  return [
-                    'Doanh thu: ' + fmtMoney(item.revenue),
-                    'Thực thu: ' + fmtMoney(item.paid),
-                    'Giảm giá: ' + fmtMoney(item.discount)
-                  ];
-                }
-              }
-            }
-          },
-          scales: {
-            x: { beginAtZero: true, ticks: { color: theme.muted, callback: formatAxisMoney, font: { size: 10.5 } }, grid: { color: theme.grid } },
-            y: { ticks: { color: theme.muted, autoSkip: false, font: { size: 10.5 } }, grid: { display: false } }
           }
         }
       });
@@ -8529,14 +8455,6 @@
 
     function handleCustomerProductSearchInput() {
       const input = document.getElementById('cpCustomerSearchInput');
-    // Bao cao dung san moi dem (co computedAt) chi tinh den het ngay hom qua: ghi
-    // ro de khong ai tuong hoa don phat sinh hom nay bi mat.
-    function customerProductWindowHint(data) {
-      return data && data.computedAt && data.range && data.range.to
-        ? '90 ngày đến hết ' + data.range.to
-        : '90 ngày gần đây';
-    }
-
       const query = normalizeSearchQuery(input.value);
       document.getElementById('cpCustomerClearBtn').hidden = !input.value && !state.customerProductReport.customer;
       cancelCustomerProductSearchRequest();
@@ -8553,7 +8471,6 @@
           const payload = await response.json();
           if (requestId !== picker.requestId) return;
           picker.results = payload.results || [];
-        document.getElementById('cpWindowHint').textContent = customerProductWindowHint(data);
           picker.activeIndex = -1;
           renderCustomerProductSuggestions();
         } catch (err) {
@@ -8612,6 +8529,14 @@
       destroyChart('cpBar');
     }
 
+    // Bao cao dung san moi dem (co computedAt) chi tinh den het ngay hom qua: ghi
+    // ro de khong ai tuong hoa don phat sinh hom nay bi mat.
+    function customerProductWindowHint(data) {
+      return data && data.computedAt && data.range && data.range.to
+        ? '90 ngày đến hết ' + data.range.to
+        : '90 ngày gần đây';
+    }
+
     async function loadCustomerProductReport() {
       const customer = state.customerProductReport.customer;
       if (!customer) return;
@@ -8628,6 +8553,7 @@
         document.getElementById('cpContent').hidden = false;
         document.getElementById('cpSelectedCustomerName').textContent = data.customer.name;
         document.getElementById('cpSelectedCustomerCode').textContent = data.customer.code;
+        document.getElementById('cpWindowHint').textContent = customerProductWindowHint(data);
         renderCustomerProductReport();
       } catch (err) {
         document.getElementById('cpContent').hidden = true;
@@ -8922,7 +8848,7 @@
         document.getElementById('in-period-sub').textContent = invoiceRangeLabel;
         document.getElementById('in-cancelled').textContent = fmtNumber(Number(invoiceData.periodCancelledInvoices || 0));
         document.getElementById('in-cancelled-sub').textContent = invoiceRangeLabel;
-        renderRevenueChart('chartInvoiceRevenue', 'invoiceRevenue', invoiceData.revenueByDay || []);
+        renderRevenueChart('chartInvoiceRevenue', 'invoiceRevenue', invoiceData.revenueByDay || [], true);
 
         const report = invoiceData.transactionsReport || { date: '—', transactions: [], topTransactions: [], summary: {} };
         const summary = report.summary || {};
@@ -8948,7 +8874,6 @@
           9,
           'Chưa có giao dịch trong khoảng đã chọn'
         );
-        renderTopTransactionsChart(report);
 
         document.getElementById('in-pending-count').textContent = fmtNumber(Number(invoiceData.pendingOrdersCount || 0));
         document.getElementById('in-pending-total').textContent = fmtMoney(invoiceData.pendingOrdersTotal);

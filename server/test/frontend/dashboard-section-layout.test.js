@@ -49,9 +49,10 @@ test('Hóa đơn chứa phần Giao dịch ngay sau Xu hướng, không còn Hó
   const titles = sectionTitles('invoices');
   assert.deepEqual(titles.map(s => s.step), ['1', '2', '3']);
   assert.deepEqual(titles.map(s => s.title), ['Xu hướng', 'Giao dịch', 'Phân tích']);
-  ['endOfDayRows', 'chartTopTransactions', 'endOfDayPagination'].forEach(id => {
+  ['endOfDayRows', 'endOfDayPagination'].forEach(id => {
     assert.ok(view('invoices').querySelector('#' + id), id + ' phai nam o Hoa don');
   });
+  assert.equal(view('invoices').querySelector('#chartTopTransactions'), null, 'bieu do top giao dich da bi go');
   ['invoiceRows', 'invoicesPagination', 'tagInvoices'].forEach(id => {
     assert.equal(view('invoices').querySelector('#' + id), null, id + ' da bi go khoi Hoa don');
   });
