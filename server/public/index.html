@@ -3713,7 +3713,7 @@
               </div>
 
               <div class="grid" style="margin-top:14px;">
-                <div class="panel col-6">
+                <div class="panel col-12">
                   <div class="panel-head">
                     <h2>Bảng chi tiết sản phẩm <span class="tag" id="cpDetailCount">—</span></h2>
                     <div class="panel-head-actions"><button class="export-button" type="button"
@@ -3726,11 +3726,14 @@
                           <th>Tên hàng</th>
                           <th>Số lượng</th>
                           <th>Doanh số</th>
+                          <th>T.này</th>
+                          <th>T.trước</th>
+                          <th>T.trước nữa</th>
                         </tr>
                       </thead>
                       <tbody id="cpDetailRows">
                         <tr>
-                          <td colspan="3" class="table-note">Chưa có dữ liệu</td>
+                          <td colspan="6" class="table-note">Chưa có dữ liệu</td>
                         </tr>
                       </tbody>
                     </table>
@@ -3741,37 +3744,6 @@
                     <span id="cpDetailPageLabel">Trang 1/1</span>
                     <button type="button" id="cpDetailNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
                     <button type="button" id="cpDetailLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                  </div>
-                </div>
-                <div class="panel col-6">
-                  <div class="panel-head">
-                    <h2>Bảng so sánh doanh số theo tháng</h2>
-                    <div class="panel-head-actions"><button class="export-button" type="button"
-                        onclick="openExportDialog('customers.productMonthlyCompare')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button></div>
-                  </div>
-                  <div class="table-wrap scroll-list transaction-detail-scroll">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Tên hàng</th>
-                          <th>T.này</th>
-                          <th>T.trước</th>
-                          <th>T.trước nữa</th>
-                        </tr>
-                      </thead>
-                      <tbody id="cpMonthlyRows">
-                        <tr>
-                          <td colspan="4" class="table-note">Chưa có dữ liệu</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  <div class="pagination-controls" id="cpMonthlyPagination" hidden>
-                    <button type="button" id="cpMonthlyFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                    <button type="button" id="cpMonthlyPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                    <span id="cpMonthlyPageLabel">Trang 1/1</span>
-                    <button type="button" id="cpMonthlyNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                    <button type="button" id="cpMonthlyLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                   </div>
                 </div>
               </div>
@@ -6371,7 +6343,6 @@
       'customers.revenue': 'customerRevenue',
       'customers.debt': 'topDebt',
       'customers.productDetail': 'cpDetail',
-      'customers.productMonthlyCompare': 'cpMonthly',
       'overview.productReport': 'productReport',
       'suppliers.list': 'suppliers',
       'debt.management': 'debtManagement'
@@ -8078,7 +8049,6 @@
 
     const TABLE_EXPLORER_CONFIGS = {
       cpDetail: { title: 'Bảng chi tiết sản phẩm', searchText: tableSearchText, identity: p => p.code || p.name, customControl: true },
-      cpMonthly: { title: 'Bảng so sánh doanh số theo tháng', searchText: tableSearchText, identity: p => p.code || p.name, customControl: true },
       recentStockout: { title: 'Kết quả hàng đứt gần đây', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       stockout90d: { title: 'Kết quả kiểm tra đứt hàng 90 ngày', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       stockout30d: { title: 'Kết quả kiểm tra đứt hàng 30 ngày', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
@@ -8540,7 +8510,6 @@
       state.customerProductReport.productCode = '';
       state.customerProductReport.productName = '';
       getTableSearchState('cpDetail').query = '';
-      getTableSearchState('cpMonthly').query = '';
       loadCustomerProductReport();
     }
 
@@ -8638,23 +8607,12 @@
         function (p) {
           return '<tr><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
             '<td class="mono" data-sort-value="' + p.quantity + '">' + fmtNumber(Number(p.quantity || 0)) + '</td>' +
-            '<td class="mono" data-sort-value="' + p.revenue + '">' + fmtMoney(p.revenue) + '</td></tr>';
-        },
-        3,
-        'Không có dữ liệu'
-      );
-
-      renderPaginatedRows(
-        'cpMonthly',
-        { tbody: 'cpMonthlyRows', pagination: 'cpMonthlyPagination', firstBtn: 'cpMonthlyFirstPage', prevBtn: 'cpMonthlyPrevPage', nextBtn: 'cpMonthlyNextPage', lastBtn: 'cpMonthlyLastPage', label: 'cpMonthlyPageLabel' },
-        filtered,
-        function (p) {
-          return '<tr><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+            '<td class="mono" data-sort-value="' + p.revenue + '">' + fmtMoney(p.revenue) + '</td>' +
             '<td class="mono" data-sort-value="' + p.month1Revenue + '">' + fmtMoney(p.month1Revenue) + '</td>' +
             '<td class="mono" data-sort-value="' + p.month2Revenue + '">' + fmtMoney(p.month2Revenue) + '</td>' +
             '<td class="mono" data-sort-value="' + p.month3Revenue + '">' + fmtMoney(p.month3Revenue) + '</td></tr>';
         },
-        4,
+        6,
         'Không có dữ liệu'
       );
     }
@@ -8698,12 +8656,8 @@
       const input = document.getElementById('cpProductFilterInput');
       state.customerProductReport.productCode = '';
       state.customerProductReport.productName = '';
-      getTableSearchState('cpDetail').query = '';
-      getTableSearchState('cpMonthly').query = '';
       getTableSearchState('cpDetail').query = input.value;
-      getTableSearchState('cpMonthly').query = input.value;
       state.tablePages.cpDetail = 1;
-      state.tablePages.cpMonthly = 1;
       state.customerProductReport.productPicker.activeIndex = -1;
       document.getElementById('cpProductClearBtn').hidden = !input.value;
       renderCustomerProductFilterSuggestions(customerProductFilterOptions(input.value));
@@ -8739,7 +8693,6 @@
       state.customerProductReport.productCode = option.code;
       state.customerProductReport.productName = option.code ? option.name : '';
       getTableSearchState('cpDetail').query = option.code || '';
-      getTableSearchState('cpMonthly').query = option.code || '';
       const input = document.getElementById('cpProductFilterInput');
       input.value = option.code ? (option.code + ' - ' + option.name) : '';
       document.getElementById('cpProductClearBtn').hidden = !option.code;
@@ -8751,7 +8704,6 @@
       state.customerProductReport.productCode = '';
       state.customerProductReport.productName = '';
       getTableSearchState('cpDetail').query = '';
-      getTableSearchState('cpMonthly').query = '';
       const input = document.getElementById('cpProductFilterInput');
       input.value = '';
       document.getElementById('cpProductClearBtn').hidden = true;

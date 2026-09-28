@@ -54,7 +54,6 @@ const TABLE_TITLES = Object.freeze({
   'customers.revenue': 'Doanh thu theo khách',
   'customers.debt': 'Chi tiết khách nợ',
   'customers.productDetail': 'Bảng chi tiết sản phẩm theo khách',
-  'customers.productMonthlyCompare': 'Bảng so sánh doanh số theo tháng',
   'overview.productReport': 'Báo cáo hàng hóa',
   'suppliers.list': 'Danh sách nhà cung cấp',
   'debt.management': 'Quản lý công nợ',
@@ -262,11 +261,7 @@ const CHILD_CATEGORY_COLUMNS = [
 const CUSTOMER_PRODUCT_DETAIL_COLUMNS = [
   aggregateColumn('name', 'Tên hàng', undefined, 'Tên hàng khách đã mua.'),
   aggregateColumn('quantity', 'Số lượng', 'number', 'Tổng số lượng hàng khách đã mua.'),
-  aggregateColumn('revenue', 'Doanh thu', 'number', 'Tổng doanh thu của mặt hàng với khách (VNĐ).')
-];
-
-const CUSTOMER_PRODUCT_MONTHLY_COLUMNS = [
-  aggregateColumn('name', 'Tên hàng', undefined, 'Tên hàng khách đã mua.'),
+  aggregateColumn('revenue', 'Doanh thu', 'number', 'Tổng doanh thu của mặt hàng với khách (VNĐ).'),
   aggregateColumn('month1Revenue', 'Doanh thu tháng này', 'number', 'Doanh thu của mặt hàng với khách trong tháng hiện tại (VNĐ).'),
   aggregateColumn('month2Revenue', 'Doanh thu tháng trước', 'number', 'Doanh thu của mặt hàng với khách trong tháng trước (VNĐ).'),
   aggregateColumn('month3Revenue', 'Doanh thu 2 tháng trước', 'number', 'Doanh thu của mặt hàng với khách cách đây hai tháng (VNĐ).')
@@ -744,9 +739,6 @@ const TABLE_SPECS = {
   'customers.productDetail': () => ({
     worksheets: [reportWorksheet('customer_product_detail', 'Bảng chi tiết sản phẩm', CUSTOMER_PRODUCT_DETAIL_COLUMNS)]
   }),
-  'customers.productMonthlyCompare': () => ({
-    worksheets: [reportWorksheet('customer_product_monthly_compare', 'Bảng so sánh doanh số theo tháng', CUSTOMER_PRODUCT_MONTHLY_COLUMNS)]
-  }),
   'overview.productReport': () => ({
     worksheets: [reportWorksheet('product_report', 'Báo cáo hàng hóa', PRODUCT_REPORT_COLUMNS)]
   }),
@@ -1087,7 +1079,7 @@ function describeExport(payload, branch) {
     filters, context, worksheets: spec.worksheets, spec
   };
 
-  if (tableKey === 'customers.productDetail' || tableKey === 'customers.productMonthlyCompare') {
+  if (tableKey === 'customers.productDetail') {
     if (!normalizeText(context.customerProductCustomerCode)) {
       throw exportError('Chưa chọn khách hàng để xuất.', 400, 'EXPORT_NO_CUSTOMER_SELECTED');
     }
@@ -1123,7 +1115,7 @@ async function buildExportDataset(payload, branch, options = {}) {
   const { tableKey } = description;
   if (description.dynamic) return buildSearchDataset(request, description.filters, branch, signal);
   if (description.dataset) return description.dataset;
-  if (tableKey === 'customers.productDetail' || tableKey === 'customers.productMonthlyCompare') {
+  if (tableKey === 'customers.productDetail') {
     return buildCustomerProductRevenueDataset(tableKey, description, request, branch, signal);
   }
   if (tableKey === 'overview.productReport') {

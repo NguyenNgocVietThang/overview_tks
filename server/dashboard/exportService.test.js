@@ -178,7 +178,7 @@ const STOCKOUT_ROWS = [{
 // Payload hop le cho MOI tableKey (tru search.results) de kiem tra buoc lay truong.
 function payloadFor(tableKey, extra = {}) {
   const payload = { tableKey, filters: {}, context: { ...FIXED_CONTEXT }, ...extra };
-  if (tableKey === 'customers.productDetail' || tableKey === 'customers.productMonthlyCompare') {
+  if (tableKey === 'customers.productDetail') {
     payload.context = { customerProductCustomerCode: 'KH-01', customerProductCustomerName: 'Khách A' };
   }
   if (tableKey === 'stockout.recentScan') payload.recentStockoutResult = { branch: 'Hà Nội', rows: STOCKOUT_ROWS };
@@ -383,10 +383,6 @@ test('buoc lay truong van validate re: bang khong hop le, thieu khach/tu khoa, t
     error => error.statusCode === 400 && error.code === 'EXPORT_NO_CUSTOMER_SELECTED'
   );
   await assert.rejects(
-    exportService.getExportFields({ tableKey: 'customers.productMonthlyCompare', context: {} }),
-    error => error.code === 'EXPORT_NO_CUSTOMER_SELECTED'
-  );
-  await assert.rejects(
     exportService.getExportFields({ tableKey: 'stockout.recentScan', recentStockoutResult: { rows: [] } }),
     error => error.statusCode === 400 && error.code === 'EXPORT_NO_DATA'
   );
@@ -495,9 +491,8 @@ test('nhan derived/aggregate da doi theo quy uoc chuan hoa', async () => {
     const metadata = await exportService.getExportFields(payloadFor(tableKey, extra), 'Hà Nội');
     return metadata.worksheets[0].fields.map(field => field.label);
   };
-  assert.deepEqual(await labelsOf('customers.productMonthlyCompare'),
-    ['Tên hàng', 'Doanh thu tháng này', 'Doanh thu tháng trước', 'Doanh thu 2 tháng trước']);
-  assert.deepEqual(await labelsOf('customers.productDetail'), ['Tên hàng', 'Số lượng', 'Doanh thu']);
+  assert.deepEqual(await labelsOf('customers.productDetail'),
+    ['Tên hàng', 'Số lượng', 'Doanh thu', 'Doanh thu tháng này', 'Doanh thu tháng trước', 'Doanh thu 2 tháng trước']);
   const debt = await labelsOf('debt.management');
   assert.ok(debt.includes('Nhân viên phụ trách (Sale)'));
   assert.ok(debt.includes('Lịch thanh toán'));
@@ -883,7 +878,7 @@ test('search.results che do khach theo san pham dung nhan chuan hoa', async () =
   }
 });
 
-test('Bao cao doanh thu theo khach: xuat bang chi tiet + bang so sanh thang, loc theo san pham khi co chon, tu choi khi chua chon khach', async () => {
+test('Bao cao doanh thu theo khach: xuat bang chi tiet (gom ca cot so sanh thang), loc theo san pham khi co chon, tu choi khi chua chon khach', async () => {
   const originalReport = dashboardData.getCustomerProductRevenueReport;
   dashboardData.getCustomerProductRevenueReport = async (code, name) => ({
     customer: { code, name: name || code },
@@ -898,19 +893,19 @@ test('Bao cao doanh thu theo khach: xuat bang chi tiet + bang so sanh thang, loc
       context: { customerProductCustomerCode: 'KH-01', customerProductCustomerName: 'Khách A' }
     });
     assert.equal(detailDataset.worksheets[0].rows.length, 2);
-    assert.deepEqual(detailDataset.worksheets[0].columns.map(c => c.label), ['Tên hàng', 'Số lượng', 'Doanh thu']);
+    assert.deepEqual(detailDataset.worksheets[0].columns.map(c => c.label),
+      ['Tên hàng', 'Số lượng', 'Doanh thu', 'Doanh thu tháng này', 'Doanh thu tháng trước', 'Doanh thu 2 tháng trước']);
 
     const monthlyDataset = await exportService.__test__.buildExportDataset({
-      tableKey: 'customers.productMonthlyCompare',
+      tableKey: 'customers.productDetail',
       context: { customerProductCustomerCode: 'KH-01', customerProductCode: 'SP-02' }
     });
     assert.equal(monthlyDataset.worksheets[0].rows.length, 1, 'chon 1 san pham thi chi xuat 1 dong');
     assert.equal(monthlyDataset.worksheets[0].rows[0].name, 'Sản phẩm hai');
-    assert.deepEqual(monthlyDataset.worksheets[0].columns.map(c => c.label),
-      ['Tên hàng', 'Doanh thu tháng này', 'Doanh thu tháng trước', 'Doanh thu 2 tháng trước']);
+    assert.equal(monthlyDataset.worksheets[0].rows[0].month1Revenue, 100);
 
     const selectedWithSearch = await exportService.__test__.buildExportDataset({
-      tableKey: 'customers.productMonthlyCompare',
+      tableKey: 'customers.productDetail',
       context: { customerProductCustomerCode: 'KH-01', customerProductCode: 'SP-02' },
       tableSearch: { mode: 'normal', query: 'SP-02' }
     });
@@ -922,9 +917,9 @@ test('Bao cao doanh thu theo khach: xuat bang chi tiet + bang so sanh thang, loc
     );
 
     const file = await exportService.createExportWorkbook({
-      tableKey: 'customers.productMonthlyCompare',
+      tableKey: 'customers.productDetail',
       context: { customerProductCustomerCode: 'KH-01' },
-      columns: { customer_product_monthly_compare: ['name', 'month1Revenue'] }
+      columns: { customer_product_detail: ['name', 'month1Revenue'] }
     });
     assert.equal((await loadWorkbook(file)).worksheets[0].getCell('B2').value, 100);
   } finally {
