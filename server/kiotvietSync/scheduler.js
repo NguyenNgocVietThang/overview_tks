@@ -11,6 +11,7 @@ const {
 } = require('./dashboardRollupRefresh');
 const { startCustomerDebtReportRefreshSchedule } = require('./customerDebtReportRefresh');
 const { startProductReportSchedule } = require('./productReportRefresh');
+const { startCustomerInvoiceLinesSchedule } = require('./customerInvoiceLinesRefresh');
 
 const fastEntities = [require('./entities/invoices'), require('./entities/orders'), require('./entities/productOnHands')];
 const slowEntities = [require('./entities/categories'), require('./entities/products'), require('./entities/customers'),
@@ -26,6 +27,7 @@ function createPollingScheduler({
   dashboardRollupIntervalMs = 30 * 60 * 1000,
   customerDebtReportIntervalMs = 5 * 60 * 1000,
   productReportIntervalMs = 5 * 60 * 1000,
+  customerInvoiceLinesIntervalMs = 5 * 60 * 1000,
   getConfiguredBranches: getBranches = getConfiguredBranches,
   createKiotVietClient: createClient = createKiotVietClient,
   pollEntityOnce: poll = pollEntityOnce,
@@ -37,6 +39,7 @@ function createPollingScheduler({
   refreshDashboardRollupsAndNotify: refreshHotRollup = refreshDashboardRollupsAndNotify,
   startCustomerDebtReportRefreshSchedule: startCustomerDebtReportRefresh = startCustomerDebtReportRefreshSchedule,
   startProductReportSchedule: startProductReport = startProductReportSchedule,
+  startCustomerInvoiceLinesSchedule: startCustomerInvoiceLines = startCustomerInvoiceLinesSchedule,
   logger = console
 } = {}) {
   async function runGroup(entities) {
@@ -112,6 +115,15 @@ function createPollingScheduler({
       // productReportRefresh.js) du duoc kiem tra moi 5 phut nhu cac job tren.
       startProductReport(getPoolFn(), {
         intervalMs: productReportIntervalMs,
+        setIntervalFn,
+        scheduleImmediate,
+        log: logger.log ? logger.log.bind(logger) : logger
+      }),
+      // Chi tiet hoa don 90 ngay theo khach (server/db/migrations/0022) - cung 1 ly do
+      // nhu bao cao hang hoa o tren: chi dung lai 1 lan/dem sau 0h VN (ham
+      // refreshCustomerInvoiceLinesIfDue tu kiem tra), du duoc kiem tra moi 5 phut.
+      startCustomerInvoiceLines(getPoolFn(), {
+        intervalMs: customerInvoiceLinesIntervalMs,
         setIntervalFn,
         scheduleImmediate,
         log: logger.log ? logger.log.bind(logger) : logger

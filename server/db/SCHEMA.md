@@ -182,6 +182,17 @@ trình là an toàn vì mọi bảng dùng `UPSERT` theo `(branch, id)`.
 
 Cột `available_to_sell` = tồn 2 cơ sở trừ số lượng đang bị giữ trong **đơn đặt hàng của khách** (bảng `orders`, trạng thái `Phiếu tạm`/`Đang xử lý`/`Đã xác nhận`) — không liên quan đến `purchases` (phiếu đặt NCC). Cột `qty_sold_30d`/`revenue_90d` cộng từ `daily_product_sales` (migration `0013`) trong cửa sổ kết thúc **hôm qua** theo lịch VN (không tính hôm nay). Cột `customer_count_90d`/`top_customer_*` tính trực tiếp từ `invoice_details`/`invoices`/`customers` trong 90 ngày, dùng chung định nghĩa "hóa đơn hợp lệ" (`statusValue != 'Đã hủy'`) với `revenue_90d` để `top_customer_share` không bao giờ vượt 100%.
 
+### Chi tiết hóa đơn 90 ngày theo khách (migration `0022`)
+
+`customer_invoice_lines_90d` là bảng tổng hợp phục vụ "Báo cáo doanh thu theo khách" (tab Khách hàng, `GET /api/customer-product-revenue`). Mỗi dòng là **1 dòng chi tiết hóa đơn** (`invoice_details`) của hóa đơn `Hoàn thành` đã gắn sẵn mã khách; khóa chính `(branch, invoice_id, line_no)`, index tra cứu `(branch, customer_code)`. Không có `raw` (không phải bản sao 1-1 từ KiotViet). `customer_invoice_lines_state` chỉ có 1 dòng (`id = 1`): cửa sổ `window_start..window_end`, `row_count`, `computed_at`; dòng này chưa tồn tại nghĩa là bảng **chưa từng được dựng** và API tự quay về cách tính cũ từ sheet.
+
+- Được dựng lại **1 lần/đêm** bởi `server/kiotvietSync/customerInvoiceLinesRefresh.js` (kiểm tra mỗi 5 phút, chỉ chạy khi chưa dựng cho ngày VN hôm nay **và** đã qua 00:10 VN để hóa đơn cuối ngày kịp đồng bộ; khởi động lại giữa ngày mà bảng cũ từ hôm qua thì dựng bù ngay). Cũng chạy tay được: `node kiotvietSync/customerInvoiceLinesRefresh.js` (trong `server/`).
+- Cửa sổ là 90 ngày kết thúc **hôm qua** theo lịch VN (khác luồng sheet cũ, cửa sổ kết thúc hôm nay) nên hóa đơn phát sinh trong ngày chỉ hiện từ đêm sau; giao diện ghi rõ "90 ngày đến hết dd/mm/yyyy".
+- Không `TRUNCATE` + nạp lại: nạp vào bảng tạm rồi chỉ `DELETE` dòng đã mất/đã đổi và `INSERT` dòng mới, trong 1 giao dịch (lý do IO: xem sự cố Supabase 2026-09-28). Đọc song song vẫn thấy bản cũ tới lúc COMMIT.
+- `customer_code` giữ đúng luồng cũ: `raw->>'customerCode'` trên hóa đơn; nếu trống thì đối chiếu **tên khách chuẩn hóa** (NFKC, bỏ ký tự rỗng, gộp khoảng trắng, chữ thường) với bảng `customers` cùng cơ sở (trùng tên ⇒ mã lớn nhất). Bước đối chiếu theo SĐT của luồng cũ không còn vì cột "SĐT khách" của tab Hóa đơn luôn rỗng trong Postgres.
+- `sold_date` theo "giờ treo tường VN mang nhãn UTC" của `purchase_date`; `revenue` dùng `DETAIL_AMOUNT_SQL` (`subTotal` nếu có, không thì giá × SL − giảm giá); `item_code`/`item_name` lưu giá trị thô, phía đọc tự trim và thay bằng `—` khi trống.
+- Không REVOKE SELECT khỏi `reporting_readonly` (không lưu SĐT; mã/tên khách và doanh thu vốn đã đọc được qua `invoices`/`customers`).
+
 ### Trả NCC upload Excel (migration `0017`)
 
 `supplier_return_imports` là bảng phẳng lưu dữ liệu xuất từ KiotViet ("Trả hàng nhập") do người dùng tự upload file Excel. Không có quan hệ parent+detail như `invoices`/`purchases`.

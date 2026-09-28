@@ -3678,7 +3678,7 @@
                   <div class="panel-head">
                     <h2><span id="cpSelectedCustomerName">—</span> <span class="tag"
                         id="cpSelectedCustomerCode">—</span></h2>
-                    <span class="drill-hint">90 ngày gần đây</span>
+                    <span class="drill-hint" id="cpWindowHint">90 ngày gần đây</span>
                   </div>
                   <div class="search-input-wrap" style="margin-bottom:10px;">
                     <input class="search-input" id="cpProductFilterInput" type="search" autocomplete="off"
@@ -8529,6 +8529,14 @@
 
     function handleCustomerProductSearchInput() {
       const input = document.getElementById('cpCustomerSearchInput');
+    // Bao cao dung san moi dem (co computedAt) chi tinh den het ngay hom qua: ghi
+    // ro de khong ai tuong hoa don phat sinh hom nay bi mat.
+    function customerProductWindowHint(data) {
+      return data && data.computedAt && data.range && data.range.to
+        ? '90 ngày đến hết ' + data.range.to
+        : '90 ngày gần đây';
+    }
+
       const query = normalizeSearchQuery(input.value);
       document.getElementById('cpCustomerClearBtn').hidden = !input.value && !state.customerProductReport.customer;
       cancelCustomerProductSearchRequest();
@@ -8545,6 +8553,7 @@
           const payload = await response.json();
           if (requestId !== picker.requestId) return;
           picker.results = payload.results || [];
+        document.getElementById('cpWindowHint').textContent = customerProductWindowHint(data);
           picker.activeIndex = -1;
           renderCustomerProductSuggestions();
         } catch (err) {
