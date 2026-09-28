@@ -302,7 +302,6 @@ const STOCKOUT_RECENT_COLUMNS = [
   aggregateColumn('name', 'Tên hàng', undefined, 'Tên hàng bị đứt hàng.'),
   aggregateColumn('lastOutOfStockDate', 'Ngày hết hàng gần nhất', 'date', 'Ngày gần nhất mặt hàng hết tồn kho.'),
   aggregateColumn('daysOutOfStock', 'Số ngày đứt hàng', 'number', 'Số ngày mặt hàng đứt hàng trong kỳ quét.'),
-  aggregateColumn('dataWarning', 'Cảnh báo dữ liệu', undefined, 'Cảnh báo khi dữ liệu chưa đủ tin cậy để kết luận.', { wrapText: true }),
   aggregateColumn('periods', 'Các đợt đứt hàng', undefined, 'Từng đợt đứt hàng, mỗi đợt một dòng (từ ngày -> đến ngày).', { wrapText: true })
 ];
 
@@ -318,7 +317,6 @@ const STOCKOUT_90D_COLUMNS = [
   aggregateColumn('totalStockoutDays', 'Số ngày đứt hàng', 'number', 'Tổng số ngày đứt hàng trong 90 ngày gần nhất.'),
   aggregateColumn('avgStockoutDays', 'Số ngày đứt hàng trung bình', 'number', 'Tổng số ngày đứt hàng chia cho số lần đứt hàng.'),
   aggregateColumn('currentOnHand', 'Tồn kho hiện tại', 'number', 'Số lượng tồn kho hiện tại của mặt hàng.'),
-  aggregateColumn('dataWarning', 'Cảnh báo dữ liệu', undefined, 'Cảnh báo khi dữ liệu chưa đủ tin cậy để kết luận.', { wrapText: true }),
   aggregateColumn('periods', 'Các đợt đứt hàng', undefined, 'Từng đợt đứt hàng, mỗi đợt một dòng (từ ngày -> đến ngày).', { wrapText: true })
 ];
 
@@ -329,7 +327,6 @@ const STOCKOUT_30D_COLUMNS = [
   aggregateColumn('totalStockoutDays', 'Số ngày đứt hàng', 'number', 'Tổng số ngày đứt hàng trong 30 ngày gần nhất.'),
   aggregateColumn('avgStockoutDays', 'Số ngày đứt hàng trung bình', 'number', 'Tổng số ngày đứt hàng chia cho số lần đứt hàng.'),
   aggregateColumn('currentOnHand', 'Tồn kho hiện tại', 'number', 'Số lượng tồn kho hiện tại của mặt hàng.'),
-  aggregateColumn('dataWarning', 'Cảnh báo dữ liệu', undefined, 'Cảnh báo khi dữ liệu chưa đủ tin cậy để kết luận.', { wrapText: true }),
   aggregateColumn('periods', 'Các đợt đứt hàng', undefined, 'Từng đợt đứt hàng, mỗi đợt một dòng (từ ngày -> đến ngày).', { wrapText: true })
 ];
 
@@ -992,15 +989,11 @@ function withStockoutBranchColumn(worksheet, result) {
   return { ...worksheet, columns: [STOCKOUT_BRANCH_COLUMN, ...worksheet.columns] };
 }
 
-function stockoutDataWarning(row) {
-  return row.hasUnreliableData ? 'Thiếu dữ liệu trả hàng nhà cung cấp trong kỳ — cần đối chiếu thủ công' : '';
-}
-
 function buildRecentStockoutResultDataset(description, payload) {
   const result = payload.recentStockoutResult && typeof payload.recentStockoutResult === 'object' ? payload.recentStockoutResult : null;
   const rows = result && Array.isArray(result.rows) ? result.rows : [];
   if (rows.length === 0) throw exportError('Chưa có kết quả hàng đứt gần đây để xuất.', 400, 'EXPORT_NO_DATA');
-  const dataRows = rows.map(row => ({ ...row, periods: formatStockoutPeriods(row.periods), dataWarning: stockoutDataWarning(row) }));
+  const dataRows = rows.map(row => ({ ...row, periods: formatStockoutPeriods(row.periods) }));
   const worksheet = withStockoutBranchColumn(description.worksheets[0], result);
   return {
     tableKey: 'stockout.recentScan',
@@ -1022,8 +1015,7 @@ function buildStockout90dResultDataset(description, payload) {
   const dataRows = rows.map(row => ({
     ...row,
     avgStockoutDays: row.stockoutCount ? Math.round((row.totalStockoutDays / row.stockoutCount) * 100) / 100 : 0,
-    periods: formatStockoutPeriods(row.periods),
-    dataWarning: stockoutDataWarning(row)
+    periods: formatStockoutPeriods(row.periods)
   }));
   const worksheet = withStockoutBranchColumn(description.worksheets[0], result);
   return {
@@ -1043,8 +1035,7 @@ function buildStockout30dResultDataset(description, payload) {
   const dataRows = rows.map(row => ({
     ...row,
     avgStockoutDays: row.stockoutCount ? Math.round((row.totalStockoutDays / row.stockoutCount) * 100) / 100 : 0,
-    periods: formatStockoutPeriods(row.periods),
-    dataWarning: stockoutDataWarning(row)
+    periods: formatStockoutPeriods(row.periods)
   }));
   const worksheet = withStockoutBranchColumn(description.worksheets[0], result);
   return {

@@ -3864,7 +3864,6 @@
                         <th>Tên SP</th>
                         <th>Ngày hết hàng gần nhất</th>
                         <th>Số ngày đứt hàng</th>
-                        <th>Cảnh báo dữ liệu</th>
                         <th>Các đợt đứt hàng</th>
                       </tr>
                     </thead>
@@ -3908,7 +3907,6 @@
                         <th>Số ngày đứt hàng</th>
                         <th>Số ngày đứt TB</th>
                         <th>Tồn kho hiện tại</th>
-                        <th>Cảnh báo dữ liệu</th>
                         <th>Các đợt đứt hàng</th>
                       </tr>
                     </thead>
@@ -3952,7 +3950,6 @@
                         <th>Số ngày đứt hàng</th>
                         <th>Số ngày đứt TB</th>
                         <th>Tồn kho hiện tại</th>
-                        <th>Cảnh báo dữ liệu</th>
                         <th>Các đợt đứt hàng</th>
                       </tr>
                     </thead>
@@ -5760,7 +5757,7 @@
       if (exportButton) exportButton.disabled = filtered.items.length === 0;
 
       if (filtered.items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="' + (merged ? 7 : 6) + '" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục tính đến ' +
+        tbody.innerHTML = '<tr><td colspan="' + (merged ? 6 : 5) + '" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục tính đến ' +
           escapeHtml(result ? result.asOfDate : '') + '</td></tr>';
         return;
       }
@@ -5773,7 +5770,6 @@
             '<td>' + escapeHtml(row.name) + '</td>' +
             '<td>' + escapeHtml(row.lastOutOfStockDate) + '</td>' +
             '<td>' + row.daysOutOfStock + '</td>' +
-            '<td>' + (row.hasUnreliableData ? '⚠ Thiếu dữ liệu Trả NCC' : '') + '</td>' +
             '<td>' + formatStockoutPeriods(row.periods) + '</td>' +
           '</tr>'
         );
@@ -5819,7 +5815,7 @@
           // theo co so dang chon) — gui thua khoa nay o mot co so se bi tu choi.
           columns: {
             recent_stockout_result: (isMergedStockoutResult(result) ? ['branch'] : [])
-              .concat(['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'dataWarning', 'periods'])
+              .concat(['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'periods'])
           }
         };
         const response = await exportFetch('/api/export', payload, request);
@@ -6008,7 +6004,7 @@
       if (exportButton) exportButton.disabled = filtered.items.length === 0;
 
       if (filtered.items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="' + (merged ? 9 : 8) + '" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 90 ngày gần đây</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="' + (merged ? 8 : 7) + '" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 90 ngày gần đây</td></tr>';
         return;
       }
 
@@ -6023,7 +6019,6 @@
             '<td>' + row.totalStockoutDays + '</td>' +
             '<td>' + avgStockoutDays.toFixed(2) + '</td>' +
             '<td>' + row.currentOnHand + '</td>' +
-            '<td>' + (row.hasUnreliableData ? '⚠ Thiếu dữ liệu Trả NCC' : '') + '</td>' +
             '<td>' + formatStockoutPeriods(row.periods) + '</td>' +
           '</tr>'
         );
@@ -6068,7 +6063,7 @@
           // Xem ghi chu tuong tu o exportRecentStockoutResult().
           columns: {
             stockout_90d_result: (isMergedStockoutResult(result) ? ['branch'] : [])
-              .concat(['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'dataWarning', 'periods'])
+              .concat(['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'periods'])
           }
         };
         const response = await exportFetch('/api/export', payload, request);
@@ -6257,7 +6252,7 @@
       if (exportButton) exportButton.disabled = filtered.items.length === 0;
 
       if (filtered.items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="' + (merged ? 9 : 8) + '" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 30 ngày gần đây</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="' + (merged ? 8 : 7) + '" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 30 ngày gần đây</td></tr>';
         return;
       }
 
@@ -6272,7 +6267,6 @@
             '<td>' + row.totalStockoutDays + '</td>' +
             '<td>' + avgStockoutDays.toFixed(2) + '</td>' +
             '<td>' + row.currentOnHand + '</td>' +
-            '<td>' + (row.hasUnreliableData ? '⚠ Thiếu dữ liệu Trả NCC' : '') + '</td>' +
             '<td>' + formatStockoutPeriods(row.periods) + '</td>' +
           '</tr>'
         );
@@ -6317,7 +6311,7 @@
           // Xem ghi chu tuong tu o exportRecentStockoutResult().
           columns: {
             stockout_30d_result: (isMergedStockoutResult(result) ? ['branch'] : [])
-              .concat(['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'dataWarning', 'periods'])
+              .concat(['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'periods'])
           }
         };
         const response = await exportFetch('/api/export', payload, request);

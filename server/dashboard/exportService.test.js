@@ -946,9 +946,8 @@ test('buildExportDataset: stockout.recentScan tra dung worksheet', async () => {
   assert.equal(dataset.title, 'Hàng đứt gần đây');
   assert.equal(dataset.sourceBranch, 'Hà Nội');
   assert.equal(dataset.worksheets.length, 1);
-  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'dataWarning', 'periods']);
+  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'periods']);
   assert.equal(dataset.worksheets[0].rows[0].code, 'SP001');
-  assert.equal(dataset.worksheets[0].rows[0].dataWarning, 'Thiếu dữ liệu trả hàng nhà cung cấp trong kỳ — cần đối chiếu thủ công');
   assert.equal(dataset.worksheets[0].rows[0].periods, '01/01/2026 -> 05/01/2026\n10/01/2026 -> 15/01/2026');
 });
 
@@ -1005,9 +1004,8 @@ test('buildExportDataset: stockout.check90d tra dung worksheet', async () => {
   assert.equal(dataset.title, 'Kiểm tra đứt hàng 90 ngày');
   assert.equal(dataset.sourceBranch, 'Sài Gòn');
   assert.equal(dataset.worksheets.length, 1);
-  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'dataWarning', 'periods']);
+  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'periods']);
   assert.equal(dataset.worksheets[0].rows[0].code, 'SP001');
-  assert.equal(dataset.worksheets[0].rows[0].dataWarning, '');
   assert.equal(dataset.worksheets[0].rows[0].avgStockoutDays, 5);
   assert.equal(dataset.worksheets[0].rows[0].periods, '01/01/2026 -> 05/01/2026\n10/01/2026 -> 14/01/2026');
 });
@@ -1031,9 +1029,8 @@ test('buildExportDataset: stockout.check30d tra dung worksheet', async () => {
   assert.equal(dataset.title, 'Kiểm tra đứt hàng 30 ngày');
   assert.equal(dataset.sourceBranch, 'Sài Gòn');
   assert.equal(dataset.worksheets.length, 1);
-  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'dataWarning', 'periods']);
+  assert.deepEqual(dataset.worksheets[0].columns.map((c) => c.key), ['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'periods']);
   assert.equal(dataset.worksheets[0].rows[0].code, 'SP001');
-  assert.equal(dataset.worksheets[0].rows[0].dataWarning, '');
   assert.equal(dataset.worksheets[0].rows[0].avgStockoutDays, 5);
   assert.equal(dataset.worksheets[0].rows[0].periods, '01/01/2026 -> 05/01/2026\n10/01/2026 -> 14/01/2026');
 });
@@ -1240,13 +1237,6 @@ test('nhan cot tong hop: ty le no qua han theo doanh so TRUNG BINH, khong viet t
   const overdue = metadata.worksheets[0].fields.find(field => field.key === 'overdueToSalesRatio');
   assert.equal(overdue.label, 'Nợ quá hạn trên doanh số trung bình');
   assert.match(overdue.description, /doanh số trung bình/);
-  const stockout = await exportService.__test__.buildExportDataset({
-    tableKey: 'stockout.check90d',
-    stockout90dResult: { branch: 'Hà Nội', rows: [{ code: 'SP001', name: 'A', stockoutCount: 1, totalStockoutDays: 2, currentOnHand: 0, hasUnreliableData: true, periods: [] }] }
-  }, 'Hà Nội');
-  const warning = stockout.worksheets[0].rows[0].dataWarning;
-  assert.doesNotMatch(warning, /NCC/);
-  assert.match(warning, /nhà cung cấp/);
 });
 
 test('buildExportErrorBody: chi tra detail cho loi da biet (EXPORT_*, INVALID_BRANCH), loi bat ngo dung thong diep mac dinh', () => {
