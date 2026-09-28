@@ -2471,6 +2471,12 @@
       max-height: none;
     }
 
+    /* Chế độ "Theo mặt hàng" không có biểu đồ bên cạnh: bảng tự quyết định chiều cao rồi cuộn. */
+    .top-selling-table-panel.is-full>.top-selling-table-scroll {
+      flex: 0 1 auto;
+      max-height: 560px;
+    }
+
     .chart-empty {
       position: absolute;
       inset: 0;
@@ -4055,14 +4061,14 @@
                 nhóm cha</button>
             </div>
             <div class="grid">
-              <div class="panel col-7 top-selling-feature-panel">
+              <div class="panel col-7 top-selling-feature-panel" id="topSellingChartPanel" hidden>
                 <div class="panel-head">
                   <h2><span id="topSellingChartTitle">Top sản phẩm bán chạy</span> <span class="tag"
                       id="tagTopSelling">—</span></h2>
                 </div>
                 <div class="chart-box top-selling-top"><canvas id="chartTopSelling"></canvas></div>
               </div>
-              <div class="panel col-5 top-selling-table-panel">
+              <div class="panel col-12 top-selling-table-panel is-full" id="topSellingTablePanel">
                 <div class="panel-head">
                   <h2 id="topSellingTableTitle">Chi tiết sản phẩm bán chạy</h2><button class="export-button"
                     type="button" onclick="openExportDialog('products.top-selling')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
@@ -4075,6 +4081,7 @@
                         <th id="topSellingNameHeader">Sản phẩm</th>
                         <th>SL bán</th>
                         <th>Doanh thu</th>
+                        <th id="topSellingStockHeader">Tồn kho</th>
                       </tr>
                     </thead>
                     <tbody id="topSellingRows">
@@ -7539,7 +7546,7 @@
           datasets: [{
             label: 'Doanh thu',
             data: revenueValues,
-            backgroundColor: 'rgba(240,166,58,0.5)',
+            backgroundColor: theme.amber,
             borderColor: theme.amber,
             borderWidth: 1.5,
             borderRadius: 5,
@@ -7591,7 +7598,7 @@
       const valueScale = { ticks: { color: theme.muted, callback: v => fmtMoneyShort(v), font: { size: 10.5 } }, grid: { color: theme.grid } };
       const labelScale = { ticks: { color: theme.text, font: { size: 10.5 }, autoSkip: false, maxRotation: 60, minRotation: 40 }, grid: { display: false } };
       const solidColor = color || theme.amber;
-      const fillColor = colorWithAlpha(solidColor, 0.5);
+      const fillColor = solidColor;
       state.charts[key] = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -7738,7 +7745,7 @@
           labels: items.map(item => item.name),
           datasets: [{
             data: items.map(item => item.stockValue),
-            backgroundColor: colorWithAlpha(solidColor, 0.5),
+            backgroundColor: solidColor,
             borderColor: solidColor,
             borderWidth: 1.5,
             borderRadius: 5,
@@ -7837,6 +7844,22 @@
       const tableTitle = isParentCategory ? 'Chi tiết doanh thu theo nhóm cha' : 'Chi tiết sản phẩm bán chạy';
       const firstColumnLabel = isParentCategory ? 'Nhóm cha' : 'Sản phẩm';
 
+      // Theo mặt hàng: bỏ biểu đồ, bảng rộng full và có thêm cột tồn kho (tra theo mã từ allProducts).
+      const stockByCode = new Map();
+      if (!isParentCategory) {
+        (d.allProducts || []).forEach(p => stockByCode.set(String(p.code).trim(), p.stock));
+      }
+      const tableRows = isParentCategory
+        ? analysisRows
+        : analysisRows.map(item => Object.assign({}, item, { stock: stockByCode.get(String(item.code).trim()) }));
+      const chartPanel = document.getElementById('topSellingChartPanel');
+      const tablePanel = document.getElementById('topSellingTablePanel');
+      chartPanel.hidden = !isParentCategory;
+      tablePanel.classList.toggle('col-5', isParentCategory);
+      tablePanel.classList.toggle('col-12', !isParentCategory);
+      tablePanel.classList.toggle('is-full', !isParentCategory);
+      document.getElementById('topSellingStockHeader').hidden = isParentCategory;
+
       document.querySelectorAll('#productAnalysisToggle button').forEach(function (button) {
         button.classList.toggle('active', button.dataset.analysis === state.productAnalysis);
       });
@@ -7854,7 +7877,7 @@
         else headerCell.textContent = header[1];
       });
 
-      if (chartRows.length) {
+      if (isParentCategory && chartRows.length) {
         renderBarChartList(
           'chartTopSelling', 'topSelling', chartRows, item => item.name, item => item.revenue,
           themeColor('--green'), false,
@@ -7867,20 +7890,26 @@
       renderPaginatedRows(
         'topSelling',
         { tbody: 'topSellingRows', pagination: 'topSellingPagination', firstBtn: 'topSellingFirstPage', prevBtn: 'topSellingPrevPage', nextBtn: 'topSellingNextPage', lastBtn: 'topSellingLastPage', label: 'topSellingPageLabel' },
-        analysisRows,
+        tableRows,
         item => '<tr>' +
           (isParentCategory
             ? '<td class="mono muted" data-sort-value="' + Number(item.productCount || 0) + '">' + fmtNumber(Number(item.productCount || 0)) + '</td>'
             : '<td class="mono muted">' + escapeHtml(item.code) + '</td>') +
           '<td class="name-cell">' + escapeHtml(item.name) + '</td>' +
           '<td class="mono muted" data-sort-value="' + item.qty + '">' + fmtNumber(Number(item.qty || 0)) +
-          '</td><td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td></tr>',
-        4,
+          '</td><td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td>' +
+          (isParentCategory
+            ? '<td hidden></td>'
+            : item.stock === undefined
+              ? '<td class="mono muted">—</td>'
+              : '<td class="mono muted" data-sort-value="' + item.stock + '">' + fmtNumber(Number(item.stock || 0)) + '</td>') +
+          '</tr>',
+        isParentCategory ? 4 : 5,
         'Chưa có dữ liệu chi tiết hóa đơn'
       );
 
       const activeSort = state.tableSorts.topSellingRows;
-      if (activeSort && ids.tbody !== 'debtManagementRows') {
+      if (activeSort) {
         sortTableRows('topSellingRows', activeSort.columnIndex, activeSort.direction);
         updateTableSortHeader('topSellingRows', activeSort.columnIndex, activeSort.direction);
       } else {
@@ -9151,8 +9180,8 @@
         data: {
           labels: labels,
           datasets: [
-            { label: 'Nợ hiện tại', data: list.map(function (item) { return Number(item.totalCurrentDebt) || 0; }), backgroundColor: colorWithAlpha(theme.blue, .5), borderColor: theme.blue, borderWidth: 1.5, borderRadius: 5 },
-            { label: 'Nợ quá hạn', data: list.map(function (item) { return Number(item.totalOverdueDebt) || 0; }), backgroundColor: colorWithAlpha(theme.red, .5), borderColor: theme.red, borderWidth: 1.5, borderRadius: 5 }
+            { label: 'Nợ hiện tại', data: list.map(function (item) { return Number(item.totalCurrentDebt) || 0; }), backgroundColor: theme.blue, borderColor: theme.blue, borderWidth: 1.5, borderRadius: 5 },
+            { label: 'Nợ quá hạn', data: list.map(function (item) { return Number(item.totalOverdueDebt) || 0; }), backgroundColor: theme.red, borderColor: theme.red, borderWidth: 1.5, borderRadius: 5 }
           ]
         },
         options: {
@@ -9182,7 +9211,7 @@
       const color = valueField === 'overdueDebt' ? theme.red : theme.blue;
       state.charts[key] = new Chart(canvas.getContext('2d'), {
         type: 'bar',
-        data: { labels: labels, datasets: [{ label: valueField === 'overdueDebt' ? 'Nợ quá hạn' : 'Nợ hiện tại', data: values, backgroundColor: colorWithAlpha(color, .5), borderColor: color, borderWidth: 1.5, borderRadius: 5 }] },
+        data: { labels: labels, datasets: [{ label: valueField === 'overdueDebt' ? 'Nợ quá hạn' : 'Nợ hiện tại', data: values, backgroundColor: color, borderColor: color, borderWidth: 1.5, borderRadius: 5 }] },
         options: {
           indexAxis: 'y',
           responsive: true,
