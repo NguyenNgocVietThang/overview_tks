@@ -51,7 +51,7 @@ server/
 ├── dashboard/            # Tổng hợp dashboard, xuất Excel/HTML, kiểm tra đứt hàng
 │   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel
 ├── data/                 # Dữ liệu lưu trữ local (users.json, notifications.json, ...)
-├── db/                   # Migration Supabase (0001–0020)
+├── db/                   # Migration Supabase (0001–0021)
 ├── hr/                   # Nhân sự và nghỉ phép
 ├── kiotviet/             # KiotViet API client và webhook receiver
 ├── kiotvietSync/         # Webhook, polling, backfill và rollup

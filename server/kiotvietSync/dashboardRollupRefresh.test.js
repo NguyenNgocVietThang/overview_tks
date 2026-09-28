@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   refreshDashboardRollups, refreshDashboardRollupsAndNotify, startDashboardRollupSchedule,
-  DEFAULT_WINDOW_DAYS, HOT_WINDOW_DAYS
+  DEFAULT_WINDOW_DAYS, HOT_WINDOW_DAYS, __sql__
 } = require('./dashboardRollupRefresh');
 
 function fakePool(rowCountByCallIndex = []) {
@@ -24,7 +24,8 @@ test('refreshDashboardRollups chay dung 4 cau SQL cho tung co so da cau hinh, du
   const logs = [];
   const results = await refreshDashboardRollups(pool, {
     getConfiguredBranches: () => [{ branch: 'hanoi' }],
-    log: (m) => logs.push(m)
+    log: (m) => logs.push(m),
+    firstPurchaseFullRunAt: new Map()
   });
 
   assert.equal(pool.calls.length, 4, 'phai chay 4 cau SQL (invoice/product/purchase/first-purchase) cho 1 co so');
@@ -160,6 +161,115 @@ test('hai luot rollup goi chong nhau duoc noi tiep, khong dam vao cung dong', as
   const firstHot = order.indexOf('nong');
   assert.ok(firstHot > order.lastIndexOf('day-du:xong'),
     'luot "nong" chi duoc chay sau khi luot day du ket thuc, thu tu thuc te: ' + order.join(','));
+});
+
+// Cac cau rollup chay hang tram lan/ngay: khong duoc ghi de dong khong doi (do
+// 2026-09-28: ~115 trieu UPDATE tren 62.000 dong, 36,8GB WAL/34 ngay) va bo
+// loc ngay phai dung duoc index. Test chan viec ai do "don gian hoa" lai.
+test('cac cau rollup loai dong khong doi o SELECT (LEFT JOIN + IS DISTINCT FROM), khong DO UPDATE vo dieu kien', () => {
+  const { INVOICE_SUMMARY_SQL, PRODUCT_SALES_SQL, PURCHASE_SUMMARY_SQL, FIRST_PURCHASE_SQL, FIRST_PURCHASE_RECENT_SQL } = __sql__;
+  for (const [sql, table] of [
+    [INVOICE_SUMMARY_SQL, 'daily_invoice_summary'],
+    [PRODUCT_SALES_SQL, 'daily_product_sales'],
+    [PURCHASE_SUMMARY_SQL, 'daily_purchase_summary']
+  ]) {
+    assert.match(sql, new RegExp(`LEFT JOIN ${table} t`), `${table}: phai LEFT JOIN bang dich de biet dong nao doi`);
+    assert.match(sql, /t\.branch IS NULL/, `${table}: dong moi phai duoc them`);
+    assert.match(sql, /IS DISTINCT FROM/, `${table}: chi ghi khi gia tri khac`);
+  }
+  for (const sql of [FIRST_PURCHASE_SQL, FIRST_PURCHASE_RECENT_SQL]) {
+    assert.match(sql, /LEFT JOIN product_first_purchase t/);
+    assert.match(sql, /a\.first_purchase_date < t\.first_purchase_date/, 'chi ghi khi moc moi SOM HON moc dang luu');
+  }
+});
+
+test('bo loc ngay cua rollup so sanh thang cot goc (dung duoc index), khong boc cot trong ::date', () => {
+  for (const sql of [__sql__.INVOICE_AGG_SQL, __sql__.PRODUCT_SALES_AGG_SQL, __sql__.PURCHASE_AGG_SQL,
+    __sql__.FIRST_PURCHASE_RECENT_SQL]) {
+    assert.match(sql, /purchase_date >= \(\(\(now\(\) AT TIME ZONE 'Asia\/Ho_Chi_Minh'\)::date - \$2::int\)::timestamp AT TIME ZONE 'UTC'\)/);
+    assert.doesNotMatch(sql, /\(\w*\.?purchase_date AT TIME ZONE 'UTC'\)::date >=/,
+      'khong duoc quay lai dang (cot AT TIME ZONE ...)::date >= (khong dung duoc index)');
+  }
+});
+
+test('tong hop tinh ::numeric de so sanh dung kieu voi cot dich', () => {
+  assert.match(__sql__.PRODUCT_SALES_AGG_SQL, /SUM\(s\.qty\), 0\)::numeric AS qty/);
+  assert.match(__sql__.PRODUCT_SALES_AGG_SQL, /SUM\(s\.amount\), 0\)::numeric AS revenue/);
+  assert.match(__sql__.INVOICE_AGG_SQL, /::numeric AS revenue/);
+  assert.match(__sql__.PURCHASE_AGG_SQL, /::numeric AS total/);
+});
+
+function fakePoolWithClient({ failOn } = {}) {
+  const statements = [];
+  let released = 0;
+  const client = {
+    query: async (sql) => {
+      statements.push(String(sql).trim().split(/\s+/).slice(0, 3).join(' '));
+      if (failOn && String(sql).includes(failOn)) throw new Error('boom');
+      return { rowCount: 2 };
+    },
+    release: () => { released += 1; }
+  };
+  return { statements, get released() { return released; }, connect: async () => client, query: async () => { throw new Error('phai dung client'); } };
+}
+
+test('giao dich rollup chay voi SET LOCAL work_mem roi COMMIT, tra ket noi ve pool', async () => {
+  const pool = fakePoolWithClient();
+  await refreshDashboardRollups(pool, {
+    windowDays: HOT_WINDOW_DAYS, includeFirstPurchase: false, log: () => {},
+    getConfiguredBranches: () => [{ branch: 'hanoi' }]
+  });
+  // 3 cau x (BEGIN, SET LOCAL, cau chinh, COMMIT)
+  assert.equal(pool.statements.length, 12);
+  assert.deepEqual(pool.statements.slice(0, 4), ['BEGIN', "SET LOCAL work_mem", 'WITH agg AS', 'COMMIT']);
+  assert.equal(pool.released, 3, 'moi giao dich phai tra ket noi ve pool');
+});
+
+test('giao dich rollup ROLLBACK, tra ket noi va nem lai loi khi cau SQL that bai', async () => {
+  const pool = fakePoolWithClient({ failOn: 'daily_invoice_summary' });
+  await assert.rejects(
+    refreshDashboardRollups(pool, {
+      windowDays: HOT_WINDOW_DAYS, includeFirstPurchase: false, log: () => {},
+      getConfiguredBranches: () => [{ branch: 'hanoi' }]
+    }),
+    /boom/
+  );
+  assert.ok(pool.statements.includes('ROLLBACK'));
+  assert.ok(!pool.statements.includes('COMMIT'));
+  assert.equal(pool.released, 1);
+});
+
+test('product_first_purchase: lan dau moi co so chay ban DAY DU, sau do ban "gan day" cho toi khi het han', async () => {
+  const pool = fakePool();
+  const fullRunAt = new Map();
+  let clock = 1_000_000;
+  const opts = {
+    log: () => {}, getConfiguredBranches: () => [{ branch: 'hanoi' }],
+    firstPurchaseFullRunAt: fullRunAt, now: () => clock, firstPurchaseFullIntervalMs: 60_000
+  };
+  const firstPurchaseCall = (i) => pool.calls.filter((c) => /INTO product_first_purchase/.test(c.sql))[i];
+
+  await refreshDashboardRollups(pool, opts);
+  assert.deepEqual(firstPurchaseCall(0).params, ['hanoi'], 'lan dau: ban day du, chi truyen branch');
+  assert.doesNotMatch(firstPurchaseCall(0).sql, /pu\.purchase_date >=/);
+
+  clock += 30_000;
+  await refreshDashboardRollups(pool, opts);
+  assert.deepEqual(firstPurchaseCall(1).params, ['hanoi', DEFAULT_WINDOW_DAYS], 'chua het han: ban gan day co cua so ngay');
+  assert.match(firstPurchaseCall(1).sql, /pu\.purchase_date >=/);
+
+  clock += 30_000;
+  await refreshDashboardRollups(pool, opts);
+  assert.deepEqual(firstPurchaseCall(2).params, ['hanoi'], 'het han: quay lai ban day du');
+});
+
+test('product_first_purchase: ban day du that bai thi KHONG ghi nhan de lan sau thu lai ban day du', async () => {
+  const fullRunAt = new Map();
+  const failing = { query: async () => { throw new Error('db down'); } };
+  await assert.rejects(refreshDashboardRollups(failing, {
+    log: () => {}, getConfiguredBranches: () => [{ branch: 'hanoi' }], firstPurchaseFullRunAt: fullRunAt
+  }));
+  assert.equal(fullRunAt.has('hanoi'), false);
 });
 
 test('refreshDashboardRollupsAndNotify chi phat su kien khi refresh thanh cong', async () => {

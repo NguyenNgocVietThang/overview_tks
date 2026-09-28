@@ -63,5 +63,6 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0018` | `product_report` — báo cáo hàng hóa tổng hợp 2 cơ sở |
 | `0019` | Thêm vai trò `Nhân viên marketing` vào CHECK `app_users.vai_tro` |
 | `0020` | `app_users.feature_permissions JSONB` — phân quyền theo tính năng từng tài khoản |
+| `0021` | Index ngày `invoices`/`purchases`/`returns` cho rollup Dashboard và làm mới công nợ 1/3/7 ngày |
 
 Bot Telegram chạy ngoài repo và đọc/ghi 3 bảng nghỉ phép trực tiếp — hợp đồng dữ liệu ở `db/SCHEMA.md`.

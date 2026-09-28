@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0020`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0021`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -119,7 +119,9 @@ Role Postgres cấp cho nhân viên dùng SQL client/BI tool để truy vấn tr
 | `product_first_purchase` | Ngày nhập hàng đầu tiên của từng mã hàng (toàn bộ lịch sử, không giới hạn cửa sổ refresh) | `(branch, product_id)` | `first_purchase_date` (MIN, giữ mốc cũ hơn khi `ON CONFLICT` qua `LEAST`) |
 
 - Cả 4 bảng không có cột `raw`, chỉ lưu số đã tổng hợp — tên/nhóm hàng/trạng thái hiện tại luôn join trực tiếp với `products`/`categories`/`suppliers` tại thời điểm đọc, không lưu lại (bake) vào rollup để tránh phải tính lại khi đổi tên/nhóm.
-- Refresh bởi `server/kiotvietSync/dashboardRollupRefresh.js` mỗi 5 phút, cửa sổ 400 ngày gần nhất cho `daily_invoice_summary`/`daily_product_sales`/`daily_purchase_summary`; `product_first_purchase` luôn quét toàn bộ `purchases` (không giới hạn cửa sổ) vì ngày nhập đầu tiên có thể xa hơn 400 ngày.
+- Refresh bởi `server/kiotvietSync/dashboardRollupRefresh.js`: lượt "nóng" 7 ngày sau mỗi lượt sync fast, lượt đầy đủ cửa sổ 400 ngày mỗi 30 phút cho `daily_invoice_summary`/`daily_product_sales`/`daily_purchase_summary`. `product_first_purchase` cần toàn bộ lịch sử `purchases` (ngày nhập đầu tiên có thể xa hơn 400 ngày) nên bản quét đầy đủ chỉ chạy lúc khởi động và mỗi 6 giờ; giữa hai lần đó chỉ xét phiếu nhập trong cửa sổ ngày gần đây.
+- **Chỉ ghi dòng thật sự đổi**: mỗi cầu SQL gộp trước rồi `LEFT JOIN` vào bảng đích và bỏ dòng có giá trị y hệt (`IS DISTINCT FROM`), nên `updated_at` là "lần thay đổi gần nhất", không phải "lần tính lại gần nhất". Đừng đổi lại thành `ON CONFLICT DO UPDATE` vô điều kiện (kể cả thêm `WHERE` trong `DO UPDATE` cũng chưa đủ — Postgres vẫn khoá từng dòng trùng khoá và ghi WAL): bản cũ từng UPDATE ~115 triệu lần trên 62.000 dòng, sinh ~37GB WAL + ~115GB tệp tạm trong 34 ngày làm cạn Disk IO Budget của Supabase (2026-09-28).
+- Bộ lọc ngày so sánh thẳng cột gốc với mốc `TIMESTAMPTZ` (không bọc `(cột AT TIME ZONE 'UTC')::date`) để dùng được các index ngày (migration `0021`).
 - Không `REVOKE SELECT FROM reporting_readonly` trên 4 bảng này — dữ liệu chỉ là số tổng hợp, không nhạy cảm.
 
 ### Hoạt động công nợ theo kỳ CN1/CN3/CN7 (migration `0014`)
@@ -127,6 +129,12 @@ Role Postgres cấp cho nhân viên dùng SQL client/BI tool để truy vấn tr
 | Bảng | Mục đích | Khóa chính | Cột chính |
 |---|---|---|---|
 | `customer_debt_activity_periods` | Khách hàng có phát sinh giao dịch trong 1/3/7 ngày gần nhất (CN1/CN3/CN7, trước đây gọi là HN1/HN3/HN7), thay thế các tab Google Sheets cũ | `(branch, period_days, customer_id)` | `customer_name`, `refreshed_at` |
+
+- Làm mới mỗi 5 phút bằng upsert-khi-đổi-tên + xoá dòng không còn trong tập hiện tại (không xoá hết rồi nạp lại), nên `refreshed_at` là "lần thay đổi gần nhất" của dòng.
+
+### Index ngày cho job định kỳ (migration `0021`)
+
+`idx_invoices_purchase_date (branch, purchase_date)`, `idx_purchases_purchase_date (branch, purchase_date)`, `idx_returns_return_date (branch, return_date)` — phục vụ rollup Dashboard và làm mới công nợ 1/3/7 ngày chỉ cần đọc vài ngày gần nhất (cùng `idx_cash_flows_trans_date` từ `0006`).
 
 - `period_days` nhận một trong ba giá trị: `1`, `3`, `7` tương ứng kỳ CN1, CN3, CN7.
 - Index lookup: `(branch, period_days, customer_name)`.
