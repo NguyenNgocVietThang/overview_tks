@@ -53,3 +53,4 @@ server/data/roleChangeRequests.json*
 # File nay duoc tao tu dong khi server khoi dong lan dau (xem server/auth/localUserStore.js)
 # De seed du lieu ban dau: copy server/data/users.json.example -> server/data/users.json
 server/data/users.json
+.codex_tmp/
