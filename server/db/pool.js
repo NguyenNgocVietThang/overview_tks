@@ -27,15 +27,14 @@ function getPool() {
 
   pool = new Pool({
     connectionString: CONFIG.SUPABASE_DB_URL,
-    // Tung la 5 — qua thap sau khi dashboardPgReader/dashboardRollupRepository
-    // tach nho query de chay song song (1 request /api/dashboard can toi 14
-    // cau cung luc: 7 tab "core" + 7 rollup, xem dashboardData.js
-    // fetchDashboardRollups()) - voi max:5, phan lon phai xep hang cho ket
-    // noi ranh, lam tong thoi gian request cham hon han tung cau rieng le do
-    // duoc (do that 2026-09-18: 11.4s ca request vs <6s neu khong nghen pool).
-    // 12 van an toan so voi han muc direct connection cua Supabase free-tier
-    // (con job dong bo/refresh khac cung dung chung pool nay).
-    max: 12,
+    // Tung la 5 — qua thap khi 1 request /api/dashboard can toi 14 cau cung
+    // luc (7 tab "core" + 7 rollup, xem dashboardData.js fetchDashboardRollups()):
+    // voi max:5 phai xep hang cho ket noi ranh, request cham hon han (do that
+    // 2026-09-18: 11.4s vs <6s). Sau do tang 12, nhung khi deploy 2 instance
+    // chay chong nhau (2 x 12 = 24) vuot pool_size 15 cua Supabase ->
+    // EMAXCONNSESSION (2026-09-28). Nay mac dinh 7 (2 x 7 = 14), chinh bang
+    // PG_POOL_MAX, xem config.js.
+    max: CONFIG.PG_POOL_MAX,
     ssl: CONFIG.PGSSL ? { rejectUnauthorized: false } : false
   });
 
