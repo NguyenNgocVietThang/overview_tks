@@ -40,7 +40,7 @@ test('empty checkpoint on a snapshot entity (no backfillRangeParam) does a full 
   const entity = { entity: 'products', endpoint: 'products', listQuery: { includeInventory: 'true' }, incrementalParam: 'lastModifiedFrom', upsertPage: pool.upsert };
   await driver.pollEntityOnce(api, 'hanoi', entity);
   assert.deepEqual(queries[0], ['products', { includeInventory: 'true' }]);
-  assert.equal(advances.length, 2);
+  assert.equal(advances.length, 1);
   assert.ok(pool.transactions.every((tx) => tx.join(',') === 'BEGIN,COMMIT,RELEASE'));
 });
 
@@ -69,7 +69,7 @@ test('a failed page rolls back only that page and does not advance its checkpoin
   }});
   const api = { fetchAllPages: async (_e, _q, onPage) => { await onPage([1]); await onPage([2]); } };
   await assert.rejects(driver.pollEntityOnce(api, 'hanoi', { entity:'orders', endpoint:'orders', listQuery:{}, incrementalParam:'lastModifiedFrom', hasUpperBound:false, upsertPage:pool.upsert }), /page failed/);
-  assert.equal(advances, 1);
+  assert.equal(advances, 0);
   assert.deepEqual(pool.transactions.map((tx) => tx.slice(0, -1)), [['BEGIN','COMMIT'], ['BEGIN','ROLLBACK']]);
 });
 
@@ -101,4 +101,39 @@ test('cash flow recovery ignores an error note and resumes from the last success
   const api={fetchAllPages:async(_endpoint,query,onPage)=>{queries.push(query);await onPage([]);}};
   await driver.pollEntityOnce(api,'hanoi',{entity:'cash_flows',endpoint:'cashflow',listQuery:{},upsertPage:async()=>{}});
   assert.equal(queries[0].startDate,'2026-09-14T00:30:00.000Z');
+});
+
+test('purchases poll recovers recreated backdated receipts omitted by lastModifiedFrom', async () => {
+  const pool = fakePool();
+  const saved = [];
+  const purchases = require('./entities/purchases');
+  const driver = createSyncDriver({ pool, checkpointRepository: {
+    getCheckpoint: async () => ({ last_synced_at: '2026-09-28T00:00:00Z' }),
+    advanceCheckpoint: async () => {}
+  }});
+  const receipt = { id: 16136771, code: 'PN002517', purchaseDate: '2026-09-14T06:24:40', createdDate: '2026-09-17T10:30:50', status: 3 };
+  const api = { fetchAllPages: async (_e, query, onPage) => {
+    assert.equal(query.fromPurchaseDate, '2026-06-01');
+    await onPage(query.lastModifiedFrom ? [] : [receipt]);
+  }};
+  await driver.pollEntityOnce(api, 'hanoi', { ...purchases,
+    upsertPage: async (_c, _b, items) => saved.push(...items),
+    reconcilePage: async (_c, _b, items) => saved.push(...items)
+  });
+  assert.deepEqual(saved, [receipt]);
+});
+
+test('failed initial snapshot keeps checkpoint empty; an empty successful sweep advances once', async () => {
+  const pool = fakePool();
+  let advances = 0;
+  const driver = createSyncDriver({ pool, checkpointRepository: {
+    getCheckpoint: async () => null, advanceCheckpoint: async () => { advances++; }
+  }});
+  const entity = { entity: 'products', endpoint: 'products', listQuery: {}, upsertPage: pool.upsert };
+  await assert.rejects(driver.pollEntityOnce({ fetchAllPages: async (_e, _q, cb) => {
+    await cb([1]); throw new Error('network failure');
+  }}, 'hanoi', entity), /network failure/);
+  assert.equal(advances, 0);
+  await driver.pollEntityOnce({ fetchAllPages: async () => {} }, 'hanoi', entity);
+  assert.equal(advances, 1);
 });

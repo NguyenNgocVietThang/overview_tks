@@ -7,7 +7,7 @@ function createDocumentEntity(options) {
   const {
     entity, endpoint = entity, listQuery, hasUpperBound = true, parentColumns,
     parentUpdateColumns, mapParent, detailTable, parentIdColumn, detailKeys,
-    detailColumns, mapDetail, payment, backfillRangeParam
+    detailColumns, mapDetail, payment, backfillRangeParam, batchDetails = false
   } = options;
   const parentSql = `INSERT INTO ${entity} (${parentColumns.join(',')}) VALUES (${parentColumns.map((_, i) => `$${i + 1}`).join(',')})
     ON CONFLICT (branch, id) DO UPDATE SET ${parentUpdateColumns.map((c) => `${c}=EXCLUDED.${c}`).join(', ')}, raw=EXCLUDED.raw, synced_at=now()`;
@@ -42,8 +42,16 @@ function createDocumentEntity(options) {
         await pgClient.query(parentSql, [branch, ...parentValues, item]);
         await pgClient.query(`DELETE FROM ${detailTable} WHERE branch=$1 AND ${parentIdColumn}=$2`, [branch, id]);
         const details = array(item, ...detailKeys);
-        for (let lineNo = 0; lineNo < details.length; lineNo++) {
-          await pgClient.query(detailSql, [branch, id, lineNo, ...mapDetail(details[lineNo]), details[lineNo]]);
+        const batchSize = batchDetails ? 500 : 1;
+        for (let start = 0; start < details.length; start += batchSize) {
+          const rows = details.slice(start, start + batchSize).map((detail, i) =>
+            [branch, id, start + i, ...mapDetail(detail), detail]);
+          const placeholders = rows.map((row, i) =>
+            `(${row.map((_, j) => `$${i * detailColumns.length + j + 1}`).join(',')})`);
+          const sql = batchDetails
+            ? `INSERT INTO ${detailTable} (${detailColumns.join(',')}) VALUES ${placeholders.join(',')}`
+            : detailSql;
+          await pgClient.query(sql, rows.flat());
         }
         if (payment) {
           await pgClient.query(`DELETE FROM ${payment.table} WHERE branch=$1 AND ${parentIdColumn}=$2`, [branch, id]);

@@ -145,3 +145,23 @@ test('hasUnreliableZeroOnHand: false khi ngay gan nhat co Nhap hang VA nguon kha
 test('hasUnreliableZeroOnHand: false khi khong co su kien nao', () => {
   assert.equal(hasUnreliableZeroOnHand([]), false);
 });
+
+test('MCRY301 Hanoi stock card: replenishment on Sep 14 separates Sep 9-13 and Sep 19-28 outages', () => {
+  const events = [
+    ['2026-08-31',2250,'purchases'], ['2026-09-02',-1650,'invoices'],
+    ['2026-09-03',-600,'invoices'], ['2026-09-05',300,'purchases'],
+    ['2026-09-08',-150,'invoices'], ['2026-09-09',-150,'invoices'],
+    ['2026-09-14',4500,'purchases'], ['2026-09-14',-1650,'invoices'],
+    ['2026-09-15',-600,'invoices'], ['2026-09-19',-2250,'supplierReturns']
+  ].map(([dateKey, delta, source]) => ({ dateKey, delta, source }));
+  const result = analyzeStockoutTimeline({ currentOnHand: 0, events, todayKey: '2026-09-28', daysBack: 29 });
+  assert.deepEqual(result.periods, [
+    { fromDate: '2026-08-30', toDate: '2026-08-30', days: 1 },
+    { fromDate: '2026-09-09', toDate: '2026-09-13', days: 5 },
+    { fromDate: '2026-09-19', toDate: '2026-09-28', days: 10 }
+  ]);
+  // The Aug 15-30 outage is clipped to the 30-day window starting Aug 30.
+  assert.equal(result.summary.totalStockoutDays, 16);
+  assert.equal(result.dailyStock.find(d => d.date === '2026-09-14').stock, 2850);
+  assert.equal(result.dailyStock.find(d => d.date === '2026-09-18').stock, 2250);
+});
