@@ -20,6 +20,8 @@ function fakePool(rowsBySheetName = {}) {
   return {
     calls,
     async query(sql, params) {
+      // Truy van phu 'Đang vận chuyển' (tab Hang hoa) khong thuoc cac phep dem cau SQL cua tab.
+      if (String(sql).includes('-- in-transit')) return { rows: [] };
       calls.push({ sql, params });
       const match = SHEET_NAMES.find(name => sql.includes(`-- tab: ${name}`));
       return { rows: rowsBySheetName[match] || [] };
@@ -161,6 +163,8 @@ test('readCoreDashboardSheets mo rong Ca hai thanh hai nguon vat ly va gan prove
   const pool = {
     calls: [],
     async query(sql, params) {
+      // Truy van phu 'Đang vận chuyển' (tab Hang hoa) khong thuoc cac phep dem cau SQL cua tab.
+      if (String(sql).includes('-- in-transit')) return { rows: [] };
       this.calls.push({ sql, params });
       if (!sql.includes(`-- tab: ${CONFIG.SHEET_INVOICES}`)) return { rows: [] };
       const row = Object.fromEntries(invoiceColumns.map(column => [column, '']));
@@ -223,6 +227,8 @@ function fakeCodePool(makeRows = () => []) {
     calls,
     maxInFlight: 0,
     async query(sql, params) {
+      // Truy van phu 'Đang vận chuyển' (tab Hang hoa) khong thuoc cac phep dem cau SQL cua tab.
+      if (String(sql).includes('-- in-transit')) return { rows: [] };
       calls.push({ sql, params });
       const callIndex = calls.length - 1;
       inFlight += 1;
@@ -597,4 +603,140 @@ test('readCoreDashboardSheets(branch, sheetNames) van mo rong "Ca hai" thanh hai
   const reader = createDashboardPgReader({ pool });
   await reader.readCoreDashboardSheets('Cả hai', [CONFIG.SHEET_CUSTOMERS]);
   assert.deepEqual(pool.calls.map(call => call.params[0]).sort(), ['hanoi', 'saigon']);
+});
+
+test('moi tab co cot "Cơ sở" o CUOI (alias co_so) va SQL dien nhan co so tu tham so $1', () => {
+  SHEET_NAMES.forEach(name => {
+    const tab = __tabs__[name];
+    assert.equal(tab.headers[tab.headers.length - 1], 'Cơ sở', `"${name}": header cuoi la Cơ sở`);
+    assert.equal(tab.columns[tab.columns.length - 1], 'co_so', `"${name}": alias cuoi la co_so`);
+  });
+});
+
+test('readDashboardSheets: SQL moi tab chon nhan co so theo $1 (hanoi -> Hà Nội, saigon -> Sài Gòn)', async () => {
+  const pool = fakePool();
+  await createDashboardPgReader({ pool }).readDashboardSheets('Hà Nội');
+  assert.equal(pool.calls.length, SHEET_NAMES.length);
+  pool.calls.forEach(call => {
+    assert.match(call.sql, /CASE \$1::text WHEN 'saigon' THEN 'Sài Gòn' ELSE 'Hà Nội' END\s+AS co_so/);
+  });
+});
+
+test('readDashboardSheets: gia tri Cơ sở duoc dua ra cot cuoi cua moi dong (Ca hai gop hai co so)', async () => {
+  const productRow = { ma_hang: 'SP-1', ten_hang: 'Áo', trang_thai: 'Đang kinh doanh' };
+  const pool = {
+    calls: [],
+    async query(sql, params) {
+      this.calls.push({ sql, params });
+      if (!sql.includes(`-- tab: ${CONFIG.SHEET_PRODUCTS}`)) return { rows: [] };
+      return { rows: [{ ...productRow, co_so: params[0] === 'hanoi' ? 'Hà Nội' : 'Sài Gòn' }] };
+    }
+  };
+  const sheets = await createDashboardPgReader({ pool }).readDashboardSheets('Cả hai');
+  const products = sheets[CONFIG.SHEET_PRODUCTS];
+  const facilityIndex = products[0].indexOf('Cơ sở');
+  assert.deepEqual(products.slice(1).map(row => row[facilityIndex]), ['Hà Nội', 'Sài Gòn'], 'cung ma nhung hai dong rieng');
+});
+
+test('tab Hang hoa chi lay hang dang kinh doanh (is_active IS NOT FALSE), ca ban loc theo ma', async () => {
+  const pool = fakePool();
+  const reader = createDashboardPgReader({ pool });
+  await reader.readDashboardSheets('Hà Nội');
+  await reader.readRowsByCodes(CONFIG.SHEET_PRODUCTS, 'Hà Nội', ['SP-1']);
+  const productSql = pool.calls
+    .filter(call => call.sql.includes(`-- tab: ${CONFIG.SHEET_PRODUCTS}`))
+    .map(call => call.sql);
+  assert.equal(productSql.length, 2);
+  productSql.forEach(sql => assert.match(sql, /AND is_active IS NOT FALSE/));
+});
+
+// ---------- "Đang vận chuyển" (Hàng hóa) ----------
+
+function inTransitPool({ inTransitRows = [], productRows = [], failInTransit = false } = {}) {
+  const calls = [];
+  return {
+    calls,
+    async query(sql, params) {
+      calls.push({ sql, params });
+      if (sql.includes('-- in-transit')) {
+        if (failInTransit) { const error = new Error('relation "order_suppliers" does not exist'); error.code = '42P01'; throw error; }
+        return { rows: inTransitRows };
+      }
+      if (sql.includes(`-- tab: ${CONFIG.SHEET_PRODUCTS}`)) return { rows: productRows.map(row => ({ ...row })) };
+      return { rows: [] };
+    }
+  };
+}
+
+test('tab Hang hoa co cot "Đang vận chuyển" ngay truoc cot Cơ sở cuoi cung', () => {
+  const tab = __tabs__[CONFIG.SHEET_PRODUCTS];
+  assert.ok(tab.headers.includes('Đang vận chuyển'));
+  assert.equal(tab.headers.indexOf('Đang vận chuyển'), tab.columns.indexOf('dang_van_chuyen'));
+  assert.equal(tab.headers.indexOf('Đang vận chuyển'), tab.headers.length - 2);
+});
+
+test('"Đang vận chuyển": truy van rieng CHI tinh phieu Dat hang nhap Sai Gon "Đã xác nhận NCC" theo chuoi statusValue', async () => {
+  const pool = inTransitPool();
+  await createDashboardPgReader({ pool }).readCoreDashboardSheets('Hà Nội', [CONFIG.SHEET_PRODUCTS]);
+  const call = pool.calls.find(c => c.sql.includes('-- in-transit'));
+  assert.ok(call, 'phai co truy van hang dang van chuyen');
+  assert.match(call.sql, /FROM order_suppliers o\s+JOIN order_supplier_details d/);
+  assert.match(call.sql, /o\.branch = 'saigon' AND o\.raw->>'statusValue' = \$1/, 'co dinh Sai Gon, loc theo chuoi trang thai');
+  assert.deepEqual(call.params, ['Đã xác nhận NCC']);
+  assert.match(call.sql, /LEFT JOIN products sp ON sp\.branch = o\.branch AND sp\.id = d\.product_id/, 'chi tiet chi co productId nen phai noi products de lay ma');
+  assert.doesNotMatch(call.sql, /o\.status\s*=/, 'khong loc theo ma so status');
+  // SQL cua tab Hang hoa khong con phu thuoc bang order_suppliers.
+  pool.calls.filter(c => c.sql.includes(`-- tab: ${CONFIG.SHEET_PRODUCTS}`))
+    .forEach(c => assert.doesNotMatch(c.sql, /order_suppliers/));
+});
+
+test('"Đang vận chuyển": dien so theo ma (khong phan biet hoa thuong/khoang trang) cho dong cua Ha Noi va Sai Gon, ma khong co = 0', async () => {
+  const pool = inTransitPool({
+    inTransitRows: [{ product_key: 'sp-1', qty: '720' }, { product_key: 'sp-9', qty: 5 }],
+    productRows: [{ ma_hang: ' SP-1 ', ten_hang: 'A' }, { ma_hang: 'SP-2', ten_hang: 'B' }]
+  });
+  const sheets = await createDashboardPgReader({ pool }).readCoreDashboardSheets('Cả hai', [CONFIG.SHEET_PRODUCTS]);
+  const products = sheets[CONFIG.SHEET_PRODUCTS];
+  const idx = products[0].indexOf('Đang vận chuyển');
+  assert.deepEqual(products.slice(1).map(row => row[idx]), [720, 0, 720, 0], 'cung so theo ma o ca 2 co so (2 dong moi co so)');
+  assert.equal(pool.calls.filter(c => c.sql.includes('-- in-transit')).length, 1, 'chi 1 truy van dung chung cho ca hai co so');
+});
+
+test('"Đang vận chuyển": khong doc tab Hang hoa thi khong chay truy van hang dang van chuyen', async () => {
+  const pool = inTransitPool();
+  await createDashboardPgReader({ pool }).readCoreDashboardSheets('Hà Nội', [CONFIG.SHEET_CUSTOMERS]);
+  assert.equal(pool.calls.some(c => c.sql.includes('-- in-transit')), false);
+});
+
+test('"Đang vận chuyển": fail-soft — bang order_suppliers chua co (42P01) thi cot = 0, cac cot khac van doc duoc', async () => {
+  const pool = inTransitPool({ failInTransit: true, productRows: [{ ma_hang: 'SP-1', ten_hang: 'A', ton_kho: 5 }] });
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  try {
+    const sheets = await createDashboardPgReader({ pool }).readCoreDashboardSheets('Hà Nội', [CONFIG.SHEET_PRODUCTS]);
+    const products = sheets[CONFIG.SHEET_PRODUCTS];
+    assert.equal(products.length, 2);
+    assert.equal(products[1][products[0].indexOf('Đang vận chuyển')], 0);
+    assert.equal(products[1][products[0].indexOf('Tồn kho')], 5);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test('readRowsByCodes(Hàng hóa) cung dien cot dang_van_chuyen; huy truoc lo dau thi khong chay truy van nao', async () => {
+  const pool = inTransitPool({
+    inTransitRows: [{ product_key: 'sp-1', qty: 30 }],
+    productRows: [{ ma_hang: 'SP-1', ten_hang: 'A' }]
+  });
+  const result = await createDashboardPgReader({ pool }).readRowsByCodes(CONFIG.SHEET_PRODUCTS, 'Hà Nội', ['SP-1']);
+  assert.equal(result.rows[0].dang_van_chuyen, 30);
+
+  const pre = new AbortController();
+  pre.abort();
+  const poolPre = inTransitPool();
+  await assert.rejects(
+    createDashboardPgReader({ pool: poolPre }).readRowsByCodes(CONFIG.SHEET_PRODUCTS, 'Hà Nội', ['A'], { signal: pre.signal }),
+    error => error.code === 'EXPORT_ABORTED'
+  );
+  assert.equal(poolPre.calls.length, 0);
 });

@@ -107,11 +107,21 @@ const REFRESH_SQL = `
       AND i.purchase_date >= ((vn_today.today - 90)::timestamp AT TIME ZONE 'UTC')
       AND i.purchase_date <  (vn_today.today::timestamp AT TIME ZONE 'UTC')
   ),
-  customer_agg AS (
+  -- MATERIALIZED: customer_agg duoc doc 2 lan (xep hang khach lon nhat + luu vao
+  -- product_report_customers cho khung "Chi tiet" cua bang) nen phai tinh dung 1
+  -- lan, khong de planner quet lai 90 ngay invoice_details.
+  customer_agg AS MATERIALIZED (
     SELECT product_key, customer_key, MIN(customer_name) AS customer_name, SUM(amount) AS revenue
     FROM sales90_lines
     WHERE product_key <> ''
     GROUP BY product_key, customer_key
+  ),
+  -- CTE ghi du lieu luon chay du 1 lan du cau lenh chinh khong doc RETURNING.
+  saved_customers AS (
+    INSERT INTO product_report_customers (product_key, customer_key, customer_name, revenue)
+    SELECT product_key, customer_key, customer_name, revenue
+    FROM customer_agg
+    RETURNING 1
   ),
   customer_ranked AS (
     SELECT
@@ -151,15 +161,15 @@ const REFRESH_SQL = `
   LEFT JOIN customer_top ct ON ct.product_key = lower(btrim(hn.code))`;
 
 /**
- * Tinh lai TOAN BO bang product_report (khong theo tung co so - bang gom ca
- * 2 co so tren 1 dong/ma hang). Xoa trang roi nap lai trong 1 transaction de
+ * Tinh lai TOAN BO bang product_report va product_report_customers (khong theo
+ * tung co so - bang gom ca 2 co so tren 1 dong/ma hang). Xoa trang roi nap lai trong 1 transaction de
  * khong co trang thai "nua vơi" neu loi giua chung.
  */
 async function refreshProductReport(pool, { log = console.log } = {}) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query('TRUNCATE product_report');
+    await client.query('TRUNCATE product_report, product_report_customers');
     const result = await client.query(REFRESH_SQL, [BRANCH_CODES]);
     await client.query('COMMIT');
     log(`[productReportRefresh] Da tinh lai ${result.rowCount || 0} ma hang.`);

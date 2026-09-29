@@ -44,10 +44,10 @@ const ALL_ROLLUPS = Object.freeze([
 ]);
 
 const VIEW_SOURCES = Object.freeze({
-  // Tong quan: KPI (hang hoa/hoa don hom nay/khach hang) + 2 bieu do tron doanh thu theo nhom hang.
+  // Tong quan: KPI (hang hoa/hoa don hom nay/khach hang).
   overview: {
     sheets: [CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES, CONFIG.SHEET_CUSTOMERS],
-    rollups: ['overviewRevenue', 'productSales'],
+    rollups: ['overviewRevenue'],
     needsDebt: false
   },
   products: {
@@ -82,7 +82,7 @@ const VIEW_SOURCES = Object.freeze({
 
 // Khoa cua object `filters` (xem routes.js) anh huong ket qua cua tab.
 const VIEW_FILTER_KEYS = Object.freeze({
-  overview: ['overview', 'products'],
+  overview: ['overview'],
   products: ['products', 'newProducts'],
   invoices: ['invoices'],
   customers: ['customers'],
@@ -91,28 +91,27 @@ const VIEW_FILTER_KEYS = Object.freeze({
 });
 
 // Phan payload moi tab tra ve. `top`: khoa top-level tra nguyen; `nested`: chi
-// mot so truong con cua khoa do (vd Tong quan chi can 2 truong cua `products`
-// cho bieu do nhom hang, khong keo ca bang san pham); `kpi`/`filters`: truong
+// mot so truong con cua khoa do (khong keo ca khoa); `kpi`/`filters`: truong
 // con cua 2 khoa luon co mat. Moi truong o day PHAI duoc computeDashboardData()
 // tinh cho tab do — test "moi tab tra dung lat cat cua ban day du" giu dieu do.
 const VIEW_PAYLOAD = Object.freeze({
   overview: {
     top: ['overview'],
-    nested: { products: ['childCategorySalesByParent', 'availableParentCategories'] },
+    nested: {},
     kpi: [
       'revenueToday', 'invoicesToday', 'cancelledToday', 'totalStock', 'totalProducts',
-      'lowStockCount', 'totalCustomers', 'customersWithDebt', 'totalDebt'
+      'lowStockCount', 'totalInventoryValue', 'totalCustomers', 'customersWithDebt', 'totalDebt'
     ],
-    filters: ['overview', 'products', 'productStatus']
+    filters: ['overview']
   },
   products: {
     top: ['products', 'lowStock', 'stockValueByCategory', 'allProducts', 'stockByCategory'],
     nested: {},
     kpi: [
-      'totalProducts', 'totalStock', 'inStockCodes', 'activeProducts', 'inactiveProducts',
+      'totalProducts', 'totalStock', 'inStockCodes', 'activeProducts',
       'lowStockCount', 'totalInventoryValue', 'inventoryValueCategoryCount'
     ],
-    filters: ['products', 'productStatus', 'newProducts']
+    filters: ['products', 'newProducts']
   },
   invoices: {
     top: ['invoices'],

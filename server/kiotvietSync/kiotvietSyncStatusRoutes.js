@@ -17,6 +17,7 @@ const BUSINESS_TABLES = Object.freeze([
   { table: 'orders', orderColumn: 'modified_date' },
   { table: 'returns', orderColumn: 'modified_date' },
   { table: 'purchases', orderColumn: 'modified_date' },
+  { table: 'order_suppliers', orderColumn: 'synced_at' },
   { table: 'cash_flows', orderColumn: 'synced_at' }
 ]);
 

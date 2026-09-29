@@ -90,15 +90,16 @@ test('Hàng đứt gần đây quét ở "Cả hai": bảng có cột Cơ sở v
   dom.window.close();
 });
 
-test('Hàng đứt gần đây quét ở một cơ sở: không thêm cột Cơ sở', () => {
+test('Hàng đứt gần đây quét ở một cơ sở: vẫn có cột Cơ sở, ghi cơ sở của lần quét', () => {
   const dom = createDashboard();
-  dom.window.renderRecentStockoutResultTable({ ...RECENT_BOTH, branch: 'Hà Nội', rows: [RECENT_BOTH.rows[0]] });
+  const { branch: _rowBranch, ...rowWithoutBranch } = RECENT_BOTH.rows[0];
+  dom.window.renderRecentStockoutResultTable({ ...RECENT_BOTH, branch: 'Hà Nội', rows: [rowWithoutBranch] });
 
   const headers = visibleHeaders(dom.window.document, 'recentStockoutResultRows');
-  assert.equal(headers.includes('Cơ sở'), false);
-  assert.equal(headers[0], 'Mã SP');
+  assert.equal(headers[0], 'Cơ sở');
+  assert.equal(headers[1], 'Mã SP');
   assert.deepEqual(visibleCells(dom.window.document, 'recentStockoutResultRows'), [
-    ['SP001', 'Áo thun', '2026-09-10', '11', '']
+    ['Hà Nội', 'SP001', 'Áo thun', '2026-09-10', '11', '']
   ]);
   dom.window.close();
 });
@@ -112,11 +113,12 @@ test('Kiểm tra đứt hàng 90 ngày quét ở "Cả hai": bảng có cột C�
   dom.window.close();
 });
 
-test('Kiểm tra đứt hàng 90 ngày quét ở một cơ sở: không thêm cột Cơ sở', () => {
+test('Kiểm tra đứt hàng 90 ngày quét ở một cơ sở: vẫn có cột Cơ sở', () => {
   const dom = createDashboard();
   dom.window.renderStockout90dResultTable({ ...NINETY_BOTH, branch: 'Sài Gòn', rows: [NINETY_BOTH.rows[1]] });
 
-  assert.equal(visibleHeaders(dom.window.document, 'stockout90dResultRows').includes('Cơ sở'), false);
+  assert.equal(visibleHeaders(dom.window.document, 'stockout90dResultRows')[0], 'Cơ sở');
+  assert.equal(visibleCells(dom.window.document, 'stockout90dResultRows')[0][0], 'Sài Gòn');
   dom.window.close();
 });
 
@@ -129,10 +131,11 @@ test('Kiểm tra đứt hàng 30 ngày quét ở "Cả hai": bảng có cột C�
   dom.window.close();
 });
 
-test('Kiểm tra đứt hàng 30 ngày quét ở một cơ sở: không thêm cột Cơ sở', () => {
+test('Kiểm tra đứt hàng 30 ngày quét ở một cơ sở: vẫn có cột Cơ sở', () => {
   const dom = createDashboard();
   dom.window.renderStockout30dResultTable({ ...NINETY_BOTH, branch: 'Sài Gòn', rows: [NINETY_BOTH.rows[1]] });
 
-  assert.equal(visibleHeaders(dom.window.document, 'stockout30dResultRows').includes('Cơ sở'), false);
+  assert.equal(visibleHeaders(dom.window.document, 'stockout30dResultRows')[0], 'Cơ sở');
+  assert.equal(visibleCells(dom.window.document, 'stockout30dResultRows')[0][0], 'Sài Gòn');
   dom.window.close();
 });

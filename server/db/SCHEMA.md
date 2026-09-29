@@ -40,11 +40,13 @@ Ba hệ định danh này khác nhau. Code sync phải nhận `branch` rõ ràng
 | `return_details` | Dòng hàng của phiếu trả | `(branch, return_id, line_no)` | `product_id`, `quantity`, `price` |
 | `purchases` | Phiếu nhập hàng từ endpoint `/purchaseorders` | `(branch, id)` | `code`, `purchase_date`, `supplier_id`, `total`, `status`, các ngày |
 | `purchase_details` | Dòng hàng của phiếu nhập | `(branch, purchase_id, line_no)` | `product_id`, `quantity`, `price` |
+| `order_suppliers` | Phiếu **Đặt hàng nhập** (PDN…) từ endpoint `/ordersuppliers` (migration `0024`) — khác `purchases` (Nhập hàng) | `(branch, id)` | `code`, `order_date`, `supplier_id`, `total`, `status`, `created_date` (payload không có `modifiedDate`) |
+| `order_supplier_details` | Dòng hàng của phiếu đặt hàng nhập | `(branch, order_supplier_id, line_no)` | `product_id`, `quantity`, `price` (payload chỉ có `productId`, không có `productCode`) |
 | `cash_flows` | Toàn bộ phiếu thu và phiếu chi | `(branch, id)` | `code`, `is_receipt`, `amount`, `method`, đối tác/người dùng, `trans_date` |
 | `webhook_events_raw` | Payload webhook thô để phân tích ở Task 7b | `id` | `received_at`, `payload` |
 | `backfill_progress` | Tiến độ backfill lịch sử (Giai đoạn 3), độc lập với `sync_checkpoints` | `(branch, entity, chunk_key)` | `status`, `next_item`, `records_synced`, `last_error` |
 
-Ngoài 16 bảng nghiệp vụ trên còn có bảng raw webhook, bảng tiến độ backfill, và runner quản lý bảng kỹ thuật `schema_migrations(filename, applied_at)` để mỗi file SQL chỉ được áp dụng một lần.
+Ngoài 18 bảng nghiệp vụ trên còn có bảng raw webhook, bảng tiến độ backfill, và runner quản lý bảng kỹ thuật `schema_migrations(filename, applied_at)` để mỗi file SQL chỉ được áp dụng một lần.
 
 ### Tài khoản đăng nhập và nhân sự (migration `0009`)
 
@@ -53,7 +55,7 @@ Ngoài 16 bảng nghiệp vụ trên còn có bảng raw webhook, bảng tiến 
 | `hr_employees` | Danh sách nhân sự (thay tab "Danh sách nhân sự" Sheets) | `id` (BIGSERIAL) | `branch`, `ho_ten`, `bo_phan`, `email`, `so_dien_thoai`, `is_active` |
 | `app_users` | Tài khoản đăng nhập ứng dụng (thay tab "Users" Sheets) | `id` (UUID, sinh ở app bằng `crypto.randomUUID()`, không dùng `pgcrypto`) | `username`, `password_hash`, `vai_tro`, `co_so`, `trang_thai`, `hr_employee_id`, `telegram_id` |
 
-Hai bảng này **khác** quy ước `branch` 2 giá trị nội bộ ở cột `co_so` của `app_users`: `co_so` có 3 trạng thái + rỗng (`hanoi`/`saigon`/`both`/`''`) vì một tài khoản có thể phụ trách cả hai cơ sở — không nhầm với `branch` (chỉ `hanoi`/`saigon`) dùng ở `hr_employees` và mọi bảng KiotViet khác. `app_users.hr_employee_id` là FK tới `hr_employees(id)` (`ON DELETE SET NULL`) — thay cho cặp con trỏ sheet cũ `(hrSourceBranch, hrRowIndex)`; xoá nhân sự dùng `is_active = false` (soft-delete), không `DELETE` vật lý, để logic khoá tài khoản `hr_removed` (`server/auth/effectiveUserResolver.js`) còn hoạt động được.
+Hai bảng này **khác** quy ước `branch` 2 giá trị nội bộ ở cột `co_so` của `app_users`: `co_so` có 3 trạng thái + rỗng (`hanoi`/`saigon`/`both`/`''`) và chỉ là **cơ sở mặc định** lúc đăng nhập (mọi tài khoản xem được cả hai cơ sở; rỗng = mặc định `Cả hai`) — không nhầm với `branch` (chỉ `hanoi`/`saigon`) dùng ở `hr_employees` và mọi bảng KiotViet khác. `app_users.hr_employee_id` là FK tới `hr_employees(id)` (`ON DELETE SET NULL`) — thay cho cặp con trỏ sheet cũ `(hrSourceBranch, hrRowIndex)`; xoá nhân sự dùng `is_active = false` (soft-delete), không `DELETE` vật lý, để logic khoá tài khoản `hr_removed` (`server/auth/effectiveUserResolver.js`) còn hoạt động được.
 
 Migration `0015` thêm `app_users.telegram_id` dạng `TEXT` để không phụ thuộc giới hạn số nguyên JavaScript và hỗ trợ Telegram ID dài. ID khác rỗng là duy nhất giữa các tài khoản chưa xoá. Từ migration `0016`, cột này là **bản đọc** được trigger đồng bộ từ `hr_telegram_links` (xem mục "Nghỉ phép và bot Telegram"); nguồn sự thật của liên kết Telegram là bảng đó. Tab `_HR_TELEGRAM_LINKS` trên Google Sheets không còn được ứng dụng sử dụng.
 
@@ -181,6 +183,8 @@ trình là an toàn vì mọi bảng dùng `UPSERT` theo `(branch, id)`.
 `product_report` là bảng tổng hợp cho tab "Tổng quan" — cùng ngoại lệ như 4 bảng rollup ở migration `0013` (không có `raw`, khóa chính không bắt đầu bằng `branch` vì mỗi dòng gộp dữ liệu **cả 2 cơ sở** cho 1 mã hàng). Khóa chính là `product_code`. Được `TRUNCATE` + nạp lại toàn bộ **đúng 1 lần/đêm** bởi `server/kiotvietSync/productReportRefresh.js` (không phải mỗi 5 phút như các rollup khác — truy vấn quét 90 ngày hóa đơn cả 2 cơ sở là nặng, xem comment đầu file đó), route `GET /api/product-report` chỉ đọc thẳng bảng này.
 
 Cột `available_to_sell` = tồn 2 cơ sở trừ số lượng đang bị giữ trong **đơn đặt hàng của khách** (bảng `orders`, trạng thái `Phiếu tạm`/`Đang xử lý`/`Đã xác nhận`) — không liên quan đến `purchases` (phiếu đặt NCC). Cột `qty_sold_30d`/`revenue_90d` cộng từ `daily_product_sales` (migration `0013`) trong cửa sổ kết thúc **hôm qua** theo lịch VN (không tính hôm nay). Cột `customer_count_90d`/`top_customer_*` tính trực tiếp từ `invoice_details`/`invoices`/`customers` trong 90 ngày, dùng chung định nghĩa "hóa đơn hợp lệ" (`statusValue != 'Đã hủy'`) với `revenue_90d` để `top_customer_share` không bao giờ vượt 100%.
+
+`product_report_customers` (migration `0023`) là bảng phụ của `product_report`: doanh số 90 ngày của **từng khách theo từng mã hàng**, phục vụ khung "Chi tiết" dưới bảng "Báo cáo hàng hóa" (`GET /api/product-report/customers?code=`). Khóa chính `(product_key, customer_key)` với `product_key = lower(btrim(mã hàng))`, `customer_key` = `code:<mã khách>` hoặc `name:<tên khách>` (khách không có mã, gồm cả "Khách lẻ"). Được ghi **trong cùng 1 câu lệnh** `INSERT` của `productReportRefresh.js` (CTE `customer_agg` `MATERIALIZED` đọc 2 lần) nên khớp tuyệt đối với `customer_count_90d`/`top_customer_*` và không quét thêm 90 ngày hóa đơn. Bảng rỗng đến khi job đêm chạy sau khi áp migration — sau khi deploy chạy tay `node kiotvietSync/productReportRefresh.js` (trong `server/`).
 
 ### Chi tiết hóa đơn 90 ngày theo khách (migration `0022`)
 

@@ -87,7 +87,11 @@ const PRODUCT_FIELDS = [
   field('ngay_cap_nhat', 'Ngày cập nhật', 'Ngày cập nhật', 'date',
     'Ngày giờ KiotViet cập nhật hàng lần cuối; trống nếu chưa từng cập nhật.'),
   field('ma_loai_hang', 'Mã loại hàng', 'Mã loại hàng (số)', 'text',
-    'Mã số loại hàng của KiotViet (1 = Combo, 3 = Dịch vụ), khác chữ ở cột Loại hàng.')
+    'Mã số loại hàng của KiotViet (1 = Combo, 3 = Dịch vụ), khác chữ ở cột Loại hàng.'),
+  field('dang_van_chuyen', 'Đang vận chuyển', 'Hàng đang vận chuyển', 'number',
+    'Số lượng trong phiếu Đặt hàng nhập đã xác nhận nhà cung cấp của Kiot Sài Gòn, theo mã.'),
+  field('co_so', 'Cơ sở', 'Cơ sở', 'text',
+    'Cơ sở (Hà Nội hoặc Sài Gòn) nơi dữ liệu này được đồng bộ.')
 ];
 
 // ---------- Hoa don ----------
@@ -133,7 +137,9 @@ const INVOICE_FIELDS = [
   field('thu_ho_cod', 'Thu hộ COD', 'Thu hộ (COD)', 'general',
     'Có nếu hóa đơn giao hàng và thu hộ tiền (COD), Không nếu không dùng.'),
   field('ngay_tao', 'Ngày tạo', 'Ngày tạo', 'date',
-    'Ngày giờ hóa đơn được tạo trên KiotViet, có thể khác Ngày bán.')
+    'Ngày giờ hóa đơn được tạo trên KiotViet, có thể khác Ngày bán.'),
+  field('co_so', 'Cơ sở', 'Cơ sở', 'text',
+    'Cơ sở (Hà Nội hoặc Sài Gòn) nơi dữ liệu này được đồng bộ.')
 ];
 
 // ---------- Dat hang ----------
@@ -181,7 +187,9 @@ const ORDER_FIELDS = [
   field('ngay_tao', 'Ngày tạo', 'Ngày tạo', 'date',
     'Ngày giờ đơn đặt hàng được tạo trên KiotViet, có thể khác Ngày đặt hàng.'),
   field('ngay_cap_nhat', 'Ngày cập nhật', 'Ngày cập nhật', 'date',
-    'Ngày giờ KiotViet cập nhật đơn đặt hàng lần cuối; trống nếu chưa từng cập nhật.')
+    'Ngày giờ KiotViet cập nhật đơn đặt hàng lần cuối; trống nếu chưa từng cập nhật.'),
+  field('co_so', 'Cơ sở', 'Cơ sở', 'text',
+    'Cơ sở (Hà Nội hoặc Sài Gòn) nơi dữ liệu này được đồng bộ.')
 ];
 
 // ---------- Tra hang ----------
@@ -225,7 +233,9 @@ const RETURN_FIELDS = [
   field('ngay_tao', 'Ngày tạo', 'Ngày tạo', 'date',
     'Ngày giờ phiếu trả hàng được tạo trên KiotViet, có thể khác Ngày trả hàng.'),
   field('ngay_cap_nhat', 'Ngày cập nhật', 'Ngày cập nhật', 'date',
-    'Ngày giờ KiotViet cập nhật phiếu trả hàng lần cuối; trống nếu chưa từng cập nhật.')
+    'Ngày giờ KiotViet cập nhật phiếu trả hàng lần cuối; trống nếu chưa từng cập nhật.'),
+  field('co_so', 'Cơ sở', 'Cơ sở', 'text',
+    'Cơ sở (Hà Nội hoặc Sài Gòn) nơi dữ liệu này được đồng bộ.')
 ];
 
 // ---------- Khach hang ----------
@@ -255,7 +265,9 @@ const CUSTOMER_FIELDS = [
   field('id_gian_hang', 'ID gian hàng', 'Mã nội bộ gian hàng', 'text',
     'Số định danh gian hàng do KiotViet cấp, khác tên gian hàng; cả cơ sở dùng chung một số.'),
   field('ngay_tao', 'Ngày tạo', 'Ngày tạo', 'date',
-    'Ngày giờ khách hàng được tạo trên KiotViet.')
+    'Ngày giờ khách hàng được tạo trên KiotViet.'),
+  field('co_so', 'Cơ sở', 'Cơ sở', 'text',
+    'Cơ sở (Hà Nội hoặc Sài Gòn) nơi dữ liệu này được đồng bộ.')
 ];
 
 // ---------- Nha cung cap ----------
@@ -287,7 +299,9 @@ const SUPPLIER_FIELDS = [
   field('tong_mua', 'Tổng mua', 'Tổng mua', 'number',
     'Tổng giá trị đã mua từ nhà cung cấp do KiotViet tính sẵn (VNĐ).'),
   field('tong_mua_tru_tra_hang', 'Tổng mua trừ trả hàng', 'Tổng mua trừ trả hàng', 'number',
-    'Tổng mua đã trừ giá trị hàng trả lại nhà cung cấp, do KiotViet tính sẵn (VNĐ).')
+    'Tổng mua đã trừ giá trị hàng trả lại nhà cung cấp, do KiotViet tính sẵn (VNĐ).'),
+  field('co_so', 'Cơ sở', 'Cơ sở', 'text',
+    'Cơ sở (Hà Nội hoặc Sài Gòn) nơi dữ liệu này được đồng bộ.')
 ];
 
 // ---------- Nhap hang ----------
@@ -346,7 +360,9 @@ const PURCHASE_LINE_FIELDS = [
   field('thanh_tien', 'Thành tiền', 'Thành tiền', 'number',
     'Thành tiền dòng hàng (VNĐ) theo KiotViet; thiếu thì tính đơn giá x số lượng - giảm giá.'),
   field('so_luong', 'Số lượng', 'Số lượng', 'number',
-    'Số lượng hàng nhập của dòng hàng.')
+    'Số lượng hàng nhập của dòng hàng.'),
+  field('co_so', 'Cơ sở', 'Cơ sở', 'text',
+    'Cơ sở (Hà Nội hoặc Sài Gòn) nơi dữ liệu này được đồng bộ.')
 ];
 
 // sourceKey <-> sheetName <-> codeKey (cot ma dung loc/ghep du lieu cua nguon).

@@ -24,35 +24,30 @@ function viewOf(url) {
 
 function kpi(extra = {}) {
   return {
-    revenueToday: 1500000, invoicesToday: 3, cancelledToday: 1, totalStock: 120, totalProducts: 4, lowStockCount: 1,
+    revenueToday: 1500000, invoicesToday: 3, cancelledToday: 1, totalStock: 120, totalProducts: 4, lowStockCount: 1, totalInventoryValue: 5000,
     totalCustomers: 9, customersWithDebt: 2, totalDebt: 300000, ...extra
   };
 }
 
-// Payload moi tab NHU SERVER TRA (xem VIEW_PAYLOAD): Tong quan chi mang 2 truong cua `products`.
+// Payload moi tab NHU SERVER TRA (xem VIEW_PAYLOAD): Tong quan khong mang khoa `products`.
 function payloadFor(view, marker = 'A') {
   const filters = label => ({ label });
   switch (view) {
     case 'overview':
       return {
         updatedAt: marker, kpi: kpi(),
-        filters: { overview: filters('30 ngày'), products: filters('30 ngày'), productStatus: 'all' },
-        overview: { revenueByDay: [], periodRevenue: 0, periodInvoices: 0 },
-        products: {
-          childCategorySalesByParent: { 'NHÀ BẾP': [{ name: 'Nồi', qty: 10, revenue: 5000000, productCount: 1 }] },
-          availableParentCategories: ['NHÀ BẾP']
-        }
+        filters: { overview: filters('30 ngày') },
+        overview: { revenueByDay: [], periodRevenue: 0, periodInvoices: 0 }
       };
     case 'products':
       return {
         updatedAt: marker,
         kpi: { totalProducts: 4, totalStock: 120, inStockCodes: 3, activeProducts: 3, inactiveProducts: 1, lowStockCount: 1, totalInventoryValue: 5000, inventoryValueCategoryCount: 1 },
-        filters: { products: filters('30 ngày'), productStatus: 'all', newProducts: filters('30 ngày') },
+        filters: { products: filters('30 ngày'), newProducts: filters('30 ngày') },
         products: {
           newProducts: { label: '30 ngày', count: 0, dateColumnAvailable: true, products: [] },
           topSellingProducts: [], topSellingParentCategories: [], allSellingProducts: [{ code: 'SP-1', name: 'Bán chạy', qty: 2, revenue: 200000 }],
-          allSellingParentCategories: [], childCategorySalesByParent: { 'NHÀ BẾP': [{ name: 'Nồi', qty: 10, revenue: 5000000, productCount: 1 }] },
-          availableParentCategories: ['NHÀ BẾP'],
+          allSellingParentCategories: [],
           newlyImported: { label: '30 ngày', count: 0, products: [], topByRevenue: [], salesByCategory: [], countByCategory: [], salesRevenue: 0, salesQty: 0 }
         },
         lowStock: [], stockValueByCategory: [], stockByCategory: [],
@@ -164,9 +159,9 @@ test('khoi dong khong hash: CHI tai tab Tong quan, khong keo 5 tab con lai va kh
 
   assert.equal(page.calls.length, 1);
   const url = page.calls[0].url;
-  assert.match(url, /^\/api\/dashboard\?view=overview&days=30&/);
-  assert.match(url, /prMode=days&prDays=30/, 'Tong quan dung bo loc Hang hoa cho phan nhom hang');
-  assert.match(url, /prStatus=all/);
+  assert.match(url, /^\/api\/dashboard\?view=overview&days=30$/);
+  assert.doesNotMatch(url, /prMode|prDays/, 'Tong quan khong con dung bo loc Hang hoa');
+  assert.doesNotMatch(url, /prStatus/, 'khong con bo loc trang thai kinh doanh');
   assert.doesNotMatch(url, /inMode|puMode|cuMode/, 'khong gui bo loc Hoa don/Nha cung cap/Khach hang');
   assert.equal(page.text('ov-customers'), '9', 'Tong quan ve tu payload cua tab');
   assert.equal(page.veilOn(), false, 'man che tat sau khi tai xong');
@@ -242,7 +237,7 @@ test('doi bo loc tab dang xem chi tai lai tab do, khong keo tab khac', async () 
   assert.match(page.calls[2].url, /view=invoices&days=30&inMode=days&inDays=7/);
 });
 
-test('doi bo loc Hoa don khong lam Tong quan tai lai, nhung doi bo loc Hang hoa lam Tong quan (dung chung bo loc) tai lai khi mo', async () => {
+test('doi bo loc Hoa don hay Hang hoa deu khong lam Tong quan tai lai', async () => {
   const page = createPage();
   await settle();
   page.run("switchView('invoices')");
@@ -264,29 +259,20 @@ test('doi bo loc Hoa don khong lam Tong quan tai lai, nhung doi bo loc Hang hoa 
 
   page.run("switchView('overview')");
   await settle();
-  assert.equal(page.calls.length, afterProducts + 1, 'bo loc Hang hoa doi -> Tong quan phai tai lai');
-  assert.match(page.calls[afterProducts].url, /view=overview.*prDays=7/);
+  assert.equal(page.calls.length, afterProducts, 'chu ky Tong quan khong gom bo loc Hang hoa -> khong tai lai');
 });
 
-test('doi trang thai kinh doanh (Hang hoa) tai lai tab Hang hoa va danh dau Tong quan cu (KPI dung chung bo loc nay)', async () => {
+test('khong con bo loc trang thai kinh doanh: khong co ham setProductStatus va khong tab nao gui prStatus', async () => {
   const page = createPage();
   await settle();
   page.run("switchView('products')");
   await settle();
-  page.run("setProductStatus('Đang kinh doanh')");
-  await settle();
-  const last = page.calls[page.calls.length - 1];
-  assert.equal(last.view, 'products');
-  assert.match(last.url, /prStatus=%C4%90ang%20kinh%20doanh/);
-
-  page.run("switchView('overview')");
-  await settle();
-  const overviewCall = page.calls[page.calls.length - 1];
-  assert.equal(overviewCall.view, 'overview');
-  assert.match(overviewCall.url, /prStatus=%C4%90ang%20kinh%20doanh/);
+  assert.equal(page.run('typeof setProductStatus'), 'undefined');
+  assert.equal(page.doc.getElementById('productStatusToggle'), null);
+  page.calls.forEach(call => assert.doesNotMatch(call.url, /prStatus/));
 });
 
-test('gop payload: Tong quan (1 phan cua products) va Hang hoa (day du) khong ghi de mat truong cua nhau', async () => {
+test('gop payload: Tong quan va Hang hoa (day du) khong ghi de mat truong cua nhau', async () => {
   const page = createPage();
   await settle();
   page.run("switchView('products')");
@@ -294,7 +280,6 @@ test('gop payload: Tong quan (1 phan cua products) va Hang hoa (day du) khong gh
 
   const { state } = page.dash;
   assert.deepEqual(Object.keys(state.data.products).sort().includes('allSellingProducts'), true);
-  assert.ok(state.data.products.childCategorySalesByParent['NHÀ BẾP']);
   assert.equal(state.data.kpi.revenueToday, 1500000, 'kpi Tong quan con nguyen sau khi tab Hang hoa gop kpi cua no');
   assert.equal(state.data.kpi.inStockCodes, 3, 'kpi Hang hoa duoc gop them, khong thay the');
 
@@ -414,7 +399,7 @@ test('cache sessionStorage luu theo tab (kem views) va khoi phuc: ve ngay tu cac
   await settle();
   const cache = JSON.parse(first.dom.window.sessionStorage.getItem('tksDashboardCache'));
   assert.deepEqual(Object.keys(cache.views).sort(), ['overview', 'suppliers']);
-  assert.match(cache.views.overview.sig, /^view=overview&days=30&/);
+  assert.match(cache.views.overview.sig, /^view=overview&days=30$/);
   assert.equal(cache.data.kpi.totalSuppliers, 4);
 
   const second = createPage({ hash: '#suppliers', cache, respond: () => undefined });

@@ -69,6 +69,8 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0016` | 3 bảng nghỉ phép + bot Telegram (`hr_leave_requests`, `hr_telegram_links`, `hr_telegram_sessions`) |
 | `0017` | `supplier_return_imports` — Trả NCC upload Excel thay tab Google Sheets |
 | `0018` | `product_report` — báo cáo hàng hóa tổng hợp 2 cơ sở |
+| `0024` | `order_suppliers`, `order_supplier_details` — phiếu "Đặt hàng nhập" (`/ordersuppliers`), nguồn cột "Hàng đang vận chuyển" của khung Cơ cấu tồn kho |
+| `0023` | `product_report_customers` — doanh số 90 ngày từng khách theo từng mã hàng, dựng cùng job đêm với `product_report` (khung "Chi tiết" của bảng Báo cáo hàng hóa) |
 | `0019` | Thêm vai trò `Nhân viên marketing` vào CHECK `app_users.vai_tro` |
 | `0020` | `app_users.feature_permissions JSONB` — phân quyền theo tính năng từng tài khoản |
 | `0021` | Index ngày `invoices`/`purchases`/`returns` cho rollup Dashboard và làm mới công nợ 1/3/7 ngày |

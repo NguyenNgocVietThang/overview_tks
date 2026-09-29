@@ -576,7 +576,7 @@
               '<label class="tks-field"><span>Email</span><input type="email" id="tksProfileEmail" maxlength="254"></label>' +
               '<label class="tks-field tks-field-readonly"><span>Tài khoản đăng nhập</span><input type="text" id="tksProfileUsername" disabled></label>' +
               '<label class="tks-field tks-field-readonly"><span>Vai trò</span><input type="text" id="tksProfileRole" disabled></label>' +
-              '<label class="tks-field tks-field-readonly"><span>Cơ sở phụ trách</span><input type="text" id="tksProfileFacility" disabled></label>' +
+              '<label class="tks-field tks-field-readonly"><span>Cơ sở mặc định</span><input type="text" id="tksProfileFacility" disabled></label>' +
               '<p class="tks-field-error" id="tksProfileError" hidden></p>' +
               '<button type="button" class="tks-btn-primary" id="tksProfileSave">Lưu thay đổi</button>' +
             '</section>' +

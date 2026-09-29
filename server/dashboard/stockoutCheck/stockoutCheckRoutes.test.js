@@ -290,11 +290,11 @@ test('POST /api/products/supplier-returns/import: thieu file tra 400', async () 
   assert.equal(res.body.code, 'SUPPLIER_RETURN_IMPORT_NO_FILE');
 });
 
-test('POST /api/products/supplier-returns/import: co so nguoi dung khong duoc phep xem tra 403', async () => {
+test('POST /api/products/supplier-returns/import: co so khong phai co so vat ly hop le tra 403', async () => {
   const handler = getRouteHandler('post', '/api/products/supplier-returns/import');
   const req = {
     file: { buffer: Buffer.from(''), originalname: 'file.xlsx' },
-    body: { branch: 'Sài Gòn' },
+    body: { branch: 'Cả hai' },
     user: { coSo: 'Hà Nội', vaiTro: 'Nhân viên' }
   };
   const res = fakeRes();

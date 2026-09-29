@@ -87,7 +87,8 @@ const INVOICE_REVENUE_BY_DAY_SQL = `
 // Dung chung cho getProductSalesBreakdown/getTopSellingProducts — ten/ma hang
 // luon lay tu `products` HIEN TAI (LEFT JOIN, khong INNER JOIN de khong mat
 // dong neu 1 product_id cu khong con khop, du KiotViet khong xoa cung
-// products that su).
+// products that su). Chi hang "Đang kinh doanh": hang ngung kinh doanh (is_active
+// = false) bi loai; khong khop products (p.* NULL) hoac is_active NULL van tinh.
 const PRODUCT_SALES_BASE_SQL = `
   SELECT
     d.product_id AS product_id,
@@ -100,6 +101,7 @@ const PRODUCT_SALES_BASE_SQL = `
   WHERE d.branch = $1
     AND ($2::date IS NULL OR d.sale_date >= $2::date)
     AND ($3::date IS NULL OR d.sale_date <= $3::date)
+    AND p.is_active IS NOT FALSE
   GROUP BY d.product_id, p.code, p.name`;
 
 const TOP_SELLING_PRODUCTS_SQL = `${PRODUCT_SALES_BASE_SQL} ORDER BY revenue DESC LIMIT $4`;
@@ -136,7 +138,8 @@ const FIRST_PURCHASE_DATES_SQL = `
     to_char(pf.first_purchase_date AT TIME ZONE 'UTC', 'DD/MM/YYYY HH24:MI:SS') AS first_purchase_date_text
   FROM product_first_purchase pf
   LEFT JOIN products p ON p.branch = pf.branch AND p.id = pf.product_id
-  WHERE pf.branch = $1`;
+  WHERE pf.branch = $1
+    AND p.is_active IS NOT FALSE`;
 
 // Doc THANG tu invoice_details/invoices (KHONG dung bang rollup, khong can
 // join products) — tong so luong ban theo TUNG HOA DON trong khoang [from,
@@ -248,6 +251,12 @@ function createDashboardRollupRepository({ pool = getPool() } = {}) {
       const result = await pool.query(`${PRODUCT_SALES_BASE_SQL}`, [branchCode, from, to]);
       return result.rows.map(row => mapProductSalesRow(row, true));
     });
+    // Hang hoa cung ma o hai co so la hai dong rieng: nhieu co so thi KHONG gop qua
+    // co so, moi dong gan nhan co so vat ly (`branch`).
+    if (groups.length > 1) {
+      return groups.flatMap(group => mergeProductSalesGroups([group], { preserveNameSource })
+        .map(row => ({ ...row, branch: group.branch })));
+    }
     return mergeProductSalesGroups(groups, { preserveNameSource });
   }
 
@@ -329,12 +338,15 @@ function createDashboardRollupRepository({ pool = getPool() } = {}) {
         firstPurchaseDateText: row.first_purchase_date_text || ''
       }));
     });
+    // Nhieu co so: giu tung dong theo co so (khong gop theo ma), gan nhan co so vat ly.
+    const multiBranch = groups.length > 1;
     const merged = new Map();
-    groups.forEach(({ rows }) => rows.forEach(row => {
-      const key = String(row.code || '').trim().toLocaleLowerCase('vi-VN');
+    groups.forEach(({ branch: physicalBranch, rows }) => rows.forEach(row => {
+      const code = String(row.code || '').trim().toLocaleLowerCase('vi-VN');
+      const key = multiBranch ? `${physicalBranch} ${code}` : code;
       const current = merged.get(key);
       if (!current) {
-        merged.set(key, { ...row });
+        merged.set(key, multiBranch ? { ...row, branch: physicalBranch } : { ...row });
       } else if (dateTextSortValue(row.firstPurchaseDateText) < dateTextSortValue(current.firstPurchaseDateText)) {
         current.firstPurchaseDateText = row.firstPurchaseDateText;
       }

@@ -241,7 +241,7 @@
       box-shadow: 0 0 0 3px rgba(var(--glow-green-rgb), 0.22);
     }
 
-    .refresh-btn, .btn-primary, .btn-secondary, .export-button, .search-submit {
+    .refresh-btn, .btn-primary, .btn-secondary, .export-button {
       position: relative;
       transition: transform 0.15s cubic-bezier(0.23, 1, 0.32, 1),
                   box-shadow 0.15s ease,
@@ -793,20 +793,17 @@
     }
 
     .filterbar-row {
-      display: grid;
-      grid-template-columns: minmax(300px, 1fr);
-      grid-auto-columns: max-content;
-      grid-auto-flow: column;
-      grid-template-rows: repeat(4, auto);
-      align-items: start;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
       column-gap: 14px;
       row-gap: 6px;
     }
 
     .filter-group {
-      display: grid;
-      grid-template-rows: subgrid;
-      grid-row: 1 / span 4;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
     }
 
     .filter-group[hidden] {
@@ -836,11 +833,9 @@
         align-items: stretch;
       }
 
-      .dashboard-search,
       .filter-group {
         display: flex;
         flex-direction: column;
-        grid-row: auto;
       }
 
       .filter-group,
@@ -852,77 +847,6 @@
       .filter-group .period-toggle {
         justify-content: space-between;
       }
-    }
-
-    .dashboard-search {
-      display: grid;
-      grid-template-rows: subgrid;
-      grid-row: 1 / span 4;
-      min-width: 0;
-    }
-
-    .search-copy {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 10px;
-      grid-row: 1;
-    }
-
-    .search-label {
-      font-family: var(--font-display);
-      font-size: 13px;
-      font-weight: 600;
-    }
-
-    .search-description {
-      color: var(--muted);
-      font-size: 11.5px;
-    }
-
-    .search-mode-toggle {
-      display: inline-flex;
-      justify-self: start;
-      gap: 2px;
-      margin-bottom: 8px;
-      padding: 3px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-8);
-      background: var(--panel-2);
-    }
-
-    .search-mode-button {
-      min-height: 32px;
-      padding: 0 12px;
-      border: 0;
-      border-radius: var(--radius-6);
-      cursor: pointer;
-      background: transparent;
-      color: var(--muted);
-      font-family: var(--font-body);
-      font-size: 12px;
-      font-weight: 600;
-    }
-
-    .search-mode-button.active {
-      background: var(--surface-hover);
-      color: var(--text);
-    }
-
-    .search-mode-button:focus-visible {
-      outline: 2px solid var(--blue);
-      outline-offset: 2px;
-    }
-
-    .search-mode-button[hidden] {
-      display: none;
-    }
-
-    .search-row {
-      display: flex;
-      align-items: stretch;
-      gap: 8px;
     }
 
     .search-input-wrap {
@@ -1015,9 +939,7 @@
     }
 
     .search-clear:focus-visible,
-    .search-submit:focus-visible,
-    .suggestion-item:focus-visible,
-    .search-back:focus-visible {
+    .suggestion-item:focus-visible {
       outline: 2px solid var(--blue);
       outline-offset: 2px;
     }
@@ -1025,40 +947,6 @@
     .search-clear svg {
       width: 17px;
       height: 17px;
-    }
-
-    .search-submit {
-      min-height: 44px;
-      padding: 0 18px;
-      border: 0;
-      border-radius: var(--radius-8);
-      background: var(--amber);
-      color: #1B1206;
-      font-family: var(--font-display);
-      font-size: 13px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: opacity .15s ease, background-color .15s ease;
-    }
-
-    .search-submit:hover {
-      opacity: .88;
-    }
-
-    .search-submit:disabled {
-      opacity: .55;
-      cursor: not-allowed;
-    }
-
-    .search-status {
-      min-height: 16px;
-      margin-top: 8px;
-      color: var(--muted);
-      font-size: 11.5px;
-    }
-
-    .search-status.error {
-      color: var(--red);
     }
 
     .suggestions {
@@ -1125,248 +1013,6 @@
       font-size: 11px;
       font-weight: 500;
       font-variant-numeric: tabular-nums;
-    }
-
-    .suggestion-source {
-      color: var(--amber);
-      border: 1px solid rgba(240, 166, 58, .28);
-      border-radius: var(--radius-pill);
-      padding: 3px 7px;
-      font-size: 10px;
-      white-space: nowrap;
-    }
-
-    .dashboard-stats.search-mode {
-      display: none;
-    }
-
-    .search-result {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-12);
-      padding: 20px;
-      margin-bottom: 20px;
-    }
-
-    .search-result-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 14px;
-      padding-bottom: 16px;
-      margin-bottom: 16px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .search-result-source {
-      display: inline-block;
-      margin-bottom: 7px;
-      padding: 3px 8px;
-      border-radius: var(--radius-pill);
-      color: var(--amber);
-      background: rgba(240, 166, 58, .1);
-      font-size: 10.5px;
-      font-weight: 700;
-    }
-
-    .search-result h2 {
-      margin: 0;
-      font-family: var(--font-display);
-      font-size: 18px;
-    }
-
-    .search-result-code {
-      margin-top: 5px;
-      color: var(--muted);
-      font-family: var(--font-data);
-      font-size: 12px;
-      font-weight: 500;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .search-results-summary {
-      margin: 0;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .search-results-wrap {
-      max-height: min(60vh, 640px);
-      overflow: auto;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-9);
-    }
-
-    .search-results-table {
-      min-width: 640px;
-    }
-
-    .search-results-table.customer-product-results-table {
-      min-width: 1460px;
-    }
-
-    .search-results-table.products-results-table {
-      min-width: 980px;
-    }
-
-    .search-results-table.invoices-results-table {
-      min-width: 900px;
-    }
-
-    .search-results-table.customers-results-table {
-      min-width: 920px;
-    }
-
-    .customer-product-results-table th:nth-child(1) {
-      min-width: 120px;
-    }
-
-    .customer-product-results-table th:nth-child(2) {
-      min-width: 240px;
-    }
-
-    .customer-product-results-table th:nth-child(3) {
-      min-width: 190px;
-    }
-
-    .customer-product-results-table th:nth-child(4) {
-      min-width: 110px;
-    }
-
-    .customer-product-results-table th:nth-child(5),
-    .customer-product-results-table th:nth-child(8) {
-      min-width: 150px;
-    }
-
-    .customer-product-results-table th:nth-child(6) {
-      min-width: 170px;
-    }
-
-    .customer-product-results-table th:nth-child(7) {
-      min-width: 190px;
-    }
-
-    .customer-product-results-table th:nth-child(9) {
-      min-width: 150px;
-    }
-
-    .search-results-table thead th {
-      position: sticky;
-      top: 0;
-      z-index: 2;
-      padding: 10px 12px;
-      background: var(--panel-2);
-    }
-
-    .search-results-table tbody td {
-      padding: 10px 12px;
-    }
-
-    .search-result-source-cell {
-      color: var(--muted);
-      font-size: 11.5px;
-    }
-
-    .search-row-action {
-      min-height: 44px;
-      padding: 0 12px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-8);
-      background: var(--panel-2);
-      color: var(--text);
-      font-family: var(--font-body);
-      font-size: 12px;
-      font-weight: 600;
-      white-space: nowrap;
-      cursor: pointer;
-      transition: border-color .15s ease, background-color .15s ease;
-    }
-
-    .search-row-action:hover {
-      border-color: var(--muted);
-      background: var(--surface-hover);
-    }
-
-    .search-row-action:focus-visible {
-      outline: 2px solid var(--blue);
-      outline-offset: 2px;
-    }
-
-    .search-back {
-      min-height: 44px;
-      padding: 0 14px;
-      flex-shrink: 0;
-      cursor: pointer;
-      background: var(--panel-2);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-8);
-      font-family: var(--font-body);
-      font-size: 12px;
-      font-weight: 600;
-      transition: border-color .15s ease, background-color .15s ease;
-    }
-
-    .search-back:hover {
-      border-color: var(--muted);
-    }
-
-    .detail-title {
-      margin: 0 0 12px;
-      color: var(--muted);
-      font-size: 11.5px;
-      font-weight: 500;
-    }
-
-    .detail-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 1px;
-      background: var(--border);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-9);
-      overflow: hidden;
-    }
-
-    .detail-field {
-      min-width: 0;
-      padding: 11px 12px;
-      background: var(--panel-2);
-    }
-
-    .detail-field dt {
-      margin: 0 0 5px;
-      color: var(--muted);
-      font-size: 10.5px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-    }
-
-    .detail-field dd {
-      margin: 0;
-      color: var(--text);
-      font-size: 13px;
-      line-height: 1.45;
-      overflow-wrap: anywhere;
-    }
-
-    .detail-field dd.mono {
-      font-size: 12px;
-    }
-
-    .search-empty {
-      padding: 36px 16px;
-      text-align: center;
-      color: var(--muted);
-    }
-
-    .search-empty b {
-      display: block;
-      margin-bottom: 7px;
-      color: var(--text);
-      font-family: var(--font-display);
-      font-size: 15px;
     }
 
     /* ---------- Hệ lưới chung 12 cột: KPI, biểu đồ, bảng dùng chung một lưới ---------- */
@@ -1610,8 +1256,7 @@
       margin-bottom: 14px;
     }
 
-    .panel-head-actions,
-    .search-result-actions {
+    .panel-head-actions {
       display: flex;
       align-items: center;
       justify-content: flex-end;
@@ -2348,49 +1993,6 @@
       }
     }
 
-    /* ---------- Chọn nhóm cha (drill-down nhóm con) ---------- */
-    .child-category-controls {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: -2px 0 14px;
-      flex-wrap: wrap;
-    }
-
-    .child-category-label {
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .child-category-select {
-      min-height: 34px;
-      min-width: 220px;
-      padding: 6px 10px;
-      background: var(--panel-2);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-7);
-      font-family: var(--font-body);
-      font-size: 12px;
-      cursor: pointer;
-    }
-
-    .child-category-select:focus {
-      border-color: var(--blue);
-      outline: none;
-    }
-
-    @media (max-width:760px) {
-      .child-category-controls {
-        width: 100%;
-      }
-
-      .child-category-select {
-        flex: 1;
-        min-width: 0;
-      }
-    }
-
     .grid-2 {
       display: grid;
       grid-template-columns: 1.3fr 1fr;
@@ -3066,6 +2668,64 @@
       100% { background-color: transparent; }
     }
 
+    /* Bảng "Báo cáo hàng hóa": nút Chi tiết mỗi dòng + khung doanh số theo khách bên dưới. */
+    .row-detail-button {
+      min-height: 26px;
+      padding: 0 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-7);
+      background: var(--panel-2);
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color .15s ease, border-color .15s ease;
+    }
+
+    .row-detail-button:hover {
+      border-color: var(--blue);
+    }
+
+    .row-detail-button:focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: 2px;
+    }
+
+    tr.is-selected td {
+      background: color-mix(in srgb, var(--blue) 12%, transparent);
+    }
+
+    .product-detail-head {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 6px 14px;
+      margin-bottom: 12px;
+    }
+
+    .product-detail-head h3 {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .product-detail-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .product-detail-table {
+      max-height: 340px;
+    }
+
+    @media (max-width:900px) {
+      .product-detail-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
     .table-row-target td {
       animation: tableTargetPulse 2.5s var(--ease-out);
       box-shadow: inset 0 1px 0 color-mix(in srgb, var(--blue) 55%, transparent),
@@ -3192,31 +2852,6 @@
         padding: 18px;
       }
 
-      .search-copy {
-        display: block;
-      }
-
-      .search-description {
-        display: block;
-        margin-top: 4px;
-      }
-
-      .search-result-head {
-        display: block;
-      }
-
-      .search-result-actions {
-        width: 100%;
-        margin-top: 14px;
-      }
-
-      .search-result-actions .search-back,
-      .search-result-actions .export-button {
-        flex: 1;
-        width: auto;
-        margin-top: 0;
-      }
-
       .export-field-list {
         grid-template-columns: 1fr;
       }
@@ -3243,30 +2878,6 @@
       .export-confirm {
         flex: 1;
       }
-
-      .detail-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width:460px) {
-      .search-row {
-        display: block;
-      }
-
-      .search-submit {
-        width: 100%;
-        margin-top: 8px;
-      }
-
-      .search-mode-toggle {
-        display: flex;
-        width: 100%;
-      }
-
-      .search-mode-button {
-        flex: 1;
-      }
     }
 
     @media (prefers-reduced-motion:reduce) {
@@ -3282,16 +2893,14 @@
       .refresh-btn:hover,
       .btn-primary:hover,
       .btn-secondary:hover,
-      .export-button:hover,
-      .search-submit:hover {
+      .export-button:hover {
         transform: none;
         box-shadow: 0 0 0 2px var(--primary);
       }
       .refresh-btn:active,
       .btn-primary:active,
       .btn-secondary:active,
-      .export-button:active,
-      .search-submit:active {
+      .export-button:active {
         transform: none;
       }
       .suggestions,
@@ -3386,45 +2995,6 @@
     <div class="content">
       <div class="filterbar" id="filterBar">
         <div class="filterbar-row">
-          <form class="dashboard-search" id="dashboardSearchForm" onsubmit="handleSearchSubmit(event)">
-            <div class="search-copy">
-              <label class="search-label" id="searchLabel" for="dashboardSearchInput">Tìm trong Tổng quan</label>
-              <span class="search-description" id="searchDescription">Nhập mã, tên hoặc từ khóa xuất hiện ở bất kỳ vị
-                trí nào</span>
-            </div>
-            <div class="search-mode-toggle" role="group" aria-label="Chế độ tìm kiếm">
-              <button class="search-mode-button active" id="searchModeNormal" type="button" aria-pressed="true"
-                onclick="setSearchMode('normal')">Thông thường</button>
-              <button class="search-mode-button" id="searchModeCodes" type="button" aria-pressed="false"
-                onclick="setSearchMode('codes')">Nhiều mã</button>
-              <button class="search-mode-button" id="searchModeCustomerProducts" type="button" aria-pressed="false"
-                onclick="setSearchMode('customer-products')" hidden>Top KH theo sản phẩm</button>
-            </div>
-            <div class="search-row">
-              <div class="search-input-wrap">
-                <svg class="search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.8"></circle>
-                  <path d="M16 16L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
-                </svg>
-                <input class="search-input" id="dashboardSearchInput" type="search" autocomplete="off"
-                  spellcheck="false" role="combobox" aria-autocomplete="list" aria-controls="searchSuggestions"
-                  aria-expanded="false" aria-describedby="searchStatus"
-                  placeholder="Tìm mã hoặc tên trong toàn bộ dữ liệu" oninput="handleSearchInput()"
-                  onpaste="handleSearchPaste(event)" onkeydown="handleSearchKeydown(event)">
-                <button class="search-clear" id="searchClearBtn" type="button" onclick="clearSearchInput()"
-                  aria-label="Xóa từ khóa" hidden>
-                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-                    </path>
-                  </svg>
-                </button>
-                <div class="suggestions" id="searchSuggestions" role="listbox"></div>
-              </div>
-              <button class="search-submit" id="searchSubmitBtn" type="submit">Tìm kiếm</button>
-            </div>
-            <div class="search-status" id="searchStatus" aria-live="polite">Có thể dùng phím ↑ ↓ để chọn gợi ý</div>
-          </form>
-
           <div class="filter-group" data-filter-view="invoices" hidden>
             <div class="mini-filter" data-filter-key="invoices" style="margin:0; grid-row:3;">
               <div class="period-toggle" data-mini-toggle>
@@ -3467,7 +3037,7 @@
             </div>
           </div>
 
-          <div class="filter-group" data-filter-view="overview products" hidden>
+          <div class="filter-group" data-filter-view="products" hidden>
             <div class="mini-filter" data-filter-key="products" style="margin:0; grid-row:3;">
               <div class="period-toggle" data-mini-toggle>
                 <button type="button" data-days="1" onclick="setMiniFilterDays('products',1)">1 ngày</button>
@@ -3508,20 +3078,9 @@
             </div>
           </div>
 
-          <div class="filter-group" data-filter-view="overview products" hidden>
-            <div class="period-toggle" id="productStatusToggle" style="grid-row:3;">
-              <button type="button" data-status="all" class="active" onclick="setProductStatus('all')">Tất cả</button>
-              <button type="button" data-status="Đang kinh doanh" onclick="setProductStatus('Đang kinh doanh')">Đang
-                kinh doanh</button>
-              <button type="button" data-status="Ngừng kinh doanh" onclick="setProductStatus('Ngừng kinh doanh')">Ngừng
-                kinh doanh</button>
-            </div>
-          </div>
-
         </div>
       </div>
 
-      <section class="search-result" id="searchResult" aria-live="polite" hidden></section>
       <div class="table-note" id="dashboardLoadError" role="alert" hidden style="margin-bottom:14px;">
         <span id="dashboardLoadErrorText">Không tải được dữ liệu.</span>
         <button class="export-button" type="button" style="margin-left:12px;" onclick="retryLoadData()">Thử lại</button>
@@ -3531,7 +3090,7 @@
         <!-- ============ TỔNG QUAN ============ -->
         <div class="view active" id="view-overview">
           <div class="view-title">Tổng quan</div>
-          <div class="view-sub">Chỉ số hôm nay → doanh thu theo nhóm hàng → báo cáo doanh thu theo khách và theo hàng → kiểm tra đứt hàng → báo cáo hàng hóa</div>
+          <div class="view-sub">Chỉ số hôm nay → báo cáo doanh thu theo khách và theo hàng → kiểm tra đứt hàng → báo cáo hàng hóa</div>
 
           <section class="section">
             <div class="section-head"><span class="section-step">1</span>
@@ -3544,14 +3103,14 @@
                 <div class="sub" id="ov-revenue-sub">—</div>
               </div>
               <div class="kpi-card accent-amber col-3">
-                <div class="eyebrow">Tồn kho hiện tại</div>
+                <div class="eyebrow">Giá trị tồn kho hiện tại</div>
                 <div class="value" id="ov-stock">—</div>
                 <div class="sub" id="ov-stock-sub">—</div>
               </div>
               <div class="kpi-card accent-red col-3">
                 <div class="eyebrow">Đã hết hàng</div>
                 <div class="value" id="ov-lowstock">—</div>
-                <div class="sub">Tồn kho = 0</div>
+                <div class="sub">Đang kinh doanh · Tồn kho = 0</div>
               </div>
               <div class="kpi-card accent-blue col-3">
                 <div class="eyebrow">Khách hàng</div>
@@ -3563,97 +3122,6 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">2</span>
-              <h2>Doanh thu sản phẩm theo nhóm hàng <span class="section-note" id="groupRevenuePeriod">theo bộ lọc thời gian phía trên · nhấn vào một nhóm hoặc chọn nhóm cha để xem nhóm con</span></h2>
-            </div>
-            <div class="grid">
-              <div class="panel col-6">
-                <div class="panel-head">
-                  <h2>Doanh thu theo nhóm hàng <span class="tag" id="tagGroupRevenue">—</span></h2>
-                </div>
-                <div class="chart-box">
-                  <canvas id="chartGroupRevenue" role="img"
-                    aria-label="Biểu đồ tròn doanh thu sản phẩm theo nhóm hàng"></canvas>
-                  <div class="chart-empty" id="groupRevenueChartEmpty" hidden>Chưa có doanh thu theo nhóm hàng trong khoảng đã chọn</div>
-                </div>
-              </div>
-              <div class="panel col-6">
-                <div class="panel-head">
-                  <h2>Số lượng bán theo nhóm hàng <span class="tag" id="tagGroupQty">—</span></h2>
-                </div>
-                <div class="chart-box">
-                  <canvas id="chartGroupQty" role="img"
-                    aria-label="Biểu đồ tròn số lượng bán sản phẩm theo nhóm hàng"></canvas>
-                  <div class="chart-empty" id="groupQtyChartEmpty" hidden>Chưa có dữ liệu số lượng bán theo nhóm hàng</div>
-                </div>
-              </div>
-            </div>
-            <div class="child-category-controls" style="margin-top:14px;">
-              <label class="child-category-label" for="childCategoryParentSelect">Nhóm cha</label>
-              <select class="child-category-select" id="childCategoryParentSelect"
-                onchange="setChildCategoryParent(this.value)">
-                <option value="">— Chọn nhóm cha —</option>
-              </select>
-            </div>
-            <div class="table-note" id="childCategoryPlaceholder">Chọn 1 nhóm cha ở trên để xem chi tiết doanh thu và số
-              lượng bán theo nhóm con</div>
-            <div class="grid" id="childCategoryPanels" hidden>
-              <div class="panel col-6">
-                <div class="panel-head">
-                  <h2>Doanh thu theo nhóm con <span class="tag" id="tagChildCategoryRevenue">—</span></h2>
-                </div>
-                <div class="chart-box">
-                  <canvas id="chartChildCategoryRevenue" role="img"
-                    aria-label="Biểu đồ doanh thu theo nhóm con"></canvas>
-                  <div class="chart-empty" id="childCategoryRevenueChartEmpty" hidden>Chưa có doanh thu theo nhóm con
-                    trong khoảng đã chọn</div>
-                </div>
-              </div>
-              <div class="panel col-6">
-                <div class="panel-head">
-                  <h2>Số lượng bán theo nhóm con <span class="tag" id="tagChildCategoryQty">—</span></h2>
-                </div>
-                <div class="chart-box">
-                  <canvas id="chartChildCategoryQty" role="img"
-                    aria-label="Biểu đồ số lượng bán theo nhóm con"></canvas>
-                  <div class="chart-empty" id="childCategoryQtyChartEmpty" hidden>Chưa có dữ liệu số lượng bán theo nhóm
-                    con</div>
-                </div>
-              </div>
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Chi tiết nhóm con <span class="tag" id="tagChildCategoryRows">—</span></h2><button
-                    class="export-button" type="button" onclick="openExportDialog('products.child-categories')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất
-                    file</button>
-                </div>
-                <div class="scroll-list" style="max-height:320px;">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Nhóm con</th>
-                        <th>SL bán</th>
-                        <th>Doanh thu</th>
-                      </tr>
-                    </thead>
-                    <tbody id="childCategoryRows">
-                      <tr>
-                        <td colspan="3" class="table-note">Chưa có dữ liệu</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="childCategoryPagination" hidden>
-                  <button type="button" id="childCategoryFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="childCategoryPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="childCategoryPageLabel">Trang 1/1</span>
-                  <button type="button" id="childCategoryNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="childCategoryLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">3</span>
               <h2>Báo cáo doanh thu theo khách <span class="section-note">chọn 1 khách để xem doanh thu 90 ngày gần
                   nhất</span></h2>
             </div>
@@ -3682,8 +3150,7 @@
               <div class="grid" style="margin-top:14px;">
                 <div class="panel col-12">
                   <div class="panel-head">
-                    <h2><span id="cpSelectedCustomerName">—</span> <span class="tag"
-                        id="cpSelectedCustomerCode">—</span></h2>
+                    <h2><span id="cpSelectedCustomerName">—</span></h2>
                     <span class="drill-hint" id="cpWindowHint">90 ngày gần đây</span>
                   </div>
                   <div class="search-input-wrap" style="margin-bottom:10px;">
@@ -3757,7 +3224,7 @@
           </section>
 
           <section class="section">
-            <div class="section-head"><span class="section-step">4</span>
+            <div class="section-head"><span class="section-step">3</span>
               <h2>Báo cáo hàng hóa <span class="section-note" id="productReportUpdatedAt">—</span></h2>
             </div>
             <div class="grid">
@@ -3782,9 +3249,9 @@
                         <th>Tổng SL 30 ngày</th>
                         <th>DS 90 ngày</th>
                         <th>SL khách bán</th>
-                        <th>DS Khách lớn nhất</th>
                         <th>Khách lớn nhất</th>
                         <th>% Khách lớn nhất</th>
+                        <th data-no-sort>Chi tiết</th>
                       </tr>
                     </thead>
                     <tbody id="productReportRows">
@@ -3803,10 +3270,67 @@
                 </div>
               </div>
             </div>
+
+            <!-- Khung "Chi tiết" của bảng trên: nhấn nút Chi tiết ở 1 dòng HOẶC tìm tên/mã sản phẩm ở ô
+                 tìm này đều gọi selectProductReportDetail() nên ra cùng 1 kết quả. -->
+            <div class="grid" style="margin-top:14px;">
+              <div class="panel col-12" id="productDetailPanel">
+                <div class="panel-head">
+                  <h2>Doanh số theo khách <span class="section-note">của 1 sản phẩm · 90 ngày gần nhất</span></h2>
+                </div>
+                <div class="search-input-wrap" style="margin-bottom:10px;">
+                  <svg class="search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.8"></circle>
+                    <path d="M16 16L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                  </svg>
+                  <input class="search-input" id="productDetailSearchInput" type="search" autocomplete="off"
+                    spellcheck="false" role="combobox" aria-autocomplete="list" aria-controls="productDetailSuggestions"
+                    aria-expanded="false" placeholder="Tìm sản phẩm theo mã hoặc tên (hoặc nhấn Chi tiết ở bảng trên)"
+                    oninput="handleProductDetailSearchInput()" onkeydown="handleProductDetailSearchKeydown(event)">
+                  <button class="search-clear" id="productDetailClearBtn" type="button"
+                    onclick="clearProductReportDetail()" aria-label="Bỏ chọn sản phẩm" hidden>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                      </path>
+                    </svg>
+                  </button>
+                  <div class="suggestions" id="productDetailSuggestions" role="listbox"></div>
+                </div>
+                <div class="table-note" id="productDetailEmptyState">Chưa chọn sản phẩm — tìm ở trên hoặc nhấn
+                  Chi tiết ở một dòng của bảng.</div>
+
+                <div id="productDetailContent" hidden>
+                  <div class="product-detail-head">
+                    <h3 id="productDetailTitle">—</h3>
+                    <span class="drill-hint" id="productDetailSummary">—</span>
+                  </div>
+                  <div class="product-detail-grid">
+                    <div class="scroll-list product-detail-table">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Khách hàng</th>
+                            <th>Doanh số 90 ngày</th>
+                            <th>% của SP</th>
+                          </tr>
+                        </thead>
+                        <tbody id="productDetailRows">
+                          <tr>
+                            <td colspan="3" class="table-note">Chưa có dữ liệu</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div class="chart-box wide"><canvas id="productDetailChart" role="img"
+                        aria-label="Biểu đồ tròn tỷ trọng doanh số 90 ngày của các khách theo sản phẩm đã chọn"></canvas></div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </section>
 
           <section class="section">
-            <div class="section-head"><span class="section-step">5</span>
+            <div class="section-head"><span class="section-step">4</span>
               <h2>Kiểm tra đứt hàng <span class="section-note">đối chiếu dữ liệu KiotViet đã đồng bộ</span></h2>
             </div>
             <div class="grid">
@@ -3865,7 +3389,7 @@
                   <table>
                     <thead>
                       <tr>
-                        <th id="recentStockoutBranchHead" hidden>Cơ sở</th>
+                        <th id="recentStockoutBranchHead">Cơ sở</th>
                         <th>Mã SP</th>
                         <th>Tên SP</th>
                         <th>Ngày hết hàng gần nhất</th>
@@ -3906,7 +3430,7 @@
                   <table>
                     <thead>
                       <tr>
-                        <th id="stockout90dBranchHead" hidden>Cơ sở</th>
+                        <th id="stockout90dBranchHead">Cơ sở</th>
                         <th>Mã SP</th>
                         <th>Tên SP</th>
                         <th>Số lần đứt hàng</th>
@@ -3949,7 +3473,7 @@
                   <table>
                     <thead>
                       <tr>
-                        <th id="stockout30dBranchHead" hidden>Cơ sở</th>
+                        <th id="stockout30dBranchHead">Cơ sở</th>
                         <th>Mã SP</th>
                         <th>Tên SP</th>
                         <th>Số lần đứt hàng</th>
@@ -3978,62 +3502,53 @@
                   gian</span></h2>
             </div>
             <div class="kpi-grid">
-              <div class="kpi-card accent-amber col-3">
+              <div class="kpi-card accent-amber col-4">
                 <div class="eyebrow">Tổng số mặt hàng</div>
                 <div class="value" id="pr-total">—</div>
               </div>
-              <div class="kpi-card col-3">
+              <div class="kpi-card col-4">
                 <div class="eyebrow">Mã còn hàng</div>
                 <div class="value" id="pr-stock">—</div>
               </div>
-              <div class="kpi-card accent-red col-3">
+              <div class="kpi-card accent-red col-4">
                 <div class="eyebrow">Đã hết hàng</div>
                 <div class="value" id="pr-lowstock">—</div>
-              </div>
-              <div class="kpi-card col-3">
-                <div class="eyebrow">Ngừng kinh doanh</div>
-                <div class="value" id="pr-inactive">—</div>
               </div>
             </div>
           </section>
 
           <section class="section">
             <div class="section-head"><span class="section-step">2</span>
-              <h2>Cơ cấu tồn kho <span class="section-note">giá trị tồn hiện tại theo sản phẩm hoặc nhóm cha</span></h2>
-            </div>
-            <div class="period-toggle analysis-toggle" id="inventoryViewToggle" role="group"
-              aria-label="Kiểu xem cơ cấu tồn kho">
-              <button type="button" class="active" data-inventory-view="product"
-                onclick="setInventoryView('product')">Theo sản phẩm</button>
-              <button type="button" data-inventory-view="parentCategory"
-                onclick="setInventoryView('parentCategory')">Theo nhóm cha</button>
+              <h2>Cơ cấu tồn kho <span class="section-note">tồn thực tế, tồn có thể bán và hàng đang vận chuyển theo sản phẩm</span></h2>
             </div>
             <div class="grid">
-              <div class="panel col-half top-selling-feature-panel">
-                <div class="panel-head">
-                  <h2><span id="inventoryChartTitle">Top 15 sản phẩm theo giá trị tồn</span> <span class="tag"
-                      id="tagInventoryValue">—</span></h2>
-                </div>
-                <div class="chart-box top-selling-top"><canvas id="chartInventoryValue"></canvas></div>
-              </div>
-              <div class="panel col-half top-selling-table-panel">
+              <div class="panel col-12 top-selling-table-panel is-full" id="inventoryTablePanel">
                 <div class="panel-head">
                   <h2>Chi tiết tồn kho theo sản phẩm <span class="tag" id="tagInventoryTable">—</span></h2>
                 </div>
                 <div class="scroll-list top-selling-table-scroll">
+                  <!-- Cot luon nam trong DOM, chi an/hien theo che do (data-inv-cols): 'one' = chon 1 co so,
+                       'both' = "Cả hai" (1 dong/ma, cot HN/SG rieng) — de chi so cot dung cho sap xep khong lech. -->
                   <table>
                     <thead>
                       <tr>
                         <th>Mã hàng</th>
                         <th>Tên sản phẩm</th>
-                        <th title="Giá vốn; giá trị tồn = giá vốn × tồn kho">Đơn giá</th>
-                        <th>Tồn kho</th>
-                        <th>Giá trị tồn</th>
+                        <th>Cơ sở</th>
+                        <th title="Giá vốn (Cả hai: bình quân theo tồn); giá trị tồn = giá vốn × tồn kho">Đơn giá</th>
+                        <th data-inv-cols="one" title="Tồn thực tế trên KiotViet">Tồn kho</th>
+                        <th data-inv-cols="both" hidden title="Tồn thực tế tại Hà Nội">Tồn kho HN</th>
+                        <th data-inv-cols="both" hidden title="Tồn thực tế tại Sài Gòn">Tồn kho SG</th>
+                        <th data-inv-cols="one" title="Tồn có thể bán = Tồn kho − Khách đặt (hàng khách đã đặt, chưa giao)">Tồn có thể bán</th>
+                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Hà Nội = Tồn kho − Khách đặt">Tồn có thể bán HN</th>
+                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Sài Gòn = Tồn kho − Khách đặt">Tồn có thể bán SG</th>
+                        <th title="Số lượng trong phiếu Đặt hàng nhập trạng thái “Đã xác nhận NCC” của Kiot Sài Gòn (Mua hàng → Đặt hàng nhập), ghép theo mã hàng">Hàng đang vận chuyển</th>
+                        <th title="Giá trị tồn = giá vốn × tồn kho">Giá trị tồn</th>
                       </tr>
                     </thead>
                     <tbody id="inventoryValueRows">
                       <tr>
-                        <td colspan="5" class="table-note">Đang tải...</td>
+                        <td colspan="12" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4079,6 +3594,7 @@
                       <tr>
                         <th id="topSellingCodeHeader">Mã hàng</th>
                         <th id="topSellingNameHeader">Sản phẩm</th>
+                        <th id="topSellingBranchHeader">Cơ sở</th>
                         <th>SL bán</th>
                         <th>Doanh thu</th>
                         <th id="topSellingStockHeader">Tồn kho</th>
@@ -4086,7 +3602,7 @@
                     </thead>
                     <tbody id="topSellingRows">
                       <tr>
-                        <td colspan="4" class="table-note">Đang tải...</td>
+                        <td colspan="5" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4118,8 +3634,8 @@
                       <tr>
                         <th>Mã hàng</th>
                         <th>Tên sản phẩm</th>
+                        <th>Cơ sở</th>
                         <th>Loại</th>
-                        <th>Trạng thái kinh doanh</th>
                         <th>Giá vốn</th>
                         <th>Giá bán</th>
                       </tr>
@@ -4142,8 +3658,7 @@
               <div class="panel col-half">
                 <div class="panel-head">
                   <h2>Tất cả mã hàng <span class="tag" id="tagAllProducts">—</span></h2>
-                  <div class="panel-head-actions"><span class="drill-hint">Lọc theo trạng thái ở thanh bộ lọc phía
-                      trên</span><button class="export-button" type="button"
+                  <div class="panel-head-actions"><button class="export-button" type="button"
                       onclick="openExportDialog('products.all')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button></div>
                 </div>
                 <div class="scroll-list" style="max-height:420px;">
@@ -4152,10 +3667,10 @@
                       <tr>
                         <th>Mã hàng</th>
                         <th>Tên sản phẩm</th>
+                        <th>Cơ sở</th>
                         <th>Tồn</th>
                         <th>Đặt</th>
                         <th>Tỷ lệ</th>
-                        <th>Trạng thái</th>
                       </tr>
                     </thead>
                     <tbody id="allProductRows">
@@ -4205,6 +3720,7 @@
                       <tr>
                         <th>Mã hàng</th>
                         <th>Tên hàng</th>
+                        <th>Cơ sở</th>
                         <th>Ngày nhập đầu tiên</th>
                         <th>Số ngày tồn tại</th>
                         <th>Doanh thu</th>
@@ -4212,7 +3728,7 @@
                     </thead>
                     <tbody id="newlyImportedRows">
                       <tr>
-                        <td colspan="5" class="table-note">Đang tải...</td>
+                        <td colspan="6" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4247,13 +3763,14 @@
                       <tr>
                         <th>Mã</th>
                         <th>Tên</th>
+                        <th>Cơ sở</th>
                         <th>Nhóm hàng</th>
                         <th>Thời gian tạo mã</th>
                       </tr>
                     </thead>
                     <tbody id="todayNewProductRows">
                       <tr>
-                        <td colspan="4" class="table-note">Đang tải...</td>
+                        <td colspan="5" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4353,6 +3870,7 @@
                     <thead>
                       <tr>
                         <th>Mã giao dịch</th>
+                        <th>Cơ sở</th>
                         <th>Thời gian</th>
                         <th>Khách hàng</th>
                         <th>Nhân viên bán hàng</th>
@@ -4365,7 +3883,7 @@
                     </thead>
                     <tbody id="endOfDayRows">
                       <tr>
-                        <td colspan="9" class="table-note">Đang tải...</td>
+                        <td colspan="10" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                     <tfoot>
@@ -4406,6 +3924,7 @@
                     <thead>
                       <tr>
                         <th>Mã ĐH</th>
+                        <th>Cơ sở</th>
                         <th>Khách hàng</th>
                         <th>Tổng tiền</th>
                         <th>Trạng thái</th>
@@ -4413,7 +3932,7 @@
                     </thead>
                     <tbody id="orderRows">
                       <tr>
-                        <td colspan="4" class="table-note">Đang tải...</td>
+                        <td colspan="5" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4436,6 +3955,7 @@
                     <thead>
                       <tr>
                         <th>Mã trả hàng</th>
+                        <th>Cơ sở</th>
                         <th>HĐ gốc</th>
                         <th>Khách hàng</th>
                         <th>Tổng tiền trả</th>
@@ -4444,7 +3964,7 @@
                     </thead>
                     <tbody id="returnRows">
                       <tr>
-                        <td colspan="5" class="table-note">Đang tải...</td>
+                        <td colspan="6" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4512,8 +4032,8 @@
                   <table>
                     <thead>
                       <tr>
-                        <th>Mã KH</th>
                         <th>Khách hàng</th>
+                        <th>Cơ sở</th>
                         <th>SL đơn bán</th>
                         <th>Doanh thu</th>
                       </tr>
@@ -4562,8 +4082,8 @@
                   <table>
                     <thead>
                       <tr>
-                        <th>Mã KH</th>
                         <th>Tên khách hàng</th>
+                        <th>Cơ sở</th>
                         <th>Điện thoại</th>
                         <th>Công nợ</th>
                       </tr>
@@ -4663,6 +4183,7 @@
                     <thead>
                       <tr>
                         <th>Mã nhập hàng</th>
+                        <th>Cơ sở</th>
                         <th>Ngày nhập</th>
                         <th>Nhà cung cấp</th>
                         <th>Tổng tiền</th>
@@ -4671,7 +4192,7 @@
                     </thead>
                     <tbody id="overviewPurchaseRows">
                       <tr>
-                        <td colspan="5" class="table-note">Đang tải...</td>
+                        <td colspan="6" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4711,6 +4232,7 @@
                       <tr>
                         <th>Mã NCC</th>
                         <th>Tên</th>
+                        <th>Cơ sở</th>
                         <th>Điện thoại</th>
                         <th>Nợ cần trả</th>
                       </tr>
@@ -4848,6 +4370,7 @@
                     <thead>
                       <tr>
                         <th>Khách hàng</th>
+                        <th>Cơ sở</th>
                         <th>Sale</th>
                         <th>Lịch TT</th>
                         <th>Nợ đầu kỳ</th>
@@ -4861,7 +4384,7 @@
                     </thead>
                     <tbody id="debtManagementRows">
                       <tr>
-                        <td colspan="10" class="table-note">Đang tải...</td>
+                        <td colspan="11" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4965,13 +4488,13 @@
       view: 'overview',
       charts: {},
       chartAnimation: true,
-      productStatus: 'all',
       productAnalysis: 'product',
-      inventoryView: 'product',
-      childCategoryParent: null,
       currentUser: null,
       supplierReturnImport: { submitting: false },
-      productReport: { rows: [], computedAt: null, loaded: false },
+      productReport: {
+        rows: [], computedAt: null, loaded: false,
+        detail: { code: '', name: '', status: 'idle', data: null, requestId: 0, options: [], activeIndex: -1 }
+      },
       debtFilters: {
         queue: 'needsAction',
         sale: '',
@@ -4991,21 +4514,6 @@
         invoices: { mode: 'days', days: 30 },
         suppliers: { mode: 'days', days: 30 },
         customers: { mode: 'all' }
-      },
-      search: {
-        mode: 'normal',
-        results: [],
-        total: 0,
-        requestedCount: 0,
-        matchedCount: 0,
-        missingCount: 0,
-        activeIndex: -1,
-        active: false,
-        lastQuery: '',
-        resultFilter: null,
-        requestId: 0,
-        timer: null,
-        controller: null
       },
       exportDialog: {
         payload: null,
@@ -5167,7 +4675,9 @@
     const VN_NUMBER_1DP = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
 
     function fmtNumber(n) { return VN_NUMBER.format(Number(n) || 0); }
-    function fmtMoney(n) { return VN_NUMBER.format(Number(n) || 0) + '₫'; }
+    // Tiền luôn làm tròn thành số nguyên, không hiện phần thập phân.
+    const VN_MONEY = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 });
+    function fmtMoney(n) { return VN_MONEY.format(Number(n) || 0) + '₫'; }
     function fmtMoneyShort(n) {
       n = Number(n) || 0;
       if (n >= 1000000000) return (n / 1000000000).toFixed(1).replace('.0', '').replace('.', ',') + ' tỷ₫';
@@ -5198,6 +4708,7 @@
         if (!tbody || !tbody.id) return;
 
         table.querySelectorAll('thead th').forEach(function (th, columnIndex) {
+          if (th.hasAttribute('data-no-sort')) return; // cot thao tac (vd nut Chi tiet), khong co gi de sap xep
           const label = th.textContent.trim();
           const button = document.createElement('button');
           const labelSpan = document.createElement('span');
@@ -5390,33 +4901,6 @@
       });
     }
 
-    const SEARCH_CONTEXT = {
-      overview: {
-        title: 'Tìm trong Tổng quan',
-        placeholder: 'Tìm mã hoặc tên trong toàn bộ dữ liệu'
-      },
-      products: {
-        title: 'Tìm trong Hàng hóa',
-        placeholder: 'Tìm theo mã hàng hoặc tên hàng'
-      },
-      invoices: {
-        title: 'Tìm trong Hóa đơn',
-        placeholder: 'Tìm mã hóa đơn, đặt hàng, trả hàng hoặc tên khách'
-      },
-      customers: {
-        title: 'Tìm trong Khách hàng',
-        placeholder: 'Tìm theo mã hoặc tên khách hàng'
-      },
-      suppliers: {
-        title: 'Tìm trong Nhà cung cấp',
-        placeholder: 'Tìm mã, tên nhà cung cấp hoặc phiếu nhập'
-      },
-      debt: {
-        title: 'Quản lý công nợ',
-        placeholder: 'Dùng bộ lọc trong bảng để tìm khách hàng hoặc sale'
-      }
-    };
-
     function escapeHtml(value) {
       return String(value === undefined || value === null ? '' : value)
         .replace(/&/g, '&amp;')
@@ -5451,17 +4935,31 @@
     // Ket qua quet o "Cả hai" gop dong cua 2 co so (cung ma hang co the xuat
     // hien hai lan) -> phai hien cot nguon. Cot luon nam trong DOM, chi an/hien
     // de chi so cot (dung cho sap xep) khong bi lech.
+    // Cot "Cơ sở" cua moi bang: nhan co so vat ly cua dong ('Hà Nội'/'Sài Gòn'; dong da gop
+    // theo ten o "Cả hai" co the la 'Hà Nội, Sài Gòn').
+    function branchCellText(item) {
+      return escapeHtml((item && item.branch) || '—');
+    }
+
+    // Khoa dinh danh dong hang hoa: cung ma o hai co so la hai dong khac nhau.
+    function productIdentity(item) {
+      const code = String((item && item.code) || '');
+      return item && item.branch ? String(item.branch) + '|' + code : code;
+    }
+
+    // Khach gop theo ten (ma khach khac nhau giua hai co so) nen khoa theo ten chuan hoa.
+    function customerIdentity(item) {
+      return String((item && item.name) || '').normalize('NFC').trim().toLocaleLowerCase('vi-VN');
+    }
+
     function isMergedStockoutResult(result) {
       return !!(result && result.branch === 'Cả hai');
     }
 
-    function stockoutBranchCell(row, merged) {
-      return '<td' + (merged ? '' : ' hidden') + '>' + escapeHtml((row && row.branch) || '') + '</td>';
-    }
-
-    function syncStockoutBranchHead(headId, merged) {
-      const head = document.getElementById(headId);
-      if (head) head.hidden = !merged;
+    // Cot "Cơ sở" luon hien: dong "Cả hai" mang co so cua rieng no, ket qua 1 co so thi lay co so cua lan quet.
+    function stockoutBranchCell(row, result) {
+      const scanBranch = result && result.branch && result.branch !== 'Cả hai' ? result.branch : '';
+      return '<td>' + escapeHtml((row && row.branch) || scanBranch || '—') + '</td>';
     }
 
     function formatStockoutSourceWarnings(result) {
@@ -5740,7 +5238,6 @@
       const totalTag = document.getElementById('tagRecentStockoutTotal');
       const rows = (result && result.rows) || [];
       const merged = isMergedStockoutResult(result);
-      syncStockoutBranchHead('recentStockoutBranchHead', merged);
       const sorted = rows.slice().sort(function (a, b) { return b.daysOutOfStock - a.daysOutOfStock; });
       const config = TABLE_EXPLORER_CONFIGS.recentStockout;
       const searchState = getTableSearchState('recentStockout');
@@ -5764,7 +5261,7 @@
       tbody.innerHTML = filtered.items.map(function (row) {
         return (
           '<tr data-table-item-id="' + escapeHtml(row.code) + '">' +
-            stockoutBranchCell(row, merged) +
+            stockoutBranchCell(row, result) +
             '<td>' + escapeHtml(row.code) + '</td>' +
             '<td>' + escapeHtml(row.name) + '</td>' +
             '<td>' + escapeHtml(row.lastOutOfStockDate) + '</td>' +
@@ -5813,7 +5310,7 @@
           // Ket qua quet o "Cả hai" moi co cot nguon (theo ket qua da quet, khong
           // theo co so dang chon) — gui thua khoa nay o mot co so se bi tu choi.
           columns: {
-            recent_stockout_result: (isMergedStockoutResult(result) ? ['branch'] : [])
+            recent_stockout_result: ['branch']
               .concat(['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'periods'])
           }
         };
@@ -5987,7 +5484,6 @@
       const totalTag = document.getElementById('tagStockout90dTotal');
       const rows = (result && result.rows) || [];
       const merged = isMergedStockoutResult(result);
-      syncStockoutBranchHead('stockout90dBranchHead', merged);
       const sorted = rows.slice().sort(function (a, b) { return b.totalStockoutDays - a.totalStockoutDays; });
       const config = TABLE_EXPLORER_CONFIGS.stockout90d;
       const searchState = getTableSearchState('stockout90d');
@@ -6011,7 +5507,7 @@
         const avgStockoutDays = row.stockoutCount ? (row.totalStockoutDays / row.stockoutCount) : 0;
         return (
           '<tr data-table-item-id="' + escapeHtml(row.code) + '">' +
-            stockoutBranchCell(row, merged) +
+            stockoutBranchCell(row, result) +
             '<td>' + escapeHtml(row.code) + '</td>' +
             '<td>' + escapeHtml(row.name) + '</td>' +
             '<td>' + row.stockoutCount + '</td>' +
@@ -6061,7 +5557,7 @@
           },
           // Xem ghi chu tuong tu o exportRecentStockoutResult().
           columns: {
-            stockout_90d_result: (isMergedStockoutResult(result) ? ['branch'] : [])
+            stockout_90d_result: ['branch']
               .concat(['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'periods'])
           }
         };
@@ -6235,7 +5731,6 @@
       const totalTag = document.getElementById('tagStockout30dTotal');
       const rows = (result && result.rows) || [];
       const merged = isMergedStockoutResult(result);
-      syncStockoutBranchHead('stockout30dBranchHead', merged);
       const sorted = rows.slice().sort(function (a, b) { return b.totalStockoutDays - a.totalStockoutDays; });
       const config = TABLE_EXPLORER_CONFIGS.stockout30d;
       const searchState = getTableSearchState('stockout30d');
@@ -6259,7 +5754,7 @@
         const avgStockoutDays = row.stockoutCount ? (row.totalStockoutDays / row.stockoutCount) : 0;
         return (
           '<tr data-table-item-id="' + escapeHtml(row.code) + '">' +
-            stockoutBranchCell(row, merged) +
+            stockoutBranchCell(row, result) +
             '<td>' + escapeHtml(row.code) + '</td>' +
             '<td>' + escapeHtml(row.name) + '</td>' +
             '<td>' + row.stockoutCount + '</td>' +
@@ -6309,7 +5804,7 @@
           },
           // Xem ghi chu tuong tu o exportRecentStockoutResult().
           columns: {
-            stockout_30d_result: (isMergedStockoutResult(result) ? ['branch'] : [])
+            stockout_30d_result: ['branch']
               .concat(['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'periods'])
           }
         };
@@ -6333,16 +5828,6 @@
         .trim();
     }
 
-    function parseSearchCodes(value) {
-      const seen = new Set();
-      return normalizeSearchQuery(value).split(' ').filter(Boolean).filter(function (code) {
-        const normalizedCode = code.normalize('NFC').toLocaleLowerCase('vi-VN');
-        if (seen.has(normalizedCode)) return false;
-        seen.add(normalizedCode);
-        return true;
-      });
-    }
-
     function cloneExportFilter(filter, fallbackMode) {
       const raw = filter || { mode: fallbackMode || 'days', days: 30 };
       if (raw.mode === 'all') return { mode: 'all' };
@@ -6351,10 +5836,8 @@
     }
 
     function currentExportFilters() {
-      const products = cloneExportFilter(state.filters.products);
-      products.status = state.productStatus;
       return {
-        products: products,
+        products: cloneExportFilter(state.filters.products),
         invoices: cloneExportFilter(state.filters.invoices),
         customers: cloneExportFilter(state.filters.customers, 'all'),
         newPurchases: cloneExportFilter(state.filters.suppliers),
@@ -6370,7 +5853,6 @@
       'products.low-stock': 'lowStock',
       'products.all': 'allProducts',
       'products.newly-imported': 'newlyImported',
-      'products.child-categories': 'childCategory',
       'invoices.orders': 'orders',
       'invoices.returns': 'returns',
       'customers.revenue': 'customerRevenue',
@@ -6387,7 +5869,6 @@
         filters: currentExportFilters(),
         context: {
           productAnalysis: state.productAnalysis,
-          childCategoryParent: state.childCategoryParent || '',
           debtQueue: state.debtFilters.queue,
           debtSale: state.debtFilters.sale,
           debtSchedule: state.debtFilters.schedule,
@@ -6406,19 +5887,7 @@
           query: tableSearch.query || ''
         };
       }
-      if (tableKey === 'search.results') {
-        payload.search = {
-          view: state.view,
-          mode: state.search.mode,
-          query: state.search.lastQuery || normalizeSearchQuery(document.getElementById('dashboardSearchInput').value)
-        };
-      }
       return payload;
-    }
-
-    function searchExportButtonHtml() {
-      if (state.view === 'overview' || !state.search.results.length) return '';
-      return '<button class="export-button" type="button" onclick="openExportDialog(\'search.results\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>';
     }
 
     // Xuat Excel: moi request (lay danh sach truong / tao file) huy duoc bang AbortController, co timeout
@@ -6758,530 +6227,9 @@
       else loadExportFields();
     }
 
-    function updateSearchContext() {
-      const context = SEARCH_CONTEXT[state.view] || SEARCH_CONTEXT.overview;
-      // Tab công nợ không có ô tìm kiếm chung lẫn nhóm lọc nào, ẩn cả khung để không còn panel trống.
-      const hasNoGlobalFilters = state.view === 'debt';
-      document.getElementById('dashboardSearchForm').hidden = hasNoGlobalFilters;
-      document.getElementById('filterBar').hidden = hasNoGlobalFilters;
-      document.getElementById('searchLabel').textContent = context.title;
-      const input = document.getElementById('dashboardSearchInput');
-      const isMultiCodeSearch = state.search.mode === 'codes';
-      const isCustomerProductSearch = state.search.mode === 'customer-products';
-      const productTopButton = document.getElementById('searchModeCustomerProducts');
-      productTopButton.hidden = state.view !== 'customers';
-      const placeholder = isMultiCodeSearch || isCustomerProductSearch
-        ? 'Dán tối đa 50 mã hàng, cách nhau bằng khoảng trắng'
-        : context.placeholder;
-      document.getElementById('searchDescription').textContent = isCustomerProductSearch
-        ? 'Tìm Top 3 khách hàng theo SL mua của từng mã trong khoảng thời gian đã chọn'
-        : (isMultiCodeSearch
-          ? 'Tìm chính xác tối đa 50 mã; có thể dán danh sách nhiều dòng'
-          : 'Nhập mã, tên hoặc từ khóa xuất hiện ở bất kỳ vị trí nào');
-      input.placeholder = placeholder;
-      input.setAttribute('aria-label', context.title + '. ' + placeholder);
-    }
-
-    function setSearchMode(mode) {
-      const nextMode = mode === 'codes'
-        ? 'codes'
-        : (mode === 'customer-products' && state.view === 'customers' ? 'customer-products' : 'normal');
-      if (state.search.mode === nextMode) return;
-      cancelSearchRequest();
-      state.search.mode = nextMode;
-      state.search.results = [];
-      state.search.total = 0;
-      state.search.requestedCount = 0;
-      state.search.matchedCount = 0;
-      state.search.missingCount = 0;
-      state.search.lastQuery = '';
-      state.search.resultFilter = null;
-      state.search.active = false;
-      hideSearchSuggestions();
-      document.getElementById('searchResult').hidden = true;
-      document.getElementById('searchResult').innerHTML = '';
-      document.getElementById('dashboardStats').classList.remove('search-mode');
-      ['normal', 'codes', 'customer-products'].forEach(function (searchMode) {
-        const buttonId = searchMode === 'normal'
-          ? 'searchModeNormal'
-          : (searchMode === 'codes' ? 'searchModeCodes' : 'searchModeCustomerProducts');
-        const button = document.getElementById(buttonId);
-        const isActive = searchMode === nextMode;
-        button.classList.toggle('active', isActive);
-        button.setAttribute('aria-pressed', String(isActive));
-      });
-      updateSearchContext();
-      handleSearchInput();
-      document.getElementById('dashboardSearchInput').focus();
-    }
-
-    function setSearchStatus(message, isError) {
-      const status = document.getElementById('searchStatus');
-      status.textContent = message;
-      status.classList.toggle('error', !!isError);
-    }
-
-    function hideSearchSuggestions() {
-      const suggestions = document.getElementById('searchSuggestions');
-      suggestions.classList.remove('show');
-      suggestions.innerHTML = '';
-      const input = document.getElementById('dashboardSearchInput');
-      input.setAttribute('aria-expanded', 'false');
-      input.removeAttribute('aria-activedescendant');
-      state.search.activeIndex = -1;
-    }
-
-    function cancelSearchRequest() {
-      state.search.requestId += 1;
-      if (state.search.timer) {
-        clearTimeout(state.search.timer);
-        state.search.timer = null;
-      }
-      if (state.search.controller) {
-        state.search.controller.abort();
-        state.search.controller = null;
-      }
-    }
-
-    function exitSearchMode() {
-      state.search.active = false;
-      state.search.results = [];
-      state.search.total = 0;
-      state.search.requestedCount = 0;
-      state.search.matchedCount = 0;
-      state.search.missingCount = 0;
-      state.search.lastQuery = '';
-      state.search.resultFilter = null;
-      cancelSearchRequest();
-      hideSearchSuggestions();
-      document.getElementById('searchResult').hidden = true;
-      document.getElementById('searchResult').innerHTML = '';
-      document.getElementById('dashboardStats').classList.remove('search-mode');
-      setSearchStatus('Đã quay lại phần thống kê');
-    }
-
-    function resetSearchForView() {
-      cancelSearchRequest();
-      if (state.view !== 'customers' && state.search.mode === 'customer-products') {
-        state.search.mode = 'normal';
-        document.getElementById('searchModeNormal').classList.add('active');
-        document.getElementById('searchModeNormal').setAttribute('aria-pressed', 'true');
-        document.getElementById('searchModeCustomerProducts').classList.remove('active');
-        document.getElementById('searchModeCustomerProducts').setAttribute('aria-pressed', 'false');
-      }
-      const input = document.getElementById('dashboardSearchInput');
-      input.value = '';
-      document.getElementById('searchClearBtn').hidden = true;
-      exitSearchMode();
-      updateSearchContext();
-      setSearchStatus('Có thể dùng phím ↑ ↓ để chọn gợi ý');
-    }
-
-    function clearSearchInput() {
-      const input = document.getElementById('dashboardSearchInput');
-      input.value = '';
-      document.getElementById('searchClearBtn').hidden = true;
-      hideSearchSuggestions();
-      setSearchStatus('Ô tìm kiếm đã trống. Nhấn Enter để quay lại phần thống kê');
-      input.focus();
-    }
-
-    function handleSearchPaste(event) {
-      const clipboard = event.clipboardData;
-      if (!clipboard) return;
-      event.preventDefault();
-      const input = event.currentTarget;
-      const pastedText = clipboard.getData('text');
-      const start = input.selectionStart === null ? input.value.length : input.selectionStart;
-      const end = input.selectionEnd === null ? start : input.selectionEnd;
-      input.value = normalizeSearchQuery(input.value.slice(0, start) + ' ' + pastedText + ' ' + input.value.slice(end));
-      input.setSelectionRange(input.value.length, input.value.length);
-      handleSearchInput();
-    }
-
-    function renderSuggestions() {
-      const suggestions = document.getElementById('searchSuggestions');
-      const results = state.search.results;
-      const showSource = state.view === 'overview' || state.view === 'invoices' || state.view === 'suppliers';
-      if (!results.length) {
-        suggestions.classList.remove('show');
-        document.getElementById('dashboardSearchInput').setAttribute('aria-expanded', 'false');
-        return;
-      }
-
-      suggestions.innerHTML = results.map(function (result, index) {
-        return '<button class="suggestion-item' + (index === state.search.activeIndex ? ' active' : '') + '" ' +
-          'id="search-option-' + index + '" type="button" role="option" aria-selected="' + (index === state.search.activeIndex) + '" ' +
-          'onclick="chooseSearchResult(' + index + ')">' +
-          '<span><span class="suggestion-name">' + escapeHtml(result.name || result.code) + '</span>' +
-          '<span class="suggestion-code">' + escapeHtml(result.code || 'Không có mã') + '</span></span>' +
-          (showSource ? '<span class="suggestion-source">' + escapeHtml(result.sourceLabel) + '</span>' : '') +
-          '</button>';
-      }).join('');
-      suggestions.classList.add('show');
-      document.getElementById('dashboardSearchInput').setAttribute('aria-expanded', 'true');
-    }
-
-    function updateActiveSuggestion(nextIndex) {
-      const resultCount = state.search.results.length;
-      if (!resultCount) return;
-      state.search.activeIndex = (nextIndex + resultCount) % resultCount;
-      renderSuggestions();
-      const option = document.getElementById('search-option-' + state.search.activeIndex);
-      document.getElementById('dashboardSearchInput').setAttribute('aria-activedescendant', option.id);
-      option.scrollIntoView({ block: 'nearest' });
-    }
-
-    async function fetchSearchResults(query, showSuggestions, fetchAll) {
-      cancelSearchRequest();
-      const requestId = ++state.search.requestId;
-      const controller = new AbortController();
-      state.search.controller = controller;
-      const normalizedQuery = normalizeSearchQuery(query);
-
-      const isCustomerProductSearch = state.search.mode === 'customer-products';
-      const searchUrl = isCustomerProductSearch
-        ? '/api/customer-product-top?q=' + encodeURIComponent(normalizedQuery) + '&' + buildCustomerTopFilterQuery()
-        : '/api/search?view=' + encodeURIComponent(state.view) +
-        '&q=' + encodeURIComponent(normalizedQuery) +
-        (state.search.mode === 'codes' ? '&mode=codes' : '') +
-        '&limit=' + (fetchAll ? 'all' : '8') +
-        (state.view === 'customers' ? '&' + buildCustomerTopFilterQuery() : '');
-      const response = await fetch(searchUrl, { signal: controller.signal });
-      if (!response.ok) throw new Error('HTTP ' + response.status);
-      const payload = await response.json();
-      if (requestId !== state.search.requestId) return [];
-
-      state.search.results = payload.results || [];
-      state.search.total = Number(payload.total) || state.search.results.length;
-      state.search.requestedCount = Number(payload.requestedCount) || 0;
-      state.search.matchedCount = Number(payload.matchedCount) || 0;
-      state.search.missingCount = Number(payload.missingCount) || 0;
-      state.search.lastQuery = payload.query || normalizedQuery;
-      state.search.resultFilter = payload.filter || null;
-      state.search.activeIndex = -1;
-      if (showSuggestions) renderSuggestions();
-      return state.search.results;
-    }
-
-    function handleSearchInput() {
-      const input = document.getElementById('dashboardSearchInput');
-      const query = normalizeSearchQuery(input.value);
-      document.getElementById('searchClearBtn').hidden = !input.value;
-      cancelSearchRequest();
-
-      if (!query) {
-        state.search.results = [];
-        state.search.total = 0;
-        state.search.lastQuery = '';
-        hideSearchSuggestions();
-        setSearchStatus(state.search.active
-          ? 'Nhấn Enter để quay lại phần thống kê'
-          : 'Ô tìm kiếm đang trống. Nhấn Enter để xem phần thống kê');
-        return;
-      }
-
-      if (state.search.mode === 'codes' || state.search.mode === 'customer-products') {
-        hideSearchSuggestions();
-        const codes = parseSearchCodes(query);
-        if (codes.length > 50) {
-          setSearchStatus('Danh sách có ' + codes.length + ' mã. Vui lòng rút gọn còn tối đa 50 mã.', true);
-        } else {
-          setSearchStatus(state.search.mode === 'customer-products'
-            ? 'Đã nhận ' + codes.length + ' mã hàng. Nhấn Enter hoặc bấm Tìm kiếm để xem Top 3 khách hàng.'
-            : 'Đã nhận ' + codes.length + ' mã. Nhấn Enter hoặc bấm Tìm kiếm để tra cứu chính xác.');
-        }
-        return;
-      }
-
-      setSearchStatus('Đang tìm gợi ý…');
-      state.search.timer = setTimeout(function () {
-        fetchSearchResults(query, true)
-          .then(function (results) {
-            setSearchStatus(results.length
-              ? (state.search.total > results.length
-                ? results.length + ' trong ' + state.search.total + ' dòng khớp từ khóa'
-                : results.length + ' dòng khớp từ khóa')
-              : 'Không có tên hoặc mã nào chứa từ khóa này');
-          })
-          .catch(function (err) {
-            if (err.name !== 'AbortError') {
-              hideSearchSuggestions();
-              setSearchStatus('Không tải được gợi ý. Vui lòng thử lại', true);
-            }
-          });
-      }, 180);
-    }
-
-    function handleSearchKeydown(event) {
-      if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        updateActiveSuggestion(state.search.activeIndex + 1);
-      } else if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        updateActiveSuggestion(state.search.activeIndex - 1);
-      } else if (event.key === 'Escape') {
-        hideSearchSuggestions();
-      } else if (event.key === 'Enter') {
-        event.preventDefault();
-        document.getElementById('dashboardSearchForm').requestSubmit();
-      }
-    }
-
-    function renderSearchResult(result) {
-      state.search.active = true;
-      hideSearchSuggestions();
-      document.getElementById('dashboardStats').classList.add('search-mode');
-      const resultPanel = document.getElementById('searchResult');
-      resultPanel.hidden = false;
-
-      if (!result) {
-        const query = normalizeSearchQuery(document.getElementById('dashboardSearchInput').value);
-        if (state.search.mode === 'customer-products') {
-          resultPanel.innerHTML =
-            '<div class="search-empty"><b>Không có lượt mua phù hợp</b>' +
-            'Không có khách hàng mua các mã đã nhập trong khoảng thời gian đang chọn, hoặc mã hàng không tồn tại trong sheet Khách theo hàng hóa.</div>';
-          setSearchStatus('Không tìm thấy mã có lượt mua trong kỳ trong ' + state.search.requestedCount + ' mã đã nhập');
-        } else if (state.search.mode === 'codes') {
-          resultPanel.innerHTML =
-            '<div class="search-empty"><b>Không tìm thấy mã nào</b>' +
-            'Không có mã nào trong danh sách khớp chính xác với dữ liệu của tab hiện tại. ' +
-            'Hãy kiểm tra lại danh sách hoặc chuyển sang chế độ tìm thông thường.</div>';
-          setSearchStatus('Không tìm thấy mã nào trong ' + state.search.requestedCount + ' mã đã nhập');
-        } else {
-          resultPanel.innerHTML =
-            '<div class="search-empty"><b>Không tìm thấy kết quả</b>' +
-            'Không có tên hoặc mã nào chứa từ khóa “' + escapeHtml(query) + '”. ' +
-            'Hãy sửa từ khóa, hoặc xóa ô tìm kiếm và nhấn Enter để quay lại thống kê.</div>';
-          setSearchStatus('Không tìm thấy kết quả phù hợp');
-        }
-        return;
-      }
-
-      const codeFieldPattern = /(^mã\b|code|sku)/i;
-      const fieldsHtml = (result.fields || []).map(function (field) {
-        const monoClass = codeFieldPattern.test(field.label) ? ' mono' : '';
-        return '<div class="detail-field"><dt>' + escapeHtml(field.label) + '</dt>' +
-          '<dd class="' + monoClass.trim() + '">' + escapeHtml(field.value) + '</dd></div>';
-      }).join('');
-
-      resultPanel.innerHTML =
-        '<div class="search-result-head"><div>' +
-        '<span class="search-result-source">Sheet ' + escapeHtml(result.sourceLabel) + '</span>' +
-        '<h2>' + escapeHtml(result.name || result.code) + '</h2>' +
-        '<div class="search-result-code">' + escapeHtml(result.code || 'Không có mã') + '</div>' +
-        '</div><div class="search-result-actions"><button class="search-back" type="button" onclick="reopenSearchResults()">Quay lại kết quả</button></div></div>' +
-        '<p class="detail-title">Toàn bộ thông tin theo thứ tự cột trong bảng Sheets gốc</p>' +
-        '<dl class="detail-grid">' + fieldsHtml + '</dl>';
-      setSearchStatus('Đang hiển thị chi tiết từ sheet ' + result.sourceLabel);
-    }
-
-    function chooseSearchResult(index) {
-      const result = state.search.results[index];
-      if (result) renderSearchResult(result);
-    }
-
-    function normalizeFieldLabel(label) {
-      return String(label || '').normalize('NFKC').trim().toLocaleLowerCase('vi-VN');
-    }
-
-    function getFieldValue(result, aliases) {
-      const fields = (result && result.fields) || [];
-      for (let i = 0; i < aliases.length; i++) {
-        const target = normalizeFieldLabel(aliases[i]);
-        const match = fields.find(function (f) { return normalizeFieldLabel(f.label) === target; });
-        if (match && match.value !== undefined && match.value !== null && match.value !== '' && match.value !== '—') return match.value;
-      }
-      return '—';
-    }
-
-    function fmtFieldMoney(value) {
-      if (value === '—' || value === undefined || value === null || value === '') return '—';
-      const n = Number(value);
-      return Number.isFinite(n) ? fmtMoney(n) : escapeHtml(String(value));
-    }
-
-    function fmtFieldInt(value) {
-      if (value === '—' || value === undefined || value === null || value === '') return '—';
-      const n = Number(value);
-      return Number.isFinite(n) ? fmtNumber(n) : escapeHtml(String(value));
-    }
-
-    function renderSearchResults(results, query) {
-      state.search.active = true;
-      hideSearchSuggestions();
-      document.getElementById('dashboardStats').classList.add('search-mode');
-      const resultPanel = document.getElementById('searchResult');
-      resultPanel.hidden = false;
-
-      if (!results.length) {
-        renderSearchResult(null);
-        return;
-      }
-
-      if (state.search.mode === 'customer-products') {
-        renderCustomerProductTopResults(results);
-        return;
-      }
-
-      const showSource = state.view === 'overview' || state.view === 'invoices' || state.view === 'suppliers';
-      const isMultiCodeSearch = state.search.mode === 'codes';
-
-      let tableClass = 'search-results-table';
-      let theadCellsHtml = (showSource ? '<th>Nguồn</th>' : '') + '<th>Mã</th><th>Tên</th><th>Thao tác</th>';
-      let rowsHtml = results.map(function (result, index) {
-        return '<tr>' +
-          (showSource ? '<td class="search-result-source-cell">' + escapeHtml(result.sourceLabel) + '</td>' : '') +
-          '<td class="mono muted">' + escapeHtml(result.code || '—') + '</td>' +
-          '<td class="name-cell">' + escapeHtml(result.name || result.code || '—') + '</td>' +
-          '<td><button class="search-row-action" type="button" onclick="chooseSearchResult(' + index + ')">Xem chi tiết</button></td>' +
-          '</tr>';
-      }).join('');
-
-      if (state.view === 'products') {
-        tableClass += ' products-results-table';
-        theadCellsHtml = '<th>Mã hàng</th><th>Tên hàng</th><th>Giá vốn</th><th>Tồn kho</th><th>Khách đặt</th><th>Mô tả</th><th>Trạng thái kinh doanh</th><th>Thao tác</th>';
-        rowsHtml = results.map(function (result, index) {
-          return '<tr>' +
-            '<td class="mono muted">' + escapeHtml(result.code || '—') + '</td>' +
-            '<td class="name-cell">' + escapeHtml(result.name || result.code || '—') + '</td>' +
-            '<td class="mono">' + fmtFieldMoney(getFieldValue(result, ['Giá vốn'])) + '</td>' +
-            '<td class="mono">' + fmtFieldInt(getFieldValue(result, ['Tồn kho'])) + '</td>' +
-            '<td class="mono">' + fmtFieldInt(getFieldValue(result, ['Khách đặt'])) + '</td>' +
-            '<td>' + escapeHtml(String(getFieldValue(result, ['Mô tả']))) + '</td>' +
-            '<td>' + escapeHtml(String(getFieldValue(result, ['Trạng thái kinh doanh', 'Trạng thái']))) + '</td>' +
-            '<td><button class="search-row-action" type="button" onclick="chooseSearchResult(' + index + ')">Xem chi tiết</button></td>' +
-            '</tr>';
-        }).join('');
-      } else if (state.view === 'invoices') {
-        tableClass += ' invoices-results-table';
-        theadCellsHtml = (showSource ? '<th>Nguồn</th>' : '') + '<th>Mã hóa đơn</th><th>Ngày bán</th><th>Khách hàng</th><th>Tổng tiền</th><th>Nhân viên bán</th><th>Thao tác</th>';
-        rowsHtml = results.map(function (result, index) {
-          return '<tr>' +
-            (showSource ? '<td class="search-result-source-cell">' + escapeHtml(result.sourceLabel) + '</td>' : '') +
-            '<td class="mono muted">' + escapeHtml(result.code || '—') + '</td>' +
-            '<td class="mono muted">' + escapeHtml(String(getFieldValue(result, ['Ngày bán', 'Ngày đặt', 'Ngày trả']))) + '</td>' +
-            '<td class="name-cell">' + escapeHtml(result.name || '—') + '</td>' +
-            '<td class="mono">' + fmtFieldMoney(getFieldValue(result, ['Tổng tiền hàng', 'Tổng tiền', 'Tổng tiền trả'])) + '</td>' +
-            '<td>' + escapeHtml(String(getFieldValue(result, ['Nhân viên bán', 'Nhân viên lập']))) + '</td>' +
-            '<td><button class="search-row-action" type="button" onclick="chooseSearchResult(' + index + ')">Xem chi tiết</button></td>' +
-            '</tr>';
-        }).join('');
-      } else if (state.view === 'customers') {
-        tableClass += ' customers-results-table';
-        theadCellsHtml = '<th>Mã KH</th><th>Tên KH</th><th>Nhóm KH</th><th>Nợ hiện tại</th><th>Tổng bán</th><th>Tổng doanh thu</th><th>Thao tác</th>';
-        rowsHtml = results.map(function (result, index) {
-          return '<tr>' +
-            '<td class="mono muted">' + escapeHtml(result.code || '—') + '</td>' +
-            '<td class="name-cell">' + escapeHtml(result.name || result.code || '—') + '</td>' +
-            '<td>' + escapeHtml(String(getFieldValue(result, ['Nhóm khách hàng']))) + '</td>' +
-            '<td class="mono">' + fmtFieldMoney(getFieldValue(result, ['Nợ hiện tại'])) + '</td>' +
-            '<td class="mono">' + fmtFieldInt(getFieldValue(result, ['Tổng bán'])) + '</td>' +
-            '<td class="mono">' + fmtMoney(result.revenue) + '</td>' +
-            '<td><button class="search-row-action" type="button" onclick="chooseSearchResult(' + index + ')">Xem chi tiết</button></td>' +
-            '</tr>';
-        }).join('');
-      }
-
-      resultPanel.innerHTML =
-        '<div class="search-result-head"><div>' +
-        '<span class="search-result-source">' + (isMultiCodeSearch ? 'Kết quả nhiều mã' : 'Kết quả từ khóa') + '</span>' +
-        (isMultiCodeSearch
-          ? '<h2>Tìm thấy ' + state.search.matchedCount + ' trong ' + state.search.requestedCount + ' mã</h2>' +
-          '<p class="search-results-summary">' + state.search.missingCount + ' mã không tìm thấy; bảng dưới đây giữ nguyên thứ tự danh sách đã nhập.</p>'
-          : '<h2>' + results.length + ' dòng khớp “' + escapeHtml(query) + '”</h2>' +
-          '<p class="search-results-summary">Không phân biệt hoa thường hoặc khoảng trắng; hỗ trợ đầy đủ tiếng Việt có dấu.</p>') +
-        '</div><div class="search-result-actions">' + searchExportButtonHtml() + '<button class="search-back" type="button" onclick="clearSearchAndReturn()">Quay lại thống kê</button></div></div>' +
-        '<div class="search-results-wrap"><table class="' + tableClass + '"><thead><tr>' +
-        theadCellsHtml +
-        '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
-      setSearchStatus(isMultiCodeSearch
-        ? 'Đang hiển thị ' + results.length + ' dòng cho ' + state.search.matchedCount + ' mã tìm thấy; ' + state.search.missingCount + ' mã không tìm thấy'
-        : 'Đang hiển thị toàn bộ ' + results.length + ' dòng khớp từ khóa');
-    }
-
-    function renderCustomerProductTopResults(results) {
-      const resultPanel = document.getElementById('searchResult');
-      const filter = state.search.resultFilter || { mode: 'all', label: 'Tất cả' };
-      const mixedPeriodNote = filter.mode === 'all'
-        ? 'Các chỉ số mua, trả và doanh thu thuần đều là toàn thời gian.'
-        : 'Lưu ý: SL trả và Giá trị trả là tổng toàn thời gian. Doanh thu thuần = Doanh thu mua trong kỳ − Giá trị trả toàn thời gian.';
-      const rowsHtml = results.map(function (result) {
-        return '<tr>' +
-          '<td class="mono muted">' + escapeHtml(result.productCode || '—') + '</td>' +
-          '<td class="name-cell">' + escapeHtml(result.productName || result.productCode || '—') + '</td>' +
-          '<td class="name-cell">' + escapeHtml(result.customerName || 'Khách lẻ') + '</td>' +
-          '<td class="mono" data-sort-value="' + Number(result.purchasedQuantity || 0) + '">' + fmtNumber(Number(result.purchasedQuantity || 0)) + '</td>' +
-          '<td class="mono" data-sort-value="' + Number(result.purchaseRevenue || 0) + '">' + fmtMoney(result.purchaseRevenue) + '</td>' +
-          '<td class="mono" data-sort-value="' + Number(result.returnedQuantityAllTime || 0) + '">' + fmtNumber(Number(result.returnedQuantityAllTime || 0)) + '</td>' +
-          '<td class="mono" data-sort-value="' + Number(result.returnValueAllTime || 0) + '">' + fmtMoney(result.returnValueAllTime) + '</td>' +
-          '<td class="mono" data-sort-value="' + Number(result.netRevenue || 0) + '">' + fmtMoney(result.netRevenue) + '</td>' +
-          '<td class="mono muted">' + escapeHtml(result.lastPurchaseDate || '—') + '</td>' +
-          '</tr>';
-      }).join('');
-
-      resultPanel.innerHTML =
-        '<div class="search-result-head"><div>' +
-        '<span class="search-result-source">Top 3 khách hàng theo sản phẩm · ' + escapeHtml(filter.label || 'Tất cả') + '</span>' +
-        '<h2>Tìm thấy ' + state.search.matchedCount + ' trong ' + state.search.requestedCount + ' mã</h2>' +
-        '<p class="search-results-summary">' + state.search.missingCount + ' mã không có lượt mua trong kỳ hoặc không tồn tại. Xếp hạng theo SL mua tổng giảm dần.</p>' +
-        '<p class="search-results-summary">' + escapeHtml(mixedPeriodNote) + '</p>' +
-        '</div><div class="search-result-actions">' + searchExportButtonHtml() + '<button class="search-back" type="button" onclick="clearSearchAndReturn()">Quay lại thống kê</button></div></div>' +
-        '<div class="search-results-wrap"><table class="search-results-table customer-product-results-table"><thead><tr>' +
-        '<th>Mã hàng</th><th>Tên hàng</th><th>Khách hàng</th><th>SL mua tổng</th><th>Doanh thu tổng</th>' +
-        '<th>SL trả (toàn thời gian)</th><th>Giá trị trả (toàn thời gian)</th><th>Doanh thu thuần</th><th>Ngày mua cuối cùng</th>' +
-        '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
-      setSearchStatus('Đang hiển thị ' + results.length + ' dòng Top 3 cho ' + state.search.matchedCount + ' mã; ' + state.search.missingCount + ' mã không có dữ liệu trong kỳ');
-    }
-
-    function reopenSearchResults() {
-      renderSearchResults(state.search.results, state.search.lastQuery);
-    }
-
-    function clearSearchAndReturn() {
-      const input = document.getElementById('dashboardSearchInput');
-      input.value = '';
-      document.getElementById('searchClearBtn').hidden = true;
-      exitSearchMode();
-      input.focus();
-    }
-
-    async function handleSearchSubmit(event) {
-      event.preventDefault();
-      const input = document.getElementById('dashboardSearchInput');
-      const query = normalizeSearchQuery(input.value);
-
-      if (!query) {
-        exitSearchMode();
-        return;
-      }
-
-      if (state.search.mode === 'codes' || state.search.mode === 'customer-products') {
-        const codes = parseSearchCodes(query);
-        if (codes.length > 50) {
-          setSearchStatus('Danh sách có ' + codes.length + ' mã. Vui lòng rút gọn còn tối đa 50 mã.', true);
-          return;
-        }
-      }
-
-      const submitButton = document.getElementById('searchSubmitBtn');
-      input.value = query;
-      submitButton.disabled = true;
-      setSearchStatus(state.search.mode === 'customer-products'
-        ? 'Đang tổng hợp Top 3 khách hàng theo từng mã…'
-        : (state.search.mode === 'codes'
-          ? 'Đang tìm chính xác các mã trong danh sách…'
-          : 'Đang tải toàn bộ dòng khớp từ khóa…'));
-      try {
-        const results = await fetchSearchResults(query, false, true);
-        renderSearchResults(results, state.search.lastQuery);
-      } catch (err) {
-        if (err.name !== 'AbortError') {
-          setSearchStatus('Không thể tìm kiếm lúc này. Vui lòng thử lại', true);
-        }
-      } finally {
-        submitButton.disabled = false;
-      }
+    // Tab công nợ không có nhóm lọc thời gian nào nên ẩn cả thanh bộ lọc.
+    function updateFilterBarVisibility() {
+      document.getElementById('filterBar').hidden = state.view === 'debt' || state.view === 'overview';
     }
 
     function toggleSidebar() {
@@ -7332,7 +6280,7 @@
       document.getElementById('menuBtn').setAttribute('aria-expanded', 'false');
       document.getElementById('menuBtn').setAttribute('aria-label', 'Mở menu điều hướng');
       updateFilterBar();
-      resetSearchForView();
+      updateFilterBarVisibility();
       if (viewIsLoaded(view)) {
         state.chartAnimation = false;
         renderView(view);
@@ -7343,18 +6291,6 @@
       // Moi tab tai rieng khi duoc mo (xem ensureViewData): tab da co du lieu van ve ngay
       // tu du lieu cu roi cap nhat khi ban moi ve; tab chua co du lieu hien man che "Dang tai".
       ensureViewData(view);
-    }
-
-    function setProductStatus(status) {
-      state.productStatus = status;
-      document.querySelectorAll('#productStatusToggle button').forEach(b => b.classList.toggle('active', b.dataset.status === status));
-      loadData(state.days, false);
-    }
-
-    function setInventoryView(mode) {
-      if (mode !== 'product' && mode !== 'parentCategory') return;
-      state.inventoryView = mode;
-      if (state.data) renderInventoryStructure(state.data);
     }
 
     function setProductAnalysis(mode) {
@@ -7380,14 +6316,12 @@
       state.filters[key] = { mode: 'days', days: days };
       syncMiniFilterUI(key);
       loadData(state.days, false);
-      if (key === 'customers') refreshActiveCustomerProductSearch();
     }
 
     function setMiniFilterAll(key) {
       state.filters[key] = { mode: 'all' };
       syncMiniFilterUI(key);
       loadData(state.days, false);
-      if (key === 'customers') refreshActiveCustomerProductSearch();
     }
 
     function applyMiniFilterRange(key) {
@@ -7402,7 +6336,6 @@
       state.filters[key] = { mode: 'range', from: from, to: to };
       syncMiniFilterUI(key);
       loadData(state.days, false);
-      if (key === 'customers') refreshActiveCustomerProductSearch();
     }
 
     function focusMiniFilterRange(key) {
@@ -7456,38 +6389,7 @@
           }
         });
       });
-      if (!filterKeys || filterKeys.indexOf('products') !== -1) {
-        parts.push('prStatus=' + encodeURIComponent(state.productStatus));
-      }
       return parts.join('&');
-    }
-
-    function buildCustomerTopFilterQuery() {
-      const filter = state.filters.customers || { mode: 'all' };
-      const parts = ['cuMode=' + encodeURIComponent(filter.mode)];
-      if (filter.mode === 'days') parts.push('cuDays=' + encodeURIComponent(filter.days));
-      if (filter.mode === 'range') {
-        parts.push('cuFrom=' + encodeURIComponent(filter.from));
-        parts.push('cuTo=' + encodeURIComponent(filter.to));
-      }
-      return parts.join('&');
-    }
-
-    function refreshActiveCustomerProductSearch() {
-      if (state.view !== 'customers' || state.search.mode !== 'customer-products' || !state.search.active) return;
-      const query = state.search.lastQuery || normalizeSearchQuery(document.getElementById('dashboardSearchInput').value);
-      if (!query) return;
-      setSearchStatus('Đang cập nhật Top 3 khách hàng theo bộ lọc mới…');
-      fetchSearchResults(query, false, true)
-        .then(function (results) { renderSearchResults(results, state.search.lastQuery); })
-        .catch(function (err) {
-          if (err.name !== 'AbortError') setSearchStatus('Không thể cập nhật kết quả theo bộ lọc mới', true);
-        });
-    }
-
-    function bizStatusPill(status) {
-      if (status === 'Ngừng kinh doanh') return '<span class="pill bad">' + status + '</span>';
-      return '<span class="pill ok">' + (status ? escapeHtml(status) : 'Đang kinh doanh') + '</span>';
     }
 
     function destroyChart(key) {
@@ -7574,7 +6476,7 @@
           maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false, axis: 'y' },
           onClick: function (event, elements) {
-            if (elements && elements[0]) navigateChartToTable('customerRevenue', customersList[elements[0].index].code);
+            if (elements && elements[0]) navigateChartToTable('customerRevenue', customerIdentity(customersList[elements[0].index]));
           },
           plugins: {
             legend: { display: false },
@@ -7582,7 +6484,7 @@
               callbacks: {
                 title: items => {
                   const item = customersList[items[0].dataIndex] || {};
-                  return (item.name || '—') + (item.code ? ' · ' + item.code : '');
+                  return item.name || '—';
                 },
                 label: context => {
                   const item = customersList[context.dataIndex] || {};
@@ -7602,7 +6504,7 @@
       });
     }
 
-    function renderBarChartList(canvasId, key, list, labelFn, valueFn, color, vertical, drilldown) {
+    function renderBarChartList(canvasId, key, list, labelFn, valueFn, color, vertical, drilldown, barThickness, labelRotation) {
       destroyChart(key);
       const canvas = document.getElementById(canvasId);
       const ctx = canvas.getContext('2d');
@@ -7610,7 +6512,7 @@
       canvas.title = drilldown ? 'Nhấn cột để xem dòng tương ứng' : '';
       const theme = chartTheme();
       const valueScale = { ticks: { color: theme.muted, callback: v => fmtMoneyShort(v), font: { size: 10.5 } }, grid: { color: theme.grid } };
-      const labelScale = { ticks: { color: theme.text, font: { size: 10.5 }, autoSkip: false, maxRotation: 60, minRotation: 40 }, grid: { display: false } };
+      const labelScale = { ticks: { color: theme.text, font: { size: 10.5 }, autoSkip: false, maxRotation: labelRotation || 60, minRotation: labelRotation || 40 }, grid: { display: false } };
       const solidColor = color || theme.amber;
       const fillColor = solidColor;
       state.charts[key] = new Chart(ctx, {
@@ -7623,7 +6525,7 @@
             borderColor: solidColor,
             borderWidth: 1.5,
             borderRadius: 5,
-            maxBarThickness: vertical ? 40 : 38
+            maxBarThickness: barThickness || (vertical ? 40 : 38)
           }]
         },
         options: {
@@ -7735,112 +6637,101 @@
       });
     }
 
-    const INVENTORY_CHART_TOP = 15;
+    const INVENTORY_BOTH_LABEL = 'Hà Nội, Sài Gòn';
 
-    function truncateChartLabel(text, max) {
-      text = String(text == null ? '' : text);
-      return text.length > max ? text.slice(0, max - 1).trimEnd() + '…' : text;
+    // Bang "Chi tiet ton kho": 1 dong / ma hang. Chon 1 co so -> dung nguyen dong cua co so do.
+    // "Cả hai" (allProducts co dong cua ca 2 co so) -> gop theo ma: ton/ton co the ban/gia tri ton
+    // tach theo tung co so, "Đơn giá" = gia von binh quan theo ton duong (nhu mergeEntitySheet),
+    // "Hàng đang vận chuyển" cung 1 so theo ma nen lay 1 lan (uu tien dong Sai Gon), khong cong don.
+    function buildInventoryRows(products) {
+      const list = Array.isArray(products) ? products : [];
+      const branchNames = new Set(list.map(function (p) { return p.branch; }));
+      const isBoth = branchNames.has('Hà Nội') && branchNames.has('Sài Gòn');
+      const sortRows = function (rows) {
+        return rows.sort(function (a, b) {
+          return (b.stockValue || 0) - (a.stockValue || 0) || (b.stock || 0) - (a.stock || 0);
+        });
+      };
+      if (!isBoth) {
+        return {
+          isBoth: false,
+          rows: sortRows(list.map(function (p) {
+            return {
+              code: p.code, name: p.name, branch: p.branch, cost: p.cost || 0,
+              stock: p.stock || 0, available: p.available === undefined ? (p.stock || 0) - (p.reserved || 0) : p.available,
+              inTransit: p.inTransit || 0, stockValue: p.stockValue || 0
+            };
+          }))
+        };
+      }
+      const byCode = new Map();
+      list.forEach(function (p) {
+        const key = String(p.code || '');
+        if (!byCode.has(key)) {
+          byCode.set(key, {
+            code: p.code, name: p.name, branches: [], cost: 0, positiveStock: 0,
+            stockHanoi: null, stockSaigon: null, availableHanoi: null, availableSaigon: null,
+            inTransit: 0, stock: 0, stockValue: 0
+          });
+        }
+        const row = byCode.get(key);
+        const stock = p.stock || 0;
+        const available = p.available === undefined ? stock - (p.reserved || 0) : p.available;
+        if (p.branch === 'Hà Nội') { row.stockHanoi = stock; row.availableHanoi = available; if (p.name) row.name = p.name; }
+        else if (p.branch === 'Sài Gòn') { row.stockSaigon = stock; row.availableSaigon = available; if (!row.name) row.name = p.name; }
+        row.branches.push(p.branch);
+        row.stock += stock;
+        row.stockValue += p.stockValue || 0;
+        row.positiveStock += Math.max(stock, 0);
+        row.inTransit = p.branch === 'Sài Gòn' ? (p.inTransit || 0) : (row.inTransit || p.inTransit || 0);
+      });
+      const rows = Array.from(byCode.values()).map(function (row) {
+        row.branch = row.branches.length > 1 ? INVENTORY_BOTH_LABEL : row.branches[0];
+        row.cost = row.positiveStock > 0 ? row.stockValue / row.positiveStock : 0;
+        return row;
+      });
+      return { isBoth: true, rows: sortRows(rows) };
     }
 
-    // Biểu đồ cột ngang top 15 giá trị tồn kho: theo sản phẩm (mỗi mã hàng) hoặc theo nhóm cha.
-    // Bảng bên cạnh luôn liệt kê đầy đủ mọi sản phẩm nên không bị cắt top 15.
-    function renderInventoryValueChart(items, byProduct, totalValue) {
-      destroyChart('inventoryValue');
-      const canvas = document.getElementById('chartInventoryValue');
-      const ctx = canvas.getContext('2d');
-      canvas.style.cursor = byProduct ? 'pointer' : '';
-      canvas.title = byProduct ? 'Nhấn cột để xem dòng tương ứng trong bảng' : '';
-      const theme = chartTheme();
-      const solidColor = themeColor('--green') || '#10B981';
-      const formatAxisMoney = createMoneyAxisFormatter(items.map(item => item.stockValue));
-      state.charts.inventoryValue = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: items.map(item => item.name),
-          datasets: [{
-            data: items.map(item => item.stockValue),
-            backgroundColor: solidColor,
-            borderColor: solidColor,
-            borderWidth: 1.5,
-            borderRadius: 5,
-            maxBarThickness: 22
-          }]
-        },
-        options: {
-          animation: chartAnimationOption(),
-          indexAxis: 'y',
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false, axis: 'y' },
-          onClick: byProduct ? function (event, elements) {
-            if (!elements || !elements[0]) return;
-            navigateChartToTable('inventoryValue', items[elements[0].index].code);
-          } : undefined,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                title: contexts => contexts.length ? items[contexts[0].dataIndex].name : '',
-                label: context => {
-                  const item = items[context.dataIndex];
-                  const pct = totalValue > 0 ? (item.stockValue / totalValue * 100).toFixed(2) : '0.00';
-                  const lines = ['Giá trị tồn: ' + fmtMoney(item.stockValue) + ' · ' + pct + '%', 'Tồn kho: ' + fmtNumber(item.stock)];
-                  if (byProduct) lines.unshift('Mã hàng: ' + item.code);
-                  else lines.push('Số mặt hàng: ' + fmtNumber(item.productCount));
-                  return lines;
-                }
-              }
-            }
-          },
-          scales: {
-            x: {
-              beginAtZero: true,
-              ticks: { color: theme.muted, callback: value => formatAxisMoney(value), font: { size: 10.5 } },
-              grid: { color: theme.grid }
-            },
-            y: {
-              ticks: {
-                color: theme.text,
-                font: { size: 11 },
-                autoSkip: false,
-                callback: function (value) { return truncateChartLabel(this.getLabelForValue(value), 30); }
-              },
-              grid: { display: false }
-            }
-          }
-        }
+    // Hien/an cot theo che do (th co data-inv-cols="one"|"both"); o <td> luon co mat trong dong de chi so cot khong lech.
+    function applyInventoryColumnMode(isBoth) {
+      document.getElementById('inventoryValueRows').closest('table').querySelectorAll('thead th[data-inv-cols]').forEach(function (th) {
+        th.hidden = (th.dataset.invCols === 'both') !== isBoth;
       });
     }
 
     function renderInventoryStructure(d) {
-      const byProduct = state.inventoryView === 'product';
-      const totalValue = Number(d.kpi && d.kpi.totalInventoryValue) || 0;
-      document.querySelectorAll('#inventoryViewToggle button').forEach(function (button) {
-        button.classList.toggle('active', button.dataset.inventoryView === state.inventoryView);
-      });
+      const built = buildInventoryRows(d.allProducts);
+      const isBoth = built.isBoth;
+      applyInventoryColumnMode(isBoth);
+      document.getElementById('tagInventoryTable').textContent = fmtNumber(built.rows.length);
 
-      const products = (d.allProducts || []).slice().sort((a, b) => (b.stockValue || 0) - (a.stockValue || 0) || (b.stock || 0) - (a.stock || 0));
-      const chartItems = byProduct
-        ? products.slice(0, INVENTORY_CHART_TOP)
-        : (d.stockValueByCategory || []).slice(0, INVENTORY_CHART_TOP);
-      document.getElementById('inventoryChartTitle').textContent =
-        'Top ' + chartItems.length + (byProduct ? ' sản phẩm' : ' nhóm cha') + ' theo giá trị tồn';
-      document.getElementById('tagInventoryValue').textContent = byProduct
-        ? fmtNumber(products.length) + ' sản phẩm · ' + fmtMoneyShort(totalValue)
-        : (d.kpi.inventoryValueCategoryCount || 0) + ' nhóm · ' + fmtMoneyShort(totalValue);
-      if (chartItems.length) renderInventoryValueChart(chartItems, byProduct, totalValue);
-      else destroyChart('inventoryValue');
-
-      document.getElementById('tagInventoryTable').textContent = fmtNumber(products.length);
+      const cell = function (value, hiddenCell, muted) {
+        const num = Number(value) || 0;
+        return '<td class="mono' + (muted ? ' muted' : '') + '"' + (hiddenCell ? ' hidden' : '') +
+          ' data-sort-value="' + num + '">' + fmtNumber(num) + '</td>';
+      };
+      const optionalCell = function (value, hiddenCell) {
+        return value === null || value === undefined
+          ? '<td class="mono muted"' + (hiddenCell ? ' hidden' : '') + '>—</td>'
+          : cell(value, hiddenCell, false);
+      };
       renderPaginatedRows(
         'inventoryValue',
         { tbody: 'inventoryValueRows', pagination: 'inventoryValuePagination', firstBtn: 'inventoryValueFirstPage', prevBtn: 'inventoryValuePrevPage', nextBtn: 'inventoryValueNextPage', lastBtn: 'inventoryValueLastPage', label: 'inventoryValuePageLabel' },
-        products,
+        built.rows,
         p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+          '<td>' + branchCellText(p) + '</td>' +
           '<td class="mono muted" data-sort-value="' + (p.cost || 0) + '">' + fmtMoney(p.cost) + '</td>' +
-          '<td class="mono" data-sort-value="' + p.stock + '">' + fmtNumber(p.stock) + '</td>' +
+          cell(p.stock, isBoth, false) +
+          optionalCell(p.stockHanoi, !isBoth) +
+          optionalCell(p.stockSaigon, !isBoth) +
+          cell(p.available, isBoth, false) +
+          optionalCell(p.availableHanoi, !isBoth) +
+          optionalCell(p.availableSaigon, !isBoth) +
+          (p.inTransit ? cell(p.inTransit, false, false) : '<td class="mono muted" data-sort-value="0">—</td>') +
           '<td class="mono" data-sort-value="' + (p.stockValue || 0) + '">' + fmtMoney(p.stockValue) + '</td></tr>',
-        5,
+        12,
         'Không có dữ liệu'
       );
     }
@@ -7861,11 +6752,11 @@
       // Theo mặt hàng: bỏ biểu đồ, bảng rộng full và có thêm cột tồn kho (tra theo mã từ allProducts).
       const stockByCode = new Map();
       if (!isParentCategory) {
-        (d.allProducts || []).forEach(p => stockByCode.set(String(p.code).trim(), p.stock));
+        (d.allProducts || []).forEach(p => stockByCode.set(productIdentity(p), p.stock));
       }
       const tableRows = isParentCategory
         ? analysisRows
-        : analysisRows.map(item => Object.assign({}, item, { stock: stockByCode.get(String(item.code).trim()) }));
+        : analysisRows.map(item => Object.assign({}, item, { stock: stockByCode.get(productIdentity(item)) }));
       const chartPanel = document.getElementById('topSellingChartPanel');
       const tablePanel = document.getElementById('topSellingTablePanel');
       chartPanel.hidden = !isParentCategory;
@@ -7873,6 +6764,7 @@
       tablePanel.classList.toggle('col-12', !isParentCategory);
       tablePanel.classList.toggle('is-full', !isParentCategory);
       document.getElementById('topSellingStockHeader').hidden = isParentCategory;
+      document.getElementById('topSellingBranchHeader').hidden = isParentCategory;
 
       document.querySelectorAll('#productAnalysisToggle button').forEach(function (button) {
         button.classList.toggle('active', button.dataset.analysis === state.productAnalysis);
@@ -7895,7 +6787,7 @@
         renderBarChartList(
           'chartTopSelling', 'topSelling', chartRows, item => item.name, item => item.revenue,
           themeColor('--green'), false,
-          { tableKey: 'topSelling', identity: item => state.productAnalysis === 'product' ? item.code : 'parent:' + item.name }
+          { tableKey: 'topSelling', identity: item => state.productAnalysis === 'product' ? productIdentity(item) : 'parent:' + item.name }
         );
       } else {
         destroyChart('topSelling');
@@ -7910,6 +6802,7 @@
             ? '<td class="mono muted" data-sort-value="' + Number(item.productCount || 0) + '">' + fmtNumber(Number(item.productCount || 0)) + '</td>'
             : '<td class="mono muted">' + escapeHtml(item.code) + '</td>') +
           '<td class="name-cell">' + escapeHtml(item.name) + '</td>' +
+          (isParentCategory ? '<td hidden></td>' : '<td>' + branchCellText(item) + '</td>') +
           '<td class="mono muted" data-sort-value="' + item.qty + '">' + fmtNumber(Number(item.qty || 0)) +
           '</td><td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td>' +
           (isParentCategory
@@ -7918,7 +6811,7 @@
               ? '<td class="mono muted">—</td>'
               : '<td class="mono muted" data-sort-value="' + item.stock + '">' + fmtNumber(Number(item.stock || 0)) + '</td>') +
           '</tr>',
-        isParentCategory ? 4 : 5,
+        isParentCategory ? 4 : 6,
         'Chưa có dữ liệu chi tiết hóa đơn'
       );
 
@@ -7929,135 +6822,6 @@
       } else {
         updateTableSortHeader('topSellingRows', -1, null);
       }
-    }
-
-    // Mục "Doanh thu sản phẩm theo nhóm hàng" (Tổng quan): 2 biểu đồ tròn theo nhóm cha, nhấn 1 lát
-    // (hoặc chọn ở ô "Nhóm cha") để xem nhóm con. Tổng theo nhóm cha cộng từ childCategorySalesByParent
-    // (không bị cắt top 15 như topSellingParentCategories) nên khớp với phần nhóm con bên dưới.
-
-    function buildParentGroupSales(byParent) {
-      return Object.keys(byParent || {}).map(name => ({
-        name: name,
-        qty: byParent[name].reduce((sum, c) => sum + (Number(c.qty) || 0), 0),
-        revenue: byParent[name].reduce((sum, c) => sum + (Number(c.revenue) || 0), 0)
-      }));
-    }
-
-    // Hiển thị đủ từng nhóm cha có giá trị > 0, không gộp nhóm nhỏ vào "Khác".
-    function groupChartSlices(groups, valueKey) {
-      return groups.filter(g => g[valueKey] > 0).sort((a, b) => b[valueKey] - a[valueKey]);
-    }
-
-    function selectChildCategoryParentFromChart(slice) {
-      if (!slice || slice.isOther) return;
-      setChildCategoryParent(slice.name);
-      const panels = document.getElementById('childCategoryPanels');
-      if (panels && panels.scrollIntoView) {
-        const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        panels.scrollIntoView({ block: 'nearest', behavior: reducedMotion ? 'auto' : 'smooth' });
-      }
-    }
-
-    function renderGroupRevenueSection(d) {
-      const productsData = d.products || {};
-      const byParent = productsData.childCategorySalesByParent || {};
-      const rangeLabel = d.filters && d.filters.products ? d.filters.products.label : '30 ngày';
-      document.getElementById('groupRevenuePeriod').textContent =
-        'doanh thu: ' + rangeLabel + ' · nhấn vào một nhóm hoặc chọn nhóm cha để xem nhóm con';
-
-      const groups = buildParentGroupSales(byParent);
-      const revenueSlices = groupChartSlices(groups, 'revenue');
-      const qtySlices = groupChartSlices(groups, 'qty');
-      const hasRevenue = revenueSlices.length > 0;
-      const hasQty = qtySlices.length > 0;
-      const select = { onSelect: selectChildCategoryParentFromChart, hint: 'Nhấn vào một nhóm để xem nhóm con' };
-
-      document.getElementById('tagGroupRevenue').textContent = hasRevenue ? fmtMoneyShort(groups.reduce((sum, g) => sum + Math.max(g.revenue, 0), 0)) : '0đ';
-      document.getElementById('tagGroupQty').textContent = hasQty ? fmtNumber(groups.reduce((sum, g) => sum + Math.max(g.qty, 0), 0)) : '0';
-      document.getElementById('chartGroupRevenue').hidden = !hasRevenue;
-      document.getElementById('groupRevenueChartEmpty').hidden = hasRevenue;
-      document.getElementById('chartGroupQty').hidden = !hasQty;
-      document.getElementById('groupQtyChartEmpty').hidden = hasQty;
-
-      if (hasRevenue) renderPieChartList('chartGroupRevenue', 'groupRevenue', revenueSlices, g => g.name, g => g.revenue, fmtMoney, 'Doanh thu', select);
-      else destroyChart('groupRevenue');
-      if (hasQty) renderPieChartList('chartGroupQty', 'groupQty', qtySlices, g => g.name, g => g.qty, v => fmtNumber(Number(v)), 'Số lượng', select);
-      else destroyChart('groupQty');
-
-      // Ô "Nhóm cha": gồm cả nhóm chưa có doanh thu trong kỳ và nhóm chỉ có trong dữ liệu bán
-      const parents = new Set((productsData.availableParentCategories || []).concat(Object.keys(byParent)));
-      populateChildCategoryParentSelect([...parents].sort((a, b) => a.localeCompare(b, 'vi')));
-      renderChildCategoryBreakdown(d);
-    }
-
-    function populateChildCategoryParentSelect(list) {
-      const select = document.getElementById('childCategoryParentSelect');
-      const options = Array.isArray(list) ? list : [];
-      const previous = state.childCategoryParent;
-      select.innerHTML = '<option value="">— Chọn nhóm cha —</option>' +
-        options.map(name => '<option value="' + escapeHtml(name) + '">' + escapeHtml(name) + '</option>').join('');
-      if (previous && options.includes(previous)) {
-        select.value = previous;
-      } else {
-        state.childCategoryParent = null;
-        select.value = '';
-      }
-    }
-
-    function setChildCategoryParent(name) {
-      state.childCategoryParent = name || null;
-      document.getElementById('childCategoryParentSelect').value = name || '';
-      renderChildCategoryBreakdown(state.data);
-    }
-
-    function renderChildCategoryBreakdown(d) {
-      if (!d) return;
-      const placeholder = document.getElementById('childCategoryPlaceholder');
-      const panels = document.getElementById('childCategoryPanels');
-
-      if (!state.childCategoryParent) {
-        placeholder.hidden = false;
-        panels.hidden = true;
-        destroyChart('childCategoryRevenue');
-        destroyChart('childCategoryQty');
-        return;
-      }
-
-      placeholder.hidden = true;
-      panels.hidden = false;
-
-      const byParent = (d.products && d.products.childCategorySalesByParent) || {};
-      const rows = byParent[state.childCategoryParent] || [];
-      const hasRows = rows.length > 0;
-
-      document.getElementById('tagChildCategoryRevenue').textContent = hasRows ? fmtMoneyShort(rows.reduce((sum, c) => sum + c.revenue, 0)) : '0đ';
-      document.getElementById('tagChildCategoryQty').textContent = hasRows ? fmtNumber(Number(rows.reduce((sum, c) => sum + c.qty, 0))) : '0';
-      document.getElementById('tagChildCategoryRows').textContent = rows.length;
-
-      document.getElementById('chartChildCategoryRevenue').hidden = !hasRows;
-      document.getElementById('childCategoryRevenueChartEmpty').hidden = hasRows;
-      document.getElementById('chartChildCategoryQty').hidden = !hasRows;
-      document.getElementById('childCategoryQtyChartEmpty').hidden = hasRows;
-
-      if (hasRows) {
-        const childDrilldown = { tableKey: 'childCategory', identity: c => JSON.stringify([state.childCategoryParent || '', c.name]) };
-        renderPieChartList('chartChildCategoryRevenue', 'childCategoryRevenue', rows, c => c.name, c => c.revenue, fmtMoney, 'Doanh thu', childDrilldown);
-        renderPieChartList('chartChildCategoryQty', 'childCategoryQty', rows, c => c.name, c => c.qty, v => fmtNumber(Number(v)), 'Số lượng', childDrilldown);
-      } else {
-        destroyChart('childCategoryRevenue');
-        destroyChart('childCategoryQty');
-      }
-
-      renderPaginatedRows(
-        'childCategory',
-        { tbody: 'childCategoryRows', pagination: 'childCategoryPagination', firstBtn: 'childCategoryFirstPage', prevBtn: 'childCategoryPrevPage', nextBtn: 'childCategoryNextPage', lastBtn: 'childCategoryLastPage', label: 'childCategoryPageLabel' },
-        rows,
-        c => '<tr><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
-          '<td class="mono muted" data-sort-value="' + c.qty + '">' + fmtNumber(Number(c.qty || 0)) + '</td>' +
-          '<td class="mono" data-sort-value="' + c.revenue + '">' + fmtMoney(c.revenue) + '</td></tr>',
-        3,
-        'Chưa có dữ liệu'
-      );
     }
 
     function statusPill(status) {
@@ -8093,27 +6857,23 @@
       recentStockout: { title: 'Kết quả hàng đứt gần đây', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       stockout90d: { title: 'Kết quả kiểm tra đứt hàng 90 ngày', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       stockout30d: { title: 'Kết quả kiểm tra đứt hàng 30 ngày', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
-      endOfDay: { title: 'Chi tiết giao dịch', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
-      overviewPurchase: { title: 'Danh sách nhập hàng', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
-      todayNewProducts: { title: 'Danh sách mã mới', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      endOfDay: { title: 'Chi tiết giao dịch', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
+      overviewPurchase: { title: 'Danh sách nhập hàng', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
+      todayNewProducts: { title: 'Danh sách mã mới', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
       topSelling: {
         title: 'Chi tiết sản phẩm bán chạy', searchText: tableSearchText,
         code: p => state.productAnalysis === 'product' ? p.code : '',
         identity: p => state.productAnalysis === 'product' ? p.code : 'parent:' + p.name,
         supportsCodes: () => state.productAnalysis === 'product'
       },
-      lowStock: { title: 'Hàng đã hết', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
-      allProducts: { title: 'Tất cả mã hàng', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
-      inventoryValue: { title: 'Chi tiết tồn kho theo sản phẩm', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
-      newlyImported: { title: 'Hàng mới nhập', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
-      childCategory: {
-        title: 'Chi tiết nhóm con', searchText: tableSearchText,
-        identity: p => JSON.stringify([state.childCategoryParent || '', p.name])
-      },
-      orders: { title: 'Danh sách đặt hàng', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
-      returns: { title: 'Danh sách trả hàng', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
-      customerRevenue: { title: 'Chi tiết doanh thu theo khách', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
-      topDebt: { title: 'Chi tiết khách nợ', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
+      lowStock: { title: 'Hàng đã hết', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
+      allProducts: { title: 'Tất cả mã hàng', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
+      inventoryValue: { title: 'Chi tiết tồn kho theo sản phẩm', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
+      newlyImported: { title: 'Hàng mới nhập', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
+      orders: { title: 'Danh sách đặt hàng', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
+      returns: { title: 'Danh sách trả hàng', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
+      customerRevenue: { title: 'Chi tiết doanh thu theo khách', searchText: tableSearchText, identity: customerIdentity },
+      topDebt: { title: 'Chi tiết khách nợ', searchText: tableSearchText, identity: customerIdentity },
       suppliers: { title: 'Danh sách nhà cung cấp', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       debtManagement: { title: 'Khách hàng công nợ', searchText: tableSearchText, identity: p => p.customerKey, customControl: true }
     };
@@ -8411,10 +7171,15 @@
       });
     }
 
+    function isProductReportDetailCode(code) {
+      const selected = state.productReport.detail.code;
+      return !!selected && String(code).toLocaleLowerCase('vi-VN') === selected.toLocaleLowerCase('vi-VN');
+    }
+
     function productReportRowHtml(p) {
       const code = escapeHtml(p.code);
       const shareValue = p.topCustomerShare === null || p.topCustomerShare === undefined ? -1 : p.topCustomerShare;
-      return '<tr data-table-item-id="' + code + '">' +
+      return '<tr data-table-item-id="' + code + '"' + (isProductReportDetailCode(p.code) ? ' class="is-selected"' : '') + '>' +
         '<td class="mono muted">' + code + '</td>' +
         '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
         '<td class="mono" data-sort-value="' + p.stockHanoi + '">' + fmtNumber(p.stockHanoi) + '</td>' +
@@ -8423,9 +7188,9 @@
         '<td class="mono" data-sort-value="' + p.qtySold30d + '">' + fmtNumber(p.qtySold30d) + '</td>' +
         '<td class="mono" data-sort-value="' + p.revenue90d + '">' + fmtMoney(p.revenue90d) + '</td>' +
         '<td class="mono" data-sort-value="' + p.customerCount90d + '">' + fmtNumber(p.customerCount90d) + '</td>' +
-        '<td class="mono" data-sort-value="' + p.topCustomerRevenue90d + '">' + fmtMoney(p.topCustomerRevenue90d) + '</td>' +
         '<td>' + (p.topCustomerName ? escapeHtml(p.topCustomerName) : '<span class="muted">—</span>') + '</td>' +
         '<td class="mono" data-sort-value="' + shareValue + '">' + formatDebtRatio(p.topCustomerShare) + '</td>' +
+        '<td><button class="row-detail-button" type="button" data-product-detail="' + code + '">Chi tiết</button></td>' +
         '</tr>';
     }
 
@@ -8466,6 +7231,219 @@
         });
     }
 
+    // ===== Khung "Chi tiết" dưới bảng Báo cáo hàng hóa: doanh số 90 ngày của từng khách đã mua 1 sản phẩm
+    // (bảng + biểu đồ tròn). Nút Chi tiết ở mỗi dòng và ô tìm tên/mã sản phẩm đều gọi
+    // selectProductReportDetail() nên luôn ra cùng 1 kết quả. Dữ liệu lấy lười theo từng sản phẩm từ
+    // /api/product-report/customers (bảng product_report_customers, dựng cùng job đêm với bảng trên). =====
+    const PRODUCT_DETAIL_PIE_TOP = 10;
+    const PRODUCT_DETAIL_SUGGESTION_LIMIT = 8;
+
+    function findProductReportRow(code) {
+      const key = String(code).toLocaleLowerCase('vi-VN');
+      return state.productReport.rows.find(function (p) { return String(p.code).toLocaleLowerCase('vi-VN') === key; }) || null;
+    }
+
+    function productDetailLabel(p) {
+      return p.code + ' - ' + p.name;
+    }
+
+    function hideProductDetailSuggestions() {
+      const box = document.getElementById('productDetailSuggestions');
+      box.classList.remove('show');
+      box.innerHTML = '';
+      document.getElementById('productDetailSearchInput').setAttribute('aria-expanded', 'false');
+      state.productReport.detail.options = [];
+      state.productReport.detail.activeIndex = -1;
+    }
+
+    // Khớp theo mã HOẶC tên (không phân biệt hoa thường); mã/tên bắt đầu bằng từ khóa được xếp lên trước.
+    function productDetailOptions(query) {
+      const normalizedQuery = normalizeSearchQuery(query).toLocaleLowerCase('vi-VN');
+      if (!normalizedQuery) return [];
+      const starts = [];
+      const contains = [];
+      state.productReport.rows.forEach(function (p) {
+        const code = String(p.code).toLocaleLowerCase('vi-VN');
+        const name = String(p.name).toLocaleLowerCase('vi-VN');
+        if (code.startsWith(normalizedQuery) || name.startsWith(normalizedQuery)) starts.push(p);
+        else if (code.includes(normalizedQuery) || name.includes(normalizedQuery)) contains.push(p);
+      });
+      return starts.concat(contains).slice(0, PRODUCT_DETAIL_SUGGESTION_LIMIT);
+    }
+
+    function renderProductDetailSuggestions() {
+      const detail = state.productReport.detail;
+      const box = document.getElementById('productDetailSuggestions');
+      if (!detail.options.length) { hideProductDetailSuggestions(); return; }
+      box.innerHTML = detail.options.map(function (p, index) {
+        return '<button class="suggestion-item' + (index === detail.activeIndex ? ' active' : '') + '" ' +
+          'type="button" role="option" onclick="selectProductDetailSuggestion(' + index + ')">' +
+          '<span class="suggestion-name">' + escapeHtml(productDetailLabel(p)) + '</span></button>';
+      }).join('');
+      box.classList.add('show');
+      document.getElementById('productDetailSearchInput').setAttribute('aria-expanded', 'true');
+    }
+
+    function handleProductDetailSearchInput() {
+      const detail = state.productReport.detail;
+      const input = document.getElementById('productDetailSearchInput');
+      document.getElementById('productDetailClearBtn').hidden = !input.value && !detail.code;
+      detail.options = productDetailOptions(input.value);
+      detail.activeIndex = -1;
+      renderProductDetailSuggestions();
+    }
+
+    function handleProductDetailSearchKeydown(event) {
+      const detail = state.productReport.detail;
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (!detail.options.length) return;
+        const step = event.key === 'ArrowDown' ? 1 : -1;
+        detail.activeIndex = (detail.activeIndex + step + detail.options.length) % detail.options.length;
+        renderProductDetailSuggestions();
+      } else if (event.key === 'Escape') {
+        hideProductDetailSuggestions();
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        if (detail.options.length) selectProductDetailSuggestion(detail.activeIndex >= 0 ? detail.activeIndex : 0);
+      }
+    }
+
+    function selectProductDetailSuggestion(index) {
+      const option = state.productReport.detail.options[index];
+      if (!option) return;
+      selectProductReportDetail(option.code);
+    }
+
+    function syncProductReportSelection() {
+      document.querySelectorAll('#productReportRows tr[data-table-item-id]').forEach(function (row) {
+        row.classList.toggle('is-selected', isProductReportDetailCode(row.dataset.tableItemId));
+      });
+    }
+
+    function productDetailRowHtml(row) {
+      const share = row.share === null || row.share === undefined ? -1 : row.share;
+      return '<tr><td class="name-cell">' + escapeHtml(row.customerName || 'Khách lẻ') + '</td>' +
+        '<td class="mono" data-sort-value="' + row.revenue + '">' + fmtMoney(row.revenue) + '</td>' +
+        '<td class="mono" data-sort-value="' + share + '">' + formatDebtRatio(row.share) + '</td></tr>';
+    }
+
+    // Top 10 khách + 1 lát "Khác (N khách)" gộp phần còn lại; bảng bên cạnh luôn liệt kê đủ mọi khách.
+    function productDetailPieList(rows) {
+      const list = rows.slice(0, PRODUCT_DETAIL_PIE_TOP).map(function (row) {
+        return { name: row.customerName || 'Khách lẻ', revenue: row.revenue };
+      });
+      const rest = rows.slice(PRODUCT_DETAIL_PIE_TOP);
+      if (rest.length) {
+        list.push({
+          name: 'Khác (' + rest.length + ' khách)',
+          revenue: rest.reduce(function (sum, row) { return sum + row.revenue; }, 0)
+        });
+      }
+      return list;
+    }
+
+    function renderProductReportDetail() {
+      const detail = state.productReport.detail;
+      const content = document.getElementById('productDetailContent');
+      const emptyState = document.getElementById('productDetailEmptyState');
+      const tbody = document.getElementById('productDetailRows');
+      const summary = document.getElementById('productDetailSummary');
+      content.hidden = !detail.code;
+      emptyState.hidden = !!detail.code;
+      if (!detail.code) { destroyChart('productDetailCustomers'); return; }
+
+      document.getElementById('productDetailTitle').textContent = detail.code + (detail.name ? ' – ' + detail.name : '');
+      const note = function (message) {
+        tbody.innerHTML = '<tr><td colspan="3" class="table-note">' + message + '</td></tr>';
+        summary.textContent = '—';
+        destroyChart('productDetailCustomers');
+      };
+      if (detail.status === 'loading') { note('Đang tải...'); return; }
+      if (detail.status === 'error') { note('Không tải được doanh số khách của sản phẩm này.'); return; }
+
+      const rows = (detail.data && detail.data.rows) || [];
+      if (!rows.length) {
+        note('Chưa có dữ liệu khách của sản phẩm này trong 90 ngày gần nhất (dữ liệu được cập nhật mỗi đêm).');
+        return;
+      }
+      summary.textContent = fmtNumber(rows.length) + ' khách · Tổng ' + fmtMoney(detail.data.totalRevenue) + ' · 90 ngày gần nhất';
+      tbody.innerHTML = rows.map(productDetailRowHtml).join('');
+      renderPieChartList(
+        'productDetailChart', 'productDetailCustomers', productDetailPieList(rows),
+        function (item) { return item.name; }, function (item) { return item.revenue; }, null, 'Tổng 90 ngày'
+      );
+    }
+
+    function selectProductReportDetail(code, options) {
+      const detail = state.productReport.detail;
+      const row = findProductReportRow(code);
+      const productCode = row ? row.code : String(code);
+      hideProductDetailSuggestions();
+      document.getElementById('productDetailSearchInput').value = row ? productDetailLabel(row) : productCode;
+      document.getElementById('productDetailClearBtn').hidden = false;
+
+      const alreadyShown = detail.code === productCode && (detail.status === 'loading' || detail.status === 'ready');
+      if (!alreadyShown) {
+        const requestId = ++detail.requestId;
+        detail.code = productCode;
+        detail.name = row ? row.name : '';
+        detail.status = 'loading';
+        detail.data = null;
+        renderProductReportDetail();
+        fetch('/api/product-report/customers?code=' + encodeURIComponent(productCode))
+          .then(function (res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+          })
+          .then(function (data) {
+            if (requestId !== detail.requestId) return; // đã chọn sản phẩm khác/bỏ chọn trong lúc chờ
+            detail.data = data;
+            detail.status = 'ready';
+            renderProductReportDetail();
+          })
+          .catch(function (err) {
+            console.error('Không tải được doanh số khách theo sản phẩm:', err);
+            if (requestId !== detail.requestId) return;
+            detail.status = 'error';
+            renderProductReportDetail();
+          });
+      }
+      syncProductReportSelection();
+
+      const panel = document.getElementById('productDetailPanel');
+      if (options && options.scroll && panel.scrollIntoView) {
+        const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        panel.scrollIntoView({ block: 'start', behavior: reducedMotion ? 'auto' : 'smooth' });
+      }
+    }
+
+    function clearProductReportDetail() {
+      const detail = state.productReport.detail;
+      detail.requestId++; // bỏ qua kết quả của request đang chờ
+      detail.code = '';
+      detail.name = '';
+      detail.status = 'idle';
+      detail.data = null;
+      hideProductDetailSuggestions();
+      document.getElementById('productDetailSearchInput').value = '';
+      document.getElementById('productDetailClearBtn').hidden = true;
+      renderProductReportDetail();
+      syncProductReportSelection();
+    }
+
+    function initProductReportDetail() {
+      document.getElementById('productReportRows').addEventListener('click', function (event) {
+        const button = event.target.closest && event.target.closest('button[data-product-detail]');
+        if (button) selectProductReportDetail(button.dataset.productDetail, { scroll: true });
+      });
+      document.addEventListener('click', function (event) {
+        if (!event.target.closest || !event.target.closest('#productDetailSearchInput, #productDetailSuggestions')) {
+          hideProductDetailSuggestions();
+        }
+      });
+    }
+
     // ===== Tab Tổng quan, phần 2 — "Báo cáo doanh thu theo khách" =====
     function hideCustomerProductSuggestions() {
       const box = document.getElementById('cpCustomerSuggestions');
@@ -8483,8 +7461,7 @@
       box.innerHTML = results.map(function (result, index) {
         return '<button class="suggestion-item' + (index === state.customerProductReport.picker.activeIndex ? ' active' : '') + '" ' +
           'type="button" role="option" onclick="selectCustomerForProductReport(' + index + ')">' +
-          '<span><span class="suggestion-name">' + escapeHtml(result.name || result.code) + '</span>' +
-          '<span class="suggestion-code">' + escapeHtml(result.code || 'Không có mã') + '</span></span></button>';
+          '<span><span class="suggestion-name">' + escapeHtml(result.name || result.code) + '</span></span></button>';
       }).join('');
       box.classList.add('show');
       document.getElementById('cpCustomerSearchInput').setAttribute('aria-expanded', 'true');
@@ -8595,7 +7572,6 @@
         emptyState.hidden = true;
         document.getElementById('cpContent').hidden = false;
         document.getElementById('cpSelectedCustomerName').textContent = data.customer.name;
-        document.getElementById('cpSelectedCustomerCode').textContent = data.customer.code;
         document.getElementById('cpWindowHint').textContent = customerProductWindowHint(data);
         renderCustomerProductReport();
       } catch (err) {
@@ -8626,7 +7602,7 @@
       const revenueByDay = productCode
         ? ((filtered[0] || {}).revenueByDay || [])
         : (data.totalRevenueByDay || []);
-      renderRevenueChart('chartCustomerProductRevenue', 'cpRevenue', revenueByDay);
+      renderRevenueChart('chartCustomerProductRevenue', 'cpRevenue', revenueByDay, true);
 
       const barList = productCode ? filtered : data.products;
       const hint = document.getElementById('cpBarChartHint');
@@ -8640,11 +7616,11 @@
         if (barInner) {
           const barBox = document.getElementById('cpBarChartBox');
           const minWidth = barBox ? barBox.clientWidth : 0;
-          barInner.style.width = Math.max(minWidth, barList.length * 64) + 'px';
+          barInner.style.width = Math.max(minWidth, barList.length * 24) + 'px';
         }
         renderBarChartList('chartCustomerProductBar', 'cpBar', barList,
-          function (p) { return p.name; }, function (p) { return p.revenue; }, themeColor('--amber'), true,
-          { tableKey: 'cpDetail', identity: function (p) { return p.code || p.name; } });
+          function (p) { return p.name; }, function (p) { return p.revenue; }, themeColor('--blue'), true,
+          { tableKey: 'cpDetail', identity: function (p) { return p.code || p.name; } }, 10, 90);
       } else {
         if (barInner) barInner.style.width = '100%';
         destroyChart('cpBar');
@@ -8769,12 +7745,11 @@
       if (view === 'overview') {
         document.getElementById('ov-revenue').textContent = fmtMoney(d.kpi.revenueToday);
         document.getElementById('ov-revenue-sub').textContent = d.kpi.invoicesToday + ' hóa đơn' + (d.kpi.cancelledToday ? ' · ' + d.kpi.cancelledToday + ' đã hủy' : '');
-        document.getElementById('ov-stock').textContent = fmtNumber(d.kpi.totalStock);
-        document.getElementById('ov-stock-sub').textContent = d.kpi.totalProducts + ' mặt hàng';
+        document.getElementById('ov-stock').textContent = fmtMoney(d.kpi.totalInventoryValue);
+        document.getElementById('ov-stock-sub').textContent = 'Theo giá vốn · ' + d.kpi.totalProducts + ' mặt hàng đang kinh doanh';
         document.getElementById('ov-lowstock').textContent = d.kpi.lowStockCount;
         document.getElementById('ov-customers').textContent = fmtNumber(d.kpi.totalCustomers);
         document.getElementById('ov-customers-sub').textContent = d.kpi.customersWithDebt + ' đang nợ · ' + fmtMoney(d.kpi.totalDebt);
-        renderGroupRevenueSection(d);
       }
       else if (view === 'products') {
         const productRangeLabel = d.filters && d.filters.products ? d.filters.products.label : '30 ngày';
@@ -8783,14 +7758,13 @@
         document.getElementById('pr-total').textContent = d.kpi.totalProducts;
         document.getElementById('pr-stock').textContent = fmtNumber(d.kpi.inStockCodes);
         document.getElementById('pr-lowstock').textContent = d.kpi.lowStockCount;
-        document.getElementById('pr-inactive').textContent = d.kpi.inactiveProducts || 0;
         document.getElementById('tagLowStock').textContent = d.lowStock.length;
         renderPaginatedRows(
           'lowStock',
           { tbody: 'stockRows', pagination: 'stockPagination', firstBtn: 'stockFirstPage', prevBtn: 'stockPrevPage', nextBtn: 'stockNextPage', lastBtn: 'stockLastPage', label: 'stockPageLabel' },
           d.lowStock,
           p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-            '<td>' + (p.type ? escapeHtml(p.type) : '—') + '</td><td>' + bizStatusPill(p.status) + '</td>' +
+            '<td>' + branchCellText(p) + '</td><td>' + (p.type ? escapeHtml(p.type) : '—') + '</td>' +
             '<td class="mono muted" data-sort-value="' + p.cost + '">' + fmtMoney(p.cost) + '</td><td class="mono" data-sort-value="' + p.price + '">' + fmtMoney(p.price) + '</td></tr>',
           6,
           'Không có sản phẩm đã hết hàng'
@@ -8804,8 +7778,9 @@
           { tbody: 'allProductRows', pagination: 'allProductsPagination', firstBtn: 'allProductsFirstPage', prevBtn: 'allProductsPrevPage', nextBtn: 'allProductsNextPage', lastBtn: 'allProductsLastPage', label: 'allProductsPageLabel' },
           filteredProducts,
           p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+            '<td>' + branchCellText(p) + '</td>' +
             '<td class="mono" data-sort-value="' + p.stock + '">' + stockPill(p.stock) + '</td><td class="mono muted" data-sort-value="' + p.reserved + '">' + p.reserved + '</td>' +
-            '<td class="mono muted" data-sort-value="' + p.pct + '">' + p.pct.toFixed(2) + '%</td><td>' + bizStatusPill(p.status) + '</td></tr>',
+            '<td class="mono muted" data-sort-value="' + p.pct + '">' + p.pct.toFixed(2) + '%</td></tr>',
           6,
           'Không có dữ liệu'
         );
@@ -8817,10 +7792,11 @@
           { tbody: 'newlyImportedRows', pagination: 'newlyImportedPagination', firstBtn: 'newlyImportedFirstPage', prevBtn: 'newlyImportedPrevPage', nextBtn: 'newlyImportedNextPage', lastBtn: 'newlyImportedLastPage', label: 'newlyImportedPageLabel' },
           newlyImported,
           p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+            '<td>' + branchCellText(p) + '</td>' +
             '<td class="mono muted">' + escapeHtml(p.firstImportDate) + '</td>' +
             '<td class="mono muted" data-sort-value="' + (Number(p.daysOnHand) || 0) + '">' + escapeHtml(String(p.daysOnHand)) + '</td>' +
             '<td class="mono" data-sort-value="' + (Number(p.revenue) || 0) + '">' + fmtMoney(p.revenue) + '</td></tr>',
-          5,
+          6,
           'Không có mã hàng mới nhập · ' + escapeHtml(productRangeLabel)
         );
 
@@ -8840,7 +7816,7 @@
             p => p.revenue,
             themeColor('--amber'),
             false,
-            { tableKey: 'newlyImported', identity: p => p.code }
+            { tableKey: 'newlyImported', identity: productIdentity }
           );
         } else {
           destroyChart('newlyImportedTopRevenue');
@@ -8856,9 +7832,10 @@
           newProductRows,
           p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
             '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+            '<td>' + branchCellText(p) + '</td>' +
             '<td>' + escapeHtml(p.category || 'Chưa phân nhóm') + '</td>' +
             '<td class="mono muted">' + escapeHtml(p.createdAt || '—') + '</td></tr>',
-          4,
+          5,
           todayNewProducts.dateColumnAvailable === false ? 'Sheet Hàng hóa chưa có cột Ngày tạo' : 'Chưa có mã hàng mới tạo trong khoảng đã chọn'
         );
 
@@ -8908,6 +7885,7 @@
           { tbody: 'endOfDayRows', pagination: 'endOfDayPagination', firstBtn: 'endOfDayFirstPage', prevBtn: 'endOfDayPrevPage', nextBtn: 'endOfDayNextPage', lastBtn: 'endOfDayLastPage', label: 'endOfDayPageLabel' },
           transactions,
           item => '<tr><td class="mono name-cell">' + escapeHtml(item.code) + '</td>' +
+            '<td>' + branchCellText(item) + '</td>' +
             '<td class="mono muted">' + escapeHtml(item.time || '—') + '</td>' +
             '<td class="name-cell">' + escapeHtml(item.customer || '—') + '</td>' +
             '<td>' + escapeHtml(item.employee || '—') + '</td>' +
@@ -8916,7 +7894,7 @@
             '<td class="mono" data-sort-value="' + item.discount + '">' + fmtMoney(item.discount) + '</td>' +
             '<td class="mono" data-sort-value="' + item.paid + '">' + fmtMoney(item.paid) + '</td>' +
             '<td>' + statusPill(item.status) + '</td></tr>',
-          9,
+          10,
           'Chưa có giao dịch trong khoảng đã chọn'
         );
 
@@ -8931,9 +7909,9 @@
           'orders',
           { tbody: 'orderRows', pagination: 'ordersPagination', firstBtn: 'ordersFirstPage', prevBtn: 'ordersPrevPage', nextBtn: 'ordersNextPage', lastBtn: 'ordersLastPage', label: 'ordersPageLabel' },
           periodOrders,
-          o => '<tr><td class="mono muted">' + escapeHtml(o.code) + '</td><td class="name-cell">' + (o.customer ? escapeHtml(o.customer) : 'Khách lẻ') + '</td>' +
+          o => '<tr><td class="mono muted">' + escapeHtml(o.code) + '</td><td>' + branchCellText(o) + '</td><td class="name-cell">' + (o.customer ? escapeHtml(o.customer) : 'Khách lẻ') + '</td>' +
             '<td class="mono" data-sort-value="' + o.total + '">' + fmtMoney(o.total) + '</td><td>' + genericStatusPill(o.status) + '</td></tr>',
-          4,
+          5,
           'Chưa có đặt hàng nào'
         );
 
@@ -8943,10 +7921,10 @@
           'returns',
           { tbody: 'returnRows', pagination: 'returnsPagination', firstBtn: 'returnsFirstPage', prevBtn: 'returnsPrevPage', nextBtn: 'returnsNextPage', lastBtn: 'returnsLastPage', label: 'returnsPageLabel' },
           periodReturns,
-          rt => '<tr><td class="mono muted">' + escapeHtml(rt.code) + '</td><td class="mono muted">' + (rt.originalInvoiceCode ? escapeHtml(rt.originalInvoiceCode) : '—') + '</td>' +
+          rt => '<tr><td class="mono muted">' + escapeHtml(rt.code) + '</td><td>' + branchCellText(rt) + '</td><td class="mono muted">' + (rt.originalInvoiceCode ? escapeHtml(rt.originalInvoiceCode) : '—') + '</td>' +
             '<td class="name-cell">' + (rt.customer ? escapeHtml(rt.customer) : 'Khách lẻ') + '</td>' +
             '<td class="mono" data-sort-value="' + rt.total + '">' + fmtMoney(rt.total) + '</td><td>' + genericStatusPill(rt.status) + '</td></tr>',
-          5,
+          6,
           'Chưa có trả hàng nào'
         );
       }
@@ -8961,7 +7939,7 @@
           'topDebt',
           { tbody: 'debtRows', pagination: 'topDebtPagination', firstBtn: 'topDebtFirstPage', prevBtn: 'topDebtPrevPage', nextBtn: 'topDebtNextPage', lastBtn: 'topDebtLastPage', label: 'topDebtPageLabel' },
           topDebt,
-          c => '<tr><td class="mono muted">' + escapeHtml(c.code) + '</td><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
+          c => '<tr><td class="name-cell">' + escapeHtml(c.name) + '</td><td>' + branchCellText(c) + '</td>' +
             '<td class="mono muted">' + (c.phone ? escapeHtml(c.phone) : '—') + '</td><td class="mono" data-sort-value="' + c.debt + '" style="color:var(--red);">' + fmtMoney(c.debt) + '</td></tr>',
           4,
           'Không có khách hàng nợ'
@@ -8969,7 +7947,7 @@
         const topDebtChart = topDebt.slice(0, 15);
         if (topDebtChart.length) renderBarChartList(
           'chartDebt', 'debt', topDebtChart, c => c.name, c => c.debt, themeColor('--red'), false,
-          { tableKey: 'topDebt', identity: c => c.code }
+          { tableKey: 'topDebt', identity: customerIdentity }
         ); else destroyChart('debt');
 
         const topRevenue = customerData.topRevenue || { top15: [], all: [], label: '—' };
@@ -8981,7 +7959,7 @@
           'customerRevenue',
           { tbody: 'customerRevenueRows', pagination: 'customerRevenuePagination', firstBtn: 'customerRevenueFirstPage', prevBtn: 'customerRevenuePrevPage', nextBtn: 'customerRevenueNextPage', lastBtn: 'customerRevenueLastPage', label: 'customerRevenuePageLabel' },
           allCustomerRevenue,
-          c => '<tr><td class="mono muted">' + escapeHtml(c.code) + '</td><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
+          c => '<tr><td class="name-cell">' + escapeHtml(c.name) + '</td><td>' + branchCellText(c) + '</td>' +
             '<td class="mono">' + fmtNumber(Number(c.saleOrderCount || 0)) + '</td>' +
             '<td class="mono" data-sort-value="' + c.revenue + '">' + fmtMoney(c.revenue) + '</td></tr>',
           4,
@@ -9019,11 +7997,12 @@
           { tbody: 'overviewPurchaseRows', pagination: 'overviewPurchasePagination', firstBtn: 'overviewPurchaseFirstPage', prevBtn: 'overviewPurchasePrevPage', nextBtn: 'overviewPurchaseNextPage', lastBtn: 'overviewPurchaseLastPage', label: 'overviewPurchasePageLabel' },
           newPurchaseOrders,
           p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
+            '<td>' + branchCellText(p) + '</td>' +
             '<td class="mono muted">' + (p.date ? escapeHtml(p.date) : '—') + '</td>' +
             '<td class="name-cell">' + (p.supplier ? escapeHtml(p.supplier) : '—') + '</td>' +
             '<td class="mono" data-sort-value="' + p.total + '">' + fmtMoney(p.total) + '</td>' +
             '<td>' + genericStatusPill(p.status) + '</td></tr>',
-          5,
+          6,
           'Không có hàng nhập trong khoảng thời gian đã chọn'
         );
 
@@ -9040,9 +8019,10 @@
           { tbody: 'supplierRows', pagination: 'supplierPagination', firstBtn: 'supplierFirstPage', prevBtn: 'supplierPrevPage', nextBtn: 'supplierNextPage', lastBtn: 'supplierLastPage', label: 'supplierPageLabel' },
           d.suppliers,
           s => '<tr><td class="mono muted">' + escapeHtml(s.code) + '</td><td class="name-cell">' + escapeHtml(s.name) + '</td>' +
+            '<td>' + branchCellText(s) + '</td>' +
             '<td class="mono muted">' + (s.phone ? escapeHtml(s.phone) : '—') + '</td>' +
             '<td class="mono" data-sort-value="' + s.debt + '" style="color:' + (s.debt > 0 ? 'var(--red)' : 'inherit') + ';">' + fmtMoney(s.debt) + '</td></tr>',
-          4,
+          5,
           'Không có nhà cung cấp'
         );
 
@@ -9055,9 +8035,16 @@
 
     const DEBT_WORKFLOW_STATUSES = ['Chưa xử lý', 'Đang xử lý', 'Đã xử lý', 'Bỏ qua'];
     const DEBT_SORT_FIELDS = [
-      'customerName', 'sale', 'paymentSchedule', 'openingDebt', 'currentDebt',
+      'customerName', 'branchLabel', 'sale', 'paymentSchedule', 'openingDebt', 'currentDebt',
       'overdueDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'alertCodes', 'workflowStatus'
     ];
+
+    // Cơ sở cua khach cong no: khach gop hai co so liet ke tung co so (branchDetails).
+    function debtBranchLabel(customer) {
+      const details = Array.isArray(customer.branchDetails) ? customer.branchDetails : [];
+      const labels = details.map(function (detail) { return detail.branch; }).filter(Boolean);
+      return labels.length ? labels.join(', ') : (customer.branch || '—');
+    }
 
     function normalizeDebtSearch(value) {
       return String(value || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLocaleLowerCase('vi-VN');
@@ -9122,6 +8109,10 @@
         .sort(function (left, right) {
           let a = left.customer[field];
           let b = right.customer[field];
+          if (field === 'branchLabel') {
+            a = debtBranchLabel(left.customer);
+            b = debtBranchLabel(right.customer);
+          }
           if (field === 'alertCodes') {
             a = (a || []).join(',');
             b = (b || []).join(',');
@@ -9259,6 +8250,7 @@
           const flashClass = customer.customerKey === state.debtFlashCustomerKey ? ' class="row-highlight-update"' : '';
           return '<tr' + flashClass + ' data-customer-key="' + escapeHtml(customer.customerKey) + '">' +
             '<td class="name-cell">' + escapeHtml(customer.customerName) + '</td>' +
+            '<td>' + escapeHtml(debtBranchLabel(customer)) + '</td>' +
             '<td>' + escapeHtml(customer.sale) + '</td>' +
             '<td class="mono">' + escapeHtml(customer.paymentSchedule || '—') + '</td>' +
             '<td class="mono">' + formatNullableMoney(customer.openingDebt) + '</td>' +
@@ -9269,7 +8261,7 @@
             '<td>' + debtAlertHtml(customer) + '</td>' +
             '<td>' + debtWorkflowHtml(customer) + '</td></tr>';
         },
-        10,
+        11,
         debt && debt.available === false ? 'Nguồn công nợ chưa sẵn sàng' : 'Không có khách phù hợp bộ lọc',
         true // sortDebtCustomers() da sap xep toan bo `sorted` o tren, khong can sort lai
       );
@@ -9376,7 +8368,7 @@
     // Cac khoa cua state.data ma moi tab can — CHI de nhan ra cache cu (truoc khi co
     // API theo tab, cache la ban day du 6 tab) da co du lieu cua tab nao.
     const VIEW_DATA_KEYS = {
-      overview: ['kpi', 'products'],
+      overview: ['kpi'],
       products: ['products', 'lowStock', 'allProducts'],
       invoices: ['invoices'],
       customers: ['customers'],
@@ -9385,9 +8377,8 @@
     };
 
     // Bo loc (khoa cua state.filters) anh huong tung tab — khop VIEW_FILTER_KEYS phia server.
-    // Tong quan dung chung bo loc Hang hoa cho phan doanh thu theo nhom hang.
     const VIEW_FILTER_SOURCES = {
-      overview: ['products'],
+      overview: [],
       products: ['products'],
       invoices: ['invoices'],
       customers: ['customers'],
@@ -9416,8 +8407,7 @@
           data: state.data,
           views: views,
           days: state.days,
-          filters: state.filters,
-          productStatus: state.productStatus
+          filters: state.filters
         }));
       } catch (err) {
         // sessionStorage day (du lieu cac tab gop lai co the > 5 MB) / private mode:
@@ -9600,7 +8590,6 @@
               showToast('Lỗi hiển thị dữ liệu: ' + (err && err.message ? err.message : err), 'error');
             }
           }
-          if (isManualRefresh && isActiveView) refreshActiveCustomerProductSearch();
           saveDashboardCache();
           settleManual();
         })
@@ -9663,7 +8652,6 @@
       state.days = dashboardCache.days || state.days;
       // Gop voi mac dinh de cache cu (chua co bo loc "suppliers") khong lam mat bo loc moi.
       state.filters = Object.assign({}, state.filters, dashboardCache.filters);
-      state.productStatus = dashboardCache.productStatus || state.productStatus;
       restoreDashboardViewMeta(dashboardCache);
     }
     applyReportViewFromHash();
@@ -9724,7 +8712,7 @@
     syncThemeControl();
     initSortableTables();
     updateFilterBar();
-    updateSearchContext();
+    updateFilterBarVisibility();
 
     // Phuc hoi ket qua kiem tra dut hang da luu tu lan truoc (sessionStorage) — dat O DAY
     // (sau khi TABLE_EXPLORER_CONFIGS da khoi tao) vi ham render cua ca 3 deu doc
@@ -9737,13 +8725,13 @@
     // Bao cao hang hoa: bang tinh san 1 lan/dem, khong phu thuoc bo loc thoi
     // gian/cache dashboard nen goi rieng 1 lan khi vao trang (khong qua
     // loadData()/SSE o duoi).
+    initProductReportDetail();
     loadProductReport();
 
     syncMiniFilterUI('products');
     syncMiniFilterUI('invoices');
     syncMiniFilterUI('suppliers');
     syncMiniFilterUI('customers');
-    document.querySelectorAll('#productStatusToggle button').forEach(b => b.classList.toggle('active', b.dataset.status === state.productStatus));
     // Chi tai tab can xem ngay: tab theo hash (/reports/#products) - quyen chua nap xong
     // luc nay nen state.view co the con la Tong quan - hoac tab dang mo. Cac tab khac tai
     // khi nguoi dung bam vao (switchView -> ensureViewData).

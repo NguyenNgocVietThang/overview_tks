@@ -10,7 +10,7 @@ const {
 const router = express.Router();
 
 const { getExportFields, createExport, buildExportErrorBody } = require('./dashboard/exportService');
-const { getProductReport } = require('./dashboard/productReportRepository');
+const { getProductReport, getProductReportCustomers } = require('./dashboard/productReportRepository');
 const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
 const { requireAuth, requireFeature } = require('./auth/authMiddleware');
@@ -160,10 +160,7 @@ router.get('/api/dashboard', async (req, res) => {
     const legacyDays = req.query.days;
     const filters = {
       overview: parseFilterSpec(req.query, 'ov', legacyDays),
-      products: {
-        ...parseFilterSpec(req.query, 'pr'),
-        status: req.query.prStatus
-      },
+      products: parseFilterSpec(req.query, 'pr'),
       invoices: parseFilterSpec(req.query, 'in', legacyDays),
       // Tab Khách hàng mặc định xem toàn thời gian; cùng bo loc cuMode/cuDays/
       // cuFrom/cuTo duoc dung cho Top khach doanh thu va API top theo san pham.
@@ -350,6 +347,25 @@ router.get('/api/product-report', async (req, res) => {
     console.error('================================');
     res.status(err.statusCode || 500).json({
       error: err.statusCode && err.statusCode < 500 ? err.message : 'Không lấy được báo cáo hàng hóa.',
+      detail: err.message,
+      code: err.code
+    });
+  }
+});
+
+// Khung "Chi tiet" cua bang "Bao cao hang hoa": doanh so 90 ngay tung khach theo 1 ma hang.
+// Nam duoi /api/product-report nen ke thua guard `reports.products` o tren.
+router.get('/api/product-report/customers', async (req, res) => {
+  try {
+    const data = await getProductReportCustomers({ code: req.query.code });
+    res.status(200).json(data);
+  } catch (err) {
+    console.error('=== LOI /api/product-report/customers ===');
+    console.error('Message:', err.message);
+    console.error('Stack:', err.stack);
+    console.error('==========================================');
+    res.status(err.statusCode || 500).json({
+      error: err.statusCode && err.statusCode < 500 ? err.message : 'Không lấy được doanh số khách theo mã hàng.',
       detail: err.message,
       code: err.code
     });

@@ -35,7 +35,7 @@ test('GET /api/branch exposes selectable values including Ca hai for a dual-bran
   assert.deepEqual(res.body.allowed, ['Hà Nội', 'Sài Gòn', 'Cả hai']);
 });
 
-test('POST /api/branch accepts Ca hai only for a dual-branch user', () => {
+test('POST /api/branch accepts Ca hai for every user', () => {
   const post = handler('post', '/api/branch');
   const dualRes = fakeRes();
   post({ user: { coSo: 'Cả hai' }, body: { branch: 'Cả hai' } }, dualRes);
@@ -45,6 +45,11 @@ test('POST /api/branch accepts Ca hai only for a dual-branch user', () => {
 
   const singleRes = fakeRes();
   post({ user: { coSo: 'Hà Nội' }, body: { branch: 'Cả hai' } }, singleRes);
-  assert.equal(singleRes.statusCode, 403);
-  assert.equal(singleRes.body.code, 'BRANCH_FORBIDDEN');
+  assert.equal(singleRes.statusCode, 200);
+  assert.equal(singleRes.body.current, 'Cả hai');
+
+  const invalidRes = fakeRes();
+  post({ user: { coSo: 'Hà Nội' }, body: { branch: 'Đà Nẵng' } }, invalidRes);
+  assert.equal(invalidRes.statusCode, 403);
+  assert.equal(invalidRes.body.code, 'BRANCH_FORBIDDEN');
 });

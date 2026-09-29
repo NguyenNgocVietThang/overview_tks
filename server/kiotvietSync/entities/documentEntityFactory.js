@@ -7,7 +7,10 @@ function createDocumentEntity(options) {
   const {
     entity, endpoint = entity, listQuery, hasUpperBound = true, parentColumns,
     parentUpdateColumns, mapParent, detailTable, parentIdColumn, detailKeys,
-    detailColumns, mapDetail, payment, backfillRangeParam, batchDetails = false
+    detailColumns, mapDetail, payment, backfillRangeParam, batchDetails = false,
+    // Payload khong co ten nhan vien (vd /ordersuppliers chi co userId) thi khong
+    // upsert `staff` de khong sinh dong nhan vien rong ten.
+    syncStaff = true
   } = options;
   const parentSql = `INSERT INTO ${entity} (${parentColumns.join(',')}) VALUES (${parentColumns.map((_, i) => `$${i + 1}`).join(',')})
     ON CONFLICT (branch, id) DO UPDATE SET ${parentUpdateColumns.map((c) => `${c}=EXCLUDED.${c}`).join(', ')}, raw=EXCLUDED.raw, synced_at=now()`;
@@ -25,7 +28,7 @@ function createDocumentEntity(options) {
       // giao dich -> deadlock. Thu tu id co dinh giua moi giao dich la cach
       // chuan tranh deadlock kieu nay.
       const staffById = new Map();
-      for (const item of items) {
+      for (const item of syncStaff ? items : []) {
         const staffId = value(item, 'SoldById', 'soldById', 'CreatedById', 'createdById', 'UserId', 'userId', 'ReceivedById', 'receivedById');
         if (staffId === null || staffId === undefined || staffId === '') continue;
         if (!staffById.has(staffId)) {

@@ -31,7 +31,7 @@ const htmlReportRenderer = require('./exportHtmlReport');
 const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const DEBT_QUEUE_FILTERS = new Set(['needsAction', 'currentDebt', 'overdue', 'all']);
 const DEBT_SORT_FIELDS = [
-  'customerName', 'sale', 'paymentSchedule', 'openingDebt', 'currentDebt',
+  'customerName', 'branch', 'sale', 'paymentSchedule', 'openingDebt', 'currentDebt',
   'overdueDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'automaticAlert', 'workflowStatus'
 ];
 
@@ -48,7 +48,6 @@ const TABLE_TITLES = Object.freeze({
   'products.low-stock': 'Hàng đã hết',
   'products.all': 'Tất cả mã hàng',
   'products.newly-imported': 'Hàng mới nhập',
-  'products.child-categories': 'Chi tiết nhóm con',
   'invoices.orders': 'Danh sách đặt hàng',
   'invoices.returns': 'Danh sách trả hàng',
   'customers.revenue': 'Doanh thu theo khách',
@@ -110,12 +109,9 @@ function normalizeFilters(rawFilters) {
   const products = normalizeFilterSpec(raw.products);
   const invoices = normalizeFilterSpec(raw.invoices);
   const customers = normalizeFilterSpec(raw.customers, 'all');
-  const productStatus = ['Đang kinh doanh', 'Ngừng kinh doanh'].includes(raw.products && raw.products.status)
-    ? raw.products.status
-    : 'all';
   return {
     overview,
-    products: { ...products, status: productStatus },
+    products,
     invoices,
     customers,
     newPurchases: normalizeFilterSpec(raw.newPurchases || overview),
@@ -248,14 +244,6 @@ const PARENT_CATEGORY_COLUMNS = [
   aggregateColumn('qty', 'Số lượng bán', 'number', 'Tổng số lượng hàng bán ra của nhóm trong kỳ.'),
   aggregateColumn('revenue', 'Doanh thu', 'number', 'Tổng doanh thu bán hàng của nhóm trong kỳ (VNĐ).'),
   aggregateColumn('productCount', 'Số mã hàng', 'number', 'Số mã hàng thuộc nhóm có phát sinh bán trong kỳ.')
-];
-
-const CHILD_CATEGORY_COLUMNS = [
-  aggregateColumn('parent', 'Nhóm cha', undefined, 'Tên nhóm hàng cấp cha đang xem.'),
-  aggregateColumn('name', 'Nhóm con', undefined, 'Tên nhóm hàng cấp con thuộc nhóm cha.'),
-  aggregateColumn('qty', 'Số lượng bán', 'number', 'Tổng số lượng hàng bán ra của nhóm con trong kỳ.'),
-  aggregateColumn('revenue', 'Doanh thu', 'number', 'Tổng doanh thu bán hàng của nhóm con trong kỳ (VNĐ).'),
-  aggregateColumn('productCount', 'Số mã hàng', 'number', 'Số mã hàng thuộc nhóm con có phát sinh bán trong kỳ.')
 ];
 
 const CUSTOMER_PRODUCT_DETAIL_COLUMNS = [
@@ -399,6 +387,7 @@ function compositeKey(branch, code) {
  * binh quan theo ton kho, cot con lai lay gia tri that dau tien theo Ha Noi -> Sai Gon.
  */
 function mergeEntitySourceRows(source, rowsByBranch) {
+  // (san pham khong gop nua — chi khach/NCC; xem ENTITY_MERGE_SPECS trong dashboardData.js)
   const fields = exportFieldCatalog.getSourceFields(source.key);
   const keys = fields.map(item => item.key);
   const headers = fields.map(item => item.sheetHeader);
@@ -427,6 +416,20 @@ async function loadSourceRowsForItems(source, env, items, perBranch) {
     return { byKey: rowsByCode(sourceRows, source.codeKey), keyOf: byCodeKey };
   }
   const scope = resolveBranchScope(BRANCH_BOTH);
+  if (perBranch === 'customer') {
+    // Khach gop theo TEN: moi co so doc cac ma khach cua chinh no (item.codesByBranch),
+    // gop dong tho theo ten (giong man hinh) roi ghep lai theo ten.
+    const groups = await Promise.all(scope.map(async physicalBranch => ({
+      branch: physicalBranch,
+      rows: await readSourceRows(
+        source,
+        { ...env, branch: physicalBranch },
+        items.map(item => (item.codesByBranch || {})[physicalBranch]).filter(Boolean)
+      )
+    })));
+    const byKey = rowsByCode(mergeEntitySourceRows(source, groups), 'ten_khach_hang');
+    return { byKey, keyOf: item => normalizeCode(item.name) };
+  }
   if (perBranch) {
     const groups = await Promise.all(scope.map(async physicalBranch => ({
       branch: physicalBranch,
@@ -458,27 +461,21 @@ function customerRevenueRows(dashboard) {
   return topRevenue.all || topRevenue.top50 || [];
 }
 
+// Cot "Cơ sở" nam san trong catalogue (truong co_so cua tung nguon, do SQL dien theo co so doc).
 const BRANCH_COLUMN_LABEL = 'Cơ sở';
-const BRANCH_COLUMN_DESCRIPTION = 'Cơ sở (Hà Nội hoặc Sài Gòn) nơi phát sinh chứng từ.';
-const BRANCH_ITEM_VALUE = item => normalizeText(item.branch);
-
-function branchDerivedColumn() {
-  return derivedColumn('branch', BRANCH_COLUMN_LABEL, 'text', BRANCH_COLUMN_DESCRIPTION);
-}
 
 /** Bang 1 worksheet: cac dong logic (ma) ghep voi dong tho cua 1 nguon catalogue. */
 function singleSourceTable(options) {
-  const { key, name, sourceKey, derived = [], items, branchColumn = false } = options;
+  // branchColumn: true => "Ca hai" ghep dong tho theo (co so, ma) (chung tu/hang hoa cung ma o ca
+  // hai co so la hai dong rieng); 'customer' => khach gop theo ten (xem loadSourceRowsForItems).
+  const { key, name, sourceKey, derived = [], items, branchColumn = false, derivedValues } = options;
   const source = exportFieldCatalog.getSource(sourceKey);
-  // "Ca hai" + bang giao dich: them cot "Cơ sở" va ghep dong tho theo (co so, ma).
-  const derivedValues = branchColumn ? { ...options.derivedValues, branch: BRANCH_ITEM_VALUE } : options.derivedValues;
   const worksheet = {
     key,
     name,
     codeKey: source.codeKey,
     columns: sourceColumns(sourceKey).concat(
-      derived.map(def => derivedColumn(def.key, def.label, def.type, def.description)),
-      branchColumn ? [branchDerivedColumn()] : []
+      derived.map(def => derivedColumn(def.key, def.label, def.type, def.description))
     )
   };
   return {
@@ -508,22 +505,20 @@ function aggregateTable(options) {
 
 function purchasesTable(aggregate = false) {
   const source = exportFieldCatalog.getSource('purchases');
-  const extraColumns = aggregate ? [branchDerivedColumn()] : [];
-  const derivedValues = aggregate ? { branch: BRANCH_ITEM_VALUE } : undefined;
   const summary = {
     key: 'purchase_summary', name: 'Tổng hợp phiếu', codeKey: source.codeKey,
-    columns: sourceColumns('purchases', exportFieldCatalog.PURCHASE_SUMMARY_KEYS).concat(extraColumns)
+    columns: sourceColumns('purchases', [...exportFieldCatalog.PURCHASE_SUMMARY_KEYS, 'co_so'])
   };
   const details = {
     key: 'purchase_details', name: 'Chi tiết mặt hàng', codeKey: source.codeKey,
-    columns: sourceColumns('purchases').concat(extraColumns)
+    columns: sourceColumns('purchases')
   };
   return {
     worksheets: [summary, details],
     async loadRows(env, activeFor) {
       const items = ((env.dashboard.newPurchases || {}).orders || []);
       const { byKey, keyOf } = await loadSourceRowsForItems(source, env, items, aggregate);
-      const summaryRows = buildLogicalRows(items, byKey, activeFor(summary), derivedValues, keyOf);
+      const summaryRows = buildLogicalRows(items, byKey, activeFor(summary), undefined, keyOf);
       const detailColumns = activeFor(details);
       const detailSourceColumns = detailColumns.filter(column => !column.derivedKey);
       const detailDerivedColumns = detailColumns.filter(column => column.derivedKey);
@@ -536,7 +531,6 @@ function purchasesTable(aggregate = false) {
         seen.add(key);
         (byKey.get(key) || []).forEach(sourceRow => {
           const row = pickSourceValues({}, detailSourceColumns, sourceRow);
-          detailDerivedColumns.forEach(column => { row[column.key] = derivedValues[column.derivedKey](item); });
           detailRows.push(row);
         });
       });
@@ -578,6 +572,13 @@ function sortDebtManagementRows(rows, sort) {
   }).map(entry => entry.row);
 }
 
+// Cot "Cơ sở": khach gop hai co so liet ke tung co so (branchDetails), khong thi co so cua chinh dong.
+function debtBranchLabel(customer) {
+  const details = Array.isArray(customer.branchDetails) ? customer.branchDetails : [];
+  const labels = details.map(detail => normalizeText(detail.branch)).filter(Boolean);
+  return labels.join(', ');
+}
+
 function debtManagementRows(debtManagement, context, aggregate = false) {
   const debt = debtManagement && typeof debtManagement === 'object' ? debtManagement : {};
   const queue = DEBT_QUEUE_FILTERS.has(context.debtQueue) ? context.debtQueue : 'needsAction';
@@ -598,7 +599,7 @@ function debtManagementRows(debtManagement, context, aggregate = false) {
   });
   const toRow = customer => ({
     customerName: customer.customerName,
-    branch: normalizeText(customer.branch),
+    branch: normalizeText(customer.branch) || debtBranchLabel(customer),
     sale: customer.sale,
     paymentSchedule: customer.paymentSchedule,
     openingDebt: customer.openingDebt,
@@ -644,11 +645,11 @@ const TABLE_SPECS = {
     derivedValues: { quantity: item => (item.quantityKnown ? item.quantity : '') }
   }),
   'overview.purchases': (context, scope) => purchasesTable(scope.aggregate),
-  'overview.new-products': () => singleSourceTable({
-    key: 'new_products', name: 'Mã mới tạo', sourceKey: 'products',
+  'overview.new-products': (context, scope) => singleSourceTable({
+    key: 'new_products', name: 'Mã mới tạo', sourceKey: 'products', branchColumn: scope.aggregate,
     items: dashboard => (((dashboard.products || {}).newProducts || {}).products) || []
   }),
-  'products.top-selling': context => {
+  'products.top-selling': (context, scope) => {
     if (context.productAnalysis === 'parentCategory') {
       return aggregateTable({
         key: 'top_parent_categories', name: 'Top nhóm cha', columns: PARENT_CATEGORY_COLUMNS,
@@ -657,7 +658,7 @@ const TABLE_SPECS = {
       });
     }
     return singleSourceTable({
-      key: 'top_products', name: 'Top sản phẩm', sourceKey: 'products',
+      key: 'top_products', name: 'Top sản phẩm', sourceKey: 'products', branchColumn: scope.aggregate,
       items: dashboard => (dashboard.products || {}).allSellingProducts
         || (dashboard.products || {}).topSellingProducts || [],
       derived: [
@@ -667,18 +668,18 @@ const TABLE_SPECS = {
       derivedValues: { sold_qty: item => item.qty, sales_revenue: item => item.revenue }
     });
   },
-  'products.low-stock': () => singleSourceTable({
-    key: 'low_stock', name: 'Hàng đã hết', sourceKey: 'products',
+  'products.low-stock': (context, scope) => singleSourceTable({
+    key: 'low_stock', name: 'Hàng đã hết', sourceKey: 'products', branchColumn: scope.aggregate,
     items: dashboard => dashboard.lowStock || []
   }),
-  'products.all': () => singleSourceTable({
-    key: 'all_products', name: 'Tất cả mã hàng', sourceKey: 'products',
+  'products.all': (context, scope) => singleSourceTable({
+    key: 'all_products', name: 'Tất cả mã hàng', sourceKey: 'products', branchColumn: scope.aggregate,
     items: dashboard => dashboard.allProducts || [],
     derived: [{ key: 'stock_ratio', label: 'Tỷ trọng tồn kho', type: 'percent', description: 'Phần trăm tồn kho của mặt hàng trên tổng tồn kho của tất cả hàng hóa.' }],
     derivedValues: { stock_ratio: item => Number(item.pct || 0) / 100 }
   }),
-  'products.newly-imported': () => singleSourceTable({
-    key: 'newly_imported', name: 'Hàng mới nhập', sourceKey: 'products',
+  'products.newly-imported': (context, scope) => singleSourceTable({
+    key: 'newly_imported', name: 'Hàng mới nhập', sourceKey: 'products', branchColumn: scope.aggregate,
     items: dashboard => (((dashboard.products || {}).newlyImported || {}).products) || [],
     derived: [
       { key: 'first_import_date', label: 'Ngày nhập đầu tiên', type: 'date', description: 'Ngày đầu tiên mặt hàng được nhập kho.' },
@@ -691,15 +692,6 @@ const TABLE_SPECS = {
       revenue: item => item.revenue
     }
   }),
-  'products.child-categories': context => aggregateTable({
-    key: 'child_categories', name: 'Chi tiết nhóm con', columns: CHILD_CATEGORY_COLUMNS,
-    rows: dashboard => {
-      const parent = normalizeText(context.childCategoryParent);
-      return ((((dashboard.products || {}).childCategorySalesByParent || {})[parent]) || []).map(item => ({
-        parent, name: item.name, qty: item.qty, revenue: item.revenue, productCount: item.productCount
-      }));
-    }
-  }),
   'invoices.orders': (context, scope) => singleSourceTable({
     key: 'orders', name: 'Đặt hàng', sourceKey: 'orders', branchColumn: scope.aggregate,
     items: dashboard => (dashboard.invoices || {}).periodOrders || []
@@ -708,8 +700,8 @@ const TABLE_SPECS = {
     key: 'returns', name: 'Trả hàng', sourceKey: 'returns', branchColumn: scope.aggregate,
     items: dashboard => (dashboard.invoices || {}).periodReturns || []
   }),
-  'customers.revenue': () => singleSourceTable({
-    key: 'customer_revenue', name: 'Doanh thu theo khách', sourceKey: 'customers',
+  'customers.revenue': (context, scope) => singleSourceTable({
+    key: 'customer_revenue', name: 'Doanh thu theo khách', sourceKey: 'customers', branchColumn: scope.aggregate ? 'customer' : false,
     items: customerRevenueRows,
     derived: [
       { key: 'sale_order_count', label: 'Số đơn bán', type: 'number', description: 'Số đơn bán của khách trong kỳ.' },
@@ -717,8 +709,8 @@ const TABLE_SPECS = {
     ],
     derivedValues: { sale_order_count: item => item.saleOrderCount, period_revenue: item => item.revenue }
   }),
-  'customers.debt': () => singleSourceTable({
-    key: 'customer_debt', name: 'Khách còn nợ', sourceKey: 'customers',
+  'customers.debt': (context, scope) => singleSourceTable({
+    key: 'customer_debt', name: 'Khách còn nợ', sourceKey: 'customers', branchColumn: scope.aggregate ? 'customer' : false,
     items: dashboard => (dashboard.customers || {}).topDebt || [],
     derived: [{ key: 'period_revenue', label: 'Doanh thu trong kỳ', type: 'number', description: 'Doanh thu bán cho khách trong kỳ (VNĐ).' }],
     derivedValues: { period_revenue: item => item.periodRevenue }
@@ -729,7 +721,7 @@ const TABLE_SPECS = {
   }),
   'debt.management': (context, scope) => aggregateTable({
     key: 'debt_management', name: 'Quản lý công nợ',
-    columns: scope.aggregate ? [DEBT_COLUMNS[0], DEBT_BRANCH_COLUMN, ...DEBT_COLUMNS.slice(1)] : DEBT_COLUMNS,
+    columns: [DEBT_COLUMNS[0], DEBT_BRANCH_COLUMN, ...DEBT_COLUMNS.slice(1)],
     rows: dashboard => debtManagementRows(dashboard.debtManagement, context, scope.aggregate)
   }),
   // Cac bang duoi day khong co loadRows: nguon du lieu rieng (bao cao khach/hang, payload quet ton).
@@ -781,9 +773,9 @@ function applyTableSearchToWorksheets(tableKey, worksheets, tableSearch) {
   }
 
   const summary = filterWorksheetRows(worksheets[0], tableSearch);
-  // "Ca hai": cung ma phieu o hai co so la hai phieu khac nhau -> giu theo (co so, ma). Bang co
-  // so vat ly khong co cot "d_branch" nen khoa chi con la ma nhu cu.
-  const retentionKey = (row, codeKey) => compositeKey(row.d_branch, row[codeKey]);
+  // "Ca hai": cung ma phieu o hai co so la hai phieu khac nhau -> giu theo (co so, ma). Cot "co_so" luon
+  // trong catalogue; co so vat ly thi moi dong cung 1 co so nen khoa van khop theo ma.
+  const retentionKey = (row, codeKey) => compositeKey(row.co_so, row[codeKey]);
   const retainedCodes = new Set((summary.rows || []).map(row => retentionKey(row, summary.codeKey)));
   const detail = worksheets[1];
   return [summary, {
@@ -879,7 +871,7 @@ function fieldsToWorksheet(sourceKey, sourceLabel, results) {
     return row;
   });
   // "Ca hai": ket qua giao dich mang co so vat ly cua tung dong (ma co the trung giua hai co so).
-  if (results.length > 0 && results.every(result => typeof result.branch === 'string')) {
+  if (results.length > 0 && results.every(result => typeof result.branch === 'string') && !columns.some(column => column.label === BRANCH_COLUMN_LABEL)) {
     columns.push({ key: 'co_so', label: BRANCH_COLUMN_LABEL, type: 'text' });
     rows.forEach((row, index) => { row.co_so = results[index].branch; });
   }

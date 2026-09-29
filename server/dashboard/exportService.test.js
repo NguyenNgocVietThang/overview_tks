@@ -72,8 +72,7 @@ function buildDashboard() {
       newProducts: { products: [{ code: '00123' }] },
       topSellingProducts: [{ code: '00123', qty: 2, revenue: 300000 }],
       topSellingParentCategories: [{ name: 'Áo', qty: 2, revenue: 300000, productCount: 1 }],
-      newlyImported: { products: [{ code: '00123', firstImportDate: '14/08/2026', daysOnHand: 1, revenue: 300000 }] },
-      childCategorySalesByParent: { Áo: [{ name: 'Áo thun', qty: 2, revenue: 300000, productCount: 1 }] }
+      newlyImported: { products: [{ code: '00123', firstImportDate: '14/08/2026', daysOnHand: 1, revenue: 300000 }] }
     },
     lowStock: [{ code: '00123' }],
     allProducts: [{ code: '00123', pct: 100 }],
@@ -162,11 +161,11 @@ async function withStubs(options, fn) {
 const FIXED_TABLES = [
   'overview.transactions', 'overview.purchases', 'overview.new-products',
   'products.top-selling', 'products.low-stock', 'products.all', 'products.newly-imported',
-  'products.child-categories', 'invoices.orders', 'invoices.returns',
+  'invoices.orders', 'invoices.returns',
   'customers.revenue', 'customers.debt', 'suppliers.list', 'debt.management'
 ];
 
-const FIXED_CONTEXT = { productAnalysis: 'product', childCategoryParent: 'Áo', debtQueue: 'all' };
+const FIXED_CONTEXT = { productAnalysis: 'product', debtQueue: 'all' };
 const PRODUCT_COLUMNS = ['ma_hang', 'ten_hang', 'gia_ban'];
 
 const STOCKOUT_ROWS = [{
@@ -278,13 +277,13 @@ test('lọc danh sách nhập hàng giữ worksheet chi tiết cùng mã phiếu
   });
 });
 
-test('Nhap hang: worksheet tong hop 16 cot cap phieu + chi tiet 24 cot, moi dong hang cua cac phieu logic', async () => {
+test('Nhap hang: worksheet tong hop 17 cot cap phieu + chi tiet 25 cot, moi dong hang cua cac phieu logic', async () => {
   await withStubs({}, async stubs => {
     const dataset = await exportService.__test__.buildFixedDataset('overview.purchases', fixedEnv(stubs), {});
     assert.deepEqual(dataset.worksheets.map(sheet => sheet.name), ['Tổng hợp phiếu', 'Chi tiết mặt hàng']);
-    assert.deepEqual(dataset.worksheets[0].columns.map(column => column.key), catalog.PURCHASE_SUMMARY_KEYS);
-    assert.equal(dataset.worksheets[0].columns.length, 16);
-    assert.equal(dataset.worksheets[1].columns.length, 24);
+    assert.deepEqual(dataset.worksheets[0].columns.map(column => column.key), [...catalog.PURCHASE_SUMMARY_KEYS, 'co_so']);
+    assert.equal(dataset.worksheets[0].columns.length, 17, '16 cot cap phieu + Cơ sở');
+    assert.equal(dataset.worksheets[1].columns.length, 25, '24 cot + Cơ sở');
     assert.equal(dataset.worksheets[0].rows.length, 1);
     assert.equal(dataset.worksheets[1].rows.length, 2, 'chi lay dong hang cua phieu PN-01, khong lay PN-99');
     assert.deepEqual(dataset.worksheets[1].rows.map(row => row.ma_hang), ['00123', 'SP-02']);
@@ -302,13 +301,13 @@ test('Quản lý công nợ xuất đúng một worksheet, lọc và sort trên 
       debtSale: '',
       debtSchedule: '',
       debtSearch: '',
-      debtSort: { columnIndex: 4, direction: 'desc' }
+      debtSort: { columnIndex: 5, direction: 'desc' }
     });
     assert.equal(dataset.worksheets.length, 1);
     assert.equal(dataset.worksheets[0].name, 'Công nợ HN');
     assert.deepEqual(dataset.worksheets[0].rows.map(row => row.customerName), ['Khách B', 'Khách A']);
-    assert.equal(dataset.worksheets[0].columns.length, 12);
-    assert.equal(dataset.worksheets[0].columns.filter(column => column.selected !== false).length, 10);
+    assert.equal(dataset.worksheets[0].columns.length, 13, '12 cot cu + Cơ sở');
+    assert.equal(dataset.worksheets[0].columns.filter(column => column.selected !== false).length, 11);
 
     const matched = await exportService.__test__.buildFixedDataset('debt.management', fixedEnv(stubs), {
       debtQueue: 'overdue', debtSale: 'Lan', debtSchedule: '1', debtSearch: 'khách a'
@@ -333,11 +332,12 @@ test('Quản lý công nợ phản ánh đủ bốn bộ lọc hàng chờ', asy
   });
 });
 
-test('Quản lý công nợ mặc định chọn 10 cột hiển thị và để 2 cột cập nhật là tùy chọn', async () => {
+test('Quản lý công nợ mặc định chọn 11 cột hiển thị (kèm Cơ sở) và để 2 cột cập nhật là tùy chọn', async () => {
   const metadata = await exportService.getExportFields({ tableKey: 'debt.management', context: { debtQueue: 'all' } }, 'Hà Nội');
   const fields = metadata.worksheets[0].fields;
-  assert.equal(fields.length, 12);
-  assert.equal(fields.filter(field => field.selected).length, 10);
+  assert.equal(fields.length, 13);
+  assert.equal(fields[1].label, 'Cơ sở');
+  assert.equal(fields.filter(field => field.selected).length, 11);
   assert.equal(fields.find(field => field.key === 'updatedBy').selected, false);
   assert.equal(fields.find(field => field.key === 'updatedAt').selected, false);
 });
@@ -513,7 +513,7 @@ test('ca 14 bang tao duoc file xlsx tu danh sach truong API tra ve', async () =>
         worksheet.fields.map(field => field.key)
       ]));
       if (tableKey === 'debt.management') {
-        assert.equal(metadata.worksheets[0].fields.filter(field => field.selected).length, 10);
+        assert.equal(metadata.worksheets[0].fields.filter(field => field.selected).length, 11);
       } else {
         assert.ok(metadata.worksheets.every(worksheet => worksheet.fields.every(field => field.selected)));
       }
@@ -682,7 +682,7 @@ test('readRowsByCodes nhan dung tab, co so va danh sach ma logic; getDashboardDa
     assert.equal(viewer, undefined, 'viewer bo trong = khong quyen sua cong no');
     assert.deepEqual(filters.customers, { mode: 'days', days: 45 });
     assert.deepEqual(filters.overview, { mode: 'range', from: '2026-01-01', to: '2026-01-31' });
-    assert.deepEqual(filters.products, { mode: 'days', days: 30, status: 'all' });
+    assert.deepEqual(filters.products, { mode: 'days', days: 30 });
     assert.deepEqual(stubs.calls.rows, [{ sheetName: CONFIG.SHEET_CUSTOMERS, branch: 'Sài Gòn', codes: ['KH-01'] }]);
   });
 
@@ -1270,7 +1270,7 @@ function stubRowsByBranch(rowsByBranch, calls) {
     const wanted = new Set(codes);
     return {
       columns: source.fields.map(item => item.key),
-      rows: (((rowsByBranch[branch] || {})[sheetName]) || []).filter(row => wanted.has(row[source.codeKey])).map(row => ({ ...row }))
+      rows: (((rowsByBranch[branch] || {})[sheetName]) || []).filter(row => wanted.has(row[source.codeKey])).map(row => ({ ...row, co_so: branch }))
     };
   };
 }
@@ -1282,24 +1282,19 @@ function worksheetTable(workbook, index = 0) {
   return { header: worksheet.getRow(1).values.slice(1), rows };
 }
 
-test('Ca hai: buoc lay truong bang giao dich them cot "Cơ sở" khong nap du lieu, co so vat ly giu nguyen', async () => {
+test('Cot "Cơ sở" nam san trong catalogue cua moi nguon: buoc lay truong khong nap du lieu, Ca hai va co so vat ly giong nhau', async () => {
   await withStubs({}, async stubs => {
-    for (const tableKey of ['overview.transactions', 'overview.purchases', 'invoices.orders', 'invoices.returns']) {
+    for (const tableKey of ['overview.transactions', 'overview.purchases', 'invoices.orders', 'invoices.returns', 'products.all', 'customers.debt', 'suppliers.list']) {
       const both = await exportService.getExportFields(payloadFor(tableKey), BOTH);
       const physical = await exportService.getExportFields(payloadFor(tableKey), HN);
-      assert.equal(both.worksheets.length, physical.worksheets.length);
-      both.worksheets.forEach((worksheet, index) => {
-        const last = worksheet.fields[worksheet.fields.length - 1];
-        assert.deepEqual(worksheet.fields.slice(0, -1), physical.worksheets[index].fields, `${tableKey}: cot cu giu nguyen`);
-        assert.equal(last.label, 'Cơ sở');
-        assert.equal(last.selected, true);
-        assert.equal(last.type, 'text');
-        assert.ok(!physical.worksheets[index].fields.some(field => field.label === 'Cơ sở'), 'co so vat ly khong co cot moi');
+      assert.deepEqual(both, physical, `${tableKey}: Ca hai va co so vat ly cung bo truong`);
+      both.worksheets.forEach(worksheet => {
+        const facility = worksheet.fields.find(field => field.label === 'Cơ sở');
+        assert.ok(facility, `${tableKey}/${worksheet.key}: co cot Cơ sở`);
+        assert.equal(facility.selected, true);
+        assert.equal(facility.type, 'text');
       });
     }
-    const productsBoth = await exportService.getExportFields(payloadFor('products.all'), BOTH);
-    const productsPhysical = await exportService.getExportFields(payloadFor('products.all'), SG);
-    assert.deepEqual(productsBoth, productsPhysical, 'bang thuc the da gop theo ma khong can cot co so');
     const debt = await exportService.getExportFields(payloadFor('debt.management'), BOTH);
     assert.equal(debt.worksheets[0].fields[1].label, 'Cơ sở');
     assert.equal(stubs.calls.dashboard.length, 0);
@@ -1330,7 +1325,7 @@ test('Ca hai: hoa don trung ma o hai co so ghep dung dong tho theo (co so, ma) v
     }, calls);
     const file = await exportService.createExportWorkbook({
       tableKey: 'overview.transactions',
-      columns: { transactions: ['ma_hoa_don', 'khach_hang', 'tong_tien_hang', 'd_quantity', 'd_branch'] }
+      columns: { transactions: ['ma_hoa_don', 'khach_hang', 'tong_tien_hang', 'd_quantity', 'co_so'] }
     }, BOTH);
     const table = worksheetTable(await loadWorkbook(file));
     assert.deepEqual(table.header, ['Mã hóa đơn', 'Khách hàng', 'Tổng tiền hàng', 'Số lượng', 'Cơ sở']);
@@ -1357,12 +1352,12 @@ test('Ca hai: hoa don trung ma o hai co so ghep dung dong tho theo (co so, ma) v
       [HN]: { [CONFIG.SHEET_RETURNS]: [sourceRow('returns', { ma_tra_hang: 'TH-01', khach_hang: 'Trả HN' })] }
     }, calls);
     const orders = worksheetTable(await loadWorkbook(await exportService.createExportWorkbook({
-      tableKey: 'invoices.orders', columns: { orders: ['ma_dat_hang', 'd_branch'] }
+      tableKey: 'invoices.orders', columns: { orders: ['ma_dat_hang', 'co_so'] }
     }, BOTH)));
     assert.deepEqual(orders.rows, [['DH-01', SG]]);
     assert.deepEqual(calls.map(call => call.branch), [SG]);
     const returns = worksheetTable(await loadWorkbook(await exportService.createExportWorkbook({
-      tableKey: 'invoices.returns', columns: { returns: ['ma_tra_hang', 'khach_hang', 'd_branch'] }
+      tableKey: 'invoices.returns', columns: { returns: ['ma_tra_hang', 'khach_hang', 'co_so'] }
     }, BOTH)));
     assert.deepEqual(returns.rows, [['TH-01', 'Trả HN', HN], ['TH-01', 'Trả SG', SG]]);
   });
@@ -1381,7 +1376,7 @@ test('Ca hai: phieu nhap trung ma giu tong hop va chi tiet theo (co so, ma), loc
   await withStubs({ dashboard }, async () => {
     const calls = [];
     stubRowsByBranch(rowsByBranch, calls);
-    const columns = { purchase_summary: ['ma_nhap_hang', 'ten_nha_cung_cap', 'd_branch'], purchase_details: ['ma_hang', 'd_branch'] };
+    const columns = { purchase_summary: ['ma_nhap_hang', 'ten_nha_cung_cap', 'co_so'], purchase_details: ['ma_hang', 'co_so'] };
     const workbook = await loadWorkbook(await exportService.createExportWorkbook({ tableKey: 'overview.purchases', columns }, BOTH));
     assert.deepEqual(worksheetTable(workbook, 0).rows, [['PN-01', 'NCC Alpha', HN], ['PN-01', 'NCC Beta', SG]]);
     assert.deepEqual(worksheetTable(workbook, 1).rows, [['SP-A', HN], ['SP-B', SG], ['SP-C', SG]]);
@@ -1396,8 +1391,8 @@ test('Ca hai: phieu nhap trung ma giu tong hop va chi tiet theo (co so, ma), loc
   });
 });
 
-test('Ca hai: bang thuc the doc ca hai co so theo ma va gop cung quy tac man hinh (cong ton, gia von binh quan)', async () => {
-  const dashboard = { allProducts: [{ code: 'SP-1', pct: 100 }, { code: 'SP-2', pct: 0 }] };
+test('Ca hai: hang hoa trung ma la hai dong rieng, ghep theo (co so, ma) va chi doc ma cua chinh co so do', async () => {
+  const dashboard = { allProducts: [{ code: 'SP-1', branch: HN, pct: 60 }, { code: 'SP-1', branch: SG, pct: 40 }, { code: 'SP-2', branch: HN, pct: 0 }] };
   await withStubs({ dashboard }, async stubs => {
     const calls = [];
     stubRowsByBranch({
@@ -1409,11 +1404,12 @@ test('Ca hai: bang thuc the doc ca hai co so theo ma va gop cung quy tac man hin
     }, calls);
     const dataset = await exportService.__test__.buildFixedDataset('products.all', { dashboard: stubs.dashboard, branch: BOTH }, {});
     const rows = dataset.worksheets[0].rows;
-    assert.deepEqual(rows.map(row => [row.ma_hang, row.ten_hang, row.ton_kho, row.gia_von, row.gia_ban]), [
-      ['SP-1', 'Áo Hà Nội', 5, 16, 20],
-      ['SP-2', 'Chỉ Hà Nội', 4, 5, 9]
+    assert.deepEqual(rows.map(row => [row.ma_hang, row.ten_hang, row.ton_kho, row.gia_von, row.gia_ban, row.co_so]), [
+      ['SP-1', 'Áo Hà Nội', 2, 10, 20, HN],
+      ['SP-1', 'Áo Sài Gòn', 3, 20, null, SG],
+      ['SP-2', 'Chỉ Hà Nội', 4, 5, 9, HN]
     ]);
-    assert.deepEqual(calls.map(call => [call.branch, call.codes]), [[HN, ['SP-1', 'SP-2']], [SG, ['SP-1', 'SP-2']]]);
+    assert.deepEqual(calls.map(call => [call.branch, call.codes]), [[HN, ['SP-1', 'SP-2']], [SG, ['SP-1']]]);
   });
 });
 
@@ -1469,7 +1465,7 @@ test('Ca hai: loc Quan ly cong no tren hang GOP nhu man hinh, roi moi tach tung 
     assert.deepEqual(overdue.worksheets[0].rows.map(row => row.customerName), ['Khách A', 'Khách A', 'Khách C']);
 
     // Sap xep theo gia tri GOP (cot "Nợ hiện tại"): C (900) truoc A (300), cac dong co so di cung khach.
-    const sorted = await build({ debtQueue: 'currentDebt', debtSort: { columnIndex: 4, direction: 'desc' } });
+    const sorted = await build({ debtQueue: 'currentDebt', debtSort: { columnIndex: 5, direction: 'desc' } });
     assert.deepEqual(sorted.worksheets[0].rows.map(row => [row.customerName, row.branch]), [
       ['Khách C', ''], ['Khách A', HN], ['Khách A', SG]
     ]);
@@ -1772,4 +1768,28 @@ test('trinh duyet khong co DecompressionStream thi bao ro thay vi trang trang', 
   const { dom, doc } = await openHtmlReport(file, { legacyBrowser: true });
   assert.match(doc.getElementById('tbody').textContent, /Trình duyệt này quá cũ/);
   dom.window.close();
+});
+
+test('Ca hai: bang khach hang gop theo TEN - moi co so doc ma khach RIENG cua no, cot Co so ghi "Hà Nội, Sài Gòn"', async () => {
+  const dashboard = {
+    customers: {
+      topDebt: [{
+        code: 'KH-1', name: 'Khách An', branch: `${HN}, ${SG}`, periodRevenue: 5,
+        codesByBranch: { [HN]: 'KH-1', [SG]: 'KH-9' }
+      }]
+    }
+  };
+  await withStubs({ dashboard }, async () => {
+    const calls = [];
+    stubRowsByBranch({
+      [HN]: { [CONFIG.SHEET_CUSTOMERS]: [sourceRow('customers', { ma_khach_hang: 'KH-1', ten_khach_hang: 'Khách An', no_hien_tai: 100 })] },
+      [SG]: { [CONFIG.SHEET_CUSTOMERS]: [sourceRow('customers', { ma_khach_hang: 'KH-9', ten_khach_hang: 'Khách An', no_hien_tai: 200 })] }
+    }, calls);
+    const table = worksheetTable(await loadWorkbook(await exportService.createExportWorkbook({
+      tableKey: 'customers.debt',
+      columns: { customer_debt: ['ten_khach_hang', 'no_hien_tai', 'co_so', 'd_period_revenue'] }
+    }, BOTH)));
+    assert.deepEqual(table.rows, [['Khách An', 300, `${HN}, ${SG}`, 5]], 'cong no hai co so cong lai, mot dong');
+    assert.deepEqual(calls.map(call => [call.branch, call.codes]), [[HN, ['KH-1']], [SG, ['KH-9']]]);
+  });
 });

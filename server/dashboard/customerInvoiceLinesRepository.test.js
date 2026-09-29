@@ -64,3 +64,31 @@ test('cau SQL doc dong state cung luc voi dong hang de cua so luon khop du lieu'
   assert.match(__sql__.READ_SQL, /l\.branch = ANY\(\$1::text\[\]\) AND l\.customer_code = \$2/);
   assert.match(__sql__.READ_SQL, /ORDER BY l\.branch, l\.invoice_id DESC, l\.line_no/);
 });
+
+test('khach gop theo ten: truyen ma khach RIENG tung co so (unnest 2 mang song song), khong dung ma chung', async () => {
+  const calls = [];
+  const repository = createCustomerInvoiceLinesRepository({
+    pool: { query: async (sql, params) => { calls.push({ sql, params }); return { rows: [row(), row({ branch: 'saigon', item_code: 'SP-09' })] }; } }
+  });
+  const snapshot = await repository.readCustomerInvoiceLines({
+    branchCodes: ['hanoi', 'saigon'],
+    customerCode: 'KH-1',
+    customerCodesByBranch: { hanoi: 'KH-1', saigon: 'KH-9' }
+  });
+  assert.equal(calls[0].sql, __sql__.READ_BY_BRANCH_CODES_SQL);
+  assert.deepEqual(calls[0].params, [['hanoi', 'saigon'], ['KH-1', 'KH-9']]);
+  assert.match(__sql__.READ_BY_BRANCH_CODES_SQL, /\(l\.branch, l\.customer_code\) IN \(SELECT \* FROM unnest\(\$1::text\[\], \$2::text\[\]\)\)/);
+  assert.deepEqual(snapshot.linesByBranch.saigon.map(line => line.itemCode), ['SP-09']);
+});
+
+test('chi co ma o mot co so: chi ghep co so do; khong co ma nao thi quay ve ma chung', async () => {
+  const calls = [];
+  const repository = createCustomerInvoiceLinesRepository({
+    pool: { query: async (sql, params) => { calls.push({ sql, params }); return { rows: [row()] }; } }
+  });
+  await repository.readCustomerInvoiceLines({ branchCodes: ['hanoi', 'saigon'], customerCode: 'KH-1', customerCodesByBranch: { saigon: 'KH-9' } });
+  assert.deepEqual(calls[0].params, [['saigon'], ['KH-9']]);
+  await repository.readCustomerInvoiceLines({ branchCodes: ['hanoi', 'saigon'], customerCode: 'KH-1', customerCodesByBranch: {} });
+  assert.equal(calls[1].sql, __sql__.READ_SQL);
+  assert.deepEqual(calls[1].params, [['hanoi', 'saigon'], 'KH-1']);
+});

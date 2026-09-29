@@ -25,17 +25,38 @@ const READ_SQL = `
   WHERE s.id = 1
   ORDER BY l.branch, l.invoice_id DESC, l.line_no`;
 
+// Khach o "Cả hai" duoc gop theo TEN nen moi co so co MA KHACH RIENG: ghep (co so, ma)
+// bang unnest 2 mang song song ($1 = co so, $2 = ma tuong ung).
+const READ_BY_BRANCH_CODES_SQL = `
+  SELECT to_char(s.window_start, 'YYYY-MM-DD') AS window_start,
+         to_char(s.window_end, 'YYYY-MM-DD')   AS window_end,
+         s.computed_at,
+         l.branch, l.customer_name, l.item_code, l.item_name, l.quantity, l.revenue,
+         to_char(l.sold_date, 'DD/MM/YYYY')    AS date_key
+  FROM customer_invoice_lines_state s
+  LEFT JOIN customer_invoice_lines_90d l
+    ON (l.branch, l.customer_code) IN (SELECT * FROM unnest($1::text[], $2::text[]))
+  WHERE s.id = 1
+  ORDER BY l.branch, l.invoice_id DESC, l.line_no`;
+
 function createCustomerInvoiceLinesRepository({ pool = getPool() } = {}) {
   /**
    * @param {Object} params
    * @param {string[]} params.branchCodes ma co so vat ly ('hanoi'/'saigon')
    * @param {string} params.customerCode ma khach hang da trim
+   * @param {Object<string,string>} [params.customerCodesByBranch] ma khach RIENG tung co so
+   *   ('hanoi'/'saigon' -> ma); co thi moi co so tra theo ma cua chinh no (khach gop theo ten)
    * @returns {Promise<null | {window: {start: string, end: string}, computedAt: Date,
    *   linesByBranch: Object<string, Array>}>} null neu bang chua tung duoc dung.
    *   Moi dong theo thu tu cu cua sheet chi tiet hoa don (hoa don moi nhat truoc).
    */
-  async function readCustomerInvoiceLines({ branchCodes, customerCode }) {
-    const { rows } = await pool.query(READ_SQL, [branchCodes, customerCode]);
+  async function readCustomerInvoiceLines({ branchCodes, customerCode, customerCodesByBranch }) {
+    const pairedBranches = customerCodesByBranch
+      ? branchCodes.filter(code => customerCodesByBranch[code])
+      : [];
+    const { rows } = pairedBranches.length
+      ? await pool.query(READ_BY_BRANCH_CODES_SQL, [pairedBranches, pairedBranches.map(code => customerCodesByBranch[code])])
+      : await pool.query(READ_SQL, [branchCodes, customerCode]);
     if (!rows.length) return null;
 
     const linesByBranch = {};
@@ -66,5 +87,5 @@ const repository = createCustomerInvoiceLinesRepository();
 module.exports = {
   createCustomerInvoiceLinesRepository,
   readCustomerInvoiceLines: (...args) => repository.readCustomerInvoiceLines(...args),
-  __sql__: { READ_SQL }
+  __sql__: { READ_SQL, READ_BY_BRANCH_CODES_SQL }
 };

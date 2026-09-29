@@ -13,8 +13,11 @@ const { startCustomerDebtReportRefreshSchedule } = require('./customerDebtReport
 const { startProductReportSchedule } = require('./productReportRefresh');
 const { startCustomerInvoiceLinesSchedule } = require('./customerInvoiceLinesRefresh');
 
+// orderSuppliers ("Dat hang nhap") o nhom fast: doi soat toan bo ~350 phieu chi vai
+// request, va nhip 7 phut gan nhip snapshot ton kho (10 phut) nen hang vua nhap
+// khong bi dem ca "dang van chuyen" lan "ton kho" lau.
 const fastEntities = [require('./entities/invoices'), require('./entities/orders'), require('./entities/productOnHands'),
-  require('./entities/productOnHandsSnapshot')];
+  require('./entities/productOnHandsSnapshot'), require('./entities/orderSuppliers')];
 const slowEntities = [require('./entities/categories'), require('./entities/products'), require('./entities/customers'),
   require('./entities/suppliers'), require('./entities/returns'), require('./entities/purchases'), require('./entities/cashFlows')];
 

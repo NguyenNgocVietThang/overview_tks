@@ -1,7 +1,7 @@
 // ==========================================
-// CO SO (branch) — Ha Noi / Sai Gon. Day la chieu PHAN QUYEN + chon NGUON
-// DU LIEU: moi request du lieu deu chay qua branchMiddleware de biet dang
-// xem co so nao, roi doc dung spreadsheet cua co so do.
+// CO SO (branch) — Ha Noi / Sai Gon. Day la chieu chon NGUON DU LIEU (bo loc
+// xem): moi request du lieu deu chay qua branchMiddleware de biet dang xem co
+// so nao. Khong con phan quyen theo co so — ai cung xem duoc ca hai.
 //
 // KHONG lien quan den ten KHO ('An Khanh'/'Tan Phu') trong
 // Ten kho trong nghiep vu KiotViet la khai niem khac va giu nguyen.
@@ -29,35 +29,21 @@ function normalizeCoSo(raw) {
   return LEGACY_ALIASES[key] || '';
 }
 
-// Quan ly la vai tro dieu hanh toan he thong — mac dinh duoc xem CA HAI co so
-// ngay ca khi chua duoc gan coSo tuong minh (tai khoan tao qua form thieu
-// truong nay, hoac duoc thang cap vai tro ma khong dong thoi gan lai co so).
-const MANAGER_ROLE = 'Quản lý';
-
 /**
- * Danh sach co so mot tai khoan duoc phep xem. Rong = chua duoc gan co so
- * (Quan ly phai gan truoc khi tai khoan xem duoc bat ky du lieu nao) —
- * ngoai tru vai tro Quan ly, luon mac dinh ve Ca hai.
+ * Co so chi la BO LOC XEM: moi tai khoan deu duoc xem ca hai co so (giong quyen
+ * "Cả hai" truoc day). Cot coSo cua tai khoan chi quyet dinh co so MAC DINH luc
+ * dang nhap (xem defaultBranch), khong con la ranh gioi doc/ghi du lieu.
  */
-function allowedBranches(user) {
-  const coSo = normalizeCoSo(user && user.coSo);
-  if (coSo === BRANCH_BOTH) return [BRANCHES.HANOI, BRANCHES.SAIGON];
-  if (coSo) return [coSo];
-  if (user && user.vaiTro === MANAGER_ROLE) return [BRANCHES.HANOI, BRANCHES.SAIGON];
-  return [];
+function allowedBranches() {
+  return [BRANCHES.HANOI, BRANCHES.SAIGON];
 }
 
 /**
- * Danh sach gia tri co the chon tren giao dien. Khac voi allowedBranches,
- * danh sach nay co them "Cả hai" chi khi nguoi dung duoc phep ca hai co so
- * vat ly; tuyet doi khong dung no lam ranh gioi doc/ghi du lieu nghiep vu.
+ * Danh sach gia tri co the chon tren giao dien: 2 co so + "Cả hai". Tuyet doi
+ * khong dung no lam gia tri branch nghiep vu (xem resolveBranchScope).
  */
-function selectableBranches(user) {
-  const allowed = allowedBranches(user);
-  if (allowed.includes(BRANCHES.HANOI) && allowed.includes(BRANCHES.SAIGON)) {
-    return [...allowed, BRANCH_BOTH];
-  }
-  return allowed;
+function selectableBranches() {
+  return [BRANCHES.HANOI, BRANCHES.SAIGON, BRANCH_BOTH];
 }
 
 function isBranchAllowed(user, branch) {
@@ -78,10 +64,9 @@ function resolveBranchScope(branch) {
   return [];
 }
 
+// Co so mac dinh luc dang nhap = co so duoc gan san; chua gan thi xem "Cả hai".
 function defaultBranch(user) {
-  const allowed = allowedBranches(user);
-  if (allowed.includes(BRANCHES.HANOI) && allowed.includes(BRANCHES.SAIGON)) return BRANCH_BOTH;
-  return allowed[0] || null;
+  return normalizeCoSo(user && user.coSo) || BRANCH_BOTH;
 }
 
 // Anh xa 2 chieu giua dinh danh noi bo cua Postgres ('hanoi'/'saigon' — xem

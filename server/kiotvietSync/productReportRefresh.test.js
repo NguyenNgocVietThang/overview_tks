@@ -12,12 +12,14 @@ function fakeClient(insertRowCount = 7) {
     calls,
     query: async (sql, params) => {
       calls.push({ sql, params });
-      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK' || sql === 'TRUNCATE product_report') return {};
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK' || sql === TRUNCATE_SQL) return {};
       return { rowCount: insertRowCount };
     },
     release: () => {}
   };
 }
+
+const TRUNCATE_SQL = 'TRUNCATE product_report, product_report_customers';
 
 function fakePool(client) {
   return { connect: async () => client, query: async () => ({ rows: [] }) };
@@ -30,11 +32,20 @@ test('refreshProductReport chay dung trinh tu BEGIN/TRUNCATE/INSERT/COMMIT trong
   const result = await refreshProductReport(pool, { log: (m) => logs.push(m) });
 
   assert.deepEqual(client.calls.map((c) => c.sql.split('\n')[0].trim() || c.sql), [
-    'BEGIN', 'TRUNCATE product_report', __sql__.REFRESH_SQL.split('\n')[0].trim() || __sql__.REFRESH_SQL, 'COMMIT'
+    'BEGIN', TRUNCATE_SQL, __sql__.REFRESH_SQL.split('\n')[0].trim() || __sql__.REFRESH_SQL, 'COMMIT'
   ]);
   assert.deepEqual(client.calls[2].params, [['hanoi', 'saigon']]);
   assert.equal(result.rowCount, 42);
   assert.match(logs[0], /42/);
+});
+
+test('REFRESH_SQL luu lai customer_agg vao product_report_customers trong CUNG 1 cau lenh (quet 90 ngay 1 lan)', () => {
+  const sql = __sql__.REFRESH_SQL;
+  assert.match(sql, /INSERT INTO product_report_customers\s*\(product_key, customer_key, customer_name, revenue\)/);
+  assert.match(sql, /FROM customer_agg/);
+  // Ca 2 bang cung doc customer_agg => phai la CTE, khong quet lai invoice_details lan nua.
+  assert.equal((sql.match(/FROM invoice_details/g) || []).length, 1);
+  assert.match(sql, /INSERT INTO product_report \(/);
 });
 
 test('refreshProductReport ROLLBACK va nem loi neu INSERT that bai', async () => {

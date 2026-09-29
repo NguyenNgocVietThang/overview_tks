@@ -984,7 +984,7 @@ test('findDebtCustomerBranches dung dung chu ky ma dashboard tinh cho tung co so
     'chu ky luu xuong DB phai trung chu ky debtManagement.js so sanh khi doc');
 });
 
-test('Ca hai cong KPI/bucket va gop thuc the trung ma truoc khi xep hang', async () => {
+test('Ca hai cong KPI/bucket; hang hoa trung ma la 2 dong rieng, khach trung ten gop lai', async () => {
   const { dashboardData, dashboardPgReader, dashboardRollupRepository } = freshDashboardData();
   const CONFIG = require('../config');
   const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
@@ -999,7 +999,7 @@ test('Ca hai cong KPI/bucket va gop thuc the trung ma truoc khi xep hang', async
       : [productHeader, ['SP-1', 'Tên Sài Gòn', '', 'Hàng hóa', 10, 20, 3, 0, 'Đang kinh doanh', '', ''], ['SP-3', 'SP 3', '', 'Hàng hóa', 10, 20, 4, 0, 'Đang kinh doanh', '', '']];
     result[CONFIG.SHEET_CUSTOMERS] = branch === BRANCHES.HANOI
       ? [customerHeader, ['KH-1', 'Khách Hà Nội', '0901', 100], ['KH-2', 'Khách 2', '0902', 50]]
-      : [customerHeader, ['KH-1', 'Khách Sài Gòn', '0901', 200], ['KH-3', 'Khách 3', '0903', 70]];
+      : [customerHeader, ['KH-9', 'Khách Hà Nội', '0901', 200], ['KH-3', 'Khách 3', '0903', 70]];
     result[CONFIG.SHEET_SUPPLIERS] = branch === BRANCHES.HANOI
       ? [supplierHeader, ['NCC-1', 'NCC Hà Nội', '', '', 300]]
       : [supplierHeader, ['NCC-1', 'NCC Sài Gòn', '', '', 400], ['NCC-2', 'NCC 2', '', '', 50]];
@@ -1026,9 +1026,9 @@ test('Ca hai cong KPI/bucket va gop thuc the trung ma truoc khi xep hang', async
     overview: { mode: 'all' }, products: { mode: 'all' }, invoices: { mode: 'all' }
   }, BRANCH_BOTH);
 
-  assert.equal(data.kpi.totalProducts, 3);
+  assert.equal(data.kpi.totalProducts, 4, 'SP-1 o hai co so la hai dong rieng');
   assert.equal(data.kpi.totalStock, 10);
-  assert.equal(data.kpi.totalCustomers, 3);
+  assert.equal(data.kpi.totalCustomers, 3, 'khach trung ten (ma KH khac nhau) gop lai');
   assert.equal(data.kpi.totalDebt, 420);
   assert.equal(data.kpi.totalSuppliers, 2);
   assert.equal(data.kpi.totalSupplierDebt, 750);
@@ -1037,12 +1037,56 @@ test('Ca hai cong KPI/bucket va gop thuc the trung ma truoc khi xep hang', async
     { date: '11/08/2026', label: '11/08', revenue: 1100, count: 1 },
     { date: '12/08/2026', label: '12/08', revenue: 1200, count: 1 }
   ]);
-  assert.deepEqual(data.products.topSellingProducts[0], { code: 'SP-1', name: 'Tên Hà Nội', qty: 3, revenue: 400 });
-  assert.equal(data.allProducts.find(product => product.code === 'SP-1').name, 'Tên Hà Nội');
-  const mergedSp1 = data.allProducts.find(product => product.code === 'SP-1');
-  assert.equal(mergedSp1.cost, 10);
-  assert.equal(mergedSp1.stockValue, mergedSp1.stock * 10);
+  assert.deepEqual(data.products.topSellingProducts.slice(0, 2), [
+    { code: 'SP-1', branch: 'Sài Gòn', name: 'Tên Sài Gòn', qty: 2, revenue: 300 },
+    { code: 'SP-1', branch: 'Hà Nội', name: 'Tên Hà Nội', qty: 1, revenue: 100 }
+  ]);
+  const sp1Rows = data.allProducts.filter(product => product.code === 'SP-1');
+  assert.deepEqual(sp1Rows.map(product => [product.branch, product.name, product.stock]).sort(), [
+    ['Hà Nội', 'Tên Hà Nội', 2],
+    ['Sài Gòn', 'Tên Sài Gòn', 3]
+  ]);
+  sp1Rows.forEach(product => {
+    assert.equal(product.cost, 10);
+    assert.equal(product.stockValue, product.stock * 10);
+  });
+  assert.equal(data.customers.topDebt.find(customer => customer.name === 'Khách Hà Nội').branch, 'Hà Nội, Sài Gòn');
   assert.equal(data.suppliers.find(supplier => supplier.code === 'NCC-1').name, 'NCC Hà Nội');
+});
+
+test('allProducts co "available" (ton - khach dat) va "inTransit" (cot Đang vận chuyển), thieu cot thi = 0', async () => {
+  const { dashboardData, dashboardPgReader, dashboardRollupRepository } = freshDashboardData();
+  const CONFIG = require('../config');
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  const withTransit = ['Mã hàng', 'Tên hàng', 'Nhóm hàng', 'Loại hàng', 'Giá vốn', 'Giá bán', 'Tồn kho', 'Khách đặt', 'Trạng thái', 'Đang vận chuyển'];
+  const withoutTransit = withTransit.slice(0, 9);
+  dashboardPgReader.readCoreDashboardSheets = async branch => {
+    const result = Object.fromEntries(dashboardPgReader.CORE_SHEET_NAMES.map(name => [name, []]));
+    result[CONFIG.SHEET_CATEGORIES] = [['Mã nhóm hàng', 'Tên nhóm hàng', 'Mã nhóm cha']];
+    result[CONFIG.SHEET_PRODUCTS] = branch === BRANCHES.HANOI
+      ? [withTransit,
+        ['SP-1', 'SP 1', '', 'Hàng hóa', 10, 20, 8, 3, 'Đang kinh doanh', 720],
+        ['SP-2', 'SP 2', '', 'Hàng hóa', 10, 20, 1, 4, 'Đang kinh doanh', 0],
+        ['SP-4', 'Hang can', '', 'Hàng hóa', 10, 20, 2.3, 0.1, 'Đang kinh doanh', 0]]
+      : [withoutTransit, ['SP-1', 'SP 1', '', 'Hàng hóa', 10, 20, 5, 0, 'Đang kinh doanh']];
+    return result;
+  };
+  mockDashboardRollups(dashboardRollupRepository, {});
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData({
+    ...BASE_FILTERS,
+    overview: { mode: 'all' }, products: { mode: 'all' }, invoices: { mode: 'all' }
+  }, BRANCH_BOTH);
+
+  const pick = (code, branch) => data.allProducts.find(p => p.code === code && p.branch === branch);
+  assert.deepEqual(
+    [pick('SP-1', 'Hà Nội').stock, pick('SP-1', 'Hà Nội').reserved, pick('SP-1', 'Hà Nội').available, pick('SP-1', 'Hà Nội').inTransit],
+    [8, 3, 5, 720]
+  );
+  assert.equal(pick('SP-2', 'Hà Nội').available, -3, 'khach dat vuot ton thi am, khong kep ve 0');
+  assert.equal(pick('SP-4', 'Hà Nội').available, 2.2, 'lam tron sai so dau phay dong khi ton le');
+  assert.deepEqual([pick('SP-1', 'Sài Gòn').available, pick('SP-1', 'Sài Gòn').inTransit], [5, 0], 'nguon khong co cot Đang vận chuyển thi = 0');
 });
 
 test('Ca hai giu giao dich trung ma theo (co so, ma) va gan provenance', async () => {
@@ -1183,7 +1227,7 @@ test('Ca hai gom thong ke phieu nhap theo ma NCC chuan hoa, khong theo ten hien 
   ]);
 });
 
-test('Ca hai lay ten that dau tien HN-SG cho product rollup thay vi giu fallback ma', async () => {
+test('Ca hai giu product rollup tung co so thanh dong rieng, moi dong dung ten cua co so do', async () => {
   const { dashboardData, dashboardRollupRepository } = freshDashboardData();
   const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
   mockDashboardRollups(dashboardRollupRepository, {
@@ -1196,7 +1240,8 @@ test('Ca hai lay ten that dau tien HN-SG cho product rollup thay vi giu fallback
   const data = await dashboardData.getDashboardData({ ...BASE_FILTERS, products: { mode: 'all' } }, BRANCH_BOTH);
 
   assert.deepEqual(data.products.topSellingProducts, [
-    { code: 'SP-CHUNG', name: 'Tên thật Sài Gòn', qty: 3, revenue: 300 }
+    { code: 'SP-CHUNG', branch: 'Sài Gòn', name: 'Tên thật Sài Gòn', qty: 2, revenue: 200 },
+    { code: 'SP-CHUNG', branch: 'Hà Nội', name: 'SP-CHUNG', qty: 1, revenue: 100 }
   ]);
 });
 
@@ -1564,7 +1609,7 @@ function categoryRow({ id, name, parentId = '' }) {
   return [id, name, parentId];
 }
 
-test('getDashboardData: Hang moi nhap doc tu getFirstPurchaseDates (rollup), loc theo range + trang thai kinh doanh', async () => {
+test('getDashboardData: Hang moi nhap doc tu getFirstPurchaseDates (rollup), loc theo range va chi hang dang kinh doanh', async () => {
   const { dashboardData, dashboardPgReader, dashboardRollupRepository } = freshDashboardData();
   const CONFIG = require('../config');
   mockPgSheets(dashboardPgReader, {
@@ -1590,7 +1635,7 @@ test('getDashboardData: Hang moi nhap doc tu getFirstPurchaseDates (rollup), loc
 
   const filters = {
     ...BASE_FILTERS,
-    products: { mode: 'range', from: '2026-08-01', to: '2026-08-31', status: 'all' }
+    products: { mode: 'range', from: '2026-08-01', to: '2026-08-31' }
   };
   const data = await dashboardData.getDashboardData(filters);
 
@@ -1598,18 +1643,8 @@ test('getDashboardData: Hang moi nhap doc tu getFirstPurchaseDates (rollup), loc
   assert.equal(calls[0].branch, undefined, 'branch mac dinh Ha Noi khong truyen tuong minh o day');
   assert.deepEqual(
     data.products.newlyImported.products.map(p => p.code).sort(),
-    ['SP-01', 'SP-02'],
-    'SP-03 ngoai khoang productsRange va VAT01 la ma VAT deu bi loai'
-  );
-
-  const filteredActive = await dashboardData.getDashboardData({
-    ...filters,
-    products: { ...filters.products, status: 'Đang kinh doanh' }
-  });
-  assert.deepEqual(
-    filteredActive.products.newlyImported.products.map(p => p.code),
     ['SP-01'],
-    'loc theo trang thai kinh doanh dung nhu productStatusByCode (tu tab Hang hoa)'
+    'SP-02 ngung kinh doanh, SP-03 ngoai khoang productsRange va VAT01 la ma VAT deu bi loai'
   );
 });
 
@@ -1798,13 +1833,13 @@ test('Ca hai tim kiem gop ma trung, ap dung limit sau khi gop va chi doc co so v
 
   const result = await dashboardData.searchDashboardRecords('products', 'áo', 2, undefined, undefined, BRANCH_BOTH);
 
-  assert.equal(result.total, 3, 'SP-1 trung ma chi tinh 1 lan');
-  assert.deepEqual(result.results.map(item => item.code), ['SP-1', 'SP-2'], 'limit ap dung sau khi gop');
-  assert.equal(result.results[0].name, 'Áo Hà Nội');
-  const stock = result.results[0].fields.find(field => field.label === 'Tồn kho');
-  const cost = result.results[0].fields.find(field => field.label === 'Giá vốn');
-  assert.equal(stock.value, '5');
-  assert.equal(cost.value, '16', 'gia von tinh binh quan theo ton kho');
+  assert.equal(result.total, 4, 'SP-1 o hai co so la hai dong rieng');
+  assert.deepEqual(result.results.map(item => item.code), ['SP-1', 'SP-1'], 'limit ap dung sau khi ghep hai co so');
+  assert.deepEqual(result.results.map(item => item.name).sort(), ['Áo Hà Nội', 'Áo Sài Gòn']);
+  const hanoi = result.results.find(item => item.name === 'Áo Hà Nội');
+  assert.equal(hanoi.fields.find(field => field.label === 'Tồn kho').value, '2');
+  assert.equal(hanoi.fields.find(field => field.label === 'Giá vốn').value, '10');
+  assert.equal(hanoi.fields.find(field => field.label === 'Cơ sở').value, 'Hà Nội');
   assert.deepEqual(seen.sort(), [BRANCHES.HANOI, BRANCHES.SAIGON]);
 
   await dashboardData.searchDashboardRecords('products', 'sp-3', 8, undefined, undefined, BRANCH_BOTH);
@@ -1844,7 +1879,7 @@ test('Ca hai tim nhieu ma giu thu tu nhap, giu giao dich trung ma theo co so va 
   assert.deepEqual(totals, ['100', '200']);
 });
 
-test('Ca hai tim khach cong doanh thu theo ma khach cua ca hai co so', async () => {
+test('Ca hai tim khach cong doanh thu theo TEN khach (ma khach khac nhau giua hai co so)', async () => {
   const { dashboardData, dashboardPgReader } = freshDashboardData();
   const CONFIG = require('../config');
   const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
@@ -1855,15 +1890,15 @@ test('Ca hai tim khach cong doanh thu theo ma khach cua ca hai co so', async () 
         ['HD-1', '10/08/2026 10:00:00', 'Khách Hà Nội', '', '', 100, 'Hoàn thành', 'KH-1']]
     },
     [BRANCHES.SAIGON]: {
-      [CONFIG.SHEET_CUSTOMERS]: [AGG_CUSTOMER_HEADER, ['KH-1', 'Khách Sài Gòn', '0901', 200]],
+      [CONFIG.SHEET_CUSTOMERS]: [AGG_CUSTOMER_HEADER, ['KH-9', 'Khách Hà Nội', '0901', 200]],
       [CONFIG.SHEET_INVOICES]: [AGG_INVOICE_HEADER,
-        ['HD-1', '11/08/2026 10:00:00', 'Khách Sài Gòn', '', '', 200, 'Hoàn thành', 'KH-1']]
+        ['HD-1', '11/08/2026 10:00:00', 'Khách Hà Nội', '', '', 200, 'Hoàn thành', 'KH-9']]
     }
   });
   dashboardData.__test__.resetCaches();
 
   const result = await dashboardData.searchDashboardRecords(
-    'customers', 'KH-1', 'all', undefined, { mode: 'all' }, BRANCH_BOTH
+    'customers', 'Khách Hà Nội', 'all', undefined, { mode: 'all' }, BRANCH_BOTH
   );
 
   assert.equal(result.total, 1);
@@ -2123,12 +2158,11 @@ test('tung tab: tra du lieu that (khong phai lat cat rong) — Tong quan/Hoa don
   assert.equal(overview.kpi.invoicesToday, 1);
   assert.equal(overview.kpi.revenueToday, 250000);
   assert.equal(overview.kpi.cancelledToday, 1);
-  assert.equal(overview.kpi.totalProducts, 3);
+  assert.equal(overview.kpi.totalProducts, 2, 'hang ngung kinh doanh khong tinh');
   assert.equal(overview.kpi.lowStockCount, 1);
   assert.equal(overview.kpi.totalCustomers, 2);
   assert.equal(overview.kpi.totalDebt, 120000);
-  assert.deepEqual(Object.keys(overview.products).sort(), ['availableParentCategories', 'childCategorySalesByParent']);
-  assert.equal(overview.products.childCategorySalesByParent['Đồ uống'].length, 1);
+  assert.equal(overview.products, undefined, 'Tong quan khong con phan doanh thu theo nhom hang');
   assert.equal(overview.invoices, undefined, 'Tong quan khong keo du lieu Hoa don');
   assert.equal(overview.allProducts, undefined, 'Tong quan khong keo bang san pham (1,3MB)');
   assert.equal(overview.debtManagement, undefined);
@@ -2171,7 +2205,7 @@ test('tung tab: Tong quan chi doc dung 4 bang nguon + 2 rollup, KHONG cham cong 
     [...coreReads[0]].sort(),
     [CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_CUSTOMERS, CONFIG.SHEET_INVOICES, CONFIG.SHEET_PRODUCTS].sort()
   );
-  assert.deepEqual(rollupCalls.sort(), ['getInvoiceRevenueByDay', 'getProductSalesBreakdown']);
+  assert.deepEqual(rollupCalls.sort(), ['getInvoiceRevenueByDay']);
   assert.equal(debtTouched, 0, 'Tong quan khong doc workbook cong no/workflow/CN1-3-7 (Google Sheets ~1s)');
 });
 
@@ -2377,7 +2411,7 @@ test('cache nguon nguoi: rollup bat dau NGAY trong luc dang doi doc bang nguon (
   const origRead = ctx.dashboardPgReader.readCoreDashboardSheets;
   ctx.dashboardPgReader.readCoreDashboardSheets = async (branch, names) => { await gate; return origRead(branch, names); };
   const rollupCalls = [];
-  ['getInvoiceRevenueByDay', 'getProductSalesBreakdown'].forEach(name => {
+  ['getInvoiceRevenueByDay'].forEach(name => {
     const original = ctx.dashboardRollupRepository[name];
     ctx.dashboardRollupRepository[name] = async (...args) => { rollupCalls.push(name); return original(...args); };
   });
@@ -2385,13 +2419,13 @@ test('cache nguon nguoi: rollup bat dau NGAY trong luc dang doi doc bang nguon (
 
   const pending = ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
   await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(rollupCalls.sort(), ['getInvoiceRevenueByDay', 'getProductSalesBreakdown'],
+  assert.deepEqual(rollupCalls.sort(), ['getInvoiceRevenueByDay'],
     'rollup da chay trong luc bang nguon con dang cho (gate chua mo)');
 
   releaseSources();
   const data = await pending;
   assert.equal(data.kpi.totalCustomers, 2);
-  assert.deepEqual(rollupCalls.sort(), ['getInvoiceRevenueByDay', 'getProductSalesBreakdown'], 'khong goi rollup lan 2');
+  assert.deepEqual(rollupCalls.sort(), ['getInvoiceRevenueByDay'], 'khong goi rollup lan 2');
 });
 
 test('cache nguon con han: rollup KHONG chay som — ket qua da tinh trung cache thi khong goi rollup nao', async () => {
@@ -2401,7 +2435,7 @@ test('cache nguon con han: rollup KHONG chay som — ket qua da tinh trung cache
   await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
 
   let rollupCalls = 0;
-  ['getInvoiceRevenueByDay', 'getProductSalesBreakdown'].forEach(name => {
+  ['getInvoiceRevenueByDay'].forEach(name => {
     ctx.dashboardRollupRepository[name] = async () => { rollupCalls += 1; return []; };
   });
   await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
@@ -2412,7 +2446,7 @@ test('nhieu request nguoi trung nhau cung luc chi chay rollup 1 luot (dung chung
   const ctx = freshDashboardData();
   installRichViewFixture(ctx);
   let calls = 0;
-  ['getInvoiceRevenueByDay', 'getProductSalesBreakdown'].forEach(name => {
+  ['getInvoiceRevenueByDay'].forEach(name => {
     const original = ctx.dashboardRollupRepository[name];
     ctx.dashboardRollupRepository[name] = async (...args) => { calls += 1; return original(...args); };
   });
@@ -2421,7 +2455,7 @@ test('nhieu request nguoi trung nhau cung luc chi chay rollup 1 luot (dung chung
   await Promise.all([1, 2, 3].map(() =>
     ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] })));
 
-  assert.equal(calls, 2, 'Tong quan = 2 truy van rollup (doanh thu theo ngay + ban chay), khong nhan 3');
+  assert.equal(calls, 1, 'Tong quan = 1 truy van rollup (doanh thu theo ngay), khong nhan 3');
 });
 
 test('rollup doi phien ban trong luc dang doc nguon: ket qua luu duoi khoa cu, lan sau cung bo loc phai tinh lai', async () => {
@@ -2452,8 +2486,8 @@ test('rollup chay som that bai: loi duoc nem ra dung 1 lan (khong "unhandled rej
   const ctx = freshDashboardData();
   installRichViewFixture(ctx);
   let fail = true;
-  const original = ctx.dashboardRollupRepository.getProductSalesBreakdown;
-  ctx.dashboardRollupRepository.getProductSalesBreakdown = async (...args) => {
+  const original = ctx.dashboardRollupRepository.getInvoiceRevenueByDay;
+  ctx.dashboardRollupRepository.getInvoiceRevenueByDay = async (...args) => {
     if (fail) throw new Error('Gia lap rollup loi');
     return original(...args);
   };
@@ -2465,14 +2499,14 @@ test('rollup chay som that bai: loi duoc nem ra dung 1 lan (khong "unhandled rej
   );
   fail = false;
   const data = await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
-  assert.equal(data.kpi.totalProducts, 3);
+  assert.equal(data.kpi.totalProducts, 2);
 });
 
 test('bang nguon loi + rollup loi cung luc: tra loi cua bang nguon, khong de lai unhandled rejection', async () => {
   const ctx = freshDashboardData();
   installRichViewFixture(ctx);
   ctx.dashboardPgReader.readCoreDashboardSheets = async () => { throw new Error('Gia lap mat ket noi bang nguon'); };
-  ctx.dashboardRollupRepository.getProductSalesBreakdown = async () => { throw new Error('Gia lap rollup loi'); };
+  ctx.dashboardRollupRepository.getInvoiceRevenueByDay = async () => { throw new Error('Gia lap rollup loi'); };
   ctx.dashboardData.__test__.resetCaches();
 
   await assert.rejects(
@@ -2480,4 +2514,77 @@ test('bang nguon loi + rollup loi cung luc: tra loi cua bang nguon, khong de lai
     /bang nguon/
   );
   await new Promise(resolve => setImmediate(resolve)); // de node:test bat unhandled rejection neu co
+});
+
+test('searchCustomerDirectory o "Cả hai": khach cung ten (ma khac nhau giua hai co so) chi hien 1 lan, Ha Noi truoc', async () => {
+  const { dashboardData, customerDirectoryRepository } = freshDashboardData();
+  const { BRANCH_BOTH } = require('../branch/branches');
+  customerDirectoryRepository.readCustomerDirectory = async () => [
+    { branch: 'hanoi', code: 'KH-1', name: 'Khách An' },
+    { branch: 'saigon', code: 'KH-9', name: 'khách  an' },
+    { branch: 'saigon', code: 'KH-3', name: 'Khách Bình' }
+  ];
+  dashboardData.__test__.resetCaches();
+
+  const result = await dashboardData.searchCustomerDirectory(BRANCH_BOTH, 'khách', 8);
+
+  assert.deepEqual(result.results, [
+    { code: 'KH-1', name: 'Khách An' },
+    { code: 'KH-3', name: 'Khách Bình' }
+  ]);
+});
+
+test('bao cao doanh thu theo khach o "Cả hai": moi co so tra theo MA KHACH RIENG cua cung khach (tra theo ten danh ba)', async () => {
+  const { dashboardData, customerDirectoryRepository, customerInvoiceLinesRepository } = freshDashboardData();
+  const { BRANCH_BOTH } = require('../branch/branches');
+  customerDirectoryRepository.readCustomerDirectory = async () => [
+    { branch: 'hanoi', code: 'KH-1', name: 'Khách An' },
+    { branch: 'saigon', code: 'KH-9', name: 'Khách An' },
+    { branch: 'saigon', code: 'KH-3', name: 'Khách khác' }
+  ];
+  const calls = stubInvoiceLines(customerInvoiceLinesRepository, {
+    window: { start: '2026-05-22', end: '2026-08-19' },
+    computedAt: new Date('2026-08-19T17:10:00Z'),
+    linesByBranch: {
+      hanoi: [invoiceLine({ dateKey: '18/08/2026', itemCode: 'SP-1', itemName: 'Áo', quantity: 1, revenue: 100 })],
+      saigon: [invoiceLine({ dateKey: '19/08/2026', itemCode: 'SP-1', itemName: 'Áo', quantity: 2, revenue: 300 })]
+    }
+  });
+  dashboardData.__test__.resetCaches();
+
+  const report = await dashboardData.getCustomerProductRevenueReport('KH-1', 'Khách An', BRANCH_BOTH, new Date('2026-08-20T03:00:00.000Z'));
+
+  assert.deepEqual(calls, [{
+    branchCodes: ['hanoi', 'saigon'],
+    customerCode: 'KH-1',
+    customerCodesByBranch: { hanoi: 'KH-1', saigon: 'KH-9' }
+  }]);
+  assert.equal(report.totalRevenue, 400, 'doanh thu hai co so cong lai cho cung mot khach');
+});
+
+test('hang ngung kinh doanh khong tinh o moi bang hang hoa; moi dong mang nhan co so (co so don)', async () => {
+  const { dashboardData, dashboardPgReader, dashboardRollupRepository } = freshDashboardData();
+  const CONFIG = require('../config');
+  mockPgSheets(dashboardPgReader, {
+    [CONFIG.SHEET_PRODUCTS]: [
+      PRODUCT_HEADERS,
+      productRow({ code: 'SP-01', name: 'Đang bán', status: 'Đang kinh doanh' }),
+      productRow({ code: 'SP-02', name: 'Đã ngừng', status: 'Ngừng kinh doanh' })
+    ]
+  });
+  mockDashboardRollups(dashboardRollupRepository, {
+    getProductSalesBreakdown: () => [
+      { code: 'SP-01', name: 'Đang bán', qty: 1, revenue: 100 },
+      { code: 'SP-02', name: 'Đã ngừng', qty: 5, revenue: 900 }
+    ]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData({ ...BASE_FILTERS, products: { mode: 'all' } }, 'Sài Gòn');
+
+  assert.deepEqual(data.allProducts.map(p => [p.code, p.branch]), [['SP-01', 'Sài Gòn']]);
+  assert.equal(data.kpi.totalProducts, 1);
+  assert.equal(data.kpi.inactiveProducts, undefined, 'khong con thong ke hang ngung kinh doanh');
+  assert.equal(data.filters.productStatus, undefined, 'khong con bo loc trang thai');
+  assert.deepEqual(data.products.allSellingProducts.map(p => [p.code, p.branch, p.revenue]), [['SP-01', 'Sài Gòn', 100]]);
 });

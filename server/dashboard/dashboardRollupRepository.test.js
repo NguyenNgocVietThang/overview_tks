@@ -165,7 +165,7 @@ test('listPurchaseOrders: doc thang tu purchases (khong dung bang rollup), truye
   }]);
 });
 
-test('getProductSalesBreakdown: Ca hai uu tien ten that SG khi HN chi co fallback ma', async () => {
+test('getProductSalesBreakdown: Ca hai giu hang cung ma o hai co so thanh hai dong rieng kem nhan co so', async () => {
   const pool = {
     calls: [],
     async query(sql, params) {
@@ -183,7 +183,11 @@ test('getProductSalesBreakdown: Ca hai uu tien ten that SG khi HN chi co fallbac
 
   const rows = await repository.getProductSalesBreakdown({ branch: 'Cả hai' });
 
-  assert.deepEqual(rows, [{ code: 'SP-CHUNG', name: 'Tên thật Sài Gòn', qty: 2, revenue: 300 }]);
+  assert.deepEqual(rows, [
+    { code: 'SP-CHUNG', name: 'SP-CHUNG', qty: 1, revenue: 100, branch: 'Hà Nội' },
+    { code: 'SP-CHUNG', name: 'Tên thật Sài Gòn', qty: 1, revenue: 200, branch: 'Sài Gòn' }
+  ]);
+  pool.calls.forEach(call => assert.match(call.sql, /p.is_active IS NOT FALSE/, 'chi hang dang kinh doanh'));
 });
 
 test('getInvoiceRevenueByDay: Ca hai cong bucket trung ngay sau khi doc tung co so vat ly', async () => {
@@ -221,4 +225,20 @@ test('listPurchaseOrders: Ca hai giu hai phieu trung ma va gan co so vat ly', as
     ['PN-TRUNG', 'NCC-1', 'Hà Nội', 100],
     ['PN-TRUNG', 'NCC-1', 'Sài Gòn', 200]
   ]);
+});
+
+test('getFirstPurchaseDates: Ca hai giu tung dong theo co so (khong gop theo ma), chi hang dang kinh doanh', async () => {
+  const pool = {
+    calls: [],
+    async query(sql, params) {
+      this.calls.push({ sql, params });
+      return { rows: [{ code: 'SP-1', name: 'Áo', first_purchase_date_text: params[0] === 'hanoi' ? '02/09/2026 09:00:00' : '01/09/2026 09:00:00' }] };
+    }
+  };
+  const rows = await createDashboardRollupRepository({ pool }).getFirstPurchaseDates({ branch: 'Cả hai' });
+  assert.deepEqual(rows.map(row => [row.code, row.branch, row.firstPurchaseDateText]), [
+    ['SP-1', 'Hà Nội', '02/09/2026 09:00:00'],
+    ['SP-1', 'Sài Gòn', '01/09/2026 09:00:00']
+  ]);
+  pool.calls.forEach(call => assert.match(call.sql, /p\.is_active IS NOT FALSE/));
 });

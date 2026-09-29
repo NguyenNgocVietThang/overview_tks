@@ -11,7 +11,7 @@ Dashboard nội bộ cho hai cơ sở Hà Nội và Sài Gòn.
 - Tài khoản ứng dụng và Telegram ID được lưu trong PostgreSQL `app_users`; không còn tab `Users` hay luồng liên kết Telegram qua Google Sheets.
 - Apps Script Kiot HN/SG và module vận chuyển cũ đã được nghỉ hưu hoàn toàn; tính năng tra cứu vòng đời đơn hàng tiếp tục được duy trì qua Google Sheets (`ORDER_LIFECYCLE_SPREADSHEET_ID`).
 - Nguồn nhân sự vẫn sử dụng workbook HR riêng khi được cấu hình.
-- Tài khoản được phép cả hai cơ sở có thể chọn phạm vi **`Cả hai`** trên thanh điều hướng: báo cáo cộng dồn hai cơ sở, thực thể trùng mã gộp theo mã, giao dịch riêng lẻ giữ `(cơ sở, mã)` kèm nhãn cơ sở. `Cả hai` chỉ là phạm vi xem — cột `branch` trong database vẫn chỉ nhận `hanoi`/`saigon` (xem `server/branch/branches.js`).
+- Cơ sở chỉ là **bộ lọc xem**: mọi tài khoản đều xem được Hà Nội, Sài Gòn và **`Cả hai`** trên thanh điều hướng; cơ sở gán cho tài khoản (`co_so`, để trống = `Cả hai`) chỉ là cơ sở **mặc định** lúc đăng nhập. Mọi bảng dữ liệu có cột **Cơ sở**. Ở `Cả hai`: hàng hóa và giao dịch cùng mã ở hai cơ sở là hai dòng riêng `(cơ sở, mã)`, khách gộp theo **tên** (mã khách khác nhau giữa hai cơ sở, không còn cột mã khách), nhà cung cấp gộp theo mã. Chỉ hàng **Đang kinh doanh** được tính, không còn bộ lọc trạng thái kinh doanh; đầu tab không còn thanh tìm kiếm chung (chỉ còn bộ lọc thời gian và tìm kiếm trong từng bảng). `Cả hai` chỉ là phạm vi xem — cột `branch` trong database vẫn chỉ nhận `hanoi`/`saigon` (xem `server/branch/branches.js`).
 
 ## Chạy local
 
@@ -72,6 +72,10 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-09-29 — khung "Cơ cấu tồn kho" (tab Báo cáo hàng hóa): bỏ biểu đồ Top 15 và nút "Theo sản phẩm / Theo nhóm cha"; bảng "Chi tiết tồn kho theo sản phẩm" rộng toàn khung, thêm cột **Tồn có thể bán** (= Tồn kho − Khách đặt, không kẹp về 0 nên hàng bị giữ quá tồn hiện số âm) và **Hàng đang vận chuyển** (tổng số lượng trong phiếu **Mua hàng → Đặt hàng nhập** trạng thái "Đã xác nhận NCC" của Kiot Sài Gòn, ghép theo mã hàng; hiện ở cả 3 chế độ cơ sở). Khi chọn "Cả hai" bảng gộp 1 dòng/mã với cột Tồn kho HN/SG và Tồn có thể bán HN/SG riêng (Đơn giá = giá vốn bình quân theo tồn). Nguồn phiếu đặt hàng nhập là entity đồng bộ mới `order_suppliers` (endpoint `/ordersuppliers`, migration 0024, nhóm fast 7 phút, đối soát toàn bộ danh sách vì API bỏ qua `lastModifiedFrom`). **Sau khi deploy cần chạy `npm run db:migrate` (trong `server/`) rồi khởi động lại server** để scheduler nạp entity mới; lượt poll đầu tự quét toàn bộ phiếu. Chưa áp migration thì cột "Hàng đang vận chuyển" = 0 (đọc fail-soft), các cột khác vẫn bình thường.
+
+2026-09-29 — bảng Báo cáo hàng hóa (tab Tổng quan): bỏ cột "DS Khách lớn nhất"; thêm nút **Chi tiết** ở mỗi dòng và ô tìm sản phẩm theo mã/tên, cùng mở khung doanh số 90 ngày của từng khách (số tiền + %) kèm biểu đồ tròn. Dữ liệu từ bảng mới `product_report_customers` (migration 0023, dựng cùng job đêm `productReportRefresh.js`), API `GET /api/product-report/customers?code=`. Sau khi áp migration 0023 cần chạy tay `node kiotvietSync/productReportRefresh.js` (trong `server/`) một lần để có dữ liệu ngay, nếu không khung Chi tiết rỗng đến đêm sau.
 
 2026-09-23 — bổ sung bảng tổng hợp Báo cáo hàng hóa `product_report` (migration 0018) cho tab Tổng quan gộp cả 2 cơ sở, refresh định kỳ hàng đêm qua `productReportRefresh.js`, API `GET /api/product-report` và xuất Excel tùy chọn.
 

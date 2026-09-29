@@ -2,11 +2,11 @@
 // BRANCH MIDDLEWARE — quyet dinh CO SO cho moi request du lieu, PHAI dat sau
 // requireAuth (can req.user).
 //
-// Cookie tks_branch chi la GOI Y ve co so dang xem: gia tri luon duoc doi
-// chieu lai voi coSo trong JWT, nen sua cookie bang tay khong the xem duoc du
-// lieu cua co so minh khong phu trach — cung lam se bi rot ve co so hop le.
+// Cookie tks_branch chi la GOI Y ve co so dang xem: gia tri luon duoc kiem tra
+// lai (chi nhan Hà Nội / Sài Gòn / Cả hai), sai thi rot ve co so mac dinh cua
+// tai khoan (coSo duoc gan, chua gan thi Cả hai).
 // ==========================================
-const { BRANCHES, allowedBranches, isBranchSelectable, defaultBranch } = require('./branches');
+const { BRANCHES, isBranchSelectable, defaultBranch } = require('./branches');
 
 const BRANCH_COOKIE_NAME = 'tks_branch';
 const BRANCH_COOKIE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // khop tuoi tho cookie dang nhap (JWT_EXPIRES_IN mac dinh 12h)
@@ -34,26 +34,16 @@ function currentBranchFor(req, user) {
 }
 
 /**
- * Gan req.branch = co so dang xem. Chan tai khoan chua duoc gan co so (403)
- * — Quan ly phai gan co so truoc khi tai khoan do xem duoc bat ky du lieu nao.
+ * Gan req.branch = co so dang xem (cookie hop le, khong thi co so mac dinh).
  */
 function resolveBranch(req, res, next) {
-  const allowed = allowedBranches(req.user);
-  if (allowed.length === 0) {
-    return res.status(403).json({
-      error: 'Tài khoản chưa được gán cơ sở. Liên hệ Quản lý để được cấp quyền.',
-      code: 'BRANCH_UNASSIGNED'
-    });
-  }
-
   const fromCookie = (req.cookies && req.cookies[BRANCH_COOKIE_NAME]) || null;
   if (fromCookie && isBranchSelectable(req.user, fromCookie)) {
     req.branch = fromCookie;
     return next();
   }
 
-  // Cookie thieu / bi sua tay / co so vua bi Quan ly doi => rot ve co so hop le
-  // dau tien va viet lai cookie cho khop.
+  // Cookie thieu / bi sua tay => rot ve co so mac dinh va viet lai cookie.
   req.branch = defaultBranch(req.user);
   res.cookie(BRANCH_COOKIE_NAME, req.branch, branchCookieOptions());
   return next();

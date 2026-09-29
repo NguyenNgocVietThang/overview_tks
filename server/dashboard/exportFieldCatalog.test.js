@@ -165,7 +165,7 @@ test('nguon purchases: nhan cap phieu va nhan cap dong hang khong trung nhau', (
   const summary = fields.filter(item => PURCHASE_SUMMARY_KEYS.includes(item.key)).map(item => item.label);
   const lines = fields.filter(item => !PURCHASE_SUMMARY_KEYS.includes(item.key)).map(item => item.label);
   assert.equal(summary.length, 16);
-  assert.equal(lines.length, 8);
+  assert.equal(lines.length, 9, '8 truong dong hang + cot "Cơ sở" (co_so) o cuoi');
   assert.deepEqual(summary.filter(label => lines.includes(label)), []);
   assert.equal(labelOf('purchases', 'giam_gia_phieu_nhap'), 'Giảm giá phiếu nhập');
   assert.equal(labelOf('purchases', 'giam_gia'), 'Giảm giá dòng hàng');
@@ -285,7 +285,7 @@ test('cot khong co nguon trong Postgres noi ro "để trống" trong chu thich',
 // ---------- (e) kieu du lieu ----------
 
 const NUMBER_KEYS = new Set([
-  'gia_von', 'gia_ban', 'ton_kho', 'khach_dat', 'gia_tri_quy_doi',
+  'gia_von', 'gia_ban', 'ton_kho', 'khach_dat', 'dang_van_chuyen', 'gia_tri_quy_doi',
   'tong_tien_hang', 'tong_tien', 'giam_gia', 'giam_gia_pct', 'khach_da_tra',
   'tong_tien_tra', 'giam_gia_tra_hang', 'phi_tra_hang', 'tong_thanh_toan',
   'no_hien_tai', 'tong_ban', 'tong_doanh_thu',
@@ -334,7 +334,8 @@ test('PURCHASE_SUMMARY_KEYS la 16 truong cap phieu, dung thu tu, dung truoc "Mã
   assert.equal(PURCHASE_SUMMARY_KEYS[0], 'chi_nhanh');
   assert.equal(PURCHASE_SUMMARY_KEYS[PURCHASE_SUMMARY_KEYS.length - 1], 'trang_thai');
   assert.equal(fields[lineStart].key, 'ma_hang');
-  assert.equal(fields.length, 24, 'worksheet "Chi tiết mặt hàng" dung toan bo 24 truong');
+  assert.equal(fields.length, 25, 'worksheet "Chi tiết mặt hàng" dung toan bo 25 truong (24 + Cơ sở)');
+  assert.equal(fields[fields.length - 1].key, 'co_so');
   assert.ok(PURCHASE_SUMMARY_KEYS.includes(getSource('purchases').codeKey));
 });
 

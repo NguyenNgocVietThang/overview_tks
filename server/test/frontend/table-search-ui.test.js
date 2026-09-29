@@ -43,12 +43,12 @@ function createDashboard() {
   return dom;
 }
 
-test('registry bao phủ đủ 20 bảng trong Báo cáo tổng hợp', () => {
+test('registry bao phủ đủ 19 bảng trong Báo cáo tổng hợp', () => {
   const dom = createDashboard();
   const expected = [
     'cpDetail', 'productReport', 'recentStockout', 'stockout90d', 'stockout30d',
     'endOfDay', 'overviewPurchase', 'todayNewProducts', 'topSelling', 'lowStock',
-    'allProducts', 'inventoryValue', 'newlyImported', 'childCategory', 'orders', 'returns',
+    'allProducts', 'inventoryValue', 'newlyImported', 'orders', 'returns',
     'customerRevenue', 'topDebt', 'suppliers', 'debtManagement'
   ];
   const actual = Object.keys(dom.window.TABLE_EXPLORER_CONFIGS);
@@ -140,7 +140,7 @@ test('chế độ nhiều mã khớp chính xác trên toàn bộ bảng và bá
     nextBtn: 'allProductsNextPage', lastBtn: 'allProductsLastPage', label: 'allProductsPageLabel'
   };
   dom.window.renderPaginatedRows('allProducts', ids, products,
-    item => `<tr><td>${item.code}</td><td>${item.name}</td></tr>`, 2, 'Không có dữ liệu');
+    item => `<tr><td>${item.name}</td><td>${item.branch}</td></tr>`, 2, 'Không có dữ liệu');
 
   document.querySelector('[data-table-search="allProducts"] [data-table-search-mode="codes"]').click();
   const input = document.querySelector('[data-table-search="allProducts"] .table-search-input');
@@ -207,12 +207,12 @@ test('điều hướng biểu đồ xóa tìm kiếm, chuyển đúng trang và 
   dom.window.close();
 });
 
-test('điều hướng dùng mã nguồn khi hai nhãn biểu đồ trùng nhau', () => {
+test('điều hướng biểu đồ doanh thu khách theo tên khách (khách gộp hai cơ sở, không còn mã KH)', () => {
   const dom = createDashboard();
   const document = dom.window.document;
   const customers = [
-    { code: 'KH01', name: 'Công ty Minh Anh', revenue: 100, saleOrderCount: 1 },
-    { code: 'KH02', name: 'Công ty Minh Anh', revenue: 200, saleOrderCount: 2 }
+    { name: 'Công ty Minh Anh', branch: 'Hà Nội', revenue: 100, saleOrderCount: 1 },
+    { name: 'Công ty Hồng Hà', branch: 'Hà Nội, Sài Gòn', revenue: 200, saleOrderCount: 2 }
   ];
   const ids = {
     tbody: 'customerRevenueRows', pagination: 'customerRevenuePagination',
@@ -226,7 +226,7 @@ test('điều hướng dùng mã nguồn khi hai nhãn biểu đồ trùng nhau'
   const chart = dom.window.Chart.instances.at(-1);
   chart.config.options.onClick({}, [{ index: 1 }]);
 
-  assert.equal(document.querySelector('#customerRevenueRows tr.table-row-target').dataset.tableItemId, 'KH02');
+  assert.equal(document.querySelector('#customerRevenueRows tr.table-row-target').dataset.tableItemId, 'công ty hồng hà');
   dom.window.close();
 });
 

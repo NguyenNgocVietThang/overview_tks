@@ -108,6 +108,57 @@ const INVENTORY_COST_SQL = `(SELECT AVG((inv->>'cost')::float8)
 const PRODUCT_SHELVES_SQL = `(SELECT string_agg(NULLIF(shelf->>'productShelves', ''), ', ')
   FROM jsonb_array_elements(COALESCE(raw->'productShelves', '[]'::jsonb)) shelf)`;
 
+// "Đang vận chuyển" (Hàng hóa): tong so luong hang trong cac phieu "Dat hang nhap"
+// (KiotViet: Mua hang -> Dat hang nhap) co trang thai 'Đã xác nhận NCC' cua Kiot SAI GON
+// (bang order_suppliers, migration 0024) — CO DINH 'saigon' ke ca khi doc tab cua Ha Noi:
+// hang ve theo ma nen moi dong hang hoa (Ha Noi hay Sai Gon) mang cung 1 so theo ma.
+// Chi dong chi tiet co productId (khong co productCode) nen noi products cua Sai Gon
+// de lay ma. Loc theo chuoi `statusValue` (khong theo so `status` — xem ghi chu bay
+// trang thai trong memory du an). Phieu doi sang 'Nhập một phần'/'Hoàn thành'/'Đã hủy'
+// tu roi khoi tong.
+const IN_TRANSIT_STATUS = 'Đã xác nhận NCC';
+const IN_TRANSIT_SQL = `-- in-transit: Đặt hàng nhập ${IN_TRANSIT_STATUS} (Sài Gòn)
+      SELECT
+        lower(btrim(COALESCE(NULLIF(d.raw->>'productCode', ''), sp.code, ''))) AS product_key,
+        SUM(COALESCE(d.quantity, 0))::float8 AS qty
+      FROM order_suppliers o
+      JOIN order_supplier_details d ON d.branch = o.branch AND d.order_supplier_id = o.id
+      LEFT JOIN products sp ON sp.branch = o.branch AND sp.id = d.product_id
+      WHERE o.branch = 'saigon' AND o.raw->>'statusValue' = $1
+      GROUP BY 1`;
+
+/**
+ * Map ma hang (chu thuong, da trim) -> so luong dang van chuyen. Fail-soft: bang chua co
+ * (chua chay migration 0024) hoac loi DB thi tra Map rong — cot "Đang vận chuyển" = 0, cac
+ * cot khac cua tab Hang hoa van doc binh thuong (khong lam trang ca Dashboard).
+ */
+let inTransitWarned = false;
+async function readInTransitByCode(pool) {
+  try {
+    const result = await pool.query(IN_TRANSIT_SQL, [IN_TRANSIT_STATUS]);
+    const byCode = new Map();
+    for (const row of (result && result.rows) || []) {
+      if (row.product_key) byCode.set(row.product_key, Number(row.qty) || 0);
+    }
+    return byCode;
+  } catch (error) {
+    if (!inTransitWarned) {
+      inTransitWarned = true;
+      console.warn('[Dashboard] Không đọc được hàng đang vận chuyển (order_suppliers):', error.message);
+    }
+    return new Map();
+  }
+}
+
+/** Dien cot `Đang vận chuyển` vao cac dong (object khoa theo alias) cua tab Hang hoa. */
+function applyInTransit(rows, byCode, column) {
+  for (const row of rows) {
+    row[column] = byCode.get(String(row.ma_hang == null ? '' : row.ma_hang).trim().toLowerCase()) || 0;
+  }
+}
+
+// Chi hang "Đang kinh doanh": tab Hang hoa loai hang co is_active = false (NULL van tinh).
+
 // LOC THEO MA (chi readRowsByCodes dung): `$2` la MANG text[] cac ma, THAM SO
 // HOA HOAN TOAN — tuyet doi khong noi chuoi ma vao SQL. Khi khong loc theo ma
 // (byCode falsy) cac helper duoi day tra chuoi rong nen SQL cua tab y het ban
@@ -124,6 +175,12 @@ function purchaseDetailsCodeFilter(byCode) {
     ? `\n          AND purchase_id IN (SELECT id FROM purchases WHERE branch = $1 AND code = ANY($2::text[]))`
     : '';
 }
+
+// Cot "Cơ sở" (cuoi moi tab): nhan co so vat ly cua dong ('Hà Nội'/'Sài Gòn') suy
+// tu tham so $1 ('hanoi'/'saigon'). Khac cot "Chi nhánh" (ten KHO KiotViet).
+const BRANCH_HEADER = 'Cơ sở';
+const BRANCH_COLUMN = 'co_so';
+const BRANCH_SQL = `CASE $1::text WHEN 'saigon' THEN '${BRANCHES.SAIGON}' ELSE '${BRANCHES.HANOI}' END`;
 
 const TABS = [
   {
@@ -144,7 +201,8 @@ const TABS = [
         ${text(`raw->>'retailerId'`)}                AS id_gian_hang,
         ${MISSING}                                   AS co_nhom_con,
         ${fmtTs('modified_date')}                    AS ngay_sua_cuoi,
-        ${fmtRawTs(`raw->>'createdDate'`)}           AS ngay_tao
+        ${fmtRawTs(`raw->>'createdDate'`)}           AS ngay_tao,
+        ${BRANCH_SQL}                              AS co_so
       FROM categories
       WHERE branch = $1
       ORDER BY id`
@@ -156,16 +214,20 @@ const TABS = [
       'Tồn kho', 'Khách đặt', 'Trạng thái', 'Ngày sửa cuối', 'Mã nhóm hàng',
       'Vị trí', 'ID hàng hóa', 'ID gian hàng', 'Được phép bán', 'Tên gốc',
       'Mô tả', 'Giá trị quy đổi', 'Có thuộc tính', 'Đang hoạt động',
-      'Ngày tạo', 'Ngày cập nhật', 'Mã loại hàng'
+      'Ngày tạo', 'Ngày cập nhật', 'Mã loại hàng', 'Đang vận chuyển'
     ],
     columns: [
       'ma_hang', 'ten_hang', 'nhom_hang', 'loai_hang', 'gia_von', 'gia_ban',
       'ton_kho', 'khach_dat', 'trang_thai', 'ngay_sua_cuoi', 'ma_nhom_hang',
       'vi_tri', 'id_hang_hoa', 'id_gian_hang', 'duoc_phep_ban', 'ten_goc',
       'mo_ta', 'gia_tri_quy_doi', 'co_thuoc_tinh', 'dang_hoat_dong',
-      'ngay_tao', 'ngay_cap_nhat', 'ma_loai_hang'
+      'ngay_tao', 'ngay_cap_nhat', 'ma_loai_hang', 'dang_van_chuyen'
     ],
     codeColumn: 'ma_hang',
+    // Cot `dang_van_chuyen` KHONG nam trong SQL nay: readInTransitByCode() tinh rieng va
+    // applyInTransit() dien vao sau, de tab Hang hoa van doc duoc khi bang order_suppliers
+    // (migration 0024) chua ton tai.
+    inTransitColumn: 'dang_van_chuyen',
     buildSql: byCode => `-- tab: Hàng hóa
       SELECT
         ${text('code')}                                        AS ma_hang,
@@ -194,9 +256,11 @@ const TABS = [
         ${boolText(`raw->>'isActive'`)}                        AS dang_hoat_dong,
         ${fmtTs('created_date')}                               AS ngay_tao,
         ${fmtTs('modified_date')}                              AS ngay_cap_nhat,
-        ${text(`raw->>'type'`)}                                AS ma_loai_hang
+        ${text(`raw->>'type'`)}                                AS ma_loai_hang,
+        ${BRANCH_SQL}                              AS co_so
       FROM products
-      WHERE branch = $1${codeFilter(byCode, 'code')}
+      WHERE branch = $1
+        AND is_active IS NOT FALSE${codeFilter(byCode, 'code')}
       ORDER BY code`
   },
   {
@@ -238,7 +302,8 @@ const TABS = [
         ${text(`i.raw->>'statusValue'`)}                           AS ten_trang_thai_api,
         ${text(`i.raw->>'description'`)}                           AS ghi_chu,
         ${boolText(`i.raw->>'usingCod'`)}                          AS thu_ho_cod,
-        ${fmtTs('i.created_date')}                                 AS ngay_tao
+        ${fmtTs('i.created_date')}                                 AS ngay_tao,
+        ${BRANCH_SQL}                              AS co_so
       FROM invoices i
       LEFT JOIN staff s ON s.branch = i.branch AND s.id = i.sold_by_id
       WHERE i.branch = $1${codeFilter(byCode, 'i.code')}
@@ -271,7 +336,8 @@ const TABS = [
         COALESCE(d.invoice_id::text, '')                        AS id_hoa_don,
         COALESCE(d.product_id::text, '')                        AS id_hang_hoa,
         ${num(`d.raw->>'discountRatio'`)}                       AS giam_gia_pct,
-        ${text(`d.raw->>'note'`)}                               AS ghi_chu
+        ${text(`d.raw->>'note'`)}                               AS ghi_chu,
+        ${BRANCH_SQL}                              AS co_so
       FROM invoice_details d
       JOIN invoices i ON i.branch = d.branch AND i.id = d.invoice_id
       LEFT JOIN products p ON p.branch = d.branch AND p.id = d.product_id
@@ -318,7 +384,8 @@ const TABS = [
         ${text(`raw->>'description'`)}                         AS ghi_chu,
         ${boolText(`raw->>'usingCod'`)}                        AS thu_ho_cod,
         ${fmtTs('created_date')}                               AS ngay_tao,
-        ${fmtTs('modified_date')}                              AS ngay_cap_nhat
+        ${fmtTs('modified_date')}                              AS ngay_cap_nhat,
+        ${BRANCH_SQL}                              AS co_so
       FROM orders
       WHERE branch = $1${codeFilter(byCode, 'code')}
       ORDER BY order_date DESC NULLS LAST, id DESC`
@@ -361,7 +428,8 @@ const TABS = [
         COALESCE(status::text, '')                             AS ma_trang_thai,
         ${text(`raw->>'statusValue'`)}                         AS ten_trang_thai_api,
         ${fmtTs('created_date')}                               AS ngay_tao,
-        ${fmtTs('modified_date')}                              AS ngay_cap_nhat
+        ${fmtTs('modified_date')}                              AS ngay_cap_nhat,
+        ${BRANCH_SQL}                              AS co_so
       FROM returns
       WHERE branch = $1${codeFilter(byCode, 'code')}
       ORDER BY return_date DESC NULLS LAST, id DESC`
@@ -393,7 +461,8 @@ const TABS = [
         ${text(`raw->>'organization'`)}          AS cong_ty,
         ${num('total_revenue')}                  AS tong_doanh_thu,
         ${text(`raw->>'retailerId'`)}            AS id_gian_hang,
-        ${fmtTs('created_date')}                 AS ngay_tao
+        ${fmtTs('created_date')}                 AS ngay_tao,
+        ${BRANCH_SQL}                              AS co_so
       FROM customers
       WHERE branch = $1${codeFilter(byCode, 'code')}
       ORDER BY code`
@@ -428,7 +497,8 @@ const TABS = [
         ${text(`raw->>'branchId'`)}                        AS id_chi_nhanh_tao,
         ${text(`raw->>'createdBy'`)}                       AS nguoi_tao,
         ${num(`raw->>'totalInvoiced'`)}                    AS tong_mua,
-        ${num(`raw->>'totalInvoicedWithoutReturn'`)}       AS tong_mua_tru_tra_hang
+        ${num(`raw->>'totalInvoicedWithoutReturn'`)}       AS tong_mua_tru_tra_hang,
+        ${BRANCH_SQL}                              AS co_so
       FROM suppliers
       WHERE branch = $1${codeFilter(byCode, 'code')}
       ORDER BY code`
@@ -500,7 +570,8 @@ const TABS = [
           THEN ${num(`d.raw->>'subTotal'`)}
           ELSE ${num('d.price')} * ${num('d.quantity')} - ${num(`d.raw->>'discount'`)}
         END                                                     AS thanh_tien,
-        ${num('d.quantity')}                                    AS so_luong
+        ${num('d.quantity')}                                    AS so_luong,
+        ${BRANCH_SQL}                              AS co_so
       FROM purchases pu
       LEFT JOIN purchase_details d ON d.branch = pu.branch AND d.purchase_id = pu.id
       LEFT JOIN detail_totals dt ON dt.purchase_id = pu.id
@@ -510,6 +581,11 @@ const TABS = [
       ORDER BY pu.purchase_date DESC NULLS LAST, pu.id DESC, d.line_no`
   }
 ];
+
+TABS.forEach(tab => {
+  tab.headers.push(BRANCH_HEADER);
+  tab.columns.push(BRANCH_COLUMN);
+});
 
 // 7 tab co `buildSql(byCode)`: `sql` = ban KHONG loc (y het ban goc, dung cho
 // readDashboardSheets/readCoreDashboardSheets), `sqlByCodes` = ban loc theo ma
@@ -582,15 +658,19 @@ async function queryTabs(pool, tabs, branch) {
   const scope = resolveBranchScope(requestedBranch);
   if (!scope.length) resolveBranchCode(requestedBranch);
 
+  // Hang dang van chuyen theo ma: 1 truy van nho dung chung cho moi co so, chay song song voi cac tab.
+  const inTransitPromise = tabs.some(tab => tab.inTransitColumn) ? readInTransitByCode(pool) : null;
   const resultsByBranch = await Promise.all(scope.map(async physicalBranch => ({
     branch: physicalBranch,
     results: await Promise.all(tabs.map(tab => pool.query(tab.sql, [resolveBranchCode(physicalBranch)])))
   })));
+  const inTransitByCode = inTransitPromise ? await inTransitPromise : null;
 
   const sheets = Object.fromEntries(tabs.map(tab => [tab.sheetName, [tab.headers.slice()]]));
   resultsByBranch.forEach(({ branch: physicalBranch, results }) => {
     tabs.forEach((tab, index) => {
       const rows = (results[index] && results[index].rows) || [];
+      if (tab.inTransitColumn && inTransitByCode) applyInTransit(rows, inTransitByCode, tab.inTransitColumn);
       const branchIndex = tab.headers.indexOf('Chi nhánh');
       rows.forEach(row => {
         const values = tab.columns.map(column => row[column]);
@@ -664,6 +744,7 @@ function createDashboardPgReader({ pool = getPool() } = {}) {
     if (!uniqueCodes.length) return { columns, rows: [] };
 
     const batchSize = uniqueCodes.length > CODE_BATCH_THRESHOLD ? CODE_BATCH_SIZE : uniqueCodes.length;
+    let inTransitByCode = null;
     const rows = [];
     for (let start = 0; start < uniqueCodes.length; start += batchSize) {
       if (signal && signal.aborted) {
@@ -673,7 +754,10 @@ function createDashboardPgReader({ pool = getPool() } = {}) {
         throw error;
       }
       const batch = uniqueCodes.slice(start, start + batchSize);
+      // Sau khi da kiem tra huy: yeu cau bi huy truoc lo dau thi KHONG chay truy van nao.
+      if (tab.inTransitColumn && !inTransitByCode) inTransitByCode = await readInTransitByCode(pool);
       const result = await pool.query(tab.sqlByCodes, [branchCode, batch]);
+      if (inTransitByCode) applyInTransit((result && result.rows) || [], inTransitByCode, tab.inTransitColumn);
       for (const row of (result && result.rows) || []) {
         const projected = {};
         for (const column of columns) projected[column] = row[column];

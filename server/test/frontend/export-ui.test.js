@@ -13,16 +13,16 @@ function readDashboardHtml() {
   return fs.readFileSync(htmlPath, 'utf8');
 }
 
-test('giao dien gan dung 16 nut xuat Excel cho 16 bang co dinh', () => {
+test('giao dien gan dung 15 nut xuat Excel cho 15 bang co dinh', () => {
   const html = readDashboardHtml();
   const matches = [...html.matchAll(/openExportDialog\('([^']+)'\)/g)].map(match => match[1]);
-  assert.equal(matches.length, 16);
-  assert.equal(new Set(matches).size, 16);
+  assert.equal(matches.length, 15);
+  assert.equal(new Set(matches).size, 15);
   assert.deepEqual(matches.sort(), [
     'customers.debt', 'customers.productDetail', 'customers.revenue', 'debt.management',
     'invoices.orders', 'invoices.returns',
     'overview.new-products', 'overview.productReport', 'overview.purchases', 'overview.transactions',
-    'products.all', 'products.child-categories', 'products.low-stock', 'products.newly-imported', 'products.top-selling',
+    'products.all', 'products.low-stock', 'products.newly-imported', 'products.top-selling',
     'suppliers.list'
   ].sort());
 });
@@ -38,12 +38,12 @@ test('modal co du dieu khien chon truong va script inline bien dich hop le', () 
   assert.match(html, /field\.selected !== false \? ' checked' : ''/);
 });
 
-test('nut xuat ket qua tim kiem bi an rieng o tab Tong quan', () => {
+test('thanh tim kiem chung dau tab da bo: khong con form tim kiem toan cuc va nut xuat ket qua tim kiem', () => {
   const html = readDashboardHtml();
-  const functionMatch = html.match(/function searchExportButtonHtml\(\)\s*\{([\s\S]*?)\n\s*\}/);
-  assert.ok(functionMatch, 'phai co helper tao nut xuat cho ket qua tim kiem');
-  assert.match(functionMatch[1], /state\.view === 'overview'/);
-  assert.match(functionMatch[1], /openExportDialog\(\\'search\.results\\'\)/);
+  assert.ok(!html.includes('dashboardSearchForm'));
+  assert.ok(!html.includes('searchExportButtonHtml'));
+  assert.ok(!html.includes('search.results'));
+  assert.match(html, /id="filterBar"/, 'bo loc thoi gian van con');
 });
 
 // ---------------------------------------------------------------------------------------------

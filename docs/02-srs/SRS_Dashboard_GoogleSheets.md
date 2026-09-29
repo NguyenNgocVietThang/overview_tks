@@ -234,12 +234,12 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-03.3 | Tạo danh sách `lowStock`: sản phẩm có tồn kho = 0.                                                                                           | Cao         | Hoàn thành     |
 | FR-03.4 | Tạo `stockByCategory`: tổng số lượng tồn kho theo nhóm cha, ánh xạ cây cha–con từ tab Nhóm hàng; dòng trống `Mã nhóm cha` là nhóm cha gốc.            | Cao         | Hoàn thành     |
 | FR-03.5 | Tạo `stockValueByCategory`: tổng `Giá vốn × max(Tồn kho, 0)` theo nhóm cha; tối đa 30 phần tử (29 nhóm lớn nhất và `Khác` nếu vượt giới hạn).          | Cao         | Hoàn thành     |
-| FR-03.6 | Tạo `allProducts`: toàn bộ danh sách sản phẩm kèm tỉ lệ % tồn kho.                                                                                | Trung bình  | Hoàn thành     |
+| FR-03.6 | Tạo `allProducts`: toàn bộ danh sách sản phẩm kèm tỉ lệ % tồn kho, `available` (tồn có thể bán = tồn kho − khách đặt) và `inTransit` (số lượng trong phiếu Đặt hàng nhập "Đã xác nhận NCC" của Kiot Sài Gòn, ghép theo mã). | Trung bình  | Hoàn thành     |
 | FR-03.7 | Tạo `topDebt`: top 8 khách hàng có công nợ cao nhất.                                                                                               | Cao         | Hoàn thành     |
 | FR-03.8 | Tạo `periodOrders`, `periodReturns` (toàn bộ trong khoảng lọc) và `recentPurchaseOrders` (8 bản ghi gần nhất), sort theo thời gian giảm dần.                  | Cao         | Hoàn thành     |
 | FR-03.9 | Tạo `suppliers`: danh sách tất cả nhà cung cấp, sắp xếp giảm dần theo nợ.                                                                         | Trung bình  | Hoàn thành     |
-| FR-03.10 | Tạo `products.childCategorySalesByParent`: doanh thu và SL bán theo nhóm con, gom theo từng nhóm cha (từ Chi tiết hóa đơn, loại trừ hóa đơn đã hủy), phục vụ phần "Chi tiết theo nhóm con" ở tab Hàng hóa. | Trung bình  | Hoàn thành     |
-| FR-03.11 | Tạo `products.availableParentCategories`: danh sách tên nhóm cha (từ `parentCategoryMap`, sắp xếp theo bảng chữ cái), dùng để đổ vào dropdown chọn nhóm cha thay vì nhập liệu tự do. | Trung bình  | Hoàn thành     |
+| FR-03.10 | (Đã gỡ) `products.childCategorySalesByParent` — phần "Doanh thu sản phẩm theo nhóm hàng" ở tab Tổng quan đã bị loại bỏ. | — | Đã gỡ |
+| FR-03.11 | (Đã gỡ) `products.availableParentCategories` — dropdown chọn nhóm cha đã bị loại bỏ cùng phần trên. | — | Đã gỡ |
 
 ## 3.4. FR-04: Bộ lọc thời gian
 
@@ -280,7 +280,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-07.2 | Khu vực KPI cards: hiển thị các chỉ số tổng quan với icon và màu sắc phân biệt.                                         | Cao         | Hoàn thành     |
 | FR-07.3 | Biểu đồ doanh thu theo ngày (line/bar chart) với bộ lọc 7/30/90 ngày.                                                   | Cao         | Hoàn thành     |
 | FR-07.4 | Bảng top sản phẩm bán chạy, hàng đã hết, công nợ khách hàng, NCC, đặt hàng, trả hàng, nhập hàng gần nhất.              | Cao         | Hoàn thành     |
-| FR-07.7 | Biểu đồ cột giá trị và biểu đồ tròn số lượng tồn kho đều gom theo nhóm cha; biểu đồ cột hiển thị tối đa 30 cột và tooltip có giá trị tiền, tỷ trọng. | Cao | Hoàn thành |
+| FR-07.7 | Khung "Cơ cấu tồn kho" chỉ còn bảng chi tiết theo sản phẩm (đã bỏ biểu đồ): cột Tồn kho, Tồn có thể bán, Hàng đang vận chuyển, Giá trị tồn; chọn "Cả hai" gộp 1 dòng/mã với cột Tồn kho và Tồn có thể bán riêng Hà Nội/Sài Gòn. | Cao | Hoàn thành |
 | FR-07.5 | Route `/api/debug`: kiểm tra biến môi trường, kết nối Google Sheets và liệt kê `sheetTabs`; trả riêng `sheetTabsError` nếu bước liệt kê lỗi. | Thấp | Hoàn thành |
 | FR-07.6 | Route `/health`: trả HTTP 200 `{"status":"ok"}` để Render health check.                                                  | Cao         | Hoàn thành     |
 | FR-07.8 | Thanh tìm kiếm có hai chế độ: thông thường và nhiều mã. Chế độ nhiều mã tách tối đa 50 mã theo khoảng trắng, khớp chính xác không phân biệt hoa thường, loại mã trùng và trả kết quả theo thứ tự nhập. | Cao | Hoàn thành |
@@ -437,10 +437,6 @@ Giao diện Dashboard gồm:
   "topDebt": [{ "code": "", "name": "", "phone": "", "debt": 0 }],
   "stockByCategory": [{ "name": "", "stock": 0, "productCount": 0 }],
   "topSellingProducts": [{ "code": "", "name": "", "qty": 0, "revenue": 0 }],
-  "products": {
-    "childCategorySalesByParent": { "<Tên nhóm cha>": [{ "name": "", "qty": 0, "revenue": 0, "productCount": 0 }] },
-    "availableParentCategories": [""]
-  },
   "periodOrders": [{ "code": "", "date": "", "customer": "", "total": 0, "status": "" }],
   "periodReturns": [{ "code": "", "date": "", "originalInvoiceCode": "", "customer": "", "total": 0, "status": "" }],
   "suppliers": [{ "code": "", "name": "", "phone": "", "email": "", "address": "", "debt": 0 }],

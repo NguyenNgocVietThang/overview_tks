@@ -86,7 +86,7 @@ test('sidebar và tiêu đề thay Công nợ kỳ cũ bằng Quản lý công n
   assert.doesNotMatch(dashboard, /id="debtPeriodToggle"|setDebtPeriod\(|toggleDebtDetail\(|debt\.period/);
 });
 
-test('dashboard công nợ có đủ 4 KPI, 4 biểu đồ và bảng 10 cột', () => {
+test('dashboard công nợ có đủ 4 KPI, 4 biểu đồ và bảng 11 cột', () => {
   const dashboard = html();
   ['dm-current', 'dm-overdue', 'dm-action-count', 'dm-overdue-ratio'].forEach(id => {
     assert.match(dashboard, new RegExp(`id="${id}"`));
@@ -96,7 +96,8 @@ test('dashboard công nợ có đủ 4 KPI, 4 biểu đồ và bảng 10 cột',
   });
   const table = dashboard.match(/<table[^>]*data-debt-management-table[\s\S]*?<\/table>/);
   assert.ok(table);
-  assert.equal((table[0].match(/<th(?:\s[^>]*)?>/g) || []).length, 10);
+  assert.equal((table[0].match(/<th(?:\s[^>]*)?>/g) || []).length, 11);
+  assert.match(table[0], /<th>Cơ sở<\/th>/);
   assert.match(table[0], /Khách hàng/);
   assert.match(table[0], /Cảnh báo tự động/);
   assert.match(table[0], /Trạng thái xử lý/);
@@ -161,7 +162,7 @@ test('lọc mặc định, sort toàn tập và PATCH thành công cập nhật 
 
   document.getElementById('debtQueueFilter').value = 'all';
   dom.window.handleDebtFilterChange();
-  const currentDebtHeader = document.querySelectorAll('[data-debt-management-table] thead th')[4].querySelector('button');
+  const currentDebtHeader = document.querySelectorAll('[data-debt-management-table] thead th')[5].querySelector('button');
   currentDebtHeader.click();
   currentDebtHeader.click();
   assert.equal(document.querySelector('#debtManagementRows tr[data-customer-key] .name-cell').textContent, 'Khách B');

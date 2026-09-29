@@ -137,7 +137,7 @@ test('GET /api/hr/employees trả về nhân sự mọi cơ sở được phép 
 
     const resOne = fakeRes();
     await handler({ user: STAFF_HANOI, query: {} }, resOne);
-    assert.deepEqual(resOne.body.employees.map(e => e.hoTen), ['Nguyễn Văn A', 'Nguyễn Văn B'], 'tài khoản 1 cơ sở không thấy cơ sở khác');
+    assert.deepEqual(resOne.body.employees.map(e => e.hoTen), ['Nguyễn Văn A', 'Nguyễn Văn B', 'Trần Thị C'], 'cơ sở chỉ là bộ lọc xem, tài khoản 1 cơ sở vẫn thấy cả hai');
   } finally {
     employeeDirectory.getSnapshot = originalGetSnapshot;
   }
@@ -158,13 +158,13 @@ test('GET /api/hr/leave-requests mặc định gộp mọi cơ sở được ph�
     assert.deepEqual(received.branch, ['Sài Gòn']);
 
     await handler({ user: STAFF_HANOI, query: {} }, fakeRes());
-    assert.deepEqual(received.branch, ['Hà Nội'], '"Tất cả" không vượt quá cơ sở được phép');
+    assert.deepEqual(received.branch, ['Hà Nội', 'Sài Gòn'], '"Tất cả" gồm cả hai cơ sở, không phụ thuộc coSo được gán');
   } finally {
     repo.getLeaveRequests = originalGet;
   }
 });
 
-test('GET /api/hr/leave-requests từ chối cơ sở ngoài quyền hoặc không hợp lệ, không chạm DB', async () => {
+test('GET /api/hr/leave-requests cho xem cơ sở khác coSo được gán, từ chối cơ sở không hợp lệ, không chạm DB', async () => {
   const originalGet = repo.getLeaveRequests;
   let called = false;
   repo.getLeaveRequests = async () => { called = true; return []; };
@@ -173,8 +173,9 @@ test('GET /api/hr/leave-requests từ chối cơ sở ngoài quyền hoặc khô
 
     const forbidden = fakeRes();
     await handler({ user: STAFF_HANOI, query: { branch: 'Sài Gòn' } }, forbidden);
-    assert.equal(forbidden.statusCode, 403);
-    assert.equal(forbidden.body.code, 'BRANCH_FORBIDDEN');
+    assert.equal(forbidden.statusCode, 200, 'coSo chỉ là mặc định, tài khoản Hà Nội vẫn xem được Sài Gòn');
+    assert.equal(called, true);
+    called = false;
 
     const invalid = fakeRes();
     await handler({ user: MANAGER_BOTH, query: { branch: 'Đà Nẵng' } }, invalid);
@@ -419,11 +420,11 @@ test('GET /api/hr/leave-requests?branch="Cả hai": lọc theo mọi cơ sở đ
     assert.equal(res.statusCode, 200);
     assert.deepEqual(received.branch, ['Hà Nội', 'Sài Gòn']);
 
-    // Tai khoan mot co so: "Cả hai" KHONG duoc mo rong pham vi.
+    // Tai khoan mot co so cung xem duoc ca hai.
     const staffRes = fakeRes();
     await handler({ user: STAFF_HANOI, query: { branch: 'Cả hai' } }, staffRes);
     assert.equal(staffRes.statusCode, 200);
-    assert.deepEqual(received.branch, ['Hà Nội']);
+    assert.deepEqual(received.branch, ['Hà Nội', 'Sài Gòn']);
   } finally {
     repo.getLeaveRequests = originalGet;
   }

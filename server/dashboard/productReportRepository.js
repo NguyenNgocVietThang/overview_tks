@@ -36,4 +36,39 @@ async function getProductReport({ pool = getPool() } = {}) {
   return { rows: items, computedAt };
 }
 
-module.exports = { getProductReport, __test__: { mapRow } };
+// Khung "Chi tiet" duoi bang: doanh so 90 ngay cua tung khach da mua ma hang nay
+// (bang product_report_customers, cung snapshot voi product_report - xem migration
+// 0023). % = doanh so khach / TONG doanh so cac khach cua ma hang nen luon cong
+// lai 100%; co the lech rat nhe so voi cot "% Khach lon nhat" vi mau so cot do la
+// revenue_90d lay tu rollup daily_product_sales.
+async function getProductReportCustomers({ code, pool = getPool() } = {}) {
+  const trimmed = typeof code === 'string' ? code.trim() : '';
+  if (!trimmed) {
+    const error = new Error('Thiếu mã hàng.');
+    error.statusCode = 400;
+    throw error;
+  }
+  const { rows } = await pool.query(
+    `SELECT customer_name, revenue
+     FROM product_report_customers
+     WHERE product_key = lower(btrim($1))
+     ORDER BY revenue DESC, customer_name`,
+    [code]
+  );
+  const totalRevenue = rows.reduce((sum, row) => sum + (Number(row.revenue) || 0), 0);
+  return {
+    code: trimmed,
+    totalRevenue,
+    customerCount: rows.length,
+    rows: rows.map((row) => {
+      const revenue = Number(row.revenue) || 0;
+      return {
+        customerName: row.customer_name || '',
+        revenue,
+        share: totalRevenue > 0 ? revenue / totalRevenue : null
+      };
+    })
+  };
+}
+
+module.exports = { getProductReport, getProductReportCustomers, __test__: { mapRow } };

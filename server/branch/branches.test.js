@@ -21,32 +21,29 @@ test('normalizeCoSo map ten kho cu sang ten co so', () => {
   assert.equal(normalizeCoSo('Đà Nẵng'), '');
 });
 
-test('allowedBranches mo rong "Cả hai" va chan tai khoan chua gan co so', () => {
-  assert.deepEqual(allowedBranches({ coSo: 'Cả hai' }), [BRANCHES.HANOI, BRANCHES.SAIGON]);
-  assert.deepEqual(allowedBranches({ coSo: 'Tân Phú' }), [BRANCHES.SAIGON]);
-  assert.deepEqual(allowedBranches({ vaiTro: 'Lái xe', coSo: '' }), []);
-  assert.deepEqual(allowedBranches(null), []);
+test('allowedBranches: ai cung xem duoc ca hai co so, khong phu thuoc coSo', () => {
+  const both = [BRANCHES.HANOI, BRANCHES.SAIGON];
+  assert.deepEqual(allowedBranches({ coSo: 'Cả hai' }), both);
+  assert.deepEqual(allowedBranches({ coSo: 'Tân Phú' }), both);
+  assert.deepEqual(allowedBranches({ vaiTro: 'Lái xe', coSo: '' }), both);
+  assert.deepEqual(allowedBranches(null), both);
 });
 
-test('allowedBranches mac dinh Quan ly ve Ca hai khi chua duoc gan co so', () => {
-  assert.deepEqual(allowedBranches({ vaiTro: 'Quản lý', coSo: '' }), [BRANCHES.HANOI, BRANCHES.SAIGON]);
-  assert.deepEqual(allowedBranches({ vaiTro: 'Quản lý' }), [BRANCHES.HANOI, BRANCHES.SAIGON]);
-  assert.deepEqual(allowedBranches({ vaiTro: 'Quản lý', coSo: 'Sài Gòn' }), [BRANCHES.SAIGON]);
-});
-
-test('isBranchAllowed va defaultBranch', () => {
-  assert.equal(isBranchAllowed({ coSo: 'Hà Nội' }, BRANCHES.SAIGON), false);
-  assert.equal(isBranchAllowed({ coSo: 'Cả hai' }, BRANCHES.SAIGON), true);
+test('isBranchAllowed chi nhan co so vat ly; defaultBranch = coSo duoc gan, rong thi Ca hai', () => {
+  assert.equal(isBranchAllowed({ coSo: 'Hà Nội' }, BRANCHES.SAIGON), true);
+  assert.equal(isBranchAllowed({ coSo: 'Hà Nội' }, BRANCH_BOTH), false);
   assert.equal(defaultBranch({ coSo: 'Cả hai' }), BRANCH_BOTH);
   assert.equal(defaultBranch({ coSo: 'Tân Phú' }), BRANCHES.SAIGON);
-  assert.equal(defaultBranch({ coSo: '' }), null);
+  assert.equal(defaultBranch({ coSo: 'Hà Nội' }), BRANCHES.HANOI);
+  assert.equal(defaultBranch({ coSo: '' }), BRANCH_BOTH);
+  assert.equal(defaultBranch(null), BRANCH_BOTH);
 });
 
-test('selectableBranches chi them Ca hai cho tai khoan co du hai co so vat ly', () => {
-  assert.deepEqual(allowedBranches({ coSo: 'Cả hai' }), [BRANCHES.HANOI, BRANCHES.SAIGON]);
-  assert.deepEqual(selectableBranches({ coSo: 'Cả hai' }), [BRANCHES.HANOI, BRANCHES.SAIGON, BRANCH_BOTH]);
-  assert.deepEqual(selectableBranches({ vaiTro: 'Quản lý', coSo: '' }), [BRANCHES.HANOI, BRANCHES.SAIGON, BRANCH_BOTH]);
-  assert.deepEqual(selectableBranches({ coSo: 'Hà Nội' }), [BRANCHES.HANOI]);
+test('selectableBranches luon gom 2 co so va Ca hai', () => {
+  const all = [BRANCHES.HANOI, BRANCHES.SAIGON, BRANCH_BOTH];
+  assert.deepEqual(selectableBranches({ coSo: 'Cả hai' }), all);
+  assert.deepEqual(selectableBranches({ coSo: 'Hà Nội' }), all);
+  assert.deepEqual(selectableBranches({ coSo: '' }), all);
 });
 
 test('resolveBranchScope chi mo rong lua chon Ca hai, khong chap nhan gia tri khac', () => {
