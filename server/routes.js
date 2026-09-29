@@ -14,7 +14,8 @@ const { getProductReport } = require('./dashboard/productReportRepository');
 const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
 const { requireAuth, requireFeature } = require('./auth/authMiddleware');
-const { ANY_REPORTS_FEATURES } = require('./auth/featureRegistry');
+const { ANY_REPORTS_FEATURES, permissionsHave } = require('./auth/featureRegistry');
+const { parseViewsParam, VIEW_FEATURE } = require('./dashboard/dashboardViews');
 const {
   filterDashboardForUser,
   searchFeatureForView,
@@ -137,7 +138,24 @@ function parseFilterSpec(query, prefix, legacyDays) {
   };
 }
 
+// ?view=<tab> (overview|products|invoices|customers|suppliers|debt, co the nhieu
+// tab cach nhau dau phay): CHI doc/tinh/tra phan cua tab do — trang bao cao goi
+// khi nguoi dung mo tung tab (xem dashboardViews.js). Bo trong = ca 6 tab nhu
+// truoc day. Tab tai khoan khong co quyen xem bi bo qua NGAY (khong doc/tinh gi):
+// tra payload rong thay vi 403, giong viec filterDashboardForUser() cat ban day du.
 router.get('/api/dashboard', async (req, res) => {
+  let requestedViews;
+  try {
+    requestedViews = parseViewsParam(req.query.view);
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({ error: err.message, code: err.code });
+  }
+  const allowedViews = requestedViews === null
+    ? null
+    : requestedViews.filter(view => permissionsHave(req.user.permissions, VIEW_FEATURE[view]));
+  if (allowedViews && !allowedViews.length) {
+    return res.status(200).json({ filters: {}, kpi: {} });
+  }
   try {
     const legacyDays = req.query.days;
     const filters = {
@@ -156,7 +174,7 @@ router.get('/api/dashboard', async (req, res) => {
       newPurchases: parseFilterSpec(req.query, 'pu'),
       newProducts: parseFilterSpec(req.query, 'np')
     };
-    const data = await getDashboardData(filters, req.branch, req.user);
+    const data = await getDashboardData(filters, req.branch, req.user, allowedViews ? { views: allowedViews } : undefined);
     // Object tra ve co the den tu cache dung chung — filterDashboardForUser()
     // dung object MOI, khong sua data tai cho (xem dashboardPermissionFilter.js).
     res.status(200).json(filterDashboardForUser(data, req.user.permissions));

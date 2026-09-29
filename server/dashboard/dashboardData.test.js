@@ -2009,3 +2009,475 @@ test('searchCustomerDirectory: chuoi rong tra ket qua rong, khong goi repository
 
   assert.deepEqual(result.results, []);
 });
+
+// ===== getDashboardData theo TUNG TAB (options.views) — xem dashboardViews.js =====
+// Muc tieu: moi tab chi doc/tinh dung phan cua no (nhanh hon nhieu khi cache nguoi/
+// doi bo loc) nhung ket qua PHAI y het lat cat tuong ung cua ban day du 6 tab.
+
+const { VIEW_NAMES, VIEW_PAYLOAD } = require('./dashboardViews');
+
+function vnToday() {
+  return new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' }); // dd/mm/yyyy
+}
+
+// Du lieu co mat o MOI bang/rollup de tung tab co gi do de so sanh.
+function installRichViewFixture(ctx) {
+  const CONFIG = require('../config');
+  const today = vnToday();
+  const product = (code, name, stock, status, categoryId) => {
+    const row = productRow({ code, name, cost: 1000, price: 2000, stock, status });
+    row[2] = 'Đồ uống'; row[11] = categoryId;
+    return row;
+  };
+  mockPgSheets(ctx.dashboardPgReader, {
+    [CONFIG.SHEET_CATEGORIES]: [CATEGORY_HEADERS, categoryRow({ id: '1', name: 'Đồ uống' })],
+    [CONFIG.SHEET_PRODUCTS]: [
+      PRODUCT_HEADERS,
+      product('SP-01', 'Sản phẩm một', 5, 'Đang kinh doanh', '1'),
+      product('SP-02', 'Sản phẩm hai', 0, 'Đang kinh doanh', '1'),
+      product('SP-03', 'Sản phẩm ba', 9, 'Ngừng kinh doanh', '1')
+    ],
+    [CONFIG.SHEET_INVOICES]: [
+      INVOICE_HEADERS,
+      invoiceRow({ code: 'HD-1', date: `${today} 09:00:00`, name: 'Khách A', phone: '0900000001', status: 'Hoàn thành', custCode: 'KH-A' }),
+      invoiceRow({ code: 'HD-2', date: `${today} 10:00:00`, name: 'Khách B', phone: '0900000002', status: 'Đã hủy', custCode: 'KH-B' })
+    ].map((row, index) => { if (index) { row[6] = 250000; row[8] = 250000; } return row; }),
+    [CONFIG.SHEET_ORDERS]: [
+      ['Mã đặt hàng', 'Ngày đặt', 'Khách hàng', 'Nhân viên lập', 'Chi nhánh', 'Tổng tiền', 'Trạng thái'],
+      ['DH-1', `${today} 08:00:00`, 'Khách A', '', '', 300000, 'Phiếu tạm']
+    ],
+    [CONFIG.SHEET_RETURNS]: [
+      ['Mã trả hàng', 'Ngày trả', 'Mã hóa đơn', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái'],
+      ['TH-1', `${today} 11:00:00`, 'HD-1', 'Khách A', 50000, 'Đã trả hàng']
+    ],
+    [CONFIG.SHEET_CUSTOMERS]: [
+      ['Mã khách hàng', 'Tên khách hàng', 'Điện thoại', 'a', 'b', 'c', 'd', 'Nợ hiện tại'],
+      ['KH-A', 'Khách A', '0900000001', '', '', '', '', 120000],
+      ['KH-B', 'Khách B', '0900000002', '', '', '', '', 0]
+    ],
+    [CONFIG.SHEET_SUPPLIERS]: [
+      ['Mã NCC', 'Tên NCC', 'Điện thoại', 'x', 'Địa chỉ', 'Nợ cần trả'],
+      ['NCC-1', 'Nhà cung cấp 1', '0911', '', 'Hà Nội', 700000]
+    ]
+  });
+  mockDashboardRollups(ctx.dashboardRollupRepository, {
+    getInvoiceRevenueByDay: [{ dateKey: today, revenue: 250000, invoiceCount: 1 }],
+    getProductSalesBreakdown: [
+      { code: 'SP-01', name: 'Sản phẩm một', qty: 4, revenue: 400000 },
+      { code: 'SP-02', name: 'Sản phẩm hai', qty: 1, revenue: 90000 }
+    ],
+    getFirstPurchaseDates: [{ code: 'SP-01', name: 'Sản phẩm một', firstPurchaseDateText: `${today} 07:00:00` }],
+    getPurchaseTotals: { orderCount: 3, total: 4500000 },
+    listPurchaseOrders: [{ code: 'PN-1', date: `${today} 07:30:00`, supplier: 'Nhà cung cấp 1', supplierCode: 'NCC-1', total: 900000, status: 'Đã nhập hàng' }],
+    getInvoiceQuantitiesByCode: [{ code: 'HD-1', quantity: 3 }]
+  });
+  ctx.debtManagementSheetsClient.getDebtManagementSheet = async branch => ({
+    sourceSheet: branch === 'Sài Gòn' ? 'Công nợ SG' : 'Công nợ HN',
+    rows: [
+      ['Khách hàng', 'Sale', 'Lịch TT HN', 'Nợ đầu kỳ', 'Nợ hiện tại', 'Nợ quá hạn', '% nợ/Doanh số', '% quá hạn / TB DS', 'TB'],
+      ['TỔNG'],
+      ['Khách A', 'Lan', 7, 0, 500000, 200000, 0, 0, 0]
+    ]
+  });
+}
+
+function expectedViewSlice(full, view) {
+  const spec = VIEW_PAYLOAD[view];
+  const out = { filters: {}, kpi: {} };
+  spec.filters.forEach(key => { out.filters[key] = full.filters[key]; });
+  spec.kpi.forEach(key => { out.kpi[key] = full.kpi[key]; });
+  spec.top.forEach(key => { out[key] = full[key]; });
+  Object.keys(spec.nested).forEach(parent => {
+    out[parent] = {};
+    spec.nested[parent].forEach(child => { out[parent][child] = full[parent][child]; });
+  });
+  return out;
+}
+
+const VIEW_TEST_VIEWER = { permissions: ['reports.debt.edit'] };
+
+test('tung tab: payload y het lat cat tuong ung cua ban day du 6 tab (mot co so va "Ca hai")', async () => {
+  const { BRANCH_BOTH } = require('../branch/branches');
+  for (const branch of [undefined, 'Sài Gòn', BRANCH_BOTH]) {
+    const ctx = freshDashboardData();
+    installRichViewFixture(ctx);
+    ctx.dashboardData.__test__.resetCaches();
+    const full = await ctx.dashboardData.getDashboardData(BASE_FILTERS, branch, VIEW_TEST_VIEWER);
+    for (const view of VIEW_NAMES) {
+      const part = await ctx.dashboardData.getDashboardData(BASE_FILTERS, branch, VIEW_TEST_VIEWER, { views: [view] });
+      const { updatedAt, ...comparable } = part;
+      assert.deepEqual(
+        JSON.parse(JSON.stringify(comparable)),
+        JSON.parse(JSON.stringify(expectedViewSlice(full, view))),
+        `tab ${view} (co so ${branch || 'mac dinh'}) phai khop lat cat cua ban day du`
+      );
+    }
+  }
+});
+
+test('tung tab: tra du lieu that (khong phai lat cat rong) — Tong quan/Hoa don/Cong no co so lieu dung', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  ctx.dashboardData.__test__.resetCaches();
+  const overview = await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
+  assert.equal(overview.kpi.invoicesToday, 1);
+  assert.equal(overview.kpi.revenueToday, 250000);
+  assert.equal(overview.kpi.cancelledToday, 1);
+  assert.equal(overview.kpi.totalProducts, 3);
+  assert.equal(overview.kpi.lowStockCount, 1);
+  assert.equal(overview.kpi.totalCustomers, 2);
+  assert.equal(overview.kpi.totalDebt, 120000);
+  assert.deepEqual(Object.keys(overview.products).sort(), ['availableParentCategories', 'childCategorySalesByParent']);
+  assert.equal(overview.products.childCategorySalesByParent['Đồ uống'].length, 1);
+  assert.equal(overview.invoices, undefined, 'Tong quan khong keo du lieu Hoa don');
+  assert.equal(overview.allProducts, undefined, 'Tong quan khong keo bang san pham (1,3MB)');
+  assert.equal(overview.debtManagement, undefined);
+
+  const invoices = await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['invoices'] });
+  assert.equal(invoices.invoices.periodOrders.length, 1);
+  assert.equal(invoices.invoices.periodReturns.length, 1);
+  assert.equal(invoices.invoices.transactionsReport.transactions.find(item => item.code === 'HD-1').quantity, 3);
+  assert.equal(invoices.invoices.periodCancelledInvoices, 1);
+  assert.equal(invoices.products, undefined);
+
+  const debt = await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['debt'] });
+  assert.equal(debt.debtManagement.customers.length, 1);
+  assert.deepEqual(debt.kpi, {});
+});
+
+test('tung tab: Tong quan chi doc dung 4 bang nguon + 2 rollup, KHONG cham cong no / Dat hang / nhap hang', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  const CONFIG = require('../config');
+  const coreReads = [];
+  const orig = ctx.dashboardPgReader.readCoreDashboardSheets;
+  ctx.dashboardPgReader.readCoreDashboardSheets = async (branch, names) => { coreReads.push(names); return orig(branch, names); };
+  const rollupCalls = [];
+  ['getInvoiceRevenueByDay', 'getProductSalesBreakdown', 'getFirstPurchaseDates', 'getPurchaseTotals', 'listPurchaseOrders', 'getInvoiceQuantitiesByCode']
+    .forEach(name => {
+      const original = ctx.dashboardRollupRepository[name];
+      ctx.dashboardRollupRepository[name] = async (...args) => { rollupCalls.push(name); return original(...args); };
+    });
+  let debtTouched = 0;
+  ctx.debtManagementSheetsClient.getDebtManagementSheet = async () => { debtTouched += 1; return { rows: [] }; };
+  ctx.debtCollectionStatusRepository.listByBranch = async () => { debtTouched += 1; return []; };
+  ctx.customerDebtActivityRepository.readOperationalPeriods = async () => { debtTouched += 1; return { HN1: [], HN3: [], HN7: [] }; };
+  ctx.dashboardData.__test__.resetCaches();
+
+  await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
+
+  assert.equal(coreReads.length, 1, 'gop thanh 1 lan doc Postgres');
+  assert.deepEqual(
+    [...coreReads[0]].sort(),
+    [CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_CUSTOMERS, CONFIG.SHEET_INVOICES, CONFIG.SHEET_PRODUCTS].sort()
+  );
+  assert.deepEqual(rollupCalls.sort(), ['getInvoiceRevenueByDay', 'getProductSalesBreakdown']);
+  assert.equal(debtTouched, 0, 'Tong quan khong doc workbook cong no/workflow/CN1-3-7 (Google Sheets ~1s)');
+});
+
+test('tung tab: Cong no khong doc bang nguon nao va khong goi rollup, chi doc CN1/3/7 + workbook + workflow', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  let coreReads = 0;
+  ctx.dashboardPgReader.readCoreDashboardSheets = async () => { coreReads += 1; return {}; };
+  let rollupCalls = 0;
+  ['getInvoiceRevenueByDay', 'getProductSalesBreakdown', 'getFirstPurchaseDates', 'getPurchaseTotals', 'listPurchaseOrders', 'getInvoiceQuantitiesByCode']
+    .forEach(name => { ctx.dashboardRollupRepository[name] = async () => { rollupCalls += 1; return []; }; });
+  let periods = 0;
+  ctx.customerDebtActivityRepository.readOperationalPeriods = async () => { periods += 1; return { HN1: [['Khách hàng']], HN3: [['Khách hàng']], HN7: [['Khách hàng']] }; };
+  ctx.dashboardData.__test__.resetCaches();
+
+  const data = await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['debt'] });
+
+  assert.equal(coreReads, 0);
+  assert.equal(rollupCalls, 0);
+  assert.equal(periods, 1);
+  assert.equal(data.debtManagement.available, true);
+});
+
+test('tung tab: cache tach rieng — doi bo loc cua tab khac KHONG lam mat cache, doi bo loc cua chinh no thi tinh lai', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  ctx.dashboardData.__test__.resetCaches();
+  const { dashboardData } = ctx;
+  const compute = () => dashboardData.__test__.getComputeCallCount();
+
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['invoices'] });
+  assert.equal(compute(), 1);
+
+  await dashboardData.getDashboardData({ ...BASE_FILTERS, products: { mode: 'days', days: 7 }, customers: { mode: 'days', days: 3 } },
+    undefined, VIEW_TEST_VIEWER, { views: ['invoices'] });
+  assert.equal(compute(), 1, 'doi bo loc Hang hoa/Khach hang khong anh huong tab Hoa don -> lay tu cache');
+
+  await dashboardData.getDashboardData({ ...BASE_FILTERS, invoices: { mode: 'days', days: 7 } },
+    undefined, VIEW_TEST_VIEWER, { views: ['invoices'] });
+  assert.equal(compute(), 2, 'doi bo loc Hoa don -> tinh lai');
+
+  // Tab khac co cache rieng: tinh xong tab Tong quan khong don mat entry cua tab Hoa don.
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
+  assert.equal(compute(), 3);
+  await dashboardData.getDashboardData({ ...BASE_FILTERS, invoices: { mode: 'days', days: 7 } },
+    undefined, VIEW_TEST_VIEWER, { views: ['invoices'] });
+  assert.equal(compute(), 3, 'entry Hoa don van con sau khi tab Tong quan tinh xong');
+
+  // Ban day du (khong views) la mot entry khac, khong dung chung voi tab don le.
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER);
+  assert.equal(compute(), 4);
+});
+
+test('tung tab: tab khong dung rollup/cong no khong bi het hieu luc khi rollup doi', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  ctx.dashboardData.__test__.resetCaches();
+  const { dashboardData } = ctx;
+  const compute = () => dashboardData.__test__.getComputeCallCount();
+
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['debt'] });
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['customers'] });
+  assert.equal(compute(), 2);
+
+  const { dashboardRollupEvents } = require('../kiotvietSync/dashboardRollupEvents');
+  dashboardRollupEvents.emit('updated', { at: Date.now() });
+
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['debt'] });
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['customers'] });
+  assert.equal(compute(), 2, 'Cong no va Khach hang khong dung rollup nen rollup doi khong lam tinh lai');
+
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
+  assert.equal(compute(), 3);
+  dashboardRollupEvents.emit('updated', { at: Date.now() });
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
+  assert.equal(compute(), 4, 'Tong quan dung rollup nen phai tinh lai khi rollup doi');
+});
+
+test('cache nguon theo tung bang: mo them tab chi doc bang con thieu, bang con han duoc dung lai', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  const CONFIG = require('../config');
+  const reads = [];
+  const orig = ctx.dashboardPgReader.readCoreDashboardSheets;
+  ctx.dashboardPgReader.readCoreDashboardSheets = async (branch, names) => { reads.push(names); return orig(branch, names); };
+  ctx.dashboardData.__test__.resetCaches();
+  const { dashboardData } = ctx;
+
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['invoices'] });
+
+  assert.equal(reads.length, 2);
+  assert.deepEqual([...reads[1]].sort(), [CONFIG.SHEET_ORDERS, CONFIG.SHEET_RETURNS].sort(),
+    'Hoa don da co san tu tab Tong quan, chi doc them Dat hang + Tra hang');
+
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['customers'] });
+  assert.equal(reads.length, 2, 'Khach hang chi can Hoa don/Tra hang/Khach hang, deu da co trong cache');
+});
+
+test('cache nguon theo tung bang: het han mem chi lam moi nen dung bang qua han, van tra du lieu cu ngay', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  const CONFIG = require('../config');
+  const reads = [];
+  const orig = ctx.dashboardPgReader.readCoreDashboardSheets;
+  ctx.dashboardPgReader.readCoreDashboardSheets = async (branch, names) => { reads.push(names); return orig(branch, names); };
+  ctx.dashboardData.__test__.resetCaches();
+  const { dashboardData } = ctx;
+
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
+  assert.equal(reads.length, 1);
+
+  dashboardData.__test__.expireCoreSources(undefined, [CONFIG.SHEET_PRODUCTS], true);
+  await dashboardData.getDashboardData({ ...BASE_FILTERS, products: { mode: 'days', days: 7 } },
+    undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.equal(reads.length, 2, 'lam moi nen dung 1 lan');
+  assert.deepEqual(reads[1], [CONFIG.SHEET_PRODUCTS], 'chi lam moi bang Hang hoa, khong doc lai 3 bang con han');
+});
+
+test('cache nguon theo tung bang: loi doc bang nguon tab dang mo duoc nem ra, lan sau tu thu lai', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  let fail = true;
+  const orig = ctx.dashboardPgReader.readCoreDashboardSheets;
+  ctx.dashboardPgReader.readCoreDashboardSheets = async (branch, names) => {
+    if (fail) throw new Error('Gia lap mat ket noi Postgres');
+    return orig(branch, names);
+  };
+  ctx.dashboardData.__test__.resetCaches();
+
+  await assert.rejects(
+    ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['suppliers'] }),
+    /mat ket noi Postgres/
+  );
+  fail = false;
+  const data = await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['suppliers'] });
+  assert.equal(data.suppliers.length, 1);
+});
+
+test('findDebtCustomerBranches chi doc CN1/3/7 (khong keo 7 bang core ve chi de tinh chu ky)', async () => {
+  const ctx = freshDashboardData();
+  let coreReads = 0;
+  ctx.dashboardPgReader.readCoreDashboardSheets = async () => { coreReads += 1; return {}; };
+  ctx.dashboardData.__test__.resetCaches();
+
+  await ctx.dashboardData.findDebtCustomerBranches('a'.repeat(64), ['Hà Nội']);
+
+  assert.equal(coreReads, 0);
+});
+
+test('tham so views khong hop le bi tu choi 400, khong doc nguon nao', async () => {
+  const ctx = freshDashboardData();
+  let reads = 0;
+  ctx.dashboardPgReader.readCoreDashboardSheets = async () => { reads += 1; return {}; };
+  ctx.dashboardData.__test__.resetCaches();
+
+  await assert.rejects(
+    ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview', 'khong-co'] }),
+    error => error.code === 'INVALID_VIEW' && error.statusCode === 400
+  );
+  assert.equal(reads, 0);
+});
+
+test('getDashboardDateParts ban nhanh (UTC+7 co dinh) cho ket qua y het Intl tren hang tram nghin moc, ke ca ranh gioi ngay/nam', () => {
+  const { dashboardData } = freshDashboardData();
+  const { dateParts, datePartsIntl } = dashboardData.__test__;
+  const same = time => {
+    const date = new Date(time);
+    const fast = dateParts(date);
+    const intl = datePartsIntl(date);
+    return JSON.stringify(fast) === JSON.stringify({
+      day: intl.day, month: intl.month, year: intl.year, hour: intl.hour, minute: intl.minute, second: intl.second
+    }) && Object.keys(intl).sort().join(',') === 'day,hour,minute,month,second,year';
+  };
+  const low = Date.UTC(1976, 0, 1);
+  const high = Date.UTC(2100, 0, 1);
+  let seed = 12345; // LCG co dinh de test xac dinh (khong Math.random)
+  const next = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  for (let i = 0; i < 50000; i++) assert.ok(same(low + Math.floor(next() * (high - low))), `lech tai mau ngau nhien ${i}`);
+  // Ranh gioi ngay VN (17:00 UTC) +/- vai giay, nam nhuan, cuoi nam, 2 moc bien cua duong nhanh.
+  for (let year = 1976; year <= 2099; year++) {
+    for (const [month, day] of [[0, 1], [1, 28], [1, 29], [11, 31]]) {
+      const base = Date.UTC(year, month, day, 17, 0, 0);
+      [-2000, -1, 0, 1, 2000].forEach(offset => assert.ok(same(base + offset), `lech tai ${new Date(base + offset).toISOString()}`));
+    }
+  }
+  [-1000, 0, 1000].forEach(offset => { assert.ok(same(low + offset)); assert.ok(same(high + offset)); });
+  // Ngoai khoang an toan va ngay khong hop le giu nguyen hanh vi cu (Intl).
+  assert.deepEqual(dateParts(new Date(Date.UTC(1960, 5, 1))), datePartsIntl(new Date(Date.UTC(1960, 5, 1))));
+  assert.throws(() => dateParts(new Date(NaN)), RangeError);
+});
+
+// ===== Cache nguon nguoi: rollup chay SONG SONG voi viec doc bang nguon =====
+// (truoc day doc bang nguon xong moi chay rollup -> cold = cong hai buoc; gio = max).
+
+test('cache nguon nguoi: rollup bat dau NGAY trong luc dang doi doc bang nguon (khong doi doc xong)', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  let releaseSources;
+  const gate = new Promise(resolve => { releaseSources = resolve; });
+  const origRead = ctx.dashboardPgReader.readCoreDashboardSheets;
+  ctx.dashboardPgReader.readCoreDashboardSheets = async (branch, names) => { await gate; return origRead(branch, names); };
+  const rollupCalls = [];
+  ['getInvoiceRevenueByDay', 'getProductSalesBreakdown'].forEach(name => {
+    const original = ctx.dashboardRollupRepository[name];
+    ctx.dashboardRollupRepository[name] = async (...args) => { rollupCalls.push(name); return original(...args); };
+  });
+  ctx.dashboardData.__test__.resetCaches();
+
+  const pending = ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(rollupCalls.sort(), ['getInvoiceRevenueByDay', 'getProductSalesBreakdown'],
+    'rollup da chay trong luc bang nguon con dang cho (gate chua mo)');
+
+  releaseSources();
+  const data = await pending;
+  assert.equal(data.kpi.totalCustomers, 2);
+  assert.deepEqual(rollupCalls.sort(), ['getInvoiceRevenueByDay', 'getProductSalesBreakdown'], 'khong goi rollup lan 2');
+});
+
+test('cache nguon con han: rollup KHONG chay som — ket qua da tinh trung cache thi khong goi rollup nao', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  ctx.dashboardData.__test__.resetCaches();
+  await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
+
+  let rollupCalls = 0;
+  ['getInvoiceRevenueByDay', 'getProductSalesBreakdown'].forEach(name => {
+    ctx.dashboardRollupRepository[name] = async () => { rollupCalls += 1; return []; };
+  });
+  await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
+  assert.equal(rollupCalls, 0);
+});
+
+test('nhieu request nguoi trung nhau cung luc chi chay rollup 1 luot (dung chung luot dang bay)', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  let calls = 0;
+  ['getInvoiceRevenueByDay', 'getProductSalesBreakdown'].forEach(name => {
+    const original = ctx.dashboardRollupRepository[name];
+    ctx.dashboardRollupRepository[name] = async (...args) => { calls += 1; return original(...args); };
+  });
+  ctx.dashboardData.__test__.resetCaches();
+
+  await Promise.all([1, 2, 3].map(() =>
+    ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] })));
+
+  assert.equal(calls, 2, 'Tong quan = 2 truy van rollup (doanh thu theo ngay + ban chay), khong nhan 3');
+});
+
+test('rollup doi phien ban trong luc dang doc nguon: ket qua luu duoi khoa cu, lan sau cung bo loc phai tinh lai', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  let releaseSources;
+  const gate = new Promise(resolve => { releaseSources = resolve; });
+  const origRead = ctx.dashboardPgReader.readCoreDashboardSheets;
+  ctx.dashboardPgReader.readCoreDashboardSheets = async (branch, names) => { await gate; return origRead(branch, names); };
+  ctx.dashboardData.__test__.resetCaches();
+  const { dashboardData } = ctx;
+
+  const pending = dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
+  await new Promise(resolve => setImmediate(resolve));
+  const { dashboardRollupEvents } = require('../kiotvietSync/dashboardRollupEvents');
+  dashboardRollupEvents.emit('updated', { at: Date.now() }); // rollup moi xong trong luc dang cho
+  releaseSources();
+  await pending;
+  assert.equal(dashboardData.__test__.getComputeCallCount(), 1);
+
+  ctx.dashboardPgReader.readCoreDashboardSheets = origRead;
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
+  assert.equal(dashboardData.__test__.getComputeCallCount(), 2,
+    'du lieu rollup chay truoc su kien khong duoc coi la moi nhat — phai tinh lai voi rollup moi');
+});
+
+test('rollup chay som that bai: loi duoc nem ra dung 1 lan (khong "unhandled rejection"), lan sau tu thu lai', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  let fail = true;
+  const original = ctx.dashboardRollupRepository.getProductSalesBreakdown;
+  ctx.dashboardRollupRepository.getProductSalesBreakdown = async (...args) => {
+    if (fail) throw new Error('Gia lap rollup loi');
+    return original(...args);
+  };
+  ctx.dashboardData.__test__.resetCaches();
+
+  await assert.rejects(
+    ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] }),
+    /rollup loi/
+  );
+  fail = false;
+  const data = await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
+  assert.equal(data.kpi.totalProducts, 3);
+});
+
+test('bang nguon loi + rollup loi cung luc: tra loi cua bang nguon, khong de lai unhandled rejection', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  ctx.dashboardPgReader.readCoreDashboardSheets = async () => { throw new Error('Gia lap mat ket noi bang nguon'); };
+  ctx.dashboardRollupRepository.getProductSalesBreakdown = async () => { throw new Error('Gia lap rollup loi'); };
+  ctx.dashboardData.__test__.resetCaches();
+
+  await assert.rejects(
+    ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] }),
+    /bang nguon/
+  );
+  await new Promise(resolve => setImmediate(resolve)); // de node:test bat unhandled rejection neu co
+});

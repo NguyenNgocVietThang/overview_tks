@@ -137,3 +137,27 @@ test('tab vua bi an di thi khong keo du lieu hay mo them stream', () => {
   assert.equal(app.loadCalls.length, 0);
   assert.equal(app.streams.length, 1);
 });
+
+// Bao cao tong hop tai THEO TUNG TAB (view): SSE chi tai lai tab dang xem, con cac tab da tai
+// truoc do phai tu biet la cu de tai lai khi duoc mo (state.dataEpoch, xem ensureViewData).
+test('su kien dashboard-updated danh dau moi tab da tai la cu ngay lap tuc (dataEpoch tang), roi moi tai lai tab dang xem', () => {
+  const app = run();
+  app.latestStream().emit('dashboard-updated');
+  assert.equal(app.state.dataEpoch, 1, 'tab khac dang mo sau do phai thay du lieu cu ngay, khong cho het do tre 0-3s');
+  assert.deepEqual(app.loadCalls, []);
+
+  app.latestStream().emit('dashboard-updated');
+  assert.equal(app.state.dataEpoch, 2);
+});
+
+test('quay lai tab/noi lai stream sau khi di lau: danh dau cac tab khac la cu; du lieu con moi thi khong dong den dataEpoch', () => {
+  const stale = run({ lastFetchAt: Date.now() - 10 * 60 * 1000 });
+  stale.latestStream().open();
+  assert.equal(stale.state.dataEpoch, 1);
+  assert.equal(stale.loadCalls.length, 1);
+
+  const fresh = run({ lastFetchAt: Date.now() });
+  fresh.latestStream().open();
+  assert.equal(fresh.state.dataEpoch, undefined);
+  assert.equal(fresh.loadCalls.length, 0);
+});

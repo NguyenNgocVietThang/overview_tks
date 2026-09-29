@@ -21,6 +21,7 @@ const { hasFeature } = require('../auth/featureRegistry');
 const debtCollectionStatusRepository = require('./debtCollectionStatusRepository');
 const { deriveDebtManagement, PAYMENT_SCHEDULES, DEBT_TOTAL_AVERAGE_SALES } = require('./debtManagement');
 const { dashboardRollupEvents } = require('../kiotvietSync/dashboardRollupEvents');
+const { PERIODS_KEY, ALL_CORE_KEYS, ALL_ROLLUPS, resolveViewPlan, pickPayload, pickFilters } = require('./dashboardViews');
 // Tang moi lan rollup refresh xong — nam trong khoa dashboardResultCache de
 // ket qua tinh tu rollup cu tu het hieu luc ngay khi co rollup moi.
 let rollupVersion = 0;
@@ -57,12 +58,38 @@ const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-GB', {
   hourCycle: 'h23'
 });
 
-function getDashboardDateParts(date) {
+// Ban dung Intl (chuan vang) — chi con dung ngoai khoang an toan cua ban nhanh va
+// lam mau doi chieu trong test (xem __test__.dateParts).
+function getDashboardDatePartsIntl(date) {
   return Object.fromEntries(
     DATE_TIME_FORMATTER.formatToParts(date)
       .filter(part => part.type !== 'literal')
       .map(part => [part.type, part.value])
   );
+}
+
+// Viet Nam khong co gio mua he: UTC+7 co dinh tu 13/06/1975 nen voi thoi diem
+// trong [1976, 2100) chi can cong 7 gio roi doc cac truong UTC — cho ket qua
+// GIONG HET Intl (day/month/hour... deu 2 chu so) nhung nhanh hon nhieu lan.
+// formatToParts dung ~300ms/lan tinh khi doi bo loc (dat >15% CPU cua /api/dashboard
+// do 3-4 lan goi/hoa don trong parseSheetDate + dmyKey qua ~40K hoa don/dat hang).
+const VN_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
+const FAST_DATE_PARTS_MIN_MS = Date.UTC(1976, 0, 1);
+const FAST_DATE_PARTS_MAX_MS = Date.UTC(2100, 0, 1);
+const pad2 = value => (value < 10 ? '0' + value : String(value));
+
+function getDashboardDateParts(date) {
+  const time = date.getTime();
+  if (!(time >= FAST_DATE_PARTS_MIN_MS && time < FAST_DATE_PARTS_MAX_MS)) return getDashboardDatePartsIntl(date);
+  const wall = new Date(time + VN_UTC_OFFSET_MS);
+  return {
+    day: pad2(wall.getUTCDate()),
+    month: pad2(wall.getUTCMonth() + 1),
+    year: String(wall.getUTCFullYear()),
+    hour: pad2(wall.getUTCHours()),
+    minute: pad2(wall.getUTCMinutes()),
+    second: pad2(wall.getUTCSeconds())
+  };
 }
 
 function formatDMY(date) {
@@ -1006,60 +1033,120 @@ async function getCachedDashboardSheets(branch) {
 // dashboardRollupRepository.js thay the. KHONG goi rememberSearchSheets() —
 // chi muc tim kiem van chi xay tu cache "full" (getCachedDashboardSheets),
 // dung cho /api/search (xuat Excel khong con dung cache nay, xem exportService.js).
-let dashboardCoreSheetsCacheByBranch = new Map();
+//
+// Cache THEO TUNG BANG (7 bang core + CN1/3/7 "@periods"), moi bang co TTL /
+// stale-while-revalidate / version rieng: tab Tong quan chi doc Hang hoa + Hoa
+// don + Khach hang + Nhom hang, khong phai cho bang Dat hang (~23K dong, ~2,8s).
+// Cac bang thieu/qua cu trong cung 1 lan goi duoc gop thanh 1 lan doc Postgres
+// duy nhat (giu dung so lan doc nhu cache 1 khoi truoc day khi can du 7 bang).
+let dashboardCoreSheetsCacheByBranch = new Map(); // branch -> Map<key, { data, version, expiresAt, loading }>
 
-function dashboardCoreSheetsCacheFor(branch) {
-  const key = branch || BRANCHES.HANOI;
-  if (!dashboardCoreSheetsCacheByBranch.has(key)) {
-    dashboardCoreSheetsCacheByBranch.set(key, { data: null, version: 0, expiresAt: 0, loading: null });
+function dashboardCoreEntry(branch, key) {
+  const branchKey = branch || BRANCHES.HANOI;
+  let entries = dashboardCoreSheetsCacheByBranch.get(branchKey);
+  if (!entries) {
+    entries = new Map();
+    dashboardCoreSheetsCacheByBranch.set(branchKey, entries);
   }
-  return dashboardCoreSheetsCacheByBranch.get(key);
+  let entry = entries.get(key);
+  if (!entry) {
+    entry = { data: null, version: 0, expiresAt: 0, loading: null };
+    entries.set(key, entry);
+  }
+  return entry;
 }
 
-function fetchAndCacheDashboardCoreSheets(branch, cache) {
-  return Promise.all([
-    dashboardPgReader.readCoreDashboardSheets(branch),
-    customerDebtActivityRepository.readOperationalPeriods(branch)
+function storeDashboardCoreEntry(branch, key, data, expiresAt) {
+  const entry = dashboardCoreEntry(branch, key);
+  entry.data = data;
+  entry.version += 1;
+  entry.expiresAt = expiresAt;
+}
+
+// Doc THAT tu Postgres cac khoa `keys` trong 1 lan (khong dong bo voi request
+// nao) — dung chung cho duong "cho fetch xong" lan "lam moi nen".
+function fetchDashboardCoreSources(branch, keys) {
+  const sheetNames = keys.filter(key => key !== PERIODS_KEY);
+  const wantPeriods = keys.includes(PERIODS_KEY);
+  const loading = Promise.all([
+    sheetNames.length ? dashboardPgReader.readCoreDashboardSheets(branch, sheetNames) : null,
+    wantPeriods ? customerDebtActivityRepository.readOperationalPeriods(branch) : null
   ]).then(([pgSheets, debtPeriods]) => {
-    const sheets = { ...pgSheets, ...debtPeriods };
-    cache.data = sheets;
-    cache.version += 1;
-    cache.expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
-    return sheets;
+    const expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
+    sheetNames.forEach(name => {
+      storeDashboardCoreEntry(branch, name, (pgSheets && pgSheets[name]) || [], expiresAt);
+    });
+    if (wantPeriods) storeDashboardCoreEntry(branch, PERIODS_KEY, debtPeriods || {}, expiresAt);
+  }).finally(() => {
+    keys.forEach(key => {
+      const entry = dashboardCoreEntry(branch, key);
+      if (entry.loading === loading) entry.loading = null;
+    });
   });
+  keys.forEach(key => { dashboardCoreEntry(branch, key).loading = loading; });
+  return loading;
 }
 
 // Y het pattern stale-while-revalidate cua getCachedDashboardSheets() o tren
-// (xem ghi chu tai do) — chi khac nguon fetch (7 tab thay vi 9) va khong
-// dong bo chi muc tim kiem.
-async function getCachedDashboardCoreSheets(branch) {
-  const cache = dashboardCoreSheetsCacheFor(branch);
+// (xem ghi chu tai do) nhung ap dung TUNG khoa: khoa con han -> dung ngay; khoa
+// qua han vua phai (trong DASHBOARD_SHEETS_MAX_STALE_MS) -> tra du lieu cu roi
+// lam moi nen; khoa chua co/qua cu -> phai cho doc that. Tra ve map ten sheet
+// -> [header, ...rows] (kem HN1/HN3/HN7 neu `keys` co PERIODS_KEY).
+async function getCachedDashboardCoreSources(branch, keys = ALL_CORE_KEYS) {
   const now = Date.now();
-  if (cache.data && now < cache.expiresAt) {
-    return cache.data;
-  }
-
-  const isUsableStale = cache.data && now < cache.expiresAt + DASHBOARD_SHEETS_MAX_STALE_MS;
-  if (isUsableStale) {
-    if (!cache.loading) {
-      cache.loading = fetchAndCacheDashboardCoreSheets(branch, cache)
-        .catch(err => {
-          console.error(`[Dashboard] Lam moi nen (core, stale-while-revalidate) that bai cho ${branch}, tiep tuc dung du lieu cu:`, err.message);
-        })
-        .finally(() => {
-          if (cache.loading) cache.loading = null;
-        });
+  const waiting = new Set();
+  const mustFetch = [];
+  const refreshInBackground = [];
+  keys.forEach(key => {
+    const entry = dashboardCoreEntry(branch, key);
+    if (entry.data && now < entry.expiresAt) return;
+    const isUsableStale = entry.data && now < entry.expiresAt + DASHBOARD_SHEETS_MAX_STALE_MS;
+    if (entry.loading) {
+      if (!isUsableStale) waiting.add(entry.loading);
+      return;
     }
-    return cache.data;
-  }
+    (isUsableStale ? refreshInBackground : mustFetch).push(key);
+  });
 
-  if (cache.loading) return cache.loading;
-  const loading = fetchAndCacheDashboardCoreSheets(branch, cache)
-    .finally(() => {
-      if (cache.loading === loading) cache.loading = null;
+  if (refreshInBackground.length) {
+    fetchDashboardCoreSources(branch, refreshInBackground).catch(err => {
+      console.error(`[Dashboard] Lam moi nen (core, stale-while-revalidate) that bai cho ${branch}, tiep tuc dung du lieu cu:`, err.message);
     });
-  cache.loading = loading;
-  return loading;
+  }
+  if (mustFetch.length) waiting.add(fetchDashboardCoreSources(branch, mustFetch));
+  if (waiting.size) await Promise.all(waiting);
+
+  const sources = {};
+  keys.forEach(key => {
+    const data = dashboardCoreEntry(branch, key).data;
+    if (key === PERIODS_KEY) Object.assign(sources, data);
+    else sources[key] = data;
+  });
+  return sources;
+}
+
+// Chi phuc vu test: duyet moi bang nguon da co trong cache cua 1 co so.
+function forEachDashboardCoreEntry(branch, callback) {
+  const entries = dashboardCoreSheetsCacheByBranch.get(branch || BRANCHES.HANOI);
+  if (entries) entries.forEach(callback);
+}
+
+// true khi it nhat 1 bang nguon chua co hoac qua cu (ngoai cua so stale-while-revalidate) —
+// tuc la request nay PHAI cho doc Postgres. Khi do version cua bang doi nen ket qua da tinh
+// chac chan khong trung cache, co the chay rollup song song luon thay vi doi doc xong bang
+// nguon (cold: tong = max(bang nguon, rollup) thay vi cong).
+function dashboardCoreSourcesNeedBlockingFetch(branch, keys) {
+  const now = Date.now();
+  return keys.some(key => {
+    const entry = dashboardCoreEntry(branch, key);
+    return !(entry.data && now < entry.expiresAt + DASHBOARD_SHEETS_MAX_STALE_MS);
+  });
+}
+
+// Chuoi phien ban cua cac khoa `keys` — vao khoa dashboardResultCache de ket
+// qua tinh tu bang cu het hieu luc ngay khi bang do duoc lam moi.
+function dashboardCoreSourcesVersion(branch, keys) {
+  return keys.map(key => dashboardCoreEntry(branch, key).version).join('.');
 }
 
 // Workbook công nợ có vòng đời/cache riêng với spreadsheet vận hành. Mỗi cơ
@@ -1156,7 +1243,9 @@ async function findDebtCustomerBranches(customerKey, branches) {
   const results = await Promise.all(scope.map(async branch => {
     const [debtManagementSource, sheets] = await Promise.all([
       getCachedDebtManagementSource(branch),
-      getCachedDashboardCoreSheets(branch).catch(() => null)
+      // Chi can CN1/CN3/CN7 (dung dung nguon tab Cong no cua dashboard doc) —
+      // khong keo 7 bang core ve chi de tinh chu ky canh bao.
+      getCachedDashboardCoreSources(branch, [PERIODS_KEY]).catch(() => null)
     ]);
     // Thieu CN1/CN3/CN7 se lam tat canh bao "Chưa thu" va cho ra chu ky khac
     // voi luc doc — coi nhu chua xac dinh thay vi ghi chu ky sai.
@@ -2160,10 +2249,16 @@ let dashboardResultCache = new Map(); // key: `${branch}|${sheetsVersion}|${JSON
 let dashboardResultInflight = new Map(); // cacheKey -> Promise<data>
 let computeCallCountForTest = 0; // chi dung trong test, xem __test__ o cuoi file
 
-// Co so nam TRONG key (khong phai Map rieng) de mot key cu the luon thuoc dung
-// mot co so — hai co so co the trung sheetsVersion nhung khong bao gio trung key.
-function dashboardResultCacheKey(branch, sourceVersions, filters) {
-  return (branch || BRANCHES.HANOI) + '|' + sourceVersions + '|' + JSON.stringify(filters || {});
+// Co so + tap tab (plan.key) nam TRONG key (khong phai Map rieng) de mot key cu
+// the luon thuoc dung mot co so va mot tap tab — hai co so co the trung
+// sheetsVersion nhung khong bao gio trung key. `dashboardResultScope` la tien to
+// dung de don cac phien ban CU cua chinh tap tab do (xem getDashboardData).
+function dashboardResultScope(branch, plan) {
+  return (branch || BRANCHES.HANOI) + '|' + plan.key + '|';
+}
+
+function dashboardResultCacheKey(branch, plan, sourceVersions, filters) {
+  return dashboardResultScope(branch, plan) + sourceVersions + '|' + JSON.stringify(filters || {});
 }
 
 /**
@@ -2173,8 +2268,15 @@ function dashboardResultCacheKey(branch, sourceVersions, filters) {
  * index, ban than Postgres du nhanh); getDashboardData() CHI goi ham nay SAU
  * khi da tra dashboardResultCache va bi mien (cache trung thi ham nay khong
  * duoc goi — xem versionTag/cacheKey trong getDashboardData).
+ *
+ * `plan` (tu resolveViewPlan): CHI chay cac truy van tab dang xem can — cac
+ * truy van con lai tra undefined (computeDashboardData da co gia tri mac dinh
+ * `|| []`), vd tab Tong quan khong phai cho getInvoiceQuantitiesByCode (~3,3s
+ * khi nguoi) chi Hoa don moi can. Bo trong = du 7 truy van nhu cu.
  */
-async function fetchDashboardRollups(branch, { overviewRange, productsRange, invoicesRange, newPurchasesRange }) {
+async function fetchDashboardRollups(branch, { overviewRange, productsRange, invoicesRange, newPurchasesRange }, plan) {
+  const wanted = plan ? plan.rollups : new Set(ALL_ROLLUPS);
+  const run = (name, load) => (wanted.has(name) ? load() : undefined);
   const overviewBounds = rangeToDateBounds(overviewRange);
   const invoicesBounds = rangeToDateBounds(invoicesRange);
   const productsBounds = rangeToDateBounds(productsRange);
@@ -2184,18 +2286,18 @@ async function fetchDashboardRollups(branch, { overviewRange, productsRange, inv
     overviewRevenueRows, invoicesRevenueRows, productSalesRows,
     firstPurchaseRows, purchaseTotals, newPurchaseOrdersRaw, invoiceQuantityRows
   ] = await Promise.all([
-    dashboardRollupRepository.getInvoiceRevenueByDay({ branch, from: overviewBounds.from, to: overviewBounds.to }),
-    dashboardRollupRepository.getInvoiceRevenueByDay({ branch, from: invoicesBounds.from, to: invoicesBounds.to }),
-    dashboardRollupRepository.getProductSalesBreakdown({
+    run('overviewRevenue', () => dashboardRollupRepository.getInvoiceRevenueByDay({ branch, from: overviewBounds.from, to: overviewBounds.to })),
+    run('invoicesRevenue', () => dashboardRollupRepository.getInvoiceRevenueByDay({ branch, from: invoicesBounds.from, to: invoicesBounds.to })),
+    run('productSales', () => dashboardRollupRepository.getProductSalesBreakdown({
       branch,
       from: productsBounds.from,
       to: productsBounds.to,
       preserveNameSource: true
-    }),
-    dashboardRollupRepository.getFirstPurchaseDates({ branch }),
-    dashboardRollupRepository.getPurchaseTotals({ branch }),
-    dashboardRollupRepository.listPurchaseOrders({ branch, from: newPurchasesBounds.from, to: newPurchasesBounds.to }),
-    dashboardRollupRepository.getInvoiceQuantitiesByCode({ branch, from: invoicesBounds.from, to: invoicesBounds.to })
+    })),
+    run('firstPurchase', () => dashboardRollupRepository.getFirstPurchaseDates({ branch })),
+    run('purchaseTotals', () => dashboardRollupRepository.getPurchaseTotals({ branch })),
+    run('newPurchaseOrders', () => dashboardRollupRepository.listPurchaseOrders({ branch, from: newPurchasesBounds.from, to: newPurchasesBounds.to })),
+    run('invoiceQuantity', () => dashboardRollupRepository.getInvoiceQuantitiesByCode({ branch, from: invoicesBounds.from, to: invoicesBounds.to }))
   ]);
 
   return {
@@ -2204,20 +2306,43 @@ async function fetchDashboardRollups(branch, { overviewRange, productsRange, inv
   };
 }
 
+// Rollup dang bay theo (co so, tab, khoang ngay, phien ban rollup): nhieu request nguoi
+// trung nhau cung luc dung chung 1 luot truy van thay vi moi request tu chay rieng.
+// CHI dung chung khi dang bay — xong la xoa, khong giu ket qua (khong phai cache).
+const dashboardRollupFetchInflight = new Map();
+
+function shareDashboardRollupFetch(branch, ranges, plan, rollupVersionSnapshot) {
+  const bounds = ['overviewRange', 'productsRange', 'invoicesRange', 'newPurchasesRange']
+    .map(name => rangeToDateBounds(ranges[name]));
+  const key = [branch || '', plan.key, JSON.stringify(bounds), rollupVersionSnapshot].join('|');
+  const existing = dashboardRollupFetchInflight.get(key);
+  if (existing) return existing;
+  const fetching = fetchDashboardRollups(branch, ranges, plan).finally(() => {
+    if (dashboardRollupFetchInflight.get(key) === fetching) dashboardRollupFetchInflight.delete(key);
+  });
+  dashboardRollupFetchInflight.set(key, fetching);
+  return fetching;
+}
+
 // Chi doc nguon "re" (cache trong bo nho, thuong tuc thi) — KHONG goi rollup
 // (7 cau SQL) o day nua. getDashboardData() chi goi fetchDashboardRollups()
 // rieng, SAU khi da tra dashboardResultCache va bi mien (xem Task 1.1).
-async function loadDashboardBaseSources(branch, physicalBranch = branch || BRANCHES.HANOI) {
+// `plan` quyet dinh bang nguon nao duoc doc; workbook cong no + workflow (Google
+// Sheets/Postgres) chi doc khi co tab Cong no.
+async function loadDashboardBaseSources(branch, physicalBranch = branch || BRANCHES.HANOI, plan = resolveViewPlan()) {
   const [sheets, debtManagementSource, debtWorkflow] = await Promise.all([
-    getCachedDashboardCoreSheets(branch),
-    getCachedDebtManagementSource(branch),
-    getCachedDebtWorkflow(branch)
+    getCachedDashboardCoreSources(branch, plan.coreKeys),
+    plan.needsDebt ? getCachedDebtManagementSource(branch) : null,
+    plan.needsDebt ? getCachedDebtWorkflow(branch) : null
   ]);
   return { branch: physicalBranch, sheets, debtManagementSource, debtWorkflow };
 }
 
-function dashboardSourceVersion(branch) {
-  return `${branch}:${dashboardCoreSheetsCacheFor(branch).version}:${debtManagementSheetsCacheFor(branch).version}:${debtWorkflowCacheFor(branch).version}`;
+function dashboardSourceVersion(branch, plan) {
+  const debtPart = plan.needsDebt
+    ? `${debtManagementSheetsCacheFor(branch).version}:${debtWorkflowCacheFor(branch).version}`
+    : '-:-';
+  return `${branch}:${dashboardCoreSourcesVersion(branch, plan.coreKeys)}:${debtPart}`;
 }
 
 /**
@@ -2226,10 +2351,20 @@ function dashboardSourceVersion(branch) {
  * tab/poll lai voi CUNG bo loc trong luc du lieu tho (dashboardCoreSheetsCache)
  * chua het han.
  * @param {Object} filters - xem computeDashboardData
+ * @param {Object} [options]
+ * @param {string[]} [options.views] - chi doc/tinh/tra cac tab nay ('overview' |
+ *   'products' | 'invoices' | 'customers' | 'suppliers' | 'debt'); bo trong =
+ *   ca 6 tab nhu truoc day (xem dashboardViews.js). Cache ket qua tach rieng theo
+ *   tap tab + chi theo cac bo loc tab do dung.
  * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
  */
-async function getDashboardData(filters, branch, viewer) {
+async function getDashboardData(filters, branch, viewer, options) {
   const f = filters || {};
+  // Chup rollupVersion NGAY DAU HAM (truoc moi await): neu rollup doi phien ban trong luc
+  // doc nguon/rollup, ket qua tinh xong van duoc luu duoi khoa cu (versionTag), chi lang phi
+  // 1 lan tinh, khong bao gio luu du lieu cu duoi khoa moi.
+  const rollupVersionAtStart = rollupVersion;
+  const plan = resolveViewPlan(options && options.views);
   // Khop CHINH XAC voi guard cua PATCH /api/debt-management/status — neu khac
   // thi nut sua trong bang se hien ra roi API tra 403 (hoac nguoc lai).
   const canEditDebtStatus = hasFeature(viewer, 'reports.debt.edit');
@@ -2253,15 +2388,26 @@ async function getDashboardData(filters, branch, viewer) {
   const sourceArguments = branchScope.map(physicalBranch =>
     (branch == null && branchScope.length === 1 ? undefined : physicalBranch)
   );
+  // Cache nguon nguoi/qua cu (vd sang som, sau khi server khoi dong lai): phai cho doc Postgres
+  // nen ket qua chac chan khong trung cache -> chay rollup song song voi viec doc bang nguon.
+  // Khi cache nguon con han thi KHONG chay som: co the trung dashboardResultCache (xem Task 1.1).
+  const earlyRollups = plan.rollups.size && branchScope.some((physicalBranch, index) =>
+    dashboardCoreSourcesNeedBlockingFetch(sourceArguments[index], plan.coreKeys)
+  )
+    ? branchScope.map((physicalBranch, index) =>
+      shareDashboardRollupFetch(sourceArguments[index], ranges, plan, rollupVersionAtStart))
+    : null;
+  // Loi cua rollup chay som duoc nem lai khi ket qua that su can (trong computing ben duoi);
+  // ngan "unhandled rejection" neu request nay khong toi buoc do (vd gop vao request dang tinh).
+  if (earlyRollups) earlyRollups.forEach(promise => promise.catch(() => {}));
   const branchSources = await Promise.all(branchScope.map((physicalBranch, index) =>
-    loadDashboardBaseSources(sourceArguments[index], physicalBranch)
+    loadDashboardBaseSources(sourceArguments[index], physicalBranch, plan)
   ));
-  const sourceVersions = branchScope.map(dashboardSourceVersion).join(';');
-  // Chup rollupVersion NGAY TAI DAY, truoc khi fetch rollup o duoi — neu rollup
-  // doi phien ban giua chung luc dang fetch, ket qua tinh xong van duoc luu
-  // duoi khoa cu (versionTag da chup), chi lang phi 1 lan tinh, khong sai so.
-  const versionTag = sourceVersions + ':r' + rollupVersion;
-  const cacheKey = dashboardResultCacheKey(requestedBranch, `${versionTag}:${canEditDebtStatus ? 'edit' : 'read'}`, f);
+  const sourceVersions = branchScope.map(physicalBranch => dashboardSourceVersion(physicalBranch, plan)).join(';');
+  // Tab khong dung rollup (Cong no) khong bi het hieu luc khi rollup doi.
+  const versionTag = sourceVersions + (plan.rollups.size ? ':r' + rollupVersionAtStart : '');
+  const editTag = plan.needsDebt ? (canEditDebtStatus ? 'edit' : 'read') : 'n';
+  const cacheKey = dashboardResultCacheKey(requestedBranch, plan, `${versionTag}:${editTag}`, pickFilters(f, plan));
 
   const cached = dashboardResultCache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt) {
@@ -2278,22 +2424,22 @@ async function getDashboardData(filters, branch, viewer) {
   const computing = (async () => {
     // Du lieu tho hoac rollup da sang phien ban moi -> moi ket qua cache cu deu
     // tinh tu du lieu cu, don sach de Map khong phinh vo han qua nhieu phien ban.
-    // Chi don entry CUA CHINH CO SO nay (tien to `${branch}|`) — entry cua co so
-    // khac co vong doi rieng.
-    const branchPrefix = requestedBranch + '|';
+    // Chi don entry CUA CHINH CO SO + TAP TAB nay (tien to `${branch}|${tab}|`) —
+    // entry cua co so/tab khac co vong doi rieng.
+    const scopePrefix = dashboardResultScope(requestedBranch, plan);
     for (const key of dashboardResultCache.keys()) {
-      if (key.startsWith(branchPrefix) && !key.startsWith(branchPrefix + versionTag + ':')) {
+      if (key.startsWith(scopePrefix) && !key.startsWith(scopePrefix + versionTag + ':')) {
         dashboardResultCache.delete(key);
       }
     }
 
-    // Cache ket qua mien -> gio moi goi rollup (7 cau SQL/co so). Gan thang
+    // Cache ket qua mien -> gio moi goi rollup (toi da 7 cau SQL/co so). Gan thang
     // vao tung branchSource (object moi tao rieng cho request nay, khong phai
     // object dung chung tu cache) de giu dung shape ma computeDashboardData/
     // mergeDashboardSheets/mergeDebtManagementSources/mergeDashboardRollups
     // dang mong doi (doc branchSources[i].rollups).
     await Promise.all(branchSources.map((source, index) =>
-      fetchDashboardRollups(sourceArguments[index], ranges).then(rollups => {
+      (earlyRollups ? earlyRollups[index] : fetchDashboardRollups(sourceArguments[index], ranges, plan)).then(rollups => {
         source.rollups = rollups;
       })
     ));
@@ -2309,10 +2455,12 @@ async function getDashboardData(filters, branch, viewer) {
         source.branch,
         source.debtWorkflow,
         canEditDebtStatus,
-        source.rollups
+        source.rollups,
+        undefined,
+        plan
       );
     } else {
-      const debtManagement = mergeDebtManagementSources(branchSources, canEditDebtStatus);
+      const debtManagement = plan.has('debt') ? mergeDebtManagementSources(branchSources, canEditDebtStatus) : undefined;
       data = computeDashboardData(
         mergeDashboardSheets(branchSources),
         f,
@@ -2322,7 +2470,8 @@ async function getDashboardData(filters, branch, viewer) {
         null,
         canEditDebtStatus,
         mergeDashboardRollups(branchSources),
-        debtManagement
+        debtManagement,
+        plan
       );
     }
     dashboardResultCache.set(cacheKey, { data, expiresAt: Date.now() + DASHBOARD_RESULT_CACHE_TTL_MS });
@@ -2353,8 +2502,13 @@ async function getDashboardData(filters, branch, viewer) {
  * @param {Date} now
  * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
  */
-function computeDashboardData(sheets, filters, now, debtManagementSource, branch, debtWorkflow, canEditDebtStatus, rollups, debtManagementOverride) {
+function computeDashboardData(sheets, filters, now, debtManagementSource, branch, debtWorkflow, canEditDebtStatus, rollups, debtManagementOverride, plan) {
   computeCallCountForTest += 1;
+  // `plan` (dashboardViews.resolveViewPlan): chi tinh phan cua cac tab duoc chon.
+  // Bang nguon/rollup cua tab khac KHONG duoc nap (xem `|| []` ben duoi) nen cac
+  // vong lap tren chung la no-op; chi mot so khoi ton kem/khong an toan khi thieu
+  // du lieu (cong no, top khach, chi tiet giao dich) can guard bang plan.has().
+  const view = plan || resolveViewPlan();
   const f = filters || {};
   rollups = rollups || {};
   const todayStr = formatDMY(now);
@@ -2369,24 +2523,24 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const newPurchasesRange = resolveFilterRange(f.newPurchases, now);
   const newProductsRange = resolveFilterRange(f.newProducts, now);
 
-  const debtManagement = debtManagementOverride || buildDebtManagementForBranch({
+  const debtManagement = !view.has('debt') ? undefined : (debtManagementOverride || buildDebtManagementForBranch({
     branch,
     sheets,
     debtManagementSource,
     debtWorkflow
-  }, canEditDebtStatus);
+  }, canEditDebtStatus));
 
-  const categoryData = sheets[CONFIG.SHEET_CATEGORIES];
-  const prodData = sheets[CONFIG.SHEET_PRODUCTS];
-  const invData = sheets[CONFIG.SHEET_INVOICES];
+  const categoryData = sheets[CONFIG.SHEET_CATEGORIES] || [];
+  const prodData = sheets[CONFIG.SHEET_PRODUCTS] || [];
+  const invData = sheets[CONFIG.SHEET_INVOICES] || [];
   // "Chi tiết hóa đơn"/"Nhập hàng" KHONG con doc tu `sheets` o day — 2 tab
-  // nang nhat, da bo khoi cache "core" (xem getCachedDashboardCoreSheets()) va
+  // nang nhat, da bo khoi cache "core" (xem getCachedDashboardCoreSources()) va
   // duoc thay bang dashboardRollupRepository.js qua tham so `rollups`.
-  const orderData = sheets[CONFIG.SHEET_ORDERS];
-  const returnData = sheets[CONFIG.SHEET_RETURNS];
-  const custData = sheets[CONFIG.SHEET_CUSTOMERS];
+  const orderData = sheets[CONFIG.SHEET_ORDERS] || [];
+  const returnData = sheets[CONFIG.SHEET_RETURNS] || [];
+  const custData = sheets[CONFIG.SHEET_CUSTOMERS] || [];
   const customerReportData = sheets[CONFIG.SHEET_CUSTOMER_REPORT] || [];
-  const supplierData = sheets[CONFIG.SHEET_SUPPLIERS];
+  const supplierData = sheets[CONFIG.SHEET_SUPPLIERS] || [];
 
   // ---------- HÀNG HÓA ----------
   // Doc theo ten cot de schema co the bo cot khong dung ma khong lam lech KPI.
@@ -2588,12 +2742,14 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   // (rollup, chi gom status=3 Hoan thanh, xem dashboardRollupRepository.getInvoiceRevenueByDay())
   // thay vi tu gom lai `invoiceRecords` trong JS moi request.
   const overviewPeriod = buildRevenuePeriodFromRollup(overviewRange, (rollups && rollups.overviewRevenueRows) || []);
-  const transactionsReport = buildTransactionsReport(invoicesRange, invoiceRecords, invoiceQuantityMap, branch === BRANCH_BOTH);
+  const transactionsReport = view.has('invoices')
+    ? buildTransactionsReport(invoicesRange, invoiceRecords, invoiceQuantityMap, branch === BRANCH_BOTH)
+    : undefined;
 
   const invoicesPeriod = buildRevenuePeriodFromRollup(invoicesRange, (rollups && rollups.invoicesRevenueRows) || []);
-  const periodCancelledInvoices = invoiceRecords.filter(
-    record => record.isCancelled && isWithinRange(record._dt, invoicesRange)
-  ).length;
+  const periodCancelledInvoices = view.has('invoices')
+    ? invoiceRecords.filter(record => record.isCancelled && isWithinRange(record._dt, invoicesRange)).length
+    : 0;
 
   // ---------- SẢN PHẨM BÁN CHẠY -> TOP SẢN PHẨM/NHÓM HÀNG (theo bộ lọc Hàng hóa) ----------
   // Nguon: daily_product_sales (rollup, da tong hop san theo ma hang cho
@@ -2840,12 +2996,14 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   // hoàn thành trong khoảng đã chọn, kèm doanh thu mua hàng trong kỳ đó —
   // nối bằng số điện thoại vì hóa đơn không lưu mã khách hàng.
   const customerRevenueByPhone = new Map();
-  invoiceRecords.forEach(r => {
-    if (!r.isCompleted || !isWithinRange(r._dt, customersRange)) return;
-    const phoneKey = normalizePhone(r.phone);
-    if (!phoneKey) return;
-    customerRevenueByPhone.set(phoneKey, (customerRevenueByPhone.get(phoneKey) || 0) + r.total);
-  });
+  if (view.has('customers')) {
+    invoiceRecords.forEach(r => {
+      if (!r.isCompleted || !isWithinRange(r._dt, customersRange)) return;
+      const phoneKey = normalizePhone(r.phone);
+      if (!phoneKey) return;
+      customerRevenueByPhone.set(phoneKey, (customerRevenueByPhone.get(phoneKey) || 0) + r.total);
+    });
+  }
 
   let totalCustomers = 0, customersWithDebt = 0, totalDebt = 0;
   let topDebt = [];
@@ -2869,7 +3027,9 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   }
   topDebt.sort((a, b) => b.debt - a.debt);
 
-  const topCustomersByRevenue = buildTopCustomersByRevenue(customersRange, customerReportData, invData, custData, returnData);
+  const topCustomersByRevenue = view.has('customers')
+    ? buildTopCustomersByRevenue(customersRange, customerReportData, invData, custData, returnData)
+    : undefined;
 
   // ---------- NHÀ CUNG CẤP ----------
   const supplierHeaders = supplierData[0] || [];
@@ -2949,7 +3109,9 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const newPurchasesTotalAmount = newPurchaseOrders.reduce((sum, p) => sum + p.total, 0);
   const newPurchasesSupplierCount = newPurchaseSupplierMap.size;
 
-  return {
+  // Ban day du (shape cu). pickPayload() giu nguyen khi chay du 6 tab, cat ve
+  // dung phan cua tab duoc chon khi chay theo tung tab (dashboardViews.js).
+  const result = {
     updatedAt: formatDMYHMS(now),
     filters: {
       overview: overviewRange,
@@ -3045,6 +3207,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     },
     debtManagement
   };
+  return pickPayload(result, view);
 }
 
 function invalidateDebtWorkflowCache(branch) {
@@ -3071,7 +3234,7 @@ async function prewarmDashboardCaches({ log } = {}) {
   const logFn = typeof log === 'function' ? log : () => {};
   for (const physicalBranch of resolveBranchScope(BRANCH_BOTH)) {
     try {
-      await getCachedDashboardCoreSheets(physicalBranch);
+      await getCachedDashboardCoreSources(physicalBranch, ALL_CORE_KEYS);
       await getCachedDebtManagementSource(physicalBranch);
       await getCachedDebtWorkflow(physicalBranch);
       logFn(`[Dashboard] Prewarm xong cho co so ${physicalBranch}`);
@@ -3109,14 +3272,20 @@ module.exports = {
     },
     // Cache "core" (7/9 tab) — dung cho getDashboardData() (kem xuat Excel qua exportService.js).
     expireSheetsCache(branch) {
-      dashboardCoreSheetsCacheFor(branch).expiresAt = 0;
+      forEachDashboardCoreEntry(branch, entry => { entry.expiresAt = 0; });
     },
     // Khac expireSheetsCache(): dat "vua qua han" (con trong cua so
     // DASHBOARD_SHEETS_MAX_STALE_MS) de test duong stale-while-revalidate —
     // expireSheetsCache() dat expiresAt=0 lam cache qua han QUA LAU (roi vao
     // nhanh phai cho fetch that, khac hanh vi can test o day).
     expireSheetsCacheSoftly(branch) {
-      dashboardCoreSheetsCacheFor(branch).expiresAt = Date.now() - 1000;
+      forEachDashboardCoreEntry(branch, entry => { entry.expiresAt = Date.now() - 1000; });
+    },
+    // Chi het han cac bang nguon duoc chi dinh (test cache theo tung bang).
+    expireCoreSources(branch, keys, soft = false) {
+      keys.forEach(key => {
+        dashboardCoreEntry(branch, key).expiresAt = soft ? Date.now() - 1000 : 0;
+      });
     },
     // Cache "full" (9 tab) — dung cho /api/search.
     expireFullSheetsCache(branch) {
@@ -3128,6 +3297,9 @@ module.exports = {
     expireDebtManagementCache(branch) {
       debtManagementSheetsCacheFor(branch).expiresAt = 0;
     },
+    // Ban nhanh va ban Intl chuan cua getDashboardDateParts — test doi chieu 2 ban.
+    dateParts: getDashboardDateParts,
+    datePartsIntl: getDashboardDatePartsIntl,
     getSearchIndexBuildCount: () => searchIndexBuildCountForTest,
     getComputeCallCount: () => computeCallCountForTest,
     getResultCacheSize: () => dashboardResultCache.size

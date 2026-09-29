@@ -566,3 +566,35 @@ test('readRowsByCodes: signal da huy -> dung truoc lo ke tiep (EXPORT_ABORTED), 
   await createDashboardPgReader({ pool: poolFull }).readRowsByCodes(CONFIG.SHEET_PRODUCTS, 'Hà Nội', makeCodes(20001));
   assert.equal(poolFull.calls.length, 5);
 });
+
+test('readCoreDashboardSheets(branch, sheetNames): CHI chay cau SQL cua cac bang duoc chon (bang khac khong bi doc)', async () => {
+  const pool = fakePool();
+  const reader = createDashboardPgReader({ pool });
+  const wanted = [CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES];
+  const sheets = await reader.readCoreDashboardSheets('Hà Nội', wanted);
+
+  assert.equal(pool.calls.length, 2, 'moi bang duoc chon dung 1 cau SQL, khong doc 5 bang con lai (vd Dat hang ~23K dong)');
+  assert.deepEqual(Object.keys(sheets).sort(), wanted.slice().sort());
+  pool.calls.forEach(call => assert.deepEqual(call.params, ['hanoi']));
+  assert.ok(pool.calls.some(call => call.sql.includes(`-- tab: ${CONFIG.SHEET_PRODUCTS}`)));
+  assert.ok(!pool.calls.some(call => call.sql.includes(`-- tab: ${CONFIG.SHEET_ORDERS}`)));
+});
+
+test('readCoreDashboardSheets(branch, sheetNames): ten khong thuoc 7 bang core (Chi tiet hoa don/Nhap hang/la) bi bo qua, mang rong = khong query', async () => {
+  const pool = fakePool();
+  const reader = createDashboardPgReader({ pool });
+  const sheets = await reader.readCoreDashboardSheets('Hà Nội', [CONFIG.SHEET_INVOICE_DETAILS, CONFIG.SHEET_PURCHASES, 'khong-co']);
+  assert.deepEqual(sheets, {});
+  assert.equal(pool.calls.length, 0);
+
+  const none = await reader.readCoreDashboardSheets('Hà Nội', []);
+  assert.deepEqual(none, {});
+  assert.equal(pool.calls.length, 0);
+});
+
+test('readCoreDashboardSheets(branch, sheetNames) van mo rong "Ca hai" thanh hai co so vat ly cho bang duoc chon', async () => {
+  const pool = fakePool();
+  const reader = createDashboardPgReader({ pool });
+  await reader.readCoreDashboardSheets('Cả hai', [CONFIG.SHEET_CUSTOMERS]);
+  assert.deepEqual(pool.calls.map(call => call.params[0]).sort(), ['hanoi', 'saigon']);
+});

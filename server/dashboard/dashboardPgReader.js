@@ -618,8 +618,15 @@ function createDashboardPgReader({ pool = getPool() } = {}) {
    * kiem duoc gi). Dung cho getCachedDashboardCoreSheets() trong
    * dashboardData.js — nguon cho /api/dashboard.
    */
-  async function readCoreDashboardSheets(branch) {
-    return queryTabs(pool, CORE_TABS, branch);
+  async function readCoreDashboardSheets(branch, sheetNames) {
+    // `sheetNames` (tuy chon): CHI doc cac tab core duoc chon (ten khong thuoc
+    // CORE_SHEET_NAMES bi bo qua) — moi tab cua "Bao cao tong hop" chi doc dung
+    // nhung bang no can (vd tab Dat hang ~23K dong chi Hoa don can). Bo trong
+    // = doc du 7 tab nhu cu.
+    const tabs = Array.isArray(sheetNames)
+      ? CORE_TABS.filter(tab => sheetNames.includes(tab.sheetName))
+      : CORE_TABS;
+    return queryTabs(pool, tabs, branch);
   }
 
   /**
