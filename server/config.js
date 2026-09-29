@@ -101,6 +101,11 @@ const CONFIG = {
   // Optional — mac dinh true khi production (Supabase Postgres can SSL), false
   // khi dev local (Postgres qua Docker thuong khong bat SSL).
   PGSSL: process.env.PGSSL ? process.env.PGSSL === 'true' : process.env.NODE_ENV === 'production',
+  // Tran so ket noi cua pool pg TREN MOI INSTANCE. Supabase session pooler chi
+  // co pool_size 15 dung chung; khi deploy, instance cu + moi chay chong nhau
+  // (~30s) nen 2 x max phai <= 15 (7 x 2 = 14), neu khong se dinh
+  // EMAXCONNSESSION. Chi tang khi da doi sang transaction pooler / them ket noi.
+  PG_POOL_MAX: Number(process.env.PG_POOL_MAX) > 0 ? Number(process.env.PG_POOL_MAX) : 7,
   // Cong tac chinh cua toan bo engine dong bo KiotViet->Supabase (webhook +
   // polling). Mac dinh TAT tuong minh — khong co logic tu bat theo NODE_ENV.
   KIOTVIET_SYNC_ENABLED: process.env.KIOTVIET_SYNC_ENABLED === 'true',

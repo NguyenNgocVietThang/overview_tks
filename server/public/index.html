@@ -2471,6 +2471,12 @@
       max-height: none;
     }
 
+    /* Chế độ "Theo mặt hàng" không có biểu đồ bên cạnh: bảng tự quyết định chiều cao rồi cuộn. */
+    .top-selling-table-panel.is-full>.top-selling-table-scroll {
+      flex: 0 1 auto;
+      max-height: 560px;
+    }
+
     .chart-empty {
       position: absolute;
       inset: 0;
@@ -3678,7 +3684,7 @@
                   <div class="panel-head">
                     <h2><span id="cpSelectedCustomerName">—</span> <span class="tag"
                         id="cpSelectedCustomerCode">—</span></h2>
-                    <span class="drill-hint">90 ngày gần đây</span>
+                    <span class="drill-hint" id="cpWindowHint">90 ngày gần đây</span>
                   </div>
                   <div class="search-input-wrap" style="margin-bottom:10px;">
                     <input class="search-input" id="cpProductFilterInput" type="search" autocomplete="off"
@@ -3864,7 +3870,6 @@
                         <th>Tên SP</th>
                         <th>Ngày hết hàng gần nhất</th>
                         <th>Số ngày đứt hàng</th>
-                        <th>Cảnh báo dữ liệu</th>
                         <th>Các đợt đứt hàng</th>
                       </tr>
                     </thead>
@@ -3908,7 +3913,6 @@
                         <th>Số ngày đứt hàng</th>
                         <th>Số ngày đứt TB</th>
                         <th>Tồn kho hiện tại</th>
-                        <th>Cảnh báo dữ liệu</th>
                         <th>Các đợt đứt hàng</th>
                       </tr>
                     </thead>
@@ -3952,7 +3956,6 @@
                         <th>Số ngày đứt hàng</th>
                         <th>Số ngày đứt TB</th>
                         <th>Tồn kho hiện tại</th>
-                        <th>Cảnh báo dữ liệu</th>
                         <th>Các đợt đứt hàng</th>
                       </tr>
                     </thead>
@@ -4058,14 +4061,14 @@
                 nhóm cha</button>
             </div>
             <div class="grid">
-              <div class="panel col-7 top-selling-feature-panel">
+              <div class="panel col-7 top-selling-feature-panel" id="topSellingChartPanel" hidden>
                 <div class="panel-head">
                   <h2><span id="topSellingChartTitle">Top sản phẩm bán chạy</span> <span class="tag"
                       id="tagTopSelling">—</span></h2>
                 </div>
                 <div class="chart-box top-selling-top"><canvas id="chartTopSelling"></canvas></div>
               </div>
-              <div class="panel col-5 top-selling-table-panel">
+              <div class="panel col-12 top-selling-table-panel is-full" id="topSellingTablePanel">
                 <div class="panel-head">
                   <h2 id="topSellingTableTitle">Chi tiết sản phẩm bán chạy</h2><button class="export-button"
                     type="button" onclick="openExportDialog('products.top-selling')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
@@ -4078,6 +4081,7 @@
                         <th id="topSellingNameHeader">Sản phẩm</th>
                         <th>SL bán</th>
                         <th>Doanh thu</th>
+                        <th id="topSellingStockHeader">Tồn kho</th>
                       </tr>
                     </thead>
                     <tbody id="topSellingRows">
@@ -4334,22 +4338,10 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">2</span>
-              <h2>Giao dịch <span class="section-note">top 15 giao dịch lớn nhất và chi tiết từng giao dịch trong khoảng thời gian
-                  đã chọn</span></h2>
+              <h2>Giao dịch <span class="section-note">chi tiết từng giao dịch trong khoảng thời gian đã chọn</span></h2>
             </div>
             <div class="grid transaction-analysis-grid">
-              <div class="panel col-5">
-                <div class="panel-head">
-                  <h2>Top 15 giao dịch lớn nhất</h2>
-                  <span class="drill-hint" id="top-transactions-count">Xếp theo doanh thu · không gồm giao dịch đã
-                    hủy</span>
-                </div>
-                <div class="chart-box top-transactions-chart">
-                  <canvas id="chartTopTransactions" role="img"
-                    aria-label="Biểu đồ cột ngang top 15 giao dịch có doanh thu lớn nhất theo bộ lọc"></canvas>
-                </div>
-              </div>
-              <div class="panel col-7 end-day-table">
+              <div class="panel col-12 end-day-table">
                 <div class="panel-head">
                   <h2>Chi tiết giao dịch</h2>
                   <div class="panel-head-actions"><span class="drill-hint" id="end-day-table-count">—</span><button
@@ -5760,7 +5752,7 @@
       if (exportButton) exportButton.disabled = filtered.items.length === 0;
 
       if (filtered.items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="' + (merged ? 7 : 6) + '" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục tính đến ' +
+        tbody.innerHTML = '<tr><td colspan="' + (merged ? 6 : 5) + '" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục tính đến ' +
           escapeHtml(result ? result.asOfDate : '') + '</td></tr>';
         return;
       }
@@ -5773,7 +5765,6 @@
             '<td>' + escapeHtml(row.name) + '</td>' +
             '<td>' + escapeHtml(row.lastOutOfStockDate) + '</td>' +
             '<td>' + row.daysOutOfStock + '</td>' +
-            '<td>' + (row.hasUnreliableData ? '⚠ Thiếu dữ liệu Trả NCC' : '') + '</td>' +
             '<td>' + formatStockoutPeriods(row.periods) + '</td>' +
           '</tr>'
         );
@@ -5819,7 +5810,7 @@
           // theo co so dang chon) — gui thua khoa nay o mot co so se bi tu choi.
           columns: {
             recent_stockout_result: (isMergedStockoutResult(result) ? ['branch'] : [])
-              .concat(['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'dataWarning', 'periods'])
+              .concat(['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'periods'])
           }
         };
         const response = await exportFetch('/api/export', payload, request);
@@ -6008,7 +5999,7 @@
       if (exportButton) exportButton.disabled = filtered.items.length === 0;
 
       if (filtered.items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="' + (merged ? 9 : 8) + '" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 90 ngày gần đây</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="' + (merged ? 8 : 7) + '" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 90 ngày gần đây</td></tr>';
         return;
       }
 
@@ -6023,7 +6014,6 @@
             '<td>' + row.totalStockoutDays + '</td>' +
             '<td>' + avgStockoutDays.toFixed(2) + '</td>' +
             '<td>' + row.currentOnHand + '</td>' +
-            '<td>' + (row.hasUnreliableData ? '⚠ Thiếu dữ liệu Trả NCC' : '') + '</td>' +
             '<td>' + formatStockoutPeriods(row.periods) + '</td>' +
           '</tr>'
         );
@@ -6068,7 +6058,7 @@
           // Xem ghi chu tuong tu o exportRecentStockoutResult().
           columns: {
             stockout_90d_result: (isMergedStockoutResult(result) ? ['branch'] : [])
-              .concat(['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'dataWarning', 'periods'])
+              .concat(['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'periods'])
           }
         };
         const response = await exportFetch('/api/export', payload, request);
@@ -6257,7 +6247,7 @@
       if (exportButton) exportButton.disabled = filtered.items.length === 0;
 
       if (filtered.items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="' + (merged ? 9 : 8) + '" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 30 ngày gần đây</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="' + (merged ? 8 : 7) + '" class="table-note">Không tìm thấy mã nào đứt hàng ≥ 5 ngày liên tục trong 30 ngày gần đây</td></tr>';
         return;
       }
 
@@ -6272,7 +6262,6 @@
             '<td>' + row.totalStockoutDays + '</td>' +
             '<td>' + avgStockoutDays.toFixed(2) + '</td>' +
             '<td>' + row.currentOnHand + '</td>' +
-            '<td>' + (row.hasUnreliableData ? '⚠ Thiếu dữ liệu Trả NCC' : '') + '</td>' +
             '<td>' + formatStockoutPeriods(row.periods) + '</td>' +
           '</tr>'
         );
@@ -6317,7 +6306,7 @@
           // Xem ghi chu tuong tu o exportRecentStockoutResult().
           columns: {
             stockout_30d_result: (isMergedStockoutResult(result) ? ['branch'] : [])
-              .concat(['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'dataWarning', 'periods'])
+              .concat(['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'periods'])
           }
         };
         const response = await exportFetch('/api/export', payload, request);
@@ -7491,27 +7480,36 @@
       if (state.charts[key]) { state.charts[key].destroy(); delete state.charts[key]; }
     }
 
-    function renderRevenueChart(canvasId, key, revenueByDay) {
+    function renderRevenueChart(canvasId, key, revenueByDay, asBar) {
       destroyChart(key);
       const ctx = document.getElementById(canvasId).getContext('2d');
       const theme = chartTheme();
       const revenueValues = revenueByDay.map(d => Number(d.revenue) || 0);
       const formatAxisMoney = createMoneyAxisFormatter(revenueValues);
+      const dataset = asBar
+        ? {
+          label: 'Doanh thu',
+          data: revenueValues,
+          backgroundColor: theme.amber,
+          borderRadius: 3,
+          maxBarThickness: 28
+        }
+        : {
+          label: 'Doanh thu',
+          data: revenueValues,
+          backgroundColor: 'rgba(240,166,58,0.35)',
+          borderColor: theme.amber,
+          borderWidth: 2,
+          borderRadius: 3,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0
+        };
       state.charts[key] = new Chart(ctx, {
-        type: 'line',
+        type: asBar ? 'bar' : 'line',
         data: {
           labels: revenueByDay.map(d => d.label),
-          datasets: [{
-            label: 'Doanh thu',
-            data: revenueValues,
-            backgroundColor: 'rgba(240,166,58,0.35)',
-            borderColor: theme.amber,
-            borderWidth: 2,
-            borderRadius: 3,
-            fill: true,
-            tension: 0.3,
-            pointRadius: 0
-          }]
+          datasets: [dataset]
         },
         options: {
           animation: chartAnimationOption(),
@@ -7524,77 +7522,6 @@
           scales: {
             x: { ticks: { color: theme.muted, maxTicksLimit: 10, font: { size: 10.5 } }, grid: { display: false } },
             y: { beginAtZero: true, ticks: { color: theme.muted, callback: formatAxisMoney, font: { size: 10.5 } }, grid: { color: theme.grid } }
-          }
-        }
-      });
-    }
-
-    function renderTopTransactionsChart(report) {
-      destroyChart('topTransactions');
-      const canvas = document.getElementById('chartTopTransactions');
-      if (!canvas || !report) return;
-
-      const transactions = (report.topTransactions || report.transactions || [])
-        .filter(item => item && item.status === 'Hoàn thành')
-        .sort((a, b) => (Number(b.revenue) || 0) - (Number(a.revenue) || 0))
-        .slice(0, 15);
-      const revenueValues = transactions.map(item => Number(item.revenue) || 0);
-      const formatAxisMoney = createMoneyAxisFormatter(revenueValues);
-      const theme = chartTheme();
-      canvas.style.cursor = transactions.length ? 'pointer' : '';
-      canvas.title = transactions.length ? 'Nhấn cột để xem dòng tương ứng' : '';
-      const countLabel = document.getElementById('top-transactions-count');
-      if (countLabel) {
-        countLabel.textContent = transactions.length
-          ? transactions.length + ' giao dịch hoàn thành · xếp theo doanh thu'
-          : 'Chưa có giao dịch hoàn thành';
-      }
-
-      state.charts.topTransactions = new Chart(canvas.getContext('2d'), {
-        type: 'bar',
-        data: {
-          labels: transactions.map(item => item.code || '—'),
-          datasets: [{
-            label: 'Doanh thu',
-            data: revenueValues,
-            backgroundColor: 'rgba(240,166,58,0.5)',
-            borderColor: theme.amber,
-            borderWidth: 1.5,
-            borderRadius: 5,
-            maxBarThickness: 38
-          }]
-        },
-        options: {
-          indexAxis: 'y',
-          animation: chartAnimationOption(),
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false, axis: 'y' },
-          onClick: function (event, elements) {
-            if (elements && elements[0]) navigateChartToTable('endOfDay', transactions[elements[0].index].code);
-          },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                title: items => {
-                  const item = transactions[items[0].dataIndex] || {};
-                  return (item.code || '—') + (item.time ? ' · ' + item.time : '');
-                },
-                label: context => {
-                  const item = transactions[context.dataIndex] || {};
-                  return [
-                    'Doanh thu: ' + fmtMoney(item.revenue),
-                    'Thực thu: ' + fmtMoney(item.paid),
-                    'Giảm giá: ' + fmtMoney(item.discount)
-                  ];
-                }
-              }
-            }
-          },
-          scales: {
-            x: { beginAtZero: true, ticks: { color: theme.muted, callback: formatAxisMoney, font: { size: 10.5 } }, grid: { color: theme.grid } },
-            y: { ticks: { color: theme.muted, autoSkip: false, font: { size: 10.5 } }, grid: { display: false } }
           }
         }
       });
@@ -7619,7 +7546,7 @@
           datasets: [{
             label: 'Doanh thu',
             data: revenueValues,
-            backgroundColor: 'rgba(240,166,58,0.5)',
+            backgroundColor: theme.amber,
             borderColor: theme.amber,
             borderWidth: 1.5,
             borderRadius: 5,
@@ -7671,7 +7598,7 @@
       const valueScale = { ticks: { color: theme.muted, callback: v => fmtMoneyShort(v), font: { size: 10.5 } }, grid: { color: theme.grid } };
       const labelScale = { ticks: { color: theme.text, font: { size: 10.5 }, autoSkip: false, maxRotation: 60, minRotation: 40 }, grid: { display: false } };
       const solidColor = color || theme.amber;
-      const fillColor = colorWithAlpha(solidColor, 0.5);
+      const fillColor = solidColor;
       state.charts[key] = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -7818,7 +7745,7 @@
           labels: items.map(item => item.name),
           datasets: [{
             data: items.map(item => item.stockValue),
-            backgroundColor: colorWithAlpha(solidColor, 0.5),
+            backgroundColor: solidColor,
             borderColor: solidColor,
             borderWidth: 1.5,
             borderRadius: 5,
@@ -7917,6 +7844,22 @@
       const tableTitle = isParentCategory ? 'Chi tiết doanh thu theo nhóm cha' : 'Chi tiết sản phẩm bán chạy';
       const firstColumnLabel = isParentCategory ? 'Nhóm cha' : 'Sản phẩm';
 
+      // Theo mặt hàng: bỏ biểu đồ, bảng rộng full và có thêm cột tồn kho (tra theo mã từ allProducts).
+      const stockByCode = new Map();
+      if (!isParentCategory) {
+        (d.allProducts || []).forEach(p => stockByCode.set(String(p.code).trim(), p.stock));
+      }
+      const tableRows = isParentCategory
+        ? analysisRows
+        : analysisRows.map(item => Object.assign({}, item, { stock: stockByCode.get(String(item.code).trim()) }));
+      const chartPanel = document.getElementById('topSellingChartPanel');
+      const tablePanel = document.getElementById('topSellingTablePanel');
+      chartPanel.hidden = !isParentCategory;
+      tablePanel.classList.toggle('col-5', isParentCategory);
+      tablePanel.classList.toggle('col-12', !isParentCategory);
+      tablePanel.classList.toggle('is-full', !isParentCategory);
+      document.getElementById('topSellingStockHeader').hidden = isParentCategory;
+
       document.querySelectorAll('#productAnalysisToggle button').forEach(function (button) {
         button.classList.toggle('active', button.dataset.analysis === state.productAnalysis);
       });
@@ -7934,7 +7877,7 @@
         else headerCell.textContent = header[1];
       });
 
-      if (chartRows.length) {
+      if (isParentCategory && chartRows.length) {
         renderBarChartList(
           'chartTopSelling', 'topSelling', chartRows, item => item.name, item => item.revenue,
           themeColor('--green'), false,
@@ -7947,20 +7890,26 @@
       renderPaginatedRows(
         'topSelling',
         { tbody: 'topSellingRows', pagination: 'topSellingPagination', firstBtn: 'topSellingFirstPage', prevBtn: 'topSellingPrevPage', nextBtn: 'topSellingNextPage', lastBtn: 'topSellingLastPage', label: 'topSellingPageLabel' },
-        analysisRows,
+        tableRows,
         item => '<tr>' +
           (isParentCategory
             ? '<td class="mono muted" data-sort-value="' + Number(item.productCount || 0) + '">' + fmtNumber(Number(item.productCount || 0)) + '</td>'
             : '<td class="mono muted">' + escapeHtml(item.code) + '</td>') +
           '<td class="name-cell">' + escapeHtml(item.name) + '</td>' +
           '<td class="mono muted" data-sort-value="' + item.qty + '">' + fmtNumber(Number(item.qty || 0)) +
-          '</td><td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td></tr>',
-        4,
+          '</td><td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td>' +
+          (isParentCategory
+            ? '<td hidden></td>'
+            : item.stock === undefined
+              ? '<td class="mono muted">—</td>'
+              : '<td class="mono muted" data-sort-value="' + item.stock + '">' + fmtNumber(Number(item.stock || 0)) + '</td>') +
+          '</tr>',
+        isParentCategory ? 4 : 5,
         'Chưa có dữ liệu chi tiết hóa đơn'
       );
 
       const activeSort = state.tableSorts.topSellingRows;
-      if (activeSort && ids.tbody !== 'debtManagementRows') {
+      if (activeSort) {
         sortTableRows('topSellingRows', activeSort.columnIndex, activeSort.direction);
         updateTableSortHeader('topSellingRows', activeSort.columnIndex, activeSort.direction);
       } else {
@@ -8609,6 +8558,14 @@
       destroyChart('cpBar');
     }
 
+    // Bao cao dung san moi dem (co computedAt) chi tinh den het ngay hom qua: ghi
+    // ro de khong ai tuong hoa don phat sinh hom nay bi mat.
+    function customerProductWindowHint(data) {
+      return data && data.computedAt && data.range && data.range.to
+        ? '90 ngày đến hết ' + data.range.to
+        : '90 ngày gần đây';
+    }
+
     async function loadCustomerProductReport() {
       const customer = state.customerProductReport.customer;
       if (!customer) return;
@@ -8625,6 +8582,7 @@
         document.getElementById('cpContent').hidden = false;
         document.getElementById('cpSelectedCustomerName').textContent = data.customer.name;
         document.getElementById('cpSelectedCustomerCode').textContent = data.customer.code;
+        document.getElementById('cpWindowHint').textContent = customerProductWindowHint(data);
         renderCustomerProductReport();
       } catch (err) {
         document.getElementById('cpContent').hidden = true;
@@ -8919,7 +8877,7 @@
         document.getElementById('in-period-sub').textContent = invoiceRangeLabel;
         document.getElementById('in-cancelled').textContent = fmtNumber(Number(invoiceData.periodCancelledInvoices || 0));
         document.getElementById('in-cancelled-sub').textContent = invoiceRangeLabel;
-        renderRevenueChart('chartInvoiceRevenue', 'invoiceRevenue', invoiceData.revenueByDay || []);
+        renderRevenueChart('chartInvoiceRevenue', 'invoiceRevenue', invoiceData.revenueByDay || [], true);
 
         const report = invoiceData.transactionsReport || { date: '—', transactions: [], topTransactions: [], summary: {} };
         const summary = report.summary || {};
@@ -8945,7 +8903,6 @@
           9,
           'Chưa có giao dịch trong khoảng đã chọn'
         );
-        renderTopTransactionsChart(report);
 
         document.getElementById('in-pending-count').textContent = fmtNumber(Number(invoiceData.pendingOrdersCount || 0));
         document.getElementById('in-pending-total').textContent = fmtMoney(invoiceData.pendingOrdersTotal);
@@ -9223,8 +9180,8 @@
         data: {
           labels: labels,
           datasets: [
-            { label: 'Nợ hiện tại', data: list.map(function (item) { return Number(item.totalCurrentDebt) || 0; }), backgroundColor: colorWithAlpha(theme.blue, .5), borderColor: theme.blue, borderWidth: 1.5, borderRadius: 5 },
-            { label: 'Nợ quá hạn', data: list.map(function (item) { return Number(item.totalOverdueDebt) || 0; }), backgroundColor: colorWithAlpha(theme.red, .5), borderColor: theme.red, borderWidth: 1.5, borderRadius: 5 }
+            { label: 'Nợ hiện tại', data: list.map(function (item) { return Number(item.totalCurrentDebt) || 0; }), backgroundColor: theme.blue, borderColor: theme.blue, borderWidth: 1.5, borderRadius: 5 },
+            { label: 'Nợ quá hạn', data: list.map(function (item) { return Number(item.totalOverdueDebt) || 0; }), backgroundColor: theme.red, borderColor: theme.red, borderWidth: 1.5, borderRadius: 5 }
           ]
         },
         options: {
@@ -9254,7 +9211,7 @@
       const color = valueField === 'overdueDebt' ? theme.red : theme.blue;
       state.charts[key] = new Chart(canvas.getContext('2d'), {
         type: 'bar',
-        data: { labels: labels, datasets: [{ label: valueField === 'overdueDebt' ? 'Nợ quá hạn' : 'Nợ hiện tại', data: values, backgroundColor: colorWithAlpha(color, .5), borderColor: color, borderWidth: 1.5, borderRadius: 5 }] },
+        data: { labels: labels, datasets: [{ label: valueField === 'overdueDebt' ? 'Nợ quá hạn' : 'Nợ hiện tại', data: values, backgroundColor: color, borderColor: color, borderWidth: 1.5, borderRadius: 5 }] },
         options: {
           indexAxis: 'y',
           responsive: true,

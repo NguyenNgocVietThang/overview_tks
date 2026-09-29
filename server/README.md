@@ -64,5 +64,6 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0019` | Thêm vai trò `Nhân viên marketing` vào CHECK `app_users.vai_tro` |
 | `0020` | `app_users.feature_permissions JSONB` — phân quyền theo tính năng từng tài khoản |
 | `0021` | Index ngày `invoices`/`purchases`/`returns` cho rollup Dashboard và làm mới công nợ 1/3/7 ngày |
+| `0022` | `customer_invoice_lines_90d` + `customer_invoice_lines_state` — chi tiết hóa đơn 90 ngày gắn sẵn mã khách, dựng lại 1 lần/đêm cho báo cáo doanh thu theo khách |
 
 Bot Telegram chạy ngoài repo và đọc/ghi 3 bảng nghỉ phép trực tiếp — hợp đồng dữ liệu ở `db/SCHEMA.md`.

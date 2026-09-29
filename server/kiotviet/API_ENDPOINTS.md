@@ -53,7 +53,7 @@ Nếu tham số được API tôn trọng, `total` phải về 0.
 | invoices | `/invoices` | `includePayment=true&includeInvoiceDelivery=true&IncludeSaleChannel=true` | `lastModifiedFrom` | Live probe: total 23988→0. `fromPurchaseDate`/`toPurchaseDate` lọc theo *ngày bán*, không bắt được hóa đơn cũ bị **sửa**; dùng `lastModifiedFrom` cho checkpoint incremental. Line items nằm trong `InvoiceDetails[]`/`invoiceDetails[]` của cùng response. |
 | orders | `/orders` | `includePayment=true&includeOrderDelivery=true` | `lastModifiedFrom` | **Live probe: `fromOrderDate` bị API bỏ qua hoàn toàn (total không đổi khi set = ngày tương lai) — khác giả định ban đầu trong PlanDB-Phase1-Spec.md §9.1.** `lastModifiedFrom` được xác nhận hoạt động (total 34972→0). Dùng `lastModifiedFrom`, không dùng `fromOrderDate`/`toOrderDate`. |
 | returns | `/returns` | `includePayment=true` | `lastModifiedFrom` | Live probe: total 1348→0. Khớp cách `server/dashboard/stockoutCheck/stockoutEventLoader.js` đã gọi `client.fetchAllPages('returns', { lastModifiedFrom: fromDate }, ...)` trong production. |
-| purchases | `/purchaseorders` (**không phải** `/purchases`) | `includePayment=true&includeOrderDelivery=true` | `lastModifiedFrom` | Live probe: total 3276→0. `fromPurchaseDate`/`toPurchaseDate` cũng xác nhận hoạt động (đã dùng production ở `stockoutEventLoader.js`), nhưng dùng `lastModifiedFrom` để nhất quán và bắt được phiếu nhập cũ bị sửa. |
+| purchases | `/purchaseorders` (**không phải** `/purchases`) | `includePayment=true&includeOrderDelivery=true` | Đối soát danh sách từ mốc sàn đứt hàng, dùng `fromPurchaseDate` | Probe 28/09/2026: `lastModifiedFrom` bỏ sót phiếu tạo lại giữ ngày nhập cũ (PN002517). Không dùng bộ lọc này để chứng minh dữ liệu đầy đủ. Xem phần đối soát cuối tài liệu. |
 | cash_flows | `/cashflow` | `includeAccount=true&includeBranch=true&includeUser=true` | `startDate` + `endDate` (**`lastModifiedFrom` bị API bỏ qua** — live probe xác nhận total không đổi) | Gọi **2 lần**: `isReceipt=true` và `isReceipt=false`, gộp kết quả; cùng scope `PublicApi.Access`. |
 | staff | *(không gọi endpoint riêng)* | — | — | Suy ra từ `SoldById`/`CreatedById`/`UserId`... trong response của invoices/orders/returns/purchases/cash_flows qua `staffSync.upsertStaffFromEntity()`. Quyết định giữ nguyên như spec dù `GET /users` đã xác nhận tồn tại (xem ghi chú bên dưới). |
 | product_on_hands | `/productOnHands` (**endpoint chuyên ton kho, KHAC** `/products`) | *(không có — xem ghi chú bên dưới)* | `lastModifiedFrom` | Live probe 2026-09-23 (mã `010GDYE`, tài khoản Hà Nội thật): total 0 khi `lastModifiedFrom=2027-01-01` → tham số hoạt động đúng. |
@@ -142,3 +142,25 @@ vì giả vờ chia theo tháng trong khi API không thực sự hỗ trợ.
 - `partnerType=C` trên `/cashflow` (lọc theo khách hàng) —
   Phase 1 lấy **toàn bộ** `cash_flows` (cả khách hàng lẫn nhà cung cấp) vì bảng `cash_flows` có
   cả `customer_id` lẫn `supplier_id`, không lọc `partnerType` ở tầng sync.
+
+## Đối soát phiếu nhập và đứt hàng — 2026-09-28
+
+Kiểm tra trực tiếp thẻ kho MCRY301 tại Hà Nội: PN002517 nhập 4.500 ngày
+14/09/2026, nhưng không có trong Postgres. API `/purchaseorders` không lọc
+ngày sửa trả đúng phiếu id 16136771 (createdDate 17/09); cùng API với
+`lastModifiedFrom=2026-09-16T00:00:00Z` không trả phiếu này. Vì vậy việc
+tham số làm thay đổi `total` **không chứng minh đồng bộ tăng dần đầy đủ**.
+Tài liệu chính thức mục 2.15.1 chỉ liệt kê fromPurchaseDate/toPurchaseDate,
+không cam kết lastModifiedFrom cho phiếu nhập:
+https://www.kiotviet.vn/huong-dan-su-dung-kiotviet/retail-ket-noi-api/public-api/
+
+Trong dữ liệu từ 01/06 đến 28/09, đối chiếu ID phát hiện thiếu 37 phiếu tại
+Hà Nội (1.127 mã hàng) và 11 phiếu tại Sài Gòn (427 mã hàng). Các số này là
+ảnh chụp lúc kiểm tra, không phải tổng số sai lệch cố định.
+
+Sửa: purchases polling đối soát toàn bộ danh sách từ 01/06/2026 (mốc sàn đứt hàng), gồm cả phiếu hủy; so
+sánh raw để chỉ ghi phiếu mới/thay đổi. Các entity chỉ tiến checkpoint sau
+khi **mọi trang** thành công; lỗi giữa chừng giữ mốc cũ để replay an toàn.
+Chi phí: mỗi lượt purchases polling cần đọc toàn bộ trang API, nhưng không
+viết lại chi tiết của phiếu không thay đổi. Cần khởi động lại server để nạp
+logic polling mới. Không sửa chứng từ nguồn trên KiotViet.

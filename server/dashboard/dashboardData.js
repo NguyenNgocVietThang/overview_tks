@@ -13,6 +13,7 @@ const debtManagementSheetsClient = require('../sheets/debtManagementSheetsClient
 const dashboardPgReader = require('./dashboardPgReader');
 const customerDebtActivityRepository = require('./customerDebtActivityRepository');
 const customerDirectoryRepository = require('./customerDirectoryRepository');
+const customerInvoiceLinesRepository = require('./customerInvoiceLinesRepository');
 const customerProductTopRepository = require('./customerProductTopRepository');
 const dashboardRollupRepository = require('./dashboardRollupRepository');
 const { BRANCHES, BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
@@ -1504,12 +1505,49 @@ function computeCustomerProductRevenue(sheets, customerCode, customerName, now) 
     if (!resolvedName && name) resolvedName = name;
   }
 
+  const detHeaders = detailData[0] || [];
+  const detIndex = (header, fallback) => {
+    const idx = detHeaders.findIndex(h => String(h || '').trim() === header);
+    return idx >= 0 ? idx : fallback;
+  };
+  const detCodeIdx = detIndex('Mã hóa đơn', 0);
+  const detItemCodeIdx = detIndex('Mã hàng', 1);
+  const detItemNameIdx = detIndex('Tên hàng', 2);
+  const detQtyIdx = detIndex('Số lượng', 3);
+  const detTotalIdx = detIndex('Thành tiền', 6);
+
+  const lines = [];
+  for (let r = 1; r < detailData.length; r++) {
+    const row = detailData[r];
+    const invoiceCode = String(row[detCodeIdx] || '').trim();
+    if (!invoiceCode || !matchedInvoiceDates.has(invoiceCode)) continue;
+    lines.push({
+      dateKey: formatDMY(matchedInvoiceDates.get(invoiceCode)),
+      itemCode: row[detItemCodeIdx],
+      itemName: row[detItemNameIdx],
+      quantity: row[detQtyIdx],
+      revenue: row[detTotalIdx]
+    });
+  }
+
+  return buildCustomerProductRevenueReport({ targetCode, resolvedName, lines, range });
+}
+
+/**
+ * Phan tinh thuan cua "Bao cao doanh thu theo khach", dung chung cho 2 nguon
+ * dong hang (computeCustomerProductRevenue doc tu sheet, computeCustomerProduct
+ * RevenueFromLines doc tu bang chi tiet 90 ngay): gom theo ngay/mat hang va chia
+ * 3 bucket thang. `lines` = cac dong chi tiet hoa don da thuoc dung khach, theo
+ * thu tu hoa don moi nhat truoc (ten hien thi cua mat hang lay o dong dau tien);
+ * `range` = {start, end, label} cua cua so 90 ngay.
+ */
+function buildCustomerProductRevenueReport({ targetCode, resolvedName, lines, range }) {
   const dayKeys = [];
   for (let cursor = range.start; cursor.getTime() <= range.end.getTime(); cursor = new Date(cursor.getTime() + DAY_MS)) {
     dayKeys.push(formatDMY(cursor));
   }
-  // Tuoi (so ngay truoc "now") cua tung ngay trong dayKeys, dung de xep vao
-  // bucket T.nay/T.truoc/T.truoc nua. Tinh tu vi tri trong dayKeys (KHONG
+  // Tuoi (so ngay truoc ngay cuoi cua so) cua tung ngay trong dayKeys, dung de
+  // xep vao bucket T.nay/T.truoc/T.truoc nua. Tinh tu vi tri trong dayKeys (KHONG
   // dung ham daysSince() dung chung — ham do luon so voi new Date() THUC, bo
   // qua tham so `now` truyen vao nen se sai khi test truyen `now` gia dinh).
   const ageByDateKey = new Map();
@@ -1529,28 +1567,12 @@ function computeCustomerProductRevenue(sheets, customerCode, customerName, now) 
   const totalDayBuckets = emptyDayBuckets();
   const productsByCode = new Map();
 
-  const detHeaders = detailData[0] || [];
-  const detIndex = (header, fallback) => {
-    const idx = detHeaders.findIndex(h => String(h || '').trim() === header);
-    return idx >= 0 ? idx : fallback;
-  };
-  const detCodeIdx = detIndex('Mã hóa đơn', 0);
-  const detItemCodeIdx = detIndex('Mã hàng', 1);
-  const detItemNameIdx = detIndex('Tên hàng', 2);
-  const detQtyIdx = detIndex('Số lượng', 3);
-  const detTotalIdx = detIndex('Thành tiền', 6);
-
-  for (let r = 1; r < detailData.length; r++) {
-    const row = detailData[r];
-    const invoiceCode = String(row[detCodeIdx] || '').trim();
-    if (!invoiceCode || !matchedInvoiceDates.has(invoiceCode)) continue;
-
-    const dt = matchedInvoiceDates.get(invoiceCode);
-    const dateKey = formatDMY(dt);
-    const quantity = Number(row[detQtyIdx]) || 0;
-    const revenue = Number(row[detTotalIdx]) || 0;
-    const itemCode = String(row[detItemCodeIdx] || '').trim() || '—';
-    const itemName = String(row[detItemNameIdx] || '').trim() || itemCode;
+  for (const line of lines) {
+    const dateKey = line.dateKey;
+    const quantity = Number(line.quantity) || 0;
+    const revenue = Number(line.revenue) || 0;
+    const itemCode = String(line.itemCode || '').trim() || '—';
+    const itemName = String(line.itemName || '').trim() || itemCode;
 
     if (totalDayBuckets[dateKey] !== undefined) totalDayBuckets[dateKey] += revenue;
 
@@ -1603,6 +1625,47 @@ function computeCustomerProductRevenue(sheets, customerCode, customerName, now) 
     totalQuantity: products.reduce((sum, p) => sum + p.quantity, 0),
     products
   };
+}
+
+/**
+ * Cung bao cao, nhung dong hang doc san tu bang customer_invoice_lines_90d (xem
+ * customerInvoiceLinesRepository.js) thay vi doi chieu 3 sheet. Cua so la 90 ngay
+ * ket thuc HOM QUA luc bang duoc dung lai (mac dinh moi dem), nen bucket thang
+ * tinh theo ngay cuoi cua so do — khac luong sheet (cua so ket thuc hom nay).
+ * Tra null khi bang chua tung duoc dung (de goi ham quay ve luong sheet).
+ *
+ * Ten khach: uu tien `customerName` nguoi goi truyen (giao dien luon truyen), thieu
+ * thi lay ten tren hoa don gan nhat — bo buoc tra bang customers cua luong sheet
+ * vi bang do khong co index theo ma khach.
+ */
+async function computeCustomerProductRevenueFromLines(customerCode, customerName, branch) {
+  const targetCode = String(customerCode || '').trim();
+  if (!targetCode) return null;
+
+  const physicalBranches = branch === BRANCH_BOTH ? resolveBranchScope(BRANCH_BOTH) : [branch || BRANCHES.HANOI];
+  const branchCodes = physicalBranches.map(branchLabelToCode);
+  if (branchCodes.some(code => !code)) return null;
+
+  const snapshot = await customerInvoiceLinesRepository.readCustomerInvoiceLines({ branchCodes, customerCode: targetCode });
+  if (!snapshot) return null;
+
+  const range = {
+    start: startOfDay(parseSheetDate(snapshot.window.start)),
+    end: endOfDay(parseSheetDate(snapshot.window.end)),
+    label: `${CUSTOMER_PRODUCT_REVENUE_WINDOW_DAYS} ngày`
+  };
+  const reports = branchCodes.map(code => {
+    const lines = snapshot.linesByBranch[code] || [];
+    const invoiceName = lines.length ? String(lines[0].customerName || '').trim() : '';
+    return buildCustomerProductRevenueReport({
+      targetCode,
+      resolvedName: String(customerName || '').trim() || invoiceName,
+      lines,
+      range
+    });
+  });
+  const report = reports.length > 1 ? mergeCustomerProductRevenueReports(reports) : reports[0];
+  return { ...report, computedAt: snapshot.computedAt };
 }
 
 // Ten hien thi that (khac ma du phong) dau tien theo thu tu Ha Noi -> Sai Gon.
@@ -1661,6 +1724,15 @@ function mergeCustomerProductRevenueReports(reports) {
 }
 
 async function getCustomerProductRevenueReport(customerCode, customerName, branch, now = new Date()) {
+  // Uu tien bang chi tiet 90 ngay dung san moi dem (tra cuu theo index, nhanh);
+  // chua co bang / loi doc bang (vd chua chay migration 0022) thi quay ve luong
+  // doi chieu sheet cu de bao cao khong bi hong.
+  try {
+    const fromLines = await computeCustomerProductRevenueFromLines(customerCode, customerName, branch);
+    if (fromLines) return fromLines;
+  } catch (err) {
+    console.error('[Dashboard] Doc bang chi tiet hoa don 90 ngay that bai, quay ve luong sheet:', err.message);
+  }
   if (branch === BRANCH_BOTH) {
     const reports = await Promise.all(resolveBranchScope(BRANCH_BOTH).map(async physicalBranch =>
       computeCustomerProductRevenue(await getCachedDashboardSheets(physicalBranch), customerCode, customerName, now)));

@@ -98,7 +98,7 @@ test('Hàng đứt gần đây quét ở một cơ sở: không thêm cột Cơ 
   assert.equal(headers.includes('Cơ sở'), false);
   assert.equal(headers[0], 'Mã SP');
   assert.deepEqual(visibleCells(dom.window.document, 'recentStockoutResultRows'), [
-    ['SP001', 'Áo thun', '2026-09-10', '11', '', '']
+    ['SP001', 'Áo thun', '2026-09-10', '11', '']
   ]);
   dom.window.close();
 });

@@ -60,15 +60,15 @@ function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints 
     // Entity co backfillRangeParam (vd invoices, log giao dich lon) van giu
     // fallback 1 gio - lan dau cho entity dang nay phai chay qua CLI
     // backfill.js (co chunk theo thang) de tranh 1 request khong gioi han.
-    if (neverSynced && !entityModule.backfillRangeParam) {
-      logger.log(`[KiotViet Sync] ${branch}/${entityModule.entity}: chua co checkpoint - quet toan bo lan dau.`);
-      const query = { ...entityModule.listQuery };
+    if (entityModule.pollFullSnapshot || (neverSynced && !entityModule.backfillRangeParam)) {
+      logger.log(`[KiotViet Sync] ${branch}/${entityModule.entity}: doi soat toan bo danh sach.`);
+      const query = { ...entityModule.listQuery, ...entityModule.pollQuery };
       await kiotVietClient.fetchAllPages(entityModule.endpoint, query, async (items) => {
         await inTransaction(async (client) => {
-          await entityModule.upsertPage(client, branch, items);
-          await checkpoints.advanceCheckpoint(branch, entityModule.entity, runEndIso, { client });
+          await (entityModule.reconcilePage || entityModule.upsertPage)(client, branch, items);
         });
       });
+      await inTransaction(client => checkpoints.advanceCheckpoint(branch, entityModule.entity, runEndIso, { client }));
       return;
     }
     const sinceIso = checkpoint?.last_synced_at
@@ -78,9 +78,11 @@ function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints 
     await kiotVietClient.fetchAllPages(entityModule.endpoint, query, async (items) => {
       await inTransaction(async (client) => {
         await entityModule.upsertPage(client, branch, items);
-        await checkpoints.advanceCheckpoint(branch, entityModule.entity, runEndIso, { client });
       });
     });
+    // A timestamp is a completed window, not a page cursor. If a later page
+    // fails, replay the old window (upserts are idempotent) on the next poll.
+    await inTransaction(client => checkpoints.advanceCheckpoint(branch, entityModule.entity, runEndIso, { client }));
   }
 
   return { pollEntityOnce };

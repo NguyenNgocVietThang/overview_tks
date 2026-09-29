@@ -1407,3 +1407,13 @@ tbody tr:hover {
   min-width: 0;
 }
 
+
+/* ---------- Cột số liệu căn phải (gắn tự động bởi shared/table-align.js) ---------- */
+table th.col-num,
+table td.col-num {
+  text-align: right;
+}
+
+table th.col-num .sort-button {
+  justify-content: flex-end;
+}

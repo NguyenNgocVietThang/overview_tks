@@ -35,6 +35,7 @@ function freshDashboardData() {
   delete require.cache[require.resolve('./customerProductTopRepository')];
   delete require.cache[require.resolve('./dashboardRollupRepository')];
   delete require.cache[require.resolve('./customerDirectoryRepository')];
+  delete require.cache[require.resolve('./customerInvoiceLinesRepository')];
   const customerDebtActivityRepository = require('./customerDebtActivityRepository');
   customerDebtActivityRepository.readOperationalPeriods = async () => ({
     HN1: [['Khách hàng']], HN3: [['Khách hàng']], HN7: [['Khách hàng']]
@@ -55,10 +56,15 @@ function freshDashboardData() {
   mockDashboardRollups(dashboardRollupRepository, {});
   const customerDirectoryRepository = require('./customerDirectoryRepository');
   customerDirectoryRepository.readCustomerDirectory = async () => [];
+  // Mac dinh "bang chi tiet 90 ngay chua duoc dung" (null) de cac test cu van di
+  // luong doi chieu sheet va khong cham DB that.
+  const customerInvoiceLinesRepository = require('./customerInvoiceLinesRepository');
+  customerInvoiceLinesRepository.readCustomerInvoiceLines = async () => null;
   const dashboardData = require('./dashboardData');
   return {
     dashboardData, customerDebtActivityRepository, debtManagementSheetsClient, debtCollectionStatusRepository,
-    dashboardPgReader, customerProductTopRepository, dashboardRollupRepository, customerDirectoryRepository
+    dashboardPgReader, customerProductTopRepository, dashboardRollupRepository, customerDirectoryRepository,
+    customerInvoiceLinesRepository
   };
 }
 
@@ -1380,6 +1386,161 @@ test('bao cao doanh thu theo khach: co lap theo chi nhanh, khong ro ri du lieu g
   assert.equal(hanoi.totalRevenue, 100);
   assert.equal(saigon.totalRevenue, 999);
   assert.deepEqual(seen, [BRANCHES.HANOI, BRANCHES.SAIGON]);
+});
+
+// ----- Nguon bang chi tiet hoa don 90 ngay (customer_invoice_lines_90d) -----
+
+function stubInvoiceLines(customerInvoiceLinesRepository, snapshot) {
+  const calls = [];
+  customerInvoiceLinesRepository.readCustomerInvoiceLines = async params => { calls.push(params); return snapshot; };
+  return calls;
+}
+
+function invoiceLine({ dateKey, itemCode, itemName, quantity, revenue, customerName = 'Khách A' }) {
+  return { dateKey, customerName, itemCode, itemName, quantity, revenue };
+}
+
+test('bao cao doanh thu theo khach doc tu bang chi tiet 90 ngay: khong quet sheet, cua so theo bang', async () => {
+  const { dashboardData, dashboardPgReader, customerInvoiceLinesRepository } = freshDashboardData();
+  dashboardPgReader.readDashboardSheets = async () => { throw new Error('khong duoc doc sheet khi da co bang'); };
+  const computedAt = new Date('2026-08-14T17:10:00Z');
+  const calls = stubInvoiceLines(customerInvoiceLinesRepository, {
+    window: { start: '2026-05-17', end: '2026-08-14' },
+    computedAt,
+    linesByBranch: {
+      hanoi: [
+        invoiceLine({ dateKey: '14/08/2026', itemCode: 'SP-01', itemName: 'Sản phẩm một', quantity: '2', revenue: '200' }),
+        invoiceLine({ dateKey: '16/07/2026', itemCode: 'SP-01', itemName: 'Tên cũ', quantity: '1', revenue: '100' }),
+        invoiceLine({ dateKey: '15/07/2026', itemCode: 'SP-02', itemName: 'Sản phẩm hai', quantity: '3', revenue: '50' })
+      ]
+    }
+  });
+  dashboardData.__test__.resetCaches();
+
+  const report = await dashboardData.getCustomerProductRevenueReport(' KH-A ', 'Khách A', undefined, new Date('2026-08-15T12:00:00+07:00'));
+
+  assert.deepEqual(calls, [{ branchCodes: ['hanoi'], customerCode: 'KH-A' }]);
+  assert.deepEqual(report.customer, { code: 'KH-A', name: 'Khách A' });
+  assert.deepEqual([report.range.from, report.range.to, report.range.days], ['17/05/2026', '14/08/2026', 90]);
+  assert.equal(report.totalRevenueByDay.length, 90);
+  assert.equal(report.totalRevenueByDay[0].date, '17/05/2026');
+  assert.equal(report.totalRevenueByDay[89].date, '14/08/2026');
+  assert.equal(report.totalRevenue, 350);
+  assert.equal(report.totalQuantity, 6);
+  assert.deepEqual(
+    report.products.map(p => [p.code, p.name, p.quantity, p.revenue, p.month1Revenue, p.month2Revenue, p.month3Revenue]),
+    [['SP-01', 'Sản phẩm một', 3, 300, 300, 0, 0], ['SP-02', 'Sản phẩm hai', 3, 50, 0, 50, 0]],
+    'ngay cuoi cua so = tuoi 0; 16/07 (29 ngay truoc) vao T.nay, 15/07 (30 ngay truoc) vao T.truoc; ten lay o dong dau'
+  );
+  assert.equal(report.products[0].revenueByDay.find(d => d.date === '16/07/2026').revenue, 100);
+  assert.equal(report.computedAt, computedAt);
+});
+
+test('bao cao doanh thu theo khach tu bang: ten khach lay tu hoa don khi nguoi goi khong truyen ten', async () => {
+  const { dashboardData, customerInvoiceLinesRepository } = freshDashboardData();
+  stubInvoiceLines(customerInvoiceLinesRepository, {
+    window: { start: '2026-05-17', end: '2026-08-14' },
+    computedAt: new Date(),
+    linesByBranch: { hanoi: [invoiceLine({ dateKey: '10/08/2026', itemCode: 'SP-01', itemName: 'Một', quantity: 1, revenue: 10, customerName: 'Chị Lan' })] }
+  });
+  dashboardData.__test__.resetCaches();
+
+  const report = await dashboardData.getCustomerProductRevenueReport('KH-A', '', undefined, new Date('2026-08-15T12:00:00+07:00'));
+  assert.equal(report.customer.name, 'Chị Lan');
+});
+
+test('bao cao doanh thu theo khach tu bang: khach khong co dong nao tra bao cao rong day du 90 ngay', async () => {
+  const { dashboardData, customerInvoiceLinesRepository } = freshDashboardData();
+  stubInvoiceLines(customerInvoiceLinesRepository, {
+    window: { start: '2026-05-17', end: '2026-08-14' },
+    computedAt: new Date(),
+    linesByBranch: { hanoi: [] }
+  });
+  dashboardData.__test__.resetCaches();
+
+  const report = await dashboardData.getCustomerProductRevenueReport('KH-A', 'Khách A', undefined, new Date('2026-08-15T12:00:00+07:00'));
+  assert.equal(report.totalRevenue, 0);
+  assert.deepEqual(report.products, []);
+  assert.equal(report.totalRevenueByDay.length, 90);
+});
+
+test('Ca hai bao cao doanh thu theo khach tu bang: gop theo ma hang, ten Ha Noi truoc, co lap tung co so', async () => {
+  const { dashboardData, dashboardPgReader, customerInvoiceLinesRepository } = freshDashboardData();
+  const { BRANCH_BOTH } = require('../branch/branches');
+  dashboardPgReader.readDashboardSheets = async () => { throw new Error('khong duoc doc sheet khi da co bang'); };
+  const calls = stubInvoiceLines(customerInvoiceLinesRepository, {
+    window: { start: '2026-05-22', end: '2026-08-19' },
+    computedAt: new Date('2026-08-19T17:10:00Z'),
+    linesByBranch: {
+      hanoi: [invoiceLine({ dateKey: '18/08/2026', itemCode: 'SP-1', itemName: 'Áo Hà Nội', quantity: 1, revenue: 100 })],
+      saigon: [
+        invoiceLine({ dateKey: '19/08/2026', itemCode: 'sp-1', itemName: 'Áo Sài Gòn', quantity: 2, revenue: 300 }),
+        invoiceLine({ dateKey: '19/08/2026', itemCode: 'SP-2', itemName: 'Hàng hai', quantity: 1, revenue: 50 })
+      ]
+    }
+  });
+  dashboardData.__test__.resetCaches();
+
+  const report = await dashboardData.getCustomerProductRevenueReport('KH-1', 'Khách 1', BRANCH_BOTH, new Date('2026-08-20T03:00:00.000Z'));
+
+  assert.deepEqual(calls, [{ branchCodes: ['hanoi', 'saigon'], customerCode: 'KH-1' }]);
+  assert.deepEqual(report.products.map(p => [p.code, p.name, p.quantity, p.revenue]), [
+    ['SP-1', 'Áo Hà Nội', 3, 400], ['SP-2', 'Hàng hai', 1, 50]
+  ]);
+  assert.equal(report.totalRevenue, 450);
+  assert.equal(report.totalRevenueByDay.find(d => d.date === '19/08/2026').revenue, 350);
+  assert.equal(report.totalRevenueByDay.length, 90);
+  assert.ok(report.computedAt instanceof Date);
+});
+
+test('bao cao doanh thu theo khach: bang chua dung (null) thi quay ve luong sheet cu', async () => {
+  const { dashboardData, dashboardPgReader, customerInvoiceLinesRepository } = freshDashboardData();
+  const calls = stubInvoiceLines(customerInvoiceLinesRepository, null);
+  mockCustomerProductRevenueSheets(dashboardPgReader, {
+    invoices: [invoiceRow({ code: 'HD-1', date: '10/08/2026 10:00:00', custCode: 'KH-A' })],
+    details: [detailRow({ invoiceCode: 'HD-1', itemCode: 'SP-01', itemName: 'Sản phẩm một', qty: 2, total: 200 })]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const report = await dashboardData.getCustomerProductRevenueReport('KH-A', '', undefined, new Date('2026-08-14T12:00:00+07:00'));
+
+  assert.equal(calls.length, 1);
+  assert.equal(report.totalRevenue, 200);
+  assert.equal(report.computedAt, undefined);
+});
+
+test('bao cao doanh thu theo khach: loi doc bang (vd chua chay migration) thi ghi log va quay ve luong sheet cu', async () => {
+  const { dashboardData, dashboardPgReader, customerInvoiceLinesRepository } = freshDashboardData();
+  customerInvoiceLinesRepository.readCustomerInvoiceLines = async () => { throw new Error('relation "customer_invoice_lines_state" does not exist'); };
+  mockCustomerProductRevenueSheets(dashboardPgReader, {
+    invoices: [invoiceRow({ code: 'HD-1', date: '10/08/2026 10:00:00', custCode: 'KH-A' })],
+    details: [detailRow({ invoiceCode: 'HD-1', itemCode: 'SP-01', itemName: 'Sản phẩm một', qty: 2, total: 200 })]
+  });
+  dashboardData.__test__.resetCaches();
+  const errors = [];
+  const originalError = console.error;
+  console.error = (...args) => errors.push(args.join(' '));
+  let report;
+  try {
+    report = await dashboardData.getCustomerProductRevenueReport('KH-A', '', undefined, new Date('2026-08-14T12:00:00+07:00'));
+  } finally {
+    console.error = originalError;
+  }
+
+  assert.equal(report.totalRevenue, 200);
+  assert.match(errors.join('\n'), /does not exist/);
+});
+
+test('bao cao doanh thu theo khach: thieu ma khach thi bao loi 400 va khong cham bang chi tiet', async () => {
+  const { dashboardData, customerInvoiceLinesRepository } = freshDashboardData();
+  const calls = stubInvoiceLines(customerInvoiceLinesRepository, null);
+  dashboardData.__test__.resetCaches();
+
+  await assert.rejects(
+    dashboardData.getCustomerProductRevenueReport('  ', '', undefined, new Date('2026-08-14T12:00:00+07:00')),
+    error => error.statusCode === 400 && error.code === 'CUSTOMER_CODE_REQUIRED'
+  );
+  assert.equal(calls.length, 0);
 });
 
 const PRODUCT_HEADERS = [
