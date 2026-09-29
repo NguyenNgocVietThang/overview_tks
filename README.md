@@ -48,7 +48,7 @@ Xem [server/.env.example](server/.env.example) để biết đầy đủ cấu h
 server/
 ├── auth/                 # Tài khoản, phân quyền, OTP, Google OAuth
 ├── branch/               # Phân tách Hà Nội / Sài Gòn
-├── dashboard/            # Tổng hợp dashboard, xuất Excel/HTML, kiểm tra đứt hàng
+├── dashboard/            # Tổng hợp dashboard (dashboardData + dashboardViews: API theo tab), xuất Excel/HTML, kiểm tra đứt hàng
 │   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel
 ├── data/                 # Dữ liệu lưu trữ local (users.json, notifications.json, ...)
 ├── db/                   # Migration Supabase (0001–0021)
@@ -78,3 +78,6 @@ Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để b
 2026-09-22 — chuyển nguồn dữ liệu Trả NCC (kiểm tra đứt hàng) từ tab Google Sheets đọc tay sang người dùng tự upload file Excel xuất trực tiếp từ KiotViet; thêm bảng Postgres `supplier_return_imports` (thay thế toàn bộ theo cơ sở mỗi lần import), gộp vào cùng pipeline Postgres với Hóa đơn/Nhập hàng/Khách trả, loại bỏ hoàn toàn nhánh đọc Sheets riêng cho Trả NCC.
 
 2026-09-25 — thông báo yêu cầu nghỉ phép mới cho toàn bộ tài khoản, cho phép quản lý duyệt/từ chối ngay trên chuông thông báo; bộ lọc nghỉ phép mặc định chỉ hiển thị lịch nghỉ giao với ngày hôm nay; bổ sung vai trò `Nhân viên marketing` (migration `0019`) và phân quyền theo tính năng từng tài khoản `feature_permissions JSONB` (migration `0020`).
+
+
+2026-09-29 — Báo cáo tổng hợp tải dữ liệu theo từng tab: `GET /api/dashboard?view=<tab>` (`dashboard/dashboardViews.js`), cache bảng nguồn theo từng bảng, rollup chạy song song khi cache nguội, đường nhanh cho `getDashboardDateParts`; trang `/reports/` chỉ gọi tab đang mở (lần mở nguội ~3,9s → 0,2–2,8s tùy tab, payload Tổng quan 5,25 MB → 10 KB). Bỏ trống `view` vẫn trả cả 6 tab như cũ.

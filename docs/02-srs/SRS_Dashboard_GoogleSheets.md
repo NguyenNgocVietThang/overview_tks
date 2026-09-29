@@ -140,7 +140,7 @@ Người dùng (trình duyệt) — tokosi.onrender.com / localhost:3000
   - Role Requests & Admin: `/api/role-requests/*`, `/api/admin/users/*`
   - Shipment / Vòng đời đơn hàng: `/api/shipment/order-lifecycle/*`
   - HR Leave: `/api/hr/leave/*`
-  - Dashboard & Analytics: `GET /api/dashboard`, `GET /api/search`, `GET /api/customer-product-top`
+  - Dashboard & Analytics: `GET /api/dashboard` (tham số `view=overview|products|invoices|customers|suppliers|debt` để chỉ tải một tab), `GET /api/search`, `GET /api/customer-product-top`
   - Quản lý công nợ: `PATCH /api/dashboard/debt-management/status`
   - Sync nội bộ: `POST /api/internal/kiotviet-sync/webhook`, `GET /api/internal/kiotviet-sync/status`
   - Export: `POST /api/export/fields`, `POST /api/export`
