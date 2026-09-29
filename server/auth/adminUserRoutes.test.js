@@ -691,3 +691,156 @@ test('GET /api/admin/users kem featurePermissions de bang hien nhan "tuy chinh"'
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body.users[0].featurePermissions, { 'reports.debt': false }, 'key la bi loai');
 });
+
+// ---------------------------------------------------------------------------
+// CHAN LEO THANG QUYEN: tai khoan KHONG phai Quan ly duoc cap quyen quan tri
+// tai khoan chi duoc tac dong trong pham vi quyen cua chinh ho (accountPolicy.js)
+// ---------------------------------------------------------------------------
+
+function delegate() {
+  return {
+    id: 'del-1', username: 'delegate', hoTen: 'Trợ lý được ủy quyền', vaiTro: 'Trợ lý', trangThai: 'Đang hoạt động',
+    featurePermissions: { 'account.users.manage': true, 'account.permissions': true }
+  };
+}
+
+function seedWithDelegate() {
+  localUserStore.setInMemoryUsers([
+    delegate(),
+    { id: 'mgr-1', username: 'quanly1', hoTen: 'Quản lý 1', email: 'ql1@tokosi.vn', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động' },
+    { id: 'kt-1', username: 'ketoan1', hoTen: 'Kế toán 1', email: 'kt1@tokosi.vn', vaiTro: 'Kế toán', trangThai: 'Đang hoạt động' },
+    { id: 'nv-1', username: 'nvkho1', hoTen: 'NV kho 1', email: 'nv1@tokosi.vn', vaiTro: 'Nhân viên kho', trangThai: 'Đang hoạt động' }
+  ]);
+}
+
+test('Chong leo thang: POST tao tai khoan Quan ly bi chan voi nguoi khong phai Quan ly', async () => {
+  seedWithDelegate();
+  const handler = getRouteHandler(adminUserRoutes, 'post', '/api/admin/users');
+  const res = fakeRes();
+  await handler({ user: delegate(), body: { username: 'moi1234', password: 'matkhau123', hoTen: 'Mới', vaiTro: 'Quản lý' } }, res);
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.code, 'ACCOUNT_POLICY_DENIED');
+  const all = await localUserStore.getAllUsers();
+  assert.ok(!all.some(u => u.username === 'moi1234'), 'tai khoan khong duoc tao');
+});
+
+test('Chong leo thang: POST vai tro vuot quyen actor bi chan, vai tro <= actor duoc tao', async () => {
+  seedWithDelegate();
+  const handler = getRouteHandler(adminUserRoutes, 'post', '/api/admin/users');
+
+  const blocked = fakeRes();
+  await handler({ user: delegate(), body: { username: 'moi1234', password: 'matkhau123', hoTen: 'Mới', vaiTro: 'Kế toán' } }, blocked);
+  assert.equal(blocked.statusCode, 403);
+
+  const ok = fakeRes();
+  await handler({ user: delegate(), body: { username: 'moi5678', password: 'matkhau123', hoTen: 'Mới', vaiTro: 'Nhân viên kho' } }, ok);
+  assert.equal(ok.statusCode, 201);
+});
+
+test('Chong leo thang: PUT khong the nang ai len Quan ly, va khong sua duoc tai khoan Quan ly', async () => {
+  seedWithDelegate();
+  const handler = getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id');
+
+  const promote = fakeRes();
+  await handler({ user: delegate(), params: { id: 'nv-1' }, body: { vaiTro: 'Quản lý' } }, promote);
+  assert.equal(promote.statusCode, 403);
+  assert.equal((await localUserStore.getUserById('nv-1')).vaiTro, 'Nhân viên kho');
+
+  const editManager = fakeRes();
+  await handler({ user: delegate(), params: { id: 'mgr-1' }, body: { hoTen: 'Bị sửa' } }, editManager);
+  assert.equal(editManager.statusCode, 403);
+
+  const lockManager = fakeRes();
+  await handler({ user: delegate(), params: { id: 'mgr-1' }, body: { trangThai: 'Khóa' } }, lockManager);
+  assert.equal(lockManager.statusCode, 403);
+  assert.equal((await localUserStore.getUserById('mgr-1')).trangThai, 'Đang hoạt động');
+});
+
+test('Chong leo thang: PUT chi chan NANG quyen — sua thong tin co ban tai khoan cao hon van duoc', async () => {
+  seedWithDelegate();
+  const handler = getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id');
+
+  // Frontend luon gui lai vaiTro/email hien tai: khong duoc coi la nang quyen.
+  const res = fakeRes();
+  await handler({ user: delegate(), params: { id: 'kt-1' }, body: { hoTen: 'Kế toán đổi tên', vaiTro: 'Kế toán', email: 'kt1@tokosi.vn' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.user.hoTen, 'Kế toán đổi tên');
+
+  // Nhung doi vai tro thanh gia tri mang them quyen actor khong co thi bi chan.
+  const up = fakeRes();
+  await handler({ user: delegate(), params: { id: 'nv-1' }, body: { vaiTro: 'Kế toán' } }, up);
+  assert.equal(up.statusCode, 403);
+});
+
+test('Chong leo thang: PUT doi email/SDT tai khoan cao hon bi chan (duong chiem quyen qua OTP)', async () => {
+  seedWithDelegate();
+  const handler = getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id');
+
+  const email = fakeRes();
+  await handler({ user: delegate(), params: { id: 'kt-1' }, body: { email: 'attacker@evil.com' } }, email);
+  assert.equal(email.statusCode, 403);
+  assert.equal((await localUserStore.getUserById('kt-1')).email, 'kt1@tokosi.vn');
+
+  const phone = fakeRes();
+  await handler({ user: delegate(), params: { id: 'kt-1' }, body: { soDienThoai: '0912345678' } }, phone);
+  assert.equal(phone.statusCode, 403);
+
+  // Tai khoan <= actor thi duoc doi email.
+  const own = fakeRes();
+  await handler({ user: delegate(), params: { id: 'nv-1' }, body: { email: 'nv1-moi@tokosi.vn' } }, own);
+  assert.equal(own.statusCode, 200);
+});
+
+test('Chong leo thang: reset mat khau chi voi tai khoan <= actor; Quan ly va cao hon bi chan', async () => {
+  seedWithDelegate();
+  const handler = getRouteHandler(adminUserRoutes, 'post', '/api/admin/users/:id/reset-password');
+
+  for (const id of ['mgr-1', 'kt-1']) {
+    const res = fakeRes();
+    await handler({ user: delegate(), params: { id }, body: { newPassword: 'matkhaumoi123' } }, res);
+    assert.equal(res.statusCode, 403, id);
+  }
+  const ok = fakeRes();
+  await handler({ user: delegate(), params: { id: 'nv-1' }, body: { newPassword: 'matkhaumoi123' } }, ok);
+  assert.equal(ok.statusCode, 200);
+});
+
+test('Chong leo thang: DELETE tai khoan Quan ly bi chan', async () => {
+  seedWithDelegate();
+  const handler = getRouteHandler(adminUserRoutes, 'delete', '/api/admin/users/:id');
+  const res = fakeRes();
+  await handler({ user: delegate(), params: { id: 'mgr-1' } }, res);
+  assert.equal(res.statusCode, 403);
+  assert.ok(await localUserStore.getUserById('mgr-1'), 'tai khoan Quan ly con nguyen');
+
+  const ok = fakeRes();
+  await handler({ user: delegate(), params: { id: 'nv-1' } }, ok);
+  assert.equal(ok.statusCode, 200);
+});
+
+test('Chong leo thang: PUT permissions khong tu cap them / cap them quyen actor khong co', async () => {
+  seedWithDelegate();
+  const handler = getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id/permissions');
+
+  const self = fakeRes();
+  await handler({ user: delegate(), params: { id: 'del-1' }, body: { overrides: { 'account.users.manage': true, 'account.permissions': true, 'system.syncStatus': true } } }, self);
+  assert.equal(self.statusCode, 403);
+
+  const other = fakeRes();
+  await handler({ user: delegate(), params: { id: 'nv-1' }, body: { overrides: { 'shipment.override': true } } }, other);
+  assert.equal(other.statusCode, 403);
+
+  const mgr = fakeRes();
+  await handler({ user: delegate(), params: { id: 'mgr-1' }, body: { overrides: { 'reports.debt': false } } }, mgr);
+  assert.equal(mgr.statusCode, 403);
+
+  // Cap quyen ma chinh actor co (reports.overview la mac dinh cua Tro ly) thi duoc.
+  const ok = fakeRes();
+  await handler({ user: delegate(), params: { id: 'nv-1' }, body: { overrides: { 'reports.overview': true } } }, ok);
+  assert.equal(ok.statusCode, 200);
+
+  // Rut bot quyen cua tai khoan cao hon van duoc.
+  const reduce = fakeRes();
+  await handler({ user: delegate(), params: { id: 'kt-1' }, body: { overrides: { 'shipment.override': false } } }, reduce);
+  assert.equal(reduce.statusCode, 200);
+});

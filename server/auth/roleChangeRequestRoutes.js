@@ -16,6 +16,7 @@ const router = express.Router();
 const { requireAuth, requireFeature } = require('./authMiddleware');
 const { hasFeature } = require('./featureRegistry');
 const localUserStore = require('./localUserStore');
+const accountPolicy = require('./accountPolicy');
 const { ROLES } = localUserStore;
 const repo = require('./roleChangeRequestRepository');
 const notificationRepo = require('../notifications/notificationRepository');
@@ -165,6 +166,13 @@ router.patch('/api/role-requests/:id/status', ...authManager, async (req, res) =
     // vi bi khoa vinh vien o trang thai "Da duyet" trong khi vaiTro chua doi.
     if (status === repo.ROLE_REQUEST_STATUS.APPROVED) {
       const targetUser = await localUserStore.getUserById(target.userId);
+      // Nguoi duyet khong phai Quan ly khong duoc nang ai len vai tro/quyen cao hon
+      // chinh ho (dac biet la Quan ly); yeu cau van giu trang thai Cho duyet.
+      if (targetUser) {
+        const denied = accountPolicy.checkTargetWritable(req.user, targetUser) ||
+                       accountPolicy.checkGrant(req.user, targetUser, { ...targetUser, vaiTro: target.requestedRole });
+        if (denied) return accountPolicy.sendDenied(res, denied);
+      }
       const roleUpdates = { vaiTro: target.requestedRole };
       if (targetUser && targetUser.hrManaged) {
         roleUpdates.vaiTroOverride = target.requestedRole;

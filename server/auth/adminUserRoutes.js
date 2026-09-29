@@ -15,6 +15,7 @@ const notificationRepo = require('../notifications/notificationRepository');
 const { normalizeCoSo, BRANCH_VALUES } = require('../branch/branches');
 const contactChangeService = require('./contactChangeService');
 const employeeDirectory = require('../hr/employeeDirectory');
+const accountPolicy = require('./accountPolicy');
 
 const router = express.Router();
 
@@ -115,6 +116,9 @@ router.post('/api/admin/users', ...authManage, async (req, res) => {
     if (rawCoSo && !coSo) {
       return res.status(400).json({ error: `Cơ sở phụ trách không hợp lệ. Cho phép: ${BRANCH_VALUES.join(', ')}` });
     }
+    // Nguoi khong phai Quan ly chi tao duoc tai khoan co quyen <= quyen cua chinh ho.
+    const denied = accountPolicy.checkGrant(req.user, null, { username, email, vaiTro, featurePermissions: {} });
+    if (denied) return accountPolicy.sendDenied(res, denied);
 
     const passwordHash = await bcrypt.hash(password, 10);
     const newUser = await localUserStore.createUser({
@@ -167,6 +171,8 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
     if (!targetUser) {
       return res.status(404).json({ error: 'Không tìm thấy tài khoản cần chỉnh sửa.' });
     }
+    const notWritable = accountPolicy.checkTargetWritable(req.user, targetUser);
+    if (notWritable) return accountPolicy.sendDenied(res, notWritable);
 
     const currentAdminId = req.user.id;
     const isSelf = String(currentAdminId) === String(targetId) ||
@@ -191,6 +197,10 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
       if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
         return res.status(400).json({ error: 'Email không đúng định dạng.' });
       }
+      if (email !== String(targetUser.email || '').toLowerCase()) {
+        const denied = accountPolicy.checkTakeover(req.user, targetUser, 'đổi email của tài khoản này');
+        if (denied) return accountPolicy.sendDenied(res, denied);
+      }
       if (targetUser.hrManaged && email !== String(targetUser.email || '').toLowerCase()) {
         targetUser = await contactChangeService.adminChange(targetUser, 'email', email);
       } else {
@@ -200,6 +210,10 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
 
     if (req.body.soDienThoai !== undefined) {
       const soDienThoai = String(req.body.soDienThoai || '').trim();
+      if (normalizePhone(soDienThoai) !== normalizePhone(targetUser.soDienThoai)) {
+        const denied = accountPolicy.checkTakeover(req.user, targetUser, 'đổi số điện thoại của tài khoản này');
+        if (denied) return accountPolicy.sendDenied(res, denied);
+      }
       if (soDienThoai) {
         const normPhone = normalizePhone(soDienThoai);
         if (!/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(normPhone) && !/^[0-9]{10}$/.test(normPhone)) {
@@ -241,6 +255,8 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
       if (isTargetHardcodedAdmin && vaiTro !== ROLES.QUAN_LY) {
         return res.status(400).json({ error: 'Không thể hạ quyền của tài khoản Quản trị viên hệ thống mặc định.' });
       }
+      const denied = accountPolicy.checkGrant(req.user, targetUser, { ...targetUser, vaiTro });
+      if (denied) return accountPolicy.sendDenied(res, denied);
       updates.vaiTro = vaiTro;
       // Tài khoản đồng bộ HR: resolveUser() luôn tính lại vaiTro từ Danh sách nhân sự
       // trừ khi có vaiTroOverride — nếu không set override ở đây, thay đổi này sẽ
@@ -266,8 +282,11 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
       if (isTargetHardcodedAdmin && vaiTroOverride !== ROLES.QUAN_LY) {
         return res.status(400).json({ error: 'Không thể thay đổi ghi đè của tài khoản Quản trị viên hệ thống.' });
       }
+      const resultingRole = vaiTroOverride || targetUser.sheetVaiTro || ROLES.KHACH;
+      const denied = accountPolicy.checkGrant(req.user, targetUser, { ...targetUser, vaiTro: resultingRole });
+      if (denied) return accountPolicy.sendDenied(res, denied);
       updates.vaiTroOverride = vaiTroOverride;
-      updates.vaiTro = vaiTroOverride || targetUser.sheetVaiTro || ROLES.KHACH;
+      updates.vaiTro = resultingRole;
       updates.roleSource = vaiTroOverride ? 'override' : 'sheet';
       hrRoleToSync = vaiTroOverride || null;
     }
@@ -340,6 +359,10 @@ router.post('/api/admin/users/:id/reset-password', ...authManage, async (req, re
     if (!targetUser) {
       return res.status(404).json({ error: 'Không tìm thấy tài khoản.' });
     }
+    // Dat lai mat khau = dang nhap duoc thanh tai khoan dich => coi la chiem quyen.
+    const denied = accountPolicy.checkTargetWritable(req.user, targetUser) ||
+                   accountPolicy.checkTakeover(req.user, targetUser, 'đặt lại mật khẩu của tài khoản này');
+    if (denied) return accountPolicy.sendDenied(res, denied);
 
     const newPassword = String(req.body.newPassword || '');
     if (!newPassword || newPassword.length < 8) {
@@ -369,6 +392,8 @@ router.delete('/api/admin/users/:id', ...authManage, async (req, res) => {
     if (!targetUser) {
       return res.status(404).json({ error: 'Không tìm thấy tài khoản để xóa.' });
     }
+    const notWritable = accountPolicy.checkTargetWritable(req.user, targetUser);
+    if (notWritable) return accountPolicy.sendDenied(res, notWritable);
 
     const isSelf = String(req.user.id) === String(targetId) ||
                    req.user.username.toLowerCase() === targetUser.username.toLowerCase();
@@ -507,6 +532,10 @@ router.put('/api/admin/users/:id/permissions', ...authPermissions, async (req, r
     if (blockedReason) {
       return res.status(400).json({ error: blockedReason });
     }
+    // Nguoi khong phai Quan ly khong duoc tu cap / cap them quyen chinh ho khong co.
+    const denied = accountPolicy.checkTargetWritable(req.user, targetUser) ||
+                   accountPolicy.checkGrant(req.user, targetUser, { ...targetUser, featurePermissions: overrides });
+    if (denied) return accountPolicy.sendDenied(res, denied);
 
     const updated = await localUserStore.updateUser(targetUser.id, { featurePermissions: overrides });
     res.status(200).json(permissionsPayload(updated));

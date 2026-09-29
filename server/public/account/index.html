@@ -823,6 +823,33 @@
     function accountCan(feature){
       return !!(window.TKSNav && typeof window.TKSNav.can === 'function' && window.TKSNav.can(feature));
     }
+    /**
+     * Người không phải Quản lý chỉ được thêm/nâng những gì chính họ có
+     * (server/auth/accountPolicy.js chặn thật ở API — phần dưới chỉ ẩn lựa chọn
+     * vô ích cho đỡ nhầm).
+     */
+    function actorIsManager(){
+      return !!(currentUser && currentUser.vaiTro === 'Quản lý');
+    }
+
+    function isAssignableRole(role, keepRole){
+      if(actorIsManager() || role === keepRole) return true;
+      if(role === 'Quản lý') return false;
+      // Chưa tải danh mục quyền thì chỉ chặn 'Quản lý', server sẽ quyết định phần còn lại.
+      if(!permCatalog || !permCatalog.roleDefaults) return true;
+      return (permCatalog.roleDefaults[role] || []).every(accountCan);
+    }
+
+    function applyRoleOptions(selectId, keepRole){
+      const select = document.getElementById(selectId);
+      if(!select) return;
+      Array.prototype.forEach.call(select.options, opt => {
+        const ok = isAssignableRole(opt.value, keepRole);
+        opt.hidden = !ok;
+        opt.disabled = !ok;
+      });
+    }
+
     let rawAdminUsers = [];
     let sortField = 'ngayTao';
     let sortAsc = false;
@@ -1312,6 +1339,9 @@
 
         // Riêng tài khoản thangnnv2003@gmail.com không ai có quyền xóa hay khóa
         const canLockOrDelete = !isSelf && !isThang;
+        // Người không phải Quản lý không được tác động lên tài khoản Quản lý
+        // (server/auth/accountPolicy.js vẫn chặn thật ở API, đây chỉ là UX).
+        const lockedManagerRow = !actorIsManager() && u.vaiTro === 'Quản lý';
 
         return `
           <tr>
@@ -1332,14 +1362,14 @@
             <td style="font-family:var(--font-data);font-size:12px;color:var(--muted);">${escapeHtml(u.ngayTao || '—')}</td>
             <td style="text-align:right;">
               <div class="row-actions" style="justify-content:flex-end;">
-                ${isManager ? `
+                ${isManager && !lockedManagerRow ? `
                 <button type="button" class="action-icon-btn" title="Chỉnh sửa tài khoản" onclick="openEditUserModal('${u.id}')">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                 </button>
                 <button type="button" class="action-icon-btn" title="Đặt lại mật khẩu" onclick="openResetPasswordModal('${u.id}', '${escapeHtml(u.username)}')">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-1.5 1.5L10 13l-4 1 1-4 7.5-7.5m1.5-1.5L21 2z"></path></svg>
                 </button>
-                ${canEditPermissions && !isThang ? `
+                ${canEditPermissions && !isThang && !lockedManagerRow ? `
                 <button type="button" class="action-icon-btn" title="Phân quyền chi tiết" onclick="openPermissionsModal('${u.id}')">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
                 </button>
@@ -1352,7 +1382,7 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                   </button>
                 ` : ''}
-                ` : '<span style="color:var(--muted);font-size:12px;">—</span>'}
+                ` : `<span style="color:var(--muted);font-size:12px;"${lockedManagerRow ? ' title="Chỉ Quản lý mới được thao tác trên tài khoản Quản lý"' : ''}>—</span>`}
               </div>
             </td>
           </tr>
@@ -1435,14 +1465,16 @@
                 <select class="form-control" disabled><option>Luôn bật</option></select>
               </div>`;
           }
+          // Không được cấp thêm quyền mà chính mình không có (trừ khi là Quản lý).
+          const cannotGrant = !actorIsManager() && !accountCan(f.key);
           return `
             <div class="perm-row">
               <span class="perm-row-label">${escapeHtml(f.label)}
-                <span class="perm-row-hint">Mặc định của vai trò: ${isDefaultOn ? 'Có' : 'Không'}</span>
+                <span class="perm-row-hint">Mặc định của vai trò: ${isDefaultOn ? 'Có' : 'Không'}${cannotGrant ? ' · Bạn không có quyền này nên không thể cấp thêm' : ''}</span>
               </span>
               <select class="form-control perm-select" data-feature="${escapeHtml(f.key)}">
                 <option value="default"${current === 'default' ? ' selected' : ''}>Theo vai trò (${isDefaultOn ? 'Có' : 'Không'})</option>
-                <option value="allow"${current === 'allow' ? ' selected' : ''}>Cho phép</option>
+                <option value="allow"${current === 'allow' ? ' selected' : ''}${cannotGrant && current !== 'allow' ? ' disabled' : ''}>Cho phép</option>
                 <option value="deny"${current === 'deny' ? ' selected' : ''}>Chặn</option>
               </select>
             </div>`;
@@ -1516,6 +1548,7 @@
     function openCreateUserModal(){
       document.getElementById('createUserForm').reset();
       document.getElementById('createUserError').style.display = 'none';
+      applyRoleOptions('createVaiTro');
       openModal('createUserModal');
     }
 
@@ -1568,6 +1601,7 @@
       document.getElementById('editHoTen').value = u.hoTen || '';
       document.getElementById('editEmail').value = u.email || '';
       document.getElementById('editPhone').value = u.soDienThoai || '';
+      applyRoleOptions('editVaiTro', u.vaiTro);
       document.getElementById('editVaiTro').value = u.vaiTro || 'Khách';
       document.getElementById('editCoSo').value = u.coSo || '';
       document.getElementById('editTrangThai').value = u.trangThai || 'Đang hoạt động';
@@ -1788,6 +1822,12 @@
             // Chi ai co quyen 'account.users.manage' moi duoc them tai khoan moi
             const btnAddUser = document.getElementById('btnAddUserAccount');
             if(btnAddUser) btnAddUser.style.display = isManager ? 'inline-flex' : 'none';
+
+            // Nguoi khong phai Quan ly: nap danh muc quyen som de loc dropdown vai tro
+            // va khoa lua chon "Cho phep" (best-effort — server van chan that).
+            if(!actorIsManager() && canViewUsers){
+              loadPermissionsCatalog().catch(() => {});
+            }
 
             // Áp dụng tab từ hash URL nếu có (ví dụ /account/#users hoặc /account/#profile)
             const initialHash = (window.location.hash || '').replace('#', '');
