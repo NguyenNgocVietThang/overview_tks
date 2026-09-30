@@ -3589,6 +3589,8 @@
               <div class="panel col-12 top-selling-table-panel is-full" id="inventoryTablePanel">
                 <div class="panel-head">
                   <h2>Chi tiết tồn kho theo sản phẩm <span class="tag" id="tagInventoryTable">—</span></h2>
+                  <div class="panel-head-actions"><button class="export-button" type="button"
+                      onclick="openExportDialog('products.inventory')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button></div>
                 </div>
                 <div class="scroll-list top-selling-table-scroll">
                   <!-- Cot luon nam trong DOM, chi an/hien theo che do (data-inv-cols): 'one' = chon 1 co so,
@@ -5881,6 +5883,7 @@
       'overview.new-products': 'todayNewProducts',
       'products.top-selling': 'topSelling',
       'products.all': 'allProducts',
+      'products.inventory': 'inventoryValue',
       'products.newly-imported': 'newlyImported',
       'invoices.orders': 'orders',
       'invoices.returns': 'returns',

@@ -47,6 +47,7 @@ const TABLE_TITLES = Object.freeze({
   'products.top-selling': 'Sản phẩm bán chạy',
   'products.all': 'Tất cả mã hàng',
   'products.newly-imported': 'Hàng mới nhập',
+  'products.inventory': 'Chi tiết tồn kho theo sản phẩm',
   'invoices.orders': 'Danh sách đặt hàng',
   'invoices.returns': 'Danh sách trả hàng',
   'customers.revenue': 'Doanh thu theo khách',
@@ -481,7 +482,7 @@ const BRANCH_COLUMN_LABEL = 'Cơ sở';
 function singleSourceTable(options) {
   // branchColumn: true => "Ca hai" ghep dong tho theo (co so, ma) (chung tu/hang hoa cung ma o ca
   // hai co so la hai dong rieng); 'customer' => khach gop theo ten (xem loadSourceRowsForItems).
-  const { key, name, sourceKey, derived = [], items, branchColumn = false, derivedValues } = options;
+  const { key, name, sourceKey, derived = [], items, branchColumn = false, derivedValues, summaryKeys } = options;
   const source = exportFieldCatalog.getSource(sourceKey);
   const worksheet = {
     key,
@@ -491,6 +492,8 @@ function singleSourceTable(options) {
       derived.map(def => derivedColumn(def.key, def.label, def.type, def.description))
     )
   };
+  // Cot so lam KPI/bieu do chinh cua bao cao HTML (xem exportHtmlReport.planFor).
+  if (summaryKeys) worksheet.summaryKeys = summaryKeys;
   return {
     worksheets: [worksheet],
     async loadRows(env, activeFor) {
@@ -505,6 +508,7 @@ function singleSourceTable(options) {
 function aggregateTable(options) {
   const { key, name, columns, rows } = options;
   const worksheet = { key, name, columns, codeKey: options.codeKey };
+  if (options.summaryKeys) worksheet.summaryKeys = options.summaryKeys;
   return {
     worksheets: [worksheet],
     async loadRows(env, activeFor) {
@@ -643,6 +647,94 @@ function debtManagementRows(debtManagement, context, aggregate = false) {
   return { rows: expanded, name: normalizeText(debt.sourceSheet) };
 }
 
+// ---------- Chi tiet ton kho theo san pham ----------
+// Khop bang "Chi tiết tồn kho theo sản phẩm" tren man hinh (buildInventoryRows o public/index.html):
+// 1 dong / ma hang. "Ca hai" -> gop theo ma, ton / ton co the ban tach cot tung co so.
+
+const INVENTORY_COLUMN_DEFS = {
+  code: ['Mã hàng', 'text', 'Mã hàng trên KiotViet.'],
+  name: ['Tên sản phẩm', undefined, 'Tên sản phẩm.'],
+  cost: ['Đơn giá', 'number', 'Giá vốn của mặt hàng (VNĐ); ở chế độ Cả hai là giá vốn bình quân theo tồn kho dương.'],
+  stock: ['Tồn kho', 'number', 'Tồn thực tế trên KiotViet, chưa trừ hàng khách đã đặt.'],
+  stockHanoi: ['Tồn kho Hà Nội', 'number', 'Tồn thực tế tại cơ sở Hà Nội; để trống nếu mã không có ở cơ sở này.'],
+  stockSaigon: ['Tồn kho Sài Gòn', 'number', 'Tồn thực tế tại cơ sở Sài Gòn; để trống nếu mã không có ở cơ sở này.'],
+  available: ['Tồn có thể bán', 'number', 'Tồn kho trừ số lượng khách đã đặt nhưng chưa giao (âm nghĩa là đã giữ quá tồn).'],
+  availableHanoi: ['Tồn có thể bán Hà Nội', 'number', 'Tồn có thể bán tại cơ sở Hà Nội; để trống nếu mã không có ở cơ sở này.'],
+  availableSaigon: ['Tồn có thể bán Sài Gòn', 'number', 'Tồn có thể bán tại cơ sở Sài Gòn; để trống nếu mã không có ở cơ sở này.'],
+  inTransit: ['Hàng đang vận chuyển', 'number', 'Số lượng trong phiếu đặt hàng nhập ở trạng thái "Đã xác nhận nhà cung cấp" của Kiot Sài Gòn, ghép theo mã hàng.'],
+  stockValue: ['Giá trị tồn', 'number', 'Giá vốn nhân tồn kho dương (VNĐ).'],
+  branch: ['Cơ sở', 'text', 'Cơ sở (Hà Nội hoặc Sài Gòn) của dòng tồn kho; mã có ở cả hai cơ sở ghi "Hà Nội, Sài Gòn".']
+};
+
+// Thu tu cot giong bang tren man hinh: 1 co so -> Tồn kho / Tồn có thể bán; "Ca hai" -> tach Ha Noi / Sai Gon.
+const INVENTORY_COLUMN_ORDER = {
+  one: ['code', 'name', 'cost', 'stock', 'available', 'inTransit', 'stockValue', 'branch'],
+  both: ['code', 'name', 'cost', 'stockHanoi', 'stockSaigon', 'availableHanoi', 'availableSaigon', 'inTransit', 'stockValue', 'branch']
+};
+
+function inventoryColumns(aggregate) {
+  return INVENTORY_COLUMN_ORDER[aggregate ? 'both' : 'one'].map(key => {
+    const [label, type, description] = INVENTORY_COLUMN_DEFS[key];
+    return aggregateColumn(key, label, type, description);
+  });
+}
+
+function inventoryAvailable(product) {
+  const stock = Number(product.stock) || 0;
+  return product.available === undefined ? stock - (Number(product.reserved) || 0) : product.available;
+}
+
+function sortInventoryRows(rows) {
+  return rows.sort((a, b) => (b.stockValue || 0) - (a.stockValue || 0) || (b.stock || 0) - (a.stock || 0));
+}
+
+/** Dong ton kho tu dashboard.allProducts; aggregate ("Ca hai") gop theo ma nhu buildInventoryRows o man hinh. */
+function inventoryRows(allProducts, aggregate) {
+  const list = Array.isArray(allProducts) ? allProducts : [];
+  if (!aggregate) {
+    return sortInventoryRows(list.map(product => ({
+      code: product.code, name: product.name, branch: product.branch, cost: product.cost || 0,
+      stock: product.stock || 0, available: inventoryAvailable(product),
+      inTransit: product.inTransit || 0, stockValue: product.stockValue || 0
+    })));
+  }
+  const byCode = new Map();
+  list.forEach(product => {
+    const key = String(product.code || '');
+    if (!byCode.has(key)) {
+      byCode.set(key, {
+        code: product.code, name: product.name, branches: [], positiveStock: 0,
+        stockHanoi: null, stockSaigon: null, availableHanoi: null, availableSaigon: null,
+        inTransit: 0, stock: 0, stockValue: 0
+      });
+    }
+    const row = byCode.get(key);
+    const stock = product.stock || 0;
+    const available = inventoryAvailable(product);
+    if (product.branch === BRANCH_HANOI_LABEL) {
+      row.stockHanoi = stock; row.availableHanoi = available;
+      if (product.name) row.name = product.name;
+    } else if (product.branch === BRANCH_SAIGON_LABEL) {
+      row.stockSaigon = stock; row.availableSaigon = available;
+      if (!row.name) row.name = product.name;
+    }
+    row.branches.push(product.branch);
+    row.stock += stock;
+    row.stockValue += product.stockValue || 0;
+    row.positiveStock += Math.max(stock, 0);
+    // Hang dang van chuyen la 1 so theo ma (lay tu phieu Sai Gon): uu tien dong Sai Gon, khong cong don.
+    row.inTransit = product.branch === BRANCH_SAIGON_LABEL ? (product.inTransit || 0) : (row.inTransit || product.inTransit || 0);
+  });
+  return sortInventoryRows(Array.from(byCode.values()).map(row => {
+    const { branches, positiveStock, ...rest } = row;
+    return {
+      ...rest,
+      branch: branches.length > 1 ? `${BRANCH_HANOI_LABEL}, ${BRANCH_SAIGON_LABEL}` : branches[0],
+      cost: positiveStock > 0 ? row.stockValue / positiveStock : 0
+    };
+  }));
+}
+
 // Worksheet cua bang khong doc dashboard/Postgres (du lieu tu bao cao rieng hoac payload).
 function reportWorksheet(key, name, columns) {
   return { key, name, columns, codeKey: columns.some(column => column.key === 'code') ? 'code' : undefined };
@@ -701,6 +793,11 @@ const TABLE_SPECS = {
       revenue: item => item.revenue
     }
   }),
+  'products.inventory': (context, scope) => aggregateTable({
+    key: 'inventory', name: 'Chi tiết tồn kho', columns: inventoryColumns(scope.aggregate), codeKey: 'code',
+    rows: dashboard => inventoryRows(dashboard.allProducts, scope.aggregate),
+    summaryKeys: ['stockValue', 'stock', 'stockHanoi', 'stockSaigon']
+  }),
   'invoices.orders': (context, scope) => singleSourceTable({
     key: 'orders', name: 'Đặt hàng', sourceKey: 'orders', branchColumn: scope.aggregate,
     items: dashboard => (dashboard.invoices || {}).periodOrders || []
@@ -723,7 +820,9 @@ const TABLE_SPECS = {
       period_revenue: item => item.revenue,
       revenue_hn: item => amountInBranch(item, 'revenueByBranch', item.revenue, BRANCH_HANOI_LABEL),
       revenue_sg: item => amountInBranch(item, 'revenueByBranch', item.revenue, BRANCH_SAIGON_LABEL)
-    }
+    },
+    // HTML: KPI/bieu do chinh theo doanh thu TRONG KY (khong phai "Tổng doanh thu" ca doi cua khach).
+    summaryKeys: ['d_period_revenue', 'd_revenue_hn', 'd_revenue_sg']
   }),
   'customers.debt': (context, scope) => singleSourceTable({
     key: 'customer_debt', name: 'Khách còn nợ', sourceKey: 'customers', branchColumn: scope.aggregate ? 'customer' : false,
@@ -737,7 +836,8 @@ const TABLE_SPECS = {
       period_revenue: item => item.periodRevenue,
       debt_hn: item => amountInBranch(item, 'debtByBranch', item.debt, BRANCH_HANOI_LABEL),
       debt_sg: item => amountInBranch(item, 'debtByBranch', item.debt, BRANCH_SAIGON_LABEL)
-    }
+    },
+    summaryKeys: ['no_hien_tai', 'd_debt_hn', 'd_debt_sg']
   }),
   'suppliers.list': () => singleSourceTable({
     key: 'suppliers', name: 'Nhà cung cấp', sourceKey: 'suppliers',
@@ -855,6 +955,7 @@ async function buildFixedDataset(tableKey, env, context, tableSearch = {}, selec
     name: (loaded[index] && loaded[index].name) || worksheet.name,
     columns: worksheet.columns,
     codeKey: worksheet.codeKey,
+    ...(worksheet.summaryKeys ? { summaryKeys: worksheet.summaryKeys } : {}),
     rows: (loaded[index] && loaded[index].rows) || []
   }));
   worksheets = applyTableSearchToWorksheets(tableKey, worksheets, tableSearch);
@@ -1344,6 +1445,7 @@ async function getExportDataset(payload, branch, options = {}) {
     key: sourceWorksheet.key,
     name: sourceWorksheet.name,
     columns: selectedColumnsForWorksheet(dataset.selectionMode, sourceWorksheet, request.columns),
+    ...(sourceWorksheet.summaryKeys ? { summaryKeys: sourceWorksheet.summaryKeys } : {}),
     rows: sourceWorksheet.rows
   })).filter(worksheet => worksheet.columns.length > 0);
   if (worksheets.length === 0) {

@@ -272,6 +272,64 @@ test('payload xuất Excel mang theo chế độ và từ khóa của đúng b�
   dom.window.close();
 });
 
+test('xuất file (Excel/HTML) gửi đúng bộ lọc thời gian riêng của từng bảng, xóa lọc thì gửi "Tất cả"', () => {
+  const dom = createDashboard();
+  const win = dom.window;
+  const clone = value => JSON.parse(JSON.stringify(value));
+  // khóa bộ lọc của bảng trên trang -> [khoảng ngày]; mỗi bảng một khoảng khác nhau để phát hiện lẫn lộn.
+  const ranges = {
+    topSelling: ['2026-01-01', '2026-01-07'], newlyImported: ['2026-02-01', '2026-02-07'],
+    newProducts: ['2026-03-01', '2026-03-07'], invoices: ['2026-04-01', '2026-04-07'],
+    orders: ['2026-05-01', '2026-05-07'], returns: ['2026-06-01', '2026-06-07'],
+    customers: ['2026-07-01', '2026-07-07'], suppliers: ['2026-08-01', '2026-08-07']
+  };
+  Object.entries(ranges).forEach(([key, [from, to]]) => win.setTableDateFilter(key, from, to));
+
+  // bảng xuất file -> [khóa bộ lọc trong payload, khóa bộ lọc trên trang]
+  const exportTables = {
+    'products.top-selling': ['products', 'topSelling'],
+    'products.newly-imported': ['newlyImported', 'newlyImported'],
+    'overview.new-products': ['newProducts', 'newProducts'],
+    'overview.transactions': ['invoices', 'invoices'],
+    'invoices.orders': ['orders', 'orders'],
+    'invoices.returns': ['returns', 'returns'],
+    'customers.revenue': ['customers', 'customers'],
+    'customers.debt': ['customers', 'customers'],
+    'overview.purchases': ['newPurchases', 'suppliers']
+  };
+  Object.entries(exportTables).forEach(([tableKey, [payloadKey, stateKey]]) => {
+    const [from, to] = ranges[stateKey];
+    assert.deepEqual(clone(win.buildExportPayload(tableKey).filters[payloadKey]), { mode: 'range', from, to }, tableKey);
+  });
+
+  win.setTableDateFilter('orders', '', '');
+  assert.deepEqual(clone(win.buildExportPayload('invoices.orders').filters.orders), { mode: 'all' });
+  assert.deepEqual(clone(win.buildExportPayload('invoices.returns').filters.returns), { mode: 'range', from: '2026-06-01', to: '2026-06-07' },
+    'xóa lọc Đặt hàng không đụng tới Trả hàng');
+  dom.window.close();
+});
+
+test('bảng Chi tiết tồn kho có nút xuất file, payload mang chế độ và từ khóa tìm kiếm của bảng', () => {
+  const dom = createDashboard();
+  const document = dom.window.document;
+  assert.match(document.getElementById('inventoryTablePanel').innerHTML, /openExportDialog\('products\.inventory'\)/);
+  const ids = {
+    tbody: 'inventoryValueRows', pagination: 'inventoryValuePagination',
+    firstBtn: 'inventoryValueFirstPage', prevBtn: 'inventoryValuePrevPage',
+    nextBtn: 'inventoryValueNextPage', lastBtn: 'inventoryValueLastPage', label: 'inventoryValuePageLabel'
+  };
+  dom.window.renderPaginatedRows('inventoryValue', ids, [{ code: 'SP001', name: 'Chổi lau nhà' }],
+    item => `<tr><td>${item.code}</td><td>${item.name}</td></tr>`, 2, 'Không có dữ liệu');
+  const input = document.querySelector('[data-table-search="inventoryValue"] .table-search-input');
+  input.value = 'chổi';
+  input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+
+  const payload = dom.window.buildExportPayload('products.inventory');
+  assert.equal(payload.tableKey, 'products.inventory');
+  assert.deepEqual(JSON.parse(JSON.stringify(payload.tableSearch)), { mode: 'normal', query: 'chổi' });
+  dom.window.close();
+});
+
 test('ô tìm kiếm bảng ẩn nút × mặc định của trình duyệt để chỉ còn một nút xóa', () => {
   const source = fs.readFileSync(indexPath, 'utf8');
   assert.match(source, /\.table-search-input\[type="search"\]::-webkit-search-cancel-button/);
