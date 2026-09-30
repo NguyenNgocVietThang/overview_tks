@@ -14,34 +14,37 @@ test('disabled scheduler creates no timers and touches no configuration, API, da
   assert.equal(touched, 0);
 });
 
-test('scheduler creates independent fast and slow timers at configured intervals, plus a dashboard-rollup, customer-debt-report, product-report and customer-invoice-lines schedule', () => {
+test('scheduler creates independent fast and slow timers at configured intervals, plus a dashboard-rollup, customer-debt-report, product-report, customer-invoice-lines and inventory-value-snapshot schedule', () => {
   const timers = [];
   const immediate = [];
   const rollupCalls = [];
   const debtReportCalls = [];
   const productReportCalls = [];
   const invoiceLinesCalls = [];
+  const inventorySnapshotCalls = [];
   const scheduler = createPollingScheduler({
-    enabled:true, fastIntervalMs:7, slowIntervalMs:20, dashboardRollupIntervalMs:300000, customerDebtReportIntervalMs:300000, productReportIntervalMs:300000, customerInvoiceLinesIntervalMs:300000,
+    enabled:true, fastIntervalMs:7, slowIntervalMs:20, dashboardRollupIntervalMs:300000, customerDebtReportIntervalMs:300000, productReportIntervalMs:300000, customerInvoiceLinesIntervalMs:300000, inventoryValueSnapshotIntervalMs:60000,
     getConfiguredBranches:()=>[], setIntervalFn:(fn,ms)=>(timers.push({fn,ms}),ms),
     scheduleImmediate:(fn)=>immediate.push(fn),
     getPool:()=>'fake-pool',
     startDashboardRollupSchedule:(pool,opts)=>{rollupCalls.push({pool,...opts}); return 'rollup-handle';},
     startCustomerDebtReportRefreshSchedule:(pool,opts)=>{debtReportCalls.push({pool,...opts}); return 'debt-report-handle';},
     startProductReportSchedule:(pool,opts)=>{productReportCalls.push({pool,...opts}); return 'product-report-handle';},
-    startCustomerInvoiceLinesSchedule:(pool,opts)=>{invoiceLinesCalls.push({pool,...opts}); return 'invoice-lines-handle';}
+    startCustomerInvoiceLinesSchedule:(pool,opts)=>{invoiceLinesCalls.push({pool,...opts}); return 'invoice-lines-handle';},
+    startInventoryValueSnapshotSchedule:(pool,opts)=>{inventorySnapshotCalls.push({pool,...opts}); return 'inventory-snapshot-handle';}
   });
-  assert.deepEqual(scheduler.startPollingScheduler(), [7,20,'rollup-handle','debt-report-handle','product-report-handle','invoice-lines-handle']);
+  assert.deepEqual(scheduler.startPollingScheduler(), [7,20,'rollup-handle','debt-report-handle','product-report-handle','invoice-lines-handle','inventory-snapshot-handle']);
   assert.deepEqual(timers.map((x)=>x.ms), [7,20]);
   assert.equal(immediate.length, 1);
   assert.equal(rollupCalls.length, 1);
   assert.equal(rollupCalls[0].pool, 'fake-pool');
   assert.equal(rollupCalls[0].intervalMs, 300000);
-  // Ca 4 lich con deu phai nhan scheduleImmediate de con chay ngay luc khoi dong.
+  // Ca 5 lich con deu phai nhan scheduleImmediate de con chay ngay luc khoi dong.
   assert.equal(typeof rollupCalls[0].scheduleImmediate, 'function');
   assert.equal(typeof debtReportCalls[0].scheduleImmediate, 'function');
   assert.equal(typeof productReportCalls[0].scheduleImmediate, 'function');
   assert.equal(typeof invoiceLinesCalls[0].scheduleImmediate, 'function');
+  assert.equal(typeof inventorySnapshotCalls[0].scheduleImmediate, 'function');
   assert.equal(debtReportCalls.length, 1);
   assert.equal(debtReportCalls[0].pool, 'fake-pool');
   assert.equal(debtReportCalls[0].intervalMs, 300000);
@@ -51,6 +54,9 @@ test('scheduler creates independent fast and slow timers at configured intervals
   assert.equal(invoiceLinesCalls.length, 1);
   assert.equal(invoiceLinesCalls[0].pool, 'fake-pool');
   assert.equal(invoiceLinesCalls[0].intervalMs, 300000);
+  assert.equal(inventorySnapshotCalls.length, 1);
+  assert.equal(inventorySnapshotCalls[0].pool, 'fake-pool');
+  assert.equal(inventorySnapshotCalls[0].intervalMs, 60000);
 });
 
 test('scheduler schedules an immediate background catch-up from persisted checkpoints', async () => {
@@ -69,7 +75,8 @@ test('scheduler schedules an immediate background catch-up from persisted checkp
     startDashboardRollupSchedule:()=>({}),
     startCustomerDebtReportRefreshSchedule:()=>({}),
     startProductReportSchedule:()=>({}),
-    startCustomerInvoiceLinesSchedule:()=>({})
+    startCustomerInvoiceLinesSchedule:()=>({}),
+    startInventoryValueSnapshotSchedule:()=>({})
   });
 
   scheduler.startPollingScheduler();
@@ -95,7 +102,8 @@ test('moi luot sync fast keo theo mot luot rollup "nong" ngay sau do', async () 
     startDashboardRollupSchedule:()=>'rollup-handle',
     startCustomerDebtReportRefreshSchedule:()=>'debt-handle',
     startProductReportSchedule:()=>'product-handle',
-    startCustomerInvoiceLinesSchedule:()=>'invoice-lines-handle'
+    startCustomerInvoiceLinesSchedule:()=>'invoice-lines-handle',
+    startInventoryValueSnapshotSchedule:()=>'inventory-snapshot-handle'
   });
 
   scheduler.startPollingScheduler();

@@ -1,7 +1,7 @@
 // ==========================================
 // TAB (VIEW) CUA "BAO CAO TONG HOP" — khai bao thuan (khong I/O).
 //
-// Truoc day GET /api/dashboard luon doc + tinh + tra du lieu cua CA 6 tab du
+// Truoc day GET /api/dashboard luon doc + tinh + tra du lieu cua CA 5 tab du
 // nguoi dung chi dang xem 1 tab (do that: doc nguon ~9,8s khi cache nguoi, doi
 // 1 bo loc ~0,9s, payload 5,25 MB). Bay gio client co the goi
 // GET /api/dashboard?view=<tab> de chi doc/tinh/tra phan cua tab do:
@@ -11,13 +11,13 @@
 //   - `filterKeys`: khoa cua object `filters` anh huong tab nay (vao cache key,
 //     nen doi bo loc cua tab khac khong lam mat cache cua tab nay);
 //   - VIEW_PAYLOAD: phan payload tab nay tra ve.
-// Bo trong `view` = ca 6 tab, y het hanh vi cu (test + nguoi goi cu khong doi).
+// Bo trong `view` = ca 5 tab, y het hanh vi cu (test + nguoi goi cu khong doi).
 // ==========================================
 'use strict';
 
 const CONFIG = require('../config');
 
-const VIEW_NAMES = Object.freeze(['overview', 'products', 'invoices', 'customers', 'suppliers', 'debt']);
+const VIEW_NAMES = Object.freeze(['overview', 'products', 'invoices', 'customers', 'debt']);
 
 // Quyen can co de xem tung tab — khop SECTION_FEATURE (dashboardPermissionFilter.js).
 const VIEW_FEATURE = Object.freeze({
@@ -25,7 +25,6 @@ const VIEW_FEATURE = Object.freeze({
   products: 'reports.products',
   invoices: 'reports.invoices',
   customers: 'reports.customers',
-  suppliers: 'reports.suppliers',
   debt: 'reports.debt'
 });
 
@@ -34,13 +33,13 @@ const PERIODS_KEY = '@periods';
 
 const CORE_SHEETS_ORDER = Object.freeze([
   CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES, CONFIG.SHEET_ORDERS,
-  CONFIG.SHEET_RETURNS, CONFIG.SHEET_CUSTOMERS, CONFIG.SHEET_SUPPLIERS
+  CONFIG.SHEET_RETURNS, CONFIG.SHEET_CUSTOMERS
 ]);
 const ALL_CORE_KEYS = Object.freeze([...CORE_SHEETS_ORDER, PERIODS_KEY]);
 
 const ALL_ROLLUPS = Object.freeze([
   'overviewRevenue', 'invoicesRevenue', 'productSales', 'newlyImportedSales', 'firstPurchase',
-  'purchaseTotals', 'newPurchaseOrders', 'invoiceQuantity'
+  'invoiceQuantity'
 ]);
 
 const VIEW_SOURCES = Object.freeze({
@@ -68,11 +67,6 @@ const VIEW_SOURCES = Object.freeze({
     rollups: [],
     needsDebt: false
   },
-  suppliers: {
-    sheets: [CONFIG.SHEET_SUPPLIERS],
-    rollups: ['purchaseTotals', 'newPurchaseOrders'],
-    needsDebt: false
-  },
   // Cong no: workbook Google Sheets + workflow Postgres + CN1/3/7, KHONG dung bang nguon core.
   debt: {
     sheets: [],
@@ -88,7 +82,6 @@ const VIEW_FILTER_KEYS = Object.freeze({
   products: ['products', 'newProducts', 'newlyImported'],
   invoices: ['invoices', 'orders', 'returns'],
   customers: ['customers'],
-  suppliers: ['newPurchases'],
   debt: []
 });
 
@@ -127,15 +120,6 @@ const VIEW_PAYLOAD = Object.freeze({
     kpi: ['totalCustomers', 'customersWithDebt', 'totalDebt'],
     filters: ['customers']
   },
-  suppliers: {
-    top: ['suppliers', 'newPurchases'],
-    nested: {},
-    kpi: [
-      'totalSuppliers', 'suppliersWithDebt', 'totalSupplierDebt', 'purchaseOrdersCount',
-      'totalPurchaseSpend', 'newPurchasesOrderCount', 'newPurchasesTotalAmount', 'newPurchasesSupplierCount'
-    ],
-    filters: ['newPurchases']
-  },
   debt: {
     top: ['debtManagement'],
     nested: {},
@@ -153,7 +137,7 @@ function invalidViewError(name) {
 
 /**
  * Doc tham so query `view` ("overview" hoac "overview,products"). Bo trong =>
- * null (ca 6 tab). Ten sai => nem loi 400 INVALID_VIEW.
+ * null (ca 5 tab). Ten sai => nem loi 400 INVALID_VIEW.
  */
 function parseViewsParam(raw) {
   if (raw === undefined || raw === null) return null;
@@ -173,7 +157,7 @@ function unionInOrder(order, lists) {
 
 /**
  * Ke hoach doc/tinh cho 1 tap tab. `rawViews` = mang ten tab, hoac
- * undefined/null = ca 6 tab (hanh vi cu).
+ * undefined/null = ca 5 tab (hanh vi cu).
  */
 function resolveViewPlan(rawViews) {
   const all = rawViews === undefined || rawViews === null;
@@ -189,7 +173,7 @@ function resolveViewPlan(rawViews) {
   const coreKeys = needsPeriods ? [...sheets, PERIODS_KEY] : sheets;
   const rollups = new Set(unionInOrder(ALL_ROLLUPS, views.map(name => VIEW_SOURCES[name].rollups)));
   const filterKeys = unionInOrder(
-    ['overview', 'products', 'invoices', 'customers', 'newPurchases', 'newProducts', 'newlyImported', 'orders', 'returns'],
+    ['overview', 'products', 'invoices', 'customers', 'newProducts', 'newlyImported', 'orders', 'returns'],
     views.map(name => VIEW_FILTER_KEYS[name])
   );
 
@@ -207,7 +191,7 @@ function resolveViewPlan(rawViews) {
 
 /**
  * Cat ban tinh day du (shape cu cua computeDashboardData) ve dung phan cua cac
- * tab trong `plan`. Ke hoach "ca 6 tab" tra nguyen ban day du (khong doi shape).
+ * tab trong `plan`. Ke hoach "ca 5 tab" tra nguyen ban day du (khong doi shape).
  * Luon tra object MOI cho ban cat — khong sua `full` (co the la object trong cache).
  */
 function pickPayload(full, plan) {
@@ -239,7 +223,7 @@ function pickPayload(full, plan) {
   return picked;
 }
 
-/** Chi giu cac bo loc anh huong `plan` — dung lam cache key (ke hoach ca 6 tab: giu het). */
+/** Chi giu cac bo loc anh huong `plan` — dung lam cache key (ke hoach ca 5 tab: giu het). */
 function pickFilters(filters, plan) {
   const source = filters || {};
   if (plan.all) return source;

@@ -11,6 +11,7 @@ const router = express.Router();
 
 const { getExportFields, createExport, buildExportErrorBody } = require('./dashboard/exportService');
 const { getProductReport, getProductReportCustomers } = require('./dashboard/productReportRepository');
+const { getInventoryValueHistory } = require('./dashboard/inventoryValueHistory');
 const { getOrderDetail, getReturnDetail, getInvoiceDetail } = require('./dashboard/documentDetailRepository');
 const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
@@ -101,6 +102,7 @@ router.use('/api/customer-suggest', ...reportsUser('reports.customers'));
 router.use('/api/customer-product-top', ...reportsUser('reports.customers'));
 router.use('/api/customer-product-revenue', ...reportsUser('reports.customers'));
 router.use('/api/product-report', ...reportsUser('reports.products'));
+router.use('/api/inventory-value-history', ...reportsUser('reports.overview'));
 router.use('/api/order-detail', ...reportsUser('reports.invoices'));
 router.use('/api/return-detail', ...reportsUser('reports.invoices'));
 router.use('/api/invoice-detail', ...reportsUser('reports.invoices'));
@@ -383,6 +385,26 @@ router.get('/api/product-report/customers', async (req, res) => {
     console.error('==========================================');
     res.status(err.statusCode || 500).json({
       error: err.statusCode && err.statusCode < 500 ? err.message : 'Không lấy được doanh số khách theo mã hàng.',
+      detail: err.message,
+      code: err.code
+    });
+  }
+});
+
+// Bieu do cot "Gia tri ton kho theo ngay" (tab Tong quan, muc 1 Xu huong): ban chup 23:59 hang
+// ngay cua tung co so (bang inventory_value_snapshots), loc theo co so dang xem va ?from=&to=.
+router.get('/api/inventory-value-history', async (req, res) => {
+  try {
+    const branchCodes = resolveBranchScope(req.branch).map(branchLabelToCode);
+    const data = await getInventoryValueHistory({ branchCodes, from: req.query.from, to: req.query.to });
+    res.status(200).json(data);
+  } catch (err) {
+    console.error('=== LOI /api/inventory-value-history ===');
+    console.error('Message:', err.message);
+    console.error('Stack:', err.stack);
+    console.error('=========================================');
+    res.status(err.statusCode || 500).json({
+      error: err.statusCode && err.statusCode < 500 ? err.message : 'Không lấy được lịch sử giá trị tồn kho.',
       detail: err.message,
       code: err.code
     });

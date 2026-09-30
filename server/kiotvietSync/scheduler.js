@@ -12,6 +12,7 @@ const {
 const { startCustomerDebtReportRefreshSchedule } = require('./customerDebtReportRefresh');
 const { startProductReportSchedule } = require('./productReportRefresh');
 const { startCustomerInvoiceLinesSchedule } = require('./customerInvoiceLinesRefresh');
+const { startInventoryValueSnapshotSchedule } = require('./inventoryValueSnapshot');
 
 // orderSuppliers ("Dat hang nhap") o nhom fast: doi soat toan bo ~350 phieu chi vai
 // request, va nhip 7 phut gan nhip snapshot ton kho (10 phut) nen hang vua nhap
@@ -32,6 +33,8 @@ function createPollingScheduler({
   customerDebtReportIntervalMs = 5 * 60 * 1000,
   productReportIntervalMs = 5 * 60 * 1000,
   customerInvoiceLinesIntervalMs = 5 * 60 * 1000,
+  // Chup gia tri ton kho luc 23:59 VN: kiem tra moi 1 phut de khong truot qua phut do.
+  inventoryValueSnapshotIntervalMs = 60 * 1000,
   getConfiguredBranches: getBranches = getConfiguredBranches,
   createKiotVietClient: createClient = createKiotVietClient,
   pollEntityOnce: poll = pollEntityOnce,
@@ -44,6 +47,7 @@ function createPollingScheduler({
   startCustomerDebtReportRefreshSchedule: startCustomerDebtReportRefresh = startCustomerDebtReportRefreshSchedule,
   startProductReportSchedule: startProductReport = startProductReportSchedule,
   startCustomerInvoiceLinesSchedule: startCustomerInvoiceLines = startCustomerInvoiceLinesSchedule,
+  startInventoryValueSnapshotSchedule: startInventoryValueSnapshot = startInventoryValueSnapshotSchedule,
   logger = console
 } = {}) {
   async function runGroup(entities) {
@@ -128,6 +132,15 @@ function createPollingScheduler({
       // refreshCustomerInvoiceLinesIfDue tu kiem tra), du duoc kiem tra moi 5 phut.
       startCustomerInvoiceLines(getPoolFn(), {
         intervalMs: customerInvoiceLinesIntervalMs,
+        setIntervalFn,
+        scheduleImmediate,
+        log: logger.log ? logger.log.bind(logger) : logger
+      }),
+      // Lich su gia tri ton kho theo ngay (server/db/migrations/0025) - CHI chup 1 lan/ngay
+      // luc 23:59 VN (co chup bu sang hom sau truoc 12:00); ham
+      // takeInventoryValueSnapshotIfDue tu kiem tra, du duoc goi moi phut.
+      startInventoryValueSnapshot(getPoolFn(), {
+        intervalMs: inventoryValueSnapshotIntervalMs,
         setIntervalFn,
         scheduleImmediate,
         log: logger.log ? logger.log.bind(logger) : logger

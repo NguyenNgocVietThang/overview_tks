@@ -1,15 +1,14 @@
 'use strict';
 // ==========================================
-// DASHBOARD ROLLUP REPOSITORY — doc 4 bang rollup theo ngay
+// DASHBOARD ROLLUP REPOSITORY — doc cac bang rollup theo ngay
 // (server/db/migrations/0013_dashboard_rollups.sql, tinh san boi
 // server/kiotvietSync/dashboardRollupRefresh.js) dung cho cac khoi nang nhat
 // cua /api/dashboard (doanh thu hoa don theo ngay, top san pham ban chay,
-// nhap hang theo NCC, ngay nhap dau tien) — thay cho viec dashboardData.js tu
-// quet "Chi tiết hóa đơn"/"Nhập hàng" (2 tab nang nhat, ~14s/lan doc) trong
-// Node.js moi request.
+// ngay nhap dau tien) — thay cho viec dashboardData.js tu quet
+// "Chi tiết hóa đơn" (tab nang nhat, ~14s/lan doc) trong Node.js moi request.
 //
-// Factory pattern giong debtCollectionStatusRepository.js. Ten/nhom hang/NCC
-// LUON join truc tiep voi products/categories/suppliers HIEN TAI tai thoi
+// Factory pattern giong debtCollectionStatusRepository.js. Ten/nhom hang
+// LUON join truc tiep voi products/categories HIEN TAI tai thoi
 // diem doc (khong bake vao rollup) — rollup chi luu so da tong hop.
 //
 // `from`/`to` cua moi ham la chuoi 'YYYY-MM-DD' (hoac null = khong gioi han)
@@ -19,7 +18,6 @@
 // ==========================================
 const { getPool } = require('../db/pool');
 const { BRANCHES, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
-const { statusLabel } = require('./dashboardPgReader');
 
 function resolveBranchCode(branch) {
   const branchCode = branchLabelToCode(branch || BRANCHES.HANOI);
@@ -106,31 +104,6 @@ const PRODUCT_SALES_BASE_SQL = `
 
 const TOP_SELLING_PRODUCTS_SQL = `${PRODUCT_SALES_BASE_SQL} ORDER BY revenue DESC LIMIT $4`;
 
-const PURCHASES_BY_SUPPLIER_SQL = `
-  SELECT
-    COALESCE(su.code, '') AS code,
-    COALESCE(su.name, '(Không xác định)') AS name,
-    SUM(dps.order_count)::int AS order_count,
-    SUM(dps.total)::float8 AS total
-  FROM daily_purchase_summary dps
-  LEFT JOIN suppliers su ON su.branch = dps.branch AND su.id = dps.supplier_id
-  WHERE dps.branch = $1
-    AND ($2::date IS NULL OR dps.purchase_date >= $2::date)
-    AND ($3::date IS NULL OR dps.purchase_date <= $3::date)
-  GROUP BY COALESCE(su.code, ''), COALESCE(su.name, '(Không xác định)')
-  ORDER BY total DESC
-  LIMIT $4`;
-
-// KHONG gioi han ngay — "purchaseOrdersCount"/"totalPurchaseSpend" (KPI o tab
-// Nha cung cap) la tong TOAN THOI GIAN, dung dung ban ghi da co trong bang
-// rollup (xem ghi chu cua so refresh o dashboardRollupRefresh.js).
-const PURCHASE_TOTALS_SQL = `
-  SELECT
-    COALESCE(SUM(order_count), 0)::float8 AS order_count,
-    COALESCE(SUM(total), 0)::float8 AS total
-  FROM daily_purchase_summary
-  WHERE branch = $1`;
-
 const FIRST_PURCHASE_DATES_SQL = `
   SELECT
     COALESCE(p.code, 'PID-' || pf.product_id::text) AS code,
@@ -154,31 +127,6 @@ const INVOICE_QUANTITIES_SQL = `
     AND ($2::date IS NULL OR (i.purchase_date AT TIME ZONE 'UTC')::date >= $2::date)
     AND ($3::date IS NULL OR (i.purchase_date AT TIME ZONE 'UTC')::date <= $3::date)
   GROUP BY i.code`;
-
-// Doc THANG tu bang `purchases` (KHONG dung rollup, KHONG join purchase_details
-// nhu tab "Nhập hàng" cu) — can du lieu tung PHIEU NHAP rieng le (ma/ngay/NCC/
-// trang thai) de hien thi bang "Hàng nhập" o tab Nhà cung cấp, thu ma
-// daily_purchase_summary (gom theo NCC+ngay) khong the tra lai duoc. Van re
-// hon nhieu tab "Nhập hàng" cu vi khong join purchase_details/products.
-function buildRecentPurchaseOrdersSql() {
-  const statusSql = statusLabel({}, 'pu.');
-  return `
-    SELECT
-      pu.code AS code,
-      to_char(pu.purchase_date AT TIME ZONE 'UTC', 'DD/MM/YYYY HH24:MI') AS date,
-      COALESCE(NULLIF(pu.raw->>'supplierCode', ''), su.code, '') AS supplier_code,
-      COALESCE(NULLIF(pu.raw->>'supplierName', ''), su.name, '') AS supplier,
-      COALESCE(pu.raw->>'branchName', '') AS branch,
-      COALESCE(pu.total, 0)::float8 AS total,
-      ${statusSql} AS status
-    FROM purchases pu
-    LEFT JOIN suppliers su ON su.branch = pu.branch AND su.id = pu.supplier_id
-    WHERE pu.branch = $1
-      AND ($2::date IS NULL OR (pu.purchase_date AT TIME ZONE 'UTC')::date >= $2::date)
-      AND ($3::date IS NULL OR (pu.purchase_date AT TIME ZONE 'UTC')::date <= $3::date)
-    ORDER BY pu.purchase_date DESC NULLS LAST, pu.id DESC`;
-}
-const RECENT_PURCHASE_ORDERS_SQL = buildRecentPurchaseOrdersSql();
 
 function createDashboardRollupRepository({ pool = getPool() } = {}) {
   /**
@@ -278,52 +226,6 @@ function createDashboardRollupRepository({ pool = getPool() } = {}) {
   }
 
   /**
-   * Tong tien/so phieu nhap theo MA NCC trong khoang [from, to] — tu
-   * daily_purchase_summary. Ten hien thi giu gia tri dau tien theo thu tu
-   * Ha Noi -> Sai Gon; NCC thieu ma moi fallback ve ten.
-   */
-  async function getPurchasesBySupplier({ branch, from = null, to = null, limit = null }) {
-    const scope = resolvePhysicalBranches(branch);
-    const perBranchLimit = scope.length > 1 ? null : limit;
-    const groups = await Promise.all(scope.map(async physicalBranch => {
-      const result = await pool.query(PURCHASES_BY_SUPPLIER_SQL, [resolveBranchCode(physicalBranch), from, to, perBranchLimit]);
-      return {
-        branch: physicalBranch,
-        rows: result.rows.map(row => ({
-          code: row.code || '',
-          name: row.name || '(Không xác định)',
-          orderCount: Number(row.order_count) || 0,
-          total: Number(row.total) || 0
-        }))
-      };
-    }));
-    const rows = mergeAdditiveRows(groups, {
-      keyOf: row => {
-        const code = String(row.code || '').trim().toLocaleLowerCase('vi-VN');
-        return code ? `code:${code}` : `name:${String(row.name || '').trim().toLocaleLowerCase('vi-VN')}`;
-      },
-      firstFields: ['code', 'name'],
-      additiveFields: ['orderCount', 'total'],
-      sort: (a, b) => b.total - a.total
-    });
-    const limitedRows = limit == null ? rows : rows.slice(0, limit);
-    return limitedRows.map(({ code, ...row }) => row);
-  }
-
-  /** Tong so phieu nhap/tong tien nhap TOAN THOI GIAN (khong loc ngay). */
-  async function getPurchaseTotals({ branch }) {
-    const groups = await queryPhysicalBranches(branch, async (_physicalBranch, branchCode) => {
-      const result = await pool.query(PURCHASE_TOTALS_SQL, [branchCode]);
-      const row = result.rows[0] || { order_count: 0, total: 0 };
-      return [{ orderCount: Number(row.order_count) || 0, total: Number(row.total) || 0 }];
-    });
-    return groups.reduce((total, group) => ({
-      orderCount: total.orderCount + group.rows[0].orderCount,
-      total: total.total + group.rows[0].total
-    }), { orderCount: 0, total: 0 });
-  }
-
-  /**
    * Ngay nhap hang DAU TIEN cua tung ma hang, toan bo lich su — tu
    * product_first_purchase. `firstPurchaseDateText` la chuoi 'DD/MM/YYYY
    * HH24:MI:SS' (dung format nhu Sheets) de dashboardData.js parse lai bang
@@ -368,40 +270,12 @@ function createDashboardRollupRepository({ pool = getPool() } = {}) {
     return groups.flatMap(group => group.rows.map(row => ({ ...row, branch: group.branch })));
   }
 
-  /**
-   * Danh sach PHIEU NHAP rieng le (ma/ngay/NCC/tong tien/trang thai) trong
-   * khoang [from, to] — doc THANG tu `purchases` (xem ghi chu o
-   * RECENT_PURCHASE_ORDERS_SQL), dung cho bang "Hàng nhập" (khong the thay
-   * bang rollup vi can giu dung tung phieu, khong gom).
-   */
-  async function listPurchaseOrders({ branch, from = null, to = null }) {
-    const groups = await queryPhysicalBranches(branch, async (_physicalBranch, branchCode) => {
-      const result = await pool.query(RECENT_PURCHASE_ORDERS_SQL, [branchCode, from, to]);
-      return result.rows.map(row => ({
-        code: row.code || '',
-        date: row.date || '',
-        supplierCode: row.supplier_code || '',
-        supplier: row.supplier || '',
-        branch: row.branch || '',
-        total: Number(row.total) || 0,
-        status: row.status || ''
-      }));
-    });
-    if (groups.length === 1) return groups[0].rows;
-    return groups
-      .flatMap(group => group.rows.map(row => ({ ...row, branch: group.branch })))
-      .sort((a, b) => dateTextSortValue(b.date) - dateTextSortValue(a.date));
-  }
-
   return {
     getInvoiceRevenueByDay,
     getProductSalesBreakdown,
     getTopSellingProducts,
-    getPurchasesBySupplier,
-    getPurchaseTotals,
     getFirstPurchaseDates,
-    getInvoiceQuantitiesByCode,
-    listPurchaseOrders
+    getInvoiceQuantitiesByCode
   };
 }
 
@@ -412,9 +286,6 @@ module.exports = {
   getInvoiceRevenueByDay: (...args) => repository.getInvoiceRevenueByDay(...args),
   getProductSalesBreakdown: (...args) => repository.getProductSalesBreakdown(...args),
   getTopSellingProducts: (...args) => repository.getTopSellingProducts(...args),
-  getPurchasesBySupplier: (...args) => repository.getPurchasesBySupplier(...args),
-  getPurchaseTotals: (...args) => repository.getPurchaseTotals(...args),
   getFirstPurchaseDates: (...args) => repository.getFirstPurchaseDates(...args),
-  getInvoiceQuantitiesByCode: (...args) => repository.getInvoiceQuantitiesByCode(...args),
-  listPurchaseOrders: (...args) => repository.listPurchaseOrders(...args)
+  getInvoiceQuantitiesByCode: (...args) => repository.getInvoiceQuantitiesByCode(...args)
 };

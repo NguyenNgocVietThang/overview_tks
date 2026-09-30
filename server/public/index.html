@@ -3155,6 +3155,7 @@
       color: var(--red);
       background: rgba(var(--glow-red-rgb), .1);
     }
+    td.num-neg { color: var(--red) !important; }
   </style>
 </head>
 
@@ -3211,7 +3212,7 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">1</span>
-              <h2>Xu hướng <span class="section-note">doanh thu theo ngày · dùng chung khoảng Từ – Đến với bảng Chi tiết giao dịch ở tab Hóa đơn</span></h2>
+              <h2>Xu hướng <span class="section-note">doanh thu theo ngày dùng chung khoảng Từ – Đến với bảng Chi tiết giao dịch ở tab Hóa đơn · giá trị tồn kho theo ngày có bộ lọc riêng</span></h2>
             </div>
             <div class="kpi-grid section-kpis">
               <div class="kpi-card col-4 accent-green">
@@ -3237,6 +3238,16 @@
                   <div class="table-search-tools" data-date-filter-slot="invoices"></div>
                 </div>
                 <div class="chart-box"><canvas id="chartInvoiceRevenue"></canvas></div>
+              </div>
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Giá trị tồn kho theo ngày <span class="section-note">bản chụp lúc 23:59 mỗi ngày · theo giá vốn</span></h2>
+                  <div class="table-search-tools" data-date-filter-slot="inventoryHistory"></div>
+                </div>
+                <div class="chart-box">
+                  <canvas id="chartInventoryHistory"></canvas>
+                  <div class="chart-empty" id="chartInventoryHistoryEmpty" hidden>Đang tải...</div>
+                </div>
               </div>
             </div>
           </section>
@@ -4484,6 +4495,10 @@
       currentUser: null,
       supplierReturnImport: { submitting: false },
       productReport: { rows: [], computedAt: null, loaded: false },
+      // Bieu do "Gia tri ton kho theo ngay" (tab Tong quan, muc 1): tu tai qua
+      // /api/inventory-value-history, bo loc Tu-Den rieng (mac dinh 7 ngay) nen KHONG nam trong
+      // state.filters (khoa trong do di kem /api/dashboard va cache dashboard).
+      inventoryHistory: { filter: { mode: 'days', days: 7 }, rows: [], loaded: false, failed: false, requestId: 0 },
       debtFilters: {
         queue: 'needsAction',
         sale: '',
@@ -4942,7 +4957,7 @@
       const attr = style ? ' style="' + style + '"' : '';
       return ['Hà Nội', 'Sài Gòn'].map(branch => {
         const value = map ? Number(map[branch]) || 0 : (item && item.branch === branch ? Number(total) || 0 : 0);
-        return '<td class="mono" data-sort-value="' + value + '"' + attr + '>' + fmtMoney(value) + '</td>';
+        return '<td class="mono" data-sort-value="' + value + '"' + (value < 0 ? ' style="color:var(--red);"' : attr) + '>' + fmtMoney(value) + '</td>';
       }).join('');
     }
 
@@ -6362,8 +6377,21 @@
       return { from: isoDateOffset(Math.max(Number(filter.days) || 30, 1) - 1), to: isoDateOffset(0) };
     }
 
+    // Bo loc cua bieu do "Gia tri ton kho theo ngay" nam o state.inventoryHistory.filter (tu tai
+    // qua API rieng, khong di kem /api/dashboard); moi khoa con lai nam trong state.filters.
+    function getDateFilter(key) {
+      return key === 'inventoryHistory' ? state.inventoryHistory.filter : state.filters[key];
+    }
+
     function setTableDateFilter(key, from, to) {
-      state.filters[key] = from && to ? { mode: 'range', from: from <= to ? from : to, to: from <= to ? to : from } : { mode: 'all' };
+      const next = from && to ? { mode: 'range', from: from <= to ? from : to, to: from <= to ? to : from } : { mode: 'all' };
+      if (key === 'inventoryHistory') {
+        state.inventoryHistory.filter = next;
+        syncTableDateFilterUI(key);
+        loadInventoryHistory();
+        return;
+      }
+      state.filters[key] = next;
       syncTableDateFilterUI(key);
       loadData(state.days, false);
     }
@@ -6373,8 +6401,9 @@
       const to = container.querySelector('[data-date-role="to"]').value;
       if (!from && !to) { setTableDateFilter(key, '', ''); return; }
       if (!from || !to) return;
-      const current = dateFilterBounds(state.filters[key]);
-      if (current.from === from && current.to === to && state.filters[key].mode !== 'all') return;
+      const currentFilter = getDateFilter(key);
+      const current = dateFilterBounds(currentFilter);
+      if (current.from === from && current.to === to && currentFilter.mode !== 'all') return;
       setTableDateFilter(key, from, to);
     }
 
@@ -6404,7 +6433,7 @@
     }
 
     function syncTableDateFilterUI(key) {
-      const bounds = dateFilterBounds(state.filters[key]);
+      const bounds = dateFilterBounds(getDateFilter(key));
       document.querySelectorAll('.table-date-filter[data-date-filter-key="' + key + '"]').forEach(function (wrap) {
         const from = wrap.querySelector('[data-date-role="from"]');
         const to = wrap.querySelector('[data-date-role="to"]');
@@ -6510,6 +6539,102 @@
           }
         }
       });
+    }
+
+    // ===== "Giá trị tồn kho theo ngày" (tab Tổng quan, mục 1 Xu hướng) =====
+    // Cột chồng Hà Nội + Sài Gòn (chỉ cơ sở đang xem có mặt trong dữ liệu). Nguồn: bản chụp 23:59 hằng ngày
+    // (bảng inventory_value_snapshots), ngày chưa có bản chụp thì không có cột.
+    const INVENTORY_HISTORY_SERIES = [
+      { key: 'hanoi', label: 'Hà Nội', color: 'amber' },
+      { key: 'saigon', label: 'Sài Gòn', color: 'blue' }
+    ];
+
+    function formatSnapshotDate(date, withYear) {
+      const parts = String(date).split('-');
+      return parts[2] + '/' + parts[1] + (withYear ? '/' + parts[0] : '');
+    }
+
+    function renderInventoryHistoryChart() {
+      const canvas = document.getElementById('chartInventoryHistory');
+      const empty = document.getElementById('chartInventoryHistoryEmpty');
+      if (!canvas || !empty) return;
+      destroyChart('inventoryHistory');
+      const store = state.inventoryHistory;
+      const rows = store.rows;
+      canvas.hidden = !rows.length;
+      empty.hidden = rows.length > 0;
+      if (!rows.length) {
+        empty.textContent = !store.loaded ? 'Đang tải...'
+          : store.failed ? 'Không tải được lịch sử giá trị tồn kho.'
+            : 'Chưa có bản chụp trong khoảng đã chọn (hệ thống bắt đầu lưu từ 30/09/2026, lúc 23:59 mỗi ngày).';
+        return;
+      }
+      const theme = chartTheme();
+      const series = INVENTORY_HISTORY_SERIES.filter(s => rows.some(row => row[s.key] !== undefined));
+      const totals = rows.map(row => series.reduce((sum, s) => sum + (Number(row[s.key]) || 0), 0));
+      const formatAxisMoney = createMoneyAxisFormatter(totals);
+      state.charts.inventoryHistory = new Chart(canvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: rows.map(row => formatSnapshotDate(row.date)),
+          datasets: series.map(s => ({
+            label: s.label,
+            data: rows.map(row => (row[s.key] === undefined ? null : Number(row[s.key]))),
+            backgroundColor: theme[s.color],
+            borderRadius: 3,
+            maxBarThickness: 40
+          }))
+        },
+        options: {
+          animation: chartAnimationOption(),
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false, axis: 'x' },
+          plugins: {
+            legend: series.length > 1 ? { labels: { color: theme.text, boxWidth: 12, font: { size: 11 } } } : { display: false },
+            tooltip: {
+              callbacks: {
+                title: items => (items.length ? formatSnapshotDate(rows[items[0].dataIndex].date, true) : ''),
+                label: c => c.dataset.label + ': ' + fmtMoney(c.raw),
+                footer: items => (series.length > 1 && items.length ? 'Tổng: ' + fmtMoney(totals[items[0].dataIndex]) : '')
+              }
+            }
+          },
+          scales: {
+            x: { stacked: true, ticks: { color: theme.muted, maxTicksLimit: 14, font: { size: 10.5 } }, grid: { display: false } },
+            y: { stacked: true, beginAtZero: true, ticks: { color: theme.muted, callback: formatAxisMoney, font: { size: 10.5 } }, grid: { color: theme.grid } }
+          }
+        }
+      });
+    }
+
+    // Tải riêng (không qua loadData/SSE): bảng chụp 1 lần/ngày, bộ lọc Từ–Đến riêng (mặc định 7 ngày).
+    function loadInventoryHistory() {
+      const store = state.inventoryHistory;
+      const requestId = ++store.requestId;
+      const bounds = dateFilterBounds(store.filter);
+      const params = [];
+      if (bounds.from) params.push('from=' + encodeURIComponent(bounds.from));
+      if (bounds.to) params.push('to=' + encodeURIComponent(bounds.to));
+      fetch('/api/inventory-value-history' + (params.length ? '?' + params.join('&') : ''))
+        .then(function (res) {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        })
+        .then(function (data) {
+          if (requestId !== store.requestId) return; // bộ lọc đã đổi tiếp, bỏ kết quả cũ
+          store.rows = (data && data.rows) || [];
+          store.failed = false;
+          store.loaded = true;
+          if (state.view === 'overview') renderInventoryHistoryChart();
+        })
+        .catch(function (err) {
+          if (requestId !== store.requestId) return;
+          console.error('Không tải được lịch sử giá trị tồn kho:', err);
+          store.rows = [];
+          store.failed = true;
+          store.loaded = true;
+          if (state.view === 'overview') renderInventoryHistoryChart();
+        });
     }
 
     function renderBarChartList(canvasId, key, list, labelFn, valueFn, color, vertical, drilldown, barThickness, labelRotation) {
@@ -7793,6 +7918,7 @@
         document.getElementById('in-cancelled').textContent = fmtNumber(Number(trend.periodCancelledInvoices || 0));
         document.getElementById('in-cancelled-sub').textContent = trendRangeLabel;
         renderRevenueChart('chartInvoiceRevenue', 'invoiceRevenue', trend.revenueByDay || [], true);
+        renderInventoryHistoryChart();
       }
       else if (view === 'products') {
         const productRangeLabel = d.filters && d.filters.products ? d.filters.products.label : '30 ngày';
@@ -7998,8 +8124,8 @@
           { tbody: 'debtRows', pagination: 'topDebtPagination', firstBtn: 'topDebtFirstPage', prevBtn: 'topDebtPrevPage', nextBtn: 'topDebtNextPage', lastBtn: 'topDebtLastPage', label: 'topDebtPageLabel' },
           topDebt,
           c => '<tr><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
-            '<td class="mono muted">' + (c.phone ? escapeHtml(c.phone) : '—') + '</td><td class="mono" data-sort-value="' + c.debt + '" style="color:var(--red);">' + fmtMoney(c.debt) + '</td>' +
-            branchAmountCells(c, 'debtByBranch', c.debt, 'color:var(--red);') + '<td>' + branchCellText(c) + '</td></tr>',
+            '<td class="mono muted">' + (c.phone ? escapeHtml(c.phone) : '—') + '</td><td class="mono" data-sort-value="' + c.debt + '"' + (Number(c.debt) < 0 ? ' style="color:var(--red);"' : '') + '>' + fmtMoney(c.debt) + '</td>' +
+            branchAmountCells(c, 'debtByBranch', c.debt, '') + '<td>' + branchCellText(c) + '</td></tr>',
           6,
           'Không có khách hàng nợ'
         );
@@ -8078,7 +8204,7 @@
           d.suppliers,
           s => '<tr><td class="mono muted">' + escapeHtml(s.code) + '</td><td class="name-cell">' + escapeHtml(s.name) + '</td>' +
             '<td class="mono muted">' + (s.phone ? escapeHtml(s.phone) : '—') + '</td>' +
-            '<td class="mono" data-sort-value="' + s.debt + '" style="color:' + (s.debt > 0 ? 'var(--red)' : 'inherit') + ';">' + fmtMoney(s.debt) + '</td>' +
+            '<td class="mono" data-sort-value="' + s.debt + '" style="color:' + (s.debt < 0 ? 'var(--red)' : 'inherit') + ';">' + fmtMoney(s.debt) + '</td>' +
             '<td>' + branchCellText(s) + '</td></tr>',
           5,
           'Không có nhà cung cấp'
@@ -8789,6 +8915,8 @@
     // loadData()/SSE o duoi).
     initDocumentDetail();
     loadProductReport();
+    // Bieu do gia tri ton kho theo ngay (muc 1 Xu huong): cung ly do nhu bao cao hang hoa o tren.
+    loadInventoryHistory();
 
     // Chi tai tab can xem ngay: tab theo hash (/reports/#products) - quyen chua nap xong
     // luc nay nen state.view co the con la Tong quan - hoac tab dang mo. Cac tab khac tai
@@ -8882,6 +9010,25 @@
     })();
   </script>
 
+  <script>
+    // To do do cac o bang co gia tri am (vd "-60", "-1.200₫", "-5%") bang class num-neg.
+    (function () {
+      const NEG = /^-\s?\d[\d.,]*\s?(₫|%)?$/;
+      let queued = false;
+      function mark() {
+        queued = false;
+        document.querySelectorAll('table td:not(.num-neg)').forEach(td => {
+          if (td.children.length === 0 && NEG.test(td.textContent.trim())) td.classList.add('num-neg');
+        });
+        document.querySelectorAll('td.num-neg').forEach(td => {
+          if (!NEG.test(td.textContent.trim())) td.classList.remove('num-neg');
+        });
+      }
+      new MutationObserver(() => { if (!queued) { queued = true; requestAnimationFrame(mark); } })
+        .observe(document.body, { childList: true, subtree: true, characterData: true });
+      mark();
+    })();
+  </script>
   <script src="/shared/shooting-star.js?v=20260830"></script>
 </body>
 

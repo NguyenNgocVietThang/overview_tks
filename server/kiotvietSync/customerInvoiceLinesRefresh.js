@@ -28,12 +28,12 @@ if (process.env.NODE_ENV !== 'production') {
 
 const { getPool } = require('../db/pool');
 const { DETAIL_AMOUNT_SQL } = require('../dashboard/customerProductTopRepository');
+const { vnDateKey, vnMinutesOfDay, addDaysToKey } = require('./vnTime');
 
 const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
 const WINDOW_DAYS = 90;
 const SETTLE_MINUTES_AFTER_MIDNIGHT = 10;
 const REFRESH_WORK_MEM = '32MB';
-const VN_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 
 // Cung dinh nghia voi normalizeSearchValue() cua dashboardData.js (NFKC, bo ky tu
 // rong, gop khoang trang, trim, chu thuong) de doi chieu ten khach hang y nhu
@@ -135,38 +135,6 @@ const UPSERT_STATE_SQL = `
   RETURNING row_count`;
 
 const LAST_COMPUTED_SQL = 'SELECT computed_at FROM customer_invoice_lines_state WHERE id = 1';
-
-const VN_PARTS_FORMATTER = new Intl.DateTimeFormat('en-GB', {
-  timeZone: VN_TIME_ZONE,
-  year: 'numeric', month: '2-digit', day: '2-digit',
-  hour: '2-digit', minute: '2-digit',
-  hourCycle: 'h23'
-});
-
-function vnParts(date) {
-  return Object.fromEntries(
-    VN_PARTS_FORMATTER.formatToParts(date)
-      .filter(part => part.type !== 'literal')
-      .map(part => [part.type, Number(part.value)])
-  );
-}
-
-/** 'YYYY-MM-DD' theo lich VN (khong phai ngay UTC). */
-function vnDateKey(date) {
-  const { year, month, day } = vnParts(date);
-  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
-
-function vnMinutesOfDay(date) {
-  const { hour, minute } = vnParts(date);
-  return hour * 60 + minute;
-}
-
-function addDaysToKey(dateKey, days) {
-  const [year, month, day] = dateKey.split('-').map(Number);
-  const shifted = new Date(Date.UTC(year, month - 1, day + days));
-  return shifted.toISOString().slice(0, 10);
-}
 
 /** 90 ngay ket thuc HOM QUA (theo lich VN): {start, end} dang 'YYYY-MM-DD'. */
 function computeWindow(now = new Date()) {

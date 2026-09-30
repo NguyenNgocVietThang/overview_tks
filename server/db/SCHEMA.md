@@ -42,6 +42,7 @@ Ba hệ định danh này khác nhau. Code sync phải nhận `branch` rõ ràng
 | `purchase_details` | Dòng hàng của phiếu nhập | `(branch, purchase_id, line_no)` | `product_id`, `quantity`, `price` |
 | `order_suppliers` | Phiếu **Đặt hàng nhập** (PDN…) từ endpoint `/ordersuppliers` (migration `0024`) — khác `purchases` (Nhập hàng) | `(branch, id)` | `code`, `order_date`, `supplier_id`, `total`, `status`, `created_date` (payload không có `modifiedDate`) |
 | `order_supplier_details` | Dòng hàng của phiếu đặt hàng nhập | `(branch, order_supplier_id, line_no)` | `product_id`, `quantity`, `price` (payload chỉ có `productId`, không có `productCode`) |
+| `inventory_value_snapshots` | Giá trị tồn kho **mỗi ngày, mỗi cơ sở** (migration `0025`) — ảnh chụp lúc 23:59 giờ VN từ 2026-09-30, nguồn biểu đồ "Giá trị tồn kho theo ngày" (tab Tổng quan) | `(snapshot_date, branch)` | `stock_value`, `captured_at` (thời điểm chụp thật; chụp bù thì > 23:59) |
 | `cash_flows` | Toàn bộ phiếu thu và phiếu chi | `(branch, id)` | `code`, `is_receipt`, `amount`, `method`, đối tác/người dùng, `trans_date` |
 | `webhook_events_raw` | Payload webhook thô để phân tích ở Task 7b | `id` | `received_at`, `payload` |
 | `backfill_progress` | Tiến độ backfill lịch sử (Giai đoạn 3), độc lập với `sync_checkpoints` | `(branch, entity, chunk_key)` | `status`, `next_item`, `records_synced`, `last_error` |
@@ -185,6 +186,14 @@ trình là an toàn vì mọi bảng dùng `UPSERT` theo `(branch, id)`.
 Cột `available_to_sell` = tồn 2 cơ sở trừ số lượng đang bị giữ trong **đơn đặt hàng của khách** (bảng `orders`, trạng thái `Phiếu tạm`/`Đang xử lý`/`Đã xác nhận`) — không liên quan đến `purchases` (phiếu đặt NCC). Cột `qty_sold_30d`/`revenue_90d` cộng từ `daily_product_sales` (migration `0013`) trong cửa sổ kết thúc **hôm qua** theo lịch VN (không tính hôm nay). Cột `customer_count_90d`/`top_customer_*` tính trực tiếp từ `invoice_details`/`invoices`/`customers` trong 90 ngày, dùng chung định nghĩa "hóa đơn hợp lệ" (`statusValue != 'Đã hủy'`) với `revenue_90d` để `top_customer_share` không bao giờ vượt 100%.
 
 `product_report_customers` (migration `0023`) là bảng phụ của `product_report`: doanh số 90 ngày của **từng khách theo từng mã hàng**, phục vụ khung "Chi tiết" dưới bảng "Báo cáo hàng hóa" (`GET /api/product-report/customers?code=`). Khóa chính `(product_key, customer_key)` với `product_key = lower(btrim(mã hàng))`, `customer_key` = `code:<mã khách>` hoặc `name:<tên khách>` (khách không có mã, gồm cả "Khách lẻ"). Được ghi **trong cùng 1 câu lệnh** `INSERT` của `productReportRefresh.js` (CTE `customer_agg` `MATERIALIZED` đọc 2 lần) nên khớp tuyệt đối với `customer_count_90d`/`top_customer_*` và không quét thêm 90 ngày hóa đơn. Bảng rỗng đến khi job đêm chạy sau khi áp migration — sau khi deploy chạy tay `node kiotvietSync/productReportRefresh.js` (trong `server/`).
+
+### Lịch sử giá trị tồn kho (migration `0025`)
+
+`inventory_value_snapshots` lưu `stock_value` của từng cơ sở theo từng ngày lịch VN. Tồn kho trong DB (`products.raw->'inventories'`) chỉ là trạng thái hiện tại nên không dựng lại được quá khứ; job `kiotvietSync/inventoryValueSnapshot.js` chụp **1 lần/ngày lúc 23:59 giờ VN** (kiểm tra mỗi phút, `INSERT ... ON CONFLICT DO NOTHING` nên chạy trùng vô hại). Bắt đầu từ tối 2026-09-30; trước đó không có số liệu.
+
+- Công thức giữ nguyên KPI "Giá trị tồn kho" của tab Hàng hóa: mỗi mã hàng `max(tổng onHand, 0) × max(giá vốn trung bình, 0)`, chỉ hàng đang kinh doanh (`is_active IS NOT FALSE`), bỏ mã bắt đầu `VAT`. Tổng hai cơ sở = số "Cả hai".
+- Lỡ 23:59 (server tắt): khi chạy lại, nếu bảng đã có dữ liệu, thiếu bản chụp của hôm qua và giờ VN < 12:00 thì chụp bù và gán `snapshot_date` = hôm qua (`captured_at` là thời điểm thật). Qua 12:00 thì để trống ngày đó.
+- Đọc qua `GET /api/inventory-value-history?from=&to=` (quyền `reports.overview`, lọc theo cơ sở đang xem); bảng chưa tồn tại (chưa áp migration) thì API trả rỗng.
 
 ### Chi tiết hóa đơn 90 ngày theo khách (migration `0022`)
 

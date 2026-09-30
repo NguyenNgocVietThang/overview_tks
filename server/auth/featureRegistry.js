@@ -42,7 +42,6 @@ const FEATURES = Object.freeze([
   { key: 'reports.products', groupKey: 'reports', label: 'Hàng hóa (gồm Kiểm tra đứt hàng)', roles: REPORTS_ROLES },
   { key: 'reports.invoices', groupKey: 'reports', label: 'Hóa đơn', roles: REPORTS_ROLES },
   { key: 'reports.customers', groupKey: 'reports', label: 'Khách hàng', roles: REPORTS_ROLES },
-  { key: 'reports.suppliers', groupKey: 'reports', label: 'Nhà cung cấp', roles: REPORTS_ROLES },
   { key: 'reports.debt', groupKey: 'reports', label: 'Quản lý công nợ', roles: REPORTS_ROLES },
   { key: 'reports.debt.edit', groupKey: 'reports', label: 'Cập nhật trạng thái công nợ', roles: REPORTS_ROLES },
   { key: 'reports.export', groupKey: 'reports', label: 'Xuất Excel báo cáo', roles: REPORTS_ROLES },
@@ -77,7 +76,7 @@ const ALWAYS_ON_KEYS = Object.freeze(FEATURES.filter(f => f.alwaysOn).map(f => f
 /** Moi key `reports.*` — dung cho cac endpoint dung chung (/api/dashboard, /api/search). */
 const REPORT_VIEW_FEATURES = Object.freeze([
   'reports.overview', 'reports.products', 'reports.invoices',
-  'reports.customers', 'reports.suppliers', 'reports.debt'
+  'reports.customers', 'reports.debt'
 ]);
 const ANY_REPORTS_FEATURES = Object.freeze(FEATURE_KEYS.filter(k => k.startsWith('reports.')));
 

@@ -55,8 +55,6 @@ const CONFIG = {
   SHEET_CUSTOMERS: 'Khách hàng',
   SHEET_CUSTOMER_REPORT: 'Báo cáo bán hàng',
   SHEET_CUSTOMER_BY_PRODUCT_REPORT: 'Khách theo hàng hóa',
-  SHEET_SUPPLIERS: 'Nhà cung cấp',
-  SHEET_PURCHASES: 'Nhập hàng',
 
   DEBT_MANAGEMENT_SHEET_HN: 'Công nợ HN',
   DEBT_MANAGEMENT_SHEET_SG: 'Công nợ SG',

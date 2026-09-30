@@ -28,8 +28,6 @@ const SECTION_FEATURE = Object.freeze({
   stockByCategory: 'reports.products',
   invoices: 'reports.invoices',
   customers: 'reports.customers',
-  suppliers: 'reports.suppliers',
-  newPurchases: 'reports.suppliers',
   debtManagement: 'reports.debt'
 });
 
@@ -38,8 +36,7 @@ const SEARCH_VIEW_FEATURE = Object.freeze({
   overview: 'reports.overview',
   products: 'reports.products',
   invoices: 'reports.invoices',
-  customers: 'reports.customers',
-  suppliers: 'reports.suppliers'
+  customers: 'reports.customers'
 });
 
 // Nhom du lieu ma /api/search quet (SEARCH_SCOPES trong dashboardData.js)
@@ -50,9 +47,7 @@ const SEARCH_ENTITY_FEATURE = Object.freeze({
   invoices: 'reports.invoices',
   orders: 'reports.invoices',
   returns: 'reports.invoices',
-  customers: 'reports.customers',
-  suppliers: 'reports.suppliers',
-  purchases: 'reports.suppliers'
+  customers: 'reports.customers'
 });
 
 /**
