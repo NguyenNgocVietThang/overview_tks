@@ -110,7 +110,7 @@ async function main() {
   const { getConfiguredBranches } = require('./config');
   const entities = [
     require('./entities/categories'), require('./entities/products'), require('./entities/customers'),
-    require('./entities/suppliers'), require('./entities/invoices'), require('./entities/orders'),
+    require('./entities/invoices'), require('./entities/orders'),
     require('./entities/returns'), require('./entities/purchases'), require('./entities/cashFlows')
   ];
 

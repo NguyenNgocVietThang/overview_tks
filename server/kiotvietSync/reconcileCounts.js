@@ -92,7 +92,7 @@ async function main() {
   const { createKiotVietClient } = require('../kiotviet/kiotVietApiClient');
   const entityModules = [
     require('./entities/categories'), require('./entities/products'), require('./entities/customers'),
-    require('./entities/suppliers'), require('./entities/invoices'), require('./entities/orders'),
+    require('./entities/invoices'), require('./entities/orders'),
     require('./entities/returns'), require('./entities/purchases'), require('./entities/cashFlows')
   ];
 

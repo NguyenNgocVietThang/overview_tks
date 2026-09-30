@@ -69,7 +69,7 @@ function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints 
     const neverSynced = !checkpoint?.last_synced_at;
     // Entity CHUA TUNG dong bo thanh cong (checkpoint rong) va khong can
     // chunk theo thang (khong co backfillRangeParam - dang "snapshot" nhu
-    // categories/products/customers/suppliers/product_on_hands, giong tieu
+    // categories/products/customers/product_on_hands, giong tieu
     // chi backfillPlan.js dung de goi 1 chunk 'full' khong loc ngay): quet
     // TOAN BO du lieu hien tai ngay trong lan poll dau tien, thay vi fallback
     // "1 gio gan nhat" (fallback nay chi hop ly cho truong hop da co checkpoint

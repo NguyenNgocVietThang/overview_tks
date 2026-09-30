@@ -20,7 +20,7 @@ const { startInventoryValueSnapshotSchedule } = require('./inventoryValueSnapsho
 const fastEntities = [require('./entities/invoices'), require('./entities/orders'), require('./entities/productOnHands'),
   require('./entities/productOnHandsSnapshot'), require('./entities/orderSuppliers')];
 const slowEntities = [require('./entities/categories'), require('./entities/products'), require('./entities/customers'),
-  require('./entities/suppliers'), require('./entities/returns'), require('./entities/purchases'), require('./entities/cashFlows')];
+  require('./entities/returns'), require('./entities/purchases'), require('./entities/cashFlows')];
 
 function createPollingScheduler({
   enabled = CONFIG.KIOTVIET_SYNC_ENABLED,

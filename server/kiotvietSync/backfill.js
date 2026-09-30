@@ -20,14 +20,13 @@ const defaultProgressRepo = require('./backfillProgressRepository');
 
 // Thu tu khoi luong tang dan - phat hien loi som o entity nho truoc khi ton
 // thoi gian o entity lon nhat (invoices/orders).
-const ENTITY_ORDER = ['categories', 'suppliers', 'customers', 'products', 'returns', 'purchases', 'cash_flows', 'orders', 'invoices'];
+const ENTITY_ORDER = ['categories', 'customers', 'products', 'returns', 'purchases', 'cash_flows', 'orders', 'invoices'];
 
 function loadEntityModules() {
   return {
     categories: require('./entities/categories'),
     products: require('./entities/products'),
     customers: require('./entities/customers'),
-    suppliers: require('./entities/suppliers'),
     invoices: require('./entities/invoices'),
     orders: require('./entities/orders'),
     returns: require('./entities/returns'),

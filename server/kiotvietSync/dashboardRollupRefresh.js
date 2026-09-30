@@ -157,36 +157,6 @@ const PRODUCT_SALES_SQL = `
     revenue = EXCLUDED.revenue,
     updated_at = now()`;
 
-// Gop THANG tren bang purchases - KHONG join purchase_details (khong can cho
-// "tong tien nhap theo NCC theo ngay", va join se keo lai dung join nang da
-// gay ra van de hieu nang ban dau). 0 = "(Khong xac dinh)" cho supplier_id NULL.
-const PURCHASE_AGG_SQL = `
-    SELECT
-      $1::text AS branch,
-      (purchase_date AT TIME ZONE 'UTC')::date AS purchase_date,
-      COALESCE(supplier_id, 0) AS supplier_id,
-      (COUNT(*))::int AS order_count,
-      COALESCE(SUM(total), 0)::numeric AS total
-    FROM purchases
-    WHERE branch = $1
-      AND purchase_date >= ${WINDOW_START_SQL}
-    GROUP BY (purchase_date AT TIME ZONE 'UTC')::date, COALESCE(supplier_id, 0)`;
-
-const PURCHASE_SUMMARY_SQL = `
-  WITH agg AS (${PURCHASE_AGG_SQL}
-  )
-  INSERT INTO daily_purchase_summary (branch, purchase_date, supplier_id, order_count, total)
-  SELECT a.branch, a.purchase_date, a.supplier_id, a.order_count, a.total
-  FROM agg a
-  LEFT JOIN daily_purchase_summary t
-    ON t.branch = a.branch AND t.purchase_date = a.purchase_date AND t.supplier_id = a.supplier_id
-  WHERE t.branch IS NULL
-     OR (t.order_count, t.total) IS DISTINCT FROM (a.order_count, a.total)
-  ON CONFLICT (branch, purchase_date, supplier_id) DO UPDATE SET
-    order_count = EXCLUDED.order_count,
-    total = EXCLUDED.total,
-    updated_at = now()`;
-
 // $1 branch (+ $2 so ngay neu la ban "gan day"). Ngay nhap dau tien cua mot ma
 // hang co the xa hon 400 ngay va van can dung cho "Hang moi nhap", nen ban DAY
 // DU khong gioi han cua so ngay. Chi ghi khi ma hang chua co dong hoac moc moi
@@ -278,9 +248,8 @@ async function refreshDashboardRollups(pool, {
   for (const branch of branches) {
     const invoiceSummary = await queryWithWorkMem(pool, INVOICE_SUMMARY_SQL, [branch, windowDays]);
     const productSales = await queryWithWorkMem(pool, PRODUCT_SALES_SQL, [branch, windowDays]);
-    const purchaseSummary = await queryWithWorkMem(pool, PURCHASE_SUMMARY_SQL, [branch, windowDays]);
     // FIRST_PURCHASE_SQL (ban day du) quet TOAN BO purchase_details (khong co
-    // cua so ngay, xem ghi chu o tren) nen la cau dat nhat trong 4 cau, trong
+    // cua so ngay, xem ghi chu o tren) nen la cau dat nhat trong 3 cau, trong
     // khi "ngay nhap som nhat cua mot ma hang" gan nhu khong doi giua hai luot.
     // Luot "nong" bo qua no; luot day du chi chay ban day du luc khoi dong va
     // moi FIRST_PURCHASE_FULL_INTERVAL_MS, con lai dung ban "gan day".
@@ -300,12 +269,11 @@ async function refreshDashboardRollups(pool, {
       branch,
       dailyInvoiceSummary: invoiceSummary.rowCount || 0,
       dailyProductSales: productSales.rowCount || 0,
-      dailyPurchaseSummary: purchaseSummary.rowCount || 0,
       productFirstPurchase: firstPurchase ? firstPurchase.rowCount || 0 : 0
     };
     results.push(row);
     log(`[dashboardRollupRefresh] ${branch} (${windowDays} ngay): daily_invoice_summary=${row.dailyInvoiceSummary}, ` +
-      `daily_product_sales=${row.dailyProductSales}, daily_purchase_summary=${row.dailyPurchaseSummary}, ` +
+      `daily_product_sales=${row.dailyProductSales}, ` +
       `product_first_purchase=${includeFirstPurchase ? row.productFirstPurchase : 'bo qua'}`);
   }
 
@@ -386,7 +354,7 @@ module.exports = {
   HOT_WINDOW_DAYS,
   FIRST_PURCHASE_FULL_INTERVAL_MS,
   __sql__: {
-    INVOICE_SUMMARY_SQL, PRODUCT_SALES_SQL, PURCHASE_SUMMARY_SQL, FIRST_PURCHASE_SQL, FIRST_PURCHASE_RECENT_SQL,
-    INVOICE_AGG_SQL, PRODUCT_SALES_AGG_SQL, PURCHASE_AGG_SQL
+    INVOICE_SUMMARY_SQL, PRODUCT_SALES_SQL, FIRST_PURCHASE_SQL, FIRST_PURCHASE_RECENT_SQL,
+    INVOICE_AGG_SQL, PRODUCT_SALES_AGG_SQL
   }
 };

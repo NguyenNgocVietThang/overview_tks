@@ -43,7 +43,7 @@ function buildBackfillPlan(entityModule, { fromDate, now }) {
     return [{ chunkKey: 'full', query: { ...baseQuery, [entityModule.incrementalParam]: fromDate.toISOString() } }];
   }
 
-  // Du lieu nen (categories, products, customers, suppliers): 1 lan chay day
+  // Du lieu nen (categories, products, customers): 1 lan chay day
   // du, khong loc theo ngay - day la "hien trang", khong phai log giao dich.
   return [{ chunkKey: 'full', query: { ...baseQuery } }];
 }
