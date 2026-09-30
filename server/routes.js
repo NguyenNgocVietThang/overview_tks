@@ -11,6 +11,7 @@ const router = express.Router();
 
 const { getExportFields, createExport, buildExportErrorBody } = require('./dashboard/exportService');
 const { getProductReport, getProductReportCustomers } = require('./dashboard/productReportRepository');
+const { getOrderDetail, getReturnDetail } = require('./dashboard/documentDetailRepository');
 const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
 const { requireAuth, requireFeature } = require('./auth/authMiddleware');
@@ -100,6 +101,8 @@ router.use('/api/customer-suggest', ...reportsUser('reports.customers'));
 router.use('/api/customer-product-top', ...reportsUser('reports.customers'));
 router.use('/api/customer-product-revenue', ...reportsUser('reports.customers'));
 router.use('/api/product-report', ...reportsUser('reports.products'));
+router.use('/api/order-detail', ...reportsUser('reports.invoices'));
+router.use('/api/return-detail', ...reportsUser('reports.invoices'));
 router.use('/api/export', ...reportsUser('reports.export'));
 router.use('/api/products', ...reportsUser('reports.products'));
 
@@ -371,6 +374,48 @@ router.get('/api/product-report/customers', async (req, res) => {
     });
   }
 });
+
+// Panel chi tiet khi bam 1 dong bang "Danh sach dat hang" / "Danh sach tra hang" (tab Hoa don).
+// Ma chung tu chi duy nhat trong 1 co so nen can ?branch=<nhan co so>; o che do 1 co so
+// co the bo trong. Co so phai nam trong pham vi dang xem cua nguoi dung.
+function resolveDocumentBranchCode(req) {
+  const scope = resolveBranchScope(req.branch);
+  const requested = typeof req.query.branch === 'string' ? req.query.branch.trim() : '';
+  const label = requested || (scope.length === 1 ? scope[0] : '');
+  if (!label) {
+    const error = new Error('Thiếu cơ sở của chứng từ.');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!scope.includes(label)) {
+    const error = new Error('Cơ sở không nằm trong phạm vi đang xem.');
+    error.statusCode = 400;
+    throw error;
+  }
+  return branchLabelToCode(label);
+}
+
+function documentDetailHandler(loader, logName, fallbackMessage) {
+  return async (req, res) => {
+    try {
+      const data = await loader({ code: req.query.code, branchCode: resolveDocumentBranchCode(req) });
+      res.status(200).json(data);
+    } catch (err) {
+      console.error(`=== LOI ${logName} ===`);
+      console.error('Message:', err.message);
+      console.error('Stack:', err.stack);
+      console.error('==============================');
+      res.status(err.statusCode || 500).json({
+        error: err.statusCode && err.statusCode < 500 ? err.message : fallbackMessage,
+        detail: err.message,
+        code: err.code
+      });
+    }
+  };
+}
+
+router.get('/api/order-detail', documentDetailHandler(getOrderDetail, '/api/order-detail', 'Không lấy được chi tiết đơn đặt hàng.'));
+router.get('/api/return-detail', documentDetailHandler(getReturnDetail, '/api/return-detail', 'Không lấy được chi tiết phiếu trả hàng.'));
 
 function sendExportError(res, err, fallbackMessage) {
   console.error('=== LOI XUAT EXCEL ===');

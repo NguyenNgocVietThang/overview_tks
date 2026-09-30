@@ -17,7 +17,6 @@ function samplePayload() {
     kpi: { revenueToday: 1000, totalCustomers: 5 },
     overview: { revenueByDay: [1] },
     products: { topSellingProducts: [{ code: 'A' }] },
-    lowStock: [{ code: 'A' }],
     stockValueByCategory: [{ name: 'X' }],
     allProducts: [{ code: 'A' }],
     stockByCategory: [{ name: 'X' }],
@@ -38,7 +37,7 @@ test('giu lai updatedAt/filters/kpi va dung cac phan duoc phep', () => {
   assert.ok(filtered.overview);
   assert.ok(filtered.debtManagement);
 
-  for (const key of ['products', 'lowStock', 'stockValueByCategory', 'allProducts', 'stockByCategory',
+  for (const key of ['products', 'stockValueByCategory', 'allProducts', 'stockByCategory',
     'invoices', 'customers', 'suppliers', 'newPurchases']) {
     assert.equal(key in filtered, false, `${key} phai bi cat bo`);
   }
@@ -48,7 +47,7 @@ test('quyen reports.products mo dung 5 khoa cua tab Hang hoa', () => {
   const filtered = filterDashboardForUser(samplePayload(), ['reports.products']);
   assert.deepEqual(
     Object.keys(filtered).sort(),
-    ['allProducts', 'filters', 'kpi', 'lowStock', 'products', 'stockByCategory', 'stockValueByCategory', 'updatedAt'].sort()
+    ['allProducts', 'filters', 'kpi', 'products', 'stockByCategory', 'stockValueByCategory', 'updatedAt'].sort()
   );
 });
 

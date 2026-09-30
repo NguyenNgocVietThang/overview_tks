@@ -74,7 +74,6 @@ function buildDashboard() {
       topSellingParentCategories: [{ name: 'Áo', qty: 2, revenue: 300000, productCount: 1 }],
       newlyImported: { products: [{ code: '00123', firstImportDate: '14/08/2026', daysOnHand: 1, revenue: 300000 }] }
     },
-    lowStock: [{ code: '00123' }],
     allProducts: [{ code: '00123', pct: 100 }],
     invoices: {
       transactionsReport: { transactions: [{ code: 'HD-01', quantity: 2, quantityKnown: true }] },
@@ -160,7 +159,7 @@ async function withStubs(options, fn) {
 
 const FIXED_TABLES = [
   'overview.transactions', 'overview.purchases', 'overview.new-products',
-  'products.top-selling', 'products.low-stock', 'products.all', 'products.newly-imported',
+  'products.top-selling', 'products.all', 'products.newly-imported',
   'invoices.orders', 'invoices.returns',
   'customers.revenue', 'customers.debt', 'suppliers.list', 'debt.management'
 ];

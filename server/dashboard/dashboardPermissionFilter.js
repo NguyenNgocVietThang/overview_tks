@@ -23,7 +23,6 @@ const ALWAYS_KEPT_KEYS = Object.freeze(['updatedAt', 'filters', 'kpi']);
 const SECTION_FEATURE = Object.freeze({
   overview: 'reports.overview',
   products: 'reports.products',
-  lowStock: 'reports.products',
   stockValueByCategory: 'reports.products',
   allProducts: 'reports.products',
   stockByCategory: 'reports.products',

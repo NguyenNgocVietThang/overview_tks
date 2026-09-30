@@ -144,7 +144,7 @@ function samplePayload() {
       topSellingProducts: [], topSellingParentCategories: [], childCategorySalesByParent: {}, availableParentCategories: [],
       newlyImported: { products: [], topByRevenue: [], salesByCategory: [], countByCategory: [], salesRevenue: 0, salesQty: 0 }
     },
-    lowStock: [], stockValueByCategory: [], allProducts: [], stockByCategory: [], suppliers: [],
+    stockValueByCategory: [], allProducts: [], stockByCategory: [], suppliers: [],
     customers: { topDebt: [], topRevenue: { top15: [], all: [], label: '—' } }
   };
 }

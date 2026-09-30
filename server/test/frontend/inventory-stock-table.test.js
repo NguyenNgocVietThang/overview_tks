@@ -33,7 +33,7 @@ function payload(allProducts) {
       allSellingProducts: [],
       newlyImported: { products: [], topByRevenue: [], salesByCategory: [], countByCategory: [], salesRevenue: 0, salesQty: 0 }
     },
-    lowStock: [], stockValueByCategory: [], stockByCategory: [], allProducts
+    stockValueByCategory: [], stockByCategory: [], allProducts
   };
 }
 

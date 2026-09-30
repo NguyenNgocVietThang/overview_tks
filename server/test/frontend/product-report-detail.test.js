@@ -210,7 +210,7 @@ test('nut x xoa lua chon: an noi dung, huy bieu do, xoa o tim', async () => {
   assert.equal(pieCharts(page).length, 0);
 });
 
-test('nhieu hon 10 khach: bieu do tron gop phan con lai thanh "Khac (N khach)" nhung bang van liet ke du', async () => {
+test('nhieu khach: bieu do tron hien du tung khach (khong gop "Khac"), chu giai HTML liet ke du va bi xoa khi bo chon', async () => {
   const page = createPage({ customers: code => customersPayload(code, 14) });
   await settle();
   page.$('productReportRows').querySelector('button[data-product-detail="SP-1"]').click();
@@ -218,10 +218,16 @@ test('nhieu hon 10 khach: bieu do tron gop phan con lai thanh "Khac (N khach)" n
 
   assert.equal(page.$('productDetailRows').querySelectorAll('tr').length, 14);
   const pie = pieCharts(page)[0];
-  assert.equal(pie.config.data.labels.length, 11);
-  assert.equal(pie.config.data.labels[10], 'Khác (4 khách)');
-  const values = pie.config.data.datasets[0].data;
-  assert.equal(values[10], (4 + 3 + 2 + 1) * 100);
+  assert.equal(pie.config.data.labels.length, 14);
+  assert.ok(!pie.config.data.labels.some(label => /^Khác/.test(label)));
+  assert.equal(pie.config.data.datasets[0].data.reduce((a, b) => a + b, 0), (14 + 13 + 12 + 11 + 10 + 9 + 8 + 7 + 6 + 5 + 4 + 3 + 2 + 1) * 100);
+  assert.equal(pie.config.options.plugins.legend.display, false, 'legend Chart.js tat, dung chu giai HTML');
+  const legendRows = page.$('productDetailLegend').querySelectorAll('.legend-row');
+  assert.equal(legendRows.length, 14);
+  assert.match(legendRows[0].textContent, /KH A/);
+
+  page.run('clearProductReportDetail()');
+  assert.equal(page.$('productDetailLegend').children.length, 0);
 });
 
 test('san pham chua co du lieu khach: thong bao ro rang, khong ve bieu do', async () => {

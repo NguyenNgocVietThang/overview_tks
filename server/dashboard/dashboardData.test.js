@@ -694,6 +694,33 @@ test('getDashboardData tra day du san pham cho bang, bieu do van chi top 15', as
   assert.equal(data.products.allSellingProducts[0].code, 'SP-18');
 });
 
+test('bang dat hang chi liet ke "Phiếu tạm", bang tra hang chi liet ke "Đã trả" (KPI van tinh theo cach cu)', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const CONFIG = require('../config');
+  mockPgSheets(dashboardPgReader, {
+    [CONFIG.SHEET_ORDERS]: [
+      ['Mã đặt hàng', 'Ngày đặt', 'Khách hàng', 'Nhân viên lập', 'Chi nhánh', 'Tổng tiền', 'Trạng thái'],
+      ['DH-TAM', '10/08/2026 09:00:00', 'Khách A', '', '', 100, 'Phiếu tạm'],
+      ['DH-XONG', '10/08/2026 09:01:00', 'Khách A', '', '', 200, 'Hoàn thành'],
+      ['DH-HUY', '10/08/2026 09:02:00', 'Khách A', '', '', 300, 'Đã hủy'],
+      ['DH-XL', '10/08/2026 09:03:00', 'Khách A', '', '', 400, 'Đang xử lý']
+    ],
+    [CONFIG.SHEET_RETURNS]: [
+      ['Mã trả hàng', 'Ngày trả', 'Mã hóa đơn', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái'],
+      ['TH-TRA', '10/08/2026 10:00:00', 'HD-01', 'Khách A', 50, 'Đã trả'],
+      ['TH-HUY', '10/08/2026 10:01:00', 'HD-01', 'Khách A', 60, 'Đã hủy']
+    ]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData({ ...BASE_FILTERS, invoices: { mode: 'all' } });
+
+  assert.deepEqual(data.invoices.periodOrders.map(row => row.code), ['DH-TAM']);
+  assert.deepEqual(data.invoices.periodReturns.map(row => row.code), ['TH-TRA']);
+  assert.equal(data.invoices.pendingOrdersCount, 2, 'KPI don cho van gom Phiếu tạm + Đang xử lý');
+  assert.equal(data.invoices.returnsCount, 2);
+});
+
 test('getDashboardData tra toan bo dat hang/tra hang trong khoang loc, khong cat 8 dong, moi nhat len dau', async () => {
   const { dashboardData, dashboardPgReader } = freshDashboardData();
   const CONFIG = require('../config');
@@ -702,7 +729,7 @@ test('getDashboardData tra toan bo dat hang/tra hang trong khoang loc, khong cat
   const returnRows = [];
   for (let i = 1; i <= 12; i++) {
     orderRows.push([`DH-${pad(i)}`, `${pad(i)}/08/2026 09:00:00`, 'Khách A', '', '', '', 100000 * i, 'Phiếu tạm']);
-    returnRows.push([`TH-${pad(i)}`, `${pad(i)}/08/2026 10:00:00`, 'HD-01', 'Khách A', 50000 * i, 'Đã trả hàng']);
+    returnRows.push([`TH-${pad(i)}`, `${pad(i)}/08/2026 10:00:00`, 'HD-01', 'Khách A', 50000 * i, 'Đã trả']);
   }
   mockPgSheets(dashboardPgReader, {
     [CONFIG.SHEET_ORDERS]: [['Mã đặt hàng', 'Ngày đặt', 'Khách hàng', 'Nhân viên lập', 'Chi nhánh', 'Tổng tiền', 'Trạng thái'], ...orderRows]
@@ -1087,6 +1114,35 @@ test('allProducts co "available" (ton - khach dat) va "inTransit" (cot Đang v�
   assert.equal(pick('SP-2', 'Hà Nội').available, -3, 'khach dat vuot ton thi am, khong kep ve 0');
   assert.equal(pick('SP-4', 'Hà Nội').available, 2.2, 'lam tron sai so dau phay dong khi ton le');
   assert.deepEqual([pick('SP-1', 'Sài Gòn').available, pick('SP-1', 'Sài Gòn').inTransit], [5, 0], 'nguon khong co cot Đang vận chuyển thi = 0');
+});
+
+test('allProducts co "location"/"description" tu cot Vị trí/Mô tả (thieu cot thi rong) va khong con mang lowStock', async () => {
+  const { dashboardData, dashboardPgReader, dashboardRollupRepository } = freshDashboardData();
+  const CONFIG = require('../config');
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  const withExtra = ['Mã hàng', 'Tên hàng', 'Nhóm hàng', 'Loại hàng', 'Giá vốn', 'Giá bán', 'Tồn kho', 'Khách đặt', 'Trạng thái', 'Vị trí', 'Mô tả'];
+  const withoutExtra = withExtra.slice(0, 9);
+  dashboardPgReader.readCoreDashboardSheets = async branch => {
+    const result = Object.fromEntries(dashboardPgReader.CORE_SHEET_NAMES.map(name => [name, []]));
+    result[CONFIG.SHEET_CATEGORIES] = [['Mã nhóm hàng', 'Tên nhóm hàng', 'Mã nhóm cha']];
+    result[CONFIG.SHEET_PRODUCTS] = branch === BRANCHES.HANOI
+      ? [withExtra, ['SP-1', 'SP 1', '', 'Hàng hóa', 10, 20, 0, 0, 'Đang kinh doanh', ' A1-02, B3 ', 'Hàng dễ vỡ']]
+      : [withoutExtra, ['SP-1', 'SP 1', '', 'Hàng hóa', 10, 20, 5, 0, 'Đang kinh doanh']];
+    return result;
+  };
+  mockDashboardRollups(dashboardRollupRepository, {});
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData({
+    ...BASE_FILTERS,
+    overview: { mode: 'all' }, products: { mode: 'all' }, invoices: { mode: 'all' }
+  }, BRANCH_BOTH);
+
+  const pick = branch => data.allProducts.find(p => p.code === 'SP-1' && p.branch === branch);
+  assert.deepEqual([pick('Hà Nội').location, pick('Hà Nội').description], ['A1-02, B3', 'Hàng dễ vỡ']);
+  assert.deepEqual([pick('Sài Gòn').location, pick('Sài Gòn').description], ['', '']);
+  assert.equal(data.kpi.lowStockCount, 1, 'KPI so ma het hang van giu');
+  assert.equal('lowStock' in data, false);
 });
 
 test('Ca hai giu giao dich trung ma theo (co so, ma) va gan provenance', async () => {
@@ -2083,7 +2139,7 @@ function installRichViewFixture(ctx) {
     ],
     [CONFIG.SHEET_RETURNS]: [
       ['Mã trả hàng', 'Ngày trả', 'Mã hóa đơn', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái'],
-      ['TH-1', `${today} 11:00:00`, 'HD-1', 'Khách A', 50000, 'Đã trả hàng']
+      ['TH-1', `${today} 11:00:00`, 'HD-1', 'Khách A', 50000, 'Đã trả']
     ],
     [CONFIG.SHEET_CUSTOMERS]: [
       ['Mã khách hàng', 'Tên khách hàng', 'Điện thoại', 'a', 'b', 'c', 'd', 'Nợ hiện tại'],

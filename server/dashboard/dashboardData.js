@@ -38,6 +38,9 @@ const DASHBOARD_SHEETS_CACHE_TTL_MS = 90 * 1000;
 const CUSTOMER_PRODUCT_TOP_LIMIT = 3;
 const PRODUCT_REVENUE_SEARCH_LIVE_LIMIT = 200; // gioi han so dong render khi go tim truc tiep (khong ap dung cho xuat Excel)
 const PENDING_ORDER_STATUSES = new Set(['Phiếu tạm', 'Đang xử lý', 'Đã xác nhận']);
+// Bang "Danh sach dat hang" / "Danh sach tra hang" (tab Hoa don) chi liet ke dung 1 trang thai.
+const LISTED_ORDER_STATUS = 'Phiếu tạm';
+const LISTED_RETURN_STATUS = 'Đã trả';
 const DASHBOARD_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const DASHBOARD_UTC_OFFSET = '+07:00';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -2654,7 +2657,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   // dang xem khi nguon chi co 1 co so.
   const singleBranch = branch && branch !== BRANCH_BOTH ? branch : '';
   const productKey = (rowBranch, code) => invoiceIdentity(rowBranch || singleBranch, code);
-  let totalProducts = 0, totalStock = 0, inStockCodes = 0, activeProducts = 0, lowStock = [];
+  let totalProducts = 0, totalStock = 0, inStockCodes = 0, activeProducts = 0, lowStockCount = 0;
   let stockList = [];
   const parentCategoryMap = {};
   const productParentCategoryByKey = new Map();
@@ -2669,7 +2672,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const productCodeIndex = productIndex('Mã hàng', 0);
   const productNameIndex = productIndex('Tên hàng', 1);
   const productCategoryIndex = productIndex('Nhóm hàng', 2);
-  const productTypeIndex = productIndex('Loại hàng', 4);
   const productCostIndex = productIndex('Giá vốn', 5);
   const productPriceIndex = productIndex('Giá bán', 6);
   const productStockIndex = productIndex('Tồn kho', 7);
@@ -2678,6 +2680,9 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const productInTransitIndex = productIndex('Đang vận chuyển', -1);
   const productStatusIndex = productIndex('Trạng thái', 9);
   const productCategoryIdIndex = productIndex('Mã nhóm hàng', 11);
+  // Chi co khi tab Hang hoa doc tu Postgres (hoac sheet co cot tuong ung) — khong co header thi de rong.
+  const productLocationIndex = productIndex('Vị trí', -1);
+  const productDescriptionIndex = productIndex('Mô tả', -1);
   const productBranchIndex = productIndex(SHEET_FACILITY_HEADER, -1);
   const productCreatedDateIndex = productHeaders.findIndex(header => String(header || '').trim() === 'Ngày tạo');
   const todayNewProducts = [];
@@ -2721,18 +2726,20 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     activeProducts++;
     totalStock += ton;
     if (ton > 0) inStockCodes++;
-    stockList.push({ code, branch: rowBranch, name: row[productNameIndex], stock: ton, reserved, inTransit, status, cost, stockValue });
-    if (ton === OUT_OF_STOCK_LEVEL) {
-      lowStock.push({
-        code,
-        branch: rowBranch,
-        name: row[productNameIndex],
-        type: row[productTypeIndex] || '—',
-        status,
-        cost,
-        price
-      });
-    }
+    stockList.push({
+      code,
+      branch: rowBranch,
+      name: row[productNameIndex],
+      stock: ton,
+      reserved,
+      inTransit,
+      status,
+      cost,
+      stockValue,
+      location: productLocationIndex >= 0 ? String(row[productLocationIndex] || '').trim() : '',
+      description: productDescriptionIndex >= 0 ? String(row[productDescriptionIndex] || '').trim() : ''
+    });
+    if (ton === OUT_OF_STOCK_LEVEL) lowStockCount++;
 
     productParentCategoryByKey.set(key, parentCategoryName);
     if (!parentCategoryMap[parentCategoryName]) {
@@ -2742,7 +2749,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     parentCategoryMap[parentCategoryName].stockValue += stockValue;
     parentCategoryMap[parentCategoryName].productCount += 1;
   }
-  lowStock.sort((a, b) => a.stock - b.stock);
   todayNewProducts.sort((a, b) => b._sortTime - a._sortTime);
   const todayNewProductRows = todayNewProducts.map(({ _sortTime, ...rest }) => rest);
 
@@ -2762,6 +2768,8 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     status: p.status,
     cost: p.cost,
     stockValue: p.stockValue,
+    location: p.location,
+    description: p.description,
     pct: totalStock > 0 ? (p.stock / totalStock) * 100 : 0
   }));
 
@@ -3036,8 +3044,10 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   ordersInRange.forEach(o => {
     if (PENDING_ORDER_STATUSES.has(o.status)) { pendingOrdersCount++; pendingOrdersTotal += o.total; }
   });
-  // Toan bo dat hang trong khoang loc (khong cat top-N) — bang FE tu phan trang 100 dong/trang.
+  // Toan bo dat hang "Phiếu tạm" trong khoang loc (khong cat top-N) — bang FE tu phan trang 100 dong/trang.
+  // Xuat file cung lay danh sach nay nen chi ra dung cac don dang hien tren bang.
   const periodOrders = ordersInRange
+    .filter(o => o.status === LISTED_ORDER_STATUS)
     .slice()
     .sort((a, b) => b._sortTime - a._sortTime)
     .map(({ _dt, _sortTime, ...rest }) => rest);
@@ -3072,8 +3082,9 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const returnsInRange = returnRecords.filter(rt => isWithinRange(rt._dt, invoicesRange));
   const returnsCount = returnsInRange.length;
   const totalReturns = returnsInRange.reduce((sum, rt) => sum + rt.total, 0);
-  // Toan bo tra hang trong khoang loc (khong cat top-N).
+  // Toan bo phieu tra "Đã trả" trong khoang loc (khong cat top-N).
   const periodReturns = returnsInRange
+    .filter(rt => rt.status === LISTED_RETURN_STATUS)
     .slice()
     .sort((a, b) => b._sortTime - a._sortTime)
     .map(({ _dt, _sortTime, ...rest }) => rest);
@@ -3241,7 +3252,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       totalStock,
       inStockCodes,
       activeProducts,
-      lowStockCount: lowStock.length,
+      lowStockCount,
       totalInventoryValue,
       inventoryValueCategoryCount,
       totalCustomers,
@@ -3300,7 +3311,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       topDebt,
       topRevenue: topCustomersByRevenue
     },
-    lowStock,
     stockValueByCategory,
     allProducts,
     stockByCategory,

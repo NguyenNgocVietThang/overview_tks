@@ -50,7 +50,7 @@ function payloadFor(view, marker = 'A') {
           allSellingParentCategories: [],
           newlyImported: { label: '30 ngày', count: 0, products: [], topByRevenue: [], salesByCategory: [], countByCategory: [], salesRevenue: 0, salesQty: 0 }
         },
-        lowStock: [], stockValueByCategory: [], stockByCategory: [],
+        stockValueByCategory: [], stockByCategory: [],
         allProducts: [{ code: 'SP-1', name: 'Sản phẩm một', stock: 5, reserved: 0, status: 'Đang kinh doanh', cost: 1000, stockValue: 5000, pct: 100 }]
       };
     case 'invoices':

@@ -118,7 +118,7 @@ test('pickPayload: cat dung phan cua tab, khong sua ban day du, Tong quan khong 
     },
     overview: { a: 1 },
     products: { childCategorySalesByParent: { X: [] }, availableParentCategories: ['X'], allSellingProducts: [1, 2, 3] },
-    invoices: { big: 1 }, customers: { topDebt: [] }, lowStock: [1], allProducts: [1], suppliers: [1], debtManagement: { k: 1 }
+    invoices: { big: 1 }, customers: { topDebt: [] }, allProducts: [1], suppliers: [1], debtManagement: { k: 1 }
   };
   const snapshot = JSON.stringify(full);
 
@@ -130,7 +130,7 @@ test('pickPayload: cat dung phan cua tab, khong sua ban day du, Tong quan khong 
 
   const products = pickPayload(full, resolveViewPlan(['products']));
   assert.equal(products.products, full.products, 'tab Hang hoa lay nguyen ca khoa products');
-  assert.deepEqual(products.lowStock, [1]);
+  assert.deepEqual(products.allProducts, [1]);
   assert.equal(products.invoices, undefined);
 
   const both = pickPayload(full, resolveViewPlan(['overview', 'products']));

@@ -47,7 +47,7 @@ test('registry bao phủ đủ 19 bảng trong Báo cáo tổng hợp', () => {
   const dom = createDashboard();
   const expected = [
     'cpDetail', 'productReport', 'recentStockout', 'stockout90d', 'stockout30d',
-    'endOfDay', 'overviewPurchase', 'todayNewProducts', 'topSelling', 'lowStock',
+    'endOfDay', 'overviewPurchase', 'todayNewProducts', 'topSelling',
     'allProducts', 'inventoryValue', 'newlyImported', 'orders', 'returns',
     'customerRevenue', 'topDebt', 'suppliers', 'debtManagement'
   ];

@@ -64,7 +64,6 @@ function payload() {
         topByRevenue: [], salesByCategory: [], countByCategory: [], salesRevenue: 0, salesQty: 0
       }
     },
-    lowStock: [{ code: 'SP-9', branch: SG, name: 'Hết hàng', type: 'Hàng hóa', cost: 5, price: 9 }],
     stockValueByCategory: [], stockByCategory: [],
     allProducts: [product(HN, 5), product(SG, 2)],
     suppliers: [{ code: 'NCC-1', branch: BOTH, name: 'NCC Z', phone: '0900', debt: 500 }],
@@ -113,7 +112,7 @@ function rows(doc, tbodyId) {
 }
 
 const TABLES_WITH_BRANCH = {
-  products: ['inventoryValueRows', 'topSellingRows', 'stockRows', 'allProductRows', 'newlyImportedRows', 'todayNewProductRows'],
+  products: ['inventoryValueRows', 'topSellingRows', 'allProductRows', 'newlyImportedRows', 'todayNewProductRows'],
   invoices: ['endOfDayRows', 'orderRows', 'returnRows'],
   customers: ['debtRows', 'customerRevenueRows'],
   suppliers: ['overviewPurchaseRows', 'supplierRows']
@@ -168,7 +167,7 @@ test('khong con bo loc trang thai kinh doanh, cot trang thai kinh doanh va the "
   assert.equal(doc.getElementById('productStatusToggle'), null);
   assert.equal(doc.getElementById('pr-inactive'), null);
   dom.window.eval("switchView('products')");
-  ['stockRows', 'allProductRows'].forEach(id => {
+  ['allProductRows'].forEach(id => {
     assert.ok(!headers(doc, id).some(text => /Trạng thái/.test(text)), id + ' khong con cot trang thai kinh doanh');
   });
   dom.window.close();

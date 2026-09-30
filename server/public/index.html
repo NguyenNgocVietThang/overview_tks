@@ -2483,6 +2483,11 @@
       color: var(--muted);
     }
 
+    /* Ô dữ liệu trong bảng hiển thị rõ nét (trắng ở dark, đen ở light); chỉ chú thích phụ (span.muted, table-note) giữ xám */
+    tbody td.muted {
+      color: var(--text);
+    }
+
     .pill {
       display: inline-block;
       padding: 2px 9px;
@@ -2696,6 +2701,153 @@
       background: color-mix(in srgb, var(--blue) 12%, transparent);
     }
 
+    /* ---------- Panel chi tiết đơn đặt hàng / phiếu trả hàng (bấm vào 1 dòng bảng) ---------- */
+    tr.doc-row {
+      cursor: pointer;
+    }
+
+    tr.doc-row:focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: -2px;
+    }
+
+    .doc-drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 1150;
+      display: flex;
+      justify-content: flex-end;
+      background: rgba(5, 10, 18, .6);
+    }
+
+    .doc-drawer {
+      width: min(600px, 100%);
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      box-shadow: -18px 0 50px rgba(var(--shadow-rgb), .32);
+      animation: doc-drawer-in .18s ease-out;
+    }
+
+    @keyframes doc-drawer-in {
+      from {
+        transform: translateX(28px);
+        opacity: 0;
+      }
+
+      to {
+        transform: none;
+        opacity: 1;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .doc-drawer {
+        animation: none;
+      }
+    }
+
+    .doc-drawer-body {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 16px 20px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .doc-meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px 18px;
+      margin: 0;
+    }
+
+    .doc-meta > div {
+      min-width: 0;
+    }
+
+    .doc-meta .doc-meta-wide {
+      grid-column: 1 / -1;
+    }
+
+    .doc-meta dt {
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 3px;
+    }
+
+    .doc-meta dd {
+      margin: 0;
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    .doc-lines-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 0 0 8px;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .doc-lines-title .muted {
+      font-size: 11.5px;
+      font-weight: 400;
+    }
+
+    .doc-line-note {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+      white-space: pre-line;
+    }
+
+    .doc-totals {
+      margin: 0;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-12);
+      background: var(--panel-2);
+      display: grid;
+      gap: 7px;
+    }
+
+    .doc-totals > div {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 12.5px;
+    }
+
+    .doc-totals dt {
+      color: var(--muted);
+    }
+
+    .doc-totals dd {
+      margin: 0;
+    }
+
+    .doc-totals .doc-total-main {
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .doc-drawer-note {
+      padding: 26px 8px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12.5px;
+    }
+
     .product-detail-head {
       display: flex;
       align-items: baseline;
@@ -2720,9 +2872,41 @@
       max-height: 340px;
     }
 
+    /* Chú giải HTML thay cho legend của Chart.js: hàng trăm khách không vừa khung canvas, nên cuộn riêng. */
+    .product-detail-chart {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    .product-detail-chart .chart-box {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+
+    .product-detail-legend {
+      flex: 0 0 210px;
+      max-height: 340px;
+      overflow-y: auto;
+      padding-right: 6px;
+    }
+
     @media (max-width:900px) {
       .product-detail-grid {
         grid-template-columns: minmax(0, 1fr);
+      }
+
+      .product-detail-chart {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .product-detail-chart .chart-box {
+        flex: none;
+      }
+
+      .product-detail-legend {
+        flex: none;
       }
     }
 
@@ -3321,8 +3505,11 @@
                         </tbody>
                       </table>
                     </div>
-                    <div class="chart-box wide"><canvas id="productDetailChart" role="img"
-                        aria-label="Biểu đồ tròn tỷ trọng doanh số 90 ngày của các khách theo sản phẩm đã chọn"></canvas></div>
+                    <div class="product-detail-chart">
+                      <div class="chart-box wide"><canvas id="productDetailChart" role="img"
+                          aria-label="Biểu đồ tròn tỷ trọng doanh số 90 ngày của các khách theo sản phẩm đã chọn"></canvas></div>
+                      <div class="legend-list product-detail-legend" id="productDetailLegend"></div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -3620,42 +3807,10 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">4</span>
-              <h2>Dữ liệu chi tiết <span class="section-note">hàng cần nhập gấp và toàn bộ danh mục</span></h2>
+              <h2>Dữ liệu chi tiết <span class="section-note">toàn bộ danh mục hàng hóa</span></h2>
             </div>
             <div class="grid">
-              <div class="panel col-half">
-                <div class="panel-head">
-                  <h2>Hàng đã hết <span class="tag" id="tagLowStock">—</span></h2><button class="export-button"
-                    type="button" onclick="openExportDialog('products.low-stock')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
-                </div>
-                <div class="scroll-list" style="max-height:420px;">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Mã hàng</th>
-                        <th>Tên sản phẩm</th>
-                        <th>Cơ sở</th>
-                        <th>Loại</th>
-                        <th>Giá vốn</th>
-                        <th>Giá bán</th>
-                      </tr>
-                    </thead>
-                    <tbody id="stockRows">
-                      <tr>
-                        <td colspan="6" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="stockPagination" hidden>
-                  <button type="button" id="stockFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="stockPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="stockPageLabel">Trang 1/1</span>
-                  <button type="button" id="stockNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="stockLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-              <div class="panel col-half">
+              <div class="panel col-12">
                 <div class="panel-head">
                   <h2>Tất cả mã hàng <span class="tag" id="tagAllProducts">—</span></h2>
                   <div class="panel-head-actions"><button class="export-button" type="button"
@@ -3668,6 +3823,8 @@
                         <th>Mã hàng</th>
                         <th>Tên sản phẩm</th>
                         <th>Cơ sở</th>
+                        <th>Vị trí</th>
+                        <th>Mô tả</th>
                         <th>Tồn</th>
                         <th>Đặt</th>
                         <th>Tỷ lệ</th>
@@ -3675,7 +3832,7 @@
                     </thead>
                     <tbody id="allProductRows">
                       <tr>
-                        <td colspan="6" class="table-note">Đang tải...</td>
+                        <td colspan="8" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4437,6 +4594,22 @@
         </div>
       </div>
     </section>
+  </div>
+
+  <!-- Panel chi tiết đơn đặt hàng / phiếu trả hàng: mở khi bấm 1 dòng ở tab Hóa đơn (openDocumentDetail). -->
+  <div class="doc-drawer-backdrop" id="docDrawerBackdrop" hidden onclick="handleDocumentDetailBackdropClick(event)">
+    <aside class="doc-drawer" role="dialog" aria-modal="true" aria-labelledby="docDrawerTitle"
+      aria-describedby="docDrawerSubtitle">
+      <div class="export-modal-head">
+        <div>
+          <h2 class="export-modal-title" id="docDrawerTitle">Chi tiết</h2>
+          <p class="export-modal-subtitle" id="docDrawerSubtitle"></p>
+        </div>
+        <button class="export-modal-close" id="docDrawerClose" type="button" onclick="closeDocumentDetail()"
+          aria-label="Đóng">×</button>
+      </div>
+      <div class="doc-drawer-body" id="docDrawerBody" aria-live="polite"></div>
+    </aside>
   </div>
 
   <!-- Màn hình chờ tải dữ liệu. Sử dụng HTML tĩnh có chủ đích: trước đây được tạo động
@@ -5850,7 +6023,6 @@
       'overview.purchases': 'overviewPurchase',
       'overview.new-products': 'todayNewProducts',
       'products.top-selling': 'topSelling',
-      'products.low-stock': 'lowStock',
       'products.all': 'allProducts',
       'products.newly-imported': 'newlyImported',
       'invoices.orders': 'orders',
@@ -6545,7 +6717,9 @@
       });
     }
 
-    function renderPieChartList(canvasId, key, list, labelFn, valueFn, formatFn, centerLabel, drilldown) {
+    // legendId (tuỳ chọn): vẽ chú giải bằng HTML cuộn được vào phần tử đó thay cho legend của Chart.js
+    // — dùng khi số lát quá nhiều để canvas chứa nổi.
+    function renderPieChartList(canvasId, key, list, labelFn, valueFn, formatFn, centerLabel, drilldown, legendId) {
       destroyChart(key);
       const canvas = document.getElementById(canvasId);
       if (!canvas) return;
@@ -6556,6 +6730,17 @@
       const format = formatFn || (v => fmtMoney(v));
       const values = list.map(valueFn);
       const total = values.reduce((sum, v) => sum + (Number(v) || 0), 0);
+      const colors = list.map((item, i) => categoryColor(labelFn(item), i, list.length));
+      const legendEl = legendId ? document.getElementById(legendId) : null;
+      if (legendEl) {
+        legendEl.innerHTML = list.map((item, i) => {
+          const value = Number(values[i]) || 0;
+          const pct = total > 0 ? (value / total * 100).toFixed(1) : '0.0';
+          return '<div class="legend-row" title="' + escapeHtml(labelFn(item) + ': ' + format(value) + ' (' + pct + '%)') + '">' +
+            '<span class="dot" style="background:' + colors[i] + '"></span>' +
+            '<span class="lbl">' + escapeHtml(labelFn(item)) + '</span></div>';
+        }).join('');
+      }
 
       const centerTextPlugin = {
         id: 'centerText_' + key,
@@ -6588,9 +6773,10 @@
           labels: list.map(labelFn),
           datasets: [{
             data: values,
-            backgroundColor: list.map((item, i) => categoryColor(labelFn(item), i, list.length)),
+            backgroundColor: colors,
             borderColor: theme.panel,
-            borderWidth: 2,
+            // Nhiều lát mảnh: viền dày 2px sẽ nuốt mất lát.
+            borderWidth: list.length > 40 ? 0.5 : 2,
             hoverOffset: 5
           }]
         },
@@ -6605,7 +6791,7 @@
             else navigateChartToTable(drilldown.tableKey, drilldown.identity(item));
           } : undefined,
           plugins: {
-            legend: {
+            legend: legendEl ? { display: false } : {
               position: 'right',
               labels: {
                 color: theme.text,
@@ -6835,11 +7021,6 @@
       if (status === 'Hoàn thành') return '<span class="pill ok">' + status + '</span>';
       return '<span class="pill warn">' + escapeHtml(status) + '</span>';
     }
-    function stockPill(stock) {
-      if (stock <= 0) return '<span class="pill bad">' + stock + '</span>';
-      if (stock <= 3) return '<span class="pill warn">' + stock + '</span>';
-      return '<span class="pill ok">' + stock + '</span>';
-    }
 
     function tableSearchText(item) {
       const values = [];
@@ -6866,7 +7047,6 @@
         identity: p => state.productAnalysis === 'product' ? p.code : 'parent:' + p.name,
         supportsCodes: () => state.productAnalysis === 'product'
       },
-      lowStock: { title: 'Hàng đã hết', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
       allProducts: { title: 'Tất cả mã hàng', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
       inventoryValue: { title: 'Chi tiết tồn kho theo sản phẩm', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
       newlyImported: { title: 'Hàng mới nhập', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
@@ -7235,7 +7415,6 @@
     // (bảng + biểu đồ tròn). Nút Chi tiết ở mỗi dòng và ô tìm tên/mã sản phẩm đều gọi
     // selectProductReportDetail() nên luôn ra cùng 1 kết quả. Dữ liệu lấy lười theo từng sản phẩm từ
     // /api/product-report/customers (bảng product_report_customers, dựng cùng job đêm với bảng trên). =====
-    const PRODUCT_DETAIL_PIE_TOP = 10;
     const PRODUCT_DETAIL_SUGGESTION_LIMIT = 8;
 
     function findProductReportRow(code) {
@@ -7328,19 +7507,11 @@
         '<td class="mono" data-sort-value="' + share + '">' + formatDebtRatio(row.share) + '</td></tr>';
     }
 
-    // Top 10 khách + 1 lát "Khác (N khách)" gộp phần còn lại; bảng bên cạnh luôn liệt kê đủ mọi khách.
+    // Mỗi khách một lát, không gộp "Khác"; chú giải HTML bên cạnh cuộn được để liệt kê đủ.
     function productDetailPieList(rows) {
-      const list = rows.slice(0, PRODUCT_DETAIL_PIE_TOP).map(function (row) {
+      return rows.map(function (row) {
         return { name: row.customerName || 'Khách lẻ', revenue: row.revenue };
       });
-      const rest = rows.slice(PRODUCT_DETAIL_PIE_TOP);
-      if (rest.length) {
-        list.push({
-          name: 'Khác (' + rest.length + ' khách)',
-          revenue: rest.reduce(function (sum, row) { return sum + row.revenue; }, 0)
-        });
-      }
-      return list;
     }
 
     function renderProductReportDetail() {
@@ -7351,13 +7522,15 @@
       const summary = document.getElementById('productDetailSummary');
       content.hidden = !detail.code;
       emptyState.hidden = !!detail.code;
-      if (!detail.code) { destroyChart('productDetailCustomers'); return; }
+      const legend = document.getElementById('productDetailLegend');
+      if (!detail.code) { destroyChart('productDetailCustomers'); legend.innerHTML = ''; return; }
 
       document.getElementById('productDetailTitle').textContent = detail.code + (detail.name ? ' – ' + detail.name : '');
       const note = function (message) {
         tbody.innerHTML = '<tr><td colspan="3" class="table-note">' + message + '</td></tr>';
         summary.textContent = '—';
         destroyChart('productDetailCustomers');
+        legend.innerHTML = '';
       };
       if (detail.status === 'loading') { note('Đang tải...'); return; }
       if (detail.status === 'error') { note('Không tải được doanh số khách của sản phẩm này.'); return; }
@@ -7371,7 +7544,8 @@
       tbody.innerHTML = rows.map(productDetailRowHtml).join('');
       renderPieChartList(
         'productDetailChart', 'productDetailCustomers', productDetailPieList(rows),
-        function (item) { return item.name; }, function (item) { return item.revenue; }, null, 'Tổng 90 ngày'
+        function (item) { return item.name; }, function (item) { return item.revenue; }, null, 'Tổng 90 ngày',
+        null, 'productDetailLegend'
       );
     }
 
@@ -7440,6 +7614,175 @@
       document.addEventListener('click', function (event) {
         if (!event.target.closest || !event.target.closest('#productDetailSearchInput, #productDetailSuggestions')) {
           hideProductDetailSuggestions();
+        }
+      });
+    }
+
+    // ===== Panel chi tiết đơn đặt hàng / phiếu trả hàng (tab Hóa đơn, mục Phân tích) =====
+    // Bấm 1 dòng ở "Danh sách đặt hàng" / "Danh sách trả hàng" → lấy các dòng hàng của chứng từ đó từ
+    // /api/order-detail, /api/return-detail (bảng order_details / return_details) và hiện trong panel bên phải.
+    const DOC_DETAIL_KINDS = {
+      orders: { api: '/api/order-detail', title: 'Chi tiết đơn đặt hàng', dateLabel: 'Ngày đặt', sellerLabel: 'Nhân viên lập', failure: 'Không tải được chi tiết đơn đặt hàng.' },
+      returns: { api: '/api/return-detail', title: 'Chi tiết phiếu trả hàng', dateLabel: 'Ngày trả', sellerLabel: 'Nhân viên bán', failure: 'Không tải được chi tiết phiếu trả hàng.' }
+    };
+    const docDetail = { requestId: 0, tableKey: '', item: null, returnFocus: null };
+
+    function docMetaField(label, valueHtml, wide) {
+      return '<div' + (wide ? ' class="doc-meta-wide"' : '') + '><dt>' + label + '</dt><dd>' + valueHtml + '</dd></div>';
+    }
+
+    function docTotalRow(label, valueHtml, main) {
+      return '<div' + (main ? ' class="doc-total-main"' : '') + '><dt>' + label + '</dt><dd class="mono">' + valueHtml + '</dd></div>';
+    }
+
+    function docDetailBodyHtml(tableKey, data) {
+      const isOrder = tableKey === 'orders';
+      const lines = data.lines || [];
+      const showDiscount = isOrder && lines.some(function (line) { return line.discount > 0; });
+      const customer = escapeHtml(data.customerName || 'Khách lẻ') +
+        (data.customerCode ? ' <span class="muted mono">(' + escapeHtml(data.customerCode) + ')</span>' : '');
+      const meta = [
+        docMetaField('Khách hàng', customer, true),
+        docMetaField('Cơ sở', branchCellText(docDetail.item)),
+        docMetaField(DOC_DETAIL_KINDS[tableKey].dateLabel, escapeHtml(data.date || '—')),
+        docMetaField(DOC_DETAIL_KINDS[tableKey].sellerLabel, escapeHtml(data.seller || '—')),
+        docMetaField('Trạng thái', genericStatusPill(data.status))
+      ];
+      if (!isOrder) meta.push(docMetaField('Hóa đơn gốc', data.invoiceCode ? '<span class="mono">' + escapeHtml(data.invoiceCode) + '</span>' : '—'));
+      if (isOrder && data.note) meta.push(docMetaField('Ghi chú', '<span style="white-space:pre-line">' + escapeHtml(data.note) + '</span>', true));
+
+      const head = '<th>Mã hàng</th><th>Tên hàng</th><th>SL</th><th>Đơn giá</th>' + (showDiscount ? '<th>Giảm giá</th>' : '') + '<th>Thành tiền</th>';
+      const rows = lines.length ? lines.map(function (line) {
+        return '<tr><td class="mono muted">' + escapeHtml(line.productCode || '—') + '</td>' +
+          '<td class="name-cell">' + escapeHtml(line.productName || '—') +
+          (line.note ? '<span class="doc-line-note">' + escapeHtml(line.note) + '</span>' : '') + '</td>' +
+          '<td class="mono">' + fmtNumber(line.quantity) + '</td>' +
+          '<td class="mono">' + fmtMoney(line.price) + '</td>' +
+          (showDiscount ? '<td class="mono">' + fmtMoney(line.discount) + '</td>' : '') +
+          '<td class="mono">' + fmtMoney(line.amount) + '</td></tr>';
+      }).join('') : '<tr><td colspan="' + (showDiscount ? 6 : 5) + '" class="table-note">Chứng từ này chưa có dòng hàng nào.</td></tr>';
+
+      const totals = [];
+      if (isOrder) {
+        if (data.discount > 0) totals.push(docTotalRow('Giảm giá đơn', fmtMoney(data.discount)));
+        totals.push(docTotalRow('Tổng tiền', fmtMoney(data.total), true));
+        totals.push(docTotalRow('Khách đã trả', fmtMoney(data.paid)));
+      } else {
+        if (data.returnDiscount > 0) totals.push(docTotalRow('Giảm giá trả hàng', fmtMoney(data.returnDiscount)));
+        if (data.returnFee > 0) totals.push(docTotalRow('Phí trả hàng', fmtMoney(data.returnFee)));
+        totals.push(docTotalRow('Tổng tiền trả', fmtMoney(data.total), true));
+        totals.push(docTotalRow('Đã thanh toán', fmtMoney(data.paid)));
+      }
+
+      return '<dl class="doc-meta">' + meta.join('') + '</dl>' +
+        '<div><h3 class="doc-lines-title"><span>Hàng hóa</span><span class="muted">' + fmtNumber(data.lineCount) + ' dòng · ' +
+        fmtNumber(data.totalQuantity) + ' sản phẩm</span></h3>' +
+        '<div class="scroll-list"><table><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div></div>' +
+        '<dl class="doc-totals">' + totals.join('') + '</dl>';
+    }
+
+    function renderDocumentDetail(status, data, message) {
+      const body = document.getElementById('docDrawerBody');
+      const subtitle = document.getElementById('docDrawerSubtitle');
+      const kind = DOC_DETAIL_KINDS[docDetail.tableKey];
+      document.getElementById('docDrawerTitle').textContent = kind.title + ' ' + docDetail.item.code;
+      subtitle.textContent = docDetail.item.branch ? 'Cơ sở ' + docDetail.item.branch : '';
+      if (status === 'loading') {
+        body.innerHTML = '<div class="doc-drawer-note">Đang tải chi tiết...</div>';
+      } else if (status === 'error') {
+        body.innerHTML = '<div class="doc-drawer-note">' + escapeHtml(message || kind.failure) +
+          '<br><button class="export-select-action" type="button" style="margin-top:12px" onclick="retryDocumentDetail()">Thử lại</button></div>';
+      } else {
+        body.innerHTML = docDetailBodyHtml(docDetail.tableKey, data);
+      }
+    }
+
+    function loadDocumentDetail() {
+      const kind = DOC_DETAIL_KINDS[docDetail.tableKey];
+      const item = docDetail.item;
+      const requestId = ++docDetail.requestId;
+      renderDocumentDetail('loading');
+      fetch(kind.api + '?code=' + encodeURIComponent(item.code) + '&branch=' + encodeURIComponent(item.branch || ''))
+        .then(function (res) {
+          return res.json().catch(function () { return {}; }).then(function (payload) {
+            if (!res.ok) {
+              const error = new Error((payload && payload.error) || 'HTTP ' + res.status);
+              error.userMessage = res.status < 500 && payload && payload.error ? payload.error : '';
+              throw error;
+            }
+            return payload;
+          });
+        })
+        .then(function (data) {
+          if (requestId !== docDetail.requestId) return; // đã đóng panel hoặc chọn dòng khác trong lúc chờ
+          renderDocumentDetail('ready', data);
+        })
+        .catch(function (err) {
+          console.error('Không tải được chi tiết chứng từ:', err);
+          if (requestId !== docDetail.requestId) return;
+          renderDocumentDetail('error', null, err.userMessage);
+        });
+    }
+
+    function retryDocumentDetail() {
+      if (docDetail.item) loadDocumentDetail();
+    }
+
+    function openDocumentDetail(tableKey, item, trigger) {
+      if (!DOC_DETAIL_KINDS[tableKey] || !item) return;
+      docDetail.tableKey = tableKey;
+      docDetail.item = item;
+      docDetail.returnFocus = trigger || null;
+      document.getElementById('docDrawerBackdrop').hidden = false;
+      document.body.style.overflow = 'hidden';
+      loadDocumentDetail();
+      document.getElementById('docDrawerClose').focus();
+    }
+
+    function closeDocumentDetail() {
+      docDetail.requestId++; // bỏ qua kết quả của request đang chờ
+      document.getElementById('docDrawerBackdrop').hidden = true;
+      document.getElementById('docDrawerBody').innerHTML = '';
+      document.body.style.overflow = '';
+      const returnFocus = docDetail.returnFocus;
+      docDetail.returnFocus = null;
+      docDetail.item = null;
+      if (returnFocus && returnFocus.isConnected && typeof returnFocus.focus === 'function') returnFocus.focus();
+    }
+
+    function handleDocumentDetailBackdropClick(event) {
+      if (event.target === document.getElementById('docDrawerBackdrop')) closeDocumentDetail();
+    }
+
+    function initDocumentDetail() {
+      [['orderRows', 'orders'], ['returnRows', 'returns']].forEach(function (pair) {
+        const tbody = document.getElementById(pair[0]);
+        const tableKey = pair[1];
+        function openFromRow(row) {
+          const id = row.dataset.tableItemId;
+          const item = (state.tableDatasets[tableKey] || []).find(function (candidate) { return productIdentity(candidate) === id; });
+          if (item) openDocumentDetail(tableKey, item, row);
+        }
+        tbody.addEventListener('click', function (event) {
+          const row = event.target.closest && event.target.closest('tr.doc-row');
+          if (!row) return;
+          const selection = window.getSelection && window.getSelection();
+          // Đang bôi đen chữ trong dòng (để sao chép mã) thì không mở panel.
+          if (selection && !selection.isCollapsed && row.contains(selection.anchorNode)) return;
+          openFromRow(row);
+        });
+        tbody.addEventListener('keydown', function (event) {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          const row = event.target.closest && event.target.closest('tr.doc-row');
+          if (!row || event.target !== row) return;
+          event.preventDefault();
+          openFromRow(row);
+        });
+      });
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !document.getElementById('docDrawerBackdrop').hidden) {
+          event.preventDefault();
+          closeDocumentDetail();
         }
       });
     }
@@ -7740,7 +8083,7 @@
     function renderView(view) {
       const d = state.data;
       // Tab chua tai xong chi co 1 phan state.data (payload cac tab khac) - ve luc do
-      // se doc thieu truong (vd d.lowStock.length) nen doi tab tai xong roi moi ve.
+      // se doc thieu truong (vd d.allProducts.length) nen doi tab tai xong roi moi ve.
       if (!d || !viewIsLoaded(view)) return;
       if (view === 'overview') {
         document.getElementById('ov-revenue').textContent = fmtMoney(d.kpi.revenueToday);
@@ -7758,17 +8101,6 @@
         document.getElementById('pr-total').textContent = d.kpi.totalProducts;
         document.getElementById('pr-stock').textContent = fmtNumber(d.kpi.inStockCodes);
         document.getElementById('pr-lowstock').textContent = d.kpi.lowStockCount;
-        document.getElementById('tagLowStock').textContent = d.lowStock.length;
-        renderPaginatedRows(
-          'lowStock',
-          { tbody: 'stockRows', pagination: 'stockPagination', firstBtn: 'stockFirstPage', prevBtn: 'stockPrevPage', nextBtn: 'stockNextPage', lastBtn: 'stockLastPage', label: 'stockPageLabel' },
-          d.lowStock,
-          p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-            '<td>' + branchCellText(p) + '</td><td>' + (p.type ? escapeHtml(p.type) : '—') + '</td>' +
-            '<td class="mono muted" data-sort-value="' + p.cost + '">' + fmtMoney(p.cost) + '</td><td class="mono" data-sort-value="' + p.price + '">' + fmtMoney(p.price) + '</td></tr>',
-          6,
-          'Không có sản phẩm đã hết hàng'
-        );
         renderInventoryStructure(d);
 
         const filteredProducts = d.allProducts || [];
@@ -7779,9 +8111,11 @@
           filteredProducts,
           p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
             '<td>' + branchCellText(p) + '</td>' +
-            '<td class="mono" data-sort-value="' + p.stock + '">' + stockPill(p.stock) + '</td><td class="mono muted" data-sort-value="' + p.reserved + '">' + p.reserved + '</td>' +
-            '<td class="mono muted" data-sort-value="' + p.pct + '">' + p.pct.toFixed(2) + '%</td></tr>',
-          6,
+            '<td class="mono muted">' + (p.location ? escapeHtml(p.location) : '—') + '</td>' +
+            '<td class="muted" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"' + (p.description ? ' title="' + escapeHtml(p.description) + '"' : '') + '>' + (p.description ? escapeHtml(p.description) : '—') + '</td>' +
+            '<td class="mono" data-sort-value="' + p.stock + '">' + p.stock + '</td><td class="mono" data-sort-value="' + p.reserved + '">' + p.reserved + '</td>' +
+            '<td class="mono" data-sort-value="' + p.pct + '">' + p.pct.toFixed(2) + '%</td></tr>',
+          8,
           'Không có dữ liệu'
         );
 
@@ -7909,7 +8243,7 @@
           'orders',
           { tbody: 'orderRows', pagination: 'ordersPagination', firstBtn: 'ordersFirstPage', prevBtn: 'ordersPrevPage', nextBtn: 'ordersNextPage', lastBtn: 'ordersLastPage', label: 'ordersPageLabel' },
           periodOrders,
-          o => '<tr><td class="mono muted">' + escapeHtml(o.code) + '</td><td>' + branchCellText(o) + '</td><td class="name-cell">' + (o.customer ? escapeHtml(o.customer) : 'Khách lẻ') + '</td>' +
+          o => '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết đơn"><td class="mono muted">' + escapeHtml(o.code) + '</td><td>' + branchCellText(o) + '</td><td class="name-cell">' + (o.customer ? escapeHtml(o.customer) : 'Khách lẻ') + '</td>' +
             '<td class="mono" data-sort-value="' + o.total + '">' + fmtMoney(o.total) + '</td><td>' + genericStatusPill(o.status) + '</td></tr>',
           5,
           'Chưa có đặt hàng nào'
@@ -7921,7 +8255,7 @@
           'returns',
           { tbody: 'returnRows', pagination: 'returnsPagination', firstBtn: 'returnsFirstPage', prevBtn: 'returnsPrevPage', nextBtn: 'returnsNextPage', lastBtn: 'returnsLastPage', label: 'returnsPageLabel' },
           periodReturns,
-          rt => '<tr><td class="mono muted">' + escapeHtml(rt.code) + '</td><td>' + branchCellText(rt) + '</td><td class="mono muted">' + (rt.originalInvoiceCode ? escapeHtml(rt.originalInvoiceCode) : '—') + '</td>' +
+          rt => '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết phiếu trả"><td class="mono muted">' + escapeHtml(rt.code) + '</td><td>' + branchCellText(rt) + '</td><td class="mono muted">' + (rt.originalInvoiceCode ? escapeHtml(rt.originalInvoiceCode) : '—') + '</td>' +
             '<td class="name-cell">' + (rt.customer ? escapeHtml(rt.customer) : 'Khách lẻ') + '</td>' +
             '<td class="mono" data-sort-value="' + rt.total + '">' + fmtMoney(rt.total) + '</td><td>' + genericStatusPill(rt.status) + '</td></tr>',
           6,
@@ -8369,7 +8703,7 @@
     // API theo tab, cache la ban day du 6 tab) da co du lieu cua tab nao.
     const VIEW_DATA_KEYS = {
       overview: ['kpi'],
-      products: ['products', 'lowStock', 'allProducts'],
+      products: ['products', 'allProducts'],
       invoices: ['invoices'],
       customers: ['customers'],
       suppliers: ['suppliers', 'newPurchases'],
@@ -8726,6 +9060,7 @@
     // gian/cache dashboard nen goi rieng 1 lan khi vao trang (khong qua
     // loadData()/SSE o duoi).
     initProductReportDetail();
+    initDocumentDetail();
     loadProductReport();
 
     syncMiniFilterUI('products');

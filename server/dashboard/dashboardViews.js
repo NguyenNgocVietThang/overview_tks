@@ -105,7 +105,7 @@ const VIEW_PAYLOAD = Object.freeze({
     filters: ['overview']
   },
   products: {
-    top: ['products', 'lowStock', 'stockValueByCategory', 'allProducts', 'stockByCategory'],
+    top: ['products', 'stockValueByCategory', 'allProducts', 'stockByCategory'],
     nested: {},
     kpi: [
       'totalProducts', 'totalStock', 'inStockCodes', 'activeProducts',

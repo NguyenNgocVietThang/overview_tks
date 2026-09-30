@@ -45,7 +45,6 @@ const TABLE_TITLES = Object.freeze({
   'overview.purchases': 'Danh sách nhập hàng',
   'overview.new-products': 'Danh sách mã mới',
   'products.top-selling': 'Sản phẩm bán chạy',
-  'products.low-stock': 'Hàng đã hết',
   'products.all': 'Tất cả mã hàng',
   'products.newly-imported': 'Hàng mới nhập',
   'invoices.orders': 'Danh sách đặt hàng',
@@ -668,10 +667,6 @@ const TABLE_SPECS = {
       derivedValues: { sold_qty: item => item.qty, sales_revenue: item => item.revenue }
     });
   },
-  'products.low-stock': (context, scope) => singleSourceTable({
-    key: 'low_stock', name: 'Hàng đã hết', sourceKey: 'products', branchColumn: scope.aggregate,
-    items: dashboard => dashboard.lowStock || []
-  }),
   'products.all': (context, scope) => singleSourceTable({
     key: 'all_products', name: 'Tất cả mã hàng', sourceKey: 'products', branchColumn: scope.aggregate,
     items: dashboard => dashboard.allProducts || [],
