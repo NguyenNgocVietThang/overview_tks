@@ -1,7 +1,7 @@
 // ==========================================
 // ORDER LIFECYCLE EXPORT — xuat Excel cho bang "Toan bo don hang" o
 // /shipment/lifecycle/. Cot xuat ra y het 10 cot cua Google Sheet nguon
-// (xem SCHEMA o orderLifecycleRepository.js) + Co so + Trang thai hien thi
+// (xem SCHEMA o orderLifecycleRepository.js) + Co so + Trang thai + Canh bao hien thi
 // tren UI, KHONG parse ngay/gio thanh Date de tranh sai lech voi du lieu tho
 // trong sheet (co the co dinh dang loi nhu "15,35" thay vi "15:35").
 // ==========================================
@@ -27,7 +27,8 @@ const COLUMNS = [
   { key: 'deliveryConfirmedAt', label: 'Xác nhận đã giao/khách ký nhận' },
   { key: 'shipReceivedAt', label: 'Ship nhận đơn' },
   { key: 'orderSignedAt', label: 'Đơn đã ký nhận' },
-  { key: 'statusLabel', label: 'Trạng thái' }
+  { key: 'statusLabel', label: 'Trạng thái' },
+  { key: 'warningLabel', label: 'Cảnh báo' }
 ];
 
 function neutralizeFormulaText(value) {
@@ -38,6 +39,7 @@ function neutralizeFormulaText(value) {
 function columnValue(order, key) {
   if (key === 'branchLabel') return BRANCH_LABEL[order.branch] || order.branch || '';
   if (key === 'statusLabel') return (order.summary && order.summary.label) || '';
+  if (key === 'warningLabel') return order.warning ? 'Cảnh báo' : '';
   const raw = order[key];
   return raw === undefined || raw === null ? '' : raw;
 }

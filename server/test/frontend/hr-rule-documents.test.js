@@ -37,13 +37,12 @@ function jsonResponse(payload, status = 200) {
 async function openPage({ vaiTro = 'Quản lý', hash = '#quydinh', docs = [...BUILTINS, PDF], listPayload } = {}) {
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: `https://tokosi.example/humanresources/${hash}` });
   const { window } = dom;
-  const server = { docs: [...docs], missingDefaults: [], requests: [], sidebarCalls: [], confirmed: true };
+  const server = { docs: [...docs], missingDefaults: [], requests: [], confirmed: true };
 
   window.TKSNav = {
     authGuard: async () => ({ username: 'u', vaiTro }),
     can: fakeCan(vaiTro),
-    renderTopSidebar() {},
-    setHrRuleDocuments(list) { server.sidebarCalls.push(list); }
+    renderTopSidebar() {}
   };
   window.confirm = () => server.confirmed;
   window.URL.createObjectURL = () => `blob:test/${server.requests.length}`;
@@ -93,28 +92,27 @@ const tabSlugs = document => [...document.querySelectorAll('.rule-doc-tab')].map
 const activeTab = document => (document.querySelector('.rule-doc-tab.active') || {}).dataset;
 const visibleViews = document => [...document.querySelectorAll('.rule-doc-view')].filter(v => !v.hidden).map(v => v.dataset.ruleDoc || v.id);
 
-test('dựng tab từ API: 2 tài liệu dựng sẵn + PDF, mặc định tài liệu đầu, đẩy danh sách vào sidebar', async () => {
+test('dựng tab từ API: 2 tài liệu dựng sẵn + PDF, mặc định tài liệu đầu', async () => {
   const { window, document, server } = await openPage();
 
   assert.deepEqual(tabSlugs(document), ['gio-giac', 'nghi-phep', 'pdf-7']);
   assert.equal(activeTab(document).ruleDocTab, 'gio-giac');
   assert.deepEqual(visibleViews(document), ['gio-giac']);
   assert.equal(document.getElementById('ruleDocTitle').textContent, 'Giờ giấc làm việc');
-  assert.deepEqual(JSON.parse(JSON.stringify(server.sidebarCalls.at(-1))), [
-    { slug: 'gio-giac', title: 'Giờ giấc làm việc' },
-    { slug: 'nghi-phep', title: 'Quy định nghỉ phép' },
-    { slug: 'pdf-7', title: 'Nội quy kho' }
-  ]);
   window.close();
 });
 
-test('nội dung tài liệu dựng sẵn: "Quy định nghỉ phép" chỉ còn rule nghỉ trên 3 ngày, không còn quy tắc bot Telegram', async () => {
+test('nội dung tài liệu dựng sẵn: "Quy định nghỉ phép" đủ rule nghỉ ngắn/dài ngày, mức phạt và bot Telegram', async () => {
   const { window, document } = await openPage();
   const leaveDoc = document.getElementById('ruleDoc-nghi-phep').textContent;
+  assert.match(leaveDoc, /@nghipheptks_bot/);
+  assert.match(leaveDoc, /từ 03 ngày trở xuống/);
+  assert.match(leaveDoc, /trước 22h00 của ngày hôm trước/);
   assert.match(leaveDoc, /trên 03 ngày/);
   assert.match(leaveDoc, /trước ít nhất 02 ngày/);
-  assert.match(leaveDoc, /22h00/);
-  assert.doesNotMatch(leaveDoc, /Telegram|lienket|Tạm duyệt/);
+  assert.match(leaveDoc, /50\.000đ\/lần/);
+  assert.match(leaveDoc, /03 ngày lương/);
+  assert.doesNotMatch(leaveDoc, /lienket|Tạm duyệt/);
   const hoursDoc = document.getElementById('ruleDoc-gio-giac').textContent;
   assert.match(hoursDoc, /Giờ làm việc chính thức/);
   assert.doesNotMatch(hoursDoc, /Quy tắc xin nghỉ phép/);
@@ -176,7 +174,7 @@ test('nút Khôi phục chỉ hiện khi thiếu tài liệu mặc định; bấ
   window.close();
 });
 
-test('gỡ tài liệu: xác nhận → DELETE → tab và nhánh sidebar biến mất, rơi về tài liệu đầu', async () => {
+test('gỡ tài liệu: xác nhận → DELETE → tab biến mất, rơi về tài liệu đầu', async () => {
   const { window, document, server } = await openPage({ hash: '#quydinh/pdf-7' });
   assert.equal(activeTab(document).ruleDocTab, 'pdf-7');
 
@@ -186,7 +184,6 @@ test('gỡ tài liệu: xác nhận → DELETE → tab và nhánh sidebar biến
   assert.ok(server.requests.some(r => r.method === 'DELETE' && r.url === '/api/hr/rules/documents/7'));
   assert.deepEqual(tabSlugs(document), ['gio-giac', 'nghi-phep']);
   assert.equal(activeTab(document).ruleDocTab, 'gio-giac');
-  assert.deepEqual(JSON.parse(JSON.stringify(server.sidebarCalls.at(-1).map(d => d.slug))), ['gio-giac', 'nghi-phep']);
   window.close();
 });
 

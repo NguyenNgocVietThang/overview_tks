@@ -184,6 +184,16 @@
   .export-button:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
   .export-button:disabled{ opacity:.55; cursor:not-allowed; transform:none; }
   .bulk-count{ color:var(--muted); font-size:12.5px; font-weight:600; }
+  .bulk-daterange{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; padding:12px 20px; border-bottom:1px solid var(--border); }
+  .bulk-daterange-label{ color:var(--muted); font-size:12.5px; font-weight:600; }
+  .bulk-date-field{ display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:12.5px; font-weight:600; }
+  .bulk-date-input{
+    padding:6px 10px; border-radius:8px; border:1px solid var(--border); background:var(--panel);
+    color:var(--text); font-family:var(--font-body); font-size:12.5px; font-weight:600;
+  }
+  .bulk-date-input:focus{ outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(59,130,246,.2); }
+  :root[data-theme="dark"] .bulk-date-input{ color-scheme:dark; }
+  :root[data-theme="light"] .bulk-date-input{ color-scheme:light; }
   .bulk-scroll{ overflow-x:auto; }
   .bulk-table{ width:100%; border-collapse:collapse; }
   .bulk-table th,.bulk-table td{ padding:12px 20px; text-align:left; border-bottom:1px solid var(--border); }
@@ -303,6 +313,16 @@
                 <button type="button" class="export-button" id="bulkExportBtn" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất Excel</button>
               </div>
             </div>
+            <div class="bulk-daterange" id="bulkDateRange">
+              <span class="bulk-daterange-label">Lọc thời gian</span>
+              <select class="bulk-status-select" id="bulkDateField" aria-label="Lọc theo cột thời gian">
+                <option value="saleSentAt">Sale ra đơn</option>
+                <option value="at">Cập nhật gần nhất</option>
+              </select>
+              <label class="bulk-date-field">Từ <input type="date" class="bulk-date-input" id="bulkDateFrom" aria-label="Từ ngày"></label>
+              <label class="bulk-date-field">đến <input type="date" class="bulk-date-input" id="bulkDateTo" aria-label="Đến ngày"></label>
+              <button type="button" class="bulk-filter-btn active" id="bulkDateAll">Tất cả thời gian</button>
+            </div>
             <form class="bulk-search" id="bulkSearchForm">
               <div class="bulk-search-modes" id="bulkSearchModes">
                 <button type="button" class="bulk-mode-btn active" data-mode="code">Theo mã</button>
@@ -318,8 +338,10 @@
                   <th class="sortable" data-sort="orderCode" style="width:160px">Mã đơn<span class="sort-ind">▲</span></th>
                   <th class="sortable" data-sort="saleName" style="width:180px">Sale<span class="sort-ind">▲</span></th>
                   <th class="sortable" data-sort="customerName" style="width:260px">Khách hàng<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="saleSentAt" style="width:190px">Sale ra đơn<span class="sort-ind">▲</span></th>
                   <th class="sortable" data-sort="status" style="width:200px">Trạng thái<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-sort="at" style="width:215px">Cập nhật gần nhất<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="at" style="width:190px">Cập nhật gần nhất<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="warning" style="width:130px">Cảnh báo<span class="sort-ind">▲</span></th>
                 </tr></thead>
                 <tbody id="bulkBody"></tbody>
               </table>
@@ -634,38 +656,57 @@
     const bulkHeadRow = document.getElementById('bulkHeadRow');
     let activeBranchFilter = '';
     let activeStatusFilter = '';
+    let dateFilterField = 'saleSentAt'; // cot thoi gian ap dung bo loc "tu ... den ..."
+    let dateFilterFrom = ''; // 'YYYY-MM-DD' hoac '' (rong = khong gioi han)
+    let dateFilterTo = '';
     let allBulkOrders = [];
     let bulkSearchMode = 'code';
     let sortKey = null;
     let sortDir = 1; // 1 = tang dan, -1 = giam dan
     let lastVisibleOrders = []; // danh sach dang hien tren bang (da loc + sap xep) — dung de xuat Excel
 
-    function parseVNDateTime(value){
+    // Doi o thoi gian thanh SO de sap xep/loc theo thoi gian that (khong theo
+    // chuoi). Chap nhan "dd/MM/yyyy[ HH:mm[:ss]]" (cac cot cua sheet, ke ca loi
+    // go "15,35"), va "YYYY-MM-DD HH:mm[:ss]" (tab Lich su cap nhat). Tinh theo
+    // Date.UTC tren dung cac con so hien thi nen KHONG phu thuoc mui gio trinh
+    // duyet; o rong/khong doc duoc -> null (luon xep cuoi bang, xem compareSortValues).
+    function parseDateTimeValue(value){
       const text = String(value == null ? '' : value).trim();
-      const m = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2})[:,](\d{2}))?/);
-      if(!m) return 0;
-      const day = Number(m[1]), month = Number(m[2]), year = Number(m[3]);
-      const hour = Number(m[4] || 0), minute = Number(m[5] || 0);
-      return new Date(year, month - 1, day, hour, minute).getTime();
+      let m = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2})[:,h.](\d{2})(?:[:.](\d{2}))?)?/);
+      let year, month, day;
+      if(m){
+        day = Number(m[1]); month = Number(m[2]); year = Number(m[3]);
+      } else {
+        m = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+        if(!m) return null;
+        year = Number(m[1]); month = Number(m[2]); day = Number(m[3]);
+      }
+      return Date.UTC(year, month - 1, day, Number(m[4] || 0), Number(m[5] || 0), Number(m[6] || 0));
+    }
+
+    // null (o trong) luon nam cuoi bang, du sap tang hay giam dan.
+    function compareSortValues(av, bv, dir){
+      const aEmpty = av === null || av === undefined, bEmpty = bv === null || bv === undefined;
+      if(aEmpty || bEmpty) return aEmpty === bEmpty ? 0 : (aEmpty ? 1 : -1);
+      if(av < bv) return -1 * dir;
+      if(av > bv) return 1 * dir;
+      return 0;
     }
 
     const SORT_ACCESSORS = {
       orderCode: function(o){ return normalizeSearchText(o.orderCode); },
       saleName: function(o){ return normalizeSearchText(o.saleName); },
       customerName: function(o){ return normalizeSearchText(o.customerName); },
+      saleSentAt: function(o){ return parseDateTimeValue(o.saleSentAt); },
       status: function(o){ return normalizeSearchText(o.summary && o.summary.label); },
-      at: function(o){ return parseVNDateTime(o.summary && o.summary.at); }
+      at: function(o){ return parseDateTimeValue(o.summary && o.summary.at); },
+      warning: function(o){ return o.warning ? 1 : 0; }
     };
 
     function applySort(list){
       if(!sortKey) return list;
       const accessor = SORT_ACCESSORS[sortKey];
-      return list.slice().sort(function(a, b){
-        const av = accessor(a), bv = accessor(b);
-        if(av < bv) return -1 * sortDir;
-        if(av > bv) return 1 * sortDir;
-        return 0;
-      });
+      return list.slice().sort(function(a, b){ return compareSortValues(accessor(a), accessor(b), sortDir); });
     }
 
     function syncSortHeaderUI(){
@@ -724,8 +765,9 @@
 
     function rowSignature(order){
       return JSON.stringify([
-        order.orderCode, order.saleName, order.customerName,
-        order.summary && order.summary.code, order.summary && order.summary.label, order.summary && order.summary.at
+        order.orderCode, order.saleName, order.customerName, order.saleSentAt,
+        order.summary && order.summary.code, order.summary && order.summary.label, order.summary && order.summary.at,
+        !!order.warning
       ]);
     }
 
@@ -733,8 +775,16 @@
       return '<td>' + escapeHtml(order.orderCode) + '</td>' +
         '<td>' + escapeHtml(order.saleName || '—') + '</td>' +
         '<td>' + escapeHtml(order.customerName || '—') + '</td>' +
+        '<td>' + escapeHtml(order.saleSentAt || '—') + '</td>' +
         '<td>' + renderBadge(order.summary, { editable: canOverride, orderCode: order.orderCode }) + '</td>' +
-        '<td>' + escapeHtml((order.summary && order.summary.at) || '—') + '</td>';
+        '<td>' + escapeHtml((order.summary && order.summary.at) || '—') + '</td>' +
+        '<td>' + warningHtml(order) + '</td>';
+    }
+
+    // Qua 24h ke tu luc Sale ra don ma chua/da van chuyen muon -> chu "Canh bao"
+    // mau do; khong canh bao thi de trong (server tinh, xem computeOverdueWarning).
+    function warningHtml(order){
+      return order.warning ? '<span class="lc-badge badge-exception">Cảnh báo</span>' : '';
     }
 
     function buildRow(order){
@@ -785,8 +835,11 @@
         const order = tr && tr._order;
         if(order && body.order){
           order.summary = body.order.summary;
-          const atCell = tr.children[4];
+          order.warning = !!body.order.warning;
+          const atCell = tr.children[5];
           if(atCell) atCell.textContent = (order.summary && order.summary.at) || '—';
+          const warningCell = tr.children[6];
+          if(warningCell) warningCell.innerHTML = warningHtml(order);
           const entry = bulkRowNodes.get(rowKey(order));
           if(entry) entry.sig = rowSignature(order);
         }
@@ -874,6 +927,17 @@
       if(activeStatusFilter){
         filtered = filtered.filter(function(order){ return order.summary && order.summary.code === activeStatusFilter; });
       }
+      if(dateFilterFrom || dateFilterTo){
+        const fromMs = dateFilterFrom ? parseDateTimeValue(dateFilterFrom) : null;
+        // Ngay "den" tinh het ngay (23:59:59) de bao gom don trong ngay do.
+        const toMs = dateFilterTo ? parseDateTimeValue(dateFilterTo) + 24 * 60 * 60 * 1000 - 1 : null;
+        const accessor = SORT_ACCESSORS[dateFilterField];
+        filtered = filtered.filter(function(order){
+          const t = accessor(order);
+          if(t === null) return false; // don chua co moc thoi gian nay khong nam trong khoang da chon
+          return (fromMs === null || t >= fromMs) && (toMs === null || t <= toMs);
+        });
+      }
       filtered = applySort(filtered);
       renderBulkRows(filtered, allBulkOrders.length);
     }
@@ -960,6 +1024,33 @@
       applyBulkFilters();
     });
 
+    // Bo loc thoi gian "tu ... den ..." — mac dinh de trong = tat ca thoi gian.
+    const bulkDateField = document.getElementById('bulkDateField');
+    const bulkDateFrom = document.getElementById('bulkDateFrom');
+    const bulkDateTo = document.getElementById('bulkDateTo');
+    const bulkDateAll = document.getElementById('bulkDateAll');
+
+    function syncDateFilterUI(){
+      bulkDateAll.classList.toggle('active', !dateFilterFrom && !dateFilterTo);
+      bulkDateFrom.max = dateFilterTo || '';
+      bulkDateTo.min = dateFilterFrom || '';
+    }
+    function onDateFilterChange(){
+      dateFilterField = bulkDateField.value;
+      dateFilterFrom = bulkDateFrom.value;
+      dateFilterTo = bulkDateTo.value;
+      syncDateFilterUI();
+      applyBulkFilters();
+    }
+    bulkDateField.addEventListener('change', onDateFilterChange);
+    bulkDateFrom.addEventListener('change', onDateFilterChange);
+    bulkDateTo.addEventListener('change', onDateFilterChange);
+    bulkDateAll.addEventListener('click', function(){
+      bulkDateFrom.value = '';
+      bulkDateTo.value = '';
+      onDateFilterChange();
+    });
+
     // ---------- Khu C: lich su cap nhat (chi vai tro noi bo, cung quyen Khu B) ----------
     const historyBody = document.getElementById('historyBody');
     const historyCount = document.getElementById('historyCount');
@@ -978,14 +1069,7 @@
     const historyRowNodes = new Map(); // history_id -> { tr, sig } — reconciliation giong bulkRowNodes
 
     // changed_at ghi boi repo.appendOverride() dung Date#toLocaleString('sv-SE', ...)
-    // -> dinh dang "YYYY-MM-DD HH:mm:ss", KHAC voi cac cot dd/MM/yyyy con lai cua
-    // sheet chinh nen KHONG dung parseVNDateTime o day.
-    function parseHistoryDateTime(value){
-      const text = String(value == null ? '' : value).trim();
-      const m = text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
-      if(!m) return 0;
-      return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] || 0)).getTime();
-    }
+    // -> dinh dang "YYYY-MM-DD HH:mm:ss" (parseDateTimeValue doc duoc ca 2 dang).
     function formatHistoryDateTime(value){
       const text = String(value == null ? '' : value).trim();
       const m = text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
@@ -997,18 +1081,13 @@
       orderCode: function(e){ return normalizeSearchText(e.orderCode); },
       statusLabel: function(e){ return normalizeSearchText(e.statusLabel); },
       changedBy: function(e){ return normalizeSearchText(e.changedBy); },
-      changedAt: function(e){ return parseHistoryDateTime(e.changedAt); }
+      changedAt: function(e){ return parseDateTimeValue(e.changedAt); }
     };
 
     function applyHistorySort(list){
       if(!historySortKey) return list;
       const accessor = HISTORY_SORT_ACCESSORS[historySortKey];
-      return list.slice().sort(function(a, b){
-        const av = accessor(a), bv = accessor(b);
-        if(av < bv) return -1 * historySortDir;
-        if(av > bv) return 1 * historySortDir;
-        return 0;
-      });
+      return list.slice().sort(function(a, b){ return compareSortValues(accessor(a), accessor(b), historySortDir); });
     }
 
     function syncHistorySortHeaderUI(){

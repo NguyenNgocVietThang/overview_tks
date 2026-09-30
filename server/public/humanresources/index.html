@@ -146,6 +146,16 @@
     font-size:10.5px; font-weight:700; background:var(--status-pending-bg); color:var(--amber); margin-left:6px;
   }
 
+  .leave-row-clickable{ cursor:pointer; }
+  .leave-row-clickable:hover td{ background:var(--surface-hover); }
+
+  /* Hop chi tiet don nghi phep (mo khi bam 1 dong) */
+  #leaveDetailModal .modal-box{ max-width:640px; }
+  .leave-detail-grid{ display:grid; grid-template-columns:150px 1fr; gap:10px 16px; margin:0; font-size:13px; }
+  .leave-detail-grid dt{ color:var(--muted); font-weight:600; }
+  .leave-detail-grid dd{ margin:0; color:var(--text); word-break:break-word; }
+  @media (max-width:520px){ .leave-detail-grid{ grid-template-columns:1fr; gap:2px 0; } .leave-detail-grid dd{ margin-bottom:8px; } }
+
   .row-actions{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
   .row-actions .btn-mini{
     padding:5px 10px; font-size:11.5px; font-weight:600; border-radius:var(--radius-xs); border:1px solid var(--border);
@@ -251,14 +261,14 @@
   .rule-doc-tabs{ display:flex; gap:8px; overflow-x:auto; flex:1 1 320px; min-width:0; padding-bottom:2px; }
   .rule-doc-tab{
     flex:0 0 auto; max-width:260px; padding:7px 14px; border-radius:999px; cursor:pointer;
-    border:1px solid var(--border); background:var(--panel-2); color:var(--muted);
+    border:1px solid #f97316; background:#fdba74; color:#431407;
     font-family:var(--font-body); font-size:12.5px; font-weight:600;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-    transition:background .15s ease, color .15s ease, border-color .15s ease;
+    transition:background .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
   }
-  .rule-doc-tab:hover:not(.active){ color:var(--text); }
+  .rule-doc-tab:hover:not(.active){ background:#fb923c; }
   .rule-doc-tab:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
-  .rule-doc-tab.active{ background:var(--accent-blue-18); color:var(--blue); border-color:var(--blue); }
+  .rule-doc-tab.active{ background:#ea580c; color:#fff; border-color:#c2410c; box-shadow:0 2px 8px rgba(234,88,12,0.35); }
   .rule-doc-manage{ display:flex; gap:8px; flex-wrap:wrap; }
   .rule-doc-manage[hidden], #ruleDocRestoreBtn[hidden], #ruleDocDeleteBtn[hidden], .doc-toolbar[hidden],
   .rule-doc-view[hidden], .rule-doc-status[hidden], .rule-doc-frame[hidden]{ display:none; }
@@ -405,7 +415,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
               <input type="text" id="employeeSearchInput" placeholder="Tìm theo tên hoặc tài khoản..." oninput="handleFilterChange()">
             </div>
-            <select id="statusFilter" class="filter-select" onchange="handleFilterChange()">
+            <select id="statusFilter" class="filter-select" onchange="handleStatusFilterChange()">
               <option value="">Tất cả trạng thái</option>
               <option value="Chưa duyệt">Chưa duyệt</option>
               <option value="Tạm duyệt">Tạm duyệt</option>
@@ -444,20 +454,19 @@
             <table class="users-table fixed-table" id="leaveTable">
               <thead>
                 <tr>
-                  <th style="width:200px">Mã yêu cầu</th>
-                  <th style="width:240px">Người gửi</th>
+                  <th style="width:200px">Người gửi</th>
+                  <th style="width:170px">Phòng ban</th>
                   <th style="width:110px">Cơ sở</th>
                   <th style="width:160px">Thời gian gửi</th>
                   <th style="width:260px">Lý do</th>
                   <th style="width:200px">Thời gian nghỉ</th>
                   <th style="width:190px">Tổng buổi / ngày</th>
                   <th style="width:150px">Người bàn giao</th>
-                  <th style="width:150px">Người duyệt</th>
                   <th style="width:150px">Trạng thái</th>
                 </tr>
               </thead>
-              <tbody id="leaveTableBody">
-                <tr class="empty-row"><td colspan="10">Đang tải dữ liệu...</td></tr>
+              <tbody id="leaveTableBody" onclick="handleLeaveRowClick(event)">
+                <tr class="empty-row"><td colspan="9">Đang tải dữ liệu...</td></tr>
               </tbody>
             </table>
           </div>
@@ -562,7 +571,23 @@
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
                   Quy định nghỉ phép
                 </div>
-                <p class="profile-card-desc">Áp dụng khi nhân viên xin nghỉ liên tục nhiều ngày.</p>
+                <p class="profile-card-desc">Nhân viên cần xin phép và được quản lý đồng ý trước khi nghỉ. Thời hạn gửi yêu cầu phụ thuộc vào số ngày nghỉ.</p>
+
+                <div class="doc-section">
+                  <h4>Cách xin nghỉ phép</h4>
+                  <ul>
+                    <li>Nhắn tin xin nghỉ cho bot Telegram: <strong>@nghipheptks_bot</strong>.</li>
+                    <li>Chỉ được tính là đã xin phép khi yêu cầu được gửi qua bot đúng thời hạn quy định bên dưới.</li>
+                  </ul>
+                </div>
+
+                <div class="doc-section">
+                  <h4>Nghỉ từ 03 ngày trở xuống</h4>
+                  <ul>
+                    <li>Trường hợp nghỉ <strong>từ 03 ngày trở xuống</strong>, nhân viên phải xin nghỉ <strong>trước 22h00 của ngày hôm trước</strong> ngày đầu tiên nghỉ.</li>
+                    <li>Ví dụ: nghỉ từ ngày mai thì phải nhắn xin nghỉ <strong>trước 22h00 hôm nay</strong>.</li>
+                  </ul>
+                </div>
 
                 <div class="doc-section">
                   <h4>Nghỉ trên 03 ngày</h4>
@@ -571,6 +596,15 @@
                     <li>Hạn chót gửi yêu cầu là <strong>22h00</strong> của ngày cách ngày bắt đầu nghỉ 02 ngày.</li>
                     <li>Ví dụ: nghỉ trên 03 ngày, bắt đầu từ <strong>ngày kia</strong> thì phải nhắn xin nghỉ <strong>trước 22h00 hôm nay</strong>.</li>
                   </ul>
+                </div>
+
+                <div class="doc-section">
+                  <h4>Xử lý vi phạm</h4>
+                  <ul>
+                    <li>Gửi yêu cầu xin nghỉ trễ hạn: phạt <strong>50.000đ/lần vi phạm</strong>.</li>
+                    <li>Tự ý nghỉ không xin phép, hoặc quản lý đã từ chối nhưng vẫn nghỉ: phạt <strong>03 ngày lương</strong>.</li>
+                  </ul>
+                  <p class="doc-note">Lưu ý: Ban quản lý sẽ giám sát và xử lý nghiêm minh, không có ngoại lệ.</p>
                 </div>
               </div>
               <div class="doc-page-footer">TOKOSI Dashboard · Tài liệu nội bộ · Vui lòng không sao chép hoặc chia sẻ ra bên ngoài công ty</div>
@@ -684,6 +718,39 @@
     </div>
   </div>
 
+  <!-- Modal: chi tiet 1 don nghi phep (bam vao dong o bang) -->
+  <div class="modal-overlay" id="leaveDetailModal" hidden onclick="if(event.target === this) closeLeaveDetail()">
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="leaveDetailHeading">
+      <div class="modal-header">
+        <h3 id="leaveDetailHeading">Chi tiết yêu cầu nghỉ phép</h3>
+        <button type="button" class="modal-close" onclick="closeLeaveDetail()" aria-label="Đóng">✕</button>
+      </div>
+      <div class="modal-body">
+        <dl class="leave-detail-grid" id="leaveDetailBody"></dl>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: nhap ly do tu choi. "Bo qua" = tu choi khong can ly do; ✕ / Esc = huy, khong doi trang thai. -->
+  <div class="modal-overlay" id="rejectReasonModal" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="rejectReasonHeading">
+      <div class="modal-header">
+        <h3 id="rejectReasonHeading">Từ chối đơn nghỉ phép</h3>
+        <button type="button" class="modal-close" onclick="cancelRejectReason()" aria-label="Hủy">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group" style="margin-bottom:0;">
+          <label for="rejectReasonInput">Lý do từ chối (không bắt buộc)</label>
+          <textarea id="rejectReasonInput" class="form-control" rows="3" maxlength="500" placeholder="Nhập lý do từ chối..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="rejectReasonSkip" onclick="confirmRejectReason(false)">Bỏ qua</button>
+        <button type="button" class="btn-primary" id="rejectReasonOk" onclick="confirmRejectReason(true)">OK</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: tai tai lieu quy dinh (PDF) len -->
   <div class="modal-overlay" id="ruleUploadModal" hidden>
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="ruleUploadHeading">
@@ -724,7 +791,7 @@
     let rawLeaveRequests = [];
     let rawEmployeeDirectory = [];
     let urgentSummaryByUsername = {};
-    let pendingDecision = null; // { id, status }
+    let pendingDecision = null; // { selectEl, requestId, prevStatus } — don dang cho nhap ly do tu choi
     const state = { tableSorts: {} };
 
     function syncThemeControl(){
@@ -748,7 +815,7 @@
     }
 
     // ---------- Quy dinh cong ty: tai lieu (dung san + PDF Quan ly tai len) ----------
-    // Moi tai lieu = 1 tab trong trang + 1 nhanh con trong sidebar (TKSNav.setHrRuleDocuments).
+    // Moi tai lieu = 1 tab (nut chon) trong trang.
     // slug: 'gio-giac' | 'nghi-phep' (dung san, noi dung nam trong HTML) | 'pdf-<id>'.
     const RULE_DOC_BUILTINS = {
       'gio-giac': { elementId: 'ruleDoc-gio-giac', pdfName: 'Gio-giac-lam-viec-TOKOSI.pdf', updated: '14/09/2026' },
@@ -816,23 +883,6 @@
         box.appendChild(retry);
       }
       box.hidden = false;
-    }
-
-    /** Sidebar: chi doi class active cua nhanh con (khong ve lai ca sidebar). */
-    function syncRuleDocSidebarActive(){
-      const onRules = activeHrSubtabName() === 'quydinh';
-      document.querySelectorAll('#tksHrGroupList .nav-subitem').forEach(item => {
-        const active = onRules && item.dataset.hrRuleDoc === ruleDocState.activeSlug;
-        item.classList.toggle('active', active);
-        if(active) item.setAttribute('aria-current', 'page');
-        else item.removeAttribute('aria-current');
-      });
-    }
-
-    function pushRuleDocsToSidebar(){
-      if(window.TKSNav && typeof window.TKSNav.setHrRuleDocuments === 'function'){
-        window.TKSNav.setHrRuleDocuments(ruleDocState.docs.map(d => ({ slug: d.slug, title: d.title })));
-      }
     }
 
     function writeRuleDocHash(){
@@ -912,7 +962,6 @@
       ruleDocState.activeSlug = resolveRuleDocSlug(preferred);
       renderRuleDocs();
       if(!(opts && opts.skipHash)) writeRuleDocHash();
-      syncRuleDocSidebarActive();
     }
 
     async function loadRuleDocuments(silent){
@@ -935,7 +984,6 @@
       const wanted = ruleDocState.wantedSlug;
       ruleDocState.wantedSlug = '';
       selectRuleDoc(wanted || ruleDocState.activeSlug);
-      pushRuleDocsToSidebar();
     }
 
     async function getRuleDocBlobUrl(doc){
@@ -1191,7 +1239,6 @@
           loadRuleDocuments(true);
         }
       }
-      syncRuleDocSidebarActive();
       if(history.replaceState){
         const slug = name === 'quydinh' ? (ruleDocState.activeSlug || ruleDocState.wantedSlug) : '';
         history.replaceState(null, '', `#${name}${slug ? '/' + encodeURIComponent(slug) : ''}`);
@@ -1253,6 +1300,16 @@
     function formatDateInputValue(d){
       const pad = n => String(n).padStart(2, '0');
       return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    }
+
+    // Mac dinh bo loc: Quan ly xem TOAN THOI GIAN nhung chi don "Chua duyet";
+    // nguoi dung thuong chi xem lich nghi giao voi hom nay.
+    function initDefaultLeaveFilters(){
+      if(hrCan('hr.leave.manage')){
+        document.getElementById('statusFilter').value = 'Chưa duyệt';
+        return;
+      }
+      initDefaultDateFilters();
     }
 
     function initDefaultDateFilters(){
@@ -1341,9 +1398,17 @@
     // ---------- Load danh sach ----------
     function handleFilterChange(){ loadLeaveRequests(); }
 
+    // Trang thai loc phia client (khong gui len API) de o KPI van dem du moi trang thai
+    // ke ca khi bang dang chi hien "Chua duyet".
+    function handleStatusFilterChange(){ renderTable(rawLeaveRequests); }
+
+    function visibleLeaveRequests(requests){
+      const status = document.getElementById('statusFilter').value;
+      return status ? requests.filter(r => r.trang_thai === status) : requests;
+    }
+
     async function loadLeaveRequests(silent){
       const tbody = document.getElementById('leaveTableBody');
-      const status = document.getElementById('statusFilter').value;
       const employee = document.getElementById('employeeSearchInput').value.trim();
       const fromDate = document.getElementById('fromDateFilter').value;
       const toDate = document.getElementById('toDateFilter').value;
@@ -1351,7 +1416,6 @@
       const department = document.getElementById('departmentFilter').value;
 
       const params = new URLSearchParams();
-      if(status) params.set('status', status);
       if(employee) params.set('employee', employee);
       if(branch) params.set('branch', branch);
       if(department) params.set('department', department);
@@ -1362,7 +1426,7 @@
         const res = await fetch(`/api/hr/leave-requests?${params.toString()}`, { credentials: 'same-origin' });
         const { ok, data } = await parseApiResponse(res);
         if(!ok){
-          if(!silent) tbody.innerHTML = `<tr class="empty-row"><td colspan="10">${escapeHtml(data.error || 'Không tải được danh sách.')}</td></tr>`;
+          if(!silent) tbody.innerHTML = `<tr class="empty-row"><td colspan="9">${escapeHtml(data.error || 'Không tải được danh sách.')}</td></tr>`;
           return;
         }
         rawLeaveRequests = data.requests || [];
@@ -1370,7 +1434,7 @@
         renderTable(rawLeaveRequests);
         loadUrgentSummary();
       }catch(err){
-        if(!silent) tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Lỗi kết nối máy chủ.</td></tr>';
+        if(!silent) tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Lỗi kết nối máy chủ.</td></tr>';
       }
     }
 
@@ -1400,10 +1464,12 @@
       return v.toLocaleString('vi-VN');
     }
 
-    function renderTable(requests){
+    function renderTable(allRequests){
       const tbody = document.getElementById('leaveTableBody');
+      const requests = visibleLeaveRequests(allRequests);
       if(!requests.length){
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Chưa có yêu cầu nghỉ phép nào.</td></tr>';
+        const message = allRequests.length ? 'Không có yêu cầu nào khớp bộ lọc.' : 'Chưa có yêu cầu nghỉ phép nào.';
+        tbody.innerHTML = `<tr class="empty-row"><td colspan="9">${message}</td></tr>`;
         return;
       }
       const isManager = hrCan('hr.leave.manage');
@@ -1414,9 +1480,12 @@
           ? `<span class="urgent-badge" title="Nghỉ gấp ${urgentEntry.count} lần trong tháng">⚠ ${urgentEntry.count} lần nghỉ gấp</span>` : '';
 
         let statusHtml = '';
-        if (isManager && r.trang_thai !== 'Vi phạm') {
-          const options = ['Chưa duyệt', 'Đã duyệt', 'Từ chối'];
-          if (r.trang_thai === 'Tạm duyệt' && !options.includes('Tạm duyệt')) {
+        if (isManager) {
+          // Don "Vi phạm": Quản lý vẫn duyệt / từ chối được; "Vi phạm" chỉ là giá trị hiện tại.
+          const options = r.trang_thai === 'Vi phạm'
+            ? ['Vi phạm', 'Đã duyệt', 'Từ chối']
+            : ['Chưa duyệt', 'Đã duyệt', 'Từ chối'];
+          if (r.trang_thai === 'Tạm duyệt') {
             options.splice(1, 0, 'Tạm duyệt');
           }
           statusHtml = `
@@ -1428,16 +1497,15 @@
           statusHtml = `<span class="status-pill ${statusClass}">${escapeHtml(r.trang_thai)}</span>`;
         }
 
-        return `<tr id="leave-row-${escapeHtml(r.request_id)}">
-          <td>${escapeHtml(r.request_id)}${r.co_nghi_gap === true || r.co_nghi_gap === 'TRUE' ? ' <span class="urgent-badge">Nghỉ gấp</span>' : ''}</td>
-          <td>${escapeHtml(r.ho_ten)}${r.chuc_vu ? ` - <span style="color:var(--muted); font-size:11.5px;">${escapeHtml(r.chuc_vu)}</span>` : ''}${urgentBadge}</td>
+        return `<tr id="leave-row-${escapeHtml(r.request_id)}" class="leave-row-clickable" data-request-id="${escapeHtml(r.request_id)}">
+          <td>${escapeHtml(r.ho_ten)}${r.co_nghi_gap === true || r.co_nghi_gap === 'TRUE' ? ' <span class="urgent-badge">Nghỉ gấp</span>' : ''}${urgentBadge}</td>
+          <td>${escapeHtml(r.bo_phan) || '—'}</td>
           <td>${escapeHtml(r.co_so) || '—'}</td>
           <td data-sort-value="${new Date(r.thoi_gian_gui).getTime() || ''}">${formatDateTime(r.thoi_gian_gui)}</td>
           <td>${escapeHtml(r.ly_do)}${r.co_tu_y_nghi === true || r.co_tu_y_nghi === 'TRUE' ? '<br><span style="color:var(--red); font-size:11px; font-weight:600;">Tự ý nghỉ (HR ghi nhận)</span>' : ''}</td>
           <td data-sort-value="${leaveBoundaryToTimestamp(r.thoi_gian_bat_dau)}">${escapeHtml(r.thoi_gian_bat_dau) || '—'}<br>→ ${escapeHtml(r.thoi_gian_ket_thuc) || '—'}</td>
           <td data-sort-value="${r.tong_buoi_nghi || ''}">${r.tong_buoi_nghi || '—'} buổi (${fmtSoNgay(r.tong_ngay_nghi)} ngày)</td>
           <td>${escapeHtml(r.nguoi_ban_giao) || '—'}</td>
-          <td class="approver-cell">${escapeHtml(r.nguoi_duyet) || '—'}</td>
           <td data-sort-value="${escapeHtml(r.trang_thai)}">${statusHtml}</td>
         </tr>`;
       }).join('');
@@ -1450,15 +1518,53 @@
       const newStatus = selectEl.value;
       if(prevStatus === newStatus) return;
 
+      // Tu choi: hoi ly do truoc (co the bo qua); cac trang thai khac doi ngay.
+      if(newStatus === 'Từ chối'){
+        pendingDecision = { selectEl, requestId, prevStatus };
+        selectEl.className = `status-select ${STATUS_CLASS[newStatus]}`;
+        document.getElementById('rejectReasonInput').value = '';
+        openModal('rejectReasonModal');
+        document.getElementById('rejectReasonInput').focus();
+        return;
+      }
+      await submitStatusChange(selectEl, requestId, newStatus);
+    }
+
+    // OK (withReason=true) gui kem ly do da nhap; "Bo qua" tu choi khong ly do.
+    async function confirmRejectReason(withReason){
+      if(!pendingDecision) return;
+      const { selectEl, requestId } = pendingDecision;
+      const note = withReason ? document.getElementById('rejectReasonInput').value.trim() : '';
+      pendingDecision = null;
+      closeModal('rejectReasonModal');
+      await submitStatusChange(selectEl, requestId, 'Từ chối', note);
+    }
+
+    // Dong panel bang ✕ / Esc: huy, tra select ve trang thai cu, khong goi API.
+    function cancelRejectReason(){
+      if(pendingDecision){
+        const { selectEl, prevStatus } = pendingDecision;
+        selectEl.value = prevStatus;
+        selectEl.className = `status-select ${STATUS_CLASS[prevStatus] || 'leave-pending'}`;
+        pendingDecision = null;
+      }
+      closeModal('rejectReasonModal');
+    }
+
+    async function submitStatusChange(selectEl, requestId, newStatus, note){
+      const prevStatus = selectEl.dataset.prevStatus;
+
       selectEl.disabled = true;
       selectEl.className = `status-select ${STATUS_CLASS[newStatus] || 'leave-pending'}`;
 
       try{
+        const body = { status: newStatus };
+        if(note !== undefined) body.note = note;
         const res = await fetch(`/api/hr/leave-requests/${encodeURIComponent(requestId)}/status`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'same-origin',
-          body: JSON.stringify({ status: newStatus })
+          body: JSON.stringify(body)
         });
         const { ok, data } = await parseApiResponse(res);
         if(!ok){
@@ -1478,8 +1584,6 @@
 
         const rowEl = document.getElementById(`leave-row-${requestId}`);
         if(rowEl){
-          const approverCell = rowEl.querySelector('.approver-cell');
-          if(approverCell) approverCell.textContent = (data.request && data.request.nguoi_duyet) || (newStatus === 'Chưa duyệt' ? '—' : (currentUser && (currentUser.hoTen || currentUser.username)) || '—');
           const statusCell = selectEl.closest('td');
           if(statusCell) statusCell.setAttribute('data-sort-value', newStatus);
         }
@@ -1493,6 +1597,50 @@
         selectEl.disabled = false;
       }
     }
+
+    // ---------- Hop chi tiet don nghi phep ----------
+    // Bam vao dong (tru select/nut ben trong) de xem day du thong tin, ke ca nguoi duyet + thoi diem duyet.
+    // Ly do tu choi (ghi_chu_duyet) cot y khong hien tren UI.
+    function handleLeaveRowClick(event){
+      if(event.target.closest('select, button, a')) return;
+      const row = event.target.closest('tr[data-request-id]');
+      if(row) openLeaveDetail(row.dataset.requestId);
+    }
+
+    function openLeaveDetail(requestId){
+      const r = rawLeaveRequests.find(item => item.request_id === requestId);
+      if(!r) return;
+      const isUrgent = r.co_nghi_gap === true || r.co_nghi_gap === 'TRUE';
+      const rows = [
+        ['Mã yêu cầu', r.request_id],
+        ['Người gửi', r.ho_ten],
+        ['Chức vụ', r.chuc_vu],
+        ['Phòng ban', r.bo_phan],
+        ['Cơ sở', r.co_so],
+        ['Tài khoản web', r.web_username],
+        ['Loại yêu cầu', [r.loai_yeu_cau, isUrgent ? 'Nghỉ gấp' : ''].filter(Boolean).join(' · ')],
+        ['Thời gian gửi', formatDateTime(r.thoi_gian_gui)],
+        ['Lý do', r.ly_do],
+        ['Thời gian nghỉ', `${r.thoi_gian_bat_dau || '—'} → ${r.thoi_gian_ket_thuc || '—'}`],
+        ['Tổng buổi / ngày', `${r.tong_buoi_nghi || '—'} buổi (${fmtSoNgay(r.tong_ngay_nghi)} ngày)`],
+        ['Người bàn giao', r.nguoi_ban_giao],
+        ['Trạng thái', r.trang_thai],
+        ['Người duyệt', r.nguoi_duyet],
+        ['Thời điểm duyệt', r.thoi_diem_duyet ? formatDateTime(r.thoi_diem_duyet) : '']
+      ];
+      document.getElementById('leaveDetailBody').innerHTML = rows
+        .map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value) || '—'}</dd>`)
+        .join('');
+      openModal('leaveDetailModal');
+    }
+
+    function closeLeaveDetail(){ closeModal('leaveDetailModal'); }
+
+    document.addEventListener('keydown', event => {
+      if(event.key !== 'Escape') return;
+      if(!document.getElementById('rejectReasonModal').hidden) cancelRejectReason();
+      else if(!document.getElementById('leaveDetailModal').hidden) closeLeaveDetail();
+    });
 
     // ---------- Ghi nhan tu y nghi ----------
     async function handleManualAbsenceSubmit(event){
@@ -1706,7 +1854,7 @@
       const fromDate = document.getElementById('fromDateFilter').value;
       const toDate = document.getElementById('toDateFilter').value;
       const leaveSort = state.tableSorts['leaveTableBody'];
-      const SORT_FIELD_BY_COLUMN = ['request_id', 'ho_ten', 'co_so', 'thoi_gian_gui', 'ly_do', 'thoi_gian_bat_dau', 'tong_buoi_nghi', 'nguoi_ban_giao', 'nguoi_duyet', 'trang_thai'];
+      const SORT_FIELD_BY_COLUMN = ['ho_ten', 'bo_phan', 'co_so', 'thoi_gian_gui', 'ly_do', 'thoi_gian_bat_dau', 'tong_buoi_nghi', 'nguoi_ban_giao', 'trang_thai'];
       const branch = selectedBranch('branchFilter');
       const department = document.getElementById('departmentFilter').value;
       const payload = { status, employee, branch, department, from: fromDate, to: toDate };
@@ -1867,7 +2015,7 @@
           applyHrSubtabPermissions();
           applyHrSubtabFromHash();
           initSortableTables();
-          initDefaultDateFilters();
+          initDefaultLeaveFilters();
           if(hrCan('hr.rules')) loadRuleDocuments();
           if(hrCan('hr.leave')) loadLeaveRequests();
           if(hrCan('hr.employees')) loadEmployeeDirectory();

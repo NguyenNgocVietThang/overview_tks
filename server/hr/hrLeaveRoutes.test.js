@@ -115,6 +115,46 @@ test('PATCH status phát sự kiện LEAVE_STATUS_CHANGED qua hrLeaveEvents', as
   }
 });
 
+test('PATCH status chuyển lý do từ chối (đã trim) xuống repo; không gửi note thì để undefined', async () => {
+  const originalUpdate = repo.updateLeaveRequestStatus;
+  const received = [];
+  repo.updateLeaveRequestStatus = async (id, data) => {
+    received.push(data);
+    return { request_id: id, trang_thai: data.status, co_so: 'Hà Nội' };
+  };
+  try {
+    const handler = getRouteHandler('patch', '/api/hr/leave-requests/:id/status');
+    const user = { ...MANAGER_BOTH };
+    await handler({ params: { id: 'NP-1' }, user, body: { status: 'Từ chối', note: '  Thiếu người trực ca ' } }, fakeRes());
+    await handler({ params: { id: 'NP-2' }, user, body: { status: 'Từ chối', note: '' } }, fakeRes());
+    await handler({ params: { id: 'NP-3' }, user, body: { status: 'Đã duyệt' } }, fakeRes());
+
+    assert.equal(received[0].note, 'Thiếu người trực ca');
+    assert.equal(received[1].note, '');
+    assert.equal(received[2].note, undefined);
+  } finally {
+    repo.updateLeaveRequestStatus = originalUpdate;
+  }
+});
+
+test('PATCH status từ chối lý do quá 500 ký tự hoặc không phải chuỗi (400 INVALID_NOTE)', async () => {
+  const originalUpdate = repo.updateLeaveRequestStatus;
+  let called = false;
+  repo.updateLeaveRequestStatus = async () => { called = true; return {}; };
+  try {
+    const handler = getRouteHandler('patch', '/api/hr/leave-requests/:id/status');
+    for (const note of ['x'.repeat(501), 123, { a: 1 }]) {
+      const res = fakeRes();
+      await handler({ params: { id: 'NP-1' }, user: { ...MANAGER_BOTH }, body: { status: 'Từ chối', note } }, res);
+      assert.equal(res.statusCode, 400);
+      assert.equal(res.body.code, 'INVALID_NOTE');
+    }
+    assert.equal(called, false);
+  } finally {
+    repo.updateLeaveRequestStatus = originalUpdate;
+  }
+});
+
 test('GET /api/hr/employees trả về nhân sự mọi cơ sở được phép kèm cơ sở, đã lọc cột nhạy cảm', async () => {
   const originalGetSnapshot = employeeDirectory.getSnapshot;
   employeeDirectory.getSnapshot = async () => ({

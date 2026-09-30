@@ -285,7 +285,7 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
          nguoi_duyet = COALESCE(NULLIF($4, ''), nguoi_duyet),
          approver_user_id = COALESCE($5::uuid, approver_user_id),
          thoi_diem_duyet = now(),
-         ghi_chu_duyet = COALESCE($6, ghi_chu_duyet)
+         ghi_chu_duyet = COALESCE($6, '')
        WHERE request_id = $1 AND branch = ANY($2::text[])
        RETURNING ${SELECT_COLUMNS}`,
       [id, toBranchCodes(branch), status, approver || '', uuidOrNull(approverUserId), note != null ? note : null]

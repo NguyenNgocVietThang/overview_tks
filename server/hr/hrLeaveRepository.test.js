@@ -203,6 +203,15 @@ test('updateLeaveRequestStatus cập nhật theo mã + cơ sở, 404 khi không 
   assert.deepEqual(pool.calls[0].params, ['NP-20260819-0001', ['hanoi'], 'Đã duyệt', 'Quản lý', USER_ID, null]);
   assert.equal(updated.thoi_diem_duyet, '2026-08-20T01:00:00.000Z');
 
+  // Ly do tu choi luu vao ghi_chu_duyet; khong co note thi xoa ly do cu ve ''.
+  assert.match(pool.calls[0].sql, /ghi_chu_duyet = COALESCE\(\$6, ''\)/);
+  await repo.updateLeaveRequestStatus(
+    'NP-20260819-0001',
+    { status: LEAVE_STATUS.REJECTED, approver: 'Quản lý', approverUserId: USER_ID, note: 'Thiếu người trực ca' },
+    'Hà Nội'
+  );
+  assert.deepEqual(pool.calls[1].params, ['NP-20260819-0001', ['hanoi'], 'Từ chối', 'Quản lý', USER_ID, 'Thiếu người trực ca']);
+
   await assert.rejects(
     repo.updateLeaveRequestStatus('X', { status: 'Lạ' }, 'Hà Nội'),
     err => err.code === 'INVALID_STATUS' && err.statusCode === 400

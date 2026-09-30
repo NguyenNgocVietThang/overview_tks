@@ -76,6 +76,7 @@ Thay 3 tab Google Sheets (`Yêu cầu nghỉ phép`, `_HR_TELEGRAM_LINKS`, `_HR_
 - `ho_ten`, `chuc_vu`, `web_username` là **bản chụp** tại thời điểm gửi; `user_id`/`hr_employee_id` là khóa thật (`ON DELETE SET NULL`), bot nên điền cả hai. `source` mặc định `'telegram'`.
 - `co_nghi_gap`/`co_tu_y_nghi` là boolean; `tin_nhan` giữ nguyên văn tin nhắn gốc; `thoi_gian_gui` là giờ nhận tin (khác `created_at` = giờ ghi DB).
 - `trang_thai` ∈ `Chưa duyệt | Tạm duyệt | Đã duyệt | Từ chối | Vi phạm`; `loai_yeu_cau` ∈ `Xin nghỉ phép | Tự ý nghỉ (HR ghi nhận)`.
+- `ghi_chu_duyet` = lý do từ chối do Quản lý nhập trên web khi chuyển sang `Từ chối` (rỗng nếu bỏ qua, và bị xóa về rỗng khi đơn đổi sang trạng thái khác). Web không hiển thị cột này; bot ngoài repo không ghi nó.
 
 **Báo kết quả duyệt cho nhân viên** (thay cho việc bot cũ quét Sheet): hàng cần báo là
 

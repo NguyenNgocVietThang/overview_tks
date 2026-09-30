@@ -38,6 +38,8 @@ const authInternal = [requireAuth, requireFeature('hr.leave')];
 const authEmployees = [requireAuth, requireFeature('hr.employees')];
 const authManager = [requireAuth, requireFeature('hr.leave.manage')];
 
+const MAX_DECISION_NOTE_LENGTH = 500;
+
 // Bo loc "Co so" cua trang: bo trong / 'all' / "Cả hai" = TAT CA co so tai
 // khoan duoc xem (khong phu thuoc co so dang chon o thanh dieu huong); 1 co so
 // cu the phai nam trong pham vi duoc phep, neu khong 403 — server luon xac
@@ -274,11 +276,22 @@ router.patch('/api/hr/leave-requests/:id/status', ...authManager, async (req, re
     if (!status) {
       return res.status(400).json({ error: 'Thiếu trường "status".', code: 'INVALID_REQUEST' });
     }
+    // `note` = ly do tu choi (khong bat buoc); luu vao ghi_chu_duyet, khong hien tren UI.
+    if (note != null && typeof note !== 'string') {
+      return res.status(400).json({ error: 'Lý do phải là chuỗi ký tự.', code: 'INVALID_NOTE' });
+    }
+    const cleanNote = note == null ? undefined : note.trim();
+    if (cleanNote && cleanNote.length > MAX_DECISION_NOTE_LENGTH) {
+      return res.status(400).json({
+        error: `Lý do tối đa ${MAX_DECISION_NOTE_LENGTH} ký tự.`,
+        code: 'INVALID_NOTE'
+      });
+    }
     const approver = resolveApproverName(req.user);
     // Don co the thuoc bat ky co so nao tai khoan duoc xem (danh sach co the dang
     // o "Tat ca co so"), nen tim theo tat ca chu khong chi co so dang chon.
     const updated = await repo.updateLeaveRequestStatus(
-      req.params.id, { status, approver, approverUserId: req.user && req.user.id, note }, allowedBranches(req.user)
+      req.params.id, { status, approver, approverUserId: req.user && req.user.id, note: cleanNote }, allowedBranches(req.user)
     );
     const requestBranch = updated.co_so || physicalBranchOrNull(req.branch);
     res.status(200).json({ request: updated });
@@ -303,7 +316,7 @@ router.patch('/api/hr/leave-requests/:id/status', ...authManager, async (req, re
             recipientUserId: employee.id,
             type: 'leave_request_decision',
             title: 'Đơn nghỉ phép của bạn đã được cập nhật',
-            message: `Đơn nghỉ phép của bạn đã được ${status}${note ? ` (${note})` : ''}.`,
+            message: `Đơn nghỉ phép của bạn đã được ${status}${cleanNote ? ` (${cleanNote})` : ''}.`,
             relatedType: 'leaveRequest',
             relatedId: updated.id
           });

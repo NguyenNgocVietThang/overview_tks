@@ -151,6 +151,63 @@ function computeEffectiveStatus(record, overrideEntry) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Canh bao qua 24h: tu luc Sale ra don (cot "Sale gui don cho ke toan") den luc
+// don dang van chuyen (cot "Tai xe gui xac nhan giao hang").
+// ---------------------------------------------------------------------------
+const OVERDUE_MS = 24 * 60 * 60 * 1000;
+const VN_UTC_OFFSET_MS = 7 * 60 * 60 * 1000; // Asia/Ho_Chi_Minh, khong co gio mua he
+
+/**
+ * Doi 1 o thoi gian cua sheet ("dd/MM/yyyy HH:mm[:ss]", "dd/MM/yyyy", ma "15,35"
+ * thay vi "15:35", hoac "YYYY-MM-DD HH:mm:ss" cua tab Lich su cap nhat) thanh
+ * moc UTC (ms), coi gio tren sheet la gio Viet Nam nen ket qua khong phu thuoc
+ * mui gio may chu. Khong doc duoc -> null.
+ */
+function parseSheetTimeMs(value) {
+  const text = String(value == null ? '' : value).trim();
+  let parts = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2})[:,h.](\d{2})(?:[:.](\d{2}))?)?/);
+  let day, month, year;
+  if (parts) {
+    [day, month, year] = [parts[1], parts[2], parts[3]];
+  } else {
+    parts = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+    if (!parts) return null;
+    [year, month, day] = [parts[1], parts[2], parts[3]];
+  }
+  const ms = Date.UTC(Number(year), Number(month) - 1, Number(day),
+    Number(parts[4] || 0), Number(parts[5] || 0), Number(parts[6] || 0));
+  return Number.isNaN(ms) ? null : ms - VN_UTC_OFFSET_MS;
+}
+
+/**
+ * true = phai hien "Canh bao" (qua 24h ke tu luc Sale ra don ma:
+ *   - don da van chuyen nhung luc do da cach luc ra don > 24h, hoac
+ *   - don CHUA van chuyen ma hien tai da cach luc ra don > 24h).
+ * Khong bao gio canh bao khi chua co "Sale gui don cho ke toan" (du cac cot sau
+ * da co gia tri: dang van chuyen, hoan thanh, su co...) hoac don da huy/su co
+ * ma chua tung van chuyen (khong con cho giao).
+ */
+function computeOverdueWarning(record, summary, now = Date.now()) {
+  const sentAt = parseSheetTimeMs(record && record.saleSentAt);
+  if (sentAt === null) return false;
+
+  // Moc "dang van chuyen": uu tien cot Tai xe, neu bot loi bo trong thi lay moc
+  // som nhat cua cac cot sau no (don chac chan da qua khau van chuyen).
+  let transitAt = null;
+  ['driverConfirmedDeliveryAt', 'deliveryConfirmedAt', 'shipReceivedAt', 'orderSignedAt'].some(key => {
+    transitAt = parseSheetTimeMs(record[key]);
+    return transitAt !== null;
+  });
+  if (transitAt === null && summary && summary.isOverride && STATUS_RANK[summary.code] >= STATUS_RANK[STATUS.DELIVERING]) {
+    transitAt = parseSheetTimeMs(summary.at);
+  }
+
+  if (transitAt !== null) return transitAt - sentAt > OVERDUE_MS;
+  if (summary && (summary.code === STATUS.CANCELLED || summary.code === STATUS.EXCEPTION)) return false;
+  return now - sentAt > OVERDUE_MS;
+}
+
 /**
  * Xay map ma don (da chuan hoa) -> dong ghi de MOI NHAT tu tab "Lich su cap
  * nhat". Sheets append luon theo thu tu thoi gian nen dong cuoi cung khop
@@ -185,6 +242,16 @@ function toDetail(record) {
   };
 }
 
+/** 1 dong cua bang "Toan bo don hang": chi tiet + co so + trang thai hieu luc + canh bao. */
+function toOrderRow(record, overrideEntry) {
+  const summary = computeEffectiveStatus(record, overrideEntry);
+  return Object.assign(toDetail(record), {
+    branch: record._branch,
+    summary,
+    warning: computeOverdueWarning(record, summary)
+  });
+}
+
 /**
  * Tra cuu 1 don theo ma (trim, khong phan biet hoa/thuong). Ma khong ton tai
  * trong ca 2 tab -> found:false + summary "Đơn chưa gửi kế toán" (KHONG loi
@@ -217,10 +284,7 @@ async function listAllOrders(branchFilter) {
   const [records, historyRows] = await Promise.all([repo.readAll(), repo.readOverrideHistory()]);
   const overrides = latestOverrideByCode(historyRows);
   const filtered = branchFilter ? records.filter(r => r._branch === branchFilter) : records;
-  return filtered.map(record => Object.assign(toDetail(record), {
-    branch: record._branch,
-    summary: computeEffectiveStatus(record, overrides.get(normalizeCode(record.orderCode)))
-  }));
+  return filtered.map(record => toOrderRow(record, overrides.get(normalizeCode(record.orderCode))));
 }
 
 /**
@@ -341,10 +405,7 @@ async function exportOrdersByCodes(codes) {
   const [records, historyRows] = await Promise.all([repo.readAll(), repo.readOverrideHistory()]);
   const overrides = latestOverrideByCode(historyRows);
   if (!Array.isArray(codes) || codes.length === 0) {
-    return records.map(record => Object.assign(toDetail(record), {
-      branch: record._branch,
-      summary: computeEffectiveStatus(record, overrides.get(normalizeCode(record.orderCode)))
-    }));
+    return records.map(record => toOrderRow(record, overrides.get(normalizeCode(record.orderCode))));
   }
   const byKey = new Map();
   records.forEach(record => {
@@ -354,10 +415,7 @@ async function exportOrdersByCodes(codes) {
   return codes
     .map(code => byKey.get(normalizeCode(code)))
     .filter(Boolean)
-    .map(record => Object.assign(toDetail(record), {
-      branch: record._branch,
-      summary: computeEffectiveStatus(record, overrides.get(normalizeCode(record.orderCode)))
-    }));
+    .map(record => toOrderRow(record, overrides.get(normalizeCode(record.orderCode))));
 }
 
 /**
@@ -396,16 +454,18 @@ async function overrideStatus(orderCode, { code, changedBy, changedByRole, note 
     message
   });
 
+  const summary = computeEffectiveStatus(record, entry);
   return {
     orderCode: record.orderCode,
     branch: record._branch,
-    summary: computeEffectiveStatus(record, entry)
+    summary,
+    warning: computeOverdueWarning(record, summary)
   };
 }
 
 module.exports = {
   STATUS, STATUS_LABEL, STATUS_COLUMN_LABEL, STATUS_RANK,
-  computeStatus, computeEffectiveStatus, findOrder, listAllOrders, findOrdersBulk,
+  computeStatus, computeEffectiveStatus, computeOverdueWarning, parseSheetTimeMs, findOrder, listAllOrders, findOrdersBulk,
   exportOrdersByCodes, overrideStatus, listHistory,
   MAX_LOOKUP_CODES
 };
