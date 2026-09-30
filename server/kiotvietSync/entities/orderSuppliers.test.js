@@ -11,7 +11,7 @@ test('orderSuppliers dung /ordersuppliers (khac /purchaseorders) va thay toan bo
     entity,
     { id: 1297169, code: 'PDN000346', orderSupplierDetails: [{ productId: 48058241, quantity: 720 }, { productId: 48057065, quantity: 1080 }] },
     'order_supplier_details',
-    2
+    1 // batchDetails: 2 dong chi tiet gop thanh 1 cau INSERT
   );
 });
 

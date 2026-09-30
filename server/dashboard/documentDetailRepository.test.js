@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { getOrderDetail, getReturnDetail, __test__ } = require('./documentDetailRepository');
+const { getOrderDetail, getReturnDetail, getInvoiceDetail, __test__ } = require('./documentDetailRepository');
 
 // Pool gia: tra lan luot tung ket qua, ghi lai cau SQL + tham so.
 function fakePool(...results) {
@@ -77,4 +77,31 @@ test('getReturnDetail tra hoa don goc, tien tra la so duong', async () => {
 
 test('getReturnDetail: khong co phieu -> 404', async () => {
   await assert.rejects(getReturnDetail({ code: 'TH-NONE', branchCode: 'hanoi', pool: fakePool([]) }), { statusCode: 404 });
+});
+
+test('getInvoiceDetail tra dau chung + dong hang, dung subTotal cua hoa don (giu dau)', async () => {
+  const pool = fakePool(
+    [{
+      id: '5', code: 'HD013586', purchase_date: '30/09/2026 08:10', customer_name: 'KH A', customer_code: 'KH001', seller: 'Thu Hiền',
+      warehouse: 'Chi nhánh trung tâm', status: 'Hoàn thành', total: '900', discount: '100', paid: '900', order_code: 'DH-9', note: 'giao nhanh'
+    }],
+    [
+      { product_code: 'A1', product_name: 'Hang A', quantity: '2', price: '500', discount: '50', sub_total: '900', note: '' },
+      { product_code: 'B2', product_name: 'Hang B', quantity: '1', price: '10', discount: '0', sub_total: '-10', note: '' }
+    ]
+  );
+  const detail = await getInvoiceDetail({ code: 'HD013586', branchCode: 'hanoi', pool });
+
+  assert.deepEqual(pool.calls[0].params, ['hanoi', 'HD013586']);
+  assert.deepEqual(pool.calls[1].params, ['hanoi', '5']);
+  assert.equal(detail.kind, 'invoice');
+  assert.equal(detail.orderCode, 'DH-9');
+  assert.equal(detail.discount, 100);
+  assert.equal(detail.paid, 900);
+  assert.deepEqual(detail.lines.map(line => line.amount), [900, -10]);
+  assert.equal(detail.totalQuantity, 3);
+});
+
+test('getInvoiceDetail: khong co hoa don -> 404', async () => {
+  await assert.rejects(getInvoiceDetail({ code: 'HD-NONE', branchCode: 'hanoi', pool: fakePool([]) }), { statusCode: 404 });
 });

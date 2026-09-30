@@ -139,7 +139,7 @@ test('hang hoa cung ma o hai co so la hai dong rieng voi khoa dinh danh khac nha
   dom.window.eval("switchView('products')");
   const allProducts = rows(doc, 'allProductRows');
   assert.equal(allProducts.length, 2, 'SP-1 hien 2 dong (Hà Nội, Sài Gòn)');
-  assert.deepEqual(allProducts.map(cells => cells[2]).sort(), [HN, SG]);
+  assert.deepEqual(allProducts.map(cells => cells[cells.length - 1]).sort(), [HN, SG]);
   const ids = [...doc.querySelectorAll('#allProductRows tr')].map(tr => tr.dataset.tableItemId);
   assert.deepEqual(ids, ['Hà Nội|SP-1', 'Sài Gòn|SP-1']);
   const topSelling = rows(doc, 'topSellingRows');
@@ -156,8 +156,8 @@ test('bang khach hang khong con cot Mã KH, khach gop theo ten hien "Hà Nội, 
     assert.ok(!head.includes('Mã KH'), id + ' khong con Mã KH');
     assert.equal(head[0].includes('Khách hàng') || head[0].includes('Tên khách hàng'), true);
   });
-  assert.deepEqual(rows(doc, 'debtRows')[0].slice(0, 2), ['Khách Hà Nội', BOTH]);
-  assert.deepEqual(rows(doc, 'customerRevenueRows')[0].slice(0, 2), ['Khách Hà Nội', BOTH]);
+  assert.deepEqual([rows(doc, 'debtRows')[0][0], rows(doc, 'debtRows')[0].at(-1)], ['Khách Hà Nội', BOTH]);
+  assert.deepEqual([rows(doc, 'customerRevenueRows')[0][0], rows(doc, 'customerRevenueRows')[0].at(-1)], ['Khách Hà Nội', BOTH]);
   dom.window.close();
 });
 

@@ -2674,34 +2674,7 @@
     }
 
     /* Bảng "Báo cáo hàng hóa": nút Chi tiết mỗi dòng + khung doanh số theo khách bên dưới. */
-    .row-detail-button {
-      min-height: 26px;
-      padding: 0 10px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-7);
-      background: var(--panel-2);
-      color: var(--text);
-      font-family: var(--font-body);
-      font-size: 11.5px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background-color .15s ease, border-color .15s ease;
-    }
-
-    .row-detail-button:hover {
-      border-color: var(--blue);
-    }
-
-    .row-detail-button:focus-visible {
-      outline: 2px solid var(--blue);
-      outline-offset: 2px;
-    }
-
-    tr.is-selected td {
-      background: color-mix(in srgb, var(--blue) 12%, transparent);
-    }
-
-    /* ---------- Panel chi tiết đơn đặt hàng / phiếu trả hàng (bấm vào 1 dòng bảng) ---------- */
+    /* ---------- Hộp chi tiết chứng từ giữa màn hình (bấm vào 1 dòng bảng) ---------- */
     tr.doc-row {
       cursor: pointer;
     }
@@ -2711,29 +2684,38 @@
       outline-offset: -2px;
     }
 
-    .doc-drawer-backdrop {
+    .doc-modal-backdrop {
       position: fixed;
       inset: 0;
       z-index: 1150;
       display: flex;
-      justify-content: flex-end;
-      background: rgba(5, 10, 18, .6);
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(5, 10, 18, .74);
     }
 
-    .doc-drawer {
-      width: min(600px, 100%);
-      height: 100%;
+    .doc-modal {
+      width: min(780px, 100%);
+      max-height: min(86vh, 820px);
       display: flex;
       flex-direction: column;
       background: var(--panel);
-      border-left: 1px solid var(--border);
-      box-shadow: -18px 0 50px rgba(var(--shadow-rgb), .32);
-      animation: doc-drawer-in .18s ease-out;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-14);
+      box-shadow: 0 24px 70px rgba(var(--shadow-rgb), .38);
+      overflow: hidden;
+      animation: doc-modal-in .16s ease-out;
     }
 
-    @keyframes doc-drawer-in {
+    /* Hộp có bảng + biểu đồ tròn cạnh nhau (doanh số theo khách của 1 sản phẩm). */
+    .doc-modal.is-wide {
+      width: min(1040px, 100%);
+    }
+
+    @keyframes doc-modal-in {
       from {
-        transform: translateX(28px);
+        transform: scale(.97);
         opacity: 0;
       }
 
@@ -2744,12 +2726,12 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .doc-drawer {
+      .doc-modal {
         animation: none;
       }
     }
 
-    .doc-drawer-body {
+    .doc-modal-body {
       flex: 1;
       min-height: 0;
       overflow-y: auto;
@@ -2841,7 +2823,7 @@
       font-weight: 650;
     }
 
-    .doc-drawer-note {
+    .doc-modal-note {
       padding: 26px 8px;
       text-align: center;
       color: var(--muted);
@@ -3281,25 +3263,20 @@
               <h2>Chỉ số then chốt <span class="section-note">tình hình hôm nay</span></h2>
             </div>
             <div class="kpi-grid">
-              <div class="kpi-card accent-green col-3">
+              <div class="kpi-card accent-green col-4">
                 <div class="eyebrow">Doanh thu hôm nay</div>
                 <div class="value" id="ov-revenue">—</div>
                 <div class="sub" id="ov-revenue-sub">—</div>
               </div>
-              <div class="kpi-card accent-amber col-3">
+              <div class="kpi-card accent-amber col-4">
                 <div class="eyebrow">Giá trị tồn kho hiện tại</div>
                 <div class="value" id="ov-stock">—</div>
                 <div class="sub" id="ov-stock-sub">—</div>
               </div>
-              <div class="kpi-card accent-red col-3">
-                <div class="eyebrow">Đã hết hàng</div>
-                <div class="value" id="ov-lowstock">—</div>
-                <div class="sub">Đang kinh doanh · Tồn kho = 0</div>
-              </div>
-              <div class="kpi-card accent-blue col-3">
-                <div class="eyebrow">Khách hàng</div>
-                <div class="value" id="ov-customers">—</div>
-                <div class="sub" id="ov-customers-sub">—</div>
+              <div class="kpi-card accent-red col-4">
+                <div class="eyebrow">Tổng tiền khách nợ</div>
+                <div class="value" id="ov-debt">—</div>
+                <div class="sub" id="ov-debt-sub">—</div>
               </div>
             </div>
           </section>
@@ -3427,20 +3404,19 @@
                       <tr>
                         <th>Mã SP</th>
                         <th>Tên SP</th>
-                        <th>Tồn Hà Nội</th>
-                        <th>Tồn Sài Gòn</th>
-                        <th>Tổng tồn có thể bán</th>
+                        <th>Tồn HN</th>
+                        <th>Tồn SG</th>
+                        <th>Tồn có bán</th>
                         <th>Tổng SL 30 ngày</th>
                         <th>DS 90 ngày</th>
                         <th>SL khách bán</th>
                         <th>Khách lớn nhất</th>
                         <th>% Khách lớn nhất</th>
-                        <th data-no-sort>Chi tiết</th>
                       </tr>
                     </thead>
                     <tbody id="productReportRows">
                       <tr>
-                        <td colspan="11" class="table-note">Đang tải...</td>
+                        <td colspan="10" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -3451,66 +3427,6 @@
                   <span id="productReportPageLabel">Trang 1/1</span>
                   <button type="button" id="productReportNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
                   <button type="button" id="productReportLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Khung "Chi tiết" của bảng trên: nhấn nút Chi tiết ở 1 dòng HOẶC tìm tên/mã sản phẩm ở ô
-                 tìm này đều gọi selectProductReportDetail() nên ra cùng 1 kết quả. -->
-            <div class="grid" style="margin-top:14px;">
-              <div class="panel col-12" id="productDetailPanel">
-                <div class="panel-head">
-                  <h2>Doanh số theo khách <span class="section-note">của 1 sản phẩm · 90 ngày gần nhất</span></h2>
-                </div>
-                <div class="search-input-wrap" style="margin-bottom:10px;">
-                  <svg class="search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.8"></circle>
-                    <path d="M16 16L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
-                  </svg>
-                  <input class="search-input" id="productDetailSearchInput" type="search" autocomplete="off"
-                    spellcheck="false" role="combobox" aria-autocomplete="list" aria-controls="productDetailSuggestions"
-                    aria-expanded="false" placeholder="Tìm sản phẩm theo mã hoặc tên (hoặc nhấn Chi tiết ở bảng trên)"
-                    oninput="handleProductDetailSearchInput()" onkeydown="handleProductDetailSearchKeydown(event)">
-                  <button class="search-clear" id="productDetailClearBtn" type="button"
-                    onclick="clearProductReportDetail()" aria-label="Bỏ chọn sản phẩm" hidden>
-                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-                      </path>
-                    </svg>
-                  </button>
-                  <div class="suggestions" id="productDetailSuggestions" role="listbox"></div>
-                </div>
-                <div class="table-note" id="productDetailEmptyState">Chưa chọn sản phẩm — tìm ở trên hoặc nhấn
-                  Chi tiết ở một dòng của bảng.</div>
-
-                <div id="productDetailContent" hidden>
-                  <div class="product-detail-head">
-                    <h3 id="productDetailTitle">—</h3>
-                    <span class="drill-hint" id="productDetailSummary">—</span>
-                  </div>
-                  <div class="product-detail-grid">
-                    <div class="scroll-list product-detail-table">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Khách hàng</th>
-                            <th>Doanh số 90 ngày</th>
-                            <th>% của SP</th>
-                          </tr>
-                        </thead>
-                        <tbody id="productDetailRows">
-                          <tr>
-                            <td colspan="3" class="table-note">Chưa có dữ liệu</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    <div class="product-detail-chart">
-                      <div class="chart-box wide"><canvas id="productDetailChart" role="img"
-                          aria-label="Biểu đồ tròn tỷ trọng doanh số 90 ngày của các khách theo sản phẩm đã chọn"></canvas></div>
-                      <div class="legend-list product-detail-legend" id="productDetailLegend"></div>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -3576,12 +3492,12 @@
                   <table>
                     <thead>
                       <tr>
-                        <th id="recentStockoutBranchHead">Cơ sở</th>
                         <th>Mã SP</th>
                         <th>Tên SP</th>
                         <th>Ngày hết hàng gần nhất</th>
                         <th>Số ngày đứt hàng</th>
                         <th>Các đợt đứt hàng</th>
+                        <th id="recentStockoutBranchHead">Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="recentStockoutResultRows"></tbody>
@@ -3617,7 +3533,6 @@
                   <table>
                     <thead>
                       <tr>
-                        <th id="stockout90dBranchHead">Cơ sở</th>
                         <th>Mã SP</th>
                         <th>Tên SP</th>
                         <th>Số lần đứt hàng</th>
@@ -3625,6 +3540,7 @@
                         <th>Số ngày đứt TB</th>
                         <th>Tồn kho hiện tại</th>
                         <th>Các đợt đứt hàng</th>
+                        <th id="stockout90dBranchHead">Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="stockout90dResultRows"></tbody>
@@ -3660,7 +3576,6 @@
                   <table>
                     <thead>
                       <tr>
-                        <th id="stockout30dBranchHead">Cơ sở</th>
                         <th>Mã SP</th>
                         <th>Tên SP</th>
                         <th>Số lần đứt hàng</th>
@@ -3668,6 +3583,7 @@
                         <th>Số ngày đứt TB</th>
                         <th>Tồn kho hiện tại</th>
                         <th>Các đợt đứt hàng</th>
+                        <th id="stockout30dBranchHead">Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="stockout30dResultRows"></tbody>
@@ -3721,16 +3637,16 @@
                       <tr>
                         <th>Mã hàng</th>
                         <th>Tên sản phẩm</th>
-                        <th>Cơ sở</th>
                         <th title="Giá vốn (Cả hai: bình quân theo tồn); giá trị tồn = giá vốn × tồn kho">Đơn giá</th>
                         <th data-inv-cols="one" title="Tồn thực tế trên KiotViet">Tồn kho</th>
-                        <th data-inv-cols="both" hidden title="Tồn thực tế tại Hà Nội">Tồn kho HN</th>
-                        <th data-inv-cols="both" hidden title="Tồn thực tế tại Sài Gòn">Tồn kho SG</th>
+                        <th data-inv-cols="both" hidden title="Tồn thực tế tại Hà Nội">Tồn HN</th>
+                        <th data-inv-cols="both" hidden title="Tồn thực tế tại Sài Gòn">Tồn SG</th>
                         <th data-inv-cols="one" title="Tồn có thể bán = Tồn kho − Khách đặt (hàng khách đã đặt, chưa giao)">Tồn có thể bán</th>
-                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Hà Nội = Tồn kho − Khách đặt">Tồn có thể bán HN</th>
-                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Sài Gòn = Tồn kho − Khách đặt">Tồn có thể bán SG</th>
-                        <th title="Số lượng trong phiếu Đặt hàng nhập trạng thái “Đã xác nhận NCC” của Kiot Sài Gòn (Mua hàng → Đặt hàng nhập), ghép theo mã hàng">Hàng đang vận chuyển</th>
+                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Hà Nội = Tồn kho − Khách đặt">Tồn có bán HN</th>
+                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Sài Gòn = Tồn kho − Khách đặt">Tồn có bán SG</th>
+                        <th title="Số lượng trong phiếu Đặt hàng nhập trạng thái “Đã xác nhận NCC” của Kiot Sài Gòn (Mua hàng → Đặt hàng nhập), ghép theo mã hàng">Vận chuyển</th>
                         <th title="Giá trị tồn = giá vốn × tồn kho">Giá trị tồn</th>
+                        <th>Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="inventoryValueRows">
@@ -3781,10 +3697,10 @@
                       <tr>
                         <th id="topSellingCodeHeader">Mã hàng</th>
                         <th id="topSellingNameHeader">Sản phẩm</th>
-                        <th id="topSellingBranchHeader">Cơ sở</th>
                         <th>SL bán</th>
                         <th>Doanh thu</th>
                         <th id="topSellingStockHeader">Tồn kho</th>
+                        <th id="topSellingBranchHeader">Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="topSellingRows">
@@ -3822,12 +3738,12 @@
                       <tr>
                         <th>Mã hàng</th>
                         <th>Tên sản phẩm</th>
-                        <th>Cơ sở</th>
                         <th>Vị trí</th>
                         <th>Mô tả</th>
                         <th>Tồn</th>
                         <th>Đặt</th>
                         <th>Tỷ lệ</th>
+                        <th>Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="allProductRows">
@@ -3877,10 +3793,10 @@
                       <tr>
                         <th>Mã hàng</th>
                         <th>Tên hàng</th>
-                        <th>Cơ sở</th>
                         <th>Ngày nhập đầu tiên</th>
                         <th>Số ngày tồn tại</th>
                         <th>Doanh thu</th>
+                        <th>Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="newlyImportedRows">
@@ -3920,9 +3836,9 @@
                       <tr>
                         <th>Mã</th>
                         <th>Tên</th>
-                        <th>Cơ sở</th>
                         <th>Nhóm hàng</th>
                         <th>Thời gian tạo mã</th>
+                        <th>Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="todayNewProductRows">
@@ -4027,7 +3943,6 @@
                     <thead>
                       <tr>
                         <th>Mã giao dịch</th>
-                        <th>Cơ sở</th>
                         <th>Thời gian</th>
                         <th>Khách hàng</th>
                         <th>Nhân viên bán hàng</th>
@@ -4036,6 +3951,7 @@
                         <th>Giảm giá</th>
                         <th>Thực thu</th>
                         <th>Trạng thái</th>
+                        <th>Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="endOfDayRows">
@@ -4081,10 +3997,10 @@
                     <thead>
                       <tr>
                         <th>Mã ĐH</th>
-                        <th>Cơ sở</th>
                         <th>Khách hàng</th>
                         <th>Tổng tiền</th>
                         <th>Trạng thái</th>
+                        <th>Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="orderRows">
@@ -4112,11 +4028,11 @@
                     <thead>
                       <tr>
                         <th>Mã trả hàng</th>
-                        <th>Cơ sở</th>
                         <th>HĐ gốc</th>
                         <th>Khách hàng</th>
                         <th>Tổng tiền trả</th>
                         <th>Trạng thái</th>
+                        <th>Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="returnRows">
@@ -4190,9 +4106,9 @@
                     <thead>
                       <tr>
                         <th>Khách hàng</th>
-                        <th>Cơ sở</th>
                         <th>SL đơn bán</th>
                         <th>Doanh thu</th>
+                        <th>Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="customerRevenueRows">
@@ -4240,9 +4156,9 @@
                     <thead>
                       <tr>
                         <th>Tên khách hàng</th>
-                        <th>Cơ sở</th>
                         <th>Điện thoại</th>
                         <th>Công nợ</th>
+                        <th>Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="debtRows">
@@ -4340,11 +4256,11 @@
                     <thead>
                       <tr>
                         <th>Mã nhập hàng</th>
-                        <th>Cơ sở</th>
                         <th>Ngày nhập</th>
                         <th>Nhà cung cấp</th>
                         <th>Tổng tiền</th>
                         <th>Trạng thái</th>
+                        <th>Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="overviewPurchaseRows">
@@ -4389,9 +4305,9 @@
                       <tr>
                         <th>Mã NCC</th>
                         <th>Tên</th>
-                        <th>Cơ sở</th>
                         <th>Điện thoại</th>
                         <th>Nợ cần trả</th>
+                        <th>Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="supplierRows">
@@ -4527,7 +4443,6 @@
                     <thead>
                       <tr>
                         <th>Khách hàng</th>
-                        <th>Cơ sở</th>
                         <th>Sale</th>
                         <th>Lịch TT</th>
                         <th>Nợ đầu kỳ</th>
@@ -4537,6 +4452,7 @@
                         <th>% Quá hạn/Doanh số</th>
                         <th>Cảnh báo tự động</th>
                         <th>Trạng thái xử lý</th>
+                        <th>Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="debtManagementRows">
@@ -4596,20 +4512,20 @@
     </section>
   </div>
 
-  <!-- Panel chi tiết đơn đặt hàng / phiếu trả hàng: mở khi bấm 1 dòng ở tab Hóa đơn (openDocumentDetail). -->
-  <div class="doc-drawer-backdrop" id="docDrawerBackdrop" hidden onclick="handleDocumentDetailBackdropClick(event)">
-    <aside class="doc-drawer" role="dialog" aria-modal="true" aria-labelledby="docDrawerTitle"
-      aria-describedby="docDrawerSubtitle">
+  <!-- Hộp chi tiết giao dịch / đơn đặt hàng / phiếu trả hàng (giữa màn hình): mở khi bấm 1 dòng ở tab Hóa đơn (openDocumentDetail). -->
+  <div class="doc-modal-backdrop" id="docModalBackdrop" hidden onclick="handleDocumentDetailBackdropClick(event)">
+    <section class="doc-modal" role="dialog" aria-modal="true" aria-labelledby="docModalTitle"
+      aria-describedby="docModalSubtitle">
       <div class="export-modal-head">
         <div>
-          <h2 class="export-modal-title" id="docDrawerTitle">Chi tiết</h2>
-          <p class="export-modal-subtitle" id="docDrawerSubtitle"></p>
+          <h2 class="export-modal-title" id="docModalTitle">Chi tiết</h2>
+          <p class="export-modal-subtitle" id="docModalSubtitle"></p>
         </div>
-        <button class="export-modal-close" id="docDrawerClose" type="button" onclick="closeDocumentDetail()"
+        <button class="export-modal-close" id="docModalClose" type="button" onclick="closeDocumentDetail()"
           aria-label="Đóng">×</button>
       </div>
-      <div class="doc-drawer-body" id="docDrawerBody" aria-live="polite"></div>
-    </aside>
+      <div class="doc-modal-body" id="docModalBody" aria-live="polite"></div>
+    </section>
   </div>
 
   <!-- Màn hình chờ tải dữ liệu. Sử dụng HTML tĩnh có chủ đích: trước đây được tạo động
@@ -4664,10 +4580,7 @@
       productAnalysis: 'product',
       currentUser: null,
       supplierReturnImport: { submitting: false },
-      productReport: {
-        rows: [], computedAt: null, loaded: false,
-        detail: { code: '', name: '', status: 'idle', data: null, requestId: 0, options: [], activeIndex: -1 }
-      },
+      productReport: { rows: [], computedAt: null, loaded: false },
       debtFilters: {
         queue: 'needsAction',
         sale: '',
@@ -5434,12 +5347,12 @@
       tbody.innerHTML = filtered.items.map(function (row) {
         return (
           '<tr data-table-item-id="' + escapeHtml(row.code) + '">' +
-            stockoutBranchCell(row, result) +
             '<td>' + escapeHtml(row.code) + '</td>' +
             '<td>' + escapeHtml(row.name) + '</td>' +
             '<td>' + escapeHtml(row.lastOutOfStockDate) + '</td>' +
             '<td>' + row.daysOutOfStock + '</td>' +
             '<td>' + formatStockoutPeriods(row.periods) + '</td>' +
+            stockoutBranchCell(row, result) +
           '</tr>'
         );
       }).join('');
@@ -5680,7 +5593,6 @@
         const avgStockoutDays = row.stockoutCount ? (row.totalStockoutDays / row.stockoutCount) : 0;
         return (
           '<tr data-table-item-id="' + escapeHtml(row.code) + '">' +
-            stockoutBranchCell(row, result) +
             '<td>' + escapeHtml(row.code) + '</td>' +
             '<td>' + escapeHtml(row.name) + '</td>' +
             '<td>' + row.stockoutCount + '</td>' +
@@ -5688,6 +5600,7 @@
             '<td>' + avgStockoutDays.toFixed(2) + '</td>' +
             '<td>' + row.currentOnHand + '</td>' +
             '<td>' + formatStockoutPeriods(row.periods) + '</td>' +
+            stockoutBranchCell(row, result) +
           '</tr>'
         );
       }).join('');
@@ -5927,7 +5840,6 @@
         const avgStockoutDays = row.stockoutCount ? (row.totalStockoutDays / row.stockoutCount) : 0;
         return (
           '<tr data-table-item-id="' + escapeHtml(row.code) + '">' +
-            stockoutBranchCell(row, result) +
             '<td>' + escapeHtml(row.code) + '</td>' +
             '<td>' + escapeHtml(row.name) + '</td>' +
             '<td>' + row.stockoutCount + '</td>' +
@@ -5935,6 +5847,7 @@
             '<td>' + avgStockoutDays.toFixed(2) + '</td>' +
             '<td>' + row.currentOnHand + '</td>' +
             '<td>' + formatStockoutPeriods(row.periods) + '</td>' +
+            stockoutBranchCell(row, result) +
           '</tr>'
         );
       }).join('');
@@ -6907,7 +6820,6 @@
         { tbody: 'inventoryValueRows', pagination: 'inventoryValuePagination', firstBtn: 'inventoryValueFirstPage', prevBtn: 'inventoryValuePrevPage', nextBtn: 'inventoryValueNextPage', lastBtn: 'inventoryValueLastPage', label: 'inventoryValuePageLabel' },
         built.rows,
         p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-          '<td>' + branchCellText(p) + '</td>' +
           '<td class="mono muted" data-sort-value="' + (p.cost || 0) + '">' + fmtMoney(p.cost) + '</td>' +
           cell(p.stock, isBoth, false) +
           optionalCell(p.stockHanoi, !isBoth) +
@@ -6916,7 +6828,8 @@
           optionalCell(p.availableHanoi, !isBoth) +
           optionalCell(p.availableSaigon, !isBoth) +
           (p.inTransit ? cell(p.inTransit, false, false) : '<td class="mono muted" data-sort-value="0">—</td>') +
-          '<td class="mono" data-sort-value="' + (p.stockValue || 0) + '">' + fmtMoney(p.stockValue) + '</td></tr>',
+          '<td class="mono" data-sort-value="' + (p.stockValue || 0) + '">' + fmtMoney(p.stockValue) + '</td>' +
+          '<td>' + branchCellText(p) + '</td></tr>',
         12,
         'Không có dữ liệu'
       );
@@ -6988,7 +6901,6 @@
             ? '<td class="mono muted" data-sort-value="' + Number(item.productCount || 0) + '">' + fmtNumber(Number(item.productCount || 0)) + '</td>'
             : '<td class="mono muted">' + escapeHtml(item.code) + '</td>') +
           '<td class="name-cell">' + escapeHtml(item.name) + '</td>' +
-          (isParentCategory ? '<td hidden></td>' : '<td>' + branchCellText(item) + '</td>') +
           '<td class="mono muted" data-sort-value="' + item.qty + '">' + fmtNumber(Number(item.qty || 0)) +
           '</td><td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td>' +
           (isParentCategory
@@ -6996,6 +6908,7 @@
             : item.stock === undefined
               ? '<td class="mono muted">—</td>'
               : '<td class="mono muted" data-sort-value="' + item.stock + '">' + fmtNumber(Number(item.stock || 0)) + '</td>') +
+          (isParentCategory ? '<td hidden></td>' : '<td>' + branchCellText(item) + '</td>') +
           '</tr>',
         isParentCategory ? 4 : 6,
         'Chưa có dữ liệu chi tiết hóa đơn'
@@ -7351,15 +7264,10 @@
       });
     }
 
-    function isProductReportDetailCode(code) {
-      const selected = state.productReport.detail.code;
-      return !!selected && String(code).toLocaleLowerCase('vi-VN') === selected.toLocaleLowerCase('vi-VN');
-    }
-
     function productReportRowHtml(p) {
       const code = escapeHtml(p.code);
       const shareValue = p.topCustomerShare === null || p.topCustomerShare === undefined ? -1 : p.topCustomerShare;
-      return '<tr data-table-item-id="' + code + '"' + (isProductReportDetailCode(p.code) ? ' class="is-selected"' : '') + '>' +
+      return '<tr class="doc-row" tabindex="0" title="Bấm để xem doanh số theo khách" data-table-item-id="' + code + '">' +
         '<td class="mono muted">' + code + '</td>' +
         '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
         '<td class="mono" data-sort-value="' + p.stockHanoi + '">' + fmtNumber(p.stockHanoi) + '</td>' +
@@ -7370,7 +7278,6 @@
         '<td class="mono" data-sort-value="' + p.customerCount90d + '">' + fmtNumber(p.customerCount90d) + '</td>' +
         '<td>' + (p.topCustomerName ? escapeHtml(p.topCustomerName) : '<span class="muted">—</span>') + '</td>' +
         '<td class="mono" data-sort-value="' + shareValue + '">' + formatDebtRatio(p.topCustomerShare) + '</td>' +
-        '<td><button class="row-detail-button" type="button" data-product-detail="' + code + '">Chi tiết</button></td>' +
         '</tr>';
     }
 
@@ -7386,7 +7293,7 @@
         },
         rows,
         productReportRowHtml,
-        11,
+        10,
         state.productReport.loaded ? 'Chưa có dữ liệu báo cáo hàng hóa.' : 'Đang tải...'
       );
     }
@@ -7407,97 +7314,8 @@
           console.error('Không tải được báo cáo hàng hóa:', err);
           state.productReport.loaded = true;
           document.getElementById('productReportRows').innerHTML =
-            '<tr><td colspan="11" class="table-note">Không tải được báo cáo hàng hóa.</td></tr>';
+            '<tr><td colspan="10" class="table-note">Không tải được báo cáo hàng hóa.</td></tr>';
         });
-    }
-
-    // ===== Khung "Chi tiết" dưới bảng Báo cáo hàng hóa: doanh số 90 ngày của từng khách đã mua 1 sản phẩm
-    // (bảng + biểu đồ tròn). Nút Chi tiết ở mỗi dòng và ô tìm tên/mã sản phẩm đều gọi
-    // selectProductReportDetail() nên luôn ra cùng 1 kết quả. Dữ liệu lấy lười theo từng sản phẩm từ
-    // /api/product-report/customers (bảng product_report_customers, dựng cùng job đêm với bảng trên). =====
-    const PRODUCT_DETAIL_SUGGESTION_LIMIT = 8;
-
-    function findProductReportRow(code) {
-      const key = String(code).toLocaleLowerCase('vi-VN');
-      return state.productReport.rows.find(function (p) { return String(p.code).toLocaleLowerCase('vi-VN') === key; }) || null;
-    }
-
-    function productDetailLabel(p) {
-      return p.code + ' - ' + p.name;
-    }
-
-    function hideProductDetailSuggestions() {
-      const box = document.getElementById('productDetailSuggestions');
-      box.classList.remove('show');
-      box.innerHTML = '';
-      document.getElementById('productDetailSearchInput').setAttribute('aria-expanded', 'false');
-      state.productReport.detail.options = [];
-      state.productReport.detail.activeIndex = -1;
-    }
-
-    // Khớp theo mã HOẶC tên (không phân biệt hoa thường); mã/tên bắt đầu bằng từ khóa được xếp lên trước.
-    function productDetailOptions(query) {
-      const normalizedQuery = normalizeSearchQuery(query).toLocaleLowerCase('vi-VN');
-      if (!normalizedQuery) return [];
-      const starts = [];
-      const contains = [];
-      state.productReport.rows.forEach(function (p) {
-        const code = String(p.code).toLocaleLowerCase('vi-VN');
-        const name = String(p.name).toLocaleLowerCase('vi-VN');
-        if (code.startsWith(normalizedQuery) || name.startsWith(normalizedQuery)) starts.push(p);
-        else if (code.includes(normalizedQuery) || name.includes(normalizedQuery)) contains.push(p);
-      });
-      return starts.concat(contains).slice(0, PRODUCT_DETAIL_SUGGESTION_LIMIT);
-    }
-
-    function renderProductDetailSuggestions() {
-      const detail = state.productReport.detail;
-      const box = document.getElementById('productDetailSuggestions');
-      if (!detail.options.length) { hideProductDetailSuggestions(); return; }
-      box.innerHTML = detail.options.map(function (p, index) {
-        return '<button class="suggestion-item' + (index === detail.activeIndex ? ' active' : '') + '" ' +
-          'type="button" role="option" onclick="selectProductDetailSuggestion(' + index + ')">' +
-          '<span class="suggestion-name">' + escapeHtml(productDetailLabel(p)) + '</span></button>';
-      }).join('');
-      box.classList.add('show');
-      document.getElementById('productDetailSearchInput').setAttribute('aria-expanded', 'true');
-    }
-
-    function handleProductDetailSearchInput() {
-      const detail = state.productReport.detail;
-      const input = document.getElementById('productDetailSearchInput');
-      document.getElementById('productDetailClearBtn').hidden = !input.value && !detail.code;
-      detail.options = productDetailOptions(input.value);
-      detail.activeIndex = -1;
-      renderProductDetailSuggestions();
-    }
-
-    function handleProductDetailSearchKeydown(event) {
-      const detail = state.productReport.detail;
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        event.preventDefault();
-        if (!detail.options.length) return;
-        const step = event.key === 'ArrowDown' ? 1 : -1;
-        detail.activeIndex = (detail.activeIndex + step + detail.options.length) % detail.options.length;
-        renderProductDetailSuggestions();
-      } else if (event.key === 'Escape') {
-        hideProductDetailSuggestions();
-      } else if (event.key === 'Enter') {
-        event.preventDefault();
-        if (detail.options.length) selectProductDetailSuggestion(detail.activeIndex >= 0 ? detail.activeIndex : 0);
-      }
-    }
-
-    function selectProductDetailSuggestion(index) {
-      const option = state.productReport.detail.options[index];
-      if (!option) return;
-      selectProductReportDetail(option.code);
-    }
-
-    function syncProductReportSelection() {
-      document.querySelectorAll('#productReportRows tr[data-table-item-id]').forEach(function (row) {
-        row.classList.toggle('is-selected', isProductReportDetailCode(row.dataset.tableItemId));
-      });
     }
 
     function productDetailRowHtml(row) {
@@ -7514,114 +7332,17 @@
       });
     }
 
-    function renderProductReportDetail() {
-      const detail = state.productReport.detail;
-      const content = document.getElementById('productDetailContent');
-      const emptyState = document.getElementById('productDetailEmptyState');
-      const tbody = document.getElementById('productDetailRows');
-      const summary = document.getElementById('productDetailSummary');
-      content.hidden = !detail.code;
-      emptyState.hidden = !!detail.code;
-      const legend = document.getElementById('productDetailLegend');
-      if (!detail.code) { destroyChart('productDetailCustomers'); legend.innerHTML = ''; return; }
-
-      document.getElementById('productDetailTitle').textContent = detail.code + (detail.name ? ' – ' + detail.name : '');
-      const note = function (message) {
-        tbody.innerHTML = '<tr><td colspan="3" class="table-note">' + message + '</td></tr>';
-        summary.textContent = '—';
-        destroyChart('productDetailCustomers');
-        legend.innerHTML = '';
-      };
-      if (detail.status === 'loading') { note('Đang tải...'); return; }
-      if (detail.status === 'error') { note('Không tải được doanh số khách của sản phẩm này.'); return; }
-
-      const rows = (detail.data && detail.data.rows) || [];
-      if (!rows.length) {
-        note('Chưa có dữ liệu khách của sản phẩm này trong 90 ngày gần nhất (dữ liệu được cập nhật mỗi đêm).');
-        return;
-      }
-      summary.textContent = fmtNumber(rows.length) + ' khách · Tổng ' + fmtMoney(detail.data.totalRevenue) + ' · 90 ngày gần nhất';
-      tbody.innerHTML = rows.map(productDetailRowHtml).join('');
-      renderPieChartList(
-        'productDetailChart', 'productDetailCustomers', productDetailPieList(rows),
-        function (item) { return item.name; }, function (item) { return item.revenue; }, null, 'Tổng 90 ngày',
-        null, 'productDetailLegend'
-      );
-    }
-
-    function selectProductReportDetail(code, options) {
-      const detail = state.productReport.detail;
-      const row = findProductReportRow(code);
-      const productCode = row ? row.code : String(code);
-      hideProductDetailSuggestions();
-      document.getElementById('productDetailSearchInput').value = row ? productDetailLabel(row) : productCode;
-      document.getElementById('productDetailClearBtn').hidden = false;
-
-      const alreadyShown = detail.code === productCode && (detail.status === 'loading' || detail.status === 'ready');
-      if (!alreadyShown) {
-        const requestId = ++detail.requestId;
-        detail.code = productCode;
-        detail.name = row ? row.name : '';
-        detail.status = 'loading';
-        detail.data = null;
-        renderProductReportDetail();
-        fetch('/api/product-report/customers?code=' + encodeURIComponent(productCode))
-          .then(function (res) {
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            return res.json();
-          })
-          .then(function (data) {
-            if (requestId !== detail.requestId) return; // đã chọn sản phẩm khác/bỏ chọn trong lúc chờ
-            detail.data = data;
-            detail.status = 'ready';
-            renderProductReportDetail();
-          })
-          .catch(function (err) {
-            console.error('Không tải được doanh số khách theo sản phẩm:', err);
-            if (requestId !== detail.requestId) return;
-            detail.status = 'error';
-            renderProductReportDetail();
-          });
-      }
-      syncProductReportSelection();
-
-      const panel = document.getElementById('productDetailPanel');
-      if (options && options.scroll && panel.scrollIntoView) {
-        const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        panel.scrollIntoView({ block: 'start', behavior: reducedMotion ? 'auto' : 'smooth' });
-      }
-    }
-
-    function clearProductReportDetail() {
-      const detail = state.productReport.detail;
-      detail.requestId++; // bỏ qua kết quả của request đang chờ
-      detail.code = '';
-      detail.name = '';
-      detail.status = 'idle';
-      detail.data = null;
-      hideProductDetailSuggestions();
-      document.getElementById('productDetailSearchInput').value = '';
-      document.getElementById('productDetailClearBtn').hidden = true;
-      renderProductReportDetail();
-      syncProductReportSelection();
-    }
-
-    function initProductReportDetail() {
-      document.getElementById('productReportRows').addEventListener('click', function (event) {
-        const button = event.target.closest && event.target.closest('button[data-product-detail]');
-        if (button) selectProductReportDetail(button.dataset.productDetail, { scroll: true });
-      });
-      document.addEventListener('click', function (event) {
-        if (!event.target.closest || !event.target.closest('#productDetailSearchInput, #productDetailSuggestions')) {
-          hideProductDetailSuggestions();
-        }
-      });
-    }
-
-    // ===== Panel chi tiết đơn đặt hàng / phiếu trả hàng (tab Hóa đơn, mục Phân tích) =====
-    // Bấm 1 dòng ở "Danh sách đặt hàng" / "Danh sách trả hàng" → lấy các dòng hàng của chứng từ đó từ
-    // /api/order-detail, /api/return-detail (bảng order_details / return_details) và hiện trong panel bên phải.
+    // ===== Hộp chi tiết chứng từ giữa màn hình (tab Hóa đơn) =====
+    // Bấm 1 dòng ở "Chi tiết giao dịch" / "Danh sách đặt hàng" / "Danh sách trả hàng" / "Báo cáo hàng hóa" → lấy các dòng hàng của chứng từ đó từ
+    // /api/invoice-detail, /api/order-detail, /api/return-detail (bảng invoice_details / order_details / return_details).
     const DOC_DETAIL_KINDS = {
+      // Báo cáo hàng hóa (tab Tổng quan): doanh số 90 ngày từng khách của 1 mã hàng — bảng + biểu đồ tròn.
+      productReport: {
+        api: '/api/product-report/customers', title: 'Doanh số theo khách', wide: true,
+        query: function (item) { return '?code=' + encodeURIComponent(item.code); },
+        failure: 'Không tải được doanh số khách của sản phẩm này.'
+      },
+      endOfDay: { api: '/api/invoice-detail', title: 'Chi tiết giao dịch', dateLabel: 'Thời gian bán', sellerLabel: 'Nhân viên bán hàng', failure: 'Không tải được chi tiết giao dịch.' },
       orders: { api: '/api/order-detail', title: 'Chi tiết đơn đặt hàng', dateLabel: 'Ngày đặt', sellerLabel: 'Nhân viên lập', failure: 'Không tải được chi tiết đơn đặt hàng.' },
       returns: { api: '/api/return-detail', title: 'Chi tiết phiếu trả hàng', dateLabel: 'Ngày trả', sellerLabel: 'Nhân viên bán', failure: 'Không tải được chi tiết phiếu trả hàng.' }
     };
@@ -7637,8 +7358,9 @@
 
     function docDetailBodyHtml(tableKey, data) {
       const isOrder = tableKey === 'orders';
+      const isReturn = tableKey === 'returns';
       const lines = data.lines || [];
-      const showDiscount = isOrder && lines.some(function (line) { return line.discount > 0; });
+      const showDiscount = !isReturn && lines.some(function (line) { return line.discount > 0; });
       const customer = escapeHtml(data.customerName || 'Khách lẻ') +
         (data.customerCode ? ' <span class="muted mono">(' + escapeHtml(data.customerCode) + ')</span>' : '');
       const meta = [
@@ -7648,8 +7370,9 @@
         docMetaField(DOC_DETAIL_KINDS[tableKey].sellerLabel, escapeHtml(data.seller || '—')),
         docMetaField('Trạng thái', genericStatusPill(data.status))
       ];
-      if (!isOrder) meta.push(docMetaField('Hóa đơn gốc', data.invoiceCode ? '<span class="mono">' + escapeHtml(data.invoiceCode) + '</span>' : '—'));
-      if (isOrder && data.note) meta.push(docMetaField('Ghi chú', '<span style="white-space:pre-line">' + escapeHtml(data.note) + '</span>', true));
+      if (isReturn) meta.push(docMetaField('Hóa đơn gốc', data.invoiceCode ? '<span class="mono">' + escapeHtml(data.invoiceCode) + '</span>' : '—'));
+      if (data.orderCode) meta.push(docMetaField('Từ đơn đặt hàng', '<span class="mono">' + escapeHtml(data.orderCode) + '</span>'));
+      if (!isReturn && data.note) meta.push(docMetaField('Ghi chú', '<span style="white-space:pre-line">' + escapeHtml(data.note) + '</span>', true));
 
       const head = '<th>Mã hàng</th><th>Tên hàng</th><th>SL</th><th>Đơn giá</th>' + (showDiscount ? '<th>Giảm giá</th>' : '') + '<th>Thành tiền</th>';
       const rows = lines.length ? lines.map(function (line) {
@@ -7663,9 +7386,9 @@
       }).join('') : '<tr><td colspan="' + (showDiscount ? 6 : 5) + '" class="table-note">Chứng từ này chưa có dòng hàng nào.</td></tr>';
 
       const totals = [];
-      if (isOrder) {
-        if (data.discount > 0) totals.push(docTotalRow('Giảm giá đơn', fmtMoney(data.discount)));
-        totals.push(docTotalRow('Tổng tiền', fmtMoney(data.total), true));
+      if (!isReturn) {
+        if (data.discount > 0) totals.push(docTotalRow(isOrder ? 'Giảm giá đơn' : 'Giảm giá hóa đơn', fmtMoney(data.discount)));
+        totals.push(docTotalRow(isOrder ? 'Tổng tiền' : 'Tổng tiền hàng', fmtMoney(data.total), true));
         totals.push(docTotalRow('Khách đã trả', fmtMoney(data.paid)));
       } else {
         if (data.returnDiscount > 0) totals.push(docTotalRow('Giảm giá trả hàng', fmtMoney(data.returnDiscount)));
@@ -7681,16 +7404,44 @@
         '<dl class="doc-totals">' + totals.join('') + '</dl>';
     }
 
+    // Bảng + biểu đồ tròn doanh số 90 ngày của từng khách đã mua 1 sản phẩm (mỗi khách một lát, không gộp "Khác";
+    // chú giải HTML cuộn được để liệt kê đủ). Vẽ biểu đồ SAU khi canvas đã nằm trong DOM.
+    function renderProductReportModal(body, subtitle, data) {
+      const rows = (data && data.rows) || [];
+      if (!rows.length) {
+        body.innerHTML = '<div class="doc-modal-note">Chưa có dữ liệu khách của sản phẩm này trong 90 ngày gần nhất (dữ liệu được cập nhật mỗi đêm).</div>';
+        return;
+      }
+      subtitle.textContent = fmtNumber(rows.length) + ' khách · Tổng ' + fmtMoney(data.totalRevenue) + ' · 90 ngày gần nhất';
+      body.innerHTML = '<div class="product-detail-grid">' +
+        '<div class="scroll-list product-detail-table"><table><thead><tr><th>Khách hàng</th><th>Doanh số 90 ngày</th><th>% của SP</th></tr></thead>' +
+        '<tbody>' + rows.map(productDetailRowHtml).join('') + '</tbody></table></div>' +
+        '<div class="product-detail-chart"><div class="chart-box wide"><canvas id="productDetailChart" role="img" ' +
+        'aria-label="Biểu đồ tròn tỷ trọng doanh số 90 ngày của các khách theo sản phẩm đã chọn"></canvas></div>' +
+        '<div class="legend-list product-detail-legend" id="productDetailLegend"></div></div></div>';
+      renderPieChartList(
+        'productDetailChart', 'productDetailCustomers', productDetailPieList(rows),
+        function (item) { return item.name; }, function (item) { return item.revenue; }, null, 'Tổng 90 ngày',
+        null, 'productDetailLegend'
+      );
+    }
+
     function renderDocumentDetail(status, data, message) {
-      const body = document.getElementById('docDrawerBody');
-      const subtitle = document.getElementById('docDrawerSubtitle');
+      const body = document.getElementById('docModalBody');
+      const subtitle = document.getElementById('docModalSubtitle');
       const kind = DOC_DETAIL_KINDS[docDetail.tableKey];
-      document.getElementById('docDrawerTitle').textContent = kind.title + ' ' + docDetail.item.code;
-      subtitle.textContent = docDetail.item.branch ? 'Cơ sở ' + docDetail.item.branch : '';
-      if (status === 'loading') {
-        body.innerHTML = '<div class="doc-drawer-note">Đang tải chi tiết...</div>';
+      const isProduct = docDetail.tableKey === 'productReport';
+      destroyChart('productDetailCustomers'); // canvas cũ sắp bị thay
+      document.getElementById('docModalTitle').textContent = isProduct
+        ? kind.title + ' · ' + docDetail.item.code + (docDetail.item.name ? ' – ' + docDetail.item.name : '')
+        : kind.title + ' ' + docDetail.item.code;
+      subtitle.textContent = isProduct ? '90 ngày gần nhất' : (docDetail.item.branch ? 'Cơ sở ' + docDetail.item.branch : '');
+      if (status === 'ready' && isProduct) {
+        renderProductReportModal(body, subtitle, data);
+      } else if (status === 'loading') {
+        body.innerHTML = '<div class="doc-modal-note">Đang tải chi tiết...</div>';
       } else if (status === 'error') {
-        body.innerHTML = '<div class="doc-drawer-note">' + escapeHtml(message || kind.failure) +
+        body.innerHTML = '<div class="doc-modal-note">' + escapeHtml(message || kind.failure) +
           '<br><button class="export-select-action" type="button" style="margin-top:12px" onclick="retryDocumentDetail()">Thử lại</button></div>';
       } else {
         body.innerHTML = docDetailBodyHtml(docDetail.tableKey, data);
@@ -7702,7 +7453,8 @@
       const item = docDetail.item;
       const requestId = ++docDetail.requestId;
       renderDocumentDetail('loading');
-      fetch(kind.api + '?code=' + encodeURIComponent(item.code) + '&branch=' + encodeURIComponent(item.branch || ''))
+      const query = kind.query ? kind.query(item) : '?code=' + encodeURIComponent(item.code) + '&branch=' + encodeURIComponent(item.branch || '');
+      fetch(kind.api + query)
         .then(function (res) {
           return res.json().catch(function () { return {}; }).then(function (payload) {
             if (!res.ok) {
@@ -7733,16 +7485,18 @@
       docDetail.tableKey = tableKey;
       docDetail.item = item;
       docDetail.returnFocus = trigger || null;
-      document.getElementById('docDrawerBackdrop').hidden = false;
+      document.querySelector('#docModalBackdrop .doc-modal').classList.toggle('is-wide', !!DOC_DETAIL_KINDS[tableKey].wide);
+      document.getElementById('docModalBackdrop').hidden = false;
       document.body.style.overflow = 'hidden';
       loadDocumentDetail();
-      document.getElementById('docDrawerClose').focus();
+      document.getElementById('docModalClose').focus();
     }
 
     function closeDocumentDetail() {
       docDetail.requestId++; // bỏ qua kết quả của request đang chờ
-      document.getElementById('docDrawerBackdrop').hidden = true;
-      document.getElementById('docDrawerBody').innerHTML = '';
+      document.getElementById('docModalBackdrop').hidden = true;
+      destroyChart('productDetailCustomers');
+      document.getElementById('docModalBody').innerHTML = '';
       document.body.style.overflow = '';
       const returnFocus = docDetail.returnFocus;
       docDetail.returnFocus = null;
@@ -7751,16 +7505,17 @@
     }
 
     function handleDocumentDetailBackdropClick(event) {
-      if (event.target === document.getElementById('docDrawerBackdrop')) closeDocumentDetail();
+      if (event.target === document.getElementById('docModalBackdrop')) closeDocumentDetail();
     }
 
     function initDocumentDetail() {
-      [['orderRows', 'orders'], ['returnRows', 'returns']].forEach(function (pair) {
+      [['endOfDayRows', 'endOfDay'], ['orderRows', 'orders'], ['returnRows', 'returns'], ['productReportRows', 'productReport']].forEach(function (pair) {
         const tbody = document.getElementById(pair[0]);
         const tableKey = pair[1];
         function openFromRow(row) {
           const id = row.dataset.tableItemId;
-          const item = (state.tableDatasets[tableKey] || []).find(function (candidate) { return productIdentity(candidate) === id; });
+          const identity = TABLE_EXPLORER_CONFIGS[tableKey].identity;
+          const item = (state.tableDatasets[tableKey] || []).find(function (candidate) { return String(identity(candidate)) === id; });
           if (item) openDocumentDetail(tableKey, item, row);
         }
         tbody.addEventListener('click', function (event) {
@@ -7780,7 +7535,7 @@
         });
       });
       document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape' && !document.getElementById('docDrawerBackdrop').hidden) {
+        if (event.key === 'Escape' && !document.getElementById('docModalBackdrop').hidden) {
           event.preventDefault();
           closeDocumentDetail();
         }
@@ -8090,9 +7845,8 @@
         document.getElementById('ov-revenue-sub').textContent = d.kpi.invoicesToday + ' hóa đơn' + (d.kpi.cancelledToday ? ' · ' + d.kpi.cancelledToday + ' đã hủy' : '');
         document.getElementById('ov-stock').textContent = fmtMoney(d.kpi.totalInventoryValue);
         document.getElementById('ov-stock-sub').textContent = 'Theo giá vốn · ' + d.kpi.totalProducts + ' mặt hàng đang kinh doanh';
-        document.getElementById('ov-lowstock').textContent = d.kpi.lowStockCount;
-        document.getElementById('ov-customers').textContent = fmtNumber(d.kpi.totalCustomers);
-        document.getElementById('ov-customers-sub').textContent = d.kpi.customersWithDebt + ' đang nợ · ' + fmtMoney(d.kpi.totalDebt);
+        document.getElementById('ov-debt').textContent = fmtMoney(d.kpi.totalDebt);
+        document.getElementById('ov-debt-sub').textContent = d.kpi.customersWithDebt + ' khách đang nợ';
       }
       else if (view === 'products') {
         const productRangeLabel = d.filters && d.filters.products ? d.filters.products.label : '30 ngày';
@@ -8110,11 +7864,11 @@
           { tbody: 'allProductRows', pagination: 'allProductsPagination', firstBtn: 'allProductsFirstPage', prevBtn: 'allProductsPrevPage', nextBtn: 'allProductsNextPage', lastBtn: 'allProductsLastPage', label: 'allProductsPageLabel' },
           filteredProducts,
           p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-            '<td>' + branchCellText(p) + '</td>' +
             '<td class="mono muted">' + (p.location ? escapeHtml(p.location) : '—') + '</td>' +
             '<td class="muted" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"' + (p.description ? ' title="' + escapeHtml(p.description) + '"' : '') + '>' + (p.description ? escapeHtml(p.description) : '—') + '</td>' +
             '<td class="mono" data-sort-value="' + p.stock + '">' + p.stock + '</td><td class="mono" data-sort-value="' + p.reserved + '">' + p.reserved + '</td>' +
-            '<td class="mono" data-sort-value="' + p.pct + '">' + p.pct.toFixed(2) + '%</td></tr>',
+            '<td class="mono" data-sort-value="' + p.pct + '">' + p.pct.toFixed(2) + '%</td>' +
+            '<td>' + branchCellText(p) + '</td></tr>',
           8,
           'Không có dữ liệu'
         );
@@ -8126,10 +7880,10 @@
           { tbody: 'newlyImportedRows', pagination: 'newlyImportedPagination', firstBtn: 'newlyImportedFirstPage', prevBtn: 'newlyImportedPrevPage', nextBtn: 'newlyImportedNextPage', lastBtn: 'newlyImportedLastPage', label: 'newlyImportedPageLabel' },
           newlyImported,
           p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-            '<td>' + branchCellText(p) + '</td>' +
             '<td class="mono muted">' + escapeHtml(p.firstImportDate) + '</td>' +
             '<td class="mono muted" data-sort-value="' + (Number(p.daysOnHand) || 0) + '">' + escapeHtml(String(p.daysOnHand)) + '</td>' +
-            '<td class="mono" data-sort-value="' + (Number(p.revenue) || 0) + '">' + fmtMoney(p.revenue) + '</td></tr>',
+            '<td class="mono" data-sort-value="' + (Number(p.revenue) || 0) + '">' + fmtMoney(p.revenue) + '</td>' +
+            '<td>' + branchCellText(p) + '</td></tr>',
           6,
           'Không có mã hàng mới nhập · ' + escapeHtml(productRangeLabel)
         );
@@ -8166,9 +7920,9 @@
           newProductRows,
           p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
             '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-            '<td>' + branchCellText(p) + '</td>' +
             '<td>' + escapeHtml(p.category || 'Chưa phân nhóm') + '</td>' +
-            '<td class="mono muted">' + escapeHtml(p.createdAt || '—') + '</td></tr>',
+            '<td class="mono muted">' + escapeHtml(p.createdAt || '—') + '</td>' +
+            '<td>' + branchCellText(p) + '</td></tr>',
           5,
           todayNewProducts.dateColumnAvailable === false ? 'Sheet Hàng hóa chưa có cột Ngày tạo' : 'Chưa có mã hàng mới tạo trong khoảng đã chọn'
         );
@@ -8218,8 +7972,7 @@
           'endOfDay',
           { tbody: 'endOfDayRows', pagination: 'endOfDayPagination', firstBtn: 'endOfDayFirstPage', prevBtn: 'endOfDayPrevPage', nextBtn: 'endOfDayNextPage', lastBtn: 'endOfDayLastPage', label: 'endOfDayPageLabel' },
           transactions,
-          item => '<tr><td class="mono name-cell">' + escapeHtml(item.code) + '</td>' +
-            '<td>' + branchCellText(item) + '</td>' +
+          item => '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết giao dịch"><td class="mono name-cell">' + escapeHtml(item.code) + '</td>' +
             '<td class="mono muted">' + escapeHtml(item.time || '—') + '</td>' +
             '<td class="name-cell">' + escapeHtml(item.customer || '—') + '</td>' +
             '<td>' + escapeHtml(item.employee || '—') + '</td>' +
@@ -8227,7 +7980,8 @@
             '<td class="mono" data-sort-value="' + item.revenue + '">' + fmtMoney(item.revenue) + '</td>' +
             '<td class="mono" data-sort-value="' + item.discount + '">' + fmtMoney(item.discount) + '</td>' +
             '<td class="mono" data-sort-value="' + item.paid + '">' + fmtMoney(item.paid) + '</td>' +
-            '<td>' + statusPill(item.status) + '</td></tr>',
+            '<td>' + statusPill(item.status) + '</td>' +
+            '<td>' + branchCellText(item) + '</td></tr>',
           10,
           'Chưa có giao dịch trong khoảng đã chọn'
         );
@@ -8243,8 +7997,8 @@
           'orders',
           { tbody: 'orderRows', pagination: 'ordersPagination', firstBtn: 'ordersFirstPage', prevBtn: 'ordersPrevPage', nextBtn: 'ordersNextPage', lastBtn: 'ordersLastPage', label: 'ordersPageLabel' },
           periodOrders,
-          o => '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết đơn"><td class="mono muted">' + escapeHtml(o.code) + '</td><td>' + branchCellText(o) + '</td><td class="name-cell">' + (o.customer ? escapeHtml(o.customer) : 'Khách lẻ') + '</td>' +
-            '<td class="mono" data-sort-value="' + o.total + '">' + fmtMoney(o.total) + '</td><td>' + genericStatusPill(o.status) + '</td></tr>',
+          o => '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết đơn"><td class="mono muted">' + escapeHtml(o.code) + '</td><td class="name-cell">' + (o.customer ? escapeHtml(o.customer) : 'Khách lẻ') + '</td>' +
+            '<td class="mono" data-sort-value="' + o.total + '">' + fmtMoney(o.total) + '</td><td>' + genericStatusPill(o.status) + '</td><td>' + branchCellText(o) + '</td></tr>',
           5,
           'Chưa có đặt hàng nào'
         );
@@ -8255,9 +8009,9 @@
           'returns',
           { tbody: 'returnRows', pagination: 'returnsPagination', firstBtn: 'returnsFirstPage', prevBtn: 'returnsPrevPage', nextBtn: 'returnsNextPage', lastBtn: 'returnsLastPage', label: 'returnsPageLabel' },
           periodReturns,
-          rt => '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết phiếu trả"><td class="mono muted">' + escapeHtml(rt.code) + '</td><td>' + branchCellText(rt) + '</td><td class="mono muted">' + (rt.originalInvoiceCode ? escapeHtml(rt.originalInvoiceCode) : '—') + '</td>' +
+          rt => '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết phiếu trả"><td class="mono muted">' + escapeHtml(rt.code) + '</td><td class="mono muted">' + (rt.originalInvoiceCode ? escapeHtml(rt.originalInvoiceCode) : '—') + '</td>' +
             '<td class="name-cell">' + (rt.customer ? escapeHtml(rt.customer) : 'Khách lẻ') + '</td>' +
-            '<td class="mono" data-sort-value="' + rt.total + '">' + fmtMoney(rt.total) + '</td><td>' + genericStatusPill(rt.status) + '</td></tr>',
+            '<td class="mono" data-sort-value="' + rt.total + '">' + fmtMoney(rt.total) + '</td><td>' + genericStatusPill(rt.status) + '</td><td>' + branchCellText(rt) + '</td></tr>',
           6,
           'Chưa có trả hàng nào'
         );
@@ -8273,8 +8027,8 @@
           'topDebt',
           { tbody: 'debtRows', pagination: 'topDebtPagination', firstBtn: 'topDebtFirstPage', prevBtn: 'topDebtPrevPage', nextBtn: 'topDebtNextPage', lastBtn: 'topDebtLastPage', label: 'topDebtPageLabel' },
           topDebt,
-          c => '<tr><td class="name-cell">' + escapeHtml(c.name) + '</td><td>' + branchCellText(c) + '</td>' +
-            '<td class="mono muted">' + (c.phone ? escapeHtml(c.phone) : '—') + '</td><td class="mono" data-sort-value="' + c.debt + '" style="color:var(--red);">' + fmtMoney(c.debt) + '</td></tr>',
+          c => '<tr><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
+            '<td class="mono muted">' + (c.phone ? escapeHtml(c.phone) : '—') + '</td><td class="mono" data-sort-value="' + c.debt + '" style="color:var(--red);">' + fmtMoney(c.debt) + '</td><td>' + branchCellText(c) + '</td></tr>',
           4,
           'Không có khách hàng nợ'
         );
@@ -8293,9 +8047,9 @@
           'customerRevenue',
           { tbody: 'customerRevenueRows', pagination: 'customerRevenuePagination', firstBtn: 'customerRevenueFirstPage', prevBtn: 'customerRevenuePrevPage', nextBtn: 'customerRevenueNextPage', lastBtn: 'customerRevenueLastPage', label: 'customerRevenuePageLabel' },
           allCustomerRevenue,
-          c => '<tr><td class="name-cell">' + escapeHtml(c.name) + '</td><td>' + branchCellText(c) + '</td>' +
+          c => '<tr><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
             '<td class="mono">' + fmtNumber(Number(c.saleOrderCount || 0)) + '</td>' +
-            '<td class="mono" data-sort-value="' + c.revenue + '">' + fmtMoney(c.revenue) + '</td></tr>',
+            '<td class="mono" data-sort-value="' + c.revenue + '">' + fmtMoney(c.revenue) + '</td><td>' + branchCellText(c) + '</td></tr>',
           4,
           'Không có dữ liệu doanh thu trong khoảng đã chọn'
         );
@@ -8331,11 +8085,11 @@
           { tbody: 'overviewPurchaseRows', pagination: 'overviewPurchasePagination', firstBtn: 'overviewPurchaseFirstPage', prevBtn: 'overviewPurchasePrevPage', nextBtn: 'overviewPurchaseNextPage', lastBtn: 'overviewPurchaseLastPage', label: 'overviewPurchasePageLabel' },
           newPurchaseOrders,
           p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
-            '<td>' + branchCellText(p) + '</td>' +
             '<td class="mono muted">' + (p.date ? escapeHtml(p.date) : '—') + '</td>' +
             '<td class="name-cell">' + (p.supplier ? escapeHtml(p.supplier) : '—') + '</td>' +
             '<td class="mono" data-sort-value="' + p.total + '">' + fmtMoney(p.total) + '</td>' +
-            '<td>' + genericStatusPill(p.status) + '</td></tr>',
+            '<td>' + genericStatusPill(p.status) + '</td>' +
+            '<td>' + branchCellText(p) + '</td></tr>',
           6,
           'Không có hàng nhập trong khoảng thời gian đã chọn'
         );
@@ -8353,9 +8107,9 @@
           { tbody: 'supplierRows', pagination: 'supplierPagination', firstBtn: 'supplierFirstPage', prevBtn: 'supplierPrevPage', nextBtn: 'supplierNextPage', lastBtn: 'supplierLastPage', label: 'supplierPageLabel' },
           d.suppliers,
           s => '<tr><td class="mono muted">' + escapeHtml(s.code) + '</td><td class="name-cell">' + escapeHtml(s.name) + '</td>' +
-            '<td>' + branchCellText(s) + '</td>' +
             '<td class="mono muted">' + (s.phone ? escapeHtml(s.phone) : '—') + '</td>' +
-            '<td class="mono" data-sort-value="' + s.debt + '" style="color:' + (s.debt > 0 ? 'var(--red)' : 'inherit') + ';">' + fmtMoney(s.debt) + '</td></tr>',
+            '<td class="mono" data-sort-value="' + s.debt + '" style="color:' + (s.debt > 0 ? 'var(--red)' : 'inherit') + ';">' + fmtMoney(s.debt) + '</td>' +
+            '<td>' + branchCellText(s) + '</td></tr>',
           5,
           'Không có nhà cung cấp'
         );
@@ -8369,8 +8123,8 @@
 
     const DEBT_WORKFLOW_STATUSES = ['Chưa xử lý', 'Đang xử lý', 'Đã xử lý', 'Bỏ qua'];
     const DEBT_SORT_FIELDS = [
-      'customerName', 'branchLabel', 'sale', 'paymentSchedule', 'openingDebt', 'currentDebt',
-      'overdueDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'alertCodes', 'workflowStatus'
+      'customerName', 'sale', 'paymentSchedule', 'openingDebt', 'currentDebt',
+      'overdueDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'alertCodes', 'workflowStatus', 'branchLabel'
     ];
 
     // Cơ sở cua khach cong no: khach gop hai co so liet ke tung co so (branchDetails).
@@ -8584,7 +8338,6 @@
           const flashClass = customer.customerKey === state.debtFlashCustomerKey ? ' class="row-highlight-update"' : '';
           return '<tr' + flashClass + ' data-customer-key="' + escapeHtml(customer.customerKey) + '">' +
             '<td class="name-cell">' + escapeHtml(customer.customerName) + '</td>' +
-            '<td>' + escapeHtml(debtBranchLabel(customer)) + '</td>' +
             '<td>' + escapeHtml(customer.sale) + '</td>' +
             '<td class="mono">' + escapeHtml(customer.paymentSchedule || '—') + '</td>' +
             '<td class="mono">' + formatNullableMoney(customer.openingDebt) + '</td>' +
@@ -8593,7 +8346,8 @@
             '<td class="mono">' + formatDebtRatio(customer.currentDebtToSalesRatio) + '</td>' +
             '<td class="mono">' + formatDebtRatio(customer.overdueToSalesRatio) + '</td>' +
             '<td>' + debtAlertHtml(customer) + '</td>' +
-            '<td>' + debtWorkflowHtml(customer) + '</td></tr>';
+            '<td>' + debtWorkflowHtml(customer) + '</td>' +
+            '<td>' + escapeHtml(debtBranchLabel(customer)) + '</td></tr>';
         },
         11,
         debt && debt.available === false ? 'Nguồn công nợ chưa sẵn sàng' : 'Không có khách phù hợp bộ lọc',
@@ -9059,7 +8813,6 @@
     // Bao cao hang hoa: bang tinh san 1 lan/dem, khong phu thuoc bo loc thoi
     // gian/cache dashboard nen goi rieng 1 lan khi vao trang (khong qua
     // loadData()/SSE o duoi).
-    initProductReportDetail();
     initDocumentDetail();
     loadProductReport();
 

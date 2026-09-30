@@ -12,7 +12,8 @@ const calls = [];
 require.cache[repositoryPath].exports = {
   ...realRepository,
   getOrderDetail: async (args) => { calls.push(['order', args]); return { kind: 'order', code: args.code, lines: [] }; },
-  getReturnDetail: async (args) => { calls.push(['return', args]); return { kind: 'return', code: args.code, lines: [] }; }
+  getReturnDetail: async (args) => { calls.push(['return', args]); return { kind: 'return', code: args.code, lines: [] }; },
+  getInvoiceDetail: async (args) => { calls.push(['invoice', args]); return { kind: 'invoice', code: args.code, lines: [] }; }
 };
 
 const router = require('../routes');
@@ -50,6 +51,12 @@ test('GET /api/order-detail doi nhan co so ra ma vat ly roi goi repository', asy
   assert.deepEqual(calls.at(-1), ['order', { code: 'DH1', branchCode: 'saigon' }]);
 });
 
+test('GET /api/invoice-detail goi repository hoa don theo co so', async () => {
+  const res = await call('/api/invoice-detail', { branch: 'Cả hai', query: { code: 'HD1', branch: 'Hà Nội' } });
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(calls.at(-1), ['invoice', { code: 'HD1', branchCode: 'hanoi' }]);
+});
+
 test('che do 1 co so: bo trang ?branch thi dung co so dang xem', async () => {
   const res = await call('/api/return-detail', { branch: 'Hà Nội', query: { code: 'TH1' } });
   assert.equal(res.statusCode, 200);
@@ -69,8 +76,8 @@ test('khong duoc xem chung tu cua co so ngoai pham vi dang xem', async () => {
   assert.equal(calls.length, before, 'khong duoc truy van DB');
 });
 
-test('/api/order-detail va /api/return-detail deu co guard dat truoc route handler', () => {
-  for (const path of ['/api/order-detail', '/api/return-detail']) {
+test('ca 3 API chi tiet chung tu deu co guard dat truoc route handler', () => {
+  for (const path of ['/api/order-detail', '/api/return-detail', '/api/invoice-detail']) {
     const guardIndex = router.stack.findIndex(layer => !layer.route && layer.regexp && layer.regexp.test(path));
     assert.ok(guardIndex >= 0 && guardIndex < router.stack.indexOf(routeLayer('get', path)), `${path} thieu guard`);
   }

@@ -98,14 +98,14 @@ test('chon 1 co so: 1 dong/ma, co Tồn có thể bán = tồn - khách đặt v
   ]);
   const doc = dom.window.document;
   assert.deepEqual(visibleHeaders(doc), [
-    'Mã hàng', 'Tên sản phẩm', 'Cơ sở', 'Đơn giá', 'Tồn kho', 'Tồn có thể bán', 'Hàng đang vận chuyển', 'Giá trị tồn'
+    'Mã hàng', 'Tên sản phẩm', 'Đơn giá', 'Tồn kho', 'Tồn có thể bán', 'Vận chuyển', 'Giá trị tồn', 'Cơ sở'
   ]);
   const rows = visibleRows(doc);
   assert.equal(rows.length, 2);
   const byCode = Object.fromEntries(rows.map(cells => [cells[0], cells]));
-  assert.deepEqual(byCode['SP-1'].slice(2, 3).concat(byCode['SP-1'].slice(4, 7)), [HN, '8', '5', '720']);
-  assert.equal(byCode['SP-2'][5], '-3', 'khach dat vuot ton thi hien am, khong kep 0');
-  assert.equal(byCode['SP-2'][6], '—', 'khong co hang dang van chuyen thi hien —');
+  assert.deepEqual(byCode['SP-1'].slice(-1).concat(byCode['SP-1'].slice(3, 6)), [HN, '8', '5', '720']);
+  assert.equal(byCode['SP-2'][4], '-3', 'khach dat vuot ton thi hien am, khong kep 0');
+  assert.equal(byCode['SP-2'][5], '—', 'khong co hang dang van chuyen thi hien —');
   assert.equal(doc.getElementById('tagInventoryTable').textContent, '2');
   dom.window.close();
 });
@@ -119,17 +119,17 @@ test('"Cả hai": gop 1 dong/ma voi cot ton kho + ton co the ban HN/SG rieng va 
   ]);
   const doc = dom.window.document;
   assert.deepEqual(visibleHeaders(doc), [
-    'Mã hàng', 'Tên sản phẩm', 'Cơ sở', 'Đơn giá', 'Tồn kho HN', 'Tồn kho SG',
-    'Tồn có thể bán HN', 'Tồn có thể bán SG', 'Hàng đang vận chuyển', 'Giá trị tồn'
+    'Mã hàng', 'Tên sản phẩm', 'Đơn giá', 'Tồn HN', 'Tồn SG',
+    'Tồn có bán HN', 'Tồn có bán SG', 'Vận chuyển', 'Giá trị tồn', 'Cơ sở'
   ]);
   const rows = visibleRows(doc);
   assert.equal(rows.length, 3, 'SP-1 o hai co so chi con 1 dong');
   const byCode = Object.fromEntries(rows.map(cells => [cells[0], cells]));
-  // [ma, ten, co so, don gia, ton HN, ton SG, co the ban HN, co the ban SG, dang van chuyen, gia tri ton]
-  assert.deepEqual(byCode['SP-1'].slice(2, 3).concat(byCode['SP-1'].slice(4, 9)), [BOTH, '8', '2', '5', '1', '720'],
+  // [ma, ten, don gia, ton HN, ton SG, co the ban HN, co the ban SG, dang van chuyen, gia tri ton, co so]
+  assert.deepEqual(byCode['SP-1'].slice(-1).concat(byCode['SP-1'].slice(3, 8)), [BOTH, '8', '2', '5', '1', '720'],
     'so dang van chuyen theo ma, khong cong don 2 lan');
-  assert.deepEqual([byCode['SP-2'][2], byCode['SP-2'][4], byCode['SP-2'][5], byCode['SP-2'][6], byCode['SP-2'][7]], [HN, '4', '—', '4', '—'], 'ma chi co o Ha Noi');
-  assert.deepEqual([byCode['SP-3'][2], byCode['SP-3'][4], byCode['SP-3'][5], byCode['SP-3'][6], byCode['SP-3'][7], byCode['SP-3'][8]], [SG, '—', '6', '—', '0', '100']);
+  assert.deepEqual([byCode['SP-2'][9], byCode['SP-2'][3], byCode['SP-2'][4], byCode['SP-2'][5], byCode['SP-2'][6]], [HN, '4', '—', '4', '—'], 'ma chi co o Ha Noi');
+  assert.deepEqual([byCode['SP-3'][9], byCode['SP-3'][3], byCode['SP-3'][4], byCode['SP-3'][5], byCode['SP-3'][6], byCode['SP-3'][7]], [SG, '—', '6', '—', '0', '100']);
   assert.equal(doc.getElementById('tagInventoryTable').textContent, '3');
   dom.window.close();
 });

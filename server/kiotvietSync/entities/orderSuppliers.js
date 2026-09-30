@@ -11,6 +11,7 @@ const entity = createDocumentEntity({
   // /ordersuppliers KHONG co modifiedDate va dong chi tiet chi co productId
   // (khong co productCode) - da kiem chung bang live probe 2026-09-29.
   syncStaff: false,
+  batchDetails: true, // phieu co nhieu dong: gop INSERT chi tiet, tranh hang tram round-trip/phieu toi Supabase
   parentColumns: ['branch', 'id', 'code', 'order_date', 'supplier_id', 'total', 'status', 'created_date', 'raw'],
   parentUpdateColumns: ['code', 'order_date', 'supplier_id', 'total', 'status', 'created_date'],
   mapParent: x => [

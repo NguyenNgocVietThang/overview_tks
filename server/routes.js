@@ -11,7 +11,7 @@ const router = express.Router();
 
 const { getExportFields, createExport, buildExportErrorBody } = require('./dashboard/exportService');
 const { getProductReport, getProductReportCustomers } = require('./dashboard/productReportRepository');
-const { getOrderDetail, getReturnDetail } = require('./dashboard/documentDetailRepository');
+const { getOrderDetail, getReturnDetail, getInvoiceDetail } = require('./dashboard/documentDetailRepository');
 const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
 const { requireAuth, requireFeature } = require('./auth/authMiddleware');
@@ -103,6 +103,7 @@ router.use('/api/customer-product-revenue', ...reportsUser('reports.customers'))
 router.use('/api/product-report', ...reportsUser('reports.products'));
 router.use('/api/order-detail', ...reportsUser('reports.invoices'));
 router.use('/api/return-detail', ...reportsUser('reports.invoices'));
+router.use('/api/invoice-detail', ...reportsUser('reports.invoices'));
 router.use('/api/export', ...reportsUser('reports.export'));
 router.use('/api/products', ...reportsUser('reports.products'));
 
@@ -375,7 +376,7 @@ router.get('/api/product-report/customers', async (req, res) => {
   }
 });
 
-// Panel chi tiet khi bam 1 dong bang "Danh sach dat hang" / "Danh sach tra hang" (tab Hoa don).
+// Hop chi tiet khi bam 1 dong bang "Chi tiet giao dich" / "Danh sach dat hang" / "Danh sach tra hang" (tab Hoa don).
 // Ma chung tu chi duy nhat trong 1 co so nen can ?branch=<nhan co so>; o che do 1 co so
 // co the bo trong. Co so phai nam trong pham vi dang xem cua nguoi dung.
 function resolveDocumentBranchCode(req) {
@@ -416,6 +417,7 @@ function documentDetailHandler(loader, logName, fallbackMessage) {
 
 router.get('/api/order-detail', documentDetailHandler(getOrderDetail, '/api/order-detail', 'Không lấy được chi tiết đơn đặt hàng.'));
 router.get('/api/return-detail', documentDetailHandler(getReturnDetail, '/api/return-detail', 'Không lấy được chi tiết phiếu trả hàng.'));
+router.get('/api/invoice-detail', documentDetailHandler(getInvoiceDetail, '/api/invoice-detail', 'Không lấy được chi tiết hóa đơn.'));
 
 function sendExportError(res, err, fallbackMessage) {
   console.error('=== LOI XUAT EXCEL ===');

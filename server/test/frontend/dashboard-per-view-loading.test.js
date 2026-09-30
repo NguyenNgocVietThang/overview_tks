@@ -163,7 +163,7 @@ test('khoi dong khong hash: CHI tai tab Tong quan, khong keo 5 tab con lai va kh
   assert.doesNotMatch(url, /prMode|prDays/, 'Tong quan khong con dung bo loc Hang hoa');
   assert.doesNotMatch(url, /prStatus/, 'khong con bo loc trang thai kinh doanh');
   assert.doesNotMatch(url, /inMode|puMode|cuMode/, 'khong gui bo loc Hoa don/Nha cung cap/Khach hang');
-  assert.equal(page.text('ov-customers'), '9', 'Tong quan ve tu payload cua tab');
+  assert.equal(page.text('ov-debt-sub'), '2 khách đang nợ', 'Tong quan ve tu payload cua tab');
   assert.equal(page.veilOn(), false, 'man che tat sau khi tai xong');
 });
 
@@ -191,7 +191,7 @@ test('bam sang tab chua tai: tai dung tab do roi ve; quay lai tab da tai thi kho
   page.run("switchView('suppliers')");
   await settle();
   assert.deepEqual(page.viewsCalled(), ['overview', 'suppliers'], 'tab con moi (cung bo loc, chua het han) khong tai lai');
-  assert.equal(page.text('ov-customers'), '9');
+  assert.equal(page.text('ov-debt-sub'), '2 khách đang nợ');
 });
 
 test('tab chua co du lieu hien man che "Dang tai" toi khi tai xong', async () => {
@@ -420,7 +420,7 @@ test('cache cu (ban day du 6 tab, khong co views) van dung duoc: cac tab du khoa
   assert.equal(page.dash.viewIsLoaded('overview'), true);
   assert.equal(page.dash.viewIsLoaded('suppliers'), true);
   assert.equal(page.dash.viewIsLoaded('invoices'), false);
-  assert.equal(page.text('ov-customers'), '9');
+  assert.equal(page.text('ov-debt-sub'), '2 khách đang nợ');
 
   page.run("switchView('suppliers')");
   assert.equal(page.calls.filter(call => call.view === 'suppliers').length, 1, 'cache cu chua co chu ky -> phai hoi lai server');
@@ -457,7 +457,7 @@ test('sau khi nap quyen: hash tro toi tab khong duoc xem -> van tai tab dang mo 
   await settle();
 
   assert.deepEqual(page.viewsCalled(), ['debt', 'overview'], 'Tong quan (tab hien tai) chua co du lieu -> tai them');
-  assert.equal(page.text('ov-customers'), '9');
+  assert.equal(page.text('ov-debt-sub'), '2 khách đang nợ');
 });
 
 test('tai khoan chi co quyen Hoa don: tab dau tien duoc phep duoc tai (khong tai lai tab khong duoc xem)', async () => {

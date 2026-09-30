@@ -32,7 +32,10 @@ function payload() {
         { code: 'DH-1', branch: SG, customer: 'KH B', total: 200, status: 'Phiếu tạm' }
       ],
       periodReturns: [{ code: 'TH-1', branch: SG, originalInvoiceCode: '', customer: 'KH B', total: 50, status: 'Đã trả' }],
-      transactionsReport: { transactions: [], topTransactions: [], summary: { quantity: 0, quantityKnown: true, revenue: 0, discount: 0, paid: 0 } }
+      transactionsReport: {
+        transactions: [{ code: 'HD-1', branch: HN, time: '21/09 09:08', customer: 'KH A', employee: 'NV', quantity: 3, quantityKnown: true, revenue: 90, discount: 10, paid: 90, status: 'Hoàn thành' }],
+        topTransactions: [], summary: { quantity: 3, quantityKnown: true, revenue: 90, discount: 10, paid: 90 }
+      }
     },
     newPurchases: { label: '30 ngày', orderCount: 0, totalAmount: 0, supplierCount: 0, bySupplier: [], orders: [] },
     products: {
@@ -54,6 +57,13 @@ const ORDER_DETAIL = {
     { productCode: 'B2', productName: 'Hàng B', quantity: 1, price: 40, discount: 0, amount: 40, note: '' }
   ],
   lineCount: 2, totalQuantity: 3
+};
+
+const INVOICE_DETAIL = {
+  kind: 'invoice', code: 'HD-1', date: '21/09/2026 09:08', customerName: 'KH A', customerCode: 'KH001', seller: 'NV',
+  warehouse: 'Chi nhánh trung tâm', status: 'Hoàn thành', orderCode: 'DH-9', total: 90, discount: 10, paid: 90, note: '',
+  lines: [{ productCode: 'A1', productName: 'Hàng A', quantity: 3, price: 30, discount: 3.33, amount: 90, note: '' }],
+  lineCount: 1, totalQuantity: 3
 };
 
 const RETURN_DETAIL = {
@@ -83,11 +93,11 @@ function createPage({ respond } = {}) {
   const urls = [];
   dom.window.fetch = (url) => {
     const href = String(url);
-    if (!href.startsWith('/api/order-detail') && !href.startsWith('/api/return-detail')) return new Promise(() => {});
+    if (!/^\/api\/(order|return|invoice)-detail/.test(href)) return new Promise(() => {});
     urls.push(href);
     const custom = respond && respond(href);
     if (custom) return custom;
-    const body = href.startsWith('/api/order-detail') ? ORDER_DETAIL : RETURN_DETAIL;
+    const body = href.startsWith('/api/order-detail') ? ORDER_DETAIL : href.startsWith('/api/invoice-detail') ? INVOICE_DETAIL : RETURN_DETAIL;
     return Promise.resolve({ ok: true, status: 200, json: async () => body });
   };
   ['pagination.js', 'table-explorer.js'].forEach(file => {
@@ -100,30 +110,30 @@ function createPage({ respond } = {}) {
   return { dom, doc, urls, $: id => doc.getElementById(id) };
 }
 
-const drawerText = page => page.$('docDrawerBody').textContent.replace(/\s+/g, ' ');
+const drawerText = page => page.$('docModalBody').textContent.replace(/\s+/g, ' ');
 // JSDOM (runScripts 'outside-only') khong chay onclick="..." inline: tu chay thuoc tinh do trong ngu canh trang.
 const clickInline = (page, element) => page.dom.window.eval(element.getAttribute('onclick'));
 
 test('bam dong dat hang: goi /api/order-detail dung ma + co so, panel hien khach, dong hang va tong tien', async () => {
   const page = createPage();
   await settle();
-  assert.equal(page.$('docDrawerBackdrop').hidden, true);
+  assert.equal(page.$('docModalBackdrop').hidden, true);
 
   page.$('orderRows').querySelectorAll('tr.doc-row')[1].click(); // DH-1 cua Sai Gon
   await settle();
 
   assert.deepEqual(page.urls, ['/api/order-detail?code=DH-1&branch=' + encodeURIComponent(SG)]);
-  assert.equal(page.$('docDrawerBackdrop').hidden, false);
-  assert.match(page.$('docDrawerTitle').textContent, /Chi tiết đơn đặt hàng DH-1/);
+  assert.equal(page.$('docModalBackdrop').hidden, false);
+  assert.match(page.$('docModalTitle').textContent, /Chi tiết đơn đặt hàng DH-1/);
   const text = drawerText(page);
   assert.match(text, /KH A/);
   assert.match(text, /Thu Hiền/);
   assert.match(text, /Hàng A/);
   assert.match(text, /5T/);
   assert.match(text, /2 dòng · 3 sản phẩm/);
-  assert.equal(page.$('docDrawerBody').querySelectorAll('tbody tr').length, 2);
-  assert.equal(page.$('docDrawerBody').querySelector('.doc-total-main dd').textContent, '100₫');
-  assert.equal(page.$('docDrawerBody').querySelector('b'), null, 'ghi chu phai duoc escape, khong chen HTML');
+  assert.equal(page.$('docModalBody').querySelectorAll('tbody tr').length, 2);
+  assert.equal(page.$('docModalBody').querySelector('.doc-total-main dd').textContent, '100₫');
+  assert.equal(page.$('docModalBody').querySelector('b'), null, 'ghi chu phai duoc escape, khong chen HTML');
 });
 
 test('bam dong tra hang: goi /api/return-detail va hien hoa don goc', async () => {
@@ -134,7 +144,7 @@ test('bam dong tra hang: goi /api/return-detail va hien hoa don goc', async () =
   await settle();
 
   assert.deepEqual(page.urls, ['/api/return-detail?code=TH-1&branch=' + encodeURIComponent(SG)]);
-  assert.match(page.$('docDrawerTitle').textContent, /Chi tiết phiếu trả hàng TH-1/);
+  assert.match(page.$('docModalTitle').textContent, /Chi tiết phiếu trả hàng TH-1/);
   const text = drawerText(page);
   assert.match(text, /HD013586/);
   assert.match(text, /bị lỗi/);
@@ -158,23 +168,23 @@ test('dong dang tai: hien "Dang tai"; Escape, nut x va bam nen deu dong panel', 
   row.click();
   assert.match(drawerText(page), /Đang tải/);
 
-  clickInline(page, page.$('docDrawerClose'));
-  assert.equal(page.$('docDrawerBackdrop').hidden, true);
+  clickInline(page, page.$('docModalClose'));
+  assert.equal(page.$('docModalBackdrop').hidden, true);
   // ket qua den muon sau khi da dong khong duoc ve lai panel
   resolveFetch({ ok: true, status: 200, json: async () => ORDER_DETAIL });
   await settle();
-  assert.equal(page.$('docDrawerBody').innerHTML, '');
+  assert.equal(page.$('docModalBody').innerHTML, '');
 
   row.click();
   await settle();
   page.doc.dispatchEvent(new page.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-  assert.equal(page.$('docDrawerBackdrop').hidden, true);
+  assert.equal(page.$('docModalBackdrop').hidden, true);
 
   row.click();
   await settle();
-  page.dom.window.handleDocumentDetailBackdropClick({ target: page.$('docDrawerBackdrop') });
-  assert.equal(page.$('docDrawerBackdrop').getAttribute('onclick'), 'handleDocumentDetailBackdropClick(event)');
-  assert.equal(page.$('docDrawerBackdrop').hidden, true);
+  page.dom.window.handleDocumentDetailBackdropClick({ target: page.$('docModalBackdrop') });
+  assert.equal(page.$('docModalBackdrop').getAttribute('onclick'), 'handleDocumentDetailBackdropClick(event)');
+  assert.equal(page.$('docModalBackdrop').hidden, true);
 });
 
 test('loi tu server (vd 404) hien thong diep server tra ve va co nut Thu lai', async () => {
@@ -191,7 +201,7 @@ test('loi tu server (vd 404) hien thong diep server tra ve va co nut Thu lai', a
   assert.match(drawerText(page), /Không tìm thấy đơn đặt hàng này/);
 
   fail = false;
-  clickInline(page, page.$('docDrawerBody').querySelector('button'));
+  clickInline(page, page.$('docModalBody').querySelector('button'));
   await settle();
   assert.match(drawerText(page), /Hàng A/);
 });
@@ -203,5 +213,29 @@ test('phim Enter tren dong (tabindex=0) cung mo panel', async () => {
   assert.equal(row.getAttribute('tabindex'), '0');
   row.dispatchEvent(new page.dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
   await settle();
-  assert.equal(page.$('docDrawerBackdrop').hidden, false);
+  assert.equal(page.$('docModalBackdrop').hidden, false);
+});
+
+test('bam dong "Chi tiet giao dich": goi /api/invoice-detail, hien ma don goc, giam gia va tong tien hang', async () => {
+  const page = createPage();
+  await settle();
+
+  page.$('endOfDayRows').querySelector('tr.doc-row').click();
+  await settle();
+
+  assert.deepEqual(page.urls, ['/api/invoice-detail?code=HD-1&branch=' + encodeURIComponent(HN)]);
+  assert.match(page.$('docModalTitle').textContent, /Chi tiết giao dịch HD-1/);
+  const text = drawerText(page);
+  assert.match(text, /Thời gian bán/);
+  assert.match(text, /DH-9/);
+  assert.match(text, /Giảm giá hóa đơn/);
+  assert.match(text, /Tổng tiền hàng/);
+  assert.equal(page.$('docModalBody').querySelectorAll('tbody tr').length, 1);
+});
+
+test('hop chi tiet nam GIUA man hinh (backdrop can giua), khong phai ngan keo canh phai', () => {
+  const rule = html.match(/\.doc-modal-backdrop\s*\{([^}]*)\}/)[1];
+  assert.match(rule, /align-items:\s*center/);
+  assert.match(rule, /justify-content:\s*center/);
+  assert.doesNotMatch(html, /doc-drawer/);
 });

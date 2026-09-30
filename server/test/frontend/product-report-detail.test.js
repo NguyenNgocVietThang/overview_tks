@@ -1,9 +1,8 @@
 'use strict';
 
-// Bang "Bao cao hang hoa" (tab Tong quan): bo cot "DS Khach lon nhat" (giu ten khach + %),
-// them nut "Chi tiet" moi dong. Nhan Chi tiet HOAC tim ten/ma san pham o o tim trong khung
-// duoi bang deu di qua 1 ham (selectProductReportDetail) nen phai cho ra ket qua y het nhau:
-// bang doanh so tung khach 90 ngay (so tien + %) va bieu do tron dat canh ben.
+// Bang "Bao cao hang hoa" (tab Tong quan): bo cot "DS Khach lon nhat" (giu ten khach + %), KHONG co
+// nut "Chi tiet" nua. Bam vao 1 dong mo hop chi tiet giua man hinh (dung chung voi bang giao dich/dat hang/tra hang)
+// gom bang doanh so tung khach 90 ngay (so tien + %) va bieu do tron dat canh ben.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -74,48 +73,49 @@ function createPage({ customers = code => customersPayload(code) } = {}) {
 }
 
 const pieCharts = page => page.charts.filter(chart => chart.config.type === 'doughnut' && !chart.destroyed);
+const rowOf = (page, code) => [...page.$('productReportRows').querySelectorAll('tr.doc-row')].find(tr => tr.dataset.tableItemId === code);
+const modalText = page => page.$('docModalBody').textContent.replace(/\s+/g, ' ');
 
-test('bang bo cot "DS Khach lon nhat" nhung giu "Khach lon nhat" va "% Khach lon nhat", them cot "Chi tiet" (van 11 cot)', async () => {
+test('bang bo cot "DS Khach lon nhat" va KHONG con cot/nut "Chi tiet" (10 cot), dong bam duoc', async () => {
   const page = createPage();
   await settle();
 
   const headers = [...page.$('productReportRows').closest('table').querySelectorAll('thead th')].map(th => th.textContent.replace(/[↕▲▼]/g, '').trim());
   assert.deepEqual(headers, [
-    'Mã SP', 'Tên SP', 'Tồn Hà Nội', 'Tồn Sài Gòn', 'Tổng tồn có thể bán', 'Tổng SL 30 ngày', 'DS 90 ngày',
-    'SL khách bán', 'Khách lớn nhất', '% Khách lớn nhất', 'Chi tiết'
+    'Mã SP', 'Tên SP', 'Tồn HN', 'Tồn SG', 'Tồn có bán', 'Tổng SL 30 ngày', 'DS 90 ngày',
+    'SL khách bán', 'Khách lớn nhất', '% Khách lớn nhất'
   ]);
-  assert.ok(!headers.includes('DS Khách lớn nhất'));
 
   const firstRow = page.$('productReportRows').querySelector('tr');
-  assert.equal(firstRow.cells.length, 11);
+  assert.equal(firstRow.cells.length, 10);
   assert.match(firstRow.cells[8].textContent, /KH A/);
   assert.match(firstRow.cells[9].textContent, /60/);
-  const button = firstRow.querySelector('button[data-product-detail]');
-  assert.equal(button.dataset.productDetail, 'SP-1');
+  assert.equal(page.$('productReportRows').querySelector('button'), null);
+  assert.equal(firstRow.getAttribute('tabindex'), '0');
 });
 
-test('cot "Chi tiet" khong co nut sap xep (khong phai du lieu de sort)', async () => {
+test('khung "Doanh so theo khach" va o tim san pham duoi bang da bi go', async () => {
   const page = createPage();
   await settle();
-  const headers = [...page.$('productReportRows').closest('table').querySelectorAll('thead th')];
-  assert.equal(headers[10].querySelector('.sort-button'), null);
-  assert.ok(headers[9].querySelector('.sort-button'), 'cot % Khach lon nhat van sort duoc');
+  ['productDetailPanel', 'productDetailSearchInput', 'productDetailSuggestions', 'productDetailEmptyState', 'productDetailContent']
+    .forEach(id => assert.equal(page.$(id), null, id + ' khong con'));
 });
 
-test('nhan Chi tiet: goi API dung ma, hien bang khach (so tien + %) va ve bieu do tron canh ben', async () => {
+test('bam 1 dong: goi API dung ma, hop giua man hinh hien bang khach (so tien + %) va bieu do tron canh ben', async () => {
   const page = createPage();
   await settle();
+  assert.equal(page.$('docModalBackdrop').hidden, true);
 
-  page.$('productReportRows').querySelector('button[data-product-detail="SP-1"]').click();
+  rowOf(page, 'SP-1').click();
   await settle();
 
   assert.ok(page.urls.includes('/api/product-report/customers?code=SP-1'));
-  assert.equal(page.$('productDetailContent').hidden, false);
-  assert.equal(page.$('productDetailEmptyState').hidden, true);
-  assert.match(page.$('productDetailTitle').textContent, /SP-1.*Khay giấy bạc/);
-  assert.equal(page.$('productDetailSearchInput').value, 'SP-1 - Khay giấy bạc');
+  assert.equal(page.$('docModalBackdrop').hidden, false);
+  assert.ok(page.doc.querySelector('.doc-modal').classList.contains('is-wide'));
+  assert.match(page.$('docModalTitle').textContent, /SP-1.*Khay giấy bạc/);
+  assert.match(page.$('docModalSubtitle').textContent, /3 khách.*600.*90 ngày/);
 
-  const rows = [...page.$('productDetailRows').querySelectorAll('tr')];
+  const rows = [...page.$('docModalBody').querySelectorAll('tbody tr')];
   assert.equal(rows.length, 3);
   assert.match(rows[0].cells[0].textContent, /KH A/);
   assert.match(rows[0].cells[1].textContent, /300/);
@@ -125,98 +125,35 @@ test('nhan Chi tiet: goi API dung ma, hien bang khach (so tien + %) va ve bieu d
   assert.equal(pies.length, 1);
   assert.deepEqual(pies[0].config.data.labels, ['KH A', 'KH B', 'KH C']);
   assert.deepEqual(pies[0].config.data.datasets[0].data, [300, 200, 100]);
-  // Bang va bieu do cung nam trong 1 khung duoi bang san pham (khong phai o phan khac cua trang).
-  const panel = page.$('productDetailPanel');
-  assert.ok(panel.contains(page.$('productDetailRows')) && panel.contains(page.$('productDetailChart')));
-  assert.ok(page.$('productReportRows').closest('.panel').compareDocumentPosition(panel) & 4, 'khung chi tiet nam SAU bang san pham');
+  assert.ok(page.$('docModalBody').contains(page.$('productDetailChart')), 'bieu do nam trong hop');
 });
 
-test('tim theo ten hoac ma roi chon goi y cho ra KET QUA Y HET nhu nhan nut Chi tiet', async () => {
-  const viaButton = createPage();
-  await settle();
-  viaButton.$('productReportRows').querySelector('button[data-product-detail="SP-1"]').click();
-  await settle();
-
-  const viaSearch = createPage();
-  await settle();
-  const input = viaSearch.$('productDetailSearchInput');
-  input.value = 'khay giấy';
-  viaSearch.run('handleProductDetailSearchInput()');
-  const suggestions = [...viaSearch.$('productDetailSuggestions').querySelectorAll('.suggestion-item')];
-  assert.equal(suggestions.length, 1);
-  assert.match(suggestions[0].textContent, /SP-1.*Khay giấy bạc/);
-  viaSearch.run('selectProductDetailSuggestion(0)');
-  await settle();
-
-  assert.deepEqual(viaSearch.urls.filter(u => u.includes('/customers')), viaButton.urls.filter(u => u.includes('/customers')));
-  ['productDetailTitle', 'productDetailRows', 'productDetailSummary', 'productDetailSearchInput'].forEach(id => {
-    const a = id === 'productDetailSearchInput' ? viaButton.$(id).value : viaButton.$(id).innerHTML;
-    const b = id === 'productDetailSearchInput' ? viaSearch.$(id).value : viaSearch.$(id).innerHTML;
-    assert.equal(b, a, id + ' phai giong nhau');
-  });
-  // JSON.stringify: 2 trang JSDOM la 2 realm rieng nen deepStrictEqual se bao lech prototype.
-  assert.equal(JSON.stringify(pieCharts(viaSearch)[0].config.data), JSON.stringify(pieCharts(viaButton)[0].config.data));
-  assert.equal(viaSearch.$('productDetailSuggestions').classList.contains('show'), false, 'chon xong thi dong goi y');
-});
-
-test('tim theo ma cung ra goi y (khong phan biet hoa thuong) va khong co ket qua thi khong hien goi y', async () => {
+test('bam dong khac: huy bieu do cu, chi con 1 bieu do; dong hop huy bieu do', async () => {
   const page = createPage();
   await settle();
-  const input = page.$('productDetailSearchInput');
 
-  input.value = 'sp-2';
-  page.run('handleProductDetailSearchInput()');
-  assert.match(page.$('productDetailSuggestions').textContent, /SP-2.*Bình nước nhựa/);
-
-  input.value = 'khong-co-ma-nay';
-  page.run('handleProductDetailSearchInput()');
-  assert.equal(page.$('productDetailSuggestions').classList.contains('show'), false);
-});
-
-test('bam Chi tiet o SP khac thi thay noi dung va huy bieu do cu; bam lai cung SP thi giu nguyen (khong goi API lai)', async () => {
-  const page = createPage();
-  await settle();
-  const buttonOf = code => page.$('productReportRows').querySelector('button[data-product-detail="' + code + '"]');
-
-  buttonOf('SP-1').click();
+  rowOf(page, 'SP-1').click();
   await settle();
   const firstPie = pieCharts(page)[0];
 
-  buttonOf('SP-2').click();
+  rowOf(page, 'SP-2').click();
   await settle();
   assert.ok(firstPie.destroyed, 'bieu do SP cu phai bi huy');
-  assert.equal(pieCharts(page).length, 1);
-  assert.match(page.$('productDetailTitle').textContent, /SP-2/);
+  assert.match(page.$('docModalTitle').textContent, /SP-2/);
 
-  const before = page.urls.length;
-  buttonOf('SP-2').click();
-  await settle();
-  assert.equal(page.urls.length, before);
-});
-
-test('nut x xoa lua chon: an noi dung, huy bieu do, xoa o tim', async () => {
-  const page = createPage();
-  await settle();
-  page.$('productReportRows').querySelector('button[data-product-detail="SP-1"]').click();
-  await settle();
-  assert.equal(page.$('productDetailClearBtn').hidden, false);
-
-  page.run('clearProductReportDetail()');
-
-  assert.equal(page.$('productDetailContent').hidden, true);
-  assert.equal(page.$('productDetailEmptyState').hidden, false);
-  assert.equal(page.$('productDetailSearchInput').value, '');
-  assert.equal(page.$('productDetailClearBtn').hidden, true);
+  page.run('closeDocumentDetail()');
+  assert.equal(page.$('docModalBackdrop').hidden, true);
   assert.equal(pieCharts(page).length, 0);
+  assert.equal(page.$('docModalBody').innerHTML, '');
 });
 
-test('nhieu khach: bieu do tron hien du tung khach (khong gop "Khac"), chu giai HTML liet ke du va bi xoa khi bo chon', async () => {
+test('nhieu khach: bieu do tron hien du tung khach (khong gop "Khac"), chu giai HTML liet ke du', async () => {
   const page = createPage({ customers: code => customersPayload(code, 14) });
   await settle();
-  page.$('productReportRows').querySelector('button[data-product-detail="SP-1"]').click();
+  rowOf(page, 'SP-1').click();
   await settle();
 
-  assert.equal(page.$('productDetailRows').querySelectorAll('tr').length, 14);
+  assert.equal(page.$('docModalBody').querySelectorAll('tbody tr').length, 14);
   const pie = pieCharts(page)[0];
   assert.equal(pie.config.data.labels.length, 14);
   assert.ok(!pie.config.data.labels.some(label => /^Khác/.test(label)));
@@ -225,38 +162,34 @@ test('nhieu khach: bieu do tron hien du tung khach (khong gop "Khac"), chu giai 
   const legendRows = page.$('productDetailLegend').querySelectorAll('.legend-row');
   assert.equal(legendRows.length, 14);
   assert.match(legendRows[0].textContent, /KH A/);
-
-  page.run('clearProductReportDetail()');
-  assert.equal(page.$('productDetailLegend').children.length, 0);
 });
 
 test('san pham chua co du lieu khach: thong bao ro rang, khong ve bieu do', async () => {
   const page = createPage({ customers: code => ({ code, totalRevenue: 0, customerCount: 0, rows: [] }) });
   await settle();
-  page.$('productReportRows').querySelector('button[data-product-detail="SP-2"]').click();
+  rowOf(page, 'SP-2').click();
   await settle();
 
-  assert.match(page.$('productDetailRows').textContent, /Chưa có dữ liệu khách/);
+  assert.match(modalText(page), /Chưa có dữ liệu khách/);
   assert.equal(pieCharts(page).length, 0);
 });
 
-test('API loi: hien thong bao loi trong khung chi tiet, khong vo trang', async () => {
+test('API loi: hien thong bao loi + nut Thu lai trong hop, khong vo trang', async () => {
   const page = createPage({ customers: () => new Error('boom') });
   await settle();
-  page.$('productReportRows').querySelector('button[data-product-detail="SP-1"]').click();
+  rowOf(page, 'SP-1').click();
   await settle();
 
-  assert.match(page.$('productDetailRows').textContent, /Không tải được/);
+  assert.match(modalText(page), /Không tải được doanh số khách/);
+  assert.ok(page.$('docModalBody').querySelector('button'), 'co nut Thu lai');
   assert.equal(pieCharts(page).length, 0);
 });
 
-test('dong dang xem duoc danh dau trong bang san pham', async () => {
+test('phim Enter tren dong cung mo hop chi tiet', async () => {
   const page = createPage();
   await settle();
-  page.$('productReportRows').querySelector('button[data-product-detail="SP-1"]').click();
+  rowOf(page, 'SP-1').dispatchEvent(new page.dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
   await settle();
-
-  const selected = [...page.$('productReportRows').querySelectorAll('tr.is-selected')];
-  assert.equal(selected.length, 1);
-  assert.equal(selected[0].dataset.tableItemId, 'SP-1');
+  assert.equal(page.$('docModalBackdrop').hidden, false);
+  assert.match(page.$('docModalTitle').textContent, /SP-1/);
 });
