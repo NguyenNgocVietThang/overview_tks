@@ -84,7 +84,7 @@ const VIEW_SOURCES = Object.freeze({
 
 // Khoa cua object `filters` (xem routes.js) anh huong ket qua cua tab.
 const VIEW_FILTER_KEYS = Object.freeze({
-  overview: ['overview'],
+  overview: ['overview', 'invoices'],
   products: ['products', 'newProducts', 'newlyImported'],
   invoices: ['invoices', 'orders', 'returns'],
   customers: ['customers'],
@@ -104,7 +104,7 @@ const VIEW_PAYLOAD = Object.freeze({
       'revenueToday', 'invoicesToday', 'cancelledToday', 'totalStock', 'totalProducts',
       'lowStockCount', 'totalInventoryValue', 'totalCustomers', 'customersWithDebt', 'totalDebt'
     ],
-    filters: ['overview']
+    filters: ['overview', 'invoices']
   },
   products: {
     top: ['products', 'stockValueByCategory', 'allProducts', 'stockByCategory'],

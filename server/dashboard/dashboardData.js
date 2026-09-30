@@ -2412,8 +2412,9 @@ function dashboardResultCacheKey(branch, plan, sourceVersions, filters) {
 async function fetchDashboardRollups(branch, { overviewRange, productsRange, invoicesRange, newPurchasesRange, newlyImportedRange }, plan) {
   const wanted = plan ? plan.rollups : new Set(ALL_ROLLUPS);
   const run = (name, load) => (wanted.has(name) ? load() : undefined);
-  const overviewBounds = rangeToDateBounds(overviewRange);
   const invoicesBounds = rangeToDateBounds(invoicesRange);
+  // Xu huong doanh thu theo ngay cua tab Tong quan dung bo loc `invoices` (chung voi bang Chi tiet giao dich).
+  const overviewBounds = invoicesBounds;
   const productsBounds = rangeToDateBounds(productsRange);
   const newPurchasesBounds = rangeToDateBounds(newPurchasesRange);
   // Thieu newlyImportedRange (nguoi goi cu) -> cung khoang voi Hang hoa.
@@ -2916,13 +2917,13 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   // Doanh thu theo ngay cua tab Tong quan/Hoa don — tu daily_invoice_summary
   // (rollup, chi gom status=3 Hoan thanh, xem dashboardRollupRepository.getInvoiceRevenueByDay())
   // thay vi tu gom lai `invoiceRecords` trong JS moi request.
-  const overviewPeriod = buildRevenuePeriodFromRollup(overviewRange, (rollups && rollups.overviewRevenueRows) || []);
+  const overviewPeriod = buildRevenuePeriodFromRollup(invoicesRange, (rollups && rollups.overviewRevenueRows) || []);
   const transactionsReport = view.has('invoices')
     ? buildTransactionsReport(invoicesRange, invoiceRecords, invoiceQuantityMap)
     : undefined;
 
   const invoicesPeriod = buildRevenuePeriodFromRollup(invoicesRange, (rollups && rollups.invoicesRevenueRows) || []);
-  const periodCancelledInvoices = view.has('invoices')
+  const periodCancelledInvoices = (view.has('invoices') || view.has('overview'))
     ? invoiceRecords.filter(record => record.isCancelled && isWithinRange(record._dt, invoicesRange)).length
     : 0;
 
@@ -3331,7 +3332,8 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     overview: {
       revenueByDay: overviewPeriod.revenueByDay,
       periodRevenue: overviewPeriod.periodRevenue,
-      periodInvoices: overviewPeriod.periodInvoices
+      periodInvoices: overviewPeriod.periodInvoices,
+      periodCancelledInvoices
     },
     products: {
       newProducts: {

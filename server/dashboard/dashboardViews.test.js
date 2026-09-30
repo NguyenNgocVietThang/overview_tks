@@ -54,7 +54,7 @@ test('Tong quan KHONG doc Dat hang/Tra hang/Nha cung cap/cong no va khong chay r
   assert.ok(!plan.coreKeys.includes(PERIODS_KEY));
   assert.deepEqual([...plan.rollups].sort(), ['overviewRevenue']);
   assert.equal(plan.needsDebt, false);
-  assert.deepEqual(plan.filterKeys, ['overview']);
+  assert.deepEqual(plan.filterKeys, ['overview', 'invoices']);
 });
 
 test('moi tab chi doc dung nguon cua no; Cong no chi can CN1/3/7 + workbook cong no', () => {
@@ -102,9 +102,8 @@ test('pickFilters: chi giu bo loc anh huong tab (cache key), ke hoach ca 6 tab g
   assert.equal(pickFilters(filters, resolveViewPlan()), filters);
   assert.deepEqual(pickFilters(filters, resolveViewPlan(['invoices'])), { invoices: { mode: 'days', days: 3 } });
   assert.deepEqual(pickFilters(filters, resolveViewPlan(['debt'])), {});
-  // Doi bo loc Hoa don khong doi khoa cua Tong quan / Hang hoa.
+  // Doi bo loc Hoa don khong doi khoa cua Hang hoa. (Tong quan dung chung bo loc `invoices` cho bieu do Xu huong.)
   const changed = { ...filters, invoices: { mode: 'days', days: 90 } };
-  assert.deepEqual(pickFilters(changed, resolveViewPlan(['overview'])), pickFilters(filters, resolveViewPlan(['overview'])));
   assert.deepEqual(pickFilters(changed, resolveViewPlan(['products'])), pickFilters(filters, resolveViewPlan(['products'])));
 });
 
@@ -119,7 +118,7 @@ test('pickFilters: bo loc rieng tung bang (newlyImported/orders/returns) vao cac
   assert.deepEqual(pickFilters(filters, resolveViewPlan(['invoices'])), {
     invoices: { mode: 'days', days: 3 }, orders: { mode: 'days', days: 60 }, returns: { mode: 'all' }
   });
-  assert.deepEqual(pickFilters(filters, resolveViewPlan(['overview'])), {});
+  assert.deepEqual(pickFilters(filters, resolveViewPlan(['overview'])), { invoices: { mode: 'days', days: 3 } });
   assert.deepEqual(VIEW_PAYLOAD.products.filters, ['products', 'newProducts', 'newlyImported']);
   assert.deepEqual(VIEW_PAYLOAD.invoices.filters, ['invoices', 'orders', 'returns']);
 });
@@ -140,7 +139,7 @@ test('pickPayload: cat dung phan cua tab, khong sua ban day du, Tong quan khong 
 
   const overview = pickPayload(full, resolveViewPlan(['overview']));
   assert.deepEqual(Object.keys(overview).sort(), ['filters', 'kpi', 'overview', 'updatedAt']);
-  assert.deepEqual(overview.filters, { overview: 1 });
+  assert.deepEqual(overview.filters, { overview: 1, invoices: 3 });
   assert.equal(overview.kpi.revenueToday, 1);
   assert.equal(overview.kpi.totalSuppliers, undefined, 'KPI nha cung cap khong thuoc tab Tong quan');
 

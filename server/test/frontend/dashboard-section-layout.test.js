@@ -22,11 +22,11 @@ function sectionTitles(name) {
   }));
 }
 
-test('Tổng quan có 3 phần (không còn Chỉ số then chốt đầu tab, không còn nhóm hàng)', () => {
+test('Tổng quan có 4 phần (Xu hướng đứng đầu; không còn Chỉ số then chốt đầu tab, không còn nhóm hàng)', () => {
   const titles = sectionTitles('overview');
-  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3']);
+  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3', '4']);
   assert.ok(!titles.some(s => /nhóm hàng/.test(s.title)), 'phan nhom hang da bi go');
-  assert.deepEqual(titles.map(s => s.title), ['Báo cáo doanh thu theo khách', 'Báo cáo hàng hóa', 'Kiểm tra đứt hàng']);
+  assert.deepEqual(titles.map(s => s.title), ['Xu hướng', 'Báo cáo doanh thu theo khách', 'Báo cáo hàng hóa', 'Kiểm tra đứt hàng']);
   ['endOfDayRows', 'chartTopTransactions', 'overviewPurchaseRows', 'chartOverviewPurchases', 'todayNewProductRows'].forEach(id => {
     assert.equal(view('overview').querySelector('#' + id), null, id + ' khong duoc nam o Tong quan');
   });
@@ -39,10 +39,14 @@ test('Tổng quan không còn phần nhóm hàng, Hàng hóa không còn phần 
   });
 });
 
-test('Hóa đơn: Xu hướng → Giao dịch → Phân tích, không còn Hóa đơn gần đây', () => {
+test('Hóa đơn: Giao dịch → Phân tích (Xu hướng đã chuyển sang Tổng quan), không còn Hóa đơn gần đây', () => {
   const titles = sectionTitles('invoices');
-  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3']);
-  assert.deepEqual(titles.map(s => s.title), ['Xu hướng', 'Giao dịch', 'Phân tích']);
+  assert.deepEqual(titles.map(s => s.step), ['1', '2']);
+  assert.deepEqual(titles.map(s => s.title), ['Giao dịch', 'Phân tích']);
+  ['chartInvoiceRevenue', 'in-revenue'].forEach(id => {
+    assert.equal(view('invoices').querySelector('#' + id), null, id + ' da chuyen sang Tong quan');
+    assert.ok(view('overview').querySelector('#' + id), id + ' phai nam o Tong quan');
+  });
   ['endOfDayRows', 'endOfDayPagination'].forEach(id => {
     assert.ok(view('invoices').querySelector('#' + id), id + ' phai nam o Hoa don');
   });
@@ -90,7 +94,7 @@ test('không còn mục Chỉ số then chốt đầu tab; mỗi mục con có h
     sections.forEach((section, index) => {
       assert.ok(section.querySelector('.section-kpis'), name + ' muc ' + (index + 1) + ' thieu chi so then chot');
       const firstBlock = section.querySelector(':scope > .section-head').nextElementSibling;
-      if (name !== 'overview' || index !== 0) {
+      if (name !== 'overview' || index !== 1) {
         assert.ok(firstBlock.classList.contains('section-kpis'), name + ' muc ' + (index + 1) + ': chi so phai o dau muc');
       }
     });

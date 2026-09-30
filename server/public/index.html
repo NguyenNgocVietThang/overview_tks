@@ -3207,10 +3207,42 @@
         <!-- ============ TỔNG QUAN ============ -->
         <div class="view active" id="view-overview">
           <div class="view-title">Tổng quan</div>
-          <div class="view-sub">Báo cáo doanh thu theo khách → báo cáo hàng hóa → kiểm tra đứt hàng · mỗi mục có chỉ số then chốt ở đầu</div>
+          <div class="view-sub">Xu hướng doanh thu → báo cáo doanh thu theo khách → báo cáo hàng hóa → kiểm tra đứt hàng · mỗi mục có chỉ số then chốt ở đầu</div>
 
           <section class="section">
             <div class="section-head"><span class="section-step">1</span>
+              <h2>Xu hướng <span class="section-note">doanh thu theo ngày · dùng chung khoảng Từ – Đến với bảng Chi tiết giao dịch ở tab Hóa đơn</span></h2>
+            </div>
+            <div class="kpi-grid section-kpis">
+              <div class="kpi-card col-4 accent-green">
+                <div class="eyebrow">Doanh thu trong kỳ</div>
+                <div class="value" id="in-revenue">—</div>
+                <div class="sub" id="in-revenue-sub">—</div>
+              </div>
+              <div class="kpi-card col-4 accent-blue">
+                <div class="eyebrow">Hóa đơn hoàn thành trong kỳ</div>
+                <div class="value" id="in-period-invoices">—</div>
+                <div class="sub" id="in-period-sub">—</div>
+              </div>
+              <div class="kpi-card col-4 accent-red">
+                <div class="eyebrow">Hóa đơn hủy trong kỳ</div>
+                <div class="value" id="in-cancelled">—</div>
+                <div class="sub" id="in-cancelled-sub">—</div>
+              </div>
+            </div>
+            <div class="grid">
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Doanh thu theo ngày</h2>
+                  <div class="table-search-tools" data-date-filter-slot="invoices"></div>
+                </div>
+                <div class="chart-box"><canvas id="chartInvoiceRevenue"></canvas></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-step">2</span>
               <h2>Báo cáo doanh thu theo khách <span class="section-note">chọn 1 khách để xem doanh thu 90 ngày gần
                   nhất</span></h2>
             </div>
@@ -3314,7 +3346,7 @@
           </section>
 
           <section class="section">
-            <div class="section-head"><span class="section-step">2</span>
+            <div class="section-head"><span class="section-step">3</span>
               <h2>Báo cáo hàng hóa <span class="section-note" id="productReportUpdatedAt">—</span></h2>
             </div>
             <div class="kpi-grid section-kpis" id="productReportKpis"></div>
@@ -3363,7 +3395,7 @@
           </section>
 
           <section class="section">
-            <div class="section-head"><span class="section-step">3</span>
+            <div class="section-head"><span class="section-step">4</span>
               <h2>Kiểm tra đứt hàng <span class="section-note">đối chiếu dữ liệu KiotViet đã đồng bộ</span></h2>
             </div>
             <div class="kpi-grid section-kpis" id="stockoutKpis"></div>
@@ -3806,44 +3838,12 @@
         <!-- ============ HÓA ĐƠN ============ -->
         <div class="view" id="view-invoices">
           <div class="view-title">Hóa đơn</div>
-          <div class="view-sub">Xu hướng doanh thu → chi tiết giao dịch → phân tích đơn chờ và trả
-            hàng
+          <div class="view-sub">Chi tiết giao dịch → phân tích đơn chờ và trả hàng
           </div>
+
 
           <section class="section">
             <div class="section-head"><span class="section-step">1</span>
-              <h2>Xu hướng <span class="section-note">doanh thu theo ngày · dùng chung khoảng Từ – Đến với bảng Chi tiết giao dịch</span></h2>
-            </div>
-            <div class="kpi-grid section-kpis">
-              <div class="kpi-card col-4 accent-green">
-                <div class="eyebrow">Doanh thu trong kỳ</div>
-                <div class="value" id="in-revenue">—</div>
-                <div class="sub" id="in-revenue-sub">—</div>
-              </div>
-              <div class="kpi-card col-4 accent-blue">
-                <div class="eyebrow">Hóa đơn hoàn thành trong kỳ</div>
-                <div class="value" id="in-period-invoices">—</div>
-                <div class="sub" id="in-period-sub">—</div>
-              </div>
-              <div class="kpi-card col-4 accent-red">
-                <div class="eyebrow">Hóa đơn hủy trong kỳ</div>
-                <div class="value" id="in-cancelled">—</div>
-                <div class="sub" id="in-cancelled-sub">—</div>
-              </div>
-            </div>
-            <div class="grid">
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Doanh thu theo ngày</h2>
-                  <div class="table-search-tools" data-date-filter-slot="invoices"></div>
-                </div>
-                <div class="chart-box"><canvas id="chartInvoiceRevenue"></canvas></div>
-              </div>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">2</span>
               <h2>Giao dịch <span class="section-note">chi tiết từng giao dịch trong khoảng thời gian đã chọn</span></h2>
             </div>
             <div class="kpi-grid section-kpis" id="transactionsKpis"></div>
@@ -3900,19 +3900,19 @@
           </section>
 
           <section class="section">
-            <div class="section-head"><span class="section-step">3</span>
+            <div class="section-head"><span class="section-step">2</span>
               <h2>Phân tích <span class="section-note">hai luồng ảnh hưởng doanh thu: đơn chờ và trả hàng</span></h2>
             </div>
             <div class="kpi-grid section-kpis">
               <div class="kpi-card col-6 accent-amber">
                 <div class="eyebrow">Đặt hàng đang chờ</div>
-                <div class="value" id="in-pending-count">—</div>
-                <div class="sub" id="in-pending-total">—</div>
+                <div class="value" id="in-pending-total">—</div>
+                <div class="sub" id="in-pending-count">—</div>
               </div>
               <div class="kpi-card col-6">
                 <div class="eyebrow">Trả hàng</div>
-                <div class="value" id="in-returns-count">—</div>
-                <div class="sub" id="in-returns-total">—</div>
+                <div class="value" id="in-returns-total">—</div>
+                <div class="sub" id="in-returns-count">—</div>
               </div>
             </div>
             <div class="grid">
@@ -7845,7 +7845,19 @@
       if (!d || !viewIsLoaded(view)) return;
       // Tong quan: cac muc (doanh thu theo khach, bao cao hang hoa, dut hang) tu tai du lieu
       // va ve chi so rieng (renderCustomerProductReport/renderProductReport/renderStockoutKpis).
-      if (view === 'products') {
+      if (view === 'overview') {
+        // Xu huong doanh thu theo ngay: bo loc `invoices` (chung voi bang Chi tiet giao dich o tab Hoa don).
+        const trend = d.overview || {};
+        const trendRangeLabel = d.filters && d.filters.invoices ? d.filters.invoices.label : ((d.days || state.days) + ' ngày');
+        document.getElementById('in-revenue').textContent = fmtMoney(trend.periodRevenue);
+        document.getElementById('in-revenue-sub').textContent = trendRangeLabel;
+        document.getElementById('in-period-invoices').textContent = fmtNumber(Number(trend.periodInvoices || 0));
+        document.getElementById('in-period-sub').textContent = trendRangeLabel;
+        document.getElementById('in-cancelled').textContent = fmtNumber(Number(trend.periodCancelledInvoices || 0));
+        document.getElementById('in-cancelled-sub').textContent = trendRangeLabel;
+        renderRevenueChart('chartInvoiceRevenue', 'invoiceRevenue', trend.revenueByDay || [], true);
+      }
+      else if (view === 'products') {
         const productRangeLabel = d.filters && d.filters.products ? d.filters.products.label : '30 ngày';
         const newlyImportedRangeLabel = d.filters && d.filters.newlyImported ? d.filters.newlyImported.label : productRangeLabel;
         document.getElementById('productAnalysisPeriod').textContent = 'doanh thu: ' + productRangeLabel;
@@ -7860,8 +7872,8 @@
         document.getElementById('tagAllProducts').textContent = filteredProducts.length;
         renderSectionKpis('allProductsKpis', [
           { label: 'Tổng số mã hàng', value: fmtNumber(filteredProducts.length), accent: 'amber' },
-          { label: 'Tổng tồn kho', value: fmtNumber(sumBy(filteredProducts, p => p.stock)), accent: 'blue' },
-          { label: 'Tổng khách đặt', value: fmtNumber(sumBy(filteredProducts, p => p.reserved)) }
+          { label: 'Tổng giá trị tồn kho', value: fmtMoney(sumBy(filteredProducts, p => Math.max(Number(p.stock) || 0, 0) * (Number(p.cost) || 0))), sub: 'Theo giá vốn', accent: 'blue' },
+          { label: 'Tổng giá trị khách đặt', value: fmtMoney(sumBy(filteredProducts, p => Math.max(Number(p.reserved) || 0, 0) * (Number(p.cost) || 0))), sub: 'Theo giá vốn' }
         ]);
         renderPaginatedRows(
           'allProducts',
@@ -7972,13 +7984,6 @@
       else if (view === 'invoices') {
         const invoiceData = d.invoices || d;
         const invoiceRangeLabel = d.filters && d.filters.invoices ? d.filters.invoices.label : ((d.days || state.days) + ' ngày');
-        document.getElementById('in-revenue').textContent = fmtMoney(invoiceData.periodRevenue);
-        document.getElementById('in-revenue-sub').textContent = invoiceRangeLabel;
-        document.getElementById('in-period-invoices').textContent = fmtNumber(Number(invoiceData.periodInvoices || 0));
-        document.getElementById('in-period-sub').textContent = invoiceRangeLabel;
-        document.getElementById('in-cancelled').textContent = fmtNumber(Number(invoiceData.periodCancelledInvoices || 0));
-        document.getElementById('in-cancelled-sub').textContent = invoiceRangeLabel;
-        renderRevenueChart('chartInvoiceRevenue', 'invoiceRevenue', invoiceData.revenueByDay || [], true);
 
         const report = invoiceData.transactionsReport || { date: '—', transactions: [], topTransactions: [], summary: {} };
         const summary = report.summary || {};
@@ -8012,12 +8017,12 @@
           'Chưa có giao dịch trong khoảng đã chọn'
         );
 
-        document.getElementById('in-pending-count').textContent = fmtNumber(Number(invoiceData.pendingOrdersCount || 0));
-        const ordersRangeLabel = d.filters && d.filters.orders ? d.filters.orders.label : invoiceRangeLabel;
+                const ordersRangeLabel = d.filters && d.filters.orders ? d.filters.orders.label : invoiceRangeLabel;
         const returnsRangeLabel = d.filters && d.filters.returns ? d.filters.returns.label : invoiceRangeLabel;
-        document.getElementById('in-pending-total').textContent = fmtMoney(invoiceData.pendingOrdersTotal) + ' · ' + ordersRangeLabel;
-        document.getElementById('in-returns-count').textContent = fmtNumber(Number(invoiceData.returnsCount || 0));
-        document.getElementById('in-returns-total').textContent = fmtMoney(invoiceData.totalReturns) + ' · ' + returnsRangeLabel;
+        document.getElementById('in-pending-total').textContent = fmtMoney(invoiceData.pendingOrdersTotal);
+        document.getElementById('in-pending-count').textContent = fmtNumber(Number(invoiceData.pendingOrdersCount || 0)) + ' đơn · ' + ordersRangeLabel;
+        document.getElementById('in-returns-total').textContent = fmtMoney(invoiceData.totalReturns);
+        document.getElementById('in-returns-count').textContent = fmtNumber(Number(invoiceData.returnsCount || 0)) + ' phiếu · ' + returnsRangeLabel;
 
         const periodOrders = invoiceData.periodOrders || [];
         document.getElementById('tagOrders').textContent = periodOrders.length;
@@ -8499,7 +8504,7 @@
 
     // Bo loc (khoa cua state.filters) anh huong tung tab — khop VIEW_FILTER_KEYS phia server.
     const VIEW_FILTER_SOURCES = {
-      overview: [],
+      overview: ['invoices'],
       products: ['topSelling', 'newlyImported', 'newProducts'],
       invoices: ['invoices', 'orders', 'returns'],
       customers: ['customers'],

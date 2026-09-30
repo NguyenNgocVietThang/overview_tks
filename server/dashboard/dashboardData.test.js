@@ -1922,8 +1922,9 @@ test('getDashboardData: doanh thu theo ngay (Tong quan/Hoa don) doc tu getInvoic
   };
   const data = await dashboardData.getDashboardData(filters);
 
-  assert.equal(calls.length, 2, 'goi rieng cho overviewRange va invoicesRange');
-  assert.deepEqual([calls[0].from, calls[0].to], ['2026-08-01', '2026-08-31']);
+  // Xu huong Tong quan dung chung bo loc `invoices` (khong dung filters.overview).
+  assert.equal(calls.length, 2, 'goi rieng cho Tong quan va Hoa don');
+  assert.deepEqual([calls[0].from, calls[0].to], ['2026-08-10', '2026-08-10']);
   assert.deepEqual([calls[1].from, calls[1].to], ['2026-08-10', '2026-08-10']);
 
   assert.equal(data.overview.periodRevenue, 500000);

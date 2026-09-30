@@ -159,10 +159,10 @@ test('khoi dong khong hash: CHI tai tab Tong quan, khong keo 5 tab con lai va kh
 
   assert.equal(page.calls.length, 1);
   const url = page.calls[0].url;
-  assert.match(url, /^\/api\/dashboard\?view=overview&days=30$/);
+  assert.match(url, /^\/api\/dashboard\?view=overview&days=30&inMode=days&inDays=30$/, 'Tong quan chi gui bo loc Hoa don cho bieu do Xu huong');
   assert.doesNotMatch(url, /prMode|prDays/, 'Tong quan khong con dung bo loc Hang hoa');
   assert.doesNotMatch(url, /prStatus/, 'khong con bo loc trang thai kinh doanh');
-  assert.doesNotMatch(url, /inMode|puMode|cuMode/, 'khong gui bo loc Hoa don/Nha cung cap/Khach hang');
+  assert.doesNotMatch(url, /puMode|cuMode|orMode|rtMode/, 'khong gui bo loc Nha cung cap/Khach hang/Dat hang/Tra hang');
   assert.equal(page.veilOn(), false, 'man che tat sau khi tai xong');
 });
 
@@ -235,7 +235,7 @@ test('doi bo loc tab dang xem chi tai lai tab do, khong keo tab khac', async () 
   assert.match(page.calls[2].url, /view=invoices&days=30&inMode=range&inFrom=2026-09-01&inTo=2026-09-07/);
 });
 
-test('doi bo loc Hoa don hay Hang hoa deu khong lam Tong quan tai lai', async () => {
+test('doi bo loc Hoa don lam Tong quan tai lai (chung bo loc Xu huong); doi bo loc Hang hoa thi khong', async () => {
   const page = createPage();
   await settle();
   page.run("switchView('invoices')");
@@ -246,7 +246,8 @@ test('doi bo loc Hoa don hay Hang hoa deu khong lam Tong quan tai lai', async ()
 
   page.run("switchView('overview')");
   await settle();
-  assert.equal(page.calls.length, before, 'chu ky Tong quan khong gom bo loc Hoa don -> khong tai lai');
+  assert.equal(page.calls.length, before + 1, 'Tong quan dung bo loc Hoa don cho Xu huong -> tai lai 1 lan');
+  assert.match(page.calls[page.calls.length - 1].url, /view=overview.*inFrom=2026-09-01/);
 
   page.run("switchView('products')");
   await settle();
@@ -397,7 +398,7 @@ test('cache sessionStorage luu theo tab (kem views) va khoi phuc: ve ngay tu cac
   await settle();
   const cache = JSON.parse(first.dom.window.sessionStorage.getItem('tksDashboardCache'));
   assert.deepEqual(Object.keys(cache.views).sort(), ['overview', 'suppliers']);
-  assert.match(cache.views.overview.sig, /^view=overview&days=30$/);
+  assert.match(cache.views.overview.sig, /^view=overview&days=30&inMode=days&inDays=30$/);
   assert.equal(cache.data.kpi.totalSuppliers, 4);
 
   const second = createPage({ hash: '#suppliers', cache, respond: () => undefined });
