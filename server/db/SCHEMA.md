@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0024`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0026`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -10,7 +10,7 @@ Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/00
 - Các entity lấy trực tiếp từ KiotViet lưu toàn bộ object nguồn trong `raw JSONB`; các cột first-class dùng để join, lọc và sắp xếp.
 - `status` giữ nguyên mã `SMALLINT` từ KiotViet, không suy diễn nhãn trong tầng lưu trữ.
 - `synced_at` là thời điểm bản ghi được ghi vào Postgres, không thay thế `created_date` hoặc `modified_date` của KiotViet.
-- 4 bảng rollup báo cáo Dashboard (migration `0013`) là ngoại lệ: không có `raw`, không theo quy ước `branch` là cột đầu PK duy nhất (khóa chính của chúng ghép thêm ngày/mã hàng/NCC vì là bảng tổng hợp, không phải bản sao 1-1 của KiotViet).
+- 3 bảng rollup báo cáo Dashboard (migration `0013`, `daily_purchase_summary` đã bỏ ở `0026`) là ngoại lệ: không có `raw`, không theo quy ước `branch` là cột đầu PK duy nhất (khóa chính của chúng ghép thêm ngày/mã hàng vì là bảng tổng hợp, không phải bản sao 1-1 của KiotViet).
 
 ## Ánh xạ định danh cơ sở
 
@@ -28,7 +28,6 @@ Ba hệ định danh này khác nhau. Code sync phải nhận `branch` rõ ràng
 | `categories` | Nhóm hàng | `(branch, id)` | `parent_id`, `name`, `rank`, `modified_date` |
 | `products` | Hàng hóa và trạng thái hoạt động | `(branch, id)` | `code`, `name`, `category_id`, `base_price`, `unit`, `is_active`, các ngày |
 | `customers` | Khách hàng | `(branch, id)` | `code`, `name`, `phone`, `group_id`, `debt`, `total_revenue`, các ngày |
-| `suppliers` | Nhà cung cấp | `(branch, id)` | `code`, `name`, `phone`, `group_id`, `debt`, các ngày |
 | `staff` | Nhân viên suy luận từ các entity khác | `(branch, id)` | `name`, `first_seen_at`, `last_seen_at` |
 | `sync_checkpoints` | Tiến độ từng entity của từng cơ sở | `(branch, entity)` | `last_synced_at`, `last_success_at`, `note` |
 | `invoices` | Hóa đơn | `(branch, id)` | `code`, `purchase_date`, `customer_id`, `sold_by_id`, tiền, `status`, các ngày |
@@ -118,14 +117,13 @@ Role Postgres cấp cho nhân viên dùng SQL client/BI tool để truy vấn tr
 | `daily_product_sales` | Số lượng/doanh thu bán theo ngày của từng mã hàng, dùng cho "Top sản phẩm bán chạy" và doanh thu theo nhóm hàng | `(branch, sale_date, product_id)` | `qty`, `revenue` (mọi hóa đơn `statusValue != 'Đã hủy'`, tức gồm cả Phiếu tạm/Đang xử lý — **khác** điều kiện `daily_invoice_summary`) |
 
 **Quan trọng — không được lọc theo số `status` trực tiếp**: mã số không có ý nghĩa cố định giữa các entity/cửa hàng (đối chiếu dữ liệu thật 2026-09-18 xác nhận `invoices.status=1` là "Hoàn thành", KHÔNG PHẢI `status=3` như giả định ban đầu — `status=3` thực ra là "Đang xử lý"). Luôn lọc qua `raw->>'statusValue'` (chuỗi thật từ KiotViet), không suy diễn số.
-| `daily_purchase_summary` | Số phiếu nhập/tổng tiền nhập theo ngày và theo NCC | `(branch, purchase_date, supplier_id)` | `order_count`, `total` (gộp trực tiếp trên `purchases`, không join `purchase_details`) |
 | `product_first_purchase` | Ngày nhập hàng đầu tiên của từng mã hàng (toàn bộ lịch sử, không giới hạn cửa sổ refresh) | `(branch, product_id)` | `first_purchase_date` (MIN, giữ mốc cũ hơn khi `ON CONFLICT` qua `LEAST`) |
 
-- Cả 4 bảng không có cột `raw`, chỉ lưu số đã tổng hợp — tên/nhóm hàng/trạng thái hiện tại luôn join trực tiếp với `products`/`categories`/`suppliers` tại thời điểm đọc, không lưu lại (bake) vào rollup để tránh phải tính lại khi đổi tên/nhóm.
-- Refresh bởi `server/kiotvietSync/dashboardRollupRefresh.js`: lượt "nóng" 7 ngày sau mỗi lượt sync fast, lượt đầy đủ cửa sổ 400 ngày mỗi 30 phút cho `daily_invoice_summary`/`daily_product_sales`/`daily_purchase_summary`. `product_first_purchase` cần toàn bộ lịch sử `purchases` (ngày nhập đầu tiên có thể xa hơn 400 ngày) nên bản quét đầy đủ chỉ chạy lúc khởi động và mỗi 6 giờ; giữa hai lần đó chỉ xét phiếu nhập trong cửa sổ ngày gần đây.
+- Cả 3 bảng không có cột `raw`, chỉ lưu số đã tổng hợp — tên/nhóm hàng/trạng thái hiện tại luôn join trực tiếp với `products`/`categories` tại thời điểm đọc, không lưu lại (bake) vào rollup để tránh phải tính lại khi đổi tên/nhóm.
+- Refresh bởi `server/kiotvietSync/dashboardRollupRefresh.js`: lượt "nóng" 7 ngày sau mỗi lượt sync fast, lượt đầy đủ cửa sổ 400 ngày mỗi 30 phút cho `daily_invoice_summary`/`daily_product_sales`. `product_first_purchase` cần toàn bộ lịch sử `purchases` (ngày nhập đầu tiên có thể xa hơn 400 ngày) nên bản quét đầy đủ chỉ chạy lúc khởi động và mỗi 6 giờ; giữa hai lần đó chỉ xét phiếu nhập trong cửa sổ ngày gần đây.
 - **Chỉ ghi dòng thật sự đổi**: mỗi cầu SQL gộp trước rồi `LEFT JOIN` vào bảng đích và bỏ dòng có giá trị y hệt (`IS DISTINCT FROM`), nên `updated_at` là "lần thay đổi gần nhất", không phải "lần tính lại gần nhất". Đừng đổi lại thành `ON CONFLICT DO UPDATE` vô điều kiện (kể cả thêm `WHERE` trong `DO UPDATE` cũng chưa đủ — Postgres vẫn khoá từng dòng trùng khoá và ghi WAL): bản cũ từng UPDATE ~115 triệu lần trên 62.000 dòng, sinh ~37GB WAL + ~115GB tệp tạm trong 34 ngày làm cạn Disk IO Budget của Supabase (2026-09-28).
 - Bộ lọc ngày so sánh thẳng cột gốc với mốc `TIMESTAMPTZ` (không bọc `(cột AT TIME ZONE 'UTC')::date`) để dùng được các index ngày (migration `0021`).
-- Không `REVOKE SELECT FROM reporting_readonly` trên 4 bảng này — dữ liệu chỉ là số tổng hợp, không nhạy cảm.
+- Không `REVOKE SELECT FROM reporting_readonly` trên 3 bảng này — dữ liệu chỉ là số tổng hợp, không nhạy cảm.
 
 ### Hoạt động công nợ theo kỳ CN1/CN3/CN7 (migration `0014`)
 
@@ -155,8 +153,6 @@ Role Postgres cấp cho nhân viên dùng SQL client/BI tool để truy vấn tr
 | Đặt hàng | `orders` | |
 | Trả hàng | `returns` | |
 | Khách hàng | `customers` | |
-| Nhà cung cấp | `suppliers` | |
-| Nhập hàng | `purchases` | `purchase_details`, `suppliers`, `products` |
 
 ## Quan hệ và index
 
@@ -181,7 +177,7 @@ trình là an toàn vì mọi bảng dùng `UPSERT` theo `(branch, id)`.
 
 ### Báo cáo hàng hóa (migration `0018`)
 
-`product_report` là bảng tổng hợp cho tab "Tổng quan" — cùng ngoại lệ như 4 bảng rollup ở migration `0013` (không có `raw`, khóa chính không bắt đầu bằng `branch` vì mỗi dòng gộp dữ liệu **cả 2 cơ sở** cho 1 mã hàng). Khóa chính là `product_code`. Được `TRUNCATE` + nạp lại toàn bộ **đúng 1 lần/đêm** bởi `server/kiotvietSync/productReportRefresh.js` (không phải mỗi 5 phút như các rollup khác — truy vấn quét 90 ngày hóa đơn cả 2 cơ sở là nặng, xem comment đầu file đó), route `GET /api/product-report` chỉ đọc thẳng bảng này.
+`product_report` là bảng tổng hợp cho tab "Tổng quan" — cùng ngoại lệ như các bảng rollup ở migration `0013` (không có `raw`, khóa chính không bắt đầu bằng `branch` vì mỗi dòng gộp dữ liệu **cả 2 cơ sở** cho 1 mã hàng). Khóa chính là `product_code`. Được `TRUNCATE` + nạp lại toàn bộ **đúng 1 lần/đêm** bởi `server/kiotvietSync/productReportRefresh.js` (không phải mỗi 5 phút như các rollup khác — truy vấn quét 90 ngày hóa đơn cả 2 cơ sở là nặng, xem comment đầu file đó), route `GET /api/product-report` chỉ đọc thẳng bảng này.
 
 Cột `available_to_sell` = tồn 2 cơ sở trừ số lượng đang bị giữ trong **đơn đặt hàng của khách** (bảng `orders`, trạng thái `Phiếu tạm`/`Đang xử lý`/`Đã xác nhận`) — không liên quan đến `purchases` (phiếu đặt NCC). Cột `qty_sold_30d`/`revenue_90d` cộng từ `daily_product_sales` (migration `0013`) trong cửa sổ kết thúc **hôm qua** theo lịch VN (không tính hôm nay). Cột `customer_count_90d`/`top_customer_*` tính trực tiếp từ `invoice_details`/`invoices`/`customers` trong 90 ngày, dùng chung định nghĩa "hóa đơn hợp lệ" (`statusValue != 'Đã hủy'`) với `revenue_90d` để `top_customer_share` không bao giờ vượt 100%.
 
@@ -239,4 +235,12 @@ Gỡ bỏ tab "Nhà cung cấp" khỏi dashboard:
 - `DROP TABLE IF EXISTS suppliers;`
 - Xóa bản ghi tiến độ trong `sync_checkpoints` và `backfill_progress` với `entity = 'suppliers'`.
 - Các bảng `purchases`, `purchase_details`, `product_first_purchase` vẫn được giữ nguyên để phục vụ tab Hàng hóa và cảnh báo đứt hàng.
+
+### Quản lý tài liệu quy định công ty (migration `0027`)
+
+Bảng `hr_rule_documents` lưu trữ tài liệu quy định công ty (cả tài liệu dựng sẵn và file PDF upload):
+- `kind`: `builtin` (dựng sẵn, `builtin_key` NOT NULL, `content` NULL) hoặc `pdf` (tài liệu tải lên, lưu trong `content` BYTEA).
+- Gồm `title`, `sort_order`, `file_name`, `size_bytes`, `sha256`, `uploaded_by_user_id`, `uploaded_by_name`.
+- Seed 2 tài liệu mặc định: `gio-giac` (Giờ giấc làm việc, sort 10) và `nghi-phep` (Quy định nghỉ phép, sort 20).
+- Thu hồi quyền `SELECT` của `reporting_readonly` do chứa tài liệu nội bộ.
 

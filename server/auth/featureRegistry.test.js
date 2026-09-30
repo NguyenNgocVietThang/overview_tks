@@ -40,7 +40,7 @@ test('mac dinh theo vai tro: hr.* va account.users danh cho moi vai tro noi bo',
 });
 
 test('chi Quan ly moi co cac quyen quan tri mac dinh', () => {
-  const managerOnly = ['hr.leave.manage', 'account.users.manage', 'account.permissions', 'system.syncStatus'];
+  const managerOnly = ['hr.leave.manage', 'hr.rules.manage', 'account.users.manage', 'account.permissions', 'system.syncStatus'];
   for (const key of managerOnly) {
     assert.ok(registry.defaultsForRole(ROLES.QUAN_LY).includes(key), `Quản lý phai co ${key}`);
     for (const role of Object.values(ROLES)) {
