@@ -1,8 +1,8 @@
 // ==========================================
 // DASHBOARD DATA — cung cap du lieu cho Web App (GET /api/dashboard)
 //
-// Nguon du lieu KiotViet (9 tab: Nhóm hàng/Hàng hóa/Hóa đơn/Chi tiết hóa
-// đơn/Đặt hàng/Trả hàng/Khách hàng/Nhà cung cấp/Nhập hàng) doc tu Supabase
+// Nguon du lieu KiotViet (7 tab: Nhóm hàng/Hàng hóa/Hóa đơn/Chi tiết hóa
+// đơn/Đặt hàng/Trả hàng/Khách hàng) doc tu Supabase
 // Postgres qua dashboardPgReader.js — module do dung lai dung shape
 // `[header, ...rows]` cua Sheets nen toan bo logic tinh toan ben duoi KHONG
 // doi. Tap khach hang co giao dich 1/3/7 ngay doc tu Supabase qua
@@ -31,7 +31,6 @@ const OUT_OF_STOCK_LEVEL = 0;
 const TOP_SELLING_LIMIT = 15;
 const NEWLY_IMPORTED_REVENUE_LIMIT = 15;
 const MAX_PARENT_CATEGORY_BARS = 30;
-const NEW_PURCHASES_SUPPLIER_LIMIT = 30; // top NCC cho bieu do 2 cot
 const SEARCH_CACHE_TTL_MS = 2 * 60 * 1000;
 const MAX_MULTI_SEARCH_CODES = 50;
 const DASHBOARD_SHEETS_CACHE_TTL_MS = 90 * 1000;
@@ -384,32 +383,14 @@ const SEARCH_SOURCES = {
     sheetName: CONFIG.SHEET_CUSTOMERS,
     codeIndex: 0,
     nameIndex: 1
-  },
-  suppliers: {
-    label: CONFIG.SHEET_SUPPLIERS,
-    sheetName: CONFIG.SHEET_SUPPLIERS,
-    codeIndex: 0,
-    nameIndex: 1
-  },
-  purchases: {
-    label: CONFIG.SHEET_PURCHASES,
-    sheetName: CONFIG.SHEET_PURCHASES,
-    // Sheet "Nhập hàng" da doi sang cap dong hang (xem PURCHASE_SHEET_HEADERS
-    // trong SheetSchemas.gs) nen cot khong con o vi tri co dinh — uu tien tim
-    // theo TEN COT, codeIndex/nameIndex chi la fallback neu khong tim thay header.
-    codeHeader: 'Mã nhập hàng',
-    nameHeader: 'Tên nhà cung cấp',
-    codeIndex: 0,
-    nameIndex: 2
   }
 };
 
 const SEARCH_SCOPES = {
-  overview: ['products', 'invoices', 'orders', 'returns', 'customers', 'suppliers', 'purchases'],
+  overview: ['products', 'invoices', 'orders', 'returns', 'customers'],
   products: ['products'],
   invoices: ['invoices', 'orders', 'returns'],
-  customers: ['customers'],
-  suppliers: ['suppliers', 'purchases']
+  customers: ['customers']
 };
 
 // ---------- Cache THEO CO SO -------------------------------------------------
@@ -458,14 +439,7 @@ function buildSearchIndex(sheets) {
     const headers = rows[0] || [];
     const records = [];
 
-    const headerCodeIndex = source.codeHeader
-      ? headers.findIndex(header => String(header || '').trim() === source.codeHeader)
-      : -1;
-    const headerNameIndex = source.nameHeader
-      ? headers.findIndex(header => String(header || '').trim() === source.nameHeader)
-      : -1;
-    const codeIndex = headerCodeIndex >= 0 ? headerCodeIndex : source.codeIndex;
-    const nameIndex = headerNameIndex >= 0 ? headerNameIndex : source.nameIndex;
+    const { codeIndex, nameIndex } = source;
 
     for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
       const row = rows[rowIndex] || [];
@@ -779,7 +753,7 @@ function searchFieldValue(fields, label) {
 
 // Nguon giao dich: cung ma co the ton tai o ca hai co so nen ket qua "Ca hai" phai
 // kem co so vat ly (cot "Chi nhánh" da duoc mergeTransactionalSheet ghi de).
-const TRANSACTIONAL_SEARCH_SOURCES = new Set(['invoices', 'orders', 'returns', 'purchases']);
+const TRANSACTIONAL_SEARCH_SOURCES = new Set(['invoices', 'orders', 'returns']);
 
 function toSearchResult(source, indexedSource, record, aggregate) {
   const result = {
@@ -1069,14 +1043,14 @@ async function getCachedDashboardSheets(branch) {
   return loading;
 }
 
-// ---------- Cache "core" (7/9 tab, nhanh) — dung RIENG cho /api/dashboard ----------
-// Bo "Chi tiết hóa đơn"/"Nhập hàng" (2 tab nang nhat, ~14s/lan doc) — cac khoi
-// tung can 2 tab nay trong computeDashboardData() gio doc tu
+// ---------- Cache "core" (6/7 tab, nhanh) — dung RIENG cho /api/dashboard ----------
+// Bo "Chi tiết hóa đơn" (tab nang nhat, ~14s/lan doc) — cac khoi
+// tung can tab nay trong computeDashboardData() gio doc tu
 // dashboardRollupRepository.js thay the. KHONG goi rememberSearchSheets() —
 // chi muc tim kiem van chi xay tu cache "full" (getCachedDashboardSheets),
 // dung cho /api/search (xuat Excel khong con dung cache nay, xem exportService.js).
 //
-// Cache THEO TUNG BANG (7 bang core + CN1/3/7 "@periods"), moi bang co TTL /
+// Cache THEO TUNG BANG (6 bang core + CN1/3/7 "@periods"), moi bang co TTL /
 // stale-while-revalidate / version rieng: tab Tong quan chi doc Hang hoa + Hoa
 // don + Khach hang + Nhom hang, khong phai cho bang Dat hang (~23K dong, ~2,8s).
 // Cac bang thieu/qua cu trong cung 1 lan goi duoc gop thanh 1 lan doc Postgres
@@ -2174,16 +2148,11 @@ const ENTITY_MERGE_SPECS = {
       sumByBranchOutputHeader: CUSTOMER_DEBT_BY_BRANCH_HEADER
     }
   },
-  [CONFIG.SHEET_SUPPLIERS]: {
-    codeHeader: 'Mã NCC',
-    additiveHeaders: ['Nợ cần trả', 'Tổng mua', 'Tổng mua trừ trả hàng'],
-    options: { branchHeader: SHEET_FACILITY_HEADER }
-  },
   [CONFIG.SHEET_CATEGORIES]: { codeHeader: 'Mã nhóm hàng', additiveHeaders: [], options: {} }
 };
 
 /**
- * Gop cac dong thuc the (san pham/khach/NCC) cua nhieu co so vat ly theo ma —
+ * Gop cac dong thuc the (san pham/khach) cua nhieu co so vat ly theo ma —
  * `branchSources` = [{ branch, sheets: { [sheetName]: [header, ...rows] } }].
  * Tra ve [header, ...rows] (hoac null neu sheet khong co quy tac gop thuc the).
  */
@@ -2197,7 +2166,7 @@ function mergeDashboardSheets(branchSources) {
   const sheetNames = new Set(branchSources.flatMap(source => Object.keys(source.sheets || {})));
   const merged = {};
   sheetNames.forEach(sheetName => {
-    if ([CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES, CONFIG.SHEET_ORDERS, CONFIG.SHEET_RETURNS, CONFIG.SHEET_INVOICE_DETAILS, CONFIG.SHEET_PURCHASES].includes(sheetName)) {
+    if ([CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES, CONFIG.SHEET_ORDERS, CONFIG.SHEET_RETURNS, CONFIG.SHEET_INVOICE_DETAILS].includes(sheetName)) {
       merged[sheetName] = mergeTransactionalSheet(branchSources, sheetName);
     } else if (Object.prototype.hasOwnProperty.call(ENTITY_MERGE_SPECS, sheetName)) {
       merged[sheetName] = mergeEntityRows(branchSources, sheetName);
@@ -2252,9 +2221,6 @@ function mergeDashboardRollups(branchSources) {
     )
     : undefined;
 
-  const newPurchaseOrdersRaw = branchSources
-    .flatMap(source => (source.rollups.newPurchaseOrdersRaw || []).map(row => ({ ...row, branch: source.branch })))
-    .sort((a, b) => (parseSheetDate(b.date)?.getTime() || 0) - (parseSheetDate(a.date)?.getTime() || 0));
   const invoiceQuantityRows = branchSources.flatMap(source =>
     (source.rollups.invoiceQuantityRows || []).map(row => ({ ...row, branch: source.branch }))
   );
@@ -2277,11 +2243,6 @@ function mergeDashboardRollups(branchSources) {
     productSalesRows,
     newlyImportedSalesRows,
     firstPurchaseRows,
-    purchaseTotals: branchSources.reduce((totals, source) => ({
-      orderCount: totals.orderCount + (Number(source.rollups.purchaseTotals?.orderCount) || 0),
-      total: totals.total + (Number(source.rollups.purchaseTotals?.total) || 0)
-    }), { orderCount: 0, total: 0 }),
-    newPurchaseOrdersRaw,
     invoiceQuantityRows
   };
 }
@@ -2433,7 +2394,7 @@ function dashboardResultCacheKey(branch, plan, sourceVersions, filters) {
 
 /**
  * Goi song song toan bo du lieu tu dashboardRollupRepository.js can cho
- * computeDashboardData() — thay cho viec quet "Chi tiết hóa đơn"/"Nhập hàng"
+ * computeDashboardData() — thay cho viec quet "Chi tiết hóa đơn"
  * trong Node.js. KHONG co cache rieng o day (moi bang rollup da nho + co
  * index, ban than Postgres du nhanh); getDashboardData() CHI goi ham nay SAU
  * khi da tra dashboardResultCache va bi mien (cache trung thi ham nay khong
@@ -2442,16 +2403,15 @@ function dashboardResultCacheKey(branch, plan, sourceVersions, filters) {
  * `plan` (tu resolveViewPlan): CHI chay cac truy van tab dang xem can — cac
  * truy van con lai tra undefined (computeDashboardData da co gia tri mac dinh
  * `|| []`), vd tab Tong quan khong phai cho getInvoiceQuantitiesByCode (~3,3s
- * khi nguoi) chi Hoa don moi can. Bo trong = du 7 truy van nhu cu.
+ * khi nguoi) chi Hoa don moi can. Bo trong = du 6 truy van nhu cu.
  */
-async function fetchDashboardRollups(branch, { overviewRange, productsRange, invoicesRange, newPurchasesRange, newlyImportedRange }, plan) {
+async function fetchDashboardRollups(branch, { overviewRange, productsRange, invoicesRange, newlyImportedRange }, plan) {
   const wanted = plan ? plan.rollups : new Set(ALL_ROLLUPS);
   const run = (name, load) => (wanted.has(name) ? load() : undefined);
   const invoicesBounds = rangeToDateBounds(invoicesRange);
   // Xu huong doanh thu theo ngay cua tab Tong quan dung bo loc `invoices` (chung voi bang Chi tiet giao dich).
   const overviewBounds = invoicesBounds;
   const productsBounds = rangeToDateBounds(productsRange);
-  const newPurchasesBounds = rangeToDateBounds(newPurchasesRange);
   // Thieu newlyImportedRange (nguoi goi cu) -> cung khoang voi Hang hoa.
   const newlyImportedBounds = newlyImportedRange ? rangeToDateBounds(newlyImportedRange) : productsBounds;
   const loadProductSales = bounds => dashboardRollupRepository.getProductSalesBreakdown({
@@ -2468,21 +2428,19 @@ async function fetchDashboardRollups(branch, { overviewRange, productsRange, inv
 
   const [
     overviewRevenueRows, invoicesRevenueRows, productSalesRows, newlyImportedSalesRows,
-    firstPurchaseRows, purchaseTotals, newPurchaseOrdersRaw, invoiceQuantityRows
+    firstPurchaseRows, invoiceQuantityRows
   ] = await Promise.all([
     run('overviewRevenue', () => dashboardRollupRepository.getInvoiceRevenueByDay({ branch, from: overviewBounds.from, to: overviewBounds.to })),
     run('invoicesRevenue', () => dashboardRollupRepository.getInvoiceRevenueByDay({ branch, from: invoicesBounds.from, to: invoicesBounds.to })),
     productSalesPromise,
     newlyImportedSalesPromise,
     run('firstPurchase', () => dashboardRollupRepository.getFirstPurchaseDates({ branch })),
-    run('purchaseTotals', () => dashboardRollupRepository.getPurchaseTotals({ branch })),
-    run('newPurchaseOrders', () => dashboardRollupRepository.listPurchaseOrders({ branch, from: newPurchasesBounds.from, to: newPurchasesBounds.to })),
     run('invoiceQuantity', () => dashboardRollupRepository.getInvoiceQuantitiesByCode({ branch, from: invoicesBounds.from, to: invoicesBounds.to }))
   ]);
 
   return {
     overviewRevenueRows, invoicesRevenueRows, productSalesRows, newlyImportedSalesRows,
-    firstPurchaseRows, purchaseTotals, newPurchaseOrdersRaw, invoiceQuantityRows
+    firstPurchaseRows, invoiceQuantityRows
   };
 }
 
@@ -2492,7 +2450,7 @@ async function fetchDashboardRollups(branch, { overviewRange, productsRange, inv
 const dashboardRollupFetchInflight = new Map();
 
 function shareDashboardRollupFetch(branch, ranges, plan, rollupVersionSnapshot) {
-  const bounds = ['overviewRange', 'productsRange', 'invoicesRange', 'newPurchasesRange', 'newlyImportedRange']
+  const bounds = ['overviewRange', 'productsRange', 'invoicesRange', 'newlyImportedRange']
     .map(name => rangeToDateBounds(ranges[name]));
   const key = [branch || '', plan.key, JSON.stringify(bounds), rollupVersionSnapshot].join('|');
   const existing = dashboardRollupFetchInflight.get(key);
@@ -2505,7 +2463,7 @@ function shareDashboardRollupFetch(branch, ranges, plan, rollupVersionSnapshot) 
 }
 
 // Chi doc nguon "re" (cache trong bo nho, thuong tuc thi) — KHONG goi rollup
-// (7 cau SQL) o day nua. getDashboardData() chi goi fetchDashboardRollups()
+// (cac cau SQL rollup) o day nua. getDashboardData() chi goi fetchDashboardRollups()
 // rieng, SAU khi da tra dashboardResultCache va bi mien (xem Task 1.1).
 // `plan` quyet dinh bang nguon nao duoc doc; workbook cong no + workflow (Google
 // Sheets/Postgres) chi doc khi co tab Cong no.
@@ -2533,8 +2491,8 @@ function dashboardSourceVersion(branch, plan) {
  * @param {Object} filters - xem computeDashboardData
  * @param {Object} [options]
  * @param {string[]} [options.views] - chi doc/tinh/tra cac tab nay ('overview' |
- *   'products' | 'invoices' | 'customers' | 'suppliers' | 'debt'); bo trong =
- *   ca 6 tab nhu truoc day (xem dashboardViews.js). Cache ket qua tach rieng theo
+ *   'products' | 'invoices' | 'customers' | 'debt'); bo trong =
+ *   ca 5 tab nhu truoc day (xem dashboardViews.js). Cache ket qua tach rieng theo
  *   tap tab + chi theo cac bo loc tab do dung.
  * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
  */
@@ -2562,9 +2520,8 @@ async function getDashboardData(filters, branch, viewer, options) {
   const overviewRange = resolveFilterRange(f.overview, now);
   const productsRange = resolveFilterRange(f.products, now);
   const invoicesRange = resolveFilterRange(f.invoices, now);
-  const newPurchasesRange = resolveFilterRange(f.newPurchases, now);
   const newlyImportedRange = resolveFilterRange(f.newlyImported, now);
-  const ranges = { overviewRange, productsRange, invoicesRange, newPurchasesRange, newlyImportedRange };
+  const ranges = { overviewRange, productsRange, invoicesRange, newlyImportedRange };
   // sourceArguments[i] la tham so branch thuc su truyen cho pgReader/rollup —
   // dung lai y het cho ca loadDashboardBaseSources va fetchDashboardRollups
   // ben duoi de tranh lech logic giua 2 cho.
@@ -2700,7 +2657,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const productsRange = resolveFilterRange(f.products, now);
   const invoicesRange = resolveFilterRange(f.invoices, now);
   const customersRange = resolveFilterRange(f.customers, now);
-  const newPurchasesRange = resolveFilterRange(f.newPurchases, now);
   const newProductsRange = resolveFilterRange(f.newProducts, now);
   // Bo loc rieng tung bang (mac dinh = bo loc Hang hoa / Hoa don, xem withTableFilterFallbacks).
   const newlyImportedRange = resolveFilterRange(f.newlyImported, now);
@@ -2717,14 +2673,13 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const categoryData = sheets[CONFIG.SHEET_CATEGORIES] || [];
   const prodData = sheets[CONFIG.SHEET_PRODUCTS] || [];
   const invData = sheets[CONFIG.SHEET_INVOICES] || [];
-  // "Chi tiết hóa đơn"/"Nhập hàng" KHONG con doc tu `sheets` o day — 2 tab
-  // nang nhat, da bo khoi cache "core" (xem getCachedDashboardCoreSources()) va
-  // duoc thay bang dashboardRollupRepository.js qua tham so `rollups`.
+  // "Chi tiết hóa đơn" KHONG con doc tu `sheets` o day — tab nang nhat, da bo
+  // khoi cache "core" (xem getCachedDashboardCoreSources()) va duoc thay bang
+  // dashboardRollupRepository.js qua tham so `rollups`.
   const orderData = sheets[CONFIG.SHEET_ORDERS] || [];
   const returnData = sheets[CONFIG.SHEET_RETURNS] || [];
   const custData = sheets[CONFIG.SHEET_CUSTOMERS] || [];
   const customerReportData = sheets[CONFIG.SHEET_CUSTOMER_REPORT] || [];
-  const supplierData = sheets[CONFIG.SHEET_SUPPLIERS] || [];
 
   // ---------- HÀNG HÓA ----------
   // Doc theo ten cot de schema co the bo cot khong dung ma khong lam lech KPI.
@@ -2863,8 +2818,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   // ---------- HÀNG MỚI NHẬP (theo bộ lọc riêng newlyImported, mặc định = Hàng hóa) ----------
   // Ngay nhap SOM NHAT cho tung ma hang, tu product_first_purchase (rollup
   // toan bo lich su, khong gioi han cua so refresh — xem
-  // dashboardRollupRepository.getFirstPurchaseDates()) thay vi tu quet sheet
-  // "Nhập hàng" (da bo khoi cache "core", xem ke hoach rollup dashboard). Mot
+  // dashboardRollupRepository.getFirstPurchaseDates()). Mot
   // ma (theo tung co so) chi xuat hien neu ngay nhap dau tien nam trong khoang
   // newlyImportedRange va dang kinh doanh.
   const firstPurchaseRows = (rollups && rollups.firstPurchaseRows) || [];
@@ -3247,89 +3201,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     ? buildTopCustomersByRevenue(customersRange, customerReportData, invData, custData, returnData, singleBranch)
     : undefined;
 
-  // ---------- NHÀ CUNG CẤP ----------
-  const supplierHeaders = supplierData[0] || [];
-  const supplierIndex = (header, fallback) => {
-    const index = supplierHeaders.findIndex(value => String(value || '').trim() === header);
-    return index >= 0 ? index : fallback;
-  };
-  const supplierCodeIndex = supplierIndex('Mã NCC', 0);
-  const supplierFacilityIndex = supplierIndex(SHEET_FACILITY_HEADER, -1);
-  const supplierNameIndex = supplierIndex('Tên NCC', 1);
-  const supplierPhoneIndex = supplierIndex('Điện thoại', 2);
-  const supplierAddressIndex = supplierIndex('Địa chỉ', 4);
-  const supplierDebtIndex = supplierIndex('Nợ cần trả', 5);
-  let suppliers = [];
-  let totalSupplierDebt = 0, suppliersWithDebt = 0;
-  for (let r = 1; r < supplierData.length; r++) {
-    const row = supplierData[r];
-    const code = row[supplierCodeIndex];
-    if (!code) continue;
-    const debt = Number(row[supplierDebtIndex]) || 0;
-    if (debt > 0) { suppliersWithDebt++; totalSupplierDebt += debt; }
-    suppliers.push({
-      code,
-      branch: (supplierFacilityIndex >= 0 && row[supplierFacilityIndex]) || singleBranch,
-      name: row[supplierNameIndex],
-      phone: row[supplierPhoneIndex],
-      email: '',
-      address: row[supplierAddressIndex],
-      debt
-    });
-  }
-  suppliers.sort((a, b) => b.debt - a.debt);
-  const totalSuppliers = suppliers.length;
-
-  // ---------- NHẬP HÀNG ----------
-  // purchaseOrdersCount/totalPurchaseSpend la KPI TOAN THOI GIAN (khong loc
-  // ngay) — tu daily_purchase_summary (rollup), xem
-  // dashboardRollupRepository.getPurchaseTotals(). KHONG con quet sheet
-  // "Nhập hàng" (da bo khoi cache "core").
-  const purchaseTotalsRollup = (rollups && rollups.purchaseTotals) || { orderCount: 0, total: 0 };
-  const purchaseOrdersCount = purchaseTotalsRollup.orderCount;
-  const totalPurchaseSpend = purchaseTotalsRollup.total;
-
-  // ---------- HÀNG NHẬP (tab Nhà cung cấp) ----------
-  // Danh sach PHIEU NHAP rieng le trong newPurchasesRange — tu
-  // dashboardRollupRepository.listPurchaseOrders() (doc THANG tu bang
-  // `purchases`, KHONG dung bang rollup gom theo NCC vi can giu dung tung
-  // phieu rieng le cho bang UI; xem ghi chu o do). Da duoc SQL loc dung
-  // khoang ngay + sap xep moi nhat truoc, khong can loc/sap xep lai trong JS.
-  // Cot "Cơ sở": co so vat ly cua phieu (khong phai ten kho KiotViet trong `branch` cu).
-  const newPurchaseOrders = ((rollups && rollups.newPurchaseOrdersRaw) || [])
-    .map(order => ({ ...order, branch: branch === BRANCH_BOTH ? order.branch : singleBranch }));
-
-  const newPurchaseSupplierMap = new Map();
-  newPurchaseOrders.forEach(p => {
-    const supplierName = String(p.supplier || '').trim();
-    const normalizedSupplierCode = normalizeSearchValue(p.supplierCode);
-    const normalizedSupplierName = normalizeSearchValue(supplierName);
-    const supplierKey = normalizedSupplierCode
-      ? `code:${normalizedSupplierCode}`
-      : `name:${normalizedSupplierName || '(không xác định)'}`;
-    if (!newPurchaseSupplierMap.has(supplierKey)) {
-      newPurchaseSupplierMap.set(supplierKey, { name: '', namePriority: Infinity, orderCount: 0, total: 0 });
-    }
-    const supplier = newPurchaseSupplierMap.get(supplierKey);
-    const sourceBranch = branch === BRANCH_BOTH ? p.branch : branch;
-    const namePriority = sourceBranch === BRANCHES.HANOI ? 0 : sourceBranch === BRANCHES.SAIGON ? 1 : 2;
-    if (supplierName && namePriority < supplier.namePriority) {
-      supplier.name = supplierName;
-      supplier.namePriority = namePriority;
-    }
-    supplier.orderCount += 1;
-    supplier.total += p.total;
-  });
-  const newPurchasesBySupplier = Array.from(newPurchaseSupplierMap.values())
-    .map(({ namePriority, ...supplier }) => ({ ...supplier, name: supplier.name || '(Không xác định)' }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, NEW_PURCHASES_SUPPLIER_LIMIT);
-
-  const newPurchasesOrderCount = newPurchaseOrders.length;
-  const newPurchasesTotalAmount = newPurchaseOrders.reduce((sum, p) => sum + p.total, 0);
-  const newPurchasesSupplierCount = newPurchaseSupplierMap.size;
-
-  // Ban day du (shape cu). pickPayload() giu nguyen khi chay du 6 tab, cat ve
+  // Ban day du (shape cu). pickPayload() giu nguyen khi chay du 5 tab, cat ve
   // dung phan cua tab duoc chon khi chay theo tung tab (dashboardViews.js).
   const result = {
     updatedAt: formatDMYHMS(now),
@@ -3338,7 +3210,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       products: productsRange,
       invoices: invoicesRange,
       customers: customersRange,
-      newPurchases: newPurchasesRange,
       newProducts: newProductsRange,
       newlyImported: newlyImportedRange,
       orders: ordersRange,
@@ -3357,15 +3228,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       inventoryValueCategoryCount,
       totalCustomers,
       customersWithDebt,
-      totalDebt,
-      totalSuppliers,
-      suppliersWithDebt,
-      totalSupplierDebt,
-      purchaseOrdersCount,
-      totalPurchaseSpend,
-      newPurchasesOrderCount,
-      newPurchasesTotalAmount,
-      newPurchasesSupplierCount
+      totalDebt
     },
     overview: {
       revenueByDay: overviewPeriod.revenueByDay,
@@ -3415,15 +3278,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     stockValueByCategory,
     allProducts,
     stockByCategory,
-    suppliers,
-    newPurchases: {
-      label: newPurchasesRange.label,
-      orderCount: newPurchasesOrderCount,
-      totalAmount: newPurchasesTotalAmount,
-      supplierCount: newPurchasesSupplierCount,
-      bySupplier: newPurchasesBySupplier,
-      orders: newPurchaseOrders
-    },
     debtManagement
   };
   return pickPayload(result, view);

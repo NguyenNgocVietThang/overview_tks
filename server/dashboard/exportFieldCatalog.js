@@ -270,120 +270,14 @@ const CUSTOMER_FIELDS = [
     'Cơ sở (Hà Nội hoặc Sài Gòn) nơi dữ liệu này được đồng bộ.')
 ];
 
-// ---------- Nha cung cap ----------
-const SUPPLIER_FIELDS = [
-  field('ma_ncc', 'Mã NCC', 'Mã nhà cung cấp', 'text',
-    'Mã nhà cung cấp hiển thị trên KiotViet, dùng để tra cứu và ghép với phiếu nhập.'),
-  field('ten_ncc', 'Tên NCC', 'Tên nhà cung cấp', 'general',
-    'Tên nhà cung cấp trên KiotViet.'),
-  field('dien_thoai', 'Điện thoại', 'Điện thoại', 'text',
-    'Số điện thoại nhà cung cấp; lưu dạng chữ để giữ số 0 đầu.'),
-  field('dia_chi', 'Địa chỉ', 'Địa chỉ', 'general',
-    'Địa chỉ nhà cung cấp.'),
-  field('no_can_tra', 'Nợ cần trả', 'Nợ cần trả hiện tại', 'number',
-    'Số tiền cửa hàng còn nợ nhà cung cấp tại thời điểm đồng bộ (VNĐ).'),
-  field('id_nha_cung_cap', 'ID nhà cung cấp', 'Mã nội bộ nhà cung cấp', 'text',
-    'Số định danh nhà cung cấp do KiotViet cấp, khác với Mã nhà cung cấp hiển thị.'),
-  field('trang_thai_hoat_dong', 'Trạng thái hoạt động', 'Đang hoạt động', 'general',
-    'Có nếu nhà cung cấp còn hoạt động, Không nếu đã ngừng; trống nếu KiotViet không trả về.'),
-  field('ngay_cap_nhat', 'Ngày cập nhật', 'Ngày cập nhật', 'date',
-    'Ngày giờ KiotViet cập nhật nhà cung cấp lần cuối; trống nếu chưa từng cập nhật.'),
-  field('ngay_tao', 'Ngày tạo', 'Ngày tạo', 'date',
-    'Ngày giờ nhà cung cấp được tạo trên KiotViet.'),
-  field('id_gian_hang', 'ID gian hàng', 'Mã nội bộ gian hàng', 'text',
-    'Số định danh gian hàng do KiotViet cấp, khác tên gian hàng; cả cơ sở dùng chung một số.'),
-  field('id_chi_nhanh_tao', 'ID chi nhánh tạo', 'Mã nội bộ chi nhánh tạo', 'text',
-    'Số định danh chi nhánh tạo nhà cung cấp do KiotViet cấp, khác với tên chi nhánh.'),
-  field('nguoi_tao', 'Người tạo', 'Người tạo', 'general',
-    'Người tạo nhà cung cấp, nguyên văn như KiotViet trả về.'),
-  field('tong_mua', 'Tổng mua', 'Tổng mua', 'number',
-    'Tổng giá trị đã mua từ nhà cung cấp do KiotViet tính sẵn (VNĐ).'),
-  field('tong_mua_tru_tra_hang', 'Tổng mua trừ trả hàng', 'Tổng mua trừ trả hàng', 'number',
-    'Tổng mua đã trừ giá trị hàng trả lại nhà cung cấp, do KiotViet tính sẵn (VNĐ).'),
-  field('co_so', 'Cơ sở', 'Cơ sở', 'text',
-    'Cơ sở (Hà Nội hoặc Sài Gòn) nơi dữ liệu này được đồng bộ.')
-];
-
-// ---------- Nhap hang ----------
-// Sheet "Nhap hang" la dang "flatten": moi dong = 1 mat hang, thong tin phieu
-// nhap lap lai tren tung dong. 16 truong dau la cap PHIEU (dung cho worksheet
-// "Tong hop phieu"), 8 truong sau la cap DONG HANG; ca 24 truong dung cho
-// worksheet "Chi tiet mat hang". Nhan phai duy nhat giua hai phan nay.
-const PURCHASE_HEADER_FIELDS = [
-  field('chi_nhanh', 'Chi nhánh', 'Chi nhánh', 'general',
-    'Tên chi nhánh KiotViet lập phiếu nhập.'),
-  field('ma_nhap_hang', 'Mã nhập hàng', 'Mã nhập hàng', 'text',
-    'Mã phiếu nhập hàng hiển thị trên KiotViet; một phiếu có thể có nhiều dòng hàng.'),
-  field('thoi_gian', 'Thời gian', 'Ngày nhập hàng', 'date',
-    'Ngày giờ nhập hàng ghi trên phiếu nhập (giờ Việt Nam).'),
-  field('thoi_gian_tao', 'Thời gian tạo', 'Ngày tạo', 'date',
-    'Ngày giờ phiếu nhập được tạo trên KiotViet, có thể khác Ngày nhập hàng.'),
-  field('ma_nha_cung_cap', 'Mã nhà cung cấp', 'Mã nhà cung cấp', 'text',
-    'Mã nhà cung cấp của phiếu nhập; thiếu thì lấy từ danh sách nhà cung cấp.'),
-  field('ten_nha_cung_cap', 'Tên nhà cung cấp', 'Tên nhà cung cấp', 'general',
-    'Tên nhà cung cấp của phiếu nhập; thiếu thì lấy từ danh sách nhà cung cấp.'),
-  field('nguoi_nhap', 'Người nhập', 'Người nhập', 'general',
-    'Tên nhân viên thực hiện nhập hàng trên phiếu.'),
-  field('nguoi_tao', 'Người tạo', 'Người tạo', 'general',
-    'Tên người tạo phiếu nhập; thiếu thì lấy theo Người nhập.'),
-  field('tong_tien_hang', 'Tổng tiền hàng', 'Tổng tiền hàng', 'number',
-    'Tổng tiền hàng của cả phiếu nhập (VNĐ) theo KiotViet.'),
-  field('giam_gia_phieu_nhap', 'Giảm giá phiếu nhập', 'Giảm giá phiếu nhập', 'number',
-    'Số tiền giảm giá áp dụng cho cả phiếu nhập (VNĐ).'),
-  field('can_tra_ncc', 'Cần trả NCC', 'Cần trả nhà cung cấp', 'number',
-    'Số tiền phiếu nhập còn phải trả nhà cung cấp (VNĐ); thiếu thì lấy tổng tiền trừ đã trả.'),
-  field('tien_da_tra_ncc', 'Tiền đã trả NCC', 'Tiền đã trả nhà cung cấp', 'number',
-    'Số tiền đã trả nhà cung cấp cho phiếu nhập (VNĐ).'),
-  field('ghi_chu', 'Ghi chú', 'Ghi chú', 'general',
-    'Ghi chú do nhân viên nhập trên phiếu nhập.'),
-  field('tong_so_luong', 'Tổng số lượng', 'Tổng số lượng', 'number',
-    'Tổng số lượng hàng của cả phiếu nhập, cộng từ các dòng hàng.'),
-  field('tong_so_mat_hang', 'Tổng số mặt hàng', 'Tổng số mặt hàng', 'number',
-    'Số dòng mặt hàng của phiếu nhập.'),
-  field('trang_thai', 'Trạng thái', 'Trạng thái', 'general',
-    'Trạng thái phiếu nhập theo chữ gốc của KiotViet; thiếu thì hiện mã số trạng thái.')
-];
-
-const PURCHASE_LINE_FIELDS = [
-  field('ma_hang', 'Mã hàng', 'Mã hàng', 'text',
-    'Mã hàng của dòng hàng trong phiếu nhập; thiếu thì lấy từ danh mục hàng hóa.'),
-  field('ten_hang', 'Tên hàng', 'Tên hàng', 'general',
-    'Tên hàng của dòng hàng trong phiếu nhập; thiếu thì lấy từ danh mục hàng hóa.'),
-  field('don_gia', 'Đơn giá', 'Đơn giá', 'number',
-    'Giá nhập trên một đơn vị hàng của dòng (VNĐ), trước giảm giá dòng hàng.'),
-  field('giam_gia_pct', 'Giảm giá %', 'Giảm giá (%)', 'number',
-    'Tỷ lệ giảm giá của dòng hàng theo phần trăm, ví dụ 10 nghĩa là giảm 10%.'),
-  field('giam_gia', 'Giảm giá', 'Giảm giá dòng hàng', 'number',
-    'Số tiền giảm giá của riêng dòng hàng (VNĐ), khác giảm giá của cả phiếu nhập.'),
-  field('gia_nhap', 'Giá nhập', 'Giá nhập', 'number',
-    'Giá nhập của mặt hàng (VNĐ); hiện cùng giá trị với Đơn giá của dòng hàng.'),
-  field('thanh_tien', 'Thành tiền', 'Thành tiền', 'number',
-    'Thành tiền dòng hàng (VNĐ) theo KiotViet; thiếu thì tính đơn giá x số lượng - giảm giá.'),
-  field('so_luong', 'Số lượng', 'Số lượng', 'number',
-    'Số lượng hàng nhập của dòng hàng.'),
-  field('co_so', 'Cơ sở', 'Cơ sở', 'text',
-    'Cơ sở (Hà Nội hoặc Sài Gòn) nơi dữ liệu này được đồng bộ.')
-];
-
 // sourceKey <-> sheetName <-> codeKey (cot ma dung loc/ghep du lieu cua nguon).
 const SOURCE_DEFINITIONS = [
   { key: 'products', sheetName: CONFIG.SHEET_PRODUCTS, codeKey: 'ma_hang', fields: PRODUCT_FIELDS },
   { key: 'invoices', sheetName: CONFIG.SHEET_INVOICES, codeKey: 'ma_hoa_don', fields: INVOICE_FIELDS },
   { key: 'orders', sheetName: CONFIG.SHEET_ORDERS, codeKey: 'ma_dat_hang', fields: ORDER_FIELDS },
   { key: 'returns', sheetName: CONFIG.SHEET_RETURNS, codeKey: 'ma_tra_hang', fields: RETURN_FIELDS },
-  { key: 'customers', sheetName: CONFIG.SHEET_CUSTOMERS, codeKey: 'ma_khach_hang', fields: CUSTOMER_FIELDS },
-  { key: 'suppliers', sheetName: CONFIG.SHEET_SUPPLIERS, codeKey: 'ma_ncc', fields: SUPPLIER_FIELDS },
-  {
-    key: 'purchases',
-    sheetName: CONFIG.SHEET_PURCHASES,
-    codeKey: 'ma_nhap_hang',
-    fields: [...PURCHASE_HEADER_FIELDS, ...PURCHASE_LINE_FIELDS]
-  }
+  { key: 'customers', sheetName: CONFIG.SHEET_CUSTOMERS, codeKey: 'ma_khach_hang', fields: CUSTOMER_FIELDS }
 ];
-
-// Cac truong cap PHIEU cua nguon purchases (16 cot dau, truoc "Mã hàng") — dung
-// cho worksheet "Tổng hợp phiếu"; worksheet "Chi tiết mặt hàng" dung ca 24 truong.
-const PURCHASE_SUMMARY_KEYS = PURCHASE_HEADER_FIELDS.map(item => item.key);
 
 function deepFreeze(value) {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -438,7 +332,6 @@ function labelForSheetHeader(sheetName, header) {
 
 module.exports = {
   SOURCE_KEYS,
-  PURCHASE_SUMMARY_KEYS: Object.freeze(PURCHASE_SUMMARY_KEYS),
   getSource,
   getSourceFields,
   getSourceBySheetName,

@@ -42,7 +42,6 @@ const EXPORT_BUSY_MESSAGE = 'Hệ thống đang xử lý nhiều yêu cầu xu�
 
 const TABLE_TITLES = Object.freeze({
   'overview.transactions': 'Chi tiết giao dịch',
-  'overview.purchases': 'Danh sách nhập hàng',
   'overview.new-products': 'Danh sách mã mới',
   'products.top-selling': 'Sản phẩm bán chạy',
   'products.all': 'Tất cả mã hàng',
@@ -54,7 +53,6 @@ const TABLE_TITLES = Object.freeze({
   'customers.debt': 'Chi tiết khách nợ',
   'customers.productDetail': 'Bảng chi tiết sản phẩm theo khách',
   'overview.productReport': 'Báo cáo hàng hóa',
-  'suppliers.list': 'Danh sách nhà cung cấp',
   'debt.management': 'Quản lý công nợ',
   'search.results': 'Kết quả tìm kiếm',
   'stockout.recentScan': 'Hàng đứt gần đây',
@@ -114,7 +112,6 @@ function normalizeFilters(rawFilters) {
     products,
     invoices,
     customers,
-    newPurchases: normalizeFilterSpec(raw.newPurchases || overview),
     newProducts: normalizeFilterSpec(raw.newProducts || overview),
     // Bo loc rieng tung bang; khong gui thi dung bo loc Hang hoa / Hoa don.
     newlyImported: raw.newlyImported ? normalizeFilterSpec(raw.newlyImported) : products,
@@ -520,42 +517,6 @@ function aggregateTable(options) {
   };
 }
 
-function purchasesTable(aggregate = false) {
-  const source = exportFieldCatalog.getSource('purchases');
-  const summary = {
-    key: 'purchase_summary', name: 'Tổng hợp phiếu', codeKey: source.codeKey,
-    columns: sourceColumns('purchases', [...exportFieldCatalog.PURCHASE_SUMMARY_KEYS, 'co_so'])
-  };
-  const details = {
-    key: 'purchase_details', name: 'Chi tiết mặt hàng', codeKey: source.codeKey,
-    columns: sourceColumns('purchases')
-  };
-  return {
-    worksheets: [summary, details],
-    async loadRows(env, activeFor) {
-      const items = ((env.dashboard.newPurchases || {}).orders || []);
-      const { byKey, keyOf } = await loadSourceRowsForItems(source, env, items, aggregate);
-      const summaryRows = buildLogicalRows(items, byKey, activeFor(summary), undefined, keyOf);
-      const detailColumns = activeFor(details);
-      const detailSourceColumns = detailColumns.filter(column => !column.derivedKey);
-      const detailDerivedColumns = detailColumns.filter(column => column.derivedKey);
-      const detailRows = [];
-      const seen = new Set();
-      items.forEach(item => {
-        if (detailColumns.length === 0) return; // khong chon cot nao cua worksheet chi tiet
-        const key = keyOf(item);
-        if (seen.has(key)) return;
-        seen.add(key);
-        (byKey.get(key) || []).forEach(sourceRow => {
-          const row = pickSourceValues({}, detailSourceColumns, sourceRow);
-          detailRows.push(row);
-        });
-      });
-      return [{ rows: summaryRows }, { rows: detailRows }];
-    }
-  };
-}
-
 function normalizeDebtSearch(value) {
   return normalizeText(value).normalize('NFC').replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN');
 }
@@ -749,7 +710,6 @@ const TABLE_SPECS = {
     derived: [{ key: 'quantity', label: 'Số lượng', type: 'number', description: 'Tổng số lượng hàng của hóa đơn; để trống nếu chưa xác định được.' }],
     derivedValues: { quantity: item => (item.quantityKnown ? item.quantity : '') }
   }),
-  'overview.purchases': (context, scope) => purchasesTable(scope.aggregate),
   'overview.new-products': (context, scope) => singleSourceTable({
     key: 'new_products', name: 'Mã mới tạo', sourceKey: 'products', branchColumn: scope.aggregate,
     items: dashboard => (((dashboard.products || {}).newProducts || {}).products) || []
@@ -839,10 +799,6 @@ const TABLE_SPECS = {
     },
     summaryKeys: ['no_hien_tai', 'd_debt_hn', 'd_debt_sg']
   }),
-  'suppliers.list': () => singleSourceTable({
-    key: 'suppliers', name: 'Nhà cung cấp', sourceKey: 'suppliers',
-    items: dashboard => dashboard.suppliers || []
-  }),
   'debt.management': (context, scope) => aggregateTable({
     key: 'debt_management', name: 'Quản lý công nợ',
     columns: [DEBT_COLUMNS[0], DEBT_BRANCH_COLUMN, ...DEBT_COLUMNS.slice(1)],
@@ -890,29 +846,16 @@ function filterWorksheetRows(worksheet, tableSearch) {
   return { ...worksheet, rows: filtered.items };
 }
 
-function applyTableSearchToWorksheets(tableKey, worksheets, tableSearch) {
+function applyTableSearchToWorksheets(worksheets, tableSearch) {
   if (!hasTableSearch(tableSearch)) return worksheets;
-  if (tableKey !== 'overview.purchases') {
-    return worksheets.map(worksheet => filterWorksheetRows(worksheet, tableSearch));
-  }
-
-  const summary = filterWorksheetRows(worksheets[0], tableSearch);
-  // "Ca hai": cung ma phieu o hai co so la hai phieu khac nhau -> giu theo (co so, ma). Cot "co_so" luon
-  // trong catalogue; co so vat ly thi moi dong cung 1 co so nen khoa van khop theo ma.
-  const retentionKey = (row, codeKey) => compositeKey(row.co_so, row[codeKey]);
-  const retainedCodes = new Set((summary.rows || []).map(row => retentionKey(row, summary.codeKey)));
-  const detail = worksheets[1];
-  return [summary, {
-    ...detail,
-    rows: (detail.rows || []).filter(row => retainedCodes.has(retentionKey(row, detail.codeKey)))
-  }];
+  return worksheets.map(worksheet => filterWorksheetRows(worksheet, tableSearch));
 }
 
 function applyTableSearchToDataset(dataset, tableSearch) {
   if (!dataset || !hasTableSearch(tableSearch)) return dataset;
   return {
     ...dataset,
-    worksheets: applyTableSearchToWorksheets(dataset.tableKey, dataset.worksheets || [], tableSearch)
+    worksheets: applyTableSearchToWorksheets(dataset.worksheets || [], tableSearch)
   };
 }
 
@@ -958,7 +901,7 @@ async function buildFixedDataset(tableKey, env, context, tableSearch = {}, selec
     ...(worksheet.summaryKeys ? { summaryKeys: worksheet.summaryKeys } : {}),
     rows: (loaded[index] && loaded[index].rows) || []
   }));
-  worksheets = applyTableSearchToWorksheets(tableKey, worksheets, tableSearch);
+  worksheets = applyTableSearchToWorksheets(worksheets, tableSearch);
   if (searching && selection) {
     worksheets = worksheets.map(worksheet => projectWorksheetRows(worksheet, selection[worksheet.key]));
   }
@@ -1011,7 +954,7 @@ async function buildSearchDataset(payload, filters, branch, signal) {
   if (view === 'overview') {
     throw exportError('Tìm kiếm ở Tổng quan không hỗ trợ xuất Excel.', 400, 'EXPORT_OVERVIEW_SEARCH_DISABLED');
   }
-  if (!['products', 'invoices', 'customers', 'suppliers'].includes(view)) {
+  if (!['products', 'invoices', 'customers'].includes(view)) {
     throw exportError('Tab tìm kiếm không hợp lệ.', 400, 'EXPORT_SEARCH_VIEW_INVALID');
   }
   if (!query) throw exportError('Không có từ khóa tìm kiếm để xuất.', 400, 'EXPORT_SEARCH_QUERY_EMPTY');
