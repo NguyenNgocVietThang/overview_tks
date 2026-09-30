@@ -142,6 +142,14 @@ function parseFilterSpec(query, prefix, legacyDays) {
   };
 }
 
+// Nhu parseFilterSpec nhung tra undefined khi query KHONG co tham so nao cua
+// prefix — de getDashboardData tu dung bo loc cha (vd `or`/`rt` -> `in`,
+// `ni` -> `pr`) cho client cu chua gui bo loc rieng tung bang.
+function parseOptionalFilterSpec(query, prefix, legacyDays) {
+  const present = ['Mode', 'Days', 'From', 'To'].some(suffix => query[prefix + suffix] !== undefined);
+  return present ? parseFilterSpec(query, prefix, legacyDays) : undefined;
+}
+
 // ?view=<tab> (overview|products|invoices|customers|suppliers|debt, co the nhieu
 // tab cach nhau dau phay): CHI doc/tinh/tra phan cua tab do — trang bao cao goi
 // khi nguoi dung mo tung tab (xem dashboardViews.js). Bo trong = ca 6 tab nhu
@@ -173,7 +181,12 @@ router.get('/api/dashboard', async (req, res) => {
         mode: req.query.cuMode || 'all'
       },
       newPurchases: parseFilterSpec(req.query, 'pu'),
-      newProducts: parseFilterSpec(req.query, 'np')
+      newProducts: parseFilterSpec(req.query, 'np'),
+      // Bo loc rieng tung bang: Hang moi nhap (ni), Dat hang (or), Tra hang (rt).
+      // Khong gui -> undefined -> dung bo loc Hang hoa/Hoa don nhu truoc.
+      newlyImported: parseOptionalFilterSpec(req.query, 'ni'),
+      orders: parseOptionalFilterSpec(req.query, 'or', legacyDays),
+      returns: parseOptionalFilterSpec(req.query, 'rt', legacyDays)
     };
     const data = await getDashboardData(filters, req.branch, req.user, allowedViews ? { views: allowedViews } : undefined);
     // Object tra ve co the den tu cache dung chung — filterDashboardForUser()

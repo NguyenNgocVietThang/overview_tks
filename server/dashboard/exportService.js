@@ -114,7 +114,11 @@ function normalizeFilters(rawFilters) {
     invoices,
     customers,
     newPurchases: normalizeFilterSpec(raw.newPurchases || overview),
-    newProducts: normalizeFilterSpec(raw.newProducts || overview)
+    newProducts: normalizeFilterSpec(raw.newProducts || overview),
+    // Bo loc rieng tung bang; khong gui thi dung bo loc Hang hoa / Hoa don.
+    newlyImported: raw.newlyImported ? normalizeFilterSpec(raw.newlyImported) : products,
+    orders: raw.orders ? normalizeFilterSpec(raw.orders) : invoices,
+    returns: raw.returns ? normalizeFilterSpec(raw.returns) : invoices
   };
 }
 

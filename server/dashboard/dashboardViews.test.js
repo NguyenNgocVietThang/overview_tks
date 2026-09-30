@@ -68,7 +68,7 @@ test('moi tab chi doc dung nguon cua no; Cong no chi can CN1/3/7 + workbook cong
   assert.equal(resolveViewPlan(['debt']).rollups.size, 0);
   assert.deepEqual([...resolveViewPlan(['suppliers']).rollups].sort(), ['newPurchaseOrders', 'purchaseTotals']);
   assert.deepEqual([...resolveViewPlan(['invoices']).rollups].sort(), ['invoiceQuantity', 'invoicesRevenue']);
-  assert.deepEqual([...resolveViewPlan(['products']).rollups].sort(), ['firstPurchase', 'productSales']);
+  assert.deepEqual([...resolveViewPlan(['products']).rollups].sort(), ['firstPurchase', 'newlyImportedSales', 'productSales']);
   assert.equal(resolveViewPlan(['customers']).rollups.size, 0);
 });
 
@@ -106,6 +106,22 @@ test('pickFilters: chi giu bo loc anh huong tab (cache key), ke hoach ca 6 tab g
   const changed = { ...filters, invoices: { mode: 'days', days: 90 } };
   assert.deepEqual(pickFilters(changed, resolveViewPlan(['overview'])), pickFilters(filters, resolveViewPlan(['overview'])));
   assert.deepEqual(pickFilters(changed, resolveViewPlan(['products'])), pickFilters(filters, resolveViewPlan(['products'])));
+});
+
+test('pickFilters: bo loc rieng tung bang (newlyImported/orders/returns) vao cache key cua dung tab', () => {
+  const filters = {
+    products: { mode: 'days', days: 7 }, invoices: { mode: 'days', days: 3 },
+    newlyImported: { mode: 'days', days: 14 }, orders: { mode: 'days', days: 60 }, returns: { mode: 'all' }
+  };
+  assert.deepEqual(pickFilters(filters, resolveViewPlan(['products'])), {
+    products: { mode: 'days', days: 7 }, newlyImported: { mode: 'days', days: 14 }
+  });
+  assert.deepEqual(pickFilters(filters, resolveViewPlan(['invoices'])), {
+    invoices: { mode: 'days', days: 3 }, orders: { mode: 'days', days: 60 }, returns: { mode: 'all' }
+  });
+  assert.deepEqual(pickFilters(filters, resolveViewPlan(['overview'])), {});
+  assert.deepEqual(VIEW_PAYLOAD.products.filters, ['products', 'newProducts', 'newlyImported']);
+  assert.deepEqual(VIEW_PAYLOAD.invoices.filters, ['invoices', 'orders', 'returns']);
 });
 
 test('pickPayload: cat dung phan cua tab, khong sua ban day du, Tong quan khong con khoa `products`', () => {

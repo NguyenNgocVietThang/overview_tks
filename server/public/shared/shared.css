@@ -1417,3 +1417,17 @@ table td.col-num {
 table th.col-num .sort-button {
   justify-content: flex-end;
 }
+
+/* ---------- Bảng độ rộng cột cố định (class "fixed-table") ----------
+   Độ rộng mỗi cột khai báo bằng width trên <th> (ước lượng theo dữ liệu dài
+   nhất của cột), KHÔNG đổi theo nội dung nên sort/lọc/phân trang không làm
+   cột "nhảy". Tổng độ rộng cột lớn hơn khung thì bảng cuộn ngang; nhỏ hơn thì
+   phần dư chia đều theo tỉ lệ. Chữ dài trong ô hẹp xuống dòng thay vì tràn
+   sang cột bên cạnh. */
+table.fixed-table {
+  table-layout: fixed;
+}
+
+table.fixed-table td {
+  overflow-wrap: break-word;
+}

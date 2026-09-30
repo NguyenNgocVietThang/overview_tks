@@ -668,6 +668,24 @@ test('createExportWorkbook chi ghi cot da chon (thu tu theo yeu cau khong quan t
 
 // ---------- Nguon du lieu: dung ma, dung bo loc, khong sua cache ----------
 
+test('normalizeFilters: newlyImported/orders/returns rieng, thieu thi theo products/invoices', () => {
+  const { normalizeFilters } = exportService.__test__;
+  const fallback = normalizeFilters({
+    products: { mode: 'days', days: 7 }, invoices: { mode: 'range', from: '2026-08-01', to: '2026-08-31' }
+  });
+  assert.deepEqual(fallback.newlyImported, { mode: 'days', days: 7 });
+  assert.deepEqual(fallback.orders, { mode: 'range', from: '2026-08-01', to: '2026-08-31' });
+  assert.deepEqual(fallback.returns, { mode: 'range', from: '2026-08-01', to: '2026-08-31' });
+
+  const own = normalizeFilters({
+    products: { mode: 'days', days: 7 }, invoices: { mode: 'all' },
+    newlyImported: { mode: 'days', days: 90 }, orders: { mode: 'days', days: 14 }, returns: { mode: 'range', from: '2026-07-01', to: '2026-07-31' }
+  });
+  assert.deepEqual(own.newlyImported, { mode: 'days', days: 90 });
+  assert.deepEqual(own.orders, { mode: 'days', days: 14 });
+  assert.deepEqual(own.returns, { mode: 'range', from: '2026-07-01', to: '2026-07-31' });
+});
+
 test('readRowsByCodes nhan dung tab, co so va danh sach ma logic; getDashboardData nhan dung bo loc', async () => {
   await withStubs({}, async stubs => {
     await exportService.createExportWorkbook({

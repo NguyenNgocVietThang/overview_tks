@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/shared/shared.css?v=20260928">
+<link rel="stylesheet" href="/shared/shared.css?v=20260930">
 <style>
   .lookup-wrap{ width:100%; max-width:none; margin:0; }
   .lookup-hero{ margin-bottom:20px; }
@@ -313,13 +313,13 @@
               <button type="submit" class="btn-secondary bulk-search-submit">Tìm kiếm</button>
             </form>
             <div class="bulk-scroll">
-              <table class="bulk-table">
+              <table class="bulk-table fixed-table">
                 <thead><tr id="bulkHeadRow">
-                  <th class="sortable" data-sort="orderCode">Mã đơn<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-sort="saleName">Sale<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-sort="customerName">Khách hàng<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-sort="status">Trạng thái<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-sort="at">Cập nhật gần nhất<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="orderCode" style="width:160px">Mã đơn<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="saleName" style="width:180px">Sale<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="customerName" style="width:260px">Khách hàng<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="status" style="width:200px">Trạng thái<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="at" style="width:215px">Cập nhật gần nhất<span class="sort-ind">▲</span></th>
                 </tr></thead>
                 <tbody id="bulkBody"></tbody>
               </table>
@@ -356,13 +356,13 @@
               <button type="submit" class="btn-secondary bulk-search-submit">Tìm kiếm</button>
             </form>
             <div class="bulk-scroll">
-              <table class="bulk-table">
+              <table class="bulk-table fixed-table">
                 <thead><tr id="historyHeadRow">
-                  <th class="sortable" data-sort="orderCode">Mã đơn<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-sort="statusLabel">Thay đổi trạng thái<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-sort="changedBy">Người thực hiện<span class="sort-ind">▲</span></th>
-                  <th>Ghi chú</th>
-                  <th class="sortable" data-sort="changedAt">Thời gian cập nhật<span class="sort-ind">▼</span></th>
+                  <th class="sortable" data-sort="orderCode" style="width:160px">Mã đơn<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="statusLabel" style="width:250px">Thay đổi trạng thái<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="changedBy" style="width:200px">Người thực hiện<span class="sort-ind">▲</span></th>
+                  <th style="width:300px">Ghi chú</th>
+                  <th class="sortable" data-sort="changedAt" style="width:225px">Thời gian cập nhật<span class="sort-ind">▼</span></th>
                 </tr></thead>
                 <tbody id="historyBody"></tbody>
               </table>

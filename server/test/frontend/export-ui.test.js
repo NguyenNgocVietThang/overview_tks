@@ -43,7 +43,7 @@ test('thanh tim kiem chung dau tab da bo: khong con form tim kiem toan cuc va nu
   assert.ok(!html.includes('dashboardSearchForm'));
   assert.ok(!html.includes('searchExportButtonHtml'));
   assert.ok(!html.includes('search.results'));
-  assert.match(html, /id="filterBar"/, 'bo loc thoi gian van con');
+  assert.match(html, /const TABLE_DATE_FILTERS = /, 'bo loc thoi gian nam trong tung bang');
 });
 
 // ---------------------------------------------------------------------------------------------

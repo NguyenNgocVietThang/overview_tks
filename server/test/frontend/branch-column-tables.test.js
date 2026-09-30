@@ -173,15 +173,13 @@ test('khong con bo loc trang thai kinh doanh, cot trang thai kinh doanh va the "
   dom.window.close();
 });
 
-test('thanh tim kiem chung dau tab da bo, van con bo loc thoi gian', () => {
+test('thanh tim kiem chung dau tab da bo, bo loc thoi gian chuyen vao bang', () => {
   const dom = createPage();
   const doc = dom.window.document;
   assert.equal(doc.getElementById('dashboardSearchForm'), null);
   assert.equal(doc.getElementById('dashboardSearchInput'), null);
   assert.equal(doc.getElementById('searchResult'), null);
-  assert.ok(doc.getElementById('filterBar'));
-  assert.ok(doc.querySelector('#filterBar .mini-filter[data-filter-key="products"]'));
-  assert.ok(doc.querySelector('#filterBar .mini-filter[data-filter-key="invoices"]'));
-  assert.ok(doc.querySelector('#filterBar .mini-filter[data-filter-key="customers"]'));
+  // Bo loc thoi gian gio nam trong tung bang (TABLE_DATE_FILTERS), khong con thanh loc dau tab.
+  assert.equal(doc.getElementById('filterBar'), null);
   dom.window.close();
 });

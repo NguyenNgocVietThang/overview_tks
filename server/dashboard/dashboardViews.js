@@ -39,7 +39,7 @@ const CORE_SHEETS_ORDER = Object.freeze([
 const ALL_CORE_KEYS = Object.freeze([...CORE_SHEETS_ORDER, PERIODS_KEY]);
 
 const ALL_ROLLUPS = Object.freeze([
-  'overviewRevenue', 'invoicesRevenue', 'productSales', 'firstPurchase',
+  'overviewRevenue', 'invoicesRevenue', 'productSales', 'newlyImportedSales', 'firstPurchase',
   'purchaseTotals', 'newPurchaseOrders', 'invoiceQuantity'
 ]);
 
@@ -52,7 +52,9 @@ const VIEW_SOURCES = Object.freeze({
   },
   products: {
     sheets: [CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS],
-    rollups: ['productSales', 'firstPurchase'],
+    // newlyImportedSales: doanh so Hang moi nhap theo bo loc rieng `newlyImported`
+    // (cung khoang voi Hang hoa thi fetchDashboardRollups dung lai productSales).
+    rollups: ['productSales', 'newlyImportedSales', 'firstPurchase'],
     needsDebt: false
   },
   // Dat hang (~23K dong) + Tra hang chi tab Hoa don can.
@@ -83,8 +85,8 @@ const VIEW_SOURCES = Object.freeze({
 // Khoa cua object `filters` (xem routes.js) anh huong ket qua cua tab.
 const VIEW_FILTER_KEYS = Object.freeze({
   overview: ['overview'],
-  products: ['products', 'newProducts'],
-  invoices: ['invoices'],
+  products: ['products', 'newProducts', 'newlyImported'],
+  invoices: ['invoices', 'orders', 'returns'],
   customers: ['customers'],
   suppliers: ['newPurchases'],
   debt: []
@@ -111,13 +113,13 @@ const VIEW_PAYLOAD = Object.freeze({
       'totalProducts', 'totalStock', 'inStockCodes', 'activeProducts',
       'lowStockCount', 'totalInventoryValue', 'inventoryValueCategoryCount'
     ],
-    filters: ['products', 'newProducts']
+    filters: ['products', 'newProducts', 'newlyImported']
   },
   invoices: {
     top: ['invoices'],
     nested: {},
     kpi: [],
-    filters: ['invoices']
+    filters: ['invoices', 'orders', 'returns']
   },
   customers: {
     top: ['customers'],
@@ -187,7 +189,7 @@ function resolveViewPlan(rawViews) {
   const coreKeys = needsPeriods ? [...sheets, PERIODS_KEY] : sheets;
   const rollups = new Set(unionInOrder(ALL_ROLLUPS, views.map(name => VIEW_SOURCES[name].rollups)));
   const filterKeys = unionInOrder(
-    ['overview', 'products', 'invoices', 'customers', 'newPurchases', 'newProducts'],
+    ['overview', 'products', 'invoices', 'customers', 'newPurchases', 'newProducts', 'newlyImported', 'orders', 'returns'],
     views.map(name => VIEW_FILTER_KEYS[name])
   );
 

@@ -22,12 +22,11 @@ function sectionTitles(name) {
   }));
 }
 
-test('Tổng quan có 4 phần: không còn Doanh thu sản phẩm theo nhóm hàng', () => {
+test('Tổng quan có 3 phần (không còn Chỉ số then chốt đầu tab, không còn nhóm hàng)', () => {
   const titles = sectionTitles('overview');
-  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3', '4']);
+  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3']);
   assert.ok(!titles.some(s => /nhóm hàng/.test(s.title)), 'phan nhom hang da bi go');
-  assert.equal(titles[2].title, 'Báo cáo hàng hóa');
-  assert.equal(titles[3].title, 'Kiểm tra đứt hàng');
+  assert.deepEqual(titles.map(s => s.title), ['Báo cáo doanh thu theo khách', 'Báo cáo hàng hóa', 'Kiểm tra đứt hàng']);
   ['endOfDayRows', 'chartTopTransactions', 'overviewPurchaseRows', 'chartOverviewPurchases', 'todayNewProductRows'].forEach(id => {
     assert.equal(view('overview').querySelector('#' + id), null, id + ' khong duoc nam o Tong quan');
   });
@@ -40,7 +39,7 @@ test('Tổng quan không còn phần nhóm hàng, Hàng hóa không còn phần 
   });
 });
 
-test('Hóa đơn chứa phần Giao dịch ngay sau Xu hướng, không còn Hóa đơn gần đây', () => {
+test('Hóa đơn: Xu hướng → Giao dịch → Phân tích, không còn Hóa đơn gần đây', () => {
   const titles = sectionTitles('invoices');
   assert.deepEqual(titles.map(s => s.step), ['1', '2', '3']);
   assert.deepEqual(titles.map(s => s.title), ['Xu hướng', 'Giao dịch', 'Phân tích']);
@@ -53,10 +52,11 @@ test('Hóa đơn chứa phần Giao dịch ngay sau Xu hướng, không còn Hó
   });
 });
 
-test('Nhà cung cấp chứa phần Hàng nhập giữa Chỉ số và Phân tích nợ', () => {
+test('Nhà cung cấp: Hàng nhập → Phân tích nợ (chỉ số NCC nằm trong mục Phân tích)', () => {
   const titles = sectionTitles('suppliers');
-  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3']);
-  assert.deepEqual(titles.map(s => s.title), ['Chỉ số then chốt', 'Hàng nhập', 'Phân tích & chi tiết']);
+  assert.deepEqual(titles.map(s => s.step), ['1', '2']);
+  assert.deepEqual(titles.map(s => s.title), ['Hàng nhập', 'Phân tích & chi tiết']);
+  assert.ok(view('suppliers').querySelectorAll(':scope > section.section')[1].querySelector('#sp-total'));
   ['sp-purchase-count', 'sp-purchase-total', 'sp-purchase-suppliers', 'chartOverviewPurchases', 'overviewPurchaseRows'].forEach(id => {
     assert.ok(view('suppliers').querySelector('#' + id), id + ' phai nam o Nha cung cap');
   });
@@ -64,18 +64,36 @@ test('Nhà cung cấp chứa phần Hàng nhập giữa Chỉ số và Phân tí
 
 test('Hàng hóa chứa phần Mã mới tạo sau Hàng mới nhập', () => {
   const titles = sectionTitles('products');
-  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3', '4', '5', '6']);
-  assert.deepEqual(titles.slice(4).map(s => s.title), ['Hàng mới nhập', 'Mã mới tạo']);
+  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3', '4', '5']);
+  assert.deepEqual(titles.slice(3).map(s => s.title), ['Hàng mới nhập', 'Mã mới tạo']);
   assert.ok(view('products').querySelector('#todayNewProductRows'));
 });
 
-test('mỗi tab có thời gian lọc riêng: Tổng quan không còn thanh lọc', () => {
-  const groups = [...document.querySelectorAll('#filterBar .filter-group')]
-    .flatMap(group => (group.dataset.filterView || '').split(/\s+/));
-  assert.ok(!groups.includes('overview'), 'Tong quan khong con nhom loc thoi gian');
-  ['products', 'invoices', 'suppliers', 'customers'].forEach(name => {
-    assert.ok(groups.includes(name), name + ' phai co nhom loc');
-    assert.ok(document.getElementById('miniFrom-' + name) || name === 'products', 'thieu o chon ngay cua ' + name);
+test('không còn thanh lọc thời gian chung; bộ lọc Từ – Đến gắn vào từng bảng có lọc thời gian', () => {
+  assert.equal(document.getElementById('filterBar'), null);
+  const match = html.match(/const TABLE_DATE_FILTERS = \{([\s\S]*?)\};/);
+  assert.ok(match, 'phai co TABLE_DATE_FILTERS');
+  const map = new Function('return {' + match[1] + '}')();
+  // Moi bang 1 bo loc rieng.
+  assert.deepEqual(map, {
+    topSelling: 'topSelling', newlyImported: 'newlyImported', todayNewProducts: 'newProducts',
+    endOfDay: 'invoices', orders: 'orders', returns: 'returns',
+    customerRevenue: 'customers', overviewPurchase: 'suppliers'
+  });
+  assert.equal(new Set(Object.values(map)).size, Object.keys(map).length, 'khong bang nao dung chung bo loc');
+});
+
+test('không còn mục Chỉ số then chốt đầu tab; mỗi mục con có hàng chỉ số ngay dưới tiêu đề', () => {
+  ['overview', 'products', 'invoices', 'customers', 'suppliers'].forEach(name => {
+    const sections = [...view(name).querySelectorAll(':scope > section.section')];
+    assert.ok(!sectionTitles(name).some(s => s.title === 'Chỉ số then chốt'), name);
+    sections.forEach((section, index) => {
+      assert.ok(section.querySelector('.section-kpis'), name + ' muc ' + (index + 1) + ' thieu chi so then chot');
+      const firstBlock = section.querySelector(':scope > .section-head').nextElementSibling;
+      if (name !== 'overview' || index !== 0) {
+        assert.ok(firstBlock.classList.contains('section-kpis'), name + ' muc ' + (index + 1) + ': chi so phai o dau muc');
+      }
+    });
   });
 });
 
@@ -83,9 +101,11 @@ test('tham số bộ lọc gửi backend: pu theo Nhà cung cấp, np theo Hàng
   const match = html.match(/const TAB_FILTER_PREFIXES = \{([\s\S]*?)\};/);
   assert.ok(match, 'phai co TAB_FILTER_PREFIXES');
   const map = new Function('return {' + match[1] + '}')();
-  assert.deepEqual(map.products, ['pr', 'np']);
-  assert.deepEqual(map.invoices, ['in']);
-  assert.deepEqual(map.suppliers, ['pu']);
+  assert.deepEqual(map, {
+    topSelling: ['pr'], newlyImported: ['ni'], newProducts: ['np'],
+    invoices: ['in'], orders: ['or'], returns: ['rt'],
+    customers: ['cu'], suppliers: ['pu']
+  });
   assert.equal(map.overview, undefined);
 });
 

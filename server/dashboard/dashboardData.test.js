@@ -1301,6 +1301,32 @@ test('Ca hai giu product rollup tung co so thanh dong rieng, moi dong dung ten c
   ]);
 });
 
+test('Ca hai: doanh so Hang moi nhap theo newlyImported rieng, gan nhan co so tung dong', async () => {
+  const { dashboardData, dashboardRollupRepository } = freshDashboardData();
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  mockDashboardRollups(dashboardRollupRepository, {
+    getFirstPurchaseDates: () => [{ code: 'SP-MOI', name: 'SP-MOI', firstPurchaseDateText: '10/07/2026 09:00:00' }],
+    getProductSalesBreakdown: ({ branch, from }) => {
+      if (from !== '2026-07-01') return [];
+      return [{ code: 'SP-MOI', name: 'SP-MOI', qty: 1, revenue: branch === BRANCHES.HANOI ? 100 : 300 }];
+    }
+  });
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData({
+    ...BASE_FILTERS,
+    products: { mode: 'range', from: '2026-08-01', to: '2026-08-31' },
+    newlyImported: { mode: 'range', from: '2026-07-01', to: '2026-07-31' }
+  }, BRANCH_BOTH);
+
+  assert.deepEqual(data.products.topSellingProducts, [], 'thang 8 khong ban gi');
+  assert.deepEqual(
+    data.products.newlyImported.topByRevenue.map(p => [p.branch, p.revenue]),
+    [[BRANCHES.SAIGON, 300], [BRANCHES.HANOI, 100]]
+  );
+  assert.equal(data.products.newlyImported.salesRevenue, 400);
+});
+
 test('Ca hai cong truc tiep averageSales ke ca nguon co no qua han bang 0', async () => {
   const { dashboardData, debtManagementSheetsClient } = freshDashboardData();
   const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
@@ -1745,6 +1771,137 @@ test('getDashboardData: Top san pham ban chay + nhom hang doc tu getProductSales
   );
   assert.equal(data.products.topSellingParentCategories.length, 1);
   assert.equal(data.products.topSellingParentCategories[0].revenue, 600000);
+});
+
+test('getDashboardData: bo loc newlyImported (ni) doc lap voi products (pr) — ca danh sach lan doanh so Hang moi nhap', async () => {
+  const { dashboardData, dashboardPgReader, dashboardRollupRepository } = freshDashboardData();
+  const CONFIG = require('../config');
+  mockPgSheets(dashboardPgReader, {
+    [CONFIG.SHEET_PRODUCTS]: [
+      PRODUCT_HEADERS,
+      productRow({ code: 'SP-AUG', name: 'Nhập tháng 8' }),
+      productRow({ code: 'SP-JUL', name: 'Nhập tháng 7' })
+    ]
+  });
+  const salesCalls = [];
+  mockDashboardRollups(dashboardRollupRepository, {
+    getFirstPurchaseDates: () => [
+      { code: 'SP-AUG', name: 'Nhập tháng 8', firstPurchaseDateText: '10/08/2026 09:00:00' },
+      { code: 'SP-JUL', name: 'Nhập tháng 7', firstPurchaseDateText: '10/07/2026 09:00:00' }
+    ],
+    getProductSalesBreakdown: (args) => {
+      salesCalls.push(args);
+      return args.from === '2026-08-01'
+        ? [{ code: 'SP-AUG', name: 'Nhập tháng 8', qty: 1, revenue: 100 }, { code: 'SP-JUL', name: 'Nhập tháng 7', qty: 2, revenue: 200 }]
+        : [{ code: 'SP-JUL', name: 'Nhập tháng 7', qty: 7, revenue: 7000 }];
+    }
+  });
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData({
+    ...BASE_FILTERS,
+    products: { mode: 'range', from: '2026-08-01', to: '2026-08-31' },
+    newlyImported: { mode: 'range', from: '2026-07-01', to: '2026-07-31' }
+  });
+
+  assert.deepEqual(salesCalls.map(c => [c.from, c.to]).sort(), [['2026-07-01', '2026-07-31'], ['2026-08-01', '2026-08-31']]);
+  assert.deepEqual(
+    data.products.topSellingProducts.map(p => [p.code, p.revenue]),
+    [['SP-JUL', 200], ['SP-AUG', 100]],
+    'Top ban chay van theo productsRange'
+  );
+  const newlyImported = data.products.newlyImported;
+  assert.deepEqual(newlyImported.products.map(p => [p.code, p.revenue]), [['SP-JUL', 7000]]);
+  assert.deepEqual(newlyImported.topByRevenue.map(p => [p.code, p.revenue]), [['SP-JUL', 7000]]);
+  assert.equal(newlyImported.salesRevenue, 7000);
+  assert.equal(newlyImported.salesQty, 7);
+  assert.equal(newlyImported.label, '01/07/2026 – 31/07/2026');
+  assert.equal(data.filters.newlyImported.label, '01/07/2026 – 31/07/2026');
+  assert.equal(data.filters.products.label, '01/08/2026 – 31/08/2026');
+});
+
+test('getDashboardData: newlyImported cung khoang voi products (hoac khong gui) dung chung 1 truy van doanh so', async () => {
+  const { dashboardData, dashboardRollupRepository } = freshDashboardData();
+  const salesCalls = [];
+  mockDashboardRollups(dashboardRollupRepository, {
+    getProductSalesBreakdown: (args) => { salesCalls.push(args); return []; }
+  });
+  dashboardData.__test__.resetCaches();
+
+  const products = { mode: 'range', from: '2026-08-01', to: '2026-08-31' };
+  const same = await dashboardData.getDashboardData({ ...BASE_FILTERS, products, newlyImported: { ...products } });
+  assert.equal(salesCalls.length, 1);
+  assert.equal(same.filters.newlyImported.label, same.filters.products.label);
+
+  salesCalls.length = 0;
+  dashboardData.__test__.resetCaches();
+  const fallback = await dashboardData.getDashboardData({ ...BASE_FILTERS, products, newlyImported: { mode: undefined, days: undefined } });
+  assert.equal(salesCalls.length, 1, 'spec rong -> fallback ve products');
+  assert.equal(fallback.filters.newlyImported.label, '01/08/2026 – 31/08/2026');
+});
+
+test('getDashboardData: bo loc orders (or) / returns (rt) doc lap voi invoices (in), khong gui thi theo invoices', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const CONFIG = require('../config');
+  mockPgSheets(dashboardPgReader, {
+    [CONFIG.SHEET_ORDERS]: [
+      ['Mã đặt hàng', 'Ngày đặt', 'Khách hàng', 'Nhân viên lập', 'Chi nhánh', 'Tổng tiền', 'Trạng thái'],
+      ['DH-AUG', '10/08/2026 09:00:00', 'Khách A', '', '', 100, 'Phiếu tạm'],
+      ['DH-JUL', '10/07/2026 09:00:00', 'Khách A', '', '', 200, 'Phiếu tạm']
+    ],
+    [CONFIG.SHEET_RETURNS]: [
+      ['Mã trả hàng', 'Ngày trả', 'Mã hóa đơn', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái'],
+      ['TH-AUG', '10/08/2026 10:00:00', 'HD-01', 'Khách A', 50, 'Đã trả'],
+      ['TH-JUL', '10/07/2026 10:00:00', 'HD-01', 'Khách A', 60, 'Đã trả']
+    ]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const independent = await dashboardData.getDashboardData({
+    ...BASE_FILTERS,
+    invoices: { mode: 'all' },
+    orders: { mode: 'range', from: '2026-08-01', to: '2026-08-31' },
+    returns: { mode: 'range', from: '2026-07-01', to: '2026-07-31' }
+  });
+  assert.deepEqual(independent.invoices.periodOrders.map(row => row.code), ['DH-AUG']);
+  assert.equal(independent.invoices.pendingOrdersCount, 1);
+  assert.equal(independent.invoices.pendingOrdersTotal, 100);
+  assert.deepEqual(independent.invoices.periodReturns.map(row => row.code), ['TH-JUL']);
+  assert.equal(independent.invoices.returnsCount, 1);
+  assert.equal(independent.invoices.totalReturns, 60);
+  assert.equal(independent.filters.invoices.label, 'Tất cả');
+  assert.equal(independent.filters.orders.label, '01/08/2026 – 31/08/2026');
+  assert.equal(independent.filters.returns.label, '01/07/2026 – 31/07/2026');
+
+  const fallback = await dashboardData.getDashboardData({
+    ...BASE_FILTERS,
+    invoices: { mode: 'range', from: '2026-07-01', to: '2026-07-31' }
+  });
+  assert.deepEqual(fallback.invoices.periodOrders.map(row => row.code), ['DH-JUL']);
+  assert.deepEqual(fallback.invoices.periodReturns.map(row => row.code), ['TH-JUL']);
+  assert.equal(fallback.filters.orders.label, '01/07/2026 – 31/07/2026');
+  assert.equal(fallback.filters.returns.label, '01/07/2026 – 31/07/2026');
+});
+
+test('getDashboardData: tab Hoa don — doi bo loc orders/returns tinh lai (khong dung nham cache)', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const CONFIG = require('../config');
+  mockPgSheets(dashboardPgReader, {
+    [CONFIG.SHEET_ORDERS]: [
+      ['Mã đặt hàng', 'Ngày đặt', 'Khách hàng', 'Nhân viên lập', 'Chi nhánh', 'Tổng tiền', 'Trạng thái'],
+      ['DH-AUG', '10/08/2026 09:00:00', 'Khách A', '', '', 100, 'Phiếu tạm'],
+      ['DH-JUL', '10/07/2026 09:00:00', 'Khách A', '', '', 200, 'Phiếu tạm']
+    ]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const base = { ...BASE_FILTERS, invoices: { mode: 'all' } };
+  const views = { views: ['invoices'] };
+  const aug = await dashboardData.getDashboardData({ ...base, orders: { mode: 'range', from: '2026-08-01', to: '2026-08-31' } }, undefined, undefined, views);
+  const jul = await dashboardData.getDashboardData({ ...base, orders: { mode: 'range', from: '2026-07-01', to: '2026-07-31' } }, undefined, undefined, views);
+  assert.deepEqual(aug.invoices.periodOrders.map(row => row.code), ['DH-AUG']);
+  assert.deepEqual(jul.invoices.periodOrders.map(row => row.code), ['DH-JUL']);
+  assert.ok(jul.filters.orders && jul.filters.returns, 'payload tab Hoa don co filters.orders/returns');
 });
 
 test('getDashboardData: doanh thu theo ngay (Tong quan/Hoa don) doc tu getInvoiceRevenueByDay (rollup)', async () => {

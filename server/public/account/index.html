@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/shared/shared.css?v=20260928">
+<link rel="stylesheet" href="/shared/shared.css?v=20260930">
 <style>
   /* ---------- Account Page Custom Styles ---------- */
   .account-wrap{ width:100%; max-width:none; margin:0; }
@@ -538,17 +538,17 @@
           <!-- Bảng danh sách -->
           <div class="users-table-panel">
             <div class="users-table-scroll">
-              <table class="users-table" id="usersTable">
+              <table class="users-table fixed-table" id="usersTable">
                 <thead>
                   <tr>
-                    <th class="sortable" onclick="handleSort('hoTen')">Họ và tên <span class="sort-icon" id="sort-hoTen">↕</span></th>
-                    <th class="sortable" onclick="handleSort('username')">Tài khoản <span class="sort-icon" id="sort-username">↕</span></th>
-                    <th class="sortable" onclick="handleSort('email')">Email <span class="sort-icon" id="sort-email">↕</span></th>
-                    <th class="sortable" onclick="handleSort('vaiTro')">Vai trò <span class="sort-icon" id="sort-vaiTro">↕</span></th>
-                    <th class="sortable" onclick="handleSort('coSo')">Cơ sở <span class="sort-icon" id="sort-coSo">↕</span></th>
-                    <th class="sortable" onclick="handleSort('trangThai')">Trạng thái <span class="sort-icon" id="sort-trangThai">↕</span></th>
-                    <th class="sortable" onclick="handleSort('ngayTao')">Ngày tạo <span class="sort-icon" id="sort-ngayTao">↕</span></th>
-                    <th style="text-align:right;">Thao tác</th>
+                    <th class="sortable" onclick="handleSort('hoTen')" style="width:260px">Họ và tên <span class="sort-icon" id="sort-hoTen">↕</span></th>
+                    <th class="sortable" onclick="handleSort('username')" style="width:150px">Tài khoản <span class="sort-icon" id="sort-username">↕</span></th>
+                    <th class="sortable" onclick="handleSort('email')" style="width:260px">Email <span class="sort-icon" id="sort-email">↕</span></th>
+                    <th class="sortable" onclick="handleSort('vaiTro')" style="width:200px">Vai trò <span class="sort-icon" id="sort-vaiTro">↕</span></th>
+                    <th class="sortable" onclick="handleSort('coSo')" style="width:110px">Cơ sở <span class="sort-icon" id="sort-coSo">↕</span></th>
+                    <th class="sortable" onclick="handleSort('trangThai')" style="width:130px">Trạng thái <span class="sort-icon" id="sort-trangThai">↕</span></th>
+                    <th class="sortable" onclick="handleSort('ngayTao')" style="width:160px">Ngày tạo <span class="sort-icon" id="sort-ngayTao">↕</span></th>
+                    <th style="width:170px;text-align:right;">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody id="usersTableBody">

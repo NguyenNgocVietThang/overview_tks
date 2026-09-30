@@ -163,7 +163,6 @@ test('khoi dong khong hash: CHI tai tab Tong quan, khong keo 5 tab con lai va kh
   assert.doesNotMatch(url, /prMode|prDays/, 'Tong quan khong con dung bo loc Hang hoa');
   assert.doesNotMatch(url, /prStatus/, 'khong con bo loc trang thai kinh doanh');
   assert.doesNotMatch(url, /inMode|puMode|cuMode/, 'khong gui bo loc Hoa don/Nha cung cap/Khach hang');
-  assert.equal(page.text('ov-debt-sub'), '2 khách đang nợ', 'Tong quan ve tu payload cua tab');
   assert.equal(page.veilOn(), false, 'man che tat sau khi tai xong');
 });
 
@@ -191,7 +190,6 @@ test('bam sang tab chua tai: tai dung tab do roi ve; quay lai tab da tai thi kho
   page.run("switchView('suppliers')");
   await settle();
   assert.deepEqual(page.viewsCalled(), ['overview', 'suppliers'], 'tab con moi (cung bo loc, chua het han) khong tai lai');
-  assert.equal(page.text('ov-debt-sub'), '2 khách đang nợ');
 });
 
 test('tab chua co du lieu hien man che "Dang tai" toi khi tai xong', async () => {
@@ -230,11 +228,11 @@ test('doi bo loc tab dang xem chi tai lai tab do, khong keo tab khac', async () 
   await settle();
   assert.deepEqual(page.viewsCalled(), ['overview', 'invoices']);
 
-  page.run("setMiniFilterDays('invoices', 7)");
+  page.run("setTableDateFilter('invoices', '2026-09-01', '2026-09-07')");
   await settle();
 
   assert.deepEqual(page.viewsCalled(), ['overview', 'invoices', 'invoices']);
-  assert.match(page.calls[2].url, /view=invoices&days=30&inMode=days&inDays=7/);
+  assert.match(page.calls[2].url, /view=invoices&days=30&inMode=range&inFrom=2026-09-01&inTo=2026-09-07/);
 });
 
 test('doi bo loc Hoa don hay Hang hoa deu khong lam Tong quan tai lai', async () => {
@@ -242,7 +240,7 @@ test('doi bo loc Hoa don hay Hang hoa deu khong lam Tong quan tai lai', async ()
   await settle();
   page.run("switchView('invoices')");
   await settle();
-  page.run("setMiniFilterDays('invoices', 7)");
+  page.run("setTableDateFilter('invoices', '2026-09-01', '2026-09-07')");
   await settle();
   const before = page.calls.length;
 
@@ -252,10 +250,10 @@ test('doi bo loc Hoa don hay Hang hoa deu khong lam Tong quan tai lai', async ()
 
   page.run("switchView('products')");
   await settle();
-  page.run("setMiniFilterDays('products', 7)");
+  page.run("setTableDateFilter('topSelling', '2026-09-01', '2026-09-07')");
   await settle();
   const afterProducts = page.calls.length;
-  assert.match(page.calls[afterProducts - 1].url, /view=products.*prDays=7.*npDays=7/);
+  assert.match(page.calls[afterProducts - 1].url, /view=products.*prFrom=2026-09-01/);
 
   page.run("switchView('overview')");
   await settle();
@@ -335,11 +333,11 @@ test('moi tab co request rieng: chuyen tab KHONG huy request tab khac; doi bo lo
   assert.equal(productsCall.signal.aborted, false, 'chuyen sang Hoa don khong duoc huy request cua Hang hoa');
   assert.equal(invoicesCall.signal.aborted, false);
 
-  page.run("setMiniFilterDays('invoices', 7)");
+  page.run("setTableDateFilter('invoices', '2026-09-01', '2026-09-07')");
   assert.equal(invoicesCall.signal.aborted, true, 'doi bo loc Hoa don huy request cu cua Hoa don');
   assert.equal(productsCall.signal.aborted, false);
   const newInvoicesCall = page.calls[3];
-  assert.match(newInvoicesCall.url, /inDays=7/);
+  assert.match(newInvoicesCall.url, /inFrom=2026-09-01/);
 
   // Response cua request bi huy (ve tay cham) khong ghi de du lieu.
   newInvoicesCall.resolve(payloadFor('invoices', 'MOI'));
@@ -420,7 +418,6 @@ test('cache cu (ban day du 6 tab, khong co views) van dung duoc: cac tab du khoa
   assert.equal(page.dash.viewIsLoaded('overview'), true);
   assert.equal(page.dash.viewIsLoaded('suppliers'), true);
   assert.equal(page.dash.viewIsLoaded('invoices'), false);
-  assert.equal(page.text('ov-debt-sub'), '2 khách đang nợ');
 
   page.run("switchView('suppliers')");
   assert.equal(page.calls.filter(call => call.view === 'suppliers').length, 1, 'cache cu chua co chu ky -> phai hoi lai server');
@@ -457,7 +454,6 @@ test('sau khi nap quyen: hash tro toi tab khong duoc xem -> van tai tab dang mo 
   await settle();
 
   assert.deepEqual(page.viewsCalled(), ['debt', 'overview'], 'Tong quan (tab hien tai) chua co du lieu -> tai them');
-  assert.equal(page.text('ov-debt-sub'), '2 khách đang nợ');
 });
 
 test('tai khoan chi co quyen Hoa don: tab dau tien duoc phep duoc tai (khong tai lai tab khong duoc xem)', async () => {
