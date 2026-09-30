@@ -231,3 +231,12 @@ Cột `available_to_sell` = tồn 2 cơ sở trừ số lượng đang bị gi�
 **Migration `0019`**: Bổ sung vai trò `Nhân viên marketing` vào constraint CHECK `app_users.vai_tro`. Constraint cũ bị DROP và tạo lại với danh sách đầy đủ: `Quản lý`, `Kế toán`, `Trưởng kho`, `Trợ lý`, `Lái xe`, `Nhân viên kho`, `Nhân viên sale`, `Nhân viên marketing`, `Nhân viên mua hàng`, `Khách`.
 
 **Migration `0020`**: Thêm cột `app_users.feature_permissions JSONB NOT NULL DEFAULT '{}'` để lưu **delta** quyền tính năng so với mặc định của vai trò. Ví dụ `{"reports.debt": false, "reports.overview": true}`. Logic phân quyền thực tế nằm ở `server/auth/featureRegistry.js` — bảng chỉ lưu phần override cá nhân, không snapshot toàn bộ quyền của vai trò.
+
+### Dọn dẹp suppliers và rollup mua hàng (migration `0026`)
+
+Gỡ bỏ tab "Nhà cung cấp" khỏi dashboard:
+- `DROP TABLE IF EXISTS daily_purchase_summary;`
+- `DROP TABLE IF EXISTS suppliers;`
+- Xóa bản ghi tiến độ trong `sync_checkpoints` và `backfill_progress` với `entity = 'suppliers'`.
+- Các bảng `purchases`, `purchase_details`, `product_first_purchase` vẫn được giữ nguyên để phục vụ tab Hàng hóa và cảnh báo đứt hàng.
+
