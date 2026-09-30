@@ -68,8 +68,8 @@ function payload() {
     allProducts: [product(HN, 5), product(SG, 2)],
     suppliers: [{ code: 'NCC-1', branch: BOTH, name: 'NCC Z', phone: '0900', debt: 500 }],
     customers: {
-      topDebt: [{ code: 'KH-1', branch: BOTH, name: 'Khách Hà Nội', phone: '0901', debt: 500, periodRevenue: 0, codesByBranch: { [HN]: 'KH-1', [SG]: 'KH-9' } }],
-      topRevenue: { top15: [], all: [{ code: 'KH-1', branch: BOTH, name: 'Khách Hà Nội', saleOrderCount: 3, revenue: 999 }], label: 'Tất cả' }
+      topDebt: [{ code: 'KH-1', branch: BOTH, name: 'Khách Hà Nội', phone: '0901', debt: 500, periodRevenue: 0, codesByBranch: { [HN]: 'KH-1', [SG]: 'KH-9' }, debtByBranch: { [HN]: 200, [SG]: 300 } }],
+      topRevenue: { top15: [], all: [{ code: 'KH-1', branch: BOTH, name: 'Khách Hà Nội', saleOrderCount: 3, revenue: 999, revenueByBranch: { [HN]: 600, [SG]: 399 } }], label: 'Tất cả' }
     }
   };
 }
@@ -158,6 +158,21 @@ test('bang khach hang khong con cot Mã KH, khach gop theo ten hien "Hà Nội, 
   });
   assert.deepEqual([rows(doc, 'debtRows')[0][0], rows(doc, 'debtRows')[0].at(-1)], ['Khách Hà Nội', BOTH]);
   assert.deepEqual([rows(doc, 'customerRevenueRows')[0][0], rows(doc, 'customerRevenueRows')[0].at(-1)], ['Khách Hà Nội', BOTH]);
+  dom.window.close();
+});
+
+test('bang khach hang: bo bieu do, them cot doanh thu / cong no theo tung co so', () => {
+  const dom = createPage();
+  const doc = dom.window.document;
+  dom.window.eval("switchView('customers')");
+  ['chartTopCustomerRevenue', 'chartDebt'].forEach(id => assert.equal(doc.getElementById(id), null, id + ' da bi go'));
+  assert.deepEqual(headers(doc, 'customerRevenueRows').slice(2), ['Doanh thu', 'Doanh thu HN', 'Doanh thu SG', 'Cơ sở']);
+  assert.deepEqual(headers(doc, 'debtRows').slice(2), ['Công nợ', 'Công nợ HN', 'Công nợ SG', 'Cơ sở']);
+  assert.deepEqual(rows(doc, 'customerRevenueRows')[0].slice(2, 5).map(text => text.replace(/\D/g, '')), ['999', '600', '399']);
+  assert.deepEqual(rows(doc, 'debtRows')[0].slice(2, 5).map(text => text.replace(/\D/g, '')), ['500', '200', '300']);
+  // Payload cu chua co map theo co so: dong cua 1 co so lay tron tong o co so do.
+  const html = dom.window.branchAmountCells({ branch: SG }, 'debtByBranch', 70, '');
+  assert.deepEqual([...html.matchAll(/data-sort-value="(\d+)"/g)].map(match => match[1]), ['0', '70']);
   dom.window.close();
 });
 

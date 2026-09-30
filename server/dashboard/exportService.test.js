@@ -1810,3 +1810,36 @@ test('Ca hai: bang khach hang gop theo TEN - moi co so doc ma khach RIENG cua no
     assert.deepEqual(calls.map(call => [call.branch, call.codes]), [[HN, ['KH-1']], [SG, ['KH-9']]]);
   });
 });
+
+test('Ca hai: file doanh thu/cong no cua khach co cot tach theo tung co so', async () => {
+  const dashboard = {
+    customers: {
+      topDebt: [{
+        code: 'KH-1', name: 'Khách An', branch: `${HN}, ${SG}`, debt: 300, periodRevenue: 5,
+        debtByBranch: { [HN]: 100, [SG]: 200 }, codesByBranch: { [HN]: 'KH-1', [SG]: 'KH-9' }
+      }],
+      topRevenue: {
+        all: [{
+          code: 'KH-1', name: 'Khách An', branch: `${HN}, ${SG}`, saleOrderCount: 3, revenue: 700,
+          revenueByBranch: { [HN]: 500, [SG]: 200 }, codesByBranch: { [HN]: 'KH-1', [SG]: 'KH-9' }
+        }]
+      }
+    }
+  };
+  await withStubs({ dashboard }, async () => {
+    stubRowsByBranch({
+      [HN]: { [CONFIG.SHEET_CUSTOMERS]: [sourceRow('customers', { ma_khach_hang: 'KH-1', ten_khach_hang: 'Khách An' })] },
+      [SG]: { [CONFIG.SHEET_CUSTOMERS]: [sourceRow('customers', { ma_khach_hang: 'KH-9', ten_khach_hang: 'Khách An' })] }
+    }, []);
+    const debt = worksheetTable(await loadWorkbook(await exportService.createExportWorkbook({
+      tableKey: 'customers.debt',
+      columns: { customer_debt: ['ten_khach_hang', 'd_debt_hn', 'd_debt_sg'] }
+    }, BOTH)));
+    assert.deepEqual(debt.rows, [['Khách An', 100, 200]]);
+    const revenue = worksheetTable(await loadWorkbook(await exportService.createExportWorkbook({
+      tableKey: 'customers.revenue',
+      columns: { customer_revenue: ['ten_khach_hang', 'd_revenue_hn', 'd_revenue_sg'] }
+    }, BOTH)));
+    assert.deepEqual(revenue.rows, [['Khách An', 500, 200]]);
+  });
+});

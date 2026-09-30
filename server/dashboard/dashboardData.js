@@ -1473,6 +1473,17 @@ function parseCodesByBranch(raw, singleBranch, code) {
   return singleBranch && code ? { [singleBranch]: code } : {};
 }
 
+/** Doc cot JSON so tien theo co so; khong co -> toan bo so tien thuoc co so cua dong (khi chi co 1 co so). */
+function parseAmountsByBranch(raw, rowBranch, total) {
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch (_error) { /* roi ve co so cua dong */ }
+  }
+  return rowBranch && !String(rowBranch).includes(',') ? { [rowBranch]: total } : {};
+}
+
 function aggregateCustomerRevenueFromSheetRows(range, invData, custData, retData, fallbackBranch = '') {
   const customers = new Map();
   const custCodeByPhone = new Map();
@@ -1533,6 +1544,7 @@ function aggregateCustomerRevenueFromSheetRows(range, invData, custData, retData
           name: name || '(Không xác định)',
           saleOrderCount: 0,
           revenue: 0,
+          revenueByBranch: {},
           codesByBranch: {},
           _branches: new Set()
         });
@@ -1546,6 +1558,8 @@ function aggregateCustomerRevenueFromSheetRows(range, invData, custData, retData
       const total = Number(invTotalIdx >= 0 ? row[invTotalIdx] : row[6]) || 0;
       entry.revenue += total;
       entry.saleOrderCount += 1;
+      const revenueBranch = rowFacility || fallbackBranch;
+      if (revenueBranch) entry.revenueByBranch[revenueBranch] = (entry.revenueByBranch[revenueBranch] || 0) + total;
     }
   }
 
@@ -1556,6 +1570,7 @@ function aggregateCustomerRevenueFromSheetRows(range, invData, custData, retData
     const retDateIdx = retHeaders.findIndex(h => String(h || '').trim() === 'Ngày trả');
     const retNameIdx = retHeaders.findIndex(h => String(h || '').trim() === 'Khách hàng');
     const retTotalIdx = retHeaders.findIndex(h => String(h || '').trim() === 'Tổng tiền trả');
+    const retFacilityIdx = retHeaders.findIndex(h => String(h || '').trim() === SHEET_FACILITY_HEADER);
 
     for (let r = 1; r < retData.length; r++) {
       const row = retData[r];
@@ -1577,6 +1592,8 @@ function aggregateCustomerRevenueFromSheetRows(range, invData, custData, retData
         const entry = customers.get(key);
         const retTotal = Number(retTotalIdx >= 0 ? row[retTotalIdx] : row[4]) || 0;
         entry.revenue -= retTotal;
+        const retBranch = (retFacilityIdx >= 0 ? String(row[retFacilityIdx] || '').trim() : '') || fallbackBranch;
+        if (retBranch) entry.revenueByBranch[retBranch] = (entry.revenueByBranch[retBranch] || 0) - retTotal;
       }
     }
   }
@@ -1998,6 +2015,8 @@ function buildTransactionsReport(range, invoiceRecords, invoiceQuantityMap, incl
 const SHEET_FACILITY_HEADER = 'Cơ sở';
 // Cot phu them vao tab Khach hang da gop theo ten: JSON { 'Hà Nội': maKH, 'Sài Gòn': maKH }.
 const CUSTOMER_CODES_HEADER = 'Mã khách hàng theo cơ sở';
+// Cot phu JSON { 'Hà Nội': no, 'Sài Gòn': no } — cong no cua khach o tung co so (cot "Nợ hiện tại" la tong).
+const CUSTOMER_DEBT_BY_BRANCH_HEADER = 'Nợ hiện tại theo cơ sở';
 
 // Bao dam sheet gop co cot "Cơ sở" (nguon khong tu mang cot nay van nhan dung co so vat ly).
 function ensureFacilityHeader(headers) {
@@ -2036,6 +2055,10 @@ function mergeEntitySheet(branchSources, sheetName, codeHeader, additiveHeaders 
   const fallbackCodeIndex = options.fallbackCodeHeader ? sheetHeaderIndex(targetHeaders, options.fallbackCodeHeader) : -1;
   const branchIndex = options.branchHeader ? ensureFacilityHeader(targetHeaders) : -1;
   const codesByBranchHeader = options.codesByBranchHeader || '';
+  // Cot cong don van giu tong hai co so, kem 1 cot phu JSON { 'Hà Nội': x, 'Sài Gòn': y } de tach theo co so.
+  const sumByBranchHeader = options.sumByBranchHeader || '';
+  const sumByBranchOutputHeader = options.sumByBranchOutputHeader || '';
+  const sumByBranchIndex = sumByBranchHeader ? sheetHeaderIndex(targetHeaders, sumByBranchHeader) : -1;
   const additiveIndexes = new Map(additiveHeaders.map(header => [header, sheetHeaderIndex(targetHeaders, header)]));
   const costIndex = options.weightedInventoryCost ? sheetHeaderIndex(targetHeaders, 'Giá vốn') : -1;
   const stockIndex = options.weightedInventoryCost ? sheetHeaderIndex(targetHeaders, 'Tồn kho') : -1;
@@ -2057,12 +2080,16 @@ function mergeEntitySheet(branchSources, sheetName, codeHeader, additiveHeaders 
           sums: new Map(additiveHeaders.map(header => [header, 0])),
           inventoryValue: 0,
           branches: [],
-          codesByBranch: {}
+          codesByBranch: {},
+          sumByBranch: {}
         });
       }
       const entity = entities.get(key);
       const rowBranch = branchIndex >= 0 ? String(aligned[branchIndex] || source.branch || '').trim() : '';
       if (rowBranch && !entity.branches.includes(rowBranch)) entity.branches.push(rowBranch);
+      if (sumByBranchIndex >= 0 && rowBranch) {
+        entity.sumByBranch[rowBranch] = (entity.sumByBranch[rowBranch] || 0) + (Number(aligned[sumByBranchIndex]) || 0);
+      }
       const rowCode = fallbackCodeIndex >= 0 ? fallbackCode : primaryCode;
       if (rowCode && rowBranch && !entity.codesByBranch[rowBranch]) entity.codesByBranch[rowBranch] = rowCode;
       aligned.forEach((value, columnIndex) => {
@@ -2091,9 +2118,11 @@ function mergeEntitySheet(branchSources, sheetName, codeHeader, additiveHeaders 
     }
     if (branchIndex >= 0 && entity.branches.length) entity.row[branchIndex] = entity.branches.join(', ');
     if (codesByBranchHeader) entity.row.push(JSON.stringify(entity.codesByBranch));
+    if (sumByBranchOutputHeader) entity.row.push(JSON.stringify(entity.sumByBranch));
     return entity.row;
   });
-  return [codesByBranchHeader ? [...targetHeaders, codesByBranchHeader] : targetHeaders, ...rows];
+  const extraHeaders = [codesByBranchHeader, sumByBranchOutputHeader].filter(Boolean);
+  return [extraHeaders.length ? [...targetHeaders, ...extraHeaders] : targetHeaders, ...rows];
 }
 
 function mergeTransactionalSheet(branchSources, sheetName) {
@@ -2137,7 +2166,13 @@ const ENTITY_MERGE_SPECS = {
   [CONFIG.SHEET_CUSTOMERS]: {
     codeHeader: 'Tên khách hàng',
     additiveHeaders: ['Nợ hiện tại', 'Tổng bán', 'Tổng doanh thu'],
-    options: { fallbackCodeHeader: 'Mã khách hàng', branchHeader: SHEET_FACILITY_HEADER, codesByBranchHeader: CUSTOMER_CODES_HEADER }
+    options: {
+      fallbackCodeHeader: 'Mã khách hàng',
+      branchHeader: SHEET_FACILITY_HEADER,
+      codesByBranchHeader: CUSTOMER_CODES_HEADER,
+      sumByBranchHeader: 'Nợ hiện tại',
+      sumByBranchOutputHeader: CUSTOMER_DEBT_BY_BRANCH_HEADER
+    }
   },
   [CONFIG.SHEET_SUPPLIERS]: {
     codeHeader: 'Mã NCC',
@@ -3157,6 +3192,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const customerCodeIndex = customerIndex('Mã khách hàng', 0);
   const customerFacilityIndex = customerIndex(SHEET_FACILITY_HEADER, -1);
   const customerCodesIndex = customerIndex(CUSTOMER_CODES_HEADER, -1);
+  const customerDebtByBranchIndex = customerIndex(CUSTOMER_DEBT_BY_BRANCH_HEADER, -1);
   const customerNameIndex = customerIndex('Tên khách hàng', 1);
   const customerPhoneIndex = customerIndex('Điện thoại', 2);
   const customerDebtIndex = customerIndex('Nợ hiện tại', 7);
@@ -3191,13 +3227,15 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       const periodRevenue = customerRevenueByPhone.get(phoneKey) || 0;
       const includeInPeriod = customersRange.mode === 'all' || customerRevenueByPhone.has(phoneKey);
       if (includeInPeriod) {
+        const rowBranch = (customerFacilityIndex >= 0 && row[customerFacilityIndex]) || singleBranch;
         topDebt.push({
           code,
-          branch: (customerFacilityIndex >= 0 && row[customerFacilityIndex]) || singleBranch,
+          branch: rowBranch,
           codesByBranch: parseCodesByBranch(customerCodesIndex >= 0 ? row[customerCodesIndex] : '', singleBranch, code),
           name: row[customerNameIndex],
           phone: row[customerPhoneIndex],
           debt,
+          debtByBranch: parseAmountsByBranch(customerDebtByBranchIndex >= 0 ? row[customerDebtByBranchIndex] : '', rowBranch, debt),
           periodRevenue
         });
       }

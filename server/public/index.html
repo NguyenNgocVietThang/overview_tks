@@ -3994,17 +3994,7 @@
             </div>
             <div class="kpi-grid section-kpis" id="customerRevenueKpis"></div>
             <div class="grid transaction-analysis-grid">
-              <div class="panel col-5">
-                <div class="panel-head">
-                  <h2>Top 15 khách hàng doanh thu cao nhất</h2>
-                  <span class="drill-hint" id="top-customer-revenue-count">—</span>
-                </div>
-                <div class="chart-box top-transactions-chart">
-                  <canvas id="chartTopCustomerRevenue" role="img"
-                    aria-label="Biểu đồ cột ngang top 15 khách hàng có doanh thu lớn nhất theo bộ lọc"></canvas>
-                </div>
-              </div>
-              <div class="panel col-7">
+              <div class="panel col-12">
                 <div class="panel-head">
                   <h2>Chi tiết doanh thu theo khách <span class="tag" id="tagCustomerRevenue">—</span></h2>
                   <div class="panel-head-actions"><span class="drill-hint">Tất cả khách có doanh thu trong
@@ -4018,12 +4008,14 @@
                         <th style="width:300px">Khách hàng</th>
                         <th style="width:125px">SL đơn bán</th>
                         <th style="width:135px">Doanh thu</th>
+                        <th style="width:135px">Doanh thu HN</th>
+                        <th style="width:135px">Doanh thu SG</th>
                         <th style="width:130px">Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="customerRevenueRows">
                       <tr>
-                        <td colspan="4" class="table-note">Đang tải...</td>
+                        <td colspan="6" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4058,17 +4050,7 @@
               </div>
             </div>
             <div class="grid transaction-analysis-grid">
-              <div class="panel col-5">
-                <div class="panel-head">
-                  <h2>Khách hàng công nợ cao nhất</h2>
-                  <span class="drill-hint">15 khách nợ lớn nhất</span>
-                </div>
-                <div class="chart-box top-transactions-chart">
-                  <canvas id="chartDebt" role="img"
-                    aria-label="Biểu đồ cột ngang top 15 khách hàng có công nợ lớn nhất"></canvas>
-                </div>
-              </div>
-              <div class="panel col-7">
+              <div class="panel col-12">
                 <div class="panel-head">
                   <h2>Chi tiết khách nợ <span class="tag" id="tagDebt">—</span></h2>
                   <div class="panel-head-actions"><span class="drill-hint">Xem diễn biến nợ theo kỳ ở tab Công
@@ -4082,12 +4064,14 @@
                         <th style="width:300px">Tên khách hàng</th>
                         <th style="width:130px">Điện thoại</th>
                         <th style="width:135px">Công nợ</th>
+                        <th style="width:135px">Công nợ HN</th>
+                        <th style="width:135px">Công nợ SG</th>
                         <th style="width:130px">Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="debtRows">
                       <tr>
-                        <td colspan="4" class="table-note">Đang tải...</td>
+                        <td colspan="6" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4947,6 +4931,17 @@
     // theo ten o "Cả hai" co the la 'Hà Nội, Sài Gòn').
     function branchCellText(item) {
       return escapeHtml((item && item.branch) || '—');
+    }
+
+    // Hai o "… HN" / "… SG": so tien cua khach o tung co so vat ly. Payload cu chua co map theo co so
+    // thi dong cua dung 1 co so lay tron tong o co so do.
+    function branchAmountCells(item, mapKey, total, style) {
+      const map = item && item[mapKey];
+      const attr = style ? ' style="' + style + '"' : '';
+      return ['Hà Nội', 'Sài Gòn'].map(branch => {
+        const value = map ? Number(map[branch]) || 0 : (item && item.branch === branch ? Number(total) || 0 : 0);
+        return '<td class="mono" data-sort-value="' + value + '"' + attr + '>' + fmtMoney(value) + '</td>';
+      }).join('');
     }
 
     // Khoa dinh danh dong hang hoa: cung ma o hai co so la hai dong khac nhau.
@@ -6514,67 +6509,6 @@
       });
     }
 
-    function renderTopCustomerRevenueChart(report) {
-      destroyChart('topCustomerRevenue');
-      const canvas = document.getElementById('chartTopCustomerRevenue');
-      if (!canvas || !report) return;
-
-      const customersList = report.top15 || [];
-      const revenueValues = customersList.map(item => Number(item.revenue) || 0);
-      const formatAxisMoney = createMoneyAxisFormatter(revenueValues);
-      const theme = chartTheme();
-      canvas.style.cursor = customersList.length ? 'pointer' : '';
-      canvas.title = customersList.length ? 'Nhấn cột để xem dòng tương ứng' : '';
-
-      state.charts.topCustomerRevenue = new Chart(canvas.getContext('2d'), {
-        type: 'bar',
-        data: {
-          labels: customersList.map(item => item.name || '—'),
-          datasets: [{
-            label: 'Doanh thu',
-            data: revenueValues,
-            backgroundColor: theme.amber,
-            borderColor: theme.amber,
-            borderWidth: 1.5,
-            borderRadius: 5,
-            maxBarThickness: 38
-          }]
-        },
-        options: {
-          indexAxis: 'y',
-          animation: chartAnimationOption(),
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false, axis: 'y' },
-          onClick: function (event, elements) {
-            if (elements && elements[0]) navigateChartToTable('customerRevenue', customerIdentity(customersList[elements[0].index]));
-          },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                title: items => {
-                  const item = customersList[items[0].dataIndex] || {};
-                  return item.name || '—';
-                },
-                label: context => {
-                  const item = customersList[context.dataIndex] || {};
-                  return [
-                    'Doanh thu: ' + fmtMoney(item.revenue),
-                    'SL đơn bán: ' + fmtNumber(Number(item.saleOrderCount || 0))
-                  ];
-                }
-              }
-            }
-          },
-          scales: {
-            x: { beginAtZero: true, ticks: { color: theme.muted, callback: formatAxisMoney, font: { size: 10.5 } }, grid: { color: theme.grid } },
-            y: { ticks: { color: theme.muted, autoSkip: false, font: { size: 10.5 } }, grid: { display: false } }
-          }
-        }
-      });
-    }
-
     function renderBarChartList(canvasId, key, list, labelFn, valueFn, color, vertical, drilldown, barThickness, labelRotation) {
       destroyChart(key);
       const canvas = document.getElementById(canvasId);
@@ -8061,21 +7995,16 @@
           { tbody: 'debtRows', pagination: 'topDebtPagination', firstBtn: 'topDebtFirstPage', prevBtn: 'topDebtPrevPage', nextBtn: 'topDebtNextPage', lastBtn: 'topDebtLastPage', label: 'topDebtPageLabel' },
           topDebt,
           c => '<tr><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
-            '<td class="mono muted">' + (c.phone ? escapeHtml(c.phone) : '—') + '</td><td class="mono" data-sort-value="' + c.debt + '" style="color:var(--red);">' + fmtMoney(c.debt) + '</td><td>' + branchCellText(c) + '</td></tr>',
-          4,
+            '<td class="mono muted">' + (c.phone ? escapeHtml(c.phone) : '—') + '</td><td class="mono" data-sort-value="' + c.debt + '" style="color:var(--red);">' + fmtMoney(c.debt) + '</td>' +
+            branchAmountCells(c, 'debtByBranch', c.debt, 'color:var(--red);') + '<td>' + branchCellText(c) + '</td></tr>',
+          6,
           'Không có khách hàng nợ'
         );
-        const topDebtChart = topDebt.slice(0, 15);
-        if (topDebtChart.length) renderBarChartList(
-          'chartDebt', 'debt', topDebtChart, c => c.name, c => c.debt, themeColor('--red'), false,
-          { tableKey: 'topDebt', identity: customerIdentity }
-        ); else destroyChart('debt');
 
         const topRevenue = customerData.topRevenue || { top15: [], all: [], label: '—' };
         // top50 is retained as a fallback while older cached dashboard payloads expire.
         const allCustomerRevenue = topRevenue.all || topRevenue.top50 || [];
         document.getElementById('tagCustomerRevenue').textContent = allCustomerRevenue.length;
-        document.getElementById('top-customer-revenue-count').textContent = topRevenue.label || '—';
         renderSectionKpis('customerRevenueKpis', [
           { label: 'Khách có doanh thu', value: fmtNumber(allCustomerRevenue.length), sub: topRevenue.label || '—', accent: 'blue' },
           { label: 'Tổng doanh thu', value: fmtMoney(sumBy(allCustomerRevenue, c => c.revenue)), sub: topRevenue.label || '—', accent: 'green' },
@@ -8087,11 +8016,11 @@
           allCustomerRevenue,
           c => '<tr><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
             '<td class="mono">' + fmtNumber(Number(c.saleOrderCount || 0)) + '</td>' +
-            '<td class="mono" data-sort-value="' + c.revenue + '">' + fmtMoney(c.revenue) + '</td><td>' + branchCellText(c) + '</td></tr>',
-          4,
+            '<td class="mono" data-sort-value="' + c.revenue + '">' + fmtMoney(c.revenue) + '</td>' +
+            branchAmountCells(c, 'revenueByBranch', c.revenue, '') + '<td>' + branchCellText(c) + '</td></tr>',
+          6,
           'Không có dữ liệu doanh thu trong khoảng đã chọn'
         );
-        renderTopCustomerRevenueChart(topRevenue);
       }
       else if (view === 'suppliers') {
         document.getElementById('sp-total').textContent = d.kpi.totalSuppliers;

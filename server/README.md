@@ -22,6 +22,15 @@ Không còn Apps Script KiotViet. Đã gỡ bỏ tính năng vận chuyển cũ 
 - Tab tài khoản không có quyền xem trả `{ "filters": {}, "kpi": {} }` (không đọc/tính gì); tên tab sai trả 400 `INVALID_VIEW`.
 - Thêm/đổi trường payload của một tab: sửa `VIEW_PAYLOAD` trong `dashboardViews.js` (test "tung tab: payload y het lat cat cua ban day du" sẽ báo nếu tab không tính đủ trường đã khai báo).
 
+## API chi tiết chứng từ
+
+`dashboard/documentDetailRepository.js` cung cấp 3 loader cho popup chi tiết khi bấm vào dòng bảng tab Hóa đơn:
+- `GET /api/order-detail?code=<mã>&branch=<cơ sở>` — đơn đặt hàng + dòng hàng
+- `GET /api/return-detail?code=<mã>&branch=<cơ sở>` — phiếu trả hàng + dòng hàng
+- `GET /api/invoice-detail?code=<mã>&branch=<cơ sở>` — hóa đơn + dòng hàng + thanh toán
+
+Mã chứng từ chỉ duy nhất trong 1 cơ sở, nên `branch` bắt buộc khi đang xem "Cả hai"; ở chế độ 1 cơ sở có thể bỏ trống.
+
 ## Lệnh
 
 ```bash
@@ -69,11 +78,11 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0016` | 3 bảng nghỉ phép + bot Telegram (`hr_leave_requests`, `hr_telegram_links`, `hr_telegram_sessions`) |
 | `0017` | `supplier_return_imports` — Trả NCC upload Excel thay tab Google Sheets |
 | `0018` | `product_report` — báo cáo hàng hóa tổng hợp 2 cơ sở |
-| `0024` | `order_suppliers`, `order_supplier_details` — phiếu "Đặt hàng nhập" (`/ordersuppliers`), nguồn cột "Hàng đang vận chuyển" của khung Cơ cấu tồn kho |
-| `0023` | `product_report_customers` — doanh số 90 ngày từng khách theo từng mã hàng, dựng cùng job đêm với `product_report` (khung "Chi tiết" của bảng Báo cáo hàng hóa) |
 | `0019` | Thêm vai trò `Nhân viên marketing` vào CHECK `app_users.vai_tro` |
 | `0020` | `app_users.feature_permissions JSONB` — phân quyền theo tính năng từng tài khoản |
 | `0021` | Index ngày `invoices`/`purchases`/`returns` cho rollup Dashboard và làm mới công nợ 1/3/7 ngày |
 | `0022` | `customer_invoice_lines_90d` + `customer_invoice_lines_state` — chi tiết hóa đơn 90 ngày gắn sẵn mã khách, dựng lại 1 lần/đêm cho báo cáo doanh thu theo khách |
+| `0023` | `product_report_customers` — doanh số 90 ngày từng khách theo từng mã hàng, dựng cùng job đêm với `product_report` (khung "Chi tiết" của bảng Báo cáo hàng hóa) |
+| `0024` | `order_suppliers`, `order_supplier_details` — phiếu "Đặt hàng nhập" (`/ordersuppliers`), migration `0024`, nhóm fast 7 phút, đối soát toàn bộ danh sách vì API bỏ qua `lastModifiedFrom` |
 
 Bot Telegram chạy ngoài repo và đọc/ghi 3 bảng nghỉ phép trực tiếp — hợp đồng dữ liệu ở `db/SCHEMA.md`.

@@ -207,7 +207,7 @@ test('điều hướng biểu đồ xóa tìm kiếm, chuyển đúng trang và 
   dom.window.close();
 });
 
-test('điều hướng biểu đồ doanh thu khách theo tên khách (khách gộp hai cơ sở, không còn mã KH)', () => {
+test('điều hướng tới dòng doanh thu khách theo tên khách (khách gộp hai cơ sở, không còn mã KH)', () => {
   const dom = createDashboard();
   const document = dom.window.document;
   const customers = [
@@ -221,10 +221,7 @@ test('điều hướng biểu đồ doanh thu khách theo tên khách (khách g�
   };
   dom.window.renderPaginatedRows('customerRevenue', ids, customers,
     item => `<tr><td>${item.code}</td><td>${item.name}</td></tr>`, 2, 'Không có dữ liệu');
-  dom.window.renderTopCustomerRevenueChart({ top15: customers });
-
-  const chart = dom.window.Chart.instances.at(-1);
-  chart.config.options.onClick({}, [{ index: 1 }]);
+  dom.window.navigateChartToTable('customerRevenue', dom.window.customerIdentity(customers[1]));
 
   assert.equal(document.querySelector('#customerRevenueRows tr.table-row-target').dataset.tableItemId, 'công ty hồng hà');
   dom.window.close();

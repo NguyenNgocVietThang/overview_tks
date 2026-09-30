@@ -464,6 +464,16 @@ function customerRevenueRows(dashboard) {
   return topRevenue.all || topRevenue.top50 || [];
 }
 
+const BRANCH_HANOI_LABEL = 'Hà Nội';
+const BRANCH_SAIGON_LABEL = 'Sài Gòn';
+
+/** So tien cua khach o 1 co so vat ly: map theo co so, thieu map thi dong 1 co so lay tron tong. */
+function amountInBranch(item, mapKey, total, branchLabel) {
+  const map = item && item[mapKey];
+  if (map) return Number(map[branchLabel]) || 0;
+  return item && item.branch === branchLabel ? Number(total) || 0 : 0;
+}
+
 // Cot "Cơ sở" nam san trong catalogue (truong co_so cua tung nguon, do SQL dien theo co so doc).
 const BRANCH_COLUMN_LABEL = 'Cơ sở';
 
@@ -704,15 +714,30 @@ const TABLE_SPECS = {
     items: customerRevenueRows,
     derived: [
       { key: 'sale_order_count', label: 'Số đơn bán', type: 'number', description: 'Số đơn bán của khách trong kỳ.' },
-      { key: 'period_revenue', label: 'Doanh thu trong kỳ', type: 'number', description: 'Doanh thu bán cho khách trong kỳ (VNĐ).' }
+      { key: 'period_revenue', label: 'Doanh thu trong kỳ', type: 'number', description: 'Doanh thu bán cho khách trong kỳ (VNĐ).' },
+      { key: 'revenue_hn', label: 'Doanh thu Hà Nội', type: 'number', description: 'Doanh thu bán cho khách ở cơ sở Hà Nội trong kỳ (VNĐ).' },
+      { key: 'revenue_sg', label: 'Doanh thu Sài Gòn', type: 'number', description: 'Doanh thu bán cho khách ở cơ sở Sài Gòn trong kỳ (VNĐ).' }
     ],
-    derivedValues: { sale_order_count: item => item.saleOrderCount, period_revenue: item => item.revenue }
+    derivedValues: {
+      sale_order_count: item => item.saleOrderCount,
+      period_revenue: item => item.revenue,
+      revenue_hn: item => amountInBranch(item, 'revenueByBranch', item.revenue, BRANCH_HANOI_LABEL),
+      revenue_sg: item => amountInBranch(item, 'revenueByBranch', item.revenue, BRANCH_SAIGON_LABEL)
+    }
   }),
   'customers.debt': (context, scope) => singleSourceTable({
     key: 'customer_debt', name: 'Khách còn nợ', sourceKey: 'customers', branchColumn: scope.aggregate ? 'customer' : false,
     items: dashboard => (dashboard.customers || {}).topDebt || [],
-    derived: [{ key: 'period_revenue', label: 'Doanh thu trong kỳ', type: 'number', description: 'Doanh thu bán cho khách trong kỳ (VNĐ).' }],
-    derivedValues: { period_revenue: item => item.periodRevenue }
+    derived: [
+      { key: 'period_revenue', label: 'Doanh thu trong kỳ', type: 'number', description: 'Doanh thu bán cho khách trong kỳ (VNĐ).' },
+      { key: 'debt_hn', label: 'Công nợ Hà Nội', type: 'number', description: 'Công nợ của khách ở cơ sở Hà Nội (VNĐ).' },
+      { key: 'debt_sg', label: 'Công nợ Sài Gòn', type: 'number', description: 'Công nợ của khách ở cơ sở Sài Gòn (VNĐ).' }
+    ],
+    derivedValues: {
+      period_revenue: item => item.periodRevenue,
+      debt_hn: item => amountInBranch(item, 'debtByBranch', item.debt, BRANCH_HANOI_LABEL),
+      debt_sg: item => amountInBranch(item, 'debtByBranch', item.debt, BRANCH_SAIGON_LABEL)
+    }
   }),
   'suppliers.list': () => singleSourceTable({
     key: 'suppliers', name: 'Nhà cung cấp', sourceKey: 'suppliers',

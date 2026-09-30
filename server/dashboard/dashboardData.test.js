@@ -637,6 +637,32 @@ test('getDashboardData tong hop topRevenue tu sheet Hoa don khi sheet Bao cao ba
   assert.equal(topRevenue.top15[1].saleOrderCount, 2);
 });
 
+test('Ca hai: doanh thu cua khach (gop theo ten) tach theo tung co so, tra hang tru dung co so', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const CONFIG = require('../config');
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  const invoiceHeader = ['Mã hóa đơn', 'Ngày bán', 'Khách hàng', 'SĐT khách', 'Nhân viên bán', 'Chi nhánh', 'Tổng tiền hàng', 'Giảm giá', 'Khách đã trả', 'Trạng thái', 'ID', 'ID gian', 'Mã đặt', 'ID CN', 'ID NV', 'ID KH', 'Mã khách hàng'];
+  const returnHeader = ['Mã trả hàng', 'Ngày trả', 'Mã hóa đơn', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái'];
+  dashboardPgReader.readCoreDashboardSheets = async branch => {
+    const result = Object.fromEntries(dashboardPgReader.CORE_SHEET_NAMES.map(name => [name, []]));
+    result[CONFIG.SHEET_INVOICES] = branch === BRANCHES.HANOI
+      ? [invoiceHeader, ['HD-1', '10/08/2026 10:00:00', 'Khách Chung', '', '', '', 500, 0, 500, 'Hoàn thành', '', '', '', '', '', '', 'KH-1']]
+      : [invoiceHeader, ['HD-9', '11/08/2026 10:00:00', 'Khách Chung', '', '', '', 300, 0, 300, 'Hoàn thành', '', '', '', '', '', '', 'KH-9']];
+    result[CONFIG.SHEET_RETURNS] = branch === BRANCHES.SAIGON
+      ? [returnHeader, ['TH-9', '12/08/2026 10:00:00', 'HD-9', 'Khách Chung', 100, 'Hoàn thành']]
+      : [returnHeader];
+    return result;
+  };
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData({ ...BASE_FILTERS, customers: { mode: 'all' } }, BRANCH_BOTH);
+
+  const [row] = data.customers.topRevenue.all;
+  assert.equal(data.customers.topRevenue.all.length, 1, 'khach cung ten o hai co so gop lam mot dong');
+  assert.equal(row.revenue, 700);
+  assert.deepEqual(row.revenueByBranch, { [BRANCHES.HANOI]: 500, [BRANCHES.SAIGON]: 200 });
+});
+
 test('getDashboardData tra toan bo khach hang trong bang chi tiet doanh thu, khong gioi han 50', async () => {
   const { dashboardData, dashboardPgReader } = freshDashboardData();
   const CONFIG = require('../config');
@@ -1078,6 +1104,12 @@ test('Ca hai cong KPI/bucket; hang hoa trung ma la 2 dong rieng, khach trung ten
     assert.equal(product.stockValue, product.stock * 10);
   });
   assert.equal(data.customers.topDebt.find(customer => customer.name === 'Khách Hà Nội').branch, 'Hà Nội, Sài Gòn');
+  assert.deepEqual(
+    data.customers.topDebt.find(customer => customer.name === 'Khách Hà Nội').debtByBranch,
+    { [BRANCHES.HANOI]: 100, [BRANCHES.SAIGON]: 200 },
+    'cong no cua khach gop theo ten van tach duoc theo tung co so'
+  );
+  assert.deepEqual(data.customers.topDebt.find(customer => customer.name === 'Khách 2').debtByBranch, { [BRANCHES.HANOI]: 50 });
   assert.equal(data.suppliers.find(supplier => supplier.code === 'NCC-1').name, 'NCC Hà Nội');
 });
 

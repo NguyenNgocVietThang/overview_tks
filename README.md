@@ -49,6 +49,7 @@ server/
 ├── auth/                 # Tài khoản, phân quyền, OTP, Google OAuth
 ├── branch/               # Phân tách Hà Nội / Sài Gòn
 ├── dashboard/            # Tổng hợp dashboard (dashboardData + dashboardViews: API theo tab), xuất Excel/HTML, kiểm tra đứt hàng
+│   ├── documentDetailRepository.js  # Chi tiết 1 chứng từ (đơn đặt hàng / phiếu trả / hóa đơn) cho popup bảng Hóa đơn
 │   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel
 ├── data/                 # Dữ liệu lưu trữ local (users.json, notifications.json, ...)
 ├── db/                   # Migration Supabase (0001–0021)
@@ -72,6 +73,10 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-09-30 — **Popup chi tiết chứng từ**: bấm vào dòng bảng "Chi tiết giao dịch" / "Danh sách đặt hàng" / "Danh sách trả hàng" (tab Hóa đơn) mở hộp thoại giữa màn hình hiển thị đầy đủ dòng hàng, tổng tiền và phương thức thanh toán; nguồn từ module mới `dashboard/documentDetailRepository.js` (đọc trực tiếp `orders`/`returns`/`invoices` + `*_details` từ Postgres), route `GET /api/order-detail`, `GET /api/return-detail`, `GET /api/invoice-detail`.
+
+2026-09-30 — **Bộ lọc view theo cơ sở và độ rộng bảng cố định**: dashboard tải dữ liệu từng tab (`GET /api/dashboard?view=<tab>`) đã được tối ưu hóa tên view và đồng bộ cấu trúc layout; thêm CSS cố định độ rộng cột bảng (`fixed-table-widths.test.js`).
 
 2026-09-29 — khung "Cơ cấu tồn kho" (tab Báo cáo hàng hóa): bỏ biểu đồ Top 15 và nút "Theo sản phẩm / Theo nhóm cha"; bảng "Chi tiết tồn kho theo sản phẩm" rộng toàn khung, thêm cột **Tồn có thể bán** (= Tồn kho − Khách đặt, không kẹp về 0 nên hàng bị giữ quá tồn hiện số âm) và **Hàng đang vận chuyển** (tổng số lượng trong phiếu **Mua hàng → Đặt hàng nhập** trạng thái "Đã xác nhận NCC" của Kiot Sài Gòn, ghép theo mã hàng; hiện ở cả 3 chế độ cơ sở). Khi chọn "Cả hai" bảng gộp 1 dòng/mã với cột Tồn kho HN/SG và Tồn có thể bán HN/SG riêng (Đơn giá = giá vốn bình quân theo tồn). Nguồn phiếu đặt hàng nhập là entity đồng bộ mới `order_suppliers` (endpoint `/ordersuppliers`, migration 0024, nhóm fast 7 phút, đối soát toàn bộ danh sách vì API bỏ qua `lastModifiedFrom`). **Sau khi deploy cần chạy `npm run db:migrate` (trong `server/`) rồi khởi động lại server** để scheduler nạp entity mới; lượt poll đầu tự quét toàn bộ phiếu. Chưa áp migration thì cột "Hàng đang vận chuyển" = 0 (đọc fail-soft), các cột khác vẫn bình thường.
 

@@ -119,7 +119,8 @@ function createReportKit() {
   }
 
   function totalLabel(label) {
-    return /^tổng/i.test(label) ? label : 'Tổng ' + label.toLocaleLowerCase('vi-VN');
+    // Chi ha chu dau: giu nguyen danh tu rieng phia sau (vd "Doanh thu Hà Nội" -> "Tổng doanh thu Hà Nội").
+    return /^tổng/i.test(label) ? label : 'Tổng ' + label.charAt(0).toLocaleLowerCase('vi-VN') + label.slice(1);
   }
 
   // Cot so co the cong don (loai don gia/ty le/trung binh — cong lai vo nghia).
@@ -280,8 +281,16 @@ function createReportKit() {
    * `plan` (tuy chon) co dinh cot duoc chon tu toan bo du lieu de khi loc
    * KPI/bieu do khong nhay sang cot khac.
    */
-  function planFor(columns, rows) {
+  function planFor(columns, rows, summaryKeys) {
     var metrics = metricColumns(columns);
+    // Bang co the chi dinh cot so dung lam KPI/bieu do chinh (vd so lieu "trong ky" thay vi tong toan thoi gian
+    // cua KiotViet) de tong hop bam dung bo loc thoi gian; cot khong co trong file thi bo qua.
+    var preferred = [];
+    (summaryKeys || []).forEach(function (key) {
+      var index = columns.findIndex(function (column) { return column.key === key && column.type === 'number'; });
+      if (index >= 0 && preferred.indexOf(index) < 0) preferred.push(index);
+    });
+    if (preferred.length) metrics = preferred.concat(metrics.filter(function (index) { return preferred.indexOf(index) < 0; }));
     var label = labelColumn(columns);
     return {
       metrics: metrics.slice(0, 3),
@@ -359,7 +368,9 @@ function embedValue(value, column) {
 function embedWorksheet(worksheet) {
   const columns = worksheet.columns.map(column => ({ key: column.key, label: column.label, type: column.type || 'general' }));
   const rows = worksheet.rows.map(row => columns.map(column => embedValue(row[column.key], column)));
-  return { key: worksheet.key, name: worksheet.name, columns, rows };
+  const embedded = { key: worksheet.key, name: worksheet.name, columns, rows };
+  if (Array.isArray(worksheet.summaryKeys)) embedded.summaryKeys = worksheet.summaryKeys;
+  return embedded;
 }
 
 const GZIP_ROW_CHUNK = 1000;
@@ -381,7 +392,7 @@ async function gzipWorksheets(worksheets) {
   await write('{"worksheets":[');
   for (let index = 0; index < worksheets.length; index += 1) {
     const worksheet = worksheets[index];
-    const head = JSON.stringify({ key: worksheet.key, name: worksheet.name, columns: worksheet.columns });
+    const head = JSON.stringify({ key: worksheet.key, name: worksheet.name, columns: worksheet.columns, summaryKeys: worksheet.summaryKeys });
     await write(`${index ? ',' : ''}${head.slice(0, -1)},"rows":[`);
     for (let start = 0; start < worksheet.rows.length; start += GZIP_ROW_CHUNK) {
       const part = worksheet.rows.slice(start, start + GZIP_ROW_CHUNK).map(row => JSON.stringify(row)).join(',');
@@ -524,7 +535,7 @@ const REPORT_SCRIPT = `
   }
 
   var prepared = DATA.worksheets.map(function (sheet) {
-    return { plan: kit.planFor(sheet.columns, sheet.rows), haystack: null };
+    return { plan: kit.planFor(sheet.columns, sheet.rows, sheet.summaryKeys), haystack: null };
   });
 
   // Chuoi tim kiem chi dung khi nguoi xem go lan dau (mo file nhanh, it RAM). Cot so/phan tram
@@ -796,7 +807,7 @@ async function renderHtmlReport(dataset) {
   const meta = dataset.meta;
   const worksheets = dataset.worksheets.map(embedWorksheet);
   const first = worksheets[0];
-  const summary = kit.buildSummary(first.columns, first.rows);
+  const summary = kit.buildSummary(first.columns, first.rows, kit.planFor(first.columns, first.rows, first.summaryKeys));
   const totalRows = worksheets.reduce((sum, worksheet) => sum + worksheet.rows.length, 0);
   const generatedAt = formatGeneratedAt(meta.generatedAt || new Date());
   // base64 chi gom [A-Za-z0-9+/=] nen khong the dong the <script>.
