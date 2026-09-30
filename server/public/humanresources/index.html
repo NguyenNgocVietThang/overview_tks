@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Noto+Serif:wght@400;600;700&family=Roboto:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/shared/shared.css?v=20260930">
+<link rel="stylesheet" href="/shared/shared.css?v=20260930b">
 <style>
   .hr-wrap{ width:100%; margin:0 auto; }
   .hr-header{ margin-bottom:20px; }
@@ -246,6 +246,34 @@
   .doc-page .doc-note{ background:#f1efe8; border-color:#d8d5cb; color:#14161c; font-family:'Inter', var(--font-body); }
   .doc-page-footer{ margin-top:36px; padding-top:14px; border-top:1px solid #d8d5cb; font-family:'Inter', var(--font-body); font-size:11px; color:#8a8d96; text-align:center; }
 
+  /* ---- Quy dinh cong ty: thanh tab tai lieu (dung san + PDF Quan ly tai len) ---- */
+  .rule-doc-bar{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+  .rule-doc-tabs{ display:flex; gap:8px; overflow-x:auto; flex:1 1 320px; min-width:0; padding-bottom:2px; }
+  .rule-doc-tab{
+    flex:0 0 auto; max-width:260px; padding:7px 14px; border-radius:999px; cursor:pointer;
+    border:1px solid var(--border); background:var(--panel-2); color:var(--muted);
+    font-family:var(--font-body); font-size:12.5px; font-weight:600;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    transition:background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .rule-doc-tab:hover:not(.active){ color:var(--text); }
+  .rule-doc-tab:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+  .rule-doc-tab.active{ background:var(--accent-blue-18); color:var(--blue); border-color:var(--blue); }
+  .rule-doc-manage{ display:flex; gap:8px; flex-wrap:wrap; }
+  .rule-doc-manage[hidden], #ruleDocRestoreBtn[hidden], #ruleDocDeleteBtn[hidden], .doc-toolbar[hidden],
+  .rule-doc-view[hidden], .rule-doc-status[hidden], .rule-doc-frame[hidden]{ display:none; }
+  .doc-toolbar-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .rule-doc-frame{
+    display:block; width:100%; height:calc(100vh - 260px); min-height:560px;
+    border:1px solid var(--border); border-radius:var(--radius-sm); background:#fff;
+  }
+  .rule-doc-hint{ margin:8px 0 0; font-size:12px; color:var(--canvas-text); opacity:.75; }
+  .rule-doc-status{
+    padding:28px 20px; text-align:center; font-size:13px; color:var(--muted);
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-md);
+  }
+  .rule-doc-status .btn-secondary{ margin-left:10px; }
+
   .form-group{ margin-bottom:16px; }
   .form-group label{ display:block; margin-bottom:6px; font-size:12.5px; font-weight:600; color:var(--text-secondary); }
   .form-control{
@@ -437,112 +465,122 @@
 
         </div>
 
-        <!-- Quy dinh cong ty: thuan hien thi tai lieu, khong co chuc nang gi khac -->
+        <!-- Quy dinh cong ty: nhieu tai lieu, moi tai lieu 1 tab (dung san: 2 khoi .doc-page ben duoi;
+             PDF Quan ly tai len: khung xem #ruleDocFrame). Danh sach lay tu /api/hr/rules/documents. -->
         <div class="hr-subtab-panel" id="hrSubtab-quydinh" role="tabpanel">
-          <div class="doc-toolbar">
+          <div class="rule-doc-bar">
+            <div class="rule-doc-tabs" id="ruleDocTabs" role="tablist" aria-label="Tài liệu quy định công ty"></div>
+            <div class="rule-doc-manage" id="ruleDocManage" hidden>
+              <button type="button" class="btn-secondary" id="ruleDocRestoreBtn" onclick="restoreRuleDefaults()" hidden>Khôi phục tài liệu mặc định</button>
+              <button type="button" class="btn-primary" id="ruleDocUploadBtn" onclick="openRuleUploadModal()">+ Tải tài liệu lên</button>
+            </div>
+          </div>
+
+          <div class="doc-toolbar" id="ruleDocToolbar" hidden>
             <div class="doc-toolbar-info">
-              <strong>Quy định công ty</strong>
-              <span>Áp dụng cho toàn thể nhân viên · Cập nhật lần cuối: 14/09/2026</span>
+              <strong id="ruleDocTitle"></strong>
+              <span id="ruleDocMeta"></span>
             </div>
-            <button type="button" class="btn-primary doc-download-btn" id="quyDinhDownloadBtn" onclick="downloadQuyDinhPdf()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"></path><polyline points="7 10 12 15 17 10"></polyline><path d="M5 21h14"></path></svg>
-              Tải về PDF
-            </button>
+            <div class="doc-toolbar-actions">
+              <button type="button" class="btn-primary doc-download-btn" id="ruleDocDownloadBtn" onclick="downloadActiveRuleDoc()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"></path><polyline points="7 10 12 15 17 10"></polyline><path d="M5 21h14"></path></svg>
+                Tải về PDF
+              </button>
+              <button type="button" class="btn-danger" id="ruleDocDeleteBtn" onclick="deleteActiveRuleDoc()" hidden>Gỡ tài liệu</button>
+            </div>
           </div>
-          <div class="doc-page-wrap">
-          <div class="doc-page" id="quyDinhDocPage">
-            <div class="doc-page-header">
-              <img src="/Logo.jpg" alt="TOKOSI">
-              <div class="doc-page-title">
-                <h1>QUY ĐỊNH CÔNG TY</h1>
-                <p>TOKOSI · Áp dụng cho toàn thể nhân viên · Ban hành: 14/09/2026</p>
+
+          <div class="rule-doc-status" id="ruleDocStatus" hidden></div>
+
+          <!-- Tai lieu dung san 1: Gio giac lam viec -->
+          <div class="rule-doc-view doc-page-wrap" data-rule-doc="gio-giac" hidden>
+            <div class="doc-page" id="ruleDoc-gio-giac">
+              <div class="doc-page-header">
+                <img src="/Logo.jpg" alt="TOKOSI">
+                <div class="doc-page-title">
+                  <h1>GIỜ GIẤC LÀM VIỆC</h1>
+                  <p>TOKOSI · Áp dụng cho toàn thể nhân viên · Ban hành: 14/09/2026</p>
+                </div>
               </div>
-            </div>
-            <hr class="doc-divider">
-          <div class="profile-card" style="background:transparent; border:none; box-shadow:none; padding:0; margin-bottom:26px;">
-            <div class="profile-card-title">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-              1. Quy định giờ giấc và chấm công
-            </div>
-            <p class="profile-card-desc">Để đảm bảo kỷ luật và công bằng trong công việc, công ty yêu cầu toàn thể nhân viên tuân thủ nghiêm túc các quy định sau.</p>
+              <hr class="doc-divider">
+              <div class="profile-card" style="background:transparent; border:none; box-shadow:none; padding:0; margin-bottom:0;">
+                <div class="profile-card-title">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                  Quy định giờ giấc và chấm công
+                </div>
+                <p class="profile-card-desc">Để đảm bảo kỷ luật và công bằng trong công việc, công ty yêu cầu toàn thể nhân viên tuân thủ nghiêm túc các quy định sau.</p>
 
-            <div class="doc-section">
-              <h4>Giờ làm việc chính thức</h4>
-              <table class="doc-table">
-                <thead><tr><th>Khối</th><th>Buổi sáng</th><th>Buổi chiều</th></tr></thead>
-                <tbody>
-                  <tr><td>Kho vận</td><td>Ca 1: 08h00 – 11h30<br>Ca 2: 08h00 – 12h30</td><td>Ca 1: 12h30 – 17h00<br>Ca 2: 13h30 – 17h00</td></tr>
-                  <tr><td>Văn phòng</td><td>07h45 – 11h30</td><td>12h30 – 16h45</td></tr>
-                </tbody>
-              </table>
-              <p class="doc-note">☞ Nhân viên phải có mặt đúng giờ, không được tự ý nghỉ sớm.</p>
-            </div>
+                <div class="doc-section">
+                  <h4>Giờ làm việc chính thức</h4>
+                  <table class="doc-table">
+                    <thead><tr><th>Khối</th><th>Buổi sáng</th><th>Buổi chiều</th></tr></thead>
+                    <tbody>
+                      <tr><td>Kho vận</td><td>Ca 1: 08h00 – 11h30<br>Ca 2: 08h00 – 12h30</td><td>Ca 1: 12h30 – 17h00<br>Ca 2: 13h30 – 17h00</td></tr>
+                      <tr><td>Văn phòng</td><td>07h45 – 11h30</td><td>12h30 – 16h45</td></tr>
+                    </tbody>
+                  </table>
+                  <p class="doc-note">☞ Nhân viên phải có mặt đúng giờ, không được tự ý nghỉ sớm.</p>
+                </div>
 
-            <div class="doc-section">
-              <h4>Quy định đi muộn, về sớm, quên chấm công</h4>
-              <ul>
-                <li>Mỗi tháng, nhân viên được phép đi muộn, về sớm hoặc quên chấm công tối đa <strong>03 lần</strong>.</li>
-                <li>Trường hợp vượt quá 03 lần: sẽ bị xử lý <strong>50.000đ/lần</strong>.</li>
-                <li>Quên chấm vào hoặc chấm ra: chỉ được kiểm tra camera trong khoảng <strong>±5 phút</strong> so với giờ vào/ra để xác nhận (sáng: 7h45 – 7h50; chiều: 16h45 – 16h50). Không thấy sẽ mặc định nghỉ buổi sáng hoặc chiều tương ứng.</li>
-                <li>Quên chấm cả 2 lần (vào và ra): không được tính công ngày đó.</li>
-              </ul>
-            </div>
+                <div class="doc-section">
+                  <h4>Quy định đi muộn, về sớm, quên chấm công</h4>
+                  <ul>
+                    <li>Mỗi tháng, nhân viên được phép đi muộn, về sớm hoặc quên chấm công tối đa <strong>03 lần</strong>.</li>
+                    <li>Trường hợp vượt quá 03 lần: sẽ bị xử lý <strong>50.000đ/lần</strong>.</li>
+                    <li>Quên chấm vào hoặc chấm ra: chỉ được kiểm tra camera trong khoảng <strong>±5 phút</strong> so với giờ vào/ra để xác nhận (sáng: 7h45 – 7h50; chiều: 16h45 – 16h50). Không thấy sẽ mặc định nghỉ buổi sáng hoặc chiều tương ứng.</li>
+                    <li>Quên chấm cả 2 lần (vào và ra): không được tính công ngày đó.</li>
+                  </ul>
+                </div>
 
-            <div class="doc-section">
-              <h4>Cách tính ngày công khi đi muộn/về sớm</h4>
-              <ul>
-                <li>Đi muộn hoặc về sớm <strong>≤ 30 phút</strong>: không bị trừ công (nhưng vẫn tính vào 03 lần trong tháng).</li>
-                <li>Đi muộn hoặc về sớm <strong>&gt; 30 phút</strong>: tính đi muộn và ngày công được tính theo công thức <strong>Ngày công = Số giờ làm việc thực tế trong ngày ÷ 8</strong>.</li>
-                <li>Ví dụ: nhân viên đi muộn 45 phút → thời gian làm việc còn lại 7h15 → số công = 7h15 ÷ 8 ≈ 0.90625 công và bị tính 1 lỗi đi muộn.</li>
-              </ul>
-              <p class="doc-note">Lưu ý: Việc đi muộn, về sớm nhiều lần sẽ ảnh hưởng trực tiếp đến lương, thưởng và xét tăng lương. Ban quản lý sẽ giám sát và xử lý nghiêm minh, không có ngoại lệ.</p>
+                <div class="doc-section">
+                  <h4>Cách tính ngày công khi đi muộn/về sớm</h4>
+                  <ul>
+                    <li>Đi muộn hoặc về sớm <strong>≤ 30 phút</strong>: không bị trừ công (nhưng vẫn tính vào 03 lần trong tháng).</li>
+                    <li>Đi muộn hoặc về sớm <strong>&gt; 30 phút</strong>: tính đi muộn và ngày công được tính theo công thức <strong>Ngày công = Số giờ làm việc thực tế trong ngày ÷ 8</strong>.</li>
+                    <li>Ví dụ: nhân viên đi muộn 45 phút → thời gian làm việc còn lại 7h15 → số công = 7h15 ÷ 8 ≈ 0.90625 công và bị tính 1 lỗi đi muộn.</li>
+                  </ul>
+                  <p class="doc-note">Lưu ý: Việc đi muộn, về sớm nhiều lần sẽ ảnh hưởng trực tiếp đến lương, thưởng và xét tăng lương. Ban quản lý sẽ giám sát và xử lý nghiêm minh, không có ngoại lệ.</p>
+                </div>
+              </div>
+              <div class="doc-page-footer">TOKOSI Dashboard · Tài liệu nội bộ · Vui lòng không sao chép hoặc chia sẻ ra bên ngoài công ty</div>
             </div>
           </div>
 
-          <div class="profile-card" style="background:transparent; border:none; box-shadow:none; padding:0; margin-bottom:0;">
-            <div class="profile-card-title">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-              2. Quy tắc xin nghỉ phép
-            </div>
-            <p class="profile-card-desc">Hướng dẫn và quy chế khi xin nghỉ phép qua bot Telegram và Cổng thông tin nhân sự.</p>
+          <!-- Tai lieu dung san 2: Quy dinh nghi phep -->
+          <div class="rule-doc-view doc-page-wrap" data-rule-doc="nghi-phep" hidden>
+            <div class="doc-page" id="ruleDoc-nghi-phep">
+              <div class="doc-page-header">
+                <img src="/Logo.jpg" alt="TOKOSI">
+                <div class="doc-page-title">
+                  <h1>QUY ĐỊNH NGHỈ PHÉP</h1>
+                  <p>TOKOSI · Áp dụng cho toàn thể nhân viên · Ban hành: 30/09/2026</p>
+                </div>
+              </div>
+              <hr class="doc-divider">
+              <div class="profile-card" style="background:transparent; border:none; box-shadow:none; padding:0; margin-bottom:0;">
+                <div class="profile-card-title">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                  Quy định nghỉ phép
+                </div>
+                <p class="profile-card-desc">Áp dụng khi nhân viên xin nghỉ liên tục nhiều ngày.</p>
 
-            <div class="doc-section">
-              <h4>Cách xin nghỉ qua bot Telegram</h4>
-              <ul>
-                <li>Vào <strong>Quản lý nhân sự → Nghỉ phép</strong> trên web, bấm "Tạo mã liên kết" để lấy mã 6 số.</li>
-                <li>Mở Telegram, tìm bot xin nghỉ phép của công ty, gõ <strong>/lienket &lt;mã&gt;</strong> trong vòng 15 phút để liên kết tài khoản.</li>
-                <li>Sau khi liên kết, nhắn một câu tự nhiên để xin nghỉ, ví dụ: <em>"Em xin nghỉ chiều mai vì khám bệnh, bàn giao cho Nguyễn B"</em>.</li>
-                <li>Dùng lệnh <strong>/huy</strong> để hủy yêu cầu đang chờ xác nhận.</li>
-              </ul>
-            </div>
-
-            <div class="doc-section">
-              <h4>Đơn vị và mốc thời gian gửi đơn</h4>
-              <ul>
-                <li>Nghỉ phép được tính theo <strong>buổi</strong> (Sáng/Chiều); 1 ngày = 2 buổi.</li>
-                <li>Ca sáng: gửi yêu cầu trước <strong>07h45</strong> ngày bắt đầu nghỉ.</li>
-                <li>Ca chiều: gửi yêu cầu trước <strong>12h30</strong> ngày bắt đầu nghỉ.</li>
-                <li>Đơn gửi sau mốc giờ trên vẫn được ghi nhận nhưng sẽ tự động chuyển trạng thái <strong>"Vi phạm"</strong> để Quản lý và HR hậu kiểm.</li>
-              </ul>
-            </div>
-
-            <div class="doc-section">
-              <h4>Nghỉ khẩn cấp</h4>
-              <p>Trường hợp ốm đột xuất, tai nạn hoặc sự việc bất khả kháng khiến chưa thể gửi yêu cầu trước, hãy báo ngay cho quản lý trực tiếp qua điện thoại hoặc tin nhắn. Yêu cầu gửi sau đó sẽ được ghi nhận ở trạng thái <strong>"Tạm duyệt"</strong> và được quản lý hậu kiểm, kết luận trước khi công ty chốt công.</p>
-            </div>
-
-            <div class="doc-section">
-              <h4>Phê duyệt và trách nhiệm</h4>
-              <ul>
-                <li>Quản lý trực tiếp là người phê duyệt yêu cầu nghỉ, dựa trên khả năng bàn giao công việc và tình hình nhân sự.</li>
-                <li>Trạng thái đơn gồm: <strong>Chưa duyệt, Tạm duyệt, Đã duyệt, Từ chối, Vi phạm</strong>.</li>
-                <li>Nhân viên không được sử dụng vượt quá số ngày phép còn lại; phần vượt sẽ được xử lý theo loại nghỉ khác hoặc nghỉ không lương theo thỏa thuận.</li>
-                <li>Nhân viên có trách nhiệm gửi yêu cầu sớm nhất có thể, bàn giao công việc rõ ràng và cung cấp thông tin trung thực.</li>
-              </ul>
+                <div class="doc-section">
+                  <h4>Nghỉ trên 03 ngày</h4>
+                  <ul>
+                    <li>Trường hợp nghỉ <strong>trên 03 ngày</strong>, nhân viên phải nhắn xin nghỉ <strong>trước ít nhất 02 ngày</strong>.</li>
+                    <li>Hạn chót gửi yêu cầu là <strong>22h00</strong> của ngày cách ngày bắt đầu nghỉ 02 ngày.</li>
+                    <li>Ví dụ: nghỉ trên 03 ngày, bắt đầu từ <strong>ngày kia</strong> thì phải nhắn xin nghỉ <strong>trước 22h00 hôm nay</strong>.</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="doc-page-footer">TOKOSI Dashboard · Tài liệu nội bộ · Vui lòng không sao chép hoặc chia sẻ ra bên ngoài công ty</div>
             </div>
           </div>
-            <div class="doc-page-footer">TOKOSI Dashboard · Tài liệu nội bộ · Vui lòng không sao chép hoặc chia sẻ ra bên ngoài công ty</div>
-          </div>
+
+          <!-- Tai lieu PDF Quan ly tai len: xem bang khung PDF cua trinh duyet (blob URL) -->
+          <div class="rule-doc-view" id="ruleDocPdfView" hidden>
+            <iframe class="rule-doc-frame" id="ruleDocFrame" title="Tài liệu PDF"></iframe>
+            <p class="rule-doc-hint">Không xem được PDF trên thiết bị này? Bấm "Tải về PDF" để mở bằng ứng dụng khác.</p>
           </div>
         </div>
 
@@ -646,9 +684,36 @@
     </div>
   </div>
 
+  <!-- Modal: tai tai lieu quy dinh (PDF) len -->
+  <div class="modal-overlay" id="ruleUploadModal" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="ruleUploadHeading">
+      <div class="modal-header">
+        <h3 id="ruleUploadHeading">Tải tài liệu quy định lên</h3>
+        <button type="button" class="modal-close" onclick="closeModal('ruleUploadModal')" aria-label="Đóng">✕</button>
+      </div>
+      <form id="ruleUploadForm" onsubmit="submitRuleUpload(event)">
+        <div class="modal-body">
+          <div class="alert-box alert-error" id="ruleUploadError" hidden></div>
+          <div class="form-group">
+            <label for="ruleUploadFile">File PDF * (tối đa 20 MB)</label>
+            <input type="file" id="ruleUploadFile" class="form-control" accept=".pdf,application/pdf" onchange="onRuleUploadFileChange()" required>
+          </div>
+          <div class="form-group">
+            <label for="ruleUploadName">Tên tài liệu * (hiện làm tên tab)</label>
+            <input type="text" id="ruleUploadName" class="form-control" maxlength="120" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('ruleUploadModal')">Hủy</button>
+          <button type="submit" class="btn-primary" id="ruleUploadSubmit">Tải lên</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="toast-container" id="toastContainer"></div>
 
-  <script src="/shared/shared-nav.js?v=20260914"></script>
+  <script src="/shared/shared-nav.js?v=20260930"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
   <script src="/vendor/html2pdf.bundle.min.js"></script>
@@ -682,28 +747,363 @@
       syncThemeControl();
     }
 
-    function downloadQuyDinhPdf(){
-      const el = document.getElementById('quyDinhDocPage');
-      const btn = document.getElementById('quyDinhDownloadBtn');
+    // ---------- Quy dinh cong ty: tai lieu (dung san + PDF Quan ly tai len) ----------
+    // Moi tai lieu = 1 tab trong trang + 1 nhanh con trong sidebar (TKSNav.setHrRuleDocuments).
+    // slug: 'gio-giac' | 'nghi-phep' (dung san, noi dung nam trong HTML) | 'pdf-<id>'.
+    const RULE_DOC_BUILTINS = {
+      'gio-giac': { elementId: 'ruleDoc-gio-giac', pdfName: 'Gio-giac-lam-viec-TOKOSI.pdf', updated: '14/09/2026' },
+      'nghi-phep': { elementId: 'ruleDoc-nghi-phep', pdfName: 'Quy-dinh-nghi-phep-TOKOSI.pdf', updated: '30/09/2026' }
+    };
+    const RULE_DOC_MAX_BYTES = 20 * 1024 * 1024;
+    const ruleDocState = {
+      docs: [],
+      missingDefaults: [],
+      activeSlug: '',
+      wantedSlug: '',   // slug tu URL/thong bao chua co trong danh sach (cho tai xong / tai lai 1 lan)
+      status: 'idle',   // idle | loading | ready | error
+      blobUrls: {},     // id -> blob URL (noi dung PDF khong doi theo id)
+      shownPdfId: null,
+      retried: {}
+    };
+
+    function ruleDocEl(id){ return document.getElementById(id); }
+
+    function findRuleDoc(slug){
+      return ruleDocState.docs.find(d => d.slug === slug) || null;
+    }
+
+    function activeRuleDoc(){
+      return findRuleDoc(ruleDocState.activeSlug);
+    }
+
+    /** Tab con dang mo cua trang (leave | quydinh | danhsach). */
+    function activeHrSubtabName(){
+      const btn = document.querySelector('.hr-subnav-item.active');
+      return btn ? btn.dataset.subtab : '';
+    }
+
+    function resolveRuleDocSlug(preferred){
+      if(preferred && findRuleDoc(preferred)) return preferred;
+      if(ruleDocState.activeSlug && findRuleDoc(ruleDocState.activeSlug)) return ruleDocState.activeSlug;
+      return ruleDocState.docs.length ? ruleDocState.docs[0].slug : '';
+    }
+
+    function formatFileSize(bytes){
+      const n = Number(bytes) || 0;
+      if(n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1).replace('.', ',') + ' MB';
+      return Math.max(1, Math.round(n / 1024)) + ' KB';
+    }
+
+    function formatRuleDate(iso){
+      const d = new Date(iso);
+      if(!iso || isNaN(d.getTime())) return '';
+      const pad = n => String(n).padStart(2, '0');
+      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+    }
+
+    function setRuleDocStatus(text, withRetry){
+      const box = ruleDocEl('ruleDocStatus');
+      if(!box) return;
+      box.replaceChildren();
+      if(!text){ box.hidden = true; return; }
+      box.appendChild(document.createTextNode(text));
+      if(withRetry){
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.className = 'btn-secondary';
+        retry.textContent = 'Thử lại';
+        retry.addEventListener('click', () => loadRuleDocuments());
+        box.appendChild(retry);
+      }
+      box.hidden = false;
+    }
+
+    /** Sidebar: chi doi class active cua nhanh con (khong ve lai ca sidebar). */
+    function syncRuleDocSidebarActive(){
+      const onRules = activeHrSubtabName() === 'quydinh';
+      document.querySelectorAll('#tksHrGroupList .nav-subitem').forEach(item => {
+        const active = onRules && item.dataset.hrRuleDoc === ruleDocState.activeSlug;
+        item.classList.toggle('active', active);
+        if(active) item.setAttribute('aria-current', 'page');
+        else item.removeAttribute('aria-current');
+      });
+    }
+
+    function pushRuleDocsToSidebar(){
+      if(window.TKSNav && typeof window.TKSNav.setHrRuleDocuments === 'function'){
+        window.TKSNav.setHrRuleDocuments(ruleDocState.docs.map(d => ({ slug: d.slug, title: d.title })));
+      }
+    }
+
+    function writeRuleDocHash(){
+      if(!history.replaceState || activeHrSubtabName() !== 'quydinh') return;
+      const slug = ruleDocState.activeSlug || ruleDocState.wantedSlug;
+      history.replaceState(null, '', '#quydinh' + (slug ? '/' + encodeURIComponent(slug) : ''));
+    }
+
+    function renderRuleDocs(){
+      const tabs = ruleDocEl('ruleDocTabs');
+      if(!tabs) return;
+      const manage = hrCan('hr.rules.manage');
+      const ready = ruleDocState.status === 'ready';
+      const doc = ready ? activeRuleDoc() : null;
+
+      ruleDocEl('ruleDocManage').hidden = !(manage && ready);
+      ruleDocEl('ruleDocRestoreBtn').hidden = !(manage && ready && ruleDocState.missingDefaults.length > 0);
+
+      tabs.replaceChildren();
+      if(ready){
+        ruleDocState.docs.forEach(item => {
+          const tab = document.createElement('button');
+          tab.type = 'button';
+          tab.className = 'rule-doc-tab' + (item.slug === ruleDocState.activeSlug ? ' active' : '');
+          tab.setAttribute('role', 'tab');
+          tab.setAttribute('aria-selected', String(item.slug === ruleDocState.activeSlug));
+          tab.dataset.ruleDocTab = item.slug;
+          tab.textContent = item.title;
+          tab.title = item.title;
+          tab.addEventListener('click', () => selectRuleDoc(item.slug));
+          tabs.appendChild(tab);
+        });
+      }
+
+      document.querySelectorAll('.rule-doc-view').forEach(view => { view.hidden = true; });
+      ruleDocEl('ruleDocToolbar').hidden = !doc;
+
+      if(ruleDocState.status === 'loading'){ setRuleDocStatus('Đang tải tài liệu…'); return; }
+      if(ruleDocState.status === 'error'){ setRuleDocStatus('Không tải được danh sách tài liệu.', true); return; }
+      if(ruleDocState.status !== 'ready'){ setRuleDocStatus(''); return; }
+      if(!doc){
+        setRuleDocStatus(manage
+          ? 'Chưa có tài liệu nào. Bấm "Tải tài liệu lên" hoặc "Khôi phục tài liệu mặc định".'
+          : 'Chưa có tài liệu nào.');
+        return;
+      }
+
+      ruleDocEl('ruleDocTitle').textContent = doc.title;
+      ruleDocEl('ruleDocDeleteBtn').hidden = !(manage && doc.id != null);
+
+      if(doc.kind === 'builtin'){
+        const meta = RULE_DOC_BUILTINS[doc.builtinKey];
+        const view = document.querySelector(`.rule-doc-view[data-rule-doc="${doc.builtinKey}"]`);
+        if(!meta || !view){
+          ruleDocEl('ruleDocMeta').textContent = '';
+          ruleDocEl('ruleDocToolbar').hidden = true;
+          setRuleDocStatus('Nội dung tài liệu này chưa có trên trang.');
+          return;
+        }
+        ruleDocEl('ruleDocMeta').textContent = `Áp dụng cho toàn thể nhân viên · Cập nhật lần cuối: ${meta.updated}`;
+        setRuleDocStatus('');
+        view.hidden = false;
+      }else{
+        const parts = [];
+        if(doc.uploadedBy) parts.push(`Tải lên bởi ${doc.uploadedBy}`);
+        const dateText = formatRuleDate(doc.createdAt);
+        if(dateText) parts.push(dateText);
+        parts.push(formatFileSize(doc.sizeBytes));
+        ruleDocEl('ruleDocMeta').textContent = parts.join(' · ');
+        ruleDocEl('ruleDocPdfView').hidden = false;
+        showPdfDocument(doc);
+      }
+    }
+
+    /** Chon tai lieu; preferred khong ton tai => tai lieu dang chon / dau tien. */
+    function selectRuleDoc(preferred, opts){
+      ruleDocState.activeSlug = resolveRuleDocSlug(preferred);
+      renderRuleDocs();
+      if(!(opts && opts.skipHash)) writeRuleDocHash();
+      syncRuleDocSidebarActive();
+    }
+
+    async function loadRuleDocuments(silent){
+      if(!hrCan('hr.rules')) return;
+      if(!silent){ ruleDocState.status = 'loading'; renderRuleDocs(); }
+      try{
+        const res = await fetch('/api/hr/rules/documents', { credentials: 'same-origin' });
+        const { ok, data } = await parseApiResponse(res);
+        if(!ok || !data || !Array.isArray(data.documents)) throw new Error('invalid');
+        ruleDocState.docs = data.documents.filter(d => d && typeof d.slug === 'string' && typeof d.title === 'string');
+        ruleDocState.missingDefaults = Array.isArray(data.missingDefaults) ? data.missingDefaults : [];
+        ruleDocState.status = 'ready';
+      }catch(err){
+        // Tai am tham that bai khi da co danh sach: giu nguyen danh sach cu.
+        if(silent && ruleDocState.status === 'ready') return;
+        ruleDocState.status = 'error';
+        renderRuleDocs();
+        return;
+      }
+      const wanted = ruleDocState.wantedSlug;
+      ruleDocState.wantedSlug = '';
+      selectRuleDoc(wanted || ruleDocState.activeSlug);
+      pushRuleDocsToSidebar();
+    }
+
+    async function getRuleDocBlobUrl(doc){
+      if(ruleDocState.blobUrls[doc.id]) return ruleDocState.blobUrls[doc.id];
+      const res = await fetch(`/api/hr/rules/documents/${doc.id}/file`, { credentials: 'same-origin' });
+      if(!res.ok){
+        const { data } = await parseApiResponse(res);
+        throw new Error((data && data.error) || 'Không tải được tài liệu PDF.');
+      }
+      const blob = new Blob([await res.arrayBuffer()], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      ruleDocState.blobUrls[doc.id] = url;
+      return url;
+    }
+
+    async function showPdfDocument(doc){
+      const frame = ruleDocEl('ruleDocFrame');
+      if(!frame) return;
+      if(ruleDocState.shownPdfId === doc.id){ frame.hidden = false; setRuleDocStatus(''); return; }
+      frame.hidden = true;
+      setRuleDocStatus('Đang tải tài liệu…');
+      try{
+        const url = await getRuleDocBlobUrl(doc);
+        if(ruleDocState.activeSlug !== doc.slug) return;
+        frame.src = url;
+        frame.hidden = false;
+        ruleDocState.shownPdfId = doc.id;
+        setRuleDocStatus('');
+      }catch(err){
+        if(ruleDocState.activeSlug === doc.slug) setRuleDocStatus(err.message || 'Không tải được tài liệu PDF.');
+      }
+    }
+
+    function downloadBuiltinRuleDoc(doc, btn){
+      const meta = RULE_DOC_BUILTINS[doc.builtinKey];
+      const el = meta && ruleDocEl(meta.elementId);
       if(!el || typeof html2pdf === 'undefined'){
         showToast('Không thể tạo PDF, vui lòng thử lại.', 'error');
         return;
       }
       const originalLabel = btn ? btn.innerHTML : '';
+      const restore = () => { if(btn){ btn.disabled = false; btn.innerHTML = originalLabel; } };
       if(btn){ btn.disabled = true; btn.innerHTML = 'Đang tạo PDF…'; }
       html2pdf().set({
         margin: 0,
-        filename: 'Quy-dinh-cong-ty-TOKOSI.pdf',
+        filename: meta.pdfName,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fdfcf9' },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['css', 'legacy'] }
-      }).from(el).save().then(function(){
-        if(btn){ btn.disabled = false; btn.innerHTML = originalLabel; }
-      }).catch(function(){
-        if(btn){ btn.disabled = false; btn.innerHTML = originalLabel; }
+      }).from(el).save().then(restore).catch(function(){
+        restore();
         showToast('Tạo PDF thất bại, vui lòng thử lại.', 'error');
       });
+    }
+
+    async function downloadActiveRuleDoc(){
+      const doc = activeRuleDoc();
+      const btn = ruleDocEl('ruleDocDownloadBtn');
+      if(!doc) return;
+      if(doc.kind === 'builtin'){ downloadBuiltinRuleDoc(doc, btn); return; }
+      if(btn) btn.disabled = true;
+      try{
+        const url = await getRuleDocBlobUrl(doc);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = doc.fileName || 'tai-lieu.pdf';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }catch(err){
+        showToast(err.message || 'Không tải được tài liệu PDF.', 'error');
+      }finally{
+        if(btn) btn.disabled = false;
+      }
+    }
+
+    // ----- Quan ly: tai len / go / khoi phuc (server van kiem tra quyen hr.rules.manage) -----
+    function openRuleUploadModal(){
+      if(!hrCan('hr.rules.manage')) return;
+      ruleDocEl('ruleUploadForm').reset();
+      const err = ruleDocEl('ruleUploadError');
+      err.hidden = true; err.textContent = '';
+      openModal('ruleUploadModal');
+    }
+
+    function onRuleUploadFileChange(){
+      const file = ruleDocEl('ruleUploadFile').files[0];
+      const nameInput = ruleDocEl('ruleUploadName');
+      if(file && !nameInput.value.trim()){
+        nameInput.value = file.name.replace(/\.pdf$/i, '').slice(0, 120);
+      }
+    }
+
+    async function submitRuleUpload(event){
+      if(event) event.preventDefault();
+      const errBox = ruleDocEl('ruleUploadError');
+      const submitBtn = ruleDocEl('ruleUploadSubmit');
+      const showError = msg => { errBox.textContent = msg; errBox.hidden = false; };
+      errBox.hidden = true;
+
+      const file = ruleDocEl('ruleUploadFile').files[0];
+      const title = ruleDocEl('ruleUploadName').value.trim();
+      if(!file){ showError('Vui lòng chọn file PDF.'); return; }
+      if(!/\.pdf$/i.test(file.name)){ showError('Chỉ nhận file có đuôi .pdf.'); return; }
+      if(file.size > RULE_DOC_MAX_BYTES){ showError('File quá lớn, tối đa 20 MB.'); return; }
+      if(!title){ showError('Vui lòng nhập tên tài liệu.'); return; }
+
+      const form = new FormData();
+      form.append('file', file);
+      form.append('title', title);
+      submitBtn.disabled = true;
+      const originalLabel = submitBtn.textContent;
+      submitBtn.textContent = 'Đang tải lên…';
+      try{
+        const res = await fetch('/api/hr/rules/documents', { method: 'POST', credentials: 'same-origin', body: form });
+        const { ok, data } = await parseApiResponse(res);
+        if(!ok){ showError((data && data.error) || 'Không tải lên được tài liệu.'); return; }
+        closeModal('ruleUploadModal');
+        showToast('Đã tải tài liệu lên.', 'success');
+        ruleDocState.wantedSlug = data && data.document ? data.document.slug : '';
+        await loadRuleDocuments(true);
+      }catch(err){
+        showError('Lỗi kết nối máy chủ khi tải tài liệu lên.');
+      }finally{
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalLabel;
+      }
+    }
+
+    async function deleteActiveRuleDoc(){
+      const doc = activeRuleDoc();
+      if(!doc || doc.id == null || !hrCan('hr.rules.manage')) return;
+      const note = doc.kind === 'builtin'
+        ? 'Tài liệu dựng sẵn có thể khôi phục bằng nút "Khôi phục tài liệu mặc định".'
+        : 'File PDF sẽ bị xóa vĩnh viễn, không thể hoàn tác.';
+      if(!window.confirm(`Gỡ tài liệu "${doc.title}"?\nTab và nhánh menu tương ứng cũng sẽ biến mất.\n${note}`)) return;
+      try{
+        const res = await fetch(`/api/hr/rules/documents/${doc.id}`, { method: 'DELETE', credentials: 'same-origin' });
+        const { ok, data } = await parseApiResponse(res);
+        if(!ok){ showToast((data && data.error) || 'Không gỡ được tài liệu.', 'error'); return; }
+        if(ruleDocState.blobUrls[doc.id]){
+          URL.revokeObjectURL(ruleDocState.blobUrls[doc.id]);
+          delete ruleDocState.blobUrls[doc.id];
+        }
+        if(ruleDocState.shownPdfId === doc.id){
+          ruleDocState.shownPdfId = null;
+          ruleDocEl('ruleDocFrame').removeAttribute('src');
+        }
+        ruleDocState.activeSlug = '';
+        showToast('Đã gỡ tài liệu.', 'success');
+        await loadRuleDocuments(true);
+      }catch(err){
+        showToast('Lỗi kết nối máy chủ khi gỡ tài liệu.', 'error');
+      }
+    }
+
+    async function restoreRuleDefaults(){
+      if(!hrCan('hr.rules.manage')) return;
+      try{
+        const res = await fetch('/api/hr/rules/documents/restore-defaults', { method: 'POST', credentials: 'same-origin' });
+        const { ok, data } = await parseApiResponse(res);
+        if(!ok){ showToast((data && data.error) || 'Không khôi phục được tài liệu mặc định.', 'error'); return; }
+        showToast(data && data.restored ? `Đã khôi phục ${data.restored} tài liệu mặc định.` : 'Không có tài liệu mặc định nào cần khôi phục.', 'success');
+        await loadRuleDocuments(true);
+      }catch(err){
+        showToast('Lỗi kết nối máy chủ khi khôi phục tài liệu.', 'error');
+      }
     }
 
     function toggleSidebar(){
@@ -759,7 +1159,12 @@
       }
     }
 
-    function switchHrSubtab(name){
+    // rawName co the la "tab" hoac "quydinh/<slug tai lieu>" (hash cua trang).
+    function switchHrSubtab(rawName){
+      const parts = String(rawName || '').split('/');
+      const name = parts[0];
+      let docHint = parts.slice(1).join('/');
+      try{ docHint = decodeURIComponent(docHint); }catch(e){}
       if(!document.getElementById(`hrSubtab-${name}`)) return;
       if(!canViewHrSubtab(name)) return;
       document.querySelectorAll('.hr-subnav-item').forEach(btn => {
@@ -776,7 +1181,21 @@
         if(active) item.setAttribute('aria-current', 'page');
         else item.removeAttribute('aria-current');
       });
-      if(history.replaceState) history.replaceState(null, '', `#${name}`);
+      if(name === 'quydinh'){
+        // Tai lieu dang xem theo hash; slug chua co trong danh sach (vd bam thong bao
+        // tai lieu moi khi dang mo san trang) => tai lai danh sach 1 lan.
+        if(docHint) ruleDocState.wantedSlug = docHint;
+        selectRuleDoc(docHint || ruleDocState.activeSlug, { skipHash: true });
+        if(docHint && ruleDocState.status === 'ready' && !findRuleDoc(docHint) && !ruleDocState.retried[docHint]){
+          ruleDocState.retried[docHint] = true;
+          loadRuleDocuments(true);
+        }
+      }
+      syncRuleDocSidebarActive();
+      if(history.replaceState){
+        const slug = name === 'quydinh' ? (ruleDocState.activeSlug || ruleDocState.wantedSlug) : '';
+        history.replaceState(null, '', `#${name}${slug ? '/' + encodeURIComponent(slug) : ''}`);
+      }
     }
 
     // Sidebar (nhom "Quản lý nhân sự") link toi tung tab con bang hash, vd /humanresources/#leave.
@@ -1449,6 +1868,7 @@
           applyHrSubtabFromHash();
           initSortableTables();
           initDefaultDateFilters();
+          if(hrCan('hr.rules')) loadRuleDocuments();
           if(hrCan('hr.leave')) loadLeaveRequests();
           if(hrCan('hr.employees')) loadEmployeeDirectory();
           if(hrCan('hr.leave')) setupLeaveRealtimeStream();
@@ -1457,6 +1877,7 @@
 
       document.addEventListener('visibilitychange', () => {
         if(document.visibilityState === 'visible'){
+          if(ruleDocState.status === 'ready') loadRuleDocuments(true /* silent */);
           loadLeaveRequests(true /* silent */);
         }
       });

@@ -329,8 +329,18 @@
   var NOTIF_NAV_TARGETS = {
     roleChangeRequest: '/account/#users',
     accountCreated: '/account/#users',
-    leaveRequest: '/humanresources/#leave'
+    leaveRequest: '/humanresources/#leave',
+    // Gia tri co the la ham (relatedId) => url: thong bao tai lieu quy dinh tro toi
+    // dung tai lieu (relatedId = slug), khong co thi ve tab Quy dinh cong ty.
+    ruleDocument: function(relatedId){
+      return '/humanresources/#quydinh' + (relatedId ? '/' + encodeURIComponent(relatedId) : '');
+    }
   };
+
+  function notifNavTarget(relatedType, relatedId){
+    var target = NOTIF_NAV_TARGETS[relatedType];
+    return typeof target === 'function' ? target(relatedId) : target;
+  }
 
   var trashSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>';
 
@@ -421,7 +431,8 @@
         var clickable = !!NOTIF_NAV_TARGETS[n.relatedType];
         var dateStr = formatNotifDate(n.createdAt);
         return '<div class="tks-notif-item' + (n.isRead ? '' : ' unread') + (clickable ? ' clickable' : '') + '"' +
-          ' data-notif-id="' + escapeHtml(n.id) + '" data-related-type="' + escapeHtml(n.relatedType || '') + '">' +
+          ' data-notif-id="' + escapeHtml(n.id) + '" data-related-type="' + escapeHtml(n.relatedType || '') + '"' +
+          ' data-related-id="' + escapeHtml(n.relatedId || '') + '">' +
           '<button type="button" class="tks-notif-delete" data-notif-id="' + escapeHtml(n.id) + '" aria-label="Xóa thông báo">' + trashSvg + '</button>' +
           '<p class="tks-notif-item-title">' + escapeHtml(n.title) + '</p>' +
           '<p class="tks-notif-item-msg">' + escapeHtml(n.message) + '</p>' +
@@ -535,7 +546,7 @@
       if(!item) return;
       var notifId = item.dataset.notifId;
       var relatedType = item.dataset.relatedType;
-      var target = NOTIF_NAV_TARGETS[relatedType];
+      var target = notifNavTarget(relatedType, item.dataset.relatedId || '');
       var wasUnread = item.classList.contains('unread');
 
       var markReadPromise = wasUnread
@@ -840,12 +851,30 @@
     return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
   }
 
+  // Nhanh con cap 3 (vd tai lieu duoi "Quy dinh cong ty"): tieu de do nguoi dung
+  // dat nen luon qua escapeHtml.
+  function navSubItemHtml(child){
+    return '<a href="' + child.href + '" class="nav-subitem' + (child.active ? ' active' : '') + '"' +
+      (child.active ? ' aria-current="page"' : '') + ' ' + child.dataAttr +
+      ' title="' + escapeHtml(child.label) + '">' + escapeHtml(child.label) + '</a>';
+  }
+
   function navItemHtml(item){
     var attrs = item.dataAttr ? ' ' + item.dataAttr : '';
-    return '<a href="' + item.href + '" class="nav-item' + (item.active ? ' active' : '') + '"' +
+    var html = '<a href="' + item.href + '" class="nav-item' + (item.active ? ' active' : '') + '"' +
       (item.active ? ' aria-current="page"' : '') + attrs + '>' +
       navIcon(item.icon) + item.label + '</a>';
+    if(item.children && item.children.length){
+      html += '<div class="nav-sublist" role="group">' + item.children.map(navSubItemHtml).join('') + '</div>';
+    }
+    return html;
   }
+
+  // Danh sach tai lieu "Quy dinh cong ty" do trang /humanresources/ nap qua
+  // TKSNav.setHrRuleDocuments. Trang HR render sidebar 2 lan (authGuard + sau khi
+  // co user) nen state phai nam o day; cac trang khac khong nap => khong co nhanh con.
+  var _hrRuleDocs = [];
+  var _lastSidebarCall = null;
 
   function navGroupHtml(group){
     var items = group.items.filter(function(item){ return TKSNav.can(item.feature); });
@@ -872,6 +901,7 @@
     // user de khong phu thuoc thu tu goi.
     if(user && Array.isArray(user.permissions)) TKSNav.setPermissions(user);
     mountEl.dataset.tksActiveTop = activeTop;
+    _lastSidebarCall = { mountEl: mountEl, activeTop: activeTop, user: user };
 
     var currentPath = (typeof window !== 'undefined' && window.location.pathname)
       ? window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '')
@@ -917,14 +947,32 @@
       }
     ];
 
+    // Hash cua trang HR co dang "tab" hoac "quydinh/<slug tai lieu>".
+    var hrHashParts = currentHash.split('/');
+    var hrHashTab = hrHashParts[0];
+    var hrHashDoc = hrHashParts.length > 1 ? hrHashParts.slice(1).join('/') : '';
+    try { hrHashDoc = decodeURIComponent(hrHashDoc); } catch(e) {}
     var isHrPage = currentPath === '/humanresources';
-    var isHrQuydinhTab = isHrPage && currentHash === 'quydinh';
-    var isHrDanhSachTab = isHrPage && currentHash === 'danhsach';
+    var isHrQuydinhTab = isHrPage && hrHashTab === 'quydinh';
+    var isHrDanhSachTab = isHrPage && hrHashTab === 'danhsach';
     var isHrLeaveTab = isHrPage && !isHrQuydinhTab && !isHrDanhSachTab;
+    // Nhanh con tai lieu: slug khong con ton tai (da go) => tai lieu dau tien.
+    var hrDocActiveSlug = '';
+    if(_hrRuleDocs.length){
+      hrDocActiveSlug = _hrRuleDocs.some(function(d){ return d.slug === hrHashDoc; }) ? hrHashDoc : _hrRuleDocs[0].slug;
+    }
+    var hrRuleChildren = _hrRuleDocs.map(function(d){
+      return {
+        href: '/humanresources/#quydinh/' + encodeURIComponent(d.slug),
+        label: d.title,
+        active: isHrPage && isHrQuydinhTab && d.slug === hrDocActiveSlug,
+        dataAttr: 'data-hr-rule-doc="' + escapeHtml(d.slug) + '"'
+      };
+    });
     var hrItems = [
       {
         feature: 'hr.rules', href: '/humanresources/#quydinh', label: 'Quy định công ty',
-        active: isHrQuydinhTab, dataAttr: 'data-hr-subtab="quydinh"',
+        active: isHrQuydinhTab, dataAttr: 'data-hr-subtab="quydinh"', children: hrRuleChildren,
         icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line>'
       },
       {
@@ -975,6 +1023,20 @@
     ];
 
     mountEl.innerHTML = groups.map(navGroupHtml).join('');
+  };
+
+  /**
+   * Trang HR nap danh sach tai lieu "Quy dinh cong ty" [{slug, title}] de sidebar
+   * hien nhanh con; ve lai sidebar neu da render. Nhanh con thua huong quyen
+   * `hr.rules` cua muc cha.
+   */
+  TKSNav.setHrRuleDocuments = function setHrRuleDocuments(list){
+    _hrRuleDocs = (Array.isArray(list) ? list : []).filter(function(d){
+      return d && typeof d.slug === 'string' && d.slug && typeof d.title === 'string';
+    }).map(function(d){ return { slug: d.slug, title: d.title }; });
+    if(_lastSidebarCall && _lastSidebarCall.mountEl && _lastSidebarCall.mountEl.isConnected !== false){
+      TKSNav.renderTopSidebar(_lastSidebarCall.mountEl, _lastSidebarCall.activeTop, _lastSidebarCall.user);
+    }
   };
 
   // ---------- Chon co so (Ha Noi / Sai Gon / Ca hai) ----------

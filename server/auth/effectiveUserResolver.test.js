@@ -72,7 +72,7 @@ test('manual role and branch overrides win over the sheet', async () => {
   assert.equal(resolved.roleSource, 'override');
 });
 
-test('HR removal locks managed account and reappearance only unlocks the HR lock', async () => {
+test('khong khop dong nhan su KHONG tu khoa tai khoan; chi go khoa hr_removed cu, khoa thu cong giu nguyen', async () => {
   let employees = [];
   const store = memoryStore([{
     id: 'u1', username: 'a@example.com', email: 'a@example.com', verifiedEmail: true,
@@ -80,9 +80,16 @@ test('HR removal locks managed account and reappearance only unlocks the HR lock
   }]);
   const resolver = createEffectiveUserResolver({ store, directory: { getSnapshot: async () => ({ employees }) } });
 
-  await assert.rejects(resolver.resolveUser(store.state[0]), err => err.code === 'ACCOUNT_HR_REMOVED');
-  assert.equal(store.state[0].trangThai, 'Khóa');
-  assert.equal(store.state[0].lockReason, 'hr_removed');
+  const stillActive = await resolver.resolveUser(store.state[0]);
+  assert.equal(stillActive.trangThai, 'Đang hoạt động');
+  assert.equal(stillActive.vaiTro, 'Kế toán');
+
+  // Tai khoan tung bi khoa hr_removed boi co che cu duoc go khoa du van khong khop.
+  store.state[0].trangThai = 'Khóa';
+  store.state[0].lockReason = 'hr_removed';
+  const unlocked = await resolver.resolveUser(store.state[0]);
+  assert.equal(unlocked.trangThai, 'Đang hoạt động');
+  assert.equal(unlocked.lockReason, '');
 
   employees = [employee];
   const restored = await resolver.resolveUser(store.state[0]);

@@ -28,6 +28,7 @@ const { branchLabelToCode, resolveBranchScope } = require('./branch/branches');
 const branchRoutes = require('./branch/branchRoutes');
 const { getPool } = require('./db/pool');
 const hrLeaveRoutes          = require('./hr/hrLeaveRoutes');
+const hrRuleDocumentRoutes   = require('./hr/hrRuleDocumentRoutes');
 const notificationRoutes     = require('./notifications/notificationRoutes');
 const roleChangeRequestRoutes = require('./auth/roleChangeRequestRoutes');
 const stockoutCheckRoutes    = require('./dashboard/stockoutCheck/stockoutCheckRoutes');
@@ -65,6 +66,10 @@ router.use('/api/hr', requireAuth, resolveBranch);
 // Cac endpoint quan ly nhan su (nghi phep) — /api/hr/* — phan quyen rieng
 // tung route ben trong hrLeaveRoutes.js (xem het ho so vs chi Quan ly duyet).
 router.use(hrLeaveRoutes);
+
+// Tai lieu "Quy dinh cong ty" (PDF Quan ly tai len) — /api/hr/rules/documents*,
+// phan quyen rieng tung route (hr.rules xem, hr.rules.manage tai len/go).
+router.use(hrRuleDocumentRoutes);
 
 // Chuong thong bao dung chung cho MOI tai khoan — /api/notifications/*.
 router.use(notificationRoutes);

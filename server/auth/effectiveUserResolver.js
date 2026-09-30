@@ -98,13 +98,14 @@ function createEffectiveUserResolver(options = {}) {
 
     const employee = employeeDirectory.findEmployeeByIdentifier(snapshot.employees, employeeIdentityFor(user));
     if (!employee) {
+      // Khong con khop dong nhan su nao (vd sua/nhap lai SĐT-email) KHONG con
+      // tu khoa tai khoan nua; giu nguyen vai tro/quyen da co. Chi go khoa
+      // 'hr_removed' cu de cac tai khoan tung bi khoa theo co che nay dang nhap lai duoc.
       if (user.hrManaged) {
-        user = await persistIfChanged(user, { trangThai: LOCKED_STATUS, lockReason: 'hr_removed' });
-        throw new EffectiveUserError(
-          'Tài khoản không còn trong Danh sách nhân sự.',
-          'ACCOUNT_HR_REMOVED',
-          403
-        );
+        if (user.lockReason === 'hr_removed') {
+          user = await persistIfChanged(user, { trangThai: ACTIVE_STATUS, lockReason: '' });
+        }
+        return user;
       }
       if (user.vaiTro && user.vaiTro !== ROLES.KHACH && !user.legacyOverride) {
         user = await persistIfChanged(user, {
