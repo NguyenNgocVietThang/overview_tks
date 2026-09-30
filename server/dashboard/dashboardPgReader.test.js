@@ -29,7 +29,7 @@ function fakePool(rowsBySheetName = {}) {
   };
 }
 
-test('readDashboardSheets tra dung 9 sheet, dung header (ten + thu tu) nhu Sheets that', async () => {
+test('readDashboardSheets tra dung 7 sheet, dung header (ten + thu tu) nhu Sheets that', async () => {
   const pool = fakePool();
   const reader = createDashboardPgReader({ pool });
   const sheets = await reader.readDashboardSheets('Hà Nội');
@@ -40,7 +40,7 @@ test('readDashboardSheets tra dung 9 sheet, dung header (ten + thu tu) nhu Sheet
   });
 });
 
-test('readDashboardSheets truyen dung branch code Postgres (hanoi/saigon) cho ca 9 truy van', async () => {
+test('readDashboardSheets truyen dung branch code Postgres (hanoi/saigon) cho ca 7 truy van', async () => {
   const pool = fakePool();
   const reader = createDashboardPgReader({ pool });
 
@@ -87,28 +87,6 @@ test('readDashboardSheets: Hang hoa map dung gia tri theo TEN COT (khong theo vi
   assert.equal(row.length, header.length, 'moi dong phai co du so cot nhu header');
 });
 
-test('readDashboardSheets: Nhap hang (dang flatten) giu du moi dong mat hang tra ve tu query, khong gop/mat dong', async () => {
-  // "Nhap hang" la 1 truy van LEFT JOIN purchases -> purchase_details, moi
-  // dong ket qua = 1 mat hang cua 1 phieu nhap (giong buildPurchaseSheetRow_
-  // cu). O day chi kiem tra tang doc (readDashboardSheets) khong lam mat/gop
-  // dong nao Postgres tra ve — dung SQL JOIN duoc doi chieu rieng qua smoke
-  // test tren du lieu that (xem bao cao cuoi).
-  const pool = fakePool({
-    [CONFIG.SHEET_PURCHASES]: [
-      { chi_nhanh: 'CN1', ma_nhap_hang: 'PN-01', thoi_gian: '', thoi_gian_tao: '', ma_nha_cung_cap: 'NCC-01', ten_nha_cung_cap: 'A', nguoi_nhap: '', nguoi_tao: '', tong_tien_hang: 100, giam_gia_phieu_nhap: 0, can_tra_ncc: 100, tien_da_tra_ncc: 0, ghi_chu: '', tong_so_luong: 3, tong_so_mat_hang: 2, trang_thai: '', ma_hang: 'SP-01', ten_hang: 'A', don_gia: 10, giam_gia_pct: 0, giam_gia: 0, gia_nhap: 10, thanh_tien: 10, so_luong: 1 },
-      { chi_nhanh: 'CN1', ma_nhap_hang: 'PN-01', thoi_gian: '', thoi_gian_tao: '', ma_nha_cung_cap: 'NCC-01', ten_nha_cung_cap: 'A', nguoi_nhap: '', nguoi_tao: '', tong_tien_hang: 100, giam_gia_phieu_nhap: 0, can_tra_ncc: 100, tien_da_tra_ncc: 0, ghi_chu: '', tong_so_luong: 3, tong_so_mat_hang: 2, trang_thai: '', ma_hang: 'SP-02', ten_hang: 'B', don_gia: 45, giam_gia_pct: 0, giam_gia: 0, gia_nhap: 45, thanh_tien: 90, so_luong: 2 }
-    ]
-  });
-  const reader = createDashboardPgReader({ pool });
-  const sheets = await reader.readDashboardSheets('Hà Nội');
-  const rows = sheets[CONFIG.SHEET_PURCHASES].slice(1);
-  const header = sheets[CONFIG.SHEET_PURCHASES][0];
-
-  assert.equal(rows.length, 2, 'ca 2 dong mat hang cua cung 1 phieu nhap phai duoc giu nguyen, khong gop lai');
-  assert.deepEqual(rows.map(r => r[header.indexOf('Mã hàng')]), ['SP-01', 'SP-02']);
-  assert.deepEqual(rows.map(r => r[header.indexOf('Mã nhập hàng')]), ['PN-01', 'PN-01']);
-});
-
 test('readDashboardSheets: sheet khong co du lieu tra ve mang rong (chi con header)', async () => {
   const pool = fakePool({ [CONFIG.SHEET_INVOICES]: [] });
   const reader = createDashboardPgReader({ pool });
@@ -116,35 +94,33 @@ test('readDashboardSheets: sheet khong co du lieu tra ve mang rong (chi con head
   assert.deepEqual(sheets[CONFIG.SHEET_INVOICES], [__headers__[CONFIG.SHEET_INVOICES]]);
 });
 
-test('SHEET_NAMES khop dung 9 tab KiotViet, KHONG bao gom Bao cao ban hang (SHEET_CUSTOMER_REPORT) — co chu dich kich hoat fallback trong dashboardData.js', () => {
-  assert.equal(SHEET_NAMES.length, 9);
+test('SHEET_NAMES khop dung 7 tab KiotViet, KHONG bao gom Bao cao ban hang (SHEET_CUSTOMER_REPORT) — co chu dich kich hoat fallback trong dashboardData.js', () => {
+  assert.equal(SHEET_NAMES.length, 7);
   assert.ok(!SHEET_NAMES.includes(CONFIG.SHEET_CUSTOMER_REPORT));
   assert.deepEqual(SHEET_NAMES, [
     CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES,
     CONFIG.SHEET_INVOICE_DETAILS, CONFIG.SHEET_ORDERS, CONFIG.SHEET_RETURNS,
-    CONFIG.SHEET_CUSTOMERS, CONFIG.SHEET_SUPPLIERS, CONFIG.SHEET_PURCHASES
+    CONFIG.SHEET_CUSTOMERS
   ]);
 });
 
-test('CORE_SHEET_NAMES khop dung 7 tab, bo "Chi tiết hóa đơn"/"Nhập hàng" (2 tab nang nhat, thay bang dashboardRollupRepository.js)', () => {
-  assert.equal(CORE_SHEET_NAMES.length, 7);
+test('CORE_SHEET_NAMES khop dung 6 tab, bo "Chi tiết hóa đơn" (tab nang nhat, thay bang dashboardRollupRepository.js)', () => {
+  assert.equal(CORE_SHEET_NAMES.length, 6);
   assert.ok(!CORE_SHEET_NAMES.includes(CONFIG.SHEET_INVOICE_DETAILS));
-  assert.ok(!CORE_SHEET_NAMES.includes(CONFIG.SHEET_PURCHASES));
   assert.deepEqual(CORE_SHEET_NAMES, [
     CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES,
-    CONFIG.SHEET_ORDERS, CONFIG.SHEET_RETURNS, CONFIG.SHEET_CUSTOMERS, CONFIG.SHEET_SUPPLIERS
+    CONFIG.SHEET_ORDERS, CONFIG.SHEET_RETURNS, CONFIG.SHEET_CUSTOMERS
   ]);
 });
 
-test('readCoreDashboardSheets: CHI chay 7 cau SQL (khong chay roi bo ket qua cua 2 tab nang nhat)', async () => {
+test('readCoreDashboardSheets: CHI chay 6 cau SQL (khong chay roi bo ket qua cua tab nang nhat)', async () => {
   const pool = fakePool();
   const reader = createDashboardPgReader({ pool });
   const sheets = await reader.readCoreDashboardSheets('Hà Nội');
 
-  assert.equal(pool.calls.length, CORE_SHEET_NAMES.length, 'khong duoc chay cau SQL cua "Chi tiết hóa đơn"/"Nhập hàng"');
+  assert.equal(pool.calls.length, CORE_SHEET_NAMES.length, 'khong duoc chay cau SQL cua "Chi tiết hóa đơn"');
   assert.deepEqual(Object.keys(sheets).sort(), CORE_SHEET_NAMES.slice().sort());
   assert.equal(sheets[CONFIG.SHEET_INVOICE_DETAILS], undefined);
-  assert.equal(sheets[CONFIG.SHEET_PURCHASES], undefined);
   pool.calls.forEach(call => assert.deepEqual(call.params, ['hanoi']));
 });
 
@@ -200,9 +176,7 @@ const EXPORT_CODE_COLUMNS = {
   [CONFIG.SHEET_INVOICES]: 'ma_hoa_don',
   [CONFIG.SHEET_ORDERS]: 'ma_dat_hang',
   [CONFIG.SHEET_RETURNS]: 'ma_tra_hang',
-  [CONFIG.SHEET_CUSTOMERS]: 'ma_khach_hang',
-  [CONFIG.SHEET_SUPPLIERS]: 'ma_ncc',
-  [CONFIG.SHEET_PURCHASES]: 'ma_nhap_hang'
+  [CONFIG.SHEET_CUSTOMERS]: 'ma_khach_hang'
 };
 
 // Dieu kien loc ma ky vong chen vao WHERE cua tung tab — bieu thuc cot GOC cua
@@ -212,9 +186,7 @@ const EXPECTED_CODE_FILTERS = {
   [CONFIG.SHEET_INVOICES]: 'AND i.code = ANY($2::text[])',
   [CONFIG.SHEET_ORDERS]: 'AND code = ANY($2::text[])',
   [CONFIG.SHEET_RETURNS]: 'AND code = ANY($2::text[])',
-  [CONFIG.SHEET_CUSTOMERS]: 'AND code = ANY($2::text[])',
-  [CONFIG.SHEET_SUPPLIERS]: 'AND code = ANY($2::text[])',
-  [CONFIG.SHEET_PURCHASES]: 'AND pu.code = ANY($2::text[])'
+  [CONFIG.SHEET_CUSTOMERS]: 'AND code = ANY($2::text[])'
 };
 
 // pool gia cho readRowsByCodes: `makeRows(params, callIndex, sql)` tra dong cho
@@ -245,17 +217,17 @@ function makeCodes(count, prefix = 'MA') {
   return Array.from({ length: count }, (_, i) => `${prefix}${String(i).padStart(6, '0')}`);
 }
 
-test('EXPORT_SHEET_NAMES la dung 7 tab xuat duoc (theo thu tu TABS), khong gom "Nhóm hàng"/"Chi tiết hóa đơn"', () => {
+test('EXPORT_SHEET_NAMES la dung 5 tab xuat duoc (theo thu tu TABS), khong gom "Nhóm hàng"/"Chi tiết hóa đơn"', () => {
   assert.deepEqual(EXPORT_SHEET_NAMES, [
     CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES, CONFIG.SHEET_ORDERS, CONFIG.SHEET_RETURNS,
-    CONFIG.SHEET_CUSTOMERS, CONFIG.SHEET_SUPPLIERS, CONFIG.SHEET_PURCHASES
+    CONFIG.SHEET_CUSTOMERS
   ]);
   assert.ok(!EXPORT_SHEET_NAMES.includes(CONFIG.SHEET_CATEGORIES));
   assert.ok(!EXPORT_SHEET_NAMES.includes(CONFIG.SHEET_INVOICE_DETAILS));
-  EXPORT_SHEET_NAMES.forEach(name => assert.ok(SHEET_NAMES.includes(name), `"${name}" phai la 1 trong 9 tab`));
+  EXPORT_SHEET_NAMES.forEach(name => assert.ok(SHEET_NAMES.includes(name), `"${name}" phai la 1 trong 7 tab`));
 });
 
-test('__tabs__: du 9 tab, headers/columns khop __headers__, codeColumn dung (null voi 2 tab khong xuat duoc), la ban sao', () => {
+test('__tabs__: du 7 tab, headers/columns khop __headers__, codeColumn dung (null voi 2 tab khong xuat duoc), la ban sao', () => {
   assert.deepEqual(Object.keys(__tabs__).sort(), SHEET_NAMES.slice().sort());
   SHEET_NAMES.forEach(name => {
     const tab = __tabs__[name];
@@ -272,7 +244,7 @@ test('__tabs__: du 9 tab, headers/columns khop __headers__, codeColumn dung (nul
   });
 });
 
-test('readRowsByCodes: dung params [branchCode, [codes]] cho ca hanoi/saigon o ca 7 tab, moi tab chay dung 1 cau SQL cua chinh tab do', async () => {
+test('readRowsByCodes: dung params [branchCode, [codes]] cho ca hanoi/saigon o ca 5 tab, moi tab chay dung 1 cau SQL cua chinh tab do', async () => {
   for (const [label, branchCode] of [['Hà Nội', 'hanoi'], ['Sài Gòn', 'saigon']]) {
     for (const name of EXPORT_SHEET_NAMES) {
       const pool = fakePool();
@@ -289,20 +261,6 @@ test('readRowsByCodes: dung params [branchCode, [codes]] cho ca hanoi/saigon o c
   }
 });
 
-test('readRowsByCodes: "Nhập hàng" gioi han CTE detail_totals theo cac phieu duoc chon (khong quet toan bo purchase_details)', async () => {
-  const pool = fakePool();
-  const reader = createDashboardPgReader({ pool });
-  await reader.readRowsByCodes(CONFIG.SHEET_PURCHASES, 'Hà Nội', ['PN000001']);
-
-  const { sql } = pool.calls[0];
-  assert.match(
-    sql,
-    /FROM purchase_details\s+WHERE branch = \$1\s+AND purchase_id IN \(SELECT id FROM purchases WHERE branch = \$1 AND code = ANY\(\$2::text\[\]\)\)\s+GROUP BY purchase_id/,
-    'CTE detail_totals phai chi gom cac phieu nhap thuoc danh sach ma'
-  );
-  assert.ok(sql.includes('AND pu.code = ANY($2::text[])'), 'truy van chinh cung phai loc theo pu.code');
-});
-
 test('readRowsByCodes: SQL loc chi them dung cac dong dieu kien ma so voi SQL khong loc (ban khong loc khong doi)', async () => {
   const basePool = fakePool();
   await createDashboardPgReader({ pool: basePool }).readDashboardSheets('Hà Nội');
@@ -314,7 +272,7 @@ test('readRowsByCodes: SQL loc chi them dung cac dong dieu kien ma so voi SQL kh
 
     const lines = pool.calls[0].sql.split('\n');
     const filterLines = lines.filter(line => line.includes('ANY($2::text[])'));
-    assert.equal(filterLines.length, name === CONFIG.SHEET_PURCHASES ? 2 : 1, `"${name}": so dong dieu kien ma them vao`);
+    assert.equal(filterLines.length, 1, `"${name}": so dong dieu kien ma them vao`);
     assert.equal(
       lines.filter(line => !line.includes('ANY($2::text[])')).join('\n'),
       baseSql(name),
@@ -456,7 +414,7 @@ test('readRowsByCodes: bo trong co so -> mac dinh Ha Noi (giong readDashboardShe
   }
 });
 
-test('readRowsByCodes: moi row la object khoa theo alias dung thu tu columns, bo khoa thua, alias khop columns o ca 7 tab', async () => {
+test('readRowsByCodes: moi row la object khoa theo alias dung thu tu columns, bo khoa thua, alias khop columns o ca 5 tab', async () => {
   for (const name of EXPORT_SHEET_NAMES) {
     const { columns, codeColumn } = __tabs__[name];
     // Dong tu Postgres voi khoa xep NGUOC thu tu columns + 1 khoa thua: dau ra phai theo columns.
@@ -586,10 +544,10 @@ test('readCoreDashboardSheets(branch, sheetNames): CHI chay cau SQL cua cac bang
   assert.ok(!pool.calls.some(call => call.sql.includes(`-- tab: ${CONFIG.SHEET_ORDERS}`)));
 });
 
-test('readCoreDashboardSheets(branch, sheetNames): ten khong thuoc 7 bang core (Chi tiet hoa don/Nhap hang/la) bi bo qua, mang rong = khong query', async () => {
+test('readCoreDashboardSheets(branch, sheetNames): ten khong thuoc 6 bang core (Chi tiet hoa don/la) bi bo qua, mang rong = khong query', async () => {
   const pool = fakePool();
   const reader = createDashboardPgReader({ pool });
-  const sheets = await reader.readCoreDashboardSheets('Hà Nội', [CONFIG.SHEET_INVOICE_DETAILS, CONFIG.SHEET_PURCHASES, 'khong-co']);
+  const sheets = await reader.readCoreDashboardSheets('Hà Nội', [CONFIG.SHEET_INVOICE_DETAILS, 'khong-co']);
   assert.deepEqual(sheets, {});
   assert.equal(pool.calls.length, 0);
 

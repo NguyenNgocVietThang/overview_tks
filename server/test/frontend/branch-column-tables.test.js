@@ -23,8 +23,7 @@ function payload() {
   return {
     kpi: {
       revenueToday: 0, invoicesToday: 0, cancelledToday: 0, totalStock: 7, totalProducts: 2, lowStockCount: 1,
-      totalCustomers: 1, customersWithDebt: 1, totalDebt: 500, totalSuppliers: 1, suppliersWithDebt: 1,
-      totalSupplierDebt: 500, totalPurchaseSpend: 9000, inStockCodes: 2, totalInventoryValue: 70, inventoryValueCategoryCount: 1
+      totalCustomers: 1, customersWithDebt: 1, totalDebt: 500, inStockCodes: 2, totalInventoryValue: 70, inventoryValueCategoryCount: 1
     },
     filters: { products: { label: '30 ngày' }, invoices: { label: '30 ngày' } },
     invoices: {
@@ -41,10 +40,6 @@ function payload() {
         ],
         topTransactions: [], summary: { quantity: 3, quantityKnown: true, revenue: 30, discount: 0, paid: 30 }
       }
-    },
-    newPurchases: {
-      label: '30 ngày', orderCount: 1, totalAmount: 777, supplierCount: 1, bySupplier: [],
-      orders: [{ code: 'PN-1', branch: SG, date: '21/09/2026 08:17', supplier: 'NCC Z', total: 777, status: 'Đã nhập hàng' }]
     },
     products: {
       newProducts: { label: '30 ngày', count: 2, dateColumnAvailable: true, products: [
@@ -66,7 +61,6 @@ function payload() {
     },
     stockValueByCategory: [], stockByCategory: [],
     allProducts: [product(HN, 5), product(SG, 2)],
-    suppliers: [{ code: 'NCC-1', branch: BOTH, name: 'NCC Z', phone: '0900', debt: 500 }],
     customers: {
       topDebt: [{ code: 'KH-1', branch: BOTH, name: 'Khách Hà Nội', phone: '0901', debt: 500, periodRevenue: 0, codesByBranch: { [HN]: 'KH-1', [SG]: 'KH-9' }, debtByBranch: { [HN]: 200, [SG]: 300 } }],
       topRevenue: { top15: [], all: [{ code: 'KH-1', branch: BOTH, name: 'Khách Hà Nội', saleOrderCount: 3, revenue: 999, revenueByBranch: { [HN]: 600, [SG]: 399 } }], label: 'Tất cả' }
@@ -114,8 +108,7 @@ function rows(doc, tbodyId) {
 const TABLES_WITH_BRANCH = {
   products: ['inventoryValueRows', 'topSellingRows', 'allProductRows', 'newlyImportedRows', 'todayNewProductRows'],
   invoices: ['endOfDayRows', 'orderRows', 'returnRows'],
-  customers: ['debtRows', 'customerRevenueRows'],
-  suppliers: ['overviewPurchaseRows', 'supplierRows']
+  customers: ['debtRows', 'customerRevenueRows']
 };
 
 test('moi bang du lieu co cot "Cơ sở" va dong nao cung ghi co so', () => {

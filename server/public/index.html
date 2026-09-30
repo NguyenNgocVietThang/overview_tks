@@ -4101,148 +4101,6 @@
           </section>
         </div>
 
-        <!-- ============ NHÀ CUNG CẤP ============ -->
-        <div class="view" id="view-suppliers">
-          <div class="view-title">Nhà cung cấp</div>
-          <div class="view-sub">Hàng nhập trong kỳ → phân tích nợ phải trả và chi tiết nhà cung cấp · mỗi mục có chỉ số then chốt ở đầu</div>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">1</span>
-              <h2>Hàng nhập <span class="section-note">tổng hợp và danh sách phiếu nhập hàng theo khoảng Từ – Đến của bảng</span></h2>
-            </div>
-            <div class="kpi-grid section-kpis">
-              <div class="kpi-card accent-amber col-4">
-                <div class="eyebrow">Tổng mã nhập hàng</div>
-                <div class="value" id="sp-purchase-count">—</div>
-                <div class="sub" id="sp-purchase-date">—</div>
-              </div>
-              <div class="kpi-card accent-green col-4">
-                <div class="eyebrow">Tổng tiền nhập</div>
-                <div class="value" id="sp-purchase-total">—</div>
-                <div class="sub">Tính trên các mã nhập trong khoảng đã chọn</div>
-              </div>
-              <div class="kpi-card accent-blue col-4">
-                <div class="eyebrow">Nhà cung cấp</div>
-                <div class="value" id="sp-purchase-suppliers">—</div>
-                <div class="sub">Có phát sinh nhập hàng trong khoảng đã chọn</div>
-              </div>
-            </div>
-            <div class="grid transaction-analysis-grid">
-              <div class="panel col-5">
-                <div class="panel-head">
-                  <h2>Nhập hàng theo nhà cung cấp</h2>
-                  <span class="drill-hint" id="sp-purchase-chart-hint">—</span>
-                </div>
-                <div class="chart-box">
-                  <canvas id="chartOverviewPurchases" role="img"
-                    aria-label="Biểu đồ nhập hàng theo nhà cung cấp"></canvas>
-                  <div class="chart-empty" id="overviewPurchaseChartEmpty" hidden>Chưa có dữ liệu nhập hàng trong khoảng
-                    đã chọn</div>
-                </div>
-              </div>
-              <div class="panel col-7">
-                <div class="panel-head">
-                  <h2>Danh sách nhập hàng <span class="tag" id="tagPurchases">—</span></h2>
-                  <div class="panel-head-actions"><span class="drill-hint" id="sp-purchase-table-count">—</span><button
-                      class="export-button" type="button" onclick="openExportDialog('overview.purchases')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất
-                      file</button></div>
-                </div>
-                <div class="scroll-list" style="max-height:420px;">
-                  <table class="fixed-table">
-                    <thead>
-                      <tr>
-                        <th style="width:145px">Mã nhập hàng</th>
-                        <th style="width:150px">Ngày nhập</th>
-                        <th style="width:260px">Nhà cung cấp</th>
-                        <th style="width:135px">Tổng tiền</th>
-                        <th style="width:130px">Trạng thái</th>
-                        <th style="width:130px">Cơ sở</th>
-                      </tr>
-                    </thead>
-                    <tbody id="overviewPurchaseRows">
-                      <tr>
-                        <td colspan="6" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="overviewPurchasePagination" hidden>
-                  <button type="button" id="overviewPurchaseFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="overviewPurchasePrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="overviewPurchasePageLabel">Trang 1/1</span>
-                  <button type="button" id="overviewPurchaseNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="overviewPurchaseLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">2</span>
-              <h2>Phân tích &amp; chi tiết <span class="section-note">nợ phải trả tập trung ở nhà cung cấp nào</span>
-              </h2>
-            </div>
-            <div class="kpi-grid section-kpis">
-              <div class="kpi-card accent-blue col-3">
-                <div class="eyebrow">Tổng nhà cung cấp</div>
-                <div class="value" id="sp-total">—</div>
-              </div>
-              <div class="kpi-card accent-red col-3">
-                <div class="eyebrow">NCC đang nợ</div>
-                <div class="value" id="sp-debtcount">—</div>
-              </div>
-              <div class="kpi-card accent-amber col-3">
-                <div class="eyebrow">Tổng nợ phải trả</div>
-                <div class="value" id="sp-totaldebt">—</div>
-              </div>
-              <div class="kpi-card col-3">
-                <div class="eyebrow">Tổng chi nhập hàng</div>
-                <div class="value" id="sp-totalpurchase">—</div>
-              </div>
-            </div>
-            <div class="grid transaction-analysis-grid">
-              <div class="panel col-5">
-                <div class="panel-head">
-                  <h2>Top 15 nhà cung cấp nợ cao nhất</h2>
-                  <span class="drill-hint">15 nhà cung cấp có dư nợ lớn nhất</span>
-                </div>
-                <div class="chart-box top-transactions-chart"><canvas id="chartSupplierDebt"></canvas></div>
-              </div>
-              <div class="panel col-7">
-                <div class="panel-head">
-                  <h2>Danh sách nhà cung cấp <span class="tag" id="tagSuppliers">—</span></h2><button
-                    class="export-button" type="button" onclick="openExportDialog('suppliers.list')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
-                </div>
-                <div class="table-wrap scroll-list transaction-detail-scroll">
-                  <table class="fixed-table">
-                    <thead>
-                      <tr>
-                        <th style="width:140px">Mã NCC</th>
-                        <th style="width:280px">Tên</th>
-                        <th style="width:130px">Điện thoại</th>
-                        <th style="width:135px">Nợ cần trả</th>
-                        <th style="width:130px">Cơ sở</th>
-                      </tr>
-                    </thead>
-                    <tbody id="supplierRows">
-                      <tr>
-                        <td colspan="4" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="supplierPagination" hidden>
-                  <button type="button" id="supplierFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="supplierPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="supplierPageLabel">Trang 1/1</span>
-                  <button type="button" id="supplierNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="supplierLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
-
         <!-- ============ QUẢN LÝ CÔNG NỢ ============ -->
         <div class="view" id="view-debt">
           <div class="view-title">Quản lý công nợ</div>
@@ -4521,7 +4379,6 @@
         invoices: { mode: 'days', days: 30 },
         orders: { mode: 'days', days: 30 },
         returns: { mode: 'days', days: 30 },
-        suppliers: { mode: 'days', days: 30 },
         customers: { mode: 'all' }
       },
       exportDialog: {
@@ -5887,14 +5744,12 @@
         orders: cloneExportFilter(state.filters.orders),
         returns: cloneExportFilter(state.filters.returns),
         customers: cloneExportFilter(state.filters.customers, 'all'),
-        newPurchases: cloneExportFilter(state.filters.suppliers),
         newProducts: cloneExportFilter(state.filters.newProducts)
       };
     }
 
     const EXPORT_TABLE_SEARCH_KEYS = {
       'overview.transactions': 'endOfDay',
-      'overview.purchases': 'overviewPurchase',
       'overview.new-products': 'todayNewProducts',
       'products.top-selling': 'topSelling',
       'products.all': 'allProducts',
@@ -5906,7 +5761,6 @@
       'customers.debt': 'topDebt',
       'customers.productDetail': 'cpDetail',
       'overview.productReport': 'productReport',
-      'suppliers.list': 'suppliers',
       'debt.management': 'debtManagement'
     };
 
@@ -6337,7 +6191,7 @@
     // Moi bang co 1 bo loc thoi gian rieng (khoa cua state.filters) -> tien to tham so
     // gui backend (xem parseFilterSpec trong routes.js): pr = ban chay, ni = hang moi
     // nhap, np = ma moi tao, in = giao dich (+ bieu do/chi so Xu huong), or = dat hang,
-    // rt = tra hang, cu = doanh thu theo khach, pu = phieu nhap hang.
+    // rt = tra hang, cu = doanh thu theo khach.
     const TAB_FILTER_PREFIXES = {
       topSelling: ['pr'],
       newlyImported: ['ni'],
@@ -6345,8 +6199,7 @@
       invoices: ['in'],
       orders: ['or'],
       returns: ['rt'],
-      customers: ['cu'],
-      suppliers: ['pu']
+      customers: ['cu']
     };
 
     // Bo loc thoi gian nam ngay trong tung bang (canh o tim kiem), chi gom "Tu ... Den ..."
@@ -6360,8 +6213,7 @@
       endOfDay: 'invoices',
       orders: 'orders',
       returns: 'returns',
-      customerRevenue: 'customers',
-      overviewPurchase: 'suppliers'
+      customerRevenue: 'customers'
     };
 
     function isoDateOffset(daysAgo) {
@@ -7000,7 +6852,6 @@
       stockout90d: { title: 'Kết quả kiểm tra đứt hàng 90 ngày', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       stockout30d: { title: 'Kết quả kiểm tra đứt hàng 30 ngày', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       endOfDay: { title: 'Chi tiết giao dịch', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
-      overviewPurchase: { title: 'Danh sách nhập hàng', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
       todayNewProducts: { title: 'Danh sách mã mới', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
       topSelling: {
         title: 'Chi tiết sản phẩm bán chạy', searchText: tableSearchText,
@@ -7015,7 +6866,6 @@
       returns: { title: 'Danh sách trả hàng', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
       customerRevenue: { title: 'Chi tiết doanh thu theo khách', searchText: tableSearchText, identity: customerIdentity },
       topDebt: { title: 'Chi tiết khách nợ', searchText: tableSearchText, identity: customerIdentity },
-      suppliers: { title: 'Danh sách nhà cung cấp', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       debtManagement: { title: 'Khách hàng công nợ', searchText: tableSearchText, identity: p => p.customerKey, customControl: true }
     };
     window.TABLE_EXPLORER_CONFIGS = TABLE_EXPLORER_CONFIGS;
@@ -8151,66 +8001,6 @@
           'Không có dữ liệu doanh thu trong khoảng đã chọn'
         );
       }
-      else if (view === 'suppliers') {
-        document.getElementById('sp-total').textContent = d.kpi.totalSuppliers;
-        document.getElementById('sp-debtcount').textContent = d.kpi.suppliersWithDebt;
-        document.getElementById('sp-totaldebt').textContent = fmtMoney(d.kpi.totalSupplierDebt);
-        document.getElementById('sp-totalpurchase').textContent = fmtMoney(d.kpi.totalPurchaseSpend);
-
-        const newPurchases = d.newPurchases || { label: '—', orderCount: 0, totalAmount: 0, supplierCount: 0, bySupplier: [], orders: [] };
-        const newPurchaseSuppliers = newPurchases.bySupplier || [];
-        const newPurchaseOrders = newPurchases.orders || [];
-        document.getElementById('sp-purchase-count').textContent = fmtNumber(Number(newPurchases.orderCount || 0));
-        document.getElementById('sp-purchase-date').textContent = newPurchases.label || '—';
-        document.getElementById('sp-purchase-total').textContent = fmtMoney(newPurchases.totalAmount);
-        document.getElementById('sp-purchase-suppliers').textContent = fmtNumber(Number(newPurchases.supplierCount || 0));
-        document.getElementById('sp-purchase-chart-hint').textContent = newPurchaseSuppliers.length
-          ? newPurchaseSuppliers.length + ' nhà cung cấp · ' + (newPurchases.label || '—')
-          : 'Chưa có phát sinh trong khoảng đã chọn';
-        document.getElementById('tagPurchases').textContent = newPurchases.label || '—';
-        document.getElementById('sp-purchase-table-count').textContent = 'Tổng ' + fmtNumber(Number(newPurchases.orderCount || 0)) + ' mã nhập hàng';
-        document.getElementById('chartOverviewPurchases').hidden = !newPurchaseSuppliers.length;
-        document.getElementById('overviewPurchaseChartEmpty').hidden = !!newPurchaseSuppliers.length;
-        if (newPurchaseSuppliers.length) {
-          renderBarChartList('chartOverviewPurchases', 'overviewPurchases', newPurchaseSuppliers.slice(0, 15), s => s.name, s => s.total, themeColor('--amber'), false);
-        } else {
-          destroyChart('overviewPurchases');
-        }
-        renderPaginatedRows(
-          'overviewPurchase',
-          { tbody: 'overviewPurchaseRows', pagination: 'overviewPurchasePagination', firstBtn: 'overviewPurchaseFirstPage', prevBtn: 'overviewPurchasePrevPage', nextBtn: 'overviewPurchaseNextPage', lastBtn: 'overviewPurchaseLastPage', label: 'overviewPurchasePageLabel' },
-          newPurchaseOrders,
-          p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
-            '<td class="mono muted">' + (p.date ? escapeHtml(p.date) : '—') + '</td>' +
-            '<td class="name-cell">' + (p.supplier ? escapeHtml(p.supplier) : '—') + '</td>' +
-            '<td class="mono" data-sort-value="' + p.total + '">' + fmtMoney(p.total) + '</td>' +
-            '<td>' + genericStatusPill(p.status) + '</td>' +
-            '<td>' + branchCellText(p) + '</td></tr>',
-          6,
-          'Không có hàng nhập trong khoảng thời gian đã chọn'
-        );
-
-        const topSupplierDebt = d.suppliers.filter(s => s.debt > 0).slice(0, 15);
-        if (topSupplierDebt.length) renderBarChartList(
-          'chartSupplierDebt', 'supplierDebt', topSupplierDebt, s => s.name, s => s.debt, themeColor('--red'), false,
-          { tableKey: 'suppliers', identity: s => s.code }
-        );
-        else destroyChart('supplierDebt');
-
-        document.getElementById('tagSuppliers').textContent = d.suppliers.length;
-        renderPaginatedRows(
-          'suppliers',
-          { tbody: 'supplierRows', pagination: 'supplierPagination', firstBtn: 'supplierFirstPage', prevBtn: 'supplierPrevPage', nextBtn: 'supplierNextPage', lastBtn: 'supplierLastPage', label: 'supplierPageLabel' },
-          d.suppliers,
-          s => '<tr><td class="mono muted">' + escapeHtml(s.code) + '</td><td class="name-cell">' + escapeHtml(s.name) + '</td>' +
-            '<td class="mono muted">' + (s.phone ? escapeHtml(s.phone) : '—') + '</td>' +
-            '<td class="mono" data-sort-value="' + s.debt + '" style="color:' + (s.debt < 0 ? 'var(--red)' : 'inherit') + ';">' + fmtMoney(s.debt) + '</td>' +
-            '<td>' + branchCellText(s) + '</td></tr>',
-          5,
-          'Không có nhà cung cấp'
-        );
-
-      }
       else if (view === 'debt') {
         renderDebtManagement();
       }
@@ -8556,7 +8346,6 @@
       products: ['products', 'allProducts'],
       invoices: ['invoices'],
       customers: ['customers'],
-      suppliers: ['suppliers', 'newPurchases'],
       debt: ['debtManagement']
     };
 
@@ -8566,7 +8355,6 @@
       products: ['topSelling', 'newlyImported', 'newProducts'],
       invoices: ['invoices', 'orders', 'returns'],
       customers: ['customers'],
-      suppliers: ['suppliers'],
       debt: []
     };
 
@@ -8822,7 +8610,7 @@
 
     // Vao thang mot tab bao cao tu sidebar cua trang khac (vd /reports/#products) —
     // cac trang khac dieu huong toi day bang hash roi trang nay tu chuyen view.
-    const REPORT_VIEW_NAMES = ['overview', 'products', 'invoices', 'customers', 'suppliers', 'debt'];
+    const REPORT_VIEW_NAMES = ['overview', 'products', 'invoices', 'customers', 'debt'];
     function applyReportViewFromHash() {
       const hashView = (window.location.hash || '').replace('#', '');
       if (REPORT_VIEW_NAMES.indexOf(hashView) !== -1) switchView(hashView);
@@ -8834,7 +8622,7 @@
     if (dashboardCache && dashboardCache.data) {
       state.data = dashboardCache.data;
       state.days = dashboardCache.days || state.days;
-      // Gop voi mac dinh de cache cu (chua co bo loc "suppliers") khong lam mat bo loc moi.
+      // Gop voi mac dinh de cache cu (chua co bo loc moi) khong lam mat bo loc moi.
       state.filters = Object.assign({}, state.filters, dashboardCache.filters);
       // Cache cu con khoa bo loc theo tab (vd 'products') — bo di, gio loc theo tung bang.
       Object.keys(state.filters).forEach(function (key) {

@@ -27,7 +27,7 @@ test('Tổng quan có 4 phần (Xu hướng đứng đầu; không còn Chỉ s�
   assert.deepEqual(titles.map(s => s.step), ['1', '2', '3', '4']);
   assert.ok(!titles.some(s => /nhóm hàng/.test(s.title)), 'phan nhom hang da bi go');
   assert.deepEqual(titles.map(s => s.title), ['Xu hướng', 'Báo cáo doanh thu theo khách', 'Báo cáo hàng hóa', 'Kiểm tra đứt hàng']);
-  ['endOfDayRows', 'chartTopTransactions', 'overviewPurchaseRows', 'chartOverviewPurchases', 'todayNewProductRows'].forEach(id => {
+  ['endOfDayRows', 'chartTopTransactions', 'todayNewProductRows'].forEach(id => {
     assert.equal(view('overview').querySelector('#' + id), null, id + ' khong duoc nam o Tong quan');
   });
   assert.ok(view('overview').querySelector('#productReportRows'), 'productReportRows phai nam o Tong quan');
@@ -56,16 +56,6 @@ test('Hóa đơn: Giao dịch → Phân tích (Xu hướng đã chuyển sang T�
   });
 });
 
-test('Nhà cung cấp: Hàng nhập → Phân tích nợ (chỉ số NCC nằm trong mục Phân tích)', () => {
-  const titles = sectionTitles('suppliers');
-  assert.deepEqual(titles.map(s => s.step), ['1', '2']);
-  assert.deepEqual(titles.map(s => s.title), ['Hàng nhập', 'Phân tích & chi tiết']);
-  assert.ok(view('suppliers').querySelectorAll(':scope > section.section')[1].querySelector('#sp-total'));
-  ['sp-purchase-count', 'sp-purchase-total', 'sp-purchase-suppliers', 'chartOverviewPurchases', 'overviewPurchaseRows'].forEach(id => {
-    assert.ok(view('suppliers').querySelector('#' + id), id + ' phai nam o Nha cung cap');
-  });
-});
-
 test('Hàng hóa chứa phần Mã mới tạo sau Hàng mới nhập', () => {
   const titles = sectionTitles('products');
   assert.deepEqual(titles.map(s => s.step), ['1', '2', '3', '4', '5']);
@@ -82,13 +72,13 @@ test('không còn thanh lọc thời gian chung; bộ lọc Từ – Đến gắ
   assert.deepEqual(map, {
     topSelling: 'topSelling', newlyImported: 'newlyImported', todayNewProducts: 'newProducts',
     endOfDay: 'invoices', orders: 'orders', returns: 'returns',
-    customerRevenue: 'customers', overviewPurchase: 'suppliers'
+    customerRevenue: 'customers'
   });
   assert.equal(new Set(Object.values(map)).size, Object.keys(map).length, 'khong bang nao dung chung bo loc');
 });
 
 test('không còn mục Chỉ số then chốt đầu tab; mỗi mục con có hàng chỉ số ngay dưới tiêu đề', () => {
-  ['overview', 'products', 'invoices', 'customers', 'suppliers'].forEach(name => {
+  ['overview', 'products', 'invoices', 'customers'].forEach(name => {
     const sections = [...view(name).querySelectorAll(':scope > section.section')];
     assert.ok(!sectionTitles(name).some(s => s.title === 'Chỉ số then chốt'), name);
     sections.forEach((section, index) => {
@@ -101,14 +91,14 @@ test('không còn mục Chỉ số then chốt đầu tab; mỗi mục con có h
   });
 });
 
-test('tham số bộ lọc gửi backend: pu theo Nhà cung cấp, np theo Hàng hóa, không còn ov/de', () => {
+test('tham số bộ lọc gửi backend: np theo Hàng hóa, không còn ov/de', () => {
   const match = html.match(/const TAB_FILTER_PREFIXES = \{([\s\S]*?)\};/);
   assert.ok(match, 'phai co TAB_FILTER_PREFIXES');
   const map = new Function('return {' + match[1] + '}')();
   assert.deepEqual(map, {
     topSelling: ['pr'], newlyImported: ['ni'], newProducts: ['np'],
     invoices: ['in'], orders: ['or'], returns: ['rt'],
-    customers: ['cu'], suppliers: ['pu']
+    customers: ['cu']
   });
   assert.equal(map.overview, undefined);
 });
@@ -143,8 +133,8 @@ function createRenderedDashboard(data) {
 
 function samplePayload() {
   const kpi = { revenueToday: 0, invoicesToday: 0, cancelledToday: 0, totalStock: 0, totalProducts: 0, lowStockCount: 0,
-    totalCustomers: 0, customersWithDebt: 0, totalDebt: 0, totalSuppliers: 4, suppliersWithDebt: 1, totalSupplierDebt: 500,
-    totalPurchaseSpend: 9000, inStockCodes: 0, inactiveProducts: 0, inventoryValueCategoryCount: 0, totalInventoryValue: 0 };
+    totalCustomers: 0, customersWithDebt: 0, totalDebt: 0,
+    inStockCodes: 0, inactiveProducts: 0, inventoryValueCategoryCount: 0, totalInventoryValue: 0 };
   return {
     kpi,
     filters: { products: { label: '30 ngày' }, invoices: { label: '30 ngày' } },
@@ -157,23 +147,18 @@ function samplePayload() {
         summary: { quantity: 3, quantityKnown: true, revenue: 1200000, discount: 0, paid: 1200000 }
       }
     },
-    newPurchases: {
-      label: '30 ngày', orderCount: 1, totalAmount: 777000, supplierCount: 1,
-      bySupplier: [{ name: 'NCC Z', orderCount: 1, total: 777000 }],
-      orders: [{ code: 'PN-555', date: '21/09/2026 08:17', supplier: 'NCC Z', total: 777000, status: 'Đã nhập hàng' }]
-    },
     products: {
       newProducts: { label: '30 ngày', count: 1, dateColumnAvailable: true,
         products: [{ code: 'MOI-01', name: 'Hàng mới tạo', category: 'Nhóm X', createdAt: '18/09/2026 14:28:00', cost: 0, price: 0 }] },
       topSellingProducts: [], topSellingParentCategories: [], childCategorySalesByParent: {}, availableParentCategories: [],
       newlyImported: { products: [], topByRevenue: [], salesByCategory: [], countByCategory: [], salesRevenue: 0, salesQty: 0 }
     },
-    stockValueByCategory: [], allProducts: [], stockByCategory: [], suppliers: [],
+    stockValueByCategory: [], allProducts: [], stockByCategory: [],
     customers: { topDebt: [], topRevenue: { top15: [], all: [], label: '—' } }
   };
 }
 
-test('render: giao dịch hiện ở Hóa đơn, phiếu nhập ở Nhà cung cấp, mã mới tạo ở Hàng hóa', () => {
+test('render: giao dịch hiện ở Hóa đơn, mã mới tạo ở Hàng hóa', () => {
   const dom = createRenderedDashboard(samplePayload());
   const doc = dom.window.document;
   const text = id => doc.getElementById(id).textContent;
@@ -182,12 +167,6 @@ test('render: giao dịch hiện ở Hóa đơn, phiếu nhập ở Nhà cung c�
   assert.match(text('endOfDayRows'), /HD-777/);
   assert.match(text('end-day-total-revenue'), /1\.200\.000/);
   assert.match(text('end-day-table-count'), /1 giao dịch/);
-
-  dom.window.eval("switchView('suppliers')");
-  assert.match(text('overviewPurchaseRows'), /PN-555/);
-  assert.equal(text('sp-purchase-count'), '1');
-  assert.match(text('sp-purchase-total'), /777\.000/);
-  assert.equal(text('sp-purchase-suppliers'), '1');
 
   dom.window.eval("switchView('products')");
   assert.match(text('todayNewProductRows'), /MOI-01/);

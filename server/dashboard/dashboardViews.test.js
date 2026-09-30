@@ -12,7 +12,7 @@ const {
 const { SECTION_FEATURE } = require('./dashboardPermissionFilter');
 const dashboardPgReader = require('./dashboardPgReader');
 
-test('parseViewsParam: bo trong = ca 6 tab (null), tach dau phay, bo trung/khoang trang', () => {
+test('parseViewsParam: bo trong = ca 5 tab (null), tach dau phay, bo trung/khoang trang', () => {
   assert.equal(parseViewsParam(undefined), null);
   assert.equal(parseViewsParam(null), null);
   assert.equal(parseViewsParam(''), null);
@@ -30,7 +30,7 @@ test('parseViewsParam: ten tab sai bi tu choi 400 INVALID_VIEW, khong bo qua im 
   assert.throws(() => parseViewsParam('__proto__'), error => error.code === 'INVALID_VIEW');
 });
 
-test('ke hoach ca 6 tab (khong truyen view) = doc du 7 bang + CN1/3/7 + du 7 rollup + cong no, khoa cache "all"', () => {
+test('ke hoach ca 5 tab (khong truyen view) = doc du 6 bang + CN1/3/7 + du 6 rollup + cong no, khoa cache "all"', () => {
   const plan = resolveViewPlan();
   assert.equal(plan.all, true);
   assert.deepEqual(plan.views, VIEW_NAMES);
@@ -38,14 +38,14 @@ test('ke hoach ca 6 tab (khong truyen view) = doc du 7 bang + CN1/3/7 + du 7 rol
   assert.deepEqual(plan.coreKeys, ALL_CORE_KEYS);
   assert.deepEqual([...plan.rollups], ALL_ROLLUPS);
   assert.equal(plan.needsDebt, true);
-  // Bang nguon cua ke hoach du phai la dung 7 tab core cua pgReader (+ periods).
+  // Bang nguon cua ke hoach du phai la dung 6 tab core cua pgReader (+ periods).
   assert.deepEqual(
     plan.coreKeys.filter(key => key !== PERIODS_KEY).sort(),
     [...dashboardPgReader.CORE_SHEET_NAMES].sort()
   );
 });
 
-test('Tong quan KHONG doc Dat hang/Tra hang/Nha cung cap/cong no va khong chay rollup nhap hang/so luong hoa don', () => {
+test('Tong quan KHONG doc Dat hang/Tra hang/cong no va khong chay rollup so luong hoa don', () => {
   const plan = resolveViewPlan(['overview']);
   assert.equal(plan.all, false);
   assert.equal(plan.key, 'overview');
@@ -62,11 +62,9 @@ test('moi tab chi doc dung nguon cua no; Cong no chi can CN1/3/7 + workbook cong
   assert.deepEqual(sheetsOf('products'), [CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS]);
   assert.deepEqual(sheetsOf('invoices'), [CONFIG.SHEET_INVOICES, CONFIG.SHEET_ORDERS, CONFIG.SHEET_RETURNS]);
   assert.deepEqual(sheetsOf('customers'), [CONFIG.SHEET_INVOICES, CONFIG.SHEET_RETURNS, CONFIG.SHEET_CUSTOMERS]);
-  assert.deepEqual(sheetsOf('suppliers'), [CONFIG.SHEET_SUPPLIERS]);
   assert.deepEqual(sheetsOf('debt'), [PERIODS_KEY]);
   assert.equal(resolveViewPlan(['debt']).needsDebt, true);
   assert.equal(resolveViewPlan(['debt']).rollups.size, 0);
-  assert.deepEqual([...resolveViewPlan(['suppliers']).rollups].sort(), ['newPurchaseOrders', 'purchaseTotals']);
   assert.deepEqual([...resolveViewPlan(['invoices']).rollups].sort(), ['invoiceQuantity', 'invoicesRevenue']);
   assert.deepEqual([...resolveViewPlan(['products']).rollups].sort(), ['firstPurchase', 'newlyImportedSales', 'productSales']);
   assert.equal(resolveViewPlan(['customers']).rollups.size, 0);
@@ -94,10 +92,10 @@ test('moi khoa payload top-level cua tab dung quyen cua chinh tab do (khop SECTI
   });
 });
 
-test('pickFilters: chi giu bo loc anh huong tab (cache key), ke hoach ca 6 tab giu nguyen', () => {
+test('pickFilters: chi giu bo loc anh huong tab (cache key), ke hoach ca 5 tab giu nguyen', () => {
   const filters = {
     overview: { mode: 'days', days: 30 }, products: { mode: 'days', days: 7 }, invoices: { mode: 'days', days: 3 },
-    customers: { mode: 'all' }, newPurchases: { mode: 'days', days: 60 }, newProducts: { mode: 'days', days: 30 }
+    customers: { mode: 'all' }, newProducts: { mode: 'days', days: 30 }
   };
   assert.equal(pickFilters(filters, resolveViewPlan()), filters);
   assert.deepEqual(pickFilters(filters, resolveViewPlan(['invoices'])), { invoices: { mode: 'days', days: 3 } });
@@ -126,14 +124,14 @@ test('pickFilters: bo loc rieng tung bang (newlyImported/orders/returns) vao cac
 test('pickPayload: cat dung phan cua tab, khong sua ban day du, Tong quan khong con khoa `products`', () => {
   const full = {
     updatedAt: 'x',
-    filters: { overview: 1, products: 2, invoices: 3, customers: 4, newPurchases: 5, newProducts: 6 },
+    filters: { overview: 1, products: 2, invoices: 3, customers: 4, newProducts: 6 },
     kpi: {
       revenueToday: 1, invoicesToday: 2, cancelledToday: 3, totalStock: 4, totalProducts: 5, lowStockCount: 6,
-      totalCustomers: 7, customersWithDebt: 8, totalDebt: 9, totalSuppliers: 10, inStockCodes: 11
+      totalCustomers: 7, customersWithDebt: 8, totalDebt: 9, inStockCodes: 11
     },
     overview: { a: 1 },
     products: { childCategorySalesByParent: { X: [] }, availableParentCategories: ['X'], allSellingProducts: [1, 2, 3] },
-    invoices: { big: 1 }, customers: { topDebt: [] }, allProducts: [1], suppliers: [1], debtManagement: { k: 1 }
+    invoices: { big: 1 }, customers: { topDebt: [] }, allProducts: [1], debtManagement: { k: 1 }
   };
   const snapshot = JSON.stringify(full);
 
@@ -141,7 +139,7 @@ test('pickPayload: cat dung phan cua tab, khong sua ban day du, Tong quan khong 
   assert.deepEqual(Object.keys(overview).sort(), ['filters', 'kpi', 'overview', 'updatedAt']);
   assert.deepEqual(overview.filters, { overview: 1, invoices: 3 });
   assert.equal(overview.kpi.revenueToday, 1);
-  assert.equal(overview.kpi.totalSuppliers, undefined, 'KPI nha cung cap khong thuoc tab Tong quan');
+  assert.equal(overview.kpi.inStockCodes, undefined, 'KPI ma con hang khong thuoc tab Tong quan');
 
   const products = pickPayload(full, resolveViewPlan(['products']));
   assert.equal(products.products, full.products, 'tab Hang hoa lay nguyen ca khoa products');
@@ -156,6 +154,6 @@ test('pickPayload: cat dung phan cua tab, khong sua ban day du, Tong quan khong 
   assert.deepEqual(Object.keys(debt).sort(), ['debtManagement', 'filters', 'kpi', 'updatedAt']);
   assert.deepEqual(debt.kpi, {});
 
-  assert.equal(pickPayload(full, resolveViewPlan()), full, 'ke hoach ca 6 tab tra nguyen ban day du');
+  assert.equal(pickPayload(full, resolveViewPlan()), full, 'ke hoach ca 5 tab tra nguyen ban day du');
   assert.equal(JSON.stringify(full), snapshot, 'khong duoc sua ban day du (co the la object trong cache dung chung)');
 });

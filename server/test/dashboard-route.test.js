@@ -41,7 +41,7 @@ function dashboardHandler() {
 }
 
 const ALL_PERMISSIONS = [
-  'reports.overview', 'reports.products', 'reports.invoices', 'reports.customers', 'reports.suppliers', 'reports.debt'
+  'reports.overview', 'reports.products', 'reports.invoices', 'reports.customers', 'reports.debt'
 ];
 
 function request(query, permissions = ALL_PERMISSIONS) {

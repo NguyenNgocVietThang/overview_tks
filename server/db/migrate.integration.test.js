@@ -28,7 +28,6 @@ const EXPECTED_TABLES = [
   'return_details',
   'returns',
   'staff',
-  'suppliers',
   'sync_checkpoints',
   'webhook_events_raw'
 ];
@@ -53,8 +52,7 @@ const EXPECTED_INTEGER_COLUMNS = [
   ['purchases', 'total', 'bigint'],
   ['return_details', 'price', 'bigint'],
   ['return_details', 'quantity', 'integer'],
-  ['returns', 'total', 'bigint'],
-  ['suppliers', 'debt', 'bigint']
+  ['returns', 'total', 'bigint']
 ];
 
 test('migrations create the complete KiotViet schema on configured Supabase', {

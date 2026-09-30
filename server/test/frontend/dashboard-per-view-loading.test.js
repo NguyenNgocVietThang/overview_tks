@@ -1,7 +1,7 @@
 'use strict';
 
 // Trang Bao cao tong hop tai du lieu THEO TUNG TAB: GET /api/dashboard?view=<tab>
-// (xem server/dashboard/dashboardViews.js) thay vi keo ca 6 tab moi lan. Test nay chay
+// (xem server/dashboard/dashboardViews.js) thay vi keo ca 5 tab moi lan. Test nay chay
 // trang that trong JSDOM voi fetch gia (dem/dieu khien tung request) de kiem tra:
 // chi tai tab can xem, tab khac tai khi mo, gop payload, huy request theo tab, man che
 // "Dang tai", cache sessionStorage theo tab.
@@ -69,14 +69,6 @@ function payloadFor(view, marker = 'A') {
       return {
         updatedAt: marker, kpi: { totalCustomers: 9, customersWithDebt: 2, totalDebt: 300000 }, filters: { customers: filters('Tất cả') },
         customers: { topDebt: [], topRevenue: { top15: [], all: [], label: 'Tất cả' } }
-      };
-    case 'suppliers':
-      return {
-        updatedAt: marker,
-        kpi: { totalSuppliers: 4, suppliersWithDebt: 1, totalSupplierDebt: 500, purchaseOrdersCount: 2, totalPurchaseSpend: 9000, newPurchasesOrderCount: 0, newPurchasesTotalAmount: 0, newPurchasesSupplierCount: 0 },
-        filters: { newPurchases: filters('30 ngày') },
-        suppliers: [],
-        newPurchases: { label: '30 ngày', orderCount: 0, totalAmount: 0, supplierCount: 0, bySupplier: [], orders: [] }
       };
     case 'debt':
       return {
@@ -181,15 +173,15 @@ test('bam sang tab chua tai: tai dung tab do roi ve; quay lai tab da tai thi kho
   await settle();
   assert.deepEqual(page.viewsCalled(), ['overview']);
 
-  page.run("switchView('suppliers')");
+  page.run("switchView('customers')");
   await settle();
-  assert.deepEqual(page.viewsCalled(), ['overview', 'suppliers']);
-  assert.equal(page.text('sp-total'), '4', 'tab Nha cung cap ve tu payload cua chinh no');
+  assert.deepEqual(page.viewsCalled(), ['overview', 'customers']);
+  assert.equal(page.text('cu-total'), '9', 'tab Khach hang ve tu payload cua chinh no');
 
   page.run("switchView('overview')");
-  page.run("switchView('suppliers')");
+  page.run("switchView('customers')");
   await settle();
-  assert.deepEqual(page.viewsCalled(), ['overview', 'suppliers'], 'tab con moi (cung bo loc, chua het han) khong tai lai');
+  assert.deepEqual(page.viewsCalled(), ['overview', 'customers'], 'tab con moi (cung bo loc, chua het han) khong tai lai');
 });
 
 test('tab chua co du lieu hien man che "Dang tai" toi khi tai xong', async () => {
@@ -308,17 +300,17 @@ test('tab tu tai lai khi server bao co du lieu moi (dataEpoch tang): tab dang xe
 test('du lieu tab qua VIEW_MAX_AGE (5 phut) duoc tai lai khi mo tab, du khong co su kien nao', async () => {
   const page = createPage();
   await settle();
-  page.run("switchView('suppliers')");
+  page.run("switchView('customers')");
   await settle();
   page.run("switchView('overview')");
   await settle();
   const before = page.calls.length;
 
-  page.dash.state.viewMeta.suppliers.at -= 6 * 60 * 1000;
-  page.run("switchView('suppliers')");
+  page.dash.state.viewMeta.customers.at -= 6 * 60 * 1000;
+  page.run("switchView('customers')");
   await settle();
   assert.equal(page.calls.length, before + 1);
-  assert.equal(page.calls[before].view, 'suppliers');
+  assert.equal(page.calls[before].view, 'customers');
 });
 
 test('moi tab co request rieng: chuyen tab KHONG huy request tab khac; doi bo loc cua chinh tab huy request cu cua no', async () => {
@@ -362,23 +354,23 @@ test('loi tai tab dang xem (chua co du lieu) hien hop loi + thu lai; loi tai tab
   const page = createPage({ respond: url => (viewOf(url) === 'overview' ? payloadFor('overview') : undefined) });
   await settle();
 
-  page.run("switchView('suppliers')");
+  page.run("switchView('customers')");
   page.calls[1].fail(500);
   await settle();
   assert.equal(page.doc.getElementById('dashboardLoadError').hidden, false, 'tab dang xem chua co du lieu -> hien hop loi');
   assert.equal(page.veilOn(), false, 'loi cung phai tat man che');
 
   page.run("retryLoadData()");
-  assert.equal(page.calls[2].view, 'suppliers', 'Thu lai tai dung tab dang xem');
-  page.calls[2].resolve(payloadFor('suppliers'));
+  assert.equal(page.calls[2].view, 'customers', 'Thu lai tai dung tab dang xem');
+  page.calls[2].resolve(payloadFor('customers'));
   await settle();
   assert.equal(page.doc.getElementById('dashboardLoadError').hidden, true);
 
   // Tab da chuyen di khi request cu that bai -> khong bat hop loi cho tab dang xem.
-  page.run("switchView('customers')");
-  const customersCall = page.calls[3];
+  page.run("switchView('products')");
+  const productsCall = page.calls[3];
   page.run("switchView('overview')");
-  customersCall.fail(500);
+  productsCall.fail(500);
   await settle();
   assert.equal(page.doc.getElementById('dashboardLoadError').hidden, true);
 });
@@ -394,34 +386,34 @@ test('renderView bo qua tab chua tai xong (khong nem loi khi state.data moi co p
 test('cache sessionStorage luu theo tab (kem views) va khoi phuc: ve ngay tu cache, van hoi lai server cho tab dang mo', async () => {
   const first = createPage();
   await settle();
-  first.run("switchView('suppliers')");
+  first.run("switchView('customers')");
   await settle();
   const cache = JSON.parse(first.dom.window.sessionStorage.getItem('tksDashboardCache'));
-  assert.deepEqual(Object.keys(cache.views).sort(), ['overview', 'suppliers']);
+  assert.deepEqual(Object.keys(cache.views).sort(), ['customers', 'overview']);
   assert.match(cache.views.overview.sig, /^view=overview&days=30&inMode=days&inDays=30$/);
-  assert.equal(cache.data.kpi.totalSuppliers, 4);
+  assert.equal(cache.data.kpi.totalCustomers, 9);
 
-  const second = createPage({ hash: '#suppliers', cache, respond: () => undefined });
-  assert.equal(second.text('sp-total'), '4', 've ngay tu cache truoc khi server tra loi');
+  const second = createPage({ hash: '#customers', cache, respond: () => undefined });
+  assert.equal(second.text('cu-total'), '9', 've ngay tu cache truoc khi server tra loi');
   assert.equal(second.veilOn(), false, 'da co du lieu trong cache -> khong bat man che');
   await settle();
-  assert.deepEqual(second.viewsCalled(), ['suppliers'], 'van hoi lai server cho tab dang mo, khong keo tab khac');
+  assert.deepEqual(second.viewsCalled(), ['customers'], 'van hoi lai server cho tab dang mo, khong keo tab khac');
 });
 
 test('cache cu (ban day du 6 tab, khong co views) van dung duoc: cac tab du khoa du lieu duoc coi la da tai va tai lai khi mo', async () => {
   const legacy = {
-    data: { ...payloadFor('overview'), ...payloadFor('suppliers'), kpi: { ...kpi(), totalSuppliers: 4, suppliersWithDebt: 1, totalSupplierDebt: 500, totalPurchaseSpend: 9000 } },
+    data: { ...payloadFor('overview'), ...payloadFor('customers'), kpi: { ...kpi() } },
     days: 30,
-    filters: { products: { mode: 'days', days: 30 }, invoices: { mode: 'days', days: 30 }, suppliers: { mode: 'days', days: 30 }, customers: { mode: 'all' } },
+    filters: { products: { mode: 'days', days: 30 }, invoices: { mode: 'days', days: 30 }, customers: { mode: 'all' } },
     productStatus: 'all'
   };
   const page = createPage({ cache: legacy, respond: () => undefined });
   assert.equal(page.dash.viewIsLoaded('overview'), true);
-  assert.equal(page.dash.viewIsLoaded('suppliers'), true);
+  assert.equal(page.dash.viewIsLoaded('customers'), true);
   assert.equal(page.dash.viewIsLoaded('invoices'), false);
 
-  page.run("switchView('suppliers')");
-  assert.equal(page.calls.filter(call => call.view === 'suppliers').length, 1, 'cache cu chua co chu ky -> phai hoi lai server');
+  page.run("switchView('customers')");
+  assert.equal(page.calls.filter(call => call.view === 'customers').length, 1, 'cache cu chua co chu ky -> phai hoi lai server');
 });
 
 test('sessionStorage day: bo cache cu thay vi giu ban cu hon man hinh', async () => {
@@ -432,13 +424,13 @@ test('sessionStorage day: bo cache cu thay vi giu ban cu hon man hinh', async ()
   const realSetItem = page.dom.window.Storage.prototype.setItem;
   page.dom.window.Storage.prototype.setItem = () => { throw new Error('QuotaExceededError'); };
   try {
-    page.run("switchView('suppliers')");
+    page.run("switchView('customers')");
     await settle();
   } finally {
     page.dom.window.Storage.prototype.setItem = realSetItem;
   }
   assert.equal(storage.getItem('tksDashboardCache'), null);
-  assert.equal(page.text('sp-total'), '4', 'loi luu cache khong duoc lam hong man hinh');
+  assert.equal(page.text('cu-total'), '9', 'loi luu cache khong duoc lam hong man hinh');
 });
 
 test('sau khi nap quyen: hash tro toi tab khong duoc xem -> van tai tab dang mo (khong bi trang)', async () => {
@@ -482,7 +474,7 @@ test('hop bao loi cua tab truoc bien mat khi chuyen sang tab khac (khong con hie
   const page = createPage({ respond: url => (viewOf(url) === 'overview' ? payloadFor('overview') : undefined) });
   await settle();
 
-  page.run("switchView('suppliers')");
+  page.run("switchView('customers')");
   page.calls[1].fail(500);
   await settle();
   assert.equal(page.doc.getElementById('dashboardLoadError').hidden, false);

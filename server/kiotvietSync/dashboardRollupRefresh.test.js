@@ -19,8 +19,8 @@ function fakePool(rowCountByCallIndex = []) {
   };
 }
 
-test('refreshDashboardRollups chay dung 4 cau SQL cho tung co so da cau hinh, dung windowDays mac dinh', async () => {
-  const pool = fakePool([3, 5, 2, 1]);
+test('refreshDashboardRollups chay dung 3 cau SQL cho tung co so da cau hinh, dung windowDays mac dinh', async () => {
+  const pool = fakePool([3, 5, 1]);
   const logs = [];
   const results = await refreshDashboardRollups(pool, {
     getConfiguredBranches: () => [{ branch: 'hanoi' }],
@@ -28,19 +28,17 @@ test('refreshDashboardRollups chay dung 4 cau SQL cho tung co so da cau hinh, du
     firstPurchaseFullRunAt: new Map()
   });
 
-  assert.equal(pool.calls.length, 4, 'phai chay 4 cau SQL (invoice/product/purchase/first-purchase) cho 1 co so');
+  assert.equal(pool.calls.length, 3, 'phai chay 3 cau SQL (invoice/product/first-purchase) cho 1 co so');
   assert.match(pool.calls[0].sql, /daily_invoice_summary/);
   assert.deepEqual(pool.calls[0].params, ['hanoi', DEFAULT_WINDOW_DAYS]);
   assert.match(pool.calls[1].sql, /daily_product_sales/);
   assert.deepEqual(pool.calls[1].params, ['hanoi', DEFAULT_WINDOW_DAYS]);
-  assert.match(pool.calls[2].sql, /daily_purchase_summary/);
-  assert.deepEqual(pool.calls[2].params, ['hanoi', DEFAULT_WINDOW_DAYS]);
-  assert.match(pool.calls[3].sql, /product_first_purchase/);
+  assert.match(pool.calls[2].sql, /product_first_purchase/);
   // Bang "ngay nhap dau tien" KHONG gioi han cua so ngay - chi truyen branch.
-  assert.deepEqual(pool.calls[3].params, ['hanoi']);
+  assert.deepEqual(pool.calls[2].params, ['hanoi']);
 
   assert.deepEqual(results, [{
-    branch: 'hanoi', dailyInvoiceSummary: 3, dailyProductSales: 5, dailyPurchaseSummary: 2, productFirstPurchase: 1
+    branch: 'hanoi', dailyInvoiceSummary: 3, dailyProductSales: 5, productFirstPurchase: 1
   }]);
   assert.equal(logs.length, 1);
   assert.match(logs[0], /hanoi/);
@@ -53,9 +51,9 @@ test('refreshDashboardRollups chay lan luot cho tung co so da cau hinh, dung win
     getConfiguredBranches: () => [{ branch: 'hanoi' }, { branch: 'saigon' }]
   });
 
-  assert.equal(pool.calls.length, 8, '2 co so x 4 cau SQL');
+  assert.equal(pool.calls.length, 6, '2 co so x 3 cau SQL');
   assert.deepEqual(pool.calls[0].params, ['hanoi', 30]);
-  assert.deepEqual(pool.calls[4].params, ['saigon', 30]);
+  assert.deepEqual(pool.calls[3].params, ['saigon', 30]);
   assert.deepEqual(results.map((r) => r.branch), ['hanoi', 'saigon']);
 });
 
@@ -81,7 +79,7 @@ test('startDashboardRollupSchedule dang ky dung interval, chay refresh khi trigg
   assert.equal(scheduledMs, 5000);
   await scheduledFn();
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(pool.calls.length, 4, '1 co so x 4 cau SQL phai duoc chay khi trigger');
+  assert.equal(pool.calls.length, 3, '1 co so x 3 cau SQL phai duoc chay khi trigger');
 });
 
 // Thieu lan chay ngay nay chinh la nguyen nhan Dashboard treo o so lieu cu sau
@@ -102,7 +100,7 @@ test('startDashboardRollupSchedule chay NGAY mot luot khi khoi dong, khong doi h
   assert.equal(typeof immediateFn, 'function', 'phai dang ky mot luot chay ngay');
   assert.equal(pool.calls.length, 0, 'chua chay gi truoc khi scheduleImmediate kich hoat');
   await immediateFn();
-  assert.equal(pool.calls.length, 4, 'luot chay ngay phai tinh lai du 4 bang');
+  assert.equal(pool.calls.length, 3, 'luot chay ngay phai tinh lai du 3 bang');
 });
 
 test('startDashboardRollupSchedule khong nem loi ra ngoai neu refresh that bai', async () => {
@@ -123,7 +121,7 @@ test('startDashboardRollupSchedule khong nem loi ra ngoai neu refresh that bai',
 });
 
 test('luot "nong" bo qua product_first_purchase va chi tinh HOT_WINDOW_DAYS ngay', async () => {
-  const pool = fakePool([2, 2, 2]);
+  const pool = fakePool([2, 2]);
   const results = await refreshDashboardRollups(pool, {
     windowDays: HOT_WINDOW_DAYS,
     includeFirstPurchase: false,
@@ -131,7 +129,7 @@ test('luot "nong" bo qua product_first_purchase va chi tinh HOT_WINDOW_DAYS ngay
     getConfiguredBranches: () => [{ branch: 'hanoi' }]
   });
 
-  assert.equal(pool.calls.length, 3, 'chi 3 cau SQL - khong dung toi product_first_purchase');
+  assert.equal(pool.calls.length, 2, 'chi 2 cau SQL - khong dung toi product_first_purchase');
   assert.ok(!pool.calls.some((c) => /product_first_purchase/.test(c.sql)));
   assert.deepEqual(pool.calls[0].params, ['hanoi', HOT_WINDOW_DAYS]);
   assert.equal(results[0].productFirstPurchase, 0);
@@ -167,11 +165,10 @@ test('hai luot rollup goi chong nhau duoc noi tiep, khong dam vao cung dong', as
 // 2026-09-28: ~115 trieu UPDATE tren 62.000 dong, 36,8GB WAL/34 ngay) va bo
 // loc ngay phai dung duoc index. Test chan viec ai do "don gian hoa" lai.
 test('cac cau rollup loai dong khong doi o SELECT (LEFT JOIN + IS DISTINCT FROM), khong DO UPDATE vo dieu kien', () => {
-  const { INVOICE_SUMMARY_SQL, PRODUCT_SALES_SQL, PURCHASE_SUMMARY_SQL, FIRST_PURCHASE_SQL, FIRST_PURCHASE_RECENT_SQL } = __sql__;
+  const { INVOICE_SUMMARY_SQL, PRODUCT_SALES_SQL, FIRST_PURCHASE_SQL, FIRST_PURCHASE_RECENT_SQL } = __sql__;
   for (const [sql, table] of [
     [INVOICE_SUMMARY_SQL, 'daily_invoice_summary'],
-    [PRODUCT_SALES_SQL, 'daily_product_sales'],
-    [PURCHASE_SUMMARY_SQL, 'daily_purchase_summary']
+    [PRODUCT_SALES_SQL, 'daily_product_sales']
   ]) {
     assert.match(sql, new RegExp(`LEFT JOIN ${table} t`), `${table}: phai LEFT JOIN bang dich de biet dong nao doi`);
     assert.match(sql, /t\.branch IS NULL/, `${table}: dong moi phai duoc them`);
@@ -184,7 +181,7 @@ test('cac cau rollup loai dong khong doi o SELECT (LEFT JOIN + IS DISTINCT FROM)
 });
 
 test('bo loc ngay cua rollup so sanh thang cot goc (dung duoc index), khong boc cot trong ::date', () => {
-  for (const sql of [__sql__.INVOICE_AGG_SQL, __sql__.PRODUCT_SALES_AGG_SQL, __sql__.PURCHASE_AGG_SQL,
+  for (const sql of [__sql__.INVOICE_AGG_SQL, __sql__.PRODUCT_SALES_AGG_SQL,
     __sql__.FIRST_PURCHASE_RECENT_SQL]) {
     assert.match(sql, /purchase_date >= \(\(\(now\(\) AT TIME ZONE 'Asia\/Ho_Chi_Minh'\)::date - \$2::int\)::timestamp AT TIME ZONE 'UTC'\)/);
     assert.doesNotMatch(sql, /\(\w*\.?purchase_date AT TIME ZONE 'UTC'\)::date >=/,
@@ -196,7 +193,6 @@ test('tong hop tinh ::numeric de so sanh dung kieu voi cot dich', () => {
   assert.match(__sql__.PRODUCT_SALES_AGG_SQL, /SUM\(s\.qty\), 0\)::numeric AS qty/);
   assert.match(__sql__.PRODUCT_SALES_AGG_SQL, /SUM\(s\.amount\), 0\)::numeric AS revenue/);
   assert.match(__sql__.INVOICE_AGG_SQL, /::numeric AS revenue/);
-  assert.match(__sql__.PURCHASE_AGG_SQL, /::numeric AS total/);
 });
 
 function fakePoolWithClient({ failOn } = {}) {
@@ -219,10 +215,10 @@ test('giao dich rollup chay voi SET LOCAL work_mem roi COMMIT, tra ket noi ve po
     windowDays: HOT_WINDOW_DAYS, includeFirstPurchase: false, log: () => {},
     getConfiguredBranches: () => [{ branch: 'hanoi' }]
   });
-  // 3 cau x (BEGIN, SET LOCAL, cau chinh, COMMIT)
-  assert.equal(pool.statements.length, 12);
+  // 2 cau x (BEGIN, SET LOCAL, cau chinh, COMMIT)
+  assert.equal(pool.statements.length, 8);
   assert.deepEqual(pool.statements.slice(0, 4), ['BEGIN', "SET LOCAL work_mem", 'WITH agg AS', 'COMMIT']);
-  assert.equal(pool.released, 3, 'moi giao dich phai tra ket noi ve pool');
+  assert.equal(pool.released, 2, 'moi giao dich phai tra ket noi ve pool');
 });
 
 test('giao dich rollup ROLLBACK, tra ket noi va nem lai loi khi cau SQL that bai', async () => {

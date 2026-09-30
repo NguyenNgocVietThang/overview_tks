@@ -43,13 +43,13 @@ function createDashboard() {
   return dom;
 }
 
-test('registry bao phủ đủ 19 bảng trong Báo cáo tổng hợp', () => {
+test('registry bao phủ đủ 17 bảng trong Báo cáo tổng hợp', () => {
   const dom = createDashboard();
   const expected = [
     'cpDetail', 'productReport', 'recentStockout', 'stockout90d', 'stockout30d',
-    'endOfDay', 'overviewPurchase', 'todayNewProducts', 'topSelling',
+    'endOfDay', 'todayNewProducts', 'topSelling',
     'allProducts', 'inventoryValue', 'newlyImported', 'orders', 'returns',
-    'customerRevenue', 'topDebt', 'suppliers', 'debtManagement'
+    'customerRevenue', 'topDebt', 'debtManagement'
   ];
   const actual = Object.keys(dom.window.TABLE_EXPLORER_CONFIGS);
   assert.deepEqual([...actual].sort(), expected.sort());
@@ -281,7 +281,7 @@ test('xuất file (Excel/HTML) gửi đúng bộ lọc thời gian riêng của 
     topSelling: ['2026-01-01', '2026-01-07'], newlyImported: ['2026-02-01', '2026-02-07'],
     newProducts: ['2026-03-01', '2026-03-07'], invoices: ['2026-04-01', '2026-04-07'],
     orders: ['2026-05-01', '2026-05-07'], returns: ['2026-06-01', '2026-06-07'],
-    customers: ['2026-07-01', '2026-07-07'], suppliers: ['2026-08-01', '2026-08-07']
+    customers: ['2026-07-01', '2026-07-07']
   };
   Object.entries(ranges).forEach(([key, [from, to]]) => win.setTableDateFilter(key, from, to));
 
@@ -294,8 +294,7 @@ test('xuất file (Excel/HTML) gửi đúng bộ lọc thời gian riêng của 
     'invoices.orders': ['orders', 'orders'],
     'invoices.returns': ['returns', 'returns'],
     'customers.revenue': ['customers', 'customers'],
-    'customers.debt': ['customers', 'customers'],
-    'overview.purchases': ['newPurchases', 'suppliers']
+    'customers.debt': ['customers', 'customers']
   };
   Object.entries(exportTables).forEach(([tableKey, [payloadKey, stateKey]]) => {
     const [from, to] = ranges[stateKey];

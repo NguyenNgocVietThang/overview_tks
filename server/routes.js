@@ -152,7 +152,7 @@ function parseOptionalFilterSpec(query, prefix, legacyDays) {
   return present ? parseFilterSpec(query, prefix, legacyDays) : undefined;
 }
 
-// ?view=<tab> (overview|products|invoices|customers|suppliers|debt, co the nhieu
+// ?view=<tab> (overview|products|invoices|customers|debt, co the nhieu
 // tab cach nhau dau phay): CHI doc/tinh/tra phan cua tab do — trang bao cao goi
 // khi nguoi dung mo tung tab (xem dashboardViews.js). Bo trong = ca 6 tab nhu
 // truoc day. Tab tai khoan khong co quyen xem bi bo qua NGAY (khong doc/tinh gi):
@@ -182,7 +182,6 @@ router.get('/api/dashboard', async (req, res) => {
         ...parseFilterSpec(req.query, 'cu'),
         mode: req.query.cuMode || 'all'
       },
-      newPurchases: parseFilterSpec(req.query, 'pu'),
       newProducts: parseFilterSpec(req.query, 'np'),
       // Bo loc rieng tung bang: Hang moi nhap (ni), Dat hang (or), Tra hang (rt).
       // Khong gui -> undefined -> dung bo loc Hang hoa/Hoa don nhu truoc.

@@ -194,7 +194,7 @@ test('backfillEntity tra loi cua 1 entity khong chan runWithConcurrencyLimit cha
 });
 
 test('ENTITY_ORDER dung thu tu khoi luong tang dan da chot trong ke hoach', () => {
-  assert.deepEqual(ENTITY_ORDER, ['categories', 'suppliers', 'customers', 'products', 'returns', 'purchases', 'cash_flows', 'orders', 'invoices']);
+  assert.deepEqual(ENTITY_ORDER, ['categories', 'customers', 'products', 'returns', 'purchases', 'cash_flows', 'orders', 'invoices']);
 });
 
 test('parseArgs: mac dinh dry-run (execute=false), --execute moi bat che do chay that', () => {

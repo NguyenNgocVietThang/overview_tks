@@ -22,8 +22,6 @@ function samplePayload() {
     stockByCategory: [{ name: 'X' }],
     invoices: { revenueByDay: [2] },
     customers: { topRevenue: [{ name: 'KH' }] },
-    suppliers: [{ name: 'NCC' }],
-    newPurchases: { orderCount: 3 },
     debtManagement: { customers: [{ customerName: 'KH nợ' }] }
   };
 }
@@ -38,7 +36,7 @@ test('giu lai updatedAt/filters/kpi va dung cac phan duoc phep', () => {
   assert.ok(filtered.debtManagement);
 
   for (const key of ['products', 'stockValueByCategory', 'allProducts', 'stockByCategory',
-    'invoices', 'customers', 'suppliers', 'newPurchases']) {
+    'invoices', 'customers']) {
     assert.equal(key in filtered, false, `${key} phai bi cat bo`);
   }
 });
@@ -49,12 +47,6 @@ test('quyen reports.products mo dung 5 khoa cua tab Hang hoa', () => {
     Object.keys(filtered).sort(),
     ['allProducts', 'filters', 'kpi', 'products', 'stockByCategory', 'stockValueByCategory', 'updatedAt'].sort()
   );
-});
-
-test('quyen reports.suppliers mo ca suppliers lan newPurchases', () => {
-  const filtered = filterDashboardForUser(samplePayload(), ['reports.suppliers']);
-  assert.ok(filtered.suppliers);
-  assert.ok(filtered.newPurchases);
 });
 
 test('KHONG sua object dau vao — getDashboardData dung chung cache cho moi nguoi dung', () => {
@@ -81,7 +73,7 @@ test('khoa la trong payload duoc giu nguyen (khong lam mat du lieu khi them muc 
 
 test('searchFeatureForView anh xa dung, view la roi ve Tong quan', () => {
   assert.equal(searchFeatureForView('customers'), 'reports.customers');
-  assert.equal(searchFeatureForView('suppliers'), 'reports.suppliers');
+  assert.equal(searchFeatureForView('suppliers'), 'reports.overview', 'view nha cung cap da bo -> ve Tong quan');
   assert.equal(searchFeatureForView('overview'), 'reports.overview');
   assert.equal(searchFeatureForView('khong-ton-tai'), 'reports.overview');
   assert.equal(searchFeatureForView(undefined), 'reports.overview');

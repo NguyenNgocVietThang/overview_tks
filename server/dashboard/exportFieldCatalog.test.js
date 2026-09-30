@@ -10,16 +10,14 @@ const CONFIG = require('../config');
 const catalog = require('./exportFieldCatalog');
 const { __headers__ } = require('./dashboardPgReader');
 
-const { SOURCE_KEYS, PURCHASE_SUMMARY_KEYS, getSource, getSourceFields, getSourceBySheetName, labelForSheetHeader } = catalog;
+const { SOURCE_KEYS, getSource, getSourceFields, getSourceBySheetName, labelForSheetHeader } = catalog;
 
 const EXPECTED_SOURCES = [
   { key: 'products', sheetName: CONFIG.SHEET_PRODUCTS, codeKey: 'ma_hang', codeLabel: 'Mã hàng' },
   { key: 'invoices', sheetName: CONFIG.SHEET_INVOICES, codeKey: 'ma_hoa_don', codeLabel: 'Mã hóa đơn' },
   { key: 'orders', sheetName: CONFIG.SHEET_ORDERS, codeKey: 'ma_dat_hang', codeLabel: 'Mã đặt hàng' },
   { key: 'returns', sheetName: CONFIG.SHEET_RETURNS, codeKey: 'ma_tra_hang', codeLabel: 'Mã trả hàng' },
-  { key: 'customers', sheetName: CONFIG.SHEET_CUSTOMERS, codeKey: 'ma_khach_hang', codeLabel: 'Mã khách hàng' },
-  { key: 'suppliers', sheetName: CONFIG.SHEET_SUPPLIERS, codeKey: 'ma_ncc', codeLabel: 'Mã nhà cung cấp' },
-  { key: 'purchases', sheetName: CONFIG.SHEET_PURCHASES, codeKey: 'ma_nhap_hang', codeLabel: 'Mã nhập hàng' }
+  { key: 'customers', sheetName: CONFIG.SHEET_CUSTOMERS, codeKey: 'ma_khach_hang', codeLabel: 'Mã khách hàng' }
 ];
 
 const FIELD_TYPES = new Set(['text', 'number', 'date', 'percent', 'general']);
@@ -62,7 +60,7 @@ function labelOf(sourceKey, key) {
 
 // ---------- (a) khop pg reader ----------
 
-test('SOURCE_KEYS gom dung 7 nguon theo thu tu, moi nguon tro dung sheet va cot ma', () => {
+test('SOURCE_KEYS gom dung 5 nguon theo thu tu, moi nguon tro dung sheet va cot ma', () => {
   assert.deepEqual(SOURCE_KEYS, EXPECTED_SOURCES.map(item => item.key));
   EXPECTED_SOURCES.forEach(({ key, sheetName, codeKey, codeLabel }) => {
     const source = getSource(key);
@@ -160,32 +158,19 @@ test('nhan duy nhat trong tung nguon', () => {
   });
 });
 
-test('nguon purchases: nhan cap phieu va nhan cap dong hang khong trung nhau', () => {
-  const fields = getSourceFields('purchases');
-  const summary = fields.filter(item => PURCHASE_SUMMARY_KEYS.includes(item.key)).map(item => item.label);
-  const lines = fields.filter(item => !PURCHASE_SUMMARY_KEYS.includes(item.key)).map(item => item.label);
-  assert.equal(summary.length, 16);
-  assert.equal(lines.length, 9, '8 truong dong hang + cot "Cơ sở" (co_so) o cuoi');
-  assert.deepEqual(summary.filter(label => lines.includes(label)), []);
-  assert.equal(labelOf('purchases', 'giam_gia_phieu_nhap'), 'Giảm giá phiếu nhập');
-  assert.equal(labelOf('purchases', 'giam_gia'), 'Giảm giá dòng hàng');
-});
-
 // ---------- (d) khai niem chung ----------
 
 // [nhan chuan, [[sourceKey, key], ...]] — cung khai niem thi cung mot nhan o moi nguon.
 const SHARED_CONCEPTS = [
-  ['Mã nhà cung cấp', [['suppliers', 'ma_ncc'], ['purchases', 'ma_nha_cung_cap']]],
-  ['Tên nhà cung cấp', [['suppliers', 'ten_ncc'], ['purchases', 'ten_nha_cung_cap']]],
-  ['Giảm giá (%)', [['orders', 'giam_gia_pct'], ['purchases', 'giam_gia_pct']]],
-  ['Chi nhánh', [['invoices', 'chi_nhanh'], ['orders', 'chi_nhanh'], ['returns', 'chi_nhanh'], ['purchases', 'chi_nhanh']]],
+  ['Giảm giá (%)', [['orders', 'giam_gia_pct']]],
+  ['Chi nhánh', [['invoices', 'chi_nhanh'], ['orders', 'chi_nhanh'], ['returns', 'chi_nhanh']]],
   ['Mã nội bộ chi nhánh', [['invoices', 'id_chi_nhanh'], ['orders', 'id_chi_nhanh'], ['returns', 'id_chi_nhanh']]],
   ['Ngày tạo', [
     ['products', 'ngay_tao'], ['invoices', 'ngay_tao'], ['orders', 'ngay_tao'], ['returns', 'ngay_tao'],
-    ['customers', 'ngay_tao'], ['suppliers', 'ngay_tao'], ['purchases', 'thoi_gian_tao']
+    ['customers', 'ngay_tao']
   ]],
   ['Ngày cập nhật', [
-    ['products', 'ngay_cap_nhat'], ['orders', 'ngay_cap_nhat'], ['returns', 'ngay_cap_nhat'], ['suppliers', 'ngay_cap_nhat']
+    ['products', 'ngay_cap_nhat'], ['orders', 'ngay_cap_nhat'], ['returns', 'ngay_cap_nhat']
   ]],
   ['Khách hàng', [['invoices', 'khach_hang'], ['orders', 'khach_hang'], ['returns', 'khach_hang']]],
   ['Mã khách hàng', [
@@ -197,26 +182,25 @@ const SHARED_CONCEPTS = [
   ['Nhân viên bán', [['invoices', 'nhan_vien_ban'], ['orders', 'nhan_vien_lap'], ['returns', 'nhan_vien_ban']]],
   ['Mã nội bộ nhân viên bán', [['invoices', 'id_nhan_vien_ban'], ['orders', 'id_nhan_vien_lap']]],
   ['Mã nội bộ gian hàng', [
-    ['products', 'id_gian_hang'], ['orders', 'id_gian_hang'], ['customers', 'id_gian_hang'], ['suppliers', 'id_gian_hang']
+    ['products', 'id_gian_hang'], ['orders', 'id_gian_hang'], ['customers', 'id_gian_hang']
   ]],
   ['Trạng thái', [
-    ['invoices', 'trang_thai'], ['orders', 'trang_thai'], ['returns', 'trang_thai'], ['purchases', 'trang_thai']
+    ['invoices', 'trang_thai'], ['orders', 'trang_thai'], ['returns', 'trang_thai']
   ]],
   ['Mã trạng thái (số)', [['invoices', 'ma_trang_thai'], ['orders', 'ma_trang_thai'], ['returns', 'ma_trang_thai']]],
   ['Trạng thái gốc từ KiotViet', [
     ['invoices', 'ten_trang_thai_api'], ['orders', 'ten_trang_thai_api'], ['returns', 'ten_trang_thai_api']
   ]],
   ['Thu hộ (COD)', [['invoices', 'thu_ho_cod'], ['orders', 'thu_ho_cod']]],
-  ['Ghi chú', [['invoices', 'ghi_chu'], ['orders', 'ghi_chu'], ['purchases', 'ghi_chu']]],
-  ['Đang hoạt động', [['products', 'dang_hoat_dong'], ['suppliers', 'trang_thai_hoat_dong']]],
-  ['Điện thoại', [['customers', 'dien_thoai'], ['suppliers', 'dien_thoai']]],
-  ['Địa chỉ', [['customers', 'dia_chi'], ['suppliers', 'dia_chi']]],
-  ['Tổng tiền hàng', [['invoices', 'tong_tien_hang'], ['orders', 'tong_tien'], ['purchases', 'tong_tien_hang']]],
+  ['Ghi chú', [['invoices', 'ghi_chu'], ['orders', 'ghi_chu']]],
+  ['Đang hoạt động', [['products', 'dang_hoat_dong']]],
+  ['Điện thoại', [['customers', 'dien_thoai']]],
+  ['Địa chỉ', [['customers', 'dia_chi']]],
+  ['Tổng tiền hàng', [['invoices', 'tong_tien_hang'], ['orders', 'tong_tien']]],
   ['Giảm giá', [['invoices', 'giam_gia'], ['orders', 'giam_gia']]],
   ['Khách đã trả', [['invoices', 'khach_da_tra'], ['orders', 'khach_da_tra']]],
-  ['Người tạo', [['suppliers', 'nguoi_tao'], ['purchases', 'nguoi_tao']]],
-  ['Mã hàng', [['products', 'ma_hang'], ['purchases', 'ma_hang']]],
-  ['Tên hàng', [['products', 'ten_hang'], ['purchases', 'ten_hang']]]
+  ['Mã hàng', [['products', 'ma_hang']]],
+  ['Tên hàng', [['products', 'ten_hang']]]
 ];
 
 test('khai niem chung dung cung mot nhan o moi nguon co truong do', () => {
@@ -229,8 +213,7 @@ test('khai niem chung dung cung mot nhan o moi nguon co truong do', () => {
 
 test('cung mot key o nhieu nguon thi cung nhan (tru cac ngoai le da chu dich)', () => {
   // trang_thai: hang hoa la trang thai kinh doanh, khac trang thai chung tu.
-  // giam_gia: nguon purchases co ca giam gia phieu va giam gia dong hang.
-  const INTENTIONAL_DIFFERENCES = { trang_thai: ['products'], giam_gia: ['purchases'] };
+  const INTENTIONAL_DIFFERENCES = { trang_thai: ['products'] };
   const labelsByKey = new Map();
   allFields().forEach(({ sourceKey, key, label }) => {
     if ((INTENTIONAL_DIFFERENCES[key] || []).includes(sourceKey)) return;
@@ -323,22 +306,6 @@ test('moi cot chi ton tai khi thuoc dung kieu: number/date/text khong lan voi nh
   [...dates].forEach(key => assert.ok(!texts.has(key), `key "${key}" vua date vua text`));
 });
 
-// ---------- PURCHASE_SUMMARY_KEYS ----------
-
-test('PURCHASE_SUMMARY_KEYS la 16 truong cap phieu, dung thu tu, dung truoc "Mã hàng"', () => {
-  const fields = getSourceFields('purchases');
-  const lineStart = __headers__[CONFIG.SHEET_PURCHASES].indexOf('Mã hàng');
-  assert.equal(lineStart, 16);
-  assert.equal(PURCHASE_SUMMARY_KEYS.length, 16);
-  assert.deepEqual(PURCHASE_SUMMARY_KEYS, fields.slice(0, lineStart).map(item => item.key));
-  assert.equal(PURCHASE_SUMMARY_KEYS[0], 'chi_nhanh');
-  assert.equal(PURCHASE_SUMMARY_KEYS[PURCHASE_SUMMARY_KEYS.length - 1], 'trang_thai');
-  assert.equal(fields[lineStart].key, 'ma_hang');
-  assert.equal(fields.length, 25, 'worksheet "Chi tiết mặt hàng" dung toan bo 25 truong (24 + Cơ sở)');
-  assert.equal(fields[fields.length - 1].key, 'co_so');
-  assert.ok(PURCHASE_SUMMARY_KEYS.includes(getSource('purchases').codeKey));
-});
-
 // ---------- API ----------
 
 test('getSource/getSourceFields/getSourceBySheetName tra cung mot doi tuong, nguon la khong co -> null/rong', () => {
@@ -358,9 +325,6 @@ test('getSource/getSourceFields/getSourceBySheetName tra cung mot doi tuong, ngu
 test('labelForSheetHeader tra nhan chuan hoa cho header cua dung sheet, nguoc lai tra header goc', () => {
   assert.equal(labelForSheetHeader(CONFIG.SHEET_INVOICES, 'ID hóa đơn'), 'Mã nội bộ hóa đơn');
   assert.equal(labelForSheetHeader(CONFIG.SHEET_INVOICES, 'Tên trạng thái API'), 'Trạng thái gốc từ KiotViet');
-  assert.equal(labelForSheetHeader(CONFIG.SHEET_SUPPLIERS, 'Mã NCC'), 'Mã nhà cung cấp');
-  assert.equal(labelForSheetHeader(CONFIG.SHEET_PURCHASES, 'Giảm giá %'), 'Giảm giá (%)');
-  assert.equal(labelForSheetHeader(CONFIG.SHEET_PURCHASES, 'Giảm giá'), 'Giảm giá dòng hàng');
   assert.equal(labelForSheetHeader(CONFIG.SHEET_ORDERS, 'Giảm giá'), 'Giảm giá');
   assert.equal(labelForSheetHeader(CONFIG.SHEET_PRODUCTS, 'Ngày sửa cuối'), 'Ngày sửa hoặc tạo gần nhất');
   // Header khong thuoc sheet do -> giu nguyen (vd ket qua tim kiem gop nhieu sheet).
@@ -377,7 +341,7 @@ test('labelForSheetHeader chiu duoc khoang trang thua va chuoi Unicode dang NFD'
   assert.equal(labelForSheetHeader(CONFIG.SHEET_INVOICES, undefined), undefined);
 });
 
-test('moi header cua 7 tab deu doi duoc sang nhan chuan hoa dung voi truong cung vi tri', () => {
+test('moi header cua 5 tab deu doi duoc sang nhan chuan hoa dung voi truong cung vi tri', () => {
   EXPECTED_SOURCES.forEach(({ key, sheetName }) => {
     __headers__[sheetName].forEach((header, index) => {
       assert.equal(labelForSheetHeader(sheetName, header), getSourceFields(key)[index].label, `${sheetName}: "${header}"`);
@@ -387,7 +351,6 @@ test('moi header cua 7 tab deu doi duoc sang nhan chuan hoa dung voi truong cung
 
 test('du lieu catalogue bi dong bang sau (deep freeze): khong ai sua nham duoc', () => {
   assert.ok(Object.isFrozen(SOURCE_KEYS));
-  assert.ok(Object.isFrozen(PURCHASE_SUMMARY_KEYS));
   SOURCE_KEYS.forEach(sourceKey => {
     const source = getSource(sourceKey);
     assert.ok(Object.isFrozen(source), `${sourceKey}: source`);
@@ -396,6 +359,5 @@ test('du lieu catalogue bi dong bang sau (deep freeze): khong ai sua nham duoc',
   });
   assert.throws(() => { getSource('products').fields.push({}); }, TypeError);
   assert.throws(() => { getSourceFields('products')[0].label = 'Sửa'; }, TypeError);
-  assert.throws(() => { PURCHASE_SUMMARY_KEYS.push('x'); }, TypeError);
   assert.throws(() => { getSourceFields('khong-co').push({}); }, TypeError);
 });
