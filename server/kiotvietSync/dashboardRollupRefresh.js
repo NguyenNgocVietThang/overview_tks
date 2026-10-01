@@ -16,7 +16,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 const { getConfiguredBranches } = require('./config');
 const { getPool } = require('../db/pool');
-const { DETAIL_AMOUNT_SQL } = require('../dashboard/customerProductTopRepository');
+const { DETAIL_AMOUNT_SQL, RETURN_AMOUNT_SQL } = require('../dashboard/customerProductTopRepository');
 const { dashboardRollupEvents } = require('./dashboardRollupEvents');
 
 const DEFAULT_WINDOW_DAYS = 400;
@@ -119,6 +119,11 @@ const INVOICE_SUMMARY_SQL = `
 // hoa don statusValue != 'Đã hủy' (gom ca "Hoàn thành" lan "Đang xử lý"/"Phiếu
 // tạm"), khac han dieu kien cua daily_invoice_summary o tren - dung THEO
 // TEXT, khong dung so (xem ghi chu mui gio/trang thai o tren).
+//
+// DOANH SO THUC TE: tru luon hang khach tra. Moi dong return_details cua phieu tra
+// statusValue='Đã trả' la 1 dong AM (so luong + gia tri) vao dung ngay TRA hang
+// (return_date) cua ma hang do, nen qty/revenue o day la so rong (co the am o
+// ngay chi co tra hang). RETURN_AMOUNT_SQL dung alias "rd" cho return_details.
 const PRODUCT_SALES_AGG_SQL = `
     SELECT
       $1::text AS branch,
@@ -127,7 +132,7 @@ const PRODUCT_SALES_AGG_SQL = `
       COALESCE(SUM(s.qty), 0)::numeric AS qty,
       COALESCE(SUM(s.amount), 0)::numeric AS revenue
     FROM (
-      SELECT
+      (SELECT
         (i.purchase_date AT TIME ZONE 'UTC')::date AS sale_date,
         d.product_id,
         COALESCE(d.quantity, 0)::float8 AS qty,
@@ -137,7 +142,19 @@ const PRODUCT_SALES_AGG_SQL = `
       WHERE d.branch = $1
         AND COALESCE(i.raw->>'statusValue', '') != 'Đã hủy'
         AND d.product_id IS NOT NULL
-        AND i.purchase_date >= ${WINDOW_START_SQL}
+        AND i.purchase_date >= ${WINDOW_START_SQL})
+      UNION ALL
+      (SELECT
+        (r.return_date AT TIME ZONE 'UTC')::date AS sale_date,
+        rd.product_id,
+        -abs(COALESCE(rd.quantity, 0)::float8) AS qty,
+        -(${RETURN_AMOUNT_SQL}) AS amount
+      FROM return_details rd
+      JOIN returns r ON r.branch = rd.branch AND r.id = rd.return_id
+      WHERE rd.branch = $1
+        AND r.raw->>'statusValue' = 'Đã trả'
+        AND rd.product_id IS NOT NULL
+        AND r.return_date >= ${WINDOW_START_SQL})
       OFFSET 0
     ) s
     GROUP BY s.sale_date, s.product_id`;

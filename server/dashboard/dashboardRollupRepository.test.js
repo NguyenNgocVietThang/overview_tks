@@ -11,13 +11,13 @@ const { createDashboardRollupRepository } = require('./dashboardRollupRepository
 // tu pool.query duoc dich dung shape ma dashboardData.js mong doi. Dung SQL
 // (GROUP BY/JOIN) duoc doi chieu bang smoke test tren du lieu that sau khi
 // migration+refresh chay (xem bao cao cuoi).
-function fakePool(rows = []) {
+function fakePool(rows = [], returnRows = []) {
   const calls = [];
   return {
     calls,
     async query(sql, params) {
       calls.push({ sql, params });
-      return { rows };
+      return { rows: /FROM returns/.test(sql) ? returnRows : rows };
     }
   };
 }
@@ -31,12 +31,38 @@ test('getInvoiceRevenueByDay: chuan hoa branch, truyen dung from/to, dich dung s
 
   const rows = await repository.getInvoiceRevenueByDay({ branch: 'Hà Nội', from: '2026-08-10', to: '2026-08-11' });
 
-  assert.equal(pool.calls.length, 1);
-  assert.deepEqual(pool.calls[0].params, ['hanoi', '2026-08-10', '2026-08-11']);
-  assert.match(pool.calls[0].sql, /daily_invoice_summary/);
+  assert.equal(pool.calls.length, 2, '1 truy van hoa don + 1 truy van tra hang');
+  const salesCall = pool.calls.find(call => /daily_invoice_summary/.test(call.sql));
+  const returnsCall = pool.calls.find(call => /FROM returns/.test(call.sql));
+  assert.deepEqual(salesCall.params, ['hanoi', '2026-08-10', '2026-08-11']);
+  assert.deepEqual(returnsCall.params, ['hanoi', '2026-08-10', '2026-08-11']);
+  assert.match(returnsCall.sql, /statusValue' = 'Đã trả'/, 'chi phieu Đã trả (loai Phiếu tạm/Đã hủy)');
   assert.deepEqual(rows, [
-    { dateKey: '10/08/2026', revenue: 500000, invoiceCount: 3 },
-    { dateKey: '11/08/2026', revenue: 0, invoiceCount: 0 }
+    { dateKey: '10/08/2026', revenue: 500000, grossRevenue: 500000, returnAmount: 0, returnCount: 0, invoiceCount: 3 },
+    { dateKey: '11/08/2026', revenue: 0, grossRevenue: 0, returnAmount: 0, returnCount: 0, invoiceCount: 0 }
+  ]);
+});
+
+test('getInvoiceRevenueByDay: doanh thu thuc te = doanh thu ban tru tien tra hang cua ngay do', async () => {
+  const pool = fakePool(
+    [
+      { date_key: '10/08/2026', revenue: '500000', invoice_count: '3' },
+      { date_key: '12/08/2026', revenue: '200000', invoice_count: '1' }
+    ],
+    [
+      { date_key: '10/08/2026', return_amount: '120000', return_count: '2' },
+      // Ngay chi co tra hang (khong co hoa don) van phai co dong, doanh thu am.
+      { date_key: '11/08/2026', return_amount: '30000', return_count: '1' }
+    ]
+  );
+  const repository = createDashboardRollupRepository({ pool });
+
+  const rows = await repository.getInvoiceRevenueByDay({ branch: 'Hà Nội', from: '2026-08-10', to: '2026-08-12' });
+
+  assert.deepEqual(rows, [
+    { dateKey: '10/08/2026', revenue: 380000, grossRevenue: 500000, returnAmount: 120000, returnCount: 2, invoiceCount: 3 },
+    { dateKey: '11/08/2026', revenue: -30000, grossRevenue: 0, returnAmount: 30000, returnCount: 1, invoiceCount: 0 },
+    { dateKey: '12/08/2026', revenue: 200000, grossRevenue: 200000, returnAmount: 0, returnCount: 0, invoiceCount: 1 }
   ]);
 });
 
@@ -44,7 +70,7 @@ test('getInvoiceRevenueByDay: bo loc "Tat ca" -> from/to null (khong gioi han ng
   const pool = fakePool();
   const repository = createDashboardRollupRepository({ pool });
   await repository.getInvoiceRevenueByDay({ branch: 'Sài Gòn' });
-  assert.deepEqual(pool.calls[0].params, ['saigon', null, null]);
+  pool.calls.forEach(call => assert.deepEqual(call.params, ['saigon', null, null]));
 });
 
 test('branch khong hop le nem loi INVALID_BRANCH, khong query Postgres', async () => {
@@ -124,6 +150,9 @@ test('getInvoiceRevenueByDay: Ca hai cong bucket trung ngay sau khi doc tung co 
     calls: [],
     async query(sql, params) {
       this.calls.push({ sql, params });
+      if (/FROM returns/.test(sql)) {
+        return { rows: [{ date_key: '10/08/2026', return_amount: params[0] === 'hanoi' ? '40' : '10', return_count: '1' }] };
+      }
       return { rows: [{ date_key: '10/08/2026', revenue: params[0] === 'hanoi' ? '100' : '250', invoice_count: '1' }] };
     }
   };
@@ -131,8 +160,10 @@ test('getInvoiceRevenueByDay: Ca hai cong bucket trung ngay sau khi doc tung co 
 
   const rows = await repository.getInvoiceRevenueByDay({ branch: 'Cả hai', from: '2026-08-10', to: '2026-08-10' });
 
-  assert.deepEqual(pool.calls.map(call => call.params[0]), ['hanoi', 'saigon']);
-  assert.deepEqual(rows, [{ dateKey: '10/08/2026', revenue: 350, invoiceCount: 2 }]);
+  assert.deepEqual([...new Set(pool.calls.map(call => call.params[0]))].sort(), ['hanoi', 'saigon']);
+  assert.deepEqual(rows, [
+    { dateKey: '10/08/2026', revenue: 300, grossRevenue: 350, returnAmount: 50, returnCount: 2, invoiceCount: 2 }
+  ]);
 });
 
 test('getFirstPurchaseDates: Ca hai giu tung dong theo co so (khong gop theo ma), chi hang dang kinh doanh', async () => {

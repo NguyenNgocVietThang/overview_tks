@@ -83,7 +83,7 @@ test('bang bo cot "DS Khach lon nhat" va KHONG con cot/nut "Chi tiet" (10 cot), 
   const headers = [...page.$('productReportRows').closest('table').querySelectorAll('thead th')].map(th => th.textContent.replace(/[↕▲▼]/g, '').trim());
   assert.deepEqual(headers, [
     'Mã SP', 'Tên SP', 'Tồn HN', 'Tồn SG', 'Tồn có bán', 'Tổng SL 30 ngày', 'DS 90 ngày',
-    'SL khách bán', 'Khách lớn nhất', '% Khách lớn nhất'
+    'SL khách bán', 'Khách lớn nhất', '% Khách lớn'
   ]);
 
   const firstRow = page.$('productReportRows').querySelector('tr');

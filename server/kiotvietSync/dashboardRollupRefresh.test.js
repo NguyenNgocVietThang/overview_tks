@@ -189,6 +189,18 @@ test('bo loc ngay cua rollup so sanh thang cot goc (dung duoc index), khong boc 
   }
 });
 
+test('daily_product_sales tru hang khach tra: dong AM tu return_details (Đã trả) theo ngay tra', () => {
+  const sql = __sql__.PRODUCT_SALES_AGG_SQL;
+  assert.match(sql, /UNION ALL/);
+  assert.match(sql, /FROM return_details rd/);
+  assert.match(sql, /r\.raw->>'statusValue' = 'Đã trả'/);
+  assert.match(sql, /\(r\.return_date AT TIME ZONE 'UTC'\)::date AS sale_date/);
+  assert.match(sql, /-abs\(COALESCE\(rd\.quantity, 0\)::float8\) AS qty/);
+  assert.match(sql, /-\(CASE/);
+  assert.match(sql, /r\.return_date >= \(\(\(now\(\) AT TIME ZONE 'Asia\/Ho_Chi_Minh'\)::date - \$2::int\)::timestamp AT TIME ZONE 'UTC'\)/,
+    'loc ngay tra so sanh thang cot goc (dung index idx_returns_return_date)');
+});
+
 test('tong hop tinh ::numeric de so sanh dung kieu voi cot dich', () => {
   assert.match(__sql__.PRODUCT_SALES_AGG_SQL, /SUM\(s\.qty\), 0\)::numeric AS qty/);
   assert.match(__sql__.PRODUCT_SALES_AGG_SQL, /SUM\(s\.amount\), 0\)::numeric AS revenue/);

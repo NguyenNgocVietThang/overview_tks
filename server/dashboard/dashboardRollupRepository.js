@@ -82,6 +82,25 @@ const INVOICE_REVENUE_BY_DAY_SQL = `
     AND ($3::date IS NULL OR sale_date <= $3::date)
   ORDER BY sale_date`;
 
+// Tien tra hang theo ngay TRA (return_date, gio treo tuong VN gan nhan UTC nen doc
+// qua AT TIME ZONE 'UTC'), de tru khoi doanh thu ban thanh doanh thu thuc te.
+// Chi phieu 'Đã trả' (loai 'Phiếu tạm'/'Đã hủy'); `total` = gia tri hang khach tra
+// (cot "Tổng tiền trả" cua tab Tra hang), KHONG dung totalPayment vi do la so tien
+// mat thuc hoan va thuong = 0 khi tra hang bu vao cong no. So sanh thang voi cot
+// goc (khong boc AT TIME ZONE) de dung index idx_returns_return_date.
+const RETURN_AMOUNT_BY_DAY_SQL = `
+  SELECT
+    to_char((return_date AT TIME ZONE 'UTC')::date, 'DD/MM/YYYY') AS date_key,
+    COALESCE(SUM(total), 0)::float8 AS return_amount,
+    COUNT(*)::int AS return_count
+  FROM returns
+  WHERE branch = $1
+    AND return_date IS NOT NULL
+    AND raw->>'statusValue' = 'Đã trả'
+    AND ($2::date IS NULL OR return_date >= ($2::date)::timestamp AT TIME ZONE 'UTC')
+    AND ($3::date IS NULL OR return_date < (($3::date + 1)::timestamp AT TIME ZONE 'UTC'))
+  GROUP BY 1`;
+
 // Dung chung cho getProductSalesBreakdown/getTopSellingProducts — ten/ma hang
 // luon lay tu `products` HIEN TAI (LEFT JOIN, khong INNER JOIN de khong mat
 // dong neu 1 product_id cu khong con khop, du KiotViet khong xoa cung
@@ -130,23 +149,44 @@ const INVOICE_QUANTITIES_SQL = `
 
 function createDashboardRollupRepository({ pool = getPool() } = {}) {
   /**
-   * Doanh thu/so hoa don theo ngay tu daily_invoice_summary — thay
-   * buildRevenuePeriod() cho overviewPeriod/invoicesPeriod trong
-   * dashboardData.js. Chi gom hoa don status=3 (Hoan thanh).
+   * Doanh thu THUC TE theo ngay = doanh thu hoa don 'Hoàn thành' (daily_invoice_summary)
+   * tru tien tra hang 'Đã trả' cua ngay do (bang returns, theo ngay tra). Moi dong:
+   * `revenue` = thuc te (da tru), `grossRevenue` = doanh thu ban, `returnAmount`/
+   * `returnCount` = tra hang; `invoiceCount` van la so hoa don hoan thanh. Ngay chi
+   * co tra hang (khong co hoa don) van la 1 dong (revenue am).
    */
   async function getInvoiceRevenueByDay({ branch, from = null, to = null }) {
     const groups = await queryPhysicalBranches(branch, async (_physicalBranch, branchCode) => {
-      const result = await pool.query(INVOICE_REVENUE_BY_DAY_SQL, [branchCode, from, to]);
-      return result.rows.map(row => ({
-        dateKey: row.date_key,
-        revenue: Number(row.revenue) || 0,
-        invoiceCount: Number(row.invoice_count) || 0
+      const [sales, returned] = await Promise.all([
+        pool.query(INVOICE_REVENUE_BY_DAY_SQL, [branchCode, from, to]),
+        pool.query(RETURN_AMOUNT_BY_DAY_SQL, [branchCode, from, to])
+      ]);
+      const byDate = new Map();
+      const bucketOf = dateKey => {
+        if (!byDate.has(dateKey)) {
+          byDate.set(dateKey, { dateKey, grossRevenue: 0, returnAmount: 0, returnCount: 0, invoiceCount: 0 });
+        }
+        return byDate.get(dateKey);
+      };
+      sales.rows.forEach(row => {
+        const bucket = bucketOf(row.date_key);
+        bucket.grossRevenue += Number(row.revenue) || 0;
+        bucket.invoiceCount += Number(row.invoice_count) || 0;
+      });
+      returned.rows.forEach(row => {
+        const bucket = bucketOf(row.date_key);
+        bucket.returnAmount += Number(row.return_amount) || 0;
+        bucket.returnCount += Number(row.return_count) || 0;
+      });
+      return Array.from(byDate.values()).map(bucket => ({
+        ...bucket,
+        revenue: bucket.grossRevenue - bucket.returnAmount
       }));
     });
     return mergeAdditiveRows(groups, {
       keyOf: row => row.dateKey,
       firstFields: ['dateKey'],
-      additiveFields: ['revenue', 'invoiceCount'],
+      additiveFields: ['revenue', 'grossRevenue', 'returnAmount', 'returnCount', 'invoiceCount'],
       sort: (a, b) => dateTextSortValue(a.dateKey) - dateTextSortValue(b.dateKey)
     });
   }

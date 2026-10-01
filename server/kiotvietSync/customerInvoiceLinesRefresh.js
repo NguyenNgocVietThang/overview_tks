@@ -27,7 +27,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 const { getPool } = require('../db/pool');
-const { DETAIL_AMOUNT_SQL } = require('../dashboard/customerProductTopRepository');
+const { DETAIL_AMOUNT_SQL, RETURN_AMOUNT_SQL } = require('../dashboard/customerProductTopRepository');
 const { vnDateKey, vnMinutesOfDay, addDaysToKey } = require('./vnTime');
 
 const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
@@ -60,7 +60,7 @@ const CREATE_STAGING_SQL = `
 // vi cu duyet theo thu tu ma va dong sau de dong truoc). Buoc doi chieu theo SDT
 // cua luong cu KHONG co o day: cot "SĐT khách" cua tab Hoa don luon rong trong
 // Postgres (dashboardPgReader.js, hang MISSING) nen buoc do khong bao gio khop.
-const FILL_STAGING_SQL = `
+const CUSTOMER_BY_NAME_CTE = `
   WITH customer_by_name AS (
     SELECT DISTINCT ON (branch, name_key) branch, name_key, code
     FROM (
@@ -72,7 +72,9 @@ const FILL_STAGING_SQL = `
         AND btrim(COALESCE(name, '')) <> ''
     ) named
     ORDER BY branch, name_key, raw_code DESC
-  )
+  )`;
+
+const FILL_STAGING_SQL = `${CUSTOMER_BY_NAME_CTE}
   INSERT INTO customer_invoice_lines_new
     (branch, invoice_id, line_no, invoice_code, sold_date, customer_code, customer_name,
      item_code, item_name, quantity, revenue)
@@ -101,7 +103,42 @@ const FILL_STAGING_SQL = `
     AND btrim(i.code) <> ''
     AND COALESCE(NULLIF(btrim(i.raw->>'customerCode'), ''), cbn.code) IS NOT NULL`;
 
-const LINE_MATCH_SQL = `n.branch = l.branch AND n.invoice_id = l.invoice_id AND n.line_no = l.line_no`;
+// DOANH THU THUC TE: hang khach tra (phieu tra statusValue='Đã trả') la cac dong AM
+// trong cung bang, theo ngay TRA, gan cho khach nhu hoa don (ma tren phieu tra, khong
+// co thi tim theo ten chuan hoa). invoice_id = -id phieu tra de khong trung khoa voi
+// hoa don (id hoa don luon duong); invoice_code = ma phieu tra (TH...). So luong va
+// gia tri deu am nen tong theo mat hang/ngay/thang tu dong la so rong.
+// $1/$2/$3 giong FILL_STAGING_SQL.
+const FILL_STAGING_RETURNS_SQL = `${CUSTOMER_BY_NAME_CTE}
+  INSERT INTO customer_invoice_lines_new
+    (branch, invoice_id, line_no, invoice_code, sold_date, customer_code, customer_name,
+     item_code, item_name, quantity, revenue)
+  SELECT
+    rd.branch,
+    -r.id,
+    rd.line_no,
+    r.code,
+    (r.return_date AT TIME ZONE 'UTC')::date,
+    COALESCE(NULLIF(btrim(r.raw->>'customerCode'), ''), cbn.code),
+    COALESCE(NULLIF(r.raw->>'customerName', ''), 'Khách lẻ'),
+    COALESCE(NULLIF(rd.raw->>'productCode', ''), p.code, ''),
+    COALESCE(NULLIF(rd.raw->>'productName', ''), p.name, ''),
+    -abs(COALESCE(rd.quantity, 0))::numeric,
+    -(${RETURN_AMOUNT_SQL})::numeric
+  FROM returns r
+  JOIN return_details rd ON rd.branch = r.branch AND rd.return_id = r.id
+  LEFT JOIN products p ON p.branch = rd.branch AND p.id = rd.product_id
+  LEFT JOIN customer_by_name cbn
+    ON cbn.branch = r.branch
+   AND cbn.name_key = ${normalizedNameSql(`COALESCE(NULLIF(r.raw->>'customerName', ''), 'Khách lẻ')`)}
+  WHERE r.branch = ANY($1::text[])
+    AND r.return_date >= ($2::date::timestamp AT TIME ZONE 'UTC')
+    AND r.return_date <  (($3::date + 1)::timestamp AT TIME ZONE 'UTC')
+    AND r.raw->>'statusValue' = 'Đã trả'
+    AND btrim(r.code) <> ''
+    AND COALESCE(NULLIF(btrim(r.raw->>'customerCode'), ''), cbn.code) IS NOT NULL`;
+
+const LINE_MATCH_SQL =`n.branch = l.branch AND n.invoice_id = l.invoice_id AND n.line_no = l.line_no`;
 
 // Xoa dong da bien mat khoi cua so HOAC da doi noi dung (hoa don bi sua/huy,
 // gan lai khach...). Dong doi se duoc chen lai o cau ke tiep.
@@ -154,6 +191,7 @@ async function refreshCustomerInvoiceLines(pool, { log = console.log, now = () =
     await client.query(`SET LOCAL work_mem = '${REFRESH_WORK_MEM}'`);
     await client.query(CREATE_STAGING_SQL);
     await client.query(FILL_STAGING_SQL, [BRANCH_CODES, window.start, window.end]);
+    await client.query(FILL_STAGING_RETURNS_SQL, [BRANCH_CODES, window.start, window.end]);
     const deleted = await client.query(DELETE_STALE_SQL);
     const inserted = await client.query(INSERT_MISSING_SQL);
     const state = await client.query(UPSERT_STATE_SQL, [window.start, window.end]);
@@ -228,6 +266,6 @@ module.exports = {
   refreshCustomerInvoiceLines,
   refreshCustomerInvoiceLinesIfDue,
   startCustomerInvoiceLinesSchedule,
-  __sql__: { FILL_STAGING_SQL, DELETE_STALE_SQL, INSERT_MISSING_SQL, UPSERT_STATE_SQL, LAST_COMPUTED_SQL, CREATE_STAGING_SQL },
+  __sql__: { FILL_STAGING_SQL, FILL_STAGING_RETURNS_SQL, DELETE_STALE_SQL, INSERT_MISSING_SQL, UPSERT_STATE_SQL, LAST_COMPUTED_SQL, CREATE_STAGING_SQL },
   __test__: { vnDateKey, vnMinutesOfDay, computeWindow, isRefreshDue }
 };

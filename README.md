@@ -74,6 +74,8 @@ Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để b
 
 ## Cập nhật gần nhất
 
+2026-10-01 — **Doanh thu thực tế (đã trừ hàng trả lại)**: biểu đồ Doanh thu theo ngày, Top sản phẩm bán chạy, Báo cáo doanh thu theo khách và các KPI doanh thu cập nhật tính theo doanh thu thực tế sau khi trừ hàng khách trả lại (`returns` trạng thái `Đã trả`); rollup `daily_product_sales`, `customer_invoice_lines_90d`, `product_report` và `dashboardRollupRepository` đồng bộ trừ dòng hàng trả lại; giao diện tối ưu độ rộng cột bảng Báo cáo hàng hóa ("% Khách lớn").
+
 2026-09-30 — **Gỡ tab "Nhà cung cấp"** khỏi Báo cáo tổng hợp: bỏ view `suppliers` (API `?view=`, quyền `reports.suppliers`, mục sidebar, các bảng/biểu đồ Hàng nhập + Nợ NCC, xuất `suppliers.list`/`overview.purchases`), bỏ đồng bộ entity `suppliers` và bước rollup `daily_purchase_summary`. Migration `0026` xóa bảng `suppliers` và `daily_purchase_summary` (giữ `purchases`/`purchase_details`/`product_first_purchase`/`order_suppliers` vì đứt hàng, "Hàng mới nhập" và "Hàng đang vận chuyển" vẫn dùng). **Deploy code trước, rồi mới `npm run db:migrate`** (bản code cũ còn đọc hai bảng này). Quyền `reports.suppliers` còn lưu trong `app_users.feature_permissions` được bỏ qua tự động.
 
 2026-09-30 — **Popup chi tiết chứng từ**: bấm vào dòng bảng "Chi tiết giao dịch" / "Danh sách đặt hàng" / "Danh sách trả hàng" (tab Hóa đơn) mở hộp thoại giữa màn hình hiển thị đầy đủ dòng hàng, tổng tiền và phương thức thanh toán; nguồn từ module mới `dashboard/documentDetailRepository.js` (đọc trực tiếp `orders`/`returns`/`invoices` + `*_details` từ Postgres), route `GET /api/order-detail`, `GET /api/return-detail`, `GET /api/invoice-detail`.

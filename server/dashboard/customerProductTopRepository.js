@@ -282,5 +282,8 @@ module.exports = {
   // dung CHINH XAC cong thuc nay khi tinh daily_product_sales.revenue, tranh
   // viet trung logic o 2 noi va lech so lieu.
   DETAIL_AMOUNT_SQL,
+  // Gia tri 1 dong return_details (alias `rd`), tuyet doi — rollup/bang chi tiet 90 ngay
+  // dung de TRU tra hang khoi doanh thu.
+  RETURN_AMOUNT_SQL,
   __test__: { toWallClockInstant, fromWallClockInstant }
 };

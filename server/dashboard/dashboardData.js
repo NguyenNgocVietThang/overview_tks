@@ -1332,7 +1332,7 @@ function buildRevenuePeriod(range, invoiceRecords) {
  * Ban sao cua buildRevenuePeriod() nhung nguon la cac dong da tong hop san tu
  * daily_invoice_summary (dashboardRollupRepository.getInvoiceRevenueByDay) —
  * thay vi quet tung hoa don trong `invoiceRecords`. `rollupRows` da duoc SQL
- * loc dung status=3 (Hoan thanh) va sap xep tang dan theo ngay, nen o day CHI
+ * loc dung hoa don Hoan thanh, TRU tra hang, va sap xep tang dan theo ngay, nen o day CHI
  * can dien them cac ngay trong khoang khong phat sinh (che do 'days'/'range')
  * hoac giu nguyen thu tu tra ve (che do 'all', chi gom ngay THUC SU CO du
  * lieu — giong het hanh vi cu).
@@ -1341,10 +1341,12 @@ function buildRevenuePeriodFromRollup(range, rollupRows) {
   const dayBuckets = {};
   const dayOrder = [];
 
+  const newBucket = () => ({ revenue: 0, grossRevenue: 0, returnAmount: 0, count: 0 });
+
   if (range.mode === 'all') {
     rollupRows.forEach(row => {
       if (!dayBuckets[row.dateKey]) {
-        dayBuckets[row.dateKey] = { revenue: 0, count: 0 };
+        dayBuckets[row.dateKey] = newBucket();
         dayOrder.push(row.dateKey);
       }
     });
@@ -1352,16 +1354,22 @@ function buildRevenuePeriodFromRollup(range, rollupRows) {
     let cursor = range.start;
     while (cursor.getTime() <= range.end.getTime()) {
       const key = formatDMY(cursor);
-      dayBuckets[key] = { revenue: 0, count: 0 };
+      dayBuckets[key] = newBucket();
       dayOrder.push(key);
       cursor = new Date(cursor.getTime() + DAY_MS);
     }
   }
 
+  // `revenue` cua dong rollup la doanh thu THUC TE (da tru tien tra hang trong
+  // ngay, xem getInvoiceRevenueByDay). Dong khong co grossRevenue/returnAmount
+  // (nguon cu) coi nhu khong co tra hang.
   rollupRows.forEach(row => {
     const bucket = dayBuckets[row.dateKey];
     if (!bucket) return;
+    const returnAmount = Number(row.returnAmount) || 0;
     bucket.revenue += row.revenue;
+    bucket.grossRevenue += row.grossRevenue !== undefined ? Number(row.grossRevenue) || 0 : row.revenue + returnAmount;
+    bucket.returnAmount += returnAmount;
     bucket.count += row.invoiceCount;
   });
 
@@ -1369,11 +1377,15 @@ function buildRevenuePeriodFromRollup(range, rollupRows) {
     date: key,
     label: key.substring(0, 5),
     revenue: dayBuckets[key].revenue,
+    grossRevenue: dayBuckets[key].grossRevenue,
+    returnAmount: dayBuckets[key].returnAmount,
     count: dayBuckets[key].count
   }));
   const periodRevenue = revenueByDay.reduce((s, d) => s + d.revenue, 0);
+  const periodGrossRevenue = revenueByDay.reduce((s, d) => s + d.grossRevenue, 0);
+  const periodReturnAmount = revenueByDay.reduce((s, d) => s + d.returnAmount, 0);
   const periodInvoices = revenueByDay.reduce((s, d) => s + d.count, 0);
-  return { revenueByDay, periodRevenue, periodInvoices };
+  return { revenueByDay, periodRevenue, periodGrossRevenue, periodReturnAmount, periodInvoices };
 }
 
 /**
@@ -1548,8 +1560,10 @@ function aggregateCustomerRevenueFromSheetRows(range, invData, custData, retData
 
     for (let r = 1; r < retData.length; r++) {
       const row = retData[r];
-      const status = String((retStatusIdx >= 0 ? row[retStatusIdx] : row[5]) || 'Hoàn thành').trim();
-      if (status !== 'Hoàn thành') continue;
+      // Phieu tra hoan tat co statusValue 'Đã trả' (tab Tra hang); 'Hoàn thành' chi con o du lieu cu.
+      // Truoc day chi nhan 'Hoàn thành' nen KHONG phieu tra that nao duoc tru khoi doanh thu khach.
+      const status = String((retStatusIdx >= 0 ? row[retStatusIdx] : row[5]) || 'Đã trả').trim();
+      if (status !== 'Đã trả' && status !== 'Hoàn thành') continue;
 
       const dateVal = retDateIdx >= 0 ? row[retDateIdx] : row[1];
       const dt = parseSheetDate(dateVal);
@@ -1562,12 +1576,27 @@ function aggregateCustomerRevenueFromSheetRows(range, invData, custData, retData
       }
       if (code && !name && custNameByCode.has(code)) name = custNameByCode.get(code);
       const key = customerRevenueKey(name, code);
-      if (customers.has(key)) {
-        const entry = customers.get(key);
-        const retTotal = Number(retTotalIdx >= 0 ? row[retTotalIdx] : row[4]) || 0;
-        entry.revenue -= retTotal;
-        const retBranch = (retFacilityIdx >= 0 ? String(row[retFacilityIdx] || '').trim() : '') || fallbackBranch;
-        if (retBranch) entry.revenueByBranch[retBranch] = (entry.revenueByBranch[retBranch] || 0) - retTotal;
+      const retBranch = (retFacilityIdx >= 0 ? String(row[retFacilityIdx] || '').trim() : '') || fallbackBranch;
+      // Khach chi co tra hang trong ky (khong co hoa don) van la 1 dong, doanh thu am,
+      // de tong doanh thu theo khach khop doanh thu thuc te o bieu do theo ngay.
+      if (!customers.has(key)) {
+        customers.set(key, {
+          code: code || '—',
+          name: name || '(Không xác định)',
+          saleOrderCount: 0,
+          revenue: 0,
+          revenueByBranch: {},
+          codesByBranch: {},
+          _branches: new Set()
+        });
+      }
+      const entry = customers.get(key);
+      const retTotal = Number(retTotalIdx >= 0 ? row[retTotalIdx] : row[4]) || 0;
+      entry.revenue -= retTotal;
+      if (retBranch) {
+        entry._branches.add(retBranch);
+        if (code && !entry.codesByBranch[retBranch]) entry.codesByBranch[retBranch] = code;
+        entry.revenueByBranch[retBranch] = (entry.revenueByBranch[retBranch] || 0) - retTotal;
       }
     }
   }
@@ -2230,14 +2259,14 @@ function mergeDashboardRollups(branchSources) {
       branchSources,
       'overviewRevenueRows',
       row => row.dateKey,
-      ['revenue', 'invoiceCount'],
+      ['revenue', 'grossRevenue', 'returnAmount', 'returnCount', 'invoiceCount'],
       (a, b) => (parseSheetDate(a.dateKey)?.getTime() || 0) - (parseSheetDate(b.dateKey)?.getTime() || 0)
     ),
     invoicesRevenueRows: mergeRollupRows(
       branchSources,
       'invoicesRevenueRows',
       row => row.dateKey,
-      ['revenue', 'invoiceCount'],
+      ['revenue', 'grossRevenue', 'returnAmount', 'returnCount', 'invoiceCount'],
       (a, b) => (parseSheetDate(a.dateKey)?.getTime() || 0) - (parseSheetDate(b.dateKey)?.getTime() || 0)
     ),
     productSalesRows,
@@ -2904,7 +2933,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   }
 
   // Doanh thu theo ngay cua tab Tong quan/Hoa don — tu daily_invoice_summary
-  // (rollup, chi gom status=3 Hoan thanh, xem dashboardRollupRepository.getInvoiceRevenueByDay())
+  // (hoa don Hoan thanh TRU tien tra hang = doanh thu thuc te, xem dashboardRollupRepository.getInvoiceRevenueByDay())
   // thay vi tu gom lai `invoiceRecords` trong JS moi request.
   const overviewPeriod = buildRevenuePeriodFromRollup(invoicesRange, (rollups && rollups.overviewRevenueRows) || []);
   const transactionsReport = view.has('invoices')
@@ -3152,16 +3181,18 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const customerDebtIndex = customerIndex('Nợ hiện tại', 7);
   // "Nợ hiện tại" là số dư TẠI THỜI ĐIỂM HIỆN TẠI (snapshot) nên KPI tổng
   // (totalCustomers/customersWithDebt/totalDebt) không lọc theo thời gian.
-  // Danh sách/biểu đồ khách nợ (topDebt) thì thu hẹp theo khách CÓ hóa đơn
-  // hoàn thành trong khoảng đã chọn, kèm doanh thu mua hàng trong kỳ đó —
-  // nối bằng số điện thoại vì hóa đơn không lưu mã khách hàng.
-  const customerRevenueByPhone = new Map();
-  if (view.has('customers')) {
-    invoiceRecords.forEach(r => {
-      if (!r.isCompleted || !isWithinRange(r._dt, customersRange)) return;
-      const phoneKey = normalizePhone(r.phone);
-      if (!phoneKey) return;
-      customerRevenueByPhone.set(phoneKey, (customerRevenueByPhone.get(phoneKey) || 0) + r.total);
+  // Danh sách/biểu đồ khách nợ (topDebt) thì thu hẹp theo khách CÓ phát sinh
+  // bán/trả hàng trong khoảng đã chọn, kèm doanh thu THỰC TẾ (đã trừ hàng trả) trong
+  // kỳ đó. Lấy thẳng từ "Top khách hàng theo doanh thu" (cùng khoảng, cùng khóa
+  // tên chuẩn hóa/mã) nên khớp số ở bảng doanh thu theo khách; không nối bằng SĐT
+  // vì cột "SĐT khách" của hóa đơn rỗng khi đọc từ Postgres.
+  const topCustomersByRevenue = view.has('customers')
+    ? buildTopCustomersByRevenue(customersRange, customerReportData, invData, custData, returnData, singleBranch)
+    : undefined;
+  const customerPeriodRevenue = new Map();
+  if (topCustomersByRevenue) {
+    topCustomersByRevenue.all.forEach(entry => {
+      customerPeriodRevenue.set(customerRevenueKey(entry.name, entry.code), entry.revenue);
     });
   }
 
@@ -3177,9 +3208,9 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     if (debt > 0) {
       customersWithDebt++;
       totalDebt += debt;
-      const phoneKey = normalizePhone(row[customerPhoneIndex]);
-      const periodRevenue = customerRevenueByPhone.get(phoneKey) || 0;
-      const includeInPeriod = customersRange.mode === 'all' || customerRevenueByPhone.has(phoneKey);
+      const revenueKey = customerRevenueKey(row[customerNameIndex], code);
+      const periodRevenue = customerPeriodRevenue.get(revenueKey) || 0;
+      const includeInPeriod = customersRange.mode === 'all' || customerPeriodRevenue.has(revenueKey);
       if (includeInPeriod) {
         const rowBranch = (customerFacilityIndex >= 0 && row[customerFacilityIndex]) || singleBranch;
         topDebt.push({
@@ -3196,10 +3227,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     }
   }
   topDebt.sort((a, b) => b.debt - a.debt);
-
-  const topCustomersByRevenue = view.has('customers')
-    ? buildTopCustomersByRevenue(customersRange, customerReportData, invData, custData, returnData, singleBranch)
-    : undefined;
 
   // Ban day du (shape cu). pickPayload() giu nguyen khi chay du 5 tab, cat ve
   // dung phan cua tab duoc chon khi chay theo tung tab (dashboardViews.js).
@@ -3233,6 +3260,8 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     overview: {
       revenueByDay: overviewPeriod.revenueByDay,
       periodRevenue: overviewPeriod.periodRevenue,
+      periodGrossRevenue: overviewPeriod.periodGrossRevenue,
+      periodReturnAmount: overviewPeriod.periodReturnAmount,
       periodInvoices: overviewPeriod.periodInvoices,
       periodCancelledInvoices
     },
@@ -3261,6 +3290,8 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     invoices: {
       revenueByDay: invoicesPeriod.revenueByDay,
       periodRevenue: invoicesPeriod.periodRevenue,
+      periodGrossRevenue: invoicesPeriod.periodGrossRevenue,
+      periodReturnAmount: invoicesPeriod.periodReturnAmount,
       periodInvoices: invoicesPeriod.periodInvoices,
       periodCancelledInvoices,
       transactionsReport,

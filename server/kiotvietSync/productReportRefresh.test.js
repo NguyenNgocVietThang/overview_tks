@@ -48,6 +48,15 @@ test('REFRESH_SQL luu lai customer_agg vao product_report_customers trong CUNG 1
   assert.match(sql, /INSERT INTO product_report \(/);
 });
 
+test('REFRESH_SQL tru hang khach tra khoi doanh so rong cua khach (khop revenue_90d) va chan ty le > 100%', () => {
+  const sql = __sql__.REFRESH_SQL;
+  assert.match(sql, /FROM return_details rd/);
+  assert.match(sql, /r\.raw->>'statusValue' = 'Đã trả'/);
+  assert.match(sql, /-\(CASE/, 'dong tra hang la dong AM');
+  assert.match(sql, /HAVING SUM\(amount\) > 0/);
+  assert.match(sql, /LEAST\(1, /);
+});
+
 test('refreshProductReport ROLLBACK va nem loi neu INSERT that bai', async () => {
   const calls = [];
   const client = {

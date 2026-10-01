@@ -3230,7 +3230,7 @@
             </div>
             <div class="kpi-grid section-kpis">
               <div class="kpi-card col-4 accent-green">
-                <div class="eyebrow">Doanh thu trong kỳ</div>
+                <div class="eyebrow">Doanh thu thực tế trong kỳ</div>
                 <div class="value" id="in-revenue">—</div>
                 <div class="sub" id="in-revenue-sub">—</div>
               </div>
@@ -3248,7 +3248,7 @@
             <div class="grid">
               <div class="panel col-12">
                 <div class="panel-head">
-                  <h2>Doanh thu theo ngày</h2>
+                  <h2>Doanh thu thực tế theo ngày <span class="section-note">hóa đơn hoàn thành trừ tiền trả hàng trong ngày</span></h2>
                   <div class="table-search-tools" data-date-filter-slot="invoices"></div>
                 </div>
                 <div class="chart-box"><canvas id="chartInvoiceRevenue"></canvas></div>
@@ -3269,7 +3269,7 @@
           <section class="section">
             <div class="section-head"><span class="section-step">2</span>
               <h2>Báo cáo doanh thu theo khách <span class="section-note">chọn 1 khách để xem doanh thu 90 ngày gần
-                  nhất</span></h2>
+                  nhất · đã trừ hàng trả lại</span></h2>
             </div>
             <div class="search-input-wrap">
               <svg class="search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -3398,7 +3398,7 @@
                         <th style="width:135px">DS 90 ngày</th>
                         <th style="width:140px">SL khách bán</th>
                         <th style="width:220px">Khách lớn nhất</th>
-                        <th style="width:175px">% Khách lớn nhất</th>
+                        <th style="width:105px">% Khách lớn</th>
                       </tr>
                     </thead>
                     <tbody id="productReportRows">
@@ -3657,7 +3657,7 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">2</span>
-              <h2>Phân tích <span class="section-note" id="productAnalysisPeriod">doanh thu trong 30 ngày</span></h2>
+              <h2>Phân tích <span class="section-note" id="productAnalysisPeriod">doanh thu thực tế (đã trừ trả hàng) trong 30 ngày</span></h2>
             </div>
             <div class="kpi-grid section-kpis" id="topSellingKpis"></div>
             <div class="period-toggle analysis-toggle" id="productAnalysisToggle" role="group"
@@ -3997,7 +3997,7 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">1</span>
-              <h2>Top khách hàng theo doanh thu <span class="section-note">lọc theo khoảng Từ – Đến ở bảng chi tiết</span></h2>
+              <h2>Top khách hàng theo doanh thu <span class="section-note">lọc theo khoảng Từ – Đến ở bảng chi tiết · đã trừ hàng trả lại</span></h2>
             </div>
             <div class="kpi-grid section-kpis" id="customerRevenueKpis"></div>
             <div class="grid transaction-analysis-grid">
@@ -6377,7 +6377,19 @@
           interaction: { mode: 'index', intersect: false, axis: 'x' },
           plugins: {
             legend: { display: false },
-            tooltip: { callbacks: { label: c => fmtMoney(c.raw) } }
+            tooltip: {
+              callbacks: {
+                label: c => fmtMoney(c.raw),
+                // Chuoi doanh thu thuc te theo ngay co kem doanh thu ban/tra hang; chuoi khac (vd theo khach) thi khong.
+                afterLabel: c => {
+                  const day = revenueByDay[c.dataIndex] || {};
+                  const returned = Number(day.returnAmount) || 0;
+                  return returned > 0
+                    ? ['Doanh thu bán: ' + fmtMoney(Number(day.grossRevenue) || 0), 'Trả hàng: -' + fmtMoney(returned)]
+                    : '';
+                }
+              }
+            }
           },
           scales: {
             x: { ticks: { color: theme.muted, maxTicksLimit: 10, font: { size: 10.5 } }, grid: { display: false } },
@@ -7609,9 +7621,9 @@
       document.getElementById('cpDetailCount').textContent = filtered.length;
       const cpScope = productCode ? (state.customerProductReport.productName || productCode) : 'Tất cả sản phẩm';
       renderSectionKpis('cpKpis', [
-        { label: 'Doanh số 90 ngày', value: fmtMoney(sumBy(filtered, p => p.revenue)), sub: cpScope, accent: 'green' },
-        { label: 'Số lượng mua', value: fmtNumber(sumBy(filtered, p => p.quantity)), sub: cpScope, accent: 'blue' },
-        { label: 'Số sản phẩm đã mua', value: fmtNumber(filtered.length), sub: cpScope, accent: 'amber' }
+        { label: 'Doanh số thực tế 90 ngày', value: fmtMoney(sumBy(filtered, p => p.revenue)), sub: cpScope + ' · đã trừ trả hàng', accent: 'green' },
+        { label: 'Số lượng mua thực tế', value: fmtNumber(sumBy(filtered, p => p.quantity)), sub: cpScope + ' · đã trừ trả hàng', accent: 'blue' },
+        { label: 'Số sản phẩm đã mua', value: fmtNumber(filtered.filter(p => Number(p.quantity) > 0).length), sub: cpScope, accent: 'amber' }
       ]);
       renderPaginatedRows(
         'cpDetail',
@@ -7735,7 +7747,10 @@
         const trend = d.overview || {};
         const trendRangeLabel = d.filters && d.filters.invoices ? d.filters.invoices.label : ((d.days || state.days) + ' ngày');
         document.getElementById('in-revenue').textContent = fmtMoney(trend.periodRevenue);
-        document.getElementById('in-revenue-sub').textContent = trendRangeLabel;
+        const trendReturnAmount = Number(trend.periodReturnAmount) || 0;
+        document.getElementById('in-revenue-sub').textContent = trendReturnAmount > 0
+          ? trendRangeLabel + ' · đã trừ ' + fmtMoney(trendReturnAmount) + ' trả hàng'
+          : trendRangeLabel;
         document.getElementById('in-period-invoices').textContent = fmtNumber(Number(trend.periodInvoices || 0));
         document.getElementById('in-period-sub').textContent = trendRangeLabel;
         document.getElementById('in-cancelled').textContent = fmtNumber(Number(trend.periodCancelledInvoices || 0));
@@ -7746,7 +7761,7 @@
       else if (view === 'products') {
         const productRangeLabel = d.filters && d.filters.products ? d.filters.products.label : '30 ngày';
         const newlyImportedRangeLabel = d.filters && d.filters.newlyImported ? d.filters.newlyImported.label : productRangeLabel;
-        document.getElementById('productAnalysisPeriod').textContent = 'doanh thu: ' + productRangeLabel;
+        document.getElementById('productAnalysisPeriod').textContent = 'doanh thu thực tế (đã trừ trả hàng): ' + productRangeLabel;
         document.getElementById('newlyImportedPeriod').textContent = 'ngày nhập đầu tiên: ' + newlyImportedRangeLabel;
         document.getElementById('pr-total').textContent = d.kpi.totalProducts;
         document.getElementById('pr-stock').textContent = fmtNumber(d.kpi.inStockCodes);
@@ -7842,9 +7857,10 @@
         // Luon tinh tren danh sach mat hang (khong doi theo nut Theo mat hang/Theo nhom cha).
         const sellingProducts = (d.products && d.products.allSellingProducts) || [];
         renderSectionKpis('topSellingKpis', [
-          { label: 'Doanh thu trong kỳ', value: fmtMoney(sumBy(sellingProducts, p => p.revenue)), sub: productRangeLabel, accent: 'green' },
-          { label: 'Số lượng bán', value: fmtNumber(sumBy(sellingProducts, p => p.qty)), sub: productRangeLabel, accent: 'blue' },
-          { label: 'Số mã có bán', value: fmtNumber(sellingProducts.length), sub: productRangeLabel, accent: 'amber' }
+          { label: 'Doanh thu thực tế trong kỳ', value: fmtMoney(sumBy(sellingProducts, p => p.revenue)), sub: productRangeLabel + ' · đã trừ trả hàng', accent: 'green' },
+          { label: 'Số lượng bán thực tế', value: fmtNumber(sumBy(sellingProducts, p => p.qty)), sub: productRangeLabel + ' · đã trừ trả hàng', accent: 'blue' },
+          // Ma co tra hang nhieu hon ban trong ky (so luong rong <= 0) khong tinh la "co ban".
+          { label: 'Số mã có bán', value: fmtNumber(sellingProducts.filter(p => Number(p.qty) > 0).length), sub: productRangeLabel, accent: 'amber' }
         ]);
       }
       else if (view === 'invoices') {

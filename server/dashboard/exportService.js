@@ -771,7 +771,7 @@ const TABLE_SPECS = {
     items: customerRevenueRows,
     derived: [
       { key: 'sale_order_count', label: 'Số đơn bán', type: 'number', description: 'Số đơn bán của khách trong kỳ.' },
-      { key: 'period_revenue', label: 'Doanh thu trong kỳ', type: 'number', description: 'Doanh thu bán cho khách trong kỳ (VNĐ).' },
+      { key: 'period_revenue', label: 'Doanh thu trong kỳ', type: 'number', description: 'Doanh thu thực tế bán cho khách trong kỳ, đã trừ hàng trả lại (VNĐ).' },
       { key: 'revenue_hn', label: 'Doanh thu Hà Nội', type: 'number', description: 'Doanh thu bán cho khách ở cơ sở Hà Nội trong kỳ (VNĐ).' },
       { key: 'revenue_sg', label: 'Doanh thu Sài Gòn', type: 'number', description: 'Doanh thu bán cho khách ở cơ sở Sài Gòn trong kỳ (VNĐ).' }
     ],
@@ -788,7 +788,7 @@ const TABLE_SPECS = {
     key: 'customer_debt', name: 'Khách còn nợ', sourceKey: 'customers', branchColumn: scope.aggregate ? 'customer' : false,
     items: dashboard => (dashboard.customers || {}).topDebt || [],
     derived: [
-      { key: 'period_revenue', label: 'Doanh thu trong kỳ', type: 'number', description: 'Doanh thu bán cho khách trong kỳ (VNĐ).' },
+      { key: 'period_revenue', label: 'Doanh thu trong kỳ', type: 'number', description: 'Doanh thu thực tế bán cho khách trong kỳ, đã trừ hàng trả lại (VNĐ).' },
       { key: 'debt_hn', label: 'Công nợ Hà Nội', type: 'number', description: 'Công nợ của khách ở cơ sở Hà Nội (VNĐ).' },
       { key: 'debt_sg', label: 'Công nợ Sài Gòn', type: 'number', description: 'Công nợ của khách ở cơ sở Sài Gòn (VNĐ).' }
     ],

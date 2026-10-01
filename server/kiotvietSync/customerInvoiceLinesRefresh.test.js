@@ -34,13 +34,15 @@ test('refreshCustomerInvoiceLines chay dung trinh tu trong 1 giao dich va bao so
     "SET LOCAL work_mem = '32MB'",
     __sql__.CREATE_STAGING_SQL,
     __sql__.FILL_STAGING_SQL,
+    __sql__.FILL_STAGING_RETURNS_SQL,
     __sql__.DELETE_STALE_SQL,
     __sql__.INSERT_MISSING_SQL,
     __sql__.UPSERT_STATE_SQL,
     'COMMIT'
   ]);
   assert.deepEqual(client.calls[3].params, [['hanoi', 'saigon'], '2026-06-30', '2026-09-27']);
-  assert.deepEqual(client.calls[6].params, ['2026-06-30', '2026-09-27']);
+  assert.deepEqual(client.calls[4].params, [['hanoi', 'saigon'], '2026-06-30', '2026-09-27']);
+  assert.deepEqual(client.calls[7].params, ['2026-06-30', '2026-09-27']);
   assert.deepEqual(result, { window: { start: '2026-06-30', end: '2026-09-27' }, rowCount: 65914, inserted: 9, deleted: 4 });
   assert.match(logs[0], /65914/);
 });
@@ -68,6 +70,17 @@ test('cau nap dong hang doi chieu ten khach nhu luong sheet cu va chi lay hoa do
   assert.match(sql, /COALESCE\(NULLIF\(btrim\(i\.raw->>'customerCode'\), ''\), cbn\.code\)/);
   assert.match(sql, /ORDER BY branch, name_key, raw_code DESC/);
   assert.match(sql, /normalize\(/);
+});
+
+test('cau nap phieu tra: dong AM theo ngay tra, chi phieu Đã trả, id am de khong trung hoa don', () => {
+  const sql = __sql__.FILL_STAGING_RETURNS_SQL;
+  assert.match(sql, /r\.raw->>'statusValue' = 'Đã trả'/);
+  assert.match(sql, /^\s*WITH customer_by_name AS/);
+  assert.match(sql, /\n\s+-r\.id,/);
+  assert.match(sql, /-abs\(COALESCE\(rd\.quantity, 0\)\)::numeric/);
+  assert.match(sql, /\(r\.return_date AT TIME ZONE 'UTC'\)::date/);
+  assert.match(sql, /r\.return_date >= \(\$2::date::timestamp AT TIME ZONE 'UTC'\)/);
+  assert.match(sql, /-\(CASE/);
 });
 
 test('buoc xoa/chen chi dong vao dong da mat, da doi hoac moi (khong TRUNCATE + nap lai ca bang)', () => {
