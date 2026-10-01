@@ -16,8 +16,14 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 const { getPool } = require('../db/pool');
+// Hang dang van chuyen: MOT nguon SQL chung (module nho, khong phu thuoc gi) voi tab Hang hoa.
+const { IN_TRANSIT_STATUS, inTransitSelectSql, sqlLiteral } = require('../dashboard/inTransitSource');
 
 const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
+
+// Don dat hang cua khach ("Phieu tam") dang giu cho hang — chi trang thai nay bi tru khoi ton
+// co the ban (quy tac 2026-10-01: Ton thuc - Dat hang phieu tam + Hang dang van chuyen).
+const PENDING_ORDER_STATUS = 'Phiếu tạm';
 
 // Gia tri 1 dong return_details (alias rd), tuyet doi - ban sao cua RETURN_AMOUNT_SQL
 // trong customerProductTopRepository.js (cung ly do khong import o duoi).
@@ -65,9 +71,9 @@ const REFRESH_SQL = `
     WHERE p.branch = 'saigon' AND COALESCE(p.code, '') <> ''
   ),
   pending_orders AS (
-    -- "Dat hang cua khach" (bang orders, KHONG PHAI purchases-NCC) dang o
-    -- trang thai chua hoan tat - so nay bi tru khoi ton kha ban vi da bi giu
-    -- cho, khac voi phieu nhap NCC (se CONG them khi ve, khong tru).
+    -- "Dat hang cua khach" (bang orders, KHONG PHAI purchases-NCC) o trang thai Phieu tam —
+    -- so nay bi tru khoi ton co the ban vi da bi giu cho (truoc 2026-10-01 con tinh them
+    -- 'Đang xử lý'/'Đã xác nhận' — gan nhu khong co don nao o 2 trang thai nay).
     SELECT
       lower(btrim(COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, ''))) AS product_key,
       SUM(COALESCE(d.quantity, 0))::float8 AS qty
@@ -75,8 +81,13 @@ const REFRESH_SQL = `
     JOIN orders o ON o.branch = d.branch AND o.id = d.order_id
     LEFT JOIN products p ON p.branch = d.branch AND p.id = d.product_id
     WHERE d.branch = ANY($1::text[])
-      AND COALESCE(o.raw->>'statusValue', '') IN ('Phiếu tạm', 'Đang xử lý', 'Đã xác nhận')
+      AND COALESCE(o.raw->>'statusValue', '') = ${sqlLiteral(PENDING_ORDER_STATUS)}
     GROUP BY 1
+  ),
+  in_transit AS (
+    -- Hang dang van chuyen (phieu Dat hang nhap 'Đã xác nhận NCC' cua Kiot Sai Gon) CONG them vao
+    -- ton co the ban. Bang nay gop 2 co so tren 1 dong/ma nen chi cong 1 LAN (khong cong theo co so).
+    ${inTransitSelectSql(sqlLiteral(IN_TRANSIT_STATUS))}
   ),
   sales_30d AS (
     SELECT p.code AS product_code, SUM(dps.qty)::float8 AS qty
@@ -175,7 +186,7 @@ const REFRESH_SQL = `
     hn.name,
     hn.on_hand,
     COALESCE(sg.on_hand, 0),
-    hn.on_hand + COALESCE(sg.on_hand, 0) - COALESCE(po.qty, 0),
+    hn.on_hand + COALESCE(sg.on_hand, 0) - COALESCE(po.qty, 0) + COALESCE(tr.qty, 0),
     COALESCE(s30.qty, 0),
     COALESCE(s90.revenue, 0),
     COALESCE(ct.customer_count, 0),
@@ -186,6 +197,7 @@ const REFRESH_SQL = `
   FROM hn_products hn
   LEFT JOIN sg_products sg ON sg.code = hn.code
   LEFT JOIN pending_orders po ON po.product_key = lower(btrim(hn.code))
+  LEFT JOIN in_transit tr ON tr.product_key = lower(btrim(hn.code))
   LEFT JOIN sales_30d s30 ON s30.product_code = hn.code
   LEFT JOIN sales_90d s90 ON s90.product_code = hn.code
   LEFT JOIN customer_top ct ON ct.product_key = lower(btrim(hn.code))`;

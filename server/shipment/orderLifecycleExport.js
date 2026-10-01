@@ -1,8 +1,8 @@
 // ==========================================
 // ORDER LIFECYCLE EXPORT — xuat Excel cho bang "Toan bo don hang" o
 // /shipment/lifecycle/. Cot xuat ra y het 10 cot cua Google Sheet nguon
-// (xem SCHEMA o orderLifecycleRepository.js) + Co so + Trang thai + Canh bao hien thi
-// tren UI, KHONG parse ngay/gio thanh Date de tranh sai lech voi du lieu tho
+// (xem SCHEMA o orderLifecycleRepository.js) + Co so + Trang thai + Canh bao + Gia tri co ban hien
+// thi tren UI, KHONG parse ngay/gio thanh Date de tranh sai lech voi du lieu tho
 // trong sheet (co the co dinh dang loi nhu "15,35" thay vi "15:35").
 // ==========================================
 'use strict';
@@ -19,6 +19,8 @@ const COLUMNS = [
   { key: 'branchLabel', label: 'Cơ sở' },
   { key: 'saleName', label: 'Nhân viên bán hàng' },
   { key: 'customerName', label: 'Khách hàng' },
+  // Giá trị có bán (đơn Phiếu tạm của Kiot; ô trống nếu đơn không còn là Phiếu tạm) — cột SỐ.
+  { key: 'sellableValue', label: 'Giá trị có bán', numeric: true },
   { key: 'saleSentAt', label: 'Sale gửi đơn cho kế toán' },
   { key: 'accountantApprovedOrderAt', label: 'Kế toán duyệt đơn' },
   { key: 'driverName', label: 'Lái xe' },
@@ -40,6 +42,12 @@ function columnValue(order, key) {
   if (key === 'branchLabel') return BRANCH_LABEL[order.branch] || order.branch || '';
   if (key === 'statusLabel') return (order.summary && order.summary.label) || '';
   if (key === 'warningLabel') return order.warning ? 'Cảnh báo' : '';
+  // Chi don dang Phieu tam moi co gia tri co ban; con lai de trong (giong "—" tren bang).
+  if (key === 'sellableValue') {
+    return order.kiotPhieuTam && Number.isFinite(Number(order.sellableValue)) && order.sellableValue !== null
+      ? Number(order.sellableValue)
+      : '';
+  }
   const raw = order[key];
   return raw === undefined || raw === null ? '' : raw;
 }
@@ -64,7 +72,11 @@ function buildLifecycleWorkbook(orders) {
 
   orders.forEach(order => {
     const row = {};
-    COLUMNS.forEach(column => { row[column.key] = neutralizeFormulaText(columnValue(order, column.key)); });
+    COLUMNS.forEach(column => {
+      const value = columnValue(order, column.key);
+      // Cot so giu nguyen kieu so (de sap xep/cong trong Excel); con lai chong formula-injection.
+      row[column.key] = column.numeric && typeof value === 'number' ? value : neutralizeFormulaText(value);
+    });
     worksheet.addRow(row);
   });
 
@@ -84,7 +96,10 @@ function buildLifecycleWorkbook(orders) {
     const sampleValues = orders.slice(0, 200).map(order => String(columnValue(order, column.key)));
     const width = Math.min(42, Math.max(12, column.label.length + 2, ...sampleValues.map(value => Math.min(value.length + 2, 42))));
     excelColumn.width = width;
-    excelColumn.alignment = { vertical: 'top', wrapText: false };
+    excelColumn.alignment = column.numeric
+      ? { vertical: 'top', horizontal: 'right', wrapText: false }
+      : { vertical: 'top', wrapText: false };
+    if (column.numeric) excelColumn.numFmt = '#,##0';
   });
 
   return workbook;

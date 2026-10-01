@@ -84,6 +84,19 @@ test('thieu quyen: chuyen toi trang dau tien tai khoan vao duoc', async () => {
   assert.equal(nextCalled, true, 'Ke toan van vao duoc trang nhan su');
 });
 
+test('Nhan vien sale vao duoc trang bao cao (quyen Tong quan); marketing van bi chuyen sang Vong doi', async () => {
+  const sale = guardFor({ vaiTro: ROLES.NHAN_VIEN_SALE, trangThai: 'Đang hoạt động' });
+  const saleResult = await run(sale, fakeReq('/reports/', { token: 'ok' }));
+  assert.equal(saleResult.nextCalled, true);
+  const saleRoot = await run(sale, fakeReq('/', { token: 'ok' }));
+  assert.equal(saleRoot.nextCalled, true, '"/" cung phuc vu trang bao cao');
+
+  const marketing = guardFor({ vaiTro: ROLES.NHAN_VIEN_MARKETING, trangThai: 'Đang hoạt động' });
+  const marketingResult = await run(marketing, fakeReq('/reports/', { token: 'ok' }));
+  assert.equal(marketingResult.nextCalled, false);
+  assert.equal(marketingResult.res.redirectedTo, '/shipment/lifecycle/');
+});
+
 test('ghi de quyen theo tai khoan co hieu luc ngay o page guard', async () => {
   const guard = guardFor({
     vaiTro: ROLES.KE_TOAN,

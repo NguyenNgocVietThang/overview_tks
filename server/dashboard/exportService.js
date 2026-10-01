@@ -47,8 +47,6 @@ const TABLE_TITLES = Object.freeze({
   'products.all': 'Tất cả mã hàng',
   'products.newly-imported': 'Hàng mới nhập',
   'products.inventory': 'Chi tiết tồn kho theo sản phẩm',
-  'invoices.orders': 'Danh sách đặt hàng',
-  'invoices.returns': 'Danh sách trả hàng',
   'customers.revenue': 'Doanh thu theo khách',
   'customers.debt': 'Chi tiết khách nợ',
   'customers.productDetail': 'Bảng chi tiết sản phẩm theo khách',
@@ -113,10 +111,9 @@ function normalizeFilters(rawFilters) {
     invoices,
     customers,
     newProducts: normalizeFilterSpec(raw.newProducts || overview),
-    // Bo loc rieng tung bang; khong gui thi dung bo loc Hang hoa / Hoa don.
-    newlyImported: raw.newlyImported ? normalizeFilterSpec(raw.newlyImported) : products,
-    orders: raw.orders ? normalizeFilterSpec(raw.orders) : invoices,
-    returns: raw.returns ? normalizeFilterSpec(raw.returns) : invoices
+    // Bo loc rieng bang Hang moi nhap; khong gui thi dung bo loc Hang hoa.
+    // (Bo loc `orders`/`returns` cua 2 bang Dat hang / Tra hang da bo 2026-10-01.)
+    newlyImported: raw.newlyImported ? normalizeFilterSpec(raw.newlyImported) : products
   };
 }
 
@@ -619,7 +616,7 @@ const INVENTORY_COLUMN_DEFS = {
   stock: ['Tồn kho', 'number', 'Tồn thực tế trên KiotViet, chưa trừ hàng khách đã đặt.'],
   stockHanoi: ['Tồn kho Hà Nội', 'number', 'Tồn thực tế tại cơ sở Hà Nội; để trống nếu mã không có ở cơ sở này.'],
   stockSaigon: ['Tồn kho Sài Gòn', 'number', 'Tồn thực tế tại cơ sở Sài Gòn; để trống nếu mã không có ở cơ sở này.'],
-  available: ['Tồn có thể bán', 'number', 'Tồn kho trừ số lượng khách đã đặt nhưng chưa giao (âm nghĩa là đã giữ quá tồn).'],
+  available: ['Tồn có thể bán', 'number', 'Tồn kho trừ số lượng khách đã đặt (phiếu tạm) cộng hàng đang vận chuyển (âm nghĩa là đã giữ quá tồn).'],
   availableHanoi: ['Tồn có thể bán Hà Nội', 'number', 'Tồn có thể bán tại cơ sở Hà Nội; để trống nếu mã không có ở cơ sở này.'],
   availableSaigon: ['Tồn có thể bán Sài Gòn', 'number', 'Tồn có thể bán tại cơ sở Sài Gòn; để trống nếu mã không có ở cơ sở này.'],
   inTransit: ['Hàng đang vận chuyển', 'number', 'Số lượng trong phiếu đặt hàng nhập ở trạng thái "Đã xác nhận nhà cung cấp" của Kiot Sài Gòn, ghép theo mã hàng.'],
@@ -642,7 +639,10 @@ function inventoryColumns(aggregate) {
 
 function inventoryAvailable(product) {
   const stock = Number(product.stock) || 0;
-  return product.available === undefined ? stock - (Number(product.reserved) || 0) : product.available;
+  // Cung cong thuc voi dashboardData.js (allProducts.available): ton - khach dat + dang van chuyen.
+  return product.available === undefined
+    ? stock - (Number(product.reserved) || 0) + (Number(product.inTransit) || 0)
+    : product.available;
 }
 
 function sortInventoryRows(rows) {
@@ -757,14 +757,6 @@ const TABLE_SPECS = {
     key: 'inventory', name: 'Chi tiết tồn kho', columns: inventoryColumns(scope.aggregate), codeKey: 'code',
     rows: dashboard => inventoryRows(dashboard.allProducts, scope.aggregate),
     summaryKeys: ['stockValue', 'stock', 'stockHanoi', 'stockSaigon']
-  }),
-  'invoices.orders': (context, scope) => singleSourceTable({
-    key: 'orders', name: 'Đặt hàng', sourceKey: 'orders', branchColumn: scope.aggregate,
-    items: dashboard => (dashboard.invoices || {}).periodOrders || []
-  }),
-  'invoices.returns': (context, scope) => singleSourceTable({
-    key: 'returns', name: 'Trả hàng', sourceKey: 'returns', branchColumn: scope.aggregate,
-    items: dashboard => (dashboard.invoices || {}).periodReturns || []
   }),
   'customers.revenue': (context, scope) => singleSourceTable({
     key: 'customer_revenue', name: 'Doanh thu theo khách', sourceKey: 'customers', branchColumn: scope.aggregate ? 'customer' : false,

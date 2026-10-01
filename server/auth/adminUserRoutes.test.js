@@ -586,7 +586,12 @@ test('GET /api/admin/permissions/catalog tra ve danh muc + mac dinh theo vai tro
   assert.ok(Array.isArray(res.body.groups) && res.body.groups.length > 0);
   assert.equal(res.body.features.length, featureRegistry.FEATURE_KEYS.length);
   assert.ok(res.body.features.every(f => f.key && f.label && f.groupKey));
-  assert.deepEqual(res.body.roleDefaults['Nhân viên marketing'], res.body.roleDefaults['Nhân viên sale']);
+  // Marketing giong Sale tru quyen Tong quan (Sale duoc mo them tu 2026-10-01).
+  assert.deepEqual(
+    res.body.roleDefaults['Nhân viên marketing'],
+    res.body.roleDefaults['Nhân viên sale'].filter(key => key !== 'reports.overview')
+  );
+  assert.ok(res.body.roleDefaults['Nhân viên sale'].includes('reports.overview'));
   assert.ok(res.body.features.find(f => f.key === 'account.profile').alwaysOn);
 });
 
@@ -843,4 +848,133 @@ test('Chong leo thang: PUT permissions khong tu cap them / cap them quyen actor 
   const reduce = fakeRes();
   await handler({ user: delegate(), params: { id: 'kt-1' }, body: { overrides: { 'shipment.override': false } } }, reduce);
   assert.equal(reduce.statusCode, 200);
+});
+
+// ---------------------------------------------------------------------------
+// LUAT 4 (2026-10-01): QUAN LY THUONG KHONG TAC DONG DUOC LEN QUAN LY KHAC.
+// Chi Quan ly cap cao (admin cung) moi duoc dat lai mat khau / doi email-SDT / ha vai tro /
+// rut quyen / khoa / xoa tai khoan cua Quan ly khac. Voi nhan vien thuong va chinh minh
+// Quan ly thuong van lam duoc nhu truoc.
+// ---------------------------------------------------------------------------
+
+const ordinaryManagerActor = { id: 'ql-1', username: 'quanly1', hoTen: 'Quản lý 1', vaiTro: 'Quản lý' };
+const seniorActor = { id: 'adm-1', username: 'admin', hoTen: 'Admin', vaiTro: 'Quản lý' };
+
+function seedManagersAndStaff() {
+  const base = { coSo: 'Cả hai', trangThai: 'Đang hoạt động', ngayTao: '01/01/2026' };
+  localUserStore.setInMemoryUsers([
+    { id: 'ql-1', username: 'quanly1', hoTen: 'Quản lý 1', email: 'ql1@example.com', passwordHash: 'h1', vaiTro: 'Quản lý', ...base },
+    { id: 'ql-2', username: 'quanly2', hoTen: 'Quản lý 2', email: 'ql2@example.com', passwordHash: 'h2', vaiTro: 'Quản lý', ...base },
+    { id: 'nv-1', username: 'nhanvien1', hoTen: 'Nhân viên 1', email: 'nv1@example.com', passwordHash: 'h3', vaiTro: 'Nhân viên kho', ...base }
+  ]);
+}
+
+async function callRoute(method, routePath, req) {
+  const res = fakeRes();
+  await getRouteHandler(adminUserRoutes, method, routePath)(req, res);
+  return res;
+}
+
+function assertSeniorOnly(res) {
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.code, 'ACCOUNT_POLICY_DENIED');
+  assert.match(res.body.error, /Chỉ Quản lý cấp cao mới được .* của Quản lý khác/);
+}
+
+test('Luat 4: Quan ly thuong KHONG dat lai mat khau cua Quan ly khac; van dat lai cho nhan vien; cap cao thi duoc', async () => {
+  seedManagersAndStaff();
+  const path = '/api/admin/users/:id/reset-password';
+
+  const denied = await callRoute('post', path, { user: ordinaryManagerActor, params: { id: 'ql-2' }, body: { newPassword: 'MatKhauMoi123' } });
+  assertSeniorOnly(denied);
+  assert.equal((await localUserStore.getUserById('ql-2')).passwordHash, 'h2', 'mat khau khong doi');
+
+  const staff = await callRoute('post', path, { user: ordinaryManagerActor, params: { id: 'nv-1' }, body: { newPassword: 'MatKhauMoi123' } });
+  assert.equal(staff.statusCode, 200);
+  assert.notEqual((await localUserStore.getUserById('nv-1')).passwordHash, 'h3');
+
+  const senior = await callRoute('post', path, { user: seniorActor, params: { id: 'ql-2' }, body: { newPassword: 'MatKhauMoi123' } });
+  assert.equal(senior.statusCode, 200);
+  assert.notEqual((await localUserStore.getUserById('ql-2')).passwordHash, 'h2');
+});
+
+test('Luat 4: Quan ly thuong KHONG doi email/SDT cua Quan ly khac (duong chiem quyen qua OTP) nhung van sua ho ten; tu sua minh duoc', async () => {
+  seedManagersAndStaff();
+  const path = '/api/admin/users/:id';
+
+  assertSeniorOnly(await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'ql-2' }, body: { email: 'chiem@example.com' } }));
+  assertSeniorOnly(await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'ql-2' }, body: { soDienThoai: '0912345678' } }));
+  assert.equal((await localUserStore.getUserById('ql-2')).email, 'ql2@example.com');
+
+  const rename = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'ql-2' }, body: { hoTen: 'Tên mới' } });
+  assert.equal(rename.statusCode, 200, 'sua ho ten khong phai ha quyen');
+
+  const self = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'ql-1' }, body: { email: 'moi-ql1@example.com' } });
+  assert.equal(self.statusCode, 200, 'tu doi email cua chinh minh khong bi chan');
+});
+
+test('Luat 4: Quan ly thuong KHONG ha vai tro cua Quan ly khac; cap cao thi duoc; nang len Quan ly khong bi chan', async () => {
+  seedManagersAndStaff();
+  const path = '/api/admin/users/:id';
+
+  assertSeniorOnly(await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'ql-2' }, body: { vaiTro: 'Trợ lý' } }));
+  assert.equal((await localUserStore.getUserById('ql-2')).vaiTro, 'Quản lý');
+
+  const promote = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'nv-1' }, body: { vaiTro: 'Quản lý' } });
+  assert.equal(promote.statusCode, 200, 'chi chan HA vai tro cua Quan ly, khong chan nang len');
+
+  const senior = await callRoute('put', path, { user: seniorActor, params: { id: 'ql-2' }, body: { vaiTro: 'Trợ lý' } });
+  assert.equal(senior.statusCode, 200);
+  assert.equal((await localUserStore.getUserById('ql-2')).vaiTro, 'Trợ lý');
+});
+
+test('Luat 4: ghi de vai tro cua Quan ly HR-managed khac cung bi chan voi Quan ly thuong', async () => {
+  const base = { coSo: 'Cả hai', trangThai: 'Đang hoạt động', ngayTao: '01/01/2026' };
+  localUserStore.setInMemoryUsers([
+    { id: 'ql-1', username: 'quanly1', hoTen: 'Quản lý 1', vaiTro: 'Quản lý', ...base },
+    { id: 'hr-ql', username: 'hr-ql@example.com', hoTen: 'QL HR', email: 'hr-ql@example.com', vaiTro: 'Quản lý',
+      hrManaged: true, sheetVaiTro: 'Quản lý', sheetCoSo: 'Cả hai', ...base }
+  ]);
+  const res = await callRoute('put', '/api/admin/users/:id', {
+    user: ordinaryManagerActor, params: { id: 'hr-ql' }, body: { vaiTroOverride: 'Kế toán' }
+  });
+  assertSeniorOnly(res);
+  assert.equal((await localUserStore.getUserById('hr-ql')).vaiTro, 'Quản lý');
+});
+
+test('Luat 4: Quan ly thuong KHONG khoa / xoa Quan ly khac; van khoa/xoa nhan vien; cap cao thi duoc', async () => {
+  seedManagersAndStaff();
+  const putPath = '/api/admin/users/:id';
+
+  assertSeniorOnly(await callRoute('put', putPath, { user: ordinaryManagerActor, params: { id: 'ql-2' }, body: { trangThai: 'Khóa' } }));
+  assert.equal((await localUserStore.getUserById('ql-2')).trangThai, 'Đang hoạt động');
+  assertSeniorOnly(await callRoute('delete', putPath, { user: ordinaryManagerActor, params: { id: 'ql-2' } }));
+  assert.ok(await localUserStore.getUserById('ql-2'), 'tai khoan van con');
+
+  const lockStaff = await callRoute('put', putPath, { user: ordinaryManagerActor, params: { id: 'nv-1' }, body: { trangThai: 'Khóa' } });
+  assert.equal(lockStaff.statusCode, 200);
+  const deleteStaff = await callRoute('delete', putPath, { user: ordinaryManagerActor, params: { id: 'nv-1' } });
+  assert.equal(deleteStaff.statusCode, 200);
+
+  const lockBySenior = await callRoute('put', putPath, { user: seniorActor, params: { id: 'ql-2' }, body: { trangThai: 'Khóa' } });
+  assert.equal(lockBySenior.statusCode, 200);
+  const deleteBySenior = await callRoute('delete', putPath, { user: seniorActor, params: { id: 'ql-2' } });
+  assert.equal(deleteBySenior.statusCode, 200);
+});
+
+test('Luat 4: Quan ly thuong KHONG rut quyen cua Quan ly khac (khong doi gi thi van duoc); cap cao thi duoc', async () => {
+  seedManagersAndStaff();
+  const path = '/api/admin/users/:id/permissions';
+
+  assertSeniorOnly(await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'ql-2' }, body: { overrides: { 'reports.debt': false } } }));
+  assert.deepEqual((await localUserStore.getUserById('ql-2')).featurePermissions || {}, {}, 'quyen khong bi rut');
+
+  const noChange = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'ql-2' }, body: { overrides: {} } });
+  assert.equal(noChange.statusCode, 200, 'khong rut quyen nao thi khong phai ha quyen');
+
+  const staff = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'nv-1' }, body: { overrides: { 'shipment.override': true } } });
+  assert.equal(staff.statusCode, 200, 'nhan vien thuong khong bi gioi han');
+
+  const senior = await callRoute('put', path, { user: seniorActor, params: { id: 'ql-2' }, body: { overrides: { 'reports.debt': false } } });
+  assert.equal(senior.statusCode, 200);
 });

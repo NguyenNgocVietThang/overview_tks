@@ -24,10 +24,44 @@ test('isManagerClass nhan ra vai tro Quan ly va admin cung', () => {
   assert.equal(policy.isManagerClass(null), false);
 });
 
-test('Quan ly khong bi rang buoc boi bat ky luat nao', () => {
+test('Quan ly khong bi rang buoc boi luat 1-3 (nhom tac dong len tai khoan thuong va gan quyen)', () => {
   assert.equal(policy.checkTargetWritable(manager, user('Quản lý')), null);
   assert.equal(policy.checkGrant(manager, null, user('Quản lý')), null);
   assert.equal(policy.checkTakeover(manager, user('Quản lý'), 'đặt lại mật khẩu'), null);
+});
+
+// ---- Luat 4 (2026-10-01): Quan ly THUONG khong tac dong len Quan ly KHAC; cap cao (admin cung) thi duoc ----
+const seniorOwner = { id: 'owner', username: 'thangnnv2003@gmail.com', email: 'thangnnv2003@gmail.com', vaiTro: 'Quản lý' };
+const seniorDefaultAdmin = { id: 'adm', username: 'admin', vaiTro: 'Quản lý' };
+const otherManager = { id: 'm2', username: 'ql2', vaiTro: 'Quản lý' };
+
+test('isSeniorAdmin chi nhan ra admin cung, KHONG nhan ra Quan ly thuong', () => {
+  assert.equal(policy.isSeniorAdmin(seniorOwner), true);
+  assert.equal(policy.isSeniorAdmin(seniorDefaultAdmin), true);
+  assert.equal(policy.isSeniorAdmin({ vaiTro: 'Trợ lý', email: 'thangnnv2003@gmail.com' }), true, 'nhan dien theo dinh danh, khong theo vai tro');
+  assert.equal(policy.isSeniorAdmin(manager), false);
+  assert.equal(policy.isSeniorAdmin(troLy()), false);
+  assert.equal(policy.isSeniorAdmin(null), false);
+});
+
+test('checkProtectedManager: Quan ly thuong bi chan voi Quan ly khac va admin cung', () => {
+  const denied = policy.checkProtectedManager(manager, otherManager, 'đặt lại mật khẩu');
+  assert.match(denied, /Chỉ Quản lý cấp cao mới được đặt lại mật khẩu của Quản lý khác/);
+  assert.ok(policy.checkProtectedManager(manager, seniorOwner, 'hạ vai trò'));
+  assert.ok(policy.checkProtectedManager(manager, { vaiTro: 'Trợ lý', username: 'admin' }, 'khóa tài khoản'));
+});
+
+test('checkProtectedManager: Quan ly thuong van thao tac thoai mai voi nhan vien thuong va chinh minh', () => {
+  assert.equal(policy.checkProtectedManager(manager, user('Nhân viên kho'), 'đặt lại mật khẩu'), null);
+  assert.equal(policy.checkProtectedManager(manager, user('Trợ lý'), 'rút quyền'), null);
+  assert.equal(policy.checkProtectedManager(manager, manager, 'đổi email'), null, 'cung id');
+  assert.equal(policy.checkProtectedManager(manager, { id: 'khac', username: 'QL', vaiTro: 'Quản lý' }, 'đổi email'), null, 'cung username (khong phan biet hoa/thuong)');
+});
+
+test('checkProtectedManager: Quan ly cap cao khong bi chan voi bat ky ai', () => {
+  assert.equal(policy.checkProtectedManager(seniorOwner, otherManager, 'xóa tài khoản'), null);
+  assert.equal(policy.checkProtectedManager(seniorDefaultAdmin, otherManager, 'hạ vai trò'), null);
+  assert.equal(policy.checkProtectedManager(seniorDefaultAdmin, seniorOwner, 'đổi email'), null);
 });
 
 test('checkTargetWritable: nguoi khong phai Quan ly khong ghi len Quan ly / admin cung', () => {

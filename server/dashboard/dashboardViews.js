@@ -31,8 +31,10 @@ const VIEW_FEATURE = Object.freeze({
 // Khoa dac biet trong danh sach nguon: bo CN1/CN3/CN7 (customerDebtActivityRepository).
 const PERIODS_KEY = '@periods';
 
+// (2026-10-01: bo bang "Đặt hàng" khoi cac bang core — ~23K dong, ~2,8s moi lan doc, chi tab Hoa don
+// tung can cho 2 bang Dat hang / Tra hang da bo; don Phieu tam nay hien o trang Vong doi don hang.)
 const CORE_SHEETS_ORDER = Object.freeze([
-  CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES, CONFIG.SHEET_ORDERS,
+  CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES,
   CONFIG.SHEET_RETURNS, CONFIG.SHEET_CUSTOMERS
 ]);
 const ALL_CORE_KEYS = Object.freeze([...CORE_SHEETS_ORDER, PERIODS_KEY]);
@@ -56,9 +58,9 @@ const VIEW_SOURCES = Object.freeze({
     rollups: ['productSales', 'newlyImportedSales', 'firstPurchase'],
     needsDebt: false
   },
-  // Dat hang (~23K dong) + Tra hang chi tab Hoa don can.
+  // Tra hang (chi cho the chi so "Trả hàng") cung can o tab Khach hang (doanh thu rong).
   invoices: {
-    sheets: [CONFIG.SHEET_INVOICES, CONFIG.SHEET_ORDERS, CONFIG.SHEET_RETURNS],
+    sheets: [CONFIG.SHEET_INVOICES, CONFIG.SHEET_RETURNS],
     rollups: ['invoicesRevenue', 'invoiceQuantity'],
     needsDebt: false
   },
@@ -80,7 +82,7 @@ const VIEW_SOURCES = Object.freeze({
 const VIEW_FILTER_KEYS = Object.freeze({
   overview: ['overview', 'invoices'],
   products: ['products', 'newProducts', 'newlyImported'],
-  invoices: ['invoices', 'orders', 'returns'],
+  invoices: ['invoices'],
   customers: ['customers'],
   debt: []
 });
@@ -112,7 +114,7 @@ const VIEW_PAYLOAD = Object.freeze({
     top: ['invoices'],
     nested: {},
     kpi: [],
-    filters: ['invoices', 'orders', 'returns']
+    filters: ['invoices']
   },
   customers: {
     top: ['customers'],
@@ -173,7 +175,7 @@ function resolveViewPlan(rawViews) {
   const coreKeys = needsPeriods ? [...sheets, PERIODS_KEY] : sheets;
   const rollups = new Set(unionInOrder(ALL_ROLLUPS, views.map(name => VIEW_SOURCES[name].rollups)));
   const filterKeys = unionInOrder(
-    ['overview', 'products', 'invoices', 'customers', 'newProducts', 'newlyImported', 'orders', 'returns'],
+    ['overview', 'products', 'invoices', 'customers', 'newProducts', 'newlyImported'],
     views.map(name => VIEW_FILTER_KEYS[name])
   );
 

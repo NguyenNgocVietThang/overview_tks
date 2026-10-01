@@ -1,11 +1,14 @@
 'use strict';
 
-// Chi tiet 1 don DAT HANG / 1 phieu TRA HANG / 1 HOA DON (giao dich) cho hop chi tiet
-// khi bam vao dong o tab Hoa don. Doc thang order_details / return_details / invoice_details (+ dong dau chung tu bang cha); ma
-// chi duy nhat trong 1 co so nen bat buoc truyen co so vat ly ('hanoi'/'saigon').
+// Chi tiet 1 don DAT HANG (Vong doi don hang: kiotPendingOrdersRepository.readOrderDetail) / 1 HOA DON
+// (giao dich, tab Hoa don). Doc thang order_details / invoice_details (+ dong dau chung tu bang cha); ma
+// chi duy nhat trong 1 co so nen bat buoc truyen co so vat ly ('hanoi'/'saigon'). (2026-10-01: bo chi tiet
+// phieu TRA HANG cung bang Danh sach tra hang.)
 // Gio trong DB la "gio treo tuong" VN mang nhan UTC nen format voi AT TIME ZONE 'UTC'
 // (xem ghi chu o dau dashboardPgReader.js).
 const { getPool } = require('../db/pool');
+// Ten nhan vien ban tren Kiot co hau to "- <ID Telegram>": chi hien phan ten (saleName.js).
+const { saleNameSql } = require('./saleName');
 
 const DATE_FORMAT = 'DD/MM/YYYY HH24:MI';
 
@@ -68,7 +71,7 @@ async function getOrderDetail({ code, branchCode, pool = getPool() } = {}) {
             COALESCE(to_char(o.order_date AT TIME ZONE 'UTC', '${DATE_FORMAT}'), '') AS order_date,
             COALESCE(NULLIF(o.raw->>'customerName', ''), 'Khách lẻ') AS customer_name,
             COALESCE(o.raw->>'customerCode', '')                     AS customer_code,
-            COALESCE(NULLIF(o.raw->>'soldByName', ''), s.name, '')   AS seller,
+            ${saleNameSql(`COALESCE(NULLIF(o.raw->>'soldByName', ''), s.name, '')`)} AS seller,
             COALESCE(o.raw->>'branchName', '')                       AS warehouse,
             COALESCE(NULLIF(o.raw->>'statusValue', ''), o.status::text, '') AS status,
             COALESCE(o.total, 0)::float8                             AS total,
@@ -114,64 +117,6 @@ async function getOrderDetail({ code, branchCode, pool = getPool() } = {}) {
   };
 }
 
-async function getReturnDetail({ code, branchCode, pool = getPool() } = {}) {
-  const returnCode = cleanCode(code);
-  const { rows: heads } = await pool.query(
-    `SELECT r.id,
-            r.code,
-            COALESCE(to_char(r.return_date AT TIME ZONE 'UTC', '${DATE_FORMAT}'), '') AS return_date,
-            COALESCE(NULLIF(r.raw->>'customerName', ''), 'Khách lẻ') AS customer_name,
-            COALESCE(r.raw->>'customerCode', '')                     AS customer_code,
-            COALESCE(NULLIF(r.raw->>'soldByName', ''), s.name, '')   AS seller,
-            COALESCE(r.raw->>'branchName', '')                       AS warehouse,
-            COALESCE(NULLIF(r.raw->>'statusValue', ''), r.status::text, '') AS status,
-            COALESCE(r.total, 0)::float8                             AS total,
-            COALESCE(NULLIF(r.raw->>'returnDiscount', ''), '0')::float8 AS return_discount,
-            COALESCE(NULLIF(r.raw->>'returnFee', ''), '0')::float8   AS return_fee,
-            COALESCE(NULLIF(r.raw->>'totalPayment', ''), '0')::float8 AS paid,
-            COALESCE(i.code, '')                                     AS invoice_code
-     FROM returns r
-     LEFT JOIN staff s ON s.branch = r.branch AND s.id = r.sold_by_id
-     LEFT JOIN invoices i ON i.branch = r.branch AND i.id = r.invoice_id
-     WHERE r.branch = $1 AND r.code = $2`,
-    [branchCode, returnCode]
-  );
-  if (!heads.length) throw notFound('Không tìm thấy phiếu trả hàng này.');
-  const head = heads[0];
-
-  const { rows } = await pool.query(
-    `SELECT COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, '') AS product_code,
-            COALESCE(NULLIF(d.raw->>'productName', ''), p.name, '') AS product_name,
-            d.quantity, d.price, 0 AS discount,
-            d.raw->>'subTotal'                                     AS sub_total,
-            COALESCE(d.raw->>'note', '')                           AS note
-     FROM return_details d
-     LEFT JOIN products p ON p.branch = d.branch AND p.id = d.product_id
-     WHERE d.branch = $1 AND d.return_id = $2
-     ORDER BY d.line_no`,
-    [branchCode, head.id]
-  );
-  const lines = rows.map((row) => mapLine(row, { fromSubTotal: true }));
-  return {
-    kind: 'return',
-    code: head.code,
-    date: head.return_date,
-    customerName: head.customer_name,
-    customerCode: head.customer_code,
-    seller: head.seller,
-    warehouse: head.warehouse,
-    status: head.status,
-    invoiceCode: head.invoice_code,
-    total: n(head.total),
-    returnDiscount: n(head.return_discount),
-    returnFee: n(head.return_fee),
-    // KiotViet luu tien hoan tra khach la so am ("-1590000") - hien thi so duong cho de doc.
-    paid: Math.abs(n(head.paid)),
-    lines,
-    ...summarize(lines)
-  };
-}
-
 async function getInvoiceDetail({ code, branchCode, pool = getPool() } = {}) {
   const invoiceCode = cleanCode(code);
   const { rows: heads } = await pool.query(
@@ -180,7 +125,7 @@ async function getInvoiceDetail({ code, branchCode, pool = getPool() } = {}) {
             COALESCE(to_char(i.purchase_date AT TIME ZONE 'UTC', '${DATE_FORMAT}'), '') AS purchase_date,
             COALESCE(NULLIF(i.raw->>'customerName', ''), 'Khách lẻ') AS customer_name,
             COALESCE(i.raw->>'customerCode', '')                     AS customer_code,
-            COALESCE(NULLIF(i.raw->>'soldByName', ''), s.name, '')   AS seller,
+            ${saleNameSql(`COALESCE(NULLIF(i.raw->>'soldByName', ''), s.name, '')`)} AS seller,
             COALESCE(i.raw->>'branchName', '')                       AS warehouse,
             COALESCE(NULLIF(i.raw->>'statusValue', ''), i.status::text, '') AS status,
             COALESCE(i.total, 0)::float8                             AS total,
@@ -229,4 +174,4 @@ async function getInvoiceDetail({ code, branchCode, pool = getPool() } = {}) {
   };
 }
 
-module.exports = { getOrderDetail, getReturnDetail, getInvoiceDetail, __test__: { mapLine } };
+module.exports = { getOrderDetail, getInvoiceDetail, __test__: { mapLine } };

@@ -22,6 +22,9 @@ const { requireAuth, requireFeature } = require('../auth/authMiddleware');
 const { LIFECYCLE_BRANCH } = require('./orderLifecycleRepository');
 const service = require('./orderLifecycleService');
 const { createLifecycleExportFile } = require('./orderLifecycleExport');
+// Don Phieu tam cua KiotViet gop vao bang "Toan bo don hang" + chi tiet dong hang. Goi qua
+// thuoc tinh cua module (khong destructure) de test thay the duoc `kiotPendingOrders.*`.
+const kiotRepository = require('./kiotPendingOrdersRepository');
 
 // Phan quyen theo TINH NANG (server/auth/featureRegistry.js), khong con theo
 // mang vai tro — cung mot nguon su that voi menu phia client.
@@ -68,8 +71,10 @@ router.get('/', ...authBulk, async (req, res) => {
         code: 'INVALID_BRANCH'
       });
     }
-    const orders = await service.listAllOrders(branch || undefined);
-    res.status(200).json({ orders });
+    // Dong Google Sheet + don Phieu tam cua Kiot chua co trong sheet (khop theo co so + ma don).
+    // `kiot` bao tinh trang nguon Kiot ({ok, stale, fetchedAt, count}) de giao dien hien canh bao khi loi.
+    const { orders, kiot } = await service.listOrdersMerged(branch || undefined, { kiot: kiotRepository.kiotPendingOrders });
+    res.status(200).json({ orders, kiot });
   } catch (err) {
     handleError(res, err, 'GET /api/shipment/lifecycle');
   }
@@ -89,6 +94,33 @@ router.get('/history', ...authHistory, async (req, res) => {
     res.status(200).json({ history });
   } catch (err) {
     handleError(res, err, 'GET /api/shipment/lifecycle/history');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/shipment/lifecycle/order-detail?code=&branch=HN|SG — chi tiet dong hang cua 1 don
+// theo du lieu KiotViet (kem ton thuc / dang van chuyen / so co ban cua don Phieu tam). Chi vai tro
+// xem duoc bang toan bo don (shipment.lifecycle) — KHONG mo cho Khach. PHAI dat TRUOC '/:orderCode'
+// (nhu '/history'), neu khong 'order-detail' bi hieu la 1 ma don hang.
+// ---------------------------------------------------------------------------
+
+router.get('/order-detail', ...authBulk, async (req, res) => {
+  try {
+    const code = typeof req.query.code === 'string' ? req.query.code.trim() : '';
+    const branch = req.query.branch;
+    if (!code || code.length > 100) {
+      return res.status(400).json({ error: 'Thiếu hoặc sai mã đơn hàng.', code: 'INVALID_CODE' });
+    }
+    if (branch !== LIFECYCLE_BRANCH.HN && branch !== LIFECYCLE_BRANCH.SG) {
+      return res.status(400).json({
+        error: `Tham số "branch" phải là "${LIFECYCLE_BRANCH.HN}" hoặc "${LIFECYCLE_BRANCH.SG}".`,
+        code: 'INVALID_BRANCH'
+      });
+    }
+    const detail = await kiotRepository.kiotPendingOrders.readOrderDetail({ branch, code });
+    res.status(200).json({ detail });
+  } catch (err) {
+    handleError(res, err, 'GET /api/shipment/lifecycle/order-detail');
   }
 });
 
@@ -152,7 +184,7 @@ router.post('/lookup', ...authLookup, async (req, res) => {
 router.post('/export', ...authExport, async (req, res) => {
   try {
     const codes = Array.isArray(req.body.codes) ? req.body.codes : undefined;
-    const orders = await service.exportOrdersByCodes(codes);
+    const orders = await service.exportOrdersByCodes(codes, { kiot: kiotRepository.kiotPendingOrders });
     const file = await createLifecycleExportFile(orders);
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);

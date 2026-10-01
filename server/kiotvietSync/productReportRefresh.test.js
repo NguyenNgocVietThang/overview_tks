@@ -57,6 +57,21 @@ test('REFRESH_SQL tru hang khach tra khoi doanh so rong cua khach (khop revenue_
   assert.match(sql, /LEAST\(1, /);
 });
 
+test('REFRESH_SQL: Ton co ban = ton HN + ton SG - Dat hang PHIEU TAM + Hang dang van chuyen (quy tac 2026-10-01)', () => {
+  const sql = __sql__.REFRESH_SQL;
+  // Chi Phieu tam bi tru (khong con 'Đang xử lý' / 'Đã xác nhận').
+  assert.match(sql, /COALESCE\(o\.raw->>'statusValue', ''\) = 'Phiếu tạm'/);
+  assert.doesNotMatch(sql, /statusValue', ''\) IN \(/, 'khong con loc nhieu trang thai (IN (...)) cho don dat hang');
+  // Hang dang van chuyen: cung SQL voi tab Hang hoa (phieu Dat hang nhap 'Đã xác nhận NCC' cua Sai Gon), cong 1 LAN.
+  assert.match(sql, /in_transit AS \(/);
+  assert.match(sql, /FROM order_suppliers o/);
+  assert.match(sql, /o\.branch = 'saigon' AND o\.raw->>'statusValue' = 'Đã xác nhận NCC'/);
+  assert.match(sql, /LEFT JOIN in_transit tr ON tr\.product_key = lower\(btrim\(hn\.code\)\)/);
+  assert.match(sql, /hn\.on_hand \+ COALESCE\(sg\.on_hand, 0\) - COALESCE\(po\.qty, 0\) \+ COALESCE\(tr\.qty, 0\)/);
+  // Khong con tham so rieng cho in-transit: van chi 1 tham so ($1 = danh sach co so).
+  assert.equal(/\$2/.test(sql), false);
+});
+
 test('refreshProductReport ROLLBACK va nem loi neu INSERT that bai', async () => {
   const calls = [];
   const client = {

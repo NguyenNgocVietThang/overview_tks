@@ -454,6 +454,25 @@ test('GET /api/auth/me exposes selectable branches and keeps an authorized Ca ha
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body.branches, ['Hà Nội', 'Sài Gòn', 'Cả hai']);
   assert.equal(res.body.branch, 'Cả hai');
+  assert.equal(res.body.isSeniorAdmin, false, 'tai khoan thuong khong phai Quan ly cap cao');
+});
+
+test('GET /api/auth/me bao isSeniorAdmin: true voi admin cung, false voi Quan ly thuong', async () => {
+  const asRoute = async user => {
+    const router = freshAuthRoutes({
+      verifyGoogleIdToken: NEVER_CALL,
+      findUserByEmail: NEVER_CALL,
+      createActiveGuest: NEVER_CALL,
+      findUserById: async () => user
+    });
+    const res = fakeRes();
+    await getRouteHandler(router, 'get', '/api/auth/me')({ user, cookies: {} }, res);
+    return res.body;
+  };
+  const ordinaryManager = { id: 'm1', username: 'ql1', hoTen: 'QL', email: 'ql1@example.com', vaiTro: 'Quản lý', coSo: 'Cả hai', trangThai: 'Đang hoạt động' };
+  const seniorAdmin = { id: 'a1', username: 'admin', hoTen: 'Admin', email: 'admin@tokosi.vn', vaiTro: 'Quản lý', coSo: 'Cả hai', trangThai: 'Đang hoạt động' };
+  assert.equal((await asRoute(ordinaryManager)).isSeniorAdmin, false);
+  assert.equal((await asRoute(seniorAdmin)).isSeniorAdmin, true);
 });
 
 test('POST /api/auth/login: nhap sai 5 lan -> 423 Locked kem lockoutRemainingSeconds va suggestReset', async () => {

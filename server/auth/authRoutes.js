@@ -31,6 +31,7 @@ const otpService = require('./otpService');
 const employeeRegistrationService = require('./employeeRegistrationService');
 const effectiveUserResolver = require('./effectiveUserResolver');
 const featureRegistry = require('./featureRegistry');
+const accountPolicy = require('./accountPolicy');
 const contactChangeService = require('./contactChangeService');
 
 const router = express.Router();
@@ -706,18 +707,22 @@ router.get('/api/auth/me', requireAuth, async (req, res) => {
     // menu va dieu huong (shared-nav.js khong con mang vai tro nao). CO Y
     // KHONG dua vao JWT: token song 12h, con quyen phai co hieu luc ngay khi
     // Quan ly bat/tat, giong nhu doi vai tro.
+    // `isSeniorAdmin`: Quan ly cap cao (admin cung) — giao dien tai khoan dua vao day de an
+    // cac thao tac len Quan ly khac doi voi Quan ly thuong (server accountPolicy van la ranh gioi that).
     res.status(200).json(Object.assign(publicUser(user), {
       branches: selectableBranches(user),
       branch: currentBranchFor(req, user),
       permissions: featureRegistry.resolvePermissions(user),
-      pageFeatures: featureRegistry.PAGE_FEATURES
+      pageFeatures: featureRegistry.PAGE_FEATURES,
+      isSeniorAdmin: accountPolicy.isSeniorAdmin(user)
     }));
   } catch (err) {
     // Duong fail-soft: dung publicUser() chu KHONG tra thang req.user — object
     // do la ban ghi day du tu localUserStore (co ca passwordHash).
     res.status(200).json(Object.assign(publicUser(req.user), {
       permissions: req.user.permissions || featureRegistry.resolvePermissions(req.user),
-      pageFeatures: featureRegistry.PAGE_FEATURES
+      pageFeatures: featureRegistry.PAGE_FEATURES,
+      isSeniorAdmin: accountPolicy.isSeniorAdmin(req.user)
     }));
   }
 });

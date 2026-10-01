@@ -43,12 +43,12 @@ function createDashboard() {
   return dom;
 }
 
-test('registry bao phủ đủ 17 bảng trong Báo cáo tổng hợp', () => {
+test('registry bao phủ đủ 14 bảng trong Báo cáo tổng hợp (không còn 2 bảng Đặt hàng / Trả hàng của tab Hóa đơn)', () => {
   const dom = createDashboard();
   const expected = [
     'cpDetail', 'productReport', 'recentStockout', 'stockout90d', 'stockout30d',
     'endOfDay', 'todayNewProducts', 'topSelling',
-    'allProducts', 'inventoryValue', 'newlyImported', 'orders', 'returns',
+    'allProducts', 'inventoryValue', 'newlyImported',
     'customerRevenue', 'topDebt', 'debtManagement'
   ];
   const actual = Object.keys(dom.window.TABLE_EXPLORER_CONFIGS);
@@ -280,7 +280,6 @@ test('xuất file (Excel/HTML) gửi đúng bộ lọc thời gian riêng của 
   const ranges = {
     topSelling: ['2026-01-01', '2026-01-07'], newlyImported: ['2026-02-01', '2026-02-07'],
     newProducts: ['2026-03-01', '2026-03-07'], invoices: ['2026-04-01', '2026-04-07'],
-    orders: ['2026-05-01', '2026-05-07'], returns: ['2026-06-01', '2026-06-07'],
     customers: ['2026-07-01', '2026-07-07']
   };
   Object.entries(ranges).forEach(([key, [from, to]]) => win.setTableDateFilter(key, from, to));
@@ -291,8 +290,6 @@ test('xuất file (Excel/HTML) gửi đúng bộ lọc thời gian riêng của 
     'products.newly-imported': ['newlyImported', 'newlyImported'],
     'overview.new-products': ['newProducts', 'newProducts'],
     'overview.transactions': ['invoices', 'invoices'],
-    'invoices.orders': ['orders', 'orders'],
-    'invoices.returns': ['returns', 'returns'],
     'customers.revenue': ['customers', 'customers'],
     'customers.debt': ['customers', 'customers']
   };
@@ -300,11 +297,15 @@ test('xuất file (Excel/HTML) gửi đúng bộ lọc thời gian riêng của 
     const [from, to] = ranges[stateKey];
     assert.deepEqual(clone(win.buildExportPayload(tableKey).filters[payloadKey]), { mode: 'range', from, to }, tableKey);
   });
+  // 2 bang Dat hang / Tra hang cua tab Hoa don da bo: payload khong con bo loc orders/returns.
+  const filters = clone(win.buildExportPayload('overview.transactions').filters);
+  assert.equal('orders' in filters, false);
+  assert.equal('returns' in filters, false);
 
-  win.setTableDateFilter('orders', '', '');
-  assert.deepEqual(clone(win.buildExportPayload('invoices.orders').filters.orders), { mode: 'all' });
-  assert.deepEqual(clone(win.buildExportPayload('invoices.returns').filters.returns), { mode: 'range', from: '2026-06-01', to: '2026-06-07' },
-    'xóa lọc Đặt hàng không đụng tới Trả hàng');
+  win.setTableDateFilter('newlyImported', '', '');
+  assert.deepEqual(clone(win.buildExportPayload('products.newly-imported').filters.newlyImported), { mode: 'all' });
+  assert.deepEqual(clone(win.buildExportPayload('products.top-selling').filters.products), { mode: 'range', from: '2026-01-01', to: '2026-01-07' },
+    'xóa lọc Hàng mới nhập không đụng tới Hàng bán chạy');
   dom.window.close();
 });
 

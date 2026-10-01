@@ -169,7 +169,10 @@ router.patch('/api/role-requests/:id/status', ...authManager, async (req, res) =
       // Nguoi duyet khong phai Quan ly khong duoc nang ai len vai tro/quyen cao hon
       // chinh ho (dac biet la Quan ly); yeu cau van giu trang thai Cho duyet.
       if (targetUser) {
+        // Duyet yeu cau HA vai tro cua 1 Quan ly cung la ha quyen Quan ly khac: chi Quan ly cap cao.
         const denied = accountPolicy.checkTargetWritable(req.user, targetUser) ||
+                       (target.requestedRole !== ROLES.QUAN_LY &&
+                         accountPolicy.checkProtectedManager(req.user, targetUser, 'duyệt yêu cầu hạ vai trò')) ||
                        accountPolicy.checkGrant(req.user, targetUser, { ...targetUser, vaiTro: target.requestedRole });
         if (denied) return accountPolicy.sendDenied(res, denied);
       }

@@ -608,6 +608,30 @@ test('tab Hang hoa chi lay hang dang kinh doanh (is_active IS NOT FALSE), ca ban
   productSql.forEach(sql => assert.match(sql, /AND is_active IS NOT FALSE/));
 });
 
+// ---------- Tên nhân viên bán: bỏ hậu tố "- <ID Telegram>" (saleName.js) ----------
+
+test('ten nhan vien ban/lap (Hoa don, Dat hang, Tra hang, ca ban loc theo ma) bi cat hau to "- <ID Telegram>" trong SQL', async () => {
+  const pool = fakePool();
+  const reader = createDashboardPgReader({ pool });
+  await reader.readDashboardSheets('Hà Nội');
+  const sqlOf = name => pool.calls.find(call => call.sql.includes(`-- tab: ${name}`)).sql;
+  const STRIP = /regexp_replace\([\s\S]*?'\[\[:space:\]\]\*-\[\[:space:\]\]\*\[0-9\]\{5,\}\[\[:space:\]\]\*\$', ''\)/;
+
+  for (const [name, alias] of [[CONFIG.SHEET_INVOICES, 'nhan_vien_ban'], [CONFIG.SHEET_ORDERS, 'nhan_vien_lap'], [CONFIG.SHEET_RETURNS, 'nhan_vien_ban']]) {
+    const sql = sqlOf(name);
+    assert.match(sql, STRIP, `"${name}": SQL phai cat hau to ID Telegram cua ten nhan vien`);
+    assert.match(sql, new RegExp(`AS ${alias}\\b`), `"${name}": alias ${alias} khong doi`);
+  }
+  // Nhanh du phong ten tu bang staff (s.name) cua Hoa don cung duoc cat (bao ca COALESCE).
+  assert.match(sqlOf(CONFIG.SHEET_INVOICES), /regexp_replace\(COALESCE\(NULLIF\(i\.raw->>'soldByName', ''\), s\.name, ''\)/);
+  // Cot ID noi bo cua nhan vien KHONG bi dong cham.
+  assert.match(sqlOf(CONFIG.SHEET_INVOICES), /COALESCE\(i\.sold_by_id::text, ''\)\s+AS id_nhan_vien_ban/);
+  // Ban loc theo ma (xuat file) dung cung SQL nen cung cat hau to.
+  pool.calls.length = 0;
+  await reader.readRowsByCodes(CONFIG.SHEET_INVOICES, 'Hà Nội', ['HD1']);
+  assert.match(pool.calls[0].sql, STRIP);
+});
+
 // ---------- "Đang vận chuyển" (Hàng hóa) ----------
 
 function inTransitPool({ inTransitRows = [], productRows = [], failInTransit = false } = {}) {

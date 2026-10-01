@@ -15,6 +15,7 @@ delete require.cache[require.resolve('./orderLifecycleRoutes')];
 const { AUTH_COOKIE_NAME } = require('../auth/authMiddleware');
 const router = require('./orderLifecycleRoutes');
 const service = require('./orderLifecycleService');
+const kiotRepository = require('./kiotPendingOrdersRepository');
 
 function fakeRes() {
   const res = { statusCode: null, body: null, headers: {}, sentBuffer: null };
@@ -57,6 +58,10 @@ function reqAs(vaiTro, params, query, body) {
 test.beforeEach(() => {
   service.findOrder = async () => ({ found: true, branch: 'HN', summary: { code: 'DELIVERED' }, detail: {} });
   service.listAllOrders = async () => ([{ orderCode: 'HD001' }]);
+  // Bang "Toan bo don hang" goi listOrdersMerged (gop don Phieu tam cua Kiot); GET '/' tra them `kiot`.
+  service.listOrdersMerged = async () => ({ orders: [{ orderCode: 'HD001' }], kiot: { ok: true, stale: false, fetchedAt: null, count: 0 } });
+  // Khong cham DB that: thay chi tiet dong hang cua Kiot bang ban gia.
+  kiotRepository.kiotPendingOrders.readOrderDetail = async ({ branch, code }) => ({ code, branch, phieuTam: true, lines: [] });
   service.findOrdersBulk = async () => ([{ code: 'HD001', found: true }]);
   service.exportOrdersByCodes = async () => ([{ orderCode: 'HD001', branch: 'HN', summary: { label: 'Đã giao' } }]);
   service.overrideStatus = async () => ({ orderCode: 'HD001', branch: 'HN', summary: { code: 'CANCELLED', isOverride: true } });
@@ -126,6 +131,20 @@ test('GET /api/shipment/lifecycle/history KHÔNG bị route /:orderCode nuốt m
   assert.deepEqual(Object.keys(res.body), ['history']);
 });
 
+test('GET /api/shipment/lifecycle gộp đơn Phiếu tạm của Kiot (truyền kiot repository) và trả thêm trạng thái nguồn `kiot`', async () => {
+  let received = null;
+  service.listOrdersMerged = async (branch, options) => {
+    received = { branch, options };
+    return { orders: [{ orderCode: 'DH1', source: 'kiotviet' }], kiot: { ok: false, stale: false, fetchedAt: null, count: 0 } };
+  };
+  const res = fakeRes();
+  await callRoute('get', '/', reqAs('Nhân viên sale', {}, { branch: 'SG' }), res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body, { orders: [{ orderCode: 'DH1', source: 'kiotviet' }], kiot: { ok: false, stale: false, fetchedAt: null, count: 0 } });
+  assert.equal(received.branch, 'SG');
+  assert.equal(received.options.kiot, kiotRepository.kiotPendingOrders, 'phai truyen repository doc don Phieu tam cua Kiot');
+});
+
 test('GET /api/shipment/lifecycle?branch=XX không hợp lệ -> 400', async () => {
   const req = reqAs('Quản lý', {}, { branch: 'XX' });
   const res = fakeRes();
@@ -175,6 +194,85 @@ for (const role of INTERNAL_ROLES) {
     assert.ok(res.sentBuffer && res.sentBuffer.length > 0);
   });
 }
+
+test('POST /api/shipment/lifecycle/export truyền kiot repository để xuất cả đơn Phiếu tạm đã gộp', async () => {
+  let received = null;
+  service.exportOrdersByCodes = async (codes, options) => {
+    received = { codes, options };
+    return [{ orderCode: 'DH1', branch: 'HN', summary: { label: 'Đơn chưa gửi kế toán' } }];
+  };
+  const res = fakeRes();
+  await callRoute('post', '/export', reqAs('Quản lý', {}, {}, { codes: ['DH1'] }), res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(received.codes, ['DH1']);
+  assert.equal(received.options.kiot, kiotRepository.kiotPendingOrders);
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/shipment/lifecycle/order-detail — chi tiet dong hang theo Kiot (chi vai tro xem duoc bang toan bo don)
+// ---------------------------------------------------------------------------
+
+test('GET /order-detail — Khách bị 403 (không lộ giá/tồn kho cho khách tra cứu)', async () => {
+  const res = fakeRes();
+  await callRoute('get', '/order-detail', reqAs('Khách', {}, { code: 'DH1', branch: 'HN' }), res);
+  assert.equal(res.statusCode, 403);
+});
+
+test('GET /order-detail — không đăng nhập -> 401', async () => {
+  const res = fakeRes();
+  await callRoute('get', '/order-detail', { cookies: {}, params: {}, query: { code: 'DH1', branch: 'HN' } }, res);
+  assert.equal(res.statusCode, 401);
+});
+
+for (const role of INTERNAL_ROLES) {
+  test(`GET /order-detail — ${role} gọi được (200) và truyền đúng cơ sở/mã`, async () => {
+    let received = null;
+    kiotRepository.kiotPendingOrders.readOrderDetail = async args => { received = args; return { code: args.code, branch: args.branch, phieuTam: true, lines: [] }; };
+    const res = fakeRes();
+    await callRoute('get', '/order-detail', reqAs(role, {}, { code: ' DH041173 ', branch: 'HN' }), res);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(received, { branch: 'HN', code: 'DH041173' });
+    assert.equal(res.body.detail.code, 'DH041173');
+  });
+}
+
+test('GET /order-detail KHÔNG bị route /:orderCode nuốt mất (không lẫn với tra cứu mã đơn "order-detail")', async () => {
+  let lookupCalled = false;
+  service.findOrder = async () => { lookupCalled = true; return { found: false }; };
+  const res = fakeRes();
+  await callRoute('get', '/order-detail', reqAs('Quản lý', {}, { code: 'DH1', branch: 'SG' }), res);
+  assert.equal(lookupCalled, false);
+  assert.deepEqual(Object.keys(res.body), ['detail']);
+});
+
+test('GET /order-detail — thiếu/sai mã hoặc cơ sở -> 400', async () => {
+  const noCode = fakeRes();
+  await callRoute('get', '/order-detail', reqAs('Quản lý', {}, { branch: 'HN' }), noCode);
+  assert.equal(noCode.statusCode, 400);
+  assert.equal(noCode.body.code, 'INVALID_CODE');
+
+  const badBranch = fakeRes();
+  await callRoute('get', '/order-detail', reqAs('Quản lý', {}, { code: 'DH1', branch: 'Hà Nội' }), badBranch);
+  assert.equal(badBranch.statusCode, 400);
+  assert.equal(badBranch.body.code, 'INVALID_BRANCH');
+
+  const longCode = fakeRes();
+  await callRoute('get', '/order-detail', reqAs('Quản lý', {}, { code: 'D'.repeat(101), branch: 'HN' }), longCode);
+  assert.equal(longCode.statusCode, 400);
+});
+
+test('GET /order-detail — lỗi 404 của kho dữ liệu được trả đúng statusCode/code', async () => {
+  kiotRepository.kiotPendingOrders.readOrderDetail = async () => {
+    const err = new Error('Không tìm thấy đơn đặt hàng này.');
+    err.statusCode = 404;
+    err.code = 'ORDER_NOT_FOUND';
+    throw err;
+  };
+  const res = fakeRes();
+  await callRoute('get', '/order-detail', reqAs('Quản lý', {}, { code: 'DH999', branch: 'HN' }), res);
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.code, 'ORDER_NOT_FOUND');
+});
 
 test('POST /api/shipment/lifecycle/export — lỗi từ service được trả về đúng statusCode', async () => {
   service.exportOrdersByCodes = async () => { throw new Error('Lỗi Google Sheets'); };

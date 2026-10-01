@@ -12,7 +12,7 @@ const router = express.Router();
 const { getExportFields, createExport, buildExportErrorBody } = require('./dashboard/exportService');
 const { getProductReport, getProductReportCustomers } = require('./dashboard/productReportRepository');
 const { getInventoryValueHistory } = require('./dashboard/inventoryValueHistory');
-const { getOrderDetail, getReturnDetail, getInvoiceDetail } = require('./dashboard/documentDetailRepository');
+const { getInvoiceDetail } = require('./dashboard/documentDetailRepository');
 const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
 const { requireAuth, requireFeature } = require('./auth/authMiddleware');
@@ -103,13 +103,15 @@ const reportsUser = (...features) => [requireAuth, requireFeature(...features), 
 router.use('/api/debug', ...reportsUser(...ANY_REPORTS_FEATURES));
 router.use('/api/dashboard', ...reportsUser(...ANY_REPORTS_FEATURES));
 router.use('/api/search', ...reportsUser(...ANY_REPORTS_FEATURES));
-router.use('/api/customer-suggest', ...reportsUser('reports.customers'));
-router.use('/api/customer-product-top', ...reportsUser('reports.customers'));
-router.use('/api/customer-product-revenue', ...reportsUser('reports.customers'));
-router.use('/api/product-report', ...reportsUser('reports.products'));
+// Muc 2 (doanh thu theo khach) va muc 3 (Bao cao hang hoa) nam ngay trong tab Tong quan
+// nen nguoi co quyen Tong quan (vd Nhan vien sale) cung doc duoc cac API CHI DOC nay;
+// nguoi co quyen cua tab goc van duoc nhu cu. Phan ghi/nang (quet dut hang, nhap Tra NCC)
+// duoi '/api/products' van chi reports.products.
+router.use('/api/customer-suggest', ...reportsUser('reports.customers', 'reports.overview'));
+router.use('/api/customer-product-top', ...reportsUser('reports.customers', 'reports.overview'));
+router.use('/api/customer-product-revenue', ...reportsUser('reports.customers', 'reports.overview'));
+router.use('/api/product-report', ...reportsUser('reports.products', 'reports.overview'));
 router.use('/api/inventory-value-history', ...reportsUser('reports.overview'));
-router.use('/api/order-detail', ...reportsUser('reports.invoices'));
-router.use('/api/return-detail', ...reportsUser('reports.invoices'));
 router.use('/api/invoice-detail', ...reportsUser('reports.invoices'));
 router.use('/api/export', ...reportsUser('reports.export'));
 router.use('/api/products', ...reportsUser('reports.products'));
@@ -150,8 +152,8 @@ function parseFilterSpec(query, prefix, legacyDays) {
 }
 
 // Nhu parseFilterSpec nhung tra undefined khi query KHONG co tham so nao cua
-// prefix — de getDashboardData tu dung bo loc cha (vd `or`/`rt` -> `in`,
-// `ni` -> `pr`) cho client cu chua gui bo loc rieng tung bang.
+// prefix — de getDashboardData tu dung bo loc cha (vd `ni` -> `pr`) cho client
+// cu chua gui bo loc rieng tung bang.
 function parseOptionalFilterSpec(query, prefix, legacyDays) {
   const present = ['Mode', 'Days', 'From', 'To'].some(suffix => query[prefix + suffix] !== undefined);
   return present ? parseFilterSpec(query, prefix, legacyDays) : undefined;
@@ -188,11 +190,9 @@ router.get('/api/dashboard', async (req, res) => {
         mode: req.query.cuMode || 'all'
       },
       newProducts: parseFilterSpec(req.query, 'np'),
-      // Bo loc rieng tung bang: Hang moi nhap (ni), Dat hang (or), Tra hang (rt).
-      // Khong gui -> undefined -> dung bo loc Hang hoa/Hoa don nhu truoc.
-      newlyImported: parseOptionalFilterSpec(req.query, 'ni'),
-      orders: parseOptionalFilterSpec(req.query, 'or', legacyDays),
-      returns: parseOptionalFilterSpec(req.query, 'rt', legacyDays)
+      // Bo loc rieng bang Hang moi nhap (ni). Khong gui -> undefined -> dung bo loc Hang hoa nhu truoc.
+      // (Bo loc `or`/`rt` cua 2 bang Dat hang / Tra hang da bo 2026-10-01; tham so cu bi bo qua.)
+      newlyImported: parseOptionalFilterSpec(req.query, 'ni')
     };
     const data = await getDashboardData(filters, req.branch, req.user, allowedViews ? { views: allowedViews } : undefined);
     // Object tra ve co the den tu cache dung chung — filterDashboardForUser()
@@ -415,7 +415,7 @@ router.get('/api/inventory-value-history', async (req, res) => {
   }
 });
 
-// Hop chi tiet khi bam 1 dong bang "Chi tiet giao dich" / "Danh sach dat hang" / "Danh sach tra hang" (tab Hoa don).
+// Hop chi tiet khi bam 1 dong bang "Chi tiet giao dich" (tab Hoa don).
 // Ma chung tu chi duy nhat trong 1 co so nen can ?branch=<nhan co so>; o che do 1 co so
 // co the bo trong. Co so phai nam trong pham vi dang xem cua nguoi dung.
 function resolveDocumentBranchCode(req) {
@@ -454,8 +454,8 @@ function documentDetailHandler(loader, logName, fallbackMessage) {
   };
 }
 
-router.get('/api/order-detail', documentDetailHandler(getOrderDetail, '/api/order-detail', 'Không lấy được chi tiết đơn đặt hàng.'));
-router.get('/api/return-detail', documentDetailHandler(getReturnDetail, '/api/return-detail', 'Không lấy được chi tiết phiếu trả hàng.'));
+// (2026-10-01: /api/order-detail va /api/return-detail da bo cung 2 bang Dat hang / Tra hang cua tab
+// Hoa don. Chi tiet dong hang don Phieu tam nay o /api/shipment/lifecycle/order-detail.)
 router.get('/api/invoice-detail', documentDetailHandler(getInvoiceDetail, '/api/invoice-detail', 'Không lấy được chi tiết hóa đơn.'));
 
 function sendExportError(res, err, fallbackMessage) {

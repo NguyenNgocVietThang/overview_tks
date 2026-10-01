@@ -2,7 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { getOrderDetail, getReturnDetail, getInvoiceDetail, __test__ } = require('./documentDetailRepository');
+const documentDetailRepository = require('./documentDetailRepository');
+const { getOrderDetail, getInvoiceDetail, __test__ } = documentDetailRepository;
 
 // Pool gia: tra lan luot tung ket qua, ghi lai cau SQL + tham so.
 function fakePool(...results) {
@@ -51,32 +52,26 @@ test('getOrderDetail tra dau chung + cac dong hang cua don (dung co so va ma)', 
   });
 });
 
+test('"Nhan vien" cua don dat hang/hoa don bi cat hau to "- <ID Telegram>" trong SQL (saleName.js)', async () => {
+  const header = [{ id: '1', code: 'X1' }];
+  for (const [fn, alias] of [[getOrderDetail, 'o'], [getInvoiceDetail, 'i']]) {
+    const pool = fakePool(header, []);
+    await fn({ code: 'X1', branchCode: 'hanoi', pool });
+    const sql = pool.calls[0].sql;
+    assert.match(sql, new RegExp(`regexp_replace\\(COALESCE\\(NULLIF\\(${alias}\\.raw->>'soldByName', ''\\), s\\.name, ''\\)`), `${fn.name}: cat hau to o cot seller`);
+    assert.match(sql, /\[0-9\]\{5,\}/);
+    assert.match(sql, /AS seller/);
+  }
+});
+
+test('getReturnDetail da bo cung bang Danh sach tra hang (chi con getOrderDetail cho Vong doi don hang va getInvoiceDetail)', () => {
+  assert.equal('getReturnDetail' in documentDetailRepository, false);
+  assert.deepEqual(Object.keys(documentDetailRepository).filter(key => key !== '__test__').sort(), ['getInvoiceDetail', 'getOrderDetail']);
+});
+
 test('getOrderDetail: khong co don -> 404, thieu ma -> 400', async () => {
   await assert.rejects(getOrderDetail({ code: 'DH-NONE', branchCode: 'hanoi', pool: fakePool([]) }), { statusCode: 404 });
   await assert.rejects(getOrderDetail({ code: '  ', branchCode: 'hanoi', pool: fakePool() }), { statusCode: 400 });
-});
-
-test('getReturnDetail tra hoa don goc, tien tra la so duong', async () => {
-  const pool = fakePool(
-    [{
-      id: '9', code: 'TH000513', return_date: '25/04/2026 11:31', customer_name: 'KMN Anh Tuấn', customer_code: 'KH005899',
-      seller: 'Hồng Phấn', warehouse: 'Chi nhánh trung tâm', status: 'Đã trả', total: '1590000',
-      return_discount: '0', return_fee: '0', paid: '-1590000', invoice_code: 'HD012345'
-    }],
-    [{ product_code: 'QMCT4CANH', product_name: 'Quạt NK96', quantity: '100', price: '15900', discount: 0, sub_total: '1590000', note: 'vỏ xấu' }]
-  );
-  const detail = await getReturnDetail({ code: 'TH000513', branchCode: 'saigon', pool });
-
-  assert.deepEqual(pool.calls[0].params, ['saigon', 'TH000513']);
-  assert.equal(detail.kind, 'return');
-  assert.equal(detail.invoiceCode, 'HD012345');
-  assert.equal(detail.paid, 1590000);
-  assert.equal(detail.lines[0].amount, 1590000);
-  assert.equal(detail.totalQuantity, 100);
-});
-
-test('getReturnDetail: khong co phieu -> 404', async () => {
-  await assert.rejects(getReturnDetail({ code: 'TH-NONE', branchCode: 'hanoi', pool: fakePool([]) }), { statusCode: 404 });
 });
 
 test('getInvoiceDetail tra dau chung + dong hang, dung subTotal cua hoa don (giu dau)', async () => {

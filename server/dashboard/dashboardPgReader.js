@@ -108,47 +108,11 @@ const INVENTORY_COST_SQL = `(SELECT AVG((inv->>'cost')::float8)
 const PRODUCT_SHELVES_SQL = `(SELECT string_agg(NULLIF(shelf->>'productShelves', ''), ', ')
   FROM jsonb_array_elements(COALESCE(raw->'productShelves', '[]'::jsonb)) shelf)`;
 
-// "Đang vận chuyển" (Hàng hóa): tong so luong hang trong cac phieu "Dat hang nhap"
-// (KiotViet: Mua hang -> Dat hang nhap) co trang thai 'Đã xác nhận NCC' cua Kiot SAI GON
-// (bang order_suppliers, migration 0024) — CO DINH 'saigon' ke ca khi doc tab cua Ha Noi:
-// hang ve theo ma nen moi dong hang hoa (Ha Noi hay Sai Gon) mang cung 1 so theo ma.
-// Chi dong chi tiet co productId (khong co productCode) nen noi products cua Sai Gon
-// de lay ma. Loc theo chuoi `statusValue` (khong theo so `status` — xem ghi chu bay
-// trang thai trong memory du an). Phieu doi sang 'Nhập một phần'/'Hoàn thành'/'Đã hủy'
-// tu roi khoi tong.
-const IN_TRANSIT_STATUS = 'Đã xác nhận NCC';
-const IN_TRANSIT_SQL = `-- in-transit: Đặt hàng nhập ${IN_TRANSIT_STATUS} (Sài Gòn)
-      SELECT
-        lower(btrim(COALESCE(NULLIF(d.raw->>'productCode', ''), sp.code, ''))) AS product_key,
-        SUM(COALESCE(d.quantity, 0))::float8 AS qty
-      FROM order_suppliers o
-      JOIN order_supplier_details d ON d.branch = o.branch AND d.order_supplier_id = o.id
-      LEFT JOIN products sp ON sp.branch = o.branch AND sp.id = d.product_id
-      WHERE o.branch = 'saigon' AND o.raw->>'statusValue' = $1
-      GROUP BY 1`;
-
-/**
- * Map ma hang (chu thuong, da trim) -> so luong dang van chuyen. Fail-soft: bang chua co
- * (chua chay migration 0024) hoac loi DB thi tra Map rong — cot "Đang vận chuyển" = 0, cac
- * cot khac cua tab Hang hoa van doc binh thuong (khong lam trang ca Dashboard).
- */
-let inTransitWarned = false;
-async function readInTransitByCode(pool) {
-  try {
-    const result = await pool.query(IN_TRANSIT_SQL, [IN_TRANSIT_STATUS]);
-    const byCode = new Map();
-    for (const row of (result && result.rows) || []) {
-      if (row.product_key) byCode.set(row.product_key, Number(row.qty) || 0);
-    }
-    return byCode;
-  } catch (error) {
-    if (!inTransitWarned) {
-      inTransitWarned = true;
-      console.warn('[Dashboard] Không đọc được hàng đang vận chuyển (order_suppliers):', error.message);
-    }
-    return new Map();
-  }
-}
+// "Đang vận chuyển" (Hàng hóa): dinh nghia + SQL + ham doc nam o inTransitSource.js (dung chung
+// voi Bao cao hang hoa dem va Gia tri co ban cua Vong doi don hang — mot nguon su that duy nhat).
+const { readInTransitByCode } = require('./inTransitSource');
+// Ten nhan vien ban tren Kiot co hau to "- <ID Telegram>": chi lay phan ten khi hien thi (saleName.js).
+const { saleNameSql } = require('./saleName');
 
 /** Dien cot `Đang vận chuyển` vao cac dong (object khoa theo alias) cua tab Hang hoa. */
 function applyInTransit(rows, byCode, column) {
@@ -278,7 +242,7 @@ const TABS = [
         ${fmtTs('i.purchase_date')}                                AS ngay_ban,
         COALESCE(NULLIF(i.raw->>'customerName', ''), 'Khách lẻ')   AS khach_hang,
         ${MISSING}                                                 AS sdt_khach,
-        COALESCE(NULLIF(i.raw->>'soldByName', ''), s.name, '')     AS nhan_vien_ban,
+        ${saleNameSql(`COALESCE(NULLIF(i.raw->>'soldByName', ''), s.name, '')`)} AS nhan_vien_ban,
         ${text(`i.raw->>'branchName'`)}                            AS chi_nhanh,
         ${num('i.total')}                                          AS tong_tien_hang,
         ${num(`i.raw->>'discount'`)}                               AS giam_gia,
@@ -358,7 +322,7 @@ const TABS = [
         ${text('code')}                                        AS ma_dat_hang,
         ${fmtTs('order_date')}                                 AS ngay_dat,
         COALESCE(NULLIF(raw->>'customerName', ''), 'Khách lẻ') AS khach_hang,
-        ${text(`raw->>'soldByName'`)}                          AS nhan_vien_lap,
+        ${saleNameSql(text(`raw->>'soldByName'`))}             AS nhan_vien_lap,
         ${text(`raw->>'branchName'`)}                          AS chi_nhanh,
         ${num('total')}                                        AS tong_tien,
         ${statusLabel(ORDER_STATUS_FALLBACK)}                  AS trang_thai,
@@ -411,7 +375,7 @@ const TABS = [
         ${text(`raw->>'branchId'`)}                            AS id_chi_nhanh,
         ${text(`raw->>'branchName'`)}                          AS chi_nhanh,
         ${text(`raw->>'receivedById'`)}                        AS id_nguoi_nhan_tra,
-        ${text(`raw->>'soldByName'`)}                          AS nhan_vien_ban,
+        ${saleNameSql(text(`raw->>'soldByName'`))}             AS nhan_vien_ban,
         COALESCE(customer_id::text, '')                        AS id_khach_hang,
         ${text(`raw->>'customerCode'`)}                        AS ma_khach_hang,
         ${num(`raw->>'returnDiscount'`)}                       AS giam_gia_tra_hang,

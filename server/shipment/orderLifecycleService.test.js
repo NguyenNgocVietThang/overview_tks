@@ -261,6 +261,193 @@ test('listAllOrders: lọc theo branch và giữ nguyên thứ tự hàng trong 
   }
 });
 
+// ---------------------------------------------------------------------------
+// GOP don Phieu tam cua Kiot (2026-10-01): khoa (co so, ma don), sheet thang khi trung,
+// don chi co o Kiot -> NOT_SENT; lookup/ghi de van chi doc sheet.
+// ---------------------------------------------------------------------------
+
+function kiotOrder(overrides) {
+  return Object.assign({
+    branch: 'HN', code: 'DH041173', customerName: 'KH Kiot', saleName: 'Nguyễn Văn A',
+    orderDate: '01/10/2026 13:14', orderDateKey: '2026-10-01T13:14:00', total: 8091000, sellableValue: 6000000
+  }, overrides);
+}
+
+function fakeKiot(result) {
+  const calls = { reads: 0 };
+  return {
+    calls,
+    readPendingOrders: async () => { calls.reads++; return result; }
+  };
+}
+
+test('listOrdersMerged: dòng sheet thắng khi trùng (cơ sở, mã); đơn Phiếu tạm khớp được gắn giá trị có bán, không nhân đôi', async () => {
+  const ctx = freshService([
+    record({ orderCode: 'DH041173', _branch: 'HN', saleName: 'Sale Sheet', saleSentAt: '01/10/2026 08:00', driverConfirmedDeliveryAt: '01/10/2026 09:00' }),
+    record({ orderCode: 'DH000999', _branch: 'HN' })
+  ]);
+  try {
+    const { orders, kiot } = await ctx.service.listOrdersMerged(undefined, {
+      kiot: fakeKiot({ ok: true, stale: false, fetchedAt: '2026-10-01T06:00:00.000Z', orders: [kiotOrder()] })
+    });
+    assert.equal(orders.length, 2, 'khong them dong trung');
+    const matched = orders.find(o => o.orderCode === 'DH041173');
+    assert.equal(matched.source, 'sheet');
+    assert.equal(matched.summary.code, 'DELIVERING', 'trang thai theo moc trong sheet, khong bi Kiot ghi de');
+    assert.equal(matched.saleName, 'Sale Sheet', 'ten sale theo sheet');
+    assert.equal(matched.kiotPhieuTam, true);
+    assert.equal(matched.sellableValue, 6000000);
+    assert.equal(matched.orderTotal, 8091000);
+    assert.equal(matched.orderDate, '01/10/2026 13:14');
+    const sheetOnly = orders.find(o => o.orderCode === 'DH000999');
+    assert.deepEqual(
+      [sheetOnly.source, sheetOnly.kiotPhieuTam, sheetOnly.sellableValue, sheetOnly.orderTotal, sheetOnly.orderDate],
+      ['sheet', false, null, null, '']
+    );
+    assert.deepEqual(kiot, { ok: true, stale: false, fetchedAt: '2026-10-01T06:00:00.000Z', count: 1 });
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('listOrdersMerged: đơn chỉ có ở Kiot -> "Đơn chưa gửi kế toán" (NOT_SENT), cột mốc rỗng, không cảnh báo, xếp SAU dòng sheet', async () => {
+  const ctx = freshService([record({ orderCode: 'DH000001', _branch: 'HN', saleSentAt: '01/10/2026 08:00' })]);
+  try {
+    const { orders } = await ctx.service.listOrdersMerged(undefined, {
+      kiot: fakeKiot({ ok: true, orders: [kiotOrder({ code: 'DH041250' }), kiotOrder({ code: 'DH041249' })] })
+    });
+    assert.deepEqual(orders.map(o => o.orderCode), ['DH000001', 'DH041250', 'DH041249'], 'dong sheet truoc, sau do thu tu cua Kiot (moi nhat truoc)');
+    const kiotOnly = orders[1];
+    assert.equal(kiotOnly.source, 'kiotviet');
+    assert.equal(kiotOnly.summary.code, 'NOT_SENT');
+    assert.equal(kiotOnly.summary.label, 'Đơn chưa gửi kế toán');
+    assert.equal(kiotOnly.summary.at, null);
+    assert.equal(kiotOnly.warning, false);
+    assert.equal(kiotOnly.branch, 'HN');
+    assert.equal(kiotOnly.saleName, 'Nguyễn Văn A');
+    assert.equal(kiotOnly.customerName, 'KH Kiot');
+    assert.deepEqual(
+      [kiotOnly.saleSentAt, kiotOnly.accountantApprovedOrderAt, kiotOnly.driverName, kiotOnly.driverConfirmedDeliveryAt,
+        kiotOnly.accountantApprovedDeliveryAt, kiotOnly.deliveryConfirmedAt, kiotOnly.shipReceivedAt, kiotOnly.orderSignedAt],
+      ['', '', '', '', '', '', '', '']
+    );
+    assert.equal(kiotOnly.kiotPhieuTam, true);
+    assert.equal(kiotOnly.sellableValue, 6000000);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('listOrdersMerged: KHÓA THEO CƠ SỞ — cùng mã DH ở HN và SG không bị coi là trùng', async () => {
+  const ctx = freshService([record({ orderCode: 'DH018717', _branch: 'HN', saleSentAt: '01/10/2026 08:00' })]);
+  try {
+    const { orders } = await ctx.service.listOrdersMerged(undefined, {
+      kiot: fakeKiot({ ok: true, orders: [kiotOrder({ branch: 'SG', code: 'DH018717' })] })
+    });
+    assert.equal(orders.length, 2, 'don SG cung ma van duoc them (khac co so)');
+    const sheetRow = orders.find(o => o.source === 'sheet');
+    assert.equal(sheetRow.kiotPhieuTam, false, 'dong sheet HN KHONG khop don Phieu tam cua SG');
+    assert.equal(sheetRow.sellableValue, null);
+    assert.equal(orders.find(o => o.source === 'kiotviet').branch, 'SG');
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('listOrdersMerged: không áp ghi đè lịch sử (khoá theo mã) lên đơn chỉ có ở Kiot; dòng sheet vẫn áp ghi đè', async () => {
+  const ctx = freshService(
+    [record({ orderCode: 'DH000001', _branch: 'HN' })],
+    [overrideRow({ order_code: 'DH000001', to_status_code: 'CANCELLED', to_status_label: 'Đã hủy' }),
+      overrideRow({ history_id: 'OVR-2', order_code: 'DH041173', to_status_code: 'CANCELLED', to_status_label: 'Đã hủy' })]
+  );
+  try {
+    const { orders } = await ctx.service.listOrdersMerged(undefined, { kiot: fakeKiot({ ok: true, orders: [kiotOrder()] }) });
+    assert.equal(orders.find(o => o.orderCode === 'DH000001').summary.code, 'CANCELLED');
+    assert.equal(orders.find(o => o.orderCode === 'DH041173').summary.code, 'NOT_SENT', 'ghi de theo ma khong ap cho don Kiot');
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('listOrdersMerged: lọc cơ sở áp cho cả đơn Kiot; dòng sheet mã trống không bao giờ khớp', async () => {
+  const ctx = freshService([
+    record({ orderCode: '', _branch: 'HN' }),
+    record({ orderCode: 'DH000002', _branch: 'SG' })
+  ]);
+  try {
+    const kiot = fakeKiot({ ok: true, orders: [kiotOrder({ branch: 'HN', code: 'DH041173' }), kiotOrder({ branch: 'SG', code: 'DH019082' })] });
+    const sg = await ctx.service.listOrdersMerged('SG', { kiot });
+    assert.deepEqual(sg.orders.map(o => o.orderCode), ['DH000002', 'DH019082']);
+    const hn = await ctx.service.listOrdersMerged('HN', { kiot });
+    assert.deepEqual(hn.orders.map(o => [o.orderCode, o.source]), [['', 'sheet'], ['DH041173', 'kiotviet']]);
+    assert.equal(hn.orders[0].kiotPhieuTam, false);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('listOrdersMerged: nguồn Kiot lỗi (ok:false) -> chỉ còn dòng sheet, meta báo ok:false; đọc đủ 2 nguồn song song', async () => {
+  const ctx = freshService([record({ orderCode: 'DH000001', _branch: 'HN' })]);
+  try {
+    const kiot = fakeKiot({ ok: false, stale: false, fetchedAt: null, orders: [] });
+    const { orders, kiot: meta } = await ctx.service.listOrdersMerged(undefined, { kiot });
+    assert.deepEqual(orders.map(o => [o.orderCode, o.source, o.kiotPhieuTam]), [['DH000001', 'sheet', false]]);
+    assert.deepEqual(meta, { ok: false, stale: false, fetchedAt: null, count: 0 });
+    assert.equal(kiot.calls.reads, 1);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('listOrdersMerged / listAllOrders KHÔNG truyền kiot: hình dạng cũ, không thêm trường mới, kiot=null', async () => {
+  const ctx = freshService([record({ orderCode: 'HD001', _branch: 'HN' })]);
+  try {
+    const merged = await ctx.service.listOrdersMerged();
+    assert.equal(merged.kiot, null);
+    const row = merged.orders[0];
+    for (const field of ['source', 'kiotPhieuTam', 'sellableValue', 'orderTotal', 'orderDate']) {
+      assert.equal(field in row, false, `${field} chi co khi gop Kiot`);
+    }
+    assert.deepEqual(await ctx.service.listAllOrders(), merged.orders);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('lookup (findOrder / findOrdersBulk) và ghi đè KHÔNG dùng dữ liệu Kiot: đơn chỉ có ở Kiot -> chưa gửi kế toán / 404', async () => {
+  const ctx = freshService([record({ orderCode: 'DH000001', _branch: 'HN' })]);
+  try {
+    const found = await ctx.service.findOrder('DH041173');
+    assert.equal(found.found, false);
+    assert.equal(found.summary.code, 'NOT_SENT');
+    const bulk = await ctx.service.findOrdersBulk(['DH041173']);
+    assert.deepEqual(bulk, [{ code: 'DH041173', found: false }]);
+    await assert.rejects(
+      ctx.service.overrideStatus('DH041173', { code: 'CANCELLED', changedBy: 'X', changedByRole: 'Quản lý' }),
+      { statusCode: 404, code: 'ORDER_NOT_FOUND' }
+    );
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('exportOrdersByCodes có kiot: xuất cả đơn Kiot đã gộp (không codes = toàn bộ; có codes = đúng thứ tự, bỏ mã không có)', async () => {
+  const ctx = freshService([record({ orderCode: 'DH000001', _branch: 'HN' })]);
+  try {
+    const kiot = fakeKiot({ ok: true, orders: [kiotOrder({ code: 'DH041250' }), kiotOrder({ code: 'DH041249' })] });
+    const all = await ctx.service.exportOrdersByCodes(undefined, { kiot });
+    assert.deepEqual(all.map(o => o.orderCode), ['DH000001', 'DH041250', 'DH041249']);
+    const some = await ctx.service.exportOrdersByCodes(['dh041249', 'DH000001', 'KHONG-CO'], { kiot });
+    assert.deepEqual(some.map(o => o.orderCode), ['DH041249', 'DH000001']);
+    assert.equal(some[0].sellableValue, 6000000);
+    // Khong co kiot -> chi dong sheet nhu cu.
+    const sheetOnly = await ctx.service.exportOrdersByCodes(['DH041249']);
+    assert.deepEqual(sheetOnly, []);
+  } finally {
+    ctx.restore();
+  }
+});
+
 test('toDetail (qua findOrder) trả kèm customerName', async () => {
   const ctx = freshService([record({ orderCode: 'HD001', saleName: 'Sale A', customerName: 'KH A', saleSentAt: '01/09/2026' })]);
   try {

@@ -30,7 +30,7 @@ test('parseViewsParam: ten tab sai bi tu choi 400 INVALID_VIEW, khong bo qua im 
   assert.throws(() => parseViewsParam('__proto__'), error => error.code === 'INVALID_VIEW');
 });
 
-test('ke hoach ca 5 tab (khong truyen view) = doc du 6 bang + CN1/3/7 + du 6 rollup + cong no, khoa cache "all"', () => {
+test('ke hoach ca 5 tab (khong truyen view) = doc du 5 bang (khong con Dat hang) + CN1/3/7 + du 6 rollup + cong no, khoa cache "all"', () => {
   const plan = resolveViewPlan();
   assert.equal(plan.all, true);
   assert.deepEqual(plan.views, VIEW_NAMES);
@@ -38,11 +38,13 @@ test('ke hoach ca 5 tab (khong truyen view) = doc du 6 bang + CN1/3/7 + du 6 rol
   assert.deepEqual(plan.coreKeys, ALL_CORE_KEYS);
   assert.deepEqual([...plan.rollups], ALL_ROLLUPS);
   assert.equal(plan.needsDebt, true);
-  // Bang nguon cua ke hoach du phai la dung 6 tab core cua pgReader (+ periods).
+  // Bang nguon cua ke hoach = cac tab core cua pgReader TRU bang Dat hang (2026-10-01: khong tab nao con can ~23K dong
+  // Dat hang; don Phieu tam xem o trang Vong doi don hang). pgReader van doc duoc Dat hang cho tim kiem/xuat file.
   assert.deepEqual(
     plan.coreKeys.filter(key => key !== PERIODS_KEY).sort(),
-    [...dashboardPgReader.CORE_SHEET_NAMES].sort()
+    [...dashboardPgReader.CORE_SHEET_NAMES].filter(name => name !== CONFIG.SHEET_ORDERS).sort()
   );
+  assert.ok(!plan.coreKeys.includes(CONFIG.SHEET_ORDERS));
 });
 
 test('Tong quan KHONG doc Dat hang/Tra hang/cong no va khong chay rollup so luong hoa don', () => {
@@ -60,7 +62,7 @@ test('Tong quan KHONG doc Dat hang/Tra hang/cong no va khong chay rollup so luon
 test('moi tab chi doc dung nguon cua no; Cong no chi can CN1/3/7 + workbook cong no', () => {
   const sheetsOf = name => resolveViewPlan([name]).coreKeys;
   assert.deepEqual(sheetsOf('products'), [CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS]);
-  assert.deepEqual(sheetsOf('invoices'), [CONFIG.SHEET_INVOICES, CONFIG.SHEET_ORDERS, CONFIG.SHEET_RETURNS]);
+  assert.deepEqual(sheetsOf('invoices'), [CONFIG.SHEET_INVOICES, CONFIG.SHEET_RETURNS], 'Hoa don chi con can Tra hang cho the chi so, khong doc Dat hang');
   assert.deepEqual(sheetsOf('customers'), [CONFIG.SHEET_INVOICES, CONFIG.SHEET_RETURNS, CONFIG.SHEET_CUSTOMERS]);
   assert.deepEqual(sheetsOf('debt'), [PERIODS_KEY]);
   assert.equal(resolveViewPlan(['debt']).needsDebt, true);
@@ -105,7 +107,7 @@ test('pickFilters: chi giu bo loc anh huong tab (cache key), ke hoach ca 5 tab g
   assert.deepEqual(pickFilters(changed, resolveViewPlan(['products'])), pickFilters(filters, resolveViewPlan(['products'])));
 });
 
-test('pickFilters: bo loc rieng tung bang (newlyImported/orders/returns) vao cache key cua dung tab', () => {
+test('pickFilters: bo loc rieng bang Hang moi nhap vao cache key cua dung tab; bo loc orders/returns cu bi bo qua', () => {
   const filters = {
     products: { mode: 'days', days: 7 }, invoices: { mode: 'days', days: 3 },
     newlyImported: { mode: 'days', days: 14 }, orders: { mode: 'days', days: 60 }, returns: { mode: 'all' }
@@ -113,12 +115,11 @@ test('pickFilters: bo loc rieng tung bang (newlyImported/orders/returns) vao cac
   assert.deepEqual(pickFilters(filters, resolveViewPlan(['products'])), {
     products: { mode: 'days', days: 7 }, newlyImported: { mode: 'days', days: 14 }
   });
-  assert.deepEqual(pickFilters(filters, resolveViewPlan(['invoices'])), {
-    invoices: { mode: 'days', days: 3 }, orders: { mode: 'days', days: 60 }, returns: { mode: 'all' }
-  });
+  // Client cu con gui orders/returns (2 bang da bo 2026-10-01): khong con anh huong cache key cua tab Hoa don.
+  assert.deepEqual(pickFilters(filters, resolveViewPlan(['invoices'])), { invoices: { mode: 'days', days: 3 } });
   assert.deepEqual(pickFilters(filters, resolveViewPlan(['overview'])), { invoices: { mode: 'days', days: 3 } });
   assert.deepEqual(VIEW_PAYLOAD.products.filters, ['products', 'newProducts', 'newlyImported']);
-  assert.deepEqual(VIEW_PAYLOAD.invoices.filters, ['invoices', 'orders', 'returns']);
+  assert.deepEqual(VIEW_PAYLOAD.invoices.filters, ['invoices']);
 });
 
 test('pickPayload: cat dung phan cua tab, khong sua ban day du, Tong quan khong con khoa `products`', () => {

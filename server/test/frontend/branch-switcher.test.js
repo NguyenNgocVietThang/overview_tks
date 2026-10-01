@@ -122,14 +122,21 @@ test('renderTopSidebar: menu dung theo QUYEN, khong theo vai tro cung', () => {
   assert.match(sbKho.innerHTML, /Quản lý nhân sự/);
   assert.doesNotMatch(sbKho.innerHTML, /Báo cáo tổng hợp/);
 
+  // Nhan vien sale: duoc xem Tong quan (2026-10-01) nhung KHONG co cac tab bao cao con lai.
   const sbSale = renderForRole('Nhân viên sale').sidebar;
   assert.match(sbSale.innerHTML, /Quản lý đơn hàng/);
   assert.match(sbSale.innerHTML, /Quản lý nhân sự/);
-  assert.doesNotMatch(sbSale.innerHTML, /Báo cáo tổng hợp/);
+  assert.match(sbSale.innerHTML, /Báo cáo tổng hợp/);
+  assert.match(sbSale.innerHTML, />Tổng quan<\/a>/);
+  assert.doesNotMatch(sbSale.innerHTML, />Hàng hóa<\/a>/);
+  assert.doesNotMatch(sbSale.innerHTML, />Hóa đơn<\/a>/);
+  assert.doesNotMatch(sbSale.innerHTML, />Khách hàng<\/a>/);
+  assert.doesNotMatch(sbSale.innerHTML, />Quản lý công nợ<\/a>/);
 
-  // Nhan vien marketing: quyen y het Nhan vien sale -> menu phai giong het.
+  // Nhan vien marketing giu nguyen (khong co Tong quan): menu giong Nhan vien kho.
   const sbMarketing = renderForRole('Nhân viên marketing').sidebar;
-  assert.equal(sbMarketing.innerHTML, sbSale.innerHTML);
+  assert.doesNotMatch(sbMarketing.innerHTML, /Báo cáo tổng hợp/);
+  assert.match(sbMarketing.innerHTML, /Quản lý đơn hàng/);
 
   // Nhan vien mua hang nay DUOC xem Vong doi don hang (truoc day UI giau nhung
   // API van cho) — mo giao dien theo API de hai ben khop nhau.

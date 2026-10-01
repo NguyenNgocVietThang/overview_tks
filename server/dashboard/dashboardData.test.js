@@ -754,6 +754,32 @@ test('getDashboardData tra toan bo giao dich trong bang chi tiet, bieu do van ch
   assert.equal(report.truncated, false);
 });
 
+test('chi tiet giao dich: moi dong co timeMs (epoch ms cua gio ban) vi chuoi `time` khong co nam, de bang sap theo THOI GIAN that', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const CONFIG = require('../config');
+  const invoiceHeader = ['Mã hóa đơn', 'Ngày bán', 'Khách hàng', 'SĐT khách', 'Nhân viên bán', 'Chi nhánh', 'Tổng tiền hàng', 'Giảm giá', 'Khách đã trả', 'Trạng thái'];
+  mockPgSheets(dashboardPgReader, {
+    [CONFIG.SHEET_INVOICES]: [
+      invoiceHeader,
+      ['HD-A', '30/09/2026 10:00:00', 'Khách', '', 'Sale', '', 100, 0, 100, 'Hoàn thành'],
+      ['HD-B', '01/10/2026 09:00:00', 'Khách', '', 'Sale', '', 100, 0, 100, 'Hoàn thành'],
+      ['HD-C', '', 'Khách', '', 'Sale', '', 100, 0, 100, 'Hoàn thành']
+    ]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData({ ...BASE_FILTERS, invoices: { mode: 'all' } });
+  const byCode = Object.fromEntries(data.invoices.transactionsReport.transactions.map(row => [row.code, row]));
+
+  // Gio ban la gio dia phuong VN (UTC+7), `timeMs` la thoi diem tuyet doi tuong ung.
+  assert.equal(byCode['HD-A'].timeMs, Date.parse('2026-09-30T10:00:00+07:00'));
+  assert.equal(byCode['HD-B'].timeMs, Date.parse('2026-10-01T09:00:00+07:00'));
+  assert.equal(byCode['HD-A'].time, '30/09 10:00', 'chuoi hien thi giu nguyen (dd/MM HH:mm, khong nam)');
+  assert.ok(byCode['HD-B'].timeMs > byCode['HD-A'].timeMs, '01/10 sau 30/09 theo thoi gian that');
+  assert.equal(byCode['HD-C'].timeMs, null, 'hoa don khong co gio ban -> timeMs null (khong phai 0/1970)');
+  assert.equal(byCode['HD-C'].time, '—');
+});
+
 test('getDashboardData tra day du san pham cho bang, bieu do van chi top 15', async () => {
   const { dashboardData, dashboardRollupRepository } = freshDashboardData();
   mockDashboardRollups(dashboardRollupRepository, {
@@ -773,61 +799,58 @@ test('getDashboardData tra day du san pham cho bang, bieu do van chi top 15', as
   assert.equal(data.products.allSellingProducts[0].code, 'SP-18');
 });
 
-test('bang dat hang chi liet ke "Phiếu tạm", bang tra hang chi liet ke "Đã trả" (KPI van tinh theo cach cu)', async () => {
+test('tab Hoa don: chi con the chi so Trả hàng (moi trang thai) theo bo loc Hoa don; khong con danh sach/KPI dat hang va tra hang', async () => {
   const { dashboardData, dashboardPgReader } = freshDashboardData();
   const CONFIG = require('../config');
   mockPgSheets(dashboardPgReader, {
-    [CONFIG.SHEET_ORDERS]: [
-      ['Mã đặt hàng', 'Ngày đặt', 'Khách hàng', 'Nhân viên lập', 'Chi nhánh', 'Tổng tiền', 'Trạng thái'],
-      ['DH-TAM', '10/08/2026 09:00:00', 'Khách A', '', '', 100, 'Phiếu tạm'],
-      ['DH-XONG', '10/08/2026 09:01:00', 'Khách A', '', '', 200, 'Hoàn thành'],
-      ['DH-HUY', '10/08/2026 09:02:00', 'Khách A', '', '', 300, 'Đã hủy'],
-      ['DH-XL', '10/08/2026 09:03:00', 'Khách A', '', '', 400, 'Đang xử lý']
-    ],
     [CONFIG.SHEET_RETURNS]: [
       ['Mã trả hàng', 'Ngày trả', 'Mã hóa đơn', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái'],
       ['TH-TRA', '10/08/2026 10:00:00', 'HD-01', 'Khách A', 50, 'Đã trả'],
-      ['TH-HUY', '10/08/2026 10:01:00', 'HD-01', 'Khách A', 60, 'Đã hủy']
+      ['TH-HUY', '10/08/2026 10:01:00', 'HD-01', 'Khách A', 60, 'Đã hủy'],
+      ['TH-CU', '01/01/2026 10:00:00', 'HD-02', 'Khách B', 70, 'Đã trả']
     ]
   });
   dashboardData.__test__.resetCaches();
 
-  const data = await dashboardData.getDashboardData({ ...BASE_FILTERS, invoices: { mode: 'all' } });
+  const all = await dashboardData.getDashboardData({ ...BASE_FILTERS, invoices: { mode: 'all' } });
+  assert.equal(all.invoices.returnsCount, 3, 'the Tra hang tinh MOI trang thai (ke ca Đã hủy) nhu dinh nghia cu');
+  assert.equal(all.invoices.totalReturns, 180);
 
-  assert.deepEqual(data.invoices.periodOrders.map(row => row.code), ['DH-TAM']);
-  assert.deepEqual(data.invoices.periodReturns.map(row => row.code), ['TH-TRA']);
-  assert.equal(data.invoices.pendingOrdersCount, 2, 'KPI don cho van gom Phiếu tạm + Đang xử lý');
-  assert.equal(data.invoices.returnsCount, 2);
+  // Bo loc rieng cua bang Tra hang da bo: the chi so theo bo loc Hoa don.
+  dashboardData.__test__.resetCaches();
+  const range = await dashboardData.getDashboardData({ ...BASE_FILTERS, invoices: { mode: 'range', from: '2026-08-10', to: '2026-08-10' } });
+  assert.equal(range.invoices.returnsCount, 2);
+  assert.equal(range.invoices.totalReturns, 110);
+
+  // 2 bang Dat hang / Tra hang (va KPI don cho) da bo khoi payload tab Hoa don.
+  for (const key of ['periodOrders', 'periodReturns', 'pendingOrdersCount', 'pendingOrdersTotal', 'recentOrders', 'recentReturns']) {
+    assert.equal(key in all.invoices, false, key + ' khong con trong payload');
+  }
+  assert.equal('orders' in all.filters, false);
+  assert.equal('returns' in all.filters, false);
 });
 
-test('getDashboardData tra toan bo dat hang/tra hang trong khoang loc, khong cat 8 dong, moi nhat len dau', async () => {
+test('bo loc orders/returns cu trong yeu cau bi bo qua (khong anh huong ket qua / khong loi)', async () => {
   const { dashboardData, dashboardPgReader } = freshDashboardData();
   const CONFIG = require('../config');
-  const pad = n => String(n).padStart(2, '0');
-  const orderRows = [];
-  const returnRows = [];
-  for (let i = 1; i <= 12; i++) {
-    orderRows.push([`DH-${pad(i)}`, `${pad(i)}/08/2026 09:00:00`, 'Khách A', '', '', '', 100000 * i, 'Phiếu tạm']);
-    returnRows.push([`TH-${pad(i)}`, `${pad(i)}/08/2026 10:00:00`, 'HD-01', 'Khách A', 50000 * i, 'Đã trả']);
-  }
   mockPgSheets(dashboardPgReader, {
-    [CONFIG.SHEET_ORDERS]: [['Mã đặt hàng', 'Ngày đặt', 'Khách hàng', 'Nhân viên lập', 'Chi nhánh', 'Tổng tiền', 'Trạng thái'], ...orderRows]
-      .map((row, index) => index === 0 ? row : [row[0], row[1], row[2], row[3], row[4], row[6], row[7]]),
-    [CONFIG.SHEET_RETURNS]: [['Mã trả hàng', 'Ngày trả', 'Mã hóa đơn', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái'], ...returnRows]
+    [CONFIG.SHEET_RETURNS]: [
+      ['Mã trả hàng', 'Ngày trả', 'Mã hóa đơn', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái'],
+      ['TH-1', '10/08/2026 10:00:00', 'HD-01', 'Khách A', 50, 'Đã trả'],
+      ['TH-2', '01/01/2026 10:00:00', 'HD-02', 'Khách B', 70, 'Đã trả']
+    ]
   });
   dashboardData.__test__.resetCaches();
-
-  const data = await dashboardData.getDashboardData({ ...BASE_FILTERS, invoices: { mode: 'all' } });
-
-  assert.equal(data.invoices.periodOrders.length, 12);
-  assert.equal(data.invoices.periodOrders[0].code, 'DH-12');
-  assert.equal(data.invoices.periodOrders[11].code, 'DH-01');
-  assert.equal(data.invoices.periodReturns.length, 12);
-  assert.equal(data.invoices.periodReturns[0].code, 'TH-12');
-  assert.equal(data.invoices.recentOrders, undefined);
-  assert.equal(data.invoices.recentReturns, undefined);
+  const data = await dashboardData.getDashboardData({
+    ...BASE_FILTERS,
+    invoices: { mode: 'all' },
+    // Client cu con gui bo loc rieng cua bang da bo: phai bi bo qua, the van theo bo loc Hoa don.
+    orders: { mode: 'days', days: 1 },
+    returns: { mode: 'days', days: 1 }
+  });
+  assert.equal(data.invoices.returnsCount, 2);
+  assert.equal(data.invoices.totalReturns, 120);
 });
-
 
 test('cache cua Ha Noi khong ro ri sang Sai Gon — moi co so fetch rieng', async () => {
   const { dashboardData, dashboardPgReader, customerDebtActivityRepository, debtManagementSheetsClient } = freshDashboardData();
@@ -1159,7 +1182,7 @@ test('Ca hai cong KPI/bucket; hang hoa trung ma la 2 dong rieng, khach trung ten
   assert.deepEqual(data.customers.topDebt.find(customer => customer.name === 'Khách 2').debtByBranch, { [BRANCHES.HANOI]: 50 });
 });
 
-test('allProducts co "available" (ton - khach dat) va "inTransit" (cot Đang vận chuyển), thieu cot thi = 0', async () => {
+test('allProducts co "available" (ton - khach dat + dang van chuyen) va "inTransit" (cot Đang vận chuyển), thieu cot thi = 0', async () => {
   const { dashboardData, dashboardPgReader, dashboardRollupRepository } = freshDashboardData();
   const CONFIG = require('../config');
   const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
@@ -1185,9 +1208,10 @@ test('allProducts co "available" (ton - khach dat) va "inTransit" (cot Đang v�
   }, BRANCH_BOTH);
 
   const pick = (code, branch) => data.allProducts.find(p => p.code === code && p.branch === branch);
+  // Quy tac 2026-10-01: Ton co the ban = Ton thuc - Khach dat (phieu tam) + Hang dang van chuyen.
   assert.deepEqual(
     [pick('SP-1', 'Hà Nội').stock, pick('SP-1', 'Hà Nội').reserved, pick('SP-1', 'Hà Nội').available, pick('SP-1', 'Hà Nội').inTransit],
-    [8, 3, 5, 720]
+    [8, 3, 725, 720]
   );
   assert.equal(pick('SP-2', 'Hà Nội').available, -3, 'khach dat vuot ton thi am, khong kep ve 0');
   assert.equal(pick('SP-4', 'Hà Nội').available, 2.2, 'lam tron sai so dau phay dong khi ton le');
@@ -1236,10 +1260,6 @@ test('Ca hai giu giao dich trung ma theo (co so, ma) va gan provenance', async (
       ['Mã hóa đơn', 'Ngày bán', 'Khách hàng', 'SĐT khách', 'Nhân viên bán', 'Chi nhánh', 'Tổng tiền hàng', 'Giảm giá', 'Khách đã trả', 'Trạng thái'],
       ['HD-TRUNG', '10/08/2026 10:00:00', 'Khách', '', '', '', branch === BRANCHES.HANOI ? 100 : 200, 0, 0, 'Hoàn thành']
     ];
-    result[CONFIG.SHEET_ORDERS] = [
-      ['Mã đặt hàng', 'Ngày đặt', 'Khách hàng', 'Nhân viên lập', 'Chi nhánh', 'Tổng tiền', 'Trạng thái'],
-      ['DH-TRUNG', '10/08/2026 11:00:00', 'Khách', '', '', 10, 'Phiếu tạm']
-    ];
     result[CONFIG.SHEET_RETURNS] = [
       ['Mã trả hàng', 'Ngày trả', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái', 'Chi nhánh'],
       ['TH-TRUNG', '10/08/2026 12:00:00', 'Khách', 5, 'Đã trả', '']
@@ -1258,12 +1278,9 @@ test('Ca hai giu giao dich trung ma theo (co so, ma) va gan provenance', async (
   assert.deepEqual(data.invoices.transactionsReport.transactions.map(row => [row.code, row.branch, row.quantity]), [
     ['HD-TRUNG', BRANCHES.HANOI, 1], ['HD-TRUNG', BRANCHES.SAIGON, 2]
   ]);
-  assert.deepEqual(data.invoices.periodOrders.map(row => [row.code, row.branch]), [
-    ['DH-TRUNG', BRANCHES.HANOI], ['DH-TRUNG', BRANCHES.SAIGON]
-  ]);
-  assert.deepEqual(data.invoices.periodReturns.map(row => [row.code, row.branch]), [
-    ['TH-TRUNG', BRANCHES.HANOI], ['TH-TRUNG', BRANCHES.SAIGON]
-  ]);
+  // The chi so Tra hang cong du lieu 2 co so (moi co so 1 phieu 5d) — cung ma phieu nhung khac co so van tinh du.
+  assert.equal(data.invoices.returnsCount, 2);
+  assert.equal(data.invoices.totalReturns, 10);
 });
 
 test('cache Ca hai co scope rieng va doi key khi version mot nguon vat ly thay doi', async () => {
@@ -1887,15 +1904,10 @@ test('getDashboardData: newlyImported cung khoang voi products (hoac khong gui) 
   assert.equal(fallback.filters.newlyImported.label, '01/08/2026 – 31/08/2026');
 });
 
-test('getDashboardData: bo loc orders (or) / returns (rt) doc lap voi invoices (in), khong gui thi theo invoices', async () => {
+test('getDashboardData: tab Hoa don — doi bo loc invoices tinh lai the Tra hang (khong dung nham cache); payload chi mang bo loc invoices', async () => {
   const { dashboardData, dashboardPgReader } = freshDashboardData();
   const CONFIG = require('../config');
   mockPgSheets(dashboardPgReader, {
-    [CONFIG.SHEET_ORDERS]: [
-      ['Mã đặt hàng', 'Ngày đặt', 'Khách hàng', 'Nhân viên lập', 'Chi nhánh', 'Tổng tiền', 'Trạng thái'],
-      ['DH-AUG', '10/08/2026 09:00:00', 'Khách A', '', '', 100, 'Phiếu tạm'],
-      ['DH-JUL', '10/07/2026 09:00:00', 'Khách A', '', '', 200, 'Phiếu tạm']
-    ],
     [CONFIG.SHEET_RETURNS]: [
       ['Mã trả hàng', 'Ngày trả', 'Mã hóa đơn', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái'],
       ['TH-AUG', '10/08/2026 10:00:00', 'HD-01', 'Khách A', 50, 'Đã trả'],
@@ -1904,51 +1916,12 @@ test('getDashboardData: bo loc orders (or) / returns (rt) doc lap voi invoices (
   });
   dashboardData.__test__.resetCaches();
 
-  const independent = await dashboardData.getDashboardData({
-    ...BASE_FILTERS,
-    invoices: { mode: 'all' },
-    orders: { mode: 'range', from: '2026-08-01', to: '2026-08-31' },
-    returns: { mode: 'range', from: '2026-07-01', to: '2026-07-31' }
-  });
-  assert.deepEqual(independent.invoices.periodOrders.map(row => row.code), ['DH-AUG']);
-  assert.equal(independent.invoices.pendingOrdersCount, 1);
-  assert.equal(independent.invoices.pendingOrdersTotal, 100);
-  assert.deepEqual(independent.invoices.periodReturns.map(row => row.code), ['TH-JUL']);
-  assert.equal(independent.invoices.returnsCount, 1);
-  assert.equal(independent.invoices.totalReturns, 60);
-  assert.equal(independent.filters.invoices.label, 'Tất cả');
-  assert.equal(independent.filters.orders.label, '01/08/2026 – 31/08/2026');
-  assert.equal(independent.filters.returns.label, '01/07/2026 – 31/07/2026');
-
-  const fallback = await dashboardData.getDashboardData({
-    ...BASE_FILTERS,
-    invoices: { mode: 'range', from: '2026-07-01', to: '2026-07-31' }
-  });
-  assert.deepEqual(fallback.invoices.periodOrders.map(row => row.code), ['DH-JUL']);
-  assert.deepEqual(fallback.invoices.periodReturns.map(row => row.code), ['TH-JUL']);
-  assert.equal(fallback.filters.orders.label, '01/07/2026 – 31/07/2026');
-  assert.equal(fallback.filters.returns.label, '01/07/2026 – 31/07/2026');
-});
-
-test('getDashboardData: tab Hoa don — doi bo loc orders/returns tinh lai (khong dung nham cache)', async () => {
-  const { dashboardData, dashboardPgReader } = freshDashboardData();
-  const CONFIG = require('../config');
-  mockPgSheets(dashboardPgReader, {
-    [CONFIG.SHEET_ORDERS]: [
-      ['Mã đặt hàng', 'Ngày đặt', 'Khách hàng', 'Nhân viên lập', 'Chi nhánh', 'Tổng tiền', 'Trạng thái'],
-      ['DH-AUG', '10/08/2026 09:00:00', 'Khách A', '', '', 100, 'Phiếu tạm'],
-      ['DH-JUL', '10/07/2026 09:00:00', 'Khách A', '', '', 200, 'Phiếu tạm']
-    ]
-  });
-  dashboardData.__test__.resetCaches();
-
-  const base = { ...BASE_FILTERS, invoices: { mode: 'all' } };
   const views = { views: ['invoices'] };
-  const aug = await dashboardData.getDashboardData({ ...base, orders: { mode: 'range', from: '2026-08-01', to: '2026-08-31' } }, undefined, undefined, views);
-  const jul = await dashboardData.getDashboardData({ ...base, orders: { mode: 'range', from: '2026-07-01', to: '2026-07-31' } }, undefined, undefined, views);
-  assert.deepEqual(aug.invoices.periodOrders.map(row => row.code), ['DH-AUG']);
-  assert.deepEqual(jul.invoices.periodOrders.map(row => row.code), ['DH-JUL']);
-  assert.ok(jul.filters.orders && jul.filters.returns, 'payload tab Hoa don co filters.orders/returns');
+  const aug = await dashboardData.getDashboardData({ ...BASE_FILTERS, invoices: { mode: 'range', from: '2026-08-01', to: '2026-08-31' } }, undefined, undefined, views);
+  const jul = await dashboardData.getDashboardData({ ...BASE_FILTERS, invoices: { mode: 'range', from: '2026-07-01', to: '2026-07-31' } }, undefined, undefined, views);
+  assert.deepEqual([aug.invoices.returnsCount, aug.invoices.totalReturns], [1, 50]);
+  assert.deepEqual([jul.invoices.returnsCount, jul.invoices.totalReturns], [1, 60]);
+  assert.deepEqual(Object.keys(jul.filters), ['invoices'], 'payload tab Hoa don chi con bo loc invoices (orders/returns da bo)');
 });
 
 test('getDashboardData: doanh thu theo ngay (Tong quan/Hoa don) doc tu getInvoiceRevenueByDay (rollup)', async () => {
@@ -2409,8 +2382,9 @@ test('tung tab: tra du lieu that (khong phai lat cat rong) — Tong quan/Hoa don
   assert.equal(overview.debtManagement, undefined);
 
   const invoices = await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['invoices'] });
-  assert.equal(invoices.invoices.periodOrders.length, 1);
-  assert.equal(invoices.invoices.periodReturns.length, 1);
+  assert.equal(invoices.invoices.returnsCount, 1, 'the chi so Tra hang (TH-1)');
+  assert.equal(invoices.invoices.totalReturns, 50000);
+  assert.equal('periodOrders' in invoices.invoices, false, 'bang Dat hang / Tra hang da bo');
   assert.equal(invoices.invoices.transactionsReport.transactions.find(item => item.code === 'HD-1').quantity, 3);
   assert.equal(invoices.invoices.periodCancelledInvoices, 1);
   assert.equal(invoices.products, undefined);
@@ -2539,8 +2513,8 @@ test('cache nguon theo tung bang: mo them tab chi doc bang con thieu, bang con h
   await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['invoices'] });
 
   assert.equal(reads.length, 2);
-  assert.deepEqual([...reads[1]].sort(), [CONFIG.SHEET_ORDERS, CONFIG.SHEET_RETURNS].sort(),
-    'Hoa don da co san tu tab Tong quan, chi doc them Dat hang + Tra hang');
+  assert.deepEqual([...reads[1]], [CONFIG.SHEET_RETURNS],
+    'Hoa don da co san tu tab Tong quan, chi doc them Tra hang (khong con doc bang Dat hang ~23K dong)');
 
   await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['customers'] });
   assert.equal(reads.length, 2, 'Khach hang chi can Hoa don/Tra hang/Khach hang, deu da co trong cache');

@@ -36,10 +36,6 @@ const MAX_MULTI_SEARCH_CODES = 50;
 const DASHBOARD_SHEETS_CACHE_TTL_MS = 90 * 1000;
 const CUSTOMER_PRODUCT_TOP_LIMIT = 3;
 const PRODUCT_REVENUE_SEARCH_LIVE_LIMIT = 200; // gioi han so dong render khi go tim truc tiep (khong ap dung cho xuat Excel)
-const PENDING_ORDER_STATUSES = new Set(['Phiếu tạm', 'Đang xử lý', 'Đã xác nhận']);
-// Bang "Danh sach dat hang" / "Danh sach tra hang" (tab Hoa don) chi liet ke dung 1 trang thai.
-const LISTED_ORDER_STATUS = 'Phiếu tạm';
-const LISTED_RETURN_STATUS = 'Đã trả';
 const DASHBOARD_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const DASHBOARD_UTC_OFFSET = '+07:00';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -234,16 +230,15 @@ function hasFilterSpecValue(spec) {
     ['mode', 'days', 'from', 'to'].some(key => spec[key] !== undefined && spec[key] !== null && spec[key] !== ''));
 }
 
-// Bo loc rieng tung bang (Hang moi nhap / Dat hang / Tra hang) — thieu hoac rong
-// thi dung bo loc cha (Hang hoa / Hoa don) nhu truoc de client/test cu khong doi.
+// Bo loc rieng tung bang (Hang moi nhap) — thieu hoac rong thi dung bo loc cha (Hang hoa)
+// nhu truoc de client/test cu khong doi. (2026-10-01: bo 2 bang Dat hang / Tra hang cua tab Hoa
+// don nen khong con bo loc rieng `orders` / `returns`; the "Tra hang" theo bo loc `invoices`.)
 // Tra object MOI (khong sua filters cua nguoi goi); idempotent.
 function withTableFilterFallbacks(filters) {
   const f = filters || {};
   return {
     ...f,
-    newlyImported: hasFilterSpecValue(f.newlyImported) ? f.newlyImported : f.products,
-    orders: hasFilterSpecValue(f.orders) ? f.orders : f.invoices,
-    returns: hasFilterSpecValue(f.returns) ? f.returns : f.invoices
+    newlyImported: hasFilterSpecValue(f.newlyImported) ? f.newlyImported : f.products
   };
 }
 
@@ -1971,6 +1966,9 @@ function buildTransactionsReport(range, invoiceRecords, invoiceQuantityMap, incl
         code: r.code,
         ...(includeBranch ? { branch: r.branch } : {}),
         time: r._dt ? (singleDay ? formatHM(r._dt) : formatDMYHM(r._dt)) : '—',
+        // Chuoi `time` o tren khong co nam (dd/MM HH:mm, hay HH:mm khi loc 1 ngay) nen khong sap theo chuoi duoc:
+        // gui kem epoch ms de bang sap xep theo THOI GIAN that (null khi hoa don khong co thoi gian).
+        timeMs: r._dt ? r._dt.getTime() : null,
         customer: r.customer,
         employee: r.employee,
         quantity: invoiceQuantityMap.get(quantityKey) || 0,
@@ -2687,10 +2685,8 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const invoicesRange = resolveFilterRange(f.invoices, now);
   const customersRange = resolveFilterRange(f.customers, now);
   const newProductsRange = resolveFilterRange(f.newProducts, now);
-  // Bo loc rieng tung bang (mac dinh = bo loc Hang hoa / Hoa don, xem withTableFilterFallbacks).
+  // Bo loc rieng tung bang (mac dinh = bo loc Hang hoa, xem withTableFilterFallbacks).
   const newlyImportedRange = resolveFilterRange(f.newlyImported, now);
-  const ordersRange = resolveFilterRange(f.orders, now);
-  const returnsRange = resolveFilterRange(f.returns, now);
 
   const debtManagement = !view.has('debt') ? undefined : (debtManagementOverride || buildDebtManagementForBranch({
     branch,
@@ -2705,7 +2701,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   // "Chi tiết hóa đơn" KHONG con doc tu `sheets` o day — tab nang nhat, da bo
   // khoi cache "core" (xem getCachedDashboardCoreSources()) va duoc thay bang
   // dashboardRollupRepository.js qua tham so `rollups`.
-  const orderData = sheets[CONFIG.SHEET_ORDERS] || [];
+  // (Bang "Đặt hàng" khong con doc o day: don dat hang "Phieu tam" nay hien o trang Vong doi don hang.)
   const returnData = sheets[CONFIG.SHEET_RETURNS] || [];
   const custData = sheets[CONFIG.SHEET_CUSTOMERS] || [];
   const customerReportData = sheets[CONFIG.SHEET_CUSTOMER_REPORT] || [];
@@ -2822,9 +2818,12 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     name: p.name,
     stock: p.stock,
     reserved: p.reserved,
-    // Ton co the ban = ton thuc te tru hang khach da dat (khong kep ve 0: am = da giu qua ton).
-    // Lam tron 6 chu so thap phan de hang ban theo can (so le) khong lo sai so dau phay dong.
-    available: Math.round((p.stock - p.reserved) * 1e6) / 1e6,
+    // Ton co the ban = ton thuc te - hang khach da dat (phieu tam) + hang dang van chuyen
+    // (khong kep ve 0: am = da giu qua ton). `reserved` la so "Khach dat" cua Kiot (doi chieu
+    // 2026-10-01 ~ tong Phieu tam, lech < 0,1%); hang dang van chuyen cung 1 so theo ma cho ca
+    // 2 co so (xem inTransitSource.js). Lam tron 6 chu so thap phan de hang ban theo can
+    // (so le) khong lo sai so dau phay dong.
+    available: Math.round((p.stock - p.reserved + p.inTransit) * 1e6) / 1e6,
     // So luong trong phieu Dat hang nhap 'Đã xác nhận NCC' cua Kiot Sai Gon, khop theo ma.
     inTransit: p.inTransit,
     status: p.status,
@@ -3101,35 +3100,8 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
         });
       })();
 
-  // ---------- ĐẶT HÀNG (theo bộ lọc riêng orders, mặc định = Hóa đơn) ----------
-  // Cột: [0]Mã đặt hàng [1]Ngày đặt [2]Khách hàng [3]Nhân viên lập [4]Chi nhánh [5]Tổng tiền [6]Trạng thái
-  const orderRecords = [];
-  const orderFacilityIndex = sheetHeaderIndex(orderData[0] || [], SHEET_FACILITY_HEADER);
-  for (let r = 1; r < orderData.length; r++) {
-    const row = orderData[r];
-    const code = row[0];
-    if (!code) continue;
-    const dt = parseSheetDate(row[1]);
-    orderRecords.push({
-      code, date: row[1] || '', time: dt ? formatDMYHM(dt) : '—', customer: row[2], total: Number(row[5]) || 0, status: row[6] || '',
-      branch: (orderFacilityIndex >= 0 && row[orderFacilityIndex]) || (branch === BRANCH_BOTH ? row[4] || '' : singleBranch),
-      _dt: dt, _sortTime: dt ? dt.getTime() : 0
-    });
-  }
-  const ordersInRange = orderRecords.filter(o => isWithinRange(o._dt, ordersRange));
-  let pendingOrdersCount = 0, pendingOrdersTotal = 0;
-  ordersInRange.forEach(o => {
-    if (PENDING_ORDER_STATUSES.has(o.status)) { pendingOrdersCount++; pendingOrdersTotal += o.total; }
-  });
-  // Toan bo dat hang "Phiếu tạm" trong khoang loc (khong cat top-N) — bang FE tu phan trang 100 dong/trang.
-  // Xuat file cung lay danh sach nay nen chi ra dung cac don dang hien tren bang.
-  const periodOrders = ordersInRange
-    .filter(o => o.status === LISTED_ORDER_STATUS)
-    .slice()
-    .sort((a, b) => b._sortTime - a._sortTime)
-    .map(({ _dt, _sortTime, ...rest }) => rest);
-
-  // ---------- TRẢ HÀNG (theo bộ lọc riêng returns, mặc định = Hóa đơn) ----------
+  // ---------- TRẢ HÀNG (the chi so "Trả hàng" cua tab Hóa đơn, theo bo loc Hoa don) ----------
+  // (2026-10-01: bo bang Danh sach dat hang / Danh sach tra hang; don Phieu tam xem o trang Vong doi don hang.)
   const returnHeaders = returnData[0] || [];
   const returnIndex = (header, fallback) => {
     const index = returnHeaders.findIndex(value => String(value || '').trim() === header);
@@ -3137,34 +3109,17 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   };
   const returnCodeIndex = returnIndex('Mã trả hàng', 0);
   const returnDateIndex = returnIndex('Ngày trả', 1);
-  const returnCustomerIndex = returnIndex('Khách hàng', 3);
   const returnTotalIndex = returnIndex('Tổng tiền trả', 4);
-  const returnStatusIndex = returnIndex('Trạng thái', 5);
-  const returnBranchIndex = returnIndex('Chi nhánh', -1);
-  const returnFacilityIndex = returnIndex(SHEET_FACILITY_HEADER, -1);
-  const returnRecords = [];
+  // Moi trang thai (ke ca Đã hủy) deu tinh vao the chi so — giu nguyen dinh nghia cu cua returnsCount/totalReturns.
+  let returnsCount = 0;
+  let totalReturns = 0;
   for (let r = 1; r < returnData.length; r++) {
     const row = returnData[r];
-    const code = row[returnCodeIndex];
-    if (!code) continue;
-    const dt = parseSheetDate(row[returnDateIndex]);
-    returnRecords.push({
-      code, date: row[returnDateIndex] || '', time: dt ? formatDMYHM(dt) : '—', originalInvoiceCode: '', customer: row[returnCustomerIndex] || '',
-      total: Number(row[returnTotalIndex]) || 0, status: row[returnStatusIndex] || '',
-      branch: (returnFacilityIndex >= 0 && row[returnFacilityIndex])
-        || (branch === BRANCH_BOTH ? (returnBranchIndex >= 0 ? row[returnBranchIndex] || '' : '') : singleBranch),
-      _dt: dt, _sortTime: dt ? dt.getTime() : 0
-    });
+    if (!row[returnCodeIndex]) continue;
+    if (!isWithinRange(parseSheetDate(row[returnDateIndex]), invoicesRange)) continue;
+    returnsCount++;
+    totalReturns += Number(row[returnTotalIndex]) || 0;
   }
-  const returnsInRange = returnRecords.filter(rt => isWithinRange(rt._dt, returnsRange));
-  const returnsCount = returnsInRange.length;
-  const totalReturns = returnsInRange.reduce((sum, rt) => sum + rt.total, 0);
-  // Toan bo phieu tra "Đã trả" trong khoang loc (khong cat top-N).
-  const periodReturns = returnsInRange
-    .filter(rt => rt.status === LISTED_RETURN_STATUS)
-    .slice()
-    .sort((a, b) => b._sortTime - a._sortTime)
-    .map(({ _dt, _sortTime, ...rest }) => rest);
 
   // ---------- KHÁCH HÀNG ----------
   const customerHeaders = custData[0] || [];
@@ -3238,9 +3193,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       invoices: invoicesRange,
       customers: customersRange,
       newProducts: newProductsRange,
-      newlyImported: newlyImportedRange,
-      orders: ordersRange,
-      returns: returnsRange
+      newlyImported: newlyImportedRange
     },
     kpi: {
       revenueToday,
@@ -3295,10 +3248,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       periodInvoices: invoicesPeriod.periodInvoices,
       periodCancelledInvoices,
       transactionsReport,
-      periodOrders,
-      periodReturns,
-      pendingOrdersCount,
-      pendingOrdersTotal,
       returnsCount,
       totalReturns
     },

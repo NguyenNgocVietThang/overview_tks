@@ -22,6 +22,10 @@ const { ROLES, INTERNAL_ROLES, REPORTS_ROLES, isHardcodedAdmin } = require('./us
 const ALL_ROLES = Object.freeze(Object.values(ROLES));
 const MANAGER_ONLY = Object.freeze([ROLES.QUAN_LY]);
 const OVERRIDE_ROLES = Object.freeze([ROLES.QUAN_LY, ROLES.KE_TOAN]);
+// Tong quan mo them cho Nhan vien sale (xem ton co ban, doanh so...). Cac tab reports.*
+// con lai van chi mac dinh cho Quan ly + Tro ly (REPORTS_ROLES), nen KHONG nhet sale vao
+// REPORTS_ROLES — mang do cap ca 7 key reports.*.
+const OVERVIEW_ROLES = Object.freeze([...REPORTS_ROLES, ROLES.NHAN_VIEN_SALE]);
 
 const FEATURE_GROUPS = Object.freeze([
   { key: 'reports', label: 'Báo cáo tổng hợp' },
@@ -38,7 +42,7 @@ const FEATURE_GROUPS = Object.freeze([
  */
 const FEATURES = Object.freeze([
   // --- Bao cao tong hop ---
-  { key: 'reports.overview', groupKey: 'reports', label: 'Tổng quan', roles: REPORTS_ROLES },
+  { key: 'reports.overview', groupKey: 'reports', label: 'Tổng quan', roles: OVERVIEW_ROLES },
   { key: 'reports.products', groupKey: 'reports', label: 'Hàng hóa (gồm Kiểm tra đứt hàng)', roles: REPORTS_ROLES },
   { key: 'reports.invoices', groupKey: 'reports', label: 'Hóa đơn', roles: REPORTS_ROLES },
   { key: 'reports.customers', groupKey: 'reports', label: 'Khách hàng', roles: REPORTS_ROLES },

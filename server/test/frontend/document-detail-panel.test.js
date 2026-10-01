@@ -1,7 +1,8 @@
 'use strict';
 
-// Tab Hoa don, muc "Phan tich": bam 1 dong o "Danh sach dat hang" / "Danh sach tra hang" mo panel chi tiet
-// (dong hang lay tu /api/order-detail, /api/return-detail). Ban do bang chi tiet: order_details / return_details.
+// Tab Hoa don, muc "Giao dich": bam 1 dong o "Chi tiet giao dich" mo panel chi tiet (dong hang lay tu
+// /api/invoice-detail, ban do bang chi tiet: invoice_details). Hai bang "Danh sach dat hang" / "Danh sach tra hang"
+// da bo 2026-10-01 (don Phieu tam xem chi tiet o trang Vong doi don hang) nen khong con panel/API chi tiet cua chung.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -25,15 +26,13 @@ function payload() {
     filters: { products: { label: '30 ngày' }, invoices: { label: '30 ngày' } },
     invoices: {
       periodRevenue: 0, periodInvoices: 0, periodCancelledInvoices: 0, revenueByDay: [],
-      pendingOrdersCount: 2, pendingOrdersTotal: 300, returnsCount: 1, totalReturns: 50,
-      periodOrders: [
-        { code: 'DH-1', branch: HN, customer: 'KH A', total: 100, status: 'Phiếu tạm' },
-        { code: 'DH-1', branch: SG, customer: 'KH B', total: 200, status: 'Phiếu tạm' }
-      ],
-      periodReturns: [{ code: 'TH-1', branch: SG, originalInvoiceCode: '', customer: 'KH B', total: 50, status: 'Đã trả' }],
+      returnsCount: 1, totalReturns: 50,
       transactionsReport: {
-        transactions: [{ code: 'HD-1', branch: HN, time: '21/09 09:08', customer: 'KH A', employee: 'NV', quantity: 3, quantityKnown: true, revenue: 90, discount: 10, paid: 90, status: 'Hoàn thành' }],
-        topTransactions: [], summary: { quantity: 3, quantityKnown: true, revenue: 90, discount: 10, paid: 90 }
+        transactions: [
+          { code: 'HD-1', branch: HN, time: '21/09 09:08', customer: 'KH A', employee: 'NV', quantity: 3, quantityKnown: true, revenue: 90, discount: 10, paid: 90, status: 'Hoàn thành' },
+          { code: 'HD-1', branch: SG, time: '21/09 09:10', customer: 'KH B', employee: 'NV', quantity: 1, quantityKnown: true, revenue: 30, discount: 0, paid: 30, status: 'Hoàn thành' }
+        ],
+        topTransactions: [], summary: { quantity: 4, quantityKnown: true, revenue: 120, discount: 10, paid: 120 }
       }
     },
     products: {
@@ -47,28 +46,11 @@ function payload() {
   };
 }
 
-const ORDER_DETAIL = {
-  kind: 'order', code: 'DH-1', date: '27/07/2026 09:00', customerName: 'KH A', customerCode: 'KH001', seller: 'Thu Hiền',
-  warehouse: 'Chi nhánh trung tâm', status: 'Phiếu tạm', total: 100, discount: 0, paid: 0, note: 'giao <b>sớm</b>',
-  lines: [
-    { productCode: 'A1', productName: 'Hàng A', quantity: 2, price: 30, discount: 0, amount: 60, note: '5T' },
-    { productCode: 'B2', productName: 'Hàng B', quantity: 1, price: 40, discount: 0, amount: 40, note: '' }
-  ],
-  lineCount: 2, totalQuantity: 3
-};
-
 const INVOICE_DETAIL = {
   kind: 'invoice', code: 'HD-1', date: '21/09/2026 09:08', customerName: 'KH A', customerCode: 'KH001', seller: 'NV',
-  warehouse: 'Chi nhánh trung tâm', status: 'Hoàn thành', orderCode: 'DH-9', total: 90, discount: 10, paid: 90, note: '',
-  lines: [{ productCode: 'A1', productName: 'Hàng A', quantity: 3, price: 30, discount: 3.33, amount: 90, note: '' }],
+  warehouse: 'Chi nhánh trung tâm', status: 'Hoàn thành', orderCode: 'DH-9', total: 90, discount: 10, paid: 90, note: 'giao <b>sớm</b>',
+  lines: [{ productCode: 'A1', productName: 'Hàng A', quantity: 3, price: 30, discount: 3.33, amount: 90, note: '5T' }],
   lineCount: 1, totalQuantity: 3
-};
-
-const RETURN_DETAIL = {
-  kind: 'return', code: 'TH-1', date: '29/09/2026 14:33', customerName: 'KH B', customerCode: 'KH002', seller: 'Hồng Phấn',
-  warehouse: 'Chi nhánh trung tâm', status: 'Đã trả', invoiceCode: 'HD013586', total: 50, returnDiscount: 0, returnFee: 0, paid: 0,
-  lines: [{ productCode: 'C3', productName: 'Hàng C', quantity: 5, price: 10, discount: 0, amount: 50, note: 'bị lỗi' }],
-  lineCount: 1, totalQuantity: 5
 };
 
 function createPage({ respond } = {}) {
@@ -91,12 +73,12 @@ function createPage({ respond } = {}) {
   const urls = [];
   dom.window.fetch = (url) => {
     const href = String(url);
+    // Bat ca 2 API chi tiet da xoa (order/return) de chung minh trang khong con goi chung.
     if (!/^\/api\/(order|return|invoice)-detail/.test(href)) return new Promise(() => {});
     urls.push(href);
     const custom = respond && respond(href);
     if (custom) return custom;
-    const body = href.startsWith('/api/order-detail') ? ORDER_DETAIL : href.startsWith('/api/invoice-detail') ? INVOICE_DETAIL : RETURN_DETAIL;
-    return Promise.resolve({ ok: true, status: 200, json: async () => body });
+    return Promise.resolve({ ok: true, status: 200, json: async () => INVOICE_DETAIL });
   };
   ['pagination.js', 'table-explorer.js'].forEach(file => {
     dom.window.eval(fs.readFileSync(path.join(publicDir, 'js', file), 'utf8'));
@@ -111,50 +93,48 @@ function createPage({ respond } = {}) {
 const drawerText = page => page.$('docModalBody').textContent.replace(/\s+/g, ' ');
 // JSDOM (runScripts 'outside-only') khong chay onclick="..." inline: tu chay thuoc tinh do trong ngu canh trang.
 const clickInline = (page, element) => page.dom.window.eval(element.getAttribute('onclick'));
+const firstTransactionRow = page => page.$('endOfDayRows').querySelector('tr.doc-row');
 
-test('bam dong dat hang: goi /api/order-detail dung ma + co so, panel hien khach, dong hang va tong tien', async () => {
+test('bam dong "Chi tiet giao dich": goi /api/invoice-detail, hien ma don goc, giam gia, dong hang va tong tien hang', async () => {
   const page = createPage();
   await settle();
   assert.equal(page.$('docModalBackdrop').hidden, true);
 
-  page.$('orderRows').querySelectorAll('tr.doc-row')[1].click(); // DH-1 cua Sai Gon
+  page.$('endOfDayRows').querySelectorAll('tr.doc-row')[0].click(); // HD-1 cua Ha Noi
   await settle();
 
-  assert.deepEqual(page.urls, ['/api/order-detail?code=DH-1&branch=' + encodeURIComponent(SG)]);
+  assert.deepEqual(page.urls, ['/api/invoice-detail?code=HD-1&branch=' + encodeURIComponent(HN)]);
   assert.equal(page.$('docModalBackdrop').hidden, false);
-  assert.match(page.$('docModalTitle').textContent, /Chi tiết đơn đặt hàng DH-1/);
+  assert.match(page.$('docModalTitle').textContent, /Chi tiết giao dịch HD-1/);
   const text = drawerText(page);
   assert.match(text, /KH A/);
-  assert.match(text, /Thu Hiền/);
+  assert.match(text, /Thời gian bán/);
+  assert.match(text, /Nhân viên bán hàng/);
+  assert.match(text, /DH-9/);
+  assert.match(text, /Giảm giá hóa đơn/);
+  assert.match(text, /Tổng tiền hàng/);
   assert.match(text, /Hàng A/);
   assert.match(text, /5T/);
-  assert.match(text, /2 dòng · 3 sản phẩm/);
-  assert.equal(page.$('docModalBody').querySelectorAll('tbody tr').length, 2);
-  assert.equal(page.$('docModalBody').querySelector('.doc-total-main dd').textContent, '100₫');
+  assert.match(text, /1 dòng · 3 sản phẩm/);
+  assert.equal(page.$('docModalBody').querySelectorAll('tbody tr').length, 1);
+  assert.equal(page.$('docModalBody').querySelector('.doc-total-main dd').textContent, '90₫');
   assert.equal(page.$('docModalBody').querySelector('b'), null, 'ghi chu phai duoc escape, khong chen HTML');
+  assert.match(text, /giao <b>sớm<\/b>/);
 });
 
-test('bam dong tra hang: goi /api/return-detail va hien hoa don goc', async () => {
+test('hai dong cung ma khac co so mo dung chung tu cua co so do', async () => {
   const page = createPage();
   await settle();
+  const rows = page.$('endOfDayRows').querySelectorAll('tr.doc-row');
+  assert.equal(rows.length, 2);
 
-  page.$('returnRows').querySelector('tr.doc-row').click();
+  rows[1].click();
   await settle();
+  assert.deepEqual(page.urls, ['/api/invoice-detail?code=HD-1&branch=' + encodeURIComponent(SG)]);
 
-  assert.deepEqual(page.urls, ['/api/return-detail?code=TH-1&branch=' + encodeURIComponent(SG)]);
-  assert.match(page.$('docModalTitle').textContent, /Chi tiết phiếu trả hàng TH-1/);
-  const text = drawerText(page);
-  assert.match(text, /HD013586/);
-  assert.match(text, /bị lỗi/);
-  assert.match(text, /Tổng tiền trả/);
-});
-
-test('dong dau tien va dong thu hai cung ma khac co so mo dung chung tu cua co so do', async () => {
-  const page = createPage();
+  rows[0].click();
   await settle();
-  page.$('orderRows').querySelectorAll('tr.doc-row')[0].click();
-  await settle();
-  assert.deepEqual(page.urls, ['/api/order-detail?code=DH-1&branch=' + encodeURIComponent(HN)]);
+  assert.deepEqual(page.urls.slice(1), ['/api/invoice-detail?code=HD-1&branch=' + encodeURIComponent(HN)]);
 });
 
 test('dong dang tai: hien "Dang tai"; Escape, nut x va bam nen deu dong panel', async () => {
@@ -162,14 +142,14 @@ test('dong dang tai: hien "Dang tai"; Escape, nut x va bam nen deu dong panel', 
   const page = createPage({ respond: () => new Promise(resolve => { resolveFetch = resolve; }) });
   await settle();
 
-  const row = page.$('orderRows').querySelector('tr.doc-row');
+  const row = firstTransactionRow(page);
   row.click();
   assert.match(drawerText(page), /Đang tải/);
 
   clickInline(page, page.$('docModalClose'));
   assert.equal(page.$('docModalBackdrop').hidden, true);
   // ket qua den muon sau khi da dong khong duoc ve lai panel
-  resolveFetch({ ok: true, status: 200, json: async () => ORDER_DETAIL });
+  resolveFetch({ ok: true, status: 200, json: async () => INVOICE_DETAIL });
   await settle();
   assert.equal(page.$('docModalBody').innerHTML, '');
 
@@ -189,14 +169,14 @@ test('loi tu server (vd 404) hien thong diep server tra ve va co nut Thu lai', a
   let fail = true;
   const page = createPage({
     respond: () => (fail
-      ? Promise.resolve({ ok: false, status: 404, json: async () => ({ error: 'Không tìm thấy đơn đặt hàng này.' }) })
+      ? Promise.resolve({ ok: false, status: 404, json: async () => ({ error: 'Không tìm thấy hóa đơn này.' }) })
       : null)
   });
   await settle();
 
-  page.$('orderRows').querySelector('tr.doc-row').click();
+  firstTransactionRow(page).click();
   await settle();
-  assert.match(drawerText(page), /Không tìm thấy đơn đặt hàng này/);
+  assert.match(drawerText(page), /Không tìm thấy hóa đơn này/);
 
   fail = false;
   clickInline(page, page.$('docModalBody').querySelector('button'));
@@ -207,28 +187,25 @@ test('loi tu server (vd 404) hien thong diep server tra ve va co nut Thu lai', a
 test('phim Enter tren dong (tabindex=0) cung mo panel', async () => {
   const page = createPage();
   await settle();
-  const row = page.$('orderRows').querySelector('tr.doc-row');
+  const row = firstTransactionRow(page);
   assert.equal(row.getAttribute('tabindex'), '0');
   row.dispatchEvent(new page.dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
   await settle();
   assert.equal(page.$('docModalBackdrop').hidden, false);
 });
 
-test('bam dong "Chi tiet giao dich": goi /api/invoice-detail, hien ma don goc, giam gia va tong tien hang', async () => {
+test('hai bang Dat hang / Tra hang da bo khoi tab Hoa don: khong con bang, khong con kind chi tiet va khong con API chi tiet cua chung', async () => {
   const page = createPage();
   await settle();
-
-  page.$('endOfDayRows').querySelector('tr.doc-row').click();
+  assert.equal(page.$('orderRows'), null);
+  assert.equal(page.$('returnRows'), null);
+  // DOC_DETAIL_KINDS khai bao bang const (khong lo ra window): kiem tra qua hanh vi — kind la thi khong mo panel.
+  page.dom.window.openDocumentDetail('orders', { code: 'DH-1', branch: HN });
+  page.dom.window.openDocumentDetail('returns', { code: 'TH-1', branch: SG });
   await settle();
-
-  assert.deepEqual(page.urls, ['/api/invoice-detail?code=HD-1&branch=' + encodeURIComponent(HN)]);
-  assert.match(page.$('docModalTitle').textContent, /Chi tiết giao dịch HD-1/);
-  const text = drawerText(page);
-  assert.match(text, /Thời gian bán/);
-  assert.match(text, /DH-9/);
-  assert.match(text, /Giảm giá hóa đơn/);
-  assert.match(text, /Tổng tiền hàng/);
-  assert.equal(page.$('docModalBody').querySelectorAll('tbody tr').length, 1);
+  assert.equal(page.$('docModalBackdrop').hidden, true);
+  assert.doesNotMatch(html, /\/api\/order-detail|\/api\/return-detail/);
+  assert.deepEqual(page.urls, [], 'khong goi API chi tiet nao khi chua bam dong hoa don');
 });
 
 test('hop chi tiet nam GIUA man hinh (backdrop can giua), khong phai ngan keo canh phai', () => {

@@ -8,9 +8,10 @@ const { ROLES, INTERNAL_ROLES, REPORTS_ROLES } = require('./userRepository');
 
 // Cac tap hop vai tro CU (truoc khi co featureRegistry) — giu lai nguyen van o
 // day de test bat duoc moi thay doi hanh vi ngoai y muon khi sua bang mac dinh.
+// (Nhan vien sale da duoc mo them quyen Tong quan tu 2026-10-01 — xem test rieng ben duoi.)
 const LEGACY_NO_REPORTS_ROLES = [
   'Khách', 'Lái xe', 'Kế toán', 'Trưởng kho',
-  'Nhân viên kho', 'Nhân viên sale', 'Nhân viên mua hàng'
+  'Nhân viên kho', 'Nhân viên mua hàng'
 ];
 
 test('mac dinh theo vai tro: reports.* khop dung REPORTS_ROLES cu', () => {
@@ -57,10 +58,19 @@ test('ghi de trang thai don hang chi danh cho Quan ly va Ke toan', () => {
   }
 });
 
-test('Nhan vien marketing co quyen mac dinh Y HET Nhan vien sale', () => {
+test('Nhan vien sale chi them dung 1 quyen reports.* mac dinh: reports.overview (Tong quan)', () => {
+  const reportKeys = registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => key.startsWith('reports.'));
+  assert.deepEqual(reportKeys, ['reports.overview']);
+  // Cac vai tro con lai khong thuoc REPORTS_ROLES van KHONG co reports.overview.
+  for (const role of LEGACY_NO_REPORTS_ROLES) {
+    assert.ok(!registry.defaultsForRole(role).includes('reports.overview'), role);
+  }
+});
+
+test('Nhan vien marketing giu nguyen: y het Nhan vien sale tru quyen Tong quan', () => {
   assert.deepEqual(
     registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING),
-    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE)
+    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => key !== 'reports.overview')
   );
 });
 
@@ -124,6 +134,9 @@ test('pageRuleFor chuan hoa duong dan, "/" tuong duong "/reports"', () => {
 test('landingPathFor tra ve trang dau tien tai khoan vao duoc', () => {
   assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.QUAN_LY)), '/reports/');
   assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.KE_TOAN)), '/shipment/lifecycle/');
+  // Sale co quyen Tong quan nen trang dau tien vao duoc la bao cao (thu tu PAGE_FEATURES).
+  assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.NHAN_VIEN_SALE)), '/reports/');
+  assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING)), '/shipment/lifecycle/');
   assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.KHACH)), '/shipment/lifecycle/');
   assert.equal(registry.landingPathFor([]), '/account/');
 });

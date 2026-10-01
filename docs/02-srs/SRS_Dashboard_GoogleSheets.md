@@ -221,7 +221,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-02.4 | Tính KPI hàng hóa: tổng mã hàng, tổng tồn kho, số mã có hàng (tồn > 0), số mã đang/ngừng kinh doanh, số mã đã hết hàng (tồn = 0).      | Cao         | Hoàn thành     |
 | FR-02.5 | Tính KPI khách hàng: tổng khách, số khách có nợ (nợ > 0), tổng công nợ.                                                               | Cao         | Hoàn thành     |
 | FR-02.6 | Tính KPI nhà cung cấp: tổng NCC, số NCC có nợ (nợ > 0), tổng nợ cần trả.                                                             | Cao         | Hoàn thành     |
-| FR-02.7 | Tính KPI đặt hàng: số đơn đang chờ xử lý (trạng thái "Phiếu tạm", "Đang xử lý", "Đã xác nhận"), tổng giá trị đang chờ.              | Cao         | Hoàn thành     |
+| FR-02.7 | ~~Tính KPI đặt hàng: số đơn đang chờ xử lý, tổng giá trị đang chờ~~ — đã bỏ ngày 2026-10-01 cùng thẻ "Đặt hàng đang chờ" của tab Hóa đơn; đơn đặt hàng trạng thái "Phiếu tạm" nay theo dõi ở Vòng đời đơn hàng (FR-08.8). | Cao | Đã thay thế |
 | FR-02.8 | Tính KPI trả hàng: tổng số lần trả, tổng giá trị trả.                                                                                 | Cao         | Hoàn thành     |
 | FR-02.9 | Tính KPI nhập hàng: tổng số phiếu nhập, tổng giá trị nhập.                                                                            | Cao         | Hoàn thành     |
 
@@ -234,9 +234,9 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-03.3 | Tạo danh sách `lowStock`: sản phẩm có tồn kho = 0.                                                                                           | Cao         | Hoàn thành     |
 | FR-03.4 | Tạo `stockByCategory`: tổng số lượng tồn kho theo nhóm cha, ánh xạ cây cha–con từ tab Nhóm hàng; dòng trống `Mã nhóm cha` là nhóm cha gốc.            | Cao         | Hoàn thành     |
 | FR-03.5 | Tạo `stockValueByCategory`: tổng `Giá vốn × max(Tồn kho, 0)` theo nhóm cha; tối đa 30 phần tử (29 nhóm lớn nhất và `Khác` nếu vượt giới hạn).          | Cao         | Hoàn thành     |
-| FR-03.6 | Tạo `allProducts`: toàn bộ danh sách sản phẩm kèm tỉ lệ % tồn kho, `available` (tồn có thể bán = tồn kho − khách đặt) và `inTransit` (số lượng trong phiếu Đặt hàng nhập "Đã xác nhận NCC" của Kiot Sài Gòn, ghép theo mã). | Trung bình  | Hoàn thành     |
+| FR-03.6 | Tạo `allProducts`: toàn bộ danh sách sản phẩm kèm tỉ lệ % tồn kho, `available` (**Tồn có thể bán = Tồn thực tế − Đặt hàng Phiếu tạm + Hàng đang vận chuyển**, không kẹp về 0) và `inTransit` (số lượng trong phiếu Đặt hàng nhập "Đã xác nhận NCC" của Kiot Sài Gòn, ghép theo mã; cộng cho cả hai cơ sở). Cùng công thức cho cột `available_to_sell` của bảng "Báo cáo hàng hóa" (job đêm). | Trung bình  | Hoàn thành     |
 | FR-03.7 | Tạo `topDebt`: top 8 khách hàng có công nợ cao nhất.                                                                                               | Cao         | Hoàn thành     |
-| FR-03.8 | Tạo `periodOrders`, `periodReturns` (toàn bộ trong khoảng lọc) và `recentPurchaseOrders` (8 bản ghi gần nhất), sort theo thời gian giảm dần.                  | Cao         | Hoàn thành     |
+| FR-03.8 | ~~Tạo `periodOrders`, `periodReturns`~~ — đã bỏ ngày 2026-10-01 cùng hai bảng Danh sách đặt hàng / Danh sách trả hàng của tab Hóa đơn (payload chỉ còn `returnsCount`, `totalReturns` cho thẻ "Trả hàng"); `recentPurchaseOrders` (8 bản ghi gần nhất) sort theo thời gian giảm dần. | Cao         | Hoàn thành     |
 | FR-03.9 | Tạo `suppliers`: danh sách tất cả nhà cung cấp, sắp xếp giảm dần theo nợ.                                                                         | Trung bình  | Hoàn thành     |
 | FR-03.10 | (Đã gỡ) `products.childCategorySalesByParent` — phần "Doanh thu sản phẩm theo nhóm hàng" ở tab Tổng quan đã bị loại bỏ. | — | Đã gỡ |
 | FR-03.11 | (Đã gỡ) `products.availableParentCategories` — dropdown chọn nhóm cha đã bị loại bỏ cùng phần trên. | — | Đã gỡ |
@@ -279,7 +279,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-07.1 | Sidebar điều hướng với các mục tương ứng từng section của dashboard.                                                    | Cao         | Hoàn thành     |
 | FR-07.2 | Khu vực KPI cards: hiển thị các chỉ số tổng quan với icon và màu sắc phân biệt.                                         | Cao         | Hoàn thành     |
 | FR-07.3 | Biểu đồ doanh thu theo ngày (line/bar chart) với bộ lọc 7/30/90 ngày.                                                   | Cao         | Hoàn thành     |
-| FR-07.4 | Bảng top sản phẩm bán chạy, hàng đã hết, công nợ khách hàng, NCC, đặt hàng, trả hàng, nhập hàng gần nhất.              | Cao         | Hoàn thành     |
+| FR-07.4 | Bảng top sản phẩm bán chạy, hàng đã hết, công nợ khách hàng, NCC, nhập hàng gần nhất (hai bảng đặt hàng / trả hàng của tab Hóa đơn đã bỏ ngày 2026-10-01). | Cao         | Hoàn thành     |
 | FR-07.7 | Khung "Cơ cấu tồn kho" chỉ còn bảng chi tiết theo sản phẩm (đã bỏ biểu đồ): cột Tồn kho, Tồn có thể bán, Hàng đang vận chuyển, Giá trị tồn; chọn "Cả hai" gộp 1 dòng/mã với cột Tồn kho và Tồn có thể bán riêng Hà Nội/Sài Gòn. | Cao | Hoàn thành |
 | FR-07.5 | Route `/api/debug`: kiểm tra biến môi trường, kết nối Google Sheets và liệt kê `sheetTabs`; trả riêng `sheetTabsError` nếu bước liệt kê lỗi. | Thấp | Hoàn thành |
 | FR-07.6 | Route `/health`: trả HTTP 200 `{"status":"ok"}` để Render health check.                                                  | Cao         | Hoàn thành     |
@@ -294,6 +294,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-07.16 | `POST /api/export` lấy danh sách mã dòng từ `dashboardData.getDashboardData()` (kết quả cache, chỉ nạp 7 tab lõi), đọc cột gốc bằng `dashboardPgReader.readRowsByCodes(tab, cơ sở, mã)` chỉ cho các mã đó rồi ghi bằng ExcelJS. Chỉ 7 nguồn được phép (Hàng hóa, Hóa đơn, Đặt hàng, Trả hàng, Khách hàng, Nhà cung cấp, Nhập hàng); nguồn khác bị từ chối `400 EXPORT_SOURCE_NOT_ALLOWED`. Mã khớp chính xác, trùng bị loại, danh sách rỗng thì không truy vấn, hơn 20.000 mã được chia lô 5.000 mã chạy tuần tự. | Cao | Hoàn thành |
 | FR-07.17 | Modal Xuất Excel hủy được mọi lúc (nút X, nút Hủy, phím Esc, bấm nền) bằng `AbortController`; danh sách trường timeout 30 giây, tạo file timeout 180 giây, hết giờ hoặc lỗi thì hiện thông báo tiếng Việt cùng nút `Thử lại` lặp lại đúng bước vừa lỗi; phản hồi trễ của yêu cầu cũ (đã đóng, mở lại, thử lại) bị bỏ qua. Khi trình duyệt ngắt kết nối, máy chủ hủy việc đang làm và nhả chỗ xuất file. | Cao | Hoàn thành |
 | FR-07.18 | Nhãn trường tiếng Việt chuẩn hóa: có dấu, không dùng tên biến tiếng Anh/`snake_case`, không viết tắt (Số lượng, Doanh số, Khách hàng, Nhà cung cấp, Tháng...), cùng khái niệm dùng cùng một nhãn ở mọi nguồn, nhãn tối đa 40 ký tự và duy nhất trong một worksheet. Quy ước áp dụng cho cả cột dữ liệu gốc, cột dashboard tính thêm và cột bảng tổng hợp. Từ điển nằm tại `server/dashboard/exportFieldCatalog.js` và là nguồn sự thật duy nhất cho nhãn/kiểu/mô tả trường của 7 nguồn PostgreSQL; cột dashboard tính thêm không thuộc từ điển này mà được khai báo trong `exportService.js`. | Cao | Hoàn thành |
+| FR-07.19 | Cột thời gian của mọi bảng sắp xếp theo **thời gian thật** (không so sánh chuỗi, `30/09` không đứng sau `01/10`) và trên **toàn bộ dữ liệu đã lọc**, không phụ thuộc trang đang xem. Bộ sắp xếp chung đọc các ô `dd/MM/yyyy[ HH:mm[:ss]]` và `yyyy-MM-dd[ HH:mm[:ss]]`; bảng "Chi tiết giao dịch" hiển thị giờ không có năm nên server trả thêm `timeMs`; trang Tài khoản sắp thứ tự mặc định theo ngày tạo thật. | Cao | Hoàn thành |
 
 ## 3.8. FR-08: Đăng ký, Google Guest, Quản trị tài khoản & Tra cứu vận chuyển
 
@@ -305,7 +306,10 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-08.4 | Tra cứu vận chuyển nhận tối đa 50 mã hóa đơn, khớp chính xác không phân biệt hoa/thường, loại trùng và chỉ trả `code`, `found`, `status`; giao diện không hiển thị dữ liệu trước khi tìm. | Cao | Hoàn thành |
 | FR-08.5 | Quản lý hồ sơ cá nhân và đổi mật khẩu chủ động (`PUT /api/auth/profile`, `POST /api/auth/change-password`), yêu cầu nhập mật khẩu hiện tại để xác minh. | Cao | Hoàn thành |
 | FR-08.6 | Khôi phục mật khẩu qua mã OTP 6 số (`request-reset-otp`, `verify-reset-otp`, `reset-password-otp`), che mờ Email/SĐT, giới hạn thử lại, chống brute-force và cơ chế lockout tạm thời 5 phút khi đăng nhập sai quá 5 lần liên tiếp. | Cao | Hoàn thành |
-| FR-08.7 | Quản trị người dùng Admin (`/api/admin/users`), chỉ vai trò `Quản lý` được xem danh sách, tạo tài khoản, đổi vai trò, đặt lại mật khẩu và khóa/mở khóa tài khoản; hỗ trợ lưu trữ cục bộ bảo mật `users.json`. | Cao | Hoàn thành |
+| FR-08.7 | Quản trị người dùng Admin (`/api/admin/users`), chỉ vai trò `Quản lý` được xem danh sách, tạo tài khoản, đổi vai trò, đặt lại mật khẩu và khóa/mở khóa tài khoản; hỗ trợ lưu trữ cục bộ bảo mật `users.json`. Từ 2026-10-01 `Quản lý` thường **không** được đặt lại mật khẩu, đổi email/SĐT, hạ vai trò, rút quyền, khóa hay xóa tài khoản của **Quản lý khác** (`accountPolicy.checkProtectedManager`, HTTP 403 `ACCOUNT_POLICY_DENIED`; vẫn thao tác được với nhân viên thường và chính mình); chỉ **Quản lý cấp cao** (tài khoản admin cứng, `isSeniorAdmin` trong `GET /api/auth/me`) giữ đủ quyền như cũ. | Cao | Hoàn thành |
+| FR-08.8 | Trang Vòng đời đơn hàng hợp nhất mọi đơn **Phiếu tạm** của KiotViet (HN + SG) với các đơn trên Google Sheet, ghép theo (cơ sở, mã đơn): đơn có trên sheet lấy trạng thái sheet, đơn chỉ có ở Kiot là "Đơn chưa gửi kế toán" (trạng thái thấp nhất, chỉ đọc). Cột "Giá trị có bán" = Σ từng mặt hàng min(SL đặt, tồn thực Kiot của cơ sở đơn + hàng đang vận chuyển) × đơn giá sau chiết khấu (bỏ dòng VAT); bấm dòng xem chi tiết đơn kèm tồn kho / đang vận chuyển / có bán từng mặt hàng (`GET /api/shipment/lifecycle/order-detail`). Bảng phân trang 100 dòng, xuất Excel mọi dòng đã lọc. Vai trò `Khách` vẫn chỉ tra cứu theo sheet. | Cao | Hoàn thành |
+| FR-08.9 | `Nhân viên sale` xem được tab Tổng quan (Xu hướng, Báo cáo doanh thu theo khách, Báo cáo hàng hóa; mục Kiểm tra đứt hàng / Trả NCC ẩn và API `/api/products/*` vẫn yêu cầu quyền `reports.products`). | Cao | Hoàn thành |
+| FR-08.10 | Tên nhân viên bán lấy từ KiotViet dạng `<tên> - <ID Telegram>` được hiển thị chỉ còn `<tên>` ở mọi nơi (chỉ đổi hiển thị; dữ liệu gốc giữ nguyên) — `server/dashboard/saleName.js`. | Trung bình | Hoàn thành |
 
 ## 3.10. FR-10: Nghỉ phép theo buổi và Telegram Bot
 
@@ -790,8 +794,8 @@ Các cột nghiệp vụ nghỉ phép dùng `Thời gian gửi` (ISO), `Thời g
 | Bộ lọc 7/30/90 ngày (5.4)               | FR-04.1, FR-04.2, FR-04.3           |
 | Cập nhật dashboard (5.5)                 | FR-05.1 → FR-05.5                   |
 | Đồng bộ tự động — Apps Script (5.5)     | FR-06.1 → FR-06.14                  |
-| Giao diện, Phân trang & Xuất Excel (5.3, 5.4, 5.5) | FR-07.1 → FR-07.18        |
-| Đăng ký, Google Guest, Quản trị tài khoản & tra cứu vận chuyển | FR-08.1 → FR-08.7 |
+| Giao diện, Phân trang & Xuất Excel (5.3, 5.4, 5.5) | FR-07.1 → FR-07.19        |
+| Đăng ký, Google Guest, Quản trị tài khoản & tra cứu vận chuyển | FR-08.1 → FR-08.10 |
 | Nghỉ phép theo buổi & Telegram Bot | FR-10.1 → FR-10.5 |
 | Quản lý công nợ theo cơ sở | FR-11.1 → FR-11.8 |
 | Phạm vi dữ liệu theo cơ sở — Hà Nội / Sài Gòn / Cả hai (5.7) | FR-12.1 → FR-12.9 |

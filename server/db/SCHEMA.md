@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0027`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0028`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -180,7 +180,7 @@ trình là an toàn vì mọi bảng dùng `UPSERT` theo `(branch, id)`.
 
 `product_report` là bảng tổng hợp cho tab "Tổng quan" — cùng ngoại lệ như các bảng rollup ở migration `0013` (không có `raw`, khóa chính không bắt đầu bằng `branch` vì mỗi dòng gộp dữ liệu **cả 2 cơ sở** cho 1 mã hàng). Khóa chính là `product_code`. Được `TRUNCATE` + nạp lại toàn bộ **đúng 1 lần/đêm** bởi `server/kiotvietSync/productReportRefresh.js` (không phải mỗi 5 phút như các rollup khác — truy vấn quét 90 ngày hóa đơn cả 2 cơ sở là nặng, xem comment đầu file đó), route `GET /api/product-report` chỉ đọc thẳng bảng này.
 
-Cột `available_to_sell` = tồn 2 cơ sở trừ số lượng đang bị giữ trong **đơn đặt hàng của khách** (bảng `orders`, trạng thái `Phiếu tạm`/`Đang xử lý`/`Đã xác nhận`) — không liên quan đến `purchases` (phiếu đặt NCC). Cột `qty_sold_30d`/`revenue_90d` cộng từ `daily_product_sales` (migration `0013`) trong cửa sổ kết thúc **hôm qua** theo lịch VN (không tính hôm nay). Cột `customer_count_90d`/`top_customer_*` tính trực tiếp từ `invoice_details`/`invoices`/`customers` trong 90 ngày, dùng chung định nghĩa "hóa đơn hợp lệ" (`statusValue != 'Đã hủy'`) với `revenue_90d` để `top_customer_share` không bao giờ vượt 100%.
+Cột `available_to_sell` (từ 2026-10-01, công thức **Tồn có thể bán**) = tồn 2 cơ sở **trừ** số lượng đang bị giữ trong **đơn đặt hàng Phiếu tạm của khách** (bảng `orders`, `raw->>'statusValue' = 'Phiếu tạm'`) **cộng** hàng đang vận chuyển (phiếu "Đặt hàng nhập" `order_suppliers` trạng thái `Đã xác nhận NCC`, chỉ có ở Kiot Sài Gòn; SQL dùng chung ở `server/dashboard/inTransitSource.js`; cộng đúng 1 lần vì bảng này đã gộp 2 cơ sở). Trước 2026-10-01 công thức là tồn − Khách đặt (3 trạng thái `Phiếu tạm`/`Đang xử lý`/`Đã xác nhận`) và không có phần vận chuyển; file migration `0018` KHÔNG sửa, công thức hiện hành nằm ở `productReportRefresh.js`. Cột không kẹp về 0 (hàng bị giữ quá tồn hiện số âm). Cột `qty_sold_30d`/`revenue_90d` cộng từ `daily_product_sales` (migration `0013`) trong cửa sổ kết thúc **hôm qua** theo lịch VN (không tính hôm nay). Cột `customer_count_90d`/`top_customer_*` tính trực tiếp từ `invoice_details`/`invoices`/`customers` trong 90 ngày, dùng chung định nghĩa "hóa đơn hợp lệ" (`statusValue != 'Đã hủy'`) với `revenue_90d` để `top_customer_share` không bao giờ vượt 100%.
 
 `product_report_customers` (migration `0023`) là bảng phụ của `product_report`: doanh số 90 ngày của **từng khách theo từng mã hàng**, phục vụ khung "Chi tiết" dưới bảng "Báo cáo hàng hóa" (`GET /api/product-report/customers?code=`). Khóa chính `(product_key, customer_key)` với `product_key = lower(btrim(mã hàng))`, `customer_key` = `code:<mã khách>` hoặc `name:<tên khách>` (khách không có mã, gồm cả "Khách lẻ"). Được ghi **trong cùng 1 câu lệnh** `INSERT` của `productReportRefresh.js` (CTE `customer_agg` `MATERIALIZED` đọc 2 lần) nên khớp tuyệt đối với `customer_count_90d`/`top_customer_*` và không quét thêm 90 ngày hóa đơn. Bảng rỗng đến khi job đêm chạy sau khi áp migration — sau khi deploy chạy tay `node kiotvietSync/productReportRefresh.js` (trong `server/`).
 
@@ -244,4 +244,6 @@ Bảng `hr_rule_documents` lưu trữ tài liệu quy định công ty (cả tà
 - Gồm `title`, `sort_order`, `file_name`, `size_bytes`, `sha256`, `uploaded_by_user_id`, `uploaded_by_name`.
 - Seed 2 tài liệu mặc định: `gio-giac` (Giờ giấc làm việc, sort 10) và `nghi-phep` (Quy định nghỉ phép, sort 20).
 - Thu hồi quyền `SELECT` của `reporting_readonly` do chứa tài liệu nội bộ.
+### Chỉ mục đơn Phiếu tạm cho Vòng đời đơn hàng (migration `0028`)
 
+`idx_orders_phieu_tam` là chỉ mục **một phần** `ON orders (branch, id) WHERE raw->>'statusValue' = 'Phiếu tạm'`. Trang Vòng đời đơn hàng (`shipment/kiotPendingOrdersRepository.js`) đọc mọi đơn Phiếu tạm của Kiot HN + SG (~1.000 đơn, ~2.500 dòng hàng ở thời điểm 2026-10-01); bảng `orders` có ~46K dòng JSON lớn nên không có chỉ mục thì mỗi lần đọc nguội mất vài giây (đo ~4 giây, vì quét tuần tự). Điều kiện `WHERE` của truy vấn phải giữ **y hệt** biểu thức trên (so chuỗi `statusValue`, không so số `status`) thì planner mới chọn được chỉ mục. Code chạy đúng cả khi chưa áp migration, chỉ chậm hơn; kết quả đọc được cache 60 giây trong tiến trình.

@@ -24,12 +24,22 @@ Không còn Apps Script KiotViet. Đã gỡ bỏ tính năng vận chuyển cũ 
 
 ## API chi tiết chứng từ
 
-`dashboard/documentDetailRepository.js` cung cấp 3 loader cho popup chi tiết khi bấm vào dòng bảng tab Hóa đơn:
-- `GET /api/order-detail?code=<mã>&branch=<cơ sở>` — đơn đặt hàng + dòng hàng
-- `GET /api/return-detail?code=<mã>&branch=<cơ sở>` — phiếu trả hàng + dòng hàng
+`dashboard/documentDetailRepository.js` cung cấp loader cho popup chi tiết khi bấm vào dòng bảng "Chi tiết giao dịch" (tab Hóa đơn):
 - `GET /api/invoice-detail?code=<mã>&branch=<cơ sở>` — hóa đơn + dòng hàng + thanh toán
 
 Mã chứng từ chỉ duy nhất trong 1 cơ sở, nên `branch` bắt buộc khi đang xem "Cả hai"; ở chế độ 1 cơ sở có thể bỏ trống.
+
+Từ 2026-10-01 hai bảng "Danh sách đặt hàng" / "Danh sách trả hàng" của tab Hóa đơn đã bỏ, cùng `GET /api/order-detail` và `GET /api/return-detail`. Đơn đặt hàng "Phiếu tạm" của KiotViet nay theo dõi ở trang Vòng đời đơn hàng và xem chi tiết bằng `GET /api/shipment/lifecycle/order-detail` (phần dưới); `getOrderDetail` của repository vẫn được trang đó dùng lại.
+
+## Vòng đời đơn hàng hợp nhất đơn Phiếu tạm của KiotViet
+
+`GET /api/shipment/lifecycle` (quyền `shipment.lifecycle`) trả `{ orders, kiot }`: các đơn trên Google Sheet **cộng** mọi đơn Phiếu tạm (`orders.raw->>'statusValue' = 'Phiếu tạm'`) của Kiot HN + SG, ghép theo `(cơ sở, mã đơn)` — cùng mã DH có thể tồn tại ở cả hai cơ sở nên không được ghép theo mã trần. Đơn có trên sheet giữ trạng thái của sheet; đơn chỉ có ở Kiot nhận trạng thái thấp nhất `NOT_SENT` ("Đơn chưa gửi kế toán"), `source: 'kiotviet'`, **không** ghi đè trạng thái được. Đơn Kiot được đọc qua cache 60 giây (single-flight); Postgres lỗi → `kiot.ok = false` và trang vẫn trả đơn sheet kèm cảnh báo. Các API tra cứu cho vai trò Khách vẫn chỉ đọc sheet, không bao giờ thấy dữ liệu Kiot.
+
+- `shipment/kiotPendingOrdersRepository.js` — đọc đơn Phiếu tạm + dòng hàng + tồn thực của **đúng cơ sở của đơn** + hàng đang vận chuyển (`dashboard/inTransitSource.js`, dùng chung với tab Tổng quan), rồi tính **Giá trị có bán** = Σ từng mặt hàng `min(SL đặt, max(0, tồn + đang vận chuyển)) × đơn giá sau chiết khấu` (bỏ dòng mã `VAT*`; cùng mã hàng xuất hiện nhiều dòng thì gộp trước khi lấy min). Hàng đang vận chuyển (phiếu "Đặt hàng nhập" Kiot SG) cộng cho cả HN và SG.
+- `GET /api/shipment/lifecycle/order-detail?code=<mã>&branch=HN|SG` — chi tiết đơn + từng dòng hàng kèm tồn kho / đang vận chuyển / có bán (404 `ORDER_NOT_FOUND`, 400 `INVALID_CODE` / `INVALID_BRANCH`).
+- Cột "Giá trị có bán" cũng có trong file Excel xuất của trang; file xuất **mọi dòng đã lọc**, không chỉ trang đang xem.
+- Tên sale lấy từ Kiot có dạng `<tên> - <ID Telegram>`: `dashboard/saleName.js` (`stripTelegramId` / `saleNameSql`) bỏ hậu tố ID ở mọi nơi hiển thị (chỉ đổi hiển thị, dữ liệu gốc giữ nguyên).
+- Công thức **Tồn có thể bán** dùng chung toàn dashboard: `Tồn thực tế − Đặt hàng Phiếu tạm (Khách đặt) + Hàng đang vận chuyển` (bảng "Cơ cấu tồn kho" tab Hàng hóa, bảng "Báo cáo hàng hóa" tab Tổng quan do job đêm `kiotvietSync/productReportRefresh.js` dựng, và các file xuất tương ứng).
 
 ## Lệnh
 
@@ -88,5 +98,6 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0026` | DROP `daily_purchase_summary` và `suppliers`, dọn sync checkpoints/backfill của `suppliers` sau khi gỡ bỏ tab Nhà cung cấp khỏi dashboard |
 | `0027` | `hr_rule_documents` — tài liệu "Quy định công ty" (2 tài liệu dựng sẵn `gio-giac`, `nghi-phep` + file PDF Quản lý tải lên lưu `BYTEA`); API `/api/hr/rules/documents*`, quyền `hr.rules` (xem) / `hr.rules.manage` (tải lên, gỡ, khôi phục mặc định); thêm/gỡ tài liệu báo lên chuông (`rule_document_added` / `rule_document_removed`) |
 | `0027` | `hr_rule_documents` — lưu trữ tài liệu quy định công ty (dựng sẵn hoặc PDF upload trong Postgres BYTEA), thu hồi SELECT của reporting_readonly |
+| `0028` | `idx_orders_phieu_tam` — chỉ mục một phần `orders (branch, id) WHERE raw->>'statusValue' = 'Phiếu tạm'` cho truy vấn đơn Phiếu tạm của trang Vòng đời đơn hàng (chưa áp chỉ mục code vẫn chạy đúng, chỉ chậm hơn: đo trên dữ liệu thật khi chưa có chỉ mục ~4 giây cho lần đọc nguội, các lần sau trong 60 giây dùng cache) |
 
 Bot Telegram chạy ngoài repo và đọc/ghi 3 bảng nghỉ phép trực tiếp — hợp đồng dữ liệu ở `db/SCHEMA.md`.

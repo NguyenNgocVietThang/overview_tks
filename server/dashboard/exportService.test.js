@@ -62,9 +62,7 @@ function buildDashboard() {
     },
     allProducts: [{ code: '00123', pct: 100 }],
     invoices: {
-      transactionsReport: { transactions: [{ code: 'HD-01', quantity: 2, quantityKnown: true }] },
-      periodOrders: [{ code: 'DH-01' }],
-      periodReturns: [{ code: 'TH-01' }]
+      transactionsReport: { transactions: [{ code: 'HD-01', quantity: 2, quantityKnown: true }] }
     },
     customers: {
       topRevenue: { all: [{ code: 'KH-01', saleOrderCount: 2, revenue: 300000 }] },
@@ -145,7 +143,6 @@ async function withStubs(options, fn) {
 const FIXED_TABLES = [
   'overview.transactions', 'overview.new-products',
   'products.top-selling', 'products.all', 'products.inventory', 'products.newly-imported',
-  'invoices.orders', 'invoices.returns',
   'customers.revenue', 'customers.debt', 'debt.management'
 ];
 
@@ -620,22 +617,22 @@ test('createExportWorkbook chi ghi cot da chon (thu tu theo yeu cau khong quan t
 
 // ---------- Nguon du lieu: dung ma, dung bo loc, khong sua cache ----------
 
-test('normalizeFilters: newlyImported/orders/returns rieng, thieu thi theo products/invoices', () => {
+test('normalizeFilters: newlyImported rieng, thieu thi theo products; khong con bo loc orders/returns', () => {
   const { normalizeFilters } = exportService.__test__;
   const fallback = normalizeFilters({
     products: { mode: 'days', days: 7 }, invoices: { mode: 'range', from: '2026-08-01', to: '2026-08-31' }
   });
   assert.deepEqual(fallback.newlyImported, { mode: 'days', days: 7 });
-  assert.deepEqual(fallback.orders, { mode: 'range', from: '2026-08-01', to: '2026-08-31' });
-  assert.deepEqual(fallback.returns, { mode: 'range', from: '2026-08-01', to: '2026-08-31' });
 
   const own = normalizeFilters({
     products: { mode: 'days', days: 7 }, invoices: { mode: 'all' },
     newlyImported: { mode: 'days', days: 90 }, orders: { mode: 'days', days: 14 }, returns: { mode: 'range', from: '2026-07-01', to: '2026-07-31' }
   });
   assert.deepEqual(own.newlyImported, { mode: 'days', days: 90 });
-  assert.deepEqual(own.orders, { mode: 'days', days: 14 });
-  assert.deepEqual(own.returns, { mode: 'range', from: '2026-07-01', to: '2026-07-31' });
+  // Hai bang Dat hang / Tra hang cua tab Hoa don da bo: bo loc cua chung khong con duoc nhan.
+  assert.equal('orders' in own, false);
+  assert.equal('returns' in own, false);
+  assert.deepEqual(Object.keys(own).sort(), ['customers', 'invoices', 'newProducts', 'newlyImported', 'overview', 'products']);
 });
 
 test('readRowsByCodes nhan dung tab, co so va danh sach ma logic; getDashboardData nhan dung bo loc', async () => {
@@ -1249,7 +1246,7 @@ function worksheetTable(workbook, index = 0) {
 
 test('Cot "Cơ sở" nam san trong catalogue cua moi nguon: buoc lay truong khong nap du lieu, Ca hai va co so vat ly giong nhau', async () => {
   await withStubs({}, async stubs => {
-    for (const tableKey of ['overview.transactions', 'invoices.orders', 'invoices.returns', 'products.all', 'customers.debt']) {
+    for (const tableKey of ['overview.transactions', 'products.all', 'customers.debt']) {
       const both = await exportService.getExportFields(payloadFor(tableKey), BOTH);
       const physical = await exportService.getExportFields(payloadFor(tableKey), HN);
       assert.deepEqual(both, physical, `${tableKey}: Ca hai va co so vat ly cung bo truong`);
@@ -1307,24 +1304,18 @@ test('Ca hai: hoa don trung ma o hai co so ghep dung dong tho theo (co so, ma) v
   });
 
   // Chi mot co so co ma -> khong query co so con lai.
-  await withStubs({ dashboard: { invoices: { periodOrders: [{ code: 'DH-01', branch: SG }], periodReturns: [{ code: 'TH-01', branch: HN }, { code: 'TH-01', branch: SG }] } } }, async () => {
+  const onlySaigon = { invoices: { transactionsReport: { transactions: [{ code: 'HD-07', branch: SG, quantity: 1, quantityKnown: true }] } } };
+  await withStubs({ dashboard: onlySaigon }, async () => {
     const calls = [];
     stubRowsByBranch({
-      [SG]: {
-        [CONFIG.SHEET_ORDERS]: [sourceRow('orders', { ma_dat_hang: 'DH-01', khach_hang: 'Khách SG' })],
-        [CONFIG.SHEET_RETURNS]: [sourceRow('returns', { ma_tra_hang: 'TH-01', khach_hang: 'Trả SG' })]
-      },
-      [HN]: { [CONFIG.SHEET_RETURNS]: [sourceRow('returns', { ma_tra_hang: 'TH-01', khach_hang: 'Trả HN' })] }
+      [SG]: { [CONFIG.SHEET_INVOICES]: [sourceRow('invoices', { ma_hoa_don: 'HD-07', khach_hang: 'Khách SG' })] },
+      [HN]: { [CONFIG.SHEET_INVOICES]: [sourceRow('invoices', { ma_hoa_don: 'HD-07', khach_hang: 'Khách HN' })] }
     }, calls);
-    const orders = worksheetTable(await loadWorkbook(await exportService.createExportWorkbook({
-      tableKey: 'invoices.orders', columns: { orders: ['ma_dat_hang', 'co_so'] }
+    const invoices = worksheetTable(await loadWorkbook(await exportService.createExportWorkbook({
+      tableKey: 'overview.transactions', columns: { transactions: ['ma_hoa_don', 'khach_hang', 'co_so'] }
     }, BOTH)));
-    assert.deepEqual(orders.rows, [['DH-01', SG]]);
+    assert.deepEqual(invoices.rows, [['HD-07', 'Khách SG', SG]]);
     assert.deepEqual(calls.map(call => call.branch), [SG]);
-    const returns = worksheetTable(await loadWorkbook(await exportService.createExportWorkbook({
-      tableKey: 'invoices.returns', columns: { returns: ['ma_tra_hang', 'khach_hang', 'co_so'] }
-    }, BOTH)));
-    assert.deepEqual(returns.rows, [['TH-01', 'Trả HN', HN], ['TH-01', 'Trả SG', SG]]);
   });
 });
 
@@ -1768,7 +1759,8 @@ test('Ca hai: file doanh thu/cong no cua khach co cot tach theo tung co so', asy
 
 const INVENTORY_PRODUCTS = [
   { code: 'SP-1', name: 'Áo thun', branch: HN, stock: 10, reserved: 4, available: 6, inTransit: 0, cost: 100, stockValue: 1000 },
-  { code: 'SP-1', name: 'Áo thun', branch: SG, stock: 30, reserved: 0, available: 30, inTransit: 50, cost: 200, stockValue: 6000 },
+  // available = ton - khach dat + dang van chuyen (quy tac 2026-10-01): 30 - 0 + 50.
+  { code: 'SP-1', name: 'Áo thun', branch: SG, stock: 30, reserved: 0, available: 80, inTransit: 50, cost: 200, stockValue: 6000 },
   { code: 'SP-2', name: 'Quần', branch: HN, stock: 5, reserved: 0, available: 5, inTransit: 0, cost: 10, stockValue: 50 }
 ];
 
@@ -1791,6 +1783,17 @@ test('Chi tiet ton kho: 1 co so xuat dung cot cua bang tren man hinh, xep theo g
   });
 });
 
+test('Chi tiet ton kho: payload cu khong co "available" thi tu tinh ton - khach dat + dang van chuyen', async () => {
+  const legacy = [{ code: 'SP-9', name: 'Hàng cũ', branch: HN, stock: 8, reserved: 3, inTransit: 720, cost: 10, stockValue: 80 }];
+  await withStubs({ dashboard: { allProducts: legacy } }, async () => {
+    const table = worksheetTable(await loadWorkbook(await exportService.createExportWorkbook({
+      tableKey: 'products.inventory',
+      columns: { inventory: ['code', 'stock', 'available', 'inTransit'] }
+    }, HN)));
+    assert.deepEqual(table.rows, [['SP-9', 8, 725, 720]]);
+  });
+});
+
 test('Chi tiet ton kho: "Ca hai" gop 1 dong/ma, tach cot Ha Noi / Sai Gon, van chuyen khong cong don', async () => {
   await withStubs({ dashboard: { allProducts: INVENTORY_PRODUCTS } }, async () => {
     const fields = await exportService.getExportFields({ tableKey: 'products.inventory' }, BOTH);
@@ -1805,7 +1808,7 @@ test('Chi tiet ton kho: "Ca hai" gop 1 dong/ma, tach cot Ha Noi / Sai Gon, van c
     // SP-1: don gia = gia tri ton / ton duong = 7000 / 40; SP-2 chi co o Ha Noi -> o Sai Gon de trong.
     const rows = table.rows.map(row => Array.from(row, value => (value === undefined ? null : value))); // o trong = lo hong cua ExcelJS
     assert.deepEqual(rows, [
-      ['SP-1', 'Áo thun', 175, 10, 30, 6, 30, 50, 7000, `${HN}, ${SG}`],
+      ['SP-1', 'Áo thun', 175, 10, 30, 6, 80, 50, 7000, `${HN}, ${SG}`],
       ['SP-2', 'Quần', 10, 5, null, 5, null, 0, 50, HN]
     ]);
   });
@@ -1828,12 +1831,10 @@ test('moi bang co bo loc thoi gian rieng: getDashboardData nhan dung bo loc cua 
     newlyImported: { mode: 'range', from: '2026-02-01', to: '2026-02-07' },
     newProducts: { mode: 'days', days: 5 },
     invoices: { mode: 'range', from: '2026-03-01', to: '2026-03-07' },
-    orders: { mode: 'range', from: '2026-04-01', to: '2026-04-07' },
-    returns: { mode: 'range', from: '2026-05-01', to: '2026-05-07' },
     customers: { mode: 'range', from: '2026-06-01', to: '2026-06-07' }
   };
   const tableKeys = ['products.top-selling', 'products.newly-imported', 'overview.new-products', 'overview.transactions',
-    'invoices.orders', 'invoices.returns', 'customers.revenue', 'customers.debt'];
+    'customers.revenue', 'customers.debt'];
   await withStubs({}, async stubs => {
     for (const tableKey of tableKeys) {
       const metadata = await exportService.getExportFields({ tableKey, filters }, HN);

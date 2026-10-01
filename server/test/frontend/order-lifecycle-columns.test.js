@@ -43,6 +43,8 @@ async function renderTable() {
     handleBranchError: () => false
   };
   window.fetch = async () => ({ ok: true, json: async () => ({ orders: ORDERS }) });
+  // Phan trang dung window.paginate (js/pagination.js, nap bang <script src> o trang that).
+  window.eval(fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'js', 'pagination.js'), 'utf8'));
   inlineScripts(html).forEach(script => window.eval(script));
   await new Promise(resolve => setTimeout(resolve, 0));
   await new Promise(resolve => setTimeout(resolve, 0));
@@ -58,21 +60,22 @@ function setValue(window, element, value) {
   element.dispatchEvent(new window.Event('change', { bubbles: true }));
 }
 
-test('bảng có cột "Sale ra đơn" (từ Sale gửi đơn cho kế toán) và cột "Cảnh báo"', async () => {
+test('bảng có cột "Giá trị có bán" (sau Khách hàng), "Sale ra đơn" (từ Sale gửi đơn cho kế toán) và cột "Cảnh báo"', async () => {
   const dom = await renderTable();
   const { document } = dom.window;
   const headers = [...document.querySelectorAll('#bulkHeadRow th')].map(th => th.textContent.replace(/[▲▼]/g, '').trim());
-  assert.deepEqual(headers, ['Mã đơn', 'Sale', 'Khách hàng', 'Sale ra đơn', 'Trạng thái', 'Cập nhật gần nhất', 'Cảnh báo']);
+  assert.deepEqual(headers, ['Mã đơn', 'Sale', 'Khách hàng', 'Giá trị có bán', 'Sale ra đơn', 'Trạng thái', 'Cập nhật gần nhất', 'Cảnh báo']);
 
   const rows = [...document.querySelectorAll('#bulkBody tr')];
-  assert.equal(rows[1].cells[3].textContent, '30/09/2026 10:47');
-  assert.equal(rows[3].cells[3].textContent, '—');
+  assert.equal(rows[1].cells[4].textContent, '30/09/2026 10:47');
+  assert.equal(rows[3].cells[4].textContent, '—');
+  assert.equal(rows[0].cells[3].textContent, '—', 'don khong con Phieu tam (hoac khong gop Kiot) khong co Gia tri co ban');
 
   // Chi don co warning=true moi co chu "Canh bao" (mau do); con lai de trong.
-  assert.equal(rows[1].cells[6].textContent, 'Cảnh báo');
-  assert.ok(rows[1].cells[6].querySelector('.badge-exception'));
-  assert.equal(rows[0].cells[6].textContent, '');
-  assert.equal(rows[3].cells[6].textContent, '');
+  assert.equal(rows[1].cells[7].textContent, 'Cảnh báo');
+  assert.ok(rows[1].cells[7].querySelector('.badge-exception'));
+  assert.equal(rows[0].cells[7].textContent, '');
+  assert.equal(rows[3].cells[7].textContent, '');
   dom.window.close();
 });
 

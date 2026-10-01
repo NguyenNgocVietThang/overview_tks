@@ -28,11 +28,6 @@ function payload() {
     filters: { products: { label: '30 ngày' }, invoices: { label: '30 ngày' } },
     invoices: {
       periodRevenue: 0, periodInvoices: 0, periodCancelledInvoices: 0, revenueByDay: [],
-      periodOrders: [
-        { code: 'DH-1', branch: HN, customer: 'KH A', total: 100, status: 'Hoàn thành' },
-        { code: 'DH-1', branch: SG, customer: 'KH B', total: 200, status: 'Hoàn thành' }
-      ],
-      periodReturns: [{ code: 'TH-1', branch: SG, originalInvoiceCode: '', customer: 'KH B', total: 50, status: 'Đã trả' }],
       transactionsReport: {
         transactions: [
           { code: 'HD-1', branch: HN, time: '21/09 09:08', customer: 'KH A', employee: 'NV', quantity: 1, quantityKnown: true, revenue: 10, discount: 0, paid: 10, status: 'Hoàn thành' },
@@ -107,7 +102,7 @@ function rows(doc, tbodyId) {
 
 const TABLES_WITH_BRANCH = {
   products: ['inventoryValueRows', 'topSellingRows', 'allProductRows', 'newlyImportedRows', 'todayNewProductRows'],
-  invoices: ['endOfDayRows', 'orderRows', 'returnRows'],
+  invoices: ['endOfDayRows'],
   customers: ['debtRows', 'customerRevenueRows']
 };
 

@@ -23,14 +23,14 @@ test('moi <th> cua bang fixed-table deu khai bao width px (do rong cot khong doi
       ths.forEach(th => assert.match(th, /style="[^"]*width:\s*\d+px/, page + ': th thieu width -> ' + th));
     }
   });
-  assert.ok(tables >= 20, 'phai co it nhat 20 bang co dinh, thuc te ' + tables);
+  assert.ok(tables >= 19, 'phai co it nhat 19 bang co dinh, thuc te ' + tables);
 });
 
 test('cac bang du lieu chinh cua dashboard deu la fixed-table', () => {
   const html = read('index.html');
   ['cpDetailRows', 'productReportRows', 'recentStockoutResultRows', 'stockout90dResultRows', 'stockout30dResultRows',
     'inventoryValueRows', 'topSellingRows', 'allProductRows', 'newlyImportedRows', 'todayNewProductRows', 'endOfDayRows',
-    'orderRows', 'returnRows', 'customerRevenueRows', 'debtRows', 'debtManagementRows'
+    'customerRevenueRows', 'debtRows', 'debtManagementRows'
   ].forEach(id => {
     const at = html.indexOf('<tbody id="' + id + '"');
     assert.ok(at > 0, id + ' khong co trong trang');

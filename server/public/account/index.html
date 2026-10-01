@@ -814,6 +814,20 @@
       return !!(currentUser && currentUser.vaiTro === 'Quản lý');
     }
 
+    /**
+     * Quản lý cấp cao = admin cứng (server trả isSeniorAdmin trong /api/auth/me). Quản lý thường
+     * KHÔNG được đặt lại mật khẩu / đổi email-SĐT / hạ vai trò / rút quyền / khóa / xóa tài khoản
+     * của Quản lý KHÁC (server/auth/accountPolicy.js checkProtectedManager chặn thật ở API —
+     * phần dưới chỉ ẩn thao tác vô ích cho đỡ nhầm).
+     */
+    function actorIsSenior(){
+      return !!(currentUser && currentUser.isSeniorAdmin);
+    }
+
+    function isProtectedManagerRow(u){
+      return actorIsManager() && !actorIsSenior() && !!u && u.vaiTro === 'Quản lý' && !isSelfUser(u);
+    }
+
     function isAssignableRole(role, keepRole){
       if(actorIsManager() || role === keepRole) return true;
       if(role === 'Quản lý') return false;
@@ -1216,6 +1230,19 @@
       return String(value || '').normalize('NFC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase('vi-VN');
     }
 
+    // Doc "dd/MM/yyyy[ HH:mm[:ss]]" thanh epoch ms (Date.UTC tren dung cac so hien thi, khong lech mui gio);
+    // khong doc duoc / ngay khong ton tai (31/02) -> null.
+    function parseVnDateTime(text){
+      const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/.exec(String(text == null ? '' : text).trim());
+      if(!match) return null;
+      const [day, month, year, hour, minute, second] = [match[1], match[2], match[3], match[4] || 0, match[5] || 0, match[6] || 0].map(Number);
+      const time = Date.UTC(year, month - 1, day, hour, minute, second);
+      const check = new Date(time);
+      if(check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day ||
+         check.getUTCHours() !== hour || check.getUTCMinutes() !== minute || check.getUTCSeconds() !== second) return null;
+      return time;
+    }
+
     function handleFilterUsers(){
       const q = normalizeNameQuery(document.getElementById('userSearchInput').value);
       const roleFilter = document.getElementById('userRoleFilter').value;
@@ -1237,6 +1264,17 @@
 
       // Sorting
       filtered.sort((a, b) => {
+        // Cot thoi gian ("Ngay tao", dd/MM/yyyy): sap theo THOI GIAN that — so sanh chuoi se xep 30/09 sau 01/10.
+        // Tai khoan chua co ngay tao luon xuong cuoi, bat ke chieu sap xep.
+        if(sortField === 'ngayTao'){
+          const timeA = parseVnDateTime(a.ngayTao);
+          const timeB = parseVnDateTime(b.ngayTao);
+          if(timeA === null || timeB === null){
+            if(timeA === timeB) return 0;
+            return timeA === null ? 1 : -1;
+          }
+          return sortAsc ? timeA - timeB : timeB - timeA;
+        }
         let valA = a[sortField] || '';
         let valB = b[sortField] || '';
         if(typeof valA === 'string') valA = valA.toLowerCase();
@@ -1358,13 +1396,19 @@
       const locked = u.trangThai === 'Khóa';
 
       document.getElementById('userActionTitle').textContent = `${u.hoTen || u.username} (@${u.username})`;
+      // Quản lý thường mở dòng Quản lý khác: chỉ còn sửa họ tên/cơ sở (không sửa quyền, không khóa).
+      const protectedManager = isProtectedManagerRow(u);
       const items = [];
-      if(!isThang){
+      if(!isThang && !protectedManager){
         items.push({ label: 'Sửa quyền', hint: 'Vai trò và quyền chi tiết', action: () => openPermissionsModal(u.id) });
       }
-      items.push({ label: 'Sửa thông tin cá nhân', hint: 'Họ tên, email, số điện thoại, cơ sở, mật khẩu', action: () => openEditUserModal(u.id) });
+      items.push({
+        label: 'Sửa thông tin cá nhân',
+        hint: protectedManager ? 'Họ tên, cơ sở (email, SĐT, mật khẩu chỉ Quản lý cấp cao đổi được)' : 'Họ tên, email, số điện thoại, cơ sở, mật khẩu',
+        action: () => openEditUserModal(u.id)
+      });
       // Không ai được khóa chính mình hoặc tài khoản Quản trị viên tối cao.
-      if(!isSelf && !isThang){
+      if(!isSelf && !isThang && !protectedManager){
         items.push({
           label: locked ? 'Mở khóa tài khoản' : 'Khóa tài khoản',
           hint: locked ? 'Cho phép đăng nhập trở lại' : 'Chặn đăng nhập, giữ nguyên dữ liệu',
@@ -1642,6 +1686,18 @@
       document.getElementById('editNewPassword').value = '';
       document.getElementById('editConfirmPassword').value = '';
       document.getElementById('editUserError').style.display = 'none';
+
+      // Quản lý khác + người sửa là Quản lý thường: khóa email/SĐT, ẩn đặt lại mật khẩu (xem actorIsSenior).
+      const protectedManager = isProtectedManagerRow(u);
+      ['editEmail', 'editPhone'].forEach(fieldId => {
+        const input = document.getElementById(fieldId);
+        input.disabled = protectedManager;
+        input.title = protectedManager ? 'Chỉ Quản lý cấp cao mới được đổi thông tin liên hệ của Quản lý khác' : '';
+      });
+      ['editNewPassword', 'editConfirmPassword'].forEach(fieldId => {
+        const group = document.getElementById(fieldId).closest('.form-group');
+        if(group) group.style.display = protectedManager ? 'none' : '';
+      });
       openModal('editUserModal');
     }
 

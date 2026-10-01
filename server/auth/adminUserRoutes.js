@@ -198,7 +198,8 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
         return res.status(400).json({ error: 'Email không đúng định dạng.' });
       }
       if (email !== String(targetUser.email || '').toLowerCase()) {
-        const denied = accountPolicy.checkTakeover(req.user, targetUser, 'đổi email của tài khoản này');
+        const denied = accountPolicy.checkTakeover(req.user, targetUser, 'đổi email của tài khoản này') ||
+                       accountPolicy.checkProtectedManager(req.user, targetUser, 'đổi email');
         if (denied) return accountPolicy.sendDenied(res, denied);
       }
       if (targetUser.hrManaged && email !== String(targetUser.email || '').toLowerCase()) {
@@ -211,7 +212,8 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
     if (req.body.soDienThoai !== undefined) {
       const soDienThoai = String(req.body.soDienThoai || '').trim();
       if (normalizePhone(soDienThoai) !== normalizePhone(targetUser.soDienThoai)) {
-        const denied = accountPolicy.checkTakeover(req.user, targetUser, 'đổi số điện thoại của tài khoản này');
+        const denied = accountPolicy.checkTakeover(req.user, targetUser, 'đổi số điện thoại của tài khoản này') ||
+                       accountPolicy.checkProtectedManager(req.user, targetUser, 'đổi số điện thoại');
         if (denied) return accountPolicy.sendDenied(res, denied);
       }
       if (soDienThoai) {
@@ -255,7 +257,9 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
       if (isTargetHardcodedAdmin && vaiTro !== ROLES.QUAN_LY) {
         return res.status(400).json({ error: 'Không thể hạ quyền của tài khoản Quản trị viên hệ thống mặc định.' });
       }
-      const denied = accountPolicy.checkGrant(req.user, targetUser, { ...targetUser, vaiTro });
+      // Ha vai tro cua Quan ly KHAC chi danh cho Quan ly cap cao (luat 4 cua accountPolicy).
+      const denied = (vaiTro !== ROLES.QUAN_LY && accountPolicy.checkProtectedManager(req.user, targetUser, 'hạ vai trò')) ||
+                     accountPolicy.checkGrant(req.user, targetUser, { ...targetUser, vaiTro });
       if (denied) return accountPolicy.sendDenied(res, denied);
       updates.vaiTro = vaiTro;
       // Tài khoản đồng bộ HR: resolveUser() luôn tính lại vaiTro từ Danh sách nhân sự
@@ -283,7 +287,8 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
         return res.status(400).json({ error: 'Không thể thay đổi ghi đè của tài khoản Quản trị viên hệ thống.' });
       }
       const resultingRole = vaiTroOverride || targetUser.sheetVaiTro || ROLES.KHACH;
-      const denied = accountPolicy.checkGrant(req.user, targetUser, { ...targetUser, vaiTro: resultingRole });
+      const denied = (resultingRole !== ROLES.QUAN_LY && accountPolicy.checkProtectedManager(req.user, targetUser, 'hạ vai trò')) ||
+                     accountPolicy.checkGrant(req.user, targetUser, { ...targetUser, vaiTro: resultingRole });
       if (denied) return accountPolicy.sendDenied(res, denied);
       updates.vaiTroOverride = vaiTroOverride;
       updates.vaiTro = resultingRole;
@@ -321,6 +326,10 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
       }
       if (isTargetHardcodedAdmin && (trangThai === LOCKED_STATUS || trangThai === 'Khóa')) {
         return res.status(400).json({ error: 'Không thể khóa tài khoản Quản trị viên hệ thống mặc định.' });
+      }
+      if (trangThai === LOCKED_STATUS || trangThai === 'Khóa') {
+        const deniedLock = accountPolicy.checkProtectedManager(req.user, targetUser, 'khóa tài khoản');
+        if (deniedLock) return accountPolicy.sendDenied(res, deniedLock);
       }
       updates.trangThai = trangThai;
       updates.lockReason = (trangThai === LOCKED_STATUS || trangThai === 'Khóa') ? 'manual' : '';
@@ -361,7 +370,8 @@ router.post('/api/admin/users/:id/reset-password', ...authManage, async (req, re
     }
     // Dat lai mat khau = dang nhap duoc thanh tai khoan dich => coi la chiem quyen.
     const denied = accountPolicy.checkTargetWritable(req.user, targetUser) ||
-                   accountPolicy.checkTakeover(req.user, targetUser, 'đặt lại mật khẩu của tài khoản này');
+                   accountPolicy.checkTakeover(req.user, targetUser, 'đặt lại mật khẩu của tài khoản này') ||
+                   accountPolicy.checkProtectedManager(req.user, targetUser, 'đặt lại mật khẩu');
     if (denied) return accountPolicy.sendDenied(res, denied);
 
     const newPassword = String(req.body.newPassword || '');
@@ -414,6 +424,8 @@ router.delete('/api/admin/users/:id', ...authManage, async (req, res) => {
     if (isTargetHardcodedAdmin) {
       return res.status(400).json({ error: 'Không thể xóa tài khoản Quản trị viên hệ thống mặc định.' });
     }
+    const deniedDelete = accountPolicy.checkProtectedManager(req.user, targetUser, 'xóa tài khoản');
+    if (deniedDelete) return accountPolicy.sendDenied(res, deniedDelete);
 
     await localUserStore.deleteUser(targetId);
     res.status(200).json({ ok: true, message: 'Đã xóa tài khoản thành công.' });
@@ -533,8 +545,13 @@ router.put('/api/admin/users/:id/permissions', ...authPermissions, async (req, r
       return res.status(400).json({ error: blockedReason });
     }
     // Nguoi khong phai Quan ly khong duoc tu cap / cap them quyen chinh ho khong co.
+    // Quan ly thuong khong duoc RUT bot quyen cua Quan ly khac (them quyen thi duoc).
+    const resolvedBefore = featureRegistry.resolvePermissions(targetUser);
+    const resolvedAfter = featureRegistry.resolvePermissions({ ...targetUser, featurePermissions: overrides });
+    const revokesPermission = resolvedBefore.some(key => !resolvedAfter.includes(key));
     const denied = accountPolicy.checkTargetWritable(req.user, targetUser) ||
-                   accountPolicy.checkGrant(req.user, targetUser, { ...targetUser, featurePermissions: overrides });
+                   accountPolicy.checkGrant(req.user, targetUser, { ...targetUser, featurePermissions: overrides }) ||
+                   (revokesPermission && accountPolicy.checkProtectedManager(req.user, targetUser, 'rút quyền'));
     if (denied) return accountPolicy.sendDenied(res, denied);
 
     const updated = await localUserStore.updateUser(targetUser.id, { featurePermissions: overrides });

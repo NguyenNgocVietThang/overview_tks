@@ -58,7 +58,7 @@ function payloadFor(view, marker = 'A') {
         updatedAt: marker, kpi: {}, filters: { invoices: filters('30 ngày') },
         invoices: {
           periodRevenue: 1200000, periodInvoices: 1, periodCancelledInvoices: 0, revenueByDay: [],
-          periodOrders: [], periodReturns: [], pendingOrdersCount: 0, pendingOrdersTotal: 0, returnsCount: 0, totalReturns: 0,
+          returnsCount: 0, totalReturns: 0,
           transactionsReport: {
             transactions: [{ code: 'HD-' + marker, time: '21/09 09:08', customer: 'KH A', employee: 'NV B', quantity: 3, quantityKnown: true, revenue: 1200000, discount: 0, paid: 1200000, status: 'Hoàn thành' }],
             topTransactions: [], summary: { quantity: 3, quantityKnown: true, revenue: 1200000, discount: 0, paid: 1200000 }

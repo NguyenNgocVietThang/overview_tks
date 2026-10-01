@@ -3393,7 +3393,7 @@
                         <th style="width:300px">Tên SP</th>
                         <th style="width:95px">Tồn HN</th>
                         <th style="width:95px">Tồn SG</th>
-                        <th style="width:125px">Tồn có bán</th>
+                        <th title="Tồn có bán = Tồn HN + Tồn SG − Khách đặt (phiếu tạm) + Hàng đang vận chuyển. Tính lại mỗi đêm." style="width:125px">Tồn có bán</th>
                         <th style="width:165px">Tổng SL 30 ngày</th>
                         <th style="width:135px">DS 90 ngày</th>
                         <th style="width:140px">SL khách bán</th>
@@ -3419,7 +3419,7 @@
             </div>
           </section>
 
-          <section class="section">
+          <section class="section" id="overviewStockoutSection">
             <div class="section-head"><span class="section-step">4</span>
               <h2>Kiểm tra đứt hàng <span class="section-note">đối chiếu dữ liệu KiotViet đã đồng bộ</span></h2>
             </div>
@@ -3629,9 +3629,9 @@
                         <th data-inv-cols="one" title="Tồn thực tế trên KiotViet" style="width:105px">Tồn kho</th>
                         <th data-inv-cols="both" hidden title="Tồn thực tế tại Hà Nội" style="width:95px">Tồn HN</th>
                         <th data-inv-cols="both" hidden title="Tồn thực tế tại Sài Gòn" style="width:95px">Tồn SG</th>
-                        <th data-inv-cols="one" title="Tồn có thể bán = Tồn kho − Khách đặt (hàng khách đã đặt, chưa giao)" style="width:155px">Tồn có thể bán</th>
-                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Hà Nội = Tồn kho − Khách đặt" style="width:150px">Tồn có bán HN</th>
-                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Sài Gòn = Tồn kho − Khách đặt" style="width:150px">Tồn có bán SG</th>
+                        <th data-inv-cols="one" title="Tồn có thể bán = Tồn kho − Khách đặt (phiếu tạm, chưa giao) + Hàng đang vận chuyển" style="width:155px">Tồn có thể bán</th>
+                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Hà Nội = Tồn kho − Khách đặt + Hàng đang vận chuyển" style="width:150px">Tồn có bán HN</th>
+                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Sài Gòn = Tồn kho − Khách đặt + Hàng đang vận chuyển" style="width:150px">Tồn có bán SG</th>
                         <th title="Số lượng trong phiếu Đặt hàng nhập trạng thái “Đã xác nhận NCC” của Kiot Sài Gòn (Mua hàng → Đặt hàng nhập), ghép theo mã hàng" style="width:125px">Vận chuyển</th>
                         <th title="Giá trị tồn = giá vốn × tồn kho" style="width:140px">Giá trị tồn</th>
                         <th style="width:130px">Cơ sở</th>
@@ -3846,7 +3846,7 @@
         <!-- ============ HÓA ĐƠN ============ -->
         <div class="view" id="view-invoices">
           <div class="view-title">Hóa đơn</div>
-          <div class="view-sub">Chi tiết giao dịch → phân tích đơn chờ và trả hàng
+          <div class="view-sub">Chi tiết giao dịch → phân tích trả hàng
           </div>
 
 
@@ -3909,82 +3909,13 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">2</span>
-              <h2>Phân tích <span class="section-note">hai luồng ảnh hưởng doanh thu: đơn chờ và trả hàng</span></h2>
+              <h2>Phân tích <span class="section-note">trả hàng ảnh hưởng doanh thu · đơn đặt hàng chờ (Phiếu tạm) nay theo dõi ở Quản lý đơn hàng → Vòng đời đơn hàng</span></h2>
             </div>
             <div class="kpi-grid section-kpis">
-              <div class="kpi-card col-6 accent-amber">
-                <div class="eyebrow">Đặt hàng đang chờ</div>
-                <div class="value" id="in-pending-total">—</div>
-                <div class="sub" id="in-pending-count">—</div>
-              </div>
               <div class="kpi-card col-6">
                 <div class="eyebrow">Trả hàng</div>
                 <div class="value" id="in-returns-total">—</div>
                 <div class="sub" id="in-returns-count">—</div>
-              </div>
-            </div>
-            <div class="grid">
-              <div class="panel col-6">
-                <div class="panel-head">
-                  <h2>Danh sách đặt hàng <span class="tag" id="tagOrders">—</span></h2><button class="export-button"
-                    type="button" onclick="openExportDialog('invoices.orders')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
-                </div>
-                <div class="scroll-list" style="max-height:320px;">
-                  <table class="fixed-table">
-                    <thead>
-                      <tr>
-                        <th style="width:140px">Mã ĐH</th>
-                        <th style="width:140px">Thời gian</th>
-                        <th style="width:240px">Khách hàng</th>
-                        <th style="width:135px">Tổng tiền</th>
-                        <th style="width:130px">Cơ sở</th>
-                      </tr>
-                    </thead>
-                    <tbody id="orderRows">
-                      <tr>
-                        <td colspan="5" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="ordersPagination" hidden>
-                  <button type="button" id="ordersFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="ordersPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="ordersPageLabel">Trang 1/1</span>
-                  <button type="button" id="ordersNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="ordersLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-              <div class="panel col-6">
-                <div class="panel-head">
-                  <h2>Danh sách trả hàng <span class="tag" id="tagReturns">—</span></h2><button class="export-button"
-                    type="button" onclick="openExportDialog('invoices.returns')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
-                </div>
-                <div class="scroll-list" style="max-height:320px;">
-                  <table class="fixed-table">
-                    <thead>
-                      <tr>
-                        <th style="width:140px">Mã trả hàng</th>
-                        <th style="width:140px">Thời gian</th>
-                        <th style="width:240px">Khách hàng</th>
-                        <th style="width:145px">Tổng tiền trả</th>
-                        <th style="width:130px">Cơ sở</th>
-                      </tr>
-                    </thead>
-                    <tbody id="returnRows">
-                      <tr>
-                        <td colspan="5" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="returnsPagination" hidden>
-                  <button type="button" id="returnsFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="returnsPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="returnsPageLabel">Trang 1/1</span>
-                  <button type="button" id="returnsNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="returnsLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
               </div>
             </div>
           </section>
@@ -4371,8 +4302,6 @@
         newlyImported: { mode: 'days', days: 30 },
         newProducts: { mode: 'days', days: 30 },
         invoices: { mode: 'days', days: 30 },
-        orders: { mode: 'days', days: 30 },
-        returns: { mode: 'days', days: 30 },
         customers: { mode: 'all' }
       },
       exportDialog: {
@@ -4591,13 +4520,41 @@
       });
     }
 
+    // Doc mot o CHI gom mot moc thoi gian thanh epoch ms de sap xep dung THOI GIAN thay vi so sanh chuoi
+    // (so sanh chu se xep "30/09/2026" SAU "01/10/2026"). Chap nhan dd/MM/yyyy[ HH:mm[:ss]] va yyyy-MM-dd[ HH:mm[:ss]]
+    // ("T" thay dau cach cung duoc). Tinh bang Date.UTC tren dung cac so dang hien thi nen khong lech mui gio.
+    // Khong phai moc thoi gian hop le (vd thieu nam "dd/MM HH:mm", hay 31/02) -> null, giu cach so sanh cu.
+    function parseSortableDateText(text) {
+      const value = String(text == null ? '' : text).trim();
+      let year, month, day;
+      let match = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+      if (match) {
+        day = Number(match[1]); month = Number(match[2]); year = Number(match[3]);
+      } else {
+        match = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+        if (!match) return null;
+        year = Number(match[1]); month = Number(match[2]); day = Number(match[3]);
+      }
+      const hour = Number(match[4] || 0);
+      const minute = Number(match[5] || 0);
+      const second = Number(match[6] || 0);
+      const time = Date.UTC(year, month - 1, day, hour, minute, second);
+      const check = new Date(time);
+      // Date.UTC cuon ngay/gio ngoai pham vi sang ky ke tiep (31/02 -> 03/03): doi chieu de loai bo.
+      if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day ||
+          check.getUTCHours() !== hour || check.getUTCMinutes() !== minute || check.getUTCSeconds() !== second) return null;
+      return time;
+    }
+
     function getTableSortValue(cell) {
       if (cell.hasAttribute('data-sort-value')) {
         const numberValue = Number(cell.getAttribute('data-sort-value'));
         return { empty: !Number.isFinite(numberValue), number: numberValue, text: '' };
       }
       const textValue = cell.textContent.replace(/\s+/g, ' ').trim();
-      return { empty: !textValue || textValue === '—', number: null, text: textValue };
+      const empty = !textValue || textValue === '—';
+      // O thoi gian khong khai bao data-sort-value: sap theo THOI GIAN that (epoch ms), khong theo chuoi.
+      return { empty: empty, number: empty ? null : parseSortableDateText(textValue), text: textValue };
     }
 
     // Sap xep TOAN BO `items` (truoc khi phan trang) theo cot columnIndex, bang
@@ -5735,8 +5692,6 @@
         products: cloneExportFilter(state.filters.topSelling),
         newlyImported: cloneExportFilter(state.filters.newlyImported),
         invoices: cloneExportFilter(state.filters.invoices),
-        orders: cloneExportFilter(state.filters.orders),
-        returns: cloneExportFilter(state.filters.returns),
         customers: cloneExportFilter(state.filters.customers, 'all'),
         newProducts: cloneExportFilter(state.filters.newProducts)
       };
@@ -5749,8 +5704,6 @@
       'products.all': 'allProducts',
       'products.inventory': 'inventoryValue',
       'products.newly-imported': 'newlyImported',
-      'invoices.orders': 'orders',
-      'invoices.returns': 'returns',
       'customers.revenue': 'customerRevenue',
       'customers.debt': 'topDebt',
       'customers.productDetail': 'cpDetail',
@@ -6184,15 +6137,13 @@
 
     // Moi bang co 1 bo loc thoi gian rieng (khoa cua state.filters) -> tien to tham so
     // gui backend (xem parseFilterSpec trong routes.js): pr = ban chay, ni = hang moi
-    // nhap, np = ma moi tao, in = giao dich (+ bieu do/chi so Xu huong), or = dat hang,
-    // rt = tra hang, cu = doanh thu theo khach.
+    // nhap, np = ma moi tao, in = giao dich (+ bieu do/chi so Xu huong va the "Tra hang"),
+    // cu = doanh thu theo khach. (or/rt cua 2 bang Dat hang / Tra hang da bo 2026-10-01.)
     const TAB_FILTER_PREFIXES = {
       topSelling: ['pr'],
       newlyImported: ['ni'],
       newProducts: ['np'],
       invoices: ['in'],
-      orders: ['or'],
-      returns: ['rt'],
       customers: ['cu']
     };
 
@@ -6205,8 +6156,6 @@
       newlyImported: 'newlyImported',
       todayNewProducts: 'newProducts',
       endOfDay: 'invoices',
-      orders: 'orders',
-      returns: 'returns',
       customerRevenue: 'customers'
     };
 
@@ -6663,7 +6612,7 @@
           rows: sortRows(list.map(function (p) {
             return {
               code: p.code, name: p.name, branch: p.branch, cost: p.cost || 0,
-              stock: p.stock || 0, available: p.available === undefined ? (p.stock || 0) - (p.reserved || 0) : p.available,
+              stock: p.stock || 0, available: p.available === undefined ? (p.stock || 0) - (p.reserved || 0) + (p.inTransit || 0) : p.available,
               inTransit: p.inTransit || 0, stockValue: p.stockValue || 0
             };
           }))
@@ -6681,7 +6630,7 @@
         }
         const row = byCode.get(key);
         const stock = p.stock || 0;
-        const available = p.available === undefined ? stock - (p.reserved || 0) : p.available;
+        const available = p.available === undefined ? stock - (p.reserved || 0) + (p.inTransit || 0) : p.available;
         if (p.branch === 'Hà Nội') { row.stockHanoi = stock; row.availableHanoi = available; if (p.name) row.name = p.name; }
         else if (p.branch === 'Sài Gòn') { row.stockSaigon = stock; row.availableSaigon = available; if (!row.name) row.name = p.name; }
         row.branches.push(p.branch);
@@ -6849,8 +6798,6 @@
       allProducts: { title: 'Tất cả mã hàng', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
       inventoryValue: { title: 'Chi tiết tồn kho theo sản phẩm', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
       newlyImported: { title: 'Hàng mới nhập', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
-      orders: { title: 'Danh sách đặt hàng', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
-      returns: { title: 'Danh sách trả hàng', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
       customerRevenue: { title: 'Chi tiết doanh thu theo khách', searchText: tableSearchText, identity: customerIdentity },
       topDebt: { title: 'Chi tiết khách nợ', searchText: tableSearchText, identity: customerIdentity },
       debtManagement: { title: 'Khách hàng công nợ', searchText: tableSearchText, identity: p => p.customerKey, customControl: true }
@@ -7227,8 +7174,9 @@
     }
 
     // ===== Hộp chi tiết chứng từ giữa màn hình (tab Hóa đơn) =====
-    // Bấm 1 dòng ở "Chi tiết giao dịch" / "Danh sách đặt hàng" / "Danh sách trả hàng" / "Báo cáo hàng hóa" → lấy các dòng hàng của chứng từ đó từ
-    // /api/invoice-detail, /api/order-detail, /api/return-detail (bảng invoice_details / order_details / return_details).
+    // Bấm 1 dòng ở "Chi tiết giao dịch" / "Báo cáo hàng hóa" → lấy các dòng hàng của chứng từ đó từ
+    // /api/invoice-detail (bảng invoice_details) / /api/product-report/customers. (Chi tiết đơn đặt hàng "Phiếu tạm"
+    // nay mở ở trang Vòng đời đơn hàng — /api/shipment/lifecycle/order-detail.)
     const DOC_DETAIL_KINDS = {
       // Báo cáo hàng hóa (tab Tổng quan): doanh số 90 ngày từng khách của 1 mã hàng — bảng + biểu đồ tròn.
       productReport: {
@@ -7236,9 +7184,7 @@
         query: function (item) { return '?code=' + encodeURIComponent(item.code); },
         failure: 'Không tải được doanh số khách của sản phẩm này.'
       },
-      endOfDay: { api: '/api/invoice-detail', title: 'Chi tiết giao dịch', dateLabel: 'Thời gian bán', sellerLabel: 'Nhân viên bán hàng', failure: 'Không tải được chi tiết giao dịch.' },
-      orders: { api: '/api/order-detail', title: 'Chi tiết đơn đặt hàng', dateLabel: 'Ngày đặt', sellerLabel: 'Nhân viên lập', failure: 'Không tải được chi tiết đơn đặt hàng.' },
-      returns: { api: '/api/return-detail', title: 'Chi tiết phiếu trả hàng', dateLabel: 'Ngày trả', sellerLabel: 'Nhân viên bán', failure: 'Không tải được chi tiết phiếu trả hàng.' }
+      endOfDay: { api: '/api/invoice-detail', title: 'Chi tiết giao dịch', dateLabel: 'Thời gian bán', sellerLabel: 'Nhân viên bán hàng', failure: 'Không tải được chi tiết giao dịch.' }
     };
     const docDetail = { requestId: 0, tableKey: '', item: null, returnFocus: null };
 
@@ -7251,10 +7197,8 @@
     }
 
     function docDetailBodyHtml(tableKey, data) {
-      const isOrder = tableKey === 'orders';
-      const isReturn = tableKey === 'returns';
       const lines = data.lines || [];
-      const showDiscount = !isReturn && lines.some(function (line) { return line.discount > 0; });
+      const showDiscount = lines.some(function (line) { return line.discount > 0; });
       const customer = escapeHtml(data.customerName || 'Khách lẻ') +
         (data.customerCode ? ' <span class="muted mono">(' + escapeHtml(data.customerCode) + ')</span>' : '');
       const meta = [
@@ -7264,9 +7208,8 @@
         docMetaField(DOC_DETAIL_KINDS[tableKey].sellerLabel, escapeHtml(data.seller || '—')),
         docMetaField('Trạng thái', genericStatusPill(data.status))
       ];
-      if (isReturn) meta.push(docMetaField('Hóa đơn gốc', data.invoiceCode ? '<span class="mono">' + escapeHtml(data.invoiceCode) + '</span>' : '—'));
       if (data.orderCode) meta.push(docMetaField('Từ đơn đặt hàng', '<span class="mono">' + escapeHtml(data.orderCode) + '</span>'));
-      if (!isReturn && data.note) meta.push(docMetaField('Ghi chú', '<span style="white-space:pre-line">' + escapeHtml(data.note) + '</span>', true));
+      if (data.note) meta.push(docMetaField('Ghi chú', '<span style="white-space:pre-line">' + escapeHtml(data.note) + '</span>', true));
 
       const head = '<th>Mã hàng</th><th>Tên hàng</th><th>SL</th><th>Đơn giá</th>' + (showDiscount ? '<th>Giảm giá</th>' : '') + '<th>Thành tiền</th>';
       const rows = lines.length ? lines.map(function (line) {
@@ -7280,16 +7223,9 @@
       }).join('') : '<tr><td colspan="' + (showDiscount ? 6 : 5) + '" class="table-note">Chứng từ này chưa có dòng hàng nào.</td></tr>';
 
       const totals = [];
-      if (!isReturn) {
-        if (data.discount > 0) totals.push(docTotalRow(isOrder ? 'Giảm giá đơn' : 'Giảm giá hóa đơn', fmtMoney(data.discount)));
-        totals.push(docTotalRow(isOrder ? 'Tổng tiền' : 'Tổng tiền hàng', fmtMoney(data.total), true));
-        totals.push(docTotalRow('Khách đã trả', fmtMoney(data.paid)));
-      } else {
-        if (data.returnDiscount > 0) totals.push(docTotalRow('Giảm giá trả hàng', fmtMoney(data.returnDiscount)));
-        if (data.returnFee > 0) totals.push(docTotalRow('Phí trả hàng', fmtMoney(data.returnFee)));
-        totals.push(docTotalRow('Tổng tiền trả', fmtMoney(data.total), true));
-        totals.push(docTotalRow('Đã thanh toán', fmtMoney(data.paid)));
-      }
+      if (data.discount > 0) totals.push(docTotalRow('Giảm giá hóa đơn', fmtMoney(data.discount)));
+      totals.push(docTotalRow('Tổng tiền hàng', fmtMoney(data.total), true));
+      totals.push(docTotalRow('Khách đã trả', fmtMoney(data.paid)));
 
       return '<dl class="doc-meta">' + meta.join('') + '</dl>' +
         '<div><h3 class="doc-lines-title"><span>Hàng hóa</span><span class="muted">' + fmtNumber(data.lineCount) + ' dòng · ' +
@@ -7403,7 +7339,7 @@
     }
 
     function initDocumentDetail() {
-      [['endOfDayRows', 'endOfDay'], ['orderRows', 'orders'], ['returnRows', 'returns'], ['productReportRows', 'productReport']].forEach(function (pair) {
+      [['endOfDayRows', 'endOfDay'], ['productReportRows', 'productReport']].forEach(function (pair) {
         const tbody = document.getElementById(pair[0]);
         const tableKey = pair[1];
         function openFromRow(row) {
@@ -7886,7 +7822,9 @@
           { tbody: 'endOfDayRows', pagination: 'endOfDayPagination', firstBtn: 'endOfDayFirstPage', prevBtn: 'endOfDayPrevPage', nextBtn: 'endOfDayNextPage', lastBtn: 'endOfDayLastPage', label: 'endOfDayPageLabel' },
           transactions,
           item => '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết giao dịch"><td class="mono name-cell">' + escapeHtml(item.code) + '</td>' +
-            '<td class="mono muted">' + escapeHtml(item.time || '—') + '</td>' +
+            // Gio hien thi khong co nam (dd/MM HH:mm, hay HH:mm khi loc 1 ngay): server gui them timeMs (epoch ms)
+            // de sap xep theo THOI GIAN that. Chi gan data-sort-value khi la so huu han (Number('') = 0 se thanh moc 1970).
+            '<td class="mono muted"' + (Number.isFinite(item.timeMs) ? ' data-sort-value="' + item.timeMs + '"' : '') + '>' + escapeHtml(item.time || '—') + '</td>' +
             '<td class="name-cell">' + escapeHtml(item.customer || '—') + '</td>' +
             '<td>' + escapeHtml(item.employee || '—') + '</td>' +
             '<td class="mono" data-sort-value="' + item.quantity + '">' + (item.quantityKnown ? fmtNumber(Number(item.quantity || 0)) : '—') + '</td>' +
@@ -7899,37 +7837,10 @@
           'Chưa có giao dịch trong khoảng đã chọn'
         );
 
-                const ordersRangeLabel = d.filters && d.filters.orders ? d.filters.orders.label : invoiceRangeLabel;
-        const returnsRangeLabel = d.filters && d.filters.returns ? d.filters.returns.label : invoiceRangeLabel;
-        document.getElementById('in-pending-total').textContent = fmtMoney(invoiceData.pendingOrdersTotal);
-        document.getElementById('in-pending-count').textContent = fmtNumber(Number(invoiceData.pendingOrdersCount || 0)) + ' đơn · ' + ordersRangeLabel;
+        // The chi so "Trả hàng" theo bo loc Hoa don (bang Danh sach dat hang / tra hang da bo 2026-10-01;
+        // don dat hang cho "Phiếu tạm" nay xem o trang Vong doi don hang).
         document.getElementById('in-returns-total').textContent = fmtMoney(invoiceData.totalReturns);
-        document.getElementById('in-returns-count').textContent = fmtNumber(Number(invoiceData.returnsCount || 0)) + ' phiếu · ' + returnsRangeLabel;
-
-        const periodOrders = invoiceData.periodOrders || [];
-        document.getElementById('tagOrders').textContent = periodOrders.length;
-        renderPaginatedRows(
-          'orders',
-          { tbody: 'orderRows', pagination: 'ordersPagination', firstBtn: 'ordersFirstPage', prevBtn: 'ordersPrevPage', nextBtn: 'ordersNextPage', lastBtn: 'ordersLastPage', label: 'ordersPageLabel' },
-          periodOrders,
-          o => '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết đơn"><td class="mono muted">' + escapeHtml(o.code) + '</td><td class="mono muted">' + escapeHtml(o.time || '—') + '</td><td class="name-cell">' + (o.customer ? escapeHtml(o.customer) : 'Khách lẻ') + '</td>' +
-            '<td class="mono" data-sort-value="' + o.total + '">' + fmtMoney(o.total) + '</td><td>' + branchCellText(o) + '</td></tr>',
-          5,
-          'Chưa có đặt hàng nào'
-        );
-
-        const periodReturns = invoiceData.periodReturns || [];
-        document.getElementById('tagReturns').textContent = periodReturns.length;
-        renderPaginatedRows(
-          'returns',
-          { tbody: 'returnRows', pagination: 'returnsPagination', firstBtn: 'returnsFirstPage', prevBtn: 'returnsPrevPage', nextBtn: 'returnsNextPage', lastBtn: 'returnsLastPage', label: 'returnsPageLabel' },
-          periodReturns,
-          rt => '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết phiếu trả"><td class="mono muted">' + escapeHtml(rt.code) + '</td><td class="mono muted">' + escapeHtml(rt.time || '—') + '</td>' +
-            '<td class="name-cell">' + (rt.customer ? escapeHtml(rt.customer) : 'Khách lẻ') + '</td>' +
-            '<td class="mono" data-sort-value="' + rt.total + '">' + fmtMoney(rt.total) + '</td><td>' + branchCellText(rt) + '</td></tr>',
-          5,
-          'Chưa có trả hàng nào'
-        );
+        document.getElementById('in-returns-count').textContent = fmtNumber(Number(invoiceData.returnsCount || 0)) + ' phiếu · ' + invoiceRangeLabel;
       }
       else if (view === 'customers') {
         const customerData = d.customers || d;
@@ -8322,7 +8233,7 @@
     const VIEW_FILTER_SOURCES = {
       overview: ['invoices'],
       products: ['topSelling', 'newlyImported', 'newProducts'],
-      invoices: ['invoices', 'orders', 'returns'],
+      invoices: ['invoices'],
       customers: ['customers'],
       debt: []
     };
@@ -8627,6 +8538,19 @@
       if (firstAllowed) switchView(firstAllowed);
     }
 
+    /**
+     * Muc 4 cua tab Tong quan (Kiem tra dut hang + nhap Tra NCC) goi cac API duoi
+     * /api/products nen can quyen Hang hoa (reports.products): nguoi chi co quyen Tong quan
+     * (vd Nhan vien sale) khong thay muc nay. Server van chan 403 — day chi la lop giao dien.
+     * Tra ve true neu muc 4 duoc hien.
+     */
+    function applyOverviewSectionPermissions() {
+      const allowed = typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && TKSNav.can('reports.products');
+      const section = document.getElementById('overviewStockoutSection');
+      if (section) section.hidden = !allowed;
+      return allowed;
+    }
+
     /** An moi nut "Xuat Excel" khi tai khoan khong co quyen reports.export. */
     function applyExportPermission() {
       if (typeof TKSNav === 'undefined' || typeof TKSNav.can !== 'function') return;
@@ -8646,7 +8570,8 @@
         applyReportViewPermissions();
         applyExportPermission();
         syncSidebarActiveView();
-        initSupplierReturnImportPanel(user);
+        // Panel nhap Tra NCC nam trong muc 4 — chi khoi tao (goi /import-status) khi nguoi dung thay muc do.
+        if (applyOverviewSectionPermissions()) initSupplierReturnImportPanel(user);
       }).catch(function(err){
         document.documentElement.style.visibility = '';
       });

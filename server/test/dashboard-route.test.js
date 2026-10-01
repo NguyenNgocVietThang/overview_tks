@@ -70,23 +70,22 @@ test('view=invoices: truyen views=[invoices] xuong getDashboardData', async () =
   assert.equal(res.body.invoices.periodRevenue, 1);
 });
 
-test('bo loc rieng tung bang: ni/or/rt doc tu query, khong gui thi de undefined (getDashboardData fallback ve pr/in)', async () => {
+test('bo loc rieng tung bang: ni doc tu query, khong gui thi de undefined (getDashboardData fallback ve pr)', async () => {
   calls.length = 0;
   await dashboardHandler()(request({
     inMode: 'days', inDays: '7', prMode: 'days', prDays: '30',
     niMode: 'range', niFrom: '2026-07-01', niTo: '2026-07-31',
+    // or*/rt* la bo loc cua 2 bang Dat hang / Tra hang da bo o tab Hoa don (2026-10-01): khong con duoc doc.
     orMode: 'days', orDays: '90',
     rtMode: 'all'
   }), fakeRes());
   assert.deepEqual(calls[0].filters.newlyImported, { mode: 'range', days: undefined, from: '2026-07-01', to: '2026-07-31' });
-  assert.deepEqual(calls[0].filters.orders, { mode: 'days', days: '90', from: undefined, to: undefined });
-  assert.equal(calls[0].filters.returns.mode, 'all');
+  assert.equal('orders' in calls[0].filters, false, 'orMode/... khong con duoc phan tich');
+  assert.equal('returns' in calls[0].filters, false, 'rtMode/... khong con duoc phan tich');
 
   calls.length = 0;
   await dashboardHandler()(request({ days: '30', inMode: 'days', inDays: '7' }), fakeRes());
   assert.equal(calls[0].filters.newlyImported, undefined);
-  assert.equal(calls[0].filters.orders, undefined, 'khong co orMode/... -> khong ghi de bang legacy days');
-  assert.equal(calls[0].filters.returns, undefined);
 });
 
 test('view co nhieu tab: cach nhau dau phay, chi giu tab tai khoan co quyen', async () => {

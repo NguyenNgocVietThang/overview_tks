@@ -68,10 +68,10 @@ test('không còn thanh lọc thời gian chung; bộ lọc Từ – Đến gắ
   const match = html.match(/const TABLE_DATE_FILTERS = \{([\s\S]*?)\};/);
   assert.ok(match, 'phai co TABLE_DATE_FILTERS');
   const map = new Function('return {' + match[1] + '}')();
-  // Moi bang 1 bo loc rieng.
+  // Moi bang 1 bo loc rieng (2 bang Dat hang / Tra hang cua tab Hoa don da bo 2026-10-01).
   assert.deepEqual(map, {
     topSelling: 'topSelling', newlyImported: 'newlyImported', todayNewProducts: 'newProducts',
-    endOfDay: 'invoices', orders: 'orders', returns: 'returns',
+    endOfDay: 'invoices',
     customerRevenue: 'customers'
   });
   assert.equal(new Set(Object.values(map)).size, Object.keys(map).length, 'khong bang nao dung chung bo loc');
@@ -97,7 +97,7 @@ test('tham số bộ lọc gửi backend: np theo Hàng hóa, không còn ov/de'
   const map = new Function('return {' + match[1] + '}')();
   assert.deepEqual(map, {
     topSelling: ['pr'], newlyImported: ['ni'], newProducts: ['np'],
-    invoices: ['in'], orders: ['or'], returns: ['rt'],
+    invoices: ['in'],
     customers: ['cu']
   });
   assert.equal(map.overview, undefined);
@@ -140,7 +140,6 @@ function samplePayload() {
     filters: { products: { label: '30 ngày' }, invoices: { label: '30 ngày' } },
     invoices: {
       periodRevenue: 0, periodInvoices: 0, periodCancelledInvoices: 0, revenueByDay: [],
-      periodOrders: [], periodReturns: [],
       transactionsReport: {
         transactions: [{ code: 'HD-777', time: '21/09 09:08', customer: 'KH A', employee: 'NV B', quantity: 3, quantityKnown: true, revenue: 1200000, discount: 0, paid: 1200000, status: 'Hoàn thành' }],
         topTransactions: [{ code: 'HD-777', revenue: 1200000, status: 'Hoàn thành' }],

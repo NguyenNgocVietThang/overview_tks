@@ -345,7 +345,7 @@ Mỗi bước trong các luồng đã được gắn mã yêu cầu chức năng
 | Luồng A   | FR-06.1 -> FR-06.14, NFR-09                   |
 | Luồng B   | FR-01.1 -> FR-01.7, FR-02.x, FR-03.x, FR-04.x, FR-05.x, FR-07.1 -> FR-07.14, NFR-01, NFR-03, NFR-10, NFR-11 |
 | Luồng C   | FR-01.3, FR-06.4, FR-07.5, NFR-02, NFR-03, NFR-12 |
-| Luồng D   | FR-08.1 -> FR-08.7, NFR-03, NFR-12           |
+| Luồng D   | FR-08.1 -> FR-08.10, NFR-03, NFR-12          |
 | Luồng E   | CSNS-NP-01, HR Leave APIs, Telegram Bot, NFR-01, NFR-03 |
 
 ---

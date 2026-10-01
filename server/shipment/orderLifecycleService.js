@@ -276,15 +276,118 @@ async function findOrder(orderCode) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// GOP don Phieu tam cua KiotViet vao bang "Toan bo don hang" (2026-10-01)
+//
+// Khoa gop = (co so HN/SG, ma don chuan hoa) — cung ma DH ton tai o ca 2 co so (18.222 ma trung
+// ve toan bo lich su vi ca 2 cung dem tu DH000001) nen KHONG duoc khop theo ma don thuan.
+// Dong Google Sheet THANG khi trung (giu nguyen trang thai tu cac moc thoi gian + ghi de); don chi
+// co o Kiot -> trang thai san co NOT_SENT "Đơn chưa gửi kế toán" (thap nhat), khong ap ghi de
+// (ghi de chi chay voi ma co trong sheet, va lich su ghi de khoa theo ma don thuan khong theo co so).
+// Truong them (chi khi gop, khong doi ten truong cu): source ('sheet'|'kiotviet'), kiotPhieuTam,
+// sellableValue (Gia tri co ban; null neu khong con la Phieu tam), orderTotal, orderDate.
+// ---------------------------------------------------------------------------
+
+function kiotKey(branch, code) {
+  return `${branch}|${normalizeCode(code)}`;
+}
+
+/** Ban ghi rong (moi cot sheet = '') cho don chi co o Kiot, de dung chung toOrderRow/computeStatus. */
+function kiotOnlyRecord(kiotOrder) {
+  return {
+    orderCode: kiotOrder.code,
+    saleName: kiotOrder.saleName || '',
+    customerName: kiotOrder.customerName || '',
+    saleSentAt: '',
+    accountantApprovedOrderAt: '',
+    driverName: '',
+    driverConfirmedDeliveryAt: '',
+    accountantApprovedDeliveryAt: '',
+    deliveryConfirmedAt: '',
+    shipReceivedAt: '',
+    orderSignedAt: '',
+    _branch: kiotOrder.branch
+  };
+}
+
+/**
+ * HAM THUAN. Gop dong sheet + don Phieu tam cua Kiot thanh danh sach dong cho bang.
+ * `kiotResult` = ket qua readPendingOrders() ({ok, orders}); khong ok/khong co thi chi con dong sheet.
+ * Thu tu: dong sheet nhu cu, sau do don chi-Kiot (da sap moi nhat truoc boi kiotPendingOrdersRepository).
+ */
+function mergeRows({ records, overrides, kiotResult, branchFilter }) {
+  const sheetRecords = branchFilter ? records.filter(r => r._branch === branchFilter) : records;
+  const kiotOrders = kiotResult && kiotResult.ok && Array.isArray(kiotResult.orders)
+    ? kiotResult.orders.filter(order => !branchFilter || order.branch === branchFilter)
+    : [];
+  const kiotByKey = new Map(kiotOrders.map(order => [kiotKey(order.branch, order.code), order]));
+  const matched = new Set();
+
+  const rows = sheetRecords.map(record => {
+    const row = toOrderRow(record, overrides.get(normalizeCode(record.orderCode)));
+    const key = kiotKey(record._branch, record.orderCode);
+    const kiotOrder = normalizeCode(record.orderCode) ? kiotByKey.get(key) : undefined;
+    if (kiotOrder) matched.add(key);
+    return Object.assign(row, {
+      source: 'sheet',
+      kiotPhieuTam: !!kiotOrder,
+      sellableValue: kiotOrder ? kiotOrder.sellableValue : null,
+      orderTotal: kiotOrder ? kiotOrder.total : null,
+      orderDate: kiotOrder ? kiotOrder.orderDate : ''
+    });
+  });
+
+  kiotOrders.forEach(order => {
+    if (matched.has(kiotKey(order.branch, order.code))) return;
+    rows.push(Object.assign(toOrderRow(kiotOnlyRecord(order), undefined), {
+      source: 'kiotviet',
+      kiotPhieuTam: true,
+      sellableValue: order.sellableValue,
+      orderTotal: order.total,
+      orderDate: order.orderDate
+    }));
+  });
+  return rows;
+}
+
+/** Tom tat tinh trang nguon Kiot de giao dien hien thong bao khi loi (null = khong gop Kiot). */
+function kiotMeta(kiotResult) {
+  if (!kiotResult) return null;
+  return {
+    ok: !!kiotResult.ok,
+    stale: !!kiotResult.stale,
+    fetchedAt: kiotResult.fetchedAt || null,
+    count: Array.isArray(kiotResult.orders) ? kiotResult.orders.length : 0
+  };
+}
+
+/**
+ * Toan bo don cho bang "Toan bo don hang": dong Google Sheet + (khi truyen `kiot`) don Phieu tam cua
+ * KiotViet chua co trong sheet. `kiot` la repository co readPendingOrders() (khong bao gio throw).
+ * Tra { orders, kiot }: kiot = tom tat nguon Kiot ({ok, stale, fetchedAt, count}) hoac null.
+ */
+async function listOrdersMerged(branchFilter, { kiot } = {}) {
+  const [records, historyRows, kiotResult] = await Promise.all([
+    repo.readAll(),
+    repo.readOverrideHistory(),
+    kiot ? kiot.readPendingOrders() : Promise.resolve(null)
+  ]);
+  const overrides = latestOverrideByCode(historyRows);
+  if (!kiot) {
+    // Duong cu: chi dong sheet, KHONG them truong moi (giu nguyen hinh dang tra ve truoc day).
+    const filtered = branchFilter ? records.filter(r => r._branch === branchFilter) : records;
+    return { orders: filtered.map(record => toOrderRow(record, overrides.get(normalizeCode(record.orderCode)))), kiot: null };
+  }
+  return { orders: mergeRows({ records, overrides, kiotResult, branchFilter }), kiot: kiotMeta(kiotResult) };
+}
+
 /**
  * Toan bo don tu ca 2 tab, giu nguyen thu tu hang trong sheet. branchFilter
- * tuy chon ('HN'|'SG') tu query string.
+ * tuy chon ('HN'|'SG') tu query string. CHI doc Google Sheet (khong gop Kiot) — dung
+ * listOrdersMerged(branch, { kiot }) cho bang "Toan bo don hang".
  */
 async function listAllOrders(branchFilter) {
-  const [records, historyRows] = await Promise.all([repo.readAll(), repo.readOverrideHistory()]);
-  const overrides = latestOverrideByCode(historyRows);
-  const filtered = branchFilter ? records.filter(r => r._branch === branchFilter) : records;
-  return filtered.map(record => toOrderRow(record, overrides.get(normalizeCode(record.orderCode))));
+  return (await listOrdersMerged(branchFilter)).orders;
 }
 
 /**
@@ -401,21 +504,26 @@ async function findOrdersBulk(rawCodes) {
  * dung THU TU cac ma duoc truyen vao (khop voi bang da loc/sap xep tren UI).
  * Khong truyen codes (hoac mang rong) -> xuat toan bo (giu thu tu trong sheet).
  */
-async function exportOrdersByCodes(codes) {
-  const [records, historyRows] = await Promise.all([repo.readAll(), repo.readOverrideHistory()]);
+async function exportOrdersByCodes(codes, { kiot } = {}) {
+  const [records, historyRows, kiotResult] = await Promise.all([
+    repo.readAll(),
+    repo.readOverrideHistory(),
+    kiot ? kiot.readPendingOrders() : Promise.resolve(null)
+  ]);
   const overrides = latestOverrideByCode(historyRows);
-  if (!Array.isArray(codes) || codes.length === 0) {
-    return records.map(record => toOrderRow(record, overrides.get(normalizeCode(record.orderCode))));
-  }
+  // Gop Kiot (neu co) thanh cac dong; khong gop thi giu dung dong sheet nhu cu.
+  const rows = kiot
+    ? mergeRows({ records, overrides, kiotResult })
+    : records.map(record => toOrderRow(record, overrides.get(normalizeCode(record.orderCode))));
+  if (!Array.isArray(codes) || codes.length === 0) return rows;
   const byKey = new Map();
-  records.forEach(record => {
-    const key = normalizeCode(record.orderCode);
-    if (!byKey.has(key)) byKey.set(key, record);
+  rows.forEach(row => {
+    const key = normalizeCode(row.orderCode);
+    if (!byKey.has(key)) byKey.set(key, row);
   });
   return codes
     .map(code => byKey.get(normalizeCode(code)))
-    .filter(Boolean)
-    .map(record => toOrderRow(record, overrides.get(normalizeCode(record.orderCode))));
+    .filter(Boolean);
 }
 
 /**
@@ -465,7 +573,8 @@ async function overrideStatus(orderCode, { code, changedBy, changedByRole, note 
 
 module.exports = {
   STATUS, STATUS_LABEL, STATUS_COLUMN_LABEL, STATUS_RANK,
-  computeStatus, computeEffectiveStatus, computeOverdueWarning, parseSheetTimeMs, findOrder, listAllOrders, findOrdersBulk,
-  exportOrdersByCodes, overrideStatus, listHistory,
+  computeStatus, computeEffectiveStatus, computeOverdueWarning, parseSheetTimeMs, findOrder, listAllOrders, listOrdersMerged,
+  findOrdersBulk, exportOrdersByCodes, overrideStatus, listHistory,
+  mergeRows,
   MAX_LOOKUP_CODES
 };
