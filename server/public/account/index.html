@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/shared/shared.css?v=20260930b">
+<link rel="stylesheet" href="/shared/shared.css?v=20261001">
 <style>
   /* ---------- Account Page Custom Styles ---------- */
   .account-wrap{ width:100%; max-width:none; margin:0; }
@@ -104,7 +104,9 @@
     .kpi-row{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
   }
   @media (max-width:480px){
-    .kpi-row{ grid-template-columns:1fr; }
+    .kpi-row{ gap:10px; }
+    .kpi-row .kpi-stat{ padding:12px 14px; }
+    .kpi-row .kpi-stat:last-child:nth-child(odd){ grid-column:1 / -1; }
   }
   .kpi-stat{
     background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px 16px;
@@ -789,7 +791,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Đặt ở cuối thẻ body thay vì trong <head>: script chặn phân tích cú pháp trong <head> sẽ làm dừng việc xử lý toàn bộ tài liệu. Không dùng `defer` vì script inline bên dưới dùng TKSNav ở cấp cao nhất, và script inline luôn chạy trước script defer. -->
-  <script src="/shared/shared-nav.js?v=20260930"></script>
+  <script src="/shared/shared-nav.js?v=20261001"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
 
   <script>

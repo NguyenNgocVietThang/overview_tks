@@ -46,7 +46,7 @@
       setTimeout(unhide, 1200);
     })();
   </script>
-  <link rel="stylesheet" href="/shared/shared.css?v=20260930b">
+  <link rel="stylesheet" href="/shared/shared.css?v=20261001">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
@@ -426,17 +426,22 @@
       border-radius: var(--radius-10);
       width: 100%;
       background: none;
-      border: none;
-      border-left: 3px solid transparent;
-      color: var(--muted);
+      border: 1px solid rgba(249, 115, 22, 0.45);
+      color: #F97316;
       font-size: 13.5px;
-      font-weight: 500;
+      font-weight: 700;
       font-family: var(--font-body);
       text-align: left;
       cursor: pointer;
-      margin-bottom: 2px;
+      margin-top: 6px;
+      margin-bottom: 4px;
       min-height: 42px;
-      transition: background .15s ease, color .15s ease;
+      transition: background .15s ease, color .15s ease, border-color .15s ease;
+    }
+
+    :root[data-theme="light"] .nav-group-toggle {
+      color: #EA580C;
+      border-color: rgba(234, 88, 12, 0.5);
     }
 
     .nav-group-toggle .ic {
@@ -450,17 +455,24 @@
     }
 
     .nav-group-toggle:hover {
-      background: var(--surface-hover);
-      color: var(--text);
+      background: rgba(249, 115, 22, 0.05);
+      border-color: #F97316;
     }
 
     .nav-group-toggle:focus-visible {
-      outline: 2px solid var(--blue);
-      outline-offset: -2px;
+      outline: 2px solid #F97316;
+      outline-offset: 2px;
     }
 
     .nav-group-toggle.has-active {
-      color: var(--text);
+      border-color: #F97316;
+      background: rgba(249, 115, 22, 0.07);
+      box-shadow: inset 3px 0 0 #F97316, 0 2px 8px rgba(249, 115, 22, 0.18);
+    }
+
+    :root[data-theme="light"] .nav-group-toggle.has-active {
+      border-color: #EA580C;
+      box-shadow: inset 3px 0 0 #EA580C, 0 2px 8px rgba(234, 88, 12, 0.18);
     }
 
     .nav-group-chevron {
@@ -1376,6 +1388,9 @@
       text-align: right;
     }
 
+    /* Chế độ thường không hiện số dòng; chỉ chế độ "Nhiều mã" có dòng báo tìm thấy/thiếu. */
+    .table-search-count:empty { display: none; }
+
     .panel h2 {
       font-family: var(--font-display);
       font-size: 14px;
@@ -1384,6 +1399,15 @@
       display: flex;
       align-items: center;
       gap: 8px;
+    }
+
+    /* Bảng đã có chỉ số tổng quan ở đầu mục nên bỏ các số/nhãn mờ cạnh tiêu đề bảng
+       (JS vẫn ghi vào các phần tử này, chỉ ẩn hiển thị). Biểu đồ giữ nguyên nhãn. */
+    .panel:has(table) .panel-head h2 .tag,
+    .panel:has(table)>h2 .tag,
+    #today-new-products-count,
+    #end-day-table-count {
+      display: none;
     }
 
     .panel h2 .tag {
@@ -1924,20 +1948,21 @@
       width: 112px;
     }
 
+    /* Điện thoại: 2 cột bằng nhau, nhãn Từ/Đến nằm trên ô dd/mm/yyyy (cùng khuôn với
+       Vòng đời đơn hàng và Nghỉ phép; ô ngày được tạo dáng ở shared.css). */
     @media (max-width:760px) {
       .table-date-filter {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: auto auto;
+        grid-auto-flow: column;
+        gap: 4px 10px;
         width: 100%;
-      }
-
-      .table-date-filter .dmy-date-wrap {
-        flex: 1;
         min-width: 0;
       }
 
-      .table-date-filter .dmy-date-input {
-        width: auto;
-        flex: 1 1 auto;
-        min-width: 0;
+      .table-date-filter-label {
+        font-size: 12px;
       }
     }
 
@@ -2061,15 +2086,6 @@
       height: 380px;
     }
 
-    .chart-box.newly-imported-top,
-    .chart-box.top-selling-top {
-      height: 420px;
-    }
-
-    .chart-box.newly-imported-top.is-empty {
-      height: 180px;
-    }
-
     .chart-box.chart-scroll-x {
       overflow-x: auto;
       overflow-y: hidden;
@@ -2081,9 +2097,7 @@
       min-width: 100%;
     }
 
-    .newly-imported-feature-panel,
     .newly-imported-table-panel,
-    .top-selling-feature-panel,
     .top-selling-table-panel {
       align-self: stretch;
     }
@@ -3654,13 +3668,6 @@
                 nhóm cha</button>
             </div>
             <div class="grid">
-              <div class="panel col-7 top-selling-feature-panel" id="topSellingChartPanel" hidden>
-                <div class="panel-head">
-                  <h2><span id="topSellingChartTitle">Top sản phẩm bán chạy</span> <span class="tag"
-                      id="tagTopSelling">—</span></h2>
-                </div>
-                <div class="chart-box top-selling-top"><canvas id="chartTopSelling"></canvas></div>
-              </div>
               <div class="panel col-12 top-selling-table-panel is-full" id="topSellingTablePanel">
                 <div class="panel-head">
                   <h2 id="topSellingTableTitle">Chi tiết sản phẩm bán chạy</h2><button class="export-button"
@@ -3747,19 +3754,7 @@
             </div>
             <div class="kpi-grid section-kpis" id="newlyImportedKpis"></div>
             <div class="grid">
-              <div class="panel col-7 newly-imported-feature-panel">
-                <div class="panel-head">
-                  <h2>Top 15 doanh thu hàng mới nhập <span class="tag" id="tagNewlyImportedTopRevenue">—</span></h2>
-                  <span class="drill-hint">Xếp theo doanh thu · không gồm hóa đơn đã hủy</span>
-                </div>
-                <div class="chart-box newly-imported-top" id="newlyImportedTopRevenueChartBox">
-                  <canvas id="chartNewlyImportedTopRevenue" role="img"
-                    aria-label="Biểu đồ cột ngang Top 15 doanh thu hàng mới nhập"></canvas>
-                  <div class="chart-empty" id="newlyImportedTopRevenueChartEmpty" hidden>Chưa có doanh thu từ hàng mới
-                    nhập trong khoảng đã chọn</div>
-                </div>
-              </div>
-              <div class="panel col-5 newly-imported-table-panel">
+              <div class="panel col-12 newly-imported-table-panel">
                 <div class="panel-head">
                   <h2>Hàng mới nhập <span class="tag" id="tagNewlyImported">—</span></h2><button class="export-button"
                     type="button" onclick="openExportDialog('products.newly-imported')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
@@ -4316,7 +4311,7 @@
   <script src="/vendor/chart.umd.min.js"></script>
   <script src="/js/pagination.js"></script>
   <script src="/js/table-explorer.js"></script>
-  <script src="/shared/shared-nav.js?v=20260930"></script>
+  <script src="/shared/shared-nav.js?v=20261001"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
 
@@ -6743,11 +6738,10 @@
       const analysisRows = isParentCategory
         ? (productsData.allSellingParentCategories || chartRows)
         : (productsData.allSellingProducts || chartRows);
-      const chartTitle = isParentCategory ? 'Top nhóm cha theo doanh thu' : 'Top sản phẩm bán chạy';
       const tableTitle = isParentCategory ? 'Chi tiết doanh thu theo nhóm cha' : 'Chi tiết sản phẩm bán chạy';
       const firstColumnLabel = isParentCategory ? 'Nhóm cha' : 'Sản phẩm';
 
-      // Theo mặt hàng: bỏ biểu đồ, bảng rộng full và có thêm cột tồn kho (tra theo mã từ allProducts).
+      // Không có biểu đồ, bảng rộng full. Theo mặt hàng có thêm cột tồn kho (tra theo mã từ allProducts).
       const stockByCode = new Map();
       if (!isParentCategory) {
         (d.allProducts || []).forEach(p => stockByCode.set(productIdentity(p), p.stock));
@@ -6755,21 +6749,13 @@
       const tableRows = isParentCategory
         ? analysisRows
         : analysisRows.map(item => Object.assign({}, item, { stock: stockByCode.get(productIdentity(item)) }));
-      const chartPanel = document.getElementById('topSellingChartPanel');
-      const tablePanel = document.getElementById('topSellingTablePanel');
-      chartPanel.hidden = !isParentCategory;
-      tablePanel.classList.toggle('col-5', isParentCategory);
-      tablePanel.classList.toggle('col-12', !isParentCategory);
-      tablePanel.classList.toggle('is-full', !isParentCategory);
       document.getElementById('topSellingStockHeader').hidden = isParentCategory;
       document.getElementById('topSellingBranchHeader').hidden = isParentCategory;
 
       document.querySelectorAll('#productAnalysisToggle button').forEach(function (button) {
         button.classList.toggle('active', button.dataset.analysis === state.productAnalysis);
       });
-      document.getElementById('topSellingChartTitle').textContent = chartTitle;
       document.getElementById('topSellingTableTitle').textContent = tableTitle;
-      document.getElementById('tagTopSelling').textContent = analysisRows.length;
 
       [
         ['topSellingCodeHeader', isParentCategory ? 'Số mặt hàng' : 'Mã hàng'],
@@ -6780,16 +6766,6 @@
         if (headerButton) headerButton.firstElementChild.textContent = header[1];
         else headerCell.textContent = header[1];
       });
-
-      if (isParentCategory && chartRows.length) {
-        renderBarChartList(
-          'chartTopSelling', 'topSelling', chartRows, item => item.name, item => item.revenue,
-          themeColor('--green'), false,
-          { tableKey: 'topSelling', identity: item => state.productAnalysis === 'product' ? productIdentity(item) : 'parent:' + item.name }
-        );
-      } else {
-        destroyChart('topSelling');
-      }
 
       renderPaginatedRows(
         'topSelling',
@@ -6970,10 +6946,8 @@
         const missing = filtered.missingCodes.slice(0, 3);
         count.textContent = 'Đã tìm thấy ' + found + '/' + filtered.requestedCodes.length + ' mã' +
           (missing.length ? ' · Thiếu: ' + missing.join(', ') + (filtered.missingCodes.length > 3 ? ' +' + (filtered.missingCodes.length - 3) : '') : '');
-      } else if (searchState.query.trim()) {
-        count.textContent = filtered.items.length + ' / ' + total;
       } else {
-        count.textContent = String(total);
+        count.textContent = '';
       }
     }
 
@@ -7822,26 +7796,6 @@
           { label: 'Doanh thu hàng mới nhập', value: fmtMoney(newlyImportedInfo.salesRevenue), sub: newlyImportedRangeLabel, accent: 'green' },
           { label: 'Số lượng đã bán', value: fmtNumber(newlyImportedInfo.salesQty), sub: newlyImportedRangeLabel, accent: 'blue' }
         ]);
-        const topNewlyImportedByRevenue = newlyImportedInfo.topByRevenue || [];
-        document.getElementById('tagNewlyImportedTopRevenue').textContent = topNewlyImportedByRevenue.length + ' mặt hàng';
-        const hasNewlyImportedTopRevenue = topNewlyImportedByRevenue.length > 0;
-        document.getElementById('newlyImportedTopRevenueChartBox').classList.toggle('is-empty', !hasNewlyImportedTopRevenue);
-        document.getElementById('chartNewlyImportedTopRevenue').hidden = !hasNewlyImportedTopRevenue;
-        document.getElementById('newlyImportedTopRevenueChartEmpty').hidden = hasNewlyImportedTopRevenue;
-        if (hasNewlyImportedTopRevenue) {
-          renderBarChartList(
-            'chartNewlyImportedTopRevenue',
-            'newlyImportedTopRevenue',
-            topNewlyImportedByRevenue,
-            p => p.name,
-            p => p.revenue,
-            themeColor('--amber'),
-            false,
-            { tableKey: 'newlyImported', identity: productIdentity }
-          );
-        } else {
-          destroyChart('newlyImportedTopRevenue');
-        }
 
         const todayNewProducts = (d.products && d.products.newProducts) || { label: '—', count: 0, dateColumnAvailable: true, products: [] };
         const newProductRows = todayNewProducts.products || [];

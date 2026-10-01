@@ -86,7 +86,7 @@ test('tìm từng bảng lọc toàn bộ dữ liệu trước phân trang và g
   const rows = [...document.querySelectorAll('#allProductRows tr[data-table-item-id]')];
   assert.equal(rows.length, 2);
   assert.deepEqual(rows.map(row => row.dataset.tableItemId), ['SP101', 'SP102']);
-  assert.match(document.querySelector('[data-table-search-count="allProducts"]').textContent, /2\s*\/\s*105/);
+  assert.equal(document.querySelector('[data-table-search-count="allProducts"]').textContent, '');
   assert.match(document.getElementById('allProductsPageLabel').textContent, /Trang 1\/1/);
   dom.window.close();
 });

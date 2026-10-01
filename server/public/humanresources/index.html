@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Noto+Serif:wght@400;600;700&family=Roboto:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/shared/shared.css?v=20260930b">
+<link rel="stylesheet" href="/shared/shared.css?v=20261001">
 <style>
   .hr-wrap{ width:100%; margin:0 auto; }
   .hr-header{ margin-bottom:20px; }
@@ -43,7 +43,12 @@
 
   .kpi-row{ display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:14px; margin-bottom:20px; }
   @media (max-width:800px){ .kpi-row{ grid-template-columns:repeat(2, minmax(0, 1fr)); } }
-  @media (max-width:480px){ .kpi-row{ grid-template-columns:1fr; } }
+  /* Dien thoai: giu 2 cot (so lieu ngan), the le cuoi trai het chieu ngang */
+  @media (max-width:480px){
+    .kpi-row{ gap:10px; }
+    .kpi-row .kpi-stat{ padding:12px 14px; }
+    .kpi-row .kpi-stat:last-child:nth-child(odd){ grid-column:1 / -1; }
+  }
   .kpi-stat{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px 16px; }
   .kpi-stat .lbl{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
   .kpi-stat .val{ font-family:var(--font-data); font-size:22px; font-weight:700; color:var(--text); margin-top:4px; }
@@ -67,6 +72,7 @@
   .filter-select:focus{ outline:none; border-color:var(--blue); }
   .date-range-group{ display:flex; align-items:center; gap:6px; }
   .date-range-group span{ color:var(--canvas-text); font-size:12px; font-weight:500; }
+  .date-range-field{ display:flex; align-items:center; gap:6px; margin:0; }
   .date-range-group input{
     min-height:38px; padding:6px 10px; background:var(--panel-2); color:var(--text);
     border:1px solid var(--border); border-radius:var(--radius-sm); font-family:var(--font-body); font-size:12.5px; cursor:pointer;
@@ -260,15 +266,19 @@
   .rule-doc-bar{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
   .rule-doc-tabs{ display:flex; gap:8px; overflow-x:auto; flex:1 1 320px; min-width:0; padding-bottom:2px; }
   .rule-doc-tab{
-    flex:0 0 auto; max-width:260px; padding:7px 14px; border-radius:999px; cursor:pointer;
-    border:1px solid #f97316; background:#fdba74; color:#431407;
-    font-family:var(--font-body); font-size:12.5px; font-weight:600;
+    flex:0 0 auto; max-width:260px; min-height:38px; padding:0 18px; border-radius:10px; cursor:pointer;
+    border:1px solid rgba(255,255,255,0.22); background:rgba(15,23,42,0.55); color:#e2e8f0;
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+    font-family:var(--font-body); font-size:13px; font-weight:600;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
     transition:background .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
   }
-  .rule-doc-tab:hover:not(.active){ background:#fb923c; }
-  .rule-doc-tab:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
-  .rule-doc-tab.active{ background:#ea580c; color:#fff; border-color:#c2410c; box-shadow:0 2px 8px rgba(234,88,12,0.35); }
+  .rule-doc-tab:hover:not(.active){ background:rgba(249,115,22,0.18); border-color:rgba(249,115,22,0.7); color:#fff; }
+  .rule-doc-tab:focus-visible{ outline:2px solid #f97316; outline-offset:2px; }
+  .rule-doc-tab.active{
+    background:linear-gradient(180deg,#fb923c 0%,#ea580c 100%); color:#fff; border-color:#f97316;
+    box-shadow:0 4px 14px rgba(234,88,12,0.4);
+  }
   .rule-doc-manage{ display:flex; gap:8px; flex-wrap:wrap; }
   .rule-doc-manage[hidden], #ruleDocRestoreBtn[hidden], #ruleDocDeleteBtn[hidden], .doc-toolbar[hidden],
   .rule-doc-view[hidden], .rule-doc-status[hidden], .rule-doc-frame[hidden]{ display:none; }
@@ -334,6 +344,13 @@
     color:var(--blue); opacity:1;
   }
 
+  /* Dien thoai: bo loc Tu - Den cung khuon voi cac trang khac (2 cot, nhan tren o ngay) */
+  @media (max-width:760px){
+    .date-range-group{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:4px 10px; width:100%; }
+    .date-range-title{ grid-column:1 / -1; }
+    .date-range-field{ flex-direction:column; align-items:stretch; gap:4px; min-width:0; }
+    .users-table th, .users-table td{ padding:10px 12px; }
+  }
 </style>
 </head>
 <body>
@@ -430,10 +447,9 @@
               <option value="">Tất cả phòng ban</option>
             </select>
             <div class="date-range-group">
-              <span>Thời gian nghỉ: Từ</span>
-              <input type="date" id="fromDateFilter" onchange="handleFilterChange()">
-              <span>đến</span>
-              <input type="date" id="toDateFilter" onchange="handleFilterChange()">
+              <span class="date-range-title">Thời gian nghỉ:</span>
+              <label class="date-range-field"><span>Từ</span><input type="date" id="fromDateFilter" onchange="handleFilterChange()"></label>
+              <label class="date-range-field"><span>Đến</span><input type="date" id="toDateFilter" onchange="handleFilterChange()"></label>
             </div>
           </div>
           <div class="row-actions">
@@ -780,7 +796,7 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
-  <script src="/shared/shared-nav.js?v=20260930"></script>
+  <script src="/shared/shared-nav.js?v=20261001"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
   <script src="/vendor/html2pdf.bundle.min.js"></script>

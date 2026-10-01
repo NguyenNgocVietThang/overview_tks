@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/shared/shared.css?v=20260930b">
+<link rel="stylesheet" href="/shared/shared.css?v=20261001">
 <style>
   .lookup-wrap{ width:100%; max-width:none; margin:0; }
   .lookup-hero{ margin-bottom:20px; }
@@ -184,6 +184,7 @@
   .export-button:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
   .export-button:disabled{ opacity:.55; cursor:not-allowed; transform:none; }
   .bulk-count{ color:var(--muted); font-size:12.5px; font-weight:600; }
+  .bulk-header-tools{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
   .bulk-daterange{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; padding:12px 20px; border-bottom:1px solid var(--border); }
   .bulk-daterange-label{ color:var(--muted); font-size:12.5px; font-weight:600; }
   .bulk-date-field{ display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:12.5px; font-weight:600; }
@@ -214,6 +215,30 @@
   .lc-detail-label{ flex:0 0 200px; color:var(--text); font-weight:600; }
   .lc-detail-value{ flex:1; color:var(--text); font-weight:500; word-break:break-word; }
 
+  /* Dien thoai: moi khoi xep thanh cot kin chieu ngang panel; bo loc Tu - Den cung
+     khuon voi Bao cao tong hop / Nghi phep (2 cot, nhan tren o dd/mm/yyyy). */
+  @media(max-width:760px){
+    .lookup-panel{ padding:16px 14px; }
+    /* Tiêu đề bên trái, nút Xuất Excel góc trên bên phải; các bộ lọc xếp dưới, kín ngang */
+    .bulk-header{ display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:center; gap:10px; padding:14px 12px; }
+    .bulk-header h3{ grid-column:1; grid-row:1; }
+    .bulk-header-tools{ display:contents; }
+    .bulk-header-tools > *{ grid-column:1 / -1; min-width:0; }
+    .bulk-header-tools > .export-button{ grid-column:2; grid-row:1; width:auto; min-height:38px; }
+    .bulk-count:empty{ display:none; }
+    .bulk-status-select{ width:100%; min-height:42px; font-size:16px; }
+    .bulk-filters{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; }
+    .bulk-filter-btn{ min-height:40px; padding:0 6px; }
+    .bulk-daterange{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; padding:12px; }
+    .bulk-daterange-label, .bulk-daterange .bulk-status-select, .bulk-daterange #bulkDateAll{ grid-column:1 / -1; }
+    .bulk-date-field{ display:flex; flex-direction:column; align-items:stretch; gap:4px; min-width:0; }
+    .bulk-search{ padding:12px; }
+    .bulk-search-modes{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+    .bulk-mode-btn{ min-height:36px; padding:0 4px; }
+    .bulk-search input[type=text]{ min-width:0; min-height:42px; font-size:16px; }
+    .bulk-search-submit{ min-height:42px; }
+    .bulk-table th, .bulk-table td{ padding:10px 12px; }
+  }
   @media(max-width:640px){
     .lookup-row{ flex-direction:column; align-items:stretch; }
     .lookup-submit{ width:100%; }
@@ -294,7 +319,7 @@
           <section class="panel bulk-panel lc-subtab-panel active" id="lcSubtab-orders" role="tabpanel">
             <div class="bulk-header">
               <h3>Toàn bộ đơn hàng</h3>
-              <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+              <div class="bulk-header-tools">
                 <span class="bulk-count" id="bulkCount"></span>
                 <select class="bulk-status-select" id="bulkStatusFilter" aria-label="Lọc theo trạng thái">
                   <option value="">Tất cả trạng thái</option>
@@ -319,8 +344,8 @@
                 <option value="saleSentAt">Sale ra đơn</option>
                 <option value="at">Cập nhật gần nhất</option>
               </select>
-              <label class="bulk-date-field">Từ <input type="date" class="bulk-date-input" id="bulkDateFrom" aria-label="Từ ngày"></label>
-              <label class="bulk-date-field">đến <input type="date" class="bulk-date-input" id="bulkDateTo" aria-label="Đến ngày"></label>
+              <label class="bulk-date-field"><span>Từ</span><input type="date" class="bulk-date-input" id="bulkDateFrom" aria-label="Từ ngày"></label>
+              <label class="bulk-date-field"><span>Đến</span><input type="date" class="bulk-date-input" id="bulkDateTo" aria-label="Đến ngày"></label>
               <button type="button" class="bulk-filter-btn active" id="bulkDateAll">Tất cả thời gian</button>
             </div>
             <form class="bulk-search" id="bulkSearchForm">
@@ -352,7 +377,7 @@
           <section class="panel bulk-panel lc-subtab-panel" id="lcSubtab-history" role="tabpanel">
             <div class="bulk-header">
               <h3>Lịch sử cập nhật</h3>
-              <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+              <div class="bulk-header-tools">
                 <span class="bulk-count" id="historyCount"></span>
                 <select class="bulk-status-select" id="historyStatusFilter" aria-label="Lọc theo trạng thái">
                   <option value="">Tất cả trạng thái</option>
@@ -410,8 +435,9 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Dat o cuoi than <body> thay vi <head>: script chan phan tich cu phap trong <head> se lam dung viec xu ly toan bo tai lieu. Khong dung `defer` vi script inline ben duoi dung TKSNav o cap cao nhat, va script inline luon chay truoc script defer. -->
-  <script src="/shared/shared-nav.js?v=20260930"></script>
+  <script src="/shared/shared-nav.js?v=20261001"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
+  <script src="/shared/dateInput.js?v=20260912"></script>
 
   <script>
     const THEME_STORAGE_KEY = 'tks-dashboard-theme';

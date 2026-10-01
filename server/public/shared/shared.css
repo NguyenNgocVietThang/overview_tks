@@ -526,12 +526,10 @@ body::before{
 .tks-btn-primary:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
 
 .tks-btn-danger{
-  min-height:38px; padding:0 var(--space-xl); border:1px solid rgba(239,68,68,0.3); border-radius:8px; cursor:pointer;
-  background:rgba(239,68,68,0.12); color:var(--red); font-family:var(--font-body); font-size:12.5px; font-weight:700;
-  transition:background-color .15s ease, color .15s ease, border-color .15s ease;
+  min-height:38px; padding:0 var(--space-xl); border:1px solid var(--red); border-radius:8px; cursor:pointer;
+  background:var(--red); color:#fff; font-family:var(--font-body); font-size:12.5px; font-weight:700;
   display:inline-flex; align-items:center; justify-content:center; gap:6px;
 }
-.tks-btn-danger:hover{ background:var(--red); color:#fff; border-color:var(--red); }
 .tks-btn-danger:focus-visible{ outline:2px solid var(--red); outline-offset:2px; }
 
 /* ---------- Layout: sidebar + content ---------- */
@@ -581,21 +579,29 @@ body::before{
 
 .nav-group-toggle{
   display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px;
-  width:100%; background:none; border:none; border-left:3px solid transparent;
-  color:var(--muted); font-size:13.5px; font-weight:500; font-family:var(--font-body);
-  text-align:left; cursor:pointer; margin-bottom:2px; min-height:42px;
-  transition:background .15s ease, color .15s ease;
+  width:100%; background:none; border:1px solid rgba(249,115,22,0.45);
+  color:#F97316; font-size:13.5px; font-weight:700; font-family:var(--font-body);
+  text-align:left; cursor:pointer; margin-top:6px; margin-bottom:4px; min-height:42px;
+  transition:background .15s ease, color .15s ease, border-color .15s ease;
 }
+:root[data-theme="light"] .nav-group-toggle{ color:#EA580C; border-color:rgba(234,88,12,0.5); }
 .nav-group-toggle .ic{
   width:18px; height:18px; flex-shrink:0;
 }
 .nav-group-toggle span{ flex:1; }
 .nav-group-toggle:hover{
-  background:var(--surface-hover);
-  color:var(--text);
+  background:rgba(249,115,22,0.05);
+  border-color:#F97316;
 }
-.nav-group-toggle:focus-visible{ outline:2px solid var(--blue); outline-offset:-2px; }
-.nav-group-toggle.has-active{ color:var(--text); font-weight:600; }
+.nav-group-toggle:focus-visible{ outline:2px solid #F97316; outline-offset:2px; }
+.nav-group-toggle.has-active{
+  border-color:#F97316; background:rgba(249,115,22,0.07);
+  box-shadow:inset 3px 0 0 #F97316, 0 2px 8px rgba(249,115,22,0.18);
+}
+:root[data-theme="light"] .nav-group-toggle.has-active{
+  border-color:#EA580C;
+  box-shadow:inset 3px 0 0 #EA580C, 0 2px 8px rgba(234,88,12,0.18);
+}
 .nav-group-chevron{ width:14px; height:14px; flex-shrink:0; transition:transform .18s var(--ease-out); }
 .nav-group-toggle[aria-expanded="false"] .nav-group-chevron{ transform:rotate(-90deg); }
 .nav-group-list{ padding-left:14px; margin-bottom:4px; }
@@ -736,20 +742,17 @@ body.tks-sidebar-resizing .sidebar{ transition:none; }
 .tks-btn-secondary:disabled{ opacity:.55; cursor:not-allowed; transform:none !important; box-shadow:none !important; }
 
 .btn-danger{
-  background:rgba(239,68,68,0.12); color:var(--red); border:1px solid rgba(239,68,68,0.3); border-radius:10px;
+  background:var(--red); color:#fff; border:1px solid var(--red); border-radius:10px;
   padding:11px 20px; font-family:var(--font-display); font-weight:700; font-size:13.5px; cursor:pointer;
   display:inline-flex; align-items:center; justify-content:center; gap:8px;
 }
+/* Nut nguy hiem: nen do + chu trang co dinh, KHONG doi mau/nang/bong khi hover hay nhan. */
 .btn-danger:hover:not(:disabled),
-.tks-btn-danger:hover:not(:disabled){
-  background:var(--red); color:#fff; border-color:var(--red);
-  transform: translateY(-2px);
-  box-shadow: 0 12px 24px -6px rgba(239, 68, 68, 0.35), 0 0 15px rgba(239, 68, 68, 0.25);
-}
+.tks-btn-danger:hover:not(:disabled),
 .btn-danger:active:not(:disabled),
 .tks-btn-danger:active:not(:disabled){
-  transform: translateY(1px);
-  box-shadow: 0 2px 6px -2px rgba(239, 68, 68, 0.2);
+  background:var(--red); color:#fff; border-color:var(--red);
+  transform:none; box-shadow:none;
 }
 .btn-danger:focus-visible{ outline:2px solid var(--red); outline-offset:2px; }
 .btn-danger:disabled,
@@ -1430,4 +1433,126 @@ table.fixed-table {
 
 table.fixed-table td {
   overflow-wrap: break-word;
+}
+
+
+/* ==========================================
+   GIAO DIỆN ĐIỆN THOẠI (dùng chung mọi trang nội bộ)
+   Nguyên tắc: (1) KHÔNG phần tử nào được rộng hơn khung nhìn — nếu có, iOS tự
+   thu nhỏ cả trang nên header/panel trông như "rộng cố định" không full chiều
+   ngang; (2) ô nhập ≥16px để iOS không tự phóng to khi chạm; (3) mọi bộ lọc
+   Từ – Đến cùng một khuôn: 2 cột bằng nhau, nhãn nằm trên ô dd/mm/yyyy.
+   Đặt CUỐI file + tiền tố `body` để thắng CSS inline của từng trang.
+   ========================================== */
+@media (max-width:900px){
+  /* Nút tròn thu/mở sidebar chỉ dành cho desktop. Khối @media ở đầu file bị rule
+     nền (khai báo sau đó) đè mất nên nút vẫn lòi ra, chồng lên nội dung. */
+  body .sidebar-toggle-btn{ display:none; }
+
+  /* Trạng thái "thu gọn" (width:0) là của desktop; trên điện thoại sidebar là
+     drawer nên luôn phải có đủ bề rộng khi mở, bất kể localStorage từng lưu gì. */
+  body .sidebar.tks-collapsed{
+    width:var(--sidebar-w); padding:18px 12px; border-right-color:var(--border);
+  }
+
+  /* Nút ≡ ghim góc trên trái (đúng chỗ của nó trong header lúc chưa cuộn) và luôn
+     hiện khi cuộn, nên ở cuối trang vẫn mở được menu mà không phải cuộn ngược lên đầu.
+     Khi drawer mở, nút dời sang mép phải drawer để bấm đóng. */
+  body .menu-btn{
+    position:fixed; z-index:40; left:12px; top:calc(10px + env(safe-area-inset-top, 0px));
+    width:40px; height:40px; border-radius:10px;
+    background:var(--panel-2); border:1px solid var(--border);
+    box-shadow:0 4px 14px rgba(0,0,0,0.35);
+    transition:left .28s var(--ease-out), background-color .15s ease, border-color .15s ease;
+  }
+  body .menu-btn[aria-expanded="true"]{ left:calc(var(--sidebar-w) + 12px); background:var(--panel-2); }
+}
+
+@media (max-width:760px){
+  html{ -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+  html, body{ max-width:100%; overflow-x:clip; }
+
+  /* ---------- Header: 2 hàng cân xứng, mọi hàng đều kín chiều ngang ---------- */
+  body .receipt-header{ padding:10px 12px 12px; gap:10px; align-items:stretch; }
+  body .receipt-header .brand{ flex:1 1 100%; min-width:0; gap:10px; padding-left:50px; } /* chừa chỗ cho nút ≡ ghim */
+  body .receipt-header .brand-mark{ width:40px; height:40px; border-radius:10px; }
+  body .receipt-header .brand-text{ flex:1 1 0; min-width:0; }
+  body .receipt-header .brand-text h1{ font-size:15.5px; line-height:1.25; }
+  body .receipt-header .status-line{
+    flex:1 1 100%; width:100%; flex-wrap:wrap; justify-content:stretch; align-items:center; gap:8px;
+  }
+  /* Hàng 2: [chế độ sáng/tối] [cơ sở — giãn hết chỗ] [chuông] */
+  body .receipt-header .theme-toggle{ flex:0 0 40px; width:40px; min-height:40px; padding:0; justify-content:center; border-radius:10px; }
+  body .receipt-header .theme-toggle span{ display:none; }
+  body .receipt-header .tks-branch-mount{ flex:1 1 0; min-width:0; }
+  body .receipt-header .tks-branch{ width:100%; min-height:40px; }
+  body .receipt-header .tks-branch-select{ max-width:none; width:100%; font-size:14px; }
+  body .receipt-header .tks-notif-wrap{ flex:0 0 40px; }
+  /* Hàng 3: [hồ sơ — giãn hết chỗ] [Đăng xuất] */
+  body .receipt-header #accountChip{ flex:1 1 100%; min-width:0; gap:8px; }
+  body .receipt-header .profile-trigger{ flex:1 1 0; min-width:0; }
+  body .receipt-header .profile-trigger .who{ min-width:0; }
+  body .receipt-header .profile-trigger .who .name,
+  body .receipt-header .profile-trigger .who .role{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  body .receipt-header .tks-btn-danger{ flex:0 0 auto; min-height:40px; border-radius:10px; }
+
+  /* ---------- Khung nội dung & panel kín chiều ngang ---------- */
+  body .shell, body .content{ width:100%; max-width:100%; min-width:0; }
+  body .content{ padding:14px 12px 24px; }
+  body .panel{ padding:14px 12px; border-radius:var(--radius-lg); }
+  /* Tiêu đề bên trái, nút "Xuất file" góc trên bên phải; chú thích/ô lọc xuống hàng dưới */
+  body .panel-head{
+    display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:center; gap:8px 10px; min-width:0;
+  }
+  body .panel-head > *{ min-width:0; }
+  body .panel-head > h2{ grid-column:1; grid-row:1; }
+  body .panel-head-actions{ display:contents; }
+  body .panel-head > .export-button,
+  body .panel-head-actions > .export-button{ grid-column:2; grid-row:1; justify-self:end; min-height:36px; }
+  body .panel-head-actions > .drill-hint{ grid-column:1 / -1; grid-row:2; }
+  body .panel-head > .table-search-tools{ grid-column:1 / -1; }
+  /* Tiêu đề kèm ghi chú: ghi chú xuống dòng riêng, không xé thành 2 cột */
+  body .panel h2{ flex-wrap:wrap; row-gap:2px; }
+  body .panel h2 .section-note{
+    display:block; flex:1 1 100%; color:var(--muted); font-size:11.5px; font-weight:500;
+  }
+
+  /* ---------- Ô ngày dd/mm/yyyy: cả khối là MỘT ô nhập, lịch nằm trong ô ---------- */
+  body .dmy-date-wrap{
+    display:flex; width:100%; min-width:0; flex:1 1 0; gap:0; min-height:42px;
+    background:var(--panel-2); border:1px solid var(--border); border-radius:var(--radius-sm);
+  }
+  body .dmy-date-wrap:focus-within{ border-color:var(--blue); }
+  body .dmy-date-wrap .dmy-date-input.dmy-date-input{
+    flex:1 1 0; width:0; min-width:0; min-height:40px; padding:0 2px 0 10px;
+    border:0; border-radius:0; background:transparent; box-shadow:none; outline:none;
+    color:var(--text); font-size:16px;
+  }
+  body .dmy-date-wrap .dmy-date-trigger{ width:32px; height:40px; }
+  body .dmy-date-wrap .dmy-date-trigger svg{ width:18px; height:18px; }
+
+  /* ---------- Thanh tìm kiếm trong bảng ---------- */
+  body .table-search-tools{ min-width:0; gap:8px; }
+  body .table-search-modes{ width:100%; }
+  body .table-search-mode{ flex:1 1 0; min-height:36px; font-size:12px; }
+  body .table-search-input-wrap{ flex:1 1 100%; width:100%; min-width:0; min-height:42px; }
+  body .table-search-input{ min-height:40px; padding:8px 10px; font-size:16px; }
+  body .table-search-clear{ width:36px; height:36px; }
+
+  /* ---------- Thanh công cụ danh sách (Nhân sự / Tài khoản) ---------- */
+  body .admin-toolbar{ flex-direction:column; align-items:stretch; gap:10px; }
+  body .admin-filters{ flex:none; width:100%; min-width:0; gap:8px; }
+  body .admin-filters .search-box{ flex:1 1 100%; min-width:0; }
+  body .admin-filters .search-box input{ min-height:42px; font-size:16px; }
+  body .admin-filters .filter-select{ flex:1 1 140px; min-width:0; min-height:42px; font-size:16px; }
+  /* Nút hành động (Xuất Excel, Thêm…) lên đầu thanh công cụ, căn góc trên bên phải */
+  body .admin-toolbar .row-actions{ order:-1; width:100%; gap:8px; justify-content:flex-end; flex-wrap:nowrap; }
+  body .admin-toolbar .row-actions > *{ flex:0 1 auto; min-height:42px; justify-content:center; }
+}
+
+/* Màn hình rất hẹp (≤380px): rút gọn ô ngày để dd/mm/yyyy không bị cắt chữ cuối. */
+@media (max-width:380px){
+  body .dmy-date-wrap .dmy-date-input.dmy-date-input{ padding-left:8px; letter-spacing:-0.03em; }
+  body .dmy-date-wrap .dmy-date-trigger{ width:28px; }
+  body .dmy-date-wrap .dmy-date-trigger svg{ width:16px; height:16px; }
 }

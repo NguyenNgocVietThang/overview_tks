@@ -188,8 +188,13 @@
     var parent = sidebarEl.parentNode;
     if(!parent) return;
 
-    var collapsed = !TKSNav._isSidebarOpen();
-    sidebarEl.classList.toggle('tks-collapsed', collapsed);
+    // Thu gon/mo rong chi danh cho desktop. Tren man hinh hep sidebar la drawer
+    // (nut ≡), nen khong ap trang thai "thu gon" da luu cua desktop vao drawer
+    // (width:0 lam menu mo ra trong tron) va khong ghi de lua chon da luu.
+    var mobileMq = typeof window.matchMedia === 'function' ? window.matchMedia('(max-width:900px)') : null;
+    function isMobileLayout(){ return !!(mobileMq && mobileMq.matches); }
+
+    sidebarEl.classList.toggle('tks-collapsed', !isMobileLayout() && !TKSNav._isSidebarOpen());
 
     var btn = document.createElement('button');
     btn.type = 'button';
@@ -203,7 +208,9 @@
       btn.innerHTML = isCollapsed ? chevronRightSvg : chevronLeftSvg;
       btn.setAttribute('aria-expanded', String(!isCollapsed));
       btn.setAttribute('aria-label', isCollapsed ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng');
-      try{ localStorage.setItem(SIDEBAR_OPEN_KEY, isCollapsed ? 'closed' : 'open'); }catch(err){}
+      if(!isMobileLayout()){
+        try{ localStorage.setItem(SIDEBAR_OPEN_KEY, isCollapsed ? 'closed' : 'open'); }catch(err){}
+      }
     }
 
     btn.addEventListener('click', function(){
@@ -213,6 +220,13 @@
 
     if(typeof MutationObserver !== 'undefined'){
       new MutationObserver(sync).observe(sidebarEl, { attributes: true, attributeFilter: ['class'] });
+    }
+    // Xoay man hinh / doi kich thuoc qua nguong 900px: ap lai trang thai dung cho che do moi.
+    if(mobileMq && typeof mobileMq.addEventListener === 'function'){
+      mobileMq.addEventListener('change', function(){
+        sidebarEl.classList.toggle('tks-collapsed', !isMobileLayout() && !TKSNav._isSidebarOpen());
+        sync();
+      });
     }
     sync();
   };
