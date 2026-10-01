@@ -11,7 +11,7 @@ const DEFAULT_MIN_CONSECUTIVE_DAYS = 5;
 // bao du lieu tin cay truoc moc nay — de mac dinh (khong truyen
 // dataFromDateFloor) se tu dong lam tron nguoc thanh gia tri fake-zero keo
 // dai sai. Se tu het tac dung khi hom nay - daysBack da muon hon moc nay.
-const STOCKOUT_DATA_FLOOR_DATE_KEY = '2026-06-01';
+const STOCKOUT_DATA_FLOOR_DATE_KEY = '2026-02-01';
 
 // Tra ve { reportFromDate, calculationFromDate } sau khi da ap dung dem 4 ngay
 // (minConsecutiveDays - 1) va moc san (dataFromDateFloor, neu co). Dung chung

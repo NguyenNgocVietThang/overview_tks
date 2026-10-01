@@ -194,16 +194,20 @@
   .status-pill.status-locked{ background:var(--status-locked-bg); color:var(--red); }
   .status-pill.status-pending{ background:var(--status-pending-bg); color:var(--amber); }
 
-  /* Table Action Buttons */
-  .row-actions{ display:flex; align-items:center; gap:6px; }
-  .action-icon-btn{
-    width:32px; height:32px; border:1px solid var(--border); border-radius:var(--radius-xs);
-    background:var(--panel-2); color:var(--muted); cursor:pointer;
-    display:inline-flex; align-items:center; justify-content:center;
-    transition:border-color .15s, color .15s, background-color .15s;
+  /* Bấm dòng tài khoản để mở hộp thao tác */
+  .users-table tr.row-clickable{ cursor:pointer; }
+  .users-table tr.row-clickable:hover td{ background:var(--surface-hover); }
+  .action-menu-box{ max-width:380px; }
+  .action-menu-list{ display:flex; flex-direction:column; gap:10px; }
+  .action-menu-item{
+    display:flex; align-items:center; gap:12px; width:100%; padding:14px 16px; text-align:left;
+    border:1px solid var(--border); border-radius:var(--radius-xs); background:var(--panel-2);
+    color:var(--text); font:inherit; font-size:14px; font-weight:600; cursor:pointer;
+    transition:border-color .15s, background-color .15s;
   }
-  .action-icon-btn:hover{ color:var(--text); border-color:var(--muted); background:var(--surface-hover); }
-  .action-icon-btn svg{ width:15px; height:15px; }
+  .action-menu-item:hover{ border-color:var(--muted); background:var(--surface-hover); }
+  .action-menu-item small{ display:block; margin-top:2px; font-size:11.5px; font-weight:400; color:var(--muted); }
+  .action-menu-item.danger{ color:var(--red); }
 
   /* Phan quyen chi tiet */
   .perm-modal-box{ max-width:620px; }
@@ -544,17 +548,13 @@
                 <thead>
                   <tr>
                     <th class="sortable" onclick="handleSort('hoTen')" style="width:260px">Họ và tên <span class="sort-icon" id="sort-hoTen">↕</span></th>
-                    <th class="sortable" onclick="handleSort('username')" style="width:150px">Tài khoản <span class="sort-icon" id="sort-username">↕</span></th>
-                    <th class="sortable" onclick="handleSort('email')" style="width:260px">Email <span class="sort-icon" id="sort-email">↕</span></th>
                     <th class="sortable" onclick="handleSort('vaiTro')" style="width:200px">Vai trò <span class="sort-icon" id="sort-vaiTro">↕</span></th>
                     <th class="sortable" onclick="handleSort('coSo')" style="width:110px">Cơ sở <span class="sort-icon" id="sort-coSo">↕</span></th>
                     <th class="sortable" onclick="handleSort('trangThai')" style="width:130px">Trạng thái <span class="sort-icon" id="sort-trangThai">↕</span></th>
-                    <th class="sortable" onclick="handleSort('ngayTao')" style="width:160px">Ngày tạo <span class="sort-icon" id="sort-ngayTao">↕</span></th>
-                    <th style="width:170px;text-align:right;">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody id="usersTableBody">
-                  <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px;">Đang tải danh sách...</td></tr>
+                  <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:30px;">Đang tải danh sách...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -643,9 +643,6 @@
       <form id="editUserForm" onsubmit="handleSaveEditUser(event)">
         <input type="hidden" id="editUserId">
         <div class="modal-body">
-          <div id="editSelfNotice" class="alert-box alert-warning" style="display:none;">
-            Bạn đang sửa tài khoản của chính mình. Vai trò Quản lý và trạng thái Hoạt động được bảo vệ an toàn.
-          </div>
           <div class="form-group">
             <label for="editUsername">Tên tài khoản</label>
             <input type="text" id="editUsername" class="form-control" disabled>
@@ -663,8 +660,67 @@
             <input type="tel" id="editPhone" class="form-control" placeholder="vd: 0912345678">
           </div>
           <div class="form-group">
-            <label for="editVaiTro">Vai trò</label>
-            <select id="editVaiTro" class="form-control" required>
+            <label for="editCoSo">Cơ sở mặc định</label>
+            <select id="editCoSo" class="form-control">
+              <option value="">-- Mặc định: Cả hai --</option>
+              <option value="Hà Nội">Hà Nội</option>
+              <option value="Sài Gòn">Sài Gòn</option>
+              <option value="Cả hai">Cả hai</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="editNewPassword">Mật khẩu mới (để trống nếu không đổi)</label>
+            <div class="password-wrap">
+              <input type="password" id="editNewPassword" class="form-control" placeholder="Tối thiểu 8 ký tự" autocomplete="new-password">
+              <button type="button" class="password-toggle-btn" onclick="togglePassword('editNewPassword', this)" aria-label="Hiện mật khẩu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="editConfirmPassword">Xác nhận mật khẩu mới</label>
+            <div class="password-wrap">
+              <input type="password" id="editConfirmPassword" class="form-control" placeholder="Nhập lại mật khẩu mới" autocomplete="new-password">
+              <button type="button" class="password-toggle-btn" onclick="togglePassword('editConfirmPassword', this)" aria-label="Hiện mật khẩu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
+            </div>
+          </div>
+          <div id="editUserError" class="alert-box alert-error" style="display:none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('editUserModal')">Hủy</button>
+          <button type="submit" id="btnSubmitEdit" class="btn-primary">Lưu thay đổi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: HỘP THAO TÁC KHI BẤM VÀO DÒNG TÀI KHOẢN -->
+  <div class="modal-overlay" id="userActionModal" hidden>
+    <div class="modal-box action-menu-box">
+      <div class="modal-header">
+        <h3 id="userActionTitle">Thao tác tài khoản</h3>
+        <button type="button" class="modal-close" onclick="closeModal('userActionModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="action-menu-list" id="userActionList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SỬA QUYỀN (VAI TRÒ + PHÂN QUYỀN CHI TIẾT) -->
+  <div class="modal-overlay" id="permissionsModal" hidden>
+    <div class="modal-box perm-modal-box">
+      <div class="modal-header">
+        <h3>Sửa quyền</h3>
+        <button type="button" class="modal-close" onclick="closeModal('permissionsModal')">✕</button>
+      </div>
+      <form id="permissionsForm" onsubmit="handleSavePermissions(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="permVaiTro">Vai trò (quyền tổng quan)</label>
+            <select id="permVaiTro" class="form-control">
               <option value="Quản lý">Quản lý</option>
               <option value="Kế toán">Kế toán</option>
               <option value="Trưởng kho">Trưởng kho</option>
@@ -677,43 +733,6 @@
               <option value="Khách">Khách</option>
             </select>
           </div>
-          <div class="form-group">
-            <label for="editCoSo">Cơ sở mặc định</label>
-            <select id="editCoSo" class="form-control">
-              <option value="">-- Mặc định: Cả hai --</option>
-              <option value="Hà Nội">Hà Nội</option>
-              <option value="Sài Gòn">Sài Gòn</option>
-              <option value="Cả hai">Cả hai</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="editTrangThai">Trạng thái tài khoản</label>
-            <select id="editTrangThai" class="form-control" required>
-              <option value="Đang hoạt động">Đang hoạt động</option>
-              <option value="Không hoạt động">Không hoạt động</option>
-              <option value="Chờ duyệt">Chờ duyệt</option>
-              <option value="Khóa">Khóa</option>
-            </select>
-          </div>
-          <div id="editUserError" class="alert-box alert-error" style="display:none;"></div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn-secondary" onclick="closeModal('editUserModal')">Hủy</button>
-          <button type="submit" id="btnSubmitEdit" class="btn-primary">Lưu thay đổi</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- MODAL: PHÂN QUYỀN CHI TIẾT -->
-  <div class="modal-overlay" id="permissionsModal" hidden>
-    <div class="modal-box perm-modal-box">
-      <div class="modal-header">
-        <h3>Phân quyền chi tiết</h3>
-        <button type="button" class="modal-close" onclick="closeModal('permissionsModal')">✕</button>
-      </div>
-      <form id="permissionsForm" onsubmit="handleSavePermissions(event)">
-        <div class="modal-body">
           <p class="perm-intro" id="permIntro"></p>
           <div id="permGroups"></div>
           <div id="permissionsError" class="alert-box alert-error" style="display:none;"></div>
@@ -722,47 +741,6 @@
           <button type="button" class="btn-secondary" onclick="resetAllPermissions()">Đặt lại tất cả về mặc định</button>
           <button type="button" class="btn-secondary" onclick="closeModal('permissionsModal')">Hủy</button>
           <button type="submit" id="btnSubmitPermissions" class="btn-primary">Lưu thay đổi</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- MODAL: ĐẶT LẠI MẬT KHẨU (ADMIN) -->
-  <div class="modal-overlay" id="resetPasswordModal" hidden>
-    <div class="modal-box">
-      <div class="modal-header">
-        <h3>Đặt lại mật khẩu</h3>
-        <button type="button" class="modal-close" onclick="closeModal('resetPasswordModal')">✕</button>
-      </div>
-      <form id="resetPasswordForm" onsubmit="handleResetPassword(event)">
-        <input type="hidden" id="resetUserId">
-        <div class="modal-body">
-          <p style="margin:0 0 14px;color:var(--text-secondary);font-size:13px;">
-            Cấp mật khẩu mới cho tài khoản: <strong id="resetTargetUsername" style="color:var(--text);"></strong>
-          </p>
-          <div class="form-group">
-            <label for="resetNewPassword">Mật khẩu mới *</label>
-            <div class="password-wrap">
-              <input type="password" id="resetNewPassword" class="form-control" placeholder="Tối thiểu 8 ký tự" required minlength="8">
-              <button type="button" class="password-toggle-btn" onclick="togglePassword('resetNewPassword', this)" aria-label="Hiện mật khẩu">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-              </button>
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="resetConfirmPassword">Xác nhận mật khẩu *</label>
-            <div class="password-wrap">
-              <input type="password" id="resetConfirmPassword" class="form-control" placeholder="Nhập lại mật khẩu mới" required minlength="8">
-              <button type="button" class="password-toggle-btn" onclick="togglePassword('resetConfirmPassword', this)" aria-label="Hiện mật khẩu">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-              </button>
-            </div>
-          </div>
-          <div id="resetPasswordError" class="alert-box alert-error" style="display:none;"></div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn-secondary" onclick="closeModal('resetPasswordModal')">Hủy</button>
-          <button type="submit" id="btnSubmitReset" class="btn-primary">Đặt mật khẩu</button>
         </div>
       </form>
     </div>
@@ -1218,7 +1196,7 @@
         .catch(err => {
           console.error('Lỗi tải danh sách người dùng:', err);
           document.getElementById('usersTableBody').innerHTML =
-            '<tr><td colspan="8" style="text-align:center;color:var(--red);padding:24px;">Không có quyền truy cập hoặc lỗi kết nối.</td></tr>';
+            '<tr><td colspan="4" style="text-align:center;color:var(--red);padding:24px;">Không có quyền truy cập hoặc lỗi kết nối.</td></tr>';
         });
     }
 
@@ -1324,7 +1302,7 @@
     function renderUsersTable(users){
       const tbody = document.getElementById('usersTableBody');
       if(!users.length){
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:36px;">Không tìm thấy tài khoản nào phù hợp.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:36px;">Không tìm thấy tài khoản nào phù hợp.</td></tr>';
         return;
       }
 
@@ -1334,19 +1312,14 @@
         const isThang = (u.email && u.email.toLowerCase() === 'thangnnv2003@gmail.com') ||
                         (u.username && u.username.toLowerCase() === 'thangnnv2003@gmail.com') ||
                         (u.username && u.username.toLowerCase() === 'thangnnv2003');
-        const lockIcon = u.trangThai === 'Khóa'
-          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>'
-          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>';
-        const lockTitle = u.trangThai === 'Khóa' ? 'Mở khóa tài khoản' : 'Khóa tài khoản';
-
-        // Riêng tài khoản thangnnv2003@gmail.com không ai có quyền xóa hay khóa
-        const canLockOrDelete = !isSelf && !isThang;
         // Người không phải Quản lý không được tác động lên tài khoản Quản lý
         // (server/auth/accountPolicy.js vẫn chặn thật ở API, đây chỉ là UX).
         const lockedManagerRow = !actorIsManager() && u.vaiTro === 'Quản lý';
+        const clickable = isManager && !lockedManagerRow;
+        const rowTitle = lockedManagerRow ? ' title="Chỉ Quản lý mới được thao tác trên tài khoản Quản lý"' : '';
 
         return `
-          <tr>
+          <tr${clickable ? ` class="row-clickable" data-uid="${escapeHtml(u.id)}"` : rowTitle}>
             <td>
               <div class="user-cell">
                 <div class="user-avatar">${escapeHtml(initial)}</div>
@@ -1356,41 +1329,73 @@
                 </div>
               </div>
             </td>
-            <td><code style="font-family:var(--font-data);color:var(--text-secondary);">${escapeHtml(u.username)}</code></td>
-            <td>${escapeHtml(u.email || '—')}</td>
             <td>${getRoleBadgeHtml(u.vaiTro)}${hasCustomPermissions(u) ? '<span class="perm-badge" title="Tài khoản này có quyền được tuỳ chỉnh riêng, khác mặc định của vai trò">tuỳ chỉnh</span>' : ''}</td>
             <td>${escapeHtml(u.coSo || '—')}</td>
             <td>${getStatusPillHtml(u.trangThai)}</td>
-            <td style="font-family:var(--font-data);font-size:12px;color:var(--muted);">${escapeHtml(u.ngayTao || '—')}</td>
-            <td style="text-align:right;">
-              <div class="row-actions" style="justify-content:flex-end;">
-                ${isManager && !lockedManagerRow ? `
-                <button type="button" class="action-icon-btn" title="Chỉnh sửa tài khoản" onclick="openEditUserModal('${u.id}')">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                </button>
-                <button type="button" class="action-icon-btn" title="Đặt lại mật khẩu" onclick="openResetPasswordModal('${u.id}', '${escapeHtml(u.username)}')">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-1.5 1.5L10 13l-4 1 1-4 7.5-7.5m1.5-1.5L21 2z"></path></svg>
-                </button>
-                ${canEditPermissions && !isThang && !lockedManagerRow ? `
-                <button type="button" class="action-icon-btn" title="Phân quyền chi tiết" onclick="openPermissionsModal('${u.id}')">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
-                </button>
-                ` : ''}
-                ${canLockOrDelete ? `
-                  <button type="button" class="action-icon-btn" title="${lockTitle}" onclick="toggleUserLock('${u.id}', '${u.trangThai}')">
-                    ${lockIcon}
-                  </button>
-                  <button type="button" class="action-icon-btn" title="Xóa tài khoản" onclick="handleDeleteUser('${u.id}', '${escapeHtml(u.username)}')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                  </button>
-                ` : ''}
-                ` : `<span style="color:var(--muted);font-size:12px;"${lockedManagerRow ? ' title="Chỉ Quản lý mới được thao tác trên tài khoản Quản lý"' : ''}>—</span>`}
-              </div>
-            </td>
           </tr>
         `;
       }).join('');
     }
+
+    // ---------- Hộp thao tác khi bấm vào dòng tài khoản ----------
+    function isSuperAdminUser(u){
+      return (u.email && u.email.toLowerCase() === 'thangnnv2003@gmail.com') ||
+             (u.username && u.username.toLowerCase() === 'thangnnv2003@gmail.com') ||
+             (u.username && u.username.toLowerCase() === 'thangnnv2003');
+    }
+
+    function isSelfUser(u){
+      return !!currentUser && (String(currentUser.id) === String(u.id) || currentUser.username.toLowerCase() === u.username.toLowerCase());
+    }
+
+    function openUserActionModal(id){
+      const u = rawAdminUsers.find(x => String(x.id) === String(id));
+      if(!u) return;
+      const isThang = isSuperAdminUser(u);
+      const isSelf = isSelfUser(u);
+      const locked = u.trangThai === 'Khóa';
+
+      document.getElementById('userActionTitle').textContent = `${u.hoTen || u.username} (@${u.username})`;
+      const items = [];
+      if(!isThang){
+        items.push({ label: 'Sửa quyền', hint: 'Vai trò và quyền chi tiết', action: () => openPermissionsModal(u.id) });
+      }
+      items.push({ label: 'Sửa thông tin cá nhân', hint: 'Họ tên, email, số điện thoại, cơ sở, mật khẩu', action: () => openEditUserModal(u.id) });
+      // Không ai được khóa chính mình hoặc tài khoản Quản trị viên tối cao.
+      if(!isSelf && !isThang){
+        items.push({
+          label: locked ? 'Mở khóa tài khoản' : 'Khóa tài khoản',
+          hint: locked ? 'Cho phép đăng nhập trở lại' : 'Chặn đăng nhập, giữ nguyên dữ liệu',
+          danger: !locked,
+          action: () => toggleUserLock(u.id, u.trangThai)
+        });
+      }
+
+      const list = document.getElementById('userActionList');
+      list.innerHTML = '';
+      items.forEach(item => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'action-menu-item' + (item.danger ? ' danger' : '');
+        const text = document.createElement('span');
+        text.textContent = item.label;
+        const hint = document.createElement('small');
+        hint.textContent = item.hint;
+        text.appendChild(hint);
+        btn.appendChild(text);
+        btn.addEventListener('click', () => {
+          closeModal('userActionModal');
+          item.action();
+        });
+        list.appendChild(btn);
+      });
+      openModal('userActionModal');
+    }
+
+    document.getElementById('usersTableBody').addEventListener('click', e => {
+      const row = e.target.closest('tr.row-clickable');
+      if(row) openUserActionModal(row.dataset.uid);
+    });
 
     // ---------- Phân quyền chi tiết ----------
     // Danh mục tính năng + mặc định theo vai trò đến từ
@@ -1422,7 +1427,18 @@
       document.getElementById('permGroups').innerHTML =
         '<p style="color:var(--muted);font-size:12.5px;padding:8px 0;">Đang tải phân quyền...</p>';
       document.getElementById('permIntro').textContent = '';
+
+      // Vai trò (tổng quan): không ai tự đổi vai trò của mình hay của Quản trị viên tối cao.
+      const roleSelect = document.getElementById('permVaiTro');
+      applyRoleOptions('permVaiTro', u.vaiTro);
+      roleSelect.value = u.vaiTro || 'Khách';
+      roleSelect.disabled = isSelfUser(u) || isSuperAdminUser(u);
       openModal('permissionsModal');
+
+      if(!canEditPermissions){
+        document.getElementById('permGroups').innerHTML = '';
+        return;
+      }
 
       Promise.all([
         loadPermissionsCatalog(),
@@ -1521,18 +1537,35 @@
       errEl.style.display = 'none';
       btn.disabled = true;
 
-      fetch(`/api/admin/users/${encodeURIComponent(permTargetUser.id)}/permissions`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ overrides })
-      })
-        .then(parseApiResponse)
+      // Bước 1: đổi vai trò nếu khác hiện tại. Bước 2: lưu quyền chi tiết.
+      const roleSelect = document.getElementById('permVaiTro');
+      const roleChanged = !roleSelect.disabled && roleSelect.value !== permTargetUser.vaiTro;
+      const saveRole = roleChanged
+        ? fetch(`/api/admin/users/${encodeURIComponent(permTargetUser.id)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ vaiTro: roleSelect.value })
+          }).then(parseApiResponse)
+        : Promise.resolve({ ok: true, data: {} });
+
+      saveRole
+        .then(roleResult => {
+          if(!roleResult.ok) return roleResult;
+          if(!canEditPermissions) return roleResult;
+          return fetch(`/api/admin/users/${encodeURIComponent(permTargetUser.id)}/permissions`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ overrides })
+          }).then(parseApiResponse);
+        })
         .then(result => {
           btn.disabled = false;
           if(!result.ok){
             errEl.textContent = result.data.error || 'Không lưu được phân quyền.';
             errEl.style.display = 'block';
+            if(roleChanged) loadAdminUsers();
             return;
           }
           closeModal('permissionsModal');
@@ -1603,36 +1636,10 @@
       document.getElementById('editHoTen').value = u.hoTen || '';
       document.getElementById('editEmail').value = u.email || '';
       document.getElementById('editPhone').value = u.soDienThoai || '';
-      applyRoleOptions('editVaiTro', u.vaiTro);
-      document.getElementById('editVaiTro').value = u.vaiTro || 'Khách';
       document.getElementById('editCoSo').value = u.coSo || '';
-      document.getElementById('editTrangThai').value = u.trangThai || 'Đang hoạt động';
+      document.getElementById('editNewPassword').value = '';
+      document.getElementById('editConfirmPassword').value = '';
       document.getElementById('editUserError').style.display = 'none';
-
-      const isSelf = currentUser && (String(currentUser.id) === String(u.id) || currentUser.username.toLowerCase() === u.username.toLowerCase());
-      const isThang = (u.email && u.email.toLowerCase() === 'thangnnv2003@gmail.com') ||
-                      (u.username && u.username.toLowerCase() === 'thangnnv2003@gmail.com') ||
-                      (u.username && u.username.toLowerCase() === 'thangnnv2003');
-      const selfNotice = document.getElementById('editSelfNotice');
-      const roleSelect = document.getElementById('editVaiTro');
-      const statusSelect = document.getElementById('editTrangThai');
-
-      if(isThang){
-        selfNotice.textContent = 'Tài khoản Quản trị viên tối cao (thangnnv2003@gmail.com) luôn giữ vai trò Quản lý và trạng thái Hoạt động. Không ai có quyền xóa hay hạ quyền.';
-        selfNotice.style.display = 'block';
-        roleSelect.disabled = true;
-        statusSelect.disabled = true;
-      } else if(isSelf){
-        selfNotice.textContent = 'Bạn đang sửa tài khoản của chính mình. Vai trò Quản lý và trạng thái Hoạt động được bảo vệ an toàn.';
-        selfNotice.style.display = 'block';
-        roleSelect.disabled = true;
-        statusSelect.disabled = true;
-      } else {
-        selfNotice.style.display = 'none';
-        roleSelect.disabled = false;
-        statusSelect.disabled = false;
-      }
-
       openModal('editUserModal');
     }
 
@@ -1642,92 +1649,45 @@
       const hoTen = document.getElementById('editHoTen').value.trim();
       const email = document.getElementById('editEmail').value.trim();
       const soDienThoai = document.getElementById('editPhone').value.trim();
-      const vaiTro = document.getElementById('editVaiTro').value;
       const coSo = document.getElementById('editCoSo').value;
-      const trangThai = document.getElementById('editTrangThai').value;
+      const newPassword = document.getElementById('editNewPassword').value;
+      const confirmPassword = document.getElementById('editConfirmPassword').value;
       const errEl = document.getElementById('editUserError');
       const btn = document.getElementById('btnSubmitEdit');
 
       errEl.style.display = 'none';
+      const showError = msg => { errEl.textContent = msg; errEl.style.display = 'block'; };
+
+      if(newPassword || confirmPassword){
+        if(newPassword.length < 8) return showError('Mật khẩu mới tối thiểu 8 ký tự.');
+        if(newPassword !== confirmPassword) return showError('Xác nhận mật khẩu không khớp.');
+      }
+
       btn.disabled = true;
+      const json = { 'Content-Type': 'application/json' };
 
-      const payload = { hoTen, email, soDienThoai, coSo };
-      // Chỉ gửi vaiTro / trangThai nếu không bị disable (không phải tự sửa chính mình hoặc sửa thangnnv2003@gmail.com)
-      if(!document.getElementById('editVaiTro').disabled) payload.vaiTro = vaiTro;
-      if(!document.getElementById('editTrangThai').disabled) payload.trangThai = trangThai;
-
-      fetch(`/api/admin/users/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
+      // Bước 1: lưu thông tin cá nhân. Bước 2 (nếu có nhập): đặt lại mật khẩu.
+      fetch(`/api/admin/users/${id}`, { method: 'PUT', headers: json, body: JSON.stringify({ hoTen, email, soDienThoai, coSo }) })
         .then(parseApiResponse)
+        .then(result => {
+          if(!result.ok || !newPassword) return result;
+          return fetch(`/api/admin/users/${id}/reset-password`, { method: 'POST', headers: json, body: JSON.stringify({ newPassword }) })
+            .then(parseApiResponse);
+        })
         .then(result => {
           btn.disabled = false;
           if(!result.ok){
-            errEl.textContent = result.data.error || 'Không cập nhật được tài khoản.';
-            errEl.style.display = 'block';
+            showError(result.data.error || 'Không cập nhật được tài khoản.');
+            loadAdminUsers();
             return;
           }
           closeModal('editUserModal');
-          showToast('Đã cập nhật thông tin tài khoản!');
+          showToast(newPassword ? 'Đã cập nhật thông tin và mật khẩu!' : 'Đã cập nhật thông tin tài khoản!');
           loadAdminUsers();
         })
         .catch(() => {
           btn.disabled = false;
-          errEl.textContent = 'Lỗi kết nối, vui lòng thử lại.';
-          errEl.style.display = 'block';
-        });
-    }
-
-    // Modal Reset Password
-    function openResetPasswordModal(id, username){
-      document.getElementById('resetUserId').value = id;
-      document.getElementById('resetTargetUsername').textContent = username;
-      document.getElementById('resetNewPassword').value = '';
-      document.getElementById('resetConfirmPassword').value = '';
-      document.getElementById('resetPasswordError').style.display = 'none';
-      openModal('resetPasswordModal');
-    }
-
-    function handleResetPassword(e){
-      e.preventDefault();
-      const id = document.getElementById('resetUserId').value;
-      const newPassword = document.getElementById('resetNewPassword').value;
-      const confirm = document.getElementById('resetConfirmPassword').value;
-      const errEl = document.getElementById('resetPasswordError');
-      const btn = document.getElementById('btnSubmitReset');
-
-      errEl.style.display = 'none';
-
-      if(newPassword !== confirm){
-        errEl.textContent = 'Xác nhận mật khẩu không khớp.';
-        errEl.style.display = 'block';
-        return;
-      }
-
-      btn.disabled = true;
-
-      fetch(`/api/admin/users/${id}/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newPassword })
-      })
-        .then(parseApiResponse)
-        .then(result => {
-          btn.disabled = false;
-          if(!result.ok){
-            errEl.textContent = result.data.error || 'Không đặt lại được mật khẩu.';
-            errEl.style.display = 'block';
-            return;
-          }
-          closeModal('resetPasswordModal');
-          showToast('Đã đặt lại mật khẩu mới cho tài khoản!');
-        })
-        .catch(() => {
-          btn.disabled = false;
-          errEl.textContent = 'Lỗi kết nối, vui lòng thử lại.';
-          errEl.style.display = 'block';
+          showError('Lỗi kết nối, vui lòng thử lại.');
         });
     }
 
@@ -1759,34 +1719,6 @@
         })
         .catch(() => {
           showToast('Lỗi kết nối khi cập nhật trạng thái', 'error');
-        });
-    }
-
-    // Delete User
-    function handleDeleteUser(id, username){
-      const target = rawAdminUsers.find(x => String(x.id) === String(id));
-      if (target && ((target.email && target.email.toLowerCase() === 'thangnnv2003@gmail.com') || (target.username && target.username.toLowerCase() === 'thangnnv2003@gmail.com') || (target.username && target.username.toLowerCase() === 'thangnnv2003'))) {
-        showToast('Không ai có quyền xóa tài khoản Quản trị viên tối cao (thangnnv2003@gmail.com)!', 'error');
-        return;
-      }
-
-      if(!confirm(`CẢNH BÁO: Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản "${username}"?`)) return;
-
-      fetch(`/api/admin/users/${id}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' }
-      })
-        .then(parseApiResponse)
-        .then(result => {
-          if(!result.ok){
-            showToast(result.data.error || 'Không thể xóa tài khoản', 'error');
-            return;
-          }
-          showToast(`Đã xóa tài khoản "${username}" thành công!`);
-          loadAdminUsers();
-        })
-        .catch(() => {
-          showToast('Lỗi kết nối khi xóa tài khoản', 'error');
         });
     }
 

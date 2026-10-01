@@ -3082,7 +3082,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     if (!code) continue;
     const dt = parseSheetDate(row[1]);
     orderRecords.push({
-      code, date: row[1] || '', customer: row[2], total: Number(row[5]) || 0, status: row[6] || '',
+      code, date: row[1] || '', time: dt ? formatDMYHM(dt) : '—', customer: row[2], total: Number(row[5]) || 0, status: row[6] || '',
       branch: (orderFacilityIndex >= 0 && row[orderFacilityIndex]) || (branch === BRANCH_BOTH ? row[4] || '' : singleBranch),
       _dt: dt, _sortTime: dt ? dt.getTime() : 0
     });
@@ -3120,7 +3120,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     if (!code) continue;
     const dt = parseSheetDate(row[returnDateIndex]);
     returnRecords.push({
-      code, date: row[returnDateIndex] || '', originalInvoiceCode: '', customer: row[returnCustomerIndex] || '',
+      code, date: row[returnDateIndex] || '', time: dt ? formatDMYHM(dt) : '—', originalInvoiceCode: '', customer: row[returnCustomerIndex] || '',
       total: Number(row[returnTotalIndex]) || 0, status: row[returnStatusIndex] || '',
       branch: (returnFacilityIndex >= 0 && row[returnFacilityIndex])
         || (branch === BRANCH_BOTH ? (returnBranchIndex >= 0 ? row[returnBranchIndex] || '' : '') : singleBranch),

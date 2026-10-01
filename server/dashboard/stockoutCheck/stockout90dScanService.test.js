@@ -160,21 +160,21 @@ test('mac dinh khong truyen dataFromDateFloor thi tu dong ghim ve moc san cua ti
   const jobId = store.createJob();
   const source = fakeStockoutSource({
     products: [[product('SP001', { name: 'Het hang tu thang 7', onHand: 0 })]],
-    // Ban het toan bo 5 don vi ngay 01/07/2026 — sau moc san 2026-06-01 nen
+    // Ban het toan bo 5 don vi ngay 01/07/2026 — sau moc san 2026-02-01 nen
     // van nam trong cua so tinh toan, khong bi loc boi quy tac "khong co giao
     // dich nao trong ky".
     invoices: [[invoice('2026-07-01', [{ productCode: 'SP001', quantity: 5 }])]]
   });
 
   // Khong truyen dataFromDateFloor — phai tu dong dung mac dinh
-  // STOCKOUT_DATA_FLOOR_DATE_KEY ('2026-06-01') du daysBack=183 le ra keo lui
-  // toi 2026-03-09 (kiem tra qua job.result.fromDate, khong phu thuoc dot dut
+  // STOCKOUT_DATA_FLOOR_DATE_KEY ('2026-02-01') du daysBack=300 le ra keo lui
+  // toi 2025-11-12 (kiem tra qua job.result.fromDate, khong phu thuoc dot dut
   // hang cu the cua SP001).
-  await runStockout90dScanJob(store, jobId, { source, todayKey: '2026-09-08', daysBack: 183, minConsecutiveDays: 5 });
+  await runStockout90dScanJob(store, jobId, { source, todayKey: '2026-09-08', daysBack: 300, minConsecutiveDays: 5 });
 
   const job = store.getJob(jobId);
   assert.equal(job.status, 'done');
-  assert.equal(job.result.fromDate, '2026-06-01');
+  assert.equal(job.result.fromDate, '2026-02-01');
   assert.equal(job.result.rows.length, 1);
   assert.equal(job.result.rows[0].periods[0].fromDate, '2026-07-01');
   assert.equal(job.result.rows[0].periods[0].toDate, '2026-09-08');

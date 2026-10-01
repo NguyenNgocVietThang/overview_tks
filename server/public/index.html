@@ -3939,9 +3939,9 @@
                     <thead>
                       <tr>
                         <th style="width:140px">Mã ĐH</th>
+                        <th style="width:140px">Thời gian</th>
                         <th style="width:240px">Khách hàng</th>
                         <th style="width:135px">Tổng tiền</th>
-                        <th style="width:130px">Trạng thái</th>
                         <th style="width:130px">Cơ sở</th>
                       </tr>
                     </thead>
@@ -3970,16 +3970,15 @@
                     <thead>
                       <tr>
                         <th style="width:140px">Mã trả hàng</th>
-                        <th style="width:140px">HĐ gốc</th>
+                        <th style="width:140px">Thời gian</th>
                         <th style="width:240px">Khách hàng</th>
                         <th style="width:145px">Tổng tiền trả</th>
-                        <th style="width:130px">Trạng thái</th>
                         <th style="width:130px">Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="returnRows">
                       <tr>
-                        <td colspan="6" class="table-note">Đang tải...</td>
+                        <td colspan="5" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -7943,8 +7942,8 @@
           'orders',
           { tbody: 'orderRows', pagination: 'ordersPagination', firstBtn: 'ordersFirstPage', prevBtn: 'ordersPrevPage', nextBtn: 'ordersNextPage', lastBtn: 'ordersLastPage', label: 'ordersPageLabel' },
           periodOrders,
-          o => '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết đơn"><td class="mono muted">' + escapeHtml(o.code) + '</td><td class="name-cell">' + (o.customer ? escapeHtml(o.customer) : 'Khách lẻ') + '</td>' +
-            '<td class="mono" data-sort-value="' + o.total + '">' + fmtMoney(o.total) + '</td><td>' + genericStatusPill(o.status) + '</td><td>' + branchCellText(o) + '</td></tr>',
+          o => '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết đơn"><td class="mono muted">' + escapeHtml(o.code) + '</td><td class="mono muted">' + escapeHtml(o.time || '—') + '</td><td class="name-cell">' + (o.customer ? escapeHtml(o.customer) : 'Khách lẻ') + '</td>' +
+            '<td class="mono" data-sort-value="' + o.total + '">' + fmtMoney(o.total) + '</td><td>' + branchCellText(o) + '</td></tr>',
           5,
           'Chưa có đặt hàng nào'
         );
@@ -7955,10 +7954,10 @@
           'returns',
           { tbody: 'returnRows', pagination: 'returnsPagination', firstBtn: 'returnsFirstPage', prevBtn: 'returnsPrevPage', nextBtn: 'returnsNextPage', lastBtn: 'returnsLastPage', label: 'returnsPageLabel' },
           periodReturns,
-          rt => '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết phiếu trả"><td class="mono muted">' + escapeHtml(rt.code) + '</td><td class="mono muted">' + (rt.originalInvoiceCode ? escapeHtml(rt.originalInvoiceCode) : '—') + '</td>' +
+          rt => '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết phiếu trả"><td class="mono muted">' + escapeHtml(rt.code) + '</td><td class="mono muted">' + escapeHtml(rt.time || '—') + '</td>' +
             '<td class="name-cell">' + (rt.customer ? escapeHtml(rt.customer) : 'Khách lẻ') + '</td>' +
-            '<td class="mono" data-sort-value="' + rt.total + '">' + fmtMoney(rt.total) + '</td><td>' + genericStatusPill(rt.status) + '</td><td>' + branchCellText(rt) + '</td></tr>',
-          6,
+            '<td class="mono" data-sort-value="' + rt.total + '">' + fmtMoney(rt.total) + '</td><td>' + branchCellText(rt) + '</td></tr>',
+          5,
           'Chưa có trả hàng nào'
         );
       }

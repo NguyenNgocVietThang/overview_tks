@@ -143,7 +143,7 @@ test('purchases poll recovers recreated backdated receipts omitted by lastModifi
   }});
   const receipt = { id: 16136771, code: 'PN002517', purchaseDate: '2026-09-14T06:24:40', createdDate: '2026-09-17T10:30:50', status: 3 };
   const api = { fetchAllPages: async (_e, query, onPage) => {
-    assert.equal(query.fromPurchaseDate, '2026-06-01');
+    assert.equal(query.fromPurchaseDate, '2026-02-01');
     await onPage(query.lastModifiedFrom ? [] : [receipt]);
   }};
   await driver.pollEntityOnce(api, 'hanoi', { ...purchases,
