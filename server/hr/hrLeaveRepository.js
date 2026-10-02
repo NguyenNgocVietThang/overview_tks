@@ -149,6 +149,11 @@ function rowToRequest(row) {
     thoi_gian_gui: toIso(row.thoi_gian_gui),
     thoi_gian_bat_dau: boundaryLabel(row.start_date, row.start_session),
     thoi_gian_ket_thuc: boundaryLabel(row.end_date, row.end_session),
+    // Dang tach roi (ISO + buoi) de lich o header tinh duoc "ngay X nghi buoi nao".
+    start_date: row.start_date,
+    start_session: row.start_session,
+    end_date: row.end_date,
+    end_session: row.end_session,
     tong_buoi_nghi: Number(row.tong_buoi_nghi),
     tong_ngay_nghi: Number(row.tong_ngay_nghi),
     nguoi_ban_giao: row.nguoi_ban_giao || '',

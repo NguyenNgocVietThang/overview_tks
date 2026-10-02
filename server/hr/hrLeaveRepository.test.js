@@ -56,6 +56,10 @@ test('getLeaveRequests ánh xạ hàng DB về hình dạng cũ (mốc nghỉ d�
 
   assert.equal(item.thoi_gian_bat_dau, 'Sáng 22/08/2026');
   assert.equal(item.thoi_gian_ket_thuc, 'Chiều 24/08/2026');
+  assert.equal(item.start_date, '2026-08-22');
+  assert.equal(item.start_session, 'Sáng');
+  assert.equal(item.end_date, '2026-08-24');
+  assert.equal(item.end_session, 'Chiều');
   assert.equal(item.thoi_gian_gui, '2026-08-19T08:00:00.000Z');
   assert.equal(item.thoi_diem_duyet, '');
   assert.equal(item.tong_buoi_nghi, 6);

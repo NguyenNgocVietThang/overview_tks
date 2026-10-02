@@ -276,6 +276,7 @@
         document.documentElement.style.visibility = '';
         TKSNav.renderAccountChip(user);
         TKSNav.renderHeaderBranch(user);
+        TKSNav.renderLeaveCalendar(user);
         TKSNav.renderNotifBell(user);
         return user;
       })
@@ -577,6 +578,323 @@
     refreshCount();
     if(notifPollTimer) window.clearInterval(notifPollTimer);
     notifPollTimer = window.setInterval(refreshCount, 30000);
+  };
+
+  // ---------- Lich nghi phep o header (dung chung moi trang, canh chuong) ----------
+  // Chon ngay -> liet ke nhan su xin nghi ngay do. Du lieu: GET /api/hr/leave-requests
+  // ?from&to (quyen hr.leave), moi lan chi lay 1 thang roi gom theo ngay o client.
+  // Don "Tu choi" khong hien thi. Chi co buoi Sang/Chieu (khong co gio cu the).
+  var LEAVE_CAL_HIDDEN_STATUS = 'Từ chối';
+  var LEAVE_CAL_STATUS_CLASS = {
+    'Chưa duyệt': 'is-pending',
+    'Đã duyệt': 'is-approved',
+    'Vi phạm': 'is-violation'
+  };
+
+  function calPad(n){ return n < 10 ? '0' + n : String(n); }
+  function calIso(y, m, d){ return y + '-' + calPad(m) + '-' + calPad(d); }
+  function calDaysInMonth(y, m){ return new Date(y, m, 0).getDate(); }
+  // 'YYYY-MM-DD' -> 'dd/MM/yyyy'
+  function calVn(iso){
+    var p = String(iso || '').split('-');
+    return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : '';
+  }
+
+  /**
+   * Ngay iso nam trong khoang nghi cua don -> { morning, afternoon } (buoi nao nghi),
+   * khong nam trong khoang -> null. Ngay dau bo buoi sang neu bat dau tu "Chieu";
+   * ngay cuoi bo buoi chieu neu ket thuc o "Sang".
+   */
+  function leaveDayCoverage(req, iso){
+    if(!req || !req.start_date || !req.end_date) return null;
+    if(iso < req.start_date || iso > req.end_date) return null;
+    return {
+      morning: !(iso === req.start_date && req.start_session === 'Chiều'),
+      afternoon: !(iso === req.end_date && req.end_session === 'Sáng')
+    };
+  }
+
+  function leaveCoverageLabel(cov){
+    if(!cov) return '';
+    if(cov.morning && cov.afternoon) return 'Cả ngày';
+    return cov.morning ? 'Buổi sáng' : 'Buổi chiều';
+  }
+
+  /** Gom don theo ngay trong thang (y, m): { 'YYYY-MM-DD': [{ req, cov }] }, bo don bi tu choi. */
+  function groupLeaveByDay(requests, y, m){
+    var byDay = {};
+    var first = calIso(y, m, 1);
+    var last = calIso(y, m, calDaysInMonth(y, m));
+    (requests || []).forEach(function(req){
+      if(!req || req.trang_thai === LEAVE_CAL_HIDDEN_STATUS) return;
+      if(!req.start_date || !req.end_date) return;
+      var from = req.start_date > first ? req.start_date : first;
+      var to = req.end_date < last ? req.end_date : last;
+      if(from > to) return;
+      var d = Number(from.slice(8, 10));
+      var endDay = Number(to.slice(8, 10));
+      for(; d <= endDay; d++){
+        var iso = calIso(y, m, d);
+        (byDay[iso] = byDay[iso] || []).push({ req: req, cov: leaveDayCoverage(req, iso) });
+      }
+    });
+    Object.keys(byDay).forEach(function(iso){
+      byDay[iso].sort(function(a, b){ return String(a.req.ho_ten).localeCompare(String(b.req.ho_ten), 'vi'); });
+    });
+    return byDay;
+  }
+
+  // Cho test thay the dong ho.
+  TKSNav._now = function(){ return new Date(); };
+  TKSNav._leaveCalendar = {
+    dayCoverage: leaveDayCoverage,
+    coverageLabel: leaveCoverageLabel,
+    groupByDay: groupLeaveByDay
+  };
+
+  var leaveCalIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>';
+  var LEAVE_CAL_WEEKDAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+
+  TKSNav.renderLeaveCalendar = function renderLeaveCalendar(user){
+    if(user && Array.isArray(user.permissions)) TKSNav.setPermissions(user);
+    if(!TKSNav.can('hr.leave')) return;
+    var chipMount = document.getElementById('accountChip');
+    if(!chipMount || !chipMount.parentNode) return;
+    if(document.getElementById('tksLeaveCal')) return;
+
+    var wrap = document.createElement('div');
+    wrap.className = 'tks-cal-wrap';
+    wrap.id = 'tksLeaveCal';
+    wrap.innerHTML =
+      '<button type="button" class="tks-cal-btn" id="tksLeaveCalBtn" aria-label="Lịch nghỉ phép" title="Lịch nghỉ phép" aria-haspopup="true" aria-expanded="false">' +
+        leaveCalIcon +
+      '</button>' +
+      '<div class="tks-cal-dropdown" id="tksLeaveCalDropdown" role="dialog" aria-label="Lịch nghỉ phép" hidden></div>';
+    chipMount.parentNode.insertBefore(wrap, chipMount);
+
+    var btn = wrap.querySelector('#tksLeaveCalBtn');
+    var dropdown = wrap.querySelector('#tksLeaveCalDropdown');
+    var isOpen = false;
+
+    var today = TKSNav._now();
+    var todayIso = calIso(today.getFullYear(), today.getMonth() + 1, today.getDate());
+    var state = {
+      year: today.getFullYear(),
+      month: today.getMonth() + 1,
+      selected: todayIso,
+      expandedId: '',
+      cache: {},      // 'YYYY-MM' -> { byDay } | { error: true }
+      loading: false
+    };
+    var requestSeq = 0;
+
+    function monthKey(){ return state.year + '-' + calPad(state.month); }
+
+    function loadMonth(){
+      var key = monthKey();
+      var seq = ++requestSeq;
+      var from = calIso(state.year, state.month, 1);
+      var to = calIso(state.year, state.month, calDaysInMonth(state.year, state.month));
+      var y = state.year, m = state.month;
+      state.loading = true;
+      fetch('/api/hr/leave-requests?from=' + from + '&to=' + to, { credentials: 'same-origin' })
+        .then(function(res){
+          if(!res.ok) throw new Error('http ' + res.status);
+          return res.json();
+        })
+        .then(function(data){
+          state.cache[key] = { byDay: groupLeaveByDay(data && data.requests, y, m) };
+        })
+        .catch(function(){
+          // Giu du lieu cu (neu co) de lich khong nhay mat khi loi mang thoang qua.
+          if(!state.cache[key] || state.cache[key].error) state.cache[key] = { error: true };
+        })
+        .then(function(){
+          if(seq !== requestSeq) return;
+          state.loading = false;
+          if(isOpen) render();
+        });
+    }
+
+    function itemHtml(entry){
+      var req = entry.req;
+      var id = String(req.request_id || '');
+      var open = state.expandedId === id;
+      var statusCls = LEAVE_CAL_STATUS_CLASS[req.trang_thai] || '';
+      var sub = [req.bo_phan, req.co_so].filter(Boolean).join(' · ');
+      var rows = [];
+      function row(label, value){
+        if(value == null || value === '') return;
+        rows.push('<div class="tks-cal-row"><dt>' + escapeHtml(label) + '</dt><dd>' + escapeHtml(value) + '</dd></div>');
+      }
+      row('Thời gian nghỉ', (req.thoi_gian_bat_dau || '') + ' → ' + (req.thoi_gian_ket_thuc || ''));
+      row('Ngày đang xem', calVn(state.selected) + ' · ' + leaveCoverageLabel(entry.cov));
+      var days = Number(req.tong_ngay_nghi);
+      row('Tổng nghỉ', req.tong_buoi_nghi + ' buổi' + (Number.isFinite(days)
+        ? ' (' + days.toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + ' ngày)' : ''));
+      row('Loại', req.loai_yeu_cau);
+      row('Lý do', req.ly_do);
+      row('Người bàn giao', req.nguoi_ban_giao);
+      row('Người duyệt', req.nguoi_duyet);
+      row('Mã đơn', req.request_id);
+      return '<div class="tks-cal-item' + (open ? ' is-open' : '') + '" data-id="' + escapeHtml(id) + '">' +
+        '<button type="button" class="tks-cal-item-head" aria-expanded="' + (open ? 'true' : 'false') + '">' +
+          '<span class="tks-cal-item-main">' +
+            '<span class="tks-cal-item-name">' + escapeHtml(req.ho_ten) +
+              (req.co_nghi_gap ? ' <span class="tks-cal-urgent">Nghỉ gấp</span>' : '') + '</span>' +
+            (sub ? '<span class="tks-cal-item-sub">' + escapeHtml(sub) + '</span>' : '') +
+          '</span>' +
+          '<span class="tks-cal-item-side">' +
+            '<span class="tks-cal-when">' + escapeHtml(leaveCoverageLabel(entry.cov)) + '</span>' +
+            '<span class="tks-cal-status ' + statusCls + '">' + escapeHtml(req.trang_thai) + '</span>' +
+          '</span>' +
+        '</button>' +
+        '<dl class="tks-cal-detail"' + (open ? '' : ' hidden') + '>' + rows.join('') + '</dl>' +
+      '</div>';
+    }
+
+    function render(){
+      var data = state.cache[monthKey()];
+      var byDay = (data && data.byDay) || {};
+      var offset = (new Date(state.year, state.month - 1, 1).getDay() + 6) % 7;
+      var total = calDaysInMonth(state.year, state.month);
+
+      var cells = '';
+      for(var i = 0; i < offset; i++) cells += '<span class="tks-cal-cell is-empty"></span>';
+      for(var d = 1; d <= total; d++){
+        var iso = calIso(state.year, state.month, d);
+        var n = (byDay[iso] || []).length;
+        var cls = 'tks-cal-day' + (iso === state.selected ? ' is-selected' : '') +
+          (iso === todayIso ? ' is-today' : '') + (n ? ' has-leave' : '');
+        cells += '<button type="button" class="' + cls + '" data-date="' + iso + '"' +
+          ' aria-pressed="' + (iso === state.selected ? 'true' : 'false') + '"' +
+          (iso === todayIso ? ' aria-current="date"' : '') +
+          ' aria-label="' + d + ' tháng ' + state.month + (n ? ', ' + n + ' người nghỉ' : '') + '">' +
+          '<span class="tks-cal-num">' + d + '</span>' +
+          (n ? '<span class="tks-cal-count">' + n + '</span>' : '') +
+        '</button>';
+      }
+
+      var entries = byDay[state.selected] || [];
+      var listHtml;
+      if(data && data.error){
+        listHtml = '<p class="tks-cal-empty">Không tải được lịch nghỉ.</p>';
+      } else if(!data){
+        listHtml = '<p class="tks-cal-empty">Đang tải...</p>';
+      } else if(!entries.length){
+        listHtml = '<p class="tks-cal-empty">Không có ai nghỉ ngày này.</p>';
+      } else {
+        listHtml = entries.map(itemHtml).join('');
+      }
+
+      dropdown.innerHTML =
+        '<div class="tks-cal-head">' +
+          '<button type="button" class="tks-cal-nav" data-nav="-1" aria-label="Tháng trước">‹</button>' +
+          '<span class="tks-cal-title">Tháng ' + state.month + '/' + state.year + '</span>' +
+          '<button type="button" class="tks-cal-nav" data-nav="1" aria-label="Tháng sau">›</button>' +
+          '<button type="button" class="tks-cal-today" data-today="1">Hôm nay</button>' +
+        '</div>' +
+        '<div class="tks-cal-weekdays">' + LEAVE_CAL_WEEKDAYS.map(function(w){ return '<span>' + w + '</span>'; }).join('') + '</div>' +
+        '<div class="tks-cal-grid">' + cells + '</div>' +
+        '<div class="tks-cal-list-head">Nghỉ ngày ' + calVn(state.selected) +
+          (state.selected === todayIso ? ' (hôm nay)' : '') +
+          (data && !data.error ? ' · ' + entries.length + ' người' : '') + '</div>' +
+        '<div class="tks-cal-list">' + listHtml + '</div>';
+      positionDropdown();
+    }
+
+    function positionDropdown(){
+      var rect = btn.getBoundingClientRect();
+      var margin = 12;
+      var width = Math.min(360, window.innerWidth - margin * 2);
+      var left = Math.min(Math.max(rect.right - width, margin), window.innerWidth - width - margin);
+      var top = Math.min(rect.bottom + 8, window.innerHeight - margin);
+      dropdown.style.width = width + 'px';
+      dropdown.style.top = top + 'px';
+      dropdown.style.left = left + 'px';
+      dropdown.style.maxHeight = Math.max(240, window.innerHeight - top - margin) + 'px';
+    }
+
+    function onViewportChange(){ if(isOpen) positionDropdown(); }
+    function onDocClick(e){ if(isOpen && !wrap.contains(e.target)) closeDropdown(); }
+    function onKeydown(e){
+      if(isOpen && e.key === 'Escape'){ closeDropdown(); btn.focus(); }
+    }
+
+    function closeDropdown(){
+      dropdown.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+      isOpen = false;
+      window.removeEventListener('resize', onViewportChange);
+      window.removeEventListener('scroll', onViewportChange, true);
+    }
+
+    function openDropdown(){
+      // Moi lan mo ve lai "hom nay" nhu mac dinh, va lay lai du lieu thang cho tuoi.
+      var now = TKSNav._now();
+      todayIso = calIso(now.getFullYear(), now.getMonth() + 1, now.getDate());
+      state.year = now.getFullYear();
+      state.month = now.getMonth() + 1;
+      state.selected = todayIso;
+      state.expandedId = '';
+      dropdown.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+      isOpen = true;
+      window.addEventListener('resize', onViewportChange);
+      window.addEventListener('scroll', onViewportChange, true);
+      render();
+      loadMonth();
+    }
+
+    function gotoMonth(delta){
+      var d = new Date(state.year, state.month - 1 + delta, 1);
+      state.year = d.getFullYear();
+      state.month = d.getMonth() + 1;
+      state.expandedId = '';
+      var sameAsToday = todayIso.slice(0, 7) === monthKey();
+      state.selected = sameAsToday ? todayIso : calIso(state.year, state.month, 1);
+      render();
+      loadMonth();
+    }
+
+    btn.addEventListener('click', function(){
+      if(isOpen) closeDropdown(); else openDropdown();
+    });
+    // Listener o pha capture vi nut chuong goi stopPropagation (click chuong phai dong lich).
+    document.addEventListener('click', onDocClick, true);
+    document.addEventListener('keydown', onKeydown);
+
+    dropdown.addEventListener('click', function(e){
+      var target = e.target;
+      var nav = target.closest && target.closest('[data-nav]');
+      if(nav){ gotoMonth(Number(nav.getAttribute('data-nav'))); return; }
+      if(target.closest && target.closest('[data-today]')){
+        var now = TKSNav._now();
+        var same = state.year === now.getFullYear() && state.month === now.getMonth() + 1;
+        state.selected = todayIso;
+        state.expandedId = '';
+        if(same){ render(); } else {
+          state.year = now.getFullYear();
+          state.month = now.getMonth() + 1;
+          render();
+          loadMonth();
+        }
+        return;
+      }
+      var day = target.closest && target.closest('[data-date]');
+      if(day){
+        state.selected = day.getAttribute('data-date');
+        state.expandedId = '';
+        render();
+        return;
+      }
+      var head = target.closest && target.closest('.tks-cal-item-head');
+      if(head){
+        var id = head.parentNode.getAttribute('data-id');
+        state.expandedId = state.expandedId === id ? '' : id;
+        render();
+      }
+    });
   };
 
   // ---------- Modal Ho so ca nhan (dung chung moi trang) ----------
