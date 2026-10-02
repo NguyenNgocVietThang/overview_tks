@@ -1,7 +1,7 @@
 'use strict';
 
 const STATUS_CODES = Object.freeze({
-  p: 'Chưa duyệt', t: 'Tạm duyệt', a: 'Đã duyệt', r: 'Từ chối', v: 'Vi phạm'
+  a: 'Đã duyệt', r: 'Từ chối'
 });
 const FINAL_STATUSES = new Set(['Đã duyệt', 'Từ chối']);
 
@@ -66,9 +66,9 @@ function buildManagerLeaveMessage(request, { webUrl, canManage = true } = {}) {
   const version = String(row.decision_version == null ? '' : row.decision_version);
   if (canManage && row.loai_yeu_cau === 'Xin nghỉ phép' && !FINAL_STATUSES.has(row.trang_thai) &&
       /^[A-Za-z0-9_-]+$/.test(requestId) && /^(0|[1-9]\d*)$/.test(version)) {
-    const buttons = Object.entries(STATUS_CODES).map(([code, label]) => ({ text: label, callback_data: `d|${requestId}|${version}|${code}` }));
+    const buttons = Object.entries(STATUS_CODES).map(([code, label]) => ({ text: code === 'a' ? 'Phê duyệt' : label, callback_data: `d|${requestId}|${version}|${code}` }));
     if (buttons.every(button => Buffer.byteLength(button.callback_data, 'utf8') <= 64)) {
-      inline_keyboard.push(buttons.slice(0, 2), buttons.slice(2, 4), buttons.slice(4));
+      inline_keyboard.push(buttons);
     }
   }
   const url = safeWebUrl(webUrl);

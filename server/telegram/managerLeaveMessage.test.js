@@ -20,7 +20,7 @@ function request(patch = {}) {
   };
 }
 
-test('renderer escapes employee text and shows the leave context with five versioned actions', () => {
+test('renderer escapes employee text and offers only approval and rejection actions', () => {
   const message = buildManagerLeaveMessage(request(), { webUrl: 'https://dashboard.example/humanresources/' });
   assert.equal(message.parse_mode, 'HTML');
   for (const text of ['NP-20261002-001', 'Nguyễn &lt;A&gt;', 'Khám &amp; chữa bệnh', 'Hà Nội', 'Kho',
@@ -29,9 +29,9 @@ test('renderer escapes employee text and shows the leave context with five versi
   }
   const buttons = message.reply_markup.inline_keyboard.flat();
   assert.deepEqual(buttons.filter(button => button.callback_data).map(button => button.callback_data).sort(), [
-    'd|NP-20261002-001|17|a', 'd|NP-20261002-001|17|p', 'd|NP-20261002-001|17|r',
-    'd|NP-20261002-001|17|t', 'd|NP-20261002-001|17|v'
+    'd|NP-20261002-001|17|a', 'd|NP-20261002-001|17|r'
   ]);
+  assert.deepEqual(buttons.filter(button => button.callback_data).map(button => button.text), ['Phê duyệt', 'Từ chối']);
   assert.ok(buttons.some(button => button.url === 'https://dashboard.example/humanresources/#leave'));
 });
 
@@ -61,7 +61,7 @@ test('final decisions and read-only recipients retain the web link without decis
 test('renderer keeps bigint versions lossless and every callback within 64 bytes', () => {
   const message = buildManagerLeaveMessage(request({ decision_version: '9007199254740993' }), { webUrl: 'https://dashboard.example/hr' });
   const buttons = message.reply_markup.inline_keyboard.flat().filter(button => button.callback_data);
-  assert.equal(buttons.length, 5);
+  assert.equal(buttons.length, 2);
   for (const button of buttons) {
     assert.match(button.callback_data, /\|9007199254740993\|/);
     assert.ok(Buffer.byteLength(button.callback_data) <= 64);

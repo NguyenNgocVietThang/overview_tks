@@ -37,6 +37,15 @@ function createManagerLeaveStore({ pool = getPool() } = {}) {
     await pool.query(`INSERT INTO hr_manager_telegram_state(singleton)
       VALUES (true) ON CONFLICT (singleton) DO NOTHING`);
     const { rows } = await pool.query('SELECT first_enabled_at FROM hr_manager_telegram_state WHERE singleton = true');
+    // Refresh keyboards on existing open cards after a code update/restart.
+    // Keep blocked chats and active delivery leases untouched.
+    await pool.query(`UPDATE hr_leave_manager_messages m
+      SET sent_version = -1, available_at = now(), updated_at = now()
+      FROM hr_leave_requests r
+      WHERE r.request_id = m.request_id AND r.loai_yeu_cau = 'Xin nghỉ phép'
+        AND r.trang_thai NOT IN ('Đã duyệt', 'Từ chối')
+        AND m.message_id IS NOT NULL AND NOT m.blocked
+        AND (m.lease_until IS NULL OR m.lease_until <= now())`);
     return new Date(rows[0].first_enabled_at);
   }
 

@@ -32,6 +32,29 @@ async function fixture() {
   } catch (error) { await db.close(); throw error; }
 }
 
+test('activation refreshes delivered open cards without replaying final cards or unblocking recipients', async () => {
+  const { db, store } = await fixture();
+  try {
+    await store.activate();
+    await store.enqueueDelivery({ requestId: 'NP-TEST', userId: USER, chatId: CHAT, version: '0' });
+    const [job] = await store.claimDeliveries();
+    await store.finishDelivery(job, { messageId: '10', version: '0' });
+    assert.deepEqual(await store.claimDeliveries(), []);
+    await store.activate();
+    const [refresh] = await store.claimDeliveries();
+    assert.ok(refresh, 'existing cards must receive the current keyboard after restart');
+    assert.equal(refresh.message_id, '10');
+    await store.finishDelivery(refresh, { messageId: '10', version: '0' });
+    await db.exec("UPDATE hr_leave_requests SET trang_thai = 'Đã duyệt' WHERE request_id = 'NP-TEST'");
+    await store.activate();
+    assert.deepEqual(await store.claimDeliveries(), []);
+    await db.exec("UPDATE hr_leave_requests SET trang_thai = 'Chưa duyệt' WHERE request_id = 'NP-TEST'; UPDATE hr_leave_manager_messages SET blocked = true");
+    await store.activate();
+    assert.equal((await db.query('SELECT blocked FROM hr_leave_manager_messages')).rows[0].blocked, true);
+    assert.deepEqual(await store.claimDeliveries(), []);
+  } finally { await db.close(); }
+});
+
 test('update inbox deduplicates and commits decision plus effects atomically; retries never reapply decisions', async () => {
   const { db, store, releases } = await fixture();
   try {

@@ -128,7 +128,7 @@ function createManagerLeaveBot({ store, leaveRepo, decide, getManager, webUrl })
           }
           return effects;
         }
-        const action = data.match(/^d\|([A-Za-z0-9_-]+)\|(0|[1-9]\d*)\|([ptarv])$/);
+        const action = data.match(/^d\|([A-Za-z0-9_-]+)\|(0|[1-9]\d*)\|([ar])$/);
         if (!action) return [answer(query, 'Thao tác không hợp lệ.', true)];
         const [, requestId, expectedVersion, code] = action;
         const delivery = await store.getDelivery(requestId, user.id, chatId);
@@ -166,7 +166,7 @@ function createManagerLeaveBot({ store, leaveRepo, decide, getManager, webUrl })
         return [send(chatId, `Bot quản lý nghỉ phép đã sẵn sàng. Phạm vi của bạn: ${normalizeCoSo(user.coSo)}. Các yêu cầu mới sẽ được gửi tại đây. Dùng /help để xem hướng dẫn.`)];
       }
       if (command === 'help') {
-        return [send(chatId, 'Chọn trạng thái trên thông báo nghỉ phép: Chưa duyệt, Tạm duyệt, Đã duyệt, Từ chối hoặc Vi phạm. Từ chối sẽ hỏi lý do (tối đa 500 ký tự), có Bỏ qua và Hủy; trả lời đúng tin nhắn hỏi lý do trong 15 phút. /huy hủy phiên nhập lý do. Đã duyệt và Từ chối kết thúc thao tác trên Telegram; muốn thay đổi tiếp hãy mở trên web.' + (webUrl ? `\n${webUrl}` : ''))];
+        return [send(chatId, 'Chọn Phê duyệt hoặc Từ chối trên thông báo nghỉ phép. Phê duyệt lưu trạng thái Đã duyệt. Từ chối sẽ hỏi lý do (tối đa 500 ký tự), có Bỏ qua và Hủy; trả lời đúng tin nhắn hỏi lý do trong 15 phút. /huy hủy phiên nhập lý do. Đã duyệt và Từ chối kết thúc thao tác trên Telegram; muốn thay đổi tiếp hãy mở trên web.' + (webUrl ? `\n${webUrl}` : ''))];
       }
       const session = await store.getSession(chatId);
       if (command === 'huy') {

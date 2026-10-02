@@ -89,7 +89,7 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 & N
 
 - **Xác thực & phân quyền (Phase 0):** Đăng nhập nội bộ bằng tài khoản trong tab `Users`, hỗ trợ Google Sign-In, và cho phép Khách tự đăng ký để tra cứu vận chuyển đơn hàng.
 
-- **Bot Telegram quản lý nghỉ phép:** Bot riêng, hội thoại riêng tư với các quản lý đủ quyền; nhận đơn theo cơ sở, thao tác 5 trạng thái, đồng bộ kết quả với web và các tin Telegram đã gửi (mục 5.8).
+- **Bot Telegram quản lý nghỉ phép:** Bot riêng, hội thoại riêng tư với các quản lý đủ quyền; nhận đơn theo cơ sở, chọn Phê duyệt hoặc Từ chối, đồng bộ kết quả với web và các tin Telegram đã gửi (mục 5.8).
 
 - **Triển khai trên Render.com** (cloud hosting), domain `tokosi.onrender.com`.
 
@@ -218,7 +218,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 
 - Bot chạy cùng máy chủ dashboard, dùng chung đơn PostgreSQL với bot xin nghỉ ngoài repo. Mọi đơn **Xin nghỉ phép** mới được gửi cho quản lý phù hợp, kể cả đơn có trạng thái Vi phạm; khi bật hệ thống, gửi bù đơn Chưa duyệt/Tạm duyệt chưa gửi. Bản ghi **Tự ý nghỉ (HR ghi nhận)** không gửi qua bot này.
 - Chỉ tài khoản **Quản lý** đang hoạt động, có Telegram ID và quyền `hr.leave.manage` mới nhận/thao tác. Cơ sở tài khoản Hà Nội nhận đơn Hà Nội, Sài Gòn nhận đơn Sài Gòn, Cả hai nhận cả hai; cơ sở trống không nhận. Mỗi quản lý phải bấm **Start** với bot mới.
-- Quản lý có thể chọn Chưa duyệt, Tạm duyệt, Đã duyệt, Từ chối hoặc Vi phạm. Khi từ chối, có thể nhập lý do bằng reply đúng lời nhắc, Bỏ qua hoặc Hủy; lý do được trim, tối đa 500 ký tự, phiên hết hạn sau 15 phút.
+- Quản lý chỉ có thể chọn Phê duyệt (lưu Đã duyệt) hoặc Từ chối trên Telegram. Khi từ chối, có thể nhập lý do bằng reply đúng lời nhắc, Bỏ qua hoặc Hủy; lý do được trim, tối đa 500 ký tự, phiên hết hạn sau 15 phút.
 - Đã duyệt/Từ chối khóa thao tác tiếp trên Telegram. Người đủ quyền vẫn đổi được trên web; chuyển về trạng thái chưa kết thúc mở lại thao tác Telegram. Các tin nhắn đã gửi cập nhật theo quyết định mới; thao tác cũ/trùng/đồng thời không được ghi đè quyết định mới hơn.
 - Bot nhân viên hiện có tiếp tục nhận đơn và báo kết quả cho nhân viên; bot quản lý không thay đổi quyền sở hữu liên kết Telegram hay phiên xin nghỉ của bot đó.
 - Thay đổi đơn từ bot bên ngoài phải tới danh sách/thông báo web qua cầu DB → SSE. Khi kết nối lại, web làm mới dữ liệu. Chu kỳ quét mặc định 5 giây chỉ có hiệu lực khi máy chủ hoạt động; máy chủ ngủ/tắt trì hoãn giao tin đến khi chạy lại.

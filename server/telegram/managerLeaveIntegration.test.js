@@ -63,6 +63,11 @@ test('real DB complete workflow: scoped backlog, Telegram rejection, duplicate u
     };
     await sendAction(managers[0], 'NP-HN', '0', 't');
     let row = await leaveRepo.getLeaveRequestById('NP-HN', 'Hà Nội');
+    assert.equal(row.trang_thai, 'Chưa duyệt', 'removed Telegram actions cannot decide');
+    assert.equal(row.decision_version, '0');
+    await leaveRepo.updateLeaveRequestStatus('NP-HN', { status: 'Tạm duyệt', approver: 'Web' }, 'Hà Nội');
+    await runtime.drain();
+    row = await leaveRepo.getLeaveRequestById('NP-HN', 'Hà Nội');
     assert.equal(row.trang_thai, 'Tạm duyệt');
     assert.equal(row.decision_version, '1');
     await sendAction(managers[2], 'NP-HN', '0', 'r');
@@ -87,7 +92,7 @@ test('real DB complete workflow: scoped backlog, Telegram rejection, duplicate u
     await runtime.drain();
     const lastEdit = calls.filter(c => c.method === 'editMessageText').at(-1);
     assert.ok(lastEdit.params.reply_markup.inline_keyboard.some(row => row.some(button => button.callback_data === 'd|NP-HN|3|a')));
-    assert.deepEqual(notifications, ['NP-HN', 'NP-HN']);
+    assert.deepEqual(notifications, ['NP-HN']);
     assert.equal((await db.query('SELECT COUNT(*)::int n FROM hr_manager_telegram_updates WHERE completed_at IS NULL')).rows[0].n, 0);
   } finally { await db.close(); }
 });

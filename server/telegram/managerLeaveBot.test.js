@@ -96,8 +96,11 @@ test('start wakes pending deliveries and explains branch scope; help explains fi
   assert.deepEqual(f.wakes, ['123']);
   assert.ok(effects.some(effect => effect.method === 'sendMessage' && effect.params.text.includes('Hà Nội')));
   const help = await f.bot.handleUpdate(message('/help'));
-  for (const text of ['Chưa duyệt', 'Tạm duyệt', 'Đã duyệt', 'Từ chối', 'Vi phạm', 'web']) {
+  for (const text of ['Phê duyệt', 'Đã duyệt', 'Từ chối', 'web']) {
     assert.ok(help.some(effect => effect.params.text.includes(text)), text);
+  }
+  for (const text of ['Chưa duyệt', 'Tạm duyệt', 'Vi phạm']) {
+    assert.ok(help.every(effect => !effect.params.text.includes(text)), text);
   }
 });
 
@@ -132,13 +135,25 @@ test('manager from the other branch cannot decide', async () => {
   assert.equal(f.rows.get('NP-20261002-001').trang_thai, 'Chưa duyệt');
 });
 
-test('each direct action applies its literal status through the shared decision service', async () => {
-  for (const [code, want] of [['p', 'Chưa duyệt'], ['t', 'Tạm duyệt'], ['a', 'Đã duyệt'], ['v', 'Vi phạm']]) {
-    const f = fixture({ patch: { trang_thai: code === 'p' ? 'Tạm duyệt' : 'Chưa duyệt' } });
-    const effects = await f.bot.handleUpdate(callback(`d|NP-20261002-001|1|${code}`));
-    assert.equal(f.rows.get('NP-20261002-001').trang_thai, want);
-    assert.deepEqual(f.changes[0], { requestId: 'NP-20261002-001', user: USER, status: want, note: '', channel: 'telegram', expectedVersion: '1' });
+test('approval finalizes pending, provisional and violation requests through the shared decision service', async () => {
+  for (const status of ['Chưa duyệt', 'Tạm duyệt', 'Vi phạm']) {
+    const f = fixture({ patch: { trang_thai: status } });
+    const effects = await f.bot.handleUpdate(callback());
+    assert.equal(f.rows.get('NP-20261002-001').trang_thai, 'Đã duyệt');
+    assert.deepEqual(f.changes[0], { requestId: 'NP-20261002-001', user: USER, status: 'Đã duyệt', note: '', channel: 'telegram', expectedVersion: '1' });
     assert.ok(effects.some(effect => effect.method === 'answerCallbackQuery'));
+  }
+});
+
+test('removed status buttons from old messages cannot change a decision or start a session', async () => {
+  for (const code of ['p', 't', 'v']) {
+    const f = fixture();
+    const effects = await f.bot.handleUpdate(callback(`d|NP-20261002-001|1|${code}`));
+    assert.equal(f.rows.get('NP-20261002-001').trang_thai, 'Chưa duyệt');
+    assert.equal(f.rows.get('NP-20261002-001').decision_version, '1');
+    assert.equal(f.changes.length, 0);
+    assert.equal(f.sessions.size, 0);
+    assert.ok(effects.some(effect => effect.method === 'answerCallbackQuery' && effect.params.show_alert));
   }
 });
 
@@ -349,13 +364,13 @@ test('manual absence requests cannot be decided through an old Telegram delivery
   assert.ok(effects.some(effect => /Xin nghỉ phép|xin nghỉ phép/.test(effect.params.text)));
 });
 
-test('choosing the current status keeps decision version and note unchanged', async () => {
+test('removed status actions preserve existing decision versions and notes', async () => {
   for (const [code, status] of [['p', 'Chưa duyệt'], ['t', 'Tạm duyệt'], ['v', 'Vi phạm']]) {
     const f = fixture({ patch: { trang_thai: status, ghi_chu_duyet: 'Ghi chú đang có' } });
     const effects = await f.bot.handleUpdate(callback(`d|NP-20261002-001|1|${code}`));
     assert.equal(f.changes.length, 0);
     assert.equal(f.rows.get('NP-20261002-001').decision_version, '1');
     assert.equal(f.rows.get('NP-20261002-001').ghi_chu_duyet, 'Ghi chú đang có');
-    assert.ok(effects.some(effect => effect.method === 'answerCallbackQuery' && /giữ nguyên|hiện tại/.test(effect.params.text)));
+    assert.ok(effects.some(effect => effect.method === 'answerCallbackQuery' && effect.params.show_alert));
   }
 });
