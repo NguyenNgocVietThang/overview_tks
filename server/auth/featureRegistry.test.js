@@ -51,6 +51,17 @@ test('chi Quan ly moi co cac quyen quan tri mac dinh', () => {
   }
 });
 
+test('xuat Excel don hang (Vong doi don hang) mac dinh chi danh cho Quan ly', () => {
+  assert.ok(registry.defaultsForRole(ROLES.QUAN_LY).includes('shipment.export'));
+  for (const role of Object.values(ROLES)) {
+    if (role === ROLES.QUAN_LY) continue;
+    assert.ok(!registry.defaultsForRole(role).includes('shipment.export'), `${role} khong duoc co shipment.export`);
+  }
+  // Quan ly van cap them duoc cho tung tai khoan (ghi de theo tai khoan).
+  const granted = registry.resolvePermissions({ vaiTro: ROLES.KE_TOAN, featurePermissions: { 'shipment.export': true } });
+  assert.ok(granted.includes('shipment.export'));
+});
+
 test('ghi de trang thai don hang chi danh cho Quan ly va Ke toan', () => {
   for (const role of Object.values(ROLES)) {
     const expected = role === ROLES.QUAN_LY || role === ROLES.KE_TOAN;
@@ -71,11 +82,19 @@ test('Nhan vien sale xem du 5 tab bao cao mac dinh, KHONG co xuat Excel / sua co
   }
 });
 
-test('Nhan vien marketing giu nguyen: y het Nhan vien sale tru 5 tab xem bao cao', () => {
+test('Nhan vien marketing: y het Nhan vien sale tru 5 tab xem bao cao', () => {
   assert.deepEqual(
     registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING),
-    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key))
+    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && key !== 'shipment.lifecycle')
   );
+});
+
+test('Nhan vien mua hang + marketing KHONG co Vong doi don hang, van tra cuu theo ma', () => {
+  for (const role of [ROLES.NHAN_VIEN_MUA_HANG, ROLES.NHAN_VIEN_MARKETING]) {
+    const keys = registry.defaultsForRole(role);
+    assert.ok(!keys.includes('shipment.lifecycle'), role);
+    assert.ok(keys.includes('shipment.lookup'), role);
+  }
 });
 
 test('ghi de theo tai khoan: true them quyen, false thu hoi, key vang mat = theo vai tro', () => {

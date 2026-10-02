@@ -584,11 +584,12 @@ test('GET /api/admin/permissions/catalog tra ve danh muc + mac dinh theo vai tro
   assert.ok(Array.isArray(res.body.groups) && res.body.groups.length > 0);
   assert.equal(res.body.features.length, featureRegistry.FEATURE_KEYS.length);
   assert.ok(res.body.features.every(f => f.key && f.label && f.groupKey));
-  // Marketing giong Sale tru 5 tab xem bao cao (Sale duoc mo them tu 2026-10-02).
+  // Marketing giong Sale tru 5 tab xem bao cao (Sale duoc mo them tu 2026-10-02) va Vong doi don hang (shipment.lifecycle:
+  // bo Nhan vien mua hang + marketing, 2026-10-02).
   const saleViewKeys = ['reports.overview', 'reports.products', 'reports.invoices', 'reports.customers', 'reports.debt'];
   assert.deepEqual(
     res.body.roleDefaults['Nhân viên marketing'],
-    res.body.roleDefaults['Nhân viên sale'].filter(key => !saleViewKeys.includes(key))
+    res.body.roleDefaults['Nhân viên sale'].filter(key => !saleViewKeys.includes(key) && key !== 'shipment.lifecycle')
   );
   assert.ok(res.body.roleDefaults['Nhân viên sale'].includes('reports.overview'));
   assert.ok(res.body.features.find(f => f.key === 'account.profile').alwaysOn);

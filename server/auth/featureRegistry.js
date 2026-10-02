@@ -26,6 +26,11 @@ const OVERRIDE_ROLES = Object.freeze([ROLES.QUAN_LY, ROLES.KE_TOAN]);
 // Nhan vien sale (2026-10-02). Xuat Excel + sua cong no van chi Quan ly + Tro ly
 // (REPORTS_ROLES), nen KHONG nhet sale vao REPORTS_ROLES — mang do cap ca 7 key reports.*.
 const REPORT_VIEW_ROLES = Object.freeze([...REPORTS_ROLES, ROLES.NHAN_VIEN_SALE]);
+// Vong doi don hang (toan bo don): bo Nhan vien mua hang + Nhan vien marketing (2026-10-02).
+// Hai vai tro nay van con 'shipment.lookup' (tra cuu theo ma).
+const LIFECYCLE_ROLES = Object.freeze(
+  INTERNAL_ROLES.filter(r => r !== ROLES.NHAN_VIEN_MUA_HANG && r !== ROLES.NHAN_VIEN_MARKETING)
+);
 
 const FEATURE_GROUPS = Object.freeze([
   { key: 'reports', label: 'Báo cáo tổng hợp' },
@@ -52,9 +57,10 @@ const FEATURES = Object.freeze([
 
   // --- Quan ly don hang ---
   { key: 'shipment.lookup', groupKey: 'shipment', label: 'Tra cứu đơn theo mã', roles: ALL_ROLES },
-  { key: 'shipment.lifecycle', groupKey: 'shipment', label: 'Vòng đời đơn hàng (toàn bộ đơn)', roles: INTERNAL_ROLES },
+  { key: 'shipment.lifecycle', groupKey: 'shipment', label: 'Vòng đời đơn hàng (toàn bộ đơn)', roles: LIFECYCLE_ROLES },
   { key: 'shipment.history', groupKey: 'shipment', label: 'Lịch sử cập nhật', roles: INTERNAL_ROLES },
-  { key: 'shipment.export', groupKey: 'shipment', label: 'Xuất Excel đơn hàng', roles: INTERNAL_ROLES },
+  // 2026-10-02: chi Quan ly xuat duoc file (truoc day moi vai tro noi bo); Quan ly van cap them tung tai khoan duoc.
+  { key: 'shipment.export', groupKey: 'shipment', label: 'Xuất Excel đơn hàng', roles: MANAGER_ONLY },
   { key: 'shipment.override', groupKey: 'shipment', label: 'Ghi đè trạng thái đơn', roles: OVERRIDE_ROLES },
 
   // --- Quan ly nhan su ---

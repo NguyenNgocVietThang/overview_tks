@@ -1,21 +1,27 @@
 // ==========================================
-// KIOT PENDING ORDERS — doc don dat hang "Phieu tam" cua KiotViet (bang orders/order_details,
-// 2 co so hanoi/saigon) de GOP vao trang "Vong doi don hang" cung cac don tu Google Sheet, kem
-// "Gia tri co ban" tung don. Chi DOC; khong bao gio ghi vao DB hay Sheet.
+// KIOT ORDERS — doc MOI don dat hang cua KiotViet (bang orders/order_details, 2 co so hanoi/saigon,
+// moi trang thai: Phieu tam, Da xac nhan, Dang giao hang, Hoan thanh, Da huy) de GOP vao trang "Vong doi
+// don hang" cung cac don tu Google Sheet, kem trang thai Kiot, ghi chu va "Gia tri co ban" cua don
+// Phieu tam. Chi DOC; khong bao gio ghi vao DB hay Sheet. (Truoc 2026-10-02 module nay chi doc don
+// Phieu tam — ten cu kiotPendingOrdersRepository.)
 //
-// GIA TRI CO BAN (quyet dinh cua nguoi dung 2026-10-01): voi moi mat hang trong don,
-//   so ban duoc = min(SL dat, max(0, TON THUC cua dung Kiot cua don + HANG DANG VAN CHUYEN))
+// GIA TRI CO BAN (quyet dinh cua nguoi dung 2026-10-02, thay cong thuc 2026-10-01): voi moi mat hang
+// trong don Phieu tam,
+//   so ban duoc = min(SL dat, max(0, TON THUC cua dung Kiot cua don))
 //   gia tri     = so ban duoc x don gia sau chiet khau dong (price - discount)
-// va cong tat ca mat hang. KHONG tru cac don Phieu tam khac (chinh don dang xet cung la Phieu
-// tam). Ton thuc = tong `inventories[].onHand` cua san pham trong retailer cua don; hang dang van
-// chuyen = cung 1 so theo ma cho ca HN va SG (inTransitSource.js, chi co phieu cua Kiot SG).
-// Dong ma "VAT..." la dong thue, khong phai hang ton kho — bo khoi phep tinh (nhu dashboardData).
+// va cong tat ca mat hang. KHONG tinh hang dang van chuyen (cot "Dieu chuyen SG" chi de tham khao) va
+// KHONG tru cac don Phieu tam khac. Don KHAC Phieu tam (da xac nhan/giao/hoan thanh/huy) khong co gia
+// tri co ban (ton hien tai khong con y nghia voi don da xuat). Ton thuc = tong `inventories[].onHand`
+// cua san pham trong retailer cua don. Dong ma "VAT..." la dong thue, khong phai hang ton kho — bo khoi
+// phep tinh (nhu dashboardData).
 //
-// Noi dung nay chay moi lan trang tai (tu lam moi 60s) nen:
-//   - cache TTL 60s + single-flight (nhieu nguoi mo trang cung luc chi 1 lan doc DB);
+// Doc ~60 nghin don (do that 2026-10-02: 1,8-2,2 giay, ~17 MB JSON tho) nen:
+//   - cache TTL 2 phut + STALE-WHILE-REVALIDATE: het TTL thi tra ngay ban cu va lam moi o nen (nguoi
+//     dung khong phai cho 2-6 giay), chi cho khi chua co ban nao hoac ban qua cu (staleMs);
+//   - single-flight (nhieu nguoi mo trang cung luc chi 1 lan doc DB);
 //   - FAIL-SOFT: loi Postgres KHONG duoc lam hong trang (van hien du lieu Sheet): tra {ok:false},
-//     hoac ban cu (toi da staleMs) neu co.
-// Cot Phieu tam khong co index cho den khi ap migration 0028 (index mot phan) — chay van dung, chi cham.
+//     hoac ban cu (toi da staleMs) danh dau stale neu co.
+// Chi cac dong hang cua don Phieu tam moi duoc doc (bo loc statusValue khop index mot phan 0028).
 // ==========================================
 'use strict';
 
@@ -30,8 +36,10 @@ const LIFECYCLE_TO_DB_BRANCH = Object.freeze({ HN: 'hanoi', SG: 'saigon' });
 const DB_TO_LIFECYCLE_BRANCH = Object.freeze({ hanoi: 'HN', saigon: 'SG' });
 
 const PHIEU_TAM = 'Phiếu tạm';
-const DEFAULT_TTL_MS = 60 * 1000;
-const DEFAULT_STALE_MS = 10 * 60 * 1000;
+const DEFAULT_TTL_MS = 2 * 60 * 1000;
+const DEFAULT_STALE_MS = 15 * 60 * 1000;
+// Sau 1 lan lam moi nen that bai, doi it nhat chung nay moi thu lai (tranh moi request deu goi DB dang loi).
+const RETRY_BACKOFF_MS = 15 * 1000;
 
 function makeError(message, statusCode, code) {
   const error = new Error(message);
@@ -58,7 +66,7 @@ function productKeyOf(code) {
 /**
  * HAM THUAN. Chia "so ban duoc" cho tung dong don.
  * @param lines [{ orderKey, productKey, quantity, amount }] — amount = (price - discount) * quantity
- * @param availableOf (line) => so luong CO THE CAP (ton thuc + dang van chuyen, co the am)
+ * @param availableOf (line) => so luong CO THE CAP (ton thuc, co the am)
  * @returns mang song song voi `lines`: { sellableQty, sellableAmount } (null voi dong thue/khong co ma)
  *
  * Cung 1 san pham xuat hien nhieu dong trong cung 1 don thi gop lai de TON CHI BI TINH 1 LAN:
@@ -88,10 +96,10 @@ function allocateSellable(lines, availableOf) {
   return out;
 }
 
-// Don Phieu tam + dong hang. LEFT JOIN de don khong co dong van xuat hien (gia tri co ban = 0).
-// Bieu thuc loc statusValue GIU NGUYEN (khong COALESCE) de trung dieu kien index mot phan 0028.
-// Ngay dat doc bang AT TIME ZONE 'UTC' ("gio treo tuong VN mang nhan UTC", xem dashboardPgReader.js).
-const PENDING_ORDERS_SQL = `
+// Dau don CUA MOI TRANG THAI (khong dong hang): trang thai Kiot + ghi chu + khach + sale. Sale lay tu
+// o.raw soldByName, thieu thi bang staff, roi cat ID Telegram (dashboard/saleName.js). Ngay dat doc bang
+// AT TIME ZONE 'UTC' ("gio treo tuong VN mang nhan UTC", xem dashboardPgReader.js).
+const ALL_ORDERS_SQL = `
   SELECT
     o.branch,
     o.id AS order_id,
@@ -101,12 +109,23 @@ const PENDING_ORDERS_SQL = `
     COALESCE(to_char(o.order_date AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS'), '') AS order_date_key,
     COALESCE(NULLIF(o.raw->>'customerName', ''), 'Khách lẻ') AS customer_name,
     ${saleNameSql(`COALESCE(NULLIF(o.raw->>'soldByName', ''), s.name, '')`)} AS sale_name,
+    COALESCE(o.raw->>'statusValue', '') AS kiot_status,
+    COALESCE(o.raw->>'description', '') AS note
+  FROM orders o
+  LEFT JOIN staff s ON s.branch = o.branch AND s.id = o.sold_by_id`;
+
+// Dong hang cua CAC DON PHIEU TAM (de tinh gia tri co ban). Bieu thuc loc statusValue GIU NGUYEN (khong
+// COALESCE) de trung dieu kien index mot phan 0028. Thanh tien dong = (price - discount) x quantity vi
+// order_details.raw.subTotal luon 0.
+const PENDING_LINES_SQL = `
+  SELECT
+    o.branch,
+    o.id AS order_id,
     btrim(COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, '')) AS product_code,
     COALESCE(d.quantity, 0)::float8 AS quantity,
     (COALESCE(d.price, 0)::float8 - COALESCE(d.discount, 0)::float8) * COALESCE(d.quantity, 0)::float8 AS amount
   FROM orders o
-  LEFT JOIN staff s ON s.branch = o.branch AND s.id = o.sold_by_id
-  LEFT JOIN order_details d ON d.branch = o.branch AND d.order_id = o.id
+  JOIN order_details d ON d.branch = o.branch AND d.order_id = o.id
   LEFT JOIN products p ON p.branch = d.branch AND p.id = d.product_id
   WHERE o.raw->>'statusValue' = 'Phiếu tạm'
   ORDER BY o.branch, o.id, d.line_no`;
@@ -133,11 +152,11 @@ async function readOnHandByKey(db, dbBranch, productCodes) {
  * @param {object} [options]
  * @param {object|function} [options.pool] pool (hoac ham tra pool); mac dinh getPool() luc goi.
  * @param {function} [options.now] dong ho (ms) — test tiem vao.
- * @param {number} [options.ttlMs] thoi gian cache; {number} [options.staleMs] toi da dung ban cu khi loi.
- * @param {function} [options.readInTransit] doc hang dang van chuyen (mac dinh inTransitSource).
+ * @param {number} [options.ttlMs] thoi gian cache; {number} [options.staleMs] toi da dung ban cu khi loi / lam moi nen.
+ * @param {function} [options.readInTransit] doc hang dang van chuyen (chi de HIEN THI o chi tiet don).
  * @param {function} [options.fetchOrderDetail] doc 1 don (mac dinh documentDetailRepository.getOrderDetail).
  */
-function createKiotPendingOrdersRepository({
+function createKiotOrdersRepository({
   pool,
   now = () => Date.now(),
   ttlMs = DEFAULT_TTL_MS,
@@ -146,20 +165,42 @@ function createKiotPendingOrdersRepository({
   fetchOrderDetail = getOrderDetail
 } = {}) {
   const getDb = () => (typeof pool === 'function' ? pool() : (pool || getPool()));
-  let cache = null; // { result, at }
+  let cache = null; // { result, at, failed }
   let inflight = null;
+  let nextTryAt = 0;
 
-  async function queryPendingOrders() {
+  async function queryOrders() {
     const db = getDb();
-    const [ordersResult, inTransitByCode] = await Promise.all([
-      db.query(PENDING_ORDERS_SQL),
-      readInTransit(db)
+    const [headersResult, linesResult] = await Promise.all([
+      db.query(ALL_ORDERS_SQL),
+      db.query(PENDING_LINES_SQL)
     ]);
-    const rows = (ordersResult && ordersResult.rows) || [];
 
-    // Ton thuc theo (co so, ma) — chi cho cac san pham co trong dong don.
+    // Moi don 1 doi tuong; sap moi nhat truoc theo ngay dat THAT (khong theo chuoi hien thi), cung ngay thi theo ma.
+    const headerRows = (headersResult && headersResult.rows) || [];
+    const byKey = new Map(); // `${branch}|${order_id}` -> don
+    const pairs = headerRows.map(row => {
+      const isPending = row.kiot_status === PHIEU_TAM;
+      const order = {
+        branch: DB_TO_LIFECYCLE_BRANCH[row.branch] || '',
+        code: String(row.code || ''),
+        customerName: row.customer_name || '',
+        saleName: row.sale_name || '',
+        orderDate: row.order_date_text || '',
+        total: toNumber(row.total),
+        kiotStatus: row.kiot_status || '',
+        note: row.note || '',
+        // Chi don Phieu tam moi co gia tri co ban (0 neu don chua co dong hang); don khac = null.
+        sellableValue: isPending ? 0 : null
+      };
+      byKey.set(`${row.branch}|${row.order_id}`, order);
+      return { key: row.order_date_key || '', order };
+    });
+
+    // Gia tri co ban cua don Phieu tam: ton thuc theo (co so, ma) — chi cho cac san pham co trong dong don.
+    const lineRows = (linesResult && linesResult.rows) || [];
     const codesByBranch = new Map();
-    for (const row of rows) {
+    for (const row of lineRows) {
       if (!row.product_code) continue;
       if (!codesByBranch.has(row.branch)) codesByBranch.set(row.branch, []);
       codesByBranch.get(row.branch).push(row.product_code);
@@ -169,70 +210,51 @@ function createKiotPendingOrdersRepository({
       onHandByBranch.set(dbBranch, await readOnHandByKey(db, dbBranch, codes));
     }));
 
-    // Gom theo don + dong hang.
-    const orders = new Map(); // `${branch}|${orderId}` -> don
-    const lines = [];
-    for (const row of rows) {
-      const orderKey = `${row.branch}|${row.order_id}`;
-      if (!orders.has(orderKey)) {
-        orders.set(orderKey, {
-          branch: DB_TO_LIFECYCLE_BRANCH[row.branch] || '',
-          code: String(row.code || ''),
-          customerName: row.customer_name || '',
-          saleName: row.sale_name || '',
-          orderDate: row.order_date_text || '',
-          orderDateKey: row.order_date_key || '',
-          total: toNumber(row.total),
-          dbBranch: row.branch
-        });
-      }
-      if (row.product_code) {
-        lines.push({
-          orderKey,
-          dbBranch: row.branch,
-          productKey: productKeyOf(row.product_code),
-          quantity: toNumber(row.quantity),
-          amount: toNumber(row.amount)
-        });
-      }
-    }
-
-    const allocation = allocateSellable(lines, line => {
-      const onHand = (onHandByBranch.get(line.dbBranch) || new Map()).get(line.productKey) || 0;
-      return onHand + (inTransitByCode.get(line.productKey) || 0);
-    });
+    const lines = lineRows
+      .filter(row => row.product_code)
+      .map(row => ({
+        orderKey: `${row.branch}|${row.order_id}`,
+        dbBranch: row.branch,
+        productKey: productKeyOf(row.product_code),
+        quantity: toNumber(row.quantity),
+        amount: toNumber(row.amount)
+      }));
+    const allocation = allocateSellable(lines, line => (onHandByBranch.get(line.dbBranch) || new Map()).get(line.productKey) || 0);
     const sellableByOrder = new Map();
     lines.forEach((line, index) => {
       const part = allocation[index];
       if (!part || part.sellableAmount === null) return;
       sellableByOrder.set(line.orderKey, (sellableByOrder.get(line.orderKey) || 0) + part.sellableAmount);
     });
-
-    const list = [...orders.entries()].map(([orderKey, order]) => {
-      const { dbBranch, ...rest } = order;
-      return { ...rest, sellableValue: Math.round(sellableByOrder.get(orderKey) || 0) };
+    sellableByOrder.forEach((amount, orderKey) => {
+      const order = byKey.get(orderKey);
+      if (order && order.sellableValue !== null) order.sellableValue = Math.round(amount);
     });
-    // Moi nhat truoc (theo ngay dat that, khong theo chuoi hien thi), cung ngay thi theo ma.
-    list.sort((a, b) => (a.orderDateKey < b.orderDateKey ? 1 : a.orderDateKey > b.orderDateKey ? -1 : a.code.localeCompare(b.code)));
-    return { ok: true, stale: false, fetchedAt: new Date(now()).toISOString(), orders: list };
+
+    pairs.sort((a, b) => (a.key < b.key ? 1 : a.key > b.key ? -1 : a.order.code.localeCompare(b.order.code)));
+    return { ok: true, stale: false, fetchedAt: new Date(now()).toISOString(), orders: pairs.map(pair => pair.order) };
   }
 
-  /**
-   * Don Phieu tam cua ca 2 co so kem gia tri co ban. KHONG BAO GIO throw:
-   * { ok, stale, fetchedAt, orders[] } — loi DB: ban cu (<= staleMs) danh dau stale, khong co thi { ok:false, orders:[] }.
-   */
-  async function readPendingOrders() {
-    const current = now();
-    if (cache && current - cache.at < ttlMs) return cache.result;
+  function view(entry) {
+    return entry.failed ? { ...entry.result, stale: true } : entry.result;
+  }
+
+  /** Doc lai tu DB (single-flight). KHONG nem: loi -> ban cu <= staleMs (stale) hoac { ok:false }. */
+  function refresh() {
     if (inflight) return inflight;
     inflight = (async () => {
       try {
-        const result = await queryPendingOrders();
-        cache = { result, at: now() };
+        const result = await queryOrders();
+        cache = { result, at: now(), failed: false };
+        nextTryAt = 0;
         return result;
       } catch (error) {
-        console.warn('[Lifecycle] Không đọc được đơn Phiếu tạm từ Kiot (hiển thị dữ liệu Sheet):', error.message);
-        if (cache && now() - cache.at < staleMs) return { ...cache.result, stale: true };
+        console.warn('[Lifecycle] Không đọc được đơn từ Kiot (hiển thị dữ liệu Sheet):', error.message);
+        nextTryAt = now() + RETRY_BACKOFF_MS;
+        if (cache && now() - cache.at < staleMs) {
+          cache.failed = true;
+          return view(cache);
+        }
         return { ok: false, stale: false, fetchedAt: null, orders: [], error: error.message };
       } finally {
         inflight = null;
@@ -241,12 +263,29 @@ function createKiotPendingOrdersRepository({
     return inflight;
   }
 
-  function invalidate() { cache = null; }
+  /**
+   * Moi don cua ca 2 co so (moi trang thai) kem gia tri co ban (don Phieu tam). KHONG BAO GIO throw:
+   * { ok, stale, fetchedAt, orders[] } voi moi don { branch:'HN'|'SG', code, customerName, saleName, orderDate
+   * ('dd/MM/yyyy HH:mm'), total, kiotStatus, note, sellableValue (so | null) }, moi nhat truoc.
+   * Con han cache -> tra ngay; het han nhung con ban <= staleMs -> tra ban cu ngay + lam moi nen.
+   */
+  async function readOrders() {
+    const current = now();
+    if (cache && current - cache.at < ttlMs) return view(cache);
+    if (cache && current - cache.at < staleMs) {
+      if (!inflight && current >= nextTryAt) refresh();
+      return view(cache);
+    }
+    return refresh();
+  }
+
+  function invalidate() { cache = null; nextTryAt = 0; }
 
   /**
    * Chi tiet 1 don cho hop thoai: dau chung + dong hang (documentDetailRepository.getOrderDetail), voi
-   * don dang Phieu tam them ton thuc / dang van chuyen / so co ban tung dong. Don khac trang thai Phieu
-   * tam: cac cot ton = null (ton hien tai khong co y nghia voi don da xuat). Nem loi 400/404 cua getOrderDetail.
+   * don dang Phieu tam them ton thuc / dieu chuyen SG (hang dang van chuyen — chi hien thi) / so co ban
+   * tung dong. Don khac trang thai Phieu tam: cac cot ton = null (ton hien tai khong co y nghia voi don da
+   * xuat). Nem loi 400/404 cua getOrderDetail.
    */
   async function readOrderDetail({ branch, code }) {
     const dbBranch = LIFECYCLE_TO_DB_BRANCH[branch];
@@ -277,7 +316,7 @@ function createKiotPendingOrdersRepository({
         orderLines.map(line => ({
           orderKey: 'detail', productKey: productKeyOf(line.productCode), quantity: line.quantity, amount: line.amount
         })),
-        line => (stock.onHandByKey.get(line.productKey) || 0) + (stock.inTransitByCode.get(line.productKey) || 0)
+        line => stock.onHandByKey.get(line.productKey) || 0
       )
       : [];
 
@@ -305,16 +344,16 @@ function createKiotPendingOrdersRepository({
     };
   }
 
-  return { readPendingOrders, readOrderDetail, invalidate };
+  return { readOrders, readOrderDetail, invalidate };
 }
 
 // Instance mac dinh dung pool that (getPool() duoc goi luc can, khong luc nap module).
-const kiotPendingOrders = createKiotPendingOrdersRepository();
+const kiotOrders = createKiotOrdersRepository();
 
 module.exports = {
-  createKiotPendingOrdersRepository,
-  kiotPendingOrders,
+  createKiotOrdersRepository,
+  kiotOrders,
   LIFECYCLE_TO_DB_BRANCH,
   DB_TO_LIFECYCLE_BRANCH,
-  __test__: { allocateSellable, productKeyOf, isServiceProductKey, PENDING_ORDERS_SQL, ON_HAND_BY_CODE_SQL }
+  __test__: { allocateSellable, productKeyOf, isServiceProductKey, ALL_ORDERS_SQL, PENDING_LINES_SQL, ON_HAND_BY_CODE_SQL }
 };

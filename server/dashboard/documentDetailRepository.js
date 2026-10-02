@@ -1,6 +1,6 @@
 'use strict';
 
-// Chi tiet 1 don DAT HANG (Vong doi don hang: kiotPendingOrdersRepository.readOrderDetail) / 1 HOA DON
+// Chi tiet 1 don DAT HANG (Vong doi don hang: kiotOrdersRepository.readOrderDetail) / 1 HOA DON
 // (giao dich, tab Hoa don). Doc thang order_details / invoice_details (+ dong dau chung tu bang cha); ma
 // chi duy nhat trong 1 co so nen bat buoc truyen co so vat ly ('hanoi'/'saigon'). (2026-10-01: bo chi tiet
 // phieu TRA HANG cung bang Danh sach tra hang.)

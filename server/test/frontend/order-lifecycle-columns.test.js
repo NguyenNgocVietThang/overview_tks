@@ -7,6 +7,7 @@ const path = require('node:path');
 const { JSDOM } = require('jsdom');
 
 const { defaultsForRole } = require('../../auth/featureRegistry');
+const { lifecycleResponse, isListUrl } = require('./lifecycleFakeServer');
 function fakeCan(vaiTro) {
   const permissions = defaultsForRole(vaiTro);
   return (...keys) => keys.some(key => (Array.isArray(key) ? key : [key]).some(k => permissions.includes(k)));
@@ -23,15 +24,17 @@ function inlineScripts(source) {
 //   chu:  01/10/2026 < 05/01/2027 < 30/09/2026
 //   that: 30/09/2026 < 01/10/2026 < 05/01/2027
 const ORDERS = [
-  { orderCode: 'A1', saleName: 'An', customerName: 'X', saleSentAt: '05/01/2027 08:00', warning: false,
+  { orderCode: 'A1', branch: 'HN', saleName: 'An', customerName: 'X', saleSentAt: '05/01/2027 08:00', warning: false,
     summary: { code: 'DELIVERING', label: 'Đang giao', at: '05/01/2027 09:00' } },
-  { orderCode: 'A2', saleName: 'Bình', customerName: 'Y', saleSentAt: '30/09/2026 10:47', warning: true,
+  { orderCode: 'A2', branch: 'HN', saleName: 'Bình', customerName: 'Y', saleSentAt: '30/09/2026 10:47', warning: true,
     summary: { code: 'DELIVERING', label: 'Đang giao', at: '02/10/2026 10:00' } },
-  { orderCode: 'A3', saleName: 'Chi', customerName: 'Z', saleSentAt: '01/10/2026 07:00', warning: false,
+  { orderCode: 'A3', branch: 'HN', saleName: 'Chi', customerName: 'Z', saleSentAt: '01/10/2026 07:00', warning: false,
     summary: { code: 'DELIVERING', label: 'Đang giao', at: '01/10/2026 12:00' } },
-  { orderCode: 'A4', saleName: 'Dung', customerName: 'W', saleSentAt: '', warning: false,
+  { orderCode: 'A4', branch: 'HN', saleName: 'Dung', customerName: 'W', saleSentAt: '', warning: false,
     summary: { code: 'NOT_SENT', label: 'Chưa gửi', at: null } }
 ];
+
+async function settle() { for (let i = 0; i < 10; i++) await new Promise(resolve => setImmediate(resolve)); }
 
 async function renderTable() {
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://tokosi.example/shipment/lifecycle/' });
@@ -42,12 +45,14 @@ async function renderTable() {
     can: fakeCan('Quản lý'),
     handleBranchError: () => false
   };
-  window.fetch = async () => ({ ok: true, json: async () => ({ orders: ORDERS }) });
-  // Phan trang dung window.paginate (js/pagination.js, nap bang <script src> o trang that).
-  window.eval(fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'js', 'pagination.js'), 'utf8'));
+  // May chu gia: loc / sap xep / cat trang bang chinh module cua may chu that (lifecycleFakeServer.js).
+  window.fetch = async url => {
+    if (!isListUrl(url)) return { ok: false, status: 404, json: async () => ({}) };
+    const body = lifecycleResponse(String(url), ORDERS, { ok: true });
+    return { ok: true, json: async () => body };
+  };
   inlineScripts(html).forEach(script => window.eval(script));
-  await new Promise(resolve => setTimeout(resolve, 0));
-  await new Promise(resolve => setTimeout(resolve, 0));
+  await settle();
   return dom;
 }
 
@@ -60,23 +65,30 @@ function setValue(window, element, value) {
   element.dispatchEvent(new window.Event('change', { bubbles: true }));
 }
 
-test('bảng có cột "Giá trị đơn" + "Giá trị có bán" (sau Khách hàng), "Sale ra đơn" (từ Sale gửi đơn cho kế toán) và cột "Cảnh báo"', async () => {
+const cell = (row, key) => row.querySelector(`[data-col="${key}"]`);
+
+test('bảng có đủ cột: Giá trị đơn + Giá trị có bán + Ghi chú (sau Khách hàng), Sale ra đơn, Trạng thái KiotViet, Trạng thái, Cập nhật gần nhất và Cảnh báo', async () => {
   const dom = await renderTable();
   const { document } = dom.window;
   const headers = [...document.querySelectorAll('#bulkHeadRow th')].map(th => th.textContent.replace(/[▲▼]/g, '').trim());
-  assert.deepEqual(headers, ['Mã đơn', 'Thời gian đặt hàng', 'Sale', 'Khách hàng', 'Giá trị đơn', 'Giá trị có bán', 'Sale ra đơn', 'Trạng thái', 'Cập nhật gần nhất', 'Cảnh báo']);
+  assert.deepEqual(headers, [
+    'Mã đơn', 'Thời gian đặt hàng', 'Sale', 'Khách hàng', 'Giá trị đơn', 'Giá trị có bán', 'Ghi chú', 'Sale ra đơn',
+    'Trạng thái KiotViet', 'Trạng thái', 'Cập nhật gần nhất', 'Cảnh báo'
+  ]);
 
   const rows = [...document.querySelectorAll('#bulkBody tr')];
-  assert.equal(rows[1].cells[6].textContent, '30/09/2026 10:47');
-  assert.equal(rows[3].cells[6].textContent, '—');
-  assert.equal(rows[0].cells[4].textContent, '—', 'don khong con Phieu tam (hoac khong gop Kiot) khong co Gia tri don');
-  assert.equal(rows[0].cells[5].textContent, '—', 'don khong con Phieu tam (hoac khong gop Kiot) khong co Gia tri co ban');
+  assert.equal(cell(rows[1], 'saleSentAt').textContent, '30/09/2026 10:47');
+  assert.equal(cell(rows[3], 'saleSentAt').textContent, '—');
+  assert.equal(cell(rows[0], 'orderTotal').textContent, '—', 'dong khong co don Kiot khong co Gia tri don');
+  assert.equal(cell(rows[0], 'sellableValue').textContent, '—', 'dong khong co don Kiot khong co Gia tri co ban');
+  assert.equal(cell(rows[0], 'note').textContent, '—');
+  assert.equal(cell(rows[0], 'kiotStatus').textContent, '—');
 
   // Chi don co warning=true moi co chu "Canh bao" (mau do); con lai de trong.
-  assert.equal(rows[1].cells[9].textContent, 'Cảnh báo');
-  assert.ok(rows[1].cells[9].querySelector('.badge-exception'));
-  assert.equal(rows[0].cells[9].textContent, '');
-  assert.equal(rows[3].cells[9].textContent, '');
+  assert.equal(cell(rows[1], 'warning').textContent, 'Cảnh báo');
+  assert.ok(cell(rows[1], 'warning').querySelector('.badge-exception'));
+  assert.equal(cell(rows[0], 'warning').textContent, '');
+  assert.equal(cell(rows[3], 'warning').textContent, '');
   dom.window.close();
 });
 
@@ -86,13 +98,16 @@ test('sắp xếp cột thời gian theo thời gian thật (không theo chuỗi
 
   const saleSentHeader = document.querySelector('th[data-sort="saleSentAt"]');
   saleSentHeader.click();
+  await settle();
   assert.deepEqual(codes(document), ['A2', 'A3', 'A1', 'A4']); // 30/09/2026, 01/10/2026, 05/01/2027, trống
 
   saleSentHeader.click();
+  await settle();
   assert.deepEqual(codes(document), ['A1', 'A3', 'A2', 'A4']); // giảm dần, trống VẪN ở cuối
 
   const atHeader = document.querySelector('th[data-sort="at"]');
   atHeader.click();
+  await settle();
   assert.deepEqual(codes(document), ['A3', 'A2', 'A1', 'A4']); // 01/10, 02/10, 05/01/2027, trống
   dom.window.close();
 });
@@ -103,6 +118,7 @@ test('sắp xếp cột Cảnh báo: đơn có cảnh báo lên trước khi gi�
   const header = document.querySelector('th[data-sort="warning"]');
   header.click();
   header.click();
+  await settle();
   assert.equal(codes(document)[0], 'A2');
   dom.window.close();
 });
@@ -121,19 +137,23 @@ test('bộ lọc thời gian: mặc định tất cả thời gian, lọc theo S
 
   setValue(dom.window, from, '2026-09-30');
   setValue(dom.window, to, '2026-09-30');
+  await settle();
   assert.deepEqual(codes(document), ['A2']); // 30/09 10:47 nằm trong ngày cuối được chọn
   assert.equal(all.classList.contains('active'), false);
   assert.equal(document.getElementById('bulkCount').textContent, '1 / 4 đơn');
 
   setValue(dom.window, to, '2026-10-01');
+  await settle();
   assert.deepEqual(codes(document), ['A2', 'A3']);
 
   // chỉ có "từ": không giới hạn phía sau; đơn chưa có Sale ra đơn bị loại khi đã chọn khoảng
   setValue(dom.window, to, '');
   setValue(dom.window, from, '2026-10-01');
+  await settle();
   assert.deepEqual(codes(document), ['A1', 'A3']);
 
   all.click();
+  await settle();
   assert.equal(from.value, '');
   assert.deepEqual(codes(document), ['A1', 'A2', 'A3', 'A4']);
   assert.ok(all.classList.contains('active'));
@@ -146,6 +166,7 @@ test('bộ lọc thời gian có thể áp dụng cho cột "Cập nhật gần 
   setValue(dom.window, document.getElementById('bulkDateField'), 'at');
   setValue(dom.window, document.getElementById('bulkDateFrom'), '2026-10-02');
   setValue(dom.window, document.getElementById('bulkDateTo'), '2026-10-02');
+  await settle();
   assert.deepEqual(codes(document), ['A2']);
   dom.window.close();
 });

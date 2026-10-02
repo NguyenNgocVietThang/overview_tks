@@ -1,9 +1,10 @@
 'use strict';
 
-// Trang Vong doi don hang SAU KHI gop don Phieu tam cua KiotViet (2026-10-01): cot "Gia tri co ban",
-// dong chi co o Kiot (chi doc, khong ghi de), khoa dong theo co so + ma, loc/sap xep theo ngay dat
-// hang that, PHAN TRANG 100 dong/trang voi sap xep tren TOAN BO danh sach da loc, hop chi tiet nap
-// dong hang tu Kiot, xuat Excel gui ma cua TAT CA dong da loc. Chay trang that trong JSDOM voi fetch gia.
+// Trang Vong doi don hang SAU KHI gop MOI don dat hang cua KiotViet (2026-10-02, mo rong tu "Phieu tam"): cot
+// "Gia tri don" / "Gia tri co ban" / "Ghi chu" / "Trang thai KiotViet", bo loc Trang thai KiotViet, hop "Cot hien thi",
+// dong chi co o Kiot (chi doc, khong ghi de), khoa dong theo co so + ma, LOC / SAP XEP / PHAN TRANG 100 dong/trang do
+// MAY CHU (test dung may chu gia lifecycleFakeServer.js, goi chinh module loc cua may chu that), hop chi tiet nap dong
+// hang tu Kiot, xuat Excel gui BO LOC dang ap dung. Chay trang that trong JSDOM voi fetch gia.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -12,10 +13,10 @@ const path = require('node:path');
 const { JSDOM } = require('jsdom');
 
 const { defaultsForRole } = require('../../auth/featureRegistry');
+const { lifecycleResponse, isListUrl } = require('./lifecycleFakeServer');
 
 const publicDir = path.join(__dirname, '..', '..', 'public');
 const html = fs.readFileSync(path.join(publicDir, 'shipment', 'lifecycle', 'index.html'), 'utf8');
-const paginationSource = fs.readFileSync(path.join(publicDir, 'js', 'pagination.js'), 'utf8');
 
 const settle = async () => { for (let i = 0; i < 10; i++) await new Promise(resolve => setImmediate(resolve)); };
 
@@ -24,30 +25,31 @@ function fakeCan(vaiTro) {
   return (...keys) => keys.some(key => (Array.isArray(key) ? key : [key]).some(k => permissions.includes(k)));
 }
 
-// Dong tu sheet (co moc thoi gian) — branch/summary nhu server tra ve.
+// Dong tu sheet (co moc thoi gian, KHONG co don Kiot) — branch/summary nhu server tra ve.
 function sheetOrder(code, extra = {}) {
   return {
     orderCode: code, branch: 'HN', saleName: 'Sale A', customerName: 'KH Sheet', saleSentAt: '01/10/2026 08:00', warning: false,
     summary: { code: 'DELIVERING', label: 'Đơn đang được giao', at: '01/10/2026 09:00' },
-    source: 'sheet', kiotPhieuTam: false, sellableValue: null, orderTotal: null, orderDate: '',
+    source: 'sheet', kiotStatus: '', sellableValue: null, orderTotal: null, orderDate: '', note: '',
     ...extra
   };
 }
 
-// Don chi co o Kiot: trang thai "chua gui ke toan", cac moc rong.
+// Don chi co o Kiot (mac dinh Phieu tam): trang thai "chua gui ke toan", cac moc rong.
 function kiotOnlyOrder(code, extra = {}) {
   return {
     orderCode: code, branch: 'HN', saleName: 'Sale Kiot', customerName: 'KH Kiot', saleSentAt: '', warning: false,
     summary: { code: 'NOT_SENT', label: 'Đơn chưa gửi kế toán', actor: null, at: null },
-    source: 'kiotviet', kiotPhieuTam: true, sellableValue: 1500000, orderTotal: 2000000, orderDate: '01/10/2026 13:14',
+    source: 'kiotviet', kiotStatus: 'Phiếu tạm', sellableValue: 1500000, orderTotal: 2000000, orderDate: '01/10/2026 13:14', note: '',
     ...extra
   };
 }
 
-async function renderPage({ orders, kiot = { ok: true, stale: false, fetchedAt: null, count: 0 }, vaiTro = 'Quản lý', fetchImpl } = {}) {
+async function renderPage({ orders = [], kiot = { ok: true, stale: false, fetchedAt: null, count: 0 }, vaiTro = 'Quản lý', fetchImpl, hiddenColumns } = {}) {
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://tokosi.example/shipment/lifecycle/' });
   const { window } = dom;
   const calls = [];
+  const source = { orders }; // test co the doi `page.source.orders` roi goi loadBulkOrders(true) de gia lap du lieu moi
   window.setInterval = () => 1;
   window.TKSNav = {
     authGuard: () => Promise.resolve({ vaiTro }),
@@ -60,8 +62,9 @@ async function renderPage({ orders, kiot = { ok: true, stale: false, fetchedAt: 
       const custom = await fetchImpl(String(url), options, window);
       if (custom) return custom;
     }
-    if (String(url).startsWith('/api/shipment/lifecycle') && !String(url).includes('order-detail') && !String(url).includes('export')) {
-      return { ok: true, status: 200, json: async () => ({ orders, kiot }) };
+    if (isListUrl(url)) {
+      const body = lifecycleResponse(String(url), source.orders, kiot);
+      return { ok: true, status: 200, json: async () => body };
     }
     return { ok: false, status: 404, json: async () => ({}) };
   };
@@ -69,59 +72,90 @@ async function renderPage({ orders, kiot = { ok: true, stale: false, fetchedAt: 
   window.URL.revokeObjectURL = () => {};
   window.HTMLAnchorElement.prototype.click = () => {};
   window.alert = () => {};
-  window.eval(paginationSource);
+  if (hiddenColumns) window.localStorage.setItem('tks-lifecycle-hidden-columns', JSON.stringify(hiddenColumns));
   [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]).forEach(script => window.eval(script));
   await settle();
-  return { dom, window, document: window.document, calls };
+  return { dom, window, document: window.document, calls, source };
 }
 
 const rowsOf = document => [...document.querySelectorAll('#bulkBody tr')];
 const codesOf = document => rowsOf(document).map(row => row.cells[0].textContent);
+const cellOf = (row, key) => row.querySelector(`[data-col="${key}"]`);
 const headerNamed = (document, key) => document.querySelector(`#bulkHeadRow th[data-sort="${key}"]`);
 const setValue = (window, element, value) => { element.value = value; element.dispatchEvent(new window.Event('change', { bubbles: true })); };
+const listCalls = page => page.calls.filter(call => isListUrl(call.url));
+const lastListParams = page => new URL(listCalls(page).at(-1).url, 'https://tokosi.example').searchParams;
+const columnKeys = document => [...document.querySelectorAll('#bulkHeadRow th')].map(th => th.dataset.col);
 
 // ---------------------------------------------------------------------------
-// Cot "Gia tri co ban", dong chi co o Kiot, chi doc
+// Cac cot cua don Kiot: Gia tri don, Gia tri co ban, Ghi chu, Trang thai KiotViet
 // ---------------------------------------------------------------------------
 
-test('cột "Giá trị có bán": đơn Phiếu tạm hiện số tiền (₫), đơn khác hiện "—"', async () => {
+test('cột "Giá trị đơn" hiện với MỌI đơn Kiot; "Giá trị có bán" chỉ đơn Phiếu tạm; dòng chỉ có ở Sheet hiện "—"', async () => {
   const page = await renderPage({ orders: [
-    sheetOrder('DH1', { kiotPhieuTam: true, sellableValue: 21750000, orderTotal: 32000000 }),
-    sheetOrder('DH2'),
-    kiotOnlyOrder('DH3', { sellableValue: 0 })
+    kiotOnlyOrder('A', { orderDate: '03/10/2026 10:00', sellableValue: 21750000, orderTotal: 32000000 }),
+    kiotOnlyOrder('B', { orderDate: '02/10/2026 10:00', kiotStatus: 'Hoàn thành', sellableValue: null, orderTotal: 5000000 }),
+    kiotOnlyOrder('C', { orderDate: '01/10/2026 10:00', sellableValue: 0, orderTotal: 2000000 }),
+    sheetOrder('D')
   ] });
-  const cells = rowsOf(page.document).map(row => row.cells[5].textContent);
-  assert.equal(cells[0], '21.750.000₫');
-  assert.equal(cells[1], '—', 'don khong con Phieu tam');
-  assert.equal(cells[2], '0₫', 'Phieu tam co gia tri co ban = 0 van hien 0₫ (khac voi "khong co gia tri")');
-  // Cot "Gia tri don" (ngay truoc "Gia tri co ban") = tong tien phieu tren Kiot.
-  const totals = rowsOf(page.document).map(row => row.cells[4].textContent);
-  assert.equal(totals[0], '32.000.000₫');
-  assert.equal(totals[1], '—', 'don khong con Phieu tam');
-  assert.equal(totals[2], '2.000.000₫', 'don chi co o Kiot (fixture orderTotal 2.000.000)');
+  const rows = rowsOf(page.document); // mac dinh: don moi dat nhat truoc, dong khong co ngay dat cuoi cung
+  assert.deepEqual(codesOf(page.document), ['A', 'B', 'C', 'D']);
+  assert.deepEqual(rows.map(row => cellOf(row, 'sellableValue').textContent), ['21.750.000₫', '—', '0₫', '—'],
+    'chi Phieu tam co gia tri co ban; Phieu tam co gia tri 0 van hien 0₫ (khac "khong co gia tri")');
+  assert.deepEqual(rows.map(row => cellOf(row, 'orderTotal').textContent), ['32.000.000₫', '5.000.000₫', '2.000.000₫', '—'],
+    'don Hoan thanh van co Gia tri don; dong chi co o Sheet thi khong');
+  page.dom.window.close();
+});
+
+test('cột "Trạng thái KiotViet": badge theo trạng thái, dòng không có đơn Kiot hiện "—"', async () => {
+  const page = await renderPage({ orders: [
+    kiotOnlyOrder('A', { kiotStatus: 'Phiếu tạm', orderDate: '04/10/2026 10:00' }),
+    kiotOnlyOrder('B', { kiotStatus: 'Hoàn thành', orderDate: '03/10/2026 10:00' }),
+    kiotOnlyOrder('C', { kiotStatus: 'Đã hủy', orderDate: '02/10/2026 10:00' }),
+    sheetOrder('D')
+  ] });
+  const cells = rowsOf(page.document).map(row => cellOf(row, 'kiotStatus'));
+  assert.deepEqual(cells.map(cell => cell.textContent), ['Phiếu tạm', 'Hoàn thành', 'Đã hủy', '—']);
+  assert.ok(cells[0].querySelector('.lc-badge.badge-sent'));
+  assert.ok(cells[1].querySelector('.lc-badge.badge-delivered'));
+  assert.ok(cells[2].querySelector('.lc-badge.badge-cancelled'));
+  assert.equal(cells[3].querySelector('.lc-badge'), null);
+  page.dom.window.close();
+});
+
+test('cột "Ghi chú" nằm ngay bên phải "Giá trị có bán": hiện ghi chú của đơn Kiot (tooltip đủ nội dung), trống hiện "—"; nội dung được thoát HTML', async () => {
+  const page = await renderPage({ orders: [
+    kiotOnlyOrder('A', { orderDate: '03/10/2026 10:00', note: 'Giao sớm\ngọi chị Hằng <b>0989</b>' }),
+    kiotOnlyOrder('B', { orderDate: '02/10/2026 10:00', note: '' })
+  ] });
+  const keys = columnKeys(page.document);
+  assert.equal(keys.indexOf('note'), keys.indexOf('sellableValue') + 1);
+  const [a, b] = rowsOf(page.document).map(row => cellOf(row, 'note'));
+  assert.equal(a.textContent, 'Giao sớm\ngọi chị Hằng <b>0989</b>', 'chu <b> hien nguyen van, khong thanh the HTML');
+  assert.equal(a.querySelector('b'), null);
+  assert.equal(a.querySelector('.lc-note-text').getAttribute('title'), 'Giao sớm\ngọi chị Hằng <b>0989</b>');
+  assert.equal(b.textContent, '—');
   page.dom.window.close();
 });
 
 test('đơn chỉ có ở Kiot: nhãn "Đơn chưa gửi kế toán", mốc rỗng "—"; Quản lý (được ghi đè) KHÔNG có ô chọn trạng thái cho đơn Kiot, nhưng vẫn có cho dòng sheet', async () => {
-  const page = await renderPage({ orders: [sheetOrder('DH1'), kiotOnlyOrder('DH2')] });
+  const page = await renderPage({ orders: [sheetOrder('DH1', { orderDate: '03/10/2026 08:00' }), kiotOnlyOrder('DH2')] });
   const [sheetRow, kiotRow] = rowsOf(page.document);
   assert.ok(sheetRow.querySelector('select.status-select'), 'dong sheet: o chon trang thai (ghi de)');
   assert.equal(kiotRow.querySelector('select'), null, 'don Kiot chua co dong trong Sheet: ghi de se 404 nen khong hien o chon');
-  assert.equal(kiotRow.cells[7].textContent.trim(), 'Đơn chưa gửi kế toán');
-  assert.ok(kiotRow.cells[7].querySelector('.lc-badge.badge-not-sent'));
-  assert.equal(kiotRow.cells[6].textContent, '—', 'Sale ra don trong');
-  assert.equal(kiotRow.cells[8].textContent, '—', 'Cap nhat gan nhat trong');
-  assert.equal(kiotRow.cells[9].textContent, '', 'khong canh bao');
+  assert.equal(cellOf(kiotRow, 'status').textContent.trim(), 'Đơn chưa gửi kế toán');
+  assert.ok(cellOf(kiotRow, 'status').querySelector('.lc-badge.badge-not-sent'));
+  assert.equal(cellOf(kiotRow, 'saleSentAt').textContent, '—', 'Sale ra don trong');
+  assert.equal(cellOf(kiotRow, 'at').textContent, '—', 'Cap nhat gan nhat trong');
+  assert.equal(cellOf(kiotRow, 'warning').textContent, '', 'khong canh bao');
   page.dom.window.close();
 });
 
 test('khóa dòng theo CƠ SỞ + MÃ: cùng mã DH ở HN và SG đều hiện (không bị gộp thành 1 dòng)', async () => {
   const page = await renderPage({ orders: [
     sheetOrder('DH018717', { branch: 'HN' }),
-    kiotOnlyOrder('DH018717', { branch: 'SG' }),
-    kiotOnlyOrder('DH018717', { branch: 'HN', saleName: 'Khong trung' }) // gia lap trung hoan toan: key trung -> chi 1 dong
+    kiotOnlyOrder('DH018717', { branch: 'SG' })
   ] });
-  // Hai dong dau khac co so => 2 dong; dong thu 3 trung (HN + ma) voi dong 1 => hop nhat vao cung khoa DOM.
   assert.equal(rowsOf(page.document).length, 2);
   page.dom.window.close();
 });
@@ -130,7 +164,7 @@ test('banner cảnh báo khi nguồn Kiot lỗi (kiot.ok=false); không hiện k
   const failed = await renderPage({ orders: [sheetOrder('DH1')], kiot: { ok: false, stale: false, fetchedAt: null, count: 0 } });
   const notice = failed.document.getElementById('lcKiotNotice');
   assert.equal(notice.hidden, false);
-  assert.match(notice.textContent, /Chưa lấy được đơn Phiếu tạm từ Kiot/);
+  assert.match(notice.textContent, /Chưa lấy được đơn từ Kiot/);
   failed.dom.window.close();
 
   const stale = await renderPage({ orders: [sheetOrder('DH1')], kiot: { ok: true, stale: true, fetchedAt: null, count: 1 } });
@@ -144,8 +178,169 @@ test('banner cảnh báo khi nguồn Kiot lỗi (kiot.ok=false); không hiện k
 });
 
 // ---------------------------------------------------------------------------
-// Sap xep / loc theo gia tri co ban (SO) va ngay dat hang (THOI GIAN THAT)
+// Bo loc "Trang thai KiotViet" (mac dinh Tat ca) — ket hop voi bo loc trang thai chinh
 // ---------------------------------------------------------------------------
+
+const MIXED = () => [
+  kiotOnlyOrder('P1', { orderDate: '05/10/2026 10:00', kiotStatus: 'Phiếu tạm' }),
+  kiotOnlyOrder('H1', { orderDate: '04/10/2026 10:00', kiotStatus: 'Hoàn thành', sellableValue: null }),
+  kiotOnlyOrder('P2', { orderDate: '03/10/2026 10:00', kiotStatus: 'Phiếu tạm' }),
+  kiotOnlyOrder('X1', { orderDate: '02/10/2026 10:00', kiotStatus: 'Đã hủy', sellableValue: null }),
+  kiotOnlyOrder('H2', { orderDate: '01/10/2026 10:00', kiotStatus: 'Hoàn thành', sellableValue: null,
+    summary: { code: 'DELIVERING', label: 'Đơn đang được giao', at: '02/10/2026 09:00' } })
+];
+
+test('bộ lọc "Trạng thái KiotViet": mặc định Tất cả (không gửi tham số); luôn đủ 5 trạng thái của Kiot (kể cả khi dữ liệu chưa có đơn nào ở trạng thái đó)', async () => {
+  const page = await renderPage({ orders: MIXED() });
+  const select = page.document.getElementById('bulkKiotStatusFilter');
+  assert.deepEqual([...select.options].map(option => option.value), ['', 'Phiếu tạm', 'Đã xác nhận', 'Đang giao hàng', 'Hoàn thành', 'Đã hủy']);
+  assert.equal([...select.options][0].textContent, 'Tất cả');
+  assert.equal(select.value, '', 'mac dinh Tat ca');
+  assert.equal(lastListParams(page).has('kiotStatus'), false);
+  assert.deepEqual(codesOf(page.document), ['P1', 'H1', 'P2', 'X1', 'H2'], 'mac dinh thay MOI trang thai, ke ca hoan thanh / da huy');
+  page.dom.window.close();
+});
+
+test('chọn "Trạng thái KiotViet": gửi kiotStatus lên máy chủ, chỉ còn đơn đó, đếm "đã lọc / tổng"; chọn lại Tất cả thì đủ đơn', async () => {
+  const page = await renderPage({ orders: MIXED() });
+  const { window, document } = page;
+  const select = document.getElementById('bulkKiotStatusFilter');
+
+  setValue(window, select, 'Hoàn thành');
+  await settle();
+  assert.equal(lastListParams(page).get('kiotStatus'), 'Hoàn thành');
+  assert.deepEqual(codesOf(document), ['H1', 'H2']);
+  assert.equal(document.getElementById('bulkCount').textContent, '2 / 5 đơn');
+  assert.deepEqual([...select.options].map(option => option.value), ['', 'Phiếu tạm', 'Đã xác nhận', 'Đang giao hàng', 'Hoàn thành', 'Đã hủy'], 'danh sach trang thai khong co lai sau khi loc');
+  assert.equal(select.value, 'Hoàn thành');
+
+  setValue(window, select, '');
+  await settle();
+  assert.equal(codesOf(document).length, 5);
+  assert.equal(lastListParams(page).has('kiotStatus'), false);
+  page.dom.window.close();
+});
+
+test('bộ lọc trạng thái chính vẫn dùng được và kết hợp với Trạng thái KiotViet', async () => {
+  const page = await renderPage({ orders: MIXED() });
+  const { window, document } = page;
+  setValue(window, document.getElementById('bulkStatusFilter'), 'DELIVERING');
+  await settle();
+  assert.equal(lastListParams(page).get('status'), 'DELIVERING');
+  assert.deepEqual(codesOf(document), ['H2']);
+
+  setValue(window, document.getElementById('bulkKiotStatusFilter'), 'Phiếu tạm');
+  await settle();
+  assert.deepEqual(codesOf(document), [], 'DELIVERING + Phieu tam khong co don nao');
+  assert.equal(document.getElementById('bulkEmpty').hidden, false);
+  page.dom.window.close();
+});
+
+// ---------------------------------------------------------------------------
+// Hop "Cot hien thi" — tick an/hien cot
+// ---------------------------------------------------------------------------
+
+const ALL_COLUMNS = ['orderCode', 'orderDate', 'saleName', 'customerName', 'orderTotal', 'sellableValue', 'note', 'saleSentAt', 'kiotStatus', 'status', 'at', 'warning'];
+
+test('mặc định hiện hết các cột (Ghi chú ngay sau Giá trị có bán); ô dữ liệu cùng thứ tự với tiêu đề', async () => {
+  const page = await renderPage({ orders: [kiotOnlyOrder('A')] });
+  assert.deepEqual(columnKeys(page.document), ALL_COLUMNS);
+  assert.deepEqual([...rowsOf(page.document)[0].cells].map(td => td.dataset.col), ALL_COLUMNS);
+  assert.equal(page.document.getElementById('bulkTable').dataset.hiddenCols, '');
+  assert.equal(page.document.getElementById('bulkColumnStyle').textContent, '');
+  assert.equal(page.document.getElementById('lcColumnsOverlay').hidden, true);
+  page.dom.window.close();
+});
+
+test('hộp "Cột hiển thị": mở bằng nút, mỗi cột 1 ô tick (đang tick hết), "Mã đơn" luôn hiện (khóa)', async () => {
+  const page = await renderPage({ orders: [kiotOnlyOrder('A')] });
+  const { document } = page;
+  document.getElementById('bulkColumnsBtn').click();
+  assert.equal(document.getElementById('lcColumnsOverlay').hidden, false);
+  const inputs = [...document.querySelectorAll('#lcColumnsList input[type="checkbox"]')];
+  assert.deepEqual(inputs.map(input => input.dataset.colKey), ALL_COLUMNS);
+  assert.ok(inputs.every(input => input.checked));
+  assert.deepEqual(inputs.filter(input => input.disabled).map(input => input.dataset.colKey), ['orderCode']);
+  const labels = [...document.querySelectorAll('#lcColumnsList .lc-col-label')].map(el => el.textContent);
+  assert.ok(labels.includes('Ghi chú') && labels.includes('Trạng thái KiotViet'));
+
+  document.getElementById('lcColumnsClose').click();
+  assert.equal(document.getElementById('lcColumnsOverlay').hidden, true);
+  page.dom.window.close();
+});
+
+test('bỏ tick một cột: ẩn cả tiêu đề lẫn ô (kể cả dòng mới sau khi đổi trang), nhớ lựa chọn; tick lại thì hiện', async () => {
+  const orders = Array.from({ length: 150 }, (_, i) => kiotOnlyOrder('DH' + String(i + 1).padStart(4, '0'), { note: 'ghi chu ' + i }));
+  const page = await renderPage({ orders });
+  const { window, document } = page;
+  document.getElementById('bulkColumnsBtn').click();
+  const noteInput = document.querySelector('#lcColumnsList input[data-col-key="note"]');
+  noteInput.checked = false;
+  noteInput.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+  const table = document.getElementById('bulkTable');
+  assert.equal(table.dataset.hiddenCols, 'note');
+  assert.match(document.getElementById('bulkColumnStyle').textContent, /#bulkTable \[data-col="note"\]\s*\{\s*display:\s*none/);
+  assert.equal(window.getComputedStyle(table.querySelector('th[data-col="note"]')).display, 'none');
+  assert.equal(window.getComputedStyle(cellOf(rowsOf(document)[0], 'note')).display, 'none');
+  assert.notEqual(window.getComputedStyle(cellOf(rowsOf(document)[0], 'orderCode')).display, 'none');
+  assert.equal(window.localStorage.getItem('tks-lifecycle-hidden-columns'), '["note"]');
+
+  document.getElementById('bulkNextPage').click(); // dong cua trang sau cung bi an cot nay
+  await settle();
+  assert.equal(window.getComputedStyle(cellOf(rowsOf(document)[0], 'note')).display, 'none');
+
+  noteInput.checked = true;
+  noteInput.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(table.dataset.hiddenCols, '');
+  assert.notEqual(window.getComputedStyle(table.querySelector('th[data-col="note"]')).display, 'none');
+  assert.equal(window.localStorage.getItem('tks-lifecycle-hidden-columns'), '[]');
+  page.dom.window.close();
+});
+
+test('"Bỏ chọn" ẩn mọi cột trừ Mã đơn; "Chọn tất cả" hiện lại hết', async () => {
+  const page = await renderPage({ orders: [kiotOnlyOrder('A')] });
+  const { document } = page;
+  document.getElementById('bulkColumnsBtn').click();
+  document.getElementById('lcColumnsHideAll').click();
+  assert.equal(document.getElementById('bulkTable').dataset.hiddenCols, ALL_COLUMNS.slice(1).join(','));
+  const inputs = [...document.querySelectorAll('#lcColumnsList input')];
+  assert.equal(inputs.filter(input => input.checked).length, 1);
+  assert.equal(inputs.find(input => input.checked).dataset.colKey, 'orderCode');
+
+  document.getElementById('lcColumnsShowAll').click();
+  assert.equal(document.getElementById('bulkTable').dataset.hiddenCols, '');
+  assert.ok([...document.querySelectorAll('#lcColumnsList input')].every(input => input.checked));
+  page.dom.window.close();
+});
+
+test('lựa chọn cột được nhớ trong trình duyệt: mở lại trang vẫn ẩn các cột đã bỏ; khóa lạ / cột Mã đơn trong dữ liệu cũ bị bỏ qua', async () => {
+  const page = await renderPage({ orders: [kiotOnlyOrder('A')], hiddenColumns: ['at', 'note', 'orderCode', 'khong-co-cot-nay'] });
+  assert.equal(page.document.getElementById('bulkTable').dataset.hiddenCols, 'note,at');
+  const { document } = page;
+  document.getElementById('bulkColumnsBtn').click();
+  const unchecked = [...document.querySelectorAll('#lcColumnsList input')].filter(input => !input.checked).map(input => input.dataset.colKey);
+  assert.deepEqual(unchecked, ['note', 'at']);
+  page.dom.window.close();
+});
+
+// ---------------------------------------------------------------------------
+// Sap xep / loc (do may chu) theo gia tri co ban (SO) va ngay dat hang (THOI GIAN THAT)
+// ---------------------------------------------------------------------------
+
+test('mặc định sắp theo "Thời gian đặt hàng" mới nhất trước (tiêu đề cột báo ▼, không gửi tham số sort)', async () => {
+  const page = await renderPage({ orders: [
+    kiotOnlyOrder('CU', { orderDate: '30/09/2026 23:30' }),
+    kiotOnlyOrder('MOI', { orderDate: '05/01/2027 09:00' }),
+    kiotOnlyOrder('GIUA', { orderDate: '01/10/2026 07:00' })
+  ] });
+  assert.deepEqual(codesOf(page.document), ['MOI', 'GIUA', 'CU'], 'theo thoi gian that, khong theo chuoi dd/MM/yyyy');
+  assert.equal(lastListParams(page).has('sort'), false);
+  const header = headerNamed(page.document, 'orderDate');
+  assert.ok(header.classList.contains('sort-active'));
+  assert.equal(header.querySelector('.sort-ind').textContent, '▼');
+  page.dom.window.close();
+});
 
 test('sắp xếp cột "Giá trị có bán" theo SỐ (không theo chuỗi); đơn không có giá trị luôn cuối', async () => {
   const page = await renderPage({ orders: [
@@ -156,9 +351,36 @@ test('sắp xếp cột "Giá trị có bán" theo SỐ (không theo chuỗi); �
   ] });
   const header = headerNamed(page.document, 'sellableValue');
   header.click();
+  await settle();
+  assert.equal(lastListParams(page).get('sort'), 'sellableValue');
+  assert.equal(lastListParams(page).get('dir'), 'asc');
   assert.deepEqual(codesOf(page.document), ['D', 'A', 'B', 'C'], 'tang dan theo so, khong co gia tri cuoi');
   header.click();
+  await settle();
+  assert.equal(lastListParams(page).get('dir'), 'desc');
   assert.deepEqual(codesOf(page.document), ['B', 'A', 'D', 'C'], 'giam dan, khong co gia tri VAN cuoi');
+  page.dom.window.close();
+});
+
+test('sắp xếp theo "Trạng thái KiotViet" và "Ghi chú"; lần thứ ba bỏ sắp xếp về mặc định', async () => {
+  const page = await renderPage({ orders: [
+    kiotOnlyOrder('A', { orderDate: '03/10/2026 10:00', kiotStatus: 'Hoàn thành', note: 'beta' }),
+    kiotOnlyOrder('B', { orderDate: '02/10/2026 10:00', kiotStatus: 'Phiếu tạm', note: 'alpha' }),
+    kiotOnlyOrder('C', { orderDate: '01/10/2026 10:00', kiotStatus: 'Đã hủy', note: '' })
+  ] });
+  const { document } = page;
+  headerNamed(document, 'note').click();
+  await settle();
+  assert.deepEqual(codesOf(document), ['B', 'A', 'C'], 'ghi chu A-Z, ghi chu trong luon cuoi');
+  headerNamed(document, 'kiotStatus').click();
+  await settle();
+  assert.deepEqual(codesOf(document), ['C', 'A', 'B'], 'Da huy < Hoan thanh < Phieu tam (A-Z khong dau)');
+  headerNamed(document, 'kiotStatus').click();
+  headerNamed(document, 'kiotStatus').click(); // lan thu ba: bo sap xep
+  await settle();
+  assert.equal(lastListParams(page).has('sort'), false);
+  assert.deepEqual(codesOf(document), ['A', 'B', 'C'], 've mac dinh: don moi dat nhat truoc');
+  assert.ok(headerNamed(document, 'orderDate').classList.contains('sort-active'));
   page.dom.window.close();
 });
 
@@ -173,14 +395,17 @@ test('lọc thời gian theo "Ngày đặt hàng (Kiot)" đúng thời gian th�
   setValue(window, document.getElementById('bulkDateField'), 'orderDate');
   setValue(window, document.getElementById('bulkDateFrom'), '2026-10-01');
   setValue(window, document.getElementById('bulkDateTo'), '2026-10-01');
+  await settle();
   assert.deepEqual(codesOf(document), ['DB']);
+  assert.equal(lastListParams(page).get('dateField'), 'orderDate');
   setValue(window, document.getElementById('bulkDateTo'), '2027-01-05');
-  assert.deepEqual(codesOf(document), ['DB', 'DC']);
+  await settle();
+  assert.deepEqual(codesOf(document), ['DC', 'DB']);
   page.dom.window.close();
 });
 
 // ---------------------------------------------------------------------------
-// Phan trang 100 dong/trang — sap xep TOAN BO danh sach truoc khi cat trang
+// Phan trang 100 dong/trang (may chu cat trang) — sap xep TOAN BO danh sach truoc khi cat trang
 // ---------------------------------------------------------------------------
 
 function manyOrders(count) {
@@ -194,10 +419,12 @@ function manyOrders(count) {
   });
 }
 
-test('phân trang 100 dòng/trang: nhãn "Trang 1/3", nút trang đầu/trước bị khóa ở trang 1, đếm theo tổng số đơn', async () => {
+test('phân trang 100 dòng/trang: nhãn "Trang 1/3", nút trang đầu/trước bị khóa ở trang 1, đếm theo tổng số đơn; trình duyệt chỉ nhận 1 trang', async () => {
   const page = await renderPage({ orders: manyOrders(250) });
   const { document } = page;
   assert.equal(rowsOf(document).length, 100);
+  assert.equal(lastListParams(page).get('page'), '1');
+  assert.equal(lastListParams(page).get('pageSize'), '100');
   assert.equal(document.getElementById('bulkPagination').hidden, false);
   assert.equal(document.getElementById('bulkPageLabel').textContent, 'Trang 1/3');
   assert.equal(document.getElementById('bulkFirstPage').disabled, true);
@@ -207,19 +434,24 @@ test('phân trang 100 dòng/trang: nhãn "Trang 1/3", nút trang đầu/trước
   assert.equal(codesOf(document)[0], 'DH0001');
 
   document.getElementById('bulkNextPage').click();
+  await settle();
+  assert.equal(lastListParams(page).get('page'), '2');
   assert.equal(document.getElementById('bulkPageLabel').textContent, 'Trang 2/3');
   assert.equal(codesOf(document)[0], 'DH0101');
   assert.equal(codesOf(document).length, 100);
 
   document.getElementById('bulkLastPage').click();
+  await settle();
   assert.equal(document.getElementById('bulkPageLabel').textContent, 'Trang 3/3');
   assert.equal(rowsOf(document).length, 50);
   assert.equal(document.getElementById('bulkNextPage').disabled, true);
   assert.equal(document.getElementById('bulkLastPage').disabled, true);
 
   document.getElementById('bulkPrevPage').click();
+  await settle();
   assert.equal(document.getElementById('bulkPageLabel').textContent, 'Trang 2/3');
   document.getElementById('bulkFirstPage').click();
+  await settle();
   assert.equal(document.getElementById('bulkPageLabel').textContent, 'Trang 1/3');
   page.dom.window.close();
 });
@@ -228,6 +460,13 @@ test('dưới 100 đơn: không hiện thanh phân trang', async () => {
   const page = await renderPage({ orders: manyOrders(40) });
   assert.equal(page.document.getElementById('bulkPagination').hidden, true);
   assert.equal(rowsOf(page.document).length, 40);
+  page.dom.window.close();
+});
+
+test('số đơn lớn hiển thị có dấu chấm ngăn cách nghìn', async () => {
+  const page = await renderPage({ orders: manyOrders(1250) });
+  assert.equal(page.document.getElementById('bulkCount').textContent, '1.250 đơn');
+  assert.equal(page.document.getElementById('bulkPageLabel').textContent, 'Trang 1/13');
   page.dom.window.close();
 });
 
@@ -241,9 +480,11 @@ test('sắp xếp cột thời gian áp cho TOÀN BỘ bảng, không chỉ tran
   ), orders[0]);
 
   document.getElementById('bulkLastPage').click(); // dang o trang 3
+  await settle();
   assert.equal(document.getElementById('bulkPageLabel').textContent, 'Trang 3/3');
 
   headerNamed(document, 'saleSentAt').click(); // tang dan
+  await settle();
   assert.equal(document.getElementById('bulkPageLabel').textContent, 'Trang 1/3', 'doi sap xep ve trang 1');
   assert.equal(codesOf(document)[0], earliest.orderCode, 'dong som nhat (von o trang cuoi) len dau trang 1');
 
@@ -254,7 +495,7 @@ test('sắp xếp cột thời gian áp cho TOÀN BỘ bảng, không chỉ tran
   };
   const collected = [];
   for (let p = 1; p <= 3; p++) {
-    if (p > 1) document.getElementById('bulkNextPage').click();
+    if (p > 1) { document.getElementById('bulkNextPage').click(); await settle(); }
     collected.push(...codesOf(document));
   }
   assert.equal(collected.length, 250);
@@ -270,40 +511,63 @@ test('đổi bộ lọc/tìm kiếm về trang 1; số đơn hiển thị là "�
   const page = await renderPage({ orders });
   const { window, document } = page;
   document.getElementById('bulkNextPage').click();
+  await settle();
   assert.equal(document.getElementById('bulkPageLabel').textContent, 'Trang 2/3');
 
   const input = document.getElementById('bulkSearchInput');
   input.value = 'khac-tim';
   document.getElementById('bulkSearchForm').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  assert.equal(lastListParams(page).get('q'), 'khac-tim');
+  assert.equal(lastListParams(page).get('mode'), 'code');
   assert.deepEqual(codesOf(document), ['KHAC-TIM-THAY']);
   assert.equal(document.getElementById('bulkPagination').hidden, true);
   assert.equal(document.getElementById('bulkCount').textContent, '1 / 250 đơn');
   page.dom.window.close();
 });
 
+test('tìm theo tên sale / khách: đổi kiểu tìm gửi mode tương ứng (chỉ khi có chữ đang nhập)', async () => {
+  const page = await renderPage({ orders: [
+    sheetOrder('A', { saleName: 'Nguyễn Văn An', customerName: 'Cửa hàng Hoa' }),
+    sheetOrder('B', { saleName: 'Trần Thị Bình', customerName: 'Cửa hàng An Phát' })
+  ] });
+  const { window, document } = page;
+  const before = listCalls(page).length;
+  document.querySelector('#bulkSearchModes [data-mode="sale"]').click();
+  await settle();
+  assert.equal(listCalls(page).length, before, 'o tim kiem rong: doi kieu khong goi lai may chu');
+
+  document.getElementById('bulkSearchInput').value = 'nguyen van an'; // khong dau cung khop
+  document.querySelector('#bulkSearchModes [data-mode="customer"]').click();
+  await settle();
+  assert.equal(lastListParams(page).get('mode'), 'customer');
+  assert.deepEqual(codesOf(document), [], 'khong co khach ten "nguyen van an"');
+  document.querySelector('#bulkSearchModes [data-mode="sale"]').click();
+  await settle();
+  assert.deepEqual(codesOf(document), ['A']);
+  assert.ok(window);
+  page.dom.window.close();
+});
+
 test('tự làm mới (silent) giữ nguyên trang đang xem; kẹp lại nếu số trang giảm', async () => {
-  const state = { orders: manyOrders(250) };
-  const page = await renderPage({
-    orders: state.orders,
-    fetchImpl: url => (url === '/api/shipment/lifecycle'
-      ? { ok: true, status: 200, json: async () => ({ orders: state.orders, kiot: { ok: true } }) }
-      : null)
-  });
+  const page = await renderPage({ orders: manyOrders(250) });
   const { window, document } = page;
   document.getElementById('bulkNextPage').click();
+  await settle();
   assert.equal(document.getElementById('bulkPageLabel').textContent, 'Trang 2/3');
 
   // Mo phong lan tu lam moi 60s (visibilitychange kich hoat loadBulkOrders(true)) — du lieu van 250 dong.
   window.eval('loadBulkOrders(true)');
   await settle();
   assert.equal(document.getElementById('bulkPageLabel').textContent, 'Trang 2/3', 'giu trang');
+  assert.equal(lastListParams(page).get('page'), '2');
 
-  state.orders = manyOrders(120); // con 2 trang -> trang hien tai van hop le
+  page.source.orders = manyOrders(120); // con 2 trang -> trang hien tai van hop le
   window.eval('loadBulkOrders(true)');
   await settle();
   assert.equal(document.getElementById('bulkPageLabel').textContent, 'Trang 2/2');
 
-  state.orders = manyOrders(30); // con 1 trang -> kep ve trang 1
+  page.source.orders = manyOrders(30); // con 1 trang -> may chu kep ve trang 1
   window.eval('loadBulkOrders(true)');
   await settle();
   assert.equal(document.getElementById('bulkPagination').hidden, true);
@@ -311,27 +575,75 @@ test('tự làm mới (silent) giữ nguyên trang đang xem; kẹp lại nếu 
   page.dom.window.close();
 });
 
-test('xuất Excel gửi mã của TẤT CẢ dòng đã lọc (mọi trang), theo đúng thứ tự đang sắp xếp', async () => {
-  const orders = manyOrders(250);
-  let exportBody = null;
+test('đổi bộ lọc liên tiếp: chỉ phản hồi của lần gọi MỚI NHẤT được hiển thị (phản hồi cũ đến muộn bị bỏ)', async () => {
+  const pending = [];
+  const orders = MIXED();
   const page = await renderPage({
     orders,
+    fetchImpl: url => (isListUrl(url)
+      ? new Promise(resolve => pending.push({ url, resolve }))
+      : null)
+  });
+  // Lan tai dau tien chua tra ve; nguoi dung da kip loc theo trang thai "Dang duoc giao".
+  assert.equal(pending.length, 1);
+  setValue(page.window, page.document.getElementById('bulkStatusFilter'), 'DELIVERING');
+  assert.equal(pending.length, 2);
+  const answer = ({ url, resolve }) => {
+    const body = lifecycleResponse(url, orders, { ok: true });
+    resolve({ ok: true, status: 200, json: async () => body });
+  };
+  answer(pending[1]); // moi nhat ve truoc
+  await settle();
+  assert.deepEqual(codesOf(page.document), ['H2']);
+  answer(pending[0]); // cu ve sau — khong duoc de len
+  await settle();
+  assert.deepEqual(codesOf(page.document), ['H2']);
+  page.dom.window.close();
+});
+
+// ---------------------------------------------------------------------------
+// Xuat Excel: gui BO LOC dang ap dung; chi Quan ly (quyen shipment.export) thay nut
+// ---------------------------------------------------------------------------
+
+test('xuất Excel gửi BỘ LỌC + cách sắp xếp đang áp dụng (không gửi danh sách mã, không gửi trang)', async () => {
+  let exportBody = null;
+  const page = await renderPage({
+    orders: MIXED(),
     fetchImpl: (url, options, window) => {
       if (!url.endsWith('/export')) return null;
       exportBody = JSON.parse(options.body);
       return { ok: true, status: 200, headers: { get: () => 'attachment; filename="x.xlsx"' }, blob: async () => new window.Blob(['x']) };
     }
   });
-  const { document } = page;
+  const { window, document } = page;
+  setValue(window, document.getElementById('bulkKiotStatusFilter'), 'Hoàn thành');
+  await settle();
   headerNamed(document, 'orderCode').click(); // A-Z
   headerNamed(document, 'orderCode').click(); // Z-A
-  assert.equal(codesOf(document)[0], 'DH0250');
+  await settle();
   document.getElementById('bulkExportBtn').click();
   await settle();
-  assert.equal(exportBody.codes.length, 250, 'khong chi 100 dong cua trang hien tai');
-  assert.equal(exportBody.codes[0], 'DH0250');
-  assert.equal(exportBody.codes[249], 'DH0001');
+  assert.deepEqual(exportBody, { kiotStatus: 'Hoàn thành', sort: 'orderCode', dir: 'desc' });
+  assert.equal('codes' in exportBody, false);
+  assert.equal('page' in exportBody, false);
   page.dom.window.close();
+});
+
+test('nút Xuất Excel: Quản lý thấy; vai trò khác (kể cả Trợ lý, Kế toán) KHÔNG thấy; bảng không có dòng thì nút bị khóa', async () => {
+  const manager = await renderPage({ orders: [kiotOnlyOrder('A')], vaiTro: 'Quản lý' });
+  assert.equal(manager.document.getElementById('bulkExportBtn').hidden, false);
+  assert.equal(manager.document.getElementById('bulkExportBtn').disabled, false);
+  manager.dom.window.close();
+
+  for (const vaiTro of ['Kế toán', 'Trợ lý', 'Nhân viên sale', 'Trưởng kho']) {
+    const other = await renderPage({ orders: [kiotOnlyOrder('A')], vaiTro });
+    assert.equal(other.document.getElementById('bulkExportBtn').hidden, true, vaiTro);
+    other.dom.window.close();
+  }
+
+  const empty = await renderPage({ orders: [], vaiTro: 'Quản lý' });
+  assert.equal(empty.document.getElementById('bulkExportBtn').disabled, true);
+  empty.dom.window.close();
 });
 
 // ---------------------------------------------------------------------------
@@ -342,7 +654,8 @@ function kiotDetail(overrides = {}) {
   return {
     code: 'DH041173', branch: 'HN', date: '01/10/2026 13:14', status: 'Phiếu tạm', total: 855000, phieuTam: true, sellableValue: 550000,
     lines: [
-      { productCode: 'A', productName: 'Hàng A', quantity: 500, price: 1000, discount: 0, amount: 500000, isService: false, onHand: 40, inTransit: 160, sellableQty: 200, sellableAmount: 200000 },
+      // SL dat 500, ton 40 -> co ban 40 (cong thuc moi min(SL dat, ton kho)); hang dieu chuyen SG 160 chi de tham khao.
+      { productCode: 'A', productName: 'Hàng A', quantity: 500, price: 1000, discount: 0, amount: 500000, isService: false, onHand: 40, inTransit: 160, sellableQty: 40, sellableAmount: 40000 },
       { productCode: 'B', productName: 'Hàng B', quantity: 70, price: 5000, discount: 0, amount: 350000, isService: false, onHand: 800, inTransit: 0, sellableQty: 70, sellableAmount: 350000 },
       { productCode: 'VATDA44', productName: 'VAT', quantity: 1, price: 5000, discount: 0, amount: 5000, isService: true, onHand: null, inTransit: null, sellableQty: null, sellableAmount: null }
     ],
@@ -350,7 +663,7 @@ function kiotDetail(overrides = {}) {
   };
 }
 
-test('bấm dòng: mở hộp chi tiết, gọi order-detail đúng mã/cơ sở và hiện bảng hàng hóa kèm tồn kho + đang vận chuyển + có bán', async () => {
+test('bấm dòng: mở hộp chi tiết, gọi order-detail đúng mã/cơ sở và hiện bảng hàng hóa kèm tồn kho + Điều chuyển SG + có bán', async () => {
   const page = await renderPage({
     orders: [kiotOnlyOrder('DH041173', { branch: 'HN' })],
     fetchImpl: url => (url.includes('/order-detail')
@@ -367,15 +680,18 @@ test('bấm dòng: mở hộp chi tiết, gọi order-detail đúng mã/cơ sở
   assert.ok(document.querySelector('.lc-detail-dialog').classList.contains('is-wide'));
 
   const headers = [...document.querySelectorAll('.lc-lines thead th')].map(th => th.textContent);
-  assert.deepEqual(headers, ['Mã hàng', 'Tên hàng', 'SL đặt', 'Đơn giá', 'Thành tiền', 'Tồn kho', 'Đang vận chuyển', 'Có bán', 'Thành tiền có bán']);
+  assert.deepEqual(headers, ['Mã hàng', 'Tên hàng', 'SL đặt', 'Đơn giá', 'Thành tiền', 'Tồn kho', 'Điều chuyển SG', 'Có bán', 'Thành tiền có bán']);
+  assert.ok(!headers.includes('Đang vận chuyển'), 'cot da doi ten');
   const rows = [...document.querySelectorAll('.lc-lines tbody tr')].map(tr => [...tr.cells].map(td => td.textContent));
-  assert.deepEqual(rows[0], ['A', 'Hàng A', '500', '1.000₫', '500.000₫', '40', '160', '200', '200.000₫']);
+  assert.deepEqual(rows[0], ['A', 'Hàng A', '500', '1.000₫', '500.000₫', '40', '160', '40', '40.000₫']);
   assert.deepEqual(rows[1], ['B', 'Hàng B', '70', '5.000₫', '350.000₫', '800', '0', '70', '350.000₫']);
   assert.deepEqual(rows[2].slice(5), ['—', '—', '—', '—'], 'dong thue VAT khong co ton/co ban');
   assert.ok(document.querySelectorAll('.lc-lines tbody tr')[2].classList.contains('is-service'));
   const text = document.getElementById('lcDetailBody').textContent;
   assert.match(text, /Giá trị đơn \(Kiot\)855\.000₫/);
   assert.match(text, /Giá trị có bán550\.000₫/);
+  assert.match(text, /min\(số lượng đặt, tồn kho\) × đơn giá/, 'cong thuc moi khong con "+ dang van chuyen"');
+  assert.doesNotMatch(text, /tồn kho \+ đang vận chuyển/);
   assert.match(text, /không tính dòng VAT/);
   page.dom.window.close();
 });
@@ -409,16 +725,25 @@ test('cột "Thời gian đặt hàng" nằm cạnh Mã đơn trên bảng; đơ
   page.dom.window.close();
 });
 
-test('hộp chi tiết của dòng bảng có "Thời gian đặt hàng" ngay sau Mã đơn hàng; tra cứu cho Khách (không có trường này) thì không hiện', async () => {
+test('hộp chi tiết của dòng bảng: "Thời gian đặt hàng" ngay sau Mã đơn, kèm Trạng thái KiotViet và Ghi chú (giữ xuống dòng); tra cứu cho Khách (không có các trường này) thì không hiện', async () => {
   const page = await renderPage({
-    orders: [kiotOnlyOrder('DH1')],
+    orders: [kiotOnlyOrder('DH1', { kiotStatus: 'Hoàn thành', note: 'Dòng 1\nDòng 2' })],
     fetchImpl: url => (url.includes('/order-detail') ? { ok: false, status: 404, json: async () => ({ error: 'x' }) } : null)
   });
   rowsOf(page.document)[0].click();
   const labels = [...page.document.querySelectorAll('#lcDetailBody .lc-detail-label')].map(el => el.textContent);
-  assert.deepEqual(labels.slice(0, 2), ['Mã đơn hàng', 'Thời gian đặt hàng']);
+  assert.deepEqual(labels.slice(0, 5), ['Mã đơn hàng', 'Thời gian đặt hàng', 'Trạng thái KiotViet', 'Nhân viên bán hàng', 'Khách hàng']);
+  assert.equal(labels[5], 'Ghi chú');
   const values = [...page.document.querySelectorAll('#lcDetailBody .lc-detail-value')].map(el => el.textContent);
   assert.equal(values[1], '01/10/2026 13:14');
+  assert.equal(values[2], 'Hoàn thành');
+  assert.equal(values[5], 'Dòng 1\nDòng 2');
+  assert.ok(page.document.querySelectorAll('#lcDetailBody .lc-detail-value')[5].classList.contains('is-note'));
+
+  // Khu A (tra cuu cho Khach): chi tiet khong co orderDate/kiotStatus/note -> cac dong do khong hien.
+  page.window.eval("openDetailModal({ orderCode: 'DH9', saleName: 'S', customerName: 'K' })");
+  const guestLabels = [...page.document.querySelectorAll('#lcDetailBody .lc-detail-label')].map(el => el.textContent);
+  assert.ok(!guestLabels.includes('Ghi chú') && !guestLabels.includes('Trạng thái KiotViet') && !guestLabels.includes('Thời gian đặt hàng'));
   page.dom.window.close();
 });
 
@@ -451,7 +776,7 @@ test('lỗi khác (500/mạng) khi tải chi tiết hàng hóa: hiện thông b�
 test('phản hồi chi tiết đến muộn sau khi đóng hộp / mở đơn khác bị bỏ qua (không chèn nhầm đơn)', async () => {
   const resolvers = [];
   const page = await renderPage({
-    orders: [kiotOnlyOrder('DH1'), kiotOnlyOrder('DH2')],
+    orders: [kiotOnlyOrder('DH1', { orderDate: '02/10/2026 10:00' }), kiotOnlyOrder('DH2', { orderDate: '01/10/2026 10:00' })],
     fetchImpl: url => (url.includes('/order-detail')
       ? new Promise(resolve => resolvers.push(body => resolve({ ok: true, status: 200, json: async () => ({ detail: body }) })))
       : null)
@@ -481,4 +806,13 @@ test('tra cứu 1 đơn (Khu A) và hộp từ tab Lịch sử KHÔNG gọi API 
   await settle();
   assert.equal(page.calls.some(call => call.url.includes('/order-detail')), false);
   page.dom.window.close();
+});
+
+test('ô lọc Trạng thái KiotViet có đủ 5 trạng thái ngay cả khi Kiot lỗi / chưa có đơn; trạng thái lạ từ máy chủ được nối thêm', async () => {
+  const failed = await renderPage({ orders: [sheetOrder('A')], kiot: { ok: false, stale: false, fetchedAt: null, count: 0 } });
+  assert.deepEqual([...failed.document.getElementById('bulkKiotStatusFilter').options].map(o => o.value), ['', 'Phiếu tạm', 'Đã xác nhận', 'Đang giao hàng', 'Hoàn thành', 'Đã hủy']);
+  failed.dom.window.close();
+  const extra = await renderPage({ orders: [kiotOnlyOrder('B', { kiotStatus: 'Trạng thái mới' })] });
+  assert.deepEqual([...extra.document.getElementById('bulkKiotStatusFilter').options].map(o => o.value).slice(-2), ['Đã hủy', 'Trạng thái mới']);
+  extra.dom.window.close();
 });

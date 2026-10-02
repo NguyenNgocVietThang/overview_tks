@@ -48,7 +48,7 @@ function request(query, permissions = ALL_PERMISSIONS) {
   return { query, branch: 'Hà Nội', user: { permissions } };
 }
 
-test('khong co view: ca 6 tab nhu cu (khong truyen options.views), payload duoc cat theo quyen', async () => {
+test('khong co view: ca 5 tab nhu cu (khong truyen options.views), payload duoc cat theo quyen', async () => {
   calls.length = 0;
   const res = fakeRes();
   await dashboardHandler()(request({ days: '30' }, ['reports.invoices']), res);
@@ -118,7 +118,7 @@ test('view sai ten: 400 INVALID_VIEW, khong goi getDashboardData', async () => {
   assert.equal(calls.length, 0);
 });
 
-test('view bo trong hoac chi khoang trang = ca 6 tab', async () => {
+test('view bo trong hoac chi khoang trang = ca 5 tab', async () => {
   calls.length = 0;
   const res = fakeRes();
   await dashboardHandler()(request({ view: ' ' }), res);

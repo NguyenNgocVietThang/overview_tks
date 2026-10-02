@@ -39,11 +39,18 @@ function loadFromDisk() {
         return inMemoryNotifications;
       }
     } catch (err) {
-      console.error('Lỗi khi đọc file notifications.json, khởi tạo lại bộ nhớ:', err.message);
+      console.error('Lỗi khi đọc file notifications.json:', err.message);
+      if (Array.isArray(inMemoryNotifications) && inMemoryNotifications.length > 0) {
+        return inMemoryNotifications;
+      }
     }
   }
-  inMemoryNotifications = [];
-  saveToDisk(inMemoryNotifications);
+  if (!Array.isArray(inMemoryNotifications)) {
+    inMemoryNotifications = [];
+    if (!fs.existsSync(currentStorePath)) {
+      saveToDisk(inMemoryNotifications);
+    }
+  }
   return inMemoryNotifications;
 }
 
@@ -51,15 +58,30 @@ function saveToDisk(notifications) {
   ensureDataDir(currentStorePath);
   const tempPath = `${currentStorePath}.${Date.now()}.${Math.random().toString(36).substring(2, 7)}.tmp`;
   fs.writeFileSync(tempPath, JSON.stringify(notifications, null, 2), 'utf8');
-  try {
-    fs.renameSync(tempPath, currentStorePath);
-  } catch (renameErr) {
+  let renamed = false;
+  let lastErr = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      fs.renameSync(tempPath, currentStorePath);
+      renamed = true;
+      break;
+    } catch (err) {
+      lastErr = err;
+      if (err.code === 'EPERM' || err.code === 'EBUSY' || err.code === 'EACCES') {
+        const sleepEnd = Date.now() + 20 * (attempt + 1);
+        while (Date.now() < sleepEnd) {}
+      } else {
+        break;
+      }
+    }
+  }
+  if (!renamed) {
     try {
       fs.copyFileSync(tempPath, currentStorePath);
       fs.unlinkSync(tempPath);
     } catch (fallbackErr) {
       try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch (_) {}
-      throw renameErr;
+      throw (lastErr || fallbackErr);
     }
   }
   try {

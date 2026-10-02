@@ -156,7 +156,7 @@ test('cảnh báo: "Sale ra đơn" không đọc được thành thời gian th�
   }
 });
 
-test('listAllOrders / exportOrdersByCodes / overrideStatus trả kèm cờ warning', async () => {
+test('listAllOrders / queryOrders / exportOrders / overrideStatus trả kèm cờ warning', async () => {
   const ctx = freshService([
     record({ orderCode: 'HD001', saleSentAt: '01/01/2020 08:00' }), // rất cũ, chưa vận chuyển -> cảnh báo
     record({ orderCode: 'HD002' }) // chưa gửi kế toán -> không cảnh báo
@@ -166,8 +166,11 @@ test('listAllOrders / exportOrdersByCodes / overrideStatus trả kèm cờ warni
     assert.deepEqual(all.map(o => o.warning), [true, false]);
     assert.equal(all[0].saleSentAt, '01/01/2020 08:00');
 
-    const exported = await ctx.service.exportOrdersByCodes(['HD002', 'HD001']);
-    assert.deepEqual(exported.map(o => o.warning), [false, true]);
+    const page = await ctx.service.queryOrders({});
+    assert.deepEqual(page.orders.map(o => [o.orderCode, o.warning]), [['HD001', true], ['HD002', false]]);
+
+    const exported = await ctx.service.exportOrders({ sort: 'orderCode', dir: 'desc' });
+    assert.deepEqual(exported.map(o => [o.orderCode, o.warning]), [['HD002', false], ['HD001', true]]);
 
     const overridden = await ctx.service.overrideStatus('HD001', { code: 'CANCELLED', changedBy: 'A', changedByRole: 'Kế toán' });
     assert.equal(overridden.warning, false);

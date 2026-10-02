@@ -96,7 +96,7 @@ router.use('/api/shipment/lifecycle', requireAuth, orderLifecycleRoutes);
 // Khach chi duoc dung route tra cuu vong doi don hang o tren. Trang tra cuu
 // cong khai cho khach hang (Phase 1) se nam o route rieng, KHONG qua requireAuth.
 const reportsUser = (...features) => [requireAuth, requireFeature(...features), resolveBranch];
-// /api/dashboard va /api/search phuc vu CA 6 tab bao cao nen chi doi hoi "co it
+// /api/dashboard va /api/search phuc vu CA 5 tab bao cao nen chi doi hoi "co it
 // nhat mot quyen reports.*"; phan du lieu cua tung tab duoc cat bot sau do
 // (dashboardPermissionFilter.js). Cac endpoint rieng cua tung tab thi doi hoi
 // dung quyen cua tab do.
@@ -161,7 +161,7 @@ function parseOptionalFilterSpec(query, prefix, legacyDays) {
 
 // ?view=<tab> (overview|products|invoices|customers|debt, co the nhieu
 // tab cach nhau dau phay): CHI doc/tinh/tra phan cua tab do — trang bao cao goi
-// khi nguoi dung mo tung tab (xem dashboardViews.js). Bo trong = ca 6 tab nhu
+// khi nguoi dung mo tung tab (xem dashboardViews.js). Bo trong = ca 5 tab nhu
 // truoc day. Tab tai khoan khong co quyen xem bi bo qua NGAY (khong doc/tinh gi):
 // tra payload rong thay vi 403, giong viec filterDashboardForUser() cat ban day du.
 router.get('/api/dashboard', async (req, res) => {
