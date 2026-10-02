@@ -279,6 +279,7 @@ async function findOrder(orderCode) {
 // ---------------------------------------------------------------------------
 // GOP don Phieu tam cua KiotViet vao bang "Toan bo don hang" (2026-10-01)
 //
+// 2026-10-02: khi doc duoc Kiot, bang CHI con don dang Phieu tam (sheet khong khop bi bo); Sale/Khach lay tu Kiot.
 // Khoa gop = (co so HN/SG, ma don chuan hoa) — cung ma DH ton tai o ca 2 co so (18.222 ma trung
 // ve toan bo lich su vi ca 2 cung dem tu DH000001) nen KHONG duoc khop theo ma don thuan.
 // Dong Google Sheet THANG khi trung (giu nguyen trang thai tu cac moc thoi gian + ghi de); don chi
@@ -315,37 +316,54 @@ function kiotOnlyRecord(kiotOrder) {
  * `kiotResult` = ket qua readPendingOrders() ({ok, orders}); khong ok/khong co thi chi con dong sheet.
  * Thu tu: dong sheet nhu cu, sau do don chi-Kiot (da sap moi nhat truoc boi kiotPendingOrdersRepository).
  */
+/**
+ * Don "chua gui ke toan" chua co moc thoi gian nao (summary.at = null) nen lay THOI GIAN DAT HANG tren Kiot
+ * lam moc "Cap nhat gan nhat" — khong sinh them cot. Don da sang trang thai khac giu nguyen moc cua no.
+ */
+function withOrderDateAsUpdate(row, orderDate) {
+  if (!orderDate || !row.summary || row.summary.code !== STATUS.NOT_SENT || hasValue(row.summary.at)) return row;
+  return Object.assign(row, { summary: Object.assign({}, row.summary, { at: orderDate }) });
+}
+
 function mergeRows({ records, overrides, kiotResult, branchFilter }) {
   const sheetRecords = branchFilter ? records.filter(r => r._branch === branchFilter) : records;
-  const kiotOrders = kiotResult && kiotResult.ok && Array.isArray(kiotResult.orders)
+  const kiotOk = !!(kiotResult && kiotResult.ok && Array.isArray(kiotResult.orders));
+  const kiotOrders = kiotOk
     ? kiotResult.orders.filter(order => !branchFilter || order.branch === branchFilter)
     : [];
   const kiotByKey = new Map(kiotOrders.map(order => [kiotKey(order.branch, order.code), order]));
   const matched = new Set();
 
-  const rows = sheetRecords.map(record => {
-    const row = toOrderRow(record, overrides.get(normalizeCode(record.orderCode)));
+  const rows = [];
+  sheetRecords.forEach(record => {
     const key = kiotKey(record._branch, record.orderCode);
     const kiotOrder = normalizeCode(record.orderCode) ? kiotByKey.get(key) : undefined;
+    // Doc duoc Kiot: bang CHI gom don dang Phieu tam tren Kiot — don sheet khong con Phieu tam (hoan thanh/da huy/khong co tren Kiot)
+    // bi bo; moi don chi 1 dong (sheet trung ma thi lay dong dau). Kiot loi: giu dong sheet nhu cu (giao dien hien canh bao).
+    if (kiotOk && (!kiotOrder || matched.has(key))) return;
+    const row = toOrderRow(record, overrides.get(normalizeCode(record.orderCode)));
     if (kiotOrder) matched.add(key);
-    return Object.assign(row, {
+    Object.assign(row, {
       source: 'sheet',
       kiotPhieuTam: !!kiotOrder,
       sellableValue: kiotOrder ? kiotOrder.sellableValue : null,
       orderTotal: kiotOrder ? kiotOrder.total : null,
       orderDate: kiotOrder ? kiotOrder.orderDate : ''
     });
+    // Sale + khach hang lay tu don Kiot (khong doc o sheet); sheet chi cung cap cac moc thoi gian/trang thai.
+    if (kiotOrder) Object.assign(row, { saleName: kiotOrder.saleName || '', customerName: kiotOrder.customerName || '' });
+    rows.push(withOrderDateAsUpdate(row, row.orderDate));
   });
 
   kiotOrders.forEach(order => {
     if (matched.has(kiotKey(order.branch, order.code))) return;
-    rows.push(Object.assign(toOrderRow(kiotOnlyRecord(order), undefined), {
+    rows.push(withOrderDateAsUpdate(Object.assign(toOrderRow(kiotOnlyRecord(order), undefined), {
       source: 'kiotviet',
       kiotPhieuTam: true,
       sellableValue: order.sellableValue,
       orderTotal: order.total,
       orderDate: order.orderDate
-    }));
+    }), order.orderDate));
   });
   return rows;
 }

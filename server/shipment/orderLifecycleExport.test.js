@@ -12,7 +12,7 @@ test('createLifecycleExportFile: cột khớp y hệt sheet nguồn + Cơ sở +
     driverName: '', driverConfirmedDeliveryAt: '', accountantApprovedDeliveryAt: '', deliveryConfirmedAt: '',
     shipReceivedAt: '', orderSignedAt: '',
     warning: true,
-    kiotPhieuTam: true, sellableValue: 21750000,
+    kiotPhieuTam: true, sellableValue: 21750000, orderTotal: 32000000, orderDate: '30/08/2026 09:15',
     summary: { code: 'SENT_TO_ACCOUNTANT', label: 'Đơn đã gửi kế toán' }
   }];
 
@@ -25,7 +25,7 @@ test('createLifecycleExportFile: cột khớp y hệt sheet nguồn + Cơ sở +
   const worksheet = workbook.worksheets[0];
   const headerRow = worksheet.getRow(1).values.slice(1);
   assert.deepEqual(headerRow, [
-    'Mã đơn hàng', 'Cơ sở', 'Nhân viên bán hàng', 'Khách hàng', 'Giá trị có bán',
+    'Mã đơn hàng', 'Thời gian đặt hàng', 'Cơ sở', 'Nhân viên bán hàng', 'Khách hàng', 'Giá trị đơn', 'Giá trị có bán',
     'Sale gửi đơn cho kế toán', 'Kế toán duyệt đơn', 'Lái xe',
     'Tài xế gửi xác nhận giao hàng', 'Kế toán duyệt giao hàng',
     'Xác nhận đã giao/khách ký nhận', 'Ship nhận đơn', 'Đơn đã ký nhận', 'Trạng thái', 'Cảnh báo'
@@ -33,12 +33,15 @@ test('createLifecycleExportFile: cột khớp y hệt sheet nguồn + Cơ sở +
 
   const dataRow = worksheet.getRow(2).values.slice(1);
   assert.equal(dataRow[0], 'HD001');
-  assert.equal(dataRow[1], 'Hà Nội');
-  assert.equal(dataRow[4], 21750000, 'Giá trị có bán là SỐ (không phải chuỗi) để sắp xếp/cộng trong Excel');
-  assert.equal(dataRow[5], '01/09/2026 08:00');
-  assert.equal(dataRow[13], 'Đơn đã gửi kế toán');
-  assert.equal(dataRow[14], 'Cảnh báo');
-  assert.equal(worksheet.getColumn(5).numFmt, '#,##0');
+  assert.equal(dataRow[1], '30/08/2026 09:15');
+  assert.equal(dataRow[2], 'Hà Nội');
+  assert.equal(dataRow[5], 32000000, 'Giá trị đơn là SỐ (không phải chuỗi)');
+  assert.equal(dataRow[6], 21750000, 'Giá trị có bán là SỐ (không phải chuỗi) để sắp xếp/cộng trong Excel');
+  assert.equal(dataRow[7], '01/09/2026 08:00');
+  assert.equal(dataRow[15], 'Đơn đã gửi kế toán');
+  assert.equal(dataRow[16], 'Cảnh báo');
+  assert.equal(worksheet.getColumn(6).numFmt, '#,##0');
+  assert.equal(worksheet.getColumn(7).numFmt, '#,##0');
 });
 
 test('createLifecycleExportFile: Giá trị có bán để trống khi đơn không còn là Phiếu tạm / không có giá trị', async () => {
@@ -55,7 +58,7 @@ test('createLifecycleExportFile: Giá trị có bán để trống khi đơn kh�
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(file.buffer);
   const worksheet = workbook.worksheets[0];
-  const sellable = [2, 3, 4].map(rowNumber => worksheet.getRow(rowNumber).getCell(5).value);
+  const sellable = [2, 3, 4].map(rowNumber => worksheet.getRow(rowNumber).getCell(7).value);
   assert.deepEqual(sellable, ['', '', 0], 'Phiếu tạm có giá trị 0 vẫn xuất 0; còn lại để trống');
 });
 

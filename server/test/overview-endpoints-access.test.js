@@ -1,8 +1,8 @@
 'use strict';
-// Quyen truy cap cac API cua tab "Tong quan" (routes.js): Nhan vien sale chi co quyen
-// reports.overview nhung muc 2 (doanh thu theo khach) + muc 3 (Bao cao hang hoa) nam ngay
-// trong tab nay nen cac API CHI DOC cua chung phai mo theo quyen Tong quan; con API cua muc 4
-// (quet dut hang, nhap Tra NCC duoi /api/products) va cac tab khac van phai bi chan.
+// Quyen truy cap cac API cua tab "Tong quan" (routes.js): muc 2 (doanh thu theo khach) + muc 3
+// (Bao cao hang hoa) nam ngay trong tab nay nen cac API CHI DOC cua chung mo theo quyen Tong quan.
+// Nhan vien sale mac dinh co du 5 tab xem (2026-10-02) nen goi duoc ca API muc 4 + chi tiet hoa don;
+// xuat Excel (/api/export) van bi chan voi Sale.
 process.env.GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 
@@ -63,13 +63,16 @@ const OVERVIEW_READ_ENDPOINTS = [
   '/api/product-report/customers'
 ];
 
-const SALE_BLOCKED_ENDPOINTS = [
+const SALE_ALLOWED_TAB_ENDPOINTS = [
   '/api/products/supplier-returns/import-status',
   '/api/products/supplier-returns/import',
   '/api/products/stockout-recent/scan',
   '/api/products/stockout-90d/scan',
-  '/api/export',
   '/api/invoice-detail'
+];
+
+const SALE_BLOCKED_ENDPOINTS = [
+  '/api/export'
 ];
 
 for (const urlPath of OVERVIEW_READ_ENDPOINTS) {
@@ -90,8 +93,15 @@ for (const urlPath of OVERVIEW_READ_ENDPOINTS) {
   });
 }
 
+for (const urlPath of SALE_ALLOWED_TAB_ENDPOINTS) {
+  test(`Nhân viên sale (có quyền Hàng hóa / Hóa đơn) gọi được ${urlPath}`, async () => {
+    const result = await passesGuards(urlPath, 'Nhân viên sale');
+    assert.equal(result.allowed, true, `sale bi chan ${urlPath} (status ${result.status})`);
+  });
+}
+
 for (const urlPath of SALE_BLOCKED_ENDPOINTS) {
-  test(`Nhân viên sale KHÔNG gọi được ${urlPath} (mục 4 / tab khác vẫn cần quyền riêng)`, async () => {
+  test(`Nhân viên sale KHÔNG gọi được ${urlPath} (xuất Excel vẫn cần quyền riêng)`, async () => {
     const result = await passesGuards(urlPath, 'Nhân viên sale');
     assert.equal(result.allowed, false);
     assert.equal(result.status, 403);

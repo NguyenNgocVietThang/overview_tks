@@ -518,25 +518,23 @@ function getRouteMiddlewareStack(router, method, routePath) {
   return layer.route.stack.map(l => l.handle);
 }
 
-test('Phan quyen xem: GET /api/admin/users cho phep moi vai tro noi bo, chan Khach', () => {
+test('Phan quyen xem: GET /api/admin/users chi Quan ly, chan moi vai tro khac', () => {
   const stack = getRouteMiddlewareStack(adminUserRoutes, 'get', '/api/admin/users');
   const roleGuard = stack[stack.length - 2];
-  const internalRoles = ['Quản lý', 'Kế toán', 'Trưởng kho', 'Trợ lý', 'Lái xe', 'Nhân viên kho', 'Nhân viên sale', 'Nhân viên mua hàng'];
 
-  for (const role of internalRoles) {
-    const req = { user: { vaiTro: role } };
+  const allowedRes = fakeRes();
+  let allowedNext = false;
+  roleGuard({ user: { vaiTro: 'Quản lý' } }, allowedRes, () => { allowedNext = true; });
+  assert.equal(allowedNext, true, 'Quan ly phai xem duoc danh sach nguoi dung');
+
+  const otherRoles = ['Kế toán', 'Trưởng kho', 'Trợ lý', 'Lái xe', 'Nhân viên kho', 'Nhân viên sale', 'Nhân viên mua hàng', 'Khách'];
+  for (const role of otherRoles) {
     const res = fakeRes();
     let nextCalled = false;
-    roleGuard(req, res, () => { nextCalled = true; });
-    assert.equal(nextCalled, true, `Vai tro ${role} phai xem duoc danh sach nguoi dung`);
+    roleGuard({ user: { vaiTro: role } }, res, () => { nextCalled = true; });
+    assert.equal(nextCalled, false, `Vai tro ${role} khong duoc xem danh sach nguoi dung`);
+    assert.equal(res.statusCode, 403);
   }
-
-  const req = { user: { vaiTro: 'Khách' } };
-  const res = fakeRes();
-  let nextCalled = false;
-  roleGuard(req, res, () => { nextCalled = true; });
-  assert.equal(nextCalled, false);
-  assert.equal(res.statusCode, 403);
 });
 
 test('Phan quyen ghi: POST/PUT/DELETE/reset-password chi Quan ly moi duoc phep', () => {
@@ -586,10 +584,11 @@ test('GET /api/admin/permissions/catalog tra ve danh muc + mac dinh theo vai tro
   assert.ok(Array.isArray(res.body.groups) && res.body.groups.length > 0);
   assert.equal(res.body.features.length, featureRegistry.FEATURE_KEYS.length);
   assert.ok(res.body.features.every(f => f.key && f.label && f.groupKey));
-  // Marketing giong Sale tru quyen Tong quan (Sale duoc mo them tu 2026-10-01).
+  // Marketing giong Sale tru 5 tab xem bao cao (Sale duoc mo them tu 2026-10-02).
+  const saleViewKeys = ['reports.overview', 'reports.products', 'reports.invoices', 'reports.customers', 'reports.debt'];
   assert.deepEqual(
     res.body.roleDefaults['Nhân viên marketing'],
-    res.body.roleDefaults['Nhân viên sale'].filter(key => key !== 'reports.overview')
+    res.body.roleDefaults['Nhân viên sale'].filter(key => !saleViewKeys.includes(key))
   );
   assert.ok(res.body.roleDefaults['Nhân viên sale'].includes('reports.overview'));
   assert.ok(res.body.features.find(f => f.key === 'account.profile').alwaysOn);

@@ -22,10 +22,10 @@ const { ROLES, INTERNAL_ROLES, REPORTS_ROLES, isHardcodedAdmin } = require('./us
 const ALL_ROLES = Object.freeze(Object.values(ROLES));
 const MANAGER_ONLY = Object.freeze([ROLES.QUAN_LY]);
 const OVERRIDE_ROLES = Object.freeze([ROLES.QUAN_LY, ROLES.KE_TOAN]);
-// Tong quan mo them cho Nhan vien sale (xem ton co ban, doanh so...). Cac tab reports.*
-// con lai van chi mac dinh cho Quan ly + Tro ly (REPORTS_ROLES), nen KHONG nhet sale vao
-// REPORTS_ROLES — mang do cap ca 7 key reports.*.
-const OVERVIEW_ROLES = Object.freeze([...REPORTS_ROLES, ROLES.NHAN_VIEN_SALE]);
+// Cac tab XEM bao cao (Tong quan, Hang hoa, Hoa don, Khach hang, Cong no) mo them cho
+// Nhan vien sale (2026-10-02). Xuat Excel + sua cong no van chi Quan ly + Tro ly
+// (REPORTS_ROLES), nen KHONG nhet sale vao REPORTS_ROLES — mang do cap ca 7 key reports.*.
+const REPORT_VIEW_ROLES = Object.freeze([...REPORTS_ROLES, ROLES.NHAN_VIEN_SALE]);
 
 const FEATURE_GROUPS = Object.freeze([
   { key: 'reports', label: 'Báo cáo tổng hợp' },
@@ -42,11 +42,11 @@ const FEATURE_GROUPS = Object.freeze([
  */
 const FEATURES = Object.freeze([
   // --- Bao cao tong hop ---
-  { key: 'reports.overview', groupKey: 'reports', label: 'Tổng quan', roles: OVERVIEW_ROLES },
-  { key: 'reports.products', groupKey: 'reports', label: 'Hàng hóa (gồm Kiểm tra đứt hàng)', roles: REPORTS_ROLES },
-  { key: 'reports.invoices', groupKey: 'reports', label: 'Hóa đơn', roles: REPORTS_ROLES },
-  { key: 'reports.customers', groupKey: 'reports', label: 'Khách hàng', roles: REPORTS_ROLES },
-  { key: 'reports.debt', groupKey: 'reports', label: 'Quản lý công nợ', roles: REPORTS_ROLES },
+  { key: 'reports.overview', groupKey: 'reports', label: 'Tổng quan', roles: REPORT_VIEW_ROLES },
+  { key: 'reports.products', groupKey: 'reports', label: 'Hàng hóa (gồm Kiểm tra đứt hàng)', roles: REPORT_VIEW_ROLES },
+  { key: 'reports.invoices', groupKey: 'reports', label: 'Hóa đơn', roles: REPORT_VIEW_ROLES },
+  { key: 'reports.customers', groupKey: 'reports', label: 'Khách hàng', roles: REPORT_VIEW_ROLES },
+  { key: 'reports.debt', groupKey: 'reports', label: 'Quản lý công nợ', roles: REPORT_VIEW_ROLES },
   { key: 'reports.debt.edit', groupKey: 'reports', label: 'Cập nhật trạng thái công nợ', roles: REPORTS_ROLES },
   { key: 'reports.export', groupKey: 'reports', label: 'Xuất Excel báo cáo', roles: REPORTS_ROLES },
 
@@ -66,7 +66,7 @@ const FEATURES = Object.freeze([
 
   // --- Quan ly tai khoan ---
   { key: 'account.profile', groupKey: 'account', label: 'Quản lý hồ sơ', roles: ALL_ROLES, alwaysOn: true },
-  { key: 'account.users', groupKey: 'account', label: 'Quản lý người dùng (xem)', roles: INTERNAL_ROLES },
+  { key: 'account.users', groupKey: 'account', label: 'Quản lý người dùng (xem)', roles: MANAGER_ONLY },
   { key: 'account.users.manage', groupKey: 'account', label: 'Thêm / sửa / khóa / xóa tài khoản', roles: MANAGER_ONLY },
   { key: 'account.permissions', groupKey: 'account', label: 'Phân quyền chi tiết', roles: MANAGER_ONLY },
 

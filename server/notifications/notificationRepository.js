@@ -51,7 +51,17 @@ function saveToDisk(notifications) {
   ensureDataDir(currentStorePath);
   const tempPath = `${currentStorePath}.${Date.now()}.${Math.random().toString(36).substring(2, 7)}.tmp`;
   fs.writeFileSync(tempPath, JSON.stringify(notifications, null, 2), 'utf8');
-  fs.renameSync(tempPath, currentStorePath);
+  try {
+    fs.renameSync(tempPath, currentStorePath);
+  } catch (renameErr) {
+    try {
+      fs.copyFileSync(tempPath, currentStorePath);
+      fs.unlinkSync(tempPath);
+    } catch (fallbackErr) {
+      try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch (_) {}
+      throw renameErr;
+    }
+  }
   try {
     lastLoadedMtime = fs.statSync(currentStorePath).mtimeMs;
   } catch (e) {}

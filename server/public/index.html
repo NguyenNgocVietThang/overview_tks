@@ -3906,19 +3906,6 @@
               </div>
             </div>
           </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">2</span>
-              <h2>Phân tích <span class="section-note">trả hàng ảnh hưởng doanh thu · đơn đặt hàng chờ (Phiếu tạm) nay theo dõi ở Quản lý đơn hàng → Vòng đời đơn hàng</span></h2>
-            </div>
-            <div class="kpi-grid section-kpis">
-              <div class="kpi-card col-6">
-                <div class="eyebrow">Trả hàng</div>
-                <div class="value" id="in-returns-total">—</div>
-                <div class="sub" id="in-returns-count">—</div>
-              </div>
-            </div>
-          </section>
         </div>
 
         <!-- ============ KHÁCH HÀNG ============ -->
@@ -7836,11 +7823,6 @@
           10,
           'Chưa có giao dịch trong khoảng đã chọn'
         );
-
-        // The chi so "Trả hàng" theo bo loc Hoa don (bang Danh sach dat hang / tra hang da bo 2026-10-01;
-        // don dat hang cho "Phiếu tạm" nay xem o trang Vong doi don hang).
-        document.getElementById('in-returns-total').textContent = fmtMoney(invoiceData.totalReturns);
-        document.getElementById('in-returns-count').textContent = fmtNumber(Number(invoiceData.returnsCount || 0)) + ' phiếu · ' + invoiceRangeLabel;
       }
       else if (view === 'customers') {
         const customerData = d.customers || d;

@@ -1,8 +1,9 @@
 'use strict';
 
 // Tab Tong quan co 4 muc; muc 4 (Kiem tra dut hang + nhap Tra NCC) goi cac API duoi
-// /api/products can quyen Hang hoa (reports.products). Nhan vien sale chi co quyen Tong quan
+// /api/products can quyen Hang hoa (reports.products). Nguoi chi co quyen Tong quan
 // (reports.overview) nen muc 4 phai bi AN va khong duoc goi /import-status (se 403).
+// (Nhan vien sale mac dinh co du 5 tab xem tu 2026-10-02 nen test dung quyen rut bot reports.products.)
 // Chay trang that trong JSDOM voi TKSNav/fetch gia.
 
 const test = require('node:test');
@@ -18,8 +19,8 @@ const html = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8');
 
 const settle = async () => { for (let i = 0; i < 10; i++) await new Promise(resolve => setImmediate(resolve)); };
 
-function createPage(vaiTro) {
-  const permissions = defaultsForRole(vaiTro);
+function createPage(vaiTro, withoutKeys = []) {
+  const permissions = defaultsForRole(vaiTro).filter(key => !withoutKeys.includes(key));
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://tokosi.example/#overview' });
   dom.window.HTMLCanvasElement.prototype.getContext = () => ({});
   dom.window.Chart = class FakeChart {
@@ -59,11 +60,18 @@ test('muc 4 Tong quan co id de an/hien theo quyen', () => {
   assert.match(html, /<section class="section" id="overviewStockoutSection">/);
 });
 
-test('Nhân viên sale (chỉ quyền Tổng quan): ẩn mục 4 và không gọi API nhập Trả NCC', async () => {
-  const page = createPage('Nhân viên sale');
+test('Người không có quyền Hàng hóa (chỉ Tổng quan): ẩn mục 4 và không gọi API nhập Trả NCC', async () => {
+  const page = createPage('Nhân viên sale', ['reports.products']);
   await settle();
   assert.equal(page.section().hidden, true);
   assert.equal(page.urls.some(url => url.includes('/api/products/')), false, 'khong goi API duoi /api/products');
+  page.dom.window.close();
+});
+
+test('Nhân viên sale (mặc định có quyền Hàng hóa): hiện mục 4', async () => {
+  const page = createPage('Nhân viên sale');
+  await settle();
+  assert.equal(page.section().hidden, false);
   page.dom.window.close();
 });
 

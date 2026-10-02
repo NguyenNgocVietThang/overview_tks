@@ -397,8 +397,10 @@
               <table class="bulk-table fixed-table">
                 <thead><tr id="bulkHeadRow">
                   <th class="sortable" data-sort="orderCode" style="width:160px">Mã đơn<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="orderDate" style="width:170px" title="Thời gian đặt hàng trên Kiot (bảng Đặt hàng). Chỉ có với đơn đang là Phiếu tạm.">Thời gian đặt hàng<span class="sort-ind">▲</span></th>
                   <th class="sortable" data-sort="saleName" style="width:180px">Sale<span class="sort-ind">▲</span></th>
                   <th class="sortable" data-sort="customerName" style="width:260px">Khách hàng<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="orderTotal" style="width:160px" title="Giá trị đơn hàng trên Kiot (tổng tiền của phiếu). Chỉ có với đơn đang là Phiếu tạm.">Giá trị đơn<span class="sort-ind">▲</span></th>
                   <th class="sortable" data-sort="sellableValue" style="width:170px" title="Giá trị đơn bán được ngay: từng mặt hàng lấy min(số lượng đặt, tồn thực tế của Kiot + hàng đang vận chuyển) × đơn giá. Chỉ có với đơn đang là Phiếu tạm trên Kiot.">Giá trị có bán<span class="sort-ind">▲</span></th>
                   <th class="sortable" data-sort="saleSentAt" style="width:190px">Sale ra đơn<span class="sort-ind">▲</span></th>
                   <th class="sortable" data-sort="status" style="width:200px">Trạng thái<span class="sort-ind">▲</span></th>
@@ -518,8 +520,10 @@
     }
 
     // ---------- Du lieu tinh dung chung ----------
+    // kiotOnly: chi hien khi du lieu co truong do (dong cua bang noi bo da gop Kiot); tra cuu cho Khach khong co.
     const DETAIL_FIELDS = [
       { key: 'orderCode', label: 'Mã đơn hàng' },
+      { key: 'orderDate', label: 'Thời gian đặt hàng', kiotOnly: true },
       { key: 'saleName', label: 'Nhân viên bán hàng' },
       { key: 'customerName', label: 'Khách hàng' },
       { key: 'saleSentAt', label: 'Sale gửi đơn cho kế toán' },
@@ -541,10 +545,10 @@
       CANCELLED: 'badge-cancelled'
     };
     // Khop STATUS_LABEL o server/shipment/orderLifecycleService.js — dung de
-    // dung dropdown ghi de trang thai (8 muc, ke ca 2 muc chi dat duoc qua
-    // ghi de thu cong: EXCEPTION/CANCELLED).
+    // dung dropdown ghi de trang thai (7 muc, ke ca 2 muc chi dat duoc qua
+    // ghi de thu cong: EXCEPTION/CANCELLED). NOT_SENT la trang thai san, khong
+    // cho chon thu cong — chi them vao STATUS_LABEL_BY_CODE de hien thi.
     const STATUS_OPTIONS = [
-      { code: 'NOT_SENT', label: 'Đơn chưa gửi kế toán' },
       { code: 'SENT_TO_ACCOUNTANT', label: 'Đơn đã gửi kế toán' },
       { code: 'DELIVERING', label: 'Đơn đang được giao' },
       { code: 'DELIVERED', label: 'Đơn đã giao thành công' },
@@ -554,6 +558,7 @@
       { code: 'CANCELLED', label: 'Đã hủy' }
     ];
     const STATUS_LABEL_BY_CODE = {};
+    STATUS_LABEL_BY_CODE.NOT_SENT = 'Đơn chưa gửi kế toán';
     STATUS_OPTIONS.forEach(function(opt){ STATUS_LABEL_BY_CODE[opt.code] = opt.label; });
     const BRANCH_LABEL = { HN: 'Hà Nội', SG: 'Sài Gòn' };
     // Quyen xem Khu B (toan bo don) / ghi de trang thai lay tu TKSNav.can(),
@@ -586,9 +591,13 @@
       if(!(opts && opts.editable)){
         return '<span class="lc-badge ' + cls + '">' + escapeHtml((summary && summary.label) || '') + '</span>';
       }
-      const options = STATUS_OPTIONS.map(function(opt){
+      let options = STATUS_OPTIONS.map(function(opt){
         return '<option value="' + escapeHtml(opt.code) + '"' + (opt.code === code ? ' selected' : '') + '>' + escapeHtml(opt.label) + '</option>';
       }).join('');
+      // Don dang o NOT_SENT: giu 1 option an (khong chon lai duoc) de select hien dung trang thai hien tai.
+      if(code === 'NOT_SENT'){
+        options = '<option value="NOT_SENT" selected disabled hidden>' + escapeHtml(STATUS_LABEL_BY_CODE.NOT_SENT) + '</option>' + options;
+      }
       return '<select class="status-select ' + cls + '" data-order-code="' + escapeHtml(opts.orderCode) + '" ' +
         'data-prev-status="' + escapeHtml(code) + '" onchange="handleLifecycleStatusChange(this)" ' +
         'aria-label="Trạng thái đơn ' + escapeHtml(opts.orderCode) + '">' + options + '</select>';
@@ -604,7 +613,9 @@
     // opts.withKiot: dong cua bang "Toan bo don hang" (vai tro noi bo) nap them chi tiet dong hang tu Kiot.
     // Khu A (tra cuu cho Khach) va tab Lich su KHONG truyen — khong bao gio goi API Kiot.
     function openDetailModal(detail, opts){
-      detailBody.innerHTML = DETAIL_FIELDS.map(function(field){
+      detailBody.innerHTML = DETAIL_FIELDS.filter(function(field){
+        return !field.kiotOnly || (detail && Object.prototype.hasOwnProperty.call(detail, field.key));
+      }).map(function(field){
         const raw = detail ? detail[field.key] : '';
         const value = (raw === undefined || raw === null || String(raw).trim() === '') ? '—' : String(raw);
         return '<div class="lc-detail-row"><span class="lc-detail-label">' + escapeHtml(field.label) + '</span>' +
@@ -648,6 +659,7 @@
         '<th class="num" title="Tồn thực tế của Kiot (cơ sở của đơn)">Tồn kho</th>' +
         '<th class="num" title="Hàng đang vận chuyển (phiếu Đặt hàng nhập đã xác nhận NCC), cùng một số cho cả hai cơ sở">Đang vận chuyển</th>' +
         '<th class="num" title="Số lượng bán được ngay = min(SL đặt, tồn kho + đang vận chuyển)">Có bán</th>' +
+        '<th class="num" title="Thành tiền của phần có bán = số lượng có bán × đơn giá sau chiết khấu">Thành tiền có bán</th>' +
         '</tr></thead><tbody>';
       lines.forEach(function(line){
         const stockCell = function(value){ return '<td class="num">' + (pending && !line.isService ? escapeHtml(formatQty(value)) : '—') + '</td>'; };
@@ -661,6 +673,7 @@
           stockCell(line.onHand) + stockCell(line.inTransit) +
           '<td class="num"' + (short ? ' style="color:#F59E0B;font-weight:700"' : '') + '>' +
             (pending && !line.isService ? escapeHtml(formatQty(line.sellableQty)) : '—') + '</td>' +
+          '<td class="num">' + (pending && !line.isService ? escapeHtml(formatMoneyOrDash(line.sellableAmount)) : '—') + '</td>' +
           '</tr>';
       });
       html += '</tbody></table></div>';
@@ -870,6 +883,7 @@
       orderCode: function(o){ return normalizeSearchText(o.orderCode); },
       saleName: function(o){ return normalizeSearchText(o.saleName); },
       customerName: function(o){ return normalizeSearchText(o.customerName); },
+      orderTotal: function(o){ return hasOrderTotal(o) ? o.orderTotal : null; },
       sellableValue: function(o){ return hasSellableValue(o) ? o.sellableValue : null; },
       saleSentAt: function(o){ return parseDateTimeValue(o.saleSentAt); },
       status: function(o){ return normalizeSearchText(o.summary && o.summary.label); },
@@ -944,7 +958,12 @@
       return !!order.kiotPhieuTam && typeof order.sellableValue === 'number' && isFinite(order.sellableValue);
     }
 
-    const VND_FORMAT = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 });
+    // Gia tri don (tong tien phieu tren Kiot) cung chi co voi don dang la Phieu tam.
+    function hasOrderTotal(order){
+      return !!order.kiotPhieuTam && typeof order.orderTotal === 'number' && isFinite(order.orderTotal);
+    }
+
+    const VND_FORMAT =new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 });
     function formatVnd(value){ return VND_FORMAT.format(Number(value) || 0) + '₫'; }
 
     // Don chi co o Kiot chua co dong trong Sheet nen ghi de trang thai se 404 -> hien nhan chu, khong hien o chon.
@@ -952,7 +971,8 @@
 
     function rowSignature(order){
       return JSON.stringify([
-        order.orderCode, order.branch, order.source, order.saleName, order.customerName, order.saleSentAt,
+        order.orderCode, order.orderDate, order.branch, order.source, order.saleName, order.customerName, order.saleSentAt,
+        hasOrderTotal(order) ? order.orderTotal : null,
         hasSellableValue(order) ? order.sellableValue : null,
         order.summary && order.summary.code, order.summary && order.summary.label, order.summary && order.summary.at,
         !!order.warning, isEditableRow(order)
@@ -961,8 +981,10 @@
 
     function rowInnerHtml(order){
       return '<td>' + escapeHtml(order.orderCode) + '</td>' +
+        '<td>' + escapeHtml(order.orderDate || '—') + '</td>' +
         '<td>' + escapeHtml(order.saleName || '—') + '</td>' +
         '<td>' + escapeHtml(order.customerName || '—') + '</td>' +
+        '<td class="lc-money">' + (hasOrderTotal(order) ? escapeHtml(formatVnd(order.orderTotal)) : '—') + '</td>' +
         '<td class="lc-money">' + (hasSellableValue(order) ? escapeHtml(formatVnd(order.sellableValue)) : '—') + '</td>' +
         '<td>' + escapeHtml(order.saleSentAt || '—') + '</td>' +
         '<td>' + renderBadge(order.summary, { editable: isEditableRow(order), orderCode: order.orderCode }) + '</td>' +
@@ -1026,10 +1048,10 @@
         if(order && body.order){
           order.summary = body.order.summary;
           order.warning = !!body.order.warning;
-          // Cot: 0 Ma don, 1 Sale, 2 Khach hang, 3 Gia tri co ban, 4 Sale ra don, 5 Trang thai, 6 Cap nhat gan nhat, 7 Canh bao.
-          const atCell = tr.children[6];
+          // Cot: 0 Ma don, 1 Thoi gian dat hang, 2 Sale, 3 Khach hang, 4 Gia tri co ban, 5 Sale ra don, 6 Trang thai, 7 Cap nhat gan nhat, 8 Canh bao.
+          const atCell = tr.children[7];
           if(atCell) atCell.textContent = (order.summary && order.summary.at) || '—';
-          const warningCell = tr.children[7];
+          const warningCell = tr.children[8];
           if(warningCell) warningCell.innerHTML = warningHtml(order);
           const entry = bulkRowNodes.get(rowKey(order));
           if(entry) entry.sig = rowSignature(order);

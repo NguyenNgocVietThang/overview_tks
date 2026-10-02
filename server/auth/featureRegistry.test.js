@@ -8,7 +8,7 @@ const { ROLES, INTERNAL_ROLES, REPORTS_ROLES } = require('./userRepository');
 
 // Cac tap hop vai tro CU (truoc khi co featureRegistry) — giu lai nguyen van o
 // day de test bat duoc moi thay doi hanh vi ngoai y muon khi sua bang mac dinh.
-// (Nhan vien sale da duoc mo them quyen Tong quan tu 2026-10-01 — xem test rieng ben duoi.)
+// (Nhan vien sale da duoc mo them 5 tab xem bao cao — xem test rieng ben duoi.)
 const LEGACY_NO_REPORTS_ROLES = [
   'Khách', 'Lái xe', 'Kế toán', 'Trưởng kho',
   'Nhân viên kho', 'Nhân viên mua hàng'
@@ -28,20 +28,20 @@ test('mac dinh theo vai tro: reports.* khop dung REPORTS_ROLES cu', () => {
   }
 });
 
-test('mac dinh theo vai tro: hr.* va account.users danh cho moi vai tro noi bo', () => {
+test('mac dinh theo vai tro: hr.* danh cho moi vai tro noi bo, account.users chi Quan ly', () => {
   for (const role of INTERNAL_ROLES) {
     const defaults = registry.defaultsForRole(role);
     assert.ok(defaults.includes('hr.rules'), role);
     assert.ok(defaults.includes('hr.employees'), role);
     assert.ok(defaults.includes('hr.leave'), role);
-    assert.ok(defaults.includes('account.users'), role);
+    assert.equal(defaults.includes('account.users'), role === ROLES.QUAN_LY, role);
   }
   const guest = registry.defaultsForRole(ROLES.KHACH);
   assert.deepEqual(guest, ['shipment.lookup', 'account.profile']);
 });
 
 test('chi Quan ly moi co cac quyen quan tri mac dinh', () => {
-  const managerOnly = ['hr.leave.manage', 'hr.rules.manage', 'account.users.manage', 'account.permissions', 'system.syncStatus'];
+  const managerOnly = ['hr.leave.manage', 'hr.rules.manage', 'account.users', 'account.users.manage', 'account.permissions', 'system.syncStatus'];
   for (const key of managerOnly) {
     assert.ok(registry.defaultsForRole(ROLES.QUAN_LY).includes(key), `Quản lý phai co ${key}`);
     for (const role of Object.values(ROLES)) {
@@ -58,19 +58,23 @@ test('ghi de trang thai don hang chi danh cho Quan ly va Ke toan', () => {
   }
 });
 
-test('Nhan vien sale chi them dung 1 quyen reports.* mac dinh: reports.overview (Tong quan)', () => {
+const SALE_REPORT_VIEW_KEYS = ['reports.overview', 'reports.products', 'reports.invoices', 'reports.customers', 'reports.debt'];
+
+test('Nhan vien sale xem du 5 tab bao cao mac dinh, KHONG co xuat Excel / sua cong no', () => {
   const reportKeys = registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => key.startsWith('reports.'));
-  assert.deepEqual(reportKeys, ['reports.overview']);
+  assert.deepEqual(reportKeys, SALE_REPORT_VIEW_KEYS);
+  assert.ok(!reportKeys.includes('reports.export'));
+  assert.ok(!reportKeys.includes('reports.debt.edit'));
   // Cac vai tro con lai khong thuoc REPORTS_ROLES van KHONG co reports.overview.
   for (const role of LEGACY_NO_REPORTS_ROLES) {
     assert.ok(!registry.defaultsForRole(role).includes('reports.overview'), role);
   }
 });
 
-test('Nhan vien marketing giu nguyen: y het Nhan vien sale tru quyen Tong quan', () => {
+test('Nhan vien marketing giu nguyen: y het Nhan vien sale tru 5 tab xem bao cao', () => {
   assert.deepEqual(
     registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING),
-    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => key !== 'reports.overview')
+    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key))
   );
 });
 

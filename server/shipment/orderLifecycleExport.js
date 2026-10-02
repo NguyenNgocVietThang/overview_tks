@@ -16,9 +16,13 @@ const BRANCH_LABEL = Object.freeze({ HN: 'Hà Nội', SG: 'Sài Gòn' });
 
 const COLUMNS = [
   { key: 'orderCode', label: 'Mã đơn hàng' },
+  // Thời gian đặt hàng trên Kiot (bảng Đặt hàng); trống nếu đơn không còn là Phiếu tạm.
+  { key: 'orderDate', label: 'Thời gian đặt hàng' },
   { key: 'branchLabel', label: 'Cơ sở' },
   { key: 'saleName', label: 'Nhân viên bán hàng' },
   { key: 'customerName', label: 'Khách hàng' },
+  // Giá trị đơn = tổng tiền phiếu trên Kiot (đơn Phiếu tạm; ô trống nếu không còn là Phiếu tạm) — cột SỐ.
+  { key: 'orderTotal', label: 'Giá trị đơn', numeric: true },
   // Giá trị có bán (đơn Phiếu tạm của Kiot; ô trống nếu đơn không còn là Phiếu tạm) — cột SỐ.
   { key: 'sellableValue', label: 'Giá trị có bán', numeric: true },
   { key: 'saleSentAt', label: 'Sale gửi đơn cho kế toán' },
@@ -43,6 +47,11 @@ function columnValue(order, key) {
   if (key === 'statusLabel') return (order.summary && order.summary.label) || '';
   if (key === 'warningLabel') return order.warning ? 'Cảnh báo' : '';
   // Chi don dang Phieu tam moi co gia tri co ban; con lai de trong (giong "—" tren bang).
+  if (key === 'orderTotal') {
+    return order.kiotPhieuTam && order.orderTotal !== null && Number.isFinite(Number(order.orderTotal))
+      ? Number(order.orderTotal)
+      : '';
+  }
   if (key === 'sellableValue') {
     return order.kiotPhieuTam && Number.isFinite(Number(order.sellableValue)) && order.sellableValue !== null
       ? Number(order.sellableValue)

@@ -90,10 +90,15 @@ test('cột "Giá trị có bán": đơn Phiếu tạm hiện số tiền (₫),
     sheetOrder('DH2'),
     kiotOnlyOrder('DH3', { sellableValue: 0 })
   ] });
-  const cells = rowsOf(page.document).map(row => row.cells[3].textContent);
+  const cells = rowsOf(page.document).map(row => row.cells[5].textContent);
   assert.equal(cells[0], '21.750.000₫');
   assert.equal(cells[1], '—', 'don khong con Phieu tam');
   assert.equal(cells[2], '0₫', 'Phieu tam co gia tri co ban = 0 van hien 0₫ (khac voi "khong co gia tri")');
+  // Cot "Gia tri don" (ngay truoc "Gia tri co ban") = tong tien phieu tren Kiot.
+  const totals = rowsOf(page.document).map(row => row.cells[4].textContent);
+  assert.equal(totals[0], '32.000.000₫');
+  assert.equal(totals[1], '—', 'don khong con Phieu tam');
+  assert.equal(totals[2], '2.000.000₫', 'don chi co o Kiot (fixture orderTotal 2.000.000)');
   page.dom.window.close();
 });
 
@@ -102,11 +107,11 @@ test('đơn chỉ có ở Kiot: nhãn "Đơn chưa gửi kế toán", mốc rỗ
   const [sheetRow, kiotRow] = rowsOf(page.document);
   assert.ok(sheetRow.querySelector('select.status-select'), 'dong sheet: o chon trang thai (ghi de)');
   assert.equal(kiotRow.querySelector('select'), null, 'don Kiot chua co dong trong Sheet: ghi de se 404 nen khong hien o chon');
-  assert.equal(kiotRow.cells[5].textContent.trim(), 'Đơn chưa gửi kế toán');
-  assert.ok(kiotRow.cells[5].querySelector('.lc-badge.badge-not-sent'));
-  assert.equal(kiotRow.cells[4].textContent, '—', 'Sale ra don trong');
-  assert.equal(kiotRow.cells[6].textContent, '—', 'Cap nhat gan nhat trong');
-  assert.equal(kiotRow.cells[7].textContent, '', 'khong canh bao');
+  assert.equal(kiotRow.cells[7].textContent.trim(), 'Đơn chưa gửi kế toán');
+  assert.ok(kiotRow.cells[7].querySelector('.lc-badge.badge-not-sent'));
+  assert.equal(kiotRow.cells[6].textContent, '—', 'Sale ra don trong');
+  assert.equal(kiotRow.cells[8].textContent, '—', 'Cap nhat gan nhat trong');
+  assert.equal(kiotRow.cells[9].textContent, '', 'khong canh bao');
   page.dom.window.close();
 });
 
@@ -362,11 +367,11 @@ test('bấm dòng: mở hộp chi tiết, gọi order-detail đúng mã/cơ sở
   assert.ok(document.querySelector('.lc-detail-dialog').classList.contains('is-wide'));
 
   const headers = [...document.querySelectorAll('.lc-lines thead th')].map(th => th.textContent);
-  assert.deepEqual(headers, ['Mã hàng', 'Tên hàng', 'SL đặt', 'Đơn giá', 'Thành tiền', 'Tồn kho', 'Đang vận chuyển', 'Có bán']);
+  assert.deepEqual(headers, ['Mã hàng', 'Tên hàng', 'SL đặt', 'Đơn giá', 'Thành tiền', 'Tồn kho', 'Đang vận chuyển', 'Có bán', 'Thành tiền có bán']);
   const rows = [...document.querySelectorAll('.lc-lines tbody tr')].map(tr => [...tr.cells].map(td => td.textContent));
-  assert.deepEqual(rows[0], ['A', 'Hàng A', '500', '1.000₫', '500.000₫', '40', '160', '200']);
-  assert.deepEqual(rows[1], ['B', 'Hàng B', '70', '5.000₫', '350.000₫', '800', '0', '70']);
-  assert.deepEqual(rows[2].slice(5), ['—', '—', '—'], 'dong thue VAT khong co ton/co ban');
+  assert.deepEqual(rows[0], ['A', 'Hàng A', '500', '1.000₫', '500.000₫', '40', '160', '200', '200.000₫']);
+  assert.deepEqual(rows[1], ['B', 'Hàng B', '70', '5.000₫', '350.000₫', '800', '0', '70', '350.000₫']);
+  assert.deepEqual(rows[2].slice(5), ['—', '—', '—', '—'], 'dong thue VAT khong co ton/co ban');
   assert.ok(document.querySelectorAll('.lc-lines tbody tr')[2].classList.contains('is-service'));
   const text = document.getElementById('lcDetailBody').textContent;
   assert.match(text, /Giá trị đơn \(Kiot\)855\.000₫/);
@@ -387,10 +392,33 @@ test('đơn không còn Phiếu tạm: bảng hàng hóa không có tồn/có b�
   rowsOf(page.document)[0].click();
   await settle();
   const cells = [...page.document.querySelectorAll('.lc-lines tbody tr')[0].cells].map(td => td.textContent);
-  assert.deepEqual(cells.slice(5), ['—', '—', '—']);
+  assert.deepEqual(cells.slice(5), ['—', '—', '—', '—']);
   const text = page.document.getElementById('lcDetailBody').textContent;
   assert.match(text, /không còn ở trạng thái Phiếu tạm/);
   assert.doesNotMatch(text, /Giá trị có bán/);
+  page.dom.window.close();
+});
+
+test('cột "Thời gian đặt hàng" nằm cạnh Mã đơn trên bảng; đơn không có thời gian đặt hiện "—"', async () => {
+  const page = await renderPage({ orders: [kiotOnlyOrder('DH1'), sheetOrder('DH2')] });
+  const heads = [...page.document.querySelectorAll('#bulkHeadRow th')].map(th => th.textContent.replace(/[▲▼]/g, '').trim());
+  assert.deepEqual(heads.slice(0, 2), ['Mã đơn', 'Thời gian đặt hàng']);
+  const rows = rowsOf(page.document);
+  assert.equal(rows[0].cells[1].textContent, '01/10/2026 13:14');
+  assert.equal(rows[1].cells[1].textContent, '—');
+  page.dom.window.close();
+});
+
+test('hộp chi tiết của dòng bảng có "Thời gian đặt hàng" ngay sau Mã đơn hàng; tra cứu cho Khách (không có trường này) thì không hiện', async () => {
+  const page = await renderPage({
+    orders: [kiotOnlyOrder('DH1')],
+    fetchImpl: url => (url.includes('/order-detail') ? { ok: false, status: 404, json: async () => ({ error: 'x' }) } : null)
+  });
+  rowsOf(page.document)[0].click();
+  const labels = [...page.document.querySelectorAll('#lcDetailBody .lc-detail-label')].map(el => el.textContent);
+  assert.deepEqual(labels.slice(0, 2), ['Mã đơn hàng', 'Thời gian đặt hàng']);
+  const values = [...page.document.querySelectorAll('#lcDetailBody .lc-detail-value')].map(el => el.textContent);
+  assert.equal(values[1], '01/10/2026 13:14');
   page.dom.window.close();
 });
 
