@@ -2,7 +2,6 @@
 
 const CONFIG = require('../config');
 const appUsers = require('../auth/appUsersRepository');
-const effectiveUsers = require('../auth/effectiveUserResolver');
 const { getPool } = require('../db/pool');
 const leaveRepoDefault = require('../hr/hrLeaveRepository');
 const { createHrLeaveDecisionService } = require('../hr/hrLeaveDecisionService');
@@ -30,11 +29,13 @@ async function resolveManagerFromDb(telegramId) {
     LEFT JOIN hr_employees e ON e.id = u.hr_employee_id
     WHERE u.telegram_id = $1 AND NOT u.is_deleted`, [String(telegramId)]);
   if (!rows[0]) return null;
-  const user = await effectiveUsers.resolveUser(appUsers.rowToUser(rows[0]));
+  // Bot scope is the manager's assigned DB branch, independent of the web's
+  // HR-derived "Cả hai" default. Never mutate accounts while authorizing a bot.
+  const user = appUsers.rowToUser(rows[0]);
   return isEligibleManager(user, telegramId) ? user : null;
 }
 
-async function loadManagersFromDb({ selectAll = appUsers.selectAllRows, resolve = effectiveUsers.resolveUser, logger = console } = {}) {
+async function loadManagersFromDb({ selectAll = appUsers.selectAllRows, resolve = user => user, logger = console } = {}) {
   const candidates = await selectAll();
   const managers = [];
   for (const candidate of candidates) {

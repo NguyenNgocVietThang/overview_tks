@@ -1,6 +1,6 @@
 # Kế hoạch bot Telegram quản lý nghỉ phép
 
-Ngày: 02/10/2026. Trạng thái: kế hoạch đã được người dùng duyệt; không xác nhận đã bật production.
+Ngày: 02/10/2026. Trạng thái: đã triển khai code và xác minh toàn bộ bộ kiểm thử trên Node 22 (1.622 thành công, 3 bỏ qua, 0 thất bại); chờ cấu hình và bật môi trường production.
 
 ## Mục tiêu và phạm vi đã duyệt
 

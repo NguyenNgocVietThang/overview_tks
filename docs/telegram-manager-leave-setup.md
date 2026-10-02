@@ -2,6 +2,8 @@
 
 Cập nhật: 02/10/2026. Hướng dẫn này dành cho người vận hành sau khi triển khai code; không xác nhận bot đã được bật trên production.
 
+Kiểm thử code trên Node 22: toàn bộ bộ kiểm thử có 1.622 test thành công, 3 test bỏ qua, không có test thất bại. Kiểm thử bot mô phỏng Telegram và dùng PostgreSQL trong bộ nhớ (PGlite), bao gồm quyết định đồng thời, update trùng, restart, lý do từ chối và đồng bộ nhiều quản lý. Chưa áp migration, đăng ký webhook hoặc gửi tin thật trên production.
+
 ## Chuẩn bị
 
 - Máy chủ Express có HTTPS origin công khai và chạy liên tục nếu cần thông báo gần thời gian thực. Khi máy chủ ngủ/tắt, quét và giao tin dừng đến khi chạy lại.

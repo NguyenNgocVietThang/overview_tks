@@ -12,6 +12,20 @@ test('one conflicting linked account does not stop notifications for valid manag
   assert.deepEqual(managers, [good]);
 });
 
+test('default manager loader preserves assigned DB scope and live account revocations without HR writes', async () => {
+  const base = { id: 'manager', telegramId: '100', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động', coSo: 'Hà Nội', hrManaged: true, sheetCoSo: 'Cả hai' };
+  const locked = { ...base, id: 'locked', telegramId: '101', trangThai: 'Khóa' };
+  const revoked = { ...base, id: 'revoked', telegramId: '102', featurePermissions: { 'hr.leave.manage': false } };
+  const unassigned = { ...base, id: 'unassigned', telegramId: '103', coSo: '' };
+  const rows = [base, locked, revoked, unassigned];
+  const managers = await loadManagersFromDb({ selectAll: async () => rows });
+  assert.deepEqual(managers.map(m => m.id), ['manager', 'unassigned']);
+  assert.equal(managers[0].coSo, 'Hà Nội');
+  assert.equal(managers[1].coSo, '', 'scope matcher will exclude this unchanged blank scope');
+  assert.equal(locked.trangThai, 'Khóa');
+  assert.equal(revoked.featurePermissions['hr.leave.manage'], false);
+});
+
 test('permanently blocked Telegram effects finish so deferred web notifications still run', async () => {
   let notified = 0;
   let completed = false;
