@@ -195,6 +195,31 @@ test('unrelated messages, another sender and forwarded reason messages do not be
   assert.equal(f.sessions.size, 1);
 });
 
+test('a rejection reason sent without Reply explains how to reply and keeps the decision pending', async () => {
+  const f = fixture();
+  const { session } = await beginRejection(f);
+  const effects = await f.bot.handleUpdate(message('Mai có nhiều người nghỉ rồi'));
+  const feedback = effects.find(effect => effect.method === 'sendMessage');
+  assert.ok(feedback, 'a manager must receive feedback instead of silence');
+  assert.match(feedback.params.text, /Reply/);
+  assert.match(feedback.params.text, /NP-20261002-001/);
+  assert.equal(feedback.params.reply_parameters.message_id, session.prompt_message_id);
+  assert.equal(f.changes.length, 0);
+  assert.equal(f.sessions.get('123'), session);
+  assert.equal(f.rows.get(session.request_id).trang_thai, 'Chưa duyệt');
+});
+
+test('replying to another prompt points back to the active request without recording its text', async () => {
+  const f = fixture();
+  const { session } = await beginRejection(f);
+  const effects = await f.bot.handleUpdate(message('Lý do cho đơn cũ', { reply_to_message: { message_id: 99 } }));
+  const feedback = effects.find(effect => effect.method === 'sendMessage');
+  assert.ok(feedback);
+  assert.equal(feedback.params.reply_parameters.message_id, session.prompt_message_id);
+  assert.equal(f.changes.length, 0);
+  assert.equal(f.sessions.get('123'), session);
+});
+
 test('empty, nontext and oversized reasons preserve the current prompt and leave status', async () => {
   const f = fixture();
   await beginRejection(f);

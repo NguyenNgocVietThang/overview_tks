@@ -145,7 +145,7 @@ function createManagerLeaveBot({ store, leaveRepo, decide, getManager, webUrl })
           const session = await store.saveSession({ chatId, userId: user.id, requestId, expectedVersion });
           effects.push({ method: 'sendMessage', params: {
             chat_id: chatId,
-            text: `Từ chối yêu cầu ${requestId}: trả lời trực tiếp tin nhắn này bằng lý do (tối đa 500 ký tự). Phiên có hiệu lực 15 phút. Chọn Bỏ qua để không ghi lý do hoặc Hủy để giữ nguyên trạng thái.`,
+            text: `Từ chối yêu cầu ${requestId}: nhấn chuột phải hoặc chạm giữ tin nhắn này, chọn Trả lời (Reply), rồi gửi lý do (tối đa 500 ký tự). Phiên có hiệu lực 15 phút. Chọn Bỏ qua để không ghi lý do hoặc Hủy để giữ nguyên trạng thái.`,
             reply_markup: { inline_keyboard: [[
               { text: 'Bỏ qua', callback_data: `s|${session.session_id}` },
               { text: 'Hủy', callback_data: `k|${session.session_id}` }
@@ -174,11 +174,17 @@ function createManagerLeaveBot({ store, leaveRepo, decide, getManager, webUrl })
         effects.push(send(chatId, 'Đã hủy nhập lý do. Trạng thái yêu cầu được giữ nguyên.'));
         return effects;
       }
-      if (!ownsSession(session, user, chatId) || session.prompt_message_id == null ||
-          !message.reply_to_message || String(message.reply_to_message.message_id) !== String(session.prompt_message_id)) return [];
+      if (!ownsSession(session, user, chatId) || session.prompt_message_id == null) return [];
       if (sessionExpired(session)) {
         effects.push(...await removeSession(chatId, session));
         throw businessError('Phiên nhập lý do đã hết hạn sau 15 phút. Hãy chọn Từ chối lại.');
+      }
+      if (!message.reply_to_message || String(message.reply_to_message.message_id) !== String(session.prompt_message_id)) {
+        return [{ method: 'sendMessage', params: {
+          chat_id: chatId,
+          text: `Chưa lưu lý do cho yêu cầu ${session.request_id}. Nhấn chuột phải hoặc chạm giữ tin nhắn hỏi lý do, chọn Trả lời (Reply), rồi gửi lại lý do. Bạn cũng có thể chọn Bỏ qua hoặc Hủy trên tin nhắn đó.`,
+          reply_parameters: { message_id: Number(session.prompt_message_id), allow_sending_without_reply: true }
+        } }];
       }
       if (!text || text.length > 500) return [send(chatId, 'Lý do phải có từ 1 đến 500 ký tự. Trả lời lại tin nhắn hỏi lý do hoặc chọn Bỏ qua.')];
       await completeRejection(session, user, chatId, text, effects);

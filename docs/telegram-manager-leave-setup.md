@@ -96,7 +96,7 @@ Các bước này là kiểm tra cần thực hiện sau cấu hình, không ph�
 - **Không nhận tin:** kiểm tra server hoạt động, công tắc bot, migration, bot token, manager Start đúng bot và đủ vai trò/trạng thái/ID/quyền/cơ sở.
 - **Webhook không đến hoặc bị từ chối:** kiểm tra origin HTTPS, webhook trỏ đúng endpoint và secret đồng nhất; kiểm tra kết quả của lệnh đăng ký.
 - **Không bấm được nút:** kiểm tra trạng thái Đã duyệt/Từ chối, phiên bản đơn hoặc quyền/cơ sở đã thay đổi. Mở web để xem quyết định mới nhất.
-- **Lý do không được nhận:** reply đúng tin nhắc đang còn hạn; kiểm tra độ dài và phiên chưa bị quyết định mới thay thế.
+- **Lý do không được nhận:** nhấn chuột phải/chạm giữ tin nhắc, chọn **Trả lời (Reply)** rồi gửi lý do trong hạn phiên. Nếu gửi tin mới hoặc Reply nhầm tin, bot nhắc lại và dẫn về tin hỏi lý do đang chờ; lý do chưa được lưu. Kiểm tra độ dài và phiên chưa bị quyết định mới thay thế.
 - **Web chưa phản ánh đơn từ bot nhân viên:** kiểm tra `HR_LEAVE_DB_REALTIME_ENABLED`, server và kết nối DB/SSE; kết nối lại hoặc làm mới danh sách.
 
 Mốc bật lần đầu được lưu ở `hr_manager_telegram_state.first_enabled_at`, giữ qua restart/tắt-bật. Runtime theo dõi giao tin qua `hr_leave_manager_messages` (lease/retry) và inbox `hr_manager_telegram_updates`; bot xin nghỉ giữ bảng phiên `hr_telegram_sessions` riêng. Xem hợp đồng dữ liệu trong [SCHEMA](../server/db/SCHEMA.md).
