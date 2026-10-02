@@ -135,8 +135,8 @@ test('manager from the other branch cannot decide', async () => {
   assert.equal(f.rows.get('NP-20261002-001').trang_thai, 'Chưa duyệt');
 });
 
-test('approval finalizes pending, provisional and violation requests through the shared decision service', async () => {
-  for (const status of ['Chưa duyệt', 'Tạm duyệt', 'Vi phạm']) {
+test('approval finalizes pending and violation requests through the shared decision service', async () => {
+  for (const status of ['Chưa duyệt', 'Vi phạm']) {
     const f = fixture({ patch: { trang_thai: status } });
     const effects = await f.bot.handleUpdate(callback());
     assert.equal(f.rows.get('NP-20261002-001').trang_thai, 'Đã duyệt');
@@ -365,7 +365,7 @@ test('manual absence requests cannot be decided through an old Telegram delivery
 });
 
 test('removed status actions preserve existing decision versions and notes', async () => {
-  for (const [code, status] of [['p', 'Chưa duyệt'], ['t', 'Tạm duyệt'], ['v', 'Vi phạm']]) {
+  for (const [code, status] of [['p', 'Chưa duyệt'], ['t', 'Chưa duyệt'], ['v', 'Vi phạm']]) {
     const f = fixture({ patch: { trang_thai: status, ghi_chu_duyet: 'Ghi chú đang có' } });
     const effects = await f.bot.handleUpdate(callback(`d|NP-20261002-001|1|${code}`));
     assert.equal(f.changes.length, 0);

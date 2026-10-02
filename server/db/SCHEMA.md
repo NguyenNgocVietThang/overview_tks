@@ -75,7 +75,7 @@ Thay 3 tab Google Sheets (`Yêu cầu nghỉ phép`, `_HR_TELEGRAM_LINKS`, `_HR_
 - Khoảng nghỉ lưu bằng ngày (`DATE`) + buổi (`'Sáng'`/`'Chiều'`); mỗi ngày 2 buổi, khoảng tính gồm cả buổi đầu và cuối. CHECK `hr_leave_requests_range_check` chặn `end < start` và "Chiều → Sáng" cùng ngày. Web dựng lại chuỗi `"Sáng 22/08/2026"` khi trả API — DB không lưu chuỗi đó.
 - `ho_ten`, `chuc_vu`, `web_username` là **bản chụp** tại thời điểm gửi; `user_id`/`hr_employee_id` là khóa thật (`ON DELETE SET NULL`), bot nên điền cả hai. `source` mặc định `'telegram'`.
 - `co_nghi_gap`/`co_tu_y_nghi` là boolean; `tin_nhan` giữ nguyên văn tin nhắn gốc; `thoi_gian_gui` là giờ nhận tin (khác `created_at` = giờ ghi DB).
-- `trang_thai` ∈ `Chưa duyệt | Tạm duyệt | Đã duyệt | Từ chối | Vi phạm`; `loai_yeu_cau` ∈ `Xin nghỉ phép | Tự ý nghỉ (HR ghi nhận)`.
+- `trang_thai` ∈ `Chưa duyệt | Đã duyệt | Từ chối | Vi phạm` (migration 0030 đã gỡ `Tạm duyệt`, đơn cũ chuyển về `Chưa duyệt`; bot nhân viên ngoài repo không được ghi giá trị này nữa); `loai_yeu_cau` ∈ `Xin nghỉ phép | Tự ý nghỉ (HR ghi nhận)`.
 - `ghi_chu_duyet` = lý do từ chối do Quản lý nhập trên web hoặc bot quản lý khi chuyển sang `Từ chối` (rỗng nếu bỏ qua, và bị xóa về rỗng khi đơn đổi sang trạng thái khác). Web không hiển thị cột này; bot xin nghỉ ngoài repo không ghi nó.
 
 **Báo kết quả duyệt cho nhân viên** (thay cho việc bot cũ quét Sheet): hàng cần báo là
@@ -108,7 +108,7 @@ Sau khi nhắn Telegram thành công, bot `UPDATE ... SET decision_notified_at =
 
 **Khóa và cột kỹ thuật:**
 
-- `hr_leave_change_events`: PK `id BIGSERIAL`, FK `request_id` → đơn, UNIQUE `(request_id, decision_version)`; `event_type` nhận `CREATE`/`DECISION`. Index hàng chưa `completed_at` theo `(available_at, id)`. Migration chỉ seed đơn Xin nghỉ phép Chưa duyệt/Tạm duyệt hiện có, không gửi lại các quyết định kết thúc cũ.
+- `hr_leave_change_events`: PK `id BIGSERIAL`, FK `request_id` → đơn, UNIQUE `(request_id, decision_version)`; `event_type` nhận `CREATE`/`DECISION`. Index hàng chưa `completed_at` theo `(available_at, id)`. Migration chỉ seed đơn Xin nghỉ phép Chưa duyệt hiện có, không gửi lại các quyết định kết thúc cũ.
 - `hr_leave_manager_messages`: PK `id BIGSERIAL`, FK `request_id`/`user_id`, UNIQUE `(request_id, user_id, telegram_chat_id)`; chat ID là TEXT, message ID BIGINT. `desired_version` mặc định 0, `sent_version` mặc định -1; index hàng `NOT blocked AND desired_version > sent_version` để giao/cập nhật tin còn thiếu.
 - `hr_manager_telegram_sessions`: PK `telegram_chat_id TEXT`, `session_id UUID` UNIQUE; FK `user_id`/`request_id`, `expected_version`, `prompt_message_id`, `expires_at` mặc định +15 phút. Index `expires_at` hỗ trợ tìm phiên hết hạn.
 - `hr_manager_telegram_updates`: PK `update_id BIGINT`, `payload JSONB`, `chat_key TEXT GENERATED` lấy chat từ callback/message (fallback update ID), `effects JSONB` dạng mảng, `effects_done`, `handled_at`, `completed_at`. Hai index một phần cho hàng chưa hoàn tất: `(available_at, update_id)` và `(chat_key, update_id)`. Claim không vượt update trước chưa hoàn tất trong cùng chat, kể cả update trước đang retry hoặc còn lease.
@@ -119,7 +119,7 @@ Bốn bảng sự kiện/giao tin/phiên/inbox chứa định danh Telegram/nộ
 
 **Quyết định dùng chung:** service web/Telegram cập nhật cùng hàng `hr_leave_requests` trong transaction. Callback Telegram phải khớp `decision_version` mới nhất và người thao tác vẫn đủ vai trò Quản lý, trạng thái hoạt động, Telegram ID, quyền `hr.leave.manage` và cơ sở của đơn. Telegram không đổi tiếp đơn `Đã duyệt`/`Từ chối`; web vẫn được thay đổi/mở lại theo quyền hiện hành. Lý do từ chối trim, tối đa 500 ký tự; bỏ qua lưu rỗng, đổi sang trạng thái khác xóa lý do.
 
-**Giao tin:** nhận các đơn `Xin nghỉ phép` mới và bù các đơn `Chưa duyệt`/`Tạm duyệt` chưa gửi cho quản lý phù hợp; bỏ qua `Tự ý nghỉ (HR ghi nhận)`. Lease và trạng thái retry giữ việc đang dở qua restart, chống nhiều lượt quét cùng nhận một việc. Tin nhắn đã gửi được đồng bộ theo quyết định cuối cùng trong DB.
+**Giao tin:** nhận các đơn `Xin nghỉ phép` mới và bù các đơn `Chưa duyệt` chưa gửi cho quản lý phù hợp; bỏ qua `Tự ý nghỉ (HR ghi nhận)`. Lease và trạng thái retry giữ việc đang dở qua restart, chống nhiều lượt quét cùng nhận một việc. Tin nhắn đã gửi được đồng bộ theo quyết định cuối cùng trong DB.
 
 **Tương thích bot nhân viên:** `decision_notified_at` tiếp tục là cột bot xin nghỉ bên ngoài dùng để báo kết quả cho nhân viên. Bot quản lý không đánh dấu nó; trigger reset cột này khi đổi trạng thái vẫn giữ nguyên hợp đồng migration `0016`.
 

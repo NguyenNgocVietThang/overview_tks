@@ -20,9 +20,9 @@ test('real DB complete workflow: scoped backlog, Telegram rejection, duplicate u
       CREATE TABLE app_users(id UUID PRIMARY KEY, username TEXT, is_deleted BOOLEAN DEFAULT false,
         telegram_id TEXT DEFAULT '', updated_at TIMESTAMPTZ DEFAULT now(), hr_employee_id BIGINT);`);
     for (const user of managers) await db.query('INSERT INTO app_users(id, username) VALUES ($1, $2)', [user.id, user.username]);
-    for (const name of ['0016_hr_leave_telegram.sql', '0029_hr_manager_telegram.sql']) await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations', name), 'utf8'));
+    for (const name of ['0016_hr_leave_telegram.sql', '0029_hr_manager_telegram.sql', '0030_drop_leave_provisional_status.sql']) await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations', name), 'utf8'));
     for (const [requestId, branch, status, type] of [
-      ['NP-HN', 'hanoi', 'Chưa duyệt', 'Xin nghỉ phép'], ['NP-SG', 'saigon', 'Tạm duyệt', 'Xin nghỉ phép'],
+      ['NP-HN', 'hanoi', 'Chưa duyệt', 'Xin nghỉ phép'], ['NP-SG', 'saigon', 'Chưa duyệt', 'Xin nghỉ phép'],
       ['NP-CLOSED', 'hanoi', 'Đã duyệt', 'Xin nghỉ phép'], ['NP-MANUAL', 'hanoi', 'Đã duyệt', 'Tự ý nghỉ (HR ghi nhận)']
     ]) await db.query(`INSERT INTO hr_leave_requests(request_id,branch,start_date,start_session,end_date,end_session,tong_buoi_nghi,trang_thai,loai_yeu_cau)
       VALUES ($1,$2,'2026-10-02','Sáng','2026-10-02','Chiều',2,$3,$4)`, [requestId, branch, status, type]);
@@ -65,17 +65,17 @@ test('real DB complete workflow: scoped backlog, Telegram rejection, duplicate u
     let row = await leaveRepo.getLeaveRequestById('NP-HN', 'Hà Nội');
     assert.equal(row.trang_thai, 'Chưa duyệt', 'removed Telegram actions cannot decide');
     assert.equal(row.decision_version, '0');
-    await leaveRepo.updateLeaveRequestStatus('NP-HN', { status: 'Tạm duyệt', approver: 'Web' }, 'Hà Nội');
+    await leaveRepo.updateLeaveRequestStatus('NP-HN', { status: 'Vi phạm', approver: 'Web' }, 'Hà Nội');
     await runtime.drain();
     row = await leaveRepo.getLeaveRequestById('NP-HN', 'Hà Nội');
-    assert.equal(row.trang_thai, 'Tạm duyệt');
+    assert.equal(row.trang_thai, 'Vi phạm');
     assert.equal(row.decision_version, '1');
     await sendAction(managers[2], 'NP-HN', '0', 'r');
     assert.equal(await store.getSession('102'), null, 'stale callback cannot start a rejection');
     await sendAction(managers[0], 'NP-HN', '1', 'r');
     const session = await store.getSession('100');
     assert.ok(session.prompt_message_id);
-    assert.equal((await leaveRepo.getLeaveRequestById('NP-HN', 'Hà Nội')).trang_thai, 'Tạm duyệt');
+    assert.equal((await leaveRepo.getLeaveRequestById('NP-HN', 'Hà Nội')).trang_thai, 'Vi phạm');
     runtime = makeRuntime(); // Restart between requesting a reason and replying.
     await store.enqueueUpdate({ update_id: updateId++, message: { from: { id: 100 }, chat: { id: 100, type: 'private' },
       text: '  Thiếu người trực  ', reply_to_message: { message_id: Number(session.prompt_message_id) } } });

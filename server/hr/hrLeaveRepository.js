@@ -45,7 +45,6 @@ const LEAVE_TYPE = Object.freeze({
 
 const LEAVE_STATUS = Object.freeze({
   PENDING: 'Chưa duyệt',
-  PROVISIONAL: 'Tạm duyệt',
   APPROVED: 'Đã duyệt',
   REJECTED: 'Từ chối',
   VIOLATION: 'Vi phạm'

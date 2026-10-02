@@ -6,9 +6,9 @@ Ngày: 02/10/2026. Trạng thái: đã triển khai code và xác minh toàn b�
 
 Tạo **bot riêng cho quản lý**, chạy cùng Express. Bot xin nghỉ của nhân viên hiện có chạy ngoài repo, tiếp tục ghi trực tiếp `hr_leave_requests` và báo kết quả cho nhân viên qua `decision_notified_at`. Không thay bot, webhook, liên kết hay phiên xin nghỉ của nhân viên.
 
-- Gửi mọi đơn **Xin nghỉ phép** mới (kể cả Vi phạm); quét đầu bù đơn Chưa duyệt/Tạm duyệt chưa gửi. Không gửi **Tự ý nghỉ (HR ghi nhận)**.
+- Gửi mọi đơn **Xin nghỉ phép** mới (kể cả Vi phạm); quét đầu bù đơn Chưa duyệt chưa gửi. Không gửi **Tự ý nghỉ (HR ghi nhận)**.
 - Người nhận/thao tác: vai trò Quản lý, hoạt động, Telegram ID, quyền `hr.leave.manage`. Cơ sở Hà Nội/Sài Gòn/Cả hai tương ứng HN/SG/cả hai; cơ sở trống bị loại. Mỗi quản lý phải Start bot mới.
-- Có 5 trạng thái: Chưa duyệt, Tạm duyệt, Đã duyệt, Từ chối, Vi phạm. Đã duyệt/Từ chối khóa Telegram; web vẫn sửa được và chuyển về trạng thái khác để mở lại.
+- Có 4 trạng thái: Chưa duyệt, Đã duyệt, Từ chối, Vi phạm. Đã duyệt/Từ chối khóa Telegram; web vẫn sửa được và chuyển về trạng thái khác để mở lại.
 - Từ chối: reply đúng tin nhắc, lý do trim tối đa 500 ký tự, Bỏ qua lưu rỗng, Hủy không quyết định; phiên 15 phút.
 - Tin Telegram và web phản ánh cùng quyết định; nút/phiên cũ và quyết định đồng thời không ghi đè phiên bản mới.
 

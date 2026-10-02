@@ -187,11 +187,11 @@ Người lao động được nghỉ không hưởng lương 01 ngày và phải
 3. Trường hợp nghỉ dài ngày có ảnh hưởng đến hợp đồng lao động, đóng bảo hiểm hoặc quyền lợi khác, HR phải hướng dẫn và lập thỏa thuận bằng văn bản phù hợp trước khi áp dụng.
 4. Thời gian nghỉ không hưởng lương được tính vào thâm niên, phép năm, BHXH và quyền lợi khác theo đúng giới hạn, điều kiện của pháp luật hiện hành.
 
-## 9. Nghỉ khẩn cấp và tạm chấp thuận
+## 9. Nghỉ khẩn cấp và hậu kiểm
 
 1. Trường hợp ốm đột xuất, tai nạn, sự kiện gia đình khẩn cấp, thiên tai hoặc tình huống bất khả kháng khiến người lao động chưa thể tạo yêu cầu trên hệ thống, người lao động hoặc người liên hệ thay phải thông báo cho quản lý trực tiếp qua điện thoại, tin nhắn hoặc kênh phù hợp sớm nhất có thể.
-2. Yêu cầu gửi sát giờ hoặc thông báo khẩn cấp được ghi nhận ở trạng thái tạm chấp thuận để người lao động xử lý tình huống trước mắt. Trạng thái này không thay thế kết luận hậu kiểm của quản lý.
-3. Không áp dụng thời hạn riêng buộc quản lý phải kết luận ngay, nhưng mọi yêu cầu tạm chấp thuận phải được xác định loại nghỉ và hoàn tất trước khi HR khóa kỳ chấm công liên quan.
+2. Yêu cầu gửi sát giờ hoặc thông báo khẩn cấp được ghi nhận ở trạng thái `Chưa duyệt` để người lao động xử lý tình huống trước mắt; quản lý hậu kiểm và kết luận sau.
+3. Không áp dụng thời hạn riêng buộc quản lý phải kết luận ngay, nhưng mọi yêu cầu khẩn cấp phải được xác định loại nghỉ và hoàn tất trước khi HR khóa kỳ chấm công liên quan.
 4. Người lao động phải bổ sung yêu cầu chính thức và chứng từ cần thiết trước kỳ chốt công. Nếu vì lý do khách quan chưa thể có chứng từ, người lao động phải thông báo cho HR để được hướng dẫn theo pháp luật.
 5. Sau hậu kiểm:
    - nếu đủ điều kiện, thời gian nghỉ được ghi nhận theo đúng loại nghỉ tương ứng;
@@ -243,7 +243,7 @@ Người lao động được nghỉ không hưởng lương 01 ngày và phải
 - đánh giá công bằng dựa trên khả năng vận hành, lịch ca, bàn giao và nhu cầu hợp lý của người lao động;
 - chủ động bố trí người thay thế hoặc điều chỉnh kế hoạch khi có thể;
 - ghi rõ lý do khi từ chối hoặc yêu cầu đổi lịch;
-- hậu kiểm yêu cầu tạm chấp thuận và giải quyết toàn bộ trường hợp tồn trước khi HR khóa kỳ chấm công;
+- hậu kiểm yêu cầu nghỉ khẩn cấp và giải quyết toàn bộ trường hợp tồn trước khi HR khóa kỳ chấm công;
 - không yêu cầu công khai chẩn đoán, hồ sơ y tế hoặc thông tin gia đình nhạy cảm không cần thiết.
 
 ### 14.3. HR
@@ -306,7 +306,7 @@ Nhân viên có 04 giờ phép nhưng đề nghị nghỉ 08 giờ. Công ty ch�
 
 ### Ví dụ 6: Đơn nghỉ gấp
 
-Nhân viên bị ốm vào đầu ca, gọi điện cho quản lý và gửi yêu cầu sau đó. Yêu cầu được tạm chấp thuận. Trước kỳ chốt công, nhân viên bổ sung hồ sơ; quản lý hậu kiểm và HR ghi nhận theo chế độ ốm đau nếu đủ điều kiện.
+Nhân viên bị ốm vào đầu ca, gọi điện cho quản lý và gửi yêu cầu sau đó. Yêu cầu được ghi nhận ở trạng thái Chưa duyệt. Trước kỳ chốt công, nhân viên bổ sung hồ sơ; quản lý hậu kiểm và HR ghi nhận theo chế độ ốm đau nếu đủ điều kiện.
 
 ### Ví dụ 7: Thiếu người trong ca
 

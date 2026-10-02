@@ -216,7 +216,7 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 
 ## 5.8. Bot Telegram riêng cho quản lý nghỉ phép
 
-- Bot chạy cùng máy chủ dashboard, dùng chung đơn PostgreSQL với bot xin nghỉ ngoài repo. Mọi đơn **Xin nghỉ phép** mới được gửi cho quản lý phù hợp, kể cả đơn có trạng thái Vi phạm; khi bật hệ thống, gửi bù đơn Chưa duyệt/Tạm duyệt chưa gửi. Bản ghi **Tự ý nghỉ (HR ghi nhận)** không gửi qua bot này.
+- Bot chạy cùng máy chủ dashboard, dùng chung đơn PostgreSQL với bot xin nghỉ ngoài repo. Mọi đơn **Xin nghỉ phép** mới được gửi cho quản lý phù hợp, kể cả đơn có trạng thái Vi phạm; khi bật hệ thống, gửi bù đơn Chưa duyệt chưa gửi. Bản ghi **Tự ý nghỉ (HR ghi nhận)** không gửi qua bot này.
 - Chỉ tài khoản **Quản lý** đang hoạt động, có Telegram ID và quyền `hr.leave.manage` mới nhận/thao tác. Cơ sở tài khoản Hà Nội nhận đơn Hà Nội, Sài Gòn nhận đơn Sài Gòn, Cả hai nhận cả hai; cơ sở trống không nhận. Mỗi quản lý phải bấm **Start** với bot mới.
 - Quản lý chỉ có thể chọn Phê duyệt (lưu Đã duyệt) hoặc Từ chối trên Telegram. Khi từ chối, có thể nhập lý do bằng reply đúng lời nhắc, Bỏ qua hoặc Hủy; lý do được trim, tối đa 500 ký tự, phiên hết hạn sau 15 phút.
 - Đã duyệt/Từ chối khóa thao tác tiếp trên Telegram. Người đủ quyền vẫn đổi được trên web; chuyển về trạng thái chưa kết thúc mở lại thao tác Telegram. Các tin nhắn đã gửi cập nhật theo quyết định mới; thao tác cũ/trùng/đồng thời không được ghi đè quyết định mới hơn.

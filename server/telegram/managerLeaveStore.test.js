@@ -19,7 +19,7 @@ async function fixture() {
     CREATE TABLE app_users(id UUID PRIMARY KEY, username TEXT, is_deleted BOOLEAN DEFAULT false,
       telegram_id TEXT NOT NULL DEFAULT '', updated_at TIMESTAMPTZ DEFAULT now(), hr_employee_id BIGINT);
     INSERT INTO app_users(id, username) VALUES ('${USER}', 'manager');`);
-  for (const name of ['0016_hr_leave_telegram.sql', '0029_hr_manager_telegram.sql']) {
+  for (const name of ['0016_hr_leave_telegram.sql', '0029_hr_manager_telegram.sql', '0030_drop_leave_provisional_status.sql']) {
     await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations', name), 'utf8'));
   }
   await db.exec(`INSERT INTO hr_leave_requests(request_id, branch, start_date, start_session,
@@ -115,11 +115,12 @@ test('failed update handling rolls back decision, event and session together', a
   } finally { await db.close(); }
 });
 
-test('optimistic guard protects final decisions and detects stale provisional decisions', async () => {
+test('optimistic guard protects final decisions and detects stale non-final decisions', async () => {
   const { db, pool } = await fixture();
   try {
     const repo = createHrLeaveRepository({ pool });
-    await repo.updateLeaveRequestStatus('NP-TEST', { status: 'Tạm duyệt', expectedVersion: '0', lockFinal: true }, 'Hà Nội');
+    await assert.rejects(repo.updateLeaveRequestStatus('NP-TEST', { status: 'Tạm duyệt' }, 'Hà Nội'), err => err.code === 'INVALID_STATUS');
+    await repo.updateLeaveRequestStatus('NP-TEST', { status: 'Vi phạm', expectedVersion: '0', lockFinal: true }, 'Hà Nội');
     await assert.rejects(repo.updateLeaveRequestStatus('NP-TEST', { status: 'Đã duyệt', expectedVersion: '0', lockFinal: true }, 'Hà Nội'), err => err.code === 'LEAVE_DECISION_CONFLICT');
     await repo.updateLeaveRequestStatus('NP-TEST', { status: 'Đã duyệt', expectedVersion: '1', lockFinal: true }, 'Hà Nội');
     await assert.rejects(repo.updateLeaveRequestStatus('NP-TEST', { status: 'Từ chối', expectedVersion: '2', lockFinal: true }, 'Hà Nội'), err => err.statusCode === 409);

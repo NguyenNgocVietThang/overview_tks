@@ -85,7 +85,7 @@ test('each decision field independently increments once while unchanged values d
       "approver_user_id = '11111111-1111-1111-1111-111111111111'",
       "thoi_diem_duyet = '2026-10-02T01:00:00Z'",
       "ghi_chu_duyet = 'Accepted'",
-      "trang_thai = 'Tạm duyệt'"
+      "trang_thai = 'Vi phạm'"
     ];
     for (let i = 0; i < changes.length; i += 1) {
       await db.exec(`UPDATE hr_leave_requests SET ${changes[i]}`);

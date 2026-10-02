@@ -41,7 +41,7 @@
   .hr-subtab-panel{ display:none; }
   .hr-subtab-panel.active{ display:block; }
 
-  .kpi-row{ display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:14px; margin-bottom:20px; }
+  .kpi-row{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; margin-bottom:20px; }
   @media (max-width:800px){ .kpi-row{ grid-template-columns:repeat(2, minmax(0, 1fr)); } }
   /* Dien thoai: giu 2 cot (so lieu ngan), the le cuoi trai het chieu ngang */
   @media (max-width:480px){
@@ -96,7 +96,6 @@
     display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:var(--radius-pill); font-size:11.5px; font-weight:600;
   }
   .status-pill.leave-pending{ background:var(--status-pending-bg); color:var(--amber); }
-  .status-pill.leave-provisional{ background:var(--accent-blue-12); color:var(--blue); }
   .status-pill.leave-approved{ background:var(--status-active-bg); color:var(--green); }
   .status-pill.leave-rejected{ background:var(--status-locked-bg); color:var(--red); }
   .status-pill.leave-violation{ background:var(--status-locked-bg); color:var(--red); border:1px solid color-mix(in srgb, var(--red) 35%, transparent); }
@@ -129,11 +128,6 @@
     background-color:var(--status-locked-bg); color:var(--red);
     border-color:color-mix(in srgb, var(--red) 40%, transparent);
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23EF4444' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  }
-  .status-select.leave-provisional{
-    background-color:var(--accent-blue-12); color:var(--blue);
-    border-color:color-mix(in srgb, var(--blue) 40%, transparent);
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233B82F6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   }
   .status-select.leave-violation{
     background-color:var(--status-locked-bg); color:var(--red);
@@ -169,7 +163,6 @@
   }
   .row-actions .btn-mini:hover{ border-color:var(--muted); background:var(--surface-hover); }
   .row-actions .btn-mini.approve{ border-color:var(--green); color:var(--green); }
-  .row-actions .btn-mini.provisional{ border-color:var(--blue); color:var(--blue); }
   .row-actions .btn-mini.reject{ border-color:var(--red); color:var(--red); }
   .row-actions .export-button{
     min-height:32px; padding:0 12px; border:none; border-radius:var(--radius-md); cursor:pointer;
@@ -407,10 +400,6 @@
             <div class="lbl">Chưa duyệt</div>
             <div class="val" id="statPending">0</div>
           </div>
-          <div class="kpi-stat">
-            <div class="lbl">Tạm duyệt</div>
-            <div class="val" id="statProvisional">0</div>
-          </div>
           <div class="kpi-stat kpi-green">
             <div class="lbl">Đã duyệt</div>
             <div class="val" id="statApproved">0</div>
@@ -435,7 +424,6 @@
             <select id="statusFilter" class="filter-select" onchange="handleStatusFilterChange()">
               <option value="">Tất cả trạng thái</option>
               <option value="Chưa duyệt">Chưa duyệt</option>
-              <option value="Tạm duyệt">Tạm duyệt</option>
               <option value="Đã duyệt">Đã duyệt</option>
               <option value="Từ chối">Từ chối</option>
               <option value="Vi phạm">Vi phạm</option>
@@ -1285,7 +1273,6 @@
 
     const STATUS_CLASS = {
       'Chưa duyệt': 'leave-pending',
-      'Tạm duyệt': 'leave-provisional',
       'Đã duyệt': 'leave-approved',
       'Từ chối': 'leave-rejected',
       'Vi phạm': 'leave-violation'
@@ -1466,10 +1453,9 @@
     }
 
     function renderStats(requests){
-      const counts = { 'Chưa duyệt': 0, 'Tạm duyệt': 0, 'Đã duyệt': 0, 'Từ chối': 0, 'Vi phạm': 0 };
+      const counts = { 'Chưa duyệt': 0, 'Đã duyệt': 0, 'Từ chối': 0, 'Vi phạm': 0 };
       requests.forEach(r => { if(counts.hasOwnProperty(r.trang_thai)) counts[r.trang_thai]++; });
       document.getElementById('statPending').textContent = counts['Chưa duyệt'];
-      document.getElementById('statProvisional').textContent = counts['Tạm duyệt'];
       document.getElementById('statApproved').textContent = counts['Đã duyệt'];
       document.getElementById('statRejected').textContent = counts['Từ chối'];
       document.getElementById('statViolation').textContent = counts['Vi phạm'];
@@ -1501,9 +1487,6 @@
           const options = r.trang_thai === 'Vi phạm'
             ? ['Vi phạm', 'Đã duyệt', 'Từ chối']
             : ['Chưa duyệt', 'Đã duyệt', 'Từ chối'];
-          if (r.trang_thai === 'Tạm duyệt') {
-            options.splice(1, 0, 'Tạm duyệt');
-          }
           statusHtml = `
             <select class="status-select ${statusClass}" data-request-id="${escapeHtml(r.request_id)}" data-prev-status="${escapeHtml(r.trang_thai)}" onchange="handleStatusSelectChange(this, '${escapeHtml(r.request_id)}')" aria-label="Trạng thái cho đơn ${escapeHtml(r.request_id)}">
               ${options.map(opt => `<option value="${escapeHtml(opt)}"${opt === r.trang_thai ? ' selected' : ''}>${escapeHtml(opt)}</option>`).join('')}

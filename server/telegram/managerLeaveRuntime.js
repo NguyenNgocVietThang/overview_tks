@@ -149,8 +149,8 @@ function createManagerLeaveRuntime({
   }
 
   async function seedBacklog(managers) {
-    const lists = await Promise.all(['Chưa duyệt', 'Tạm duyệt'].map(status => leaveRepo.getLeaveRequests({ status }, BOTH_BRANCHES)));
-    for (const record of lists.flat()) {
+    const pending = await leaveRepo.getLeaveRequests({ status: 'Chưa duyệt' }, BOTH_BRANCHES);
+    for (const record of pending) {
       if (record.loai_yeu_cau !== 'Xin nghỉ phép') continue;
       for (const user of managers) if (managerMatchesBranch(user, record.co_so)) {
         await store.enqueueDelivery({ requestId: record.request_id, userId: user.id, chatId: user.telegramId, version: record.decision_version });

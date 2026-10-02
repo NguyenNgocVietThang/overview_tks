@@ -82,10 +82,10 @@ Vai trò khác Quản lý, tài khoản không hoạt động, thiếu Telegram 
 
 Dùng các đơn được phép thử trong môi trường triển khai:
 
-1. Bot gửi bù các đơn **Xin nghỉ phép** Chưa duyệt/Tạm duyệt chưa gửi. Lịch sử đã kết thúc trước lần bật bot đầu tiên không gửi mới; đơn tạo sau mốc bật vẫn gửi trạng thái hiện tại dù web đã duyệt trước lượt quét. Tạo một đơn mới qua bot nhân viên hiện có; xác nhận web và quản lý đúng cơ sở nhận được. Đơn mới Vi phạm vẫn được gửi; **Tự ý nghỉ (HR ghi nhận)** không được gửi.
-2. Tin nhắn chỉ có hai nút quyết định **Phê duyệt** và **Từ chối**. Thử Phê duyệt: lưu trạng thái Đã duyệt, người duyệt và thời điểm trên web và các tin Telegram đã gửi. Các nút Chưa duyệt/Tạm duyệt/Vi phạm trên tin cũ không được xử lý; nút cũ sau khi quyết định đổi không được ghi đè bản mới.
+1. Bot gửi bù các đơn **Xin nghỉ phép** Chưa duyệt chưa gửi. Lịch sử đã kết thúc trước lần bật bot đầu tiên không gửi mới; đơn tạo sau mốc bật vẫn gửi trạng thái hiện tại dù web đã duyệt trước lượt quét. Tạo một đơn mới qua bot nhân viên hiện có; xác nhận web và quản lý đúng cơ sở nhận được. Đơn mới Vi phạm vẫn được gửi; **Tự ý nghỉ (HR ghi nhận)** không được gửi.
+2. Tin nhắn chỉ có hai nút quyết định **Phê duyệt** và **Từ chối**. Thử Phê duyệt: lưu trạng thái Đã duyệt, người duyệt và thời điểm trên web và các tin Telegram đã gửi. Các nút Chưa duyệt/Vi phạm trên tin cũ không được xử lý; nút cũ sau khi quyết định đổi không được ghi đè bản mới.
 3. Thử Từ chối: reply đúng tin nhắc nhập lý do, khoảng trắng đầu/cuối bị bỏ; trên 500 ký tự không được nhận. Kiểm tra Bỏ qua lưu lý do rỗng, Hủy không quyết định, phiên quá 15 phút không còn nhận lý do.
-4. Với Đã duyệt/Từ chối, tin Telegram khóa thao tác tiếp của mọi quản lý. Trên web, đổi về Chưa duyệt/Tạm duyệt/Vi phạm để mở lại; tin Telegram cập nhật và nhận thao tác ở phiên bản mới.
+4. Với Đã duyệt/Từ chối, tin Telegram khóa thao tác tiếp của mọi quản lý. Trên web, đổi về Chưa duyệt/Vi phạm để mở lại; tin Telegram cập nhật và nhận thao tác ở phiên bản mới.
 5. Xác nhận bot nhân viên vẫn báo kết quả như trước qua `decision_notified_at`. Bot quản lý không đánh dấu cột này.
 6. Kiểm tra restart/retry bằng môi trường thử: việc đã lưu tiếp tục, update trùng không đổi quyết định hai lần. Kết nối lại SSE trên web làm mới danh sách.
 
