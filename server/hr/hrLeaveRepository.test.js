@@ -242,3 +242,30 @@ test('getUrgentFlagSummary gộp theo nhân viên và đánh dấu vượt ngư�
     err => err.code === 'INVALID_MONTH'
   );
 });
+
+test('leave row exposes decision_version without losing bigint precision', async () => {
+  const pool = fakePool([dbRow({ decision_version: '9007199254740993' })]);
+  const item = await createHrLeaveRepository({ pool }).getLeaveRequestById('NP-TEST', 'Hà Nội');
+  assert.equal(item.decision_version, '9007199254740993');
+});
+
+test('manager decision adds atomic version and final-status guards without changing normal web updates', async () => {
+  const pool = fakePool([dbRow({ decision_version: '8' })]);
+  const repo = createHrLeaveRepository({ pool });
+  await repo.updateLeaveRequestStatus('NP-TEST', { status: LEAVE_STATUS.APPROVED, expectedVersion: '7', lockFinal: true }, 'Hà Nội');
+  assert.match(pool.calls[0].sql, /decision_version = \$7::bigint/);
+  assert.match(pool.calls[0].sql, /trang_thai NOT IN \('Đã duyệt', 'Từ chối'\)/);
+  assert.equal(pool.calls[0].params[6], '7');
+  await repo.updateLeaveRequestStatus('NP-TEST', { status: LEAVE_STATUS.REJECTED }, 'Hà Nội');
+  assert.doesNotMatch(pool.calls[1].sql.split('WHERE')[1].split('RETURNING')[0], /decision_version|NOT IN/);
+});
+
+test('manager conflict is 409 for an existing request and remains 404 for an absent request', async () => {
+  const pool = { async query(sql) { return { rows: /^SELECT/.test(sql.trim()) ? [{ request_id: 'NP-TEST' }] : [] }; } };
+  await assert.rejects(createHrLeaveRepository({ pool }).updateLeaveRequestStatus('NP-TEST',
+    { status: LEAVE_STATUS.APPROVED, expectedVersion: '0', lockFinal: true }, 'Hà Nội'),
+  err => err.code === 'LEAVE_DECISION_CONFLICT' && err.statusCode === 409);
+  await assert.rejects(createHrLeaveRepository({ pool: fakePool([]) }).updateLeaveRequestStatus('NP-ABSENT',
+    { status: LEAVE_STATUS.APPROVED, expectedVersion: '0', lockFinal: true }, 'Hà Nội'),
+  err => err.code === 'LEAVE_REQUEST_NOT_FOUND' && err.statusCode === 404);
+});

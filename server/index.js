@@ -9,6 +9,8 @@ const { startPollingScheduler } = require('./kiotvietSync/scheduler');
 const { prewarmDashboardCaches } = require('./dashboard/dashboardData');
 const { captureWebhookRawBody, webhookJsonErrorHandler } = require('./kiotviet/kiotvietWebhookRoutes');
 const { pageGuard } = require('./auth/pageGuard');
+const { createLeaveDbRealtime } = require('./hr/hrLeaveDbRealtime');
+const { getConfiguredManagerLeaveRuntime } = require('./telegram/managerLeaveRuntime');
 
 process.on('uncaughtException', (err) => {
   console.error('[Process] Uncaught exception:', err);
@@ -129,6 +131,10 @@ async function startServer() {
 
   app.listen(CONFIG.PORT, () => {
     console.log(`TOKOSI dashboard server dang chay tren port ${CONFIG.PORT}`);
+
+    if (CONFIG.HR_LEAVE_DB_REALTIME_ENABLED) createLeaveDbRealtime().start();
+    const managerLeaveRuntime = getConfiguredManagerLeaveRuntime();
+    if (managerLeaveRuntime) managerLeaveRuntime.start();
 
 
     if (CONFIG.KIOTVIET_SYNC_ENABLED) {

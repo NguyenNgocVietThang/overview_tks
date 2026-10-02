@@ -20,15 +20,14 @@ const {
   resolveApproverName,
   computeDurationSessions,
   parseIsoDateOnly,
-  notifyAllUsers,
-  notifyOtherManagers
+  notifyAllUsers
 } = hrLeaveService;
 const { buildLeaveRequestsWorkbook } = require('./hrLeaveExportService');
 const { buildEmployeeDirectoryWorkbook } = require('./hrEmployeeExportService');
 const { BRANCHES, BRANCH_BOTH, allowedBranches, normalizeCoSo } = require('../branch/branches');
 const { leaveEvents, LEAVE_EVENT_TYPES, broadcastLeaveEvent } = require('./hrLeaveEvents');
-const localUserStore = require('../auth/localUserStore');
-const notificationRepo = require('../notifications/notificationRepository');
+const { createHrLeaveDecisionService } = require('./hrLeaveDecisionService');
+const decisions = createHrLeaveDecisionService();
 
 // Phan quyen theo TINH NANG (server/auth/featureRegistry.js).
 //   hr.leave        — xem ho so nghi phep (mac dinh: moi vai tro noi bo)
@@ -37,8 +36,6 @@ const notificationRepo = require('../notifications/notificationRepository');
 const authInternal = [requireAuth, requireFeature('hr.leave')];
 const authEmployees = [requireAuth, requireFeature('hr.employees')];
 const authManager = [requireAuth, requireFeature('hr.leave.manage')];
-
-const MAX_DECISION_NOTE_LENGTH = 500;
 
 // Bo loc "Co so" cua trang: bo trong / 'all' / "Cả hai" = TAT CA co so tai
 // khoan duoc xem (khong phu thuoc co so dang chon o thanh dieu huong); 1 co so
@@ -273,56 +270,9 @@ router.post('/api/hr/leave-requests', ...authManager, async (req, res) => {
 router.patch('/api/hr/leave-requests/:id/status', ...authManager, async (req, res) => {
   try {
     const { status, note } = req.body || {};
-    if (!status) {
-      return res.status(400).json({ error: 'Thiếu trường "status".', code: 'INVALID_REQUEST' });
-    }
-    // `note` = ly do tu choi (khong bat buoc); luu vao ghi_chu_duyet, khong hien tren UI.
-    if (note != null && typeof note !== 'string') {
-      return res.status(400).json({ error: 'Lý do phải là chuỗi ký tự.', code: 'INVALID_NOTE' });
-    }
-    const cleanNote = note == null ? undefined : note.trim();
-    if (cleanNote && cleanNote.length > MAX_DECISION_NOTE_LENGTH) {
-      return res.status(400).json({
-        error: `Lý do tối đa ${MAX_DECISION_NOTE_LENGTH} ký tự.`,
-        code: 'INVALID_NOTE'
-      });
-    }
-    const approver = resolveApproverName(req.user);
-    // Don co the thuoc bat ky co so nao tai khoan duoc xem (danh sach co the dang
-    // o "Tat ca co so"), nen tim theo tat ca chu khong chi co so dang chon.
-    const updated = await repo.updateLeaveRequestStatus(
-      req.params.id, { status, approver, approverUserId: req.user && req.user.id, note: cleanNote }, allowedBranches(req.user)
-    );
-    const requestBranch = updated.co_so || physicalBranchOrNull(req.branch);
+    const updated = await decisions.decide({ requestId: req.params.id, user: req.user, status, note }, { notify: false });
     res.status(200).json({ request: updated });
-
-    // Phat tin hieu realtime toi tat ca cac client dang mo
-    broadcastLeaveEvent(LEAVE_EVENT_TYPES.STATUS_CHANGED, updated, requestBranch);
-
-    notifyOtherManagers(req.user.id, requestBranch, {
-      type: 'leave_request_decision',
-      title: 'Đơn nghỉ phép đã được cập nhật',
-      message: `Đơn nghỉ phép của ${updated.ho_ten} đã chuyển sang trạng thái "${status}".`,
-      relatedType: 'leaveRequest',
-      relatedId: updated.id
-    });
-
-    // Bao chinh nhan su xin nghi (neu don gan voi 1 tai khoan web) - best-effort.
-    if (updated.web_username) {
-      localUserStore.getUserByUsername(updated.web_username)
-        .then(employee => {
-          if (!employee) return;
-          return notificationRepo.createNotification({
-            recipientUserId: employee.id,
-            type: 'leave_request_decision',
-            title: 'Đơn nghỉ phép của bạn đã được cập nhật',
-            message: `Đơn nghỉ phép của bạn đã được ${status}${cleanNote ? ` (${cleanNote})` : ''}.`,
-            relatedType: 'leaveRequest',
-            relatedId: updated.id
-          });
-        })
-        .catch(notifyErr => console.error('Lỗi báo thông báo nghỉ phép cho nhân viên:', notifyErr.message));
-    }
+    void decisions.notifyDecision(updated, req.user && req.user.id, typeof note === 'string' ? note.trim() : undefined);
   } catch (err) {
     handleError(res, err, 'PATCH /api/hr/leave-requests/:id/status');
   }

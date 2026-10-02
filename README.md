@@ -10,7 +10,7 @@ Dashboard nội bộ cho hai cơ sở Hà Nội và Sài Gòn.
 - CN1/CN3/CN7 (công nợ 1/3/7 ngày) được tính từ Supabase và lưu trong `customer_debt_activity_periods`.
 - Tài khoản ứng dụng và Telegram ID được lưu trong PostgreSQL `app_users`; không còn tab `Users` hay luồng liên kết Telegram qua Google Sheets.
 - Apps Script Kiot HN/SG và module vận chuyển cũ đã được nghỉ hưu hoàn toàn; tính năng tra cứu vòng đời đơn hàng tiếp tục được duy trì qua Google Sheets (`ORDER_LIFECYCLE_SPREADSHEET_ID`).
-- Nguồn nhân sự vẫn sử dụng workbook HR riêng khi được cấu hình.
+- Nguồn nhân sự vẫn sử dụng workbook HR riêng khi được cấu hình. Đơn nghỉ phép nằm trong Postgres; bot xin nghỉ hiện có chạy ngoài repo. Bot Telegram riêng cho quản lý chạy cùng Express, thông báo và xử lý quyết định theo cơ sở (xem [hướng dẫn thiết lập](docs/telegram-manager-leave-setup.md)).
 - Cơ sở chỉ là **bộ lọc xem**: mọi tài khoản đều xem được Hà Nội, Sài Gòn và **`Cả hai`** trên thanh điều hướng; cơ sở gán cho tài khoản (`co_so`, để trống = `Cả hai`) chỉ là cơ sở **mặc định** lúc đăng nhập. Mọi bảng dữ liệu có cột **Cơ sở**. Ở `Cả hai`: hàng hóa và giao dịch cùng mã ở hai cơ sở là hai dòng riêng `(cơ sở, mã)`, khách gộp theo **tên** (mã khách khác nhau giữa hai cơ sở, không còn cột mã khách), nhà cung cấp gộp theo mã. Chỉ hàng **Đang kinh doanh** được tính, không còn bộ lọc trạng thái kinh doanh; đầu tab không còn thanh tìm kiếm chung (chỉ còn bộ lọc thời gian và tìm kiếm trong từng bảng). `Cả hai` chỉ là phạm vi xem — cột `branch` trong database vẫn chỉ nhận `hanoi`/`saigon` (xem `server/branch/branches.js`).
 
 ## Chạy local
@@ -39,6 +39,11 @@ Mở `http://localhost:3000`.
 | `ORDER_LIFECYCLE_SPREADSHEET_ID` | Workbook tra cứu vòng đời đơn hàng (`DonHang_HN`, `DonHang_SG`, `Lịch sử cập nhật`) |
 | `HR_SPREADSHEET_ID`, `HR_SPREADSHEET_ID_SG` | Workbook nhân sự |
 | `JWT_SECRET` | Ký phiên đăng nhập |
+| `HR_MANAGER_TELEGRAM_ENABLED` | Bật bot riêng cho quản lý; mặc định `false` |
+| `HR_MANAGER_TELEGRAM_BOT_TOKEN`, `HR_MANAGER_TELEGRAM_WEBHOOK_SECRET` | Token bot mới và secret xác thực webhook Telegram; giữ trong môi trường máy chủ |
+| `HR_MANAGER_TELEGRAM_WEB_URL` | HTTPS origin công khai của dashboard, dùng cho webhook và nút mở web |
+| `HR_MANAGER_TELEGRAM_SCAN_INTERVAL_MS` | Chu kỳ quét đơn/sự kiện trong Postgres; mặc định `5000` ms |
+| `HR_LEAVE_DB_REALTIME_ENABLED` | Cầu thay đổi Postgres → SSE của HR, mặc định `true`, độc lập với công tắc bot |
 
 Xem [server/.env.example](server/.env.example) để biết đầy đủ cấu hình.
 
@@ -52,8 +57,8 @@ server/
 │   ├── documentDetailRepository.js  # Chi tiết 1 chứng từ (đơn đặt hàng / phiếu trả / hóa đơn) cho popup bảng Hóa đơn
 │   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel
 ├── data/                 # Dữ liệu lưu trữ local (users.json, notifications.json, ...)
-├── db/                   # Migration Supabase (0001–0028)
-├── hr/                   # Nhân sự và nghỉ phép
+├── db/                   # Migration Supabase (0001–0029)
+├── hr/                   # Nhân sự, quyết định nghỉ phép dùng chung và cầu Postgres → SSE
 ├── kiotviet/             # KiotViet API client và webhook receiver
 ├── kiotvietSync/         # Webhook, polling, backfill và rollup
 ├── lib/                  # Thư viện tiện ích nội bộ (TTL cache, ...)
@@ -62,6 +67,7 @@ server/
 ├── scripts/              # Script thủ công (migrate dữ liệu, cài đặt ban đầu)
 ├── sheets/               # Google Sheets client (Công nợ, Vòng đời, HR)
 ├── shipment/             # Tra cứu vòng đời đơn hàng
+├── telegram/             # Bot quản lý nghỉ phép, webhook, giao tin bền vững + đăng ký webhook
 ├── index.js
 └── routes.js
 ```
@@ -73,6 +79,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-02 — **Bot Telegram riêng cho quản lý nghỉ phép**: chạy trong Express qua `POST /api/telegram/manager-leave/webhook`, xác thực secret; quét Postgres mỗi 5 giây mặc định. Gửi các đơn `Xin nghỉ phép` mới và bù đơn `Chưa duyệt`/`Tạm duyệt` chưa gửi; quản lý nhận theo cơ sở tài khoản, phải có Telegram ID và bấm **Start** với bot mới. Có đủ 5 trạng thái; `Đã duyệt`/`Từ chối` khóa thao tác Telegram, web vẫn đổi trạng thái và mở lại được. Migration `0029_hr_manager_telegram.sql` thêm `decision_version` và 5 bảng cho sự kiện, giao tin, phiên từ chối, inbox cập nhật và mốc bật bot lần đầu; **chạy migration trước khi chạy bản web mới, kể cả khi bot tắt**. Bot xin nghỉ cũ tiếp tục dùng `decision_notified_at` để báo nhân viên. Xem [kế hoạch đã duyệt](docs/superpowers/plans/2026-10-02-telegram-manager-leave.md) và [thiết lập/vận hành](docs/telegram-manager-leave-setup.md); tài liệu này không xác nhận đã triển khai production.
 
 2026-10-02 — **Vòng đời đơn hàng: lấy mọi đơn Kiot, cột Trạng thái KiotViet / Ghi chú, công thức có bán mới, ẩn/hiện cột, xuất file chỉ Quản lý**: bảng "Toàn bộ đơn hàng" nay gồm **mọi đơn đặt hàng của Kiot HN + SG ở mọi trạng thái** (Phiếu tạm, Đã xác nhận, Đang giao hàng, Hoàn thành, Đã hủy; ~60 nghìn đơn) — dòng Google Sheet không khớp đơn Kiot nào (theo cơ sở + mã) không hiện, sheet chỉ cấp mốc thời gian / trạng thái vòng đời. Thêm cột **Trạng thái KiotViet** + bộ lọc "Trạng thái KiotViet" (mặc định *Tất cả*; bộ lọc trạng thái chính vẫn còn) và cột **Ghi chú** (mô tả đơn trên Kiot) ngay bên phải "Giá trị có bán". **Giá trị có bán** đổi quy tắc: số lượng có bán = `min(SL đặt, tồn kho)` (không còn cộng hàng đang vận chuyển), thành tiền = số lượng có bán × đơn giá; chỉ đơn Phiếu tạm có giá trị này, "Giá trị đơn" thì có với mọi đơn Kiot. Cột "Đang vận chuyển" ở bảng hàng hóa trong đơn đổi tên **"Điều chuyển SG"** (chỉ để tham khảo). Nút **"Cột hiển thị"** mở hộp tick ẩn/hiện cột (mặc định hiện hết; "Mã đơn" luôn hiện; nhớ theo trình duyệt). Vì bảng lớn nên **lọc / sắp xếp / phân trang chạy ở máy chủ** (`GET /api/shipment/lifecycle?branch&status&kiotStatus&dateField&from&to&mode&q&sort&dir&page&pageSize` trả 1 trang 100 dòng; module `shipment/orderLifecycleQuery.js`; mặc định đơn mới đặt nhất trước), cache đơn Kiot 2 phút kiểu *stale-while-revalidate*; module đọc Kiot đổi tên `shipment/kiotOrdersRepository.js`. **Xuất Excel** (`POST /api/shipment/lifecycle/export`) nay nhận **bộ lọc** thay vì danh sách mã, có thêm cột Ghi chú / Trạng thái KiotViet, tối đa 20.000 dòng mỗi lần (vượt → 400 `TOO_MANY_ROWS`), và quyền `shipment.export` mặc định **chỉ Quản lý** (Quản lý vẫn cấp thêm được cho từng tài khoản).
 

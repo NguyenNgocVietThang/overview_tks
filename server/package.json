@@ -13,6 +13,7 @@
     "dev": "node --max-old-space-size=4096 index.js",
     "test": "node --max-old-space-size=4096 --test",
     "db:migrate": "node db/migrate.js",
+    "telegram-manager:set-webhook": "node telegram/setManagerLeaveWebhook.js",
     "kiotviet-sync:preflight": "node kiotvietSync/preflightCheck.js",
     "kiotviet-sync:backfill": "node kiotvietSync/backfill.js",
     "kiotviet-sync:reconcile": "node kiotvietSync/reconcileCounts.js",
@@ -33,6 +34,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "dotenv": "^16.4.5",
     "jsdom": "^30.0.1"
   }

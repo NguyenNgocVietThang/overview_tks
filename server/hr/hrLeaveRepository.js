@@ -128,7 +128,7 @@ const SELECT_COLUMNS = `
   start_date::text AS start_date, start_session,
   end_date::text AS end_date, end_session,
   tong_buoi_nghi, tong_ngay_nghi, nguoi_ban_giao,
-  trang_thai, nguoi_duyet, thoi_diem_duyet, ghi_chu_duyet,
+  trang_thai, nguoi_duyet, thoi_diem_duyet, ghi_chu_duyet, decision_version::text AS decision_version,
   co_nghi_gap, co_tu_y_nghi, created_at, updated_at, tin_nhan,
   branch,
   (SELECT e.bo_phan FROM hr_employees e
@@ -157,6 +157,7 @@ function rowToRequest(row) {
     nguoi_duyet: row.nguoi_duyet || '',
     thoi_diem_duyet: toIso(row.thoi_diem_duyet),
     ghi_chu_duyet: row.ghi_chu_duyet || '',
+    decision_version: String(row.decision_version == null ? '0' : row.decision_version),
     co_nghi_gap: !!row.co_nghi_gap,
     co_tu_y_nghi: !!row.co_tu_y_nghi,
     created_at: toIso(row.created_at),
@@ -275,10 +276,20 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
    * Doi trang thai phe duyet 1 yeu cau. Trigger DB tu xoa decision_notified_at
    * khi trang_thai doi de bot bao lai cho nhan vien.
    */
-  async function updateLeaveRequestStatus(id, { status, approver, approverUserId, note }, branch) {
+  async function updateLeaveRequestStatus(id, { status, approver, approverUserId, note, expectedVersion, lockFinal = false }, branch) {
     if (!Object.values(LEAVE_STATUS).includes(status)) {
       throw new HrError(`Trạng thái không hợp lệ: "${status}".`, 400, 'INVALID_STATUS');
     }
+    const branchCodes = toBranchCodes(branch);
+    const params = [id, branchCodes, status, approver || '', uuidOrNull(approverUserId), note != null ? note : null];
+    const guards = [];
+    if (expectedVersion != null) {
+      const version = String(expectedVersion);
+      if (!/^\d+$/.test(version)) throw new HrError('Phiên bản quyết định không hợp lệ.', 400, 'INVALID_DECISION_VERSION');
+      params.push(version);
+      guards.push(`decision_version = $${params.length}::bigint`);
+    }
+    if (lockFinal) guards.push("trang_thai NOT IN ('Đã duyệt', 'Từ chối')");
     const { rows } = await pool.query(
       `UPDATE hr_leave_requests SET
          trang_thai = $3,
@@ -286,11 +297,15 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
          approver_user_id = COALESCE($5::uuid, approver_user_id),
          thoi_diem_duyet = now(),
          ghi_chu_duyet = COALESCE($6, '')
-       WHERE request_id = $1 AND branch = ANY($2::text[])
+       WHERE request_id = $1 AND branch = ANY($2::text[])${guards.length ? ' AND ' + guards.join(' AND ') : ''}
        RETURNING ${SELECT_COLUMNS}`,
-      [id, toBranchCodes(branch), status, approver || '', uuidOrNull(approverUserId), note != null ? note : null]
+      params
     );
     if (!rows[0]) {
+      if (guards.length) {
+        const existing = await pool.query('SELECT request_id FROM hr_leave_requests WHERE request_id = $1 AND branch = ANY($2::text[])', [id, branchCodes]);
+        if (existing.rows[0]) throw new HrError('Yêu cầu nghỉ phép đã được quyết định hoặc thay đổi. Vui lòng xem thông tin mới nhất.', 409, 'LEAVE_DECISION_CONFLICT');
+      }
       throw new HrError(`Không tìm thấy yêu cầu nghỉ phép "${id}".`, 404, 'LEAVE_REQUEST_NOT_FOUND');
     }
     return rowToRequest(rows[0]);
@@ -338,6 +353,8 @@ module.exports = {
   LEAVE_SCHEMA_HEADERS,
   LEAVE_SCHEMA_FIELD_KEYS,
   HrError,
+  SELECT_COLUMNS,
+  rowToRequest,
   createHrLeaveRepository,
   getLeaveRequests: (...args) => repository.getLeaveRequests(...args),
   getLeaveRequestById: (...args) => repository.getLeaveRequestById(...args),

@@ -89,6 +89,14 @@ const CONFIG = {
   // So lan nghi gap/thang vuot nguong nay thi hien badge canh bao cho Quan ly.
   HR_URGENT_FLAG_MONTHLY_THRESHOLD: Number(process.env.HR_URGENT_FLAG_MONTHLY_THRESHOLD) || 2,
 
+  // Bot rieng cho Quan ly; token KHAC bot nhan don xin nghi hien tai.
+  HR_MANAGER_TELEGRAM_ENABLED: process.env.HR_MANAGER_TELEGRAM_ENABLED === 'true',
+  HR_MANAGER_TELEGRAM_BOT_TOKEN: process.env.HR_MANAGER_TELEGRAM_BOT_TOKEN || null,
+  HR_MANAGER_TELEGRAM_WEBHOOK_SECRET: process.env.HR_MANAGER_TELEGRAM_WEBHOOK_SECRET || null,
+  HR_MANAGER_TELEGRAM_WEB_URL: process.env.HR_MANAGER_TELEGRAM_WEB_URL || null,
+  HR_MANAGER_TELEGRAM_SCAN_INTERVAL_MS: Math.min(60000, Math.max(1000, Number(process.env.HR_MANAGER_TELEGRAM_SCAN_INTERVAL_MS) || 5000)),
+  HR_LEAVE_DB_REALTIME_ENABLED: process.env.HR_LEAVE_DB_REALTIME_ENABLED !== 'false',
+
   // ==========================================
   // SUPABASE POSTGRES — dong bo KiotViet, xem
   // docs/04-planning/2026-09-14-roadmap-supabase-kiotviet-sync.md

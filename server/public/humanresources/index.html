@@ -1958,6 +1958,11 @@
       try{
         leaveEventSource = new EventSource('/api/hr/leave-requests/stream');
 
+        leaveEventSource.onopen = function(){
+          // Tai lai snapshot khi ket noi (lai), bu cac su kien trong luc mat mang.
+          loadLeaveRequests(true);
+        };
+
         leaveEventSource.onmessage = function(event){
           if(!event.data) return;
           try{

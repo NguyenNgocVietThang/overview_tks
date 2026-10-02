@@ -448,6 +448,7 @@
               <table class="bulk-table fixed-table" id="bulkTable">
                 <thead><tr id="bulkHeadRow">
                   <th class="sortable" data-col="orderCode" data-sort="orderCode" style="width:160px">Mã đơn<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-col="branch" data-sort="branch" style="width:110px">Cơ sở<span class="sort-ind">▲</span></th>
                   <th class="sortable" data-col="orderDate" data-sort="orderDate" style="width:170px" title="Thời gian đặt hàng trên Kiot (bảng Đặt hàng).">Thời gian đặt hàng<span class="sort-ind">▲</span></th>
                   <th class="sortable" data-col="saleName" data-sort="saleName" style="width:180px">Sale<span class="sort-ind">▲</span></th>
                   <th class="sortable" data-col="customerName" data-sort="customerName" style="width:260px">Khách hàng<span class="sort-ind">▲</span></th>
@@ -998,6 +999,7 @@
     // THU TU cot = thu tu <th> trong HTML (rowInnerHtml dung dung thu tu nay). "Ma don" luon hien (dinh danh dong).
     const BULK_COLUMNS = [
       { key: 'orderCode', label: 'Mã đơn', locked: true },
+      { key: 'branch', label: 'Cơ sở' },
       { key: 'orderDate', label: 'Thời gian đặt hàng' },
       { key: 'saleName', label: 'Sale' },
       { key: 'customerName', label: 'Khách hàng' },
@@ -1013,6 +1015,7 @@
     // Noi dung o theo cot (rowInnerHtml ghep theo thu tu BULK_COLUMNS).
     const CELL_HTML = {
       orderCode: function(o){ return escapeHtml(o.orderCode); },
+      branch: function(o){ return escapeHtml(BRANCH_LABEL[o.branch] || o.branch || '—'); },
       orderDate: function(o){ return escapeHtml(o.orderDate || '—'); },
       saleName: function(o){ return escapeHtml(o.saleName || '—'); },
       customerName: function(o){ return escapeHtml(o.customerName || '—'); },

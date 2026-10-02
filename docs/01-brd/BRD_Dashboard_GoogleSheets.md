@@ -7,13 +7,15 @@
 | **Thông tin**     | **Nội dung**                                                        |
 |-------------------|---------------------------------------------------------------------|
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Supabase PostgreSQL + Google Sheets → Web) |
-| Phiên bản         | 2.0                                                                 |
+| Phiên bản         | 2.1                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 19/09/2026                                                          |
+| Ngày cập nhật     | 02/10/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo, nhân viên nội bộ công ty & khách hàng tra cứu        |
 | Trạng thái        | Đang vận hành (Kiến trúc Supabase PostgreSQL, Quản lý công nợ CN1/CN3/CN7, HR Leave, Vòng đời đơn hàng, 717 unit tests) |
 
 > **Ghi chú phiên bản 2.0:** Chuyển đổi toàn diện dữ liệu KiotViet từ Google Sheets sang **Supabase PostgreSQL** làm kho lưu trữ chính. Engine `server/kiotvietSync/` (Node.js) đồng bộ KiotViet trực tiếp qua Webhook + Polling. Hai file Google Sheets Kiot HN/SG chỉ còn đọc tab **`Trả NCC`**. Tính năng **Vòng đời đơn hàng** (`ORDER_LIFECYCLE_SPREADSHEET_ID`) và **Nhân sự** (`HR_SPREADSHEET_ID`) tiếp tục duy trì qua Google Sheets. Chuẩn hóa ba kỳ công nợ 1/3/7 ngày thành **CN1 / CN3 / CN7** lưu trong bảng Supabase `customer_debt_activity_periods`. Nghỉ hưu hoàn toàn Apps Script (`src-dashboard`) và module vận chuyển cũ. Quản trị tài khoản chuyển sang bảng PostgreSQL `app_users`. Hệ thống đạt **717 unit tests** chuẩn `node:test`.
+
+> **Bổ sung 02/10/2026 (đã duyệt):** Bot Telegram riêng cho quản lý nhận và quyết định đơn nghỉ theo cơ sở; bot xin nghỉ của nhân viên hiện có tiếp tục vận hành ngoài repo. Xem mục 5.8 và [hướng dẫn thiết lập](../telegram-manager-leave-setup.md). Việc bật bot cần migration và cấu hình vận hành, chưa xác nhận triển khai production.
 
 # 1. Giới thiệu
 
@@ -53,7 +55,7 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 & N
 
 - Ba kỳ công nợ **CN1**, **CN3**, **CN7** (công nợ khách hàng 1/3/7 ngày gần đây, trước đây gọi là HN1/HN3/HN7) do scheduler `customerDebtReportRefresh.js` tự động tính từ database và lưu vào `customer_debt_activity_periods`, phục vụ cảnh báo "Chưa thu" trên màn hình Quản lý công nợ.
 
-- **Phân hệ Quản lý Nghỉ phép HR & Telegram Bot:** Cung cấp kênh nộp đơn xin nghỉ phép, tra cứu số dư ngày phép trực tuyến 24/7 qua Web Portal và Telegram Bot. Yêu cầu nghỉ mới được thông báo trên web cho toàn bộ tài khoản; quản lý có thể duyệt hoặc từ chối ngay trong thông báo, và kết quả được báo lại cho nhân viên.
+- **Phân hệ Quản lý Nghỉ phép HR & Telegram Bot:** Cung cấp kênh nộp đơn xin nghỉ và tra cứu ngày phép qua Web Portal và bot nhân viên hiện có. Yêu cầu mới được thông báo trên web; bot riêng cho quản lý gửi đơn theo cơ sở và cho quyết định trực tiếp trên Telegram. Web vẫn là nơi sửa/mở lại quyết định; bot nhân viên tiếp tục báo kết quả cho người xin nghỉ. Thông báo gần thời gian thực phụ thuộc máy chủ chạy liên tục.
 
 - **Tra cứu Vòng đời đơn hàng:** Cho phép khách hàng và nhân viên nội bộ tra cứu trạng thái đơn hàng theo mã đơn qua Google Sheets `ORDER_LIFECYCLE_SPREADSHEET_ID`.
 
@@ -71,7 +73,7 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 & N
     - Hai file Kiot HN/SG: chỉ đọc tab `Trả NCC` (dữ liệu nhập thủ công).
     - File Quản lý công nợ (`DEBT_MANAGEMENT_SPREADSHEET_ID`): đọc bảng công nợ quản lý theo cơ sở.
     - File Vòng đời đơn hàng (`ORDER_LIFECYCLE_SPREADSHEET_ID`): đọc `DonHang_HN`, `DonHang_SG`, `Lịch sử cập nhật`.
-    - File Nhân sự (`HR_SPREADSHEET_ID`): đọc `HR_Leaves`, danh sách nhân viên và chính sách phép.
+    - File Nhân sự (`HR_SPREADSHEET_ID`): đọc danh sách nhân viên; đơn nghỉ phép, liên kết Telegram và phiên bot xin nghỉ lưu trong PostgreSQL theo migration `0016`.
 
 - **KPI Dashboard:** các chỉ số tổng quan tính từ dữ liệu PostgreSQL và tab Trả NCC (xem mục 5.2).
 
@@ -86,6 +88,8 @@ Tài liệu tập trung vào yêu cầu nghiệp vụ của **Giai đoạn 1 & N
 - **Đồng bộ tự động** từ KiotViet vào Supabase PostgreSQL qua Node.js sync engine (Webhook + Polling).
 
 - **Xác thực & phân quyền (Phase 0):** Đăng nhập nội bộ bằng tài khoản trong tab `Users`, hỗ trợ Google Sign-In, và cho phép Khách tự đăng ký để tra cứu vận chuyển đơn hàng.
+
+- **Bot Telegram quản lý nghỉ phép:** Bot riêng, hội thoại riêng tư với các quản lý đủ quyền; nhận đơn theo cơ sở, thao tác 5 trạng thái, đồng bộ kết quả với web và các tin Telegram đã gửi (mục 5.8).
 
 - **Triển khai trên Render.com** (cloud hosting), domain `tokosi.onrender.com`.
 
@@ -210,6 +214,15 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 
 - **Giới hạn đã biết:** quét đứt hàng ở `Cả hai` chạy tuần tự hai cơ sở nên thời gian và hạn mức đọc Google Sheets tăng gấp đôi so với một cơ sở.
 
+## 5.8. Bot Telegram riêng cho quản lý nghỉ phép
+
+- Bot chạy cùng máy chủ dashboard, dùng chung đơn PostgreSQL với bot xin nghỉ ngoài repo. Mọi đơn **Xin nghỉ phép** mới được gửi cho quản lý phù hợp, kể cả đơn có trạng thái Vi phạm; khi bật hệ thống, gửi bù đơn Chưa duyệt/Tạm duyệt chưa gửi. Bản ghi **Tự ý nghỉ (HR ghi nhận)** không gửi qua bot này.
+- Chỉ tài khoản **Quản lý** đang hoạt động, có Telegram ID và quyền `hr.leave.manage` mới nhận/thao tác. Cơ sở tài khoản Hà Nội nhận đơn Hà Nội, Sài Gòn nhận đơn Sài Gòn, Cả hai nhận cả hai; cơ sở trống không nhận. Mỗi quản lý phải bấm **Start** với bot mới.
+- Quản lý có thể chọn Chưa duyệt, Tạm duyệt, Đã duyệt, Từ chối hoặc Vi phạm. Khi từ chối, có thể nhập lý do bằng reply đúng lời nhắc, Bỏ qua hoặc Hủy; lý do được trim, tối đa 500 ký tự, phiên hết hạn sau 15 phút.
+- Đã duyệt/Từ chối khóa thao tác tiếp trên Telegram. Người đủ quyền vẫn đổi được trên web; chuyển về trạng thái chưa kết thúc mở lại thao tác Telegram. Các tin nhắn đã gửi cập nhật theo quyết định mới; thao tác cũ/trùng/đồng thời không được ghi đè quyết định mới hơn.
+- Bot nhân viên hiện có tiếp tục nhận đơn và báo kết quả cho nhân viên; bot quản lý không thay đổi quyền sở hữu liên kết Telegram hay phiên xin nghỉ của bot đó.
+- Thay đổi đơn từ bot bên ngoài phải tới danh sách/thông báo web qua cầu DB → SSE. Khi kết nối lại, web làm mới dữ liệu. Chu kỳ quét mặc định 5 giây chỉ có hiệu lực khi máy chủ hoạt động; máy chủ ngủ/tắt trì hoãn giao tin đến khi chạy lại.
+
 # 6. Lợi ích kỳ vọng
 
 - Tiết kiệm thời gian tổng hợp báo cáo thủ công từ KiotViet và Google Sheets.
@@ -245,6 +258,10 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 - Ba kỳ công nợ CN1/CN3/CN7 (1/3/7 ngày) được tính toán chính xác và lưu trong bảng `customer_debt_activity_periods`; cảnh báo "Chưa thu" trên màn hình Quản lý công nợ đối chiếu đúng với dữ liệu.
 - Tài khoản được cả hai cơ sở chọn `Cả hai` thì KPI/biểu đồ cộng dồn hai cơ sở, thực thể trùng mã chỉ hiện một dòng, giao dịch trùng mã vẫn giữ hai dòng kèm nhãn cơ sở, và không có giá trị `Cả hai` nào được ghi vào dữ liệu nghiệp vụ.
 - Đổi trạng thái công nợ ở `Cả hai` hoặc cập nhật thành công cho cả hai cơ sở, hoặc không thay đổi gì khi có lỗi; sau khi cập nhật, xem riêng từng cơ sở đều thấy đúng trạng thái vừa đặt.
+- Bot quản lý giao đơn đúng cơ sở, loại tài khoản không đủ điều kiện/cơ sở trống và bản ghi HR ghi nhận tự ý nghỉ; đơn mới từ bot bên ngoài tới cả web và Telegram khi máy chủ chạy.
+- Duyệt/Từ chối từ Telegram đồng bộ người duyệt/trạng thái/lý do với web và mọi bản tin; nút cũ hoặc thao tác đồng thời không ghi đè quyết định. Web mở lại đơn thì Telegram thao tác được ở phiên bản mới.
+- Phiên từ chối chỉ nhận reply đúng tin nhắc, hỗ trợ Bỏ qua/Hủy, chặn lý do quá 500 ký tự và hết hạn 15 phút; webhook không có secret hợp lệ bị từ chối. Retry/restart không làm mất việc đã lưu.
+
 - Hệ thống hoạt động ổn định trên Render.com, uptime >= 99% trong giờ hành chính.
 - Toàn bộ hệ thống vượt qua kiểm thử tự động **924 unit tests** (3 test migration integration chỉ chạy khi cấu hình `SUPABASE_TEST_DB_URL`).
 
@@ -274,4 +291,4 @@ Hệ thống tính toán và hiển thị các nhóm KPI sau từ 9 tab dữ li�
 | Giai đoạn 7 — Trợ lý AI                         | Chatbot hỏi-đáp số liệu bằng ngôn ngữ tự nhiên; AI dự đoán & phát hiện bất thường tự động             | Ưu tiên chatbot trước; cần dữ liệu chuẩn hoá từ các giai đoạn trước  |
 | Giai đoạn 8 — Thay thế KiotViet                 | Ngừng sử dụng KiotViet, chuyển hoàn toàn nghiệp vụ sang hệ thống mới                                   | Chỉ thực hiện khi Giai đoạn 3–4 đã ổn định và nghiệm thu đầy đủ      |
 
-*— Hết tài liệu BRD v1.8 —*
+*— Hết tài liệu BRD v2.1 —*

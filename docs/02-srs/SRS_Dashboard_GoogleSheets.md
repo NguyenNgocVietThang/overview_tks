@@ -7,19 +7,21 @@
 | **Thông tin**      | **Nội dung**                                               |
 |--------------------|------------------------------------------------------------|
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                          |
-| Phiên bản          | 2.5                                                        |
+| Phiên bản          | 2.7                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 19/09/2026                                                 |
-| Tài liệu liên quan | BRD v2.0 · BPMN v2.1 · Implementation Plan v2.4 · CSNS-NP-01 (Chính sách nghỉ phép) · Design System MASTER (mục 7 — ràng buộc hiệu năng) |
+| Ngày cập nhật      | 02/10/2026                                                 |
+| Tài liệu liên quan | BRD v2.1 · BPMN v2.1 · Implementation Plan v2.4 · CSNS-NP-01 (Chính sách nghỉ phép) · Design System MASTER (mục 7 — ràng buộc hiệu năng) |
 | Trạng thái         | Đang vận hành (Supabase PostgreSQL, Quản lý công nợ CN1/CN3/CN7, HR Leave, Vòng đời đơn hàng, 717 unit tests) |
 
 > **Ghi chú phiên bản 2.6 (19/09/2026):** Telegram ID được lưu lâu dài tại `app_users.telegram_id` trong Supabase PostgreSQL. Luồng tạo mã liên kết qua tab `_HR_TELEGRAM_LINKS` của Google Sheets tạm ngừng; bot sẽ tích hợp trực tiếp với database ở giai đoạn sau. Các nguồn Google Sheets nghiệp vụ khác không đổi.
+
+> **Bổ sung phiên bản 2.7 (02/10/2026, đã duyệt):** Bot riêng cho quản lý chạy cùng Express, webhook xác thực secret, dữ liệu xử lý bền vững ở migration `0029`, quyết định dùng chung với web và cầu DB → SSE HR. Bot xin nghỉ ngoài repo và `decision_notified_at` tiếp tục giữ hợp đồng cũ. Triển khai theo [hướng dẫn thiết lập](../telegram-manager-leave-setup.md).
 
 # 1. Giới thiệu
 
 ## 1.1. Mục đích
 
-Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi chức năng của hệ thống Website Dashboard TOKOSI, làm cơ sở cho đội phát triển thiết kế, xây dựng, kiểm thử phần mềm. Tài liệu cụ thể hóa các yêu cầu nghiệp vụ đã nêu trong BRD v2.0 thành các đặc tả kỹ thuật có thể triển khai được.
+Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi chức năng của hệ thống Website Dashboard TOKOSI, làm cơ sở cho đội phát triển thiết kế, xây dựng, kiểm thử phần mềm. Tài liệu cụ thể hóa các yêu cầu nghiệp vụ đã nêu trong BRD v2.1 thành các đặc tả kỹ thuật có thể triển khai được.
 
 ## 1.2. Phạm vi hệ thống
 
@@ -48,7 +50,7 @@ Hệ thống là một Web Application nội bộ gồm các thành phần chín
 
 ## 1.4. Tài liệu tham khảo
 
-- BRD v2.0 — Hệ thống Dashboard nội bộ TOKOSI.
+- BRD v2.1 — Hệ thống Dashboard nội bộ TOKOSI.
 - CSNS-NP-01 — Quy định & Chính sách quản lý nghỉ phép nhân sự.
 - Supabase PostgreSQL Documentation.
 - Google Sheets API v4 Documentation.
@@ -322,6 +324,13 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | FR-10.5 | Tab Nghỉ phép hiển thị cột Thời gian gửi; bộ lọc `from`/`to` lọc các khoảng nghỉ giao với khoảng ngày đã chọn và mặc định cả hai mốc là ngày hôm nay, để bảng chỉ hiện người có lịch nghỉ trong hôm nay. | Cao | Hoàn thành |
 | FR-10.6 | Khi ghi nhận một yêu cầu nghỉ phép mới, chuông web tạo thông báo cho toàn bộ tài khoản. Người có quyền `hr.leave.manage` được Duyệt/Từ chối trực tiếp trên thông báo; API vẫn kiểm tra quyền trước khi đổi trạng thái. | Cao | Hoàn thành |
 | FR-10.7 | Telegram ID lưu ở `app_users.telegram_id` trong PostgreSQL, duy nhất giữa các tài khoản chưa xoá; API tạo mã cũ không được đọc/ghi `_HR_TELEGRAM_LINKS`. | Cao | Hoàn thành |
+| FR-10.8 | Bot Telegram riêng cho quản lý chạy cùng Express, chỉ hội thoại riêng tư. `POST /api/telegram/manager-leave/webhook` kiểm tra `X-Telegram-Bot-Api-Secret-Token`; native `fetch` gọi Telegram API, không thêm thư viện bot. | Cao | Đã duyệt |
+| FR-10.9 | Quét DB mỗi `HR_MANAGER_TELEGRAM_SCAN_INTERVAL_MS` (mặc định 5000 ms): nhận mọi đơn `Xin nghỉ phép` mới kể cả `Vi phạm`, bù đơn `Chưa duyệt`/`Tạm duyệt` chưa gửi lúc khởi động; không gửi `Tự ý nghỉ (HR ghi nhận)`. | Cao | Đã duyệt |
+| FR-10.10 | Người nhận/thao tác phải là `Quản lý`, hoạt động, có Telegram ID và quyền `hr.leave.manage`. Cơ sở tài khoản Hà Nội/Sài Gòn/Cả hai tương ứng đơn HN/SG/cả hai; cơ sở trống bị loại. Phải Start bot mới dù ID đã lưu. Kiểm tra lại điều kiện tại mỗi thao tác. | Cao | Đã duyệt |
+| FR-10.11 | Có nút chọn đủ 5 trạng thái `Chưa duyệt`/`Tạm duyệt`/`Đã duyệt`/`Từ chối`/`Vi phạm`. Đã duyệt/Từ chối khóa Telegram; web vẫn đổi/mở lại. Dùng service quyết định chung và `decision_version` để chặn nút/phiên cũ cùng race web–Telegram. | Cao | Đã duyệt |
+| FR-10.12 | Từ chối mở phiên PostgreSQL 15 phút, chỉ nhận reply đúng tin nhắn nhắc nhập lý do; trim và chặn trên 500 ký tự, có Bỏ qua (rỗng) và Hủy (không quyết định). Phiên bị vô hiệu nếu quyết định/phiên bản hay quyền đã đổi. | Cao | Đã duyệt |
+| FR-10.13 | Đồng bộ người duyệt, thời điểm, trạng thái và lý do giữa web và các tin Telegram đã gửi. Migration `0029` lưu sự kiện tạo/đổi đơn, giao tin có lease/retry, phiên từ chối và inbox idempotent theo `update_id` tuần tự trong cùng chat và singleton mốc bật lần đầu, giữ việc chưa hoàn tất qua restart. `decision_notified_at` chỉ phục vụ bot nhân viên như trước. | Cao | Đã duyệt |
+| FR-10.14 | Cầu `hrLeaveDbRealtime.js` đưa đơn tạo/đổi từ nguồn DB bên ngoài vào SSE HR bằng bản chụp/phiên bản dùng chung, không dựa cursor ID event vì thứ tự commit có thể khác. Kết nối/kết nối lại SSE làm mới danh sách. `HR_LEAVE_DB_REALTIME_ENABLED` mặc định true, độc lập công tắc bot. | Cao | Đã duyệt |
 
 ## 3.11. FR-11: Quản lý công nợ
 
@@ -371,7 +380,7 @@ Mục này mô tả các nguyên tắc kiến trúc cần tuân thủ khi nâng 
 | NFR-13 | Tải xuất Excel | Tối đa 2 file xuất chạy đồng thời và tối đa 8 yêu cầu xếp hàng chờ; vượt trần trả `503 EXPORT_BUSY`. Yêu cầu bị hủy khi đang chờ thì bị bỏ khỏi hàng đợi, chỗ xuất file luôn được nhả kể cả khi lỗi. Mỗi lần xuất chỉ đọc PostgreSQL theo mã của các dòng cần xuất, không nạp toàn bộ 9 tab như luồng cũ, để không chiếm hết pool kết nối và bộ nhớ của các API khác. |
 | NFR-14 | Độ trễ lấy danh sách trường | Với bảng cố định, `POST /api/export/fields` phải trả dưới 1 giây vì không thực hiện truy vấn nặng (không `getDashboardData`, không `readRowsByCodes`, không tìm kiếm); có test đếm số lần gọi bằng 0. |
 | NFR-15 | Chuẩn nhãn trường xuất | Nhãn trường tiếng Việt chuẩn hóa theo FR-07.18; việc dùng viết tắt, tên biến tiếng Anh hoặc `snake_case` trong nhãn/mô tả bị test tự động (`exportFieldCatalog.test.js`, `exportService.test.js`) chặn. |
-
+| NFR-16 | Bot quản lý nghỉ phép | Token/secret chỉ ở môi trường; webhook xác thực secret, quyền và cơ sở được kiểm tra lại khi thao tác. Quét mặc định 5 giây cần máy chủ chạy liên tục; không cam kết thời gian thực khi ngủ/tắt. Sự kiện/inbox/giao tin bền vững tiếp tục khi máy chủ hoạt động lại; migration 0029 phải áp trước bản web mới dù bot tắt. |
 
 # 5. Yêu cầu giao diện người dùng (UI Requirements)
 
@@ -687,6 +696,15 @@ API trim, khớp chính xác không phân biệt hoa/thường, loại mã trùn
 - `POST /api/shipment/orders/:id/exception`: báo cáo sự cố vận chuyển (`VC_Exceptions`).
 - `GET /api/shipment/audit`: báo cáo đối soát cuối ngày lọc đơn thiếu ảnh hoặc giao trễ.
 - `GET /api/shipment/vehicles`: danh mục xe và tài xế (`VC_Vehicles`).
+
+## 6.12. Webhook bot Telegram quản lý nghỉ phép
+
+`POST /api/telegram/manager-leave/webhook` nhận Telegram Update qua HTTPS; không dùng phiên JWT của dashboard.
+
+- Cấu hình `HR_MANAGER_TELEGRAM_ENABLED` mặc định false, `HR_MANAGER_TELEGRAM_BOT_TOKEN`, `HR_MANAGER_TELEGRAM_WEBHOOK_SECRET`, `HR_MANAGER_TELEGRAM_WEB_URL` (HTTPS origin), `HR_MANAGER_TELEGRAM_SCAN_INTERVAL_MS` mặc định 5000.
+- Chỉ nhận khi header `X-Telegram-Bot-Api-Secret-Token` khớp secret. Cập nhật được lưu trong `hr_manager_telegram_updates` theo `update_id` trước khi xử lý hiệu ứng; cập nhật lặp không áp lại quyết định.
+- Chỉ thao tác từ chat riêng của quản lý hợp lệ; callback phải khớp phiên bản và bản tin quản lý đã gửi. Reply lý do phải khớp tin nhắc đang còn hạn. Web vẫn dùng API quyết định HR hiện có.
+- Đăng ký webhook bằng `npm run telegram-manager:set-webhook` sau migration/cấu hình/khởi động máy chủ. Bot xin nghỉ hiện có giữ webhook/tiến trình riêng.
 
 # 7. Đặc tả Apps Script theo tính năng
 

@@ -14,7 +14,7 @@ const MAX_PAGE_SIZE = 200;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const SORT_KEYS = Object.freeze([
-  'orderCode', 'orderDate', 'saleName', 'customerName', 'orderTotal', 'sellableValue', 'note',
+  'orderCode', 'branch', 'orderDate', 'saleName', 'customerName', 'orderTotal', 'sellableValue', 'note',
   'saleSentAt', 'kiotStatus', 'status', 'at', 'warning'
 ]);
 // Cot thoi gian duoc phep dung cho bo loc "tu ... den ...".
@@ -158,6 +158,7 @@ function finiteOrNull(value) {
 // Gia tri sap xep cua tung cot — null/undefined LUON nam cuoi du tang hay giam dan.
 const SORT_VALUE = {
   orderCode: row => memoKey(row, 'code', r => normalizeSearchText(r.orderCode)),
+  branch: row => row.branch || null,
   orderDate: row => memoKey(row, 'orderDate', r => parseDateTimeValue(r.orderDate)),
   saleName: row => memoKey(row, 'sale', r => normalizeSearchText(r.saleName)),
   customerName: row => memoKey(row, 'customer', r => normalizeSearchText(r.customerName)),

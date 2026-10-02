@@ -33,6 +33,9 @@ const notificationRoutes     = require('./notifications/notificationRoutes');
 const roleChangeRequestRoutes = require('./auth/roleChangeRequestRoutes');
 const stockoutCheckRoutes    = require('./dashboard/stockoutCheck/stockoutCheckRoutes');
 const kiotvietWebhookRoutes  = require('./kiotviet/kiotvietWebhookRoutes');
+const { createManagerLeaveWebhook } = require('./telegram/managerLeaveWebhook');
+const { getConfiguredManagerLeaveRuntime } = require('./telegram/managerLeaveRuntime');
+const managerLeaveRuntime = getConfiguredManagerLeaveRuntime();
 const kiotvietSyncStatusRoutes = require('./kiotvietSync/kiotvietSyncStatusRoutes');
 const debtManagementRoutes = require('./dashboard/debtManagementRoutes');
 const orderLifecycleRoutes = require('./shipment/orderLifecycleRoutes');
@@ -50,6 +53,12 @@ router.post('/api/client-log', express.text({ type: '*/*' }), (req, res) => {
 // Webhook tu KiotViet (nguoi goi la KiotViet, khong phai nguoi dung dang
 // nhap) — mount TRUOC moi guard auth/co so. Xem server/kiotviet/kiotvietWebhookRoutes.js.
 router.use(kiotvietWebhookRoutes);
+router.use(createManagerLeaveWebhook({
+  enabled: !!managerLeaveRuntime,
+  secret: CONFIG.HR_MANAGER_TELEGRAM_WEBHOOK_SECRET,
+  store: managerLeaveRuntime && managerLeaveRuntime.store,
+  wake: () => managerLeaveRuntime.drain()
+}));
 
 // /api/auth/* mount truoc — POST /login va POST /logout khong doi hoi da dang
 // nhap (do chinh la noi de dang nhap); GET /me tu bao ve bang requireAuth ben trong.

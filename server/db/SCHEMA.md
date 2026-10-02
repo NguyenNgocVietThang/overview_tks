@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0028`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0029`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -61,7 +61,7 @@ Migration `0015` thêm `app_users.telegram_id` dạng `TEXT` để không phụ 
 
 ### Nghỉ phép và bot Telegram (migration `0016`)
 
-Thay 3 tab Google Sheets (`Yêu cầu nghỉ phép`, `_HR_TELEGRAM_LINKS`, `_HR_TELEGRAM_SESSIONS`). Bot Telegram chạy **ngoài repo này** (VPS riêng) và đọc/ghi thẳng 3 bảng bằng SQL; web chỉ đọc `hr_leave_requests`, nhập tay bản ghi "tự ý nghỉ" và đổi trạng thái phê duyệt. Cả 3 bảng đã `REVOKE SELECT` khỏi `reporting_readonly` (PII/nội dung tin nhắn).
+Thay 3 tab Google Sheets (`Yêu cầu nghỉ phép`, `_HR_TELEGRAM_LINKS`, `_HR_TELEGRAM_SESSIONS`). Bot **xin nghỉ của nhân viên** chạy **ngoài repo này** (VPS riêng) và đọc/ghi thẳng 3 bảng bằng SQL; web chỉ đọc `hr_leave_requests`, nhập tay bản ghi "tự ý nghỉ" và đổi trạng thái phê duyệt. Cả 3 bảng đã `REVOKE SELECT` khỏi `reporting_readonly` (PII/nội dung tin nhắn).
 
 | Bảng | Mục đích | Khóa chính | Ai ghi |
 |---|---|---|---|
@@ -76,7 +76,7 @@ Thay 3 tab Google Sheets (`Yêu cầu nghỉ phép`, `_HR_TELEGRAM_LINKS`, `_HR_
 - `ho_ten`, `chuc_vu`, `web_username` là **bản chụp** tại thời điểm gửi; `user_id`/`hr_employee_id` là khóa thật (`ON DELETE SET NULL`), bot nên điền cả hai. `source` mặc định `'telegram'`.
 - `co_nghi_gap`/`co_tu_y_nghi` là boolean; `tin_nhan` giữ nguyên văn tin nhắn gốc; `thoi_gian_gui` là giờ nhận tin (khác `created_at` = giờ ghi DB).
 - `trang_thai` ∈ `Chưa duyệt | Tạm duyệt | Đã duyệt | Từ chối | Vi phạm`; `loai_yeu_cau` ∈ `Xin nghỉ phép | Tự ý nghỉ (HR ghi nhận)`.
-- `ghi_chu_duyet` = lý do từ chối do Quản lý nhập trên web khi chuyển sang `Từ chối` (rỗng nếu bỏ qua, và bị xóa về rỗng khi đơn đổi sang trạng thái khác). Web không hiển thị cột này; bot ngoài repo không ghi nó.
+- `ghi_chu_duyet` = lý do từ chối do Quản lý nhập trên web hoặc bot quản lý khi chuyển sang `Từ chối` (rỗng nếu bỏ qua, và bị xóa về rỗng khi đơn đổi sang trạng thái khác). Web không hiển thị cột này; bot xin nghỉ ngoài repo không ghi nó.
 
 **Báo kết quả duyệt cho nhân viên** (thay cho việc bot cũ quét Sheet): hàng cần báo là
 
@@ -92,6 +92,40 @@ Sau khi nhắn Telegram thành công, bot `UPDATE ... SET decision_notified_at =
 **`hr_telegram_sessions`** — `step` (tên bước của bot, không CHECK vì thuộc về bot), `data JSONB` (ngày lưu dạng chuỗi ISO), `expires_at` mặc định +60 phút; bot gia hạn `expires_at` mỗi lần ghi, coi dòng quá hạn là không tồn tại và dọn định kỳ bằng `DELETE FROM hr_telegram_sessions WHERE expires_at < now()`. Ghi phiên bằng `INSERT ... ON CONFLICT (telegram_chat_id) DO UPDATE`.
 
 `updated_at` của cả 3 bảng do trigger tự đặt, bot không cần set.
+
+### Bot Telegram riêng cho quản lý (migration `0029`)
+
+`0029_hr_manager_telegram.sql` bổ sung `hr_leave_requests.decision_version` và 5 bảng kỹ thuật cho bot quản lý chạy cùng Express. Bot xin nghỉ ngoài repo tiếp tục ghi đơn vào bảng hiện có; trigger DB ghi sự kiện tạo đơn/đổi quyết định kể cả khi nguồn ghi là bot đó.
+
+| Bảng / cột | Mục đích | Quyền sở hữu |
+|---|---|---|
+| `hr_leave_requests.decision_version` | BIGINT NOT NULL DEFAULT 0; đổi trạng thái/lý do/người quyết định/thời điểm làm tăng phiên bản để từ chối nút và hội thoại cũ | DB + service quyết định dùng chung |
+| `hr_leave_change_events` | Sự kiện tạo đơn/đổi quyết định bền vững, nguồn phát hiện thay đổi từ mọi nguồn ghi | Trigger DB; runtime đọc/xử lý |
+| `hr_leave_manager_messages` | Theo dõi bản tin theo đơn/quản lý/chat, message ID, lease xử lý và retry; hỗ trợ cập nhật các bản tin đã gửi | Bot quản lý |
+| `hr_manager_telegram_sessions` | Phiên nhập lý do từ chối, gắn chat/quản lý/đơn/phiên bản và tin nhắn nhắc nhập; hết hạn 15 phút | Bot quản lý |
+| `hr_manager_telegram_updates` | Inbox bền vững theo Telegram `update_id`; giữ hiệu ứng cần xử lý lại để chống cập nhật trùng khi retry/restart | Webhook + runtime bot quản lý |
+| `hr_manager_telegram_state` | Một dòng lưu mốc bật bot lần đầu, phân biệt lịch sử kết thúc cũ và đơn thật sự mới; không chứa dữ liệu nghiệp vụ người dùng | Runtime bot quản lý |
+
+**Khóa và cột kỹ thuật:**
+
+- `hr_leave_change_events`: PK `id BIGSERIAL`, FK `request_id` → đơn, UNIQUE `(request_id, decision_version)`; `event_type` nhận `CREATE`/`DECISION`. Index hàng chưa `completed_at` theo `(available_at, id)`. Migration chỉ seed đơn Xin nghỉ phép Chưa duyệt/Tạm duyệt hiện có, không gửi lại các quyết định kết thúc cũ.
+- `hr_leave_manager_messages`: PK `id BIGSERIAL`, FK `request_id`/`user_id`, UNIQUE `(request_id, user_id, telegram_chat_id)`; chat ID là TEXT, message ID BIGINT. `desired_version` mặc định 0, `sent_version` mặc định -1; index hàng `NOT blocked AND desired_version > sent_version` để giao/cập nhật tin còn thiếu.
+- `hr_manager_telegram_sessions`: PK `telegram_chat_id TEXT`, `session_id UUID` UNIQUE; FK `user_id`/`request_id`, `expected_version`, `prompt_message_id`, `expires_at` mặc định +15 phút. Index `expires_at` hỗ trợ tìm phiên hết hạn.
+- `hr_manager_telegram_updates`: PK `update_id BIGINT`, `payload JSONB`, `chat_key TEXT GENERATED` lấy chat từ callback/message (fallback update ID), `effects JSONB` dạng mảng, `effects_done`, `handled_at`, `completed_at`. Hai index một phần cho hàng chưa hoàn tất: `(available_at, update_id)` và `(chat_key, update_id)`. Claim không vượt update trước chưa hoàn tất trong cùng chat, kể cả update trước đang retry hoặc còn lease.
+- `hr_manager_telegram_state`: PK `singleton BOOLEAN CHECK (singleton)` cho một dòng, `first_enabled_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()` lưu mốc bật lần đầu qua restart/tắt-bật. Lịch sử kết thúc trước mốc này không được gửi mới; đơn tạo sau mốc vẫn gửi thông tin hiện tại dù đã được duyệt trên web trước lượt quét.
+- Event, bản tin và inbox có `available_at`, `attempts`, `lease_token UUID`, `lease_until`, `last_error` để claim và retry công việc. Các FK tới đơn/tài khoản dùng `ON DELETE CASCADE`.
+
+Bốn bảng sự kiện/giao tin/phiên/inbox chứa định danh Telegram/nội dung nghiệp vụ nội bộ nên thu hồi `SELECT` khỏi `reporting_readonly`. Bảng singleton trạng thái không chứa dữ liệu nghiệp vụ người dùng; migration cũng thu hồi SELECT của role này trên bảng đó. Không dùng chung `hr_telegram_sessions` của bot nhân viên để lưu hội thoại từ chối.
+
+**Quyết định dùng chung:** service web/Telegram cập nhật cùng hàng `hr_leave_requests` trong transaction. Callback Telegram phải khớp `decision_version` mới nhất và người thao tác vẫn đủ vai trò Quản lý, trạng thái hoạt động, Telegram ID, quyền `hr.leave.manage` và cơ sở của đơn. Telegram không đổi tiếp đơn `Đã duyệt`/`Từ chối`; web vẫn được thay đổi/mở lại theo quyền hiện hành. Lý do từ chối trim, tối đa 500 ký tự; bỏ qua lưu rỗng, đổi sang trạng thái khác xóa lý do.
+
+**Giao tin:** nhận các đơn `Xin nghỉ phép` mới và bù các đơn `Chưa duyệt`/`Tạm duyệt` chưa gửi cho quản lý phù hợp; bỏ qua `Tự ý nghỉ (HR ghi nhận)`. Lease và trạng thái retry giữ việc đang dở qua restart, chống nhiều lượt quét cùng nhận một việc. Tin nhắn đã gửi được đồng bộ theo quyết định cuối cùng trong DB.
+
+**Tương thích bot nhân viên:** `decision_notified_at` tiếp tục là cột bot xin nghỉ bên ngoài dùng để báo kết quả cho nhân viên. Bot quản lý không đánh dấu nó; trigger reset cột này khi đổi trạng thái vẫn giữ nguyên hợp đồng migration `0016`.
+
+**Cầu DB → SSE:** `hr/hrLeaveDbRealtime.js` quét bản chụp/phiên bản dùng chung, tránh phụ thuộc cursor event tăng dần vì transaction có thể commit khác thứ tự ID. Tạo/đổi đơn bên ngoài repo được đưa vào SSE HR; kết nối/kết nối lại tải lại danh sách. `HR_LEAVE_DB_REALTIME_ENABLED=true` mặc định, độc lập với bot quản lý.
+
+Phải áp migration này **trước khi chạy bản web mới**, kể cả khi bot quản lý tắt, vì repository đọc `decision_version`.
 
 ### Vai trò chỉ-đọc `reporting_readonly` (migration `0010`)
 

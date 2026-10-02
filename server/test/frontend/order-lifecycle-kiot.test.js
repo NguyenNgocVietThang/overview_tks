@@ -240,7 +240,7 @@ test('bộ lọc trạng thái chính vẫn dùng được và kết hợp với
 // Hop "Cot hien thi" — tick an/hien cot
 // ---------------------------------------------------------------------------
 
-const ALL_COLUMNS = ['orderCode', 'orderDate', 'saleName', 'customerName', 'orderTotal', 'sellableValue', 'note', 'saleSentAt', 'kiotStatus', 'status', 'at', 'warning'];
+const ALL_COLUMNS = ['orderCode', 'branch', 'orderDate', 'saleName', 'customerName', 'orderTotal', 'sellableValue', 'note', 'saleSentAt', 'kiotStatus', 'status', 'at', 'warning'];
 
 test('mặc định hiện hết các cột (Ghi chú ngay sau Giá trị có bán); ô dữ liệu cùng thứ tự với tiêu đề', async () => {
   const page = await renderPage({ orders: [kiotOnlyOrder('A')] });
@@ -718,10 +718,10 @@ test('đơn không còn Phiếu tạm: bảng hàng hóa không có tồn/có b�
 test('cột "Thời gian đặt hàng" nằm cạnh Mã đơn trên bảng; đơn không có thời gian đặt hiện "—"', async () => {
   const page = await renderPage({ orders: [kiotOnlyOrder('DH1'), sheetOrder('DH2')] });
   const heads = [...page.document.querySelectorAll('#bulkHeadRow th')].map(th => th.textContent.replace(/[▲▼]/g, '').trim());
-  assert.deepEqual(heads.slice(0, 2), ['Mã đơn', 'Thời gian đặt hàng']);
+  assert.deepEqual(heads.slice(0, 3), ['Mã đơn', 'Cơ sở', 'Thời gian đặt hàng']);
   const rows = rowsOf(page.document);
-  assert.equal(rows[0].cells[1].textContent, '01/10/2026 13:14');
-  assert.equal(rows[1].cells[1].textContent, '—');
+  assert.equal(cellOf(rows[0], 'orderDate').textContent, '01/10/2026 13:14');
+  assert.equal(cellOf(rows[1], 'orderDate').textContent, '—');
   page.dom.window.close();
 });
 
@@ -815,4 +815,17 @@ test('ô lọc Trạng thái KiotViet có đủ 5 trạng thái ngay cả khi Ki
   const extra = await renderPage({ orders: [kiotOnlyOrder('B', { kiotStatus: 'Trạng thái mới' })] });
   assert.deepEqual([...extra.document.getElementById('bulkKiotStatusFilter').options].map(o => o.value).slice(-2), ['Đã hủy', 'Trạng thái mới']);
   extra.dom.window.close();
+});
+
+test('cột "Cơ sở": hiện Hà Nội / Sài Gòn theo từng dòng (cùng mã ở 2 cơ sở), sắp xếp được theo cột này', async () => {
+  const page = await renderPage({ orders: [
+    kiotOnlyOrder('DH1', { branch: 'SG', orderDate: '03/10/2026 10:00' }),
+    kiotOnlyOrder('DH1', { branch: 'HN', orderDate: '02/10/2026 10:00' })
+  ] });
+  assert.deepEqual(rowsOf(page.document).map(row => cellOf(row, 'branch').textContent), ['Sài Gòn', 'Hà Nội']);
+  headerNamed(page.document, 'branch').click();
+  await settle();
+  assert.equal(lastListParams(page).get('sort'), 'branch');
+  assert.deepEqual(rowsOf(page.document).map(row => cellOf(row, 'branch').textContent), ['Hà Nội', 'Sài Gòn']);
+  page.dom.window.close();
 });

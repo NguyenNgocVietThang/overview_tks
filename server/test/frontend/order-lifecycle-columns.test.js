@@ -72,7 +72,7 @@ test('bảng có đủ cột: Giá trị đơn + Giá trị có bán + Ghi chú 
   const { document } = dom.window;
   const headers = [...document.querySelectorAll('#bulkHeadRow th')].map(th => th.textContent.replace(/[▲▼]/g, '').trim());
   assert.deepEqual(headers, [
-    'Mã đơn', 'Thời gian đặt hàng', 'Sale', 'Khách hàng', 'Giá trị đơn', 'Giá trị có bán', 'Ghi chú', 'Sale ra đơn',
+    'Mã đơn', 'Cơ sở', 'Thời gian đặt hàng', 'Sale', 'Khách hàng', 'Giá trị đơn', 'Giá trị có bán', 'Ghi chú', 'Sale ra đơn',
     'Trạng thái KiotViet', 'Trạng thái', 'Cập nhật gần nhất', 'Cảnh báo'
   ]);
 
