@@ -13,6 +13,7 @@ node_modules/
 
 # server/.env chứa CLIENT_ID/CLIENT_SECRET của KiotViet — KHÔNG đẩy lên GitHub
 server/.env
+server/.env.render-manager-bot
 
 # Local development preview (không cần commit)
 dev/

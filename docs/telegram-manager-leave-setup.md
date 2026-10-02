@@ -43,6 +43,8 @@ HR_LEAVE_DB_REALTIME_ENABLED=true
 
 Điền token/secret đã lưu ở bước 1. `HR_MANAGER_TELEGRAM_WEB_URL` là **HTTPS origin của dashboard**, ví dụ `https://tokosi.onrender.com`, không kèm đường dẫn. Scan interval mặc định 5000 ms. Công tắc bot mặc định false; công tắc cầu DB → SSE HR mặc định true và độc lập với bot.
 
+File local `server/.env.render-manager-bot` (đã gitignore) có thể chứa riêng bộ biến môi trường để nhập vào mục Environment của service Render bằng **Add from .env**. Server local chỉ tự đọc `server/.env`, trong đó giữ `HR_MANAGER_TELEGRAM_ENABLED=false`; không đổi tên hay sao chép file cấu hình Render đè lên file này. Render API key, nếu dùng để tự động cấu hình service, là khóa quản trị Render riêng và không phải token Telegram.
+
 Khởi động lại Express theo quy trình môi trường. Bot chạy cùng tiến trình web, không cần VPS hay dependency bot mới.
 
 ## 4. Đăng ký webhook bot mới
