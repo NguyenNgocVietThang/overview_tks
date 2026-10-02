@@ -8,8 +8,8 @@ test('shared decision trims optional reason and Telegram passes optimistic final
   const service = createHrLeaveDecisionService({
     repo: { updateLeaveRequestStatus: async (...args) => { input = args; return { request_id: 'NP-1', co_so: 'Hà Nội' }; } }
   });
-  await service.decide({ requestId: 'NP-1', user: { id: 'manager', hoTen: 'An' }, status: 'Từ chối', note: '  hết người trực  ', channel: 'telegram', expectedVersion: '3' }, { notify: false, broadcast: false });
-  assert.equal(input[1].note, 'hết người trực');
+  await service.decide({ requestId: 'NP-1', user: { id: 'manager', hoTen: 'An', vaiTro: 'Quản lý' }, status: 'Từ chối', note: '  hết người trực  ', channel: 'telegram', expectedVersion: '3' }, { notify: false, broadcast: false });
+  assert.equal(input[1].note, 'Người duyệt: An - Quản lý\nLý do từ chối: hết người trực');
   assert.equal(input[1].approver, 'An');
   assert.equal(input[1].expectedVersion, '3');
   assert.equal(input[1].lockFinal, true);

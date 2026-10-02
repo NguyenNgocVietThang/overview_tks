@@ -84,6 +84,22 @@
     box-shadow:var(--card-shadow); margin-bottom:24px;
   }
   .users-table-scroll{ overflow-x:auto; }
+  .users-table-scroll.has-pager{ overflow-y:auto; max-height:min(560px, 65vh); }
+  .users-table-scroll.has-pager thead th{ position:sticky; top:0; z-index:1; }
+  .table-pager{
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    padding:10px 16px; border-top:1px solid var(--border); background:var(--panel-2); font-size:12.5px; color:var(--muted);
+  }
+  .table-pager-controls{ display:flex; align-items:center; gap:8px; }
+  .table-pager button{
+    padding:5px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--panel);
+    color:var(--text, inherit); font-family:var(--font-body); font-size:12.5px; cursor:pointer;
+  }
+  .table-pager button:disabled{ opacity:.45; cursor:not-allowed; }
+  .table-pager select{
+    padding:4px 8px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--panel);
+    font-family:var(--font-body); font-size:12.5px;
+  }
   .users-table{ width:100%; border-collapse:collapse; text-align:left; }
   .users-table th, .users-table td{ padding:12px 16px; border-bottom:1px solid var(--border); font-size:13px; }
   .users-table th{
@@ -454,7 +470,7 @@
 
         <!-- Bang danh sach -->
         <div class="users-table-panel">
-          <div class="users-table-scroll">
+          <div class="users-table-scroll has-pager">
             <table class="users-table fixed-table" id="leaveTable">
               <thead>
                 <tr>
@@ -473,6 +489,20 @@
                 <tr class="empty-row"><td colspan="9">Đang tải dữ liệu...</td></tr>
               </tbody>
             </table>
+          </div>
+          <div class="table-pager" id="leavePager" hidden>
+            <span id="leavePagerInfo"></span>
+            <div class="table-pager-controls">
+              <label>Số dòng/trang
+                <select id="leavePageSize" onchange="changeLeavePageSize(this.value)">
+                  <option value="10">10</option><option value="20" selected>20</option>
+                  <option value="50">50</option><option value="100">100</option>
+                </select>
+              </label>
+              <button type="button" id="leavePrev" onclick="goLeavePage(-1)">‹ Trước</button>
+              <span id="leavePageLabel"></span>
+              <button type="button" id="leaveNext" onclick="goLeavePage(1)">Sau ›</button>
+            </div>
           </div>
         </div>
 
@@ -1399,11 +1429,11 @@
     }
 
     // ---------- Load danh sach ----------
-    function handleFilterChange(){ loadLeaveRequests(); }
+    function handleFilterChange(){ leavePaging.page = 1; loadLeaveRequests(); }
 
     // Trang thai loc phia client (khong gui len API) de o KPI van dem du moi trang thai
     // ke ca khi bang dang chi hien "Chua duyet".
-    function handleStatusFilterChange(){ renderTable(rawLeaveRequests); }
+    function handleStatusFilterChange(){ leavePaging.page = 1; renderTable(rawLeaveRequests); }
 
     function visibleLeaveRequests(requests){
       const status = document.getElementById('statusFilter').value;
@@ -1472,6 +1502,7 @@
       if(!requests.length){
         const message = allRequests.length ? 'Không có yêu cầu nào khớp bộ lọc.' : 'Chưa có yêu cầu nghỉ phép nào.';
         tbody.innerHTML = `<tr class="empty-row"><td colspan="9">${message}</td></tr>`;
+        paginateLeaveTable();
         return;
       }
       const isManager = hrCan('hr.leave.manage');
@@ -1509,6 +1540,43 @@
         </tr>`;
       }).join('');
       applyActiveTableSorts();
+      paginateLeaveTable();
+    }
+
+    // ---------- Phan trang bang nghi phep ----------
+    // Hang van duoc dung het trong DOM (de sap xep theo cot hoat dong tren toan bo du lieu),
+    // phan trang chi an/hien hang theo trang hien tai.
+    const leavePaging = { page: 1, size: 20 };
+
+    function paginateLeaveTable(){
+      const tbody = document.getElementById('leaveTableBody');
+      const pager = document.getElementById('leavePager');
+      if(!tbody || !pager) return;
+      const rows = Array.from(tbody.rows).filter(row => row.cells[0].colSpan === 1);
+      const total = rows.length;
+      const pages = Math.max(1, Math.ceil(total / leavePaging.size));
+      leavePaging.page = Math.min(Math.max(1, leavePaging.page), pages);
+      const start = (leavePaging.page - 1) * leavePaging.size;
+      rows.forEach((row, index) => { row.hidden = index < start || index >= start + leavePaging.size; });
+      pager.hidden = total === 0;
+      document.getElementById('leavePagerInfo').textContent = total
+        ? `Hiển thị ${start + 1}–${Math.min(start + leavePaging.size, total)} / ${total} yêu cầu` : '';
+      document.getElementById('leavePageLabel').textContent = `Trang ${leavePaging.page}/${pages}`;
+      document.getElementById('leavePrev').disabled = leavePaging.page <= 1;
+      document.getElementById('leaveNext').disabled = leavePaging.page >= pages;
+    }
+
+    function goLeavePage(delta){
+      leavePaging.page += delta;
+      paginateLeaveTable();
+      const scroller = document.querySelector('#leaveTable').parentElement;
+      if(scroller) scroller.scrollTop = 0;
+    }
+
+    function changeLeavePageSize(value){
+      leavePaging.size = Number(value) || 20;
+      leavePaging.page = 1;
+      paginateLeaveTable();
     }
 
     // ---------- Quan ly doi trang thai truc tiep bang select ----------
@@ -1819,12 +1887,14 @@
         delete state.tableSorts[tbodyId];
         restoreTableRowOrder(tbodyId);
         updateTableSortHeader(tbodyId, -1, null);
+        if(tbodyId === 'leaveTableBody') paginateLeaveTable();
         return;
       }
       const direction = current && current.columnIndex === columnIndex ? 'desc' : 'asc';
       state.tableSorts[tbodyId] = { columnIndex: columnIndex, direction: direction };
       sortTableRows(tbodyId, columnIndex, direction);
       updateTableSortHeader(tbodyId, columnIndex, direction);
+      if(tbodyId === 'leaveTableBody') paginateLeaveTable();
     }
 
     function restoreTableRowOrder(tbodyId){

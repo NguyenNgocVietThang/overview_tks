@@ -7,6 +7,15 @@ const { broadcastLeaveEvent, LEAVE_EVENT_TYPES } = require('./hrLeaveEvents');
 const localUserStore = require('../auth/localUserStore');
 const notificationRepo = require('../notifications/notificationRepository');
 
+// Ghi chu duyet cua don da quyet dinh: "Người duyệt: <Ten> - <Chuc vu>" (+ "Lý do từ chối: ..."
+// khi tu choi co ly do). Trang thai khac (Chua duyet, Vi pham) giu nguyen ghi chu nhap vao.
+function buildDecisionNote(status, approverName, role, reason) {
+  if (status !== 'Đã duyệt' && status !== 'Từ chối') return reason;
+  const lines = [`Người duyệt: ${[approverName, role].filter(Boolean).join(' - ')}`];
+  if (status === 'Từ chối' && reason) lines.push(`Lý do từ chối: ${reason}`);
+  return lines.join('\n');
+}
+
 function createHrLeaveDecisionService({
   repo = leaveRepo,
   broadcast = broadcastLeaveEvent,
@@ -44,11 +53,13 @@ function createHrLeaveDecisionService({
     if (channel === 'telegram' && !/^\d+$/.test(String(expectedVersion ?? ''))) {
       throw new leaveRepo.HrError('Phiên bản quyết định không hợp lệ.', 400, 'INVALID_DECISION_VERSION');
     }
-    const data = { status, note: cleanNote, approver: leaveService.resolveApproverName(user), approverUserId: user && user.id };
+    const approverName = leaveService.resolveApproverName(user);
+    const finalNote = buildDecisionNote(status, approverName, user && user.vaiTro, cleanNote);
+    const data = { status, note: finalNote, approver: approverName, approverUserId: user && user.id };
     if (channel === 'telegram') Object.assign(data, { expectedVersion: String(expectedVersion), lockFinal: true });
     const updated = await repo.updateLeaveRequestStatus(requestId, data, allowedBranches(user));
     if (shouldBroadcast) broadcast(LEAVE_EVENT_TYPES.STATUS_CHANGED, updated, updated.co_so);
-    if (notify) await notifyDecision(updated, user && user.id, cleanNote);
+    if (notify) await notifyDecision(updated, user && user.id, finalNote);
     return updated;
   }
   return { decide, notifyDecision };
