@@ -129,9 +129,9 @@ test('PATCH status chuyển lý do từ chối (đã trim) xuống repo; không 
     await handler({ params: { id: 'NP-2' }, user, body: { status: 'Từ chối', note: '' } }, fakeRes());
     await handler({ params: { id: 'NP-3' }, user, body: { status: 'Đã duyệt' } }, fakeRes());
 
-    assert.equal(received[0].note, 'Thiếu người trực ca');
-    assert.equal(received[1].note, '');
-    assert.equal(received[2].note, undefined);
+    assert.equal(received[0].note, 'Người duyệt: Quản lý - Quản lý\nLý do từ chối: Thiếu người trực ca');
+    assert.equal(received[1].note, 'Người duyệt: Quản lý - Quản lý');
+    assert.equal(received[2].note, 'Người duyệt: Quản lý - Quản lý');
   } finally {
     repo.updateLeaveRequestStatus = originalUpdate;
   }

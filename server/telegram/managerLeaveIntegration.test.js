@@ -82,7 +82,7 @@ test('real DB complete workflow: scoped backlog, Telegram rejection, duplicate u
     await runtime.drain();
     row = await leaveRepo.getLeaveRequestById('NP-HN', 'Hà Nội');
     assert.equal(row.trang_thai, 'Từ chối');
-    assert.equal(row.ghi_chu_duyet, 'Thiếu người trực');
+    assert.equal(row.ghi_chu_duyet, `Người duyệt: ${managers[0].hoTen} - ${managers[0].vaiTro}\nLý do từ chối: Thiếu người trực`);
     assert.equal(row.decision_version, '2');
     assert.equal(row.nguoi_duyet, managers[0].hoTen);
     assert.equal(await store.getSession('100'), null);
