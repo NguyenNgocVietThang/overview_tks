@@ -242,24 +242,37 @@ test('bộ lọc trạng thái chính vẫn dùng được và kết hợp với
 
 const ALL_COLUMNS = ['orderCode', 'branch', 'orderDate', 'saleName', 'customerName', 'orderTotal', 'sellableValue', 'note', 'saleSentAt', 'kiotStatus', 'status', 'at', 'warning'];
 
-test('mặc định hiện hết các cột (Ghi chú ngay sau Giá trị có bán); ô dữ liệu cùng thứ tự với tiêu đề', async () => {
+const DEFAULT_HIDDEN = ['branch', 'note', 'kiotStatus'];
+
+test('mặc định (chưa từng chọn) ẩn Cơ sở / Ghi chú / Trạng thái KiotViet; ô dữ liệu cùng thứ tự với tiêu đề', async () => {
   const page = await renderPage({ orders: [kiotOnlyOrder('A')] });
   assert.deepEqual(columnKeys(page.document), ALL_COLUMNS);
   assert.deepEqual([...rowsOf(page.document)[0].cells].map(td => td.dataset.col), ALL_COLUMNS);
-  assert.equal(page.document.getElementById('bulkTable').dataset.hiddenCols, '');
-  assert.equal(page.document.getElementById('bulkColumnStyle').textContent, '');
-  assert.equal(page.document.getElementById('lcColumnsOverlay').hidden, true);
+  assert.equal(page.document.getElementById('bulkTable').dataset.hiddenCols, DEFAULT_HIDDEN.join(','));
+  const { window, document } = page;
+  for (const key of ALL_COLUMNS) {
+    const display = window.getComputedStyle(document.querySelector('#bulkTable th[data-col="' + key + '"]')).display;
+    assert.equal(display === 'none', DEFAULT_HIDDEN.includes(key), key);
+  }
+  assert.equal(document.getElementById('lcColumnsOverlay').hidden, true);
   page.dom.window.close();
 });
 
-test('hộp "Cột hiển thị": mở bằng nút, mỗi cột 1 ô tick (đang tick hết), "Mã đơn" luôn hiện (khóa)', async () => {
+test('đã lưu lựa chọn rỗng ("hiện hết") thì không bị ghi đè bởi mặc định', async () => {
+  const page = await renderPage({ orders: [kiotOnlyOrder('A')], hiddenColumns: [] });
+  assert.equal(page.document.getElementById('bulkTable').dataset.hiddenCols, '');
+  assert.equal(page.document.getElementById('bulkColumnStyle').textContent, '');
+  page.dom.window.close();
+});
+
+test('hộp "Cột hiển thị": mở bằng nút, mỗi cột 1 ô tick (mặc định bỏ tick Cơ sở / Ghi chú / KiotViet), "Mã đơn" luôn hiện (khóa)', async () => {
   const page = await renderPage({ orders: [kiotOnlyOrder('A')] });
   const { document } = page;
   document.getElementById('bulkColumnsBtn').click();
   assert.equal(document.getElementById('lcColumnsOverlay').hidden, false);
   const inputs = [...document.querySelectorAll('#lcColumnsList input[type="checkbox"]')];
   assert.deepEqual(inputs.map(input => input.dataset.colKey), ALL_COLUMNS);
-  assert.ok(inputs.every(input => input.checked));
+  assert.deepEqual(inputs.filter(input => !input.checked).map(input => input.dataset.colKey), DEFAULT_HIDDEN);
   assert.deepEqual(inputs.filter(input => input.disabled).map(input => input.dataset.colKey), ['orderCode']);
   const labels = [...document.querySelectorAll('#lcColumnsList .lc-col-label')].map(el => el.textContent);
   assert.ok(labels.includes('Ghi chú') && labels.includes('Trạng thái KiotViet'));
@@ -271,7 +284,7 @@ test('hộp "Cột hiển thị": mở bằng nút, mỗi cột 1 ô tick (đang
 
 test('bỏ tick một cột: ẩn cả tiêu đề lẫn ô (kể cả dòng mới sau khi đổi trang), nhớ lựa chọn; tick lại thì hiện', async () => {
   const orders = Array.from({ length: 150 }, (_, i) => kiotOnlyOrder('DH' + String(i + 1).padStart(4, '0'), { note: 'ghi chu ' + i }));
-  const page = await renderPage({ orders });
+  const page = await renderPage({ orders, hiddenColumns: [] });
   const { window, document } = page;
   document.getElementById('bulkColumnsBtn').click();
   const noteInput = document.querySelector('#lcColumnsList input[data-col-key="note"]');
@@ -827,5 +840,103 @@ test('cột "Cơ sở": hiện Hà Nội / Sài Gòn theo từng dòng (cùng m�
   await settle();
   assert.equal(lastListParams(page).get('sort'), 'branch');
   assert.deepEqual(rowsOf(page.document).map(row => cellOf(row, 'branch').textContent), ['Hà Nội', 'Sài Gòn']);
+  page.dom.window.close();
+});
+
+// ---------------------------------------------------------------------------
+// Bo loc dang dropdown tuy bien (2026-10-03): <select> goc an, nut + danh sach thay the; Co so la dropdown (khong con 3 nut)
+// ---------------------------------------------------------------------------
+
+const DROPDOWN_IDS = ['bulkStatusFilter', 'bulkKiotStatusFilter', 'bulkBranchFilter', 'bulkDateField', 'historyStatusFilter', 'historyBranchFilter'];
+
+const ddOf = (document, id) => document.getElementById(id).closest('.dd');
+const clickEl = (window, el) => el.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+const ddOptionTexts = dd => [...dd.querySelectorAll('.dd-option')].map(li => li.textContent);
+
+test('mọi bộ lọc là dropdown tùy biến: select gốc ẩn, nút hiện đúng lựa chọn; Cơ sở là dropdown, không còn 3 nút', async () => {
+  const page = await renderPage({ orders: MIXED() });
+  const { document } = page;
+  for (const id of DROPDOWN_IDS) {
+    const select = document.getElementById(id);
+    const dd = ddOf(document, id);
+    assert.ok(dd, id + ' phai nam trong .dd');
+    assert.equal(select.hidden, true, id);
+    const button = dd.querySelector('.dd-button');
+    assert.equal(button.textContent, select.options[select.selectedIndex].textContent, id);
+    assert.equal(button.getAttribute('aria-expanded'), 'false', id);
+    assert.equal(dd.querySelector('.dd-list').hidden, true, id);
+  }
+  assert.equal(document.querySelectorAll('[data-branch]').length, 0, 'khong con nut Ha Noi / Sai Gon');
+  assert.deepEqual(ddOptionTexts(ddOf(document, 'bulkBranchFilter')), ['Tất cả cơ sở', 'Hà Nội', 'Sài Gòn']);
+  page.dom.window.close();
+});
+
+test('chọn Cơ sở bằng dropdown: gửi branch lên máy chủ, nút đổi chữ, danh sách đóng; chọn lại Tất cả cơ sở thì bỏ tham số', async () => {
+  const page = await renderPage({ orders: MIXED() });
+  const { window, document } = page;
+  const dd = ddOf(document, 'bulkBranchFilter');
+  const button = dd.querySelector('.dd-button');
+
+  clickEl(window, button);
+  assert.equal(dd.querySelector('.dd-list').hidden, false);
+  assert.equal(button.getAttribute('aria-expanded'), 'true');
+  clickEl(window, [...dd.querySelectorAll('.dd-option')][2]);
+  await settle();
+  assert.equal(lastListParams(page).get('branch'), 'SG');
+  assert.equal(document.getElementById('bulkBranchFilter').value, 'SG');
+  assert.equal(button.textContent, 'Sài Gòn');
+  assert.equal(dd.querySelector('.dd-list').hidden, true, 'chon xong thi dong');
+  assert.equal(dd.querySelector('.dd-option[aria-selected="true"]').textContent, 'Sài Gòn');
+
+  clickEl(window, button);
+  clickEl(window, [...dd.querySelectorAll('.dd-option')][0]);
+  await settle();
+  assert.equal(lastListParams(page).has('branch'), false);
+  assert.equal(button.textContent, 'Tất cả cơ sở');
+  page.dom.window.close();
+});
+
+test('dropdown: bàn phím (↓ mở, ↓ ↓ chọn bằng Enter, Esc đóng) và bấm ra ngoài thì đóng', async () => {
+  const page = await renderPage({ orders: MIXED() });
+  const { window, document } = page;
+  const dd = ddOf(document, 'bulkKiotStatusFilter');
+  const button = dd.querySelector('.dd-button');
+  const press = key => button.dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+
+  press('ArrowDown');
+  assert.equal(dd.querySelector('.dd-list').hidden, false, 'mui xuong mo danh sach');
+  press('ArrowDown');
+  press('ArrowDown');
+  press('Enter');
+  await settle();
+  assert.equal(lastListParams(page).get('kiotStatus'), 'Đã xác nhận', 'Tat ca -> Phieu tam -> Da xac nhan');
+  assert.equal(button.textContent, 'Đã xác nhận');
+
+  press('ArrowDown');
+  press('Escape');
+  assert.equal(dd.querySelector('.dd-list').hidden, true);
+
+  press('ArrowDown');
+  document.body.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true }));
+  assert.equal(dd.querySelector('.dd-list').hidden, true, 'bam ra ngoai thi dong');
+  page.dom.window.close();
+});
+
+test('dropdown Trạng thái KiotViet theo dõi option do trang thêm vào và giá trị gán bằng code', async () => {
+  const page = await renderPage({ orders: MIXED() });
+  const { document, window } = page;
+  const select = document.getElementById('bulkKiotStatusFilter');
+  const dd = ddOf(document, 'bulkKiotStatusFilter');
+  assert.deepEqual(ddOptionTexts(dd), ['Tất cả', 'Phiếu tạm', 'Đã xác nhận', 'Đang giao hàng', 'Hoàn thành', 'Đã hủy']);
+
+  const extra = document.createElement('option');
+  extra.value = extra.textContent = 'Trạng thái mới';
+  select.appendChild(extra);
+  await settle();
+  assert.deepEqual(ddOptionTexts(dd).slice(-1), ['Trạng thái mới'], 'MutationObserver dong bo danh sach');
+
+  select.value = 'Hoàn thành'; // gan bang code (khong ban su kien change)
+  assert.equal(dd.querySelector('.dd-button').textContent, 'Hoàn thành');
+  assert.equal(window.getComputedStyle(select).display, 'none');
   page.dom.window.close();
 });

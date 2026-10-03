@@ -171,6 +171,12 @@ function publicUser(user) {
   };
 }
 
+// ID Telegram ca nhan chi Quan ly (hoac admin cung) duoc them/sua. Nhan vien khong tu doi
+// duoc o ho so cua minh — Quan ly nhap ho trong "Quan ly nguoi dung" (adminUserRoutes.js).
+function canEditOwnTelegram(user) {
+  return !!user && (user.vaiTro === ROLES.QUAN_LY || isHardcodedAdmin(user.email) || isHardcodedAdmin(user.username));
+}
+
 function publicProfile(user) {
   return {
     id: user.id,
@@ -181,6 +187,7 @@ function publicProfile(user) {
     email: user.email || '',
     soDienThoai: user.soDienThoai || '',
     telegramId: user.telegramId || '',
+    telegramEditable: canEditOwnTelegram(user),
     emailKhoiPhuc: user.emailKhoiPhuc || '',
     sdtKhoiPhuc: user.sdtKhoiPhuc || '',
     hasPassword: !!user.passwordHash,
@@ -335,6 +342,16 @@ router.post('/api/auth/login', async (req, res) => {
 // -------------------------------------------------------------
 // POST /api/auth/register (chi Email)
 // -------------------------------------------------------------
+const REGISTRATION_DISABLED_RESPONSE = Object.freeze({
+  error: 'Đăng ký tài khoản mới đã bị khóa. Vui lòng liên hệ Quản lý để được cấp tài khoản.',
+  code: 'REGISTRATION_DISABLED'
+});
+
+// Admin cung (HARDCODED_ADMINS) luon dang ky/dang nhap duoc de khong bi khoa chet khoi he thong.
+function registrationLocked(email) {
+  return !CONFIG.ALLOW_SELF_REGISTRATION && !isHardcodedAdmin(email);
+}
+
 function sendEmployeeRegistrationError(res, err) {
   if (err && err.statusCode) {
     const body = { error: err.message, code: err.code };
@@ -346,6 +363,7 @@ function sendEmployeeRegistrationError(res, err) {
 }
 
 router.post('/api/auth/register/channels', async (req, res) => {
+  if (!CONFIG.ALLOW_SELF_REGISTRATION) return res.status(403).json(REGISTRATION_DISABLED_RESPONSE);
   try {
     const result = await employeeRegistrationService.createChallenge(req.body && req.body.identifier);
     res.status(200).json(result);
@@ -355,6 +373,7 @@ router.post('/api/auth/register/channels', async (req, res) => {
 });
 
 router.post('/api/auth/register/send-otp', async (req, res) => {
+  if (!CONFIG.ALLOW_SELF_REGISTRATION) return res.status(403).json(REGISTRATION_DISABLED_RESPONSE);
   try {
     const body = req.body || {};
     const result = await employeeRegistrationService.sendOtp(body.challengeId, body.channel);
@@ -365,6 +384,7 @@ router.post('/api/auth/register/send-otp', async (req, res) => {
 });
 
 router.post('/api/auth/register/verify', async (req, res) => {
+  if (!CONFIG.ALLOW_SELF_REGISTRATION) return res.status(403).json(REGISTRATION_DISABLED_RESPONSE);
   try {
     const user = await employeeRegistrationService.verifyAndRegister(req.body || {});
     res.status(201).json(signIn(res, user));
@@ -378,6 +398,10 @@ router.post('/api/auth/register', async (req, res) => {
     const hoTen = String((req.body && req.body.hoTen) || '').trim();
     const email = String((req.body && req.body.email) || '').trim().toLowerCase();
     const password = String((req.body && req.body.password) || '');
+
+    if (registrationLocked(email)) {
+      return res.status(403).json(REGISTRATION_DISABLED_RESPONSE);
+    }
 
     if (!hoTen) {
       return res.status(400).json({ error: 'Vui lòng nhập họ và tên.' });
@@ -577,7 +601,8 @@ router.post('/api/auth/forgot-password/verify', forgotPasswordRateLimit, async (
 // GOOGLE AUTH
 // -------------------------------------------------------------
 router.get('/api/auth/google-config', (req, res) => {
-  res.status(200).json({ clientId: CONFIG.GOOGLE_CLIENT_ID || null });
+  // registrationOpen: trang login/register dua vao day de an link + khoa form khi tu dang ky bi khoa.
+  res.status(200).json({ clientId: CONFIG.GOOGLE_CLIENT_ID || null, registrationOpen: !!CONFIG.ALLOW_SELF_REGISTRATION });
 });
 
 router.post('/api/auth/google', async (req, res) => {
@@ -606,10 +631,15 @@ router.post('/api/auth/google', async (req, res) => {
 
     let user = isTargetAdmin
       ? null
-      : await employeeRegistrationService.linkVerifiedGoogleIdentity({ email, hoTen: googleName });
+      : await employeeRegistrationService.linkVerifiedGoogleIdentity({
+        email, hoTen: googleName, allowCreate: !!CONFIG.ALLOW_SELF_REGISTRATION
+      });
     if (!user) user = await findUserByEmail(email);
 
     if (!user) {
+      if (registrationLocked(email)) {
+        return res.status(403).json(REGISTRATION_DISABLED_RESPONSE);
+      }
       const assignedRole = isTargetAdmin ? ROLES.QUAN_LY : ROLES.KHACH;
       const created = await createActiveGuest({
         email,
@@ -805,6 +835,12 @@ router.post('/api/auth/profile', requireAuth, async (req, res) => {
     const current = await findUserById(req.user.id);
     if (!current) {
       return res.status(404).json({ error: 'Không tìm thấy tài khoản.' });
+    }
+    if (Object.hasOwn(fields, 'telegramId') && !canEditOwnTelegram(current)) {
+      if (fields.telegramId !== (current.telegramId || '')) {
+        return res.status(403).json({ error: 'Chỉ Quản lý mới được thêm hoặc sửa ID Telegram. Vui lòng liên hệ Quản lý.', code: 'TELEGRAM_ID_LOCKED' });
+      }
+      delete fields.telegramId;
     }
     if (email !== (current.email || '').toLowerCase()) {
       const other = await findUserByEmail(email);

@@ -278,6 +278,16 @@
         });
     });
 
+    // Tu dang ky bi khoa -> bao ngay va khoa form (server van tu choi 403 REGISTRATION_DISABLED).
+    fetch('/api/auth/google-config', {credentials:'same-origin'})
+      .then(function(res){ return res.ok ? res.json() : null; })
+      .then(function(config){
+        if(!config || config.registrationOpen) return;
+        showError('Đăng ký tài khoản mới đã bị khóa. Vui lòng liên hệ Quản lý để được cấp tài khoản.');
+        Array.prototype.forEach.call(form.elements, function(el){ el.disabled = true; });
+      })
+      .catch(function(){});
+
     fetch('/api/auth/me', {credentials:'same-origin'})
       .then(function(res){ if(res.ok) window.location.href = '/account/'; })
       .catch(function(){});

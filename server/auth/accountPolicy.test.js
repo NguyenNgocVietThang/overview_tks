@@ -79,8 +79,9 @@ test('checkGrant: khong gan vai tro Quan ly du actor co du moi quyen', () => {
 
 test('checkGrant: chi duoc THEM quyen ma chinh actor co', () => {
   const actor = troLy();
-  // Tro ly khong co shipment.override -> khong cap duoc.
-  const denied = policy.checkGrant(actor, user('Nhân viên kho'), user('Nhân viên kho', { 'shipment.override': true }));
+  // Tro ly khong co shipment.override (tu 2026-10-03 chi Quan ly co mac dinh) -> khong cap duoc.
+  // Dich phai co Vong doi don hang (Ke toan) thi quyen nay moi co hieu luc.
+  const denied = policy.checkGrant(actor, user('Kế toán'), user('Kế toán', { 'shipment.override': true }));
   assert.match(denied, /Ghi đè trạng thái đơn/);
   // Quyen actor co (reports.overview la mac dinh cua Tro ly) thi cap duoc.
   assert.equal(policy.checkGrant(actor, user('Nhân viên kho'), user('Nhân viên kho', { 'reports.overview': true })), null);
@@ -90,15 +91,16 @@ test('checkGrant: chi duoc THEM quyen ma chinh actor co', () => {
 
 test('checkGrant: doi sang vai tro co quyen mac dinh vuot actor bi chan, vai tro thap hon thi duoc', () => {
   const actor = troLy();
-  // Ke toan co shipment.override (Tro ly khong co).
-  assert.ok(policy.checkGrant(actor, user('Khách'), user('Kế toán')));
+  // Quan ly co shipment.override va nhieu quyen khac (Tro ly khong co); Ke toan nay <= Tro ly.
+  assert.ok(policy.checkGrant(actor, user('Khách'), user('Quản lý')));
+  assert.equal(policy.checkGrant(actor, user('Khách'), user('Kế toán')), null);
   assert.equal(policy.checkGrant(actor, null, user('Khách')), null);
   assert.equal(policy.checkGrant(actor, null, user('Nhân viên kho')), null);
 });
 
 test('checkGrant: duoc RUT BOT quyen cua dich co quyen cao hon actor', () => {
   const actor = troLy();
-  const ketoan = user('Kế toán');
+  const ketoan = user('Kế toán', { 'shipment.override': true });
   const reduced = { ...ketoan, featurePermissions: { 'shipment.override': false } };
   assert.equal(policy.checkGrant(actor, ketoan, reduced), null);
   // Giu nguyen (khong them gi) cung khong bi chan.
@@ -107,7 +109,7 @@ test('checkGrant: duoc RUT BOT quyen cua dich co quyen cao hon actor', () => {
 
 test('checkTakeover: dich co quyen vuot actor bi chan, dich <= actor duoc phep', () => {
   const actor = troLy();
-  assert.match(policy.checkTakeover(actor, user('Kế toán'), 'đặt lại mật khẩu'), /đặt lại mật khẩu/);
+  assert.match(policy.checkTakeover(actor, user('Kế toán', { 'shipment.override': true }), 'đặt lại mật khẩu'), /đặt lại mật khẩu/);
   assert.ok(policy.checkTakeover(actor, user('Quản lý'), 'đặt lại mật khẩu'));
   assert.equal(policy.checkTakeover(actor, user('Nhân viên kho'), 'đặt lại mật khẩu'), null);
   assert.equal(policy.checkTakeover(actor, user('Khách'), 'đặt lại mật khẩu'), null);

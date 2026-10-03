@@ -986,6 +986,7 @@
       hoTen: overlay.querySelector('#tksProfileHoTen'),
       email: overlay.querySelector('#tksProfileEmail'),
       telegramId: overlay.querySelector('#tksProfileTelegramId'),
+      telegramHint: overlay.querySelector('#tksProfileTelegramIdHint'),
       username: overlay.querySelector('#tksProfileUsername'),
       role: overlay.querySelector('#tksProfileRole'),
       facility: overlay.querySelector('#tksProfileFacility'),
@@ -1044,7 +1045,6 @@
       showError(els.profileError, '');
       var hoTen = els.hoTen.value.trim();
       var email = els.email.value.trim();
-      var telegramId = els.telegramId.value.trim();
       if(!hoTen || !email){
         showError(els.profileError, 'Vui lòng nhập đầy đủ họ tên và email.');
         return;
@@ -1054,7 +1054,9 @@
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hoTen: hoTen, email: email, telegramId: telegramId })
+        body: JSON.stringify(els.telegramId.disabled
+          ? { hoTen: hoTen, email: email }
+          : { hoTen: hoTen, email: email, telegramId: els.telegramId.value.trim() })
       })
         .then(function(res){ return res.json().then(function(data){ return { ok: res.ok, data: data }; }); })
         .then(function(result){
@@ -1162,6 +1164,11 @@
         els.hoTen.value = profile.hoTen || '';
         els.email.value = profile.email || '';
         els.telegramId.value = profile.telegramId || '';
+        // Chi Quan ly duoc them/sua ID Telegram (server van la ranh gioi that: 403 TELEGRAM_ID_LOCKED).
+        els.telegramId.disabled = !profile.telegramEditable;
+        els.telegramHint.textContent = profile.telegramEditable
+          ? 'Nhập ID Telegram dạng số của bạn. Để trống để hủy liên kết.'
+          : 'Chỉ Quản lý mới được thêm hoặc sửa ID Telegram. Vui lòng liên hệ Quản lý nếu cần thay đổi.';
         els.username.value = profile.username || '';
         els.role.value = profile.vaiTro || '';
         els.facility.value = profile.coSo || '';
@@ -1243,14 +1250,14 @@
     });
 
     // Nhom "Quan ly don hang": 2 tab con cua cung trang /shipment/lifecycle/.
-    // Muc dau tien mo cho ca Khach (quyen shipment.lookup) vi do la trang tra
-    // cuu don duy nhat ho co.
+    // 2026-10-03: Tra cuu theo ma + Lich su gan vao quyen shipment.lifecycle nen
+    // muc nay chi hien cho ai co Vong doi don hang.
     var isLifecyclePage = currentPath === '/shipment/lifecycle';
     var isLifecycleHistoryTab = isLifecyclePage && currentHash === 'history';
     var isLifecycleOrdersTab = isLifecyclePage && !isLifecycleHistoryTab;
     var shipmentItems = [
       {
-        feature: ['shipment.lookup', 'shipment.lifecycle'],
+        feature: 'shipment.lifecycle',
         href: '/shipment/lifecycle/',
         label: 'Vòng đời đơn hàng',
         active: isLifecycleOrdersTab,

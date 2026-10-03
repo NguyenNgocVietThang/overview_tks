@@ -286,6 +286,7 @@
     font-weight:600;
     transition:border-color .15s ease, background-color .15s ease, color .15s ease, transform .15s ease;
   }
+  .register-link[hidden]{ display:none; }
   .register-link:hover{
     border-color:var(--blue);
     color:var(--blue);
@@ -396,7 +397,7 @@
       </div>
 
       <button type="submit" class="btn-primary login-submit" id="loginSubmit">Đăng nhập</button>
-      <a class="register-link" href="/register/">Đăng ký tài khoản Khách</a>
+      <a class="register-link" id="registerLink" href="/register/" hidden>Đăng ký tài khoản Khách</a>
 
       <div class="login-footer">TOKOSI · Truy cập nội bộ</div>
     </form>
@@ -659,6 +660,8 @@
     fetch('/api/auth/google-config', { credentials: 'same-origin' })
       .then(function(res){ return res.ok ? res.json() : { clientId: null }; })
       .then(function(config){
+        // Tu dang ky dang bi khoa -> link dang ky chi hien khi server bao dang mo.
+        if(config && config.registrationOpen) document.getElementById('registerLink').hidden = false;
         if(!config || !config.clientId){
           hideGoogleSection();
           return;

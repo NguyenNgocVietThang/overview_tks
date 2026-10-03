@@ -1,9 +1,9 @@
 // ==========================================
 // ORDER LIFECYCLE ROUTES — /api/shipment/lifecycle/* : tra cuu "Vong doi don
 // hang" (spreadsheet RIENG, doc-only). Router RIENG (khong gop vao
-// shipmentOrderRoutes.js) vi mo hinh quyen khac han: lookup mo cho moi tai
-// khoan (ke ca Khach) qua quyen 'shipment.lookup'; bulk-list yeu cau quyen
-// 'shipment.lifecycle' (mac dinh: moi vai tro noi bo).
+// shipmentOrderRoutes.js) vi mo hinh quyen khac han. Tu 2026-10-03 moi quyen
+// ('shipment.lookup', '.history', '.export', '.override') GAN vao 'shipment.lifecycle'
+// (featureRegistry `requires`): khong co Vong doi don hang thi khong co cac quyen kia.
 //
 // Mount trong server/routes.js TRUOC gate '/api/shipment' chung (giong cach
 // POST /api/shipment/invoice-status duoc dac cach cho Khach):
@@ -28,11 +28,11 @@ const kiotRepository = require('./kiotOrdersRepository');
 
 // Phan quyen theo TINH NANG (server/auth/featureRegistry.js), khong con theo
 // mang vai tro — cung mot nguon su that voi menu phia client.
-//   shipment.lookup    — tra cuu 1 don (mac dinh: moi tai khoan, ke ca Khach)
-//   shipment.lifecycle — xem toan bo don (mac dinh: moi vai tro noi bo)
-//   shipment.history   — lich su cap nhat
+//   shipment.lifecycle — xem toan bo don (mac dinh: noi bo tru NV kho/marketing/mua hang)
+//   shipment.lookup    — tra cuu 1 don (cung nhom vai tro voi lifecycle)
+//   shipment.history   — lich su cap nhat (cung nhom vai tro voi lifecycle)
 //   shipment.export    — xuat Excel (mac dinh: chi Quan ly)
-//   shipment.override  — ghi de trang thai thu cong (mac dinh: Quan ly, Ke toan)
+//   shipment.override  — ghi de trang thai thu cong (mac dinh: chi Quan ly)
 const authLookup = [requireAuth, requireFeature('shipment.lookup')];
 const authBulk = [requireAuth, requireFeature('shipment.lifecycle')];
 const authHistory = [requireAuth, requireFeature('shipment.history')];

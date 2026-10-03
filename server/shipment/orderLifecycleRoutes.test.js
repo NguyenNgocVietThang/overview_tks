@@ -71,11 +71,12 @@ test.beforeEach(() => {
   service.listHistory = async () => ([{ historyId: 'OVR-1', orderCode: 'HD001', statusCode: 'CANCELLED' }]);
 });
 
-test('GET /api/shipment/lifecycle/:orderCode — Khách gọi được (200)', async () => {
+// 2026-10-03: Tra cuu theo ma + Lich su GAN vao Vong doi don hang -> Khach (khong co lifecycle) bi 403.
+test('GET /api/shipment/lifecycle/:orderCode — Khách bị 403 (tra cứu theo mã cần Vòng đời đơn hàng)', async () => {
   const req = reqAs('Khách', { orderCode: 'HD001' });
   const res = fakeRes();
   await callRoute('get', '/:orderCode', req, res);
-  assert.equal(res.statusCode, 200);
+  assert.equal(res.statusCode, 403);
 });
 
 test('GET /api/shipment/lifecycle — Khách bị 403', async () => {
@@ -85,18 +86,17 @@ test('GET /api/shipment/lifecycle — Khách bị 403', async () => {
   assert.equal(res.statusCode, 403);
 });
 
-// Tra cuu 1 don (GET /:orderCode, POST /lookup) mo cho MOI vai tro da dang
-// nhap. Lich su cap nhat (GET /history) mo cho MOI vai tro NOI BO (INTERNAL_ROLES). Xem toan bo don (GET /,
-// GET /order-detail) mo cho cac vai tro noi bo TRU Nhan vien mua hang va Nhan vien marketing (2026-10-02,
-// 2 vai tro nay chi con tra cuu theo ma). XUAT EXCEL (POST /export) chi Quan ly (2026-10-02).
+// Xem toan bo don (GET /, GET /order-detail), Tra cuu 1 don (GET /:orderCode, POST /lookup) va Lich su (GET /history)
+// CUNG nhom vai tro: noi bo TRU Nhan vien kho (2026-10-03), Nhan vien mua hang va Nhan vien marketing (2026-10-02);
+// cac vai tro do (va Khach) khong con gi trong Vong doi don hang. XUAT EXCEL (POST /export) chi Quan ly (2026-10-02).
 const INTERNAL_ROLES = [
   'Kế toán', 'Trưởng kho', 'Quản lý', 'Trợ lý', 'Nhân viên sale',
   'Lái xe', 'Nhân viên kho', 'Nhân viên mua hàng'
 ];
-const NO_LIFECYCLE_ROLES = ['Nhân viên mua hàng', 'Nhân viên marketing'];
+const NO_LIFECYCLE_ROLES = ['Nhân viên kho', 'Nhân viên mua hàng', 'Nhân viên marketing'];
 const LIFECYCLE_VIEW_ROLES = INTERNAL_ROLES.filter(role => !NO_LIFECYCLE_ROLES.includes(role));
 
-for (const role of INTERNAL_ROLES) {
+for (const role of LIFECYCLE_VIEW_ROLES) {
   test(`GET /api/shipment/lifecycle/:orderCode — ${role} gọi được (200)`, async () => {
     const req = reqAs(role, { orderCode: 'HD001' });
     const res = fakeRes();
@@ -115,7 +115,7 @@ for (const role of LIFECYCLE_VIEW_ROLES) {
 }
 
 for (const role of NO_LIFECYCLE_ROLES) {
-  test(`GET /api/shipment/lifecycle và /order-detail — ${role} bị 403 (chỉ còn tra cứu theo mã)`, async () => {
+  test(`GET /api/shipment/lifecycle, /order-detail, /:orderCode, /history — ${role} bị 403 (không có Vòng đời đơn hàng)`, async () => {
     const list = fakeRes();
     await callRoute('get', '/', reqAs(role), list);
     assert.equal(list.statusCode, 403);
@@ -124,7 +124,10 @@ for (const role of NO_LIFECYCLE_ROLES) {
     assert.equal(detail.statusCode, 403);
     const lookup = fakeRes();
     await callRoute('get', '/:orderCode', reqAs(role, { orderCode: 'HD001' }), lookup);
-    assert.equal(lookup.statusCode, 200, 'van tra cuu duoc theo ma');
+    assert.equal(lookup.statusCode, 403, 'tra cuu theo ma gan voi Vong doi don hang');
+    const history = fakeRes();
+    await callRoute('get', '/history', reqAs(role), history);
+    assert.equal(history.statusCode, 403);
   });
 }
 
@@ -135,7 +138,7 @@ test('GET /api/shipment/lifecycle/history — Khách bị 403', async () => {
   assert.equal(res.statusCode, 403);
 });
 
-for (const role of INTERNAL_ROLES) {
+for (const role of LIFECYCLE_VIEW_ROLES) {
   test(`GET /api/shipment/lifecycle/history — ${role} gọi được (200)`, async () => {
     const req = reqAs(role);
     const res = fakeRes();
@@ -192,15 +195,14 @@ test('GET /api/shipment/lifecycle/:orderCode không đăng nhập -> 401', async
   assert.equal(res.statusCode, 401);
 });
 
-test('POST /api/shipment/lifecycle/lookup — Khách gọi được (200)', async () => {
+test('POST /api/shipment/lifecycle/lookup — Khách bị 403 (tra cứu theo mã cần Vòng đời đơn hàng)', async () => {
   const req = reqAs('Khách', {}, {}, { codes: ['HD001'] });
   const res = fakeRes();
   await callRoute('post', '/lookup', req, res);
-  assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body.results, [{ code: 'HD001', found: true }]);
+  assert.equal(res.statusCode, 403);
 });
 
-for (const role of INTERNAL_ROLES) {
+for (const role of LIFECYCLE_VIEW_ROLES) {
   test(`POST /api/shipment/lifecycle/lookup — ${role} gọi được (200)`, async () => {
     const req = reqAs(role, {}, {}, { codes: ['HD001'] });
     const res = fakeRes();
@@ -361,12 +363,12 @@ test('POST /api/shipment/lifecycle/lookup — body không hợp lệ -> lỗi t�
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/shipment/lifecycle/:orderCode/override — chi Quan ly/Ke toan
+// POST /api/shipment/lifecycle/:orderCode/override — mac dinh chi Quan ly (Ke toan phai duoc Quan ly cap rieng, 2026-10-03)
 // ---------------------------------------------------------------------------
 
-const OVERRIDE_ROLES = ['Quản lý', 'Kế toán'];
+const OVERRIDE_ROLES = ['Quản lý'];
 const NON_OVERRIDE_INTERNAL_ROLES = [
-  'Trưởng kho', 'Trợ lý', 'Nhân viên sale', 'Lái xe', 'Nhân viên kho', 'Nhân viên mua hàng'
+  'Kế toán', 'Trưởng kho', 'Trợ lý', 'Nhân viên sale', 'Lái xe', 'Nhân viên kho', 'Nhân viên mua hàng'
 ];
 
 for (const role of OVERRIDE_ROLES) {
@@ -387,6 +389,22 @@ for (const role of NON_OVERRIDE_INTERNAL_ROLES) {
     assert.equal(res.statusCode, 403);
   });
 }
+
+test('POST /api/shipment/lifecycle/:orderCode/override — Kế toán được Quản lý cấp riêng shipment.override thì gọi được; NV kho (không có Vòng đời) có cấp cũng 403', async () => {
+  const accountant = reqAs('Kế toán', { orderCode: 'HD001' }, {}, { status: 'CANCELLED' });
+  testUsers.get('u-Kế toán').featurePermissions = { 'shipment.override': true };
+  const ok = fakeRes();
+  await callRoute('post', '/:orderCode/override', accountant, ok);
+  testUsers.get('u-Kế toán').featurePermissions = undefined;
+  assert.equal(ok.statusCode, 200);
+
+  const keeper = reqAs('Nhân viên kho', { orderCode: 'HD001' }, {}, { status: 'CANCELLED' });
+  testUsers.get('u-Nhân viên kho').featurePermissions = { 'shipment.override': true };
+  const denied = fakeRes();
+  await callRoute('post', '/:orderCode/override', keeper, denied);
+  testUsers.get('u-Nhân viên kho').featurePermissions = undefined;
+  assert.equal(denied.statusCode, 403);
+});
 
 test('POST /api/shipment/lifecycle/:orderCode/override — Khách bị 403', async () => {
   const req = reqAs('Khách', { orderCode: 'HD001' }, {}, { status: 'CANCELLED' });
@@ -410,8 +428,10 @@ test('POST /api/shipment/lifecycle/:orderCode/override — truyền đúng chang
     return { orderCode, branch: 'HN', summary: { code: opts.code, isOverride: true } };
   };
   const req = reqAs('Kế toán', { orderCode: 'HD001' }, {}, { status: 'EXCEPTION', note: 'khách báo hỏng hàng' });
+  testUsers.get('u-Kế toán').featurePermissions = { 'shipment.override': true };
   const res = fakeRes();
   await callRoute('post', '/:orderCode/override', req, res);
+  testUsers.get('u-Kế toán').featurePermissions = undefined;
   assert.equal(res.statusCode, 200);
   assert.equal(received.orderCode, 'HD001');
   assert.equal(received.opts.code, 'EXCEPTION');

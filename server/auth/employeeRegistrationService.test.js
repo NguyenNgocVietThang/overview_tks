@@ -116,3 +116,14 @@ test('verified Google email attaches to an account previously created with the H
   assert.equal(user.verifiedEmail, true);
   assert.equal(user.vaiTro, 'Kế toán');
 });
+
+test('allowCreate=false: Google chi lien ket tai khoan DA CO, khong tao tai khoan moi cho nhan su HR', async () => {
+  const { service, users } = makeService();
+  assert.equal(await service.linkVerifiedGoogleIdentity({ email: 'a@example.com', hoTen: 'G', allowCreate: false }), null);
+  assert.equal(users.length, 0);
+
+  users.push({ id: 'old', username: '0912345678', soDienThoai: '0912345678', vaiTro: 'Khách' });
+  const linked = await service.linkVerifiedGoogleIdentity({ email: 'a@example.com', hoTen: 'G', allowCreate: false });
+  assert.equal(linked.id, 'old');
+  assert.equal(users.length, 1);
+});

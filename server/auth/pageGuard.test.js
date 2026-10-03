@@ -86,7 +86,7 @@ test('thieu quyen: chuyen toi trang dau tien tai khoan vao duoc', async () => {
   const guest = guardFor({ vaiTro: ROLES.KHACH, trangThai: 'Đang hoạt động' });
   const { res } = await run(guest, fakeReq('/reports/', { token: 'ok' }));
   assert.equal(res.statusCode, 302);
-  assert.equal(res.redirectedTo, '/shipment/lifecycle/');
+  assert.equal(res.redirectedTo, '/account/', 'Khach khong con Vong doi don hang nen chi con trang Tai khoan');
 
   const accountant = guardFor({ vaiTro: ROLES.KE_TOAN, trangThai: 'Đang hoạt động' });
   const { res: res2 } = await run(accountant, fakeReq('/', { token: 'ok' }));
@@ -96,7 +96,7 @@ test('thieu quyen: chuyen toi trang dau tien tai khoan vao duoc', async () => {
   assert.equal(nextCalled, true, 'Ke toan van vao duoc trang nhan su');
 });
 
-test('Nhan vien sale vao duoc trang bao cao (quyen Tong quan); marketing van bi chuyen sang Vong doi', async () => {
+test('Nhan vien sale vao duoc trang bao cao (quyen Tong quan); marketing van bi chuyen sang Nhan su', async () => {
   const sale = guardFor({ vaiTro: ROLES.NHAN_VIEN_SALE, trangThai: 'Đang hoạt động' });
   const saleResult = await run(sale, fakeReq('/reports/', { token: 'ok' }));
   assert.equal(saleResult.nextCalled, true);
@@ -106,7 +106,7 @@ test('Nhan vien sale vao duoc trang bao cao (quyen Tong quan); marketing van bi 
   const marketing = guardFor({ vaiTro: ROLES.NHAN_VIEN_MARKETING, trangThai: 'Đang hoạt động' });
   const marketingResult = await run(marketing, fakeReq('/reports/', { token: 'ok' }));
   assert.equal(marketingResult.nextCalled, false);
-  assert.equal(marketingResult.res.redirectedTo, '/shipment/lifecycle/');
+  assert.equal(marketingResult.res.redirectedTo, '/humanresources/');
 });
 
 test('ghi de quyen theo tai khoan co hieu luc ngay o page guard', async () => {

@@ -150,12 +150,14 @@
     background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-xl); overflow:hidden;
     box-shadow:var(--card-shadow);
   }
-  .users-table-scroll{ overflow-x:auto; }
+  /* Cuon doc ngay trong khung: tieu de cot dinh tren cung (cung mau voi bang "Toan bo don hang"). */
+  .users-table-scroll{ overflow-x:auto; overflow-y:auto; max-height:max(360px, calc(100vh - 340px)); overscroll-behavior:contain; }
   .users-table{ width:100%; border-collapse:collapse; text-align:left; }
   .users-table th, .users-table td{ padding:12px 16px; border-bottom:1px solid var(--border); font-size:13px; }
   .users-table th{
     background:var(--panel-2); color:var(--muted); font-size:11.5px; font-weight:600;
     text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;
+    position:sticky; top:0; z-index:2;
   }
   .users-table th.sortable{ cursor:pointer; user-select:none; }
   .users-table th.sortable:hover{ color:var(--text); }
@@ -213,6 +215,8 @@
 
   /* Phan quyen chi tiet */
   .perm-modal-box{ max-width:620px; }
+  /* Danh sach quyen dai: cuon doc rieng, tieu de + nut Luu cua hop thoai luon thay duoc. */
+  #permGroups{ max-height:min(52vh, 460px); overflow-y:auto; overscroll-behavior:contain; padding-right:4px; }
   .perm-intro{
     margin:0 0 14px; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-xs);
     background:var(--panel-2); font-size:12.5px; line-height:1.55; color:var(--text-secondary);
@@ -1005,6 +1009,12 @@
           document.getElementById('profHoTen').value = profile.hoTen || '';
           document.getElementById('profEmail').value = profile.email || '';
           document.getElementById('profTelegramId').value = profile.telegramId || '';
+          // Chi Quan ly duoc them/sua ID Telegram (server van la ranh gioi that: 403 TELEGRAM_ID_LOCKED).
+          const telegramEditable = !!profile.telegramEditable;
+          document.getElementById('profTelegramId').disabled = !telegramEditable;
+          document.getElementById('profTelegramIdHint').textContent = telegramEditable
+            ? 'Nhập ID Telegram dạng số của bạn. Để trống để hủy liên kết.'
+            : 'Chỉ Quản lý mới được thêm hoặc sửa ID Telegram. Vui lòng liên hệ Quản lý nếu cần thay đổi.';
           document.getElementById('profUsername').value = profile.username || '';
           document.getElementById('profFacility').value = profile.coSo || 'Toàn hệ thống';
 
@@ -1030,7 +1040,7 @@
       e.preventDefault();
       const hoTen = document.getElementById('profHoTen').value.trim();
       const email = document.getElementById('profEmail').value.trim();
-      const telegramId = document.getElementById('profTelegramId').value.trim();
+      const telegramInput = document.getElementById('profTelegramId');
       const msgEl = document.getElementById('profileFormMsg');
       const btn = document.getElementById('btnSaveProfile');
 
@@ -1040,7 +1050,7 @@
       fetch('/api/auth/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hoTen, email, telegramId })
+        body: JSON.stringify(telegramInput.disabled ? { hoTen, email } : { hoTen, email, telegramId: telegramInput.value.trim() })
       })
         .then(parseApiResponse)
         .then(result => {
@@ -1563,7 +1573,7 @@
               <span class="perm-row-label">${escapeHtml(f.label)}
                 <span class="perm-row-hint">Mặc định của vai trò: ${isDefaultOn ? 'Có' : 'Không'}${cannotGrant ? ' · Bạn không có quyền này nên không thể cấp thêm' : ''}</span>
               </span>
-              <select class="form-control perm-select" data-feature="${escapeHtml(f.key)}">
+              <select class="form-control perm-select" data-feature="${escapeHtml(f.key)}" data-default="${isDefaultOn ? '1' : '0'}"${f.requires ? ` data-requires="${escapeHtml(f.requires)}"` : ''}>
                 <option value="default"${current === 'default' ? ' selected' : ''}>Theo vai trò (${isDefaultOn ? 'Có' : 'Không'})</option>
                 <option value="allow"${current === 'allow' ? ' selected' : ''}${cannotGrant && current !== 'allow' ? ' disabled' : ''}>Cho phép</option>
                 <option value="deny"${current === 'deny' ? ' selected' : ''}>Chặn</option>
@@ -1580,7 +1590,26 @@
           </div>`;
       }).join('');
 
-      document.getElementById('permGroups').innerHTML = html;
+      const permGroupsEl = document.getElementById('permGroups');
+      permGroupsEl.innerHTML = html;
+      permGroupsEl.onchange = syncPermissionDependencies;
+      syncPermissionDependencies();
+    }
+
+    // Quyền phụ thuộc (vd Tra cứu/Lịch sử/Xuất/Ghi đè cần Vòng đời đơn hàng): khi quyền gốc đang tắt thì
+    // khóa ô chọn của quyền phụ. Chỉ là UX — server mới là chốt thật (resolvePermissions).
+    function syncPermissionDependencies(){
+      const selects = Array.prototype.slice.call(document.querySelectorAll('#permGroups .perm-select'));
+      const isOn = select => select.value === 'allow' || (select.value === 'default' && select.dataset.default === '1');
+      const byKey = {};
+      selects.forEach(select => { byKey[select.dataset.feature] = select; });
+      selects.forEach(select => {
+        const parent = byKey[select.dataset.requires];
+        if(!parent) return;
+        const blocked = !isOn(parent);
+        select.disabled = blocked;
+        select.title = blocked ? 'Cần bật Vòng đời đơn hàng trước' : '';
+      });
     }
 
     function resetPermissionGroup(groupKey){
@@ -1589,10 +1618,12 @@
       document.querySelectorAll('#permGroups .perm-select').forEach(select => {
         if(keys.indexOf(select.dataset.feature) !== -1) select.value = 'default';
       });
+      syncPermissionDependencies();
     }
 
     function resetAllPermissions(){
       document.querySelectorAll('#permGroups .perm-select').forEach(select => { select.value = 'default'; });
+      syncPermissionDependencies();
     }
 
     function handleSavePermissions(e){

@@ -473,7 +473,8 @@ router.get('/api/admin/permissions/catalog', ...authView, (req, res) => {
       label: f.label,
       groupKey: f.groupKey,
       alwaysOn: !!f.alwaysOn,
-      forbiddenRoles: f.forbiddenRoles || []
+      forbiddenRoles: f.forbiddenRoles || [],
+      requires: f.requires || null
     })),
     roleDefaults
   });

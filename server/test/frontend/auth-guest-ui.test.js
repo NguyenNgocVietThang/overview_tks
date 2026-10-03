@@ -60,7 +60,7 @@ test('shared nav khong con mang vai tro cung — menu dung tu danh sach quyen', 
   assert.match(script, /TKSNav\.can/);
 });
 
-test('sidebar cua Khach: chi con tra cuu don hang va ho so ca nhan', () => {
+test('sidebar cua Khach: chi con ho so ca nhan (Vong doi don hang da gan quyen rieng)', () => {
   const dom = loadSharedNav('https://tokosi.example/account/');
   const { window } = dom;
   const sidebar = window.document.getElementById('sidebar');
@@ -73,11 +73,11 @@ test('sidebar cua Khach: chi con tra cuu don hang va ho so ca nhan', () => {
   assert.doesNotMatch(sidebar.innerHTML, /Báo cáo tổng hợp/);
   assert.doesNotMatch(sidebar.innerHTML, /Quản lý nhân sự/);
   assert.doesNotMatch(sidebar.innerHTML, /Quản lý người dùng/);
-  assert.match(sidebar.innerHTML, /Vòng đời đơn hàng/);
+  assert.doesNotMatch(sidebar.innerHTML, /Vòng đời đơn hàng/);
   assert.match(sidebar.innerHTML, /Quản lý hồ sơ/);
 });
 
-test('bang PAGE_FEATURES: Khach chi vao duoc trang tra cuu don va trang tai khoan', () => {
+test('bang PAGE_FEATURES: Khach chi vao duoc trang tai khoan', () => {
   const dom = loadSharedNav('https://tokosi.example/account/');
   const { window } = dom;
   window.TKSNav.setPermissions({ permissions: defaultsForRole('Khách'), pageFeatures: PAGE_FEATURES });
@@ -89,14 +89,14 @@ test('bang PAGE_FEATURES: Khach chi vao duoc trang tra cuu don va trang tai khoa
 
   assert.equal(allowed('/account/'), true);
   assert.equal(allowed('/account/index.html'), true);
-  assert.equal(allowed('/shipment/lifecycle/'), true);
+  assert.equal(allowed('/shipment/lifecycle/'), false);
 
   assert.equal(allowed('/'), false);
   assert.equal(allowed('/index.html'), false);
   assert.equal(allowed('/reports/'), false);
   assert.equal(allowed('/humanresources/'), false);
 
-  assert.equal(window.TKSNav._landingPath(), '/shipment/lifecycle/');
+  assert.equal(window.TKSNav._landingPath(), '/account/');
 });
 
 test('trang bao cao duoc phuc vu o ca "/" lan "/reports/" nen ca hai cung mot quy tac quyen', () => {

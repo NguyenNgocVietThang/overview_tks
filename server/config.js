@@ -34,6 +34,11 @@ const CONFIG = {
   // (Google Identity Services), khong dung authorization-code flow.
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || null,
 
+  // Tu dang ky tai khoan moi (form /register, dang ky nhan su qua OTP, Google tao tai khoan
+  // lan dau) BI KHOA tu 2026-10-03: tai khoan moi do Quan ly tao trong trang Quan ly nguoi dung.
+  // Dat ALLOW_SELF_REGISTRATION=true de mo lai. Tai khoan da co van dang nhap binh thuong.
+  ALLOW_SELF_REGISTRATION: process.env.ALLOW_SELF_REGISTRATION === 'true',
+
   // ==========================================
   // GUI OTP QUEN MAT KHAU — Email (Gmail SMTP)
   // OPTIONAL: thieu bien nao thi tu dong fallback ve console.log (che do dev),

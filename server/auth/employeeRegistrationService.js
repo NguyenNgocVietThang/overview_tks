@@ -136,7 +136,9 @@ function createEmployeeRegistrationService(options = {}) {
     return user;
   }
 
-  async function linkVerifiedGoogleIdentity({ email, hoTen }) {
+  // allowCreate=false: chi lien ket voi tai khoan DA CO, khong tao tai khoan moi cho nhan su
+  // (tu dang ky dang bi khoa — xem ALLOW_SELF_REGISTRATION trong config.js).
+  async function linkVerifiedGoogleIdentity({ email, hoTen, allowCreate = true }) {
     const normalizedEmail = String(email || '').trim().toLowerCase();
     if (!normalizedEmail) return null;
     const snapshot = await directory.getSnapshot();
@@ -144,6 +146,7 @@ function createEmployeeRegistrationService(options = {}) {
     if (!employee) return null;
 
     let user = await resolver.findAccountForEmployee(employee);
+    if (!user && !allowCreate) return null;
     if (!user) {
       user = await store.createUser({
         id: randomUUID(),

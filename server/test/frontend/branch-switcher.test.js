@@ -115,9 +115,10 @@ test('handleBranchError hien bang thong bao rieng cho hai ma loi co so', () => {
 });
 
 test('renderTopSidebar: menu dung theo QUYEN, khong theo vai tro cung', () => {
+  // NV kho khong con Vong doi don hang (2026-10-03) -> ca nhom "Quan ly don hang" bi an.
   const sbKho = renderForRole('Nhân viên kho').sidebar;
-  assert.match(sbKho.innerHTML, /Quản lý đơn hàng/);
-  assert.match(sbKho.innerHTML, /Vòng đời đơn hàng/);
+  assert.doesNotMatch(sbKho.innerHTML, /Quản lý đơn hàng/);
+  assert.doesNotMatch(sbKho.innerHTML, /Vòng đời đơn hàng/);
   assert.doesNotMatch(sbKho.innerHTML, />Tổng quan<\/a>/);
   assert.match(sbKho.innerHTML, /Quản lý nhân sự/);
   assert.doesNotMatch(sbKho.innerHTML, /Báo cáo tổng hợp/);
@@ -133,15 +134,13 @@ test('renderTopSidebar: menu dung theo QUYEN, khong theo vai tro cung', () => {
   assert.match(sbSale.innerHTML, />Khách hàng<\/a>/);
   assert.match(sbSale.innerHTML, />Quản lý công nợ<\/a>/);
 
-  // Nhan vien marketing giu nguyen (khong co Tong quan): menu giong Nhan vien kho.
+  // Nhan vien marketing / mua hang: khong co Bao cao va khong co Vong doi don hang -> menu giong Nhan vien kho.
   const sbMarketing = renderForRole('Nhân viên marketing').sidebar;
   assert.doesNotMatch(sbMarketing.innerHTML, /Báo cáo tổng hợp/);
-  assert.match(sbMarketing.innerHTML, /Quản lý đơn hàng/);
+  assert.doesNotMatch(sbMarketing.innerHTML, /Quản lý đơn hàng/);
 
-  // Nhan vien mua hang nay DUOC xem Vong doi don hang (truoc day UI giau nhung
-  // API van cho) — mo giao dien theo API de hai ben khop nhau.
   const sbMuaHang = renderForRole('Nhân viên mua hàng').sidebar;
-  assert.match(sbMuaHang.innerHTML, /Quản lý đơn hàng/);
+  assert.doesNotMatch(sbMuaHang.innerHTML, /Quản lý đơn hàng/);
   assert.match(sbMuaHang.innerHTML, /Quản lý nhân sự/);
   assert.doesNotMatch(sbMuaHang.innerHTML, /Báo cáo tổng hợp/);
 
@@ -174,9 +173,9 @@ test('renderTopSidebar: ghi de quyen theo tai khoan an/hien dung muc menu', () =
 
 test('renderTopSidebar: an ca NHOM khi khong con muc con nao duoc phep', () => {
   const { sidebar } = renderFor({
-    vaiTro: 'Nhân viên kho', branches: ['Hà Nội'], branch: 'Hà Nội',
+    vaiTro: 'Nhân viên sale', branches: ['Hà Nội'], branch: 'Hà Nội',
     permissions: resolvePermissions({
-      vaiTro: 'Nhân viên kho',
+      vaiTro: 'Nhân viên sale',
       featurePermissions: { 'hr.rules': false, 'hr.employees': false, 'hr.leave': false }
     }),
     pageFeatures: PAGE_FEATURES

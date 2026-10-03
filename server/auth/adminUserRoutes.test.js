@@ -604,7 +604,7 @@ test('GET /api/admin/permissions/catalog tra ve danh muc + mac dinh theo vai tro
   const saleViewKeys = ['reports.overview', 'reports.products', 'reports.invoices', 'reports.customers', 'reports.debt'];
   assert.deepEqual(
     res.body.roleDefaults['Nhân viên marketing'],
-    res.body.roleDefaults['Nhân viên sale'].filter(key => !saleViewKeys.includes(key) && key !== 'shipment.lifecycle')
+    res.body.roleDefaults['Nhân viên sale'].filter(key => !saleViewKeys.includes(key) && !['shipment.lifecycle', 'shipment.lookup', 'shipment.history'].includes(key))
   );
   assert.ok(res.body.roleDefaults['Nhân viên sale'].includes('reports.overview'));
   assert.ok(res.body.features.find(f => f.key === 'account.profile').alwaysOn);
@@ -728,7 +728,9 @@ function seedWithDelegate() {
   localUserStore.setInMemoryUsers([
     delegate(),
     { id: 'mgr-1', username: 'quanly1', hoTen: 'Quản lý 1', email: 'ql1@tokosi.vn', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động' },
-    { id: 'kt-1', username: 'ketoan1', hoTen: 'Kế toán 1', email: 'kt1@tokosi.vn', vaiTro: 'Kế toán', trangThai: 'Đang hoạt động' },
+    { id: 'kt-1', username: 'ketoan1', hoTen: 'Kế toán 1', email: 'kt1@tokosi.vn', vaiTro: 'Kế toán', trangThai: 'Đang hoạt động',
+      // Ke toan nay duoc cap rieng 'shipment.override' (tu 2026-10-03 mac dinh chi Quan ly) -> quyen CAO HON Tro ly uy quyen.
+      featurePermissions: { 'shipment.override': true } },
     { id: 'nv-1', username: 'nvkho1', hoTen: 'NV kho 1', email: 'nv1@tokosi.vn', vaiTro: 'Nhân viên kho', trangThai: 'Đang hoạt động' }
   ]);
 }
@@ -749,7 +751,7 @@ test('Chong leo thang: POST vai tro vuot quyen actor bi chan, vai tro <= actor d
   const handler = getRouteHandler(adminUserRoutes, 'post', '/api/admin/users');
 
   const blocked = fakeRes();
-  await handler({ user: delegate(), body: { username: 'moi1234', password: 'matkhau123', hoTen: 'Mới', vaiTro: 'Kế toán' } }, blocked);
+  await handler({ user: delegate(), body: { username: 'moi1234', password: 'matkhau123', hoTen: 'Mới', vaiTro: 'Quản lý' } }, blocked);
   assert.equal(blocked.statusCode, 403);
 
   const ok = fakeRes();
@@ -788,7 +790,7 @@ test('Chong leo thang: PUT chi chan NANG quyen — sua thong tin co ban tai khoa
 
   // Nhung doi vai tro thanh gia tri mang them quyen actor khong co thi bi chan.
   const up = fakeRes();
-  await handler({ user: delegate(), params: { id: 'nv-1' }, body: { vaiTro: 'Kế toán' } }, up);
+  await handler({ user: delegate(), params: { id: 'nv-1' }, body: { vaiTro: 'Quản lý' } }, up);
   assert.equal(up.statusCode, 403);
 });
 
@@ -847,7 +849,7 @@ test('Chong leo thang: PUT permissions khong tu cap them / cap them quyen actor 
   assert.equal(self.statusCode, 403);
 
   const other = fakeRes();
-  await handler({ user: delegate(), params: { id: 'nv-1' }, body: { overrides: { 'shipment.override': true } } }, other);
+  await handler({ user: delegate(), params: { id: 'nv-1' }, body: { overrides: { 'hr.leave.manage': true } } }, other);
   assert.equal(other.statusCode, 403);
 
   const mgr = fakeRes();

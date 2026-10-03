@@ -21,16 +21,14 @@ const { ROLES, INTERNAL_ROLES, REPORTS_ROLES, isHardcodedAdmin } = require('./us
 
 const ALL_ROLES = Object.freeze(Object.values(ROLES));
 const MANAGER_ONLY = Object.freeze([ROLES.QUAN_LY]);
-const OVERRIDE_ROLES = Object.freeze([ROLES.QUAN_LY, ROLES.KE_TOAN]);
 // Cac tab XEM bao cao (Tong quan, Hang hoa, Hoa don, Khach hang, Cong no) mo them cho
 // Nhan vien sale (2026-10-02). Xuat Excel + sua cong no van chi Quan ly + Tro ly
 // (REPORTS_ROLES), nen KHONG nhet sale vao REPORTS_ROLES — mang do cap ca 7 key reports.*.
 const REPORT_VIEW_ROLES = Object.freeze([...REPORTS_ROLES, ROLES.NHAN_VIEN_SALE]);
-// Vong doi don hang (toan bo don): bo Nhan vien mua hang + Nhan vien marketing (2026-10-02).
-// Hai vai tro nay van con 'shipment.lookup' (tra cuu theo ma).
-const LIFECYCLE_ROLES = Object.freeze(
-  INTERNAL_ROLES.filter(r => r !== ROLES.NHAN_VIEN_MUA_HANG && r !== ROLES.NHAN_VIEN_MARKETING)
-);
+// Vong doi don hang (toan bo don): bo Nhan vien mua hang + Nhan vien marketing (2026-10-02)
+// va Nhan vien kho (2026-10-03). Ba vai tro nay van con 'shipment.lookup' (tra cuu theo ma).
+const NO_LIFECYCLE_ROLES = Object.freeze([ROLES.NHAN_VIEN_KHO, ROLES.NHAN_VIEN_MARKETING, ROLES.NHAN_VIEN_MUA_HANG]);
+const LIFECYCLE_ROLES = Object.freeze(INTERNAL_ROLES.filter(r => !NO_LIFECYCLE_ROLES.includes(r)));
 
 const FEATURE_GROUPS = Object.freeze([
   { key: 'reports', label: 'Báo cáo tổng hợp' },
@@ -57,12 +55,15 @@ const FEATURES = Object.freeze([
   { key: 'reports.export', groupKey: 'reports', label: 'Xuất Excel báo cáo', roles: REPORTS_ROLES },
 
   // --- Quan ly don hang ---
-  { key: 'shipment.lookup', groupKey: 'shipment', label: 'Tra cứu đơn theo mã', roles: ALL_ROLES },
+  // 2026-10-03: Tra cuu theo ma, Lich su, Xuat Excel, Ghi de deu GAN vao Vong doi don hang
+  // (`requires`): thieu 'shipment.lifecycle' thi cac quyen nay bi bo du vai tro/ghi de co cap.
   { key: 'shipment.lifecycle', groupKey: 'shipment', label: 'Vòng đời đơn hàng (toàn bộ đơn)', roles: LIFECYCLE_ROLES },
-  { key: 'shipment.history', groupKey: 'shipment', label: 'Lịch sử cập nhật', roles: INTERNAL_ROLES },
+  { key: 'shipment.lookup', groupKey: 'shipment', label: 'Tra cứu đơn theo mã (cần Vòng đời đơn hàng)', roles: LIFECYCLE_ROLES, requires: 'shipment.lifecycle' },
+  { key: 'shipment.history', groupKey: 'shipment', label: 'Lịch sử cập nhật (cần Vòng đời đơn hàng)', roles: LIFECYCLE_ROLES, requires: 'shipment.lifecycle' },
   // 2026-10-02: chi Quan ly xuat duoc file (truoc day moi vai tro noi bo); Quan ly van cap them tung tai khoan duoc.
-  { key: 'shipment.export', groupKey: 'shipment', label: 'Xuất Excel đơn hàng', roles: MANAGER_ONLY },
-  { key: 'shipment.override', groupKey: 'shipment', label: 'Ghi đè trạng thái đơn', roles: OVERRIDE_ROLES },
+  { key: 'shipment.export', groupKey: 'shipment', label: 'Xuất Excel đơn hàng (cần Vòng đời đơn hàng)', roles: MANAGER_ONLY, requires: 'shipment.lifecycle' },
+  // 2026-10-03: Ke toan khong con duoc ghi de mac dinh; Quan ly cap rieng tung tai khoan khi can.
+  { key: 'shipment.override', groupKey: 'shipment', label: 'Ghi đè trạng thái đơn (cần Vòng đời đơn hàng)', roles: MANAGER_ONLY, requires: 'shipment.lifecycle' },
 
   { key: 'stockLocations.view', groupKey: 'stockLocations', label: 'Xem vị trí hàng HN / SG', roles: INTERNAL_ROLES, forbiddenRoles: [ROLES.KHACH] },
 
@@ -103,7 +104,7 @@ const ANY_REPORTS_FEATURES = Object.freeze(FEATURE_KEYS.filter(k => k.startsWith
  */
 const PAGE_FEATURES = Object.freeze([
   { path: '/reports', href: '/reports/', anyOf: ANY_REPORTS_FEATURES },
-  { path: '/shipment/lifecycle', href: '/shipment/lifecycle/', anyOf: ['shipment.lookup', 'shipment.lifecycle'] },
+  { path: '/shipment/lifecycle', href: '/shipment/lifecycle/', anyOf: ['shipment.lifecycle'] },
   { path: '/humanresources', href: '/humanresources/', anyOf: ['hr.rules', 'hr.employees', 'hr.leave'] },
   { path: '/stock-locations', href: '/stock-locations/', anyOf: ['stockLocations.view'] },
   { path: '/account', href: '/account/', anyOf: ['account.profile'] }
@@ -165,6 +166,10 @@ function resolvePermissions(user) {
     else granted.delete(key);
   }
   for (const key of ALWAYS_ON_KEYS) granted.add(key);
+  // Quyen phu thuoc (`requires`): thieu quyen goc thi bo luon, bat ke vai tro/ghi de.
+  for (const f of FEATURES) {
+    if (f.requires && !granted.has(f.requires)) granted.delete(f.key);
+  }
   // Tra theo thu tu registry de output on dinh (de so sanh trong test/cache).
   return FEATURE_KEYS.filter(key => granted.has(key) && !isFeatureForbiddenForRole(key, user.vaiTro));
 }

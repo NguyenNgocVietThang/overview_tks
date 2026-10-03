@@ -45,7 +45,7 @@ test('mac dinh theo vai tro: hr.* danh cho moi vai tro noi bo, account.users chi
     assert.equal(defaults.includes('account.users'), role === ROLES.QUAN_LY, role);
   }
   const guest = registry.defaultsForRole(ROLES.KHACH);
-  assert.deepEqual(guest, ['shipment.lookup', 'account.profile']);
+  assert.deepEqual(guest, ['account.profile']);
 });
 
 test('chi Quan ly moi co cac quyen quan tri mac dinh', () => {
@@ -70,11 +70,43 @@ test('xuat Excel don hang (Vong doi don hang) mac dinh chi danh cho Quan ly', ()
   assert.ok(granted.includes('shipment.export'));
 });
 
-test('ghi de trang thai don hang chi danh cho Quan ly va Ke toan', () => {
+test('ghi de trang thai don hang mac dinh chi danh cho Quan ly (Ke toan khong con)', () => {
   for (const role of Object.values(ROLES)) {
-    const expected = role === ROLES.QUAN_LY || role === ROLES.KE_TOAN;
-    assert.equal(registry.defaultsForRole(role).includes('shipment.override'), expected, role);
+    assert.equal(registry.defaultsForRole(role).includes('shipment.override'), role === ROLES.QUAN_LY, role);
   }
+  // Quan ly van cap rieng cho Ke toan duoc (Ke toan co Vong doi don hang).
+  const granted = registry.resolvePermissions({ vaiTro: ROLES.KE_TOAN, featurePermissions: { 'shipment.override': true } });
+  assert.ok(granted.includes('shipment.override'));
+});
+
+test('Tra cuu / Lich su / Xuat / Ghi de GAN vao Vong doi don hang: thieu lifecycle thi mat het', () => {
+  const LINKED = ['shipment.lookup', 'shipment.history', 'shipment.export', 'shipment.override'];
+  // Mac dinh: ai co Vong doi don hang thi co Tra cuu + Lich su (cung nhom vai tro).
+  for (const role of Object.values(ROLES)) {
+    const keys = registry.defaultsForRole(role);
+    for (const key of ['shipment.lookup', 'shipment.history']) {
+      assert.equal(keys.includes(key), keys.includes('shipment.lifecycle'), `${role} ${key}`);
+    }
+  }
+  // Cap rieng quyen phu cho tai khoan khong co Vong doi don hang -> van khong co.
+  const noLifecycle = registry.resolvePermissions({
+    vaiTro: ROLES.NHAN_VIEN_KHO,
+    featurePermissions: Object.fromEntries(LINKED.map(key => [key, true]))
+  });
+  for (const key of LINKED) assert.ok(!noLifecycle.includes(key), key);
+  // Thu hoi lifecycle cua Ke toan keo theo ca quyen phu da cap rieng.
+  const revoked = registry.resolvePermissions({
+    vaiTro: ROLES.KE_TOAN,
+    featurePermissions: { 'shipment.lifecycle': false, 'shipment.override': true, 'shipment.export': true }
+  });
+  for (const key of ['shipment.lifecycle', ...LINKED]) assert.ok(!revoked.includes(key), key);
+  // Cap lifecycle cho vai tro khong co -> Tra cuu/Lich su van phai cap them tung cai.
+  const grantedOnlyLifecycle = registry.resolvePermissions({
+    vaiTro: ROLES.NHAN_VIEN_KHO, featurePermissions: { 'shipment.lifecycle': true, 'shipment.lookup': true }
+  });
+  assert.ok(grantedOnlyLifecycle.includes('shipment.lifecycle'));
+  assert.ok(grantedOnlyLifecycle.includes('shipment.lookup'));
+  assert.ok(!grantedOnlyLifecycle.includes('shipment.history'));
 });
 
 const SALE_REPORT_VIEW_KEYS = ['reports.overview', 'reports.products', 'reports.invoices', 'reports.customers', 'reports.debt'];
@@ -90,18 +122,19 @@ test('Nhan vien sale xem du 5 tab bao cao mac dinh, KHONG co xuat Excel / sua co
   }
 });
 
+const SHIPMENT_LIFECYCLE_GROUP = ['shipment.lifecycle', 'shipment.lookup', 'shipment.history'];
+
 test('Nhan vien marketing: y het Nhan vien sale tru 5 tab xem bao cao', () => {
   assert.deepEqual(
     registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING),
-    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && key !== 'shipment.lifecycle')
+    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && !SHIPMENT_LIFECYCLE_GROUP.includes(key))
   );
 });
 
-test('Nhan vien mua hang + marketing KHONG co Vong doi don hang, van tra cuu theo ma', () => {
-  for (const role of [ROLES.NHAN_VIEN_MUA_HANG, ROLES.NHAN_VIEN_MARKETING]) {
+test('Nhan vien kho + mua hang + marketing + Khach KHONG co Vong doi don hang va cac quyen gan kem', () => {
+  for (const role of [ROLES.NHAN_VIEN_KHO, ROLES.NHAN_VIEN_MUA_HANG, ROLES.NHAN_VIEN_MARKETING, ROLES.KHACH]) {
     const keys = registry.defaultsForRole(role);
-    assert.ok(!keys.includes('shipment.lifecycle'), role);
-    assert.ok(keys.includes('shipment.lookup'), role);
+    for (const key of SHIPMENT_LIFECYCLE_GROUP) assert.ok(!keys.includes(key), `${role} ${key}`);
   }
 });
 
@@ -146,7 +179,7 @@ test('Quan tri vien he thong (hardcoded admin) luon co du moi quyen', () => {
 
 test('hasFeature/permissionsHave dung ngu nghia HOAC', () => {
   const user = { vaiTro: ROLES.KHACH };
-  assert.equal(registry.hasFeature(user, 'reports.debt', 'shipment.lookup'), true);
+  assert.equal(registry.hasFeature(user, 'reports.debt', 'account.profile'), true);
   assert.equal(registry.hasFeature(user, 'reports.debt', 'hr.leave'), false);
   assert.equal(registry.permissionsHave(['a', 'b'], 'b'), true);
   assert.equal(registry.permissionsHave(undefined, 'b'), false);
@@ -167,8 +200,9 @@ test('landingPathFor tra ve trang dau tien tai khoan vao duoc', () => {
   assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.KE_TOAN)), '/shipment/lifecycle/');
   // Sale co quyen Tong quan nen trang dau tien vao duoc la bao cao (thu tu PAGE_FEATURES).
   assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.NHAN_VIEN_SALE)), '/reports/');
-  assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING)), '/shipment/lifecycle/');
-  assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.KHACH)), '/shipment/lifecycle/');
+  // Marketing/Khach khong con Vong doi don hang: marketing vao Nhan su, Khach chi con Tai khoan.
+  assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING)), '/humanresources/');
+  assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.KHACH)), '/account/');
   assert.equal(registry.landingPathFor([]), '/account/');
 });
 

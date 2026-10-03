@@ -2,6 +2,9 @@
 process.env.GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'test-client-id.apps.googleusercontent.com';
+// Mac dinh server KHOA tu dang ky (config.ALLOW_SELF_REGISTRATION). Cac test cu kiem tra luong dang ky
+// nen mo san; nhom test "dang ky bi khoa" o cuoi file dat lai 'false' tung test.
+process.env.ALLOW_SELF_REGISTRATION = 'true';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -126,9 +129,9 @@ test('profile exposes the Telegram ID read from the database', async () => {
   assert.equal(res.body.telegramId, '9007199254740993');
 });
 
-test('profile saves a normalized Telegram ID only to the authenticated account', async () => {
+test('profile saves a normalized Telegram ID only to the authenticated account (Quan ly)', async () => {
   const calls = [];
-  const current = { id: 'u1', hoTen: 'A', email: 'a@example.com', telegramId: '123' };
+  const current = { id: 'u1', hoTen: 'A', email: 'a@example.com', vaiTro: 'Quản lý', telegramId: '123' };
   const router = freshAuthRoutes({ findUserById: async () => current,
     updateUserProfile: async (id, fields) => { calls.push({ id, fields }); return { ...current, ...fields }; } });
   const res = fakeRes();
@@ -151,9 +154,9 @@ test('profile rejects malformed Telegram IDs before any writes', async () => {
   assert.equal(writes, 0);
 });
 
-test('profile allows clearing the Telegram ID and preserves it when omitted', async () => {
+test('profile allows a manager to clear the Telegram ID and preserves it when omitted', async () => {
   const calls = [];
-  const current = { id: 'u1', email: 'a@example.com', telegramId: '123' };
+  const current = { id: 'u1', email: 'a@example.com', vaiTro: 'Quản lý', telegramId: '123' };
   const router = freshAuthRoutes({ findUserById: async () => current,
     updateUserProfile: async (id, fields) => { calls.push(fields); return { ...current, ...fields }; } });
   for (const extra of [{ telegramId: '' }, {}]) {
@@ -165,8 +168,54 @@ test('profile allows clearing the Telegram ID and preserves it when omitted', as
   assert.deepEqual(calls, [{ hoTen: 'A', email: 'a@example.com', telegramId: '' }, { hoTen: 'A', email: 'a@example.com' }]);
 });
 
+test('profile: nhan vien KHONG tu them/sua/xoa duoc ID Telegram (403), gui lai gia tri cu thi bo qua', async () => {
+  for (const current of [
+    { id: 'u1', hoTen: 'A', email: 'a@example.com', vaiTro: 'Nhân viên sale', telegramId: '123' },
+    { id: 'u1', hoTen: 'A', email: 'a@example.com', vaiTro: 'Nhân viên sale', telegramId: '' }
+  ]) {
+    const calls = [];
+    const router = freshAuthRoutes({ findUserById: async () => current,
+      updateUserProfile: async (id, fields) => { calls.push(fields); return { ...current, ...fields }; } });
+    const handler = getRouteHandler(router, 'post', '/api/auth/profile');
+    for (const telegramId of ['999', current.telegramId ? '' : '456']) {
+      const res = fakeRes();
+      await handler({ user: { id: 'u1' }, body: { hoTen: 'A', email: 'a@example.com', telegramId } }, res);
+      assert.equal(res.statusCode, 403, `${current.telegramId}->${telegramId}`);
+      assert.equal(res.body.code, 'TELEGRAM_ID_LOCKED');
+    }
+    assert.deepEqual(calls, [], 'bi chan thi khong ghi gi ca (ke ca ho ten / email)');
+
+    const same = fakeRes();
+    await handler({ user: { id: 'u1' }, body: { hoTen: 'A', email: 'a@example.com', telegramId: current.telegramId } }, same);
+    assert.equal(same.statusCode, 200);
+    const omitted = fakeRes();
+    await handler({ user: { id: 'u1' }, body: { hoTen: 'A', email: 'a@example.com' } }, omitted);
+    assert.equal(omitted.statusCode, 200);
+    assert.deepEqual(calls, [{ hoTen: 'A', email: 'a@example.com' }, { hoTen: 'A', email: 'a@example.com' }],
+      'ID Telegram khong bao gio nam trong lenh ghi cua nhan vien');
+  }
+});
+
+test('profile: admin cung duoc sua ID Telegram o ho so cua minh; GET /profile bao telegramEditable', async () => {
+  const admin = { id: 'u1', hoTen: 'A', email: 'thangnnv2003@gmail.com', username: 'thangnnv2003@gmail.com', vaiTro: 'Nhân viên kho', telegramId: '' };
+  const calls = [];
+  const router = freshAuthRoutes({ findUserById: async () => admin,
+    updateUserProfile: async (id, fields) => { calls.push(fields); return { ...admin, ...fields }; } });
+  const res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/profile')({ user: { id: 'u1' }, body: { hoTen: 'A', email: admin.email, telegramId: '777' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(calls[0].telegramId, '777');
+
+  for (const [vaiTro, expected] of [['Quản lý', true], ['Nhân viên sale', false], ['Kế toán', false]]) {
+    const r = freshAuthRoutes({ findUserById: async () => ({ id: 'u2', email: 'x@example.com', vaiTro }) });
+    const out = fakeRes();
+    await getRouteHandler(r, 'get', '/api/auth/profile')({ user: { id: 'u2' } }, out);
+    assert.equal(out.body.telegramEditable, expected, vaiTro);
+  }
+});
+
 test('profile returns a Telegram conflict as a useful 409 response', async () => {
-  const router = freshAuthRoutes({ findUserById: async () => ({ id: 'u1', email: 'a@example.com' }),
+  const router = freshAuthRoutes({ findUserById: async () => ({ id: 'u1', email: 'a@example.com', vaiTro: 'Quản lý' }),
     updateUserProfile: async () => { throw Object.assign(new Error('ID Telegram này đã được sử dụng.'), { statusCode: 409, code: 'TELEGRAM_ID_EXISTS' }); } });
   const res = fakeRes();
   await getRouteHandler(router, 'post', '/api/auth/profile')({ user: { id: 'u1' }, body: { hoTen: 'A', email: 'a@example.com', telegramId: '123' } }, res);
@@ -836,4 +885,87 @@ test('POST /api/auth/forgot-password/send-otp: goi lien tuc vuot nguong bi chan 
   assert.equal(sawRateLimited, true);
 });
 
+// ---------------------------------------------------------------------------
+// Tu dang ky bi khoa (ALLOW_SELF_REGISTRATION != 'true')
+// ---------------------------------------------------------------------------
+async function withRegistrationLocked(fn) {
+  const original = process.env.ALLOW_SELF_REGISTRATION;
+  process.env.ALLOW_SELF_REGISTRATION = 'false';
+  try { await fn(); } finally { process.env.ALLOW_SELF_REGISTRATION = original; }
+}
 
+test('khoa dang ky: /register, /register/channels, /send-otp, /verify deu tra 403 va khong ghi gi', () => withRegistrationLocked(async () => {
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    employeeRegistration: {
+      createChallenge: NEVER_CALL, sendOtp: NEVER_CALL, verifyAndRegister: NEVER_CALL
+    }
+  });
+  const body = { hoTen: 'A', email: 'moi@example.com', password: 'MatKhau123', identifier: 'moi@example.com', challengeId: 'c', channel: 'email' };
+  for (const route of ['/api/auth/register', '/api/auth/register/channels', '/api/auth/register/send-otp', '/api/auth/register/verify']) {
+    const res = fakeRes();
+    await getRouteHandler(router, 'post', route)({ body }, res);
+    assert.equal(res.statusCode, 403, route);
+    assert.equal(res.body.code, 'REGISTRATION_DISABLED', route);
+    assert.equal(res.cookies.length, 0, route);
+  }
+}));
+
+test('khoa dang ky: admin cung van dang ky duoc (khong bi khoa chet khoi he thong)', () => withRegistrationLocked(async () => {
+  let created = null;
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: async () => null,
+    findUserByUsername: async () => null,
+    createActiveGuest: async args => { created = args; }
+  });
+  const res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/register')({ body: { hoTen: 'Admin', email: 'thangnnv2003@gmail.com', password: 'MatKhau123' } }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(created.vaiTro, 'Quản lý');
+}));
+
+test('khoa dang ky: Google lan dau (chua co tai khoan) -> 403, khong tao tai khoan, khong de nhan su HR tu tao', () => withRegistrationLocked(async () => {
+  let linkArgs = null;
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: async () => ({ email: 'nguoi.moi@gmail.com', emailVerified: true, name: 'Người Mới' }),
+    findUserByEmail: async () => null,
+    createActiveGuest: NEVER_CALL,
+    employeeRegistration: {
+      linkVerifiedGoogleIdentity: async args => { linkArgs = args; return null; }
+    }
+  });
+  const res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/google')({ body: { credential: 'tok' } }, res);
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.code, 'REGISTRATION_DISABLED');
+  assert.equal(res.cookies.length, 0);
+  assert.equal(linkArgs.allowCreate, false, 'nhan su co trong HR cung khong duoc tao tai khoan moi qua Google');
+}));
+
+test('khoa dang ky: Google van dang nhap duoc tai khoan DA CO', () => withRegistrationLocked(async () => {
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: async () => ({ email: 'cu@gmail.com', emailVerified: true, name: 'Cũ' }),
+    findUserByEmail: async () => ({ id: '1', username: 'cu@gmail.com', hoTen: 'Cũ', vaiTro: 'Nhân viên sale', coSo: '', trangThai: 'Đang hoạt động' }),
+    createActiveGuest: NEVER_CALL
+  });
+  const res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/google')({ body: { credential: 'tok' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.cookies.length, 1);
+}));
+
+test('GET /api/auth/google-config bao registrationOpen theo cau hinh (mac dinh khoa)', () => {
+  const router = freshAuthRoutes({ verifyGoogleIdToken: NEVER_CALL, findUserByEmail: NEVER_CALL, createActiveGuest: NEVER_CALL });
+  const res = fakeRes();
+  getRouteHandler(router, 'get', '/api/auth/google-config')({}, res);
+  assert.equal(res.body.registrationOpen, true, 'bien moi truong dang = true trong file test nay');
+  return withRegistrationLocked(async () => {
+    const locked = freshAuthRoutes({ verifyGoogleIdToken: NEVER_CALL, findUserByEmail: NEVER_CALL, createActiveGuest: NEVER_CALL });
+    const out = fakeRes();
+    getRouteHandler(locked, 'get', '/api/auth/google-config')({}, out);
+    assert.equal(out.body.registrationOpen, false);
+  });
+});
