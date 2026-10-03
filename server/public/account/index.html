@@ -1494,6 +1494,14 @@
         .then(([catalog, result]) => {
           if(!result.ok) throw new Error(result.data.error || 'Không tải được phân quyền.');
           renderPermissionsForm(catalog, result.data);
+          roleSelect.onchange = () => {
+            const overrides = {};
+            document.querySelectorAll('#permGroups .perm-select').forEach(select => {
+              if(select.value !== 'default') overrides[select.dataset.feature] = select.value === 'allow';
+            });
+            renderPermissionsForm(catalog, { ...result.data, vaiTro: roleSelect.value,
+              defaults: catalog.roleDefaults[roleSelect.value] || [], overrides });
+          };
         })
         .catch(err => {
           document.getElementById('permGroups').innerHTML = '';
@@ -1520,6 +1528,12 @@
           const current = Object.prototype.hasOwnProperty.call(overrides, f.key)
             ? (overrides[f.key] ? 'allow' : 'deny')
             : 'default';
+          if((f.forbiddenRoles || []).includes(data.vaiTro)){
+            return `<div class="perm-row">
+              <span class="perm-row-label">${escapeHtml(f.label)}<span class="perm-row-hint">Vai trò này không được sử dụng tính năng</span></span>
+              <select class="form-control" disabled aria-label="${escapeHtml(f.label)}"><option>Không được cấp</option></select>
+            </div>`;
+          }
           if(f.alwaysOn){
             return `
               <div class="perm-row">

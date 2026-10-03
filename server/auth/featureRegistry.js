@@ -35,6 +35,7 @@ const LIFECYCLE_ROLES = Object.freeze(
 const FEATURE_GROUPS = Object.freeze([
   { key: 'reports', label: 'Báo cáo tổng hợp' },
   { key: 'shipment', label: 'Quản lý đơn hàng' },
+  { key: 'stockLocations', label: 'Vị trí hàng' },
   { key: 'hr', label: 'Quản lý nhân sự' },
   { key: 'account', label: 'Quản lý tài khoản' },
   { key: 'system', label: 'Hệ thống' }
@@ -62,6 +63,8 @@ const FEATURES = Object.freeze([
   // 2026-10-02: chi Quan ly xuat duoc file (truoc day moi vai tro noi bo); Quan ly van cap them tung tai khoan duoc.
   { key: 'shipment.export', groupKey: 'shipment', label: 'Xuất Excel đơn hàng', roles: MANAGER_ONLY },
   { key: 'shipment.override', groupKey: 'shipment', label: 'Ghi đè trạng thái đơn', roles: OVERRIDE_ROLES },
+
+  { key: 'stockLocations.view', groupKey: 'stockLocations', label: 'Xem vị trí hàng HN / SG', roles: INTERNAL_ROLES, forbiddenRoles: [ROLES.KHACH] },
 
   // --- Quan ly nhan su ---
   { key: 'hr.rules', groupKey: 'hr', label: 'Quy định công ty', roles: INTERNAL_ROLES },
@@ -102,6 +105,7 @@ const PAGE_FEATURES = Object.freeze([
   { path: '/reports', href: '/reports/', anyOf: ANY_REPORTS_FEATURES },
   { path: '/shipment/lifecycle', href: '/shipment/lifecycle/', anyOf: ['shipment.lookup', 'shipment.lifecycle'] },
   { path: '/humanresources', href: '/humanresources/', anyOf: ['hr.rules', 'hr.employees', 'hr.leave'] },
+  { path: '/stock-locations', href: '/stock-locations/', anyOf: ['stockLocations.view'] },
   { path: '/account', href: '/account/', anyOf: ['account.profile'] }
 ]);
 
@@ -162,7 +166,11 @@ function resolvePermissions(user) {
   }
   for (const key of ALWAYS_ON_KEYS) granted.add(key);
   // Tra theo thu tu registry de output on dinh (de so sanh trong test/cache).
-  return FEATURE_KEYS.filter(key => granted.has(key));
+  return FEATURE_KEYS.filter(key => granted.has(key) && !isFeatureForbiddenForRole(key, user.vaiTro));
+}
+
+function isFeatureForbiddenForRole(key, role) {
+  return !!FEATURE_BY_KEY.get(key)?.forbiddenRoles?.includes(String(role || '').trim());
 }
 
 /** Kiem tra tren MANG quyen da giai (req.user.permissions). */
@@ -175,7 +183,7 @@ function permissionsHave(permissions, ...keys) {
 function hasFeature(user, ...keys) {
   if (!user) return false;
   const permissions = Array.isArray(user.permissions) ? user.permissions : resolvePermissions(user);
-  return permissionsHave(permissions, ...keys);
+  return permissionsHave(permissions, ...keys.filter(key => !isFeatureForbiddenForRole(key, user.vaiTro)));
 }
 
 function normalizePagePath(pathname) {
@@ -216,6 +224,7 @@ module.exports = {
   resolvePermissions,
   permissionsHave,
   hasFeature,
+  isFeatureForbiddenForRole,
   normalizePagePath,
   pageRuleFor,
   landingPathFor

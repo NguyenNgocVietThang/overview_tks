@@ -4,6 +4,8 @@ Dashboard nội bộ cho hai cơ sở Hà Nội và Sài Gòn.
 
 ## Kiến trúc hiện tại
 
+- **Vị trí hàng** đọc trực tiếp hai sheet `VỊ TRÍ HN` / `Vị trí SG` của workbook `STOCK_LOCATIONS_SPREADSHEET_ID`. Trang `/stock-locations/` có hai tab theo cơ sở đang chọn, bảng 100 dòng/trang, tìm mã/tên không dấu, không xuất file hoặc tải định kỳ. Mọi vai trò nội bộ có quyền mặc định; Khách bị chặn hoàn toàn. Xem [cấu hình và nghiệm thu](docs/stock-locations-setup.md).
+
 - **Supabase PostgreSQL** là nguồn dữ liệu KiotViet chính cho dashboard: hàng hóa, hóa đơn, đặt hàng, trả hàng, khách hàng, nhập hàng (chỉ phục vụ kiểm tra đứt hàng và "Hàng mới nhập") và các bảng tổng hợp.
 - Engine `server/kiotvietSync/` đồng bộ KiotViet API vào Supabase bằng webhook/polling phía Node.js.
 - Dữ liệu **Trả NCC** không còn đọc từ Google Sheets: người dùng tự upload file Excel xuất trực tiếp từ KiotViet, server nạp vào Postgres `supplier_return_imports` (thay thế toàn bộ theo cơ sở mỗi lần import) và dùng chung pipeline với Hóa đơn/Nhập hàng/Khách trả cho tính năng kiểm tra đứt hàng.
@@ -36,6 +38,7 @@ Mở `http://localhost:3000`.
 | `SPREADSHEET_ID`, `SPREADSHEET_ID_SG` | Lự do lịch sử — không còn phục vụ `Trả NCC` (đã chuyển sang upload Excel vào Postgres `supplier_return_imports`); bỏ trống vẫn chạy được |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Quyền Viewer để quản lý vòng đời đơn hàng / HR |
 | `DEBT_MANAGEMENT_SPREADSHEET_ID` | Workbook công nợ dùng chung |
+| `STOCK_LOCATIONS_SPREADSHEET_ID` | Workbook vị trí hàng HN/SG dùng chung, chỉ đọc |
 | `ORDER_LIFECYCLE_SPREADSHEET_ID` | Workbook tra cứu vòng đời đơn hàng (`DonHang_HN`, `DonHang_SG`, `Lịch sử cập nhật`) |
 | `HR_SPREADSHEET_ID`, `HR_SPREADSHEET_ID_SG` | Workbook nhân sự |
 | `JWT_SECRET` | Ký phiên đăng nhập |
@@ -66,6 +69,7 @@ server/
 ├── public/               # Frontend HTML/CSS/JS
 ├── scripts/              # Script thủ công (migrate dữ liệu, cài đặt ban đầu)
 ├── sheets/               # Google Sheets client (Công nợ, Vòng đời, HR)
+├── stockLocations/       # Đọc vị trí hàng HN/SG, ánh xạ cột và API chỉ đọc
 ├── shipment/             # Tra cứu vòng đời đơn hàng
 ├── telegram/             # Bot quản lý nghỉ phép, webhook, giao tin bền vững + đăng ký webhook
 ├── index.js
@@ -79,6 +83,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-03 — **Vị trí hàng**: thêm nhóm sidebar riêng, tab HN/SG theo bộ chọn cơ sở, bảng 5 cột thống nhất và tìm kiếm mã/tên không dấu; phân trang 100 dòng, chỉ đọc Google Sheets khi mở tab/tải lại. Quyền `stockLocations.view` mặc định cho mọi vai trò nội bộ; chặn Khách cả khi có ghi đè. Cần cấu hình `STOCK_LOCATIONS_SPREADSHEET_ID` và share Viewer cho service account; không cần migration. Tài liệu này không xác nhận đã deploy production.
 
 2026-10-02 — **Bot Telegram riêng cho quản lý nghỉ phép**: chạy trong Express qua `POST /api/telegram/manager-leave/webhook`, xác thực secret; quét Postgres mỗi 5 giây mặc định. Gửi các đơn `Xin nghỉ phép` mới và bù đơn `Chưa duyệt` chưa gửi; quản lý nhận theo cơ sở tài khoản, phải có Telegram ID và bấm **Start** với bot mới. Chỉ có hai nút Phê duyệt (lưu Đã duyệt) và Từ chối; `Đã duyệt`/`Từ chối` khóa thao tác Telegram, web vẫn đổi trạng thái và mở lại được. Migration `0029_hr_manager_telegram.sql` thêm `decision_version` và 5 bảng cho sự kiện, giao tin, phiên từ chối, inbox cập nhật và mốc bật bot lần đầu; **chạy migration trước khi chạy bản web mới, kể cả khi bot tắt**. Bot xin nghỉ cũ tiếp tục dùng `decision_notified_at` để báo nhân viên. Xem [kế hoạch đã duyệt](docs/superpowers/plans/2026-10-02-telegram-manager-leave.md) và [thiết lập/vận hành](docs/telegram-manager-leave-setup.md); tài liệu này không xác nhận đã triển khai production.
 

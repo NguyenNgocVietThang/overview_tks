@@ -53,6 +53,18 @@ test('chua dang nhap: chuyen ve /login/ kem duong dan quay lai', async () => {
   assert.equal(res.redirectedTo, '/login/?next=%2Freports%2F');
 });
 
+test('Vị trí hàng page requires login and rejects guests with a grant on every HTML alias', async () => {
+  for (const url of ['/stock-locations', '/stock-locations/', '/stock-locations/index.html']) {
+    const anonymous = await run(guardFor({ vaiTro: ROLES.NHAN_VIEN_KHO }), fakeReq(url));
+    assert.equal(anonymous.nextCalled, false);
+    assert.match(anonymous.res.redirectedTo, /^\/login\//);
+    const guest = await run(guardFor({ vaiTro: ROLES.KHACH, featurePermissions: { 'stockLocations.view': true } }), fakeReq(url, { token: 'ok' }));
+    assert.equal(guest.nextCalled, false);
+    const staff = await run(guardFor({ vaiTro: ROLES.NHAN_VIEN_KHO }), fakeReq(url, { token: 'ok' }));
+    assert.equal(staff.nextCalled, true);
+  }
+});
+
 test('token hong: chuyen ve /login/', async () => {
   const guard = guardFor({ vaiTro: ROLES.QUAN_LY }, {
     verifyToken: () => { throw new Error('bad token'); }

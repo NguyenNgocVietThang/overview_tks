@@ -26,6 +26,21 @@ function getRouteHandler(router, method, routePath) {
   return layer.route.stack[layer.route.stack.length - 1].handle;
 }
 
+test('permission catalog marks guest exclusion; granting stock locations to a guest is rejected without saving', async () => {
+  const catalog = fakeRes();
+  getRouteHandler(adminUserRoutes, 'get', '/api/admin/permissions/catalog')({}, catalog);
+  assert.deepEqual(catalog.body.features.find(f => f.key === 'stockLocations.view').forbiddenRoles, ['Khách']);
+  localUserStore.setInMemoryUsers([{ id: 'location-guest', username: 'location-guest', vaiTro: 'Khách', trangThai: 'Đang hoạt động' }]);
+  const res = fakeRes();
+  await getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id/permissions')({
+    user: { id: 'admin', username: 'admin', vaiTro: 'Quản lý' },
+    params: { id: 'location-guest' }, body: { overrides: { 'stockLocations.view': true } }
+  }, res);
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.code, 'FEATURE_ROLE_FORBIDDEN');
+  assert.ok(!(await localUserStore.getUserById('location-guest')).featurePermissions?.['stockLocations.view']);
+});
+
 test('Admin User Management: GET /api/admin/users trả về danh sách user không lộ passwordHash', async () => {
   const adminUser = {
     id: 'admin-1',

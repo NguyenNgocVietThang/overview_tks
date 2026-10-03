@@ -4,6 +4,8 @@
 
 **HỆ THỐNG DASHBOARD NỘI BỘ — TOKOSI**
 
+> **Bổ sung 03/10/2026 — Vị trí hàng:** Cho mọi tài khoản nội bộ tra cứu vị trí hàng tại Hà Nội/Sài Gòn từ workbook Google Sheets dùng chung. Nhóm riêng trên thanh bên có hai tab cấp 2 theo cơ sở đang chọn; mỗi tab chỉ có bảng và tìm kiếm mã/tên, 100 dòng/trang, không xuất file. Năm cột thống nhất: Mã hàng, Tên hàng, Tổng SL, Ghi chú hàng hóa, Vị trí. Giữ từng dòng nguồn kể cả mã trùng, SL = 0 hoặc vị trí trống. Dữ liệu cập nhật khi mở tab/tải lại; Khách bị chặn hoàn toàn, kể cả được ghi đè cấp quyền. Xem [thiết lập/nguồn](../stock-locations-setup.md).
+
 | **Thông tin**     | **Nội dung**                                                        |
 |-------------------|---------------------------------------------------------------------|
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Supabase PostgreSQL + Google Sheets → Web) |

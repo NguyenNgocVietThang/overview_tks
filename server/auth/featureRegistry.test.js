@@ -6,6 +6,14 @@ const assert = require('node:assert/strict');
 const registry = require('./featureRegistry');
 const { ROLES, INTERNAL_ROLES, REPORTS_ROLES } = require('./userRepository');
 
+test('Vị trí hàng defaults for every internal role; guest grants are always forbidden', () => {
+  for (const vaiTro of INTERNAL_ROLES) assert.ok(registry.defaultsForRole(vaiTro).includes('stockLocations.view'), vaiTro);
+  const guest = { vaiTro: ROLES.KHACH, featurePermissions: { 'stockLocations.view': true } };
+  assert.ok(!registry.resolvePermissions(guest).includes('stockLocations.view'));
+  assert.equal(registry.hasFeature({ ...guest, permissions: ['stockLocations.view'] }, 'stockLocations.view'), false);
+  assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_KHO, featurePermissions: { 'stockLocations.view': false } }).includes('stockLocations.view'));
+});
+
 // Cac tap hop vai tro CU (truoc khi co featureRegistry) — giu lai nguyen van o
 // day de test bat duoc moi thay doi hanh vi ngoai y muon khi sua bang mac dinh.
 // (Nhan vien sale da duoc mo them 5 tab xem bao cao — xem test rieng ben duoi.)

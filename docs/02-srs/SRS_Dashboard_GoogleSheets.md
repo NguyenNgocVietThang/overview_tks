@@ -19,6 +19,14 @@
 
 # 1. Giới thiệu
 
+## Bổ sung 03/10/2026 — FR-13: Vị trí hàng
+
+- `STOCK_LOCATIONS_SPREADSHEET_ID` chỉ định workbook HN/SG dùng chung; service account có Viewer. Đọc `FORMATTED_VALUE`, nhận diện hàng/cột theo tiêu đề, không cố định chỉ số, không lưu Postgres.
+- Trang `/stock-locations/#hn|sg` và nhóm sidebar Vị trí hàng chỉ hiện tab thuộc bộ chọn cơ sở; Cả hai có cả hai, mặc định HN. Tìm mã/tên không dấu trước phân trang 100 dòng, giữ state riêng từng tab, không xuất file hoặc tải định kỳ.
+- `GET /api/stock-locations?branch=HN|SG` trả `{ branch, rows: [{ code, name, totalQuantity, notes, location }] }`; auth + quyền + kiểm tra scope cơ sở. Thiếu/invalid branch: 400; ngoài scope/thiếu quyền: 403; thiếu cấu hình/sheet/header hoặc Google lỗi: 503 với thông báo rõ.
+- `stockLocations.view` mặc định cho mọi vai trò nội bộ, Khách luôn bị loại khỏi quyền hiệu lực dù có override. Catalog quyền trả `forbiddenRoles`; API cấp quyền từ chối grant cho Khách, form vô hiệu hóa lựa chọn.
+- Giữ từng dòng có mã hoặc tên theo thứ tự sheet, không gộp mã trùng; giữ SL = 0/vị trí trống, số 0 đầu mã và xuống dòng. Chỉ gộp lượt đọc đồng thời cùng workbook/cơ sở, không cache giá trị qua các lần mở. Bản đồ cột, cấu hình và nghiệm thu tại [tài liệu Vị trí hàng](../stock-locations-setup.md).
+
 ## 1.1. Mục đích
 
 Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi chức năng của hệ thống Website Dashboard TOKOSI, làm cơ sở cho đội phát triển thiết kế, xây dựng, kiểm thử phần mềm. Tài liệu cụ thể hóa các yêu cầu nghiệp vụ đã nêu trong BRD v2.1 thành các đặc tả kỹ thuật có thể triển khai được.

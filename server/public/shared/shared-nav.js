@@ -1301,6 +1301,19 @@
       }
     ];
 
+    var locationBranch = user && user.branch;
+    var locationTabs = locationBranch === 'Hà Nội' ? ['hn'] : locationBranch === 'Sài Gòn' ? ['sg'] : ['hn', 'sg'];
+    var locationActiveTab = locationTabs.indexOf(currentHash) !== -1 ? currentHash : locationTabs[0];
+    var locationItems = locationTabs.map(function(tab){
+      return {
+        feature: 'stockLocations.view', href: '/stock-locations/#' + tab,
+        label: tab === 'hn' ? 'Vị trí HN' : 'Vị trí SG',
+        active: currentPath === '/stock-locations' && locationActiveTab === tab,
+        dataAttr: 'data-stock-location-tab="' + tab + '"',
+        icon: '<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle>'
+      };
+    });
+
     var groups = [
       {
         key: 'reports', label: 'Báo cáo tổng hợp', active: activeTop === 'reports', items: reportItems,
@@ -1309,6 +1322,10 @@
       {
         key: 'shipment', label: 'Quản lý đơn hàng', active: activeTop === 'shipment', items: shipmentItems,
         icon: '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path><path d="M15 18H9"></path><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle>'
+      },
+      {
+        key: 'stockLocations', label: 'Vị trí hàng', active: activeTop === 'stockLocations', items: locationItems,
+        icon: '<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle>'
       },
       {
         key: 'hr', label: 'Quản lý nhân sự', active: activeTop === 'hr', items: hrItems,

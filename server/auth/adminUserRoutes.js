@@ -454,7 +454,8 @@ router.get('/api/admin/permissions/catalog', ...authView, (req, res) => {
       key: f.key,
       label: f.label,
       groupKey: f.groupKey,
-      alwaysOn: !!f.alwaysOn
+      alwaysOn: !!f.alwaysOn,
+      forbiddenRoles: f.forbiddenRoles || []
     })),
     roleDefaults
   });
@@ -540,6 +541,10 @@ router.put('/api/admin/users/:id/permissions', ...authPermissions, async (req, r
     }
 
     const overrides = featureRegistry.sanitizeOverrides(raw);
+    const forbiddenGrants = Object.keys(overrides).filter(key => overrides[key] && featureRegistry.isFeatureForbiddenForRole(key, targetUser.vaiTro));
+    if (forbiddenGrants.length) {
+      return res.status(400).json({ error: 'Không thể cấp quyền Vị trí hàng cho tài khoản Khách.', code: 'FEATURE_ROLE_FORBIDDEN' });
+    }
     const blockedReason = assertPermissionsEditable(req, targetUser, overrides);
     if (blockedReason) {
       return res.status(400).json({ error: blockedReason });

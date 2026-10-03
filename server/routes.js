@@ -40,6 +40,7 @@ const managerLeaveRuntime = getConfiguredManagerLeaveRuntime();
 const kiotvietSyncStatusRoutes = require('./kiotvietSync/kiotvietSyncStatusRoutes');
 const debtManagementRoutes = require('./dashboard/debtManagementRoutes');
 const orderLifecycleRoutes = require('./shipment/orderLifecycleRoutes');
+const stockLocationsRoutes = require('./stockLocations/stockLocationsRoutes');
 const { dashboardRollupEvents } = require('./kiotvietSync/dashboardRollupEvents');
 
 router.get('/health', (req, res) => {
@@ -69,6 +70,7 @@ router.use(adminUserRoutes);
 // Xem/doi co so dang lam viec — /api/branch. KHONG gan resolveBranch o day:
 // chinh hai route nay quyet dinh gia tri cookie ma resolveBranch se doc.
 router.use(branchRoutes);
+router.use(stockLocationsRoutes);
 
 // Toan bo /api/hr/* la du lieu THEO CO SO — gan resolveBranch truoc router con.
 router.use('/api/hr', requireAuth, resolveBranch);

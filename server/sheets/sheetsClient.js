@@ -71,7 +71,7 @@ function createClient(getSpreadsheetId, branchLabel) {
   /**
    * Doc toan bo du lieu cua 1 sheet, tra ve mang 2 chieu (giong getDataRange().getValues()).
    */
-  async function getValues(sheetName) {
+  async function getValues(sheetName, { valueRenderOption = 'UNFORMATTED_VALUE' } = {}) {
     const spreadsheetId = requireSpreadsheetId();
     const sheets = await getSheetsApi();
     const res = await sheets.spreadsheets.values.get({
@@ -80,7 +80,7 @@ function createClient(getSpreadsheetId, branchLabel) {
       // Dashboard can tinh toan tren gia tri so goc. Neu dung mac dinh
       // FORMATTED_VALUE, locale vi-VN tra 1021937723 thanh "1.021.937.723"
       // va Number(...) se bien gia tri nay thanh NaN/0.
-      valueRenderOption: 'UNFORMATTED_VALUE',
+      valueRenderOption,
       dateTimeRenderOption: 'FORMATTED_STRING'
     }, { timeout: API_TIMEOUT_MS });
     return res.data.values || [];

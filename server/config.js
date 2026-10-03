@@ -15,6 +15,9 @@ const CONFIG = {
   // Workbook "Bảng Công nợ" dùng chung cho hai cơ sở, server chỉ đọc hai
   // tab Công nợ HN/SG. Optional để thiếu cấu hình không làm sập dashboard.
   DEBT_MANAGEMENT_SPREADSHEET_ID: process.env.DEBT_MANAGEMENT_SPREADSHEET_ID || null,
+  STOCK_LOCATIONS_SPREADSHEET_ID: process.env.STOCK_LOCATIONS_SPREADSHEET_ID || null,
+  STOCK_LOCATIONS_SHEET_HN: 'Vị trí HN',
+  STOCK_LOCATIONS_SHEET_SG: 'Vị trí SG',
   GOOGLE_SERVICE_ACCOUNT_JSON: required('GOOGLE_SERVICE_ACCOUNT_JSON'),
   PORT: process.env.PORT || 3000,
 

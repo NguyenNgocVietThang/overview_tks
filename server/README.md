@@ -4,6 +4,8 @@ Express backend cho dashboard TOKOSI.
 
 ## Nguồn dữ liệu
 
+- Vị trí hàng: workbook `STOCK_LOCATIONS_SPREADSHEET_ID`, hai sheet HN/SG dùng chung, chỉ đọc bằng service account. Module `stockLocations/` phục vụ `GET /api/stock-locations?branch=HN|SG`; frontend `/stock-locations/` phân trang 100 dòng và tìm mã/tên. Quyền `stockLocations.view` mặc định cho nhân viên, cấm cấp cho Khách. Không migration/job/tải định kỳ. Xem [thiết lập nguồn và nghiệm thu](../docs/stock-locations-setup.md).
+
 - KiotViet dashboard: Supabase PostgreSQL qua `dashboard/dashboardPgReader.js`.
 - CN1/CN3/CN7: bảng `customer_debt_activity_periods` trong Supabase (công nợ 1/3/7 ngày, trước đây gọi là HN1/HN3/HN7).
 - Trả NCC: người dùng tự upload file Excel xuất từ KiotViet; server nạp vào bảng Postgres `supplier_return_imports` (migration `0017`) — **không còn đọc tab Google Sheets Trả NCC**.
