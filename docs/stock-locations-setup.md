@@ -30,11 +30,11 @@ Hàng/cột header được nhận diện theo tên, bỏ qua hoa/thường và 
 
 Tìm kiếm xét mã/tên/vị trí, không phân biệt hoa/thường/dấu tiếng Việt, kể cả cột Vị trí đang ẩn. Lọc và sắp xếp toàn bộ dữ liệu trước phân trang 100 dòng. Bấm tiêu đề cột để chuyển tăng dần → giảm dần → thứ tự nguồn; Tổng SL sắp theo số, các cột chữ/vị trí sắp theo thứ tự tự nhiên (Kệ 2 trước Kệ 10); ô trống cuối danh sách. Mỗi tab giữ từ khóa, thứ tự và trang riêng; từ khóa hoặc thứ tự mới về trang 1; dữ liệu mới ít hơn thì chuyển về trang cuối hợp lệ.
 
-Ô tìm kiếm kéo dài ngay cạnh tiêu đề bảng; nút **Cột hiển thị** chọn hiện/ẩn cột, có **Hiện tất cả** và **Về mặc định**. Tên hàng luôn hiện. Máy tính mặc định đủ năm cột; điện thoại (≤ 600px) mặc định Tên hàng, Tổng SL và Vị trí, vừa chiều rộng màn hình thông dụng. Bật thêm cột có thể cuộn ngang; Tên hàng cố định khi cuộn trên điện thoại. Lựa chọn cột được nhớ riêng cho điện thoại/máy tính trong trình duyệt, dùng chung cho hai cơ sở. Ẩn cột đang sort sẽ trở về thứ tự nguồn. Không xuất file, sửa dữ liệu, tải định kỳ hoặc lưu Postgres.
+Ô tìm kiếm kéo dài ngay cạnh tiêu đề bảng; nút **Cột hiển thị** chọn hiện/ẩn cột, có **Hiện tất cả** và **Về mặc định**. Tên hàng luôn hiện. Máy tính mặc định đủ sáu cột; điện thoại (≤ 600px) mặc định Tên hàng, Tổng SL và Vị trí, vừa chiều rộng màn hình thông dụng. Bật thêm cột có thể cuộn ngang; Tên hàng cố định khi cuộn trên điện thoại. Lựa chọn cột được nhớ riêng cho điện thoại/máy tính trong trình duyệt, dùng chung cho hai cơ sở. Ẩn cột đang sort sẽ trở về thứ tự nguồn. Không xuất file, sửa dữ liệu, tải định kỳ hoặc lưu Postgres.
 
 ## API và lỗi
 
-`GET /api/stock-locations?branch=HN|SG` trả `{ branch: "HN" | "SG", rows: [{ code, name, totalQuantity, notes, location }] }`. Request cần đăng nhập, quyền tính năng, cơ sở yêu cầu thuộc phạm vi bộ chọn; chỉ đọc sheet được yêu cầu. Branch thiếu/không hợp lệ: 400; ngoài phạm vi/thiếu quyền: 403. Thành công trả `Cache-Control: no-store`.
+`GET /api/stock-locations?branch=HN|SG` trả `{ branch: "HN" | "SG", rows: [{ code, name, totalQuantity, notes, location, arrivalDate }] }`. Request cần đăng nhập, quyền tính năng, cơ sở yêu cầu thuộc phạm vi bộ chọn; chỉ đọc sheet được yêu cầu. Branch thiếu/không hợp lệ: 400; ngoài phạm vi/thiếu quyền: 403. Thành công trả `Cache-Control: no-store`.
 
 Chỉ gộp lượt đọc đang chạy của cùng workbook/cơ sở; xóa lượt đọc khi hoàn thành hoặc lỗi để lần mở sau đọc mới. Metadata tên sheet dùng cache 5 phút của client chung, giá trị ô không được cache. Mở lại tab đang chọn cũng đọc mới, không có timer.
 
@@ -43,8 +43,10 @@ Lỗi nguồn trả 503 và hiện rõ: `STOCK_LOCATIONS_NOT_CONFIGURED`, `STOCK
 ## Kiểm tra triển khai
 
 1. Cấu hình workbook và service account ở máy chủ; restart và kiểm tra HN/SG bằng tài khoản nhân viên.
-2. Đối chiếu năm cột với sheet, mã có số 0 đầu, ghi chú xuống dòng, SL = 0 và vị trí trống.
+2. Đối chiếu sáu cột với sheet, mã có số 0 đầu, ghi chú xuống dòng, SL = 0 và vị trí trống.
 3. Kiểm tra ba chế độ cơ sở, hash, tìm kiếm mã/tên/vị trí có/không dấu, sort trước phân trang và trạng thái riêng từng tab. Kiểm tra nút `<<`, `<`, `>`, `>>` ở giữa cuối bảng, vô hiệu hóa đúng tại trang đầu/cuối; kiểm tra hiện/ẩn cột trên điện thoại và máy tính.
 4. Đổi một ô bằng tài khoản có quyền sửa nguồn rồi mở lại tab: ô mới hiển thị; không có lượt tải định kỳ.
 5. Khách không có menu, mở URL bị điều hướng, API trả 403; API quản trị từ chối grant với 400.
 6. Chạy `npm test` trong `server/`; tests tính năng tại `stockLocations/*.test.js` và `test/frontend/stock-locations.test.js`. Kiểm thử tự động không thay dữ liệu sheet.
+
+Cột **Ngày về** ánh xạ `NGÀY VỀ` ở cả HN/SG vào `arrivalDate`, giữ nguyên giá trị hiển thị (kể cả `KK 25.7` hoặc ô trống). Có thể sort và hiện/ẩn như các cột khác; không cần environment mới.

@@ -1,9 +1,9 @@
 (function () {
   'use strict';
   const PAGE_SIZE = 100;
-  const FIELDS = ['code', 'name', 'totalQuantity', 'notes', 'location'];
-  const LABELS = { code: 'Mã hàng', name: 'Tên hàng', totalQuantity: 'Tổng SL', notes: 'Ghi chú hàng hóa', location: 'Vị trí' };
-  const COLUMN_STORAGE_KEY = 'tks-stock-locations-columns-v1';
+  const FIELDS = ['code', 'name', 'totalQuantity', 'notes', 'arrivalDate', 'location'];
+  const LABELS = { code: 'Mã hàng', name: 'Tên hàng', totalQuantity: 'Tổng SL', notes: 'Ghi chú hàng hóa', arrivalDate: 'Ngày về', location: 'Vị trí' };
+  const COLUMN_STORAGE_KEY = 'tks-stock-locations-columns-v2';
   const MOBILE_FIELDS = ['name', 'totalQuantity', 'location'];
   const collator = new Intl.Collator('vi', { numeric: true, sensitivity: 'base' });
   const state = {
@@ -59,8 +59,8 @@
 
   function renderColumns() {
     const table = document.getElementById('locationTable');
-    const weights = { code: 15, name: 30, totalQuantity: 10, notes: 30, location: 15 };
-    const widths = screenMode === 'mobile' ? { code: 100, name: 180, totalQuantity: 70, notes: 220, location: 90 } : { code: 130, name: 240, totalQuantity: 90, notes: 260, location: 130 };
+    const weights = { code: 15, name: 30, totalQuantity: 10, notes: 30, arrivalDate: 12, location: 15 };
+    const widths = screenMode === 'mobile' ? { code: 100, name: 180, totalQuantity: 70, notes: 220, arrivalDate: 110, location: 90 } : { code: 130, name: 240, totalQuantity: 90, notes: 260, arrivalDate: 120, location: 130 };
     const totalWeight = visibleFields.reduce((sum, field) => sum + weights[field], 0);
     const colgroup = table.querySelector('colgroup');
     const header = table.querySelector('thead tr');

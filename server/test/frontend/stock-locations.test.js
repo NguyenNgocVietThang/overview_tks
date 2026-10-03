@@ -13,6 +13,18 @@ const nav = fs.readFileSync(path.join(publicDir, 'shared/shared-nav.js'), 'utf8'
 const row = (code, name = 'Hàng') => ({ code, name, totalQuantity: '0', notes: 'Dòng 1\nDòng 2', location: '' });
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+test('arrival date is displayed verbatim on both branches and available in mobile column picker', async t => {
+  const data = { HN: [{ ...row('HN'), arrivalDate: 'KK 25.7' }], SG: [{ ...row('SG'), arrivalDate: '03/10/2026' }] };
+  const { doc, changeTab, setWidth } = await setup(t, { data });
+  assert.equal(doc.querySelector('td[data-field="arrivalDate"]').textContent, 'KK 25.7');
+  assert.equal(doc.querySelector('th[data-field="arrivalDate"] span').textContent, 'Ngày về');
+  await changeTab('sg');
+  assert.equal(doc.querySelector('td[data-field="arrivalDate"]').textContent, '03/10/2026');
+  setWidth(390);
+  assert.equal(doc.querySelector('th[data-field="arrivalDate"]'), null);
+  assert.ok(doc.querySelector('[data-column-field="arrivalDate"]'));
+});
+
 test('symbol pager navigates first and last pages within filtered results', async t => {
   const data = { HN: Array.from({ length: 205 }, (_, index) => row(String(index))), SG: [] };
   const { doc, window } = await setup(t, { data });
@@ -44,7 +56,7 @@ async function setup(t, { branch = 'Cả hai', hash = '', data = { HN: [row('001
   const mediaListeners = [];
   const media = { matches: width <= 600, addEventListener: (event, listener) => mediaListeners.push(listener) };
   window.matchMedia = () => media;
-  if (savedColumns !== undefined) window.localStorage.setItem('tks-stock-locations-columns-v1', JSON.stringify(savedColumns));
+  if (savedColumns !== undefined) window.localStorage.setItem('tks-stock-locations-columns-v2', JSON.stringify(savedColumns));
   const dialog = window.document.getElementById('locationColumnsDialog');
   // JSDOM does not implement native dialog methods; Chrome verification uses the native implementations.
   dialog.showModal = () => { dialog.setAttribute('open', ''); };
@@ -141,16 +153,16 @@ test('mobile defaults fit three useful columns; picker persists choices separate
   codeBox.checked = true;
   codeBox.dispatchEvent(new window.Event('change', { bubbles: true }));
   assert.deepEqual(fields(), ['code', 'name', 'totalQuantity', 'location']);
-  const saved = JSON.parse(window.localStorage.getItem('tks-stock-locations-columns-v1'));
+  const saved = JSON.parse(window.localStorage.getItem('tks-stock-locations-columns-v2'));
   assert.deepEqual(saved.mobile, ['code', 'name', 'totalQuantity', 'location']);
   setWidth(1200);
-  assert.equal(fields().length, 5);
+  assert.equal(fields().length, 6);
   setWidth(390);
   assert.equal(fields().length, 4);
   doc.getElementById('locationColumnsReset').click();
   assert.deepEqual(fields(), ['name', 'totalQuantity', 'location']);
   doc.getElementById('locationColumnsAll').click();
-  assert.equal(fields().length, 5);
+  assert.equal(fields().length, 6);
   doc.getElementById('locationColumnsClose').click();
   assert.equal(doc.getElementById('locationColumnsDialog').open, false);
   assert.equal(doc.activeElement, doc.getElementById('locationColumnsButton'));

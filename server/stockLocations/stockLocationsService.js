@@ -4,8 +4,8 @@ const CONFIG = require('../config');
 const { createReadOnlyClient } = require('../sheets/sheetsClient');
 
 const HEADERS = Object.freeze({
-  HN: { code: 'MÃ SẢN PHẨM', name: 'TÊN SẢN PHẨM', totalQuantity: 'TỔNG SL', notes: 'MÔ TẢ', location: 'KHU' },
-  SG: { code: 'Mã hàng', name: 'Tên hàng', totalQuantity: 'TỔNG SL đã đi', notes: 'Ghi chú hàng hóa', location: 'Vị trí' }
+  HN: { code: 'MÃ SẢN PHẨM', name: 'TÊN SẢN PHẨM', totalQuantity: 'TỔNG SL', notes: 'MÔ TẢ', location: 'KHU', arrivalDate: 'NGÀY VỀ' },
+  SG: { code: 'Mã hàng', name: 'Tên hàng', totalQuantity: 'TỔNG SL đã đi', notes: 'Ghi chú hàng hóa', location: 'Vị trí', arrivalDate: 'NGÀY VỀ' }
 });
 
 function sourceError(code, message) {

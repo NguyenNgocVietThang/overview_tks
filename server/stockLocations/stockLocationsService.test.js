@@ -6,36 +6,36 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { parseLocationRows, createStockLocationsService } = require('./stockLocationsService');
 
-const hnHeader = ['MÃ SẢN PHẨM', 'TÊN SẢN PHẨM', 'TỔNG SL', 'MÔ TẢ', 'KHU'];
-const sgHeader = ['Mã hàng', 'Tên hàng', 'TỔNG SL đã đi', 'Ghi chú hàng hóa', 'Vị trí'];
+const hnHeader = ['MÃ SẢN PHẨM', 'TÊN SẢN PHẨM', 'TỔNG SL', 'MÔ TẢ', 'KHU', 'NGÀY VỀ'];
+const sgHeader = ['Mã hàng', 'Tên hàng', 'TỔNG SL đã đi', 'Ghi chú hàng hóa', 'Vị trí', 'NGÀY VỀ'];
 
 test('HN detects reordered headers below notes, preserves formatted cells, duplicate rows and zero quantity', () => {
   const result = parseLocationRows([
     ['Ghi chú đầu sheet'],
-    [' khu ', ' TÊN   sản PHẨM ', 'mô tả', 'MÃ SẢN PHẨM', 'tổng\nsl'],
-    ['A01', 'Đèn', 'Dòng 1\nDòng 2', '0012', '1.000'],
+    [' khu ', ' TÊN   sản PHẨM ', 'mô tả', 'MÃ SẢN PHẨM', 'tổng\nsl', ' ngày  về '],
+    ['A01', 'Đèn', 'Dòng 1\nDòng 2', '0012', '1.000', 'KK 25.7'],
     ['', 'Đèn', '', '0012', '0'],
     [], ['Kệ X', '', 'Tổng', '', '10'],
     ['', 'Hàng chưa có mã']
   ], 'HN');
   assert.deepEqual(result, [
-    { code: '0012', name: 'Đèn', totalQuantity: '1.000', notes: 'Dòng 1\nDòng 2', location: 'A01' },
-    { code: '0012', name: 'Đèn', totalQuantity: '0', notes: '', location: '' },
-    { code: '', name: 'Hàng chưa có mã', totalQuantity: '', notes: '', location: '' }
+    { code: '0012', name: 'Đèn', totalQuantity: '1.000', notes: 'Dòng 1\nDòng 2', location: 'A01', arrivalDate: 'KK 25.7' },
+    { code: '0012', name: 'Đèn', totalQuantity: '0', notes: '', location: '', arrivalDate: '' },
+    { code: '', name: 'Hàng chưa có mã', totalQuantity: '', notes: '', location: '', arrivalDate: '' }
   ]);
 });
 
 test('SG maps its own headers, retains quantity zero and missing position', () => {
   assert.deepEqual(parseLocationRows([sgHeader, ['0007', 'Ấm đun', '0', 'Kho mới', '']], 'SG'), [
-    { code: '0007', name: 'Ấm đun', totalQuantity: '0', notes: 'Kho mới', location: '' }
+    { code: '0007', name: 'Ấm đun', totalQuantity: '0', notes: 'Kho mới', location: '', arrivalDate: '' }
   ]);
   assert.deepEqual(parseLocationRows([sgHeader], 'SG'), []);
 });
 
 test('SG thực tế: TỔNG SL đã đi is total quantity and Vị Trí is column O', () => {
-  const header = ['Mã hàng', 'Tên hàng', 'Ngày yêu cầu', 'Số thùng', 'Số cái /Thùng', 'TỔNG SL đã đi', 'Ghi chú hàng hóa', 'SỐ KG/ cái', 'Thể tích /cái (L)', 'Số tấn', 'Số m3', 'CƯỚC ĐM (350k/m3)', '', '', 'Vị Trí', 'Mã Phiếu', 'Ghi chú Tổng phiếu'];
-  const values = [header, ['ADN3LYU', 'Ấm đun nước YUSSAIN 3L', '', '', '', '15', '1tx15', '', '', '', '', '', '', '', '36']];
-  assert.deepEqual(parseLocationRows(values, 'SG'), [{ code: 'ADN3LYU', name: 'Ấm đun nước YUSSAIN 3L', totalQuantity: '15', notes: '1tx15', location: '36' }]);
+  const header = ['Mã hàng', 'Tên hàng', 'Ngày yêu cầu', 'Số thùng', 'Số cái /Thùng', 'TỔNG SL đã đi', 'Ghi chú hàng hóa', 'SỐ KG/ cái', 'Thể tích /cái (L)', 'Số tấn', 'Số m3', 'CƯỚC ĐM (350k/m3)', '', '', 'Vị Trí', 'Mã Phiếu', 'Ghi chú Tổng phiếu', 'NGÀY VỀ'];
+  const values = [header, ['ADN3LYU', 'Ấm đun nước YUSSAIN 3L', '', '', '', '15', '1tx15', '', '', '', '', '', '', '', '36', '', '', '03/10/2026']];
+  assert.deepEqual(parseLocationRows(values, 'SG'), [{ code: 'ADN3LYU', name: 'Ấm đun nước YUSSAIN 3L', totalQuantity: '15', notes: '1tx15', location: '36', arrivalDate: '03/10/2026' }]);
 });
 
 test('actual HN tab title is case-insensitive and reads the title returned by Google', async () => {
