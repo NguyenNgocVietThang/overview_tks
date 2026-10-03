@@ -917,6 +917,8 @@
               '<p class="tks-profile-section-title">Thông tin cơ bản</p>' +
               '<label class="tks-field"><span>Họ tên</span><input type="text" id="tksProfileHoTen" maxlength="100"></label>' +
               '<label class="tks-field"><span>Email</span><input type="email" id="tksProfileEmail" maxlength="254"></label>' +
+              '<label class="tks-field"><span>ID Telegram</span><input type="text" id="tksProfileTelegramId" inputmode="numeric" pattern="[1-9][0-9]{0,19}" maxlength="20" placeholder="Ví dụ: 6205968899" aria-describedby="tksProfileTelegramIdHint"></label>' +
+              '<p class="tks-profile-hint" id="tksProfileTelegramIdHint">Nhập ID Telegram dạng số của bạn. Để trống để hủy liên kết.</p>' +
               '<label class="tks-field tks-field-readonly"><span>Tài khoản đăng nhập</span><input type="text" id="tksProfileUsername" disabled></label>' +
               '<label class="tks-field tks-field-readonly"><span>Vai trò</span><input type="text" id="tksProfileRole" disabled></label>' +
               '<label class="tks-field tks-field-readonly"><span>Cơ sở mặc định</span><input type="text" id="tksProfileFacility" disabled></label>' +
@@ -983,6 +985,7 @@
       content: overlay.querySelector('.tks-profile-content'),
       hoTen: overlay.querySelector('#tksProfileHoTen'),
       email: overlay.querySelector('#tksProfileEmail'),
+      telegramId: overlay.querySelector('#tksProfileTelegramId'),
       username: overlay.querySelector('#tksProfileUsername'),
       role: overlay.querySelector('#tksProfileRole'),
       facility: overlay.querySelector('#tksProfileFacility'),
@@ -1041,6 +1044,7 @@
       showError(els.profileError, '');
       var hoTen = els.hoTen.value.trim();
       var email = els.email.value.trim();
+      var telegramId = els.telegramId.value.trim();
       if(!hoTen || !email){
         showError(els.profileError, 'Vui lòng nhập đầy đủ họ tên và email.');
         return;
@@ -1050,7 +1054,7 @@
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hoTen: hoTen, email: email })
+        body: JSON.stringify({ hoTen: hoTen, email: email, telegramId: telegramId })
       })
         .then(function(res){ return res.json().then(function(data){ return { ok: res.ok, data: data }; }); })
         .then(function(result){
@@ -1066,6 +1070,7 @@
             if(badgeEl) badgeEl.textContent = (result.data.hoTen || '?').trim().charAt(0).toUpperCase() || '?';
           }
           showSuccess(els.profileError, 'Đã cập nhật thông tin cá nhân thành công.');
+          els.telegramId.value = result.data.telegramId || '';
         })
         .catch(function(){ showError(els.profileError, 'Không cập nhật được hồ sơ, vui lòng thử lại.'); })
         .finally(function(){ els.saveBtn.disabled = false; });
@@ -1156,6 +1161,7 @@
       .then(function(profile){
         els.hoTen.value = profile.hoTen || '';
         els.email.value = profile.email || '';
+        els.telegramId.value = profile.telegramId || '';
         els.username.value = profile.username || '';
         els.role.value = profile.vaiTro || '';
         els.facility.value = profile.coSo || '';

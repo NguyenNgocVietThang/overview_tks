@@ -349,7 +349,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                 Thông tin cá nhân
               </div>
-              <p class="profile-card-desc">Cập nhật họ tên hiển thị và địa chỉ email của tài khoản.</p>
+              <p class="profile-card-desc">Cập nhật họ tên hiển thị, địa chỉ email và ID Telegram của tài khoản.</p>
               <form id="profileForm" onsubmit="handleSaveProfile(event)">
                 <div class="form-group">
                   <label for="profHoTen">Họ và tên</label>
@@ -358,6 +358,11 @@
                 <div class="form-group">
                   <label for="profEmail">Email</label>
                   <input type="email" id="profEmail" class="form-control" maxlength="254" required>
+                </div>
+                <div class="form-group">
+                  <label for="profTelegramId">ID Telegram</label>
+                  <input type="text" id="profTelegramId" class="form-control" inputmode="numeric" pattern="[1-9][0-9]{0,19}" maxlength="20" placeholder="Ví dụ: 6205968899" aria-describedby="profTelegramIdHint">
+                  <p id="profTelegramIdHint" class="profile-card-desc" style="margin:6px 0 0;">Nhập ID Telegram dạng số của bạn. Để trống để hủy liên kết.</p>
                 </div>
                 <div id="profileFormMsg" class="alert-box alert-error" style="display:none;"></div>
                 <button type="submit" id="btnSaveProfile" class="btn-primary">Lưu thay đổi</button>
@@ -660,6 +665,11 @@
           <div class="form-group">
             <label for="editPhone">Số điện thoại</label>
             <input type="tel" id="editPhone" class="form-control" placeholder="vd: 0912345678">
+          </div>
+          <div class="form-group">
+            <label for="editTelegramId">ID Telegram</label>
+            <input type="text" id="editTelegramId" class="form-control" inputmode="numeric" pattern="[1-9][0-9]{0,19}" maxlength="20" placeholder="Ví dụ: 6205968899" aria-describedby="editTelegramIdHint">
+            <p id="editTelegramIdHint" class="profile-card-desc" style="margin:6px 0 0;">Nhập ID Telegram dạng số của nhân viên. Để trống để hủy liên kết.</p>
           </div>
           <div class="form-group">
             <label for="editCoSo">Cơ sở mặc định</label>
@@ -994,6 +1004,7 @@
         .then(profile => {
           document.getElementById('profHoTen').value = profile.hoTen || '';
           document.getElementById('profEmail').value = profile.email || '';
+          document.getElementById('profTelegramId').value = profile.telegramId || '';
           document.getElementById('profUsername').value = profile.username || '';
           document.getElementById('profFacility').value = profile.coSo || 'Toàn hệ thống';
 
@@ -1019,6 +1030,7 @@
       e.preventDefault();
       const hoTen = document.getElementById('profHoTen').value.trim();
       const email = document.getElementById('profEmail').value.trim();
+      const telegramId = document.getElementById('profTelegramId').value.trim();
       const msgEl = document.getElementById('profileFormMsg');
       const btn = document.getElementById('btnSaveProfile');
 
@@ -1028,7 +1040,7 @@
       fetch('/api/auth/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hoTen, email })
+        body: JSON.stringify({ hoTen, email, telegramId })
       })
         .then(parseApiResponse)
         .then(result => {
@@ -1039,6 +1051,7 @@
             return;
           }
           showToast('Đã cập nhật thông tin cá nhân thành công!');
+          document.getElementById('profTelegramId').value = result.data.telegramId || '';
           if(window.TKSNav && window.TKSNav.renderAccountChip){
             if(!currentUser) currentUser = {};
             currentUser.hoTen = result.data.hoTen;
@@ -1696,6 +1709,7 @@
       document.getElementById('editHoTen').value = u.hoTen || '';
       document.getElementById('editEmail').value = u.email || '';
       document.getElementById('editPhone').value = u.soDienThoai || '';
+      document.getElementById('editTelegramId').value = u.telegramId || '';
       document.getElementById('editCoSo').value = u.coSo || '';
       document.getElementById('editNewPassword').value = '';
       document.getElementById('editConfirmPassword').value = '';
@@ -1703,7 +1717,7 @@
 
       // Quản lý khác + người sửa là Quản lý thường: khóa email/SĐT, ẩn đặt lại mật khẩu (xem actorIsSenior).
       const protectedManager = isProtectedManagerRow(u);
-      ['editEmail', 'editPhone'].forEach(fieldId => {
+      ['editEmail', 'editPhone', 'editTelegramId'].forEach(fieldId => {
         const input = document.getElementById(fieldId);
         input.disabled = protectedManager;
         input.title = protectedManager ? 'Chỉ Quản lý cấp cao mới được đổi thông tin liên hệ của Quản lý khác' : '';
@@ -1721,6 +1735,7 @@
       const hoTen = document.getElementById('editHoTen').value.trim();
       const email = document.getElementById('editEmail').value.trim();
       const soDienThoai = document.getElementById('editPhone').value.trim();
+      const telegramId = document.getElementById('editTelegramId').value.trim();
       const coSo = document.getElementById('editCoSo').value;
       const newPassword = document.getElementById('editNewPassword').value;
       const confirmPassword = document.getElementById('editConfirmPassword').value;
@@ -1739,7 +1754,9 @@
       const json = { 'Content-Type': 'application/json' };
 
       // Bước 1: lưu thông tin cá nhân. Bước 2 (nếu có nhập): đặt lại mật khẩu.
-      fetch(`/api/admin/users/${id}`, { method: 'PUT', headers: json, body: JSON.stringify({ hoTen, email, soDienThoai, coSo }) })
+      const fields = { hoTen, email, soDienThoai, coSo };
+      if(!document.getElementById('editTelegramId').disabled) fields.telegramId = telegramId;
+      fetch(`/api/admin/users/${id}`, { method: 'PUT', headers: json, body: JSON.stringify(fields) })
         .then(parseApiResponse)
         .then(result => {
           if(!result.ok || !newPassword) return result;

@@ -19,7 +19,7 @@ const settle = async () => { for (let i = 0; i < 10; i++) await new Promise(reso
 const USERS = [
   { id: 'ql-1', username: 'quanly1', hoTen: 'Quản lý 1', email: 'ql1@example.com', soDienThoai: '', vaiTro: 'Quản lý', coSo: 'Cả hai', trangThai: 'Đang hoạt động', ngayTao: '01/01/2026' },
   { id: 'ql-2', username: 'quanly2', hoTen: 'Quản lý 2', email: 'ql2@example.com', soDienThoai: '0912345678', vaiTro: 'Quản lý', coSo: 'Cả hai', trangThai: 'Đang hoạt động', ngayTao: '02/01/2026' },
-  { id: 'nv-1', username: 'nhanvien1', hoTen: 'Nhân viên 1', email: 'nv1@example.com', soDienThoai: '', vaiTro: 'Nhân viên kho', coSo: 'Hà Nội', trangThai: 'Đang hoạt động', ngayTao: '03/01/2026' }
+  { id: 'nv-1', username: 'nhanvien1', hoTen: 'Nhân viên 1', email: 'nv1@example.com', soDienThoai: '', telegramId: '9007199254740993', vaiTro: 'Nhân viên kho', coSo: 'Hà Nội', trangThai: 'Đang hoạt động', ngayTao: '03/01/2026' }
 ];
 
 async function loadPage({ isSeniorAdmin }) {
@@ -86,16 +86,19 @@ test('Quản lý thường: hộp sửa thông tin của Quản lý khác khóa 
   window.openEditUserModal('ql-2');
   assert.equal(doc.getElementById('editEmail').disabled, true);
   assert.equal(doc.getElementById('editPhone').disabled, true);
+  assert.equal(doc.getElementById('editTelegramId').disabled, true);
   assert.equal(passwordGroupHidden(), true);
   assert.equal(doc.getElementById('editHoTen').disabled, false, 'van sua duoc ho ten');
 
   // Mo lai cho chinh minh (hoac nhan vien) phai tra ve trang thai binh thuong.
   window.openEditUserModal('ql-1');
   assert.equal(doc.getElementById('editEmail').disabled, false);
+  assert.equal(doc.getElementById('editTelegramId').disabled, false);
   assert.equal(passwordGroupHidden(), false);
   window.openEditUserModal('ql-2');
   window.openEditUserModal('nv-1');
   assert.equal(doc.getElementById('editPhone').disabled, false);
+  assert.equal(doc.getElementById('editTelegramId').disabled, false);
   assert.equal(passwordGroupHidden(), false);
   dom.window.close();
 });
@@ -106,6 +109,41 @@ test('Quản lý cấp cao: hộp sửa thông tin của Quản lý khác vẫn 
   dom.window.openEditUserModal('ql-2');
   assert.equal(doc.getElementById('editEmail').disabled, false);
   assert.equal(doc.getElementById('editPhone').disabled, false);
+  assert.equal(doc.getElementById('editTelegramId').disabled, false);
   assert.notEqual(doc.getElementById('editNewPassword').closest('.form-group').style.display, 'none');
   dom.window.close();
+});
+
+test('manager loads and saves or clears an employee Telegram ID without losing digits', async () => {
+  const dom = await loadPage({ isSeniorAdmin: false });
+  const { window } = dom;
+  try {
+    window.openEditUserModal('nv-1');
+    const input = window.document.getElementById('editTelegramId');
+    assert.ok(input);
+    assert.equal(input.value, '9007199254740993');
+    assert.equal(input.type, 'text');
+    const posted = [];
+    window.fetch = async (url, options = {}) => {
+      if (options.method === 'PUT') {
+        posted.push({ url, body: JSON.parse(options.body) });
+        return { ok: true, json: async () => ({ user: { ...USERS[2], ...posted.at(-1).body } }) };
+      }
+      return { ok: true, json: async () => ({ users: USERS }) };
+    };
+    input.value = ' 6205968899 ';
+    window.handleSaveEditUser({ preventDefault() {} });
+    await settle();
+    assert.equal(posted[0].url, '/api/admin/users/nv-1');
+    assert.equal(posted[0].body.telegramId, '6205968899');
+    window.openEditUserModal('nv-1');
+    input.value = '';
+    window.handleSaveEditUser({ preventDefault() {} });
+    await settle();
+    assert.equal(posted[1].body.telegramId, '');
+    window.openEditUserModal('ql-2');
+    window.handleSaveEditUser({ preventDefault() {} });
+    await settle();
+    assert.equal(Object.hasOwn(posted[2].body, 'telegramId'), false, 'disabled Telegram ID must not be submitted');
+  } finally { window.close(); }
 });

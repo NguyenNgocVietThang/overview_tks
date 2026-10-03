@@ -91,6 +91,10 @@ Sau khi nhắn Telegram thành công, bot `UPDATE ... SET decision_notified_at =
 
 **`hr_telegram_sessions`** — `step` (tên bước của bot, không CHECK vì thuộc về bot), `data JSONB` (ngày lưu dạng chuỗi ISO), `expires_at` mặc định +60 phút; bot gia hạn `expires_at` mỗi lần ghi, coi dòng quá hạn là không tồn tại và dọn định kỳ bằng `DELETE FROM hr_telegram_sessions WHERE expires_at < now()`. Ghi phiên bằng `INSERT ... ON CONFLICT (telegram_chat_id) DO UPDATE`.
 
+Trang hồ sơ cá nhân và hộp hồ sơ dùng chung đọc `telegramId` từ `GET /api/auth/profile`. Khi người dùng lưu ID qua `POST /api/auth/profile`, server chỉ cập nhật tài khoản đang đăng nhập. ID là chuỗi số nguyên dương tối đa 20 chữ số; chuỗi rỗng hủy liên kết, không gửi trường này thì giữ ID hiện tại. `appUsersRepository.updateProfileRow` lưu hồ sơ, thu hồi liên kết cũ/các mã chờ, tạo liên kết `manual` mới và đồng bộ `hr_employees.telegram_id` của nhân sự đã gắn tài khoản trong một transaction. ID trùng tài khoản, liên kết bot hoặc nhân sự đang hoạt động khác trả HTTP 409 và rollback toàn bộ. Không cần migration mới.
+
+Quản lý cũng có thể xem ID trong `GET /api/admin/users` và đổi/xóa ID qua `PUT /api/admin/users/:id` hoặc hộp sửa thông tin nhân viên. Luồng này dùng cùng transaction đồng bộ ID, liên kết bot và danh bạ nhân sự; các thông tin tài khoản được gửi kèm cũng lưu trong transaction đó. Quyền `account.users.manage` và chính sách bảo vệ tài khoản vẫn áp dụng: đổi ID của quản lý khác chỉ dành cho quản lý cấp cao, thao tác chiếm định danh không vượt quyền người sửa. Không gửi `telegramId` thì giữ liên kết hiện tại.
+
 `updated_at` của cả 3 bảng do trigger tự đặt, bot không cần set.
 
 ### Bot Telegram riêng cho quản lý (migration `0029`)

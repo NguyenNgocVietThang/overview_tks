@@ -192,6 +192,82 @@ async function updateUserRow(id, patch) {
   return attachBranch(rows[0]);
 }
 
+function profileError(message, statusCode, code) {
+  return Object.assign(new Error(message), { statusCode, code });
+}
+
+// Save profile and Telegram ownership together. The bot's link table is the
+// source of truth; its trigger maintains app_users.telegram_id.
+async function updateProfileRow(id, patch, pool = getPool()) {
+  const client = await pool.connect();
+  const hasTelegramId = Object.hasOwn(patch, 'telegramId');
+  const telegramId = hasTelegramId ? patch.telegramId : undefined;
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT * FROM app_users WHERE id = $1 AND NOT is_deleted FOR UPDATE', [id]);
+    const current = rows[0];
+    if (!current) throw profileError('Không tìm thấy tài khoản.', 404, 'USER_NOT_FOUND');
+
+    if (hasTelegramId) {
+      if (telegramId) {
+        // Serialize web claims of the same ID, including employees with no
+        // web account. Bot claims are also guarded by the DB unique indexes.
+        await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [telegramId]);
+        const conflict = await client.query(`SELECT 1 FROM app_users
+          WHERE telegram_id = $1 AND id <> $2 AND NOT is_deleted
+          UNION ALL SELECT 1 FROM hr_telegram_links
+          WHERE telegram_chat_id = $1 AND user_id <> $2 AND status = 'linked'
+          UNION ALL SELECT 1 FROM hr_employees
+          WHERE telegram_id = $1 AND is_active AND id IS DISTINCT FROM $3::bigint
+          LIMIT 1`, [telegramId, id, current.hr_employee_id]);
+        if (conflict.rows.length) {
+          throw profileError('ID Telegram này đã được sử dụng bởi tài khoản hoặc nhân viên khác.', 409, 'TELEGRAM_ID_EXISTS');
+        }
+      }
+      const linked = await client.query("SELECT telegram_chat_id FROM hr_telegram_links WHERE user_id = $1 AND status = 'linked'", [id]);
+      const linkedId = linked.rows[0] ? linked.rows[0].telegram_chat_id : '';
+      await client.query(`UPDATE hr_telegram_links SET status = 'revoked', revoked_at = now()
+        WHERE user_id = $1 AND status = 'pending'`, [id]);
+      if (telegramId !== current.telegram_id || telegramId !== linkedId) {
+        await client.query(`UPDATE hr_telegram_links SET status = 'revoked', revoked_at = now()
+          WHERE user_id = $1 AND status = 'linked'`, [id]);
+        if (telegramId) {
+          await client.query(`INSERT INTO hr_telegram_links
+            (user_id, status, link_method, telegram_chat_id, linked_at)
+            VALUES ($1, 'linked', 'manual', $2, now())`, [id, telegramId]);
+        }
+      }
+      // Keep the directory fallback used by the bot from restoring an old ID.
+      if (current.hr_employee_id != null) {
+        await client.query('UPDATE hr_employees SET telegram_id = $1, updated_at = now() WHERE id = $2',
+          [telegramId, current.hr_employee_id]);
+      }
+    }
+    const sets = [];
+    const values = [];
+    for (const [jsKey, dbCol, toSql] of WRITABLE_COLUMNS) {
+      if (!Object.hasOwn(patch, jsKey)) continue;
+      values.push(toSql(patch[jsKey]));
+      sets.push(`${dbCol} = $${values.length}`);
+    }
+    sets.push('updated_at = now()');
+    values.push(id);
+    await client.query(`UPDATE app_users SET ${sets.join(', ')} WHERE id = $${values.length}`, values);
+    const saved = await client.query(`${SELECT_SQL} WHERE u.id = $1`, [id]);
+    const user = rowToUser(saved.rows[0]);
+    await client.query('COMMIT');
+    return user;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err.code === '23505' && ['app_users_telegram_id_key', 'hr_telegram_links_chat_linked_key', 'hr_telegram_links_user_linked_key'].includes(err.constraint)) {
+      throw profileError('ID Telegram này đã được sử dụng. Vui lòng kiểm tra lại.', 409, 'TELEGRAM_ID_EXISTS');
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 async function softDeleteUser(id) {
   const sql = `
     UPDATE app_users
@@ -211,5 +287,6 @@ module.exports = {
   selectAllRows,
   insertUser,
   updateUserRow,
+  updateProfileRow,
   softDeleteUser
 };

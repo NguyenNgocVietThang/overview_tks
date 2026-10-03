@@ -465,9 +465,17 @@ async function updateUser(id, updates) {
     sdtKhoiPhuc: updates.sdtKhoiPhuc !== undefined ? String(updates.sdtKhoiPhuc).trim() : (current.sdtKhoiPhuc || '')
   };
 
-  const saved = await repository.updateUserRow(id, updated);
+  const saved = Object.hasOwn(updates, 'telegramId')
+    ? await repository.updateProfileRow(id, updated)
+    : await repository.updateUserRow(id, updated);
   cache.clear();
   return saved || { ...updated };
+}
+
+async function updateUserProfile(id, fields) {
+  const saved = await repository.updateProfileRow(id, fields);
+  cache.clear();
+  return saved;
 }
 
 async function deleteUser(id) {
@@ -521,6 +529,7 @@ module.exports = {
   getActiveUserByUsername,
   createUser,
   updateUser,
+  updateUserProfile,
   deleteUser,
   setInMemoryUsers,
   formatDateVN,

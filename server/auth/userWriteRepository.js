@@ -84,8 +84,15 @@ async function updateUserFields(userId, fields) {
   return localUserStore.updateUser(userId, fields);
 }
 
+async function updateUserProfile(userId, fields) {
+  const saved = await localUserStore.updateUserProfile(userId, fields);
+  if (Object.hasOwn(fields, 'telegramId')) require('../hr/employeeDirectory').clearCache();
+  return saved;
+}
+
 module.exports = {
   createActiveGuest,
   activatePendingGuest,
-  updateUserFields
+  updateUserFields,
+  updateUserProfile
 };

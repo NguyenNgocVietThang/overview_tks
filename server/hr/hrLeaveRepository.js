@@ -4,7 +4,8 @@
 // Web chi doc + tao ban ghi nhap tay ("tu y nghi") + doi trang thai phe duyet.
 // Don do bot Telegram (chay ngoai repo nay) tu INSERT thang vao cung bang;
 // lien ket Telegram (`hr_telegram_links`) va phien hoi thoai
-// (`hr_telegram_sessions`) do bot so huu hoan toan — web khong doc/ghi.
+// (`hr_telegram_sessions`) do bot quan ly. Ho so web co the doi lien ket
+// Telegram qua appUsersRepository.updateProfileRow trong cung transaction.
 //
 // Hinh dang ban ghi tra ve GIU NGUYEN nhu thoi con Google Sheets (chuoi
 // "Sáng 22/08/2026" cho moc nghi, co_* la boolean...) de frontend/Excel export

@@ -67,6 +67,7 @@ function freshAuthRoutes({
   createActiveGuest,
   activatePendingGuest = async () => {},
   updateUserFields = async (id, fields) => ({ id, ...fields, trangThai: 'Đang hoạt động' }),
+  updateUserProfile = updateUserFields,
   employeeRegistration,
   contactChange,
   resolveEffectiveUser = async user => user
@@ -88,6 +89,7 @@ function freshAuthRoutes({
   userWriteRepository.createActiveGuest = createActiveGuest;
   userWriteRepository.activatePendingGuest = activatePendingGuest;
   userWriteRepository.updateUserFields = updateUserFields;
+  userWriteRepository.updateUserProfile = updateUserProfile;
 
   const employeeRegistrationService = require('./employeeRegistrationService');
   employeeRegistrationService.linkVerifiedGoogleIdentity = employeeRegistration && employeeRegistration.linkVerifiedGoogleIdentity
@@ -115,6 +117,62 @@ function freshAuthRoutes({
 }
 
 const NEVER_CALL = async () => { throw new Error('khong nen goi ham nay'); };
+
+test('profile exposes the Telegram ID read from the database', async () => {
+  const router = freshAuthRoutes({ findUserById: async () => ({ id: 'u1', telegramId: '9007199254740993' }) });
+  const res = fakeRes();
+  await getRouteHandler(router, 'get', '/api/auth/profile')({ user: { id: 'u1' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.telegramId, '9007199254740993');
+});
+
+test('profile saves a normalized Telegram ID only to the authenticated account', async () => {
+  const calls = [];
+  const current = { id: 'u1', hoTen: 'A', email: 'a@example.com', telegramId: '123' };
+  const router = freshAuthRoutes({ findUserById: async () => current,
+    updateUserProfile: async (id, fields) => { calls.push({ id, fields }); return { ...current, ...fields }; } });
+  const res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/profile')({ user: { id: 'u1' }, body: {
+    id: 'someone-else', hoTen: 'A', email: 'a@example.com', telegramId: ' 9007199254740993 ' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.telegramId, '9007199254740993');
+  assert.deepEqual(calls, [{ id: 'u1', fields: { hoTen: 'A', email: 'a@example.com', telegramId: '9007199254740993' } }]);
+});
+
+test('profile rejects malformed Telegram IDs before any writes', async () => {
+  let writes = 0;
+  const router = freshAuthRoutes({ findUserById: async () => ({ id: 'u1', email: 'a@example.com' }),
+    updateUserFields: async () => { writes++; }, updateUserProfile: async () => { writes++; } });
+  for (const telegramId of ['@username', '-123', '0', '1.5', '1e10', '123 456', '1'.repeat(21), 123, {}, null]) {
+    const res = fakeRes();
+    await getRouteHandler(router, 'post', '/api/auth/profile')({ user: { id: 'u1' }, body: { hoTen: 'A', email: 'a@example.com', telegramId } }, res);
+    assert.equal(res.statusCode, 400, JSON.stringify(telegramId));
+  }
+  assert.equal(writes, 0);
+});
+
+test('profile allows clearing the Telegram ID and preserves it when omitted', async () => {
+  const calls = [];
+  const current = { id: 'u1', email: 'a@example.com', telegramId: '123' };
+  const router = freshAuthRoutes({ findUserById: async () => current,
+    updateUserProfile: async (id, fields) => { calls.push(fields); return { ...current, ...fields }; } });
+  for (const extra of [{ telegramId: '' }, {}]) {
+    const res = fakeRes();
+    await getRouteHandler(router, 'post', '/api/auth/profile')({ user: { id: 'u1' }, body: { hoTen: 'A', email: 'a@example.com', ...extra } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.telegramId, extra.telegramId === '' ? '' : '123');
+  }
+  assert.deepEqual(calls, [{ hoTen: 'A', email: 'a@example.com', telegramId: '' }, { hoTen: 'A', email: 'a@example.com' }]);
+});
+
+test('profile returns a Telegram conflict as a useful 409 response', async () => {
+  const router = freshAuthRoutes({ findUserById: async () => ({ id: 'u1', email: 'a@example.com' }),
+    updateUserProfile: async () => { throw Object.assign(new Error('ID Telegram này đã được sử dụng.'), { statusCode: 409, code: 'TELEGRAM_ID_EXISTS' }); } });
+  const res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/profile')({ user: { id: 'u1' }, body: { hoTen: 'A', email: 'a@example.com', telegramId: '123' } }, res);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, 'TELEGRAM_ID_EXISTS');
+});
 
 test('HR registration endpoints expose channels, send OTP and sign in the verified employee', async () => {
   const calls = [];

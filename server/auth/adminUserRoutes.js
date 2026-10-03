@@ -29,6 +29,7 @@ function publicAdminUser(u) {
     hoTen: u.hoTen,
     email: u.email || '',
     soDienThoai: u.soDienThoai || '',
+    telegramId: u.telegramId || '',
     emailKhoiPhuc: u.emailKhoiPhuc || '',
     sdtKhoiPhuc: u.sdtKhoiPhuc || '',
     vaiTro: u.vaiTro,
@@ -186,6 +187,22 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
 
     const updates = {};
 
+    if (Object.hasOwn(req.body, 'telegramId')) {
+      if (typeof req.body.telegramId !== 'string') {
+        return res.status(400).json({ error: 'ID Telegram phải là chuỗi chữ số.', code: 'INVALID_TELEGRAM_ID' });
+      }
+      const telegramId = req.body.telegramId.trim();
+      if (telegramId && !/^[1-9]\d{0,19}$/.test(telegramId)) {
+        return res.status(400).json({ error: 'ID Telegram phải là số nguyên dương, tối đa 20 chữ số.', code: 'INVALID_TELEGRAM_ID' });
+      }
+      if (telegramId !== (targetUser.telegramId || '')) {
+        const denied = accountPolicy.checkTakeover(req.user, targetUser, 'đổi ID Telegram của tài khoản này') ||
+                       accountPolicy.checkProtectedManager(req.user, targetUser, 'đổi ID Telegram');
+        if (denied) return accountPolicy.sendDenied(res, denied);
+      }
+      updates.telegramId = telegramId;
+    }
+
     if (req.body.hoTen !== undefined) {
       const hoTen = String(req.body.hoTen || '').trim();
       if (!hoTen) return res.status(400).json({ error: 'Họ tên không được để trống.' });
@@ -336,6 +353,7 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
     }
 
     const updated = await localUserStore.updateUser(targetId, updates);
+    if (Object.hasOwn(updates, 'telegramId')) employeeDirectory.clearCache();
 
     if (hrRoleToSync && targetUser.hrSourceBranch && targetUser.hrRowIndex) {
       try {

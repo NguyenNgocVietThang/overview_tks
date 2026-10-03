@@ -22,7 +22,7 @@ const {
   isHardcodedAdmin
 } = require('./userRepository');
 const { formatDateVN } = require('./localUserStore');
-const { createActiveGuest, activatePendingGuest, updateUserFields } = require('./userWriteRepository');
+const { createActiveGuest, activatePendingGuest, updateUserFields, updateUserProfile } = require('./userWriteRepository');
 const { verifyGoogleIdToken } = require('./googleAuthService');
 const { AUTH_COOKIE_NAME, AUTH_COOKIE_MAX_AGE_MS, requireAuth } = require('./authMiddleware');
 const { selectableBranches } = require('../branch/branches');
@@ -180,6 +180,7 @@ function publicProfile(user) {
     coSo: user.coSo,
     email: user.email || '',
     soDienThoai: user.soDienThoai || '',
+    telegramId: user.telegramId || '',
     emailKhoiPhuc: user.emailKhoiPhuc || '',
     sdtKhoiPhuc: user.sdtKhoiPhuc || '',
     hasPassword: !!user.passwordHash,
@@ -779,6 +780,17 @@ router.post('/api/auth/profile', requireAuth, async (req, res) => {
   try {
     const hoTen = String((req.body && req.body.hoTen) || '').trim();
     const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+    const fields = { hoTen, email };
+    if (Object.hasOwn(req.body || {}, 'telegramId')) {
+      if (typeof req.body.telegramId !== 'string') {
+        return res.status(400).json({ error: 'ID Telegram phải là chuỗi chữ số.', code: 'INVALID_TELEGRAM_ID' });
+      }
+      const telegramId = req.body.telegramId.trim();
+      if (telegramId && !/^[1-9]\d{0,19}$/.test(telegramId)) {
+        return res.status(400).json({ error: 'ID Telegram phải là số nguyên dương, tối đa 20 chữ số.', code: 'INVALID_TELEGRAM_ID' });
+      }
+      fields.telegramId = telegramId;
+    }
 
     if (!hoTen) {
       return res.status(400).json({ error: 'Vui lòng nhập họ tên.' });
@@ -801,11 +813,13 @@ router.post('/api/auth/profile', requireAuth, async (req, res) => {
       }
     }
 
-    await updateUserFields(current.id, { hoTen, email });
-    const updated = { ...current, hoTen, email };
+    const updated = await updateUserProfile(current.id, fields);
     signIn(res, updated);
     res.status(200).json(publicProfile(updated));
   } catch (err) {
+    if (err.statusCode && err.statusCode < 500) {
+      return res.status(err.statusCode).json({ error: err.message, code: err.code });
+    }
     console.error('=== LOI POST /api/auth/profile ===', err);
     res.status(500).json({ error: 'Không cập nhật được hồ sơ, vui lòng thử lại.' });
   }
