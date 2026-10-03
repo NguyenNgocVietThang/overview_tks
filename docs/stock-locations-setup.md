@@ -28,7 +28,9 @@ Quyền `stockLocations.view` mặc định cho mọi vai trò nội bộ, áp d
 
 Hàng/cột header được nhận diện theo tên, bỏ qua hoa/thường và khoảng trắng thừa. Giá trị dữ liệu là chuỗi `FORMATTED_VALUE`, giữ mã có số 0 đầu, định dạng số và xuống dòng. Mỗi dòng có mã hoặc tên là một dòng riêng theo thứ tự nguồn, giữ SL = 0/vị trí trống; không gộp mã trùng.
 
-Tìm kiếm chỉ xét mã/tên, không phân biệt hoa/thường/dấu tiếng Việt, lọc toàn bộ dữ liệu trước phân trang 100 dòng. Mỗi tab giữ từ khóa và trang riêng; từ khóa mới về trang 1; dữ liệu mới ít hơn thì chuyển về trang cuối hợp lệ. Không xuất file, sửa dữ liệu, tải định kỳ hoặc lưu Postgres.
+Tìm kiếm xét mã/tên/vị trí, không phân biệt hoa/thường/dấu tiếng Việt, kể cả cột Vị trí đang ẩn. Lọc và sắp xếp toàn bộ dữ liệu trước phân trang 100 dòng. Bấm tiêu đề cột để chuyển tăng dần → giảm dần → thứ tự nguồn; Tổng SL sắp theo số, các cột chữ/vị trí sắp theo thứ tự tự nhiên (Kệ 2 trước Kệ 10); ô trống cuối danh sách. Mỗi tab giữ từ khóa, thứ tự và trang riêng; từ khóa hoặc thứ tự mới về trang 1; dữ liệu mới ít hơn thì chuyển về trang cuối hợp lệ.
+
+Ô tìm kiếm kéo dài ngay cạnh tiêu đề bảng; nút **Cột hiển thị** chọn hiện/ẩn cột, có **Hiện tất cả** và **Về mặc định**. Tên hàng luôn hiện. Máy tính mặc định đủ năm cột; điện thoại (≤ 600px) mặc định Tên hàng, Tổng SL và Vị trí, vừa chiều rộng màn hình thông dụng. Bật thêm cột có thể cuộn ngang; Tên hàng cố định khi cuộn trên điện thoại. Lựa chọn cột được nhớ riêng cho điện thoại/máy tính trong trình duyệt, dùng chung cho hai cơ sở. Ẩn cột đang sort sẽ trở về thứ tự nguồn. Không xuất file, sửa dữ liệu, tải định kỳ hoặc lưu Postgres.
 
 ## API và lỗi
 
@@ -42,7 +44,7 @@ Lỗi nguồn trả 503 và hiện rõ: `STOCK_LOCATIONS_NOT_CONFIGURED`, `STOCK
 
 1. Cấu hình workbook và service account ở máy chủ; restart và kiểm tra HN/SG bằng tài khoản nhân viên.
 2. Đối chiếu năm cột với sheet, mã có số 0 đầu, ghi chú xuống dòng, SL = 0 và vị trí trống.
-3. Kiểm tra ba chế độ cơ sở, hash, tìm kiếm có/không dấu, trang thứ hai và trạng thái riêng từng tab.
+3. Kiểm tra ba chế độ cơ sở, hash, tìm kiếm mã/tên/vị trí có/không dấu, sort trước phân trang và trạng thái riêng từng tab. Kiểm tra nút `<<`, `<`, `>`, `>>` ở giữa cuối bảng, vô hiệu hóa đúng tại trang đầu/cuối; kiểm tra hiện/ẩn cột trên điện thoại và máy tính.
 4. Đổi một ô bằng tài khoản có quyền sửa nguồn rồi mở lại tab: ô mới hiển thị; không có lượt tải định kỳ.
 5. Khách không có menu, mở URL bị điều hướng, API trả 403; API quản trị từ chối grant với 400.
 6. Chạy `npm test` trong `server/`; tests tính năng tại `stockLocations/*.test.js` và `test/frontend/stock-locations.test.js`. Kiểm thử tự động không thay dữ liệu sheet.

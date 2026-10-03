@@ -4,7 +4,7 @@ Dashboard nội bộ cho hai cơ sở Hà Nội và Sài Gòn.
 
 ## Kiến trúc hiện tại
 
-- **Vị trí hàng** đọc trực tiếp hai sheet `VỊ TRÍ HN` / `Vị trí SG` của workbook `STOCK_LOCATIONS_SPREADSHEET_ID`. Trang `/stock-locations/` có hai tab theo cơ sở đang chọn, bảng 100 dòng/trang, tìm mã/tên không dấu, không xuất file hoặc tải định kỳ. Mọi vai trò nội bộ có quyền mặc định; Khách bị chặn hoàn toàn. Xem [cấu hình và nghiệm thu](docs/stock-locations-setup.md).
+- **Vị trí hàng** đọc trực tiếp hai sheet `VỊ TRÍ HN` / `Vị trí SG` của workbook `STOCK_LOCATIONS_SPREADSHEET_ID`. Trang `/stock-locations/` có hai tab theo cơ sở đang chọn, bảng 100 dòng/trang, tìm mã/tên/vị trí không dấu và sort toàn bộ dữ liệu trước phân trang. Có nút hiện/ẩn cột, nhớ riêng điện thoại/máy tính; điện thoại ưu tiên Tên hàng, Tổng SL, Vị trí. Không xuất file hoặc tải định kỳ. Mọi vai trò nội bộ có quyền mặc định; Khách bị chặn hoàn toàn. Xem [cấu hình và nghiệm thu](docs/stock-locations-setup.md).
 
 - **Supabase PostgreSQL** là nguồn dữ liệu KiotViet chính cho dashboard: hàng hóa, hóa đơn, đặt hàng, trả hàng, khách hàng, nhập hàng (chỉ phục vụ kiểm tra đứt hàng và "Hàng mới nhập") và các bảng tổng hợp.
 - Engine `server/kiotvietSync/` đồng bộ KiotViet API vào Supabase bằng webhook/polling phía Node.js.
