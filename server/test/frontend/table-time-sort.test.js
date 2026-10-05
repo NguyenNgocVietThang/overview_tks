@@ -52,21 +52,21 @@ function createDashboard({ data, hash = '#overview' } = {}) {
 function invoicesPayload(transactions) {
   return {
     kpi: {
-      revenueToday: 0, invoicesToday: 0, cancelledToday: 0, totalStock: 0, totalProducts: 0, lowStockCount: 0,
-      totalCustomers: 0, customersWithDebt: 0, totalDebt: 0, inStockCodes: 0, totalInventoryValue: 0, inventoryValueCategoryCount: 0
+      totalStock: 0, totalProducts: 0, lowStockCount: 0,
+      totalCustomers: 0, customersWithDebt: 0, totalDebt: 0, inStockCodes: 0, totalInventoryValue: 0
     },
     filters: { products: { label: '30 ngày' }, invoices: { label: '30 ngày' } },
     invoices: {
-      periodRevenue: 0, periodInvoices: 0, periodCancelledInvoices: 0, revenueByDay: [], returnsCount: 0, totalReturns: 0,
+      periodRevenue: 0, periodInvoices: 0, periodCancelledInvoices: 0, revenueByDay: [],
       transactionsReport: { transactions, topTransactions: [], summary: { quantity: 0, quantityKnown: true, revenue: 0, discount: 0, paid: 0 } }
     },
     products: {
       newProducts: { label: '30 ngày', count: 0, dateColumnAvailable: true, products: [] },
       topSellingProducts: [], topSellingParentCategories: [], childCategorySalesByParent: {}, availableParentCategories: [],
       allSellingProducts: [],
-      newlyImported: { products: [], topByRevenue: [], salesByCategory: [], countByCategory: [], salesRevenue: 0, salesQty: 0 }
+      newlyImported: { products: [], salesRevenue: 0, salesQty: 0 }
     },
-    stockValueByCategory: [], stockByCategory: [], allProducts: [],
+    allProducts: [],
     customers: { topDebt: [], topRevenue: { top15: [], all: [], label: 'Tất cả' } }
   };
 }

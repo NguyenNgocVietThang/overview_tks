@@ -20,13 +20,12 @@ const settle = async () => { for (let i = 0; i < 8; i++) await new Promise(resol
 function payload() {
   return {
     kpi: {
-      revenueToday: 0, invoicesToday: 0, cancelledToday: 0, totalStock: 0, totalProducts: 0, lowStockCount: 0,
-      totalCustomers: 0, customersWithDebt: 0, totalDebt: 0, inStockCodes: 0, totalInventoryValue: 0, inventoryValueCategoryCount: 0
+      totalStock: 0, totalProducts: 0, lowStockCount: 0,
+      totalCustomers: 0, customersWithDebt: 0, totalDebt: 0, inStockCodes: 0, totalInventoryValue: 0
     },
     filters: { products: { label: '30 ngày' }, invoices: { label: '30 ngày' } },
     invoices: {
       periodRevenue: 0, periodInvoices: 0, periodCancelledInvoices: 0, revenueByDay: [],
-      returnsCount: 1, totalReturns: 50,
       transactionsReport: {
         transactions: [
           { code: 'HD-1', branch: HN, time: '21/09 09:08', customer: 'KH A', employee: 'NV', quantity: 3, quantityKnown: true, revenue: 90, discount: 10, paid: 90, status: 'Hoàn thành' },
@@ -39,9 +38,9 @@ function payload() {
       newProducts: { label: '30 ngày', count: 0, dateColumnAvailable: true, products: [] },
       topSellingProducts: [], topSellingParentCategories: [], childCategorySalesByParent: {}, availableParentCategories: [],
       allSellingProducts: [],
-      newlyImported: { products: [], topByRevenue: [], salesByCategory: [], countByCategory: [], salesRevenue: 0, salesQty: 0 }
+      newlyImported: { products: [], salesRevenue: 0, salesQty: 0 }
     },
-    stockValueByCategory: [], stockByCategory: [], allProducts: [],
+    allProducts: [],
     customers: { topDebt: [], topRevenue: { top15: [], all: [], label: 'Tất cả' } }
   };
 }

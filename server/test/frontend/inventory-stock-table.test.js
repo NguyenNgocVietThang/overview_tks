@@ -29,15 +29,15 @@ function product(code, branch, { stock, reserved = 0, cost = 10, inTransit = 0, 
 
 function payload(allProducts) {
   return {
-    kpi: { totalStock: 0, totalProducts: allProducts.length, lowStockCount: 0, inStockCodes: 0, totalInventoryValue: 0, inventoryValueCategoryCount: 0 },
+    kpi: { totalStock: 0, totalProducts: allProducts.length, lowStockCount: 0, inStockCodes: 0, totalInventoryValue: 0 },
     filters: { products: { label: '30 ngày' } },
     products: {
       newProducts: { label: '30 ngày', count: 0, dateColumnAvailable: true, products: [] },
       topSellingProducts: [], topSellingParentCategories: [], childCategorySalesByParent: {}, availableParentCategories: [],
       allSellingProducts: [],
-      newlyImported: { products: [], topByRevenue: [], salesByCategory: [], countByCategory: [], salesRevenue: 0, salesQty: 0 }
+      newlyImported: { products: [], salesRevenue: 0, salesQty: 0 }
     },
-    stockValueByCategory: [], stockByCategory: [], allProducts
+    allProducts
   };
 }
 

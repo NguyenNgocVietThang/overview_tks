@@ -345,16 +345,4 @@ router.get('/api/hr/employees/export', ...authEmployees, async (req, res) => {
   }
 });
 
-// ---------------------------------------------------------------------------
-// GET /api/hr/telegram/link-status — da lien ket Telegram hay chua
-// ---------------------------------------------------------------------------
-
-router.get('/api/hr/telegram/link-status', ...authInternal, (req, res) => {
-  res.status(200).json({
-    linked: !!String(req.user.telegramId || '').trim(),
-    telegramId: req.user.telegramId || '',
-    source: 'postgres'
-  });
-});
-
 module.exports = router;

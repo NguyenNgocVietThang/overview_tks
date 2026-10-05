@@ -45,7 +45,7 @@ const ALL_ROLLUPS = Object.freeze([
 ]);
 
 const VIEW_SOURCES = Object.freeze({
-  // Tong quan: KPI (hang hoa/hoa don hom nay/khach hang).
+  // Tong quan: KPI (hang hoa/khach hang) + xu huong doanh thu theo bo loc `invoices`.
   overview: {
     sheets: [CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES, CONFIG.SHEET_CUSTOMERS],
     rollups: ['overviewRevenue'],
@@ -58,9 +58,10 @@ const VIEW_SOURCES = Object.freeze({
     rollups: ['productSales', 'newlyImportedSales', 'firstPurchase'],
     needsDebt: false
   },
-  // Tra hang (chi cho the chi so "Trả hàng") cung can o tab Khach hang (doanh thu rong).
+  // (2026-10-05: bo bang Tra hang — chi phuc vu the chi so "Trả hàng" returnsCount/totalReturns da go;
+  // doanh thu = ban − tra hang lay tu rollup daily_invoice_summary. Tab Khach hang van doc Tra hang.)
   invoices: {
-    sheets: [CONFIG.SHEET_INVOICES, CONFIG.SHEET_RETURNS],
+    sheets: [CONFIG.SHEET_INVOICES],
     rollups: ['invoicesRevenue', 'invoiceQuantity'],
     needsDebt: false
   },
@@ -79,8 +80,9 @@ const VIEW_SOURCES = Object.freeze({
 });
 
 // Khoa cua object `filters` (xem routes.js) anh huong ket qua cua tab.
+// (Bo loc rieng `overview` (ov*) da bo 2026-10-05 — Tong quan dung bo loc `invoices`.)
 const VIEW_FILTER_KEYS = Object.freeze({
-  overview: ['overview', 'invoices'],
+  overview: ['invoices'],
   products: ['products', 'newProducts', 'newlyImported'],
   invoices: ['invoices'],
   customers: ['customers'],
@@ -96,17 +98,17 @@ const VIEW_PAYLOAD = Object.freeze({
     top: ['overview'],
     nested: {},
     kpi: [
-      'revenueToday', 'invoicesToday', 'cancelledToday', 'totalStock', 'totalProducts',
+      'totalStock', 'totalProducts',
       'lowStockCount', 'totalInventoryValue', 'totalCustomers', 'customersWithDebt', 'totalDebt'
     ],
-    filters: ['overview', 'invoices']
+    filters: ['invoices']
   },
   products: {
-    top: ['products', 'stockValueByCategory', 'allProducts', 'stockByCategory'],
+    top: ['products', 'allProducts'],
     nested: {},
     kpi: [
-      'totalProducts', 'totalStock', 'inStockCodes', 'activeProducts',
-      'lowStockCount', 'totalInventoryValue', 'inventoryValueCategoryCount'
+      'totalProducts', 'totalStock', 'inStockCodes',
+      'lowStockCount', 'totalInventoryValue'
     ],
     filters: ['products', 'newProducts', 'newlyImported']
   },
@@ -175,7 +177,7 @@ function resolveViewPlan(rawViews) {
   const coreKeys = needsPeriods ? [...sheets, PERIODS_KEY] : sheets;
   const rollups = new Set(unionInOrder(ALL_ROLLUPS, views.map(name => VIEW_SOURCES[name].rollups)));
   const filterKeys = unionInOrder(
-    ['overview', 'products', 'invoices', 'customers', 'newProducts', 'newlyImported'],
+    ['products', 'invoices', 'customers', 'newProducts', 'newlyImported'],
     views.map(name => VIEW_FILTER_KEYS[name])
   );
 

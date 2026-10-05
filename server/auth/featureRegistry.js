@@ -88,7 +88,7 @@ const FEATURE_KEYS = Object.freeze(FEATURES.map(f => f.key));
 const FEATURE_BY_KEY = new Map(FEATURES.map(f => [f.key, f]));
 const ALWAYS_ON_KEYS = Object.freeze(FEATURES.filter(f => f.alwaysOn).map(f => f.key));
 
-/** Moi key `reports.*` — dung cho cac endpoint dung chung (/api/dashboard, /api/search). */
+/** Moi key `reports.*` — dung cho cac endpoint dung chung (/api/dashboard, /api/debug). */
 const REPORT_VIEW_FEATURES = Object.freeze([
   'reports.overview', 'reports.products', 'reports.invoices',
   'reports.customers', 'reports.debt'

@@ -445,8 +445,8 @@ const SHEET_NAMES = TABS.map(tab => tab.sheetName);
 // "Chi tiết hóa đơn" (~51K dong) la tab nang nhat (do luong that ~8.8s/lan) —
 // /api/dashboard (getDashboardData) khong con can doc thang tab nay nua vi cac
 // khoi lien quan da chuyen sang doc server/dashboard/dashboardRollupRepository.js
-// (ke hoach "melodic-juggling-karp"). Tab nay van con can cho /api/search +
-// /api/export (readDashboardSheets() day du, KHONG doi) — CORE_TABS chi dung
+// (ke hoach "melodic-juggling-karp"). Tab nay van con can cho nhanh du phong cua
+// bao cao doanh thu theo khach (readDashboardSheets() day du, KHONG doi) — CORE_TABS chi dung
 // rieng cho readCoreDashboardSheets() ben duoi.
 const CORE_EXCLUDED_SHEET_NAMES = new Set([CONFIG.SHEET_INVOICE_DETAILS]);
 const CORE_TABS = TABS.filter(tab => !CORE_EXCLUDED_SHEET_NAMES.has(tab.sheetName));

@@ -65,7 +65,6 @@ test.beforeEach(() => {
   });
   // Khong cham DB that: thay chi tiet dong hang cua Kiot bang ban gia.
   kiotRepository.kiotOrders.readOrderDetail = async ({ branch, code }) => ({ code, branch, phieuTam: true, lines: [] });
-  service.findOrdersBulk = async () => ([{ code: 'HD001', found: true }]);
   service.exportOrders = async () => ([{ orderCode: 'HD001', branch: 'HN', summary: { label: 'Đã giao' } }]);
   service.overrideStatus = async () => ({ orderCode: 'HD001', branch: 'HN', summary: { code: 'CANCELLED', isOverride: true } });
   service.listHistory = async () => ([{ historyId: 'OVR-1', orderCode: 'HD001', statusCode: 'CANCELLED' }]);
@@ -86,7 +85,7 @@ test('GET /api/shipment/lifecycle — Khách bị 403', async () => {
   assert.equal(res.statusCode, 403);
 });
 
-// Xem toan bo don (GET /, GET /order-detail), Tra cuu 1 don (GET /:orderCode, POST /lookup) va Lich su (GET /history)
+// Xem toan bo don (GET /, GET /order-detail), Tra cuu 1 don (GET /:orderCode) va Lich su (GET /history)
 // CUNG nhom vai tro: noi bo TRU Nhan vien kho (2026-10-03), Nhan vien mua hang va Nhan vien marketing (2026-10-02);
 // cac vai tro do (va Khach) khong con gi trong Vong doi don hang. XUAT EXCEL (POST /export) chi Quan ly (2026-10-02).
 const INTERNAL_ROLES = [
@@ -195,21 +194,10 @@ test('GET /api/shipment/lifecycle/:orderCode không đăng nhập -> 401', async
   assert.equal(res.statusCode, 401);
 });
 
-test('POST /api/shipment/lifecycle/lookup — Khách bị 403 (tra cứu theo mã cần Vòng đời đơn hàng)', async () => {
-  const req = reqAs('Khách', {}, {}, { codes: ['HD001'] });
-  const res = fakeRes();
-  await callRoute('post', '/lookup', req, res);
-  assert.equal(res.statusCode, 403);
+test('POST /api/shipment/lifecycle/lookup đã gỡ (không giao diện nào gọi): không route POST nào khớp "/lookup" -> Express trả 404', () => {
+  const matching = router.stack.filter(l => l.route && l.route.methods.post && l.match('/lookup'));
+  assert.deepEqual(matching.map(l => l.route.path), []);
 });
-
-for (const role of LIFECYCLE_VIEW_ROLES) {
-  test(`POST /api/shipment/lifecycle/lookup — ${role} gọi được (200)`, async () => {
-    const req = reqAs(role, {}, {}, { codes: ['HD001'] });
-    const res = fakeRes();
-    await callRoute('post', '/lookup', req, res);
-    assert.equal(res.statusCode, 200);
-  });
-}
 
 // Xuat Excel (2026-10-02): CHI Quan ly co quyen mac dinh. Moi vai tro khac (ke ca Tro ly, Ke toan) bi 403.
 test('POST /api/shipment/lifecycle/export — Khách bị 403', async () => {
@@ -346,20 +334,6 @@ test('POST /api/shipment/lifecycle/export — lỗi từ service được trả 
   const res = fakeRes();
   await callRoute('post', '/export', req, res);
   assert.equal(res.statusCode, 500);
-});
-
-test('POST /api/shipment/lifecycle/lookup — body không hợp lệ -> lỗi từ service được trả về đúng statusCode', async () => {
-  service.findOrdersBulk = async () => {
-    const err = new Error('Danh sách mã đơn hàng không hợp lệ.');
-    err.statusCode = 400;
-    err.code = 'INVALID_CODES';
-    throw err;
-  };
-  const req = reqAs('Quản lý', {}, {}, { codes: 'khong-phai-mang' });
-  const res = fakeRes();
-  await callRoute('post', '/lookup', req, res);
-  assert.equal(res.statusCode, 400);
-  assert.equal(res.body.code, 'INVALID_CODES');
 });
 
 // ---------------------------------------------------------------------------

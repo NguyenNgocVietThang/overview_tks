@@ -23,31 +23,10 @@ const ALWAYS_KEPT_KEYS = Object.freeze(['updatedAt', 'filters', 'kpi']);
 const SECTION_FEATURE = Object.freeze({
   overview: 'reports.overview',
   products: 'reports.products',
-  stockValueByCategory: 'reports.products',
   allProducts: 'reports.products',
-  stockByCategory: 'reports.products',
   invoices: 'reports.invoices',
   customers: 'reports.customers',
   debtManagement: 'reports.debt'
-});
-
-// view cua /api/search -> quyen tuong ung.
-const SEARCH_VIEW_FEATURE = Object.freeze({
-  overview: 'reports.overview',
-  products: 'reports.products',
-  invoices: 'reports.invoices',
-  customers: 'reports.customers'
-});
-
-// Nhom du lieu ma /api/search quet (SEARCH_SCOPES trong dashboardData.js)
-// -> quyen tuong ung. Dung cho view 'overview' vi no quet MOI nhom: nguoi chi
-// co quyen Tong quan khong duoc tim thay du lieu cua tab ho bi chan.
-const SEARCH_ENTITY_FEATURE = Object.freeze({
-  products: 'reports.products',
-  invoices: 'reports.invoices',
-  orders: 'reports.invoices',
-  returns: 'reports.invoices',
-  customers: 'reports.customers'
 });
 
 /**
@@ -68,26 +47,8 @@ function filterDashboardForUser(data, permissions) {
   return filtered;
 }
 
-/** Quyen can co de dung /api/search voi `view` nay (mac dinh: Tong quan). */
-function searchFeatureForView(view) {
-  return SEARCH_VIEW_FEATURE[String(view || '')] || SEARCH_VIEW_FEATURE.overview;
-}
-
-/**
- * Danh sach nhom du lieu ma tai khoan duoc phep tim kiem. Truyen xuong
- * searchDashboardRecords de giao cat voi SEARCH_SCOPES cua view.
- */
-function allowedSearchEntities(permissions) {
-  return Object.keys(SEARCH_ENTITY_FEATURE)
-    .filter(entity => permissionsHave(permissions, SEARCH_ENTITY_FEATURE[entity]));
-}
-
 module.exports = {
   ALWAYS_KEPT_KEYS,
   SECTION_FEATURE,
-  SEARCH_VIEW_FEATURE,
-  SEARCH_ENTITY_FEATURE,
-  filterDashboardForUser,
-  searchFeatureForView,
-  allowedSearchEntities
+  filterDashboardForUser
 };

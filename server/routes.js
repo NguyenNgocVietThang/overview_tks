@@ -2,9 +2,7 @@ const express = require('express');
 const CONFIG = require('./config');
 const {
   getDashboardData,
-  searchDashboardRecords,
   searchCustomerDirectory,
-  searchTopCustomersByProducts,
   getCustomerProductRevenueReport
 } = require('./dashboard/dashboardData');
 
@@ -19,11 +17,7 @@ const adminUserRoutes = require('./auth/adminUserRoutes');
 const { requireAuth, requireFeature } = require('./auth/authMiddleware');
 const { ANY_REPORTS_FEATURES, permissionsHave } = require('./auth/featureRegistry');
 const { parseViewsParam, VIEW_FEATURE } = require('./dashboard/dashboardViews');
-const {
-  filterDashboardForUser,
-  searchFeatureForView,
-  allowedSearchEntities
-} = require('./dashboard/dashboardPermissionFilter');
+const { filterDashboardForUser } = require('./dashboard/dashboardPermissionFilter');
 const { resolveBranch } = require('./branch/branchMiddleware');
 const { branchLabelToCode, resolveBranchScope } = require('./branch/branches');
 const branchRoutes = require('./branch/branchRoutes');
@@ -108,19 +102,17 @@ router.use('/api/shipment/lifecycle', requireAuth, orderLifecycleRoutes);
 // Khach chi duoc dung route tra cuu vong doi don hang o tren. Trang tra cuu
 // cong khai cho khach hang (Phase 1) se nam o route rieng, KHONG qua requireAuth.
 const reportsUser = (...features) => [requireAuth, requireFeature(...features), resolveBranch];
-// /api/dashboard va /api/search phuc vu CA 5 tab bao cao nen chi doi hoi "co it
-// nhat mot quyen reports.*"; phan du lieu cua tung tab duoc cat bot sau do
+// /api/dashboard phuc vu CA 5 tab bao cao nen chi doi hoi "co it nhat mot
+// quyen reports.*"; phan du lieu cua tung tab duoc cat bot sau do
 // (dashboardPermissionFilter.js). Cac endpoint rieng cua tung tab thi doi hoi
 // dung quyen cua tab do.
 router.use('/api/debug', ...reportsUser(...ANY_REPORTS_FEATURES));
 router.use('/api/dashboard', ...reportsUser(...ANY_REPORTS_FEATURES));
-router.use('/api/search', ...reportsUser(...ANY_REPORTS_FEATURES));
 // Muc 2 (doanh thu theo khach) va muc 3 (Bao cao hang hoa) nam ngay trong tab Tong quan
 // nen nguoi co quyen Tong quan (vd Nhan vien sale) cung doc duoc cac API CHI DOC nay;
 // nguoi co quyen cua tab goc van duoc nhu cu. Phan ghi/nang (quet dut hang, nhap Tra NCC)
 // duoi '/api/products' van chi reports.products.
 router.use('/api/customer-suggest', ...reportsUser('reports.customers', 'reports.overview'));
-router.use('/api/customer-product-top', ...reportsUser('reports.customers', 'reports.overview'));
 router.use('/api/customer-product-revenue', ...reportsUser('reports.customers', 'reports.overview'));
 router.use('/api/product-report', ...reportsUser('reports.products', 'reports.overview'));
 router.use('/api/inventory-value-history', ...reportsUser('reports.overview'));
@@ -150,8 +142,8 @@ router.get('/api/debug', async (req, res) => {
   res.json(checks);
 });
 
-// Doc bo loc thoi gian rieng cho 1 tab tu query string, vd prefix "ov" doc
-// ovMode/ovDays/ovFrom/ovTo. legacyDays la fallback cho tham so "days" cu (khi
+// Doc bo loc thoi gian rieng cho 1 tab tu query string, vd prefix "in" doc
+// inMode/inDays/inFrom/inTo. legacyDays la fallback cho tham so "days" cu (khi
 // dashboard chi co 1 bo loc dung chung cho Tong quan+Hoa don) de link cu/API
 // cu khong bi vo neu con noi nao goi lai kieu cu.
 function parseFilterSpec(query, prefix, legacyDays) {
@@ -192,11 +184,11 @@ router.get('/api/dashboard', async (req, res) => {
   try {
     const legacyDays = req.query.days;
     const filters = {
-      overview: parseFilterSpec(req.query, 'ov', legacyDays),
+      // (Bo loc `ov*` cua Tong quan da bo 2026-10-05: tab Tong quan dung bo loc `in*`.)
       products: parseFilterSpec(req.query, 'pr'),
       invoices: parseFilterSpec(req.query, 'in', legacyDays),
-      // Tab Khách hàng mặc định xem toàn thời gian; cùng bo loc cuMode/cuDays/
-      // cuFrom/cuTo duoc dung cho Top khach doanh thu va API top theo san pham.
+      // Tab Khách hàng mặc định xem toàn thời gian; bo loc cuMode/cuDays/
+      // cuFrom/cuTo duoc dung cho Top khach doanh thu.
       customers: {
         ...parseFilterSpec(req.query, 'cu'),
         mode: req.query.cuMode || 'all'
@@ -265,43 +257,9 @@ router.get('/api/dashboard/events', (req, res) => {
   });
 });
 
-router.get('/api/search', async (req, res) => {
-  try {
-    const viewFeature = searchFeatureForView(req.query.view);
-    if (!req.user.permissions.includes(viewFeature)) {
-      return res.status(403).json({
-        error: 'Tài khoản không có quyền sử dụng tính năng này.',
-        code: 'FEATURE_FORBIDDEN',
-        feature: viewFeature
-      });
-    }
-    const filterSpec = req.query.view === 'customers' ? parseFilterSpec(req.query, 'cu') : undefined;
-    // view 'overview' quet moi nhom du lieu — gioi han lai theo quyen de nguoi
-    // bi chan tab Khach hang/Nha cung cap khong tim thay du lieu do qua day.
-    const data = await searchDashboardRecords(
-      req.query.view, req.query.q, req.query.limit, req.query.mode, filterSpec, req.branch,
-      allowedSearchEntities(req.user.permissions)
-    );
-    res.status(200).json(data);
-  } catch (err) {
-    const googleStatus = err?.response?.status;
-    console.error('=== LOI /api/search ===');
-    console.error('Message:', err.message);
-    console.error('Google API status:', googleStatus);
-    console.error('Stack:', err.stack);
-    console.error('=====================');
-    res.status(err.statusCode || 500).json({
-      error: 'Khong tim kiem duoc du lieu dashboard.',
-      detail: err.message,
-      code: err.code,
-      googleStatus
-    });
-  }
-});
-
 // Goi y ten/ma khach hang cho o tim kiem "Bao cao doanh thu theo khach" (tab
-// Tong quan) — nguon rieng, NHE (chi bang "customers"), tach khoi /api/search
-// dung chung cache 9-tab dashboard de khong bi cham theo cac tab khac.
+// Tong quan) — nguon rieng, NHE (chi bang "customers"), khong dung cache
+// 9-tab dashboard de khong bi cham theo cac tab khac.
 router.get('/api/customer-suggest', async (req, res) => {
   try {
     const data = await searchCustomerDirectory(req.branch, req.query.q, req.query.limit);
@@ -315,34 +273,6 @@ router.get('/api/customer-suggest', async (req, res) => {
       error: 'Khong tim duoc goi y khach hang.',
       detail: err.message,
       code: err.code
-    });
-  }
-});
-
-router.get('/api/customer-product-top', async (req, res) => {
-  try {
-    const data = await searchTopCustomersByProducts(
-      req.query.q,
-      {
-        ...parseFilterSpec(req.query, 'cu'),
-        mode: req.query.cuMode || 'all'
-      },
-      undefined, // `now` — de mac dinh, tham so tiem cho test
-      req.branch
-    );
-    res.status(200).json(data);
-  } catch (err) {
-    const googleStatus = err?.response?.status;
-    console.error('=== LOI /api/customer-product-top ===');
-    console.error('Message:', err.message);
-    console.error('Google API status:', googleStatus);
-    console.error('Stack:', err.stack);
-    console.error('======================================');
-    res.status(err.statusCode || 500).json({
-      error: 'Khong tim duoc top khach hang theo san pham.',
-      detail: err.message,
-      code: err.code,
-      googleStatus
     });
   }
 });

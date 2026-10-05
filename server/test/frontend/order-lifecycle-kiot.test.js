@@ -871,6 +871,20 @@ test('mọi bộ lọc là dropdown tùy biến: select gốc ẩn, nút hiện 
   page.dom.window.close();
 });
 
+test('bộ lọc trạng thái của Toàn bộ đơn hàng có đủ mã như tab Lịch sử, kể cả Sự cố và Đã hủy', async () => {
+  const page = await renderPage({ orders: MIXED() });
+  const { window, document } = page;
+  const codes = id => [...document.getElementById(id).options].map(o => o.value);
+  assert.deepEqual(codes('bulkStatusFilter'), codes('historyStatusFilter'));
+  assert.ok(ddOptionTexts(ddOf(document, 'bulkStatusFilter')).includes('Sự cố'));
+  assert.ok(ddOptionTexts(ddOf(document, 'bulkStatusFilter')).includes('Đã hủy'));
+
+  setValue(window, document.getElementById('bulkStatusFilter'), 'CANCELLED');
+  await settle();
+  assert.equal(lastListParams(page).get('status'), 'CANCELLED');
+  page.dom.window.close();
+});
+
 test('chọn Cơ sở bằng dropdown: gửi branch lên máy chủ, nút đổi chữ, danh sách đóng; chọn lại Tất cả cơ sở thì bỏ tham số', async () => {
   const page = await renderPage({ orders: MIXED() });
   const { window, document } = page;

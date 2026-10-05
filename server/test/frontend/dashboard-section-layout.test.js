@@ -133,9 +133,9 @@ function createRenderedDashboard(data) {
 }
 
 function samplePayload() {
-  const kpi = { revenueToday: 0, invoicesToday: 0, cancelledToday: 0, totalStock: 0, totalProducts: 0, lowStockCount: 0,
+  const kpi = { totalStock: 0, totalProducts: 0, lowStockCount: 0,
     totalCustomers: 0, customersWithDebt: 0, totalDebt: 0,
-    inStockCodes: 0, inactiveProducts: 0, inventoryValueCategoryCount: 0, totalInventoryValue: 0 };
+    inStockCodes: 0, inactiveProducts: 0, totalInventoryValue: 0 };
   return {
     kpi,
     filters: { products: { label: '30 ngày' }, invoices: { label: '30 ngày' } },
@@ -151,9 +151,9 @@ function samplePayload() {
       newProducts: { label: '30 ngày', count: 1, dateColumnAvailable: true,
         products: [{ code: 'MOI-01', name: 'Hàng mới tạo', category: 'Nhóm X', createdAt: '18/09/2026 14:28:00', cost: 0, price: 0 }] },
       topSellingProducts: [], topSellingParentCategories: [], childCategorySalesByParent: {}, availableParentCategories: [],
-      newlyImported: { products: [], topByRevenue: [], salesByCategory: [], countByCategory: [], salesRevenue: 0, salesQty: 0 }
+      newlyImported: { products: [], salesRevenue: 0, salesQty: 0 }
     },
-    stockValueByCategory: [], allProducts: [], stockByCategory: [],
+    allProducts: [],
     customers: { topDebt: [], topRevenue: { top15: [], all: [], label: '—' } }
   };
 }

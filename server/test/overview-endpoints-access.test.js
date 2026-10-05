@@ -57,7 +57,6 @@ const OVERVIEW_READ_ENDPOINTS = [
   '/api/dashboard',
   '/api/inventory-value-history',
   '/api/customer-suggest',
-  '/api/customer-product-top',
   '/api/customer-product-revenue',
   '/api/product-report',
   '/api/product-report/customers'
@@ -107,6 +106,14 @@ for (const urlPath of SALE_BLOCKED_ENDPOINTS) {
     assert.equal(result.status, 403);
   });
 }
+
+test('/api/search va /api/customer-product-top da go: khong con guard hay handler nao trong router', () => {
+  for (const urlPath of ['/api/search', '/api/customer-product-top']) {
+    const layers = router.stack.filter(layer => layer.regexp && layer.regexp.test(urlPath) &&
+      (layer.route ? layer.route.path === urlPath : layer.regexp.source !== '^\\/?(?=\\/|$)'));
+    assert.deepEqual(layers.map(layer => (layer.route ? layer.route.path : String(layer.regexp))), [], urlPath);
+  }
+});
 
 test('Quản lý vẫn gọi được cả API mục 4 (quét đứt hàng, nhập Trả NCC)', async () => {
   for (const urlPath of ['/api/products/supplier-returns/import-status', '/api/products/stockout-recent/scan']) {

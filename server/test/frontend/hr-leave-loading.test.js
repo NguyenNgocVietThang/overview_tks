@@ -34,9 +34,7 @@ test('người dùng thường mặc định chỉ tải các lịch nghỉ giao
   };
   window.fetch = async url => {
     requestedUrls.push(String(url));
-    const payload = String(url).includes('/summary/') ? { summary: [] }
-      : String(url).includes('/link-status') ? { linked: false }
-        : { requests: [] };
+    const payload = String(url).includes('/summary/') ? { summary: [] } : { requests: [] };
     return {
       ok: true,
       status: 200,
@@ -67,6 +65,8 @@ test('người dùng thường mặc định chỉ tải các lịch nghỉ giao
   assert.equal(window.document.getElementById('fromDateFilter').value, today);
   assert.equal(window.document.getElementById('toDateFilter').value, today);
   assert.equal(window.document.getElementById('statusFilter').value, '', 'người dùng thường không lọc trạng thái');
+  // GET /api/hr/telegram/link-status da go khoi server — trang khong duoc goi lai.
+  assert.ok(!requestedUrls.some(url => url.includes('/link-status')), 'frontend không gọi link-status');
 
   dom.window.close();
 });
@@ -94,12 +94,11 @@ test('Quản lý mặc định xem toàn thời gian, lọc client-side đơn Ch
     requestedUrls.push(String(url));
     const text = String(url);
     const payload = text.includes('/summary/') ? { summary: [] }
-      : text.includes('/link-status') ? { linked: false }
-        : { requests: [
-          { ...base, request_id: 'NP-1', trang_thai: 'Chưa duyệt' },
-          { ...base, request_id: 'NP-2', trang_thai: 'Đã duyệt' },
-          { ...base, request_id: 'NP-3', trang_thai: 'Đã duyệt' }
-        ] };
+      : { requests: [
+        { ...base, request_id: 'NP-1', trang_thai: 'Chưa duyệt' },
+        { ...base, request_id: 'NP-2', trang_thai: 'Đã duyệt' },
+        { ...base, request_id: 'NP-3', trang_thai: 'Đã duyệt' }
+      ] };
     return {
       ok: true,
       status: 200,
@@ -129,6 +128,7 @@ test('Quản lý mặc định xem toàn thời gian, lọc client-side đơn Ch
   assert.equal(rows.length, 1, 'chỉ hiện đơn Chưa duyệt');
   assert.equal(rows[0].dataset.requestId, 'NP-1');
   assert.equal(window.document.getElementById('statApproved').textContent, '2', 'KPI vẫn đếm mọi trạng thái');
+  assert.ok(!requestedUrls.some(url => url.includes('/link-status')), 'frontend không gọi link-status');
 
   dom.window.close();
 });
@@ -151,7 +151,6 @@ async function loadPageWithViolation(vaiTro) {
   window.fetch = async url => {
     const text = String(url);
     const payload = text.includes('/summary/') ? { summary: [] }
-      : text.includes('/link-status') ? { linked: false }
         : { requests: [{
           request_id: 'NP-TEST',
           ho_ten: 'Nguyễn A',

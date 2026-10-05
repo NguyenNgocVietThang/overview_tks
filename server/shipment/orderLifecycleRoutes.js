@@ -157,20 +157,6 @@ router.post('/:orderCode/override', ...authOverride, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/shipment/lifecycle/lookup — tra cuu NHIEU ma don cung luc (dung
-// cho khu vuc moi o tab "Tong quan"). Cung quyen voi GET /:orderCode.
-// ---------------------------------------------------------------------------
-
-router.post('/lookup', ...authLookup, async (req, res) => {
-  try {
-    const results = await service.findOrdersBulk(req.body.codes);
-    res.status(200).json({ results });
-  } catch (err) {
-    handleError(res, err, 'POST /api/shipment/lifecycle/lookup');
-  }
-});
-
-// ---------------------------------------------------------------------------
 // POST /api/shipment/lifecycle/export — xuat Excel bang "Toan bo don hang" (quyen 'shipment.export', mac dinh
 // chi Quan ly). Body = cung bo tham so loc/sap xep cua GET '/' (khong co page/pageSize — xuat MOI trang): file khop
 // dung bang dang hien tren man hinh. Khong gui bo loc nao -> xuat toan bo don (moi dat nhat truoc). Qua MAX_EXPORT_ROWS

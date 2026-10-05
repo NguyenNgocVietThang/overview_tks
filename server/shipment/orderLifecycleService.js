@@ -53,24 +53,6 @@ const STATUS_RANK = Object.freeze({
   [STATUS.SIGNED]: 5
 });
 
-// Nhan TEN COT chinh xac (khac STATUS_LABEL la cau mo ta) — dung cho bang tra
-// cuu nhieu ma o tab "Tong quan" (yeu cau: "trang thai (tuong ung ten cot)").
-// Dung hang so co dinh theo SCHEMA_HEADERS, KHONG doc header that tu sheet vi
-// tab HN/SG co the ghi khac chu (da xac minh: tab SG ghi "Ke toan duyet" thay
-// vi "Ke toan duyet don" o cung vi tri cot) — dam bao nhan luon nhat quan.
-const STATUS_COLUMN_LABEL = Object.freeze({
-  [STATUS.NOT_SENT]: null,
-  [STATUS.SENT_TO_ACCOUNTANT]: 'Sale gửi đơn cho kế toán',
-  [STATUS.DELIVERING]: 'Tài xế gửi xác nhận giao hàng',
-  [STATUS.DELIVERED]: 'Xác nhận đã giao/khách kí nhận',
-  [STATUS.SHIP_RECEIVED]: 'Ship nhận đơn',
-  [STATUS.SIGNED]: 'Đơn đã ký nhận',
-  // Khong co cot moc thoi gian tuong ung (chi den tu ghi de thu cong) — dung
-  // lai STATUS_LABEL lam nhan hien thi.
-  [STATUS.EXCEPTION]: STATUS_LABEL[STATUS.EXCEPTION],
-  [STATUS.CANCELLED]: STATUS_LABEL[STATUS.CANCELLED]
-});
-
 function hasValue(value) {
   return value !== undefined && value !== null && String(value).trim() !== '';
 }
@@ -482,83 +464,6 @@ async function listHistory() {
   }));
 }
 
-const MAX_LOOKUP_CODES = 50;
-
-function validateLookupCodes(rawCodes) {
-  if (!Array.isArray(rawCodes)) {
-    const err = new Error('Danh sách mã đơn hàng không hợp lệ.');
-    err.statusCode = 400;
-    err.code = 'INVALID_CODES';
-    throw err;
-  }
-  if (rawCodes.length > MAX_LOOKUP_CODES) {
-    const err = new Error(`Chỉ được tra cứu tối đa ${MAX_LOOKUP_CODES} mã đơn hàng mỗi lần.`);
-    err.statusCode = 400;
-    err.code = 'TOO_MANY_CODES';
-    throw err;
-  }
-  const seen = new Set();
-  const codes = [];
-  rawCodes.forEach(rawCode => {
-    if (typeof rawCode !== 'string' && typeof rawCode !== 'number') {
-      const err = new Error('Mỗi mã đơn hàng phải là chuỗi hoặc số.');
-      err.statusCode = 400;
-      err.code = 'INVALID_CODE';
-      throw err;
-    }
-    const code = String(rawCode).trim();
-    if (!code) return;
-    if (code.length > 100) {
-      const err = new Error('Mã đơn hàng không được dài quá 100 ký tự.');
-      err.statusCode = 400;
-      err.code = 'INVALID_CODE';
-      throw err;
-    }
-    const key = normalizeCode(code);
-    if (!seen.has(key)) {
-      seen.add(key);
-      codes.push({ code, key });
-    }
-  });
-  return codes;
-}
-
-/**
- * Tra cuu NHIEU ma don cung luc (tab "Tong quan"). Voi moi ma: tra ve sale,
- * khach hang, TEN COT co thoi gian moi nhat (bo qua 2 cot ke toan duyet —
- * dung STATUS_COLUMN_LABEL, khong tao trang thai rieng cho D/G, giu dung logic
- * computeStatus da co) + thoi gian tuong ung. Ma khong ton tai -> found:false.
- */
-async function findOrdersBulk(rawCodes) {
-  const codes = validateLookupCodes(rawCodes);
-  if (!codes.length) return [];
-
-  const [records, historyRows] = await Promise.all([repo.readAll(), repo.readOverrideHistory()]);
-  const overrides = latestOverrideByCode(historyRows);
-  const byKey = new Map();
-  records.forEach(record => {
-    const key = normalizeCode(record.orderCode);
-    if (!byKey.has(key)) byKey.set(key, record);
-  });
-
-  return codes.map(({ code, key }) => {
-    const record = byKey.get(key);
-    if (!record) return { code, found: false };
-    const summary = computeEffectiveStatus(record, overrides.get(key));
-    return {
-      code,
-      found: true,
-      // Nhan co so nguon ('HN'|'SG'): ket qua tra cuu luon gom ca 2 tab nen
-      // moi dong phai tu noi no den tu co so nao.
-      branch: record._branch,
-      saleName: record.saleName || '',
-      customerName: record.customerName || '',
-      statusLabel: STATUS_COLUMN_LABEL[summary.code],
-      at: summary.at
-    };
-  });
-}
-
 /**
  * Ghi de trang thai thu cong (Quan ly/Ke toan). Validate ma don co that (nam
  * trong 2 tab DonHang_HN/SG) truoc khi ghi — tranh tao lich su cho ma khong
@@ -605,9 +510,8 @@ async function overrideStatus(orderCode, { code, changedBy, changedByRole, note 
 }
 
 module.exports = {
-  STATUS, STATUS_LABEL, STATUS_COLUMN_LABEL, STATUS_RANK,
+  STATUS, STATUS_LABEL, STATUS_RANK,
   computeStatus, computeEffectiveStatus, computeOverdueWarning, parseSheetTimeMs, findOrder, listAllOrders, queryOrders,
-  findOrdersBulk, exportOrders, overrideStatus, listHistory,
-  mergeRows,
-  MAX_LOOKUP_CODES
+  exportOrders, overrideStatus, listHistory,
+  mergeRows
 };

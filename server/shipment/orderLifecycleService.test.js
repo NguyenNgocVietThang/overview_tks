@@ -531,14 +531,13 @@ test('queryOrders: danh sách đã gộp được dùng lại khi dữ liệu ng
   }
 });
 
-test('lookup (findOrder / findOrdersBulk) và ghi đè KHÔNG dùng dữ liệu Kiot: đơn chỉ có ở Kiot -> chưa gửi kế toán / 404', async () => {
+test('lookup (findOrder) và ghi đè KHÔNG dùng dữ liệu Kiot: đơn chỉ có ở Kiot -> chưa gửi kế toán / 404', async () => {
   const ctx = freshService([record({ orderCode: 'DH000001', _branch: 'HN' })]);
   try {
     const found = await ctx.service.findOrder('DH041173');
     assert.equal(found.found, false);
     assert.equal(found.summary.code, 'NOT_SENT');
-    const bulk = await ctx.service.findOrdersBulk(['DH041173']);
-    assert.deepEqual(bulk, [{ code: 'DH041173', found: false }]);
+    assert.equal(ctx.service.findOrdersBulk, undefined, 'tra cuu nhieu ma (POST /lookup) da go');
     await assert.rejects(
       ctx.service.overrideStatus('DH041173', { code: 'CANCELLED', changedBy: 'X', changedByRole: 'Quản lý' }),
       { statusCode: 404, code: 'ORDER_NOT_FOUND' }
@@ -576,57 +575,6 @@ test('toDetail (qua findOrder) trả kèm customerName', async () => {
   try {
     const result = await ctx.service.findOrder('HD001');
     assert.equal(result.detail.customerName, 'KH A');
-  } finally {
-    ctx.restore();
-  }
-});
-
-test('findOrdersBulk: mã tồn tại -> trả sale/khách hàng/tên cột trạng thái/thời gian, bỏ qua cột kế toán duyệt', async () => {
-  const ctx = freshService([record({
-    orderCode: 'HD001', saleName: 'Sale A', customerName: 'KH A',
-    saleSentAt: '01/09/2026 08:00', accountantApprovedOrderAt: '01/09/2026 09:00'
-  })]);
-  try {
-    const results = await ctx.service.findOrdersBulk(['HD001']);
-    assert.equal(results.length, 1);
-    assert.equal(results[0].found, true);
-    assert.equal(results[0].saleName, 'Sale A');
-    assert.equal(results[0].customerName, 'KH A');
-    assert.equal(results[0].statusLabel, 'Sale gửi đơn cho kế toán');
-    assert.equal(results[0].at, '01/09/2026 08:00');
-  } finally {
-    ctx.restore();
-  }
-});
-
-test('findOrdersBulk: mã không tồn tại -> found:false', async () => {
-  const ctx = freshService([record({ orderCode: 'HD001' })]);
-  try {
-    const results = await ctx.service.findOrdersBulk(['HD999']);
-    assert.deepEqual(results, [{ code: 'HD999', found: false }]);
-  } finally {
-    ctx.restore();
-  }
-});
-
-test('findOrdersBulk: quá 50 mã -> ném lỗi 400 TOO_MANY_CODES', async () => {
-  const ctx = freshService([]);
-  try {
-    const tooMany = Array.from({ length: 51 }, (_, i) => 'HD' + i);
-    await assert.rejects(
-      () => ctx.service.findOrdersBulk(tooMany),
-      err => err.statusCode === 400 && err.code === 'TOO_MANY_CODES'
-    );
-  } finally {
-    ctx.restore();
-  }
-});
-
-test('findOrdersBulk: dedupe mã trùng (không phân biệt hoa/thường)', async () => {
-  const ctx = freshService([record({ orderCode: 'HD001', saleSentAt: '01/09/2026' })]);
-  try {
-    const results = await ctx.service.findOrdersBulk(['HD001', 'hd001', ' HD001 ']);
-    assert.equal(results.length, 1);
   } finally {
     ctx.restore();
   }
@@ -937,18 +885,3 @@ test('listHistory: dòng lịch sử cũ chưa có cột trạng thái cũ -> tr
   }
 });
 
-test('findOrdersBulk: mỗi dòng tìm thấy kèm nhãn cơ sở nguồn của đơn', async () => {
-  const ctx = freshService([
-    record({ orderCode: 'HD001', _branch: 'HN' }),
-    record({ orderCode: 'HD002', _branch: 'SG' })
-  ]);
-  try {
-    const results = await ctx.service.findOrdersBulk(['HD001', 'HD002', 'HD999']);
-    assert.equal(results[0].branch, 'HN');
-    assert.equal(results[1].branch, 'SG');
-    assert.equal(results[2].found, false);
-    assert.equal(results[2].branch, undefined, 'mã không tồn tại không gán cơ sở');
-  } finally {
-    ctx.restore();
-  }
-});

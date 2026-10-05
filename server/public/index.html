@@ -4229,7 +4229,7 @@
   <script src="/vendor/chart.umd.min.js"></script>
   <script src="/js/pagination.js"></script>
   <script src="/js/table-explorer.js"></script>
-  <script src="/shared/shared-nav.js?v=20261002"></script>
+  <script src="/shared/shared-nav.js?v=20261005"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
 
@@ -6682,7 +6682,7 @@
       const isParentCategory = state.productAnalysis === 'parentCategory';
       const chartRows = isParentCategory
         ? (productsData.topSellingParentCategories || [])
-        : (productsData.topSellingProducts || d.topSellingProducts || []);
+        : (productsData.topSellingProducts || []);
       const analysisRows = isParentCategory
         ? (productsData.allSellingParentCategories || chartRows)
         : (productsData.allSellingProducts || chartRows);
@@ -7668,7 +7668,7 @@
       if (view === 'overview') {
         // Xu huong doanh thu theo ngay: bo loc `invoices` (chung voi bang Chi tiet giao dich o tab Hoa don).
         const trend = d.overview || {};
-        const trendRangeLabel = d.filters && d.filters.invoices ? d.filters.invoices.label : ((d.days || state.days) + ' ngày');
+        const trendRangeLabel = d.filters && d.filters.invoices ? d.filters.invoices.label : (state.days + ' ngày');
         document.getElementById('in-revenue').textContent = fmtMoney(trend.periodRevenue);
         const trendReturnAmount = Number(trend.periodReturnAmount) || 0;
         document.getElementById('in-revenue-sub').textContent = trendReturnAmount > 0
@@ -7788,7 +7788,7 @@
       }
       else if (view === 'invoices') {
         const invoiceData = d.invoices || d;
-        const invoiceRangeLabel = d.filters && d.filters.invoices ? d.filters.invoices.label : ((d.days || state.days) + ' ngày');
+        const invoiceRangeLabel = d.filters && d.filters.invoices ? d.filters.invoices.label : (state.days + ' ngày');
 
         const report = invoiceData.transactionsReport || { date: '—', transactions: [], topTransactions: [], summary: {} };
         const summary = report.summary || {};

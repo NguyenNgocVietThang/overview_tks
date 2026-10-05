@@ -5,21 +5,17 @@ const assert = require('node:assert/strict');
 
 const {
   filterDashboardForUser,
-  searchFeatureForView,
-  allowedSearchEntities,
   SECTION_FEATURE
 } = require('./dashboardPermissionFilter');
 
 function samplePayload() {
   return {
     updatedAt: '01/01/2026 08:00:00',
-    filters: { overview: { label: '30 ngày' } },
-    kpi: { revenueToday: 1000, totalCustomers: 5 },
+    filters: { invoices: { label: '30 ngày' } },
+    kpi: { totalStock: 1000, totalCustomers: 5 },
     overview: { revenueByDay: [1] },
     products: { topSellingProducts: [{ code: 'A' }] },
-    stockValueByCategory: [{ name: 'X' }],
     allProducts: [{ code: 'A' }],
-    stockByCategory: [{ name: 'X' }],
     invoices: { revenueByDay: [2] },
     customers: { topRevenue: [{ name: 'KH' }] },
     debtManagement: { customers: [{ customerName: 'KH nợ' }] }
@@ -35,18 +31,19 @@ test('giu lai updatedAt/filters/kpi va dung cac phan duoc phep', () => {
   assert.ok(filtered.overview);
   assert.ok(filtered.debtManagement);
 
-  for (const key of ['products', 'stockValueByCategory', 'allProducts', 'stockByCategory',
-    'invoices', 'customers']) {
+  for (const key of ['products', 'allProducts', 'invoices', 'customers']) {
     assert.equal(key in filtered, false, `${key} phai bi cat bo`);
   }
 });
 
-test('quyen reports.products mo dung 5 khoa cua tab Hang hoa', () => {
+test('quyen reports.products mo dung cac khoa cua tab Hang hoa', () => {
   const filtered = filterDashboardForUser(samplePayload(), ['reports.products']);
   assert.deepEqual(
     Object.keys(filtered).sort(),
-    ['allProducts', 'filters', 'kpi', 'products', 'stockByCategory', 'stockValueByCategory', 'updatedAt'].sort()
+    ['allProducts', 'filters', 'kpi', 'products', 'updatedAt'].sort()
   );
+  assert.equal('stockByCategory' in SECTION_FEATURE, false, 'stockByCategory da go khoi payload');
+  assert.equal('stockValueByCategory' in SECTION_FEATURE, false, 'stockValueByCategory da go khoi payload');
 });
 
 test('KHONG sua object dau vao — getDashboardData dung chung cache cho moi nguoi dung', () => {
@@ -69,24 +66,4 @@ test('KHONG sua object dau vao — getDashboardData dung chung cache cho moi ngu
 test('khoa la trong payload duoc giu nguyen (khong lam mat du lieu khi them muc moi)', () => {
   const filtered = filterDashboardForUser({ kpi: {}, mucMoiChuaKhaiBao: 42 }, []);
   assert.equal(filtered.mucMoiChuaKhaiBao, 42);
-});
-
-test('searchFeatureForView anh xa dung, view la roi ve Tong quan', () => {
-  assert.equal(searchFeatureForView('customers'), 'reports.customers');
-  assert.equal(searchFeatureForView('suppliers'), 'reports.overview', 'view nha cung cap da bo -> ve Tong quan');
-  assert.equal(searchFeatureForView('overview'), 'reports.overview');
-  assert.equal(searchFeatureForView('khong-ton-tai'), 'reports.overview');
-  assert.equal(searchFeatureForView(undefined), 'reports.overview');
-});
-
-test('allowedSearchEntities gioi han pham vi quet cua view Tong quan', () => {
-  assert.deepEqual(
-    allowedSearchEntities(['reports.overview', 'reports.customers']).sort(),
-    ['customers']
-  );
-  assert.deepEqual(
-    allowedSearchEntities(['reports.invoices']).sort(),
-    ['invoices', 'orders', 'returns'].sort()
-  );
-  assert.deepEqual(allowedSearchEntities([]), []);
 });

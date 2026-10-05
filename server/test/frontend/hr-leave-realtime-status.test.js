@@ -35,7 +35,6 @@ test('bảng nghỉ phép có 9 cột: Người gửi, Phòng ban, Cơ sở tác
   window.fetch = async url => {
     const text = String(url);
     const payload = text.includes('/summary/') ? { summary: [] }
-      : text.includes('/link-status') ? { linked: false }
         : { requests: [{
           request_id: 'NP-20260822-001',
           ho_ten: 'Nguyễn Văn A',
@@ -112,7 +111,6 @@ test('tài khoản không có quyền duyệt nghỉ phép chỉ thấy badge nh
   window.fetch = async url => {
     const text = String(url);
     const payload = text.includes('/summary/') ? { summary: [] }
-      : text.includes('/link-status') ? { linked: false }
         : { requests: [{
           request_id: 'NP-20260822-002',
           ho_ten: 'Lê C',
@@ -192,7 +190,6 @@ test('Quản lý thay đổi trạng thái gọi API PATCH và cập nhật Ngư
       };
     }
     const payload = text.includes('/summary/') ? { summary: [] }
-      : text.includes('/link-status') ? { linked: false }
         : { requests: [{
           request_id: 'NP-20260822-003',
           ho_ten: 'Phạm D',
@@ -264,8 +261,6 @@ async function loadManagerPage() {
       payload = { request: { request_id: 'NP-R1', trang_thai: body.status, nguoi_duyet: 'Nguyễn Quản Lý' } };
     } else if (text.includes('/summary/')) {
       payload = { summary: [] };
-    } else if (text.includes('/link-status')) {
-      payload = { linked: false };
     } else {
       payload = { requests: [{
         request_id: 'NP-R1',

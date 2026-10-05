@@ -22,8 +22,8 @@ function payload() {
   });
   return {
     kpi: {
-      revenueToday: 0, invoicesToday: 0, cancelledToday: 0, totalStock: 7, totalProducts: 2, lowStockCount: 1,
-      totalCustomers: 1, customersWithDebt: 1, totalDebt: 500, inStockCodes: 2, totalInventoryValue: 70, inventoryValueCategoryCount: 1
+      totalStock: 7, totalProducts: 2, lowStockCount: 1,
+      totalCustomers: 1, customersWithDebt: 1, totalDebt: 500, inStockCodes: 2, totalInventoryValue: 70
     },
     filters: { products: { label: '30 ngày' }, invoices: { label: '30 ngày' } },
     invoices: {
@@ -51,10 +51,9 @@ function payload() {
           { code: 'SP-1', branch: HN, name: 'Khay giấy bạc', firstImportDate: '01/09/2026', daysOnHand: 20, revenue: 300 },
           { code: 'SP-1', branch: SG, name: 'Khay giấy bạc', firstImportDate: '02/09/2026', daysOnHand: 19, revenue: 100 }
         ],
-        topByRevenue: [], salesByCategory: [], countByCategory: [], salesRevenue: 0, salesQty: 0
+        salesRevenue: 0, salesQty: 0
       }
     },
-    stockValueByCategory: [], stockByCategory: [],
     allProducts: [product(HN, 5), product(SG, 2)],
     customers: {
       topDebt: [{ code: 'KH-1', branch: BOTH, name: 'Khách Hà Nội', phone: '0901', debt: 500, periodRevenue: 0, codesByBranch: { [HN]: 'KH-1', [SG]: 'KH-9' }, debtByBranch: { [HN]: 200, [SG]: 300 } }],

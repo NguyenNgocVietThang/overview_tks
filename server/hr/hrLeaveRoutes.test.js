@@ -266,20 +266,9 @@ test('luồng tạo mã Telegram cũ đã ngừng và không ghi Google Sheets',
   }
 });
 
-test('trạng thái Telegram đọc từ app_users qua req.user, không đọc Google Sheets', async () => {
-  const originalFindLink = repo.findLinkByWebUsername;
-  let sheetCalled = false;
-  repo.findLinkByWebUsername = async () => { sheetCalled = true; };
-  try {
-    const handler = getRouteHandler('get', '/api/hr/telegram/link-status');
-    const res = fakeRes();
-    await handler({ user: { telegramId: '6205968899' } }, res);
-    assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.body, { linked: true, telegramId: '6205968899', source: 'postgres' });
-    assert.equal(sheetCalled, false);
-  } finally {
-    repo.findLinkByWebUsername = originalFindLink;
-  }
+test('GET /api/hr/telegram/link-status đã gỡ (không giao diện nào gọi) -> không còn route, Express trả 404', () => {
+  const exists = router.stack.some(item => item.route && item.route.path === '/api/hr/telegram/link-status');
+  assert.equal(exists, false);
 });
 
 // ---------------------------------------------------------------------------

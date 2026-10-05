@@ -464,13 +464,15 @@ test('ket qua nhieu nguon (all-only) tu tao file voi toan bo truong, huy duoc va
   await openExportWithFields(h, twoSheetMetadata());
   h.win.closeExportDialog();
 
-  h.win.openExportDialog('search.results');
-  h.respondJson(h.fieldsCalls().pop(), Object.assign(twoSheetMetadata(), { tableKey: 'search.results', selectionMode: 'all-only' }));
+  // (Bang search.results — nguon all-only duy nhat truoc day — da go cung /api/search;
+  // test giu lai de khoa hanh vi hop thoai voi metadata all-only bat ky.)
+  h.win.openExportDialog('products.all');
+  h.respondJson(h.fieldsCalls().pop(), Object.assign(twoSheetMetadata(), { tableKey: 'products.all', selectionMode: 'all-only' }));
   await flush();
   assert.equal(h.text('exportModalSubtitle'), 'Kết quả có nhiều nguồn; mỗi nguồn sẽ nằm trong một worksheet riêng.');
   assert.equal(h.text('exportFields'), 'Đang tạo file với toàn bộ trường của 2 nguồn dữ liệu…');
   assert.equal(h.fileCalls().length, 1);
-  assert.equal(h.fileCalls()[0].body.tableKey, 'search.results');
+  assert.equal(h.fileCalls()[0].body.tableKey, 'products.all');
   assert.equal('columns' in h.fileCalls()[0].body, false, 'all-only khong gui danh sach cot');
 
   h.fireTimeout(180000);

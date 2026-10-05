@@ -24,7 +24,7 @@ function viewOf(url) {
 
 function kpi(extra = {}) {
   return {
-    revenueToday: 1500000, invoicesToday: 3, cancelledToday: 1, totalStock: 120, totalProducts: 4, lowStockCount: 1, totalInventoryValue: 5000,
+    totalStock: 120, totalProducts: 4, lowStockCount: 1, totalInventoryValue: 5000,
     totalCustomers: 9, customersWithDebt: 2, totalDebt: 300000, ...extra
   };
 }
@@ -36,21 +36,20 @@ function payloadFor(view, marker = 'A') {
     case 'overview':
       return {
         updatedAt: marker, kpi: kpi(),
-        filters: { overview: filters('30 ngày') },
+        filters: { invoices: filters('30 ngày') },
         overview: { revenueByDay: [], periodRevenue: 0, periodInvoices: 0 }
       };
     case 'products':
       return {
         updatedAt: marker,
-        kpi: { totalProducts: 4, totalStock: 120, inStockCodes: 3, activeProducts: 3, inactiveProducts: 1, lowStockCount: 1, totalInventoryValue: 5000, inventoryValueCategoryCount: 1 },
+        kpi: { totalProducts: 4, totalStock: 120, inStockCodes: 3, inactiveProducts: 1, lowStockCount: 1, totalInventoryValue: 5000 },
         filters: { products: filters('30 ngày'), newProducts: filters('30 ngày') },
         products: {
           newProducts: { label: '30 ngày', count: 0, dateColumnAvailable: true, products: [] },
           topSellingProducts: [], topSellingParentCategories: [], allSellingProducts: [{ code: 'SP-1', name: 'Bán chạy', qty: 2, revenue: 200000 }],
           allSellingParentCategories: [],
-          newlyImported: { label: '30 ngày', count: 0, products: [], topByRevenue: [], salesByCategory: [], countByCategory: [], salesRevenue: 0, salesQty: 0 }
+          newlyImported: { label: '30 ngày', count: 0, products: [], salesRevenue: 0, salesQty: 0 }
         },
-        stockValueByCategory: [], stockByCategory: [],
         allProducts: [{ code: 'SP-1', name: 'Sản phẩm một', stock: 5, reserved: 0, status: 'Đang kinh doanh', cost: 1000, stockValue: 5000, pct: 100 }]
       };
     case 'invoices':
@@ -58,7 +57,6 @@ function payloadFor(view, marker = 'A') {
         updatedAt: marker, kpi: {}, filters: { invoices: filters('30 ngày') },
         invoices: {
           periodRevenue: 1200000, periodInvoices: 1, periodCancelledInvoices: 0, revenueByDay: [],
-          returnsCount: 0, totalReturns: 0,
           transactionsReport: {
             transactions: [{ code: 'HD-' + marker, time: '21/09 09:08', customer: 'KH A', employee: 'NV B', quantity: 3, quantityKnown: true, revenue: 1200000, discount: 0, paid: 1200000, status: 'Hoàn thành' }],
             topTransactions: [], summary: { quantity: 3, quantityKnown: true, revenue: 1200000, discount: 0, paid: 1200000 }
@@ -271,7 +269,7 @@ test('gop payload: Tong quan va Hang hoa (day du) khong ghi de mat truong cua nh
 
   const { state } = page.dash;
   assert.deepEqual(Object.keys(state.data.products).sort().includes('allSellingProducts'), true);
-  assert.equal(state.data.kpi.revenueToday, 1500000, 'kpi Tong quan con nguyen sau khi tab Hang hoa gop kpi cua no');
+  assert.equal(state.data.kpi.totalCustomers, 9, 'kpi Tong quan con nguyen sau khi tab Hang hoa gop kpi cua no');
   assert.equal(state.data.kpi.inStockCodes, 3, 'kpi Hang hoa duoc gop them, khong thay the');
 
   // Tong quan tai lai (mang 1 phan `products`) khong duoc xoa bang san pham cua tab Hang hoa.

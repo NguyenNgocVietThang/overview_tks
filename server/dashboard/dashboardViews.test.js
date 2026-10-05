@@ -56,13 +56,13 @@ test('Tong quan KHONG doc Dat hang/Tra hang/cong no va khong chay rollup so luon
   assert.ok(!plan.coreKeys.includes(PERIODS_KEY));
   assert.deepEqual([...plan.rollups].sort(), ['overviewRevenue']);
   assert.equal(plan.needsDebt, false);
-  assert.deepEqual(plan.filterKeys, ['overview', 'invoices']);
+  assert.deepEqual(plan.filterKeys, ['invoices'], 'bo loc ov* da bo — Tong quan dung bo loc invoices');
 });
 
 test('moi tab chi doc dung nguon cua no; Cong no chi can CN1/3/7 + workbook cong no', () => {
   const sheetsOf = name => resolveViewPlan([name]).coreKeys;
   assert.deepEqual(sheetsOf('products'), [CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS]);
-  assert.deepEqual(sheetsOf('invoices'), [CONFIG.SHEET_INVOICES, CONFIG.SHEET_RETURNS], 'Hoa don chi con can Tra hang cho the chi so, khong doc Dat hang');
+  assert.deepEqual(sheetsOf('invoices'), [CONFIG.SHEET_INVOICES], 'Hoa don khong doc Dat hang/Tra hang (the chi so Tra hang da go)');
   assert.deepEqual(sheetsOf('customers'), [CONFIG.SHEET_INVOICES, CONFIG.SHEET_RETURNS, CONFIG.SHEET_CUSTOMERS]);
   assert.deepEqual(sheetsOf('debt'), [PERIODS_KEY]);
   assert.equal(resolveViewPlan(['debt']).needsDebt, true);
@@ -125,9 +125,9 @@ test('pickFilters: bo loc rieng bang Hang moi nhap vao cache key cua dung tab; b
 test('pickPayload: cat dung phan cua tab, khong sua ban day du, Tong quan khong con khoa `products`', () => {
   const full = {
     updatedAt: 'x',
-    filters: { overview: 1, products: 2, invoices: 3, customers: 4, newProducts: 6 },
+    filters: { products: 2, invoices: 3, customers: 4, newProducts: 6 },
     kpi: {
-      revenueToday: 1, invoicesToday: 2, cancelledToday: 3, totalStock: 4, totalProducts: 5, lowStockCount: 6,
+      totalStock: 4, totalProducts: 5, lowStockCount: 6,
       totalCustomers: 7, customersWithDebt: 8, totalDebt: 9, inStockCodes: 11
     },
     overview: { a: 1 },
@@ -138,8 +138,11 @@ test('pickPayload: cat dung phan cua tab, khong sua ban day du, Tong quan khong 
 
   const overview = pickPayload(full, resolveViewPlan(['overview']));
   assert.deepEqual(Object.keys(overview).sort(), ['filters', 'kpi', 'overview', 'updatedAt']);
-  assert.deepEqual(overview.filters, { overview: 1, invoices: 3 });
-  assert.equal(overview.kpi.revenueToday, 1);
+  assert.deepEqual(overview.filters, { invoices: 3 });
+  assert.equal(overview.kpi.totalStock, 4);
+  ['revenueToday', 'invoicesToday', 'cancelledToday', 'activeProducts', 'inventoryValueCategoryCount'].forEach(key => {
+    assert.equal(VIEW_NAMES.some(view => VIEW_PAYLOAD[view].kpi.includes(key)), false, `kpi.${key} da go`);
+  });
   assert.equal(overview.kpi.inStockCodes, undefined, 'KPI ma con hang khong thuoc tab Tong quan');
 
   const products = pickPayload(full, resolveViewPlan(['products']));

@@ -14,7 +14,6 @@ const dashboardPgReader = require('./dashboardPgReader');
 const customerDebtActivityRepository = require('./customerDebtActivityRepository');
 const customerDirectoryRepository = require('./customerDirectoryRepository');
 const customerInvoiceLinesRepository = require('./customerInvoiceLinesRepository');
-const customerProductTopRepository = require('./customerProductTopRepository');
 const dashboardRollupRepository = require('./dashboardRollupRepository');
 const { BRANCHES, BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
 const { hasFeature } = require('../auth/featureRegistry');
@@ -29,12 +28,7 @@ dashboardRollupEvents.on('updated', () => { rollupVersion += 1; });
 
 const OUT_OF_STOCK_LEVEL = 0;
 const TOP_SELLING_LIMIT = 15;
-const NEWLY_IMPORTED_REVENUE_LIMIT = 15;
-const MAX_PARENT_CATEGORY_BARS = 30;
-const SEARCH_CACHE_TTL_MS = 2 * 60 * 1000;
-const MAX_MULTI_SEARCH_CODES = 50;
 const DASHBOARD_SHEETS_CACHE_TTL_MS = 90 * 1000;
-const CUSTOMER_PRODUCT_TOP_LIMIT = 3;
 const PRODUCT_REVENUE_SEARCH_LIVE_LIMIT = 200; // gioi han so dong render khi go tim truc tiep (khong ap dung cho xuat Excel)
 const DASHBOARD_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const DASHBOARD_UTC_OFFSET = '+07:00';
@@ -335,59 +329,6 @@ function buildParentCategoryResolver(categoryData) {
   };
 }
 
-function limitParentCategoryBars(categories) {
-  if (categories.length <= MAX_PARENT_CATEGORY_BARS) return categories;
-
-  const visibleCategories = categories.slice(0, MAX_PARENT_CATEGORY_BARS - 1);
-  const remainingCategories = categories.slice(MAX_PARENT_CATEGORY_BARS - 1);
-  return visibleCategories.concat({
-    name: `Khác (${remainingCategories.length} nhóm)`,
-    stockValue: remainingCategories.reduce((sum, category) => sum + category.stockValue, 0),
-    stock: remainingCategories.reduce((sum, category) => sum + category.stock, 0),
-    productCount: remainingCategories.reduce((sum, category) => sum + category.productCount, 0)
-  });
-}
-
-const SEARCH_SOURCES = {
-  products: {
-    label: CONFIG.SHEET_PRODUCTS,
-    sheetName: CONFIG.SHEET_PRODUCTS,
-    codeIndex: 0,
-    nameIndex: 1
-  },
-  invoices: {
-    label: CONFIG.SHEET_INVOICES,
-    sheetName: CONFIG.SHEET_INVOICES,
-    codeIndex: 0,
-    nameIndex: 2
-  },
-  orders: {
-    label: CONFIG.SHEET_ORDERS,
-    sheetName: CONFIG.SHEET_ORDERS,
-    codeIndex: 0,
-    nameIndex: 2
-  },
-  returns: {
-    label: CONFIG.SHEET_RETURNS,
-    sheetName: CONFIG.SHEET_RETURNS,
-    codeIndex: 0,
-    nameIndex: 3
-  },
-  customers: {
-    label: CONFIG.SHEET_CUSTOMERS,
-    sheetName: CONFIG.SHEET_CUSTOMERS,
-    codeIndex: 0,
-    nameIndex: 1
-  }
-};
-
-const SEARCH_SCOPES = {
-  overview: ['products', 'invoices', 'orders', 'returns', 'customers'],
-  products: ['products'],
-  invoices: ['invoices', 'orders', 'returns'],
-  customers: ['customers']
-};
-
 // ---------- Cache THEO CO SO -------------------------------------------------
 // Moi cache duoi day deu keyed by branch: hai co so doc hai spreadsheet khac
 // nhau nen dung chung 1 cache se lam nguoi dung co so nay nhan du lieu cua co
@@ -401,9 +342,6 @@ function cacheEntryFor(cacheMap, branch) {
   if (!cacheMap.has(key)) cacheMap.set(key, emptyCache());
   return cacheMap.get(key);
 }
-
-let searchSheetCacheByBranch = new Map();
-let searchIndexBuildCountForTest = 0; // chi dung trong test, xem __test__ o cuoi file
 
 function normalizeWhitespace(value) {
   return String(value === undefined || value === null ? '' : value)
@@ -426,128 +364,9 @@ function compactSearchValue(value) {
   return value.replace(/\s/gu, '');
 }
 
-function buildSearchIndex(sheets) {
-  const sources = {};
-
-  Object.entries(SEARCH_SOURCES).forEach(([sourceKey, source], sourceOrder) => {
-    const rows = sheets[source.sheetName] || [];
-    const headers = rows[0] || [];
-    const records = [];
-
-    const { codeIndex, nameIndex } = source;
-
-    for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
-      const row = rows[rowIndex] || [];
-      const code = normalizeWhitespace(row[codeIndex]);
-      const name = normalizeWhitespace(row[nameIndex]);
-      if (!code && !name) continue;
-      if (sourceKey === 'products' && isVatProductCode(code)) continue;
-
-      const normalizedCode = normalizeSearchValue(code);
-      const normalizedName = normalizeSearchValue(name);
-      records.push({
-        row: row.slice(0, 15), // chi giu cac cot dau can thiet cho hien thi search modal thay vi toan bo row dai
-        rowIndex,
-        code,
-        name: name || code,
-        normalizedCode,
-        normalizedName,
-        compactCode: compactSearchValue(normalizedCode),
-        compactName: compactSearchValue(normalizedName)
-      });
-    }
-
-    sources[sourceKey] = { source, sourceOrder, headers, records };
-  });
-
-  return sources;
-}
-
-function rememberSearchSheets(sheets, branch) {
-  // Việc chuẩn hóa từng ô và tuần tự hóa từng trường trong mỗi thao tác gõ phím từng
-  // là điểm nghẽn hiệu năng trên các sheet sản phẩm lớn. Thay vào đó, xây dựng chỉ mục tìm kiếm
-  // tái sử dụng khi cache Sheets có sự thay đổi.
-  searchIndexBuildCountForTest += 1; // chi dung trong test, xem __test__ o cuoi file
-  const cache = cacheEntryFor(searchSheetCacheByBranch, branch);
-  cache.data = buildSearchIndex(sheets);
-  cache.expiresAt = Date.now() + SEARCH_CACHE_TTL_MS;
-}
-
-// Chi muc tim kiem dung CHUNG du lieu tho voi dashboard (truoc day fetch
-// rieng mot lan nua tu Google Sheets). Nguon Postgres tra ve day du 9 tab nen
-// khong can lan doc thu hai — chi rebuild chi muc khi chinh no het han.
-async function getSearchSheets(branch) {
-  if (branch === BRANCH_BOTH) return getAggregateSearchIndex();
-  const cache = cacheEntryFor(searchSheetCacheByBranch, branch);
-  if (cache.data && Date.now() < cache.expiresAt) {
-    return cache.data;
-  }
-  if (cache.loading) return cache.loading;
-
-  const loading = getCachedDashboardSheets(branch)
-    .then(sheets => {
-      // getCachedDashboardSheets tu rebuild chi muc moi khi fetch lai du lieu
-      // tho; chi lam lai o day khi chi muc that su thieu/het han.
-      if (!cache.data || Date.now() >= cache.expiresAt) rememberSearchSheets(sheets, branch);
-      return cache.data;
-    })
-    .finally(() => {
-      if (cache.loading === loading) cache.loading = null;
-    });
-  cache.loading = loading;
-  return loading;
-}
-
-// ---------- Ca hai: nguon "full" (9 tab) gop qua hai co so vat ly ----------
-// Chi muc tim kiem va doanh thu khach cua "Ca hai" duoc tinh tren du lieu da
-// gop (thuc the gop theo ma, giao dich noi tiep kem co so) — cung quy tac voi
-// getDashboardData. Bo "Chi tiết hóa đơn" (~51K dong, khong ai tim kiem) khong
-// duoc gop de tranh chan event loop; bao cao doanh thu theo khach/hang tinh rieng
-// tung co so vat ly (xem getCustomerProductRevenueReport) nen khong can no.
-let aggregateFullSheetsCache = null; // { sourceSheets: [du lieu tho cua tung co so vat ly], data }
-
-async function getAggregateFullSheets() {
-  const scope = resolveBranchScope(BRANCH_BOTH);
-  const sources = await Promise.all(scope.map(async physicalBranch => ({
-    branch: physicalBranch,
-    sheets: await getCachedDashboardSheets(physicalBranch)
-  })));
-  // So sanh theo DOI TUONG du lieu tho (moi lan fetch lai tao doi tuong moi) thay vi so version doc
-  // sau khi await — tranh gan nham du lieu cu voi version moi khi lam moi nen chen ngang.
-  const sourceSheets = sources.map(source => source.sheets);
-  if (
-    aggregateFullSheetsCache &&
-    aggregateFullSheetsCache.sourceSheets.every((sheets, index) => sheets === sourceSheets[index])
-  ) {
-    return aggregateFullSheetsCache.data;
-  }
-  const searchable = sources.map(({ branch, sheets }) => ({
-    branch,
-    sheets: Object.fromEntries(Object.entries(sheets).filter(([name]) => name !== CONFIG.SHEET_INVOICE_DETAILS))
-  }));
-  const data = mergeDashboardSheets(searchable);
-  aggregateFullSheetsCache = { sourceSheets, data };
-  return data;
-}
-
-async function getAggregateSearchIndex() {
-  const sheets = await getAggregateFullSheets();
-  const cache = cacheEntryFor(searchSheetCacheByBranch, BRANCH_BOTH);
-  // Cung doi tuong `sheets` = cung phien ban du lieu cua ca hai co so -> giu chi muc.
-  if (cache.data && cache.sheets === sheets) return cache.data;
-  rememberSearchSheets(sheets, BRANCH_BOTH);
-  cache.sheets = sheets;
-  return cache.data;
-}
-
-/** Nguon "full" cua 1 pham vi: co so vat ly doc cache rieng, "Ca hai" doc ban da gop. */
-function getFullSheetsForScope(branch) {
-  return branch === BRANCH_BOTH ? getAggregateFullSheets() : getCachedDashboardSheets(branch);
-}
-
 // ---------- Danh ba khach hang (rieng, nhe) — goi y tim khach o phan "Bao cao
 // doanh thu theo khach" (tab Tong quan) ----------------------------------
-// Cache TACH BIET voi searchSheetCacheByBranch/dashboardSheetsCacheByBranch:
+// Cache TACH BIET voi dashboardSheetsCacheByBranch:
 // o day chi doc bang "customers" (nhe, xem customerDirectoryRepository.js)
 // thay vi phai cho ca 9 bang dashboard (~14s luc cache nguoi) chi de goi y
 // ten/ma khach hang. Du lieu day du (doanh thu 90 ngay) van chi tai SAU khi
@@ -612,8 +431,7 @@ async function getCustomerDirectory(branch) {
 
 /**
  * Goi y ten/ma khach hang NHANH cho o tim kiem o phan "Bao cao doanh thu theo
- * khach" — dung rieng danh ba khach hang (getCustomerDirectory) thay vi chi
- * muc tim kiem dung chung 9-tab dashboard (searchDashboardRecords), de khong
+ * khach" — dung rieng danh ba khach hang (getCustomerDirectory), de khong
  * bi cho theo cache nang cua cac tab khac (Hoa don/Nhap hang...).
  */
 async function searchCustomerDirectory(branch, rawQuery, rawLimit) {
@@ -654,56 +472,6 @@ async function searchCustomerDirectory(branch, rawQuery, rawLimit) {
   };
 }
 
-/**
- * Gan "Tong doanh thu" cho ket qua tim kiem tab Khach hang theo dung ky loc
- * dang chon tren tab (giong cach tinh "Top khach hang theo doanh thu").
- * Khong lam gi voi cac view khac.
- */
-async function attachCustomerRevenue(view, results, filterSpec, branch) {
-  if (view !== 'customers' || !results.length) return results;
-  const range = resolveFilterRange(filterSpec, new Date());
-  const rawSheets = await getFullSheetsForScope(branch);
-  const customerReportData = rawSheets[CONFIG.SHEET_CUSTOMER_REPORT] || [];
-  let revenueByCode;
-  if (Array.isArray(customerReportData) && customerReportData.length > 1) {
-    revenueByCode = aggregateCustomerReportRevenueByCode(range, customerReportData);
-  } else {
-    // Nguon Postgres khong co tab tong hop "Báo cáo bán hàng" -> luon tinh
-    // truc tiep tu Hoa don + Khach hang + Tra hang.
-    revenueByCode = aggregateCustomerRevenueFromSheetRows(
-      range,
-      rawSheets[CONFIG.SHEET_INVOICES] || [],
-      rawSheets[CONFIG.SHEET_CUSTOMERS] || [],
-      rawSheets[CONFIG.SHEET_RETURNS] || [],
-      branch === BRANCH_BOTH ? '' : branch
-    );
-  }
-  results.forEach(result => {
-    const entry = revenueByCode.get(customerRevenueKey(result.name, result.code)) || revenueByCode.get(result.code) || null;
-    result.revenue = entry ? entry.revenue : 0;
-  });
-  return results;
-}
-
-function parseMultiSearchCodes(rawQuery) {
-  const seenCodes = new Set();
-  return normalizeWhitespace(rawQuery).split(' ').filter(Boolean).reduce((list, code) => {
-    const normalizedCode = normalizeSearchValue(code);
-    if (!normalizedCode || seenCodes.has(normalizedCode)) return list;
-    seenCodes.add(normalizedCode);
-    list.push({ value: code, normalizedValue: normalizedCode, order: list.length });
-    return list;
-  }, []);
-}
-
-function assertMultiSearchCodeLimit(codes) {
-  if (codes.length <= MAX_MULTI_SEARCH_CODES) return;
-  const error = new RangeError(`Chi duoc tim toi da ${MAX_MULTI_SEARCH_CODES} ma moi lan.`);
-  error.statusCode = 400;
-  error.code = 'TOO_MANY_SEARCH_CODES';
-  throw error;
-}
-
 function getSearchMatchRank(record, query) {
   const { normalizedCode: code, normalizedName: name, compactCode, compactName } = record;
   const { value, compactValue, tokens } = query;
@@ -722,245 +490,6 @@ function getSearchMatchRank(record, query) {
   if (tokens.length > 1 && tokens.every(token => code.includes(token))) return 12;
   if (tokens.length > 1 && tokens.every(token => name.includes(token))) return 13;
   return -1;
-}
-
-function buildSearchFields(headers, row) {
-  const fieldCount = Math.max(headers.length, row.length);
-  const fields = [];
-  for (let index = 0; index < fieldCount; index++) {
-    const header = normalizeWhitespace(headers[index]) || `Cột ${index + 1}`;
-    const rawValue = row[index];
-    fields.push({
-      label: header,
-      value: rawValue === undefined || rawValue === null || rawValue === '' ? '—' : normalizeWhitespace(rawValue)
-    });
-  }
-  return fields;
-}
-
-// Doc 1 cot theo TEN COT tu ket qua buildSearchFields — dung cho cac tinh
-// nang doc them du lieu tu chi muc tim kiem san co (vd Ton kho/Gia von/Gia
-// ban) thay vi phai quet lai toan bo sheet "Hang hoa" mot lan nua.
-function searchFieldValue(fields, label) {
-  const field = fields.find(entry => entry.label === label);
-  return field && field.value !== '—' ? field.value : '';
-}
-
-// Nguon giao dich: cung ma co the ton tai o ca hai co so nen ket qua "Ca hai" phai
-// kem co so vat ly (cot "Chi nhánh" da duoc mergeTransactionalSheet ghi de).
-const TRANSACTIONAL_SEARCH_SOURCES = new Set(['invoices', 'orders', 'returns']);
-
-function toSearchResult(source, indexedSource, record, aggregate) {
-  const result = {
-    id: `${source}:${record.rowIndex + 1}`,
-    source,
-    sourceLabel: indexedSource.source.label,
-    code: record.code,
-    name: record.name,
-    fields: buildSearchFields(indexedSource.headers, record.row)
-  };
-  if (aggregate && TRANSACTIONAL_SEARCH_SOURCES.has(source)) {
-    const branchIndex = sheetHeaderIndex(indexedSource.headers, 'Chi nhánh');
-    result.branch = branchIndex >= 0 ? String(record.row[branchIndex] || '') : '';
-  }
-  return result;
-}
-
-/**
- * Tim ban ghi co ma hoac ten chua tu khoa trong pham vi dashboard hien tai.
- * Uu tien: trung hoan toan, trung tien to, chua cum tu, roi den du cac tu don.
- * Ket qua kem toan bo cot cua dong nguon de giao dien hien thi dung nhu Sheet.
- */
-async function searchDashboardRecords(view, rawQuery, rawLimit, rawMode, filterSpec, branch, allowedEntities) {
-  const rawScope = SEARCH_SCOPES[view] || SEARCH_SCOPES.overview;
-  // allowedEntities (neu duoc truyen) la cac nhom du lieu tai khoan duoc phep
-  // tim kiem — xem dashboardPermissionFilter.js. View 'overview' quet moi nhom
-  // nen khong giao cat thi nguoi bi chan tab van tim thay du lieu cua tab do.
-  const scope = Array.isArray(allowedEntities)
-    ? rawScope.filter(entity => allowedEntities.includes(entity))
-    : rawScope;
-  const isMultiCodeSearch = String(rawMode || '').toLocaleLowerCase('vi-VN') === 'codes';
-  const normalizedInput = normalizeWhitespace(rawQuery);
-  const queryText = isMultiCodeSearch ? normalizedInput : normalizedInput.slice(0, 120);
-
-  if (isMultiCodeSearch) {
-    const codes = parseMultiSearchCodes(queryText);
-    assertMultiSearchCodeLimit(codes);
-
-    if (!codes.length) {
-      return {
-        view,
-        mode: 'codes',
-        query: queryText,
-        requestedCount: 0,
-        matchedCount: 0,
-        missingCount: 0,
-        total: 0,
-        results: []
-      };
-    }
-
-    const codeOrder = new Map(codes.map(code => [code.normalizedValue, code.order]));
-    const matchedCodeOrders = new Set();
-    const indexedSources = await getSearchSheets(branch);
-    const matches = [];
-
-    scope.forEach(sourceKey => {
-      const indexedSource = indexedSources[sourceKey];
-      if (!indexedSource) return;
-
-      indexedSource.records.forEach(record => {
-        const requestOrder = codeOrder.get(record.normalizedCode);
-        if (requestOrder === undefined) return;
-        matchedCodeOrders.add(requestOrder);
-        matches.push({ indexedSource, record, source: sourceKey, requestOrder });
-      });
-    });
-
-    matches.sort((a, b) =>
-      a.requestOrder - b.requestOrder ||
-      a.indexedSource.sourceOrder - b.indexedSource.sourceOrder ||
-      a.record.rowIndex - b.record.rowIndex
-    );
-
-    const results = matches.map(({ indexedSource, record, source }) =>
-      toSearchResult(source, indexedSource, record, branch === BRANCH_BOTH));
-    await attachCustomerRevenue(view, results, filterSpec, branch);
-
-    return {
-      view,
-      mode: 'codes',
-      query: codes.map(code => code.value).join(' '),
-      requestedCount: codes.length,
-      matchedCount: matchedCodeOrders.size,
-      missingCount: codes.length - matchedCodeOrders.size,
-      total: matches.length,
-      results
-    };
-  }
-
-  const normalizedQuery = normalizeSearchValue(queryText);
-  const query = {
-    value: normalizedQuery,
-    compactValue: compactSearchValue(normalizedQuery),
-    tokens: normalizedQuery.split(' ').filter(Boolean)
-  };
-  const wantsAllResults = String(rawLimit || '').toLocaleLowerCase('vi-VN') === 'all';
-  // Tran tren 200 de gioi han hien thi truyen thang vao day thay vi xin 'all'
-  // roi tu cat — tranh buildSearchFields chay tren hang nghin dong khop.
-  const limit = wantsAllResults ? null : Math.min(Math.max(Number(rawLimit) || 8, 1), 200);
-  if (!query.value) return { view, query: queryText, total: 0, results: [] };
-
-  const indexedSources = await getSearchSheets(branch);
-  const matches = [];
-
-  scope.forEach(sourceKey => {
-    const indexedSource = indexedSources[sourceKey];
-    if (!indexedSource) return;
-
-    indexedSource.records.forEach(record => {
-      const rank = getSearchMatchRank(record, query);
-      if (rank < 0) return;
-
-      matches.push({
-        indexedSource,
-        record,
-        source: sourceKey,
-        _rank: rank,
-        _sourceOrder: indexedSource.sourceOrder
-      });
-    });
-  });
-
-  matches.sort((a, b) =>
-    a._rank - b._rank ||
-    a._sourceOrder - b._sourceOrder ||
-    a.record.code.localeCompare(b.record.code, 'vi', { numeric: true, sensitivity: 'base' }) ||
-    a.record.name.localeCompare(b.record.name, 'vi', { sensitivity: 'base' })
-  );
-
-  const results = (limit === null ? matches : matches.slice(0, limit))
-    .map(({ indexedSource, record, source }) => toSearchResult(source, indexedSource, record, branch === BRANCH_BOTH));
-  // Doanh thu chi hien thi o bang ket qua day du (Enter/limit=all), khong hien
-  // thi trong dropdown goi y (limit=8) nen bo qua tinh toan de goi y tra nhanh.
-  if (limit === null) await attachCustomerRevenue(view, results, filterSpec, branch);
-
-  return {
-    view,
-    query: queryText,
-    total: matches.length,
-    results
-  };
-}
-
-/**
- * Tim toi da 3 khach mua nhieu nhat cho tung ma hang trong ky da chon.
- * Nguon du lieu la SQL tren Postgres (customerProductTopRepository) thay cho
- * sheet tong hop "Khách theo hàng hóa" — shape tra ve cho
- * `/api/customer-product-top` KHONG doi.
- */
-// `branch` dung sau `now` (khong phai truoc) vi `now` la tham so tiem cho test
-// da co san — giu nguyen vi tri de moi loi goi cu khong phai sua.
-async function searchTopCustomersByProducts(rawQuery, filterSpec, now = new Date(), branch) {
-  const codes = parseMultiSearchCodes(rawQuery);
-  assertMultiSearchCodeLimit(codes);
-  const range = resolveFilterRange(filterSpec, now);
-
-  if (!codes.length) {
-    return {
-      mode: 'customer-product-top',
-      query: '',
-      filter: range,
-      requestedCount: 0,
-      matchedCount: 0,
-      missingCount: 0,
-      total: 0,
-      results: []
-    };
-  }
-
-  const requestOrderByCode = new Map(codes.map(code => [code.normalizedValue, code.order]));
-  const rows = await customerProductTopRepository.findTopCustomersByProducts({
-    branch,
-    codes: codes.map(code => code.value),
-    range,
-    limit: CUSTOMER_PRODUCT_TOP_LIMIT
-  });
-
-  const matchedProductCodes = new Set();
-  const results = rows
-    .map(row => ({ row, requestOrder: requestOrderByCode.get(normalizeSearchValue(row.productCode)) ?? Number.MAX_SAFE_INTEGER }))
-    .sort((left, right) => left.requestOrder - right.requestOrder)
-    .map(({ row }) => {
-      matchedProductCodes.add(normalizeSearchValue(row.productCode));
-      return {
-        productCode: row.productCode,
-        productName: row.productName || row.productCode,
-        customerCode: row.customerCode,
-        customerName: row.customerName,
-        purchasedQuantity: row.purchasedQuantity,
-        purchaseRevenue: row.purchaseRevenue,
-        // Ten truong giu nguyen ("...AllTime") de khong doi contract cua
-        // /api/customer-product-top, nhung gia tri nay duoc loc theo DUNG ky
-        // dang chon giong so lieu mua — xem customerProductTopRepository.js.
-        returnedQuantityAllTime: row.returnedQuantity,
-        returnValueAllTime: row.returnValue,
-        netRevenue: row.purchaseRevenue - row.returnValue,
-        lastPurchaseDate: row.lastPurchaseDate ? formatDMY(row.lastPurchaseDate) : ''
-      };
-    });
-
-  const matchedCount = matchedProductCodes.size;
-  return {
-    mode: 'customer-product-top',
-    query: codes.map(code => code.value).join(' '),
-    filter: range,
-    requestedCount: codes.length,
-    matchedCount,
-    missingCount: codes.length - matchedCount,
-    total: results.length,
-    results
-  };
 }
 
 // ---------- Cache ngan han cho du lieu tho ----------
@@ -991,10 +520,6 @@ function fetchAndCacheDashboardSheets(branch, cache) {
     cache.data = sheets;
     cache.version += 1;
     cache.expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
-    // Rebuild o day (chi khi vua fetch lai) thay vi trong getDashboardData —
-    // truoc day rememberSearchSheets() bi goi lai o MOI request /api/dashboard
-    // du raw data khong doi, ton CPU vo ich.
-    rememberSearchSheets(sheets, branch);
     return sheets;
   });
 }
@@ -1041,9 +566,9 @@ async function getCachedDashboardSheets(branch) {
 // ---------- Cache "core" (6/7 tab, nhanh) — dung RIENG cho /api/dashboard ----------
 // Bo "Chi tiết hóa đơn" (tab nang nhat, ~14s/lan doc) — cac khoi
 // tung can tab nay trong computeDashboardData() gio doc tu
-// dashboardRollupRepository.js thay the. KHONG goi rememberSearchSheets() —
-// chi muc tim kiem van chi xay tu cache "full" (getCachedDashboardSheets),
-// dung cho /api/search (xuat Excel khong con dung cache nay, xem exportService.js).
+// dashboardRollupRepository.js thay the. Cache "full" (getCachedDashboardSheets)
+// chi con dung cho nhanh du phong cua bao cao doanh thu theo khach
+// (getCustomerProductRevenueReport) — xuat Excel khong dung cache do.
 //
 // Cache THEO TUNG BANG (6 bang core + CN1/3/7 "@periods"), moi bang co TTL /
 // stale-while-revalidate / version rieng: tab Tong quan chi doc Hang hoa + Hoa
@@ -2432,7 +1957,7 @@ function dashboardResultCacheKey(branch, plan, sourceVersions, filters) {
  * `|| []`), vd tab Tong quan khong phai cho getInvoiceQuantitiesByCode (~3,3s
  * khi nguoi) chi Hoa don moi can. Bo trong = du 6 truy van nhu cu.
  */
-async function fetchDashboardRollups(branch, { overviewRange, productsRange, invoicesRange, newlyImportedRange }, plan) {
+async function fetchDashboardRollups(branch, { productsRange, invoicesRange, newlyImportedRange }, plan) {
   const wanted = plan ? plan.rollups : new Set(ALL_ROLLUPS);
   const run = (name, load) => (wanted.has(name) ? load() : undefined);
   const invoicesBounds = rangeToDateBounds(invoicesRange);
@@ -2477,7 +2002,7 @@ async function fetchDashboardRollups(branch, { overviewRange, productsRange, inv
 const dashboardRollupFetchInflight = new Map();
 
 function shareDashboardRollupFetch(branch, ranges, plan, rollupVersionSnapshot) {
-  const bounds = ['overviewRange', 'productsRange', 'invoicesRange', 'newlyImportedRange']
+  const bounds = ['productsRange', 'invoicesRange', 'newlyImportedRange']
     .map(name => rangeToDateBounds(ranges[name]));
   const key = [branch || '', plan.key, JSON.stringify(bounds), rollupVersionSnapshot].join('|');
   const existing = dashboardRollupFetchInflight.get(key);
@@ -2544,11 +2069,11 @@ async function getDashboardData(filters, branch, viewer, options) {
     throw error;
   }
   const now = new Date();
-  const overviewRange = resolveFilterRange(f.overview, now);
+  // (Bo loc rieng `overview` (ov*) da bo 2026-10-05: tab Tong quan dung bo loc `invoices`.)
   const productsRange = resolveFilterRange(f.products, now);
   const invoicesRange = resolveFilterRange(f.invoices, now);
   const newlyImportedRange = resolveFilterRange(f.newlyImported, now);
-  const ranges = { overviewRange, productsRange, invoicesRange, newlyImportedRange };
+  const ranges = { productsRange, invoicesRange, newlyImportedRange };
   // sourceArguments[i] la tham so branch thuc su truyen cho pgReader/rollup —
   // dung lai y het cho ca loadDashboardBaseSources va fetchDashboardRollups
   // ben duoi de tranh lech logic giua 2 cho.
@@ -2678,9 +2203,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const view = plan || resolveViewPlan();
   const f = withTableFilterFallbacks(filters);
   rollups = rollups || {};
-  const todayStr = formatDMY(now);
 
-  const overviewRange = resolveFilterRange(f.overview, now);
   const productsRange = resolveFilterRange(f.products, now);
   const invoicesRange = resolveFilterRange(f.invoices, now);
   const customersRange = resolveFilterRange(f.customers, now);
@@ -2715,9 +2238,11 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   // dang xem khi nguon chi co 1 co so.
   const singleBranch = branch && branch !== BRANCH_BOTH ? branch : '';
   const productKey = (rowBranch, code) => invoiceIdentity(rowBranch || singleBranch, code);
-  let totalProducts = 0, totalStock = 0, inStockCodes = 0, activeProducts = 0, lowStockCount = 0;
+  let totalProducts = 0, totalStock = 0, inStockCodes = 0, lowStockCount = 0;
+  // Gia tri ton kho = tong (ton > 0) x gia von cua hang dang kinh doanh. (2026-10-05: bo bieu do
+  // ton/gia tri ton theo nhom hang cha — stockByCategory/stockValueByCategory — giao dien khong dung.)
+  let totalInventoryValue = 0;
   let stockList = [];
-  const parentCategoryMap = {};
   const productParentCategoryByKey = new Map();
   const productStatusByKey = new Map();
   const isInactiveKey = key => productStatusByKey.get(key) === 'Ngừng kinh doanh';
@@ -2781,7 +2306,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     }
 
     totalProducts++;
-    activeProducts++;
     totalStock += ton;
     if (ton > 0) inStockCodes++;
     stockList.push({
@@ -2800,12 +2324,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     if (ton === OUT_OF_STOCK_LEVEL) lowStockCount++;
 
     productParentCategoryByKey.set(key, parentCategoryName);
-    if (!parentCategoryMap[parentCategoryName]) {
-      parentCategoryMap[parentCategoryName] = { name: parentCategoryName, stock: 0, stockValue: 0, productCount: 0 };
-    }
-    parentCategoryMap[parentCategoryName].stock += Math.max(ton, 0);
-    parentCategoryMap[parentCategoryName].stockValue += stockValue;
-    parentCategoryMap[parentCategoryName].productCount += 1;
+    totalInventoryValue += stockValue;
   }
   todayNewProducts.sort((a, b) => b._sortTime - a._sortTime);
   const todayNewProductRows = todayNewProducts.map(({ _sortTime, ...rest }) => rest);
@@ -2833,15 +2352,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     description: p.description,
     pct: totalStock > 0 ? (p.stock / totalStock) * 100 : 0
   }));
-
-  const categoryList = Object.values(parentCategoryMap);
-  const stockByCategory = categoryList.filter(category => category.stock > 0).sort((a, b) => b.stock - a.stock);
-  const allStockValueByCategory = categoryList
-    .filter(category => category.stockValue > 0 || category.stock > 0)
-    .sort((a, b) => b.stockValue - a.stockValue || b.stock - a.stock);
-  const inventoryValueCategoryCount = allStockValueByCategory.length;
-  const totalInventoryValue = allStockValueByCategory.reduce((sum, category) => sum + category.stockValue, 0);
-  const stockValueByCategory = limitParentCategoryBars(allStockValueByCategory);
 
   // ---------- HÀNG MỚI NHẬP (theo bộ lọc riêng newlyImported, mặc định = Hàng hóa) ----------
   // Ngay nhap SOM NHAT cho tung ma hang, tu product_first_purchase (rollup
@@ -2882,7 +2392,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     invoiceQuantityMap.set(row.branch ? invoiceIdentity(row.branch, code) : code, row.quantity);
   });
 
-  let revenueToday = 0, invoicesToday = 0, cancelledToday = 0;
   const invoiceRecords = [];
   const invoiceHeaders = invData[0] || [];
   const invoiceBranchIndex = sheetHeaderIndex(invoiceHeaders, 'Chi nhánh');
@@ -2903,12 +2412,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     const isCompleted = status === 'Hoàn thành';
     const dt = parseSheetDate(row[1]);
     const dateKey = dt ? dmyKey(dt) : '';
-
-    if (dateKey === todayStr && isCompleted) {
-      revenueToday += total;
-      invoicesToday++;
-    }
-    if (dateKey === todayStr && isCancelled) cancelledToday++;
 
     const record = {
       code,
@@ -2953,7 +2456,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   // hoa/Nhom hang, van con trong cache "core").
   const productSalesMap = {};
   const parentCategorySalesMap = {};
-  const newlyImportedCategorySalesMap = {};
   const newlyImportedProductSalesMap = new Map();
   const productSalesRows = (rollups && rollups.productSalesRows) || [];
   productSalesRows.forEach(row => {
@@ -2998,7 +2500,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     const name = row.name || code;
     const qty = row.qty;
     const revenue = row.revenue;
-    const parentCategoryName = productParentCategoryByKey.get(trimmedCode) || 'Chưa xác định';
 
     if (newlyImportedKeySet.has(trimmedCode)) {
       if (!newlyImportedProductSalesMap.has(trimmedCode)) {
@@ -3007,18 +2508,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       const newlyImportedProductSale = newlyImportedProductSalesMap.get(trimmedCode);
       newlyImportedProductSale.qty += qty;
       newlyImportedProductSale.revenue += revenue;
-
-      if (!newlyImportedCategorySalesMap[parentCategoryName]) {
-        newlyImportedCategorySalesMap[parentCategoryName] = {
-          name: parentCategoryName,
-          qty: 0,
-          revenue: 0,
-          productCodes: new Set()
-        };
-      }
-      newlyImportedCategorySalesMap[parentCategoryName].qty += qty;
-      newlyImportedCategorySalesMap[parentCategoryName].revenue += revenue;
-      newlyImportedCategorySalesMap[parentCategoryName].productCodes.add(trimmedCode);
     }
   });
   const allSellingProducts = Object.values(productSalesMap)
@@ -3041,85 +2530,19 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       revenue: sales ? sales.revenue : 0
     };
   });
-  const topNewlyImportedByRevenue = Array.from(newlyImportedProductSalesMap.values())
-    .filter(product => product.revenue > 0)
-    .sort((a, b) => b.revenue - a.revenue || b.qty - a.qty || String(a.name).localeCompare(String(b.name), 'vi'))
-    .slice(0, NEWLY_IMPORTED_REVENUE_LIMIT);
-
-  // ---------- HÀNG MỚI NHẬP -> DOANH THU BÁN THỰC TẾ THEO NHÓM HÀNG ----------
-  // Chi lay doanh thu cua nhung ma hang co ngay nhap dau tien nam trong newlyImportedRange
-  // (newlyImportedKeySet), gop nhom cha, gioi han so lat hien thi tren pie chart.
-  const NEWLY_IMPORTED_PIE_LIMIT = 7;
-  const newlyImportedByCategoryFull = Object.values(newlyImportedCategorySalesMap)
-    .map(category => ({
-      name: category.name,
-      qty: category.qty,
-      revenue: category.revenue,
-      productCount: category.productCodes.size
-    }))
-    .sort((a, b) => b.revenue - a.revenue);
-  const newlyImportedByCategory = newlyImportedByCategoryFull.length <= NEWLY_IMPORTED_PIE_LIMIT
-    ? newlyImportedByCategoryFull
-    : (() => {
-        const visible = newlyImportedByCategoryFull.slice(0, NEWLY_IMPORTED_PIE_LIMIT - 1);
-        const rest = newlyImportedByCategoryFull.slice(NEWLY_IMPORTED_PIE_LIMIT - 1);
-        return visible.concat({
-          name: `Khác (${rest.length} nhóm)`,
-          qty: rest.reduce((sum, c) => sum + c.qty, 0),
-          revenue: rest.reduce((sum, c) => sum + c.revenue, 0),
-          productCount: rest.reduce((sum, c) => sum + c.productCount, 0)
-        });
-      })();
-  const newlyImportedSalesRevenue = newlyImportedByCategoryFull.reduce((sum, c) => sum + c.revenue, 0);
-  const newlyImportedSalesQty = newlyImportedByCategoryFull.reduce((sum, c) => sum + c.qty, 0);
-
-  // Gom nhóm sản phẩm mới nhập theo nhóm hàng cha (số lượng sản phẩm)
-  const newlyImportedProductCountMap = {};
-  newlyImportedProducts.forEach(product => {
-    const parentCategoryName = productParentCategoryByKey.get(productKey(product.branch, product.code)) || 'Chưa xác định';
-    if (!newlyImportedProductCountMap[parentCategoryName]) {
-      newlyImportedProductCountMap[parentCategoryName] = {
-        name: parentCategoryName,
-        productCount: 0
-      };
-    }
-    newlyImportedProductCountMap[parentCategoryName].productCount++;
+  // Chi so "Doanh thu hàng mới nhập"/"Số lượng đã bán" (FE dung): tong doanh so cac ma co ngay nhap
+  // dau tien trong newlyImportedRange. (2026-10-05: bo topByRevenue/salesByCategory/countByCategory —
+  // bieu do khong con o giao dien.)
+  let newlyImportedSalesRevenue = 0;
+  let newlyImportedSalesQty = 0;
+  newlyImportedProductSalesMap.forEach(sale => {
+    newlyImportedSalesRevenue += sale.revenue;
+    newlyImportedSalesQty += sale.qty;
   });
 
-  const newlyImportedByProductCountFull = Object.values(newlyImportedProductCountMap)
-    .sort((a, b) => b.productCount - a.productCount);
-
-  const newlyImportedByProductCount = newlyImportedByProductCountFull.length <= NEWLY_IMPORTED_PIE_LIMIT
-    ? newlyImportedByProductCountFull
-    : (() => {
-        const visible = newlyImportedByProductCountFull.slice(0, NEWLY_IMPORTED_PIE_LIMIT - 1);
-        const rest = newlyImportedByProductCountFull.slice(NEWLY_IMPORTED_PIE_LIMIT - 1);
-        return visible.concat({
-          name: `Khác (${rest.length} nhóm)`,
-          productCount: rest.reduce((sum, c) => sum + c.productCount, 0)
-        });
-      })();
-
-  // ---------- TRẢ HÀNG (the chi so "Trả hàng" cua tab Hóa đơn, theo bo loc Hoa don) ----------
-  // (2026-10-01: bo bang Danh sach dat hang / Danh sach tra hang; don Phieu tam xem o trang Vong doi don hang.)
-  const returnHeaders = returnData[0] || [];
-  const returnIndex = (header, fallback) => {
-    const index = returnHeaders.findIndex(value => String(value || '').trim() === header);
-    return index >= 0 ? index : fallback;
-  };
-  const returnCodeIndex = returnIndex('Mã trả hàng', 0);
-  const returnDateIndex = returnIndex('Ngày trả', 1);
-  const returnTotalIndex = returnIndex('Tổng tiền trả', 4);
-  // Moi trang thai (ke ca Đã hủy) deu tinh vao the chi so — giu nguyen dinh nghia cu cua returnsCount/totalReturns.
-  let returnsCount = 0;
-  let totalReturns = 0;
-  for (let r = 1; r < returnData.length; r++) {
-    const row = returnData[r];
-    if (!row[returnCodeIndex]) continue;
-    if (!isWithinRange(parseSheetDate(row[returnDateIndex]), invoicesRange)) continue;
-    returnsCount++;
-    totalReturns += Number(row[returnTotalIndex]) || 0;
-  }
+  // (2026-10-05: the chi so "Trả hàng" cua tab Hoa don — invoices.returnsCount/totalReturns — da go vi
+  // giao dien khong dung. Doanh thu van = ban − tra hang, tinh tu rollup daily_invoice_summary, khong
+  // phu thuoc vong lap nay.)
 
   // ---------- KHÁCH HÀNG ----------
   const customerHeaders = custData[0] || [];
@@ -3188,7 +2611,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   const result = {
     updatedAt: formatDMYHMS(now),
     filters: {
-      overview: overviewRange,
       products: productsRange,
       invoices: invoicesRange,
       customers: customersRange,
@@ -3196,16 +2618,11 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
       newlyImported: newlyImportedRange
     },
     kpi: {
-      revenueToday,
-      invoicesToday,
-      cancelledToday,
       totalProducts,
       totalStock,
       inStockCodes,
-      activeProducts,
       lowStockCount,
       totalInventoryValue,
-      inventoryValueCategoryCount,
       totalCustomers,
       customersWithDebt,
       totalDebt
@@ -3233,9 +2650,6 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
         label: newlyImportedRange.label,
         count: newlyImportedRows.length,
         products: newlyImportedRows,
-        topByRevenue: topNewlyImportedByRevenue,
-        salesByCategory: newlyImportedByCategory,
-        countByCategory: newlyImportedByProductCount,
         salesRevenue: newlyImportedSalesRevenue,
         salesQty: newlyImportedSalesQty
       }
@@ -3243,21 +2657,16 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     invoices: {
       revenueByDay: invoicesPeriod.revenueByDay,
       periodRevenue: invoicesPeriod.periodRevenue,
-      periodGrossRevenue: invoicesPeriod.periodGrossRevenue,
       periodReturnAmount: invoicesPeriod.periodReturnAmount,
       periodInvoices: invoicesPeriod.periodInvoices,
       periodCancelledInvoices,
-      transactionsReport,
-      returnsCount,
-      totalReturns
+      transactionsReport
     },
     customers: {
       topDebt,
       topRevenue: topCustomersByRevenue
     },
-    stockValueByCategory,
     allProducts,
-    stockByCategory,
     debtManagement
   };
   return pickPayload(result, view);
@@ -3301,9 +2710,7 @@ module.exports = {
   getDashboardData,
   findDebtCustomerBranches,
   invalidateDebtWorkflowCache,
-  searchDashboardRecords,
   searchCustomerDirectory,
-  searchTopCustomersByProducts,
   getCustomerProductRevenueReport,
   mergeEntityRows,
   prewarmDashboardCaches,
@@ -3315,12 +2722,9 @@ module.exports = {
       dashboardCoreSheetsCacheByBranch = new Map();
       debtManagementSheetsCacheByBranch = new Map();
       debtWorkflowCacheByBranch = new Map();
-      searchSheetCacheByBranch = new Map();
       customerDirectoryCacheByBranch = new Map();
-      aggregateFullSheetsCache = null;
       dashboardResultCache = new Map();
       dashboardResultInflight = new Map();
-      searchIndexBuildCountForTest = 0;
       computeCallCountForTest = 0;
     },
     // Cache "core" (7/9 tab) — dung cho getDashboardData() (kem xuat Excel qua exportService.js).
@@ -3340,7 +2744,7 @@ module.exports = {
         dashboardCoreEntry(branch, key).expiresAt = soft ? Date.now() - 1000 : 0;
       });
     },
-    // Cache "full" (9 tab) — dung cho /api/search.
+    // Cache "full" (9 tab) — nhanh du phong cua getCustomerProductRevenueReport.
     expireFullSheetsCache(branch) {
       dashboardSheetsCacheFor(branch).expiresAt = 0;
     },
@@ -3353,7 +2757,6 @@ module.exports = {
     // Ban nhanh va ban Intl chuan cua getDashboardDateParts — test doi chieu 2 ban.
     dateParts: getDashboardDateParts,
     datePartsIntl: getDashboardDatePartsIntl,
-    getSearchIndexBuildCount: () => searchIndexBuildCountForTest,
     getComputeCallCount: () => computeCallCountForTest,
     getResultCacheSize: () => dashboardResultCache.size
   }
