@@ -44,3 +44,8 @@ Thứ tự vận hành: **áp migration 0029 và 0030 trước khi chạy bản 
 - Sau khi áp migration báo cáo mới (`0022`, `0023`, `0025`), chạy tay lần đầu `node kiotvietSync/customerInvoiceLinesRefresh.js`, `node kiotvietSync/productReportRefresh.js` trong `server/` để có dữ liệu ngay thay vì chờ job đêm.
 - Hai file Kiot HN/SG **không còn** được server truy cập (không cần cấu hình `SPREADSHEET_ID`/`SPREADSHEET_ID_SG`).
 - Không tạo lại các tab KiotViet khác hoặc cài Apps Script vào hai file này.
+
+
+## Nâng cấp nghỉ phép/phân quyền 05/10/2026
+
+Kế hoạch/checklist riêng tại [tasks/2026-10-05-hr-approval](../../tasks/2026-10-05-hr-approval/plan.md). Migration `0031` áp staging trước ứng dụng; nghiệm thu Telegram thật/latency và production chưa hoàn tất. Kế hoạch tasks có trước được giữ nguyên.

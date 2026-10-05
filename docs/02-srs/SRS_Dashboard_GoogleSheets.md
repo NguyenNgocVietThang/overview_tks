@@ -277,19 +277,22 @@ Lớp hiệu ứng 3D và giám sát hiệu năng thích ứng đã gỡ bỏ v�
 |---|---|---|---|
 | FR-10.1 | Đơn nghỉ lưu bằng `DATE` + buổi (`Sáng`/`Chiều`) cho mốc bắt đầu/kết thúc, `tong_buoi_nghi`, `tong_ngay_nghi` = buổi / 2 (cột GENERATED); `request_id` dạng `NP-YYYYMMDD-NNNN` do DB sinh. Web dựng lại chuỗi `"Sáng 22/08/2026"` khi trả API. | Cao | Hoàn thành |
 | FR-10.2 | Phép tính buổi tính từ đầu buổi bắt đầu đến hết buổi kết thúc (Sáng–Sáng cùng ngày = 1 buổi; Chiều hôm trước–Sáng hôm sau = 2 buổi; Sáng–Chiều cùng ngày = 2 buổi). CHECK DB chặn kết thúc trước bắt đầu và "Chiều → Sáng" cùng ngày. | Cao | Hoàn thành |
-| FR-10.3 | Đơn **xin nghỉ** do bot xin nghỉ **ngoài repo** ghi trực tiếp vào `hr_leave_requests`; web không có form nhân viên tự nộp. Quản lý (quyền `hr.leave.manage`) nhập tay bản ghi **Tự ý nghỉ (HR ghi nhận)** (`POST /api/hr/leave-requests`, mặc định `Đã duyệt`, không gửi bot quản lý). Ở "Cả hai" cơ sở suy từ hồ sơ nhân sự, không suy được → 400 `LEAVE_BRANCH_UNRESOLVED`. | Cao | Hoàn thành |
+| FR-10.3 | Nhân viên HR hoạt động tự gửi web (`/self`), danh tính lấy từ FK HR, ngày/buổi+lý do bắt buộc+bàn giao tùy chọn+tổng thời gian. Bot ngoài repo tiếp tục ghi hợp đồng cũ. Tự ý nghỉ dùng `hr.leave.absence.manage`, mặc định Quản lý. | Cao | Code hoàn thành |
 | FR-10.4 | Trạng thái đơn: `Chưa duyệt`, `Đã duyệt`, `Từ chối`, `Vi phạm` (`Vi phạm` do quy định giờ gửi của CSNS-NP-01: gửi sau 07:45 ca sáng / 12:30 ca chiều ngày bắt đầu). Trạng thái `Tạm duyệt` **đã gỡ** (migration `0030`, đơn cũ về `Chưa duyệt`). Loại yêu cầu: `Xin nghỉ phép`, `Tự ý nghỉ (HR ghi nhận)`. | Cao | Hoàn thành |
 | FR-10.5 | Tab Nghỉ phép (`hr.leave`): bảng có cột Thời gian gửi, lọc cơ sở/phòng ban/tên/khoảng ngày (mặc định chỉ lịch nghỉ giao với hôm nay), phân trang chọn số dòng/trang, huy hiệu cảnh báo nghỉ gấp (`HR_URGENT_LATE_NIGHT_HOUR`, `HR_URGENT_FLAG_MONTHLY_THRESHOLD`), xuất Excel. Tab Danh sách nhân sự (`hr.employees`) có xuất Excel. | Cao | Hoàn thành |
 | FR-10.6 | **Lịch nghỉ phép** cạnh chuông ở mọi trang (tài khoản có `hr.leave`): chọn ngày để xem ai nghỉ buổi sáng/chiều/cả ngày; đơn `Từ chối` không hiện. | Trung bình | Hoàn thành |
-| FR-10.7 | Đơn mới tạo thông báo chuông cho mọi tài khoản; người có `hr.leave.manage` Duyệt/Từ chối ngay trên thông báo (API vẫn kiểm tra quyền). Đổi trạng thái tăng `decision_version` và xóa `decision_notified_at` để bot xin nghỉ báo lại nhân viên. | Cao | Hoàn thành |
+| FR-10.7 | Đơn mới thông báo tất cả người duyệt đúng phạm vi hoặc senior dự phòng; thiếu dự phòng giữ chờ/cảnh báo. Nút chuông chỉ hiện khi canManage, PATCH gửi version đã hiển thị. Quyết định tăng decision_version. | Cao | Code hoàn thành |
 | FR-10.8 | Bot Telegram riêng cho quản lý chạy cùng Express, chỉ hội thoại riêng tư; `POST /api/telegram/manager-leave/webhook` kiểm tra `X-Telegram-Bot-Api-Secret-Token`; gọi Telegram bằng `fetch` native, không thêm thư viện bot. Mặc định tắt (`HR_MANAGER_TELEGRAM_ENABLED`). | Cao | Hoàn thành |
-| FR-10.9 | Quét DB mỗi `HR_MANAGER_TELEGRAM_SCAN_INTERVAL_MS` (mặc định 5000 ms, giới hạn 1.000–60.000): gửi mọi đơn `Xin nghỉ phép` mới kể cả `Vi phạm`, bù đơn `Chưa duyệt` chưa gửi; không gửi `Tự ý nghỉ (HR ghi nhận)`; lịch sử kết thúc trước mốc bật lần đầu không gửi lại. | Cao | Hoàn thành |
-| FR-10.10 | Người nhận/thao tác phải là `Quản lý`, hoạt động, có Telegram ID và quyền `hr.leave.manage`; cơ sở tài khoản Hà Nội/Sài Gòn/Cả hai tương ứng đơn HN/SG/cả hai, cơ sở trống bị loại; phải bấm Start bot mới; điều kiện kiểm tra lại ở mỗi thao tác. | Cao | Hoàn thành |
+| FR-10.9 | Quét DB mỗi `HR_MANAGER_TELEGRAM_SCAN_INTERVAL_MS` (mặc định 5000 ms, giới hạn 1.000–60.000): gửi mọi đơn `Xin nghỉ phép` mới kể cả `Vi phạm`, bù đơn `Chưa duyệt`/`Vi phạm` chưa gửi; không gửi `Tự ý nghỉ (HR ghi nhận)`; lịch sử kết thúc trước mốc bật lần đầu không gửi lại. | Cao | Hoàn thành |
+| FR-10.10 | Người hoạt động có hr.leave.manage và grant phòng ban/cơ sở đúng, hoặc quản trị dự phòng khi không có ai phù hợp; self-approve được phép. Telegram phải có ID/Start; thiếu ID không làm đổi tuyến duyệt web. Quyền/tài khoản kiểm tra lại mỗi thao tác; phòng ban snapshot bất biến. | Cao | Code hoàn thành |
 | FR-10.11 | Telegram chỉ có hai nút **Phê duyệt** (lưu `Đã duyệt`) và **Từ chối**; callback `Chưa duyệt`/`Vi phạm` của tin cũ bị từ chối; khởi động lại làm mới nút trên tin của đơn chưa kết thúc. `Đã duyệt`/`Từ chối` khóa Telegram; web vẫn đổi/mở lại. `hrLeaveDecisionService` + `decision_version` chặn nút/phiên cũ và đua web–Telegram. | Cao | Hoàn thành |
-| FR-10.12 | Từ chối mở phiên PostgreSQL 15 phút, chỉ nhận reply đúng tin nhắc nhập lý do; trim, tối đa 500 ký tự; có Bỏ qua (lý do rỗng) và Hủy (không quyết định). Nhắn sai tin thì bot nhắc lại và dẫn về tin hỏi lý do. | Cao | Hoàn thành |
+| FR-10.12 | Mini App cùng origin “Từ chối <tên nhân viên>”, OK/Hủy, lý do trim tùy chọn tối đa 500 ký tự. initData bot quản lý hợp lệ trong 15 phút + version, không login web. Lỗi giữ nội dung. Phiên reply cũ được hỗ trợ đến hết hạn. | Cao | Code hoàn thành |
 | FR-10.13 | Đồng bộ người duyệt, thời điểm, trạng thái và lý do giữa web và mọi tin đã gửi. Migration `0029`: sự kiện tạo/đổi đơn, giao tin có lease/retry, phiên từ chối, inbox idempotent theo `update_id` (tuần tự trong cùng chat) và singleton mốc bật lần đầu. `decision_notified_at` chỉ phục vụ bot xin nghỉ. | Cao | Hoàn thành |
 | FR-10.14 | Cầu `hrLeaveDbRealtime.js` đưa đơn tạo/đổi từ nguồn DB ngoài vào SSE HR bằng bản chụp/phiên bản dùng chung; kết nối/kết nối lại SSE làm mới danh sách; `HR_LEAVE_DB_REALTIME_ENABLED` mặc định true, độc lập công tắc bot. | Cao | Hoàn thành |
 | FR-10.15 | Tab **Quy định công ty** (`hr.rules`): 2 tài liệu dựng sẵn (Giờ giấc làm việc, Quy định nghỉ phép) và PDF do Quản lý (`hr.rules.manage`) tải lên (lưu `hr_rule_documents.content BYTEA`); gỡ được mọi tài liệu, có "Khôi phục tài liệu mặc định"; mọi tài liệu có "Tải về PDF"; thêm/gỡ báo lên chuông. API `/api/hr/rules/documents*`. | Trung bình | Hoàn thành |
+
+| FR-10.16 | `/donnghi`: đơn còn cần xử lý trong phạm vi, bộ lọc phòng ban, 10 đơn/trang; không đổi thông báo. Thẻ đồng bộ quyết định/mở lại qua sự kiện bền vững. | Cao | Code hoàn thành |
+| FR-10.17 | Inbox độc lập giao tin, ACK sau enqueue bền vững; log enqueue/queue/database/telegram/ack. Nghiệm thu staging p95 tiếp nhận <1 giây, kết quả thường <2 giây và thử chậm/429/restart/dedupe. | Cao | Chờ đo môi trường thật |
 
 ## 3.11. FR-11: Quản lý công nợ
 
@@ -464,8 +467,10 @@ Mọi API (trừ `health`, webhook, `auth/login`, quên mật khẩu, `google-co
 | `GET /api/hr/leave-requests` (+ `/:id`, `/summary/urgent-flags`) | `hr.leave` | Danh sách/chi tiết đơn nghỉ, bộ lọc cơ sở/phòng ban/tên/ngày; tổng hợp nghỉ gấp. |
 | `GET /api/hr/leave-requests/stream` | `hr.leave` | SSE đơn nghỉ phép theo thời gian thực. |
 | `POST /api/hr/leave-requests/export` | `hr.leave` | Xuất Excel đơn nghỉ phép. |
-| `POST /api/hr/leave-requests` | `hr.leave.manage` | Nhập tay "Tự ý nghỉ (HR ghi nhận)". |
-| `PATCH /api/hr/leave-requests/:id/status` | `hr.leave.manage` | Đổi trạng thái (Chưa duyệt/Đã duyệt/Từ chối/Vi phạm) kèm ghi chú. |
+| `POST /api/hr/leave-requests` | `hr.leave.absence.manage` | Nhập tay "Tự ý nghỉ (HR ghi nhận)". |
+| `PATCH /api/hr/leave-requests/:id/status` | `hr.leave.manage` + phạm vi | Đổi trạng thái kèm `expectedVersion`, xung đột 409; web sửa/mở lại. |
+| `GET /api/hr/leave-requests/self/context`, `POST /api/hr/leave-requests/self` | Tài khoản + HR hoạt động | Hồ sơ tin cậy và tự gửi đơn. |
+| `POST /api/telegram/manager-leave/miniapp/context`, `/reject` | Telegram initData | Hạn15 phút và phiên bản hiện tại. |
 | `GET /api/hr/employees`, `GET /api/hr/employees/export` | `hr.employees` | Danh sách nhân sự và xuất Excel. |
 | `POST /api/hr/telegram/link-code[/assign]` | `hr.leave` (`/assign`: `hr.leave.manage`) | Trả 410 `TELEGRAM_SHEET_LINK_DISABLED`. `GET /api/hr/telegram/link-status` đã gỡ 2026-10-05 (ID Telegram xem ở hồ sơ, FR-08.6). |
 | `GET /api/hr/rules/documents`, `GET …/:id/file` | `hr.rules` | Danh sách và tải tài liệu quy định. |
@@ -542,3 +547,10 @@ Ngày hiển thị `dd/MM/yyyy HH:mm` hoặc `dd/MM/yyyy` theo Asia/Ho_Chi_Minh 
 | Render.com free tier ngủ → cold start                                                | `/health` được ping định kỳ; prewarm cache lúc khởi động; bot quản lý chỉ gần thời gian thực khi máy chủ chạy liên tục. |
 
 *— Hết tài liệu SRS v3.0 —*
+
+
+## Bổ sung 05/10/2026 — nghỉ phép và tài khoản
+
+Người duyệt đang hoạt động, có `hr.leave.manage`, phòng ban được cấp và cơ sở được gán phù hợp với đơn; nhân viên được cấp quyền cũng được duyệt và được tự duyệt. Gửi tất cả người phù hợp, một quyết định thành công chốt phiên bản. Nếu không có người phù hợp, dùng quản trị cao nhất đang hoạt động; thiếu cả dự phòng thì giữ chờ và cảnh báo. Telegram ID/Start chỉ quyết định khả năng giao tin, không quyết định có người duyệt web.
+
+Nhân viên HR hoạt động tự gửi đơn web bằng danh tính server, giữ phòng ban lúc gửi, tính thời gian Việt Nam. Quản lý mới chọn phòng ban; quản lý cũ mọi phòng ban một lần; cấp nhân viên lần đầu mặc định phòng ban mình, grant không đổi theo chuyển phòng ban. Tự ý nghỉ có quyền riêng. Web/Telegram version chống ghi đè; web sửa/mở lại. Mini App có tên nhân viên,lý do tùy chọn500 ký tự,OK/Hủy; `/donnghi`10 đơn/trang. Bảng người dùng chọn trường theo danh mục Excel,tên cố định,lưu riêng tài khoản,mặc định lọc hoạt động. [Hợp đồng](../hr-leave-upgrade.md). Migration `0031` và staging trước production.

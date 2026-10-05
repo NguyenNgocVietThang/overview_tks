@@ -1,14 +1,14 @@
 # Thiết lập bot Telegram quản lý nghỉ phép
 
-Cập nhật: 05/10/2026 (khớp code tại HEAD `11751c4`). Hướng dẫn này dành cho người vận hành sau khi triển khai code; không xác nhận bot đã được bật trên production.
+Cập nhật:05/10/2026 — migration `0031`. Hướng dẫn vận hành sau kiểm thử/staging; không xác nhận production.
 
-Kiểm thử code (viết tài liệu trên Node 22; chạy lại 05/10/2026 trên Node 24.19.0 cục bộ, `engines` của dự án là 22.x): toàn bộ bộ kiểm thử có 1.704 test: 1.701 đạt, 3 bỏ qua (migration integration cần `SUPABASE_TEST_DB_URL`), 0 thất bại. Kiểm thử bot mô phỏng Telegram và dùng PostgreSQL trong bộ nhớ (PGlite), bao gồm quyết định đồng thời, update trùng, restart, lý do từ chối và đồng bộ nhiều quản lý. Chưa áp migration, đăng ký webhook hoặc gửi tin thật trên production.
+Kiểm thử tự động dùng Telegram giả và PGlite. Kết quả tại [checklist nâng cấp](../tasks/2026-10-05-hr-approval/todo.md). Chưa áp migration, đăng ký webhook hoặc gửi tin production trong đợt này.
 
 ## Chuẩn bị
 
 - Máy chủ Express có HTTPS origin công khai và chạy liên tục nếu cần thông báo gần thời gian thực. Khi máy chủ ngủ/tắt, quét và giao tin dừng đến khi chạy lại.
 - Kết nối PostgreSQL đúng môi trường và quyền chạy migration. Bot xin nghỉ của nhân viên hiện có vẫn dùng database này, webhook và tiến trình riêng.
-- Mỗi quản lý có tài khoản Quản lý đang hoạt động, Telegram ID (từ 03/10/2026 chỉ Quản lý nhập/sửa được ID Telegram, trong hồ sơ của chính mình hoặc ở trang Quản lý người dùng) và quyền `hr.leave.manage`. Cơ sở tài khoản phải là Hà Nội, Sài Gòn hoặc Cả hai; để trống sẽ không nhận thông báo bot quản lý.
+- Người duyệt đang hoạt động, có `hr.leave.manage`, phòng ban được cấp và cơ sở được gán phù hợp với đơn; nhân viên được cấp quyền cũng được duyệt và được tự duyệt. Gửi tất cả người phù hợp, một quyết định thành công chốt phiên bản. Nếu không có người phù hợp, dùng quản trị cao nhất đang hoạt động; thiếu cả dự phòng thì giữ chờ và cảnh báo. Telegram ID/Start chỉ quyết định khả năng giao tin, không quyết định có người duyệt web.
 
 ## 1. Tạo bot riêng
 
@@ -26,7 +26,9 @@ npm run db:migrate
 
 Xác nhận `0029_hr_manager_telegram.sql` đã được áp: có `hr_leave_requests.decision_version` và các bảng `hr_leave_change_events`, `hr_leave_manager_messages`, `hr_manager_telegram_sessions`, `hr_manager_telegram_updates`, `hr_manager_telegram_state`. Cũng xác nhận `0030_drop_leave_provisional_status.sql` (gỡ trạng thái `Tạm duyệt`; đơn cũ về `Chưa duyệt`) đã áp — mã web và bot quản lý chỉ còn bốn trạng thái `Chưa duyệt`, `Đã duyệt`, `Từ chối`, `Vi phạm`.
 
-**Phải áp migration (0029 và 0030) trước khi chạy bản web mới, kể cả khi bot đang tắt:** repository web đọc `decision_version` và danh sách trạng thái hợp lệ không còn `Tạm duyệt`. Không xóa hay tạo lại ba bảng nền của bot nhân viên (`hr_leave_requests`, `hr_telegram_links`, `hr_telegram_sessions`).
+**Phải áp migration (0029,0030 và0031) trước khi chạy bản web mới, kể cả khi bot đang tắt:** repository web đọc `decision_version` và danh sách trạng thái hợp lệ không còn `Tạm duyệt`. Không xóa hay tạo lại ba bảng nền của bot nhân viên (`hr_leave_requests`, `hr_telegram_links`, `hr_telegram_sessions`).
+
+Xác nhận `0031_hr_leave_approval_scope.sql`: grant phòng ban, snapshot đơn và `hr_manager_telegram_cards`. Thử staging trước; rà và thu hẹp grant quản lý hiện có khi cần.
 
 ## 3. Cấu hình và khởi động
 
@@ -76,7 +78,7 @@ Mỗi quản lý mở **bot mới** và bấm **Start**. Telegram ID đã có tr
 | Cả hai | Hà Nội và Sài Gòn |
 | Để trống | Không nhận |
 
-Vai trò khác Quản lý, tài khoản không hoạt động, thiếu Telegram ID hoặc bị rút `hr.leave.manage` cũng không nhận/thao tác. Quyền và cơ sở được kiểm tra lại khi bấm nút; thay đổi trên trang Tài khoản có hiệu lực cho thao tác tiếp theo.
+Người duyệt đang hoạt động, có `hr.leave.manage`, phòng ban được cấp và cơ sở được gán phù hợp với đơn; nhân viên được cấp quyền cũng được duyệt và được tự duyệt. Gửi tất cả người phù hợp, một quyết định thành công chốt phiên bản. Nếu không có người phù hợp, dùng quản trị cao nhất đang hoạt động; thiếu cả dự phòng thì giữ chờ và cảnh báo. Telegram ID/Start chỉ quyết định khả năng giao tin, không quyết định có người duyệt web. Kiểm tra quyền lại khi thao tác; chuyển phòng ban không tự đổi grant.
 
 ## 6. Kiểm tra giao tin và quyết định
 
@@ -84,14 +86,14 @@ Dùng các đơn được phép thử trong môi trường triển khai:
 
 1. Bot gửi bù các đơn **Xin nghỉ phép** Chưa duyệt chưa gửi. Lịch sử đã kết thúc trước lần bật bot đầu tiên không gửi mới; đơn tạo sau mốc bật vẫn gửi trạng thái hiện tại dù web đã duyệt trước lượt quét. Tạo một đơn mới qua bot nhân viên hiện có; xác nhận web và quản lý đúng cơ sở nhận được. Đơn mới Vi phạm vẫn được gửi; **Tự ý nghỉ (HR ghi nhận)** không được gửi.
 2. Tin nhắn chỉ có hai nút quyết định **Phê duyệt** và **Từ chối**. Thử Phê duyệt: lưu trạng thái Đã duyệt, người duyệt và thời điểm trên web và các tin Telegram đã gửi. Các nút Chưa duyệt/Vi phạm trên tin cũ không được xử lý; nút cũ sau khi quyết định đổi không được ghi đè bản mới.
-3. Thử Từ chối: reply đúng tin nhắc nhập lý do, khoảng trắng đầu/cuối bị bỏ; trên 500 ký tự không được nhận. Kiểm tra Bỏ qua lưu lý do rỗng, Hủy không quyết định, phiên quá 15 phút không còn nhận lý do.
+3. Từ chối mở Mini App “Từ chối <tên nhân viên>”, OK/Hủy. OK trống/khoảng trắng không lý do; trim tối đa 500 ký tự; Hủy/đóng không ghi. Lỗi giữ nội dung. initData giả/hết15 phút và version cũ bị chặn. Phiên reply cũ tiếp tục tới khi hoàn tất/hết hạn.
 4. Với Đã duyệt/Từ chối, tin Telegram khóa thao tác tiếp của mọi quản lý. Trên web, đổi về Chưa duyệt/Vi phạm để mở lại; tin Telegram cập nhật và nhận thao tác ở phiên bản mới.
 5. Xác nhận bot nhân viên vẫn báo kết quả như trước qua `decision_notified_at`. Bot quản lý không đánh dấu cột này.
 6. Kiểm tra restart/retry bằng môi trường thử: việc đã lưu tiếp tục, update trùng không đổi quyết định hai lần. Kết nối lại SSE trên web làm mới danh sách.
 
 Các bước này là kiểm tra cần thực hiện sau cấu hình, không phải kết quả kiểm thử đã được tài liệu xác nhận.
 
-Sau khi cập nhật mã và khởi động lại Express, bot làm mới nút trên các tin đã gửi của đơn chưa kết thúc qua hàng đợi giao tin hiện có. Các cuộc trò chuyện bị chặn giữ nguyên trạng thái chặn; không cần migration mới cho thay đổi hai nút này.
+Sau khi cập nhật mã và khởi động lại Express, bot làm mới nút trên các tin đã gửi của đơn chưa kết thúc qua hàng đợi giao tin hiện có. Các cuộc trò chuyện bị chặn giữ nguyên trạng thái chặn; migration `0031` cần áp cho phạm vi và card danh sách.
 
 ## Theo dõi và xử lý lỗi
 
@@ -108,3 +110,9 @@ Mốc bật lần đầu được lưu ở `hr_manager_telegram_state.first_enab
 Đặt `HR_MANAGER_TELEGRAM_ENABLED=false` và khởi động lại server để dừng nhận/xử lý của bot quản lý. Giữ migration và các bảng; web vẫn quyết định được, bot xin nghỉ cũ vẫn nhận đơn/báo kết quả. Nếu cần xử lý cầu DB → SSE, có thể tắt riêng `HR_LEAVE_DB_REALTIME_ENABLED`.
 
 Không rollback migration bằng cách xóa cột/bảng khi bản web mới còn chạy. Khi bật lại, công việc đã lưu tiếp tục và các đơn chờ chưa gửi được quét lại.
+
+## Đo tốc độ và thử nâng cấp
+
+Log `[Telegram manager] timing` ghi enqueue, queue, database, Telegram và ack, không ghi token/initData. Callback xác nhận sau lưu inbox bền vững; giao tin chậm không khóa thao tác. Đo trên staging đang chạy:p95 tiếp nhận <1 giây, kết quả thường <2 giây; thử riêng Telegram chậm/429,restart,dedupe,thứ tự từng chat. Mục tiêu chưa xác nhận production. `/donnghi`10 đơn/trang theo phòng ban/tất cả phạm vi, không đổi thông báo tự động. Mini App cần HTTPS origin dashboard, mở qua Telegram, không đăng nhập web riêng.
+
+Đơn tự gửi web lấy `telegram_chat_id` từ liên kết tài khoản trên server. Khi quyết định đơn `source=web` không có chat, service đặt `decision_notified_at` để bot nhân viên không thử gửi tới chat rỗng; thông báo web vẫn được tạo. Với đơn có chat và đơn từ bot nhân viên, chu kỳ NULL → gửi kết quả → đánh dấu và reset khi đổi trạng thái giữ nguyên.

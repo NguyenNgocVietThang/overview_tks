@@ -61,11 +61,11 @@ Migration `0015` thêm `app_users.telegram_id` dạng `TEXT` để không phụ 
 
 ### Nghỉ phép và bot Telegram (migration `0016`)
 
-Thay 3 tab Google Sheets (`Yêu cầu nghỉ phép`, `_HR_TELEGRAM_LINKS`, `_HR_TELEGRAM_SESSIONS`). Bot **xin nghỉ của nhân viên** chạy **ngoài repo này** (VPS riêng) và đọc/ghi thẳng 3 bảng bằng SQL; web chỉ đọc `hr_leave_requests`, nhập tay bản ghi "tự ý nghỉ" và đổi trạng thái phê duyệt. Cả 3 bảng đã `REVOKE SELECT` khỏi `reporting_readonly` (PII/nội dung tin nhắn).
+Thay 3 tab Google Sheets (`Yêu cầu nghỉ phép`, `_HR_TELEGRAM_LINKS`, `_HR_TELEGRAM_SESSIONS`). Bot **xin nghỉ của nhân viên** chạy **ngoài repo này** (VPS riêng) và đọc/ghi thẳng 3 bảng bằng SQL; web đọc `hr_leave_requests`, tự gửi đơn từ HR hoạt động, nhập tay "tự ý nghỉ" bằng quyền riêng và đổi trạng thái. Cả 3 bảng đã `REVOKE SELECT` khỏi `reporting_readonly` (PII/nội dung tin nhắn).
 
 | Bảng | Mục đích | Khóa chính | Ai ghi |
 |---|---|---|---|
-| `hr_leave_requests` | Đơn xin nghỉ / bản ghi tự ý nghỉ | `id` (BIGSERIAL), `request_id` UNIQUE | bot (đơn Telegram), web (nhập tay + duyệt) |
+| `hr_leave_requests` | Đơn xin nghỉ / bản ghi tự ý nghỉ | `id` (BIGSERIAL), `request_id` UNIQUE | bot (đơn Telegram), web (tự gửi + nhập tay + duyệt) |
 | `hr_telegram_links` | Liên kết Telegram chat ↔ tài khoản (`app_users`) | `id` | bot |
 | `hr_telegram_sessions` | Trạng thái hội thoại xin nghỉ đang dở, mỗi chat một dòng | `telegram_chat_id` | bot |
 
@@ -76,7 +76,7 @@ Thay 3 tab Google Sheets (`Yêu cầu nghỉ phép`, `_HR_TELEGRAM_LINKS`, `_HR_
 - `ho_ten`, `chuc_vu`, `web_username` là **bản chụp** tại thời điểm gửi; `user_id`/`hr_employee_id` là khóa thật (`ON DELETE SET NULL`), bot nên điền cả hai. `source` mặc định `'telegram'`.
 - `co_nghi_gap`/`co_tu_y_nghi` là boolean; `tin_nhan` giữ nguyên văn tin nhắn gốc; `thoi_gian_gui` là giờ nhận tin (khác `created_at` = giờ ghi DB).
 - `trang_thai` ∈ `Chưa duyệt | Đã duyệt | Từ chối | Vi phạm` (migration 0030 đã gỡ `Tạm duyệt`, đơn cũ chuyển về `Chưa duyệt`; bot nhân viên ngoài repo không được ghi giá trị này nữa); `loai_yeu_cau` ∈ `Xin nghỉ phép | Tự ý nghỉ (HR ghi nhận)`.
-- `ghi_chu_duyet` = lý do từ chối do Quản lý nhập trên web hoặc bot quản lý khi chuyển sang `Từ chối` (rỗng nếu bỏ qua, và bị xóa về rỗng khi đơn đổi sang trạng thái khác). Web không hiển thị cột này; bot xin nghỉ ngoài repo không ghi nó.
+- `ghi_chu_duyet` giữ người xử lý và lý do từ chối nếu có. Bỏ qua lý do vẫn lưu người/thời điểm; đổi sang trạng thái khác xóa phần lý do từ chối. Web không hiển thị cột này; bot xin nghỉ ngoài repo không ghi nó.
 
 **Báo kết quả duyệt cho nhân viên** (thay cho việc bot cũ quét Sheet): hàng cần báo là
 
@@ -121,7 +121,7 @@ Quản lý cũng có thể xem ID trong `GET /api/admin/users` và đổi/xóa I
 
 Bốn bảng sự kiện/giao tin/phiên/inbox chứa định danh Telegram/nội dung nghiệp vụ nội bộ nên thu hồi `SELECT` khỏi `reporting_readonly`. Bảng singleton trạng thái không chứa dữ liệu nghiệp vụ người dùng; migration cũng thu hồi SELECT của role này trên bảng đó. Không dùng chung `hr_telegram_sessions` của bot nhân viên để lưu hội thoại từ chối.
 
-**Quyết định dùng chung:** service web/Telegram cập nhật cùng hàng `hr_leave_requests` trong transaction. Callback Telegram phải khớp `decision_version` mới nhất và người thao tác vẫn đủ vai trò Quản lý, trạng thái hoạt động, Telegram ID, quyền `hr.leave.manage` và cơ sở của đơn. Telegram không đổi tiếp đơn `Đã duyệt`/`Từ chối`; web vẫn được thay đổi/mở lại theo quyền hiện hành. Lý do từ chối trim, tối đa 500 ký tự; bỏ qua lưu rỗng, đổi sang trạng thái khác xóa lý do.
+**Quyết định dùng chung:** service web/Telegram cập nhật cùng hàng `hr_leave_requests` trong transaction. Callback Telegram phải khớp `decision_version` mới nhất và người thao tác vẫn hoạt động, có Telegram ID, `hr.leave.manage` và phòng ban/cơ sở được gán phù hợp, hoặc được chọn làm quản trị dự phòng. Telegram không đổi tiếp đơn `Đã duyệt`/`Từ chối`; web vẫn được thay đổi/mở lại theo quyền hiện hành. Lý do từ chối trim, tối đa 500 ký tự; bỏ qua lưu rỗng, đổi sang trạng thái khác xóa lý do.
 
 **Giao tin:** nhận các đơn `Xin nghỉ phép` mới và bù các đơn `Chưa duyệt` chưa gửi cho quản lý phù hợp; bỏ qua `Tự ý nghỉ (HR ghi nhận)`. Lease và trạng thái retry giữ việc đang dở qua restart, chống nhiều lượt quét cùng nhận một việc. Tin nhắn đã gửi được đồng bộ theo quyết định cuối cùng trong DB.
 
@@ -290,3 +290,13 @@ Bảng `hr_rule_documents` lưu trữ tài liệu quy định công ty (cả tà
 ### Gỡ trạng thái "Tạm duyệt" của đơn nghỉ phép (migration `0030`)
 
 `0030_drop_leave_provisional_status.sql` chuyển mọi đơn `hr_leave_requests.trang_thai = 'Tạm duyệt'` về `Chưa duyệt` (trigger sẵn có tự tăng `decision_version` và xóa `decision_notified_at` nên bot quản lý/nhân viên nhận lại đúng trạng thái), rồi đặt lại CHECK `hr_leave_requests_trang_thai_check` chỉ còn `Chưa duyệt`, `Đã duyệt`, `Từ chối`, `Vi phạm`. Mã web và bot quản lý đã bỏ `Tạm duyệt` khỏi danh sách hợp lệ nên migration phải áp **trước** khi chạy bản web mới. Bot xin nghỉ ngoài repo không được ghi giá trị này nữa.
+
+### Phạm vi duyệt và snapshot phòng ban (migration `0031`)
+
+- `app_users.leave_approval_departments TEXT[] NOT NULL DEFAULT '{}'`: grant rõ ràng, chuẩn hóa NFC/khoảng trắng/không phân biệt hoa thường. Cấp quản lý hiện có toàn bộ phòng ban một lần; nhân viên đã có quyền cấp phòng ban hồ sơ hiện tại. Không tự đổi theo hồ sơ.
+- `hr_leave_requests.bo_phan TEXT NOT NULL DEFAULT ''`: bổ sung đơn cũ từ HR hiện tại. Trigger BEFORE INSERT điền từ `hr_employee_id` hoặc HR của `user_id` khi trống; BEFORE UPDATE giữ snapshot cũ. Bot nhân viên tiếp tục INSERT hợp đồng cũ. Không xác định phòng ban dùng dự phòng. Index `(branch,bo_phan,thoi_gian_gui DESC)` từng phần cho chờ/Vi phạm.
+- `hr_manager_telegram_cards`: card `/donnghi`, FK đơn/tài khoản, PK `(telegram_chat_id,message_id)`, `expected_version BIGINT`, `created_at`; tách khỏi lease/bản tin tự động. REVOKE SELECT từ `reporting_readonly`.
+- Người duyệt đang hoạt động, có `hr.leave.manage`, phòng ban được cấp và cơ sở được gán phù hợp với đơn; nhân viên được cấp quyền cũng được duyệt và được tự duyệt. Gửi tất cả người phù hợp, một quyết định thành công chốt phiên bản. Nếu không có người phù hợp, dùng quản trị cao nhất đang hoạt động; thiếu cả dự phòng thì giữ chờ và cảnh báo. Telegram ID/Start chỉ quyết định khả năng giao tin, không quyết định có người duyệt web.
+- Đơn web tự gửi `source=web`, `user_id`/`hr_employee_id`, tên/phòng ban/cơ sở do server xác định; sự kiện DB tạo hàng giao Telegram sau. Web và Telegram đều yêu cầu phiên bản, web mở lại được, Telegram khóa kết quả.
+
+Đơn tự gửi web lấy `telegram_chat_id` từ liên kết tài khoản trên server. Khi quyết định đơn `source=web` không có chat, service đặt `decision_notified_at` để bot nhân viên không thử gửi tới chat rỗng; thông báo web vẫn được tạo. Với đơn có chat và đơn từ bot nhân viên, chu kỳ NULL → gửi kết quả → đánh dấu và reset khi đổi trạng thái giữ nguyên.

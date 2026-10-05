@@ -42,7 +42,7 @@ Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (5 tab), Quản lý c
 - **Xuất Excel/HTML** cho các bảng và báo cáo nghỉ phép/danh sách nhân sự, với tùy chọn trường linh hoạt.
 - Ba kỳ công nợ **CN1 / CN3 / CN7** do `customerDebtReportRefresh.js` tính 5 phút/lần vào `customer_debt_activity_periods` để phục vụ cảnh báo "Chưa thu" trên màn hình Quản lý công nợ.
 - **Kiểm tra đứt hàng** dựa trên dữ liệu đã đồng bộ và dữ liệu Trả NCC do người dùng tự upload (Excel xuất từ KiotViet).
-- **Phân hệ nghỉ phép:** đơn xin nghỉ nhận từ bot của nhân viên; Quản lý duyệt/từ chối trên web hoặc trên bot Telegram riêng cho quản lý; web có lịch nghỉ phép dùng chung.
+- **Phân hệ nghỉ phép:** tự gửi trên web từ hồ sơ HR hoạt động hoặc bot nhân viên ngoài repo; người được cấp quyền duyệt theo phòng ban/cơ sở. Web có lịch nghỉ phép.
 - **Vòng đời đơn hàng:** xem mọi đơn đặt hàng KiotViet cùng trạng thái vòng đời từ Google Sheet; lọc, sắp xếp, phân trang ở máy chủ.
 - **Vị trí hàng:** tra cứu vị trí hàng HN/SG từ workbook Google Sheets dùng chung.
 - **Tài khoản và phân quyền theo tính năng** theo vai trò, Quản lý ghi đè từng tài khoản; ID Telegram do Quản lý quản lý.
@@ -160,9 +160,9 @@ Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp
 
 ## 5.8. Bot Telegram riêng cho quản lý nghỉ phép
 
-- Bot chạy cùng máy chủ dashboard, dùng chung đơn PostgreSQL với bot xin nghỉ của nhân viên (ngoài repo). Mọi đơn **Xin nghỉ phép** mới gửi cho quản lý phù hợp, kể cả đơn `Vi phạm`; khi bật hệ thống, gửi bù đơn `Chưa duyệt` chưa gửi. Bản ghi **Tự ý nghỉ (HR ghi nhận)** không gửi qua bot này.
-- Chỉ tài khoản **Quản lý** hoạt động, có Telegram ID và quyền `hr.leave.manage` mới nhận/thao tác. Cơ sở tài khoản Hà Nội nhận đơn Hà Nội, Sài Gòn nhận đơn Sài Gòn, Cả hai nhận cả hai; cơ sở trống không nhận. Mỗi quản lý phải bấm **Start** với bot mới.
-- Quản lý chỉ có thể chọn **Phê duyệt** (lưu Đã duyệt) hoặc **Từ chối**. Khi từ chối có thể nhập lý do bằng reply đúng lời nhắc, Bỏ qua hoặc Hủy; lý do tối đa 500 ký tự, phiên hết hạn sau 15 phút.
+- Bot chạy cùng máy chủ dashboard, dùng chung đơn PostgreSQL với bot xin nghỉ của nhân viên (ngoài repo). Mọi đơn **Xin nghỉ phép** mới gửi cho quản lý phù hợp, kể cả đơn `Vi phạm`; khi bật hệ thống, gửi bù đơn `Chưa duyệt`/`Vi phạm` chưa gửi. Bản ghi **Tự ý nghỉ (HR ghi nhận)** không gửi qua bot này.
+- Người duyệt đang hoạt động, có `hr.leave.manage`, phòng ban được cấp và cơ sở được gán phù hợp với đơn; nhân viên được cấp quyền cũng được duyệt và được tự duyệt. Gửi tất cả người phù hợp, một quyết định thành công chốt phiên bản. Nếu không có người phù hợp, dùng quản trị cao nhất đang hoạt động; thiếu cả dự phòng thì giữ chờ và cảnh báo. Telegram ID/Start chỉ quyết định khả năng giao tin, không quyết định có người duyệt web.
+- Người duyệt chọn Phê duyệt hoặc Từ chối. Từ chối mở Mini App tên nhân viên, OK/Hủy, lý do tùy chọn trim tối đa 500 ký tự; initData 15 phút. Phiên reply cũ tiếp tục đến hết hạn.
 - Đã duyệt/Từ chối khóa thao tác tiếp trên Telegram; người đủ quyền vẫn đổi được trên web (chuyển về trạng thái chưa kết thúc mở lại Telegram). Các tin đã gửi cập nhật theo quyết định mới; thao tác cũ/trùng/đồng thời không ghi đè quyết định mới hơn.
 - Trạng thái đơn nghỉ: `Chưa duyệt`, `Đã duyệt`, `Từ chối`, `Vi phạm` (đã gỡ `Tạm duyệt` ngày 02/10/2026).
 - Bot nhân viên tiếp tục nhận đơn và báo kết quả cho nhân viên; bot quản lý không thay đổi quyền sở hữu liên kết Telegram hay phiên xin nghỉ của bot đó.
@@ -257,3 +257,10 @@ Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp
 | Giai đoạn 8 — Thay thế KiotViet                 | Ngừng sử dụng KiotViet, chuyển hoàn toàn nghiệp vụ sang hệ thống mới                                   | Chỉ thực hiện khi Giai đoạn 3–4 đã ổn định và nghiệm thu             |
 
 *— Hết tài liệu BRD v2.2 —*
+
+
+## Bổ sung 05/10/2026 — nghỉ phép và tài khoản
+
+Người duyệt đang hoạt động, có `hr.leave.manage`, phòng ban được cấp và cơ sở được gán phù hợp với đơn; nhân viên được cấp quyền cũng được duyệt và được tự duyệt. Gửi tất cả người phù hợp, một quyết định thành công chốt phiên bản. Nếu không có người phù hợp, dùng quản trị cao nhất đang hoạt động; thiếu cả dự phòng thì giữ chờ và cảnh báo. Telegram ID/Start chỉ quyết định khả năng giao tin, không quyết định có người duyệt web.
+
+Nhân viên HR hoạt động tự gửi đơn web bằng danh tính server, giữ phòng ban lúc gửi, tính thời gian Việt Nam. Quản lý mới chọn phòng ban; quản lý cũ mọi phòng ban một lần; cấp nhân viên lần đầu mặc định phòng ban mình, grant không đổi theo chuyển phòng ban. Tự ý nghỉ có quyền riêng. Web/Telegram version chống ghi đè; web sửa/mở lại. Mini App có tên nhân viên,lý do tùy chọn500 ký tự,OK/Hủy; `/donnghi`10 đơn/trang. Bảng người dùng chọn trường theo danh mục Excel,tên cố định,lưu riêng tài khoản,mặc định lọc hoạt động. [Hợp đồng](../hr-leave-upgrade.md). Migration `0031` và staging trước production.

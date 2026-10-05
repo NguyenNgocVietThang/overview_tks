@@ -50,8 +50,8 @@ Query string (đều tùy chọn; giá trị sai → 400 kèm mã): `branch` (HN
 Bot riêng cho quản lý chạy cùng tiến trình Express; `telegram/managerLeaveRuntime.js` quét Postgres theo chu kỳ mặc định 5 giây, xử lý sự kiện mới do bot xin nghỉ bên ngoài ghi trực tiếp và thử lại công việc giao tin còn tồn. `telegram/managerLeaveWebhook.js` nhận `POST /api/telegram/manager-leave/webhook`, kiểm tra header `X-Telegram-Bot-Api-Secret-Token` trước khi nhận cập nhật. Gọi Telegram API bằng native `fetch`, không thêm thư viện bot. `@electric-sql/pglite` chỉ là devDependency phục vụ kiểm thử SQL/migration.
 
 - Gửi mọi đơn **Xin nghỉ phép** mới, kể cả trạng thái `Vi phạm`; lần quét đầu bù các đơn `Chưa duyệt` chưa giao cho quản lý phù hợp. Bản ghi **Tự ý nghỉ (HR ghi nhận)** không gửi qua bot quản lý. Mốc `first_enabled_at` bền vững loại lịch sử đã kết thúc trước khi bật bot lần đầu; đơn mới tạo sau mốc này vẫn được gửi với quyết định hiện tại nếu web đã duyệt trước khi lượt quét xử lý.
-- Người nhận phải có vai trò **Quản lý**, trạng thái hoạt động, Telegram ID và quyền `hr.leave.manage`. `coSo = Hà Nội` chỉ nhận Hà Nội, `Sài Gòn` chỉ nhận Sài Gòn, `Cả hai` nhận cả hai; cơ sở rỗng bị loại. Đây là phạm vi bot, không thay đổi bộ lọc xem cơ sở trên web. Mỗi quản lý phải bấm **Start** với bot mới dù ID đã có trong database.
-- Tin nhắn chỉ có hai nút quyết định: **Phê duyệt** (lưu `Đã duyệt`) và **Từ chối**; callback `Chưa duyệt`/`Vi phạm` của tin cũ bị từ chối. Đơn có thể ở 4 trạng thái `Chưa duyệt`, `Đã duyệt`, `Từ chối`, `Vi phạm` (đã gỡ `Tạm duyệt` ở migration `0030`). Chọn từ chối mở phiên nhập lý do: chỉ nhận reply đúng tin nhắn nhắc nhập, trim, tối đa 500 ký tự; có **Bỏ qua** hoặc **Hủy**, hết hạn sau 15 phút.
+- Người duyệt đang hoạt động, có `hr.leave.manage`, phòng ban được cấp và cơ sở được gán phù hợp với đơn; nhân viên được cấp quyền cũng được duyệt và được tự duyệt. Gửi tất cả người phù hợp, một quyết định thành công chốt phiên bản. Nếu không có người phù hợp, dùng quản trị cao nhất đang hoạt động; thiếu cả dự phòng thì giữ chờ và cảnh báo. Telegram ID/Start chỉ quyết định khả năng giao tin, không quyết định có người duyệt web. Mỗi người nhận Telegram phải có ID và bấm Start.
+- Phê duyệt và Từ chối. Từ chối mở Mini App (`public/telegram/leave-reject.html`), xác thực initData 15 phút, lý do tùy chọn tối đa 500 ký tự; OK trống vẫn lưu người/thời điểm, Hủy không ghi. Phiên reply cũ được hỗ trợ đến hết hạn. `/donnghi` lọc phòng ban,10 đơn/trang.
 - `Đã duyệt`/`Từ chối` khóa tiếp thao tác Telegram cho mọi quản lý. Web vẫn sửa được; chuyển về trạng thái khác mở lại thao tác Telegram. Phiên bản `decision_version` chống nút cũ và quyết định đồng thời; mọi quyết định đi qua `hr/hrLeaveDecisionService.js`. Các tin nhắn đã gửi được cập nhật theo kết quả mới.
 - `hr/hrLeaveDbRealtime.js` đưa thay đổi DB vào SSE HR, dùng bản chụp/phiên bản dùng chung thay vì cursor thứ tự event. Kết nối hoặc kết nối lại SSE làm mới danh sách. Công tắc cầu này độc lập với công tắc bot.
 - Bot xin nghỉ bên ngoài vẫn sở hữu `hr_telegram_links`/`hr_telegram_sessions` và báo kết quả cho nhân viên bằng `decision_notified_at`; bot quản lý không tiêu thụ hay đánh dấu cột đó.
@@ -153,11 +153,20 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0028` | `idx_orders_phieu_tam` — chỉ mục một phần `orders (branch, id) WHERE raw->>'statusValue' = 'Phiếu tạm'` cho truy vấn đơn Phiếu tạm của trang Vòng đời đơn hàng (chưa áp chỉ mục code vẫn chạy đúng, chỉ chậm hơn: đo trên dữ liệu thật khi chưa có chỉ mục ~4 giây cho lần đọc nguội, các lần sau trong 60 giây dùng cache) |
 | `0029` | `hr_leave_requests.decision_version` + `hr_leave_change_events`, `hr_leave_manager_messages`, `hr_manager_telegram_sessions`, `hr_manager_telegram_updates`, `hr_manager_telegram_state` — bot riêng cho quản lý và cầu DB → SSE; phải áp trước khi chạy bản web mới, kể cả khi bot tắt |
 | `0030` | Gỡ trạng thái `Tạm duyệt` của đơn nghỉ phép: đơn đang `Tạm duyệt` chuyển về `Chưa duyệt`, CHECK `hr_leave_requests_trang_thai_check` chỉ còn `Chưa duyệt`/`Đã duyệt`/`Từ chối`/`Vi phạm`; áp trước khi chạy bản web mới |
+| `0031` | Phạm vi phòng ban tài khoản, snapshot phòng ban bằng trigger tương thích bot nhân viên, `hr_manager_telegram_cards`; áp trước ứng dụng mới |
 
 Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng nền nghỉ phép trực tiếp; bot **quản lý** trong `telegram/` dùng chung đơn và sở hữu các bảng bổ sung ở migration `0029`. Hợp đồng dữ liệu ở `db/SCHEMA.md`.
 
 ## Cập nhật gần nhất
 
+2026-10-05 — Phạm vi duyệt phòng ban/cơ sở, tự xin nghỉ web, Mini App và `/donnghi`, inbox nhanh, cột người dùng. Migration `0031`; [kết quả kiểm chứng](../tasks/2026-10-05-hr-approval/todo.md). Chưa nghiệm thu production.
+
 2026-10-05 — Rà soát toàn bộ tài liệu theo code (HEAD `11751c4`): thêm mục Tài khoản/đăng ký/ID Telegram, migration `0030`, sửa lỗi bảng migration (trùng `0027`), bỏ mô tả workbook HR (không còn dùng) và chỉnh nút duyệt của bot quản lý (chỉ Phê duyệt / Từ chối).
 
 2026-10-02 — Bổ sung kiến trúc, cấu hình, migration và hướng dẫn vận hành bot Telegram riêng cho quản lý nghỉ phép. Việc bật production cần thực hiện các bước kiểm tra trong hướng dẫn thiết lập.
+
+## Nâng cấp nghỉ phép 05/10/2026
+
+`hr/hrLeaveAuthorization.js` dùng chung quyền web/Telegram; `hr/hrLeaveSelfService.js` lấy danh tính HR hoạt động. API `/api/hr/leave-requests/self` nhận ngày/buổi, lý do, bàn giao; `/self/context` trả hồ sơ hiển thị. PATCH trạng thái bắt buộc `expectedVersion`, trả 409 nếu đã đổi. `hr.leave.absence.manage` riêng cho tự ý nghỉ. Inbox bot độc lập giao tin; ACK sau lưu bền vững. [Hợp đồng và nghiệm thu](../docs/hr-leave-upgrade.md).
+
+Đơn tự gửi web lấy `telegram_chat_id` từ liên kết tài khoản trên server. Khi quyết định đơn `source=web` không có chat, service đặt `decision_notified_at` để bot nhân viên không thử gửi tới chat rỗng; thông báo web vẫn được tạo. Với đơn có chat và đơn từ bot nhân viên, chu kỳ NULL → gửi kết quả → đánh dấu và reset khi đổi trạng thái giữ nguyên.
