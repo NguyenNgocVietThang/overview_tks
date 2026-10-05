@@ -43,7 +43,7 @@ Mở `http://localhost:3000`.
 | `DEBT_MANAGEMENT_SPREADSHEET_ID` | Workbook công nợ dùng chung (chỉ đọc) |
 | `STOCK_LOCATIONS_SPREADSHEET_ID` | Workbook vị trí hàng HN/SG dùng chung, chỉ đọc |
 | `ORDER_LIFECYCLE_SPREADSHEET_ID` | Workbook vòng đời đơn hàng (`DonHang_HN`, `DonHang_SG`, `Lịch sử cập nhật`) |
-| `HR_SPREADSHEET_ID`, `HR_SPREADSHEET_ID_SG` | Còn khai báo trong `config.js` nhưng **không còn module nào đọc** (danh sách nhân sự nay ở Postgres `hr_employees`); có thể bỏ trống |
+| `HR_SPREADSHEET_ID`, `HR_SPREADSHEET_ID_SG` | **Đã gỡ khỏi `config.js` và `.env.example` (2026-10-05)** — danh sách nhân sự nay ở Postgres `hr_employees`; biến còn trong môi trường cũ thì bỏ qua được |
 | `JWT_SECRET`, `JWT_EXPIRES_IN` | Ký phiên đăng nhập (bắt buộc / mặc định `12h`) |
 | `GOOGLE_CLIENT_ID` | Đăng nhập Google (tùy chọn; thiếu thì ẩn nút) |
 | `ALLOW_SELF_REGISTRATION` | `true` để mở lại tự đăng ký tài khoản; mặc định khóa từ 2026-10-03 |
@@ -76,7 +76,7 @@ server/
 ├── notifications/        # Chuông thông báo + gửi email OTP
 ├── public/               # Frontend HTML/CSS/JS
 ├── scripts/              # Script thủ công (migrate dữ liệu, cài đặt ban đầu)
-├── sheets/               # Google Sheets client (Công nợ, Vòng đời, Vị trí hàng; hrSheetsClient.js là mã còn sót, không còn được dùng)
+├── sheets/               # Google Sheets client (Công nợ, Vòng đời, Vị trí hàng, lưu ý `hrSheetsClient.js` là mã chết chờ xóa tay)
 ├── stockLocations/       # Đọc vị trí hàng HN/SG, ánh xạ cột và API chỉ đọc
 ├── shipment/             # Vòng đời đơn hàng: đơn KiotViet (Postgres) ghép Google Sheet, lọc/phân trang ở máy chủ
 ├── telegram/             # Bot quản lý nghỉ phép, webhook, giao tin bền vững + đăng ký webhook
@@ -108,7 +108,7 @@ Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để b
 
 2026-10-01 — **Vòng đời đơn hàng hợp nhất đơn Phiếu tạm của KiotViet + cột "Giá trị có bán"**: trang Vòng đời đơn hàng nay hiện cả mọi đơn **Phiếu tạm** của Kiot HN + SG cùng các đơn trên Google Sheet, ghép theo (cơ sở, mã đơn) để không trùng: đơn có trên sheet lấy trạng thái của sheet, đơn chỉ có ở Kiot là **"Đơn chưa gửi kế toán"** (trạng thái thấp nhất; xem trực tiếp, không lưu bản sao, không ghi đè trạng thái được). Cột mới **Giá trị có bán** = Σ từng mặt hàng min(SL đặt, tồn thực Kiot của chính cơ sở của đơn + hàng đang vận chuyển) × đơn giá sau chiết khấu (bỏ dòng VAT); bấm dòng mở chi tiết đơn kèm bảng hàng hóa có tồn kho / đang vận chuyển / có bán của từng mặt hàng (`GET /api/shipment/lifecycle/order-detail?code=&branch=HN|SG`). Bảng phân trang 100 dòng/trang, sắp xếp theo toàn bộ danh sách đã lọc; file Excel xuất mọi dòng đã lọc và có thêm cột "Giá trị có bán". Module mới `shipment/kiotPendingOrdersRepository.js` (cache 60 giây; Kiot lỗi thì trang vẫn hiện đơn sheet kèm cảnh báo) và `dashboard/inTransitSource.js` (SQL "hàng đang vận chuyển" dùng chung). Migration `0028_orders_phieu_tam_index.sql` thêm chỉ mục một phần cho đơn Phiếu tạm — **cần `npm run db:migrate`** (không áp thì code vẫn chạy đúng, chỉ chậm hơn). *(Đã mở rộng sang mọi trạng thái đơn và đổi công thức ở mục 2026-10-02 phía trên; quyền gắn vào `shipment.lifecycle` từ 2026-10-03.)*
 
-2026-10-01 — tab **Hóa đơn**: bỏ bảng "Danh sách đặt hàng", bảng "Danh sách trả hàng" và thẻ "Đặt hàng đang chờ" (giữ thẻ "Trả hàng"); gỡ `GET /api/order-detail`, `GET /api/return-detail`, bộ lọc `or*`/`rt*` và các nút xuất `invoices.orders`/`invoices.returns`; tab này không còn đọc bảng đặt hàng nên tải nhanh hơn. Đơn Phiếu tạm xem ở trang Vòng đời đơn hàng.
+2026-10-01 — tab **Hóa đơn**: bỏ bảng "Danh sách đặt hàng", bảng "Danh sách trả hàng" và thẻ "Đặt hàng đang chờ" (thẻ "Trả hàng" cũng không còn hiển thị ở UI); gỡ `GET /api/order-detail`, `GET /api/return-detail`, bộ lọc `or*`/`rt*` và các nút xuất `invoices.orders`/`invoices.returns`; tab này không còn đọc bảng đặt hàng nên tải nhanh hơn. Đơn Phiếu tạm xem ở trang Vòng đời đơn hàng.
 
 2026-10-01 — công thức **Tồn có thể bán = Tồn thực tế − Đặt hàng Phiếu tạm + Hàng đang vận chuyển** áp cho bảng "Cơ cấu tồn kho" (tab Hàng hóa, cả file xuất) và bảng "Báo cáo hàng hóa" (tab Tổng quan; job đêm `kiotvietSync/productReportRefresh.js` — **sau khi deploy chạy tay `node kiotvietSync/productReportRefresh.js` trong `server/` một lần**, nếu không số mới chỉ có sau lần tính đêm). Công thức cũ (tồn − Khách đặt, không cộng hàng vận chuyển) không còn dùng.
 

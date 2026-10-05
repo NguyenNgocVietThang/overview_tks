@@ -546,6 +546,10 @@
                 <option value="Khóa">Khóa</option>
               </select>
             </div>
+            <button type="button" class="btn-secondary" id="btnExportUsers" onclick="openExportUsersModal()" style="display:none;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:-3px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Xuất Excel
+            </button>
             <button type="button" class="btn-primary" id="btnAddUserAccount" onclick="openCreateUserModal()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
               Thêm tài khoản
@@ -641,6 +645,30 @@
           <button type="submit" id="btnSubmitCreate" class="btn-primary">Tạo tài khoản</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL: XUẤT EXCEL DANH SÁCH TÀI KHOẢN -->
+  <div class="modal-overlay" id="exportUsersModal" hidden>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Xuất Excel danh sách tài khoản</h3>
+        <button type="button" class="modal-close" onclick="closeModal('exportUsersModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="exportUsersScope" style="margin:0 0 10px;color:var(--muted);font-size:13px;"></p>
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <button type="button" class="btn-secondary" onclick="setExportFieldsAll(true)">Chọn tất cả</button>
+          <button type="button" class="btn-secondary" onclick="setExportFieldsAll(false)">Bỏ chọn tất cả</button>
+          <button type="button" class="btn-secondary" onclick="setExportFieldsDefault()">Mặc định</button>
+        </div>
+        <div id="exportUsersFields" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 14px;max-height:340px;overflow:auto;"></div>
+        <div id="exportUsersError" class="alert-box alert-error" style="display:none;margin-top:10px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeModal('exportUsersModal')">Hủy</button>
+        <button type="button" id="btnConfirmExportUsers" class="btn-primary" onclick="confirmExportUsers()">Tải file Excel</button>
+      </div>
     </div>
   </div>
 
@@ -1684,6 +1712,108 @@
     }
 
     // Modal Create
+    // ---------- Xuat Excel danh sach tai khoan (chi Quan ly) ----------
+    const EXPORT_FIELDS_STORAGE_KEY = 'tks-account-export-fields';
+    let exportFieldCatalog = null;
+
+    async function ensureExportFieldCatalog(){
+      if(exportFieldCatalog) return exportFieldCatalog;
+      const res = await fetch('/api/admin/users/export/fields', { credentials: 'same-origin' });
+      const { data } = await parseApiResponse(res);
+      if(!res.ok) throw new Error(data.error || 'Không tải được danh sách trường.');
+      exportFieldCatalog = data;
+      return data;
+    }
+
+    function readSavedExportFields(){
+      try{
+        const saved = JSON.parse(localStorage.getItem(EXPORT_FIELDS_STORAGE_KEY) || 'null');
+        return Array.isArray(saved) ? saved : null;
+      }catch(err){ return null; }
+    }
+
+    function setExportFieldChecks(keys){
+      const set = new Set(keys);
+      document.querySelectorAll('#exportUsersFields input[type=checkbox]').forEach(cb => { cb.checked = set.has(cb.value); });
+    }
+
+    function setExportFieldsAll(checked){
+      document.querySelectorAll('#exportUsersFields input[type=checkbox]').forEach(cb => { cb.checked = checked; });
+    }
+
+    function setExportFieldsDefault(){
+      if(exportFieldCatalog) setExportFieldChecks(exportFieldCatalog.defaults);
+    }
+
+    async function openExportUsersModal(){
+      const errorBox = document.getElementById('exportUsersError');
+      errorBox.style.display = 'none';
+      try{
+        const catalog = await ensureExportFieldCatalog();
+        const box = document.getElementById('exportUsersFields');
+        if(!box.children.length){
+          box.innerHTML = catalog.fields.map(f =>
+            `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" value="${escapeHtml(f.key)}"> ${escapeHtml(f.label)}</label>`
+          ).join('');
+        }
+        const valid = new Set(catalog.fields.map(f => f.key));
+        const saved = (readSavedExportFields() || []).filter(k => valid.has(k));
+        setExportFieldChecks(saved.length ? saved : catalog.defaults);
+        document.getElementById('exportUsersScope').textContent =
+          'File xuất theo đúng bộ lọc và ô tìm kiếm đang áp dụng ở danh sách tài khoản.';
+        openModal('exportUsersModal');
+      }catch(err){
+        showToast(err.message || 'Không mở được hộp xuất Excel.', 'error');
+      }
+    }
+
+    async function confirmExportUsers(){
+      const errorBox = document.getElementById('exportUsersError');
+      const btn = document.getElementById('btnConfirmExportUsers');
+      const fields = Array.from(document.querySelectorAll('#exportUsersFields input:checked')).map(cb => cb.value);
+      if(!fields.length){
+        errorBox.textContent = 'Vui lòng chọn ít nhất một trường thông tin để xuất.';
+        errorBox.style.display = 'block';
+        return;
+      }
+      errorBox.style.display = 'none';
+      try{ localStorage.setItem(EXPORT_FIELDS_STORAGE_KEY, JSON.stringify(fields)); }catch(err){}
+      const params = new URLSearchParams({
+        fields: fields.join(','),
+        q: document.getElementById('userSearchInput').value || '',
+        role: document.getElementById('userRoleFilter').value,
+        coSo: document.getElementById('userFacilityFilter').value,
+        trangThai: document.getElementById('userStatusFilter').value
+      });
+      btn.disabled = true;
+      try{
+        const res = await fetch('/api/admin/users/export?' + params.toString(), { credentials: 'same-origin' });
+        if(!res.ok){
+          const { data } = await parseApiResponse(res);
+          errorBox.textContent = data.error || 'Không xuất được file Excel.';
+          errorBox.style.display = 'block';
+          return;
+        }
+        const blob = await res.blob();
+        const disposition = res.headers.get('Content-Disposition') || '';
+        const match = /filename="?([^"]+)"?/.exec(disposition);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = match ? match[1] : 'danh-sach-tai-khoan.xlsx';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        closeModal('exportUsersModal');
+      }catch(err){
+        errorBox.textContent = 'Lỗi kết nối máy chủ khi xuất Excel.';
+        errorBox.style.display = 'block';
+      }finally{
+        btn.disabled = false;
+      }
+    }
+
     function openCreateUserModal(){
       document.getElementById('createUserForm').reset();
       document.getElementById('createUserError').style.display = 'none';
@@ -1876,6 +2006,8 @@
             // Chi ai co quyen 'account.users.manage' moi duoc them tai khoan moi
             const btnAddUser = document.getElementById('btnAddUserAccount');
             if(btnAddUser) btnAddUser.style.display = isManager ? 'inline-flex' : 'none';
+            const btnExportUsers = document.getElementById('btnExportUsers');
+            if(btnExportUsers) btnExportUsers.style.display = isManager ? 'inline-flex' : 'none';
 
             // Nguoi khong phai Quan ly: nap danh muc quyen som de loc dropdown vai tro
             // va khoa lua chon "Cho phep" (best-effort — server van chan that).

@@ -10,7 +10,7 @@ Express backend cho dashboard TOKOSI.
 - CN1/CN3/CN7: bảng `customer_debt_activity_periods` trong Supabase (công nợ 1/3/7 ngày, trước đây gọi là HN1/HN3/HN7).
 - Trả NCC: người dùng tự upload file Excel xuất từ KiotViet; server nạp vào bảng Postgres `supplier_return_imports` (migration `0017`) — **không còn đọc tab Google Sheets Trả NCC**.
 - Công nợ quản lý: workbook `DEBT_MANAGEMENT_SPREADSHEET_ID` (Google Sheets, chỉ đọc).
-- Nhân sự và nghỉ phép: toàn bộ ở Postgres — danh sách nhân sự `hr_employees` (migration `0009`), 3 bảng nền nghỉ phép/Telegram (`hr_leave_requests`, `hr_telegram_links`, `hr_telegram_sessions`, migration `0016`), 5 bảng bot quản lý (migration `0029`) và tài liệu quy định `hr_rule_documents` (migration `0027`). `HR_SPREADSHEET_ID`/`HR_SPREADSHEET_ID_SG` còn trong `config.js` nhưng **không còn module nào đọc**; `sheets/hrSheetsClient.js` là mã còn sót.
+- Nhân sự và nghỉ phép: toàn bộ ở Postgres — danh sách nhân sự `hr_employees` (migration `0009`), 3 bảng nền nghỉ phép/Telegram (`hr_leave_requests`, `hr_telegram_links`, `hr_telegram_sessions`, migration `0016`), 5 bảng bot quản lý (migration `0029`) và tài liệu quy định `hr_rule_documents` (migration `0027`). Các biến `HR_SPREADSHEET_ID*` đã gỡ khỏi `config.js` (2026-10-05); `sheets/hrSheetsClient.js` là mã chết chờ xóa tay.
 - Vòng đời đơn hàng: danh sách đơn = **mọi đơn đặt hàng KiotViet** trong Postgres (bảng `orders`), ghép theo (cơ sở, mã đơn) với Google Sheets workbook `ORDER_LIFECYCLE_SPREADSHEET_ID` (`DonHang_HN`, `DonHang_SG` cấp trạng thái vòng đời; tab `Lịch sử cập nhật` do server ghi khi Quản lý ghi đè trạng thái).
 - Tài khoản và Telegram ID: PostgreSQL `app_users`; không dùng tab `Users` hoặc `_HR_TELEGRAM_LINKS` để liên kết. Xem mục "Tài khoản, đăng ký và ID Telegram" bên dưới.
 
@@ -109,7 +109,7 @@ Webhook KiotViet đi vào `POST /api/kiotviet/webhook/<KIOTVIET_WEBHOOK_SECRET>`
 | Chi tiết hóa đơn 90 ngày theo khách | `customerInvoiceLinesRefresh.js` → `customer_invoice_lines_90d` | kiểm tra mỗi 5 phút, dựng 1 lần/đêm sau 00:10 VN |
 | Giá trị tồn kho | `inventoryValueSnapshot.js` → `inventory_value_snapshots` | kiểm tra mỗi phút, chụp lúc 23:59 VN |
 
-Entity `suppliers` đã bỏ khỏi scheduler (migration `0026`); file `kiotvietSync/entities/suppliers.js` còn lại trong repo nhưng không được nạp.
+Entity `suppliers` đã bỏ khỏi scheduler (migration `0026`); file `kiotvietSync/entities/suppliers.js` (+ test) còn lại trong repo nhưng không được nạp — mã chết chờ xóa tay.
 
 ## Cấu hình Sheets
 
@@ -117,7 +117,7 @@ Server **không còn đọc tab Trả NCC** từ Google Sheets HN/SG (đã chuy�
 - **Viewer** trên workbook `DEBT_MANAGEMENT_SPREADSHEET_ID` (Công nợ HN/SG).
 - **Viewer** trên workbook `ORDER_LIFECYCLE_SPREADSHEET_ID` (tra cứu vòng đời đơn hàng — server đọc tab `DonHang_HN`, `DonHang_SG`; ghi tab `Lịch sử cập nhật` nên cần **Editor**).
 - **Viewer** trên workbook `STOCK_LOCATIONS_SPREADSHEET_ID` (Vị trí hàng HN/SG, chỉ đọc).
-- Workbook HR (`HR_SPREADSHEET_ID*`) **không còn được đọc** — danh sách nhân sự lấy từ Postgres `hr_employees`.
+- Workbook HR **không còn được đọc và không còn biến cấu hình** — danh sách nhân sự lấy từ Postgres `hr_employees`.
 
 Hai file Kiot HN/SG **không còn** được server truy cập.
 

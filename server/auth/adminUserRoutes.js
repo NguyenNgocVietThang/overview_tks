@@ -16,6 +16,7 @@ const { normalizeCoSo, BRANCH_VALUES } = require('../branch/branches');
 const contactChangeService = require('./contactChangeService');
 const employeeDirectory = require('../hr/employeeDirectory');
 const accountPolicy = require('./accountPolicy');
+const userExport = require('./adminUserExportService');
 
 const router = express.Router();
 
@@ -71,6 +72,43 @@ router.get('/api/admin/users', ...authView, async (req, res) => {
   } catch (err) {
     console.error('=== LOI GET /api/admin/users ===', err);
     res.status(500).json({ error: 'Không tải được danh sách người dùng.' });
+  }
+});
+
+/**
+ * GET /api/admin/users/export/fields — danh mục trường có thể xuất (cho hộp chọn trường).
+ */
+router.get('/api/admin/users/export/fields', ...authManage, (req, res) => {
+  res.status(200).json({
+    fields: userExport.EXPORT_FIELDS.map(f => ({ key: f.key, label: f.label })),
+    defaults: userExport.DEFAULT_FIELD_KEYS
+  });
+});
+
+/**
+ * GET /api/admin/users/export?fields=a,b&q=&role=&coSo=&trangThai= — Xuất Excel
+ * danh sách tài khoản (đúng bộ lọc đang xem) với các trường được chọn.
+ * Chỉ Quản lý (account.users.manage). Không bao giờ xuất mật khẩu.
+ */
+router.get('/api/admin/users/export', ...authManage, async (req, res) => {
+  try {
+    const fieldKeys = userExport.parseFieldKeys(req.query.fields);
+    if (!fieldKeys) {
+      return res.status(400).json({ error: 'Vui lòng chọn ít nhất một trường thông tin để xuất.', code: 'NO_EXPORT_FIELDS' });
+    }
+    const str = v => (typeof v === 'string' ? v : '');
+    const users = await localUserStore.getAllUsers();
+    const { buffer, fileName, mime } = await userExport.buildUserWorkbook(
+      users,
+      { q: str(req.query.q), role: str(req.query.role), coSo: str(req.query.coSo), trangThai: str(req.query.trangThai) },
+      fieldKeys
+    );
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.status(200).send(Buffer.from(buffer));
+  } catch (err) {
+    console.error('=== LOI GET /api/admin/users/export ===', err);
+    res.status(500).json({ error: 'Không xuất được file Excel danh sách tài khoản.' });
   }
 });
 

@@ -172,11 +172,11 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 
 | **Mã**  | **Mô tả**                                                                                                                              | **Ưu tiên** | **Trạng thái** |
 |---------|----------------------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
-| FR-02.1 | Tab Tổng quan: doanh thu hôm nay, số hóa đơn hoàn thành/đã hủy hôm nay (theo Asia/Ho_Chi_Minh, từ `daily_invoice_summary`, chỉ `statusValue` = `Hoàn thành`/`Đã hủy`). | Cao | Hoàn thành |
+| FR-02.1 | Backend vẫn tính `kpi.revenueToday`, `invoicesToday`, `cancelledToday` (hôm nay theo Asia/Ho_Chi_Minh, từ `daily_invoice_summary`, chỉ `statusValue` = `Hoàn thành`/`Đã hủy`) nhưng **giao diện hiện không hiển thị** các thẻ "hôm nay" này (đối chiếu FE–BE 2026-10-05); UI chỉ hiện số liệu trong kỳ ở FR-02.2. | Thấp | Tính ở BE, không dùng ở UI |
 | FR-02.2 | Mục "Xu hướng" của tab Tổng quan có 3 thẻ trong kỳ lọc: **Doanh thu thực tế** (hóa đơn hoàn thành trừ tiền phiếu trả `Đã trả` theo ngày trả), số hóa đơn hoàn thành, số hóa đơn hủy. | Cao | Hoàn thành |
-| FR-02.3 | KPI hàng hóa: tổng mã hàng, tổng tồn kho, mã có hàng, mã đang kinh doanh, mã hết hàng (tồn = 0), **Giá trị tồn kho** = Σ `max(tồn,0) × max(giá vốn trung bình,0)` chỉ hàng đang kinh doanh, bỏ mã bắt đầu `VAT`. | Cao | Hoàn thành |
+| FR-02.3 | KPI hàng hóa hiển thị ở tab Hàng hóa: tổng mã hàng, mã có hàng, mã hết hàng (tồn = 0), **Giá trị tồn kho** = Σ `max(tồn,0) × max(giá vốn trung bình,0)` chỉ hàng đang kinh doanh, bỏ mã bắt đầu `VAT`. | Cao | Hoàn thành |
 | FR-02.4 | KPI khách hàng: tổng khách, số khách có công nợ, tổng công nợ. | Cao | Hoàn thành |
-| FR-02.5 | Tab Hóa đơn: thẻ Trả hàng (số phiếu và tổng giá trị trả); thẻ "Đặt hàng đang chờ" **đã bỏ** 2026-10-01 — đơn Phiếu tạm theo dõi ở Vòng đời đơn hàng (FR-14). | Cao | Hoàn thành |
+| FR-02.5 | Tab Hóa đơn hiển thị 4 thẻ trong kỳ: Số giao dịch, Doanh thu, Giảm giá, Thực thu. Thẻ "Đặt hàng đang chờ" đã bỏ 2026-10-01 (đơn Phiếu tạm theo dõi ở Vòng đời đơn hàng, FR-14); `invoices.returnsCount`/`totalReturns` còn được BE tính nhưng UI không hiển thị thẻ Trả hàng. | Cao | Hoàn thành |
 | FR-02.6 | KPI nhà cung cấp / nhập hàng của Báo cáo tổng hợp **đã gỡ** cùng tab Nhà cung cấp (2026-09-30, migration `0026`); `purchases` chỉ còn phục vụ kiểm tra đứt hàng và "Hàng mới nhập". | — | Đã gỡ |
 | FR-02.7 | Tab Quản lý công nợ có 4 KPI riêng (xem FR-11.5). Mỗi mục lớn của các tab có chỉ số then chốt riêng ở đầu mục và tính theo bộ lọc Từ–Đến của chính bảng. | Cao | Hoàn thành |
 

@@ -103,11 +103,11 @@ Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (5 tab), Quản lý c
 
 | **Nhóm**                  | **KPI**                                                                                          |
 |---------------------------|--------------------------------------------------------------------------------------------------|
-| Bán hàng hôm nay          | Doanh thu hôm nay, số hóa đơn hoàn thành, số hóa đơn đã hủy                                     |
+| Bán hàng hôm nay          | (Backend vẫn tính doanh thu/số hóa đơn hôm nay nhưng giao diện hiện chỉ hiển thị số liệu theo kỳ lọc)  |
 | Kỳ lọc (Từ – Đến)         | **Doanh thu thực tế** (hóa đơn hoàn thành trừ tiền hàng khách trả lại), số hóa đơn hoàn thành, số hóa đơn hủy, biểu đồ doanh thu theo ngày |
-| Hàng hóa                  | Tổng mã hàng, tổng tồn kho, mã đang có hàng, mã đang kinh doanh, mã hết hàng, giá trị tồn kho (theo giá vốn), Tồn có thể bán, hàng đang vận chuyển |
+| Hàng hóa                  | Tổng mã hàng, mã đang có hàng, mã hết hàng, giá trị tồn kho (theo giá vốn), Tồn có thể bán, hàng đang vận chuyển |
 | Khách hàng                | Tổng khách hàng, số khách có công nợ, tổng công nợ khách hàng                                   |
-| Trả hàng                  | Số phiếu trả và tổng giá trị trả trong kỳ (tab Hóa đơn)                                         |
+| Giao dịch (tab Hóa đơn)   | Số giao dịch, doanh thu, giảm giá, thực thu trong kỳ lọc                                         |
 | Công nợ (tab riêng)       | Tổng nợ hiện tại, tổng nợ quá hạn, số khách cần xử lý, tỷ lệ nợ quá hạn so với doanh số         |
 
 Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp/nhập hàng.
