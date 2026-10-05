@@ -49,15 +49,19 @@ test('stable DB FK lookup rejects inactive accounts and employees even when name
   const { loadActiveProfile } = require('./hrLeaveSelfService');
   const db = new PGlite();
   try {
-    await db.exec(`CREATE TABLE app_users (id text PRIMARY KEY, username text, vai_tro text, hr_employee_id bigint, trang_thai text, is_deleted boolean);
+    await db.exec(`CREATE TABLE app_users (id text PRIMARY KEY, username text, vai_tro text, hr_employee_id bigint, trang_thai text, is_deleted boolean, ho_ten text NOT NULL DEFAULT '', co_so text NOT NULL DEFAULT '');
       CREATE TABLE hr_employees (id bigint PRIMARY KEY, ho_ten text, bo_phan text, branch text, is_active boolean);
       INSERT INTO hr_employees VALUES (42,'Same name','KHO','saigon',true),(43,'Same name','SALE','hanoi',true),(44,'Inactive','KHO','saigon',false);
-      INSERT INTO app_users VALUES ('active','staff','Khách',42,'Đang hoạt động',false),('inactive','old','Khách',42,'Không hoạt động',false),('locked','locked','Khách',42,'Khóa',false),('deleted','gone','Khách',42,'Đang hoạt động',true),('ex-employee','ex','Khách',44,'Đang hoạt động',false),('unlinked','none','Khách',NULL,'Đang hoạt động',false);
+      INSERT INTO app_users VALUES ('active','staff','Khách',42,'Đang hoạt động',false),('inactive','old','Khách',42,'Không hoạt động',false),('locked','locked','Khách',42,'Khóa',false),('deleted','gone','Khách',42,'Đang hoạt động',true),('ex-employee','ex','Khách',44,'Đang hoạt động',false),('unlinked','none','Khách',NULL,'Đang hoạt động',false),('mgr-both','mgr1','Quản lý',NULL,'Đang hoạt động',false),('mgr-sg','mgr2','Quản lý',NULL,'Đang hoạt động',false),('mgr-gone','mgr3','Quản lý',NULL,'Đang hoạt động',true);
+      UPDATE app_users SET ho_ten='Quản Lý Một', co_so='both' WHERE id='mgr-both'; UPDATE app_users SET ho_ten='Quản Lý Hai', co_so='saigon' WHERE id='mgr-sg';
       ALTER TABLE app_users ADD COLUMN telegram_id text NOT NULL DEFAULT '';
       UPDATE app_users SET telegram_id = '123456' WHERE id = 'active';`);
     const active = await loadActiveProfile('active', db);
     assert.equal(active.hr_employee_id, 42); assert.equal(active.bo_phan, 'KHO'); assert.equal(active.branch, 'saigon'); assert.equal(active.telegram_id, '123456');
-    for (const id of ['inactive','locked','deleted','ex-employee','unlinked','missing']) assert.equal(await loadActiveProfile(id,db), null);
+    const both = await loadActiveProfile('mgr-both', db);
+    assert.equal(both.hr_employee_id, null); assert.equal(both.ho_ten, 'Quản Lý Một'); assert.equal(both.bo_phan, 'Quản lý'); assert.equal(both.branch, 'hanoi');
+    assert.equal((await loadActiveProfile('mgr-sg', db)).branch, 'saigon');
+    for (const id of ['mgr-gone','inactive','locked','deleted','ex-employee','unlinked','missing']) assert.equal(await loadActiveProfile(id,db), null);
   } finally { await db.close(); }
 });
 

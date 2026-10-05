@@ -5,12 +5,17 @@ const { branchCodeToLabel } = require('../branch/branches');
 const { parseIsoDateOnly, computeDurationSessions, computeVietnamLeaveTiming } = require('./hrLeaveService');
 
 // Never resolve by editable display name, email or username. The stable FK is the identity.
+// Quản lý chưa liên kết hồ sơ nhân sự vẫn được xin nghỉ: lấy họ tên/cơ sở từ chính tài khoản
+// (cơ sở "Cả hai"/trống quy về Hà Nội vì đơn nghỉ bắt buộc thuộc một cơ sở).
 async function loadActiveProfile(userId, pool = getPool()) {
   const { rows } = await pool.query(`
     SELECT u.id AS user_id, u.username, u.vai_tro, u.telegram_id, e.id AS hr_employee_id,
-           e.ho_ten, e.bo_phan, e.branch
-    FROM app_users u JOIN hr_employees e ON e.id = u.hr_employee_id
-    WHERE u.id = $1 AND u.trang_thai = 'Đang hoạt động' AND NOT u.is_deleted AND e.is_active
+           COALESCE(e.ho_ten, NULLIF(u.ho_ten, ''), u.username) AS ho_ten,
+           COALESCE(e.bo_phan, u.vai_tro) AS bo_phan,
+           COALESCE(e.branch, CASE WHEN u.co_so IN ('hanoi', 'saigon') THEN u.co_so ELSE 'hanoi' END) AS branch
+    FROM app_users u LEFT JOIN hr_employees e ON e.id = u.hr_employee_id
+    WHERE u.id = $1 AND u.trang_thai = 'Đang hoạt động' AND NOT u.is_deleted
+      AND (e.is_active OR (u.hr_employee_id IS NULL AND u.vai_tro = 'Quản lý'))
   `, [userId]);
   return rows[0] || null;
 }

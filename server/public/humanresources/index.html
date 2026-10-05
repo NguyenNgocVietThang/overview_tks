@@ -2212,7 +2212,7 @@
           initDefaultLeaveFilters();
           if(hrCan('hr.rules')) loadRuleDocuments();
           if(hrCan('hr.leave') || hrCan('hr.leave.submit')) loadLeaveRequests();
-          if(hrCan('hr.leave.submit')) loadSelfLeaveContext().catch(err => showToast(err.message, 'error'));
+          if(hrCan('hr.leave.submit') || hrCan('hr.leave.manage')) loadSelfLeaveContext().catch(err => showToast(err.message, 'error'));
           if(!hrCan('hr.leave')) document.getElementById('btnExportExcel').hidden = true;
           if(hrCan('hr.employees')) loadEmployeeDirectory();
           if(hrCan('hr.leave')) setupLeaveRealtimeStream();
