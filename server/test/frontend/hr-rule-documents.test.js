@@ -105,13 +105,14 @@ test('dựng tab từ API: 2 tài liệu dựng sẵn + PDF, mặc định tài 
 test('nội dung tài liệu dựng sẵn: "Quy định nghỉ phép" đủ thời hạn xin nghỉ, bàn giao công việc, mức phạt và bot Telegram', async () => {
   const { window, document } = await openPage();
   const leaveDoc = document.getElementById('ruleDoc-nghi-phep').textContent;
-  assert.match(leaveDoc, /@nghiphieptks_bot/);
-  assert.match(leaveDoc, /Nghỉ dưới 1 ngày/);
-  assert.match(leaveDoc, /trước 00:00 ngày trước đó/);
-  assert.match(leaveDoc, /Nghỉ từ 02 ngày trở lên/);
-  assert.match(leaveDoc, /trước 02 ngày/);
+  assert.match(leaveDoc, /@nghipheptks_bot/);
+  assert.match(leaveDoc, /Nghỉ ≤ 1 ngày/);
+  assert.match(leaveDoc, /trước 23h59 của 02 ngày trước/);
+  assert.match(leaveDoc, /Nghỉ trên 1 ngày/);
+  assert.match(leaveDoc, /trước 23h59 của 03 ngày trước/);
   assert.match(leaveDoc, /Bàn giao công việc/);
   assert.match(leaveDoc, /người nhận bàn giao/);
+  assert.match(leaveDoc, /tạo đơn trên web/);
   assert.match(leaveDoc, /50\.000đ\/lần/);
   assert.match(leaveDoc, /500\.000đ\/lần/);
   assert.doesNotMatch(leaveDoc, /lienket|Tạm duyệt/);
