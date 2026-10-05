@@ -145,3 +145,5 @@ Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để b
 2026-09-23 — bổ sung bảng tổng hợp Báo cáo hàng hóa `product_report` (migration 0018) cho tab Tổng quan gộp cả 2 cơ sở, refresh định kỳ hàng đêm qua `productReportRefresh.js`, API `GET /api/product-report` và xuất Excel tùy chọn.
 
 2026-09-22 — chuyển nguồn dữ liệu Trả NCC (kiểm tra đứt hàng) từ tab Google Sheets đọc tay sang người dùng tự upload file Excel xuất trực tiếp từ KiotViet; thêm bảng Postgres `supplier_return_imports` (thay thế toàn bộ theo cơ sở mỗi lần import), gộp vào cùng pipeline Postgres với Hóa đơn/Nhập hàng/Khách trả, loại bỏ hoàn toàn nhánh đọc Sheets riêng cho Trả NCC.
+
+2026-10-05 — Chuẩn hóa bộ phận thành **Ban quản trị** (Ban quản lý + Trưởng chi nhánh) và **Hậu cần - Bảo vệ** (Hậu cần + Bảo vệ). Chạy `npm run db:migrate` trong `server/` để áp `0032` rồi khởi động lại server; cập nhật nhân sự, đơn nghỉ cũ và phạm vi duyệt phép.

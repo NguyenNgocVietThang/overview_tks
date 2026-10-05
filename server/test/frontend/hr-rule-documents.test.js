@@ -102,16 +102,18 @@ test('dựng tab từ API: 2 tài liệu dựng sẵn + PDF, mặc định tài 
   window.close();
 });
 
-test('nội dung tài liệu dựng sẵn: "Quy định nghỉ phép" đủ rule nghỉ ngắn/dài ngày, mức phạt và bot Telegram', async () => {
+test('nội dung tài liệu dựng sẵn: "Quy định nghỉ phép" đủ thời hạn xin nghỉ, bàn giao công việc, mức phạt và bot Telegram', async () => {
   const { window, document } = await openPage();
   const leaveDoc = document.getElementById('ruleDoc-nghi-phep').textContent;
-  assert.match(leaveDoc, /@nghipheptks_bot/);
-  assert.match(leaveDoc, /từ 03 ngày trở xuống/);
-  assert.match(leaveDoc, /trước 22h00 của ngày hôm trước/);
-  assert.match(leaveDoc, /trên 03 ngày/);
-  assert.match(leaveDoc, /trước ít nhất 02 ngày/);
+  assert.match(leaveDoc, /@nghiphieptks_bot/);
+  assert.match(leaveDoc, /Nghỉ dưới 1 ngày/);
+  assert.match(leaveDoc, /trước 00:00 ngày trước đó/);
+  assert.match(leaveDoc, /Nghỉ từ 02 ngày trở lên/);
+  assert.match(leaveDoc, /trước 02 ngày/);
+  assert.match(leaveDoc, /Bàn giao công việc/);
+  assert.match(leaveDoc, /người nhận bàn giao/);
   assert.match(leaveDoc, /50\.000đ\/lần/);
-  assert.match(leaveDoc, /03 ngày lương/);
+  assert.match(leaveDoc, /500\.000đ\/lần/);
   assert.doesNotMatch(leaveDoc, /lienket|Tạm duyệt/);
   const hoursDoc = document.getElementById('ruleDoc-gio-giac').textContent;
   assert.match(hoursDoc, /Giờ làm việc chính thức/);

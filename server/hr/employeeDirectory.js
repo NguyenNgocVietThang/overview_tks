@@ -16,7 +16,7 @@ const REQUIRED_HEADERS = Object.freeze({
 });
 
 const DEPARTMENT_FOR_ROLE = Object.freeze({
-  [ROLES.QUAN_LY]: 'BAN QUẢN LÝ',
+  [ROLES.QUAN_LY]: 'BAN QUẢN TRỊ',
   [ROLES.KE_TOAN]: 'KẾ TOÁN',
   [ROLES.TRUONG_KHO]: 'TRƯỞNG KHO',
   [ROLES.TRO_LY]: 'TRỢ LÝ',
@@ -26,7 +26,7 @@ const DEPARTMENT_FOR_ROLE = Object.freeze({
   [ROLES.NHAN_VIEN_MARKETING]: 'MARKETING',
   [ROLES.NHAN_VIEN_MUA_HANG]: 'MUA HÀNG'
   // ROLES.KHACH: cố ý không map — không có phòng ban duy nhất để ghi ngược lại
-  // (HẬU CẦN/BẢO VỆ đều suy ra Khách), nên giữ nguyên BỘ PHẬN gốc.
+  // (HẬU CẦN - BẢO VỆ suy ra Khách), nên giữ nguyên BỘ PHẬN gốc.
 });
 
 class HrDirectoryError extends Error {
@@ -61,6 +61,8 @@ function normalizeTelegramId(value) {
 function roleForDepartment(value) {
   const department = normalizeText(value);
   const roles = {
+    'BAN QUAN TRI': ROLES.QUAN_LY,
+    // Tương thích dữ liệu cũ trước khi chạy migration 0032.
     'BAN QUAN LY': ROLES.QUAN_LY,
     'TRUONG CHI NHANH': ROLES.QUAN_LY,
     'KE TOAN': ROLES.KE_TOAN,
@@ -72,6 +74,7 @@ function roleForDepartment(value) {
     'MUA HANG': ROLES.NHAN_VIEN_MUA_HANG,
     'DAT HANG': ROLES.NHAN_VIEN_MUA_HANG,
     'MARKETING': ROLES.NHAN_VIEN_MARKETING,
+    'HAU CAN - BAO VE': ROLES.KHACH,
     'HAU CAN': ROLES.KHACH,
     'BAO VE': ROLES.KHACH
   };

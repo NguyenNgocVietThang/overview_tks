@@ -21,7 +21,7 @@ test('approval dropdowns follow per-row canManage and submit the displayed versi
 test('self form shows trusted read-only profile and sends dates, sessions, reason and optional handover once',async()=>{
  const dom=page(['hr.leave.submit']);const w=dom.window;try{
  assert.equal(typeof w.openSelfLeave,'function');
- const profile={hoTen:'Nhân viên thật',boPhan:'HẬU CẦN',coSo:'Sài Gòn',username:'staff'};let submissions=0;let payload;let finish;
+ const profile={hoTen:'Nhân viên thật',boPhan:'HẬU CẦN - BẢO VỆ',coSo:'Sài Gòn',username:'staff'};let submissions=0;let payload;let finish;
  w.fetch=async(url,opts)=>{
  if(String(url).includes('/self/context'))return {ok:true,status:200,json:async()=>({eligible:true,profile})};
  if(opts?.method==='POST'){submissions++;payload=JSON.parse(opts.body);await new Promise(r=>finish=r);return {ok:true,status:201,json:async()=>({request:{request_id:'NEW'}})};}

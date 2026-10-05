@@ -39,6 +39,9 @@ test('parseEmployeeRows maps headers, normalizes identifiers and remembers sourc
 
 test('roleForDepartment implements the approved department matrix', () => {
   const expected = new Map([
+    ['BAN QUẢN TRỊ', 'Quản lý'],
+    [' ban quản trị ', 'Quản lý'],
+    ['ban quan tri', 'Quản lý'],
     ['BAN QUẢN LÝ', 'Quản lý'],
     ['TRƯỞNG CHI NHÁNH', 'Quản lý'],
     ['KẾ TOÁN', 'Kế toán'],
@@ -50,6 +53,7 @@ test('roleForDepartment implements the approved department matrix', () => {
     ['MUA HÀNG', 'Nhân viên mua hàng'],
     ['ĐẶT HÀNG', 'Nhân viên mua hàng'],
     ['MARKETING', 'Nhân viên marketing'],
+    ['HẬU CẦN - BẢO VỆ', 'Khách'],
     ['HẬU CẦN', 'Khách'],
     ['BẢO VỆ', 'Khách'],
     ['BỘ PHẬN MỚI', 'Khách']
@@ -178,4 +182,13 @@ test('bo phan MARKETING anh xa hai chieu sang vai tro Nhan vien marketing', () =
   }
   assert.equal(DEPARTMENT_FOR_ROLE['Nhân viên marketing'], 'MARKETING');
   assert.equal(roleForDepartment(DEPARTMENT_FOR_ROLE['Nhân viên marketing']), 'Nhân viên marketing');
+});
+
+test('manager department writes use Ban quản trị and retain manager permissions', async () => {
+  const repo = createFakeHrEmployeesRepository([{ id: 1, branch: 'hanoi', hoTen: 'A', boPhan: 'KHO' }]);
+  const directory = createEmployeeDirectory({ repo });
+  assert.equal(await directory.writeDepartmentForRole('Hà Nội', 1, 'Quản lý'), true);
+  const employee = (await directory.getSnapshot()).employees[0];
+  assert.equal(employee.boPhan, 'BAN QUẢN TRỊ');
+  assert.equal(employee.sheetVaiTro, 'Quản lý');
 });

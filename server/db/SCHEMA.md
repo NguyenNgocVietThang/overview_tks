@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0030`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0032`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -300,3 +300,5 @@ Bảng `hr_rule_documents` lưu trữ tài liệu quy định công ty (cả tà
 - Đơn web tự gửi `source=web`, `user_id`/`hr_employee_id`, tên/phòng ban/cơ sở do server xác định; sự kiện DB tạo hàng giao Telegram sau. Web và Telegram đều yêu cầu phiên bản, web mở lại được, Telegram khóa kết quả.
 
 Đơn tự gửi web lấy `telegram_chat_id` từ liên kết tài khoản trên server. Khi quyết định đơn `source=web` không có chat, service đặt `decision_notified_at` để bot nhân viên không thử gửi tới chat rỗng; thông báo web vẫn được tạo. Với đơn có chat và đơn từ bot nhân viên, chu kỳ NULL → gửi kết quả → đánh dấu và reset khi đổi trạng thái giữ nguyên.
+
+Migration `0032_hr_department_groups.sql` gộp `BAN QUẢN LÝ`/`TRƯỞNG CHI NHÁNH` thành `BAN QUẢN TRỊ`, `HẬU CẦN`/`BẢO VỆ` thành `HẬU CẦN - BẢO VỆ` trong nhân sự, snapshot đơn nghỉ và phạm vi duyệt phép (gộp mục trùng). Vai trò tài khoản và quyền tính năng giữ nguyên; Ban quản trị suy ra Quản lý, Hậu cần - Bảo vệ suy ra Khách theo chính sách hiện tại. Chạy migration trước khi khởi động bản web mới.
