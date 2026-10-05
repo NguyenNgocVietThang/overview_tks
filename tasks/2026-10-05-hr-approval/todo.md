@@ -23,6 +23,7 @@ Branch: codex/hr-leave-approval; base ceeffd4. Kế hoạch tasks có trước �
 
 - [ ] Áp migration0031 trên database staging và thử bot nhân viên bên ngoài/Telegram thật.
 - [ ] Đo trên service đang chạy:p95 tiếp nhận<1giây, kết quả thường<2giây; thử Telegram chậm/429.
-- [ ] Chọn cách tích hợp branch, sau đó migration và deploy theo quy trình môi trường.
+- [x] Gộp fast-forward vào main theo yêu cầu; npm test sau gộp: 1.793 đạt, 3 bỏ qua, 0 lỗi.
+- [ ] Migration và deploy theo quy trình môi trường sau nghiệm thu staging.
 
 Không dùng database/bot production, không đăng ký lại webhook và không deploy trong phiên thực hiện này.
