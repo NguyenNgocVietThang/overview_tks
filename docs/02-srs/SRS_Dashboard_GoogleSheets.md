@@ -94,7 +94,7 @@ File JSON cục bộ: server/data/notifications.json (chuông thông báo), serv
 
 Backend Express (server/): index.js · routes.js · config.js · auth/ · branch/ · dashboard/ · hr/ · shipment/ · stockLocations/
     · notifications/ · telegram/ · sheets/ · lib/ · db/
-    REST: /api/auth/*, /api/admin/*, /api/role-requests/*, /api/branch, /api/dashboard(+/events), /api/search, /api/customer-*,
+    REST: /api/auth/*, /api/admin/*, /api/role-requests/*, /api/branch, /api/dashboard(+/events), /api/customer-*,
           /api/product-report*, /api/inventory-value-history, /api/invoice-detail, /api/export*, /api/products/*,
           /api/debt-management/status, /api/shipment/lifecycle/*, /api/stock-locations, /api/hr/*, /api/notifications/*,
           /api/internal/kiotviet-sync/status, /api/kiotviet/webhook/:secret, /api/telegram/manager-leave/webhook, /health, /api/debug
@@ -172,11 +172,11 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 
 | **Mã**  | **Mô tả**                                                                                                                              | **Ưu tiên** | **Trạng thái** |
 |---------|----------------------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
-| FR-02.1 | Backend vẫn tính `kpi.revenueToday`, `invoicesToday`, `cancelledToday` (hôm nay theo Asia/Ho_Chi_Minh, từ `daily_invoice_summary`, chỉ `statusValue` = `Hoàn thành`/`Đã hủy`) nhưng **giao diện hiện không hiển thị** các thẻ "hôm nay" này (đối chiếu FE–BE 2026-10-05); UI chỉ hiện số liệu trong kỳ ở FR-02.2. | Thấp | Tính ở BE, không dùng ở UI |
+| FR-02.1 | **Đã gỡ 2026-10-05:** KPI "hôm nay" (`kpi.revenueToday`, `invoicesToday`, `cancelledToday`) không còn được tính/trả; dashboard chỉ hiện số liệu trong kỳ ở FR-02.2. | — | Đã gỡ |
 | FR-02.2 | Mục "Xu hướng" của tab Tổng quan có 3 thẻ trong kỳ lọc: **Doanh thu thực tế** (hóa đơn hoàn thành trừ tiền phiếu trả `Đã trả` theo ngày trả), số hóa đơn hoàn thành, số hóa đơn hủy. | Cao | Hoàn thành |
 | FR-02.3 | KPI hàng hóa hiển thị ở tab Hàng hóa: tổng mã hàng, mã có hàng, mã hết hàng (tồn = 0), **Giá trị tồn kho** = Σ `max(tồn,0) × max(giá vốn trung bình,0)` chỉ hàng đang kinh doanh, bỏ mã bắt đầu `VAT`. | Cao | Hoàn thành |
 | FR-02.4 | KPI khách hàng: tổng khách, số khách có công nợ, tổng công nợ. | Cao | Hoàn thành |
-| FR-02.5 | Tab Hóa đơn hiển thị 4 thẻ trong kỳ: Số giao dịch, Doanh thu, Giảm giá, Thực thu. Thẻ "Đặt hàng đang chờ" đã bỏ 2026-10-01 (đơn Phiếu tạm theo dõi ở Vòng đời đơn hàng, FR-14); `invoices.returnsCount`/`totalReturns` còn được BE tính nhưng UI không hiển thị thẻ Trả hàng. | Cao | Hoàn thành |
+| FR-02.5 | Tab Hóa đơn hiển thị 4 thẻ trong kỳ: Số giao dịch, Doanh thu, Giảm giá, Thực thu. Thẻ "Đặt hàng đang chờ" đã bỏ 2026-10-01 (đơn Phiếu tạm theo dõi ở Vòng đời đơn hàng, FR-14); thẻ Trả hàng (`invoices.returnsCount`/`totalReturns`) đã gỡ khỏi payload 2026-10-05 nên tab Hóa đơn không còn đọc bảng Trả hàng (doanh thu trừ trả hàng lấy từ rollup `daily_invoice_summary`). | Cao | Hoàn thành |
 | FR-02.6 | KPI nhà cung cấp / nhập hàng của Báo cáo tổng hợp **đã gỡ** cùng tab Nhà cung cấp (2026-09-30, migration `0026`); `purchases` chỉ còn phục vụ kiểm tra đứt hàng và "Hàng mới nhập". | — | Đã gỡ |
 | FR-02.7 | Tab Quản lý công nợ có 4 KPI riêng (xem FR-11.5). Mỗi mục lớn của các tab có chỉ số then chốt riêng ở đầu mục và tính theo bộ lọc Từ–Đến của chính bảng. | Cao | Hoàn thành |
 
@@ -202,7 +202,7 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 
 | **Mã**  | **Mô tả**                                                                                                     | **Ưu tiên** | **Trạng thái** |
 |---------|---------------------------------------------------------------------------------------------------------------|-------------|----------------|
-| FR-04.1 | Không còn bộ lọc chung 7/30/90 ngày và không còn thanh tìm kiếm chung đầu tab. Mỗi bảng/biểu đồ có bộ lọc **Từ – Đến** riêng (tiền tố tham số: `ov`, `pr`, `in`, `cu`, `np`, `ni` + `Mode`/`Days`/`From`/`To`); xóa trống cả hai ô = "Tất cả". | Cao | Hoàn thành |
+| FR-04.1 | Không còn bộ lọc chung 7/30/90 ngày và không còn thanh tìm kiếm chung đầu tab. Mỗi bảng/biểu đồ có bộ lọc **Từ – Đến** riêng (tiền tố tham số: `pr`, `in`, `cu`, `np`, `ni` + `Mode`/`Days`/`From`/`To`); xóa trống cả hai ô = "Tất cả". Bộ lọc riêng `ov*` của Tổng quan đã bỏ 2026-10-05: doanh thu theo ngày ở Tổng quan dùng bộ lọc `in*` (`filters.overview` không còn). | Cao | Hoàn thành |
 | FR-04.2 | Mặc định: 30 ngày gần nhất cho bảng bán chạy, Hàng mới nhập, Mã mới tạo, Chi tiết giao dịch/doanh thu theo ngày; **toàn thời gian** cho Top khách theo doanh thu; **7 ngày** cho Giá trị tồn kho theo ngày (bộ lọc riêng, gọi API riêng). | Cao | Hoàn thành |
 | FR-04.3 | Client cũ chỉ gửi `days` vẫn được hỗ trợ (tham số `days` làm giá trị dự phòng); bộ lọc `or*`/`rt*` của hai bảng đã bỏ bị bỏ qua. | Trung bình | Hoàn thành |
 | FR-04.4 | Đổi bộ lọc tải lại đúng tab đang xem, không tải lại trang. Mọi mốc ngày tính theo Asia/Ho_Chi_Minh. | Cao | Hoàn thành |
@@ -241,11 +241,11 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 | FR-07.2 | Mỗi bảng có tìm kiếm trong bảng (không dấu), sắp xếp ba trạng thái trên mọi cột, phân trang 100 dòng/trang (`pagination.js`) trên toàn bộ dữ liệu đã lọc; độ rộng cột cố định. | Cao | Hoàn thành |
 | FR-07.3 | Thanh điều hướng có bộ chọn cơ sở Hà Nội / Sài Gòn / Cả hai (cookie `tks_branch`, xác thực lại ở server), đổi theme sáng/tối, chuông thông báo (hỏi số chưa đọc mỗi 30 giây), lịch nghỉ phép, hộp hồ sơ cá nhân. | Cao | Hoàn thành |
 | FR-07.4 | `/api/debug`: kiểm tra kết nối Postgres (đếm hóa đơn theo `branch = ANY($1)`), quyền như API báo cáo; `/health` trả `{"status":"ok"}` cho health check Render. | Thấp | Hoàn thành |
-| FR-07.5 | Mỗi bảng xuất được có nút `Xuất Excel` (tùy trang có thêm `Xuất HTML`): file giữ bộ lọc/sắp xếp hiện tại và bỏ giới hạn phân trang. Các bảng: Chi tiết giao dịch, Danh sách mã mới, Sản phẩm bán chạy, Tất cả mã hàng, Hàng mới nhập, Chi tiết tồn kho theo sản phẩm, Doanh thu theo khách, Chi tiết khách nợ, Bảng chi tiết sản phẩm theo khách, Báo cáo hàng hóa, Quản lý công nợ, Kết quả tìm kiếm, Hàng đứt gần đây, Kiểm tra đứt hàng 90/30 ngày (`TABLE_TITLES` trong `exportService.js`). Quyền `reports.export` (mặc định Quản lý + Trợ lý). | Cao | Hoàn thành |
-| FR-07.6 | `POST /api/export/fields` trả danh sách worksheet/trường ngay từ từ điển tĩnh (`rowCount = null`), không chạm DB; riêng `search.results` chạy tìm kiếm thật. `POST /api/export` lấy mã dòng từ `getDashboardData()` rồi `readRowsByCodes()` đọc đúng các mã đó từ Postgres (5 nguồn: Hàng hóa, Hóa đơn, Đặt hàng, Trả hàng, Khách hàng; nguồn khác → `400 EXPORT_SOURCE_NOT_ALLOWED`); danh sách > 20.000 mã chia lô 5.000. Body `format: 'html'` tạo báo cáo HTML tự chứa. | Cao | Hoàn thành |
+| FR-07.5 | Mỗi bảng xuất được có nút `Xuất Excel` (tùy trang có thêm `Xuất HTML`): file giữ bộ lọc/sắp xếp hiện tại và bỏ giới hạn phân trang. Các bảng: Chi tiết giao dịch, Danh sách mã mới, Sản phẩm bán chạy, Tất cả mã hàng, Hàng mới nhập, Chi tiết tồn kho theo sản phẩm, Doanh thu theo khách, Chi tiết khách nợ, Bảng chi tiết sản phẩm theo khách, Báo cáo hàng hóa, Quản lý công nợ, Hàng đứt gần đây, Kiểm tra đứt hàng 90/30 ngày (`TABLE_TITLES` trong `exportService.js`). Quyền `reports.export` (mặc định Quản lý + Trợ lý). | Cao | Hoàn thành |
+| FR-07.6 | `POST /api/export/fields` trả danh sách worksheet/trường ngay từ từ điển tĩnh (`rowCount = null`), không chạm DB (bảng `search.results` đã gỡ 2026-10-05). `POST /api/export` lấy mã dòng từ `getDashboardData()` rồi `readRowsByCodes()` đọc đúng các mã đó từ Postgres (5 nguồn: Hàng hóa, Hóa đơn, Đặt hàng, Trả hàng, Khách hàng; nguồn khác → `400 EXPORT_SOURCE_NOT_ALLOWED`); danh sách > 20.000 mã chia lô 5.000. Body `format: 'html'` tạo báo cáo HTML tự chứa. | Cao | Hoàn thành |
 | FR-07.7 | Modal xuất hủy được mọi lúc (X, Hủy, Esc, bấm nền) bằng `AbortController`; timeout 30 giây (danh sách trường) / 180 giây (tạo file); lỗi hiện thông báo tiếng Việt + `Thử lại`; phản hồi trễ của yêu cầu cũ bị bỏ qua; ngắt kết nối thì server hủy việc và nhả chỗ xuất. | Cao | Hoàn thành |
 | FR-07.8 | Nhãn trường xuất tiếng Việt chuẩn hóa (có dấu, không viết tắt/snake_case, ≤ 40 ký tự, duy nhất trong worksheet) tại `exportFieldCatalog.js`; cột dashboard tính thêm khai báo trong `exportService.js`. | Cao | Hoàn thành |
-| FR-07.9 | Ba chế độ `GET /api/search` (thường / `mode=codes` tối đa 50 mã) và `GET /api/customer-product-top` (tối đa 3 khách/mã) **vẫn còn ở API** nhưng giao diện hiện tại không còn thanh tìm kiếm chung nên không gọi chúng. | Thấp | Còn API, không dùng ở UI |
+| FR-07.9 | **Đã gỡ 2026-10-05:** `GET /api/search` (tìm chung / `mode=codes`), `GET /api/customer-product-top` và bảng xuất `search.results` — giao diện không còn thanh tìm kiếm chung nên không còn nơi gọi. | — | Đã gỡ |
 | FR-07.10 | Chart.js có animation gating (không animate lại khi chuyển tab, đổi theme hay cập nhật nền); bộ test chặn hiệu ứng 3D và `backdrop-filter` ở màn hình chờ toàn màn hình của dashboard (`no-3d-effects.test.js`). | Cao | Hoàn thành |
 | FR-07.11 | Giao diện hỗ trợ điện thoại/máy tính bảng; Light/Dark; `prefers-reduced-motion`. | Cao | Hoàn thành |
 
@@ -255,16 +255,16 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 |--------|-----------|-------------|----------------|
 | FR-08.1 | Đăng nhập `POST /api/auth/login` (tên tài khoản/email/SĐT + mật khẩu bcrypt), JWT cookie `tks_auth` (mặc định 12 giờ, `httpOnly`); sai mật khẩu 5 lần liên tiếp khóa 5 phút (HTTP 423, trả thời gian đếm ngược); tài khoản bị khóa → 403 `ACCOUNT_LOCKED`. | Cao | Hoàn thành |
 | FR-08.2 | Đăng nhập Google (`POST /api/auth/google`, Google Identity ID token; `GOOGLE_CLIENT_ID` tùy chọn): chỉ liên kết/đăng nhập tài khoản **đã có** (theo email hoặc dòng nhân sự); email lạ không tạo tài khoản khi tự đăng ký đang khóa. | Cao | Hoàn thành |
-| FR-08.3 | **Tự đăng ký bị khóa từ 03/10/2026** (`ALLOW_SELF_REGISTRATION`, mặc định tắt): `POST /api/auth/register`, `/register/channels`, `/register/send-otp`, `/register/verify` trả 403 `REGISTRATION_DISABLED`; admin cứng luôn đăng ký/đăng nhập được; `GET /api/auth/google-config` trả `{ clientId, registrationOpen }` để trang login ẩn link và trang register khóa form. Bật lại: Khách đăng ký bằng email + mật khẩu hoặc nhân sự xác minh OTP qua email trong danh sách nhân sự. Tài khoản mới thông thường do Quản lý tạo (`POST /api/admin/users`). | Cao | Hoàn thành |
+| FR-08.3 | **Tự đăng ký bị khóa từ 03/10/2026** (`ALLOW_SELF_REGISTRATION`, mặc định tắt): `POST /api/auth/register` trả 403 `REGISTRATION_DISABLED`; admin cứng luôn đăng ký/đăng nhập được; `GET /api/auth/google-config` trả `{ clientId, registrationOpen }` để trang login ẩn link và trang register khóa form. Bật lại: Khách đăng ký bằng email + mật khẩu. Luồng đăng ký nhân sự bằng OTP (`/register/channels`, `/register/send-otp`, `/register/verify`) **đã gỡ 2026-10-05**. Tài khoản mới thông thường do Quản lý tạo (`POST /api/admin/users`). | Cao | Hoàn thành |
 | FR-08.4 | Quên mật khẩu qua OTP 6 số: `POST /api/auth/forgot-password/channels` → `/send-otp` → `/verify` (OTP + mật khẩu mới 8–128 ký tự). OTP hiệu lực 5 phút, tối đa 5 lần nhập, gửi lại cách nhau ≥ 60 giây; định danh lạ nhận phản hồi giả (không lộ tài khoản); giới hạn 8 yêu cầu/10 phút theo định danh và 20/10 phút theo IP; thành công xóa khóa đăng nhập tạm. Email gửi qua SMTP (thiếu cấu hình thì in OTP ra console). | Cao | Hoàn thành |
-| FR-08.5 | Hồ sơ cá nhân: `GET/POST /api/auth/profile` (họ tên, email), `POST /api/auth/profile/contact-change` + `/verify` (đổi liên hệ qua OTP), `POST /api/auth/recovery`, `POST /api/auth/change-password`. | Cao | Hoàn thành |
+| FR-08.5 | Hồ sơ cá nhân (siết 2026-10-05): `POST /api/auth/profile` chỉ đổi **họ tên** (+ ID Telegram nếu là Quản lý, FR-08.6), **không đổi email** — gửi email khác email hiện tại: tài khoản nhân sự (`hrManaged`) → 403 `EMAIL_CHANGE_LOCKED`, tài khoản thường → 409 `EMAIL_CHANGE_REQUIRES_OTP`. Email tài khoản nhân sự chỉ Quản lý đổi qua `PUT /api/admin/users/:id` (đồng bộ `hr_employees`). Tài khoản thường (Khách, nội bộ không gắn nhân sự) đổi email bằng OTP gửi tới **email mới**: `POST /api/auth/profile/contact-change` `{ field: 'email', value }` → `{ challengeId, targetMasked }`, rồi `POST /api/auth/profile/contact-change/verify` `{ challengeId, otp }`; thành công đặt `verifiedEmail = true`, chỉ ghi `app_users`; email trùng tài khoản khác bị từ chối; giới hạn 5 lần gửi mã/giờ, 10 lần nhập sai/giờ qua mọi lần xin mã, 20 yêu cầu/người dùng + 60/IP mỗi 10 phút — vượt thì 429 kèm `waitSeconds`; email mới khớp nhân sự đã có tài khoản khác hoặc xung đột với SĐT hiện có → 409 không ghi; danh bạ nhân sự lỗi → 503; `field: 'phone'` → 403 `PHONE_CHANGE_LOCKED`. Trang quản trị người dùng: chặn gán định danh admin cứng (`PROTECTED_IDENTITY`), tự đổi email/SĐT của mình (`SELF_CONTACT_CHANGE`), và người không phải Quản lý gán định danh trùng nhân sự cấp cao hơn (`HR_ROLE_ESCALATION`). Đăng nhập Google chỉ tự liên kết vào tài khoản chưa gắn khớp **theo email**; còn lại 409 `HR_IDENTITY_CONFLICT`. `POST /api/auth/recovery` chỉ đổi **email khôi phục** (xác nhận mật khẩu hiện tại); body có `soDienThoai` → 400 `PHONE_CHANGE_NOT_ALLOWED` — SĐT chỉ Quản lý đổi ở trang quản trị. `POST /api/auth/change-password`. Giao diện `/account/#profile` và hộp hồ sơ chung (`shared-nav.js`) hiển thị email chỉ đọc: tài khoản nhân sự thấy gợi ý "liên hệ Quản lý", tài khoản thường có "Đổi email" mở hộp OTP 2 bước. | Cao | Hoàn thành |
 | FR-08.6 | **ID Telegram** (`app_users.telegram_id`, chuỗi số nguyên dương ≤ 20 chữ số, rỗng = hủy liên kết): lưu trong một giao dịch (khóa advisory theo ID) thu hồi liên kết cũ, tạo liên kết `manual` và đồng bộ `hr_employees.telegram_id`; trùng với tài khoản/liên kết bot/nhân sự đang hoạt động khác → 409 `TELEGRAM_ID_EXISTS`. Chỉ **Quản lý** (hoặc admin cứng) được thêm/sửa ID ở hồ sơ của chính mình (`telegramEditable`); vai trò khác gửi ID thay đổi → 403 `TELEGRAM_ID_LOCKED`. Quản lý đổi ID người khác qua `PUT /api/admin/users/:id`. | Cao | Hoàn thành |
 | FR-08.7 | Quản trị người dùng `/api/admin/users*` (quyền `account.users`, `account.users.manage`, `account.permissions`): danh sách, tạo, sửa, đặt lại mật khẩu, xóa, xem/ghi đè quyền từng tài khoản (`/api/admin/permissions/catalog`, `/api/admin/users/:id/permissions`). Danh mục quyền trả `requires` và `forbiddenRoles` để form khóa đúng ô. | Cao | Hoàn thành |
 | FR-08.8 | Chống leo thang (`accountPolicy.js`): người không phải Quản lý chỉ được thêm quyền chính mình có và không đụng tài khoản Quản lý/admin cứng; **Quản lý thường** không đặt lại mật khẩu, đổi email/SĐT/ID Telegram, hạ vai trò, rút quyền, khóa hay xóa **Quản lý khác** (403 `ACCOUNT_POLICY_DENIED`, vẫn thao tác được với nhân viên thường và chính mình); chỉ **Quản lý cấp cao** (admin cứng, `isSeniorAdmin` trong `GET /api/auth/me`) giữ đủ quyền. | Cao | Hoàn thành |
 | FR-08.9 | Yêu cầu đổi vai trò tự thân: `POST /api/role-requests`, danh sách/chi tiết, Quản lý duyệt/từ chối `PATCH /api/role-requests/:id/status` (kèm kiểm tra `accountPolicy`); lưu ở `server/data/roleChangeRequests.json`. | Trung bình | Hoàn thành |
 | FR-08.10 | Phân quyền theo **tính năng** (`featureRegistry.js`), giải lại mỗi request (không nằm trong JWT): quyền mặc định theo vai trò + ghi đè từng tài khoản (`feature_permissions` chỉ lưu phần lệch); `alwaysOn` (`account.profile`); `requires` (quyền phụ bị loại khi thiếu quyền gốc); `forbiddenRoles` (Khách không có `stockLocations.view`). Admin cứng luôn đủ mọi quyền. | Cao | Hoàn thành |
 | FR-08.11 | Bảo vệ trang HTML nội bộ ở server (`pageGuard.js`, bảng `PAGE_FEATURES`: `/reports`, `/shipment/lifecycle`, `/humanresources`, `/stock-locations`, `/account`); thiếu quyền → chuyển tới trang đầu tiên được phép hoặc `/login/?next=`; fail-soft với lỗi 5xx. `shared-nav.js` là lớp UX thứ hai. | Cao | Hoàn thành |
-| FR-08.12 | Danh bạ nhân sự: tài khoản đối chiếu với `hr_employees` theo email/SĐT; nhân sự có trong danh sách thì vai trò suy từ BỘ PHẬN (trừ khi có `vaiTroOverride`). Cơ chế tự khóa `hr_removed` đã bỏ; không khớp dòng nhân sự thì giữ vai trò/quyền hiện có. | Trung bình | Hoàn thành |
+| FR-08.12 | Danh bạ nhân sự: tài khoản đối chiếu với `hr_employees` theo email/SĐT; nhân sự có trong danh sách thì vai trò suy từ BỘ PHẬN (trừ khi có `vaiTroOverride`). Cơ chế tự khóa `hr_removed` đã bỏ; không khớp dòng nhân sự thì giữ vai trò/quyền hiện có. Từ 2026-10-05 tài khoản **đã gắn** một dòng nhân sự (`hr_employee_id`) không tự gắn sang dòng khác khi email/SĐT đổi hoặc trỏ sang nhân sự khác: giữ ràng buộc cũ và ghi log cảnh báo. | Trung bình | Hoàn thành |
 | FR-08.13 | Chuông thông báo `/api/notifications*` (danh sách, số chưa đọc, đánh dấu đã đọc, xóa): lưu ở `server/data/notifications.json`; thông báo nghỉ phép mới/duyệt và thêm/gỡ tài liệu quy định gửi tới mọi tài khoản có quyền liên quan. | Trung bình | Hoàn thành |
 
 ## 3.9. FR-09: (đã thu hồi)
@@ -311,8 +311,8 @@ Lớp hiệu ứng 3D và giám sát hiệu năng thích ứng đã gỡ bỏ v�
 | FR-12.1 | **Cơ sở chỉ là bộ lọc xem** (từ 2026-09-29): `allowedBranches(user)` luôn trả cả hai cơ sở vật lý, `selectableBranches(user)` luôn thêm `Cả hai`; cơ sở gán cho tài khoản chỉ là cơ sở **mặc định** lúc đăng nhập (rỗng = Cả hai). `POST /api/branch` từ chối giá trị ngoài danh sách chọn được; cookie `tks_branch` chỉ là gợi ý và luôn xác thực lại. | Cao | Hoàn thành |
 | FR-12.2 | Mọi lớp truy vấn dữ liệu nhận cơ sở vật lý: route quy `req.branch` qua `resolveBranchScope` trước khi gọi repository. `branchLabelToCode('Cả hai')` trả chuỗi rỗng nên `Cả hai`/`both` không bao giờ xuống cột `branch` của database (chỉ `hanoi`/`saigon`; riêng `app_users.co_so` nhận thêm `both`/rỗng). | Cao | Hoàn thành |
 | FR-12.3 | `GET /api/dashboard` ở `Cả hai` cộng KPI/bucket hai cơ sở. **Hàng hóa và giao dịch cùng mã ở hai cơ sở là hai dòng riêng, khóa `(cơ sở, mã)`**; **khách gộp theo tên** (mã khách khác nhau giữa hai cơ sở, không còn cột mã khách); mọi bảng có cột "Cơ sở". Riêng bảng Cơ cấu tồn kho và Báo cáo hàng hóa gộp 1 dòng/mã. Khóa cache kết quả `Cả hai` chứa phiên bản nguồn của cả hai cơ sở. | Cao | Hoàn thành |
-| FR-12.4 | `/api/search`, `/api/customer-product-top`, `/api/customer-product-revenue`, `/api/customer-suggest`, `/api/product-report*` ở `Cả hai` chạy trên dữ liệu đã gộp theo cùng quy tắc; phản hồi ở một cơ sở giữ nguyên hình dạng, chế độ gộp chỉ **thêm** trường. | Cao | Hoàn thành |
-| FR-12.5 | Xuất file ở `Cả hai` thêm cột `Cơ sở` cho worksheet giao dịch và kết quả tìm kiếm, ghép dữ liệu theo `(cơ sở, mã)`, dùng tiền tố tên file `TKS_` thay `HN_`/`SG_`. Bảng Quản lý công nợ lọc/sắp xếp trên dòng gộp rồi tách một dòng cho mỗi cơ sở. | Cao | Hoàn thành |
+| FR-12.4 | `/api/customer-product-revenue`, `/api/customer-suggest`, `/api/product-report*` ở `Cả hai` chạy trên dữ liệu đã gộp theo cùng quy tắc; phản hồi ở một cơ sở giữ nguyên hình dạng, chế độ gộp chỉ **thêm** trường. | Cao | Hoàn thành |
+| FR-12.5 | Xuất file ở `Cả hai` thêm cột `Cơ sở` cho worksheet giao dịch, ghép dữ liệu theo `(cơ sở, mã)`, dùng tiền tố tên file `TKS_` thay `HN_`/`SG_`. Bảng Quản lý công nợ lọc/sắp xếp trên dòng gộp rồi tách một dòng cho mỗi cơ sở. | Cao | Hoàn thành |
 | FR-12.6 | PATCH trạng thái công nợ ở `Cả hai` ghi cùng `(customer_key, trạng thái)` cho mọi cơ sở trong phạm vi bằng một transaction (`BEGIN`/`COMMIT`, lỗi → `ROLLBACK` toàn bộ). Chỉ ghi cơ sở thực sự có khách trong nguồn công nợ; không cơ sở nào có → `404 DEBT_CUSTOMER_NOT_FOUND`; cơ sở không đọc được nguồn vẫn được ghi để hai cơ sở không lệch. Cache workflow/dashboard chỉ bị xóa **sau** COMMIT. | Cao | Hoàn thành |
 | FR-12.7 | Mỗi cơ sở được ghi **chữ ký cảnh báo của chính nó** (tính lại bằng đúng hàm/nguồn mà `/api/dashboard` dùng); nếu chữ ký client gửi không khớp chữ ký hiện tại của dòng gộp (màn hình đã cũ) thì giữ chữ ký client cho mọi cơ sở để trạng thái tự hết hiệu lực ở lần đọc sau; cơ sở không đọc được nguồn dùng tạm chữ ký client. | Cao | Hoàn thành |
 | FR-12.8 | HR hiển thị cả hai cơ sở kèm cột `Cơ sở` và bộ lọc cơ sở độc lập với bộ chọn ở thanh điều hướng; SSE và thông báo dùng cơ sở vật lý của bản ghi. | Cao | Hoàn thành |
@@ -338,7 +338,7 @@ Lớp hiệu ứng 3D và giám sát hiệu năng thích ứng đã gỡ bỏ v�
 | FR-14.2 | `GET /api/shipment/lifecycle?branch&status&kiotStatus&dateField&from&to&mode&q&sort&dir&page&pageSize`: lọc, sắp xếp, phân trang ở máy chủ (`shipment/orderLifecycleQuery.js`), trả 1 trang (mặc định 100, tối đa 200 dòng); tham số sai → 400 kèm mã. Cache đơn Kiot 2 phút kiểu stale-while-revalidate (`kiotOrdersRepository.js`). | Cao | Hoàn thành |
 | FR-14.3 | Cột **Trạng thái KiotViet** (+ bộ lọc), **Ghi chú** (mô tả đơn), **Giá trị đơn** (mọi đơn) và **Giá trị có bán** (chỉ đơn Phiếu tạm) = Σ từng mặt hàng `min(SL đặt, max(0, tồn kho cơ sở của đơn)) × đơn giá sau chiết khấu` (bỏ dòng mã `VAT*`; không cộng hàng đang vận chuyển). Nút "Cột hiển thị" ẩn/hiện cột (nhớ theo trình duyệt, "Mã đơn" luôn hiện). | Cao | Hoàn thành |
 | FR-14.4 | `GET /api/shipment/lifecycle/order-detail?code=&branch=HN\|SG`: chi tiết đơn + từng dòng hàng kèm tồn kho / **Điều chuyển SG** (hàng đang vận chuyển, chỉ tham khảo) / có bán (404 `ORDER_NOT_FOUND`, 400 `INVALID_CODE`/`INVALID_BRANCH`). | Cao | Hoàn thành |
-| FR-14.5 | Tra cứu theo mã `GET /:orderCode`, `POST /lookup` (quyền `shipment.lookup`), Lịch sử `GET /history` (`shipment.history`), Ghi đè `POST /:orderCode/override` (`shipment.override`, mặc định chỉ Quản lý; ghi 1 dòng vào tab `Lịch sử cập nhật`). Từ 2026-10-03 cả bốn quyền `requires: 'shipment.lifecycle'`. Tám trạng thái: 6 tính từ mốc thời gian (Đơn chưa gửi kế toán → Đã gửi kế toán → Đang được giao → Đã giao thành công → Đã nhận (Tại kho) → Đã nhận (Đi giao xong)) + `Sự cố`, `Đã hủy` (chỉ qua ghi đè). | Cao | Hoàn thành |
+| FR-14.5 | Tra cứu theo mã `GET /:orderCode` (quyền `shipment.lookup`; tra nhiều mã `POST /lookup` đã gỡ 2026-10-05), Lịch sử `GET /history` (`shipment.history`), Ghi đè `POST /:orderCode/override` (`shipment.override`, mặc định chỉ Quản lý; ghi 1 dòng vào tab `Lịch sử cập nhật`). Từ 2026-10-03 cả bốn quyền `requires: 'shipment.lifecycle'`. Tám trạng thái: 6 tính từ mốc thời gian (Đơn chưa gửi kế toán → Đã gửi kế toán → Đang được giao → Đã giao thành công → Đã nhận (Tại kho) → Đã nhận (Đi giao xong)) + `Sự cố`, `Đã hủy` (chỉ qua ghi đè). Bộ lọc trạng thái của bảng "Toàn bộ đơn hàng" và "Lịch sử cập nhật" đều có đủ tám trạng thái (bảng "Toàn bộ đơn hàng" thêm "Sự cố", "Đã hủy" từ 2026-10-05). | Cao | Hoàn thành |
 | FR-14.6 | Xuất Excel `POST /api/shipment/lifecycle/export` (quyền `shipment.export`, mặc định chỉ Quản lý) nhận chính bộ lọc/sắp xếp của GET (không `page`), xuất mọi dòng khớp, tối đa 20.000 dòng (vượt → 400 `TOO_MANY_ROWS`), có cột Ghi chú và Trạng thái KiotViet. | Cao | Hoàn thành |
 | FR-14.7 | Mặc định vai trò có `shipment.lifecycle`: mọi vai trò nội bộ trừ Nhân viên kho, marketing, mua hàng; Khách không có. Mục sidebar "Vòng đời đơn hàng" chỉ hiện khi có quyền này. | Cao | Hoàn thành |
 
@@ -387,27 +387,28 @@ Mọi API (trừ `health`, webhook, `auth/login`, quên mật khẩu, `google-co
 
 **Quyền:** ít nhất một `reports.*`; mỗi tab cần quyền tương ứng (`reports.overview|products|invoices|customers|debt`), phần ngoài quyền bị cắt (`dashboardPermissionFilter.js`).
 
-**Query:** `view` (xem FR-05.1); bộ lọc theo tiền tố — `ovMode|ovDays|ovFrom|ovTo` (Tổng quan), `prMode…` (Hàng hóa), `inMode…` (Hóa đơn), `cuMode…` (Khách hàng, mặc định `all`), `npMode…` (Mã mới tạo), `niMode…` (Hàng mới nhập, không gửi thì dùng bộ lọc Hàng hóa); `mode` ∈ `days` | `range` | `all`; `days` dự phòng cho client cũ.
+**Query:** `view` (xem FR-05.1); bộ lọc theo tiền tố — `prMode|prDays|prFrom|prTo` (Hàng hóa), `inMode…` (Hóa đơn và doanh thu theo ngày ở Tổng quan; `ov*` đã bỏ 2026-10-05), `cuMode…` (Khách hàng, mặc định `all`), `npMode…` (Mã mới tạo), `niMode…` (Hàng mới nhập, không gửi thì dùng bộ lọc Hàng hóa); `mode` ∈ `days` | `range` | `all`; `days` dự phòng cho client cũ.
 
 **Response (HTTP 200, rút gọn — mỗi `view` chỉ trả lát cắt tương ứng, khai báo ở `dashboardViews.js` `VIEW_PAYLOAD`):**
 ```json
 {
   "updatedAt": "05/10/2026 15:30:00",
-  "filters": { "overview": {}, "products": {}, "invoices": {}, "customers": {}, "newProducts": {}, "newlyImported": {} },
+  "filters": { "products": {}, "invoices": {}, "customers": {}, "newProducts": {}, "newlyImported": {} },
   "kpi": {
-    "revenueToday": 0, "invoicesToday": 0, "cancelledToday": 0,
-    "totalProducts": 0, "totalStock": 0, "inStockCodes": 0, "activeProducts": 0, "lowStockCount": 0,
-    "totalInventoryValue": 0, "inventoryValueCategoryCount": 0,
+    "totalProducts": 0, "totalStock": 0, "inStockCodes": 0, "lowStockCount": 0, "totalInventoryValue": 0,
     "totalCustomers": 0, "customersWithDebt": 0, "totalDebt": 0
   },
   "overview":  { "revenueByDay": [], "periodRevenue": 0, "periodGrossRevenue": 0, "periodReturnAmount": 0, "periodInvoices": 0, "periodCancelledInvoices": 0 },
-  "products":  { "newProducts": {}, "topSellingProducts": [], "topSellingParentCategories": [], "allSellingProducts": [], "newlyImported": {} },
-  "invoices":  { "revenueByDay": [], "periodRevenue": 0, "periodReturnAmount": 0, "periodInvoices": 0, "transactionsReport": {}, "returnsCount": 0, "totalReturns": 0 },
+  "products":  { "newProducts": {}, "topSellingProducts": [], "topSellingParentCategories": [], "allSellingProducts": [], "allSellingParentCategories": [],
+                 "newlyImported": { "label": "", "count": 0, "products": [], "salesRevenue": 0, "salesQty": 0 } },
+  "invoices":  { "revenueByDay": [], "periodRevenue": 0, "periodReturnAmount": 0, "periodInvoices": 0, "periodCancelledInvoices": 0, "transactionsReport": {} },
   "customers": { "topDebt": [], "topRevenue": [] },
-  "stockValueByCategory": [], "allProducts": [], "stockByCategory": [],
+  "allProducts": [],
   "debtManagement": { "available": true, "sourceSheet": "Công nợ HN", "dataWarnings": [], "kpi": {}, "bySale": [], "byPaymentSchedule": [], "topCurrentDebt": [], "topOverdueDebt": [], "customers": [] }
 }
 ```
+Đã gỡ khỏi payload 2026-10-05 (giao diện không dùng): `kpi.revenueToday`/`invoicesToday`/`cancelledToday`/`activeProducts`/`inventoryValueCategoryCount`, `filters.overview`, `invoices.returnsCount`/`totalReturns`/`periodGrossRevenue` (`overview.periodGrossRevenue` vẫn còn), `stockByCategory`, `stockValueByCategory`, `products.newlyImported.topByRevenue`/`salesByCategory`/`countByCategory`.
+
 `debtManagement.customers[]` gồm `customerKey`, `customerName`, `sale`, `paymentSchedule`, `openingDebt`, `currentDebt`, `overdueDebt`, các tỷ lệ, `alertCodes` (`uncollected`/`overdue`), `dataIssues`, `workflowStatus`, `needsAction`, `canEditStatus`, `alertSignature`, `updatedBy`, `updatedAt`.
 
 **Lỗi:** 400 `INVALID_VIEW`; 500 `{ error, detail, code }`.
@@ -418,23 +419,23 @@ Mọi API (trừ `health`, webhook, `auth/login`, quên mật khẩu, `google-co
 
 | **Endpoint** | **Quyền** | **Mô tả** |
 |---|---|---|
-| `GET /api/search?view&q&limit&mode` | `reports.*` của view | Tìm trong phạm vi tab; `mode=codes` tối đa 50 mã chính xác (trả `requestedCount`/`matchedCount`/`missingCount`). Còn ở API, UI không dùng. |
 | `GET /api/customer-suggest?q&limit` | `reports.customers` hoặc `reports.overview` | Gợi ý mã/tên khách (bảng `customers` nhẹ). |
-| `GET /api/customer-product-top?q&cuMode…` | như trên | Top 3 khách/mã hàng (tối đa 50 mã) theo SL mua trong kỳ; tính bằng SQL từ hóa đơn/phiếu trả. Còn ở API, UI không dùng. |
-| `GET /api/customer-product-revenue?code&name` | như trên | Doanh thu 90 ngày theo sản phẩm của 1 khách (`customer_invoice_lines_90d`, đã trừ hàng trả). |
+| `GET /api/customer-product-revenue?code&name` | `reports.customers` hoặc `reports.overview` | Doanh thu 90 ngày theo sản phẩm của 1 khách (`customer_invoice_lines_90d`, đã trừ hàng trả). |
 | `GET /api/product-report`, `GET /api/product-report/customers?code=` | `reports.products` hoặc `reports.overview` | Bảng Báo cáo hàng hóa và khung Chi tiết doanh số khách theo mã. |
 | `GET /api/inventory-value-history?from&to` | `reports.overview` | Giá trị tồn kho theo ngày theo cơ sở đang xem; bảng chưa migrate → trả rỗng. |
 | `GET /api/invoice-detail?code&branch` | `reports.invoices` | Chi tiết hóa đơn; `branch` bắt buộc khi đang xem "Cả hai" và phải thuộc phạm vi đang xem. |
 | `PATCH /api/debt-management/status` | `reports.debt.edit` | Body `{ customerKey, status, alertSignature }`; ở "Cả hai" ghi cả hai cơ sở trong 1 transaction, phản hồi thêm `branches`; lỗi `503 DEBT_STATUS_UNAVAILABLE`, `404 DEBT_CUSTOMER_NOT_FOUND`. |
 | `GET /api/debug`, `GET /health` | `reports.*` / công khai | Kiểm tra kết nối Postgres / health check. |
 
+`GET /api/search` và `GET /api/customer-product-top` đã gỡ 2026-10-05 (FR-07.9).
+
 ## 6.3. Xuất file — `POST /api/export/fields` và `POST /api/export`
 
-**Quyền:** `reports.export`. **Body:** `tableKey` (một trong các khóa ở FR-07.5), `filters`, `context`, `tableSearch`, `search` (chỉ `search.results`), `columns` (ánh xạ khóa worksheet → danh sách khóa trường; chỉ `/api/export`), `format` (`xlsx` mặc định | `html`).
+**Quyền:** `reports.export`. **Body:** `tableKey` (một trong các khóa ở FR-07.5), `filters`, `context`, `tableSearch`, `columns` (ánh xạ khóa worksheet → danh sách khóa trường; chỉ `/api/export`), `format` (`xlsx` mặc định | `html`).
 
 - `/api/export/fields` trả `{ tableKey, title, selectionMode: 'custom'|'all-only', worksheets: [{ key, name, rowCount, fields: [{ key, label, type, description, selected }] }] }`.
 - `/api/export` trả file kèm `Content-Disposition` (`<HN|SG|TKS>_<tên bảng không dấu>_<yyyymmdd_hhmm>.xlsx`). Luồng: kiểm tra hợp lệ → xin chỗ xuất (2 đồng thời, hàng đợi 8) → mã dòng từ `getDashboardData()` → `readRowsByCodes()` → ExcelJS/HTML.
-- **Lỗi:** `400 EXPORT_TABLE_NOT_ALLOWED | EXPORT_FIELD_NOT_ALLOWED | EXPORT_FIELDS_REQUIRED | EXPORT_NO_FIELDS_SELECTED | EXPORT_NO_CUSTOMER_SELECTED | EXPORT_NO_QUERY | EXPORT_OVERVIEW_SEARCH_DISABLED | EXPORT_SOURCE_NOT_ALLOWED`; `404 EXPORT_NO_DATA`; `503 EXPORT_BUSY`; `499 EXPORT_ABORTED`.
+- **Lỗi:** `400 EXPORT_TABLE_NOT_ALLOWED | EXPORT_FIELD_NOT_ALLOWED | EXPORT_FIELDS_REQUIRED | EXPORT_NO_FIELDS_SELECTED | EXPORT_NO_CUSTOMER_SELECTED | EXPORT_SOURCE_NOT_ALLOWED`; `404 EXPORT_NO_DATA`; `503 EXPORT_BUSY`; `499 EXPORT_ABORTED`.
 
 ## 6.4. Kiểm tra đứt hàng & Trả NCC (`/api/products/*`, quyền `reports.products`)
 
@@ -446,9 +447,11 @@ Mọi API (trừ `health`, webhook, `auth/login`, quên mật khẩu, `google-co
 |---|---|
 | `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` | Đăng nhập (xem FR-08.1) / đăng xuất / thông tin phiên: `permissions`, `pageFeatures`, `branches`, `isSeniorAdmin`. |
 | `POST /api/auth/google`, `GET /api/auth/google-config` | Đăng nhập Google; cấu hình công khai `{ clientId, registrationOpen }`. |
-| `POST /api/auth/register`, `/register/channels`, `/register/send-otp`, `/register/verify` | Tự đăng ký — hiện trả 403 `REGISTRATION_DISABLED` (FR-08.3). |
+| `POST /api/auth/register` | Tự đăng ký — hiện trả 403 `REGISTRATION_DISABLED` (FR-08.3). `/register/channels`, `/register/send-otp`, `/register/verify` đã gỡ 2026-10-05. |
 | `POST /api/auth/forgot-password/channels`, `/send-otp`, `/verify` | Quên mật khẩu bằng OTP (FR-08.4). |
-| `GET/POST /api/auth/profile`, `POST /api/auth/profile/contact-change` (+ `/verify`), `POST /api/auth/recovery`, `POST /api/auth/change-password` | Hồ sơ cá nhân (FR-08.5, FR-08.6). |
+| `GET/POST /api/auth/profile` | Xem hồ sơ (`hrManaged`, `telegramEditable`…) / đổi họ tên (+ ID Telegram nếu là Quản lý); không đổi email: 403 `EMAIL_CHANGE_LOCKED` (TK nhân sự) hoặc 409 `EMAIL_CHANGE_REQUIRES_OTP` (TK thường) (FR-08.5, FR-08.6). |
+| `POST /api/auth/profile/contact-change` `{ field: 'email', value }`, `POST /api/auth/profile/contact-change/verify` `{ challengeId, otp }` | Đổi email tài khoản thường bằng OTP gửi tới email mới; TK nhân sự 403 `EMAIL_CHANGE_LOCKED`; `field: 'phone'` 403 `PHONE_CHANGE_LOCKED`; vượt giới hạn gửi/nhập sai → 429 (FR-08.5). |
+| `POST /api/auth/recovery`, `POST /api/auth/change-password` | Đổi email khôi phục (body có `soDienThoai` → 400 `PHONE_CHANGE_NOT_ALLOWED`) / đổi mật khẩu (FR-08.5). |
 | `GET/POST /api/admin/users`, `PUT/DELETE /api/admin/users/:id`, `POST /api/admin/users/:id/reset-password`, `GET /api/admin/permissions/catalog`, `GET/PUT /api/admin/users/:id/permissions` | Quản lý người dùng và phân quyền (FR-08.7, FR-08.8). |
 | `POST/GET /api/role-requests`, `GET /api/role-requests/:id`, `PATCH /api/role-requests/:id/status` | Yêu cầu đổi vai trò (FR-08.9). |
 | `GET/POST /api/branch` | Xem/đổi cơ sở đang xem (cookie `tks_branch`). |
@@ -464,14 +467,14 @@ Mọi API (trừ `health`, webhook, `auth/login`, quên mật khẩu, `google-co
 | `POST /api/hr/leave-requests` | `hr.leave.manage` | Nhập tay "Tự ý nghỉ (HR ghi nhận)". |
 | `PATCH /api/hr/leave-requests/:id/status` | `hr.leave.manage` | Đổi trạng thái (Chưa duyệt/Đã duyệt/Từ chối/Vi phạm) kèm ghi chú. |
 | `GET /api/hr/employees`, `GET /api/hr/employees/export` | `hr.employees` | Danh sách nhân sự và xuất Excel. |
-| `GET /api/hr/telegram/link-status` | `hr.leave` | `{ linked, telegramId, source: 'postgres' }`. `POST /api/hr/telegram/link-code[/assign]` trả 410 `TELEGRAM_SHEET_LINK_DISABLED`. |
+| `POST /api/hr/telegram/link-code[/assign]` | `hr.leave` (`/assign`: `hr.leave.manage`) | Trả 410 `TELEGRAM_SHEET_LINK_DISABLED`. `GET /api/hr/telegram/link-status` đã gỡ 2026-10-05 (ID Telegram xem ở hồ sơ, FR-08.6). |
 | `GET /api/hr/rules/documents`, `GET …/:id/file` | `hr.rules` | Danh sách và tải tài liệu quy định. |
 | `POST /api/hr/rules/documents`, `POST …/restore-defaults`, `DELETE …/:id` | `hr.rules.manage` | Tải PDF lên, khôi phục mặc định, gỡ. |
 | `POST /api/telegram/manager-leave/webhook` | secret | Webhook bot quản lý (xem FR-10.8); không dùng phiên JWT. |
 
 ## 6.7. API Vòng đời đơn hàng, Vị trí hàng, Đồng bộ
 
-- `/api/shipment/lifecycle/*` — xem FR-14 (GET `/`, GET `/history`, GET `/order-detail`, GET `/:orderCode`, POST `/lookup`, POST `/:orderCode/override`, POST `/export`).
+- `/api/shipment/lifecycle/*` — xem FR-14 (GET `/`, GET `/history`, GET `/order-detail`, GET `/:orderCode`, POST `/:orderCode/override`, POST `/export`).
 - `GET /api/stock-locations?branch=HN|SG` — xem FR-13.2.
 - `POST /api/kiotviet/webhook/:secret` (và đường dẫn cũ không secret) — xem FR-06.2; `GET /api/internal/kiotviet-sync/status` (`system.syncStatus`).
 - `POST /api/client-log` — nhận log lỗi từ trình duyệt.
@@ -535,7 +538,7 @@ Ngày hiển thị `dd/MM/yyyy HH:mm` hoặc `dd/MM/yyyy` theo Asia/Ho_Chi_Minh 
 | File JSON cục bộ (`notifications.json`, `roleChangeRequests.json`) mất khi container Render ephemeral | Dùng volume bền (VPS) hoặc chấp nhận mất lịch sử thông báo/yêu cầu đổi vai trò.                                |
 | Migration áp sai thứ tự (0026 phải sau code mới; 0029/0030 phải trước bản web mới)   | Làm theo thứ tự trong `server/README.md` và hướng dẫn thiết lập bot.                                                |
 | Tài khoản dự phòng in-memory khi Postgres không kết nối được                         | Rủi ro đã biết; cấu hình đúng `SUPABASE_DB_URL`, không dùng cấu hình dự phòng ở production.                         |
-| Múi giờ máy chủ khác Việt Nam làm lệch KPI "hôm nay"                                 | Mọi phép tính ngày dùng `Asia/Ho_Chi_Minh`.                                                                         |
+| Múi giờ máy chủ khác Việt Nam làm lệch mốc ngày lọc/bucket ngày                      | Mọi phép tính ngày dùng `Asia/Ho_Chi_Minh`.                                                                         |
 | Render.com free tier ngủ → cold start                                                | `/health` được ping định kỳ; prewarm cache lúc khởi động; bot quản lý chỉ gần thời gian thực khi máy chủ chạy liên tục. |
 
 *— Hết tài liệu SRS v3.0 —*

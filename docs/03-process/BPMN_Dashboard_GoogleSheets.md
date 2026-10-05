@@ -149,7 +149,7 @@ Chạy liên tục khi `KIOTVIET_SYNC_ENABLED=true`, không phụ thuộc ngư�
 ```
 [B12] [Task] Người dùng bấm "Xuất Excel" (hoặc "Xuất HTML") trên một bảng -> mở modal (hủy được: X / Hủy / Esc / bấm nền)
 [B13] [Task] POST /api/export/fields (tableKey + filters + context, timeout 30 giây) -> danh sách worksheet/trường từ từ điển tĩnh, không chạm DB
-              (riêng search.results chạy tìm kiếm thật)
+              (bảng search.results đã gỡ 05/10/2026 cùng GET /api/search)
 [B14] [Task] Người dùng chọn trường -> POST /api/export (timeout 180 giây)
 [B15] [Task] Backend kiểm tra bảng/trường hợp lệ -> xin 1 trong 2 chỗ xuất file (hàng đợi tối đa 8, vượt -> 503 EXPORT_BUSY)
               -> lấy mã dòng đã lọc từ getDashboardData() -> readRowsByCodes() đọc đúng các mã đó từ Postgres (bảng tổng hợp dùng dữ liệu đã tính)
@@ -157,7 +157,7 @@ Chạy liên tục khi `KIOTVIET_SYNC_ENABLED=true`, không phụ thuộc ngư�
 [B16] [End] Trình duyệt tải file; hủy/ngắt kết nối thì server dừng và nhả chỗ xuất
 ```
 
-Bảng xuất được: Chi tiết giao dịch, Danh sách mã mới, Sản phẩm bán chạy, Tất cả mã hàng, Hàng mới nhập, Chi tiết tồn kho theo sản phẩm, Doanh thu theo khách, Chi tiết khách nợ, Bảng chi tiết sản phẩm theo khách, Báo cáo hàng hóa, Quản lý công nợ, Kết quả tìm kiếm, Hàng đứt gần đây, Kiểm tra đứt hàng 90/30 ngày.
+Bảng xuất được: Chi tiết giao dịch, Danh sách mã mới, Sản phẩm bán chạy, Tất cả mã hàng, Hàng mới nhập, Chi tiết tồn kho theo sản phẩm, Doanh thu theo khách, Chi tiết khách nợ, Bảng chi tiết sản phẩm theo khách, Báo cáo hàng hóa, Quản lý công nợ, Hàng đứt gần đây, Kiểm tra đứt hàng 90/30 ngày.
 
 ## 6.2. Luồng Kiểm tra đứt hàng và Trả NCC (tab Tổng quan, quyền `reports.products`)
 
@@ -230,9 +230,10 @@ Bảng xuất được: Chi tiết giao dịch, Danh sách mã mới, Sản ph�
        email lạ -> 403 REGISTRATION_DISABLED khi tự đăng ký đang khóa; admin cứng luôn vào được
 
 --- Nhánh D2: Tự đăng ký (đang KHÓA từ 03/10/2026) ---
-[D2.1] /api/auth/register, /register/channels, /register/send-otp, /register/verify -> 403 REGISTRATION_DISABLED
+[D2.1] POST /api/auth/register -> 403 REGISTRATION_DISABLED
        (GET /api/auth/google-config trả registrationOpen=false: trang login ẩn link, trang register khóa form)
-[D2.2] ALLOW_SELF_REGISTRATION=true mở lại: Khách đăng ký bằng email+mật khẩu, hoặc nhân sự xác minh OTP qua email trong danh sách nhân sự
+[D2.2] ALLOW_SELF_REGISTRATION=true mở lại: Khách đăng ký bằng email+mật khẩu
+       (luồng nhân sự đăng ký bằng OTP /register/channels, /send-otp, /verify đã gỡ 05/10/2026)
 
 --- Nhánh D3: Quên mật khẩu bằng OTP 6 số ---
 [D3.1] Nhập tên tài khoản/email/SĐT -> POST /api/auth/forgot-password/channels (trả danh sách kênh đã che mờ; định danh lạ trả kênh giả, không lộ tồn tại)
@@ -241,7 +242,18 @@ Bảng xuất được: Chi tiết giao dịch, Danh sách mã mới, Sản ph�
        Giới hạn tần suất cả 3 bước: 8 yêu cầu/10 phút theo định danh, 20/10 phút theo IP
 
 --- Nhánh D4: Hồ sơ cá nhân ---
-[D4.1] Trang /account/#profile và hộp hồ sơ ở mọi trang: đổi họ tên, email (POST /api/auth/profile), đổi SĐT/email khôi phục qua OTP (contact-change), đổi mật khẩu (POST /api/auth/change-password)
+[D4.1] Trang /account/#profile và hộp hồ sơ ở mọi trang (shared-nav.js): đổi họ tên (POST /api/auth/profile — không đổi email;
+       gửi email khác -> 403 EMAIL_CHANGE_LOCKED với TK nhân sự, 409 EMAIL_CHANGE_REQUIRES_OTP với TK thường); ô email chỉ đọc;
+       đổi email khôi phục (POST /api/auth/recovery, xác nhận mật khẩu; body có soDienThoai -> 400 PHONE_CHANGE_NOT_ALLOWED);
+       đổi mật khẩu (POST /api/auth/change-password)
+[D4.1a] [Decision] Đổi email đăng nhập:
+       |-- TK nhân sự (hrManaged) -> giao diện gợi ý "liên hệ Quản lý"; Quản lý đổi ở /account/#users (PUT /api/admin/users/:id, đồng bộ hr_employees)
+       `-- TK thường (Khách, nội bộ không gắn nhân sự) -> "Đổi email" mở hộp OTP 2 bước:
+           POST /api/auth/profile/contact-change { field:'email', value } -> OTP gửi tới email MỚI -> nhập OTP
+           -> POST /api/auth/profile/contact-change/verify { challengeId, otp } -> ghi app_users.email, verifiedEmail=true
+           (email trùng TK khác bị từ chối; có giới hạn số lần gửi và nhập sai, vượt -> 429)
+[D4.1b] SĐT đăng nhập: chỉ Quản lý đổi ở trang quản trị. TK đã gắn một dòng nhân sự (hr_employee_id) không tự gắn sang dòng khác khi
+       email/SĐT đổi -> giữ ràng buộc cũ, ghi log cảnh báo
 [D4.2] ID Telegram: chỉ Quản lý (hoặc admin cứng) sửa được ID của chính mình; vai trò khác thấy chỉ đọc, ghi bị 403 TELEGRAM_ID_LOCKED
 
 --- Nhánh D5: Quản lý người dùng & phân quyền (/account/#users, quyền account.users*) ---
@@ -307,9 +319,10 @@ Bảng xuất được: Chi tiết giao dịch, Danh sách mã mới, Sản ph�
 [F3] [Task] Lọc, sắp xếp, cắt trang ở máy chủ (orderLifecycleQuery.js) -> trả 1 trang (mặc định 100 dòng) + tổng + danh sách trạng thái Kiot + tình trạng nguồn Kiot
 [F4] [Decision] Postgres lỗi? -> kiot.ok=false, vẫn trả đơn sheet kèm cảnh báo
 [F5] [Task] Bấm 1 dòng: GET /api/shipment/lifecycle/order-detail?code&branch -> dòng hàng, tồn kho, "Điều chuyển SG" (hàng đang vận chuyển, tham khảo), số có bán (đơn Phiếu tạm: min(SL đặt, tồn))
-[F6] [Task] Tra cứu theo mã: GET /:orderCode, POST /lookup (shipment.lookup); Lịch sử cập nhật: GET /history (shipment.history)
+[F6] [Task] Tra cứu theo mã: GET /:orderCode (shipment.lookup; POST /lookup tra nhiều mã đã gỡ 05/10/2026); Lịch sử cập nhật: GET /history (shipment.history)
 [F7] [Task] Ghi đè trạng thái (shipment.override, mặc định chỉ Quản lý): POST /:orderCode/override -> ghi 1 dòng vào tab `Lịch sử cập nhật`; 8 trạng thái: 6 tính được
-            (Đơn chưa gửi kế toán -> Đã gửi kế toán -> Đang được giao -> Đã giao thành công -> Đã nhận (Tại kho) -> Đã nhận (Đi giao xong)) + Sự cố + Đã hủy (chỉ qua ghi đè)
+            (Đơn chưa gửi kế toán -> Đã gửi kế toán -> Đang được giao -> Đã giao thành công -> Đã nhận (Tại kho) -> Đã nhận (Đi giao xong)) + Sự cố + Đã hủy (chỉ qua ghi đè);
+            bộ lọc trạng thái của bảng "Toàn bộ đơn hàng" có đủ 8 trạng thái (thêm Sự cố, Đã hủy từ 05/10/2026)
 [F8] [Task] Xuất Excel (shipment.export, mặc định chỉ Quản lý): POST /export nhận chính bộ lọc, tối đa 20.000 dòng (vượt -> 400 TOO_MANY_ROWS)
 [F9] [End]
 ```

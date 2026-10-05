@@ -39,7 +39,7 @@ Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (5 tab), Quản lý c
 - Dữ liệu cập nhật **gần thời gian thực**: engine đồng bộ polling KiotViet (nhóm fast 7 phút, nhóm slow 20 phút), rollup tính lại ngay sau mỗi lượt fast, và trình duyệt tự tải lại tab đang xem khi nhận sự kiện SSE `dashboard-updated`.
 - Báo cáo tổng hợp **tải dữ liệu theo từng tab** để phản hồi nhanh; cache hai tầng.
 - Mọi ngày giờ ("hôm nay", mốc lọc, `updatedAt`) theo múi giờ **Asia/Ho_Chi_Minh (UTC+7)**, không phụ thuộc múi giờ máy chủ.
-- **Xuất Excel/HTML** cho các bảng, kết quả tìm kiếm và báo cáo nghỉ phép/danh sách nhân sự, với tùy chọn trường linh hoạt.
+- **Xuất Excel/HTML** cho các bảng và báo cáo nghỉ phép/danh sách nhân sự, với tùy chọn trường linh hoạt.
 - Ba kỳ công nợ **CN1 / CN3 / CN7** do `customerDebtReportRefresh.js` tính 5 phút/lần vào `customer_debt_activity_periods` để phục vụ cảnh báo "Chưa thu" trên màn hình Quản lý công nợ.
 - **Kiểm tra đứt hàng** dựa trên dữ liệu đã đồng bộ và dữ liệu Trả NCC do người dùng tự upload (Excel xuất từ KiotViet).
 - **Phân hệ nghỉ phép:** đơn xin nghỉ nhận từ bot của nhân viên; Quản lý duyệt/từ chối trên web hoặc trên bot Telegram riêng cho quản lý; web có lịch nghỉ phép dùng chung.
@@ -103,7 +103,7 @@ Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (5 tab), Quản lý c
 
 | **Nhóm**                  | **KPI**                                                                                          |
 |---------------------------|--------------------------------------------------------------------------------------------------|
-| Bán hàng hôm nay          | (Backend vẫn tính doanh thu/số hóa đơn hôm nay nhưng giao diện hiện chỉ hiển thị số liệu theo kỳ lọc)  |
+| Bán hàng hôm nay          | (Đã gỡ 05/10/2026 — không còn KPI "hôm nay"; mọi số liệu bán hàng tính theo kỳ lọc)               |
 | Kỳ lọc (Từ – Đến)         | **Doanh thu thực tế** (hóa đơn hoàn thành trừ tiền hàng khách trả lại), số hóa đơn hoàn thành, số hóa đơn hủy, biểu đồ doanh thu theo ngày |
 | Hàng hóa                  | Tổng mã hàng, mã đang có hàng, mã hết hàng, giá trị tồn kho (theo giá vốn), Tồn có thể bán, hàng đang vận chuyển |
 | Khách hàng                | Tổng khách hàng, số khách có công nợ, tổng công nợ khách hàng                                   |
@@ -146,6 +146,7 @@ Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp
 - **Tự đăng ký tài khoản mới bị khóa từ 03/10/2026**; tài khoản mới do Quản lý tạo (có thể mở lại bằng cấu hình `ALLOW_SELF_REGISTRATION`). Đăng nhập Google chỉ dành cho tài khoản đã có.
 - **Phân quyền theo tính năng:** mỗi vai trò có bộ quyền mặc định; Quản lý cấp/rút từng quyền cho từng tài khoản; một số quyền phụ chỉ có hiệu lực khi có quyền gốc (vd các quyền của Vòng đời đơn hàng). Quản lý thường không được thao tác nhạy cảm trên Quản lý khác; chỉ Quản lý cấp cao (admin cứng) giữ đủ quyền.
 - **ID Telegram** chỉ Quản lý thêm/sửa được (kể cả hộ nhân viên); hệ thống chống trùng ID giữa tài khoản, liên kết bot và nhân sự.
+- **Email và SĐT là định danh** để suy vai trò từ danh sách nhân sự nên không được tự đổi tùy ý (từ 05/10/2026): hồ sơ cá nhân chỉ đổi họ tên và email khôi phục; email/SĐT của tài khoản nhân sự chỉ Quản lý đổi ở trang quản trị (đồng bộ sang danh sách nhân sự); tài khoản thường (Khách, nội bộ không gắn nhân sự) tự đổi email bằng mã OTP gửi tới email mới, có giới hạn số lần gửi/nhập sai. Tài khoản đã gắn một nhân sự không tự chuyển sang nhân sự khác khi email/SĐT thay đổi.
 - Dữ liệu nhạy cảm (Service Account, DB URL, JWT secret, KiotViet secret, token Telegram) chỉ ở biến môi trường, không commit; toàn bộ giao tiếp qua HTTPS.
 
 ## 5.7. Phạm vi dữ liệu theo cơ sở (Hà Nội / Sài Gòn / Cả hai)
@@ -153,7 +154,7 @@ Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp
 - Mọi dữ liệu nghiệp vụ gắn với một **cơ sở vật lý** (`Hà Nội` hoặc `Sài Gòn`). **Cơ sở chỉ là bộ lọc xem:** mọi tài khoản xem được Hà Nội, Sài Gòn và **`Cả hai`**; cơ sở gán cho tài khoản (để trống = `Cả hai`) chỉ là cơ sở **mặc định** lúc đăng nhập.
 - `Cả hai` là **phạm vi xem**, không phải cơ sở thứ ba, và không bao giờ được lưu vào dữ liệu nghiệp vụ.
 - **Báo cáo tổng hợp ở `Cả hai`:** KPI và biểu đồ cộng dồn hai cơ sở. Hàng hóa và giao dịch cùng mã ở hai cơ sở là **hai dòng riêng** `(cơ sở, mã)` kèm nhãn Cơ sở; **khách hàng gộp theo tên** (mã khách khác nhau giữa hai cơ sở). Riêng Cơ cấu tồn kho và Báo cáo hàng hóa gộp 1 dòng/mã với cột HN/SG riêng.
-- **Tìm kiếm & xuất file:** chạy trên dữ liệu đã gộp theo đúng quy tắc của màn hình; file xuất ở `Cả hai` thêm cột `Cơ sở` cho bảng giao dịch và dùng tiền tố tên file `TKS_` thay `HN_`/`SG_`.
+- **Tìm kiếm trong bảng & xuất file:** chạy trên dữ liệu đã gộp theo đúng quy tắc của màn hình; file xuất ở `Cả hai` thêm cột `Cơ sở` cho bảng giao dịch và dùng tiền tố tên file `TKS_` thay `HN_`/`SG_`.
 - **Quản lý công nợ:** mỗi khách là một dòng gộp theo khóa khách hàng kèm chi tiết từng cơ sở. Đổi trạng thái xử lý ở `Cả hai` ghi cho **cả hai cơ sở trong một giao dịch database**: hoặc cả hai cùng đổi hoặc không có gì đổi; mỗi cơ sở lưu chữ ký cảnh báo của chính nó. File Excel công nợ ở `Cả hai` tách một dòng cho mỗi cơ sở.
 - **Nhân sự, Vòng đời đơn hàng, Đứt hàng:** nhân sự/nghỉ phép hiển thị cả hai cơ sở kèm cột và bộ lọc cơ sở; ghi nhận đơn nghỉ ở `Cả hai` lấy cơ sở từ hồ sơ nhân sự, không xác định được thì yêu cầu chọn. Vòng đời đơn hàng gắn nhãn cơ sở cho từng đơn. Kiểm tra đứt hàng ở `Cả hai` quét lần lượt từng cơ sở rồi gộp; một cơ sở lỗi thì cả lần quét báo lỗi.
 
@@ -214,9 +215,9 @@ Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp
 - Dashboard hiển thị đủ KPI, biểu đồ, bảng với dữ liệu đúng từ Supabase PostgreSQL; chỉ tab/mục tài khoản có quyền mới hiện.
 - Bộ lọc Từ – Đến của từng bảng đổi dữ liệu đúng khoảng ngày thực tế; "xóa cả hai ô" nghĩa là Tất cả.
 - Sau mỗi lượt đồng bộ + rollup, tab đang xem tự cập nhật qua SSE; nút "Làm mới" và quay lại tab ≥ 60 giây tải lại dữ liệu.
-- KPI "hôm nay", chuỗi ngày trên biểu đồ và `updatedAt` thống nhất theo Asia/Ho_Chi_Minh.
+- Mốc ngày lọc, chuỗi ngày trên biểu đồ và `updatedAt` thống nhất theo Asia/Ho_Chi_Minh.
 - Doanh thu thực tế đã trừ hàng khách trả ở mọi nơi (theo ngày, theo khách, theo hàng hóa, Báo cáo hàng hóa).
-- Xuất Excel/HTML các bảng và kết quả tìm kiếm với tùy chọn trường; tối đa 2 file xuất đồng thời.
+- Xuất Excel/HTML các bảng với tùy chọn trường; tối đa 2 file xuất đồng thời.
 - Bảng lớn phân trang 100 dòng/trang, tìm/sắp xếp trên toàn bộ dữ liệu đã lọc, cột thời gian sắp theo thời gian thật.
 - CN1/CN3/CN7 tính chính xác và lưu trong `customer_debt_activity_periods`; cảnh báo "Chưa thu" đối chiếu đúng.
 - Tài khoản chọn `Cả hai` thấy KPI/biểu đồ cộng dồn hai cơ sở, giao dịch trùng mã giữ hai dòng kèm nhãn cơ sở, không có giá trị `Cả hai` nào được ghi vào dữ liệu nghiệp vụ.
