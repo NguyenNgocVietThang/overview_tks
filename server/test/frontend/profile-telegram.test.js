@@ -43,7 +43,8 @@ for (const surface of ['account', 'modal']) {
       field.value = ' 6205968899 ';
       save();
       await flush();
-      assert.deepEqual(posted[0], { hoTen: 'A', email: 'a@example.com', telegramId: '6205968899' });
+      // Không gửi email nữa (đổi email đi qua OTP, xem profile-email-change.test.js).
+      assert.deepEqual(posted[0], { hoTen: 'A', telegramId: '6205968899' });
       field.value = '';
       save();
       await flush();
@@ -87,7 +88,7 @@ for (const surface of ['account', 'modal']) {
       if (surface === 'account') window.handleSaveProfile({ preventDefault() {} });
       else window.document.getElementById('tksProfileSave').click();
       await flush();
-      assert.deepEqual(posted[0], { hoTen: 'A', email: 'a@example.com' });
+      assert.deepEqual(posted[0], { hoTen: 'A' });
     } finally { window.close(); }
   });
 }

@@ -126,3 +126,51 @@ test('sendDenied tra 403 kem ma ACCOUNT_POLICY_DENIED', () => {
   assert.equal(res.code, 403);
   assert.deepEqual(res.body, { error: 'ly do', code: 'ACCOUNT_POLICY_DENIED' });
 });
+
+// ---- Luat 5 (2026-10-05): chan leo thang qua dinh danh (email / SDT / username) ----
+
+test('checkProtectedIdentity: chi Quan ly cap cao moi dat duoc dinh danh admin cung', () => {
+  for (const id of ['thangnnv2003@gmail.com', ' ADMIN@tokosi.vn ', 'admin', 'Thangnnv2003']) {
+    assert.ok(policy.checkProtectedIdentity(manager, [id]), id);
+    assert.ok(policy.checkProtectedIdentity(troLy(), ['', id]), id);
+    assert.equal(policy.checkProtectedIdentity(seniorDefaultAdmin, [id]), null, id);
+  }
+  assert.equal(policy.checkProtectedIdentity(manager, ['nv@tokosi.vn', '0912345678', '', null]), null);
+});
+
+test('checkSelfContactChange: chan tu doi email/SDT cua chinh minh, tru cap cao', () => {
+  assert.ok(policy.checkSelfContactChange(manager, manager));
+  assert.ok(policy.checkSelfContactChange(manager, { id: 'khac', username: 'QL' }), 'cung username');
+  assert.equal(policy.checkSelfContactChange(manager, user('Nhân viên kho')), null);
+  assert.equal(policy.checkSelfContactChange(seniorDefaultAdmin, seniorDefaultAdmin), null);
+});
+
+test('hrIdentitiesOf: giong localUserMatchesEmployee — dò CẢ username lẫn email/SĐT, đã chuẩn hóa', () => {
+  assert.deepEqual(policy.hrIdentitiesOf({ username: 'a@x.vn' }), { emails: ['a@x.vn'], phones: [] });
+  assert.deepEqual(policy.hrIdentitiesOf({ username: '0912345678' }), { emails: [], phones: ['0912345678'] });
+  // Co email/SĐT van phai do username (truoc day bi bo qua => vong qua bang username).
+  assert.deepEqual(policy.hrIdentitiesOf({ username: ' Sep@X.vn ', email: 'vohai@x.vn' }),
+    { emails: ['vohai@x.vn', 'sep@x.vn'], phones: [] });
+  assert.deepEqual(policy.hrIdentitiesOf({ username: '+84911000111', email: 'E@x.vn', soDienThoai: '0911 999 888' }),
+    { emails: ['e@x.vn'], phones: ['0911999888', '0911000111'] });
+  // Trung lap / rong bi loai.
+  assert.deepEqual(policy.hrIdentitiesOf({ username: 'e@x.vn', email: 'E@X.VN' }), { emails: ['e@x.vn'], phones: [] });
+  assert.deepEqual(policy.hrIdentitiesOf({ username: 'nhanvien' }), { emails: [], phones: [] });
+  assert.deepEqual(policy.hrIdentitiesOf(null), { emails: [], phones: [] });
+});
+
+test('checkHrRoleEscalation: dong nhan su vai tro vuot quyen actor bi chan; Quan ly thi duoc', () => {
+  const qlRow = { rowIndex: 1, sheetVaiTro: 'Quản lý' };
+  const khoRow = { rowIndex: 2, sheetVaiTro: 'Nhân viên kho' };
+  assert.match(policy.checkHrRoleEscalation(troLy(), [qlRow]), /Quản lý/);
+  assert.ok(policy.checkHrRoleEscalation(troLy(), [khoRow, qlRow]));
+  assert.equal(policy.checkHrRoleEscalation(troLy(), [khoRow]), null);
+  assert.equal(policy.checkHrRoleEscalation(troLy(), []), null);
+  assert.equal(policy.checkHrRoleEscalation(manager, [qlRow]), null);
+});
+
+test('sendDenied nhan ma rieng', () => {
+  const res = { status(c) { this.code = c; return this; }, json(b) { this.body = b; return this; } };
+  policy.sendDenied(res, 'x', policy.PROTECTED_IDENTITY_CODE);
+  assert.deepEqual(res.body, { error: 'x', code: 'PROTECTED_IDENTITY' });
+});

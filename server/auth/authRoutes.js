@@ -10,7 +10,6 @@ const {
   findActiveUserByUsername,
   findUserByUsername,
   findUserByEmail,
-  findUserByPhone,
   findUserByIdentifier,
   findUserById,
   ACTIVE_STATUS,
@@ -60,6 +59,15 @@ const FORGOT_PW_MAX_PER_IP = 20;
 const forgotPwHitsByIdentifier = new Map(); // Map<string, { count, windowStart }>
 const forgotPwHitsByIp = new Map(); // Map<string, { count, windowStart }>
 
+// Rate limit cho doi email qua OTP (begin + verify dung chung bo dem), theo
+// user da dang nhap va theo IP. Lop chan som; gioi han that (so lan sai OTP /
+// so lan gui ma theo user trong 1 gio) nam o contactChangeService.
+const CONTACT_CHANGE_WINDOW_MS = 10 * 60 * 1000; // 10 phut
+const CONTACT_CHANGE_MAX_PER_USER = 20;
+const CONTACT_CHANGE_MAX_PER_IP = 60;
+const contactChangeHitsByUser = new Map(); // Map<userId, { count, windowStart }>
+const contactChangeHitsByIp = new Map(); // Map<ip, { count, windowStart }>
+
 // failedLogins/forgotPwHits* duoc key bang chuoi do NGUOI DUNG CHUA XAC THUC
 // tu chon (username/identifier/IP bat ky, ke ca tai khoan khong ton tai) —
 // khong don dep thi ke tan cong co the lam 3 Map nay phinh to vo han
@@ -85,12 +93,17 @@ function sweepStaleAuthState(now) {
   for (const [key, rec] of forgotPwHitsByIp) {
     if (now - rec.windowStart > FORGOT_PW_WINDOW_MS) forgotPwHitsByIp.delete(key);
   }
+  for (const map of [contactChangeHitsByUser, contactChangeHitsByIp]) {
+    for (const [key, rec] of map) {
+      if (now - rec.windowStart > CONTACT_CHANGE_WINDOW_MS) map.delete(key);
+    }
+  }
 }
 
-function checkAndBumpRateLimit(map, key, max, now) {
+function checkAndBumpRateLimit(map, key, max, now, windowMs = FORGOT_PW_WINDOW_MS) {
   if (!key) return true;
   const entry = map.get(key);
-  if (!entry || now - entry.windowStart > FORGOT_PW_WINDOW_MS) {
+  if (!entry || now - entry.windowStart > windowMs) {
     map.set(key, { count: 1, windowStart: now });
     return true;
   }
@@ -108,6 +121,29 @@ function forgotPasswordRateLimit(req, res, next) {
   const ipOk = checkAndBumpRateLimit(forgotPwHitsByIp, ip, FORGOT_PW_MAX_PER_IP, now);
   if (!idOk || !ipOk) {
     return res.status(429).json({ error: 'Bạn thao tác quá nhiều lần, vui lòng thử lại sau ít phút.' });
+  }
+  next();
+}
+
+// Dat SAU requireAuth (can req.user.id).
+function contactChangeRateLimit(req, res, next) {
+  const now = Date.now();
+  sweepStaleAuthState(now);
+  const userKey = req.user && req.user.id !== undefined && req.user.id !== null ? String(req.user.id) : '';
+  const ip = req.ip || (req.socket && req.socket.remoteAddress) || 'unknown';
+  const userOk = checkAndBumpRateLimit(contactChangeHitsByUser, userKey, CONTACT_CHANGE_MAX_PER_USER, now, CONTACT_CHANGE_WINDOW_MS);
+  const ipOk = checkAndBumpRateLimit(contactChangeHitsByIp, ip, CONTACT_CHANGE_MAX_PER_IP, now, CONTACT_CHANGE_WINDOW_MS);
+  if (!userOk || !ipOk) {
+    const starts = [
+      !userOk && contactChangeHitsByUser.get(userKey),
+      !ipOk && contactChangeHitsByIp.get(ip)
+    ].filter(Boolean).map(entry => entry.windowStart);
+    const waitSeconds = Math.max(1, Math.ceil((Math.max(...starts) + CONTACT_CHANGE_WINDOW_MS - now) / 1000));
+    return res.status(429).json({
+      error: 'Bạn thao tác quá nhiều lần, vui lòng thử lại sau ít phút.',
+      code: 'RATE_LIMITED',
+      waitSeconds
+    });
   }
   next();
 }
@@ -351,47 +387,6 @@ const REGISTRATION_DISABLED_RESPONSE = Object.freeze({
 function registrationLocked(email) {
   return !CONFIG.ALLOW_SELF_REGISTRATION && !isHardcodedAdmin(email);
 }
-
-function sendEmployeeRegistrationError(res, err) {
-  if (err && err.statusCode) {
-    const body = { error: err.message, code: err.code };
-    if (err.waitSeconds) body.waitSeconds = err.waitSeconds;
-    return res.status(err.statusCode).json(body);
-  }
-  console.error('=== LOI DANG KY NHAN SU ===', err);
-  return res.status(500).json({ error: 'Không xác minh được thông tin nhân sự.', code: 'HR_REGISTRATION_FAILED' });
-}
-
-router.post('/api/auth/register/channels', async (req, res) => {
-  if (!CONFIG.ALLOW_SELF_REGISTRATION) return res.status(403).json(REGISTRATION_DISABLED_RESPONSE);
-  try {
-    const result = await employeeRegistrationService.createChallenge(req.body && req.body.identifier);
-    res.status(200).json(result);
-  } catch (err) {
-    sendEmployeeRegistrationError(res, err);
-  }
-});
-
-router.post('/api/auth/register/send-otp', async (req, res) => {
-  if (!CONFIG.ALLOW_SELF_REGISTRATION) return res.status(403).json(REGISTRATION_DISABLED_RESPONSE);
-  try {
-    const body = req.body || {};
-    const result = await employeeRegistrationService.sendOtp(body.challengeId, body.channel);
-    res.status(200).json(result);
-  } catch (err) {
-    sendEmployeeRegistrationError(res, err);
-  }
-});
-
-router.post('/api/auth/register/verify', async (req, res) => {
-  if (!CONFIG.ALLOW_SELF_REGISTRATION) return res.status(403).json(REGISTRATION_DISABLED_RESPONSE);
-  try {
-    const user = await employeeRegistrationService.verifyAndRegister(req.body || {});
-    res.status(201).json(signIn(res, user));
-  } catch (err) {
-    sendEmployeeRegistrationError(res, err);
-  }
-});
 
 router.post('/api/auth/register', async (req, res) => {
   try {
@@ -702,6 +697,10 @@ router.post('/api/auth/google', async (req, res) => {
     clearFailedLogins(email);
     res.status(200).json(signIn(res, user));
   } catch (err) {
+    // Loi nghiep vu co status (vd linkVerifiedGoogleIdentity -> 409 HR_IDENTITY_CONFLICT).
+    if (err && err.statusCode && err.statusCode < 500) {
+      return res.status(err.statusCode).json({ error: err.message, code: err.code });
+    }
     console.error('=== LOI /api/auth/google ===');
     console.error(err.stack);
     console.error('=============================');
@@ -780,11 +779,11 @@ function sendContactChangeError(res, err) {
     if (err.waitSeconds) body.waitSeconds = err.waitSeconds;
     return res.status(err.statusCode).json(body);
   }
-  console.error('=== LOI DOI LIEN HE HR ===', err);
+  console.error('=== LOI DOI EMAIL QUA OTP ===', err);
   return res.status(500).json({ error: 'Không cập nhật được thông tin liên hệ.', code: 'CONTACT_CHANGE_FAILED' });
 }
 
-router.post('/api/auth/profile/contact-change', requireAuth, async (req, res) => {
+router.post('/api/auth/profile/contact-change', requireAuth, contactChangeRateLimit, async (req, res) => {
   try {
     const body = req.body || {};
     const result = await contactChangeService.beginChange(req.user, body.field, body.value);
@@ -794,7 +793,7 @@ router.post('/api/auth/profile/contact-change', requireAuth, async (req, res) =>
   }
 });
 
-router.post('/api/auth/profile/contact-change/verify', requireAuth, async (req, res) => {
+router.post('/api/auth/profile/contact-change/verify', requireAuth, contactChangeRateLimit, async (req, res) => {
   try {
     const body = req.body || {};
     const updated = await contactChangeService.confirmChange(req.user, body.challengeId, body.otp);
@@ -806,11 +805,18 @@ router.post('/api/auth/profile/contact-change/verify', requireAuth, async (req, 
   }
 });
 
+/**
+ * Cap nhat ho so (ho ten, ID Telegram neu duoc phep). Route nay KHONG BAO GIO
+ * doi email: email la dinh danh de suy vai tro tu hr_employees, doi tuy y se
+ * cho phep chiem quyen nhan su khac. TK nhan su (hrManaged) chi Quan ly doi
+ * duoc o trang quan tri; TK thuong doi qua OTP (/api/auth/profile/contact-change).
+ * Body van co the gui kem email hien tai (form cu) — trung thi bo qua.
+ */
 router.post('/api/auth/profile', requireAuth, async (req, res) => {
   try {
     const hoTen = String((req.body && req.body.hoTen) || '').trim();
     const email = String((req.body && req.body.email) || '').trim().toLowerCase();
-    const fields = { hoTen, email };
+    const fields = { hoTen };
     if (Object.hasOwn(req.body || {}, 'telegramId')) {
       if (typeof req.body.telegramId !== 'string') {
         return res.status(400).json({ error: 'ID Telegram phải là chuỗi chữ số.', code: 'INVALID_TELEGRAM_ID' });
@@ -828,25 +834,22 @@ router.post('/api/auth/profile', requireAuth, async (req, res) => {
     if (hoTen.length > 100) {
       return res.status(400).json({ error: 'Họ tên không được dài quá 100 ký tự.' });
     }
-    if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({ error: 'Email không hợp lệ.' });
-    }
 
     const current = await findUserById(req.user.id);
     if (!current) {
       return res.status(404).json({ error: 'Không tìm thấy tài khoản.' });
+    }
+    if (email && email !== String(current.email || '').trim().toLowerCase()) {
+      if (current.hrManaged) {
+        return res.status(403).json({ error: 'Email của tài khoản nhân sự chỉ Quản lý được đổi. Vui lòng liên hệ Quản lý.', code: 'EMAIL_CHANGE_LOCKED' });
+      }
+      return res.status(409).json({ error: 'Đổi email cần xác minh mã OTP gửi tới email mới.', code: 'EMAIL_CHANGE_REQUIRES_OTP' });
     }
     if (Object.hasOwn(fields, 'telegramId') && !canEditOwnTelegram(current)) {
       if (fields.telegramId !== (current.telegramId || '')) {
         return res.status(403).json({ error: 'Chỉ Quản lý mới được thêm hoặc sửa ID Telegram. Vui lòng liên hệ Quản lý.', code: 'TELEGRAM_ID_LOCKED' });
       }
       delete fields.telegramId;
-    }
-    if (email !== (current.email || '').toLowerCase()) {
-      const other = await findUserByEmail(email);
-      if (other && String(other.id) !== String(current.id)) {
-        return res.status(409).json({ error: 'Email này đã được sử dụng bởi tài khoản khác.' });
-      }
     }
 
     const updated = await updateUserProfile(current.id, fields);
@@ -862,18 +865,22 @@ router.post('/api/auth/profile', requireAuth, async (req, res) => {
 });
 
 /**
- * Cap nhat thong tin lien he & khoi phuc (SDT chinh, Email khoi phuc, SDT khoi phuc).
- * BAT BUOC phai nhap dung mat khau hien tai cua tai khoan.
+ * Cap nhat Email khoi phuc. BAT BUOC nhap dung mat khau hien tai (neu TK co mat khau).
+ * Route nay KHONG doi SDT chinh: SDT la dinh danh de suy vai tro tu hr_employees,
+ * doi/xoa chi bang mat khau se cho phep chiem quyen hoac ne kiem tra xung dot.
+ * Body co khoa soDienThoai (ke ca rong) -> 400 PHONE_CHANGE_NOT_ALLOWED.
  */
 router.post('/api/auth/recovery', requireAuth, async (req, res) => {
   try {
+    if (Object.hasOwn(req.body || {}, 'soDienThoai')) {
+      return res.status(400).json({ error: 'Không thể đổi số điện thoại tại đây. Vui lòng liên hệ Quản lý.', code: 'PHONE_CHANGE_NOT_ALLOWED' });
+    }
     const current = await findUserById(req.user.id);
     if (!current) {
       return res.status(404).json({ error: 'Không tìm thấy tài khoản.' });
     }
 
     const matKhauXacNhan = String((req.body && req.body.matKhauXacNhan) || '');
-    const soDienThoai = String((req.body && req.body.soDienThoai) || '').trim();
     const emailKhoiPhuc = String((req.body && req.body.emailKhoiPhuc) || '').trim().toLowerCase();
 
     // Neu tai khoan co mat khau -> bat buoc xac thuc mat khau
@@ -894,27 +901,7 @@ router.post('/api/auth/recovery', requireAuth, async (req, res) => {
       }
     }
 
-    // Validate so dien thoai chinh neu duoc truyen
-    let normPhone = '';
-    const hasPhoneInBody = req.body && req.body.soDienThoai !== undefined;
-    if (hasPhoneInBody && soDienThoai) {
-      normPhone = normalizePhone(soDienThoai);
-      if (!/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(normPhone) && !/^[0-9]{10}$/.test(normPhone)) {
-        return res.status(400).json({ error: 'Số điện thoại chính không hợp lệ (yêu cầu 10 số).' });
-      }
-      // Kiem tra trung lap SDT voi tai khoan khac
-      const otherPhone = await findUserByPhone(normPhone);
-      if (otherPhone && String(otherPhone.id) !== String(current.id)) {
-        return res.status(409).json({ error: 'Số điện thoại này đã được sử dụng bởi tài khoản khác.' });
-      }
-    }
-
-    const updates = { emailKhoiPhuc };
-    if (hasPhoneInBody) {
-      updates.soDienThoai = normPhone;
-    }
-
-    const updated = await updateUserFields(current.id, updates);
+    const updated = await updateUserFields(current.id, { emailKhoiPhuc });
     res.status(200).json({
       ok: true,
       message: 'Đã cập nhật thông tin khôi phục thành công.',

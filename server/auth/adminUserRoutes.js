@@ -57,6 +57,48 @@ function publicAdminUser(u) {
 //   account.users         — xem danh sach (mac dinh: moi vai tro noi bo)
 //   account.users.manage  — them/sua/khoa/xoa (mac dinh: chi Quan ly)
 //   account.permissions   — phan quyen chi tiet (mac dinh: chi Quan ly)
+/**
+ * Luat 5c (accountPolicy.checkHrRoleEscalation): doi chieu `identities` ({ emails, phones } —
+ * thuong lay tu accountPolicy.hrIdentitiesOf, tuc MOI dinh danh resolver khop, gom ca username)
+ * voi cac dong hr_employees DANG HOAT DONG (chi doc). Quan ly bo qua (duoc gan moi vai tro).
+ * Dong da gan voi chinh `target` (hrRowIndex) khong tinh. Khong doi chieu duoc => fail closed.
+ * Tra ve null neu duoc phep, hoac { status, code, error }.
+ */
+async function checkHrIdentityEscalation(actor, identities, target) {
+  if (accountPolicy.isManagerClass(actor)) return null;
+  const clean = values => (values || []).map(v => String(v || '').trim()).filter(Boolean);
+  const parts = [
+    ...clean(identities && identities.emails).map(email => ({ email })),
+    ...clean(identities && identities.phones).map(phone => ({ phone }))
+  ];
+  if (!parts.length) return null;
+
+  let snapshot;
+  try {
+    snapshot = await employeeDirectory.getSnapshot();
+  } catch (err) {
+    console.error('[adminUserRoutes] Không đối chiếu được Danh sách nhân sự:', err && err.message);
+    return { status: 503, code: 'HR_DIRECTORY_UNAVAILABLE', error: 'Không thể đối chiếu Danh sách nhân sự, vui lòng thử lại sau.' };
+  }
+  const employees = (snapshot && snapshot.employees) || [];
+  const matches = [];
+  for (const part of parts) {
+    try {
+      const employee = employeeDirectory.findEmployeeByIdentifier(employees, part);
+      if (employee) matches.push(employee);
+    } catch (err) {
+      if (err && err.code === 'HR_IDENTITY_CONFLICT') {
+        return { status: 403, code: accountPolicy.HR_ROLE_ESCALATION_CODE, error: 'Email/số điện thoại này trùng nhiều dòng nhân sự — chỉ Quản lý mới được gán.' };
+      }
+      throw err;
+    }
+  }
+  const boundRow = target && target.hrRowIndex !== undefined && target.hrRowIndex !== null ? String(target.hrRowIndex) : '';
+  const relevant = matches.filter(employee => !boundRow || String(employee.rowIndex) !== boundRow);
+  const reason = accountPolicy.checkHrRoleEscalation(actor, relevant);
+  return reason ? { status: 403, code: accountPolicy.HR_ROLE_ESCALATION_CODE, error: reason } : null;
+}
+
 const authView = [requireAuth, requireFeature('account.users')];
 const authManage = [requireAuth, requireFeature('account.users.manage')];
 const authPermissions = [requireAuth, requireFeature('account.permissions')];
@@ -156,8 +198,17 @@ router.post('/api/admin/users', ...authManage, async (req, res) => {
       return res.status(400).json({ error: `Cơ sở phụ trách không hợp lệ. Cho phép: ${BRANCH_VALUES.join(', ')}` });
     }
     // Nguoi khong phai Quan ly chi tao duoc tai khoan co quyen <= quyen cua chinh ho.
+    // Luat 5a: khong tao TK mang dinh danh admin cung (resolver nhan admin theo email/username).
+    const protectedId = accountPolicy.checkProtectedIdentity(req.user, [username, email, soDienThoai]);
+    if (protectedId) return accountPolicy.sendDenied(res, protectedId, accountPolicy.PROTECTED_IDENTITY_CODE);
     const denied = accountPolicy.checkGrant(req.user, null, { username, email, vaiTro, featurePermissions: {} });
     if (denied) return accountPolicy.sendDenied(res, denied);
+    // Luat 5c: TK moi (ke ca Khach — dang nhap Google se gan TK khop vao dong nhan su) khong
+    // duoc mang email/SĐT/username cua nhan su co vai tro vuot quyen actor duoc cap.
+    const hrDenied = await checkHrIdentityEscalation(req.user, accountPolicy.hrIdentitiesOf({
+      username, email, soDienThoai: normalizePhone(soDienThoai)
+    }), null);
+    if (hrDenied) return res.status(hrDenied.status).json({ error: hrDenied.error, code: hrDenied.code });
 
     const passwordHash = await bcrypt.hash(password, 10);
     const newUser = await localUserStore.createUser({
@@ -247,50 +298,85 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
       updates.hoTen = hoTen;
     }
 
-    if (req.body.email !== undefined) {
-      const email = String(req.body.email || '').trim().toLowerCase();
-      if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
-        return res.status(400).json({ error: 'Email không đúng định dạng.' });
-      }
-      if (email !== String(targetUser.email || '').toLowerCase()) {
-        const denied = accountPolicy.checkTakeover(req.user, targetUser, 'đổi email của tài khoản này') ||
-                       accountPolicy.checkProtectedManager(req.user, targetUser, 'đổi email');
-        if (denied) return accountPolicy.sendDenied(res, denied);
-      }
-      if (targetUser.hrManaged && email !== String(targetUser.email || '').toLowerCase()) {
-        targetUser = await contactChangeService.adminChange(targetUser, 'email', email);
+    // ---- Email / SĐT: chi KIEM TRA o day. Lenh ghi (adminChange ghi ca hr_employees lan
+    // app_users) duoc HOAN den sau khi MOI kiem tra cua route da qua — xem pendingAdminChanges. ----
+    const nextEmail = req.body.email !== undefined ? String(req.body.email || '').trim().toLowerCase() : null;
+    const nextPhone = req.body.soDienThoai !== undefined ? normalizePhone(String(req.body.soDienThoai || '').trim()) : null;
+    // So voi gia tri DANG LUU da chuan hoa (DB co the con khoang trang / chu hoa cu).
+    const emailChanging = nextEmail !== null && nextEmail !== String(targetUser.email || '').trim().toLowerCase();
+    const phoneChanging = nextPhone !== null && nextPhone !== normalizePhone(targetUser.soDienThoai);
+
+    if (nextEmail && (nextEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail))) {
+      return res.status(400).json({ error: 'Email không đúng định dạng.' });
+    }
+    if (nextPhone && !/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(nextPhone) && !/^[0-9]{10}$/.test(nextPhone)) {
+      return res.status(400).json({ error: 'Số điện thoại không đúng định dạng.' });
+    }
+    if (emailChanging) {
+      const denied = accountPolicy.checkTakeover(req.user, targetUser, 'đổi email của tài khoản này') ||
+                     accountPolicy.checkProtectedManager(req.user, targetUser, 'đổi email');
+      if (denied) return accountPolicy.sendDenied(res, denied);
+    }
+    if (phoneChanging) {
+      const denied = accountPolicy.checkTakeover(req.user, targetUser, 'đổi số điện thoại của tài khoản này') ||
+                     accountPolicy.checkProtectedManager(req.user, targetUser, 'đổi số điện thoại');
+      if (denied) return accountPolicy.sendDenied(res, denied);
+    }
+    if (emailChanging || phoneChanging) {
+      // Luat 5a: dinh danh admin cung — resolver se bien TK thanh admin cung.
+      const protectedId = accountPolicy.checkProtectedIdentity(req.user, [
+        emailChanging ? nextEmail : '', phoneChanging ? nextPhone : ''
+      ]);
+      if (protectedId) return accountPolicy.sendDenied(res, protectedId, accountPolicy.PROTECTED_IDENTITY_CODE);
+      // Luat 5b: tu doi email/SĐT cua minh phai qua trang Ho so (OTP) hoac Quan ly khac.
+      const selfChange = accountPolicy.checkSelfContactChange(req.user, targetUser);
+      if (selfChange) return accountPolicy.sendDenied(res, selfChange, accountPolicy.SELF_CONTACT_CHANGE_CODE);
+      // Luat 5c: email/SĐT MOI khop nhan su vai tro cao hon quyen actor duoc cap. (Username
+      // khong doi qua route nay; dinh danh cu da co san nen khong phai "gan moi".)
+      const hrDenied = await checkHrIdentityEscalation(req.user, {
+        emails: emailChanging ? [nextEmail] : [],
+        phones: phoneChanging ? [nextPhone] : []
+      }, targetUser);
+      if (hrDenied) return res.status(hrDenied.status).json({ error: hrDenied.error, code: hrDenied.code });
+    }
+
+    // TK nhan su: doi email/SĐT qua contactChangeService.adminChange (ghi hr_employees +
+    // app_users). CHUA goi o day — chi xep hang, goi ngay truoc localUserStore.updateUser.
+    const pendingAdminChanges = [];
+
+    if (nextEmail !== null) {
+      if (targetUser.hrManaged && emailChanging) {
+        pendingAdminChanges.push({ field: 'email', value: nextEmail });
       } else {
-        updates.email = email;
+        updates.email = nextEmail;
+        // Email moi chua duoc chu TK xac minh: khong de co cu "da xac minh" di theo
+        // (resolver dung co nay de gan TK Khach vao dong nhan su).
+        if (emailChanging) updates.verifiedEmail = false;
       }
     }
 
-    if (req.body.soDienThoai !== undefined) {
-      const soDienThoai = String(req.body.soDienThoai || '').trim();
-      if (normalizePhone(soDienThoai) !== normalizePhone(targetUser.soDienThoai)) {
-        const denied = accountPolicy.checkTakeover(req.user, targetUser, 'đổi số điện thoại của tài khoản này') ||
-                       accountPolicy.checkProtectedManager(req.user, targetUser, 'đổi số điện thoại');
-        if (denied) return accountPolicy.sendDenied(res, denied);
-      }
-      if (soDienThoai) {
-        const normPhone = normalizePhone(soDienThoai);
-        if (!/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(normPhone) && !/^[0-9]{10}$/.test(normPhone)) {
-          return res.status(400).json({ error: 'Số điện thoại không đúng định dạng.' });
-        }
-        if (targetUser.hrManaged && normPhone !== normalizePhone(targetUser.soDienThoai)) {
-          targetUser = await contactChangeService.adminChange(targetUser, 'phone', normPhone);
-        } else {
-          updates.soDienThoai = normPhone;
-        }
+    if (nextPhone !== null) {
+      if (targetUser.hrManaged && phoneChanging && nextPhone) {
+        pendingAdminChanges.push({ field: 'phone', value: nextPhone });
       } else {
-        updates.soDienThoai = '';
+        updates.soDienThoai = nextPhone;
+        if (phoneChanging) updates.verifiedPhone = false;
       }
     }
+
+    // Luat 4: doi co so / trang thai cua Quan ly KHAC chi danh cho Quan ly cap cao. Form luon
+    // gui lai gia tri hien tai nen chi chan khi gia tri THUC SU doi.
+    const currentCoSo = targetUser.coSo ? (normalizeCoSo(targetUser.coSo) || String(targetUser.coSo)) : '';
 
     if (req.body.coSo !== undefined) {
       const rawCoSo = String(req.body.coSo || '').trim();
       const coSo = rawCoSo ? normalizeCoSo(rawCoSo) : '';
       if (rawCoSo && !coSo) {
         return res.status(400).json({ error: `Cơ sở phụ trách không hợp lệ. Cho phép: ${BRANCH_VALUES.join(', ')}` });
+      }
+      if (coSo !== currentCoSo) {
+        const deniedCoSo = accountPolicy.checkProtectedManager(req.user, targetUser, 'đổi cơ sở phụ trách');
+        if (deniedCoSo) return accountPolicy.sendDenied(res, deniedCoSo);
       }
       updates.coSo = coSo;
     }
@@ -316,6 +402,19 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
       const denied = (vaiTro !== ROLES.QUAN_LY && accountPolicy.checkProtectedManager(req.user, targetUser, 'hạ vai trò')) ||
                      accountPolicy.checkGrant(req.user, targetUser, { ...targetUser, vaiTro });
       if (denied) return accountPolicy.sendDenied(res, denied);
+      // Luat 5c: TK Khach (khong HR) len vai tro noi bo => resolver tin dinh danh KHONG can
+      // xac minh, nen dinh danh hien co cung phai qua doi chieu nhan su.
+      const promotingFromGuest = !targetUser.hrManaged &&
+        (targetUser.vaiTro || ROLES.KHACH) === ROLES.KHACH && vaiTro !== ROLES.KHACH;
+      if (promotingFromGuest) {
+        // Do MOI dinh danh (email, SĐT VA username) nhu resolver.localUserMatchesEmployee.
+        const hrDenied = await checkHrIdentityEscalation(req.user, accountPolicy.hrIdentitiesOf({
+          username: targetUser.username,
+          email: Object.hasOwn(updates, 'email') ? updates.email : targetUser.email,
+          soDienThoai: Object.hasOwn(updates, 'soDienThoai') ? updates.soDienThoai : targetUser.soDienThoai
+        }), targetUser);
+        if (hrDenied) return res.status(hrDenied.status).json({ error: hrDenied.error, code: hrDenied.code });
+      }
       updates.vaiTro = vaiTro;
       // Tài khoản đồng bộ HR: resolveUser() luôn tính lại vaiTro từ Danh sách nhân sự
       // trừ khi có vaiTroOverride — nếu không set override ở đây, thay đổi này sẽ
@@ -363,8 +462,13 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
       if (isTargetHardcodedAdmin && coSoOverride !== 'Cả hai') {
         return res.status(400).json({ error: 'Không thể thay đổi cơ sở của tài khoản Quản trị viên hệ thống.' });
       }
+      const resultingCoSo = coSoOverride || targetUser.sheetCoSo || 'Cả hai';
+      if (coSoOverride !== (targetUser.coSoOverride || '') || resultingCoSo !== currentCoSo) {
+        const deniedCoSo = accountPolicy.checkProtectedManager(req.user, targetUser, 'đổi cơ sở phụ trách');
+        if (deniedCoSo) return accountPolicy.sendDenied(res, deniedCoSo);
+      }
       updates.coSoOverride = coSoOverride;
-      updates.coSo = coSoOverride || targetUser.sheetCoSo || 'Cả hai';
+      updates.coSo = resultingCoSo;
     }
 
     if (req.body.trangThai !== undefined) {
@@ -382,12 +486,20 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
       if (isTargetHardcodedAdmin && (trangThai === LOCKED_STATUS || trangThai === 'Khóa')) {
         return res.status(400).json({ error: 'Không thể khóa tài khoản Quản trị viên hệ thống mặc định.' });
       }
-      if (trangThai === LOCKED_STATUS || trangThai === 'Khóa') {
-        const deniedLock = accountPolicy.checkProtectedManager(req.user, targetUser, 'khóa tài khoản');
-        if (deniedLock) return accountPolicy.sendDenied(res, deniedLock);
+      // Luat 4: MOI thay doi trang thai cua Quan ly khac (khong chi Khoa) — 'Chờ duyệt' cung
+      // la ha quyen: lan dang nhap Google sau activatePendingGuest se bien TK thanh Khach.
+      if (trangThai !== targetUser.trangThai) {
+        const isLock = trangThai === LOCKED_STATUS || trangThai === 'Khóa';
+        const deniedStatus = accountPolicy.checkProtectedManager(req.user, targetUser, isLock ? 'khóa tài khoản' : 'đổi trạng thái tài khoản');
+        if (deniedStatus) return accountPolicy.sendDenied(res, deniedStatus);
       }
       updates.trangThai = trangThai;
       updates.lockReason = (trangThai === LOCKED_STATUS || trangThai === 'Khóa') ? 'manual' : '';
+    }
+
+    // MOI kiem tra da qua: bay gio moi ghi email/SĐT cua TK nhan su (hr_employees + app_users).
+    for (const change of pendingAdminChanges) {
+      targetUser = await contactChangeService.adminChange(targetUser, change.field, change.value);
     }
 
     const updated = await localUserStore.updateUser(targetId, updates);

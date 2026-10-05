@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const localUserStore = require('./localUserStore');
 const employeeDirectory = require('../hr/employeeDirectory');
 const adminUserRoutes = require('./adminUserRoutes');
+const contactChangeService = require('./contactChangeService');
 const { createFakeAppUsersRepository } = require('./testHelpers/fakeAppUsersRepository');
 
 // appUsersRepository that (Postgres) can vao SUPABASE_DB_URL — test dung
@@ -166,6 +167,51 @@ test('Admin User Management: PUT still succeeds even if the best-effort sheet sy
     assert.equal(res.body.user.vaiTro, 'Trợ lý');
   } finally {
     employeeDirectory.writeDepartmentForRole = originalWrite;
+  }
+});
+
+test('Admin User Management: PUT đổi SĐT TK nhân sự cập nhật cả hr_employees lẫn app_users', async () => {
+  localUserStore.setInMemoryUsers([
+    {
+      id: 'u1', username: 'a@example.com', hoTen: 'A', email: 'a@example.com', soDienThoai: '0912345678',
+      vaiTro: 'Kế toán', coSo: 'Cả hai', trangThai: 'Đang hoạt động', hrManaged: true,
+      sheetVaiTro: 'Kế toán', sheetCoSo: 'Cả hai', hrSourceBranch: 'Hà Nội', hrRowIndex: 5
+    },
+    { id: 'u2', username: 'b@example.com', email: 'b@example.com', soDienThoai: '0987654321', vaiTro: 'Khách', trangThai: 'Đang hoạt động' }
+  ]);
+  const employee = { sourceBranch: 'Hà Nội', rowIndex: 5, email: 'a@example.com', soDienThoai: '0912345678' };
+  const originalSnapshot = employeeDirectory.getSnapshot;
+  const originalUpdate = employeeDirectory.updateEmployeeContact;
+  const calls = [];
+  employeeDirectory.getSnapshot = async () => ({ employees: [employee] });
+  employeeDirectory.updateEmployeeContact = async (current, field, value) => {
+    calls.push({ rowIndex: current.rowIndex, field, value });
+    return { ...current, soDienThoai: value };
+  };
+  try {
+    const handler = getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id');
+    const res = fakeRes();
+    await handler({
+      user: { id: 'admin', username: 'admin', vaiTro: 'Quản lý' }, params: { id: 'u1' },
+      body: { soDienThoai: '0911222333' }
+    }, res);
+    assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+    assert.deepEqual(calls, [{ rowIndex: 5, field: 'phone', value: '0911222333' }]);
+    const saved = await localUserStore.getUserById('u1');
+    assert.equal(saved.soDienThoai, '0911222333');
+    assert.equal(saved.email, 'a@example.com');
+
+    // SĐT đã thuộc TK khác -> 409, không ghi danh bạ.
+    const dup = fakeRes();
+    await handler({
+      user: { id: 'admin', username: 'admin', vaiTro: 'Quản lý' }, params: { id: 'u1' },
+      body: { soDienThoai: '0987654321' }
+    }, dup);
+    assert.equal(dup.statusCode, 409);
+    assert.equal(calls.length, 1);
+  } finally {
+    employeeDirectory.getSnapshot = originalSnapshot;
+    employeeDirectory.updateEmployeeContact = originalUpdate;
   }
 });
 
@@ -755,7 +801,7 @@ test('Chong leo thang: POST vai tro vuot quyen actor bi chan, vai tro <= actor d
   assert.equal(blocked.statusCode, 403);
 
   const ok = fakeRes();
-  await handler({ user: delegate(), body: { username: 'moi5678', password: 'matkhau123', hoTen: 'Mới', vaiTro: 'Nhân viên kho' } }, ok);
+  await withHrEmployees([], () => handler({ user: delegate(), body: { username: 'moi5678', password: 'matkhau123', hoTen: 'Mới', vaiTro: 'Nhân viên kho' } }, ok));
   assert.equal(ok.statusCode, 201);
 });
 
@@ -807,11 +853,22 @@ test('Chong leo thang: PUT doi email/SDT tai khoan cao hon bi chan (duong chiem 
   await handler({ user: delegate(), params: { id: 'kt-1' }, body: { soDienThoai: '0912345678' } }, phone);
   assert.equal(phone.statusCode, 403);
 
-  // Tai khoan <= actor thi duoc doi email.
+  // Tai khoan <= actor thi duoc doi email (email moi khong khop nhan su nao).
   const own = fakeRes();
-  await handler({ user: delegate(), params: { id: 'nv-1' }, body: { email: 'nv1-moi@tokosi.vn' } }, own);
+  await withHrEmployees([], () => handler({ user: delegate(), params: { id: 'nv-1' }, body: { email: 'nv1-moi@tokosi.vn' } }, own));
   assert.equal(own.statusCode, 200);
 });
+
+/** Thay tam hr/employeeDirectory.getSnapshot bang danh sach nhan su gia (chi doc). */
+async function withHrEmployees(employees, fn) {
+  const original = employeeDirectory.getSnapshot;
+  employeeDirectory.getSnapshot = typeof employees === 'function' ? employees : async () => ({ employees });
+  try {
+    return await fn();
+  } finally {
+    employeeDirectory.getSnapshot = original;
+  }
+}
 
 test('Chong leo thang: reset mat khau chi voi tai khoan <= actor; Quan ly va cao hon bi chan', async () => {
   seedWithDelegate();
@@ -926,8 +983,13 @@ test('Luat 4: Quan ly thuong KHONG doi email/SDT cua Quan ly khac (duong chiem q
   const rename = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'ql-2' }, body: { hoTen: 'Tên mới' } });
   assert.equal(rename.statusCode, 200, 'sua ho ten khong phai ha quyen');
 
+  // (2026-10-05, luat 5b) Tu doi email/SDT cua chinh minh qua route quan tri nay BI CHAN
+  // — phai dung trang Ho so (co OTP) hoac nho Quan ly khac.
   const self = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'ql-1' }, body: { email: 'moi-ql1@example.com' } });
-  assert.equal(self.statusCode, 200, 'tu doi email cua chinh minh khong bi chan');
+  assert.equal(self.statusCode, 403);
+  assert.equal(self.body.code, 'SELF_CONTACT_CHANGE');
+  const selfRename = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'ql-1' }, body: { hoTen: 'QL1 mới', email: 'ql1@example.com' } });
+  assert.equal(selfRename.statusCode, 200, 'tu sua ho ten (gui lai email cu) van duoc');
 });
 
 test('Luat 4: Quan ly thuong KHONG ha vai tro cua Quan ly khac; cap cao thi duoc; nang len Quan ly khong bi chan', async () => {
@@ -994,4 +1056,288 @@ test('Luat 4: Quan ly thuong KHONG rut quyen cua Quan ly khac (khong doi gi thi 
 
   const senior = await callRoute('put', path, { user: seniorActor, params: { id: 'ql-2' }, body: { overrides: { 'reports.debt': false } } });
   assert.equal(senior.statusCode, 200);
+});
+
+// ---------------------------------------------------------------------------
+// LUAT 5 (2026-10-05): LEO THANG QUA DINH DANH. Resolver nhan admin cung theo email/username
+// va gan vai tro theo dong hr_employees khop email/SĐT => ghi dinh danh = gan quyen.
+// ---------------------------------------------------------------------------
+
+test('Luat 5a (F1): Quan ly thuong tu dat email admin cung cho chinh minh -> 403 PROTECTED_IDENTITY, khong ghi', async () => {
+  seedManagersAndStaff();
+  const path = '/api/admin/users/:id';
+  for (const email of ['thangnnv2003@gmail.com', 'ADMIN@tokosi.vn']) {
+    const res = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'ql-1' }, body: { email } });
+    assert.equal(res.statusCode, 403, email);
+    assert.equal(res.body.code, 'PROTECTED_IDENTITY', email);
+  }
+  assert.equal((await localUserStore.getUserById('ql-1')).email, 'ql1@example.com');
+
+  // Gan cho tai khoan khac cung bi chan.
+  const other = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'nv-1' }, body: { email: 'thangnnv2003@gmail.com' } });
+  assert.equal(other.statusCode, 403);
+  assert.equal(other.body.code, 'PROTECTED_IDENTITY');
+  assert.equal((await localUserStore.getUserById('nv-1')).email, 'nv1@example.com');
+});
+
+test('Luat 5a: POST tao TK voi username/email admin cung bi chan voi Quan ly thuong', async () => {
+  seedManagersAndStaff();
+  const path = '/api/admin/users';
+  const base = { password: 'matkhau123', hoTen: 'Giả mạo', vaiTro: 'Nhân viên kho' };
+  for (const body of [{ ...base, username: 'thangnnv2003' }, { ...base, username: 'gia-mao', email: 'admin@tokosi.vn' }]) {
+    const res = await callRoute('post', path, { user: ordinaryManagerActor, body });
+    assert.equal(res.statusCode, 403, JSON.stringify(body));
+    assert.equal(res.body.code, 'PROTECTED_IDENTITY');
+  }
+  const all = await localUserStore.getAllUsers();
+  assert.ok(!all.some(u => u.username === 'thangnnv2003' || u.username === 'gia-mao'));
+});
+
+test('Luat 5a: Quan ly cap cao van dat duoc dinh danh admin cung', async () => {
+  seedManagersAndStaff();
+  const res = await callRoute('put', '/api/admin/users/:id', { user: seniorActor, params: { id: 'nv-1' }, body: { email: 'admin@tokosi.vn' } });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal((await localUserStore.getUserById('nv-1')).email, 'admin@tokosi.vn');
+});
+
+test('Luat 5b: tu doi SĐT cua chinh minh cung bi chan; cap cao tu doi duoc', async () => {
+  seedManagersAndStaff();
+  const path = '/api/admin/users/:id';
+  const phone = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'ql-1' }, body: { soDienThoai: '0912345678' } });
+  assert.equal(phone.statusCode, 403);
+  assert.equal(phone.body.code, 'SELF_CONTACT_CHANGE');
+  assert.equal((await localUserStore.getUserById('ql-1')).soDienThoai || '', '');
+
+  localUserStore.setInMemoryUsers([{ id: 'adm-1', username: 'admin', hoTen: 'Admin', email: 'admin@tokosi.vn', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động' }]);
+  const senior = await callRoute('put', path, { user: seniorActor, params: { id: 'adm-1' }, body: { soDienThoai: '0912345678' } });
+  assert.equal(senior.statusCode, 200, JSON.stringify(senior.body));
+});
+
+test('Luat 5c (F2): TK account.users.manage (khong phai Quan ly) tao TK Sale voi SĐT/email nhan su Quan ly -> 403 HR_ROLE_ESCALATION', async () => {
+  seedWithDelegate();
+  const hr = [
+    { rowIndex: 11, email: 'sep@tokosi.vn', soDienThoai: '0911000111', sheetVaiTro: 'Quản lý' },
+    { rowIndex: 12, email: 'kho@tokosi.vn', soDienThoai: '0911000222', sheetVaiTro: 'Nhân viên kho' }
+  ];
+  const path = '/api/admin/users';
+  const base = { password: 'matkhau123', hoTen: 'Sale mới', vaiTro: 'Nhân viên sale' };
+  await withHrEmployees(hr, async () => {
+    for (const body of [
+      { ...base, username: 'sale-a', soDienThoai: '0911000111' },
+      { ...base, username: 'sale-b', email: 'SEP@tokosi.vn' },
+      { ...base, username: '0911000111' } // username = SĐT => resolver dung lam dinh danh
+    ]) {
+      const res = await callRoute('post', path, { user: delegate(), body });
+      assert.equal(res.statusCode, 403, JSON.stringify(body));
+      assert.equal(res.body.code, 'HR_ROLE_ESCALATION');
+    }
+    const all = await localUserStore.getAllUsers();
+    assert.ok(!all.some(u => ['sale-a', 'sale-b', '0911000111'].includes(u.username)), 'khong TK nao duoc tao');
+
+    // Nhan su vai tro <= actor thi van tao duoc.
+    const ok = await callRoute('post', path, { user: delegate(), body: { ...base, vaiTro: 'Nhân viên kho', username: 'kho-moi', soDienThoai: '0911000222' } });
+    assert.equal(ok.statusCode, 201, JSON.stringify(ok.body));
+    // Quan ly thi duoc gan dinh danh nhan su Quan ly.
+    const byManager = await callRoute('post', path, { user: ordinaryManagerActor, body: { ...base, username: 'sale-ql', soDienThoai: '0911000111' } });
+    assert.equal(byManager.statusCode, 201, JSON.stringify(byManager.body));
+  });
+});
+
+test('Luat 5c (F2 bien the): PUT doi email/SĐT sang cua nhan su Quan ly, hoac nang TK Khach len noi bo -> 403', async () => {
+  seedWithDelegate();
+  const hr = [{ rowIndex: 11, email: 'sep@tokosi.vn', soDienThoai: '0911000111', sheetVaiTro: 'Quản lý' }];
+  localUserStore.setInMemoryUsers([
+    ...(await localUserStore.getAllUsers()),
+    { id: 'kh-1', username: 'khach1', hoTen: 'Khách 1', email: 'khach1@example.com', verifiedEmail: true, vaiTro: 'Khách', trangThai: 'Đang hoạt động' },
+    { id: 'kh-2', username: 'khach2', hoTen: 'Khách 2', email: 'sep@tokosi.vn', vaiTro: 'Khách', trangThai: 'Đang hoạt động' }
+  ]);
+  const path = '/api/admin/users/:id';
+  await withHrEmployees(hr, async () => {
+    const email = await callRoute('put', path, { user: delegate(), params: { id: 'kh-1' }, body: { email: 'sep@tokosi.vn' } });
+    assert.equal(email.statusCode, 403);
+    assert.equal(email.body.code, 'HR_ROLE_ESCALATION');
+    assert.equal((await localUserStore.getUserById('kh-1')).email, 'khach1@example.com');
+
+    const phone = await callRoute('put', path, { user: delegate(), params: { id: 'nv-1' }, body: { soDienThoai: '0911000111' } });
+    assert.equal(phone.statusCode, 403);
+    assert.equal(phone.body.code, 'HR_ROLE_ESCALATION');
+
+    // TK Khach khong xac minh dang mang email Quan ly: nang len vai tro noi bo => resolver tin ngay.
+    const promote = await callRoute('put', path, { user: delegate(), params: { id: 'kh-2' }, body: { vaiTro: 'Nhân viên kho' } });
+    assert.equal(promote.statusCode, 403);
+    assert.equal(promote.body.code, 'HR_ROLE_ESCALATION');
+    assert.equal((await localUserStore.getUserById('kh-2')).vaiTro, 'Khách');
+  });
+});
+
+test('Luat 5c (vong 2): username = email/SĐT nhan su Quan ly + email/SĐT vo hai -> 403 (resolver khop ca username)', async () => {
+  seedWithDelegate();
+  const hr = [{ rowIndex: 11, email: 'sep@tokosi.vn', soDienThoai: '0911000111', sheetVaiTro: 'Quản lý' }];
+  const path = '/api/admin/users';
+  const base = { password: 'matkhau123', hoTen: 'Khách giả', vaiTro: 'Khách' };
+  await withHrEmployees(hr, async () => {
+    for (const body of [
+      { ...base, username: 'sep@tokosi.vn', email: 'vohai@example.com' },
+      { ...base, username: 'SEP@tokosi.vn', email: 'vohai@example.com', soDienThoai: '0911999888' },
+      { ...base, username: '0911000111', email: 'vohai@example.com', soDienThoai: '0911999888' },
+      { ...base, username: '+84911000111', email: 'vohai2@example.com' }
+    ]) {
+      const res = await callRoute('post', path, { user: delegate(), body });
+      assert.equal(res.statusCode, 403, JSON.stringify(body));
+      assert.equal(res.body.code, 'HR_ROLE_ESCALATION', JSON.stringify(body));
+    }
+    const all = await localUserStore.getAllUsers();
+    assert.ok(!all.some(u => ['sep@tokosi.vn', 'SEP@tokosi.vn', '0911000111', '+84911000111'].includes(u.username)), 'khong TK nao duoc tao');
+  });
+});
+
+test('Luat 5c (vong 2): nang TK Khach co username = email/SĐT nhan su Quan ly (email vo hai) -> 403', async () => {
+  seedWithDelegate();
+  const hr = [{ rowIndex: 11, email: 'sep@tokosi.vn', soDienThoai: '0911000111', sheetVaiTro: 'Quản lý' }];
+  localUserStore.setInMemoryUsers([
+    ...(await localUserStore.getAllUsers()),
+    { id: 'kh-u1', username: 'sep@tokosi.vn', hoTen: 'Giả 1', email: 'vohai@example.com', vaiTro: 'Khách', trangThai: 'Đang hoạt động' },
+    { id: 'kh-u2', username: '0911000111', hoTen: 'Giả 2', email: 'vohai2@example.com', soDienThoai: '0911999888', vaiTro: 'Khách', trangThai: 'Đang hoạt động' }
+  ]);
+  await withHrEmployees(hr, async () => {
+    for (const id of ['kh-u1', 'kh-u2']) {
+      const res = await callRoute('put', '/api/admin/users/:id', { user: delegate(), params: { id }, body: { vaiTro: 'Nhân viên kho' } });
+      assert.equal(res.statusCode, 403, id);
+      assert.equal(res.body.code, 'HR_ROLE_ESCALATION', id);
+      assert.equal((await localUserStore.getUserById(id)).vaiTro, 'Khách', id);
+    }
+  });
+});
+
+test('PUT (vong 2): moi kiem tra phai qua TRUOC khi adminChange ghi hr_employees/app_users', async () => {
+  const hrKho = { id: 'hr-kho', username: 'kho@tokosi.vn', hoTen: 'Kho HR', email: 'kho@tokosi.vn', soDienThoai: '0911000222',
+    vaiTro: 'Nhân viên kho', coSo: 'Cả hai', trangThai: 'Đang hoạt động', hrManaged: true,
+    sheetVaiTro: 'Nhân viên kho', sheetCoSo: 'Cả hai', hrSourceBranch: 'Hà Nội', hrRowIndex: 12 };
+  const original = contactChangeService.adminChange;
+  const calls = [];
+  contactChangeService.adminChange = async (user, field, value) => {
+    calls.push({ field, value });
+    return localUserStore.updateUser(user.id, field === 'email' ? { email: value } : { soDienThoai: value });
+  };
+  try {
+    await withHrEmployees([], async () => {
+      const cases = [
+        // Vai tro khong duoc cap (Tro ly khong gan duoc Quan ly) -> 403.
+        { user: delegate(), body: { email: 'kho-moi@tokosi.vn', vaiTro: 'Quản lý' }, status: 403 },
+        { user: delegate(), body: { soDienThoai: '0911000333', vaiTroOverride: 'Quản lý' }, status: 403 },
+        // Co so ghi de / trang thai khong hop le -> 400.
+        { user: ordinaryManagerActor, body: { email: 'kho-moi@tokosi.vn', coSoOverride: 'Đà Nẵng' }, status: 400 },
+        { user: ordinaryManagerActor, body: { soDienThoai: '0911000333', trangThai: 'Bậy' }, status: 400 }
+      ];
+      for (const c of cases) {
+        localUserStore.setInMemoryUsers([delegate(), { ...hrKho }]);
+        const res = await callRoute('put', '/api/admin/users/:id', { user: c.user, params: { id: 'hr-kho' }, body: c.body });
+        assert.equal(res.statusCode, c.status, JSON.stringify(c.body));
+        const saved = await localUserStore.getUserById('hr-kho');
+        assert.equal(saved.email, 'kho@tokosi.vn', JSON.stringify(c.body));
+        assert.equal(saved.soDienThoai, '0911000222', JSON.stringify(c.body));
+      }
+      assert.deepEqual(calls, [], 'adminChange khong duoc goi khi co kiem tra loi');
+
+      // Hop le thi van goi adminChange va luu.
+      localUserStore.setInMemoryUsers([delegate(), { ...hrKho }]);
+      const ok = await callRoute('put', '/api/admin/users/:id', { user: ordinaryManagerActor, params: { id: 'hr-kho' }, body: { email: 'kho-moi@tokosi.vn', coSoOverride: 'Hà Nội' } });
+      assert.equal(ok.statusCode, 200, JSON.stringify(ok.body));
+      assert.deepEqual(calls, [{ field: 'email', value: 'kho-moi@tokosi.vn' }]);
+      const saved = await localUserStore.getUserById('hr-kho');
+      assert.equal(saved.email, 'kho-moi@tokosi.vn');
+      assert.equal(saved.coSo, 'Hà Nội');
+    });
+  } finally {
+    contactChangeService.adminChange = original;
+  }
+});
+
+test('Luat 4 (vong 2): Quan ly thuong KHONG doi trang thai (ke ca Chờ duyệt) / co so cua Quan ly khac; gui lai gia tri cu thi duoc; cap cao duoc', async () => {
+  const path = '/api/admin/users/:id';
+  for (const body of [
+    { trangThai: 'Chờ duyệt' },
+    { trangThai: 'Không hoạt động' },
+    { coSo: 'Hà Nội' }
+  ]) {
+    seedManagersAndStaff();
+    assertSeniorOnly(await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'ql-2' }, body }));
+    const saved = await localUserStore.getUserById('ql-2');
+    assert.equal(saved.trangThai, 'Đang hoạt động', JSON.stringify(body));
+    assert.equal(saved.coSo, 'Cả hai', JSON.stringify(body));
+  }
+
+  // Form gui lai trang thai / co so hien tai: khong phai thay doi.
+  seedManagersAndStaff();
+  const same = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'ql-2' }, body: { hoTen: 'QL2', trangThai: 'Đang hoạt động', coSo: 'Cả hai' } });
+  assert.equal(same.statusCode, 200, JSON.stringify(same.body));
+
+  // Nhan vien thuong: van doi duoc.
+  const staff = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'nv-1' }, body: { trangThai: 'Chờ duyệt', coSo: 'Sài Gòn' } });
+  assert.equal(staff.statusCode, 200, JSON.stringify(staff.body));
+
+  // Cap cao: duoc.
+  const senior = await callRoute('put', path, { user: seniorActor, params: { id: 'ql-2' }, body: { trangThai: 'Chờ duyệt', coSo: 'Hà Nội' } });
+  assert.equal(senior.statusCode, 200, JSON.stringify(senior.body));
+  assert.equal((await localUserStore.getUserById('ql-2')).trangThai, 'Chờ duyệt');
+
+  // Ghi de co so cua Quan ly HR khac cung bi chan.
+  const base = { coSo: 'Cả hai', trangThai: 'Đang hoạt động', ngayTao: '01/01/2026' };
+  localUserStore.setInMemoryUsers([
+    { id: 'ql-1', username: 'quanly1', hoTen: 'Quản lý 1', vaiTro: 'Quản lý', ...base },
+    { id: 'hr-ql', username: 'hr-ql@example.com', hoTen: 'QL HR', email: 'hr-ql@example.com', vaiTro: 'Quản lý',
+      hrManaged: true, sheetVaiTro: 'Quản lý', sheetCoSo: 'Cả hai', ...base }
+  ]);
+  assertSeniorOnly(await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'hr-ql' }, body: { coSoOverride: 'Sài Gòn' } }));
+  assert.equal((await localUserStore.getUserById('hr-ql')).coSo, 'Cả hai');
+});
+
+test('PUT (vong 2): email/SĐT dang luu co khoang trang / hoa thuong khong bi coi la doi', async () => {
+  seedWithDelegate();
+  localUserStore.setInMemoryUsers([
+    delegate(),
+    { id: 'kt-1', username: 'ketoan1', hoTen: 'Kế toán 1', email: ' KT1@tokosi.vn ', soDienThoai: ' 0911 000 444 ', vaiTro: 'Kế toán', trangThai: 'Đang hoạt động',
+      featurePermissions: { 'shipment.override': true } }
+  ]);
+  // kt-1 co quyen cao hon delegate: neu bi coi la "doi email/SĐT" se 403 (checkTakeover).
+  const res = await callRoute('put', '/api/admin/users/:id', { user: delegate(), params: { id: 'kt-1' }, body: { hoTen: 'KT đổi tên', email: 'kt1@tokosi.vn', soDienThoai: '0911000444' } });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+});
+
+test('Luat 5c: khong doi chieu duoc Danh sach nhan su -> fail closed 503 voi TK khong phai Quan ly', async () => {
+  seedWithDelegate();
+  const unavailable = async () => { const e = new Error('down'); e.code = 'HR_DIRECTORY_UNAVAILABLE'; e.statusCode = 503; throw e; };
+  await withHrEmployees(unavailable, async () => {
+    const res = await callRoute('post', '/api/admin/users', { user: delegate(), body: { username: 'sale-x', password: 'matkhau123', hoTen: 'X', vaiTro: 'Nhân viên kho', email: 'x@example.com' } });
+    assert.equal(res.statusCode, 503);
+    assert.ok(!(await localUserStore.getAllUsers()).some(u => u.username === 'sale-x'));
+  });
+});
+
+test('Luat 5d: Quan ly doi email TK Khach da xac minh -> verifiedEmail ve false; doi SĐT -> verifiedPhone false', async () => {
+  localUserStore.setInMemoryUsers([
+    { id: 'ql-1', username: 'quanly1', hoTen: 'Quản lý 1', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động' },
+    { id: 'kh-1', username: 'khach1', hoTen: 'Khách 1', email: 'khach1@example.com', soDienThoai: '0911000999',
+      verifiedEmail: true, verifiedPhone: true, vaiTro: 'Khách', trangThai: 'Đang hoạt động' }
+  ]);
+  const path = '/api/admin/users/:id';
+  const res = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'kh-1' }, body: { email: 'khach1-moi@example.com' } });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  let saved = await localUserStore.getUserById('kh-1');
+  assert.equal(saved.email, 'khach1-moi@example.com');
+  assert.equal(saved.verifiedEmail, false);
+  assert.equal(saved.verifiedPhone, true, 'SĐT khong doi thi giu co');
+
+  const phone = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'kh-1' }, body: { soDienThoai: '0911000888' } });
+  assert.equal(phone.statusCode, 200, JSON.stringify(phone.body));
+  saved = await localUserStore.getUserById('kh-1');
+  assert.equal(saved.verifiedPhone, false);
+
+  // Gui lai gia tri cu (form luon gui ca email) khong reset co.
+  localUserStore.setInMemoryUsers([
+    { id: 'kh-2', username: 'khach2', hoTen: 'Khách 2', email: 'k2@example.com', verifiedEmail: true, vaiTro: 'Khách', trangThai: 'Đang hoạt động' }
+  ]);
+  const same = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'kh-2' }, body: { hoTen: 'K2', email: 'K2@example.com' } });
+  assert.equal(same.statusCode, 200);
+  assert.equal((await localUserStore.getUserById('kh-2')).verifiedEmail, true);
 });

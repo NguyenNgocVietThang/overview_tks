@@ -43,6 +43,15 @@ function hasVerifiedEmployeeIdentity(user, employee) {
   );
 }
 
+// hrRowIndex (= hr_employees.id) la rang buoc on dinh giua TK web va mot dong
+// nhan su. Tra '' khi TK chua gan (khong hrManaged, hoac hrRowIndex rong/null).
+function boundRowIndex(user) {
+  if (!user || !user.hrManaged) return '';
+  const value = user.hrRowIndex;
+  if (value === undefined || value === null) return '';
+  return String(value).trim();
+}
+
 function changedFields(user, desired) {
   const changes = {};
   for (const [key, value] of Object.entries(desired)) {
@@ -57,16 +66,37 @@ function createEffectiveUserResolver(options = {}) {
 
   async function findAccountForEmployee(employee) {
     const users = await store.getAllUsers();
-    const matches = users.filter(user => localUserMatchesEmployee(user, employee));
-    const distinctIds = new Set(matches.map(user => String(user.id)));
-    if (distinctIds.size > 1) {
+    const seen = new Set();
+    const matches = users.filter(user => {
+      if (!localUserMatchesEmployee(user, employee) || seen.has(String(user.id))) return false;
+      seen.add(String(user.id));
+      return true;
+    });
+    const conflict = () => new EffectiveUserError(
+      'Có nhiều tài khoản web cùng khớp một nhân sự.',
+      'HR_IDENTITY_CONFLICT',
+      409
+    );
+    // Uu tien TK da gan dung dong nay qua hrRowIndex; TK da gan dong KHAC
+    // khong the nhan dong nay (resolveUser chan nhay dong) nen bo qua — ap dung
+    // ca khi chi co 1 TK khop (vd TK gan dong X con giu email cu trung nhan su Y).
+    const rowIndex = String(employee.rowIndex);
+    const bound = matches.filter(user => boundRowIndex(user) === rowIndex);
+    if (bound.length === 1) return bound[0];
+    if (bound.length > 1) throw conflict();
+    const unbound = matches.filter(user => !boundRowIndex(user));
+    if (unbound.length > 1) throw conflict();
+    if (unbound.length) return unbound[0];
+    if (matches.length) {
+      // Chi con TK da gan dong khac khop email/SĐT: tra null se de luong Google
+      // roi xuong tim TK theo email va dang nhap nham vao TK do -> fail closed.
       throw new EffectiveUserError(
-        'Có nhiều tài khoản web cùng khớp một nhân sự.',
+        'Email/SĐT của nhân sự này đang thuộc một tài khoản đã gắn nhân sự khác.',
         'HR_IDENTITY_CONFLICT',
         409
       );
     }
-    return matches[0] || null;
+    return null;
   }
 
   async function persistIfChanged(user, desired) {
@@ -96,7 +126,28 @@ function createEffectiveUserResolver(options = {}) {
       return user;
     }
 
-    const employee = employeeDirectory.findEmployeeByIdentifier(snapshot.employees, employeeIdentityFor(user));
+    const boundRow = boundRowIndex(user);
+    let employee;
+    try {
+      employee = employeeDirectory.findEmployeeByIdentifier(snapshot.employees, employeeIdentityFor(user));
+    } catch (err) {
+      // Email va SĐT tro hai nhan su khac nhau. TK da gan mot dong thi giu
+      // nguyen rang buoc cu (khong lam TK loi 409 moi request); TK chua gan
+      // thi van fail closed nhu truoc.
+      if (boundRow && err && err.code === 'HR_IDENTITY_CONFLICT') {
+        console.warn(`[effectiveUser] TK ${user.id} (gan dong ${boundRow}): email/SĐT trỏ hai nhân sự khác nhau, giữ ràng buộc cũ.`);
+        return user;
+      }
+      throw err;
+    }
+    if (employee && boundRow && String(employee.rowIndex) !== boundRow) {
+      // TK da gan dong A nhung email/SĐT hien tai khop dong B (vd tu doi email
+      // sang email nhan su khac). KHONG nhay sang B: giu nguyen vai tro/co so/
+      // email/hrRowIndex, khong persist gi tu dong B. Muon gan TK sang dong khac
+      // phai go/sua rang buoc (app_users.hr_employee_id) chu dong.
+      console.warn(`[effectiveUser] TK ${user.id} đã gắn dòng nhân sự ${boundRow} nhưng khớp dòng ${employee.rowIndex}; giữ ràng buộc cũ.`);
+      return user;
+    }
     if (!employee) {
       // Khong con khop dong nhan su nao (vd sua/nhap lai SĐT-email) KHONG con
       // tu khoa tai khoan nua; giu nguyen vai tro/quyen da co. Chi go khoa
@@ -137,7 +188,6 @@ function createEffectiveUserResolver(options = {}) {
       hrManaged: true,
       hrSourceBranch: employee.sourceBranch,
       hrRowIndex: employee.rowIndex,
-      hrMatchedAt: new Date().toISOString(),
       sheetVaiTro: employee.sheetVaiTro,
       sheetCoSo: employee.sheetCoSo,
       hoTen: employee.hoTen || user.hoTen,
@@ -151,7 +201,14 @@ function createEffectiveUserResolver(options = {}) {
       desired.trangThai = ACTIVE_STATUS;
       desired.lockReason = '';
     }
-    return persistIfChanged(user, desired);
+    // resolveUser chay MOI request: neu dat hrMatchedAt = now vao desired thi
+    // luc nao cung "khac" -> ghi DB + xoa cache moi request (tung gop phan can
+    // Disk IO Supabase). Chi danh dau thoi diem khop khi co truong khac thay doi
+    // (gom lan gan dau) hoac TK chua tung co hrMatchedAt.
+    const changes = changedFields(user, desired);
+    if (!Object.keys(changes).length && user.hrMatchedAt) return { ...user };
+    changes.hrMatchedAt = new Date().toISOString();
+    return store.updateUser(user.id, changes);
   }
 
   return { resolveUser, findAccountForEmployee };

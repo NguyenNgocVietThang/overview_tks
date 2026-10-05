@@ -916,7 +916,11 @@
             '<section class="tks-profile-section">' +
               '<p class="tks-profile-section-title">Thông tin cơ bản</p>' +
               '<label class="tks-field"><span>Họ tên</span><input type="text" id="tksProfileHoTen" maxlength="100"></label>' +
-              '<label class="tks-field"><span>Email</span><input type="email" id="tksProfileEmail" maxlength="254"></label>' +
+              // Email chi doc: khong gui kem "Luu thay doi". TK nhan su -> goi y lien he Quan ly;
+              // TK thuong -> lien ket toi trang Tai khoan (luong OTP), tranh lap code OTP o day.
+              '<label class="tks-field tks-field-readonly"><span>Email</span><input type="email" id="tksProfileEmail" maxlength="254" readonly></label>' +
+              '<p class="tks-profile-hint" id="tksProfileEmailHint" hidden>Email tài khoản nhân sự chỉ Quản lý được đổi. Vui lòng liên hệ Quản lý.</p>' +
+              '<p class="tks-profile-hint" id="tksProfileEmailChangeRow" hidden><a href="/account/#profile" id="tksProfileEmailChange" style="color:var(--blue);">Đổi email</a> (xác thực bằng mã OTP tại trang Tài khoản)</p>' +
               '<label class="tks-field"><span>ID Telegram</span><input type="text" id="tksProfileTelegramId" inputmode="numeric" pattern="[1-9][0-9]{0,19}" maxlength="20" placeholder="Ví dụ: 6205968899" aria-describedby="tksProfileTelegramIdHint"></label>' +
               '<p class="tks-profile-hint" id="tksProfileTelegramIdHint">Nhập ID Telegram dạng số của bạn. Để trống để hủy liên kết.</p>' +
               '<label class="tks-field tks-field-readonly"><span>Tài khoản đăng nhập</span><input type="text" id="tksProfileUsername" disabled></label>' +
@@ -985,6 +989,8 @@
       content: overlay.querySelector('.tks-profile-content'),
       hoTen: overlay.querySelector('#tksProfileHoTen'),
       email: overlay.querySelector('#tksProfileEmail'),
+      emailHint: overlay.querySelector('#tksProfileEmailHint'),
+      emailChangeRow: overlay.querySelector('#tksProfileEmailChangeRow'),
       telegramId: overlay.querySelector('#tksProfileTelegramId'),
       telegramHint: overlay.querySelector('#tksProfileTelegramIdHint'),
       username: overlay.querySelector('#tksProfileUsername'),
@@ -1022,6 +1028,13 @@
     });
     els.close = close;
     els.onOpenKeydown = onKeydown;
+    // Dang o trang Tai khoan thi mo thang hop doi email (OTP) cua trang, khong dieu huong.
+    overlay.querySelector('#tksProfileEmailChange').addEventListener('click', function(e){
+      if(typeof window.openEmailChangeModal !== 'function') return;
+      e.preventDefault();
+      close();
+      window.openEmailChangeModal();
+    });
 
     function showError(el, msg){
       el.classList.remove('tks-field-success');
@@ -1044,19 +1057,19 @@
     els.saveBtn.addEventListener('click', function(){
       showError(els.profileError, '');
       var hoTen = els.hoTen.value.trim();
-      var email = els.email.value.trim();
-      if(!hoTen || !email){
-        showError(els.profileError, 'Vui lòng nhập đầy đủ họ tên và email.');
+      if(!hoTen){
+        showError(els.profileError, 'Vui lòng nhập họ tên.');
         return;
       }
       els.saveBtn.disabled = true;
+      // Khong gui email: doi email di rieng qua /api/auth/profile/contact-change (OTP).
       fetch('/api/auth/profile', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(els.telegramId.disabled
-          ? { hoTen: hoTen, email: email }
-          : { hoTen: hoTen, email: email, telegramId: els.telegramId.value.trim() })
+          ? { hoTen: hoTen }
+          : { hoTen: hoTen, telegramId: els.telegramId.value.trim() })
       })
         .then(function(res){ return res.json().then(function(data){ return { ok: res.ok, data: data }; }); })
         .then(function(result){
@@ -1163,6 +1176,8 @@
       .then(function(profile){
         els.hoTen.value = profile.hoTen || '';
         els.email.value = profile.email || '';
+        els.emailHint.hidden = !profile.hrManaged;
+        els.emailChangeRow.hidden = !!profile.hrManaged;
         els.telegramId.value = profile.telegramId || '';
         // Chi Quan ly duoc them/sua ID Telegram (server van la ranh gioi that: 403 TELEGRAM_ID_LOCKED).
         els.telegramId.disabled = !profile.telegramEditable;

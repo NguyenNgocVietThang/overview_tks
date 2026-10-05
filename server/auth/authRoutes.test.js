@@ -13,7 +13,7 @@ const { comparePassword } = require('./authService');
 const localUserStore = require('./localUserStore');
 const { createFakeAppUsersRepository } = require('./testHelpers/fakeAppUsersRepository');
 
-// authRoutes.js goi mot vai ham userRepository (vd findUserByPhone) khong
+// authRoutes.js co the goi mot vai ham userRepository khong
 // nam trong seam mock cua freshAuthRoutes() ben duoi — cac ham nay roi xuong
 // localUserStore that, nen can 1 repository gia (khong can SUPABASE_DB_URL)
 // de khong bi loi ket noi CSDL trong test. Repository gia rong la du vi cac
@@ -98,11 +98,6 @@ function freshAuthRoutes({
   employeeRegistrationService.linkVerifiedGoogleIdentity = employeeRegistration && employeeRegistration.linkVerifiedGoogleIdentity
     ? employeeRegistration.linkVerifiedGoogleIdentity
     : async () => null;
-  if (employeeRegistration) {
-    employeeRegistrationService.createChallenge = employeeRegistration.createChallenge;
-    employeeRegistrationService.sendOtp = employeeRegistration.sendOtp;
-    employeeRegistrationService.verifyAndRegister = employeeRegistration.verifyAndRegister;
-  }
 
   const effectiveUserResolver = require('./effectiveUserResolver');
   effectiveUserResolver.resolveUser = resolveEffectiveUser;
@@ -139,7 +134,7 @@ test('profile saves a normalized Telegram ID only to the authenticated account (
     id: 'someone-else', hoTen: 'A', email: 'a@example.com', telegramId: ' 9007199254740993 ' } }, res);
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.telegramId, '9007199254740993');
-  assert.deepEqual(calls, [{ id: 'u1', fields: { hoTen: 'A', email: 'a@example.com', telegramId: '9007199254740993' } }]);
+  assert.deepEqual(calls, [{ id: 'u1', fields: { hoTen: 'A', telegramId: '9007199254740993' } }]);
 });
 
 test('profile rejects malformed Telegram IDs before any writes', async () => {
@@ -165,7 +160,7 @@ test('profile allows a manager to clear the Telegram ID and preserves it when om
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.telegramId, extra.telegramId === '' ? '' : '123');
   }
-  assert.deepEqual(calls, [{ hoTen: 'A', email: 'a@example.com', telegramId: '' }, { hoTen: 'A', email: 'a@example.com' }]);
+  assert.deepEqual(calls, [{ hoTen: 'A', telegramId: '' }, { hoTen: 'A' }]);
 });
 
 test('profile: nhan vien KHONG tu them/sua/xoa duoc ID Telegram (403), gui lai gia tri cu thi bo qua', async () => {
@@ -191,7 +186,7 @@ test('profile: nhan vien KHONG tu them/sua/xoa duoc ID Telegram (403), gui lai g
     const omitted = fakeRes();
     await handler({ user: { id: 'u1' }, body: { hoTen: 'A', email: 'a@example.com' } }, omitted);
     assert.equal(omitted.statusCode, 200);
-    assert.deepEqual(calls, [{ hoTen: 'A', email: 'a@example.com' }, { hoTen: 'A', email: 'a@example.com' }],
+    assert.deepEqual(calls, [{ hoTen: 'A' }, { hoTen: 'A' }],
       'ID Telegram khong bao gio nam trong lenh ghi cua nhan vien');
   }
 });
@@ -223,35 +218,92 @@ test('profile returns a Telegram conflict as a useful 409 response', async () =>
   assert.equal(res.body.code, 'TELEGRAM_ID_EXISTS');
 });
 
-test('HR registration endpoints expose channels, send OTP and sign in the verified employee', async () => {
+test('profile: TK nhan su (hrManaged) KHONG tu doi email duoc (403), DB khong doi', async () => {
+  const current = { id: 'u1', hoTen: 'A', email: 'a@example.com', vaiTro: 'Nhân viên sale', hrManaged: true };
   const calls = [];
-  const router = freshAuthRoutes({
-    verifyGoogleIdToken: NEVER_CALL,
-    findUserByEmail: NEVER_CALL,
-    createActiveGuest: NEVER_CALL,
-    employeeRegistration: {
-      createChallenge: async identifier => ({ employeeMatch: true, challengeId: 'c1', identifier }),
-      sendOtp: async (challengeId, channel) => ({ ok: true, challengeId, channel }),
-      verifyAndRegister: async body => { calls.push(body); return { id: 'u1', username: 'a@example.com', hoTen: 'A', email: 'a@example.com', vaiTro: 'Kế toán', coSo: 'Cả hai' }; }
+  const router = freshAuthRoutes({ findUserById: async () => current, findUserByEmail: NEVER_CALL,
+    updateUserFields: async (id, fields) => { calls.push(fields); return { ...current, ...fields }; },
+    updateUserProfile: async (id, fields) => { calls.push(fields); return { ...current, ...fields }; } });
+  for (const email of ['boss@example.com', 'manager@tokosi.vn', 'not-an-email']) {
+    const res = fakeRes();
+    await getRouteHandler(router, 'post', '/api/auth/profile')({ user: { id: 'u1' }, body: { hoTen: 'A', email } }, res);
+    assert.equal(res.statusCode, 403, email);
+    assert.equal(res.body.code, 'EMAIL_CHANGE_LOCKED');
+    assert.equal(res.body.error, 'Email của tài khoản nhân sự chỉ Quản lý được đổi. Vui lòng liên hệ Quản lý.');
+    assert.equal(res.cookies.length, 0, 'bi chan thi khong cap lai phien');
+  }
+  assert.deepEqual(calls, [], 'khong ghi gi xuong DB');
+  assert.equal(current.email, 'a@example.com');
+});
+
+test('profile: TK thuong doi email phai qua OTP (409 EMAIL_CHANGE_REQUIRES_OTP), khong ghi DB', async () => {
+  const current = { id: 'u1', hoTen: 'A', email: 'a@example.com', vaiTro: 'Khách hàng', hrManaged: false };
+  const calls = [];
+  const router = freshAuthRoutes({ findUserById: async () => current, findUserByEmail: NEVER_CALL,
+    updateUserProfile: async (id, fields) => { calls.push(fields); return { ...current, ...fields }; } });
+  const res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/profile')({ user: { id: 'u1' }, body: { hoTen: 'A', email: 'b@example.com' } }, res);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, 'EMAIL_CHANGE_REQUIRES_OTP');
+  assert.equal(res.body.error, 'Đổi email cần xác minh mã OTP gửi tới email mới.');
+  assert.deepEqual(calls, []);
+});
+
+test('profile: doi ho ten giu email (khac hoa/khoang trang) hoac khong gui email -> 200, email khong nam trong lenh ghi', async () => {
+  for (const hrManaged of [true, false]) {
+    const current = { id: 'u1', hoTen: 'A', email: 'a@example.com', vaiTro: 'Nhân viên sale', hrManaged };
+    const calls = [];
+    const router = freshAuthRoutes({ findUserById: async () => current, findUserByEmail: NEVER_CALL,
+      updateUserProfile: async (id, fields) => { calls.push(fields); return { ...current, ...fields }; } });
+    const handler = getRouteHandler(router, 'post', '/api/auth/profile');
+    for (const extra of [{ email: ' A@Example.com ' }, {}, { email: '' }]) {
+      const res = fakeRes();
+      await handler({ user: { id: 'u1' }, body: { hoTen: 'Tên mới', ...extra } }, res);
+      assert.equal(res.statusCode, 200, `${hrManaged} ${JSON.stringify(extra)}`);
+      assert.equal(res.body.email, 'a@example.com');
+      assert.equal(res.body.hoTen, 'Tên mới');
     }
-  });
+    assert.deepEqual(calls, [{ hoTen: 'Tên mới' }, { hoTen: 'Tên mới' }, { hoTen: 'Tên mới' }]);
+  }
+});
 
-  let res = fakeRes();
-  await getRouteHandler(router, 'post', '/api/auth/register/channels')({ body: { identifier: 'a@example.com' } }, res);
+test('recovery: gui soDienThoai (rong hoac so khac) -> 400 PHONE_CHANGE_NOT_ALLOWED, SDT trong DB khong doi', async () => {
+  const current = { id: 'u1', email: 'a@example.com', soDienThoai: '0912345678', passwordHash: '' };
+  const calls = [];
+  const router = freshAuthRoutes({ findUserById: async () => current,
+    updateUserFields: async (id, fields) => { calls.push(fields); return { ...current, ...fields }; } });
+  for (const soDienThoai of ['', '0987654321', null, '0912345678']) {
+    const res = fakeRes();
+    await getRouteHandler(router, 'post', '/api/auth/recovery')({ user: { id: 'u1' }, body: { soDienThoai, emailKhoiPhuc: 'r@example.com' } }, res);
+    assert.equal(res.statusCode, 400, JSON.stringify(soDienThoai));
+    assert.equal(res.body.code, 'PHONE_CHANGE_NOT_ALLOWED');
+    assert.equal(res.body.error, 'Không thể đổi số điện thoại tại đây. Vui lòng liên hệ Quản lý.');
+  }
+  assert.deepEqual(calls, []);
+  assert.equal(current.soDienThoai, '0912345678');
+});
+
+test('recovery: doi email khoi phuc van 200 va khong dong toi SDT chinh', async () => {
+  const { hashPassword } = require('./authService');
+  const current = { id: 'u1', email: 'a@example.com', soDienThoai: '0912345678', passwordHash: await hashPassword('Secret123!') };
+  const calls = [];
+  const router = freshAuthRoutes({ findUserById: async () => current,
+    updateUserFields: async (id, fields) => { calls.push(fields); return { ...current, ...fields }; } });
+  const res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/recovery')({ user: { id: 'u1' }, body: { matKhauXacNhan: 'Secret123!', emailKhoiPhuc: ' R@Example.com ' } }, res);
   assert.equal(res.statusCode, 200);
-  assert.equal(res.body.challengeId, 'c1');
+  assert.equal(res.body.profile.emailKhoiPhuc, 'r@example.com');
+  assert.equal(res.body.profile.soDienThoai, '0912345678');
+  assert.deepEqual(calls, [{ emailKhoiPhuc: 'r@example.com' }]);
+});
 
-  res = fakeRes();
-  await getRouteHandler(router, 'post', '/api/auth/register/send-otp')({ body: { challengeId: 'c1', channel: 'email' } }, res);
-  assert.equal(res.statusCode, 200);
-
-  res = fakeRes();
-  const body = { challengeId: 'c1', otp: '123456', hoTen: 'A', password: 'Password123' };
-  await getRouteHandler(router, 'post', '/api/auth/register/verify')({ body }, res);
-  assert.equal(res.statusCode, 201);
-  assert.equal(res.body.vaiTro, 'Kế toán');
-  assert.equal(res.cookies[0].name, AUTH_COOKIE_NAME);
-  assert.deepEqual(calls[0], body);
+test('luong dang ky nhan su bang OTP da go: /register/{channels,send-otp,verify} khong con route (404), /register van con', () => {
+  const router = freshAuthRoutes({ verifyGoogleIdToken: NEVER_CALL, findUserByEmail: NEVER_CALL, createActiveGuest: NEVER_CALL });
+  const paths = router.stack.filter(l => l.route).map(l => l.route.path);
+  for (const removed of ['/api/auth/register/channels', '/api/auth/register/send-otp', '/api/auth/register/verify']) {
+    assert.equal(paths.includes(removed), false, removed);
+  }
+  assert.ok(getRouteHandler(router, 'post', '/api/auth/register'));
 });
 
 test('password login returns the live role resolved from HR instead of the stored role', async () => {
@@ -298,9 +350,6 @@ test('Google login uses the HR multi-identifier linker before creating a guest',
     findUserByEmail: async () => null,
     createActiveGuest: async () => { createGuestCalled = true; },
     employeeRegistration: {
-      createChallenge: NEVER_CALL,
-      sendOtp: NEVER_CALL,
-      verifyAndRegister: NEVER_CALL,
       linkVerifiedGoogleIdentity: async () => ({
         id: 'u1', username: '0912345678', email: 'a@example.com', soDienThoai: '0912345678',
         hoTen: 'A', vaiTro: 'Kế toán', coSo: 'Cả hai', trangThai: 'Đang hoạt động'
@@ -314,7 +363,7 @@ test('Google login uses the HR multi-identifier linker before creating a guest',
   assert.equal(createGuestCalled, false);
 });
 
-test('HR-managed profile contact endpoints start OTP and confirm the sheet-backed update', async () => {
+test('TK thuong doi email qua contact-change: gui OTP roi xac nhan', async () => {
   const router = freshAuthRoutes({
     verifyGoogleIdToken: NEVER_CALL,
     findUserByEmail: NEVER_CALL,
@@ -326,17 +375,121 @@ test('HR-managed profile contact endpoints start OTP and confirm the sheet-backe
   });
   let res = fakeRes();
   await getRouteHandler(router, 'post', '/api/auth/profile/contact-change')({
-    user: { id: 'u1', hrManaged: true }, body: { field: 'email', value: 'new@example.com' }
+    user: { id: 'u1', hrManaged: false }, body: { field: 'email', value: 'new@example.com' }
   }, res);
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.challengeId, 'cc1');
 
   res = fakeRes();
   await getRouteHandler(router, 'post', '/api/auth/profile/contact-change/verify')({
-    user: { id: 'u1', hrManaged: true }, body: { challengeId: 'cc1', otp: '123456' }
+    user: { id: 'u1', hrManaged: false }, body: { challengeId: 'cc1', otp: '123456' }
   }, res);
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.email, 'new@example.com');
+});
+
+test('TK nhan su goi contact-change -> 403 EMAIL_CHANGE_LOCKED tu service', async () => {
+  const { ContactChangeError } = require('./contactChangeService');
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    contactChange: {
+      beginChange: async () => { throw new ContactChangeError('Email của tài khoản nhân sự chỉ Quản lý được đổi. Vui lòng liên hệ Quản lý.', 'EMAIL_CHANGE_LOCKED', 403); },
+      confirmChange: NEVER_CALL
+    }
+  });
+  const res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/profile/contact-change')({
+    user: { id: 'u1', hrManaged: true }, body: { field: 'email', value: 'boss@example.com' }
+  }, res);
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.code, 'EMAIL_CHANGE_LOCKED');
+});
+
+test('POST /api/auth/google: linkVerifiedGoogleIdentity nem loi 4xx (HR_IDENTITY_CONFLICT) -> tra dung status/code, khong 500, khong dang nhap', async () => {
+  const conflict = Object.assign(new Error('Nhân sự này đang khớp với một tài khoản web khác.'), {
+    code: 'HR_IDENTITY_CONFLICT', statusCode: 409
+  });
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: async () => ({ email: 'staff@example.com', emailVerified: true, name: 'Staff' }),
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    employeeRegistration: { linkVerifiedGoogleIdentity: async () => { throw conflict; } }
+  });
+  const res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/google')({ body: { credential: 'token' } }, res);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, 'HR_IDENTITY_CONFLICT');
+  assert.equal(res.body.error, conflict.message);
+  assert.equal(res.cookies.length, 0);
+});
+
+// Chay stack cua route nhung bo requireAuth (test gan san req.user).
+async function callRouteAsUser(router, method, routePath, req, res) {
+  const { requireAuth } = require('./authMiddleware');
+  const stack = getRouteStack(router, method, routePath).filter(handle => handle !== requireAuth);
+  for (const handle of stack) {
+    let calledNext = false;
+    await handle(req, res, () => { calledNext = true; });
+    if (!calledNext) break;
+  }
+}
+
+test('contact-change + verify co rate limit theo user (dung chung 2 route), user/IP khac khong bi anh huong', async () => {
+  let beginCalls = 0;
+  let confirmCalls = 0;
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    contactChange: {
+      beginChange: async () => { beginCalls++; return { challengeId: 'cc1' }; },
+      confirmChange: async user => { confirmCalls++; return { ...user, email: 'new@example.com' }; }
+    }
+  });
+  let limited = null;
+  for (let i = 0; i < 60 && !limited; i++) {
+    const path = i % 2 ? '/api/auth/profile/contact-change/verify' : '/api/auth/profile/contact-change';
+    const res = fakeRes();
+    await callRouteAsUser(router, 'post', path, {
+      user: { id: 'spammer' }, ip: '10.0.0.1', body: { field: 'email', value: 'x@example.com', challengeId: 'cc1', otp: '000000' }
+    }, res);
+    if (res.statusCode === 429) limited = res;
+  }
+  assert.ok(limited, 'phai bi chan 429');
+  assert.equal(limited.body.code, 'RATE_LIMITED');
+  assert.ok(limited.body.waitSeconds > 0);
+  assert.ok(beginCalls + confirmCalls < 60);
+
+  const before = beginCalls;
+  const res = fakeRes();
+  await callRouteAsUser(router, 'post', '/api/auth/profile/contact-change', {
+    user: { id: 'someone-else' }, ip: '10.0.0.2', body: { field: 'email', value: 'y@example.com' }
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(beginCalls, before + 1);
+});
+
+test('contact-change: rate limit theo IP chan nhieu user tu cung 1 nguon', async () => {
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    contactChange: {
+      beginChange: async () => ({ challengeId: 'cc1' }),
+      confirmChange: NEVER_CALL
+    }
+  });
+  let limited = false;
+  for (let i = 0; i < 100 && !limited; i++) {
+    const res = fakeRes();
+    await callRouteAsUser(router, 'post', '/api/auth/profile/contact-change', {
+      user: { id: `u${i % 50}` }, ip: '10.9.9.9', body: { field: 'email', value: 'z@example.com' }
+    }, res);
+    if (res.statusCode === 429) limited = true;
+  }
+  assert.equal(limited, true);
 });
 
 test('POST /api/auth/register: thieu du lieu, email sai hoac mat khau ngan -> 400', async () => {
@@ -894,23 +1047,18 @@ async function withRegistrationLocked(fn) {
   try { await fn(); } finally { process.env.ALLOW_SELF_REGISTRATION = original; }
 }
 
-test('khoa dang ky: /register, /register/channels, /send-otp, /verify deu tra 403 va khong ghi gi', () => withRegistrationLocked(async () => {
+test('khoa dang ky: /register tra 403 va khong ghi gi', () => withRegistrationLocked(async () => {
   const router = freshAuthRoutes({
     verifyGoogleIdToken: NEVER_CALL,
     findUserByEmail: NEVER_CALL,
-    createActiveGuest: NEVER_CALL,
-    employeeRegistration: {
-      createChallenge: NEVER_CALL, sendOtp: NEVER_CALL, verifyAndRegister: NEVER_CALL
-    }
+    createActiveGuest: NEVER_CALL
   });
-  const body = { hoTen: 'A', email: 'moi@example.com', password: 'MatKhau123', identifier: 'moi@example.com', challengeId: 'c', channel: 'email' };
-  for (const route of ['/api/auth/register', '/api/auth/register/channels', '/api/auth/register/send-otp', '/api/auth/register/verify']) {
-    const res = fakeRes();
-    await getRouteHandler(router, 'post', route)({ body }, res);
-    assert.equal(res.statusCode, 403, route);
-    assert.equal(res.body.code, 'REGISTRATION_DISABLED', route);
-    assert.equal(res.cookies.length, 0, route);
-  }
+  const body = { hoTen: 'A', email: 'moi@example.com', password: 'MatKhau123' };
+  const res = fakeRes();
+  await getRouteHandler(router, 'post', '/api/auth/register')({ body }, res);
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.code, 'REGISTRATION_DISABLED');
+  assert.equal(res.cookies.length, 0);
 }));
 
 test('khoa dang ky: admin cung van dang ky duoc (khong bi khoa chet khoi he thong)', () => withRegistrationLocked(async () => {

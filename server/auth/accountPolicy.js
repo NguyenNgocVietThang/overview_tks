@@ -124,13 +124,87 @@ function checkProtectedManager(actor, target, action) {
   return `Chỉ Quản lý cấp cao mới được ${action} của Quản lý khác.`;
 }
 
+// ---- Luat 5 (2026-10-05): chan LEO THANG qua DINH DANH (email / SĐT / username) ----
+// effectiveUserResolver nhan dien admin cung theo email/username va gan vai tro theo dong
+// hr_employees khop email/SĐT (TK noi bo cu khong can xac minh). Vi vay GHI dinh danh qua
+// route quan tri cung la mot dang "gan quyen" va phai qua cac chot duoi day.
+const PROTECTED_IDENTITY_CODE = 'PROTECTED_IDENTITY';
+const SELF_CONTACT_CHANGE_CODE = 'SELF_CONTACT_CHANGE';
+const HR_ROLE_ESCALATION_CODE = 'HR_ROLE_ESCALATION';
+
+/**
+ * 5a. Khong ai (tru Quan ly cap cao) duoc dat email/username/SĐT trung mot dinh danh
+ * admin cung (HARDCODED_ADMINS / chu so huu) — neu khong, resolver bien TK do thanh admin cung.
+ * `identifiers` la mang gia tri SE GHI (bo qua gia tri rong).
+ */
+function checkProtectedIdentity(actor, identifiers) {
+  if (isSeniorAdmin(actor)) return null;
+  const hit = (identifiers || []).some(id =>
+    String(id || '').trim() !== '' &&
+    (localUserStore.isHardcodedAdmin(id) || localUserStore.isProtectedSuperAdmin(id)));
+  if (!hit) return null;
+  return 'Định danh này thuộc tài khoản Quản trị viên hệ thống, không thể gán cho tài khoản khác.';
+}
+
+/**
+ * 5b. Khong tu doi email/SĐT cua CHINH MINH qua route quan tri (tru Quan ly cap cao):
+ * doi qua trang Hồ sơ (co xac minh OTP) hoac nho Quan ly khac.
+ */
+function checkSelfContactChange(actor, target) {
+  if (isSeniorAdmin(actor)) return null;
+  if (!isSameAccount(actor, target)) return null;
+  return 'Bạn không thể tự đổi email/số điện thoại của chính mình tại trang quản trị. Hãy dùng trang Hồ sơ cá nhân hoặc liên hệ một Quản lý khác.';
+}
+
+/**
+ * MOI dinh danh ma resolver co the dung de khop TK voi dong nhan su — giong het
+ * effectiveUserResolver.localUserMatchesEmployee: email VA username (neu co '@');
+ * SĐT VA username (neu khong co '@'). Khong duoc bo qua username khi da co email/SĐT
+ * (truoc 2026-10-05 vong 2: TK username = email Quan ly + email vo hai lot qua chot 5c).
+ * Tra { emails, phones } da chuan hoa (trim/lowercase, normalizePhone), bo rong/trung.
+ */
+function hrIdentitiesOf(user) {
+  const username = String((user && user.username) || '').trim();
+  const uniq = values => [...new Set(values.filter(Boolean))];
+  return {
+    emails: uniq([user && user.email, username.includes('@') ? username : '']
+      .map(value => String(value || '').trim().toLowerCase())),
+    phones: uniq([user && user.soDienThoai, !username.includes('@') ? username : '']
+      .map(value => localUserStore.normalizePhone(value)))
+  };
+}
+
+/**
+ * 5c. `employees` = cac dong hr_employees DANG HOAT DONG ma dinh danh moi se khop.
+ * Neu vai tro sheet cua bat ky dong nao vuot qua nhung gi actor duoc phep cap (cung luat
+ * checkGrant) thi chan — tranh tao/sua TK de resolver gan TK vao dong cua Quan ly.
+ */
+function checkHrRoleEscalation(actor, employees) {
+  if (isManagerClass(actor)) return null;
+  for (const employee of employees || []) {
+    if (!employee || !employee.sheetVaiTro) continue;
+    const denied = checkGrant(actor, null, { vaiTro: employee.sheetVaiTro, featurePermissions: {} });
+    if (denied) {
+      return `Email/số điện thoại này thuộc nhân sự có vai trò "${employee.sheetVaiTro}" — cao hơn quyền bạn được cấp, chỉ Quản lý mới được gán.`;
+    }
+  }
+  return null;
+}
+
 /** 403 chuan cho moi route khi bi chan boi chinh sach. */
-function sendDenied(res, reason) {
-  return res.status(403).json({ error: reason, code: DENIED_CODE });
+function sendDenied(res, reason, code = DENIED_CODE) {
+  return res.status(403).json({ error: reason, code });
 }
 
 module.exports = {
   DENIED_CODE,
+  PROTECTED_IDENTITY_CODE,
+  SELF_CONTACT_CHANGE_CODE,
+  HR_ROLE_ESCALATION_CODE,
+  checkProtectedIdentity,
+  checkSelfContactChange,
+  checkHrRoleEscalation,
+  hrIdentitiesOf,
   isSeniorAdmin,
   isManagerClass,
   checkTargetWritable,
