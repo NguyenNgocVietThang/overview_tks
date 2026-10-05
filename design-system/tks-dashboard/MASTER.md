@@ -5,7 +5,9 @@
 > Nếu không, bắt buộc tuân thủ nghiêm ngặt toàn bộ nguyên tắc và tokens trong file Master bên dưới.
 
 > **📋 Audit toàn diện gần nhất:** 2026-09-15 — rà soát 100% giao diện (7 trang: `index`, `account`, `humanresources`,
-> `login`, `register`, `shipment`, `404` + `shared.css`). Các component mới phát hiện đã được chuẩn hoá vào mục 5;
+> `login`, `register`, `shipment`, `404` + `shared.css`). **Cập nhật 2026-10-05:** trang tra cứu vòng đời nay là
+> `shipment/lifecycle/index.html` (trước là `shipment/index.html`) và có thêm trang `stock-locations/` (Vị trí hàng);
+> trạng thái hiện tại của từng mục nợ ở mục 12 đã được kiểm tra lại bằng grep (bảng "Trạng thái kiểm tra lại" đầu mục 12). Các component mới phát hiện đã được chuẩn hoá vào mục 5;
 > sai lệch/nợ thiết kế phát hiện được liệt kê đầy đủ ở **mục 12**. Chi tiết theo từng trang: `pages/*.md`.
 
 ---
@@ -834,6 +836,30 @@ Trước khi nghiệm thu bất kỳ giao diện nào, lập trình viên phải
 ---
 
 ## 12. Nợ Thiết Kế & Sai Lệch Cần Khắc Phục (Audit Toàn Diện 2026-09-15)
+
+### Trạng thái kiểm tra lại 2026-10-05
+
+Kiểm tra bằng `grep` trên `server/public/` (chưa đo lại bằng trình duyệt). Các mục không có trong bảng chưa được kiểm tra lại — coi như theo audit gốc bên dưới.
+
+| Mục (audit 2026-09-15) | Trạng thái 2026-10-05 |
+|---|---|
+| 12.1 `index.html` `.export-modal-backdrop` có `backdrop-filter` + nền hardcode | **Đã sửa phần blur**: không còn `backdrop-filter` (có chú thích lý do); nền vẫn là `rgba(5,10,18,.74)` hardcode, chưa dùng `--overlay-bg` |
+| 12.1 `account/index.html` `.modal-overlay` | **Còn**: `backdrop-filter:blur(3px)` (dòng ~255) |
+| 12.1 `humanresources/index.html` `.modal-overlay` | **Còn**: `blur(3px)` (dòng ~315) và thêm `blur(6px)` ở khối khác (dòng ~280) |
+| 12.1 `login/index.html` `.modal-overlay` (OTP) | **Còn**: `blur(3px)` (dòng ~305); thẻ đăng nhập và `register/index.html` dùng `blur(12px)` cho card (không phải overlay toàn màn hình) |
+| 12.1 `shared.css` `.backdrop` (drawer mobile) | **Còn**: `blur(2px)` |
+| 12.2 `.login-error`/`.login-pending`/`.form-error` hardcode rgba | `login/index.html` đã dùng `--alert-error-bg`; `register/index.html` `.form-error` chưa kiểm tra lại giá trị màu |
+| 12.2 `.lookup-message.error` (trang vòng đời) | **Còn** hardcode `rgba(239,68,68,.12)` (nay ở `shipment/lifecycle/index.html`) |
+| 12.2 `.status-pill.status-inactive` (`account`) | **Còn**: `rgba(148,163,184,.12)` rời |
+| 12.2 `.pill.ok`/`.bad`/`.warn` (`index.html`) | **Còn** rgba cũ (`61,214,140` / `241,97,106` / `240,166,58`) |
+| 12.2 chữ trên nền đặc `#1B1206` | **Đã hết**; còn `#07150d` ở `.export-confirm` |
+| 12.2 `404.html` `.blob-1`/`.blob-2` | **Còn** hardcode rgba |
+| 12.3 `.form-control` thay vì `.form-input` | **Còn** (`account/index.html`) |
+| 12.3 thang `--radius-N` riêng và `--radius-pill:999px` của `index.html` | **Còn** (10 token `--radius-N`) |
+| 12.3 `.tks-profile-*` khai báo ở cả `index.html` và `shared.css` | **Còn** (2 nguồn) |
+| 12.4 `account` `.users-table` thiếu sticky `<th>`/hover | **Đã sửa** (có `position:sticky` và `tr.row-clickable:hover`) |
+| 12.4 `.action-icon-btn` 32×32 | Selector không còn trong `account/index.html` |
+
 
 Danh sách này ghi nhận **hiện trạng thực tế** của mã nguồn so với các quy tắc ở trên, phát hiện qua
 audit toàn bộ 7 trang HTML + `shared.css`. Đây là backlog kỹ thuật, không phải lỗi chặn release —

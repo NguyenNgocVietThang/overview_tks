@@ -1,9 +1,9 @@
-# Page Design Notes — `shipment/index.html` (Tra Cứu Vòng Đời Đơn Hàng)
+# Page Design Notes — `shipment/lifecycle/index.html` (Vòng Đời Đơn Hàng)
 
-> Kế thừa toàn bộ `MASTER.md`. Audit gần nhất: 2026-09-15.
+> Kế thừa toàn bộ `MASTER.md`. Audit gần nhất: 2026-09-15 (khi trang còn là `shipment/index.html` dạng tra cứu theo mã). **Cập nhật 2026-10-05:** trang nay là bảng "Toàn bộ đơn hàng" lọc/sắp xếp/phân trang ở máy chủ (mọi đơn KiotViet ghép Google Sheet) cùng tab "Lịch sử cập nhật"; hộp "Cột hiển thị", hộp chi tiết đơn, nút xuất theo quyền. Các mục nợ bên dưới viết cho giao diện tra cứu cũ — kiểm tra lại selector trước khi sửa (`.lookup-message.error` vẫn còn hardcode màu đỏ).
 
 ## Vai trò trang
-Tra cứu trạng thái/vòng đời đơn hàng theo mã, hiển thị kết quả dạng bảng + điều hướng nội bộ.
+Xem toàn bộ đơn hàng và vòng đời (quyền `shipment.lifecycle`), tra cứu theo mã, xem lịch sử ghi đè, xuất Excel (quyền `shipment.export`). Đường dẫn: `/shipment/lifecycle/` (tab Lịch sử: `/shipment/lifecycle/#history`).
 
 ## Component đặc thù của trang
 - `.lookup-hero` — khối tiêu đề, đã tích hợp đúng hệ thống `--canvas-text` (không phải pattern mới,

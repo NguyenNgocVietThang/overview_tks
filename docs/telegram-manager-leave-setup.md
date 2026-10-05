@@ -1,8 +1,8 @@
 # Thiết lập bot Telegram quản lý nghỉ phép
 
-Cập nhật: 02/10/2026. Hướng dẫn này dành cho người vận hành sau khi triển khai code; không xác nhận bot đã được bật trên production.
+Cập nhật: 05/10/2026 (khớp code tại HEAD `11751c4`). Hướng dẫn này dành cho người vận hành sau khi triển khai code; không xác nhận bot đã được bật trên production.
 
-Kiểm thử code trên Node 22: toàn bộ bộ kiểm thử có 1.622 test thành công, 3 test bỏ qua, không có test thất bại. Kiểm thử bot mô phỏng Telegram và dùng PostgreSQL trong bộ nhớ (PGlite), bao gồm quyết định đồng thời, update trùng, restart, lý do từ chối và đồng bộ nhiều quản lý. Chưa áp migration, đăng ký webhook hoặc gửi tin thật trên production.
+Kiểm thử code (viết tài liệu trên Node 22; chạy lại 05/10/2026 trên Node 24.19.0 cục bộ, `engines` của dự án là 22.x): toàn bộ bộ kiểm thử có 1.704 test: 1.701 đạt, 3 bỏ qua (migration integration cần `SUPABASE_TEST_DB_URL`), 0 thất bại. Kiểm thử bot mô phỏng Telegram và dùng PostgreSQL trong bộ nhớ (PGlite), bao gồm quyết định đồng thời, update trùng, restart, lý do từ chối và đồng bộ nhiều quản lý. Chưa áp migration, đăng ký webhook hoặc gửi tin thật trên production.
 
 ## Chuẩn bị
 

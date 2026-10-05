@@ -79,17 +79,9 @@ const CONFIG = {
   ORDER_LIFECYCLE_SHEET_HISTORY: 'Lịch sử cập nhật',
 
   // ==========================================
-  // QUAN LY NHAN SU — Spreadsheet rieng (HR_*)
+  // QUAN LY NHAN SU — du lieu nhan su/nghi phep nam o Postgres (hr_employees,
+  // hr_leave_requests); khong con doc spreadsheet nhan su.
   // ==========================================
-  // Optional — neu chua set thi log canh bao khi module HR duoc goi, khong
-  // lam crash server hien tai.
-  HR_SPREADSHEET_ID: process.env.HR_SPREADSHEET_ID || null,
-  // Nguon nhan su rieng cua co so Sai Gon (se cung cap sau) — bo trong thi tab
-  // "Quan ly nhan su" o co so Sai Gon bao "Chua duoc cau hinh".
-  HR_SPREADSHEET_ID_SG: process.env.HR_SPREADSHEET_ID_SG || null,
-
-  HR_SHEET_EMPLOYEES: 'Danh sách nhân sự',
-
   // Co "nghi gap": tin nhan gui tu gio nay tro di (gio Bangkok, 0-23) VA ca
   // nghi bat dau ngay hom sau lien ke thi tu dong gan co, chi de canh bao,
   // khong tu tu choi.

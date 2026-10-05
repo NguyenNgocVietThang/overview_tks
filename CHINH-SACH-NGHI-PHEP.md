@@ -57,7 +57,7 @@ Các nguyên tắc chung:
 - **HR:** bộ phận Nhân sự chịu trách nhiệm quản lý chính sách, dữ liệu phép, hồ sơ và đối soát chấm công.
 - **Hệ thống nhân sự:** công cụ chính thức do Công ty công bố để đăng ký và lưu hồ sơ nghỉ.
 - **Kỳ chốt công:** thời điểm HR khóa dữ liệu chấm công để phục vụ tính lương của kỳ tương ứng.
-- **Tạm chấp thuận:** trạng thái ghi nhận tạm thời đối với yêu cầu nghỉ sát giờ hoặc khẩn cấp; chưa phải kết luận cuối cùng của quản lý trực tiếp.
+- **Chưa duyệt:** trạng thái ghi nhận của yêu cầu chờ quản lý kết luận, kể cả yêu cầu nghỉ sát giờ hoặc khẩn cấp; chưa phải kết luận cuối cùng của quản lý trực tiếp. Trên hệ thống, đơn nghỉ có bốn trạng thái: `Chưa duyệt`, `Đã duyệt`, `Từ chối`, `Vi phạm`.
 - **Lương cơ bản cố định:** mức lương cơ bản do Công ty quy định và ghi nhận trong hồ sơ lương, không bao gồm phụ cấp, thưởng, làm thêm giờ hoặc khoản bổ sung biến động, trừ khi văn bản lương của Công ty quy định khác.
 
 ## 5. Danh mục chế độ nghỉ
@@ -74,7 +74,7 @@ Các nguyên tắc chung:
 | Nghỉ không hưởng lương theo thỏa thuận | Không hưởng lương | Không | Quản lý trực tiếp; HR lập thỏa thuận khi cần | Yêu cầu nêu thời gian và lý do khái quát |
 | Nghỉ bù | Theo quy định làm thêm giờ/nghỉ bù riêng | Không | Quản lý trực tiếp | Căn cứ số giờ nghỉ bù hợp lệ |
 | Nghỉ do tai nạn lao động, bệnh nghề nghiệp | Công ty/BHXH theo pháp luật | Không | Quản lý ghi nhận; HR xử lý hồ sơ | Hồ sơ tai nạn lao động/bệnh nghề nghiệp theo luật |
-| Nghỉ khẩn cấp | Theo loại nghỉ được xác định sau hậu kiểm | Tùy kết luận | Tạm chấp thuận, quản lý hậu kiểm | Hoàn tất trước kỳ chốt công |
+| Nghỉ khẩn cấp | Theo loại nghỉ được xác định sau hậu kiểm | Tùy kết luận | Ghi nhận `Chưa duyệt`, quản lý hậu kiểm | Hoàn tất trước kỳ chốt công |
 
 ## 6. Nghỉ phép năm
 

@@ -113,7 +113,7 @@ Chạy liên tục khi `KIOTVIET_SYNC_ENABLED=true`, không phụ thuộc ngư�
 | A0       | Sync Engine           | Catch-up nền khi khởi động, HTTP vẫn nhận request trong lúc đồng bộ.                               | FR-06.3        |
 | A1–A5    | Sync Engine           | Polling nhóm fast/slow, checkpoint, rollup nóng, SSE.                                               | FR-06.1–06.3, FR-06.6 |
 | A6–A7    | Webhook queue         | Chỉ lưu thô; polling mới là nguồn cập nhật.                                                         | FR-06.2        |
-| A8–A12   | Scheduler             | Rollup, CN1/CN3/CN7, báo cáo hàng hóa, chi tiết hóa đơn 90 ngày, giá trị tồn kho.                  | FR-06.6–06.14  |
+| A8–A12   | Scheduler             | Rollup, CN1/CN3/CN7, báo cáo hàng hóa, chi tiết hóa đơn 90 ngày, giá trị tồn kho.                  | FR-06.6–06.11  |
 
 ---
 
@@ -184,7 +184,7 @@ Bảng xuất được: Chi tiết giao dịch, Danh sách mã mới, Sản ph�
 | B1–B5    | Frontend/Backend | Tải theo tab, phân quyền, cache hai tầng (nguồn theo bảng + kết quả theo bộ lọc).                  | FR-01, FR-03, NFR-01 |
 | B6       | Frontend       | Phân trang 100 dòng, tìm/sắp xếp từng bảng, bộ lọc Từ–Đến theo bảng.                                | FR-04, FR-07        |
 | B8–B11   | Backend/Frontend | SSE `dashboard-updated`, tải bù khi quay lại tab.                                                   | FR-05               |
-| B12–B16  | Người dùng/Backend | Xuất Excel/HTML, giới hạn 2 file đồng thời.                                                        | FR-07.10–07.18, NFR-13, NFR-14 |
+| B12–B16  | Người dùng/Backend | Xuất Excel/HTML, giới hạn 2 file đồng thời.                                                        | FR-07.5–07.8, NFR-13, NFR-14 |
 | B17–B21  | Người dùng/Backend | Upload Trả NCC và quét đứt hàng.                                                                    | FR-03.12            |
 | B22–B24  | Quản lý/Trợ lý | Quản lý công nợ.                                                                                    | FR-11, FR-12.6      |
 
@@ -338,7 +338,7 @@ Bảng xuất được: Chi tiết giao dịch, Danh sách mã mới, Sản ph�
 | Luồng C   | FR-06.x, NFR-02, NFR-03, NFR-12                                     |
 | Luồng D   | FR-08.x, NFR-03, NFR-12                                             |
 | Luồng E   | FR-10.x, NFR-16, CSNS-NP-01                                         |
-| Luồng F   | FR-08.8, FR-14.x                                                    |
+| Luồng F   | FR-14.x, FR-08.10                                                   |
 | Luồng G   | FR-13.x                                                             |
 
 ---

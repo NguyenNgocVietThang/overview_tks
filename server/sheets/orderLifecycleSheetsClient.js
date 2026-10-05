@@ -3,10 +3,10 @@
 // (2 tab DonHang_HN/DonHang_SG), duoc Bot Telegram + Apps Script NGOAI REPO
 // NAY ghi truc tiep. Server CHI DOC (scope spreadsheets.readonly).
 //
-// Khac sheetsClient.js/hrSheetsClient.js: CA HAI tab nam trong CUNG 1
+// Khac sheetsClient.js: CA HAI tab nam trong CUNG 1
 // spreadsheet (khong phai 1 spreadsheet/co so), nen chi can 1 client duy nhat
 // — khong tach hanoiClient/saigonClient. Cache TTL ngan (15s) vi du lieu bot
-// ghi gan-realtime; khong can generation-guard nhu hrSheetsClient.js vi
+// ghi gan-realtime; khong can generation-guard vi
 // module nay KHONG BAO GIO ghi.
 // ==========================================
 'use strict';
