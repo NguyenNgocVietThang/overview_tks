@@ -29,7 +29,7 @@ function getRouteHandler(router, method, routePath) {
 
 test('permission catalog marks guest exclusion; granting stock locations to a guest is rejected without saving', async () => {
   const catalog = fakeRes();
-  getRouteHandler(adminUserRoutes, 'get', '/api/admin/permissions/catalog')({}, catalog);
+  await getRouteHandler(adminUserRoutes, 'get', '/api/admin/permissions/catalog')({}, catalog);
   assert.deepEqual(catalog.body.features.find(f => f.key === 'stockLocations.view').forbiddenRoles, ['Khách']);
   localUserStore.setInMemoryUsers([{ id: 'location-guest', username: 'location-guest', vaiTro: 'Khách', trangThai: 'Đang hoạt động' }]);
   const res = fakeRes();
@@ -810,7 +810,7 @@ test('Chong leo thang: PUT khong the nang ai len Quan ly, va khong sua duoc tai 
   const handler = getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id');
 
   const promote = fakeRes();
-  await handler({ user: delegate(), params: { id: 'nv-1' }, body: { vaiTro: 'Quản lý' } }, promote);
+  await handler({ user: delegate(), params: { id: 'nv-1' }, body: { vaiTro: 'Quản lý', leaveApprovalDepartments: ['KHO'] } }, promote);
   assert.equal(promote.statusCode, 403);
   assert.equal((await localUserStore.getUserById('nv-1')).vaiTro, 'Nhân viên kho');
 
@@ -836,7 +836,7 @@ test('Chong leo thang: PUT chi chan NANG quyen — sua thong tin co ban tai khoa
 
   // Nhung doi vai tro thanh gia tri mang them quyen actor khong co thi bi chan.
   const up = fakeRes();
-  await handler({ user: delegate(), params: { id: 'nv-1' }, body: { vaiTro: 'Quản lý' } }, up);
+  await handler({ user: delegate(), params: { id: 'nv-1' }, body: { vaiTro: 'Quản lý', leaveApprovalDepartments: ['KHO'] } }, up);
   assert.equal(up.statusCode, 403);
 });
 
@@ -999,7 +999,7 @@ test('Luat 4: Quan ly thuong KHONG ha vai tro cua Quan ly khac; cap cao thi duoc
   assertSeniorOnly(await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'ql-2' }, body: { vaiTro: 'Trợ lý' } }));
   assert.equal((await localUserStore.getUserById('ql-2')).vaiTro, 'Quản lý');
 
-  const promote = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'nv-1' }, body: { vaiTro: 'Quản lý' } });
+  const promote = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'nv-1' }, body: { vaiTro: 'Quản lý', leaveApprovalDepartments: ['KHO'] } });
   assert.equal(promote.statusCode, 200, 'chi chan HA vai tro cua Quan ly, khong chan nang len');
 
   const senior = await callRoute('put', path, { user: seniorActor, params: { id: 'ql-2' }, body: { vaiTro: 'Trợ lý' } });
@@ -1340,4 +1340,39 @@ test('Luat 5d: Quan ly doi email TK Khach da xac minh -> verifiedEmail ve false;
   const same = await callRoute('put', path, { user: ordinaryManagerActor, params: { id: 'kh-2' }, body: { hoTen: 'K2', email: 'K2@example.com' } });
   assert.equal(same.statusCode, 200);
   assert.equal((await localUserStore.getUserById('kh-2')).verifiedEmail, true);
+});
+
+
+test('new manager and role promotion require explicit selected approval departments', async () => {
+  localUserStore.setInMemoryUsers([{ id: 'staff', username: 'staff', vaiTro: 'Kế toán', trangThai: 'Đang hoạt động' }]);
+  const actor = { id: 'admin', username: 'admin', vaiTro: 'Quản lý' };
+  let res = fakeRes();
+  await getRouteHandler(adminUserRoutes, 'post', '/api/admin/users')({ user: actor, body: { username: 'newmanager', password: 'password123', hoTen: 'Manager', vaiTro: 'Quản lý' } }, res);
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.code, 'LEAVE_DEPARTMENTS_REQUIRED');
+  res = fakeRes();
+  await getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id')({ user: actor, params: { id: 'staff' }, body: { vaiTro: 'Quản lý' } }, res);
+  assert.equal(res.statusCode, 400);
+  assert.equal((await localUserStore.getUserById('staff')).vaiTro, 'Kế toán');
+});
+
+test('first staff approval grant defaults to own department and saved selection stays fixed', async () => {
+  localUserStore.setInMemoryUsers([{ id: 'staff', username: 'staff', vaiTro: 'Kế toán', trangThai: 'Đang hoạt động', boPhan: 'KẾ TOÁN', leaveApprovalDepartments: [] }]);
+  const request = { user: { id: 'admin', username: 'admin', vaiTro: 'Quản lý' }, params: { id: 'staff' }, body: { overrides: { 'hr.leave.manage': true } } };
+  let res = fakeRes();
+  await getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id/permissions')(request, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.leaveApprovalDepartments, ['KẾ TOÁN']);
+  await localUserStore.updateUser('staff', { boPhan: 'KHO' });
+  res = fakeRes();
+  await getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id/permissions')(request, res);
+  assert.deepEqual(res.body.leaveApprovalDepartments, ['KẾ TOÁN']);
+});
+
+test('delegated account admin cannot grant departments outside their own persisted scope', async () => {
+  localUserStore.setInMemoryUsers([{ id: 'staff', username: 'staff', vaiTro: 'Khách', trangThai: 'Đang hoạt động', boPhan: 'KHO' }]);
+  const res = fakeRes();
+  await getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id/permissions')({ user: { id: 'delegate', username: 'delegate', vaiTro: 'Khách', permissions: ['account.profile', 'account.permissions', 'hr.leave.manage'], leaveApprovalDepartments: ['KẾ TOÁN'] }, params: { id: 'staff' }, body: { overrides: { 'hr.leave.manage': true }, leaveApprovalDepartments: ['KHO'] } }, res);
+  assert.equal(res.statusCode, 403);
+  assert.equal((await localUserStore.getUserById('staff')).featurePermissions, undefined);
 });

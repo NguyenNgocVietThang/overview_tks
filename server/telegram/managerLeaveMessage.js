@@ -66,14 +66,22 @@ function buildManagerLeaveMessage(request, { webUrl, canManage = true } = {}) {
   const version = String(row.decision_version == null ? '' : row.decision_version);
   if (canManage && row.loai_yeu_cau === 'Xin nghỉ phép' && !FINAL_STATUSES.has(row.trang_thai) &&
       /^[A-Za-z0-9_-]+$/.test(requestId) && /^(0|[1-9]\d*)$/.test(version)) {
-    const buttons = Object.entries(STATUS_CODES).map(([code, label]) => ({ text: code === 'a' ? 'Phê duyệt' : label, callback_data: `d|${requestId}|${version}|${code}` }));
-    if (buttons.every(button => Buffer.byteLength(button.callback_data, 'utf8') <= 64)) {
-      inline_keyboard.push(buttons);
-    }
+    const approve = { text: 'Phê duyệt', callback_data: `d|${requestId}|${version}|a` };
+    const buttons = [];
+    if (Buffer.byteLength(approve.callback_data, 'utf8') <= 64) buttons.push(approve);
+    try {
+      const origin = new URL(webUrl);
+      if (origin.protocol === 'https:' && !origin.username && !origin.password) {
+        const rejectUrl = new URL('/telegram/leave-reject.html', origin.origin);
+        rejectUrl.searchParams.set('requestId', requestId);
+        rejectUrl.searchParams.set('expectedVersion', version);
+        buttons.push({ text: 'Từ chối', web_app: { url: rejectUrl.href } });
+      }
+    } catch { /* Invalid origin: never issue a MiniApp button. */ }
+    if (buttons.length) inline_keyboard.push(buttons);
   }
   const url = safeWebUrl(webUrl);
   if (url) inline_keyboard.push([{ text: 'Mở trên web', url }]);
   return { text, parse_mode: 'HTML', reply_markup: { inline_keyboard } };
 }
-
 module.exports = { buildManagerLeaveMessage, STATUS_CODES, FINAL_STATUSES };

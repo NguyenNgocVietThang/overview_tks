@@ -123,7 +123,7 @@ test('getLeaveRequests lọc theo phòng ban (không phân biệt hoa thường/
   assert.deepEqual((await repo.getLeaveRequests({ department: ' kho ' }, 'Hà Nội')).map(r => r.request_id), ['A']);
   assert.deepEqual((await repo.getLeaveRequests({ department: 'Trợ Lý' }, 'Hà Nội')).map(r => r.request_id), ['B']);
   assert.deepEqual((await repo.getLeaveRequests({ department: '' }, 'Hà Nội')).map(r => r.request_id), ['A', 'B', 'C']);
-  assert.match(pool.calls[0].sql, /FROM hr_employees e/, 'phòng ban lấy từ hr_employees của nhân sự gắn với đơn');
+  assert.doesNotMatch(pool.calls[0].sql, /FROM hr_employees e/, 'phòng ban đọc từ snapshot của đơn, không đổi theo hồ sơ hiện tại');
 });
 
 test('getLeaveRequests lọc theo tên nhân viên không phân biệt hoa thường/khoảng trắng', async () => {
@@ -272,4 +272,19 @@ test('manager conflict is 409 for an existing request and remains 404 for an abs
   await assert.rejects(createHrLeaveRepository({ pool: fakePool([]) }).updateLeaveRequestStatus('NP-ABSENT',
     { status: LEAVE_STATUS.APPROVED, expectedVersion: '0', lockFinal: true }, 'Hà Nội'),
   err => err.code === 'LEAVE_REQUEST_NOT_FOUND' && err.statusCode === 404);
+});
+
+test('self listing filters user identity in SQL and reads stored snapshot instead of current HR', async () => {
+ const pool=fakePool([dbRow({user_id:USER_ID,hr_employee_id:'7',bo_phan:'Kho cũ'})]);
+ const rows=await createHrLeaveRepository({pool}).getLeaveRequests({userId:USER_ID},['Hà Nội','Sài Gòn']);
+ assert.match(pool.calls[0].sql,/user_id = \$2::uuid/);
+ assert.doesNotMatch(pool.calls[0].sql,/SELECT e.bo_phan/);
+ assert.equal(rows[0].user_id,USER_ID); assert.equal(rows[0].hr_employee_id,'7');
+ assert.equal(rows[0].bo_phan,'Kho cũ');
+});
+test('self creation persists trusted HR identity and department snapshot', async () => {
+ const pool=fakePool([dbRow()]);await createHrLeaveRepository({pool}).createLeaveRequest({
+  user_id:USER_ID,hr_employee_id:'7',bo_phan:'KHO',start_date:'2026-10-06',start_session:'Sáng',end_date:'2026-10-06',end_session:'Chiều',tong_buoi_nghi:2
+ },'Hà Nội');
+ assert.match(pool.calls[0].sql,/bo_phan, hr_employee_id/);assert.deepEqual(pool.calls[0].params.slice(-2),['KHO','7']);
 });

@@ -29,6 +29,7 @@ const roleChangeRequestRoutes = require('./auth/roleChangeRequestRoutes');
 const stockoutCheckRoutes    = require('./dashboard/stockoutCheck/stockoutCheckRoutes');
 const kiotvietWebhookRoutes  = require('./kiotviet/kiotvietWebhookRoutes');
 const { createManagerLeaveWebhook } = require('./telegram/managerLeaveWebhook');
+const { createManagerLeaveMiniApp } = require('./telegram/managerLeaveMiniApp');
 const { getConfiguredManagerLeaveRuntime } = require('./telegram/managerLeaveRuntime');
 const managerLeaveRuntime = getConfiguredManagerLeaveRuntime();
 const kiotvietSyncStatusRoutes = require('./kiotvietSync/kiotvietSyncStatusRoutes');
@@ -53,8 +54,11 @@ router.use(createManagerLeaveWebhook({
   enabled: !!managerLeaveRuntime,
   secret: CONFIG.HR_MANAGER_TELEGRAM_WEBHOOK_SECRET,
   store: managerLeaveRuntime && managerLeaveRuntime.store,
+  acknowledge: update => managerLeaveRuntime.acknowledgeUpdate(update),
   wake: () => managerLeaveRuntime.drain()
 }));
+
+router.use(createManagerLeaveMiniApp({enabled:!!managerLeaveRuntime,token:CONFIG.HR_MANAGER_TELEGRAM_BOT_TOKEN,getManager:id=>managerLeaveRuntime.getManager(id)}));
 
 // /api/auth/* mount truoc — POST /login va POST /logout khong doi hoi da dang
 // nhap (do chinh la noi de dang nhap); GET /me tu bao ve bang requireAuth ben trong.

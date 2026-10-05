@@ -96,6 +96,18 @@ function checkGrant(actor, currentTarget, nextTarget) {
   return null;
 }
 
+function checkDepartmentGrant(actor, currentTarget, nextDepartments) {
+  if (isManagerClass(actor)) return null;
+  const normalize = require('../hr/hrApprovalDepartments').normalizeDepartments;
+  const { departmentKey } = require('../hr/hrDepartment');
+  const before = new Set(normalize((currentTarget && currentTarget.leaveApprovalDepartments) || []).map(departmentKey));
+  const own = new Set(normalize((actor && actor.leaveApprovalDepartments) || []).map(departmentKey));
+  if (normalize(nextDepartments).some(department => !before.has(departmentKey(department)) && !own.has(departmentKey(department)))) {
+    return 'Bạn chỉ được cấp phòng ban trong phạm vi duyệt nghỉ phép của mình.';
+  }
+  return null;
+}
+
 /** Luat 3: `action` la cum dong tu de dua vao thong bao ("đặt lại mật khẩu"...). */
 function checkTakeover(actor, target, action) {
   if (isManagerClass(actor)) return null;
@@ -209,6 +221,7 @@ module.exports = {
   isManagerClass,
   checkTargetWritable,
   checkGrant,
+  checkDepartmentGrant,
   checkTakeover,
   checkProtectedManager,
   sendDenied

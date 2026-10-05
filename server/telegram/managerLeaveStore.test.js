@@ -16,10 +16,10 @@ async function fixture() {
   try {
   await db.exec(`CREATE ROLE reporting_readonly;
     CREATE TABLE hr_employees(id BIGINT PRIMARY KEY, bo_phan TEXT);
-    CREATE TABLE app_users(id UUID PRIMARY KEY, username TEXT, is_deleted BOOLEAN DEFAULT false,
+    CREATE TABLE app_users(id UUID PRIMARY KEY, username TEXT, vai_tro TEXT DEFAULT 'Quản lý',feature_permissions JSONB DEFAULT '{}'::jsonb, is_deleted BOOLEAN DEFAULT false,
       telegram_id TEXT NOT NULL DEFAULT '', updated_at TIMESTAMPTZ DEFAULT now(), hr_employee_id BIGINT);
     INSERT INTO app_users(id, username) VALUES ('${USER}', 'manager');`);
-  for (const name of ['0016_hr_leave_telegram.sql', '0029_hr_manager_telegram.sql', '0030_drop_leave_provisional_status.sql']) {
+  for (const name of ['0016_hr_leave_telegram.sql', '0029_hr_manager_telegram.sql', '0030_drop_leave_provisional_status.sql', '0031_hr_leave_approval_scope.sql']) {
     await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations', name), 'utf8'));
   }
   await db.exec(`INSERT INTO hr_leave_requests(request_id, branch, start_date, start_session,
@@ -284,3 +284,5 @@ test('event creation uses wall-clock time even inside a transaction started befo
     await db.exec('COMMIT');
   } finally { await db.close(); }
 });
+
+test('list card message is persisted so its callbacks can use original-card validation',async()=>{const {db,store}=await fixture();try{await store.enqueueDelivery({requestId:'NP-TEST',userId:USER,chatId:CHAT,version:'0'});const [job]=await store.claimDeliveries();await store.finishDelivery(job,{messageId:'10',version:'0'});await store.recordDeliveryMessage({requestId:'NP-TEST',userId:USER,chatId:CHAT,version:'0',messageId:'55'});const delivery=await store.getDelivery('NP-TEST',USER,CHAT,'55');assert.equal(delivery.message_id,'55');assert.equal((await store.getDelivery('NP-TEST',USER,CHAT)).message_id,'10');}finally{await db.close();}});

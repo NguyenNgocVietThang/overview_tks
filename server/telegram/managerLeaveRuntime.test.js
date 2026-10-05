@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { createManagerLeaveRuntime, validateManagerTelegramConfig, loadManagersFromDb } = require('./managerLeaveRuntime');
 
 test('one conflicting linked account does not stop notifications for valid managers', async () => {
-  const good = { id: 'good', telegramId: '100', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động', coSo: 'Hà Nội' };
+  const good = { id: 'good', telegramId: '100', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động', coSo: 'Hà Nội',assignedCoSo:'Hà Nội',leaveApprovalDepartments:['Kho'] };
   const managers = await loadManagersFromDb({ selectAll: async () => [{ id: 'conflict', telegramId: '101' }, good],
     resolve: async user => { if (user.id === 'conflict') throw Object.assign(new Error('identity conflict'), { code: 'HR_IDENTITY_CONFLICT' }); return user; },
     logger: { error() {} }
@@ -76,8 +76,8 @@ test('delivery retries message edits after network failure, but rejects revoked 
   let user = { id: 'm', telegramId: '123', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động', coSo: 'Hà Nội' };
   const runtime = createManagerLeaveRuntime({
     store: { finishDelivery: async (_job, data) => queued.push(data), retryDelivery: async () => queued.push('retry') },
-    getManager: async () => user,
-    leaveRepo: { getLeaveRequestById: async () => ({ request_id: 'NP-1', co_so: 'Hà Nội', loai_yeu_cau: 'Xin nghỉ phép', decision_version: '1', trang_thai: 'Đã duyệt' }) },
+    getManager: async () => user, loadManagers:async()=>user ? [user] : [],
+    leaveRepo: { getLeaveRequestById: async () => ({ request_id: 'NP-1', co_so: 'Hà Nội', bo_phan:'Kho', loai_yeu_cau: 'Xin nghỉ phép', decision_version: '1', trang_thai: 'Đã duyệt' }) },
     telegram: { call: async method => { assert.equal(method, 'editMessageText'); throw Object.assign(new Error('network'), { code: 'TELEGRAM_UNAVAILABLE' }); } },
     logger: { error() {} }
   });
@@ -88,4 +88,16 @@ test('delivery retries message edits after network failure, but rejects revoked 
   runtime.telegram.call = async (method, params) => { assert.equal(method, 'editMessageReplyMarkup'); assert.deepEqual(params.reply_markup.inline_keyboard, []); return {}; };
   await runtime.processDelivery(job);
   assert.equal(queued[1].blocked, true);
+});
+
+test('slow outbound card delivery never blocks a freshly enqueued callback decision',async()=>{
+ let deliveryStarted, releaseDelivery;const started=new Promise(r=>deliveryStarted=r),blocked=new Promise(r=>releaseDelivery=r);let handled=false,update;
+ const user={id:'m',telegramId:'123',vaiTro:'Quản lý',trangThai:'Đang hoạt động',coSo:'Hà Nội',assignedCoSo:'Hà Nội',leaveApprovalDepartments:['Kho']};
+ let first=true;const store={activate:async()=>new Date(),requeueStaleCards:async()=>{},claimUpdates:async()=>update ? [Object.assign({},update, {payload:{callback_query:{id:'cb',message:{chat:{id:123}}}}})].splice(0,1).map(j=>{update=null;return j;}) : [],handleUpdate:async(_job,handler)=>{handled=true;return [];},completeUpdate:async()=>{},retryUpdate:async()=>{},claimEvents:async()=>[],enqueueDelivery:async()=>{},claimDeliveries:async()=>first?(first=false,[{request_id:'NP-1',user_id:'m',telegram_chat_id:'123',desired_version:'1'}]):[],finishDelivery:async()=>{}};
+ const runtime=createManagerLeaveRuntime({store,getManager:async()=>user,loadManagers:async()=>[user],authorization:{canDecide:async()=>true},leaveRepo:{getLeaveRequests:async()=>[],getLeaveRequestById:async()=>({request_id:'NP-1',co_so:'Hà Nội',bo_phan:'Kho',loai_yeu_cau:'Xin nghỉ phép',decision_version:'1'})},telegram:{call:async()=>{deliveryStarted();await blocked;return {message_id:1};}},logger:{error(){}}});
+ const draining=runtime.drain();await started;update={update_id:'2'};const inbox=runtime.drainInbox();await inbox;assert.equal(handled,true);releaseDelivery();await draining;
+});
+test('all active web approvers participate before Telegram linkage filtering',async()=>{
+ const user={id:'staff',vaiTro:'Nhân viên kho',trangThai:'Đang hoạt động',featurePermissions:{'hr.leave.manage':true},assignedCoSo:'Hà Nội',leaveApprovalDepartments:['Kho']};
+ const managers=await loadManagersFromDb({selectAll:async()=>[user]});assert.deepEqual(managers,[user]);
 });

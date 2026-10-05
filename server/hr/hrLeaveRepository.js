@@ -119,27 +119,23 @@ function boundaryLabel(isoDate, session) {
   return `${session} ${day}/${month}/${year}`;
 }
 
-// Phong ban = bo_phan cua nhan su (hr_employees) gan voi don: khoa that
-// hr_employee_id cua don, neu bot chua dien thi di vong qua tai khoan (user_id).
-// Dung subquery (khong JOIN) de cung dung duoc trong RETURNING cua INSERT/UPDATE.
+// Department is the immutable snapshot captured when the request is created.
 const SELECT_COLUMNS = `
-  request_id, telegram_chat_id, telegram_username, web_username,
+  request_id, user_id, hr_employee_id::text AS hr_employee_id,
+  telegram_chat_id, telegram_username, web_username,
   ho_ten, chuc_vu, ly_do, loai_yeu_cau, thoi_gian_gui,
   start_date::text AS start_date, start_session,
   end_date::text AS end_date, end_session,
   tong_buoi_nghi, tong_ngay_nghi, nguoi_ban_giao,
   trang_thai, nguoi_duyet, thoi_diem_duyet, ghi_chu_duyet, decision_version::text AS decision_version,
   co_nghi_gap, co_tu_y_nghi, created_at, updated_at, tin_nhan,
-  branch,
-  (SELECT e.bo_phan FROM hr_employees e
-    WHERE e.id = COALESCE(
-      hr_leave_requests.hr_employee_id,
-      (SELECT u.hr_employee_id FROM app_users u WHERE u.id = hr_leave_requests.user_id)
-    )) AS bo_phan`;
+  branch, bo_phan`;
 
 function rowToRequest(row) {
   return {
     request_id: row.request_id,
+    user_id: row.user_id || '',
+    hr_employee_id: row.hr_employee_id == null ? '' : String(row.hr_employee_id),
     telegram_chat_id: row.telegram_chat_id || '',
     telegram_username: row.telegram_username || '',
     web_username: row.web_username || '',
@@ -184,6 +180,11 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
     const params = [toBranchCodes(branch)];
     const where = ['branch = ANY($1::text[])'];
 
+    if (filters.userId != null) {
+      if (!uuidOrNull(filters.userId)) throw new HrError('Định danh tài khoản không hợp lệ.',400,'INVALID_USER_ID');
+      params.push(filters.userId);
+      where.push('user_id = $' + params.length + '::uuid');
+    }
     if (filters.status) {
       params.push(filters.status);
       where.push(`trang_thai = $${params.length}`);
@@ -251,7 +252,7 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
          loai_yeu_cau, ly_do, tin_nhan, nguoi_ban_giao, thoi_gian_gui,
          start_date, start_session, end_date, end_session, tong_buoi_nghi,
          trang_thai, nguoi_duyet, approver_user_id, thoi_diem_duyet, ghi_chu_duyet,
-         decision_notified_at, co_nghi_gap, co_tu_y_nghi
+         decision_notified_at, co_nghi_gap, co_tu_y_nghi, bo_phan, hr_employee_id
        ) VALUES (
          $1, $2,
          COALESCE($3::uuid, (SELECT id FROM app_users
@@ -259,7 +260,7 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
          $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE($13::timestamptz, now()),
          $14::date, $15, $16::date, $17, $18,
          $19, $20, $21, $22::timestamptz, $23,
-         CASE WHEN $22::timestamptz IS NOT NULL THEN now() END, $24, $25
+         CASE WHEN $22::timestamptz IS NOT NULL THEN now() END, $24, $25, $26, $27::bigint
        )
        RETURNING ${SELECT_COLUMNS}`,
       [
@@ -271,7 +272,8 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
         startDate, data.start_session, endDate, data.end_session, totalSessions,
         data.trang_thai || LEAVE_STATUS.PENDING, data.nguoi_duyet || '',
         uuidOrNull(data.approver_user_id), decidedAt, data.ghi_chu_duyet || '',
-        !!data.co_nghi_gap, !!data.co_tu_y_nghi
+        !!data.co_nghi_gap, !!data.co_tu_y_nghi,
+        data.bo_phan || '', data.hr_employee_id == null ? null : String(data.hr_employee_id)
       ]
     );
     return rowToRequest(rows[0]);
@@ -301,7 +303,8 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
          nguoi_duyet = COALESCE(NULLIF($4, ''), nguoi_duyet),
          approver_user_id = COALESCE($5::uuid, approver_user_id),
          thoi_diem_duyet = now(),
-         ghi_chu_duyet = COALESCE($6, '')
+         ghi_chu_duyet = COALESCE($6, ''),
+         decision_notified_at = CASE WHEN source = 'web' AND btrim(telegram_chat_id) = '' THEN now() ELSE decision_notified_at END
        WHERE request_id = $1 AND branch = ANY($2::text[])${guards.length ? ' AND ' + guards.join(' AND ') : ''}
        RETURNING ${SELECT_COLUMNS}`,
       params

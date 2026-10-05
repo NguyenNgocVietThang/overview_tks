@@ -22,11 +22,11 @@ const USERS = [
   { id: 'nv-1', username: 'nhanvien1', hoTen: 'Nhân viên 1', email: 'nv1@example.com', soDienThoai: '', telegramId: '9007199254740993', vaiTro: 'Nhân viên kho', coSo: 'Hà Nội', trangThai: 'Đang hoạt động', ngayTao: '03/01/2026' }
 ];
 
-async function loadPage({ isSeniorAdmin }) {
+async function loadPage({ isSeniorAdmin, savedColumns, userId = 'ql-1' }) {
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://tokosi.example/account/#users' });
   const { window } = dom;
   const permissions = ['account.profile', 'account.users', 'account.users.manage', 'account.permissions'];
-  const me = { id: 'ql-1', username: 'quanly1', hoTen: 'Quản lý 1', vaiTro: 'Quản lý', isSeniorAdmin, permissions, branches: ['Hà Nội', 'Sài Gòn', 'Cả hai'] };
+  const me = { id: userId, username: 'quanly1', hoTen: 'Quản lý 1', vaiTro: 'Quản lý', isSeniorAdmin, permissions, branches: ['Hà Nội', 'Sài Gòn', 'Cả hai'] };
   window.TKSNav = {
     authGuard: async () => me,
     can: (...keys) => keys.some(key => permissions.includes(key)),
@@ -34,10 +34,12 @@ async function loadPage({ isSeniorAdmin }) {
     renderAccountChip() {},
     logout() {}
   };
+  if (savedColumns) window.localStorage.setItem('tks-account-table-columns:' + userId, JSON.stringify(savedColumns));
   window.fetch = async url => {
     const target = String(url);
+    if (target.includes('/api/admin/users/export/fields')) return { ok: true, status: 200, json: async () => ({ fields: require('../../auth/adminUserExportService').EXPORT_FIELDS.map(f => ({ key: f.key, label: f.label })), defaults: ['hoTen', 'username', 'email'] }) };
     if (target.includes('/api/admin/users')) return { ok: true, status: 200, json: async () => ({ users: USERS }) };
-    if (target.includes('/api/admin/permissions/catalog')) return { ok: true, status: 200, json: async () => ({ groups: [], features: [], roleDefaults: {} }) };
+    if (target.includes('/api/admin/permissions/catalog')) return { ok: true, status: 200, json: async () => ({ groups: [], features: [], roleDefaults: {}, departments: ['KHO', 'KẾ TOÁN'] }) };
     return { ok: true, status: 200, json: async () => ({}) };
   };
   [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
@@ -146,4 +148,64 @@ test('manager loads and saves or clears an employee Telegram ID without losing d
     await settle();
     assert.equal(Object.hasOwn(posted[2].body, 'telegramId'), false, 'disabled Telegram ID must not be submitted');
   } finally { window.close(); }
+});
+
+
+test('user table defaults to active accounts and four old columns while offering every Excel field', async () => {
+  const dom = await loadPage({ isSeniorAdmin: true });
+  const { window } = dom;
+  try {
+    assert.equal(window.document.getElementById('userStatusFilter').value, 'Đang hoạt động');
+    assert.deepEqual([...window.document.querySelectorAll('#usersTable th')].map(th => th.dataset.field), ['hoTen', 'vaiTro', 'coSo', 'trangThai']);
+    await window.openUserColumnsModal();
+    const fields = require('../../auth/adminUserExportService').EXPORT_FIELDS;
+    assert.equal(window.document.querySelectorAll('#userColumnFields input').length, fields.length);
+    assert.equal(window.document.querySelector('#userColumnFields input[value=hoTen]').disabled, true);
+  } finally { dom.window.close(); }
+});
+
+test('table column preference preserves name, isolates account and Excel settings, and resets hidden sorting', async () => {
+  const dom = await loadPage({ isSeniorAdmin: true, savedColumns: ['email', 'telegramId'] });
+  const { window } = dom;
+  try {
+    assert.deepEqual([...window.document.querySelectorAll('#usersTable th')].map(th => th.dataset.field), ['hoTen', 'email', 'telegramId']);
+    window.localStorage.setItem('tks-account-export-fields', '["username"]');
+    window.handleSort('email');
+    await window.openUserColumnsModal();
+    window.document.querySelector('#userColumnFields input[value=email]').checked = false;
+    window.saveUserColumns();
+    assert.equal(window.document.getElementById('sort-hoTen').textContent, '▲');
+    assert.equal(window.localStorage.getItem('tks-account-export-fields'), '["username"]');
+    assert.deepEqual(JSON.parse(window.localStorage.getItem('tks-account-table-columns:ql-1')), ['hoTen', 'telegramId']);
+    const other = await loadPage({ isSeniorAdmin: true, userId: 'different-account' });
+    assert.deepEqual([...other.window.document.querySelectorAll('#usersTable th')].map(th => th.dataset.field), ['hoTen', 'vaiTro', 'coSo', 'trangThai']);
+    other.window.close();
+  } finally { dom.window.close(); }
+});
+
+
+test('department selection defaults first staff grant to own department, retains explicit scope, and posts create selection', async () => {
+  const dom = await loadPage({ isSeniorAdmin: true });
+  const { window } = dom;
+  try {
+    await window.loadPermissionsCatalog();
+    window.renderDepartmentSelection('permLeaveDepartments', { boPhan: 'KẾ TOÁN', leaveApprovalDepartments: [] });
+    assert.equal(window.document.querySelector('#permLeaveDepartments input[value="KẾ TOÁN"]').checked, true);
+    window.renderDepartmentSelection('editLeaveDepartments', { boPhan: 'KẾ TOÁN', leaveApprovalDepartments: ['KHO'] });
+    assert.equal(window.document.querySelector('#editLeaveDepartments input[value=KHO]').checked, true);
+    assert.equal(window.document.querySelector('#editLeaveDepartments input[value="KẾ TOÁN"]').checked, false);
+    window.openCreateUserModal();
+    await settle();
+    const doc = window.document;
+    doc.getElementById('createUsername').value = 'new-manager';
+    doc.getElementById('createPassword').value = 'password123';
+    doc.getElementById('createHoTen').value = 'New manager';
+    doc.getElementById('createVaiTro').value = 'Quản lý';
+    doc.querySelector('#createLeaveDepartments input[value=KHO]').checked = true;
+    const posted = [];
+    window.fetch = async (url, options = {}) => { if (options.method) posted.push(JSON.parse(options.body)); return { ok: true, json: async () => ({ users: USERS }) }; };
+    window.handleCreateUser({ preventDefault() {} });
+    await settle();
+    assert.deepEqual(posted[0].leaveApprovalDepartments, ['KHO']);
+  } finally { dom.window.close(); }
 });

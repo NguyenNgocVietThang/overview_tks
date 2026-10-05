@@ -334,3 +334,21 @@ test('POST /api/role-requests chấp nhận yêu cầu chuyển sang các vai tr
     assert.equal(res.body.request.requestedRole, role);
   }
 });
+
+
+test('role request promotion to manager requires explicitly selected approval departments before any write', async () => {
+  localUserStore.setInMemoryUsers([{ id: 'scope-staff', username: 'scope-staff', vaiTro: 'Trợ lý', trangThai: 'Đang hoạt động' }]);
+  roleRepo.setInMemoryRequests([]);
+  const request = await roleRepo.createRequest({ userId: 'scope-staff', username: 'scope-staff', currentRole: 'Trợ lý', requestedRole: 'Quản lý' });
+  const handler = getRouteHandler(roleChangeRequestRoutes, 'patch', '/api/role-requests/:id/status');
+  const req = { user: { id: 'scope-admin', username: 'scope-admin', vaiTro: 'Quản lý' }, params: { id: request.id }, body: { status: roleRepo.ROLE_REQUEST_STATUS.APPROVED } };
+  let res = fakeRes();
+  await handler(req, res);
+  assert.equal(res.statusCode, 400);
+  assert.equal((await localUserStore.getUserById('scope-staff')).vaiTro, 'Trợ lý');
+  assert.equal((await roleRepo.getRequestById(request.id)).status, roleRepo.ROLE_REQUEST_STATUS.PENDING);
+  res = fakeRes();
+  await handler({ ...req, body: { ...req.body, leaveApprovalDepartments: ['KHO'] } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual((await localUserStore.getUserById('scope-staff')).leaveApprovalDepartments, ['KHO']);
+});

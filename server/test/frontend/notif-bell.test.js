@@ -119,6 +119,7 @@ test('người có quyền quản lý nghỉ phép duyệt đơn trực tiếp t
   const { window, document } = createEnv(fakeUser('m1', 'Quản lý'), async (url, opts) => {
     const method = opts && opts.method;
     if (String(url).includes('/unread-count')) return { ok: true, json: async () => ({ count: 1 }) };
+    if (String(url) === '/api/hr/leave-requests/lv1') return { ok: true, json: async () => ({ request: { id: 'lv1', canManage: true, decision_version: '2026-10-05T01:00:00.000Z' } }) };
     if (method === 'PATCH') {
       patchCalls.push({ url: String(url), body: opts.body ? JSON.parse(opts.body) : null });
       return { ok: true, json: async () => ({ request: { id: 'lv1', trang_thai: 'Đã duyệt' } }) };
@@ -141,7 +142,7 @@ test('người có quyền quản lý nghỉ phép duyệt đơn trực tiếp t
   await new Promise(resolve => setTimeout(resolve, 0));
 
   assert.equal(patchCalls[0].url, '/api/hr/leave-requests/lv1/status');
-  assert.deepEqual(patchCalls[0].body, { status: 'Đã duyệt' });
+  assert.deepEqual(patchCalls[0].body, { status: 'Đã duyệt', expectedVersion: '2026-10-05T01:00:00.000Z' });
   assert.equal(patchCalls[1].url, '/api/notifications/n1/read');
   window.close();
 });
@@ -224,4 +225,44 @@ test('click "Xóa tất cả" gọi DELETE /api/notifications', async () => {
 
   assert.ok(calledUrls.some(c => c.method === 'DELETE' && c.url === '/api/notifications'));
   window.close();
+});
+
+
+test('leave notification hides quick decisions outside current persisted approval scope', async () => {
+  const { window, document } = createEnv(fakeUser('m1', 'Quản lý'), async url => ({ ok: true, json: async () => String(url).includes('/api/hr/leave-requests/') ? { request: { canManage: false, decision_version: 'version' } } : { notifications: [{ id: 'n1', type: 'leave_request_created', relatedType: 'leaveRequest', relatedId: 'lv1' }] } }));
+  try {
+    window.TKSNav.renderNotifBell(fakeUser('m1', 'Quản lý'));
+    document.getElementById('tksNotifBellBtn').click();
+    for (let i = 0; i < 10; i++) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(document.querySelector('.tks-notif-approve'), null);
+    assert.ok(document.querySelector('.tks-notif-item.clickable'));
+  } finally { window.close(); }
+});
+
+test('manager promotion notification collects explicit department selection before submitting approval', async () => {
+  const patches = [];
+  const { window, document } = createEnv(fakeUser('m1', 'Quản lý'), async (url, options = {}) => {
+    if (options.method === 'PATCH') { patches.push({ url, body: options.body && JSON.parse(options.body) }); return { ok: true, json: async () => ({}) }; }
+    if (String(url).includes('/permissions/catalog')) return { ok: true, json: async () => ({ departments: ['KHO', 'KẾ TOÁN'] }) };
+    if (String(url).includes('/api/role-requests/')) return { ok: true, json: async () => ({ request: { requestedRole: 'Quản lý' } }) };
+    return { ok: true, json: async () => ({ notifications: [{ id: 'n1', type: 'role_change_request', relatedId: 'r1' }] }) };
+  });
+  try {
+    window.TKSNav.renderNotifBell(fakeUser('m1', 'Quản lý'));
+    document.getElementById('tksNotifBellBtn').click();
+    const settle = async () => { for (let i = 0; i < 10; i++) await new Promise(resolve => setImmediate(resolve)); };
+    await settle();
+    document.querySelector('.tks-notif-approve').click();
+    await settle();
+    assert.equal(patches.length, 0);
+    const selection = document.querySelector('.tks-notif-departments input[value=KHO]');
+    assert.ok(selection);
+    document.querySelector('.tks-notif-approve').click();
+    await settle();
+    assert.equal(patches.length, 0);
+    selection.checked = true;
+    document.querySelector('.tks-notif-approve').click();
+    await settle();
+    assert.deepEqual(patches[0].body, { status: 'Đã duyệt', leaveApprovalDepartments: ['KHO'] });
+  } finally { window.close(); }
 });

@@ -72,7 +72,10 @@ const FEATURES = Object.freeze([
   { key: 'hr.rules.manage', groupKey: 'hr', label: 'Tải lên / gỡ tài liệu quy định', roles: MANAGER_ONLY },
   { key: 'hr.employees', groupKey: 'hr', label: 'Danh sách nhân sự', roles: INTERNAL_ROLES },
   { key: 'hr.leave', groupKey: 'hr', label: 'Nghỉ phép (xem)', roles: INTERNAL_ROLES },
-  { key: 'hr.leave.manage', groupKey: 'hr', label: 'Tạo / duyệt nghỉ phép', roles: MANAGER_ONLY },
+  { key: 'hr.leave.manage', groupKey: 'hr', label: 'Duyệt nghỉ phép', roles: MANAGER_ONLY },
+
+  { key: 'hr.leave.absence.manage', groupKey: 'hr', label: 'Ghi nhận tự ý nghỉ', roles: MANAGER_ONLY },
+  { key: 'hr.leave.submit', groupKey: 'hr', label: 'Tự gửi đơn nghỉ phép', roles: [], dynamic: true },
 
   // --- Quan ly tai khoan ---
   { key: 'account.profile', groupKey: 'account', label: 'Quản lý hồ sơ', roles: ALL_ROLES, alwaysOn: true },
@@ -105,7 +108,7 @@ const ANY_REPORTS_FEATURES = Object.freeze(FEATURE_KEYS.filter(k => k.startsWith
 const PAGE_FEATURES = Object.freeze([
   { path: '/reports', href: '/reports/', anyOf: ANY_REPORTS_FEATURES },
   { path: '/shipment/lifecycle', href: '/shipment/lifecycle/', anyOf: ['shipment.lifecycle'] },
-  { path: '/humanresources', href: '/humanresources/', anyOf: ['hr.rules', 'hr.employees', 'hr.leave'] },
+  { path: '/humanresources', href: '/humanresources/', anyOf: ['hr.rules', 'hr.employees', 'hr.leave', 'hr.leave.submit'] },
   { path: '/stock-locations', href: '/stock-locations/', anyOf: ['stockLocations.view'] },
   { path: '/account', href: '/account/', anyOf: ['account.profile'] }
 ]);
@@ -135,7 +138,7 @@ function sanitizeOverrides(raw) {
   if (!raw || typeof raw !== 'object') return result;
   for (const [key, value] of Object.entries(raw)) {
     if (!isFeatureKey(key)) continue;
-    if (FEATURE_BY_KEY.get(key).alwaysOn) continue;
+    if (FEATURE_BY_KEY.get(key).alwaysOn || FEATURE_BY_KEY.get(key).dynamic) continue;
     if (value === null || value === undefined) continue;
     result[key] = !!value;
   }
@@ -157,7 +160,7 @@ function unknownOverrideKeys(raw) {
 function resolvePermissions(user) {
   if (!user) return [];
   if (isHardcodedAdmin(user.email) || isHardcodedAdmin(user.username)) {
-    return FEATURE_KEYS.slice();
+    return FEATURE_KEYS.filter(key => key !== 'hr.leave.submit' || canSubmitOwnLeave(user));
   }
   const granted = new Set(defaultsForRole(user.vaiTro));
   const overrides = sanitizeOverrides(user.featurePermissions);
@@ -166,12 +169,17 @@ function resolvePermissions(user) {
     else granted.delete(key);
   }
   for (const key of ALWAYS_ON_KEYS) granted.add(key);
+  if (canSubmitOwnLeave(user)) granted.add('hr.leave.submit');
   // Quyen phu thuoc (`requires`): thieu quyen goc thi bo luon, bat ke vai tro/ghi de.
   for (const f of FEATURES) {
     if (f.requires && !granted.has(f.requires)) granted.delete(f.key);
   }
   // Tra theo thu tu registry de output on dinh (de so sanh trong test/cache).
   return FEATURE_KEYS.filter(key => granted.has(key) && !isFeatureForbiddenForRole(key, user.vaiTro));
+}
+
+function canSubmitOwnLeave(user) {
+  return !!(user && user.hrManaged && user.hrRowIndex && user.trangThai === 'Đang hoạt động' && !user.isDeleted && !user.hrVerificationRequired && user.hrEmployeeActive !== false);
 }
 
 function isFeatureForbiddenForRole(key, role) {
@@ -188,7 +196,7 @@ function permissionsHave(permissions, ...keys) {
 function hasFeature(user, ...keys) {
   if (!user) return false;
   const permissions = Array.isArray(user.permissions) ? user.permissions : resolvePermissions(user);
-  return permissionsHave(permissions, ...keys.filter(key => !isFeatureForbiddenForRole(key, user.vaiTro)));
+  return permissionsHave(permissions, ...keys.filter(key => !isFeatureForbiddenForRole(key, user.vaiTro) && (key !== 'hr.leave.submit' || canSubmitOwnLeave(user))));
 }
 
 function normalizePagePath(pathname) {

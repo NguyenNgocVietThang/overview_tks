@@ -13,6 +13,8 @@
 // ==========================================
 'use strict';
 
+const normalizeDepartments = value => require('../hr/hrApprovalDepartments').normalizeDepartments(value || []);
+
 const { getPool } = require('../db/pool');
 const { BRANCHES, BRANCH_BOTH, normalizeCoSo, branchCodeToLabel } = require('../branch/branches');
 
@@ -62,6 +64,10 @@ function rowToUser(row) {
     passwordHash: row.password_hash || '',
     vaiTro: row.vai_tro || '',
     coSo: coSoFromDb(row.co_so),
+    assignedCoSo: coSoFromDb(row.co_so),
+    boPhan: row.hr_bo_phan || '',
+    hrEmployeeActive: row.hr_employee_id == null || row.hr_employee_active === undefined ? undefined : !!row.hr_employee_active,
+    leaveApprovalDepartments: normalizeDepartments(row.leave_approval_departments || []),
     trangThai: row.trang_thai || '',
     ngayTao: row.ngay_tao || '',
     dangNhapGanNhat: row.dang_nhap_gan_nhat || '',
@@ -120,6 +126,7 @@ const WRITABLE_COLUMNS = Object.freeze([
   ['roleSource', 'role_source', v => String(v || '')],
   // Ghi de quyen theo tung tai khoan — xem featureRegistry.js. Luon ghi mot
   // object JSON (JSONB), gia tri la se thanh {} thay vi lam hong hang.
+  ['leaveApprovalDepartments', 'leave_approval_departments', normalizeDepartments],
   ['featurePermissions', 'feature_permissions', v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {})],
   ['legacyOverride', 'legacy_override', v => !!v],
   ['verifiedEmail', 'verified_email', v => !!v],
@@ -128,7 +135,7 @@ const WRITABLE_COLUMNS = Object.freeze([
 ]);
 
 const SELECT_SQL = `
-  SELECT u.*, e.branch AS hr_branch
+  SELECT u.*, e.branch AS hr_branch, e.bo_phan AS hr_bo_phan, e.is_active AS hr_employee_active
   FROM app_users u
   LEFT JOIN hr_employees e ON e.id = u.hr_employee_id
 `;
@@ -156,13 +163,13 @@ async function insertUser(user) {
   }
   const sql = `INSERT INTO app_users (${columns.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`;
   const { rows } = await getPool().query(sql, values);
-  return rowToUser({ ...rows[0], hr_branch: null });
+  return attachBranch(rows[0]);
 }
 
 async function attachBranch(row) {
   if (!row.hr_employee_id) return rowToUser({ ...row, hr_branch: null });
-  const { rows } = await getPool().query('SELECT branch FROM hr_employees WHERE id = $1', [row.hr_employee_id]);
-  return rowToUser({ ...row, hr_branch: rows[0] ? rows[0].branch : null });
+  const { rows } = await getPool().query('SELECT branch, bo_phan, is_active FROM hr_employees WHERE id = $1', [row.hr_employee_id]);
+  return rowToUser({ ...row, hr_branch: rows[0] ? rows[0].branch : null, hr_bo_phan: rows[0] ? rows[0].bo_phan : null, hr_employee_active: !!(rows[0] && rows[0].is_active) });
 }
 
 /**
@@ -280,7 +287,17 @@ async function softDeleteUser(id) {
   return attachBranch(rows[0]);
 }
 
+async function selectApprovalDepartmentCatalog(pool = getPool()) {
+  const { rows } = await pool.query(`
+    SELECT bo_phan FROM hr_employees
+    UNION SELECT unnest(leave_approval_departments) AS bo_phan FROM app_users WHERE NOT is_deleted
+    UNION SELECT bo_phan FROM hr_leave_requests
+  `);
+  return normalizeDepartments(rows.map(row => row.bo_phan || ''));
+}
+
 module.exports = {
+  selectApprovalDepartmentCatalog,
   coSoToDb,
   coSoFromDb,
   rowToUser,

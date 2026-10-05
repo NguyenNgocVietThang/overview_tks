@@ -550,12 +550,13 @@
               </select>
               <select id="userStatusFilter" class="filter-select" onchange="handleFilterUsers()">
                 <option value="">Tất cả trạng thái</option>
-                <option value="Đang hoạt động">Đang hoạt động</option>
+                <option value="Đang hoạt động" selected>Đang hoạt động</option>
                 <option value="Không hoạt động">Không hoạt động</option>
                 <option value="Chờ duyệt">Chờ duyệt</option>
                 <option value="Khóa">Khóa</option>
               </select>
             </div>
+            <button type="button" class="btn-secondary" onclick="openUserColumnsModal()">Chọn cột</button>
             <button type="button" class="btn-secondary" id="btnExportUsers" onclick="openExportUsersModal()" style="display:none;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:-3px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
               Xuất Excel
@@ -588,6 +589,14 @@
 
       </div>
     </main>
+  </div>
+
+  <div class="modal-overlay" id="userColumnsModal" hidden>
+    <div class="modal-box">
+      <div class="modal-header"><h3>Cột hiển thị</h3><button type="button" class="modal-close" onclick="closeModal('userColumnsModal')">✕</button></div>
+      <div class="modal-body"><p>Họ và tên luôn hiển thị. Lựa chọn được lưu riêng cho tài khoản của bạn.</p><div id="userColumnFields" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;"></div></div>
+      <div class="modal-footer"><button type="button" class="btn-secondary" onclick="resetUserColumns()">Bốn cột mặc định</button><button type="button" class="btn-primary" onclick="saveUserColumns()">Áp dụng</button></div>
+    </div>
   </div>
 
   <!-- MODAL: THÊM MỚI TÀI KHOẢN -->
@@ -648,6 +657,7 @@
               <option value="Cả hai">Cả hai</option>
             </select>
           </div>
+          <div class="form-group"><label>Phòng ban được duyệt nghỉ phép</label><div id="createLeaveDepartments" style="display:grid;gap:6px;max-height:180px;overflow:auto;"></div><small style="color:var(--muted)">Quản lý mới phải chọn ít nhất một phòng ban. Quyền duyệt còn cần cơ sở được giao.</small></div>
           <div id="createUserError" class="alert-box alert-error" style="display:none;"></div>
         </div>
         <div class="modal-footer">
@@ -740,6 +750,7 @@
               </button>
             </div>
           </div>
+          <div class="form-group"><label>Phòng ban được duyệt nghỉ phép</label><div id="editLeaveDepartments" style="display:grid;gap:6px;max-height:180px;overflow:auto;"></div><small style="color:var(--muted)">Quản lý mới phải chọn ít nhất một phòng ban. Quyền duyệt còn cần cơ sở được giao.</small></div>
           <div id="editUserError" class="alert-box alert-error" style="display:none;"></div>
         </div>
         <div class="modal-footer">
@@ -789,6 +800,7 @@
           </div>
           <p class="perm-intro" id="permIntro"></p>
           <div id="permGroups"></div>
+          <div class="form-group"><label>Phòng ban được duyệt nghỉ phép</label><div id="permLeaveDepartments" style="display:grid;gap:6px;max-height:180px;overflow:auto;"></div><small style="color:var(--muted)">Quản lý mới phải chọn ít nhất một phòng ban. Quyền duyệt còn cần cơ sở được giao.</small></div>
           <div id="permissionsError" class="alert-box alert-error" style="display:none;"></div>
         </div>
         <div class="modal-footer">
@@ -1538,17 +1550,17 @@
       filtered.sort((a, b) => {
         // Cot thoi gian ("Ngay tao", dd/MM/yyyy): sap theo THOI GIAN that — so sanh chuoi se xep 30/09 sau 01/10.
         // Tai khoan chua co ngay tao luon xuong cuoi, bat ke chieu sap xep.
-        if(sortField === 'ngayTao'){
-          const timeA = parseVnDateTime(a.ngayTao);
-          const timeB = parseVnDateTime(b.ngayTao);
+        if(sortField === 'ngayTao' || sortField === 'dangNhapGanNhat'){
+          const timeA = parseVnDateTime(a[sortField]);
+          const timeB = parseVnDateTime(b[sortField]);
           if(timeA === null || timeB === null){
             if(timeA === timeB) return 0;
             return timeA === null ? 1 : -1;
           }
           return sortAsc ? timeA - timeB : timeB - timeA;
         }
-        let valA = a[sortField] || '';
-        let valB = b[sortField] || '';
+        let valA = userColumnValue(a, sortField);
+        let valB = userColumnValue(b, sortField);
         if(typeof valA === 'string') valA = valA.toLowerCase();
         if(typeof valB === 'string') valB = valB.toLowerCase();
         if(valA < valB) return sortAsc ? -1 : 1;
@@ -1568,7 +1580,7 @@
       }
 
       // Update sort indicators
-      ['hoTen', 'username', 'email', 'vaiTro', 'coSo', 'trangThai', 'ngayTao'].forEach(f => {
+      userColumnCatalog.forEach(({ key: f }) => {
         const icon = document.getElementById(`sort-${f}`);
         if(icon){
           if(f === sortField){
@@ -1611,10 +1623,64 @@
       return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    const DEFAULT_USER_COLUMNS = ['hoTen', 'vaiTro', 'coSo', 'trangThai'];
+    let userColumnCatalog = DEFAULT_USER_COLUMNS.map((key, index) => ({ key, label: ['Họ và tên', 'Vai trò', 'Cơ sở', 'Trạng thái'][index] }));
+    let visibleUserColumns = DEFAULT_USER_COLUMNS.slice();
+
+    function tableColumnsStorageKey(){ return 'tks-account-table-columns:' + String(currentUser && currentUser.id || ''); }
+    function normalizeUserColumns(keys){
+      const selected = new Set(['hoTen', ...(Array.isArray(keys) ? keys : DEFAULT_USER_COLUMNS)]);
+      return userColumnCatalog.filter(field => selected.has(field.key)).map(field => field.key);
+    }
+    function initializeUserColumns(){
+      let saved;
+      try { saved = JSON.parse(localStorage.getItem(tableColumnsStorageKey()) || 'null'); } catch(err) {}
+      visibleUserColumns = normalizeUserColumns(saved);
+      renderUserColumnHeaders();
+    }
+    function renderUserColumnHeaders(){
+      document.getElementById('usersTable').style.minWidth = (260 + (visibleUserColumns.length - 1) * 180) + 'px';
+      document.querySelector('#usersTable thead tr').innerHTML = visibleUserColumns.map(key => {
+        const field = userColumnCatalog.find(item => item.key === key);
+        return `<th class="sortable" data-field="${escapeHtml(key)}" onclick="handleSort('${key}')" style="width:${key === 'hoTen' ? 260 : 180}px">${escapeHtml(field.label)} <span class="sort-icon" id="sort-${key}">${sortField === key ? (sortAsc ? '▲' : '▼') : '↕'}</span></th>`;
+      }).join('');
+    }
+    function userColumnValue(user, key){
+      if(key === 'hasPassword') return user.hasPassword ? 'Có' : 'Không';
+      if(key === 'nguon') return user.hrManaged ? 'Đồng bộ HR' : 'Tạo thủ công';
+      if(key === 'roleSource') return ({ sheet: 'Danh sách nhân sự', override: 'Ghi đè thủ công', local: 'Tạo thủ công' })[user.roleSource || (user.hrManaged ? 'sheet' : 'local')] || '';
+      if(key === 'permissionsGranted' || key === 'permissionsRevoked'){
+        if(typeof user[key] === 'string') return user[key];
+        const wanted = key === 'permissionsGranted';
+        return Object.keys(user.featurePermissions || {}).filter(feature => user.featurePermissions[feature] === wanted)
+          .map(feature => (permCatalog && permCatalog.features.find(item => item.key === feature)?.label) || feature).join('; ');
+      }
+      const value = user[key];
+      return Array.isArray(value) ? value.join('; ') : String(value == null ? '' : value);
+    }
+    async function openUserColumnsModal(){
+      try {
+        const catalog = await ensureExportFieldCatalog();
+        if(Array.isArray(catalog.fields)){ userColumnCatalog = catalog.fields; initializeUserColumns(); }
+      } catch(err) {}
+      document.getElementById('userColumnFields').innerHTML = userColumnCatalog.map(field => `<label><input type="checkbox" value="${escapeHtml(field.key)}"${visibleUserColumns.includes(field.key) ? ' checked' : ''}${field.key === 'hoTen' ? ' disabled' : ''}> ${escapeHtml(field.label)}</label>`).join('');
+      openModal('userColumnsModal');
+    }
+    function resetUserColumns(){
+      document.querySelectorAll('#userColumnFields input').forEach(input => { input.checked = DEFAULT_USER_COLUMNS.includes(input.value); });
+    }
+    function saveUserColumns(){
+      const previouslyVisible = visibleUserColumns.slice();
+      visibleUserColumns = normalizeUserColumns([...document.querySelectorAll('#userColumnFields input:checked')].map(input => input.value));
+      try { localStorage.setItem(tableColumnsStorageKey(), JSON.stringify(visibleUserColumns)); } catch(err) {}
+      if(previouslyVisible.includes(sortField) && !visibleUserColumns.includes(sortField)){ sortField = 'hoTen'; sortAsc = true; }
+      renderUserColumnHeaders(); handleFilterUsers(); closeModal('userColumnsModal');
+    }
+
     function renderUsersTable(users){
       const tbody = document.getElementById('usersTableBody');
       if(!users.length){
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:36px;">Không tìm thấy tài khoản nào phù hợp.</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="${visibleUserColumns.length}" style="text-align:center;color:var(--muted);padding:36px;">Không tìm thấy tài khoản nào phù hợp.</td></tr>`;
         return;
       }
 
@@ -1641,9 +1707,7 @@
                 </div>
               </div>
             </td>
-            <td>${getRoleBadgeHtml(u.vaiTro)}${hasCustomPermissions(u) ? '<span class="perm-badge" title="Tài khoản này có quyền được tuỳ chỉnh riêng, khác mặc định của vai trò">tuỳ chỉnh</span>' : ''}</td>
-            <td>${escapeHtml(u.coSo || '—')}</td>
-            <td>${getStatusPillHtml(u.trangThai)}</td>
+            ${visibleUserColumns.filter(key => key !== 'hoTen').map(key => `<td>${key === 'vaiTro' ? getRoleBadgeHtml(u.vaiTro) + (hasCustomPermissions(u) ? '<span class="perm-badge">tuỳ chỉnh</span>' : '') : key === 'trangThai' ? getStatusPillHtml(u.trangThai) : escapeHtml(userColumnValue(u, key) || '—')}</td>`).join('')}
           </tr>
         `;
       }).join('');
@@ -1651,6 +1715,7 @@
 
     // ---------- Hộp thao tác khi bấm vào dòng tài khoản ----------
     function isSuperAdminUser(u){
+      if(!u) return false;
       return (u.email && u.email.toLowerCase() === 'thangnnv2003@gmail.com') ||
              (u.username && u.username.toLowerCase() === 'thangnnv2003@gmail.com') ||
              (u.username && u.username.toLowerCase() === 'thangnnv2003');
@@ -1737,6 +1802,23 @@
         });
     }
 
+    function renderDepartmentSelection(containerId, user = {}, disabled = false){
+      const persisted = user.leaveApprovalDepartments || [];
+      const selected = new Set(persisted.length ? persisted : user.vaiTro !== 'Quản lý' && !(user.effective || []).includes('hr.leave.manage') ? [user.boPhan].filter(Boolean) : []);
+      const departments = [...new Set([...(permCatalog && permCatalog.departments || []), user.boPhan, ...persisted].filter(Boolean))];
+      const own = new Set(currentUser && currentUser.leaveApprovalDepartments || []);
+      const box = document.getElementById(containerId);
+      box.innerHTML = departments.length ? departments.map(department => `<label><input type="checkbox" value="${escapeHtml(department)}"${selected.has(department) ? ' checked' : ''}${disabled || (!actorIsManager() && !own.has(department) && !persisted.includes(department)) ? ' disabled' : ''}> ${escapeHtml(department)}</label>`).join('') : '<small>Chưa có phòng ban trong danh sách nhân sự.</small>';
+      box.dataset.ready = '1';
+    }
+    function loadDepartmentSelection(containerId, user = {}, disabled = false){
+      renderDepartmentSelection(containerId, user, disabled);
+      loadPermissionsCatalog().then(() => renderDepartmentSelection(containerId, user, disabled)).catch(() => {});
+    }
+    function selectedDepartments(containerId){
+      return [...document.querySelectorAll('#' + containerId + ' input:checked')].map(input => input.value);
+    }
+
     function openPermissionsModal(id){
       const u = rawAdminUsers.find(x => String(x.id) === String(id));
       if(!u) return;
@@ -1784,6 +1866,7 @@
     }
 
     function renderPermissionsForm(catalog, data){
+      renderDepartmentSelection('permLeaveDepartments', data, isProtectedManagerRow(permTargetUser) || isSuperAdminUser(permTargetUser));
       const defaults = new Set(data.defaults || []);
       const overrides = data.overrides || {};
 
@@ -1806,6 +1889,7 @@
               <select class="form-control" disabled aria-label="${escapeHtml(f.label)}"><option>Không được cấp</option></select>
             </div>`;
           }
+          if(f.dynamic){ return `<div class="perm-row"><span class="perm-row-label">${escapeHtml(f.label)}<span class="perm-row-hint">Tự động theo tài khoản nhân sự đang hoạt động</span></span></div>`; }
           if(f.alwaysOn){
             return `
               <div class="perm-row">
@@ -1898,7 +1982,7 @@
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',
-            body: JSON.stringify({ vaiTro: roleSelect.value })
+            body: JSON.stringify({ vaiTro: roleSelect.value, leaveApprovalDepartments: selectedDepartments('permLeaveDepartments') })
           }).then(parseApiResponse)
         : Promise.resolve({ ok: true, data: {} });
 
@@ -1910,7 +1994,7 @@
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',
-            body: JSON.stringify({ overrides })
+            body: JSON.stringify({ overrides, leaveApprovalDepartments: selectedDepartments('permLeaveDepartments') })
           }).then(parseApiResponse);
         })
         .then(result => {
@@ -2039,6 +2123,7 @@
       document.getElementById('createUserForm').reset();
       document.getElementById('createUserError').style.display = 'none';
       applyRoleOptions('createVaiTro');
+      loadDepartmentSelection('createLeaveDepartments');
       openModal('createUserModal');
     }
 
@@ -2060,7 +2145,7 @@
       fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, hoTen, email, soDienThoai, vaiTro, coSo })
+        body: JSON.stringify({ username, password, hoTen, email, soDienThoai, vaiTro, coSo, leaveApprovalDepartments: selectedDepartments('createLeaveDepartments') })
       })
         .then(parseApiResponse)
         .then(result => {
@@ -2108,6 +2193,7 @@
         const group = document.getElementById(fieldId).closest('.form-group');
         if(group) group.style.display = protectedManager ? 'none' : '';
       });
+      loadDepartmentSelection('editLeaveDepartments', u, protectedManager || isSuperAdminUser(u));
       openModal('editUserModal');
     }
 
@@ -2137,6 +2223,7 @@
 
       // Bước 1: lưu thông tin cá nhân. Bước 2 (nếu có nhập): đặt lại mật khẩu.
       const fields = { hoTen, email, soDienThoai, coSo };
+      if(!isProtectedManagerRow(rawAdminUsers.find(user => String(user.id) === String(id)))) fields.leaveApprovalDepartments = selectedDepartments('editLeaveDepartments');
       if(!document.getElementById('editTelegramId').disabled) fields.telegramId = telegramId;
       fetch(`/api/admin/users/${id}`, { method: 'PUT', headers: json, body: JSON.stringify(fields) })
         .then(parseApiResponse)
@@ -2212,6 +2299,9 @@
         window.TKSNav.authGuard()
           .then(user => {
             currentUser = user;
+            document.getElementById('userStatusFilter').value = 'Đang hoạt động';
+            initializeUserColumns();
+            ensureExportFieldCatalog().then(catalog => { if(Array.isArray(catalog.fields)){ userColumnCatalog = catalog.fields; initializeUserColumns(); handleFilterUsers(); } }).catch(() => {});
             // Quyen lay tu user.permissions (/api/auth/me) — CUNG MOT nguon voi
             // requireFeature o server/auth/adminUserRoutes.js.
             isManager = accountCan('account.users.manage');

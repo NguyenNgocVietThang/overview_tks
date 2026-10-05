@@ -203,7 +203,10 @@ function publicUser(user) {
     hoTen: user.hoTen,
     email: user.email || '',
     vaiTro: user.vaiTro,
-    coSo: user.coSo
+    coSo: user.coSo,
+    assignedCoSo: user.assignedCoSo ?? user.coSo ?? '',
+    boPhan: user.boPhan || '',
+    leaveApprovalDepartments: user.leaveApprovalDepartments || []
   };
 }
 

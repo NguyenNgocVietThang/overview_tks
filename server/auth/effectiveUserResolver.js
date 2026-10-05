@@ -106,7 +106,7 @@ function createEffectiveUserResolver(options = {}) {
 
   async function resolveUser(inputUser) {
     if (!inputUser) return null;
-    let user = { ...inputUser };
+    let user = { ...inputUser, assignedCoSo: Object.hasOwn(inputUser, 'assignedCoSo') ? inputUser.assignedCoSo : inputUser.coSo || '' };
     const isHardcodedAdmin = store.isHardcodedAdmin || localUserStore.isHardcodedAdmin;
     const hardcoded = isHardcodedAdmin(user.email) || isHardcodedAdmin(user.username);
     if (hardcoded) {
@@ -188,13 +188,13 @@ function createEffectiveUserResolver(options = {}) {
       hrManaged: true,
       hrSourceBranch: employee.sourceBranch,
       hrRowIndex: employee.rowIndex,
+      boPhan: employee.boPhan || '',
       sheetVaiTro: employee.sheetVaiTro,
       sheetCoSo: employee.sheetCoSo,
       hoTen: employee.hoTen || user.hoTen,
       email: employee.email || user.email || '',
       soDienThoai: employee.soDienThoai || user.soDienThoai || '',
       vaiTro: roleOverride || employee.sheetVaiTro,
-      coSo: branchOverride || employee.sheetCoSo,
       roleSource: roleOverride ? 'override' : 'sheet'
     };
     if (user.lockReason === 'hr_removed') {
@@ -206,9 +206,11 @@ function createEffectiveUserResolver(options = {}) {
     // Disk IO Supabase). Chi danh dau thoi diem khop khi co truong khac thay doi
     // (gom lan gan dau) hoac TK chua tung co hrMatchedAt.
     const changes = changedFields(user, desired);
-    if (!Object.keys(changes).length && user.hrMatchedAt) return { ...user };
+    const effectiveCoSo = branchOverride || employee.sheetCoSo;
+    if (!Object.keys(changes).length && user.hrMatchedAt) return { ...user, coSo: effectiveCoSo };
     changes.hrMatchedAt = new Date().toISOString();
-    return store.updateUser(user.id, changes);
+    const saved = await store.updateUser(user.id, changes);
+    return { ...saved, assignedCoSo: user.assignedCoSo, coSo: effectiveCoSo };
   }
 
   return { resolveUser, findAccountForEmployee };

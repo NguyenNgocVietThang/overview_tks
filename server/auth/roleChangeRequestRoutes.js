@@ -177,6 +177,16 @@ router.patch('/api/role-requests/:id/status', ...authManager, async (req, res) =
         if (denied) return accountPolicy.sendDenied(res, denied);
       }
       const roleUpdates = { vaiTro: target.requestedRole };
+      const explicitScope = Object.hasOwn(req.body, 'leaveApprovalDepartments');
+      if (explicitScope) {
+        roleUpdates.leaveApprovalDepartments = require('../hr/hrApprovalDepartments').normalizeDepartments(req.body.leaveApprovalDepartments);
+        const denied = accountPolicy.checkDepartmentGrant(req.user, targetUser, roleUpdates.leaveApprovalDepartments) ||
+          (JSON.stringify(roleUpdates.leaveApprovalDepartments) !== JSON.stringify(targetUser && targetUser.leaveApprovalDepartments || []) && accountPolicy.checkProtectedManager(req.user, targetUser, 'đổi phạm vi duyệt phòng ban'));
+        if (denied) return accountPolicy.sendDenied(res, denied);
+      }
+      if (target.requestedRole === ROLES.QUAN_LY && targetUser && targetUser.vaiTro !== ROLES.QUAN_LY && (!explicitScope || !roleUpdates.leaveApprovalDepartments.length)) {
+        return res.status(400).json({ error: 'Vui lòng chọn ít nhất một phòng ban duyệt cho Quản lý mới tại trang Quản lý tài khoản.', code: 'LEAVE_DEPARTMENTS_REQUIRED' });
+      }
       if (targetUser && targetUser.hrManaged) {
         roleUpdates.vaiTroOverride = target.requestedRole;
         roleUpdates.roleSource = 'override';

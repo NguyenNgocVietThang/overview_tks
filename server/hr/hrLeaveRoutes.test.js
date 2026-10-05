@@ -4,7 +4,19 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const repo = require('./hrLeaveRepository');
 const employeeDirectory = require('./employeeDirectory');
-const router = require('./hrLeaveRoutes');
+const { createHrLeaveDecisionService } = require('./hrLeaveDecisionService');
+const { createHrLeaveRoutes } = require('./hrLeaveRoutes');
+// These route tests cover formatting, events and branch propagation. Scope enforcement
+// is exercised separately with the shared authorization service and a real DB fixture.
+const decisions = createHrLeaveDecisionService({
+  repo: {
+    getLeaveRequestById: async id => ({ request_id: id, co_so: 'Hà Nội', bo_phan: 'KHO', decision_version: '0' }),
+    updateLeaveRequestStatus: (...args) => repo.updateLeaveRequestStatus(...args)
+  },
+  authorization: { authorize: async user => user, routingFor: async () => ({ users: [] }) },
+  notifyManagers: async () => {}, findEmployee: async () => null
+});
+const router = createHrLeaveRoutes({ decisions, notifyAllUsers: async () => {} });
 
 function fakeRes() {
   const res = { statusCode: null, body: null };
@@ -99,7 +111,7 @@ test('PATCH status phát sự kiện LEAVE_STATUS_CHANGED qua hrLeaveEvents', as
     const req = {
       params: { id: 'NP-20260822-005' },
       user: { ...MANAGER_BOTH, hoTen: 'Quản lý Nguyễn' },
-      body: { status: 'Đã duyệt' }
+      body: { expectedVersion: '0', status: 'Đã duyệt' }
     };
     const res = fakeRes();
     await handler(req, res);
@@ -125,9 +137,9 @@ test('PATCH status chuyển lý do từ chối (đã trim) xuống repo; không 
   try {
     const handler = getRouteHandler('patch', '/api/hr/leave-requests/:id/status');
     const user = { ...MANAGER_BOTH };
-    await handler({ params: { id: 'NP-1' }, user, body: { status: 'Từ chối', note: '  Thiếu người trực ca ' } }, fakeRes());
-    await handler({ params: { id: 'NP-2' }, user, body: { status: 'Từ chối', note: '' } }, fakeRes());
-    await handler({ params: { id: 'NP-3' }, user, body: { status: 'Đã duyệt' } }, fakeRes());
+    await handler({ params: { id: 'NP-1' }, user, body: { expectedVersion: '0', status: 'Từ chối', note: '  Thiếu người trực ca ' } }, fakeRes());
+    await handler({ params: { id: 'NP-2' }, user, body: { expectedVersion: '0', status: 'Từ chối', note: '' } }, fakeRes());
+    await handler({ params: { id: 'NP-3' }, user, body: { expectedVersion: '0', status: 'Đã duyệt' } }, fakeRes());
 
     assert.equal(received[0].note, 'Người duyệt: Quản lý - Quản lý\nLý do từ chối: Thiếu người trực ca');
     assert.equal(received[1].note, 'Người duyệt: Quản lý - Quản lý');
@@ -145,7 +157,7 @@ test('PATCH status từ chối lý do quá 500 ký tự hoặc không phải chu
     const handler = getRouteHandler('patch', '/api/hr/leave-requests/:id/status');
     for (const note of ['x'.repeat(501), 123, { a: 1 }]) {
       const res = fakeRes();
-      await handler({ params: { id: 'NP-1' }, user: { ...MANAGER_BOTH }, body: { status: 'Từ chối', note } }, res);
+      await handler({ params: { id: 'NP-1' }, user: { ...MANAGER_BOTH }, body: { expectedVersion: '0', status: 'Từ chối', note } }, res);
       assert.equal(res.statusCode, 400);
       assert.equal(res.body.code, 'INVALID_NOTE');
     }
@@ -241,7 +253,7 @@ test('PATCH status tìm đơn ở mọi cơ sở được phép và phát sự k
   try {
     const handler = getRouteHandler('patch', '/api/hr/leave-requests/:id/status');
     // Quản lý đang chọn Hà Nội ở thanh điều hướng nhưng sửa đơn của Sài Gòn từ danh sách "Tất cả cơ sở".
-    await handler({ params: { id: 'NP-SG-1' }, branch: 'Hà Nội', user: MANAGER_BOTH, body: { status: 'Đã duyệt' } }, fakeRes());
+    await handler({ params: { id: 'NP-SG-1' }, branch: 'Hà Nội', user: MANAGER_BOTH, body: { expectedVersion: '0', status: 'Đã duyệt' } }, fakeRes());
     assert.deepEqual(searchedBranches, ['Hà Nội', 'Sài Gòn']);
     assert.equal(broadcast.branch, 'Sài Gòn');
   } finally {
@@ -417,7 +429,7 @@ test('đổi trạng thái ở "Cả hai": sự kiện realtime không bao giờ
     const handler = getRouteHandler('patch', '/api/hr/leave-requests/:id/status');
     const req = {
       user: MANAGER_BOTH, branch: 'Cả hai',
-      params: { id: 'REQ-1' }, body: { status: 'Đã duyệt' }
+      params: { id: 'REQ-1' }, body: { expectedVersion: '0', status: 'Đã duyệt' }
     };
     const res = fakeRes();
     await handler(req, res);

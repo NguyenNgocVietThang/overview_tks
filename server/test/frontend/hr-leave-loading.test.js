@@ -152,7 +152,7 @@ async function loadPageWithViolation(vaiTro) {
     const text = String(url);
     const payload = text.includes('/summary/') ? { summary: [] }
         : { requests: [{
-          request_id: 'NP-TEST',
+          canManage: vaiTro === 'Quản lý', decision_version: '0', request_id: 'NP-TEST',
           ho_ten: 'Nguyễn A',
           chuc_vu: 'Nhân viên',
           ly_do: 'Việc gia đình',

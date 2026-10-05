@@ -16,6 +16,7 @@ const { normalizeCoSo, BRANCH_VALUES } = require('../branch/branches');
 const contactChangeService = require('./contactChangeService');
 const employeeDirectory = require('../hr/employeeDirectory');
 const accountPolicy = require('./accountPolicy');
+const { normalizeDepartments } = require('../hr/hrApprovalDepartments');
 const userExport = require('./adminUserExportService');
 
 const router = express.Router();
@@ -25,6 +26,7 @@ const VALID_STATUSES = [ACTIVE_STATUS, INACTIVE_STATUS, LOCKED_STATUS, PENDING_S
 
 function publicAdminUser(u) {
   return {
+    ...Object.fromEntries(userExport.EXPORT_FIELDS.map(field => [field.key, field.value(u)])),
     id: u.id,
     username: u.username,
     hoTen: u.hoTen,
@@ -35,6 +37,9 @@ function publicAdminUser(u) {
     sdtKhoiPhuc: u.sdtKhoiPhuc || '',
     vaiTro: u.vaiTro,
     coSo: u.coSo || '',
+    assignedCoSo: u.assignedCoSo ?? u.coSo ?? '',
+    boPhan: u.boPhan || '',
+    leaveApprovalDepartments: normalizeDepartments(u.leaveApprovalDepartments || []),
     trangThai: u.trangThai,
     ngayTao: u.ngayTao || '',
     dangNhapGanNhat: u.dangNhapGanNhat || '',
@@ -99,6 +104,40 @@ async function checkHrIdentityEscalation(actor, identities, target) {
   return reason ? { status: 403, code: accountPolicy.HR_ROLE_ESCALATION_CODE, error: reason } : null;
 }
 
+function approvalScopeChange(actor, current, next, body) {
+  const explicit = Object.hasOwn(body, 'leaveApprovalDepartments');
+  if (explicit && (!Array.isArray(body.leaveApprovalDepartments) || body.leaveApprovalDepartments.some(value => typeof value !== 'string'))) {
+    return { status: 400, code: 'INVALID_LEAVE_DEPARTMENTS', error: 'Phòng ban duyệt phải là danh sách chuỗi.' };
+  }
+  let departments = normalizeDepartments((explicit ? body.leaveApprovalDepartments : current && current.leaveApprovalDepartments) || []);
+  if (next.vaiTro === ROLES.QUAN_LY && (!current || current.vaiTro !== ROLES.QUAN_LY) && (!explicit || !departments.length)) {
+    return { status: 400, code: 'LEAVE_DEPARTMENTS_REQUIRED', error: 'Vui lòng chọn ít nhất một phòng ban duyệt cho Quản lý mới.' };
+  }
+  if (!explicit && !departments.length && current && !featureRegistry.hasFeature(current, 'hr.leave.manage') && featureRegistry.hasFeature(next, 'hr.leave.manage')) {
+    departments = normalizeDepartments([current.boPhan || '']);
+  }
+  const denied = accountPolicy.checkDepartmentGrant(actor, current, departments);
+  if (denied) return { status: 403, code: accountPolicy.DENIED_CODE, error: denied };
+  if (current && JSON.stringify(departments) !== JSON.stringify(normalizeDepartments(current.leaveApprovalDepartments || []))) {
+    const protectedReason = accountPolicy.checkProtectedManager(actor, current, 'đổi phạm vi duyệt phòng ban');
+    if (protectedReason) return { status: 403, code: accountPolicy.DENIED_CODE, error: protectedReason };
+  }
+  return { departments };
+}
+
+async function departmentCatalog() {
+  const [snapshot, users, historic] = await Promise.all([
+    employeeDirectory.getSnapshot().catch(() => ({ employees: [] })),
+    localUserStore.getAllUsers(),
+    require('./appUsersRepository').selectApprovalDepartmentCatalog().catch(() => [])
+  ]);
+  return normalizeDepartments([
+    ...historic,
+    ...((snapshot && snapshot.employees) || []).map(employee => employee.boPhan || ''),
+    ...users.flatMap(user => [user.boPhan || '', ...normalizeDepartments(user.leaveApprovalDepartments || [])])
+  ]).sort((a, b) => a.localeCompare(b, 'vi'));
+}
+
 const authView = [requireAuth, requireFeature('account.users')];
 const authManage = [requireAuth, requireFeature('account.users.manage')];
 const authPermissions = [requireAuth, requireFeature('account.permissions')];
@@ -120,7 +159,7 @@ router.get('/api/admin/users', ...authView, async (req, res) => {
 /**
  * GET /api/admin/users/export/fields — danh mục trường có thể xuất (cho hộp chọn trường).
  */
-router.get('/api/admin/users/export/fields', ...authManage, (req, res) => {
+router.get('/api/admin/users/export/fields', ...authView, (req, res) => {
   res.status(200).json({
     fields: userExport.EXPORT_FIELDS.map(f => ({ key: f.key, label: f.label })),
     defaults: userExport.DEFAULT_FIELD_KEYS
@@ -210,6 +249,8 @@ router.post('/api/admin/users', ...authManage, async (req, res) => {
     }), null);
     if (hrDenied) return res.status(hrDenied.status).json({ error: hrDenied.error, code: hrDenied.code });
 
+    const scope = approvalScopeChange(req.user, null, { vaiTro }, req.body);
+    if (scope.error) return res.status(scope.status).json({ error: scope.error, code: scope.code });
     const passwordHash = await bcrypt.hash(password, 10);
     const newUser = await localUserStore.createUser({
       id: crypto.randomUUID(),
@@ -220,7 +261,8 @@ router.post('/api/admin/users', ...authManage, async (req, res) => {
       soDienThoai: normalizePhone(soDienThoai),
       vaiTro,
       coSo,
-      trangThai: ACTIVE_STATUS
+      trangThai: ACTIVE_STATUS,
+      leaveApprovalDepartments: scope.departments
     });
 
     res.status(201).json({ user: publicAdminUser(newUser) });
@@ -497,6 +539,10 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
       updates.lockReason = (trangThai === LOCKED_STATUS || trangThai === 'Khóa') ? 'manual' : '';
     }
 
+    const scope = approvalScopeChange(req.user, targetUser, { ...targetUser, ...updates }, req.body);
+    if (scope.error) return res.status(scope.status).json({ error: scope.error, code: scope.code });
+    updates.leaveApprovalDepartments = scope.departments;
+
     // MOI kiem tra da qua: bay gio moi ghi email/SĐT cua TK nhan su (hr_employees + app_users).
     for (const change of pendingAdminChanges) {
       targetUser = await contactChangeService.adminChange(targetUser, change.field, change.value);
@@ -613,7 +659,7 @@ router.delete('/api/admin/users/:id', ...authManage, async (req, res) => {
  * GET /api/admin/permissions/catalog — danh muc tinh nang + mac dinh theo vai
  * tro, de giao dien dung bang phan quyen ma khong chep lai nhan tieng Viet.
  */
-router.get('/api/admin/permissions/catalog', ...authView, (req, res) => {
+router.get('/api/admin/permissions/catalog', ...authView, async (req, res) => {
   const roleDefaults = {};
   for (const role of VALID_ROLES) roleDefaults[role] = featureRegistry.defaultsForRole(role);
   res.status(200).json({
@@ -623,10 +669,12 @@ router.get('/api/admin/permissions/catalog', ...authView, (req, res) => {
       label: f.label,
       groupKey: f.groupKey,
       alwaysOn: !!f.alwaysOn,
+      dynamic: !!f.dynamic,
       forbiddenRoles: f.forbiddenRoles || [],
       requires: f.requires || null
     })),
-    roleDefaults
+    roleDefaults,
+    departments: await departmentCatalog().catch(() => [])
   });
 });
 
@@ -661,6 +709,8 @@ function permissionsPayload(user) {
     username: user.username,
     hoTen: user.hoTen || '',
     vaiTro: user.vaiTro,
+    boPhan: user.boPhan || '',
+    leaveApprovalDepartments: normalizeDepartments(user.leaveApprovalDepartments || []),
     defaults: featureRegistry.defaultsForRole(user.vaiTro),
     overrides: featureRegistry.sanitizeOverrides(user.featurePermissions),
     effective: featureRegistry.resolvePermissions(user)
@@ -728,7 +778,9 @@ router.put('/api/admin/users/:id/permissions', ...authPermissions, async (req, r
                    (revokesPermission && accountPolicy.checkProtectedManager(req.user, targetUser, 'rút quyền'));
     if (denied) return accountPolicy.sendDenied(res, denied);
 
-    const updated = await localUserStore.updateUser(targetUser.id, { featurePermissions: overrides });
+    const scope = approvalScopeChange(req.user, targetUser, { ...targetUser, featurePermissions: overrides }, req.body);
+    if (scope.error) return res.status(scope.status).json({ error: scope.error, code: scope.code });
+    const updated = await localUserStore.updateUser(targetUser.id, { featurePermissions: overrides, leaveApprovalDepartments: scope.departments });
     res.status(200).json(permissionsPayload(updated));
 
     // Bao cho chinh chu tai khoan biet quyen vua doi — best-effort, KHONG duoc

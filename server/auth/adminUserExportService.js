@@ -30,6 +30,8 @@ const EXPORT_FIELDS = [
   { key: 'soDienThoai', label: 'Số điện thoại', width: 16, value: u => u.soDienThoai || '' },
   { key: 'telegramId', label: 'ID Telegram', width: 18, value: u => u.telegramId || '' },
   { key: 'vaiTro', label: 'Vai trò', width: 20, value: u => u.vaiTro || '' },
+  { key: 'boPhan', label: 'Bộ phận nhân sự', width: 24, value: u => u.boPhan || '' },
+  { key: 'leaveApprovalDepartments', label: 'Phòng ban được duyệt nghỉ', width: 36, value: u => (u.leaveApprovalDepartments || []).join('; ') },
   { key: 'coSo', label: 'Cơ sở', width: 12, value: u => u.coSo || '' },
   { key: 'trangThai', label: 'Trạng thái', width: 18, value: u => u.trangThai || '' },
   { key: 'lockReason', label: 'Lý do khóa', width: 16, value: u => (u.lockReason === 'manual' ? 'Khóa thủ công' : u.lockReason || '') },

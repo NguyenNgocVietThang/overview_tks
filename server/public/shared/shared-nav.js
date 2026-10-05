@@ -435,12 +435,12 @@
       list.innerHTML = notifications.map(function(n){
         var actions = '';
         var canHandleRoleRequest = n.type === 'role_change_request' && TKSNav.can('account.users.manage');
-        var canHandleLeaveRequest = n.type === 'leave_request_created' && TKSNav.can('hr.leave.manage');
+        var canHandleLeaveRequest = n.type === 'leave_request_created' && TKSNav.can('hr.leave.manage') && n.leaveCanManage === true && !!n.leaveVersion;
         if(!n.isRead && (canHandleRoleRequest || canHandleLeaveRequest)){
           actions =
             '<div class="tks-notif-actions">' +
-              '<button type="button" class="tks-notif-approve" data-request-kind="' + (canHandleLeaveRequest ? 'leave' : 'role') + '" data-request-id="' + escapeHtml(n.relatedId) + '" data-notif-id="' + escapeHtml(n.id) + '">Duyệt</button>' +
-              '<button type="button" class="tks-notif-reject" data-request-kind="' + (canHandleLeaveRequest ? 'leave' : 'role') + '" data-request-id="' + escapeHtml(n.relatedId) + '" data-notif-id="' + escapeHtml(n.id) + '">Từ chối</button>' +
+              '<button type="button" class="tks-notif-approve" data-request-kind="' + (canHandleLeaveRequest ? 'leave' : 'role') + '" data-expected-version="' + escapeHtml(n.leaveVersion || '') + '" data-requested-role="' + escapeHtml(n.requestedRole || '') + '" data-request-id="' + escapeHtml(n.relatedId) + '" data-notif-id="' + escapeHtml(n.id) + '">Duyệt</button>' +
+              '<button type="button" class="tks-notif-reject" data-request-kind="' + (canHandleLeaveRequest ? 'leave' : 'role') + '" data-expected-version="' + escapeHtml(n.leaveVersion || '') + '" data-requested-role="' + escapeHtml(n.requestedRole || '') + '" data-request-id="' + escapeHtml(n.relatedId) + '" data-notif-id="' + escapeHtml(n.id) + '">Từ chối</button>' +
             '</div>';
         }
         var clickable = !!NOTIF_NAV_TARGETS[n.relatedType];
@@ -460,7 +460,22 @@
     function loadList(){
       fetch('/api/notifications', { credentials: 'same-origin' })
         .then(function(res){ return res.json(); })
-        .then(function(data){ renderList(data.notifications || []); })
+        .then(function(data){
+          return Promise.all((data.notifications || []).map(function(notification){
+            var leave = notification.type === 'leave_request_created' && TKSNav.can('hr.leave.manage');
+            var role = notification.type === 'role_change_request' && TKSNav.can('account.users.manage');
+            if(!leave && !role) return notification;
+            var url = (leave ? '/api/hr/leave-requests/' : '/api/role-requests/') + encodeURIComponent(notification.relatedId);
+            return fetch(url, { credentials: 'same-origin' }).then(function(res){
+              if(!res.ok) throw new Error('Không tải được yêu cầu hiện tại.');
+              return res.json();
+            }).then(function(metadata){
+              var request = metadata.request || {};
+              return Object.assign({}, notification, leave ? { leaveCanManage: request.canManage === true, leaveVersion: request.decision_version } : { requestedRole: request.requestedRole });
+            }).catch(function(){ return Object.assign({}, notification, { leaveCanManage: false }); });
+          }));
+        })
+        .then(renderList)
         .catch(function(){ list.innerHTML = '<p class="tks-notif-empty">Không tải được thông báo.</p>'; });
     }
 
@@ -537,11 +552,38 @@
         var actionUrl = requestKind === 'leave'
           ? '/api/hr/leave-requests/' + encodeURIComponent(requestId) + '/status'
           : '/api/role-requests/' + encodeURIComponent(requestId) + '/status';
+        var actionBody = { status: status };
+        if(requestKind === 'leave') actionBody.expectedVersion = actionBtn.dataset.expectedVersion;
+        var item = actionBtn.closest('.tks-notif-item');
+        if(requestKind === 'role' && approveBtn && actionBtn.dataset.requestedRole === 'Quản lý'){
+          var departmentsBox = item.querySelector('.tks-notif-departments');
+          if(!departmentsBox){
+            fetch('/api/admin/permissions/catalog', { credentials: 'same-origin' }).then(function(res){
+              if(!res.ok) throw new Error('Không tải được phòng ban.');
+              return res.json();
+            }).then(function(catalog){
+              var box = document.createElement('div');
+              box.className = 'tks-notif-departments';
+              box.style.cssText = 'display:grid;gap:6px;padding:10px 0;';
+              box.innerHTML = '<strong>Chọn phòng ban duyệt nghỉ phép</strong>' + (catalog.departments || []).map(function(department){
+                return '<label><input type="checkbox" value="' + escapeHtml(department) + '"> ' + escapeHtml(department) + '</label>';
+              }).join('') + '<small class="tks-notif-scope-error" role="alert"></small>';
+              item.insertBefore(box, item.querySelector('.tks-notif-actions'));
+              actionBtn.textContent = 'Xác nhận duyệt'; actionBtn.disabled = false;
+            }).catch(function(error){ actionBtn.disabled = false; actionBtn.title = error.message; });
+            return;
+          }
+          actionBody.leaveApprovalDepartments = Array.from(departmentsBox.querySelectorAll('input:checked')).map(function(input){ return input.value; });
+          if(!actionBody.leaveApprovalDepartments.length){
+            departmentsBox.querySelector('.tks-notif-scope-error').textContent = 'Vui lòng chọn ít nhất một phòng ban.';
+            actionBtn.disabled = false; return;
+          }
+        }
         fetch(actionUrl, {
           method: 'PATCH',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: status })
+          body: JSON.stringify(actionBody)
         })
           .then(function(res){
             if(!res.ok) return res.json().then(function(data){ throw new Error(data.error || 'Không thể cập nhật yêu cầu.'); });
@@ -553,10 +595,16 @@
             });
           })
           .then(function(){ loadList(); refreshCount(); })
-          .catch(function(){ actionBtn.disabled = false; });
+          .catch(function(error){
+            actionBtn.disabled = false;
+            var errorBox = item.querySelector('.tks-notif-action-error');
+            if(!errorBox){ errorBox = document.createElement('p'); errorBox.className = 'tks-notif-action-error'; errorBox.setAttribute('role','alert'); item.appendChild(errorBox); }
+            errorBox.textContent = error.message || 'Không thể cập nhật yêu cầu. Tải lại danh sách để thử lại.';
+          });
         return;
       }
 
+      if(e.target.closest && e.target.closest('.tks-notif-departments')) return;
       var item = e.target.closest && e.target.closest('.tks-notif-item');
       if(!item) return;
       var notifId = item.dataset.notifId;
@@ -1220,7 +1268,7 @@
   }
 
   function navGroupHtml(group){
-    var items = group.items.filter(function(item){ return TKSNav.can(item.feature); });
+    var items = group.items.filter(function(item){ return TKSNav.can.apply(TKSNav, item.anyOf || [item.feature]); });
     if(!items.length) return '';
     var capitalized = group.key.charAt(0).toUpperCase() + group.key.slice(1);
     var expanded = group.active || TKSNav._isNavGroupOpen(group.key);
@@ -1307,7 +1355,7 @@
         icon: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>'
       },
       {
-        feature: 'hr.leave', href: '/humanresources/#leave', label: 'Nghỉ phép',
+        feature: 'hr.leave', anyOf: ['hr.leave', 'hr.leave.submit'], href: '/humanresources/#leave', label: 'Nghỉ phép',
         active: isHrLeaveTab, dataAttr: 'data-hr-subtab="leave"',
         icon: '<rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>'
       }

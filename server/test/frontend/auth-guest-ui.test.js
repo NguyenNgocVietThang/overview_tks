@@ -218,3 +218,13 @@ test('ba tab chinh cung khai bao viewport de header responsive giong nhau', () =
   }
 });
 
+
+
+test('self-only HR guest sees the leave navigation link', () => {
+  const dom = loadSharedNav('https://tokosi.example/account/');
+  try {
+    const sidebar = dom.window.document.getElementById('sidebar');
+    dom.window.TKSNav.renderTopSidebar(sidebar, 'account', { vaiTro: 'Khách', permissions: ['account.profile', 'hr.leave.submit'], pageFeatures: PAGE_FEATURES });
+    assert.ok(sidebar.querySelector('a[href="/humanresources/#leave"]'));
+  } finally { dom.window.close(); }
+});

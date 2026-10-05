@@ -174,7 +174,7 @@ test('Quan tri vien he thong (hardcoded admin) luon co du moi quyen', () => {
     vaiTro: ROLES.KHACH,
     featurePermissions: { 'account.permissions': false }
   });
-  assert.deepEqual(permissions, registry.FEATURE_KEYS);
+  assert.deepEqual(permissions, registry.FEATURE_KEYS.filter(key => key !== 'hr.leave.submit'));
 });
 
 test('hasFeature/permissionsHave dung ngu nghia HOAC', () => {
@@ -213,4 +213,18 @@ test('moi tinh nang co nhan tieng Viet va thuoc mot nhom da khai bao', () => {
     assert.ok(groupKeys.includes(feature.groupKey), `${feature.key} thuoc nhom la: ${feature.groupKey}`);
   }
   assert.equal(new Set(registry.FEATURE_KEYS).size, registry.FEATURE_KEYS.length, 'khong duoc trung key');
+});
+
+test('absence permission defaults to managers and self submission follows active linked HR identity', () => {
+  assert.ok(registry.defaultsForRole(ROLES.QUAN_LY).includes('hr.leave.absence.manage'));
+  const linked = { vaiTro: ROLES.KHACH, hrManaged: true, hrRowIndex: 123, trangThai: 'Đang hoạt động' };
+  assert.ok(registry.resolvePermissions(linked).includes('hr.leave.submit'));
+  assert.ok(!registry.resolvePermissions({ ...linked, trangThai: 'Khóa' }).includes('hr.leave.submit'));
+  assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.KHACH, featurePermissions: { 'hr.leave.submit': true } }).includes('hr.leave.submit'));
+});
+
+
+
+test('active account with inactive linked HR profile cannot get self submission capability', () => {
+  assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.KHACH, hrManaged: true, hrRowIndex: 123, trangThai: 'Đang hoạt động', hrEmployeeActive: false }).includes('hr.leave.submit'));
 });

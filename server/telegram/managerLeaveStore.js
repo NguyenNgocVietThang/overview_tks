@@ -168,10 +168,13 @@ function createManagerLeaveStore({ pool = getPool() } = {}) {
     return rows.length > 0;
   }
 
-  async function getDelivery(requestId, userId, chatId) {
+  async function getDelivery(requestId, userId, chatId, messageId) {
     const { rows } = await pool.query(`SELECT * FROM hr_leave_manager_messages
       WHERE request_id = $1 AND user_id = $2::uuid AND telegram_chat_id = $3`, [requestId, userId, String(chatId)]);
-    return normalizeRow(rows[0]);
+    const delivery=normalizeRow(rows[0]);
+    if(messageId==null || (delivery && String(delivery.message_id)===String(messageId)))return delivery;
+    const cards=await pool.query(`SELECT * FROM hr_manager_telegram_cards WHERE request_id=$1 AND user_id=$2::uuid AND telegram_chat_id=$3 AND message_id=$4::bigint`,[requestId,userId,String(chatId),String(messageId)]);
+    return normalizeRow(cards.rows[0]);
   }
 
   async function enqueueDelivery({ requestId, userId, chatId, version }) {
@@ -181,6 +184,30 @@ function createManagerLeaveStore({ pool = getPool() } = {}) {
         SET desired_version = GREATEST(hr_leave_manager_messages.desired_version, EXCLUDED.desired_version),
           updated_at = now() RETURNING *`, [requestId, userId, String(chatId), String(version)]);
     return normalizeRow(rows[0]);
+  }
+
+  async function recordDeliveryMessage({requestId,userId,chatId,version,messageId}) {
+    const {rows}=await pool.query(`INSERT INTO hr_manager_telegram_cards(request_id,user_id,telegram_chat_id,message_id,expected_version)
+      VALUES($1,$2::uuid,$3,$4::bigint,$5::bigint) ON CONFLICT(telegram_chat_id,message_id) DO NOTHING RETURNING message_id`,
+      [requestId,userId,String(chatId),String(messageId),String(version)]);
+    return rows.length>0;
+  }
+
+  async function listCards(requestId) {
+    const {rows}=await pool.query('SELECT * FROM hr_manager_telegram_cards WHERE request_id=$1',[requestId]);
+    return rows.map(normalizeRow);
+  }
+  async function finishCard(card,version,{remove=false}={}) {
+    if(remove) await pool.query('DELETE FROM hr_manager_telegram_cards WHERE telegram_chat_id=$1 AND message_id=$2::bigint',[card.telegram_chat_id,card.message_id]);
+    else await pool.query('UPDATE hr_manager_telegram_cards SET expected_version=GREATEST(expected_version,$3::bigint) WHERE telegram_chat_id=$1 AND message_id=$2::bigint',[card.telegram_chat_id,card.message_id,String(version)]);
+  }
+  async function requeueStaleCards() {
+    // Reconcile a card persisted after its decision event had already drained.
+    // Reuse the durable event lease, leaving notification delivery leases untouched.
+    await pool.query(`UPDATE hr_leave_change_events e SET completed_at=NULL,available_at=now(),last_error=NULL
+      FROM hr_leave_requests r WHERE r.request_id=e.request_id AND r.decision_version=e.decision_version
+        AND e.completed_at IS NOT NULL AND EXISTS(SELECT 1 FROM hr_manager_telegram_cards card
+          WHERE card.request_id=r.request_id AND card.expected_version<r.decision_version)`);
   }
 
   async function queueExistingDeliveries(requestId, version) {
@@ -217,7 +244,7 @@ function createManagerLeaveStore({ pool = getPool() } = {}) {
   }
 
   async function claimEvents(limit = 20) {
-    return claim('hr_leave_change_events', 'id', 'completed_at IS NULL', limit);
+    return claim('hr_leave_change_events', 'id', `q.completed_at IS NULL AND NOT EXISTS (SELECT 1 FROM hr_leave_change_events earlier WHERE earlier.request_id=q.request_id AND earlier.id<q.id AND earlier.completed_at IS NULL)`, limit);
   }
 
   async function completeEvent(job) {
@@ -233,7 +260,7 @@ function createManagerLeaveStore({ pool = getPool() } = {}) {
 
   return { activate, enqueueUpdate, claimUpdates, handleUpdate, completeEffect, completeUpdate, retryUpdate,
     getSession, saveSession, deleteSession, setSessionPrompt, getDelivery, enqueueDelivery,
-    queueExistingDeliveries, claimDeliveries, finishDelivery, retryDelivery, wakeDeliveries,
+    recordDeliveryMessage, listCards, finishCard, requeueStaleCards, queueExistingDeliveries, claimDeliveries, finishDelivery, retryDelivery, wakeDeliveries,
     claimEvents, completeEvent, retryEvent };
 }
 

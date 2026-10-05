@@ -29,9 +29,10 @@ test('renderer escapes employee text and offers only approval and rejection acti
   }
   const buttons = message.reply_markup.inline_keyboard.flat();
   assert.deepEqual(buttons.filter(button => button.callback_data).map(button => button.callback_data).sort(), [
-    'd|NP-20261002-001|17|a', 'd|NP-20261002-001|17|r'
+    'd|NP-20261002-001|17|a'
   ]);
-  assert.deepEqual(buttons.filter(button => button.callback_data).map(button => button.text), ['Phê duyệt', 'Từ chối']);
+  assert.deepEqual(buttons.filter(button => button.callback_data).map(button => button.text), ['Phê duyệt']);
+  assert.equal(buttons.find(button => button.web_app).web_app.url,'https://dashboard.example/telegram/leave-reject.html?requestId=NP-20261002-001&expectedVersion=17');
   assert.ok(buttons.some(button => button.url === 'https://dashboard.example/humanresources/#leave'));
 });
 
@@ -61,7 +62,7 @@ test('final decisions and read-only recipients retain the web link without decis
 test('renderer keeps bigint versions lossless and every callback within 64 bytes', () => {
   const message = buildManagerLeaveMessage(request({ decision_version: '9007199254740993' }), { webUrl: 'https://dashboard.example/hr' });
   const buttons = message.reply_markup.inline_keyboard.flat().filter(button => button.callback_data);
-  assert.equal(buttons.length, 2);
+  assert.equal(buttons.length, 1);
   for (const button of buttons) {
     assert.match(button.callback_data, /\|9007199254740993\|/);
     assert.ok(Buffer.byteLength(button.callback_data) <= 64);

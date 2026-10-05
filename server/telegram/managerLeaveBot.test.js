@@ -10,11 +10,11 @@ const { createManagerLeaveBot, isEligibleManager, managerMatchesBranch } = requi
 
 const USER = {
   id: 'f4c46cbf-d763-47cc-83d3-bbddbdfdffed', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động',
-  hoTen: 'Quản lý A', username: 'manager', telegramId: '123', coSo: 'Hà Nội', featurePermissions: {}
+  hoTen: 'Quản lý A', username: 'manager', telegramId: '123', coSo: 'Hà Nội', assignedCoSo:'Hà Nội', leaveApprovalDepartments:['Kho'], featurePermissions: {}
 };
 
 function fixture({ user = USER, patch = {}, error } = {}) {
-  const rows = new Map([['NP-20261002-001', { request_id: 'NP-20261002-001', loai_yeu_cau: 'Xin nghỉ phép', co_so: 'Hà Nội', trang_thai: 'Chưa duyệt', decision_version: '1', ghi_chu_duyet: '', ...patch }]]);
+  const rows = new Map([['NP-20261002-001', { request_id: 'NP-20261002-001', loai_yeu_cau: 'Xin nghỉ phép', co_so: 'Hà Nội', bo_phan:'Kho', trang_thai: 'Chưa duyệt', decision_version: '1', ghi_chu_duyet: '', ...patch }]]);
   const sessions = new Map();
   const deliveries = new Map([['NP-20261002-001', { request_id: 'NP-20261002-001', user_id: USER.id, telegram_chat_id: '123', message_id: 10 }]]);
   const changes = [];
@@ -54,7 +54,9 @@ function fixture({ user = USER, patch = {}, error } = {}) {
     row.decision_version = String(BigInt(row.decision_version) + 1n);
     return row;
   };
-  const makeBot = () => createManagerLeaveBot({ store, leaveRepo, decide, getManager: async () => user, webUrl: 'https://dashboard.example/hr' });
+  const authorization = require('../hr/hrLeaveAuthorization').createHrLeaveAuthorization({loadUsers:async()=>user ? [user] : []});
+  leaveRepo.getLeaveRequests=async()=>[...rows.values()];
+  const makeBot = () => createManagerLeaveBot({ authorization, store, leaveRepo, decide, getManager: async () => user, webUrl: 'https://dashboard.example/hr' });
   return { bot: makeBot(), makeBot, rows, sessions, deliveries, changes, wakes };
 }
 
@@ -76,7 +78,7 @@ async function beginRejection(f) {
 
 test('only existing active managers with permission and matching Telegram ID are eligible', () => {
   assert.equal(isEligibleManager(USER, 123), true);
-  for (const patch of [{ vaiTro: 'Nhân viên kho', permissions: ['hr.leave.manage'] }, { trangThai: 'Không hoạt động' },
+  for (const patch of [{ trangThai: 'Không hoạt động' },
     { isDeleted: true }, { telegramId: '999' }, { telegramId: '' }, { featurePermissions: { 'hr.leave.manage': false } }]) {
     assert.equal(isEligibleManager({ ...USER, ...patch }, 123), false);
   }
@@ -86,7 +88,7 @@ test('only existing active managers with permission and matching Telegram ID are
 test('manager scope is strict even though the web allows both branches', () => {
   for (const [scope, branch, want] of [['Hà Nội', 'Hà Nội', true], ['Hà Nội', 'Sài Gòn', false], ['Sài Gòn', 'Sài Gòn', true],
     ['Cả hai', 'Hà Nội', true], ['Cả hai', 'Sài Gòn', true], ['', 'Hà Nội', false], ['Cả hai', '', false]]) {
-    assert.equal(managerMatchesBranch({ ...USER, coSo: scope }, branch), want);
+    assert.equal(managerMatchesBranch({ ...USER, coSo: scope, assignedCoSo:scope }, branch), want);
   }
 });
 
@@ -105,7 +107,7 @@ test('start wakes pending deliveries and explains branch scope; help explains fi
 });
 
 test('unauthorized and group updates cannot start sessions or decisions', async () => {
-  for (const user of [null, { ...USER, coSo: '' }, { ...USER, trangThai: 'Khóa' }, { ...USER, vaiTro: 'Nhân viên kho', permissions: ['hr.leave.manage'] }]) {
+  for (const user of [null, { ...USER, coSo: '', assignedCoSo:'' }, { ...USER, trangThai: 'Khóa' }, { ...USER, leaveApprovalDepartments:[] }]) {
     const f = fixture({ user });
     await f.bot.handleUpdate(callback('d|NP-20261002-001|1|r'));
     assert.equal(f.sessions.size, 0);
@@ -130,7 +132,7 @@ test('forged sender, chat and message IDs and forwarded leave cards cannot decid
 });
 
 test('manager from the other branch cannot decide', async () => {
-  const f = fixture({ user: { ...USER, coSo: 'Sài Gòn' } });
+  const f = fixture({ user: { ...USER, coSo: 'Sài Gòn', assignedCoSo:'Sài Gòn' } });
   await f.bot.handleUpdate(callback());
   assert.equal(f.rows.get('NP-20261002-001').trang_thai, 'Chưa duyệt');
 });
@@ -295,7 +297,7 @@ test('rejection rechecks current branch and account authorization', async () => 
   const user = { ...USER };
   const f = fixture({ user });
   await beginRejection(f);
-  user.coSo = 'Sài Gòn';
+  user.coSo = 'Sài Gòn'; user.assignedCoSo='Sài Gòn';
   await f.bot.handleUpdate(message('Lý do', { reply_to_message: { message_id: 11 } }));
   assert.equal(f.changes.length, 0);
 });
@@ -314,7 +316,7 @@ test('a replacement prompt for another request does not ingest a reply to the pr
   const f = fixture();
   await beginRejection(f);
   const requestId = 'NP-20261002-002';
-  f.rows.set(requestId, { request_id: requestId, loai_yeu_cau: 'Xin nghỉ phép', co_so: 'Hà Nội', trang_thai: 'Chưa duyệt', decision_version: '1', ghi_chu_duyet: '' });
+  f.rows.set(requestId, { request_id: requestId, loai_yeu_cau: 'Xin nghỉ phép', co_so: 'Hà Nội', bo_phan:'Kho', trang_thai: 'Chưa duyệt', decision_version: '1', ghi_chu_duyet: '' });
   f.deliveries.set(requestId, { request_id: requestId, user_id: USER.id, telegram_chat_id: '123', message_id: 12 });
   await f.bot.handleUpdate(callback(`d|${requestId}|1|r`, { message: { message_id: 12, chat: { id: 123, type: 'private' } } }));
   f.sessions.get('123').prompt_message_id = 13;
@@ -373,4 +375,24 @@ test('removed status actions preserve existing decision versions and notes', asy
     assert.equal(f.rows.get('NP-20261002-001').ghi_chu_duyet, 'Ghi chú đang có');
     assert.ok(effects.some(effect => effect.method === 'answerCallbackQuery' && effect.params.show_alert));
   }
+});
+
+test('staff explicitly granted leave approval can decide only persisted department scope', async()=>{
+ const user={...USER,vaiTro:'Nhân viên kho',featurePermissions:{'hr.leave.manage':true}};
+ assert.equal(isEligibleManager(user,123),true);
+ const good=fixture({user});await good.bot.handleUpdate(callback());assert.equal(good.changes.length,1);
+ const bad=fixture({user,patch:{bo_phan:'Kế toán'}});await bad.bot.handleUpdate(callback());assert.equal(bad.changes.length,0);
+});
+test('/donnghi filters authorized pending/violation requests with ten per page and scoped department controls',async()=>{
+ const f=fixture();for(let i=0;i<22;i++)f.rows.set('list-'+i,{request_id:'list-'+i,loai_yeu_cau:'Xin nghỉ phép',co_so:'Hà Nội',bo_phan:i===21?'Kế toán':'Kho',trang_thai:i===20?'Đã duyệt':'Vi phạm',decision_version:'1',ho_ten:'Nhân viên '+i});
+ const effects=await f.bot.handleUpdate(message('/donnghi'));const list=effects.find(e=>e.method==='sendMessage');
+ assert.match(list.params.text,/Trang 1\/3/);assert.equal(list.params.reply_markup.inline_keyboard.flat().filter(b=>b.callback_data?.startsWith('o|')).length,10);
+ assert.doesNotMatch(list.params.text,/Kế toán/);
+ const page=await f.bot.handleUpdate(callback('l|1|0'));assert.ok(page.some(e=>e.method==='editMessageText' && /Trang 2\/3/.test(e.params.text)));
+ assert.equal(f.changes.length,0);
+});
+
+test('department controls reject a disappeared department without switching to another scope',async()=>{
+ const f=fixture();const first=await f.bot.handleUpdate(message('/donnghi'));const token=first[0].params.reply_markup.inline_keyboard.flat().find(b=>b.text==='Kho').callback_data;
+ f.rows.clear();const effects=await f.bot.handleUpdate(callback(token));assert.ok(effects.some(e=>e.params.text.includes('Bộ lọc đã thay đổi')));assert.equal(f.changes.length,0);
 });

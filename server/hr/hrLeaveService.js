@@ -148,12 +148,12 @@ function formatLeaveBoundary(date, session) {
   return formattedDate ? `${session} ${formattedDate}` : null;
 }
 
-const BANGKOK_TIME_ZONE = 'Asia/Bangkok';
+const VIETNAM_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 
-/** Quy doi 1 thoi diem (instant) sang ngay-lich + gio theo gio Bangkok. */
-function getBangkokDateHour(instant) {
+/** Quy doi 1 thoi diem (instant) sang ngay-lich + gio theo gio Viet Nam. */
+function getVietnamDateHour(instant) {
   const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: BANGKOK_TIME_ZONE,
+    timeZone: VIETNAM_TIME_ZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -170,20 +170,34 @@ function getBangkokDateHour(instant) {
 /**
  * "Nghi gap" (tu dong gan co, KHONG tu tu choi — dung tinh than
  * CHINH-SACH-NGHI-PHEP.md dieu 6.6.3): tin nhan gui tu HR_URGENT_LATE_NIGHT_HOUR
- * tro di (gio Bangkok) VA ca nghi bat dau ngay hom sau lien ke (theo lich Bangkok).
+ * tro di (gio Viet Nam) VA ca nghi bat dau ngay hom sau lien ke (theo lich Viet Nam).
  */
 function computeIsUrgent(startTime, messageTime) {
   const startMs = new Date(startTime).getTime();
   const msgMs = new Date(messageTime).getTime();
   if (!isFinite(startMs) || !isFinite(msgMs)) return false;
 
-  const msg = getBangkokDateHour(new Date(msgMs));
+  const msg = getVietnamDateHour(new Date(msgMs));
   if (msg.hour < CONFIG.HR_URGENT_LATE_NIGHT_HOUR) return false;
 
-  const start = getBangkokDateHour(new Date(startMs));
+  const start = getVietnamDateHour(new Date(startMs));
   const nextDay = new Date(msg.dateOnly);
   nextDay.setDate(nextDay.getDate() + 1);
   return start.dateOnly.getTime() === nextDay.getTime();
+}
+
+/** The ISO day is a Vietnam calendar day, independent of the host's timezone. */
+function computeVietnamLeaveTiming(startDate, startSession, submittedAt) {
+  if (!parseIsoDateOnly(startDate) || !['Sáng', 'Chiều'].includes(startSession)) return null;
+  const time = startSession === 'Sáng' ? '07:45:00' : '12:30:00';
+  const sessionStart = new Date(`${startDate}T${time}+07:00`);
+  const submitted = new Date(submittedAt);
+  if (!Number.isFinite(submitted.getTime())) return null;
+  return {
+    sessionStart,
+    urgent: computeIsUrgent(sessionStart, submitted),
+    submissionViolation: submitted.getTime() > sessionStart.getTime()
+  };
 }
 
 /**
@@ -284,6 +298,8 @@ async function notifyOtherManagers(actingUserId, branch, payload) {
 }
 
 module.exports = {
+  VIETNAM_TIME_ZONE,
+  computeVietnamLeaveTiming,
   computeDurationSessions,
   getSessionStartTime,
   computeSubmissionViolation,

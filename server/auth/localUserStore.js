@@ -376,6 +376,10 @@ async function createUser(userData) {
     hoTen: String(userData.hoTen || username).trim(),
     email,
     soDienThoai: userData.soDienThoai ? String(userData.soDienThoai).trim() : '',
+    boPhan: String(userData.boPhan || '').trim(),
+    hrManaged: !!userData.hrManaged,
+    hrRowIndex: userData.hrRowIndex || '',
+    leaveApprovalDepartments: require('../hr/hrApprovalDepartments').normalizeDepartments(userData.leaveApprovalDepartments || []),
     telegramId: String(userData.telegramId || '').trim(),
     emailKhoiPhuc,
     sdtKhoiPhuc: userData.sdtKhoiPhuc ? String(userData.sdtKhoiPhuc).trim() : '',
@@ -394,6 +398,7 @@ async function createUser(userData) {
       : {}
   };
 
+  newUser.assignedCoSo = newUser.coSo;
   const inserted = await repository.insertUser(newUser);
   cache.clear();
   return inserted;
@@ -442,7 +447,7 @@ async function updateUser(id, updates) {
 
   const safeCoSo = isTargetAdmin
     ? BRANCH_BOTH
-    : (updates.coSo !== undefined ? normalizeCoSo(updates.coSo) : normalizeCoSo(current.coSo));
+    : (updates.coSo !== undefined ? normalizeCoSo(updates.coSo) : normalizeCoSo(Object.hasOwn(current, 'assignedCoSo') ? current.assignedCoSo : current.coSo));
   const safeVaiTro = (isTargetThang || isTargetAdmin)
     ? ROLES.QUAN_LY
     : (updates.vaiTro !== undefined ? String(updates.vaiTro).trim() : current.vaiTro);
@@ -455,6 +460,8 @@ async function updateUser(id, updates) {
     ...updates,
     id: current.id,
     coSo: safeCoSo,
+    assignedCoSo: safeCoSo,
+    leaveApprovalDepartments: require('../hr/hrApprovalDepartments').normalizeDepartments(Object.hasOwn(updates, 'leaveApprovalDepartments') ? updates.leaveApprovalDepartments : current.leaveApprovalDepartments || []),
     vaiTro: safeVaiTro,
     trangThai: safeTrangThai,
     username: updates.username !== undefined ? String(updates.username).trim() : current.username,

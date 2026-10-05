@@ -343,7 +343,7 @@ test('resolve 2 lan lien tiep voi du lieu khong doi -> lan 2 KHONG goi store.upd
 });
 
 test('TK da dong bo: chi khi co truong khac doi moi ghi va cap nhat hrMatchedAt', async () => {
-  const synced = boundSaleAccount({ hoTen: 'Sale A', hrMatchedAt: '2026-01-01T00:00:00.000Z' });
+  const synced = boundSaleAccount({ hoTen: 'Sale A', boPhan: saleEmployee.boPhan, hrMatchedAt: '2026-01-01T00:00:00.000Z' });
   let employees = [saleEmployee];
   const store = memoryStore([synced]);
   const resolver = createEffectiveUserResolver({ store, directory: { getSnapshot: async () => ({ employees }) } });
@@ -380,4 +380,16 @@ test('dong bo HR KHONG xoa ghi de quyen rieng cua tai khoan (feature_permissions
   // ve lan trong ban ghi da luu.
   assert.deepEqual(resolved.featurePermissions, overrides);
   assert.deepEqual(store.state[0].featurePermissions, overrides);
+});
+
+
+test('HR resolver refreshes department without widening persisted leave scope or assigned branch', async () => {
+  const store = memoryStore([{ id: 'u1', username: 'a@example.com', email: 'a@example.com', hrManaged: true, hrRowIndex: 2, vaiTro: 'Kế toán', coSo: '', assignedCoSo: '', trangThai: 'Đang hoạt động', leaveApprovalDepartments: ['KHO'] }]);
+  const resolver = createEffectiveUserResolver({ store, directory: { getSnapshot: async () => ({ employees: [employee] }) } });
+  const resolved = await resolver.resolveUser(store.state[0]);
+  assert.equal(resolved.boPhan, 'KẾ TOÁN');
+  assert.equal(resolved.coSo, 'Cả hai');
+  assert.equal(resolved.assignedCoSo, '');
+  assert.deepEqual(resolved.leaveApprovalDepartments, ['KHO']);
+  assert.equal(store.state[0].coSo, '');
 });

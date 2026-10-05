@@ -36,7 +36,7 @@ test('bảng nghỉ phép có 9 cột: Người gửi, Phòng ban, Cơ sở tác
     const text = String(url);
     const payload = text.includes('/summary/') ? { summary: [] }
         : { requests: [{
-          request_id: 'NP-20260822-001',
+          canManage: true, decision_version: '0', request_id: 'NP-20260822-001',
           ho_ten: 'Nguyễn Văn A',
           chuc_vu: 'Trưởng kho',
           bo_phan: 'Kho vận',
@@ -112,7 +112,7 @@ test('tài khoản không có quyền duyệt nghỉ phép chỉ thấy badge nh
     const text = String(url);
     const payload = text.includes('/summary/') ? { summary: [] }
         : { requests: [{
-          request_id: 'NP-20260822-002',
+          canManage: false, decision_version: '0', request_id: 'NP-20260822-002',
           ho_ten: 'Lê C',
           chuc_vu: 'Kho',
           ly_do: 'Ốm',
@@ -181,7 +181,7 @@ test('Quản lý thay đổi trạng thái gọi API PATCH và cập nhật Ngư
         headers: { get: () => 'application/json' },
         json: async () => ({
           request: {
-            request_id: 'NP-20260822-003',
+            canManage: true, decision_version: '0', request_id: 'NP-20260822-003',
             trang_thai: patchBody.status,
             nguoi_duyet: 'Nguyễn Quản Lý'
           }
@@ -191,7 +191,7 @@ test('Quản lý thay đổi trạng thái gọi API PATCH và cập nhật Ngư
     }
     const payload = text.includes('/summary/') ? { summary: [] }
         : { requests: [{
-          request_id: 'NP-20260822-003',
+          canManage: true, decision_version: '0', request_id: 'NP-20260822-003',
           ho_ten: 'Phạm D',
           chuc_vu: 'Kế toán',
           ly_do: 'Đi khám',
@@ -258,12 +258,12 @@ async function loadManagerPage() {
     if (options && options.method === 'PATCH') {
       const body = JSON.parse(options.body);
       patches.push(body);
-      payload = { request: { request_id: 'NP-R1', trang_thai: body.status, nguoi_duyet: 'Nguyễn Quản Lý' } };
+      payload = { request: { canManage: true, decision_version: '0', request_id: 'NP-R1', trang_thai: body.status, nguoi_duyet: 'Nguyễn Quản Lý' } };
     } else if (text.includes('/summary/')) {
       payload = { summary: [] };
     } else {
       payload = { requests: [{
-        request_id: 'NP-R1',
+        canManage: true, decision_version: '0', request_id: 'NP-R1',
         ho_ten: 'Phạm D',
         chuc_vu: 'Kế toán',
         bo_phan: 'Văn phòng',
@@ -319,7 +319,7 @@ test('chọn Từ chối mở panel nhập lý do, chưa gọi API; OK gửi kè
   await window.confirmRejectReason(true);
 
   assert.equal(window.document.getElementById('rejectReasonModal').hidden, true);
-  assert.deepEqual(patches, [{ status: 'Từ chối', note: 'Thiếu người trực ca' }]);
+  assert.deepEqual(patches, [{ status: 'Từ chối', expectedVersion: '0', note: 'Thiếu người trực ca' }]);
   dom.window.close();
 });
 
@@ -331,7 +331,7 @@ test('Bỏ qua = từ chối không cần lý do (note rỗng)', async () => {
   window.document.getElementById('rejectReasonInput').value = 'sẽ bị bỏ qua';
   await window.confirmRejectReason(false);
 
-  assert.deepEqual(patches, [{ status: 'Từ chối', note: '' }]);
+  assert.deepEqual(patches, [{ status: 'Từ chối', expectedVersion: '0', note: '' }]);
   dom.window.close();
 });
 

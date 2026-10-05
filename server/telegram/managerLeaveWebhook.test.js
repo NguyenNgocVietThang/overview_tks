@@ -25,3 +25,10 @@ test('webhook rejects bad secret, persists valid update, and deduplicates withou
   assert.equal(saved.length, 1);
   assert.equal(wakes, 1);
 });
+test('callback acknowledgement starts only after durable insert and does not wait for worker completion',async t=>{
+ let persisted=false, acknowledged=false, wakeCalled=false;
+ const app=express();app.use(express.json());app.use(createManagerLeaveWebhook({enabled:true,secret:'secret',store:{enqueueUpdate:async()=>{persisted=true;return true;}},acknowledge:async update=>{assert.equal(persisted,true);assert.equal(update.callback_query.id,'cb');acknowledged=true;},wake:()=>{wakeCalled=true;}}));
+ const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));t.after(()=>server.close());
+ const response=await fetch(`http://127.0.0.1:${server.address().port}/api/telegram/manager-leave/webhook`,{method:'POST',headers:{'content-type':'application/json','X-Telegram-Bot-Api-Secret-Token':'secret'},body:JSON.stringify({update_id:3,callback_query:{id:'cb'}})});
+ assert.equal(response.status,200);assert.equal(acknowledged,true);assert.equal(wakeCalled,true);
+});

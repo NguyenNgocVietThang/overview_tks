@@ -10,24 +10,35 @@
 'use strict';
 
 const express = require('express');
-const router = express.Router();
+
 
 const { requireAuth, requireFeature } = require('../auth/authMiddleware');
-const repo = require('./hrLeaveRepository');
+const defaultRepo = require('./hrLeaveRepository');
+const { hasFeature } = require('../auth/featureRegistry');
+const { createHrLeaveSelfService } = require('./hrLeaveSelfService');
+const { createHrLeaveAuthorization, routingWarning } = require('./hrLeaveAuthorization');
+const notificationRepo = require('../notifications/notificationRepository');
 const employeeDirectory = require('./employeeDirectory');
 const hrLeaveService = require('./hrLeaveService');
 const {
   resolveApproverName,
   computeDurationSessions,
   parseIsoDateOnly,
-  notifyAllUsers
+  notifyAllUsers: defaultNotifyAllUsers
 } = hrLeaveService;
 const { buildLeaveRequestsWorkbook } = require('./hrLeaveExportService');
 const { buildEmployeeDirectoryWorkbook } = require('./hrEmployeeExportService');
 const { BRANCHES, BRANCH_BOTH, allowedBranches, normalizeCoSo } = require('../branch/branches');
 const { leaveEvents, LEAVE_EVENT_TYPES, broadcastLeaveEvent } = require('./hrLeaveEvents');
 const { createHrLeaveDecisionService } = require('./hrLeaveDecisionService');
-const decisions = createHrLeaveDecisionService();
+function createHrLeaveRoutes(options = {}) {
+const router = express.Router();
+const repo = options.repo || defaultRepo;
+const notifyAllUsers = options.notifyAllUsers || defaultNotifyAllUsers;
+const authorization = options.authorization || createHrLeaveAuthorization();
+const notifyApprovers = options.notifyApprovers || notificationRepo.createNotificationForUsers;
+const selfService = options.selfService || createHrLeaveSelfService({ repo });
+const decisions = options.decisions || createHrLeaveDecisionService({ repo, authorization });
 
 // Phan quyen theo TINH NANG (server/auth/featureRegistry.js).
 //   hr.leave        — xem ho so nghi phep (mac dinh: moi vai tro noi bo)
@@ -36,6 +47,8 @@ const decisions = createHrLeaveDecisionService();
 const authInternal = [requireAuth, requireFeature('hr.leave')];
 const authEmployees = [requireAuth, requireFeature('hr.employees')];
 const authManager = [requireAuth, requireFeature('hr.leave.manage')];
+const authAbsence = [requireAuth, requireFeature('hr.leave.absence.manage')];
+const authLeaveList = [requireAuth, requireFeature('hr.leave', 'hr.leave.submit')];
 
 // Bo loc "Co so" cua trang: bo trong / 'all' / "Cả hai" = TAT CA co so tai
 // khoan duoc xem (khong phu thuoc co so dang chon o thanh dieu huong); 1 co so
@@ -130,17 +143,46 @@ router.get('/api/hr/leave-requests/stream', ...authInternal, (req, res) => {
 // GET /api/hr/leave-requests — danh sach, loc theo status/employee/department/branch/from-to
 // ---------------------------------------------------------------------------
 
-router.get('/api/hr/leave-requests', ...authInternal, async (req, res) => {
+router.get('/api/hr/leave-requests', ...authLeaveList, async (req, res) => {
   try {
     const { status, employee, department, branch, from, to } = req.query;
-    const requests = await repo.getLeaveRequests(
-      { status, employee, department, from, to },
-      resolveBranchScope(req, branch)
+    const viewAll = hasFeature(req.user, 'hr.leave');
+    let scope = viewAll ? resolveBranchScope(req, branch) : [];
+    if (!viewAll) {
+      const context = await selfService.context(req.user);
+      if (!context.eligible) throw new defaultRepo.HrError('Tài khoản không đủ điều kiện tự xin nghỉ.', 403, 'SELF_LEAVE_INELIGIBLE');
+      scope = [context.profile.coSo];
+    }
+    const rows = await repo.getLeaveRequests(
+      { status, employee, department, from, to, ...(viewAll ? {} : { userId: req.user.id }) }, scope
     );
+    const visible = viewAll ? rows : rows.filter(row => String(row.user_id) === String(req.user.id));
+    const requests = visible.length ? await authorization.describeRequests(req.user, visible) : [];
     res.status(200).json({ requests });
   } catch (err) {
     handleError(res, err, 'GET /api/hr/leave-requests');
   }
+});
+
+// Own submissions have their own eligibility guard; this never grants broad HR visibility.
+router.get('/api/hr/leave-requests/self/context', requireAuth, async (req, res) => {
+  try { res.status(200).json(await selfService.context(req.user)); }
+  catch (err) { handleError(res, err, 'GET /api/hr/leave-requests/self/context'); }
+});
+router.post('/api/hr/leave-requests/self', requireAuth, async (req, res) => {
+  try {
+    const record = await selfService.submit(req.user, req.body || {});
+    let routing = { users: [], missing: true, fallback: false };
+    try { routing = await authorization.routingFor(record); }
+    catch (err) { console.error('[HR self] Không thể xác định người duyệt:', err.code || 'ROUTING_FAILED'); }
+    const warning = routingWarning(routing);
+    res.status(201).json({ request: { ...record, routingWarning: warning }, routingWarning: warning });
+    broadcastLeaveEvent(LEAVE_EVENT_TYPES.CREATED, record, record.co_so);
+    if(routing.users.length) void notifyApprovers(routing.users.map(user => user.id), {
+      type: 'leave_request_created', title: 'Có yêu cầu nghỉ phép mới',
+      message: `${record.ho_ten} vừa gửi yêu cầu nghỉ phép.`, relatedType: 'leaveRequest', relatedId: record.request_id
+    }).catch(err => console.error('[HR self] Không thể gửi thông báo:', err.code || 'NOTIFICATION_FAILED'));
+  } catch (err) { handleError(res, err, 'POST /api/hr/leave-requests/self'); }
 });
 
 // ---------------------------------------------------------------------------
@@ -187,7 +229,8 @@ router.get('/api/hr/leave-requests/:id', ...authInternal, async (req, res) => {
     if (!request) {
       return res.status(404).json({ error: `Không tìm thấy yêu cầu "${req.params.id}".`, code: 'LEAVE_REQUEST_NOT_FOUND' });
     }
-    res.status(200).json({ request });
+    const [described] = await authorization.describeRequests(req.user, [request]);
+    res.status(200).json({ request: described });
   } catch (err) {
     handleError(res, err, 'GET /api/hr/leave-requests/:id');
   }
@@ -197,7 +240,7 @@ router.get('/api/hr/leave-requests/:id', ...authInternal, async (req, res) => {
 // POST /api/hr/leave-requests — Quan ly nhap tay (bao gom "tu y nghi")
 // ---------------------------------------------------------------------------
 
-router.post('/api/hr/leave-requests', ...authManager, async (req, res) => {
+router.post('/api/hr/leave-requests', ...authAbsence, async (req, res) => {
   try {
     const {
       web_username, ho_ten, chuc_vu, ly_do, loai_yeu_cau,
@@ -251,13 +294,26 @@ router.post('/api/hr/leave-requests', ...authManager, async (req, res) => {
     // Phat tin hieu realtime toi tat ca cac client dang mo
     broadcastLeaveEvent(LEAVE_EVENT_TYPES.CREATED, record, record.co_so || recordBranch);
 
-    notifyAllUsers(req.user.id, record.co_so || recordBranch, {
+    const notification = {
       type: isManualAbsence ? 'leave_absence_recorded' : 'leave_request_created',
       title: 'Có nhân sự nghỉ phép mới',
       message: `${record.ho_ten} vừa ${isManualAbsence ? 'được ghi nhận tự ý nghỉ' : 'gửi yêu cầu nghỉ phép'} từ ${record.thoi_gian_bat_dau} đến ${record.thoi_gian_ket_thuc}.`,
       relatedType: 'leaveRequest',
-      relatedId: record.id
-    });
+      relatedId: record.request_id || record.id
+    };
+    if (isManualAbsence) {
+      void notifyAllUsers(req.user.id, record.co_so || recordBranch, notification);
+    } else {
+      // The legacy endpoint may still create pending requests; apply the same routing
+      // as self submissions without broadening visibility to unrelated accounts.
+      try {
+        const routing = await authorization.routingFor(record);
+        if (routing.users.length) void notifyApprovers(routing.users.map(user => user.id), notification)
+          .catch(err => console.error('[HR legacy create] Không thể gửi thông báo:', err.code || 'NOTIFICATION_FAILED'));
+      } catch (err) {
+        console.error('[HR legacy create] Không thể xác định người duyệt:', err.code || 'ROUTING_FAILED');
+      }
+    }
   } catch (err) {
     handleError(res, err, 'POST /api/hr/leave-requests');
   }
@@ -269,8 +325,8 @@ router.post('/api/hr/leave-requests', ...authManager, async (req, res) => {
 
 router.patch('/api/hr/leave-requests/:id/status', ...authManager, async (req, res) => {
   try {
-    const { status, note } = req.body || {};
-    const updated = await decisions.decide({ requestId: req.params.id, user: req.user, status, note }, { notify: false });
+    const { status, note, expectedVersion } = req.body || {};
+    const updated = await decisions.decide({ requestId: req.params.id, user: req.user, status, note, expectedVersion, channel: 'web' }, { notify: false });
     res.status(200).json({ request: updated });
     void decisions.notifyDecision(updated, req.user && req.user.id, typeof note === 'string' ? note.trim() : undefined);
   } catch (err) {
@@ -345,4 +401,7 @@ router.get('/api/hr/employees/export', ...authEmployees, async (req, res) => {
   }
 });
 
-module.exports = router;
+return router;
+}
+module.exports = createHrLeaveRoutes();
+module.exports.createHrLeaveRoutes = createHrLeaveRoutes;
