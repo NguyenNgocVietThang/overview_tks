@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0029`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0030`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -55,7 +55,7 @@ Ngoài 18 bảng nghiệp vụ trên còn có bảng raw webhook, bảng tiến 
 | `hr_employees` | Danh sách nhân sự (thay tab "Danh sách nhân sự" Sheets) | `id` (BIGSERIAL) | `branch`, `ho_ten`, `bo_phan`, `email`, `so_dien_thoai`, `is_active` |
 | `app_users` | Tài khoản đăng nhập ứng dụng (thay tab "Users" Sheets) | `id` (UUID, sinh ở app bằng `crypto.randomUUID()`, không dùng `pgcrypto`) | `username`, `password_hash`, `vai_tro`, `co_so`, `trang_thai`, `hr_employee_id`, `telegram_id` |
 
-Hai bảng này **khác** quy ước `branch` 2 giá trị nội bộ ở cột `co_so` của `app_users`: `co_so` có 3 trạng thái + rỗng (`hanoi`/`saigon`/`both`/`''`) và chỉ là **cơ sở mặc định** lúc đăng nhập (mọi tài khoản xem được cả hai cơ sở; rỗng = mặc định `Cả hai`) — không nhầm với `branch` (chỉ `hanoi`/`saigon`) dùng ở `hr_employees` và mọi bảng KiotViet khác. `app_users.hr_employee_id` là FK tới `hr_employees(id)` (`ON DELETE SET NULL`) — thay cho cặp con trỏ sheet cũ `(hrSourceBranch, hrRowIndex)`; xoá nhân sự dùng `is_active = false` (soft-delete), không `DELETE` vật lý, để logic khoá tài khoản `hr_removed` (`server/auth/effectiveUserResolver.js`) còn hoạt động được.
+Hai bảng này **khác** quy ước `branch` 2 giá trị nội bộ ở cột `co_so` của `app_users`: `co_so` có 3 trạng thái + rỗng (`hanoi`/`saigon`/`both`/`''`) và chỉ là **cơ sở mặc định** lúc đăng nhập (mọi tài khoản xem được cả hai cơ sở; rỗng = mặc định `Cả hai`) — không nhầm với `branch` (chỉ `hanoi`/`saigon`) dùng ở `hr_employees` và mọi bảng KiotViet khác. `app_users.hr_employee_id` là FK tới `hr_employees(id)` (`ON DELETE SET NULL`) — thay cho cặp con trỏ sheet cũ `(hrSourceBranch, hrRowIndex)`; xoá nhân sự dùng `is_active = false` (soft-delete), không `DELETE` vật lý. Cơ chế tự khóa tài khoản khi nhân sự bị gỡ (`lock_reason = 'hr_removed'`) đã bỏ; `effectiveUserResolver.js` chỉ còn mở khóa các tài khoản từng bị khóa theo cơ chế đó khi họ đăng nhập lại.
 
 Migration `0015` thêm `app_users.telegram_id` dạng `TEXT` để không phụ thuộc giới hạn số nguyên JavaScript và hỗ trợ Telegram ID dài. ID khác rỗng là duy nhất giữa các tài khoản chưa xoá. Từ migration `0016`, cột này là **bản đọc** được trigger đồng bộ từ `hr_telegram_links` (xem mục "Nghỉ phép và bot Telegram"); nguồn sự thật của liên kết Telegram là bảng đó. Tab `_HR_TELEGRAM_LINKS` trên Google Sheets không còn được ứng dụng sử dụng.
 
@@ -91,7 +91,7 @@ Sau khi nhắn Telegram thành công, bot `UPDATE ... SET decision_notified_at =
 
 **`hr_telegram_sessions`** — `step` (tên bước của bot, không CHECK vì thuộc về bot), `data JSONB` (ngày lưu dạng chuỗi ISO), `expires_at` mặc định +60 phút; bot gia hạn `expires_at` mỗi lần ghi, coi dòng quá hạn là không tồn tại và dọn định kỳ bằng `DELETE FROM hr_telegram_sessions WHERE expires_at < now()`. Ghi phiên bằng `INSERT ... ON CONFLICT (telegram_chat_id) DO UPDATE`.
 
-Trang hồ sơ cá nhân và hộp hồ sơ dùng chung đọc `telegramId` từ `GET /api/auth/profile`. Khi người dùng lưu ID qua `POST /api/auth/profile`, server chỉ cập nhật tài khoản đang đăng nhập. ID là chuỗi số nguyên dương tối đa 20 chữ số; chuỗi rỗng hủy liên kết, không gửi trường này thì giữ ID hiện tại. `appUsersRepository.updateProfileRow` lưu hồ sơ, thu hồi liên kết cũ/các mã chờ, tạo liên kết `manual` mới và đồng bộ `hr_employees.telegram_id` của nhân sự đã gắn tài khoản trong một transaction. ID trùng tài khoản, liên kết bot hoặc nhân sự đang hoạt động khác trả HTTP 409 và rollback toàn bộ. Không cần migration mới.
+Trang hồ sơ cá nhân và hộp hồ sơ dùng chung đọc `telegramId` (và cờ `telegramEditable`) từ `GET /api/auth/profile`. Từ 2026-10-03 chỉ **Quản lý** (hoặc admin cứng) được thêm/sửa ID ở hồ sơ của chính mình: khi người dùng lưu ID qua `POST /api/auth/profile`, server chỉ cập nhật tài khoản đang đăng nhập, còn vai trò khác gửi ID khác giá trị hiện tại bị từ chối 403 `TELEGRAM_ID_LOCKED` (nhân viên nhờ Quản lý nhập hộ). ID là chuỗi số nguyên dương tối đa 20 chữ số; chuỗi rỗng hủy liên kết, không gửi trường này thì giữ ID hiện tại. `appUsersRepository.updateProfileRow` lưu hồ sơ, thu hồi liên kết cũ/các mã chờ, tạo liên kết `manual` mới và đồng bộ `hr_employees.telegram_id` của nhân sự đã gắn tài khoản trong một transaction. ID trùng tài khoản, liên kết bot hoặc nhân sự đang hoạt động khác trả HTTP 409 và rollback toàn bộ. Không cần migration mới.
 
 Quản lý cũng có thể xem ID trong `GET /api/admin/users` và đổi/xóa ID qua `PUT /api/admin/users/:id` hoặc hộp sửa thông tin nhân viên. Luồng này dùng cùng transaction đồng bộ ID, liên kết bot và danh bạ nhân sự; các thông tin tài khoản được gửi kèm cũng lưu trong transaction đó. Quyền `account.users.manage` và chính sách bảo vệ tài khoản vẫn áp dụng: đổi ID của quản lý khác chỉ dành cho quản lý cấp cao, thao tác chiếm định danh không vượt quyền người sửa. Không gửi `telegramId` thì giữ liên kết hiện tại.
 
@@ -183,7 +183,7 @@ Role Postgres cấp cho nhân viên dùng SQL client/BI tool để truy vấn tr
 
 ### Xuất Excel đọc trực tiếp bảng nào
 
-`POST /api/export` không đọc Google Sheets. Sau khi lấy danh sách mã dòng từ `getDashboardData()`, `dashboardPgReader.readRowsByCodes(tab, cơ sở, mã)` chạy một truy vấn lọc theo mã (`code = ANY($2::text[])`, mã là tham số) trên các bảng dưới đây; chỉ 7 tab sau được phép xuất, tab khác bị từ chối `EXPORT_SOURCE_NOT_ALLOWED`. Nhãn/kiểu/mô tả cột nằm ở `server/dashboard/exportFieldCatalog.js`.
+`POST /api/export` không đọc Google Sheets. Sau khi lấy danh sách mã dòng từ `getDashboardData()`, `dashboardPgReader.readRowsByCodes(tab, cơ sở, mã)` chạy một truy vấn lọc theo mã (`code = ANY($2::text[])`, mã là tham số) trên các bảng dưới đây; chỉ 5 nguồn sau được phép xuất (`EXPORT_SHEET_NAMES`), nguồn khác bị từ chối `EXPORT_SOURCE_NOT_ALLOWED`. Giao diện hiện dùng Hàng hóa, Hóa đơn và Khách hàng; Đặt hàng/Trả hàng vẫn đọc được ở tầng reader nhưng bảng xuất tương ứng đã bỏ cùng hai bảng của tab Hóa đơn (2026-10-01). Các bảng xuất tính sẵn (công nợ, báo cáo hàng hóa, tồn kho theo sản phẩm, đứt hàng…) không đi qua `readRowsByCodes` — xem `server/dashboard/exportService.js` (`TABLE_TITLES`). Nhãn/kiểu/mô tả cột nằm ở `server/dashboard/exportFieldCatalog.js`.
 
 | Tab xuất | Bảng đọc chính | Bảng ghép thêm |
 |---|---|---|
@@ -282,6 +282,11 @@ Bảng `hr_rule_documents` lưu trữ tài liệu quy định công ty (cả tà
 - Gồm `title`, `sort_order`, `file_name`, `size_bytes`, `sha256`, `uploaded_by_user_id`, `uploaded_by_name`.
 - Seed 2 tài liệu mặc định: `gio-giac` (Giờ giấc làm việc, sort 10) và `nghi-phep` (Quy định nghỉ phép, sort 20).
 - Thu hồi quyền `SELECT` của `reporting_readonly` do chứa tài liệu nội bộ.
+
 ### Chỉ mục đơn Phiếu tạm cho Vòng đời đơn hàng (migration `0028`)
 
 `idx_orders_phieu_tam` là chỉ mục **một phần** `ON orders (branch, id) WHERE raw->>'statusValue' = 'Phiếu tạm'`. Trang Vòng đời đơn hàng (`shipment/kiotOrdersRepository.js`) đọc dòng hàng của mọi đơn Phiếu tạm của Kiot HN + SG (~1.000 đơn, ~2.500 dòng hàng ở thời điểm 2026-10-01); bảng `orders` có ~46K dòng JSON lớn nên không có chỉ mục thì mỗi lần đọc nguội mất vài giây (đo ~4 giây, vì quét tuần tự). (Từ 2026-10-02 trang còn đọc **đầu đơn của mọi trạng thái** ~60K dòng bằng một truy vấn quét toàn bảng ~2 giây — truy vấn đó không dùng được chỉ mục này nên được cache 2 phút thay vì lọc ở DB.) Điều kiện `WHERE` của truy vấn phải giữ **y hệt** biểu thức trên (so chuỗi `statusValue`, không so số `status`) thì planner mới chọn được chỉ mục. Code chạy đúng cả khi chưa áp migration, chỉ chậm hơn; kết quả đọc được cache 60 giây trong tiến trình.
+
+### Gỡ trạng thái "Tạm duyệt" của đơn nghỉ phép (migration `0030`)
+
+`0030_drop_leave_provisional_status.sql` chuyển mọi đơn `hr_leave_requests.trang_thai = 'Tạm duyệt'` về `Chưa duyệt` (trigger sẵn có tự tăng `decision_version` và xóa `decision_notified_at` nên bot quản lý/nhân viên nhận lại đúng trạng thái), rồi đặt lại CHECK `hr_leave_requests_trang_thai_check` chỉ còn `Chưa duyệt`, `Đã duyệt`, `Từ chối`, `Vi phạm`. Mã web và bot quản lý đã bỏ `Tạm duyệt` khỏi danh sách hợp lệ nên migration phải áp **trước** khi chạy bản web mới. Bot xin nghỉ ngoài repo không được ghi giá trị này nữa.

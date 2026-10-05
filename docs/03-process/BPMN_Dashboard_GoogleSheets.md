@@ -7,24 +7,27 @@
 | **Thông tin**      | **Nội dung**                                                         |
 |--------------------|----------------------------------------------------------------------|
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                                    |
-| Phiên bản          | 2.1                                                                  |
+| Phiên bản          | 3.0                                                                  |
 | Ngày tạo           | 27/07/2026                                                           |
-| Ngày cập nhật      | 19/09/2026                                                           |
-| Tài liệu liên quan | BRD v2.0 · SRS v2.5 · Implementation Plan v2.4 · CSNS-NP-01 · Design System MASTER |
-| Trạng thái         | Đang vận hành (Supabase PostgreSQL, Quản lý công nợ CN1/CN3/CN7, HR Leave, Vòng đời đơn hàng, 711 unit tests) |
+| Ngày cập nhật      | 05/10/2026                                                           |
+| Tài liệu liên quan | BRD v2.2 · SRS v3.0 · Implementation Plan (cập nhật 05/10/2026) · CSNS-NP-01 · Design System MASTER · `server/db/SCHEMA.md` |
+| Trạng thái         | Khớp code tại HEAD `11751c4` (migration `0001`–`0030`). Tên file giữ nguyên `…_GoogleSheets.md` vì lý do lịch sử; nguồn dữ liệu chính nay là Supabase PostgreSQL. |
+
+> **Ghi chú v3.0 (05/10/2026):** viết lại toàn bộ so với v2.1. Các luồng cũ gắn với Apps Script, tab `HR_Leaves`, endpoint `/api/hr/leave/*`, `/api/auth/request-reset-otp`… không còn tồn tại trong code và đã được thay bằng mô tả đúng hiện trạng. Thêm luồng F (Vòng đời đơn hàng) và G (Vị trí hàng).
 
 ---
 
 # 1. Giới thiệu
 
-Tài liệu này mô tả chi tiết các luồng quy trình vận hành của Hệ thống Website Dashboard TOKOSI theo chuẩn BPMN 2.0 (mô tả dưới dạng text diagram và bảng bước chi tiết).
+Tài liệu mô tả các luồng quy trình vận hành của Dashboard TOKOSI theo BPMN 2.0 (text diagram + bảng bước). Bảy luồng chính:
 
-Tài liệu này mô tả 5 luồng chính:
-- **Luồng A:** Đồng bộ dữ liệu KiotViet -> Supabase PostgreSQL qua Node.js Sync Engine (Webhook + Polling đối soát).
-- **Luồng B:** Người dùng sử dụng Dashboard & Tiện ích (đọc từ Supabase PostgreSQL, đối chiếu CN1/CN3/CN7, đọc Trả NCC Sheets, Result Cache, Phân trang, Xuất Excel).
-- **Luồng C:** Cấu hình và triển khai hệ thống (Render.com + Supabase PostgreSQL migrations).
-- **Luồng D:** Xác thực, Quản lý tài khoản & Khôi phục mật khẩu OTP (PostgreSQL `app_users`).
-- **Luồng E:** Đăng ký, Phê duyệt Nghỉ phép Nhân sự & Tương tác Telegram Bot.
+- **Luồng A:** Đồng bộ KiotViet → Supabase PostgreSQL (polling là nguồn dữ liệu; webhook chỉ lưu thô) và các job tổng hợp nền.
+- **Luồng B:** Người dùng xem Báo cáo tổng hợp theo tab, lọc theo bảng, xuất file, kiểm tra đứt hàng (kể cả upload Trả NCC).
+- **Luồng C:** Cấu hình và triển khai (Render.com + Supabase migrations).
+- **Luồng D:** Xác thực, quản lý tài khoản, khóa tự đăng ký, ID Telegram và khôi phục mật khẩu OTP.
+- **Luồng E:** Nghỉ phép nhân sự: bot xin nghỉ (ngoài repo), duyệt trên web, bot Telegram riêng cho quản lý.
+- **Luồng F:** Vòng đời đơn hàng (đơn KiotViet ghép Google Sheet).
+- **Luồng G:** Vị trí hàng (đọc Google Sheets theo yêu cầu).
 
 ---
 
@@ -32,334 +35,322 @@ Tài liệu này mô tả 5 luồng chính:
 
 | **Vai trò (Lane)**         | **Mô tả trách nhiệm**                                                                                                           |
 |----------------------------|---------------------------------------------------------------------------------------------------------------------------------|
-| KiotViet POS / Public API  | Phần mềm quản lý bán hàng: phát sinh thay đổi dữ liệu, gửi webhook POST JSON đến Webhook endpoint server hoặc phục vụ polling GET. |
-| Node.js Sync Engine        | Engine `server/kiotvietSync/` chạy trên server: nhận webhook vào hàng đợi nền, lập lịch polling đối soát và tổng hợp CN1/CN3/CN7. |
-| Supabase PostgreSQL        | Cơ sở dữ liệu trung tâm: lưu trữ dữ liệu KiotViet, tài khoản `app_users`, trạng thái công nợ và `customer_debt_activity_periods` (CN1/CN3/CN7). |
-| Google Sheets              | Nguồn dữ liệu bổ trợ: chỉ đọc tab `Trả NCC` trên file Kiot HN/SG; lưu trữ Bảng Công nợ, Vòng đời đơn hàng (`DonHang_*`) và `HR_Leaves`. |
-| Backend (Node.js/Express)  | Server trên Render.com: quản lý Result Cache, đọc PostgreSQL qua `dashboardPgReader.js`, đọc Sheets qua Service Account, tính KPI, xác thực JWT/bcrypt/OTP, tạo file Excel và phục vụ REST API. |
-| Người dùng / Frontend      | Truy cập Web Dashboard: tương tác KPI, chuyển tab tức thì (<10ms), phân trang, quản lý tài khoản `/account/`, tra cứu vòng đời đơn hàng và tải file Excel. |
+| KiotViet Public API        | Nguồn dữ liệu bán hàng. Phục vụ polling (GET); gửi webhook POST nhưng webhook hiện chỉ được lưu thô.                          |
+| Node.js Sync Engine        | `server/kiotvietSync/` chạy cùng tiến trình Express: polling fast/slow, rollup, CN1/CN3/CN7, báo cáo hàng hóa, chụp tồn kho. |
+| Supabase PostgreSQL        | Kho dữ liệu trung tâm: dữ liệu KiotViet, rollup, `app_users`, `hr_*`, nghỉ phép, trạng thái công nợ, Trả NCC, tài liệu quy định. |
+| Google Sheets              | Nguồn bổ trợ: Bảng Công nợ (đọc), Vòng đời đơn hàng (`DonHang_HN`/`DonHang_SG` đọc, `Lịch sử cập nhật` ghi), Vị trí hàng (đọc). |
+| Backend (Express)          | REST API, xác thực JWT, phân quyền theo tính năng, cache, tính KPI/bảng, xuất Excel/HTML, SSE, bot Telegram quản lý.          |
+| Bot xin nghỉ (ngoài repo)  | Tiến trình riêng của nhân viên: nhận tin xin nghỉ, ghi thẳng vào `hr_leave_requests`, báo kết quả qua `decision_notified_at`.  |
+| Telegram (bot quản lý)     | Bot riêng cho quản lý, chạy trong Express, nhận webhook `POST /api/telegram/manager-leave/webhook`.                            |
+| Người dùng / Frontend      | HTML/CSS/JS thuần trong `server/public/`; Chart.js; tải dữ liệu theo tab, lọc/sắp xếp/tìm trong từng bảng.                    |
 
 ---
 
-# 3. Chú giải ký hiệu sử dụng
+# 3. Chú giải ký hiệu
 
 | **Ký hiệu văn bản**     | **Ý nghĩa**                                                                              |
 |-------------------------|------------------------------------------------------------------------------------------|
-| [Start]                 | Sự kiện Bắt đầu (Start Event) — điểm khởi phát của một luồng quy trình.                  |
-| [End]                   | Sự kiện Kết thúc (End Event) — điểm hoàn tất một nhánh/luồng.                            |
+| [Start]                 | Sự kiện Bắt đầu.                                                                         |
+| [End]                   | Sự kiện Kết thúc.                                                                        |
 | [Event]                 | Sự kiện trung gian / mốc quan trọng.                                                     |
-| [Task]                  | Hoạt động / Tác vụ (Task) — một bước xử lý cụ thể.                                       |
-| [Decision]              | Cổng quyết định loại trừ (Exclusive Gateway) — rẽ nhánh theo điều kiện, đi đúng 1 nhánh. |
-| ->                      | Luồng tuần tự chính (Sequence Flow).                                                     |
-| -->                     | Luồng ngoại lệ / vòng lặp / kích hoạt theo sự kiện bất đồng bộ.                         |
-| [Lane]                  | Đại diện cho 1 vai trò/tác nhân.                                                         |
+| [Task]                  | Tác vụ.                                                                                  |
+| [Decision]              | Cổng quyết định loại trừ (đi đúng 1 nhánh).                                              |
+| ->                      | Luồng tuần tự chính.                                                                     |
+| -->                     | Luồng ngoại lệ / vòng lặp / kích hoạt bất đồng bộ.                                       |
 
 ---
 
 # 4. Sơ đồ tổng quan
 
 ```
-Luồng A (liên tục, nền):  KiotViet -> Node.js Sync Engine -> Supabase PostgreSQL
-                                            ^ (5-15 phút đối soát; Rollup mỗi 5 phút; CN1/CN3/CN7 mỗi ngày)
+Luồng A (nền):      KiotViet --polling--> Sync Engine --> Supabase PostgreSQL --> rollup/job nền --> SSE "dashboard-updated"
+                    KiotViet --webhook--> hàng đợi --> chỉ ghi webhook_events_raw (không upsert nghiệp vụ)
 
-Luồng B (theo yêu cầu):   Người dùng -> Frontend -> Backend (Result Cache) -> Supabase PostgreSQL / Google Sheets (Trả NCC)
-                                            |
-                                       Hiển thị Dashboard / Quản lý công nợ (CN1/CN3/CN7) / Xuất Excel / Phân trang
-
-Luồng C (một lần):        IT Admin cấu hình Render env vars + Supabase PostgreSQL migration (npm run db:migrate)
-
-Luồng D (theo sự kiện):   Người dùng / Admin -> Đăng nhập / Đăng ký SĐT / Đổi MK / OTP Reset / Quản trị app_users
+Luồng B (yêu cầu):  Người dùng -> Frontend -> GET /api/dashboard?view=<tab> -> cache -> Postgres (+ Sheet công nợ cho tab Công nợ)
+Luồng C (một lần):  IT Admin: biến môi trường Render + `npm run db:migrate` + webhook KiotViet
+Luồng D (sự kiện):  Đăng nhập / OTP quên mật khẩu / hồ sơ / Quản lý tạo-sửa tài khoản & phân quyền
+Luồng E (sự kiện):  Bot xin nghỉ -> hr_leave_requests -> web + chuông + bot quản lý -> Phê duyệt / Từ chối
+Luồng F (yêu cầu):  Người dùng -> /api/shipment/lifecycle (đơn Kiot trong Postgres + Google Sheet) -> 1 trang 100 dòng
+Luồng G (yêu cầu):  Người dùng -> /api/stock-locations?branch= -> Google Sheets (đọc mới mỗi lần mở tab)
 ```
 
-Luồng A chạy hoàn toàn độc lập với Luồng B. Backend (Luồng B) đọc trực tiếp từ PostgreSQL và Google Sheets (Trả NCC) theo yêu cầu của frontend.
+Luồng A độc lập với các luồng còn lại. Luồng B/F/G chỉ **đọc** dữ liệu; chỉ Quản lý công nợ, ghi đè vòng đời đơn hàng, upload Trả NCC và các thao tác tài khoản/nghỉ phép mới ghi.
 
 ---
 
-# 5. Luồng A — Đồng bộ KiotViet -> Supabase PostgreSQL (Node.js Sync Engine)
+# 5. Luồng A — Đồng bộ KiotViet → Supabase PostgreSQL
 
-Luồng này chạy liên tục và tự động, không phụ thuộc vào người dùng web dashboard.
+Chạy liên tục khi `KIOTVIET_SYNC_ENABLED=true`, không phụ thuộc người dùng web.
 
 ```
-[A0] [Start] KiotViet phát sinh thay đổi dữ liệu (sản phẩm, hóa đơn, đơn hàng, khách hàng...)
-         |
-[A1] [Task] KiotViet gửi POST JSON đến endpoint /api/internal/kiotviet-sync/webhook
-         |
-[A2] [Task] Server phản hồi HTTP 200 tức thì và đưa payload vào hàng đợi nền `webhookEventQueue.js`
-         |
-[A3] [Task] Worker nền lấy sự kiện từ hàng đợi, upsert/delete vào Supabase PostgreSQL
-         |
-[A4] [Decision] Thành công?
-     |-- Có -> Hoàn tất xử lý sự kiện
-     `-- Không -> Ghi log lỗi, chuyển tiếp để đối soát polling bắt bù
+[A0] [Start] Server khởi động -> chạy ngay 1 lượt fast + 1 lượt slow nền từ checkpoint gần nhất (bù khoảng trống khi redeploy)
 
---- SONG SONG: Polling đối soát & Rollup định kỳ ---
-[A5] [Start] Scheduler kích hoạt:
-         |-- Mỗi 5 phút: dashboardRollupRefresh.js tổng hợp 4 bảng rollup theo ngày
-         |-- Mỗi 5-15 phút: syncDriver.js polling đối soát theo lastModifiedFrom
-         `-- Gần 15:00 hàng ngày: customerDebtReportRefresh.js tổng hợp CN1/CN3/CN7 vào customer_debt_activity_periods
-         |
-[A6] [End] Kết thúc chu kỳ — Database luôn sẵn sàng dữ liệu mới nhất
+--- Nhánh A1: Polling (nguồn dữ liệu thật) ---
+[A1] [Event] Mỗi 7 phút: nhóm fast = invoices, orders, product_on_hands, product_on_hands_snapshot, order_suppliers
+[A2] [Task] Với mỗi cơ sở (HN, SG): gọi KiotViet API (lastModifiedFrom theo checkpoint; riêng order_suppliers và snapshot tồn kho quét toàn bộ),
+            upsert vào Postgres; checkpoint chỉ tiến sau khi MỌI trang thành công
+[A3] [Decision] Lỗi?
+     |-- Có -> ghi lỗi vào sync_checkpoints.note, giữ mốc cũ để replay lần sau
+     `-- Không -> [A4]
+[A4] [Task] Tính ngay rollup "nóng" 7 ngày (daily_invoice_summary, daily_product_sales) rồi phát SSE `dashboard-updated`
+[A5] [Event] Mỗi 20 phút: nhóm slow = categories, products, customers, returns, purchases (đối soát toàn bộ từ mốc sàn đứt hàng 01/02/2026), cash_flows
+
+--- Nhánh A6: Webhook ---
+[A6] [Event] KiotViet POST /api/kiotviet/webhook/<KIOTVIET_WEBHOOK_SECRET> (secret sai -> 404)
+[A7] [Task] Trả 200 ngay, đưa vào hàng đợi nền; worker chỉ INSERT payload thô vào webhook_events_raw (không cập nhật bảng nghiệp vụ)
+
+--- Nhánh A8: Job tổng hợp nền ---
+[A8]  Mỗi 30 phút: rollup đầy đủ 400 ngày (+ product_first_purchase)
+[A9]  Mỗi 5 phút: customerDebtReportRefresh -> customer_debt_activity_periods (CN1/CN3/CN7, chỉ ghi dòng đổi)
+[A10] Kiểm tra mỗi 5 phút, tính 1 lần/đêm: productReportRefresh -> product_report + product_report_customers
+[A11] Kiểm tra mỗi 5 phút, dựng 1 lần/đêm sau 00:10 VN: customerInvoiceLinesRefresh -> customer_invoice_lines_90d
+[A12] Kiểm tra mỗi phút, chụp lúc 23:59 VN (bù trước 12:00 hôm sau nếu server tắt): inventoryValueSnapshot -> inventory_value_snapshots
+[A13] [End] Database luôn có dữ liệu mới nhất cho Luồng B
 ```
 
 | **Bước** | **Vai trò**           | **Mô tả**                                                                                           | **Tham chiếu** |
 |----------|-----------------------|-----------------------------------------------------------------------------------------------------|----------------|
-| A0       | KiotViet              | Sự kiện bắt đầu: dữ liệu thay đổi trên KiotViet (bán hàng, nhập hàng, cập nhật tồn kho...).        | —              |
-| A1       | KiotViet              | Gửi POST JSON đến webhook endpoint của server trên Render.                                          | FR-06.2        |
-| A2       | Server Webhook Queue  | Trả HTTP 200 ngay lập tức, lưu payload vào hàng đợi nền tránh timeout.                             | FR-06.2        |
-| A3–A4    | Sync Driver           | Ghi nhận và đồng bộ bản ghi vào Supabase PostgreSQL tương ứng.                                     | FR-06.1, FR-06.2 |
-| A5       | Scheduler             | Polling đối soát dữ liệu và tổng hợp bảng rollup, bảng công nợ CN1/CN3/CN7.                         | FR-06.3, FR-06.6, FR-06.12 |
-| A6       | —                     | Dữ liệu sẵn sàng phục vụ Dashboard.                                                                 | —              |
+| A0       | Sync Engine           | Catch-up nền khi khởi động, HTTP vẫn nhận request trong lúc đồng bộ.                               | FR-06.3        |
+| A1–A5    | Sync Engine           | Polling nhóm fast/slow, checkpoint, rollup nóng, SSE.                                               | FR-06.1–06.3, FR-06.6 |
+| A6–A7    | Webhook queue         | Chỉ lưu thô; polling mới là nguồn cập nhật.                                                         | FR-06.2        |
+| A8–A12   | Scheduler             | Rollup, CN1/CN3/CN7, báo cáo hàng hóa, chi tiết hóa đơn 90 ngày, giá trị tồn kho.                  | FR-06.6–06.14  |
 
 ---
 
-# 6. Luồng B — Sử dụng Dashboard & Tiện ích (Result Cache, Phân trang, Xuất Excel)
-
-Luồng này xảy ra mỗi khi người dùng truy cập hoặc tương tác với Dashboard.
+# 6. Luồng B — Sử dụng Báo cáo tổng hợp
 
 ```
-[B0] [Start] Người dùng mở trình duyệt, truy cập Dashboard
-         |
-[B1] [Task] Frontend (index.html) load xong, tự động gọi GET /api/dashboard?days=30
-         |
-[B2] [Decision] Backend kiểm tra Result Cache:
-     | Có cache hợp lệ cho key (rawDataVersion, filters)?
-     |-- [B2-Hit] Có (Cache Hit) -> Trả ngay JSON đã tính toán (<10ms) -> chuyển đến B6
-     `-- [B2-Miss] Không (Cache Miss) -> Đọc dữ liệu từ Supabase PostgreSQL qua dashboardPgReader.js & Trả NCC từ Sheets:
-            - Đọc 9 bảng thực thể và 4 bảng rollup từ PostgreSQL
-            - Đọc tab Trả NCC từ Google Sheets API (cache thô 90s)
-            - Đọc CN1/CN3/CN7 từ customer_debt_activity_periods qua customerDebtActivityRepository.js
-            - Đọc Bảng Công nợ từ debtManagementSheetsClient.js
-                    |
-[B3] [Decision] Cổng quyết định: Đọc dữ liệu thành công?
-     |-- Thất bại ->
-     |   [B3-No] [Task] Backend log chi tiết lỗi và trả HTTP 500 JSON
-     |   [B3-No] [Task] Frontend hiển thị thông báo lỗi cho người dùng [End]
-     `-- Thành công ->
-         [B4] [Task] Backend tính toán `computeDashboardData()`:
-              - Tính KPI, revenueByDay, Top sản phẩm, Quản lý công nợ (đối chiếu CN1/CN3/CN7)...
-              - Lưu kết quả vào `dashboardResultCache`
-                    |
-[B5] [Task] Backend trả HTTP 200 JSON toàn bộ dữ liệu
-         |
-[B6] [Task] Frontend render:
-     - KPI cards (doanh thu, tồn kho, công nợ...)
-     - Biểu đồ doanh thu theo ngày (Chart.js 2D)
-     - Màn hình Quản lý công nợ (lọc, tìm, đối chiếu CN1/CN3/CN7)
-     - Bảng dữ liệu có phân trang (`pagination.js`)
-     - Hiển thị updatedAt theo giờ Việt Nam
-         |
-[B7] [Event] Dashboard sẵn sàng sử dụng
+[B0] [Start] Người dùng mở /reports/ (sidebar: Tổng quan, Hàng hóa, Hóa đơn, Khách hàng, Quản lý công nợ — chỉ hiện tab có quyền reports.*)
+[B1] [Task] Frontend gọi GET /api/dashboard?view=<tab đang mở>&<bộ lọc của tab> (mỗi tab tải khi được mở, mỗi bảng có bộ lọc Từ–Đến riêng)
+[B2] [Decision] requireAuth + requireFeature + resolveBranch: có quyền xem tab?
+     |-- Không -> trả payload rỗng { filters: {}, kpi: {} } (không đọc/tính gì)
+     `-- Có -> [B3]
+[B3] [Decision] Cache kết quả theo (cơ sở, tab, bộ lọc) còn hạn (90 giây)?
+     |-- Có -> trả ngay
+     `-- Không -> đọc các bảng nguồn của tab (cache theo từng bảng, TTL 90 giây, tối đa stale 10 phút) + rollup song song
+              + tab Công nợ: đọc Bảng Công nợ (Google Sheets) + trạng thái xử lý (Postgres) + CN1/CN3/CN7
+[B4] [Task] computeDashboardData() tính KPI, bảng, biểu đồ; "Cả hai" gộp hai cơ sở (hàng hóa/giao dịch giữ khóa (cơ sở, mã), khách gộp theo tên)
+[B5] [Task] filterDashboardForUser() cắt phần ngoài quyền -> HTTP 200 JSON
+[B6] [Task] Frontend render KPI, biểu đồ (Chart.js 2D), bảng phân trang 100 dòng; tìm kiếm/sắp xếp (cột thời gian sắp theo thời gian thật) trên toàn bộ dữ liệu đã lọc
+[B7] [Event] Dashboard sẵn sàng
 ```
 
-**Xử lý lỗi & Tự phục hồi trong Luồng B:**
-- Nếu Supabase PostgreSQL gặp sự cố tạm thời: trả HTTP 500 kèm thông báo lỗi rõ ràng.
-- Nếu Google Sheets API (tab Trả NCC) bị lỗi hạn mức/timeout: trả dữ liệu với phần Trả NCC rỗng hoặc cache cũ có kiểm soát.
-- Result Cache tự động giải phóng bộ nhớ khi quá hạn hoặc khi có dữ liệu mới.
-
----
-
-## 6.1. Tương tác Lọc thời gian & Làm mới
+**Cập nhật gần thời gian thực (thay cho tự gọi lại mỗi 10 phút của bản cũ):**
 
 ```
---- Lọc thời gian ---
-[B8] [Task] Người dùng click 7 / 30 / 90 ngày
-         |
-[B9] [Task] Frontend gọi GET /api/dashboard?days={7|30|90} -> Backend kiểm tra Result Cache (phản hồi tức thì nếu raw data chưa đổi)
-
---- Làm mới dữ liệu ---
-[B10] [Task] Người dùng nhấn nút "Làm mới"
-          |
-[B11] [Task] Frontend gọi GET /api/dashboard?days={current_days} (ép fetch mới nếu qua 90s)
-
---- Làm mới tự động ---
-[B12] [Start] Bộ hẹn giờ đạt 10 phút
-          |
-[B13] [Task] Frontend gọi lại API ở chế độ nền; chỉ render lại khi dữ liệu nghiệp vụ đổi
+[B8]  [Event] Sau mỗi lượt sync fast + rollup, server phát SSE `dashboard-updated` trên GET /api/dashboard/events (heartbeat 25 giây)
+[B9]  [Task] Trình duyệt đánh dấu mọi tab đã tải là cũ, tải lại tab đang xem sau độ trễ ngẫu nhiên 0–3 giây; tab khác tải lại khi được mở
+[B10] [Event] Tab trở lại trạng thái hiển thị sau >= 60 giây -> tải lại; SSE lỗi 5 lần liên tiếp -> thử nối lại sau 1, 5, 15 phút
+[B11] [Task] Nút "Làm mới" tải lại tab hiện tại; chỉ render lại khi dữ liệu nghiệp vụ thực sự đổi (so fingerprint)
 ```
 
----
-
-## 6.2. Luồng Xuất Excel (Bảng dữ liệu & Tìm kiếm)
+## 6.1. Luồng Xuất file
 
 ```
-[B14] [Task] Người dùng click nút "Xuất Excel" trên một bảng dữ liệu hoặc kết quả tìm kiếm
-          |
-[B15] [Task] Frontend mở Modal (hủy được mọi lúc: X / Hủy / Esc / bấm nền), gọi POST /api/export/fields
-              với tableKey + filters + context (AbortController, timeout 30 giây)
-          |
-[B16] [Task] Backend exportService.getExportFields trả NGAY danh sách worksheets/fields từ từ điển tĩnh
-              (exportFieldCatalog.js + cột dashboard tính thêm); rowCount = null, không đọc DB/Sheets.
-              Ngoại lệ: search.results chạy tìm kiếm thật và trả rowCount.
-          |-- Lỗi/timeout 30 giây -> Modal báo lỗi tiếng Việt + nút "Thử lại" (lặp lại bước lấy trường)
-          |
-[B17] [Task] Frontend hiển thị danh sách trường (mặc định chọn sẵn, description là tooltip);
-              kết quả tìm kiếm nhiều nguồn (all-only) bỏ qua bước chọn và xuất toàn bộ trường
-          |
-[B18] [Task] Người dùng xác nhận chọn trường và click "Tải file Excel"
-          |
-[B19] [Task] Frontend gọi POST /api/export kèm columns (worksheetKey -> khóa trường) và filters/context
-              (AbortController, timeout 180 giây)
-          |
-[B20] [Task] Backend exportService.createExportWorkbook:
-      - Kiểm tra bảng/trường hợp lệ (chưa chạm DB); xin chỗ xuất file (tối đa 2 đồng thời,
-        hàng đợi 8, vượt trần -> 503 EXPORT_BUSY)
-      - dashboardData.getDashboardData(filters, cơ sở): danh sách mã dòng đã lọc/xếp hạng (cache 90 giây)
-      - dashboardPgReader.readRowsByCodes(tab, cơ sở, mã): đọc thẳng Supabase PostgreSQL chỉ các mã
-        đang hiển thị (không đọc Google Sheets); ghép theo mã, cắt theo cột đã chọn, áp tìm kiếm trong bảng
-      - ExcelJS tạo .xlsx: đóng băng hàng tiêu đề, bật AutoFilter, ép kiểu text cho mã hàng/mã HĐ/SĐT,
-        trung hòa chuỗi công thức
-          |-- Người dùng hủy/đóng modal hoặc ngắt kết nối -> Backend dừng sau bước đang chạy, nhả chỗ xuất file
-          |-- Lỗi/timeout 180 giây -> Modal báo lỗi + nút "Thử lại" (giữ nguyên các trường đã chọn)
-          |
-[B21] [End] Trình duyệt tải về file .xlsx hoàn chỉnh
+[B12] [Task] Người dùng bấm "Xuất Excel" (hoặc "Xuất HTML") trên một bảng -> mở modal (hủy được: X / Hủy / Esc / bấm nền)
+[B13] [Task] POST /api/export/fields (tableKey + filters + context, timeout 30 giây) -> danh sách worksheet/trường từ từ điển tĩnh, không chạm DB
+              (riêng search.results chạy tìm kiếm thật)
+[B14] [Task] Người dùng chọn trường -> POST /api/export (timeout 180 giây)
+[B15] [Task] Backend kiểm tra bảng/trường hợp lệ -> xin 1 trong 2 chỗ xuất file (hàng đợi tối đa 8, vượt -> 503 EXPORT_BUSY)
+              -> lấy mã dòng đã lọc từ getDashboardData() -> readRowsByCodes() đọc đúng các mã đó từ Postgres (bảng tổng hợp dùng dữ liệu đã tính)
+              -> ExcelJS ghi .xlsx (hàng tiêu đề cố định, AutoFilter, ép text cho mã/SĐT, vô hiệu chuỗi công thức) hoặc dựng báo cáo HTML tự chứa
+[B16] [End] Trình duyệt tải file; hủy/ngắt kết nối thì server dừng và nhả chỗ xuất
 ```
 
----
+Bảng xuất được: Chi tiết giao dịch, Danh sách mã mới, Sản phẩm bán chạy, Tất cả mã hàng, Hàng mới nhập, Chi tiết tồn kho theo sản phẩm, Doanh thu theo khách, Chi tiết khách nợ, Bảng chi tiết sản phẩm theo khách, Báo cáo hàng hóa, Quản lý công nợ, Kết quả tìm kiếm, Hàng đứt gần đây, Kiểm tra đứt hàng 90/30 ngày.
 
-## 6.3. Luồng Tìm kiếm nâng cao
+## 6.2. Luồng Kiểm tra đứt hàng và Trả NCC (tab Tổng quan, quyền `reports.products`)
 
 ```
-[B22] [Task] Người dùng nhập vào thanh tìm kiếm:
-      |-- Chế độ thường: Tìm theo từ khóa (mã, tên, SĐT...) -> GET /api/search?q=...
-      |-- Chế độ nhiều mã: Nhập tối đa 50 mã phân tách khoảng trắng -> GET /api/search?q=...&mode=codes
-      `-- Chế độ Top KH theo SP (tab Khách hàng): Nhập danh sách mã -> GET /api/customer-product-top?q=...
-          |
-[B23] [Task] Backend tìm kiếm và trả kết quả chính xác theo thứ tự nhập
-          |
-[B24] [Task] Frontend hiển thị dropdown gợi ý mượt mà hoặc bảng kết quả
+[B17] [Task] Người dùng upload file Excel "Trả hàng nhập" xuất từ KiotViet cho 1 cơ sở -> POST /api/products/supplier-returns/import
+[B18] [Task] Server thay TOÀN BỘ dữ liệu cũ của cơ sở đó trong supplier_return_imports bằng dữ liệu file (GET .../import-status cho biết lần nạp gần nhất)
+[B19] [Task] Người dùng chạy quét: "Hàng đứt gần đây" / "30 ngày" / "90 ngày" -> POST /api/products/stockout-{recent|30d|90d}/scan -> jobId
+[B20] [Task] Frontend hỏi tiến độ mỗi 1,5 giây (GET .../:jobId/progress) -> khi xong lấy kết quả (GET .../:jobId/result)
+              Nguồn: hóa đơn, nhập hàng, khách trả, Trả NCC đã đồng bộ/nạp trong Postgres. Ở "Cả hai" quét tuần tự hai cơ sở; một cơ sở lỗi thì cả job báo lỗi
+[B21] [End] Hiện bảng kết quả (xuất được ra Excel)
+```
+
+## 6.3. Luồng Quản lý công nợ (tab Công nợ)
+
+```
+[B22] [Task] Backend đọc Bảng Công nợ (tab Công nợ HN/SG, chỉ đọc), đối chiếu CN1/CN3/CN7 -> cảnh báo "Chưa thu"/"Quá hạn"
+[B23] [Task] Người có quyền reports.debt.edit (mặc định Quản lý, Trợ lý) PATCH /api/debt-management/status (cơ sở lấy từ session, không từ body)
+              Ở "Cả hai": ghi cả hai cơ sở trong 1 transaction, mỗi cơ sở lưu chữ ký cảnh báo riêng; lỗi -> ROLLBACK, cache chỉ xóa sau COMMIT
+[B24] [End] Khách đã xử lý rời hàng chờ; trạng thái tự hết hiệu lực khi chữ ký cảnh báo (loại cảnh báo + số nợ) đổi
 ```
 
 | **Bước** | **Vai trò**    | **Mô tả**                                                                                           | **Tham chiếu**      |
 |----------|----------------|-----------------------------------------------------------------------------------------------------|---------------------|
-| B0       | Người dùng     | Mở URL Web Dashboard.                                                                               | —                   |
-| B1       | Frontend       | Tự động gọi API khi page load xong, mặc định days=30.                                               | FR-04.1             |
-| B2       | Backend        | Kiểm tra Result Cache theo `(rawDataVersion, filters)`; phục vụ <10ms nếu hit.                      | FR-01.7, NFR-01     |
-| B3–B5    | Backend        | Đọc Supabase PostgreSQL & tab Trả NCC Google Sheets, tính KPI qua `computeDashboardData`, lưu cache. | FR-01.x, FR-02.x    |
-| B6       | Frontend       | Render giao diện với Chart.js animation gating, phân trang client-side (`pagination.js`).           | FR-07.x, FR-07.13   |
-| B8–B9    | Người dùng     | Đổi bộ lọc thời gian -> gọi API với days mới (phản hồi tức thì nhờ cache).                           | FR-04.1, FR-04.3    |
-| B14–B21  | Người dùng/Dev | Lấy danh sách trường tĩnh, tạo workbook `.xlsx` từ PostgreSQL theo mã (hủy/timeout, giới hạn 2 file đồng thời). | FR-07.10 -> FR-07.18, NFR-13, NFR-14 |
-| B22–B24  | Người dùng/Dev | Tìm kiếm thông thường, tìm nhiều mã và Top 3 KH theo danh mục sản phẩm.                            | FR-07.8, FR-07.9    |
+| B1–B5    | Frontend/Backend | Tải theo tab, phân quyền, cache hai tầng (nguồn theo bảng + kết quả theo bộ lọc).                  | FR-01, FR-03, NFR-01 |
+| B6       | Frontend       | Phân trang 100 dòng, tìm/sắp xếp từng bảng, bộ lọc Từ–Đến theo bảng.                                | FR-04, FR-07        |
+| B8–B11   | Backend/Frontend | SSE `dashboard-updated`, tải bù khi quay lại tab.                                                   | FR-05               |
+| B12–B16  | Người dùng/Backend | Xuất Excel/HTML, giới hạn 2 file đồng thời.                                                        | FR-07.10–07.18, NFR-13, NFR-14 |
+| B17–B21  | Người dùng/Backend | Upload Trả NCC và quét đứt hàng.                                                                    | FR-03.12            |
+| B22–B24  | Quản lý/Trợ lý | Quản lý công nợ.                                                                                    | FR-11, FR-12.6      |
 
 ---
 
-# 7. Luồng C — Thiết lập hệ thống (một lần)
-
-Luồng này do IT Admin thực hiện khi triển khai lần đầu hoặc khi cần cấu hình lại.
+# 7. Luồng C — Thiết lập hệ thống
 
 ```
-[C0] [Start] Bắt đầu: cần triển khai/cấu hình lại hệ thống
-
---- Phần 1: Cấu hình Render.com & Supabase PostgreSQL ---
-[C1] [Task] IT Admin tạo/cập nhật Web Service trên Render.com và Database trên Supabase
-[C2] [Task] Cấu hình biến môi trường:
-     - SUPABASE_DATABASE_URL = {PostgreSQL Connection URI}
-     - SPREADSHEET_ID = {ID của Google Spreadsheet Dashboard (đọc tab Trả NCC)}
-     - ORDER_LIFECYCLE_SPREADSHEET_ID = {ID của Google Spreadsheet Vòng đời đơn hàng}
-     - HR_SPREADSHEET_ID = {ID của Google Spreadsheet Nhân sự}
-     - GOOGLE_SERVICE_ACCOUNT_JSON = {nội dung JSON của Service Account key}
-     - JWT_SECRET = {Secret key JWT}
-     - KIOTVIET_CLIENT_ID, KIOTVIET_CLIENT_SECRET, KIOTVIET_RETAILER
-[C3] [Task] Render tự động deploy từ GitHub branch main (chạy `npm install` và `npm test` với 711 tests)
-[C4] [Decision] Deploy thành công?
-     |-- Không -> kiểm tra logs Render -> quay lại C1
-     `-- Có ->
-[C5] [Task] Chạy migration database Supabase: `npm run db:migrate` (0001 -> 0014)
-[C6] [Decision] Kết nối Database và Google Sheets OK?
-     |-- Không -> kiểm tra URI PostgreSQL hoặc quyền Service Account -> quay lại C2/C5
-     `-- Có ->
-
---- Phần 2: Cấu hình Webhook & Đồng bộ KiotViet ---
-[C7] [Task] Đăng ký Webhook KiotViet trỏ về Node.js Sync Engine trên Render
-[C8] [Task] Khởi chạy sync ban đầu / scheduler đối soát nền (5-15 phút) và tổng hợp CN1/CN3/CN7
-[C9] [Task] Khởi tạo tài khoản quản trị hệ thống trong bảng PostgreSQL `app_users`
-[C10] [End] Hệ thống đã cấu hình hoàn chỉnh, sẵn sàng vận hành
+[C0] [Start] Triển khai lần đầu hoặc cấu hình lại
+[C1] [Task] IT Admin tạo Web Service Render.com + Database Supabase (dùng "Direct connection" cổng 5432, không dùng pooler)
+[C2] [Task] Đặt biến môi trường bắt buộc: SUPABASE_DB_URL, GOOGLE_SERVICE_ACCOUNT_JSON, JWT_SECRET
+             KiotViet: KIOTVIET_CLIENT_ID/SECRET/RETAILER (+ hậu tố _SG cho Sài Gòn), KIOTVIET_SYNC_ENABLED, KIOTVIET_WEBHOOK_SECRET
+             Google Sheets: DEBT_MANAGEMENT_SPREADSHEET_ID, ORDER_LIFECYCLE_SPREADSHEET_ID (Editor), STOCK_LOCATIONS_SPREADSHEET_ID
+             Tùy chọn: GOOGLE_CLIENT_ID, SMTP_*, ALLOW_SELF_REGISTRATION, HR_MANAGER_TELEGRAM_* (xem README.md)
+[C3] [Task] Render deploy từ branch main (npm install; `npm test` chạy cục bộ trước khi push)
+[C4] [Task] Áp migration TRƯỚC khi chạy bản web mới: `npm run db:migrate` (0001 -> 0030); riêng 0026 (xóa suppliers) áp SAU khi code mới đã chạy
+[C5] [Task] Đăng ký webhook KiotViet trỏ về /api/kiotviet/webhook/<secret>; khi đã đổi xong đặt KIOTVIET_WEBHOOK_LEGACY_PATH_ENABLED=false
+[C6] [Task] Khởi động scheduler (KIOTVIET_SYNC_ENABLED=true); chạy backfill/preflight khi cần (`npm run kiotviet-sync:preflight|backfill|reconcile`)
+[C7] [Task] Sau migration báo cáo mới: chạy tay `node kiotvietSync/customerInvoiceLinesRefresh.js`, `node kiotvietSync/productReportRefresh.js` để có dữ liệu ngay
+[C8] [Task] Bot quản lý (tùy chọn): theo docs/telegram-manager-leave-setup.md (token, secret, origin, `npm run telegram-manager:set-webhook`, quản lý bấm Start)
+[C9] [Task] Tài khoản quản trị: admin cứng (HARDCODED_ADMINS) luôn đăng nhập được; tài khoản khác do Quản lý tạo (tự đăng ký đang khóa)
+[C10][End] Hệ thống sẵn sàng
 ```
 
 | **Bước** | **Vai trò**  | **Mô tả**                                                                                       | **Tham chiếu** |
 |----------|--------------|-------------------------------------------------------------------------------------------------|----------------|
-| C0       | IT Admin     | Sự kiện bắt đầu: triển khai lần đầu hoặc cấu hình lại.                                          | —              |
-| C1–C2    | IT Admin     | Cấu hình Web Service, Supabase PostgreSQL và biến môi trường trên Render.com.                   | NFR-03, FR-01.3|
-| C3–C4    | Render.com   | Auto-deploy từ GitHub, chạy bộ test tự động (711 tests) và kiểm tra kết quả deploy.            | NFR-02, NFR-12 |
-| C5–C6    | IT Admin     | Chạy migration PostgreSQL `0001` - `0014`, kiểm tra kết nối Supabase và Sheets.                 | FR-06.1, FR-07.5 |
-| C7–C8    | IT Admin/Sys | Đăng ký webhook KiotViet, chạy sync ban đầu và bật scheduler định kỳ (kèm rollup, CN1/CN3/CN7).| FR-06.2, FR-06.3 |
-| C9       | IT Admin     | Tạo tài khoản quản trị đầu tiên trong bảng `app_users`.                                         | FR-08.1        |
-| C10      | —            | Hệ thống sẵn sàng vận hành đầy đủ.                                                              | —              |
+| C1–C2    | IT Admin     | Hạ tầng và biến môi trường.                                                                     | NFR-02, NFR-03 |
+| C4       | IT Admin     | Migration; thứ tự quan trọng với 0026, 0029, 0030.                                              | server/README.md |
+| C5–C7    | IT Admin     | Webhook, scheduler, job dựng dữ liệu lần đầu.                                                   | FR-06          |
+| C8       | IT Admin     | Bot quản lý nghỉ phép.                                                                          | FR-10.8–10.14  |
 
 ---
 
-# 8. Luồng D — Xác thực, Quản lý tài khoản & Khôi phục mật khẩu OTP
+# 8. Luồng D — Xác thực, tài khoản và khôi phục mật khẩu
 
 ```
---- Nhánh D1: Đăng nhập nội bộ & Lockout 5 phút ---
-[D1.1] Người dùng nhập username & mật khẩu -> POST /api/auth/login
-       |-- Đúng mật khẩu -> Cấp JWT httpOnly cookie `tks_auth`, reset bộ đếm sai -> [Đăng nhập thành công]
-       `-- Sai mật khẩu -> Tăng bộ đếm sai:
-             |-- < 5 lần -> Thông báo sai mật khẩu (còn N lần thử)
-             `-- >= 5 lần -> Kích hoạt Lockout 5 phút, trả thời gian đếm ngược
+--- Nhánh D1: Đăng nhập & khóa tạm ---
+[D1.1] POST /api/auth/login (tên tài khoản/email/SĐT + mật khẩu)
+       |-- Đúng -> cấp JWT cookie `tks_auth` (mặc định 12 giờ), xóa bộ đếm sai
+       |-- Tài khoản bị khóa -> 403 ACCOUNT_LOCKED
+       `-- Sai -> tăng bộ đếm; sai 5 lần liên tiếp -> khóa đăng nhập 5 phút (trả thời gian đếm ngược)
+[D1.2] Đăng nhập Google (POST /api/auth/google, Google Identity ID token): chỉ vào được tài khoản ĐÃ CÓ (liên kết theo email/nhân sự);
+       email lạ -> 403 REGISTRATION_DISABLED khi tự đăng ký đang khóa; admin cứng luôn vào được
 
---- Nhánh D2: Khôi phục mật khẩu bằng OTP 6 số ---
-[D2.1] Người dùng click "Quên mật khẩu?" -> Nhập username/email -> POST /api/auth/request-reset-otp
-[D2.2] Backend sinh mã OTP 6 số (hạn 5 phút), che mờ Email/SĐT (`user***@...`)
-[D2.3] Người dùng nhập mã OTP nhận được -> POST /api/auth/verify-reset-otp
-       |-- Mã đúng -> Nhận `resetToken` tạm thời (10 phút)
-       `-- Mã sai -> Báo lỗi (tối đa 3 lần thử)
-[D2.4] Người dùng nhập mật khẩu mới -> POST /api/auth/reset-password-otp -> [Cập nhật mật khẩu thành công]
+--- Nhánh D2: Tự đăng ký (đang KHÓA từ 03/10/2026) ---
+[D2.1] /api/auth/register, /register/channels, /register/send-otp, /register/verify -> 403 REGISTRATION_DISABLED
+       (GET /api/auth/google-config trả registrationOpen=false: trang login ẩn link, trang register khóa form)
+[D2.2] ALLOW_SELF_REGISTRATION=true mở lại: Khách đăng ký bằng email+mật khẩu, hoặc nhân sự xác minh OTP qua email trong danh sách nhân sự
 
---- Nhánh D3: Quản lý hồ sơ & Quản trị người dùng (/account/) ---
-[D3.1] Người dùng đăng nhập vào /account/ -> Xem thông tin cá nhân, cập nhật SĐT khôi phục hoặc đổi mật khẩu
-[D3.2] Người dùng vai trò `Quản lý` -> Mở tab "Quản trị người dùng" -> Xem danh sách, tạo tài khoản mới, phân vai trò, đặt lại mật khẩu hoặc khóa tài khoản
-```
+--- Nhánh D3: Quên mật khẩu bằng OTP 6 số ---
+[D3.1] Nhập tên tài khoản/email/SĐT -> POST /api/auth/forgot-password/channels (trả danh sách kênh đã che mờ; định danh lạ trả kênh giả, không lộ tồn tại)
+[D3.2] Chọn kênh -> POST /api/auth/forgot-password/send-otp (OTP hiệu lực 5 phút, gửi lại cách nhau >= 60 giây)
+[D3.3] Nhập OTP + mật khẩu mới (8–128 ký tự) -> POST /api/auth/forgot-password/verify (tối đa 5 lần nhập OTP) -> đổi mật khẩu, xóa khóa đăng nhập
+       Giới hạn tần suất cả 3 bước: 8 yêu cầu/10 phút theo định danh, 20/10 phút theo IP
 
----
+--- Nhánh D4: Hồ sơ cá nhân ---
+[D4.1] Trang /account/#profile và hộp hồ sơ ở mọi trang: đổi họ tên, email (POST /api/auth/profile), đổi SĐT/email khôi phục qua OTP (contact-change), đổi mật khẩu (POST /api/auth/change-password)
+[D4.2] ID Telegram: chỉ Quản lý (hoặc admin cứng) sửa được ID của chính mình; vai trò khác thấy chỉ đọc, ghi bị 403 TELEGRAM_ID_LOCKED
 
-# 8b. Luồng E — Đăng ký, Phê duyệt Nghỉ phép Nhân sự & Telegram Bot
+--- Nhánh D5: Quản lý người dùng & phân quyền (/account/#users, quyền account.users*) ---
+[D5.1] Quản lý xem danh sách, tạo tài khoản (POST /api/admin/users), sửa thông tin/vai trò/cơ sở mặc định/ID Telegram (PUT), đặt lại mật khẩu, xóa
+[D5.2] Quản lý (thường) không đặt lại mật khẩu, đổi email/SĐT/ID Telegram, hạ vai trò, rút quyền, khóa hay xóa Quản lý khác -> 403 ACCOUNT_POLICY_DENIED;
+       chỉ Quản lý cấp cao (admin cứng) giữ đủ quyền
+[D5.3] Phân quyền chi tiết (account.permissions): xem catalog + quyền hiệu lực, ghi đè từng quyền cho từng tài khoản (chỉ lưu phần lệch so với mặc định vai trò);
+       quyền phụ thuộc (requires) tự bị loại khi thiếu quyền gốc; Khách bị cấm cấp stockLocations.view
+[D5.4] Yêu cầu đổi vai trò tự thân: người dùng gửi (POST /api/role-requests), Quản lý duyệt/từ chối (PATCH .../:id/status)
 
-```
---- Nhánh E1: Nộp đơn xin nghỉ phép qua Web Portal (/humanresources/) ---
-[E1.1] Nhân viên mở /humanresources/ -> Kiểm tra số dư ngày phép (GET /api/hr/leave/balance)
-[E1.2] Nhân viên điền form nộp đơn (loại nghỉ, từ ngày - đến ngày, số giờ/ngày, lý do) -> POST /api/hr/leave/requests
-[E1.3] Backend xác thực dữ liệu, ghi nhận đơn vào tab `HR_Leaves` ở trạng thái PENDING
-[E1.4] Telegram Bot tự động gửi thông báo đến nhóm Quản lý/HR kèm nút bấm hoặc thông tin duyệt đơn
-
---- Nhánh E2: Tương tác qua Telegram Bot (hrTelegramBot.js) ---
-[E2.1] Nhân viên gửi tin nhắn /start hoặc /nghiphep đến Telegram Bot
-[E2.2] Bot đối soát tài khoản qua conversationStore -> Hướng dẫn nhân viên chọn loại nghỉ và thời gian
-[E2.3] Nhân viên xác nhận -> Bot gọi API nội bộ tạo đơn nghỉ phép và phản hồi mã đơn
-
---- Nhánh E3: Phê duyệt đơn & Xuất báo cáo (Quản lý / HR) ---
-[E3.1] Quản lý mở Cổng thông tin duyệt đơn (GET /api/hr/leave/admin/requests)
-[E3.2] Quản lý duyệt (POST .../approve) hoặc từ chối kèm lý do (POST .../reject)
-[E3.3] Backend cập nhật trạng thái đơn, tính toán trừ số dư ngày phép trong năm
-[E3.4] Telegram Bot gửi thông báo kết quả tức thì đến nhân viên
-[E3.5] HR xuất báo cáo đối soát ngày nghỉ phép ra file Excel .xlsx (GET /api/hr/leave/export)
+--- Nhánh D6: Bảo vệ trang ---
+[D6.1] pageGuard.js chặn truy cập trang theo quyền (reports / shipment/lifecycle / humanresources / stock-locations / account); chưa đăng nhập -> /login/
+[D6.2] Sau đăng nhập tới trang đầu tiên tài khoản có quyền (landingPathFor)
 ```
 
 ---
 
-# 9. Truy vết yêu cầu
+# 9. Luồng E — Nghỉ phép nhân sự và Telegram
 
-Mỗi bước trong các luồng đã được gắn mã yêu cầu chức năng/phi chức năng (FR-xx / NFR-xx) tương ứng với SRS v2.1 mục 3 và mục 4, giúp truy vết đầy đủ hai chiều giữa mô hình quy trình (BPMN) và đặc tả kỹ thuật (SRS).
+```
+--- Nhánh E1: Nhân viên xin nghỉ (bot xin nghỉ CHẠY NGOÀI repo) ---
+[E1.1] Nhân viên nhắn bot xin nghỉ (chọn ngày/buổi Sáng-Chiều, lý do, người bàn giao)
+[E1.2] Bot INSERT thẳng vào hr_leave_requests (DB tự sinh request_id `NP-YYYYMMDD-NNNN`); trigger DB ghi sự kiện vào hr_leave_change_events
+       Đơn gửi sau mốc giờ của CSNS-NP-01 (07:45 ca sáng / 12:30 ca chiều của ngày bắt đầu nghỉ) được gắn trạng thái `Vi phạm`
 
-| **Luồng** | **Yêu cầu SRS bao phủ**                      |
-|-----------|----------------------------------------------|
-| Luồng A   | FR-06.1 -> FR-06.14, NFR-09                   |
-| Luồng B   | FR-01.1 -> FR-01.7, FR-02.x, FR-03.x, FR-04.x, FR-05.x, FR-07.1 -> FR-07.14, NFR-01, NFR-03, NFR-10, NFR-11 |
-| Luồng C   | FR-01.3, FR-06.4, FR-07.5, NFR-02, NFR-03, NFR-12 |
-| Luồng D   | FR-08.1 -> FR-08.10, NFR-03, NFR-12          |
-| Luồng E   | CSNS-NP-01, HR Leave APIs, Telegram Bot, NFR-01, NFR-03 |
+--- Nhánh E2: Web nhận tin ---
+[E2.1] hrLeaveDbRealtime.js phát hiện đơn mới/đổi (kể cả do bot ngoài ghi) -> SSE /api/hr/leave-requests/stream + thông báo chuông cho mọi tài khoản
+[E2.2] Người có quyền hr.leave mở /humanresources/#leave: bảng nghỉ phép có lọc cơ sở/phòng ban/ngày, phân trang, huy hiệu cảnh báo nghỉ gấp; lịch nghỉ phép ở header (chọn ngày -> ai nghỉ sáng/chiều/cả ngày, ẩn đơn Từ chối)
+
+--- Nhánh E3: Quản lý ghi nhận & duyệt trên web (hr.leave.manage) ---
+[E3.1] POST /api/hr/leave-requests: nhập tay "Tự ý nghỉ (HR ghi nhận)" (mặc định Đã duyệt, không gửi bot quản lý); ở "Cả hai" cơ sở suy từ hồ sơ nhân sự, không suy được -> 400 LEAVE_BRANCH_UNRESOLVED
+[E3.2] PATCH /api/hr/leave-requests/:id/status: Chưa duyệt / Đã duyệt / Từ chối / Vi phạm (kèm lý do khi Từ chối); đổi trạng thái -> tăng decision_version, xóa decision_notified_at -> bot xin nghỉ báo lại nhân viên
+[E3.3] Duyệt/Từ chối ngay trên thông báo chuông (API vẫn kiểm tra quyền); xuất Excel báo cáo nghỉ phép; xuất Danh sách nhân sự (hr.employees)
+
+--- Nhánh E4: Bot Telegram quản lý (HR_MANAGER_TELEGRAM_ENABLED=true) ---
+[E4.1] Runtime quét Postgres mỗi 5 giây (mặc định) + nhận webhook (header X-Telegram-Bot-Api-Secret-Token); lưu update vào hr_manager_telegram_updates trước khi xử lý
+[E4.2] Gửi mọi đơn "Xin nghỉ phép" mới (kể cả Vi phạm) và bù đơn Chưa duyệt chưa gửi cho quản lý phù hợp: vai trò Quản lý, hoạt động, có Telegram ID, quyền hr.leave.manage,
+       cơ sở tài khoản khớp cơ sở đơn ("Cả hai" nhận cả hai; trống không nhận); quản lý phải bấm Start với bot mới
+[E4.3] Quản lý bấm Phê duyệt (lưu Đã duyệt) hoặc Từ chối
+       |-- Từ chối -> mở phiên 15 phút: reply đúng tin nhắc để nhập lý do (<= 500 ký tự) / Bỏ qua (lý do rỗng) / Hủy (không quyết định)
+[E4.4] Quyết định đi qua hrLeaveDecisionService (cùng transaction, kiểm tra decision_version + quyền + cơ sở): nút/phiên cũ bị từ chối
+[E4.5] Đã duyệt/Từ chối khóa thao tác Telegram cho mọi quản lý; web vẫn sửa/mở lại; mọi tin đã gửi được cập nhật theo kết quả mới
+[E4.6] Tin lỗi được giữ trong hàng đợi (lease/retry); server tắt thì dừng, bật lại thì xử lý tiếp
+```
+
+| **Bước** | **Vai trò**       | **Mô tả**                                                                 | **Tham chiếu** |
+|----------|-------------------|---------------------------------------------------------------------------|----------------|
+| E1       | Bot xin nghỉ      | Ghi đơn trực tiếp vào Postgres (ngoài repo).                              | SCHEMA.md `0016` |
+| E2       | Backend/Web       | SSE + chuông + bảng/lịch nghỉ phép.                                        | FR-10.5–10.7, 10.14 |
+| E3       | Quản lý           | Nhập tay "Tự ý nghỉ", duyệt/từ chối, xuất báo cáo.                         | FR-10.1–10.4, 10.6 |
+| E4       | Bot quản lý       | Giao tin theo cơ sở, Phê duyệt/Từ chối, phiên lý do, đồng bộ tin nhắn.     | FR-10.8–10.14, NFR-16 |
 
 ---
 
-# 10. Ghi chú & khuyến nghị
+# 10. Luồng F — Vòng đời đơn hàng (quyền `shipment.lifecycle`)
 
-- **Điểm mấu chốt:** Node.js Sync Engine (Luồng A) nhận webhook và đối soát polling trực tiếp từ KiotViet API vào Supabase PostgreSQL, thay thế hoàn toàn Apps Script. Tab "Trả NCC" duy trì trên Google Sheets. Tích hợp Result Cache giúp việc chuyển tab và đổi bộ lọc diễn ra tức thì (<10ms).
-- **Phân tích công nợ chuyên sâu:** Dữ liệu CN1/CN3/CN7 được tổng hợp tự động vào bảng `customer_debt_activity_periods` định kỳ, phục vụ đối soát và cảnh báo công nợ khách hàng chưa thu theo chi nhánh.
-- **Bảo mật đăng nhập & Tài khoản:** Xác thực JWT cookie kết hợp bảng PostgreSQL `app_users`; cơ chế lockout 5 phút ngăn chặn brute-force; mã OTP 6 số hết hạn sau 5 phút đảm bảo an toàn quy trình khôi phục tài khoản.
-- **Phân hệ HR & Vòng đời đơn hàng:** Vòng đời đơn hàng đọc trực tiếp từ `ORDER_LIFECYCLE_SPREADSHEET_ID`; phân hệ HR Leave phối hợp linh hoạt giữa Web Portal và Telegram Bot lưu trữ trên Google Sheets `HR_Leaves`.
-- **Khả năng suy giảm có kiểm soát:** Một bảng hoặc tab nguồn bị lỗi tạm thời chỉ làm rỗng section tương ứng, không làm sập toàn bộ Dashboard.
-- **Nhất quán thời gian:** Backend xử lý ngày và `updatedAt` theo Asia/Ho_Chi_Minh.
-- **Kiểm thử liên tục:** Trước khi commit hoặc deploy, luôn chạy `npm test` tại `server/` để kiểm tra toàn bộ **711 bài kiểm thử tự động**.
+```
+[F0] [Start] Người dùng có quyền mở /shipment/lifecycle/ (sidebar "Vòng đời đơn hàng"; Nhân viên kho/marketing/mua hàng và Khách không có)
+[F1] [Task] GET /api/shipment/lifecycle?branch&status&kiotStatus&dateField&from&to&mode&q&sort&dir&page&pageSize
+[F2] [Task] Backend dựng danh sách = MỌI đơn đặt hàng KiotViet của HN + SG (cache 2 phút kiểu stale-while-revalidate, ~60 nghìn đơn)
+            ghép với Google Sheet theo (cơ sở, mã đơn): có trên sheet -> lấy trạng thái vòng đời của sheet;
+            chỉ có ở Kiot -> "Đơn chưa gửi kế toán" (thấp nhất); dòng sheet không khớp đơn Kiot nào -> bỏ
+[F3] [Task] Lọc, sắp xếp, cắt trang ở máy chủ (orderLifecycleQuery.js) -> trả 1 trang (mặc định 100 dòng) + tổng + danh sách trạng thái Kiot + tình trạng nguồn Kiot
+[F4] [Decision] Postgres lỗi? -> kiot.ok=false, vẫn trả đơn sheet kèm cảnh báo
+[F5] [Task] Bấm 1 dòng: GET /api/shipment/lifecycle/order-detail?code&branch -> dòng hàng, tồn kho, "Điều chuyển SG" (hàng đang vận chuyển, tham khảo), số có bán (đơn Phiếu tạm: min(SL đặt, tồn))
+[F6] [Task] Tra cứu theo mã: GET /:orderCode, POST /lookup (shipment.lookup); Lịch sử cập nhật: GET /history (shipment.history)
+[F7] [Task] Ghi đè trạng thái (shipment.override, mặc định chỉ Quản lý): POST /:orderCode/override -> ghi 1 dòng vào tab `Lịch sử cập nhật`; 8 trạng thái: 6 tính được
+            (Đơn chưa gửi kế toán -> Đã gửi kế toán -> Đang được giao -> Đã giao thành công -> Đã nhận (Tại kho) -> Đã nhận (Đi giao xong)) + Sự cố + Đã hủy (chỉ qua ghi đè)
+[F8] [Task] Xuất Excel (shipment.export, mặc định chỉ Quản lý): POST /export nhận chính bộ lọc, tối đa 20.000 dòng (vượt -> 400 TOO_MANY_ROWS)
+[F9] [End]
+```
 
 ---
 
-*Hết tài liệu BPMN v2.1*
+# 11. Luồng G — Vị trí hàng (quyền `stockLocations.view`)
+
+```
+[G0] [Start] Người dùng nội bộ (không phải Khách) mở /stock-locations/#hn hoặc #sg (nhóm sidebar "Vị trí hàng"; chọn HN/SG chỉ hiện tab tương ứng, "Cả hai" hiện cả hai, mặc định HN)
+[G1] [Task] GET /api/stock-locations?branch=HN|SG -> kiểm tra đăng nhập + quyền + cơ sở thuộc phạm vi chọn (400 branch lạ; 403 ngoài phạm vi/thiếu quyền)
+[G2] [Task] Đọc mới sheet `Vị trí HN`/`Vị trí SG` (FORMATTED_VALUE, nhận cột theo tiêu đề; chỉ gộp các lượt đọc đồng thời; không cache giá trị); Cache-Control: no-store
+[G3] [Decision] Đọc được? Không -> 503 với mã STOCK_LOCATIONS_NOT_CONFIGURED / _SHEET_MISSING / _HEADERS_MISSING / _SOURCE_UNAVAILABLE
+[G4] [Task] Frontend: 6 cột (Mã hàng, Tên hàng, Tổng SL, Ghi chú hàng hóa, Ngày về, Vị trí), tìm mã/tên/vị trí không dấu, sắp xếp toàn bộ rồi phân trang 100 dòng, ẩn/hiện cột (nhớ riêng điện thoại/máy tính)
+[G5] [End]
+```
+
+---
+
+# 12. Truy vết yêu cầu
+
+| **Luồng** | **Yêu cầu SRS bao phủ**                                             |
+|-----------|---------------------------------------------------------------------|
+| Luồng A   | FR-06.x, NFR-09                                                     |
+| Luồng B   | FR-01.x, FR-02.x, FR-03.x, FR-04.x, FR-05.x, FR-07.x, FR-11.x, FR-12.x, NFR-01, NFR-03, NFR-10, NFR-11, NFR-13–15 |
+| Luồng C   | FR-06.x, NFR-02, NFR-03, NFR-12                                     |
+| Luồng D   | FR-08.x, NFR-03, NFR-12                                             |
+| Luồng E   | FR-10.x, NFR-16, CSNS-NP-01                                         |
+| Luồng F   | FR-08.8, FR-14.x                                                    |
+| Luồng G   | FR-13.x                                                             |
+
+---
+
+# 13. Ghi chú & khuyến nghị
+
+- **Điểm mấu chốt:** polling của Sync Engine là nguồn dữ liệu thật; webhook KiotViet hiện chỉ lưu thô. Báo cáo tổng hợp tải từng tab, cache hai tầng và cập nhật gần thời gian thực bằng SSE sau mỗi lượt sync + rollup.
+- **Google Sheets còn dùng cho 3 việc:** Bảng Công nợ (đọc), Vòng đời đơn hàng (đọc + ghi tab Lịch sử), Vị trí hàng (đọc). Workbook HR và tab `Trả NCC` **không còn được đọc** (Trả NCC → upload Excel vào Postgres; nhân sự → `hr_employees`).
+- **Khả năng suy giảm có kiểm soát:** nguồn Kiot lỗi thì Vòng đời đơn hàng vẫn hiện đơn sheet kèm cảnh báo; workbook công nợ lỗi chỉ làm tab Công nợ báo `available=false`; bảng chưa migrate (vd `inventory_value_snapshots`) trả rỗng thay vì lỗi.
+- **Nhất quán thời gian:** ngày "hôm nay", bucket ngày và `updatedAt` tính theo Asia/Ho_Chi_Minh; cột TIMESTAMPTZ của KiotViet lưu "giờ treo tường VN mang nhãn UTC" (xem `dashboardPgReader.js`).
+- **Kiểm thử liên tục:** chạy `npm test` trong `server/` trước khi commit/deploy (số lượng test xem SRS mục 2.2).
+
+---
+
+*Hết tài liệu BPMN v3.0*

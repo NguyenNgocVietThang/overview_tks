@@ -8,7 +8,7 @@ Kiểm thử code trên Node 22: toàn bộ bộ kiểm thử có 1.622 test th�
 
 - Máy chủ Express có HTTPS origin công khai và chạy liên tục nếu cần thông báo gần thời gian thực. Khi máy chủ ngủ/tắt, quét và giao tin dừng đến khi chạy lại.
 - Kết nối PostgreSQL đúng môi trường và quyền chạy migration. Bot xin nghỉ của nhân viên hiện có vẫn dùng database này, webhook và tiến trình riêng.
-- Mỗi quản lý có tài khoản Quản lý đang hoạt động, Telegram ID và quyền `hr.leave.manage`. Cơ sở tài khoản phải là Hà Nội, Sài Gòn hoặc Cả hai; để trống sẽ không nhận thông báo bot quản lý.
+- Mỗi quản lý có tài khoản Quản lý đang hoạt động, Telegram ID (từ 03/10/2026 chỉ Quản lý nhập/sửa được ID Telegram, trong hồ sơ của chính mình hoặc ở trang Quản lý người dùng) và quyền `hr.leave.manage`. Cơ sở tài khoản phải là Hà Nội, Sài Gòn hoặc Cả hai; để trống sẽ không nhận thông báo bot quản lý.
 
 ## 1. Tạo bot riêng
 
@@ -24,9 +24,9 @@ Tại `server/`, với cấu hình database đúng môi trường:
 npm run db:migrate
 ```
 
-Xác nhận `0029_hr_manager_telegram.sql` đã được áp: có `hr_leave_requests.decision_version` và các bảng `hr_leave_change_events`, `hr_leave_manager_messages`, `hr_manager_telegram_sessions`, `hr_manager_telegram_updates`, `hr_manager_telegram_state`.
+Xác nhận `0029_hr_manager_telegram.sql` đã được áp: có `hr_leave_requests.decision_version` và các bảng `hr_leave_change_events`, `hr_leave_manager_messages`, `hr_manager_telegram_sessions`, `hr_manager_telegram_updates`, `hr_manager_telegram_state`. Cũng xác nhận `0030_drop_leave_provisional_status.sql` (gỡ trạng thái `Tạm duyệt`; đơn cũ về `Chưa duyệt`) đã áp — mã web và bot quản lý chỉ còn bốn trạng thái `Chưa duyệt`, `Đã duyệt`, `Từ chối`, `Vi phạm`.
 
-**Phải áp migration trước khi chạy bản web mới, kể cả khi bot đang tắt:** repository web đọc `decision_version`. Không xóa hay tạo lại ba bảng nền của bot nhân viên (`hr_leave_requests`, `hr_telegram_links`, `hr_telegram_sessions`).
+**Phải áp migration (0029 và 0030) trước khi chạy bản web mới, kể cả khi bot đang tắt:** repository web đọc `decision_version` và danh sách trạng thái hợp lệ không còn `Tạm duyệt`. Không xóa hay tạo lại ba bảng nền của bot nhân viên (`hr_leave_requests`, `hr_telegram_links`, `hr_telegram_sessions`).
 
 ## 3. Cấu hình và khởi động
 

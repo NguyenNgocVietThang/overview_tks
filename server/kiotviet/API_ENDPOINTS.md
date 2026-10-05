@@ -59,6 +59,15 @@ Nếu tham số được API tôn trọng, `total` phải về 0.
 | staff | *(không gọi endpoint riêng)* | — | — | Suy ra từ `SoldById`/`CreatedById`/`UserId`... trong response của invoices/orders/returns/purchases/cash_flows qua `staffSync.upsertStaffFromEntity()`. Quyết định giữ nguyên như spec dù `GET /users` đã xác nhận tồn tại (xem ghi chú bên dưới). |
 | product_on_hands | `/productOnHands` (**endpoint chuyên ton kho, KHAC** `/products`) | *(không có — xem ghi chú bên dưới)* | `lastModifiedFrom` | Live probe 2026-09-23 (mã `010GDYE`, tài khoản Hà Nội thật): total 0 khi `lastModifiedFrom=2027-01-01` → tham số hoạt động đúng. |
 
+## Nhóm polling trong `scheduler.js` (cập nhật 2026-10-05)
+
+| Nhóm | Entity | Nhịp mặc định |
+|---|---|---|
+| fast | `invoices`, `orders`, `product_on_hands`, `product_on_hands_snapshot`, `order_suppliers` | 7 phút (`KIOTVIET_SYNC_FAST_INTERVAL_MS`); sau mỗi lượt chạy ngay rollup "nóng" 7 ngày |
+| slow | `categories`, `products`, `customers`, `returns`, `purchases`, `cash_flows` | 20 phút (`KIOTVIET_SYNC_SLOW_INTERVAL_MS`) |
+
+`staff` không có endpoint riêng (suy ra từ các entity trên) và `suppliers` đã bỏ khỏi scheduler (migration `0026`; file `entities/suppliers.js` chỉ còn lại như mã chết có test). Webhook KiotViet gọi `POST /api/kiotviet/webhook/<KIOTVIET_WEBHOOK_SECRET>` (secret nằm trên đường dẫn; sai → 404) và hiện **chỉ được lưu thô** vào `webhook_events_raw`, không upsert dữ liệu nghiệp vụ — nguồn dữ liệu thật là polling ở bảng trên.
+
 ## Ghi chú quan trọng: `GET /users`
 
 Live probe xác nhận `GET /users` **tồn tại và trả dữ liệu thật** (status 200, `total=113` nhân
@@ -170,7 +179,7 @@ Trong dữ liệu từ 01/06 đến 28/09, đối chiếu ID phát hiện thiế
 Hà Nội (1.127 mã hàng) và 11 phiếu tại Sài Gòn (427 mã hàng). Các số này là
 ảnh chụp lúc kiểm tra, không phải tổng số sai lệch cố định.
 
-Sửa: purchases polling đối soát toàn bộ danh sách từ 01/06/2026 (mốc sàn đứt hàng), gồm cả phiếu hủy; so
+Sửa: purchases polling đối soát toàn bộ danh sách từ mốc sàn đứt hàng (`STOCKOUT_DATA_FLOOR_DATE_KEY`, hiện là 01/02/2026; thời điểm viết đoạn này mốc là 01/06/2026), gồm cả phiếu hủy; so
 sánh raw để chỉ ghi phiếu mới/thay đổi. Các entity chỉ tiến checkpoint sau
 khi **mọi trang** thành công; lỗi giữa chừng giữ mốc cũ để replay an toàn.
 Chi phí: mỗi lượt purchases polling cần đọc toàn bộ trang API, nhưng không
