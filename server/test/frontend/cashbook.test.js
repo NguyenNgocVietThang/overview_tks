@@ -146,6 +146,7 @@ test("tiền null khác số 0, dấu âm và chuỗi thập phân giữ chính 
   assert.equal(api.money(null), "Chưa chốt");
   assert.equal(api.money(0), "0");
   assert.equal(api.money(-1234567.5), "-1.234.567,5");
+  assert.equal(api.money(1e-21), "0,000000000000000000001");
   assert.equal(
     api.money("9007199254740990.123456789"),
     "9.007.199.254.740.990,123456789",
@@ -688,6 +689,223 @@ test("chênh lệch preview chuỗi thập phân chính xác và lịch sử l�
     /chênh lệch: 0,2$/,
   );
 });
+
+test("preview với số hệ thống dạng exponent giữ chênh lệch và POST chuỗi nhập chính xác", async (t) => {
+  const { init, doc, w, calls } = await setup(t, {
+    manage: true,
+    fetcher: async (url, request) => {
+      if (url.pathname.endsWith("summary") && url.searchParams.has("at"))
+        return {
+          ok: true,
+          json: async () => ({
+            ...summary,
+            balances: [{ ...summary.balances[0], balance: 1e-7 }],
+          }),
+        };
+      if (request.method === "POST")
+        return { ok: true, json: async () => ({ checkpoint: { id: "1" } }) };
+    },
+  });
+  await init();
+  doc.querySelector('[data-checkpoint="-1"]').click();
+  await tick();
+  doc.getElementById("checkpointBalance").value = "1,234.0123456789";
+  doc
+    .getElementById("checkpointBalance")
+    .dispatchEvent(new w.Event("input", { bubbles: true }));
+  assert.match(
+    doc.getElementById("checkpointPreview").textContent,
+    /chênh lệch: 1\.234,0123455789$/,
+  );
+  doc
+    .getElementById("checkpointForm")
+    .dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true }));
+  await tick();
+  const post = calls.find((call) => call.init.method === "POST");
+  assert.ok(post);
+  assert.equal(JSON.parse(post.init.body).balance, "1234.0123456789");
+});
+
+for (const outcome of ["success", "failure"]) {
+  test(`checkpoint ${outcome} cũ không đổi dialog quỹ mới`, async (t) => {
+    let finishPost;
+    const { init, doc, w, calls } = await setup(t, {
+      manage: true,
+      fetcher: async (_url, request) => {
+        if (request.method === "POST")
+          return new Promise((resolve) => {
+            finishPost = resolve;
+          });
+      },
+    });
+    await init();
+    doc.querySelector('[data-checkpoint="-1"]').click();
+    await tick();
+    doc.getElementById("checkpointBalance").value = "100";
+    doc
+      .getElementById("checkpointBalance")
+      .dispatchEvent(new w.Event("input", { bubbles: true }));
+    doc
+      .getElementById("checkpointForm")
+      .dispatchEvent(
+        new w.Event("submit", { bubbles: true, cancelable: true }),
+      );
+    await tick();
+    assert.equal(typeof finishPost, "function");
+    doc.getElementById("checkpointDialog").close();
+    doc.querySelector('[data-checkpoint="cash"]').click();
+    await tick();
+    doc.getElementById("checkpointBalance").value = "250";
+    doc
+      .getElementById("checkpointBalance")
+      .dispatchEvent(new w.Event("input", { bubbles: true }));
+    assert.equal(doc.getElementById("checkpointFund").value, "cash");
+    assert.match(
+      doc.getElementById("checkpointPreview").textContent,
+      /số dư ban đầu/,
+    );
+    assert.equal(doc.getElementById("checkpointSave").disabled, false);
+    finishPost(
+      outcome === "success"
+        ? { ok: true, json: async () => ({ checkpoint: { id: "1" } }) }
+        : {
+            ok: false,
+            status: 500,
+            json: async () => ({ error: "Lỗi chốt quỹ cũ." }),
+          },
+    );
+    await tick();
+    assert.equal(doc.getElementById("checkpointDialog").open, true);
+    assert.equal(doc.getElementById("checkpointFund").value, "cash");
+    assert.equal(doc.getElementById("checkpointBalance").value, "250");
+    assert.match(
+      doc.getElementById("checkpointPreview").textContent,
+      /số dư ban đầu/,
+    );
+    assert.equal(doc.getElementById("checkpointError").textContent, "");
+    assert.equal(doc.getElementById("checkpointSave").disabled, false);
+    assert.equal(calls.filter((call) => call.init.method === "POST").length, 1);
+  });
+
+  test(`export ${outcome} cũ không đổi dialog bảng mới`, async (t) => {
+    let finishExport;
+    const { init, doc, w } = await setup(t, {
+      fetcher: async (url) => {
+        if (url.pathname.endsWith("export"))
+          return new Promise((resolve) => {
+            finishExport = resolve;
+          });
+      },
+    });
+    await init();
+    const downloaded = [];
+    w.URL.createObjectURL = () => "blob:synthetic";
+    w.URL.revokeObjectURL = () => {};
+    w.HTMLAnchorElement.prototype.click = function () {
+      downloaded.push(this.download);
+    };
+    doc.querySelector('[data-export="balances"]').click();
+    doc.getElementById("exportDownload").click();
+    await tick();
+    assert.equal(typeof finishExport, "function");
+    doc.getElementById("exportDialog").close();
+    doc.querySelector('[data-export="entries"]').click();
+    doc.getElementById("exportFormat").value = "html";
+    doc.querySelector('#exportColumns input[value="code"]').checked = false;
+    doc
+      .getElementById("exportColumns")
+      .dispatchEvent(new w.Event("change", { bubbles: true }));
+    assert.equal(doc.getElementById("exportDownload").disabled, false);
+    finishExport(
+      outcome === "success"
+        ? { ok: true, blob: async () => new w.Blob(["old file"]) }
+        : {
+            ok: false,
+            status: 500,
+            json: async () => ({ error: "Lỗi xuất số dư cũ." }),
+          },
+    );
+    await tick();
+    assert.equal(doc.getElementById("exportDialog").open, true);
+    assert.equal(doc.querySelectorAll("#exportColumns input").length, 14);
+    assert.equal(
+      doc.querySelector('#exportColumns input[value="code"]').checked,
+      false,
+    );
+    assert.equal(doc.getElementById("exportFormat").value, "html");
+    assert.equal(doc.getElementById("exportError").textContent, "");
+    assert.equal(doc.getElementById("exportDownload").disabled, false);
+    assert.deepEqual(downloaded, []);
+  });
+}
+
+test("checkpoint cũ hoàn thành khi quỹ mới đang lưu không bật lại nút lưu", async (t) => {
+  const pending = [];
+  const { init, doc, w } = await setup(t, {
+    manage: true,
+    fetcher: async (_url, request) => {
+      if (request.method === "POST")
+        return new Promise((resolve) => pending.push(resolve));
+    },
+  });
+  await init();
+  for (const fund of ["-1", "cash"]) {
+    doc.querySelector(`[data-checkpoint="${fund}"]`).click();
+    await tick();
+    doc.getElementById("checkpointBalance").value = "100";
+    doc
+      .getElementById("checkpointBalance")
+      .dispatchEvent(new w.Event("input", { bubbles: true }));
+    doc
+      .getElementById("checkpointForm")
+      .dispatchEvent(
+        new w.Event("submit", { bubbles: true, cancelable: true }),
+      );
+    await tick();
+    if (fund === "-1") doc.getElementById("checkpointDialog").close();
+  }
+  assert.equal(pending.length, 2);
+  assert.equal(doc.getElementById("checkpointSave").disabled, true);
+  pending[0]({ ok: true, json: async () => ({ checkpoint: { id: "1" } }) });
+  await tick();
+  assert.equal(doc.getElementById("checkpointDialog").open, true);
+  assert.equal(doc.getElementById("checkpointFund").value, "cash");
+  assert.equal(doc.getElementById("checkpointSave").disabled, true);
+  pending[1]({ ok: true, json: async () => ({ checkpoint: { id: "2" } }) });
+  await tick();
+  assert.equal(doc.getElementById("checkpointDialog").open, false);
+});
+
+test("export cũ hoàn thành khi bảng mới đang tải không bật lại nút tải", async (t) => {
+  const pending = [];
+  const { init, doc, w } = await setup(t, {
+    fetcher: async (url) => {
+      if (url.pathname.endsWith("export"))
+        return new Promise((resolve) => pending.push(resolve));
+    },
+  });
+  await init();
+  w.URL.createObjectURL = () => "blob:synthetic";
+  w.URL.revokeObjectURL = () => {};
+  w.HTMLAnchorElement.prototype.click = () => {};
+  doc.querySelector('[data-export="balances"]').click();
+  doc.getElementById("exportDownload").click();
+  await tick();
+  doc.getElementById("exportDialog").close();
+  doc.querySelector('[data-export="entries"]').click();
+  doc.getElementById("exportDownload").click();
+  await tick();
+  assert.equal(pending.length, 2);
+  assert.equal(doc.getElementById("exportDownload").disabled, true);
+  pending[0]({ ok: true, blob: async () => new w.Blob(["old file"]) });
+  await tick();
+  assert.equal(doc.getElementById("exportDialog").open, true);
+  assert.equal(doc.getElementById("exportDownload").disabled, true);
+  pending[1]({ ok: true, blob: async () => new w.Blob(["new file"]) });
+  await tick();
+  assert.equal(doc.getElementById("exportDialog").open, false);
+});
+
 test("export xlsx/html tải file qua blob; lỗi giới hạn hiện trong dialog", async (t) => {
   const { init, doc, w, calls } = await setup(t, {
     fetcher: async (url) =>

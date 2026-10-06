@@ -1080,16 +1080,20 @@
         let previewVersion = 0,
           previewController,
           preview = null,
-          saving = false;
+          saving = false,
+          checkpointSession = 0;
         let exportView,
           exportSelection = {},
-          exportBusy = false;
+          exportBusy = false,
+          exportSession = 0;
         const openers = new Map();
 
         // Giữ chuỗi thập phân từ backend/ô nhập, không làm tròn số dư ban đầu.
         function money(value, empty = "Chưa chốt") {
           if (value == null || value === "") return empty;
           let text = String(value);
+          if (/^[+-]?\d+(?:\.\d+)?[eE][+-]?\d+$/.test(text))
+            text = plainDecimal(text);
           if (!/^[+-]?\d+(?:\.\d+)?$/.test(text)) {
             const number = Number(value);
             if (!Number.isFinite(number)) return empty;
@@ -1127,11 +1131,27 @@
             throw new Error("Số dư phải là số hợp lệ trong giới hạn cho phép.");
           return raw;
         }
+        function plainDecimal(value) {
+          const match = /^([+-]?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(
+            String(value),
+          );
+          if (!match) throw new Error("Số dư hệ thống không hợp lệ.");
+          const exponent = Number(match[4] || 0);
+          if (!Number.isInteger(exponent) || Math.abs(exponent) > 1000)
+            throw new Error("Số dư hệ thống không hợp lệ.");
+          const digits = match[2] + (match[3] || ""),
+            point = match[2].length + exponent;
+          const decimal =
+            point <= 0
+              ? "0." + "0".repeat(-point) + digits
+              : point >= digits.length
+                ? digits + "0".repeat(point - digits.length)
+                : digits.slice(0, point) + "." + digits.slice(point);
+          return (match[1] === "-" ? "-" : "") + decimal;
+        }
         function decimalDifference(left, right) {
-          const a = String(left),
-            b = String(right);
-          if (![a, b].every((s) => /^-?\d+(?:\.\d+)?$/.test(s)))
-            return String(Number(left) - Number(right));
+          const a = plainDecimal(left),
+            b = plainDecimal(right);
           const scale = Math.max(
             (a.split(".")[1] || "").length,
             (b.split(".")[1] || "").length,
@@ -1665,6 +1685,8 @@
         }
         function openCheckpoint(fund, opener) {
           if (!canManage) return;
+          ++checkpointSession;
+          saving = false;
           $("checkpointForm").reset();
           $("checkpointFund").value = fund;
           $("checkpointAt").max = vnLocal();
@@ -1676,6 +1698,9 @@
         async function saveCheckpoint(event) {
           event.preventDefault();
           if (saving || !canManage) return;
+          const session = checkpointSession,
+            currentDialog = () =>
+              session === checkpointSession && $("checkpointDialog").open;
           try {
             const current = currentCheckpoint();
             if (
@@ -1696,13 +1721,16 @@
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ ...current, balance, note }),
             });
-            $("checkpointDialog").close();
+            if (currentDialog()) $("checkpointDialog").close();
             await load();
           } catch (error) {
-            $("checkpointError").textContent = error.message;
+            if (currentDialog())
+              $("checkpointError").textContent = error.message;
           } finally {
-            saving = false;
-            updatePreviewText();
+            if (currentDialog()) {
+              saving = false;
+              updatePreviewText();
+            }
           }
         }
         function chosenColumns() {
@@ -1721,6 +1749,8 @@
             exportBusy || !exportSelection[exportView].length;
         }
         function openExport(view, opener) {
+          ++exportSession;
+          exportBusy = false;
           exportView = view;
           $("exportError").textContent = "";
           $("exportColumns").replaceChildren();
@@ -1745,6 +1775,9 @@
         }
         async function downloadExport() {
           if (exportBusy || !chosenColumns().length) return;
+          const session = exportSession,
+            currentDialog = () =>
+              session === exportSession && $("exportDialog").open;
           exportBusy = true;
           $("exportDownload").disabled = true;
           $("exportError").textContent = "";
@@ -1754,8 +1787,9 @@
             const response = await request(
               exportUrl(view, format, chosenColumns(), filters),
             );
-            const blob = await response.blob(),
-              url = URL.createObjectURL(blob),
+            const blob = await response.blob();
+            if (!currentDialog()) return;
+            const url = URL.createObjectURL(blob),
               anchor = document.createElement("a");
             anchor.href = url;
             anchor.download = "TKS_So_quy_" + view + "." + format;
@@ -1763,12 +1797,14 @@
             anchor.click();
             anchor.remove();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
-            $("exportDialog").close();
+            if (currentDialog()) $("exportDialog").close();
           } catch (error) {
-            $("exportError").textContent = error.message;
+            if (currentDialog()) $("exportError").textContent = error.message;
           } finally {
-            exportBusy = false;
-            $("exportDownload").disabled = !chosenColumns().length;
+            if (currentDialog()) {
+              exportBusy = false;
+              $("exportDownload").disabled = !chosenColumns().length;
+            }
           }
         }
         function theme() {
@@ -1846,10 +1882,16 @@
           });
           for (const id of ["checkpointDialog", "exportDialog"]) {
             $(id).addEventListener("close", () => {
+              if ($(id).open) return;
               if (id === "checkpointDialog") {
+                ++checkpointSession;
+                saving = false;
                 preview = null;
                 ++previewVersion;
                 if (previewController) previewController.abort();
+              } else {
+                ++exportSession;
+                exportBusy = false;
               }
               const opener = openers.get(id);
               if (opener && opener.isConnected) opener.focus();
