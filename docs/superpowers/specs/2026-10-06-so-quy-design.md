@@ -184,7 +184,9 @@ Không cache kết quả (dữ liệu nhỏ, cần chính xác sau khi chốt). 
 
 HTML thuần, theo theme sáng/tối và `shared-nav` như `public/stock-locations/`.
 
-Bố cục: **cột bộ lọc trái** (giống KiotViet, ảnh tham chiếu trong hội thoại 2026-10-06) + **nội dung phải**. Mobile: bộ lọc thu thành nút "Bộ lọc" mở ngăn kéo.
+> **Đổi 2026-10-06 (sau bản Codex):** bỏ cột bộ lọc trái kiểu KiotViet, đưa trang về design system của tab Báo cáo: **thanh lọc ngang** phía trên (period-toggle thời gian + Từ–Đến dd/mm/yyyy, các bộ lọc nhiều lựa chọn là dropdown có nhãn tóm tắt), nội dung chiếm toàn chiều ngang theo `section-head` 1/2/3. Ô Tên/SĐT đối tác chuyển xuống **thanh tìm kiếm của bảng Sổ chi tiết** (chế độ Mã phiếu · Người nộp/nhận · SĐT · Ghi chú; thêm tham số máy chủ `code`, `note`). Bảng Số dư và Lịch sử chốt có ô tìm tại máy khách. Hộp Xuất file theo khuôn `export-modal` (nút Xuất HTML / Xuất Excel). KPI "Tồn quỹ" = số dư thật tại mốc Đến (không suy từ đầu kỳ + thu − chi đã lọc). Chi tiết: `design-system/tks-dashboard/pages/cashbook.md`. Phần mô tả bên dưới giữ nguyên làm lịch sử.
+
+Bố cục (bản đầu): **cột bộ lọc trái** (giống KiotViet, ảnh tham chiếu trong hội thoại 2026-10-06) + **nội dung phải**. Mobile: bộ lọc thu thành nút "Bộ lọc" mở ngăn kéo.
 
 Thứ tự bộ lọc: Quỹ (radio Tổng quỹ / Tiền mặt / Ngân hàng + multi-select tài khoản) · Thời gian (radio preset ▸ | Tùy chỉnh Từ–Đến) · Loại chứng từ (☑Phiếu thu ☑Phiếu chi) · Loại thu chi (multi-select) · Trạng thái (☑Đã thanh toán ☑Đã hủy) · Hạch toán KQKD (chip Tất cả/Có/Không) · Người tạo · Nhân viên · Người nộp/nhận (select loại + ô tên/mã + ô SĐT) · Công nợ đối tác (3 checkbox). Ô text debounce 300ms. Lưu bộ lọc vào URL hash để F5 không mất.
 

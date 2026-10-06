@@ -6,7 +6,8 @@
 
 > **📋 Audit toàn diện gần nhất:** 2026-09-15 — rà soát 100% giao diện (7 trang: `index`, `account`, `humanresources`,
 > `login`, `register`, `shipment`, `404` + `shared.css`). **Cập nhật 2026-10-05:** trang tra cứu vòng đời nay là
-> `shipment/lifecycle/index.html` (trước là `shipment/index.html`) và có thêm trang `stock-locations/` (Vị trí hàng);
+> `shipment/lifecycle/index.html` (trước là `shipment/index.html`) và có thêm trang `stock-locations/` (Vị trí hàng)
+> và (2026-10-06) `cashbook/` (Sổ quỹ — dựng theo khuôn tab Báo cáo, xem `pages/cashbook.md`);
 > trạng thái hiện tại của từng mục nợ ở mục 12 đã được kiểm tra lại bằng grep (bảng "Trạng thái kiểm tra lại" đầu mục 12). Các component mới phát hiện đã được chuẩn hoá vào mục 5;
 > sai lệch/nợ thiết kế phát hiện được liệt kê đầy đủ ở **mục 12**. Chi tiết theo từng trang: `pages/*.md`.
 
