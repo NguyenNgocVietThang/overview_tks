@@ -224,8 +224,14 @@ Tiền: định dạng `1.234.567` theo quy ước hiện có của dashboard; s
 
 ## 12. Kết quả xác minh (agent điền ở Bước 0)
 
-- Khóa tài khoản: …
-- Giá trị status (đã thanh toán / đã hủy): …
-- Dấu của amount phiếu chi: …
-- Khóa loại thu chi / hạch toán / người tạo / người nộp nhận / SĐT / công nợ: …
-- Bộ lọc bị ẩn do thiếu dữ liệu (kèm lý do): …
+- Xác minh ngày 2026-10-06: người dùng cho phép SELECT bằng kết nối hiện có; role thực tế `postgres`, `BEGIN READ ONLY` và kiểm tra `transaction_read_only=on`, chỉ SELECT rồi ROLLBACK. `reporting_readonly` không dùng được vì SET ROLE lỗi 42501.
+- Khóa tài khoản: `accountId` (65.542/74.946 dòng); 9.404 dòng thiếu = quỹ Tiền mặt theo D4. Không suy ra từ method: 100 dòng Cash có ID, 9 Transfer thiếu ID. `IsReceipt` có chữ I/R hoa.
+- Giá trị status: `0` = Đã thanh toán (74.657), `1` = Đã hủy (289), nhãn ở `statusValue`.
+- Dấu amount: tất cả 55.438 phiếu thu dương; tất cả 19.508 phiếu chi âm. Tổng số dư dùng amount đã có dấu, không trừ chi âm lần nữa; loại status=1.
+- Loại thu chi: `cashFlowGroupId` (63.376 dòng) + `cashGroup` (74.388). Hạch toán: `usedForFinancialReporting` 0/1 (70.128/4.818). Người tạo `createdBy`, nhân viên `userId` có mọi dòng; tên `user` chỉ có 38.639 dòng, fallback staff và saleName. Người nộp/nhận `partnerType`, `partnerId`, `partnerName`; SĐT `contactNumber`. Không có khóa công nợ hoặc mã đối tác trong toàn bộ raw keys.
+- GIỮ quỹ/thời gian/chứng từ/loại thu chi/trạng thái/hạch toán/người tạo/nhân viên/tên người nộp nhận/SĐT. ẨN công nợ và tìm mã đối tác vì thiếu trường. Mã partnerType quan sát B/C/O/S/U; source nội bộ xác nhận C=customer, các nhãn khác chưa được xác minh nên ẩn chọn loại đối tác đến khi có bằng chứng, không đoán ánh xạ.
+- GET `/bankaccounts` đã xác minh qua client hiện có: Hà Nội 26 tài khoản, Sài Gòn 24. Trường quan sát: `id`, `bankName`, `accountNumber`, `retailerId`, `accountType`, `createdDate`, `modifiedDate`, `description`. ID có kiểu number và đã đối chiếu với `cash_flows.raw` theo branch như bên dưới. Dùng `node --use-system-ca` để tin cậy chứng thư hệ thống, không tắt xác minh TLS.
+- Đối chiếu accountId theo branch với `/bankaccounts`: HN 30 ID raw, 25 khớp, 5 thiếu danh mục hiện tại (48 dòng); SG 25 ID raw, 22 khớp, 3 thiếu (32 dòng). Giữ ID lịch sử, không đổi 80 dòng này thành tiền mặt; cần fallback hiển thị cho tài khoản chưa có danh mục. Nguyên nhân thiếu chưa được xác minh.
+- Báo cáo chi tiết: `.superpowers/sdd/2026-10-06-so-quy-subagent-prompts/task-A-report.md`.
+- Kiểu JSON quan sát: number = accountId/cashFlowGroupId/usedForFinancialReporting/createdBy/userId/partnerId; string = cashGroup/user/partnerType/partnerName/contactNumber. Nhóm có tên nhưng thiếu ID cần giữ qua khóa tên.
+- ID thiếu danh mục (ID:số dòng): HN `1219533:2`, `1219532:22`, `-1:2`, `1220929:4`, `1219530:18`; SG `1219549:21`, `-1:4`, `1219547:7`. Giá trị `-1` cũng không được đoán nghĩa. Fallback tên: `Tài khoản #ID (không có trong danh sách KiotViet)`.
