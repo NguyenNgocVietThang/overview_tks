@@ -50,7 +50,7 @@ const FEATURES = Object.freeze([
   { key: 'reports.products', groupKey: 'reports', label: 'Hàng hóa (gồm Kiểm tra đứt hàng)', roles: REPORT_VIEW_ROLES },
   { key: 'reports.invoices', groupKey: 'reports', label: 'Hóa đơn', roles: REPORT_VIEW_ROLES },
   { key: 'reports.customers', groupKey: 'reports', label: 'Khách hàng', roles: REPORT_VIEW_ROLES },
-  { key: 'reports.debt', groupKey: 'reports', label: 'Quản lý công nợ', roles: REPORT_VIEW_ROLES },
+  { key: 'reports.debt', groupKey: 'reports', label: 'Công nợ', roles: REPORT_VIEW_ROLES },
   { key: 'reports.debt.edit', groupKey: 'reports', label: 'Cập nhật trạng thái công nợ', roles: REPORTS_ROLES },
   { key: 'reports.export', groupKey: 'reports', label: 'Xuất Excel báo cáo', roles: REPORTS_ROLES },
 

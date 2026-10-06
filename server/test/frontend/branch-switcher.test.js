@@ -132,7 +132,7 @@ test('renderTopSidebar: menu dung theo QUYEN, khong theo vai tro cung', () => {
   assert.match(sbSale.innerHTML, />Hàng hóa<\/a>/);
   assert.match(sbSale.innerHTML, />Hóa đơn<\/a>/);
   assert.match(sbSale.innerHTML, />Khách hàng<\/a>/);
-  assert.match(sbSale.innerHTML, />Quản lý công nợ<\/a>/);
+  assert.match(sbSale.innerHTML, />Công nợ<\/a>/);
 
   // Nhan vien marketing / mua hang: khong co Bao cao va khong co Vong doi don hang -> menu giong Nhan vien kho.
   const sbMarketing = renderForRole('Nhân viên marketing').sidebar;
@@ -158,7 +158,7 @@ test('renderTopSidebar: ghi de quyen theo tai khoan an/hien dung muc menu', () =
   });
   assert.match(sidebar.innerHTML, /Báo cáo tổng hợp/);
   assert.match(sidebar.innerHTML, /Tổng quan/);
-  assert.doesNotMatch(sidebar.innerHTML, /Quản lý công nợ/);
+  assert.doesNotMatch(sidebar.innerHTML, />Công nợ</);
 
   // Ke toan duoc cap them quyen xem Tong quan -> nhom Bao cao hien ra.
   const { sidebar: sbKeToan } = renderFor({

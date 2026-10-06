@@ -78,11 +78,11 @@ function debtPayload() {
   };
 }
 
-test('sidebar và tiêu đề thay Công nợ kỳ cũ bằng Quản lý công nợ', () => {
+test('sidebar và tiêu đề thay Công nợ kỳ cũ bằng Công nợ', () => {
   const dashboard = html();
   const nav = fs.readFileSync(navPath, 'utf8');
-  assert.match(nav, /view: 'debt', label: 'Quản lý công nợ'/);
-  assert.match(dashboard, /<div class="view-title">Quản lý công nợ<\/div>/);
+  assert.match(nav, /view: 'debt', label: 'Công nợ'/);
+  assert.match(dashboard, /<div class="view-title">Công nợ<\/div>/);
   assert.doesNotMatch(dashboard, /id="debtPeriodToggle"|setDebtPeriod\(|toggleDebtDetail\(|debt\.period/);
 });
 

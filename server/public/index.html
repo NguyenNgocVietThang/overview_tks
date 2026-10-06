@@ -711,6 +711,20 @@
       z-index: 1;
     }
 
+    .report-subnav {
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 20px;
+      border-bottom: 1px solid var(--canvas-subnav-border);
+    }
+    .report-subnav-item {
+      display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; margin-bottom: -1px;
+      background: transparent; border: 1px solid transparent; border-bottom: 2px solid transparent;
+      border-radius: var(--radius-xs) var(--radius-xs) 0 0; color: var(--canvas-text); font-family: var(--font-body);
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: color .15s ease, border-color .15s ease, opacity .15s ease;
+    }
+    .report-subnav-item[hidden] { display: none; }
+    .report-subnav-item svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--canvas-text); }
+    .report-subnav-item.active { color: var(--canvas-text); border-bottom-color: var(--blue); font-weight: 700; }
+
     .view {
       display: none;
       animation: fadein .25s var(--ease-out);
@@ -3217,6 +3231,29 @@
         <span id="dashboardLoadErrorText">Không tải được dữ liệu.</span>
         <button class="export-button" type="button" style="margin-left:12px;" onclick="retryLoadData()">Thử lại</button>
       </div>
+      <!-- Tab con cua "Bao cao tong hop" — dong bo voi sidebar (hash = ten view) -->
+      <div class="report-subnav" id="reportSubnav" role="tablist">
+        <button type="button" class="report-subnav-item active" data-view="overview" role="tab" aria-selected="true" onclick="goReportView('overview')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></svg>
+          Tổng quan
+        </button>
+        <button type="button" class="report-subnav-item" data-view="products" role="tab" aria-selected="false" onclick="goReportView('products')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73Z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path></svg>
+          Hàng hóa
+        </button>
+        <button type="button" class="report-subnav-item" data-view="invoices" role="tab" aria-selected="false" onclick="goReportView('invoices')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path></svg>
+          Hóa đơn
+        </button>
+        <button type="button" class="report-subnav-item" data-view="customers" role="tab" aria-selected="false" onclick="goReportView('customers')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 2v2"></path><path d="M8 2v2"></path><rect x="3" y="4" width="18" height="18" rx="2"></rect><circle cx="12" cy="11" r="3"></circle><path d="M8 18a4 4 0 0 1 8 0"></path></svg>
+          Khách hàng
+        </button>
+        <button type="button" class="report-subnav-item" data-view="debt" role="tab" aria-selected="false" onclick="goReportView('debt')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path></svg>
+          Công nợ
+        </button>
+      </div>
       <div class="dashboard-stats" id="dashboardStats">
 
         <!-- ============ TỔNG QUAN ============ -->
@@ -4015,7 +4052,7 @@
 
         <!-- ============ QUẢN LÝ CÔNG NỢ ============ -->
         <div class="view" id="view-debt">
-          <div class="view-title">Quản lý công nợ</div>
+          <div class="view-title">Công nợ</div>
           <div class="view-sub">Theo dõi dư nợ, cảnh báo thu nợ và tiến độ xử lý theo cơ sở đang chọn.</div>
           <div class="debt-warning-list" id="debtManagementWarnings" role="status" aria-live="polite" hidden></div>
 
@@ -6083,6 +6120,18 @@
         el.classList.toggle('active', isActive);
         if (isActive) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
       });
+      document.querySelectorAll('.report-subnav-item').forEach(function (btn) {
+        const isActive = btn.dataset.view === state.view;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-selected', String(isActive));
+        btn.hidden = !canViewReport(btn.dataset.view);
+      });
+    }
+
+    /** Bam tab con ngang: dat hash giong sidebar (hashchange se goi switchView). */
+    function goReportView(view) {
+      if ((window.location.hash || '') === '#' + view) switchView(view);
+      else window.location.hash = view;
     }
 
     /** Quyen xem mot tab bao cao — khop requireFeature/loc payload phia server. */
