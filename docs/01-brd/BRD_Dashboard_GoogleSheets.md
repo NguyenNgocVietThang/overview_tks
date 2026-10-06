@@ -119,7 +119,8 @@ Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp
 - **Hàng hóa:** Cơ cấu tồn kho (bảng chi tiết theo sản phẩm với Tồn kho, Tồn có thể bán, Hàng đang vận chuyển); Sản phẩm bán chạy (doanh thu thực tế); Tất cả mã hàng; Hàng mới nhập; Mã mới tạo và tỷ lệ theo nhóm hàng.
 - **Hóa đơn:** bảng Chi tiết giao dịch; bấm một dòng để xem chi tiết hóa đơn (dòng hàng, tổng tiền, thanh toán).
 - **Khách hàng:** Top khách theo doanh thu (đã trừ hàng trả, có cột HN/SG), Phân tích công nợ khách hàng, Chi tiết khách nợ.
-- **Công thức Tồn có thể bán** = Tồn thực tế − Đặt hàng Phiếu tạm của khách + Hàng đang vận chuyển (không kẹp về 0).
+- **Công thức Tồn có thể bán** = Tồn thực tế − Đặt hàng Phiếu tạm của khách (không kẹp về 0; không cộng hàng đang vận chuyển).
+- **Giá vốn / giá trị tồn tab Hàng hóa:** chỉ vai trò có quyền `reports.products.cost` (mặc định Quản lý, Trợ lý) xem cột Đơn giá, Giá trị tồn và KPI giá trị tồn kho; Nhân viên sale không thấy.
 - Mọi bảng có cột **Cơ sở**; cột thời gian sắp xếp theo thời gian thật.
 
 ## 5.4. Bộ lọc thời gian

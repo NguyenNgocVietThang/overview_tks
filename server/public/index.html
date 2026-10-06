@@ -3430,7 +3430,7 @@
                         <th style="width:300px">Tên SP</th>
                         <th style="width:95px">Tồn HN</th>
                         <th style="width:95px">Tồn SG</th>
-                        <th title="Tồn có bán = Tồn HN + Tồn SG − Khách đặt (phiếu tạm) + Hàng đang vận chuyển. Tính lại mỗi đêm." style="width:125px">Tồn có bán</th>
+                        <th title="Tồn có bán = Tồn HN + Tồn SG − Khách đặt (phiếu tạm). Tính lại mỗi đêm." style="width:125px">Tồn có bán</th>
                         <th style="width:165px">Tổng SL 30 ngày</th>
                         <th style="width:135px">DS 90 ngày</th>
                         <th style="width:140px">SL khách bán</th>
@@ -3662,15 +3662,15 @@
                       <tr>
                         <th style="width:140px">Mã hàng</th>
                         <th style="width:300px">Tên sản phẩm</th>
-                        <th title="Giá vốn (Cả hai: bình quân theo tồn); giá trị tồn = giá vốn × tồn kho" style="width:135px">Đơn giá</th>
+                        <th data-cost-col title="Giá vốn (Cả hai: bình quân theo tồn); giá trị tồn = giá vốn × tồn kho" style="width:135px">Đơn giá</th>
                         <th data-inv-cols="one" title="Tồn thực tế trên KiotViet" style="width:105px">Tồn kho</th>
                         <th data-inv-cols="both" hidden title="Tồn thực tế tại Hà Nội" style="width:95px">Tồn HN</th>
                         <th data-inv-cols="both" hidden title="Tồn thực tế tại Sài Gòn" style="width:95px">Tồn SG</th>
-                        <th data-inv-cols="one" title="Tồn có thể bán = Tồn kho − Khách đặt (phiếu tạm, chưa giao) + Hàng đang vận chuyển" style="width:155px">Tồn có thể bán</th>
-                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Hà Nội = Tồn kho − Khách đặt + Hàng đang vận chuyển" style="width:150px">Tồn có bán HN</th>
-                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Sài Gòn = Tồn kho − Khách đặt + Hàng đang vận chuyển" style="width:150px">Tồn có bán SG</th>
+                        <th data-inv-cols="one" title="Tồn có thể bán = Tồn kho − Khách đặt (phiếu tạm, chưa giao)" style="width:155px">Tồn có thể bán</th>
+                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Hà Nội = Tồn kho − Khách đặt (phiếu tạm)" style="width:150px">Tồn có bán HN</th>
+                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Sài Gòn = Tồn kho − Khách đặt (phiếu tạm)" style="width:150px">Tồn có bán SG</th>
                         <th title="Số lượng trong phiếu Đặt hàng nhập trạng thái “Đã xác nhận NCC” của Kiot Sài Gòn (Mua hàng → Đặt hàng nhập), ghép theo mã hàng" style="width:125px">Vận chuyển</th>
-                        <th title="Giá trị tồn = giá vốn × tồn kho" style="width:140px">Giá trị tồn</th>
+                        <th data-cost-col title="Giá trị tồn = giá vốn × tồn kho" style="width:140px">Giá trị tồn</th>
                         <th style="width:130px">Cơ sở</th>
                       </tr>
                     </thead>
@@ -6648,7 +6648,7 @@
           rows: sortRows(list.map(function (p) {
             return {
               code: p.code, name: p.name, branch: p.branch, cost: p.cost || 0,
-              stock: p.stock || 0, available: p.available === undefined ? (p.stock || 0) - (p.reserved || 0) + (p.inTransit || 0) : p.available,
+              stock: p.stock || 0, available: p.available === undefined ? (p.stock || 0) - (p.reserved || 0) : p.available,
               inTransit: p.inTransit || 0, stockValue: p.stockValue || 0
             };
           }))
@@ -6666,7 +6666,7 @@
         }
         const row = byCode.get(key);
         const stock = p.stock || 0;
-        const available = p.available === undefined ? stock - (p.reserved || 0) + (p.inTransit || 0) : p.available;
+        const available = p.available === undefined ? stock - (p.reserved || 0) : p.available;
         if (p.branch === 'Hà Nội') { row.stockHanoi = stock; row.availableHanoi = available; if (p.name) row.name = p.name; }
         else if (p.branch === 'Sài Gòn') { row.stockSaigon = stock; row.availableSaigon = available; if (!row.name) row.name = p.name; }
         row.branches.push(p.branch);
@@ -6684,16 +6684,27 @@
     }
 
     // Hien/an cot theo che do (th co data-inv-cols="one"|"both"); o <td> luon co mat trong dong de chi so cot khong lech.
-    function applyInventoryColumnMode(isBoth) {
-      document.getElementById('inventoryValueRows').closest('table').querySelectorAll('thead th[data-inv-cols]').forEach(function (th) {
+    function applyInventoryColumnMode(isBoth, showCost) {
+      const table = document.getElementById('inventoryValueRows').closest('table');
+      table.querySelectorAll('thead th[data-inv-cols]').forEach(function (th) {
         th.hidden = (th.dataset.invCols === 'both') !== isBoth;
       });
+      // "Đơn giá" + "Giá trị tồn": tài khoản không có quyền reports.products.cost (vd Nhân viên sale) không thấy.
+      table.querySelectorAll('thead th[data-cost-col]').forEach(function (th) { th.hidden = !showCost; });
+    }
+
+    // Máy chủ cắt giá vốn / giá trị tồn khỏi payload khi tài khoản thiếu quyền reports.products.cost
+    // (dashboardPermissionFilter.js) → kpi.totalInventoryValue vắng mặt. Giao diện chỉ theo payload nên
+    // không phụ thuộc thời điểm nạp quyền của shared-nav.
+    function canSeeProductCost(d) {
+      return !!(d && d.kpi && d.kpi.totalInventoryValue !== undefined);
     }
 
     function renderInventoryStructure(d) {
       const built = buildInventoryRows(d.allProducts);
       const isBoth = built.isBoth;
-      applyInventoryColumnMode(isBoth);
+      const showCost = canSeeProductCost(d);
+      applyInventoryColumnMode(isBoth, showCost);
       document.getElementById('tagInventoryTable').textContent = fmtNumber(built.rows.length);
 
       const cell = function (value, hiddenCell, muted) {
@@ -6711,7 +6722,7 @@
         { tbody: 'inventoryValueRows', pagination: 'inventoryValuePagination', firstBtn: 'inventoryValueFirstPage', prevBtn: 'inventoryValuePrevPage', nextBtn: 'inventoryValueNextPage', lastBtn: 'inventoryValueLastPage', label: 'inventoryValuePageLabel' },
         built.rows,
         p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-          '<td class="mono muted" data-sort-value="' + (p.cost || 0) + '">' + fmtMoney(p.cost) + '</td>' +
+          '<td class="mono muted"' + (showCost ? '' : ' hidden') + ' data-sort-value="' + (p.cost || 0) + '">' + fmtMoney(p.cost) + '</td>' +
           cell(p.stock, isBoth, false) +
           optionalCell(p.stockHanoi, !isBoth) +
           optionalCell(p.stockSaigon, !isBoth) +
@@ -6719,7 +6730,7 @@
           optionalCell(p.availableHanoi, !isBoth) +
           optionalCell(p.availableSaigon, !isBoth) +
           (p.inTransit ? cell(p.inTransit, false, false) : '<td class="mono muted" data-sort-value="0">—</td>') +
-          '<td class="mono" data-sort-value="' + (p.stockValue || 0) + '">' + fmtMoney(p.stockValue) + '</td>' +
+          '<td class="mono"' + (showCost ? '' : ' hidden') + ' data-sort-value="' + (p.stockValue || 0) + '">' + fmtMoney(p.stockValue) + '</td>' +
           '<td>' + branchCellText(p) + '</td></tr>',
         12,
         'Không có dữ liệu'
@@ -7738,16 +7749,20 @@
         document.getElementById('pr-total').textContent = d.kpi.totalProducts;
         document.getElementById('pr-stock').textContent = fmtNumber(d.kpi.inStockCodes);
         document.getElementById('pr-lowstock').textContent = d.kpi.lowStockCount;
-        document.getElementById('pr-stockvalue').textContent = fmtMoney(d.kpi.totalInventoryValue);
+        const showProductCost = canSeeProductCost(d);
+        const stockValueEl = document.getElementById('pr-stockvalue');
+        stockValueEl.closest('.kpi-card').hidden = !showProductCost;
+        if (showProductCost) stockValueEl.textContent = fmtMoney(d.kpi.totalInventoryValue);
         renderInventoryStructure(d);
 
         const filteredProducts = d.allProducts || [];
         document.getElementById('tagAllProducts').textContent = filteredProducts.length;
         renderSectionKpis('allProductsKpis', [
-          { label: 'Tổng số mã hàng', value: fmtNumber(filteredProducts.length), accent: 'amber' },
+          { label: 'Tổng số mã hàng', value: fmtNumber(filteredProducts.length), accent: 'amber' }
+        ].concat(showProductCost ? [
           { label: 'Tổng giá trị tồn kho', value: fmtMoney(sumBy(filteredProducts, p => Math.max(Number(p.stock) || 0, 0) * (Number(p.cost) || 0))), sub: 'Theo giá vốn', accent: 'blue' },
           { label: 'Tổng giá trị khách đặt', value: fmtMoney(sumBy(filteredProducts, p => Math.max(Number(p.reserved) || 0, 0) * (Number(p.cost) || 0))), sub: 'Theo giá vốn' }
-        ]);
+        ] : []));
         renderPaginatedRows(
           'allProducts',
           { tbody: 'allProductRows', pagination: 'allProductsPagination', firstBtn: 'allProductsFirstPage', prevBtn: 'allProductsPrevPage', nextBtn: 'allProductsNextPage', lastBtn: 'allProductsLastPage', label: 'allProductsPageLabel' },

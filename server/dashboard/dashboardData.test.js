@@ -941,7 +941,7 @@ test('Ca hai cong KPI/bucket; hang hoa trung ma la 2 dong rieng, khach trung ten
   assert.deepEqual(data.customers.topDebt.find(customer => customer.name === 'Khách 2').debtByBranch, { [BRANCHES.HANOI]: 50 });
 });
 
-test('allProducts co "available" (ton - khach dat + dang van chuyen) va "inTransit" (cot Đang vận chuyển), thieu cot thi = 0', async () => {
+test('allProducts co "available" (ton - khach dat, KHONG cong van chuyen) va "inTransit" (cot Đang vận chuyển chi de xem), thieu cot thi = 0', async () => {
   const { dashboardData, dashboardPgReader, dashboardRollupRepository } = freshDashboardData();
   const CONFIG = require('../config');
   const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
@@ -967,10 +967,10 @@ test('allProducts co "available" (ton - khach dat + dang van chuyen) va "inTrans
   }, BRANCH_BOTH);
 
   const pick = (code, branch) => data.allProducts.find(p => p.code === code && p.branch === branch);
-  // Quy tac 2026-10-01: Ton co the ban = Ton thuc - Khach dat (phieu tam) + Hang dang van chuyen.
+  // Quy tac 2026-10-06: Ton co the ban = Ton thuc - Khach dat (phieu tam); hang dang van chuyen chi hien thi.
   assert.deepEqual(
     [pick('SP-1', 'Hà Nội').stock, pick('SP-1', 'Hà Nội').reserved, pick('SP-1', 'Hà Nội').available, pick('SP-1', 'Hà Nội').inTransit],
-    [8, 3, 725, 720]
+    [8, 3, 5, 720]
   );
   assert.equal(pick('SP-2', 'Hà Nội').available, -3, 'khach dat vuot ton thi am, khong kep ve 0');
   assert.equal(pick('SP-4', 'Hà Nội').available, 2.2, 'lam tron sai so dau phay dong khi ton le');

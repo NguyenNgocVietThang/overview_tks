@@ -49,6 +49,9 @@ const FEATURES = Object.freeze([
   // --- Bao cao tong hop ---
   { key: 'reports.overview', groupKey: 'reports', label: 'Tổng quan', roles: REPORT_VIEW_ROLES },
   { key: 'reports.products', groupKey: 'reports', label: 'Hàng hóa (gồm Kiểm tra đứt hàng)', roles: REPORT_VIEW_ROLES },
+  // 2026-10-06: giá vốn ("Đơn giá") và giá trị tồn của tab Hàng hóa không cho Nhân viên sale xem.
+  // Máy chủ cắt các trường này khỏi payload (dashboardPermissionFilter.js); thiếu Hàng hóa thì bỏ luôn.
+  { key: 'reports.products.cost', groupKey: 'reports', label: 'Hàng hóa: xem đơn giá & giá trị tồn (cần Hàng hóa)', roles: REPORTS_ROLES, requires: 'reports.products' },
   { key: 'reports.invoices', groupKey: 'reports', label: 'Hóa đơn', roles: REPORT_VIEW_ROLES },
   { key: 'reports.customers', groupKey: 'reports', label: 'Khách hàng', roles: REPORT_VIEW_ROLES },
   { key: 'reports.debt', groupKey: 'reports', label: 'Công nợ', roles: REPORT_VIEW_ROLES },

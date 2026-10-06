@@ -16,13 +16,12 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 const { getPool } = require('../db/pool');
-// Hang dang van chuyen: MOT nguon SQL chung (module nho, khong phu thuoc gi) voi tab Hang hoa.
-const { IN_TRANSIT_STATUS, inTransitSelectSql, sqlLiteral } = require('../dashboard/inTransitSource');
+const { sqlLiteral } = require('../dashboard/inTransitSource');
 
 const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
 
 // Don dat hang cua khach ("Phieu tam") dang giu cho hang — chi trang thai nay bi tru khoi ton
-// co the ban (quy tac 2026-10-01: Ton thuc - Dat hang phieu tam + Hang dang van chuyen).
+// co the ban (quy tac 2026-10-06: Ton thuc - Dat hang phieu tam; hang dang van chuyen khong con tinh vao).
 const PENDING_ORDER_STATUS = 'Phiếu tạm';
 
 // Gia tri 1 dong return_details (alias rd), tuyet doi - ban sao cua RETURN_AMOUNT_SQL
@@ -83,11 +82,6 @@ const REFRESH_SQL = `
     WHERE d.branch = ANY($1::text[])
       AND COALESCE(o.raw->>'statusValue', '') = ${sqlLiteral(PENDING_ORDER_STATUS)}
     GROUP BY 1
-  ),
-  in_transit AS (
-    -- Hang dang van chuyen (phieu Dat hang nhap 'Đã xác nhận NCC' cua Kiot Sai Gon) CONG them vao
-    -- ton co the ban. Bang nay gop 2 co so tren 1 dong/ma nen chi cong 1 LAN (khong cong theo co so).
-    ${inTransitSelectSql(sqlLiteral(IN_TRANSIT_STATUS))}
   ),
   sales_30d AS (
     SELECT p.code AS product_code, SUM(dps.qty)::float8 AS qty
@@ -186,7 +180,7 @@ const REFRESH_SQL = `
     hn.name,
     hn.on_hand,
     COALESCE(sg.on_hand, 0),
-    hn.on_hand + COALESCE(sg.on_hand, 0) - COALESCE(po.qty, 0) + COALESCE(tr.qty, 0),
+    hn.on_hand + COALESCE(sg.on_hand, 0) - COALESCE(po.qty, 0),
     COALESCE(s30.qty, 0),
     COALESCE(s90.revenue, 0),
     COALESCE(ct.customer_count, 0),
@@ -197,7 +191,6 @@ const REFRESH_SQL = `
   FROM hn_products hn
   LEFT JOIN sg_products sg ON sg.code = hn.code
   LEFT JOIN pending_orders po ON po.product_key = lower(btrim(hn.code))
-  LEFT JOIN in_transit tr ON tr.product_key = lower(btrim(hn.code))
   LEFT JOIN sales_30d s30 ON s30.product_code = hn.code
   LEFT JOIN sales_90d s90 ON s90.product_code = hn.code
   LEFT JOIN customer_top ct ON ct.product_key = lower(btrim(hn.code))`;

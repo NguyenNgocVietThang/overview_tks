@@ -2337,13 +2337,13 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
     name: p.name,
     stock: p.stock,
     reserved: p.reserved,
-    // Ton co the ban = ton thuc te - hang khach da dat (phieu tam) + hang dang van chuyen
-    // (khong kep ve 0: am = da giu qua ton). `reserved` la so "Khach dat" cua Kiot (doi chieu
-    // 2026-10-01 ~ tong Phieu tam, lech < 0,1%); hang dang van chuyen cung 1 so theo ma cho ca
-    // 2 co so (xem inTransitSource.js). Lam tron 6 chu so thap phan de hang ban theo can
-    // (so le) khong lo sai so dau phay dong.
-    available: Math.round((p.stock - p.reserved + p.inTransit) * 1e6) / 1e6,
-    // So luong trong phieu Dat hang nhap 'Đã xác nhận NCC' cua Kiot Sai Gon, khop theo ma.
+    // Ton co the ban = ton thuc te - hang khach da dat (phieu tam), khong kep ve 0 (am = da giu
+    // qua ton). (2026-10-06: bo "+ hang dang van chuyen" — chi con la cot tham khao.) `reserved` la
+    // so "Khach dat" cua Kiot (doi chieu 2026-10-01 ~ tong Phieu tam, lech < 0,1%). Lam tron 6 chu so
+    // thap phan de hang ban theo can (so le) khong lo sai so dau phay dong.
+    available: Math.round((p.stock - p.reserved) * 1e6) / 1e6,
+    // So luong trong phieu Dat hang nhap 'Đã xác nhận NCC' cua Kiot Sai Gon, khop theo ma
+    // (cung 1 so cho ca 2 co so, xem inTransitSource.js); chi hien thi, KHONG tinh vao `available`.
     inTransit: p.inTransit,
     status: p.status,
     cost: p.cost,

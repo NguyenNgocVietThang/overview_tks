@@ -598,7 +598,7 @@ const INVENTORY_COLUMN_DEFS = {
   stock: ['Tồn kho', 'number', 'Tồn thực tế trên KiotViet, chưa trừ hàng khách đã đặt.'],
   stockHanoi: ['Tồn kho Hà Nội', 'number', 'Tồn thực tế tại cơ sở Hà Nội; để trống nếu mã không có ở cơ sở này.'],
   stockSaigon: ['Tồn kho Sài Gòn', 'number', 'Tồn thực tế tại cơ sở Sài Gòn; để trống nếu mã không có ở cơ sở này.'],
-  available: ['Tồn có thể bán', 'number', 'Tồn kho trừ số lượng khách đã đặt (phiếu tạm) cộng hàng đang vận chuyển (âm nghĩa là đã giữ quá tồn).'],
+  available: ['Tồn có thể bán', 'number', 'Tồn thực tế trừ số lượng khách đã đặt (phiếu tạm); âm nghĩa là đã giữ quá tồn.'],
   availableHanoi: ['Tồn có thể bán Hà Nội', 'number', 'Tồn có thể bán tại cơ sở Hà Nội; để trống nếu mã không có ở cơ sở này.'],
   availableSaigon: ['Tồn có thể bán Sài Gòn', 'number', 'Tồn có thể bán tại cơ sở Sài Gòn; để trống nếu mã không có ở cơ sở này.'],
   inTransit: ['Hàng đang vận chuyển', 'number', 'Số lượng trong phiếu đặt hàng nhập ở trạng thái "Đã xác nhận nhà cung cấp" của Kiot Sài Gòn, ghép theo mã hàng.'],
@@ -621,9 +621,9 @@ function inventoryColumns(aggregate) {
 
 function inventoryAvailable(product) {
   const stock = Number(product.stock) || 0;
-  // Cung cong thuc voi dashboardData.js (allProducts.available): ton - khach dat + dang van chuyen.
+  // Cung cong thuc voi dashboardData.js (allProducts.available): ton thuc te - khach dat (phieu tam).
   return product.available === undefined
-    ? stock - (Number(product.reserved) || 0) + (Number(product.inTransit) || 0)
+    ? stock - (Number(product.reserved) || 0)
     : product.available;
 }
 

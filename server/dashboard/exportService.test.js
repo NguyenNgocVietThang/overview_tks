@@ -1632,8 +1632,8 @@ test('Ca hai: file doanh thu/cong no cua khach co cot tach theo tung co so', asy
 
 const INVENTORY_PRODUCTS = [
   { code: 'SP-1', name: 'Áo thun', branch: HN, stock: 10, reserved: 4, available: 6, inTransit: 0, cost: 100, stockValue: 1000 },
-  // available = ton - khach dat + dang van chuyen (quy tac 2026-10-01): 30 - 0 + 50.
-  { code: 'SP-1', name: 'Áo thun', branch: SG, stock: 30, reserved: 0, available: 80, inTransit: 50, cost: 200, stockValue: 6000 },
+  // available = ton - khach dat (quy tac 2026-10-06; van chuyen chi hien thi): 30 - 0.
+  { code: 'SP-1', name: 'Áo thun', branch: SG, stock: 30, reserved: 0, available: 30, inTransit: 50, cost: 200, stockValue: 6000 },
   { code: 'SP-2', name: 'Quần', branch: HN, stock: 5, reserved: 0, available: 5, inTransit: 0, cost: 10, stockValue: 50 }
 ];
 
@@ -1656,14 +1656,14 @@ test('Chi tiet ton kho: 1 co so xuat dung cot cua bang tren man hinh, xep theo g
   });
 });
 
-test('Chi tiet ton kho: payload cu khong co "available" thi tu tinh ton - khach dat + dang van chuyen', async () => {
+test('Chi tiet ton kho: payload cu khong co "available" thi tu tinh ton - khach dat (khong cong van chuyen)', async () => {
   const legacy = [{ code: 'SP-9', name: 'Hàng cũ', branch: HN, stock: 8, reserved: 3, inTransit: 720, cost: 10, stockValue: 80 }];
   await withStubs({ dashboard: { allProducts: legacy } }, async () => {
     const table = worksheetTable(await loadWorkbook(await exportService.createExportWorkbook({
       tableKey: 'products.inventory',
       columns: { inventory: ['code', 'stock', 'available', 'inTransit'] }
     }, HN)));
-    assert.deepEqual(table.rows, [['SP-9', 8, 725, 720]]);
+    assert.deepEqual(table.rows, [['SP-9', 8, 5, 720]]);
   });
 });
 
@@ -1681,7 +1681,7 @@ test('Chi tiet ton kho: "Ca hai" gop 1 dong/ma, tach cot Ha Noi / Sai Gon, van c
     // SP-1: don gia = gia tri ton / ton duong = 7000 / 40; SP-2 chi co o Ha Noi -> o Sai Gon de trong.
     const rows = table.rows.map(row => Array.from(row, value => (value === undefined ? null : value))); // o trong = lo hong cua ExcelJS
     assert.deepEqual(rows, [
-      ['SP-1', 'Áo thun', 175, 10, 30, 6, 80, 50, 7000, `${HN}, ${SG}`],
+      ['SP-1', 'Áo thun', 175, 10, 30, 6, 30, 50, 7000, `${HN}, ${SG}`],
       ['SP-2', 'Quần', 10, 5, null, 5, null, 0, 50, HN]
     ]);
   });

@@ -46,7 +46,7 @@ Query string (đều tùy chọn; giá trị sai → 400 kèm mã): `branch` (HN
 - `GET /api/shipment/lifecycle/order-detail?code=<mã>&branch=HN|SG` — chi tiết đơn + từng dòng hàng kèm tồn kho / **Điều chuyển SG** (hàng đang vận chuyển, `dashboard/inTransitSource.js`; chỉ để tham khảo, không tính vào có bán) / có bán (404 `ORDER_NOT_FOUND`, 400 `INVALID_CODE` / `INVALID_BRANCH`).
 - `POST /api/shipment/lifecycle/export` (quyền `shipment.export`, mặc định **chỉ Quản lý**) nhận **chính bộ tham số lọc / sắp xếp** của `GET /` (không cần `page`) và xuất **mọi dòng khớp**, tối đa 20.000 dòng (vượt → 400 `TOO_MANY_ROWS`; 60.000 dòng chặn máy chủ ~7 giây). File có thêm cột Ghi chú và Trạng thái KiotViet.
 - Tên sale lấy từ Kiot có dạng `<tên> - <ID Telegram>`: `dashboard/saleName.js` (`stripTelegramId` / `saleNameSql`) bỏ hậu tố ID ở mọi nơi hiển thị (chỉ đổi hiển thị, dữ liệu gốc giữ nguyên).
-- Công thức **Tồn có thể bán** dùng chung toàn dashboard: `Tồn thực tế − Đặt hàng Phiếu tạm (Khách đặt) + Hàng đang vận chuyển` (bảng "Cơ cấu tồn kho" tab Hàng hóa, bảng "Báo cáo hàng hóa" tab Tổng quan do job đêm `kiotvietSync/productReportRefresh.js` dựng, và các file xuất tương ứng).
+- Công thức **Tồn có thể bán** dùng chung toàn dashboard: `Tồn thực tế − Đặt hàng Phiếu tạm (Khách đặt)` (từ 2026-10-06 không còn cộng Hàng đang vận chuyển; cột Vận chuyển chỉ để xem) (bảng "Cơ cấu tồn kho" tab Hàng hóa, bảng "Báo cáo hàng hóa" tab Tổng quan do job đêm `kiotvietSync/productReportRefresh.js` dựng, và các file xuất tương ứng).
 
 ## Bot Telegram quản lý nghỉ phép
 

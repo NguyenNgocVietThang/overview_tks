@@ -43,7 +43,7 @@ Web Application nội bộ gồm:
 | Service Account         | Tài khoản dịch vụ Google để backend đọc/ghi các workbook Google Sheets còn dùng.        |
 | Rollup                  | Bảng tổng hợp theo ngày (`daily_invoice_summary`, `daily_product_sales`, `product_first_purchase`) làm mới định kỳ. |
 | Phiếu tạm               | Trạng thái đơn đặt hàng KiotViet đang giữ hàng cho khách (`raw->>'statusValue' = 'Phiếu tạm'`). |
-| Tồn có thể bán          | Tồn thực tế − Đặt hàng Phiếu tạm + Hàng đang vận chuyển (không kẹp về 0).              |
+| Tồn có thể bán          | Tồn thực tế − Đặt hàng Phiếu tạm (không kẹp về 0; không cộng Hàng đang vận chuyển).   |
 | Hàng đang vận chuyển    | Số lượng trong phiếu **Đặt hàng nhập** (`order_suppliers`) trạng thái "Đã xác nhận NCC" của Kiot Sài Gòn. |
 | OTP                     | Mã dùng một lần 6 số (hiệu lực 5 phút) để khôi phục mật khẩu / xác minh thay đổi liên hệ. |
 | HR Leave                | Phân hệ đơn nghỉ phép (bảng `hr_leave_requests`) theo chính sách CSNS-NP-01.           |
@@ -189,7 +189,7 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 | FR-03.3 | **Tổng quan mục 3 Báo cáo hàng hóa:** bảng gộp hai cơ sở từ `product_report` (`GET /api/product-report`): tồn, Tồn có thể bán, bán 30 ngày, doanh thu 90 ngày (đã trừ hàng trả), số khách 90 ngày, % khách lớn nhất; nút **Chi tiết** mỗi dòng mở khung doanh số 90 ngày từng khách (số tiền + %) kèm biểu đồ tròn (`product_report_customers`, `GET /api/product-report/customers?code=`) và ô tìm theo mã/tên. | Cao | Hoàn thành |
 | FR-03.4 | **Tổng quan mục 4 Kiểm tra đứt hàng** (chỉ hiện khi có quyền `reports.products`): nhập Trả NCC, Hàng đứt gần đây, kiểm tra 30 ngày, kiểm tra 90 ngày (FR-03.12). | Cao | Hoàn thành |
 | FR-03.5 | **Tab Hàng hóa:** "Cơ cấu tồn kho" (chỉ bảng chi tiết theo sản phẩm — đã bỏ biểu đồ — với Tồn kho, **Tồn có thể bán**, **Hàng đang vận chuyển**, Giá trị tồn; chọn "Cả hai" gộp 1 dòng/mã với cột HN/SG riêng); "Phân tích" (Sản phẩm bán chạy theo doanh thu thực tế đã trừ hàng trả, loại hóa đơn đã hủy); "Dữ liệu chi tiết" (Tất cả mã hàng); "Hàng mới nhập" (ngày nhập đầu tiên trong khoảng); "Mã mới tạo" (Danh sách mã mới + Tỷ lệ số mã theo nhóm hàng). | Cao | Hoàn thành |
-| FR-03.6 | **Công thức Tồn có thể bán** = Tồn thực tế − Đặt hàng Phiếu tạm + Hàng đang vận chuyển (không kẹp về 0, hàng bị giữ quá tồn hiện số âm); dùng chung cho bảng Cơ cấu tồn kho, `product_report.available_to_sell` và các file xuất. | Cao | Hoàn thành |
+| FR-03.6 | **Công thức Tồn có thể bán** = Tồn thực tế − Đặt hàng Phiếu tạm (không kẹp về 0, hàng bị giữ quá tồn hiện số âm; Hàng đang vận chuyển chỉ hiển thị, không cộng); dùng chung cho bảng Cơ cấu tồn kho, `product_report.available_to_sell` và các file xuất. | Cao | Hoàn thành |
 | FR-03.7 | **Tab Hóa đơn:** bảng "Chi tiết giao dịch" (hóa đơn) trong khoảng Từ–Đến; bấm dòng mở hộp thoại chi tiết (dòng hàng, tổng tiền, phương thức thanh toán) qua `GET /api/invoice-detail?code=&branch=`. Hai bảng Danh sách đặt hàng / Danh sách trả hàng đã bỏ 2026-10-01. | Cao | Hoàn thành |
 | FR-03.8 | **Tab Khách hàng:** "Top khách hàng theo doanh thu" (doanh thu thực tế đã trừ hàng trả, cột doanh thu và công nợ theo HN/SG, mặc định xem toàn thời gian) và "Phân tích khách hàng công nợ" (Chi tiết khách nợ, top nợ). | Cao | Hoàn thành |
 | FR-03.9 | **Tab Quản lý công nợ:** xem FR-11. | Cao | Hoàn thành |

@@ -1,9 +1,9 @@
 // ==========================================
 // IN TRANSIT SOURCE — "Hàng đang vận chuyển" theo mã hàng. MỘT nguồn sự thật cho:
 //   - tab Hang hoa (dashboardPgReader.js, cột `Đang vận chuyển`),
-//   - Bao cao hang hoa dem (kiotvietSync/productReportRefresh.js, cong vao `available_to_sell`),
-//   - Cot "Dieu chuyen SG" o chi tiet don cua Vong doi don hang (shipment/kiotOrdersRepository.js) —
-//     chi de HIEN THI, tu 2026-10-02 khong con tinh vao Gia tri co ban.
+//   - Cot "Dieu chuyen SG" o chi tiet don cua Vong doi don hang (shipment/kiotOrdersRepository.js).
+// Chi de HIEN THI: khong con tinh vao ton co the ban (Vong doi don hang tu 2026-10-02; tab Hang hoa +
+// Bao cao hang hoa tu 2026-10-06 — ton co the ban = ton thuc te - Phieu tam).
 //
 // Dinh nghia: tong so luong hang trong cac phieu "Dat hang nhap" (KiotViet: Mua hang -> Dat hang
 // nhap) co trang thai 'Đã xác nhận NCC' cua Kiot SAI GON (bang order_suppliers, migration 0024) —

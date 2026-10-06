@@ -94,6 +94,8 @@ Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để b
 
 ## Cập nhật gần nhất
 
+2026-10-06 — **Tab Hàng hóa: ẩn giá vốn với Nhân viên sale + đổi công thức Tồn có thể bán**: quyền mới `reports.products.cost` ("Hàng hóa: xem đơn giá & giá trị tồn", mặc định Quản lý + Trợ lý, cần `reports.products`); thiếu quyền này máy chủ cắt `allProducts[].cost/stockValue`, `kpi.totalInventoryValue` và `cost/price` của "Mã mới tạo" khỏi `/api/dashboard` (`dashboardPermissionFilter.js`), giao diện ẩn cột Đơn giá + Giá trị tồn, thẻ KPI Giá trị tồn kho và 2 KPI giá trị của bảng "Tất cả mã hàng". **Tồn có thể bán = Tồn thực tế − Đặt hàng Phiếu tạm** (bỏ phần "+ Hàng đang vận chuyển", cột Vận chuyển chỉ để xem) áp cho bảng "Cơ cấu tồn kho", bảng "Báo cáo hàng hóa" (sau deploy phải chạy tay `node kiotvietSync/productReportRefresh.js`) và file xuất. Chưa chặn xuất Excel theo quyền này (xuất mặc định chỉ Quản lý + Trợ lý).
+
 2026-10-06 — Sổ quỹ đã được kiểm chứng tích hợp trên PGlite cục bộ và trình duyệt desktop/mobile; hướng dẫn áp migration, đồng bộ danh mục và chốt ban đầu ở [docs/cashbook-setup.md](docs/cashbook-setup.md). Chưa áp migration hoặc triển khai production.
 
 2026-10-06 — Frontend Sổ quỹ tại `/cashbook/`: bộ lọc lưu trên URL, số dư toàn công ty, sổ chi tiết và lịch sử chốt phân trang; preview chốt theo giờ Việt Nam và xuất Excel/HTML chọn cột. Giao diện sáng/tối, ngăn kéo bộ lọc trên điện thoại. Kiểm thử logic trích từ HTML; nghiệm thu trình duyệt và triển khai production thực hiện ở bước sau.

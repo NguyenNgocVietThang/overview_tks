@@ -16,20 +16,26 @@ const HN = 'Hà Nội';
 const SG = 'Sài Gòn';
 const BOTH = 'Hà Nội, Sài Gòn';
 
-// `available` mo phong dung payload server (dashboardData.js): ton - khach dat + dang van chuyen
-// (quy tac 2026-10-01); omitAvailable mo phong payload cu khong co truong nay (giao dien tu tinh).
+// `available` mo phong dung payload server (dashboardData.js): ton - khach dat (quy tac 2026-10-06,
+// hang dang van chuyen chi hien thi); omitAvailable mo phong payload cu khong co truong nay (giao dien tu tinh).
 function product(code, branch, { stock, reserved = 0, cost = 10, inTransit = 0, name = 'Sản phẩm ' + code, omitAvailable = false }) {
   const item = {
-    code, branch, name, stock, reserved, available: stock - reserved + inTransit, inTransit, status: 'Đang kinh doanh',
+    code, branch, name, stock, reserved, available: stock - reserved, inTransit, status: 'Đang kinh doanh',
     cost, stockValue: Math.max(stock, 0) * cost, pct: 0
   };
   if (omitAvailable) delete item.available;
   return item;
 }
 
-function payload(allProducts) {
+// stripCost mo phong payload da qua dashboardPermissionFilter cho tai khoan thieu reports.products.cost
+// (Nhan vien sale): khong co cost/stockValue trong allProducts va khong co kpi.totalInventoryValue.
+function payload(allProducts, { stripCost = false } = {}) {
+  const rows = stripCost ? allProducts.map(({ cost, stockValue, ...rest }) => rest) : allProducts;
   return {
-    kpi: { totalStock: 0, totalProducts: allProducts.length, lowStockCount: 0, inStockCodes: 0, totalInventoryValue: 0 },
+    kpi: {
+      totalStock: 0, totalProducts: rows.length, lowStockCount: 0, inStockCodes: 0,
+      ...(stripCost ? {} : { totalInventoryValue: 0 })
+    },
     filters: { products: { label: '30 ngày' } },
     products: {
       newProducts: { label: '30 ngày', count: 0, dateColumnAvailable: true, products: [] },
@@ -37,14 +43,14 @@ function payload(allProducts) {
       allSellingProducts: [],
       newlyImported: { products: [], salesRevenue: 0, salesQty: 0 }
     },
-    allProducts
+    allProducts: rows
   };
 }
 
-function createPage(allProducts) {
+function createPage(allProducts, options) {
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://tokosi.example/#overview' });
   dom.window.sessionStorage.setItem('tksDashboardCache', JSON.stringify({
-    data: payload(allProducts),
+    data: payload(allProducts, options),
     days: 30,
     filters: { products: { mode: 'days', days: 30 }, invoices: { mode: 'days', days: 30 }, customers: { mode: 'all' } }
   }));
@@ -95,7 +101,7 @@ test('bo bieu do va nut "Theo sản phẩm / Theo nhóm cha" khoi khung Cơ cấ
   dom.window.close();
 });
 
-test('chon 1 co so: 1 dong/ma, co Tồn có thể bán = tồn - khách đặt + hàng đang vận chuyển va cot Hàng đang vận chuyển', () => {
+test('chon 1 co so: 1 dong/ma, co Tồn có thể bán = tồn - khách đặt (khong cong van chuyen) va cot Hàng đang vận chuyển', () => {
   const dom = createPage([
     product('SP-1', HN, { stock: 8, reserved: 3, inTransit: 720, cost: 100 }),
     product('SP-2', HN, { stock: 1, reserved: 4, cost: 50 })
@@ -107,16 +113,16 @@ test('chon 1 co so: 1 dong/ma, co Tồn có thể bán = tồn - khách đặt +
   const rows = visibleRows(doc);
   assert.equal(rows.length, 2);
   const byCode = Object.fromEntries(rows.map(cells => [cells[0], cells]));
-  assert.deepEqual(byCode['SP-1'].slice(-1).concat(byCode['SP-1'].slice(3, 6)), [HN, '8', '725', '720'], '8 - 3 + 720 dang van chuyen');
+  assert.deepEqual(byCode['SP-1'].slice(-1).concat(byCode['SP-1'].slice(3, 6)), [HN, '8', '5', '720'], '8 - 3; 720 dang van chuyen chi de xem');
   assert.equal(byCode['SP-2'][4], '-3', 'khach dat vuot ton thi hien am, khong kep 0');
   assert.equal(byCode['SP-2'][5], '—', 'khong co hang dang van chuyen thi hien —');
   assert.equal(doc.getElementById('tagInventoryTable').textContent, '2');
   dom.window.close();
 });
 
-test('payload cu khong co "available": giao dien tu tinh ton - khach dat + dang van chuyen (1 co so va "Cả hai")', () => {
+test('payload cu khong co "available": giao dien tu tinh ton - khach dat (1 co so va "Cả hai")', () => {
   const single = createPage([product('SP-1', HN, { stock: 8, reserved: 3, inTransit: 720, omitAvailable: true })]);
-  assert.equal(visibleRows(single.window.document)[0][4], '725');
+  assert.equal(visibleRows(single.window.document)[0][4], '5');
   single.window.close();
 
   const both = createPage([
@@ -124,7 +130,7 @@ test('payload cu khong co "available": giao dien tu tinh ton - khach dat + dang 
     product('SP-1', SG, { stock: 2, reserved: 1, inTransit: 720, omitAvailable: true })
   ]);
   const cells = visibleRows(both.window.document)[0];
-  assert.deepEqual([cells[5], cells[6]], ['725', '721']);
+  assert.deepEqual([cells[5], cells[6]], ['5', '1']);
   both.window.close();
 });
 
@@ -144,11 +150,11 @@ test('"Cả hai": gop 1 dong/ma voi cot ton kho + ton co the ban HN/SG rieng va 
   assert.equal(rows.length, 3, 'SP-1 o hai co so chi con 1 dong');
   const byCode = Object.fromEntries(rows.map(cells => [cells[0], cells]));
   // [ma, ten, don gia, ton HN, ton SG, co the ban HN, co the ban SG, dang van chuyen, gia tri ton, co so]
-  // Hang dang van chuyen cung 1 so theo ma, CONG vao ton co the ban cua CA 2 co so (quyet dinh 2026-10-01).
-  assert.deepEqual(byCode['SP-1'].slice(-1).concat(byCode['SP-1'].slice(3, 8)), [BOTH, '8', '2', '725', '721', '720'],
+  // Hang dang van chuyen cung 1 so theo ma, chi hien o cot Vận chuyển — KHONG tinh vao ton co the ban (2026-10-06).
+  assert.deepEqual(byCode['SP-1'].slice(-1).concat(byCode['SP-1'].slice(3, 8)), [BOTH, '8', '2', '5', '1', '720'],
     'so dang van chuyen theo ma, khong cong don 2 lan o cot Vận chuyển');
   assert.deepEqual([byCode['SP-2'][9], byCode['SP-2'][3], byCode['SP-2'][4], byCode['SP-2'][5], byCode['SP-2'][6]], [HN, '4', '—', '4', '—'], 'ma chi co o Ha Noi');
-  assert.deepEqual([byCode['SP-3'][9], byCode['SP-3'][3], byCode['SP-3'][4], byCode['SP-3'][5], byCode['SP-3'][6], byCode['SP-3'][7]], [SG, '—', '6', '—', '100', '100'], '6 - 6 + 100');
+  assert.deepEqual([byCode['SP-3'][9], byCode['SP-3'][3], byCode['SP-3'][4], byCode['SP-3'][5], byCode['SP-3'][6], byCode['SP-3'][7]], [SG, '—', '6', '—', '0', '100'], '6 - 6');
   assert.equal(doc.getElementById('tagInventoryTable').textContent, '3');
   dom.window.close();
 });
@@ -183,5 +189,40 @@ test('sap xep theo cot Tồn có thể bán tren du lieu 1 co so dung chi so cot
   dom.window.eval(`setTableSort('inventoryValueRows', ${headerIndex})`);
   const ordered = [...doc.querySelectorAll('#inventoryValueRows tr')].map(tr => tr.cells[0].textContent.trim());
   assert.deepEqual(ordered, ['SP-A', 'SP-B', 'SP-C'], 'tang dan theo ton co the ban: A=1, B=3, C=5');
+  dom.window.close();
+});
+
+test('tai khoan thieu quyen xem gia von (Nhan vien sale): an cot Đơn giá + Giá trị tồn va the KPI Giá trị tồn kho', () => {
+  const dom = createPage([
+    product('SP-1', HN, { stock: 8, reserved: 3, inTransit: 720, cost: 100 }),
+    product('SP-2', HN, { stock: 1, reserved: 4, cost: 50 })
+  ], { stripCost: true });
+  const doc = dom.window.document;
+  assert.deepEqual(visibleHeaders(doc), ['Mã hàng', 'Tên sản phẩm', 'Tồn kho', 'Tồn có thể bán', 'Vận chuyển', 'Cơ sở']);
+  const byCode = Object.fromEntries(visibleRows(doc).map(cells => [cells[0], cells]));
+  assert.deepEqual(byCode['SP-1'], ['SP-1', 'Sản phẩm SP-1', '8', '5', '720', HN]);
+  assert.equal(doc.getElementById('pr-stockvalue').closest('.kpi-card').hidden, true);
+  const kpiLabels = [...doc.querySelectorAll('#allProductsKpis .eyebrow')].map(el => el.textContent.trim());
+  assert.deepEqual(kpiLabels, ['Tổng số mã hàng'], 'khong con KPI Tong gia tri ton kho / khach dat');
+  dom.window.close();
+});
+
+test('"Cả hai" cung an Đơn giá + Giá trị tồn khi payload khong co gia von', () => {
+  const dom = createPage([
+    product('SP-1', HN, { stock: 8, reserved: 3, cost: 10 }),
+    product('SP-1', SG, { stock: 2, reserved: 1, cost: 20 })
+  ], { stripCost: true });
+  assert.deepEqual(visibleHeaders(dom.window.document), [
+    'Mã hàng', 'Tên sản phẩm', 'Tồn HN', 'Tồn SG', 'Tồn có bán HN', 'Tồn có bán SG', 'Vận chuyển', 'Cơ sở'
+  ]);
+  dom.window.close();
+});
+
+test('tai khoan co quyen xem gia von: van thay Đơn giá + Giá trị tồn va the KPI', () => {
+  const dom = createPage([product('SP-1', HN, { stock: 8, cost: 100 })]);
+  const doc = dom.window.document;
+  assert.ok(visibleHeaders(doc).includes('Đơn giá'));
+  assert.ok(visibleHeaders(doc).includes('Giá trị tồn'));
+  assert.equal(doc.getElementById('pr-stockvalue').closest('.kpi-card').hidden, false);
   dom.window.close();
 });
