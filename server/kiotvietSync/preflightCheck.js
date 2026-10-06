@@ -111,7 +111,7 @@ async function main() {
   const entities = [
     require('./entities/categories'), require('./entities/products'), require('./entities/customers'),
     require('./entities/invoices'), require('./entities/orders'),
-    require('./entities/returns'), require('./entities/purchases'), require('./entities/cashFlows')
+    require('./entities/returns'), require('./entities/purchases'), require('./entities/cashFlows'), require('./entities/bankAccounts')
   ];
 
   const args = parseArgs(process.argv.slice(2));

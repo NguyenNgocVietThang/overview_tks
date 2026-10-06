@@ -57,6 +57,19 @@ async function fetchPostgresCount(pool, entityModule, branch) {
 }
 
 async function reconcileEntity(kiotVietClient, pool, branch, entityModule) {
+  if (entityModule.branchless) {
+    // Danh mục chung không có cột branch. Đối chiếu tập ID hiện tại của retailer
+    // đã chọn, bỏ qua tài khoản retailer khác và ID lịch sử thiếu danh mục.
+    const ids = new Set();
+    await kiotVietClient.fetchAllPages(entityModule.endpoint, {}, async items => {
+      for (const item of items) ids.add(item.Id ?? item.id);
+    });
+    const result = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM ${entityModule.entity} WHERE id = ANY($1::bigint[])`,
+      [[...ids]]
+    );
+    return { branch, ...computeDiff(entityModule.entity, ids.size, result.rows[0].count) };
+  }
   const [kiotVietTotal, postgresCount] = await Promise.all([
     fetchKiotVietTotal(kiotVietClient, entityModule),
     fetchPostgresCount(pool, entityModule, branch)
@@ -93,7 +106,7 @@ async function main() {
   const entityModules = [
     require('./entities/categories'), require('./entities/products'), require('./entities/customers'),
     require('./entities/invoices'), require('./entities/orders'),
-    require('./entities/returns'), require('./entities/purchases'), require('./entities/cashFlows')
+    require('./entities/returns'), require('./entities/purchases'), require('./entities/cashFlows'), require('./entities/bankAccounts')
   ];
 
   const args = parseArgs(process.argv.slice(2));

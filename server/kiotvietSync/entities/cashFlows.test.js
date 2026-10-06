@@ -7,11 +7,23 @@ test('cash flows have a dedicated date-window shape and preserve receipt directi
   const calls=[];
   await entity.upsertPage({query:async(...args)=>calls.push(args)},'hanoi',[item]);
   const cash=calls.find((call)=>call[0].includes('INSERT INTO cash_flows'));
-  assert.deepEqual(cash[1], ['hanoi',14,'PT14',false,20,'Bank',1,2,3,'x','t','c',item]);
+  assert.deepEqual(cash[1], ['hanoi',14,'PT14',false,20,'Bank',1,2,3,'x','t','c',null,null,item]);
 });
 test('cash flows infer staff from UserId in the same transaction client', async () => {
   const calls=[];
   await entity.upsertPage({query:async(...args)=>calls.push(args)},'saigon',[{Id:1,IsReceipt:true,UserId:77,UserName:'Thu'}]);
   const staff=calls.find((call)=>call[0].includes('INSERT INTO staff'));
   assert.deepEqual(staff[1],['saigon',77,'Thu']);
+});
+
+test('cash flows preserve signed payments, historical account IDs and zero paid status', async () => {
+  for (const item of [{id:2,amount:-25.5,accountId:-1,status:0},{Id:3,Amount:40,AccountId:123,Status:1}]) {
+    const calls=[];
+    await entity.upsertPage({query:async(...args)=>calls.push(args)},'hanoi',[item]);
+    const [sql,params]=calls[0];
+    assert.match(sql,/account_id=EXCLUDED.account_id/);
+    assert.match(sql,/status=EXCLUDED.status/);
+    assert.deepEqual(params.slice(-3,-1),item.id?[-1,0]:[123,1]);
+    assert.equal(params[4],item.amount??item.Amount);
+  }
 });

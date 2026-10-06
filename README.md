@@ -68,7 +68,7 @@ server/
 │   ├── documentDetailRepository.js  # Chi tiết hóa đơn (popup bảng Chi tiết giao dịch) và chi tiết đơn đặt hàng (trang Vòng đời đơn hàng)
 │   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel
 ├── data/                 # Dữ liệu lưu trữ local (users.json, notifications.json, ...)
-├── db/                   # Migration Supabase (0001–0030) + SCHEMA.md (hợp đồng schema)
+├── db/                   # Migration Supabase (0001–0033) + SCHEMA.md (hợp đồng schema)
 ├── hr/                   # Nhân sự, nghỉ phép tự gửi, phạm vi duyệt chung, tài liệu quy định và cầu Postgres → SSE
 ├── kiotviet/             # KiotViet API client và webhook receiver
 ├── kiotvietSync/         # Webhook, polling, backfill và rollup
@@ -91,6 +91,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-06 — Chuẩn bị dữ liệu Sổ quỹ: migration `0033` thêm tài khoản/trạng thái phiếu thu chi, danh mục tài khoản chung và lịch sử chốt số dư. Engine lấy danh mục từ cả HN/SG khi bảng trống lúc khởi động và mỗi 24 giờ. Migration đã kiểm thử trên DB nhúng local; chưa áp production.
 
 2026-10-05 — Nâng cấp nghỉ phép/phân quyền phòng ban, form tự xin nghỉ web, Mini App từ chối Telegram và `/donnghi`; bảng người dùng chọn cột và mặc định tài khoản hoạt động. Áp migration `0031` trước ứng dụng mới. [Hợp đồng và nghiệm thu](docs/hr-leave-upgrade.md); chưa xác nhận production.
 

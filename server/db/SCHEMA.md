@@ -302,3 +302,11 @@ Bảng `hr_rule_documents` lưu trữ tài liệu quy định công ty (cả tà
 Đơn tự gửi web lấy `telegram_chat_id` từ liên kết tài khoản trên server. Khi quyết định đơn `source=web` không có chat, service đặt `decision_notified_at` để bot nhân viên không thử gửi tới chat rỗng; thông báo web vẫn được tạo. Với đơn có chat và đơn từ bot nhân viên, chu kỳ NULL → gửi kết quả → đánh dấu và reset khi đổi trạng thái giữ nguyên.
 
 Migration `0032_hr_department_groups.sql` gộp `BAN QUẢN LÝ`/`TRƯỞNG CHI NHÁNH` thành `BAN QUẢN TRỊ`, `HẬU CẦN`/`BẢO VỆ` thành `HẬU CẦN - BẢO VỆ` trong nhân sự, snapshot đơn nghỉ và phạm vi duyệt phép (gộp mục trùng). Vai trò tài khoản và quyền tính năng giữ nguyên; Ban quản trị suy ra Quản lý, Hậu cần - Bảo vệ suy ra Khách theo chính sách hiện tại. Chạy migration trước khi khởi động bản web mới.
+
+## Sổ quỹ — migration 0033
+
+- cash_flows thêm account_id BIGINT và status INTEGER (0 đã thanh toán, 1 đã hủy); amount giữ NUMERIC đã có dấu theo 0012. Backfill raw AccountId/accountId và Status/status theo lô 20.000 dòng, chỉ UPDATE account_id IS NULL; con trỏ (branch,id) vẫn tiến qua phiếu tiền mặt.
+- cash_book_accounts: id BIGINT PRIMARY KEY; bank_name/account_no/description TEXT; raw JSONB NOT NULL; synced_at TIMESTAMPTZ NOT NULL DEFAULT now(). Danh mục chung toàn công ty, lấy cả endpoint HN và SG khi bảng trống lúc startup và mỗi 24 giờ. Không đặt tên giả cho tài khoản thiếu danh mục.
+- cash_book_checkpoints: id BIGSERIAL PRIMARY KEY; account_id BIGINT nullable (NULL = tiền mặt); checkpoint_at TIMESTAMPTZ NOT NULL; balance NUMERIC NOT NULL; system_balance/diff NUMERIC nullable; note TEXT; created_by TEXT NOT NULL; created_at TIMESTAMPTZ NOT NULL DEFAULT now(). Không có FK tài khoản để giữ ID lịch sử, kể cả -1.
+- Index idx_cash_flows_account_date (account_id,trans_date), idx_cash_book_checkpoints_account (account_id,checkpoint_at DESC).
+- Reconcile tài khoản đối chiếu tập ID hiện tại từ retailer được chọn với bảng chung; tài khoản retailer khác và ID lịch sử không làm sai số đếm.

@@ -10,6 +10,8 @@ const TEST_DB_URL = process.env.SUPABASE_TEST_DB_URL || '';
 const TEST_DB_IS_PRODUCTION = Boolean(TEST_DB_URL && CONFIG.SUPABASE_DB_URL && TEST_DB_URL === CONFIG.SUPABASE_DB_URL);
 
 const EXPECTED_TABLES = [
+  'cash_book_accounts',
+  'cash_book_checkpoints',
   'cash_flows',
   'categories',
   'customers',
@@ -33,26 +35,28 @@ const EXPECTED_TABLES = [
 ];
 
 const EXPECTED_INTEGER_COLUMNS = [
-  ['cash_flows', 'amount', 'bigint'],
-  ['customers', 'debt', 'bigint'],
-  ['customers', 'total_revenue', 'bigint'],
-  ['invoice_details', 'discount', 'bigint'],
-  ['invoice_details', 'price', 'bigint'],
-  ['invoice_details', 'quantity', 'integer'],
-  ['invoice_payments', 'amount', 'bigint'],
-  ['invoices', 'total', 'bigint'],
-  ['invoices', 'total_payment', 'bigint'],
-  ['order_details', 'discount', 'bigint'],
-  ['order_details', 'price', 'bigint'],
-  ['order_details', 'quantity', 'integer'],
-  ['orders', 'total', 'bigint'],
-  ['products', 'base_price', 'bigint'],
-  ['purchase_details', 'price', 'bigint'],
-  ['purchase_details', 'quantity', 'integer'],
-  ['purchases', 'total', 'bigint'],
-  ['return_details', 'price', 'bigint'],
-  ['return_details', 'quantity', 'integer'],
-  ['returns', 'total', 'bigint']
+  ['cash_flows', 'account_id', 'bigint'],
+  ['cash_flows', 'amount', 'numeric'],
+  ['cash_flows', 'status', 'integer'],
+  ['customers', 'debt', 'numeric'],
+  ['customers', 'total_revenue', 'numeric'],
+  ['invoice_details', 'discount', 'numeric'],
+  ['invoice_details', 'price', 'numeric'],
+  ['invoice_details', 'quantity', 'numeric'],
+  ['invoice_payments', 'amount', 'numeric'],
+  ['invoices', 'total', 'numeric'],
+  ['invoices', 'total_payment', 'numeric'],
+  ['order_details', 'discount', 'numeric'],
+  ['order_details', 'price', 'numeric'],
+  ['order_details', 'quantity', 'numeric'],
+  ['orders', 'total', 'numeric'],
+  ['products', 'base_price', 'numeric'],
+  ['purchase_details', 'price', 'numeric'],
+  ['purchase_details', 'quantity', 'numeric'],
+  ['purchases', 'total', 'numeric'],
+  ['return_details', 'price', 'numeric'],
+  ['return_details', 'quantity', 'numeric'],
+  ['returns', 'total', 'numeric']
 ];
 
 test('migrations create the complete KiotViet schema on configured Supabase', {
@@ -122,4 +126,22 @@ test('migrations create the complete KiotViet schema on configured Supabase', {
     integerColumns.rows.map((row) => [row.table_name, row.column_name, row.data_type]),
     EXPECTED_INTEGER_COLUMNS
   );
+});
+
+const { PGlite } = require('@electric-sql/pglite');
+const fs = require('node:fs');
+const path = require('node:path');
+test('cash book migration backfills across 20k cash-only rows, retains historical IDs and creates usable checkpoint tables', async t => {
+ const db=new PGlite();t.after(()=>db.close());
+ await db.exec('CREATE TABLE cash_flows(branch text,id bigint,amount numeric,raw jsonb,trans_date timestamptz,PRIMARY KEY(branch,id))');
+ await db.exec(`INSERT INTO cash_flows SELECT 'hanoi',n,-12.5,'{"status":0}'::jsonb,now() FROM generate_series(1,20001) n; INSERT INTO cash_flows VALUES ('saigon',1,-20.5,'{"accountId":-1,"status":1}',now()),('saigon',2,5,'{"AccountId":123,"Status":0}',now());`);
+ await db.exec(fs.readFileSync(path.join(__dirname,'migrations/0033_cash_book.sql'),'utf8'));
+ const rows=(await db.query("SELECT id,account_id,status,amount FROM cash_flows WHERE branch='saigon' ORDER BY id")).rows;
+ assert.deepEqual(rows.map(x=>[x.account_id,x.status,Number(x.amount)]),[[-1,1,-20.5],[123,0,5]]);
+ assert.equal((await db.query('SELECT count(*)::int AS n FROM cash_flows WHERE account_id IS NULL AND status=0')).rows[0].n,20001);
+ await db.exec(`INSERT INTO cash_book_checkpoints(account_id,checkpoint_at,balance,created_by) VALUES(NULL,now(),12.25,'manager'),(-1,now(),-2.5,'manager');`);
+ const cps=(await db.query('SELECT account_id,balance FROM cash_book_checkpoints ORDER BY id')).rows;
+ assert.equal(cps[0].account_id,null);assert.equal(Number(cps[0].balance),12.25);assert.equal(cps[1].account_id,-1);
+ const indexes=(await db.query("SELECT indexname FROM pg_indexes WHERE indexname IN ('idx_cash_flows_account_date','idx_cash_book_checkpoints_account')")).rows;
+ assert.equal(indexes.length,2);
 });

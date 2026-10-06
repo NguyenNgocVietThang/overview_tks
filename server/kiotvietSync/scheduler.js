@@ -22,6 +22,8 @@ const fastEntities = [require('./entities/invoices'), require('./entities/orders
 const slowEntities = [require('./entities/categories'), require('./entities/products'), require('./entities/customers'),
   require('./entities/returns'), require('./entities/purchases'), require('./entities/cashFlows')];
 
+const bankAccounts = require('./entities/bankAccounts');
+
 function createPollingScheduler({
   enabled = CONFIG.KIOTVIET_SYNC_ENABLED,
   fastIntervalMs = CONFIG.KIOTVIET_SYNC_FAST_INTERVAL_MS,
@@ -57,9 +59,9 @@ function createPollingScheduler({
       return;
     }
     await Promise.allSettled(branches.map(async (branchConfig) => {
-      const api = createClient(branchConfig);
       await Promise.allSettled(entities.map(async (entity) => {
         try {
+          const api = createClient(branchConfig);
           await poll(api, branchConfig.branch, entity);
         } catch (error) {
           await record(branchConfig.branch, entity.entity, error.message).catch((recordError) => {
@@ -87,6 +89,15 @@ function createPollingScheduler({
     });
   }
 
+  async function syncBankAccountsIfEmpty() {
+    const result = await getPoolFn().query('SELECT id FROM cash_book_accounts LIMIT 1');
+    if (!result.rows.length) await runGroup([bankAccounts]);
+  }
+
+  function runDailyBankAccounts() {
+    return runGroup([bankAccounts]).catch(error => logger.error('[KiotViet Sync] Lỗi đồng bộ tài khoản:', error.message));
+  }
+
   function startPollingScheduler() {
     if (!enabled) return [];
     // Chạy một lượt nền ngay khi service khởi động để bù khoảng trống từ
@@ -94,11 +105,13 @@ function createPollingScheduler({
     // để HTTP server vẫn sẵn sàng nhận request trong lúc đồng bộ catch-up.
     scheduleImmediate(() => {
       runFastGroupAndRollup().catch((error) => logger.error('[KiotViet Sync] Lỗi lượt fast ban đầu:', error.message));
+      syncBankAccountsIfEmpty().catch(error => logger.error('[KiotViet Sync] Lỗi tài khoản ban đầu:', error.message));
       runGroup(slowEntities).catch((error) => logger.error('[KiotViet Sync] Lỗi lượt slow ban đầu:', error.message));
     });
     return [
       setIntervalFn(() => runFastGroupAndRollup(), fastIntervalMs),
       setIntervalFn(() => runGroup(slowEntities), slowIntervalMs),
+      setIntervalFn(runDailyBankAccounts, 24 * 60 * 60 * 1000),
       // Rollup bao cao Dashboard (server/db/migrations/0013), luot DAY DU: lo
       // phan lich su xa hon HOT_WINDOW_DAYS (vd hoa don cu bi sua trong
       // KiotViet), vi nhung ngay gan day da co luot "nong" sau moi luot sync

@@ -153,6 +153,7 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0028` | `idx_orders_phieu_tam` — chỉ mục một phần `orders (branch, id) WHERE raw->>'statusValue' = 'Phiếu tạm'` cho truy vấn đơn Phiếu tạm của trang Vòng đời đơn hàng (chưa áp chỉ mục code vẫn chạy đúng, chỉ chậm hơn: đo trên dữ liệu thật khi chưa có chỉ mục ~4 giây cho lần đọc nguội, các lần sau trong 60 giây dùng cache) |
 | `0029` | `hr_leave_requests.decision_version` + `hr_leave_change_events`, `hr_leave_manager_messages`, `hr_manager_telegram_sessions`, `hr_manager_telegram_updates`, `hr_manager_telegram_state` — bot riêng cho quản lý và cầu DB → SSE; phải áp trước khi chạy bản web mới, kể cả khi bot tắt |
 | `0030` | Gỡ trạng thái `Tạm duyệt` của đơn nghỉ phép: đơn đang `Tạm duyệt` chuyển về `Chưa duyệt`, CHECK `hr_leave_requests_trang_thai_check` chỉ còn `Chưa duyệt`/`Đã duyệt`/`Từ chối`/`Vi phạm`; áp trước khi chạy bản web mới |
+| `0033` | Sổ quỹ: account_id/status phiếu thu chi, danh mục tài khoản chung HN + SG, lịch sử chốt số dư; sync bankaccounts khi bảng trống lúc startup và mỗi 24 giờ |
 | `0032` | Chuẩn hóa hai nhóm bộ phận `BAN QUẢN TRỊ` và `HẬU CẦN - BẢO VỆ` trong nhân sự, đơn nghỉ và phạm vi duyệt phép; giữ quyền tài khoản hiện tại |
 | `0031` | Phạm vi phòng ban tài khoản, snapshot phòng ban bằng trigger tương thích bot nhân viên, `hr_manager_telegram_cards`; áp trước ứng dụng mới |
 
