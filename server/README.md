@@ -4,6 +4,8 @@ Express backend cho dashboard TOKOSI.
 
 ## Nguồn dữ liệu
 
+- Sổ quỹ: module `cashbook/` đọc `cash_flows`, `cash_book_accounts`, `cash_book_checkpoints`, `staff` và mốc `sync_checkpoints` cho toàn công ty. API `/api/cashbook/{summary,entries,filter-options,checkpoints,export}` bỏ qua cookie cơ sở; `POST checkpoints` chốt số dư trong transaction theo quỹ. Quyền đọc `cashbook.view`, chốt `cashbook.manage`; xuất xlsx/html chọn cột, tối đa 20.000 dòng. Không cache.
+
 - Vị trí hàng: workbook `STOCK_LOCATIONS_SPREADSHEET_ID`, hai sheet HN/SG dùng chung, chỉ đọc bằng service account. Module `stockLocations/` phục vụ `GET /api/stock-locations?branch=HN|SG`; frontend `/stock-locations/` hiển thị 6 cột (Mã hàng, Tên hàng, Tổng SL, Ghi chú hàng hóa, Ngày về, Vị trí), phân trang 100 dòng và tìm mã/tên/vị trí không dấu. Quyền `stockLocations.view` mặc định cho nhân viên, cấm cấp cho Khách. Không migration/job/tải định kỳ. Xem [thiết lập nguồn và nghiệm thu](../docs/stock-locations-setup.md).
 
 - KiotViet dashboard: Supabase PostgreSQL qua `dashboard/dashboardPgReader.js`.
@@ -160,6 +162,8 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng nền nghỉ phép trực tiếp; bot **quản lý** trong `telegram/` dùng chung đơn và sở hữu các bảng bổ sung ở migration `0029`. Hợp đồng dữ liệu ở `db/SCHEMA.md`.
 
 ## Cập nhật gần nhất
+
+2026-10-06 — Thêm backend Sổ quỹ và kiểm thử số dư/SQL/giao dịch trên PGlite cục bộ. Không xác nhận đã áp migration hoặc triển khai production.
 
 2026-10-05 — Phạm vi duyệt phòng ban/cơ sở, tự xin nghỉ web, Mini App và `/donnghi`, inbox nhanh, cột người dùng. Migration `0031`; [kết quả kiểm chứng](../tasks/2026-10-05-hr-approval/todo.md). Chưa nghiệm thu production.
 

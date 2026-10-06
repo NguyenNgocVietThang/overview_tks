@@ -64,6 +64,7 @@ Xem [server/.env.example](server/.env.example) để biết đầy đủ cấu h
 server/
 ├── auth/                 # Tài khoản, phân quyền, OTP, Google OAuth
 ├── branch/               # Phân tách Hà Nội / Sài Gòn
+├── cashbook/             # Sổ quỹ toàn công ty: số dư, sổ chi tiết, lịch sử chốt và xuất Excel/HTML
 ├── dashboard/            # Tổng hợp dashboard (dashboardData + dashboardViews: API theo tab), xuất Excel/HTML, kiểm tra đứt hàng
 │   ├── documentDetailRepository.js  # Chi tiết hóa đơn (popup bảng Chi tiết giao dịch) và chi tiết đơn đặt hàng (trang Vòng đời đơn hàng)
 │   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel
@@ -91,6 +92,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-06 — API Sổ quỹ: `cashbook/` cung cấp số dư theo quỹ, sổ chi tiết phân trang, bộ lọc, chốt số dư bằng giao dịch và xuất Excel/HTML tối đa 20.000 dòng. Gộp HN/SG, không phụ thuộc cookie cơ sở; chưa áp migration hoặc deploy production.
 
 2026-10-06 — Chuẩn bị dữ liệu Sổ quỹ: migration `0033` thêm tài khoản/trạng thái phiếu thu chi, danh mục tài khoản chung và lịch sử chốt số dư. Engine lấy danh mục từ cả HN/SG khi bảng trống lúc khởi động và mỗi 24 giờ. Migration đã kiểm thử trên DB nhúng local; chưa áp production.
 

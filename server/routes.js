@@ -36,6 +36,7 @@ const kiotvietSyncStatusRoutes = require('./kiotvietSync/kiotvietSyncStatusRoute
 const debtManagementRoutes = require('./dashboard/debtManagementRoutes');
 const orderLifecycleRoutes = require('./shipment/orderLifecycleRoutes');
 const stockLocationsRoutes = require('./stockLocations/stockLocationsRoutes');
+const cashbookRoutes = require('./cashbook/cashbookRoutes');
 const { dashboardRollupEvents } = require('./kiotvietSync/dashboardRollupEvents');
 
 router.get('/health', (req, res) => {
@@ -69,6 +70,8 @@ router.use(adminUserRoutes);
 // chinh hai route nay quyet dinh gia tri cookie ma resolveBranch se doc.
 router.use(branchRoutes);
 router.use(stockLocationsRoutes);
+// Sổ quỹ toàn công ty: không áp cookie hoặc middleware chọn cơ sở.
+router.use('/api/cashbook', cashbookRoutes);
 
 // Toan bo /api/hr/* la du lieu THEO CO SO — gan resolveBranch truoc router con.
 router.use('/api/hr', requireAuth, resolveBranch);
