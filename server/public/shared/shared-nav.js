@@ -1270,6 +1270,14 @@
     return html;
   }
 
+  // Mục cấp 1 không có tab con: cùng khung với nút nhóm nhưng là liên kết, không có mũi tên.
+  function navTopLinkHtml(item){
+    var attrs = item.dataAttr ? ' ' + item.dataAttr : '';
+    return '<a href="' + item.href + '" class="nav-group-toggle nav-group-link' + (item.active ? ' has-active' : '') + '"' +
+      (item.active ? ' aria-current="page"' : '') + attrs + '>' +
+      navIcon(item.icon) + '<span>' + item.label + '</span></a>';
+  }
+
   function navGroupHtml(group){
     var items = group.items.filter(function(item){ return TKSNav.can.apply(TKSNav, item.anyOf || [item.feature]); });
     if(!items.length) return '';
@@ -1423,7 +1431,7 @@
 
     mountEl.innerHTML = groups.map(function(item){
       // Mục cấp 1 có liên kết riêng; các nhóm còn lại giữ danh sách tab con.
-      if(item.href) return TKSNav.can(item.feature) ? navItemHtml(item) : '';
+      if(item.href) return TKSNav.can(item.feature) ? navTopLinkHtml(item) : '';
       return navGroupHtml(item);
     }).join('');
   };

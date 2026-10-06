@@ -62,10 +62,17 @@ async function runMigrations({
 }
 
 if (require.main === module) {
-  runMigrations().catch((error) => {
-    console.error(`[db:migrate] Failed: ${error.message}`);
-    process.exitCode = 1;
-  });
+  runMigrations()
+    .then(async () => {
+      await getPool().end();
+    })
+    .catch(async (error) => {
+      console.error(`[db:migrate] Failed: ${error.message}`);
+      try {
+        await getPool().end();
+      } catch (_) {}
+      process.exitCode = 1;
+    });
 }
 
 module.exports = { runMigrations };

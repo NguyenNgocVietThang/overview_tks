@@ -32,7 +32,7 @@ test('Sổ quỹ là mục cấp 1 ngay dưới Quản lý nhân sự và đang 
   assert.equal(link.parentElement, mount, 'mục cấp 1 không nằm trong nhóm con');
   assert.equal(link.previousElementSibling.querySelector('[data-tks-nav-group]').dataset.tksNavGroup, 'hr');
   assert.equal(link.nextElementSibling.querySelector('[data-tks-nav-group]').dataset.tksNavGroup, 'account');
-  assert.ok(link.classList.contains('active'));
+  assert.ok(link.classList.contains('has-active'));
   assert.equal(link.getAttribute('aria-current'), 'page');
   assert.ok(link.querySelector('svg.ic'));
 });
@@ -51,11 +51,11 @@ test('Sổ quỹ không phụ thuộc cơ sở, chỉ active đúng đường d�
       featurePermissions: { 'cashbook.view': true } }, '/humanresources/');
     const link = mount.querySelector('a[href="/cashbook/"]');
     assert.ok(link, branch);
-    assert.equal(link.classList.contains('active'), false);
+    assert.equal(link.classList.contains('has-active'), false);
     assert.equal(link.hasAttribute('aria-current'), false);
   }
   for (const url of ['/cashbook', '/cashbook/index.html']) {
-    assert.ok(sidebar(t, { vaiTro: 'Quản lý' }, url).querySelector('a[href="/cashbook/"].active'));
+    assert.ok(sidebar(t, { vaiTro: 'Quản lý' }, url).querySelector('a[href="/cashbook/"].has-active'));
   }
 });
 
