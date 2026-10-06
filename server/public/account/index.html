@@ -1941,7 +1941,9 @@
         if(!parent) return;
         const blocked = !isOn(parent);
         select.disabled = blocked;
-        select.title = blocked ? 'Cần bật Vòng đời đơn hàng trước' : '';
+        // Dùng nhãn quyền cha trong catalog, áp dụng cả Sổ quỹ và Đơn hàng.
+        const parentLabel = parent.closest('.perm-row').querySelector('.perm-row-label').firstChild.textContent.trim();
+        select.title = blocked ? `Cần bật ${parentLabel} trước` : '';
       });
     }
 

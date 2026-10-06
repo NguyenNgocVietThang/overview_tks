@@ -15,7 +15,7 @@ function fakeUser(vaiTro) {
 }
 
 // Hom nay gia lap = 02/10/2026.
-function createEnv(fetchImpl) {
+function createEnv(t, fetchImpl) {
   const dom = new JSDOM(
     '<!DOCTYPE html><html><body><div class="status-line">' +
       '<div class="account-chip" id="accountChip"></div>' +
@@ -23,6 +23,7 @@ function createEnv(fetchImpl) {
     { runScripts: 'dangerously', url: 'https://tokosi.example/' }
   );
   const { window } = dom;
+  t.after(() => window.close());
   window.fetch = fetchImpl;
   window.eval(moduleSource);
   window.TKSNav._now = () => new Date(2026, 9, 2);
@@ -50,21 +51,23 @@ function okFetch(requests, urls) {
   };
 }
 
-test('icon lịch chèn trước #accountChip và ẩn khi thiếu quyền hr.leave', () => {
-  const a = createEnv(okFetch([]));
+test('lịch nằm giữa chip tài khoản và chuông, ẩn khi thiếu quyền hr.leave', t => {
+  const a = createEnv(t, okFetch([]));
   a.window.TKSNav.renderLeaveCalendar(fakeUser('Trợ lý'));
-  assert.equal(a.document.getElementById('tksLeaveCal').nextElementSibling.id, 'accountChip');
+  a.window.TKSNav.renderNotifBell(fakeUser('Trợ lý'));
+  assert.deepEqual([...a.document.querySelector('.status-line').children].map(el => el.id),
+    ['accountChip', 'tksLeaveCal', 'tksNotifBell']);
   a.window.close();
 
-  const b = createEnv(okFetch([]));
+  const b = createEnv(t, okFetch([]));
   b.window.TKSNav.renderLeaveCalendar(fakeUser('Khách'));
   assert.equal(b.document.getElementById('tksLeaveCal'), null);
   b.window.close();
 });
 
-test('mở lịch: chọn sẵn hôm nay, gọi đúng from/to của tháng, lọc đơn Từ chối', async () => {
+test('mở lịch: chọn sẵn hôm nay, gọi đúng from/to của tháng, lọc đơn Từ chối', async t => {
   const urls = [];
-  const { window, document } = createEnv(okFetch([
+  const { window, document } = createEnv(t, okFetch([
     leave({ request_id: 'NP-1', ho_ten: 'An' }),
     leave({ request_id: 'NP-2', ho_ten: 'Bình', trang_thai: 'Từ chối' }),
     leave({ request_id: 'NP-3', ho_ten: 'Chi', trang_thai: 'Chưa duyệt', co_nghi_gap: true })
@@ -85,8 +88,8 @@ test('mở lịch: chọn sẵn hôm nay, gọi đúng from/to của tháng, l�
   window.close();
 });
 
-test('chọn ngày khác đổi danh sách; bấm dòng mở chi tiết thời gian nghỉ', async () => {
-  const { window, document } = createEnv(okFetch([
+test('chọn ngày khác đổi danh sách; bấm dòng mở chi tiết thời gian nghỉ', async t => {
+  const { window, document } = createEnv(t, okFetch([
     leave({
       request_id: 'NP-9', ho_ten: 'Dũng',
       start_date: '2026-10-05', start_session: 'Chiều', end_date: '2026-10-07', end_session: 'Sáng',
@@ -117,10 +120,10 @@ test('chọn ngày khác đổi danh sách; bấm dòng mở chi tiết thời g
   window.close();
 });
 
-test('đổi tháng gọi lại API đúng khoảng; lỗi API hiện thông báo', async () => {
+test('đổi tháng gọi lại API đúng khoảng; lỗi API hiện thông báo', async t => {
   const urls = [];
   let fail = false;
-  const { window, document } = createEnv(async (url) => {
+  const { window, document } = createEnv(t, async (url) => {
     urls.push(String(url));
     if (fail) return { ok: false, status: 500, json: async () => ({}) };
     return { ok: true, json: async () => ({ requests: [] }) };
@@ -138,8 +141,8 @@ test('đổi tháng gọi lại API đúng khoảng; lỗi API hiện thông bá
   window.close();
 });
 
-test('đóng khi click ra ngoài hoặc nhấn Escape', async () => {
-  const { window, document } = createEnv(okFetch([]));
+test('đóng khi click ra ngoài hoặc nhấn Escape', async t => {
+  const { window, document } = createEnv(t, okFetch([]));
   window.TKSNav.renderLeaveCalendar(fakeUser('Trợ lý'));
   const btn = document.getElementById('tksLeaveCalBtn');
   const dropdown = document.getElementById('tksLeaveCalDropdown');
@@ -158,8 +161,8 @@ test('đóng khi click ra ngoài hoặc nhấn Escape', async () => {
   window.close();
 });
 
-test('dayCoverage: nghỉ đầu/giữa/cuối khoảng và nửa ngày', () => {
-  const { window } = createEnv(okFetch([]));
+test('dayCoverage: nghỉ đầu/giữa/cuối khoảng và nửa ngày', t => {
+  const { window } = createEnv(t, okFetch([]));
   const { dayCoverage, coverageLabel } = window.TKSNav._leaveCalendar;
   const multi = { start_date: '2026-10-05', start_session: 'Chiều', end_date: '2026-10-07', end_session: 'Sáng' };
   assert.equal(coverageLabel(dayCoverage(multi, '2026-10-05')), 'Buổi chiều');
@@ -171,8 +174,8 @@ test('dayCoverage: nghỉ đầu/giữa/cuối khoảng và nửa ngày', () => 
   window.close();
 });
 
-test('đơn kéo dài sang tháng khác chỉ gom phần trong tháng đang xem', () => {
-  const { window } = createEnv(okFetch([]));
+test('đơn kéo dài sang tháng khác chỉ gom phần trong tháng đang xem', t => {
+  const { window } = createEnv(t, okFetch([]));
   const byDay = window.TKSNav._leaveCalendar.groupByDay([
     leave({ start_date: '2026-09-29', end_date: '2026-10-02' })
   ], 2026, 10);

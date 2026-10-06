@@ -35,6 +35,36 @@ async function run(guard, req) {
   return { res, nextCalled };
 }
 
+test('Sổ quỹ yêu cầu đăng nhập và chặn Sale/Kho/Khách trên mọi đường dẫn HTML', async () => {
+  for (const url of ['/cashbook', '/cashbook/', '/cashbook/index.html']) {
+    const anonymous = await run(guardFor({ vaiTro: ROLES.QUAN_LY }), fakeReq(url));
+    assert.equal(anonymous.nextCalled, false, url);
+    assert.equal(anonymous.res.redirectedTo, '/login/?next=' + encodeURIComponent(url));
+    for (const [role, target] of [[ROLES.NHAN_VIEN_SALE, '/reports/'],
+      [ROLES.NHAN_VIEN_KHO, '/humanresources/'], [ROLES.KHACH, '/account/']]) {
+      const denied = await run(guardFor({ vaiTro: role }), fakeReq(url, { token: 'ok' }));
+      assert.equal(denied.nextCalled, false, role + ' ' + url);
+      assert.equal(denied.res.redirectedTo, target);
+      assert.equal(denied.res.headers['Cache-Control'], 'no-store');
+    }
+  }
+});
+
+test('Sổ quỹ cho Quản lý/admin cứng vào và áp dụng cấp hoặc thu hồi quyền riêng', async () => {
+  for (const url of ['/cashbook', '/cashbook/', '/cashbook/index.html']) {
+    for (const user of [{ vaiTro: ROLES.QUAN_LY }, { username: 'admin', vaiTro: ROLES.KHACH },
+      { vaiTro: ROLES.NHAN_VIEN_KHO, featurePermissions: { 'cashbook.view': true } }]) {
+      const allowed = await run(guardFor(user), fakeReq(url, { token: 'ok' }));
+      assert.equal(allowed.nextCalled, true);
+      assert.equal(allowed.res.headers['Cache-Control'], 'no-store');
+    }
+    const revoked = await run(guardFor({ vaiTro: ROLES.QUAN_LY,
+      featurePermissions: { 'cashbook.view': false } }), fakeReq(url, { token: 'ok' }));
+    assert.equal(revoked.nextCalled, false);
+    assert.equal(revoked.res.redirectedTo, '/reports/');
+  }
+});
+
 test('isPageRequest chi nhan request dieu huong, bo qua tai nguyen tinh va /api', () => {
   for (const path of ['/', '/reports', '/reports/', '/account/', '/humanresources/', '/index.html']) {
     assert.equal(isPageRequest({ method: 'GET', path }), true, path);

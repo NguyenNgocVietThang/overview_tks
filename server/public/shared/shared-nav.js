@@ -1411,12 +1411,21 @@
         icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>'
       },
       {
+        key: 'cashbook', feature: 'cashbook.view', href: '/cashbook/', label: 'Sổ quỹ',
+        active: currentPath === '/cashbook', dataAttr: 'data-tks-nav-key="cashbook"',
+        icon: '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>'
+      },
+      {
         key: 'account', label: 'Quản lý tài khoản', active: activeTop === 'account', items: accountItems,
         icon: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.8 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path>'
       }
     ];
 
-    mountEl.innerHTML = groups.map(navGroupHtml).join('');
+    mountEl.innerHTML = groups.map(function(item){
+      // Mục cấp 1 có liên kết riêng; các nhóm còn lại giữ danh sách tab con.
+      if(item.href) return TKSNav.can(item.feature) ? navItemHtml(item) : '';
+      return navGroupHtml(item);
+    }).join('');
   };
 
   // ---------- Chon co so (Ha Noi / Sai Gon / Ca hai) ----------

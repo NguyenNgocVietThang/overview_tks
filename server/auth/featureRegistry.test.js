@@ -6,6 +6,41 @@ const assert = require('node:assert/strict');
 const registry = require('./featureRegistry');
 const { ROLES, INTERNAL_ROLES, REPORTS_ROLES } = require('./userRepository');
 
+test('Sổ quỹ mặc định chỉ cấp xem và chốt số dư cho Quản lý', () => {
+  for (const role of Object.values(ROLES)) {
+    const actual = registry.defaultsForRole(role).filter(key => key.startsWith('cashbook.'));
+    assert.deepEqual(actual, role === ROLES.QUAN_LY ? ['cashbook.view', 'cashbook.manage'] : [], role);
+  }
+});
+
+test('chốt số dư cần quyền xem, kể cả khi quyền chốt được cấp riêng', () => {
+  const manager = registry.resolvePermissions({ vaiTro: ROLES.QUAN_LY,
+    featurePermissions: { 'cashbook.view': false, 'cashbook.manage': true } });
+  assert.ok(!manager.includes('cashbook.view'));
+  assert.ok(!manager.includes('cashbook.manage'));
+  const sale = { vaiTro: ROLES.NHAN_VIEN_SALE, featurePermissions: { 'cashbook.manage': true } };
+  assert.ok(!registry.resolvePermissions(sale).includes('cashbook.manage'));
+  sale.featurePermissions['cashbook.view'] = true;
+  assert.deepEqual(registry.resolvePermissions(sale).filter(key => key.startsWith('cashbook.')),
+    ['cashbook.view', 'cashbook.manage']);
+});
+
+test('admin cứng luôn giữ quyền Sổ quỹ khi có ghi đè thu hồi', () => {
+  const permissions = registry.resolvePermissions({ username: 'admin', vaiTro: ROLES.KHACH,
+    featurePermissions: { 'cashbook.view': false, 'cashbook.manage': false } });
+  assert.ok(permissions.includes('cashbook.view'));
+  assert.ok(permissions.includes('cashbook.manage'));
+});
+
+test('các đường dẫn Sổ quỹ dùng cùng quyền xem và có thể là trang đích', () => {
+  for (const url of ['/cashbook', '/cashbook/', '/cashbook/index.html']) {
+    assert.deepEqual(registry.pageRuleFor(url), {
+      path: '/cashbook', href: '/cashbook/', anyOf: ['cashbook.view']
+    });
+  }
+  assert.equal(registry.landingPathFor(['cashbook.view', 'account.profile']), '/cashbook/');
+});
+
 test('Vị trí hàng defaults for every internal role; guest grants are always forbidden', () => {
   for (const vaiTro of INTERNAL_ROLES) assert.ok(registry.defaultsForRole(vaiTro).includes('stockLocations.view'), vaiTro);
   const guest = { vaiTro: ROLES.KHACH, featurePermissions: { 'stockLocations.view': true } };

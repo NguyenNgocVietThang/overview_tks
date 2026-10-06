@@ -35,6 +35,7 @@ const FEATURE_GROUPS = Object.freeze([
   { key: 'shipment', label: 'Quản lý đơn hàng' },
   { key: 'stockLocations', label: 'Vị trí hàng' },
   { key: 'hr', label: 'Quản lý nhân sự' },
+  { key: 'cashbook', label: 'Sổ quỹ' },
   { key: 'account', label: 'Quản lý tài khoản' },
   { key: 'system', label: 'Hệ thống' }
 ]);
@@ -77,6 +78,10 @@ const FEATURES = Object.freeze([
   { key: 'hr.leave.absence.manage', groupKey: 'hr', label: 'Ghi nhận tự ý nghỉ', roles: MANAGER_ONLY },
   { key: 'hr.leave.submit', groupKey: 'hr', label: 'Tự gửi đơn nghỉ phép', roles: [], dynamic: true },
 
+  // --- Sổ quỹ: quyền chốt luôn cần quyền xem ---
+  { key: 'cashbook.view', groupKey: 'cashbook', label: 'Xem sổ quỹ', roles: MANAGER_ONLY },
+  { key: 'cashbook.manage', groupKey: 'cashbook', label: 'Chốt số dư sổ quỹ', roles: MANAGER_ONLY, requires: 'cashbook.view' },
+
   // --- Quan ly tai khoan ---
   { key: 'account.profile', groupKey: 'account', label: 'Quản lý hồ sơ', roles: ALL_ROLES, alwaysOn: true },
   { key: 'account.users', groupKey: 'account', label: 'Quản lý người dùng (xem)', roles: MANAGER_ONLY },
@@ -110,6 +115,7 @@ const PAGE_FEATURES = Object.freeze([
   { path: '/shipment/lifecycle', href: '/shipment/lifecycle/', anyOf: ['shipment.lifecycle'] },
   { path: '/humanresources', href: '/humanresources/', anyOf: ['hr.rules', 'hr.employees', 'hr.leave', 'hr.leave.submit'] },
   { path: '/stock-locations', href: '/stock-locations/', anyOf: ['stockLocations.view'] },
+  { path: '/cashbook', href: '/cashbook/', anyOf: ['cashbook.view'] },
   { path: '/account', href: '/account/', anyOf: ['account.profile'] }
 ]);
 

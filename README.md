@@ -93,6 +93,8 @@ Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để b
 
 ## Cập nhật gần nhất
 
+2026-10-06 — Quyền và điều hướng Sổ quỹ: `cashbook.view` và `cashbook.manage` mặc định chỉ Quản lý; quyền chốt phụ thuộc quyền xem. Mục cấp 1 "Sổ quỹ" hiện ngay dưới Quản lý nhân sự theo quyền xem, dùng chung quy tắc bảo vệ `/cashbook/` ở server và client, không phụ thuộc cơ sở.
+
 2026-10-06 — API Sổ quỹ: `cashbook/` cung cấp số dư theo quỹ, sổ chi tiết phân trang, bộ lọc, chốt số dư bằng giao dịch và xuất Excel/HTML tối đa 20.000 dòng. Gộp HN/SG, không phụ thuộc cookie cơ sở; chưa áp migration hoặc deploy production.
 
 2026-10-06 — Chuẩn bị dữ liệu Sổ quỹ: migration `0033` thêm tài khoản/trạng thái phiếu thu chi, danh mục tài khoản chung và lịch sử chốt số dư. Engine lấy danh mục từ cả HN/SG khi bảng trống lúc khởi động và mỗi 24 giờ. Migration đã kiểm thử trên DB nhúng local; chưa áp production.

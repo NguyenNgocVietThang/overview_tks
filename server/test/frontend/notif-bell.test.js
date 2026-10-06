@@ -17,7 +17,7 @@ function fakeUser(id, vaiTro) {
 const MODULE_PATH = path.join(__dirname, '..', '..', 'public', 'shared', 'shared-nav.js');
 const moduleSource = fs.readFileSync(MODULE_PATH, 'utf8');
 
-function createEnv(user, fetchImpl) {
+function createEnv(t, user, fetchImpl) {
   const dom = new JSDOM(
     '<!DOCTYPE html><html><body>' +
       '<div class="status-line">' +
@@ -27,24 +27,27 @@ function createEnv(user, fetchImpl) {
     { runScripts: 'dangerously', url: 'https://tokosi.example/humanresources/' }
   );
   const { window } = dom;
+  t.after(() => window.close());
   window.fetch = fetchImpl;
   window.eval(moduleSource);
   return { dom, window, document: window.document };
 }
 
-test('renderNotifBell chèn nút chuông ngay trước #accountChip', () => {
-  const { window, document } = createEnv(fakeUser('u1', 'Trợ lý'), async () => ({
+test('renderNotifBell đặt chuông sau chip và lịch kể cả khi chuông được render trước', t => {
+  const { window, document } = createEnv(t, fakeUser('u1', 'Trợ lý'), async () => ({
     ok: true, json: async () => ({ count: 0 })
   }));
   window.TKSNav.renderNotifBell(fakeUser('u1', 'Trợ lý'));
+  window.TKSNav.renderLeaveCalendar(fakeUser('u1', 'Trợ lý'));
   const bell = document.getElementById('tksNotifBell');
   assert.ok(bell, 'phải có phần tử #tksNotifBell');
-  assert.equal(bell.nextElementSibling.id, 'accountChip', 'chuông phải nằm ngay trước #accountChip');
+  assert.deepEqual([...document.querySelector('.status-line').children].map(el => el.id),
+    ['accountChip', 'tksLeaveCal', 'tksNotifBell']);
   window.close();
 });
 
-test('renderNotifBell hiển thị badge đúng số thông báo chưa đọc', async () => {
-  const { window, document } = createEnv(fakeUser('u1', 'Trợ lý'), async (url) => {
+test('renderNotifBell hiển thị badge đúng số thông báo chưa đọc', async t => {
+  const { window, document } = createEnv(t, fakeUser('u1', 'Trợ lý'), async (url) => {
     if (String(url).includes('/unread-count')) {
       return { ok: true, json: async () => ({ count: 3 }) };
     }
@@ -58,9 +61,9 @@ test('renderNotifBell hiển thị badge đúng số thông báo chưa đọc', 
   window.close();
 });
 
-test('click vào chuông mở dropdown và tải danh sách thông báo', async () => {
+test('click vào chuông mở dropdown và tải danh sách thông báo', async t => {
   const requestedUrls = [];
-  const { window, document } = createEnv(fakeUser('u1', 'Trợ lý'), async (url) => {
+  const { window, document } = createEnv(t, fakeUser('u1', 'Trợ lý'), async (url) => {
     requestedUrls.push(String(url));
     if (String(url).includes('/unread-count')) return { ok: true, json: async () => ({ count: 1 }) };
     return {
@@ -83,9 +86,9 @@ test('click vào chuông mở dropdown và tải danh sách thông báo', async 
   window.close();
 });
 
-test('Quản lý thấy nút Duyệt/Từ chối trên thông báo yêu cầu đổi vai trò chưa đọc, và click Duyệt gọi đúng API', async () => {
+test('Quản lý thấy nút Duyệt/Từ chối trên thông báo yêu cầu đổi vai trò chưa đọc, và click Duyệt gọi đúng API', async t => {
   const patchCalls = [];
-  const { window, document } = createEnv(fakeUser('m1', 'Quản lý'), async (url, opts) => {
+  const { window, document } = createEnv(t, fakeUser('m1', 'Quản lý'), async (url, opts) => {
     if (String(url).includes('/unread-count')) return { ok: true, json: async () => ({ count: 1 }) };
     if (opts && opts.method === 'PATCH' && String(url).includes('/api/role-requests/')) {
       patchCalls.push({ url: String(url), body: JSON.parse(opts.body) });
@@ -114,9 +117,9 @@ test('Quản lý thấy nút Duyệt/Từ chối trên thông báo yêu cầu đ
   window.close();
 });
 
-test('người có quyền quản lý nghỉ phép duyệt đơn trực tiếp từ thông báo', async () => {
+test('người có quyền quản lý nghỉ phép duyệt đơn trực tiếp từ thông báo', async t => {
   const patchCalls = [];
-  const { window, document } = createEnv(fakeUser('m1', 'Quản lý'), async (url, opts) => {
+  const { window, document } = createEnv(t, fakeUser('m1', 'Quản lý'), async (url, opts) => {
     const method = opts && opts.method;
     if (String(url).includes('/unread-count')) return { ok: true, json: async () => ({ count: 1 }) };
     if (String(url) === '/api/hr/leave-requests/lv1') return { ok: true, json: async () => ({ request: { id: 'lv1', canManage: true, decision_version: '2026-10-05T01:00:00.000Z' } }) };
@@ -147,9 +150,9 @@ test('người có quyền quản lý nghỉ phép duyệt đơn trực tiếp t
   window.close();
 });
 
-test('click vào thông báo có relatedType đánh dấu đã đọc rồi điều hướng đúng URL', async () => {
+test('click vào thông báo có relatedType đánh dấu đã đọc rồi điều hướng đúng URL', async t => {
   const calledUrls = [];
-  const { window, document } = createEnv(fakeUser('u1', 'Quản lý'), async (url, opts) => {
+  const { window, document } = createEnv(t, fakeUser('u1', 'Quản lý'), async (url, opts) => {
     calledUrls.push({ url: String(url), method: opts && opts.method });
     if (String(url).includes('/unread-count')) return { ok: true, json: async () => ({ count: 1 }) };
     if (opts && opts.method === 'PATCH' && String(url).includes('/read')) {
@@ -177,9 +180,9 @@ test('click vào thông báo có relatedType đánh dấu đã đọc rồi đi�
   window.close();
 });
 
-test('click icon xóa trên thông báo gọi DELETE /api/notifications/:id', async () => {
+test('click icon xóa trên thông báo gọi DELETE /api/notifications/:id', async t => {
   const calledUrls = [];
-  const { window, document } = createEnv(fakeUser('u1', 'Trợ lý'), async (url, opts) => {
+  const { window, document } = createEnv(t, fakeUser('u1', 'Trợ lý'), async (url, opts) => {
     calledUrls.push({ url: String(url), method: opts && opts.method });
     if (String(url).includes('/unread-count')) return { ok: true, json: async () => ({ count: 1 }) };
     if (opts && opts.method === 'DELETE') return { ok: true, json: async () => ({ deleted: true }) };
@@ -202,9 +205,9 @@ test('click icon xóa trên thông báo gọi DELETE /api/notifications/:id', as
   window.close();
 });
 
-test('click "Xóa tất cả" gọi DELETE /api/notifications', async () => {
+test('click "Xóa tất cả" gọi DELETE /api/notifications', async t => {
   const calledUrls = [];
-  const { window, document } = createEnv(fakeUser('u1', 'Trợ lý'), async (url, opts) => {
+  const { window, document } = createEnv(t, fakeUser('u1', 'Trợ lý'), async (url, opts) => {
     calledUrls.push({ url: String(url), method: opts && opts.method });
     if (String(url).includes('/unread-count')) return { ok: true, json: async () => ({ count: 1 }) };
     if (opts && opts.method === 'DELETE') return { ok: true, json: async () => ({ deleted: 1 }) };
@@ -228,8 +231,8 @@ test('click "Xóa tất cả" gọi DELETE /api/notifications', async () => {
 });
 
 
-test('leave notification hides quick decisions outside current persisted approval scope', async () => {
-  const { window, document } = createEnv(fakeUser('m1', 'Quản lý'), async url => ({ ok: true, json: async () => String(url).includes('/api/hr/leave-requests/') ? { request: { canManage: false, decision_version: 'version' } } : { notifications: [{ id: 'n1', type: 'leave_request_created', relatedType: 'leaveRequest', relatedId: 'lv1' }] } }));
+test('leave notification hides quick decisions outside current persisted approval scope', async t => {
+  const { window, document } = createEnv(t, fakeUser('m1', 'Quản lý'), async url => ({ ok: true, json: async () => String(url).includes('/api/hr/leave-requests/') ? { request: { canManage: false, decision_version: 'version' } } : { notifications: [{ id: 'n1', type: 'leave_request_created', relatedType: 'leaveRequest', relatedId: 'lv1' }] } }));
   try {
     window.TKSNav.renderNotifBell(fakeUser('m1', 'Quản lý'));
     document.getElementById('tksNotifBellBtn').click();
@@ -239,9 +242,9 @@ test('leave notification hides quick decisions outside current persisted approva
   } finally { window.close(); }
 });
 
-test('manager promotion notification collects explicit department selection before submitting approval', async () => {
+test('manager promotion notification collects explicit department selection before submitting approval', async t => {
   const patches = [];
-  const { window, document } = createEnv(fakeUser('m1', 'Quản lý'), async (url, options = {}) => {
+  const { window, document } = createEnv(t, fakeUser('m1', 'Quản lý'), async (url, options = {}) => {
     if (options.method === 'PATCH') { patches.push({ url, body: options.body && JSON.parse(options.body) }); return { ok: true, json: async () => ({}) }; }
     if (String(url).includes('/permissions/catalog')) return { ok: true, json: async () => ({ departments: ['KHO', 'KẾ TOÁN'] }) };
     if (String(url).includes('/api/role-requests/')) return { ok: true, json: async () => ({ request: { requestedRole: 'Quản lý' } }) };
