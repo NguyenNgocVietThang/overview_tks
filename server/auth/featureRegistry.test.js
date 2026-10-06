@@ -6,30 +6,23 @@ const assert = require('node:assert/strict');
 const registry = require('./featureRegistry');
 const { ROLES, INTERNAL_ROLES, REPORTS_ROLES } = require('./userRepository');
 
-test('Sổ quỹ mặc định chỉ cấp xem và chốt số dư cho Quản lý', () => {
+test('Sổ quỹ mặc định chỉ cấp quyền xem cho Quản lý', () => {
   for (const role of Object.values(ROLES)) {
     const actual = registry.defaultsForRole(role).filter(key => key.startsWith('cashbook.'));
-    assert.deepEqual(actual, role === ROLES.QUAN_LY ? ['cashbook.view', 'cashbook.manage'] : [], role);
+    assert.deepEqual(actual, role === ROLES.QUAN_LY ? ['cashbook.view'] : [], role);
   }
 });
 
-test('chốt số dư cần quyền xem, kể cả khi quyền chốt được cấp riêng', () => {
-  const manager = registry.resolvePermissions({ vaiTro: ROLES.QUAN_LY,
-    featurePermissions: { 'cashbook.view': false, 'cashbook.manage': true } });
-  assert.ok(!manager.includes('cashbook.view'));
-  assert.ok(!manager.includes('cashbook.manage'));
-  const sale = { vaiTro: ROLES.NHAN_VIEN_SALE, featurePermissions: { 'cashbook.manage': true } };
-  assert.ok(!registry.resolvePermissions(sale).includes('cashbook.manage'));
-  sale.featurePermissions['cashbook.view'] = true;
-  assert.deepEqual(registry.resolvePermissions(sale).filter(key => key.startsWith('cashbook.')),
-    ['cashbook.view', 'cashbook.manage']);
+test('quyền chốt số dư cũ đã gỡ: ghi đè còn lưu trong tài khoản bị bỏ qua', () => {
+  assert.equal(registry.FEATURES.some(f => f.key === 'cashbook.manage'), false);
+  const sale = { vaiTro: ROLES.NHAN_VIEN_SALE, featurePermissions: { 'cashbook.manage': true, 'cashbook.view': true } };
+  assert.deepEqual(registry.resolvePermissions(sale).filter(key => key.startsWith('cashbook.')), ['cashbook.view']);
 });
 
 test('admin cứng luôn giữ quyền Sổ quỹ khi có ghi đè thu hồi', () => {
   const permissions = registry.resolvePermissions({ username: 'admin', vaiTro: ROLES.KHACH,
-    featurePermissions: { 'cashbook.view': false, 'cashbook.manage': false } });
+    featurePermissions: { 'cashbook.view': false } });
   assert.ok(permissions.includes('cashbook.view'));
-  assert.ok(permissions.includes('cashbook.manage'));
 });
 
 test('các đường dẫn Sổ quỹ dùng cùng quyền xem và có thể là trang đích', () => {

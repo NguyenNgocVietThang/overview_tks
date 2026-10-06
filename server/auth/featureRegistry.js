@@ -81,9 +81,8 @@ const FEATURES = Object.freeze([
   { key: 'hr.leave.absence.manage', groupKey: 'hr', label: 'Ghi nhận tự ý nghỉ', roles: MANAGER_ONLY },
   { key: 'hr.leave.submit', groupKey: 'hr', label: 'Tự gửi đơn nghỉ phép', roles: [], dynamic: true },
 
-  // --- Sổ quỹ: quyền chốt luôn cần quyền xem ---
+  // --- Sổ quỹ: chỉ xem/xuất; tồn quỹ tự tính từ KiotViet nên không còn quyền chốt số dư ---
   { key: 'cashbook.view', groupKey: 'cashbook', label: 'Xem sổ quỹ', roles: MANAGER_ONLY },
-  { key: 'cashbook.manage', groupKey: 'cashbook', label: 'Chốt số dư sổ quỹ', roles: MANAGER_ONLY, requires: 'cashbook.view' },
 
   // --- Quan ly tai khoan ---
   { key: 'account.profile', groupKey: 'account', label: 'Quản lý hồ sơ', roles: ALL_ROLES, alwaysOn: true },

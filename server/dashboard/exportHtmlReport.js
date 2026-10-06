@@ -281,7 +281,9 @@ function createReportKit() {
    * `plan` (tuy chon) co dinh cot duoc chon tu toan bo du lieu de khi loc
    * KPI/bieu do khong nhay sang cot khac.
    */
-  function planFor(columns, rows, summaryKeys) {
+  // hints (tuy chon): { labelKey, categoryKey } chi dinh cot nhan cho bieu do Top va cot phan loai
+  // cho bieu do co cau/bo loc khi doan tu dong chon sai; cot khong co trong file thi bo qua.
+  function planFor(columns, rows, summaryKeys, hints) {
     var metrics = metricColumns(columns);
     // Bang co the chi dinh cot so dung lam KPI/bieu do chinh (vd so lieu "trong ky" thay vi tong toan thoi gian
     // cua KiotViet) de tong hop bam dung bo loc thoi gian; cot khong co trong file thi bo qua.
@@ -291,11 +293,16 @@ function createReportKit() {
       if (index >= 0 && preferred.indexOf(index) < 0) preferred.push(index);
     });
     if (preferred.length) metrics = preferred.concat(metrics.filter(function (index) { return preferred.indexOf(index) < 0; }));
-    var label = labelColumn(columns);
+    var keyIndex = function (key) {
+      return key ? columns.findIndex(function (column) { return column.key === key; }) : -1;
+    };
+    var label = keyIndex(hints && hints.labelKey);
+    if (label < 0) label = labelColumn(columns);
+    var category = keyIndex(hints && hints.categoryKey);
     return {
       metrics: metrics.slice(0, 3),
       label: label,
-      category: categoryColumn(columns, rows, label),
+      category: category >= 0 ? category : categoryColumn(columns, rows, label),
       date: dateColumn(columns)
     };
   }
@@ -370,6 +377,7 @@ function embedWorksheet(worksheet) {
   const rows = worksheet.rows.map(row => columns.map(column => embedValue(row[column.key], column)));
   const embedded = { key: worksheet.key, name: worksheet.name, columns, rows };
   if (Array.isArray(worksheet.summaryKeys)) embedded.summaryKeys = worksheet.summaryKeys;
+  if (worksheet.hints) embedded.hints = worksheet.hints;
   return embedded;
 }
 
@@ -392,7 +400,7 @@ async function gzipWorksheets(worksheets) {
   await write('{"worksheets":[');
   for (let index = 0; index < worksheets.length; index += 1) {
     const worksheet = worksheets[index];
-    const head = JSON.stringify({ key: worksheet.key, name: worksheet.name, columns: worksheet.columns, summaryKeys: worksheet.summaryKeys });
+    const head = JSON.stringify({ key: worksheet.key, name: worksheet.name, columns: worksheet.columns, summaryKeys: worksheet.summaryKeys, hints: worksheet.hints });
     await write(`${index ? ',' : ''}${head.slice(0, -1)},"rows":[`);
     for (let start = 0; start < worksheet.rows.length; start += GZIP_ROW_CHUNK) {
       const part = worksheet.rows.slice(start, start + GZIP_ROW_CHUNK).map(row => JSON.stringify(row)).join(',');
@@ -535,7 +543,7 @@ const REPORT_SCRIPT = `
   }
 
   var prepared = DATA.worksheets.map(function (sheet) {
-    return { plan: kit.planFor(sheet.columns, sheet.rows, sheet.summaryKeys), haystack: null };
+    return { plan: kit.planFor(sheet.columns, sheet.rows, sheet.summaryKeys, sheet.hints), haystack: null };
   });
 
   // Chuoi tim kiem chi dung khi nguoi xem go lan dau (mo file nhanh, it RAM). Cot so/phan tram
@@ -807,7 +815,7 @@ async function renderHtmlReport(dataset) {
   const meta = dataset.meta;
   const worksheets = dataset.worksheets.map(embedWorksheet);
   const first = worksheets[0];
-  const summary = kit.buildSummary(first.columns, first.rows, kit.planFor(first.columns, first.rows, first.summaryKeys));
+  const summary = kit.buildSummary(first.columns, first.rows, kit.planFor(first.columns, first.rows, first.summaryKeys, first.hints));
   const totalRows = worksheets.reduce((sum, worksheet) => sum + worksheet.rows.length, 0);
   const generatedAt = formatGeneratedAt(meta.generatedAt || new Date());
   // base64 chi gom [A-Za-z0-9+/=] nen khong the dong the <script>.

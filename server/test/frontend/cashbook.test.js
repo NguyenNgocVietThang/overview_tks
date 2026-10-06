@@ -12,28 +12,28 @@ const tick = () => new Promise((resolve) => setImmediate(resolve));
 const summary = {
   balances: [
     {
-      fund: "-1",
-      accountId: "-1",
+      fund: "-1,7",
+      accountIds: ["-1", "7"],
       name: "Bank cũ",
       accountNo: "001",
-      description: "",
+      description: "TK chính",
+      balanceHanoi: -1534.5,
+      balanceSaigon: 300,
       balance: -1234.5,
-      checkpointAt: "2026-10-01T00:00:00Z",
     },
     {
       fund: "cash",
-      accountId: null,
+      accountIds: [],
       name: "Tiền mặt",
       accountNo: "",
       description: "",
-      balance: null,
-      checkpointAt: null,
+      balanceHanoi: 0,
+      balanceSaigon: 0,
+      balance: 0,
     },
   ],
   totalBalance: -1234.5,
-  unclosedCount: 1,
   kpis: {
-    openingBalance: null,
     totalReceipts: 10,
     totalPayments: 20,
     closingBalance: null,
@@ -65,11 +65,11 @@ const entries = {
   page: 1,
   pageSize: 100,
   totalPages: 3,
-  runningBalanceAvailable: false,
-  runningBalanceReason: "Chọn một quỹ đã chốt và không thu hẹp bộ lọc.",
 };
 const options = {
-  funds: summary.balances.map(({ balance, checkpointAt, ...fund }) => fund),
+  funds: summary.balances.map(
+    ({ balance, balanceHanoi, balanceSaigon, ...fund }) => fund,
+  ),
   groups: [{ key: "name:Chi%20kh%C3%A1c", label: "Chi khác" }],
   creators: [{ id: "9", label: "Lan" }],
   staff: [{ id: "9", label: "Lan" }],
@@ -82,7 +82,7 @@ const options = {
     partnerPhone: true,
   },
 };
-async function setup(t, { hash = "", manage = false, fetcher } = {}) {
+async function setup(t, { hash = "", fetcher } = {}) {
   const dom = new JSDOM(html, {
     url: "https://tokosi.test/cashbook/" + hash,
     runScripts: "outside-only",
@@ -90,11 +90,8 @@ async function setup(t, { hash = "", manage = false, fetcher } = {}) {
   t.after(() => dom.window.close());
   const w = dom.window;
   w.TKSNav = {
-    authGuard: async () => ({
-      permissions: ["cashbook.view", ...(manage ? ["cashbook.manage"] : [])],
-    }),
-    can: (key) =>
-      key === "cashbook.view" || (manage && key === "cashbook.manage"),
+    authGuard: async () => ({ permissions: ["cashbook.view"] }),
+    can: (key) => key === "cashbook.view",
   };
   w.HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute("open", "");
@@ -115,15 +112,7 @@ async function setup(t, { hash = "", manage = false, fetcher } = {}) {
       ? options
       : parsed.pathname.endsWith("summary")
         ? summary
-        : parsed.pathname.endsWith("entries")
-          ? { ...entries, page: +(parsed.searchParams.get("page") || 1) }
-          : {
-              checkpoints: [],
-              total: 0,
-              page: 1,
-              pageSize: 100,
-              totalPages: 0,
-            };
+        : { ...entries, page: +(parsed.searchParams.get("page") || 1) };
     return { ok: true, json: async () => data };
   };
   const script = w.document.getElementById("cashbook-script");
@@ -143,7 +132,7 @@ async function setup(t, { hash = "", manage = false, fetcher } = {}) {
 
 test("tiền null khác số 0, dấu âm và chuỗi thập phân giữ chính xác", async (t) => {
   const { api } = await setup(t);
-  assert.equal(api.money(null), "Chưa chốt");
+  assert.equal(api.money(null), "—");
   assert.equal(api.money(0), "0");
   assert.equal(api.money(-1234567.5), "-1.234.567,5");
   assert.equal(api.money(1e-21), "0,000000000000000000001");
@@ -203,65 +192,27 @@ test("hash roundtrip phân biệt empty và default khi F5", async (t) => {
   assert.equal(api.readHash("").preset, "thisYear");
   assert.equal(Object.hasOwn(api.readHash(""), "staff"), false);
 });
-test("ngày VN và datetime-local độc lập múi giờ máy khách", async (t) => {
+test("ngày VN độc lập múi giờ máy khách", async (t) => {
   const { api } = await setup(t);
   assert.equal(api.vnLocal("2026-10-05T18:30:15.123Z"), "2026-10-06T01:30:15");
-  assert.equal(
-    api.checkpointIso("2026-10-06T01:30:15", new Date("2026-10-06T04:00:00Z")),
-    "2026-10-05T18:30:15.000Z",
-  );
   assert.match(api.dateText("2026-10-05T18:30:15Z"), /06\/10\/2026/);
-  assert.throws(
-    () =>
-      api.checkpointIso(
-        "2026-10-06T11:00:01",
-        new Date("2026-10-06T04:00:00Z"),
-      ),
-    /tương lai/,
-  );
 });
-test("ô nhập nhóm hàng nghìn dùng comma và không làm tròn chuỗi số đã nhập", async (t) => {
+test("lũy kế luôn hiện theo số máy chủ trả về, ô trống khi không có số", async (t) => {
   const { api } = await setup(t);
-  assert.equal(api.groupAmount("-1234567.0123456789"), "-1,234,567.0123456789");
-  assert.equal(api.amountText("-1,234,567.0123456789"), "-1234567.0123456789");
-  assert.throws(() => api.amountText("abc"), /số/);
+  assert.equal(api.runningText({ runningBalance: 10 }), "10");
+  assert.equal(api.runningText({ runningBalance: -1234.5 }), "-1.234,5");
+  assert.equal(api.runningText({ runningBalance: null }), "");
 });
-test("lũy kế chỉ hiện khi server cho phép, một quỹ và đủ hai chứng từ", async (t) => {
-  const { api } = await setup(t);
-  const row = { runningBalance: 10 };
-  assert.equal(
-    api.runningText(row, { runningBalanceAvailable: true }, { fund: "-1" }),
-    "10",
-  );
-  for (const f of [
-    { fund: "all" },
-    { fund: "bank" },
-    { fund: "-1,7" },
-    { fund: "-1", docTypes: [] },
-    { fund: "-1", groups: [] },
-    { fund: "-1", partnerQ: "Lan" },
-  ])
-    assert.equal(
-      api.runningText(row, { runningBalanceAvailable: true }, f),
-      "",
-    );
-  assert.equal(
-    api.runningText(row, { runningBalanceAvailable: false }, { fund: "-1" }),
-    "",
-  );
-  assert.equal(
-    api.runningText(
-      { runningBalance: null },
-      { runningBalanceAvailable: true },
-      { fund: "-1" },
-    ),
-    "",
-  );
-});
-test("khởi tạo render API thật, số chưa chốt, negative đỏ và text không thành HTML", async (t) => {
+test("khởi tạo render API thật, tồn quỹ HN/SG/tổng, negative đỏ và text không thành HTML", async (t) => {
   const { init, doc } = await setup(t);
   await init();
-  assert.match(doc.getElementById("balancesBody").textContent, /Chưa chốt/);
+  const row = doc.querySelector('#balancesBody tr[data-fund="-1,7"]');
+  assert.equal(row.querySelector('[data-field="balanceHanoi"]').textContent, "-1.534,5");
+  assert.equal(row.querySelector('[data-field="balanceSaigon"]').textContent, "300");
+  assert.equal(
+    doc.querySelector('#balancesBody tr[data-fund="cash"] [data-field="balance"]').textContent,
+    "0",
+  );
   assert.equal(
     doc.querySelector('#balancesBody [data-field="balance"]').textContent,
     "-1.234,5",
@@ -273,22 +224,22 @@ test("khởi tạo render API thật, số chưa chốt, negative đỏ và text
   );
   assert.match(
     doc.getElementById("balanceTotal").textContent,
-    /1 quỹ chưa chốt/,
+    /Tổng tồn quỹ HN \+ SG: -1\.234,5/,
   );
   assert.equal(doc.querySelector("#entriesBody img"), null);
   assert.match(doc.getElementById("entriesBody").textContent, /<img src=x>/);
   assert.equal(
     doc.querySelector('#entriesBody [data-field="runningBalance"]').textContent,
-    "",
+    "-1.234,5",
   );
-  assert.equal(doc.querySelector("[data-checkpoint]"), null);
+  assert.equal(doc.getElementById("checkpointsBody"), null);
 });
 test("click tài khoản lịch sử lọc đúng quỹ và giữ partner/hash; pager gọi server", async (t) => {
   const { init, doc, w, calls } = await setup(t, { hash: "#partnerQ=Lan" });
   await init();
-  doc.querySelector('[data-select-fund="-1"]').click();
+  doc.querySelector('[data-select-fund="-1,7"]').click();
   await tick();
-  assert.match(w.location.hash, /fund=-1/);
+  assert.match(w.location.hash, /fund=-1%2C7/);
   assert.match(w.location.hash, /partnerQ=Lan/);
   doc.getElementById("entriesNext").click();
   await tick();
@@ -296,7 +247,7 @@ test("click tài khoản lịch sử lọc đúng quỹ và giữ partner/hash; 
     .filter((c) => c.url.pathname.endsWith("entries"))
     .at(-1).url;
   assert.equal(last.searchParams.get("page"), "2");
-  assert.equal(last.searchParams.get("fund"), "-1");
+  assert.equal(last.searchParams.get("fund"), "-1,7");
 });
 test("bỏ tick hết gửi danh sách rỗng, reset khôi phục all mà không bóp ngân hàng -1", async (t) => {
   const { init, doc, w, calls } = await setup(t);
@@ -354,7 +305,7 @@ test("response bộ lọc cũ không ghi đè khi response mới đã hiện", a
     fetcher: async (url) => {
       if (
         url.pathname.endsWith("summary") &&
-        url.searchParams.get("fund") === "-1"
+        url.searchParams.get("fund") === "-1,7"
       )
         return new Promise((resolve) => {
           release = resolve;
@@ -370,11 +321,9 @@ test("response bộ lọc cũ không ghi đè khi response mới đã hiện", a
     },
   });
   await init();
-  doc.querySelector('[data-select-fund="-1"]').click();
+  doc.querySelector('[data-select-fund="-1,7"]').click();
   await tick();
-  const cash = doc.querySelector('[name="fundMode"][value="cash"]');
-  cash.checked = true;
-  cash.dispatchEvent(new w.Event("change", { bubbles: true }));
+  doc.querySelector('[data-select-fund="cash"]').click();
   await tick();
   release({ ok: true, json: async () => summary });
   await tick();
@@ -414,9 +363,7 @@ test("lỗi sau khi đổi bộ lọc không để số dư cũ dưới bộ l�
     status: 500,
     json: async () => ({ error: "Lỗi hệ thống, vui lòng thử lại sau." }),
   });
-  const cash = doc.querySelector('[name="fundMode"][value="cash"]');
-  cash.checked = true;
-  cash.dispatchEvent(new w.Event("change", { bubbles: true }));
+  doc.querySelector('[data-select-fund="cash"]').click();
   await tick();
   assert.doesNotMatch(
     doc.getElementById("balancesBody").textContent,
@@ -446,69 +393,14 @@ test("drawer và dialog đóng trả focus, Escape đóng drawer", async (t) => 
   doc.getElementById("exportDialog").close();
   assert.equal(doc.activeElement, btn);
 });
-test("checkpoint preview dùng timestamp giây theo VN, first null giải thích số dư ban đầu", async (t) => {
-  const { init, doc, w, calls } = await setup(t, { manage: true });
-  await init();
-  doc.querySelector('[data-checkpoint="cash"]').click();
-  await tick();
-  const input = doc.getElementById("checkpointAt");
-  input.value = "2026-10-01T09:15:20";
-  input.dispatchEvent(new w.Event("change", { bubbles: true }));
-  await tick();
-  const last = calls
-    .filter(
-      (c) => c.url.pathname.endsWith("summary") && c.url.searchParams.has("at"),
-    )
-    .at(-1).url;
-  assert.equal(last.searchParams.get("at"), "2026-10-01T02:15:20.000Z");
-  assert.equal(last.searchParams.get("fund"), "cash");
-  assert.match(
-    doc.getElementById("checkpointPreview").textContent,
-    /số dư ban đầu/,
-  );
-  assert.doesNotMatch(
-    doc.getElementById("checkpointPreview").textContent,
-    /chênh lệch: 0/,
-  );
-});
-test("lưu checkpoint giữ chuỗi thập phân, không gửi trước preview mới, chặn tương lai", async (t) => {
-  const { init, doc, w, calls } = await setup(t, {
-    manage: true,
-    fetcher: async (url, request) =>
-      request.method === "POST"
-        ? { ok: true, json: async () => ({ checkpoint: { id: "1" } }) }
-        : null,
-  });
-  await init();
-  doc.querySelector('[data-checkpoint="-1"]').click();
-  await tick();
-  doc.getElementById("checkpointAt").value = "2026-10-01T09:15:20";
-  doc
-    .getElementById("checkpointAt")
-    .dispatchEvent(new w.Event("change", { bubbles: true }));
-  await tick();
-  doc.getElementById("checkpointBalance").value = "1,234.0123456789";
-  doc
-    .getElementById("checkpointBalance")
-    .dispatchEvent(new w.Event("input", { bubbles: true }));
-  doc
-    .getElementById("checkpointForm")
-    .dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true }));
-  await tick();
-  const post = calls.find((c) => c.init.method === "POST");
-  assert.ok(post);
-  assert.deepEqual(JSON.parse(post.init.body), {
-    fund: "-1",
-    checkpointAt: "2026-10-01T02:15:20.000Z",
-    balance: "1234.0123456789",
-    note: "",
-  });
-});
 test("export tất cả cột mặc định, empty chặn, lựa chọn nhớ riêng từng bảng và loại file", async (t) => {
   const { init, doc, api } = await setup(t);
   await init();
   doc.querySelector('[data-export="balances"]').click();
-  assert.equal(doc.querySelectorAll("#exportColumns input:checked").length, 5);
+  assert.deepEqual(
+    [...doc.querySelectorAll("#exportColumns input:checked")].map((i) => i.value),
+    ["accountNo", "name", "description", "balanceHanoi", "balanceSaigon", "balance"],
+  );
   for (const box of doc.querySelectorAll("#exportColumns input"))
     box.checked = false;
   doc
@@ -534,17 +426,6 @@ test("export tất cả cột mặc định, empty chặn, lựa chọn nhớ ri
   assert.equal(url.searchParams.get("staff"), "");
   assert.equal(url.searchParams.has("page"), false);
 });
-test("datetime-local chuẩn hóa phần mili giây vẫn preview đúng thời điểm", async (t) => {
-  const { api } = await setup(t);
-  assert.equal(
-    api.checkpointIso("2026-10-01T09:15:20.000"),
-    "2026-10-01T02:15:20.000Z",
-  );
-  assert.equal(
-    api.checkpointIso("2026-10-01T09:15:20.123"),
-    "2026-10-01T02:15:20.123Z",
-  );
-});
 test("preset radio và ngày tùy chỉnh phát query VN không kèm preset", async (t) => {
   const { init, doc, w, calls } = await setup(t);
   await init();
@@ -564,234 +445,35 @@ test("preset radio và ngày tùy chỉnh phát query VN không kèm preset", as
   assert.equal(last.searchParams.has("preset"), false);
   assert.equal(last.searchParams.get("from"), "2026-10-01");
 });
-test("ngân hàng dùng ba radio chuẩn, chọn tài khoản và bỏ hết giữ bank mode rỗng", async (t) => {
+test("không còn dropdown Quỹ; bấm tài khoản để lọc, bấm lại hoặc nút Bỏ lọc để xem tất cả", async (t) => {
   const { init, doc, w, calls } = await setup(t);
   await init();
-  assert.deepEqual(
-    [...doc.querySelectorAll('[name="fundMode"]')].map((input) => input.value),
-    ["all", "cash", "bank"],
-  );
-  const bank = doc.querySelector('[name="fundMode"][value="bank"]');
-  bank.checked = true;
-  bank.dispatchEvent(new w.Event("change", { bubbles: true }));
+  assert.equal(doc.querySelector('[data-dd="fund"]'), null);
+  assert.equal(doc.querySelector('[name="fundMode"], [name="fundAccounts"]'), null);
+  assert.equal(doc.getElementById("fundFilter").hidden, true);
+  const lastFund = () =>
+    calls.filter((c) => c.url.pathname.endsWith("entries")).at(-1).url.searchParams.get("fund");
+  doc.querySelector('[data-select-fund="-1,7"]').click();
   await tick();
-  const historical = doc.querySelector('[name="fundAccounts"][value="-1"]');
-  assert.equal(historical.checked, true);
-  historical.checked = false;
-  historical.dispatchEvent(new w.Event("change", { bubbles: true }));
+  assert.equal(lastFund(), "-1,7");
+  assert.equal(doc.getElementById("fundFilter").hidden, false);
+  assert.equal(doc.getElementById("fundFilterName").textContent, "001");
+  const row = doc.querySelector('#balancesBody tr[data-fund="-1,7"]');
+  assert.ok(row.classList.contains("is-selected"));
+  assert.equal(row.getAttribute("aria-selected"), "true");
+  row.querySelector("td").click();
   await tick();
-  assert.equal(bank.checked, true);
-  assert.equal(
-    calls
-      .filter((c) => c.url.pathname.endsWith("summary"))
-      .at(-1)
-      .url.searchParams.get("fund"),
-    "",
-  );
+  assert.equal(lastFund(), "all");
+  assert.equal(doc.getElementById("fundFilter").hidden, true);
+  doc.querySelector('[data-select-fund="cash"]').click();
+  await tick();
+  assert.equal(doc.getElementById("fundFilterName").textContent, "Tiền mặt");
+  doc.getElementById("clearFund").click();
+  await tick();
+  assert.equal(lastFund(), "all");
+  assert.match(w.location.hash, /fund=all/);
 });
-test("preview cũ không thay số mới; đang chờ hoặc thời điểm tương lai không gửi POST", async (t) => {
-  let release;
-  const { init, doc, w, calls } = await setup(t, {
-    manage: true,
-    fetcher: async (url) => {
-      if (
-        url.pathname.endsWith("summary") &&
-        url.searchParams.get("at") === "2026-10-01T02:15:20.000Z"
-      )
-        return new Promise((resolve) => {
-          release = resolve;
-        });
-    },
-  });
-  await init();
-  doc.querySelector('[data-checkpoint="-1"]').click();
-  await tick();
-  const time = doc.getElementById("checkpointAt");
-  time.value = "2026-10-01T09:15:20";
-  time.dispatchEvent(new w.Event("change", { bubbles: true }));
-  await tick();
-  doc.getElementById("checkpointBalance").value = "100";
-  doc
-    .getElementById("checkpointForm")
-    .dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true }));
-  await tick();
-  assert.equal(
-    calls.some((c) => c.init.method === "POST"),
-    false,
-  );
-  assert.equal(doc.getElementById("checkpointSave").disabled, true);
-  time.value = "2026-10-02T09:15:20";
-  time.dispatchEvent(new w.Event("change", { bubbles: true }));
-  await tick();
-  release({
-    ok: true,
-    json: async () => ({
-      ...summary,
-      balances: [{ ...summary.balances[0], balance: 999999 }],
-    }),
-  });
-  await tick();
-  assert.doesNotMatch(
-    doc.getElementById("checkpointPreview").textContent,
-    /999\.999/,
-  );
-  time.value = "2099-10-01T09:15:20";
-  time.dispatchEvent(new w.Event("change", { bubbles: true }));
-  await tick();
-  assert.match(doc.getElementById("checkpointError").textContent, /tương lai/);
-  assert.equal(doc.getElementById("checkpointSave").disabled, true);
-});
-test("chênh lệch preview chuỗi thập phân chính xác và lịch sử lệch dương cũng đỏ", async (t) => {
-  const { init, doc, w } = await setup(t, {
-    manage: true,
-    fetcher: async (url) => {
-      if (url.pathname.endsWith("summary") && url.searchParams.has("at"))
-        return {
-          ok: true,
-          json: async () => ({
-            ...summary,
-            balances: [{ ...summary.balances[0], balance: "0.1" }],
-          }),
-        };
-      if (url.pathname.endsWith("checkpoints"))
-        return {
-          ok: true,
-          json: async () => ({
-            checkpoints: [
-              {
-                checkpointAt: "2026-10-01T02:00:00Z",
-                fundName: "Bank cũ",
-                createdBy: "Lan",
-                systemBalance: 10,
-                balance: 12,
-                diff: 2,
-                note: "<b>note</b>",
-              },
-            ],
-            total: 1,
-            page: 1,
-            pageSize: 100,
-            totalPages: 1,
-          }),
-        };
-    },
-  });
-  await init();
-  assert.ok(
-    doc
-      .querySelector('#checkpointsBody [data-field="diff"]')
-      .classList.contains("difference"),
-  );
-  assert.equal(doc.querySelector("#checkpointsBody b"), null);
-  doc.querySelector('[data-checkpoint="-1"]').click();
-  await tick();
-  doc.getElementById("checkpointBalance").value = "0.3";
-  doc
-    .getElementById("checkpointBalance")
-    .dispatchEvent(new w.Event("input", { bubbles: true }));
-  assert.match(
-    doc.getElementById("checkpointPreview").textContent,
-    /chênh lệch: 0,2$/,
-  );
-});
-
-test("preview với số hệ thống dạng exponent giữ chênh lệch và POST chuỗi nhập chính xác", async (t) => {
-  const { init, doc, w, calls } = await setup(t, {
-    manage: true,
-    fetcher: async (url, request) => {
-      if (url.pathname.endsWith("summary") && url.searchParams.has("at"))
-        return {
-          ok: true,
-          json: async () => ({
-            ...summary,
-            balances: [{ ...summary.balances[0], balance: 1e-7 }],
-          }),
-        };
-      if (request.method === "POST")
-        return { ok: true, json: async () => ({ checkpoint: { id: "1" } }) };
-    },
-  });
-  await init();
-  doc.querySelector('[data-checkpoint="-1"]').click();
-  await tick();
-  doc.getElementById("checkpointBalance").value = "1,234.0123456789";
-  doc
-    .getElementById("checkpointBalance")
-    .dispatchEvent(new w.Event("input", { bubbles: true }));
-  assert.match(
-    doc.getElementById("checkpointPreview").textContent,
-    /chênh lệch: 1\.234,0123455789$/,
-  );
-  doc
-    .getElementById("checkpointForm")
-    .dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true }));
-  await tick();
-  const post = calls.find((call) => call.init.method === "POST");
-  assert.ok(post);
-  assert.equal(JSON.parse(post.init.body).balance, "1234.0123456789");
-});
-
 for (const outcome of ["success", "failure"]) {
-  test(`checkpoint ${outcome} cũ không đổi dialog quỹ mới`, async (t) => {
-    let finishPost;
-    const { init, doc, w, calls } = await setup(t, {
-      manage: true,
-      fetcher: async (_url, request) => {
-        if (request.method === "POST")
-          return new Promise((resolve) => {
-            finishPost = resolve;
-          });
-      },
-    });
-    await init();
-    doc.querySelector('[data-checkpoint="-1"]').click();
-    await tick();
-    doc.getElementById("checkpointBalance").value = "100";
-    doc
-      .getElementById("checkpointBalance")
-      .dispatchEvent(new w.Event("input", { bubbles: true }));
-    doc
-      .getElementById("checkpointForm")
-      .dispatchEvent(
-        new w.Event("submit", { bubbles: true, cancelable: true }),
-      );
-    await tick();
-    assert.equal(typeof finishPost, "function");
-    doc.getElementById("checkpointDialog").close();
-    doc.querySelector('[data-checkpoint="cash"]').click();
-    await tick();
-    doc.getElementById("checkpointBalance").value = "250";
-    doc
-      .getElementById("checkpointBalance")
-      .dispatchEvent(new w.Event("input", { bubbles: true }));
-    assert.equal(doc.getElementById("checkpointFund").value, "cash");
-    assert.match(
-      doc.getElementById("checkpointPreview").textContent,
-      /số dư ban đầu/,
-    );
-    assert.equal(doc.getElementById("checkpointSave").disabled, false);
-    finishPost(
-      outcome === "success"
-        ? { ok: true, json: async () => ({ checkpoint: { id: "1" } }) }
-        : {
-            ok: false,
-            status: 500,
-            json: async () => ({ error: "Lỗi chốt quỹ cũ." }),
-          },
-    );
-    await tick();
-    assert.equal(doc.getElementById("checkpointDialog").open, true);
-    assert.equal(doc.getElementById("checkpointFund").value, "cash");
-    assert.equal(doc.getElementById("checkpointBalance").value, "250");
-    assert.match(
-      doc.getElementById("checkpointPreview").textContent,
-      /số dư ban đầu/,
-    );
-    assert.equal(doc.getElementById("checkpointError").textContent, "");
-    assert.equal(doc.getElementById("checkpointSave").disabled, false);
-    assert.equal(calls.filter((call) => call.init.method === "POST").length, 1);
-  });
-
   test(`export ${outcome} cũ không đổi dialog bảng mới`, async (t) => {
     let finishExport;
     const { init, doc, w } = await setup(t, {
@@ -842,43 +524,6 @@ for (const outcome of ["success", "failure"]) {
     assert.deepEqual(downloaded, []);
   });
 }
-
-test("checkpoint cũ hoàn thành khi quỹ mới đang lưu không bật lại nút lưu", async (t) => {
-  const pending = [];
-  const { init, doc, w } = await setup(t, {
-    manage: true,
-    fetcher: async (_url, request) => {
-      if (request.method === "POST")
-        return new Promise((resolve) => pending.push(resolve));
-    },
-  });
-  await init();
-  for (const fund of ["-1", "cash"]) {
-    doc.querySelector(`[data-checkpoint="${fund}"]`).click();
-    await tick();
-    doc.getElementById("checkpointBalance").value = "100";
-    doc
-      .getElementById("checkpointBalance")
-      .dispatchEvent(new w.Event("input", { bubbles: true }));
-    doc
-      .getElementById("checkpointForm")
-      .dispatchEvent(
-        new w.Event("submit", { bubbles: true, cancelable: true }),
-      );
-    await tick();
-    if (fund === "-1") doc.getElementById("checkpointDialog").close();
-  }
-  assert.equal(pending.length, 2);
-  assert.equal(doc.getElementById("checkpointSave").disabled, true);
-  pending[0]({ ok: true, json: async () => ({ checkpoint: { id: "1" } }) });
-  await tick();
-  assert.equal(doc.getElementById("checkpointDialog").open, true);
-  assert.equal(doc.getElementById("checkpointFund").value, "cash");
-  assert.equal(doc.getElementById("checkpointSave").disabled, true);
-  pending[1]({ ok: true, json: async () => ({ checkpoint: { id: "2" } }) });
-  await tick();
-  assert.equal(doc.getElementById("checkpointDialog").open, false);
-});
 
 test("export cũ hoàn thành khi bảng mới đang tải không bật lại nút tải", async (t) => {
   const pending = [];
@@ -1004,12 +649,9 @@ test("dropdown bộ lọc hiện tóm tắt lựa chọn, Esc đóng và trả f
   doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   assert.equal(doc.getElementById("docTypesPanel").hidden, true);
   assert.equal(doc.activeElement, button);
-  doc.querySelector('[data-select-fund="-1"]').click();
+  doc.querySelector('[data-select-fund="-1,7"]').click();
   await tick();
-  assert.equal(
-    doc.querySelector('[data-dd="fund"] [data-summary]').textContent,
-    "Bank cũ",
-  );
+  assert.equal(doc.getElementById("fundFilterName").textContent, "001");
 });
 test("phân trang có nút trang đầu/cuối gọi đúng trang máy chủ", async (t) => {
   const { init, doc, calls } = await setup(t);
@@ -1020,60 +662,101 @@ test("phân trang có nút trang đầu/cuối gọi đúng trang máy chủ", a
   const last = calls.filter((c) => c.url.pathname.endsWith("entries")).at(-1).url;
   assert.equal(last.searchParams.get("page"), "3");
 });
-test("bảng số dư sắp xếp theo tiêu đề: tăng, giảm, bỏ; quỹ chưa chốt luôn cuối", async (t) => {
+test("bảng số dư sắp xếp theo tiêu đề: tăng, giảm, bỏ; cột tiền so theo số", async (t) => {
   const { init, doc } = await setup(t);
   await init();
   const order = () =>
     [...doc.querySelectorAll("#balancesBody tr[data-fund]")].map((r) => r.dataset.fund);
   const sort = (field) => doc.querySelector('#balancesTable [data-sort="' + field + '"]').click();
-  assert.deepEqual(order(), ["-1", "cash"]);
+  assert.deepEqual(order(), ["-1,7", "cash"]);
   sort("name");
-  assert.deepEqual(order(), ["-1", "cash"]);
+  assert.deepEqual(order(), ["-1,7", "cash"]);
   assert.equal(doc.querySelector('#balancesTable th[aria-sort="ascending"]').dataset.field, "name");
   sort("name");
-  assert.deepEqual(order(), ["cash", "-1"]);
+  assert.deepEqual(order(), ["cash", "-1,7"]);
   sort("name");
   assert.equal(doc.querySelector('#balancesTable th[aria-sort="ascending"], #balancesTable th[aria-sort="descending"]'), null);
-  for (const dir of [1, 2]) {
-    sort("balance");
-    assert.equal(order().at(-1), "cash", "Chưa chốt xếp cuối, lần " + dir);
-  }
+  sort("balanceSaigon");
+  assert.deepEqual(order(), ["cash", "-1,7"]);
+  sort("balanceSaigon");
+  assert.deepEqual(order(), ["-1,7", "cash"]);
 });
-test("tên ngân hàng ở cột riêng, tìm được và Quản lý sửa được", async (t) => {
-  const withBank = {
-    ...summary,
-    balances: [{ ...summary.balances[0], bank: "Vietcombank" }, summary.balances[1]],
-  };
-  const puts = [];
-  const { init, doc, w } = await setup(t, {
-    manage: true,
-    fetcher: async (url, init) => {
-      if (url.pathname.endsWith("/bank")) {
-        puts.push({ path: url.pathname, body: JSON.parse(init.body) });
-        return { ok: true, json: async () => ({}) };
-      }
-      if (url.pathname.endsWith("summary")) return { ok: true, json: async () => withBank };
-    },
+test("tài khoản hiện số TK, chủ TK và mô tả; không còn nút chốt số dư hay sửa ngân hàng", async (t) => {
+  const { init, doc, w } = await setup(t);
+  await init();
+  const name = doc.querySelector('#balancesBody tr[data-fund="-1,7"] [data-field="name"]');
+  assert.equal(name.querySelector("[data-select-fund]").textContent, "001");
+  assert.deepEqual(
+    [...name.querySelectorAll(".cb-fund-note")].map((n) => n.textContent),
+    ["Bank cũ", "TK chính"],
+  );
+  assert.equal(
+    doc.querySelector('#balancesBody tr[data-fund="cash"] [data-select-fund]').textContent,
+    "Tiền mặt",
+  );
+  assert.deepEqual(
+    [...doc.querySelectorAll("#balancesTable th")].map((th) => th.textContent.replace(/[↕▲▼]/g, "")),
+    ["Tài khoản", "Tồn quỹ HN", "Tồn quỹ SG", "Tổng tồn quỹ"],
+  );
+  for (const selector of ["[data-checkpoint]", "[data-edit-bank]", "#checkpointDialog", "#bankDialog"])
+    assert.equal(doc.querySelector(selector), null, selector);
+  const input = doc.getElementById("balancesSearch");
+  input.value = "bank cu";
+  input.dispatchEvent(new w.Event("input", { bubbles: true }));
+  assert.deepEqual(
+    [...doc.querySelectorAll("#balancesBody tr[data-fund]")].map((r) => r.dataset.fund),
+    ["-1,7"],
+  );
+});
+test("dropdown chọn nhiều có Chọn tất cả / Bỏ chọn, đếm số mục và ô tìm khi danh sách dài", async (t) => {
+  const many = Array.from({ length: 8 }, (_, i) => ({ id: String(i + 1), label: "Nhân viên " + (i + 1) }));
+  many[7].label = "Đông";
+  const { init, doc, w, calls } = await setup(t, {
+    fetcher: async (url) =>
+      url.pathname.endsWith("filter-options")
+        ? { ok: true, json: async () => ({ ...options, staff: many }) }
+        : null,
   });
   await init();
-  const row = doc.querySelector('#balancesBody tr[data-fund="-1"]');
-  assert.match(row.querySelector('[data-field="bank"]').textContent, /Vietcombank/);
-  assert.doesNotMatch(row.querySelector('[data-field="name"]').textContent, /Vietcombank/);
-  assert.equal(doc.querySelector('#balancesBody tr[data-fund="cash"] [data-edit-bank]'), null);
-  const input = doc.getElementById("balancesSearch");
-  input.value = "vietcombank";
-  input.dispatchEvent(new w.Event("input", { bubbles: true }));
-  assert.deepEqual([...doc.querySelectorAll("#balancesBody tr[data-fund]")].map((r) => r.dataset.fund), ["-1"]);
-  doc.querySelector("#balancesBody [data-edit-bank]").click();
-  assert.equal(doc.getElementById("bankName").value, "Vietcombank");
-  doc.getElementById("bankName").value = "MB Bank";
-  doc.getElementById("bankForm").dispatchEvent(new w.Event("submit", { cancelable: true }));
+  const lastStaff = () =>
+    calls.filter((c) => c.url.pathname.endsWith("entries")).at(-1).url.searchParams.get("staff");
+  const doc1 = doc.querySelector('[data-dd="docTypes"]');
+  assert.equal(doc1.querySelector(".dd-count").textContent, "2/2 đã chọn");
+  assert.equal(doc1.querySelector("[data-dd-all]").disabled, true);
+  assert.equal(doc1.querySelector(".dd-search-wrap").hidden, true);
+  doc1.querySelector("[data-dd-none]").click();
   await tick();
-  assert.deepEqual(puts, [{ path: "/api/cashbook/accounts/-1/bank", body: { bank: "MB Bank" } }]);
+  assert.equal(
+    calls.filter((c) => c.url.pathname.endsWith("entries")).at(-1).url.searchParams.get("docTypes"),
+    "",
+  );
+  assert.equal(doc1.querySelector(".dd-count").textContent, "0/2 đã chọn");
+  assert.equal(doc1.querySelector("[data-dd-none]").disabled, true);
+  doc1.querySelector("[data-dd-all]").click();
+  await tick();
+  assert.equal(
+    calls.filter((c) => c.url.pathname.endsWith("entries")).at(-1).url.searchParams.has("docTypes"),
+    false,
+  );
+  assert.equal(doc.querySelector('[data-dd="accounting"] .dd-tools'), null);
+  const staff = doc.querySelector('[data-dd="staff"]');
+  const search = staff.querySelector(".dd-search");
+  assert.equal(staff.querySelector(".dd-search-wrap").hidden, false);
+  staff.querySelector("[data-dd-none]").click();
+  await tick();
+  assert.equal(lastStaff(), "");
+  search.value = "dong";
+  search.dispatchEvent(new w.Event("input", { bubbles: true }));
+  assert.deepEqual(
+    [...staff.querySelectorAll(".cb-choices label:not([hidden]) input")].map((i) => i.value),
+    ["8"],
+  );
+  staff.querySelector("[data-dd-all]").click();
+  await tick();
+  assert.equal(lastStaff(), "8");
+  assert.equal(staff.querySelector(".dd-count").textContent, "1/8 đã chọn");
+  search.value = "khong co";
+  search.dispatchEvent(new w.Event("input", { bubbles: true }));
+  assert.equal(staff.querySelector(".dd-nomatch").hidden, false);
+  assert.equal(staff.querySelector("[data-dd-all]").disabled, true);
 });
-test("Quản lý không thấy nút sửa ngân hàng khi chỉ có quyền xem", async (t) => {
-  const { init, doc } = await setup(t);
-  await init();
-  assert.equal(doc.querySelector("#balancesBody [data-edit-bank]"), null);
-});
-

@@ -93,7 +93,7 @@
       /* ---------- Thẻ chỉ số ---------- */
       .kpi-grid {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 14px;
         margin-bottom: 14px;
       }
@@ -332,6 +332,32 @@
       #balancesBody tr[data-fund] {
         cursor: pointer;
       }
+      #balancesBody tr.is-selected td {
+        background: var(--amber-soft, rgba(245, 158, 11, 0.12));
+      }
+      .cb-fund-filter {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 10px;
+        color: var(--text-secondary);
+        font-size: 12.5px;
+      }
+      .cb-fund-filter[hidden] {
+        display: none;
+      }
+      .cb-fund-filter b {
+        color: var(--text);
+      }
+      .cb-fund-clear {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 2px 8px;
+        background: transparent;
+        color: var(--blue);
+        font: 600 12px var(--font-body);
+        cursor: pointer;
+      }
       .cb-fund-link {
         border: 0;
         padding: 0;
@@ -348,24 +374,6 @@
         margin-top: 2px;
         color: var(--muted);
         font-size: 11.5px;
-      }
-      .cb-bank-name {
-        color: var(--text);
-        font-weight: 600;
-      }
-      .cb-bank-edit {
-        border: 0;
-        padding: 0;
-        background: transparent;
-        color: var(--blue);
-        font: 500 11.5px var(--font-body);
-        cursor: pointer;
-      }
-      .cb-bank-name + .cb-bank-edit {
-        margin-left: 6px;
-      }
-      .cb-bank-edit:hover {
-        text-decoration: underline;
       }
       .cb-sort {
         display: inline-flex;
@@ -438,7 +446,6 @@
         display: none;
       }
       .negative,
-      .difference,
       .cb-table .negative {
         color: var(--red) !important;
       }
@@ -641,9 +648,10 @@
         min-width: 100%;
         width: max-content;
         max-width: min(340px, 86vw);
-        max-height: 320px;
+        max-height: 360px;
         overflow-y: auto;
-        padding: 6px;
+        overflow-x: hidden;
+        padding: 0;
         background: var(--panel);
         border: 1px solid var(--border);
         border-radius: var(--radius-md);
@@ -652,6 +660,123 @@
       .cb-choices {
         display: grid;
         gap: 2px;
+      }
+      .dd-list > .cb-choices {
+        padding: 6px;
+      }
+      .cb-choices label[hidden] {
+        display: none;
+      }
+      /* Thanh công cụ dropdown chọn nhiều: tìm nhanh + Chọn tất cả / Bỏ chọn, dính đầu danh sách. */
+      .dd-tools {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        display: grid;
+        gap: 8px;
+        min-width: 252px;
+        padding: 10px 10px 9px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+      }
+      .dd-search-wrap {
+        position: relative;
+        display: block;
+      }
+      .dd-search-wrap[hidden] {
+        display: none;
+      }
+      .dd-search-wrap svg {
+        position: absolute;
+        top: 50%;
+        left: 10px;
+        width: 14px;
+        height: 14px;
+        color: var(--muted);
+        transform: translateY(-50%);
+        pointer-events: none;
+      }
+      .dd-search {
+        box-sizing: border-box;
+        width: 100%;
+        height: 32px;
+        padding: 0 10px 0 31px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--panel-2);
+        color: var(--text);
+        font: 500 12.5px var(--font-body);
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s;
+      }
+      .dd-search::placeholder {
+        color: var(--muted);
+      }
+      .dd-search:focus {
+        outline: none;
+        border-color: var(--amber);
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
+      }
+      .dd-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .dd-count {
+        margin-right: auto;
+        color: var(--muted);
+        font-size: 11.5px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .dd-count b {
+        color: var(--amber);
+        font-weight: 700;
+      }
+      .dd-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        height: 26px;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: transparent;
+        color: var(--text-secondary);
+        font: 600 11.5px var(--font-body);
+        white-space: nowrap;
+        cursor: pointer;
+        transition:
+          background 0.15s,
+          border-color 0.15s,
+          color 0.15s;
+      }
+      .dd-action svg {
+        width: 12px;
+        height: 12px;
+      }
+      .dd-action:hover:not(:disabled),
+      .dd-action:focus-visible {
+        outline: none;
+        border-color: var(--amber);
+        background: rgba(245, 158, 11, 0.1);
+        color: var(--amber);
+      }
+      .dd-action:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      .dd-nomatch[hidden] {
+        display: none;
+      }
+      .dd-nomatch {
+        margin: 0;
+        padding: 10px 16px 14px;
+        color: var(--muted);
+        font-size: 12px;
+        text-align: center;
       }
       .cb-choices + .cb-choices {
         margin-top: 6px;
@@ -737,17 +862,8 @@
         display: flex;
         flex-direction: column;
       }
-      .cb-modal.cb-modal-narrow {
-        width: min(480px, calc(100vw - 32px));
-      }
       .cb-modal::backdrop {
         background: rgba(5, 10, 18, 0.74);
-      }
-      .cb-modal > form {
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-        flex: 1;
       }
       .export-modal-head {
         display: flex;
@@ -815,8 +931,7 @@
         color: var(--text);
         font: 600 11px var(--font-body);
       }
-      .export-fields,
-      .cb-modal-body {
+      .export-fields {
         flex: 1;
         min-height: 0;
         overflow: auto;
@@ -900,50 +1015,6 @@
       .export-confirm:disabled {
         opacity: 0.55;
         cursor: not-allowed;
-      }
-      .cb-field {
-        display: grid;
-        gap: 6px;
-        margin-bottom: 12px;
-        color: var(--text-secondary);
-        font-size: 12px;
-        font-weight: 600;
-      }
-      .cb-input {
-        box-sizing: border-box;
-        width: 100%;
-        min-height: 38px;
-        padding: 8px 10px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        background: var(--panel-2);
-        color: var(--text);
-        font: 500 13px var(--font-body);
-      }
-      .cb-input:focus {
-        outline: none;
-        border-color: var(--blue);
-      }
-      textarea.cb-input {
-        min-height: 76px;
-        resize: vertical;
-      }
-      .cb-field-help {
-        margin: -6px 0 12px;
-        color: var(--muted);
-        font-size: 11.5px;
-      }
-      #checkpointPreview {
-        margin: 0;
-        padding: 10px 12px;
-        background: var(--panel-2);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        font-size: 12.5px;
-        line-height: 1.6;
-      }
-      #checkpointPreview:empty {
-        display: none;
       }
 
       @media (max-width: 1100px) {
@@ -1105,19 +1176,6 @@
               <span class="cb-hint">Giờ Việt Nam (UTC+7)</span>
             </div>
             <div class="cb-filter-row">
-              <div class="dd" data-dd="fund">
-                <button class="dd-button" type="button" aria-expanded="false" aria-controls="fundPanel">
-                  <span class="dd-label">Quỹ</span><span class="dd-text" data-summary="fund">Tổng quỹ</span>
-                </button>
-                <div class="dd-list" id="fundPanel" hidden>
-                  <div class="cb-choices">
-                    <label><input type="radio" name="fundMode" value="all" checked />Tổng quỹ</label
-                    ><label><input type="radio" name="fundMode" value="cash" />Tiền mặt</label
-                    ><label><input type="radio" name="fundMode" value="bank" />Ngân hàng</label>
-                  </div>
-                  <div id="fundChoices" class="cb-choices" aria-label="Tài khoản ngân hàng"></div>
-                </div>
-              </div>
               <div class="dd" data-dd="docTypes">
                 <button class="dd-button" type="button" aria-expanded="false" aria-controls="docTypesPanel">
                   <span class="dd-label">Loại chứng từ</span><span class="dd-text" data-summary="docTypes">Tất cả</span>
@@ -1193,14 +1251,9 @@
           <section class="section">
             <div class="section-head">
               <span class="section-step">1</span>
-              <h2>Tổng quan quỹ <span class="section-note">theo kỳ lọc · bấm tên quỹ để xem sổ chi tiết</span></h2>
+              <h2>Tổng quan quỹ <span class="section-note">tồn quỹ = tổng thu − chi chưa hủy trên KiotViet, cộng 2 cơ sở · bấm tài khoản để lọc sổ chi tiết, bấm lại để bỏ</span></h2>
             </div>
             <div class="kpi-grid" aria-label="Tổng hợp theo kỳ">
-              <div class="kpi-card accent-blue">
-                <div class="eyebrow">Quỹ đầu kỳ</div>
-                <div class="value" id="openingBalance">—</div>
-                <div class="sub">Số dư thật tại đầu kỳ</div>
-              </div>
               <div class="kpi-card accent-green">
                 <div class="eyebrow">Tổng thu</div>
                 <div class="value" id="totalReceipts">—</div>
@@ -1214,7 +1267,7 @@
               <div class="kpi-card accent-blue">
                 <div class="eyebrow">Tồn quỹ</div>
                 <div class="value" id="closingBalance">—</div>
-                <div class="sub">Số dư thật tại cuối kỳ</div>
+                <div class="sub">Tổng tồn quỹ HN + SG tại cuối kỳ</div>
               </div>
             </div>
             <div class="panel">
@@ -1228,7 +1281,7 @@
                 <div class="table-search-tools">
                   <label class="table-search-input-wrap">
                     <svg class="cb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg>
-                    <input class="table-search-input" id="balancesSearch" type="search" autocomplete="off" placeholder="Tìm tên tài khoản, ngân hàng hoặc số TK…" aria-label="Tìm tài khoản" />
+                    <input class="table-search-input" id="balancesSearch" type="search" autocomplete="off" placeholder="Tìm số TK, chủ tài khoản hoặc mô tả…" aria-label="Tìm tài khoản" />
                     <button class="table-search-clear" type="button" data-search-clear="balancesSearch" aria-label="Xóa tìm kiếm" hidden>×</button>
                   </label>
                 </div>
@@ -1270,7 +1323,10 @@
                   </label>
                 </div>
               </div>
-              <p class="cb-note" id="runningReason"></p>
+              <p class="cb-fund-filter" id="fundFilter" role="status" hidden>
+                Đang xem tài khoản <b id="fundFilterName"></b>
+                <button class="cb-fund-clear" id="clearFund" type="button">Bỏ lọc tài khoản</button>
+              </p>
               <div class="cb-scroll" tabindex="0" aria-label="Bảng sổ chi tiết">
                 <table class="cb-table fixed-table" id="entriesTable" aria-labelledby="entriesTitle">
                   <thead></thead>
@@ -1287,107 +1343,9 @@
             </div>
           </section>
 
-          <section class="section">
-            <div class="section-head">
-              <span class="section-step">3</span>
-              <h2>Lịch sử chốt số dư <span class="section-note">chênh lệch khác 0 tô đỏ</span></h2>
-            </div>
-            <div class="panel">
-              <div class="panel-head">
-                <h3 id="checkpointsTitle">Các lần chốt</h3>
-                <div class="panel-head-actions">
-                  <button class="export-button" type="button" data-export="checkpoints" aria-haspopup="dialog" aria-controls="exportDialog">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file
-                  </button>
-                </div>
-                <div class="table-search-tools">
-                  <label class="table-search-input-wrap">
-                    <svg class="cb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg>
-                    <input class="table-search-input" id="checkpointsSearch" type="search" autocomplete="off" placeholder="Tìm quỹ, người chốt hoặc ghi chú…" aria-label="Tìm trong lịch sử chốt" />
-                    <button class="table-search-clear" type="button" data-search-clear="checkpointsSearch" aria-label="Xóa tìm kiếm" hidden>×</button>
-                  </label>
-                </div>
-              </div>
-              <div class="cb-scroll" tabindex="0" aria-label="Bảng lịch sử chốt">
-                <table class="cb-table fixed-table" id="checkpointsTable" aria-labelledby="checkpointsTitle">
-                  <thead></thead>
-                  <tbody id="checkpointsBody"></tbody>
-                </table>
-              </div>
-              <div class="pagination-controls">
-                <button id="checkpointsFirst" type="button" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                <button id="checkpointsPrevious" type="button" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                <span id="checkpointsPage"></span>
-                <button id="checkpointsNext" type="button" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                <button id="checkpointsLast" type="button" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-              </div>
-            </div>
-          </section>
         </div>
       </main>
     </div>
-    <dialog class="cb-modal cb-modal-narrow" id="checkpointDialog" aria-labelledby="checkpointTitle" aria-describedby="checkpointSubtitle">
-      <form id="checkpointForm">
-        <div class="export-modal-head">
-          <div>
-            <h2 class="export-modal-title" id="checkpointTitle">Chốt số dư</h2>
-            <p class="export-modal-subtitle" id="checkpointSubtitle">Nhập số dư thực tế theo sao kê ngân hàng hoặc kiểm quỹ.</p>
-          </div>
-          <button class="export-modal-close" type="button" data-close="checkpointDialog" aria-label="Đóng chốt số dư">×</button>
-        </div>
-        <div class="cb-modal-body">
-          <label class="cb-field">Quỹ<select class="cb-input" id="checkpointFund" required></select></label>
-          <label class="cb-field"
-            >Thời điểm chốt (giờ Việt Nam)<input class="cb-input" id="checkpointAt" type="datetime-local" step="1" required
-          /></label>
-          <label class="cb-field"
-            >Số dư thực tế<input
-              class="cb-input"
-              id="checkpointBalance"
-              type="text"
-              inputmode="decimal"
-              autocomplete="off"
-              placeholder="1,234,567"
-              required
-              aria-describedby="amountHelp"
-          /></label>
-          <p class="cb-field-help" id="amountHelp">
-            Dấu phẩy phân cách hàng nghìn; dấu chấm cho phần thập phân. Cho phép số âm.
-          </p>
-          <label class="cb-field">Ghi chú<textarea class="cb-input" id="checkpointNote" maxlength="2000"></textarea></label>
-          <p id="checkpointPreview" role="status" aria-live="polite"></p>
-        </div>
-        <div class="export-modal-foot">
-          <p class="export-status error" id="checkpointError" role="alert"></p>
-          <div class="export-foot-actions">
-            <button class="export-cancel" type="button" data-close="checkpointDialog">Hủy</button
-            ><button class="export-confirm" id="checkpointSave" type="submit" disabled>Lưu chốt số dư</button>
-          </div>
-        </div>
-      </form>
-    </dialog>
-    <dialog class="cb-modal cb-modal-narrow" id="bankDialog" aria-labelledby="bankTitle" aria-describedby="bankSubtitle">
-      <form id="bankForm">
-        <div class="export-modal-head">
-          <div>
-            <h2 class="export-modal-title" id="bankTitle">Ngân hàng của tài khoản</h2>
-            <p class="export-modal-subtitle" id="bankSubtitle"></p>
-          </div>
-          <button class="export-modal-close" type="button" data-close="bankDialog" aria-label="Đóng">×</button>
-        </div>
-        <div class="cb-modal-body">
-          <label class="cb-field">Tên ngân hàng<input class="cb-input" id="bankName" type="text" maxlength="100" autocomplete="off" placeholder="Ví dụ: Vietcombank, MB Bank…" /></label>
-          <p class="cb-field-help">Áp dụng cho mọi quỹ cùng số tài khoản (HN và SG). Để trống để xóa.</p>
-        </div>
-        <div class="export-modal-foot">
-          <p class="export-status error" id="bankError" role="alert"></p>
-          <div class="export-foot-actions">
-            <button class="export-cancel" type="button" data-close="bankDialog">Hủy</button
-            ><button class="export-confirm" id="bankSave" type="submit">Lưu</button>
-          </div>
-        </div>
-      </form>
-    </dialog>
     <dialog class="cb-modal" id="exportDialog" aria-labelledby="exportTitle" aria-describedby="exportSubtitle">
       <div class="export-modal-head">
         <div>
@@ -1448,11 +1406,10 @@
         // Độ rộng cột cố định (fixed-table) như các bảng ở tab Báo cáo.
         const WIDTHS = {
           balances: {
-            name: 260,
-            bank: 190,
-            accountNo: 150,
-            balance: 160,
-            checkpointAt: 170,
+            name: 320,
+            balanceHanoi: 170,
+            balanceSaigon: 170,
+            balance: 180,
           },
           entries: {
             code: 120,
@@ -1470,18 +1427,9 @@
             status: 120,
             note: 240,
           },
-          checkpoints: {
-            checkpointAt: 170,
-            fundName: 220,
-            createdBy: 160,
-            systemBalance: 150,
-            balance: 150,
-            diff: 140,
-            note: 260,
-          },
         };
         const COLUMNS = {
-          balances: ["name", "bank", "accountNo", "balance", "checkpointAt"],
+          balances: ["name", "balanceHanoi", "balanceSaigon", "balance"],
           entries: [
             "code",
             "transDate",
@@ -1498,22 +1446,14 @@
             "status",
             "note",
           ],
-          checkpoints: [
-            "checkpointAt",
-            "fundName",
-            "createdBy",
-            "systemBalance",
-            "balance",
-            "diff",
-            "note",
-          ],
         };
         const LABELS = {
-          name: "Tên tài khoản",
-          bank: "Ngân hàng",
+          name: "Tài khoản",
           accountNo: "Số TK",
-          balance: "Số dư thực tế",
-          checkpointAt: "Thời điểm chốt",
+          description: "Mô tả",
+          balanceHanoi: "Tồn quỹ HN",
+          balanceSaigon: "Tồn quỹ SG",
+          balance: "Tổng tồn quỹ",
           code: "Mã phiếu",
           transDate: "Thời gian",
           docType: "Loại",
@@ -1528,15 +1468,23 @@
           runningBalance: "Số dư lũy kế",
           status: "Trạng thái",
           note: "Ghi chú",
-          createdBy: "Người chốt",
-          systemBalance: "Số hệ thống",
-          diff: "Chênh lệch",
         };
-        const EXPORT_COLUMNS = COLUMNS;
+        // Xuất bảng số dư tách riêng số TK / chủ TK / mô tả thành cột.
+        const EXPORT_COLUMNS = {
+          ...COLUMNS,
+          balances: [
+            "accountNo",
+            "name",
+            "description",
+            "balanceHanoi",
+            "balanceSaigon",
+            "balance",
+          ],
+        };
         const MONEY = new Set([
           "balance",
-          "systemBalance",
-          "diff",
+          "balanceHanoi",
+          "balanceSaigon",
           "amount",
           "runningBalance",
         ]);
@@ -1544,30 +1492,24 @@
         const $ = (id) => document.getElementById(id);
         let filters,
           catalog,
-          canManage,
           loadVersion = 0,
           loadController,
           debounceTimer;
-        let pages = { entries: 1, checkpoints: 1 },
-          pageCounts = { entries: 1, checkpoints: 1 };
-        let previewVersion = 0,
-          previewController,
-          preview = null,
-          saving = false,
-          checkpointSession = 0;
+        let pages = { entries: 1 },
+          pageCounts = { entries: 1 };
         let exportView,
           exportSelection = {},
           exportBusy = false,
           exportSession = 0;
         const openers = new Map();
-        const loaded = { balances: [], checkpoints: [] };
+        const loaded = { balances: [] };
         let searchMode = "code";
         // Sắp xếp bảng số dư tại chỗ: bấm tiêu đề lần lượt tăng → giảm → bỏ.
         let balanceSort = { field: null, dir: null };
-        const SORT_FIELDS = new Set(["name", "bank", "accountNo", "balance", "checkpointAt"]);
+        const SORT_FIELDS = new Set(["name", "balanceHanoi", "balanceSaigon", "balance"]);
 
-        // Giữ chuỗi thập phân từ backend/ô nhập, không làm tròn số dư ban đầu.
-        function money(value, empty = "Chưa chốt") {
+        // Giữ chuỗi thập phân từ backend, không làm tròn.
+        function money(value, empty = "—") {
           if (value == null || value === "") return empty;
           let text = String(value);
           if (/^[+-]?\d+(?:\.\d+)?[eE][+-]?\d+$/.test(text))
@@ -1590,25 +1532,6 @@
             (negative ? "-" : "") + integer + (fraction ? "," + fraction : "")
           );
         }
-        function groupAmount(value) {
-          const raw = String(value).replace(/,/g, "");
-          if (!/^-?\d*(?:\.\d*)?$/.test(raw)) return String(value);
-          const parts = raw.split(".");
-          return (
-            parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",") +
-            (parts.length > 1 ? "." + parts[1] : "")
-          );
-        }
-        function amountText(value) {
-          const raw = String(value).replace(/,/g, "").trim();
-          if (
-            !/^-?\d+(?:\.\d+)?$/.test(raw) ||
-            !Number.isFinite(Number(raw)) ||
-            Math.abs(Number(raw)) > Number.MAX_SAFE_INTEGER
-          )
-            throw new Error("Số dư phải là số hợp lệ trong giới hạn cho phép.");
-          return raw;
-        }
         function plainDecimal(value) {
           const match = /^([+-]?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(
             String(value),
@@ -1626,29 +1549,6 @@
                 ? digits + "0".repeat(point - digits.length)
                 : digits.slice(0, point) + "." + digits.slice(point);
           return (match[1] === "-" ? "-" : "") + decimal;
-        }
-        function decimalDifference(left, right) {
-          const a = plainDecimal(left),
-            b = plainDecimal(right);
-          const scale = Math.max(
-            (a.split(".")[1] || "").length,
-            (b.split(".")[1] || "").length,
-          );
-          const scaled = (s) => {
-            const [whole, part = ""] = s.replace("-", "").split(".");
-            return (
-              BigInt(whole + part.padEnd(scale, "0")) *
-              (s.startsWith("-") ? -1n : 1n)
-            );
-          };
-          const diff = scaled(a) - scaled(b),
-            digits = String(diff < 0n ? -diff : diff).padStart(scale + 1, "0");
-          return (
-            (diff < 0n ? "-" : "") +
-            (scale
-              ? digits.slice(0, -scale) + "." + digits.slice(-scale)
-              : digits)
-          );
         }
         function dateText(value) {
           if (!value) return "—";
@@ -1669,20 +1569,6 @@
           return new Date(+new Date(value) + 7 * 3600000)
             .toISOString()
             .slice(0, 19);
-        }
-        function checkpointIso(value, now = new Date()) {
-          if (
-            !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/.test(
-              value,
-            )
-          )
-            throw new Error("Chọn thời điểm chốt hợp lệ.");
-          const timestamp = new Date(value + "+07:00");
-          if (!Number.isFinite(+timestamp))
-            throw new Error("Chọn thời điểm chốt hợp lệ.");
-          if (+timestamp > +now)
-            throw new Error("Không thể chốt tại thời điểm tương lai.");
-          return timestamp.toISOString();
         }
         function query(source) {
           const params = new URLSearchParams();
@@ -1716,25 +1602,9 @@
         function writeHash(value) {
           return "#" + query(value);
         }
-        function runningText(row, result, f) {
-          const single = f.fund === "cash" || /^-?\d+$/.test(f.fund || "");
-          const types = f.docTypes || ["receipt", "payment"];
-          const narrowed =
-            ["groups", "creators", "staff"].some((key) =>
-              Array.isArray(f[key]),
-            ) ||
-            f.partnerQ ||
-            f.partnerPhone ||
-            f.code ||
-            f.note ||
-            (f.accounting && f.accounting !== "all");
-          return result.runningBalanceAvailable &&
-            single &&
-            types.includes("receipt") &&
-            types.includes("payment") &&
-            !narrowed
-            ? money(row.runningBalance, "")
-            : "";
+        // Máy chủ tính lũy kế trên toàn dòng thời gian của quỹ nên luôn hiện được.
+        function runningText(row) {
+          return money(row.runningBalance, "");
         }
         function exportUrl(view, format, columns, f) {
           const params = new URLSearchParams(query(f));
@@ -1796,12 +1666,7 @@
             const th = document.createElement("th");
             th.scope = "col";
             th.dataset.field = field;
-            const label =
-              view === "balances" && field === "balance"
-                ? "Số dư hiện tại"
-                : view === "balances" && field === "checkpointAt"
-                  ? "Chốt gần nhất"
-                  : LABELS[field];
+            const label = LABELS[field];
             if (view === "balances" && SORT_FIELDS.has(field)) {
               const active = balanceSort.field === field ? balanceSort.dir : null;
               const button = document.createElement("button"),
@@ -1830,73 +1695,45 @@
             th.style.width = WIDTHS[view][field] + "px";
             row.appendChild(th);
           }
-          if (view === "balances" && canManage) {
-            const th = document.createElement("th");
-            th.scope = "col";
-            th.textContent = "Thao tác";
-            th.style.width = "130px";
-            row.appendChild(th);
-          }
           $(view + "Table")
             .querySelector("thead")
             .replaceChildren(row);
         }
-        function tableRows(view, rows, result = {}, emptyText) {
+        function tableRows(view, rows, emptyText) {
           const body = $(view + "Body");
           body.replaceChildren();
           for (const data of rows) {
             const row = document.createElement("tr");
-            if (view === "balances") row.dataset.fund = data.fund;
+            if (view === "balances") {
+              row.dataset.fund = data.fund;
+              const chosen = data.fund === filters.fund;
+              row.classList.toggle("is-selected", chosen);
+              row.setAttribute("aria-selected", String(chosen));
+            }
             for (const field of COLUMNS[view]) {
               const cell = document.createElement("td");
               cell.dataset.field = field;
               if (view === "balances" && field === "name") {
+                // Như KiotViet: số TK in đậm, dưới là chủ tài khoản và mô tả.
                 const button = document.createElement("button");
                 button.type = "button";
                 button.className = "cb-fund-link";
                 button.dataset.selectFund = data.fund;
-                button.textContent = data.name;
-                button.title = "Lọc theo quỹ " + data.name;
+                button.textContent = data.accountNo || data.name;
+                button.title = "Lọc sổ chi tiết theo " + (data.accountNo || data.name);
                 cell.appendChild(button);
-                if (data.description) {
+                for (const text of [data.accountNo ? data.name : "", data.description]) {
+                  if (!text) continue;
                   const note = document.createElement("div");
                   note.className = "cb-fund-note";
-                  note.textContent = data.description;
+                  note.textContent = text;
                   cell.appendChild(note);
                 }
-              } else if (view === "balances" && field === "bank") {
-                if (data.bank) {
-                  const strong = document.createElement("strong");
-                  strong.className = "cb-bank-name";
-                  strong.textContent = data.bank;
-                  cell.appendChild(strong);
-                }
-                if (canManage && data.accountNo) {
-                  const edit = document.createElement("button");
-                  edit.type = "button";
-                  edit.className = "cb-bank-edit";
-                  edit.dataset.editBank = data.fund;
-                  edit.textContent = data.bank ? "Sửa" : "+ Thêm ngân hàng";
-                  edit.setAttribute(
-                    "aria-label",
-                    (data.bank ? "Sửa" : "Thêm") + " ngân hàng của " + data.name,
-                  );
-                  cell.appendChild(edit);
-                }
               } else if (field === "runningBalance") {
-                cell.textContent = runningText(data, result, filters);
+                cell.textContent = runningText(data);
                 if (cell.textContent && Number(data[field]) < 0)
                   cell.classList.add("negative");
-              } else if (MONEY.has(field))
-                paintMoney(
-                  cell,
-                  data[field],
-                  view === "checkpoints" ? "—" : undefined,
-                );
-              else if (field === "checkpointAt")
-                cell.textContent = data[field]
-                  ? dateText(data[field])
-                  : "Chưa chốt";
+              } else if (MONEY.has(field)) paintMoney(cell, data[field]);
               else if (field === "transDate")
                 cell.textContent = dateText(data[field]);
               else if (field === "docType")
@@ -1913,22 +1750,6 @@
                       : data[field] || "";
               else cell.textContent = data[field] ?? "";
               if (MONEY.has(field)) cell.classList.add("money");
-              if (
-                field === "diff" &&
-                data.diff != null &&
-                Number(data.diff) !== 0
-              )
-                cell.classList.add("difference");
-              row.appendChild(cell);
-            }
-            if (view === "balances" && canManage) {
-              const cell = document.createElement("td"),
-                button = document.createElement("button");
-              button.className = "cb-row-button";
-              button.type = "button";
-              button.dataset.checkpoint = data.fund;
-              button.textContent = "Chốt số dư";
-              cell.appendChild(button);
               row.appendChild(cell);
             }
             body.appendChild(row);
@@ -1936,8 +1757,7 @@
           if (!rows.length) {
             const row = document.createElement("tr"),
               cell = document.createElement("td");
-            cell.colSpan =
-              COLUMNS[view].length + (view === "balances" && canManage ? 1 : 0);
+            cell.colSpan = COLUMNS[view].length;
             cell.className = "cb-empty";
             cell.textContent =
               emptyText || "Không có dữ liệu theo bộ lọc hiện tại.";
@@ -1961,25 +1781,21 @@
           $(view + "Next").disabled = $(view + "Last").disabled =
             result.page >= pageCounts[view];
         }
-        // Bảng số dư và lịch sử chốt ít dòng: lọc ngay trên dữ liệu đã tải.
+        // Bảng số dư ít dòng: lọc và sắp xếp ngay trên dữ liệu đã tải.
         function sortedBalances(rows) {
           const { field, dir } = balanceSort;
           if (!field) return rows;
           const value = (row) =>
-            field === "balance"
-              ? row.balance == null
+            MONEY.has(field)
+              ? row[field] == null
                 ? null
-                : Number(row.balance)
-              : field === "checkpointAt"
-                ? row.checkpointAt
-                  ? Date.parse(row.checkpointAt)
-                  : null
-                : String(row[field] || "");
+                : Number(row[field])
+              : String(row.accountNo || row[field] || "");
           const sign = dir === "asc" ? 1 : -1;
           return rows
             .map((row, index) => ({ row, index, v: value(row) }))
             .sort((a, b) => {
-              // Quỹ chưa chốt / chưa có số liệu luôn xếp cuối, bất kể chiều sắp.
+              // Ô trống luôn xếp cuối, bất kể chiều sắp.
               const emptyA = a.v == null || a.v === "",
                 emptyB = b.v == null || b.v === "";
               if (emptyA !== emptyB) return emptyA ? 1 : -1;
@@ -2000,22 +1816,10 @@
             "balances",
             sortedBalances(
               loaded.balances.filter((row) =>
-                matches(row, ["name", "bank", "accountNo", "description"], needle),
+                matches(row, ["name", "accountNo", "description"], needle),
               ),
             ),
-            {},
             needle ? "Không có tài khoản khớp từ khóa." : undefined,
-          );
-        }
-        function renderCheckpoints() {
-          const needle = fold($("checkpointsSearch").value);
-          tableRows(
-            "checkpoints",
-            loaded.checkpoints.filter((row) =>
-              matches(row, ["fundName", "createdBy", "note"], needle),
-            ),
-            {},
-            needle ? "Không có lần chốt khớp từ khóa trên trang này." : undefined,
           );
         }
         function syncSearch() {
@@ -2056,24 +1860,8 @@
         }
         function updateSummaries() {
           const summaries = {};
-          const fund = String(filters.fund ?? "all");
-          if (fund === "all") summaries.fund = ["Tổng quỹ", false];
-          else if (fund === "cash") summaries.fund = ["Tiền mặt", true];
-          else if (fund === "bank") summaries.fund = ["Tất cả ngân hàng", true];
-          else if (fund === "") summaries.fund = ["Không chọn", true];
-          else {
-            const ids = fund.split(","),
-              names =
-                catalog &&
-                catalog.funds.filter((item) => ids.includes(item.fund));
-            summaries.fund = [
-              ids.length === 1 && names && names.length
-                ? names[0].name
-                : ids.length + " tài khoản",
-              true,
-            ];
-          }
           for (const name of LISTS) summaries[name] = listSummary(name);
+          refreshDdTools();
           summaries.accounting = [
             { all: "Tất cả", yes: "Có", no: "Không" }[filters.accounting] ||
               "Tất cả",
@@ -2084,6 +1872,88 @@
             dd.querySelector("[data-summary]").textContent = text;
             dd.classList.toggle("is-filtered", Boolean(filtered));
           });
+        }
+        // Tên tài khoản đang lọc (bấm dòng bảng số dư); null khi xem tất cả quỹ.
+        function fundLabel(value) {
+          const fund = String(value ?? "all");
+          if (fund === "all") return null;
+          if (fund === "cash") return "Tiền mặt";
+          if (fund === "bank") return "Tất cả ngân hàng";
+          if (fund === "") return "Không chọn";
+          // Một tài khoản = nhóm ID HN+SG cùng số TK.
+          const ids = fund.split(","),
+            names = catalog
+              ? catalog.funds.filter(
+                  (item) =>
+                    item.accountIds.length &&
+                    item.accountIds.every((id) => ids.includes(id)),
+                )
+              : [];
+          return names.length === 1
+            ? names[0].accountNo || names[0].name
+            : (names.length || ids.length) + " tài khoản";
+        }
+        function syncFundFilter() {
+          const label = fundLabel(filters.fund);
+          $("fundFilter").hidden = !label;
+          $("fundFilterName").textContent = label || "";
+        }
+        // Thanh công cụ trong dropdown chọn nhiều: ô tìm (khi danh sách dài),
+        // đếm số mục đã chọn và nút Chọn tất cả / Bỏ chọn (áp cho các mục đang hiện).
+        const SEARCH_MIN = 7;
+        function buildDdTools() {
+          for (const name of LISTS) {
+            const dd = document.querySelector('[data-dd="' + name + '"]'),
+              list = dd.querySelector(".dd-list"),
+              title = dd.querySelector(".dd-label").textContent;
+            const tools = document.createElement("div");
+            tools.className = "dd-tools";
+            tools.innerHTML =
+              '<label class="dd-search-wrap" hidden>' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg>' +
+              '<input class="dd-search" type="search" autocomplete="off" placeholder="Tìm trong danh sách…" /></label>' +
+              '<div class="dd-actions"><span class="dd-count" aria-live="polite"></span>' +
+              '<button class="dd-action" type="button" data-dd-all>' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Chọn tất cả</button>' +
+              '<button class="dd-action" type="button" data-dd-none>' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>Bỏ chọn</button></div>';
+            tools.querySelector(".dd-search").setAttribute("aria-label", "Tìm trong " + title);
+            tools.querySelector("[data-dd-all]").setAttribute("aria-label", "Chọn tất cả " + title);
+            tools.querySelector("[data-dd-none]").setAttribute("aria-label", "Bỏ chọn tất cả " + title);
+            const empty = document.createElement("p");
+            empty.className = "dd-nomatch";
+            empty.hidden = true;
+            empty.textContent = "Không có mục khớp từ khóa.";
+            list.prepend(tools);
+            list.appendChild(empty);
+          }
+        }
+        function refreshDdTools() {
+          for (const name of LISTS) {
+            const dd = document.querySelector('[data-dd="' + name + '"]');
+            if (!dd || !dd.querySelector(".dd-tools")) continue;
+            const inputs = [...dd.querySelectorAll('[name="' + name + '"]')],
+              search = dd.querySelector(".dd-search"),
+              needle = fold(search.value);
+            for (const input of inputs)
+              input.closest("label").hidden =
+                !!needle && !fold(input.closest("label").textContent).includes(needle);
+            const visible = inputs.filter((input) => !input.closest("label").hidden),
+              checked = inputs.filter((input) => input.checked).length;
+            dd.querySelector(".dd-search-wrap").hidden =
+              inputs.length < SEARCH_MIN && !search.value;
+            dd.querySelector(".dd-nomatch").hidden = !inputs.length || visible.length > 0;
+            const count = dd.querySelector(".dd-count");
+            count.replaceChildren();
+            const strong = document.createElement("b");
+            strong.textContent = String(checked);
+            count.append(strong, "/" + inputs.length + " đã chọn");
+            dd.querySelector("[data-dd-all]").disabled =
+              !visible.length || visible.every((input) => input.checked);
+            dd.querySelector("[data-dd-none]").disabled = !visible.some(
+              (input) => input.checked,
+            );
+          }
         }
         function setDropdown(dd, open) {
           dd.classList.toggle("open", open);
@@ -2105,7 +1975,7 @@
           status("Đang tải dữ liệu…");
           $("cashbookResults").setAttribute("aria-busy", "true");
           try {
-            const [s, e, c] = await Promise.all([
+            const [s, e] = await Promise.all([
               json("/api/cashbook/summary?" + base, signal),
               json(
                 "/api/cashbook/entries?" +
@@ -2115,18 +1985,9 @@
                   "&pageSize=100",
                 signal,
               ),
-              json(
-                "/api/cashbook/checkpoints?" +
-                  base +
-                  "&page=" +
-                  pages.checkpoints +
-                  "&pageSize=100",
-                signal,
-              ),
             ]);
             if (version !== loadVersion) return;
             for (const key of [
-              "openingBalance",
               "totalReceipts",
               "totalPayments",
               "closingBalance",
@@ -2136,33 +1997,21 @@
               ? "Dữ liệu KiotViet đồng bộ lúc " + dateText(s.syncedAt)
               : "Dữ liệu KiotViet chưa có mốc đồng bộ.";
             loaded.balances = s.balances;
-            loaded.checkpoints = c.checkpoints;
             renderBalances();
-            tableRows("entries", e.entries, e);
-            renderCheckpoints();
+            tableRows("entries", e.entries);
             $("balanceTotal").textContent =
-              "Tổng các quỹ đã chốt: " +
-              money(s.totalBalance) +
-              (s.unclosedCount
-                ? " · " + s.unclosedCount + " quỹ chưa chốt."
-                : "");
+              "Tổng tồn quỹ HN + SG: " + money(s.totalBalance);
             $("balanceTotal").classList.toggle(
               "negative",
               Number(s.totalBalance) < 0,
             );
-            $("runningReason").textContent = e.runningBalanceAvailable
-              ? ""
-              : e.runningBalanceReason ||
-                "Số dư lũy kế chỉ hiện khi chọn một quỹ đã chốt, đủ hai loại chứng từ và không thu hẹp bộ lọc.";
             pager("entries", e);
-            pager("checkpoints", c);
             status("");
           } catch (error) {
             if (version === loadVersion && error.name !== "AbortError") {
               // Không hiển thị số dư của bộ lọc cũ khi yêu cầu mới thất bại.
               for (const key of [
-                "openingBalance",
-                "totalReceipts",
+                  "totalReceipts",
                 "totalPayments",
                 "closingBalance",
               ]) {
@@ -2175,14 +2024,10 @@
                   "Chưa tải được dữ liệu. Vui lòng thử lại.";
               }
               loaded.balances = [];
-              loaded.checkpoints = [];
-              for (const view of ["entries", "checkpoints"]) {
-                $(view + "Page").textContent = "";
-                for (const direction of ["First", "Previous", "Next", "Last"])
-                  $(view + direction).disabled = true;
-              }
+              $("entriesPage").textContent = "";
+              for (const direction of ["First", "Previous", "Next", "Last"])
+                $("entries" + direction).disabled = true;
               $("balanceTotal").textContent = "";
-              $("runningReason").textContent = "";
               status(error.message, true);
             }
           } finally {
@@ -2200,9 +2045,7 @@
             input.name = name;
             input.value = String(value[key]);
             const span = document.createElement("span");
-            span.textContent =
-              value.label ||
-              value.name + (value.accountNo ? " · " + value.accountNo : "");
+            span.textContent = value.label;
             label.append(input, span);
             container.appendChild(label);
           }
@@ -2214,25 +2057,6 @@
           }
         }
         function syncFilters() {
-          const mode = ["all", "cash", "bank"].includes(filters.fund)
-            ? filters.fund
-            : "bank";
-          document.querySelectorAll('[name="fundMode"]').forEach((input) => {
-            input.checked = input.value === mode;
-          });
-          const selectedFunds =
-            filters.fund === "bank" && catalog
-              ? catalog.funds
-                  .filter((fund) => fund.fund !== "cash")
-                  .map((fund) => fund.fund)
-              : filters.fund === ""
-                ? []
-                : String(filters.fund).split(",");
-          document
-            .querySelectorAll('[name="fundAccounts"]')
-            .forEach((input) => {
-              input.checked = selectedFunds.includes(input.value);
-            });
           for (const list of LISTS)
             document
               .querySelectorAll('[name="' + list + '"]')
@@ -2250,6 +2074,7 @@
           for (const key of ["from", "to"]) $(key).value = filters[key] || "";
           $("customDates").hidden = filters.preset !== "custom";
           syncSearch();
+          syncFundFilter();
           updateSummaries();
         }
         function selected(name) {
@@ -2266,7 +2091,7 @@
         }
         function applyFilters() {
           clearTimeout(debounceTimer);
-          pages = { entries: 1, checkpoints: 1 };
+          pages = { entries: 1 };
           history.replaceState(
             null,
             "",
@@ -2276,7 +2101,7 @@
           return load();
         }
         function selectFund(fund) {
-          filters.fund = fund;
+          filters.fund = filters.fund === fund ? "all" : fund;
           applyFilters();
         }
         function openDialog(id, opener) {
@@ -2300,155 +2125,6 @@
           $("cashbookFilters").setAttribute("aria-modal", "true");
           document.body.style.overflow = "hidden";
           $("filterClose").focus();
-        }
-        function currentCheckpoint() {
-          return {
-            fund: $("checkpointFund").value,
-            checkpointAt: checkpointIso($("checkpointAt").value),
-          };
-        }
-        function updatePreviewText() {
-          const save = $("checkpointSave");
-          save.disabled = saving || !preview;
-          if (!preview) return;
-          const target = $("checkpointPreview");
-          if (preview.balance == null) {
-            target.textContent =
-              "Hệ thống chưa có số dư đã chốt tại quỹ này. Lần chốt đầu nhập số dư ban đầu; số hệ thống và chênh lệch chưa xác định.";
-            return;
-          }
-          let text =
-            "Hệ thống đang tính: " + money(preview.balance) + " — chênh lệch: ";
-          try {
-            text += money(
-              decimalDifference(
-                amountText($("checkpointBalance").value),
-                preview.balance,
-              ),
-            );
-          } catch (error) {
-            text += "nhập số dư thực tế để tính.";
-          }
-          target.textContent = text;
-        }
-        async function previewCheckpoint() {
-          const version = ++previewVersion;
-          preview = null;
-          if (previewController) previewController.abort();
-          previewController = new AbortController();
-          $("checkpointSave").disabled = true;
-          $("checkpointError").textContent = "";
-          $("checkpointPreview").textContent =
-            "Đang tính số dư tại thời điểm chốt…";
-          try {
-            const current = currentCheckpoint(),
-              params = new URLSearchParams({
-                fund: current.fund,
-                at: current.checkpointAt,
-              });
-            const result = await json(
-              "/api/cashbook/summary?" + params,
-              previewController.signal,
-            );
-            if (version !== previewVersion || !$("checkpointDialog").open)
-              return;
-            const balance = result.balances.find(
-              (row) => row.fund === current.fund,
-            );
-            if (!balance)
-              throw new Error("Không tìm thấy quỹ. Vui lòng tải lại dữ liệu.");
-            preview = { ...current, balance: balance.balance };
-            updatePreviewText();
-          } catch (error) {
-            if (version === previewVersion && error.name !== "AbortError") {
-              $("checkpointPreview").textContent = "";
-              $("checkpointError").textContent = error.message;
-            }
-          }
-        }
-        function openCheckpoint(fund, opener) {
-          if (!canManage) return;
-          ++checkpointSession;
-          saving = false;
-          $("checkpointForm").reset();
-          $("checkpointFund").value = fund;
-          $("checkpointAt").max = vnLocal();
-          $("checkpointAt").value = vnLocal();
-          $("checkpointError").textContent = "";
-          openDialog("checkpointDialog", opener);
-          previewCheckpoint();
-        }
-        let bankFund = null;
-        function openBank(fund, opener) {
-          const row = loaded.balances.find((item) => item.fund === fund);
-          if (!canManage || !row || !row.accountNo) return;
-          bankFund = fund;
-          $("bankForm").reset();
-          $("bankName").value = row.bank || "";
-          $("bankSubtitle").textContent = row.name + " · " + row.accountNo;
-          $("bankError").textContent = "";
-          $("bankSave").disabled = false;
-          openDialog("bankDialog", opener);
-          $("bankName").focus();
-        }
-        async function saveBank(event) {
-          event.preventDefault();
-          if (!canManage || bankFund == null || $("bankSave").disabled) return;
-          $("bankSave").disabled = true;
-          $("bankError").textContent = "";
-          try {
-            await request(
-              "/api/cashbook/accounts/" + encodeURIComponent(bankFund) + "/bank",
-              {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ bank: $("bankName").value }),
-              },
-            );
-            $("bankDialog").close();
-            await load();
-          } catch (error) {
-            $("bankError").textContent = error.message;
-            $("bankSave").disabled = false;
-          }
-        }
-        async function saveCheckpoint(event) {
-          event.preventDefault();
-          if (saving || !canManage) return;
-          const session = checkpointSession,
-            currentDialog = () =>
-              session === checkpointSession && $("checkpointDialog").open;
-          try {
-            const current = currentCheckpoint();
-            if (
-              !preview ||
-              preview.fund !== current.fund ||
-              preview.checkpointAt !== current.checkpointAt
-            )
-              throw new Error(
-                "Chờ hệ thống tính số dư tại thời điểm chốt trước khi lưu.",
-              );
-            const balance = amountText($("checkpointBalance").value),
-              note = $("checkpointNote").value;
-            saving = true;
-            $("checkpointSave").disabled = true;
-            $("checkpointError").textContent = "";
-            await request("/api/cashbook/checkpoints", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...current, balance, note }),
-            });
-            if (currentDialog()) $("checkpointDialog").close();
-            await load();
-          } catch (error) {
-            if (currentDialog())
-              $("checkpointError").textContent = error.message;
-          } finally {
-            if (currentDialog()) {
-              saving = false;
-              updatePreviewText();
-            }
-          }
         }
         function chosenColumns() {
           return [...$("exportColumns").querySelectorAll("input:checked")].map(
@@ -2507,10 +2183,7 @@
             input.checked = chosen.includes(field);
             const span = document.createElement("span");
             span.className = "export-field-label";
-            span.textContent =
-              view === "balances" && field === "balance"
-                ? "Số dư hiện tại"
-                : LABELS[field];
+            span.textContent = LABELS[field];
             label.append(input, span);
             $("exportColumns").appendChild(label);
           }
@@ -2582,7 +2255,6 @@
           $("menuBtn").addEventListener("click", toggleSidebar);
           $("backdrop").addEventListener("click", toggleSidebar);
           await window.TKSNav.authGuard();
-          canManage = window.TKSNav.can("cashbook.manage");
           filters = readHash(location.hash);
           try {
             const stored = JSON.parse(localStorage.getItem(COLUMN_KEY));
@@ -2592,6 +2264,7 @@
             /* Dùng tất cả cột khi tùy chọn lưu không hợp lệ. */
           }
           for (const view of Object.keys(COLUMNS)) header(view);
+          buildDdTools();
           $("filterToggle").addEventListener("click", openDrawer);
           $("filterClose").addEventListener("click", closeDrawer);
           $("filterBackdrop").addEventListener("click", closeDrawer);
@@ -2630,23 +2303,13 @@
             )
               closeDrawer();
           });
-          for (const id of ["checkpointDialog", "exportDialog"]) {
-            $(id).addEventListener("close", () => {
-              if ($(id).open) return;
-              if (id === "checkpointDialog") {
-                ++checkpointSession;
-                saving = false;
-                preview = null;
-                ++previewVersion;
-                if (previewController) previewController.abort();
-              } else {
-                ++exportSession;
-                exportBusy = false;
-              }
-              const opener = openers.get(id);
-              if (opener && opener.isConnected) opener.focus();
-            });
-          }
+          $("exportDialog").addEventListener("close", () => {
+            if ($("exportDialog").open) return;
+            ++exportSession;
+            exportBusy = false;
+            const opener = openers.get("exportDialog");
+            if (opener && opener.isConnected) opener.focus();
+          });
           document
             .querySelectorAll("[data-close]")
             .forEach((button) =>
@@ -2675,29 +2338,6 @@
           $("exportHtml").addEventListener("click", () =>
             downloadExport("html"),
           );
-          $("bankForm").addEventListener("submit", saveBank);
-          $("bankDialog").addEventListener("close", () => {
-            bankFund = null;
-            const opener = openers.get("bankDialog");
-            if (opener && opener.isConnected) opener.focus();
-          });
-          $("checkpointForm").addEventListener("submit", saveCheckpoint);
-          $("checkpointFund").addEventListener("change", previewCheckpoint);
-          $("checkpointAt").addEventListener("change", previewCheckpoint);
-          $("checkpointBalance").addEventListener("input", (event) => {
-            const input = event.target,
-              before = input.value,
-              cursor = input.selectionStart;
-            input.value = groupAmount(before);
-            if (cursor != null) {
-              const offset = input.value.length - before.length;
-              input.setSelectionRange(
-                Math.max(0, cursor + offset),
-                Math.max(0, cursor + offset),
-              );
-            }
-            updatePreviewText();
-          });
           $("balancesTable").addEventListener("click", (event) => {
             const sort = event.target.closest("[data-sort]");
             if (!sort) return;
@@ -2717,29 +2357,30 @@
             if (again) again.focus();
           });
           $("balancesBody").addEventListener("click", (event) => {
-            const bank = event.target.closest("[data-edit-bank]");
-            if (bank) {
-              openBank(bank.dataset.editBank, bank);
-              return;
-            }
-            const checkpoint = event.target.closest("[data-checkpoint]");
-            if (checkpoint) {
-              openCheckpoint(checkpoint.dataset.checkpoint, checkpoint);
-              return;
-            }
             const row = event.target.closest("tr[data-fund]");
             if (row) selectFund(row.dataset.fund);
           });
           $("filtersForm").addEventListener("submit", (event) =>
             event.preventDefault(),
           );
+          $("filtersForm").addEventListener("click", (event) => {
+            const action = event.target.closest("[data-dd-all], [data-dd-none]");
+            if (!action || action.disabled) return;
+            const name = action.closest("[data-dd]").dataset.dd,
+              check = action.hasAttribute("data-dd-all");
+            document.querySelectorAll('[name="' + name + '"]').forEach((input) => {
+              if (!input.closest("label").hidden) input.checked = check;
+            });
+            allOrSelected(name);
+            applyFilters();
+          });
+          $("filtersForm").addEventListener("input", (event) => {
+            if (event.target.classList.contains("dd-search")) refreshDdTools();
+          });
           $("filtersForm").addEventListener("change", (event) => {
             const input = event.target,
               name = input.name;
-            if (name === "fundMode") filters.fund = input.value;
-            else if (name === "fundAccounts")
-              filters.fund = selected("fundAccounts").join(",");
-            else if (LISTS.includes(name)) allOrSelected(name);
+            if (LISTS.includes(name)) allOrSelected(name);
             else if (name === "preset") {
               filters.preset = input.value;
               if (input.value === "custom") {
@@ -2770,23 +2411,19 @@
               $("entriesSearch").focus();
             }),
           );
-          for (const [id, render] of [
-            ["balancesSearch", renderBalances],
-            ["checkpointsSearch", renderCheckpoints],
-          ])
-            $(id).addEventListener("input", () => {
-              document.querySelector('[data-search-clear="' + id + '"]').hidden =
-                !$(id).value;
-              render();
-            });
+          $("balancesSearch").addEventListener("input", () => {
+            document.querySelector(
+              '[data-search-clear="balancesSearch"]',
+            ).hidden = !$("balancesSearch").value;
+            renderBalances();
+          });
           document.querySelectorAll("[data-search-clear]").forEach((button) =>
             button.addEventListener("click", () => {
               const input = $(button.dataset.searchClear);
               input.value = "";
               button.hidden = true;
               if (input.id === "entriesSearch") applySearch();
-              else if (input.id === "balancesSearch") renderBalances();
-              else renderCheckpoints();
+              else renderBalances();
               input.focus();
             }),
           );
@@ -2809,45 +2446,31 @@
             applyFilters();
           });
           const STEP = { First: -Infinity, Previous: -1, Next: 1, Last: Infinity };
-          for (const view of ["entries", "checkpoints"])
-            for (const direction of Object.keys(STEP))
-              $(view + direction).addEventListener("click", () => {
-                pages[view] = Math.max(
-                  1,
-                  Math.min(pageCounts[view], pages[view] + STEP[direction]),
-                );
-                load();
-              });
+          for (const direction of Object.keys(STEP))
+            $("entries" + direction).addEventListener("click", () => {
+              pages.entries = Math.max(
+                1,
+                Math.min(pageCounts.entries, pages.entries + STEP[direction]),
+              );
+              load();
+            });
           window.addEventListener("hashchange", () => {
             clearTimeout(debounceTimer);
             filters = readHash(location.hash);
-            pages = { entries: 1, checkpoints: 1 };
+            pages = { entries: 1 };
             syncFilters();
             load();
           });
+          $("clearFund").addEventListener("click", () => selectFund("all"));
           $("retryLoad").addEventListener("click", () =>
             catalog ? load() : loadCatalog(),
           );
           async function loadCatalog() {
             try {
               catalog = await json("/api/cashbook/filter-options");
-              choices(
-                "fundChoices",
-                "fundAccounts",
-                catalog.funds.filter((fund) => fund.fund !== "cash"),
-                "fund",
-              );
               choices("groupChoices", "groups", catalog.groups, "key");
               choices("creatorChoices", "creators", catalog.creators, "id");
               choices("staffChoices", "staff", catalog.staff, "id");
-              $("checkpointFund").replaceChildren();
-              for (const fund of catalog.funds) {
-                const option = document.createElement("option");
-                option.value = fund.fund;
-                option.textContent =
-                  fund.name + (fund.accountNo ? " · " + fund.accountNo : "");
-                $("checkpointFund").appendChild(option);
-              }
               syncFilters();
               await load();
             } catch (error) {
@@ -2866,9 +2489,6 @@
           runningText,
           vnLocal,
           dateText,
-          checkpointIso,
-          groupAmount,
-          amountText,
           exportUrl,
         };
       })();

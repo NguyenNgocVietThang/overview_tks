@@ -8,7 +8,7 @@ async function request(
   path,
   {
     user = {
-      permissions: ['cashbook.view', 'cashbook.manage'],
+      permissions: ['cashbook.view'],
       username: 'Manager',
       vaiTro: 'Quản lý',
     },
@@ -32,8 +32,6 @@ async function request(
         summary: async () => ({ balances: [{ fund: 'cash', balance: 10 }] }),
         entries: async () => ({ entries: [], total: 0 }),
         filterOptions: async () => ({ funds: [] }),
-        checkpoints: async () => ({ checkpoints: [], total: 0 }),
-        insertCheckpoint: async (b) => ({ ...b, systemBalance: 10, diff: 5 }),
         ...repo,
       },
     }),
@@ -59,15 +57,13 @@ async function request(
     await new Promise((resolve) => server.close(resolve));
   }
 }
-test('Sale/Kho/Khách forbidden all6 endpoints and manager allowed/no-store regardless branch cookie', async () => {
+test('Sale/Kho/Khách forbidden every endpoint and manager allowed/no-store regardless branch cookie', async () => {
   for (const role of ['Nhân viên sale', 'Nhân viên kho', 'Khách'])
     for (const [path, method] of [
       ['/summary', 'GET'],
       ['/entries', 'GET'],
       ['/filter-options', 'GET'],
-      ['/checkpoints', 'GET'],
       ['/export?view=entries&format=html', 'GET'],
-      ['/checkpoints', 'POST'],
     ]) {
       assert.equal(
         (
@@ -83,7 +79,6 @@ test('Sale/Kho/Khách forbidden all6 endpoints and manager allowed/no-store rega
     '/summary',
     '/entries',
     '/filter-options',
-    '/checkpoints',
     '/export?view=entries&format=html',
   ]) {
     const r = await request(path);
@@ -91,47 +86,23 @@ test('Sale/Kho/Khách forbidden all6 endpoints and manager allowed/no-store rega
     assert.equal(r.headers.get('cache-control'), 'no-store');
   }
 });
-test('checkpoint manage required; future or malformed inputs400; valid user attributed', async () => {
-  const body = {
-    fund: 'cash',
-    checkpointAt: '2026-10-01T00:00:00Z',
-    balance: 15,
-  };
+test('chốt số dư và sửa ngân hàng đã gỡ: không còn route ghi, query lạ trả 400', async () => {
+  for (const [path, method] of [
+    ['/checkpoints', 'GET'],
+    ['/checkpoints', 'POST'],
+    ['/accounts/7/bank', 'PUT'],
+  ])
+    assert.equal(
+      (await request(path, { method, body: method === 'GET' ? undefined : {} }))
+        .status,
+      404,
+    );
+  assert.equal((await request('/summary?page=1oops')).status, 400);
+  assert.equal((await request('/summary?at=2026-10-01T00:00:00Z')).status, 400);
   assert.equal(
-    (
-      await request('/checkpoints', {
-        method: 'POST',
-        body,
-        user: { permissions: ['cashbook.view'] },
-      })
-    ).status,
-    403,
-  );
-  assert.equal(
-    (
-      await request('/checkpoints', {
-        method: 'POST',
-        body: { ...body, checkpointAt: '2999-01-01T00:00:00Z' },
-      })
-    ).status,
+    (await request('/export?view=checkpoints&format=html')).status,
     400,
   );
-  assert.equal((await request('/summary?page=1oops')).status, 400);
-  const r = await request('/checkpoints', {
-    method: 'POST',
-    body,
-    repo: {
-      insertCheckpoint: async (b, by) => ({
-        fund: b.fund,
-        systemBalance: 10,
-        diff: 5,
-        createdBy: by,
-      }),
-    },
-  });
-  assert.equal(r.status, 201);
-  assert.equal(r.data.checkpoint.createdBy, 'Manager');
-  assert.equal(r.data.checkpoint.diff, 5);
 });
 test('unauthenticated returns401; internal errors generic no SQL detail; export limit400', async () => {
   assert.equal((await request('/entries', { user: null })).status, 401);
@@ -152,35 +123,4 @@ test('unauthenticated returns401; internal errors generic no SQL detail; export 
     ).status,
     400,
   );
-});
-test('bank PUT needs manage, passes id/bank/user and maps validation to 400', async () => {
-  const forbidden = await request('/accounts/7/bank', {
-    method: 'PUT',
-    body: { bank: 'VCB' },
-    user: { vaiTro: 'Nhân viên sale', permissions: ['cashbook.view'] },
-  });
-  assert.equal(forbidden.status, 403);
-  const calls = [];
-  const ok = await request('/accounts/7/bank', {
-    method: 'PUT',
-    body: { bank: 'VCB' },
-    repo: {
-      setAccountBank: async (...args) => {
-        calls.push(args);
-        return { accountNo: '123', bank: 'VCB' };
-      },
-    },
-  });
-  assert.equal(ok.status, 200);
-  assert.deepEqual(calls, [['7', 'VCB', 'Manager']]);
-  const bad = await request('/accounts/7/bank', {
-    method: 'PUT',
-    body: { bank: 'x' },
-    repo: {
-      setAccountBank: async () => {
-        throw Object.assign(new Error('Tên ngân hàng không hợp lệ.'), { statusCode: 400 });
-      },
-    },
-  });
-  assert.equal(bad.status, 400);
 });

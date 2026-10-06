@@ -6,14 +6,16 @@ const {
   applyFullTableBorder,
 } = require('../excelTableStyle');
 const { invalid } = require('./cashbookFilters');
+const { renderHtmlReport } = require('../dashboard/exportHtmlReport');
 const MAX_EXPORT_ROWS = 20000;
 const COLUMNS = {
   balances: [
-    ['name', 'Tên quỹ'],
-    ['bank', 'Ngân hàng'],
     ['accountNo', 'Số tài khoản'],
-    ['balance', 'Số dư hiện tại', true],
-    ['checkpointAt', 'Chốt gần nhất'],
+    ['name', 'Tài khoản'],
+    ['description', 'Mô tả'],
+    ['balanceHanoi', 'Tồn quỹ HN', true],
+    ['balanceSaigon', 'Tồn quỹ SG', true],
+    ['balance', 'Tổng tồn quỹ', true],
   ],
   entries: [
     ['code', 'Mã phiếu'],
@@ -31,23 +33,13 @@ const COLUMNS = {
     ['status', 'Trạng thái'],
     ['note', 'Ghi chú'],
   ],
-  checkpoints: [
-    ['checkpointAt', 'Thời điểm chốt'],
-    ['fundName', 'Quỹ'],
-    ['createdBy', 'Người chốt'],
-    ['systemBalance', 'Số hệ thống', true],
-    ['balance', 'Số thực tế', true],
-    ['diff', 'Chênh lệch', true],
-    ['note', 'Ghi chú'],
-  ],
 };
 const LABELS = {
   balances: 'Số dư tài khoản',
   entries: 'Sổ chi tiết',
-  checkpoints: 'Lịch sử chốt',
 };
 function selectedColumns(view, columns) {
-  if (!['balances', 'entries', 'checkpoints'].includes(view))
+  if (!['balances', 'entries'].includes(view))
     throw invalid('Bảng xuất không hợp lệ.');
   if (columns === undefined) return COLUMNS[view];
   if (typeof columns !== 'string' || !columns)
@@ -64,21 +56,12 @@ function safeText(value) {
   const text = String(value ?? '');
   return /^[\s]*[=+\-@]/.test(text) ? `'${text}` : text;
 }
-function escapeHtml(value) {
-  return String(value).replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[
-        c
-      ],
-  );
-}
 function cell(row, column) {
   const [key, , numeric] = column;
   const value = row[key];
   if (value == null) return '';
   if (numeric) return Number.isFinite(Number(value)) ? Number(value) : '';
-  if (value instanceof Date || ['transDate', 'checkpointAt'].includes(key)) {
+  if (value instanceof Date || key === 'transDate') {
     const date = new Date(value);
     if (Number.isFinite(+date))
       return date.toLocaleString('vi-VN', {
@@ -105,37 +88,77 @@ function tooManyRows() {
   e.code = 'TOO_MANY_ROWS';
   return e;
 }
-async function createExportFile(view, format, rows, columns) {
+const VN_OFFSET_MS = 7 * 3600000;
+// Giá trị cho báo cáo HTML: số giữ nguyên, thời gian dời sang giờ VN (bộ dựng đọc phần UTC), chữ đã dịch nhãn.
+function htmlValue(row, column) {
+  const [key, , numeric] = column;
+  const value = row[key];
+  if (value == null || value === '') return null;
+  if (numeric) return Number.isFinite(Number(value)) ? Number(value) : null;
+  if (key === 'transDate') {
+    const date = new Date(value);
+    return Number.isFinite(+date) ? new Date(+date + VN_OFFSET_MS) : null;
+  }
+  // HTML không chạy công thức: bỏ dấu ' mà bản Excel thêm để chặn công thức.
+  const text = cell(row, column);
+  return text === "'" + value ? String(value) : text;
+}
+// Báo cáo HTML dạng dashboard (KPI, ô tìm, bộ lọc, biểu đồ, bảng) dùng chung bộ dựng
+// của tab Báo cáo. Sổ chi tiết thêm 2 cột Thu/Chi (số dương) để KPI và biểu đồ có
+// Tổng thu/Tổng chi; số dư lũy kế không cộng dồn nên không làm chỉ số.
+function htmlWorksheet(view, rows, cols) {
+  const columns = cols.map(([key, label, numeric]) => ({
+    key,
+    label,
+    type: numeric ? 'number' : key === 'transDate' ? 'date' : 'general',
+  }));
+  const data = rows.map((row) => {
+    const out = {};
+    for (const c of cols) out[c[0]] = htmlValue(row, c);
+    return out;
+  });
+  let summaryKeys = ['balance', 'balanceHanoi', 'balanceSaigon'],
+    // Biểu đồ Top theo số TK (một chủ TK có thể có nhiều TK); Tiền mặt không có số TK.
+    hints = { labelKey: cols.some((c) => c[0] === 'accountNo') ? 'accountNo' : 'name' };
+  if (view === 'balances')
+    data.forEach((row, i) => {
+      if ('accountNo' in row && !row.accountNo) row.accountNo = rows[i].name || null;
+    });
+  if (view === 'entries') {
+    summaryKeys = ['receipt', 'payment', 'amount'];
+    // Top theo người nộp/nhận, cơ cấu + bộ lọc theo loại thu chi.
+    hints = { labelKey: 'partnerName', categoryKey: 'group' };
+    if (cols.some((c) => c[0] === 'amount')) {
+      columns.push(
+        { key: 'receipt', label: 'Thu', type: 'number' },
+        { key: 'payment', label: 'Chi', type: 'number' },
+      );
+      rows.forEach((row, i) => {
+        // Phiếu hủy không tính vào thu/chi, giống KPI trên trang.
+        const amount = row.status === 'cancelled' ? 0 : Number(row.amount) || 0;
+        data[i].receipt = amount > 0 ? amount : 0;
+        data[i].payment = amount < 0 ? -amount : 0;
+      });
+    }
+  }
+  return { key: view, name: LABELS[view], columns, rows: data, summaryKeys, hints };
+}
+async function createExportFile(view, format, rows, columns, meta = {}) {
   const cols = selectedColumns(view, columns);
   if (!['xlsx', 'html'].includes(format))
     throw invalid('Định dạng xuất không hợp lệ.');
   if (rows.length > MAX_EXPORT_ROWS) throw tooManyRows();
   const fileName = `TKS_So_quy_${view}.${format}`;
-  if (format === 'html') {
-    const header = cols.map((c) => `<th>${escapeHtml(c[1])}</th>`).join('');
-    const body = rows
-      .map(
-        (row) =>
-          `<tr>${cols
-            .map((c) => {
-              const value = cell(row, c);
-              const negative = c[2] && typeof value === 'number' && value < 0;
-              const display =
-                c[2] && typeof value === 'number'
-                  ? value.toLocaleString('vi-VN', { maximumFractionDigits: 2 })
-                  : value;
-              return `<td${negative ? ' class="negative"' : ''}>${escapeHtml(display)}</td>`;
-            })
-            .join('')}</tr>`,
-      )
-      .join('');
-    const html = `<!doctype html><html lang="vi"><meta charset="utf-8"><title>${LABELS[view]}</title><style>body{font:14px Arial,sans-serif;padding:24px}table{border-collapse:collapse}th,td{border:1px solid #bbb;padding:8px;text-align:left}th{background:#eee}td{white-space:pre-wrap}.negative{color:#b91c1c}</style><h1>${LABELS[view]}</h1><table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table></html>`;
-    return {
-      buffer: Buffer.from(html),
-      mimeType: 'text/html; charset=utf-8',
-      fileName,
-    };
-  }
+  if (format === 'html')
+    return renderHtmlReport({
+      meta: {
+        title: `Sổ quỹ · ${LABELS[view]}${meta.period ? ` (${meta.period})` : ''}`,
+        branch: 'Hà Nội + Sài Gòn',
+        generatedAt: meta.generatedAt || new Date(),
+        fileBase: `TKS_So_quy_${view}`,
+      },
+      worksheets: [htmlWorksheet(view, rows, cols)],
+    });
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'TOKOSI Dashboard';
   const sheet = workbook.addWorksheet(LABELS[view]);

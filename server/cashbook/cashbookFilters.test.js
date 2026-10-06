@@ -4,7 +4,6 @@ const assert = require('node:assert/strict');
 const {
   parseFilters,
   buildWhere,
-  validateCheckpoint,
 } = require('./cashbookFilters');
 const now = new Date('2026-10-06T03:00:00Z');
 test('mặc định cả chứng từ/trạng thái và năm theo VN', () => {
@@ -99,59 +98,11 @@ test('tìm mã phiếu và ghi chú là tham số ILIKE đã escape', () => {
   assert.deepEqual(buildWhere(parseFilters({}, now)).params.length, 4);
   assert.throws(() => parseFilters({ code: 'x'.repeat(201) }, now), /quá dài/);
 });
-test('ngày custom inclusive VN; timestamp preview chính xác', () => {
-  const f = parseFilters(
-    { from: '2026-10-01', to: '2026-10-02', at: '2026-10-02T10:30:01+07:00' },
-    now,
-  );
+test('ngày custom inclusive VN', () => {
+  const f = parseFilters({ from: '2026-10-01', to: '2026-10-02' }, now);
   assert.equal(f.to, '2026-10-02T16:59:59.999Z');
-  assert.equal(f.at, '2026-10-02T03:30:01.000Z');
-});
-test('checkpoint validates single fund, money, date and note', () => {
-  for (const body of [
-    { fund: 'all', checkpointAt: now.toISOString(), balance: 1 },
-    { fund: 'cash', checkpointAt: '2026-10-07T00:00:00Z', balance: 1 },
-    { fund: 'cash', checkpointAt: now.toISOString(), balance: '1abc' },
-    { fund: 'cash', checkpointAt: '2026-02-30T00:00:00Z', balance: 1 },
-    { fund: 'cash', checkpointAt: now.toISOString(), balance: null },
-    { fund: 'cash', checkpointAt: now.toISOString(), balance: Infinity },
-  ])
-    assert.throws(
-      () => validateCheckpoint(body, now),
-      (e) => e.statusCode === 400,
-    );
-  assert.equal(
-    validateCheckpoint(
-      {
-        fund: '-1',
-        checkpointAt: now.toISOString(),
-        balance: '-12.50',
-        note: 'x',
-      },
-      now,
-    ).balance,
-    -12.5,
+  assert.throws(
+    () => parseFilters({ at: '2026-10-02T03:30:01Z' }, now),
+    (e) => e.statusCode === 400,
   );
 });
-test('null, array body, unknown body fields rejected400', () => {
-  for (const body of [
-    null,
-    [],
-    {
-      fund: 'cash',
-      checkpointAt: now.toISOString(),
-      balance: 1,
-      nonsense: true,
-    },
-  ])
-    assert.throws(
-      () => validateCheckpoint(body, now),
-      (e) => e.statusCode === 400,
-    );
-});
-test('timestamp tolerates a client clock a few seconds ahead but not minutes', () => {
-  const now = new Date('2026-10-06T08:40:00Z');
-  assert.equal(parseFilters({ at: '2026-10-06T08:40:05.000Z' }, now).at, '2026-10-06T08:40:05.000Z');
-  assert.throws(() => parseFilters({ at: '2026-10-06T08:43:00.000Z' }, now), /tương lai/);
-});
-

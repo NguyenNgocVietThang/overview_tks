@@ -2,11 +2,7 @@
 const express = require('express');
 const { requireAuth, requireFeature } = require('../auth/authMiddleware');
 const { createRepository } = require('./cashbookRepository');
-const {
-  parseFilters,
-  validateCheckpoint,
-  invalid,
-} = require('./cashbookFilters');
+const { parseFilters, invalid } = require('./cashbookFilters');
 const {
   createExportFile,
   selectedColumns,
@@ -19,8 +15,7 @@ function createCashbookRouter({ repository = createRepository() } = {}) {
     res.set('Cache-Control', 'no-store');
     next();
   });
-  const view = [requireAuth, requireFeature('cashbook.view')],
-    manage = [requireAuth, requireFeature('cashbook.manage')];
+  const view = [requireAuth, requireFeature('cashbook.view')];
   function handle(fn) {
     return async (req, res) => {
       try {
@@ -59,36 +54,6 @@ function createCashbookRouter({ repository = createRepository() } = {}) {
     }),
   );
   router.get(
-    '/checkpoints',
-    ...view,
-    handle(async (req, res) =>
-      res.json(await repository.checkpoints(parseFilters(req.query))),
-    ),
-  );
-  router.post(
-    '/checkpoints',
-    ...manage,
-    handle(async (req, res) => {
-      validateCheckpoint(req.body);
-      const by = req.user.username || String(req.user.id || '');
-      if (!by) throw new Error('Thiếu danh tính người chốt.');
-      res
-        .status(201)
-        .json({ checkpoint: await repository.insertCheckpoint(req.body, by) });
-    }),
-  );
-  router.put(
-    '/accounts/:id/bank',
-    ...manage,
-    handle(async (req, res) => {
-      const by = req.user.username || String(req.user.id || '');
-      if (!by) throw new Error('Thiếu danh tính người cập nhật.');
-      res.json(
-        await repository.setAccountBank(req.params.id, req.body && req.body.bank, by),
-      );
-    }),
-  );
-  router.get(
     '/export',
     ...view,
     handle(async (req, res) => {
@@ -106,7 +71,11 @@ function createCashbookRouter({ repository = createRepository() } = {}) {
         if (r.total > MAX_EXPORT_ROWS) throw tooManyRows();
         rows = r[which];
       }
-      const file = await createExportFile(which, format, rows, columns);
+      const day = (iso) =>
+        new Date(+new Date(iso) + 7 * 3600000).toISOString().slice(0, 10).split('-').reverse().join('/');
+      const file = await createExportFile(which, format, rows, columns, {
+        period: `${day(f.from)} – ${day(f.to)}`,
+      });
       res.set('Content-Type', file.mimeType);
       res.set('Content-Disposition', `attachment; filename="${file.fileName}"`);
       res.send(file.buffer);

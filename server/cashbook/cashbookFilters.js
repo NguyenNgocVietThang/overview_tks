@@ -38,34 +38,6 @@ function day(value) {
     throw invalid('Ngày không hợp lệ.');
   return +d - 7 * 3600000;
 }
-const CLOCK_SKEW_MS = 2 * 60 * 1000;
-function timestamp(value, now = new Date()) {
-  scalar(value, 'thời điểm');
-  if (
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(
-      value,
-    )
-  )
-    throw invalid('Thời điểm cần ISO có múi giờ.');
-  day(value.slice(0, 10));
-  const time = value.slice(11, 19).split(':').map(Number);
-  if (
-    time[0] > 23 ||
-    time[1] > 59 ||
-    time[2] > 59 ||
-    (/[+-]/.test(value.slice(19)) &&
-      /([+-])(\d{2}):(\d{2})$/
-        .exec(value)
-        .slice(2)
-        .some((x, i) => Number(x) > (i === 0 ? 23 : 59)))
-  )
-    throw invalid('Thời điểm không hợp lệ.');
-  const d = new Date(value);
-  // Đồng hồ máy người dùng thường chạy nhanh vài giây so với máy chủ; cho lệch tối đa 2 phút.
-  if (!Number.isFinite(+d) || +d > +now + CLOCK_SKEW_MS)
-    throw invalid('Thời điểm không hợp lệ hoặc nằm trong tương lai.');
-  return d.toISOString();
-}
 function text(value, key) {
   if (value === undefined) return '';
   const s = scalar(value, key).trim();
@@ -101,7 +73,6 @@ function parseFilters(query = {}, now = new Date()) {
     'note',
     'page',
     'pageSize',
-    'at',
   ];
   for (const k of Object.keys(query))
     if (!keys.includes(k)) throw invalid(`Tham số ${k} không được hỗ trợ.`);
@@ -175,7 +146,6 @@ function parseFilters(query = {}, now = new Date()) {
     fund: parseFund(query.fund),
     from: new Date(from).toISOString(),
     to: new Date(to).toISOString(),
-    at: query.at === undefined ? null : timestamp(query.at, now),
     docTypes: list(query.docTypes, 'docTypes', (x) =>
       ['receipt', 'payment'].includes(x),
     ) ?? ['receipt', 'payment'],
@@ -273,44 +243,10 @@ function buildWhere(
   }
   return { sql: parts.length ? parts.join(' AND ') : 'TRUE', params };
 }
-function validateCheckpoint(body = {}, now = new Date()) {
-  if (
-    !body ||
-    typeof body !== 'object' ||
-    Array.isArray(body) ||
-    Object.keys(body).some(
-      (k) => !['fund', 'checkpointAt', 'balance', 'note'].includes(k),
-    )
-  )
-    throw invalid('Thông tin chốt số dư không hợp lệ.');
-  const fund = parseFund(body.fund);
-  if (fund !== 'cash' && (!Array.isArray(fund) || fund.length !== 1))
-    throw invalid('Chọn đúng một quỹ để chốt.');
-  const v = body.balance;
-  if (
-    (typeof v !== 'number' && typeof v !== 'string') ||
-    (typeof v === 'string' &&
-      (!/^-?\d+(?:\.\d+)?$/.test(v) || v.length > 100)) ||
-    !Number.isFinite(Number(v)) ||
-    Math.abs(Number(v)) > Number.MAX_SAFE_INTEGER
-  )
-    throw invalid('Số dư phải là số hợp lệ.');
-  const note = body.note === undefined ? '' : scalar(body.note, 'note').trim();
-  if (note.length > 2000) throw invalid('Ghi chú tối đa 2.000 ký tự.');
-  return {
-    fund: fund === 'cash' ? 'cash' : fund[0],
-    accountId: fund === 'cash' ? null : fund[0],
-    checkpointAt: timestamp(body.checkpointAt, now),
-    balance: Number(v),
-    balanceText: String(v),
-    note,
-  };
-}
 module.exports = {
   parseFilters,
   parseFund,
   buildWhere,
-  validateCheckpoint,
   invalid,
   raw,
 };
