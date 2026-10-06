@@ -164,7 +164,7 @@ Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng 
 
 ## Cập nhật gần nhất
 
-2026-10-06 — Thêm trang Sổ quỹ `public/cashbook/` và kiểm thử frontend cho bộ lọc, hash, tiền, thời điểm chốt, stale response, drawer/dialog và xuất file. Chưa xác nhận nghiệm thu trình duyệt hoặc triển khai production.
+2026-10-06 — Thêm trang Sổ quỹ `public/cashbook/` và kiểm thử frontend cho bộ lọc, hash, tiền, thời điểm chốt, stale response, drawer/dialog và xuất file. Đã nghiệm thu trên trình duyệt với PGlite cục bộ; hướng dẫn vận hành ở [docs/cashbook-setup.md](../docs/cashbook-setup.md). Chưa áp migration hoặc triển khai production.
 
 2026-10-06 — Thêm backend Sổ quỹ và kiểm thử số dư/SQL/giao dịch trên PGlite cục bộ. Không xác nhận đã áp migration hoặc triển khai production.
 

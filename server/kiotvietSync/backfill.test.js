@@ -196,6 +196,21 @@ test('backfillEntity tra loi cua 1 entity khong chan runWithConcurrencyLimit cha
 test('ENTITY_ORDER dung thu tu khoi luong tang dan da chot trong ke hoach', () => {
   assert.deepEqual(ENTITY_ORDER, ['categories', 'customers', 'products', 'returns', 'purchases', 'cash_flows', 'orders', 'invoices']);
 });
+test('manual bank account sync resolves CLI entity name and both retailer plans', () => {
+  const entities = require('./backfill').loadEntityModules();
+  assert.equal(entities.cash_book_accounts.endpoint, 'bankaccounts');
+  const plan = buildRunPlan({
+    branches: [{ branch: 'hanoi' }, { branch: 'saigon' }],
+    entityNames: ['cash_book_accounts'],
+    fromDate: new Date('2026-01-01T00:00:00Z'),
+    now: new Date('2026-10-06T00:00:00Z'),
+    entityModules: entities
+  });
+  assert.deepEqual(plan.map(row => [row.branch, row.entity, row.chunkKeys]), [
+    ['hanoi', 'cash_book_accounts', ['full']],
+    ['saigon', 'cash_book_accounts', ['full']]
+  ]);
+});
 
 test('parseArgs: mac dinh dry-run (execute=false), --execute moi bat che do chay that', () => {
   const defaults = parseArgs([]);

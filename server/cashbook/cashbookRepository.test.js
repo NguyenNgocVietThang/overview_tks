@@ -111,6 +111,21 @@ test('window runs full fund timeline before status/date and pagination; ties det
   const narrow = await repo.entries(f({ fund: '7', docTypes: 'payment' }));
   assert.equal(narrow.entries[0].runningBalance, null);
 });
+test('selected-fund export computes checkpoint anchors once per query', async () => {
+  let exportQuery;
+  const measured = createRepository({
+    query: async (sql, params) => {
+      if (sql.includes('SELECT * FROM filtered ORDER BY'))
+        exportQuery = { sql, params };
+      return db.query(sql, params);
+    },
+  }, { now: () => now });
+  await measured.entries(f({ fund: '7' }), { exportLimit: 20001 });
+  const plan = (await db.query(`EXPLAIN ${exportQuery.sql}`, exportQuery.params))
+    .rows.map((row) => row['QUERY PLAN']).join('\n');
+  assert.match(plan, /CTE checkpoint_anchors/);
+  assert.match(plan, /CTE Scan on checkpoint_anchors/);
+});
 test('group name missing ID kept and parameterized filters match real SQL', async () => {
   const opts = await repo.filterOptions();
   assert.equal(opts.groups[0].label, "Tên ' nhóm");

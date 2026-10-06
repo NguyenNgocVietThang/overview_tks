@@ -134,7 +134,7 @@ function createRepository(pool = getPool(), { now = () => new Date() } = {}) {
             SUM(CASE WHEN status IS DISTINCT FROM 1 THEN COALESCE(amount,0) ELSE 0 END)
               OVER(ORDER BY trans_date,id,branch ROWS UNBOUNDED PRECEDING) cum
           FROM cash_flows WHERE account_id IS NOT DISTINCT FROM ${acc}
-        ), checkpoint_anchors AS (
+        ), checkpoint_anchors AS MATERIALIZED (
           SELECT cp.*, COALESCE((
             SELECT SUM(amount) FROM cash_flows a
             WHERE a.account_id IS NOT DISTINCT FROM ${acc}

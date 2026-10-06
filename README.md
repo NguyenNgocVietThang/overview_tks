@@ -94,6 +94,8 @@ Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để b
 
 ## Cập nhật gần nhất
 
+2026-10-06 — Sổ quỹ đã được kiểm chứng tích hợp trên PGlite cục bộ và trình duyệt desktop/mobile; hướng dẫn áp migration, đồng bộ danh mục và chốt ban đầu ở [docs/cashbook-setup.md](docs/cashbook-setup.md). Chưa áp migration hoặc triển khai production.
+
 2026-10-06 — Frontend Sổ quỹ tại `/cashbook/`: bộ lọc lưu trên URL, số dư toàn công ty, sổ chi tiết và lịch sử chốt phân trang; preview chốt theo giờ Việt Nam và xuất Excel/HTML chọn cột. Giao diện sáng/tối, ngăn kéo bộ lọc trên điện thoại. Kiểm thử logic trích từ HTML; nghiệm thu trình duyệt và triển khai production thực hiện ở bước sau.
 
 2026-10-06 — Quyền và điều hướng Sổ quỹ: `cashbook.view` và `cashbook.manage` mặc định chỉ Quản lý; quyền chốt phụ thuộc quyền xem. Mục cấp 1 "Sổ quỹ" hiện ngay dưới Quản lý nhân sự theo quyền xem, dùng chung quy tắc bảo vệ `/cashbook/` ở server và client, không phụ thuộc cơ sở.

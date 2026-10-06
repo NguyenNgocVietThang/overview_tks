@@ -1,6 +1,6 @@
 # Sổ quỹ (Cash book) — Thiết kế & hướng dẫn triển khai cho agent
 
-Ngày: 2026-10-06 · Trạng thái: đã duyệt thiết kế, chưa triển khai
+Ngày: 2026-10-06 · Trạng thái: đã triển khai và kiểm chứng cục bộ; migration `0033` và deploy production còn chờ
 
 ## 1. Mục tiêu
 

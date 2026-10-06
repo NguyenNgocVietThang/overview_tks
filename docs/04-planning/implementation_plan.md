@@ -1,6 +1,6 @@
 # Implementation plan hiện tại
 
-Cập nhật: 2026-10-05 (khớp code tại HEAD `11751c4`; migration `0001`–`0030`).
+Cập nhật: 2026-10-06 (Sổ quỹ đã kiểm chứng cục bộ; migration `0033`/deploy production còn chờ). Các mục cũ bên dưới vẫn mô tả trạng thái tại 05/10.
 
 ## Kiến trúc đã triển khai
 
@@ -20,6 +20,7 @@ Cập nhật: 2026-10-05 (khớp code tại HEAD `11751c4`; migration `0001`–`
 14. **Tài khoản** (2026-10-03): tự đăng ký bị khóa (`ALLOW_SELF_REGISTRATION`), ID Telegram lưu trong một giao dịch đồng bộ `app_users`/`hr_telegram_links`/`hr_employees` và chỉ Quản lý được sửa; trang Quản lý người dùng nhập hộ ID.
 15. **Nghỉ phép (web)**: gỡ trạng thái `Tạm duyệt` (migration `0030`), bảng nghỉ phép có phân trang, lịch nghỉ phép cạnh chuông thông báo (quyền `hr.leave`). Đơn xin nghỉ do bot ngoài repo ghi trực tiếp; web chỉ nhập tay "Tự ý nghỉ" và duyệt.
 16. **Bảo mật hồ sơ & dọn API** (2026-10-05, chưa commit): hồ sơ cá nhân không tự đổi email/SĐT (TK nhân sự chỉ Quản lý đổi; TK thường đổi email qua OTP gửi tới email mới — `/api/auth/profile/contact-change`); TK đã gắn dòng nhân sự không tự nhảy sang dòng khác. Gỡ API không còn dùng: `GET /api/search`, `GET /api/customer-product-top`, export `search.results`, `/api/auth/register/{channels,send-otp,verify}`, `GET /api/hr/telegram/link-status`, `POST /api/shipment/lifecycle/lookup`; gỡ trường payload dashboard không hiển thị (KPI "hôm nay", `activeProducts`, `stockByCategory`…, bộ lọc `ov*`). Không migration.
+17. **Sổ quỹ** (06/10): `cash_flows` và `cash_book_accounts` từ KiotViet, mốc chốt `cash_book_checkpoints` ở migration `0033`; trang `/cashbook/` gộp hai cơ sở, số dư/chi tiết/lịch sử chốt, lọc và xuất Excel/HTML. Code và kiểm thử cục bộ hoàn tất; cần áp migration ngoài giờ cao điểm, đồng bộ danh mục, chốt số dư ban đầu và đối chiếu sao kê trước khi dùng production. Xem [hướng dẫn](../cashbook-setup.md).
 
 ## Bot Telegram quản lý nghỉ phép — kế hoạch đã duyệt 02/10/2026
 

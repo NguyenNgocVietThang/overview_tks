@@ -32,6 +32,7 @@ function loadEntityModules() {
     returns: require('./entities/returns'),
     purchases: require('./entities/purchases'),
     cash_flows: require('./entities/cashFlows'),
+    cash_book_accounts: require('./entities/bankAccounts'),
     product_on_hands: require('./entities/productOnHands')
   };
 }

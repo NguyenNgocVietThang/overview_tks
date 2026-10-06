@@ -39,7 +39,7 @@ function buildBackfillPlan(entityModule, { fromDate, now }) {
     return chunks;
   }
 
-  if (entityModule.hasUpperBound === false) {
+  if (entityModule.hasUpperBound === false && entityModule.incrementalParam) {
     return [{ chunkKey: 'full', query: { ...baseQuery, [entityModule.incrementalParam]: fromDate.toISOString() } }];
   }
 

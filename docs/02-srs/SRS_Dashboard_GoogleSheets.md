@@ -9,9 +9,9 @@
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                          |
 | Phiên bản          | 3.0                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 05/10/2026                                                 |
+| Ngày cập nhật      | 06/10/2026                                                 |
 | Tài liệu liên quan | BRD v2.2 · BPMN v3.0 · Implementation Plan (cập nhật 05/10/2026) · CSNS-NP-01 (Chính sách nghỉ phép) · `server/db/SCHEMA.md` · Design System MASTER (mục 7 — ràng buộc hiệu năng) |
-| Trạng thái         | Khớp code tại HEAD `11751c4` (migration `0001`–`0030`). Bộ kiểm thử ghi nhận 05/10/2026 (Node 24.19.0 cục bộ; `engines` là 22.x): **1.704 test, 1.701 đạt, 0 lỗi, 3 bỏ qua** (3 test migration integration chỉ chạy khi có `SUPABASE_TEST_DB_URL`). Chưa xác nhận trạng thái deploy production. |
+| Trạng thái         | Nội dung nền rà soát tại HEAD `11751c4` (05/10); FR-15 Sổ quỹ bổ sung và kiểm chứng cục bộ 06/10. Migration `0033` và deploy production còn chờ. Số kiểm thử 1.704/1.701/0/3 là mốc lịch sử 05/10. |
 
 > **Ghi chú v3.0 (05/10/2026):** viết lại để khớp code hiện tại. Đã loại các mô tả thuộc thời Apps Script/Google Sheets (schema 9 tab, `Trả NCC` trên Sheets, webhook qua Apps Script, API vận chuyển `/api/shipment/orders`, `/api/hr/leave/*`, `/api/auth/request-reset-otp`…) vì không còn tồn tại; cập nhật theo mô hình "Cả hai" là bộ lọc xem, Báo cáo tổng hợp tải theo tab, bộ lọc Từ–Đến theo từng bảng, Vòng đời đơn hàng hợp nhất đơn KiotViet, Vị trí hàng, khóa tự đăng ký, ID Telegram do Quản lý quản lý, bot Telegram cho quản lý. Tên file giữ `…_GoogleSheets.md` vì lý do lịch sử.
 
@@ -345,6 +345,14 @@ Lớp hiệu ứng 3D và giám sát hiệu năng thích ứng đã gỡ bỏ v�
 | FR-14.6 | Xuất Excel `POST /api/shipment/lifecycle/export` (quyền `shipment.export`, mặc định chỉ Quản lý) nhận chính bộ lọc/sắp xếp của GET (không `page`), xuất mọi dòng khớp, tối đa 20.000 dòng (vượt → 400 `TOO_MANY_ROWS`), có cột Ghi chú và Trạng thái KiotViet. | Cao | Hoàn thành |
 | FR-14.7 | Mặc định vai trò có `shipment.lifecycle`: mọi vai trò nội bộ trừ Nhân viên kho, marketing, mua hàng; Khách không có. Mục sidebar "Vòng đời đơn hàng" chỉ hiện khi có quyền này. | Cao | Hoàn thành |
 
+## 3.15. FR-15: Sổ quỹ
+
+| **Mã** | **Mô tả** | **Ưu tiên** | **Trạng thái** |
+|---|---|---|---|
+| FR-15.1 | `/cashbook/` gộp phiếu HN/SG, quỹ ngân hàng và Tiền mặt; số dư từ mốc chốt gần nhất cộng phiếu sau mốc, bỏ phiếu hủy, quỹ chưa chốt hiện `Chưa chốt`. Không dùng cookie cơ sở. | Cao | Code/kiểm thử cục bộ hoàn tất; chờ migration/deploy |
+| FR-15.2 | Quản lý có `cashbook.view`/`cashbook.manage` mặc định; bộ lọc ngày giờ VN, phiếu, nhóm, trạng thái, hạch toán, người tạo, nhân viên, đối tác/SĐT; sổ chi tiết phân trang và số dư lũy kế khi đủ điều kiện. | Cao | Code/kiểm thử cục bộ hoàn tất |
+| FR-15.3 | Chốt số dư trong transaction, xem lịch sử và số chênh lệch; xuất ba bảng Excel/HTML với cột chọn trước, tối đa 20.000 dòng. Migration `0033` và đồng bộ `cash_book_accounts` phải hoàn tất trước khi chốt ban đầu. | Cao | Code/kiểm thử cục bộ hoàn tất; chờ migration/deploy |
+
 # 4. Yêu cầu phi chức năng (Non-functional Requirements)
 
 | **Mã** | **Hạng mục**         | **Mô tả yêu cầu**                                                                                                                               |
@@ -480,6 +488,7 @@ Mọi API (trừ `health`, webhook, `auth/login`, quên mật khẩu, `google-co
 ## 6.7. API Vòng đời đơn hàng, Vị trí hàng, Đồng bộ
 
 - `/api/shipment/lifecycle/*` — xem FR-14 (GET `/`, GET `/history`, GET `/order-detail`, GET `/:orderCode`, POST `/:orderCode/override`, POST `/export`).
+- `/api/cashbook/*` — xem FR-15 (GET `summary`, `entries`, `filter-options`, `checkpoints`, `export`; POST `checkpoints`).
 - `GET /api/stock-locations?branch=HN|SG` — xem FR-13.2.
 - `POST /api/kiotviet/webhook/:secret` (và đường dẫn cũ không secret) — xem FR-06.2; `GET /api/internal/kiotviet-sync/status` (`system.syncStatus`).
 - `POST /api/client-log` — nhận log lỗi từ trình duyệt.

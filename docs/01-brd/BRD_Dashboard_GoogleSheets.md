@@ -9,9 +9,9 @@
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Supabase PostgreSQL → Web; Google Sheets bổ trợ) |
 | Phiên bản         | 2.2                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 05/10/2026                                                          |
+| Ngày cập nhật     | 06/10/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo, nhân viên nội bộ công ty                              |
-| Trạng thái        | Khớp code tại HEAD `11751c4` (migration `0001`–`0030`; 1.704 test, 0 lỗi, 3 bỏ qua ghi nhận 05/10/2026). Chưa xác nhận trạng thái triển khai production. |
+| Trạng thái        | Nội dung nền rà soát tại HEAD `11751c4` (05/10); bổ sung Sổ quỹ đã kiểm chứng cục bộ 06/10, migration `0033` và deploy production còn chờ. |
 
 > **Ghi chú phiên bản 2.2 (05/10/2026):** rà soát lại toàn bộ theo code. Loại các nội dung đã lỗi thời: tab `Trả NCC` đọc từ Google Sheets (nay upload Excel vào Postgres), tab Nhà cung cấp và KPI nhà cung cấp/nhập hàng (đã gỡ), bộ lọc 7/30/90 ngày và tự làm mới 10 phút (nay bộ lọc Từ–Đến theo từng bảng và cập nhật bằng SSE), đăng nhập theo tab `Users`, Khách tự đăng ký (nay khóa), workbook HR (không còn đọc). Bổ sung Vị trí hàng, Vòng đời đơn hàng hợp nhất đơn KiotViet, quản lý ID Telegram và phân quyền theo tính năng.
 
@@ -45,6 +45,7 @@ Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (5 tab), Quản lý c
 - **Phân hệ nghỉ phép:** tự gửi trên web từ hồ sơ HR hoạt động hoặc bot nhân viên ngoài repo; người được cấp quyền duyệt theo phòng ban/cơ sở. Web có lịch nghỉ phép.
 - **Vòng đời đơn hàng:** xem mọi đơn đặt hàng KiotViet cùng trạng thái vòng đời từ Google Sheet; lọc, sắp xếp, phân trang ở máy chủ.
 - **Vị trí hàng:** tra cứu vị trí hàng HN/SG từ workbook Google Sheets dùng chung.
+- **Sổ quỹ:** Quản lý xem số dư tài khoản ngân hàng và Tiền mặt, sổ phiếu thu chi gộp HN/SG, chốt số dư theo sao kê và xuất Excel/HTML. Code đã kiểm chứng cục bộ; cần migration `0033`, đồng bộ danh mục và chốt ban đầu trước khi dùng production.
 - **Tài khoản và phân quyền theo tính năng** theo vai trò, Quản lý ghi đè từng tài khoản; ID Telegram do Quản lý quản lý.
 - Kiến trúc mô-đun, dễ mở rộng theo lộ trình dài hạn.
 
@@ -57,7 +58,7 @@ Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (5 tab), Quản lý c
   - **Google Sheets:** Bảng Công nợ (`DEBT_MANAGEMENT_SPREADSHEET_ID`, chỉ đọc); Vòng đời đơn hàng (`ORDER_LIFECYCLE_SPREADSHEET_ID`, đọc `DonHang_HN`/`DonHang_SG`, ghi tab `Lịch sử cập nhật`); Vị trí hàng (`STOCK_LOCATIONS_SPREADSHEET_ID`, chỉ đọc).
 - **Báo cáo tổng hợp (5 tab):** Tổng quan (Xu hướng, Báo cáo doanh thu theo khách, Báo cáo hàng hóa, Kiểm tra đứt hàng), Hàng hóa (Cơ cấu tồn kho, Phân tích, Tất cả mã hàng, Hàng mới nhập, Mã mới tạo), Hóa đơn (Chi tiết giao dịch), Khách hàng (Top khách theo doanh thu, Phân tích công nợ), Quản lý công nợ.
 - **Màn hình Quản lý công nợ:** kết hợp Bảng Công nợ, đối chiếu CN1/CN3/CN7 và trạng thái xử lý lưu trong PostgreSQL.
-- **Vòng đời đơn hàng, Vị trí hàng, Quản lý nhân sự (Quy định công ty, Danh sách nhân sự, Nghỉ phép), Quản lý tài khoản.**
+- **Vòng đời đơn hàng, Vị trí hàng, Sổ quỹ, Quản lý nhân sự (Quy định công ty, Danh sách nhân sự, Nghỉ phép), Quản lý tài khoản.**
 - **Cập nhật dữ liệu dashboard** bằng nút "Làm mới", SSE `dashboard-updated` và tải bù khi quay lại tab trình duyệt.
 - **Đồng bộ tự động** KiotViet → Supabase (polling; webhook chỉ lưu thô).
 - **Xác thực & phân quyền:** đăng nhập tài khoản trong `app_users` (kể cả Google Sign-In cho tài khoản đã có), phân quyền theo tính năng; tự đăng ký tài khoản mới đang **khóa**.
