@@ -89,6 +89,13 @@ test('closing KPI is the real fund balance even when display filters narrow rece
   assert.equal(none.kpis.totalReceipts, 0);
   assert.equal(none.kpis.closingBalance, 75);
 });
+test('code and note search narrow entries and disable running balance', async () => {
+  const byCode = await repo.entries(f({ fund: '7', code: 'p2' }));
+  assert.deepEqual(byCode.entries.map((row) => row.code), ['P2']);
+  assert.equal(byCode.runningBalanceAvailable, false);
+  assert.equal((await repo.entries(f({ note: 'NOT' }))).total > 0, true);
+  assert.equal((await repo.entries(f({ note: 'khong-co' }))).total, 0);
+});
 test('preview uses exact timestamp and ignores cancelled display filter', async () => {
   const s = await repo.summary(
     f({ fund: '7', at: '2026-10-03T00:00:00Z', statuses: 'cancelled' }),

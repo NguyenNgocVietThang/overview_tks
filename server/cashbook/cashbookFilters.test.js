@@ -87,6 +87,18 @@ test('tên nhóm và tìm đối tác là tham số, không thành SQL', () => {
   assert.ok(w.params.includes(needle));
   assert.ok(w.params.includes('%123\\%%'));
 });
+test('tìm mã phiếu và ghi chú là tham số ILIKE đã escape', () => {
+  const f = parseFilters({ code: ' PT_1 ', note: "a' OR TRUE --" }, now);
+  assert.equal(f.code, 'PT_1');
+  const w = buildWhere(f);
+  assert.match(w.sql, /c\.code ILIKE \$\d+/);
+  assert.match(w.sql, /c\.description ILIKE \$\d+/);
+  assert.ok(!w.sql.includes('OR TRUE'));
+  assert.ok(w.params.includes('%PT\\_1%'));
+  assert.ok(w.params.includes("%a' OR TRUE --%"));
+  assert.deepEqual(buildWhere(parseFilters({}, now)).params.length, 4);
+  assert.throws(() => parseFilters({ code: 'x'.repeat(201) }, now), /quá dài/);
+});
 test('ngày custom inclusive VN; timestamp preview chính xác', () => {
   const f = parseFilters(
     { from: '2026-10-01', to: '2026-10-02', at: '2026-10-02T10:30:01+07:00' },

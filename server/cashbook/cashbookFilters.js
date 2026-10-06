@@ -95,6 +95,8 @@ function parseFilters(query = {}, now = new Date()) {
     'staff',
     'partnerQ',
     'partnerPhone',
+    'code',
+    'note',
     'page',
     'pageSize',
     'at',
@@ -184,6 +186,8 @@ function parseFilters(query = {}, now = new Date()) {
     staff: list(query.staff, 'staff', id),
     partnerQ: text(query.partnerQ, 'partnerQ'),
     partnerPhone: text(query.partnerPhone, 'partnerPhone'),
+    code: text(query.code, 'code'),
+    note: text(query.note, 'note'),
     page: integer(query.page, 'page', 1, 1000000),
     pageSize: integer(query.pageSize, 'pageSize', 100, 200),
   };
@@ -261,6 +265,9 @@ function buildWhere(
       parts.push(
         `${raw(alias, 'ContactNumber', 'contactNumber')} ILIKE ${add(like(f.partnerPhone))}`,
       );
+    // O tim kiem cua bang So chi tiet (ma phieu / ghi chu).
+    if (f.code) parts.push(`${alias}.code ILIKE ${add(like(f.code))}`);
+    if (f.note) parts.push(`${alias}.description ILIKE ${add(like(f.note))}`);
   }
   return { sql: parts.length ? parts.join(' AND ') : 'TRUE', params };
 }

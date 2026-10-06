@@ -47,7 +47,9 @@ function eligible(f) {
     f.staff === null &&
     f.accounting === 'all' &&
     !f.partnerQ &&
-    !f.partnerPhone
+    !f.partnerPhone &&
+    !f.code &&
+    !f.note
   );
 }
 function createRepository(pool = getPool(), { now = () => new Date() } = {}) {
