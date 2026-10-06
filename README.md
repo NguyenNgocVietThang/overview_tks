@@ -76,6 +76,7 @@ server/
 ├── lib/                  # Thư viện tiện ích nội bộ (TTL cache, ...)
 ├── notifications/        # Chuông thông báo + gửi email OTP
 ├── public/               # Frontend HTML/CSS/JS
+│   └── cashbook/         # Trang Sổ quỹ: bộ lọc/hash, số dư, chốt và xuất chọn cột
 ├── scripts/              # Script thủ công (migrate dữ liệu, cài đặt ban đầu)
 ├── sheets/               # Google Sheets client (Công nợ, Vòng đời, Vị trí hàng, lưu ý `hrSheetsClient.js` là mã chết chờ xóa tay)
 ├── stockLocations/       # Đọc vị trí hàng HN/SG, ánh xạ cột và API chỉ đọc
@@ -92,6 +93,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-06 — Frontend Sổ quỹ tại `/cashbook/`: bộ lọc lưu trên URL, số dư toàn công ty, sổ chi tiết và lịch sử chốt phân trang; preview chốt theo giờ Việt Nam và xuất Excel/HTML chọn cột. Giao diện sáng/tối, ngăn kéo bộ lọc trên điện thoại. Kiểm thử logic trích từ HTML; nghiệm thu trình duyệt và triển khai production thực hiện ở bước sau.
 
 2026-10-06 — Quyền và điều hướng Sổ quỹ: `cashbook.view` và `cashbook.manage` mặc định chỉ Quản lý; quyền chốt phụ thuộc quyền xem. Mục cấp 1 "Sổ quỹ" hiện ngay dưới Quản lý nhân sự theo quyền xem, dùng chung quy tắc bảo vệ `/cashbook/` ở server và client, không phụ thuộc cơ sở.
 

@@ -5,6 +5,7 @@ Express backend cho dashboard TOKOSI.
 ## Nguồn dữ liệu
 
 - Sổ quỹ: module `cashbook/` đọc `cash_flows`, `cash_book_accounts`, `cash_book_checkpoints`, `staff` và mốc `sync_checkpoints` cho toàn công ty. API `/api/cashbook/{summary,entries,filter-options,checkpoints,export}` bỏ qua cookie cơ sở; `POST checkpoints` chốt số dư trong transaction theo quỹ. Quyền đọc `cashbook.view`, chốt `cashbook.manage`; xuất xlsx/html chọn cột, tối đa 20.000 dòng. Không cache.
+  Frontend `public/cashbook/index.html` dùng theme/shared-nav chung, lọc trên URL hash (giữ danh sách rỗng), debounce tìm tên/ID và SĐT 300ms, ngăn kéo mobile, phân trang máy chủ và xuất chọn cột riêng từng bảng. Ngày/giờ theo Việt Nam; chốt có preview chính xác đến thời điểm chọn, chuỗi số dư thập phân gửi nguyên vẹn. `test/frontend/cashbook.test.js` trích script HTML để kiểm thử hành vi; không dùng DB production.
 
 - Vị trí hàng: workbook `STOCK_LOCATIONS_SPREADSHEET_ID`, hai sheet HN/SG dùng chung, chỉ đọc bằng service account. Module `stockLocations/` phục vụ `GET /api/stock-locations?branch=HN|SG`; frontend `/stock-locations/` hiển thị 6 cột (Mã hàng, Tên hàng, Tổng SL, Ghi chú hàng hóa, Ngày về, Vị trí), phân trang 100 dòng và tìm mã/tên/vị trí không dấu. Quyền `stockLocations.view` mặc định cho nhân viên, cấm cấp cho Khách. Không migration/job/tải định kỳ. Xem [thiết lập nguồn và nghiệm thu](../docs/stock-locations-setup.md).
 
@@ -162,6 +163,8 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng nền nghỉ phép trực tiếp; bot **quản lý** trong `telegram/` dùng chung đơn và sở hữu các bảng bổ sung ở migration `0029`. Hợp đồng dữ liệu ở `db/SCHEMA.md`.
 
 ## Cập nhật gần nhất
+
+2026-10-06 — Thêm trang Sổ quỹ `public/cashbook/` và kiểm thử frontend cho bộ lọc, hash, tiền, thời điểm chốt, stale response, drawer/dialog và xuất file. Chưa xác nhận nghiệm thu trình duyệt hoặc triển khai production.
 
 2026-10-06 — Thêm backend Sổ quỹ và kiểm thử số dư/SQL/giao dịch trên PGlite cục bộ. Không xác nhận đã áp migration hoặc triển khai production.
 

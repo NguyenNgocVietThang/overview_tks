@@ -1,0 +1,2022 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sổ quỹ · TOKOSI Dashboard</title>
+    <link rel="icon" type="image/jpeg" href="/Logo.jpg" />
+    <script>
+      try {
+        document.documentElement.dataset.theme =
+          localStorage.getItem("tks-dashboard-theme") === "light"
+            ? "light"
+            : "dark";
+      } catch (error) {
+        document.documentElement.dataset.theme = "dark";
+      }
+      document.documentElement.style.visibility = "hidden";
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="/shared/shared.css?v=20261002" />
+    <style>
+      .cashbook-content {
+        min-width: 0;
+        color: var(--text);
+      }
+      .cashbook-heading {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+        color: var(--canvas-text);
+      }
+      .cashbook-heading h2 {
+        margin: 0;
+        font: 700 24px var(--font-display);
+        letter-spacing: -0.02em;
+      }
+      .company-badge {
+        font-size: 12px;
+        padding: 6px 10px;
+        border: 1px solid var(--canvas-border);
+        border-radius: var(--radius-pill);
+      }
+      .cashbook-layout {
+        display: grid;
+        grid-template-columns: 250px minmax(0, 1fr);
+        gap: 20px;
+        align-items: start;
+      }
+      .cashbook-panel,
+      .cashbook-filters,
+      .cashbook-kpi {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--card-shadow);
+      }
+      .cashbook-filters {
+        padding: 16px;
+        min-width: 0;
+      }
+      .cashbook-results {
+        min-width: 0;
+        display: grid;
+        gap: 20px;
+      }
+      .cashbook-filter-head,
+      .cashbook-toolbar,
+      .cashbook-dialog-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .cashbook-filter-head h3,
+      .cashbook-toolbar h3,
+      .cashbook-dialog-head h3 {
+        margin: 0;
+        font: 600 16px var(--font-display);
+      }
+      .cashbook-filters fieldset {
+        border: 0;
+        padding: 16px 0;
+        margin: 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .cashbook-filters legend {
+        float: left;
+        width: 100%;
+        font-size: 13px;
+        font-weight: 700;
+        margin-bottom: 10px;
+      }
+      .cashbook-filters fieldset > div {
+        clear: both;
+      }
+      .cashbook-filters label,
+      .cashbook-dialog label {
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .cashbook-choices {
+        display: grid;
+        gap: 4px;
+      }
+      .cashbook-choices label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 32px;
+      }
+      .cashbook-choices input {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--blue);
+        flex-shrink: 0;
+      }
+      .cashbook-chips {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .cashbook-chips label {
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-pill);
+      }
+      .cashbook-chips label:has(input:checked) {
+        background: var(--accent-blue-12);
+        border-color: var(--blue);
+      }
+      .cashbook-options {
+        max-height: 170px;
+        overflow: auto;
+      }
+      .cashbook-field {
+        display: grid;
+        gap: 6px;
+        margin-top: 10px;
+      }
+      .cashbook-filters input:not([type="radio"]):not([type="checkbox"]),
+      .cashbook-filters select,
+      .cashbook-dialog input:not([type="checkbox"]),
+      .cashbook-dialog select,
+      .cashbook-dialog textarea {
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
+        min-height: 40px;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--panel-2);
+        color: var(--text);
+        font: 13px var(--font-body);
+      }
+      .cashbook-dialog textarea {
+        resize: vertical;
+        min-height: 80px;
+      }
+      .cashbook-button {
+        min-height: 40px;
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--panel-2);
+        color: var(--text);
+        font: 500 13px var(--font-body);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .cashbook-button.primary {
+        background: var(--primary);
+        color: var(--primary-text);
+        border-color: var(--primary);
+      }
+      .cashbook-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .cashbook-content :focus-visible,
+      .cashbook-dialog :focus-visible {
+        outline: 2px solid var(--blue);
+        outline-offset: 3px;
+      }
+      .cashbook-note {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .cashbook-sync {
+        margin: 0;
+        color: var(--canvas-text-muted);
+        font-size: 13px;
+      }
+      .cashbook-status {
+        margin: 0;
+        padding: 12px 16px;
+        background: var(--panel);
+        border-radius: var(--radius-sm);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .cashbook-status:empty {
+        display: none;
+      }
+      .cashbook-status[data-error="true"],
+      .negative,
+      .difference {
+        color: var(--red) !important;
+      }
+      .cashbook-kpis {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .cashbook-kpi {
+        padding: 16px;
+        min-width: 0;
+      }
+      .cashbook-kpi span {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+      .cashbook-kpi strong {
+        font: 600 20px var(--font-data);
+        overflow-wrap: anywhere;
+      }
+      .cashbook-toolbar {
+        padding: 16px;
+        flex-wrap: wrap;
+      }
+      .cashbook-scroll {
+        overflow: auto;
+        max-height: 65vh;
+        overscroll-behavior: contain;
+      }
+      .cashbook-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+        font-size: 13px;
+      }
+      .cashbook-table th,
+      .cashbook-table td {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+        white-space: pre-wrap;
+        min-width: 110px;
+        max-width: 300px;
+        overflow-wrap: anywhere;
+      }
+      .cashbook-table th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--panel-2);
+        font-size: 11px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+      .cashbook-table .money {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      #entriesTable {
+        min-width: 1700px;
+      }
+      #balancesTable {
+        min-width: 600px;
+      }
+      #checkpointsTable {
+        min-width: 1050px;
+      }
+      .cashbook-fund-button {
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: var(--blue);
+        font: 600 13px var(--font-body);
+        text-align: left;
+        cursor: pointer;
+        min-height: 32px;
+      }
+      #balancesBody tr:hover {
+        background: var(--surface-hover);
+      }
+      .cashbook-total,
+      .cashbook-table-note {
+        padding: 12px 16px;
+        font-size: 13px;
+        line-height: 1.6;
+        margin: 0;
+        color: var(--muted);
+      }
+      .cashbook-pager {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 12px 16px;
+        background: var(--panel-2);
+        font-size: 12px;
+        flex-wrap: wrap;
+      }
+      .cashbook-dialog {
+        box-sizing: border-box;
+        width: min(500px, calc(100vw - 32px));
+        max-height: 85vh;
+        overflow: auto;
+        padding: 20px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        background: var(--panel);
+        color: var(--text);
+        box-shadow: var(--shadow-modal);
+      }
+      .cashbook-dialog::backdrop {
+        background: var(--overlay-bg);
+      }
+      .cashbook-dialog-head {
+        margin-bottom: 16px;
+      }
+      .cashbook-dialog-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 20px;
+        flex-wrap: wrap;
+      }
+      #exportColumns {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4px 12px;
+        margin: 16px 0;
+      }
+      #exportColumns label {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        min-height: 40px;
+      }
+      #exportColumns input {
+        accent-color: var(--blue);
+        width: 16px;
+        height: 16px;
+      }
+      #checkpointPreview {
+        padding: 12px;
+        background: var(--panel-2);
+        border-radius: var(--radius-sm);
+        line-height: 1.7;
+        font-size: 13px;
+        margin: 16px 0 0;
+      }
+      #checkpointError,
+      #exportError {
+        font-size: 13px;
+        color: var(--red);
+        line-height: 1.6;
+      }
+      #filterToggle,
+      #filterClose,
+      .cashbook-filter-backdrop {
+        display: none;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      @media (max-width: 1100px) {
+        .cashbook-layout {
+          grid-template-columns: 220px minmax(0, 1fr);
+          gap: 16px;
+        }
+        .cashbook-kpis {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      @media (max-width: 760px) {
+        .cashbook-layout {
+          display: block;
+        }
+        .cashbook-content {
+          padding: 16px !important;
+        }
+        .cashbook-heading h2 {
+          font-size: 22px;
+        }
+        #filterToggle,
+        #filterClose {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .cashbook-heading #filterToggle {
+          margin-left: auto;
+        }
+        .cashbook-filters {
+          display: none;
+          position: fixed;
+          inset: 0 auto 0 0;
+          z-index: 2200;
+          width: min(320px, calc(100vw - 40px));
+          box-sizing: border-box;
+          overflow: auto;
+          border-radius: 0;
+          overscroll-behavior: contain;
+        }
+        .cashbook-filters.open {
+          display: block;
+        }
+        .cashbook-filter-backdrop.open {
+          display: block;
+          position: fixed;
+          inset: 0;
+          z-index: 2199;
+          background: var(--overlay-bg);
+        }
+        .cashbook-kpi {
+          padding: 12px;
+        }
+        .cashbook-kpi strong {
+          font-size: 18px;
+        }
+        .cashbook-toolbar {
+          padding: 12px;
+        }
+        .cashbook-table th,
+        .cashbook-table td {
+          padding: 10px;
+          font-size: 12px;
+        }
+        .cashbook-results {
+          gap: 16px;
+        }
+        .cashbook-heading {
+          gap: 10px;
+        }
+        .cashbook-button {
+          font-size: 12px;
+        }
+        .cashbook-dialog {
+          padding: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="receipt-header">
+      <div class="brand">
+        <button
+          class="menu-btn"
+          id="menuBtn"
+          type="button"
+          aria-label="Mở menu điều hướng"
+          aria-expanded="false"
+          aria-controls="sidebar"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
+            <path d="M4 6h16M4 12h16M4 18h16"></path>
+          </svg>
+        </button>
+        <div class="brand-mark">
+          <img src="/Logo.jpg" alt="TOKOSI Logo" width="44" height="44" />
+        </div>
+        <div class="brand-text"><h1>Tổng kho gia dụng Tokosi</h1></div>
+      </div>
+      <div class="status-line">
+        <button
+          class="theme-toggle"
+          id="themeToggle"
+          type="button"
+          aria-label="Chuyển chế độ giao diện"
+        >
+          <svg
+            class="theme-icon-sun"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="4"></circle>
+            <path d="M12 2v2M12 20v2M2 12h2M20 12h2"></path></svg
+          ><svg
+            class="theme-icon-moon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg
+          ><span id="themeLabel">Light mode</span>
+        </button>
+        <div class="account-chip" id="accountChip"></div>
+      </div>
+    </div>
+    <div class="shell">
+      <div class="backdrop" id="backdrop"></div>
+      <div class="sidebar" id="sidebar" data-tks-active-top="cashbook"></div>
+      <main class="content cashbook-content">
+        <div class="cashbook-heading">
+          <h2>Sổ quỹ</h2>
+          <span class="company-badge">Toàn công ty</span
+          ><button
+            class="cashbook-button"
+            id="filterToggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="cashbookFilters"
+          >
+            Bộ lọc
+          </button>
+        </div>
+        <div class="cashbook-layout">
+          <div class="cashbook-filter-backdrop" id="filterBackdrop"></div>
+          <aside
+            class="cashbook-filters"
+            id="cashbookFilters"
+            aria-labelledby="filtersTitle"
+          >
+            <div class="cashbook-filter-head">
+              <h3 id="filtersTitle">Bộ lọc</h3>
+              <button
+                class="cashbook-button"
+                id="filterClose"
+                type="button"
+                aria-label="Đóng bộ lọc"
+              >
+                ✕
+              </button>
+            </div>
+            <form id="filtersForm">
+              <fieldset>
+                <legend>Quỹ</legend>
+                <div>
+                  <div class="cashbook-choices">
+                    <label
+                      ><input
+                        type="radio"
+                        name="fundMode"
+                        value="all"
+                        checked
+                      />Tổng quỹ</label
+                    ><label
+                      ><input type="radio" name="fundMode" value="cash" />Tiền
+                      mặt</label
+                    ><label
+                      ><input type="radio" name="fundMode" value="bank" />Ngân
+                      hàng</label
+                    >
+                  </div>
+                  <div
+                    id="fundChoices"
+                    class="cashbook-choices cashbook-options"
+                    aria-label="Tài khoản ngân hàng"
+                  ></div>
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend>Thời gian</legend>
+                <div>
+                  <div class="cashbook-choices" id="preset">
+                    <label
+                      ><input type="radio" name="preset" value="today" />Hôm
+                      nay</label
+                    ><label
+                      ><input type="radio" name="preset" value="yesterday" />Hôm
+                      qua</label
+                    ><label
+                      ><input type="radio" name="preset" value="thisWeek" />Tuần
+                      này</label
+                    ><label
+                      ><input
+                        type="radio"
+                        name="preset"
+                        value="thisMonth"
+                      />Tháng này</label
+                    ><label
+                      ><input
+                        type="radio"
+                        name="preset"
+                        value="lastMonth"
+                      />Tháng trước</label
+                    ><label
+                      ><input
+                        type="radio"
+                        name="preset"
+                        value="thisYear"
+                        checked
+                      />Năm nay</label
+                    ><label
+                      ><input type="radio" name="preset" value="custom" />Tùy
+                      chỉnh</label
+                    >
+                  </div>
+                  <div id="customDates" hidden>
+                    <label class="cashbook-field"
+                      >Từ ngày<input id="from" name="from" type="date" /></label
+                    ><label class="cashbook-field"
+                      >Đến ngày<input id="to" name="to" type="date"
+                    /></label>
+                  </div>
+                  <p class="cashbook-note">
+                    Ngày và giờ theo Việt Nam (UTC+7).
+                  </p>
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend>Loại chứng từ</legend>
+                <div class="cashbook-choices">
+                  <label
+                    ><input
+                      name="docTypes"
+                      type="checkbox"
+                      value="receipt"
+                      checked
+                    />Phiếu thu</label
+                  ><label
+                    ><input
+                      name="docTypes"
+                      type="checkbox"
+                      value="payment"
+                      checked
+                    />Phiếu chi</label
+                  >
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend>Loại thu chi</legend>
+                <div
+                  id="groupChoices"
+                  class="cashbook-choices cashbook-options"
+                ></div>
+              </fieldset>
+              <fieldset>
+                <legend>Trạng thái</legend>
+                <div class="cashbook-choices">
+                  <label
+                    ><input
+                      name="statuses"
+                      type="checkbox"
+                      value="paid"
+                      checked
+                    />Đã thanh toán</label
+                  ><label
+                    ><input
+                      name="statuses"
+                      type="checkbox"
+                      value="cancelled"
+                      checked
+                    />Đã hủy</label
+                  >
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend>Hạch toán KQKD</legend>
+                <div class="cashbook-choices cashbook-chips">
+                  <label
+                    ><input
+                      name="accounting"
+                      type="radio"
+                      value="all"
+                      checked
+                    />Tất cả</label
+                  ><label
+                    ><input
+                      name="accounting"
+                      type="radio"
+                      value="yes"
+                    />Có</label
+                  ><label
+                    ><input
+                      name="accounting"
+                      type="radio"
+                      value="no"
+                    />Không</label
+                  >
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend>Người tạo</legend>
+                <div
+                  id="creatorChoices"
+                  class="cashbook-choices cashbook-options"
+                ></div>
+              </fieldset>
+              <fieldset>
+                <legend>Nhân viên</legend>
+                <div
+                  id="staffChoices"
+                  class="cashbook-choices cashbook-options"
+                ></div>
+              </fieldset>
+              <fieldset>
+                <legend>Người nộp/nhận</legend>
+                <div>
+                  <label class="cashbook-field"
+                    >Tên / ID đối tác<input
+                      id="partnerQ"
+                      name="partnerQ"
+                      type="search"
+                      autocomplete="off"
+                      placeholder="Tìm tên hoặc ID…" /></label
+                  ><label class="cashbook-field"
+                    >Số điện thoại<input
+                      id="partnerPhone"
+                      name="partnerPhone"
+                      type="search"
+                      inputmode="tel"
+                      autocomplete="off"
+                      placeholder="Tìm số điện thoại…"
+                  /></label>
+                </div>
+              </fieldset>
+              <p class="cashbook-note">
+                Chưa có dữ liệu công nợ và mã đối tác; loại đối tác chưa được
+                xác minh nên các bộ lọc này chưa hiển thị.
+              </p>
+              <button
+                class="cashbook-button"
+                id="resetFilters"
+                type="button"
+                style="margin-top: 16px; width: 100%"
+              >
+                Đặt lại bộ lọc
+              </button>
+            </form>
+          </aside>
+          <div class="cashbook-results" id="cashbookResults">
+            <p class="cashbook-sync" id="syncedAt">
+              Dữ liệu KiotViet: đang tải mốc đồng bộ…
+            </p>
+            <p
+              class="cashbook-status"
+              id="pageStatus"
+              role="status"
+              aria-live="polite"
+            ></p>
+            <button class="cashbook-button" id="retryLoad" type="button" hidden>
+              Thử tải lại
+            </button>
+            <div class="cashbook-kpis" aria-label="Tổng hợp theo kỳ">
+              <div class="cashbook-kpi">
+                <span>Quỹ đầu kỳ</span><strong id="openingBalance">—</strong>
+              </div>
+              <div class="cashbook-kpi">
+                <span>Tổng thu</span><strong id="totalReceipts">—</strong>
+              </div>
+              <div class="cashbook-kpi">
+                <span>Tổng chi</span><strong id="totalPayments">—</strong>
+              </div>
+              <div class="cashbook-kpi">
+                <span>Tồn quỹ</span><strong id="closingBalance">—</strong>
+              </div>
+            </div>
+            <section class="cashbook-panel" aria-labelledby="balancesTitle">
+              <div class="cashbook-toolbar">
+                <h3 id="balancesTitle">Số dư tài khoản</h3>
+                <button
+                  class="cashbook-button"
+                  type="button"
+                  data-export="balances"
+                  aria-haspopup="dialog"
+                  aria-controls="exportDialog"
+                >
+                  Xuất
+                </button>
+              </div>
+              <div
+                class="cashbook-scroll"
+                tabindex="0"
+                aria-label="Bảng số dư tài khoản"
+              >
+                <table class="cashbook-table" id="balancesTable">
+                  <thead></thead>
+                  <tbody id="balancesBody"></tbody>
+                </table>
+              </div>
+              <p class="cashbook-total" id="balanceTotal"></p>
+            </section>
+            <section class="cashbook-panel" aria-labelledby="entriesTitle">
+              <div class="cashbook-toolbar">
+                <h3 id="entriesTitle">Sổ chi tiết</h3>
+                <button
+                  class="cashbook-button"
+                  type="button"
+                  data-export="entries"
+                  aria-haspopup="dialog"
+                  aria-controls="exportDialog"
+                >
+                  Xuất
+                </button>
+              </div>
+              <p class="cashbook-table-note" id="runningReason"></p>
+              <div
+                class="cashbook-scroll"
+                tabindex="0"
+                aria-label="Bảng sổ chi tiết"
+              >
+                <table class="cashbook-table" id="entriesTable">
+                  <thead></thead>
+                  <tbody id="entriesBody"></tbody>
+                </table>
+              </div>
+              <div class="cashbook-pager">
+                <button
+                  class="cashbook-button"
+                  id="entriesPrevious"
+                  type="button"
+                  aria-label="Trang sổ chi tiết trước"
+                >
+                  ‹</button
+                ><span id="entriesPage"></span
+                ><button
+                  class="cashbook-button"
+                  id="entriesNext"
+                  type="button"
+                  aria-label="Trang sổ chi tiết sau"
+                >
+                  ›
+                </button>
+              </div>
+            </section>
+            <section class="cashbook-panel" aria-labelledby="checkpointsTitle">
+              <div class="cashbook-toolbar">
+                <h3 id="checkpointsTitle">Lịch sử chốt số dư</h3>
+                <button
+                  class="cashbook-button"
+                  type="button"
+                  data-export="checkpoints"
+                  aria-haspopup="dialog"
+                  aria-controls="exportDialog"
+                >
+                  Xuất
+                </button>
+              </div>
+              <div
+                class="cashbook-scroll"
+                tabindex="0"
+                aria-label="Bảng lịch sử chốt"
+              >
+                <table class="cashbook-table" id="checkpointsTable">
+                  <thead></thead>
+                  <tbody id="checkpointsBody"></tbody>
+                </table>
+              </div>
+              <div class="cashbook-pager">
+                <button
+                  class="cashbook-button"
+                  id="checkpointsPrevious"
+                  type="button"
+                  aria-label="Trang lịch sử trước"
+                >
+                  ‹</button
+                ><span id="checkpointsPage"></span
+                ><button
+                  class="cashbook-button"
+                  id="checkpointsNext"
+                  type="button"
+                  aria-label="Trang lịch sử sau"
+                >
+                  ›
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </main>
+    </div>
+    <dialog
+      class="cashbook-dialog"
+      id="checkpointDialog"
+      aria-labelledby="checkpointTitle"
+    >
+      <div class="cashbook-dialog-head">
+        <h3 id="checkpointTitle">Chốt số dư</h3>
+        <button
+          class="cashbook-button"
+          type="button"
+          data-close="checkpointDialog"
+          aria-label="Đóng chốt số dư"
+        >
+          ✕
+        </button>
+      </div>
+      <form id="checkpointForm">
+        <label class="cashbook-field"
+          >Quỹ<select id="checkpointFund" required></select
+        ></label>
+        <label class="cashbook-field"
+          >Thời điểm chốt (giờ Việt Nam)<input
+            id="checkpointAt"
+            type="datetime-local"
+            step="1"
+            required
+        /></label>
+        <label class="cashbook-field"
+          >Số dư thực tế<input
+            id="checkpointBalance"
+            type="text"
+            inputmode="decimal"
+            autocomplete="off"
+            placeholder="1,234,567"
+            required
+            aria-describedby="amountHelp"
+        /></label>
+        <p class="cashbook-note" id="amountHelp">
+          Dấu phẩy phân cách hàng nghìn; dấu chấm cho phần thập phân. Cho phép
+          số âm.
+        </p>
+        <label class="cashbook-field"
+          >Ghi chú<textarea id="checkpointNote" maxlength="2000"></textarea>
+        </label>
+        <p id="checkpointPreview" role="status" aria-live="polite"></p>
+        <p id="checkpointError" role="alert"></p>
+        <div class="cashbook-dialog-actions">
+          <button
+            class="cashbook-button"
+            type="button"
+            data-close="checkpointDialog"
+          >
+            Hủy</button
+          ><button
+            class="cashbook-button primary"
+            id="checkpointSave"
+            type="submit"
+            disabled
+          >
+            Lưu chốt số dư
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <dialog
+      class="cashbook-dialog"
+      id="exportDialog"
+      aria-labelledby="exportTitle"
+    >
+      <div class="cashbook-dialog-head">
+        <h3 id="exportTitle">Chọn cột xuất file</h3>
+        <button
+          class="cashbook-button"
+          type="button"
+          data-close="exportDialog"
+          aria-label="Đóng xuất file"
+        >
+          ✕
+        </button>
+      </div>
+      <p class="cashbook-note">
+        Xuất toàn bộ dữ liệu theo bộ lọc hiện tại, tối đa 20.000 dòng. Cột được
+        nhớ riêng cho mỗi bảng.
+      </p>
+      <div id="exportColumns"></div>
+      <button class="cashbook-button" id="exportAll" type="button">
+        Chọn tất cả
+      </button>
+      <label class="cashbook-field"
+        >Định dạng<select id="exportFormat">
+          <option value="xlsx">Excel (.xlsx)</option>
+          <option value="html">HTML (.html)</option>
+        </select></label
+      >
+      <p id="exportError" role="alert"></p>
+      <div class="cashbook-dialog-actions">
+        <button class="cashbook-button" type="button" data-close="exportDialog">
+          Hủy</button
+        ><button
+          class="cashbook-button primary"
+          id="exportDownload"
+          type="button"
+        >
+          Tải file
+        </button>
+      </div>
+    </dialog>
+    <script src="/shared/shared-nav.js?v=20261006"></script>
+    <script id="cashbook-script">
+      (function () {
+        "use strict";
+        const LISTS = ["docTypes", "statuses", "groups", "creators", "staff"];
+        const SCALARS = [
+          "fund",
+          "preset",
+          "from",
+          "to",
+          "accounting",
+          "partnerQ",
+          "partnerPhone",
+        ];
+        const DEFAULTS = { fund: "all", preset: "thisYear", accounting: "all" };
+        const COLUMNS = {
+          balances: ["name", "accountNo", "balance", "checkpointAt"],
+          entries: [
+            "code",
+            "transDate",
+            "docType",
+            "group",
+            "partnerName",
+            "partnerPhone",
+            "fundName",
+            "branch",
+            "creatorName",
+            "staffName",
+            "amount",
+            "runningBalance",
+            "status",
+            "note",
+          ],
+          checkpoints: [
+            "checkpointAt",
+            "fundName",
+            "createdBy",
+            "systemBalance",
+            "balance",
+            "diff",
+            "note",
+          ],
+        };
+        const LABELS = {
+          name: "Tên tài khoản",
+          accountNo: "Số TK",
+          balance: "Số dư thực tế",
+          checkpointAt: "Thời điểm chốt",
+          code: "Mã phiếu",
+          transDate: "Thời gian",
+          docType: "Loại",
+          group: "Loại thu chi",
+          partnerName: "Người nộp/nhận",
+          partnerPhone: "SĐT",
+          fundName: "Quỹ/Tài khoản",
+          branch: "Cơ sở",
+          creatorName: "Người tạo",
+          staffName: "Nhân viên",
+          amount: "Giá trị",
+          runningBalance: "Số dư lũy kế",
+          status: "Trạng thái",
+          note: "Ghi chú",
+          createdBy: "Người chốt",
+          systemBalance: "Số hệ thống",
+          diff: "Chênh lệch",
+        };
+        const MONEY = new Set([
+          "balance",
+          "systemBalance",
+          "diff",
+          "amount",
+          "runningBalance",
+        ]);
+        const COLUMN_KEY = "tks-cashbook-export-columns-v1";
+        const $ = (id) => document.getElementById(id);
+        let filters,
+          catalog,
+          canManage,
+          loadVersion = 0,
+          loadController,
+          debounceTimer;
+        let pages = { entries: 1, checkpoints: 1 },
+          pageCounts = { entries: 1, checkpoints: 1 };
+        let previewVersion = 0,
+          previewController,
+          preview = null,
+          saving = false;
+        let exportView,
+          exportSelection = {},
+          exportBusy = false;
+        const openers = new Map();
+
+        // Giữ chuỗi thập phân từ backend/ô nhập, không làm tròn số dư ban đầu.
+        function money(value, empty = "Chưa chốt") {
+          if (value == null || value === "") return empty;
+          let text = String(value);
+          if (!/^[+-]?\d+(?:\.\d+)?$/.test(text)) {
+            const number = Number(value);
+            if (!Number.isFinite(number)) return empty;
+            text = number.toLocaleString("en-US", {
+              useGrouping: false,
+              maximumFractionDigits: 20,
+            });
+          }
+          const negative = text.startsWith("-");
+          const parts = text.replace(/^[+-]/, "").split(".");
+          const integer = parts[0]
+            .replace(/^0+(?=\d)/, "")
+            .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+          const fraction = (parts[1] || "").replace(/0+$/, "");
+          return (
+            (negative ? "-" : "") + integer + (fraction ? "," + fraction : "")
+          );
+        }
+        function groupAmount(value) {
+          const raw = String(value).replace(/,/g, "");
+          if (!/^-?\d*(?:\.\d*)?$/.test(raw)) return String(value);
+          const parts = raw.split(".");
+          return (
+            parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",") +
+            (parts.length > 1 ? "." + parts[1] : "")
+          );
+        }
+        function amountText(value) {
+          const raw = String(value).replace(/,/g, "").trim();
+          if (
+            !/^-?\d+(?:\.\d+)?$/.test(raw) ||
+            !Number.isFinite(Number(raw)) ||
+            Math.abs(Number(raw)) > Number.MAX_SAFE_INTEGER
+          )
+            throw new Error("Số dư phải là số hợp lệ trong giới hạn cho phép.");
+          return raw;
+        }
+        function decimalDifference(left, right) {
+          const a = String(left),
+            b = String(right);
+          if (![a, b].every((s) => /^-?\d+(?:\.\d+)?$/.test(s)))
+            return String(Number(left) - Number(right));
+          const scale = Math.max(
+            (a.split(".")[1] || "").length,
+            (b.split(".")[1] || "").length,
+          );
+          const scaled = (s) => {
+            const [whole, part = ""] = s.replace("-", "").split(".");
+            return (
+              BigInt(whole + part.padEnd(scale, "0")) *
+              (s.startsWith("-") ? -1n : 1n)
+            );
+          };
+          const diff = scaled(a) - scaled(b),
+            digits = String(diff < 0n ? -diff : diff).padStart(scale + 1, "0");
+          return (
+            (diff < 0n ? "-" : "") +
+            (scale
+              ? digits.slice(0, -scale) + "." + digits.slice(-scale)
+              : digits)
+          );
+        }
+        function dateText(value) {
+          if (!value) return "—";
+          const date = new Date(value);
+          if (!Number.isFinite(+date)) return "—";
+          return new Intl.DateTimeFormat("vi-VN", {
+            timeZone: "Asia/Ho_Chi_Minh",
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hourCycle: "h23",
+          }).format(date);
+        }
+        function vnLocal(value = new Date()) {
+          return new Date(+new Date(value) + 7 * 3600000)
+            .toISOString()
+            .slice(0, 19);
+        }
+        function checkpointIso(value, now = new Date()) {
+          if (
+            !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/.test(
+              value,
+            )
+          )
+            throw new Error("Chọn thời điểm chốt hợp lệ.");
+          const timestamp = new Date(value + "+07:00");
+          if (!Number.isFinite(+timestamp))
+            throw new Error("Chọn thời điểm chốt hợp lệ.");
+          if (+timestamp > +now)
+            throw new Error("Không thể chốt tại thời điểm tương lai.");
+          return timestamp.toISOString();
+        }
+        function query(source) {
+          const params = new URLSearchParams();
+          for (const key of SCALARS) {
+            if (key === "preset" && source.preset === "custom") continue;
+            if (
+              (key === "from" || key === "to") &&
+              source.preset !== "custom" &&
+              source.preset
+            )
+              continue;
+            if (source[key] != null) params.set(key, String(source[key]));
+          }
+          for (const key of LISTS)
+            if (Array.isArray(source[key]))
+              params.set(key, source[key].join(","));
+          return params.toString();
+        }
+        function readHash(hash) {
+          const params = new URLSearchParams(String(hash).replace(/^#/, ""));
+          const value = { ...DEFAULTS };
+          for (const key of SCALARS)
+            if (params.has(key)) value[key] = params.get(key);
+          for (const key of LISTS)
+            if (params.has(key))
+              value[key] =
+                params.get(key) === "" ? [] : params.get(key).split(",");
+          if (params.has("from") || params.has("to")) value.preset = "custom";
+          return value;
+        }
+        function writeHash(value) {
+          return "#" + query(value);
+        }
+        function runningText(row, result, f) {
+          const single = f.fund === "cash" || /^-?\d+$/.test(f.fund || "");
+          const types = f.docTypes || ["receipt", "payment"];
+          const narrowed =
+            ["groups", "creators", "staff"].some((key) =>
+              Array.isArray(f[key]),
+            ) ||
+            f.partnerQ ||
+            f.partnerPhone ||
+            (f.accounting && f.accounting !== "all");
+          return result.runningBalanceAvailable &&
+            single &&
+            types.includes("receipt") &&
+            types.includes("payment") &&
+            !narrowed
+            ? money(row.runningBalance, "")
+            : "";
+        }
+        function exportUrl(view, format, columns, f) {
+          const params = new URLSearchParams(query(f));
+          params.set("view", view);
+          params.set("format", format);
+          params.set("columns", columns.join(","));
+          return "/api/cashbook/export?" + params.toString();
+        }
+        async function request(url, options = {}) {
+          const response = await fetch(url, {
+            credentials: "same-origin",
+            cache: "no-store",
+            ...options,
+          });
+          if (!response.ok) {
+            let message =
+              response.status === 403
+                ? "Bạn không có quyền thực hiện thao tác này."
+                : "Không tải được dữ liệu Sổ quỹ. Vui lòng thử lại.";
+            try {
+              const body = await response.json();
+              if (body.error) message = body.error;
+            } catch (error) {
+              /* Giữ thông báo khi máy chủ không trả JSON. */
+            }
+            throw new Error(message);
+          }
+          return response;
+        }
+        async function json(url, signal) {
+          return (await request(url, { signal })).json();
+        }
+        function status(message, error = false) {
+          $("pageStatus").textContent = message;
+          $("pageStatus").dataset.error = String(error);
+          $("retryLoad").hidden = !error;
+        }
+        function paintMoney(node, value, empty) {
+          node.textContent = money(value, empty);
+          node.classList.toggle("negative", value != null && Number(value) < 0);
+        }
+        function header(view) {
+          const row = document.createElement("tr");
+          for (const field of COLUMNS[view]) {
+            const th = document.createElement("th");
+            th.scope = "col";
+            th.dataset.field = field;
+            th.textContent =
+              view === "balances" && field === "balance"
+                ? "Số dư hiện tại"
+                : view === "balances" && field === "checkpointAt"
+                  ? "Chốt gần nhất"
+                  : LABELS[field];
+            if (MONEY.has(field)) th.className = "money";
+            row.appendChild(th);
+          }
+          if (view === "balances" && canManage) {
+            const th = document.createElement("th");
+            th.scope = "col";
+            th.textContent = "Thao tác";
+            row.appendChild(th);
+          }
+          $(view + "Table")
+            .querySelector("thead")
+            .replaceChildren(row);
+        }
+        function tableRows(view, rows, result = {}) {
+          const body = $(view + "Body");
+          body.replaceChildren();
+          for (const data of rows) {
+            const row = document.createElement("tr");
+            if (view === "balances") row.dataset.fund = data.fund;
+            for (const field of COLUMNS[view]) {
+              const cell = document.createElement("td");
+              cell.dataset.field = field;
+              if (view === "balances" && field === "name") {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "cashbook-fund-button";
+                button.dataset.selectFund = data.fund;
+                button.textContent = data.name;
+                button.title = "Lọc theo quỹ " + data.name;
+                cell.appendChild(button);
+                if (data.description) {
+                  const note = document.createElement("div");
+                  note.className = "cashbook-note";
+                  note.textContent = data.description;
+                  cell.appendChild(note);
+                }
+              } else if (field === "runningBalance") {
+                cell.textContent = runningText(data, result, filters);
+                if (cell.textContent && Number(data[field]) < 0)
+                  cell.classList.add("negative");
+              } else if (MONEY.has(field))
+                paintMoney(
+                  cell,
+                  data[field],
+                  view === "checkpoints" ? "—" : undefined,
+                );
+              else if (field === "checkpointAt")
+                cell.textContent = data[field]
+                  ? dateText(data[field])
+                  : "Chưa chốt";
+              else if (field === "transDate")
+                cell.textContent = dateText(data[field]);
+              else if (field === "docType")
+                cell.textContent = data[field] === "receipt" ? "Thu" : "Chi";
+              else if (field === "status")
+                cell.textContent =
+                  data[field] === "cancelled" ? "Đã hủy" : "Đã thanh toán";
+              else if (field === "branch")
+                cell.textContent =
+                  data[field] === "hanoi"
+                    ? "HN"
+                    : data[field] === "saigon"
+                      ? "SG"
+                      : data[field] || "";
+              else cell.textContent = data[field] ?? "";
+              if (MONEY.has(field)) cell.classList.add("money");
+              if (
+                field === "diff" &&
+                data.diff != null &&
+                Number(data.diff) !== 0
+              )
+                cell.classList.add("difference");
+              row.appendChild(cell);
+            }
+            if (view === "balances" && canManage) {
+              const cell = document.createElement("td"),
+                button = document.createElement("button");
+              button.className = "cashbook-button";
+              button.type = "button";
+              button.dataset.checkpoint = data.fund;
+              button.textContent = "Chốt số dư";
+              cell.appendChild(button);
+              row.appendChild(cell);
+            }
+            body.appendChild(row);
+          }
+          if (!rows.length) {
+            const row = document.createElement("tr"),
+              cell = document.createElement("td");
+            cell.colSpan =
+              COLUMNS[view].length + (view === "balances" && canManage ? 1 : 0);
+            cell.textContent = "Không có dữ liệu theo bộ lọc hiện tại.";
+            row.appendChild(cell);
+            body.appendChild(row);
+          }
+        }
+        function pager(view, result) {
+          pages[view] = result.page;
+          pageCounts[view] = Math.max(1, result.totalPages);
+          $(view + "Page").textContent =
+            "Trang " +
+            result.page +
+            " / " +
+            pageCounts[view] +
+            " · " +
+            result.total.toLocaleString("vi-VN") +
+            " dòng";
+          $(view + "Previous").disabled = result.page <= 1;
+          $(view + "Next").disabled = result.page >= pageCounts[view];
+        }
+        async function load() {
+          const version = ++loadVersion;
+          if (loadController) loadController.abort();
+          loadController = new AbortController();
+          const signal = loadController.signal,
+            base = query(filters);
+          status("Đang tải dữ liệu…");
+          $("cashbookResults").setAttribute("aria-busy", "true");
+          try {
+            const [s, e, c] = await Promise.all([
+              json("/api/cashbook/summary?" + base, signal),
+              json(
+                "/api/cashbook/entries?" +
+                  base +
+                  "&page=" +
+                  pages.entries +
+                  "&pageSize=100",
+                signal,
+              ),
+              json(
+                "/api/cashbook/checkpoints?" +
+                  base +
+                  "&page=" +
+                  pages.checkpoints +
+                  "&pageSize=100",
+                signal,
+              ),
+            ]);
+            if (version !== loadVersion) return;
+            for (const key of [
+              "openingBalance",
+              "totalReceipts",
+              "totalPayments",
+              "closingBalance",
+            ])
+              paintMoney($(key), s.kpis[key]);
+            $("syncedAt").textContent = s.syncedAt
+              ? "Dữ liệu KiotViet đồng bộ lúc " + dateText(s.syncedAt)
+              : "Dữ liệu KiotViet chưa có mốc đồng bộ.";
+            tableRows("balances", s.balances);
+            tableRows("entries", e.entries, e);
+            tableRows("checkpoints", c.checkpoints);
+            $("balanceTotal").textContent =
+              "Tổng các quỹ đã chốt: " +
+              money(s.totalBalance) +
+              (s.unclosedCount
+                ? " · " + s.unclosedCount + " quỹ chưa chốt."
+                : "");
+            $("balanceTotal").classList.toggle(
+              "negative",
+              Number(s.totalBalance) < 0,
+            );
+            $("runningReason").textContent = e.runningBalanceAvailable
+              ? ""
+              : e.runningBalanceReason ||
+                "Số dư lũy kế chỉ hiện khi chọn một quỹ đã chốt, đủ hai loại chứng từ và không thu hẹp bộ lọc.";
+            pager("entries", e);
+            pager("checkpoints", c);
+            status("");
+          } catch (error) {
+            if (version === loadVersion && error.name !== "AbortError") {
+              // Không hiển thị số dư của bộ lọc cũ khi yêu cầu mới thất bại.
+              for (const key of [
+                "openingBalance",
+                "totalReceipts",
+                "totalPayments",
+                "closingBalance",
+              ]) {
+                $(key).textContent = "—";
+                $(key).classList.remove("negative");
+              }
+              for (const view of Object.keys(COLUMNS)) {
+                tableRows(view, []);
+                $(view + "Body").querySelector("td").textContent =
+                  "Chưa tải được dữ liệu. Vui lòng thử lại.";
+              }
+              for (const view of ["entries", "checkpoints"]) {
+                $(view + "Page").textContent = "";
+                $(view + "Previous").disabled = true;
+                $(view + "Next").disabled = true;
+              }
+              $("balanceTotal").textContent = "";
+              $("runningReason").textContent = "";
+              status(error.message, true);
+            }
+          } finally {
+            if (version === loadVersion)
+              $("cashbookResults").setAttribute("aria-busy", "false");
+          }
+        }
+        function choices(id, name, values, key) {
+          const container = $(id);
+          container.replaceChildren();
+          for (const value of values) {
+            const label = document.createElement("label"),
+              input = document.createElement("input");
+            input.type = "checkbox";
+            input.name = name;
+            input.value = String(value[key]);
+            const span = document.createElement("span");
+            span.textContent =
+              value.label ||
+              value.name + (value.accountNo ? " · " + value.accountNo : "");
+            label.append(input, span);
+            container.appendChild(label);
+          }
+          if (!values.length) {
+            const note = document.createElement("p");
+            note.className = "cashbook-note";
+            note.textContent = "Chưa có danh mục.";
+            container.appendChild(note);
+          }
+        }
+        function syncFilters() {
+          const mode = ["all", "cash", "bank"].includes(filters.fund)
+            ? filters.fund
+            : "bank";
+          document.querySelectorAll('[name="fundMode"]').forEach((input) => {
+            input.checked = input.value === mode;
+          });
+          const selectedFunds =
+            filters.fund === "bank" && catalog
+              ? catalog.funds
+                  .filter((fund) => fund.fund !== "cash")
+                  .map((fund) => fund.fund)
+              : filters.fund === ""
+                ? []
+                : String(filters.fund).split(",");
+          document
+            .querySelectorAll('[name="fundAccounts"]')
+            .forEach((input) => {
+              input.checked = selectedFunds.includes(input.value);
+            });
+          for (const list of LISTS)
+            document
+              .querySelectorAll('[name="' + list + '"]')
+              .forEach((input) => {
+                input.checked =
+                  !Array.isArray(filters[list]) ||
+                  filters[list].includes(input.value);
+              });
+          document.querySelectorAll('[name="accounting"]').forEach((input) => {
+            input.checked = input.value === filters.accounting;
+          });
+          document.querySelectorAll('[name="preset"]').forEach((input) => {
+            input.checked = input.value === filters.preset;
+          });
+          for (const key of ["from", "to", "partnerQ", "partnerPhone"])
+            $(key).value = filters[key] || "";
+          $("customDates").hidden = filters.preset !== "custom";
+        }
+        function selected(name) {
+          return [
+            ...document.querySelectorAll('[name="' + name + '"]:checked'),
+          ].map((input) => input.value);
+        }
+        function allOrSelected(name) {
+          const values = selected(name),
+            inputs = document.querySelectorAll('[name="' + name + '"]');
+          if (inputs.length && values.length === inputs.length)
+            delete filters[name];
+          else filters[name] = values;
+        }
+        function applyFilters() {
+          clearTimeout(debounceTimer);
+          pages = { entries: 1, checkpoints: 1 };
+          history.replaceState(
+            null,
+            "",
+            location.pathname + location.search + writeHash(filters),
+          );
+          syncFilters();
+          return load();
+        }
+        function selectFund(fund) {
+          filters.fund = fund;
+          applyFilters();
+        }
+        function openDialog(id, opener) {
+          openers.set(id, opener || document.activeElement);
+          $(id).showModal();
+        }
+        function closeDrawer() {
+          $("cashbookFilters").classList.remove("open");
+          $("filterBackdrop").classList.remove("open");
+          $("filterToggle").setAttribute("aria-expanded", "false");
+          $("cashbookFilters").removeAttribute("role");
+          $("cashbookFilters").removeAttribute("aria-modal");
+          document.body.style.overflow = "";
+          $("filterToggle").focus();
+        }
+        function openDrawer() {
+          $("cashbookFilters").classList.add("open");
+          $("filterBackdrop").classList.add("open");
+          $("filterToggle").setAttribute("aria-expanded", "true");
+          $("cashbookFilters").setAttribute("role", "dialog");
+          $("cashbookFilters").setAttribute("aria-modal", "true");
+          document.body.style.overflow = "hidden";
+          $("filterClose").focus();
+        }
+        function currentCheckpoint() {
+          return {
+            fund: $("checkpointFund").value,
+            checkpointAt: checkpointIso($("checkpointAt").value),
+          };
+        }
+        function updatePreviewText() {
+          const save = $("checkpointSave");
+          save.disabled = saving || !preview;
+          if (!preview) return;
+          const target = $("checkpointPreview");
+          if (preview.balance == null) {
+            target.textContent =
+              "Hệ thống chưa có số dư đã chốt tại quỹ này. Lần chốt đầu nhập số dư ban đầu; số hệ thống và chênh lệch chưa xác định.";
+            return;
+          }
+          let text =
+            "Hệ thống đang tính: " + money(preview.balance) + " — chênh lệch: ";
+          try {
+            text += money(
+              decimalDifference(
+                amountText($("checkpointBalance").value),
+                preview.balance,
+              ),
+            );
+          } catch (error) {
+            text += "nhập số dư thực tế để tính.";
+          }
+          target.textContent = text;
+        }
+        async function previewCheckpoint() {
+          const version = ++previewVersion;
+          preview = null;
+          if (previewController) previewController.abort();
+          previewController = new AbortController();
+          $("checkpointSave").disabled = true;
+          $("checkpointError").textContent = "";
+          $("checkpointPreview").textContent =
+            "Đang tính số dư tại thời điểm chốt…";
+          try {
+            const current = currentCheckpoint(),
+              params = new URLSearchParams({
+                fund: current.fund,
+                at: current.checkpointAt,
+              });
+            const result = await json(
+              "/api/cashbook/summary?" + params,
+              previewController.signal,
+            );
+            if (version !== previewVersion || !$("checkpointDialog").open)
+              return;
+            const balance = result.balances.find(
+              (row) => row.fund === current.fund,
+            );
+            if (!balance)
+              throw new Error("Không tìm thấy quỹ. Vui lòng tải lại dữ liệu.");
+            preview = { ...current, balance: balance.balance };
+            updatePreviewText();
+          } catch (error) {
+            if (version === previewVersion && error.name !== "AbortError") {
+              $("checkpointPreview").textContent = "";
+              $("checkpointError").textContent = error.message;
+            }
+          }
+        }
+        function openCheckpoint(fund, opener) {
+          if (!canManage) return;
+          $("checkpointForm").reset();
+          $("checkpointFund").value = fund;
+          $("checkpointAt").max = vnLocal();
+          $("checkpointAt").value = vnLocal();
+          $("checkpointError").textContent = "";
+          openDialog("checkpointDialog", opener);
+          previewCheckpoint();
+        }
+        async function saveCheckpoint(event) {
+          event.preventDefault();
+          if (saving || !canManage) return;
+          try {
+            const current = currentCheckpoint();
+            if (
+              !preview ||
+              preview.fund !== current.fund ||
+              preview.checkpointAt !== current.checkpointAt
+            )
+              throw new Error(
+                "Chờ hệ thống tính số dư tại thời điểm chốt trước khi lưu.",
+              );
+            const balance = amountText($("checkpointBalance").value),
+              note = $("checkpointNote").value;
+            saving = true;
+            $("checkpointSave").disabled = true;
+            $("checkpointError").textContent = "";
+            await request("/api/cashbook/checkpoints", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...current, balance, note }),
+            });
+            $("checkpointDialog").close();
+            await load();
+          } catch (error) {
+            $("checkpointError").textContent = error.message;
+          } finally {
+            saving = false;
+            updatePreviewText();
+          }
+        }
+        function chosenColumns() {
+          return [...$("exportColumns").querySelectorAll("input:checked")].map(
+            (input) => input.value,
+          );
+        }
+        function rememberColumns() {
+          exportSelection[exportView] = chosenColumns();
+          try {
+            localStorage.setItem(COLUMN_KEY, JSON.stringify(exportSelection));
+          } catch (error) {
+            /* Giữ tùy chọn trong phiên khi không thể lưu trên trình duyệt. */
+          }
+          $("exportDownload").disabled =
+            exportBusy || !exportSelection[exportView].length;
+        }
+        function openExport(view, opener) {
+          exportView = view;
+          $("exportError").textContent = "";
+          $("exportColumns").replaceChildren();
+          const saved = exportSelection[view],
+            chosen = Array.isArray(saved) ? saved : COLUMNS[view];
+          for (const field of COLUMNS[view]) {
+            const label = document.createElement("label"),
+              input = document.createElement("input");
+            input.type = "checkbox";
+            input.value = field;
+            input.checked = chosen.includes(field);
+            const span = document.createElement("span");
+            span.textContent =
+              view === "balances" && field === "balance"
+                ? "Số dư hiện tại"
+                : LABELS[field];
+            label.append(input, span);
+            $("exportColumns").appendChild(label);
+          }
+          $("exportDownload").disabled = exportBusy || !chosenColumns().length;
+          openDialog("exportDialog", opener);
+        }
+        async function downloadExport() {
+          if (exportBusy || !chosenColumns().length) return;
+          exportBusy = true;
+          $("exportDownload").disabled = true;
+          $("exportError").textContent = "";
+          try {
+            const view = exportView,
+              format = $("exportFormat").value;
+            const response = await request(
+              exportUrl(view, format, chosenColumns(), filters),
+            );
+            const blob = await response.blob(),
+              url = URL.createObjectURL(blob),
+              anchor = document.createElement("a");
+            anchor.href = url;
+            anchor.download = "TKS_So_quy_" + view + "." + format;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            $("exportDialog").close();
+          } catch (error) {
+            $("exportError").textContent = error.message;
+          } finally {
+            exportBusy = false;
+            $("exportDownload").disabled = !chosenColumns().length;
+          }
+        }
+        function theme() {
+          const light = document.documentElement.dataset.theme === "light";
+          $("themeLabel").textContent = light ? "Dark mode" : "Light mode";
+          $("themeToggle").setAttribute("aria-pressed", String(light));
+          $("themeToggle").setAttribute(
+            "aria-label",
+            light ? "Chuyển sang giao diện tối" : "Chuyển sang giao diện sáng",
+          );
+        }
+        async function init() {
+          theme();
+          $("themeToggle").addEventListener("click", () => {
+            const next =
+              document.documentElement.dataset.theme === "light"
+                ? "dark"
+                : "light";
+            document.documentElement.dataset.theme = next;
+            try {
+              localStorage.setItem("tks-dashboard-theme", next);
+            } catch (error) {
+              /* Không bắt buộc lưu tùy chọn theme. */
+            }
+            theme();
+          });
+          const toggleSidebar = () => {
+            const open = $("sidebar").classList.toggle("open");
+            $("backdrop").classList.toggle("show", open);
+            $("menuBtn").setAttribute("aria-expanded", String(open));
+          };
+          $("menuBtn").addEventListener("click", toggleSidebar);
+          $("backdrop").addEventListener("click", toggleSidebar);
+          await window.TKSNav.authGuard();
+          canManage = window.TKSNav.can("cashbook.manage");
+          filters = readHash(location.hash);
+          try {
+            const stored = JSON.parse(localStorage.getItem(COLUMN_KEY));
+            if (stored && typeof stored === "object" && !Array.isArray(stored))
+              exportSelection = stored;
+          } catch (error) {
+            /* Dùng tất cả cột khi tùy chọn lưu không hợp lệ. */
+          }
+          for (const view of Object.keys(COLUMNS)) header(view);
+          $("filterToggle").addEventListener("click", openDrawer);
+          $("filterClose").addEventListener("click", closeDrawer);
+          $("filterBackdrop").addEventListener("click", closeDrawer);
+          document.addEventListener("keydown", (event) => {
+            if (!$("cashbookFilters").classList.contains("open")) return;
+            if (event.key === "Escape") {
+              event.preventDefault();
+              closeDrawer();
+            }
+            if (event.key === "Tab") {
+              const controls = [
+                ...$("cashbookFilters").querySelectorAll("button,input,select"),
+              ].filter((node) => !node.disabled && !node.closest("[hidden]"));
+              const first = controls[0],
+                last = controls.at(-1);
+              if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+              } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+              }
+            }
+          });
+          window.addEventListener("resize", () => {
+            if (
+              window.innerWidth > 760 &&
+              $("cashbookFilters").classList.contains("open")
+            )
+              closeDrawer();
+          });
+          for (const id of ["checkpointDialog", "exportDialog"]) {
+            $(id).addEventListener("close", () => {
+              if (id === "checkpointDialog") {
+                preview = null;
+                ++previewVersion;
+                if (previewController) previewController.abort();
+              }
+              const opener = openers.get(id);
+              if (opener && opener.isConnected) opener.focus();
+            });
+          }
+          document
+            .querySelectorAll("[data-close]")
+            .forEach((button) =>
+              button.addEventListener("click", () =>
+                $(button.dataset.close).close(),
+              ),
+            );
+          document
+            .querySelectorAll("[data-export]")
+            .forEach((button) =>
+              button.addEventListener("click", () =>
+                openExport(button.dataset.export, button),
+              ),
+            );
+          $("exportColumns").addEventListener("change", rememberColumns);
+          $("exportAll").addEventListener("click", () => {
+            $("exportColumns")
+              .querySelectorAll("input")
+              .forEach((input) => {
+                input.checked = true;
+              });
+            rememberColumns();
+          });
+          $("exportDownload").addEventListener("click", downloadExport);
+          $("checkpointForm").addEventListener("submit", saveCheckpoint);
+          $("checkpointFund").addEventListener("change", previewCheckpoint);
+          $("checkpointAt").addEventListener("change", previewCheckpoint);
+          $("checkpointBalance").addEventListener("input", (event) => {
+            const input = event.target,
+              before = input.value,
+              cursor = input.selectionStart;
+            input.value = groupAmount(before);
+            if (cursor != null) {
+              const offset = input.value.length - before.length;
+              input.setSelectionRange(
+                Math.max(0, cursor + offset),
+                Math.max(0, cursor + offset),
+              );
+            }
+            updatePreviewText();
+          });
+          $("balancesBody").addEventListener("click", (event) => {
+            const checkpoint = event.target.closest("[data-checkpoint]");
+            if (checkpoint) {
+              openCheckpoint(checkpoint.dataset.checkpoint, checkpoint);
+              return;
+            }
+            const row = event.target.closest("tr[data-fund]");
+            if (row) selectFund(row.dataset.fund);
+          });
+          $("filtersForm").addEventListener("submit", (event) =>
+            event.preventDefault(),
+          );
+          $("filtersForm").addEventListener("change", (event) => {
+            const input = event.target,
+              name = input.name;
+            if (name === "partnerQ" || name === "partnerPhone") return;
+            if (name === "fundMode") filters.fund = input.value;
+            else if (name === "fundAccounts")
+              filters.fund = selected("fundAccounts").join(",");
+            else if (LISTS.includes(name)) allOrSelected(name);
+            else if (name === "preset") {
+              filters.preset = input.value;
+              if (input.value === "custom") {
+                filters.from = $("from").value || vnLocal().slice(0, 10);
+                filters.to = $("to").value || vnLocal().slice(0, 10);
+              } else {
+                delete filters.from;
+                delete filters.to;
+              }
+            } else if (["from", "to", "accounting"].includes(name))
+              filters[name] = input.value;
+            else return;
+            filters.partnerQ = $("partnerQ").value;
+            filters.partnerPhone = $("partnerPhone").value;
+            applyFilters();
+          });
+          for (const key of ["partnerQ", "partnerPhone"])
+            $(key).addEventListener("input", () => {
+              clearTimeout(debounceTimer);
+              debounceTimer = setTimeout(() => {
+                filters.partnerQ = $("partnerQ").value;
+                filters.partnerPhone = $("partnerPhone").value;
+                applyFilters();
+              }, 300);
+            });
+          $("resetFilters").addEventListener("click", () => {
+            filters = { ...DEFAULTS };
+            applyFilters();
+          });
+          for (const view of ["entries", "checkpoints"])
+            for (const direction of ["Previous", "Next"])
+              $(view + direction).addEventListener("click", () => {
+                pages[view] = Math.max(
+                  1,
+                  Math.min(
+                    pageCounts[view],
+                    pages[view] + (direction === "Next" ? 1 : -1),
+                  ),
+                );
+                load();
+              });
+          window.addEventListener("hashchange", () => {
+            clearTimeout(debounceTimer);
+            filters = readHash(location.hash);
+            pages = { entries: 1, checkpoints: 1 };
+            syncFilters();
+            load();
+          });
+          $("retryLoad").addEventListener("click", () =>
+            catalog ? load() : loadCatalog(),
+          );
+          async function loadCatalog() {
+            try {
+              catalog = await json("/api/cashbook/filter-options");
+              choices(
+                "fundChoices",
+                "fundAccounts",
+                catalog.funds.filter((fund) => fund.fund !== "cash"),
+                "fund",
+              );
+              choices("groupChoices", "groups", catalog.groups, "key");
+              choices("creatorChoices", "creators", catalog.creators, "id");
+              choices("staffChoices", "staff", catalog.staff, "id");
+              $("checkpointFund").replaceChildren();
+              for (const fund of catalog.funds) {
+                const option = document.createElement("option");
+                option.value = fund.fund;
+                option.textContent =
+                  fund.name + (fund.accountNo ? " · " + fund.accountNo : "");
+                $("checkpointFund").appendChild(option);
+              }
+              syncFilters();
+              await load();
+            } catch (error) {
+              status(error.message, true);
+            }
+          }
+          syncFilters();
+          await loadCatalog();
+        }
+        window.TKSCashbook = {
+          init,
+          money,
+          query,
+          readHash,
+          writeHash,
+          runningText,
+          vnLocal,
+          dateText,
+          checkpointIso,
+          groupAmount,
+          amountText,
+          exportUrl,
+        };
+      })();
+    </script>
+    <script>
+      window.addEventListener("DOMContentLoaded", function () {
+        TKSCashbook.init();
+      });
+    </script>
+    <script src="/shared/shooting-star.js?v=20260830"></script>
+  </body>
+</html>
