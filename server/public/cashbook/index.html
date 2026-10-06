@@ -349,12 +349,7 @@
         color: var(--muted);
         font-size: 11.5px;
       }
-      .cb-fund-bank {
-        margin-top: 2px;
-        color: var(--muted);
-        font-size: 11.5px;
-      }
-      .cb-fund-bank strong {
+      .cb-bank-name {
         color: var(--text);
         font-weight: 600;
       }
@@ -366,7 +361,7 @@
         font: 500 11.5px var(--font-body);
         cursor: pointer;
       }
-      .cb-fund-bank strong + .cb-bank-edit {
+      .cb-bank-name + .cb-bank-edit {
         margin-left: 6px;
       }
       .cb-bank-edit:hover {
@@ -1453,7 +1448,8 @@
         // Độ rộng cột cố định (fixed-table) như các bảng ở tab Báo cáo.
         const WIDTHS = {
           balances: {
-            name: 280,
+            name: 260,
+            bank: 190,
             accountNo: 150,
             balance: 160,
             checkpointAt: 170,
@@ -1485,7 +1481,7 @@
           },
         };
         const COLUMNS = {
-          balances: ["name", "accountNo", "balance", "checkpointAt"],
+          balances: ["name", "bank", "accountNo", "balance", "checkpointAt"],
           entries: [
             "code",
             "transDate",
@@ -1536,11 +1532,7 @@
           systemBalance: "Số hệ thống",
           diff: "Chênh lệch",
         };
-        // Cột xuất của bảng số dư có thêm Ngân hàng (trên bảng nằm dưới tên tài khoản).
-        const EXPORT_COLUMNS = {
-          ...COLUMNS,
-          balances: ["name", "bank", "accountNo", "balance", "checkpointAt"],
-        };
+        const EXPORT_COLUMNS = COLUMNS;
         const MONEY = new Set([
           "balance",
           "systemBalance",
@@ -1572,7 +1564,7 @@
         let searchMode = "code";
         // Sắp xếp bảng số dư tại chỗ: bấm tiêu đề lần lượt tăng → giảm → bỏ.
         let balanceSort = { field: null, dir: null };
-        const SORT_FIELDS = new Set(["name", "accountNo", "balance", "checkpointAt"]);
+        const SORT_FIELDS = new Set(["name", "bank", "accountNo", "balance", "checkpointAt"]);
 
         // Giữ chuỗi thập phân từ backend/ô nhập, không làm tròn số dư ban đầu.
         function money(value, empty = "Chưa chốt") {
@@ -1866,33 +1858,30 @@
                 button.textContent = data.name;
                 button.title = "Lọc theo quỹ " + data.name;
                 cell.appendChild(button);
-                if (data.bank || (canManage && data.accountNo)) {
-                  const bank = document.createElement("div");
-                  bank.className = "cb-fund-bank";
-                  if (data.bank) {
-                    const strong = document.createElement("strong");
-                    strong.textContent = data.bank;
-                    bank.append("Ngân hàng: ", strong);
-                  }
-                  if (canManage && data.accountNo) {
-                    const edit = document.createElement("button");
-                    edit.type = "button";
-                    edit.className = "cb-bank-edit";
-                    edit.dataset.editBank = data.fund;
-                    edit.textContent = data.bank ? "Sửa" : "+ Thêm ngân hàng";
-                    edit.setAttribute(
-                      "aria-label",
-                      (data.bank ? "Sửa" : "Thêm") + " ngân hàng của " + data.name,
-                    );
-                    bank.appendChild(edit);
-                  }
-                  cell.appendChild(bank);
-                }
                 if (data.description) {
                   const note = document.createElement("div");
                   note.className = "cb-fund-note";
                   note.textContent = data.description;
                   cell.appendChild(note);
+                }
+              } else if (view === "balances" && field === "bank") {
+                if (data.bank) {
+                  const strong = document.createElement("strong");
+                  strong.className = "cb-bank-name";
+                  strong.textContent = data.bank;
+                  cell.appendChild(strong);
+                }
+                if (canManage && data.accountNo) {
+                  const edit = document.createElement("button");
+                  edit.type = "button";
+                  edit.className = "cb-bank-edit";
+                  edit.dataset.editBank = data.fund;
+                  edit.textContent = data.bank ? "Sửa" : "+ Thêm ngân hàng";
+                  edit.setAttribute(
+                    "aria-label",
+                    (data.bank ? "Sửa" : "Thêm") + " ngân hàng của " + data.name,
+                  );
+                  cell.appendChild(edit);
                 }
               } else if (field === "runningBalance") {
                 cell.textContent = runningText(data, result, filters);

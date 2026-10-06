@@ -149,3 +149,9 @@ test('null, array body, unknown body fields rejected400', () => {
       (e) => e.statusCode === 400,
     );
 });
+test('timestamp tolerates a client clock a few seconds ahead but not minutes', () => {
+  const now = new Date('2026-10-06T08:40:00Z');
+  assert.equal(parseFilters({ at: '2026-10-06T08:40:05.000Z' }, now).at, '2026-10-06T08:40:05.000Z');
+  assert.throws(() => parseFilters({ at: '2026-10-06T08:43:00.000Z' }, now), /tương lai/);
+});
+

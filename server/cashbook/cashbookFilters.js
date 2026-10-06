@@ -38,6 +38,7 @@ function day(value) {
     throw invalid('Ngày không hợp lệ.');
   return +d - 7 * 3600000;
 }
+const CLOCK_SKEW_MS = 2 * 60 * 1000;
 function timestamp(value, now = new Date()) {
   scalar(value, 'thời điểm');
   if (
@@ -60,7 +61,8 @@ function timestamp(value, now = new Date()) {
   )
     throw invalid('Thời điểm không hợp lệ.');
   const d = new Date(value);
-  if (!Number.isFinite(+d) || +d > +now)
+  // Đồng hồ máy người dùng thường chạy nhanh vài giây so với máy chủ; cho lệch tối đa 2 phút.
+  if (!Number.isFinite(+d) || +d > +now + CLOCK_SKEW_MS)
     throw invalid('Thời điểm không hợp lệ hoặc nằm trong tương lai.');
   return d.toISOString();
 }

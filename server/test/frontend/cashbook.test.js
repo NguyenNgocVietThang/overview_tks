@@ -1039,7 +1039,7 @@ test("bảng số dư sắp xếp theo tiêu đề: tăng, giảm, bỏ; quỹ c
     assert.equal(order().at(-1), "cash", "Chưa chốt xếp cuối, lần " + dir);
   }
 });
-test("tên ngân hàng hiện dưới tên tài khoản, tìm được và Quản lý sửa được", async (t) => {
+test("tên ngân hàng ở cột riêng, tìm được và Quản lý sửa được", async (t) => {
   const withBank = {
     ...summary,
     balances: [{ ...summary.balances[0], bank: "Vietcombank" }, summary.balances[1]],
@@ -1057,7 +1057,8 @@ test("tên ngân hàng hiện dưới tên tài khoản, tìm được và Quả
   });
   await init();
   const row = doc.querySelector('#balancesBody tr[data-fund="-1"]');
-  assert.match(row.querySelector('[data-field="name"]').textContent, /Ngân hàng: Vietcombank/);
+  assert.match(row.querySelector('[data-field="bank"]').textContent, /Vietcombank/);
+  assert.doesNotMatch(row.querySelector('[data-field="name"]').textContent, /Vietcombank/);
   assert.equal(doc.querySelector('#balancesBody tr[data-fund="cash"] [data-edit-bank]'), null);
   const input = doc.getElementById("balancesSearch");
   input.value = "vietcombank";
