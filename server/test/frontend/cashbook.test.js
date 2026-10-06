@@ -333,8 +333,9 @@ test("ô text debounce 300ms và hash ghi giá trị mới", async (t) => {
     return id;
   };
   w.clearTimeout = (value) => scheduled.delete(value);
+  doc.querySelector('[data-search-mode="partner"]').click();
   const before = calls.length,
-    input = doc.getElementById("partnerQ");
+    input = doc.getElementById("entriesSearch");
   input.value = "L";
   input.dispatchEvent(new w.Event("input", { bubbles: true }));
   input.value = "Lan";
@@ -399,7 +400,11 @@ test("lỗi API hiển thị tiếng Việt và giữ bộ lọc để thử l�
   await init();
   assert.match(doc.getElementById("pageStatus").textContent, /Lỗi hệ thống/);
   assert.match(w.location.hash, /partnerPhone=123/);
-  assert.equal(doc.getElementById("partnerPhone").value, "123");
+  assert.equal(doc.getElementById("entriesSearch").value, "123");
+  assert.equal(
+    doc.querySelector('[data-search-mode="phone"]').getAttribute("aria-pressed"),
+    "true",
+  );
 });
 test("lỗi sau khi đổi bộ lọc không để số dư cũ dưới bộ lọc mới", async (t) => {
   const { init, doc, w } = await setup(t);
@@ -810,7 +815,6 @@ for (const outcome of ["success", "failure"]) {
     assert.equal(typeof finishExport, "function");
     doc.getElementById("exportDialog").close();
     doc.querySelector('[data-export="entries"]').click();
-    doc.getElementById("exportFormat").value = "html";
     doc.querySelector('#exportColumns input[value="code"]').checked = false;
     doc
       .getElementById("exportColumns")
@@ -832,9 +836,9 @@ for (const outcome of ["success", "failure"]) {
       doc.querySelector('#exportColumns input[value="code"]').checked,
       false,
     );
-    assert.equal(doc.getElementById("exportFormat").value, "html");
     assert.equal(doc.getElementById("exportError").textContent, "");
     assert.equal(doc.getElementById("exportDownload").disabled, false);
+    assert.equal(doc.getElementById("exportHtml").disabled, false);
     assert.deepEqual(downloaded, []);
   });
 }
@@ -922,8 +926,7 @@ test("export xlsx/html tải file qua blob; lỗi giới hạn hiện trong dial
   };
   for (const format of ["xlsx", "html"]) {
     doc.querySelector('[data-export="entries"]').click();
-    doc.getElementById("exportFormat").value = format;
-    doc.getElementById("exportDownload").click();
+    doc.getElementById(format === "html" ? "exportHtml" : "exportDownload").click();
     await tick();
   }
   assert.deepEqual(downloaded, [
@@ -946,4 +949,74 @@ test("export xlsx/html tải file qua blob; lỗi giới hạn hiện trong dial
   await tick();
   assert.match(doc.getElementById("exportError").textContent, /20\.000/);
   assert.equal(doc.getElementById("exportDialog").open, true);
+});
+
+test("ô tìm sổ chi tiết theo chế độ ghi đúng tham số máy chủ, đổi chế độ chuyển từ khóa", async (t) => {
+  const { init, doc, w, calls } = await setup(t);
+  await init();
+  const input = doc.getElementById("entriesSearch");
+  input.value = "PT12";
+  input.dispatchEvent(new w.Event("input", { bubbles: true }));
+  await new Promise((resolve) => setTimeout(resolve, 320));
+  await tick();
+  let last = calls.filter((c) => c.url.pathname.endsWith("entries")).at(-1).url;
+  assert.equal(last.searchParams.get("code"), "PT12");
+  doc.querySelector('[data-search-mode="note"]').click();
+  await tick();
+  last = calls.filter((c) => c.url.pathname.endsWith("entries")).at(-1).url;
+  assert.equal(last.searchParams.get("note"), "PT12");
+  assert.equal(last.searchParams.has("code"), false);
+  assert.match(w.location.hash, /note=PT12/);
+  doc.querySelector('[data-search-clear="entriesSearch"]').click();
+  await tick();
+  last = calls.filter((c) => c.url.pathname.endsWith("entries")).at(-1).url;
+  assert.equal(last.searchParams.has("note"), false);
+});
+test("ô tìm số dư lọc tại máy khách không gọi lại API", async (t) => {
+  const { init, doc, w, calls } = await setup(t);
+  await init();
+  const before = calls.length,
+    input = doc.getElementById("balancesSearch");
+  input.value = "tien mat";
+  input.dispatchEvent(new w.Event("input", { bubbles: true }));
+  assert.equal(calls.length, before);
+  const rows = doc.querySelectorAll("#balancesBody tr[data-fund]");
+  assert.deepEqual([...rows].map((row) => row.dataset.fund), ["cash"]);
+  input.value = "khong co";
+  input.dispatchEvent(new w.Event("input", { bubbles: true }));
+  assert.match(doc.getElementById("balancesBody").textContent, /Không có tài khoản khớp/);
+});
+test("dropdown bộ lọc hiện tóm tắt lựa chọn, Esc đóng và trả focus", async (t) => {
+  const { init, doc, w } = await setup(t);
+  await init();
+  const dd = doc.querySelector('[data-dd="docTypes"]'),
+    button = dd.querySelector(".dd-button");
+  assert.equal(dd.querySelector("[data-summary]").textContent, "Tất cả");
+  button.click();
+  assert.equal(button.getAttribute("aria-expanded"), "true");
+  assert.equal(doc.getElementById("docTypesPanel").hidden, false);
+  const payment = doc.querySelector('[name="docTypes"][value="payment"]');
+  payment.checked = false;
+  payment.dispatchEvent(new w.Event("change", { bubbles: true }));
+  await tick();
+  assert.equal(dd.querySelector("[data-summary]").textContent, "Phiếu thu");
+  assert.ok(dd.classList.contains("is-filtered"));
+  doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  assert.equal(doc.getElementById("docTypesPanel").hidden, true);
+  assert.equal(doc.activeElement, button);
+  doc.querySelector('[data-select-fund="-1"]').click();
+  await tick();
+  assert.equal(
+    doc.querySelector('[data-dd="fund"] [data-summary]').textContent,
+    "Bank cũ",
+  );
+});
+test("phân trang có nút trang đầu/cuối gọi đúng trang máy chủ", async (t) => {
+  const { init, doc, calls } = await setup(t);
+  await init();
+  assert.equal(doc.getElementById("entriesFirst").disabled, true);
+  doc.getElementById("entriesLast").click();
+  await tick();
+  const last = calls.filter((c) => c.url.pathname.endsWith("entries")).at(-1).url;
+  assert.equal(last.searchParams.get("page"), "3");
 });

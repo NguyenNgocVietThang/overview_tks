@@ -20,274 +20,319 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap"
     />
     <link rel="stylesheet" href="/shared/shared.css?v=20261002" />
     <style>
-      .cashbook-content {
-        min-width: 0;
-        color: var(--text);
+      /* Sổ quỹ dùng lại khuôn của tab Báo cáo tổng hợp (index.html): section-head có số
+         bước, kpi-card eyebrow/value/sub, panel + panel-head, period-toggle, bảng
+         thead/tbody, table-search-tools, export-modal. Các lớp đó chỉ khai báo trong
+         index.html nên chép phần cần dùng vào đây, đổi bo góc sang thang ngữ nghĩa. */
+      [hidden] {
+        display: none !important;
       }
-      .cashbook-heading {
+      .cb-page-head {
         display: flex;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-        margin-bottom: 18px;
-        color: var(--canvas-text);
-      }
-      .cashbook-heading h2 {
-        margin: 0;
-        font: 700 24px var(--font-display);
-        letter-spacing: -0.02em;
-      }
-      .company-badge {
-        font-size: 12px;
-        padding: 6px 10px;
-        border: 1px solid var(--canvas-border);
-        border-radius: var(--radius-pill);
-      }
-      .cashbook-layout {
-        display: grid;
-        grid-template-columns: 250px minmax(0, 1fr);
-        gap: 20px;
-        align-items: start;
-      }
-      .cashbook-panel,
-      .cashbook-filters,
-      .cashbook-kpi {
-        background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-xl);
-        box-shadow: var(--card-shadow);
-      }
-      .cashbook-panel {
-        min-width: 0;
-      }
-      .cashbook-filters {
-        padding: 16px;
-        min-width: 0;
-      }
-      .cashbook-results {
-        min-width: 0;
-        display: grid;
-        gap: 20px;
-      }
-      .cashbook-filter-head,
-      .cashbook-toolbar,
-      .cashbook-dialog-head {
-        display: flex;
-        align-items: center;
+        align-items: flex-start;
         justify-content: space-between;
         gap: 12px;
       }
-      .cashbook-filter-head h3,
-      .cashbook-toolbar h3,
-      .cashbook-dialog-head h3 {
-        margin: 0;
-        font: 600 16px var(--font-display);
+      #filterToggle {
+        display: none;
       }
-      .cashbook-filters fieldset {
-        border: 0;
-        padding: 16px 0;
-        margin: 0;
-        border-bottom: 1px solid var(--border);
+
+      /* ---------- Mục có số bước (như tab Báo cáo) ---------- */
+      .section {
+        margin-bottom: 24px;
       }
-      .cashbook-filters legend {
-        float: left;
-        width: 100%;
-        font-size: 13px;
+      .section-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 12px;
+      }
+      .section-step {
+        flex-shrink: 0;
+        width: 22px;
+        height: 22px;
+        border-radius: var(--radius-xs);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        color: var(--amber);
+        font-family: var(--font-data);
+        font-size: 11px;
         font-weight: 700;
-        margin-bottom: 10px;
+        font-variant-numeric: tabular-nums;
       }
-      .cashbook-filters fieldset > div {
-        clear: both;
+      .section-head h2 {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.09em;
+        color: var(--canvas-text);
       }
-      .cashbook-filters label,
-      .cashbook-dialog label {
-        font-size: 13px;
-        line-height: 1.5;
+      .section-head .section-note {
+        color: var(--canvas-text);
+        font-size: 11.5px;
+        font-weight: 500;
+        text-transform: none;
+        letter-spacing: 0;
       }
-      .cashbook-choices {
+      .section-head::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: var(--canvas-border);
+      }
+
+      /* ---------- Thẻ chỉ số ---------- */
+      .kpi-grid {
         display: grid;
-        gap: 4px;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+        margin-bottom: 14px;
       }
-      .cashbook-choices label {
+      .kpi-card {
+        min-width: 0;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 16px 18px;
+      }
+      .kpi-card .eyebrow {
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .kpi-card .value {
+        font-family: var(--font-data);
+        font-weight: 700;
+        font-size: 23px;
+        margin-top: 7px;
+        font-variant-numeric: tabular-nums;
+        overflow-wrap: anywhere;
+      }
+      .kpi-card .sub {
+        font-size: 11.5px;
+        color: var(--muted);
+        margin-top: 5px;
+      }
+      .kpi-card.accent-green .value {
+        color: var(--green);
+      }
+      .kpi-card.accent-red .value {
+        color: var(--red);
+      }
+      .kpi-card.accent-blue .value {
+        color: var(--blue);
+      }
+      .kpi-card .value.is-empty {
+        color: var(--muted);
+      }
+
+      /* ---------- Panel + bảng ---------- */
+      .panel {
+        border-radius: var(--radius-lg);
+        padding: 18px 20px;
+        margin-bottom: 16px;
+        min-width: 0;
+      }
+      .panel-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+      .panel-head h2,
+      .panel-head h3 {
+        font-family: var(--font-display);
+        font-size: 14px;
+        margin: 0;
+        font-weight: 600;
+        line-height: 34px;
+      }
+      .panel-head-actions {
         display: flex;
         align-items: center;
         gap: 8px;
-        min-height: 32px;
-      }
-      .cashbook-choices input {
-        width: 16px;
-        height: 16px;
-        accent-color: var(--blue);
-        flex-shrink: 0;
-      }
-      .cashbook-chips {
-        display: flex;
-        gap: 6px;
         flex-wrap: wrap;
       }
-      .cashbook-chips label {
-        padding: 6px 8px;
+      .export-button {
+        min-height: 34px;
+        padding: 0 12px;
+        border: none;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        background: var(--primary-gradient);
+        color: var(--primary-text);
+        font-family: var(--font-body);
+        font-size: 11.5px;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        box-shadow: var(--primary-shadow);
+      }
+      .export-button svg {
+        width: 14px;
+        height: 14px;
+      }
+      .export-button:focus-visible {
+        outline: 2px solid var(--blue);
+        outline-offset: 2px;
+      }
+      .table-search-tools {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+        flex: 1 1 100%;
+        flex-wrap: wrap;
+      }
+      .table-search-modes {
+        display: inline-flex;
+        flex-wrap: wrap;
+        padding: 2px;
         border: 1px solid var(--border);
         border-radius: var(--radius-pill);
+        background: var(--panel-2);
       }
-      .cashbook-chips label:has(input:checked) {
-        background: var(--accent-blue-12);
+      .table-search-mode {
+        min-height: 28px;
+        padding: 0 9px;
+        border: 0;
+        border-radius: var(--radius-pill);
+        background: transparent;
+        color: var(--muted);
+        font: 600 10.5px var(--font-body);
+        cursor: pointer;
+      }
+      .table-search-mode.active {
+        background: var(--surface-hover);
+        color: var(--text);
+        box-shadow: inset 0 0 0 1px var(--border);
+      }
+      .table-search-input-wrap {
+        display: flex;
+        align-items: center;
+        flex: 1 1 190px;
+        min-width: 180px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--panel-2);
+      }
+      .table-search-input-wrap:focus-within {
         border-color: var(--blue);
       }
-      .cashbook-options {
-        max-height: 170px;
-        overflow: auto;
+      .cb-search-icon {
+        flex: none;
+        width: 14px;
+        height: 14px;
+        margin-left: 9px;
+        color: var(--muted);
       }
-      .cashbook-field {
-        display: grid;
-        gap: 6px;
-        margin-top: 10px;
-      }
-      .cashbook-filters input:not([type="radio"]):not([type="checkbox"]),
-      .cashbook-filters select,
-      .cashbook-dialog input:not([type="checkbox"]),
-      .cashbook-dialog select,
-      .cashbook-dialog textarea {
-        box-sizing: border-box;
+      .table-search-input {
         width: 100%;
         min-width: 0;
-        min-height: 40px;
-        padding: 8px 10px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        background: var(--panel-2);
+        min-height: 32px;
+        padding: 6px 8px;
+        border: 0;
+        outline: 0;
+        background: transparent;
         color: var(--text);
-        font: 13px var(--font-body);
+        font: 500 11.5px var(--font-body);
+        appearance: none;
+        -webkit-appearance: none;
       }
-      .cashbook-dialog textarea {
-        resize: vertical;
-        min-height: 80px;
-      }
-      .cashbook-button {
-        min-height: 40px;
-        padding: 8px 12px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        background: var(--panel-2);
-        color: var(--text);
-        font: 500 13px var(--font-body);
-        cursor: pointer;
-        white-space: nowrap;
-      }
-      .cashbook-button.primary {
-        background: var(--primary);
-        color: var(--primary-text);
-        border-color: var(--primary);
-      }
-      .cashbook-button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
-      .cashbook-content :focus-visible,
-      .cashbook-dialog :focus-visible {
-        outline: 2px solid var(--blue);
-        outline-offset: 3px;
-      }
-      .cashbook-note {
-        margin: 10px 0 0;
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.6;
-      }
-      .cashbook-sync {
-        margin: 0;
-        color: var(--canvas-text-muted);
-        font-size: 13px;
-      }
-      .cashbook-status {
-        margin: 0;
-        padding: 12px 16px;
-        background: var(--panel);
-        border-radius: var(--radius-sm);
-        font-size: 13px;
-        line-height: 1.5;
-      }
-      .cashbook-status:empty {
+      .table-search-input::-webkit-search-cancel-button,
+      .table-search-input::-webkit-search-decoration {
         display: none;
+        -webkit-appearance: none;
       }
-      .cashbook-status[data-error="true"],
-      .negative,
-      .difference {
-        color: var(--red) !important;
-      }
-      .cashbook-kpis {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 12px;
-      }
-      .cashbook-kpi {
-        padding: 16px;
-        min-width: 0;
-      }
-      .cashbook-kpi span {
-        display: block;
-        font-size: 12px;
+      .table-search-clear {
+        width: 28px;
+        height: 28px;
+        border: 0;
+        background: transparent;
         color: var(--muted);
-        margin-bottom: 10px;
+        cursor: pointer;
+        font-size: 17px;
+        line-height: 1;
       }
-      .cashbook-kpi strong {
-        font: 600 20px var(--font-data);
-        overflow-wrap: anywhere;
+      .table-search-mode:focus-visible,
+      .table-search-clear:focus-visible {
+        outline: 2px solid var(--blue);
+        outline-offset: 2px;
       }
-      .cashbook-toolbar {
-        padding: 16px;
-        flex-wrap: wrap;
-      }
-      .cashbook-scroll {
+      .cb-scroll {
+        max-height: 560px;
         overflow: auto;
-        max-height: 65vh;
         overscroll-behavior: contain;
       }
-      .cashbook-table {
+      .cb-scroll::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      .cb-scroll::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: var(--radius-xs);
+      }
+      .cb-table {
         width: 100%;
         border-collapse: collapse;
-        text-align: left;
-        font-size: 13px;
       }
-      .cashbook-table th,
-      .cashbook-table td {
-        padding: 12px 14px;
-        border-bottom: 1px solid var(--border);
-        vertical-align: top;
-        white-space: pre-wrap;
-        min-width: 110px;
-        max-width: 300px;
-        overflow-wrap: anywhere;
-      }
-      .cashbook-table th {
+      .cb-table thead th {
         position: sticky;
         top: 0;
         z-index: 1;
-        background: var(--panel-2);
-        font-size: 11px;
-        color: var(--muted);
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
+        padding: 9px 8px;
+        font-family: var(--font-body);
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text);
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+        text-align: left;
       }
-      .cashbook-table .money {
+      .cb-table tbody td {
+        padding: 9px 8px;
+        border-bottom: 1px solid var(--row-divider);
+        vertical-align: middle;
+        font-size: 13px;
+        text-align: left;
+        overflow-wrap: break-word;
+      }
+      .cb-table tbody tr:last-child td {
+        border-bottom: none;
+      }
+      .cb-table .money {
         text-align: right;
+        font-family: var(--font-data);
+        font-weight: 500;
         font-variant-numeric: tabular-nums;
         white-space: nowrap;
       }
-      #entriesTable {
-        min-width: 1700px;
+      .cb-table td.cb-empty {
+        color: var(--muted);
+        font-size: 12.5px;
+        padding: 18px 8px;
+        text-align: center;
       }
-      #balancesTable {
-        min-width: 600px;
+      #balancesBody tr[data-fund] {
+        cursor: pointer;
       }
-      #checkpointsTable {
-        min-width: 1050px;
-      }
-      .cashbook-fund-button {
+      .cb-fund-link {
         border: 0;
         padding: 0;
         background: transparent;
@@ -295,167 +340,633 @@
         font: 600 13px var(--font-body);
         text-align: left;
         cursor: pointer;
-        min-height: 32px;
       }
-      #balancesBody tr:hover {
-        background: var(--surface-hover);
+      .cb-fund-link:hover {
+        text-decoration: underline;
       }
-      .cashbook-total,
-      .cashbook-table-note {
-        padding: 12px 16px;
-        font-size: 13px;
-        line-height: 1.6;
-        margin: 0;
+      .cb-fund-note {
+        margin-top: 2px;
         color: var(--muted);
+        font-size: 11.5px;
       }
-      .cashbook-pager {
+      .cb-row-button {
+        min-height: 30px;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--panel-2);
+        color: var(--text);
+        font: 600 11.5px var(--font-body);
+        cursor: pointer;
+        white-space: nowrap;
+        transition: border-color 0.15s ease;
+      }
+      .cb-row-button:hover {
+        border-color: var(--muted);
+      }
+      .cb-note {
+        margin: 0 0 10px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .cb-note:empty {
+        display: none;
+      }
+      .cb-total {
+        margin: 10px 0 0;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 12.5px;
+      }
+      .cb-total:empty {
+        display: none;
+      }
+      .negative,
+      .difference,
+      .cb-table .negative {
+        color: var(--red) !important;
+      }
+      .pagination-controls {
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 10px;
-        padding: 12px 16px;
-        background: var(--panel-2);
-        font-size: 12px;
-        flex-wrap: wrap;
+        margin-top: 10px;
+        font-family: var(--font-data);
+        font-size: 11.5px;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
       }
-      .cashbook-dialog {
-        box-sizing: border-box;
-        width: min(500px, calc(100vw - 32px));
-        max-height: 85vh;
-        overflow: auto;
-        padding: 20px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-xl);
-        background: var(--panel);
-        color: var(--text);
-        box-shadow: var(--shadow-modal);
-      }
-      .cashbook-dialog::backdrop {
-        background: var(--overlay-bg);
-      }
-      .cashbook-dialog-head {
-        margin-bottom: 16px;
-      }
-      .cashbook-dialog-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        margin-top: 20px;
-        flex-wrap: wrap;
-      }
-      #exportColumns {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 4px 12px;
-        margin: 16px 0;
-      }
-      #exportColumns label {
-        display: flex;
-        gap: 8px;
+      .pagination-controls button {
+        display: inline-flex;
         align-items: center;
-        min-height: 40px;
-      }
-      #exportColumns input {
-        accent-color: var(--blue);
-        width: 16px;
-        height: 16px;
-      }
-      #checkpointPreview {
-        padding: 12px;
-        background: var(--panel-2);
+        justify-content: center;
+        min-width: 30px;
+        min-height: 30px;
+        padding: 0 8px;
+        border: 1px solid var(--border);
         border-radius: var(--radius-sm);
-        line-height: 1.7;
-        font-size: 13px;
-        margin: 16px 0 0;
+        background: var(--panel-2);
+        color: var(--text);
+        font: 600 12.5px var(--font-data);
+        line-height: 1;
+        cursor: pointer;
+        transition: border-color 0.15s ease, opacity 0.15s ease;
       }
-      #checkpointError,
-      #exportError {
-        font-size: 13px;
-        color: var(--red);
-        line-height: 1.6;
+      .pagination-controls button:hover:not(:disabled) {
+        border-color: var(--muted);
       }
-      #filterToggle,
-      #filterClose,
-      .cashbook-filter-backdrop {
+      .pagination-controls button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+
+      /* ---------- Thanh bộ lọc ngang ---------- */
+      .cb-filters {
+        padding: 14px 16px;
+      }
+      .cb-filters-head {
         display: none;
       }
-      [hidden] {
-        display: none !important;
+      .cb-filter-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
       }
+      .cb-filter-row + .cb-filter-row {
+        margin-top: 12px;
+      }
+      .period-toggle {
+        display: flex;
+        gap: 6px;
+        background: var(--panel-2);
+        padding: 4px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        flex-wrap: wrap;
+      }
+      .period-toggle label {
+        position: relative;
+        color: var(--muted);
+        font: 600 11.5px var(--font-body);
+        padding: 6px 12px;
+        border-radius: var(--radius-xs);
+        cursor: pointer;
+        user-select: none;
+      }
+      .period-toggle input {
+        position: absolute;
+        opacity: 0;
+        width: 1px;
+        height: 1px;
+        pointer-events: none;
+      }
+      .period-toggle label:has(input:checked) {
+        background: var(--amber);
+        color: #1b1206;
+      }
+      .period-toggle label:has(input:focus-visible) {
+        outline: 2px solid var(--blue);
+        outline-offset: 1px;
+      }
+      .cb-range {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .cb-range-label,
+      .cb-hint {
+        color: var(--muted);
+        font-size: 11.5px;
+        font-weight: 600;
+      }
+      .cb-range .dmy-date-input,
+      .cb-range input[type="date"] {
+        width: 124px;
+      }
+      .cb-hint {
+        font-weight: 500;
+        margin-left: auto;
+      }
+      .cb-filters .table-note {
+        margin: 10px 0 0;
+        padding: 0;
+        text-align: left;
+        font-size: 11.5px;
+      }
+
+      /* Dropdown chọn nhiều — cùng khuôn .dd-button của Vòng đời đơn hàng. */
+      .dd {
+        position: relative;
+        display: inline-block;
+      }
+      .cb-filter-row .dd {
+        flex: 1 1 140px;
+        min-width: 0;
+      }
+      .cb-filter-row .dd-button {
+        min-width: 0;
+        max-width: none;
+      }
+      .cb-reset {
+        flex: none;
+      }
+      .dd-button {
+        position: relative;
+        display: inline-flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        width: 100%;
+        min-height: 38px;
+        min-width: 150px;
+        max-width: 240px;
+        padding: 4px 34px 4px 12px;
+        background: var(--panel-2);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-family: var(--font-body);
+        text-align: left;
+        cursor: pointer;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      }
+      .dd-button::after {
+        content: "";
+        position: absolute;
+        right: 13px;
+        top: 50%;
+        width: 6px;
+        height: 6px;
+        margin-top: -5px;
+        border-right: 1.5px solid var(--muted);
+        border-bottom: 1.5px solid var(--muted);
+        transform: rotate(45deg);
+        transition: transform 0.15s ease;
+      }
+      .dd.open .dd-button::after {
+        margin-top: -1px;
+        transform: rotate(-135deg);
+      }
+      .dd-button:hover {
+        border-color: var(--muted);
+      }
+      .dd.open .dd-button,
+      .dd-button:focus-visible {
+        outline: none;
+        border-color: var(--blue);
+        box-shadow: 0 0 0 3px rgba(var(--primary-rgb, 59, 130, 246), 0.2);
+      }
+      .dd.is-filtered .dd-button {
+        border-color: var(--amber);
+      }
+      .dd-label {
+        color: var(--muted);
+        font-size: 10.5px;
+        font-weight: 600;
+        line-height: 1.3;
+      }
+      .dd-text {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12.5px;
+        font-weight: 600;
+        line-height: 1.4;
+      }
+      .dd-list {
+        position: absolute;
+        z-index: 30;
+        top: calc(100% + 6px);
+        left: 0;
+        min-width: 100%;
+        width: max-content;
+        max-width: min(340px, 86vw);
+        max-height: 320px;
+        overflow-y: auto;
+        padding: 6px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+      }
+      .cb-choices {
+        display: grid;
+        gap: 2px;
+      }
+      .cb-choices + .cb-choices {
+        margin-top: 6px;
+        padding-top: 6px;
+        border-top: 1px solid var(--border);
+      }
+      .cb-choices label {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-height: 34px;
+        padding: 6px 10px;
+        border-radius: var(--radius-xs);
+        color: var(--text);
+        font-size: 12.5px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      .cb-choices label:hover {
+        background: var(--panel-2);
+      }
+      .cb-choices input {
+        flex: none;
+        width: 15px;
+        height: 15px;
+        margin: 0;
+        accent-color: var(--amber);
+      }
+      .cb-choices .cb-empty-note {
+        margin: 0;
+        padding: 8px 10px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .cb-reset {
+        min-height: 38px;
+        padding: 0 14px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: transparent;
+        color: var(--muted);
+        font: 600 12px var(--font-body);
+        cursor: pointer;
+      }
+      .cb-reset:hover {
+        color: var(--text);
+        border-color: var(--muted);
+      }
+
+      /* ---------- Trạng thái tải ---------- */
+      .cb-status {
+        margin: 0 0 14px;
+        padding: 10px 14px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 12.5px;
+      }
+      .cb-status:empty {
+        display: none;
+      }
+      .cb-status[data-error="true"] {
+        color: var(--red);
+        border-color: var(--red);
+      }
+      #retryLoad {
+        margin: 0 0 14px;
+      }
+
+      /* ---------- Hộp thoại (khuôn export-modal của tab Báo cáo) ---------- */
+      .cb-modal {
+        width: min(720px, calc(100vw - 32px));
+        max-height: min(82vh, 760px);
+        padding: 0;
+        background: var(--panel);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-modal);
+        overflow: hidden;
+      }
+      .cb-modal[open] {
+        display: flex;
+        flex-direction: column;
+      }
+      .cb-modal.cb-modal-narrow {
+        width: min(480px, calc(100vw - 32px));
+      }
+      .cb-modal::backdrop {
+        background: rgba(5, 10, 18, 0.74);
+      }
+      .cb-modal > form {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        flex: 1;
+      }
+      .export-modal-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 18px 20px 14px;
+        border-bottom: 1px solid var(--border);
+      }
+      .export-modal-title {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: 17px;
+        font-weight: 650;
+      }
+      .export-modal-subtitle {
+        margin: 5px 0 0;
+        color: var(--muted);
+        font-size: 11.5px;
+      }
+      .export-modal-close {
+        width: 32px;
+        height: 32px;
+        flex: none;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        background: var(--panel-2);
+        color: var(--muted);
+        font-size: 20px;
+        line-height: 1;
+      }
+      .export-modal-close:hover {
+        color: var(--text);
+      }
+      .export-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 20px;
+        border-bottom: 1px solid var(--border);
+      }
+      .export-field-search {
+        flex: 1;
+        min-width: 0;
+        min-height: 34px;
+        padding: 7px 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--panel-2);
+        color: var(--text);
+        font: 12px var(--font-body);
+      }
+      .export-field-search:focus {
+        border-color: var(--blue);
+        outline: none;
+      }
+      .export-select-action {
+        min-height: 34px;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        background: var(--panel-2);
+        color: var(--text);
+        font: 600 11px var(--font-body);
+      }
+      .export-fields,
+      .cb-modal-body {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 14px 20px 16px;
+      }
+      .export-field-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+      }
+      .export-field-item {
+        min-width: 0;
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 8px 9px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--panel-2);
+        font-size: 11.5px;
+        cursor: pointer;
+      }
+      .export-field-item input {
+        margin: 2px 0 0;
+        accent-color: var(--green);
+      }
+      .export-field-label {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      .export-modal-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 13px 20px;
+        border-top: 1px solid var(--border);
+      }
+      .export-status {
+        min-height: 16px;
+        margin: 0;
+        color: var(--muted);
+        font-size: 11.5px;
+        line-height: 1.5;
+      }
+      .export-status.error {
+        color: var(--red);
+      }
+      .export-foot-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: none;
+      }
+      .export-cancel,
+      .export-html,
+      .export-confirm {
+        min-height: 36px;
+        padding: 0 14px;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        font: 650 12px var(--font-body);
+      }
+      .export-cancel {
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        color: var(--text);
+      }
+      .export-confirm {
+        border: 1px solid var(--green);
+        background: var(--green);
+        color: #07150d;
+      }
+      .export-html {
+        border: 1px solid var(--amber);
+        background: var(--amber);
+        color: #211400;
+      }
+      .export-cancel:disabled,
+      .export-html:disabled,
+      .export-confirm:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      .cb-field {
+        display: grid;
+        gap: 6px;
+        margin-bottom: 12px;
+        color: var(--text-secondary);
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .cb-input {
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 38px;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--panel-2);
+        color: var(--text);
+        font: 500 13px var(--font-body);
+      }
+      .cb-input:focus {
+        outline: none;
+        border-color: var(--blue);
+      }
+      textarea.cb-input {
+        min-height: 76px;
+        resize: vertical;
+      }
+      .cb-field-help {
+        margin: -6px 0 12px;
+        color: var(--muted);
+        font-size: 11.5px;
+      }
+      #checkpointPreview {
+        margin: 0;
+        padding: 10px 12px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 12.5px;
+        line-height: 1.6;
+      }
+      #checkpointPreview:empty {
+        display: none;
+      }
+
       @media (max-width: 1100px) {
-        .cashbook-layout {
-          grid-template-columns: 220px minmax(0, 1fr);
-          gap: 16px;
-        }
-        .cashbook-kpis {
+        .kpi-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
       }
       @media (max-width: 760px) {
-        .cashbook-layout {
-          display: block;
+        .content {
+          padding: 18px !important;
         }
-        .cashbook-content {
-          padding: 16px !important;
-        }
-        .cashbook-heading h2 {
-          font-size: 22px;
-        }
-        #filterToggle,
-        #filterClose {
+        #filterToggle {
           display: inline-flex;
-          align-items: center;
-          justify-content: center;
+          flex: none;
         }
-        .cashbook-heading #filterToggle {
-          margin-left: auto;
-        }
-        .cashbook-filters {
+        .cb-filters {
           display: none;
           position: fixed;
-          inset: 0 auto 0 0;
+          /* Mở từ bên phải và chừa 64px: nút menu nổi của sidebar (z-index 40,
+             ngoài stacking context của .content) luôn nằm trên ngăn kéo. */
+          inset: 0 0 0 auto;
           z-index: 2200;
-          width: min(320px, calc(100vw - 40px));
-          box-sizing: border-box;
-          overflow: auto;
+          width: min(340px, calc(100vw - 64px));
+          margin: 0;
           border-radius: 0;
+          overflow: auto;
           overscroll-behavior: contain;
         }
-        .cashbook-filters.open {
+        .cb-filters.open {
           display: block;
         }
-        .cashbook-filter-backdrop.open {
-          display: block;
+        .cb-filters-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 12px;
+        }
+        .cb-filters-head h2 {
+          margin: 0;
+          font: 600 15px var(--font-display);
+        }
+        .cb-filter-backdrop.open {
           position: fixed;
           inset: 0;
           z-index: 2199;
           background: var(--overlay-bg);
         }
-        .cashbook-kpi {
-          padding: 12px;
+        .cb-filter-row {
+          align-items: stretch;
         }
-        .cashbook-kpi strong {
-          font-size: 18px;
+        .cb-filter-row .dd,
+        .cb-reset {
+          flex: 1 1 100%;
+          width: 100%;
         }
-        .cashbook-toolbar {
-          padding: 12px;
+        .dd-button {
+          max-width: none;
         }
-        .cashbook-table th,
-        .cashbook-table td {
-          padding: 10px;
-          font-size: 12px;
+        .dd-list {
+          position: static;
+          width: auto;
+          max-width: none;
+          margin-top: 6px;
+          box-shadow: none;
         }
-        .cashbook-results {
-          gap: 16px;
+        .cb-hint {
+          margin-left: 0;
         }
-        .cashbook-heading {
-          gap: 10px;
+        .kpi-card .value {
+          font-size: 19px;
         }
-        .cashbook-button {
-          font-size: 12px;
+        .export-field-list {
+          grid-template-columns: 1fr;
         }
-        .cashbook-dialog {
-          padding: 16px;
+        .export-toolbar,
+        .export-modal-foot {
+          flex-wrap: wrap;
         }
       }
     </style>
@@ -471,13 +982,7 @@
           aria-expanded="false"
           aria-controls="sidebar"
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            aria-hidden="true"
-          >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
             <path d="M4 6h16M4 12h16M4 18h16"></path>
           </svg>
         </button>
@@ -487,30 +992,11 @@
         <div class="brand-text"><h1>Tổng kho gia dụng Tokosi</h1></div>
       </div>
       <div class="status-line">
-        <button
-          class="theme-toggle"
-          id="themeToggle"
-          type="button"
-          aria-label="Chuyển chế độ giao diện"
-        >
-          <svg
-            class="theme-icon-sun"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            aria-hidden="true"
-          >
+        <button class="theme-toggle" id="themeToggle" type="button" aria-label="Chuyển chế độ giao diện">
+          <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <circle cx="12" cy="12" r="4"></circle>
             <path d="M12 2v2M12 20v2M2 12h2M20 12h2"></path></svg
-          ><svg
-            class="theme-icon-moon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            aria-hidden="true"
-          >
+          ><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg
           ><span id="themeLabel">Light mode</span>
         </button>
@@ -520,12 +1006,17 @@
     <div class="shell">
       <div class="backdrop" id="backdrop"></div>
       <div class="sidebar" id="sidebar" data-tks-active-top="cashbook"></div>
-      <main class="content cashbook-content">
-        <div class="cashbook-heading">
-          <h2>Sổ quỹ</h2>
-          <span class="company-badge">Toàn công ty</span
-          ><button
-            class="cashbook-button"
+      <main class="content">
+        <div class="cb-page-head">
+          <div>
+            <h2 class="view-title">Sổ quỹ</h2>
+            <p class="view-sub">
+              Toàn công ty · gộp phiếu thu chi Hà Nội + Sài Gòn ·
+              <span id="syncedAt">Dữ liệu KiotViet: đang tải mốc đồng bộ…</span>
+            </p>
+          </div>
+          <button
+            class="cb-row-button"
             id="filterToggle"
             type="button"
             aria-expanded="false"
@@ -534,470 +1025,321 @@
             Bộ lọc
           </button>
         </div>
-        <div class="cashbook-layout">
-          <div class="cashbook-filter-backdrop" id="filterBackdrop"></div>
-          <aside
-            class="cashbook-filters"
-            id="cashbookFilters"
-            aria-labelledby="filtersTitle"
-          >
-            <div class="cashbook-filter-head">
-              <h3 id="filtersTitle">Bộ lọc</h3>
-              <button
-                class="cashbook-button"
-                id="filterClose"
-                type="button"
-                aria-label="Đóng bộ lọc"
-              >
-                ✕
-              </button>
+        <div class="cb-filter-backdrop" id="filterBackdrop"></div>
+        <section class="panel cb-filters" id="cashbookFilters" aria-labelledby="filtersTitle">
+          <div class="cb-filters-head">
+            <h2 id="filtersTitle">Bộ lọc</h2>
+            <button class="export-modal-close" id="filterClose" type="button" aria-label="Đóng bộ lọc">×</button>
+          </div>
+          <form id="filtersForm">
+            <div class="cb-filter-row">
+              <div class="period-toggle" id="preset" role="radiogroup" aria-label="Thời gian">
+                <label><input type="radio" name="preset" value="today" />Hôm nay</label
+                ><label><input type="radio" name="preset" value="yesterday" />Hôm qua</label
+                ><label><input type="radio" name="preset" value="thisWeek" />Tuần này</label
+                ><label><input type="radio" name="preset" value="thisMonth" />Tháng này</label
+                ><label><input type="radio" name="preset" value="lastMonth" />Tháng trước</label
+                ><label><input type="radio" name="preset" value="thisYear" checked />Năm nay</label
+                ><label><input type="radio" name="preset" value="custom" />Tùy chỉnh</label>
+              </div>
+              <div class="cb-range" id="customDates" hidden>
+                <span class="cb-range-label">Từ</span>
+                <input id="from" name="from" type="date" aria-label="Từ ngày" />
+                <span class="cb-range-label">Đến</span>
+                <input id="to" name="to" type="date" aria-label="Đến ngày" />
+              </div>
+              <span class="cb-hint">Giờ Việt Nam (UTC+7)</span>
             </div>
-            <form id="filtersForm">
-              <fieldset>
-                <legend>Quỹ</legend>
-                <div>
-                  <div class="cashbook-choices">
-                    <label
-                      ><input
-                        type="radio"
-                        name="fundMode"
-                        value="all"
-                        checked
-                      />Tổng quỹ</label
-                    ><label
-                      ><input type="radio" name="fundMode" value="cash" />Tiền
-                      mặt</label
-                    ><label
-                      ><input type="radio" name="fundMode" value="bank" />Ngân
-                      hàng</label
-                    >
-                  </div>
-                  <div
-                    id="fundChoices"
-                    class="cashbook-choices cashbook-options"
-                    aria-label="Tài khoản ngân hàng"
-                  ></div>
-                </div>
-              </fieldset>
-              <fieldset>
-                <legend>Thời gian</legend>
-                <div>
-                  <div class="cashbook-choices" id="preset">
-                    <label
-                      ><input type="radio" name="preset" value="today" />Hôm
-                      nay</label
-                    ><label
-                      ><input type="radio" name="preset" value="yesterday" />Hôm
-                      qua</label
-                    ><label
-                      ><input type="radio" name="preset" value="thisWeek" />Tuần
-                      này</label
-                    ><label
-                      ><input
-                        type="radio"
-                        name="preset"
-                        value="thisMonth"
-                      />Tháng này</label
-                    ><label
-                      ><input
-                        type="radio"
-                        name="preset"
-                        value="lastMonth"
-                      />Tháng trước</label
-                    ><label
-                      ><input
-                        type="radio"
-                        name="preset"
-                        value="thisYear"
-                        checked
-                      />Năm nay</label
-                    ><label
-                      ><input type="radio" name="preset" value="custom" />Tùy
-                      chỉnh</label
-                    >
-                  </div>
-                  <div id="customDates" hidden>
-                    <label class="cashbook-field"
-                      >Từ ngày<input id="from" name="from" type="date" /></label
-                    ><label class="cashbook-field"
-                      >Đến ngày<input id="to" name="to" type="date"
-                    /></label>
-                  </div>
-                  <p class="cashbook-note">
-                    Ngày và giờ theo Việt Nam (UTC+7).
-                  </p>
-                </div>
-              </fieldset>
-              <fieldset>
-                <legend>Loại chứng từ</legend>
-                <div class="cashbook-choices">
-                  <label
-                    ><input
-                      name="docTypes"
-                      type="checkbox"
-                      value="receipt"
-                      checked
-                    />Phiếu thu</label
-                  ><label
-                    ><input
-                      name="docTypes"
-                      type="checkbox"
-                      value="payment"
-                      checked
-                    />Phiếu chi</label
-                  >
-                </div>
-              </fieldset>
-              <fieldset>
-                <legend>Loại thu chi</legend>
-                <div
-                  id="groupChoices"
-                  class="cashbook-choices cashbook-options"
-                ></div>
-              </fieldset>
-              <fieldset>
-                <legend>Trạng thái</legend>
-                <div class="cashbook-choices">
-                  <label
-                    ><input
-                      name="statuses"
-                      type="checkbox"
-                      value="paid"
-                      checked
-                    />Đã thanh toán</label
-                  ><label
-                    ><input
-                      name="statuses"
-                      type="checkbox"
-                      value="cancelled"
-                      checked
-                    />Đã hủy</label
-                  >
-                </div>
-              </fieldset>
-              <fieldset>
-                <legend>Hạch toán KQKD</legend>
-                <div class="cashbook-choices cashbook-chips">
-                  <label
-                    ><input
-                      name="accounting"
-                      type="radio"
-                      value="all"
-                      checked
-                    />Tất cả</label
-                  ><label
-                    ><input
-                      name="accounting"
-                      type="radio"
-                      value="yes"
-                    />Có</label
-                  ><label
-                    ><input
-                      name="accounting"
-                      type="radio"
-                      value="no"
-                    />Không</label
-                  >
-                </div>
-              </fieldset>
-              <fieldset>
-                <legend>Người tạo</legend>
-                <div
-                  id="creatorChoices"
-                  class="cashbook-choices cashbook-options"
-                ></div>
-              </fieldset>
-              <fieldset>
-                <legend>Nhân viên</legend>
-                <div
-                  id="staffChoices"
-                  class="cashbook-choices cashbook-options"
-                ></div>
-              </fieldset>
-              <fieldset>
-                <legend>Người nộp/nhận</legend>
-                <div>
-                  <label class="cashbook-field"
-                    >Tên / ID đối tác<input
-                      id="partnerQ"
-                      name="partnerQ"
-                      type="search"
-                      autocomplete="off"
-                      placeholder="Tìm tên hoặc ID…" /></label
-                  ><label class="cashbook-field"
-                    >Số điện thoại<input
-                      id="partnerPhone"
-                      name="partnerPhone"
-                      type="search"
-                      inputmode="tel"
-                      autocomplete="off"
-                      placeholder="Tìm số điện thoại…"
-                  /></label>
-                </div>
-              </fieldset>
-              <p class="cashbook-note">
-                Chưa có dữ liệu công nợ và mã đối tác; loại đối tác chưa được
-                xác minh nên các bộ lọc này chưa hiển thị.
-              </p>
-              <button
-                class="cashbook-button"
-                id="resetFilters"
-                type="button"
-                style="margin-top: 16px; width: 100%"
-              >
-                Đặt lại bộ lọc
-              </button>
-            </form>
-          </aside>
-          <div class="cashbook-results" id="cashbookResults">
-            <p class="cashbook-sync" id="syncedAt">
-              Dữ liệu KiotViet: đang tải mốc đồng bộ…
-            </p>
-            <p
-              class="cashbook-status"
-              id="pageStatus"
-              role="status"
-              aria-live="polite"
-            ></p>
-            <button class="cashbook-button" id="retryLoad" type="button" hidden>
-              Thử tải lại
-            </button>
-            <div class="cashbook-kpis" aria-label="Tổng hợp theo kỳ">
-              <div class="cashbook-kpi">
-                <span>Quỹ đầu kỳ</span><strong id="openingBalance">—</strong>
-              </div>
-              <div class="cashbook-kpi">
-                <span>Tổng thu</span><strong id="totalReceipts">—</strong>
-              </div>
-              <div class="cashbook-kpi">
-                <span>Tổng chi</span><strong id="totalPayments">—</strong>
-              </div>
-              <div class="cashbook-kpi">
-                <span>Tồn quỹ</span><strong id="closingBalance">—</strong>
-              </div>
-            </div>
-            <section class="cashbook-panel" aria-labelledby="balancesTitle">
-              <div class="cashbook-toolbar">
-                <h3 id="balancesTitle">Số dư tài khoản</h3>
-                <button
-                  class="cashbook-button"
-                  type="button"
-                  data-export="balances"
-                  aria-haspopup="dialog"
-                  aria-controls="exportDialog"
-                >
-                  Xuất
+            <div class="cb-filter-row">
+              <div class="dd" data-dd="fund">
+                <button class="dd-button" type="button" aria-expanded="false" aria-controls="fundPanel">
+                  <span class="dd-label">Quỹ</span><span class="dd-text" data-summary="fund">Tổng quỹ</span>
                 </button>
+                <div class="dd-list" id="fundPanel" hidden>
+                  <div class="cb-choices">
+                    <label><input type="radio" name="fundMode" value="all" checked />Tổng quỹ</label
+                    ><label><input type="radio" name="fundMode" value="cash" />Tiền mặt</label
+                    ><label><input type="radio" name="fundMode" value="bank" />Ngân hàng</label>
+                  </div>
+                  <div id="fundChoices" class="cb-choices" aria-label="Tài khoản ngân hàng"></div>
+                </div>
               </div>
-              <div
-                class="cashbook-scroll"
-                tabindex="0"
-                aria-label="Bảng số dư tài khoản"
-              >
-                <table class="cashbook-table" id="balancesTable">
+              <div class="dd" data-dd="docTypes">
+                <button class="dd-button" type="button" aria-expanded="false" aria-controls="docTypesPanel">
+                  <span class="dd-label">Loại chứng từ</span><span class="dd-text" data-summary="docTypes">Tất cả</span>
+                </button>
+                <div class="dd-list" id="docTypesPanel" hidden>
+                  <div class="cb-choices">
+                    <label><input name="docTypes" type="checkbox" value="receipt" checked />Phiếu thu</label
+                    ><label><input name="docTypes" type="checkbox" value="payment" checked />Phiếu chi</label>
+                  </div>
+                </div>
+              </div>
+              <div class="dd" data-dd="groups">
+                <button class="dd-button" type="button" aria-expanded="false" aria-controls="groupsPanel">
+                  <span class="dd-label">Loại thu chi</span><span class="dd-text" data-summary="groups">Tất cả</span>
+                </button>
+                <div class="dd-list" id="groupsPanel" hidden>
+                  <div id="groupChoices" class="cb-choices"></div>
+                </div>
+              </div>
+              <div class="dd" data-dd="statuses">
+                <button class="dd-button" type="button" aria-expanded="false" aria-controls="statusesPanel">
+                  <span class="dd-label">Trạng thái</span><span class="dd-text" data-summary="statuses">Tất cả</span>
+                </button>
+                <div class="dd-list" id="statusesPanel" hidden>
+                  <div class="cb-choices">
+                    <label><input name="statuses" type="checkbox" value="paid" checked />Đã thanh toán</label
+                    ><label><input name="statuses" type="checkbox" value="cancelled" checked />Đã hủy</label>
+                  </div>
+                </div>
+              </div>
+              <div class="dd" data-dd="accounting">
+                <button class="dd-button" type="button" aria-expanded="false" aria-controls="accountingPanel">
+                  <span class="dd-label">Hạch toán KQKD</span><span class="dd-text" data-summary="accounting">Tất cả</span>
+                </button>
+                <div class="dd-list" id="accountingPanel" hidden>
+                  <div class="cb-choices">
+                    <label><input name="accounting" type="radio" value="all" checked />Tất cả</label
+                    ><label><input name="accounting" type="radio" value="yes" />Có</label
+                    ><label><input name="accounting" type="radio" value="no" />Không</label>
+                  </div>
+                </div>
+              </div>
+              <div class="dd" data-dd="creators">
+                <button class="dd-button" type="button" aria-expanded="false" aria-controls="creatorsPanel">
+                  <span class="dd-label">Người tạo</span><span class="dd-text" data-summary="creators">Tất cả</span>
+                </button>
+                <div class="dd-list" id="creatorsPanel" hidden>
+                  <div id="creatorChoices" class="cb-choices"></div>
+                </div>
+              </div>
+              <div class="dd" data-dd="staff">
+                <button class="dd-button" type="button" aria-expanded="false" aria-controls="staffPanel">
+                  <span class="dd-label">Nhân viên</span><span class="dd-text" data-summary="staff">Tất cả</span>
+                </button>
+                <div class="dd-list" id="staffPanel" hidden>
+                  <div id="staffChoices" class="cb-choices"></div>
+                </div>
+              </div>
+              <button class="cb-reset" id="resetFilters" type="button">Đặt lại bộ lọc</button>
+            </div>
+            <p class="table-note">
+              Tìm theo mã phiếu, người nộp/nhận, SĐT, ghi chú ở ô tìm kiếm của bảng Sổ chi tiết (áp dụng cả cho chỉ
+              số). Chưa có dữ liệu công nợ và mã đối tác; loại đối tác chưa được xác minh nên các bộ lọc này chưa
+              hiển thị.
+            </p>
+          </form>
+        </section>
+
+        <div id="cashbookResults">
+          <p class="cb-status" id="pageStatus" role="status" aria-live="polite"></p>
+          <button class="cb-row-button" id="retryLoad" type="button" hidden>Thử tải lại</button>
+
+          <section class="section">
+            <div class="section-head">
+              <span class="section-step">1</span>
+              <h2>Tổng quan quỹ <span class="section-note">theo kỳ lọc · bấm tên quỹ để xem sổ chi tiết</span></h2>
+            </div>
+            <div class="kpi-grid" aria-label="Tổng hợp theo kỳ">
+              <div class="kpi-card accent-blue">
+                <div class="eyebrow">Quỹ đầu kỳ</div>
+                <div class="value" id="openingBalance">—</div>
+                <div class="sub">Số dư thật tại đầu kỳ</div>
+              </div>
+              <div class="kpi-card accent-green">
+                <div class="eyebrow">Tổng thu</div>
+                <div class="value" id="totalReceipts">—</div>
+                <div class="sub">Theo bộ lọc · không tính phiếu hủy</div>
+              </div>
+              <div class="kpi-card accent-red">
+                <div class="eyebrow">Tổng chi</div>
+                <div class="value" id="totalPayments">—</div>
+                <div class="sub">Theo bộ lọc · không tính phiếu hủy</div>
+              </div>
+              <div class="kpi-card accent-blue">
+                <div class="eyebrow">Tồn quỹ</div>
+                <div class="value" id="closingBalance">—</div>
+                <div class="sub">Số dư thật tại cuối kỳ</div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head">
+                <h3 id="balancesTitle">Số dư tài khoản</h3>
+                <div class="panel-head-actions">
+                  <button class="export-button" type="button" data-export="balances" aria-haspopup="dialog" aria-controls="exportDialog">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file
+                  </button>
+                </div>
+                <div class="table-search-tools">
+                  <label class="table-search-input-wrap">
+                    <svg class="cb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg>
+                    <input class="table-search-input" id="balancesSearch" type="search" autocomplete="off" placeholder="Tìm tên tài khoản hoặc số TK…" aria-label="Tìm tài khoản" />
+                    <button class="table-search-clear" type="button" data-search-clear="balancesSearch" aria-label="Xóa tìm kiếm" hidden>×</button>
+                  </label>
+                </div>
+              </div>
+              <div class="cb-scroll" tabindex="0" aria-label="Bảng số dư tài khoản">
+                <table class="cb-table fixed-table" id="balancesTable" aria-labelledby="balancesTitle">
                   <thead></thead>
                   <tbody id="balancesBody"></tbody>
                 </table>
               </div>
-              <p class="cashbook-total" id="balanceTotal"></p>
-            </section>
-            <section class="cashbook-panel" aria-labelledby="entriesTitle">
-              <div class="cashbook-toolbar">
-                <h3 id="entriesTitle">Sổ chi tiết</h3>
-                <button
-                  class="cashbook-button"
-                  type="button"
-                  data-export="entries"
-                  aria-haspopup="dialog"
-                  aria-controls="exportDialog"
-                >
-                  Xuất
-                </button>
+              <p class="cb-total" id="balanceTotal"></p>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head">
+              <span class="section-step">2</span>
+              <h2>Sổ chi tiết <span class="section-note">phiếu thu chi theo bộ lọc · mới nhất trước</span></h2>
+            </div>
+            <div class="panel">
+              <div class="panel-head">
+                <h3 id="entriesTitle">Phiếu thu chi</h3>
+                <div class="panel-head-actions">
+                  <button class="export-button" type="button" data-export="entries" aria-haspopup="dialog" aria-controls="exportDialog">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file
+                  </button>
+                </div>
+                <div class="table-search-tools">
+                  <div class="table-search-modes" role="group" aria-label="Tìm theo">
+                    <button class="table-search-mode active" type="button" data-search-mode="code" aria-pressed="true">Mã phiếu</button
+                    ><button class="table-search-mode" type="button" data-search-mode="partner" aria-pressed="false">Người nộp/nhận</button
+                    ><button class="table-search-mode" type="button" data-search-mode="phone" aria-pressed="false">SĐT</button
+                    ><button class="table-search-mode" type="button" data-search-mode="note" aria-pressed="false">Ghi chú</button>
+                  </div>
+                  <label class="table-search-input-wrap">
+                    <svg class="cb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg>
+                    <input class="table-search-input" id="entriesSearch" type="search" autocomplete="off" placeholder="Tìm theo mã phiếu…" aria-label="Tìm trong sổ chi tiết" />
+                    <button class="table-search-clear" type="button" data-search-clear="entriesSearch" aria-label="Xóa tìm kiếm" hidden>×</button>
+                  </label>
+                </div>
               </div>
-              <p class="cashbook-table-note" id="runningReason"></p>
-              <div
-                class="cashbook-scroll"
-                tabindex="0"
-                aria-label="Bảng sổ chi tiết"
-              >
-                <table class="cashbook-table" id="entriesTable">
+              <p class="cb-note" id="runningReason"></p>
+              <div class="cb-scroll" tabindex="0" aria-label="Bảng sổ chi tiết">
+                <table class="cb-table fixed-table" id="entriesTable" aria-labelledby="entriesTitle">
                   <thead></thead>
                   <tbody id="entriesBody"></tbody>
                 </table>
               </div>
-              <div class="cashbook-pager">
-                <button
-                  class="cashbook-button"
-                  id="entriesPrevious"
-                  type="button"
-                  aria-label="Trang sổ chi tiết trước"
-                >
-                  ‹</button
-                ><span id="entriesPage"></span
-                ><button
-                  class="cashbook-button"
-                  id="entriesNext"
-                  type="button"
-                  aria-label="Trang sổ chi tiết sau"
-                >
-                  ›
-                </button>
+              <div class="pagination-controls">
+                <button id="entriesFirst" type="button" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                <button id="entriesPrevious" type="button" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                <span id="entriesPage"></span>
+                <button id="entriesNext" type="button" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                <button id="entriesLast" type="button" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
               </div>
-            </section>
-            <section class="cashbook-panel" aria-labelledby="checkpointsTitle">
-              <div class="cashbook-toolbar">
-                <h3 id="checkpointsTitle">Lịch sử chốt số dư</h3>
-                <button
-                  class="cashbook-button"
-                  type="button"
-                  data-export="checkpoints"
-                  aria-haspopup="dialog"
-                  aria-controls="exportDialog"
-                >
-                  Xuất
-                </button>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head">
+              <span class="section-step">3</span>
+              <h2>Lịch sử chốt số dư <span class="section-note">chênh lệch khác 0 tô đỏ</span></h2>
+            </div>
+            <div class="panel">
+              <div class="panel-head">
+                <h3 id="checkpointsTitle">Các lần chốt</h3>
+                <div class="panel-head-actions">
+                  <button class="export-button" type="button" data-export="checkpoints" aria-haspopup="dialog" aria-controls="exportDialog">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file
+                  </button>
+                </div>
+                <div class="table-search-tools">
+                  <label class="table-search-input-wrap">
+                    <svg class="cb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg>
+                    <input class="table-search-input" id="checkpointsSearch" type="search" autocomplete="off" placeholder="Tìm quỹ, người chốt hoặc ghi chú…" aria-label="Tìm trong lịch sử chốt" />
+                    <button class="table-search-clear" type="button" data-search-clear="checkpointsSearch" aria-label="Xóa tìm kiếm" hidden>×</button>
+                  </label>
+                </div>
               </div>
-              <div
-                class="cashbook-scroll"
-                tabindex="0"
-                aria-label="Bảng lịch sử chốt"
-              >
-                <table class="cashbook-table" id="checkpointsTable">
+              <div class="cb-scroll" tabindex="0" aria-label="Bảng lịch sử chốt">
+                <table class="cb-table fixed-table" id="checkpointsTable" aria-labelledby="checkpointsTitle">
                   <thead></thead>
                   <tbody id="checkpointsBody"></tbody>
                 </table>
               </div>
-              <div class="cashbook-pager">
-                <button
-                  class="cashbook-button"
-                  id="checkpointsPrevious"
-                  type="button"
-                  aria-label="Trang lịch sử trước"
-                >
-                  ‹</button
-                ><span id="checkpointsPage"></span
-                ><button
-                  class="cashbook-button"
-                  id="checkpointsNext"
-                  type="button"
-                  aria-label="Trang lịch sử sau"
-                >
-                  ›
-                </button>
+              <div class="pagination-controls">
+                <button id="checkpointsFirst" type="button" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                <button id="checkpointsPrevious" type="button" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                <span id="checkpointsPage"></span>
+                <button id="checkpointsNext" type="button" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                <button id="checkpointsLast" type="button" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
               </div>
-            </section>
-          </div>
+            </div>
+          </section>
         </div>
       </main>
     </div>
-    <dialog
-      class="cashbook-dialog"
-      id="checkpointDialog"
-      aria-labelledby="checkpointTitle"
-    >
-      <div class="cashbook-dialog-head">
-        <h3 id="checkpointTitle">Chốt số dư</h3>
-        <button
-          class="cashbook-button"
-          type="button"
-          data-close="checkpointDialog"
-          aria-label="Đóng chốt số dư"
-        >
-          ✕
-        </button>
-      </div>
+    <dialog class="cb-modal cb-modal-narrow" id="checkpointDialog" aria-labelledby="checkpointTitle" aria-describedby="checkpointSubtitle">
       <form id="checkpointForm">
-        <label class="cashbook-field"
-          >Quỹ<select id="checkpointFund" required></select
-        ></label>
-        <label class="cashbook-field"
-          >Thời điểm chốt (giờ Việt Nam)<input
-            id="checkpointAt"
-            type="datetime-local"
-            step="1"
-            required
-        /></label>
-        <label class="cashbook-field"
-          >Số dư thực tế<input
-            id="checkpointBalance"
-            type="text"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="1,234,567"
-            required
-            aria-describedby="amountHelp"
-        /></label>
-        <p class="cashbook-note" id="amountHelp">
-          Dấu phẩy phân cách hàng nghìn; dấu chấm cho phần thập phân. Cho phép
-          số âm.
-        </p>
-        <label class="cashbook-field"
-          >Ghi chú<textarea id="checkpointNote" maxlength="2000"></textarea>
-        </label>
-        <p id="checkpointPreview" role="status" aria-live="polite"></p>
-        <p id="checkpointError" role="alert"></p>
-        <div class="cashbook-dialog-actions">
-          <button
-            class="cashbook-button"
-            type="button"
-            data-close="checkpointDialog"
-          >
-            Hủy</button
-          ><button
-            class="cashbook-button primary"
-            id="checkpointSave"
-            type="submit"
-            disabled
-          >
-            Lưu chốt số dư
-          </button>
+        <div class="export-modal-head">
+          <div>
+            <h2 class="export-modal-title" id="checkpointTitle">Chốt số dư</h2>
+            <p class="export-modal-subtitle" id="checkpointSubtitle">Nhập số dư thực tế theo sao kê ngân hàng hoặc kiểm quỹ.</p>
+          </div>
+          <button class="export-modal-close" type="button" data-close="checkpointDialog" aria-label="Đóng chốt số dư">×</button>
+        </div>
+        <div class="cb-modal-body">
+          <label class="cb-field">Quỹ<select class="cb-input" id="checkpointFund" required></select></label>
+          <label class="cb-field"
+            >Thời điểm chốt (giờ Việt Nam)<input class="cb-input" id="checkpointAt" type="datetime-local" step="1" required
+          /></label>
+          <label class="cb-field"
+            >Số dư thực tế<input
+              class="cb-input"
+              id="checkpointBalance"
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              placeholder="1,234,567"
+              required
+              aria-describedby="amountHelp"
+          /></label>
+          <p class="cb-field-help" id="amountHelp">
+            Dấu phẩy phân cách hàng nghìn; dấu chấm cho phần thập phân. Cho phép số âm.
+          </p>
+          <label class="cb-field">Ghi chú<textarea class="cb-input" id="checkpointNote" maxlength="2000"></textarea></label>
+          <p id="checkpointPreview" role="status" aria-live="polite"></p>
+        </div>
+        <div class="export-modal-foot">
+          <p class="export-status error" id="checkpointError" role="alert"></p>
+          <div class="export-foot-actions">
+            <button class="export-cancel" type="button" data-close="checkpointDialog">Hủy</button
+            ><button class="export-confirm" id="checkpointSave" type="submit" disabled>Lưu chốt số dư</button>
+          </div>
         </div>
       </form>
     </dialog>
-    <dialog
-      class="cashbook-dialog"
-      id="exportDialog"
-      aria-labelledby="exportTitle"
-    >
-      <div class="cashbook-dialog-head">
-        <h3 id="exportTitle">Chọn cột xuất file</h3>
-        <button
-          class="cashbook-button"
-          type="button"
-          data-close="exportDialog"
-          aria-label="Đóng xuất file"
-        >
-          ✕
-        </button>
+    <dialog class="cb-modal" id="exportDialog" aria-labelledby="exportTitle" aria-describedby="exportSubtitle">
+      <div class="export-modal-head">
+        <div>
+          <h2 class="export-modal-title" id="exportTitle">Xuất file</h2>
+          <p class="export-modal-subtitle" id="exportSubtitle">Chọn các trường cần đưa vào file</p>
+        </div>
+        <button class="export-modal-close" type="button" data-close="exportDialog" aria-label="Đóng xuất file">×</button>
       </div>
-      <p class="cashbook-note">
-        Xuất toàn bộ dữ liệu theo bộ lọc hiện tại, tối đa 20.000 dòng. Cột được
-        nhớ riêng cho mỗi bảng.
-      </p>
-      <div id="exportColumns"></div>
-      <button class="cashbook-button" id="exportAll" type="button">
-        Chọn tất cả
-      </button>
-      <label class="cashbook-field"
-        >Định dạng<select id="exportFormat">
-          <option value="xlsx">Excel (.xlsx)</option>
-          <option value="html">HTML (.html)</option>
-        </select></label
-      >
-      <p id="exportError" role="alert"></p>
-      <div class="cashbook-dialog-actions">
-        <button class="cashbook-button" type="button" data-close="exportDialog">
-          Hủy</button
-        ><button
-          class="cashbook-button primary"
-          id="exportDownload"
-          type="button"
-        >
-          Tải file
-        </button>
+      <div class="export-toolbar">
+        <input class="export-field-search" id="exportFieldSearch" type="search" placeholder="Tìm tên trường…" aria-label="Tìm tên trường" />
+        <button class="export-select-action" id="exportAll" type="button">Chọn tất cả</button>
+        <button class="export-select-action" id="exportNone" type="button">Bỏ chọn</button>
+      </div>
+      <div class="export-fields">
+        <p class="cb-note">Xuất toàn bộ dữ liệu theo bộ lọc hiện tại, tối đa 20.000 dòng. Cột được nhớ riêng cho mỗi bảng.</p>
+        <div class="export-field-list" id="exportColumns"></div>
+      </div>
+      <div class="export-modal-foot">
+        <p class="export-status error" id="exportError" role="alert"></p>
+        <div class="export-foot-actions">
+          <button class="export-cancel" type="button" data-close="exportDialog">Hủy</button
+          ><button class="export-html" id="exportHtml" type="button" title="Báo cáo xem nhanh, mở được khi không có mạng">Xuất HTML</button
+          ><button class="export-confirm" id="exportDownload" type="button">Xuất Excel</button>
+        </div>
       </div>
     </dialog>
     <script src="/shared/shared-nav.js?v=20261006"></script>
+    <script src="/shared/dateInput.js?v=20260912"></script>
     <script id="cashbook-script">
       (function () {
         "use strict";
@@ -1010,8 +1352,57 @@
           "accounting",
           "partnerQ",
           "partnerPhone",
+          "code",
+          "note",
         ];
         const DEFAULTS = { fund: "all", preset: "thisYear", accounting: "all" };
+        // Ô tìm kiếm của bảng Sổ chi tiết: mỗi chế độ ghi vào đúng 1 tham số máy chủ.
+        const SEARCH_PARAMS = {
+          code: "code",
+          partner: "partnerQ",
+          phone: "partnerPhone",
+          note: "note",
+        };
+        const SEARCH_HINTS = {
+          code: "Tìm theo mã phiếu…",
+          partner: "Tìm tên hoặc ID người nộp/nhận…",
+          phone: "Tìm số điện thoại…",
+          note: "Tìm trong ghi chú…",
+        };
+        // Độ rộng cột cố định (fixed-table) như các bảng ở tab Báo cáo.
+        const WIDTHS = {
+          balances: {
+            name: 280,
+            accountNo: 150,
+            balance: 160,
+            checkpointAt: 170,
+          },
+          entries: {
+            code: 120,
+            transDate: 150,
+            docType: 64,
+            group: 160,
+            partnerName: 190,
+            partnerPhone: 120,
+            fundName: 200,
+            branch: 70,
+            creatorName: 140,
+            staffName: 140,
+            amount: 130,
+            runningBalance: 140,
+            status: 120,
+            note: 240,
+          },
+          checkpoints: {
+            checkpointAt: 170,
+            fundName: 220,
+            createdBy: 160,
+            systemBalance: 150,
+            balance: 150,
+            diff: 140,
+            note: 260,
+          },
+        };
         const COLUMNS = {
           balances: ["name", "accountNo", "balance", "checkpointAt"],
           entries: [
@@ -1090,6 +1481,8 @@
           exportBusy = false,
           exportSession = 0;
         const openers = new Map();
+        const loaded = { balances: [], checkpoints: [] };
+        let searchMode = "code";
 
         // Giữ chuỗi thập phân từ backend/ô nhập, không làm tròn số dư ban đầu.
         function money(value, empty = "Chưa chốt") {
@@ -1250,6 +1643,8 @@
             ) ||
             f.partnerQ ||
             f.partnerPhone ||
+            f.code ||
+            f.note ||
             (f.accounting && f.accounting !== "all");
           return result.runningBalanceAvailable &&
             single &&
@@ -1298,6 +1693,20 @@
         function paintMoney(node, value, empty) {
           node.textContent = money(value, empty);
           node.classList.toggle("negative", value != null && Number(value) < 0);
+          node.classList.toggle("is-empty", value == null || value === "");
+        }
+        // Tìm không dấu như các bảng khác: "dong" khớp "Đông".
+        function fold(value) {
+          return String(value ?? "")
+            .normalize("NFD")
+            .replace(/[̀-ͯ]/g, "")
+            .replace(/đ/g, "d")
+            .replace(/Đ/g, "D")
+            .toLowerCase()
+            .trim();
+        }
+        function matches(row, fields, needle) {
+          return !needle || fields.some((key) => fold(row[key]).includes(needle));
         }
         function header(view) {
           const row = document.createElement("tr");
@@ -1312,19 +1721,21 @@
                   ? "Chốt gần nhất"
                   : LABELS[field];
             if (MONEY.has(field)) th.className = "money";
+            th.style.width = WIDTHS[view][field] + "px";
             row.appendChild(th);
           }
           if (view === "balances" && canManage) {
             const th = document.createElement("th");
             th.scope = "col";
             th.textContent = "Thao tác";
+            th.style.width = "130px";
             row.appendChild(th);
           }
           $(view + "Table")
             .querySelector("thead")
             .replaceChildren(row);
         }
-        function tableRows(view, rows, result = {}) {
+        function tableRows(view, rows, result = {}, emptyText) {
           const body = $(view + "Body");
           body.replaceChildren();
           for (const data of rows) {
@@ -1336,14 +1747,14 @@
               if (view === "balances" && field === "name") {
                 const button = document.createElement("button");
                 button.type = "button";
-                button.className = "cashbook-fund-button";
+                button.className = "cb-fund-link";
                 button.dataset.selectFund = data.fund;
                 button.textContent = data.name;
                 button.title = "Lọc theo quỹ " + data.name;
                 cell.appendChild(button);
                 if (data.description) {
                   const note = document.createElement("div");
-                  note.className = "cashbook-note";
+                  note.className = "cb-fund-note";
                   note.textContent = data.description;
                   cell.appendChild(note);
                 }
@@ -1388,7 +1799,7 @@
             if (view === "balances" && canManage) {
               const cell = document.createElement("td"),
                 button = document.createElement("button");
-              button.className = "cashbook-button";
+              button.className = "cb-row-button";
               button.type = "button";
               button.dataset.checkpoint = data.fund;
               button.textContent = "Chốt số dư";
@@ -1402,7 +1813,9 @@
               cell = document.createElement("td");
             cell.colSpan =
               COLUMNS[view].length + (view === "balances" && canManage ? 1 : 0);
-            cell.textContent = "Không có dữ liệu theo bộ lọc hiện tại.";
+            cell.className = "cb-empty";
+            cell.textContent =
+              emptyText || "Không có dữ liệu theo bộ lọc hiện tại.";
             row.appendChild(cell);
             body.appendChild(row);
           }
@@ -1413,13 +1826,116 @@
           $(view + "Page").textContent =
             "Trang " +
             result.page +
-            " / " +
+            "/" +
             pageCounts[view] +
             " · " +
             result.total.toLocaleString("vi-VN") +
             " dòng";
-          $(view + "Previous").disabled = result.page <= 1;
-          $(view + "Next").disabled = result.page >= pageCounts[view];
+          $(view + "First").disabled = $(view + "Previous").disabled =
+            result.page <= 1;
+          $(view + "Next").disabled = $(view + "Last").disabled =
+            result.page >= pageCounts[view];
+        }
+        // Bảng số dư và lịch sử chốt ít dòng: lọc ngay trên dữ liệu đã tải.
+        function renderBalances() {
+          const needle = fold($("balancesSearch").value);
+          tableRows(
+            "balances",
+            loaded.balances.filter((row) =>
+              matches(row, ["name", "accountNo", "description"], needle),
+            ),
+            {},
+            needle ? "Không có tài khoản khớp từ khóa." : undefined,
+          );
+        }
+        function renderCheckpoints() {
+          const needle = fold($("checkpointsSearch").value);
+          tableRows(
+            "checkpoints",
+            loaded.checkpoints.filter((row) =>
+              matches(row, ["fundName", "createdBy", "note"], needle),
+            ),
+            {},
+            needle ? "Không có lần chốt khớp từ khóa trên trang này." : undefined,
+          );
+        }
+        function syncSearch() {
+          const found = Object.keys(SEARCH_PARAMS).find(
+            (mode) => filters[SEARCH_PARAMS[mode]],
+          );
+          if (found) searchMode = found;
+          document.querySelectorAll("[data-search-mode]").forEach((button) => {
+            const active = button.dataset.searchMode === searchMode;
+            button.classList.toggle("active", active);
+            button.setAttribute("aria-pressed", String(active));
+          });
+          $("entriesSearch").placeholder = SEARCH_HINTS[searchMode];
+          $("entriesSearch").value = filters[SEARCH_PARAMS[searchMode]] || "";
+          for (const input of document.querySelectorAll(".table-search-input"))
+            document.querySelector(
+              '[data-search-clear="' + input.id + '"]',
+            ).hidden = !input.value;
+        }
+        function applySearch() {
+          for (const key of Object.values(SEARCH_PARAMS)) delete filters[key];
+          const value = $("entriesSearch").value.trim();
+          if (value) filters[SEARCH_PARAMS[searchMode]] = value;
+          return applyFilters();
+        }
+        // Nhãn tóm tắt trên nút dropdown ("Tất cả", "2 mục", tên mục duy nhất).
+        function listSummary(name) {
+          const inputs = [
+              ...document.querySelectorAll('[name="' + name + '"]'),
+            ],
+            checked = inputs.filter((input) => input.checked);
+          if (!inputs.length || checked.length === inputs.length)
+            return ["Tất cả", false];
+          if (!checked.length) return ["Không chọn", true];
+          if (checked.length === 1)
+            return [checked[0].parentElement.textContent.trim(), true];
+          return [checked.length + " mục", true];
+        }
+        function updateSummaries() {
+          const summaries = {};
+          const fund = String(filters.fund ?? "all");
+          if (fund === "all") summaries.fund = ["Tổng quỹ", false];
+          else if (fund === "cash") summaries.fund = ["Tiền mặt", true];
+          else if (fund === "bank") summaries.fund = ["Tất cả ngân hàng", true];
+          else if (fund === "") summaries.fund = ["Không chọn", true];
+          else {
+            const ids = fund.split(","),
+              names =
+                catalog &&
+                catalog.funds.filter((item) => ids.includes(item.fund));
+            summaries.fund = [
+              ids.length === 1 && names && names.length
+                ? names[0].name
+                : ids.length + " tài khoản",
+              true,
+            ];
+          }
+          for (const name of LISTS) summaries[name] = listSummary(name);
+          summaries.accounting = [
+            { all: "Tất cả", yes: "Có", no: "Không" }[filters.accounting] ||
+              "Tất cả",
+            filters.accounting && filters.accounting !== "all",
+          ];
+          document.querySelectorAll("[data-dd]").forEach((dd) => {
+            const [text, filtered] = summaries[dd.dataset.dd] || ["Tất cả", false];
+            dd.querySelector("[data-summary]").textContent = text;
+            dd.classList.toggle("is-filtered", Boolean(filtered));
+          });
+        }
+        function setDropdown(dd, open) {
+          dd.classList.toggle("open", open);
+          dd.querySelector(".dd-button").setAttribute(
+            "aria-expanded",
+            String(open),
+          );
+          dd.querySelector(".dd-list").hidden = !open;
+        }
+        function openDropdown() {
+          return document.querySelector("[data-dd].open");
         }
         async function load() {
           const version = ++loadVersion;
@@ -1460,9 +1976,11 @@
             $("syncedAt").textContent = s.syncedAt
               ? "Dữ liệu KiotViet đồng bộ lúc " + dateText(s.syncedAt)
               : "Dữ liệu KiotViet chưa có mốc đồng bộ.";
-            tableRows("balances", s.balances);
+            loaded.balances = s.balances;
+            loaded.checkpoints = c.checkpoints;
+            renderBalances();
             tableRows("entries", e.entries, e);
-            tableRows("checkpoints", c.checkpoints);
+            renderCheckpoints();
             $("balanceTotal").textContent =
               "Tổng các quỹ đã chốt: " +
               money(s.totalBalance) +
@@ -1497,10 +2015,12 @@
                 $(view + "Body").querySelector("td").textContent =
                   "Chưa tải được dữ liệu. Vui lòng thử lại.";
               }
+              loaded.balances = [];
+              loaded.checkpoints = [];
               for (const view of ["entries", "checkpoints"]) {
                 $(view + "Page").textContent = "";
-                $(view + "Previous").disabled = true;
-                $(view + "Next").disabled = true;
+                for (const direction of ["First", "Previous", "Next", "Last"])
+                  $(view + direction).disabled = true;
               }
               $("balanceTotal").textContent = "";
               $("runningReason").textContent = "";
@@ -1529,7 +2049,7 @@
           }
           if (!values.length) {
             const note = document.createElement("p");
-            note.className = "cashbook-note";
+            note.className = "cb-empty-note";
             note.textContent = "Chưa có danh mục.";
             container.appendChild(note);
           }
@@ -1568,9 +2088,10 @@
           document.querySelectorAll('[name="preset"]').forEach((input) => {
             input.checked = input.value === filters.preset;
           });
-          for (const key of ["from", "to", "partnerQ", "partnerPhone"])
-            $(key).value = filters[key] || "";
+          for (const key of ["from", "to"]) $(key).value = filters[key] || "";
           $("customDates").hidden = filters.preset !== "custom";
+          syncSearch();
+          updateSummaries();
         }
         function selected(name) {
           return [
@@ -1748,24 +2269,51 @@
           } catch (error) {
             /* Giữ tùy chọn trong phiên khi không thể lưu trên trình duyệt. */
           }
-          $("exportDownload").disabled =
-            exportBusy || !exportSelection[exportView].length;
+          setExportButtons();
+        }
+        function setExportButtons() {
+          const disabled = exportBusy || !chosenColumns().length;
+          $("exportDownload").disabled = disabled;
+          $("exportHtml").disabled = disabled;
+        }
+        function filterExportFields() {
+          const needle = fold($("exportFieldSearch").value);
+          $("exportColumns")
+            .querySelectorAll(".export-field-item")
+            .forEach((item) => {
+              item.hidden = !!needle && !fold(item.textContent).includes(needle);
+            });
+        }
+        function setVisibleExportFields(checked) {
+          $("exportColumns")
+            .querySelectorAll(".export-field-item:not([hidden]) input")
+            .forEach((input) => {
+              input.checked = checked;
+            });
+          rememberColumns();
         }
         function openExport(view, opener) {
           ++exportSession;
           exportBusy = false;
           exportView = view;
           $("exportError").textContent = "";
+          $("exportFieldSearch").value = "";
+          $("exportSubtitle").textContent =
+            "Bảng " +
+            $(view + "Title").textContent +
+            " · chọn các trường cần đưa vào file";
           $("exportColumns").replaceChildren();
           const saved = exportSelection[view],
             chosen = Array.isArray(saved) ? saved : COLUMNS[view];
           for (const field of COLUMNS[view]) {
             const label = document.createElement("label"),
               input = document.createElement("input");
+            label.className = "export-field-item";
             input.type = "checkbox";
             input.value = field;
             input.checked = chosen.includes(field);
             const span = document.createElement("span");
+            span.className = "export-field-label";
             span.textContent =
               view === "balances" && field === "balance"
                 ? "Số dư hiện tại"
@@ -1773,20 +2321,19 @@
             label.append(input, span);
             $("exportColumns").appendChild(label);
           }
-          $("exportDownload").disabled = exportBusy || !chosenColumns().length;
+          setExportButtons();
           openDialog("exportDialog", opener);
         }
-        async function downloadExport() {
+        async function downloadExport(format) {
           if (exportBusy || !chosenColumns().length) return;
           const session = exportSession,
             currentDialog = () =>
               session === exportSession && $("exportDialog").open;
           exportBusy = true;
-          $("exportDownload").disabled = true;
+          setExportButtons();
           $("exportError").textContent = "";
           try {
-            const view = exportView,
-              format = $("exportFormat").value;
+            const view = exportView;
             const response = await request(
               exportUrl(view, format, chosenColumns(), filters),
             );
@@ -1806,7 +2353,7 @@
           } finally {
             if (currentDialog()) {
               exportBusy = false;
-              $("exportDownload").disabled = !chosenColumns().length;
+              setExportButtons();
             }
           }
         }
@@ -1856,6 +2403,13 @@
           $("filterClose").addEventListener("click", closeDrawer);
           $("filterBackdrop").addEventListener("click", closeDrawer);
           document.addEventListener("keydown", (event) => {
+            const dropdown = openDropdown();
+            if (dropdown && event.key === "Escape") {
+              event.preventDefault();
+              setDropdown(dropdown, false);
+              dropdown.querySelector(".dd-button").focus();
+              return;
+            }
             if (!$("cashbookFilters").classList.contains("open")) return;
             if (event.key === "Escape") {
               event.preventDefault();
@@ -1915,15 +2469,19 @@
               ),
             );
           $("exportColumns").addEventListener("change", rememberColumns);
-          $("exportAll").addEventListener("click", () => {
-            $("exportColumns")
-              .querySelectorAll("input")
-              .forEach((input) => {
-                input.checked = true;
-              });
-            rememberColumns();
-          });
-          $("exportDownload").addEventListener("click", downloadExport);
+          $("exportAll").addEventListener("click", () =>
+            setVisibleExportFields(true),
+          );
+          $("exportNone").addEventListener("click", () =>
+            setVisibleExportFields(false),
+          );
+          $("exportFieldSearch").addEventListener("input", filterExportFields);
+          $("exportDownload").addEventListener("click", () =>
+            downloadExport("xlsx"),
+          );
+          $("exportHtml").addEventListener("click", () =>
+            downloadExport("html"),
+          );
           $("checkpointForm").addEventListener("submit", saveCheckpoint);
           $("checkpointFund").addEventListener("change", previewCheckpoint);
           $("checkpointAt").addEventListener("change", previewCheckpoint);
@@ -1956,7 +2514,6 @@
           $("filtersForm").addEventListener("change", (event) => {
             const input = event.target,
               name = input.name;
-            if (name === "partnerQ" || name === "partnerPhone") return;
             if (name === "fundMode") filters.fund = input.value;
             else if (name === "fundAccounts")
               filters.fund = selected("fundAccounts").join(",");
@@ -1973,32 +2530,69 @@
             } else if (["from", "to", "accounting"].includes(name))
               filters[name] = input.value;
             else return;
-            filters.partnerQ = $("partnerQ").value;
-            filters.partnerPhone = $("partnerPhone").value;
             applyFilters();
           });
-          for (const key of ["partnerQ", "partnerPhone"])
-            $(key).addEventListener("input", () => {
-              clearTimeout(debounceTimer);
-              debounceTimer = setTimeout(() => {
-                filters.partnerQ = $("partnerQ").value;
-                filters.partnerPhone = $("partnerPhone").value;
-                applyFilters();
-              }, 300);
+          $("entriesSearch").addEventListener("input", () => {
+            document.querySelector(
+              '[data-search-clear="entriesSearch"]',
+            ).hidden = !$("entriesSearch").value;
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(applySearch, 300);
+          });
+          document.querySelectorAll("[data-search-mode]").forEach((button) =>
+            button.addEventListener("click", () => {
+              if (button.dataset.searchMode === searchMode) return;
+              searchMode = button.dataset.searchMode;
+              if ($("entriesSearch").value.trim()) applySearch();
+              else syncSearch();
+              $("entriesSearch").focus();
+            }),
+          );
+          for (const [id, render] of [
+            ["balancesSearch", renderBalances],
+            ["checkpointsSearch", renderCheckpoints],
+          ])
+            $(id).addEventListener("input", () => {
+              document.querySelector('[data-search-clear="' + id + '"]').hidden =
+                !$(id).value;
+              render();
             });
+          document.querySelectorAll("[data-search-clear]").forEach((button) =>
+            button.addEventListener("click", () => {
+              const input = $(button.dataset.searchClear);
+              input.value = "";
+              button.hidden = true;
+              if (input.id === "entriesSearch") applySearch();
+              else if (input.id === "balancesSearch") renderBalances();
+              else renderCheckpoints();
+              input.focus();
+            }),
+          );
+          // Dropdown bộ lọc: bấm nút mở/đóng, bấm ngoài hoặc Esc thì đóng.
+          document.querySelectorAll("[data-dd]").forEach((dd) =>
+            dd.querySelector(".dd-button").addEventListener("click", () => {
+              const open = !dd.classList.contains("open"),
+                current = openDropdown();
+              if (current && current !== dd) setDropdown(current, false);
+              setDropdown(dd, open);
+            }),
+          );
+          document.addEventListener("click", (event) => {
+            const current = openDropdown();
+            if (current && !current.contains(event.target))
+              setDropdown(current, false);
+          });
           $("resetFilters").addEventListener("click", () => {
             filters = { ...DEFAULTS };
             applyFilters();
           });
+          const STEP = { First: -Infinity, Previous: -1, Next: 1, Last: Infinity };
           for (const view of ["entries", "checkpoints"])
-            for (const direction of ["Previous", "Next"])
+            for (const direction of Object.keys(STEP))
               $(view + direction).addEventListener("click", () => {
                 pages[view] = Math.max(
                   1,
-                  Math.min(
-                    pageCounts[view],
-                    pages[view] + (direction === "Next" ? 1 : -1),
-                  ),
+                  Math.min(pageCounts[view], pages[view] + STEP[direction]),
                 );
                 load();
               });
