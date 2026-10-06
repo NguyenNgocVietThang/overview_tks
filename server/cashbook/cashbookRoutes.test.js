@@ -153,3 +153,34 @@ test('unauthenticated returns401; internal errors generic no SQL detail; export 
     400,
   );
 });
+test('bank PUT needs manage, passes id/bank/user and maps validation to 400', async () => {
+  const forbidden = await request('/accounts/7/bank', {
+    method: 'PUT',
+    body: { bank: 'VCB' },
+    user: { vaiTro: 'Nhân viên sale', permissions: ['cashbook.view'] },
+  });
+  assert.equal(forbidden.status, 403);
+  const calls = [];
+  const ok = await request('/accounts/7/bank', {
+    method: 'PUT',
+    body: { bank: 'VCB' },
+    repo: {
+      setAccountBank: async (...args) => {
+        calls.push(args);
+        return { accountNo: '123', bank: 'VCB' };
+      },
+    },
+  });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(calls, [['7', 'VCB', 'Manager']]);
+  const bad = await request('/accounts/7/bank', {
+    method: 'PUT',
+    body: { bank: 'x' },
+    repo: {
+      setAccountBank: async () => {
+        throw Object.assign(new Error('Tên ngân hàng không hợp lệ.'), { statusCode: 400 });
+      },
+    },
+  });
+  assert.equal(bad.status, 400);
+});

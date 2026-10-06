@@ -69,7 +69,7 @@ server/
 │   ├── documentDetailRepository.js  # Chi tiết hóa đơn (popup bảng Chi tiết giao dịch) và chi tiết đơn đặt hàng (trang Vòng đời đơn hàng)
 │   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel
 ├── data/                 # Dữ liệu lưu trữ local (users.json, notifications.json, ...)
-├── db/                   # Migration Supabase (0001–0033) + SCHEMA.md (hợp đồng schema)
+├── db/                   # Migration Supabase (0001–0034) + SCHEMA.md (hợp đồng schema)
 ├── hr/                   # Nhân sự, nghỉ phép tự gửi, phạm vi duyệt chung, tài liệu quy định và cầu Postgres → SSE
 ├── kiotviet/             # KiotViet API client và webhook receiver
 ├── kiotvietSync/         # Webhook, polling, backfill và rollup
@@ -93,6 +93,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-06 — **Sổ quỹ: tên ngân hàng do Quản lý cấu hình (`cash_book_account_banks`, migration `0034`)**: Quản lý có thể nhập và lưu tên ngân hàng theo số tài khoản (`account_no`), dùng chung cho cả HN/SG và không bị sync KiotViet ghi đè. Hiển thị dưới tên tài khoản ở bảng Số dư và đưa vào file xuất; nâng cấp giao diện lịch nghỉ phép nhân sự.
 
 2026-10-06 — **Tab Hàng hóa: ẩn giá vốn với Nhân viên sale + đổi công thức Tồn có thể bán**: quyền mới `reports.products.cost` ("Hàng hóa: xem đơn giá & giá trị tồn", mặc định Quản lý + Trợ lý, cần `reports.products`); thiếu quyền này máy chủ cắt `allProducts[].cost/stockValue`, `kpi.totalInventoryValue` và `cost/price` của "Mã mới tạo" khỏi `/api/dashboard` (`dashboardPermissionFilter.js`), giao diện ẩn cột Đơn giá + Giá trị tồn, thẻ KPI Giá trị tồn kho và 2 KPI giá trị của bảng "Tất cả mã hàng". **Tồn có thể bán = Tồn thực tế − Đặt hàng Phiếu tạm** (bỏ phần "+ Hàng đang vận chuyển", cột Vận chuyển chỉ để xem) áp cho bảng "Cơ cấu tồn kho", bảng "Báo cáo hàng hóa" (sau deploy phải chạy tay `node kiotvietSync/productReportRefresh.js`) và file xuất. Chưa chặn xuất Excel theo quyền này (xuất mặc định chỉ Quản lý + Trợ lý).
 

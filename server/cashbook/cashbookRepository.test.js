@@ -12,7 +12,7 @@ const f = (q) =>
 let db, repo;
 test.before(async () => {
   db = new PGlite();
-  await db.exec(`CREATE TABLE cash_flows(branch text,id bigint,code text,is_receipt boolean,amount numeric,account_id bigint,status int,trans_date timestamptz,user_id bigint,description text,raw jsonb,synced_at timestamptz default now(),primary key(branch,id));CREATE TABLE staff(branch text,id bigint,name text,primary key(branch,id));CREATE TABLE cash_book_accounts(id bigint primary key,bank_name text,account_no text,description text,raw jsonb);CREATE TABLE cash_book_checkpoints(id bigserial primary key,account_id bigint,checkpoint_at timestamptz,balance numeric,system_balance numeric,diff numeric,note text,created_by text,created_at timestamptz default now());
+  await db.exec(`CREATE TABLE cash_flows(branch text,id bigint,code text,is_receipt boolean,amount numeric,account_id bigint,status int,trans_date timestamptz,user_id bigint,description text,raw jsonb,synced_at timestamptz default now(),primary key(branch,id));CREATE TABLE staff(branch text,id bigint,name text,primary key(branch,id));CREATE TABLE cash_book_accounts(id bigint primary key,bank_name text,account_no text,description text,raw jsonb);CREATE TABLE cash_book_account_banks(account_no text primary key,bank text not null,updated_by text,updated_at timestamptz default now());CREATE TABLE cash_book_checkpoints(id bigserial primary key,account_id bigint,checkpoint_at timestamptz,balance numeric,system_balance numeric,diff numeric,note text,created_by text,created_at timestamptz default now());
  CREATE TABLE sync_checkpoints(branch text,entity text,last_synced_at timestamptz);
  INSERT INTO sync_checkpoints VALUES('hanoi','cash_flows','2026-10-06T03:00:00Z'),('saigon','cash_flows','2026-10-06T04:00:00Z');
  INSERT INTO staff VALUES ('hanoi',9,'Lan - 1234567890');INSERT INTO cash_book_accounts VALUES (7,'Bank','123','Main','{}');
@@ -354,4 +354,19 @@ test('all rows exactly at checkpoint timestamp use closed balance including bran
   } finally {
     await db.query("DELETE FROM cash_flows WHERE branch='saigon' AND id=2");
   }
+});
+test('bank per account number is shared, trimmed, cleared and shown in summary', async () => {
+  await db.exec("INSERT INTO cash_book_accounts VALUES (8,'Holder','123','','{}'),(9,'NoNumber',NULL,'','{}') ON CONFLICT DO NOTHING");
+  assert.deepEqual(await repo.setAccountBank('7', '  Vietcombank  ', 'mgr'), { accountNo: '123', bank: 'Vietcombank' });
+  const sum = await repo.summary(f({}));
+  for (const id of ['7', '8'])
+    assert.equal(sum.balances.find((r) => r.fund === id).bank, 'Vietcombank');
+  assert.equal(sum.balances.find((r) => r.fund === 'cash').bank, '');
+  assert.equal((await repo.filterOptions()).funds.find((r) => r.fund === '8').bank, 'Vietcombank');
+  await assert.rejects(() => repo.setAccountBank('9', 'MB', 'mgr'), /chưa có số TK/);
+  await assert.rejects(() => repo.setAccountBank('999', 'MB', 'mgr'), /chưa có số TK/);
+  await assert.rejects(() => repo.setAccountBank('abc', 'MB', 'mgr'), /không hợp lệ/);
+  await assert.rejects(() => repo.setAccountBank('7', 'x'.repeat(101), 'mgr'), /tối đa 100/);
+  await repo.setAccountBank('8', '   ', 'mgr');
+  assert.equal((await repo.summary(f({}))).balances.find((r) => r.fund === '7').bank, '');
 });

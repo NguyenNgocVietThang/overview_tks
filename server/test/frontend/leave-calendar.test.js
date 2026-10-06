@@ -182,3 +182,105 @@ test('đơn kéo dài sang tháng khác chỉ gom phần trong tháng đang xem'
   assert.deepEqual(Object.keys(byDay), ['2026-10-01', '2026-10-02']);
   window.close();
 });
+
+test('mở lại lịch sau khi đơn bị từ chối: không hiện trạng thái cũ, đơn Từ chối biến mất', async t => {
+  let status = 'Chưa duyệt';
+  let resolveSecond;
+  let calls = 0;
+  const init = [];
+  const { window, document } = createEnv(t, (url, options) => {
+    init.push(options);
+    calls++;
+    const body = { requests: [leave({ request_id: 'NP-5', ho_ten: 'Hà', trang_thai: status })] };
+    if (calls === 1) return Promise.resolve({ ok: true, json: async () => body });
+    // Lần mở thứ 2: giữ response lại để kiểm tra lúc chờ không lòi dữ liệu cũ.
+    return new Promise(resolve => { resolveSecond = () => resolve({ ok: true, json: async () => body }); });
+  });
+  window.TKSNav.renderLeaveCalendar(fakeUser('Trợ lý'));
+  const btn = document.getElementById('tksLeaveCalBtn');
+  const dropdown = document.getElementById('tksLeaveCalDropdown');
+
+  btn.click();
+  await tick();
+  assert.equal(dropdown.querySelector('.tks-cal-status').textContent, 'Chưa duyệt');
+  btn.click(); // đóng
+
+  status = 'Từ chối';
+  btn.click(); // mở lại
+  assert.equal(dropdown.querySelector('.tks-cal-status'), null);
+  assert.match(dropdown.querySelector('.tks-cal-empty').textContent, /Đang tải/);
+  resolveSecond();
+  await tick();
+  assert.equal(dropdown.querySelector('.tks-cal-status'), null);
+  assert.match(dropdown.querySelector('.tks-cal-empty').textContent, /Không có ai nghỉ ngày này/);
+  assert.ok(init.every(o => o.cache === 'no-store'));
+  window.close();
+});
+
+test('lịch đang mở nghe SSE: có sự kiện thì cập nhật ngay, đóng lịch thì ngắt kết nối', async t => {
+  let status = 'Chưa duyệt';
+  let calls = 0;
+  const { window, document } = createEnv(t, async () => {
+    calls++;
+    return { ok: true, json: async () => ({ requests: [leave({ request_id: 'NP-7', ho_ten: 'Khoa', trang_thai: status })] }) };
+  });
+  const sources = [];
+  window.EventSource = class {
+    constructor(url) { this.url = url; this.closed = false; sources.push(this); }
+    close() { this.closed = true; }
+  };
+  window.TKSNav.renderLeaveCalendar(fakeUser('Trợ lý'));
+  const btn = document.getElementById('tksLeaveCalBtn');
+  const dropdown = document.getElementById('tksLeaveCalDropdown');
+
+  assert.equal(sources.length, 0);
+  btn.click();
+  await tick();
+  assert.equal(sources.length, 1);
+  assert.equal(sources[0].url, '/api/hr/leave-requests/stream');
+  sources[0].onopen(); // lần nối đầu: không tải thêm
+  await tick();
+  assert.equal(calls, 1);
+  assert.equal(dropdown.querySelector('.tks-cal-status').textContent, 'Chưa duyệt');
+
+  status = 'Đã duyệt';
+  sources[0].onmessage({ data: '{"type":"LEAVE_STATUS_CHANGED"}' });
+  sources[0].onmessage({ data: '{"type":"LEAVE_STATUS_CHANGED"}' }); // gộp thành 1 lần tải
+  await new Promise(resolve => setTimeout(resolve, 400));
+  assert.equal(calls, 2);
+  assert.equal(dropdown.querySelector('.tks-cal-status').textContent, 'Đã duyệt');
+
+  status = 'Từ chối';
+  sources[0].onopen(); // nối lại sau mất mạng: bù dữ liệu
+  await tick();
+  assert.equal(calls, 3);
+  assert.equal(dropdown.querySelector('.tks-cal-status'), null);
+
+  btn.click(); // đóng
+  assert.equal(sources[0].closed, true);
+  window.close();
+});
+
+test('phản hồi cũ về muộn không ghi đè dữ liệu mới (đơn đã từ chối không hiện lại)', async t => {
+  const pending = [];
+  const { window, document } = createEnv(t, () => new Promise(resolve => pending.push(resolve)));
+  const sources = [];
+  window.EventSource = class { constructor() { sources.push(this); } close() {} };
+  window.TKSNav.renderLeaveCalendar(fakeUser('Trợ lý'));
+  document.getElementById('tksLeaveCalBtn').click();
+  const reply = (i, trang_thai) => pending[i]({
+    ok: true, json: async () => ({ requests: [leave({ request_id: 'NP-8', ho_ten: 'Lan', trang_thai })] })
+  });
+
+  sources[0].onmessage({ data: '{"type":"LEAVE_STATUS_CHANGED"}' });
+  await new Promise(resolve => setTimeout(resolve, 400));
+  assert.equal(pending.length, 2); // [0] lần mở, [1] lần làm mới do sự kiện
+
+  reply(1, 'Từ chối');   // phản hồi mới nhất về trước
+  await tick();
+  reply(0, 'Chưa duyệt'); // phản hồi cũ về sau
+  await tick();
+  const dropdown = document.getElementById('tksLeaveCalDropdown');
+  assert.equal(dropdown.querySelector('.tks-cal-item'), null);
+  window.close();
+});

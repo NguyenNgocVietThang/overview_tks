@@ -21,6 +21,7 @@ function fundRow(r) {
         : r.bank_name ||
           `Tài khoản #${r.account_id} (không có trong danh sách KiotViet)`,
     accountNo: r.account_no || '',
+    bank: r.bank || '',
     description: r.description || '',
   };
 }
@@ -66,12 +67,13 @@ function createRepository(pool = getPool(), { now = () => new Date() } = {}) {
       closing = `$${params.length}::timestamptz`;
     const balances = (
       await pool.query(
-        `SELECT a.account_id,b.bank_name,b.account_no,b.description,cp.checkpoint_at,
+        `SELECT a.account_id,b.bank_name,b.account_no,b.description,k.bank,cp.checkpoint_at,
           ${balanceSql('a.account_id', at)} balance,
           ${balanceSql('a.account_id', opening, 'op')} opening_balance,
           ${balanceSql('a.account_id', closing, 'cl')} closing_balance
         FROM (${fundsSql}) a
         LEFT JOIN cash_book_accounts b ON b.id=a.account_id
+        LEFT JOIN cash_book_account_banks k ON k.account_no=b.account_no
         LEFT JOIN LATERAL ${anchorSql('a.account_id', at)} cp ON TRUE
         LEFT JOIN LATERAL ${anchorSql('a.account_id', opening)} op ON TRUE
         LEFT JOIN LATERAL ${anchorSql('a.account_id', closing)} cl ON TRUE
@@ -226,7 +228,7 @@ function createRepository(pool = getPool(), { now = () => new Date() } = {}) {
   async function filterOptions() {
     const funds = (
       await pool.query(
-        `SELECT a.account_id,b.bank_name,b.account_no,b.description FROM (${fundsSql}) a LEFT JOIN cash_book_accounts b ON b.id=a.account_id ORDER BY a.account_id NULLS FIRST`,
+        `SELECT a.account_id,b.bank_name,b.account_no,b.description,k.bank FROM (${fundsSql}) a LEFT JOIN cash_book_accounts b ON b.id=a.account_id LEFT JOIN cash_book_account_banks k ON k.account_no=b.account_no ORDER BY a.account_id NULLS FIRST`,
       )
     ).rows.map(fundRow);
     const rows = (
@@ -390,6 +392,30 @@ function createRepository(pool = getPool(), { now = () => new Date() } = {}) {
       if (queue.get(key) === pending) queue.delete(key);
     }
   }
-  return { summary, entries, filterOptions, checkpoints, insertCheckpoint };
+  // Đặt/xóa tên ngân hàng theo số tài khoản của quỹ; mọi quỹ HN/SG cùng số TK dùng chung.
+  async function setAccountBank(accountId, bank, updatedBy) {
+    const id = String(accountId ?? '');
+    if (!/^\d{1,18}$/.test(id)) throw invalid('Quỹ không hợp lệ.');
+    if (bank != null && typeof bank !== 'string')
+      throw invalid('Tên ngân hàng không hợp lệ.');
+    const text = (bank || '').trim().replace(/\s+/g, ' ');
+    if (text.length > 100)
+      throw invalid('Tên ngân hàng tối đa 100 ký tự.');
+    const account = (
+      await pool.query('SELECT account_no FROM cash_book_accounts WHERE id=$1', [id])
+    ).rows[0];
+    if (!account || !(account.account_no || '').trim())
+      throw invalid('Tài khoản chưa có số TK trong danh mục KiotViet nên chưa gắn được ngân hàng.');
+    if (!text)
+      await pool.query('DELETE FROM cash_book_account_banks WHERE account_no=$1', [account.account_no]);
+    else
+      await pool.query(
+        `INSERT INTO cash_book_account_banks(account_no,bank,updated_by) VALUES($1,$2,$3)
+         ON CONFLICT (account_no) DO UPDATE SET bank=EXCLUDED.bank,updated_by=EXCLUDED.updated_by,updated_at=now()`,
+        [account.account_no, text, updatedBy],
+      );
+    return { accountNo: account.account_no, bank: text };
+  }
+  return { summary, entries, filterOptions, checkpoints, insertCheckpoint, setAccountBank };
 }
 module.exports = { createRepository, eligible };

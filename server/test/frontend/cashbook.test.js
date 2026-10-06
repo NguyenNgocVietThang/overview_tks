@@ -508,7 +508,7 @@ test("export tất cả cột mặc định, empty chặn, lựa chọn nhớ ri
   const { init, doc, api } = await setup(t);
   await init();
   doc.querySelector('[data-export="balances"]').click();
-  assert.equal(doc.querySelectorAll("#exportColumns input:checked").length, 4);
+  assert.equal(doc.querySelectorAll("#exportColumns input:checked").length, 5);
   for (const box of doc.querySelectorAll("#exportColumns input"))
     box.checked = false;
   doc
@@ -1020,3 +1020,59 @@ test("phân trang có nút trang đầu/cuối gọi đúng trang máy chủ", a
   const last = calls.filter((c) => c.url.pathname.endsWith("entries")).at(-1).url;
   assert.equal(last.searchParams.get("page"), "3");
 });
+test("bảng số dư sắp xếp theo tiêu đề: tăng, giảm, bỏ; quỹ chưa chốt luôn cuối", async (t) => {
+  const { init, doc } = await setup(t);
+  await init();
+  const order = () =>
+    [...doc.querySelectorAll("#balancesBody tr[data-fund]")].map((r) => r.dataset.fund);
+  const sort = (field) => doc.querySelector('#balancesTable [data-sort="' + field + '"]').click();
+  assert.deepEqual(order(), ["-1", "cash"]);
+  sort("name");
+  assert.deepEqual(order(), ["-1", "cash"]);
+  assert.equal(doc.querySelector('#balancesTable th[aria-sort="ascending"]').dataset.field, "name");
+  sort("name");
+  assert.deepEqual(order(), ["cash", "-1"]);
+  sort("name");
+  assert.equal(doc.querySelector('#balancesTable th[aria-sort="ascending"], #balancesTable th[aria-sort="descending"]'), null);
+  for (const dir of [1, 2]) {
+    sort("balance");
+    assert.equal(order().at(-1), "cash", "Chưa chốt xếp cuối, lần " + dir);
+  }
+});
+test("tên ngân hàng hiện dưới tên tài khoản, tìm được và Quản lý sửa được", async (t) => {
+  const withBank = {
+    ...summary,
+    balances: [{ ...summary.balances[0], bank: "Vietcombank" }, summary.balances[1]],
+  };
+  const puts = [];
+  const { init, doc, w } = await setup(t, {
+    manage: true,
+    fetcher: async (url, init) => {
+      if (url.pathname.endsWith("/bank")) {
+        puts.push({ path: url.pathname, body: JSON.parse(init.body) });
+        return { ok: true, json: async () => ({}) };
+      }
+      if (url.pathname.endsWith("summary")) return { ok: true, json: async () => withBank };
+    },
+  });
+  await init();
+  const row = doc.querySelector('#balancesBody tr[data-fund="-1"]');
+  assert.match(row.querySelector('[data-field="name"]').textContent, /Ngân hàng: Vietcombank/);
+  assert.equal(doc.querySelector('#balancesBody tr[data-fund="cash"] [data-edit-bank]'), null);
+  const input = doc.getElementById("balancesSearch");
+  input.value = "vietcombank";
+  input.dispatchEvent(new w.Event("input", { bubbles: true }));
+  assert.deepEqual([...doc.querySelectorAll("#balancesBody tr[data-fund]")].map((r) => r.dataset.fund), ["-1"]);
+  doc.querySelector("#balancesBody [data-edit-bank]").click();
+  assert.equal(doc.getElementById("bankName").value, "Vietcombank");
+  doc.getElementById("bankName").value = "MB Bank";
+  doc.getElementById("bankForm").dispatchEvent(new w.Event("submit", { cancelable: true }));
+  await tick();
+  assert.deepEqual(puts, [{ path: "/api/cashbook/accounts/-1/bank", body: { bank: "MB Bank" } }]);
+});
+test("Quản lý không thấy nút sửa ngân hàng khi chỉ có quyền xem", async (t) => {
+  const { init, doc } = await setup(t);
+  await init();
+  assert.equal(doc.querySelector("#balancesBody [data-edit-bank]"), null);
+});
+

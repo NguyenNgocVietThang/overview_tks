@@ -77,6 +77,17 @@ function createCashbookRouter({ repository = createRepository() } = {}) {
         .json({ checkpoint: await repository.insertCheckpoint(req.body, by) });
     }),
   );
+  router.put(
+    '/accounts/:id/bank',
+    ...manage,
+    handle(async (req, res) => {
+      const by = req.user.username || String(req.user.id || '');
+      if (!by) throw new Error('Thiếu danh tính người cập nhật.');
+      res.json(
+        await repository.setAccountBank(req.params.id, req.body && req.body.bank, by),
+      );
+    }),
+  );
   router.get(
     '/export',
     ...view,

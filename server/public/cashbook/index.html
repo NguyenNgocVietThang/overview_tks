@@ -349,6 +349,65 @@
         color: var(--muted);
         font-size: 11.5px;
       }
+      .cb-fund-bank {
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 11.5px;
+      }
+      .cb-fund-bank strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .cb-bank-edit {
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: var(--blue);
+        font: 500 11.5px var(--font-body);
+        cursor: pointer;
+      }
+      .cb-fund-bank strong + .cb-bank-edit {
+        margin-left: 6px;
+      }
+      .cb-bank-edit:hover {
+        text-decoration: underline;
+      }
+      .cb-sort {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        width: 100%;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .cb-sort.money {
+        justify-content: flex-end;
+      }
+      .cb-sort:hover {
+        color: var(--text);
+      }
+      .cb-sort:focus-visible {
+        outline: 2px solid var(--blue);
+        outline-offset: 2px;
+        border-radius: var(--radius-xs);
+      }
+      .cb-sort-mark {
+        color: var(--muted);
+        font-family: var(--font-data);
+        font-size: 9px;
+        font-weight: 600;
+      }
+      .cb-table thead th[aria-sort="ascending"] .cb-sort,
+      .cb-table thead th[aria-sort="descending"] .cb-sort,
+      .cb-table thead th[aria-sort="ascending"] .cb-sort-mark,
+      .cb-table thead th[aria-sort="descending"] .cb-sort-mark {
+        color: var(--amber);
+      }
       .cb-row-button {
         min-height: 30px;
         padding: 0 10px;
@@ -1174,7 +1233,7 @@
                 <div class="table-search-tools">
                   <label class="table-search-input-wrap">
                     <svg class="cb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg>
-                    <input class="table-search-input" id="balancesSearch" type="search" autocomplete="off" placeholder="Tìm tên tài khoản hoặc số TK…" aria-label="Tìm tài khoản" />
+                    <input class="table-search-input" id="balancesSearch" type="search" autocomplete="off" placeholder="Tìm tên tài khoản, ngân hàng hoặc số TK…" aria-label="Tìm tài khoản" />
                     <button class="table-search-clear" type="button" data-search-clear="balancesSearch" aria-label="Xóa tìm kiếm" hidden>×</button>
                   </label>
                 </div>
@@ -1312,6 +1371,28 @@
         </div>
       </form>
     </dialog>
+    <dialog class="cb-modal cb-modal-narrow" id="bankDialog" aria-labelledby="bankTitle" aria-describedby="bankSubtitle">
+      <form id="bankForm">
+        <div class="export-modal-head">
+          <div>
+            <h2 class="export-modal-title" id="bankTitle">Ngân hàng của tài khoản</h2>
+            <p class="export-modal-subtitle" id="bankSubtitle"></p>
+          </div>
+          <button class="export-modal-close" type="button" data-close="bankDialog" aria-label="Đóng">×</button>
+        </div>
+        <div class="cb-modal-body">
+          <label class="cb-field">Tên ngân hàng<input class="cb-input" id="bankName" type="text" maxlength="100" autocomplete="off" placeholder="Ví dụ: Vietcombank, MB Bank…" /></label>
+          <p class="cb-field-help">Áp dụng cho mọi quỹ cùng số tài khoản (HN và SG). Để trống để xóa.</p>
+        </div>
+        <div class="export-modal-foot">
+          <p class="export-status error" id="bankError" role="alert"></p>
+          <div class="export-foot-actions">
+            <button class="export-cancel" type="button" data-close="bankDialog">Hủy</button
+            ><button class="export-confirm" id="bankSave" type="submit">Lưu</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
     <dialog class="cb-modal" id="exportDialog" aria-labelledby="exportTitle" aria-describedby="exportSubtitle">
       <div class="export-modal-head">
         <div>
@@ -1433,6 +1514,7 @@
         };
         const LABELS = {
           name: "Tên tài khoản",
+          bank: "Ngân hàng",
           accountNo: "Số TK",
           balance: "Số dư thực tế",
           checkpointAt: "Thời điểm chốt",
@@ -1453,6 +1535,11 @@
           createdBy: "Người chốt",
           systemBalance: "Số hệ thống",
           diff: "Chênh lệch",
+        };
+        // Cột xuất của bảng số dư có thêm Ngân hàng (trên bảng nằm dưới tên tài khoản).
+        const EXPORT_COLUMNS = {
+          ...COLUMNS,
+          balances: ["name", "bank", "accountNo", "balance", "checkpointAt"],
         };
         const MONEY = new Set([
           "balance",
@@ -1483,6 +1570,9 @@
         const openers = new Map();
         const loaded = { balances: [], checkpoints: [] };
         let searchMode = "code";
+        // Sắp xếp bảng số dư tại chỗ: bấm tiêu đề lần lượt tăng → giảm → bỏ.
+        let balanceSort = { field: null, dir: null };
+        const SORT_FIELDS = new Set(["name", "accountNo", "balance", "checkpointAt"]);
 
         // Giữ chuỗi thập phân từ backend/ô nhập, không làm tròn số dư ban đầu.
         function money(value, empty = "Chưa chốt") {
@@ -1714,12 +1804,36 @@
             const th = document.createElement("th");
             th.scope = "col";
             th.dataset.field = field;
-            th.textContent =
+            const label =
               view === "balances" && field === "balance"
                 ? "Số dư hiện tại"
                 : view === "balances" && field === "checkpointAt"
                   ? "Chốt gần nhất"
                   : LABELS[field];
+            if (view === "balances" && SORT_FIELDS.has(field)) {
+              const active = balanceSort.field === field ? balanceSort.dir : null;
+              const button = document.createElement("button"),
+                mark = document.createElement("span");
+              button.type = "button";
+              button.className = "cb-sort" + (MONEY.has(field) ? " money" : "");
+              button.dataset.sort = field;
+              const next = !active
+                ? "Sắp xếp tăng dần"
+                : active === "asc"
+                  ? "Sắp xếp giảm dần"
+                  : "Bỏ sắp xếp";
+              button.title = next + " theo " + label;
+              button.setAttribute("aria-label", next + " theo cột " + label);
+              mark.className = "cb-sort-mark";
+              mark.setAttribute("aria-hidden", "true");
+              mark.textContent = !active ? "↕" : active === "asc" ? "▼" : "▲";
+              button.append(label, mark);
+              th.appendChild(button);
+              th.setAttribute(
+                "aria-sort",
+                !active ? "none" : active === "asc" ? "ascending" : "descending",
+              );
+            } else th.textContent = label;
             if (MONEY.has(field)) th.className = "money";
             th.style.width = WIDTHS[view][field] + "px";
             row.appendChild(th);
@@ -1752,6 +1866,28 @@
                 button.textContent = data.name;
                 button.title = "Lọc theo quỹ " + data.name;
                 cell.appendChild(button);
+                if (data.bank || (canManage && data.accountNo)) {
+                  const bank = document.createElement("div");
+                  bank.className = "cb-fund-bank";
+                  if (data.bank) {
+                    const strong = document.createElement("strong");
+                    strong.textContent = data.bank;
+                    bank.append("Ngân hàng: ", strong);
+                  }
+                  if (canManage && data.accountNo) {
+                    const edit = document.createElement("button");
+                    edit.type = "button";
+                    edit.className = "cb-bank-edit";
+                    edit.dataset.editBank = data.fund;
+                    edit.textContent = data.bank ? "Sửa" : "+ Thêm ngân hàng";
+                    edit.setAttribute(
+                      "aria-label",
+                      (data.bank ? "Sửa" : "Thêm") + " ngân hàng của " + data.name,
+                    );
+                    bank.appendChild(edit);
+                  }
+                  cell.appendChild(bank);
+                }
                 if (data.description) {
                   const note = document.createElement("div");
                   note.className = "cb-fund-note";
@@ -1837,12 +1973,46 @@
             result.page >= pageCounts[view];
         }
         // Bảng số dư và lịch sử chốt ít dòng: lọc ngay trên dữ liệu đã tải.
+        function sortedBalances(rows) {
+          const { field, dir } = balanceSort;
+          if (!field) return rows;
+          const value = (row) =>
+            field === "balance"
+              ? row.balance == null
+                ? null
+                : Number(row.balance)
+              : field === "checkpointAt"
+                ? row.checkpointAt
+                  ? Date.parse(row.checkpointAt)
+                  : null
+                : String(row[field] || "");
+          const sign = dir === "asc" ? 1 : -1;
+          return rows
+            .map((row, index) => ({ row, index, v: value(row) }))
+            .sort((a, b) => {
+              // Quỹ chưa chốt / chưa có số liệu luôn xếp cuối, bất kể chiều sắp.
+              const emptyA = a.v == null || a.v === "",
+                emptyB = b.v == null || b.v === "";
+              if (emptyA !== emptyB) return emptyA ? 1 : -1;
+              const c =
+                typeof a.v === "number"
+                  ? a.v - b.v
+                  : String(a.v).localeCompare(String(b.v), "vi", {
+                      numeric: true,
+                      sensitivity: "base",
+                    });
+              return c ? sign * c : a.index - b.index;
+            })
+            .map((entry) => entry.row);
+        }
         function renderBalances() {
           const needle = fold($("balancesSearch").value);
           tableRows(
             "balances",
-            loaded.balances.filter((row) =>
-              matches(row, ["name", "accountNo", "description"], needle),
+            sortedBalances(
+              loaded.balances.filter((row) =>
+                matches(row, ["name", "bank", "accountNo", "description"], needle),
+              ),
             ),
             {},
             needle ? "Không có tài khoản khớp từ khóa." : undefined,
@@ -2219,6 +2389,40 @@
           openDialog("checkpointDialog", opener);
           previewCheckpoint();
         }
+        let bankFund = null;
+        function openBank(fund, opener) {
+          const row = loaded.balances.find((item) => item.fund === fund);
+          if (!canManage || !row || !row.accountNo) return;
+          bankFund = fund;
+          $("bankForm").reset();
+          $("bankName").value = row.bank || "";
+          $("bankSubtitle").textContent = row.name + " · " + row.accountNo;
+          $("bankError").textContent = "";
+          $("bankSave").disabled = false;
+          openDialog("bankDialog", opener);
+          $("bankName").focus();
+        }
+        async function saveBank(event) {
+          event.preventDefault();
+          if (!canManage || bankFund == null || $("bankSave").disabled) return;
+          $("bankSave").disabled = true;
+          $("bankError").textContent = "";
+          try {
+            await request(
+              "/api/cashbook/accounts/" + encodeURIComponent(bankFund) + "/bank",
+              {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ bank: $("bankName").value }),
+              },
+            );
+            $("bankDialog").close();
+            await load();
+          } catch (error) {
+            $("bankError").textContent = error.message;
+            $("bankSave").disabled = false;
+          }
+        }
         async function saveCheckpoint(event) {
           event.preventDefault();
           if (saving || !canManage) return;
@@ -2304,8 +2508,8 @@
             " · chọn các trường cần đưa vào file";
           $("exportColumns").replaceChildren();
           const saved = exportSelection[view],
-            chosen = Array.isArray(saved) ? saved : COLUMNS[view];
-          for (const field of COLUMNS[view]) {
+            chosen = Array.isArray(saved) ? saved : EXPORT_COLUMNS[view];
+          for (const field of EXPORT_COLUMNS[view]) {
             const label = document.createElement("label"),
               input = document.createElement("input");
             label.className = "export-field-item";
@@ -2482,6 +2686,12 @@
           $("exportHtml").addEventListener("click", () =>
             downloadExport("html"),
           );
+          $("bankForm").addEventListener("submit", saveBank);
+          $("bankDialog").addEventListener("close", () => {
+            bankFund = null;
+            const opener = openers.get("bankDialog");
+            if (opener && opener.isConnected) opener.focus();
+          });
           $("checkpointForm").addEventListener("submit", saveCheckpoint);
           $("checkpointFund").addEventListener("change", previewCheckpoint);
           $("checkpointAt").addEventListener("change", previewCheckpoint);
@@ -2499,7 +2709,30 @@
             }
             updatePreviewText();
           });
+          $("balancesTable").addEventListener("click", (event) => {
+            const sort = event.target.closest("[data-sort]");
+            if (!sort) return;
+            const field = sort.dataset.sort;
+            const dir =
+              balanceSort.field !== field
+                ? "asc"
+                : balanceSort.dir === "asc"
+                  ? "desc"
+                  : null;
+            balanceSort = { field: dir ? field : null, dir };
+            header("balances");
+            renderBalances();
+            const again = $("balancesTable").querySelector(
+              '[data-sort="' + field + '"]',
+            );
+            if (again) again.focus();
+          });
           $("balancesBody").addEventListener("click", (event) => {
+            const bank = event.target.closest("[data-edit-bank]");
+            if (bank) {
+              openBank(bank.dataset.editBank, bank);
+              return;
+            }
             const checkpoint = event.target.closest("[data-checkpoint]");
             if (checkpoint) {
               openCheckpoint(checkpoint.dataset.checkpoint, checkpoint);

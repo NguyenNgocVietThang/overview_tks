@@ -74,3 +74,7 @@ test('reject invalid views/formats/columns and oversized export with friendly400
       (e) => e.statusCode === 400,
     );
 });
+test('balances export offers the Ngân hàng column', async () => {
+  const file = await createExportFile('balances', 'html', [{ name: 'A', bank: 'Vietcombank' }], 'name,bank');
+  assert.match(file.buffer.toString(), /<th>Ngân hàng<\/th>[\s\S]*<td>Vietcombank<\/td>/);
+});

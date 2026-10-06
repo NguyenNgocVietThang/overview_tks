@@ -10,6 +10,7 @@ const MAX_EXPORT_ROWS = 20000;
 const COLUMNS = {
   balances: [
     ['name', 'Tên quỹ'],
+    ['bank', 'Ngân hàng'],
     ['accountNo', 'Số tài khoản'],
     ['balance', 'Số dư hiện tại', true],
     ['checkpointAt', 'Chốt gần nhất'],

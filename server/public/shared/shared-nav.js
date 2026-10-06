@@ -738,27 +738,68 @@
       loading: false
     };
     var requestSeq = 0;
+    var monthSeq = {};  // 'YYYY-MM' -> seq cua lan tai moi nhat cua thang do
+    var refreshTimer = null;
+    var stream = null;
+    var streamDebounce = null;
+    // Lich dang mo van thay doi (don moi, Quan ly duyet/tu choi tren web hoac Telegram):
+    // nghe SSE de cap nhat tuc thi; lay lai dinh ky chi la du phong khi SSE bi chan/dut.
+    var LEAVE_CAL_REFRESH_MS = 60000;
+
+    function stopStream(){
+      if(streamDebounce){ window.clearTimeout(streamDebounce); streamDebounce = null; }
+      if(stream){ try{ stream.close(); }catch(e){} stream = null; }
+    }
+
+    function startStream(){
+      stopStream();
+      if(!window.EventSource) return;
+      var connectedOnce = false;
+      try{
+        stream = new window.EventSource('/api/hr/leave-requests/stream');
+      }catch(e){ stream = null; return; }
+      // Lan ket noi dau da co du lieu moi tu loadMonth(); chi bu khi noi lai sau khi mat mang.
+      stream.onopen = function(){
+        if(connectedOnce) loadMonth(true);
+        connectedOnce = true;
+      };
+      stream.onmessage = function(event){
+        if(!event || !event.data || streamDebounce) return;
+        // Gom cac su kien dong loat (vd. duyet nhieu don) thanh 1 lan tai.
+        streamDebounce = window.setTimeout(function(){
+          streamDebounce = null;
+          if(isOpen) loadMonth(true);
+        }, 300);
+      };
+    }
 
     function monthKey(){ return state.year + '-' + calPad(state.month); }
 
-    function loadMonth(){
+    // silent = lam moi ngam (giu du lieu dang hien trong luc cho); con lai bo du lieu cu
+    // truoc khi tai de khong bao gio hien trang thai da loi thoi.
+    function loadMonth(silent){
       var key = monthKey();
+      if(!silent) delete state.cache[key];
       var seq = ++requestSeq;
+      monthSeq[key] = seq;
       var from = calIso(state.year, state.month, 1);
       var to = calIso(state.year, state.month, calDaysInMonth(state.year, state.month));
       var y = state.year, m = state.month;
       state.loading = true;
-      fetch('/api/hr/leave-requests?from=' + from + '&to=' + to, { credentials: 'same-origin' })
+      fetch('/api/hr/leave-requests?from=' + from + '&to=' + to, { credentials: 'same-origin', cache: 'no-store' })
         .then(function(res){
           if(!res.ok) throw new Error('http ' + res.status);
           return res.json();
         })
         .then(function(data){
+          // Phan hoi cu ve sau phan hoi moi (cung thang) khong duoc ghi de len du lieu moi hon.
+          if(monthSeq[key] !== seq) return;
           state.cache[key] = { byDay: groupLeaveByDay(data && data.requests, y, m) };
         })
         .catch(function(){
-          // Giu du lieu cu (neu co) de lich khong nhay mat khi loi mang thoang qua.
-          if(!state.cache[key] || state.cache[key].error) state.cache[key] = { error: true };
+          // Lam moi ngam bi loi: giu du lieu dang hien de lich khong nhay mat khi mang chap chon.
+          if(monthSeq[key] !== seq) return;
+          if(!silent || !state.cache[key]) state.cache[key] = { error: true };
         })
         .then(function(){
           if(seq !== requestSeq) return;
@@ -876,6 +917,8 @@
       dropdown.hidden = true;
       btn.setAttribute('aria-expanded', 'false');
       isOpen = false;
+      if(refreshTimer){ window.clearInterval(refreshTimer); refreshTimer = null; }
+      stopStream();
       window.removeEventListener('resize', onViewportChange);
       window.removeEventListener('scroll', onViewportChange, true);
     }
@@ -893,8 +936,10 @@
       isOpen = true;
       window.addEventListener('resize', onViewportChange);
       window.addEventListener('scroll', onViewportChange, true);
-      render();
       loadMonth();
+      render();
+      refreshTimer = window.setInterval(function(){ loadMonth(true); }, LEAVE_CAL_REFRESH_MS);
+      startStream();
     }
 
     function gotoMonth(delta){
@@ -904,8 +949,8 @@
       state.expandedId = '';
       var sameAsToday = todayIso.slice(0, 7) === monthKey();
       state.selected = sameAsToday ? todayIso : calIso(state.year, state.month, 1);
-      render();
       loadMonth();
+      render();
     }
 
     btn.addEventListener('click', function(){
@@ -927,8 +972,8 @@
         if(same){ render(); } else {
           state.year = now.getFullYear();
           state.month = now.getMonth() + 1;
-          render();
           loadMonth();
+          render();
         }
         return;
       }

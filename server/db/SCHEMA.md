@@ -310,3 +310,7 @@ Migration `0032_hr_department_groups.sql` gộp `BAN QUẢN LÝ`/`TRƯỞNG CHI 
 - cash_book_checkpoints: id BIGSERIAL PRIMARY KEY; account_id BIGINT nullable (NULL = tiền mặt); checkpoint_at TIMESTAMPTZ NOT NULL; balance NUMERIC NOT NULL; system_balance/diff NUMERIC nullable; note TEXT; created_by TEXT NOT NULL; created_at TIMESTAMPTZ NOT NULL DEFAULT now(). Không có FK tài khoản để giữ ID lịch sử, kể cả -1.
 - Index idx_cash_flows_account_date (account_id,trans_date), idx_cash_book_checkpoints_account (account_id,checkpoint_at DESC).
 - Reconcile tài khoản đối chiếu tập ID hiện tại từ retailer được chọn với bảng chung; tài khoản retailer khác và ID lịch sử không làm sai số đếm.
+
+## Sổ quỹ — migration 0034
+
+- cash_book_account_banks: account_no TEXT PRIMARY KEY; bank TEXT NOT NULL; updated_by TEXT; updated_at TIMESTAMPTZ NOT NULL DEFAULT now(). Tên ngân hàng do Quản lý nhập tay trên trang Sổ quỹ (KiotViet bankaccounts chỉ có bankName = tên chủ TK, không có ngân hàng). Khóa theo số tài khoản nên HN và SG cùng số TK dùng chung một giá trị; đồng bộ KiotViet không ghi đè. Không FK tới cash_book_accounts.

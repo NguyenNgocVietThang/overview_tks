@@ -15,3 +15,5 @@ Số dư từng quỹ (ngân hàng + Tiền mặt), sổ chi tiết phiếu thu 
 ## Lưu ý thiết kế
 - Các lớp `.section-head`, `.kpi-card .eyebrow…`, `.period-toggle`, `.table-search-*`, `.export-modal-*` chỉ có trong `index.html` nên được chép tối thiểu vào `<style>` của trang, dùng thang bo góc ngữ nghĩa (`--radius-xs/sm/md/lg/xl`). Nếu sau này đưa các lớp này vào `shared.css` thì xóa bản chép ở đây.
 - Điện thoại (≤ 760px): thanh lọc thành ngăn kéo mở từ **bên phải**, chừa 64px vì nút menu nổi của sidebar (z-index 40) nằm ngoài stacking context của `.content`; dropdown xếp mỗi cái 1 hàng, danh sách mở tĩnh bên dưới.
+
+Bảng Số dư tài khoản: tiêu đề cột sắp xếp được (nút `.cb-sort`, mũi tên ↕/▼/▲, `aria-sort`, active màu amber như tab Báo cáo); dòng ghi chú `.cb-fund-bank` dưới tên tài khoản ("Ngân hàng: …" + nút Sửa cho Quản lý) nằm trên mô tả KiotViet.
