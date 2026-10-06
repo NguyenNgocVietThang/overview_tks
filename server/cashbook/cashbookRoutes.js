@@ -28,6 +28,7 @@ function createCashbookRouter({ repository = createRepository() } = {}) {
       } catch (e) {
         if (e.statusCode === 400)
           return res.status(400).json({ error: e.message, code: e.code });
+        console.error(`[cashbook ${req.method} ${req.path}]`, e);
         return res.status(500).json({
           error: 'Lỗi hệ thống, vui lòng thử lại sau.',
           code: 'CASHBOOK_ERROR',

@@ -59,9 +59,15 @@ function createPollingScheduler({
       return;
     }
     await Promise.allSettled(branches.map(async (branchConfig) => {
+      // 1 client/co so/luot: token OAuth duoc cache trong client, tao client
+      // rieng cho tung entity se xin token moi lien tuc. Loi tao client van
+      // ghi checkpoint loi cho tung entity nhu loi poll.
+      let api = null;
+      let clientError = null;
+      try { api = createClient(branchConfig); } catch (error) { clientError = error; }
       await Promise.allSettled(entities.map(async (entity) => {
         try {
-          const api = createClient(branchConfig);
+          if (clientError) throw clientError;
           await poll(api, branchConfig.branch, entity);
         } catch (error) {
           await record(branchConfig.branch, entity.entity, error.message).catch((recordError) => {

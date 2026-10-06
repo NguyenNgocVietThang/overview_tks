@@ -167,3 +167,15 @@ test('bank sync contains startup database errors, client construction and checkp
   if(opts.recordError)assert.ok(x.errors.length);
  }
 });
+
+test('one KiotViet client per branch per run so the cached OAuth token is reused across entities',async()=>{
+ const created=[];
+ const scheduler=createPollingScheduler({enabled:true,getConfiguredBranches:()=>[{branch:'hanoi'},{branch:'saigon'}],
+ createKiotVietClient:b=>{created.push(b.branch);return {};},pollEntityOnce:async()=>{},recordFailure:async()=>{},
+ setIntervalFn:(fn,ms)=>ms,scheduleImmediate:()=>{},getPool:()=>({query:async()=>({rows:[{id:1}]})}),
+ refreshDashboardRollupsAndNotify:async()=>{},startDashboardRollupSchedule:()=>{},startCustomerDebtReportRefreshSchedule:()=>{},
+ startProductReportSchedule:()=>{},startCustomerInvoiceLinesSchedule:()=>{},startInventoryValueSnapshotSchedule:()=>{},
+ logger:{log(){},warn(){},error(){}}});
+ await scheduler.runGroup([{entity:'a'},{entity:'b'},{entity:'c'}]);
+ assert.deepEqual(created.sort(),['hanoi','saigon']);
+});

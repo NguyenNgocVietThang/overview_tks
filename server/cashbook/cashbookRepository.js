@@ -57,18 +57,22 @@ function createRepository(pool = getPool(), { now = () => new Date() } = {}) {
       ...fw.params,
       f.at || now().toISOString(),
       new Date(+new Date(f.from) - 1).toISOString(),
+      f.to,
     ];
-    const at = `$${params.length - 1}::timestamptz`,
-      opening = `$${params.length}::timestamptz`;
+    const at = `$${params.length - 2}::timestamptz`,
+      opening = `$${params.length - 1}::timestamptz`,
+      closing = `$${params.length}::timestamptz`;
     const balances = (
       await pool.query(
         `SELECT a.account_id,b.bank_name,b.account_no,b.description,cp.checkpoint_at,
           ${balanceSql('a.account_id', at)} balance,
-          ${balanceSql('a.account_id', opening, 'op')} opening_balance
+          ${balanceSql('a.account_id', opening, 'op')} opening_balance,
+          ${balanceSql('a.account_id', closing, 'cl')} closing_balance
         FROM (${fundsSql}) a
         LEFT JOIN cash_book_accounts b ON b.id=a.account_id
         LEFT JOIN LATERAL ${anchorSql('a.account_id', at)} cp ON TRUE
         LEFT JOIN LATERAL ${anchorSql('a.account_id', opening)} op ON TRUE
+        LEFT JOIN LATERAL ${anchorSql('a.account_id', closing)} cl ON TRUE
         WHERE ${fw.sql} ORDER BY a.account_id NULLS FIRST`,
         params,
       )
@@ -85,9 +89,13 @@ function createRepository(pool = getPool(), { now = () => new Date() } = {}) {
       )
     ).rows[0];
     const unclosedCount = balances.filter((r) => r.balance == null).length;
-    const openingBalance = balances.some((r) => r.opening_balance == null)
-      ? null
-      : balances.reduce((s, r) => s + Number(r.opening_balance), 0);
+    // Đầu kỳ/tồn quỹ là số dư thật của các quỹ đang chọn tại 2 mốc của kỳ;
+    // thu/chi theo bộ lọc hiển thị nên không suy tồn quỹ từ đầu kỳ + thu − chi.
+    const fundTotal = (key) =>
+      balances.some((r) => r[key] == null)
+        ? null
+        : balances.reduce((s, r) => s + Number(r[key]), 0);
+    const openingBalance = fundTotal('opening_balance');
     const receipts = Number(totals.receipts),
       payments = Number(totals.payments);
     return {
@@ -102,8 +110,7 @@ function createRepository(pool = getPool(), { now = () => new Date() } = {}) {
         openingBalance,
         totalReceipts: receipts,
         totalPayments: payments,
-        closingBalance:
-          openingBalance == null ? null : openingBalance + receipts - payments,
+        closingBalance: fundTotal('closing_balance'),
       },
       syncedAt: totals.synced_at || null,
     };

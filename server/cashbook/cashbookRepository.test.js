@@ -79,6 +79,16 @@ test('summary SQL signed amount/cancel excludes, missing fund null and historica
   assert.equal(all.totalBalance, 75);
   assert.equal(all.kpis.openingBalance, null);
 });
+test('closing KPI is the real fund balance even when display filters narrow receipts/payments', async () => {
+  const s = await repo.summary(f({ fund: '7', docTypes: 'receipt' }));
+  assert.equal(s.kpis.openingBalance, 70);
+  assert.equal(s.kpis.totalReceipts, 35);
+  assert.equal(s.kpis.totalPayments, 0);
+  assert.equal(s.kpis.closingBalance, 75);
+  const none = await repo.summary(f({ fund: '7', partnerQ: 'không khớp' }));
+  assert.equal(none.kpis.totalReceipts, 0);
+  assert.equal(none.kpis.closingBalance, 75);
+});
 test('preview uses exact timestamp and ignores cancelled display filter', async () => {
   const s = await repo.summary(
     f({ fund: '7', at: '2026-10-03T00:00:00Z', statuses: 'cancelled' }),
