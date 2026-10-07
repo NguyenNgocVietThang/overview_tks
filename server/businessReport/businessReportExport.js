@@ -27,12 +27,13 @@ function invalid(message, code) {
 
 const fold = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
 
-// Loc dong theo truy van: mac dinh chi dong "hoat dong" (TB 4 thang > 0), inactive=1 giu tat ca.
+// Loc dong theo truy van. Chi bang KHACH mac dinh an khach khong hoat dong (TB 4 thang = 0),
+// inactive=1 giu tat ca; bang Sale / Ma hang khong co cong tac nay nen xuat du dong nhu tren man hinh.
 function filterRows(kind, rows, query = {}) {
   const q = fold(String(query.q || '').trim());
   const sale = String(query.sale || '');
   const branch = String(query.branch || '');
-  const all = String(query.inactive || '') === '1';
+  const all = kind !== 'customers' || String(query.inactive || '') === '1';
   return rows.filter(r => {
     if (!all && !r.active) return false;
     if (sale && r.saleName !== sale) return false;

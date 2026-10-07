@@ -84,3 +84,15 @@ test('xuat qua gioi han 20.000 dong, dinh dang/loai bang khong hop le thi bao lo
   await assert.rejects(() => createExportFile('products', 'pdf', report, []), e => e.statusCode === 400);
   await assert.rejects(() => createExportFile('nope', 'xlsx', report, []), e => e.statusCode === 400);
 });
+
+test('filterRows: chi bang khach an dong khong hoat dong mac dinh; bang sale va ma hang giu het (khop man hinh)', () => {
+  const inactive = { key: 'x', code: 'X', name: 'Cu', saleName: 'Trinh', active: false };
+  const live = { key: 'y', code: 'Y', name: 'Moi', saleName: 'Khang', active: true };
+  for (const kind of ['sales', 'products']) {
+    assert.equal(filterRows(kind, [inactive, live], {}).length, 2, kind);
+  }
+  assert.deepEqual(filterRows('customers', [inactive, live], {}).map(r => r.key), ['y']);
+  assert.equal(filterRows('customers', [inactive, live], { inactive: '1' }).length, 2);
+  // Ca bang khach lan sale/ma hang van ap bo loc tim kiem / sale.
+  assert.deepEqual(filterRows('products', [inactive, live], { q: 'cu' }).map(r => r.key), ['x']);
+});

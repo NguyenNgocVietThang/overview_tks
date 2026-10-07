@@ -3,7 +3,11 @@
 // Nguon du lieu Bao cao kinh doanh. Thang DA CHOT (co dong business_monthly_state) doc
 // tu bang 0036; thang CHUA chot (thang hien tai, hoac thang vua qua khi job chua kip chot /
 // chua backfill) tinh truc tiep bang CUNG cau SQL cua job. Ket qua cache ttlMs (mac dinh
-// 60s, stale-while-revalidate) vi tinh live 1 thang mat ~1-2s. Luon gop HN + SG.
+// 60s) theo kieu STALE-WHILE-REVALIDATE (nhu kiotOrdersRepository): het ttl thi tra NGAY ban
+// cu va lam moi o nen (single-flight, loi thi giu ban cu + ghi log); chi lan tai dau tien (chua
+// co ban nao) moi phai cho vi tinh live 1 thang mat ~1-2s. Cac thang live duoc tai TUAN TU
+// (tranh don IO len Supabase). refreeze() xoa cache; tai nen bat dau truoc do khong duoc ghi de.
+// Luon gop HN + SG.
 
 const { getPool } = require('../db/pool');
 const sql = require('./businessMonthlySql');
@@ -12,24 +16,64 @@ const { freezeMonth, rebuildSaleTable } = require('../kiotvietSync/businessMonth
 
 const num = v => Number(v) || 0;
 
+// Cache 1 gia tri bat dong bo theo kieu stale-while-revalidate.
+//   get()            : con han -> ban cu; het han -> tra ngay ban cu + lam moi nen; chua co -> cho tai.
+//   get({ wait:true }): nhu get() nhung het han thi CHO ban moi (dung khi chinh no la tai nen cua cache khac,
+//                      de ban moi that su moi chu khong mang them ban cu).
+//   clear()          : bo ban + tai dang do; tai bat dau truoc clear() khong duoc ghi vao cache nua.
+function createSwrCache({ load, now, ttlMs, label }) {
+  let entry = null;    // { at, value }
+  let inflight = null; // Promise dang tai (dung chung, tranh dam dong)
+  let generation = 0;
+
+  function reload() {
+    if (inflight) return inflight;
+    const myGeneration = generation;
+    const promise = Promise.resolve().then(load).then(value => {
+      if (myGeneration === generation) entry = { at: now().getTime(), value };
+      return value;
+    });
+    const tracked = promise.finally(() => { if (inflight === tracked) inflight = null; });
+    inflight = tracked;
+    return tracked;
+  }
+
+  function get({ wait = false } = {}) {
+    if (entry && now().getTime() - entry.at < ttlMs) return Promise.resolve(entry.value);
+    if (!entry || wait) return reload();
+    reload().catch(error => console.error(`[business-report] lam moi nen ${label} that bai, giu ban cu:`, error));
+    return Promise.resolve(entry.value);
+  }
+
+  function clear() {
+    generation += 1;
+    entry = null;
+    inflight = null;
+  }
+
+  return { get, clear };
+}
+
 function createRepository({
   pool = getPool(), now = () => new Date(), ttlMs = 60 * 1000,
   freeze = freezeMonth, rebuildSale = rebuildSaleTable
 } = {}) {
-  let cache = null; // { at, promise }
-  const liveCache = new Map(); // month -> { at, promise: {customers, customerProducts} }
+  const liveCaches = new Map(); // month -> cache SWR cua {customers, customerProducts}
 
-  function live(month) {
-    const hit = liveCache.get(month);
-    if (hit && now().getTime() - hit.at < ttlMs) return hit.promise;
-    const params = [sql.BRANCH_CODES, month, addMonths(month, 1)];
-    const promise = Promise.all([
-      pool.query(sql.CUSTOMER_MONTH_SELECT_SQL, params),
-      pool.query(sql.CUSTOMER_PRODUCT_MONTH_SELECT_SQL, params)
-    ]).then(([c, cp]) => ({ customers: c.rows, customerProducts: cp.rows }));
-    liveCache.set(month, { at: now().getTime(), promise });
-    promise.catch(() => liveCache.delete(month));
-    return promise;
+  function live(month, options) {
+    let cache = liveCaches.get(month);
+    if (!cache) {
+      const params = [sql.BRANCH_CODES, month, addMonths(month, 1)];
+      cache = createSwrCache({
+        now, ttlMs, label: `thang ${month}`,
+        load: () => Promise.all([
+          pool.query(sql.CUSTOMER_MONTH_SELECT_SQL, params),
+          pool.query(sql.CUSTOMER_PRODUCT_MONTH_SELECT_SQL, params)
+        ]).then(([c, cp]) => ({ customers: c.rows, customerProducts: cp.rows }))
+      });
+      liveCaches.set(month, cache);
+    }
+    return cache.get(options);
   }
 
   async function load() {
@@ -59,7 +103,8 @@ function createRepository({
       month: r.month, productCode: r.product_code, productName: r.product_name, netRevenue: num(r.net_revenue), netQty: num(r.net_qty)
     }));
     for (const month of months.filter(m => !frozen.has(m))) {
-      const data = await live(month);
+      // Tai nen cua snapshot: cho ban live MOI (wait) de snapshot moi khong mang ban live cu.
+      const data = await live(month, { wait: true });
       for (const r of data.customers) customers.push({ month, branch: r.branch, customerCode: r.customer_code, customerName: r.customer_name, netRevenue: num(r.net_revenue) });
       const byCode = new Map();
       for (const r of data.customerProducts) {
@@ -79,13 +124,8 @@ function createRepository({
     };
   }
 
-  function snapshot() {
-    if (cache && now().getTime() - cache.at < ttlMs) return cache.promise;
-    const promise = load();
-    cache = { at: now().getTime(), promise };
-    promise.catch(() => { if (cache && cache.promise === promise) cache = null; });
-    return promise;
-  }
+  const snapshotCache = createSwrCache({ load, now, ttlMs, label: 'snapshot' });
+  const snapshot = () => snapshotCache.get();
 
   async function linesFor(months, where, params, mapKey) {
     const snap = await snapshot();
@@ -138,7 +178,9 @@ function createRepository({
     }
     const result = await freeze(pool, month, { log: console.log });
     await rebuildSale(pool);
-    cache = null; liveCache.clear();
+    snapshotCache.clear();
+    for (const cache of liveCaches.values()) cache.clear();
+    liveCaches.clear();
     return result;
   }
 
