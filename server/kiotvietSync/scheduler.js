@@ -13,6 +13,7 @@ const { startCustomerDebtReportRefreshSchedule } = require('./customerDebtReport
 const { startProductReportSchedule } = require('./productReportRefresh');
 const { startCustomerInvoiceLinesSchedule } = require('./customerInvoiceLinesRefresh');
 const { startInventoryValueSnapshotSchedule } = require('./inventoryValueSnapshot');
+const { startBusinessMonthlySchedule } = require('./businessMonthlyRefresh');
 
 // orderSuppliers ("Dat hang nhap") o nhom fast: doi soat toan bo ~350 phieu chi vai
 // request, va nhip 7 phut gan nhip snapshot ton kho (10 phut) nen hang vua nhap
@@ -40,6 +41,7 @@ function createPollingScheduler({
   customerInvoiceLinesIntervalMs = 5 * 60 * 1000,
   // Chup gia tri ton kho luc 23:59 VN: kiem tra moi 1 phut de khong truot qua phut do.
   inventoryValueSnapshotIntervalMs = 60 * 1000,
+  businessMonthlyIntervalMs = 5 * 60 * 1000,
   getConfiguredBranches: getBranches = getConfiguredBranches,
   createKiotVietClient: createClient = createKiotVietClient,
   pollEntityOnce: poll = pollEntityOnce,
@@ -53,6 +55,7 @@ function createPollingScheduler({
   startProductReportSchedule: startProductReport = startProductReportSchedule,
   startCustomerInvoiceLinesSchedule: startCustomerInvoiceLines = startCustomerInvoiceLinesSchedule,
   startInventoryValueSnapshotSchedule: startInventoryValueSnapshot = startInventoryValueSnapshotSchedule,
+  startBusinessMonthlySchedule: startBusinessMonthly = startBusinessMonthlySchedule,
   logger = console
 } = {}) {
   let cashbookRunning = false;
@@ -183,6 +186,15 @@ function createPollingScheduler({
       // takeInventoryValueSnapshotIfDue tu kiem tra, du duoc goi moi phut.
       startInventoryValueSnapshot(getPoolFn(), {
         intervalMs: inventoryValueSnapshotIntervalMs,
+        setIntervalFn,
+        scheduleImmediate,
+        log: logger.log ? logger.log.bind(logger) : logger
+      }),
+      // Bao cao kinh doanh (server/db/migrations/0036) - chot doanh so thang vua qua luc
+      // >= 00:10 VN ngay mung 1 (backfill tu 2026-03 lan dau) + dung lai bang sale theo
+      // nhom khach hien tai; ham refreshBusinessMonthlyIfDue tu kiem tra, goi moi 5 phut.
+      startBusinessMonthly(getPoolFn(), {
+        intervalMs: businessMonthlyIntervalMs,
         setIntervalFn,
         scheduleImmediate,
         log: logger.log ? logger.log.bind(logger) : logger
