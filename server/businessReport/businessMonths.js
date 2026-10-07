@@ -7,6 +7,13 @@ const { vnDateKey } = require('../kiotvietSync/vnTime');
 
 const FIRST_MONTH = '2026-03-01';
 const UNGROUPED_SALE = 'Chưa phân nhóm';
+const NO_TEAM = 'Chưa có team';
+const RETAIL_NAME = 'Khách lẻ';
+
+// Khoa so khop ten (khach, sale): NFKC, gop khoang trang, chu thuong.
+function nameKey(value) {
+  return String(value == null ? '' : value).normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase();
+}
 
 function monthKey(dateKey) {
   return String(dateKey).slice(0, 7) + '-01';
@@ -83,6 +90,6 @@ function buildMetrics(series, currentMonth, day) {
 }
 
 module.exports = {
-  FIRST_MONTH, UNGROUPED_SALE, monthKey, addMonths, monthsBetween, monthLabel,
+  FIRST_MONTH, UNGROUPED_SALE, NO_TEAM, RETAIL_NAME, nameKey, monthKey, addMonths, monthsBetween, monthLabel,
   vnToday, parseClosedMonth, dayOfMonth, normalizeTo30Days, growthPct, avg4Months, buildMetrics
 };

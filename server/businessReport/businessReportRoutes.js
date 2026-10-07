@@ -8,6 +8,7 @@ const { requireAuth, requireFeature } = require('../auth/authMiddleware');
 const { createRepository } = require('./businessReportRepository');
 const svc = require('./businessReportService');
 const { createExportFile, filterRows, exportFieldsFor, resolveColumnKeys } = require('./businessReportExport');
+const { nameKey, RETAIL_NAME } = require('./businessMonths');
 
 const BUILDERS = { sales: svc.buildSaleReport, customers: svc.buildCustomerReport, products: svc.buildProductReport };
 
@@ -27,6 +28,8 @@ function createBusinessReportRouter({ repository = createRepository() } = {}) {
     router.get(`/${kind}`, ...view, handle(async (req, res) => res.json(BUILDERS[kind](await repository.snapshot()))));
   }
 
+  router.get('/overview', ...view, handle(async (req, res) => res.json(svc.buildOverview(await repository.snapshot()))));
+
   router.get('/detail', ...view, handle(async (req, res) => {
     const kind = String(req.query.kind || '');
     const key = String(req.query.key || '');
@@ -35,12 +38,31 @@ function createBusinessReportRouter({ repository = createRepository() } = {}) {
     const detail = svc.buildDetail(kind, key, snap, {});
     const months = svc.last4Months(snap);
     if (kind === 'customer') {
-      const i = key.indexOf(':');
-      detail.topProducts = (await repository.customerProducts({ branch: key.slice(0, i), customerCode: key.slice(i + 1), months })).slice(0, 50);
+      // Khach da gop theo ten: top ma hang cong don tren moi ho so (co so, ma KH) cua khach.
+      const byProduct = new Map();
+      for (const ref of detail.customer.refs) {
+        for (const r of await repository.customerProducts({ branch: ref.branch, customerCode: ref.code, months })) {
+          const t = byProduct.get(r.productCode) || { productCode: r.productCode, productName: r.productName, revenue: 0, qty: 0 };
+          t.revenue += Number(r.revenue) || 0;
+          t.qty += Number(r.qty) || 0;
+          if (r.productName) t.productName = r.productName;
+          byProduct.set(r.productCode, t);
+        }
+      }
+      detail.topProducts = [...byProduct.values()].sort((x, y) => y.revenue - x.revenue).slice(0, 50);
     } else if (kind === 'product') {
+      // Top khach cua ma hang: gop theo ten khach (HN + SG), khong con co so / ma KH.
       const names = new Map(snap.directory.map(d => [`${d.branch}:${d.code}`, d.name]));
-      detail.topCustomers = (await repository.productCustomers({ productCode: key, months })).slice(0, 50)
-        .map(r => ({ ...r, customerName: r.customerCode ? (names.get(`${r.branch}:${r.customerCode}`) || r.customerCode) : 'Khách lẻ' }));
+      const byName = new Map();
+      for (const r of await repository.productCustomers({ productCode: key, months })) {
+        const name = (r.customerCode && names.get(`${r.branch}:${r.customerCode}`)) || r.customerName || r.customerCode || RETAIL_NAME;
+        const k = nameKey(name) || nameKey(RETAIL_NAME);
+        const t = byName.get(k) || { customerName: name, revenue: 0, qty: 0 };
+        t.revenue += Number(r.revenue) || 0;
+        t.qty += Number(r.qty) || 0;
+        byName.set(k, t);
+      }
+      detail.topCustomers = [...byName.values()].sort((x, y) => y.revenue - x.revenue).slice(0, 50);
     }
     res.json(detail);
   }));

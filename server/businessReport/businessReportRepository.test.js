@@ -180,3 +180,20 @@ test('refreeze xoa cache; tai nen dang do (bat dau truoc refreeze) khong duoc gh
     assert.equal(snap.sales.find(s => s.month === '2026-09-01' && s.saleName === 'Khang').netRevenue, 810);
   } finally { await db.close(); }
 });
+
+test('snapshot doc team tu sale_teams; thieu bang sale_teams thi teams rong, bao cao van chay', async () => {
+  const { PGlite } = require('@electric-sql/pglite');
+  const db = new PGlite();
+  try {
+    await seed(db);
+    await db.exec(`INSERT INTO sale_teams (sale_name, team_name) VALUES ('Khang', 'Team Khang')`);
+    const now = () => new Date('2026-10-06T03:00:00Z');
+    let snap = await createRepository({ pool: poolFrom(db), now }).snapshot();
+    assert.ok(snap.teams.some(t => t.saleName === 'Khang' && t.teamName === 'Team Khang'));
+    await db.exec('DROP TABLE sale_teams');
+    snap = await createRepository({ pool: poolFrom(db), now }).snapshot();
+    assert.deepEqual(snap.teams, []);
+    assert.equal(snap.notReady, true, 'thang cu chua chot => van notReady nhu cu, khong phai do sale_teams');
+    assert.ok(snap.customers.length > 0);
+  } finally { await db.close(); }
+});

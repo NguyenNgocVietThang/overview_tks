@@ -1,0 +1,72 @@
+-- Bao cao kinh doanh: sale thuoc team nao (bang Doanh so theo sale co cot Team + loc team).
+-- Spec: docs/superpowers/specs/2026-10-07-business-report-teams-merge-design.md.
+--
+-- sale_name = ten nhom khach tren KiotViet (khop khong phan biet hoa/thuong, khoang trang thua).
+-- Sale khong co trong bang (ke ca 'Chua phan nhom') thuoc team 'Chua co team' o tang service.
+-- Cap nhat: nguoi dung gui file Excel moi -> chay lai node scripts/importSaleTeams.js <file.xlsx>.
+
+CREATE TABLE sale_teams (
+  sale_name  TEXT PRIMARY KEY,
+  team_name  TEXT NOT NULL CHECK (btrim(team_name) <> ''),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO sale_teams (sale_name, team_name) VALUES
+  ('Hồng Trinh', 'Team Hồng Trinh'),
+  ('Duy Khanh', 'Team Hồng Trinh'),
+  ('Anh Tuấn', 'Team Hồng Trinh'),
+  ('Kim Chi', 'Team Hồng Trinh'),
+  ('Anh Thư', 'Team Hồng Trinh'),
+  ('Thảo Uyên', 'Team Hồng Trinh'),
+  ('Trọng Nhân', 'Team Hồng Trinh'),
+  ('Tú Uyên', 'Team Hồng Trinh'),
+  ('Bích Trân', 'Team Hồng Trinh'),
+  ('Khánh Duy', 'Team Khác'),
+  ('Phạm Hạnh', 'Team Khác'),
+  ('Tiến Hưng', 'Team Khác'),
+  ('Gia Khang', 'Team Khang'),
+  ('Thúy Oanh', 'Team Khang'),
+  ('Kim Muội', 'Team Khang'),
+  ('Xuân Lợi', 'Team Khang'),
+  ('Quỳnh Như', 'Team Khang'),
+  ('Hữu Phúc', 'Team Khang'),
+  ('Ngọc Lan', 'Team Lan'),
+  ('Minh Quân', 'Team Lan'),
+  ('Đặng Linh', 'Team Lan'),
+  ('Khải Hoàn', 'Team Lê'),
+  ('Tuyết Lê', 'Team Lê'),
+  ('Hà Uyên', 'Team Lê'),
+  ('Tuấn Minh', 'Team Lê'),
+  ('Ngọc Thương', 'Team Lê'),
+  ('Mỹ Linh', 'Team Lê'),
+  ('Nguyễn Quỳnh', 'Team Lê'),
+  ('Duy Thái', 'Team Lê'),
+  ('Ngọc Diễm', 'Team Lê'),
+  ('Đức Doanh', 'Team Lê'),
+  ('Phương Uyên', 'Team Lê'),
+  ('Lệ NT', 'Team HN 1'),
+  ('Ngọc Hưng', 'Team HN 1'),
+  ('Văn Tuyên', 'Team HN 1'),
+  ('Doãn Lợi', 'Team HN 1'),
+  ('Tâm Vũ', 'Team HN 1'),
+  ('Thị Diễm', 'Team HN 1'),
+  ('Đặng Nghĩa', 'Team HN 1'),
+  ('Đỗ Chi', 'Team HN 1'),
+  ('Phương Anh', 'Team HN 1'),
+  ('Thu Hà', 'Team Trình'),
+  ('Văn Trình', 'Team Trình'),
+  ('Khánh Thịnh', 'Team Trình'),
+  ('Nguyễn Hiền', 'Team Trình'),
+  ('Lê Toàn', 'Team Trình'),
+  ('Thu Giang', 'Team Trình'),
+  ('Thanh Trà', 'Team Trình'),
+  ('Hải Yến', 'Team Trình'),
+  ('Thu Trinh', 'Team Tú'),
+  ('Anh Tú', 'Team Tú'),
+  ('Hồng Son', 'Team Tú'),
+  ('Diễm Quỳnh', 'Team Tú'),
+  ('Thái Bảo', 'Team Tú'),
+  ('Tường Vy', 'Team Tú'),
+  ('Kim Thương', 'Team Tú'),
+  ('Trúc Quyên', 'Team Tú'),
+  ('Minh Nguyệt', 'Team Tú');

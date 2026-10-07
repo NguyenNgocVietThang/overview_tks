@@ -16,7 +16,7 @@ const { freezeMonth, rebuildSaleTable } = require('../kiotvietSync/businessMonth
 
 const num = v => Number(v) || 0;
 const MONTHLY_TABLES = new Set(['business_monthly_state', 'business_monthly_customer_sales',
-  'business_monthly_product_sales', 'business_monthly_sale_sales', 'business_monthly_customer_product_sales']);
+  'business_monthly_product_sales', 'business_monthly_sale_sales', 'business_monthly_customer_product_sales', 'sale_teams']);
 function missingMonthlyRelation(error) {
   if (error.code !== '42P01') return false;
   const relation = /relation "(?:[^".]+\.)?([^".]+)" does not exist/.exec(error.message || '');
@@ -145,7 +145,8 @@ function createRepository({
                          COALESCE(NULLIF(btrim(raw->>'groups'), ''), $1) AS sale_name,
                          COALESCE(btrim(raw->>'comments'), '') AS price_level
                   FROM customers WHERE btrim(COALESCE(code, '')) <> ''
-                  ORDER BY branch, btrim(code), id DESC`, [UNGROUPED_SALE]]
+                  ORDER BY branch, btrim(code), id DESC`, [UNGROUPED_SALE]],
+      ['SELECT sale_name, team_name FROM sale_teams']
     ]);
     let missingMigration = false;
     const values = results.map((result, index) => {
@@ -154,9 +155,11 @@ function createRepository({
         missingMigration = true;
         return { rows: [] };
       }
+      // sale_teams chua migrate: moi sale thuoc 'Chua co team', bao cao van chay.
+      if (index === 6 && missingMonthlyRelation(result.reason)) return { rows: [] };
       throw result.reason;
     });
-    const [state, frozenCustomers, frozenProducts, frozenSales, , directory] = values;
+    const [state, frozenCustomers, frozenProducts, frozenSales, , directory, teams] = values;
     // Schema chua du: bo state de khong tron lich su chot thieu bang.
     if (missingMigration) state.rows = [];
     const frozenMonths = state.rows.map(r => r.month).filter(m => m < currentMonth).sort();
@@ -198,6 +201,7 @@ function createRepository({
       notReady: missingMigration || months.some(m => m < currentMonth && (!frozen.has(m) || pending.has(m))),
       customers, products,
       sales,
+      teams: teams.rows.map(r => ({ saleName: r.sale_name, teamName: r.team_name })),
       directory: directory.rows.map(r => ({ branch: r.branch, code: r.code, name: r.name || '', saleName: r.sale_name, priceLevel: r.price_level })),
       computedAt: now().toISOString()
     };

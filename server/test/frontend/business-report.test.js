@@ -54,6 +54,7 @@ function createPage({ can = () => true, notReady = false } = {}) {
     if (href === '/api/business-report/sales') return ok(svc.buildSaleReport(snap));
     if (href === '/api/business-report/customers') return ok(svc.buildCustomerReport(snap));
     if (href === '/api/business-report/products') return ok(svc.buildProductReport(snap));
+    if (href === '/api/business-report/overview') return ok(svc.buildOverview(snap));
     if (href.startsWith('/api/business-report/detail?kind=sale')) return ok(svc.buildDetail('sale', 'Khang', snap, {}));
     if (href.startsWith('/api/business-report/detail?kind=customer')) {
       const key = decodeURIComponent(href.split('key=')[1]);
@@ -96,7 +97,7 @@ const rowsOf = (page, tbodyId) => [...page.$(tbodyId).querySelectorAll('tr.doc-r
 const rowById = (page, tbodyId, id) => rowsOf(page, tbodyId).find(tr => tr.dataset.tableItemId === id);
 const businessUrls = page => page.urls.map(u => u.href).filter(h => h.startsWith('/api/business-report/'));
 
-test('sub-nav co tab "Báo cáo kinh doanh" va #view-business co 3 muc', () => {
+test('sub-nav co tab "Báo cáo kinh doanh" va #view-business co 4 muc (1 = Chi so tong quat)', () => {
   const page = createPage();
   const btn = page.doc.querySelector('.report-subnav-item[data-view="business"]');
   assert.ok(btn, 'thieu nut sub-nav business');
@@ -104,7 +105,9 @@ test('sub-nav co tab "Báo cáo kinh doanh" va #view-business co 3 muc', () => {
   const view = page.$('view-business');
   assert.ok(view, 'thieu #view-business');
   const titles = [...view.querySelectorAll('.section-head h2')].map(h => h.textContent.trim());
-  assert.deepEqual(titles, ['Tăng trưởng Sale', 'Tăng trưởng khách hàng', 'Tăng trưởng mã hàng']);
+  assert.deepEqual(titles, ['Chỉ số tổng quát', 'Tăng trưởng Sale', 'Tăng trưởng khách hàng', 'Tăng trưởng mã hàng']);
+  const steps = [...view.querySelectorAll('.section-step')].map(s => s.textContent.trim());
+  assert.deepEqual(steps, ['1', '2', '3', '4']);
 });
 
 test('sidebar dung chung co muc Báo cáo kinh doanh (reports.business)', () => {
@@ -112,12 +115,12 @@ test('sidebar dung chung co muc Báo cáo kinh doanh (reports.business)', () => 
   assert.match(nav, /feature: 'reports\.business', view: 'business', label: 'Báo cáo kinh doanh'/);
 });
 
-test('mo tab: goi dung 3 API /api/business-report, KHONG goi /api/dashboard?view=business', async () => {
+test('mo tab: goi dung 4 API /api/business-report (3 bang + overview), KHONG goi /api/dashboard?view=business', async () => {
   const page = createPage();
   page.run("switchView('business')");
   await settle();
   const called = businessUrls(page);
-  assert.deepEqual(called.slice().sort(), ['/api/business-report/customers', '/api/business-report/products', '/api/business-report/sales']);
+  assert.deepEqual(called.slice().sort(), ['/api/business-report/customers', '/api/business-report/overview', '/api/business-report/products', '/api/business-report/sales']);
   assert.equal(page.urls.some(u => u.href.startsWith('/api/dashboard?view=business')), false, 'khong goi /api/dashboard cho tab business');
   assert.equal(page.$('view-business').classList.contains('active'), true);
 });
@@ -127,24 +130,90 @@ test('bang Sale: cot co dinh + TB 4 thang + Tang truong + hom nay + cac thang gi
   page.run("switchView('business')");
   await settle();
   assert.deepEqual(headerTexts(page, 'businessSalesRows'),
-    ['Sale', 'SL Khách', 'TB 4 tháng', 'Tăng trưởng', '06/10/2026', 'T9/26', 'T8/26', 'T7/26']);
+    ['Sale', 'Team', 'SL Khách', 'TB 4 tháng', 'Tăng trưởng', '06/10/2026', 'T9/26', 'T8/26', 'T7/26']);
   const khang = rowById(page, 'businessSalesRows', 'Khang');
   assert.ok(khang, 'co dong Khang');
-  assert.equal(khang.cells[3].textContent.trim(), '100%');
+  assert.equal(khang.cells[1].textContent.trim(), 'Team Khang');
+  assert.equal(khang.cells[4].textContent.trim(), '100%');
   const ungrouped = rowById(page, 'businessSalesRows', 'Chưa phân nhóm');
   assert.ok(ungrouped, 'co dong Chua phan nhom');
-  assert.equal(ungrouped.cells[3].textContent.trim(), '—');
+  assert.equal(ungrouped.cells[1].textContent.trim(), 'Chưa có team');
+  assert.equal(ungrouped.cells[4].textContent.trim(), '—');
   // Moi <th> sinh dong deu co width px (bang fixed-table).
   page.$('businessSalesRows').closest('table').querySelectorAll('thead th')
     .forEach(th => assert.match(th.getAttribute('style') || '', /width:\s*\d+px/));
 });
 
-test('KPI muc Sale co the "Doanh số tháng này (đến 06/10)"', async () => {
+const cardsOf = (page, id) => [...page.$(id).querySelectorAll('.kpi-card')]
+  .map(c => [c.querySelector('.eyebrow').textContent.trim(), c.querySelector('.value').textContent.trim()]);
+const fire = (page, el) => el.dispatchEvent(new page.dom.window.Event('change'));
+
+test('muc 1 Chi so tong quat: 6 the (tang truong, TB 4 thang, doanh so thang nay, SL sale/khach/ma hoat dong)', async () => {
   const page = createPage();
   page.run("switchView('business')");
   await settle();
-  const labels = [...page.$('businessSalesKpis').querySelectorAll('.eyebrow')].map(e => e.textContent.trim());
-  assert.ok(labels.includes('Doanh số tháng này (đến 06/10)'), labels.join(' | '));
+  const cards = cardsOf(page, 'businessOverviewKpis');
+  assert.deepEqual(cards.map(c => c[0]), ['Tăng trưởng', 'TB 4 tháng', 'Doanh số tháng này (đến 06/10)', 'SL Sale', 'SL Khách hoạt động', 'SL Mã hoạt động']);
+  assert.deepEqual(cards.slice(3).map(c => c[1]), ['1', '3', '1']);
+  assert.equal(cards[2][1], page.run('fmtMoney(160)'));
+});
+
+test('moi bang chi co hang 3 chi so Tang truong / TB 4 thang / Doanh so thang nay (khong con the tong quan cu)', async () => {
+  const page = createPage();
+  page.run("switchView('business')");
+  await settle();
+  for (const id of ['businessSalesKpis', 'businessCustomersKpis', 'businessProductsKpis']) {
+    assert.deepEqual(cardsOf(page, id).map(c => c[0]), ['Tăng trưởng', 'TB 4 tháng', 'Doanh số tháng này (đến 06/10)'], id);
+  }
+});
+
+test('loc team o bang Sale: dong, the 3 chi so va tag doi theo; "Tat ca team" tra lai het', async () => {
+  const page = createPage();
+  page.run("switchView('business')");
+  await settle();
+  const team = page.$('businessSalesTeam');
+  assert.deepEqual([...team.options].map(o => o.value), ['', 'Chưa có team', 'Team Khang', 'Team Trinh']);
+  const all = cardsOf(page, 'businessSalesKpis');
+  const ids = () => rowsOf(page, 'businessSalesRows').map(tr => tr.dataset.tableItemId);
+  assert.equal(ids().length, 3);
+  team.value = 'Team Khang';
+  fire(page, team);
+  assert.deepEqual(ids(), ['Khang']);
+  assert.equal(page.$('tagBusinessSales').textContent.trim(), '1');
+  const khangRow = page.run("businessFilteredSales()")[0];
+  assert.deepEqual(cardsOf(page, 'businessSalesKpis'), [
+    ['Tăng trưởng', '100%'], ['TB 4 tháng', page.run('fmtMoney(' + khangRow.avg4 + ')')], ['Doanh số tháng này (đến 06/10)', page.run('fmtMoney(100)')]]);
+  team.value = '';
+  fire(page, team);
+  assert.equal(ids().length, 3);
+  assert.deepEqual(cardsOf(page, 'businessSalesKpis'), all);
+});
+
+test('tang truong cua tap da loc = tong quy doi / tong thang truoc (khong phai trung binh %); thang truoc = 0 thi "—"', async () => {
+  const page = createPage();
+  page.run("switchView('business')");
+  await settle();
+  const rows = [{ prev: 100, normalized: 300, avg4: 10, current: 50 }, { prev: 300, normalized: 100, avg4: 20, current: 20 }];
+  const cards = page.run('businessSummaryCards(' + JSON.stringify(rows) + ', { today: "2026-10-06" })');
+  assert.equal(cards[0].value, '100%', '(300+100)/(100+300), khong phai (300%+33%)/2');
+  const none = page.run('businessSummaryCards([{ prev: 0, normalized: 5, avg4: 1, current: 1 }], { today: "2026-10-06" })');
+  assert.equal(none[0].value, '—');
+});
+
+test('o tim kiem cung doi hang 3 chi so cua bang', async () => {
+  const page = createPage();
+  page.run("switchView('business')");
+  await settle();
+  const before = cardsOf(page, 'businessCustomersKpis');
+  const input = page.doc.querySelector('[data-table-search="businessCustomers"] input[type="search"], [data-table-search="businessCustomers"] input');
+  assert.ok(input, 'co o tim kiem bang khach');
+  input.value = 'anh';
+  input.dispatchEvent(new page.dom.window.Event('input'));
+  await settle();
+  const after = cardsOf(page, 'businessCustomersKpis');
+  assert.notDeepEqual(after, before);
+  assert.equal(page.$('tagBusinessCustomers').textContent.trim(), '1');
+  assert.equal(after[2][1], page.run('fmtMoney(0)'), 'Anh B khong co doanh so thang nay');
 });
 
 test('bang khach: an khach khong hoat dong mac dinh, cong tac hien lai, loc theo sale, cot Level gia', async () => {
@@ -152,13 +221,14 @@ test('bang khach: an khach khong hoat dong mac dinh, cong tac hien lai, loc theo
   page.run("switchView('business')");
   await settle();
   const ids = () => rowsOf(page, 'businessCustomersRows').map(tr => tr.dataset.tableItemId);
-  assert.equal(ids().includes('hanoi:KH9'), false, 'KH9 khong hoat dong bi an mac dinh');
+  assert.equal(ids().includes('cũ'), false, 'khach cu khong hoat dong bi an mac dinh');
   assert.equal(ids().length, 3);
+  assert.equal(page.doc.getElementById('businessCustomersBranch'), null, 'khong con bo loc co so');
 
   const inactive = page.$('businessCustomersInactive');
   inactive.checked = true;
   inactive.dispatchEvent(new page.dom.window.Event('change'));
-  assert.equal(ids().includes('hanoi:KH9'), true, 'tick cong tac thi KH9 hien');
+  assert.equal(ids().includes('cũ'), true, 'tick cong tac thi khach cu hien');
   inactive.checked = false;
   inactive.dispatchEvent(new page.dom.window.Event('change'));
 
@@ -166,13 +236,13 @@ test('bang khach: an khach khong hoat dong mac dinh, cong tac hien lai, loc theo
   assert.ok([...sale.options].some(o => o.value === 'Khang'), 'dropdown sale co Khang');
   sale.value = 'Khang';
   sale.dispatchEvent(new page.dom.window.Event('change'));
-  assert.deepEqual(ids().sort(), ['hanoi:KH1', 'saigon:KH1']);
+  assert.deepEqual(ids().sort(), ['anh b', 'chị a']);
   assert.deepEqual(page.run('businessFilteredCustomers().map(r => r.saleName)'), ['Khang', 'Khang']);
 
   const headers = headerTexts(page, 'businessCustomersRows');
-  assert.deepEqual(headers.slice(0, 5), ['Mã KH', 'Tên khách', 'Cơ sở', 'Sale', 'Level giá']);
-  const chiA = rowById(page, 'businessCustomersRows', 'hanoi:KH1');
-  assert.equal(chiA.cells[4].textContent.trim(), 'Level 2');
+  assert.deepEqual(headers.slice(0, 3), ['Tên khách', 'Sale', 'Level giá']);
+  const chiA = rowById(page, 'businessCustomersRows', 'chị a');
+  assert.equal(chiA.cells[2].textContent.trim(), 'Level 2');
 });
 
 test('bam dong Khang: mo panel chi tiet co the tong quan, bieu do cot theo thang va bang khach', async () => {
@@ -208,9 +278,9 @@ test('panel khach: tieu de la ten khach (khong phai ten sale), ca khi mo tu bang
   page.run("switchView('business')");
   await settle();
 
-  rowById(page, 'businessCustomersRows', 'hanoi:KH1').click();
+  rowById(page, 'businessCustomersRows', 'chị a').click();
   await settle();
-  assert.ok(businessUrls(page).includes('/api/business-report/detail?kind=customer&key=hanoi%3AKH1'));
+  assert.ok(businessUrls(page).includes('/api/business-report/detail?kind=customer&key=' + encodeURIComponent('chị a')));
   const title = page.$('docModalTitle').textContent;
   assert.match(title, /Khách hàng · Chị A/);
   assert.doesNotMatch(title, /Khang/);
@@ -218,8 +288,8 @@ test('panel khach: tieu de la ten khach (khong phai ten sale), ca khi mo tu bang
 
   rowById(page, 'businessSalesRows', 'Khang').click();
   await settle();
-  const drill = [...page.$('docModalBody').querySelectorAll('tr.business-detail-customer')].find(tr => tr.dataset.key === 'hanoi:KH1');
-  assert.ok(drill, 'panel Sale co dong khach hanoi:KH1');
+  const drill = [...page.$('docModalBody').querySelectorAll('tr.business-detail-customer')].find(tr => tr.dataset.key === 'chị a');
+  assert.ok(drill, 'panel Sale co dong khach chị a');
   drill.click();
   await settle();
   const drillTitle = page.$('docModalTitle').textContent;
@@ -301,9 +371,9 @@ test('bam Xuat file bang Khach: mo hop thoai chung giua man hinh, chon truong ma
   assert.equal(fieldsParams.get('inactive'), '1');
   assert.equal(fieldsParams.get('sale'), 'Khang');
   const inputs = fieldInputs(page);
-  assert.ok(inputs.length >= 9);
+  assert.ok(inputs.length >= 7);
   assert.ok(inputs.every(i => i.checked), 'mac dinh chon het');
-  assert.deepEqual(inputs.slice(0, 5).map(i => i.closest('label').textContent.trim()), ['Mã KH', 'Tên khách', 'Cơ sở', 'Sale', 'Level giá']);
+  assert.deepEqual(inputs.slice(0, 3).map(i => i.closest('label').textContent.trim()), ['Tên khách', 'Sale', 'Level giá']);
   assert.equal(page.$('exportConfirmButton').hidden, false);
   assert.equal(page.$('exportHtmlButton').hidden, false);
 
@@ -372,4 +442,17 @@ test('ham tang truong: >=100% xanh, <100% do, null "—"', () => {
   assert.match(page.run('businessGrowthHtml(100)'), /pill ok[^>]*>100%/);
   assert.match(page.run('businessGrowthHtml(54.6)'), /pill bad[^>]*>55%/);
   assert.match(page.run('businessGrowthHtml(null)'), /—/);
+});
+
+test('xuat bang Sale gui team dang loc', async () => {
+  const page = createPage();
+  page.run("switchView('business')");
+  await settle();
+  page.$('businessSalesTeam').value = 'Team Khang';
+  clickInline(page, page.doc.querySelector('.business-export[data-kind="sales"] button'));
+  await settle();
+  const fieldsParams = paramsOf(fieldsUrls(page)[0]);
+  assert.equal(fieldsParams.get('kind'), 'sales');
+  assert.equal(fieldsParams.get('team'), 'Team Khang');
+  assert.equal(fieldsParams.get('branch'), null);
 });

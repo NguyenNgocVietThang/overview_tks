@@ -13,8 +13,8 @@ const MAX_EXPORT_ROWS = 20000;
 const KINDS = ['sales', 'customers', 'products'];
 const TITLES = { sales: 'Sale', customers: 'Khách hàng', products: 'Mã hàng' };
 const FIXED = {
-  sales: [['saleName', 'Sale'], ['activeCustomers', 'SL Khách', 'number']],
-  customers: [['code', 'Mã KH'], ['name', 'Tên khách'], ['branch', 'Cơ sở'], ['saleName', 'Sale'], ['priceLevel', 'Level giá']],
+  sales: [['saleName', 'Sale'], ['team', 'Team'], ['activeCustomers', 'SL Khách', 'number']],
+  customers: [['name', 'Tên khách'], ['saleName', 'Sale'], ['priceLevel', 'Level giá']],
   products: [['code', 'Mã hàng'], ['name', 'Tên hàng']]
 };
 
@@ -32,13 +32,13 @@ const fold = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g
 function filterRows(kind, rows, query = {}) {
   const q = fold(String(query.q || '').trim());
   const sale = String(query.sale || '');
-  const branch = String(query.branch || '');
+  const team = String(query.team || '');
   const all = kind !== 'customers' || String(query.inactive || '') === '1';
   return rows.filter(r => {
     if (!all && !r.active) return false;
     if (sale && r.saleName !== sale) return false;
-    if (branch && r.branch !== branch) return false;
-    if (q && !fold([r.code, r.name, r.saleName].filter(Boolean).join(' ')).includes(q)) return false;
+    if (team && r.team !== team) return false;
+    if (q && !fold([r.code, r.name, r.saleName, r.team].filter(Boolean).join(' ')).includes(q)) return false;
     return true;
   });
 }
@@ -101,7 +101,6 @@ function rawValue(row, column) {
   if (column.month) return Number(row.series && row.series[column.month]) || 0;
   if (column.key === 'growth') return row.growth == null ? '—' : row.growth / 100;
   if (column.type === 'number') return Number(row[column.key]) || 0;
-  if (column.key === 'branch') return row.branch === 'hanoi' ? 'HN' : row.branch === 'saigon' ? 'SG' : (row.branch || '');
   return row[column.key] == null ? '' : String(row[column.key]);
 }
 

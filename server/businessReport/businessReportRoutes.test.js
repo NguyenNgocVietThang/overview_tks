@@ -50,17 +50,39 @@ test('GET /sales, /customers, /products: can reports.business', async () => {
 });
 
 test('GET /detail?kind=customer nap top ma hang 4 thang gan nhat qua repository', async () => {
-  const r = await request('/detail?kind=customer&key=hanoi:KH1');
+  const r = await request('/detail?kind=customer&key=' + encodeURIComponent('chị a'));
   assert.equal(r.status, 200);
   assert.deepEqual(r.calls[0], ['customerProducts', { branch: 'hanoi', customerCode: 'KH1', months: ['2026-07-01', '2026-08-01', '2026-09-01', '2026-10-01'] }]);
   assert.equal(r.data.topProducts[0].productCode, 'SP1');
-  assert.equal(r.data.customer.key, 'hanoi:KH1');
+  assert.equal(r.data.customer.key, 'chị a');
+});
+
+test('GET /overview: chi so tong quat, can reports.business', async () => {
+  const ok = await request('/overview');
+  assert.equal(ok.status, 200);
+  assert.deepEqual(ok.data.kpis.map(k => k.key), ['growth', 'avg4', 'current', 'saleCount', 'activeCustomers', 'activeProducts']);
+  assert.equal((await request('/overview', { permissions: ['reports.overview'] })).status, 403);
+});
+
+test('GET /detail?kind=customer cong don top ma hang cua moi ho so da gop (HN + SG)', async () => {
+  const snap = serviceSnapshot();
+  snap.directory.push({ branch: 'saigon', code: 'KH7', name: 'Chị A', saleName: 'Khang', priceLevel: '' });
+  snap.customers.push({ month: '2026-10-01', branch: 'saigon', customerCode: 'KH7', customerName: 'Chị A', netRevenue: 5 });
+  const r = await request('/detail?kind=customer&key=' + encodeURIComponent('chị a'), {
+    repo: {
+      snapshot: async () => snap,
+      customerProducts: async args => [{ productCode: 'SP1', productName: 'Khay', revenue: args.branch === 'hanoi' ? 10 : 7, qty: 1 }]
+    }
+  });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.data.topProducts, [{ productCode: 'SP1', productName: 'Khay', revenue: 17, qty: 2 }]);
 });
 
 test('GET /detail?kind=product gan ten khach cho top khach, Khach le co ten rieng', async () => {
   const r = await request('/detail?kind=product&key=SP1');
   assert.equal(r.status, 200);
   assert.deepEqual(r.data.topCustomers.map(c => c.customerName), ['Chị A', 'Khách lẻ']);
+  assert.equal('branch' in r.data.topCustomers[0], false, 'gop theo ten: khong con co so');
 });
 
 test('GET /detail: khong co key => 404, loai sai => 400', async () => {
@@ -111,7 +133,7 @@ test('GET /export/fields: can ca reports.business va reports.export; tra truong 
   assert.equal(active.status, 200);
   const ws = active.data.worksheets[0];
   assert.equal(ws.key, 'customers');
-  assert.deepEqual(ws.fields.slice(0, 5).map(f => f.label), ['Mã KH', 'Tên khách', 'Cơ sở', 'Sale', 'Level giá']);
+  assert.deepEqual(ws.fields.slice(0, 3).map(f => f.label), ['Tên khách', 'Sale', 'Level giá']);
   const all = await request('/export/fields?kind=customers&inactive=1', both);
   assert.ok(all.data.worksheets[0].rowCount > ws.rowCount, 'inactive=1 dem ca khach khong hoat dong');
   assert.equal((await request('/export/fields?kind=zzz', both)).status, 400);
@@ -147,7 +169,7 @@ test('missing migration end-to-end HTTP 200 keeps current live tables and detail
    assert.equal(res.data.notReady,true);
    assert.equal(res.data.rows.reduce((sum,r)=>sum+r.current,0),500);
   }
-  const detail = await request('/detail?kind=customer&key=hanoi:KH1',{repo});
+  const detail = await request('/detail?kind=customer&key='+encodeURIComponent('chị a'),{repo});
   assert.equal(detail.status,200);
   assert.equal(detail.data.notReady,true);
   assert.equal(detail.data.topProducts[0].revenue,950);

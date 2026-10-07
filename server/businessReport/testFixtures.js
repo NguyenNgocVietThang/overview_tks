@@ -5,6 +5,7 @@ const path = require('node:path');
 // Du lieu mau dung chung cho test PGlite cua Bao cao kinh doanh (migration 0036 + bang KiotViet toi thieu).
 
 const MIGRATION = fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', '0036_business_monthly_sales.sql'), 'utf8');
+const TEAMS_MIGRATION = fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', '0037_sale_teams.sql'), 'utf8');
 const BASE = `
   CREATE TABLE customers(branch text, id bigint, code text, name text, raw jsonb);
   CREATE TABLE products(branch text, id bigint, code text, name text);
@@ -14,7 +15,7 @@ const BASE = `
   CREATE TABLE return_details(branch text, return_id bigint, line_no int, product_id bigint, quantity numeric, price numeric, raw jsonb);`;
 
 async function seed(db) {
-  await db.exec(BASE + MIGRATION);
+  await db.exec(BASE + MIGRATION + TEAMS_MIGRATION);
   await db.exec(`
     INSERT INTO customers VALUES
       ('hanoi', 1, 'KH1', 'Chị A', '{"groups":"Khang","comments":"Level 2"}'),
@@ -51,6 +52,7 @@ function serviceSnapshot() {
       { branch: 'hanoi', code: 'KH2', name: 'Cô C', saleName: 'Chưa phân nhóm', priceLevel: '' },
       { branch: 'hanoi', code: 'KH9', name: 'Cũ', saleName: 'Trinh', priceLevel: '' }
     ],
+    teams: [{ saleName: 'Khang', teamName: 'Team Khang' }, { saleName: 'Trinh', teamName: 'Team Trinh' }],
     customers: [
       { month: '2026-09-01', branch: 'hanoi', customerCode: 'KH1', customerName: 'Chị A', netRevenue: 500 },
       { month: '2026-10-01', branch: 'hanoi', customerCode: 'KH1', customerName: 'Chị A', netRevenue: 100 },
