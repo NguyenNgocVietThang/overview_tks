@@ -58,6 +58,33 @@ test('IfDue luon dung lai bang sale (chi ghi dong doi) ke ca khi khong co thang 
   assert.ok(pool.calls.some(c => /AS upserted/.test(c.text)));
 });
 
+test('main: thang chay tay sai (dinh dang / truoc T3-2026 / chua ket thuc) => bao loi, ma 2, khong mo pool', async () => {
+  const now = () => new Date('2026-10-07T03:00:00Z');
+  for (const arg of ['2026-10', '2026-11', '2026-02', '2026-9', 'abc', '2026-09-15']) {
+    const errors = [];
+    let opened = 0;
+    const code = await job.main([arg], { now, getPoolFn: () => { opened += 1; return fakePool(); }, log: () => {}, logError: m => errors.push(m) });
+    assert.equal(code, 2, arg);
+    assert.equal(opened, 0, `${arg}: khong duoc mo ket noi DB`);
+    assert.match(errors[0], /\[businessMonthlyRefresh\].*Không ghi gì/, arg);
+  }
+});
+
+test('main: thang da ket thuc => chot dung thang do roi dong pool; khong tham so => IfDue', async () => {
+  const now = () => new Date('2026-10-07T03:00:00Z');
+  const pool = fakePool(['2026-03-01', '2026-04-01', '2026-05-01', '2026-06-01', '2026-07-01', '2026-08-01', '2026-09-01']);
+  let ended = 0;
+  pool.end = async () => { ended += 1; };
+  assert.equal(await job.main(['2026-09'], { now, getPoolFn: () => pool, log: () => {}, logError: () => {} }), 0);
+  const fill = pool.calls.find(c => /INSERT INTO business_monthly_customer_sales/.test(c.text));
+  assert.deepEqual(fill.params, [['hanoi', 'saigon'], '2026-09-01', '2026-10-01']);
+  assert.equal(ended, 1);
+  pool.calls.length = 0;
+  assert.equal(await job.main([], { now, getPoolFn: () => pool, log: () => {}, logError: () => {} }), 0);
+  assert.ok(!pool.calls.some(c => /INSERT INTO business_monthly_customer_sales/.test(c.text)), 'du thang => khong chot gi');
+  assert.equal(ended, 2);
+});
+
 test('schedule chay ngay 1 luot va fail-soft', async () => {
   const logs = [];
   let immediate; let interval;

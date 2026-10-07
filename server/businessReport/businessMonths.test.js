@@ -12,6 +12,21 @@ test('khoa thang, cong thang, danh sach thang, nhan cot', () => {
   assert.equal(m.monthLabel('2026-03-01'), 'T3/26');
 });
 
+test('parseClosedMonth: chi nhan YYYY-MM da ket thuc (lich VN), tu T3/2026', () => {
+  const now = new Date('2026-10-07T03:00:00Z');
+  assert.equal(m.parseClosedMonth('2026-09', now), '2026-09-01');
+  assert.equal(m.parseClosedMonth('2026-03', now), '2026-03-01');
+  const bad = (value, pattern, at = now) => assert.throws(() => m.parseClosedMonth(value, at),
+    e => e.statusCode === 400 && pattern.test(e.message), String(value));
+  for (const v of [undefined, null, '', '2026-9', '2026-09-01', '09-2026', '2026-13', '2026-00', ' 2026-09']) bad(v, /định dạng YYYY-MM/);
+  bad('2026-02', /tháng đã qua, từ T3\/2026/);
+  bad('2026-10', /tháng đã qua/); // thang dang chay
+  bad('2026-11', /tháng đã qua/);
+  // 23:30 UTC 30/09 = 06:30 VN 01/10 => thang 9 da ket thuc; 16:59 UTC 30/09 = 23:59 VN => chua
+  assert.equal(m.parseClosedMonth('2026-09', new Date('2026-09-30T23:30:00Z')), '2026-09-01');
+  bad('2026-09', /tháng đã qua/, new Date('2026-09-30T16:59:00Z'));
+});
+
 test('ngay VN tinh ca hom nay; 23:30 UTC ngay 5 la ngay 6 o VN', () => {
   assert.equal(m.vnToday(new Date('2026-10-05T23:30:00Z')), '2026-10-06');
   assert.equal(m.dayOfMonth('2026-10-06'), 6);

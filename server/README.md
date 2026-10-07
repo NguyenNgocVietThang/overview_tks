@@ -144,7 +144,7 @@ node kiotvietSync/businessMonthlyRefresh.js            # chốt các tháng còn
 node kiotvietSync/businessMonthlyRefresh.js 2026-09    # chốt LẠI đúng tháng 2026-09 rồi dựng lại bảng sale
 ```
 
-Tham số tháng nhận `YYYY-MM` (hoặc `YYYY-MM-DD`, chỉ lấy năm-tháng) và **không kiểm tra khoảng**: chỉ truyền tháng đã kết thúc. Chốt nhầm tháng đang chạy sẽ ghi dòng state cho tháng đó, job ngày mùng 1 tháng sau sẽ coi tháng ấy là đã chốt và không chốt lại — khi đó phải chạy tay lại tháng đó sau khi tháng kết thúc. Kiểm tra: `SELECT * FROM business_monthly_state ORDER BY month`.
+Tham số tháng phải đúng `YYYY-MM`, từ `2026-03` và **đã kết thúc** theo lịch VN (cùng kiểm tra với nút "Tính lại tháng"); sai thì in lỗi, thoát mã 2 và không ghi gì. Lý do: chốt tháng đang chạy sẽ ghi dòng state cho tháng đó, job ngày mùng 1 tháng sau sẽ coi tháng ấy là đã chốt và không chốt lại. Kiểm tra: `SELECT * FROM business_monthly_state ORDER BY month`.
 
 Entity `suppliers` đã bỏ khỏi scheduler (migration `0026`); file `kiotvietSync/entities/suppliers.js` (+ test) còn lại trong repo nhưng không được nạp — mã chết chờ xóa tay.
 

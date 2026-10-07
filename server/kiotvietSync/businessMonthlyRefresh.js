@@ -16,7 +16,7 @@ if (process.env.NODE_ENV !== 'production') {
 const { getPool } = require('../db/pool');
 const { vnMinutesOfDay } = require('./vnTime');
 const sql = require('../businessReport/businessMonthlySql');
-const { FIRST_MONTH, monthKey, addMonths, monthsBetween, vnToday, dayOfMonth } = require('../businessReport/businessMonths');
+const { FIRST_MONTH, monthKey, addMonths, monthsBetween, vnToday, dayOfMonth, parseClosedMonth } = require('../businessReport/businessMonths');
 
 const SETTLE_MINUTES_AFTER_MIDNIGHT = 10;
 const REFRESH_WORK_MEM = '32MB';
@@ -91,23 +91,38 @@ function startBusinessMonthlySchedule(pool, {
   return setIntervalFn(() => run('khi kiem tra/chot thang'), intervalMs);
 }
 
-async function main() {
-  const pool = getPool();
+// Chay tay: `node kiotvietSync/businessMonthlyRefresh.js [YYYY-MM]`. Thang truyen vao phai
+// hop le nhu nut "Tinh lai thang" (parseClosedMonth); sai thi bao loi, tra ma 2 va KHONG
+// mo ket noi DB. Tra ma thoat (0 = xong).
+async function main(argv = process.argv.slice(2), {
+  now = () => new Date(), getPoolFn = getPool, log = console.log, logError = console.error
+} = {}) {
+  const arg = argv[0];
+  let month = null;
+  if (arg !== undefined) {
+    try {
+      month = parseClosedMonth(arg, now());
+    } catch (error) {
+      logError(`[businessMonthlyRefresh] Tham số tháng "${arg}" sai: ${error.message} Không ghi gì.`);
+      return 2;
+    }
+  }
+  const pool = getPoolFn();
   try {
-    const month = process.argv[2];
     if (month) {
-      await freezeMonth(pool, monthKey(month));
-      console.log(await rebuildSaleTable(pool));
+      await freezeMonth(pool, month, { log });
+      log(await rebuildSaleTable(pool));
     } else {
-      console.log(await refreshBusinessMonthlyIfDue(pool));
+      log(await refreshBusinessMonthlyIfDue(pool, { log, now }));
     }
   } finally {
     await pool.end();
   }
+  return 0;
 }
 
 if (require.main === module) {
-  main().catch(error => { console.error(error); process.exitCode = 1; });
+  main().then(code => { process.exitCode = code; }, error => { console.error(error); process.exitCode = 1; });
 }
 
-module.exports = { freezeMonth, rebuildSaleTable, refreshBusinessMonthlyIfDue, startBusinessMonthlySchedule, monthsDue };
+module.exports = { freezeMonth, rebuildSaleTable, refreshBusinessMonthlyIfDue, startBusinessMonthlySchedule, monthsDue, main };

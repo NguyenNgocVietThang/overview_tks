@@ -35,6 +35,26 @@ function vnToday(now = new Date()) {
   return vnDateKey(now);
 }
 
+function badMonth(message) {
+  const e = new Error(message);
+  e.statusCode = 400;
+  return e;
+}
+
+// Thang duoc phep chot lai (nut "Tinh lai thang" va chay tay job): 'YYYY-MM', tu FIRST_MONTH,
+// da ket thuc theo lich VN. Tra 'YYYY-MM-01'; sai thi nem Error statusCode 400. Chot thang
+// dang chay se ghi state => job ngay mung 1 coi thang do da chot => chot thieu du lieu.
+function parseClosedMonth(monthParam, now = new Date()) {
+  if (typeof monthParam !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam)) {
+    throw badMonth('Tháng không hợp lệ (định dạng YYYY-MM).');
+  }
+  const month = `${monthParam}-01`;
+  if (month < FIRST_MONTH || month >= monthKey(vnToday(now))) {
+    throw badMonth('Chỉ tính lại được tháng đã qua, từ T3/2026.');
+  }
+  return month;
+}
+
 function dayOfMonth(dateKey) {
   return Number(String(dateKey).slice(8, 10));
 }
@@ -64,5 +84,5 @@ function buildMetrics(series, currentMonth, day) {
 
 module.exports = {
   FIRST_MONTH, UNGROUPED_SALE, monthKey, addMonths, monthsBetween, monthLabel,
-  vnToday, dayOfMonth, normalizeTo30Days, growthPct, avg4Months, buildMetrics
+  vnToday, parseClosedMonth, dayOfMonth, normalizeTo30Days, growthPct, avg4Months, buildMetrics
 };

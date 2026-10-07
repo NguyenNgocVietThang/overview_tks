@@ -11,7 +11,7 @@
 
 const { getPool } = require('../db/pool');
 const sql = require('./businessMonthlySql');
-const { FIRST_MONTH, UNGROUPED_SALE, monthKey, addMonths, monthsBetween, vnToday, dayOfMonth } = require('./businessMonths');
+const { FIRST_MONTH, UNGROUPED_SALE, monthKey, addMonths, monthsBetween, vnToday, dayOfMonth, parseClosedMonth } = require('./businessMonths');
 const { freezeMonth, rebuildSaleTable } = require('../kiotvietSync/businessMonthlyRefresh');
 
 const num = v => Number(v) || 0;
@@ -168,14 +168,7 @@ function createRepository({
   }
 
   async function refreeze(monthParam) {
-    if (!/^\d{4}-\d{2}$/.test(String(monthParam || ''))) {
-      const e = new Error('Tháng không hợp lệ (định dạng YYYY-MM).'); e.statusCode = 400; throw e;
-    }
-    const month = `${monthParam}-01`;
-    const current = monthKey(vnToday(now()));
-    if (month < FIRST_MONTH || month >= current) {
-      const e = new Error('Chỉ tính lại được tháng đã qua, từ T3/2026.'); e.statusCode = 400; throw e;
-    }
+    const month = parseClosedMonth(monthParam, now());
     const result = await freeze(pool, month, { log: console.log });
     await rebuildSale(pool);
     snapshotCache.clear();
