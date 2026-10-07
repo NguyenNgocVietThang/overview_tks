@@ -18,9 +18,6 @@ function createBusinessReportRouter({ repository = createRepository() } = {}) {
   const handle = fn => async (req, res) => {
     try { await fn(req, res); } catch (e) {
       if (e.statusCode && e.statusCode < 500) return res.status(e.statusCode).json({ error: e.message, code: e.code });
-      if (/business_monthly_\w+" does not exist/.test(e.message || '')) {
-        return res.status(503).json({ error: 'Báo cáo kinh doanh chưa sẵn sàng (chưa áp migration 0036).', code: 'BUSINESS_REPORT_NOT_READY' });
-      }
       console.error(`[business-report ${req.method} ${req.path}]`, e);
       return res.status(500).json({ error: 'Lỗi hệ thống, vui lòng thử lại sau.', code: 'BUSINESS_REPORT_ERROR' });
     }

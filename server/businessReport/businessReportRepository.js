@@ -15,6 +15,13 @@ const { FIRST_MONTH, UNGROUPED_SALE, monthKey, addMonths, monthsBetween, vnToday
 const { freezeMonth, rebuildSaleTable } = require('../kiotvietSync/businessMonthlyRefresh');
 
 const num = v => Number(v) || 0;
+const MONTHLY_TABLES = new Set(['business_monthly_state', 'business_monthly_customer_sales',
+  'business_monthly_product_sales', 'business_monthly_sale_sales', 'business_monthly_customer_product_sales']);
+function missingMonthlyRelation(error) {
+  if (error.code !== '42P01') return false;
+  const relation = /relation "(?:[^".]+\.)?([^".]+)" does not exist/.exec(error.message || '');
+  return !!relation && MONTHLY_TABLES.has(relation[1]);
+}
 
 // Cache 1 gia tri bat dong bo theo kieu stale-while-revalidate.
 //   get()            : con han -> ban cu; het han -> tra ngay ban cu + lam moi nen; chua co -> cho tai.
@@ -63,13 +70,20 @@ function createRepository({
   function live(month, options) {
     let cache = liveCaches.get(month);
     if (!cache) {
-      const params = [sql.BRANCH_CODES, month, addMonths(month, 1)];
       cache = createSwrCache({
         now, ttlMs, label: `thang ${month}`,
-        load: () => Promise.all([
+        load: () => {
+          const instant = now();
+          // Cot thoi gian luu gio VN nhung gan nhan UTC.
+          const cutoff = month === monthKey(vnToday(instant))
+            ? new Date(instant.getTime() + 7 * 60 * 60 * 1000).toISOString().replace('Z', '')
+            : addMonths(month, 1);
+          const params = [sql.BRANCH_CODES, month, cutoff];
+          return Promise.all([
           pool.query(sql.CUSTOMER_MONTH_SELECT_SQL, params),
           pool.query(sql.CUSTOMER_PRODUCT_MONTH_SELECT_SQL, params)
-        ]).then(([c, cp]) => ({ customers: c.rows, customerProducts: cp.rows }))
+        ]).then(([c, cp]) => ({ customers: c.rows, customerProducts: cp.rows }));
+        }
       });
       liveCaches.set(month, cache);
     }
@@ -80,7 +94,8 @@ function createRepository({
     const today = vnToday(now());
     const currentMonth = monthKey(today);
     const months = monthsBetween(FIRST_MONTH, currentMonth);
-    const [state, frozenCustomers, frozenProducts, frozenSales, directory] = await Promise.all([
+    // Cho tat ca truy van xong de loi khac khong bi che boi migration chua co.
+    const results = await Promise.allSettled([
       pool.query(`SELECT to_char(month, 'YYYY-MM-DD') AS month FROM business_monthly_state`),
       pool.query(`SELECT to_char(month, 'YYYY-MM-DD') AS month, branch, customer_code, customer_name, net_revenue
                   FROM business_monthly_customer_sales WHERE month >= $1::date`, [FIRST_MONTH]),
@@ -88,12 +103,25 @@ function createRepository({
                   FROM business_monthly_product_sales WHERE month >= $1::date`, [FIRST_MONTH]),
       pool.query(`SELECT to_char(month, 'YYYY-MM-DD') AS month, sale_name, net_revenue
                   FROM business_monthly_sale_sales WHERE month >= $1::date`, [FIRST_MONTH]),
+      pool.query('SELECT 1 FROM business_monthly_customer_product_sales LIMIT 0'),
       pool.query(`SELECT DISTINCT ON (branch, btrim(code)) branch, btrim(code) AS code, name,
                          COALESCE(NULLIF(btrim(raw->>'groups'), ''), $1) AS sale_name,
                          COALESCE(btrim(raw->>'comments'), '') AS price_level
                   FROM customers WHERE btrim(COALESCE(code, '')) <> ''
                   ORDER BY branch, btrim(code), id DESC`, [UNGROUPED_SALE])
     ]);
+    let missingMigration = false;
+    const values = results.map((result, index) => {
+      if (result.status === 'fulfilled') return result.value;
+      if (index < 5 && missingMonthlyRelation(result.reason)) {
+        missingMigration = true;
+        return { rows: [] };
+      }
+      throw result.reason;
+    });
+    const [state, frozenCustomers, frozenProducts, frozenSales, , directory] = values;
+    // Schema chua du: bo state de khong tron lich su chot thieu bang.
+    if (missingMigration) state.rows = [];
     const frozenMonths = state.rows.map(r => r.month).filter(m => m < currentMonth).sort();
     const frozen = new Set(frozenMonths);
     const customers = frozenCustomers.rows.filter(r => frozen.has(r.month)).map(r => ({
@@ -117,6 +145,7 @@ function createRepository({
     }
     return {
       today, currentMonth, day: dayOfMonth(today), months, frozenMonths,
+      notReady: missingMigration || months.some(m => m < currentMonth && !frozen.has(m)),
       customers, products,
       sales: frozenSales.rows.filter(r => frozen.has(r.month)).map(r => ({ month: r.month, saleName: r.sale_name, netRevenue: num(r.net_revenue) })),
       directory: directory.rows.map(r => ({ branch: r.branch, code: r.code, name: r.name || '', saleName: r.sale_name, priceLevel: r.price_level })),

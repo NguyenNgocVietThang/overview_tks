@@ -4213,7 +4213,8 @@
         <!-- ============ BÁO CÁO KINH DOANH ============ -->
         <div class="view" id="view-business">
           <div class="view-title">Báo cáo kinh doanh</div>
-          <div class="view-sub">Doanh số = hóa đơn hoàn thành − trả hàng (đã trừ giảm giá) · gộp Hà Nội + Sài Gòn · tháng trước chốt cứng, tháng này cập nhật trực tiếp · tăng trưởng = tháng này quy đổi 30 ngày ÷ tháng trước <span class="section-note" id="businessUpdatedAt">—</span>
+          <div class="view-sub">Doanh số = hóa đơn hoàn thành − trả hàng (đã trừ giảm giá) · gộp Hà Nội + Sài Gòn · tháng trước chốt cứng, tháng này cập nhật trực tiếp · tăng trưởng = tháng này quy đổi 30 ngày ÷ tháng trước <span id="businessReadiness" class="table-note" role="status" hidden>Đang dựng dữ liệu tháng cũ…</span>
+              <span class="section-note" id="businessUpdatedAt">—</span>
             <button class="export-button" type="button" id="businessRefreezeBtn" data-not-export hidden onclick="refreezeBusinessMonth()">Tính lại tháng</button>
           </div>
 
@@ -7501,6 +7502,8 @@
           nextBtn: prefix + 'NextPage', lastBtn: prefix + 'LastPage', label: prefix + 'PageLabel'
         }, rows, businessRowHtml(kind, data), businessColumnCount(kind, data), 'Chưa có dữ liệu.');
       });
+      const notice = document.getElementById('businessReadiness');
+      notice.hidden = !BUSINESS_KINDS.some(kind => state.business.data[kind] && state.business.data[kind].notReady);
       const sales = state.business.data.sales;
       if (sales) {
         const select = document.getElementById('businessCustomersSale');

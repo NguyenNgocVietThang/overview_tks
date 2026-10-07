@@ -3,7 +3,7 @@
 // SQL cua Bao cao kinh doanh. Cung 1 cau SELECT dung cho (a) job chot thang
 // (kiotvietSync/businessMonthlyRefresh.js, INSERT...SELECT) va (b) API tinh truc tiep
 // thang chua chot (businessReportRepository.js) => so chot va so live khong lech cong thuc.
-// $1 text[] co so, $2 date dau khung, $3 date cuoi khung (KHONG gom). Khung viet tren
+// $1 text[] co so, $2 date dau khung, $3 timestamp cuoi khung (KHONG gom). Khung viet tren
 // cot goc de dung duoc index (bai hoc su co IO 2026-09-28).
 
 const {
@@ -13,7 +13,7 @@ const {
 const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
 
 const range = column => `${column} >= ($2::date::timestamp AT TIME ZONE 'UTC')
-    AND ${column} < ($3::date::timestamp AT TIME ZONE 'UTC')`;
+    AND ${column} < ($3::timestamp AT TIME ZONE 'UTC')`;
 const customerCode = alias => `COALESCE(NULLIF(btrim(${alias}.raw->>'customerCode'), ''), cbn.code, '')`;
 const nameKey = alias => normalizedNameSql(`COALESCE(NULLIF(${alias}.raw->>'customerName', ''), 'Khách lẻ')`);
 

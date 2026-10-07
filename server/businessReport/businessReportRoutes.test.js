@@ -117,16 +117,39 @@ test('GET /export/fields: can ca reports.business va reports.export; tra truong 
   assert.equal((await request('/export/fields?kind=zzz', both)).status, 400);
 });
 
-test('bang chua migrate => 503 BUSINESS_REPORT_NOT_READY; loi khac => 500 khong lo chi tiet', async () => {
+test('unhandled DB failures remain 500 without leaking detail', async () => {
   const origError = console.error;
   console.error = () => {};
   try {
     const notReady = await request('/sales', { repo: { snapshot: async () => { throw new Error('relation "business_monthly_state" does not exist'); } } });
-    assert.equal(notReady.status, 503);
-    assert.equal(notReady.data.code, 'BUSINESS_REPORT_NOT_READY');
+    assert.equal(notReady.status, 500);
+    assert.equal(notReady.data.code, 'BUSINESS_REPORT_ERROR');
     const boom = await request('/sales', { repo: { snapshot: async () => { throw new Error('secret db detail'); } } });
     assert.equal(boom.status, 500);
     assert.equal(boom.data.code, 'BUSINESS_REPORT_ERROR');
     assert.ok(!JSON.stringify(boom.data).includes('secret'));
   } finally { console.error = origError; }
+});
+
+
+test('missing migration end-to-end HTTP 200 keeps current live tables and details', async () => {
+ const { PGlite } = require('@electric-sql/pglite');
+ const { seed } = require('./testFixtures');
+ const { createRepository } = require('./businessReportRepository');
+ const db = new PGlite();
+ try {
+  await seed(db);
+  await db.exec('DROP TABLE business_monthly_state, business_monthly_customer_sales, business_monthly_product_sales, business_monthly_sale_sales, business_monthly_customer_product_sales');
+  const repo = createRepository({pool:{query:(q,p)=>db.query(q,p)},now:()=>new Date('2026-10-06T03:00:00Z')});
+  for(const kind of ['sales','customers','products']) {
+   const res = await request('/'+kind,{repo});
+   assert.equal(res.status,200);
+   assert.equal(res.data.notReady,true);
+   assert.equal(res.data.rows.reduce((sum,r)=>sum+r.current,0),500);
+  }
+  const detail = await request('/detail?kind=customer&key=hanoi:KH1',{repo});
+  assert.equal(detail.status,200);
+  assert.equal(detail.data.notReady,true);
+  assert.equal(detail.data.topProducts[0].revenue,950);
+ }finally{await db.close();}
 });

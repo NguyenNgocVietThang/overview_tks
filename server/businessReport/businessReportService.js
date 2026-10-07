@@ -19,7 +19,7 @@ function withMetrics(row, series, snap) {
 
 function header(snap) {
   return {
-    today: snap.today, currentMonth: snap.currentMonth, day: snap.day, months: snap.months,
+    notReady: !!snap.notReady, today: snap.today, currentMonth: snap.currentMonth, day: snap.day, months: snap.months,
     monthLabels: snap.months.map(monthLabel), frozenMonths: snap.frozenMonths, computedAt: snap.computedAt
   };
 }
