@@ -15,25 +15,38 @@ const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
 const range = column => `${column} >= ($2::date::timestamp AT TIME ZONE 'UTC')
     AND ${column} < ($3::date::timestamp AT TIME ZONE 'UTC')`;
 const customerCode = alias => `COALESCE(NULLIF(btrim(${alias}.raw->>'customerCode'), ''), cbn.code, '')`;
-const nameJoin = alias => `LEFT JOIN customer_by_name cbn
-    ON cbn.branch = ${alias}.branch
-   AND cbn.name_key = ${normalizedNameSql(`COALESCE(NULLIF(${alias}.raw->>'customerName', ''), 'Khách lẻ')`)}`;
+const nameKey = alias => normalizedNameSql(`COALESCE(NULLIF(${alias}.raw->>'customerName', ''), 'Khách lẻ')`);
+
+// Chung tu trong khung + khach khop theo ten. Khoa ten (NFKC + regexp) tinh 1 LAN/chung tu
+// trong subquery, roi join customer_by_name bang so bang thuan. OFFSET 0 la rao chan
+// planner gop subquery: thieu no, planner keo phep chuan hoa vao Join Filter cua Merge Join
+// chi theo branch (vi uoc tinh sai so hoa don do dieu kien trang thai la bieu thuc) va tinh
+// lai cho MOI cap chung tu x khach => do that 2026-10-07: ~87s thang dang chay, >120s thang
+// du; co rao: <1s / ~2s. KHONG bo OFFSET 0, KHONG dua normalizedNameSql lai vao ON.
+const invoicesWithCustomer = `(SELECT i.branch, i.id, i.purchase_date, i.total, i.raw, ${nameKey('i')} AS name_key
+      FROM invoices i
+      WHERE i.branch = ANY($1::text[]) AND ${range('i.purchase_date')}
+        AND ${INVOICE_STATUS_SQL} = 'Hoàn thành' AND btrim(i.code) <> ''
+      OFFSET 0) i
+    LEFT JOIN customer_by_name cbn ON cbn.branch = i.branch AND cbn.name_key = i.name_key`;
+const returnsWithCustomer = `(SELECT r.branch, r.id, r.return_date, r.total, r.raw, ${nameKey('r')} AS name_key
+      FROM returns r
+      WHERE r.branch = ANY($1::text[]) AND ${range('r.return_date')}
+        AND r.raw->>'statusValue' = 'Đã trả' AND btrim(r.code) <> ''
+      OFFSET 0) r
+    LEFT JOIN customer_by_name cbn ON cbn.branch = r.branch AND cbn.name_key = r.name_key`;
 
 const CUSTOMER_MONTH_SELECT_SQL = `${CUSTOMER_BY_NAME_CTE},
   docs AS (
     SELECT i.branch, ${customerCode('i')} AS customer_code,
            COALESCE(NULLIF(i.raw->>'customerName', ''), 'Khách lẻ') AS customer_name, i.purchase_date AS at,
            COALESCE(i.total, 0)::numeric AS invoice_amount, 0::numeric AS return_amount, 1 AS invoice_count, 0 AS return_count
-    FROM invoices i ${nameJoin('i')}
-    WHERE i.branch = ANY($1::text[]) AND ${range('i.purchase_date')}
-      AND ${INVOICE_STATUS_SQL} = 'Hoàn thành' AND btrim(i.code) <> ''
+    FROM ${invoicesWithCustomer}
     UNION ALL
     SELECT r.branch, ${customerCode('r')},
            COALESCE(NULLIF(r.raw->>'customerName', ''), 'Khách lẻ'), r.return_date,
            0::numeric, abs(COALESCE(r.total, 0))::numeric, 0, 1
-    FROM returns r ${nameJoin('r')}
-    WHERE r.branch = ANY($1::text[]) AND ${range('r.return_date')}
-      AND r.raw->>'statusValue' = 'Đã trả' AND btrim(r.code) <> ''
+    FROM ${returnsWithCustomer}
   )
   SELECT branch, customer_code,
          (array_agg(customer_name ORDER BY at DESC))[1] AS customer_name,
@@ -55,12 +68,9 @@ const CUSTOMER_PRODUCT_MONTH_SELECT_SQL = `${CUSTOMER_BY_NAME_CTE},
            (${DETAIL_AMOUNT_SQL})::numeric AS line_amount,
            COALESCE(i.total, 0)::numeric AS doc_total,
            'i:' || i.branch || ':' || i.id AS doc_key
-    FROM invoices i
+    FROM ${invoicesWithCustomer}
     JOIN invoice_details d ON d.branch = i.branch AND d.invoice_id = i.id
     LEFT JOIN products p ON p.branch = d.branch AND p.id = d.product_id
-    ${nameJoin('i')}
-    WHERE i.branch = ANY($1::text[]) AND ${range('i.purchase_date')}
-      AND ${INVOICE_STATUS_SQL} = 'Hoàn thành' AND btrim(i.code) <> ''
     UNION ALL
     SELECT r.branch, ${customerCode('r')},
            COALESCE(NULLIF(rd.raw->>'productCode', ''), p.code, ''),
@@ -69,12 +79,9 @@ const CUSTOMER_PRODUCT_MONTH_SELECT_SQL = `${CUSTOMER_BY_NAME_CTE},
            (${RETURN_AMOUNT_SQL})::numeric,
            -abs(COALESCE(r.total, 0))::numeric,
            'r:' || r.branch || ':' || r.id
-    FROM returns r
+    FROM ${returnsWithCustomer}
     JOIN return_details rd ON rd.branch = r.branch AND rd.return_id = r.id
     LEFT JOIN products p ON p.branch = rd.branch AND p.id = rd.product_id
-    ${nameJoin('r')}
-    WHERE r.branch = ANY($1::text[]) AND ${range('r.return_date')}
-      AND r.raw->>'statusValue' = 'Đã trả' AND btrim(r.code) <> ''
   ),
   allocated AS (
     SELECT branch, customer_code, product_code, product_name, qty,
