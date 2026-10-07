@@ -319,3 +319,18 @@ Migration `0032_hr_department_groups.sql` gộp `BAN QUẢN LÝ`/`TRƯỞNG CHI 
 
 - `cash_flows.source_missing_at TIMESTAMPTZ` mặc định NULL. Đối soát đủ ID đánh dấu các ID nguồn đã thay thế/loại bỏ trong đúng cơ sở và tới đúng thời điểm; giữ nguyên toàn bộ lịch sử và raw, không xóa bản ghi. Các truy vấn Sổ quỹ và hoạt động công nợ bỏ qua dòng có dấu này. Upsert nguồn tự đặt lại NULL nếu ID xuất hiện lại.
 - Cash nhận diện theo method (có thể vẫn giữ account_id lịch sử); phương thức khác thiếu tài khoản ở nhóm unassigned. Timestamp cash_flows là thời điểm UTC thật, khác hợp đồng giờ tường của invoices/returns; hoạt động công nợ chuyển riêng trans_date sang giờ tường +7 giờ trước khi ghép các nguồn.
+
+## Báo cáo kinh doanh — migration 0036
+
+Doanh số **theo tháng đã chốt cứng** cho tab "Báo cáo kinh doanh" (Báo cáo tổng hợp). Doanh số = tổng hóa đơn `Hoàn thành` (`invoices.total`, đã trừ giảm giá cả đơn) − tổng phiếu trả `Đã trả` (`returns.total`) theo tháng của ngày bán/ngày trả. `month` luôn là **ngày 1** của tháng lịch VN (CHECK `EXTRACT(DAY FROM month) = 1`). Tháng hiện tại KHÔNG nằm trong các bảng này: API tính trực tiếp bằng cùng câu SQL. Chốt tháng vừa qua lúc ≥ 00:10 VN ngày mùng 1 và backfill từ 2026-03 lần đầu. Khách = `(branch, customer_code)`: cùng mã ở HN và SG là 2 khách khác nhau; `customer_code = ''` là Khách lẻ / không đối chiếu được. Sale KHÔNG lưu ở bảng khách: lịch sử đi theo nhóm HIỆN TẠI (`customers.raw->>'groups'`), bảng sale được dựng lại khi nhóm đổi. Không cần GRANT riêng (`ALTER DEFAULT PRIVILEGES` ở `0010`).
+
+| Bảng | Mục đích | Khóa chính | Cột chính |
+|---|---|---|---|
+| `business_monthly_customer_sales` | Doanh số từng khách theo tháng | `(month, branch, customer_code)` | `customer_name`, `invoice_amount`, `return_amount`, `net_revenue`, `invoice_count`, `return_count`; `branch` ∈ `hanoi`/`saigon` |
+| `business_monthly_customer_product_sales` | Doanh số khách × mã hàng theo tháng — tổng chung từ được phân bổ cho từng dòng theo tỷ lệ thành tiền nên tổng theo mã = tổng theo khách (lệch vài đồng do làm tròn) | `(month, branch, customer_code, product_code)` | `product_name`, `net_revenue`, `net_qty`; index `business_monthly_cps_product_idx (product_code, month)` cho panel "top khách của 1 mã hàng" |
+| `business_monthly_product_sales` | Doanh số từng mã hàng theo tháng (gộp cả 2 cơ sở) | `(month, product_code)` | `product_name`, `net_revenue`, `net_qty` |
+| `business_monthly_sale_sales` | Doanh số từng sale theo tháng | `(month, sale_name)` | `net_revenue`, `customer_count` (số khách có doanh số ≠ 0 trong tháng; "SL Khách" trên UI là số khách hoạt động = TB 4 tháng > 0, tính lúc đọc), `refreshed_at` |
+| `business_monthly_state` | 1 dòng / tháng đã chốt; không có dòng = tháng chưa chốt (API tính trực tiếp) | `month` | `frozen_at`, `customer_rows`, `customer_product_rows`, `net_revenue` |
+
+- Job ghi: `kiotvietSync/businessMonthlyRefresh.js`. Module đọc: `businessReport/businessReportRepository.js`.
+- Spec: `docs/superpowers/specs/2026-10-07-business-report-design.md`.
