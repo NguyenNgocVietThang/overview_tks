@@ -103,6 +103,8 @@ Khi `KIOTVIET_SYNC_ENABLED=true`, service chạy một lượt catch-up nền ng
 khởi động từ checkpoint gần nhất, sau đó tiếp tục polling theo
 `KIOTVIET_SYNC_FAST_INTERVAL_MS` và `KIOTVIET_SYNC_SLOW_INTERVAL_MS`.
 
+Sổ quỹ tách lịch riêng 60 giây. `KIOTVIET_CASHBOOK_SYNC_ENABLED=true` cho phép chỉ chạy `cash_flows` và danh mục tài khoản khi engine tổng tắt; `KIOTVIET_CASHBOOK_SYNC_INTERVAL_MS` không được nhỏ hơn 60 giây. Giao diện tự làm mới qua endpoint revision mỗi 15 giây khi tab hiển thị; hướng dẫn triển khai và giới hạn độ trễ ở [cashbook-setup.md](../docs/cashbook-setup.md).
+
 Webhook KiotViet đi vào `POST /api/kiotviet/webhook/<KIOTVIET_WEBHOOK_SECRET>` (secret sai → 404; đường dẫn cũ không secret còn mở trong giai đoạn chuyển tiếp cho tới khi đặt `KIOTVIET_WEBHOOK_LEGACY_PATH_ENABLED=false`). Server trả 200 ngay rồi đưa payload vào hàng đợi nền (`kiotviet/webhookEventQueue.js`); webhook chỉ lưu thô vào `webhook_events_raw`, dữ liệu nghiệp vụ do polling cập nhật. Trạng thái đồng bộ xem ở `GET /api/internal/kiotviet-sync/status` (quyền `system.syncStatus`).
 
 | Nhóm / job | Nội dung | Nhịp |
