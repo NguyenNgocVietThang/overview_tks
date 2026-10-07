@@ -27,7 +27,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 const { getPool } = require('../db/pool');
-const { DETAIL_AMOUNT_SQL, RETURN_AMOUNT_SQL } = require('../dashboard/customerProductTopRepository');
+const { DETAIL_AMOUNT_SQL, RETURN_AMOUNT_SQL, INVOICE_STATUS_SQL, normalizedNameSql, CUSTOMER_BY_NAME_CTE } = require('./salesSqlFragments');
 const { vnDateKey, vnMinutesOfDay, addDaysToKey } = require('./vnTime');
 
 const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
@@ -35,45 +35,12 @@ const WINDOW_DAYS = 90;
 const SETTLE_MINUTES_AFTER_MIDNIGHT = 10;
 const REFRESH_WORK_MEM = '32MB';
 
-// Cung dinh nghia voi normalizeSearchValue() cua dashboardData.js (NFKC, bo ky tu
-// rong, gop khoang trang, trim, chu thuong) de doi chieu ten khach hang y nhu
-// luong doc sheet cu.
-function normalizedNameSql(expression) {
-  return `lower(btrim(regexp_replace(regexp_replace(normalize(${expression}, NFKC), '[\\u200B-\\u200D\\uFEFF]', '', 'g'), '\\s+', ' ', 'g')))`;
-}
-
-// Y het cot "Trạng thái" cua tab Hoa don (dashboardPgReader.js statusLabel() voi
-// INVOICE_STATUS_FALLBACK): uu tien statusValue that, bang tra so chi la du phong.
-const INVOICE_STATUS_SQL = `COALESCE(NULLIF(i.raw->>'statusValue', ''),
-    CASE i.status WHEN 1 THEN 'Hoàn thành' WHEN 2 THEN 'Đã hủy' WHEN 3 THEN 'Đang xử lý'
-      ELSE COALESCE(i.status::text, '') END)`;
-
 const CREATE_STAGING_SQL = `
   CREATE TEMP TABLE customer_invoice_lines_new
     (LIKE customer_invoice_lines_90d) ON COMMIT DROP`;
 
 // $1 co so (text[]), $2 ngay dau cua so, $3 ngay cuoi cua so (ca hai 'YYYY-MM-DD').
-//
-// Luong doc sheet cu (computeCustomerProductRevenue) doi chieu ma khach nhu sau,
-// va o day GIU NGUYEN: ma tren hoa don (customerCode); neu trong thi tim ma khach
-// trong bang customers cung co so theo ten chuan hoa (ten trung => ma lon nhat,
-// vi cu duyet theo thu tu ma va dong sau de dong truoc). Buoc doi chieu theo SDT
-// cua luong cu KHONG co o day: cot "SĐT khách" cua tab Hoa don luon rong trong
-// Postgres (dashboardPgReader.js, hang MISSING) nen buoc do khong bao gio khop.
-const CUSTOMER_BY_NAME_CTE = `
-  WITH customer_by_name AS (
-    SELECT DISTINCT ON (branch, name_key) branch, name_key, code
-    FROM (
-      SELECT branch, btrim(code) AS code, code AS raw_code,
-             ${normalizedNameSql('name')} AS name_key
-      FROM customers
-      WHERE branch = ANY($1::text[])
-        AND btrim(COALESCE(code, '')) <> ''
-        AND btrim(COALESCE(name, '')) <> ''
-    ) named
-    ORDER BY branch, name_key, raw_code DESC
-  )`;
-
+// Cach doi chieu ma khach theo ten: xem CUSTOMER_BY_NAME_CTE trong salesSqlFragments.js.
 const FILL_STAGING_SQL = `${CUSTOMER_BY_NAME_CTE}
   INSERT INTO customer_invoice_lines_new
     (branch, invoice_id, line_no, invoice_code, sold_date, customer_code, customer_name,
