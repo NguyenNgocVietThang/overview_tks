@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const zlib = require('zlib');
 const ExcelJS = require('exceljs');
 const svc = require('./businessReportService');
-const { createExportFile, filterRows, MAX_EXPORT_ROWS } = require('./businessReportExport');
+const { createExportFile, filterRows, exportFieldsFor, resolveColumnKeys, MAX_EXPORT_ROWS } = require('./businessReportExport');
 const { serviceSnapshot } = require('./testFixtures');
 
 function customerRows() {
@@ -83,6 +83,58 @@ test('xuat qua gioi han 20.000 dong, dinh dang/loai bang khong hop le thi bao lo
   await assert.rejects(() => createExportFile('products', 'xlsx', report, many), e => e.statusCode === 400 && e.code === 'TOO_MANY_ROWS');
   await assert.rejects(() => createExportFile('products', 'pdf', report, []), e => e.statusCode === 400);
   await assert.rejects(() => createExportFile('nope', 'xlsx', report, []), e => e.statusCode === 400);
+});
+
+test('exportFieldsFor: danh sach truong cho hop thoai Xuat file = dung cac cot cua file, mac dinh chon het, co so dong', () => {
+  const report = svc.buildSaleReport(serviceSnapshot());
+  const meta = exportFieldsFor('sales', report, report.rows);
+  assert.equal(meta.selectionMode, 'custom');
+  assert.match(meta.title, /Sale/);
+  assert.equal(meta.worksheets.length, 1);
+  const ws = meta.worksheets[0];
+  assert.equal(ws.key, 'sales');
+  assert.equal(ws.rowCount, report.rows.length);
+  assert.deepEqual(ws.fields.map(f => f.key),
+    ['saleName', 'activeCustomers', 'avg4', 'growth', 'current', 'm_2026_09', 'm_2026_08', 'm_2026_07']);
+  assert.deepEqual(ws.fields.map(f => f.label),
+    ['Sale', 'SL Khách', 'TB 4 tháng', 'Tăng trưởng', 'Tháng hiện tại (đến 06/10)', 'T9/26', 'T8/26', 'T7/26']);
+  assert.ok(ws.fields.every(f => f.selected === true));
+  const customers = svc.buildCustomerReport(serviceSnapshot());
+  assert.deepEqual(exportFieldsFor('customers', customers, []).worksheets[0].fields.slice(0, 5).map(f => f.key),
+    ['code', 'name', 'branch', 'saleName', 'priceLevel']);
+  assert.throws(() => exportFieldsFor('nope', report, []), e => e.statusCode === 400);
+});
+
+test('resolveColumnKeys: khong truyen = tat ca; danh sach rong / khoa la / dang object => 400; giu thu tu chuan, bo trung', () => {
+  const report = svc.buildSaleReport(serviceSnapshot());
+  assert.equal(resolveColumnKeys('sales', report, undefined), null);
+  assert.deepEqual(resolveColumnKeys('sales', report, 'm_2026_09,saleName,saleName, avg4'), ['saleName', 'avg4', 'm_2026_09']);
+  assert.deepEqual(resolveColumnKeys('sales', report, ['current', 'saleName']), ['saleName', 'current']);
+  const bad = e => e.statusCode === 400 && e.code === 'INVALID_COLUMNS';
+  assert.throws(() => resolveColumnKeys('sales', report, ''), bad);
+  assert.throws(() => resolveColumnKeys('sales', report, ' , '), bad);
+  assert.throws(() => resolveColumnKeys('sales', report, 'saleName,code'), bad);
+  assert.throws(() => resolveColumnKeys('sales', report, 'saleName;DROP TABLE x'), bad);
+  assert.throws(() => resolveColumnKeys('sales', report, { a: 'saleName' }), bad);
+});
+
+test('XLSX/HTML chi chua cac cot da chon (thu tu chuan)', async () => {
+  const report = svc.buildSaleReport(serviceSnapshot());
+  const file = await createExportFile('sales', 'xlsx', report, report.rows, ['saleName', 'current', 'm_2026_08']);
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(file.buffer);
+  const sh = wb.worksheets[0];
+  assert.deepEqual(sh.getRow(1).values.slice(1), ['Sale', 'Tháng hiện tại (đến 06/10)', 'T8/26']);
+  const khang = report.rows.find(r => r.saleName === 'Khang');
+  const row = [...Array(report.rows.length).keys()].map(i => sh.getRow(i + 2).values.slice(1)).find(v => v[0] === 'Khang');
+  assert.deepEqual(row, ['Khang', khang.current, khang.series['2026-08-01'] || 0]);
+
+  const products = svc.buildProductReport(serviceSnapshot());
+  const html = (await createExportFile('products', 'html', products, products.rows, ['code', 'avg4'])).buffer.toString();
+  const b64 = /<script type="application\/octet-stream" id="report-data"[^>]*>([^<]*)<\/script>/.exec(html)[1];
+  const ws = JSON.parse(zlib.gunzipSync(Buffer.from(b64, 'base64'))).worksheets[0];
+  assert.deepEqual(ws.columns.map(c => c.key), ['code', 'avg4']);
+  assert.ok(html.includes('Chart'), 'HTML van co bieu do');
 });
 
 test('filterRows: chi bang khach an dong khong hoat dong mac dinh; bang sale va ma hang giu het (khop man hinh)', () => {

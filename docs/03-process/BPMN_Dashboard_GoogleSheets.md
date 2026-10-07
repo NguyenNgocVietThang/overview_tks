@@ -191,7 +191,7 @@ Bảng xuất được: Chi tiết giao dịch, Danh sách mã mới, Sản ph�
               Tháng đã chốt đọc bảng business_monthly_*; tháng hiện tại/chưa chốt tính trực tiếp bằng cùng SQL (cache 60 giây)
 [B29] [Task] Server tính quy đổi 30 ngày, tăng trưởng, TB 4 tháng, khách hoạt động -> frontend vẽ 3 bảng; bấm dòng -> GET /api/business-report/detail (panel + biểu đồ cột)
 [B30] [Task] (Tùy chọn) Quản lý bấm "Tính lại tháng" -> POST /api/business-report/refreeze { month } -> chốt lại tháng đó + dựng lại bảng sale
-[B31] [End] Xuất Excel/HTML: GET /api/business-report/export (cần thêm reports.export)
+[B31] [End] Bấm "Xuất file" -> hộp thoại chọn trường (GET /api/business-report/export/fields) -> Xuất Excel/HTML: GET /api/business-report/export?columns=... (cần thêm reports.export)
 ```
 
 | **Bước** | **Vai trò**    | **Mô tả**                                                                                           | **Tham chiếu**      |

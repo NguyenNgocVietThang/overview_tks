@@ -7,7 +7,7 @@ const express = require('express');
 const { requireAuth, requireFeature } = require('../auth/authMiddleware');
 const { createRepository } = require('./businessReportRepository');
 const svc = require('./businessReportService');
-const { createExportFile, filterRows } = require('./businessReportExport');
+const { createExportFile, filterRows, exportFieldsFor, resolveColumnKeys } = require('./businessReportExport');
 
 const BUILDERS = { sales: svc.buildSaleReport, customers: svc.buildCustomerReport, products: svc.buildProductReport };
 
@@ -52,12 +52,25 @@ function createBusinessReportRouter({ repository = createRepository() } = {}) {
     handle(async (req, res) => res.json(await repository.refreeze(req.body && req.body.month))));
 
   // Can DONG THOI reports.business va reports.export (hai requireFeature rieng = AND).
-  router.get('/export', ...view, requireFeature('reports.export'), handle(async (req, res) => {
+  const exportGuard = [...view, requireFeature('reports.export')];
+  const exportReport = async req => {
     const kind = String(req.query.kind || '');
     if (!BUILDERS[kind]) { const e = new Error('Bảng xuất không hợp lệ.'); e.statusCode = 400; throw e; }
     const report = BUILDERS[kind](await repository.snapshot());
-    const rows = filterRows(kind, report.rows, req.query);
-    const file = await createExportFile(kind, String(req.query.format || 'xlsx'), report, rows);
+    return { kind, report, rows: filterRows(kind, report.rows, req.query) };
+  };
+
+  // Danh sach truong cho hop thoai "Xuat file" dung chung (cung dang /api/export/fields).
+  router.get('/export/fields', ...exportGuard, handle(async (req, res) => {
+    const { kind, report, rows } = await exportReport(req);
+    res.json(exportFieldsFor(kind, report, rows));
+  }));
+
+  // columns=khoa1,khoa2,... (whitelist theo bang, sai => 400); bo trong tham so = xuat tat ca cot.
+  router.get('/export', ...exportGuard, handle(async (req, res) => {
+    const { kind, report, rows } = await exportReport(req);
+    const columnKeys = resolveColumnKeys(kind, report, req.query.columns);
+    const file = await createExportFile(kind, String(req.query.format || 'xlsx'), report, rows, columnKeys);
     res.set('Content-Type', file.mimeType);
     res.set('Content-Disposition', `attachment; filename="${file.fileName}"`);
     res.send(file.buffer);

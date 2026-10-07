@@ -62,6 +62,36 @@ function columnsFor(kind, report) {
   ];
 }
 
+// Danh sach truong cho hop thoai "Xuat file" dung chung cua tab Bao cao (cung dang voi /api/export/fields):
+// truong = dung cac cot cua file, mac dinh chon het; rowCount = so dong sau bo loc dang ap.
+function exportFieldsFor(kind, report, rows) {
+  if (!KINDS.includes(kind)) throw invalid('Bảng xuất không hợp lệ.');
+  return {
+    title: `Báo cáo kinh doanh · ${TITLES[kind]}`,
+    selectionMode: 'custom',
+    worksheets: [{
+      key: kind,
+      name: TITLES[kind],
+      rowCount: rows.length,
+      fields: columnsFor(kind, report).map(({ key, label, type }) => ({ key, label, type, selected: true }))
+    }]
+  };
+}
+
+// Tham so columns (chuoi "a,b,c" hoac mang khi lap lai ?columns=) -> danh sach khoa theo thu tu chuan.
+// Khong truyen => null (xuat tat ca). Chi chap nhan khoa co trong whitelist columnsFor; rong / khoa la => 400.
+function resolveColumnKeys(kind, report, param) {
+  if (param === undefined || param === null) return null;
+  const bad = () => invalid('Danh sách trường xuất không hợp lệ.', 'INVALID_COLUMNS');
+  const parts = Array.isArray(param) ? param : typeof param === 'string' ? [param] : null;
+  if (!parts || parts.some(p => typeof p !== 'string')) throw bad();
+  const requested = new Set(parts.join(',').split(',').map(s => s.trim()).filter(Boolean));
+  if (!requested.size) throw bad();
+  const allowed = columnsFor(kind, report).map(c => c.key);
+  for (const key of requested) if (!allowed.includes(key)) throw bad();
+  return allowed.filter(key => requested.has(key));
+}
+
 function safeText(value) {
   const text = String(value == null ? '' : value);
   return /^[\s]*[=+\-@]/.test(text) ? `'${text}` : text;
@@ -86,13 +116,14 @@ function htmlWorksheet(kind, report, rows, columns) {
   };
 }
 
-async function createExportFile(kind, format, report, rows) {
+// columnKeys: danh sach khoa da qua resolveColumnKeys (null/undefined = tat ca cot).
+async function createExportFile(kind, format, report, rows, columnKeys) {
   if (!KINDS.includes(kind)) throw invalid('Bảng xuất không hợp lệ.');
   if (!['xlsx', 'html'].includes(format)) throw invalid('Định dạng xuất không hợp lệ.');
   if (rows.length > MAX_EXPORT_ROWS) {
     throw invalid('Dữ liệu vượt giới hạn 20.000 dòng mỗi lần xuất. Hãy thu hẹp bộ lọc rồi xuất lại.', 'TOO_MANY_ROWS');
   }
-  const columns = columnsFor(kind, report);
+  const columns = columnKeys ? columnsFor(kind, report).filter(c => columnKeys.includes(c.key)) : columnsFor(kind, report);
   const fileBase = `TKS_Bao_cao_kinh_doanh_${kind}`;
   if (format === 'html') {
     return renderHtmlReport({
@@ -133,4 +164,4 @@ async function createExportFile(kind, format, report, rows) {
   };
 }
 
-module.exports = { createExportFile, filterRows, MAX_EXPORT_ROWS };
+module.exports = { createExportFile, filterRows, exportFieldsFor, resolveColumnKeys, MAX_EXPORT_ROWS };

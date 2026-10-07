@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
+const ExcelJS = require('exceljs');
 const { createBusinessReportRouter } = require('./businessReportRoutes');
 const { serviceSnapshot } = require('./testFixtures');
 
@@ -87,6 +88,33 @@ test('GET /export: can ca reports.business va reports.export', async () => {
   assert.match(ok.headers.get('content-disposition'), /TKS_Bao_cao_kinh_doanh_customers\.xlsx/);
   const bad = await request('/export?kind=zzz&format=xlsx', { permissions: ['reports.business', 'reports.export'] });
   assert.equal(bad.status, 400);
+});
+
+test('GET /export?columns=: file chi chua cot da chon; khoa la / rong => 400', async () => {
+  const both = { permissions: ['reports.business', 'reports.export'] };
+  const ok = await request('/export?kind=sales&format=xlsx&columns=' + encodeURIComponent('saleName,avg4'), both);
+  assert.equal(ok.status, 200);
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(ok.data);
+  assert.deepEqual(wb.worksheets[0].getRow(1).values.slice(1), ['Sale', 'TB 4 tháng']);
+  const unknown = await request('/export?kind=sales&format=xlsx&columns=saleName,password', both);
+  assert.equal(unknown.status, 400);
+  assert.equal(unknown.data.code, 'INVALID_COLUMNS');
+  assert.equal((await request('/export?kind=sales&format=xlsx&columns=', both)).status, 400);
+});
+
+test('GET /export/fields: can ca reports.business va reports.export; tra truong + so dong theo bo loc', async () => {
+  assert.equal((await request('/export/fields?kind=customers')).status, 403);
+  assert.equal((await request('/export/fields?kind=customers', { permissions: ['reports.export'] })).status, 403);
+  const both = { permissions: ['reports.business', 'reports.export'] };
+  const active = await request('/export/fields?kind=customers', both);
+  assert.equal(active.status, 200);
+  const ws = active.data.worksheets[0];
+  assert.equal(ws.key, 'customers');
+  assert.deepEqual(ws.fields.slice(0, 5).map(f => f.label), ['Mã KH', 'Tên khách', 'Cơ sở', 'Sale', 'Level giá']);
+  const all = await request('/export/fields?kind=customers&inactive=1', both);
+  assert.ok(all.data.worksheets[0].rowCount > ws.rowCount, 'inactive=1 dem ca khach khong hoat dong');
+  assert.equal((await request('/export/fields?kind=zzz', both)).status, 400);
 });
 
 test('bang chua migrate => 503 BUSINESS_REPORT_NOT_READY; loi khac => 500 khong lo chi tiet', async () => {

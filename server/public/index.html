@@ -4214,7 +4214,7 @@
         <div class="view" id="view-business">
           <div class="view-title">Báo cáo kinh doanh</div>
           <div class="view-sub">Doanh số = hóa đơn hoàn thành − trả hàng (đã trừ giảm giá) · gộp Hà Nội + Sài Gòn · tháng trước chốt cứng, tháng này cập nhật trực tiếp · tăng trưởng = tháng này quy đổi 30 ngày ÷ tháng trước <span class="section-note" id="businessUpdatedAt">—</span>
-            <button class="export-button" type="button" id="businessRefreezeBtn" hidden onclick="refreezeBusinessMonth()">Tính lại tháng</button>
+            <button class="export-button" type="button" id="businessRefreezeBtn" data-not-export hidden onclick="refreezeBusinessMonth()">Tính lại tháng</button>
           </div>
 
           <section class="section">
@@ -4225,8 +4225,8 @@
                 <div class="panel-head">
                   <h2>Doanh số theo sale <span class="tag" id="tagBusinessSales">—</span></h2>
                   <div class="panel-head-actions business-export" data-kind="sales">
-                    <button class="export-button" type="button" onclick="exportBusiness('sales','xlsx')">Xuất Excel</button>
-                    <button class="export-button" type="button" onclick="exportBusiness('sales','html')">Xuất HTML</button>
+                    <button class="export-button" type="button"
+                      onclick="openBusinessExportDialog('sales')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
                   </div>
                 </div>
                 <div class="scroll-list" style="max-height:600px;">
@@ -4274,8 +4274,8 @@
                     <label class="business-inactive-toggle"><input type="checkbox" id="businessCustomersInactive"> Hiện cả khách không hoạt động</label>
                   </div>
                   <div class="panel-head-actions business-export" data-kind="customers">
-                    <button class="export-button" type="button" onclick="exportBusiness('customers','xlsx')">Xuất Excel</button>
-                    <button class="export-button" type="button" onclick="exportBusiness('customers','html')">Xuất HTML</button>
+                    <button class="export-button" type="button"
+                      onclick="openBusinessExportDialog('customers')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
                   </div>
                 </div>
                 <div class="scroll-list" style="max-height:600px;">
@@ -4317,8 +4317,8 @@
                 <div class="panel-head">
                   <h2>Doanh số theo mã hàng <span class="tag" id="tagBusinessProducts">—</span></h2>
                   <div class="panel-head-actions business-export" data-kind="products">
-                    <button class="export-button" type="button" onclick="exportBusiness('products','xlsx')">Xuất Excel</button>
-                    <button class="export-button" type="button" onclick="exportBusiness('products','html')">Xuất HTML</button>
+                    <button class="export-button" type="button"
+                      onclick="openBusinessExportDialog('products')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
                   </div>
                 </div>
                 <div class="scroll-list" style="max-height:600px;">
@@ -4493,7 +4493,10 @@
         request: null,
         step: '', // 'fields' (dang lay danh sach truong) | 'file' (dang tao file) — de "Thu lai" biet lap lai buoc nao
         autoAll: false,
-        format: 'xlsx'
+        format: 'xlsx',
+        // null = API chung /api/export; bang co API xuat rieng (Bao cao kinh doanh) gan
+        // { fields(payload, request), file(payload, request) } tra ve Response cua fetch.
+        source: null
       },
       // Tab Tổng quan, phần 2 — "Báo cáo doanh thu theo khách" (xem
       // renderCustomerProductReport() và các ham handleCustomerProduct*()).
@@ -5994,9 +5997,10 @@
       return request.token === state.exportDialog.token;
     }
 
+    // payload === null => GET (API xuat rieng nhan tham so tren URL), con lai POST JSON.
     async function exportFetch(url, payload, request) {
       try {
-        return await fetch(url, {
+        return await fetch(url, payload === null ? { signal: request.controller.signal } : {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: request.controller.signal
         });
       } catch (err) {
@@ -6051,6 +6055,7 @@
       document.getElementById('exportFieldSearch').value = '';
       setExportStatus('');
       dialog.payload = null;
+      dialog.source = null;
       dialog.metadata = null;
       dialog.step = '';
       dialog.autoAll = false;
@@ -6079,8 +6084,14 @@
       // Quyen 'reports.export' co the bi thu hoi rieng cho tung tai khoan
       // (/account/#users) — khop requireFeature tren /api/export.
       if (typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && !TKSNav.can('reports.export')) return;
+      await startExportDialog(buildExportPayload(tableKey), null);
+    }
+
+    // Mo hop thoai chon truong voi payload + nguon du lieu (null = API chung /api/export).
+    async function startExportDialog(payload, source) {
       const dialog = state.exportDialog;
-      dialog.payload = buildExportPayload(tableKey);
+      dialog.payload = payload;
+      dialog.source = source;
       dialog.metadata = null;
       dialog.autoAll = false;
       document.getElementById('exportModalTitle').textContent = 'Xuất file';
@@ -6109,7 +6120,9 @@
       setExportBusy(true);
       let metadata = null;
       try {
-        const response = await exportFetch('/api/export/fields', dialog.payload, request);
+        const response = dialog.source
+          ? await dialog.source.fields(dialog.payload, request)
+          : await exportFetch('/api/export/fields', dialog.payload, request);
         if (!response.ok) throw new Error(await readExportError(response, 'Không lấy được danh sách trường'));
         metadata = await response.json();
       } catch (err) {
@@ -6224,7 +6237,9 @@
         ? 'Đang tạo báo cáo HTML… (dữ liệu lớn có thể mất vài chục giây)'
         : 'Đang tạo file Excel… (dữ liệu lớn có thể mất vài chục giây)');
       try {
-        const response = await exportFetch('/api/export', payload, request);
+        const response = dialog.source
+          ? await dialog.source.file(payload, request)
+          : await exportFetch('/api/export', payload, request);
         if (!response.ok) throw new Error(await readExportError(response, failMessage.replace(/\.$/, '')));
         const blob = await response.blob();
         if (!isExportRequestCurrent(request)) return; // da dong hop thoai trong luc cho: khong tu tai file
@@ -7546,8 +7561,9 @@
       });
     }
 
-    function businessExportUrl(kind, format) {
-      const params = new URLSearchParams({ kind: kind, format: format });
+    // Bộ lọc đang áp trên bảng -> tham số URL cho API xuất riêng (danh sách trường + file dùng chung).
+    function businessExportQuery(kind) {
+      const params = new URLSearchParams({ kind: kind });
       const search = getTableSearchState(BUSINESS_TABLE_KEYS[kind]);
       if (search && search.query && search.query.trim()) params.set('q', search.query.trim());
       if (kind === 'customers') {
@@ -7558,28 +7574,25 @@
         // Máy chủ mặc định ẩn khách không hoạt động ở bảng Khách — gửi inactive=1 khi công tắc đang bật.
         if (document.getElementById('businessCustomersInactive').checked) params.set('inactive', '1');
       }
-      return '/api/business-report/export?' + params.toString();
+      return params.toString();
     }
 
-    // Tải file qua fetch (không điều hướng trang) để lỗi 4xx/5xx hiện thông báo thay vì trang JSON.
-    function exportBusiness(kind, format) {
-      return fetch(businessExportUrl(kind, format))
-        .then(function (res) {
-          if (!res.ok) {
-            return res.json().catch(() => ({})).then(function (body) {
-              throw new Error((body && body.error) || ('HTTP ' + res.status));
-            });
-          }
-          const disposition = (res.headers && res.headers.get('Content-Disposition')) || '';
-          const match = disposition.match(/filename="([^"]+)"/);
-          return res.blob().then(function (blob) {
-            saveExportBlob(blob, match ? match[1] : 'TKS_Bao_cao_kinh_doanh_' + kind + '.' + format);
-          });
-        })
-        .catch(function (err) {
-          console.error('Không xuất được báo cáo kinh doanh:', err);
-          showToast('Không xuất được file: ' + (err && err.message ? err.message : err), 'error');
-        });
+    // Nguồn dữ liệu cho hộp thoại "Xuất file" dùng chung: GET /api/business-report/export/fields và
+    // /export?columns=... (máy chủ kiểm whitelist cột). Bộ lọc chốt lúc mở hộp thoại (hộp thoại che trang).
+    const BUSINESS_EXPORT_SOURCE = {
+      fields: (payload, request) => exportFetch('/api/business-report/export/fields?' + payload.query, null, request),
+      file: (payload, request) => {
+        const params = new URLSearchParams(payload.query);
+        params.set('format', payload.format === 'html' ? 'html' : 'xlsx');
+        const columns = payload.columns && payload.columns[payload.kind];
+        if (columns) params.set('columns', columns.join(','));
+        return exportFetch('/api/business-report/export?' + params.toString(), null, request);
+      }
+    };
+
+    function openBusinessExportDialog(kind) {
+      if (typeof TKSNav === 'undefined' || typeof TKSNav.can !== 'function' || !TKSNav.can('reports.export')) return;
+      return startExportDialog({ kind: kind, query: businessExportQuery(kind) }, BUSINESS_EXPORT_SOURCE);
     }
 
     function refreezeBusinessMonth() {
@@ -9061,11 +9074,12 @@
       return allowed;
     }
 
-    /** An moi nut "Xuat Excel" khi tai khoan khong co quyen reports.export. */
+    /** An moi nut "Xuat Excel" khi tai khoan khong co quyen reports.export.
+     *  Nut chi muon kieu .export-button nhung khong phai nut xuat (vd "Tinh lai thang") gan data-not-export. */
     function applyExportPermission() {
       if (typeof TKSNav === 'undefined' || typeof TKSNav.can !== 'function') return;
       if (TKSNav.can('reports.export')) return;
-      document.querySelectorAll('.export-button').forEach(function (btn) { btn.hidden = true; });
+      document.querySelectorAll('.export-button:not([data-not-export])').forEach(function (btn) { btn.hidden = true; });
     }
 
     // Ranh gioi bao mat that su nam o server (authMiddleware tren /api/*).
