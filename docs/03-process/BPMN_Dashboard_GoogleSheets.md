@@ -120,7 +120,7 @@ Chạy liên tục khi `KIOTVIET_SYNC_ENABLED=true`, không phụ thuộc ngư�
 # 6. Luồng B — Sử dụng Báo cáo tổng hợp
 
 ```
-[B0] [Start] Người dùng mở /reports/ (sidebar: Tổng quan, Hàng hóa, Hóa đơn, Khách hàng, Quản lý công nợ — chỉ hiện tab có quyền reports.*)
+[B0] [Start] Người dùng mở /reports/ (sidebar: Tổng quan, Hàng hóa, Hóa đơn, Khách hàng, Quản lý công nợ, Báo cáo kinh doanh — chỉ hiện tab có quyền reports.*; Báo cáo kinh doanh đi theo luồng 6.4)
 [B1] [Task] Frontend gọi GET /api/dashboard?view=<tab đang mở>&<bộ lọc của tab> (mỗi tab tải khi được mở, mỗi bảng có bộ lọc Từ–Đến riêng)
 [B2] [Decision] requireAuth + requireFeature + resolveBranch: có quyền xem tab?
      |-- Không -> trả payload rỗng { filters: {}, kpi: {} } (không đọc/tính gì)
@@ -179,6 +179,21 @@ Bảng xuất được: Chi tiết giao dịch, Danh sách mã mới, Sản ph�
 [B24] [End] Khách đã xử lý rời hàng chờ; trạng thái tự hết hiệu lực khi chữ ký cảnh báo (loại cảnh báo + số nợ) đổi
 ```
 
+## 6.4. Luồng Báo cáo kinh doanh (tab `#business`, quyền `reports.business`)
+
+```
+[B25] [Timer] Mỗi 5 phút job businessMonthlyRefresh.js đọc business_monthly_state
+[B26] [Decision] Còn tháng đã qua (từ T3/2026) chưa chốt, và đã qua 00:10 VN ngày mùng 1?
+     |-- Có -> chốt từng tháng: DELETE + INSERT ... SELECT bảng khách / khách × mã / mã + ghi state, trong 1 giao dịch (lỗi -> ROLLBACK, lượt sau thử lại)
+     `-- Không -> [B27]
+[B27] [Task] Dựng lại bảng sale theo nhóm khách hiện tại trên KiotViet (chỉ ghi dòng đổi; khách không nhóm -> "Chưa phân nhóm")
+[B28] [Task] Người dùng mở /reports/#business -> GET /api/business-report/sales|customers|products (gộp HN + SG, không theo bộ chọn cơ sở)
+              Tháng đã chốt đọc bảng business_monthly_*; tháng hiện tại/chưa chốt tính trực tiếp bằng cùng SQL (cache 60 giây)
+[B29] [Task] Server tính quy đổi 30 ngày, tăng trưởng, TB 4 tháng, khách hoạt động -> frontend vẽ 3 bảng; bấm dòng -> GET /api/business-report/detail (panel + biểu đồ cột)
+[B30] [Task] (Tùy chọn) Quản lý bấm "Tính lại tháng" -> POST /api/business-report/refreeze { month } -> chốt lại tháng đó + dựng lại bảng sale
+[B31] [End] Xuất Excel/HTML: GET /api/business-report/export (cần thêm reports.export)
+```
+
 | **Bước** | **Vai trò**    | **Mô tả**                                                                                           | **Tham chiếu**      |
 |----------|----------------|-----------------------------------------------------------------------------------------------------|---------------------|
 | B1–B5    | Frontend/Backend | Tải theo tab, phân quyền, cache hai tầng (nguồn theo bảng + kết quả theo bộ lọc).                  | FR-01, FR-03, NFR-01 |
@@ -187,6 +202,7 @@ Bảng xuất được: Chi tiết giao dịch, Danh sách mã mới, Sản ph�
 | B12–B16  | Người dùng/Backend | Xuất Excel/HTML, giới hạn 2 file đồng thời.                                                        | FR-07.5–07.8, NFR-13, NFR-14 |
 | B17–B21  | Người dùng/Backend | Upload Trả NCC và quét đứt hàng.                                                                    | FR-03.12            |
 | B22–B24  | Quản lý/Trợ lý | Quản lý công nợ.                                                                                    | FR-11, FR-12.6      |
+| B25–B31  | Job/Người dùng/Quản lý | Chốt doanh số tháng, Báo cáo kinh doanh, tính lại tháng.                                    | FR-16, FR-06.13     |
 
 ---
 
@@ -347,7 +363,7 @@ Bảng xuất được: Chi tiết giao dịch, Danh sách mã mới, Sản ph�
 | **Luồng** | **Yêu cầu SRS bao phủ**                                             |
 |-----------|---------------------------------------------------------------------|
 | Luồng A   | FR-06.x, NFR-09                                                     |
-| Luồng B   | FR-01.x, FR-02.x, FR-03.x, FR-04.x, FR-05.x, FR-07.x, FR-11.x, FR-12.x, NFR-01, NFR-03, NFR-10, NFR-11, NFR-13–15 |
+| Luồng B   | FR-01.x, FR-02.x, FR-03.x, FR-04.x, FR-05.x, FR-07.x, FR-11.x, FR-12.x, FR-16.x, NFR-01, NFR-03, NFR-10, NFR-11, NFR-13–15 |
 | Luồng C   | FR-06.x, NFR-02, NFR-03, NFR-12                                     |
 | Luồng D   | FR-08.x, NFR-03, NFR-12                                             |
 | Luồng E   | FR-10.x, NFR-16, CSNS-NP-01                                         |

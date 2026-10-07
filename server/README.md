@@ -36,6 +36,24 @@ Mã chứng từ chỉ duy nhất trong 1 cơ sở, nên `branch` bắt buộc k
 
 Từ 2026-10-01 hai bảng "Danh sách đặt hàng" / "Danh sách trả hàng" của tab Hóa đơn đã bỏ, cùng `GET /api/order-detail` và `GET /api/return-detail`. Đơn đặt hàng "Phiếu tạm" của KiotViet nay theo dõi ở trang Vòng đời đơn hàng và xem chi tiết bằng `GET /api/shipment/lifecycle/order-detail` (phần dưới); `getOrderDetail` của repository vẫn được trang đó dùng lại.
 
+## Báo cáo kinh doanh (`/api/business-report`)
+
+Tab "Báo cáo kinh doanh" (`/reports/#business`) gồm 3 mục Tăng trưởng Sale / Khách hàng / Mã hàng theo tháng, từ T3/2026. Số liệu **luôn gộp HN + SG**, không theo bộ chọn cơ sở. Spec: [2026-10-07-business-report-design.md](../docs/superpowers/specs/2026-10-07-business-report-design.md).
+
+- **Doanh số tháng** = Σ `invoices.total` của hóa đơn `Hoàn thành` (cùng điều kiện cột Trạng thái tab Hóa đơn, `INVOICE_STATUS_SQL`) theo tháng của `purchase_date` − Σ `|returns.total|` của phiếu trả `Đã trả` theo tháng của `return_date` (giờ VN). Khách = (cơ sở, mã KH); hóa đơn thiếu mã KH thì tìm mã theo tên chuẩn hóa (`CUSTOMER_BY_NAME_CTE`). Doanh số mã hàng phân bổ tổng chứng từ (đã trừ giảm giá cả đơn/giảm giá trả) cho từng dòng theo tỷ lệ thành tiền, nên tổng theo mã = tổng theo khách (lệch vài xu do làm tròn). SQL dùng chung ở `businessReport/businessMonthlySql.js`.
+- **Sale** = nhóm khách **hiện tại** trên KiotViet (`customers.raw->>'groups'`) theo (cơ sở, mã KH); đổi nhóm thì cả lịch sử đi theo nhóm mới. Khách không có nhóm, khách lẻ, mã không tìm thấy → dòng "Chưa phân nhóm".
+- **Tháng đã chốt** đọc từ các bảng `business_monthly_*` (migration `0036`); tháng hiện tại và tháng chưa có dòng `business_monthly_state` được tính trực tiếp bằng cùng câu SQL. Kết quả cache 60 giây kiểu stale-while-revalidate trong `businessReport/businessReportRepository.js`.
+- Tính toán chỉ số (quy đổi 30 ngày, tăng trưởng, TB 4 tháng, khách hoạt động) nằm ở server (`businessReport/businessMonths.js`, `businessReportService.js`); API trả sẵn, frontend không tính lại.
+
+| Endpoint | Quyền | Mô tả |
+|---|---|---|
+| `GET /api/business-report/sales` · `/customers` · `/products` | `reports.business` | `{ today, currentMonth, day, months, monthLabels, frozenMonths, computedAt, kpis, rows }`; mỗi dòng có `series` (doanh số theo tháng), `current`, `normalized`, `prev`, `growth` (`null` khi tháng trước ≤ 0), `avg4`, `active` |
+| `GET /api/business-report/detail?kind=sale\|customer\|product&key=` | `reports.business` | Dữ liệu panel chi tiết. `key`: tên sale / `<branch>:<mã KH>` / mã hàng. Panel khách kèm `topProducts`, panel mã hàng kèm `topCustomers` (4 tháng gần nhất, tối đa 50 dòng). Không tìm thấy → 404, `kind` sai → 400 |
+| `POST /api/business-report/refreeze` body `{ "month": "YYYY-MM" }` | `reports.business.refreeze` (mặc định chỉ Quản lý, cần `reports.business`) | Nút "Tính lại tháng": chốt lại một tháng đã qua (từ T3/2026, không nhận tháng hiện tại) rồi dựng lại bảng sale, xóa cache |
+| `GET /api/business-report/export?kind=sales\|customers\|products&format=xlsx\|html` | `reports.business` **và** `reports.export` | Xuất bảng theo bộ lọc `q`, `sale`, `branch`; bảng khách mặc định chỉ khách hoạt động, `inactive=1` lấy cả khách không hoạt động. Tối đa 20.000 dòng (vượt → 400 `TOO_MANY_ROWS`) |
+
+Chưa áp migration `0036` → các API trả 503 `BUSINESS_REPORT_NOT_READY` (giao diện hiện "Đang dựng dữ liệu tháng cũ…"). Mọi phản hồi gửi kèm `Cache-Control: no-store`.
+
 ## Vòng đời đơn hàng hợp nhất đơn KiotViet (mọi trạng thái)
 
 `GET /api/shipment/lifecycle` (quyền `shipment.lifecycle`) trả **một trang** `{ orders, page, pageSize, totalPages, total, filteredTotal, kiotStatuses, kiot }`. Nguồn dòng = **mọi** đơn đặt hàng của Kiot HN + SG (Phiếu tạm, Đã xác nhận, Đang giao hàng, Hoàn thành, Đã hủy; ~60 nghìn đơn) ghép với Google Sheet theo `(cơ sở, mã đơn)` — cùng mã DH có thể tồn tại ở cả hai cơ sở nên không được ghép theo mã trần. Đơn có trên sheet giữ trạng thái vòng đời của sheet; đơn chỉ có ở Kiot nhận trạng thái thấp nhất `NOT_SENT` ("Đơn chưa gửi kế toán"), `source: 'kiotviet'`, **không** ghi đè trạng thái được; dòng sheet không khớp đơn Kiot nào bị bỏ khỏi bảng. Mỗi dòng có `kiotStatus` (trạng thái trên Kiot), `note` (ghi chú của đơn), `orderTotal`, `orderDate`, và `sellableValue` (chỉ đơn Phiếu tạm, còn lại `null`). Postgres lỗi → `kiot.ok = false` và trang vẫn trả đơn sheet kèm cảnh báo. Từ 2026-10-03 Tra cứu theo mã (`shipment.lookup`), Lịch sử (`shipment.history`), Xuất Excel (`shipment.export`) và Ghi đè trạng thái (`shipment.override`, mặc định chỉ Quản lý) **gắn vào `shipment.lifecycle`** (`requires` trong `featureRegistry.js`): thiếu Vòng đời đơn hàng thì các quyền này bị loại dù có cấp riêng; Khách/NV kho/marketing/mua hàng không còn trang này. Các API tra cứu vẫn chỉ đọc sheet.
@@ -117,6 +135,16 @@ Webhook KiotViet đi vào `POST /api/kiotviet/webhook/<KIOTVIET_WEBHOOK_SECRET>`
 | Báo cáo hàng hóa | `productReportRefresh.js` → `product_report`, `product_report_customers` | kiểm tra mỗi 5 phút, tính **1 lần/đêm** |
 | Chi tiết hóa đơn 90 ngày theo khách | `customerInvoiceLinesRefresh.js` → `customer_invoice_lines_90d` | kiểm tra mỗi 5 phút, dựng 1 lần/đêm sau 00:10 VN |
 | Giá trị tồn kho | `inventoryValueSnapshot.js` → `inventory_value_snapshots` | kiểm tra mỗi phút, chụp lúc 23:59 VN |
+| Báo cáo kinh doanh | `businessMonthlyRefresh.js` → `business_monthly_customer_sales`, `business_monthly_customer_product_sales`, `business_monthly_product_sales`, `business_monthly_sale_sales`, `business_monthly_state` | kiểm tra mỗi 5 phút; chốt tháng vừa qua khi ≥ 00:10 VN ngày mùng 1, mỗi tháng **1 lần**; mỗi lượt dựng lại bảng sale theo nhóm khách hiện tại (chỉ ghi dòng đổi) |
+
+**Job Báo cáo kinh doanh** (`kiotvietSync/businessMonthlyRefresh.js`, đăng ký trong `scheduler.js`): mỗi lượt đọc `business_monthly_state`, chốt mọi tháng từ T3/2026 đến tháng vừa qua còn thiếu (lần khởi động đầu tiên sau khi áp `0036` sẽ backfill T3 → tháng trước), rồi chạy `REBUILD_SALE_SQL`. Chốt một tháng = `DELETE` + `INSERT … SELECT` theo tháng cho 3 bảng khách / khách × mã / mã và ghi dòng state, tất cả trong **một giao dịch** (`work_mem` 32MB, không TRUNCATE). Lỗi thì giao dịch rollback, tháng chưa được coi là đã chốt và lượt 5 phút sau thử lại. Chạy tay (trong `server/`):
+
+```bash
+node kiotvietSync/businessMonthlyRefresh.js            # chốt các tháng còn thiếu + dựng lại bảng sale
+node kiotvietSync/businessMonthlyRefresh.js 2026-09    # chốt LẠI đúng tháng 2026-09 rồi dựng lại bảng sale
+```
+
+Tham số tháng nhận `YYYY-MM` (hoặc `YYYY-MM-DD`, chỉ lấy năm-tháng) và **không kiểm tra khoảng**: chỉ truyền tháng đã kết thúc. Chốt nhầm tháng đang chạy sẽ ghi dòng state cho tháng đó, job ngày mùng 1 tháng sau sẽ coi tháng ấy là đã chốt và không chốt lại — khi đó phải chạy tay lại tháng đó sau khi tháng kết thúc. Kiểm tra: `SELECT * FROM business_monthly_state ORDER BY month`.
 
 Entity `suppliers` đã bỏ khỏi scheduler (migration `0026`); file `kiotvietSync/entities/suppliers.js` (+ test) còn lại trong repo nhưng không được nạp — mã chết chờ xóa tay.
 
@@ -163,10 +191,13 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0033` | Sổ quỹ: account_id/status phiếu thu chi, danh mục tài khoản chung HN + SG, lịch sử chốt số dư; sync bankaccounts khi bảng trống lúc startup và mỗi 24 giờ |
 | `0032` | Chuẩn hóa hai nhóm bộ phận `BAN QUẢN TRỊ` và `HẬU CẦN - BẢO VỆ` trong nhân sự, đơn nghỉ và phạm vi duyệt phép; giữ quyền tài khoản hiện tại |
 | `0031` | Phạm vi phòng ban tài khoản, snapshot phòng ban bằng trigger tương thích bot nhân viên, `hr_manager_telegram_cards`; áp trước ứng dụng mới |
+| `0036` | Báo cáo kinh doanh: `business_monthly_customer_sales`, `business_monthly_customer_product_sales`, `business_monthly_product_sales`, `business_monthly_sale_sales`, `business_monthly_state` — doanh số theo tháng đã chốt; job `kiotvietSync/businessMonthlyRefresh.js` tự backfill từ T3/2026 ở lần khởi động đầu tiên sau khi áp (chạy tay: `node kiotvietSync/businessMonthlyRefresh.js`). Chưa áp thì API Báo cáo kinh doanh trả 503 |
 
 Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng nền nghỉ phép trực tiếp; bot **quản lý** trong `telegram/` dùng chung đơn và sở hữu các bảng bổ sung ở migration `0029`. Hợp đồng dữ liệu ở `db/SCHEMA.md`.
 
 ## Cập nhật gần nhất
+
+2026-10-07 — **Báo cáo kinh doanh**: tab mới `/reports/#business` (quyền `reports.business`, tính lại tháng `reports.business.refreeze`), API `/api/business-report/*`, job chốt tháng `kiotvietSync/businessMonthlyRefresh.js` và migration `0036`. Sau deploy: áp `0036` (`npm run db:migrate`), khởi động lại để job backfill T3 → tháng trước, kiểm tra `business_monthly_state`. Chưa áp migration hoặc triển khai production.
 
 2026-10-06 — Thêm trang Sổ quỹ `public/cashbook/` và kiểm thử frontend cho bộ lọc, hash, tiền, thời điểm chốt, stale response, drawer/dialog và xuất file. Đã nghiệm thu trên trình duyệt với PGlite cục bộ; hướng dẫn vận hành ở [docs/cashbook-setup.md](../docs/cashbook-setup.md). Chưa áp migration hoặc triển khai production.
 

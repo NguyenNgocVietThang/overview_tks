@@ -65,12 +65,13 @@ Xem [server/.env.example](server/.env.example) để biết đầy đủ cấu h
 server/
 ├── auth/                 # Tài khoản, phân quyền, OTP, Google OAuth
 ├── branch/               # Phân tách Hà Nội / Sài Gòn
+├── businessReport/       # Báo cáo kinh doanh: SQL doanh số tháng, repository (chốt + live), service, API, xuất Excel/HTML
 ├── cashbook/             # Sổ quỹ toàn công ty: số dư, sổ chi tiết, lịch sử chốt và xuất Excel/HTML
 ├── dashboard/            # Tổng hợp dashboard (dashboardData + dashboardViews: API theo tab), xuất Excel/HTML, kiểm tra đứt hàng
 │   ├── documentDetailRepository.js  # Chi tiết hóa đơn (popup bảng Chi tiết giao dịch) và chi tiết đơn đặt hàng (trang Vòng đời đơn hàng)
 │   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel
 ├── data/                 # Dữ liệu lưu trữ local (users.json, notifications.json, ...)
-├── db/                   # Migration Supabase (0001–0035) + SCHEMA.md (hợp đồng schema)
+├── db/                   # Migration Supabase (0001–0036) + SCHEMA.md (hợp đồng schema)
 ├── hr/                   # Nhân sự, nghỉ phép tự gửi, phạm vi duyệt chung, tài liệu quy định và cầu Postgres → SSE
 ├── kiotviet/             # KiotViet API client và webhook receiver
 ├── kiotvietSync/         # Webhook, polling, backfill và rollup
@@ -94,6 +95,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-07 — **Báo cáo kinh doanh** (tab thứ 6 của Báo cáo tổng hợp, `/reports/#business`): tăng trưởng Sale / Khách hàng / Mã hàng theo tháng từ T3/2026, gộp HN + SG. Doanh số tháng = hóa đơn `Hoàn thành` − phiếu trả `Đã trả`; sale = nhóm khách hiện tại trên KiotViet (không nhóm → "Chưa phân nhóm"); tháng đang chạy quy đổi 30 ngày, TB 4 tháng, khách hoạt động = TB 4 tháng > 0. Các tháng đã qua chốt cứng bởi job `kiotvietSync/businessMonthlyRefresh.js` (≥ 00:10 VN ngày mùng 1, migration `0036`); Quản lý có nút "Tính lại tháng" (`reports.business.refreeze`). Quyền xem `reports.business` mặc định như các tab báo cáo khác (gồm Nhân viên sale). API và vận hành: [server/README.md](server/README.md#báo-cáo-kinh-doanh-apibusiness-report). Sau deploy: áp `0036`, để job backfill (hoặc chạy tay `node kiotvietSync/businessMonthlyRefresh.js`), kiểm tra `business_monthly_state`. Chưa áp migration hoặc triển khai production.
 
 2026-10-07 — **Sổ quỹ tự cập nhật không cần F5**: đồng bộ KiotViet riêng mỗi 60 giây, trang kiểm tra revision HN/SG mỗi 15 giây và tải lại bảng khi có mốc mới; giữ bộ lọc/phân trang, dừng khi ẩn/offline và tự thử lại khi lỗi. Có công tắc riêng `KIOTVIET_CASHBOOK_SYNC_ENABLED` để không phải bật các job khác. Xem [hướng dẫn vận hành](docs/cashbook-setup.md).
 

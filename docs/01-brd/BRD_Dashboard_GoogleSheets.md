@@ -29,7 +29,7 @@ Trước đây việc theo dõi số liệu phải làm thủ công trên KiotVi
 
 ## 1.3. Phạm vi tài liệu
 
-Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (5 tab), Quản lý công nợ theo cơ sở, kiểm tra đứt hàng, Vòng đời đơn hàng, Vị trí hàng, Quản lý nhân sự & nghỉ phép (kèm bot Telegram), Quản lý tài khoản & phân quyền, xuất Excel/HTML; cùng định hướng mở rộng dài hạn.
+Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (6 tab, gồm Báo cáo kinh doanh), Quản lý công nợ theo cơ sở, kiểm tra đứt hàng, Vòng đời đơn hàng, Vị trí hàng, Quản lý nhân sự & nghỉ phép (kèm bot Telegram), Quản lý tài khoản & phân quyền, xuất Excel/HTML; cùng định hướng mở rộng dài hạn.
 
 # 2. Mục tiêu dự án
 
@@ -54,9 +54,10 @@ Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (5 tab), Quản lý c
 ## 3.1. Trong phạm vi (In-scope)
 
 - **Nguồn dữ liệu:**
-  - **Supabase PostgreSQL:** toàn bộ dữ liệu KiotViet (nhóm hàng, hàng hóa, hóa đơn + chi tiết + thanh toán, đặt hàng, trả hàng, khách hàng, nhập hàng, phiếu đặt hàng nhập, thu chi), bảng tổng hợp (rollup theo ngày, báo cáo hàng hóa, chi tiết hóa đơn 90 ngày, giá trị tồn kho theo ngày, CN1/CN3/CN7), Trả NCC upload, tài khoản `app_users`, nhân sự `hr_employees`, nghỉ phép và liên kết Telegram, trạng thái xử lý công nợ, tài liệu quy định công ty.
+  - **Supabase PostgreSQL:** toàn bộ dữ liệu KiotViet (nhóm hàng, hàng hóa, hóa đơn + chi tiết + thanh toán, đặt hàng, trả hàng, khách hàng, nhập hàng, phiếu đặt hàng nhập, thu chi), bảng tổng hợp (rollup theo ngày, báo cáo hàng hóa, chi tiết hóa đơn 90 ngày, giá trị tồn kho theo ngày, CN1/CN3/CN7, doanh số tháng đã chốt của Báo cáo kinh doanh), Trả NCC upload, tài khoản `app_users`, nhân sự `hr_employees`, nghỉ phép và liên kết Telegram, trạng thái xử lý công nợ, tài liệu quy định công ty.
   - **Google Sheets:** Bảng Công nợ (`DEBT_MANAGEMENT_SPREADSHEET_ID`, chỉ đọc); Vòng đời đơn hàng (`ORDER_LIFECYCLE_SPREADSHEET_ID`, đọc `DonHang_HN`/`DonHang_SG`, ghi tab `Lịch sử cập nhật`); Vị trí hàng (`STOCK_LOCATIONS_SPREADSHEET_ID`, chỉ đọc).
-- **Báo cáo tổng hợp (5 tab):** Tổng quan (Xu hướng, Báo cáo doanh thu theo khách, Báo cáo hàng hóa, Kiểm tra đứt hàng), Hàng hóa (Cơ cấu tồn kho, Phân tích, Tất cả mã hàng, Hàng mới nhập, Mã mới tạo), Hóa đơn (Chi tiết giao dịch), Khách hàng (Top khách theo doanh thu, Phân tích công nợ), Quản lý công nợ.
+- **Báo cáo tổng hợp (6 tab):** Tổng quan (Xu hướng, Báo cáo doanh thu theo khách, Báo cáo hàng hóa, Kiểm tra đứt hàng), Hàng hóa (Cơ cấu tồn kho, Phân tích, Tất cả mã hàng, Hàng mới nhập, Mã mới tạo), Hóa đơn (Chi tiết giao dịch), Khách hàng (Top khách theo doanh thu, Phân tích công nợ), Quản lý công nợ, Báo cáo kinh doanh (Tăng trưởng Sale, Tăng trưởng Khách hàng, Tăng trưởng Mã hàng).
+- **Báo cáo kinh doanh:** thay báo cáo tăng trưởng làm tay trên Google Sheets. Doanh số tháng = hóa đơn hoàn thành trừ hàng khách trả, gộp HN + SG, từ T3/2026; sale = nhóm khách hàng trên KiotViet (khách chưa có nhóm gộp vào "Chưa phân nhóm"); tháng đang chạy quy đổi về 30 ngày để so tăng trưởng với tháng trước, kèm trung bình 4 tháng; các tháng đã qua được chốt cứng mỗi ngày mùng 1, Quản lý có thể tính lại.
 - **Màn hình Quản lý công nợ:** kết hợp Bảng Công nợ, đối chiếu CN1/CN3/CN7 và trạng thái xử lý lưu trong PostgreSQL.
 - **Vòng đời đơn hàng, Vị trí hàng, Sổ quỹ, Quản lý nhân sự (Quy định công ty, Danh sách nhân sự, Nghỉ phép), Quản lý tài khoản.**
 - **Cập nhật dữ liệu dashboard** bằng nút "Làm mới", SSE `dashboard-updated` và tải bù khi quay lại tab trình duyệt.

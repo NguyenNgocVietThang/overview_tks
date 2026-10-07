@@ -32,7 +32,8 @@ Web Application nội bộ gồm:
 
 | **Thuật ngữ**           | **Giải thích**                                                                        |
 |-------------------------|---------------------------------------------------------------------------------------|
-| Dashboard / Báo cáo tổng hợp | Trang `/reports/` gồm 5 tab: Tổng quan, Hàng hóa, Hóa đơn, Khách hàng, Quản lý công nợ. |
+| Dashboard / Báo cáo tổng hợp | Trang `/reports/` gồm 6 tab: Tổng quan, Hàng hóa, Hóa đơn, Khách hàng, Quản lý công nợ, Báo cáo kinh doanh (FR-16). |
+| Doanh số tháng (Báo cáo kinh doanh) | Σ tổng tiền hóa đơn `Hoàn thành` trong tháng − Σ tổng tiền phiếu trả `Đã trả` trong tháng, gộp HN + SG (FR-16.2). |
 | KPI Card                | Thẻ hiển thị 1 chỉ số tổng hợp.                                                        |
 | CN1 / CN3 / CN7         | Khách hàng có hoạt động công nợ trong 1/3/7 ngày gần nhất (trước đây HN1/HN3/HN7), bảng `customer_debt_activity_periods`. |
 | Cơ sở vật lý            | `Hà Nội` hoặc `Sài Gòn` — giá trị duy nhất được lưu vào cột nghiệp vụ (`branch` = `hanoi`/`saigon`). |
@@ -130,8 +131,8 @@ Frontend (server/public/): index.html (Báo cáo tổng hợp, phục vụ ở /
 | **Vai trò**  | **Mô tả**                                                              |
 |--------------|------------------------------------------------------------------------|
 | Quản lý      | Toàn quyền mặc định: báo cáo (kể cả xuất file, sửa công nợ), vòng đời đơn hàng (kể cả xuất, ghi đè), nhân sự (duyệt nghỉ, tải quy định), tài khoản/phân quyền, trạng thái đồng bộ. **Quản lý cấp cao** = tài khoản admin cứng. |
-| Trợ lý       | 5 tab báo cáo + xuất Excel + sửa trạng thái công nợ; vòng đời đơn hàng (xem, tra cứu, lịch sử); nhân sự (xem). |
-| Nhân viên sale | 5 tab báo cáo (xem), vòng đời đơn hàng (xem), nhân sự (xem). Không xuất báo cáo, không sửa công nợ. |
+| Trợ lý       | 6 tab báo cáo + xuất Excel + sửa trạng thái công nợ; vòng đời đơn hàng (xem, tra cứu, lịch sử); nhân sự (xem). Không "Tính lại tháng" của Báo cáo kinh doanh. |
+| Nhân viên sale | 6 tab báo cáo (xem), vòng đời đơn hàng (xem), nhân sự (xem). Không xuất báo cáo, không sửa công nợ. |
 | Kế toán, Trưởng kho, Lái xe | Vòng đời đơn hàng (xem/tra cứu/lịch sử), nhân sự (xem), vị trí hàng. Không có tab báo cáo mặc định. |
 | Nhân viên kho / marketing / mua hàng | Nhân sự (xem), vị trí hàng; **không** có Vòng đời đơn hàng. |
 | Khách        | Chỉ trang Tài khoản/hồ sơ; không vào báo cáo, vòng đời đơn hàng, nhân sự, vị trí hàng. |
@@ -211,7 +212,7 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 
 | **Mã**  | **Mô tả**                                                                                                              | **Ưu tiên** | **Trạng thái** |
 |---------|------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
-| FR-05.1 | `GET /api/dashboard?view=<tab>`: chỉ đọc/tính/trả phần của một tab (`overview`, `products`, `invoices`, `customers`, `debt`; ghép nhiều tab bằng dấu phẩy; bỏ `view` = cả 5 tab; tên sai → 400 `INVALID_VIEW`; tab không có quyền → `{ filters: {}, kpi: {} }`). Trang chỉ gọi tab đang mở. | Cao | Hoàn thành |
+| FR-05.1 | `GET /api/dashboard?view=<tab>`: chỉ đọc/tính/trả phần của một tab (`overview`, `products`, `invoices`, `customers`, `debt`; ghép nhiều tab bằng dấu phẩy; bỏ `view` = cả 5 tab; tên sai → 400 `INVALID_VIEW`; tab không có quyền → `{ filters: {}, kpi: {} }`). Trang chỉ gọi tab đang mở. Tab Báo cáo kinh doanh không nằm trong API này mà dùng `/api/business-report/*` (FR-16). | Cao | Hoàn thành |
 | FR-05.2 | Hiển thị `updatedAt` định dạng `dd/MM/yyyy HH:mm:ss` theo Asia/Ho_Chi_Minh; trạng thái loading và thông báo lỗi tiếng Việt khi gọi API thất bại. | Trung bình | Hoàn thành |
 | FR-05.3 | Cập nhật gần thời gian thực qua SSE: sau mỗi lượt sync fast + rollup, server phát `dashboard-updated` trên `GET /api/dashboard/events` (heartbeat 25 giây); trình duyệt đánh dấu mọi tab đã tải là cũ, tải lại tab đang xem sau trễ ngẫu nhiên 0–3 giây, tab khác tải lại khi mở. | Cao | Hoàn thành |
 | FR-05.4 | Tab trở lại hiển thị sau ≥ 60 giây tải lại và nối lại SSE; SSE lỗi 5 lần liên tiếp thì thử nối lại sau 1, 5, 15 phút. Nút "Làm mới" tải lại tab hiện tại; chỉ render lại khi dữ liệu nghiệp vụ đổi (so fingerprint). | Trung bình | Hoàn thành |
@@ -232,6 +233,7 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 | FR-06.10 | `customerInvoiceLinesRefresh.js`: dựng `customer_invoice_lines_90d` 1 lần/đêm sau 00:10 VN (nạp bảng tạm rồi chỉ DELETE/INSERT phần khác biệt trong một giao dịch), cửa sổ 90 ngày kết thúc hôm qua; chưa dựng thì API quay về cách tính cũ. | Cao | Hoàn thành |
 | FR-06.11 | `inventoryValueSnapshot.js`: kiểm tra mỗi phút, chụp giá trị tồn kho từng cơ sở lúc 23:59 VN (`INSERT … ON CONFLICT DO NOTHING`); lỡ giờ thì chụp bù trước 12:00 hôm sau. | Cao | Hoàn thành |
 | FR-06.12 | `GET /api/internal/kiotviet-sync/status` (quyền `system.syncStatus`, mặc định Quản lý) báo trạng thái đồng bộ; fail-soft 503 nếu chưa có DB. | Trung bình | Hoàn thành |
+| FR-06.13 | `businessMonthlyRefresh.js`: kiểm tra mỗi 5 phút; chốt doanh số tháng vừa qua vào các bảng `business_monthly_*` (migration `0036`) khi ≥ 00:10 VN ngày mùng 1, mỗi tháng 1 lần (`DELETE` + `INSERT … SELECT` theo tháng trong một giao dịch, không TRUNCATE); lần chạy đầu backfill từ T3/2026; mỗi lượt dựng lại bảng sale theo nhóm khách hiện tại, chỉ ghi dòng đổi. Chạy tay: `node kiotvietSync/businessMonthlyRefresh.js [YYYY-MM]` (trong `server/`; có tháng = chốt lại đúng tháng đó, chỉ dùng cho tháng đã kết thúc). Xem FR-16. | Cao | Code hoàn thành |
 
 ## 3.7. FR-07: Giao diện & xuất file
 
@@ -241,7 +243,7 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 | FR-07.2 | Mỗi bảng có tìm kiếm trong bảng (không dấu), sắp xếp ba trạng thái trên mọi cột, phân trang 100 dòng/trang (`pagination.js`) trên toàn bộ dữ liệu đã lọc; độ rộng cột cố định. | Cao | Hoàn thành |
 | FR-07.3 | Thanh điều hướng có bộ chọn cơ sở Hà Nội / Sài Gòn / Cả hai (cookie `tks_branch`, xác thực lại ở server), đổi theme sáng/tối, chuông thông báo (hỏi số chưa đọc mỗi 30 giây), lịch nghỉ phép, hộp hồ sơ cá nhân. | Cao | Hoàn thành |
 | FR-07.4 | `/api/debug`: kiểm tra kết nối Postgres (đếm hóa đơn theo `branch = ANY($1)`), quyền như API báo cáo; `/health` trả `{"status":"ok"}` cho health check Render. | Thấp | Hoàn thành |
-| FR-07.5 | Mỗi bảng xuất được có nút `Xuất Excel` (tùy trang có thêm `Xuất HTML`): file giữ bộ lọc/sắp xếp hiện tại và bỏ giới hạn phân trang. Các bảng: Chi tiết giao dịch, Danh sách mã mới, Sản phẩm bán chạy, Tất cả mã hàng, Hàng mới nhập, Chi tiết tồn kho theo sản phẩm, Doanh thu theo khách, Chi tiết khách nợ, Bảng chi tiết sản phẩm theo khách, Báo cáo hàng hóa, Quản lý công nợ, Hàng đứt gần đây, Kiểm tra đứt hàng 90/30 ngày (`TABLE_TITLES` trong `exportService.js`). Quyền `reports.export` (mặc định Quản lý + Trợ lý). | Cao | Hoàn thành |
+| FR-07.5 | Mỗi bảng xuất được có nút `Xuất Excel` (tùy trang có thêm `Xuất HTML`): file giữ bộ lọc/sắp xếp hiện tại và bỏ giới hạn phân trang. Các bảng: Chi tiết giao dịch, Danh sách mã mới, Sản phẩm bán chạy, Tất cả mã hàng, Hàng mới nhập, Chi tiết tồn kho theo sản phẩm, Doanh thu theo khách, Chi tiết khách nợ, Bảng chi tiết sản phẩm theo khách, Báo cáo hàng hóa, Quản lý công nợ, Hàng đứt gần đây, Kiểm tra đứt hàng 90/30 ngày (`TABLE_TITLES` trong `exportService.js`). Quyền `reports.export` (mặc định Quản lý + Trợ lý). Ba bảng của Báo cáo kinh doanh xuất qua endpoint riêng `GET /api/business-report/export` (cột tháng động, xem FR-16.7). | Cao | Hoàn thành |
 | FR-07.6 | `POST /api/export/fields` trả danh sách worksheet/trường ngay từ từ điển tĩnh (`rowCount = null`), không chạm DB (bảng `search.results` đã gỡ 2026-10-05). `POST /api/export` lấy mã dòng từ `getDashboardData()` rồi `readRowsByCodes()` đọc đúng các mã đó từ Postgres (5 nguồn: Hàng hóa, Hóa đơn, Đặt hàng, Trả hàng, Khách hàng; nguồn khác → `400 EXPORT_SOURCE_NOT_ALLOWED`); danh sách > 20.000 mã chia lô 5.000. Body `format: 'html'` tạo báo cáo HTML tự chứa. | Cao | Hoàn thành |
 | FR-07.7 | Modal xuất hủy được mọi lúc (X, Hủy, Esc, bấm nền) bằng `AbortController`; timeout 30 giây (danh sách trường) / 180 giây (tạo file); lỗi hiện thông báo tiếng Việt + `Thử lại`; phản hồi trễ của yêu cầu cũ bị bỏ qua; ngắt kết nối thì server hủy việc và nhả chỗ xuất. | Cao | Hoàn thành |
 | FR-07.8 | Nhãn trường xuất tiếng Việt chuẩn hóa (có dấu, không viết tắt/snake_case, ≤ 40 ký tự, duy nhất trong worksheet) tại `exportFieldCatalog.js`; cột dashboard tính thêm khai báo trong `exportService.js`. | Cao | Hoàn thành |
@@ -353,6 +355,21 @@ Lớp hiệu ứng 3D và giám sát hiệu năng thích ứng đã gỡ bỏ v�
 | FR-15.2 | Quản lý có `cashbook.view`/`cashbook.manage` mặc định; bộ lọc ngày giờ VN, phiếu, nhóm, trạng thái, hạch toán, người tạo, nhân viên, đối tác/SĐT; sổ chi tiết phân trang và số dư lũy kế khi đủ điều kiện. | Cao | Code/kiểm thử cục bộ hoàn tất |
 | FR-15.3 | Chốt số dư trong transaction, xem lịch sử và số chênh lệch; xuất ba bảng Excel/HTML với cột chọn trước, tối đa 20.000 dòng. Migration `0033` và đồng bộ `cash_book_accounts` phải hoàn tất trước khi chốt ban đầu. | Cao | Migration `0033` đã áp; chờ deploy production |
 
+## 3.16. FR-16: Báo cáo kinh doanh
+
+Tab cấp 2 `#business` của `/reports/` (mục cuối nhóm Báo cáo tổng hợp trên sidebar). Thay báo cáo tăng trưởng Sale / Khách / Mã hàng trước đây làm tay trên Google Sheets. Spec: `docs/superpowers/specs/2026-10-07-business-report-design.md`.
+
+| **Mã** | **Mô tả** | **Ưu tiên** | **Trạng thái** |
+|---|---|---|---|
+| FR-16.1 | Quyền xem `reports.business` (mặc định Quản lý, Trợ lý, Nhân viên sale — như các tab báo cáo khác). Số liệu **luôn gộp Hà Nội + Sài Gòn**, không theo bộ chọn cơ sở. Các tháng hiển thị từ **T3/2026** tới tháng hiện tại (bỏ T2 vì dữ liệu DB chỉ có từ 05/02). Ba mục: Tăng trưởng Sale, Tăng trưởng Khách hàng, Tăng trưởng Mã hàng; mỗi mục có KPI đầu mục (Doanh số tháng này, Quy đổi 30 ngày, Tháng trước, Tăng trưởng chung, TB 4 tháng, số sale / khách hoạt động / mã hoạt động). | Cao | Code hoàn thành |
+| FR-16.2 | **Doanh số tháng** = Σ `invoices.total` (đã trừ giảm giá cả đơn) của hóa đơn `Hoàn thành` (điều kiện giống cột Trạng thái tab Hóa đơn: theo `raw->>'statusValue'`, trống thì suy từ mã trạng thái) có ngày bán trong tháng − Σ `|returns.total|` (đã trừ giảm giá trả) của phiếu trả `Đã trả` có ngày trả trong tháng. Tháng tính theo giờ Việt Nam. Hóa đơn `Đang xử lý`, `Đã hủy` không tính. | Cao | Code hoàn thành |
+| FR-16.3 | **Định danh:** khách = (cơ sở, mã KH) — cùng mã ở HN và SG là hai khách khác nhau; chứng từ không có mã KH thì tìm mã theo tên khách chuẩn hóa trong danh mục khách cùng cơ sở (trùng tên lấy mã lớn nhất), không tìm thấy thì là Khách lẻ (mã rỗng). Mã hàng = mã hàng, gộp hai cơ sở. **Doanh số theo mã hàng** lấy từ dòng chi tiết: tổng chứng từ được phân bổ cho từng dòng theo tỷ lệ thành tiền dòng, nên tổng theo mã bằng tổng theo khách (lệch vài xu do làm tròn); chứng từ có tổng thành tiền dòng = 0 không phân bổ, dòng không có mã hàng không tính. | Cao | Code hoàn thành |
+| FR-16.4 | **Sale = nhóm khách hàng trên KiotViet** (`customers.raw->>'groups'`), không lấy tên người bán trên hóa đơn. Toàn bộ lịch sử của khách đi theo **nhóm hiện tại**: khách đổi nhóm thì doanh số các tháng trước cũng chuyển sang sale mới. Khách không có nhóm, Khách lẻ, mã khách không có trong danh mục → dòng **"Chưa phân nhóm"** (không tính vào KPI "Số sale"). | Cao | Code hoàn thành |
+| FR-16.5 | **Chỉ số mỗi dòng:** *Tháng hiện tại* = doanh số từ ngày 1 đến hôm nay; *Quy đổi 30 ngày* = tháng hiện tại × 30 / số ngày đã qua của tháng (gồm hôm nay); *Tăng trưởng* = quy đổi / doanh số tháng trước × 100%, tháng trước ≤ 0 thì hiện "—"; *TB 4 tháng* = (doanh số 3 tháng liền trước + quy đổi tháng này) / 4. **Khách hoạt động** = TB 4 tháng > 0; "SL Khách" của sale = số khách hoạt động thuộc nhóm đó. Tính ở server (`businessReport/businessMonths.js`), API trả sẵn. | Cao | Code hoàn thành |
+| FR-16.6 | **Bảng:** Sale (Sale, SL Khách, TB 4 tháng, Tăng trưởng, Tháng hiện tại (đến dd/mm), rồi các tháng trước giảm dần tới T3); Khách hàng (Mã KH, Tên, Cơ sở, Sale, Level giá = `customers.raw->>'comments'`, rồi các cột số liệu); Mã hàng (Mã, Tên, rồi các cột số liệu). Sắp xếp mặc định theo TB 4 tháng giảm dần. Bảng khách mặc định chỉ hiện khách hoạt động, có tìm kiếm, lọc theo Sale, lọc theo cơ sở và công tắc "Hiện cả khách không hoạt động". Mọi bảng có tìm kiếm, sắp xếp, phân trang như FR-07.2. | Cao | Code hoàn thành |
+| FR-16.7 | **Panel chi tiết** (bấm dòng): thẻ tổng quan (Tháng này, Quy đổi 30 ngày, Tháng trước, Tăng trưởng, TB 4 tháng, Tổng từ T3/26) và biểu đồ cột theo tháng; panel Sale liệt kê khách của sale (bấm khách mở panel khách); panel Khách có top mã hàng 4 tháng gần nhất; panel Mã hàng có top khách 4 tháng gần nhất (tối đa 50 dòng). **Xuất Excel/HTML** từng bảng theo bộ lọc đang chọn (cần `reports.business` và `reports.export`, tối đa 20.000 dòng). | Cao | Code hoàn thành |
+| FR-16.8 | **Chốt tháng:** doanh số các tháng đã qua được chốt cứng vào bảng `business_monthly_*` (migration `0036`) bởi job FR-06.13 lúc ≥ 00:10 VN ngày mùng 1; tháng hiện tại và tháng chưa chốt tính trực tiếp bằng cùng câu SQL (cache 60 giây). Bảng sale dựng lại theo nhóm khách hiện tại ở mỗi lượt job. Nút **"Tính lại tháng"** (quyền `reports.business.refreeze`, mặc định chỉ Quản lý) chốt lại một tháng đã qua từ T3/2026 (`POST /api/business-report/refreeze`). Chưa áp migration → API trả 503 `BUSINESS_REPORT_NOT_READY`, giao diện báo "Đang dựng dữ liệu tháng cũ…". | Cao | Code hoàn thành; chưa áp migration `0036` / chưa deploy |
+
 # 4. Yêu cầu phi chức năng (Non-functional Requirements)
 
 | **Mã** | **Hạng mục**         | **Mô tả yêu cầu**                                                                                                                               |
@@ -382,6 +399,7 @@ Lớp hiệu ứng 3D và giám sát hiệu năng thích ứng đã gỡ bỏ v�
 - **Header:** tên trang, bộ chọn cơ sở, chuông thông báo, lịch nghỉ phép, theme, hồ sơ.
 - **Mỗi tab báo cáo** chia thành các mục đánh số; đầu mỗi mục có KPI then chốt; mỗi bảng có thanh công cụ gồm tìm kiếm, bộ lọc Từ–Đến (nếu có), nút Xuất.
 - **Quản lý công nợ:** 4 KPI, biểu đồ sale/lịch thanh toán, top 10 nợ hiện tại/quá hạn và bảng thao tác 10 cột; mặc định lọc `Cần xử lý`; hỗ trợ bàn phím, Light/Dark, reduced motion.
+- **Báo cáo kinh doanh:** 3 mục Tăng trưởng Sale / Khách hàng / Mã hàng, không có bộ lọc Từ–Đến (cột theo tháng từ T3/2026); bấm dòng mở panel chi tiết có biểu đồ cột theo tháng; nút "Tính lại tháng" chỉ hiện với người có quyền (FR-16).
 
 ## 5.2. Trạng thái giao diện cần xử lý
 
@@ -436,6 +454,10 @@ Mọi API (trừ `health`, webhook, `auth/login`, quên mật khẩu, `google-co
 | `GET /api/inventory-value-history?from&to` | `reports.overview` | Giá trị tồn kho theo ngày theo cơ sở đang xem; bảng chưa migrate → trả rỗng. |
 | `GET /api/invoice-detail?code&branch` | `reports.invoices` | Chi tiết hóa đơn; `branch` bắt buộc khi đang xem "Cả hai" và phải thuộc phạm vi đang xem. |
 | `PATCH /api/debt-management/status` | `reports.debt.edit` | Body `{ customerKey, status, alertSignature }`; ở "Cả hai" ghi cả hai cơ sở trong 1 transaction, phản hồi thêm `branches`; lỗi `503 DEBT_STATUS_UNAVAILABLE`, `404 DEBT_CUSTOMER_NOT_FOUND`. |
+| `GET /api/business-report/sales`, `/customers`, `/products` | `reports.business` | Ba bảng Báo cáo kinh doanh, gộp HN + SG: `months`, `kpis`, `rows` (mỗi dòng có `series` theo tháng, `current`, `normalized`, `prev`, `growth`, `avg4`, `active`) — FR-16. |
+| `GET /api/business-report/detail?kind=sale\|customer\|product&key=` | `reports.business` | Panel chi tiết; `key` = tên sale / `<branch>:<mã KH>` / mã hàng; 404 khi không tìm thấy, 400 khi `kind` sai. |
+| `POST /api/business-report/refreeze` | `reports.business.refreeze` | Body `{ month: 'YYYY-MM' }`; chốt lại một tháng đã qua (từ T3/2026), 400 nếu tháng không hợp lệ hoặc là tháng hiện tại. |
+| `GET /api/business-report/export?kind&format=xlsx\|html&q&sale&branch&inactive` | `reports.business` + `reports.export` | Xuất bảng theo bộ lọc, tối đa 20.000 dòng (400 `TOO_MANY_ROWS`). Mọi API `/api/business-report/*` trả 503 `BUSINESS_REPORT_NOT_READY` khi chưa áp migration `0036`. |
 | `GET /api/debug`, `GET /health` | `reports.*` / công khai | Kiểm tra kết nối Postgres / health check. |
 
 `GET /api/search` và `GET /api/customer-product-top` đã gỡ 2026-10-05 (FR-07.9).
@@ -510,6 +532,8 @@ Schema chi tiết, khóa chính, ràng buộc và quy tắc từng migration n�
 | `product_report`, `product_report_customers` | Báo cáo hàng hóa gộp 2 cơ sở và doanh số 90 ngày từng khách | 1 lần/đêm |
 | `customer_invoice_lines_90d` (+`_state`) | Chi tiết hóa đơn 90 ngày gắn mã khách, cộng dòng âm của phiếu trả | 1 lần/đêm sau 00:10 VN |
 | `inventory_value_snapshots` | Giá trị tồn kho mỗi cơ sở mỗi ngày | chụp 23:59 VN |
+| `business_monthly_customer_sales`, `business_monthly_customer_product_sales`, `business_monthly_product_sales` (+`business_monthly_state`) | Doanh số tháng đã chốt theo khách / khách × mã hàng / mã hàng (FR-16.2–16.3); 1 dòng state cho mỗi tháng đã chốt | chốt tháng vừa qua ≥ 00:10 VN ngày mùng 1 |
+| `business_monthly_sale_sales` | Doanh số tháng theo sale = nhóm khách hiện tại, dựng lại từ bảng khách | mỗi 5 phút, chỉ ghi dòng đổi |
 
 ## 7.3. Định dạng ngày
 
@@ -537,6 +561,7 @@ Ngày hiển thị `dd/MM/yyyy HH:mm` hoặc `dd/MM/yyyy` theo Asia/Ho_Chi_Minh 
 | Vòng đời đơn hàng (5.10)                 | FR-14.x                             |
 | Giao diện, phân trang & xuất file        | FR-07.x                             |
 | Quản lý công nợ theo cơ sở               | FR-11.x                             |
+| Báo cáo kinh doanh (tăng trưởng Sale/Khách/Mã hàng) | FR-16.x, FR-06.13              |
 | ~~Lớp hiệu ứng 3D~~                      | FR-09 đã thu hồi                    |
 
 # 9. Rủi ro kỹ thuật & phương án giảm thiểu
