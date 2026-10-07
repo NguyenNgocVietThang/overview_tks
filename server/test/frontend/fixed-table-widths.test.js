@@ -30,7 +30,8 @@ test('cac bang du lieu chinh cua dashboard deu la fixed-table', () => {
   const html = read('index.html');
   ['cpDetailRows', 'productReportRows', 'recentStockoutResultRows', 'stockout90dResultRows', 'stockout30dResultRows',
     'inventoryValueRows', 'topSellingRows', 'allProductRows', 'newlyImportedRows', 'todayNewProductRows', 'endOfDayRows',
-    'customerRevenueRows', 'debtRows', 'debtManagementRows'
+    'customerRevenueRows', 'debtRows', 'debtManagementRows',
+    'businessSalesRows', 'businessCustomersRows', 'businessProductsRows'
   ].forEach(id => {
     const at = html.indexOf('<tbody id="' + id + '"');
     assert.ok(at > 0, id + ' khong co trong trang');

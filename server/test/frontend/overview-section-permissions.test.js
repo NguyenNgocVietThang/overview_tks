@@ -3,7 +3,8 @@
 // Tab Tong quan co 4 muc; muc 4 (Kiem tra dut hang + nhap Tra NCC) goi cac API duoi
 // /api/products can quyen Hang hoa (reports.products). Nguoi chi co quyen Tong quan
 // (reports.overview) nen muc 4 phai bi AN va khong duoc goi /import-status (se 403).
-// (Nhan vien sale mac dinh co du 5 tab xem tu 2026-10-02 nen test dung quyen rut bot reports.products.)
+// (Nhan vien sale mac dinh co du cac tab xem — 5 tab tu 2026-10-02, them Bao cao kinh doanh 2026-10-07 —
+// nen test dung quyen rut bot reports.products.)
 // Chay trang that trong JSDOM voi TKSNav/fetch gia.
 
 const test = require('node:test');

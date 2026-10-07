@@ -43,13 +43,14 @@ function createDashboard() {
   return dom;
 }
 
-test('registry bao phủ đủ 14 bảng trong Báo cáo tổng hợp (không còn 2 bảng Đặt hàng / Trả hàng của tab Hóa đơn)', () => {
+test('registry bao phủ đủ 17 bảng trong Báo cáo tổng hợp (không còn 2 bảng Đặt hàng / Trả hàng của tab Hóa đơn; thêm 3 bảng Báo cáo kinh doanh)', () => {
   const dom = createDashboard();
   const expected = [
     'cpDetail', 'productReport', 'recentStockout', 'stockout90d', 'stockout30d',
     'endOfDay', 'todayNewProducts', 'topSelling',
     'allProducts', 'inventoryValue', 'newlyImported',
-    'customerRevenue', 'topDebt', 'debtManagement'
+    'customerRevenue', 'topDebt', 'debtManagement',
+    'businessSales', 'businessCustomers', 'businessProducts'
   ];
   const actual = Object.keys(dom.window.TABLE_EXPLORER_CONFIGS);
   assert.deepEqual([...actual].sort(), expected.sort());

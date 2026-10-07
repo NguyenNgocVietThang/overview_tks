@@ -1290,6 +1290,17 @@
       flex-wrap: wrap;
     }
 
+    /* Bao cao kinh doanh: cong tac "Hien ca khach khong hoat dong" canh 2 o loc sale/co so */
+    .business-inactive-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 34px;
+      font-size: 12.5px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
     .table-search-tools {
       display: flex;
       align-items: center;
@@ -3253,6 +3264,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path></svg>
           Công nợ
         </button>
+        <button type="button" class="report-subnav-item" data-view="business" role="tab" aria-selected="false" onclick="goReportView('business')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"></path><path d="m19 9-5 5-4-4-3 3"></path></svg>
+          Báo cáo kinh doanh
+        </button>
       </div>
       <div class="dashboard-stats" id="dashboardStats">
 
@@ -4195,6 +4210,146 @@
           </section>
         </div>
 
+        <!-- ============ BÁO CÁO KINH DOANH ============ -->
+        <div class="view" id="view-business">
+          <div class="view-title">Báo cáo kinh doanh</div>
+          <div class="view-sub">Doanh số = hóa đơn hoàn thành − trả hàng (đã trừ giảm giá) · gộp Hà Nội + Sài Gòn · tháng trước chốt cứng, tháng này cập nhật trực tiếp · tăng trưởng = tháng này quy đổi 30 ngày ÷ tháng trước <span class="section-note" id="businessUpdatedAt">—</span>
+            <button class="export-button" type="button" id="businessRefreezeBtn" hidden onclick="refreezeBusinessMonth()">Tính lại tháng</button>
+          </div>
+
+          <section class="section">
+            <div class="section-head"><span class="section-step">1</span><h2>Tăng trưởng Sale</h2></div>
+            <div class="kpi-grid section-kpis" id="businessSalesKpis"></div>
+            <div class="grid">
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Doanh số theo sale <span class="tag" id="tagBusinessSales">—</span></h2>
+                  <div class="panel-head-actions business-export" data-kind="sales">
+                    <button class="export-button" type="button" onclick="exportBusiness('sales','xlsx')">Xuất Excel</button>
+                    <button class="export-button" type="button" onclick="exportBusiness('sales','html')">Xuất HTML</button>
+                  </div>
+                </div>
+                <div class="scroll-list" style="max-height:600px;">
+                  <table class="fixed-table">
+                    <thead id="businessSalesHead">
+                      <tr>
+                        <th style="width:180px">Sale</th>
+                        <th style="width:95px">SL Khách</th>
+                        <th style="width:140px">TB 4 tháng</th>
+                        <th style="width:105px">Tăng trưởng</th>
+                      </tr>
+                    </thead>
+                    <tbody id="businessSalesRows">
+                      <tr>
+                        <td colspan="4" class="table-note">Đang tải...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="pagination-controls" id="businessSalesPagination" hidden>
+                  <button type="button" id="businessSalesFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="businessSalesPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                  <span id="businessSalesPageLabel">Trang 1/1</span>
+                  <button type="button" id="businessSalesNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="businessSalesLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-step">2</span><h2>Tăng trưởng khách hàng</h2></div>
+            <div class="kpi-grid section-kpis" id="businessCustomersKpis"></div>
+            <div class="grid">
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Doanh số theo khách <span class="tag" id="tagBusinessCustomers">—</span></h2>
+                  <div class="panel-head-actions business-customer-filters">
+                    <select class="stockout-branch-select" id="businessCustomersSale" aria-label="Lọc theo sale"><option value="">Tất cả sale</option></select>
+                    <select class="stockout-branch-select" id="businessCustomersBranch" aria-label="Lọc theo cơ sở">
+                      <option value="">Cả hai cơ sở</option>
+                      <option value="hanoi">Hà Nội</option>
+                      <option value="saigon">Sài Gòn</option>
+                    </select>
+                    <label class="business-inactive-toggle"><input type="checkbox" id="businessCustomersInactive"> Hiện cả khách không hoạt động</label>
+                  </div>
+                  <div class="panel-head-actions business-export" data-kind="customers">
+                    <button class="export-button" type="button" onclick="exportBusiness('customers','xlsx')">Xuất Excel</button>
+                    <button class="export-button" type="button" onclick="exportBusiness('customers','html')">Xuất HTML</button>
+                  </div>
+                </div>
+                <div class="scroll-list" style="max-height:600px;">
+                  <table class="fixed-table">
+                    <thead id="businessCustomersHead">
+                      <tr>
+                        <th style="width:110px">Mã KH</th>
+                        <th style="width:240px">Tên khách</th>
+                        <th style="width:70px">Cơ sở</th>
+                        <th style="width:140px">Sale</th>
+                        <th style="width:160px">Level giá</th>
+                        <th style="width:140px">TB 4 tháng</th>
+                        <th style="width:105px">Tăng trưởng</th>
+                      </tr>
+                    </thead>
+                    <tbody id="businessCustomersRows">
+                      <tr>
+                        <td colspan="7" class="table-note">Đang tải...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="pagination-controls" id="businessCustomersPagination" hidden>
+                  <button type="button" id="businessCustomersFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="businessCustomersPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                  <span id="businessCustomersPageLabel">Trang 1/1</span>
+                  <button type="button" id="businessCustomersNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="businessCustomersLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-step">3</span><h2>Tăng trưởng mã hàng</h2></div>
+            <div class="kpi-grid section-kpis" id="businessProductsKpis"></div>
+            <div class="grid">
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Doanh số theo mã hàng <span class="tag" id="tagBusinessProducts">—</span></h2>
+                  <div class="panel-head-actions business-export" data-kind="products">
+                    <button class="export-button" type="button" onclick="exportBusiness('products','xlsx')">Xuất Excel</button>
+                    <button class="export-button" type="button" onclick="exportBusiness('products','html')">Xuất HTML</button>
+                  </div>
+                </div>
+                <div class="scroll-list" style="max-height:600px;">
+                  <table class="fixed-table">
+                    <thead id="businessProductsHead">
+                      <tr>
+                        <th style="width:140px">Mã hàng</th>
+                        <th style="width:280px">Tên hàng</th>
+                        <th style="width:140px">TB 4 tháng</th>
+                        <th style="width:105px">Tăng trưởng</th>
+                      </tr>
+                    </thead>
+                    <tbody id="businessProductsRows">
+                      <tr>
+                        <td colspan="4" class="table-note">Đang tải...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="pagination-controls" id="businessProductsPagination" hidden>
+                  <button type="button" id="businessProductsFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="businessProductsPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                  <span id="businessProductsPageLabel">Trang 1/1</span>
+                  <button type="button" id="businessProductsNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="businessProductsLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
       </div>
     </div>
   </div>
@@ -4516,31 +4671,35 @@
     }
 
     function initSortableTables() {
-      document.querySelectorAll('table').forEach(function (table) {
-        const tbody = table.tBodies[0];
-        if (!tbody || !tbody.id) return;
+      document.querySelectorAll('table').forEach(initSortableTable);
+    }
 
-        table.querySelectorAll('thead th').forEach(function (th, columnIndex) {
-          if (th.hasAttribute('data-no-sort')) return; // cot thao tac (vd nut Chi tiet), khong co gi de sap xep
-          const label = th.textContent.trim();
-          const button = document.createElement('button');
-          const labelSpan = document.createElement('span');
-          const indicator = document.createElement('span');
+    // Gan nut sap xep cho cac <th> cua 1 bang — goi lai sau khi thead duoc ve lai dong
+    // (vd bang Bao cao kinh doanh co so cot thang thay doi theo du lieu).
+    function initSortableTable(table) {
+      const tbody = table.tBodies[0];
+      if (!tbody || !tbody.id) return;
 
-          th.classList.add('sortable');
-          th.setAttribute('aria-sort', 'none');
-          button.type = 'button';
-          button.className = 'sort-button';
-          button.title = 'Sắp xếp tăng dần theo ' + label;
-          button.setAttribute('aria-label', 'Sắp xếp tăng dần theo cột ' + label);
-          labelSpan.textContent = label;
-          indicator.className = 'sort-indicator';
-          indicator.setAttribute('aria-hidden', 'true');
-          indicator.textContent = '↕';
-          button.append(labelSpan, indicator);
-          button.addEventListener('click', function () { setTableSort(tbody.id, columnIndex); });
-          th.replaceChildren(button);
-        });
+      table.querySelectorAll('thead th').forEach(function (th, columnIndex) {
+        if (th.hasAttribute('data-no-sort')) return; // cot thao tac (vd nut Chi tiet), khong co gi de sap xep
+        const label = th.textContent.trim();
+        const button = document.createElement('button');
+        const labelSpan = document.createElement('span');
+        const indicator = document.createElement('span');
+
+        th.classList.add('sortable');
+        th.setAttribute('aria-sort', 'none');
+        button.type = 'button';
+        button.className = 'sort-button';
+        button.title = 'Sắp xếp tăng dần theo ' + label;
+        button.setAttribute('aria-label', 'Sắp xếp tăng dần theo cột ' + label);
+        labelSpan.textContent = label;
+        indicator.className = 'sort-indicator';
+        indicator.setAttribute('aria-hidden', 'true');
+        indicator.textContent = '↕';
+        button.append(labelSpan, indicator);
+        button.addEventListener('click', function () { setTableSort(tbody.id, columnIndex); });
+        th.replaceChildren(button);
       });
     }
 
@@ -6150,13 +6309,15 @@
       document.getElementById('backdrop').classList.remove('show');
       document.getElementById('menuBtn').setAttribute('aria-expanded', 'false');
       document.getElementById('menuBtn').setAttribute('aria-label', 'Mở menu điều hướng');
-      if (viewIsLoaded(view)) {
+      if (view !== 'business' && viewIsLoaded(view)) {
         state.chartAnimation = false;
         renderView(view);
         state.chartAnimation = true;
       }
       // Hop bao loi tai du lieu thuoc ve tab vua roi; tab moi neu that bai se tu hien lai.
       hideDashboardLoadError();
+      // Bao cao kinh doanh co API rieng (/api/business-report), khong di qua /api/dashboard.
+      if (view === 'business') { loadBusinessReport(false); return; }
       // Moi tab tai rieng khi duoc mo (xem ensureViewData): tab da co du lieu van ve ngay
       // tu du lieu cu roi cap nhat khi ban moi ve; tab chua co du lieu hien man che "Dang tai".
       ensureViewData(view);
@@ -7220,6 +7381,273 @@
       });
     }
 
+    // ===== Báo cáo kinh doanh (tab #business) — API riêng /api/business-report (xem
+    // server/businessReport/). Tháng trước chốt cứng trong DB, tháng này tính trực tiếp (cache 60s
+    // phía máy chủ) nên tab tự tải lại khi mở nếu dữ liệu đã cũ hơn 60s. Máy chủ tính sẵn
+    // tăng trưởng / TB 4 tháng / hoạt động — trang chỉ hiển thị, không tính lại. =====
+    const BUSINESS_KINDS = ['sales', 'customers', 'products'];
+    const BUSINESS_TABLE_KEYS = { sales: 'businessSales', customers: 'businessCustomers', products: 'businessProducts' };
+    const BUSINESS_FIXED_COLUMNS = {
+      sales: [['Sale', 180], ['SL Khách', 95]],
+      customers: [['Mã KH', 110], ['Tên khách', 240], ['Cơ sở', 70], ['Sale', 140], ['Level giá', 160]],
+      products: [['Mã hàng', 140], ['Tên hàng', 280]]
+    };
+    state.business = { data: {}, loadedAt: 0, loading: false };
+    TABLE_EXPLORER_CONFIGS.businessSales = { title: 'Tăng trưởng Sale', searchText: tableSearchText, identity: r => r.key };
+    TABLE_EXPLORER_CONFIGS.businessCustomers = { title: 'Tăng trưởng khách hàng', searchText: tableSearchText, identity: r => r.key };
+    TABLE_EXPLORER_CONFIGS.businessProducts = { title: 'Tăng trưởng mã hàng', searchText: tableSearchText, code: r => r.code, identity: r => r.key, supportsCodes: true };
+
+    function businessGrowthHtml(growth) {
+      if (growth === null || growth === undefined) return '<span class="muted">—</span>';
+      return '<span class="pill ' + (growth >= 100 ? 'ok' : 'bad') + '">' + Math.round(growth) + '%</span>';
+    }
+
+    function businessBranchLabel(branch) {
+      return branch === 'hanoi' ? 'HN' : 'SG';
+    }
+
+    // Cột: [cố định...] TB 4 tháng | Tăng trưởng | dd/mm/yyyy (tháng này) | T(n-1) … T3/26 (giảm dần).
+    function businessMonthColumns(data) {
+      return data.months.filter(m => m !== data.currentMonth).slice().reverse();
+    }
+
+    function businessColumnCount(kind, data) {
+      return BUSINESS_FIXED_COLUMNS[kind].length + 2 + (data ? 1 + businessMonthColumns(data).length : 0);
+    }
+
+    function businessHeadHtml(kind, data) {
+      const today = data.today.split('-').reverse().join('/');
+      const cols = BUSINESS_FIXED_COLUMNS[kind].concat([['TB 4 tháng', 140], ['Tăng trưởng', 105], [today, 140]])
+        .concat(businessMonthColumns(data).map(m => [data.monthLabels[data.months.indexOf(m)], 135]));
+      return '<tr>' + cols.map(c => '<th style="width:' + c[1] + 'px">' + escapeHtml(c[0]) + '</th>').join('') + '</tr>';
+    }
+
+    function businessRowHtml(kind, data) {
+      const months = businessMonthColumns(data);
+      const money = v => '<td class="mono" data-sort-value="' + (Number(v) || 0) + '">' + fmtMoney(v || 0) + '</td>';
+      return function (r) {
+        const fixed = kind === 'sales'
+          ? '<td class="name-cell">' + escapeHtml(r.saleName) + '</td><td class="mono" data-sort-value="' + r.activeCustomers + '">' + fmtNumber(r.activeCustomers) + '</td>'
+          : kind === 'customers'
+            ? '<td class="mono muted">' + escapeHtml(r.code || '—') + '</td><td class="name-cell">' + escapeHtml(r.name) + '</td>' +
+              '<td>' + businessBranchLabel(r.branch) + '</td><td>' + escapeHtml(r.saleName) + '</td><td>' + escapeHtml(r.priceLevel || '') + '</td>'
+            : '<td class="mono muted">' + escapeHtml(r.code) + '</td><td class="name-cell">' + escapeHtml(r.name) + '</td>';
+        return '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết" data-table-item-id="' + escapeHtml(r.key) + '">' + fixed +
+          money(r.avg4) +
+          '<td class="mono" data-sort-value="' + (r.growth === null || r.growth === undefined ? -1 : r.growth) + '">' + businessGrowthHtml(r.growth) + '</td>' +
+          money(r.current) + months.map(m => money(r.series[m])).join('') + '</tr>';
+      };
+    }
+
+    function businessFilteredCustomers() {
+      const data = state.business.data.customers;
+      if (!data) return [];
+      const sale = document.getElementById('businessCustomersSale').value;
+      const branch = document.getElementById('businessCustomersBranch').value;
+      const inactive = document.getElementById('businessCustomersInactive').checked;
+      return data.rows.filter(r => (inactive || r.active) && (!sale || r.saleName === sale) && (!branch || r.branch === branch));
+    }
+
+    // Thẻ KPI do máy chủ trả ({ key, label, value, type: money|percent|number }) -> thẻ renderSectionKpis.
+    function businessKpiCards(kpis) {
+      const accents = { current: 'green', normalized: 'blue', prev: 'amber', avg4: 'blue' };
+      return (kpis || []).map(function (k) {
+        const accent = k.type === 'percent'
+          ? (k.value === null || k.value === undefined ? '' : (k.value >= 100 ? 'green' : 'red'))
+          : (accents[k.key] || 'amber');
+        const value = k.type === 'percent'
+          ? (k.value === null || k.value === undefined ? '—' : Math.round(k.value) + '%')
+          : k.type === 'number' ? fmtNumber(k.value) : fmtMoney(k.value);
+        return { label: k.label, value: value, accent: accent };
+      });
+    }
+
+    // Vẽ lại thead chỉ khi bộ cột đổi (sang tháng mới) để giữ nút sắp xếp đang chọn.
+    function renderBusinessHead(kind, data) {
+      const head = document.getElementById(BUSINESS_TABLE_KEYS[kind] + 'Head');
+      const htmlText = businessHeadHtml(kind, data);
+      if (head.dataset.columns === htmlText) return;
+      head.innerHTML = htmlText;
+      head.dataset.columns = htmlText;
+      initSortableTable(head.closest('table'));
+    }
+
+    function renderBusinessReport() {
+      BUSINESS_KINDS.forEach(function (kind) {
+        const data = state.business.data[kind];
+        const prefix = BUSINESS_TABLE_KEYS[kind];
+        if (!data) return;
+        renderBusinessHead(kind, data);
+        const rows = kind === 'customers' ? businessFilteredCustomers() : data.rows;
+        document.getElementById('tag' + prefix[0].toUpperCase() + prefix.slice(1)).textContent = fmtNumber(rows.length);
+        renderSectionKpis(prefix + 'Kpis', businessKpiCards(data.kpis));
+        renderPaginatedRows(prefix, {
+          tbody: prefix + 'Rows', pagination: prefix + 'Pagination', firstBtn: prefix + 'FirstPage', prevBtn: prefix + 'PrevPage',
+          nextBtn: prefix + 'NextPage', lastBtn: prefix + 'LastPage', label: prefix + 'PageLabel'
+        }, rows, businessRowHtml(kind, data), businessColumnCount(kind, data), 'Chưa có dữ liệu.');
+      });
+      const sales = state.business.data.sales;
+      if (sales) {
+        const select = document.getElementById('businessCustomersSale');
+        const current = select.value;
+        select.innerHTML = '<option value="">Tất cả sale</option>' + sales.rows.map(r =>
+          '<option value="' + escapeHtml(r.saleName) + '">' + escapeHtml(r.saleName) + '</option>').join('');
+        select.value = current;
+        if (select.value !== current) select.value = '';
+        document.getElementById('businessUpdatedAt').textContent = formatProductReportUpdatedAt(sales.computedAt);
+      }
+      const can = k => typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && !!TKSNav.can(k);
+      document.getElementById('businessRefreezeBtn').hidden = !can('reports.business.refreeze');
+      document.querySelectorAll('.business-export').forEach(el => { el.hidden = !can('reports.export'); });
+    }
+
+    function showBusinessLoadError(err) {
+      const message = err && err.code === 'BUSINESS_REPORT_NOT_READY'
+        ? 'Đang dựng dữ liệu tháng cũ… Báo cáo sẽ hiện khi máy chủ dựng xong, vui lòng quay lại sau.'
+        : 'Không tải được báo cáo kinh doanh' + (err && err.message ? ': ' + err.message : '.');
+      // Đã có số liệu cũ trên màn hình thì giữ lại, chỉ báo lỗi.
+      if (state.business.data.sales && state.business.data.customers && state.business.data.products) {
+        showToast(message, 'error');
+        return;
+      }
+      BUSINESS_KINDS.forEach(function (kind) {
+        document.getElementById(BUSINESS_TABLE_KEYS[kind] + 'Rows').innerHTML =
+          '<tr><td colspan="' + businessColumnCount(kind, null) + '" class="table-note">' + escapeHtml(message) + '</td></tr>';
+      });
+    }
+
+    function loadBusinessReport(force) {
+      if (state.business.loading) return;
+      if (!force && Date.now() - state.business.loadedAt < 60000 && state.business.data.sales) { renderBusinessReport(); return; }
+      state.business.loading = true;
+      Promise.all(BUSINESS_KINDS.map(function (kind) {
+        return fetch('/api/business-report/' + kind).then(function (res) {
+          if (res.status === 401) {
+            window.location.href = '/login/?next=' + encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
+          }
+          return res.json().catch(() => ({})).then(function (body) {
+            if (!res.ok) {
+              const error = new Error((body && body.error) || ('HTTP ' + res.status));
+              error.code = body && body.code;
+              throw error;
+            }
+            return body;
+          });
+        });
+      })).then(function (payloads) {
+        BUSINESS_KINDS.forEach(function (kind, i) { state.business.data[kind] = payloads[i]; });
+        state.business.loadedAt = Date.now();
+        state.business.loading = false;
+        renderBusinessReport();
+      }).catch(function (err) {
+        state.business.loading = false;
+        console.error('Không tải được báo cáo kinh doanh:', err);
+        showBusinessLoadError(err);
+      });
+    }
+
+    function businessExportUrl(kind, format) {
+      const params = new URLSearchParams({ kind: kind, format: format });
+      const search = getTableSearchState(BUSINESS_TABLE_KEYS[kind]);
+      if (search && search.query && search.query.trim()) params.set('q', search.query.trim());
+      if (kind === 'customers') {
+        const sale = document.getElementById('businessCustomersSale').value;
+        const branch = document.getElementById('businessCustomersBranch').value;
+        if (sale) params.set('sale', sale);
+        if (branch) params.set('branch', branch);
+        // Máy chủ mặc định ẩn khách không hoạt động ở bảng Khách — gửi inactive=1 khi công tắc đang bật.
+        if (document.getElementById('businessCustomersInactive').checked) params.set('inactive', '1');
+      }
+      return '/api/business-report/export?' + params.toString();
+    }
+
+    // Tải file qua fetch (không điều hướng trang) để lỗi 4xx/5xx hiện thông báo thay vì trang JSON.
+    function exportBusiness(kind, format) {
+      return fetch(businessExportUrl(kind, format))
+        .then(function (res) {
+          if (!res.ok) {
+            return res.json().catch(() => ({})).then(function (body) {
+              throw new Error((body && body.error) || ('HTTP ' + res.status));
+            });
+          }
+          const disposition = (res.headers && res.headers.get('Content-Disposition')) || '';
+          const match = disposition.match(/filename="([^"]+)"/);
+          return res.blob().then(function (blob) {
+            saveExportBlob(blob, match ? match[1] : 'TKS_Bao_cao_kinh_doanh_' + kind + '.' + format);
+          });
+        })
+        .catch(function (err) {
+          console.error('Không xuất được báo cáo kinh doanh:', err);
+          showToast('Không xuất được file: ' + (err && err.message ? err.message : err), 'error');
+        });
+    }
+
+    function refreezeBusinessMonth() {
+      const sales = state.business.data.sales;
+      const months = sales && sales.months ? sales.months.filter(m => m !== sales.currentMonth) : [];
+      const suggestion = months.length ? months[months.length - 1].slice(0, 7) : '';
+      const month = window.prompt('Tính lại tháng đã chốt (định dạng YYYY-MM, ví dụ 2026-09):', suggestion);
+      if (!month || !month.trim()) return;
+      fetch('/api/business-report/refreeze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ month: month.trim() }) })
+        .then(res => res.json().catch(() => ({})).then(body => { if (!res.ok) throw new Error(body.error || 'HTTP ' + res.status); return body; }))
+        .then(() => { showToast('Đã tính lại tháng ' + month.trim() + '.', 'success'); loadBusinessReport(true); })
+        .catch(err => showToast('Không tính lại được: ' + err.message, 'error'));
+    }
+
+    ['businessCustomersSale', 'businessCustomersBranch', 'businessCustomersInactive'].forEach(function (id) {
+      document.getElementById(id).addEventListener('change', function () {
+        state.tablePages.businessCustomers = 1;
+        renderBusinessReport();
+      });
+    });
+
+    // Panel chi tiết Báo cáo kinh doanh: thẻ tổng quan + biểu đồ cột doanh số theo tháng (cột tháng
+    // này là số đến hôm nay, chưa quy đổi — nhãn có dấu *) + bảng phụ (khách của sale / top mã của
+    // khách / top khách của mã, 4 tháng gần nhất).
+    function renderBusinessDetailModal(body, subtitle, data) {
+      subtitle.textContent = data.subtitle || '';
+      let table = '';
+      if (data.kind === 'sale') {
+        const customers = data.customers || [];
+        table = '<h3 class="doc-lines-title"><span>Khách của sale</span><span class="muted">' + fmtNumber(customers.length) + ' khách</span></h3>' +
+          '<div class="scroll-list" style="max-height:320px"><table><thead><tr><th>Khách hàng</th><th>Cơ sở</th><th>TB 4 tháng</th><th>Tăng trưởng</th><th>Tháng này</th></tr></thead><tbody>' +
+          (customers.length ? customers.map(c => '<tr class="doc-row business-detail-customer" tabindex="0" title="Bấm để xem chi tiết khách" data-key="' + escapeHtml(c.key) + '">' +
+            '<td class="name-cell">' + escapeHtml(c.name) + '</td><td>' + businessBranchLabel(c.branch) +
+            '</td><td class="mono">' + fmtMoney(c.avg4) + '</td><td class="mono">' + businessGrowthHtml(c.growth) + '</td><td class="mono">' + fmtMoney(c.current) + '</td></tr>').join('')
+            : '<tr><td colspan="5" class="table-note">Không có dữ liệu.</td></tr>') +
+          '</tbody></table></div>';
+      } else {
+        const isCustomer = data.kind === 'customer';
+        const list = (isCustomer ? data.topProducts : data.topCustomers) || [];
+        const label = isCustomer ? 'Top mã hàng 4 tháng' : 'Top khách 4 tháng';
+        table = '<h3 class="doc-lines-title"><span>' + label + '</span></h3><div class="scroll-list" style="max-height:320px"><table><thead><tr><th>' +
+          (isCustomer ? 'Mã hàng</th><th>Tên hàng' : 'Khách hàng</th><th>Cơ sở') + '</th><th>Doanh số</th><th>SL</th></tr></thead><tbody>' +
+          (list.length ? list.map(r => '<tr><td' + (isCustomer ? ' class="mono muted"' : ' class="name-cell"') + '>' + escapeHtml(isCustomer ? r.productCode : r.customerName) + '</td><td>' +
+            escapeHtml(isCustomer ? (r.productName || '') : businessBranchLabel(r.branch)) + '</td><td class="mono">' + fmtMoney(r.revenue) +
+            '</td><td class="mono">' + fmtNumber(r.qty) + '</td></tr>').join('') : '<tr><td colspan="4" class="table-note">Không có dữ liệu.</td></tr>') +
+          '</tbody></table></div>';
+      }
+      body.innerHTML = '<div class="kpi-grid business-summary" id="businessDetailSummary"></div>' +
+        '<div class="chart-box wide"><canvas id="businessDetailChart" role="img" aria-label="Biểu đồ cột doanh số theo tháng"></canvas></div>' +
+        '<div>' + table + '</div>';
+      renderSectionKpis('businessDetailSummary', businessKpiCards(data.summary));
+      // labelRotation = 1 (không phải 0): renderBarChartList dùng `labelRotation || 60`.
+      renderBarChartList('businessDetailChart', 'businessDetailTrend', data.chart || [], c => c.label + (c.partial ? '*' : ''), c => c.value, null, true, null, null, 1);
+      body.querySelectorAll('.business-detail-customer').forEach(function (row) {
+        function openCustomer() {
+          const rows = (state.business.data.customers && state.business.data.customers.rows) || [];
+          const item = rows.find(c => c.key === row.dataset.key);
+          if (item) openDocumentDetail('businessCustomers', item, row);
+        }
+        row.addEventListener('click', openCustomer);
+        row.addEventListener('keydown', function (event) {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          openCustomer();
+        });
+      });
+    }
+
     // ===== Hộp chi tiết chứng từ giữa màn hình (tab Hóa đơn) =====
     // Bấm 1 dòng ở "Chi tiết giao dịch" / "Báo cáo hàng hóa" → lấy các dòng hàng của chứng từ đó từ
     // /api/invoice-detail (bảng invoice_details) / /api/product-report/customers. (Chi tiết đơn đặt hàng "Phiếu tạm"
@@ -7231,7 +7659,20 @@
         query: function (item) { return '?code=' + encodeURIComponent(item.code); },
         failure: 'Không tải được doanh số khách của sản phẩm này.'
       },
-      endOfDay: { api: '/api/invoice-detail', title: 'Chi tiết giao dịch', dateLabel: 'Thời gian bán', sellerLabel: 'Nhân viên bán hàng', failure: 'Không tải được chi tiết giao dịch.' }
+      endOfDay: { api: '/api/invoice-detail', title: 'Chi tiết giao dịch', dateLabel: 'Thời gian bán', sellerLabel: 'Nhân viên bán hàng', failure: 'Không tải được chi tiết giao dịch.' },
+      // Báo cáo kinh doanh (tab #business): thẻ tổng quan + biểu đồ cột theo tháng + bảng phụ.
+      businessSales: {
+        api: '/api/business-report/detail', title: 'Sale', wide: true,
+        query: item => '?kind=sale&key=' + encodeURIComponent(item.key), failure: 'Không tải được chi tiết sale.'
+      },
+      businessCustomers: {
+        api: '/api/business-report/detail', title: 'Khách hàng', wide: true,
+        query: item => '?kind=customer&key=' + encodeURIComponent(item.key), failure: 'Không tải được chi tiết khách hàng.'
+      },
+      businessProducts: {
+        api: '/api/business-report/detail', title: 'Mã hàng', wide: true,
+        query: item => '?kind=product&key=' + encodeURIComponent(item.key), failure: 'Không tải được chi tiết mã hàng.'
+      }
     };
     const docDetail = { requestId: 0, tableKey: '', item: null, returnFocus: null };
 
@@ -7308,12 +7749,19 @@
       const subtitle = document.getElementById('docModalSubtitle');
       const kind = DOC_DETAIL_KINDS[docDetail.tableKey];
       const isProduct = docDetail.tableKey === 'productReport';
+      const isBusiness = docDetail.tableKey.indexOf('business') === 0;
       destroyChart('productDetailCustomers'); // canvas cũ sắp bị thay
-      document.getElementById('docModalTitle').textContent = isProduct
-        ? kind.title + ' · ' + docDetail.item.code + (docDetail.item.name ? ' – ' + docDetail.item.name : '')
-        : kind.title + ' ' + docDetail.item.code;
-      subtitle.textContent = isProduct ? '90 ngày gần nhất' : (docDetail.item.branch ? 'Cơ sở ' + docDetail.item.branch : '');
-      if (status === 'ready' && isProduct) {
+      destroyChart('businessDetailTrend');
+      const item = docDetail.item;
+      document.getElementById('docModalTitle').textContent = isBusiness
+        ? kind.title + ' · ' + (item.saleName || (docDetail.tableKey === 'businessProducts' ? item.code + (item.name ? ' – ' + item.name : '') : item.name || item.code))
+        : isProduct
+          ? kind.title + ' · ' + item.code + (item.name ? ' – ' + item.name : '')
+          : kind.title + ' ' + item.code;
+      subtitle.textContent = isBusiness ? '' : isProduct ? '90 ngày gần nhất' : (item.branch ? 'Cơ sở ' + item.branch : '');
+      if (status === 'ready' && isBusiness) {
+        renderBusinessDetailModal(body, subtitle, data);
+      } else if (status === 'ready' && isProduct) {
         renderProductReportModal(body, subtitle, data);
       } else if (status === 'loading') {
         body.innerHTML = '<div class="doc-modal-note">Đang tải chi tiết...</div>';
@@ -7373,6 +7821,7 @@
       docDetail.requestId++; // bỏ qua kết quả của request đang chờ
       document.getElementById('docModalBackdrop').hidden = true;
       destroyChart('productDetailCustomers');
+      destroyChart('businessDetailTrend');
       document.getElementById('docModalBody').innerHTML = '';
       document.body.style.overflow = '';
       const returnFocus = docDetail.returnFocus;
@@ -7386,7 +7835,9 @@
     }
 
     function initDocumentDetail() {
-      [['endOfDayRows', 'endOfDay'], ['productReportRows', 'productReport']].forEach(function (pair) {
+      [['endOfDayRows', 'endOfDay'], ['productReportRows', 'productReport'],
+        ['businessSalesRows', 'businessSales'], ['businessCustomersRows', 'businessCustomers'], ['businessProductsRows', 'businessProducts']
+      ].forEach(function (pair) {
         const tbody = document.getElementById(pair[0]);
         const tableKey = pair[1];
         function openFromRow(row) {
@@ -8415,6 +8866,13 @@
      */
     function loadData(days, isManualRefresh, view) {
       const targetView = view || state.view;
+      // Tab Bao cao kinh doanh khong co payload /api/dashboard (server tra 400 cho view=business):
+      // moi duong goi loadData() cho tab nay (khoi dong theo hash, ensureViewData, SSE) chuyen sang
+      // API rieng — loadBusinessReport tu bo qua neu dang tai hoac du lieu con moi (< 60s).
+      if (targetView === 'business') {
+        if (state.view === 'business') loadBusinessReport(false);
+        return;
+      }
       const sig = buildDashboardQuery(targetView, days);
       // Danh so + huy request cu CUA CHINH TAB NAY: doi bo loc nhanh (A -> B) ma
       // response A ve SAU response B se ghi de man hinh bang du lieu cu (sai bo loc).
@@ -8536,7 +8994,7 @@
 
     // Vao thang mot tab bao cao tu sidebar cua trang khac (vd /reports/#products) —
     // cac trang khac dieu huong toi day bang hash roi trang nay tu chuyen view.
-    const REPORT_VIEW_NAMES = ['overview', 'products', 'invoices', 'customers', 'debt'];
+    const REPORT_VIEW_NAMES = ['overview', 'products', 'invoices', 'customers', 'debt', 'business'];
     function applyReportViewFromHash() {
       const hashView = (window.location.hash || '').replace('#', '');
       if (REPORT_VIEW_NAMES.indexOf(hashView) !== -1) switchView(hashView);
