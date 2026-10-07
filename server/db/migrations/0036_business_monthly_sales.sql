@@ -19,6 +19,7 @@ CREATE TABLE business_monthly_customer_sales (
   month          DATE NOT NULL CHECK (EXTRACT(DAY FROM month) = 1),
   branch         TEXT NOT NULL CHECK (branch IN ('hanoi', 'saigon')),
   customer_code  TEXT NOT NULL,
+  customer_id    BIGINT,
   customer_name  TEXT NOT NULL DEFAULT '',
   invoice_amount NUMERIC NOT NULL DEFAULT 0,
   return_amount  NUMERIC NOT NULL DEFAULT 0,
@@ -68,7 +69,8 @@ CREATE TABLE business_monthly_state (
   frozen_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
   customer_rows         INTEGER NOT NULL DEFAULT 0,
   customer_product_rows INTEGER NOT NULL DEFAULT 0,
-  net_revenue           NUMERIC NOT NULL DEFAULT 0
+  net_revenue           NUMERIC NOT NULL DEFAULT 0,
+  group_hash            TEXT
 );
 
 -- Khong can GRANT rieng: ALTER DEFAULT PRIVILEGES o 0010.

@@ -2,7 +2,7 @@
 
 // Chot cung doanh so theo thang cho Bao cao kinh doanh (migration 0036). Goi moi 5 phut
 // (nhu productReportRefresh.js): hau het cac lan chi la 1 SELECT state + dung lai bang
-// sale (chi ghi dong doi). Thang vua qua duoc chot khi gio VN >= 00:10 ngay mung 1 (cho
+// sale khi hash nhom doi (chi ghi dong doi). Thang vua qua duoc chot khi gio VN >= 00:10 ngay mung 1 (cho
 // hoa don cuoi ngay kip sync 7 phut/lan). Lan dau sau deploy: backfill moi thang tu
 // FIRST_MONTH. Nut "Tinh lai thang" goi freezeMonth truc tiep.
 //
@@ -26,6 +26,7 @@ async function freezeMonth(pool, month, { log = console.log } = {}) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await client.query('LOCK TABLE business_monthly_state, business_monthly_customer_sales IN SHARE ROW EXCLUSIVE MODE');
     await client.query(`SET LOCAL work_mem = '${REFRESH_WORK_MEM}'`);
     await client.query('DELETE FROM business_monthly_customer_sales WHERE month = $1', [month]);
     await client.query('DELETE FROM business_monthly_customer_product_sales WHERE month = $1', [month]);
@@ -43,7 +44,7 @@ async function freezeMonth(pool, month, { log = console.log } = {}) {
       INSERT INTO business_monthly_state (month, frozen_at, customer_rows, customer_product_rows, net_revenue)
       VALUES ($1, now(), $2, $3, $4)
       ON CONFLICT (month) DO UPDATE SET frozen_at = now(), customer_rows = EXCLUDED.customer_rows,
-        customer_product_rows = EXCLUDED.customer_product_rows, net_revenue = EXCLUDED.net_revenue`,
+        customer_product_rows = EXCLUDED.customer_product_rows, net_revenue = EXCLUDED.net_revenue, group_hash = NULL`,
     [month, stats.customer_rows, stats.customer_product_rows, stats.net_revenue]);
     await client.query('COMMIT');
     const result = { month, customerRows: stats.customer_rows, customerProductRows: stats.customer_product_rows, netRevenue: Number(stats.net_revenue) };
@@ -58,8 +59,33 @@ async function freezeMonth(pool, month, { log = console.log } = {}) {
 }
 
 async function rebuildSaleTable(pool) {
-  const { rows } = await pool.query(sql.REBUILD_SALE_SQL);
-  return rows[0] || { upserted: 0, deleted: 0 };
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Cung thu tu khoa voi freeze: khong the ghi hash cho bo so lieu dang thay doi.
+    await client.query('LOCK TABLE business_monthly_state, business_monthly_customer_sales IN SHARE ROW EXCLUSIVE MODE');
+    await client.query('LOCK TABLE customers IN SHARE MODE');
+    const { rows: states } = await client.query('SELECT group_hash FROM business_monthly_state');
+    if (!states.length) {
+      await client.query('COMMIT');
+      return { upserted: 0, deleted: 0 };
+    }
+    const { rows: hashes } = await client.query(sql.GROUP_HASH_SQL);
+    const hash = hashes[0].group_hash;
+    if (states.every(state => state.group_hash === hash)) {
+      await client.query('COMMIT');
+      return { upserted: 0, deleted: 0 };
+    }
+    const { rows } = await client.query(sql.REBUILD_SALE_SQL);
+    await client.query('UPDATE business_monthly_state SET group_hash = $1 WHERE group_hash IS DISTINCT FROM $1', [hash]);
+    await client.query('COMMIT');
+    return rows[0] || { upserted: 0, deleted: 0 };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 // Cac thang can chot: tu FIRST_MONTH den thang vua qua, tru thang da co state. Thang vua

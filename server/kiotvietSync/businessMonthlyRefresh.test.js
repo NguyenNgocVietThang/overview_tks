@@ -8,6 +8,8 @@ function fakePool(frozenMonths = []) {
   const client = {
     query: async (text, params) => {
       calls.push({ text: String(text), params });
+      if (/SELECT group_hash FROM business_monthly_state/.test(text)) return { rows: frozenMonths.map(month => ({ month, group_hash: null })) };
+      if (text === require('../businessReport/businessMonthlySql').GROUP_HASH_SQL) return { rows: [{ group_hash: 'test-hash' }] };
       if (/SELECT COUNT\(\*\)::int AS customer_rows/.test(text)) return { rows: [{ customer_rows: 3, customer_product_rows: 5, net_revenue: '1000' }] };
       return { rows: [], rowCount: 0 };
     },
@@ -50,7 +52,7 @@ test('IfDue: truoc 00:10 ngay 1 khong chot thang vua qua; sau do backfill moi th
   assert.deepEqual(r2.frozen, ['2026-09-01']);
 });
 
-test('IfDue luon dung lai bang sale (chi ghi dong doi) ke ca khi khong co thang moi', async () => {
+test('IfDue dung lai sale khi state chua co hash', async () => {
   const months = ['2026-03-01', '2026-04-01', '2026-05-01', '2026-06-01', '2026-07-01', '2026-08-01', '2026-09-01'];
   const pool = fakePool(months);
   const r = await job.refreshBusinessMonthlyIfDue(pool, { log: () => {}, now: () => new Date('2026-10-07T03:00:00Z') });

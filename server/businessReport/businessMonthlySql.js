@@ -96,12 +96,25 @@ const CUSTOMER_PRODUCT_MONTH_SELECT_SQL = `${CUSTOMER_BY_NAME_CTE},
   WHERE product_code <> ''
   GROUP BY branch, customer_code, product_code`;
 
+// Khach hien tai: cung quy tac canonical voi directory (co so, ma trim, id moi nhat).
+const CURRENT_CUSTOMER_GROUPS_SQL = `
+  SELECT DISTINCT ON (branch, btrim(code)) branch, btrim(code) AS code, id,
+         COALESCE(NULLIF(btrim(raw->>'groups'), ''), 'Chưa phân nhóm') AS sale_name
+  FROM customers
+  WHERE btrim(COALESCE(code, '')) <> ''
+  ORDER BY branch, btrim(code), id DESC`;
+
+// JSON giu ranh gioi branch/code/nhom, ORDER BY cho hash on dinh qua restart.
+const GROUP_HASH_SQL = `SELECT md5(COALESCE(jsonb_agg(jsonb_build_array(branch, code, sale_name)
+  ORDER BY branch, code)::text, '[]')) AS group_hash FROM (${CURRENT_CUSTOMER_GROUPS_SQL}) g`;
+
 const FREEZE_CUSTOMER_SQL = `
   INSERT INTO business_monthly_customer_sales
-    (month, branch, customer_code, customer_name, invoice_amount, return_amount, net_revenue, invoice_count, return_count)
-  SELECT $2::date, q.branch, q.customer_code, q.customer_name, q.invoice_amount, q.return_amount,
+    (month, branch, customer_code, customer_id, customer_name, invoice_amount, return_amount, net_revenue, invoice_count, return_count)
+  SELECT $2::date, q.branch, q.customer_code, c.id, q.customer_name, q.invoice_amount, q.return_amount,
          q.net_revenue, q.invoice_count, q.return_count
-  FROM (${CUSTOMER_MONTH_SELECT_SQL}) q`;
+  FROM (${CUSTOMER_MONTH_SELECT_SQL}) q
+  LEFT JOIN (${CURRENT_CUSTOMER_GROUPS_SQL}) c ON c.branch = q.branch AND c.code = q.customer_code`;
 
 const FREEZE_CUSTOMER_PRODUCT_SQL = `
   INSERT INTO business_monthly_customer_product_sales
@@ -120,11 +133,7 @@ const FREEZE_PRODUCT_SQL = `
 // (loc o SELECT, khong dua vao ON CONFLICT ... WHERE - van khoa + ghi WAL).
 const REBUILD_SALE_SQL = `
   WITH grp AS (
-    SELECT DISTINCT ON (branch, btrim(code)) branch, btrim(code) AS code,
-           COALESCE(NULLIF(btrim(raw->>'groups'), ''), 'Chưa phân nhóm') AS sale_name
-    FROM customers
-    WHERE btrim(COALESCE(code, '')) <> ''
-    ORDER BY branch, btrim(code), id DESC
+    ${CURRENT_CUSTOMER_GROUPS_SQL}
   ),
   target AS (
     SELECT m.month, COALESCE(g.sale_name, 'Chưa phân nhóm') AS sale_name,
@@ -155,6 +164,6 @@ const REBUILD_SALE_SQL = `
   SELECT (SELECT COUNT(*) FROM upserted)::int AS upserted, (SELECT COUNT(*) FROM deleted)::int AS deleted`;
 
 module.exports = {
-  BRANCH_CODES, CUSTOMER_MONTH_SELECT_SQL, CUSTOMER_PRODUCT_MONTH_SELECT_SQL,
+  CURRENT_CUSTOMER_GROUPS_SQL, GROUP_HASH_SQL, BRANCH_CODES, CUSTOMER_MONTH_SELECT_SQL, CUSTOMER_PRODUCT_MONTH_SELECT_SQL,
   FREEZE_CUSTOMER_SQL, FREEZE_CUSTOMER_PRODUCT_SQL, FREEZE_PRODUCT_SQL, REBUILD_SALE_SQL
 };

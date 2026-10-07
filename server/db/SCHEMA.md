@@ -326,11 +326,13 @@ Doanh số **theo tháng đã chốt cứng** cho tab "Báo cáo kinh doanh" (B�
 
 | Bảng | Mục đích | Khóa chính | Cột chính |
 |---|---|---|---|
-| `business_monthly_customer_sales` | Doanh số từng khách theo tháng | `(month, branch, customer_code)` | `customer_name`, `invoice_amount`, `return_amount`, `net_revenue`, `invoice_count`, `return_count`; `branch` ∈ `hanoi`/`saigon` |
+| `business_monthly_customer_sales` | Doanh số từng khách theo tháng | `(month, branch, customer_code)` | `customer_id` (BIGINT, nullable; khách hiện tại cùng cơ sở/mã trim, ID mới nhất), `customer_name`, `invoice_amount`, `return_amount`, `net_revenue`, `invoice_count`, `return_count`; `branch` ∈ `hanoi`/`saigon` |
 | `business_monthly_customer_product_sales` | Doanh số khách × mã hàng theo tháng — tổng chung từ được phân bổ cho từng dòng theo tỷ lệ thành tiền nên tổng theo mã = tổng theo khách (lệch vài đồng do làm tròn) | `(month, branch, customer_code, product_code)` | `product_name`, `net_revenue`, `net_qty`; index `business_monthly_cps_product_idx (product_code, month)` cho panel "top khách của 1 mã hàng" |
 | `business_monthly_product_sales` | Doanh số từng mã hàng theo tháng (gộp cả 2 cơ sở) | `(month, product_code)` | `product_name`, `net_revenue`, `net_qty` |
 | `business_monthly_sale_sales` | Doanh số từng sale theo tháng | `(month, sale_name)` | `net_revenue`, `customer_count` (số khách có doanh số ≠ 0 trong tháng; "SL Khách" trên UI là số khách hoạt động = TB 4 tháng > 0, tính lúc đọc), `refreshed_at` |
-| `business_monthly_state` | 1 dòng / tháng đã chốt; không có dòng = tháng chưa chốt (API tính trực tiếp) | `month` | `frozen_at`, `customer_rows`, `customer_product_rows`, `net_revenue` |
+| `business_monthly_state` | 1 dòng / tháng đã chốt; không có dòng = tháng chưa chốt (API tính trực tiếp) | `month` | `frozen_at`, `customer_rows`, `customer_product_rows`, `net_revenue`, `group_hash` (TEXT nullable) |
 
 - Job ghi: `kiotvietSync/businessMonthlyRefresh.js`. Module đọc: `businessReport/businessReportRepository.js`.
 - Spec: `docs/superpowers/specs/2026-10-07-business-report-design.md`.
+
+- `group_hash` băm các nhóm hiệu lực theo `(branch, btrim(code))`, chọn ID mới nhất khi trùng mã; nhóm rỗng là "Chưa phân nhóm". Job chỉ dựng sale khi có state và hash khác (NULL sau chốt/chốt lại). Dựng sale và ghi hash trong cùng giao dịch; rollback giữ bảng sale/hash cũ. Khóa bảng state/khách tháng tuần tự hóa freeze/rebuild; khóa SHARE trên customers giữ cùng nhóm giữa bước băm và dựng sale. Khởi động lại đọc hash đã lưu nên không dựng lại khi nhóm giữ nguyên.

@@ -186,7 +186,7 @@ Bảng xuất được: Chi tiết giao dịch, Danh sách mã mới, Sản ph�
 [B26] [Decision] Còn tháng đã qua (từ T3/2026) chưa chốt, và đã qua 00:10 VN ngày mùng 1?
      |-- Có -> chốt từng tháng: DELETE + INSERT ... SELECT bảng khách / khách × mã / mã + ghi state, trong 1 giao dịch (lỗi -> ROLLBACK, lượt sau thử lại)
      `-- Không -> [B27]
-[B27] [Task] Dựng lại bảng sale theo nhóm khách hiện tại trên KiotViet (chỉ ghi dòng đổi; khách không nhóm -> "Chưa phân nhóm")
+[B27] [Decision/Task] Có state và hash nhóm hiện tại khác group_hash đã lưu (NULL sau chốt/chốt lại)? Có -> dựng sale + ghi hash cùng giao dịch; lỗi rollback cả hai. Không -> bỏ dựng sale (khách không nhóm -> "Chưa phân nhóm")
 [B28] [Task] Người dùng mở /reports/#business -> GET /api/business-report/sales|customers|products (gộp HN + SG, không theo bộ chọn cơ sở)
               Tháng đã chốt đọc bảng business_monthly_*; tháng hiện tại/chưa chốt tính trực tiếp bằng cùng SQL (cache 60 giây)
 [B29] [Task] Server tính quy đổi 30 ngày, tăng trưởng, TB 4 tháng, khách hoạt động -> frontend vẽ 3 bảng; bấm dòng -> GET /api/business-report/detail (panel + biểu đồ cột)
