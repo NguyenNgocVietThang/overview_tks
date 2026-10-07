@@ -39,6 +39,7 @@ const summary = {
     closingBalance: null,
   },
   syncedAt: "2026-10-05T18:30:00Z",
+  revision: "v1",
 };
 const entries = {
   entries: [
@@ -82,13 +83,20 @@ const options = {
     partnerPhone: true,
   },
 };
-async function setup(t, { hash = "", fetcher } = {}) {
+async function setup(t, { hash = "", fetcher, captureTimers = false } = {}) {
   const dom = new JSDOM(html, {
     url: "https://tokosi.test/cashbook/" + hash,
     runScripts: "outside-only",
+    pretendToBeVisual: true,
   });
   t.after(() => dom.window.close());
   const w = dom.window;
+  const timers = new Map();
+  if (captureTimers) {
+    let nextTimer = 0;
+    w.setTimeout = (fn, ms) => { const id = ++nextTimer; timers.set(id, { fn, ms }); return id; };
+    w.clearTimeout = (id) => timers.delete(id);
+  }
   w.TKSNav = {
     authGuard: async () => ({ permissions: ["cashbook.view"] }),
     can: (key) => key === "cashbook.view",
@@ -126,6 +134,7 @@ async function setup(t, { hash = "", fetcher } = {}) {
     doc: w.document,
     api: w.TKSCashbook,
     calls,
+    timers,
     init: () => w.TKSCashbook.init(),
   };
 }
@@ -759,4 +768,95 @@ test("dropdown chọn nhiều có Chọn tất cả / Bỏ chọn, đếm số m
   search.dispatchEvent(new w.Event("input", { bubbles: true }));
   assert.equal(staff.querySelector(".dd-nomatch").hidden, false);
   assert.equal(staff.querySelector("[data-dd-all]").disabled, true);
+});
+
+test('quỹ chưa xác định giữ đúng nhãn và khóa lọc sau khi tải lại',async(t)=>{
+  const {doc,calls,init}=await setup(t,{hash:'#fund=unassigned'});
+  await init();
+  assert.equal(doc.getElementById('fundFilterName').textContent,'Chưa xác định tài khoản');
+  assert.ok(calls.some(c=>c.url.pathname.endsWith('/entries')&&c.url.searchParams.get('fund')==='unassigned'));
+});
+
+async function fireRefresh(timers) {
+  const next = [...timers].find(([,timer]) => timer.ms >= 15000);
+  assert.ok(next, 'visible page must schedule an automatic refresh check');
+  timers.delete(next[0]);
+  await next[1].fn();
+  await tick();
+}
+
+test('automatic checks skip unchanged data and refresh changed balances without losing filters or pagination', async t => {
+  let revision = 'v1';
+  const x = await setup(t, { captureTimers: true, hash: '#fund=cash', fetcher: async url => {
+    if (url.pathname.endsWith('sync-status')) return { ok: true, json: async () => ({ revision, enabled: true }) };
+    if (url.pathname.endsWith('summary')) return { ok: true, json: async () => ({ ...summary, revision, kpis: { ...summary.kpis, totalReceipts: revision === 'v1' ? 10 : 42 } }) };
+  }});
+  await x.init();
+  x.doc.getElementById('entriesLast').click(); await tick();
+  const before = x.calls.filter(c => c.url.pathname.endsWith('summary')).length;
+  await fireRefresh(x.timers);
+  assert.equal(x.calls.filter(c => c.url.pathname.endsWith('summary')).length, before);
+  revision = 'v2'; await fireRefresh(x.timers);
+  assert.equal(x.doc.getElementById('totalReceipts').textContent, '42');
+  const last = x.calls.filter(c => c.url.pathname.endsWith('entries')).at(-1).url;
+  assert.equal(last.searchParams.get('fund'), 'cash');
+  assert.equal(last.searchParams.get('page'), '3');
+});
+
+test('hidden and offline pages suspend polling; returning online or visible catches up immediately', async t => {
+  const x = await setup(t, { captureTimers: true, fetcher: async url => url.pathname.endsWith('sync-status')
+    ? { ok: true, json: async () => ({ revision: 'v1', enabled: true }) } : null });
+  let hidden = false, online = true;
+  Object.defineProperty(x.doc, 'hidden', { get: () => hidden });
+  Object.defineProperty(x.w.navigator, 'onLine', { get: () => online });
+  await x.init();
+  hidden = true; x.doc.dispatchEvent(new x.w.Event('visibilitychange')); await tick();
+  assert.equal(x.timers.size, 0);
+  const count = x.calls.length;
+  hidden = false; x.doc.dispatchEvent(new x.w.Event('visibilitychange')); await tick();
+  assert.equal(x.calls.length, count + 1);
+  online = false; x.w.dispatchEvent(new x.w.Event('offline')); await tick();
+  assert.equal(x.timers.size, 0);
+  online = true; x.w.dispatchEvent(new x.w.Event('online')); await tick();
+  assert.equal(x.calls.length, count + 2);
+});
+
+test('background refresh failures retain previous balances, back off, and retry the same revision', async t => {
+  let failed = false, revision = 'v1';
+  const x = await setup(t, { captureTimers: true, fetcher: async url => {
+    if (url.pathname.endsWith('sync-status')) return { ok: true, json: async () => ({ revision, enabled: true }) };
+    if (url.pathname.endsWith('summary')) {
+      if (failed) throw Error('network');
+      return { ok: true, json: async () => ({ ...summary, revision, kpis: { ...summary.kpis, totalReceipts: revision === 'v1' ? 10 : 99 } }) };
+    }
+  }});
+  await x.init(); revision = 'v2'; failed = true; await fireRefresh(x.timers);
+  assert.equal(x.doc.getElementById('totalReceipts').textContent, '10');
+  assert.ok(x.doc.querySelector('#balancesBody tr[data-fund="cash"]'));
+  assert.ok([...x.timers.values()].some(t => t.ms > 15000));
+  failed = false; await fireRefresh(x.timers);
+  assert.equal(x.doc.getElementById('totalReceipts').textContent, '99');
+});
+
+test('repeated focus events do not overlap status requests or replace a user filter request', async t => {
+  let resolveStatus;
+  const x = await setup(t, { captureTimers: true, fetcher: async url => url.pathname.endsWith('sync-status')
+    ? new Promise(r => { resolveStatus = r; }) : null });
+  await x.init();
+  x.w.dispatchEvent(new x.w.Event('focus')); x.w.dispatchEvent(new x.w.Event('focus'));
+  await tick();
+  assert.equal(x.calls.filter(c => c.url.pathname.endsWith('sync-status')).length, 1);
+  x.doc.querySelector('[data-select-fund="cash"]').click(); await tick();
+  resolveStatus({ ok: true, json: async () => ({ revision: 'v2', enabled: true }) }); await tick();
+  assert.equal(x.calls.filter(c => c.url.pathname.endsWith('entries')).at(-1).url.searchParams.get('fund'), 'cash');
+});
+
+test('pagehide stops timers and pageshow restores automatic refresh after browser back navigation', async t => {
+  const x = await setup(t, { captureTimers: true, fetcher: async url => url.pathname.endsWith('sync-status')
+    ? { ok: true, json: async () => ({ revision: 'v1', enabled: true }) } : null });
+  await x.init();
+  x.w.dispatchEvent(new x.w.Event('pagehide')); await tick();
+  assert.equal(x.timers.size, 0);
+  x.w.dispatchEvent(new x.w.Event('pageshow')); await tick();
+  assert.ok([...x.timers.values()].some(t => t.ms === 15000));
 });

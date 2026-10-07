@@ -185,3 +185,11 @@ khi **mọi trang** thành công; lỗi giữa chừng giữ mốc cũ để rep
 Chi phí: mỗi lượt purchases polling cần đọc toàn bộ trang API, nhưng không
 viết lại chi tiết của phiếu không thay đổi. Cần khởi động lại server để nạp
 logic polling mới. Không sửa chứng từ nguồn trên KiotViet.
+
+## Đối soát Sổ quỹ — 07/10/2026
+
+Live probe HN/SG đối chiếu phương thức Cash và status=0 khớp các tổng trên web KiotViet. Phiếu method=Cash có thể vẫn có accountId, kể cả -1: phân loại tiền mặt theo method. Timestamp trả về không có zone là giờ Việt Nam; query có Z được API chuyển sang giờ Việt Nam (00:00Z–07:00Z cho kết quả giống 07:00–14:00 không zone). Không truyền startDate/endDate chỉ trả một phần phiếu; đối soát đầy đủ dùng startDate=1970-01-01T00:00:00.000Z và endDate của lượt chạy.
+
+startDate/endDate lọc theo transDate, không phát hiện mọi sửa/hủy hoặc nhập lùi ngày. cash_flows đối soát toàn bộ mỗi ngày; giữa các lần đối soát replay 7 ngày. Metadata mốc hoàn tất lưu JSON trong sync_checkpoints.note. Tài liệu API chính thức (2.14.1): https://www.kiotviet.vn/huong-dan-su-dung-kiotviet/retail-ket-noi-api/public-api/
+
+Phân trang cashflow: orderBy=Id/orderDirection=ASC đã xác minh. Theo TransDate có thể trùng/thiếu phiếu cùng giờ. Phát hiện SG TT016464: ID cũ 206806358 không còn trên API (lọc ids trả total=0); cùng mã trả ID mới 206806359. Đối soát cần đánh dấu ID cũ bằng source_missing_at, giữ lịch sử nhưng không cộng trùng. Chỉ đánh dấu sau snapshot đủ ID duy nhất theo total API.

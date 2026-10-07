@@ -119,6 +119,10 @@ const CONFIG = {
     ? Number(process.env.KIOTVIET_SYNC_FAST_INTERVAL_MS) : 7 * 60 * 1000,
   KIOTVIET_SYNC_SLOW_INTERVAL_MS: Number(process.env.KIOTVIET_SYNC_SLOW_INTERVAL_MS) > 0
     ? Number(process.env.KIOTVIET_SYNC_SLOW_INTERVAL_MS) : 20 * 60 * 1000,
+  // Sổ quỹ có thể đồng bộ riêng khi engine tổng đang tắt.
+  KIOTVIET_CASHBOOK_SYNC_ENABLED: process.env.KIOTVIET_CASHBOOK_SYNC_ENABLED === 'true',
+  KIOTVIET_CASHBOOK_SYNC_INTERVAL_MS: Number.isFinite(Number(process.env.KIOTVIET_CASHBOOK_SYNC_INTERVAL_MS))
+    ? Math.max(60000, Number(process.env.KIOTVIET_CASHBOOK_SYNC_INTERVAL_MS) || 60000) : 60000,
   // Chu ky toi thieu giua 2 lan quet TOAN BO ton kho (/productOnHands, xem
   // kiotvietSync/entities/productOnHandsSnapshot.js). Mac dinh 10 phut.
   KIOTVIET_SYNC_ONHAND_SNAPSHOT_INTERVAL_MS: Number(process.env.KIOTVIET_SYNC_ONHAND_SNAPSHOT_INTERVAL_MS) > 0

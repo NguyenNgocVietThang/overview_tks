@@ -69,3 +69,21 @@ test('scheduler chạy ngay một lượt lúc khởi động, không đợi h�
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(calls.length, 1);
 });
+
+test('cash activity uses Vietnamese days after UTC normalization and excludes retired source IDs',async()=>{
+  const {PGlite}=require('@electric-sql/pglite');const db=new PGlite();
+  try {
+    await db.exec(`CREATE TABLE customers(branch text,id bigint,name text,code text,raw jsonb);
+      CREATE TABLE invoices(branch text,customer_id bigint,purchase_date timestamptz,raw jsonb);
+      CREATE TABLE returns(branch text,customer_id bigint,return_date timestamptz,raw jsonb);
+      CREATE TABLE cash_flows(branch text,customer_id bigint,trans_date timestamptz,raw jsonb,source_missing_at timestamptz);
+      CREATE TABLE customer_debt_activity_periods(branch text,period_days int,customer_id bigint,customer_name text,refreshed_at timestamptz,PRIMARY KEY(branch,period_days,customer_id));
+      INSERT INTO customers SELECT 'hanoi',n,'KH'||n,'KH'||n,'{}'::jsonb FROM generate_series(1,4) n;
+      INSERT INTO cash_flows VALUES('hanoi',1,'2026-10-06T18:00:00Z','{"status":0}',NULL),('hanoi',2,'2026-10-06T18:00:00Z','{"status":0}','2026-10-07T00:00:00Z'),('hanoi',3,'2026-09-30T18:00:00Z','{"status":0}',NULL);
+      INSERT INTO invoices VALUES('hanoi',4,'2026-10-07T00:30:00Z','{"statusValue":"Hoàn thành"}');`);
+    const sql=__sql__.REFRESH_SQL.replaceAll('now()',"TIMESTAMPTZ '2026-10-07T05:00:00Z'");
+    await db.query(sql,['hanoi']);
+    const rows=(await db.query('SELECT period_days,customer_id FROM customer_debt_activity_periods ORDER BY period_days,customer_id')).rows;
+    assert.deepEqual(rows.map(r=>[r.period_days,r.customer_id]),[[1,1],[1,4],[3,1],[3,4],[7,1],[7,3],[7,4]]);
+  } finally {await db.close();}
+});

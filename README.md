@@ -37,6 +37,7 @@ Mở `http://localhost:3000`.
 | `KIOTVIET_CLIENT_ID`, `KIOTVIET_CLIENT_SECRET`, `KIOTVIET_RETAILER` | KiotViet Hà Nội |
 | `KIOTVIET_CLIENT_ID_SG`, `KIOTVIET_CLIENT_SECRET_SG`, `KIOTVIET_RETAILER_SG` | KiotViet Sài Gòn |
 | `KIOTVIET_SYNC_ENABLED` | Công tắc chính của engine đồng bộ KiotViet → Supabase (mặc định tắt); kèm `KIOTVIET_SYNC_FAST_INTERVAL_MS` (7 phút), `KIOTVIET_SYNC_SLOW_INTERVAL_MS` (20 phút), `KIOTVIET_SYNC_ONHAND_SNAPSHOT_INTERVAL_MS` (10 phút) |
+| `KIOTVIET_CASHBOOK_SYNC_ENABLED` | Bật riêng đồng bộ Sổ quỹ khi engine tổng tắt. Khi engine tổng bật, Sổ quỹ cũng chạy. `KIOTVIET_CASHBOOK_SYNC_INTERVAL_MS` mặc định/tối thiểu 60 giây; giao diện kiểm tra mốc đồng bộ mỗi 15 giây khi đang hiển thị |
 | `KIOTVIET_WEBHOOK_SECRET` | Bí mật gắn vào đường dẫn webhook `/api/kiotviet/webhook/<secret>`; đường dẫn cũ không secret tắt bằng `KIOTVIET_WEBHOOK_LEGACY_PATH_ENABLED=false` |
 | `SPREADSHEET_ID`, `SPREADSHEET_ID_SG` | Di sản — không còn module nào đọc (Trả NCC đã chuyển sang upload Excel vào Postgres `supplier_return_imports`); bỏ trống vẫn chạy được |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Service account Google (bắt buộc khi khởi động). Quyền Viewer cho Công nợ và Vị trí hàng; **Editor** cho workbook Vòng đời đơn hàng (ghi tab `Lịch sử cập nhật`) |
@@ -69,7 +70,7 @@ server/
 │   ├── documentDetailRepository.js  # Chi tiết hóa đơn (popup bảng Chi tiết giao dịch) và chi tiết đơn đặt hàng (trang Vòng đời đơn hàng)
 │   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel
 ├── data/                 # Dữ liệu lưu trữ local (users.json, notifications.json, ...)
-├── db/                   # Migration Supabase (0001–0034) + SCHEMA.md (hợp đồng schema)
+├── db/                   # Migration Supabase (0001–0035) + SCHEMA.md (hợp đồng schema)
 ├── hr/                   # Nhân sự, nghỉ phép tự gửi, phạm vi duyệt chung, tài liệu quy định và cầu Postgres → SSE
 ├── kiotviet/             # KiotViet API client và webhook receiver
 ├── kiotvietSync/         # Webhook, polling, backfill và rollup
@@ -93,6 +94,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-07 — **Sửa số liệu Sổ quỹ**: phân loại tiền mặt theo phương thức Cash dù phiếu giữ ID tài khoản cũ; chuẩn hóa giờ Việt Nam khi đồng bộ; đối soát toàn bộ lịch sử mỗi ngày và đọc lại 7 ngày gần nhất để cập nhật phiếu nhập lùi ngày/sửa/hủy. Giao dịch thiếu tài khoản được giữ ở quỹ riêng. Migration `0035` thêm dấu `source_missing_at` để giữ lịch sử các ID đã được thay thế trên nguồn và loại khỏi phép tính; chỉ đánh dấu sau snapshot đầy đủ. Xem [hướng dẫn đối soát](docs/cashbook-setup.md).
 
 2026-10-06 — **Sổ quỹ: tồn quỹ tự tính từ KiotViet, bỏ chốt số dư và nhập tên ngân hàng**: tồn quỹ = tổng phiếu thu/chi chưa hủy (như KiotViet); bảng Số dư gộp 2 ID HN/SG cùng số TK thành 1 dòng với cột Tồn quỹ HN / Tồn quỹ SG / Tổng tồn quỹ; số dư lũy kế Sổ chi tiết luôn hiện. Gỡ API `/checkpoints`, `PUT /accounts/:id/bank`, mục Lịch sử chốt và 2 hộp thoại; không cần migration (bảng 0033/0034 để nguyên, không dùng). Gỡ dropdown Quỹ (bấm dòng bảng Số dư để lọc), thêm Chọn tất cả / Bỏ chọn + ô tìm trong các dropdown chọn nhiều, gỡ quyền `cashbook.manage` ("Chốt số dư sổ quỹ"; ghi đè cũ trong tài khoản tự bị bỏ qua). Xuất HTML của Sổ quỹ giờ là dashboard tự chứa dùng chung bộ dựng tab Báo cáo: số liệu tổng quan (Tổng thu/Tổng chi/Tổng giá trị hoặc Tổng tồn quỹ/HN/SG), ô tìm, bộ lọc, biểu đồ Chart.js và bảng sắp xếp được. Chi tiết: [docs/cashbook-setup.md](docs/cashbook-setup.md).
 

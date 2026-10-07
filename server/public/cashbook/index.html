@@ -1138,6 +1138,7 @@
             <p class="view-sub">
               Toàn công ty · gộp phiếu thu chi Hà Nội + Sài Gòn ·
               <span id="syncedAt">Dữ liệu KiotViet: đang tải mốc đồng bộ…</span>
+              · <span id="liveStatus" role="status">Tự động cập nhật</span>
             </p>
           </div>
           <button
@@ -1495,6 +1496,9 @@
           loadVersion = 0,
           loadController,
           debounceTimer;
+        let loadBusy = false, lastRevision = null;
+        let refreshTimer, refreshController, refreshBusy = false,
+          refreshDelay = 15000, pageAway = false;
         let pages = { entries: 1 },
           pageCounts = { entries: 1 };
         let exportView,
@@ -1878,6 +1882,7 @@
           const fund = String(value ?? "all");
           if (fund === "all") return null;
           if (fund === "cash") return "Tiền mặt";
+          if (fund === "unassigned") return "Chưa xác định tài khoản";
           if (fund === "bank") return "Tất cả ngân hàng";
           if (fund === "") return "Không chọn";
           // Một tài khoản = nhóm ID HN+SG cùng số TK.
@@ -1966,13 +1971,15 @@
         function openDropdown() {
           return document.querySelector("[data-dd].open");
         }
-        async function load() {
+        async function load({ background = false } = {}) {
           const version = ++loadVersion;
           if (loadController) loadController.abort();
           loadController = new AbortController();
           const signal = loadController.signal,
             base = query(filters);
-          status("Đang tải dữ liệu…");
+          loadBusy = true;
+          const deadline = setTimeout(() => loadController?.signal === signal && loadController.abort(), 30000);
+          if (!background) status("Đang tải dữ liệu…");
           $("cashbookResults").setAttribute("aria-busy", "true");
           try {
             const [s, e] = await Promise.all([
@@ -1986,7 +1993,7 @@
                 signal,
               ),
             ]);
-            if (version !== loadVersion) return;
+            if (version !== loadVersion) return false;
             for (const key of [
               "totalReceipts",
               "totalPayments",
@@ -2006,8 +2013,11 @@
               Number(s.totalBalance) < 0,
             );
             pager("entries", e);
+            lastRevision = s.revision ?? null;
             status("");
+            return true;
           } catch (error) {
+            if (background) return false;
             if (version === loadVersion && error.name !== "AbortError") {
               // Không hiển thị số dư của bộ lọc cũ khi yêu cầu mới thất bại.
               for (const key of [
@@ -2030,9 +2040,72 @@
               $("balanceTotal").textContent = "";
               status(error.message, true);
             }
+            if (version === loadVersion && error.name === "AbortError")
+              status("Tải dữ liệu quá lâu. Vui lòng thử lại.", true);
+            return false;
           } finally {
-            if (version === loadVersion)
+            clearTimeout(deadline);
+            if (version === loadVersion) {
+              loadBusy = false;
               $("cashbookResults").setAttribute("aria-busy", "false");
+            }
+          }
+        }
+        function canRefresh() {
+          return !pageAway && !document.hidden && navigator.onLine !== false;
+        }
+        function pauseRefresh() {
+          clearTimeout(refreshTimer);
+          refreshTimer = null;
+          refreshController?.abort();
+        }
+        function scheduleRefresh() {
+          clearTimeout(refreshTimer);
+          if (canRefresh()) refreshTimer = setTimeout(checkFreshness, refreshDelay);
+        }
+        async function checkFreshness() {
+          clearTimeout(refreshTimer);
+          if (!canRefresh() || refreshBusy) return;
+          if (loadBusy) { scheduleRefresh(); return; }
+          refreshBusy = true;
+          const controller = new AbortController();
+          refreshController = controller;
+          const deadline = setTimeout(() => controller.abort(), 10000);
+          try {
+            const sync = await json("/api/cashbook/sync-status", controller.signal);
+            if (!canRefresh() || controller.signal.aborted) return;
+            // User interactions own their requests; wait until they finish.
+            if (!loadBusy && (!catalog || sync.revision !== lastRevision)) {
+              if (!catalog) {
+                catalog = await json("/api/cashbook/filter-options", controller.signal);
+                choices("groupChoices", "groups", catalog.groups, "key");
+                choices("creatorChoices", "creators", catalog.creators, "id");
+                choices("staffChoices", "staff", catalog.staff, "id");
+                syncFilters();
+              }
+              if (!await load({ background: true })) throw new Error("refresh failed");
+            }
+            refreshDelay = 15000;
+            $("liveStatus").textContent = sync.enabled
+              ? "Tự động cập nhật" : "Tự động làm mới · đồng bộ KiotViet đang tắt";
+          } catch (error) {
+            if (canRefresh()) {
+              refreshDelay = Math.min(refreshDelay * 2, 60000);
+              $("liveStatus").textContent = "Chưa cập nhật được · sẽ tự thử lại";
+            }
+          } finally {
+            clearTimeout(deadline);
+            refreshController = null;
+            refreshBusy = false;
+            scheduleRefresh();
+          }
+        }
+        function resumeRefresh() {
+          if (canRefresh()) checkFreshness();
+          else {
+            pauseRefresh();
+            if (navigator.onLine === false)
+              $("liveStatus").textContent = "Mất kết nối · chờ mạng trở lại";
           }
         }
         function choices(id, name, values, key) {
@@ -2479,6 +2552,13 @@
           }
           syncFilters();
           await loadCatalog();
+          document.addEventListener("visibilitychange", resumeRefresh);
+          window.addEventListener("focus", resumeRefresh);
+          window.addEventListener("online", resumeRefresh);
+          window.addEventListener("offline", resumeRefresh);
+          window.addEventListener("pagehide", () => { pageAway = true; pauseRefresh(); });
+          window.addEventListener("pageshow", () => { pageAway = false; resumeRefresh(); });
+          scheduleRefresh();
         }
         window.TKSCashbook = {
           init,

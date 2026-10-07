@@ -32,6 +32,7 @@ async function request(
         summary: async () => ({ balances: [{ fund: 'cash', balance: 10 }] }),
         entries: async () => ({ entries: [], total: 0 }),
         filterOptions: async () => ({ funds: [] }),
+        syncStatus: async () => ({ revision: 'hn:1|sg:2', enabled: true, intervalMs: 60000 }),
         ...repo,
       },
     }),
@@ -63,6 +64,7 @@ test('Sale/Kho/Khách forbidden every endpoint and manager allowed/no-store rega
       ['/summary', 'GET'],
       ['/entries', 'GET'],
       ['/filter-options', 'GET'],
+      ['/sync-status', 'GET'],
       ['/export?view=entries&format=html', 'GET'],
     ]) {
       assert.equal(
@@ -79,6 +81,7 @@ test('Sale/Kho/Khách forbidden every endpoint and manager allowed/no-store rega
     '/summary',
     '/entries',
     '/filter-options',
+    '/sync-status',
     '/export?view=entries&format=html',
   ]) {
     const r = await request(path);
@@ -105,6 +108,7 @@ test('chốt số dư và sửa ngân hàng đã gỡ: không còn route ghi, qu
   );
 });
 test('unauthenticated returns401; internal errors generic no SQL detail; export limit400', async () => {
+  assert.equal((await request('/sync-status', { user: null })).status, 401);
   assert.equal((await request('/entries', { user: null })).status, 401);
   const r = await request('/summary', {
     repo: {
@@ -123,4 +127,10 @@ test('unauthenticated returns401; internal errors generic no SQL detail; export 
     ).status,
     400,
   );
+});
+
+test('freshness endpoint exposes successful-sync revision and interval without financial rows', async () => {
+  const r = await request('/sync-status');
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.data, { revision: 'hn:1|sg:2', enabled: true, intervalMs: 60000 });
 });

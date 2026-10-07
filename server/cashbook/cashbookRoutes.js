@@ -32,6 +32,11 @@ function createCashbookRouter({ repository = createRepository() } = {}) {
     };
   }
   router.get(
+    '/sync-status',
+    ...view,
+    handle(async (req, res) => res.json(await repository.syncStatus())),
+  );
+  router.get(
     '/summary',
     ...view,
     handle(async (req, res) =>

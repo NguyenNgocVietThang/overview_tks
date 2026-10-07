@@ -4,7 +4,7 @@ Express backend cho dashboard TOKOSI.
 
 ## Nguồn dữ liệu
 
-- Sổ quỹ: module `cashbook/` đọc `cash_flows`, `cash_book_accounts`, `staff` và mốc `sync_checkpoints` cho toàn công ty. API `/api/cashbook/{summary,entries,filter-options,export}` bỏ qua cookie cơ sở. Tồn quỹ = tổng phiếu chưa hủy; quỹ ngân hàng gộp các ID HN/SG cùng số TK (cột Tồn quỹ HN/SG/Tổng). Quyền đọc `cashbook.view`; xuất xlsx/html chọn cột, tối đa 20.000 dòng. Không cache.
+- Sổ quỹ: module `cashbook/` đọc `cash_flows`, `cash_book_accounts`, `staff` và mốc `sync_checkpoints` cho toàn công ty. API `/api/cashbook/{summary,entries,filter-options,sync-status,export}` bỏ qua cookie cơ sở. Tồn quỹ = tổng phiếu chưa hủy; quỹ ngân hàng gộp các ID HN/SG cùng số TK (cột Tồn quỹ HN/SG/Tổng). Quyền đọc `cashbook.view`; xuất xlsx/html chọn cột, tối đa 20.000 dòng. Không cache. Trang kiểm tra revision của cả HN/SG mỗi 15 giây, chỉ tải lại số liệu khi mốc thành công thay đổi; giữ bộ lọc/phân trang, tạm dừng khi ẩn/offline, thử lại với backoff 30–60 giây và giữ số cũ khi tải nền lỗi.
   Frontend `public/cashbook/index.html` dùng theme/shared-nav chung, lọc trên URL hash (giữ danh sách rỗng), debounce tìm tên/ID và SĐT 300ms, ngăn kéo mobile, phân trang máy chủ và xuất chọn cột riêng từng bảng. Ngày/giờ theo Việt Nam. `test/frontend/cashbook.test.js` trích script HTML để kiểm thử hành vi; không dùng DB production.
 
 - Vị trí hàng: workbook `STOCK_LOCATIONS_SPREADSHEET_ID`, hai sheet HN/SG dùng chung, chỉ đọc bằng service account. Module `stockLocations/` phục vụ `GET /api/stock-locations?branch=HN|SG`; frontend `/stock-locations/` hiển thị 6 cột (Mã hàng, Tên hàng, Tổng SL, Ghi chú hàng hóa, Ngày về, Vị trí), phân trang 100 dòng và tìm mã/tên/vị trí không dấu. Quyền `stockLocations.view` mặc định cho nhân viên, cấm cấp cho Khách. Không migration/job/tải định kỳ. Xem [thiết lập nguồn và nghiệm thu](../docs/stock-locations-setup.md).
@@ -108,7 +108,8 @@ Webhook KiotViet đi vào `POST /api/kiotviet/webhook/<KIOTVIET_WEBHOOK_SECRET>`
 | Nhóm / job | Nội dung | Nhịp |
 |---|---|---|
 | Polling **fast** | `invoices`, `orders`, `product_on_hands`, `product_on_hands_snapshot` (quét toàn bộ tồn kho, tối đa 10 phút/lần), `order_suppliers` (Đặt hàng nhập) | 7 phút, sau mỗi lượt tính lại ngay rollup "nóng" 7 ngày rồi phát SSE `dashboard-updated` |
-| Polling **slow** | `categories`, `products`, `customers`, `returns`, `purchases` (đối soát toàn bộ từ mốc sàn đứt hàng 01/02/2026), `cash_flows` | 20 phút |
+| Polling **slow** | `categories`, `products`, `customers`, `returns`, `purchases` (đối soát toàn bộ từ mốc sàn đứt hàng 01/02/2026) | 20 phút |
+| Sổ quỹ | `cash_flows` HN/SG, đọc lại 7 ngày; đối soát toàn bộ lịch sử mỗi ngày | 60 giây (`KIOTVIET_CASHBOOK_SYNC_INTERVAL_MS`, tối thiểu 60 giây), không chồng lượt; bật khi engine tổng bật hoặc `KIOTVIET_CASHBOOK_SYNC_ENABLED=true` |
 | Rollup đầy đủ | `daily_invoice_summary`, `daily_product_sales`, `product_first_purchase` (cửa sổ 400 ngày) | 30 phút |
 | CN1/CN3/CN7 | `customerDebtReportRefresh.js` → `customer_debt_activity_periods` | 5 phút |
 | Báo cáo hàng hóa | `productReportRefresh.js` → `product_report`, `product_report_customers` | kiểm tra mỗi 5 phút, tính **1 lần/đêm** |
@@ -180,3 +181,5 @@ Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng 
 `hr/hrLeaveAuthorization.js` dùng chung quyền web/Telegram; `hr/hrLeaveSelfService.js` lấy danh tính HR hoạt động. API `/api/hr/leave-requests/self` nhận ngày/buổi, lý do, bàn giao; `/self/context` trả hồ sơ hiển thị. PATCH trạng thái bắt buộc `expectedVersion`, trả 409 nếu đã đổi. `hr.leave.absence.manage` riêng cho tự ý nghỉ. Inbox bot độc lập giao tin; ACK sau lưu bền vững. [Hợp đồng và nghiệm thu](../docs/hr-leave-upgrade.md).
 
 Đơn tự gửi web lấy `telegram_chat_id` từ liên kết tài khoản trên server. Khi quyết định đơn `source=web` không có chat, service đặt `decision_notified_at` để bot nhân viên không thử gửi tới chat rỗng; thông báo web vẫn được tạo. Với đơn có chat và đơn từ bot nhân viên, chu kỳ NULL → gửi kết quả → đánh dấu và reset khi đổi trạng thái giữ nguyên.
+
+2026-10-07 — Sửa phân loại quỹ theo Cash thay cho account_id rỗng, chuẩn hóa timestamp API sang +07:00, đối soát lịch sử cash_flows mỗi ngày và replay 7 ngày giữa các lần đối soát; ghi theo lô và tự sửa cột account/status/time bị phiên đồng bộ cũ để trống hoặc hiểu sai múi giờ. Cần migration `0035_cash_flows_source_presence.sql` để giữ lịch sử các ID không còn trên nguồn bằng dấu `source_missing_at`, không xóa bản ghi.

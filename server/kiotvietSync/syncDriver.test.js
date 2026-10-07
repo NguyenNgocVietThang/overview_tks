@@ -167,3 +167,38 @@ test('failed initial snapshot keeps checkpoint empty; an empty successful sweep 
   await driver.pollEntityOnce({ fetchAllPages: async () => {} }, 'hanoi', entity);
   assert.equal(advances, 1);
 });
+
+test('cash flow daily reconciliation recovers old edits; intervening polls replay recent days',async()=>{
+  const pool=fakePool(),queries=[],saved=[];
+  let checkpoint={last_synced_at:'2026-10-06T00:00:00Z',note:'2026-10-06T00:00:00Z'};
+  const driver=createSyncDriver({pool,now:()=>Date.parse('2026-10-07T00:00:00Z'),checkpointRepository:{
+    getCheckpoint:async()=>checkpoint,
+    advanceCheckpoint:async(_b,_e,at,{note})=>{checkpoint={last_synced_at:at,note};}
+  }});
+  const entity={...require('./entities/cashFlows'),upsertPage:async(_c,_b,items)=>saved.push(...items),reconcilePage:async(_c,_b,items)=>saved.push(...items)};
+  const old={id:501,code:'OldCancelled',status:1,transDate:'2026-02-05T08:00:00',amount:500};
+  const api={fetchAllPages:async(_e,q,cb)=>{queries.push(q);await cb(q.startDate.startsWith('1970-')?[old]:[]);}};
+  await driver.pollEntityOnce(api,'hanoi',entity);
+  assert.equal(queries[0].startDate,'1970-01-01T00:00:00.000Z');
+  assert.equal(saved.length,2);
+  queries.length=0;
+  await driver.pollEntityOnce(api,'hanoi',{...entity,minIntervalMs:0});
+  assert.equal(queries[0].startDate,'2026-09-30T00:00:00.000Z');
+  assert.equal(queries[0].endDate,'2026-10-07T00:00:00.000Z');
+});
+test('cash flow reconciliation does not publish a completed marker after a failed later page',async()=>{
+  const pool=fakePool();let advances=0;
+  const driver=createSyncDriver({pool,checkpointRepository:{getCheckpoint:async()=>null,advanceCheckpoint:async()=>advances++}});
+  const entity={...require('./entities/cashFlows'),upsertPage:pool.upsert,reconcilePage:pool.upsert};
+  await assert.rejects(driver.pollEntityOnce({fetchAllPages:async(_e,_q,cb)=>{await cb([{id:1}]);throw new Error('later page failed');}},'hanoi',entity),/later page failed/);
+  assert.equal(advances,0);
+});
+
+test('incomplete full cash flow pagination cannot mark missing cache or advance checkpoint',async()=>{
+  const pool=fakePool();let pruned=0,advanced=0;
+  const driver=createSyncDriver({pool,checkpointRepository:{getCheckpoint:async()=>null,advanceCheckpoint:async()=>advanced++}});
+  const entity={...require('./entities/cashFlows'),reconcilePage:pool.upsert,markMissing:async()=>pruned++};
+  const api={fetchAllPages:async(_e,_q,cb)=>{await cb([{id:1}],{total:2});}};
+  await assert.rejects(driver.pollEntityOnce(api,'hanoi',entity),/Incomplete cash flow snapshot/);
+  assert.equal(pruned,0);assert.equal(advanced,0);
+});

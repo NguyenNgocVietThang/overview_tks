@@ -204,7 +204,7 @@ Role Postgres cấp cho nhân viên dùng SQL client/BI tool để truy vấn tr
 
 1. `branch` là định danh nội bộ (`hanoi`/`saigon`), khác nhãn tiếng Việt trong `BRANCHES` và khác retailer code dùng để gọi API. Không trộn ba giá trị này.
 2. `line_no` là vị trí phần tử trong mảng payload, đánh số từ 0, không phải ID KiotViet. Khi cập nhật một entity cha, phải xóa toàn bộ dòng con cũ rồi chèn lại. Nếu payload thật có ID dòng ổn định, chỉ thay đổi chiến lược bằng một migration mới sau khi đã xác minh.
-3. `cash_flows` không có `modified_date`. Đồng bộ entity này phải dùng cửa sổ `startDate`/`endDate`; trạng thái cửa sổ được lưu trong `sync_checkpoints.note`, không dùng cơ chế `lastModifiedFrom` của các entity khác.
+3. `cash_flows` không có `modified_date`. Đồng bộ entity này phải dùng cửa sổ `startDate`/`endDate`; trạng thái cửa sổ được lưu trong `sync_checkpoints.note`, không dùng cơ chế `lastModifiedFrom` của các entity khác. Từ 07/10/2026, note là JSON `{windowEnd,reconciledAt}`: đối soát toàn lịch sử mỗi ngày, replay 7 ngày giữa các lần đối soát. Timestamp API không có zone được ghi với +07:00; đối soát tự sửa các cột chiếu account_id/status/trans_date bị phiên server cũ ghi sai.
 
 ## Một lưu ý bắt buộc cho Giai đoạn 3 (backfill)
 
@@ -314,3 +314,8 @@ Migration `0032_hr_department_groups.sql` gộp `BAN QUẢN LÝ`/`TRƯỞNG CHI 
 ## Sổ quỹ — migration 0034
 
 - cash_book_account_banks: account_no TEXT PRIMARY KEY; bank TEXT NOT NULL; updated_by TEXT; updated_at TIMESTAMPTZ NOT NULL DEFAULT now(). Tên ngân hàng do Quản lý nhập tay trên trang Sổ quỹ (KiotViet bankaccounts chỉ có bankName = tên chủ TK, không có ngân hàng). Khóa theo số tài khoản nên HN và SG cùng số TK dùng chung một giá trị; đồng bộ KiotViet không ghi đè. Không FK tới cash_book_accounts.
+
+## Sổ quỹ — migration 0035
+
+- `cash_flows.source_missing_at TIMESTAMPTZ` mặc định NULL. Đối soát đủ ID đánh dấu các ID nguồn đã thay thế/loại bỏ trong đúng cơ sở và tới đúng thời điểm; giữ nguyên toàn bộ lịch sử và raw, không xóa bản ghi. Các truy vấn Sổ quỹ và hoạt động công nợ bỏ qua dòng có dấu này. Upsert nguồn tự đặt lại NULL nếu ID xuất hiện lại.
+- Cash nhận diện theo method (có thể vẫn giữ account_id lịch sử); phương thức khác thiếu tài khoản ở nhóm unassigned. Timestamp cash_flows là thời điểm UTC thật, khác hợp đồng giờ tường của invoices/returns; hoạt động công nợ chuyển riêng trans_date sang giờ tường +7 giờ trước khi ghép các nguồn.

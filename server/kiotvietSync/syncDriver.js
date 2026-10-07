@@ -19,6 +19,45 @@ function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints 
   }
 
   async function pollCashFlows(kiotVietClient, branch, entityModule, checkpoint, runEndIso) {
+    if (entityModule.reconcileIntervalMs) {
+      let lastReconciledAt;
+      try { lastReconciledAt = JSON.parse(checkpoint?.note || '{}').reconciledAt; } catch (_) {}
+      const lastMs = Date.parse(lastReconciledAt);
+      const full = !Number.isFinite(lastMs) || Date.parse(runEndIso) - lastMs >= entityModule.reconcileIntervalMs;
+      // startDate filters transaction time, not modification time. Replay recent
+      // days between daily complete sweeps so old edits/cancellations are repaired.
+      const range = full ? {startDate:'1970-01-01T00:00:00.000Z',endDate:runEndIso} : {
+        startDate: new Date(Math.min(Date.parse(checkpoint.last_synced_at) || Date.parse(runEndIso), Date.parse(runEndIso) - entityModule.replayWindowMs)).toISOString(),
+        endDate: runEndIso
+      };
+      const seenIds = new Set();
+      for (const isReceipt of ['true','false']) {
+        const streamIds = new Set();
+        let expectedTotal;
+        await kiotVietClient.fetchAllPages(entityModule.endpoint, {...entityModule.listQuery,...range,isReceipt}, async (page,info)=>{
+          if (info?.total != null) expectedTotal = Number(info.total);
+          for (const item of page) {
+            const id = String(item.Id ?? item.id);
+            streamIds.add(id);
+            seenIds.add(id);
+          }
+          const items=page.map(item=>({...item,IsReceipt:isReceipt==='true'}));
+          await inTransaction(client=>(entityModule.reconcilePage || entityModule.upsertPage)(client,branch,items));
+        });
+        if (Number.isFinite(expectedTotal) && streamIds.size !== expectedTotal)
+          throw new Error(`Incomplete cash flow snapshot: ${branch}/${isReceipt}, ${streamIds.size}/${expectedTotal} unique IDs`);
+      }
+      // Preserve historical rows; only flag missing source IDs after a complete
+      // sweep. Publish that flag and the completed marker in the same transaction.
+      await inTransaction(async client=>{
+        if (full && entityModule.markMissing)
+          await entityModule.markMissing(client,branch,[...seenIds],runEndIso);
+        await checkpoints.advanceCheckpoint(branch,entityModule.entity,runEndIso,{
+          client,note:JSON.stringify({windowEnd:runEndIso,reconciledAt:full?runEndIso:lastReconciledAt})
+        });
+      });
+      return;
+    }
     const noteDate = checkpoint?.note && Date.parse(checkpoint.note);
     const startDate = Number.isFinite(noteDate)
       ? new Date(noteDate).toISOString()

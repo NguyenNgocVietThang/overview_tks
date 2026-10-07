@@ -7,7 +7,7 @@ const { createPollingScheduler } = require('./scheduler');
 test('disabled scheduler creates no timers and touches no configuration, API, database, or rollup dependency', () => {
   let touched = 0;
   const scheduler = createPollingScheduler({
-    enabled:false, getConfiguredBranches:()=>{touched++;}, setIntervalFn:()=>{touched++;},
+    enabled:false, cashbookEnabled:false, getConfiguredBranches:()=>{touched++;}, setIntervalFn:()=>{touched++;},
     getPool:()=>{touched++;}, startDashboardRollupSchedule:()=>{touched++;}
   });
   assert.deepEqual(scheduler.startPollingScheduler(), []);
@@ -33,8 +33,8 @@ test('scheduler creates independent fast and slow timers at configured intervals
     startCustomerInvoiceLinesSchedule:(pool,opts)=>{invoiceLinesCalls.push({pool,...opts}); return 'invoice-lines-handle';},
     startInventoryValueSnapshotSchedule:(pool,opts)=>{inventorySnapshotCalls.push({pool,...opts}); return 'inventory-snapshot-handle';}
   });
-  assert.deepEqual(scheduler.startPollingScheduler(), [7,20,86400000,'rollup-handle','debt-report-handle','product-report-handle','invoice-lines-handle','inventory-snapshot-handle']);
-  assert.deepEqual(timers.map((x)=>x.ms), [7,20,86400000]);
+  assert.deepEqual(scheduler.startPollingScheduler(), [7,20,86400000,60000,'rollup-handle','debt-report-handle','product-report-handle','invoice-lines-handle','inventory-snapshot-handle']);
+  assert.deepEqual(timers.map((x)=>x.ms), [7,20,86400000,60000]);
   assert.equal(immediate.length, 1);
   assert.equal(rollupCalls.length, 1);
   assert.equal(rollupCalls[0].pool, 'fake-pool');
@@ -57,6 +57,52 @@ test('scheduler creates independent fast and slow timers at configured intervals
   assert.equal(inventorySnapshotCalls.length, 1);
   assert.equal(inventorySnapshotCalls[0].pool, 'fake-pool');
   assert.equal(inventorySnapshotCalls[0].intervalMs, 60000);
+});
+
+test('cashbook-only sync runs both branches on its own timer while other jobs remain disabled', async () => {
+  const timers = [], immediate = [], calls = [];
+  const scheduler = createPollingScheduler({
+    enabled: false, cashbookEnabled: true, cashbookIntervalMs: 60000,
+    getConfiguredBranches: () => [{ branch: 'hanoi' }, { branch: 'saigon' }],
+    createKiotVietClient: () => ({}), pollEntityOnce: async (_api, branch, entity) => calls.push(`${branch}:${entity.entity}`),
+    setIntervalFn: (fn, ms) => (timers.push({ fn, ms }), ms), scheduleImmediate: fn => immediate.push(fn),
+    getPool: () => ({ query: async () => ({ rows: [{ id: 1 }] }) }),
+    startDashboardRollupSchedule: () => { throw Error('unrelated rollup'); }
+  });
+  scheduler.startPollingScheduler();
+  immediate[0]();
+  await new Promise(r => setImmediate(r));
+  assert.deepEqual(calls.sort(), ['hanoi:cash_flows', 'saigon:cash_flows']);
+  calls.length = 0;
+  await timers.find(t => t.ms === 60000).fn();
+  assert.deepEqual(calls.sort(), ['hanoi:cash_flows', 'saigon:cash_flows']);
+  assert.deepEqual(timers.map(t => t.ms).sort((a,b) => a-b), [60000, 86400000]);
+});
+
+test('cash flow synchronization is excluded from the slow group and overlapping cashbook ticks are skipped', async () => {
+  const timers = [], calls = [];
+  let finish, hold = false;
+  const scheduler = createPollingScheduler({
+    enabled: true, cashbookIntervalMs: 60000,
+    getConfiguredBranches: () => [{ branch: 'hanoi' }], createKiotVietClient: () => ({}),
+    pollEntityOnce: async (_api, _branch, entity) => {
+      calls.push(entity.entity);
+      if (hold && entity.entity === 'cash_flows') await new Promise(r => { finish = r; });
+    },
+    setIntervalFn: (fn, ms) => (timers.push({ fn, ms }), ms), scheduleImmediate: () => {},
+    getPool: () => ({}), startDashboardRollupSchedule: () => {}, startCustomerDebtReportRefreshSchedule: () => {},
+    startProductReportSchedule: () => {}, startCustomerInvoiceLinesSchedule: () => {}, startInventoryValueSnapshotSchedule: () => {}
+  });
+  scheduler.startPollingScheduler();
+  await timers[1].fn();
+  assert.ok(!calls.includes('cash_flows'));
+  hold = true;
+  const timer = timers.find(t => t.ms === 60000);
+  const pending = timer.fn();
+  await new Promise(r => setImmediate(r));
+  await timer.fn();
+  assert.equal(calls.filter(x => x === 'cash_flows').length, 1);
+  finish(); await pending;
 });
 
 test('scheduler schedules an immediate background catch-up from persisted checkpoints', async () => {

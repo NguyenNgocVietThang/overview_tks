@@ -137,7 +137,7 @@ async function startServer() {
     if (managerLeaveRuntime) managerLeaveRuntime.start();
 
 
-    if (CONFIG.KIOTVIET_SYNC_ENABLED) {
+    if (CONFIG.KIOTVIET_SYNC_ENABLED || CONFIG.KIOTVIET_CASHBOOK_SYNC_ENABLED) {
       startPollingScheduler();
     }
 

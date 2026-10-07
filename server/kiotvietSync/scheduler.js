@@ -20,14 +20,17 @@ const { startInventoryValueSnapshotSchedule } = require('./inventoryValueSnapsho
 const fastEntities = [require('./entities/invoices'), require('./entities/orders'), require('./entities/productOnHands'),
   require('./entities/productOnHandsSnapshot'), require('./entities/orderSuppliers')];
 const slowEntities = [require('./entities/categories'), require('./entities/products'), require('./entities/customers'),
-  require('./entities/returns'), require('./entities/purchases'), require('./entities/cashFlows')];
+  require('./entities/returns'), require('./entities/purchases')];
 
 const bankAccounts = require('./entities/bankAccounts');
+const cashFlows = require('./entities/cashFlows');
 
 function createPollingScheduler({
   enabled = CONFIG.KIOTVIET_SYNC_ENABLED,
   fastIntervalMs = CONFIG.KIOTVIET_SYNC_FAST_INTERVAL_MS,
   slowIntervalMs = CONFIG.KIOTVIET_SYNC_SLOW_INTERVAL_MS,
+  cashbookEnabled = enabled || CONFIG.KIOTVIET_CASHBOOK_SYNC_ENABLED,
+  cashbookIntervalMs = CONFIG.KIOTVIET_CASHBOOK_SYNC_INTERVAL_MS,
   // Luot rollup DAY DU (400 ngay, ~6,4s + ghi de ~61.000 dong do 2026-09-24)
   // chi con phai lo phan lich su: nhung ngay gan day da duoc luot "nong" chay
   // ngay sau moi luot sync fast lam moi. Vi vay gian ra 30 phut thay vi 5 phut.
@@ -52,6 +55,14 @@ function createPollingScheduler({
   startInventoryValueSnapshotSchedule: startInventoryValueSnapshot = startInventoryValueSnapshotSchedule,
   logger = console
 } = {}) {
+  let cashbookRunning = false;
+  async function runCashbook() {
+    if (cashbookRunning) return;
+    cashbookRunning = true;
+    try { await runGroup([cashFlows]); }
+    catch (error) { logger.error('[KiotViet Sync] Lỗi sổ quỹ:', error.message); }
+    finally { cashbookRunning = false; }
+  }
   async function runGroup(entities) {
     const branches = getBranches();
     if (!branches.length) {
@@ -105,19 +116,31 @@ function createPollingScheduler({
   }
 
   function startPollingScheduler() {
-    if (!enabled) return [];
+    if (!enabled && !cashbookEnabled) return [];
     // Chạy một lượt nền ngay khi service khởi động để bù khoảng trống từ
     // checkpoint gần nhất (ví dụ Render vừa ngủ/redeploy). Không await ở đây
     // để HTTP server vẫn sẵn sàng nhận request trong lúc đồng bộ catch-up.
     scheduleImmediate(() => {
-      runFastGroupAndRollup().catch((error) => logger.error('[KiotViet Sync] Lỗi lượt fast ban đầu:', error.message));
-      syncBankAccountsIfEmpty().catch(error => logger.error('[KiotViet Sync] Lỗi tài khoản ban đầu:', error.message));
-      runGroup(slowEntities).catch((error) => logger.error('[KiotViet Sync] Lỗi lượt slow ban đầu:', error.message));
+      if (enabled) {
+        runFastGroupAndRollup().catch((error) => logger.error('[KiotViet Sync] Lỗi lượt fast ban đầu:', error.message));
+        runGroup(slowEntities).catch((error) => logger.error('[KiotViet Sync] Lỗi lượt slow ban đầu:', error.message));
+      }
+      if (cashbookEnabled) {
+        syncBankAccountsIfEmpty().catch(error => logger.error('[KiotViet Sync] Lỗi tài khoản ban đầu:', error.message));
+        runCashbook();
+      }
     });
+    if (!enabled) return [
+      setIntervalFn(runDailyBankAccounts, 24 * 60 * 60 * 1000),
+      setIntervalFn(runCashbook, cashbookIntervalMs)
+    ];
     return [
       setIntervalFn(() => runFastGroupAndRollup(), fastIntervalMs),
       setIntervalFn(() => runGroup(slowEntities), slowIntervalMs),
-      setIntervalFn(runDailyBankAccounts, 24 * 60 * 60 * 1000),
+      ...(cashbookEnabled ? [
+        setIntervalFn(runDailyBankAccounts, 24 * 60 * 60 * 1000),
+        setIntervalFn(runCashbook, cashbookIntervalMs)
+      ] : []),
       // Rollup bao cao Dashboard (server/db/migrations/0013), luot DAY DU: lo
       // phan lich su xa hon HOT_WINDOW_DAYS (vd hoa don cu bi sua trong
       // KiotViet), vi nhung ngay gan day da co luot "nong" sau moi luot sync

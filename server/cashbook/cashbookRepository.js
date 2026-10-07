@@ -2,8 +2,13 @@
 const { getPool } = require('../db/pool');
 const { stripTelegramId } = require('../dashboard/saleName');
 const { buildWhere, raw } = require('./cashbookFilters');
+const CONFIG = require('../config');
 // Mọi quỹ đã từng xuất hiện: tiền mặt, danh mục KiotViet và ID lịch sử chỉ còn trong phiếu.
-const fundsSql = `SELECT NULL::bigint account_id UNION SELECT id FROM cash_book_accounts UNION SELECT DISTINCT account_id FROM cash_flows`;
+const fundKeySql = (alias) => `CASE WHEN ${alias}.method='Cash' THEN 'cash'
+  WHEN ${alias}.account_id IS NULL THEN 'unassigned' ELSE ${alias}.account_id::text END`;
+const fundsSql = `SELECT 'cash' fund_key,NULL::bigint account_id
+  UNION SELECT id::text,id FROM cash_book_accounts
+  UNION SELECT DISTINCT ${fundKeySql('c')},CASE WHEN c.method='Cash' THEN NULL ELSE c.account_id END FROM cash_flows c WHERE c.source_missing_at IS NULL`;
 const numeric = (v) => (v == null ? null : Number(v));
 const BRANCH_KEYS = { hanoi: 'balanceHanoi', saigon: 'balanceSaigon' };
 // HN và SG là 2 retailer KiotViet nên cùng một tài khoản ngân hàng có 2 ID.
@@ -13,9 +18,10 @@ function groupFunds(rows) {
   for (const r of rows) {
     const id = r.account_id == null ? null : String(r.account_id);
     const no = (r.account_no || '').trim();
-    const key = id == null ? 'cash' : no ? `no:${no}` : `id:${id}`;
+    const special = r.fund_key === 'unassigned' ? 'unassigned' : id == null ? 'cash' : null;
+    const key = special || (no ? `no:${no}` : `id:${id}`);
     if (!groups.has(key))
-      groups.set(key, { ids: [], accountNo: no, names: [], descriptions: [] });
+      groups.set(key, { ids: [], special, accountNo: no, names: [], descriptions: [] });
     const g = groups.get(key);
     if (id != null) g.ids.push(id);
     const name = (r.bank_name || '').trim();
@@ -27,10 +33,10 @@ function groupFunds(rows) {
   const funds = [...groups.values()].map((g) => {
     const ids = g.ids.sort((a, b) => (BigInt(a) < BigInt(b) ? -1 : 1));
     return {
-      fund: ids.length ? ids.join(',') : 'cash',
+      fund: g.special || ids.join(','),
       accountIds: ids,
-      name: !ids.length
-        ? 'Tiền mặt'
+      name: g.special
+        ? g.special === 'cash' ? 'Tiền mặt' : 'Chưa xác định tài khoản'
         : g.names.join(' / ') ||
           g.accountNo ||
           `Tài khoản #${ids[0]} (không có trong danh sách KiotViet)`,
@@ -47,21 +53,39 @@ function groupFunds(rows) {
 }
 function selectedFunds(funds, fund) {
   if (fund === 'all') return funds;
-  if (fund === 'cash') return funds.filter((x) => x.fund === 'cash');
+  if (fund === 'cash' || fund === 'unassigned') return funds.filter((x) => x.fund === fund);
   if (fund === 'bank') return funds.filter((x) => x.fund !== 'cash');
   return funds.filter((x) => x.accountIds.some((id) => fund.includes(id)));
 }
 function createRepository(pool = getPool()) {
+  async function syncStatus() {
+    // A tiny checkpoint query; never scan the voucher ledger for polling.
+    const { rows } = await pool.query(`SELECT branch,entity,last_synced_at
+      FROM sync_checkpoints WHERE entity IN ('cash_flows','cash_book_accounts')
+      ORDER BY branch,entity`);
+    return {
+      revision: JSON.stringify(rows.map(r => [r.branch, r.entity,
+        r.last_synced_at ? new Date(r.last_synced_at).toISOString() : null])),
+      enabled: CONFIG.KIOTVIET_SYNC_ENABLED || CONFIG.KIOTVIET_CASHBOOK_SYNC_ENABLED,
+      intervalMs: CONFIG.KIOTVIET_CASHBOOK_SYNC_INTERVAL_MS,
+      branches: rows.filter(r => r.entity === 'cash_flows').map(r => ({
+        branch: r.branch, syncedAt: r.last_synced_at || null
+      }))
+    };
+  }
   async function funds() {
     const rows = (
       await pool.query(
-        `SELECT a.account_id,b.bank_name,b.account_no,b.description FROM (${fundsSql}) a
+        `SELECT a.fund_key,a.account_id,b.bank_name,b.account_no,b.description FROM (${fundsSql}) a
         LEFT JOIN cash_book_accounts b ON b.id=a.account_id`,
       )
     ).rows;
     return groupFunds(rows);
   }
   async function summary(f) {
+    // Capture the revision before reading totals: a concurrent commit will
+    // then trigger another refresh rather than hiding older rendered data.
+    const sync = await syncStatus();
     // Tồn quỹ = Σ mọi phiếu chưa hủy (thu dương, chi âm) tới mốc, như Sổ quỹ KiotViet.
     // Bảng số dư luôn liệt kê mọi quỹ (người dùng tìm ở ô tìm kiếm); KPI Tồn quỹ theo quỹ đang chọn.
     // KPI thu/chi theo bộ lọc hiển thị, luôn loại phiếu hủy. Mốc sync không phụ thuộc bộ lọc.
@@ -69,10 +93,10 @@ function createRepository(pool = getPool()) {
     const [catalog, sums, totals] = await Promise.all([
       funds(),
       pool.query(
-        `SELECT c.account_id,c.branch,
+        `SELECT ${fundKeySql('c')} fund_key,c.branch,
           COALESCE(SUM(c.amount),0) closing_balance
-        FROM cash_flows c WHERE c.status IS DISTINCT FROM 1 AND c.trans_date<=$1::timestamptz
-        GROUP BY c.account_id,c.branch`,
+        FROM cash_flows c WHERE c.source_missing_at IS NULL AND c.status IS DISTINCT FROM 1 AND c.trans_date<=$1::timestamptz
+        GROUP BY ${fundKeySql('c')},c.branch`,
         [f.to],
       ),
       pool.query(
@@ -85,7 +109,7 @@ function createRepository(pool = getPool()) {
     ]);
     const byAccount = new Map();
     for (const r of sums.rows) {
-      const key = r.account_id == null ? 'cash' : String(r.account_id);
+      const key = r.fund_key;
       if (!byAccount.has(key)) byAccount.set(key, []);
       byAccount.get(key).push(r);
     }
@@ -93,7 +117,7 @@ function createRepository(pool = getPool()) {
     let closingBalance = 0;
     const balances = catalog.map((fund) => {
       const row = { ...fund, balanceHanoi: 0, balanceSaigon: 0, balance: 0 };
-      for (const key of fund.accountIds.length ? fund.accountIds : ['cash'])
+      for (const key of fund.accountIds.length ? fund.accountIds : [fund.fund])
         for (const r of byAccount.get(key) || []) {
           const closing = Number(r.closing_balance);
           row.balance += closing;
@@ -115,6 +139,7 @@ function createRepository(pool = getPool()) {
         closingBalance,
       },
       syncedAt: t.synced_at || null,
+      revision: sync.revision,
     };
   }
   async function entries(f, { exportLimit = null } = {}) {
@@ -163,10 +188,12 @@ function createRepository(pool = getPool()) {
     const total = Number(count.rows[0].total);
     const fundById = new Map();
     for (const fund of catalog)
-      for (const id of fund.accountIds.length ? fund.accountIds : ['cash'])
+      for (const id of fund.accountIds.length ? fund.accountIds : [fund.fund])
         fundById.set(id, fund);
-    const fundLabel = (accountId) => {
-      const fund = fundById.get(accountId == null ? 'cash' : String(accountId));
+    const entryFund = (r) => r.method === 'Cash' ? 'cash' : r.account_id == null ? 'unassigned' : String(r.account_id);
+    const fundLabel = (r) => {
+      const accountId = r.account_id;
+      const fund = fundById.get(entryFund(r));
       if (!fund) return `Tài khoản #${accountId}`;
       return fund.accountNo ? `${fund.accountNo} · ${fund.name}` : fund.name;
     };
@@ -180,8 +207,8 @@ function createRepository(pool = getPool()) {
         group: r.raw.CashGroup ?? r.raw.cashGroup ?? '',
         partnerName: r.raw.PartnerName ?? r.raw.partnerName ?? '',
         partnerPhone: r.raw.ContactNumber ?? r.raw.contactNumber ?? '',
-        fund: r.account_id == null ? 'cash' : String(r.account_id),
-        fundName: fundLabel(r.account_id),
+        fund: entryFund(r),
+        fundName: fundLabel(r),
         creatorName:
           stripTelegramId(r.creator_name) ||
           String(r.raw.CreatedBy ?? r.raw.createdBy ?? ''),
@@ -211,7 +238,8 @@ function createRepository(pool = getPool()) {
         FROM cash_flows c
         LEFT JOIN staff creator ON creator.branch=c.branch
           AND creator.id::text=${raw('c', 'CreatedBy', 'createdBy')}
-        LEFT JOIN staff s ON s.branch=c.branch AND s.id=c.user_id`,
+        LEFT JOIN staff s ON s.branch=c.branch AND s.id=c.user_id
+        WHERE c.source_missing_at IS NULL`,
       )
     ).rows;
     const groups = new Map(),
@@ -252,6 +280,6 @@ function createRepository(pool = getPool()) {
       },
     };
   }
-  return { summary, entries, filterOptions };
+  return { summary, entries, filterOptions, syncStatus };
 }
 module.exports = { createRepository, groupFunds };

@@ -57,6 +57,7 @@ function createFakeSyncPool() {
           if (sql === 'BEGIN') { pending = []; return; }
           if (sql === 'COMMIT') { const staged = pending; pending = []; for (const [s, p] of staged) await apply(s, p); return; }
           if (sql === 'ROLLBACK') { pending = []; return; }
+          if (sql.startsWith('SELECT id,raw,account_id')) return {rows:[]};
           pending.push([sql, params]);
         },
         release() {}
@@ -181,5 +182,5 @@ test('cash_flows (entity module that): syncDriver goi API dung 2 lan isReceipt=t
   assert.equal(byId(502).params[3], false, 'item lay tu vong lap isReceipt=false phai duoc gan is_receipt=false du item goc khong co field nay');
 
   const checkpoint = await checkpoints.getCheckpoint('saigon', 'cash_flows');
-  assert.equal(checkpoint.note, '2026-09-14T02:00:00.000Z', 'cua so da dung (endDate) phai duoc luu vao note, khong dung last_synced_at de tinh khoang ngay lan sau');
+  assert.deepEqual(JSON.parse(checkpoint.note), {windowEnd:'2026-09-14T02:00:00.000Z',reconciledAt:'2026-09-14T02:00:00.000Z'});
 });

@@ -26,7 +26,7 @@ function list(value, key, valid) {
 }
 function parseFund(value = 'all') {
   scalar(value, 'fund');
-  if (['all', 'cash', 'bank'].includes(value)) return value;
+  if (['all', 'cash', 'bank', 'unassigned'].includes(value)) return value;
   return list(value, 'fund', id);
 }
 function day(value) {
@@ -173,17 +173,19 @@ function buildWhere(
   { alias = 'c', dates = true, fundOnly = false, start = 0 } = {},
 ) {
   const params = [],
-    parts = [];
+    parts = [`${alias}.source_missing_at IS NULL`];
   const add = (v) => {
     params.push(v);
     return `$${params.length + start}`;
   };
-  if (f.fund === 'cash') parts.push(`${alias}.account_id IS NULL`);
-  else if (f.fund === 'bank') parts.push(`${alias}.account_id IS NOT NULL`);
+  if (f.fund === 'cash') parts.push(`${alias}.method='Cash'`);
+  else if (f.fund === 'unassigned')
+    parts.push(`${alias}.method IS DISTINCT FROM 'Cash' AND ${alias}.account_id IS NULL`);
+  else if (f.fund === 'bank') parts.push(`${alias}.method IS DISTINCT FROM 'Cash'`);
   else if (Array.isArray(f.fund))
     parts.push(
       f.fund.length
-        ? `${alias}.account_id=ANY(${add(f.fund)}::bigint[])`
+        ? `${alias}.method IS DISTINCT FROM 'Cash' AND ${alias}.account_id=ANY(${add(f.fund)}::bigint[])`
         : 'FALSE',
     );
   if (!fundOnly) {

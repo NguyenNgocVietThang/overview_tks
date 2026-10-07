@@ -11,7 +11,7 @@ let db, repo;
 // TK số 123 có ID 7 ở HN và ID 8 ở SG (2 retailer KiotViet); -1 chỉ còn trong phiếu.
 test.before(async () => {
   db = new PGlite();
-  await db.exec(`CREATE TABLE cash_flows(branch text,id bigint,code text,is_receipt boolean,amount numeric,account_id bigint,status int,trans_date timestamptz,user_id bigint,description text,raw jsonb,synced_at timestamptz default now(),primary key(branch,id));CREATE TABLE staff(branch text,id bigint,name text,primary key(branch,id));CREATE TABLE cash_book_accounts(id bigint primary key,bank_name text,account_no text,description text,raw jsonb);
+  await db.exec(`CREATE TABLE cash_flows(branch text,id bigint,code text,is_receipt boolean,amount numeric,source_missing_at timestamptz,method text,account_id bigint,status int,trans_date timestamptz,user_id bigint,description text,raw jsonb,synced_at timestamptz default now(),primary key(branch,id));CREATE TABLE staff(branch text,id bigint,name text,primary key(branch,id));CREATE TABLE cash_book_accounts(id bigint primary key,bank_name text,account_no text,description text,raw jsonb);
  CREATE TABLE sync_checkpoints(branch text,entity text,last_synced_at timestamptz);
  INSERT INTO sync_checkpoints VALUES('hanoi','cash_flows','2026-10-06T03:00:00Z'),('saigon','cash_flows','2026-10-06T04:00:00Z');
  INSERT INTO staff VALUES ('hanoi',9,'Lan - 1234567890');
@@ -51,10 +51,24 @@ test.before(async () => {
         },
       ],
     );
+  await db.query("UPDATE cash_flows SET method=CASE WHEN account_id IS NULL THEN 'Cash' ELSE 'Transfer' END");
   repo = createRepository({ query: (s, p) => db.query(s, p) });
 });
 test.after(async () => {
   await db.close();
+});
+test('sync revision changes for either branch even when the other branch has a newer checkpoint', async () => {
+  await db.exec("INSERT INTO sync_checkpoints VALUES('hanoi','invoices','2099-01-01T00:00:00Z')");
+  const before = await repo.syncStatus();
+  await db.exec("UPDATE sync_checkpoints SET last_synced_at='2026-10-06T03:01:00Z' WHERE branch='hanoi' AND entity='cash_flows'");
+  const after = await repo.syncStatus();
+  assert.notEqual(after.revision, before.revision);
+  assert.equal(after.branches.length, 2);
+  assert.ok(!after.revision.includes('invoices'));
+  assert.deepEqual(after.branches.map(b => [b.branch, +new Date(b.syncedAt)]), [
+    ['hanoi', Date.parse('2026-10-06T03:01:00Z')], ['saigon', Date.parse('2026-10-06T04:00:00Z')]
+  ]);
+  await db.exec("UPDATE sync_checkpoints SET last_synced_at='2026-10-06T03:00:00Z' WHERE branch='hanoi' AND entity='cash_flows'");
 });
 test('tồn quỹ = tổng phiếu chưa hủy, gộp HN+SG theo số TK, tách cột từng cơ sở', async () => {
   const s = await repo.summary(f({}));
@@ -214,4 +228,37 @@ test('groupFunds bỏ tên trùng số TK, gộp tên/mô tả khác nhau và gi
       ['10,20', '2222', 'NH CŨ', 'a'],
     ],
   );
+});
+
+// KiotViet can keep a historical AccountId on a Cash payment.
+test('classify funds by payment method even when Cash retains an account ID', async () => {
+  await db.query(
+    "INSERT INTO cash_flows(branch,id,code,is_receipt,amount,method,account_id,status,trans_date,raw) VALUES ('hanoi',200,'CashWithAccount',FALSE,-40,'Cash',7,0,'2026-10-03T00:00:00Z','{}'),('saigon',201,'CashMinusOne',TRUE,4,'Cash',-1,0,'2026-10-03T00:00:00Z','{}'),('hanoi',202,'UnknownTransfer',TRUE,6,'Transfer',NULL,0,'2026-10-03T00:00:00Z','{}')"
+  );
+  try {
+    const s = await repo.summary(f({fund:'cash'}));
+    const row=s.balances.find(r=>r.fund==='cash');
+    assert.deepEqual([row.balanceHanoi,row.balanceSaigon,row.balance],[-32,104,72]);
+    assert.equal(s.balances.find(r=>r.fund==='7,8').balance,55);
+    assert.equal(s.balances.find(r=>r.fund==='unassigned').balance,6);
+    assert.equal(s.kpis.closingBalance,72);
+    const cash=await repo.entries(f({fund:'cash'}));
+    assert.deepEqual(cash.entries.map(r=>r.code).sort(),['CashMinusOne','CashWithAccount','P5']);
+    assert.ok(cash.entries.every(r=>r.fund==='cash' && r.fundName==='Tiền mặt'));
+    assert.equal(cash.entries[0].runningBalance,72);
+    const bank=await repo.entries(f({fund:'7,8'}));
+    assert.ok(!bank.entries.some(r=>r.code==='CashWithAccount'));
+    const unknown=await repo.entries(f({fund:'unassigned'}));
+    assert.deepEqual(unknown.entries.map(r=>[r.code,r.fund,r.runningBalance]),[['UnknownTransfer','unassigned',6]]);
+  } finally {await db.query('DELETE FROM cash_flows WHERE id BETWEEN 200 AND 202');}
+});
+
+test('missing source vouchers are retained in storage but excluded from KPIs, balances and entries',async()=>{
+  await db.query("INSERT INTO cash_flows(branch,id,code,is_receipt,amount,method,account_id,status,trans_date,raw,source_missing_at) VALUES('hanoi',300,'Retired',TRUE,999999,'Cash',NULL,0,'2026-10-03T00:00:00Z','{}',now())");
+  try {
+    const summary=await repo.summary(f({fund:'cash'}));
+    assert.equal(summary.kpis.closingBalance,108);
+    assert.equal(summary.kpis.totalReceipts,8);
+    assert.equal((await repo.entries(f({code:'Retired'}))).total,0);
+  } finally {await db.query('DELETE FROM cash_flows WHERE id=300');}
 });

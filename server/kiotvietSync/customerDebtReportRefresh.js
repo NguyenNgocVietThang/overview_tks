@@ -35,10 +35,11 @@ const REFRESH_SQL = `
       AND return_date >= ${SINCE_SQL}
       AND COALESCE(raw->>'statusValue', '') <> 'Đã hủy'
     UNION ALL
-    SELECT customer_id, trans_date
+    SELECT customer_id, trans_date + interval '7 hours'
     FROM cash_flows
     WHERE branch = $1 AND customer_id IS NOT NULL
-      AND trans_date >= ${SINCE_SQL}
+      AND trans_date >= ${SINCE_SQL} - interval '7 hours'
+      AND source_missing_at IS NULL
       AND COALESCE(raw->>'status', '0') = '0'
   ), current_rows AS (
     SELECT DISTINCT
