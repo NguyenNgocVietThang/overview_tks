@@ -23,6 +23,38 @@ function missingMonthlyRelation(error) {
   return !!relation && MONTHLY_TABLES.has(relation[1]);
 }
 
+// Doc cung snapshot cho state/bang chot va cap truy van live; khong giu khoa nguon.
+async function readSnapshotQueries(pool, queries) {
+  const client = await pool.connect();
+  let failure;
+  try {
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    const results = [];
+    for (const [text, params] of queries) {
+      await client.query('SAVEPOINT business_report_read');
+      try {
+        results.push({ status: 'fulfilled', value: await client.query(text, params) });
+        await client.query('RELEASE SAVEPOINT business_report_read');
+      } catch (error) {
+        if (!missingMonthlyRelation(error)) throw error;
+        await client.query('ROLLBACK TO SAVEPOINT business_report_read');
+        await client.query('RELEASE SAVEPOINT business_report_read');
+        results.push({ status: 'rejected', reason: error });
+      }
+    }
+    return results;
+  } catch (error) {
+    failure = error;
+    throw error;
+  } finally {
+    let rollbackError;
+    try { await client.query('ROLLBACK'); } catch (error) {
+      rollbackError = error;
+      if (!failure) throw error;
+    } finally { client.release(rollbackError); }
+  }
+}
+
 // Cache 1 gia tri bat dong bo theo kieu stale-while-revalidate.
 //   get()            : con han -> ban cu; het han -> tra ngay ban cu + lam moi nen; chua co -> cho tai.
 //   get({ wait:true }): nhu get() nhung het han thi CHO ban moi (dung khi chinh no la tai nen cua cache khac,
@@ -79,10 +111,15 @@ function createRepository({
             ? new Date(instant.getTime() + 7 * 60 * 60 * 1000).toISOString().replace('Z', '')
             : addMonths(month, 1);
           const params = [sql.BRANCH_CODES, month, cutoff];
-          return Promise.all([
-          pool.query(sql.CUSTOMER_MONTH_SELECT_SQL, params),
-          pool.query(sql.CUSTOMER_PRODUCT_MONTH_SELECT_SQL, params)
-        ]).then(([c, cp]) => ({ customers: c.rows, customerProducts: cp.rows }));
+          return readSnapshotQueries(pool, [
+            [sql.CUSTOMER_MONTH_SELECT_SQL, params],
+            [sql.CUSTOMER_PRODUCT_MONTH_SELECT_SQL, params]
+          ]).then(results => {
+            const failed = results.find(r => r.status === 'rejected');
+            if (failed) throw failed.reason;
+            const [c, cp] = results.map(r => r.value);
+            return { customers: c.rows, customerProducts: cp.rows };
+          });
         }
       });
       liveCaches.set(month, cache);
@@ -95,20 +132,20 @@ function createRepository({
     const currentMonth = monthKey(today);
     const months = monthsBetween(FIRST_MONTH, currentMonth);
     // Cho tat ca truy van xong de loi khac khong bi che boi migration chua co.
-    const results = await Promise.allSettled([
-      pool.query(`SELECT to_char(month, 'YYYY-MM-DD') AS month FROM business_monthly_state`),
-      pool.query(`SELECT to_char(month, 'YYYY-MM-DD') AS month, branch, customer_code, customer_name, net_revenue
-                  FROM business_monthly_customer_sales WHERE month >= $1::date`, [FIRST_MONTH]),
-      pool.query(`SELECT to_char(month, 'YYYY-MM-DD') AS month, product_code, product_name, net_revenue, net_qty
-                  FROM business_monthly_product_sales WHERE month >= $1::date`, [FIRST_MONTH]),
-      pool.query(`SELECT to_char(month, 'YYYY-MM-DD') AS month, sale_name, net_revenue
-                  FROM business_monthly_sale_sales WHERE month >= $1::date`, [FIRST_MONTH]),
-      pool.query('SELECT 1 FROM business_monthly_customer_product_sales LIMIT 0'),
-      pool.query(`SELECT DISTINCT ON (branch, btrim(code)) branch, btrim(code) AS code, name,
+    const results = await readSnapshotQueries(pool, [
+      [`SELECT to_char(month, 'YYYY-MM-DD') AS month, group_hash FROM business_monthly_state`],
+      [`SELECT to_char(month, 'YYYY-MM-DD') AS month, branch, customer_code, customer_name, net_revenue
+                  FROM business_monthly_customer_sales WHERE month >= $1::date`, [FIRST_MONTH]],
+      [`SELECT to_char(month, 'YYYY-MM-DD') AS month, product_code, product_name, net_revenue, net_qty
+                  FROM business_monthly_product_sales WHERE month >= $1::date`, [FIRST_MONTH]],
+      [`SELECT to_char(month, 'YYYY-MM-DD') AS month, sale_name, net_revenue
+                  FROM business_monthly_sale_sales WHERE month >= $1::date`, [FIRST_MONTH]],
+      ['SELECT 1 FROM business_monthly_customer_product_sales LIMIT 0'],
+      [`SELECT DISTINCT ON (branch, btrim(code)) branch, btrim(code) AS code, name,
                          COALESCE(NULLIF(btrim(raw->>'groups'), ''), $1) AS sale_name,
                          COALESCE(btrim(raw->>'comments'), '') AS price_level
                   FROM customers WHERE btrim(COALESCE(code, '')) <> ''
-                  ORDER BY branch, btrim(code), id DESC`, [UNGROUPED_SALE])
+                  ORDER BY branch, btrim(code), id DESC`, [UNGROUPED_SALE]]
     ]);
     let missingMigration = false;
     const values = results.map((result, index) => {
@@ -123,6 +160,7 @@ function createRepository({
     // Schema chua du: bo state de khong tron lich su chot thieu bang.
     if (missingMigration) state.rows = [];
     const frozenMonths = state.rows.map(r => r.month).filter(m => m < currentMonth).sort();
+    const pending = new Set(state.rows.filter(r => !/^[a-f0-9]{32}$/.test(r.group_hash || '')).map(r => r.month));
     const frozen = new Set(frozenMonths);
     const customers = frozenCustomers.rows.filter(r => frozen.has(r.month)).map(r => ({
       month: r.month, branch: r.branch, customerCode: r.customer_code, customerName: r.customer_name, netRevenue: num(r.net_revenue)
@@ -143,11 +181,23 @@ function createRepository({
       }
       products.push(...byCode.values());
     }
+    const sales = frozenSales.rows.filter(r => frozen.has(r.month) && !pending.has(r.month)).map(r => ({ month: r.month, saleName: r.sale_name, netRevenue: num(r.net_revenue) }));
+    // State cu chua du hash: giu doanh so khach da chot, gom nhom hien tai.
+    const directoryGroups = new Map(directory.rows.map(r => [JSON.stringify([r.branch, r.code]), r.sale_name]));
+    const fallback = new Map();
+    for (const row of customers.filter(r => pending.has(r.month))) {
+      const saleName = directoryGroups.get(JSON.stringify([row.branch, row.customerCode])) || UNGROUPED_SALE;
+      const key = JSON.stringify([row.month, saleName]);
+      const total = fallback.get(key) || { month: row.month, saleName, netRevenue: 0 };
+      total.netRevenue += row.netRevenue;
+      fallback.set(key, total);
+    }
+    sales.push(...fallback.values());
     return {
       today, currentMonth, day: dayOfMonth(today), months, frozenMonths,
-      notReady: missingMigration || months.some(m => m < currentMonth && !frozen.has(m)),
+      notReady: missingMigration || months.some(m => m < currentMonth && (!frozen.has(m) || pending.has(m))),
       customers, products,
-      sales: frozenSales.rows.filter(r => frozen.has(r.month)).map(r => ({ month: r.month, saleName: r.sale_name, netRevenue: num(r.net_revenue) })),
+      sales,
       directory: directory.rows.map(r => ({ branch: r.branch, code: r.code, name: r.name || '', saleName: r.sale_name, priceLevel: r.price_level })),
       computedAt: now().toISOString()
     };

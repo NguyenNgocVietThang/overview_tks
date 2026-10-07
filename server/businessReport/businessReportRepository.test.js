@@ -58,12 +58,14 @@ test('top ma hang cua khach va top khach cua ma hang trong cac thang chi dinh (g
 
 // Pool bao PGlite co the: dem so lan doc bang state (= 1 lan tai snapshot), giu ket qua lai
 // (gate) SAU khi truy van da chay de mo phong tai nen dang do dang, va gay loi theo y.
-const STATE_SELECT = `SELECT to_char(month, 'YYYY-MM-DD') AS month FROM business_monthly_state`;
+const STATE_SELECT = `SELECT to_char(month, 'YYYY-MM-DD') AS month, group_hash FROM business_monthly_state`;
 function controllablePool(db) {
   const ctl = { loads: 0, gate: null, fail: false };
-  return {
+  const pool = {
     ctl,
     query: async (text, params) => {
+      // Stub giao dich doc de PGlite mot session cho phep test cache/refreeze chen nhau.
+      if (/^(BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY|SAVEPOINT |RELEASE SAVEPOINT |ROLLBACK TO SAVEPOINT )/.test(text) || text === 'ROLLBACK') return {rows:[]};
       if (String(text).includes(STATE_SELECT)) {
         ctl.loads += 1;
         if (ctl.fail) throw new Error('db down');
@@ -73,8 +75,9 @@ function controllablePool(db) {
       }
       return db.query(text, params);
     },
-    connect: async () => ({ query: (t, p) => db.query(t, p), release() {} })
+    connect: async () => ({ query: (t, p) => pool.query(t, p), release() {} })
   };
+  return pool;
 }
 function gate() {
   let release;

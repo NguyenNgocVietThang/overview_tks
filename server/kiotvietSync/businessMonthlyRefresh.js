@@ -25,7 +25,7 @@ async function freezeMonth(pool, month, { log = console.log } = {}) {
   const params = [sql.BRANCH_CODES, month, addMonths(month, 1)];
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
     await client.query('LOCK TABLE business_monthly_state, business_monthly_customer_sales IN SHARE ROW EXCLUSIVE MODE');
     await client.query(`SET LOCAL work_mem = '${REFRESH_WORK_MEM}'`);
     await client.query('DELETE FROM business_monthly_customer_sales WHERE month = $1', [month]);
@@ -46,6 +46,10 @@ async function freezeMonth(pool, month, { log = console.log } = {}) {
       ON CONFLICT (month) DO UPDATE SET frozen_at = now(), customer_rows = EXCLUDED.customer_rows,
         customer_product_rows = EXCLUDED.customer_product_rows, net_revenue = EXCLUDED.net_revenue, group_hash = NULL`,
     [month, stats.customer_rows, stats.customer_product_rows, stats.net_revenue]);
+    // Cong bo Sale va hash cung snapshot nguon da chot, truoc COMMIT.
+    const { rows: hashes } = await client.query(sql.GROUP_HASH_SQL);
+    await client.query(sql.REBUILD_SALE_SQL);
+    await client.query('UPDATE business_monthly_state SET group_hash = $1 WHERE group_hash IS DISTINCT FROM $1', [hashes[0].group_hash]);
     await client.query('COMMIT');
     const result = { month, customerRows: stats.customer_rows, customerProductRows: stats.customer_product_rows, netRevenue: Number(stats.net_revenue) };
     log(`[businessMonthlyRefresh] Da chot thang ${month}: ${result.customerRows} khach, ${result.customerProductRows} dong khach x ma.`);
@@ -61,10 +65,9 @@ async function freezeMonth(pool, month, { log = console.log } = {}) {
 async function rebuildSaleTable(pool) {
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
     // Cung thu tu khoa voi freeze: khong the ghi hash cho bo so lieu dang thay doi.
     await client.query('LOCK TABLE business_monthly_state, business_monthly_customer_sales IN SHARE ROW EXCLUSIVE MODE');
-    await client.query('LOCK TABLE customers IN SHARE MODE');
     const { rows: states } = await client.query('SELECT group_hash FROM business_monthly_state');
     if (!states.length) {
       await client.query('COMMIT');

@@ -71,3 +71,27 @@ test('persistent hash: no states, restart skip, effective canonical groups, roll
     assert.equal(count(),afterChange+1);
   } finally { await db.close(); }
 });
+
+test('freeze publication rolls back sale/hash failures and retries coherently', async () => {
+ const db = new PGlite(); let failAt = sql.REBUILD_SALE_SQL; const calls=[];
+ const client={query:async(q,p)=>{calls.push(q); if ([sql.FREEZE_CUSTOMER_SQL,sql.FREEZE_CUSTOMER_PRODUCT_SQL,sql.GROUP_HASH_SQL,sql.REBUILD_SALE_SQL].includes(q)) assert.equal((await db.query('SHOW transaction_isolation')).rows[0].transaction_isolation, 'repeatable read'); if(q===failAt || (failAt==='hash' && q.startsWith('UPDATE business_monthly_state SET group_hash'))) throw new Error('publication failed'); return db.query(q,p);},release(){}};
+ const pool={connect:async()=>client,query:client.query};
+ try {
+  await seed(db);
+  for (const failure of [sql.REBUILD_SALE_SQL,'hash']) {
+   failAt=failure;
+   await assert.rejects(job.freezeMonth(pool,'2026-09-01',{log(){}}),/publication failed/);
+   for(const table of ['state','customer_sales','customer_product_sales','product_sales','sale_sales']) assert.equal((await db.query(`SELECT count(*)::int n FROM business_monthly_${table}`)).rows[0].n,0);
+  }
+  failAt=null;
+  await job.freezeMonth(pool,'2026-09-01',{log(){}});
+  assert.equal(calls[0],'BEGIN ISOLATION LEVEL REPEATABLE READ');
+  assert.ok(!calls.some(q=>/^LOCK TABLE customers/.test(q)));
+  const state=(await db.query('SELECT group_hash,net_revenue FROM business_monthly_state')).rows[0];
+  assert.equal(state.group_hash,(await db.query(sql.GROUP_HASH_SQL)).rows[0].group_hash);
+  for(const table of ['customer_sales','product_sales','sale_sales']) assert.equal(Number((await db.query(`SELECT sum(net_revenue) n FROM business_monthly_${table}`)).rows[0].n),Number(state.net_revenue));
+  calls.length=0; await job.rebuildSaleTable(pool);
+  assert.equal(calls[0],'BEGIN ISOLATION LEVEL REPEATABLE READ');
+  assert.ok(!calls.includes(sql.REBUILD_SALE_SQL));
+ }finally{await db.close();}
+});

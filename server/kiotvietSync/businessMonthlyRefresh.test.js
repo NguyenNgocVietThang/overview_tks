@@ -31,7 +31,7 @@ test('freezeMonth: 1 giao dich, xoa thang cu roi nap lai 3 bang + ghi state', as
   const pool = fakePool();
   const r = await job.freezeMonth(pool, '2026-09-01', { log: () => {} });
   const texts = pool.calls.map(c => c.text.replace(/\s+/g, ' ').trim());
-  assert.equal(texts[0], 'BEGIN');
+  assert.equal(texts[0], 'BEGIN ISOLATION LEVEL REPEATABLE READ');
   assert.ok(texts.some(t => /^SET LOCAL work_mem/.test(t)));
   for (const table of ['business_monthly_customer_sales', 'business_monthly_customer_product_sales', 'business_monthly_product_sales']) {
     assert.ok(texts.some(t => t.startsWith(`DELETE FROM ${table} WHERE month = $1`)), table);

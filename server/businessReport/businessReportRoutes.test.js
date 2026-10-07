@@ -140,7 +140,7 @@ test('missing migration end-to-end HTTP 200 keeps current live tables and detail
  try {
   await seed(db);
   await db.exec('DROP TABLE business_monthly_state, business_monthly_customer_sales, business_monthly_product_sales, business_monthly_sale_sales, business_monthly_customer_product_sales');
-  const repo = createRepository({pool:{query:(q,p)=>db.query(q,p)},now:()=>new Date('2026-10-06T03:00:00Z')});
+  const repo = createRepository({pool:{query:(q,p)=>db.query(q,p),connect:async()=>({query:(q,p)=>db.query(q,p),release(){}})},now:()=>new Date('2026-10-06T03:00:00Z')});
   for(const kind of ['sales','customers','products']) {
    const res = await request('/'+kind,{repo});
    assert.equal(res.status,200);
