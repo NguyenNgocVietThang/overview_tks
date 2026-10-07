@@ -647,7 +647,7 @@ test('GET /api/admin/permissions/catalog tra ve danh muc + mac dinh theo vai tro
   assert.ok(res.body.features.every(f => f.key && f.label && f.groupKey));
   // Marketing giong Sale tru 5 tab xem bao cao (Sale duoc mo them tu 2026-10-02) va Vong doi don hang (shipment.lifecycle:
   // bo Nhan vien mua hang + marketing, 2026-10-02).
-  const saleViewKeys = ['reports.overview', 'reports.products', 'reports.invoices', 'reports.customers', 'reports.debt'];
+  const saleViewKeys = ['reports.overview', 'reports.products', 'reports.invoices', 'reports.customers', 'reports.debt', 'reports.business'];
   assert.deepEqual(
     res.body.roleDefaults['Nhân viên marketing'],
     res.body.roleDefaults['Nhân viên sale'].filter(key => !saleViewKeys.includes(key) && !['shipment.lifecycle', 'shipment.lookup', 'shipment.history'].includes(key))

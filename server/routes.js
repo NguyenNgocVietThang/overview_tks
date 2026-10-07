@@ -37,6 +37,7 @@ const debtManagementRoutes = require('./dashboard/debtManagementRoutes');
 const orderLifecycleRoutes = require('./shipment/orderLifecycleRoutes');
 const stockLocationsRoutes = require('./stockLocations/stockLocationsRoutes');
 const cashbookRoutes = require('./cashbook/cashbookRoutes');
+const { createBusinessReportRouter } = require('./businessReport/businessReportRoutes');
 const { dashboardRollupEvents } = require('./kiotvietSync/dashboardRollupEvents');
 
 router.get('/health', (req, res) => {
@@ -72,6 +73,8 @@ router.use(branchRoutes);
 router.use(stockLocationsRoutes);
 // Sổ quỹ toàn công ty: không áp cookie hoặc middleware chọn cơ sở.
 router.use('/api/cashbook', cashbookRoutes);
+// Báo cáo kinh doanh (tăng trưởng Sale/Khách/Mã hàng): gộp HN + SG, cũng không áp cookie cơ sở.
+router.use('/api/business-report', createBusinessReportRouter());
 
 // Toan bo /api/hr/* la du lieu THEO CO SO — gan resolveBranch truoc router con.
 router.use('/api/hr', requireAuth, resolveBranch);

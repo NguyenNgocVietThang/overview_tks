@@ -54,6 +54,8 @@ test('mac dinh theo vai tro: reports.* khop dung REPORTS_ROLES cu', () => {
   for (const role of REPORTS_ROLES) {
     const defaults = registry.defaultsForRole(role);
     for (const key of registry.ANY_REPORTS_FEATURES) {
+      // Tinh lai thang chot cua Bao cao kinh doanh chi danh cho Quan ly (2026-10-07).
+      if (key === 'reports.business.refreeze' && role !== ROLES.QUAN_LY) continue;
       assert.ok(defaults.includes(key), `${role} phai co ${key}`);
     }
   }
@@ -137,7 +139,7 @@ test('Tra cuu / Lich su / Xuat / Ghi de GAN vao Vong doi don hang: thieu lifecyc
   assert.ok(!grantedOnlyLifecycle.includes('shipment.history'));
 });
 
-const SALE_REPORT_VIEW_KEYS = ['reports.overview', 'reports.products', 'reports.invoices', 'reports.customers', 'reports.debt'];
+const SALE_REPORT_VIEW_KEYS = ['reports.overview', 'reports.products', 'reports.invoices', 'reports.customers', 'reports.debt', 'reports.business'];
 
 test('Nhan vien sale xem du 5 tab bao cao mac dinh, KHONG co xuat Excel / sua cong no', () => {
   const reportKeys = registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => key.startsWith('reports.'));
@@ -274,4 +276,15 @@ test('reports.products.cost (don gia + gia tri ton tab Hang hoa): chi Quan ly + 
   });
   assert.ok(!revoked.includes('reports.products'));
   assert.ok(!revoked.includes('reports.products.cost'));
+});
+
+test('bao cao kinh doanh: xem theo vai tro xem bao cao, tinh lai thang chi Quan ly', () => {
+  const view = registry.FEATURES.find(f => f.key === 'reports.business');
+  const refreeze = registry.FEATURES.find(f => f.key === 'reports.business.refreeze');
+  assert.ok(view && refreeze);
+  assert.equal(refreeze.requires, 'reports.business');
+  assert.ok(registry.REPORT_VIEW_FEATURES.includes('reports.business'));
+  assert.ok(registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_SALE }).includes('reports.business'));
+  assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_SALE }).includes('reports.business.refreeze'));
+  assert.ok(registry.resolvePermissions({ vaiTro: ROLES.QUAN_LY }).includes('reports.business.refreeze'));
 });
