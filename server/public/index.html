@@ -7753,8 +7753,14 @@
       destroyChart('productDetailCustomers'); // canvas cũ sắp bị thay
       destroyChart('businessDetailTrend');
       const item = docDetail.item;
+      // Chon truong tieu de theo bang (dong khach cung co saleName nen khong dung || lan luot).
+      const businessTitle = {
+        businessSales: () => item.saleName,
+        businessCustomers: () => item.name || item.code,
+        businessProducts: () => item.code + (item.name ? ' – ' + item.name : '')
+      }[docDetail.tableKey];
       document.getElementById('docModalTitle').textContent = isBusiness
-        ? kind.title + ' · ' + (item.saleName || (docDetail.tableKey === 'businessProducts' ? item.code + (item.name ? ' – ' + item.name : '') : item.name || item.code))
+        ? kind.title + ' · ' + businessTitle()
         : isProduct
           ? kind.title + ' · ' + item.code + (item.name ? ' – ' + item.name : '')
           : kind.title + ' ' + item.code;

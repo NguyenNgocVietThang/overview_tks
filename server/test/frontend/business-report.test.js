@@ -49,6 +49,10 @@ function createPage({ can = () => true, notReady = false } = {}) {
     if (href === '/api/business-report/customers') return ok(svc.buildCustomerReport(snap));
     if (href === '/api/business-report/products') return ok(svc.buildProductReport(snap));
     if (href.startsWith('/api/business-report/detail?kind=sale')) return ok(svc.buildDetail('sale', 'Khang', snap, {}));
+    if (href.startsWith('/api/business-report/detail?kind=customer')) {
+      const key = decodeURIComponent(href.split('key=')[1]);
+      return ok(svc.buildDetail('customer', key, snap, {}));
+    }
     if (href.startsWith('/api/business-report/export')) {
       return Promise.resolve({
         ok: true, status: 200,
@@ -182,6 +186,30 @@ test('bam dong Khang: mo panel chi tiet co the tong quan, bieu do cot theo thang
 
   page.run('closeDocumentDetail()');
   assert.equal(page.charts.filter(c => c.config.type === 'bar' && !c.destroyed).length, 0, 'dong panel huy bieu do');
+});
+
+test('panel khach: tieu de la ten khach (khong phai ten sale), ca khi mo tu bang lan khi di tu panel Sale', async () => {
+  const page = createPage();
+  page.run("switchView('business')");
+  await settle();
+
+  rowById(page, 'businessCustomersRows', 'hanoi:KH1').click();
+  await settle();
+  assert.ok(businessUrls(page).includes('/api/business-report/detail?kind=customer&key=hanoi%3AKH1'));
+  const title = page.$('docModalTitle').textContent;
+  assert.match(title, /Khách hàng · Chị A/);
+  assert.doesNotMatch(title, /Khang/);
+  page.run('closeDocumentDetail()');
+
+  rowById(page, 'businessSalesRows', 'Khang').click();
+  await settle();
+  const drill = [...page.$('docModalBody').querySelectorAll('tr.business-detail-customer')].find(tr => tr.dataset.key === 'hanoi:KH1');
+  assert.ok(drill, 'panel Sale co dong khach hanoi:KH1');
+  drill.click();
+  await settle();
+  const drillTitle = page.$('docModalTitle').textContent;
+  assert.match(drillTitle, /Khách hàng · Chị A/);
+  assert.doesNotMatch(drillTitle, /Khang/);
 });
 
 test('quyen: khong co reports.business.refreeze thi an nut Tinh lai thang; khong co reports.export thi an nut xuat', async () => {
