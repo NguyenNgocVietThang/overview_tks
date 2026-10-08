@@ -11,11 +11,12 @@
 const crypto = require('crypto');
 const { getPool } = require('../db/pool');
 
-// Phai khop 2 dong seed cua migration 0027 (dung cho "Khoi phuc tai lieu mac dinh"
+// Phai khop cac dong seed cua migration 0027 + 0039 (dung cho "Khoi phuc tai lieu mac dinh"
 // va cho danh sach du phong khi bang chua duoc migrate).
 const DEFAULT_BUILTIN_DOCUMENTS = Object.freeze([
   Object.freeze({ key: 'gio-giac', title: 'Giờ giấc làm việc', sortOrder: 10 }),
-  Object.freeze({ key: 'nghi-phep', title: 'Quy định nghỉ phép', sortOrder: 20 })
+  Object.freeze({ key: 'nghi-phep', title: 'Quy định nghỉ phép', sortOrder: 20 }),
+  Object.freeze({ key: 'phuc-loi', title: 'Chi tiêu & Phúc lợi', sortOrder: 30 })
 ]);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

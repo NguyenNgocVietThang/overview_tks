@@ -286,7 +286,7 @@ Gỡ bỏ tab "Nhà cung cấp" khỏi dashboard:
 Bảng `hr_rule_documents` lưu trữ tài liệu quy định công ty (cả tài liệu dựng sẵn và file PDF upload):
 - `kind`: `builtin` (dựng sẵn, `builtin_key` NOT NULL, `content` NULL) hoặc `pdf` (tài liệu tải lên, lưu trong `content` BYTEA).
 - Gồm `title`, `sort_order`, `file_name`, `size_bytes`, `sha256`, `uploaded_by_user_id`, `uploaded_by_name`.
-- Seed 2 tài liệu mặc định: `gio-giac` (Giờ giấc làm việc, sort 10) và `nghi-phep` (Quy định nghỉ phép, sort 20).
+- Seed 3 tài liệu mặc định: `gio-giac` (Giờ giấc làm việc, sort 10), `nghi-phep` (Quy định nghỉ phép, sort 20) và `phuc-loi` (Chi tiêu & Phúc lợi, sort 30 — thêm ở migration 0039).
 - Thu hồi quyền `SELECT` của `reporting_readonly` do chứa tài liệu nội bộ.
 
 ### Chỉ mục đơn Phiếu tạm cho Vòng đời đơn hàng (migration `0028`)

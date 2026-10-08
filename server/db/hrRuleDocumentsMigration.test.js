@@ -31,3 +31,9 @@ test('migration 0027 seed 2 tài liệu dựng sẵn theo đúng thứ tự hi�
 test('migration 0027 thu hồi SELECT của reporting_readonly (bảng chứa file nội bộ)', () => {
   assert.match(sql, /REVOKE SELECT ON hr_rule_documents FROM reporting_readonly/);
 });
+
+test('migration 0039 thêm tài liệu dựng sẵn Chi tiêu & Phúc lợi, chạy lại không lỗi', () => {
+  const welfare = fs.readFileSync(path.join(__dirname, 'migrations', '0039_hr_rule_document_welfare.sql'), 'utf8');
+  assert.match(welfare, /'builtin',\s+'phuc-loi',\s+'Chi tiêu & Phúc lợi',\s+30\)/);
+  assert.match(welfare, /ON CONFLICT \(builtin_key\) DO NOTHING/);
+});

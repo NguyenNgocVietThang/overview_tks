@@ -67,18 +67,18 @@ test('GET danh sách: trả tài liệu + missingDefaults', async () => {
     await getRouteHandler('get', '/api/hr/rules/documents')({ user: MANAGER }, res);
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.degraded, false);
-    assert.deepEqual(res.body.missingDefaults, ['nghi-phep']);
+    assert.deepEqual(res.body.missingDefaults, ['nghi-phep', 'phuc-loi']);
     assert.equal(res.body.documents.length, 2);
   });
 });
 
-test('GET danh sách: bảng chưa migrate (42P01) ⇒ trả 2 tài liệu mặc định, degraded', async () => {
+test('GET danh sách: bảng chưa migrate (42P01) ⇒ trả 3 tài liệu mặc định, degraded', async () => {
   await withStubs([[repo, 'listDocuments', async () => { const e = new Error('no table'); e.code = '42P01'; throw e; }]], async () => {
     const res = fakeRes();
     await getRouteHandler('get', '/api/hr/rules/documents')({ user: MANAGER }, res);
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.degraded, true);
-    assert.deepEqual(res.body.documents.map(d => d.slug), ['gio-giac', 'nghi-phep']);
+    assert.deepEqual(res.body.documents.map(d => d.slug), ['gio-giac', 'nghi-phep', 'phuc-loi']);
     assert.deepEqual(res.body.missingDefaults, []);
   });
 });
