@@ -137,7 +137,9 @@ test('renderTopSidebar: menu dung theo QUYEN, khong theo vai tro cung', () => {
 
   // Nhan vien marketing / mua hang: khong co Bao cao va khong co Vong doi don hang -> menu giong Nhan vien kho.
   const sbMarketing = renderForRole('Nhân viên marketing').sidebar;
-  assert.doesNotMatch(sbMarketing.innerHTML, /Báo cáo tổng hợp/);
+  assert.match(sbMarketing.innerHTML, /Báo cáo tổng hợp/);
+  assert.match(sbMarketing.innerHTML, /Báo cáo Marketing/);
+  assert.doesNotMatch(sbMarketing.innerHTML, />Tổng quan<\/a>/);
   assert.doesNotMatch(sbMarketing.innerHTML, /Quản lý đơn hàng/);
 
   const sbMuaHang = renderForRole('Nhân viên mua hàng').sidebar;

@@ -4,6 +4,8 @@ Dashboard nội bộ cho hai cơ sở Hà Nội và Sài Gòn.
 
 ## Kiến trúc hiện tại
 
+- **Báo cáo Marketing** tại `/reports/#marketing` đọc ba workbook TRỰC PAGE, SĐT và ADS; gồm BC tháng, Check tỷ lệ nhận số, Sao lưu SĐT và Chi phí. Bấm dòng tổng quan mở hộp chi tiết; quyền `reports.marketing` mặc định Quản lý, Trợ lý, Nhân viên Marketing. Chỉ đọc, giữ kết quả công thức Sheets, làm mới khi đang xem mỗi 5 phút. Xem [cấu hình nguồn và nghiệm thu](docs/marketing-report-setup.md).
+
 - **Vị trí hàng** đọc trực tiếp hai sheet `VỊ TRÍ HN` / `Vị trí SG` của workbook `STOCK_LOCATIONS_SPREADSHEET_ID`. Trang `/stock-locations/` có hai tab theo cơ sở đang chọn, bảng 6 cột (Mã hàng, Tên hàng, Tổng SL, Ghi chú hàng hóa, Ngày về, Vị trí) 100 dòng/trang, tìm mã/tên/vị trí không dấu và sort toàn bộ dữ liệu trước phân trang. Có nút hiện/ẩn cột, nhớ riêng điện thoại/máy tính; điện thoại ưu tiên Tên hàng, Tổng SL, Vị trí. Không xuất file hoặc tải định kỳ. Mọi vai trò nội bộ có quyền mặc định; Khách bị chặn hoàn toàn. Xem [cấu hình và nghiệm thu](docs/stock-locations-setup.md).
 
 - **Supabase PostgreSQL** là nguồn dữ liệu KiotViet chính cho dashboard: hàng hóa, hóa đơn, đặt hàng, trả hàng, khách hàng, nhập hàng (chỉ phục vụ kiểm tra đứt hàng và "Hàng mới nhập"), phiếu **Đặt hàng nhập** (`order_suppliers`, cho "Hàng đang vận chuyển") và các bảng tổng hợp. Tab Nhà cung cấp đã gỡ (migration `0026`).
@@ -43,6 +45,7 @@ Mở `http://localhost:3000`.
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Service account Google (bắt buộc khi khởi động). Quyền Viewer cho Công nợ và Vị trí hàng; **Editor** cho workbook Vòng đời đơn hàng (ghi tab `Lịch sử cập nhật`) |
 | `DEBT_MANAGEMENT_SPREADSHEET_ID` | Workbook công nợ dùng chung (chỉ đọc) |
 | `STOCK_LOCATIONS_SPREADSHEET_ID` | Workbook vị trí hàng HN/SG dùng chung, chỉ đọc |
+| `MARKETING_REPORT_SPREADSHEET_ID`, `MARKETING_PHONES_SPREADSHEET_ID`, `MARKETING_ADS_SPREADSHEET_ID` | Ba workbook Báo cáo Marketing, chỉ đọc; service account cần Viewer trên cả ba |
 | `ORDER_LIFECYCLE_SPREADSHEET_ID` | Workbook vòng đời đơn hàng (`DonHang_HN`, `DonHang_SG`, `Lịch sử cập nhật`) |
 | `HR_SPREADSHEET_ID`, `HR_SPREADSHEET_ID_SG` | **Đã gỡ khỏi `config.js` và `.env.example` (2026-10-05)** — danh sách nhân sự nay ở Postgres `hr_employees`; biến còn trong môi trường cũ thì bỏ qua được |
 | `JWT_SECRET`, `JWT_EXPIRES_IN` | Ký phiên đăng nhập (bắt buộc / mặc định `12h`) |

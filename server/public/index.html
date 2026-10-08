@@ -47,6 +47,7 @@
     })();
   </script>
   <link rel="stylesheet" href="/shared/shared.css?v=20261006">
+  <link rel="stylesheet" href="/marketing-report.css?v=20261008">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
@@ -3268,6 +3269,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"></path><path d="m19 9-5 5-4-4-3 3"></path></svg>
           Báo cáo kinh doanh
         </button>
+        <button id="marketingReportTab" type="button" class="report-subnav-item" data-view="marketing" role="tab" aria-selected="false" onclick="goReportView('marketing')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14z"></path><path d="m7 15 2 6h4l-2-5"></path></svg>
+          Báo cáo Marketing
+        </button>
       </div>
       <div class="dashboard-stats" id="dashboardStats">
 
@@ -4210,6 +4215,18 @@
           </section>
         </div>
 
+        <div class="view" id="view-marketing">
+          <div class="view-title">Báo cáo Marketing</div>
+          <div class="view-sub"><span id="marketingSourceStatus" role="status">Chỉ đọc Google Sheets · tự cập nhật mỗi 5 phút</span> <button type="button" class="marketing-btn" id="marketingRefresh">Làm mới</button></div>
+          <nav class="marketing-toc" aria-label="Mục lục báo cáo Marketing">
+            <a href="#marketing" data-target="marketing-monthly">1. BC tháng</a>
+            <a href="#marketing" data-target="marketing-receipt-check">2. Check tỷ lệ nhận số</a>
+            <a href="#marketing" data-target="marketing-phones">3. Sao lưu SĐT</a>
+            <a href="#marketing" data-target="marketing-costs">4. Báo cáo chi phí</a>
+          </nav>
+          <div id="marketingSections"></div>
+        </div>
+
         <!-- ============ BÁO CÁO KINH DOANH ============ -->
         <div class="view" id="view-business">
           <div class="view-title">Báo cáo kinh doanh</div>
@@ -4357,6 +4374,11 @@
     </div>
   </div>
 
+  <dialog class="marketing-dialog" id="marketingDetailDialog" aria-labelledby="marketingDetailTitle" aria-describedby="marketingDetailSubtitle">
+    <div class="marketing-dialog-head"><div><h2 id="marketingDetailTitle">Chi tiết Marketing</h2><p id="marketingDetailSubtitle"></p><p id="marketingDetailStatus" role="status" aria-live="polite"></p></div><div><button id="marketingDetailRefresh" class="marketing-btn" type="button">Cập nhật chi tiết</button> <button id="marketingDetailClose" class="marketing-btn" type="button" aria-label="Đóng chi tiết">×</button></div></div>
+    <div class="marketing-dialog-body" id="marketingDetailBody"></div>
+  </dialog>
+
   <div class="export-modal-backdrop" id="exportModalBackdrop" hidden onclick="handleExportBackdropClick(event)">
     <section class="export-modal" role="dialog" aria-modal="true" aria-labelledby="exportModalTitle"
       aria-describedby="exportModalSubtitle">
@@ -4427,6 +4449,7 @@
   <script src="/shared/shared-nav.js?v=20261005"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
+  <script src="/marketing-report.js?v=20261008"></script>
 
   <script>
     // Toast thong bao inline — thay the window.alert() cho loi/canh bao (khong chan luong,
@@ -6316,6 +6339,9 @@
       return !!(typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && TKSNav.can('reports.' + view));
     }
 
+    let marketingProductDeferred = (window.location.hash || '') === '#marketing';
+    let marketingHistoryDeferred = marketingProductDeferred;
+
     function switchView(view) {
       // Chan doi sang tab khong co quyen (vd go thang /reports/#debt).
       if (!canViewReport(view)) return;
@@ -6327,7 +6353,7 @@
       document.getElementById('backdrop').classList.remove('show');
       document.getElementById('menuBtn').setAttribute('aria-expanded', 'false');
       document.getElementById('menuBtn').setAttribute('aria-label', 'Mở menu điều hướng');
-      if (view !== 'business' && viewIsLoaded(view)) {
+      if (view !== 'business' && view !== 'marketing' && viewIsLoaded(view)) {
         state.chartAnimation = false;
         renderView(view);
         state.chartAnimation = true;
@@ -6336,6 +6362,10 @@
       hideDashboardLoadError();
       // Bao cao kinh doanh co API rieng (/api/business-report), khong di qua /api/dashboard.
       if (view === 'business') { loadBusinessReport(false); return; }
+      if (view === 'marketing') { TKSMarketing.load(false); return; }
+      // Marketing opens independently; only load the other report sources when their view is opened.
+      if (view === 'products' && marketingProductDeferred) { marketingProductDeferred = false; loadProductReport(); }
+      if (view === 'overview' && marketingHistoryDeferred) { marketingHistoryDeferred = false; loadInventoryHistory(); }
       // Moi tab tai rieng khi duoc mo (xem ensureViewData): tab da co du lieu van ve ngay
       // tu du lieu cu roi cap nhat khi ban moi ve; tab chua co du lieu hien man che "Dang tai".
       ensureViewData(view);
@@ -8887,6 +8917,7 @@
      * du lieu duoc ve ngay tu du lieu cu roi cap nhat khi ban moi ve (khong bat man che).
      */
     function ensureViewData(view) {
+      if (view === 'marketing') { TKSMarketing.load(false); return; }
       if (isViewFresh(view) || isViewRequestPending(view)) return;
       loadData(state.days, !viewIsLoaded(view), view);
     }
@@ -8920,6 +8951,10 @@
      */
     function loadData(days, isManualRefresh, view) {
       const targetView = view || state.view;
+      if (targetView === 'marketing') {
+        if (state.view === 'marketing') TKSMarketing.load(false);
+        return;
+      }
       // Tab Bao cao kinh doanh khong co payload /api/dashboard (server tra 400 cho view=business):
       // moi duong goi loadData() cho tab nay (khoi dong theo hash, ensureViewData, SSE) chuyen sang
       // API rieng — loadBusinessReport tu bo qua neu dang tai hoac du lieu con moi (< 60s).
@@ -9048,7 +9083,7 @@
 
     // Vao thang mot tab bao cao tu sidebar cua trang khac (vd /reports/#products) —
     // cac trang khac dieu huong toi day bang hash roi trang nay tu chuyen view.
-    const REPORT_VIEW_NAMES = ['overview', 'products', 'invoices', 'customers', 'debt', 'business'];
+    const REPORT_VIEW_NAMES = ['overview', 'products', 'invoices', 'customers', 'debt', 'business', 'marketing'];
     function applyReportViewFromHash() {
       const hashView = (window.location.hash || '').replace('#', '');
       if (REPORT_VIEW_NAMES.indexOf(hashView) !== -1) switchView(hashView);
@@ -9155,9 +9190,9 @@
     // gian/cache dashboard nen goi rieng 1 lan khi vao trang (khong qua
     // loadData()/SSE o duoi).
     initDocumentDetail();
-    loadProductReport();
+    if (initialReportView() !== 'marketing') loadProductReport();
     // Bieu do gia tri ton kho theo ngay (muc 1 Xu huong): cung ly do nhu bao cao hang hoa o tren.
-    loadInventoryHistory();
+    if (initialReportView() !== 'marketing') loadInventoryHistory();
 
     // Chi tai tab can xem ngay: tab theo hash (/reports/#products) - quyen chua nap xong
     // luc nay nen state.view co the con la Tong quan - hoac tab dang mo. Cac tab khac tai

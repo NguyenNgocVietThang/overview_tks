@@ -26,13 +26,13 @@ Tài liệu đặc tả yêu cầu chức năng và phi chức năng của Dashb
 Web Application nội bộ gồm:
 
 1. **Engine đồng bộ KiotViet (Node.js):** `server/kiotvietSync/` polling KiotViet API cho hai cơ sở, nạp dữ liệu bán hàng vào Supabase PostgreSQL; webhook KiotViet chỉ được lưu thô.
-2. **Web Server (Node.js/Express) + frontend HTML tĩnh:** xác thực JWT, phân quyền theo tính năng, tính KPI/bảng/biểu đồ, xuất Excel/HTML, SSE, bot Telegram quản lý nghỉ phép. Đọc dữ liệu KiotViet, tài khoản, nhân sự, nghỉ phép, công nợ CN1/CN3/CN7, Trả NCC từ Postgres; đọc Google Sheets cho **Bảng Công nợ**, **Vòng đời đơn hàng** (kèm ghi tab `Lịch sử cập nhật`) và **Vị trí hàng**.
+2. **Web Server (Node.js/Express) + frontend HTML tĩnh:** xác thực JWT, phân quyền theo tính năng, tính KPI/bảng/biểu đồ, xuất Excel/HTML, SSE, bot Telegram quản lý nghỉ phép. Đọc dữ liệu KiotViet, tài khoản, nhân sự, nghỉ phép, công nợ CN1/CN3/CN7, Trả NCC từ Postgres; đọc Google Sheets cho **Bảng Công nợ**, **Vòng đời đơn hàng** (kèm ghi tab `Lịch sử cập nhật`), **Vị trí hàng** và **Báo cáo Marketing**.
 
 ## 1.3. Định nghĩa & thuật ngữ
 
 | **Thuật ngữ**           | **Giải thích**                                                                        |
 |-------------------------|---------------------------------------------------------------------------------------|
-| Dashboard / Báo cáo tổng hợp | Trang `/reports/` gồm 6 tab: Tổng quan, Hàng hóa, Hóa đơn, Khách hàng, Quản lý công nợ, Báo cáo kinh doanh (FR-16). |
+| Dashboard / Báo cáo tổng hợp | Trang `/reports/` gồm 7 tab: Tổng quan, Hàng hóa, Hóa đơn, Khách hàng, Quản lý công nợ, Báo cáo kinh doanh (FR-16), Báo cáo Marketing (FR-17). |
 | Doanh số tháng (Báo cáo kinh doanh) | Σ tổng tiền hóa đơn `Hoàn thành` trong tháng − Σ tổng tiền phiếu trả `Đã trả` trong tháng, gộp HN + SG (FR-16.2). |
 | KPI Card                | Thẻ hiển thị 1 chỉ số tổng hợp.                                                        |
 | CN1 / CN3 / CN7         | Khách hàng có hoạt động công nợ trong 1/3/7 ngày gần nhất (trước đây HN1/HN3/HN7), bảng `customer_debt_activity_periods`. |
@@ -88,7 +88,8 @@ Supabase PostgreSQL
 Google Sheets (service account)
     ├── Bảng Công nợ (DEBT_MANAGEMENT_SPREADSHEET_ID)         : chỉ đọc
     ├── Vòng đời đơn hàng (ORDER_LIFECYCLE_SPREADSHEET_ID)    : đọc DonHang_HN/SG, GHI tab `Lịch sử cập nhật`
-    └── Vị trí hàng (STOCK_LOCATIONS_SPREADSHEET_ID)          : chỉ đọc `Vị trí HN`, `Vị trí SG`
+    ├── Vị trí hàng (STOCK_LOCATIONS_SPREADSHEET_ID)          : chỉ đọc `Vị trí HN`, `Vị trí SG`
+    └── Marketing (TRỰC PAGE, SĐT, ADS; MARKETING_*_SPREADSHEET_ID): chỉ đọc
     (Workbook HR và tab `Trả NCC` không còn được đọc)
 
 File JSON cục bộ: server/data/notifications.json (chuông thông báo), server/data/roleChangeRequests.json (yêu cầu đổi vai trò)
@@ -131,7 +132,7 @@ Frontend (server/public/): index.html (Báo cáo tổng hợp, phục vụ ở /
 | **Vai trò**  | **Mô tả**                                                              |
 |--------------|------------------------------------------------------------------------|
 | Quản lý      | Toàn quyền mặc định: báo cáo (kể cả xuất file, sửa công nợ), vòng đời đơn hàng (kể cả xuất, ghi đè), nhân sự (duyệt nghỉ, tải quy định), tài khoản/phân quyền, trạng thái đồng bộ. **Quản lý cấp cao** = tài khoản admin cứng. |
-| Trợ lý       | 6 tab báo cáo + xuất Excel + sửa trạng thái công nợ; vòng đời đơn hàng (xem, tra cứu, lịch sử); nhân sự (xem). Không "Tính lại tháng" của Báo cáo kinh doanh. |
+| Trợ lý       | 7 tab báo cáo + xuất Excel + sửa trạng thái công nợ; vòng đời đơn hàng (xem, tra cứu, lịch sử); nhân sự (xem). Không "Tính lại tháng" của Báo cáo kinh doanh. |
 | Nhân viên sale | 6 tab báo cáo (xem), vòng đời đơn hàng (xem), nhân sự (xem). Không xuất báo cáo, không sửa công nợ. |
 | Kế toán, Trưởng kho, Lái xe | Vòng đời đơn hàng (xem/tra cứu/lịch sử), nhân sự (xem), vị trí hàng. Không có tab báo cáo mặc định. |
 | Nhân viên kho / marketing / mua hàng | Nhân sự (xem), vị trí hàng; **không** có Vòng đời đơn hàng. |
@@ -160,7 +161,7 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 | **Mã**  | **Mô tả**                                                                                                                        | **Ưu tiên** | **Trạng thái** |
 |---------|----------------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
 | FR-01.1 | Dữ liệu KiotViet của dashboard đọc từ Postgres qua `dashboardPgReader.js` (7 bảng nguồn dạng "sheet": Nhóm hàng, Hàng hóa, Hóa đơn, Chi tiết hóa đơn, Đặt hàng, Trả hàng, Khách hàng) và các bảng rollup; không đọc Google Sheets. | Cao | Hoàn thành |
-| FR-01.2 | Google Sheets chỉ còn dùng cho Bảng Công nợ (chỉ đọc), Vòng đời đơn hàng (đọc + ghi `Lịch sử cập nhật`) và Vị trí hàng (chỉ đọc), xác thực bằng Service Account JSON. | Cao | Hoàn thành |
+| FR-01.2 | Google Sheets dùng cho Bảng Công nợ (chỉ đọc), Vòng đời đơn hàng (đọc + ghi `Lịch sử cập nhật`), Vị trí hàng và Báo cáo Marketing (chỉ đọc), xác thực bằng Service Account JSON. | Cao | Hoàn thành |
 | FR-01.3 | Mọi ID workbook và `GOOGLE_SERVICE_ACCOUNT_JSON` đọc từ biến môi trường; thiếu ID workbook chỉ tắt tính năng tương ứng (503), không làm sập server. | Cao | Hoàn thành |
 | FR-01.4 | Thông tin xác thực KiotViet (`KIOTVIET_CLIENT_ID/SECRET/RETAILER`, hậu tố `_SG`) đọc từ biến môi trường; không hard-code. | Cao | Hoàn thành |
 | FR-01.5 | Lỗi đọc dữ liệu trả HTTP 500 kèm `detail`; log chi tiết phía server. Lỗi workbook công nợ chỉ làm `debtManagement.available = false`. | Cao | Hoàn thành |
@@ -369,6 +370,19 @@ Tab cấp 2 `#business` của `/reports/` (mục cuối nhóm Báo cáo tổng h
 | FR-16.6 | **Bảng:** Sale (Sale, SL Khách, TB 4 tháng, Tăng trưởng, Tháng hiện tại (đến dd/mm), rồi các tháng trước giảm dần tới T3); Khách hàng (Mã KH, Tên, Cơ sở, Sale, Level giá = `customers.raw->>'comments'`, rồi các cột số liệu); Mã hàng (Mã, Tên, rồi các cột số liệu). Sắp xếp mặc định theo TB 4 tháng giảm dần. Bảng khách mặc định chỉ hiện khách hoạt động, có tìm kiếm, lọc theo Sale, lọc theo cơ sở và công tắc "Hiện cả khách không hoạt động". Mọi bảng có tìm kiếm, sắp xếp, phân trang như FR-07.2. | Cao | Code hoàn thành |
 | FR-16.7 | **Panel chi tiết** (bấm dòng): thẻ tổng quan (Tháng này, Quy đổi 30 ngày, Tháng trước, Tăng trưởng, TB 4 tháng, Tổng từ T3/26) và biểu đồ cột theo tháng; panel Sale liệt kê khách của sale (bấm khách mở panel khách); panel Khách có top mã hàng 4 tháng gần nhất; panel Mã hàng có top khách 4 tháng gần nhất (tối đa 50 dòng). **Xuất file** từng bảng: một nút `Xuất file` mở hộp thoại chọn trường dùng chung của tab Báo cáo (mặc định chọn hết các cột đang hiện, có nút Xuất Excel / Xuất HTML có biểu đồ), theo bộ lọc đang chọn (cần `reports.business` và `reports.export`, tối đa 20.000 dòng). | Cao | Code hoàn thành |
 | FR-16.8 | **Chốt tháng:** doanh số các tháng đã qua được chốt cứng vào bảng `business_monthly_*` (migration `0036`) bởi job FR-06.13 lúc ≥ 00:10 VN ngày mùng 1; tháng hiện tại và tháng chưa chốt tính trực tiếp bằng cùng câu SQL (cache 60 giây). Bảng sale dựng lại theo nhóm khách hiện tại khi hash hiệu lực thay đổi hoặc sau chốt/chốt lại; hash lưu bền qua restart. Nút **"Tính lại tháng"** (quyền `reports.business.refreeze`, mặc định chỉ Quản lý) chốt lại một tháng đã qua từ T3/2026 (`POST /api/business-report/refreeze`). Chưa áp migration → API trả 503 `BUSINESS_REPORT_NOT_READY`, giao diện báo "Đang dựng dữ liệu tháng cũ…". | Cao | Code hoàn thành; chưa áp migration `0036` / chưa deploy |
+
+## 3.17. FR-17: Báo cáo Marketing
+
+Tab cấp 2 `/reports/#marketing`; nguồn và nghiệm thu tại [marketing-report-setup.md](../marketing-report-setup.md). Các yêu cầu dưới đây thuộc bản bổ sung ngày 08/10/2026; trạng thái triển khai production và cấp quyền nguồn được kiểm tra riêng.
+
+| Mã | Yêu cầu | Ưu tiên |
+|---|---|---|
+| FR-17.1 | Quyền `reports.marketing` mặc định Quản lý, Trợ lý, Nhân viên Marketing; kiểm tra menu, trang và API. Xem toàn bộ page, không dùng cơ sở chung để suy diễn phạm vi. | Cao |
+| FR-17.2 | Đọc ba workbook cấu hình qua `MARKETING_REPORT_SPREADSHEET_ID`, `MARKETING_PHONES_SPREADSHEET_ID`, `MARKETING_ADS_SPREADSHEET_ID`; service account Viewer, không ghi nguồn/DB hoặc migration. Giữ kết quả công thức và định dạng SĐT. | Cao |
+| FR-17.3 | Bốn phần BC tháng, Check tỷ lệ nhận số, Sao lưu SĐT, Chi phí; bộ lọc riêng, mục lục chuyển nhanh. Báo cáo tháng mặc định tháng hiện tại giờ Việt Nam; không có tháng thì dữ liệu rỗng. SĐT mặc định toàn bộ sáu tab CHUẨN, không khử trùng xuyên page. Chi phí phân biệt hai khối Hữu Nghị/Quảng Châu và dòng tổng/dòng ngày để tránh cộng trùng. | Cao |
+| FR-17.4 | Bấm dòng tổng quan hoặc Enter/Space mở hộp chi tiết hình chữ nhật theo mẫu Báo cáo kinh doanh. Theo cùng bộ lọc/snapshot, đóng X/Esc/nền, giữ focus. Số tổng nguồn và số dòng tìm thấy không khớp phải báo rõ, không điều chỉnh nguồn. Không dựng lịch sử từ THÔ hoặc đọc KiotViet. | Cao |
+| FR-17.5 | GET `/api/marketing-report/metadata`, `/monthly`, `/receipt-check`, `/phones`, `/costs`, `/detail`; `Cache-Control: no-store`, cache nguồn tối đa 5 phút, gộp đọc trùng và nguồn tải độc lập. Làm mới 5 phút khi tab đang hiển thị; lỗi giữ bản cũ/thời điểm cũ. Hộp chi tiết giữ snapshot tới khi cập nhật, bỏ phản hồi lỗi thời. | Cao |
+| FR-17.6 | Tái sử dụng Design System, Chart.js, KPI, panel/bảng sáng/tối; tìm kiếm không dấu, sắp xếp trước phân trang 100 dòng, ẩn/hiện cột; bảng cuộn trong khung trên điện thoại. Ô lỗi/thiếu hiện `—`, không đổi 0. Không endpoint ghi/xuất file hoặc lịch sử nhiều năm trong phiên bản đầu. | Cao |
 
 # 4. Yêu cầu phi chức năng (Non-functional Requirements)
 

@@ -22,6 +22,12 @@ bảng chi tiết drill-down, xuất báo cáo.
   nhật real-time (`rowPulseHighlight`, MASTER §5.16).
 - Sortable table header (`.sort-button`, `[aria-sort]`) — MASTER §5.13.
 
+## Báo cáo Marketing (`#marketing`)
+- Bốn phần đánh số dùng KPI `.kpi-card`, lưới 12 cột, panel và Chart.js của trang báo cáo.
+- Bộ lọc độc lập, bảng tra cứu 100 dòng/trang, cột ẩn/hiện và dòng có focus để mở chi tiết.
+- Hộp chi tiết dùng native `dialog`, token nền/viền/bo góc của trang và focus trả về dòng nguồn; không xếp nhiều hộp.
+- CSS riêng `marketing-report.css` dùng token sáng/tối hiện có. Màn hình nhỏ xếp panel một cột, KPI một/hai cột và bảng cuộn trong khung.
+
 ## Token cục bộ cần lưu ý (KHÔNG lặp lại ở trang mới)
 - Trang tự định nghĩa thang bo góc số (`--radius-2/4/5/6/7/8/9/10/12/14`) song song với thang ngữ
   nghĩa của MASTER §4.4, và `--radius-pill` ở đây là `999px` (lệch với `9999px` chuẩn). Khi thêm

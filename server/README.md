@@ -36,6 +36,12 @@ Mã chứng từ chỉ duy nhất trong 1 cơ sở, nên `branch` bắt buộc k
 
 Từ 2026-10-01 hai bảng "Danh sách đặt hàng" / "Danh sách trả hàng" của tab Hóa đơn đã bỏ, cùng `GET /api/order-detail` và `GET /api/return-detail`. Đơn đặt hàng "Phiếu tạm" của KiotViet nay theo dõi ở trang Vòng đời đơn hàng và xem chi tiết bằng `GET /api/shipment/lifecycle/order-detail` (phần dưới); `getOrderDetail` của repository vẫn được trang đó dùng lại.
 
+## Báo cáo Marketing (`/api/marketing-report`)
+
+Tab `/reports/#marketing` gồm BC tháng, Check tỷ lệ nhận số, Sao lưu SĐT và Báo cáo chi phí; dùng Google Sheets chỉ đọc với ba biến `MARKETING_REPORT_SPREADSHEET_ID`, `MARKETING_PHONES_SPREADSHEET_ID`, `MARKETING_ADS_SPREADSHEET_ID`. Service account cần Viewer trên từng workbook, đặc biệt bổ sung workbook SĐT trước nghiệm thu. Không migration hoặc đồng bộ nền. Xem [cấu hình và nghiệm thu](../docs/marketing-report-setup.md).
+
+`GET /api/marketing-report/metadata`, `/monthly`, `/receipt-check`, `/phones`, `/costs`, `/detail` đều cần đăng nhập + `reports.marketing` và trả `Cache-Control: no-store`. Quyền mặc định Quản lý, Trợ lý, Nhân viên Marketing. API chi tiết nhận loại báo cáo, khóa nguồn, tháng và bộ lọc, giữ cùng snapshot với tổng quan. Cache nguồn tối đa 5 phút, gộp yêu cầu trùng; các nguồn tải độc lập. Lỗi nguồn không tiết lộ chẩn đoán Google hoặc khóa riêng. Không có endpoint ghi hay xuất file.
+
 ## Báo cáo kinh doanh (`/api/business-report`)
 
 Tab "Báo cáo kinh doanh" (`/reports/#business`) gồm 3 mục Tăng trưởng Sale / Khách hàng / Mã hàng theo tháng, từ T3/2026. Số liệu **luôn gộp HN + SG**, không theo bộ chọn cơ sở. Spec: [2026-10-07-business-report-design.md](../docs/superpowers/specs/2026-10-07-business-report-design.md).

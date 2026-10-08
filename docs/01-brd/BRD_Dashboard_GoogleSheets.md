@@ -23,17 +23,17 @@ Mô tả các yêu cầu nghiệp vụ của Hệ thống Dashboard nội bộ T
 
 ## 1.2. Bối cảnh
 
-TOKOSI là tổng kho sỉ phân phối hàng hóa, vận hành trên **KiotViet** (bán hàng, kho, khách hàng) với hai cơ sở **Hà Nội** và **Sài Gòn**. Dữ liệu KiotViet được đồng bộ tự động vào **Supabase PostgreSQL** bằng engine Node.js `server/kiotvietSync/` (hàng hóa, hóa đơn, đặt hàng, trả hàng, khách hàng, nhập hàng, phiếu đặt hàng nhập, thu chi) cùng các bảng tổng hợp. Ba kỳ công nợ 1/3/7 ngày (**CN1 / CN3 / CN7**) được tính từ database. Google Sheets chỉ còn dùng cho Bảng Công nợ, Vòng đời đơn hàng và Vị trí hàng.
+TOKOSI là tổng kho sỉ phân phối hàng hóa, vận hành trên **KiotViet** (bán hàng, kho, khách hàng) với hai cơ sở **Hà Nội** và **Sài Gòn**. Dữ liệu KiotViet được đồng bộ tự động vào **Supabase PostgreSQL** bằng engine Node.js `server/kiotvietSync/` (hàng hóa, hóa đơn, đặt hàng, trả hàng, khách hàng, nhập hàng, phiếu đặt hàng nhập, thu chi) cùng các bảng tổng hợp. Ba kỳ công nợ 1/3/7 ngày (**CN1 / CN3 / CN7**) được tính từ database. Google Sheets dùng cho Bảng Công nợ, Vòng đời đơn hàng, Vị trí hàng và Báo cáo Marketing.
 
 Trước đây việc theo dõi số liệu phải làm thủ công trên KiotViet và Google Sheets, mất thời gian tổng hợp và khó thấy xu hướng. Công ty cần một **website tập trung** hiển thị chỉ số quan trọng dưới dạng KPI, biểu đồ, bảng có lọc/tìm/xuất, cập nhật gần thời gian thực, và là nền móng để mở rộng thành nền tảng quản trị vận hành.
 
 ## 1.3. Phạm vi tài liệu
 
-Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (6 tab, gồm Báo cáo kinh doanh), Quản lý công nợ theo cơ sở, kiểm tra đứt hàng, Vòng đời đơn hàng, Vị trí hàng, Quản lý nhân sự & nghỉ phép (kèm bot Telegram), Quản lý tài khoản & phân quyền, xuất Excel/HTML; cùng định hướng mở rộng dài hạn.
+Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (7 tab, gồm Báo cáo kinh doanh và Báo cáo Marketing), Quản lý công nợ theo cơ sở, kiểm tra đứt hàng, Vòng đời đơn hàng, Vị trí hàng, Quản lý nhân sự & nghỉ phép (kèm bot Telegram), Quản lý tài khoản & phân quyền, xuất Excel/HTML; cùng định hướng mở rộng dài hạn.
 
 # 2. Mục tiêu dự án
 
-- Dashboard nội bộ kết nối **Supabase PostgreSQL** cho dữ liệu KiotViet và **Google Sheets API** cho Bảng Công nợ, Vòng đời đơn hàng, Vị trí hàng.
+- Dashboard nội bộ kết nối **Supabase PostgreSQL** cho dữ liệu KiotViet và **Google Sheets API** cho Bảng Công nợ, Vòng đời đơn hàng, Vị trí hàng và Báo cáo Marketing.
 - Hiển thị KPI vận hành: doanh thu thực tế (đã trừ hàng trả), số hóa đơn, giá trị và số lượng tồn kho, **Tồn có thể bán**, hàng đang vận chuyển, hàng hết, công nợ khách hàng, trả hàng, hàng mới nhập.
 - Mỗi bảng/biểu đồ có bộ lọc thời gian **Từ – Đến** riêng, tìm kiếm không dấu, sắp xếp trên toàn bộ dữ liệu đã lọc và phân trang 100 dòng.
 - Dữ liệu cập nhật **gần thời gian thực**: engine đồng bộ polling KiotViet (nhóm fast 7 phút, nhóm slow 20 phút), rollup tính lại ngay sau mỗi lượt fast, và trình duyệt tự tải lại tab đang xem khi nhận sự kiện SSE `dashboard-updated`.
@@ -55,8 +55,8 @@ Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (6 tab, gồm Báo c�
 
 - **Nguồn dữ liệu:**
   - **Supabase PostgreSQL:** toàn bộ dữ liệu KiotViet (nhóm hàng, hàng hóa, hóa đơn + chi tiết + thanh toán, đặt hàng, trả hàng, khách hàng, nhập hàng, phiếu đặt hàng nhập, thu chi), bảng tổng hợp (rollup theo ngày, báo cáo hàng hóa, chi tiết hóa đơn 90 ngày, giá trị tồn kho theo ngày, CN1/CN3/CN7, doanh số tháng đã chốt của Báo cáo kinh doanh), Trả NCC upload, tài khoản `app_users`, nhân sự `hr_employees`, nghỉ phép và liên kết Telegram, trạng thái xử lý công nợ, tài liệu quy định công ty.
-  - **Google Sheets:** Bảng Công nợ (`DEBT_MANAGEMENT_SPREADSHEET_ID`, chỉ đọc); Vòng đời đơn hàng (`ORDER_LIFECYCLE_SPREADSHEET_ID`, đọc `DonHang_HN`/`DonHang_SG`, ghi tab `Lịch sử cập nhật`); Vị trí hàng (`STOCK_LOCATIONS_SPREADSHEET_ID`, chỉ đọc).
-- **Báo cáo tổng hợp (6 tab):** Tổng quan (Xu hướng, Báo cáo doanh thu theo khách, Báo cáo hàng hóa, Kiểm tra đứt hàng), Hàng hóa (Cơ cấu tồn kho, Phân tích, Tất cả mã hàng, Hàng mới nhập, Mã mới tạo), Hóa đơn (Chi tiết giao dịch), Khách hàng (Top khách theo doanh thu, Phân tích công nợ), Quản lý công nợ, Báo cáo kinh doanh (Tăng trưởng Sale, Tăng trưởng Khách hàng, Tăng trưởng Mã hàng).
+  - **Google Sheets:** Bảng Công nợ (`DEBT_MANAGEMENT_SPREADSHEET_ID`, chỉ đọc); Vòng đời đơn hàng (`ORDER_LIFECYCLE_SPREADSHEET_ID`, đọc `DonHang_HN`/`DonHang_SG`, ghi tab `Lịch sử cập nhật`); Vị trí hàng (`STOCK_LOCATIONS_SPREADSHEET_ID`, chỉ đọc); Báo cáo Marketing (ba workbook `MARKETING_*_SPREADSHEET_ID`, chỉ đọc).
+- **Báo cáo tổng hợp (7 tab):** Tổng quan (Xu hướng, Báo cáo doanh thu theo khách, Báo cáo hàng hóa, Kiểm tra đứt hàng), Hàng hóa (Cơ cấu tồn kho, Phân tích, Tất cả mã hàng, Hàng mới nhập, Mã mới tạo), Hóa đơn (Chi tiết giao dịch), Khách hàng (Top khách theo doanh thu, Phân tích công nợ), Quản lý công nợ, Báo cáo kinh doanh (Tăng trưởng Sale, Tăng trưởng Khách hàng, Tăng trưởng Mã hàng), Báo cáo Marketing (BC tháng, Check tỷ lệ nhận số, Sao lưu SĐT, Chi phí).
 - **Báo cáo kinh doanh:** thay báo cáo tăng trưởng làm tay trên Google Sheets. Doanh số tháng = hóa đơn hoàn thành trừ hàng khách trả, gộp HN + SG, từ T3/2026; sale = nhóm khách hàng trên KiotViet (khách chưa có nhóm gộp vào "Chưa phân nhóm"); tháng đang chạy quy đổi về 30 ngày để so tăng trưởng với tháng trước, kèm trung bình 4 tháng; các tháng đã qua được chốt cứng mỗi ngày mùng 1, Quản lý có thể tính lại.
 - **Màn hình Quản lý công nợ:** kết hợp Bảng Công nợ, đối chiếu CN1/CN3/CN7 và trạng thái xử lý lưu trong PostgreSQL.
 - **Vòng đời đơn hàng, Vị trí hàng, Sổ quỹ, Quản lý nhân sự (Quy định công ty, Danh sách nhân sự, Nghỉ phép), Quản lý tài khoản.**
@@ -98,7 +98,7 @@ Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (6 tab, gồm Báo c�
 ## 5.1. Nguồn dữ liệu & kết nối
 
 - Dữ liệu KiotViet đọc từ **Supabase PostgreSQL**; thông tin kết nối (`SUPABASE_DB_URL`), Service Account Google (`GOOGLE_SERVICE_ACCOUNT_JSON`) và các ID workbook cấu hình qua biến môi trường, không hard-code.
-- Google Sheets chỉ dùng cho Bảng Công nợ (Viewer), Vòng đời đơn hàng (Editor — để ghi tab Lịch sử) và Vị trí hàng (Viewer). Thiếu ID workbook chỉ tắt tính năng tương ứng (trả 503), không làm sập dashboard.
+- Google Sheets dùng cho Bảng Công nợ (Viewer), Vòng đời đơn hàng (Editor — để ghi tab Lịch sử), Vị trí hàng và ba workbook Marketing (Viewer). Thiếu ID workbook chỉ tắt tính năng tương ứng (trả 503), không làm sập dashboard.
 - Một bảng/nguồn lỗi tạm thời chỉ làm rỗng hoặc cảnh báo phần tương ứng, các phần khác vẫn hiển thị.
 
 ## 5.2. KPI tổng quan
@@ -182,7 +182,13 @@ Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp
 - Có Trạng thái KiotViet, Ghi chú, Giá trị đơn và **Giá trị có bán** (đơn Phiếu tạm: Σ min(SL đặt, tồn) × đơn giá); lọc, sắp xếp, phân trang chạy ở máy chủ; bấm dòng xem chi tiết đơn.
 - Tra cứu theo mã, Lịch sử cập nhật, Ghi đè trạng thái (mặc định chỉ Quản lý) và Xuất Excel (mặc định chỉ Quản lý, tối đa 20.000 dòng) đều là quyền phụ của quyền Vòng đời đơn hàng. Nhân viên kho, marketing, mua hàng và Khách không có trang này.
 
-## 5.11. Quản lý nhân sự
+## 5.11. Báo cáo Marketing
+
+Tab cấp 2 `/reports/#marketing` giúp Quản lý, Trợ lý và Nhân viên Marketing đọc BC tháng, Check tỷ lệ nhận số, Sao lưu SĐT và Báo cáo chi phí từ ba workbook Google Sheets. Bộ lọc mỗi phần độc lập; ba báo cáo tháng mặc định tháng hiện tại theo giờ Việt Nam, SĐT mặc định toàn bộ các tab CHUẨN. Bấm dòng tổng quan mở khung chi tiết giữa màn hình để tra cứu theo cùng phạm vi và đối chiếu số tổng nguồn với các dòng tìm thấy.
+
+Dữ liệu chỉ đọc, giữ kết quả công thức, không gộp trùng SĐT giữa page, không cộng dòng tổng tháng chi phí với dòng ngày. Tự làm mới mỗi 5 phút khi đang xem; lỗi nguồn giữ dữ liệu cũ và thời điểm cũ. Tuân thủ Design System và giao diện các tab báo cáo hiện có. Không sửa Sheets, xuất file, dựng lịch sử từ THÔ hoặc truy vấn KiotViet. Nghiệm thu đủ nguồn cần Viewer cho service account trên cả ba workbook, gồm workbook SĐT. Xem [cấu hình và nghiệm thu](../marketing-report-setup.md); chưa xác nhận triển khai production.
+
+## 5.12. Quản lý nhân sự
 
 - **Quy định công ty:** hai tài liệu dựng sẵn (Giờ giấc làm việc, Quy định nghỉ phép) và PDF do Quản lý tải lên; gỡ/khôi phục mặc định; thêm/gỡ tài liệu báo lên chuông thông báo.
 - **Danh sách nhân sự:** xem và xuất Excel; là nguồn đối chiếu vai trò theo bộ phận cho tài khoản.
@@ -201,7 +207,7 @@ Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp
 ## 7.1. Giả định
 
 - Supabase PostgreSQL lưu toàn bộ dữ liệu nghiệp vụ với schema trong `server/db/SCHEMA.md`, đã áp migration tới `0030`.
-- Service Account Google được cấp Viewer trên Bảng Công nợ và Vị trí hàng, Editor trên workbook Vòng đời đơn hàng.
+- Service Account Google được cấp Viewer trên Bảng Công nợ, Vị trí hàng và ba workbook Marketing, Editor trên workbook Vòng đời đơn hàng.
 - Scheduler Node.js hoạt động liên tục (một instance) để dữ liệu được cập nhật gần thời gian thực.
 - Bot xin nghỉ của nhân viên vận hành ngoài repo và ghi trực tiếp vào Postgres.
 - Số người dùng đồng thời khoảng 10–50 (nội bộ).
@@ -209,7 +215,7 @@ Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp
 ## 7.2. Ràng buộc
 
 - Dữ liệu KiotViet phụ thuộc tốc độ polling và hạn mức KiotViet API; webhook không phải nguồn cập nhật.
-- Bảng Công nợ, Vòng đời đơn hàng, Vị trí hàng phụ thuộc cấu trúc header của Google Sheets; đổi tên tab/cột có thể làm tính năng báo lỗi cấu hình.
+- Bảng Công nợ, Vòng đời đơn hàng, Vị trí hàng, Báo cáo Marketing phụ thuộc cấu trúc header của Google Sheets; đổi tên tab/cột có thể làm tính năng báo lỗi cấu hình.
 - Job nặng chạy một lần/đêm (Báo cáo hàng hóa, chi tiết hóa đơn 90 ngày) nên số liệu hôm nay chỉ xuất hiện ở đêm sau; giao diện ghi rõ mốc.
 - Hiệu năng: cache hai tầng, phân trang, tải theo tab; hạn chế IO Postgres (job chỉ ghi dòng thay đổi).
 
