@@ -93,6 +93,40 @@ test('tồn quỹ = tổng phiếu chưa hủy, gộp HN+SG theo số TK, tách 
   });
   assert.equal(new Date(s.syncedAt).toISOString(), '2026-10-06T04:00:00.000Z');
 });
+
+test('nhóm theo số tài khoản trong ảnh, mọi tài khoản ngoài danh sách thuộc Khác', () => {
+  const examples = [
+    ['80002809285', 'Anh Quân'], ['10003099363', 'Anh Quân'], ['48206877', 'Anh Quân'], ['044345', 'Anh Quân'],
+    ['181833666', 'Chị Nguyệt'], ['3090345688', 'Chị Nguyệt'], ['52256368', 'Chị Nguyệt'], ['0034100123456688', 'Chị Nguyệt'],
+    ['8040890', 'Anh Duy'], ['80002808041', 'Anh Duy'], ['087564570', 'Anh Duy'], ['1026044272', 'Anh Duy'],
+    ['72104081990', 'Anh Duy'], ['00001066788', 'Anh Duy'],
+    ['1069579742', 'Công ty'], ['6062.666.88888', 'Công ty'], ['898896886', 'Công ty'], ['525345345', 'Công ty'],
+    ['658999', 'Công ty'], ['686345345', 'Công ty'], ['464848', 'Công ty'],
+    ['0123468686789', 'Khác'], ['2053148602383', 'Khác'], ['3333333', 'Khác'],
+  ];
+  for (const [account_no, expected] of examples) {
+    const [fund] = groupFunds([{ fund_key: '1', account_id: '1', account_no, bank_name: 'Tên chủ TK thay đổi' }]);
+    assert.equal(fund.accountGroup, expected, account_no);
+  }
+  const special = groupFunds([{fund_key: 'cash'}, {fund_key: 'unassigned'}]);
+  assert.ok(special.every(row => row.accountGroup === 'Khác'));
+});
+
+test('tổng số dư 5 nhóm bằng tổng tồn quỹ, cộng HN + SG và không phụ thuộc tài khoản đang lọc', async () => {
+  await db.query("UPDATE cash_book_accounts SET account_no='48206877' WHERE id IN (7,8)");
+  try {
+    for (const fund of ['all', 'cash', '7']) {
+      const s = await repo.summary(f({fund}));
+      assert.deepEqual(s.groupBalances, [
+        {name: 'Anh Quân', balance: 55}, {name: 'Chị Nguyệt', balance: 0},
+        {name: 'Anh Duy', balance: 0}, {name: 'Công ty', balance: 0}, {name: 'Khác', balance: 117},
+      ]);
+      assert.equal(s.groupBalances.reduce((sum, row) => sum + row.balance, 0), s.totalBalance);
+    }
+  } finally {
+    await db.query("UPDATE cash_book_accounts SET account_no='123' WHERE id IN (7,8)");
+  }
+});
 test('bảng số dư luôn đủ quỹ; KPI Tồn quỹ theo nhóm ID đang chọn, link cũ 1 ID chỉ cộng ID đó', async () => {
   for (const [fund, closing] of [
     ['7,8', 55],

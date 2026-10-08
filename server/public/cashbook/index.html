@@ -137,6 +137,15 @@
         color: var(--muted);
       }
 
+      .group-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(180px, 1fr));
+        gap: 14px;
+        overflow-x: auto;
+        margin-bottom: 14px;
+      }
+      .group-kpi-grid .value { font-size: 20px; }
+      .cb-fund-group { color: var(--blue); font-size: 11px; margin-top: 5px; }
       /* ---------- Panel + bảng ---------- */
       .panel {
         border-radius: var(--radius-lg);
@@ -1271,6 +1280,13 @@
                 <div class="sub">Tổng tồn quỹ HN + SG tại cuối kỳ</div>
               </div>
             </div>
+            <div class="group-kpi-grid" id="groupBalances" aria-label="Số dư theo nhóm · HN + SG tại cuối kỳ">
+              <div class="kpi-card accent-blue"><div class="eyebrow">Anh Quân</div><div class="value" data-group-balance="Anh Quân">—</div><div class="sub">Tổng số dư HN + SG tại cuối kỳ</div></div>
+              <div class="kpi-card accent-blue"><div class="eyebrow">Chị Nguyệt</div><div class="value" data-group-balance="Chị Nguyệt">—</div><div class="sub">Tổng số dư HN + SG tại cuối kỳ</div></div>
+              <div class="kpi-card accent-blue"><div class="eyebrow">Anh Duy</div><div class="value" data-group-balance="Anh Duy">—</div><div class="sub">Tổng số dư HN + SG tại cuối kỳ</div></div>
+              <div class="kpi-card accent-blue"><div class="eyebrow">Công ty</div><div class="value" data-group-balance="Công ty">—</div><div class="sub">Tổng số dư HN + SG tại cuối kỳ</div></div>
+              <div class="kpi-card accent-blue"><div class="eyebrow">Khác</div><div class="value" data-group-balance="Khác">—</div><div class="sub">Tổng số dư HN + SG tại cuối kỳ</div></div>
+            </div>
             <div class="panel">
               <div class="panel-head">
                 <h3 id="balancesTitle">Số dư tài khoản</h3>
@@ -1726,6 +1742,10 @@
                 button.textContent = data.accountNo || data.name;
                 button.title = "Lọc sổ chi tiết theo " + (data.accountNo || data.name);
                 cell.appendChild(button);
+                const group = document.createElement("div");
+                group.className = "cb-fund-group";
+                group.textContent = data.accountGroup || "Khác";
+                cell.appendChild(group);
                 for (const text of [data.accountNo ? data.name : "", data.description]) {
                   if (!text) continue;
                   const note = document.createElement("div");
@@ -1820,7 +1840,7 @@
             "balances",
             sortedBalances(
               loaded.balances.filter((row) =>
-                matches(row, ["name", "accountNo", "description"], needle),
+                matches(row, ["name", "accountNo", "description", "accountGroup"], needle),
               ),
             ),
             needle ? "Không có tài khoản khớp từ khóa." : undefined,
@@ -2004,6 +2024,10 @@
               ? "Dữ liệu KiotViet đồng bộ lúc " + dateText(s.syncedAt)
               : "Dữ liệu KiotViet chưa có mốc đồng bộ.";
             loaded.balances = s.balances;
+            for (const node of document.querySelectorAll("[data-group-balance]")) {
+              const group = s.groupBalances?.find(row => row.name === node.dataset.groupBalance);
+              paintMoney(node, group?.balance ?? null);
+            }
             renderBalances();
             tableRows("entries", e.entries);
             $("balanceTotal").textContent =
@@ -2034,6 +2058,7 @@
                   "Chưa tải được dữ liệu. Vui lòng thử lại.";
               }
               loaded.balances = [];
+              for (const node of document.querySelectorAll("[data-group-balance]")) paintMoney(node, null);
               $("entriesPage").textContent = "";
               for (const direction of ["First", "Previous", "Next", "Last"])
                 $("entries" + direction).disabled = true;

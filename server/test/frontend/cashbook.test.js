@@ -10,11 +10,16 @@ const html = fs.existsSync(file)
   : "<html></html>";
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 const summary = {
+  groupBalances: [
+    { name: "Anh Quân", balance: -1234.5 }, { name: "Chị Nguyệt", balance: 0 },
+    { name: "Anh Duy", balance: 0 }, { name: "Công ty", balance: 0 }, { name: "Khác", balance: 0 },
+  ],
   balances: [
     {
       fund: "-1,7",
       accountIds: ["-1", "7"],
       name: "Bank cũ",
+      accountGroup: "Anh Quân",
       accountNo: "001",
       description: "TK chính",
       balanceHanoi: -1534.5,
@@ -138,6 +143,24 @@ async function setup(t, { hash = "", fetcher, captureTimers = false } = {}) {
     init: () => w.TKSCashbook.init(),
   };
 }
+
+test('5 ô số dư theo nhóm đúng thứ tự, giữ số âm và tìm tài khoản theo nhóm', async t => {
+  const {init, doc, w, calls} = await setup(t);
+  await init();
+  const cards = [...doc.querySelectorAll('#groupBalances .kpi-card')];
+  assert.deepEqual(cards.map(card => card.querySelector('.eyebrow').textContent),
+    ['Anh Quân', 'Chị Nguyệt', 'Anh Duy', 'Công ty', 'Khác']);
+  assert.deepEqual(cards.map(card => card.querySelector('.value').textContent), ['-1.234,5', '0', '0', '0', '0']);
+  assert.ok(cards[0].querySelector('.value').classList.contains('negative'));
+  assert.equal(doc.querySelector('#balancesBody .cb-fund-group').textContent, 'Anh Quân');
+  const count = calls.length;
+  const search = doc.getElementById('balancesSearch');
+  search.value = 'anh quan';
+  search.dispatchEvent(new w.Event('input', {bubbles: true}));
+  assert.deepEqual([...doc.querySelectorAll('#balancesBody tr[data-fund]')].map(row => row.dataset.fund), ['-1,7']);
+  assert.equal(calls.length, count);
+  assert.equal(cards[0].querySelector('.value').textContent, '-1.234,5');
+});
 
 test("tiền null khác số 0, dấu âm và chuỗi thập phân giữ chính xác", async (t) => {
   const { api } = await setup(t);

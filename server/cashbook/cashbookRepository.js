@@ -11,6 +11,18 @@ const fundsSql = `SELECT 'cash' fund_key,NULL::bigint account_id
   UNION SELECT DISTINCT ${fundKeySql('c')},CASE WHEN c.method='Cash' THEN NULL ELSE c.account_id END FROM cash_flows c WHERE c.source_missing_at IS NULL`;
 const numeric = (v) => (v == null ? null : Number(v));
 const BRANCH_KEYS = { hanoi: 'balanceHanoi', saigon: 'balanceSaigon' };
+const FUND_GROUPS = ['Anh Quân', 'Chị Nguyệt', 'Anh Duy', 'Công ty', 'Khác'];
+// Danh sách số TK đã đối chiếu với ảnh: không suy ra nhóm từ tên chủ TK.
+const GROUP_ACCOUNT_NUMBERS = [
+  ['80002809285', '10003099363', '48206877', '044345'],
+  ['181833666', '3090345688', '52256368', '0034100123456688'],
+  ['8040890', '80002808041', '087564570', '72104081990', '00001066788', '1026044272'],
+  ['1069579742', '6062.666.88888', '898896886', '525345345', '658999', '686345345', '464848'],
+];
+function fundGroup(accountNo) {
+  const index = GROUP_ACCOUNT_NUMBERS.findIndex(numbers => numbers.includes(accountNo));
+  return index < 0 ? 'Khác' : FUND_GROUPS[index];
+}
 // HN và SG là 2 retailer KiotViet nên cùng một tài khoản ngân hàng có 2 ID.
 // Gộp theo số TK; khóa quỹ là danh sách ID nên dùng thẳng làm bộ lọc `fund`.
 function groupFunds(rows) {
@@ -41,6 +53,7 @@ function groupFunds(rows) {
           g.accountNo ||
           `Tài khoản #${ids[0]} (không có trong danh sách KiotViet)`,
       accountNo: g.accountNo,
+      accountGroup: g.special ? 'Khác' : fundGroup(g.accountNo),
       description: g.descriptions.join(' · '),
     };
   });
@@ -133,6 +146,11 @@ function createRepository(pool = getPool()) {
     return {
       balances,
       totalBalance,
+      groupBalances: FUND_GROUPS.map(name => ({
+        name,
+        balance: balances.filter(row => row.accountGroup === name)
+          .reduce((sum, row) => sum + row.balance, 0),
+      })),
       kpis: {
         totalReceipts: Number(t.receipts),
         totalPayments: Number(t.payments),

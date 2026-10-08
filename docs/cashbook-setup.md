@@ -11,6 +11,18 @@ Trạng thái 07/10/2026: migration `0033`–`0035` đã áp trên DB cấu hìn
 
 ## Tồn quỹ (từ 06/10/2026, bỏ chốt số dư và nhập tên ngân hàng)
 
+### Nhóm tài khoản — 08/10/2026
+
+Danh mục được phân theo số tài khoản đã đối chiếu với ảnh người dùng, không suy ra từ tên chủ tài khoản. Số dư tổng hợp theo nhóm hiển thị 5 ô ngang theo thứ tự Anh Quân, Chị Nguyệt, Anh Duy, Công ty, Khác; màn hình hẹp cuộn ngang. Mỗi tài khoản có nhãn nhóm và tìm kiếm được theo nhóm. API summary trả `accountGroup` trên mỗi dòng và `groupBalances` gồm đủ 5 nhóm, kể cả nhóm có số dư 0. Tổng nhóm cộng số dư HN + SG tại cuối kỳ, luôn tính toàn bộ tài khoản như bảng số dư, không bị thu hẹp khi chọn tài khoản hoặc tìm kiếm. Dữ liệu cập nhật cùng nhịp tự làm mới hiện có.
+
+- Anh Quân: MSB Quân, TPB Quân, ACB Quân (Bill), VIB Quân (bổ sung theo yêu cầu người dùng).
+- Chị Nguyệt: SHB Nguyệt, VPB Nguyệt, ACB Nguyệt (Bill), OCB Nguyệt.
+- Anh Duy: VPB Duy, MSB Duy, VIB Duy, SHB Duy, cả TPB Duy (bill) và TPB Duy cũ theo xác nhận người dùng.
+- Công ty: VCB CTY TKS / VCB CTY TKS GROUP (cùng số TK), MB CTY TKS GROUP, MB CTY LUCKY HOUSE, MB CTY SHC GROUP, MSB CTY TKS, MB CTY VC EXPRESS, MSB CTY VC.
+- Khác: mọi tài khoản ngoài danh sách, tiền mặt và quỹ chưa xác định. MB Khánh Duy, MB Thấu chi TKS không thuộc các nhóm trên vì không có trong ảnh.
+
+Danh sách số TK nằm trong `server/cashbook/cashbookRepository.js`; tài khoản mới mặc định vào Khác. Không cần migration hoặc sửa dữ liệu nguồn.
+
 ### Tự động cập nhật không cần F5 — 07/10/2026
 
 Sổ quỹ có lịch riêng mỗi 60 giây, chạy ngay lúc startup; chu kỳ cấu hình bằng `KIOTVIET_CASHBOOK_SYNC_INTERVAL_MS` nhưng không nhỏ hơn 60 giây. Một lượt còn chạy thì nhịp kế tiếp bỏ qua, không gọi trùng API. Nhịp slow 20 phút không còn chứa `cash_flows`. Localhost đã bật `KIOTVIET_CASHBOOK_SYNC_ENABLED=true`; engine tổng vẫn giữ cấu hình cũ. Code chưa triển khai lên production.
