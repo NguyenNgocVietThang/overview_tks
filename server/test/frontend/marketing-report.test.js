@@ -17,13 +17,13 @@ function page(customFetch) {
     urls.push(url);
     if(customFetch) { const custom = await customFetch(url); if(custom) return custom; }
     const endpoint = url.split('/').pop().split('?')[0];
-    const json = endpoint==='metadata' ? {currentMonth:10,months:{monthly:[9,10],check:[10],costs:[10]}} : endpoint==='detail' ? {title:'Chi tiết page',snapshotId:'snapshot-new',groups:[],kpis:[],computedAt:'2026-10-08T10:00:00Z'} : {snapshotId:'snapshot-1',computedAt:'2026-10-08T09:00:00Z',kpis:[],charts:[],warnings:[],filters:{pages:['Hữu Nghị']},summaryRows:[{key:'page:hn',label:'Hữu Nghị',count:101}],rows:Array.from({length:101},(_,i) => ({key:'phone:'+i,phone:'0'+i,page:'Hữu Nghị',sale:i===100?'Đặng An':'Sale '+i,revenue:101-i}))};
+    const json = endpoint==='metadata' ? {currentMonth:10,months:{monthly:[9,10],check:[10],costs:[10]}} : endpoint==='detail' ? {title:'Chi tiết page',snapshotId:'snapshot-new',groups:[],kpis:[],computedAt:'2026-10-08T10:00:00Z'} : {snapshotId:'snapshot-1',computedAt:'2026-10-08T09:00:00Z',kpis:[],charts:[],warnings:[],filters:{pages:['Hữu Nghị']},summaryRows:[{key:'page:hn',label:'Hữu Nghị',employee:'Tâm MKT',count:101}],rows:Array.from({length:101},(_,i) => ({key:'phone:'+i,phone:'0'+i,page:'Hữu Nghị',sale:i===100?'Đặng An':'Sale '+i,revenue:101-i}))};
     return {ok:true,status:200,json:async()=>json};
   };
   window.eval(source);
   return {dom,window,doc:window.document,urls};
 }
-test('Marketing tables search without accents, sort before 100-row pagination and hide columns',async()=>{
+test('Marketing tables search without accents, sort before 100-row pagination and offer export instead of column toggles',async()=>{
   const p=page(); await p.window.TKSMarketing.load();
   const host=p.doc.getElementById('marketing-monthly-rows');
   assert.equal(host.querySelectorAll('tbody tr').length,100);
@@ -31,13 +31,21 @@ test('Marketing tables search without accents, sort before 100-row pagination an
   assert.match(host.querySelector('tbody tr').textContent,/Đặng An/);
   const search=host.querySelector('input[type="search"]'); search.value='dang an'; search.dispatchEvent(new p.window.Event('input'));
   assert.equal(host.querySelectorAll('tbody tr').length,1);
-  const column=host.querySelector('[data-column="note"]'); column.checked=false; column.dispatchEvent(new p.window.Event('change'));
-  assert.equal(host.querySelector('[data-sort="note"]'),null);
+  assert.equal(host.querySelector('[data-column]'),null);
+  assert.equal(p.doc.querySelector('.marketing-columns, .marketing-toc'),null);
+  let opened;
+  p.window.exportFetch=(url)=>url; p.window.startExportDialog=async(payload,source)=>{opened={payload,source};};
+  host.querySelector('.export-button').click();
+  const query=new URLSearchParams(opened.payload.query);
+  assert.deepEqual([query.get('kind'),query.get('table'),query.get('q'),query.get('month')],['monthly','rows','dang an','10']);
+  const fileUrl=opened.source.file({...opened.payload,columns:{rows:['sale','revenue']},format:'html'},{});
+  assert.match(fileUrl,/^\/api\/marketing-report\/export\?/);
+  assert.equal(new URL(fileUrl,'https://example.test').searchParams.get('columns'),'sale,revenue');
   p.dom.window.close();
 });
 test('Keyboard detail pins snapshot, refresh repins and close returns focus',async()=>{
   const p=page(); await p.window.TKSMarketing.load();
-  const row=p.doc.querySelector('#marketing-monthly-summary tr[data-detail-key]');
+  const row=p.doc.querySelector('#marketing-phones-rows tr[data-detail-key]');
   row.dispatchEvent(new p.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true})); await settle();
   let detail=p.urls.filter(url=>url.includes('/detail?')).pop();
   assert.equal(new URL(detail,'https://example.test').searchParams.get('snapshotId'),'snapshot-1');
@@ -58,7 +66,7 @@ test('Source failure keeps other reports available; closing discards pending det
   await p.window.TKSMarketing.load();
   assert.match(p.doc.getElementById('marketing-costs-status').textContent,/Nguồn chi phí/);
   assert.ok(p.doc.querySelector('#marketing-phones-rows tbody tr'));
-  p.doc.querySelector('#marketing-monthly-summary tr[data-detail-key]').click(); await settle();
+  p.doc.querySelector('#marketing-phones-rows tr[data-detail-key]').click(); await settle();
   p.doc.getElementById('marketingDetailClose').click();
   resolveDetail({ok:true,status:200,json:async()=>({title:'Phản hồi cũ',groups:[]})}); await settle();
   assert.notEqual(p.doc.getElementById('marketingDetailTitle').textContent,'Phản hồi cũ');
@@ -120,7 +128,7 @@ test('Phone summary detail drills into a record in the same dialog and returns f
     }
   });
   await p.window.TKSMarketing.load();
-  const original=p.doc.querySelector('#marketing-phones-summary tr[data-detail-key]'); original.click(); await settle();
+  const original=p.doc.querySelector('#marketing-phones-rows tr[data-detail-key]'); original.click(); await settle();
   p.doc.querySelector('#marketingDetailBody tr[data-detail-key]').dispatchEvent(new p.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true})); await settle();
   const params=new URL(p.urls.filter(url=>url.includes('/detail?')).pop(),'https://example.test').searchParams;
   assert.equal(params.get('key'),'phone:1'); assert.equal(params.get('snapshotId'),'phone-pinned');

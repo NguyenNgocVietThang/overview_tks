@@ -2,14 +2,13 @@
 (function () {
   'use strict';
   const definitions = {
-    monthly: { title: 'BC tháng', monthKey: 'monthly', filters: ['page', 'employee', 'status', 'dataSource'], columns: [['sale','Sale'],['customer','Khách Kiot'],['phone','SĐT'],['page','Page'],['status','Tình trạng'],['dataSource','Nguồn data'],['closedAt','Ngày chốt'],['revenue','Doanh số','money'],['newCustomer','Khách mới'],['note','Ghi chú']] },
-    'receipt-check': { title: 'Check tỷ lệ nhận số', monthKey: 'check', filters: ['page', 'employee'], columns: [['name','Nhân viên'],['page','Page'],['first','Lần đầu','number'],['repeat','Chào lại','number'],['equivalent','Quy đổi','number'],['closed','Khách chốt','number'],['rate','Tỷ lệ chốt','percent']] },
-    phones: { title: 'Sao lưu SĐT', filters: ['page', 'employee'], columns: [['phone','SĐT'],['page','Page'],['firstEmployee','Nhân viên lần đầu'],['currentEmployee','Nhân viên hiện tại'],['repeatEmployee','Nhân viên chào lại'],['firstAt','Ngày lần đầu'],['currentAt','Ngày hiện tại'],['repeatAt','Ngày chào lại']] },
-    costs: { title: 'Báo cáo chi phí', monthKey: 'costs', filters: ['page'], columns: [['page','Page'],['date','Ngày'],['adCost','Chi phí ADS','money'],['totalCost','Chi phí gồm phí thuê/VAT','money'],['totalLabel','Nhãn chi phí nguồn'],['messages','Mess','number'],['costPerMessage','Chi phí/mess','money'],['phones','SĐT','number'],['costPerPhone','Chi phí/SĐT','money']] }
+    monthly: { title: 'BC tháng', note: 'doanh số và khách chốt theo tháng đã chọn', monthKey: 'monthly', filters: ['page', 'employee', 'status', 'dataSource'], columns: [['sale','Sale'],['customer','Khách Kiot'],['phone','SĐT'],['page','Page'],['status','Tình trạng'],['dataSource','Nguồn data'],['closedAt','Ngày chốt'],['revenue','Doanh số','money'],['newCustomer','Khách mới'],['note','Ghi chú']] },
+    'receipt-check': { title: 'Check tỷ lệ nhận số', note: 'số nhận, chào lại và tỷ lệ chốt theo nhân viên', monthKey: 'check', split: true, horizontal: true, filters: ['page', 'employee'], columns: [['name','Nhân viên'],['page','Page'],['first','Lần đầu','number'],['repeat','Chào lại','number'],['equivalent','Quy đổi','number'],['closed','Khách chốt','number'],['rate','Tỷ lệ chốt','percent']] },
+    phones: { title: 'Sao lưu SĐT', note: 'số điện thoại đã nhận theo page và nhân viên', filters: ['page', 'employee'], columns: [['phone','SĐT'],['page','Page'],['firstEmployee','Nhân viên lần đầu'],['currentEmployee','Nhân viên hiện tại'],['repeatEmployee','Nhân viên chào lại'],['firstAt','Ngày lần đầu'],['currentAt','Ngày hiện tại'],['repeatAt','Ngày chào lại']] },
+    costs: { title: 'Báo cáo chi phí', note: 'chi phí quảng cáo, mess và SĐT theo ngày', monthKey: 'costs', beside: true, filters: ['page'], columns: [['page','Page'],['date','Ngày'],['adCost','Chi phí ADS','money'],['totalCost','Chi phí gồm phí thuê/VAT','money'],['totalLabel','Nhãn chi phí nguồn'],['messages','Mess','number'],['costPerMessage','Chi phí/mess','money'],['phones','SĐT','number'],['costPerPhone','Chi phí/SĐT','money']] }
   };
   const filterLabels = { page:'Page', employee:'Nhân viên', status:'Tình trạng', dataSource:'Nguồn data' };
   const filterKeys = { page:'pages', employee:'employees', status:'statuses', dataSource:'dataSources' };
-  const summaryColumns = [['label','Đối tượng'],['page','Page'],['employee','Nhân viên'],['count','Số dòng','number'],['revenue','Doanh số','money'],['first','Lần đầu','number'],['repeat','Chào lại','number'],['equivalent','Quy đổi','number'],['closed','Khách chốt','number'],['rate','Tỷ lệ chốt','percent'],['totalCost','Tổng chi phí','money'],['messages','Mess','number'],['phones','SĐT','number']];
   const sections = {};
   const chartInstances = new Map();
   let initialized = false, metadata = null, metadataRequest = null, detailSeq = 0, detailContext = null, opener = null;
@@ -37,9 +36,8 @@
     if (initialized) return;
     initialized = true;
     const root = document.getElementById('marketingSections');
-    root.innerHTML = Object.entries(definitions).map(([kind, def], i) => '<section class="section marketing-section" id="marketing-' + kind + '"><div class="section-head"><span class="section-step">' + (i+1) + '</span><h2>' + def.title + '</h2></div><div class="marketing-filters" id="marketing-' + kind + '-filters"></div><div class="marketing-status" id="marketing-' + kind + '-status" role="status" aria-live="polite">Chưa tải dữ liệu.</div><div class="marketing-warnings" id="marketing-' + kind + '-warnings" role="status"></div><div class="kpi-grid section-kpis" id="marketing-' + kind + '-kpis"></div><div class="grid" id="marketing-' + kind + '-charts"></div><div id="marketing-' + kind + '-summary"></div><div id="marketing-' + kind + '-rows"></div></section>').join('');
-    Object.keys(definitions).forEach(kind => { sections[kind] = { seq:0, filters:{}, data:null, loadedAt:0 }; });
-    document.getElementById('marketingRefresh').addEventListener('click', () => load(true));
+    root.innerHTML = Object.entries(definitions).map(([kind, def], i) => '<section class="section marketing-section" id="marketing-' + kind + '"><div class="section-head"><span class="section-step">' + (i+1) + '</span><h2>' + def.title + ' <span class="section-note">' + def.note + '</span></h2></div><div class="debt-filter-controls marketing-filters" id="marketing-' + kind + '-filters" aria-label="Bộ lọc ' + def.title + '"></div><div class="marketing-status" id="marketing-' + kind + '-status" role="status" aria-live="polite">Chưa tải dữ liệu.</div><div class="marketing-warnings" id="marketing-' + kind + '-warnings" role="status"></div><div class="kpi-grid section-kpis" id="marketing-' + kind + '-kpis"></div>' + (def.split ? '<div class="marketing-split">' : '') + (def.beside ? '<div class="grid" id="marketing-' + kind + '-charts-wide"></div><div class="marketing-split">' : '') + '<div class="grid" id="marketing-' + kind + '-charts"></div>' + (def.split ? '</div>' : '') + '<div id="marketing-' + kind + '-rows"></div>' + (def.beside ? '</div>' : '') + '</section>').join('');
+    Object.keys(definitions).forEach(kind => { sections[kind] = { seq:0, filters:{}, data:null, loadedAt:0, filtersEl:document.getElementById('marketing-' + kind + '-filters') }; });
     const dialog = document.getElementById('marketingDetailDialog');
     document.getElementById('marketingDetailClose').addEventListener('click', () => dialog.close());
     dialog.addEventListener('click', event => { const box = dialog.getBoundingClientRect(); if (event.target === dialog && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom)) dialog.close(); });
@@ -48,7 +46,7 @@
       if (opener?.isConnected) opener.focus();
       else if (opener?.dataset.detailKey) {
         const replacement = Array.from(document.querySelectorAll('#view-marketing [data-detail-key]')).find(row => row.dataset.detailKey === opener.dataset.detailKey);
-        (replacement || document.getElementById('marketingRefresh')).focus();
+        (replacement || document.getElementById('view-marketing')).focus?.();
       }
     });
     document.getElementById('marketingDetailRefresh').addEventListener('click', () => { if (detailContext) openDetail(detailContext.kind, detailContext.key, opener, true); });
@@ -56,13 +54,12 @@
     new MutationObserver(() => { if (active()) redrawCharts(); else if (dialog.open) dialog.close(); }).observe(document.getElementById('view-marketing'), { attributes:true, attributeFilter:['class'] });
     new MutationObserver(redrawCharts).observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
     setInterval(() => { if (active()) load(true); }, 300000);
-    document.querySelectorAll('.marketing-toc a').forEach(link => link.addEventListener('click', event => { event.preventDefault(); document.getElementById(link.dataset.target).scrollIntoView({ behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }));
   }
   function renderFilters(kind) {
-    const section = sections[kind], def = definitions[kind], host = document.getElementById('marketing-' + kind + '-filters');
+    const section = sections[kind], def = definitions[kind], host = section.filtersEl;
     const monthValues = metadata?.months?.[def.monthKey] || [];
-    let html = def.monthKey ? '<label for="marketing-' + kind + '-month">Tháng<select id="marketing-' + kind + '-month" data-filter="month">' + [...new Set([Number(section.filters.month), ...monthValues.map(Number)])].filter(Boolean).sort((a,b) => a-b).map(month => '<option value="'+month+'"'+(Number(section.filters.month)===month?' selected':'')+'>Tháng '+month+(monthValues.map(Number).includes(month)?'':' · Chưa có dữ liệu')+'</option>').join('') + '</select></label>' : '';
-    html += def.filters.map(name => '<label for="marketing-' + kind + '-filter-' + name + '">' + filterLabels[name] + '<select id="marketing-' + kind + '-filter-' + name + '" data-filter="' + name + '"><option value="">Tất cả</option>' + [...new Set([...(section.data?.filters?.[filterKeys[name]] || []), section.filters[name]])].filter(Boolean).map(value => '<option value="'+escape(value)+'"'+(section.filters[name]===value?' selected':'')+'>'+escape(value)+'</option>').join('')+'</select></label>').join('');
+    let html = def.monthKey ? '<div class="debt-filter-field"><label for="marketing-' + kind + '-month">Tháng</label><select id="marketing-' + kind + '-month" data-filter="month">' + [...new Set([Number(section.filters.month), ...monthValues.map(Number)])].filter(Boolean).sort((a,b) => a-b).map(month => '<option value="'+month+'"'+(Number(section.filters.month)===month?' selected':'')+'>Tháng '+month+(monthValues.map(Number).includes(month)?'':' · Chưa có dữ liệu')+'</option>').join('') + '</select></div>' : '';
+    html += def.filters.map(name => '<div class="debt-filter-field"><label for="marketing-' + kind + '-filter-' + name + '">' + filterLabels[name] + '</label><select id="marketing-' + kind + '-filter-' + name + '" data-filter="' + name + '"><option value="">Tất cả</option>' + [...new Set([...(section.data?.filters?.[filterKeys[name]] || []), section.filters[name]])].filter(Boolean).map(value => '<option value="'+escape(value)+'"'+(section.filters[name]===value?' selected':'')+'>'+escape(value)+'</option>').join('')+'</select></div>').join('');
     host.innerHTML = html;
     host.querySelectorAll('select').forEach(select => select.addEventListener('change', () => { section.filters[select.dataset.filter] = select.value; loadSection(kind, true); }));
   }
@@ -98,56 +95,98 @@
   function renderSection(kind) {
     const data = sections[kind].data;
     renderFilters(kind);
-    document.getElementById('marketing-' + kind + '-status').textContent = 'Đọc nguồn lúc ' + time(data.computedAt) + ' · Bấm dòng tổng quan để xem chi tiết';
+    document.getElementById('marketing-' + kind + '-status').textContent = 'Đọc nguồn lúc ' + time(data.computedAt) + '';
     document.getElementById('marketing-' + kind + '-warnings').textContent = (data.warnings || []).join(' · ');
     document.getElementById('marketing-' + kind + '-kpis').innerHTML = kpis(data.kpis);
     renderCharts(kind);
-    const summary = data.summaryRows || [];
-    const columns = summaryColumns.filter(([key]) => key === 'label' || summary.some(row => row[key] !== undefined));
-    mountTable(document.getElementById('marketing-' + kind + '-summary'), 'marketing-' + kind + '-summary-table', 'Tổng quan', summary, columns, row => openDetail(kind,row.key,document.activeElement));
-    mountTable(document.getElementById('marketing-' + kind + '-rows'), 'marketing-' + kind + '-data-table', 'Dữ liệu chi tiết', data.rows || [], definitions[kind].columns, kind === 'phones' || kind === 'receipt-check' ? row => openDetail(kind,row.key,document.activeElement) : null);
+    mountTable(document.getElementById('marketing-' + kind + '-rows'), 'marketing-' + kind + '-data-table', 'Chi tiết', data.rows || [], definitions[kind].columns, kind === 'phones' || kind === 'receipt-check' ? row => openDetail(kind,row.key,document.activeElement) : null, { kind, table:'rows' });
+    // Thanh lọc nằm trong bảng chi tiết (mountTable dựng lại bảng nên phải gắn lại sau mỗi lần vẽ).
+    document.querySelector('#marketing-' + kind + '-rows .table-search-tools')?.appendChild(sections[kind].filtersEl);
   }
+  // Biểu đồ theo ngày của mục có `beside` luôn là cột dọc, xếp riêng cả hàng phía trên.
+  const wide = (chart, kind) => !!definitions[kind]?.beside && /ngày/i.test(chart.title || '');
+  const horizontal = (chart, kind) => !wide(chart, kind) && (!!definitions[kind]?.horizontal || (chart.labels || []).length > 8);
+  // Vệt sáng theo cột đang hover (dọc hoặc ngang tùy hướng biểu đồ), vẽ dưới các cột.
+  const hoverBand = {
+    id: 'hoverBand',
+    beforeDatasetsDraw(chart) {
+      const active = chart.getActiveElements();
+      if (!active.length) return;
+      const { ctx, chartArea } = chart, bar = active[0].element, hz = chart.options.indexAxis === 'y';
+      const size = hz ? bar.height : bar.width, pad = 6;
+      ctx.save(); ctx.fillStyle = 'rgba(148,163,184,0.14)';
+      if (hz) ctx.fillRect(chartArea.left, bar.y - size / 2 - pad, chartArea.right - chartArea.left, size + pad * 2);
+      else ctx.fillRect(bar.x - size / 2 - pad, chartArea.top, size + pad * 2, chartArea.bottom - chartArea.top);
+      ctx.restore();
+    }
+  };
   function renderCharts(kind) {
-    const host = document.getElementById('marketing-' + kind + '-charts');
+    const host = document.getElementById('marketing-' + kind + '-charts'), wideHost = document.getElementById('marketing-' + kind + '-charts-wide');
     const charts = sections[kind].data?.charts || [];
     chartInstances.get(kind)?.forEach(chart => chart.destroy());
-    host.innerHTML = charts.map((chart,i) => '<div class="panel '+(charts.length === 1 || (chart.labels || []).length > 20 ? 'col-12' : 'col-6')+'"><div class="panel-head"><h3>'+escape(chart.title)+'</h3></div><div class="marketing-chart-box"><canvas id="marketing-'+kind+'-chart-'+i+'" role="img" aria-label="'+escape(chart.title)+'"></canvas></div></div>').join('');
+    const panel = (chart,i) => '<div class="panel '+(wide(chart,kind) || charts.length === 1 || definitions[kind].beside ? 'col-12' : 'col-6')+'"><div class="panel-head"><h2>'+escape(chart.title)+'</h2></div><div class="chart-box marketing-chart-scroll"><div class="marketing-chart-inner" style="height:'+(horizontal(chart,kind)?Math.max(260,(chart.labels||[]).length*24):260)+'px"><canvas id="marketing-'+kind+'-chart-'+i+'" role="img" aria-label="'+escape(chart.title)+'"></canvas></div></div></div>';
+    host.innerHTML = charts.map((chart,i) => wide(chart,kind) ? '' : panel(chart,i)).join('');
+    if (wideHost) wideHost.innerHTML = charts.map((chart,i) => wide(chart,kind) ? panel(chart,i) : '').join('');
     const style = getComputedStyle(document.documentElement), instances = [];
     charts.forEach((chart,i) => {
       if (typeof Chart === 'undefined') return;
-      const color = style.getPropertyValue('--primary').trim() || style.getPropertyValue('--blue').trim();
+      const palette = ['--blue','--amber','--green','--red'], color = style.getPropertyValue(palette[i % palette.length]).trim() || style.getPropertyValue('--primary').trim();
+      const hz = horizontal(chart,kind), muted = style.getPropertyValue('--muted').trim(), grid = style.getPropertyValue('--border').trim();
       instances.push(new Chart(document.getElementById('marketing-'+kind+'-chart-'+i), {
         type:'bar',
-        data:{labels:chart.labels || [],datasets:[{label:chart.title,data:(chart.values || []).map(value => value == null || !Number.isFinite(Number(value)) ? null : Number(value)),backgroundColor:color,borderRadius:4}]},
-        options:{responsive:true,maintainAspectRatio:false,animation:matchMedia('(prefers-reduced-motion: reduce)').matches ? false : {duration:200},plugins:{legend:{display:false}},
-          scales:{x:{ticks:{color:style.getPropertyValue('--muted').trim()},grid:{display:false}},y:{beginAtZero:true,ticks:{color:style.getPropertyValue('--muted').trim()},grid:{color:style.getPropertyValue('--border').trim()}}}
+        plugins:[hoverBand],
+        data:{labels:chart.labels || [],datasets:[{label:chart.title,data:(chart.values || []).map(value => value == null || !Number.isFinite(Number(value)) ? null : Number(value)),backgroundColor:color,borderRadius:4,maxBarThickness:48}]},
+        options:{responsive:true,maintainAspectRatio:false,animation:matchMedia('(prefers-reduced-motion: reduce)').matches ? false : {duration:200},interaction:{mode:'index',axis:hz?'y':'x',intersect:false},plugins:{legend:{display:false},tooltip:{mode:'index',axis:hz?'y':'x',intersect:false}},
+          indexAxis:hz?'y':'x',scales:{[hz?'y':'x']:{ticks:{color:muted,autoSkip:false,maxRotation:hz?0:60},grid:{display:false}},[hz?'x':'y']:{beginAtZero:true,ticks:{color:muted},grid:{color:grid}}}
         }
       }));
     });
     chartInstances.set(kind,instances);
   }
   function redrawCharts() { if (initialized && active()) Object.keys(sections).forEach(kind => { if (sections[kind].data) renderCharts(kind); }); }
-  function mountTable(host, id, title, rows, columns, onOpen) {
-    const saved = host._marketingState || { search:'', sort:null, direction:1, page:1, hidden:[] };
+  function mountTable(host, id, title, rows, columns, onOpen, exportInfo) {
+    const saved = host._marketingState || { search:'', sort:null, direction:1, page:1 };
     host._marketingState = saved;
-    host.innerHTML = '<div class="marketing-table"><h3>'+escape(title)+'</h3><div class="marketing-table-tools"><input id="'+id+'-search" type="search" aria-label="Tìm trong '+escape(title)+'" placeholder="Tìm kiếm không dấu…" value="'+escape(saved.search)+'"><details class="marketing-columns"><summary id="'+id+'-columns">Hiện/ẩn cột</summary><div class="marketing-columns-list">'+columns.map(([key,label]) => '<label><input id="'+id+'-column-'+key+'" type="checkbox" data-column="'+key+'"'+(saved.hidden.includes(key)?'':' checked')+'>'+escape(label)+'</label>').join('')+'</div></details></div><div class="marketing-table-scroll"><table aria-label="'+escape(title)+'"><thead></thead><tbody></tbody></table></div><div class="marketing-pages"><span></span><button class="marketing-btn" id="'+id+'-prev" aria-label="Trang trước">Trước</button><button class="marketing-btn" id="'+id+'-next" aria-label="Trang sau">Sau</button></div></div>';
+    host.innerHTML = '<div class="panel marketing-table"><div class="panel-head"><h2>'+escape(title)+'</h2><div class="panel-head-actions"><span class="drill-hint" data-count>—</span>'+(exportInfo?'<button class="export-button" type="button" id="'+id+'-export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>':'')+'</div><div class="table-search-tools"><div class="table-search-input-wrap"><input class="table-search-input" id="'+id+'-search" type="search" autocomplete="off" aria-label="Tìm trong '+escape(title)+'" placeholder="Tìm kiếm không dấu…" value="'+escape(saved.search)+'"></div>'+'</div></div><div class="table-wrap marketing-table-scroll"><table aria-label="'+escape(title)+'"><thead></thead><tbody></tbody></table></div><div class="pagination-controls marketing-pages" hidden><button type="button" id="'+id+'-first" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button><button type="button" id="'+id+'-prev" aria-label="Trang trước" title="Trang trước">&lt;</button><span data-page-label></span><button type="button" id="'+id+'-next" aria-label="Trang sau" title="Trang sau">&gt;</button><button type="button" id="'+id+'-last" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button></div></div>';
     function draw() {
-      const visible = columns.filter(([key]) => !saved.hidden.includes(key));
+      const visible = columns;
       let found = rows.filter(row => normalize(Object.values(row).join(' ')).includes(normalize(saved.search)));
       if (saved.sort) found = found.slice().sort((a,b) => { const av=a[saved.sort], bv=b[saved.sort]; if(av==null) return 1; if(bv==null) return -1; return saved.direction * (typeof av === 'number' && typeof bv === 'number' ? av-bv : String(av).localeCompare(String(bv),'vi',{numeric:true})); });
       const pages = Math.max(1,Math.ceil(found.length/100)); saved.page = Math.min(saved.page,pages);
-      host.querySelector('thead').innerHTML = '<tr>'+visible.map(([key,label]) => '<th aria-sort="'+(saved.sort===key?(saved.direction===1?'ascending':'descending'):'none')+'"><button id="'+id+'-sort-'+key+'" data-sort="'+key+'">'+escape(label)+(saved.sort===key?(saved.direction===1?' ↑':' ↓'):'')+'</button></th>').join('')+'</tr>';
+      host.querySelector('thead').innerHTML = '<tr>'+visible.map(([key,label,type]) => '<th class="sortable'+(type?' col-num':'')+'" aria-sort="'+(saved.sort===key?(saved.direction===1?'ascending':'descending'):'none')+'"><button type="button" class="sort-button" id="'+id+'-sort-'+key+'" data-sort="'+key+'"><span>'+escape(label)+'</span><span class="sort-indicator" aria-hidden="true">'+(saved.sort===key?(saved.direction===1?'▼':'▲'):'↕')+'</span></button></th>').join('')+'</tr>';
       const slice = found.slice((saved.page-1)*100,saved.page*100);
-      host.querySelector('tbody').innerHTML = slice.length ? slice.map((row,i) => '<tr'+(onOpen&&row.key?' tabindex="0" data-detail-key="'+escape(row.key)+'" data-index="'+i+'" title="Bấm hoặc nhấn Enter để xem chi tiết"':'')+'>'+visible.map(([key,,type]) => '<td'+(type?' class="marketing-numeric"':'')+'>'+escape(format(row[key],type))+'</td>').join('')+'</tr>').join('') : '<tr><td colspan="'+Math.max(1,visible.length)+'" class="table-note">Chưa có dữ liệu phù hợp.</td></tr>';
-      host.querySelector('.marketing-pages span').textContent = found.length + ' dòng · Trang '+saved.page+'/'+pages;
-      host.querySelector('#'+id+'-prev').disabled=saved.page<=1; host.querySelector('#'+id+'-next').disabled=saved.page>=pages;
+      host.querySelector('tbody').innerHTML = slice.length ? slice.map((row,i) => '<tr'+(onOpen&&row.key?' class="marketing-row-link" tabindex="0" data-detail-key="'+escape(row.key)+'" data-index="'+i+'" title="Bấm hoặc nhấn Enter để xem chi tiết"':'')+'>'+visible.map(([key,,type]) => '<td'+(type?' class="mono col-num"':'')+'>'+escape(format(row[key],type))+'</td>').join('')+'</tr>').join('') : '<tr><td colspan="'+Math.max(1,visible.length)+'" class="table-note">Chưa có dữ liệu phù hợp.</td></tr>';
+      host.querySelector('[data-count]').textContent = found.length + ' dòng';
+      host.querySelector('.marketing-pages').hidden = pages<=1;
+      host.querySelector('[data-page-label]').textContent = 'Trang '+saved.page+'/'+pages;
+      ['first','prev'].forEach(name => { host.querySelector('#'+id+'-'+name).disabled=saved.page<=1; });
+      ['next','last'].forEach(name => { host.querySelector('#'+id+'-'+name).disabled=saved.page>=pages; });
       host.querySelectorAll('[data-sort]').forEach(button => button.addEventListener('click', () => { saved.direction=saved.sort===button.dataset.sort?-saved.direction:1; saved.sort=button.dataset.sort; saved.page=1; draw(); }));
       host.querySelectorAll('[data-index]').forEach(element => { const open = () => { element.focus(); onOpen(slice[Number(element.dataset.index)]); }; element.addEventListener('click',open); element.addEventListener('keydown',event => { if(event.key==='Enter'||event.key===' ') { event.preventDefault(); open(); } }); });
     }
     host.querySelector('input[type="search"]').addEventListener('input',event => { saved.search=event.target.value; saved.page=1; draw(); });
-    host.querySelectorAll('[data-column]').forEach(input => input.addEventListener('change', () => { if (!input.checked && columns.length-saved.hidden.length<=1) {input.checked=true; return;} saved.hidden=saved.hidden.filter(key=>key!==input.dataset.column); if(!input.checked) saved.hidden.push(input.dataset.column); draw(); }));
+    if (exportInfo) host.querySelector('#'+id+'-export').addEventListener('click', () => openExport(exportInfo.kind, exportInfo.table, saved.search));
+    host.querySelector('#'+id+'-first').addEventListener('click', () => { saved.page=1; draw(); });
     host.querySelector('#'+id+'-prev').addEventListener('click', () => { --saved.page; draw(); });
-    host.querySelector('#'+id+'-next').addEventListener('click', () => { ++saved.page; draw(); }); draw();
+    host.querySelector('#'+id+'-next').addEventListener('click', () => { ++saved.page; draw(); });
+    host.querySelector('#'+id+'-last').addEventListener('click', () => { saved.page=Infinity; draw(); }); draw();
+  }
+  // Nguồn cho hộp thoại "Xuất file" dùng chung (startExportDialog/exportFetch ở index.html): bộ lọc chốt lúc mở.
+  const EXPORT_SOURCE = {
+    fields: (payload, request) => exportFetch('/api/marketing-report/export/fields?' + payload.query, null, request),
+    file: (payload, request) => {
+      const params = new URLSearchParams(payload.query);
+      params.set('format', payload.format === 'html' ? 'html' : 'xlsx');
+      const columns = payload.columns && payload.columns[payload.table];
+      if (columns) params.set('columns', columns.join(','));
+      return exportFetch('/api/marketing-report/export?' + params.toString(), null, request);
+    }
+  };
+  function openExport(kind, table, search) {
+    if (!window.TKSNav?.can('reports.export') || typeof startExportDialog !== 'function') return;
+    const params = new URLSearchParams({ ...sections[kind].filters, kind, table });
+    if (search && search.trim()) params.set('q', search.trim());
+    return startExportDialog({ kind, table, query: params.toString() }, EXPORT_SOURCE);
   }
   async function openDetail(kind,key,source,refresh,nested) {
     const section=sections[kind], dialog=document.getElementById('marketingDetailDialog'), seq=++detailSeq;
@@ -172,7 +211,7 @@
       document.getElementById('marketingDetailTitle').textContent=data.title || definitions[kind].title;
       document.getElementById('marketingDetailSubtitle').textContent=(data.subtitle || '')+' · Đọc nguồn lúc '+time(data.computedAt);
       document.getElementById('marketingDetailStatus').textContent='';
-      body.innerHTML='<div class="marketing-warnings" role="status">'+escape((data.warnings||[]).join(' · '))+'</div>'+(data.formula?'<p class="marketing-status">Công thức quy đổi nguồn: '+escape(data.formula)+'</p>':'')+'<div class="kpi-grid">'+kpis(data.kpis)+'</div>'+ (data.groups||[]).map((group,i)=>'<div id="marketing-detail-group-'+i+'"></div>').join('');
+      body.innerHTML='<div class="marketing-warnings" role="status">'+escape((data.warnings||[]).join(' · '))+'</div>'+(data.formula?'<p class="marketing-status">Công thức quy đổi nguồn: '+escape(data.formula)+'</p>':'')+'<div class="kpi-grid section-kpis">'+kpis(data.kpis)+'</div>'+ (data.groups||[]).map((group,i)=>'<div id="marketing-detail-group-'+i+'"></div>').join('');
       (data.groups||[]).forEach((group,i) => {
         const groupKind=definitions[group.kind]?group.kind:kind;
         const navigatePhone=kind==='phones' && groupKind==='phones' && (group.rows || []).some(row=>row.key!==key) ? row=>openDetail('phones',row.key,null,false,true) : null;
