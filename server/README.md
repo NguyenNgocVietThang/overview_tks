@@ -200,6 +200,7 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0031` | Phạm vi phòng ban tài khoản, snapshot phòng ban bằng trigger tương thích bot nhân viên, `hr_manager_telegram_cards`; áp trước ứng dụng mới |
 | `0036` | Báo cáo kinh doanh: `business_monthly_customer_sales`, `business_monthly_customer_product_sales`, `business_monthly_product_sales`, `business_monthly_sale_sales`, `business_monthly_state` — doanh số theo tháng đã chốt; job `kiotvietSync/businessMonthlyRefresh.js` tự backfill từ T3/2026 ở lần khởi động đầu tiên sau khi áp (chạy tay: `node kiotvietSync/businessMonthlyRefresh.js`). Chưa áp thì API Báo cáo kinh doanh trả 503 |
 | `0039` | Thêm tài liệu dựng sẵn thứ 3 `phuc-loi` ("Chi tiêu & Phúc lợi") vào `hr_rule_documents` (nội dung nằm trong HTML trang Quản lý nhân sự). Chưa áp thì tài liệu chưa hiện cho tới khi migrate hoặc Quản lý bấm "Khôi phục tài liệu mặc định" |
+| `0040` | `account_audit_log` — lịch sử chỉnh sửa tài khoản (tab /account/#history, quyền `account.users`): tạo, sửa thông tin, đặt lại mật khẩu, xóa, sửa phân quyền; chỉ thêm (trigger chặn UPDATE/DELETE), không FK tới `app_users`, thu hồi SELECT của `reporting_readonly`. Chưa áp thì thao tác tài khoản vẫn chạy (ghi nhật ký best-effort) nhưng tab Lịch sử báo lỗi tải |
 
 Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng nền nghỉ phép trực tiếp; bot **quản lý** trong `telegram/` dùng chung đơn và sở hữu các bảng bổ sung ở migration `0029`. Hợp đồng dữ liệu ở `db/SCHEMA.md`.
 

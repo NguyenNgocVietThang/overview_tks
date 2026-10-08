@@ -204,6 +204,18 @@
   .status-pill.status-pending{ background:var(--status-pending-bg); color:var(--amber); }
 
   /* Bấm dòng tài khoản để mở hộp thao tác */
+  /* Tab Lịch sử chỉnh sửa */
+  .history-date-label{ display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); }
+  .history-empty{ text-align:center; color:var(--muted); padding:30px !important; }
+  .history-time{ font-family:var(--font-data); font-size:12.5px; white-space:nowrap; }
+  .history-changes{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:4px; }
+  .history-changes li{ line-height:1.45; overflow-wrap:anywhere; }
+  .history-change-label{ font-weight:600; color:var(--text); }
+  .history-old{ color:var(--muted); text-decoration:line-through; }
+  .history-new{ color:var(--text); }
+  .history-added{ color:var(--green); }
+  .history-removed{ color:var(--red); }
+  .history-pager{ display:flex; align-items:center; justify-content:flex-end; gap:10px; margin-top:12px; font-size:13px; color:var(--muted); }
   .users-table tr.row-clickable{ cursor:pointer; }
   .users-table tr.row-clickable:hover td{ background:var(--surface-hover); }
   .action-menu-box{ max-width:380px; }
@@ -346,6 +358,10 @@
           <button type="button" class="account-subnav-item" data-subtab="users" role="tab" aria-selected="false" id="tabBtnAdminUsers" onclick="switchAccountTab('users')" style="display:none;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="15" r="3"></circle><circle cx="9" cy="7" r="4"></circle><path d="M10 15H6a4 4 0 0 0-4 4v2"></path><path d="m21.7 16.4-.9-.3"></path><path d="m15.2 13.9-.9-.3"></path><path d="m16.6 18.7.3-.9"></path><path d="m19.1 12.2.3-.9"></path><path d="m19.6 18.7-.4-.8"></path><path d="m16.8 12.3-.4-.8"></path><path d="m14.3 16.6.8-.4"></path><path d="m20.7 13.8.8-.4"></path></svg>
             Quản lý người dùng
+          </button>
+          <button type="button" class="account-subnav-item" data-subtab="history" role="tab" aria-selected="false" id="tabBtnHistory" onclick="switchAccountTab('history')" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><polyline points="3 3 3 8 8 8"></polyline><polyline points="12 7 12 12 15 15"></polyline></svg>
+            Lịch sử chỉnh sửa
           </button>
         </div>
 
@@ -584,6 +600,52 @@
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: LỊCH SỬ CHỈNH SỬA (ai có quyền xem Quản lý người dùng) -->
+        <div class="account-subtab-panel" id="accountSubtab-history" role="tabpanel" style="display:none;">
+          <div class="admin-toolbar">
+            <div class="admin-filters">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="historySearchInput" placeholder="Tìm theo người sửa hoặc tài khoản..." oninput="scheduleHistoryReload()">
+              </div>
+              <select id="historyActionFilter" class="filter-select" onchange="reloadAuditHistory()">
+                <option value="">Tất cả thao tác</option>
+                <option value="create">Tạo tài khoản</option>
+                <option value="update">Sửa thông tin</option>
+                <option value="permissions">Sửa phân quyền</option>
+                <option value="reset_password">Đặt lại mật khẩu</option>
+                <option value="delete">Xóa tài khoản</option>
+              </select>
+              <label class="history-date-label">Từ <input type="date" id="historyFromDate" class="filter-select" onchange="reloadAuditHistory()"></label>
+              <label class="history-date-label">Đến <input type="date" id="historyToDate" class="filter-select" onchange="reloadAuditHistory()"></label>
+            </div>
+          </div>
+
+          <div class="users-table-panel">
+            <div class="users-table-scroll">
+              <table class="users-table fixed-table" id="historyTable">
+                <thead>
+                  <tr>
+                    <th style="width:150px">Thời gian</th>
+                    <th style="width:200px">Người sửa</th>
+                    <th style="width:200px">Tài khoản</th>
+                    <th style="width:150px">Thao tác</th>
+                    <th style="width:420px">Chi tiết</th>
+                  </tr>
+                </thead>
+                <tbody id="historyTableBody">
+                  <tr><td colspan="5" class="history-empty">Đang tải lịch sử...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="history-pager">
+            <span id="historyPagerInfo"></span>
+            <button type="button" class="btn-secondary" id="historyPrevBtn" onclick="changeHistoryPage(-1)" disabled>Trước</button>
+            <button type="button" class="btn-secondary" id="historyNextBtn" onclick="changeHistoryPage(1)" disabled>Sau</button>
           </div>
         </div>
 
@@ -889,7 +951,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Đặt ở cuối thẻ body thay vì trong <head>: script chặn phân tích cú pháp trong <head> sẽ làm dừng việc xử lý toàn bộ tài liệu. Không dùng `defer` vì script inline bên dưới dùng TKSNav ở cấp cao nhất, và script inline luôn chạy trước script defer. -->
-  <script src="/shared/shared-nav.js?v=20261005"></script>
+  <script src="/shared/shared-nav.js?v=20261008"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
 
   <script>
@@ -994,33 +1056,35 @@
       }, 3500);
     }
 
+    // Tab con cua /account/: 'users' va 'history' can quyen 'account.users' (cung quyen voi
+    // GET /api/admin/users va GET /api/admin/audit-log o server).
+    const ACCOUNT_SUBTABS = ['profile', 'users', 'history'];
+    function normalizeAccountSubtab(name){
+      if(name === 'adminUsers') return 'users';
+      return ACCOUNT_SUBTABS.includes(name) ? name : '';
+    }
+
     function switchAccountTab(tabName, skipHashUpdate){
-      const validTab = (tabName === 'users' || tabName === 'adminUsers') ? 'users' : 'profile';
-      
+      const validTab = normalizeAccountSubtab(tabName) || 'profile';
+
       // Không có quyền 'account.users' (hoặc chưa đăng nhập) thì quay về profile
-      if(validTab === 'users' && (!currentUser || !canViewUsers)){
+      if(validTab !== 'profile' && (!currentUser || !canViewUsers)){
         return switchAccountTab('profile', skipHashUpdate);
       }
 
       document.querySelectorAll('.account-subnav-item, .subnav-tab').forEach(btn => {
-        const active = (btn.dataset.subtab === validTab) || (validTab === 'profile' && btn.id === 'tabBtnProfile') || (validTab === 'users' && btn.id === 'tabBtnAdminUsers');
+        const active = btn.dataset.subtab === validTab;
         btn.classList.toggle('active', active);
         btn.setAttribute('aria-selected', String(active));
       });
 
-      const panelProfile = document.getElementById('accountSubtab-profile') || document.getElementById('tabContentProfile');
-      const panelUsers = document.getElementById('accountSubtab-users') || document.getElementById('tabContentAdminUsers');
-
-      if(panelProfile){
-        const active = validTab === 'profile';
-        panelProfile.classList.toggle('active', active);
-        panelProfile.style.display = active ? 'block' : 'none';
-      }
-      if(panelUsers){
-        const active = validTab === 'users';
-        panelUsers.classList.toggle('active', active);
-        panelUsers.style.display = active ? 'block' : 'none';
-      }
+      ACCOUNT_SUBTABS.forEach(name => {
+        const panel = document.getElementById('accountSubtab-' + name);
+        if(!panel) return;
+        const active = validTab === name;
+        panel.classList.toggle('active', active);
+        panel.style.display = active ? 'block' : 'none';
+      });
 
       // Cập nhật active class trên sidebar nếu có
       const sidebarSubItems = document.querySelectorAll('#tksAccountGroupList .nav-item');
@@ -1033,11 +1097,13 @@
       });
 
       if(!skipHashUpdate && history.replaceState){
-        history.replaceState(null, '', `#${validTab}`);
+        history.replaceState(null, '', '#' + validTab);
       }
 
       if(validTab === 'users'){
         loadAdminUsers();
+      } else if(validTab === 'history'){
+        reloadAuditHistory();
       } else {
         loadProfileData();
         checkPendingRoleRequest();
@@ -1045,8 +1111,7 @@
     }
 
     function applyAccountSubtabFromHash(){
-      const rawHash = (window.location.hash || '').replace('#', '');
-      const name = (rawHash === 'users' || rawHash === 'adminUsers') ? 'users' : (rawHash === 'profile' ? 'profile' : '');
+      const name = normalizeAccountSubtab((window.location.hash || '').replace('#', ''));
       if(name){
         switchAccountTab(name, true);
       }
@@ -1497,6 +1562,122 @@
           console.error('Lỗi tải danh sách người dùng:', err);
           document.getElementById('usersTableBody').innerHTML =
             '<tr><td colspan="4" style="text-align:center;color:var(--red);padding:24px;">Không có quyền truy cập hoặc lỗi kết nối.</td></tr>';
+        });
+    }
+
+    // ---------- Lịch sử chỉnh sửa tài khoản ----------
+    const HISTORY_ACTION_LABELS = {
+      create: 'Tạo tài khoản',
+      update: 'Sửa thông tin',
+      permissions: 'Sửa phân quyền',
+      reset_password: 'Đặt lại mật khẩu',
+      delete: 'Xóa tài khoản'
+    };
+    const HISTORY_PAGE_SIZE = 50;
+    let historyPage = 1;
+    let historyTotal = 0;
+    let historyReloadTimer = null;
+    let historyRequestSeq = 0;
+
+    function scheduleHistoryReload(){
+      clearTimeout(historyReloadTimer);
+      historyReloadTimer = setTimeout(reloadAuditHistory, 300);
+    }
+
+    function reloadAuditHistory(){
+      historyPage = 1;
+      loadAuditHistory();
+    }
+
+    function changeHistoryPage(delta){
+      const lastPage = Math.max(1, Math.ceil(historyTotal / HISTORY_PAGE_SIZE));
+      historyPage = Math.min(lastPage, Math.max(1, historyPage + delta));
+      loadAuditHistory();
+    }
+
+    function formatHistoryTime(iso){
+      const d = new Date(iso);
+      if(isNaN(d.getTime())) return '';
+      return d.toLocaleString('vi-VN', {
+        timeZone: 'Asia/Ho_Chi_Minh', hour12: false,
+        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    function historyPersonHtml(person){
+      const name = person && (person.name || person.username) || '—';
+      const username = person && person.username && person.username !== name ? person.username : '';
+      return '<div class="user-name">' + escapeHtml(name) + '</div>' +
+        (username ? '<div class="user-username">' + escapeHtml(username) + '</div>' : '');
+    }
+
+    function historyChangesHtml(entry){
+      const changes = Array.isArray(entry.changes) ? entry.changes : [];
+      if(entry.action === 'reset_password') return '<span class="history-new">Đặt mật khẩu mới</span>';
+      if(entry.action === 'delete') return '<span class="history-removed">Đã xóa tài khoản</span>';
+      if(!changes.length) return '<span class="history-old">—</span>';
+      const items = changes.map(change => {
+        const label = '<span class="history-change-label">' + escapeHtml(change.label || change.field) + ':</span> ';
+        if(change.field === 'permissions'){
+          const parts = [];
+          (change.added || []).forEach(name => parts.push('<span class="history-added">+ ' + escapeHtml(name) + '</span>'));
+          (change.removed || []).forEach(name => parts.push('<span class="history-removed">− ' + escapeHtml(name) + '</span>'));
+          return '<li>' + label + parts.join('; ') + '</li>';
+        }
+        const before = change.before ? '<span class="history-old">' + escapeHtml(change.before) + '</span> → ' : '';
+        const after = change.after ? '<span class="history-new">' + escapeHtml(change.after) + '</span>' : '<span class="history-old">(trống)</span>';
+        return '<li>' + label + before + after + '</li>';
+      });
+      return '<ul class="history-changes">' + items.join('') + '</ul>';
+    }
+
+    function renderAuditHistory(data){
+      const body = document.getElementById('historyTableBody');
+      const entries = (data && data.entries) || [];
+      historyTotal = Number(data && data.total) || 0;
+      if(!entries.length){
+        body.innerHTML = '<tr><td colspan="5" class="history-empty">Chưa có lịch sử chỉnh sửa phù hợp.</td></tr>';
+      } else {
+        body.innerHTML = entries.map(entry =>
+          '<tr>' +
+            '<td class="history-time">' + escapeHtml(formatHistoryTime(entry.createdAt)) + '</td>' +
+            '<td>' + historyPersonHtml(entry.actor) + '</td>' +
+            '<td>' + historyPersonHtml(entry.target) + '</td>' +
+            '<td>' + escapeHtml(HISTORY_ACTION_LABELS[entry.action] || entry.action) + '</td>' +
+            '<td>' + historyChangesHtml(entry) + '</td>' +
+          '</tr>'
+        ).join('');
+      }
+      const lastPage = Math.max(1, Math.ceil(historyTotal / HISTORY_PAGE_SIZE));
+      document.getElementById('historyPagerInfo').textContent = historyTotal
+        ? 'Trang ' + historyPage + '/' + lastPage + ' · ' + historyTotal + ' thay đổi'
+        : '';
+      document.getElementById('historyPrevBtn').disabled = historyPage <= 1;
+      document.getElementById('historyNextBtn').disabled = historyPage >= lastPage;
+    }
+
+    function loadAuditHistory(){
+      const params = new URLSearchParams({ page: String(historyPage), pageSize: String(HISTORY_PAGE_SIZE) });
+      const q = document.getElementById('historySearchInput').value.trim();
+      const action = document.getElementById('historyActionFilter').value;
+      const from = document.getElementById('historyFromDate').value;
+      const to = document.getElementById('historyToDate').value;
+      if(q) params.set('q', q);
+      if(action) params.set('action', action);
+      if(from) params.set('from', from);
+      if(to) params.set('to', to);
+      const seq = ++historyRequestSeq;
+      fetch('/api/admin/audit-log?' + params.toString(), { credentials: 'same-origin' })
+        .then(res => {
+          if(!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        })
+        .then(data => { if(seq === historyRequestSeq) renderAuditHistory(data); })
+        .catch(err => {
+          if(seq !== historyRequestSeq) return;
+          console.error('Lỗi tải lịch sử chỉnh sửa:', err);
+          document.getElementById('historyTableBody').innerHTML =
+            '<tr><td colspan="5" class="history-empty" style="color:var(--red);">Không có quyền truy cập hoặc lỗi kết nối.</td></tr>';
         });
     }
 
@@ -2314,6 +2495,8 @@
             if(canViewUsers){
               const adminTabBtn = document.getElementById('tabBtnAdminUsers');
               if(adminTabBtn) adminTabBtn.style.display = 'inline-flex';
+              const historyTabBtn = document.getElementById('tabBtnHistory');
+              if(historyTabBtn) historyTabBtn.style.display = 'inline-flex';
             }
 
             // Chi ai co quyen 'account.users.manage' moi duoc them tai khoan moi
@@ -2328,13 +2511,9 @@
               loadPermissionsCatalog().catch(() => {});
             }
 
-            // Áp dụng tab từ hash URL nếu có (ví dụ /account/#users hoặc /account/#profile)
-            const initialHash = (window.location.hash || '').replace('#', '');
-            if((initialHash === 'users' || initialHash === 'adminUsers') && canViewUsers){
-              switchAccountTab('users', true);
-            } else {
-              switchAccountTab('profile', true);
-            }
+            // Áp dụng tab từ hash URL nếu có (ví dụ /account/#users, #history hoặc #profile)
+            const initialTab = normalizeAccountSubtab((window.location.hash || '').replace('#', ''));
+            switchAccountTab(initialTab || 'profile', true);
           });
       }
     });

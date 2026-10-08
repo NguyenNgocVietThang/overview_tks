@@ -1438,7 +1438,8 @@
 
     var isAccountPage = currentPath === '/account';
     var isUsersTab = isAccountPage && (currentHash === 'users' || currentHash === 'adminUsers');
-    var isProfileTab = isAccountPage && !isUsersTab;
+    var isHistoryTab = isAccountPage && currentHash === 'history';
+    var isProfileTab = isAccountPage && !isUsersTab && !isHistoryTab;
     var accountItems = [
       {
         feature: 'account.profile', href: '/account/#profile', label: 'Quản lý hồ sơ',
@@ -1449,6 +1450,12 @@
         feature: 'account.users', href: '/account/#users', label: 'Quản lý người dùng',
         active: isUsersTab, dataAttr: 'data-account-subtab="users"',
         icon: '<circle cx="18" cy="15" r="3"></circle><circle cx="9" cy="7" r="4"></circle><path d="M10 15H6a4 4 0 0 0-4 4v2"></path><path d="m21.7 16.4-.9-.3"></path><path d="m15.2 13.9-.9-.3"></path><path d="m16.6 18.7.3-.9"></path><path d="m19.1 12.2.3-.9"></path><path d="m19.6 18.7-.4-.8"></path><path d="m16.8 12.3-.4-.8"></path><path d="m14.3 16.6.8-.4"></path><path d="m20.7 13.8.8-.4"></path>'
+      },
+      {
+        // Cung quyen voi tab Quan ly nguoi dung (GET /api/admin/audit-log can 'account.users').
+        feature: 'account.users', href: '/account/#history', label: 'Lịch sử chỉnh sửa',
+        active: isHistoryTab, dataAttr: 'data-account-subtab="history"',
+        icon: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><polyline points="3 3 3 8 8 8"></polyline><polyline points="12 7 12 12 15 15"></polyline>'
       }
     ];
 

@@ -18,6 +18,7 @@ const employeeDirectory = require('../hr/employeeDirectory');
 const accountPolicy = require('./accountPolicy');
 const { normalizeDepartments } = require('../hr/hrApprovalDepartments');
 const userExport = require('./adminUserExportService');
+const accountAuditLog = require('./accountAuditLog');
 
 const router = express.Router();
 
@@ -266,6 +267,10 @@ router.post('/api/admin/users', ...authManage, async (req, res) => {
     });
 
     res.status(201).json({ user: publicAdminUser(newUser) });
+    await accountAuditLog.record({
+      action: accountAuditLog.ACTIONS.CREATE, actor: req.user, target: newUser,
+      changes: accountAuditLog.initialValues(newUser)
+    });
 
     // Bao cho nhung nguoi khac co quyen quan ly tai khoan - best-effort,
     // KHONG duoc lam hong response da tra o tren.
@@ -305,6 +310,8 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
     }
     const notWritable = accountPolicy.checkTargetWritable(req.user, targetUser);
     if (notWritable) return accountPolicy.sendDenied(res, notWritable);
+    // Ban chup TRUOC khi sua (targetUser bi gan lai trong vong pendingAdminChanges).
+    const userBefore = targetUser;
 
     const currentAdminId = req.user.id;
     const isSelf = String(currentAdminId) === String(targetId) ||
@@ -560,6 +567,10 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
     }
 
     res.status(200).json({ user: publicAdminUser(updated) });
+    await accountAuditLog.record({
+      action: accountAuditLog.ACTIONS.UPDATE, actor: req.user, target: updated,
+      changes: accountAuditLog.diffUser(userBefore, updated)
+    });
   } catch (err) {
     if (err && err.code === 'USER_EXISTS') {
       return res.status(409).json({ error: err.message });
@@ -600,6 +611,7 @@ router.post('/api/admin/users/:id/reset-password', ...authManage, async (req, re
     await localUserStore.updateUser(targetId, { passwordHash });
 
     res.status(200).json({ ok: true, message: 'Đã đặt lại mật khẩu thành công.' });
+    await accountAuditLog.record({ action: accountAuditLog.ACTIONS.RESET_PASSWORD, actor: req.user, target: targetUser });
   } catch (err) {
     console.error('=== LOI POST /api/admin/users/:id/reset-password ===', err);
     res.status(500).json({ error: 'Không đặt lại được mật khẩu.' });
@@ -643,9 +655,28 @@ router.delete('/api/admin/users/:id', ...authManage, async (req, res) => {
 
     await localUserStore.deleteUser(targetId);
     res.status(200).json({ ok: true, message: 'Đã xóa tài khoản thành công.' });
+    await accountAuditLog.record({ action: accountAuditLog.ACTIONS.DELETE, actor: req.user, target: targetUser });
   } catch (err) {
     console.error('=== LOI DELETE /api/admin/users/:id ===', err);
     res.status(500).json({ error: 'Không xóa được tài khoản.' });
+  }
+});
+
+/**
+ * GET /api/admin/audit-log?q=&action=&from=&to=&page=&pageSize= — Lịch sử chỉnh sửa
+ * tài khoản (tab /account/#history). Ai xem được tab Quản lý người dùng là xem được.
+ */
+router.get('/api/admin/audit-log', ...authView, async (req, res) => {
+  try {
+    const str = v => (typeof v === 'string' ? v : '');
+    const result = await accountAuditLog.listEntries({
+      q: str(req.query.q), action: str(req.query.action), targetId: str(req.query.targetId),
+      from: str(req.query.from), to: str(req.query.to), page: req.query.page, pageSize: req.query.pageSize
+    });
+    res.status(200).json(result);
+  } catch (err) {
+    console.error('=== LOI GET /api/admin/audit-log ===', err);
+    res.status(500).json({ error: 'Không tải được lịch sử chỉnh sửa.' });
   }
 });
 
@@ -782,6 +813,10 @@ router.put('/api/admin/users/:id/permissions', ...authPermissions, async (req, r
     if (scope.error) return res.status(scope.status).json({ error: scope.error, code: scope.code });
     const updated = await localUserStore.updateUser(targetUser.id, { featurePermissions: overrides, leaveApprovalDepartments: scope.departments });
     res.status(200).json(permissionsPayload(updated));
+    await accountAuditLog.record({
+      action: accountAuditLog.ACTIONS.PERMISSIONS, actor: req.user, target: updated,
+      changes: accountAuditLog.diffPermissions(targetUser, updated)
+    });
 
     // Bao cho chinh chu tai khoan biet quyen vua doi — best-effort, KHONG duoc
     // lam hong response da tra o tren.

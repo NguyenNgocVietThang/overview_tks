@@ -289,6 +289,15 @@ Bảng `hr_rule_documents` lưu trữ tài liệu quy định công ty (cả tà
 - Seed 3 tài liệu mặc định: `gio-giac` (Giờ giấc làm việc, sort 10), `nghi-phep` (Quy định nghỉ phép, sort 20) và `phuc-loi` (Chi tiêu & Phúc lợi, sort 30 — thêm ở migration 0039).
 - Thu hồi quyền `SELECT` của `reporting_readonly` do chứa tài liệu nội bộ.
 
+### Lịch sử chỉnh sửa tài khoản (migration `0040`)
+
+Bảng `account_audit_log` ghi thao tác **quản trị** tài khoản ở `auth/adminUserRoutes.js` (module `auth/accountAuditLog.js`), đọc ở tab "Lịch sử chỉnh sửa" (`/account/#history`, `GET /api/admin/audit-log`, quyền `account.users`):
+- `action`: `create` / `update` / `reset_password` / `delete` / `permissions`.
+- Người sửa (`actor_user_id`, `actor_username`, `actor_name`) và tài khoản bị sửa (`target_*`) được **chụp lại lúc ghi**, không FK tới `app_users` để lịch sử còn sau khi xóa tài khoản.
+- `changes` JSONB mảng `{field, label, before, after}`; sửa quyền ghi `{field: "permissions", added, removed}` theo nhãn quyền tiếng Việt (quyền hiệu lực trước/sau). Không bao giờ chứa mật khẩu.
+- Chỉ thêm: trigger `account_audit_log_guard` chặn UPDATE/DELETE. Thu hồi `SELECT` của `reporting_readonly` (chứa email/SĐT).
+- Không ghi: tự sửa hồ sơ, duyệt yêu cầu đổi vai trò, thay đổi do hệ thống (đồng bộ nhân sự).
+
 ### Chỉ mục đơn Phiếu tạm cho Vòng đời đơn hàng (migration `0028`)
 
 `idx_orders_phieu_tam` là chỉ mục **một phần** `ON orders (branch, id) WHERE raw->>'statusValue' = 'Phiếu tạm'`. Trang Vòng đời đơn hàng (`shipment/kiotOrdersRepository.js`) đọc dòng hàng của mọi đơn Phiếu tạm của Kiot HN + SG (~1.000 đơn, ~2.500 dòng hàng ở thời điểm 2026-10-01); bảng `orders` có ~46K dòng JSON lớn nên không có chỉ mục thì mỗi lần đọc nguội mất vài giây (đo ~4 giây, vì quét tuần tự). (Từ 2026-10-02 trang còn đọc **đầu đơn của mọi trạng thái** ~60K dòng bằng một truy vấn quét toàn bảng ~2 giây — truy vấn đó không dùng được chỉ mục này nên được cache 2 phút thay vì lọc ở DB.) Điều kiện `WHERE` của truy vấn phải giữ **y hệt** biểu thức trên (so chuỗi `statusValue`, không so số `status`) thì planner mới chọn được chỉ mục. Code chạy đúng cả khi chưa áp migration, chỉ chậm hơn; kết quả đọc được cache 60 giây trong tiến trình.

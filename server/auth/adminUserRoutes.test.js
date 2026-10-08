@@ -1377,3 +1377,99 @@ test('delegated account admin cannot grant departments outside their own persist
   assert.equal(res.statusCode, 403);
   assert.equal((await localUserStore.getUserById('staff')).featurePermissions, undefined);
 });
+
+// ---------------------------------------------------------------------------
+// LICH SU CHINH SUA TAI KHOAN (account_audit_log)
+// ---------------------------------------------------------------------------
+
+const accountAuditLog = require('./accountAuditLog');
+
+function auditPool() {
+  const inserts = [];
+  return {
+    inserts,
+    query: async (sql, params) => {
+      if (/INSERT INTO account_audit_log/.test(sql)) inserts.push(params);
+      if (/count\(\*\)/.test(sql)) return { rows: [{ total: 0 }] };
+      return { rows: [] };
+    }
+  };
+}
+
+test('Lich su: PUT co thay doi ghi nhat ky dung truong cu -> moi; PUT khong doi thi khong ghi', async () => {
+  const pool = auditPool();
+  accountAuditLog.setPool(pool);
+  try {
+    localUserStore.setInMemoryUsers([{ id: 'u-audit', username: 'nv-audit', hoTen: 'Cũ', vaiTro: 'Nhân viên kho', coSo: 'Hà Nội', trangThai: 'Đang hoạt động' }]);
+    const handler = getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id');
+    let res = fakeRes();
+    await handler({ user: manager(), params: { id: 'u-audit' }, body: { hoTen: 'Mới', coSo: 'Sài Gòn' } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(pool.inserts.length, 1);
+    const [action, actorId, , actorName, targetId, targetUsername, , changesJson] = pool.inserts[0];
+    assert.equal(action, 'update');
+    assert.equal(actorId, 'admin-1');
+    assert.equal(actorName, 'Quản lý');
+    assert.equal(targetId, 'u-audit');
+    assert.equal(targetUsername, 'nv-audit');
+    assert.deepEqual(JSON.parse(changesJson), [
+      { field: 'hoTen', label: 'Họ tên', before: 'Cũ', after: 'Mới' },
+      { field: 'coSo', label: 'Cơ sở', before: 'Hà Nội', after: 'Sài Gòn' }
+    ]);
+
+    res = fakeRes();
+    await handler({ user: manager(), params: { id: 'u-audit' }, body: { hoTen: 'Mới' } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(pool.inserts.length, 1, 'luu lai gia tri cu khong tao dong nhat ky');
+  } finally {
+    accountAuditLog.setPool(null);
+  }
+});
+
+test('Lich su: dat lai mat khau, sua quyen, xoa deu ghi nhat ky (khong chua mat khau)', async () => {
+  const pool = auditPool();
+  accountAuditLog.setPool(pool);
+  try {
+    localUserStore.setInMemoryUsers([{ id: 'u-a2', username: 'nv-a2', hoTen: 'NV', vaiTro: 'Nhân viên sale', trangThai: 'Đang hoạt động' }]);
+    let res = fakeRes();
+    await getRouteHandler(adminUserRoutes, 'post', '/api/admin/users/:id/reset-password')({ user: manager(), params: { id: 'u-a2' }, body: { newPassword: 'MatKhauMoi123' } }, res);
+    assert.equal(res.statusCode, 200);
+    res = fakeRes();
+    await getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id/permissions')({ user: manager(), params: { id: 'u-a2' }, body: { overrides: { 'reports.export': true } } }, res);
+    assert.equal(res.statusCode, 200);
+    res = fakeRes();
+    await getRouteHandler(adminUserRoutes, 'delete', '/api/admin/users/:id')({ user: manager(), params: { id: 'u-a2' } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(pool.inserts.map(p => p[0]), ['reset_password', 'permissions', 'delete']);
+    assert.ok(!JSON.stringify(pool.inserts).includes('MatKhauMoi123'));
+    assert.deepEqual(JSON.parse(pool.inserts[1][7])[0].added, ['Xuất Excel báo cáo']);
+  } finally {
+    accountAuditLog.setPool(null);
+  }
+});
+
+test('Lich su: GET /api/admin/audit-log can quyen account.users', async () => {
+  const stack = getRouteMiddlewareStack(adminUserRoutes, 'get', '/api/admin/audit-log');
+  const guard = stack[stack.length - 2];
+  let next = false;
+  guard({ user: { vaiTro: 'Quản lý' } }, fakeRes(), () => { next = true; });
+  assert.equal(next, true);
+  const res = fakeRes();
+  next = false;
+  guard({ user: { vaiTro: 'Kế toán' } }, res, () => { next = true; });
+  assert.equal(next, false);
+  assert.equal(res.statusCode, 403);
+  next = false;
+  guard({ user: { vaiTro: 'Kế toán', featurePermissions: { 'account.users': true } } }, fakeRes(), () => { next = true; });
+  assert.equal(next, true, 'cap rieng account.users thi xem duoc');
+
+  accountAuditLog.setPool(auditPool());
+  try {
+    const ok = fakeRes();
+    await getRouteHandler(adminUserRoutes, 'get', '/api/admin/audit-log')({ user: manager(), query: { page: '1' } }, ok);
+    assert.equal(ok.statusCode, 200);
+    assert.deepEqual(ok.body.entries, []);
+  } finally {
+    accountAuditLog.setPool(null);
+  }
+});
