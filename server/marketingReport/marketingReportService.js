@@ -10,13 +10,15 @@ function fail(statusCode, code, message) { return Object.assign(new Error(messag
 const unique = values => [...new Set(values.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
 function sum(rows, field) { return rows.length && rows.every(r=>typeof r[field]==='number') ? rows.reduce((n,r)=>n+r[field],0) : null; }
 function sumValid(rows, field) { const valid=rows.filter(r=>typeof r[field]==='number'); return valid.length?valid.reduce((n,r)=>n+r[field],0):null; }
+// Ô nhân viên có thể ghi nhiều người, ngăn bằng dấu phẩy ("A, B"): lọc theo từng tên.
+const splitNames = v => String(v ?? '').split(/\s*,\s*/).filter(Boolean);
 const kpi = (label,value,format='number') => ({label,value,format});
 function filters(rows) {
-  return { pages:unique(rows.map(r=>r.page)), employees:unique(rows.flatMap(r=>[r.employee,r.sale,r.firstEmployee,r.currentEmployee,r.repeatEmployee])), statuses:unique(rows.map(r=>r.status)), dataSources:unique(rows.map(r=>r.dataSource)) };
+  return { pages:unique(rows.map(r=>r.page)), employees:unique(rows.flatMap(r=>[r.employee,r.sale,r.firstEmployee,r.currentEmployee,r.repeatEmployee].flatMap(splitNames))), statuses:unique(rows.map(r=>r.status)), dataSources:unique(rows.map(r=>r.dataSource)) };
 }
 function matches(row, query) {
   if (query.page && p.norm(row.page)!==p.norm(query.page)) return false;
-  if (query.employee && ![row.employee,row.sale,row.firstEmployee,row.currentEmployee,row.repeatEmployee].some(v=>p.norm(v)===p.norm(query.employee))) return false;
+  if (query.employee && ![row.employee,row.sale,row.firstEmployee,row.currentEmployee,row.repeatEmployee].some(v=>splitNames(v).some(n=>p.norm(n)===p.norm(query.employee)))) return false;
   if (query.status && row.status!==query.status) return false;
   if (query.dataSource && row.dataSource!==query.dataSource) return false;
   return true;
@@ -94,8 +96,8 @@ function createMarketingReportService({clients, now=Date.now}={}) {
       totalRevenue=data.totalRevenue;
       if(data.missing)warnings.push(`Chưa có BC tháng ${m} trong workbook.`);
       if(query.status||query.dataSource)warnings.push('Số tổng nguồn theo sale/page không có bộ lọc tình trạng hoặc nguồn data; các bộ lọc này chỉ áp dụng danh sách chi tiết.');
-      kpis=[kpi('Doanh số tổng tháng (theo sheet)',totalRevenue,'money'),kpi('Khách chốt theo page (theo sheet)',sum(summaryRows.filter(r=>r.kind==='page'),'closed'))];
-      for(const type of ['page','sale']){const list=summaryRows.filter(r=>r.kind===type);charts.push({title:type==='page'?'Khách chốt theo page':'Khách chốt theo sale',labels:list.map(r=>r.kind==='sale'?`${r.label} · ${r.page}`:r.label),values:list.map(r=>r.closed)});}
+      const saleRows=summaryRows.filter(r=>r.kind==='sale');
+      kpis=[kpi('Doanh số tháng (theo sheet)',totalRevenue,'money'),kpi('Khách chốt (theo sheet)',sum(summaryRows.filter(r=>r.kind==='page'),'closed')),kpi('Số nhân viên',new Set(saleRows.map(r=>p.norm(r.label))).size)];
     } else if(kind==='receipt-check') {
       const titles=await read('report');const title=titles.find(t=>/^check tỷ lệ nhận số t/i.test(t)&&p.monthOfTitle(t)===m);
       let data={rows:[],employees:[]};
@@ -106,16 +108,14 @@ function createMarketingReportService({clients, now=Date.now}={}) {
       [dependencies.monthly,dependencies.phones]=await Promise.all([optional(()=>readMonthly(m),'Chi tiết BC tháng',warnings),optional(readPhones,'Chi tiết SĐT',warnings)]);
       rows=data.rows;summaryRows=(query.page?data.rows:data.employees.length?data.employees:data.rows).filter(r=>matches(r,query));
       kpis=[kpi('SĐT lần đầu',sum(summaryRows,'first')),kpi('SĐT chào lại',sum(summaryRows,'repeat')),kpi('Quy đổi (theo sheet)',sum(summaryRows,'equivalent')),kpi('Khách chốt (theo sheet)',sum(summaryRows,'closed'))];
-      charts=[{title:'SĐT quy đổi theo nhân viên',labels:summaryRows.map(r=>r.label),values:summaryRows.map(r=>r.equivalent)}];
     } else if(kind==='phones') {
       const data=await readPhones();dependencies.phones=data;rows=data.rows;warnings.push(...data.warnings);
       readAt=data.readAt;
       const selected=rows.filter(r=>matches(r,query));
       summaryRows=unique(selected.map(r=>r.page)).map(page=>({key:JSON.stringify(['phones-page',page]),label:page,page,count:selected.filter(r=>r.page===page).length,kind:'page'}));
-      const employees=unique(selected.flatMap(r=>[r.firstEmployee,r.currentEmployee]));
+      const employees=unique(selected.flatMap(r=>[r.firstEmployee,r.currentEmployee].flatMap(splitNames)));
       summaryRows.push(...employees.map(employee=>({key:JSON.stringify(['phones-employee',employee]),label:employee,employee,count:selected.filter(r=>matches(r,{employee})).length,kind:'employee'})));
       kpis=[kpi('Dòng SĐT CHUẨN',selected.length),kpi('Page',unique(selected.map(r=>r.page)).length)];
-      charts=[{title:'SĐT CHUẨN theo page',labels:summaryRows.filter(r=>r.kind==='page').map(r=>r.label),values:summaryRows.filter(r=>r.kind==='page').map(r=>r.count)}];
     } else {
       const titles=await read('ads');const names=titles.filter(t=>p.COST_PAGES[p.norm(t)]);
       if(!names.length)throw fail(503,'MARKETING_HEADERS_MISSING','Không tìm thấy các tab chi phí ADS.');

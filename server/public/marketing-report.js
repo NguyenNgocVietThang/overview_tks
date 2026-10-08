@@ -3,7 +3,7 @@
   'use strict';
   const definitions = {
     monthly: { title: 'BC tháng', note: 'doanh số và khách chốt theo tháng đã chọn', monthKey: 'monthly', filters: ['page', 'employee', 'status', 'dataSource'], columns: [['sale','Sale'],['customer','Khách Kiot'],['phone','SĐT'],['page','Page'],['status','Tình trạng'],['dataSource','Nguồn data'],['closedAt','Ngày chốt'],['revenue','Doanh số','money'],['newCustomer','Khách mới'],['note','Ghi chú']] },
-    'receipt-check': { title: 'Check tỷ lệ nhận số', note: 'số nhận, chào lại và tỷ lệ chốt theo nhân viên', monthKey: 'check', split: true, horizontal: true, filters: ['page', 'employee'], columns: [['name','Nhân viên'],['page','Page'],['first','Lần đầu','number'],['repeat','Chào lại','number'],['equivalent','Quy đổi','number'],['closed','Khách chốt','number'],['rate','Tỷ lệ chốt','percent']] },
+    'receipt-check': { title: 'Check tỷ lệ nhận số', note: 'số nhận, chào lại và tỷ lệ chốt theo nhân viên', monthKey: 'check', filters: ['page', 'employee'], columns: [['name','Nhân viên'],['page','Page'],['first','Lần đầu','number'],['repeat','Chào lại','number'],['equivalent','Quy đổi','number'],['closed','Khách chốt','number'],['rate','Tỷ lệ chốt','percent']] },
     phones: { title: 'Sao lưu SĐT', note: 'số điện thoại đã nhận theo page và nhân viên', filters: ['page', 'employee'], columns: [['phone','SĐT'],['page','Page'],['firstEmployee','Nhân viên lần đầu'],['currentEmployee','Nhân viên hiện tại'],['repeatEmployee','Nhân viên chào lại'],['firstAt','Ngày lần đầu'],['currentAt','Ngày hiện tại'],['repeatAt','Ngày chào lại']] },
     costs: { title: 'Báo cáo chi phí', note: 'chi phí quảng cáo, mess và SĐT theo ngày', monthKey: 'costs', beside: true, filters: ['page'], columns: [['page','Page'],['date','Ngày'],['adCost','Chi phí ADS','money'],['totalCost','Chi phí gồm phí thuê/VAT','money'],['totalLabel','Nhãn chi phí nguồn'],['messages','Mess','number'],['costPerMessage','Chi phí/mess','money'],['phones','SĐT','number'],['costPerPhone','Chi phí/SĐT','money']] }
   };
@@ -99,9 +99,9 @@
     document.getElementById('marketing-' + kind + '-warnings').textContent = (data.warnings || []).join(' · ');
     document.getElementById('marketing-' + kind + '-kpis').innerHTML = kpis(data.kpis);
     renderCharts(kind);
-    mountTable(document.getElementById('marketing-' + kind + '-rows'), 'marketing-' + kind + '-data-table', 'Chi tiết', data.rows || [], definitions[kind].columns, kind === 'phones' || kind === 'receipt-check' ? row => openDetail(kind,row.key,document.activeElement) : null, { kind, table:'rows' });
-    // Thanh lọc nằm trong bảng chi tiết (mountTable dựng lại bảng nên phải gắn lại sau mỗi lần vẽ).
-    document.querySelector('#marketing-' + kind + '-rows .table-search-tools')?.appendChild(sections[kind].filtersEl);
+    mountTable(document.getElementById('marketing-' + kind + '-rows'), 'marketing-' + kind + '-data-table', definitions[kind].title, data.rows || [], definitions[kind].columns, kind === 'phones' || kind === 'receipt-check' ? row => openDetail(kind,row.key,document.activeElement) : null, { kind, table:'rows' });
+    // Thanh lọc nằm cạnh tên bảng (mountTable dựng lại bảng nên phải gắn lại sau mỗi lần vẽ).
+    document.querySelector('#marketing-' + kind + '-rows .panel-head')?.insertBefore(sections[kind].filtersEl, document.querySelector('#marketing-' + kind + '-rows .panel-head-actions'));
   }
   // Biểu đồ theo ngày của mục có `beside` luôn là cột dọc, xếp riêng cả hàng phía trên.
   const wide = (chart, kind) => !!definitions[kind]?.beside && /ngày/i.test(chart.title || '');

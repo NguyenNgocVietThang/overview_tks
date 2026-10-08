@@ -50,7 +50,7 @@
 .marketing-split > .grid > .panel { width: 100%; }
 @media (max-width: 1100px) { .marketing-split { grid-template-columns: minmax(0, 1fr); } }
 #view-marketing .marketing-toolbar { display: none; }
-.marketing-table .marketing-filters { flex: 1 1 100%; justify-content: flex-start; padding: 0; margin: 0; }
+.marketing-table .marketing-filters { flex: 1 1 auto; justify-content: flex-start; padding: 0; margin: 0; }
 .marketing-section > * + *:not(:empty), .marketing-dialog-body > * + *:not(:empty) { margin-top: 16px; }
 .marketing-section > .section-head + *, .marketing-section > .marketing-status + *, .marketing-section > .marketing-warnings + * { margin-top: 0; }
 .marketing-section > .marketing-status:not(:empty), .marketing-section > .marketing-warnings:not(:empty) { margin-bottom: 12px; }
