@@ -36,8 +36,9 @@ test('database snapshots direct bot inserts authoritatively, preserves approvals
 });
 test('missing schedules and invalid selections roll back both request and history; linked Telegram identity works',async()=>{
  let db;try {db=await fixture();
- await assert.rejects(db.exec(insert('MISSING')),/LEAVE_SCHEDULE_REQUIRED/);
- assert.equal((await db.query("SELECT count(*)::int AS n FROM hr_leave_requests WHERE request_id='MISSING'")).rows[0].n,0);
+ await db.exec(insert('MISSING'));
+ const fallback=(await db.query("SELECT schedule_start::text AS start,schedule_version::text AS version FROM hr_leave_requests WHERE request_id='MISSING'")).rows[0];
+ assert.deepEqual(fallback,{start:'07:45:00',version:'0'});
  await db.exec(`INSERT INTO hr_leave_work_schedules(employee_id,work_date,morning_start,afternoon_start) VALUES(1,'2030-01-01','08:15','13:00');INSERT INTO hr_telegram_links(user_id,status,link_method,telegram_chat_id,linked_at) VALUES('${UID}','linked','manual','123',now());`);
  await db.exec("INSERT INTO hr_leave_requests(request_id,telegram_chat_id,branch,start_date,start_session,end_date,end_session,tong_buoi_nghi) VALUES('LINK','123','hanoi','2030-01-01','Sáng','2030-01-01','Chiều',2)");
  assert.equal((await db.query("SELECT hr_employee_id FROM hr_leave_requests WHERE request_id='LINK'")).rows[0].hr_employee_id,1);
@@ -62,7 +63,6 @@ test('every registration timing can be approved without changing snapshot, and f
   await db.query('INSERT INTO hr_leave_work_schedules(employee_id,work_date,morning_start,afternoon_start) VALUES(1,$1::date,\'08:15\',\'13:00\')',[date]);
   const row=await repo.createLeaveRequest({user_id:UID,hr_employee_id:1,start_date:date,start_session:'Sáng',end_date:date,end_session:'Chiều',tong_buoi_nghi:2},'Hà Nội');assert.equal(row.timing_status,label);assert.equal(row.trang_thai,'Chưa duyệt');
   const approved=await repo.updateLeaveRequestStatus(row.request_id,{status:'Đã duyệt',expectedVersion:'0'},'Hà Nội');assert.equal(approved.timing_status,label);assert.equal(approved.first_session_start_at,row.first_session_start_at);assert.equal(approved.thoi_gian_gui,row.thoi_gian_gui);assert.equal(approved.submission_revision,1);
-  await assert.rejects(db.query("UPDATE hr_leave_requests SET start_date='2101-01-01',end_date='2101-01-01' WHERE request_id=$1",[row.request_id]),/LEAVE_SCHEDULE_REQUIRED/);
   assert.equal((await repo.getSubmissionHistory(row.request_id)).length,1);assert.equal((await repo.getLeaveRequestById(row.request_id,'Hà Nội')).trang_thai,'Đã duyệt');
  }
  await assert.rejects(db.exec("INSERT INTO hr_leave_submissions SELECT * FROM hr_leave_submissions LIMIT 1"),/immutable/i);
@@ -87,10 +87,10 @@ test('real repository resubmission guards version, ownership and active employee
 test('schedule repository round-trips nullable starts and database owns monotonically increasing version',async()=>{
  let db;try {db=await fixture();
  const repo=require('./hrLeaveWorkSchedulesRepository').createHrLeaveWorkSchedulesRepository({pool:db});
- assert.equal(await repo.getSchedule('1','2030-01-01'),null);
+ assert.deepEqual(await repo.getSchedule('1','2030-01-01'),{employeeId:'1',date:'2030-01-01',morningStart:'07:45',afternoonStart:'12:30',version:'0'});
  const first=await repo.setSchedule('1',{date:'2030-01-01',morningStart:'08:15',afternoonStart:null});
- assert.deepEqual(first,{employeeId:'1',date:'2030-01-01',morningStart:'08:15',afternoonStart:null,version:'1'});
- const next=await repo.setSchedule('1',{date:'2030-01-01',morningStart:null,afternoonStart:null});assert.equal(next.version,'2');assert.equal(next.morningStart,null);
+ assert.deepEqual(first,{employeeId:'1',date:'2030-01-01',morningStart:'08:15',afternoonStart:'12:30',version:'1'});
+ const next=await repo.setSchedule('1',{date:'2030-01-01',morningStart:null,afternoonStart:null});assert.equal(next.version,'2');assert.equal(next.morningStart,'07:45');
  assert.deepEqual(await repo.getSchedule('1','2030-01-01'),next);
  }finally{if(db)await db.close();}
 });

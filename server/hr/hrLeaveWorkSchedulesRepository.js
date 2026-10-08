@@ -5,10 +5,14 @@ function invalid(message) {return Object.assign(new Error(message),{statusCode:4
 function validate(employeeId,date) {
  if (!/^[1-9]\d*$/.test(String(employeeId)) || !validDate(date)) throw invalid('Nhân sự hoặc ngày làm việc không hợp lệ.');
 }
-function shape(row) {return row ? {employeeId:String(row.employee_id),date:row.work_date,morningStart:row.morning_start && row.morning_start.slice(0,5),afternoonStart:row.afternoon_start && row.afternoon_start.slice(0,5),version:String(row.version)} : null;}
+const DEFAULT_MORNING_START='07:45';
+const DEFAULT_AFTERNOON_START='12:30';
+// Giờ cố định cho mọi nhân viên; dòng lịch riêng (nếu có) ghi đè từng buổi.
+function shape(row) {return row ? {employeeId:String(row.employee_id),date:row.work_date,morningStart:row.morning_start ? row.morning_start.slice(0,5) : DEFAULT_MORNING_START,afternoonStart:row.afternoon_start ? row.afternoon_start.slice(0,5) : DEFAULT_AFTERNOON_START,version:String(row.version)} : null;}
+function withDefault(employeeId,date,schedule) {return schedule || {employeeId:String(employeeId),date,morningStart:DEFAULT_MORNING_START,afternoonStart:DEFAULT_AFTERNOON_START,version:'0'};}
 const columns='employee_id::text AS employee_id,work_date::text AS work_date,morning_start::text AS morning_start,afternoon_start::text AS afternoon_start,version::text AS version';
 function createHrLeaveWorkSchedulesRepository({pool=getPool()}={}) {
- async function getSchedule(employeeId,date) {validate(employeeId,date);return shape((await pool.query(`SELECT ${columns} FROM hr_leave_work_schedules WHERE employee_id=$1 AND work_date=$2::date`,[employeeId,date])).rows[0]);}
+ async function getSchedule(employeeId,date) {validate(employeeId,date);return withDefault(employeeId,date,shape((await pool.query(`SELECT ${columns} FROM hr_leave_work_schedules WHERE employee_id=$1 AND work_date=$2::date`,[employeeId,date])).rows[0]));}
  async function setSchedule(employeeId,{date,morningStart,afternoonStart}={}) {
   validate(employeeId,date);
   for(const value of [morningStart,afternoonStart]) if(value!==null && (typeof value!=='string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(value))) throw invalid('Giờ bắt đầu phải có dạng HH:mm hoặc null.');

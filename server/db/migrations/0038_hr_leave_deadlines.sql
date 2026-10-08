@@ -113,9 +113,10 @@ BEGIN
  IF employee_branch<>NEW.branch THEN RAISE EXCEPTION 'LEAVE_IDENTITY_MISMATCH: employee branch mismatch'; END IF;
  IF TG_OP='INSERT' THEN SELECT COALESCE(e.bo_phan,'') INTO NEW.bo_phan FROM hr_employees e WHERE e.id=NEW.hr_employee_id; END IF;
  SELECT * INTO schedule_row FROM hr_leave_work_schedules WHERE employee_id=NEW.hr_employee_id AND work_date=NEW.start_date FOR SHARE;
- start_time:=CASE WHEN NEW.start_session='Sáng' THEN schedule_row.morning_start ELSE schedule_row.afternoon_start END;
+ -- Giờ cố định cho mọi nhân viên: sáng 07:45, chiều 12:30; dòng lịch riêng (nếu có) ghi đè.
+ start_time:=CASE WHEN NEW.start_session='Sáng' THEN COALESCE(schedule_row.morning_start,time '07:45') ELSE COALESCE(schedule_row.afternoon_start,time '12:30') END;
  IF start_time IS NULL THEN RAISE EXCEPTION 'LEAVE_SCHEDULE_REQUIRED: configure employee % schedule on % for %',NEW.hr_employee_id,NEW.start_date,NEW.start_session; END IF;
- NEW.thoi_gian_gui:=clock_timestamp();NEW.schedule_version:=schedule_row.version;NEW.schedule_start:=start_time;
+ NEW.thoi_gian_gui:=clock_timestamp();NEW.schedule_version:=COALESCE(schedule_row.version,0);NEW.schedule_start:=start_time;
  SELECT deadline_date,deadline_exclusive_at,first_start_at,timing INTO NEW.registration_deadline_date,NEW.registration_deadline_exclusive_at,NEW.first_session_start_at,NEW.timing_status FROM hr_leave_calculate_timing(NEW.start_date,start_time,NEW.tong_buoi_nghi,NEW.thoi_gian_gui);
  IF TG_OP='INSERT' THEN
    NEW.submission_revision:=1;NEW.decision_version:=0;
