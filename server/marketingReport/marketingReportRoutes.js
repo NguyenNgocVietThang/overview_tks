@@ -17,6 +17,8 @@ function createMarketingReportRouter({service=createMarketingReportService()}={}
   };
   router.get('/metadata',handle(()=>service.metadata()));
   for(const kind of ['monthly','receipt-check','phones','costs'])router.get('/'+kind,handle(req=>service.report(kind,req.query)));
+  // Ghi ngược Khách mới / Ghi chú vào Google Sheets: cần thêm quyền reports.marketing.edit.
+  router.put('/monthly/row',requireFeature('reports.marketing.edit'),express.json({limit:'8kb'}),handle(req=>service.updateRow(req.body)));
   router.get('/detail',handle(req=>service.detail(req.query)));
   // Xuất bảng ra Excel/HTML: cần đồng thời reports.marketing (router.use ở trên) và reports.export.
   const exportContext=async req=>{

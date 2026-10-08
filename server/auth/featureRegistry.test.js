@@ -64,8 +64,8 @@ test('mac dinh theo vai tro: reports.* khop dung REPORTS_ROLES cu', () => {
   for (const role of REPORTS_ROLES) {
     const defaults = registry.defaultsForRole(role);
     for (const key of registry.ANY_REPORTS_FEATURES) {
-      // Tinh lai thang chot cua Bao cao kinh doanh chi danh cho Quan ly (2026-10-07).
-      if (key === 'reports.business.refreeze' && role !== ROLES.QUAN_LY) continue;
+      // Tinh lai thang chot (2026-10-07) va sua Khach moi/Ghi chu Marketing (2026-10-08) chi danh cho Quan ly.
+      if (['reports.business.refreeze', 'reports.marketing.edit'].includes(key) && role !== ROLES.QUAN_LY) continue;
       assert.ok(defaults.includes(key), `${role} phai co ${key}`);
     }
   }

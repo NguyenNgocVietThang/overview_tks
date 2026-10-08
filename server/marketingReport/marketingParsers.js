@@ -10,6 +10,13 @@ function number(v) {
   const n = Number(raw);
   return Number.isFinite(n) ? n : null;
 }
+// Ô SĐT dạng số (UNFORMATTED_VALUE) mất số 0 đầu: 912345678 → 0912345678, 84912345678 → 0912345678.
+function phoneText(v) {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return text(v);
+  const digits = String(Math.trunc(v));
+  if (/^84\d{9}$/.test(digits)) return '0' + digits.slice(2);
+  return digits.length === 9 ? '0' + digits : digits;
+}
 const key = (sheet, row, suffix = '') => JSON.stringify([sheet, row + 1, suffix]);
 function dateParts(v) {
   if (typeof v === 'number') {
@@ -35,7 +42,7 @@ function parseMonthly(values, sheet) {
   if (!values.length || norm(values[0][0]) !== 'sale') throw new Error(`Thiếu tiêu đề BC tháng: ${sheet}`);
   const rows = values.slice(2).flatMap((r, i) => {
     if (![r[0], r[1], r[2], r[3]].some(text)) return [];
-    return [{ key: key(sheet, i + 2), sale: text(r[0]), customer: text(r[1]), phone: text(r[2]), page: text(r[3]), status: text(r[4]), dataSource: text(r[5]), closedAt: dateText(r[6]), revenue: number(r[7]), newCustomer: text(r[8]), note: text(r[9]) }];
+    return [{ key: key(sheet, i + 2), sale: text(r[0]), customer: text(r[1]), phone: phoneText(r[2]), page: text(r[3]), status: text(r[4]), dataSource: text(r[5]), closedAt: dateText(r[6]), revenue: number(r[7]), newCustomer: text(r[8]), note: text(r[9]) }];
   });
   const pages = values.slice(2).flatMap((r, i) => text(r[12]) ? [{ key: key(sheet, i + 2, 'page:'+text(r[12])), label: text(r[12]), page: text(r[12]), closed: number(r[13]), kind: 'page' }] : []);
   return { rows, pages, totalRevenue: number(values[1]?.[7]) };
@@ -89,4 +96,4 @@ function parseCosts(values, sheet) {
   }
   return { rows, totals };
 }
-module.exports = { norm, text, number, key, dateParts, dateText, monthOfTitle, parseMonthly, parseRanking, parseCheck, parsePhones, parseCosts, COST_PAGES };
+module.exports = { norm, text, phoneText, number, key, dateParts, dateText, monthOfTitle, parseMonthly, parseRanking, parseCheck, parsePhones, parseCosts, COST_PAGES };

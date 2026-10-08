@@ -65,3 +65,49 @@ test('employee/page check detail uses source row and phone aliases within select
  assert.equal(detail.groups[2].rows.length,1);
  assert.equal(detail.kpis[4].value,0.1);
 });
+
+function kiotSetup(writer) {
+  const client={listSheetTitles:async()=>['BC Tháng 10'],getValues:async()=>[['SALE'],['','','','','','','',999],
+    ['An MKT','KH A Khiêm','0912345678','Hữu Nghị','Đã chốt đơn','Mới','01/10/2026',5],
+    ['Bình','KH Không Có','0900000000','Hữu Nghị','Đã chốt đơn','Mới','02/10/2026',6],
+    ['Bình','KH Chưa Mua','0911111111','Hữu Nghị','Chưa chốt','Mới','',7]]};
+  const revenue=async month=>({available:month===10,revenueOf:name=>({'kh a khiêm':1200000,'kh chưa mua':0})[String(name).toLowerCase()]??null});
+  return createMarketingReportService({clients:{report:client},now:()=>Date.UTC(2026,9,8),revenue,writer});
+}
+
+test('doanh số lấy từ KiotViet theo tên khách; không khớp là — và được báo',async()=>{
+  const data=await kiotSetup().report('monthly',{month:'10'});
+  assert.deepEqual(data.rows.map(r=>r.revenue),[1200000,null,0]);
+  const total=data.kpis.find(k=>k.format==='money');
+  assert.equal(total.value,1200000);assert.ok(total.label.includes('KiotViet'));
+  assert.ok(data.warnings.some(w=>w.includes('1 dòng')&&w.includes('KiotViet')));
+});
+
+test('tháng chưa có dữ liệu KiotViet: doanh số — kèm cảnh báo',async()=>{
+  const svc=createMarketingReportService({clients:{report:{listSheetTitles:async()=>['BC Tháng 2'],getValues:async()=>[['SALE'],[],['An','KH A','0912345678','Hữu Nghị','','','',5]]}},now:()=>Date.UTC(2026,9,8),revenue:async()=>({available:false,revenueOf:()=>null})});
+  const data=await svc.report('monthly',{month:'2'});
+  assert.equal(data.rows[0].revenue,null);assert.ok(data.warnings.some(w=>w.includes('Chưa có dữ liệu doanh số KiotViet')));
+});
+
+test('ghi ngược Khách mới/Ghi chú: kiểm tra dòng, ghi đúng ô, từ chối khi dòng đã đổi',async()=>{
+  const writes=[];let live=['An MKT','KH A Khiêm','0912345678'];
+  const writer={readRow:async()=>live,writeCell:async(...a)=>{writes.push(a);}};
+  const svc=kiotSetup(writer);
+  const data=await svc.report('monthly',{month:'10'});
+  const row=data.rows[0];
+  const base={snapshotId:data.snapshotId,key:row.key};
+  assert.deepEqual(await svc.updateRow({...base,field:'note',value:'  gọi lại  '}),{ok:true,field:'note',value:'gọi lại'});
+  assert.deepEqual(writes,[['BC Tháng 10',3,'note','gọi lại']]);
+  await assert.rejects(svc.updateRow({...base,field:'revenue',value:'1'}),e=>e.statusCode===400);
+  await assert.rejects(svc.updateRow({...base,field:'note',value:'x'.repeat(501)}),e=>e.statusCode===400);
+  await assert.rejects(svc.updateRow({snapshotId:'nope',key:row.key,field:'note',value:'x'}),e=>e.code==='MARKETING_SNAPSHOT_EXPIRED');
+  await assert.rejects(svc.updateRow({...base,key:JSON.stringify(['BẢNG KHÁC',3,'']),field:'note',value:'x'}),e=>e.statusCode===404);
+  live=['Ai Đó','KH Khác','0999'];
+  await assert.rejects(svc.updateRow({...base,field:'note',value:'x'}),e=>e.code==='MARKETING_ROW_CHANGED'&&e.statusCode===409);
+  assert.equal(writes.length,1);
+});
+
+test('không có writer thì không ghi được',async()=>{
+  const svc=setup().svc;
+  await assert.rejects(svc.updateRow({field:'note',value:'x'}),e=>e.code==='MARKETING_WRITE_UNAVAILABLE');
+});

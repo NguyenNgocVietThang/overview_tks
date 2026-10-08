@@ -51,3 +51,12 @@ test('costs handle serial dates and trailing totals without turning errors into 
   assert.equal(parsed.rows[0].costPerPhone,null);
   assert.equal(parsed.totals[0].totalCost,12);
 });
+
+test('numeric phone cells regain the leading zero', () => {
+  assert.equal(p.phoneText(912345678), '0912345678');
+  assert.equal(p.phoneText(84912345678), '0912345678');
+  assert.equal(p.phoneText('0912345678'), '0912345678');
+  assert.equal(p.phoneText(null), '');
+  const rows = [['SALE','ID','SĐT'],['','','',''],['An','KH1',912345678,'Hữu Nghị']];
+  assert.equal(p.parseMonthly(rows, 'BC Tháng 10').rows[0].phone, '0912345678');
+});

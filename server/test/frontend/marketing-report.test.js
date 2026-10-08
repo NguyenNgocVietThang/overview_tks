@@ -137,3 +137,39 @@ test('Phone summary detail drills into a record in the same dialog and returns f
   p.doc.getElementById('marketingDetailClose').click(); assert.equal(p.doc.activeElement,original);
   p.dom.window.close();
 });
+
+const monthlyJson = rows => ({ok:true,status:200,json:async()=>({snapshotId:'s1',computedAt:'2026-10-08T09:00:00Z',kpis:[],charts:[],warnings:[],filters:{},summaryRows:[],rows})});
+
+test('tên sale đuôi MKT được tô vàng, tên khác thì không',async()=>{
+  const p=page(url=>url.includes('/monthly?')?monthlyJson([
+    {key:'a',sale:'Hoàng MKT',customer:'KH A',phone:'0912345678',newCustomer:'',note:''},
+    {key:'b',sale:'Uyên SG',customer:'KH B',phone:'0900000000',newCustomer:'',note:''}]):null);
+  p.window.TKSNav={can:name=>name!=='reports.marketing.edit'};
+  await p.window.TKSMarketing.load();
+  const cells=[...p.doc.querySelectorAll('#marketing-monthly-rows tbody tr')].map(tr=>tr.querySelector('td').innerHTML);
+  assert.match(cells[0],/<span class="mkt-name">Hoàng MKT<\/span>/);
+  assert.doesNotMatch(cells[1],/mkt-name/);
+  assert.equal(p.doc.querySelector('#marketing-monthly-rows [data-edit]'),null,'không có quyền sửa thì không có ô nhập');
+  p.dom.window.close();
+});
+
+test('sửa Ghi chú gửi PUT kèm snapshot, lỗi thì trả lại giá trị cũ',async()=>{
+  const puts=[];let fail=false;
+  const p=page(url=>url.includes('/monthly?')?monthlyJson([{key:'a',sale:'Hoàng MKT',customer:'KH A',phone:'0912345678',newCustomer:'',note:'cũ'}]):null);
+  const base=p.window.fetch;
+  p.window.fetch=async(url,init)=>{
+    if(String(url).includes('/monthly/row')){puts.push({url,init});return fail?{ok:false,status:409,json:async()=>({error:'Dòng đã đổi'})}:{ok:true,status:200,json:async()=>({ok:true,field:'note',value:JSON.parse(init.body).value})};}
+    return base(url,init);
+  };
+  await p.window.TKSMarketing.load();
+  const input=p.doc.querySelector('#marketing-monthly-rows input[data-edit="note"]');
+  assert.equal(input.value,'cũ');
+  input.value='gọi lại ngày mai';input.dispatchEvent(new p.window.Event('change'));await settle();
+  assert.equal(puts[0].init.method,'PUT');
+  assert.deepEqual(JSON.parse(puts[0].init.body),{snapshotId:'s1',key:'a',field:'note',value:'gọi lại ngày mai'});
+  fail=true;
+  input.value='lỗi';input.dispatchEvent(new p.window.Event('change'));await settle();
+  assert.equal(input.value,'gọi lại ngày mai');
+  assert.match(p.doc.getElementById('marketing-monthly-status').textContent,/Dòng đã đổi/);
+  p.dom.window.close();
+});

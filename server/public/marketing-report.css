@@ -55,3 +55,14 @@
 .marketing-section > .section-head + *, .marketing-section > .marketing-status + *, .marketing-section > .marketing-warnings + * { margin-top: 0; }
 .marketing-section > .marketing-status:not(:empty), .marketing-section > .marketing-warnings:not(:empty) { margin-bottom: 12px; }
 .marketing-section .grid, .marketing-split { margin-bottom: 0; }
+
+/* Tên nhân viên đuôi MKT: chữ vàng (sáng ở nền tối, đậm hơn ở nền sáng để đủ tương phản). */
+.mkt-name { color: #FACC15; font-weight: 600; }
+:root[data-theme="light"] .mkt-name { color: #A16207; }
+/* Ô sửa tại chỗ Khách mới / Ghi chú (ghi ngược Google Sheets). */
+.marketing-edit { width: 100%; min-width: 130px; padding: 4px 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: inherit; font: inherit; }
+.marketing-edit:hover { border-color: var(--border, rgba(148,163,184,.35)); }
+.marketing-edit:focus { outline: none; border-color: var(--amber); background: var(--panel-2); }
+.marketing-edit.is-saved { border-color: #22C55E; }
+.marketing-edit.is-error { border-color: #EF4444; }
+.marketing-edit:disabled { opacity: .6; }

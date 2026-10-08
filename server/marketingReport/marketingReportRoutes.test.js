@@ -5,7 +5,7 @@ const express = require('express');
 const { createMarketingReportRouter } = require('./marketingReportRoutes');
 
 // Authentication and permission middleware run unchanged; only source reads are mocked.
-async function request(path, { permissions = ['reports.marketing'], authenticated = true, method = 'GET', service = {} } = {}) {
+async function request(path, { permissions = ['reports.marketing'], authenticated = true, method = 'GET', service = {}, body } = {}) {
   const calls = [];
   const app = express();
   app.use((req, res, next) => {
@@ -19,11 +19,12 @@ async function request(path, { permissions = ['reports.marketing'], authenticate
     metadata: async () => { calls.push(['metadata']); return { months: [10] }; },
     report: async (kind, query) => { calls.push(['report', kind, { ...query }]); return { kind, rows: [{ key: 'source:1' }] }; },
     detail: async query => { calls.push(['detail', { ...query }]); return { groups: [] }; },
+    updateRow: async b => { calls.push(['updateRow', { ...b }]); return { ok: true }; },
     ...service
   } }));
   const server = app.listen(0);
   try {
-    const res = await fetch(`http://127.0.0.1:${server.address().port}/api/marketing-report${path}`, { method });
+    const res = await fetch(`http://127.0.0.1:${server.address().port}/api/marketing-report${path}`, { method, ...(body ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {}) });
     return { status: res.status, headers: res.headers, calls,
       data: (res.headers.get('content-type') || '').includes('json') ? await res.json() : await res.text() };
   } finally {
@@ -106,4 +107,14 @@ test('Marketing has no write endpoints', async () => {
     assert.equal(result.status, 404, method);
     assert.deepEqual(result.calls, []);
   }
+});
+
+test('writing Khách mới/Ghi chú needs reports.marketing.edit and only that route writes', async () => {
+  const body = { snapshotId: 's', key: 'k', field: 'note', value: 'x' };
+  const denied = await request('/monthly/row', { method: 'PUT', body });
+  assert.equal(denied.status, 403);
+  assert.deepEqual(denied.calls, []);
+  const ok = await request('/monthly/row', { method: 'PUT', body, permissions: ['reports.marketing', 'reports.marketing.edit'] });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(ok.calls, [['updateRow', body]]);
 });

@@ -3,6 +3,8 @@ const { randomUUID } = require('node:crypto');
 const CONFIG = require('../config');
 const { createReadOnlyClient } = require('../sheets/sheetsClient');
 const p = require('./marketingParsers');
+const { createRevenueProvider } = require('./marketingRevenue');
+const { createMarketingSheetsWriter } = require('../sheets/marketingSheetsWriter');
 const TTL = 300000;
 const SNAPSHOT_TTL = 30 * 60000;
 const PHONE_PAGES = { 'hữu nghị chuẩn':'Hữu Nghị', 'tân thanh chuẩn':'Tân Thanh', 'bắc lãm chuẩn':'Bắc Lãm', 'phú lương chuẩn':'Phú Lương', 'hn-sg chuẩn':'HN-SG', 'dương nội chuẩn':'Dương Nội' };
@@ -26,7 +28,13 @@ function matches(row, query) {
 function sourceWarning(rows) {
   return rows.some(r=>Object.values(r).some(v=>v===null)) ? ['Một số ô thiếu hoặc lỗi trong nguồn; các giá trị này hiển thị —, không quy về 0.'] : [];
 }
-function createMarketingReportService({clients, now=Date.now}={}) {
+const EDIT_FIELDS = ['newCustomer', 'note'];
+const MAX_EDIT_LENGTH = 500;
+const digits = v => String(v ?? '').replace(/\D/g, '').replace(/^0+/, '');
+function createMarketingReportService({clients, now=Date.now, revenue, writer}={}) {
+  // Chạy thật (không inject clients): doanh số lấy từ KiotViet và được ghi ngược Sheets.
+  // Test inject clients mà không truyền revenue/writer thì giữ doanh số của sheet và không ghi.
+  if(!clients){ revenue ||= createRevenueProvider({now}); writer ||= createMarketingSheetsWriter(); }
   clients ||= {
     report:createReadOnlyClient(()=>CONFIG.MARKETING_REPORT_SPREADSHEET_ID,'Báo cáo trực page'),
     phones:createReadOnlyClient(()=>CONFIG.MARKETING_PHONES_SPREADSHEET_ID,'Sao lưu SĐT'),
@@ -66,8 +74,24 @@ function createMarketingReportService({clients, now=Date.now}={}) {
     if(!title)return {rows:[],pages:[],sales:[],totalRevenue:null,missing:true};
     try {
       const [values,rank]=await Promise.all([read('report',title), titles.includes('BẢNG XẾP HẠNG')?read('report','BẢNG XẾP HẠNG'):[]]);
-      return {...p.parseMonthly(values,title),sales:p.parseRanking(rank,m),readAt:Math.min(sourceTime('report',title),titles.includes('BẢNG XẾP HẠNG')?sourceTime('report','BẢNG XẾP HẠNG'):now())};
+      const parsed=p.parseMonthly(values,title), revenueWarnings=[];
+      if(revenue) await applyKiotRevenue(parsed,m,revenueWarnings);
+      return {...parsed,revenueWarnings,sales:p.parseRanking(rank,m),readAt:Math.min(sourceTime('report',title),titles.includes('BẢNG XẾP HẠNG')?sourceTime('report','BẢNG XẾP HẠNG'):now())};
     }catch(e){if(e.statusCode)throw e;throw fail(503,'MARKETING_HEADERS_MISSING','Nguồn BC tháng không có cấu trúc tiêu đề phù hợp.');}
+  }
+  // Doanh số lấy từ KiotViet theo tên khách (ghi đè giá trị công thức của sheet).
+  async function applyKiotRevenue(parsed, m, warnings) {
+    let lookup;
+    try { lookup=await revenue(m); }
+    catch(e) { console.error('[MarketingReport] Kiot revenue failed:',e.code||e.message); lookup=null; warnings.push('Không đọc được doanh số KiotViet; cột Doanh số hiển thị —.'); }
+    if(lookup && !lookup.available) warnings.push('Chưa có dữ liệu doanh số KiotViet cho tháng này; cột Doanh số hiển thị —.');
+    let unmatched=0;
+    for(const r of parsed.rows){
+      r.revenue=lookup?.available?lookup.revenueOf(r.customer):null;
+      if(lookup?.available && r.revenue===null && r.customer) unmatched++;
+    }
+    if(unmatched) warnings.push(`${unmatched} dòng có tên khách không khớp KiotViet nên Doanh số hiển thị —.`);
+    parsed.totalRevenue=sumValid(parsed.rows,'revenue');
   }
   async function readPhones() {
     const titles=await read('phones');
@@ -93,11 +117,12 @@ function createMarketingReportService({clients, now=Date.now}={}) {
       const data=await readMonthly(m);dependencies.monthly=data;rows=data.rows;
       readAt=data.readAt??now();
       summaryRows=[...data.pages,...data.sales].filter(r=>matches(r,{page:query.page,employee:query.employee}));
-      totalRevenue=data.totalRevenue;
+      warnings.push(...(data.revenueWarnings||[]));
+      totalRevenue=revenue?sumValid(rows.filter(r=>matches(r,query)),'revenue'):data.totalRevenue;
       if(data.missing)warnings.push(`Chưa có BC tháng ${m} trong workbook.`);
       if(query.status||query.dataSource)warnings.push('Số tổng nguồn theo sale/page không có bộ lọc tình trạng hoặc nguồn data; các bộ lọc này chỉ áp dụng danh sách chi tiết.');
       const saleRows=summaryRows.filter(r=>r.kind==='sale');
-      kpis=[kpi('Doanh số tháng (theo sheet)',totalRevenue,'money'),kpi('Khách chốt (theo sheet)',sum(summaryRows.filter(r=>r.kind==='page'),'closed')),kpi('Số nhân viên',new Set(saleRows.map(r=>p.norm(r.label))).size)];
+      kpis=[kpi(revenue?'Doanh số tháng (KiotViet)':'Doanh số tháng (theo sheet)',totalRevenue,'money'),kpi('Khách chốt (theo sheet)',sum(summaryRows.filter(r=>r.kind==='page'),'closed')),kpi('Số nhân viên',new Set(saleRows.map(r=>p.norm(r.label))).size)];
     } else if(kind==='receipt-check') {
       const titles=await read('report');const title=titles.find(t=>/^check tỷ lệ nhận số t/i.test(t)&&p.monthOfTitle(t)===m);
       let data={rows:[],employees:[]};
@@ -193,6 +218,29 @@ function createMarketingReportService({clients, now=Date.now}={}) {
     }
     return {title:selected.label||selected.phone,subtitle:result.month?`Tháng ${result.month} · ${selected.page||'Tất cả page'}`:selected.page||'Toàn bộ',computedAt:result.computedAt,snapshotId:result.snapshotId,kpis,groups,reconciliation,formula:kind==='receipt-check'?'SĐT lần đầu + SĐT chào lại ÷ 5':undefined,warnings:[...new Set([...result.warnings,...warnings])]};
   }
-  return {metadata,report,detail};
+  // Ghi ngược Khách mới / Ghi chú của một dòng BC tháng. Dòng và tab lấy từ snapshot do server
+  // phát (không tin tên tab/số dòng từ client); đọc lại dòng trên sheet để chắc chưa bị chèn/xóa.
+  async function updateRow(body={}) {
+    if(!writer)throw fail(503,'MARKETING_WRITE_UNAVAILABLE','Ghi ngược Google Sheets chưa được bật.');
+    const field=String(body.field||'');
+    if(!EDIT_FIELDS.includes(field))throw fail(400,'MARKETING_INVALID_FIELD','Chỉ được sửa Khách mới hoặc Ghi chú.');
+    if(typeof body.value!=='string')throw fail(400,'MARKETING_INVALID_VALUE','Giá trị phải là văn bản.');
+    const value=body.value.normalize('NFC').trim();
+    if(value.length>MAX_EDIT_LENGTH)throw fail(400,'MARKETING_INVALID_VALUE',`Tối đa ${MAX_EDIT_LENGTH} ký tự.`);
+    const snapshot=snapshots.get(String(body.snapshotId||''));
+    if(!snapshot||now()-snapshot.at>SNAPSHOT_TTL||snapshot.result.kind!=='monthly')throw fail(409,'MARKETING_SNAPSHOT_EXPIRED','Dữ liệu đã hết hạn. Bấm Làm mới rồi sửa lại.');
+    const row=snapshot.dependencies.monthly?.rows.find(r=>r.key===body.key);
+    let title,sheetRow;
+    try{[title,sheetRow]=JSON.parse(String(body.key||''));}catch(e){}
+    if(!row||typeof title!=='string'||!Number.isInteger(sheetRow)||sheetRow<3)throw fail(404,'MARKETING_DETAIL_NOT_FOUND','Không tìm thấy dòng cần sửa.');
+    const current=await writer.readRow(title,sheetRow);
+    if(p.norm(current[1])!==p.norm(row.customer)||digits(current[2])!==digits(row.phone))
+      throw fail(409,'MARKETING_ROW_CHANGED','Dòng này đã thay đổi trên Google Sheets. Bấm Làm mới rồi sửa lại.');
+    await writer.writeCell(title,sheetRow,field,value);
+    row[field]=value;
+    for(const cacheKey of cache.keys())if(cacheKey.startsWith('report:'))cache.delete(cacheKey);
+    return {ok:true,field,value};
+  }
+  return {metadata,report,detail,updateRow};
 }
 module.exports={createMarketingReportService};

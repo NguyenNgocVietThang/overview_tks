@@ -2,7 +2,7 @@
 
 ## Nguồn chỉ đọc
 
-Tab `/reports/#marketing` đọc ba workbook qua Google Sheets client của máy chủ. Không ghi Sheets, không đồng bộ nền, không tạo bảng Postgres hoặc migration.
+Tab `/reports/#marketing` đọc ba workbook qua Google Sheets client của máy chủ. Chỉ có MỘT thao tác ghi: sửa cột **Khách mới** (I) và **Ghi chú** (J) của tab BC Tháng N trong workbook Báo cáo trực page (quyền `reports.marketing.edit`, mặc định Quản lý; cần chia sẻ workbook đó cho service account quyền **Editor**, nếu chưa có thì API trả `MARKETING_WRITE_FORBIDDEN`). Cột **Doanh số** của BC tháng lấy từ KiotViet (bảng `business_monthly_customer_sales`, bán trừ trả hàng cả tháng của tab, nối theo TÊN khách, gộp HN+SG; không khớp tên thì hiện —). Không đồng bộ nền, không tạo bảng Postgres hoặc migration.
 
 | Biến môi trường | Workbook |
 |---|---|
@@ -19,7 +19,7 @@ Tab `/reports/#marketing` đọc ba workbook qua Google Sheets client của máy
 - Giữ giá trị công thức Sheets, số 0 đầu của SĐT và dòng thuộc các page khác nhau. Ô lỗi/thiếu hiện `—`; không thay lỗi bằng số 0. Chi phí không cộng dòng tổng tháng với dòng ngày; tổng từ dòng ngày khi thiếu dòng tổng phải có nhãn rõ ràng.
 - Bấm dòng tổng quan hoặc Enter/Space mở hộp chữ nhật giữa màn hình theo mẫu Báo cáo kinh doanh, giữ bộ lọc hiện tại. Có tìm kiếm, sắp xếp, phân trang, cập nhật chi tiết; đóng bằng X/Esc/nền và trả focus về dòng nguồn. Chênh lệch giữa tổng nguồn và dòng chi tiết được báo rõ.
 - Cache nguồn tối đa 5 phút; trình duyệt làm mới mỗi 5 phút khi tab đang hiển thị. Một nguồn lỗi không làm mất phần khác; lỗi cập nhật giữ bản cũ và thời điểm cũ. Hộp đang mở giữ snapshot đến khi người dùng cập nhật.
-- Không xuất file, sửa công thức, truy vấn KiotViet hoặc dựng lịch sử từ tab THÔ. Phiên bản đầu chưa hỗ trợ lịch sử nhiều năm.
+- Không sửa công thức hoặc dựng lịch sử từ tab THÔ. Phiên bản đầu chưa hỗ trợ lịch sử nhiều năm.
 
 ## API và nghiệm thu
 

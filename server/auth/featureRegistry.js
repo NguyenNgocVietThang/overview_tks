@@ -60,6 +60,8 @@ const FEATURES = Object.freeze([
   // docs/superpowers/specs/2026-10-07-business-report-design.md.
   { key: 'reports.business', groupKey: 'reports', label: 'Báo cáo kinh doanh', roles: REPORT_VIEW_ROLES },
   { key: 'reports.marketing', groupKey: 'reports', label: 'Báo cáo Marketing', roles: [...REPORTS_ROLES, ROLES.NHAN_VIEN_MARKETING] },
+  // 2026-10-08: sua 2 cot Khach moi/Ghi chu cua BC thang Marketing va ghi nguoc Google Sheets.
+  { key: 'reports.marketing.edit', groupKey: 'reports', label: 'Báo cáo Marketing: sửa Khách mới/Ghi chú và ghi ngược Sheets (cần Báo cáo Marketing)', roles: MANAGER_ONLY, requires: 'reports.marketing' },
   { key: 'reports.business.refreeze', groupKey: 'reports', label: 'Báo cáo kinh doanh: tính lại tháng đã chốt (cần Báo cáo kinh doanh)', roles: MANAGER_ONLY, requires: 'reports.business' },
   { key: 'reports.export', groupKey: 'reports', label: 'Xuất Excel báo cáo', roles: REPORTS_ROLES },
 
