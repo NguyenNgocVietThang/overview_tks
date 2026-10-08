@@ -42,7 +42,7 @@ function createHrLeaveDecisionService({
     } catch(err) {logger.error('[HR] Không thể gửi thông báo quyết định:',err.code||'NOTIFICATION_FAILED');}
   }
   async function decide({requestId,user,status,note,channel='web',expectedVersion},{notify=true,broadcast:shouldBroadcast=true}={}) {
-    if(!Object.values(leaveRepo.LEAVE_STATUS).includes(status)) throw new leaveRepo.HrError('Trạng thái không hợp lệ.',400,'INVALID_STATUS');
+    if(![leaveRepo.LEAVE_STATUS.PENDING,leaveRepo.LEAVE_STATUS.APPROVED,leaveRepo.LEAVE_STATUS.REJECTED].includes(status)) throw new leaveRepo.HrError('Trạng thái không hợp lệ.',400,'INVALID_STATUS');
     if(note!=null && typeof note!=='string') throw new leaveRepo.HrError('Lý do phải là chuỗi ký tự.',400,'INVALID_NOTE');
     const cleanNote=note==null ? undefined : note.trim();
     if(cleanNote && cleanNote.length>500) throw new leaveRepo.HrError('Lý do tối đa 500 ký tự.',400,'INVALID_NOTE');

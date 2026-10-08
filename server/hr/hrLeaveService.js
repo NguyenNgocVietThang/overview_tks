@@ -46,23 +46,6 @@ function computeDurationSessions(startDate, startSession, endDate, endSession) {
   return totalSessions;
 }
 
-function getSessionStartTime(startDate, startSession) {
-  if (startDate == null) return null;
-  const start = new Date(startDate);
-  if (!Number.isFinite(start.getTime())) return null;
-  if (startSession === 'Sáng') start.setHours(7, 45, 0, 0);
-  else if (startSession === 'Chiều') start.setHours(12, 30, 0, 0);
-  else return null;
-  return start;
-}
-
-function computeSubmissionViolation(messageTime, startDate, startSession) {
-  const submittedAt = new Date(messageTime);
-  const sessionStartsAt = getSessionStartTime(startDate, startSession);
-  if (!Number.isFinite(submittedAt.getTime()) || !sessionStartsAt) return false;
-  return submittedAt.getTime() > sessionStartsAt.getTime();
-}
-
 function parseIsoDateOnly(value) {
   const match = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return null;
@@ -186,20 +169,6 @@ function computeIsUrgent(startTime, messageTime) {
   return start.dateOnly.getTime() === nextDay.getTime();
 }
 
-/** The ISO day is a Vietnam calendar day, independent of the host's timezone. */
-function computeVietnamLeaveTiming(startDate, startSession, submittedAt) {
-  if (!parseIsoDateOnly(startDate) || !['Sáng', 'Chiều'].includes(startSession)) return null;
-  const time = startSession === 'Sáng' ? '07:45:00' : '12:30:00';
-  const sessionStart = new Date(`${startDate}T${time}+07:00`);
-  const submitted = new Date(submittedAt);
-  if (!Number.isFinite(submitted.getTime())) return null;
-  return {
-    sessionStart,
-    urgent: computeIsUrgent(sessionStart, submitted),
-    submissionViolation: submitted.getTime() > sessionStart.getTime()
-  };
-}
-
 /**
  * Lay ho ten/chuc vu (vaiTro + coSo) hien tai cua 1 tai khoan web, dung de
  * "snapshot" vao dong Sheet tai thoi diem gui yeu cau (khong join truc tiep
@@ -299,10 +268,7 @@ async function notifyOtherManagers(actingUserId, branch, payload) {
 
 module.exports = {
   VIETNAM_TIME_ZONE,
-  computeVietnamLeaveTiming,
   computeDurationSessions,
-  getSessionStartTime,
-  computeSubmissionViolation,
   parseIsoDateOnly,
   parseVietnameseDate,
   formatVietnameseDate,

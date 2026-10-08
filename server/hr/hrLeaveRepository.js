@@ -17,6 +17,7 @@ const CONFIG = require('../config');
 const { getPool } = require('../db/pool');
 const { BRANCHES, branchLabelToCode, branchCodeToLabel } = require('../branch/branches');
 const { matchesDepartment } = require('./hrDepartment');
+const {randomUUID}=require('node:crypto');
 
 // Thu tu = thu tu cot trong file Excel xuat ra (hrLeaveExportService.js).
 const LEAVE_SCHEMA_HEADERS = [
@@ -26,7 +27,7 @@ const LEAVE_SCHEMA_HEADERS = [
   'Tổng buổi nghỉ', 'Tổng ngày nghỉ quy đổi', 'Người bàn giao',
   'Trạng thái phê duyệt', 'Người phê duyệt', 'Thời điểm phê duyệt', 'Ghi chú/lý do từ chối',
   'Cờ nghỉ gấp', 'Cờ tự ý nghỉ', 'Thời gian tạo', 'Cập nhật lần cuối',
-  'Tin nhắn', 'Cơ sở', 'Phòng ban'
+  'Tin nhắn', 'Cơ sở', 'Phòng ban', 'Thời hạn đăng ký', 'Hạn đăng ký'
 ];
 
 const LEAVE_SCHEMA_FIELD_KEYS = [
@@ -36,7 +37,7 @@ const LEAVE_SCHEMA_FIELD_KEYS = [
   'tong_buoi_nghi', 'tong_ngay_nghi', 'nguoi_ban_giao',
   'trang_thai', 'nguoi_duyet', 'thoi_diem_duyet', 'ghi_chu_duyet',
   'co_nghi_gap', 'co_tu_y_nghi', 'created_at', 'updated_at',
-  'tin_nhan', 'co_so', 'bo_phan'
+  'tin_nhan', 'co_so', 'bo_phan', 'timing_status', 'registration_deadline_date'
 ];
 
 const LEAVE_TYPE = Object.freeze({
@@ -129,11 +130,22 @@ const SELECT_COLUMNS = `
   tong_buoi_nghi, tong_ngay_nghi, nguoi_ban_giao,
   trang_thai, nguoi_duyet, thoi_diem_duyet, ghi_chu_duyet, decision_version::text AS decision_version,
   co_nghi_gap, co_tu_y_nghi, created_at, updated_at, tin_nhan,
-  branch, bo_phan`;
+  branch, bo_phan, source, leave_sessions, timing_status,
+  registration_deadline_date::text AS registration_deadline_date, registration_deadline_exclusive_at,
+  first_session_start_at, schedule_version::text AS schedule_version, schedule_start::text AS schedule_start, submission_revision`;
 
 function rowToRequest(row) {
   return {
     request_id: row.request_id,
+    source:row.source || '',
+    leave_sessions:row.leave_sessions || null,
+    timing_status:row.timing_status || null,
+    registration_deadline_date:row.registration_deadline_date || null,
+    registration_deadline_exclusive_at:toIso(row.registration_deadline_exclusive_at) || null,
+    first_session_start_at:toIso(row.first_session_start_at) || null,
+    schedule_version:row.schedule_version == null ? null : String(row.schedule_version),
+    schedule_start:row.schedule_start || null,
+    submission_revision:Number(row.submission_revision || 0),
     user_id: row.user_id || '',
     hr_employee_id: row.hr_employee_id == null ? '' : String(row.hr_employee_id),
     telegram_chat_id: row.telegram_chat_id || '',
@@ -185,7 +197,10 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
       params.push(filters.userId);
       where.push('user_id = $' + params.length + '::uuid');
     }
-    if (filters.status) {
+    if (filters.status === LEAVE_STATUS.VIOLATION) {
+      // "Vi phạm" là nhãn thời hạn (timing_status); bản ghi cũ còn lưu trong trang_thai.
+      where.push(`(timing_status = 'Vi phạm' OR trang_thai = 'Vi phạm')`);
+    } else if (filters.status) {
       params.push(filters.status);
       where.push(`trang_thai = $${params.length}`);
     }
@@ -252,7 +267,7 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
          loai_yeu_cau, ly_do, tin_nhan, nguoi_ban_giao, thoi_gian_gui,
          start_date, start_session, end_date, end_session, tong_buoi_nghi,
          trang_thai, nguoi_duyet, approver_user_id, thoi_diem_duyet, ghi_chu_duyet,
-         decision_notified_at, co_nghi_gap, co_tu_y_nghi, bo_phan, hr_employee_id
+         decision_notified_at, co_nghi_gap, co_tu_y_nghi, bo_phan, hr_employee_id, leave_sessions
        ) VALUES (
          $1, $2,
          COALESCE($3::uuid, (SELECT id FROM app_users
@@ -260,7 +275,7 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
          $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE($13::timestamptz, now()),
          $14::date, $15, $16::date, $17, $18,
          $19, $20, $21, $22::timestamptz, $23,
-         CASE WHEN $22::timestamptz IS NOT NULL THEN now() END, $24, $25, $26, $27::bigint
+         CASE WHEN $22::timestamptz IS NOT NULL THEN now() END, $24, $25, $26, $27::bigint, $28::jsonb
        )
        RETURNING ${SELECT_COLUMNS}`,
       [
@@ -273,10 +288,27 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
         data.trang_thai || LEAVE_STATUS.PENDING, data.nguoi_duyet || '',
         uuidOrNull(data.approver_user_id), decidedAt, data.ghi_chu_duyet || '',
         !!data.co_nghi_gap, !!data.co_tu_y_nghi,
-        data.bo_phan || '', data.hr_employee_id == null ? null : String(data.hr_employee_id)
+        data.bo_phan || '', data.hr_employee_id == null ? null : String(data.hr_employee_id), data.leave_sessions == null ? null : JSON.stringify(data.leave_sessions)
       ]
     );
     return rowToRequest(rows[0]);
+  }
+
+  // A single SQL statement and its triggers form an atomic transaction with history.
+  async function resubmitLeaveRequest(id,data,branch) {
+    const version=String(data.expectedVersion ?? '');
+    if(!/^(0|[1-9]\d*)$/.test(version) || version.length>19 || BigInt(version)>9223372036854775807n) throw new HrError('Phiên bản quyết định không hợp lệ.',400,'INVALID_DECISION_VERSION');
+    if(!uuidOrNull(data.userId)) throw new HrError('Định danh tài khoản không hợp lệ.',400,'INVALID_USER_ID');
+    const {rows}=await pool.query(`UPDATE hr_leave_requests r SET start_date=$5::date,start_session=$6,end_date=$7::date,end_session=$8,leave_sessions=$9::jsonb,ly_do=$10,nguoi_ban_giao=$11,submission_nonce=$12::uuid
+      WHERE r.request_id=$1 AND r.branch=ANY($2::text[]) AND r.user_id=$3::uuid AND r.hr_employee_id=$4::bigint AND r.source='web' AND r.loai_yeu_cau='Xin nghỉ phép' AND r.decision_version=$13::bigint
+      AND EXISTS(SELECT 1 FROM app_users u JOIN hr_employees e ON e.id=u.hr_employee_id WHERE u.id=r.user_id AND u.hr_employee_id=r.hr_employee_id AND u.trang_thai='Đang hoạt động' AND NOT u.is_deleted AND e.is_active AND e.branch=r.branch)
+      RETURNING ${SELECT_COLUMNS}`,[id,toBranchCodes(branch),data.userId,data.employeeId,data.start_date,data.start_session,data.end_date,data.end_session,JSON.stringify(data.leave_sessions),data.ly_do,data.nguoi_ban_giao,randomUUID(),version]);
+    if(!rows[0]) throw new HrError('Đơn hoặc liên kết nhân sự đã thay đổi. Vui lòng tải lại thông tin mới nhất.',409,'LEAVE_DECISION_CONFLICT');
+    return rowToRequest(rows[0]);
+  }
+  async function getSubmissionHistory(id) {
+    const {rows}=await pool.query(`SELECT submission_revision,thoi_gian_gui,leave_sessions,tong_buoi_nghi,registration_deadline_date::text AS registration_deadline_date,registration_deadline_exclusive_at,first_session_start_at,schedule_version::text AS schedule_version,schedule_start::text AS schedule_start,timing_status,ly_do,nguoi_ban_giao FROM hr_leave_submissions WHERE request_id=$1 ORDER BY submission_revision DESC`,[id]);
+    return rows.map(row=>({...row,thoi_gian_gui:toIso(row.thoi_gian_gui),registration_deadline_exclusive_at:toIso(row.registration_deadline_exclusive_at),first_session_start_at:toIso(row.first_session_start_at)}));
   }
 
   /**
@@ -284,7 +316,7 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
    * khi trang_thai doi de bot bao lai cho nhan vien.
    */
   async function updateLeaveRequestStatus(id, { status, approver, approverUserId, note, expectedVersion, lockFinal = false }, branch) {
-    if (!Object.values(LEAVE_STATUS).includes(status)) {
+    if (![LEAVE_STATUS.PENDING,LEAVE_STATUS.APPROVED,LEAVE_STATUS.REJECTED].includes(status)) {
       throw new HrError(`Trạng thái không hợp lệ: "${status}".`, 400, 'INVALID_STATUS');
     }
     const branchCodes = toBranchCodes(branch);
@@ -350,7 +382,7 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
     }));
   }
 
-  return { getLeaveRequests, getLeaveRequestById, createLeaveRequest, updateLeaveRequestStatus, getUrgentFlagSummary };
+  return { getLeaveRequests, getLeaveRequestById, createLeaveRequest, resubmitLeaveRequest, getSubmissionHistory, updateLeaveRequestStatus, getUrgentFlagSummary };
 }
 
 const repository = createHrLeaveRepository();
@@ -367,6 +399,8 @@ module.exports = {
   getLeaveRequests: (...args) => repository.getLeaveRequests(...args),
   getLeaveRequestById: (...args) => repository.getLeaveRequestById(...args),
   createLeaveRequest: (...args) => repository.createLeaveRequest(...args),
+  resubmitLeaveRequest: (...args) => repository.resubmitLeaveRequest(...args),
+  getSubmissionHistory: (...args) => repository.getSubmissionHistory(...args),
   updateLeaveRequestStatus: (...args) => repository.updateLeaveRequestStatus(...args),
   getUrgentFlagSummary: (...args) => repository.getUrgentFlagSummary(...args)
 };

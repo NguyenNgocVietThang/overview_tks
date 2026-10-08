@@ -214,7 +214,8 @@ test('Quản lý vẫn duyệt / từ chối được đơn Vi phạm, nhãn Vi 
   const select = window.document.querySelector('#leaveTableBody select.status-select.leave-violation');
   assert.ok(select, 'Quản lý phải có dropdown ở đơn Vi phạm');
   assert.equal(select.value, 'Vi phạm');
-  assert.deepEqual([...select.options].map(o => o.value), ['Vi phạm', 'Đã duyệt', 'Từ chối']);
+  assert.equal(select.options[0].disabled, true, 'Nhãn cũ chỉ để đọc');
+  assert.deepEqual([...select.options].filter(o => !o.disabled).map(o => o.value), ['Chưa duyệt', 'Đã duyệt', 'Từ chối']);
 
   dom.window.close();
 });

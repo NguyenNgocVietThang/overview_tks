@@ -6,6 +6,9 @@ test('actual PostgreSQL guards concurrent web/Telegram decisions, reopening and 
  const db=new PGlite();try{
  await db.exec(`CREATE ROLE reporting_readonly;CREATE TABLE hr_employees(id BIGINT PRIMARY KEY,bo_phan TEXT);CREATE TABLE app_users(id UUID PRIMARY KEY,username TEXT,is_deleted BOOLEAN DEFAULT false,vai_tro TEXT,trang_thai TEXT,co_so TEXT,feature_permissions JSONB DEFAULT '{}',hr_employee_id BIGINT,telegram_id TEXT DEFAULT '',updated_at TIMESTAMPTZ DEFAULT now());INSERT INTO hr_employees VALUES(1,'KHO');INSERT INTO app_users(id,username,vai_tro,trang_thai,co_so,hr_employee_id,feature_permissions) VALUES('${UID}','staff','Nhân viên kho','Đang hoạt động','hanoi',1,'{"hr.leave.manage":true}');`);
  for(const filename of ['0016_hr_leave_telegram.sql','0029_hr_manager_telegram.sql','0030_drop_leave_provisional_status.sql','0031_hr_leave_approval_scope.sql'])await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations',filename),'utf8'));
+ await db.exec("ALTER TABLE hr_employees ADD COLUMN branch TEXT DEFAULT 'hanoi', ADD COLUMN is_active BOOLEAN DEFAULT true");
+ await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/0038_hr_leave_deadlines.sql'),'utf8'));
+ await db.exec("INSERT INTO hr_leave_work_schedules(employee_id,work_date,morning_start,afternoon_start) VALUES(1,'2026-10-06','08:15','13:00')");
  const pool={query:(sql,params)=>db.query(sql,params)};const repo=createHrLeaveRepository({pool});
  const loadUsers=async()=> (await db.query('SELECT * FROM app_users')).rows.map(row=>({id:row.id,username:row.username,vaiTro:row.vai_tro,trangThai:row.trang_thai,assignedCoSo:'Hà Nội',leaveApprovalDepartments:row.leave_approval_departments,featurePermissions:row.feature_permissions,isDeleted:row.is_deleted}));
  const authorization=createHrLeaveAuthorization({loadUsers});const service=createHrLeaveDecisionService({repo,authorization});const user=(await loadUsers())[0];

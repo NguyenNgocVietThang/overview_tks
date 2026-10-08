@@ -24,6 +24,9 @@ async function fixture() {
   }
   await db.exec(`INSERT INTO hr_leave_requests(request_id, branch, start_date, start_session,
     end_date, end_session, tong_buoi_nghi) VALUES ('NP-TEST', 'hanoi', '2026-10-02', 'Sáng', '2026-10-02', 'Chiều', 2);`);
+  await db.exec("ALTER TABLE hr_employees ADD COLUMN branch TEXT DEFAULT 'hanoi', ADD COLUMN is_active BOOLEAN DEFAULT true; INSERT INTO hr_employees(id,bo_phan) VALUES(1,'KHO'); ALTER TABLE app_users ADD COLUMN trang_thai TEXT DEFAULT 'Đang hoạt động'");
+  await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/0038_hr_leave_deadlines.sql'),'utf8'));
+  await db.exec("ALTER TABLE hr_leave_requests ALTER COLUMN hr_employee_id SET DEFAULT 1; INSERT INTO hr_leave_work_schedules(employee_id,work_date,morning_start,afternoon_start) VALUES(1,'2026-10-02','08:15','13:00')");
   let releases = 0;
   const pool = { query: (sql, params) => db.query(sql, params), async connect() {
     return { query: (sql, params) => db.query(sql, params), release() { releases += 1; } };
@@ -120,7 +123,7 @@ test('optimistic guard protects final decisions and detects stale non-final deci
   try {
     const repo = createHrLeaveRepository({ pool });
     await assert.rejects(repo.updateLeaveRequestStatus('NP-TEST', { status: 'Tạm duyệt' }, 'Hà Nội'), err => err.code === 'INVALID_STATUS');
-    await repo.updateLeaveRequestStatus('NP-TEST', { status: 'Vi phạm', expectedVersion: '0', lockFinal: true }, 'Hà Nội');
+    await repo.updateLeaveRequestStatus('NP-TEST', { status: 'Chưa duyệt', note:'Updated pending note', expectedVersion: '0', lockFinal: true }, 'Hà Nội');
     await assert.rejects(repo.updateLeaveRequestStatus('NP-TEST', { status: 'Đã duyệt', expectedVersion: '0', lockFinal: true }, 'Hà Nội'), err => err.code === 'LEAVE_DECISION_CONFLICT');
     await repo.updateLeaveRequestStatus('NP-TEST', { status: 'Đã duyệt', expectedVersion: '1', lockFinal: true }, 'Hà Nội');
     await assert.rejects(repo.updateLeaveRequestStatus('NP-TEST', { status: 'Từ chối', expectedVersion: '2', lockFinal: true }, 'Hà Nội'), err => err.statusCode === 409);

@@ -27,6 +27,9 @@ test('real DB complete workflow: scoped backlog, Telegram rejection, duplicate u
     ]) await db.query(`INSERT INTO hr_leave_requests(request_id,bo_phan,branch,start_date,start_session,end_date,end_session,tong_buoi_nghi,trang_thai,loai_yeu_cau)
       VALUES ($1,'Kho',$2,'2026-10-02','Sáng','2026-10-02','Chiều',2,$3,$4)`, [requestId, branch, status, type]);
     const pool = { query: (sql, values) => db.query(sql, values), connect: async () => ({ query: (sql, values) => db.query(sql, values), release() {} }) };
+    await db.exec("ALTER TABLE hr_employees ADD COLUMN branch TEXT DEFAULT 'hanoi',ADD COLUMN is_active BOOLEAN DEFAULT true; INSERT INTO hr_employees(id,bo_phan) VALUES(1,'Kho'); ALTER TABLE app_users ADD COLUMN trang_thai TEXT DEFAULT 'Đang hoạt động'");
+    await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/0038_hr_leave_deadlines.sql'),'utf8'));
+    await db.exec("ALTER TABLE hr_leave_requests ALTER COLUMN hr_employee_id SET DEFAULT 1; INSERT INTO hr_leave_work_schedules(employee_id,work_date,morning_start,afternoon_start) VALUES(1,'2026-10-02','08:15','13:00')");
     const store = createManagerLeaveStore({ pool });
     const leaveRepo = createHrLeaveRepository({ pool });
     const calls = [];
@@ -49,6 +52,7 @@ test('real DB complete workflow: scoped backlog, Telegram rejection, duplicate u
     // drains. Managers still receive its result, with Telegram actions locked.
     await db.query(`INSERT INTO hr_leave_requests(request_id,bo_phan,branch,start_date,start_session,end_date,end_session,tong_buoi_nghi,trang_thai)
       VALUES ('NP-NEW-FINAL','Kho','hanoi','2026-10-02','Sáng','2026-10-02','Chiều',2,'Đã duyệt')`);
+    await db.query("UPDATE hr_leave_requests SET trang_thai='Đã duyệt' WHERE request_id='NP-NEW-FINAL'");
     await runtime.drain();
     const freshCards = calls.filter(c => c.method === 'sendMessage' && c.params.text.includes('NP-NEW-FINAL'));
     assert.equal(freshCards.length, 2, 'new finalized request is sent even before first scan');
@@ -66,7 +70,8 @@ test('real DB complete workflow: scoped backlog, Telegram rejection, duplicate u
     let row = await leaveRepo.getLeaveRequestById('NP-HN', 'Hà Nội');
     assert.equal(row.trang_thai, 'Chưa duyệt', 'removed Telegram actions cannot decide');
     assert.equal(row.decision_version, '0');
-    await leaveRepo.updateLeaveRequestStatus('NP-HN', { status: 'Vi phạm', approver: 'Web',expectedVersion:'0' }, 'Hà Nội');
+    // Simulate a pre-0038 external writer's legacy approval value. New web writes reject it.
+    await db.query("UPDATE hr_leave_requests SET trang_thai='Vi phạm',nguoi_duyet='Legacy' WHERE request_id='NP-HN'");
     await runtime.drain();
     row = await leaveRepo.getLeaveRequestById('NP-HN', 'Hà Nội');
     assert.equal(row.trang_thai, 'Vi phạm');
@@ -128,12 +133,13 @@ test('real DB complete workflow: scoped backlog, Telegram rejection, duplicate u
     assert.ok(reconciled.params.reply_markup.inline_keyboard.flat().some(button=>button.callback_data==='d|NP-SG|2|a'));
     // A recipient whose permission scope was removed gets only keyboard removal.
     managers[1].leaveApprovalDepartments=[];
-    await leaveRepo.updateLeaveRequestStatus('NP-SG',{status:'Vi phạm',approver:'Web',expectedVersion:'2'},'Sài Gòn');await runtime.drain();
+    await leaveRepo.updateLeaveRequestStatus('NP-SG',{status:'Chưa duyệt',approver:'Web',expectedVersion:'2'},'Sài Gòn');await runtime.drain();
     assert.ok(calls.some(call=>call.method==='editMessageReplyMarkup' && String(call.params.message_id)===String(card.message_id) && call.params.reply_markup.inline_keyboard.length===0));
     managers[1].leaveApprovalDepartments=['Kho'];
     // Permission granted later must recover an initially unroutable violation request.
-    await db.query(`INSERT INTO hr_leave_requests(request_id,bo_phan,branch,start_date,start_session,end_date,end_session,tong_buoi_nghi,trang_thai)
-      VALUES ('NP-VIOLATION','Kế toán','saigon','2026-10-02','Sáng','2026-10-02','Chiều',2,'Vi phạm')`);
+    await db.exec("INSERT INTO hr_employees(id,bo_phan,branch) VALUES(2,'Kế toán','saigon'); INSERT INTO hr_leave_work_schedules(employee_id,work_date,morning_start,afternoon_start) VALUES(2,'2026-10-02','08:15','13:00')");
+    await db.query(`INSERT INTO hr_leave_requests(request_id,hr_employee_id,bo_phan,branch,start_date,start_session,end_date,end_session,tong_buoi_nghi,trang_thai)
+      VALUES ('NP-VIOLATION',2,'Kế toán','saigon','2026-10-02','Sáng','2026-10-02','Chiều',2,'Vi phạm')`);
     await runtime.drain();assert.equal((await db.query("SELECT id FROM hr_leave_manager_messages WHERE request_id='NP-VIOLATION'")).rows.length,0);
     managers[1].leaveApprovalDepartments.push('Kế toán');await runtime.drain();
     assert.equal((await db.query("SELECT id FROM hr_leave_manager_messages WHERE request_id='NP-VIOLATION'")).rows.length,1);

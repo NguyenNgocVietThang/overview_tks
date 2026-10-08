@@ -284,3 +284,26 @@ test('phản hồi cũ về muộn không ghi đè dữ liệu mới (đơn đã
   assert.equal(dropdown.querySelector('.tks-cal-item'), null);
   window.close();
 });
+
+test('actual noncontiguous sessions leave gap dates empty in shared header calendar', t => {
+  const { window } = createEnv(t, okFetch([]));
+  const req = leave({ start_date: '2026-10-02', end_date: '2026-10-04', leave_sessions: [
+    { date: '2026-10-02', session: 'Sáng' }, { date: '2026-10-04', session: 'Chiều' }
+  ] });
+  const calendar = window.TKSNav._leaveCalendar;
+  assert.equal(calendar.dayCoverage(req, '2026-10-03'), null);
+  assert.deepEqual(JSON.parse(JSON.stringify(calendar.dayCoverage(req, '2026-10-02'))), { morning: true, afternoon: false });
+  assert.deepEqual(Object.keys(calendar.groupByDay([req], 2026, 10)), ['2026-10-02', '2026-10-04']);
+});
+
+test('shared leave calendar detail shows stored timing separately from approval', async t => {
+  const { window, document } = createEnv(t, okFetch([leave({ timing_status: 'Xin muộn', registration_deadline_date: '2026-09-30' })]));
+  window.TKSNav.renderLeaveCalendar(fakeUser('Trợ lý'));
+  document.getElementById('tksLeaveCalBtn').click();
+  await tick();
+  document.querySelector('.tks-cal-item-head').click();
+  const text = document.querySelector('.tks-cal-detail').textContent;
+  assert.match(text, /Nhãn thời hạn khi gửiXin muộn/);
+  assert.match(text, /30\/09\/2026 23:59:59/);
+  assert.equal(document.querySelector('.tks-cal-status').textContent, 'Đã duyệt');
+});

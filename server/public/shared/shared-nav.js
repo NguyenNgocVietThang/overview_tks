@@ -657,6 +657,11 @@
    * ngay cuoi bo buoi chieu neu ket thuc o "Sang".
    */
   function leaveDayCoverage(req, iso){
+    if(req && Array.isArray(req.leave_sessions)){
+      var chosen = req.leave_sessions.filter(function(session){ return session.date === iso; });
+      if(!chosen.length) return null;
+      return { morning: chosen.some(function(s){ return s.session === 'Sáng'; }), afternoon: chosen.some(function(s){ return s.session === 'Chiều'; }) };
+    }
     if(!req || !req.start_date || !req.end_date) return null;
     if(iso < req.start_date || iso > req.end_date) return null;
     return {
@@ -678,6 +683,15 @@
     var last = calIso(y, m, calDaysInMonth(y, m));
     (requests || []).forEach(function(req){
       if(!req || req.trang_thai === LEAVE_CAL_HIDDEN_STATUS) return;
+      if(Array.isArray(req.leave_sessions)){
+        var dates = Array.from(new Set(req.leave_sessions.map(function(s){ return s.date; }))).sort();
+        dates.forEach(function(iso){
+          if(iso < first || iso > last) return;
+          var coverage = leaveDayCoverage(req, iso);
+          if(coverage) (byDay[iso] = byDay[iso] || []).push({ req: req, cov: coverage });
+        });
+        return;
+      }
       if(!req.start_date || !req.end_date) return;
       var from = req.start_date > first ? req.start_date : first;
       var to = req.end_date < last ? req.end_date : last;
@@ -820,6 +834,9 @@
         rows.push('<div class="tks-cal-row"><dt>' + escapeHtml(label) + '</dt><dd>' + escapeHtml(value) + '</dd></div>');
       }
       row('Thời gian nghỉ', (req.thoi_gian_bat_dau || '') + ' → ' + (req.thoi_gian_ket_thuc || ''));
+      row('Nhãn thời hạn khi gửi', req.timing_status);
+      row('Hạn đăng ký', req.registration_deadline_date ? calVn(req.registration_deadline_date) + ' 23:59:59 (Việt Nam)' : '');
+      row('Buổi thực tế', Array.isArray(req.leave_sessions) ? req.leave_sessions.map(function(s){ return s.session + ' ' + calVn(s.date); }).join('; ') : '');
       row('Ngày đang xem', calVn(state.selected) + ' · ' + leaveCoverageLabel(entry.cov));
       var days = Number(req.tong_ngay_nghi);
       row('Tổng nghỉ', req.tong_buoi_nghi + ' buổi' + (Number.isFinite(days)

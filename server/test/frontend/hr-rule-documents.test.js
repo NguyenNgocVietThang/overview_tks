@@ -106,10 +106,10 @@ test('nội dung tài liệu dựng sẵn: "Quy định nghỉ phép" đủ th�
   const { window, document } = await openPage();
   const leaveDoc = document.getElementById('ruleDoc-nghi-phep').textContent;
   assert.match(leaveDoc, /@nghipheptks_bot/);
-  assert.match(leaveDoc, /Nghỉ ≤ 1 ngày/);
-  assert.match(leaveDoc, /trước 23h59 của 02 ngày trước/);
-  assert.match(leaveDoc, /Nghỉ trên 1 ngày/);
-  assert.match(leaveDoc, /trước 23h59 của 03 ngày trước/);
+  assert.match(leaveDoc, /Tổng buổi nghỉ thực tế ≤ 2/);
+  assert.match(leaveDoc, /hết 23:59:59 của 02 ngày trước/);
+  assert.match(leaveDoc, /Tổng buổi nghỉ thực tế > 2/);
+  assert.match(leaveDoc, /hết 23:59:59 của 03 ngày trước/);
   assert.match(leaveDoc, /Bàn giao công việc/);
   assert.match(leaveDoc, /người nhận bàn giao/);
   assert.match(leaveDoc, /tạo đơn trên web/);

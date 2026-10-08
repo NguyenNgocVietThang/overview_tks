@@ -1,4 +1,10 @@
 'use strict';
+const testTiming=require('node:test');
+const assertTiming=require('node:assert/strict');
+testTiming('new approval writes reject registration timing labels as approval statuses',async()=>{
+ const service=require('./hrLeaveDecisionService').createHrLeaveDecisionService({repo:{getLeaveRequestById:async()=>{throw Error('invalid status should fail before lookup');}}});
+ await assertTiming.rejects(service.decide({requestId:'NP-1',user:{id:'m'},status:'Vi phạm',expectedVersion:'0'}),{statusCode:400,code:'INVALID_STATUS'});
+});
 const test=require('node:test');const assert=require('node:assert/strict');
 const {createHrLeaveDecisionService}=require('./hrLeaveDecisionService');
 const USER={id:'manager',hoTen:'An',vaiTro:'Quản lý'};

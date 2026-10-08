@@ -85,6 +85,16 @@ test('getLeaveRequests lọc cơ sở/trạng thái/khoảng nghỉ trong SQL v�
   assert.match(sql, /start_date <= \$4::date/);
 });
 
+test('getLeaveRequests lọc "Vi phạm" theo nhãn thời hạn (và bản ghi cũ), không so với trạng thái duyệt', async () => {
+  const pool = fakePool([]);
+  await createHrLeaveRepository({ pool }).getLeaveRequests({ status: 'Vi phạm' }, 'Hà Nội');
+
+  const { sql, params } = pool.calls[0];
+  assert.deepEqual(params, [['hanoi']]);
+  assert.match(sql, /timing_status = 'Vi phạm'/);
+  assert.match(sql, /trang_thai = 'Vi phạm'/);
+});
+
 test('getLeaveRequests mặc định Hà Nội và từ chối cơ sở/ngày không hợp lệ', async () => {
   const pool = fakePool([]);
   const repo = createHrLeaveRepository({ pool });
@@ -286,5 +296,8 @@ test('self creation persists trusted HR identity and department snapshot', async
  const pool=fakePool([dbRow()]);await createHrLeaveRepository({pool}).createLeaveRequest({
   user_id:USER_ID,hr_employee_id:'7',bo_phan:'KHO',start_date:'2026-10-06',start_session:'Sáng',end_date:'2026-10-06',end_session:'Chiều',tong_buoi_nghi:2
  },'Hà Nội');
- assert.match(pool.calls[0].sql,/bo_phan, hr_employee_id/);assert.deepEqual(pool.calls[0].params.slice(-2),['KHO','7']);
+ assert.match(pool.calls[0].sql,/bo_phan, hr_employee_id/);assert.deepEqual(pool.calls[0].params.slice(25,27),['KHO','7']);
+});
+test('approval repository refuses timing violation as an approval status',async()=>{
+ const pool=fakePool([]);await assert.rejects(createHrLeaveRepository({pool}).updateLeaveRequestStatus('NP-1',{status:'Vi phạm'},'Hà Nội'),{statusCode:400,code:'INVALID_STATUS'});assert.equal(pool.calls.length,0);
 });

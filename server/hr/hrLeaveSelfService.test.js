@@ -9,7 +9,7 @@ const account = { user_id: 'u-1', username: 'real-user', hr_employee_id: 42, ho_
 const body = { start_date: '2026-10-06', start_session: 'Sáng', end_date: '2026-10-07', end_session: 'Chiều', ly_do: '  Việc nhà  ', nguoi_ban_giao: '  An  ', user_id: 'victim', hr_employee_id: 99, ho_ten: 'Giả', bo_phan: 'SALE', co_so: 'Hà Nội', trang_thai: 'Đã duyệt', tong_buoi_nghi: 99, co_nghi_gap: false };
 function service(profile = account, instant = '2026-10-05T15:00:00.000Z') {
   let persisted;
-  const instance = create({ loadProfile: async () => profile, now: () => new Date(instant), repo: { createLeaveRequest: async (record, branch) => { persisted = { ...record, co_so: branch }; return persisted; } } });
+  const instance = create({ loadProfile: async () => profile, now: () => new Date(instant), schedules:{getSchedule:async()=>({morningStart:'07:45',afternoonStart:'12:30',version:'1'})}, repo: { createLeaveRequest: async (record, branch) => { persisted = { ...record, co_so: branch }; return persisted; } } });
   return { instance, record: () => persisted };
 }
 test('self submission snapshots trusted DB identity and calculates Vietnam overnight urgency', async () => {
@@ -26,7 +26,7 @@ test('self submission flags late morning by Vietnam time regardless of server ti
   assert.equal(typeof create, 'function');
   const { instance } = service(account, '2026-10-06T00:46:00.000Z');
   const row = await instance.submit({ id: 'u-1' }, { ...body, end_date: '2026-10-06' });
-  assert.equal(row.trang_thai, 'Vi phạm'); assert.equal(row.co_nghi_gap, false);
+  assert.equal(row.trang_thai, 'Chưa duyệt'); assert.equal(row.timing_status,'Vi phạm'); assert.equal(row.co_nghi_gap, false);
 });
 test('self submission rejects missing active linkage without writing', async () => {
   assert.equal(typeof create, 'function');
@@ -72,4 +72,21 @@ test('self submission uses only trusted account Telegram ID and ignores forged b
     const row = await instance.submit({ id: 'u-1', telegramId: 'forged-session-chat' }, { ...body, telegram_chat_id: 'forged-body-chat' });
     assert.equal(row.telegram_chat_id, expected);
   }
+});
+test('preview uses actual selections without writing, and missing employee schedule stops submission',async()=>{
+ const {instance,record}=service();
+ const preview=await instance.preview({id:'u-1'},{leave_sessions:[{date:'2026-10-09',session:'Chiều'},{date:'2026-10-06',session:'Sáng'}]});
+ assert.equal(preview.totalSessions,2);assert.equal(preview.deadlineDate,'2026-10-04');assert.equal(record(),undefined);
+ let writes=0;
+ for(const profile of [account,{...account,hr_employee_id:null}]) {
+  const missing=create({loadProfile:async()=>profile,schedules:{getSchedule:async()=>null},repo:{createLeaveRequest:async()=>{writes++;}}});
+  await assert.rejects(missing.submit({id:'u-1'},body),{code:'LEAVE_SCHEDULE_REQUIRED',statusCode:409});
+ }
+ assert.equal(writes,0);
+});
+test('editable capability requires owner, web source, same active employee and same branch',async()=>{
+ const {instance}=service();
+ const request={source:'web',loai_yeu_cau:'Xin nghỉ phép',user_id:'u-1',hr_employee_id:'42',co_so:'Sài Gòn'};
+ assert.equal(await instance.canEdit({id:'u-1'},request),true);
+ for(const patch of [{source:'telegram'},{user_id:'other'},{hr_employee_id:'43'},{co_so:'Hà Nội'},{loai_yeu_cau:'Tự ý nghỉ (HR ghi nhận)'}]) assert.equal(await instance.canEdit({id:'u-1'},{...request,...patch}),false);
 });

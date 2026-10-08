@@ -44,7 +44,7 @@ function createManagerLeaveMiniApp({ enabled, token, getManager, leaveRepo = req
   try { const ctx = await context(req); return res.json(await handler(ctx,req)); }
   catch(error) { return res.status(error.statusCode || 503).json({error:error.statusCode ? error.message : 'Chưa thể lưu. Hãy thử lại.'}); }
  }); }
- route('/api/telegram/manager-leave/miniapp/context',async ({request}) => ({request:{request_id:request.request_id,ho_ten:request.ho_ten,bo_phan:request.bo_phan,co_so:request.co_so,thoi_gian_bat_dau:request.thoi_gian_bat_dau,thoi_gian_ket_thuc:request.thoi_gian_ket_thuc,decision_version:String(request.decision_version)}}));
+ route('/api/telegram/manager-leave/miniapp/context',async ({request}) => ({request:{request_id:request.request_id,ho_ten:request.ho_ten,bo_phan:request.bo_phan,co_so:request.co_so,thoi_gian_bat_dau:request.thoi_gian_bat_dau,thoi_gian_ket_thuc:request.thoi_gian_ket_thuc,decision_version:String(request.decision_version),timing_status:request.timing_status || null,registration_deadline_date:request.registration_deadline_date || null}}));
  route('/api/telegram/manager-leave/miniapp/reject',async ({user,request,expectedVersion},req) => {
   if (req.body.note != null && typeof req.body.note !== 'string') throw invalid('Lý do phải là chuỗi ký tự.',400);
   const note = (req.body.note || '').trim(); if(note.length > 500) throw invalid('Lý do tối đa 500 ký tự.',400);

@@ -42,6 +42,11 @@ function createHrLeaveAuthorization({loadUsers=()=>appUsers.selectAllRows()}={})
   async function canDecide(user,request) {
     const routing=await routingFor(request); return routing.users.some(candidate=>isSameAccount(candidate,user));
   }
+  async function authorizeEmployee(user,employee) {
+    const current=(await loadUsers()).find(candidate=>isSameAccount(candidate,user));
+    if(!matchesApprovalScope(current,{branch:employee.branch,bo_phan:employee.bo_phan})) throw Object.assign(new Error('Bạn không có quyền cấu hình lịch làm việc của phòng ban và cơ sở này.'),{statusCode:403,code:'LEAVE_SCHEDULE_FORBIDDEN'});
+    return current;
+  }
   async function describeRequests(user,requests) {
     const users=await loadUsers();
     return requests.map(request=>{
@@ -49,6 +54,6 @@ function createHrLeaveAuthorization({loadUsers=()=>appUsers.selectAllRows()}={})
       return {...request,canManage:routing.users.some(candidate=>isSameAccount(candidate,user)),routingWarning:routingWarning(routing)};
     });
   }
-  return {authorize,routingFor,canDecide,describeRequests};
+  return {authorize,authorizeEmployee,routingFor,canDecide,describeRequests};
 }
 module.exports={normalizeDepartments,isActiveApprover,matchesApprovalScope,selectApprovers,routingWarning,createHrLeaveAuthorization};

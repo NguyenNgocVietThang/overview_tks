@@ -59,6 +59,12 @@ Hai bảng này **khác** quy ước `branch` 2 giá trị nội bộ ở cột 
 
 Migration `0015` thêm `app_users.telegram_id` dạng `TEXT` để không phụ thuộc giới hạn số nguyên JavaScript và hỗ trợ Telegram ID dài. ID khác rỗng là duy nhất giữa các tài khoản chưa xoá. Từ migration `0016`, cột này là **bản đọc** được trigger đồng bộ từ `hr_telegram_links` (xem mục "Nghỉ phép và bot Telegram"); nguồn sự thật của liên kết Telegram là bảng đó. Tab `_HR_TELEGRAM_LINKS` trên Google Sheets không còn được ứng dụng sử dụng.
 
+### Hạn đăng ký nghỉ phép (migration `0038`)
+
+Migration 0038 adds per-date `hr_leave_work_schedules` (employee/date primary key, nullable morning/afternoon starts, incrementing version), authoritative timing/calendar/schedule snapshots on `hr_leave_requests`, and immutable `hr_leave_submissions`. Submission time is the database clock. New leave requests always start `Chưa duyệt`; `timing_status` independently stores `Đúng hạn`, `Xin muộn`, or `Vi phạm`. Old rows remain unclassified with revision 0, without backfilling events or schedules. Both new tables revoke BI SELECT access.
+
+The external employee bot must supply a trusted employee/account/linked Telegram identity and use a date with a configured first-session start. Missing configuration rejects INSERT atomically; it never defaults to old fixed session hours. The database overrides supplied timestamps and snapshots. Direct range-only bot edits regenerate selected sessions; any calendar resend resets approval and bumps decision version while retaining immutable prior submission history. The additive `submission_nonce` UUID signals an explicit same-calendar resend. Approval and notifier marker updates preserve timing. See [rollout and bot contract](../../docs/hr-leave-deadlines.md) before applying this migration or updating the external bot.
+
 ### Nghỉ phép và bot Telegram (migration `0016`)
 
 Thay 3 tab Google Sheets (`Yêu cầu nghỉ phép`, `_HR_TELEGRAM_LINKS`, `_HR_TELEGRAM_SESSIONS`). Bot **xin nghỉ của nhân viên** chạy **ngoài repo này** (VPS riêng) và đọc/ghi thẳng 3 bảng bằng SQL; web đọc `hr_leave_requests`, tự gửi đơn từ HR hoạt động, nhập tay "tự ý nghỉ" bằng quyền riêng và đổi trạng thái. Cả 3 bảng đã `REVOKE SELECT` khỏi `reporting_readonly` (PII/nội dung tin nhắn).

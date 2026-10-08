@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const repo = require('./hrLeaveRepository');
 const employeeDirectory = require('./employeeDirectory');
+const schedulesRepo=require('./hrLeaveWorkSchedulesRepository');
 const { createHrLeaveDecisionService } = require('./hrLeaveDecisionService');
 const { createHrLeaveRoutes } = require('./hrLeaveRoutes');
 // These route tests cover formatting, events and branch propagation. Scope enforcement
@@ -35,6 +36,8 @@ function getRouteHandler(method, routePath) {
 
 test('route nhập tay tính đúng số buổi và chuyển khoảng nghỉ dạng cấu trúc', async () => {
   const originalCreate = repo.createLeaveRequest;
+  const originalResolve=schedulesRepo.resolveEmployee;
+  schedulesRepo.resolveEmployee=async()=>({id:'1',ho_ten:'Nhân viên A',bo_phan:'KHO',branch:'hanoi'});
   let received;
   repo.createLeaveRequest = async payload => { received = payload; return payload; };
   try {
@@ -62,6 +65,7 @@ test('route nhập tay tính đúng số buổi và chuyển khoảng nghỉ d�
     assert.equal(received.tong_buoi_nghi, 4);
   } finally {
     repo.createLeaveRequest = originalCreate;
+    schedulesRepo.resolveEmployee=originalResolve;
   }
 });
 
@@ -185,7 +189,7 @@ test('GET /api/hr/employees trả về nhân sự mọi cơ sở được phép 
     assert.equal(resAll.statusCode, 200);
     assert.deepEqual(resAll.body.employees.map(e => e.hoTen), ['Nguyễn Văn A', 'Nguyễn Văn B', 'Trần Thị C']);
     assert.deepEqual(resAll.body.employees.map(e => e.coSo), ['Hà Nội', 'Hà Nội', 'Sài Gòn']);
-    assert.deepEqual(Object.keys(resAll.body.employees[0]).sort(), ['boPhan', 'coSo', 'email', 'hoTen', 'soDienThoai']);
+    assert.deepEqual(Object.keys(resAll.body.employees[0]).sort(), ['boPhan', 'coSo', 'email', 'hoTen', 'id', 'soDienThoai']);
 
     const resOne = fakeRes();
     await handler({ user: STAFF_HANOI, query: {} }, resOne);
@@ -294,12 +298,22 @@ const { leaveEvents } = require('./hrLeaveEvents');
 function stubHrProfileSources({ employees = [], users = [] } = {}) {
   const originalSnapshot = employeeDirectory.getSnapshot;
   const originalFindUser = userRepository.findUserByUsername;
+  const originalResolve=schedulesRepo.resolveEmployee;
+  schedulesRepo.resolveEmployee=async({employeeId,username})=>{
+    if(employeeId) {
+      const employee=employees[Number(employeeId)-1];
+      return employee ? {id:String(employeeId),ho_ten:employee.hoTen,bo_phan:'KHO',branch:employee.sourceBranch==='Sài Gòn' ? 'saigon' : 'hanoi'} : null;
+    }
+    const user=users.find(item=>item.username===username);
+    return user ? {id:'1',username:user.username,ho_ten:'Nhân viên A',bo_phan:'KHO',branch:user.hrSourceBranch==='Sài Gòn' ? 'saigon' : 'hanoi'} : null;
+  };
   employeeDirectory.getSnapshot = async () => ({ employees });
   userRepository.findUserByUsername = async username =>
     users.find(user => user.username === username) || null;
   return () => {
     employeeDirectory.getSnapshot = originalSnapshot;
     userRepository.findUserByUsername = originalFindUser;
+    schedulesRepo.resolveEmployee=originalResolve;
   };
 }
 
@@ -340,10 +354,10 @@ async function postLeaveRequest({ branch, body, employees, users, onCreate }) {
   }
 }
 
-test('tạo đơn ở "Cả hai": cơ sở lấy từ hồ sơ nhân sự (họ tên), không phải cơ sở đang chọn', async () => {
+test('tạo đơn ở "Cả hai": cơ sở lấy từ định danh nhân sự, bỏ qua họ tên giả', async () => {
   const { res, calls } = await postLeaveRequest({
     branch: 'Cả hai',
-    body: manualAbsenceBody({ ho_ten: 'Nhân viên A' }),
+    body: manualAbsenceBody({ hr_employee_id:'1',ho_ten: 'Tên giả' }),
     employees: [
       { hoTen: 'Nhân viên A', sourceBranch: 'Sài Gòn' },
       { hoTen: 'Nhân viên B', sourceBranch: 'Hà Nội' }
@@ -375,8 +389,8 @@ test('tạo đơn ở "Cả hai": không xác định được cơ sở của nh
   });
 
   assert.equal(res.statusCode, 400);
-  assert.equal(res.body.code, 'LEAVE_BRANCH_UNRESOLVED');
-  assert.match(res.body.error, /cơ sở/i);
+  assert.equal(res.body.code, 'LEAVE_EMPLOYEE_REQUIRED');
+  assert.match(res.body.error, /nhân sự/i);
   assert.equal(calls.length, 0);
 });
 
@@ -391,14 +405,14 @@ test('tạo đơn ở "Cả hai": trùng tên ở cả hai cơ sở -> 400, khô
   });
 
   assert.equal(res.statusCode, 400);
-  assert.equal(res.body.code, 'LEAVE_BRANCH_UNRESOLVED');
+  assert.equal(res.body.code, 'LEAVE_EMPLOYEE_REQUIRED');
   assert.equal(calls.length, 0);
 });
 
 test('tạo đơn ở "Cả hai": sự kiện realtime mang cơ sở vật lý của bản ghi', async () => {
   const { events } = await postLeaveRequest({
     branch: 'Cả hai',
-    body: manualAbsenceBody({ ho_ten: 'Nhân viên A' }),
+    body: manualAbsenceBody({ hr_employee_id:'1',ho_ten: 'Nhân viên A' }),
     employees: [{ hoTen: 'Nhân viên A', sourceBranch: 'Sài Gòn' }],
     // Ban ghi tra ve thieu co_so (phong thu) — su kien van khong duoc mang "Cả hai".
     onCreate: payload => Object.assign({}, payload, { id: 'REQ-1', co_so: '' })
@@ -408,15 +422,15 @@ test('tạo đơn ở "Cả hai": sự kiện realtime mang cơ sở vật lý c
   assert.equal(events[0].branch, 'Sài Gòn');
 });
 
-test('tạo đơn ở cơ sở vật lý: giữ nguyên hành vi cũ (không tra hồ sơ nhân sự)', async () => {
+test('tạo đơn ở cơ sở vật lý vẫn từ chối khi thiếu định danh nhân sự', async () => {
   const { res, calls } = await postLeaveRequest({
     branch: 'Hà Nội',
     body: manualAbsenceBody({ ho_ten: 'Người lạ' }),
     employees: []
   });
 
-  assert.equal(res.statusCode, 201);
-  assert.equal(calls[0].branch, 'Hà Nội');
+  assert.equal(res.statusCode, 400);
+  assert.equal(calls.length,0);
 });
 
 test('đổi trạng thái ở "Cả hai": sự kiện realtime không bao giờ mang nhãn "Cả hai"', async () => {

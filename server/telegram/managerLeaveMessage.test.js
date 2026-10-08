@@ -99,3 +99,7 @@ test('renderer rejects unsafe web URLs and does not issue unversioned actions', 
   const message = buildManagerLeaveMessage(request({ decision_version: undefined }), { webUrl: 'javascript:alert(1)' });
   assert.deepEqual(message.reply_markup.inline_keyboard, []);
 });
+test('manager cards preserve registration timing alongside final approval and deadline',()=>{
+ const message=buildManagerLeaveMessage(request({trang_thai:'Đã duyệt',timing_status:'Xin muộn',registration_deadline_date:'2026-09-30'}));
+ assert.match(message.text,/Thời hạn đăng ký<\/b>: Xin muộn/);assert.match(message.text,/Hạn đăng ký<\/b>: 2026-09-30/);assert.match(message.text,/Trạng thái<\/b>: Đã duyệt/);
+});

@@ -49,7 +49,8 @@ function buildManagerLeaveMessage(request, { webUrl, canManage = true } = {}) {
     ['Loại yêu cầu', row.loai_yeu_cau], ['Lý do nghỉ', row.ly_do, 4],
     ['Thời gian gửi', vietnamTimestamp(row.thoi_gian_gui)], ['Bắt đầu', row.thoi_gian_bat_dau], ['Kết thúc', row.thoi_gian_ket_thuc],
     ['Tổng buổi nghỉ', row.tong_buoi_nghi], ['Tổng ngày nghỉ', row.tong_ngay_nghi], ['Người bàn giao', row.nguoi_ban_giao, 2],
-    ['Trạng thái', row.trang_thai], ['Người duyệt', row.nguoi_duyet], ['Thời điểm duyệt', vietnamTimestamp(row.thoi_diem_duyet)],
+    ['Trạng thái', row.trang_thai], ['Thời hạn đăng ký', row.timing_status || 'Chưa phân loại'], ['Hạn đăng ký', row.registration_deadline_date],
+    ['Người duyệt', row.nguoi_duyet], ['Thời điểm duyệt', vietnamTimestamp(row.thoi_diem_duyet)],
     ['Ghi chú duyệt', row.ghi_chu_duyet, 4], ['Nghỉ gấp', row.co_nghi_gap ? 'Có' : 'Không'],
     ['Tự ý nghỉ', row.co_tu_y_nghi ? 'Có' : 'Không']
   ];

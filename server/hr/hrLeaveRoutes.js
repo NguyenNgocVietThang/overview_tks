@@ -16,6 +16,8 @@ const { requireAuth, requireFeature } = require('../auth/authMiddleware');
 const defaultRepo = require('./hrLeaveRepository');
 const { hasFeature } = require('../auth/featureRegistry');
 const { createHrLeaveSelfService } = require('./hrLeaveSelfService');
+const defaultSchedules=require('./hrLeaveWorkSchedulesRepository');
+const {normalizeCalendar}=require('./hrLeaveTiming');
 const { createHrLeaveAuthorization, routingWarning } = require('./hrLeaveAuthorization');
 const notificationRepo = require('../notifications/notificationRepository');
 const employeeDirectory = require('./employeeDirectory');
@@ -37,7 +39,8 @@ const repo = options.repo || defaultRepo;
 const notifyAllUsers = options.notifyAllUsers || defaultNotifyAllUsers;
 const authorization = options.authorization || createHrLeaveAuthorization();
 const notifyApprovers = options.notifyApprovers || notificationRepo.createNotificationForUsers;
-const selfService = options.selfService || createHrLeaveSelfService({ repo });
+const schedules=options.schedules || defaultSchedules;
+const selfService = options.selfService || createHrLeaveSelfService({ repo, schedules });
 const decisions = options.decisions || createHrLeaveDecisionService({ repo, authorization });
 
 // Phan quyen theo TINH NANG (server/auth/featureRegistry.js).
@@ -79,6 +82,9 @@ function physicalBranchOrNull(branch) {
 }
 
 function handleError(res, err, context) {
+  if(err.code==='P0001' && /LEAVE_SCHEDULE_REQUIRED/.test(err.message)) return res.status(409).json({error:'Chưa cấu hình giờ bắt đầu buổi nghỉ. Quản lý cần cập nhật lịch làm việc cho nhân sự và ngày đã chọn.',code:'LEAVE_SCHEDULE_REQUIRED'});
+  if(err.code==='P0001' && /LEAVE_IDENTITY_MISMATCH/.test(err.message)) return res.status(409).json({error:'Liên kết nhân sự hoặc cơ sở đã thay đổi. Vui lòng tải lại hồ sơ.',code:'LEAVE_IDENTITY_MISMATCH'});
+  if(err.code==='P0001' && /INVALID_LEAVE_SESSIONS/.test(err.message)) return res.status(400).json({error:'Lịch nghỉ không hợp lệ.',code:'INVALID_LEAVE_RANGE'});
   if (err.statusCode && err.statusCode < 500) {
     return res.status(err.statusCode).json({ error: err.message, code: err.code });
   }
@@ -157,7 +163,9 @@ router.get('/api/hr/leave-requests', ...authLeaveList, async (req, res) => {
       { status, employee, department, from, to, ...(viewAll ? {} : { userId: req.user.id }) }, scope
     );
     const visible = viewAll ? rows : rows.filter(row => String(row.user_id) === String(req.user.id));
-    const requests = visible.length ? await authorization.describeRequests(req.user, visible) : [];
+    const described = visible.length ? await authorization.describeRequests(req.user, visible) : [];
+    const editContext=selfService.canEdit && described.some(row=>row.source==='web' && String(row.user_id)===String(req.user.id)) ? await selfService.context(req.user) : null;
+    const requests=await Promise.all(described.map(async row=>({...row,canEdit:selfService.canEdit ? await selfService.canEdit(req.user,row,editContext) : false})));
     res.status(200).json({ requests });
   } catch (err) {
     handleError(res, err, 'GET /api/hr/leave-requests');
@@ -168,6 +176,17 @@ router.get('/api/hr/leave-requests', ...authLeaveList, async (req, res) => {
 router.get('/api/hr/leave-requests/self/context', requireAuth, async (req, res) => {
   try { res.status(200).json(await selfService.context(req.user)); }
   catch (err) { handleError(res, err, 'GET /api/hr/leave-requests/self/context'); }
+});
+router.post('/api/hr/leave-requests/self/preview', requireAuth, async(req,res)=>{
+  try {res.status(200).json(await selfService.preview(req.user,req.body || {}));}
+  catch(err){handleError(res,err,'POST leave preview');}
+});
+router.post('/api/hr/leave-requests/self/:id/resubmit',requireAuth,async(req,res)=>{
+  try {
+    const record=await selfService.resubmit(req.user,req.params.id,req.body || {});
+    res.status(200).json({request:{...record,canEdit:selfService.canEdit ? await selfService.canEdit(req.user,record) : false}});
+    broadcastLeaveEvent(LEAVE_EVENT_TYPES.STATUS_CHANGED,record,record.co_so);
+  }catch(err){handleError(res,err,'POST leave resubmit');}
 });
 router.post('/api/hr/leave-requests/self', requireAuth, async (req, res) => {
   try {
@@ -223,14 +242,31 @@ router.post('/api/hr/leave-requests/export', ...authInternal, async (req, res) =
 // GET /api/hr/leave-requests/:id — chi tiet 1 yeu cau
 // ---------------------------------------------------------------------------
 
-router.get('/api/hr/leave-requests/:id', ...authInternal, async (req, res) => {
+async function visibleRequest(req) {
+  const viewAll=hasFeature(req.user,'hr.leave');
+  let scope=allowedBranches(req.user);
+  if(!viewAll) {
+    const context=await selfService.context(req.user);
+    if(!context.eligible) return null;
+    scope=[context.profile.coSo];
+  }
+  const request=await repo.getLeaveRequestById(req.params.id,scope);
+  return request && (viewAll || String(request.user_id)===String(req.user.id)) ? request : null;
+}
+router.get('/api/hr/leave-requests/:id/history',...authLeaveList,async(req,res)=>{
   try {
-    const request = await repo.getLeaveRequestById(req.params.id, allowedBranches(req.user));
+    if(!await visibleRequest(req)) return res.status(404).json({error:'Không tìm thấy yêu cầu nghỉ phép.',code:'LEAVE_REQUEST_NOT_FOUND'});
+    res.status(200).json({submissions:await repo.getSubmissionHistory(req.params.id)});
+  }catch(err){handleError(res,err,'GET leave history');}
+});
+router.get('/api/hr/leave-requests/:id', ...authLeaveList, async (req, res) => {
+  try {
+    const request = await visibleRequest(req);
     if (!request) {
       return res.status(404).json({ error: `Không tìm thấy yêu cầu "${req.params.id}".`, code: 'LEAVE_REQUEST_NOT_FOUND' });
     }
     const [described] = await authorization.describeRequests(req.user, [request]);
-    res.status(200).json({ request: described });
+    res.status(200).json({ request: {...described,canEdit:selfService.canEdit ? await selfService.canEdit(req.user,request) : false} });
   } catch (err) {
     handleError(res, err, 'GET /api/hr/leave-requests/:id');
   }
@@ -252,35 +288,29 @@ router.post('/api/hr/leave-requests', ...authAbsence, async (req, res) => {
       return res.status(400).json({ error: 'Thiếu trường bắt buộc: ho_ten, ly_do.', code: 'INVALID_REQUEST' });
     }
 
-    const startDate = parseIsoDateOnly(start_date);
-    const endDate = parseIsoDateOnly(end_date || start_date);
-    const totalSessions = computeDurationSessions(startDate, start_session, endDate, end_session);
-    if (!startDate || !endDate || totalSessions == null || totalSessions <= 0) {
-      return res.status(400).json({
-        error: 'Khoảng thời gian nghỉ không hợp lệ.',
-        code: 'INVALID_LEAVE_RANGE'
-      });
-    }
+    const calendar=normalizeCalendar(req.body);
+    const employee=await schedules.resolveEmployee({employeeId:req.body.hr_employee_id,username:web_username});
+    if(!employee) throw new defaultRepo.HrError('Không tìm thấy nhân sự đang hoạt động đã liên kết.',400,'LEAVE_EMPLOYEE_REQUIRED');
 
     // Dang xem "Cả hai" thi khong co co so nao "dang chon" de gan cho don —
     // lay co so tu ho so nhan su, khong suy ra duoc thi bao loi (4xx) thay vi
     // ghi bua vao mot co so.
-    const recordBranch = req.branch === BRANCH_BOTH
-      ? await hrLeaveService.resolveEmployeeBranch(
-        { webUsername: web_username, hoTen: ho_ten }, allowedBranches(req.user)
-      )
-      : req.branch;
+    const {branchCodeToLabel}=require('../branch/branches');
+    const recordBranch=branchCodeToLabel(employee.branch);
+    if(!allowedBranches(req.user).includes(recordBranch) || (physicalBranchOrNull(req.branch) && req.branch!==recordBranch)) throw new defaultRepo.HrError('Bạn không có quyền ghi nhận nhân sự tại cơ sở này.',403,'BRANCH_FORBIDDEN');
 
     const isManualAbsence = !!co_tu_y_nghi || loai_yeu_cau === repo.LEAVE_TYPE.MANUAL_ABSENCE;
     const record = await repo.createLeaveRequest({
-      web_username,
-      ho_ten,
+      web_username:employee.username || '',
+      user_id:employee.user_id,
+      hr_employee_id:employee.id,
+      bo_phan:employee.bo_phan,
+      ho_ten:employee.ho_ten,
       chuc_vu,
       ly_do,
       loai_yeu_cau: isManualAbsence ? repo.LEAVE_TYPE.MANUAL_ABSENCE : repo.LEAVE_TYPE.REQUEST,
-      start_date, start_session,
-      end_date: end_date || start_date, end_session,
-      tong_buoi_nghi: totalSessions,
+      ...calendar,
+      tong_buoi_nghi: calendar.totalSessions,
       nguoi_ban_giao,
       // Ban ghi "tu y nghi" la ghi nhan, khong phai don cho duyet -> mac dinh Da duyet.
       trang_thai: isManualAbsence ? repo.LEAVE_STATUS.APPROVED : repo.LEAVE_STATUS.PENDING,
@@ -368,6 +398,7 @@ router.get('/api/hr/employees', ...authEmployees, async (req, res) => {
     const employees = snapshot.employees
       .filter(employee => branches.includes(employee.sourceBranch))
       .map(employee => ({
+        id:String(employee.rowIndex),
         hoTen: employee.hoTen,
         boPhan: employee.boPhan,
         coSo: employee.sourceBranch,
@@ -379,6 +410,21 @@ router.get('/api/hr/employees', ...authEmployees, async (req, res) => {
   } catch (err) {
     handleError(res, err, 'GET /api/hr/employees');
   }
+});
+
+async function scheduleEmployee(req) {
+  const employee=await schedules.getEmployee(req.params.employeeId);
+  if(!employee) throw new defaultRepo.HrError('Không tìm thấy nhân sự đang hoạt động.',404,'HR_EMPLOYEE_NOT_FOUND');
+  await authorization.authorizeEmployee(req.user,employee);
+  return employee;
+}
+router.get('/api/hr/leave-work-schedules/:employeeId',...authManager,async(req,res)=>{
+  try {await scheduleEmployee(req);res.status(200).json({schedule:await schedules.getSchedule(req.params.employeeId,req.query.date)});}
+  catch(err){handleError(res,err,'GET work schedule');}
+});
+router.put('/api/hr/leave-work-schedules/:employeeId',...authManager,async(req,res)=>{
+  try {await scheduleEmployee(req);res.status(200).json({schedule:await schedules.setSchedule(req.params.employeeId,req.body || {})});}
+  catch(err){handleError(res,err,'PUT work schedule');}
 });
 
 // ---------------------------------------------------------------------------

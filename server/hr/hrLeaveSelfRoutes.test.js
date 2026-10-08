@@ -76,6 +76,7 @@ test('legacy pending create notifies only scoped approvers while manual absence 
   const app=router({
     repo:{...require('./hrLeaveRepository'),createLeaveRequest:async(payload,branch)=>({...payload,request_id:'NP-NEW',bo_phan:'KHO',co_so:branch})},
     authorization:{routingFor:async()=>({users:[{id:'kho-approver'}],missing:false,fallback:false})},
+    schedules:{resolveEmployee:async()=>({id:'1',branch:'hanoi',ho_ten:'A',bo_phan:'KHO'})},
     notifyApprovers:async ids=>{recipients.push(ids);}, notifyAllUsers:async()=>{broad++;}
   });
   const create=handler(app,'post','/api/hr/leave-requests');
