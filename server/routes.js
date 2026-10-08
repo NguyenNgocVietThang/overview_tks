@@ -15,7 +15,7 @@ const { getInvoiceDetail } = require('./dashboard/documentDetailRepository');
 const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
 const { requireAuth, requireFeature } = require('./auth/authMiddleware');
-const { ANY_REPORTS_FEATURES, permissionsHave } = require('./auth/featureRegistry');
+const { REPORT_VIEW_FEATURES, permissionsHave } = require('./auth/featureRegistry');
 const { parseViewsParam, VIEW_FEATURE } = require('./dashboard/dashboardViews');
 const { filterDashboardForUser } = require('./dashboard/dashboardPermissionFilter');
 const { resolveBranch } = require('./branch/branchMiddleware');
@@ -38,6 +38,7 @@ const orderLifecycleRoutes = require('./shipment/orderLifecycleRoutes');
 const stockLocationsRoutes = require('./stockLocations/stockLocationsRoutes');
 const cashbookRoutes = require('./cashbook/cashbookRoutes');
 const { createBusinessReportRouter } = require('./businessReport/businessReportRoutes');
+const { createMarketingReportRouter } = require('./marketingReport/marketingReportRoutes');
 const { dashboardRollupEvents } = require('./kiotvietSync/dashboardRollupEvents');
 
 router.get('/health', (req, res) => {
@@ -75,6 +76,7 @@ router.use(stockLocationsRoutes);
 router.use('/api/cashbook', cashbookRoutes);
 // Báo cáo kinh doanh (tăng trưởng Sale/Khách/Mã hàng): gộp HN + SG, cũng không áp cookie cơ sở.
 router.use('/api/business-report', createBusinessReportRouter());
+router.use('/api/marketing-report', createMarketingReportRouter());
 
 // Toan bo /api/hr/* la du lieu THEO CO SO — gan resolveBranch truoc router con.
 router.use('/api/hr', requireAuth, resolveBranch);
@@ -116,8 +118,8 @@ const reportsUser = (...features) => [requireAuth, requireFeature(...features), 
 // quyen reports.*"; phan du lieu cua tung tab duoc cat bot sau do
 // (dashboardPermissionFilter.js). Cac endpoint rieng cua tung tab thi doi hoi
 // dung quyen cua tab do.
-router.use('/api/debug', ...reportsUser(...ANY_REPORTS_FEATURES));
-router.use('/api/dashboard', ...reportsUser(...ANY_REPORTS_FEATURES));
+router.use('/api/debug', ...reportsUser(...REPORT_VIEW_FEATURES));
+router.use('/api/dashboard', ...reportsUser(...REPORT_VIEW_FEATURES));
 // Muc 2 (doanh thu theo khach) va muc 3 (Bao cao hang hoa) nam ngay trong tab Tong quan
 // nen nguoi co quyen Tong quan (vd Nhan vien sale) cung doc duoc cac API CHI DOC nay;
 // nguoi co quyen cua tab goc van duoc nhu cu. Phan ghi/nang (quet dut hang, nhap Tra NCC)

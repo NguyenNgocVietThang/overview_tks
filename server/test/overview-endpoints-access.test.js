@@ -80,7 +80,7 @@ for (const urlPath of OVERVIEW_READ_ENDPOINTS) {
     assert.equal(result.allowed, true, `sale bi chan ${urlPath} (status ${result.status})`);
   });
 
-  test(`Nhân viên marketing (không có quyền báo cáo nào) bị chặn ở ${urlPath}`, async () => {
+  test(`Nhân viên marketing (chỉ có quyền báo cáo Marketing) bị chặn ở ${urlPath}`, async () => {
     const result = await passesGuards(urlPath, 'Nhân viên marketing');
     assert.equal(result.allowed, false);
     assert.equal(result.status, 403);

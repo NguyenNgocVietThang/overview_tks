@@ -649,10 +649,11 @@ test('GET /api/admin/permissions/catalog tra ve danh muc + mac dinh theo vai tro
   // bo Nhan vien mua hang + marketing, 2026-10-02).
   const saleViewKeys = ['reports.overview', 'reports.products', 'reports.invoices', 'reports.customers', 'reports.debt', 'reports.business'];
   assert.deepEqual(
-    res.body.roleDefaults['Nhân viên marketing'],
+    res.body.roleDefaults['Nhân viên marketing'].filter(key => key !== 'reports.marketing'),
     res.body.roleDefaults['Nhân viên sale'].filter(key => !saleViewKeys.includes(key) && !['shipment.lifecycle', 'shipment.lookup', 'shipment.history'].includes(key))
   );
   assert.ok(res.body.roleDefaults['Nhân viên sale'].includes('reports.overview'));
+  assert.ok(res.body.roleDefaults['Nhân viên marketing'].includes('reports.marketing'));
   assert.ok(res.body.features.find(f => f.key === 'account.profile').alwaysOn);
 });
 

@@ -6,6 +6,16 @@ const assert = require('node:assert/strict');
 const registry = require('./featureRegistry');
 const { ROLES, INTERNAL_ROLES, REPORTS_ROLES } = require('./userRepository');
 
+test('Marketing defaults to manager, assistant and Marketing, supports per-user revoke', () => {
+  for (const role of Object.values(ROLES)) {
+    assert.equal(registry.defaultsForRole(role).includes('reports.marketing'),
+      [ROLES.QUAN_LY, ROLES.TRO_LY, ROLES.NHAN_VIEN_MARKETING].includes(role), role);
+  }
+  assert.ok(!registry.resolvePermissions({vaiTro:ROLES.NHAN_VIEN_MARKETING,
+    featurePermissions:{'reports.marketing':false}}).includes('reports.marketing'));
+  assert.ok(registry.pageRuleFor('/reports').anyOf.includes('reports.marketing'));
+});
+
 test('Sổ quỹ mặc định chỉ cấp quyền xem cho Quản lý', () => {
   for (const role of Object.values(ROLES)) {
     const actual = registry.defaultsForRole(role).filter(key => key.startsWith('cashbook.'));
@@ -154,9 +164,9 @@ test('Nhan vien sale xem du 5 tab bao cao mac dinh, KHONG co xuat Excel / sua co
 
 const SHIPMENT_LIFECYCLE_GROUP = ['shipment.lifecycle', 'shipment.lookup', 'shipment.history'];
 
-test('Nhan vien marketing: y het Nhan vien sale tru 5 tab xem bao cao', () => {
+test('Nhan vien marketing has own report, other permissions match sale excluding general reports and lifecycle', () => {
   assert.deepEqual(
-    registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING),
+    registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING).filter(key=>key!=='reports.marketing'),
     registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && !SHIPMENT_LIFECYCLE_GROUP.includes(key))
   );
 });
@@ -230,8 +240,8 @@ test('landingPathFor tra ve trang dau tien tai khoan vao duoc', () => {
   assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.KE_TOAN)), '/shipment/lifecycle/');
   // Sale co quyen Tong quan nen trang dau tien vao duoc la bao cao (thu tu PAGE_FEATURES).
   assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.NHAN_VIEN_SALE)), '/reports/');
-  // Marketing/Khach khong con Vong doi don hang: marketing vao Nhan su, Khach chi con Tai khoan.
-  assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING)), '/humanresources/');
+  // Marketing now has its own report; guest still only enters account.
+  assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING)), '/reports/');
   assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.KHACH)), '/account/');
   assert.equal(registry.landingPathFor([]), '/account/');
 });

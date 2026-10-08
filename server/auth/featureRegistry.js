@@ -59,6 +59,7 @@ const FEATURES = Object.freeze([
   // 2026-10-07: Bao cao kinh doanh (tang truong Sale/Khach/Ma hang theo thang). Spec:
   // docs/superpowers/specs/2026-10-07-business-report-design.md.
   { key: 'reports.business', groupKey: 'reports', label: 'Báo cáo kinh doanh', roles: REPORT_VIEW_ROLES },
+  { key: 'reports.marketing', groupKey: 'reports', label: 'Báo cáo Marketing', roles: [...REPORTS_ROLES, ROLES.NHAN_VIEN_MARKETING] },
   { key: 'reports.business.refreeze', groupKey: 'reports', label: 'Báo cáo kinh doanh: tính lại tháng đã chốt (cần Báo cáo kinh doanh)', roles: MANAGER_ONLY, requires: 'reports.business' },
   { key: 'reports.export', groupKey: 'reports', label: 'Xuất Excel báo cáo', roles: REPORTS_ROLES },
 
