@@ -395,3 +395,27 @@ Migration `0043_special_day_notice_log.sql` tạo bảng `special_day_notice_log
 - Danh mục ngày lễ/sinh nhật nằm trong code (`public/shared/special-days.js`), không lưu DB.
 - Job `notifications/specialDayNotifier.js` chỉ gửi khi `INSERT ... ON CONFLICT DO NOTHING RETURNING` chèn được dòng; gửi lỗi hoặc chưa có người nhận thì xóa dòng để lần quét sau thử lại.
 - Thông báo vẫn lưu ở `data/notifications.json` (chuông), nên bảng này mới là nguồn chống gửi trùng — người dùng xóa thông báo cũng không khiến job gửi lại.
+
+## Marketing Pancake — migration 0044
+
+Migration `0044_pancake_marketing.sql` bổ sung nguồn PostgreSQL cho Marketing; repository ở `marketingReport/marketingRepository.js`, dùng `pg`/`getPool`. Migration chưa tự chuyển nguồn API/UI hoặc chạy nhập dữ liệu. Chỉ sáu Facebook page trong kế hoạch được lưu; CHECK/FK chặn page khác và Zalo.
+
+| Bảng | Mục đích và khóa |
+|---|---|
+| `marketing_pages` | Sáu page đã seed; trạng thái lần thử, lỗi an toàn và thời điểm thành công gần nhất |
+| `marketing_import_batches` | Batch nhập bất biến; `batch_key` duy nhất, SHA-256 nội dung, workbook và snapshot người nhập |
+| `marketing_history_rows` | Giữ nguyên từng dòng THÔ; duy nhất `(workbook_id,source_tab,source_row)`, không gộp theo phone; JSONB gốc, `phone` nguyên văn, `phone_key` do importer chọn, employee raw, timestamp nullable và ngày lịch sử riêng |
+| `marketing_employee_aliases` | Nhiều `raw_name` trỏ một `report_employee`; không sửa tên trong dữ liệu nguồn, chỉ ánh xạ sau chọn đầu/cuối |
+| `marketing_sync_runs` / `marketing_sync_pages` | `run_key` duy nhất; sáu kết quả theo page với số đầu vào, fact mới và observation mới, retry cùng payload không tăng lại |
+| `marketing_pancake_facts` | Duy nhất `(page_id,source_key)`; ngày ghi nhận đầu tiên, hash trạng thái mới nhất và liên kết tùy chọn một dòng lịch sử (`historical_row_id` duy nhất) |
+| `marketing_pancake_observations` | Các phiên bản nguồn bất biến; giữ employee raw đầy đủ (kể cả nhiều tên/rỗng), timestamp UTC, raw API và ngày ghi nhận thành công theo Việt Nam; cùng payload không thêm phiên bản |
+| `marketing_monthly_rows` | BC tháng có `report_year`/`report_month` tách khỏi `closed_at`, khách KiotViet (tên và ID tùy chọn), sale, phone, page, status, nguồn data, khách mới, note; provenance Sheets/manual và version BIGINT |
+| `marketing_monthly_audit` | Nhật ký bất biến `(row_id,version)`; người sửa và before/after JSONB; cùng giao dịch với tạo/sửa/import |
+
+- Sequence chung `marketing_source_order` giữ thứ tự THÔ và observation. Nhập THÔ theo page/tab/số dòng, API theo thứ tự mảng đã sắp của caller; không sắp lại theo timestamp khi đọc. Sequence có thể hổng sau rollback nhưng thứ tự các dòng đã commit giữ nguyên. Cùng phone khác page độc lập.
+- `phone` lưu đúng chuỗi cell/nguồn, không tự chuẩn hóa hoặc tách cell nhiều số. `phone_key` là khóa gom nhóm do caller cung cấp (mặc định bằng phone); giữ cả hai để chính sách chuẩn hóa không phá provenance.
+- Lịch sử có ngày/timestamp thiếu được lưu NULL, chuỗi gốc nằm ở `source_created_text`/`raw`; không gán ngày chuyển đổi. BC tháng lịch sử thiếu page (đặc biệt tháng 6) có `page_id` NULL và nguyên văn `page`/`source_raw`, không đoán page. Khi có page ID, FK vẫn chặn ngoài sáu page.
+- Baseline API có thể nhận `historicalRowId` do caller đối chiếu không mơ hồ. Repository kiểm tra page + phone key + timestamp + raw employee trùng, seed fact bằng ngày lịch sử và **không thêm observation**. Những thay đổi nguồn sau đó thêm phiên bản vào ngày sync thành công, không sửa/xóa dòng lịch sử.
+- Ghi page khóa run/page, commit nguyên page; lỗi SQL rollback toàn bộ nguồn page rồi ghi trạng thái lỗi riêng, giữ lần thành công cũ. Các page khác không bị rollback. Job phải bảo đảm một đợt hoạt động tại một thời điểm; số thứ tự các lần chạy do job quản lý.
+- Import workbook, raw, alias và BC tháng trong một giao dịch; batch/source identity cùng nội dung bỏ qua, nội dung khác xung đột 409 và rollback. Sửa BC tháng yêu cầu version, khóa dòng và ghi audit nguyên tử; không lưu doanh số làm sự thật (doanh số tính từ KiotViet). Số tiền gốc có thể nằm trong JSON provenance, không được dùng làm doanh số.
+- Snapshot dùng REPEATABLE READ READ ONLY để raw/alias/fact/BC tháng/trạng thái nhất quán. Trigger chặn UPDATE/DELETE lịch sử, observation, batch và audit. Thu hồi SELECT của `reporting_readonly` trên toàn bộ bảng Marketing do chứa SĐT/dữ liệu cá nhân.
