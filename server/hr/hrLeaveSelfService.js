@@ -16,7 +16,7 @@ async function loadActiveProfile(userId, pool = getPool()) {
            COALESCE(e.bo_phan, u.vai_tro) AS bo_phan,
            COALESCE(e.branch, CASE WHEN u.co_so IN ('hanoi', 'saigon') THEN u.co_so ELSE 'hanoi' END) AS branch
     FROM app_users u LEFT JOIN hr_employees e ON e.id = u.hr_employee_id
-    WHERE u.id = $1 AND u.trang_thai = 'Đang hoạt động' AND NOT u.is_deleted
+    WHERE u.id = $1 AND u.trang_thai = 'Đang hoạt động' AND NOT u.is_deleted AND u.vai_tro <> 'Khách'
       AND (e.is_active OR (u.hr_employee_id IS NULL AND u.vai_tro = 'Quản lý'))
   `, [userId]);
   return rows[0] || null;

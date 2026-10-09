@@ -194,8 +194,10 @@ function resolvePermissions(user) {
   return FEATURE_KEYS.filter(key => granted.has(key) && !isFeatureForbiddenForRole(key, user.vaiTro));
 }
 
+// Moi tai khoan noi bo (tru Khach) da gan ho so nhan su dang hoat dong deu duoc tu gui don nghi;
+// khong doi hrManaged (co dong bo vai tro tu danh sach nhan su) vi viec do khong lien quan quyen xin nghi.
 function canSubmitOwnLeave(user) {
-  return !!(user && user.hrManaged && user.hrRowIndex && user.trangThai === 'Đang hoạt động' && !user.isDeleted && !user.hrVerificationRequired && user.hrEmployeeActive !== false);
+  return !!(user && user.vaiTro !== ROLES.KHACH && user.hrRowIndex && user.trangThai === 'Đang hoạt động' && !user.isDeleted && !user.hrVerificationRequired && user.hrEmployeeActive !== false);
 }
 
 function isFeatureForbiddenForRole(key, role) {

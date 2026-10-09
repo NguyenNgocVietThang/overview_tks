@@ -257,8 +257,10 @@ test('moi tinh nang co nhan tieng Viet va thuoc mot nhom da khai bao', () => {
 
 test('absence permission defaults to managers and self submission follows active linked HR identity', () => {
   assert.ok(registry.defaultsForRole(ROLES.QUAN_LY).includes('hr.leave.absence.manage'));
-  const linked = { vaiTro: ROLES.KHACH, hrManaged: true, hrRowIndex: 123, trangThai: 'Đang hoạt động' };
-  assert.ok(registry.resolvePermissions(linked).includes('hr.leave.submit'));
+  const linked = { vaiTro: ROLES.NHAN_VIEN_SALE, hrManaged: false, hrRowIndex: 123, trangThai: 'Đang hoạt động' };
+  assert.ok(registry.resolvePermissions(linked).includes('hr.leave.submit'), 'moi vai tro noi bo da gan nhan su deu xin nghi duoc');
+  for (const role of registry.INTERNAL_ROLES || [ROLES.QUAN_LY, ROLES.KE_TOAN, ROLES.NHAN_VIEN_KHO, ROLES.NHAN_VIEN_MARKETING, ROLES.NHAN_VIEN_MUA_HANG, ROLES.TRO_LY, ROLES.TRUONG_KHO, ROLES.LAI_XE]) assert.ok(registry.resolvePermissions({ ...linked, vaiTro: role }).includes('hr.leave.submit'), role);
+  assert.ok(!registry.resolvePermissions({ ...linked, vaiTro: ROLES.KHACH }).includes('hr.leave.submit'), 'Khach khong duoc xin nghi');
   assert.ok(!registry.resolvePermissions({ ...linked, trangThai: 'Khóa' }).includes('hr.leave.submit'));
   assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.KHACH, featurePermissions: { 'hr.leave.submit': true } }).includes('hr.leave.submit'));
 });
@@ -266,7 +268,7 @@ test('absence permission defaults to managers and self submission follows active
 
 
 test('active account with inactive linked HR profile cannot get self submission capability', () => {
-  assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.KHACH, hrManaged: true, hrRowIndex: 123, trangThai: 'Đang hoạt động', hrEmployeeActive: false }).includes('hr.leave.submit'));
+  assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_SALE, hrManaged: true, hrRowIndex: 123, trangThai: 'Đang hoạt động', hrEmployeeActive: false }).includes('hr.leave.submit'));
 });
 
 test('reports.products.cost (don gia + gia tri ton tab Hang hoa): chi Quan ly + Tro ly, Nhan vien sale KHONG co, cap rieng duoc', () => {
