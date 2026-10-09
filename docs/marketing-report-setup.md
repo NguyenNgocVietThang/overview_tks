@@ -1,5 +1,9 @@
 # Báo cáo Marketing — cấu hình và nghiệm thu
 
+## Kế hoạch chuyển nguồn Pancake — 09/10/2026
+
+Kế hoạch và checklist đã được lưu tại [tasks/2026-10-09-pancake-marketing/plan.md](../tasks/2026-10-09-pancake-marketing/plan.md) và [todo.md](../tasks/2026-10-09-pancake-marketing/todo.md). Mục tiêu: lấy SĐT sáu Fanpage Facebook mỗi ngày 23:55 giờ Việt Nam, tính KPI và nhập BC tháng trên web; ADS vẫn đọc Sheets. Hiện đang ở bước xác minh Public API, chưa có token trong cấu hình local và chưa có token trên page Hữu Nghị. Chưa triển khai migration, importer, scheduler hoặc chuyển nguồn; phần cấu hình hiện hành bên dưới vẫn có hiệu lực. Bằng chứng và điều kiện tiếp tục nằm trong [verification.md](../tasks/2026-10-09-pancake-marketing/verification.md).
+
 ## Nguồn chỉ đọc
 
 Tab `/reports/#marketing` đọc ba workbook qua Google Sheets client của máy chủ. Chỉ có MỘT thao tác ghi: sửa cột **Khách mới** (I) và **Ghi chú** (J) của tab BC Tháng N trong workbook Báo cáo trực page (quyền `reports.marketing.edit`, mặc định Quản lý; cần chia sẻ workbook đó cho service account quyền **Editor**, nếu chưa có thì API trả `MARKETING_WRITE_FORBIDDEN`). Cột **Doanh số** của BC tháng lấy từ KiotViet (bảng `business_monthly_customer_sales`, bán trừ trả hàng cả tháng của tab, nối theo TÊN khách, gộp HN+SG; không khớp tên thì hiện —). Không đồng bộ nền, không tạo bảng Postgres hoặc migration.

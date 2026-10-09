@@ -92,6 +92,7 @@ Bot riêng cho quản lý chạy cùng tiến trình Express; `telegram/managerL
 | `HR_MANAGER_TELEGRAM_WEB_URL` | HTTPS origin công khai của dashboard |
 | `HR_MANAGER_TELEGRAM_SCAN_INTERVAL_MS` | `5000` ms |
 | `HR_LEAVE_DB_REALTIME_ENABLED` | `true`; cầu Postgres → SSE HR |
+| `SPECIAL_DAYS_NOTIFY_ENABLED` | `true`; báo ngày lễ/sinh nhật lên chuông thông báo (`notifications/specialDayNotifier.js`) |
 
 **Migration trước khi chạy bản web mới:** `npm run db:migrate` áp `0029_hr_manager_telegram.sql`; bản web mới đọc `decision_version` cả khi `HR_MANAGER_TELEGRAM_ENABLED=false`. Sau khi cấu hình và khởi động server, đăng ký webhook bằng `npm run telegram-manager:set-webhook`. Chi tiết ở [hướng dẫn thiết lập](../docs/telegram-manager-leave-setup.md) và [kế hoạch đã duyệt](../docs/superpowers/plans/2026-10-02-telegram-manager-leave.md).
 
@@ -206,10 +207,12 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0040` | `account_audit_log` — lịch sử chỉnh sửa tài khoản (tab `/account/#history`, quyền `account.users`): tạo, sửa thông tin, đặt lại mật khẩu, xóa, sửa phân quyền; chỉ thêm (trigger chặn UPDATE/DELETE), không FK tới `app_users`, thu hồi SELECT của `reporting_readonly` |
 | `0041` | `hr_employees.employment_status` — trạng thái làm việc của nhân sự (`active` = Đang làm việc, `resigned` = Đã nghỉ việc); tự động khóa tài khoản liên kết khi nghỉ việc (`lock_reason = 'hr_resigned'`) và mở khóa lại khi kích hoạt |
 | `0042` | `hr_leave_submissions.hr_employee_id DROP NOT NULL` — cho phép mọi tài khoản nội bộ đang hoạt động (trừ Khách) dù chưa gắn hồ sơ nhân sự vẫn gửi được đơn xin nghỉ phép qua web; cơ sở lấy từ đơn, giờ ca làm việc mặc định sáng 07:45 / chiều 12:30 |
+| `0043` | `special_day_notice_log` — đánh dấu (ngày, sự kiện) đã báo lên chuông thông báo để job ngày lễ/sinh nhật không gửi trùng khi quét lặp hoặc restart; khóa chính `(day_key, event_key)` |
 
 Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng nền nghỉ phép trực tiếp; bot **quản lý** trong `telegram/` dùng chung đơn và sở hữu các bảng bổ sung ở migration `0029`. Hợp đồng dữ liệu ở `db/SCHEMA.md`.
 
 ## Cập nhật gần nhất
+2026-10-09 — **Ngày đặc biệt: thông báo chuông + pháo hoa thay sao băng (migration `0043`)**: dữ liệu ngày lễ Việt Nam (dương lịch + âm lịch: Tết Dương lịch, Giao thừa, mùng 1–3 Tết, Giỗ Tổ 10/3, 8/3, 30/4, 1/5, 2/9, 20/10, 20/11, Trung thu, Giáng sinh) và sinh nhật 27/10 nằm ở `public/shared/special-days.js` (dạng UMD, dùng chung cho server và trình duyệt, đổi âm lịch bằng thuật toán Hồ Ngọc Đức, ngày tính theo giờ Việt Nam). Job `notifications/specialDayNotifier.js` (chạy lúc khởi động rồi quét 5 phút, cờ `SPECIAL_DAYS_NOTIFY_ENABLED`) đẩy thông báo vào chuông cho mọi tài khoản đang hoạt động có quyền `hr.leave`; câu sinh nhật: "Hôm nay là sinh nhật Nguyễn Ngọc Việt Thắng BA". Bảng `special_day_notice_log` (khóa `day_key, event_key`) chống gửi trùng khi quét lặp/restart. `createNotificationForUsers` nay ghi `notifications.json` đúng 1 lần cho cả lô người nhận. Ở frontend, `shooting-star.js` chọn hiệu ứng: ngày đặc biệt dùng `fireworks.js` (rocket bay từ mép dưới lên điểm click rồi nổ, mỗi lần một bảng màu và kiểu nổ khác: cầu, vòng, liễu, trái tim, nổ kép; cùng tầng canvas z-index 0, hỗ trợ Light/Dark, `prefers-reduced-motion`, vòng lặp tự dừng khi hết hạt), ngày thường vẫn là sao băng; thêm `?fireworks=1` vào URL để xem thử. Lịch nghỉ phép không đổi giao diện. Chạy `npm run db:migrate` trước khi bật job.
 2026-10-09 — **Nghỉ phép: tài khoản nội bộ chưa gắn hồ sơ nhân sự vẫn gửi đơn (migration `0042`)**: tài khoản nội bộ đang hoạt động không gắn `hr_employee_id` được phép tự gửi đơn web; cơ sở lấy từ đơn, giờ bắt đầu mặc định 07:45 sáng / 12:30 chiều. `hr_leave_submissions.hr_employee_id` chuyển sang nullable.
 
 2026-10-09 — **Quản lý trạng thái nhân sự (`employment_status`, migration `0041`)**: tách trạng thái làm việc `active`/`resigned` khỏi xóa mềm `is_active`. Chuyển sang `resigned` tự khóa tài khoản với `lock_reason = 'hr_resigned'`; chuyển lại `active` mở đúng khóa này.

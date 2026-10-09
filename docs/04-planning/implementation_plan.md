@@ -1,6 +1,6 @@
 # Implementation plan hiện tại
 
-Cập nhật: 2026-10-09 (Đã hoàn thiện Báo cáo kinh doanh, Báo cáo Marketing, Sổ quỹ, Lịch làm việc & Hạn nghỉ phép, Trạng thái nhân sự, Audit log, Table controls; hệ thống schema đạt migration 0001–0042).
+Cập nhật: 2026-10-09 (Đã hoàn thiện Ngày đặc biệt (thông báo chuông + pháo hoa), Báo cáo kinh doanh, Báo cáo Marketing, Sổ quỹ, Lịch làm việc & Hạn nghỉ phép, Trạng thái nhân sự, Audit log, Table controls; hệ thống schema đạt migration 0001–0043).
 
 ## Kiến trúc đã triển khai
 
@@ -27,6 +27,7 @@ Cập nhật: 2026-10-09 (Đã hoàn thiện Báo cáo kinh doanh, Báo cáo Mar
 21. **Quản lý trạng thái nhân sự & Quy định phúc lợi** (migration `0039`, `0041`): tài liệu Chi tiêu & Phúc lợi (`phuc-loi`), `hr_employees.employment_status` (`active` = Đang làm việc / `resigned` = Đã nghỉ việc) tách khỏi xóa mềm `is_active`, tự động khóa tài khoản liên kết khi nhân sự nghỉ việc (`lock_reason = 'hr_resigned'`) và mở khóa lại khi kích hoạt.
 22. **Lịch sử chỉnh sửa tài khoản** (migration `0040`): bảng `account_audit_log` ghi log bất biến mọi thao tác tạo, sửa thông tin, đặt lại mật khẩu, xóa, phân quyền tài khoản; tab `/account/#history` phục vụ tra cứu quản trị.
 23. **Chuẩn hóa điều khiển bảng dùng chung**: `public/shared/table-controls.js` (chọn cột, kéo chỉnh độ rộng cột, phân trang) và tiện ích `search-clear` trên toàn bộ hệ thống; tối ưu hóa giao diện responsive desktop/mobile.
+24. **Ngày đặc biệt: thông báo chuông + pháo hoa** (migration `0043`): `public/shared/special-days.js` (ngày lễ Việt Nam dương/âm lịch + sinh nhật 27/10, dùng chung server/trình duyệt), job `notifications/specialDayNotifier.js` báo lên chuông cho tài khoản có `hr.leave` (chống trùng bằng `special_day_notice_log`), `public/shared/fireworks.js` thay sao băng trong các ngày này; lịch nghỉ phép không đổi.
 
 ## Bot Telegram quản lý nghỉ phép — kế hoạch đã duyệt 02/10/2026
 

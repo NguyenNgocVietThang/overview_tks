@@ -99,6 +99,8 @@ const CONFIG = {
   HR_MANAGER_TELEGRAM_WEB_URL: process.env.HR_MANAGER_TELEGRAM_WEB_URL || null,
   HR_MANAGER_TELEGRAM_SCAN_INTERVAL_MS: Math.min(60000, Math.max(1000, Number(process.env.HR_MANAGER_TELEGRAM_SCAN_INTERVAL_MS) || 5000)),
   HR_LEAVE_DB_REALTIME_ENABLED: process.env.HR_LEAVE_DB_REALTIME_ENABLED !== 'false',
+  // Bao ngay le / sinh nhat len chuong thong bao (notifications/specialDayNotifier.js).
+  SPECIAL_DAYS_NOTIFY_ENABLED: process.env.SPECIAL_DAYS_NOTIFY_ENABLED !== 'false',
 
   // ==========================================
   // SUPABASE POSTGRES — dong bo KiotViet, xem

@@ -59,6 +59,7 @@ Mở `http://localhost:3000`.
 | `HR_MANAGER_TELEGRAM_WEB_URL` | HTTPS origin công khai của dashboard, dùng cho webhook và nút mở web |
 | `HR_MANAGER_TELEGRAM_SCAN_INTERVAL_MS` | Chu kỳ quét đơn/sự kiện trong Postgres; mặc định `5000` ms (giới hạn 1.000–60.000) |
 | `HR_LEAVE_DB_REALTIME_ENABLED` | Cầu thay đổi Postgres → SSE của HR, mặc định `true`, độc lập với công tắc bot |
+| `SPECIAL_DAYS_NOTIFY_ENABLED` | Báo ngày lễ/sinh nhật lên chuông thông báo; mặc định `true`, `false` để tắt |
 | `DASHBOARD_PREWARM` | Nạp sẵn cache nguồn lúc khởi động; mặc định bật, `false` để tắt |
 | `PG_POOL_MAX` | Trần kết nối pool `pg` mỗi instance (mặc định 7; 2 × giá trị ≤ 15 của Supabase session pooler) |
 
@@ -76,13 +77,13 @@ server/
 │   ├── documentDetailRepository.js  # Chi tiết hóa đơn (popup bảng Chi tiết giao dịch) và chi tiết đơn đặt hàng (trang Vòng đời đơn hàng)
 │   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel
 ├── data/                 # Dữ liệu lưu trữ local (users.json, notifications.json, ...)
-├── db/                   # Migration Supabase (0001–0042) + SCHEMA.md (hợp đồng schema)
+├── db/                   # Migration Supabase (0001–0043) + SCHEMA.md (hợp đồng schema)
 ├── hr/                   # Nhân sự, nghỉ phép tự gửi, phạm vi duyệt chung, tài liệu quy định và cầu Postgres → SSE
 ├── kiotviet/             # KiotViet API client và webhook receiver
 ├── kiotvietSync/         # Webhook, polling, backfill và rollup
 ├── lib/                  # Thư viện tiện ích nội bộ (TTL cache, ...)
 ├── marketingReport/      # Báo cáo Marketing: đọc 3 workbook Google Sheets, đối chiếu doanh số KiotViet theo tên khách, cập nhật ngược Sheets, xuất Excel/HTML
-├── notifications/        # Chuông thông báo + gửi email OTP
+├── notifications/        # Chuông thông báo, gửi email OTP và job báo ngày lễ/sinh nhật (specialDayNotifier.js)
 ├── public/               # Frontend HTML/CSS/JS
 │   └── cashbook/         # Trang Sổ quỹ: bộ lọc/hash, số dư, chốt và xuất chọn cột
 ├── scripts/              # Script thủ công (migrate dữ liệu, cài đặt ban đầu)
@@ -101,6 +102,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-09 — **Ngày đặc biệt: thông báo chuông + pháo hoa thay sao băng (migration `0043`)**: dữ liệu ngày lễ Việt Nam (dương lịch + âm lịch: Tết Dương lịch, Giao thừa, mùng 1–3 Tết, Giỗ Tổ 10/3, 8/3, 30/4, 1/5, 2/9, 20/10, 20/11, Trung thu, Giáng sinh) và sinh nhật 27/10 nằm ở `public/shared/special-days.js` (dạng UMD, dùng chung cho server và trình duyệt, đổi âm lịch bằng thuật toán Hồ Ngọc Đức, ngày tính theo giờ Việt Nam). Job `notifications/specialDayNotifier.js` (chạy lúc khởi động rồi quét 5 phút, cờ `SPECIAL_DAYS_NOTIFY_ENABLED`) đẩy thông báo vào chuông cho mọi tài khoản đang hoạt động có quyền `hr.leave`; câu sinh nhật: "Hôm nay là sinh nhật Nguyễn Ngọc Việt Thắng BA". Bảng `special_day_notice_log` (khóa `day_key, event_key`) chống gửi trùng khi quét lặp/restart. `createNotificationForUsers` nay ghi `notifications.json` đúng 1 lần cho cả lô người nhận. Ở frontend, `shooting-star.js` chọn hiệu ứng: ngày đặc biệt dùng `fireworks.js` (rocket bay từ mép dưới lên điểm click rồi nổ, mỗi lần một bảng màu và kiểu nổ khác: cầu, vòng, liễu, trái tim, nổ kép; cùng tầng canvas z-index 0, hỗ trợ Light/Dark, `prefers-reduced-motion`, vòng lặp tự dừng khi hết hạt), ngày thường vẫn là sao băng; thêm `?fireworks=1` vào URL để xem thử. Lịch nghỉ phép không đổi giao diện. Chạy `npm run db:migrate` trước khi bật job.
 
 2026-10-09 — **Nghỉ phép: tài khoản nội bộ chưa gắn hồ sơ nhân sự vẫn gửi được đơn xin nghỉ (migration `0042`)**: mọi tài khoản nội bộ đang hoạt động (trừ Khách) dù chưa được liên kết với hồ sơ `hr_employees` vẫn có thể tự gửi đơn xin nghỉ phép qua giao diện web; cơ sở lấy từ đơn, giờ làm việc áp dụng mặc định cố định sáng 07:45 / chiều 12:30. Cột `hr_leave_submissions.hr_employee_id` chuyển sang nullable.
 

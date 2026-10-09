@@ -140,11 +140,27 @@ async function createNotification({ recipientUserId, type, title, message, relat
  * Tạo cùng 1 thông báo cho nhiều người nhận (vd: toàn bộ Quản lý).
  */
 async function createNotificationForUsers(recipientUserIds, payload) {
-  const created = [];
-  for (const recipientUserId of recipientUserIds) {
-    created.push(await createNotification({ ...payload, recipientUserId }));
-  }
-  return created;
+  const ids = Array.from(recipientUserIds || []);
+  if (!ids.length) return [];
+  if (!payload || !payload.type) throw new Error('Thiếu type khi tạo thông báo.');
+  if (ids.some(id => !id)) throw new Error('Thiếu recipientUserId khi tạo thông báo.');
+  // Đẩy tất cả rồi ghi file đúng 1 lần (trước đây ghi lại cả file cho từng người nhận).
+  const notifications = ensureLoaded();
+  const createdAt = new Date().toISOString();
+  const created = ids.map(recipientUserId => ({
+    id: crypto.randomUUID(),
+    recipientUserId: String(recipientUserId),
+    type: payload.type,
+    title: payload.title || '',
+    message: payload.message || '',
+    relatedType: payload.relatedType || null,
+    relatedId: payload.relatedId || null,
+    isRead: false,
+    createdAt
+  }));
+  notifications.push(...created);
+  saveToDisk(notifications);
+  return created.map(n => ({ ...n }));
 }
 
 async function listForUser(userId, { unreadOnly } = {}) {

@@ -41,6 +41,7 @@
 - **Trạng thái nhân sự (`employment_status`):** Tách biệt trạng thái làm việc `active` (Đang làm việc) và `resigned` (Đã nghỉ việc) khỏi xóa mềm `is_active` (migration `0041`). Chuyển sang `resigned` tự động khóa tài khoản liên kết (`lock_reason = 'hr_resigned'`); chuyển lại `active` tự động mở khóa.
 - **Lịch làm việc & Hạn nộp đơn:** Giờ làm việc cố định toàn công ty là sáng **07:45** và chiều **12:30** (`hr_leave_work_schedules`, migration `0038`). Đơn tự động phân loại `timing_status` (`Đúng hạn`, `Xin muộn`, `Vi phạm`).
 - **Tài khoản nội bộ chưa gắn nhân sự gửi đơn:** Mọi tài khoản nội bộ hoạt động (trừ Khách) dù chưa liên kết `hr_employee_id` vẫn được phép gửi đơn nghỉ web (migration `0042`).
+- **Ngày đặc biệt:** danh mục ngày lễ + sinh nhật 27/10 ở `public/shared/special-days.js` (UMD, giờ VN); `notifications/specialDayNotifier.js` báo chuông cho tài khoản có `hr.leave` (bảng `special_day_notice_log` chống trùng, cờ `SPECIAL_DAYS_NOTIFY_ENABLED`); `shooting-star.js` đổi sang `fireworks.js` vào các ngày này (`?fireworks=1` để xem thử). Lịch nghỉ phép không đổi.
 - **Bot quản lý nghỉ phép:** Chạy webhook trong Express với secret header; gửi thông báo duyệt/từ chối kèm Mini App lý do; chống tranh chấp bằng `decision_version`.
 
 ### 2.4. Sổ quỹ & Báo cáo
@@ -51,7 +52,7 @@
 
 ---
 
-## 3. Bản đồ Migration Cơ sở dữ liệu (0001 – 0042)
+## 3. Bản đồ Migration Cơ sở dữ liệu (0001 – 0043)
 
 | Dải Migration | Phân hệ & Nội dung chính |
 |---|---|
@@ -67,6 +68,7 @@
 | `0036–0037` | Báo cáo kinh doanh tháng chốt cứng (`business_monthly_*`), bảng phân chia Team sale `sale_teams`. |
 | `0038–0040` | Lịch làm việc & hạn nộp nghỉ phép (`hr_leave_work_schedules`, `hr_leave_submissions`), tài liệu Phúc lợi `phuc-loi`, `account_audit_log`. |
 | `0041–0042` | Trạng thái nhân sự `employment_status` (`active`/`resigned`), đơn nghỉ phép cho tài khoản nội bộ chưa gắn nhân sự (`hr_employee_id` nullable). |
+| `0043` | `special_day_notice_log` — chống gửi trùng thông báo ngày lễ/sinh nhật. |
 
 ---
 

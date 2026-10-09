@@ -273,3 +273,7 @@ Dữ liệu chỉ đọc, giữ kết quả công thức, không gộp trùng S�
 Người duyệt đang hoạt động, có `hr.leave.manage`, phòng ban được cấp và cơ sở được gán phù hợp với đơn; nhân viên được cấp quyền cũng được duyệt và được tự duyệt. Gửi tất cả người phù hợp, một quyết định thành công chốt phiên bản. Nếu không có người phù hợp, dùng quản trị cao nhất đang hoạt động; thiếu cả dự phòng thì giữ chờ và cảnh báo. Telegram ID/Start chỉ quyết định khả năng giao tin, không quyết định có người duyệt web.
 
 Nhân viên HR hoạt động tự gửi đơn web bằng danh tính server, giữ phòng ban lúc gửi, tính thời gian Việt Nam. Quản lý mới chọn phòng ban; quản lý cũ mọi phòng ban một lần; cấp nhân viên lần đầu mặc định phòng ban mình, grant không đổi theo chuyển phòng ban. Tự ý nghỉ có quyền riêng. Web/Telegram version chống ghi đè; web sửa/mở lại. Mini App có tên nhân viên,lý do tùy chọn500 ký tự,OK/Hủy; `/donnghi`10 đơn/trang. Bảng người dùng chọn trường theo danh mục Excel,tên cố định,lưu riêng tài khoản,mặc định lọc hoạt động. [Hợp đồng](../hr-leave-upgrade.md). Migration `0031` và staging trước production.
+
+## Bổ sung 09/10/2026 — ngày đặc biệt
+
+Nhu cầu: nhắc mọi người dùng nội bộ biết ngày lễ Việt Nam và sinh nhật Nguyễn Ngọc Việt Thắng (27/10) ngay trên web, không cần thêm kênh khác. Giải pháp: thông báo chuông cho tài khoản có quyền xem lịch nghỉ phép và hiệu ứng pháo hoa thay sao băng trong các ngày đó; lịch nghỉ phép giữ nguyên. Ngày nghỉ bù hoặc nghỉ thêm do Chính phủ công bố từng năm không được tự tính.

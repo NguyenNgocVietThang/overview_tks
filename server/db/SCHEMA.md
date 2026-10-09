@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0042`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0043`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -57,8 +57,9 @@ Ba hệ định danh này khác nhau. Code sync phải nhận `branch` rõ ràng
 | `hr_leave_work_schedules` | Lịch làm việc theo ngày và nhân viên (0038) | `(employee_id, work_date)` | `morning_start`, `afternoon_start`, `version` |
 | `hr_leave_submissions` | Lịch sử gửi đơn nghỉ phép bất biến kèm hạn nộp và snapshot (0038, 0042) | `(request_id, submission_revision)` | `hr_employee_id`, `leave_sessions`, `timing_status`, `thoi_gian_gui` |
 | `account_audit_log` | Nhật ký thao tác quản trị tài khoản bất biến (0040) | `id` | `action`, `actor_username`, `target_username`, `changes`, `created_at` |
+| `special_day_notice_log` | Đánh dấu ngày lễ/sinh nhật đã báo lên chuông thông báo (0043) | `(day_key, event_key)` | `sent_at` |
 
-Ngoài 18 bảng nghiệp vụ trên còn có bảng raw webhook, bảng tiến độ backfill, và runner quản lý bảng kỹ thuật `schema_migrations(filename, applied_at)` để mỗi file SQL chỉ được áp dụng một lần.
+Ngoài 19 bảng nghiệp vụ trên còn có bảng raw webhook, bảng tiến độ backfill, và runner quản lý bảng kỹ thuật `schema_migrations(filename, applied_at)` để mỗi file SQL chỉ được áp dụng một lần.
 
 ### Tài khoản đăng nhập và nhân sự (migration `0009`)
 
@@ -386,3 +387,11 @@ Migration `0042_hr_leave_unlinked_accounts.sql` gỡ bỏ ràng buộc bắt bu�
   - Cơ sở của đơn được lấy trực tiếp từ `NEW.branch` do người gửi chọn trên form web.
   - Áp dụng giờ bắt đầu ca làm việc cố định toàn công ty: ca Sáng lúc **07:45**, ca Chiều lúc **12:30** (dòng lịch riêng trong `hr_leave_work_schedules` nếu có sẽ ghi đè).
   - Tự động tính hạn nộp và gán nhãn `timing_status` (`Đúng hạn`, `Xin muộn`, `Vi phạm`) đồng bộ với toàn bộ quy tắc nghỉ phép hiện hành.
+
+## Ngày đặc biệt — migration 0043
+
+Migration `0043_special_day_notice_log.sql` tạo bảng `special_day_notice_log(day_key DATE, event_key TEXT, sent_at TIMESTAMPTZ DEFAULT now())`, khóa chính `(day_key, event_key)`. Không chứa dữ liệu cá nhân.
+
+- Danh mục ngày lễ/sinh nhật nằm trong code (`public/shared/special-days.js`), không lưu DB.
+- Job `notifications/specialDayNotifier.js` chỉ gửi khi `INSERT ... ON CONFLICT DO NOTHING RETURNING` chèn được dòng; gửi lỗi hoặc chưa có người nhận thì xóa dòng để lần quét sau thử lại.
+- Thông báo vẫn lưu ở `data/notifications.json` (chuông), nên bảng này mới là nguồn chống gửi trùng — người dùng xóa thông báo cũng không khiến job gửi lại.

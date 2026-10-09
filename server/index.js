@@ -11,6 +11,7 @@ const { captureWebhookRawBody, webhookJsonErrorHandler } = require('./kiotviet/k
 const { pageGuard } = require('./auth/pageGuard');
 const { createLeaveDbRealtime } = require('./hr/hrLeaveDbRealtime');
 const { getConfiguredManagerLeaveRuntime } = require('./telegram/managerLeaveRuntime');
+const { startSpecialDayNotifySchedule } = require('./notifications/specialDayNotifier');
 
 process.on('uncaughtException', (err) => {
   console.error('[Process] Uncaught exception:', err);
@@ -136,6 +137,9 @@ async function startServer() {
     const managerLeaveRuntime = getConfiguredManagerLeaveRuntime();
     if (managerLeaveRuntime) managerLeaveRuntime.start();
 
+    // Ngay le / sinh nhat -> chuong thong bao. Khong nam trong startPollingScheduler vi
+    // scheduler do tat khi khong bat KiotViet.
+    if (CONFIG.SPECIAL_DAYS_NOTIFY_ENABLED) startSpecialDayNotifySchedule();
 
     if (CONFIG.KIOTVIET_SYNC_ENABLED || CONFIG.KIOTVIET_CASHBOOK_SYNC_ENABLED) {
       startPollingScheduler();

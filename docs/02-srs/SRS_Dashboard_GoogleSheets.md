@@ -627,3 +627,13 @@ Ngày hiển thị `dd/MM/yyyy HH:mm` hoặc `dd/MM/yyyy` theo Asia/Ho_Chi_Minh 
 Người duyệt đang hoạt động, có `hr.leave.manage`, phòng ban được cấp và cơ sở được gán phù hợp với đơn; nhân viên được cấp quyền cũng được duyệt và được tự duyệt. Gửi tất cả người phù hợp, một quyết định thành công chốt phiên bản. Nếu không có người phù hợp, dùng quản trị cao nhất đang hoạt động; thiếu cả dự phòng thì giữ chờ và cảnh báo. Telegram ID/Start chỉ quyết định khả năng giao tin, không quyết định có người duyệt web.
 
 Nhân viên HR hoạt động tự gửi đơn web bằng danh tính server, giữ phòng ban lúc gửi, tính thời gian Việt Nam. Quản lý mới chọn phòng ban; quản lý cũ mọi phòng ban một lần; cấp nhân viên lần đầu mặc định phòng ban mình, grant không đổi theo chuyển phòng ban. Tự ý nghỉ có quyền riêng. Web/Telegram version chống ghi đè; web sửa/mở lại. Mini App có tên nhân viên,lý do tùy chọn500 ký tự,OK/Hủy; `/donnghi`10 đơn/trang. Bảng người dùng chọn trường theo danh mục Excel,tên cố định,lưu riêng tài khoản,mặc định lọc hoạt động. [Hợp đồng](../hr-leave-upgrade.md). Migration `0031` và staging trước production.
+
+## Bổ sung 09/10/2026 — ngày đặc biệt
+
+| Mã | Yêu cầu |
+|---|---|
+| FR-20.1 | Hệ thống có danh mục ngày đặc biệt dùng chung server và trình duyệt: Tết Dương lịch 1/1, 8/3, 30/4, 1/5, 2/9, 20/10, 20/11, Giáng sinh 25/12, Giao thừa, mùng 1–3 Tết, Giỗ Tổ 10/3 âm lịch, Trung thu 15/8 âm lịch và sinh nhật 27/10. Ngày luôn tính theo giờ Việt Nam. |
+| FR-20.2 | Đúng ngày đặc biệt, hệ thống gửi đúng một thông báo vào chuông cho mỗi tài khoản đang hoạt động có quyền `hr.leave`; quét lặp hoặc khởi động lại không gửi trùng; gửi lỗi thì lần quét sau thử lại. |
+| FR-20.3 | Ngày 27/10 thông báo có nội dung "Hôm nay là sinh nhật Nguyễn Ngọc Việt Thắng BA". |
+| FR-20.4 | Trong ngày đặc biệt, click vào vùng không phải điều khiển tương tác tạo pháo hoa nhiều màu thay cho sao băng; ngày thường giữ sao băng. Hiệu ứng nằm cùng tầng nền, hỗ trợ giao diện Sáng/Tối, giảm chuyển động theo `prefers-reduced-motion` và tự dừng khi không còn hạt. |
+| FR-20.5 | Lịch nghỉ phép không hiển thị thêm ngày lễ; chỉ thông báo chuông và hiệu ứng thay đổi. Cờ `SPECIAL_DAYS_NOTIFY_ENABLED=false` tắt việc gửi thông báo. |
