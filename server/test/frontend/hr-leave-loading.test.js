@@ -18,6 +18,123 @@ function fakeCan(vaiTro) {
 
 const htmlPath = path.join(__dirname, '..', '..', 'public', 'humanresources', 'index.html');
 
+async function calendarPage(t) {
+  const html = fs.readFileSync(htmlPath, 'utf8');
+  const dom = new JSDOM(html, { runScripts: 'outside-only', pretendToBeVisual: true, url: 'https://tokosi.example/humanresources/#leave' });
+  const { window } = dom;
+  t.after(async () => {
+    window.dispatchEvent(new window.Event('pagehide'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    window.close();
+  });
+  const sources = [];
+  const urls = [];
+  const regular = {
+    request_id: 'regular', ho_ten: 'Nguyễn A', web_username: 'nguyena', bo_phan: 'SALE', co_so: 'Hà Nội',
+    trang_thai: 'Chưa duyệt', start_date: '2026-10-02', end_date: '2026-10-04',
+    start_session: 'Sáng', end_session: 'Chiều', tong_buoi_nghi: 6, tong_ngay_nghi: 3
+  };
+  const requests = [regular, { ...regular, request_id: 'gap', leave_sessions: [
+    { date: '2026-10-02', session: 'Sáng' }, { date: '2026-10-04', session: 'Chiều' }
+  ] }, { ...regular, request_id: 'approved', trang_thai: 'Đã duyệt' }];
+  window.fetch = async url => {
+    urls.push(String(url));
+    const payload = String(url).includes('/summary/') ? { summary: [] } : { requests };
+    return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => payload };
+  };
+  window.EventSource = class { constructor() { sources.push(this); } close() { this.closed = true; } };
+  window.eval(fs.readFileSync(path.join(__dirname, '../../public/shared/shared-nav.js'), 'utf8'));
+  window.TKSNav._now = () => new Date(2026, 9, 2);
+  const user = { username: 'manager', permissions: ['hr.leave', 'hr.leave.manage'], branches: ['Hà Nội', 'Sài Gòn'] };
+  window.TKSNav.setPermissions(user);
+  window.TKSNav.authGuard = async () => user;
+  window.TKSNav.renderTopSidebar = () => {};
+  [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
+    .map(match => match[1]).filter(script => script.trim()).forEach(script => window.eval(
+      script + (script.includes('const leavePaging') ? '\nwindow.__testLeavePaging = leavePaging;' : '')
+    ));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  return { window, document: window.document, sources, urls, regular };
+}
+
+test('embedded day click keeps filters, resets pagination and excludes actual session gaps from table and KPIs', async t => {
+  const { window, document, urls } = await calendarPage(t);
+  assert.equal(document.getElementById('fromDateFilter').value, '');
+  assert.equal(document.getElementById('statusFilter').value, 'Chưa duyệt');
+  document.getElementById('employeeSearchInput').value = 'Nguyễn';
+  document.getElementById('branchFilter').value = 'Hà Nội';
+  document.getElementById('departmentFilter').innerHTML += '<option value="SALE">SALE</option>';
+  document.getElementById('departmentFilter').value = 'SALE';
+  window.__testLeavePaging.page = 4;
+  document.querySelector('#leaveCalendar [data-date="2026-10-03"]').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(document.getElementById('fromDateFilter').value, '2026-10-03');
+  assert.equal(document.getElementById('toDateFilter').value, '2026-10-03');
+  assert.equal(window.__testLeavePaging.page, 1);
+  const query = new URL(urls.filter(url => url.startsWith('/api/hr/leave-requests?')).at(-1), window.location.origin).searchParams;
+  assert.equal(query.get('employee'), 'Nguyễn');
+  assert.equal(query.get('branch'), 'Hà Nội');
+  assert.equal(query.get('department'), 'SALE');
+  assert.equal(document.getElementById('statusFilter').value, 'Chưa duyệt');
+  assert.deepEqual([...document.querySelectorAll('#leaveTableBody [data-request-id]')].map(row => row.dataset.requestId), ['regular']);
+  assert.equal(document.getElementById('statPending').textContent, '1');
+  assert.equal(document.getElementById('statApproved').textContent, '1');
+});
+
+test('manual single-day filters synchronize calendar; multiple days clear selection; leaving subtab stops calendar', async t => {
+  const { window, document, sources } = await calendarPage(t);
+  document.getElementById('fromDateFilter').value = '2027-02-05';
+  document.getElementById('toDateFilter').value = '2027-02-05';
+  window.handleFilterChange();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(document.querySelector('#leaveCalendar .is-selected').dataset.date, '2027-02-05');
+  document.getElementById('toDateFilter').value = '2027-02-06';
+  window.handleFilterChange();
+  assert.equal(document.querySelector('#leaveCalendar .is-selected'), null);
+  window.TKSNav.setPermissions({ permissions: ['hr.leave', 'hr.rules'] });
+  window.switchHrSubtab('quydinh');
+  assert.equal(sources[0].closed, true);
+  const count = sources.length;
+  window.switchHrSubtab('leave');
+  assert.equal(sources.length, count + 1);
+});
+
+test('SSE date changes remove a request that no longer has a session on the selected day', async t => {
+  const { window, document, sources, regular } = await calendarPage(t);
+  document.querySelector('#leaveCalendar [data-date="2026-10-03"]').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const tableStream = sources[1];
+  tableStream.onmessage({ data: JSON.stringify({ type: 'LEAVE_STATUS_CHANGED', data: {
+    ...regular, leave_sessions: [{ date: '2026-10-04', session: 'Sáng' }]
+  } }) });
+  assert.equal(document.getElementById('leave-row-regular'), null);
+  assert.equal(document.getElementById('statPending').textContent, '0');
+  tableStream.onmessage({ data: JSON.stringify({ type: 'LEAVE_REQUEST_CREATED', data: {
+    ...regular, request_id: 'half', leave_sessions: [{ date: '2026-10-03', session: 'Chiều' }]
+  } }) });
+  assert.ok(document.getElementById('leave-row-half'));
+  assert.equal(document.getElementById('statPending').textContent, '1');
+});
+
+test('rapid day selection ignores an older table response arriving after the latest response', async t => {
+  const { window, document, regular } = await calendarPage(t);
+  const pending = [];
+  window.fetch = url => String(url).includes('/summary/')
+    ? Promise.resolve({ ok: true, status: 200, json: async () => ({ summary: [] }) })
+    : new Promise(resolve => pending.push(resolve));
+  document.querySelector('#leaveCalendar [data-date="2026-10-03"]').click();
+  document.querySelector('#leaveCalendar [data-date="2026-10-04"]').click();
+  const reply = request => ({ ok: true, status: 200, json: async () => ({ requests: [request] }) });
+  pending[1](reply({ ...regular, request_id: 'new', start_date: '2026-10-04', end_date: '2026-10-04' }));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  pending[0](reply({ ...regular, request_id: 'old' }));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(document.getElementById('fromDateFilter').value, '2026-10-04');
+  assert.ok(document.getElementById('leave-row-new'));
+  assert.equal(document.getElementById('leave-row-old'), null);
+});
+
 test('người dùng thường mặc định chỉ tải các lịch nghỉ giao với ngày hôm nay', async () => {
   const html = fs.readFileSync(htmlPath, 'utf8');
   const dom = new JSDOM(html, {

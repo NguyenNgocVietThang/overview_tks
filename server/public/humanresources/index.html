@@ -42,13 +42,18 @@
   .hr-subtab-panel{ display:none; }
   .hr-subtab-panel.active{ display:block; }
 
-  .kpi-row{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; margin-bottom:20px; }
-  @media (max-width:800px){ .kpi-row{ grid-template-columns:repeat(2, minmax(0, 1fr)); } }
-  /* Dien thoai: giu 2 cot (so lieu ngan), the le cuoi trai het chieu ngang */
+  .leave-overview{ display:grid; grid-template-columns:240px minmax(0, 1fr); gap:14px; margin-bottom:20px; }
+  .leave-kpi-panel{ padding:16px; background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-lg); }
+  .kpi-row{ display:grid; grid-template-columns:minmax(0, 1fr); grid-template-rows:repeat(4, 1fr); gap:12px; height:100%; }
+  .leave-calendar-panel{ min-width:0; background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px; }
+  .leave-calendar-panel[hidden]{ display:none; }
+  .leave-calendar-panel h3{ margin:0 0 12px; color:var(--text); font-family:var(--font-display); font-size:15px; }
+  .leave-calendar-panel .tks-cal-inline{ border:0; padding:0; border-radius:0; }
+  @media (max-width:800px){ .leave-overview{ grid-template-columns:minmax(0, 1fr); } }
   @media (max-width:480px){
     .kpi-row{ gap:10px; }
     .kpi-row .kpi-stat{ padding:12px 14px; }
-    .kpi-row .kpi-stat:last-child:nth-child(odd){ grid-column:1 / -1; }
+    .leave-kpi-panel, .leave-calendar-panel{ padding:12px; }
   }
   .kpi-stat{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px 16px; }
   .kpi-stat .lbl{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
@@ -419,6 +424,8 @@
 
         <div class="hr-subtab-panel active" id="hrSubtab-leave" role="tabpanel">
         <!-- KPI -->
+        <div class="leave-overview">
+        <section class="leave-kpi-panel" aria-label="Chỉ số nghỉ phép">
         <div class="kpi-row">
           <div class="kpi-stat kpi-amber">
             <div class="lbl">Chưa duyệt</div>
@@ -436,6 +443,12 @@
             <div class="lbl">Vi phạm</div>
             <div class="val" id="statViolation">0</div>
           </div>
+        </div>
+        </section>
+        <section class="leave-calendar-panel" aria-labelledby="leaveCalendarHeading" hidden>
+          <h3 id="leaveCalendarHeading">Lịch nghỉ phép</h3>
+          <div id="leaveCalendar" aria-label="Chọn ngày nghỉ để lọc bảng"></div>
+        </section>
         </div>
 
         <!-- Toolbar -->
@@ -1428,6 +1441,38 @@
     // ---------- Tab con (Nghi phep, ...) ----------
     // Tab con -> quyen tuong ung (khop requireFeature o server/hr/hrLeaveRoutes.js).
     const HR_SUBTAB_FEATURE = { quydinh: 'hr.rules', danhsach: 'hr.employees', leave: 'hr.leave' };
+    let embeddedLeaveCalendar = null;
+
+    function syncLeaveCalendarSelection(){
+      if(!embeddedLeaveCalendar) return;
+      const from = document.getElementById('fromDateFilter').value;
+      const to = document.getElementById('toDateFilter').value;
+      embeddedLeaveCalendar.setSelected(from && from === to ? from : '');
+    }
+
+    function updateLeaveCalendarVisibility(){
+      if(!embeddedLeaveCalendar) return;
+      const visible = document.getElementById('hrSubtab-leave').classList.contains('active') && !document.hidden;
+      if(visible) embeddedLeaveCalendar.start();
+      else embeddedLeaveCalendar.stop();
+    }
+
+    function initEmbeddedLeaveCalendar(){
+      if(!hrCan('hr.leave') || !window.TKSNav.mountLeaveCalendar || embeddedLeaveCalendar) return;
+      embeddedLeaveCalendar = window.TKSNav.mountLeaveCalendar(document.getElementById('leaveCalendar'), {
+        onSelectDate(iso){
+          document.getElementById('fromDateFilter').value = iso;
+          document.getElementById('toDateFilter').value = iso;
+          handleFilterChange();
+        }
+      });
+      if(!embeddedLeaveCalendar) return;
+      document.querySelector('.leave-calendar-panel').hidden = false;
+      syncLeaveCalendarSelection();
+      updateLeaveCalendarVisibility();
+      window.addEventListener('pagehide', () => embeddedLeaveCalendar.stop());
+      window.addEventListener('pageshow', updateLeaveCalendarVisibility);
+    }
 
     /** Quyen cua phien hien tai — nguon: user.permissions tu /api/auth/me. */
     function hrCan(feature){
@@ -1469,6 +1514,7 @@
       document.querySelectorAll('.hr-subtab-panel').forEach(panel => {
         panel.classList.toggle('active', panel.id === `hrSubtab-${name}`);
       });
+      updateLeaveCalendarVisibility();
       document.querySelectorAll('#tksHrGroupList .nav-item').forEach(item => {
         const active = item.dataset.hrSubtab === name;
         item.classList.toggle('active', active);
@@ -1628,6 +1674,15 @@
       const department = document.getElementById('departmentFilter').value;
       if(branch && request.co_so !== branch) return false;
       if(department && departmentKey(request.bo_phan) !== departmentKey(department)) return false;
+      const employee = departmentKey(document.getElementById('employeeSearchInput').value);
+      if(employee && !departmentKey(request.ho_ten).includes(employee) && !departmentKey(request.web_username).includes(employee)) return false;
+      const from = document.getElementById('fromDateFilter').value;
+      const to = document.getElementById('toDateFilter').value;
+      if(from && request.end_date && request.end_date < from) return false;
+      if(to && request.start_date && request.start_date > to) return false;
+      if(from && from === to && window.TKSNav._leaveCalendar &&
+        (Array.isArray(request.leave_sessions) || (request.start_date && request.end_date)) &&
+        !window.TKSNav._leaveCalendar.dayCoverage(request, from)) return false;
       return true;
     }
 
@@ -1642,7 +1697,7 @@
     }
 
     // ---------- Load danh sach ----------
-    function handleFilterChange(){ leavePaging.page = 1; loadLeaveRequests(); }
+    function handleFilterChange(){ syncLeaveCalendarSelection(); leavePaging.page = 1; loadLeaveRequests(); }
 
     // Trang thai loc phia client (khong gui len API) de o KPI van dem du moi trang thai
     // ke ca khi bang dang chi hien "Chua duyet".
@@ -1650,10 +1705,13 @@
 
     function visibleLeaveRequests(requests){
       const status = document.getElementById('statusFilter').value;
-      return status ? requests.filter(r => status === 'Vi phạm' ? r.timing_status === 'Vi phạm' || r.trang_thai === 'Vi phạm' : r.trang_thai === status) : requests;
+      const scoped = requests.filter(matchesLeaveScope);
+      return status ? scoped.filter(r => status === 'Vi phạm' ? r.timing_status === 'Vi phạm' || r.trang_thai === 'Vi phạm' : r.trang_thai === status) : scoped;
     }
 
+    let leaveLoadVersion = 0;
     async function loadLeaveRequests(silent){
+      const version = ++leaveLoadVersion;
       const tbody = document.getElementById('leaveTableBody');
       const employee = document.getElementById('employeeSearchInput').value.trim();
       const fromDate = document.getElementById('fromDateFilter').value;
@@ -1671,6 +1729,7 @@
       try{
         const res = await fetch(`/api/hr/leave-requests?${params.toString()}`, { credentials: 'same-origin' });
         const { ok, data } = await parseApiResponse(res);
+        if(version !== leaveLoadVersion) return;
         if(!ok){
           if(!silent) tbody.innerHTML = `<tr class="empty-row"><td colspan="9">${escapeHtml(data.error || 'Không tải được danh sách.')}</td></tr>`;
           return;
@@ -1680,6 +1739,7 @@
         renderTable(rawLeaveRequests);
         if(hrCan('hr.leave')) loadUrgentSummary();
       }catch(err){
+        if(version !== leaveLoadVersion) return;
         if(!silent) tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Lỗi kết nối máy chủ.</td></tr>';
       }
     }
@@ -1697,7 +1757,7 @@
 
     function renderStats(requests){
       const counts = { 'Chưa duyệt': 0, 'Đã duyệt': 0, 'Từ chối': 0, 'Vi phạm': 0 };
-      requests.forEach(r => { if(r.trang_thai !== 'Vi phạm' && counts.hasOwnProperty(r.trang_thai)) counts[r.trang_thai]++; if(r.timing_status === 'Vi phạm' || r.trang_thai === 'Vi phạm') counts['Vi phạm']++; });
+      requests.filter(matchesLeaveScope).forEach(r => { if(r.trang_thai !== 'Vi phạm' && counts.hasOwnProperty(r.trang_thai)) counts[r.trang_thai]++; if(r.timing_status === 'Vi phạm' || r.trang_thai === 'Vi phạm') counts['Vi phạm']++; });
       document.getElementById('statPending').textContent = counts['Chưa duyệt'];
       document.getElementById('statApproved').textContent = counts['Đã duyệt'];
       document.getElementById('statRejected').textContent = counts['Từ chối'];
@@ -2582,7 +2642,19 @@
             const payload = JSON.parse(event.data);
             if(!payload || !payload.type) return;
 
-            if(payload.data && !matchesLeaveScope(payload.data)) return;
+            if(payload.data){
+              const index = rawLeaveRequests.findIndex(r => r.request_id === payload.data.request_id);
+              const candidate = index === -1 ? payload.data : { ...rawLeaveRequests[index], ...payload.data };
+              if(!matchesLeaveScope(candidate)){
+                if(index !== -1){
+                  rawLeaveRequests.splice(index, 1);
+                  renderStats(rawLeaveRequests);
+                  renderTable(rawLeaveRequests);
+                }
+                return;
+              }
+              payload.data = candidate;
+            }
 
             if(payload.type === 'LEAVE_STATUS_CHANGED' && payload.data){
               const updated = payload.data;
@@ -2651,6 +2723,7 @@
           applyHrSubtabFromHash();
           initSortableTables();
           initDefaultLeaveFilters();
+          initEmbeddedLeaveCalendar();
           if(hrCan('hr.rules')) loadRuleDocuments();
           if(hrCan('hr.leave') || hrCan('hr.leave.submit')) loadLeaveRequests();
           if(hrCan('hr.leave.submit') || hrCan('hr.leave.manage') || hrCan('hr.leave')) loadSelfLeaveContext().catch(err => showToast(err.message, 'error'));
@@ -2661,6 +2734,7 @@
       }
 
       document.addEventListener('visibilitychange', () => {
+        updateLeaveCalendarVisibility();
         if(document.visibilityState === 'visible'){
           if(ruleDocState.status === 'ready') loadRuleDocuments(true /* silent */);
           loadLeaveRequests(true /* silent */);

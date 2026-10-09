@@ -307,3 +307,134 @@ test('shared leave calendar detail shows stored timing separately from approval'
   assert.match(text, /30\/09\/2026 23:59:59/);
   assert.equal(document.querySelector('.tks-cal-status').textContent, 'Đã duyệt');
 });
+
+function mountInline(window, document, onSelectDate) {
+  const mount = document.createElement('section');
+  document.body.appendChild(mount);
+  window.TKSNav.setPermissions(fakeUser('Trợ lý'));
+  const controller = window.TKSNav.mountLeaveCalendar(mount, { onSelectDate });
+  return { mount, controller };
+}
+
+test('inline calendar shows month without a detail list; only day/today clicks notify the table', async t => {
+  const { window, document } = createEnv(t, okFetch([leave()]));
+  const chosen = [];
+  const { mount, controller } = mountInline(window, document, iso => chosen.push(iso));
+  controller.start();
+  await tick();
+  assert.equal(mount.querySelector('.tks-cal-list'), null);
+  assert.equal(mount.querySelector('.is-selected'), null);
+  assert.equal(mount.querySelector('.tks-cal-count').textContent, '1');
+  mount.querySelector('[data-date="2026-10-05"]').click();
+  assert.deepEqual(chosen, ['2026-10-05']);
+  mount.querySelector('[data-nav="1"]').click();
+  await tick();
+  assert.deepEqual(chosen, ['2026-10-05']);
+  mount.querySelector('[data-today]').click();
+  await tick();
+  assert.deepEqual(chosen, ['2026-10-05', '2026-10-02']);
+  assert.equal(mount.querySelector('.is-selected').dataset.date, '2026-10-02');
+});
+
+test('inline selection can be synchronized without calling the date callback or fetching while stopped', async t => {
+  const urls = [];
+  const { window, document } = createEnv(t, okFetch([], urls));
+  const chosen = [];
+  const { mount, controller } = mountInline(window, document, iso => chosen.push(iso));
+  controller.setSelected('2027-02-05');
+  assert.equal(urls.length, 0);
+  controller.start();
+  await tick();
+  assert.match(urls[0], /from=2027-02-01&to=2027-02-28/);
+  assert.equal(mount.querySelector('.is-selected').dataset.date, '2027-02-05');
+  controller.setSelected('');
+  assert.equal(mount.querySelector('.is-selected'), null);
+  assert.deepEqual(chosen, []);
+});
+
+test('inline calendar stops SSE and polling, restarts once, and ignores old month responses', async t => {
+  const pending = [];
+  const { window, document } = createEnv(t, () => new Promise(resolve => pending.push(resolve)));
+  const sources = [];
+  const timers = new Set();
+  window.EventSource = class { constructor() { sources.push(this); } close() { this.closed = true; } };
+  window.setInterval = (fn, ms) => { assert.equal(ms, 60000); timers.add(fn); return fn; };
+  window.clearInterval = fn => timers.delete(fn);
+  const { mount, controller } = mountInline(window, document);
+  controller.start(); controller.start();
+  assert.equal(sources.length, 1);
+  assert.equal(timers.size, 1);
+  controller.stop();
+  assert.equal(sources[0].closed, true);
+  assert.equal(timers.size, 0);
+  controller.start();
+  pending[1]({ ok: true, json: async () => ({ requests: [] }) });
+  await tick();
+  pending[0]({ ok: true, json: async () => ({ requests: [leave()] }) });
+  await tick();
+  assert.equal(mount.querySelector('.tks-cal-count'), null);
+  sources[1].onmessage({ data: '{"type":"LEAVE_REQUEST_CREATED"}' });
+  await new Promise(resolve => setTimeout(resolve, 350));
+  pending[2]({ ok: true, json: async () => ({ requests: [leave()] }) });
+  await tick();
+  assert.equal(mount.querySelector('.tks-cal-count').textContent, '1');
+  controller.stop();
+});
+
+test('inline load failure keeps the month grid and reports the error; permission denial makes no request', async t => {
+  const { window, document } = createEnv(t, async () => ({ ok: false }));
+  const { mount, controller } = mountInline(window, document);
+  controller.start();
+  await tick();
+  assert.equal(mount.querySelectorAll('[data-date]').length, 31);
+  assert.match(mount.textContent, /Không tải được lịch nghỉ/);
+  assert.doesNotMatch(mount.textContent, /Không có ai nghỉ/);
+  controller.stop();
+  window.TKSNav.setPermissions(fakeUser('Khách'));
+  const denied = document.createElement('section');
+  assert.equal(window.TKSNav.mountLeaveCalendar(denied), null);
+  assert.equal(denied.children.length, 0);
+});
+
+test('inline navigation ignores a late response for another month and retains keyboard focus after refresh', async t => {
+  const pending = [];
+  const { window, document } = createEnv(t, () => new Promise(resolve => pending.push(resolve)));
+  const { mount, controller } = mountInline(window, document);
+  controller.start();
+  mount.querySelector('[data-nav="1"]').click();
+  pending[1]({ ok: true, json: async () => ({ requests: [] }) });
+  await tick();
+  pending[0]({ ok: true, json: async () => ({ requests: [leave()] }) });
+  await tick();
+  assert.match(mount.querySelector('.tks-cal-title').textContent, /11\/2026/);
+  assert.equal(mount.querySelector('.tks-cal-count'), null);
+  const day = mount.querySelector('[data-date="2026-11-05"]');
+  day.focus(); day.click();
+  assert.equal(document.activeElement.dataset.date, '2026-11-05');
+  controller.stop();
+});
+
+test('inline background refresh failure preserves badges, reports the error and Today retries', async t => {
+  let broken = false;
+  let refresh;
+  let calls = 0;
+  const { window, document } = createEnv(t, async () => {
+    calls++;
+    return broken ? { ok: false } : { ok: true, json: async () => ({ requests: [leave()] }) };
+  });
+  window.setInterval = fn => { refresh = fn; return 1; };
+  window.clearInterval = () => {};
+  const { mount, controller } = mountInline(window, document);
+  controller.start();
+  await tick();
+  broken = true; refresh();
+  await tick();
+  assert.equal(mount.querySelector('.tks-cal-count').textContent, '1');
+  assert.match(mount.textContent, /Không tải được lịch nghỉ/);
+  broken = false;
+  mount.querySelector('[data-today]').click();
+  await tick();
+  assert.equal(calls, 3);
+  assert.doesNotMatch(mount.textContent, /Không tải được lịch nghỉ/);
+  controller.stop();
+});

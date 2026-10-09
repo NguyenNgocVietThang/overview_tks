@@ -739,6 +739,20 @@
 
     var btn = wrap.querySelector('#tksLeaveCalBtn');
     var dropdown = wrap.querySelector('#tksLeaveCalDropdown');
+    createLeaveCalendar(dropdown, { button: btn, wrap: wrap });
+  };
+
+  /** Inline month view. The caller controls visibility and the table's date filters. */
+  TKSNav.mountLeaveCalendar = function(mount, options){
+    if(!mount || !TKSNav.can('hr.leave')) return null;
+    mount.classList.add('tks-cal-inline');
+    return createLeaveCalendar(mount, options || {});
+  };
+
+  function createLeaveCalendar(dropdown, options){
+    var btn = options.button;
+    var wrap = options.wrap;
+    var inline = !btn;
     var isOpen = false;
 
     var today = TKSNav._now();
@@ -746,7 +760,7 @@
     var state = {
       year: today.getFullYear(),
       month: today.getMonth() + 1,
-      selected: todayIso,
+      selected: inline ? '' : todayIso,
       expandedId: '',
       cache: {},      // 'YYYY-MM' -> { byDay } | { error: true }
       loading: false
@@ -774,7 +788,7 @@
       }catch(e){ stream = null; return; }
       // Lan ket noi dau da co du lieu moi tu loadMonth(); chi bu khi noi lai sau khi mat mang.
       stream.onopen = function(){
-        if(connectedOnce) loadMonth(true);
+        if(connectedOnce && isOpen) loadMonth(true);
         connectedOnce = true;
       };
       stream.onmessage = function(event){
@@ -814,6 +828,7 @@
           // Lam moi ngam bi loi: giu du lieu dang hien de lich khong nhay mat khi mang chap chon.
           if(monthSeq[key] !== seq) return;
           if(!silent || !state.cache[key]) state.cache[key] = { error: true };
+          else state.cache[key].refreshError = true;
         })
         .then(function(){
           if(seq !== requestSeq) return;
@@ -863,6 +878,14 @@
     }
 
     function render(){
+      var now = TKSNav._now();
+      todayIso = calIso(now.getFullYear(), now.getMonth() + 1, now.getDate());
+      // Replacing the month DOM must preserve keyboard focus, including on SSE refresh.
+      var focused = dropdown.contains(document.activeElement) ? document.activeElement : null;
+      var focusKey = focused && (focused.getAttribute('data-date') || focused.getAttribute('data-nav') ||
+        (focused.hasAttribute('data-today') ? 'today' : ''));
+      var focusAttribute = focused && (focused.hasAttribute('data-date') ? 'data-date' : 'data-nav');
+      var focusItem = focused && focused.closest('.tks-cal-item');
       var data = state.cache[monthKey()];
       var byDay = (data && data.byDay) || {};
       var offset = (new Date(state.year, state.month - 1, 1).getDay() + 6) % 7;
@@ -880,7 +903,8 @@
           (iso === todayIso ? ' aria-current="date"' : '') +
           ' aria-label="' + d + ' tháng ' + state.month + (n ? ', ' + n + ' người nghỉ' : '') + '">' +
           '<span class="tks-cal-num">' + d + '</span>' +
-          (n ? '<span class="tks-cal-count">' + n + '</span>' : '') +
+          '<span class="tks-cal-count-slot" aria-hidden="true">' +
+            (n ? '<span class="tks-cal-count">' + n + '</span>' : '') + '</span>' +
         '</button>';
       }
 
@@ -905,11 +929,25 @@
         '</div>' +
         '<div class="tks-cal-weekdays">' + LEAVE_CAL_WEEKDAYS.map(function(w){ return '<span>' + w + '</span>'; }).join('') + '</div>' +
         '<div class="tks-cal-grid">' + cells + '</div>' +
+        (inline ? '<p class="tks-cal-hint" role="status">' +
+          (data && (data.error || data.refreshError) ? 'Không tải được lịch nghỉ. Nhấn Hôm nay hoặc chuyển tháng để thử lại.' :
+            !data ? 'Đang tải lịch nghỉ…' : 'Chọn ngày để lọc bảng bên dưới. Số trên lịch không áp dụng bộ lọc của bảng.') + '</p>' :
         '<div class="tks-cal-list-head">Nghỉ ngày ' + calVn(state.selected) +
           (state.selected === todayIso ? ' (hôm nay)' : '') +
           (data && !data.error ? ' · ' + entries.length + ' người' : '') + '</div>' +
-        '<div class="tks-cal-list">' + listHtml + '</div>';
-      positionDropdown();
+        '<div class="tks-cal-list">' + listHtml + '</div>');
+      if(!inline) positionDropdown();
+      var nextFocus;
+      if(focusKey === 'today') nextFocus = dropdown.querySelector('[data-today]');
+      else if(focusKey) nextFocus = dropdown.querySelector('[' + focusAttribute + '="' + focusKey + '"]');
+      else if(focusItem){
+        nextFocus = Array.from(dropdown.querySelectorAll('.tks-cal-item')).find(function(item){
+          return item.getAttribute('data-id') === focusItem.getAttribute('data-id');
+        });
+        if(nextFocus) nextFocus = nextFocus.querySelector('.tks-cal-item-head');
+      }
+      if(focused && !nextFocus) nextFocus = dropdown.querySelector('[data-today]');
+      if(nextFocus) nextFocus.focus({ preventScroll: true });
     }
 
     function positionDropdown(){
@@ -931,9 +969,13 @@
     }
 
     function closeDropdown(){
-      dropdown.hidden = true;
-      btn.setAttribute('aria-expanded', 'false');
+      if(!inline){
+        dropdown.hidden = true;
+        btn.setAttribute('aria-expanded', 'false');
+      }
       isOpen = false;
+      ++requestSeq;
+      monthSeq = {};
       if(refreshTimer){ window.clearInterval(refreshTimer); refreshTimer = null; }
       stopStream();
       window.removeEventListener('resize', onViewportChange);
@@ -941,18 +983,23 @@
     }
 
     function openDropdown(){
+      if(isOpen) return;
       // Moi lan mo ve lai "hom nay" nhu mac dinh, va lay lai du lieu thang cho tuoi.
       var now = TKSNav._now();
       todayIso = calIso(now.getFullYear(), now.getMonth() + 1, now.getDate());
-      state.year = now.getFullYear();
-      state.month = now.getMonth() + 1;
-      state.selected = todayIso;
+      if(!inline){
+        state.year = now.getFullYear();
+        state.month = now.getMonth() + 1;
+        state.selected = todayIso;
+      }
       state.expandedId = '';
       dropdown.hidden = false;
-      btn.setAttribute('aria-expanded', 'true');
+      if(btn) btn.setAttribute('aria-expanded', 'true');
       isOpen = true;
-      window.addEventListener('resize', onViewportChange);
-      window.addEventListener('scroll', onViewportChange, true);
+      if(!inline){
+        window.addEventListener('resize', onViewportChange);
+        window.addEventListener('scroll', onViewportChange, true);
+      }
       loadMonth();
       render();
       refreshTimer = window.setInterval(function(){ loadMonth(true); }, LEAVE_CAL_REFRESH_MS);
@@ -965,17 +1012,19 @@
       state.month = d.getMonth() + 1;
       state.expandedId = '';
       var sameAsToday = todayIso.slice(0, 7) === monthKey();
-      state.selected = sameAsToday ? todayIso : calIso(state.year, state.month, 1);
+      if(!inline) state.selected = sameAsToday ? todayIso : calIso(state.year, state.month, 1);
       loadMonth();
       render();
     }
 
-    btn.addEventListener('click', function(){
-      if(isOpen) closeDropdown(); else openDropdown();
-    });
-    // Listener o pha capture vi nut chuong goi stopPropagation (click chuong phai dong lich).
-    document.addEventListener('click', onDocClick, true);
-    document.addEventListener('keydown', onKeydown);
+    if(btn){
+      btn.addEventListener('click', function(){
+        if(isOpen) closeDropdown(); else openDropdown();
+      });
+      // Capture: the bell stops propagation, but must still dismiss the calendar.
+      document.addEventListener('click', onDocClick, true);
+      document.addEventListener('keydown', onKeydown);
+    }
 
     dropdown.addEventListener('click', function(e){
       var target = e.target;
@@ -983,15 +1032,20 @@
       if(nav){ gotoMonth(Number(nav.getAttribute('data-nav'))); return; }
       if(target.closest && target.closest('[data-today]')){
         var now = TKSNav._now();
+        todayIso = calIso(now.getFullYear(), now.getMonth() + 1, now.getDate());
         var same = state.year === now.getFullYear() && state.month === now.getMonth() + 1;
         state.selected = todayIso;
         state.expandedId = '';
-        if(same){ render(); } else {
+        if(same){
+          if(inline && state.cache[monthKey()] && (state.cache[monthKey()].error || state.cache[monthKey()].refreshError)) loadMonth();
+          render();
+        } else {
           state.year = now.getFullYear();
           state.month = now.getMonth() + 1;
           loadMonth();
           render();
         }
+        if(inline && options.onSelectDate) options.onSelectDate(state.selected);
         return;
       }
       var day = target.closest && target.closest('[data-date]');
@@ -999,6 +1053,7 @@
         state.selected = day.getAttribute('data-date');
         state.expandedId = '';
         render();
+        if(inline && options.onSelectDate) options.onSelectDate(state.selected);
         return;
       }
       var head = target.closest && target.closest('.tks-cal-item-head');
@@ -1008,7 +1063,26 @@
         render();
       }
     });
-  };
+
+    if(inline) render();
+    return {
+      start: openDropdown,
+      stop: closeDropdown,
+      setSelected: function(iso){
+        state.selected = iso || '';
+        if(iso){
+          var parts = iso.split('-');
+          var year = Number(parts[0]), month = Number(parts[1]);
+          if(state.year !== year || state.month !== month){
+            state.year = year;
+            state.month = month;
+            if(isOpen) loadMonth();
+          }
+        }
+        render();
+      }
+    };
+  }
 
   // ---------- Modal Ho so ca nhan (dung chung moi trang) ----------
   var profileModalEls = null;
