@@ -18,6 +18,60 @@ function state(ctx) { return JSON.parse(JSON.stringify(ctx.api.getState(ctx.tabl
 function open(ctx) { ctx.doc.querySelector('.tks-columns-button').click(); return ctx.doc.querySelector('.tks-columns-picker'); }
 function toggle(ctx,key) { const picker=open(ctx); const input=picker.querySelector('[data-column-key="'+key+'"]'); input.checked=!input.checked; input.dispatchEvent(new ctx.window.Event('change',{bubbles:true})); picker.querySelector('[data-action="close"]').click(); }
 
+test('declared picker is reused and direct panel export joins one top-right action group', t => {
+  const ctx=setup(t, '<section class="panel"><div class="panel-head"><h2>Products</h2><button class="export-button" id="export">Xuất Excel</button><div class="table-search-tools">Search</div></div>'+fixture+'</section>');
+  ctx.api.enhance(ctx.table); ctx.api.refresh(ctx.table);
+  const actions=ctx.doc.querySelector('.panel-head-actions');
+  assert.ok(actions,'Actions must be in the frame header, not a separate row below it');
+  assert.equal(ctx.doc.getElementById('export').parentElement,actions);
+  assert.equal(actions.querySelectorAll('.tks-columns-button').length,1);
+  assert.equal(ctx.doc.querySelectorAll('.tks-table-tools').length,0);
+  assert.equal(actions.lastElementChild.id,'export','Export belongs at the right edge');
+});
+
+test('static table binding prevents a second generated picker before application initialization', t => {
+  const ctx=setup(t, '<div class="tks-table-tools"><button id="columns">Cột hiển thị</button><button id="export">Xuất Excel</button></div>'+fixture.replace('id="orders"','id="orders" data-columns-button="columns"'));
+  ctx.api.enhance(ctx.table); ctx.api.refresh(ctx.table);
+  assert.equal(ctx.doc.querySelectorAll('.tks-columns-button').length,1);
+  assert.equal(ctx.doc.querySelector('.tks-columns-button').id,'columns');
+  ctx.doc.getElementById('columns').click();
+  assert.ok(!ctx.doc.querySelector('.tks-columns-picker').hidden);
+});
+
+test('formatted cell markup stays compact while actual multiline data keeps its newlines', t => {
+  const ctx=setup(t, `<table><thead><tr><th>Name</th><th>Status</th><th>Notes</th></tr></thead><tbody><tr>
+    <td>
+      <div class="user-cell">
+        <div class="user-avatar">A</div>
+        <div>
+          <div class="user-name">An</div>
+          <div class="user-username">@an</div>
+        </div>
+      </div>
+    </td>
+    <td>
+      <select><option>Chưa duyệt</option></select>
+      <br><span>Đúng hạn</span>
+    </td>
+    <td>Dòng một\nDòng hai<br><span class="pill">Nhãn một\nNhãn hai</span><textarea>Dòng nhập một\nDòng nhập hai</textarea></td>
+  </tr></tbody></table>`);
+  const style=ctx.doc.createElement('style');
+  style.textContent=fs.readFileSync(path.join(__dirname,'../../public/shared/table-controls.css'),'utf8');
+  ctx.doc.head.appendChild(style);
+  const originalText=ctx.table.tBodies[0].textContent;
+  ctx.api.enhance(ctx.table);
+  assert.equal(ctx.window.getComputedStyle(ctx.table.tBodies[0].rows[0].cells[0]).whiteSpace,'normal');
+  assert.equal(ctx.window.getComputedStyle(ctx.doc.querySelector('.user-cell')).whiteSpace,'');
+  assert.equal(ctx.window.getComputedStyle(ctx.table.tBodies[0].rows[0].cells[1]).whiteSpace,'normal');
+  assert.equal(ctx.table.tBodies[0].textContent,originalText,'No data or markup whitespace is removed');
+  const lines=ctx.table.querySelectorAll('.tks-cell-text');
+  assert.deepEqual([...lines].map(el=>el.textContent),['Dòng một\nDòng hai','Nhãn một\nNhãn hai']);
+  assert.ok([...lines].every(el=>ctx.window.getComputedStyle(el).whiteSpace==='pre-wrap'));
+  assert.equal(ctx.doc.querySelector('textarea').value,'Dòng nhập một\nDòng nhập hai');
+  ctx.api.refresh(ctx.table); ctx.api.refresh(ctx.table);
+  assert.equal(ctx.table.querySelectorAll('.tks-cell-text').length,2,'Refresh never nests multiline wrappers');
+});
+
 test('column controls initialize once and hold declared widths after rows and headers are rebuilt', t => {
   const ctx=setup(t);
   assert.ok(ctx.api, 'shared table controls must be available');

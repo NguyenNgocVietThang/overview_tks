@@ -113,8 +113,21 @@
     handle.setAttribute('aria-valuemin', String(MIN_WIDTH));
     handle.setAttribute('aria-valuenow', String(Math.round(column.width)));
   }
+  function preserveTextLines(table) {
+    var walker = document.createTreeWalker(table, window.NodeFilter.SHOW_TEXT), multiline = [], node;
+    while ((node = walker.nextNode())) {
+      if (!/[\r\n]/.test(node.data) || !/\S/.test(node.data)) continue;
+      if (!node.parentElement.closest('th,td') || node.parentElement.closest('.tks-cell-text,textarea,select,option,script,style,svg')) continue;
+      multiline.push(node);
+    }
+    multiline.forEach(function (text) {
+      var span = document.createElement('span'); span.className = 'tks-cell-text';
+      text.parentNode.insertBefore(span, text); span.appendChild(text);
+    });
+  }
   function apply(ctrl) {
     var table = ctrl.table;
+    preserveTextLines(table);
     var sections = [table.tHead].concat(Array.from(table.tBodies), [table.tFoot]).filter(Boolean);
     // Remove our visibility before reading application-specific hidden columns.
     ctrl.columns.forEach(function (column, index) {
@@ -248,7 +261,7 @@
     picker.querySelector('[data-action="close"]').focus();
   }
   function installButton(ctrl) {
-    var table = ctrl.table, button = ctrl.options.button;
+    var table = ctrl.table, button = ctrl.options.button || (table.dataset.columnsButton && document.getElementById(table.dataset.columnsButton));
     if (!button) {
       var wrapper = table.parentElement;
       if (!wrapper.classList.contains('tks-table-scroll') && !/scroll|table-wrap/.test(wrapper.className)) {
@@ -256,7 +269,14 @@
         wrapper.insertBefore(scroll, table); scroll.appendChild(table); wrapper = scroll;
       }
       var panel = table.closest('.panel,.card');
-      var toolbar = panel && panel.querySelectorAll('table').length === 1 && panel.querySelector('.panel-head-actions,.card-head-actions');
+      var header = panel && panel.querySelectorAll('table').length === 1 && panel.querySelector(':scope > .panel-head,:scope > .card-head');
+      var toolbar = header && header.querySelector(':scope > .panel-head-actions,:scope > .card-head-actions');
+      if (header && !toolbar) {
+        toolbar = document.createElement('div'); toolbar.className = 'panel-head-actions';
+        var search = header.querySelector(':scope > .table-search-tools');
+        header.insertBefore(toolbar, search);
+      }
+      if (toolbar) header.querySelectorAll(':scope > button.export-button:not([data-not-export])').forEach(function (exportButton) { toolbar.appendChild(exportButton); });
       var previous = wrapper.previousElementSibling;
       var tools = toolbar || (previous && previous.classList.contains('tks-table-tools') ? previous : null);
       if (!tools) {
@@ -264,7 +284,7 @@
         wrapper.parentElement.insertBefore(tools, wrapper);
       }
       button = tools.querySelector('.tks-columns-button');
-      if (!button) { button = document.createElement('button'); tools.appendChild(button); }
+      if (!button) { button = document.createElement('button'); tools.insertBefore(button, tools.querySelector('button.export-button') || tools.firstChild); }
     }
     if (ctrl.button && ctrl.button !== button && ctrl.button.dataset.tksGenerated === 'true') {
       var oldTools = ctrl.button.parentElement; ctrl.button.remove(); if (oldTools.classList.contains('tks-table-tools') && !oldTools.childElementCount) oldTools.remove();
@@ -273,7 +293,7 @@
       button.classList.add('tks-columns-button'); button.type = 'button'; button.innerHTML = ICON + 'Cột hiển thị';
       button.setAttribute('aria-haspopup', 'dialog'); button.setAttribute('aria-expanded', 'false');
       button.title = 'Chọn cột hiển thị trong bảng';
-      if (!ctrl.options.button) button.dataset.tksGenerated = 'true';
+      if (!ctrl.options.button && !table.dataset.columnsButton) button.dataset.tksGenerated = 'true';
       button.addEventListener('click', function (event) { event.preventDefault(); openPicker(buttonControllers.get(button), button); });
     }
     buttonControllers.set(button, ctrl);

@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="/shared/shared.css?v=20261009">
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
   <link rel="stylesheet" href="/stock-locations/stock-locations.css?v=20261009-1">
-  <link rel="stylesheet" href="/shared/table-controls.css?v=20261009-1">
+  <link rel="stylesheet" href="/shared/table-controls.css?v=20261009-3">
 </head>
 <body>
   <div class="receipt-header">
@@ -60,7 +60,7 @@
         </div>
         <p id="locationStatus" class="locations-status" role="status" aria-live="polite"></p>
         <div class="locations-scroll" tabindex="0" aria-label="Bảng vị trí hàng">
-          <table class="locations-table" aria-labelledby="locationTableTitle" id="locationTable" data-table-key="locationTable">
+          <table class="locations-table" aria-labelledby="locationTableTitle" id="locationTable" data-table-key="locationTable" data-columns-button="locationColumnsButton">
             <colgroup><col class="locations-code"><col class="locations-name"><col class="locations-quantity"><col class="locations-notes"><col><col class="locations-position"></colgroup>
             <thead><tr><th scope="col" data-column-key="ma-hang">Mã hàng</th><th scope="col" data-column-key="ten-hang">Tên hàng</th><th scope="col" data-column-key="tong-sl">Tổng SL</th><th scope="col" data-column-key="ghi-chu-hang-hoa">Ghi chú hàng hóa</th><th scope="col" data-column-key="ngay-ve">Ngày về</th><th scope="col" data-column-key="vi-tri">Vị trí</th></tr></thead>
             <tbody id="locationRows"></tbody>
@@ -79,7 +79,7 @@
       </section>
     </main>
   </div>
-  <script src="/shared/table-controls.js?v=20261009-1"></script>
+  <script src="/shared/table-controls.js?v=20261009-3"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261008"></script>
   <script src="/stock-locations/stock-locations.js?v=20261009-1"></script>

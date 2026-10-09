@@ -185,18 +185,18 @@
   .row-actions .btn-mini:hover{ border-color:var(--muted); background:var(--surface-hover); }
   .row-actions .btn-mini.approve{ border-color:var(--green); color:var(--green); }
   .row-actions .btn-mini.reject{ border-color:var(--red); color:var(--red); }
-  .row-actions .export-button{
+  :is(.row-actions,.tks-table-tools) .export-button{
     min-height:32px; padding:0 12px; border:none; border-radius:var(--radius-md); cursor:pointer;
     background:var(--primary-gradient); color:var(--primary-text); font-family:var(--font-body);
     font-size:12px; font-weight:700; display:inline-flex; align-items:center; justify-content:center;
     gap:6px; box-shadow:var(--primary-shadow); white-space:nowrap;
     transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
   }
-  .row-actions .export-button svg{ width:15px; height:15px; flex:none; margin:0; vertical-align:baseline; }
-  .row-actions .export-button:hover:not(:disabled){ transform:translateY(-1px); opacity:.96; }
-  .row-actions .export-button:active:not(:disabled){ transform:translateY(1px); }
-  .row-actions .export-button:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
-  .row-actions .export-button:disabled{ opacity:.55; cursor:wait; transform:none; }
+  :is(.row-actions,.tks-table-tools) .export-button svg{ width:15px; height:15px; flex:none; margin:0; vertical-align:baseline; }
+  :is(.row-actions,.tks-table-tools) .export-button:hover:not(:disabled){ transform:translateY(-1px); opacity:.96; }
+  :is(.row-actions,.tks-table-tools) .export-button:active:not(:disabled){ transform:translateY(1px); }
+  :is(.row-actions,.tks-table-tools) .export-button:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+  :is(.row-actions,.tks-table-tools) .export-button:disabled{ opacity:.55; cursor:wait; transform:none; }
 
   .profile-card{
     background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-xl);
@@ -368,7 +368,7 @@
     .users-table th, .users-table td{ padding:10px 12px; }
   }
 </style>
-  <link rel="stylesheet" href="/shared/table-controls.css?v=20261009-1">
+  <link rel="stylesheet" href="/shared/table-controls.css?v=20261009-3">
 </head>
 <body>
   <div class="receipt-header">
@@ -465,10 +465,6 @@
             </div>
           </div>
           <div class="row-actions">
-            <button type="button" class="export-button" id="btnExportExcel" onclick="exportLeaveExcel()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-              Xuất Excel
-            </button>
             <button type="button" class="btn-primary" id="btnLeaveSchedule" hidden onclick="openLeaveSchedule()">Lịch làm việc</button>
             <button type="button" class="btn-primary" id="btnSelfLeave" hidden onclick="openSelfLeave()">Xin nghỉ phép</button>
             <button type="button" class="btn-primary" id="btnManualAbsence" style="display:none;" onclick="openManualAbsence()">
@@ -480,6 +476,12 @@
 
         <!-- Bang danh sach -->
         <div class="users-table-panel">
+            <div class="tks-table-tools">
+<button type="button" class="export-button" id="btnExportExcel" onclick="exportLeaveExcel()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Xuất Excel
+            </button>
+            </div>
           <div class="users-table-scroll has-pager">
             <table class="users-table fixed-table" id="leaveTable" data-table-key="leaveTable">
               <thead>
@@ -811,14 +813,16 @@
             </div>
             <div class="row-actions">
               <button type="button" class="btn-primary" id="btnAddEmployee" hidden onclick="openEmployeeModal()">+ Thêm nhân sự</button>
-              <button type="button" class="export-button" id="btnExportEmployeeDirectory" onclick="exportEmployeeDirectoryExcel()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                Xuất Excel
-              </button>
             </div>
           </div>
 
           <div class="users-table-panel">
+            <div class="tks-table-tools">
+<button type="button" class="export-button" id="btnExportEmployeeDirectory" onclick="exportEmployeeDirectoryExcel()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                Xuất Excel
+              </button>
+            </div>
             <div class="users-table-scroll">
               <table class="users-table fixed-table" id="employeeDirectoryTable" data-table-key="employeeDirectoryTable">
                 <thead>
@@ -1017,7 +1021,7 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
-  <script src="/shared/table-controls.js?v=20261009-1"></script>
+  <script src="/shared/table-controls.js?v=20261009-3"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261008"></script>
   <script src="/shared/table-align.js?v=20260928"></script>

@@ -23,7 +23,7 @@ const USERS = [
 ];
 
 async function loadPage({ isSeniorAdmin, savedColumns, userId = 'ql-1' }) {
-  const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://tokosi.example/account/#users' });
+  const dom = new JSDOM(html, { runScripts: 'outside-only', pretendToBeVisual:true, url: 'https://tokosi.example/account/#users' });
   const { window } = dom;
   const permissions = ['account.profile', 'account.users', 'account.users.manage', 'account.permissions'];
   const me = { id: userId, username: 'quanly1', hoTen: 'Quản lý 1', vaiTro: 'Quản lý', isSeniorAdmin, permissions, branches: ['Hà Nội', 'Sài Gòn', 'Cả hai'] };
@@ -42,6 +42,7 @@ async function loadPage({ isSeniorAdmin, savedColumns, userId = 'ql-1' }) {
     if (target.includes('/api/admin/permissions/catalog')) return { ok: true, status: 200, json: async () => ({ groups: [], features: [], roleDefaults: {}, departments: ['KHO', 'KẾ TOÁN'] }) };
     return { ok: true, status: 200, json: async () => ({}) };
   };
+  window.eval(fs.readFileSync(path.join(__dirname,'../../public/shared/table-controls.js'),'utf8'));
   [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
     .map(match => match[1]).filter(script => script.trim() && !script.includes('src='))
     .forEach(script => window.eval(script));
@@ -151,34 +152,53 @@ test('manager loads and saves or clears an employee Telegram ID without losing d
 });
 
 
-test('user table defaults to active accounts and four old columns while offering every Excel field', async () => {
+test('user table separates name and username by default while offering every Excel field', async () => {
   const dom = await loadPage({ isSeniorAdmin: true });
   const { window } = dom;
   try {
     assert.equal(window.document.getElementById('userStatusFilter').value, 'Đang hoạt động');
-    assert.deepEqual([...window.document.querySelectorAll('#usersTable th')].map(th => th.dataset.field), ['hoTen', 'vaiTro', 'coSo', 'trangThai']);
-    await window.openUserColumnsModal();
+    assert.deepEqual([...window.document.querySelectorAll('#usersTable th:not(.tks-column-hidden)')].map(th => th.dataset.field), ['hoTen', 'username', 'vaiTro', 'coSo', 'trangThai']);
+    const row=window.document.querySelector('#usersTableBody tr[data-uid="nv-1"]');
+    assert.equal(row.cells[0].querySelector('.user-name').textContent.trim(),'Nhân viên 1');
+    assert.equal(row.cells[0].querySelector('.user-username'),null,'Account must not appear below the name');
+    assert.equal(row.cells[1].textContent.trim(),'@nhanvien1');
+    assert.equal(row.querySelectorAll('td:not(.tks-column-hidden)').length,5);
+    window.handleSort('username');
+    assert.deepEqual([...window.document.querySelectorAll('#usersTableBody tr')].map(tr=>tr.dataset.uid),['nv-1','ql-1','ql-2']);
+    window.document.getElementById('usersColumnsBtn').click();
     const fields = require('../../auth/adminUserExportService').EXPORT_FIELDS;
-    assert.equal(window.document.querySelectorAll('#userColumnFields input').length, fields.length);
-    assert.equal(window.document.querySelector('#userColumnFields input[value=hoTen]').disabled, true);
+    assert.equal(window.document.querySelectorAll('.tks-columns-list input').length, fields.length);
+    assert.equal(window.document.querySelector('.tks-columns-list input[data-column-key=hoTen]').disabled, true);
+    const tools=window.document.getElementById('usersColumnsBtn').parentElement;
+    assert.equal(tools.lastElementChild.id,'btnExportUsers');
+    assert.ok(tools.closest('.users-table-panel'));
+    assert.equal(window.document.querySelectorAll('#usersTable').length,1);
+    assert.equal(tools.querySelectorAll('.tks-columns-button').length,1);
+    assert.equal(window.document.querySelectorAll('#usersColumnsBtn').length,1);
+    assert.equal(window.document.querySelector('[onclick="openUserColumnsModal()"]'),null);
   } finally { dom.window.close(); }
 });
 
-test('table column preference preserves name, isolates account and Excel settings, and resets hidden sorting', async () => {
+test('shared account picker ignores stored choices, keeps session choices through redraw and resets hidden sorting', async () => {
   const dom = await loadPage({ isSeniorAdmin: true, savedColumns: ['email', 'telegramId'] });
   const { window } = dom;
   try {
-    assert.deepEqual([...window.document.querySelectorAll('#usersTable th')].map(th => th.dataset.field), ['hoTen', 'email', 'telegramId']);
+    const visible=()=>[...window.document.querySelectorAll('#usersTable th:not(.tks-column-hidden)')].map(th=>th.dataset.field);
+    assert.deepEqual(visible(),['hoTen','username','vaiTro','coSo','trangThai']);
     window.localStorage.setItem('tks-account-export-fields', '["username"]');
+    window.document.getElementById('usersColumnsBtn').click();
+    const toggle=key=>window.document.querySelector('.tks-columns-list input[data-column-key='+key+']').click();
+    toggle('email');
     window.handleSort('email');
-    await window.openUserColumnsModal();
-    window.document.querySelector('#userColumnFields input[value=email]').checked = false;
-    window.saveUserColumns();
+    toggle('email'); toggle('username');
+    window.document.querySelector('.tks-columns-picker [data-action=close]').click();
+    window.handleFilterUsers();
+    assert.deepEqual(visible(),['hoTen','vaiTro','coSo','trangThai']);
     assert.equal(window.document.getElementById('sort-hoTen').textContent, '▲');
     assert.equal(window.localStorage.getItem('tks-account-export-fields'), '["username"]');
-    assert.deepEqual(JSON.parse(window.localStorage.getItem('tks-account-table-columns:ql-1')), ['hoTen', 'telegramId']);
+    assert.deepEqual(JSON.parse(window.localStorage.getItem('tks-account-table-columns:ql-1')), ['email', 'telegramId'],'Picker must not write persistent settings');
     const other = await loadPage({ isSeniorAdmin: true, userId: 'different-account' });
-    assert.deepEqual([...other.window.document.querySelectorAll('#usersTable th')].map(th => th.dataset.field), ['hoTen', 'vaiTro', 'coSo', 'trangThai']);
+    assert.deepEqual([...other.window.document.querySelectorAll('#usersTable th:not(.tks-column-hidden)')].map(th => th.dataset.field), ['hoTen', 'username', 'vaiTro', 'coSo', 'trangThai']);
     other.window.close();
   } finally { dom.window.close(); }
 });
