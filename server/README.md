@@ -194,17 +194,40 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0028` | `idx_orders_phieu_tam` — chỉ mục một phần `orders (branch, id) WHERE raw->>'statusValue' = 'Phiếu tạm'` cho truy vấn đơn Phiếu tạm của trang Vòng đời đơn hàng (chưa áp chỉ mục code vẫn chạy đúng, chỉ chậm hơn: đo trên dữ liệu thật khi chưa có chỉ mục ~4 giây cho lần đọc nguội, các lần sau trong 60 giây dùng cache) |
 | `0029` | `hr_leave_requests.decision_version` + `hr_leave_change_events`, `hr_leave_manager_messages`, `hr_manager_telegram_sessions`, `hr_manager_telegram_updates`, `hr_manager_telegram_state` — bot riêng cho quản lý và cầu DB → SSE; phải áp trước khi chạy bản web mới, kể cả khi bot tắt |
 | `0030` | Gỡ trạng thái `Tạm duyệt` của đơn nghỉ phép: đơn đang `Tạm duyệt` chuyển về `Chưa duyệt`, CHECK `hr_leave_requests_trang_thai_check` chỉ còn `Chưa duyệt`/`Đã duyệt`/`Từ chối`/`Vi phạm`; áp trước khi chạy bản web mới |
-| `0034` | `cash_book_account_banks` — tên ngân hàng do Quản lý nhập tay theo số tài khoản (HN/SG cùng số TK dùng chung), hiện dưới tên tài khoản ở bảng Số dư của Sổ quỹ; chạy trước khi deploy bản web mới |
-| `0033` | Sổ quỹ: account_id/status phiếu thu chi, danh mục tài khoản chung HN + SG, lịch sử chốt số dư; sync bankaccounts khi bảng trống lúc startup và mỗi 24 giờ |
-| `0032` | Chuẩn hóa hai nhóm bộ phận `BAN QUẢN TRỊ` và `HẬU CẦN - BẢO VỆ` trong nhân sự, đơn nghỉ và phạm vi duyệt phép; giữ quyền tài khoản hiện tại |
 | `0031` | Phạm vi phòng ban tài khoản, snapshot phòng ban bằng trigger tương thích bot nhân viên, `hr_manager_telegram_cards`; áp trước ứng dụng mới |
+| `0032` | Chuẩn hóa hai nhóm bộ phận `BAN QUẢN TRỊ` và `HẬU CẦN - BẢO VỆ` trong nhân sự, đơn nghỉ và phạm vi duyệt phép; giữ quyền tài khoản hiện tại |
+| `0033` | Sổ quỹ: `account_id`/`status` phiếu thu chi, danh mục tài khoản chung HN + SG (`cash_book_accounts`), lịch sử chốt số dư (`cash_book_checkpoints`); sync bankaccounts khi bảng trống lúc startup và mỗi 24 giờ |
+| `0034` | `cash_book_account_banks` — tên ngân hàng do Quản lý nhập tay theo số tài khoản (HN/SG cùng số TK dùng chung), hiện dưới tên tài khoản ở bảng Số dư của Sổ quỹ |
+| `0035` | `cash_flows.source_missing_at` — đánh dấu các ID không còn trên nguồn trong kỳ đối soát Sổ quỹ để giữ toàn vẹn lịch sử và không làm sai lệch số dư |
 | `0036` | Báo cáo kinh doanh: `business_monthly_customer_sales`, `business_monthly_customer_product_sales`, `business_monthly_product_sales`, `business_monthly_sale_sales`, `business_monthly_state` — doanh số theo tháng đã chốt; job `kiotvietSync/businessMonthlyRefresh.js` tự backfill từ T3/2026 ở lần khởi động đầu tiên sau khi áp (chạy tay: `node kiotvietSync/businessMonthlyRefresh.js`). Chưa áp thì API Báo cáo kinh doanh trả 503 |
-| `0039` | Thêm tài liệu dựng sẵn thứ 3 `phuc-loi` ("Chi tiêu & Phúc lợi") vào `hr_rule_documents` (nội dung nằm trong HTML trang Quản lý nhân sự). Chưa áp thì tài liệu chưa hiện cho tới khi migrate hoặc Quản lý bấm "Khôi phục tài liệu mặc định" |
-| `0040` | `account_audit_log` — lịch sử chỉnh sửa tài khoản (tab /account/#history, quyền `account.users`): tạo, sửa thông tin, đặt lại mật khẩu, xóa, sửa phân quyền; chỉ thêm (trigger chặn UPDATE/DELETE), không FK tới `app_users`, thu hồi SELECT của `reporting_readonly`. Chưa áp thì thao tác tài khoản vẫn chạy (ghi nhật ký best-effort) nhưng tab Lịch sử báo lỗi tải |
+| `0037` | `sale_teams` — bảng phân chia Team cho từng sale (nạp từ `chia team.xlsx`), phục vụ cột Team và bộ lọc Team ở bảng Doanh số theo sale; cập nhật bằng `node scripts/importSaleTeams.js <file.xlsx>` |
+| `0038` | Hạn đăng ký nghỉ phép & lịch làm việc: `hr_leave_work_schedules` (lịch làm việc theo ngày/nhân viên), `hr_leave_submissions` (lịch sử gửi đơn bất biến), snapshot thời gian và tính toán hạn nộp / trạng thái `timing_status` (`Đúng hạn`/`Xin muộn`/`Vi phạm`) |
+| `0039` | Thêm tài liệu dựng sẵn thứ 3 `phuc-loi` ("Chi tiêu & Phúc lợi") vào `hr_rule_documents` (nội dung nằm trong HTML trang Quản lý nhân sự) |
+| `0040` | `account_audit_log` — lịch sử chỉnh sửa tài khoản (tab `/account/#history`, quyền `account.users`): tạo, sửa thông tin, đặt lại mật khẩu, xóa, sửa phân quyền; chỉ thêm (trigger chặn UPDATE/DELETE), không FK tới `app_users`, thu hồi SELECT của `reporting_readonly` |
+| `0041` | `hr_employees.employment_status` — trạng thái làm việc của nhân sự (`active` = Đang làm việc, `resigned` = Đã nghỉ việc); tự động khóa tài khoản liên kết khi nghỉ việc (`lock_reason = 'hr_resigned'`) và mở khóa lại khi kích hoạt |
+| `0042` | `hr_leave_submissions.hr_employee_id DROP NOT NULL` — cho phép mọi tài khoản nội bộ đang hoạt động (trừ Khách) dù chưa gắn hồ sơ nhân sự vẫn gửi được đơn xin nghỉ phép qua web; cơ sở lấy từ đơn, giờ ca làm việc mặc định sáng 07:45 / chiều 12:30 |
 
 Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng nền nghỉ phép trực tiếp; bot **quản lý** trong `telegram/` dùng chung đơn và sở hữu các bảng bổ sung ở migration `0029`. Hợp đồng dữ liệu ở `db/SCHEMA.md`.
 
 ## Cập nhật gần nhất
+2026-10-09 — **Nghỉ phép: tài khoản nội bộ chưa gắn hồ sơ nhân sự vẫn gửi đơn (migration `0042`)**: tài khoản nội bộ đang hoạt động không gắn `hr_employee_id` được phép tự gửi đơn web; cơ sở lấy từ đơn, giờ bắt đầu mặc định 07:45 sáng / 12:30 chiều. `hr_leave_submissions.hr_employee_id` chuyển sang nullable.
+
+2026-10-09 — **Quản lý trạng thái nhân sự (`employment_status`, migration `0041`)**: tách trạng thái làm việc `active`/`resigned` khỏi xóa mềm `is_active`. Chuyển sang `resigned` tự khóa tài khoản với `lock_reason = 'hr_resigned'`; chuyển lại `active` mở đúng khóa này.
+
+2026-10-09 — **UI dùng chung & table controls**: chuẩn hóa `public/shared/table-controls.js` (chọn cột, kéo chỉnh độ rộng cột, phân trang) và tiện ích `search-clear` trên toàn bộ các trang; tắt controls cho bảng quy định chế độ phúc lợi.
+
+2026-10-08 — **Báo cáo Marketing**: tích hợp đối chiếu doanh số KiotViet theo tên khách hàng; Quản lý/Marketing có thể sửa trực tiếp Khách mới và Ghi chú đồng bộ ngược lại Google Sheets (`PUT /api/marketing-report/monthly/row`); hỗ trợ xuất báo cáo định dạng XLSX và HTML.
+
+2026-10-08 — **Lịch sử chỉnh sửa tài khoản (`account_audit_log`, migration `0040`)**: tab `/account/#history` ghi log bất biến mọi thao tác tạo, sửa thông tin, đặt lại mật khẩu, xóa và thay đổi phân quyền chi tiết của quản trị viên.
+
+2026-10-08 — **Tài liệu Chi tiêu & Phúc lợi (migration `0039`)**: thêm tài liệu dựng sẵn thứ 3 `phuc-loi` vào `hr_rule_documents`.
+
+2026-10-08 — **Báo cáo kinh doanh: cột Team của sale (`sale_teams`, migration `0037`)**: thêm cột Team và bộ lọc Team cho bảng Doanh số theo sale (nạp từ `chia team.xlsx`); gộp khách hàng theo tên chuẩn hóa từ cả 2 cơ sở HN và SG; nút Xuất file mở modal chọn cột cho cả 3 bảng.
+
+2026-10-08 — **Hạn nộp & lịch làm việc nghỉ phép (`hr_leave_work_schedules`, migration `0038`)**: snapshot thời gian gửi tại DB, ca làm việc cố định 07:45 sáng / 12:30 chiều, phân loại `timing_status` Đúng hạn / Xin muộn / Vi phạm.
+
+2026-10-08 — **Sổ quỹ: 5 nhóm tài khoản số dư**: hiển thị tổng số dư theo 5 nhóm tài khoản (`account_balance_groups`), phân tách cột ngân hàng riêng và bộ lọc nhóm số dư.
+
 
 2026-10-07 — **Báo cáo kinh doanh**: tab mới `/reports/#business` (quyền `reports.business`, tính lại tháng `reports.business.refreeze`), API `/api/business-report/*`, job chốt tháng `kiotvietSync/businessMonthlyRefresh.js` và migration `0036`. Sau deploy: áp `0036` (`npm run db:migrate`), khởi động lại để job backfill T3 → tháng trước, kiểm tra `business_monthly_state`. Chưa áp migration hoặc triển khai production.
 

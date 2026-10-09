@@ -79,11 +79,11 @@ T15 tài liệu + memory (cuối cùng)
 - [ ] Toàn bộ test xanh; mọi tab hiển thị đúng trên preview; mọi export chạy
 
 ### Giai đoạn 4: Hoàn thiện
-- [ ] T14: Dropdown "Toàn bộ đơn hàng" thêm "Sự cố", "Đã hủy"
-- [ ] T15: Cập nhật README/SRS/BRD + memory
+- [x] T14: Dropdown "Toàn bộ đơn hàng" thêm "Sự cố", "Đã hủy"
+- [x] T15: Cập nhật README/SRS/BRD + memory
 
 ### Checkpoint 3: Hoàn tất
-- [ ] Mọi tiêu chí đạt, sẵn sàng review
+- [x] Mọi tiêu chí đạt, sẵn sàng review
 
 ## Rủi ro và cách giảm
 

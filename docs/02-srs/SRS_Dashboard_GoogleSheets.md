@@ -382,7 +382,31 @@ Tab cấp 2 `/reports/#marketing`; nguồn và nghiệm thu tại [marketing-rep
 | FR-17.3 | Bốn phần BC tháng, Check tỷ lệ nhận số, Sao lưu SĐT, Chi phí; bộ lọc riêng, mục lục chuyển nhanh. Báo cáo tháng mặc định tháng hiện tại giờ Việt Nam; không có tháng thì dữ liệu rỗng. SĐT mặc định toàn bộ sáu tab CHUẨN, không khử trùng xuyên page. Chi phí phân biệt hai khối Hữu Nghị/Quảng Châu và dòng tổng/dòng ngày để tránh cộng trùng. | Cao |
 | FR-17.4 | Bấm dòng tổng quan hoặc Enter/Space mở hộp chi tiết hình chữ nhật theo mẫu Báo cáo kinh doanh. Theo cùng bộ lọc/snapshot, đóng X/Esc/nền, giữ focus. Số tổng nguồn và số dòng tìm thấy không khớp phải báo rõ, không điều chỉnh nguồn. Không dựng lịch sử từ THÔ hoặc đọc KiotViet. | Cao |
 | FR-17.5 | GET `/api/marketing-report/metadata`, `/monthly`, `/receipt-check`, `/phones`, `/costs`, `/detail`; `Cache-Control: no-store`, cache nguồn tối đa 5 phút, gộp đọc trùng và nguồn tải độc lập. Làm mới 5 phút khi tab đang hiển thị; lỗi giữ bản cũ/thời điểm cũ. Hộp chi tiết giữ snapshot tới khi cập nhật, bỏ phản hồi lỗi thời. | Cao |
-| FR-17.6 | Tái sử dụng Design System, Chart.js, KPI, panel/bảng sáng/tối; tìm kiếm không dấu, sắp xếp trước phân trang 100 dòng, ẩn/hiện cột; bảng cuộn trong khung trên điện thoại. Ô lỗi/thiếu hiện `—`, không đổi 0. Không endpoint ghi/xuất file hoặc lịch sử nhiều năm trong phiên bản đầu. | Cao |
+| FR-17.6 | Tái sử dụng Design System, Chart.js, KPI, panel/bảng sáng/tối; tìm kiếm không dấu, sắp xếp trước phân trang 100 dòng, ẩn/hiện cột; bảng cuộn trong khung trên điện thoại. Ô lỗi/thiếu hiện `—`, không đổi 0. | Cao | Hoàn thành |
+| FR-17.7 | **Sửa trực tiếp Khách mới / Ghi chú ngược lại Google Sheets:** người dùng có quyền `reports.marketing.edit` (mặc định Quản lý, Marketing) có thể bấm sửa trực tiếp ô Khách mới và Ghi chú trên bảng Báo cáo tháng; dữ liệu đồng bộ thẳng về tab nguồn trên Google Sheets qua `PUT /api/marketing-report/monthly/row`. | Cao | Hoàn thành |
+| FR-17.8 | **Đối chiếu doanh số KiotViet & Xuất file:** bảng Báo cáo tháng bổ sung cột Doanh số KiotViet lấy theo tên khách chuẩn hóa; hỗ trợ xuất báo cáo định dạng XLSX và HTML qua `GET /api/marketing-report/export/fields` và `GET /api/marketing-report/export` (yêu cầu thêm `reports.export`). | Cao | Hoàn thành |
+
+## 3.18. FR-18: Lịch sử chỉnh sửa tài khoản
+
+| **Mã** | **Yêu cầu chi tiết** | **Mức ưu tiên** | **Trạng thái** |
+|---|---|---|---|
+| FR-18.1 | Tab `/account/#history` (quyền `account.users`) hiển thị nhật ký bất biến mọi thao tác quản trị tài khoản: tạo tài khoản, cập nhật thông tin, đặt lại mật khẩu, xóa tài khoản, thay đổi phân quyền tính năng. Dữ liệu lưu trong bảng `account_audit_log` (migration `0040`). | Cao | Hoàn thành |
+| FR-18.2 | Bảng ghi nhận `actor_username`, `target_username`, loại thao tác `action` và danh sách chi tiết thay đổi `changes` (trường, giá trị trước/sau; phân quyền ghi rõ quyền thêm/bớt). Tuyệt đối không lưu mật khẩu thô hoặc mật khẩu đã băm. Quyền `SELECT` bị thu hồi khỏi vai trò `reporting_readonly`. | Cao | Hoàn thành |
+
+## 3.19. FR-19: Lịch làm việc và hạn đăng ký nghỉ phép
+
+| **Mã** | **Yêu cầu chi tiết** | **Mức ưu tiên** | **Trạng thái** |
+|---|---|---|---|
+| FR-19.1 | Lịch làm việc theo ngày và nhân viên lưu trong `hr_leave_work_schedules` (migration `0038`); giờ bắt đầu ca làm việc mặc định toàn công ty là sáng **07:45** và chiều **12:30**. | Cao | Hoàn thành |
+| FR-19.2 | Hệ thống tính toán hạn nộp đơn tự động và gán nhãn `timing_status` (`Đúng hạn`, `Xin muộn`, `Vi phạm`) độc lập với trạng thái phê duyệt. Lịch sử các lần gửi đơn được lưu bất biến trong `hr_leave_submissions`. | Cao | Hoàn thành |
+| FR-19.3 | Cho phép mọi tài khoản nội bộ đang hoạt động (trừ Khách) dù chưa được liên kết với hồ sơ `hr_employees` vẫn có thể tự gửi đơn xin nghỉ phép qua web (migration `0042`); cơ sở lấy từ đơn và áp dụng giờ làm việc mặc định. | Cao | Hoàn thành |
+
+## 3.20. FR-20: Trạng thái nhân sự và quy định phúc lợi
+
+| **Mã** | **Yêu cầu chi tiết** | **Mức ưu tiên** | **Trạng thái** |
+|---|---|---|---|
+| FR-20.1 | Phân biệt trạng thái làm việc `employment_status` (`active` = Đang làm việc / `resigned` = Đã nghỉ việc) trong `hr_employees` (migration `0041`) khỏi cơ chế xóa mềm `is_active`. Chuyển sang `resigned` tự động khóa tài khoản liên kết (`lock_reason = 'hr_resigned'`); chuyển lại `active` tự động mở khóa. | Cao | Hoàn thành |
+| FR-20.2 | Tài liệu quy định công ty bổ sung tài liệu dựng sẵn thứ 3: "Chi tiêu & Phúc lợi" (`phuc-loi`, migration `0039`) hiển thị đầy đủ quy định chế độ phúc lợi và chi tiêu công đoàn. | Cao | Hoàn thành |
 
 # 4. Yêu cầu phi chức năng (Non-functional Requirements)
 

@@ -506,12 +506,18 @@ body::before{
 .tks-cal-num{ line-height:18px; }
 .tks-cal-count-slot{ height:14px; display:flex; align-items:center; justify-content:center; }
 .tks-cal-inline{ min-width:0; padding:16px; background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-lg); }
-.tks-cal-inline .tks-cal-head{ margin-bottom:12px; }
-.tks-cal-inline .tks-cal-nav, .tks-cal-inline .tks-cal-today{ min-height:36px; height:36px; }
-.tks-cal-inline .tks-cal-nav{ width:36px; }
-.tks-cal-inline .tks-cal-grid{ gap:4px; }
-.tks-cal-inline .tks-cal-day{ height:48px; }
-.tks-cal-inline .tks-cal-cell{ min-height:48px; }
+.tks-cal-inline .tks-cal-head{ margin-bottom:8px; }
+.tks-cal-inline .tks-cal-nav, .tks-cal-inline .tks-cal-today{ min-height:30px; height:30px; }
+.tks-cal-inline .tks-cal-nav{ width:30px; }
+.tks-cal-inline .tks-cal-grid{ gap:2px; }
+.tks-cal-inline .tks-cal-day{ height:44px; }
+.tks-cal-inline .tks-cal-cell{ min-height:44px; }
+@media (min-width:801px){
+  .tks-cal-inline .tks-cal-day{ height:56px; }
+  .tks-cal-inline .tks-cal-cell{ min-height:56px; }
+  .tks-cal-inline .tks-cal-grid{ gap:4px; }
+  .tks-cal-inline .tks-cal-weekdays span{ padding:8px 0; }
+}
 .tks-cal-hint{ margin:12px 0 0; font-size:12px; line-height:1.5; color:var(--muted); }
 .tks-cal-day:hover{ background:var(--surface-hover); }
 .tks-cal-day.is-today{ border-color:var(--blue); }

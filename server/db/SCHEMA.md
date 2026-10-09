@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0032`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0042`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -45,6 +45,18 @@ Ba hệ định danh này khác nhau. Code sync phải nhận `branch` rõ ràng
 | `cash_flows` | Toàn bộ phiếu thu và phiếu chi | `(branch, id)` | `code`, `is_receipt`, `amount`, `method`, đối tác/người dùng, `trans_date` |
 | `webhook_events_raw` | Payload webhook thô để phân tích ở Task 7b | `id` | `received_at`, `payload` |
 | `backfill_progress` | Tiến độ backfill lịch sử (Giai đoạn 3), độc lập với `sync_checkpoints` | `(branch, entity, chunk_key)` | `status`, `next_item`, `records_synced`, `last_error` |
+| `cash_book_accounts` | Danh mục tài khoản ngân hàng / tiền mặt dùng chung toàn công ty (0033) | `id` | `bank_name`, `account_no`, `description`, `raw` |
+| `cash_book_checkpoints` | Mốc chốt số dư tài khoản Sổ quỹ (0033) | `id` | `account_id`, `checkpoint_at`, `balance`, `system_balance`, `diff` |
+| `cash_book_account_banks` | Tên ngân hàng tùy chỉnh do Quản lý nhập theo số tài khoản (0034) | `account_no` | `bank`, `updated_by`, `updated_at` |
+| `business_monthly_customer_sales` | Doanh số từng khách theo tháng đã chốt (0036) | `(month, branch, customer_code)` | `customer_id`, `customer_name`, `net_revenue`, `invoice_amount`, `return_amount` |
+| `business_monthly_customer_product_sales` | Doanh số khách × mã hàng theo tháng đã chốt (0036) | `(month, branch, customer_code, product_code)` | `product_name`, `net_revenue`, `net_qty` |
+| `business_monthly_product_sales` | Doanh số từng mã hàng theo tháng đã chốt gộp cả 2 cơ sở (0036) | `(month, product_code)` | `product_name`, `net_revenue`, `net_qty` |
+| `business_monthly_sale_sales` | Doanh số từng sale theo tháng đã chốt (0036) | `(month, sale_name)` | `net_revenue`, `customer_count`, `refreshed_at` |
+| `business_monthly_state` | Trạng thái chốt cứng và hash nhóm sale của từng tháng (0036) | `month` | `frozen_at`, `net_revenue`, `group_hash` |
+| `sale_teams` | Phân chia Team cho từng sale (0037) | `sale_name` | `team_name`, `updated_at` |
+| `hr_leave_work_schedules` | Lịch làm việc theo ngày và nhân viên (0038) | `(employee_id, work_date)` | `morning_start`, `afternoon_start`, `version` |
+| `hr_leave_submissions` | Lịch sử gửi đơn nghỉ phép bất biến kèm hạn nộp và snapshot (0038, 0042) | `(request_id, submission_revision)` | `hr_employee_id`, `leave_sessions`, `timing_status`, `thoi_gian_gui` |
+| `account_audit_log` | Nhật ký thao tác quản trị tài khoản bất biến (0040) | `id` | `action`, `actor_username`, `target_username`, `changes`, `created_at` |
 
 Ngoài 18 bảng nghiệp vụ trên còn có bảng raw webhook, bảng tiến độ backfill, và runner quản lý bảng kỹ thuật `schema_migrations(filename, applied_at)` để mỗi file SQL chỉ được áp dụng một lần.
 
@@ -357,3 +369,20 @@ Doanh số **theo tháng đã chốt cứng** cho tab "Báo cáo kinh doanh" (B�
 Bảng `sale_teams` (`sale_name` PK, `team_name`, `updated_at`) cho cột **Team** và bộ lọc team ở bảng "Doanh số theo sale" của tab Báo cáo kinh doanh. `sale_name` = tên nhóm khách trên KiotViet; so khớp theo khóa chuẩn hóa (NFKC, gộp khoảng trắng, chữ thường) nên "BÍCH TRÂN" khớp "Bích Trân" và hai nhóm gộp làm một dòng sale. Sale không có trong bảng (kể cả "Chưa phân nhóm") hiện team **"Chưa có team"**; bảng chưa migrate thì mọi sale ở "Chưa có team" (báo cáo vẫn chạy). Migration nạp sẵn 58 dòng từ file `chia team.xlsx` (2026-10-07). Cập nhật khi đổi team: `node scripts/importSaleTeams.js <file.xlsx>` (trong `server/`; cột A = Sale, cột B = Team, THAY TOÀN BỘ bảng trong 1 giao dịch). Không có giao diện sửa.
 
 Cùng đợt: khách ở bảng "Doanh số theo khách" được **gộp theo tên chuẩn hóa** (HN + SG, nhiều mã) — không lưu trong DB, gộp ở `businessReportService.js`; bảng `business_monthly_*` vẫn khóa theo `(branch, customer_code)`. Spec: `docs/superpowers/specs/2026-10-07-business-report-teams-merge-design.md`.
+
+## Trạng thái làm việc của nhân sự — migration 0041
+
+Cột `hr_employees.employment_status TEXT NOT NULL DEFAULT 'active' CHECK (employment_status IN ('active', 'resigned'))` tách biệt trạng thái làm việc thực tế khỏi cờ xóa mềm `is_active`:
+- `active` = Đang làm việc (mặc định cho toàn bộ nhân sự hiện tại).
+- `resigned` = Đã nghỉ việc. Nhân sự đã nghỉ việc vẫn hiển thị trên tab Danh sách nhân sự với nhãn "Đã nghỉ việc", vẫn giữ email và SĐT để tránh tạo trùng hồ sơ.
+- Cơ chế khóa tài khoản tự động: khi chuyển trạng thái nhân sự sang `resigned`, service `hrEmployeeAdminService.js` tự động tìm tài khoản đăng nhập liên kết (`app_users.hr_employee_id`) và khóa với `trang_thai = 'Bị khóa'`, `lock_reason = 'hr_resigned'`. Khi chuyển lại sang `active`, hệ thống chỉ tự động mở khóa các tài khoản bị khóa đúng do lý do `hr_resigned`, bảo toàn các tài khoản bị khóa vì lý do khác.
+
+## Đơn nghỉ phép cho tài khoản nội bộ chưa gắn nhân sự — migration 0042
+
+Migration `0042_hr_leave_unlinked_accounts.sql` gỡ bỏ ràng buộc bắt buộc có hồ sơ nhân sự khi gửi đơn xin nghỉ:
+- `ALTER TABLE hr_leave_submissions ALTER COLUMN hr_employee_id DROP NOT NULL;`
+- Cập nhật trigger `hr_leave_submission_snapshot()`:
+  - Cho phép tài khoản nội bộ đang hoạt động (`source = 'web'`, `user_id` hợp lệ, không phải tài khoản Khách) tự gửi đơn xin nghỉ phép ngay cả khi `hr_employee_id` là NULL.
+  - Cơ sở của đơn được lấy trực tiếp từ `NEW.branch` do người gửi chọn trên form web.
+  - Áp dụng giờ bắt đầu ca làm việc cố định toàn công ty: ca Sáng lúc **07:45**, ca Chiều lúc **12:30** (dòng lịch riêng trong `hr_leave_work_schedules` nếu có sẽ ghi đè).
+  - Tự động tính hạn nộp và gán nhãn `timing_status` (`Đúng hạn`, `Xin muộn`, `Vi phạm`) đồng bộ với toàn bộ quy tắc nghỉ phép hiện hành.

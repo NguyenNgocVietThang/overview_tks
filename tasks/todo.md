@@ -1,6 +1,6 @@
 # Danh sách việc: vá đổi email + dọn BE/FE (2026-10-05)
 
-**Trạng thái 2026-10-05:** T1–T15 đã làm và commit trên main (npm test 1735/1735 đạt, 3 skip). Còn mở: T0 (người dùng chạy `audit-hr-binding.sql` trên production), deploy, kiểm tay các tab dashboard/export trên bản chạy thật. Ngoài kế hoạch, review bảo mật đã tìm và vá thêm: leo thang qua trang quản trị (PROTECTED_IDENTITY, SELF_CONTACT_CHANGE, HR_ROLE_ESCALATION), dò OTP, liên kết Google chỉ theo email, resolver không ghi DB mỗi request.
+**Trạng thái 2026-10-09:** T1–T15 đã làm và commit trên main (toàn bộ test auth & dọn dẹp đều đạt). Các hạng mục tiếp nối sau đó bao gồm Báo cáo kinh doanh (migration 0036-0037), Báo cáo Marketing (kết nối KiotViet & sửa ngược Sheets), Sổ quỹ (0033-0035), Lịch làm việc & Hạn đăng ký nghỉ phép (0038, 0042), Trạng thái nhân sự & Phúc lợi (0039, 0041), Lịch sử tài khoản (0040) và Table controls dùng chung đều đã hoàn thiện và cập nhật đồng bộ.
 
 Thiết kế, rủi ro và quyết định đã chốt: xem [plan.md](plan.md).
 Lệnh test (chạy trong `server/`; `node --test` cần glob):

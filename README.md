@@ -76,11 +76,12 @@ server/
 │   ├── documentDetailRepository.js  # Chi tiết hóa đơn (popup bảng Chi tiết giao dịch) và chi tiết đơn đặt hàng (trang Vòng đời đơn hàng)
 │   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel
 ├── data/                 # Dữ liệu lưu trữ local (users.json, notifications.json, ...)
-├── db/                   # Migration Supabase (0001–0036) + SCHEMA.md (hợp đồng schema)
+├── db/                   # Migration Supabase (0001–0042) + SCHEMA.md (hợp đồng schema)
 ├── hr/                   # Nhân sự, nghỉ phép tự gửi, phạm vi duyệt chung, tài liệu quy định và cầu Postgres → SSE
 ├── kiotviet/             # KiotViet API client và webhook receiver
 ├── kiotvietSync/         # Webhook, polling, backfill và rollup
 ├── lib/                  # Thư viện tiện ích nội bộ (TTL cache, ...)
+├── marketingReport/      # Báo cáo Marketing: đọc 3 workbook Google Sheets, đối chiếu doanh số KiotViet theo tên khách, cập nhật ngược Sheets, xuất Excel/HTML
 ├── notifications/        # Chuông thông báo + gửi email OTP
 ├── public/               # Frontend HTML/CSS/JS
 │   └── cashbook/         # Trang Sổ quỹ: bộ lọc/hash, số dư, chốt và xuất chọn cột
@@ -100,6 +101,24 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-09 — **Nghỉ phép: tài khoản nội bộ chưa gắn hồ sơ nhân sự vẫn gửi được đơn xin nghỉ (migration `0042`)**: mọi tài khoản nội bộ đang hoạt động (trừ Khách) dù chưa được liên kết với hồ sơ `hr_employees` vẫn có thể tự gửi đơn xin nghỉ phép qua giao diện web; cơ sở lấy từ đơn, giờ làm việc áp dụng mặc định cố định sáng 07:45 / chiều 12:30. Cột `hr_leave_submissions.hr_employee_id` chuyển sang nullable.
+
+2026-10-09 — **Quản lý trạng thái nhân sự (`employment_status`, migration `0041`)**: tách biệt trạng thái làm việc (Đang làm việc / Đã nghỉ việc) khỏi cơ chế xóa mềm (`is_active`). Nhân sự chuyển sang Đã nghỉ việc sẽ tự động khóa tài khoản liên kết với mã `lock_reason = 'hr_resigned'`; chuyển lại Đang làm việc chỉ mở khóa đúng loại khóa này.
+
+2026-10-09 — **UI dùng chung: `table-controls` & tiện ích `search-clear`**: chuẩn hóa điều khiển bảng dùng chung trên toàn bộ hệ thống (`public/shared/table-controls.js`) bao gồm hiển thị/ẩn cột, kéo chỉnh độ rộng cột, tìm kiếm với nút xóa nhanh và phân trang mượt mà; tắt thanh điều khiển cột cho các bảng biểu quy định tĩnh (như bảng Chế độ phúc lợi).
+
+2026-10-08 — **Báo cáo Marketing: tích hợp doanh số KiotViet & sửa ngược Google Sheets**: tab `/reports/#marketing` bổ sung cột Doanh số KiotViet đối chiếu theo tên khách hàng chuẩn hóa; Quản lý/Marketing có quyền sửa trực tiếp trường Khách mới và Ghi chú đồng bộ ngược lại vào Google Sheets (`PUT /api/marketing-report/monthly/row`); bổ sung tính năng xuất báo cáo định dạng XLSX và HTML.
+
+2026-10-08 — **Lịch sử chỉnh sửa tài khoản (`account_audit_log`, migration `0040`)**: tab mới tại `/account/#history` ghi nhận đầy đủ nhật ký bất biến mọi thao tác quản trị tài khoản (tạo tài khoản, sửa thông tin, đổi mật khẩu, xóa, phân quyền chi tiết). Bảng `account_audit_log` không chứa mật khẩu thô và được thu hồi quyền khỏi role báo cáo.
+
+2026-10-08 — **Quy định công ty: tài liệu "Chi tiêu & Phúc lợi" (migration `0039`)**: thêm tài liệu dựng sẵn thứ 3 (`phuc-loi`) vào `hr_rule_documents`, hiển thị đầy đủ quy định chế độ phúc lợi và chi tiêu công đoàn.
+
+2026-10-08 — **Báo cáo kinh doanh: cột Team của sale (`sale_teams`, migration `0037`) & gộp khách theo tên**: bảng doanh số sale bổ sung cột Team và bộ lọc theo Team (nạp từ `chia team.xlsx`); bảng doanh số khách hàng gộp các dòng cùng tên chuẩn hóa từ cả hai cơ sở HN + SG; bổ sung nút "Xuất file" mở hộp thoại chọn trường linh hoạt cho cả 3 bảng.
+
+2026-10-08 — **Hạn nộp & lịch làm việc nghỉ phép (`hr_leave_work_schedules`, migration `0038`)**: hệ thống tính hạn đăng ký nghỉ phép tự động dựa trên lịch làm việc; giờ bắt đầu ca làm việc cố định sáng 07:45, chiều 12:30 cho mọi nhân viên; tự động gán nhãn Đúng hạn / Xin muộn / Vi phạm độc lập với trạng thái phê duyệt.
+
+2026-10-08 — **Sổ quỹ: 5 nhóm tài khoản số dư & tách cột ngân hàng riêng**: hiển thị tổng số dư theo 5 nhóm tài khoản (`account_balance_groups`), phân tách rõ ràng cột ngân hàng riêng trên bảng số dư, hỗ trợ bộ lọc nhóm số dư linh hoạt.
 
 2026-10-07 — **Báo cáo kinh doanh** (tab thứ 6 của Báo cáo tổng hợp, `/reports/#business`): tăng trưởng Sale / Khách hàng / Mã hàng theo tháng từ T3/2026, gộp HN + SG. Doanh số tháng = hóa đơn `Hoàn thành` − phiếu trả `Đã trả`; sale = nhóm khách hiện tại trên KiotViet (không nhóm → "Chưa phân nhóm"); tháng đang chạy quy đổi 30 ngày, TB 4 tháng, khách hoạt động = TB 4 tháng > 0. Các tháng đã qua chốt cứng bởi job `kiotvietSync/businessMonthlyRefresh.js` (≥ 00:10 VN ngày mùng 1, migration `0036`); Quản lý có nút "Tính lại tháng" (`reports.business.refreeze`). Quyền xem `reports.business` mặc định như các tab báo cáo khác (gồm Nhân viên sale). API và vận hành: [server/README.md](server/README.md#báo-cáo-kinh-doanh-apibusiness-report). Sau deploy: áp `0036`, để job backfill (hoặc chạy tay `node kiotvietSync/businessMonthlyRefresh.js`), kiểm tra `business_monthly_state`. Chưa áp migration hoặc triển khai production.
 

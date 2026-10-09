@@ -7,9 +7,9 @@
 | **Thông tin**     | **Nội dung**                                                        |
 |-------------------|---------------------------------------------------------------------|
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Supabase PostgreSQL → Web; Google Sheets bổ trợ) |
-| Phiên bản         | 2.2                                                                 |
+| Phiên bản         | 2.3                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 06/10/2026                                                          |
+| Ngày cập nhật     | 09/10/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo, nhân viên nội bộ công ty                              |
 | Trạng thái        | Nội dung nền rà soát tại HEAD `11751c4` (05/10); bổ sung Sổ quỹ đã kiểm chứng cục bộ 06/10, migration `0033` và deploy production còn chờ. |
 
@@ -59,7 +59,7 @@ Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (7 tab, gồm Báo c�
 - **Báo cáo tổng hợp (7 tab):** Tổng quan (Xu hướng, Báo cáo doanh thu theo khách, Báo cáo hàng hóa, Kiểm tra đứt hàng), Hàng hóa (Cơ cấu tồn kho, Phân tích, Tất cả mã hàng, Hàng mới nhập, Mã mới tạo), Hóa đơn (Chi tiết giao dịch), Khách hàng (Top khách theo doanh thu, Phân tích công nợ), Quản lý công nợ, Báo cáo kinh doanh (Tăng trưởng Sale, Tăng trưởng Khách hàng, Tăng trưởng Mã hàng), Báo cáo Marketing (BC tháng, Check tỷ lệ nhận số, Sao lưu SĐT, Chi phí).
 - **Báo cáo kinh doanh:** thay báo cáo tăng trưởng làm tay trên Google Sheets. Doanh số tháng = hóa đơn hoàn thành trừ hàng khách trả, gộp HN + SG, từ T3/2026; sale = nhóm khách hàng trên KiotViet (khách chưa có nhóm gộp vào "Chưa phân nhóm"); tháng đang chạy quy đổi về 30 ngày để so tăng trưởng với tháng trước, kèm trung bình 4 tháng; các tháng đã qua được chốt cứng mỗi ngày mùng 1, Quản lý có thể tính lại.
 - **Màn hình Quản lý công nợ:** kết hợp Bảng Công nợ, đối chiếu CN1/CN3/CN7 và trạng thái xử lý lưu trong PostgreSQL.
-- **Vòng đời đơn hàng, Vị trí hàng, Sổ quỹ, Quản lý nhân sự (Quy định công ty, Danh sách nhân sự, Nghỉ phép), Quản lý tài khoản.**
+- **Vòng đời đơn hàng, Vị trí hàng, Sổ quỹ (5 nhóm số dư), Quản lý nhân sự (Quy định công ty kèm Phúc lợi, Danh sách nhân sự theo trạng thái làm việc, Nghỉ phép theo lịch làm việc/hạn nộp và đơn cho tài khoản nội bộ), Quản lý tài khoản (Lịch sử chỉnh sửa tài khoản).**
 - **Cập nhật dữ liệu dashboard** bằng nút "Làm mới", SSE `dashboard-updated` và tải bù khi quay lại tab trình duyệt.
 - **Đồng bộ tự động** KiotViet → Supabase (polling; webhook chỉ lưu thô).
 - **Xác thực & phân quyền:** đăng nhập tài khoản trong `app_users` (kể cả Google Sign-In cho tài khoản đã có), phân quyền theo tính năng; tự đăng ký tài khoản mới đang **khóa**.
@@ -68,7 +68,7 @@ Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (7 tab, gồm Báo c�
 
 ## 3.2. Ngoài phạm vi hiện tại (Out-of-scope)
 
-- Ghi dữ liệu ngược lên KiotViet; ghi lên Google Sheets ngoài tab `Lịch sử cập nhật` của Vòng đời đơn hàng.
+- Ghi dữ liệu ngược lên KiotViet; ghi lên Google Sheets ngoài tab `Lịch sử cập nhật` của Vòng đời đơn hàng và cập nhật Khách mới / Ghi chú của Báo cáo Marketing.
 - Bot xin nghỉ của nhân viên (chạy ngoài repo, chỉ ghi/đọc các bảng nền nghỉ phép trong Postgres).
 - Tab Nhà cung cấp và KPI nhà cung cấp/nhập hàng (đã gỡ ngày 30/09/2026).
 - Toàn bộ các module ở mục 3.3 (POS, Kho đa chi nhánh, Phân tích, AI).
