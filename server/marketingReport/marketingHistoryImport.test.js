@@ -101,6 +101,21 @@ test('CHECK closed and rate use one mapped sale/page numerator and grouped equiv
   s.workbooks.report.sheets['CHECK Tỷ lệ nhận số T10'][2][6]=2;
   assert.ok(api().prepareHistoryImport(s,{year:2026}).summary.checks[0].differences.some(d=>d.row==='CHECK Tỷ lệ nhận số T10!3'&&d.field==='closed'&&d.found===1));
 });
+test('factual CHECK totals ignore duplicate nonzero display rows and flag missing alias layout',()=>{
+  const s=snapshot();s.workbooks.phones.sheets['HN THÔ'].push(raw('0900000001','Raw A','1/10'),raw('0900000002','Raw B','1/10'));
+  s.workbooks.report.sheets['Tên'].push(['Raw B','Sale']);s.workbooks.report.sheets['BC Tháng 10'].push(['Sale','Customer','0900000001','Hữu Nghị']);
+  s.workbooks.report.sheets['CHECK Tỷ lệ nhận số T10']=[['BÁO CÁO SĐT T10'],['Raw A',1,0,1,'Hữu Nghị','Sale',1,0.5],['Raw A',1,0,1,'Hữu Nghị','Sale',1,0.5],['Raw B',1,0,1,'Hữu Nghị','Sale',1,0.5]];
+  let check=api().prepareHistoryImport(s,{year:2026}).summary.checks[0];assert.equal(check.mappedTotals[0].first,2);assert.equal(check.mappedTotals[0].equivalent,2);assert.equal(check.mappedTotals[0].closed,1);assert.equal(check.mappedTotals[0].rate,0.5);assert.equal(check.differences.some(d=>d.field==='rate'),false);assert.ok(check.structural.some(d=>d.row==='CHECK Tỷ lệ nhận số T10!3'&&d.reason==='duplicate-check-row'));
+  s.workbooks.report.sheets['CHECK Tỷ lệ nhận số T10'].pop();check=api().prepareHistoryImport(s,{year:2026}).summary.checks[0];assert.equal(check.mappedTotals[0].first,2);assert.equal(check.mappedTotals[0].rate,0.5);assert.ok(check.structural.some(d=>d.reason==='missing-check-row'&&d.sourceRows.includes('HN THÔ!3')));
+  s.workbooks.report.sheets['CHECK Tỷ lệ nhận số T10']=[['BÁO CÁO SĐT T10'],['Raw A',1,0,1,'Hữu Nghị','Sale',1,1]];check=api().prepareHistoryImport(s,{year:2026}).summary.checks[0];assert.equal(check.mappedTotals[0].equivalent,2);assert.equal(check.mappedTotals[0].rate,0.5);assert.ok(check.differences.some(d=>d.field==='rate'&&d.source===1&&d.found===0.5));
+  s.workbooks.report.sheets['CHECK Tỷ lệ nhận số T10']=[['BÁO CÁO SĐT T10']];check=api().prepareHistoryImport(s,{year:2026}).summary.checks[0];assert.equal(check.mappedTotals[0].equivalent,2);assert.equal(check.mappedTotals[0].rate,0.5);assert.equal(check.structural.filter(d=>d.reason==='missing-check-row').length,2);
+});
+test('history CLI accepts UUID human or explicit system actor and rejects numeric or arbitrary attribution',()=>{
+  api();const {parseArgs}=require('../scripts/import-marketing-history');
+  const base=['--input','fixture.json','--year','2026','--apply','--actor-id'];
+  for(const id of ['75146950-58b5-4e2a-88c9-a9c7c0ce17fe','system:pancake-history-import']) assert.equal(parseArgs([...base,id]).actorId,id);
+  for(const id of ['123','manager','system:fake','75146950-58b5-4e2a-88c9-a9c7c0ce17fz','']) assert.throws(()=>parseArgs([...base,id]));
+});
 test('CHECK structurally unresolved rows are never reported matched',()=>{
   const s=snapshot();s.workbooks.report.sheets['CHECK Tỷ lệ nhận số T8']=[['BÁO CÁO SĐT T8'],['',0,0,0,'Hữu Nghị',''],['Raw A',0,0,0,'Unknown','Sale']];
   const check=api().prepareHistoryImport(s,{year:2026}).summary.checks[0];assert.equal(check.matchedRows,0);assert.equal(check.unresolvedRows,2);assert.equal(check.phoneMismatchedRows,0);

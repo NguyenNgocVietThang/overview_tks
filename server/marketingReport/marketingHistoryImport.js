@@ -117,7 +117,14 @@ function reconcileChecks(report, phones, year, aliases, monthlyRows) {
     const month = p.monthOfTitle(title), values = requireSheet(report, title), headerMonth = p.monthOfTitle(cellText(values[0]?.[0]));
     const counts = countPhoneKpis(phones, { year, month }), byRaw = new Map(counts.map(row => [JSON.stringify([row.pageId, row.employee]), row]));
     const closures = new Map(countMonthlyClosures(monthlyRows, { year, month }).map(row => [JSON.stringify([row.pageId, row.employee]), row.closed]));
-    const mapped = new Map(), differences = [], structural = [], pendingRates = [], mismatched = new Set(), unresolvedRowReferences = [];
+    // Factual totals must not depend on duplicate/missing CHECK display rows.
+    const mapped = new Map(countPhoneKpis(phones, { year, month, mapped: true }).map(row => {
+      const groupKey = JSON.stringify([row.pageId, row.employee]);
+      const closed = row.employee ? closures.get(groupKey) || 0 : null;
+      return [groupKey, { pageId: row.pageId, rows: [], first: row.first, repeat: row.repeat, equivalent: row.equivalent,
+        closed, rate: closed === null || row.equivalent === 0 ? null : closed / row.equivalent }];
+    }));
+    const differences = [], structural = [], mismatched = new Set(), unresolvedRowReferences = [];
     const seenRawKeys = new Set(); let sourceRows = 0, phoneMatchedRows = 0;
     if (headerMonth !== month) structural.push({ row: ref(title, 1), field: 'headerMonth', source: headerMonth, found: month });
     values.slice(1).forEach((raw, index) => {
@@ -140,31 +147,37 @@ function reconcileChecks(report, phones, year, aliases, monthlyRows) {
       const first = p.number(raw[1]), repeat = p.number(raw[2]), equivalent = p.number(raw[3]);
       if (first !== null && repeat !== null && equivalent !== null && Math.abs(equivalent - first - repeat / 5) > 1e-9) structural.push({ row: rowRef, field: 'equivalentFormula', source: equivalent, found: first + repeat / 5 });
       if (equal) phoneMatchedRows++;
-      // Safe anonymous group references retain reconciliation without exposing names.
+      // Display row references attach to factual groups without adding counts.
       const groupKey = JSON.stringify([pageId, reportEmployee]);
-      if (!mapped.has(groupKey)) mapped.set(groupKey, { pageId, rows: [], first: 0, repeat: 0 });
-      const group = mapped.get(groupKey); group.rows.push(rowRef); group.first += expected.first; group.repeat += expected.repeat;
+      const group = mapped.get(groupKey);
+      if (group) group.rows.push(rowRef);
       const closed = reportEmployee ? closures.get(groupKey) || 0 : null;
-      group.closed = closed;
       if (raw[6] !== undefined) {
         const source = p.number(raw[6]);
         if (source !== closed) { differences.push({ row: rowRef, field: 'closed', source, found: closed }); mismatched.add(rowRef); }
       }
-      if (raw[7] !== undefined) pendingRates.push({ row: rowRef, source: p.number(raw[7]), groupKey });
+      if (raw[7] !== undefined) {
+        const source = p.number(raw[7]), found = group?.rate ?? null;
+        if (source !== found && (source === null || found === null || Math.abs(source - found) > 1e-9)) { differences.push({ row: rowRef, field: 'rate', source, found }); mismatched.add(rowRef); }
+      }
     });
-    for (const group of mapped.values()) {
-      group.equivalent = group.first + group.repeat / 5;
-      group.rate = group.closed === null || group.equivalent === 0 ? null : group.closed / group.equivalent;
-    }
-    for (const row of pendingRates) {
-      const found = mapped.get(row.groupKey).rate;
-      if (row.source !== found && (row.source === null || found === null || Math.abs(row.source - found) > 1e-9)) { differences.push({ row: row.row, field: 'rate', source: row.source, found }); mismatched.add(row.row); }
+    const prefix = `${year}-${String(month).padStart(2, '0')}-`;
+    for (const row of counts) {
+      if (seenRawKeys.has(JSON.stringify([row.pageId, row.employee]))) continue;
+      const sourceRows = new Set();
+      for (const phone of phones) {
+        if (phone.pageId !== row.pageId) continue;
+        if (phone.firstEmployee === row.employee && phone.firstAt?.startsWith(prefix)) sourceRows.add(ref(phone.firstRow.tab, phone.firstRow.rowNumber));
+        if (phone.repeatEmployee === row.employee && phone.repeatAt?.startsWith(prefix)) sourceRows.add(ref(phone.lastRow.tab, phone.lastRow.rowNumber));
+      }
+      structural.push({ row: ref(title, 1), field: 'rawEmployeePage', reason: 'missing-check-row', pageId: row.pageId,
+        sourceRows: [...sourceRows], first: row.first, repeat: row.repeat });
     }
     checks.push({ tab: title, reportYear: year, reportMonth: month, headerMonth, sourceRows, phoneMatchedRows, phoneMismatchedRows: sourceRows - phoneMatchedRows - unresolvedRowReferences.length,
       matchedRows: sourceRows - mismatched.size - unresolvedRowReferences.length, mismatchedRows: mismatched.size,
       unresolvedRows: unresolvedRowReferences.length, unresolvedRowReferences, differences, structural,
       closureRule: 'COUNTIFS(monthly sale, mapped employee, monthly page, page); all statuses; explicit report month',
-      rateRule: 'one sale/page closed count / sum(first + repeat/5) for mapped sale/page; zero denominator null',
+      rateRule: 'one sale/page closed count / factual mapped sale/page equivalent, independent of CHECK layout; zero denominator null',
       mappedTotals: [...mapped.values()] });
   }
   return checks;

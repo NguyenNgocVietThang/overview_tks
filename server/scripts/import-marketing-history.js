@@ -1,6 +1,8 @@
 'use strict';
 const fs = require('node:fs');
 const { prepareHistoryImport, applyHistoryImport } = require('../marketingReport/marketingHistoryImport');
+const SYSTEM_IMPORT_ACTOR = 'system:pancake-history-import';
+const uuidActor = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function parseArgs(args) {
   const options = { apply: false }; const seen = new Set();
   for (let i = 0; i < args.length; i++) {
@@ -12,7 +14,8 @@ function parseArgs(args) {
       options[{ '--input': 'input', '--year': 'year', '--report-file': 'reportFile', '--actor-id': 'actorId' }[arg]] = value;
     } else throw new Error();
   }
-  if (!options.input || !/^\d{4}$/.test(options.year || '') || (options.apply && options.dryRun) || (options.apply && !/^[1-9]\d*$/.test(options.actorId || ''))) throw new Error();
+  if (!options.input || !/^\d{4}$/.test(options.year || '') || (options.apply && options.dryRun) ||
+    (options.apply && options.actorId !== SYSTEM_IMPORT_ACTOR && !uuidActor.test(options.actorId || ''))) throw new Error();
   options.year = Number(options.year); return options;
 }
 async function main() {
@@ -24,7 +27,8 @@ async function main() {
     if (options.apply) {
       pool = require('../db/pool').getPool();
       const repository = require('../marketingReport/marketingRepository').createMarketingRepository({ pool });
-      summary.appliedBatches = await applyHistoryImport(prepared, repository, { userId: options.actorId }); summary.mode = 'apply';
+      const actor = options.actorId === SYSTEM_IMPORT_ACTOR ? { userId: SYSTEM_IMPORT_ACTOR, username: 'system', name: 'Pancake history import' } : { userId: options.actorId };
+      summary.appliedBatches = await applyHistoryImport(prepared, repository, actor); summary.mode = 'apply';
     }
     if (options.reportFile) fs.writeFileSync(options.reportFile, JSON.stringify(summary, null, 2) + '\n', { mode: 0o600 });
     process.stdout.write(JSON.stringify(summary, null, 2) + '\n');
