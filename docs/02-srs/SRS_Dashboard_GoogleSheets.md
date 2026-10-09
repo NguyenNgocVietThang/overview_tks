@@ -6,7 +6,7 @@
 
 | **Thông tin**      | **Nội dung**                                               |
 |--------------------|------------------------------------------------------------|
-| Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                          |
+| Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                           |
 | Phiên bản          | 3.0                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
 | Ngày cập nhật      | 06/10/2026                                                 |
@@ -186,7 +186,7 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 
 | **Mã**  | **Mô tả**                                                                                                                                          | **Ưu tiên** | **Trạng thái** |
 |---------|----------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
-| FR-03.1 | **Tổng quan mục 1 Xu hướng:** biểu đồ "Doanh thu thực tế theo ngày" (`revenueByDay`) và biểu đồ cột chồng "Giá trị tồn kho theo ngày" (HN + SG; chọn 1 cơ sở thì 1 màu) từ `inventory_value_snapshots` qua `GET /api/inventory-value-history`, bộ lọc Từ–Đến riêng, mặc định 30 ngày; ngày trước 30/09/2026 không có số liệu. | Cao | Hoàn thành |
+| FR-03.1 | **Tổng quan mục 1 Xu hướng:** biểu đồ "Doanh thu thực tế theo ngày" (`revenueByDay`) và biểu đồ cột chồng "Giá trị tồn kho theo ngày" (HN + SG; chọn 1 cơ sở thì 1 màu) từ `inventory_value_snapshots` qua `GET /api/inventory-value-history`, bộ lọc Từ–Đến riêng, mặc định 7 ngày; ngày trước 30/09/2026 không có số liệu. | Cao | Hoàn thành |
 | FR-03.2 | **Tổng quan mục 2 Báo cáo doanh thu theo khách:** tìm khách (`/api/customer-suggest`), doanh thu 90 ngày gần nhất theo sản phẩm (`/api/customer-product-revenue`, nguồn `customer_invoice_lines_90d`, đã trừ hàng trả, cửa sổ kết thúc hôm qua), biểu đồ + bảng chi tiết sản phẩm. | Cao | Hoàn thành |
 | FR-03.3 | **Tổng quan mục 3 Báo cáo hàng hóa:** bảng gộp hai cơ sở từ `product_report` (`GET /api/product-report`): tồn, Tồn có thể bán, bán 30 ngày, doanh thu 90 ngày (đã trừ hàng trả), số khách 90 ngày, % khách lớn nhất; nút **Chi tiết** mỗi dòng mở khung doanh số 90 ngày từng khách (số tiền + %) kèm biểu đồ tròn (`product_report_customers`, `GET /api/product-report/customers?code=`) và ô tìm theo mã/tên. | Cao | Hoàn thành |
 | FR-03.4 | **Tổng quan mục 4 Kiểm tra đứt hàng** (chỉ hiện khi có quyền `reports.products`): nhập Trả NCC, Hàng đứt gần đây, kiểm tra 30 ngày, kiểm tra 90 ngày (FR-03.12). | Cao | Hoàn thành |
