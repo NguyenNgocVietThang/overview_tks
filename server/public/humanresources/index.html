@@ -368,6 +368,7 @@
     .users-table th, .users-table td{ padding:10px 12px; }
   }
 </style>
+  <link rel="stylesheet" href="/shared/table-controls.css?v=20261009-1">
 </head>
 <body>
   <div class="receipt-header">
@@ -480,18 +481,18 @@
         <!-- Bang danh sach -->
         <div class="users-table-panel">
           <div class="users-table-scroll has-pager">
-            <table class="users-table fixed-table" id="leaveTable">
+            <table class="users-table fixed-table" id="leaveTable" data-table-key="leaveTable">
               <thead>
                 <tr>
-                  <th style="width:200px">Người gửi</th>
-                  <th style="width:170px">Phòng ban</th>
-                  <th style="width:110px">Cơ sở</th>
-                  <th style="width:160px">Thời gian gửi</th>
-                  <th style="width:260px">Lý do</th>
-                  <th style="width:200px">Thời gian nghỉ</th>
-                  <th style="width:190px">Tổng buổi / ngày</th>
-                  <th style="width:150px">Người bàn giao</th>
-                  <th style="width:150px">Trạng thái</th>
+                  <th style="width:200px" data-column-key="nguoi-gui">Người gửi</th>
+                  <th style="width:170px" data-column-key="phong-ban">Phòng ban</th>
+                  <th style="width:110px" data-column-key="co-so">Cơ sở</th>
+                  <th style="width:160px" data-column-key="thoi-gian-gui">Thời gian gửi</th>
+                  <th style="width:260px" data-column-key="ly-do">Lý do</th>
+                  <th style="width:200px" data-column-key="thoi-gian-nghi">Thời gian nghỉ</th>
+                  <th style="width:190px" data-column-key="tong-buoi-ngay">Tổng buổi / ngày</th>
+                  <th style="width:150px" data-column-key="nguoi-ban-giao">Người bàn giao</th>
+                  <th style="width:150px" data-column-key="trang-thai">Trạng thái</th>
                 </tr>
               </thead>
               <tbody id="leaveTableBody" onclick="handleLeaveRowClick(event)">
@@ -564,8 +565,8 @@
 
                 <div class="doc-section">
                   <h4>Giờ làm việc chính thức</h4>
-                  <table class="doc-table">
-                    <thead><tr><th>Khối</th><th>Buổi sáng</th><th>Buổi chiều</th></tr></thead>
+                  <table class="doc-table" data-table-key="humanresources-table-2">
+                    <thead><tr><th data-column-key="khoi">Khối</th><th data-column-key="buoi-sang">Buổi sáng</th><th data-column-key="buoi-chieu">Buổi chiều</th></tr></thead>
                     <tbody>
                       <tr><td>Kho vận</td><td>Ca 1: 08h00 – 11h30<br>Ca 2: 08h00 – 12h30</td><td>Ca 1: 12h30 – 17h00<br>Ca 2: 13h30 – 17h00</td></tr>
                       <tr><td>Văn phòng HN</td><td>07h45 – 11h30</td><td>12h30 – 16h45</td></tr>
@@ -694,8 +695,8 @@
 
                 <div class="doc-section">
                   <h4>I. Các khoản chi theo sự kiện</h4>
-                  <table class="doc-table">
-                    <thead><tr><th>Khoản mục chi</th><th>Phúc lợi công ty</th><th>Ghi chú</th></tr></thead>
+                  <table class="doc-table" data-table-key="humanresources-table-3">
+                    <thead><tr><th data-column-key="khoan-muc-chi">Khoản mục chi</th><th data-column-key="phuc-loi-cong-ty">Phúc lợi công ty</th><th data-column-key="ghi-chu">Ghi chú</th></tr></thead>
                     <tbody>
                       <tr><td colspan="3"><strong>1. Kết hôn</strong></td></tr>
                       <tr><td>Người lao động kết hôn</td><td>1.000.000</td><td></td></tr>
@@ -736,8 +737,8 @@
 
                 <div class="doc-section">
                   <h4>II. Nghỉ mát và sinh nhật công ty</h4>
-                  <table class="doc-table">
-                    <thead><tr><th>Khoản mục chi</th><th>Phúc lợi công ty</th><th>Ghi chú</th></tr></thead>
+                  <table class="doc-table" data-table-key="humanresources-table-4">
+                    <thead><tr><th data-column-key="khoan-muc-chi">Khoản mục chi</th><th data-column-key="phuc-loi-cong-ty">Phúc lợi công ty</th><th data-column-key="ghi-chu">Ghi chú</th></tr></thead>
                     <tbody>
                       <tr><td colspan="3"><strong>1. Nghỉ mát hàng năm</strong></td></tr>
                       <tr><td>Định mức chi phí đối với NLĐ tham gia cùng công ty</td><td>4.000.000 - 5.000.000</td><td>Tùy vào tình hình thực tế có thể biến động (nhưng không vượt quá 10%)</td></tr>
@@ -761,8 +762,8 @@
 
                 <div class="doc-section">
                   <h4>III. Thưởng lễ, Tết</h4>
-                  <table class="doc-table">
-                    <thead><tr><th>Đối tượng</th><th>Lễ 30-4 và 1/5</th><th>Quốc khánh 2-9</th><th>Tết dương lịch</th></tr></thead>
+                  <table class="doc-table" data-table-key="humanresources-table-5">
+                    <thead><tr><th data-column-key="doi-tuong">Đối tượng</th><th data-column-key="le-30-4-va-1-5">Lễ 30-4 và 1/5</th><th data-column-key="quoc-khanh-2-9">Quốc khánh 2-9</th><th data-column-key="tet-duong-lich">Tết dương lịch</th></tr></thead>
                     <tbody>
                       <tr><td>Ban giám đốc</td><td>1.500.000</td><td>1.200.000</td><td>1.500.000</td></tr>
                       <tr><td>Trưởng khu vực</td><td>1.000.000</td><td>1.000.000</td><td>1.200.000</td></tr>
@@ -819,16 +820,16 @@
 
           <div class="users-table-panel">
             <div class="users-table-scroll">
-              <table class="users-table fixed-table" id="employeeDirectoryTable">
+              <table class="users-table fixed-table" id="employeeDirectoryTable" data-table-key="employeeDirectoryTable">
                 <thead>
                   <tr>
-                    <th style="width:220px">Họ và tên</th>
-                    <th style="width:180px">Chức vụ</th>
-                    <th style="width:120px">Cơ sở</th>
-                    <th style="width:150px">Số điện thoại</th>
-                    <th style="width:280px">Email</th>
-                    <th style="width:140px">Trạng thái</th>
-                    <th style="width:130px" id="employeeCreatedAtTh" hidden>Ngày thêm</th>
+                    <th style="width:220px" data-column-key="ho-va-ten">Họ và tên</th>
+                    <th style="width:180px" data-column-key="chuc-vu">Chức vụ</th>
+                    <th style="width:120px" data-column-key="co-so">Cơ sở</th>
+                    <th style="width:150px" data-column-key="so-dien-thoai">Số điện thoại</th>
+                    <th style="width:280px" data-column-key="email">Email</th>
+                    <th style="width:140px" data-column-key="trang-thai">Trạng thái</th>
+                    <th style="width:130px" id="employeeCreatedAtTh" hidden data-column-key="ngay-them">Ngày thêm</th>
                   </tr>
                 </thead>
                 <tbody id="employeeDirectoryTableBody">
@@ -1016,6 +1017,7 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
+  <script src="/shared/table-controls.js?v=20261009-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261008"></script>
   <script src="/shared/table-align.js?v=20260928"></script>

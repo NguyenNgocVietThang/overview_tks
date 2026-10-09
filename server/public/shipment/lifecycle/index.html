@@ -254,7 +254,7 @@
   .bulk-table td.lc-money{ font-family:var(--font-data); font-variant-numeric:tabular-nums; white-space:nowrap; }
   /* Cot "Ghi chu" (ghi chu cua don tren Kiot): toi da 2 dong trong o, doc du trong tooltip va hop chi tiet. */
   .bulk-table td.lc-note{ font-size:12.5px; color:var(--text-secondary); }
-  .lc-note-text{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word; line-height:1.4; }
+  .lc-note-text{ display:block; white-space:pre-wrap; word-break:break-word; line-height:1.4; }
   /* Dang tai lai trang sau khi doi bo loc/sap xep/trang (bo loc nam o may chu): lam mo nhe bang cu cho toi khi co du lieu moi. */
   .bulk-scroll.is-loading{ opacity:.55; transition:opacity .15s ease; }
   /* Nguon Kiot khong doc duoc: bang chi con dong Google Sheet — bao ro de nguoi dung khong hieu nham la het don. */
@@ -273,24 +273,6 @@
   .bulk-columns-button svg{ width:15px; height:15px; flex:none; }
   .bulk-columns-button:hover{ border-color:var(--muted); }
   .bulk-columns-button:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
-  .lc-columns-dialog{ max-width:520px; }
-  .lc-columns-hint{ margin:0 0 12px; color:var(--muted); font-size:12px; line-height:1.5; }
-  .lc-columns-actions{ display:flex; gap:8px; margin-bottom:12px; }
-  .lc-columns-action{
-    min-height:34px; padding:0 12px; border:1px solid var(--border); border-radius:7px; cursor:pointer;
-    background:var(--panel-2); color:var(--text); font-family:var(--font-body); font-size:11.5px; font-weight:600;
-  }
-  .lc-columns-action:hover{ border-color:var(--muted); }
-  .lc-col-grid{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px; }
-  .lc-col-item{
-    min-width:0; display:flex; align-items:flex-start; gap:8px; padding:8px 9px; border:1px solid var(--border);
-    border-radius:7px; background:var(--panel-2); font-size:12px; cursor:pointer;
-  }
-  .lc-col-item input{ margin:2px 0 0; accent-color:var(--green); }
-  .lc-col-item input:disabled + .lc-col-label{ color:var(--muted); }
-  .lc-col-label{ min-width:0; overflow-wrap:anywhere; }
-  @media(max-width:640px){ .lc-col-grid{ grid-template-columns:1fr; } }
-
   /* Phan trang (100 dong/trang, cat o may chu) — cung kieu .pagination-controls cua trang Bao cao tong hop. */
   .pagination-controls{
     display:flex; align-items:center; justify-content:center; gap:10px; margin:12px 0; font-family:var(--font-data);
@@ -362,6 +344,7 @@
     .lc-detail-label{ flex:none; }
   }
 </style>
+  <link rel="stylesheet" href="/shared/table-controls.css?v=20261009-1">
 </head>
 <body>
   <div class="receipt-header">
@@ -484,21 +467,21 @@
               <button type="submit" class="btn-secondary bulk-search-submit">Tìm kiếm</button>
             </form>
             <div class="bulk-scroll bulk-scroll-y">
-              <table class="bulk-table fixed-table" id="bulkTable">
+              <table class="bulk-table fixed-table" id="bulkTable" data-table-key="bulkTable">
                 <thead><tr id="bulkHeadRow">
-                  <th class="sortable" data-col="orderCode" data-sort="orderCode" style="width:130px">Mã đơn<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="branch" data-sort="branch" style="width:100px">Cơ sở<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="orderDate" data-sort="orderDate" style="width:150px" title="Thời gian đặt hàng trên Kiot (bảng Đặt hàng).">Thời gian đặt hàng<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="saleName" data-sort="saleName" style="width:150px">Sale<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="customerName" data-sort="customerName" style="width:220px">Khách hàng<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="orderTotal" data-sort="orderTotal" style="width:150px" title="Giá trị đơn hàng trên Kiot (tổng tiền của phiếu).">Giá trị đơn<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="sellableValue" data-sort="sellableValue" style="width:150px" title="Giá trị đơn bán được ngay: từng mặt hàng lấy min(số lượng đặt, tồn kho thực tế của Kiot) × đơn giá. Chỉ có với đơn đang là Phiếu tạm trên Kiot.">Giá trị có bán<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="note" data-sort="note" style="width:220px" title="Ghi chú của đơn trên Kiot.">Ghi chú<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="saleSentAt" data-sort="saleSentAt" style="width:155px">Sale ra đơn<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="kiotStatus" data-sort="kiotStatus" style="width:150px" title="Trạng thái của đơn đặt hàng trên KiotViet.">Trạng thái KiotViet<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="status" data-sort="status" style="width:200px">Trạng thái<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="at" data-sort="at" style="width:155px">Cập nhật gần nhất<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="warning" data-sort="warning" style="width:110px">Cảnh báo<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-col="orderCode" data-sort="orderCode" style="width:130px" data-column-key="orderCode">Mã đơn<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-col="branch" data-sort="branch" style="width:100px" data-column-key="branch">Cơ sở<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-col="orderDate" data-sort="orderDate" style="width:150px" title="Thời gian đặt hàng trên Kiot (bảng Đặt hàng)." data-column-key="orderDate">Thời gian đặt hàng<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-col="saleName" data-sort="saleName" style="width:150px" data-column-key="saleName">Sale<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-col="customerName" data-sort="customerName" style="width:220px" data-column-key="customerName">Khách hàng<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-col="orderTotal" data-sort="orderTotal" style="width:150px" title="Giá trị đơn hàng trên Kiot (tổng tiền của phiếu)." data-column-key="orderTotal">Giá trị đơn<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-col="sellableValue" data-sort="sellableValue" style="width:150px" title="Giá trị đơn bán được ngay: từng mặt hàng lấy min(số lượng đặt, tồn kho thực tế của Kiot) × đơn giá. Chỉ có với đơn đang là Phiếu tạm trên Kiot." data-column-key="sellableValue">Giá trị có bán<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-col="note" data-sort="note" style="width:220px" title="Ghi chú của đơn trên Kiot." data-column-key="note">Ghi chú<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-col="saleSentAt" data-sort="saleSentAt" style="width:155px" data-column-key="saleSentAt">Sale ra đơn<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-col="kiotStatus" data-sort="kiotStatus" style="width:150px" title="Trạng thái của đơn đặt hàng trên KiotViet." data-column-key="kiotStatus">Trạng thái KiotViet<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-col="status" data-sort="status" style="width:200px" data-column-key="status">Trạng thái<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-col="at" data-sort="at" style="width:155px" data-column-key="at">Cập nhật gần nhất<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-col="warning" data-sort="warning" style="width:110px" data-column-key="warning">Cảnh báo<span class="sort-ind">▲</span></th>
                 </tr></thead>
                 <tbody id="bulkBody"></tbody>
               </table>
@@ -542,13 +525,13 @@
               <button type="submit" class="btn-secondary bulk-search-submit">Tìm kiếm</button>
             </form>
             <div class="bulk-scroll">
-              <table class="bulk-table fixed-table">
+              <table class="bulk-table fixed-table" data-table-key="shipment-lifecycle-table-2">
                 <thead><tr id="historyHeadRow">
-                  <th class="sortable" data-sort="orderCode" style="width:160px">Mã đơn<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-sort="statusLabel" style="width:250px">Thay đổi trạng thái<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-sort="changedBy" style="width:200px">Người thực hiện<span class="sort-ind">▲</span></th>
-                  <th style="width:300px">Ghi chú</th>
-                  <th class="sortable" data-sort="changedAt" style="width:225px">Thời gian cập nhật<span class="sort-ind">▼</span></th>
+                  <th class="sortable" data-sort="orderCode" style="width:160px" data-column-key="orderCode">Mã đơn<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="statusLabel" style="width:250px" data-column-key="statusLabel">Thay đổi trạng thái<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="changedBy" style="width:200px" data-column-key="changedBy">Người thực hiện<span class="sort-ind">▲</span></th>
+                  <th style="width:300px" data-column-key="ghi-chu">Ghi chú</th>
+                  <th class="sortable" data-sort="changedAt" style="width:225px" data-column-key="changedAt">Thời gian cập nhật<span class="sort-ind">▼</span></th>
                 </tr></thead>
                 <tbody id="historyBody"></tbody>
               </table>
@@ -571,27 +554,10 @@
     </div>
   </div>
 
-  <!-- Hop chon cot hien thi cua bang "Toan bo don hang" (tick = hien, bo tick = an; ap dung ngay, nho theo trinh duyet) -->
-  <div class="tks-profile-overlay" id="lcColumnsOverlay" hidden>
-    <div class="tks-profile-dialog lc-columns-dialog" role="dialog" aria-modal="true" aria-labelledby="lcColumnsTitle">
-      <div class="tks-profile-header">
-        <h3 id="lcColumnsTitle">Cột hiển thị</h3>
-        <button type="button" class="tks-profile-close" id="lcColumnsClose" aria-label="Đóng">✕</button>
-      </div>
-      <div class="tks-profile-body">
-        <p class="lc-columns-hint">Tick để hiện cột trong bảng "Toàn bộ đơn hàng", bỏ tick để ẩn. Lựa chọn được áp dụng ngay và nhớ cho lần sau trên trình duyệt này.</p>
-        <div class="lc-columns-actions">
-          <button type="button" class="lc-columns-action" id="lcColumnsShowAll">Chọn tất cả</button>
-          <button type="button" class="lc-columns-action" id="lcColumnsHideAll">Bỏ chọn</button>
-        </div>
-        <div class="lc-col-grid" id="lcColumnsList"></div>
-      </div>
-    </div>
-  </div>
-
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Dat o cuoi than <body> thay vi <head>: script chan phan tich cu phap trong <head> se lam dung viec xu ly toan bo tai lieu. Khong dung `defer` vi script inline ben duoi dung TKSNav o cap cao nhat, va script inline luon chay truoc script defer. -->
+  <script src="/shared/table-controls.js?v=20261009-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261008"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
@@ -765,7 +731,7 @@
       if(!lines.length){
         return html + '<p class="lc-lines-status">Đơn này chưa có dòng hàng nào trên Kiot.</p>';
       }
-      html += '<div class="lc-lines-scroll"><table class="lc-lines"><thead><tr>' +
+      html += '<div class="lc-lines-scroll"><table class="lc-lines" data-table-key="shipment-lifecycle-table-3"><thead><tr>' +
         '<th>Mã hàng</th><th>Tên hàng</th><th class="num">SL đặt</th>' +
         '<th class="num" title="Đơn giá sau chiết khấu của dòng">Đơn giá</th><th class="num">Thành tiền</th>' +
         '<th class="num" title="Tồn thực tế của Kiot (cơ sở của đơn)">Tồn kho</th>' +
@@ -1213,87 +1179,11 @@
     };
     const CELL_CLASS = { orderTotal: 'lc-money', sellableValue: 'lc-money', note: 'lc-note' };
 
-    const HIDDEN_COLUMNS_STORAGE_KEY = 'tks-lifecycle-hidden-columns';
-    // Cot AN mac dinh cho tai khoan/trinh duyet chua tung chon (chua co du lieu luu).
     const DEFAULT_HIDDEN_COLUMNS = ['branch', 'note', 'kiotStatus'];
-    // Luu danh sach cot AN (khong phai cot hien) de cot moi them sau nay mac dinh la hien.
-    function loadHiddenColumns(){
-      try{
-        const raw = localStorage.getItem(HIDDEN_COLUMNS_STORAGE_KEY);
-        if(raw === null) return DEFAULT_HIDDEN_COLUMNS.slice();
-        const saved = JSON.parse(raw);
-        if(Array.isArray(saved)){
-          return BULK_COLUMNS.filter(function(col){ return !col.locked && saved.indexOf(col.key) !== -1; })
-            .map(function(col){ return col.key; });
-        }
-      }catch(err){}
-      return DEFAULT_HIDDEN_COLUMNS.slice();
-    }
-    function saveHiddenColumns(){
-      try{ localStorage.setItem(HIDDEN_COLUMNS_STORAGE_KEY, JSON.stringify(hiddenColumns)); }catch(err){}
-    }
-    let hiddenColumns = loadHiddenColumns(); // chua tung chon = DEFAULT_HIDDEN_COLUMNS
-
-    // An cot bang <style> sinh theo danh sach cot an (an ca <th> va <td> cung data-col, khong dung lai DOM).
-    const bulkColumnStyle = document.createElement('style');
-    bulkColumnStyle.id = 'bulkColumnStyle';
-    document.head.appendChild(bulkColumnStyle);
-    function applyColumnVisibility(){
-      bulkTable.dataset.hiddenCols = hiddenColumns.join(',');
-      bulkColumnStyle.textContent = hiddenColumns.map(function(key){
-        return '#bulkTable [data-col="' + key + '"]{ display:none; }';
-      }).join('\n');
-    }
-
-    const columnsOverlay = document.getElementById('lcColumnsOverlay');
-    const columnsList = document.getElementById('lcColumnsList');
-    function renderColumnsList(){
-      columnsList.innerHTML = BULK_COLUMNS.map(function(col){
-        const checked = hiddenColumns.indexOf(col.key) === -1;
-        return '<label class="lc-col-item"><input type="checkbox" data-col-key="' + col.key + '"' +
-          (checked ? ' checked' : '') + (col.locked ? ' disabled' : '') + '>' +
-          '<span class="lc-col-label">' + escapeHtml(col.label) + (col.locked ? ' (luôn hiển thị)' : '') + '</span></label>';
-      }).join('');
-    }
-    // Cap nhat trang thai tick TAI CHO (khong dung lai danh sach) de khong mat focus khi bam phim cach tren o tick.
-    function syncColumnsList(){
-      columnsList.querySelectorAll('input[data-col-key]').forEach(function(input){
-        input.checked = hiddenColumns.indexOf(input.dataset.colKey) === -1;
-      });
-    }
-    function setHiddenColumns(keys){
-      hiddenColumns = BULK_COLUMNS.filter(function(col){ return !col.locked && keys.indexOf(col.key) !== -1; })
-        .map(function(col){ return col.key; });
-      applyColumnVisibility();
-      saveHiddenColumns();
-      syncColumnsList();
-    }
-    function onColumnsKeydown(e){ if(e.key === 'Escape') closeColumnsDialog(); }
-    function openColumnsDialog(){
-      renderColumnsList();
-      columnsOverlay.hidden = false;
-      document.addEventListener('keydown', onColumnsKeydown);
-    }
-    function closeColumnsDialog(){
-      columnsOverlay.hidden = true;
-      document.removeEventListener('keydown', onColumnsKeydown);
-    }
-    columnsList.addEventListener('change', function(e){
-      const input = e.target.closest('input[data-col-key]');
-      if(!input) return;
-      const key = input.dataset.colKey;
-      const next = hiddenColumns.filter(function(item){ return item !== key; });
-      if(!input.checked) next.push(key);
-      setHiddenColumns(next);
+    if(window.TKSTables) window.TKSTables.enhance(bulkTable, {
+      key: 'lifecycle-orders', button: bulkColumnsBtn,
+      columns: BULK_COLUMNS.map(function(col){ return Object.assign({}, col, { hidden: DEFAULT_HIDDEN_COLUMNS.indexOf(col.key) !== -1 }); })
     });
-    document.getElementById('lcColumnsShowAll').addEventListener('click', function(){ setHiddenColumns([]); });
-    document.getElementById('lcColumnsHideAll').addEventListener('click', function(){
-      setHiddenColumns(BULK_COLUMNS.map(function(col){ return col.key; })); // "Ma don" bi giu lai (locked)
-    });
-    document.getElementById('lcColumnsClose').addEventListener('click', closeColumnsDialog);
-    columnsOverlay.addEventListener('click', function(e){ if(e.target === columnsOverlay) closeColumnsDialog(); });
-    bulkColumnsBtn.addEventListener('click', openColumnsDialog);
-    applyColumnVisibility();
 
     // ---------- Sap xep (do may chu thuc hien; o day chi giu trang thai + chi bao tren tieu de cot) ----------
     function syncSortHeaderUI(){

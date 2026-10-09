@@ -316,6 +316,7 @@
     to{ transform:translateY(0); opacity:1; }
   }
 </style>
+  <link rel="stylesheet" href="/shared/table-controls.css?v=20261009-1">
 </head>
 <body>
   <div class="receipt-header">
@@ -587,13 +588,13 @@
           <!-- Bảng danh sách -->
           <div class="users-table-panel">
             <div class="users-table-scroll">
-              <table class="users-table fixed-table" id="usersTable">
+              <table class="users-table fixed-table" id="usersTable" data-table-key="usersTable">
                 <thead>
                   <tr>
-                    <th class="sortable" onclick="handleSort('hoTen')" style="width:260px">Họ và tên <span class="sort-icon" id="sort-hoTen">↕</span></th>
-                    <th class="sortable" onclick="handleSort('vaiTro')" style="width:200px">Vai trò <span class="sort-icon" id="sort-vaiTro">↕</span></th>
-                    <th class="sortable" onclick="handleSort('coSo')" style="width:110px">Cơ sở <span class="sort-icon" id="sort-coSo">↕</span></th>
-                    <th class="sortable" onclick="handleSort('trangThai')" style="width:130px">Trạng thái <span class="sort-icon" id="sort-trangThai">↕</span></th>
+                    <th class="sortable" onclick="handleSort('hoTen')" style="width:260px" data-column-key="ho-va-ten">Họ và tên <span class="sort-icon" id="sort-hoTen">↕</span></th>
+                    <th class="sortable" onclick="handleSort('vaiTro')" style="width:200px" data-column-key="vai-tro">Vai trò <span class="sort-icon" id="sort-vaiTro">↕</span></th>
+                    <th class="sortable" onclick="handleSort('coSo')" style="width:110px" data-column-key="co-so">Cơ sở <span class="sort-icon" id="sort-coSo">↕</span></th>
+                    <th class="sortable" onclick="handleSort('trangThai')" style="width:130px" data-column-key="trang-thai">Trạng thái <span class="sort-icon" id="sort-trangThai">↕</span></th>
                   </tr>
                 </thead>
                 <tbody id="usersTableBody">
@@ -627,14 +628,14 @@
 
           <div class="users-table-panel">
             <div class="users-table-scroll">
-              <table class="users-table fixed-table" id="historyTable">
+              <table class="users-table fixed-table" id="historyTable" data-table-key="historyTable">
                 <thead>
                   <tr>
-                    <th style="width:150px">Thời gian</th>
-                    <th style="width:200px">Người sửa</th>
-                    <th style="width:200px">Tài khoản</th>
-                    <th style="width:150px">Thao tác</th>
-                    <th style="width:420px">Chi tiết</th>
+                    <th style="width:150px" data-column-key="thoi-gian">Thời gian</th>
+                    <th style="width:200px" data-column-key="nguoi-sua">Người sửa</th>
+                    <th style="width:200px" data-column-key="tai-khoan">Tài khoản</th>
+                    <th style="width:150px" data-column-key="thao-tac">Thao tác</th>
+                    <th style="width:420px" data-column-key="chi-tiet">Chi tiết</th>
                   </tr>
                 </thead>
                 <tbody id="historyTableBody">
@@ -952,6 +953,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Đặt ở cuối thẻ body thay vì trong <head>: script chặn phân tích cú pháp trong <head> sẽ làm dừng việc xử lý toàn bộ tài liệu. Không dùng `defer` vì script inline bên dưới dùng TKSNav ở cấp cao nhất, và script inline luôn chạy trước script defer. -->
+  <script src="/shared/table-controls.js?v=20261009-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261008"></script>
   <script src="/shared/table-align.js?v=20260928"></script>

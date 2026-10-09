@@ -21,10 +21,11 @@ function page(customFetch) {
     return {ok:true,status:200,json:async()=>json};
   };
   window.eval(fs.readFileSync(path.join(__dirname,'../../public/shared/search-clear.js'),'utf8'));
+  window.eval(fs.readFileSync(path.join(__dirname,'../../public/shared/table-controls.js'),'utf8'));
   window.eval(source);
   return {dom,window,doc:window.document,urls};
 }
-test('Marketing tables search without accents, sort before 100-row pagination and offer export instead of column toggles',async()=>{
+test('Marketing tables search, sort before pagination and expose the shared column picker alongside export',async()=>{
   const p=page(); await p.window.TKSMarketing.load();
   const host=p.doc.getElementById('marketing-monthly-rows');
   assert.equal(host.querySelectorAll('tbody tr').length,100);
@@ -34,6 +35,15 @@ test('Marketing tables search without accents, sort before 100-row pagination an
   assert.equal(host.querySelectorAll('tbody tr').length,1);
   assert.equal(host.querySelector('[data-column]'),null);
   assert.equal(p.doc.querySelector('.marketing-columns, .marketing-toc'),null);
+  assert.ok(host.querySelector('.tks-columns-button'));
+  assert.equal(host.querySelectorAll('th[data-column-key]').length,10);
+  host.querySelector('.tks-columns-button').click();
+  const phone=p.doc.querySelector('.tks-columns-picker:not([hidden]) input[data-column-key="phone"]');
+  phone.checked=false; phone.dispatchEvent(new p.window.Event('change',{bubbles:true}));
+  host.querySelector('[data-sort="revenue"]').click();
+  assert.ok(host.querySelector('th[data-column-key="phone"]').classList.contains('tks-column-hidden'));
+  assert.ok(host.querySelector('tbody tr td:nth-child(3)').classList.contains('tks-column-hidden'));
+  p.doc.querySelector('.tks-columns-picker:not([hidden]) [data-action="close"]').click();
   let opened;
   p.window.exportFetch=(url)=>url; p.window.startExportDialog=async(payload,source)=>{opened={payload,source};};
   host.querySelector('.export-button').click();
@@ -167,7 +177,20 @@ test('sửa Ghi chú gửi PUT kèm snapshot, lỗi thì trả lại giá trị 
     return base(url,init);
   };
   await p.window.TKSMarketing.load();
-  const input=p.doc.querySelector('#marketing-monthly-rows input[data-edit="note"]');
+  const input=p.doc.querySelector('#marketing-monthly-rows textarea[data-edit="note"]');
+  assert.equal(input.getAttribute('wrap'),'soft');
+  assert.equal(input.maxLength,500);
+  Object.defineProperty(input,'scrollHeight',{value:94});
+  input.dispatchEvent(new p.window.Event('input'));
+  assert.equal(input.style.height,'94px');
+  input.value='bản nháp chưa lưu';
+  const escape=new p.window.KeyboardEvent('keydown',{key:'Escape',cancelable:true});
+  input.dispatchEvent(escape);
+  assert.equal(input.value,'cũ');
+  assert.equal(escape.defaultPrevented,true);
+  const enter=new p.window.KeyboardEvent('keydown',{key:'Enter',cancelable:true});
+  input.dispatchEvent(enter);
+  assert.equal(enter.defaultPrevented,true);
   assert.equal(input.value,'cũ');
   input.value='gọi lại ngày mai';input.dispatchEvent(new p.window.Event('change'));await settle();
   assert.equal(puts[0].init.method,'PUT');

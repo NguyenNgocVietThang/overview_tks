@@ -21,6 +21,7 @@ const path = require('path');
 const zlib = require('zlib');
 
 const CHART_JS_PATH = path.join(__dirname, '..', 'public', 'vendor', 'chart.umd.min.js');
+const TABLE_CONTROLS_PATH = path.join(__dirname, '..', 'public', 'shared', 'table-controls');
 let chartJsSource = null;
 
 function getChartJsSource() {
@@ -373,7 +374,11 @@ function embedValue(value, column) {
 }
 
 function embedWorksheet(worksheet) {
-  const columns = worksheet.columns.map(column => ({ key: column.key, label: column.label, type: column.type || 'general' }));
+  const columns = worksheet.columns.map(column => {
+    const embedded = { key: column.key, label: column.label, type: column.type || 'general' };
+    if (Number.isFinite(column.width) && column.width > 0) embedded.width = column.width;
+    return embedded;
+  });
   const rows = worksheet.rows.map(row => columns.map(column => embedValue(row[column.key], column)));
   const embedded = { key: worksheet.key, name: worksheet.name, columns, rows };
   if (Array.isArray(worksheet.summaryKeys)) embedded.summaryKeys = worksheet.summaryKeys;
@@ -475,17 +480,16 @@ input[type=search]:focus,select:focus,button:focus-visible{outline:2px solid var
 .table-card .card-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--line)}
 .table-wrap{overflow:auto;max-height:calc(100vh - 150px);min-height:240px}
 table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
-thead th{position:sticky;top:0;z-index:1;background:var(--surface-2);color:var(--ink-2);font-weight:600;text-align:left;padding:0;border-bottom:1px solid var(--line-2);white-space:nowrap}
+thead th{position:sticky;top:0;z-index:1;background:var(--surface-2);color:var(--ink-2);font-weight:600;text-align:left;padding:0;border-bottom:1px solid var(--line-2);white-space:normal;overflow-wrap:anywhere}
 thead th button{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:6px;width:100%;padding:10px 12px;cursor:pointer}
 thead th.num button{justify-content:flex-end}
 thead th button:focus-visible{outline:2px solid var(--accent-2);outline-offset:-2px}
 .sort{font-size:10px;color:var(--muted);opacity:.5}
 th[aria-sort] .sort{opacity:1;color:var(--accent)}
-tbody td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top;max-width:360px;white-space:pre-line;overflow-wrap:anywhere}
+tbody td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top;white-space:pre-wrap;overflow-wrap:anywhere}
 tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--surface-2) 70%,transparent)}
 tbody tr:hover td{background:var(--accent-soft)}
-td.num{text-align:right;white-space:nowrap}
-td.date{white-space:nowrap}
+td.num{text-align:right}
 td.neg{color:var(--neg)}
 td.empty{color:var(--muted)}
 .no-rows{padding:40px 18px;text-align:center;color:var(--muted)}
@@ -629,9 +633,33 @@ const REPORT_SCRIPT = `
       var sorted = state.sort && state.sort.index === index;
       var aria = sorted ? ' aria-sort="' + (state.sort.dir === 'asc' ? 'ascending' : 'descending') + '"' : '';
       var icon = sorted ? (state.sort.dir === 'asc' ? '▲' : '▼') : '↕';
-      return '<th scope="col"' + aria + (numeric ? ' class="num"' : '') + '><button type="button" data-col="' + index + '">' +
+      return '<th scope="col" data-column-key="' + kit.escapeHtml(column.key) + '"' + aria + (numeric ? ' class="num"' : '') + '><button type="button" data-col="' + index + '">' +
         kit.escapeHtml(column.label) + '<span class="sort" aria-hidden="true">' + icon + '</span></button></th>';
     }).join('') + '</tr>';
+  }
+
+  function enhanceTable() {
+    var ws = sheet();
+    var table = $('reportTable');
+    var key = 'export:' + ws.key;
+    table.setAttribute('data-table-key', key);
+    window.TKSTables.enhance(table, {
+      key: key,
+      columns: ws.columns.map(function (column) {
+        return { key: column.key, label: column.label, width: column.width, hidden: false };
+      }),
+      button: $('tableColumns'),
+      onVisibilityChange: function (hiddenKeys) {
+        var empty = $('tbody').querySelector('.no-rows');
+        if (empty) empty.colSpan = Math.max(1, ws.columns.length - hiddenKeys.length);
+      }
+    });
+    window.TKSTables.refresh(table);
+    // Mot trang rong moi render van phai theo so cot dang hien cua worksheet nay.
+    var empty = $('tbody').querySelector('.no-rows');
+    if (empty) empty.colSpan = Math.max(1, Array.prototype.filter.call(table.tHead.rows[0].cells, function (cell) {
+      return getComputedStyle(cell).display !== 'none';
+    }).length);
   }
 
   function renderBody(rows) {
@@ -758,6 +786,7 @@ const REPORT_SCRIPT = `
     var rows = filteredRows();
     renderHead();
     renderBody(rows);
+    enhanceTable();
     $('reset').disabled = !state.query && !state.category && !state.sort;
     if (!withSummary) return;
     clearTimeout(summaryTimer);
@@ -820,6 +849,9 @@ async function renderHtmlReport(dataset) {
   const generatedAt = formatGeneratedAt(meta.generatedAt || new Date());
   // base64 chi gom [A-Za-z0-9+/=] nen khong the dong the <script>.
   const payload = (await gzipWorksheets(worksheets)).toString('base64');
+  // Nhung cung bo dieu khien bang nhu dashboard, giu file offline va khong tao the script moi.
+  const tableCss = fs.readFileSync(TABLE_CONTROLS_PATH + '.css', 'utf8').replace(/<\/style/gi, '<\\/style');
+  const tableScript = fs.readFileSync(TABLE_CONTROLS_PATH + '.js', 'utf8').replace(/<\/script/gi, '<\\/script');
   const tabs = worksheets.length > 1
     ? `<div class="tabs" id="tabs" role="tablist" aria-label="Nguồn dữ liệu">${worksheets.map((worksheet, index) =>
       `<button type="button" role="tab" data-sheet="${index}" aria-selected="${index === 0}">${escape(worksheet.name)}</button>`).join('')}</div>`
@@ -833,7 +865,7 @@ async function renderHtmlReport(dataset) {
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:">
 <meta name="generator" content="TOKOSI Dashboard">
 <title>${escape(meta.title)} · TOKOSI</title>
-<style>${REPORT_CSS}</style>
+<style>${REPORT_CSS}\n${tableCss}</style>
 </head>
 <body>
 <div class="page">
@@ -862,8 +894,8 @@ async function renderHtmlReport(dataset) {
   <main class="content">
     <aside class="charts" id="charts" aria-label="Biểu đồ"></aside>
     <section class="card table-card" aria-labelledby="tableTitle">
-      <header class="card-head"><h2 id="tableTitle">${escape(first.name)}</h2><p>Bấm tiêu đề cột để sắp xếp</p></header>
-      <div class="table-wrap" id="tableWrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+      <header class="card-head"><div><h2 id="tableTitle">${escape(first.name)}</h2><p>Bấm tiêu đề cột để sắp xếp</p></div><button class="btn" id="tableColumns" type="button">Cột hiển thị</button></header>
+      <div class="table-wrap" id="tableWrap"><table id="reportTable"><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
       <footer class="pager"><span id="pageInfo"></span><div><button class="btn" id="prevPage" type="button">‹ Trước</button><span id="pageLabel"></span><button class="btn" id="nextPage" type="button">Sau ›</button></div></footer>
     </section>
   </main>
@@ -872,7 +904,7 @@ async function renderHtmlReport(dataset) {
 </div>
 <script type="application/octet-stream" id="report-data" data-encoding="gzip-base64">${payload}</script>
 <script>${getChartJsSource()}</script>
-<script>${REPORT_SCRIPT}</script>
+<script>${tableScript}\n${REPORT_SCRIPT}</script>
 </body>
 </html>
 `;

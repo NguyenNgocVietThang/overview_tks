@@ -152,10 +152,10 @@
   function mountTable(host, id, title, rows, columns, onOpen, exportInfo) {
     const saved = host._marketingState || { search:'', sort:null, direction:1, page:1 };
     host._marketingState = saved;
-    host.innerHTML = '<div class="panel marketing-table"><div class="panel-head"><h2>'+escape(title)+'</h2><div class="panel-head-actions"><span class="drill-hint" data-count>—</span>'+(exportInfo?'<button class="export-button" type="button" id="'+id+'-export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>':'')+'</div><div class="table-search-tools"><div class="table-search-input-wrap"><input class="table-search-input" id="'+id+'-search" type="search" autocomplete="off" aria-label="Tìm trong '+escape(title)+'" placeholder="Tìm kiếm không dấu…" value="'+escape(saved.search)+'"></div>'+'</div></div><div class="table-wrap marketing-table-scroll"><table aria-label="'+escape(title)+'"><thead></thead><tbody></tbody></table></div><div class="pagination-controls marketing-pages" hidden><button type="button" id="'+id+'-first" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button><button type="button" id="'+id+'-prev" aria-label="Trang trước" title="Trang trước">&lt;</button><span data-page-label></span><button type="button" id="'+id+'-next" aria-label="Trang sau" title="Trang sau">&gt;</button><button type="button" id="'+id+'-last" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button></div></div>';
+    host.innerHTML = '<div class="panel marketing-table"><div class="panel-head"><h2>'+escape(title)+'</h2><div class="panel-head-actions"><span class="drill-hint" data-count>—</span>'+(exportInfo?'<button class="export-button" type="button" id="'+id+'-export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>':'')+'</div><div class="table-search-tools"><div class="table-search-input-wrap"><input class="table-search-input" id="'+id+'-search" type="search" autocomplete="off" aria-label="Tìm trong '+escape(title)+'" placeholder="Tìm kiếm không dấu…" value="'+escape(saved.search)+'"></div>'+'</div></div><div class="table-wrap marketing-table-scroll"><table data-table-key="'+id+'" aria-label="'+escape(title)+'"><thead></thead><tbody></tbody></table></div><div class="pagination-controls marketing-pages" hidden><button type="button" id="'+id+'-first" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button><button type="button" id="'+id+'-prev" aria-label="Trang trước" title="Trang trước">&lt;</button><span data-page-label></span><button type="button" id="'+id+'-next" aria-label="Trang sau" title="Trang sau">&gt;</button><button type="button" id="'+id+'-last" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button></div></div>';
     const editing = !!exportInfo && exportInfo.kind === 'monthly' && exportInfo.table === 'rows' && canEdit();
     function cellHtml(row, key, type, edit, index) {
-      if (edit && EDIT_KEYS.has(key) && row.key) return '<td class="marketing-edit-cell"><input class="marketing-edit" type="text" maxlength="500" data-edit="'+key+'" data-edit-index="'+index+'" aria-label="'+escape(columns.find(c => c[0] === key)[1])+' của '+escape(row.customer || row.phone || 'dòng này')+'" value="'+escape(row[key] || '')+'" autocomplete="off"></td>';
+      if (edit && EDIT_KEYS.has(key) && row.key) return '<td class="marketing-edit-cell"><textarea class="marketing-edit" rows="1" wrap="soft" maxlength="500" data-edit="'+key+'" data-edit-index="'+index+'" aria-label="'+escape(columns.find(c => c[0] === key)[1])+' của '+escape(row.customer || row.phone || 'dòng này')+'">'+escape(row[key] || '')+'</textarea></td>';
       const text = escape(format(row[key],type));
       if (NAME_KEYS.has(key) && isMkt(row[key])) return '<td><span class="mkt-name">'+text+'</span></td>';
       return '<td'+(type?' class="mono col-num"':'')+'>'+text+'</td>';
@@ -165,7 +165,7 @@
       let found = rows.filter(row => normalize(Object.values(row).join(' ')).includes(normalize(saved.search)));
       if (saved.sort) found = found.slice().sort((a,b) => { const av=a[saved.sort], bv=b[saved.sort]; if(av==null) return 1; if(bv==null) return -1; return saved.direction * (typeof av === 'number' && typeof bv === 'number' ? av-bv : String(av).localeCompare(String(bv),'vi',{numeric:true})); });
       const pages = Math.max(1,Math.ceil(found.length/100)); saved.page = Math.min(saved.page,pages);
-      host.querySelector('thead').innerHTML = '<tr>'+visible.map(([key,label,type]) => '<th class="sortable'+(type?' col-num':'')+'" aria-sort="'+(saved.sort===key?(saved.direction===1?'ascending':'descending'):'none')+'"><button type="button" class="sort-button" id="'+id+'-sort-'+key+'" data-sort="'+key+'"><span>'+escape(label)+'</span><span class="sort-indicator" aria-hidden="true">'+(saved.sort===key?(saved.direction===1?'▼':'▲'):'↕')+'</span></button></th>').join('')+'</tr>';
+      host.querySelector('thead').innerHTML = '<tr>'+visible.map(([key,label,type]) => '<th data-column-key="'+key+'" data-column-type="'+(type || 'text')+'" class="sortable'+(type?' col-num':'')+'" aria-sort="'+(saved.sort===key?(saved.direction===1?'ascending':'descending'):'none')+'"><button type="button" class="sort-button" id="'+id+'-sort-'+key+'" data-sort="'+key+'"><span>'+escape(label)+'</span><span class="sort-indicator" aria-hidden="true">'+(saved.sort===key?(saved.direction===1?'▼':'▲'):'↕')+'</span></button></th>').join('')+'</tr>';
       const slice = found.slice((saved.page-1)*100,saved.page*100);
       host.querySelector('tbody').innerHTML = slice.length ? slice.map((row,i) => '<tr'+(onOpen&&row.key?' class="marketing-row-link" tabindex="0" data-detail-key="'+escape(row.key)+'" data-index="'+i+'" title="Bấm hoặc nhấn Enter để xem chi tiết"':'')+'>'+visible.map(([key,,type]) => cellHtml(row,key,type,editing,slice.indexOf(row))).join('')+'</tr>').join('') : '<tr><td colspan="'+Math.max(1,visible.length)+'" class="table-note">Chưa có dữ liệu phù hợp.</td></tr>';
       host.querySelector('[data-count]').textContent = found.length + ' dòng';
@@ -176,9 +176,12 @@
       host.querySelectorAll('[data-sort]').forEach(button => button.addEventListener('click', () => { saved.direction=saved.sort===button.dataset.sort?-saved.direction:1; saved.sort=button.dataset.sort; saved.page=1; draw(); }));
       host.querySelectorAll('[data-edit]').forEach(input => {
         const row = slice[Number(input.dataset.editIndex)];
-        input.addEventListener('keydown', event => { if (event.key === 'Enter') input.blur(); if (event.key === 'Escape') { input.value = row[input.dataset.edit] || ''; input.blur(); } });
+        growEditor(input);
+        input.addEventListener('input', () => growEditor(input));
+        input.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); input.blur(); } if (event.key === 'Escape') { event.preventDefault(); input.value = row[input.dataset.edit] || ''; growEditor(input); input.blur(); } });
         input.addEventListener('change', () => saveCell(input, row));
       });
+      if (window.TKSTables) window.TKSTables.enhance(host.querySelector('table'), { key: id, columns: columns.map(([key, label]) => ({ key, label })) });
       host.querySelectorAll('[data-index]').forEach(element => { const open = () => { element.focus(); onOpen(slice[Number(element.dataset.index)]); }; element.addEventListener('click',open); element.addEventListener('keydown',event => { if(event.key==='Enter'||event.key===' ') { event.preventDefault(); open(); } }); });
     }
     host.querySelector('input[type="search"]').addEventListener('input',event => { saved.search=event.target.value; saved.page=1; draw(); });
@@ -188,6 +191,7 @@
     host.querySelector('#'+id+'-next').addEventListener('click', () => { ++saved.page; draw(); });
     host.querySelector('#'+id+'-last').addEventListener('click', () => { saved.page=Infinity; draw(); }); draw();
   }
+  function growEditor(input) { input.style.height = 'auto'; input.style.height = Math.max(30, input.scrollHeight) + 'px'; }
   // Sửa tại chỗ Khách mới / Ghi chú của BC tháng và ghi ngược Google Sheets.
   async function saveCell(input, row) {
     const field = input.dataset.edit, previous = row[field] || '', value = input.value.trim();
@@ -204,7 +208,7 @@
     } catch (error) {
       input.value = previous; input.classList.add('is-error');
       status.textContent = error.message;
-    } finally { input.disabled = false; }
+    } finally { input.disabled = false; growEditor(input); }
   }
   // Nguồn cho hộp thoại "Xuất file" dùng chung (startExportDialog/exportFetch ở index.html): bộ lọc chốt lúc mở.
   const EXPORT_SOURCE = {
@@ -250,7 +254,7 @@
       (data.groups||[]).forEach((group,i) => {
         const groupKind=definitions[group.kind]?group.kind:kind;
         const navigatePhone=kind==='phones' && groupKind==='phones' && (group.rows || []).some(row=>row.key!==key) ? row=>openDetail('phones',row.key,null,false,true) : null;
-        mountTable(document.getElementById('marketing-detail-group-'+i),'marketing-detail-'+i,group.title,group.rows||[],definitions[groupKind].columns,navigatePhone);
+        mountTable(document.getElementById('marketing-detail-group-'+i),'marketing-detail-'+groupKind+'-'+i,group.title,group.rows||[],definitions[groupKind].columns,navigatePhone);
       });
     } catch(error) { if(seq===detailSeq&&dialog.open) document.getElementById('marketingDetailStatus').textContent=error.message+(refresh?' · Giữ chi tiết trước lần cập nhật.':''); }
   }

@@ -12,9 +12,9 @@
 .marketing-section .panel { min-width: 0; }
 .marketing-table .table-wrap { min-width: 0; }
 .marketing-table-scroll { max-height: 560px; overflow: auto; }
-.marketing-table table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+.marketing-table table { width: 100%; border-collapse: collapse; white-space: normal; }
 .marketing-table thead th { position: sticky; top: 0; z-index: 1; background: var(--panel); }
-.marketing-table th .sort-button { white-space: nowrap; }
+.marketing-table th .sort-button { white-space: normal; }
 .marketing-table th.col-num .sort-button { justify-content: flex-end; gap: 4px; }
 .marketing-table td.col-num { text-align: right; }
 .marketing-table tbody tr:hover { background: var(--panel-2); }
@@ -60,7 +60,7 @@
 .mkt-name { color: #FACC15; font-weight: 600; }
 :root[data-theme="light"] .mkt-name { color: #A16207; }
 /* Ô sửa tại chỗ Khách mới / Ghi chú (ghi ngược Google Sheets). */
-.marketing-edit { width: 100%; min-width: 130px; padding: 4px 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: inherit; font: inherit; }
+.marketing-edit { box-sizing: border-box; width: 100%; min-width: 0; min-height: 30px; resize: none; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; padding: 4px 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: inherit; font: inherit; }
 .marketing-edit:hover { border-color: var(--border, rgba(148,163,184,.35)); }
 .marketing-edit:focus { outline: none; border-color: var(--amber); background: var(--panel-2); }
 .marketing-edit.is-saved { border-color: #22C55E; }

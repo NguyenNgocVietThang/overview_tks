@@ -2,6 +2,8 @@
 
 Dashboard nội bộ cho hai cơ sở Hà Nội và Sài Gòn.
 
+Mọi bảng trên web và trong file HTML xuất ra có nút **Cột hiển thị** để chọn cột, cùng tay kéo ở mép phải tiêu đề để chỉnh độ rộng. Nội dung dài xuống dòng; sort, lọc và phân trang giữ nguyên kích thước cột. Các lựa chọn chỉ được giữ trong lần xem hiện tại và trở về mặc định khi tải lại trang hoặc mở lại file HTML. File HTML sử dụng các điều khiển này ngay cả khi offline; Excel/PDF giữ định dạng xuất hiện có.
+
 ## Kiến trúc hiện tại
 
 - **Báo cáo Marketing** tại `/reports/#marketing` đọc ba workbook TRỰC PAGE, SĐT và ADS; gồm BC tháng, Check tỷ lệ nhận số, Sao lưu SĐT và Chi phí. Bấm dòng tổng quan mở hộp chi tiết; quyền `reports.marketing` mặc định Quản lý, Trợ lý, Nhân viên Marketing. Chỉ đọc, giữ kết quả công thức Sheets, làm mới khi đang xem mỗi 5 phút. Xem [cấu hình nguồn và nghiệm thu](docs/marketing-report-setup.md).

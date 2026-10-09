@@ -15,7 +15,8 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/shared/shared.css?v=20261009">
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
-  <link rel="stylesheet" href="/stock-locations/stock-locations.css?v=20261003-3">
+  <link rel="stylesheet" href="/stock-locations/stock-locations.css?v=20261009-1">
+  <link rel="stylesheet" href="/shared/table-controls.css?v=20261009-1">
 </head>
 <body>
   <div class="receipt-header">
@@ -52,16 +53,16 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg>
             <input id="locationSearch" type="search" placeholder="Tìm mã, tên hàng hoặc vị trí…" autocomplete="off">
           </label>
-          <button class="locations-columns-button" id="locationColumnsButton" type="button" aria-haspopup="dialog" aria-controls="locationColumnsDialog" aria-expanded="false">
+          <button class="locations-columns-button" id="locationColumnsButton" type="button" aria-haspopup="dialog" aria-expanded="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16M15 4v16"></path></svg>
             Cột hiển thị
           </button>
         </div>
         <p id="locationStatus" class="locations-status" role="status" aria-live="polite"></p>
         <div class="locations-scroll" tabindex="0" aria-label="Bảng vị trí hàng">
-          <table class="locations-table" aria-labelledby="locationTableTitle" id="locationTable">
+          <table class="locations-table" aria-labelledby="locationTableTitle" id="locationTable" data-table-key="locationTable">
             <colgroup><col class="locations-code"><col class="locations-name"><col class="locations-quantity"><col class="locations-notes"><col><col class="locations-position"></colgroup>
-            <thead><tr><th scope="col">Mã hàng</th><th scope="col">Tên hàng</th><th scope="col">Tổng SL</th><th scope="col">Ghi chú hàng hóa</th><th scope="col">Ngày về</th><th scope="col">Vị trí</th></tr></thead>
+            <thead><tr><th scope="col" data-column-key="ma-hang">Mã hàng</th><th scope="col" data-column-key="ten-hang">Tên hàng</th><th scope="col" data-column-key="tong-sl">Tổng SL</th><th scope="col" data-column-key="ghi-chu-hang-hoa">Ghi chú hàng hóa</th><th scope="col" data-column-key="ngay-ve">Ngày về</th><th scope="col" data-column-key="vi-tri">Vị trí</th></tr></thead>
             <tbody id="locationRows"></tbody>
           </table>
         </div>
@@ -78,21 +79,10 @@
       </section>
     </main>
   </div>
-  <dialog id="locationColumnsDialog" class="locations-columns-dialog" aria-labelledby="locationColumnsTitle">
-    <div class="locations-columns-header">
-      <h3 id="locationColumnsTitle">Cột hiển thị</h3>
-      <button id="locationColumnsClose" type="button" aria-label="Đóng chọn cột">✕</button>
-    </div>
-    <p>Chọn cột cần xem. Lựa chọn được nhớ riêng cho điện thoại và máy tính trên trình duyệt này.</p>
-    <div id="locationColumnsList"></div>
-    <div class="locations-columns-actions">
-      <button id="locationColumnsAll" type="button">Hiện tất cả</button>
-      <button id="locationColumnsReset" type="button">Về mặc định</button>
-    </div>
-  </dialog>
+  <script src="/shared/table-controls.js?v=20261009-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261008"></script>
-  <script src="/stock-locations/stock-locations.js?v=20261003-3"></script>
+  <script src="/stock-locations/stock-locations.js?v=20261009-1"></script>
   <script>window.addEventListener('DOMContentLoaded', function () { TKSStockLocations.init(); });</script>
   <script src="/shared/shooting-star.js?v=20260830"></script>
 </body>

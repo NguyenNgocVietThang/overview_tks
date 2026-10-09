@@ -21,8 +21,9 @@ test('arrival date is displayed verbatim on both branches and available in mobil
   await changeTab('sg');
   assert.equal(doc.querySelector('td[data-field="arrivalDate"]').textContent, '03/10/2026');
   setWidth(390);
-  assert.equal(doc.querySelector('th[data-field="arrivalDate"]'), null);
-  assert.ok(doc.querySelector('[data-column-field="arrivalDate"]'));
+  assert.equal(doc.querySelector('th[data-field="arrivalDate"]:not(.tks-column-hidden)'), null);
+  doc.getElementById('locationColumnsButton').click();
+  assert.ok(doc.querySelector('input[data-column-key="arrivalDate"]'));
 });
 
 test('symbol pager navigates first and last pages within filtered results', async t => {
@@ -57,10 +58,9 @@ async function setup(t, { branch = 'Cả hai', hash = '', data = { HN: [row('001
   const media = { matches: width <= 600, addEventListener: (event, listener) => mediaListeners.push(listener) };
   window.matchMedia = () => media;
   if (savedColumns !== undefined) window.localStorage.setItem('tks-stock-locations-columns-v2', JSON.stringify(savedColumns));
-  const dialog = window.document.getElementById('locationColumnsDialog');
-  // JSDOM does not implement native dialog methods; Chrome verification uses the native implementations.
-  dialog.showModal = () => { dialog.setAttribute('open', ''); };
-  dialog.close = () => { dialog.removeAttribute('open'); dialog.dispatchEvent(new window.Event('close')); };
+  window.HTMLDialogElement.prototype.showModal = function() { this.setAttribute('open', ''); };
+  window.HTMLDialogElement.prototype.close = function() { this.removeAttribute('open'); this.dispatchEvent(new window.Event('close')); };
+  window.eval(fs.readFileSync(path.join(publicDir, 'shared/table-controls.js'), 'utf8'));
   window.eval(nav);
   const user = { vaiTro: 'Nhân viên kho', branch, permissions: resolvePermissions({ vaiTro: 'Nhân viên kho' }), pageFeatures: PAGE_FEATURES };
   window.TKSNav.authGuard = async () => { window.TKSNav.setPermissions(user); return user; };
@@ -74,7 +74,7 @@ async function setup(t, { branch = 'Cả hai', hash = '', data = { HN: [row('001
   await window.TKSStockLocations.init();
   return {
     window, calls, doc: window.document,
-    setWidth: value => { window.innerWidth = value; media.matches = value <= 600; mediaListeners.forEach(listener => listener({ matches: media.matches })); },
+    setWidth: value => { window.innerWidth = value; media.matches = value <= 600; mediaListeners.forEach(listener => listener({ matches: media.matches })); window.TKSTables.refreshAll(); },
     changeTab: async tab => {
       const event = new Promise(resolve => window.addEventListener('hashchange', resolve, { once: true }));
       window.location.hash = tab;
@@ -142,42 +142,44 @@ test('each branch retains its own sort state when switching and rereading tabs',
   assert.equal(doc.querySelector('th[data-field="code"]').getAttribute('aria-sort'), 'ascending');
 });
 
-test('mobile defaults fit three useful columns; picker persists choices separately from desktop and resets safely', async t => {
+test('mobile defaults and shared picker choices last for this session, independently of desktop', async t => {
   const { doc, window, setWidth } = await setup(t, { width: 390 });
-  const fields = () => Array.from(doc.querySelectorAll('#locationTable th'), th => th.dataset.field);
+  const fields = () => Array.from(doc.querySelectorAll('#locationTable th:not(.tks-column-hidden)'), th => th.dataset.field);
   assert.deepEqual(fields(), ['name', 'totalQuantity', 'location']);
   doc.getElementById('locationColumnsButton').click();
-  assert.equal(doc.getElementById('locationColumnsDialog').open, true);
-  assert.equal(doc.querySelector('[data-column-field="name"]').disabled, true);
-  const codeBox = doc.querySelector('[data-column-field="code"]');
+  const picker = doc.querySelector('.tks-columns-picker:not([hidden])');
+  assert.ok(picker);
+  assert.equal(picker.querySelector('input[data-column-key="name"]').disabled, true);
+  const codeBox = picker.querySelector('input[data-column-key="code"]');
   codeBox.checked = true;
   codeBox.dispatchEvent(new window.Event('change', { bubbles: true }));
   assert.deepEqual(fields(), ['code', 'name', 'totalQuantity', 'location']);
-  const saved = JSON.parse(window.localStorage.getItem('tks-stock-locations-columns-v2'));
-  assert.deepEqual(saved.mobile, ['code', 'name', 'totalQuantity', 'location']);
+  assert.equal(window.localStorage.getItem('tks-stock-locations-columns-v2'), null);
   setWidth(1200);
   assert.equal(fields().length, 6);
   setWidth(390);
   assert.equal(fields().length, 4);
-  doc.getElementById('locationColumnsReset').click();
-  assert.deepEqual(fields(), ['name', 'totalQuantity', 'location']);
-  doc.getElementById('locationColumnsAll').click();
+  doc.getElementById('locationColumnsButton').click();
+  doc.querySelector('.tks-columns-picker:not([hidden]) [data-action="show-all"]').click();
   assert.equal(fields().length, 6);
-  doc.getElementById('locationColumnsClose').click();
-  assert.equal(doc.getElementById('locationColumnsDialog').open, false);
+  doc.querySelector('.tks-columns-picker:not([hidden]) [data-action="close"]').click();
+  assert.equal(doc.querySelector('.tks-columns-picker:not([hidden])'), null);
   assert.equal(doc.activeElement, doc.getElementById('locationColumnsButton'));
+  const reloaded = await setup(t, { width: 390 });
+  assert.deepEqual(Array.from(reloaded.doc.querySelectorAll('#locationTable th:not(.tks-column-hidden)'), th => th.dataset.field), ['name', 'totalQuantity', 'location']);
 });
 
-test('saved preferences restore, unknown columns are ignored and hiding a sorted column clears sort', async t => {
+test('old stored column choices are ignored and hiding a sorted column clears sort', async t => {
   const { doc, window } = await setup(t, { savedColumns: { desktop: ['code', 'totalQuantity', 'unknown'] } });
-  assert.deepEqual(Array.from(doc.querySelectorAll('#locationTable th'), th => th.dataset.field), ['code', 'name', 'totalQuantity']);
+  assert.equal(doc.querySelectorAll('#locationTable th:not(.tks-column-hidden)').length, 6);
   doc.querySelector('[data-sort-field="code"]').click();
-  const checkbox = doc.querySelector('[data-column-field="code"]');
+  doc.getElementById('locationColumnsButton').click();
+  const checkbox = doc.querySelector('.tks-columns-picker input[data-column-key="code"]');
   checkbox.checked = false;
   checkbox.dispatchEvent(new window.Event('change', { bubbles: true }));
   assert.equal(doc.querySelector('[aria-sort="ascending"]'), null);
-  assert.equal(doc.querySelector('#locationRows [data-field="code"]'), null);
-  assert.equal(doc.querySelectorAll('#locationRows td').length, 2);
+  assert.ok(doc.querySelector('#locationRows [data-field="code"]').classList.contains('tks-column-hidden'));
+  assert.equal(doc.querySelectorAll('#locationRows td:not(.tks-column-hidden)').length, 5);
 });
 
 test('search is accent/case insensitive, includes rows beyond first page, and ignores notes', async t => {
@@ -202,7 +204,11 @@ test('search is accent/case insensitive, includes rows beyond first page, and ig
 test('search includes position even if its column is hidden and resets pagination', async t => {
   const data = { HN: [...Array.from({ length: 101 }, (_, i) => row('HN' + i)), { ...row('TARGET', 'Ấm'), location: 'KỆ số 36' }], SG: [] };
   const { doc, window } = await setup(t, { data, savedColumns: { desktop: ['code', 'name'] } });
-  assert.equal(doc.querySelector('th[data-field="location"]'), null);
+  doc.getElementById('locationColumnsButton').click();
+  const locationBox = doc.querySelector('.tks-columns-picker input[data-column-key="location"]');
+  locationBox.checked = false;
+  locationBox.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.ok(doc.querySelector('th[data-field="location"]').classList.contains('tks-column-hidden'));
   doc.getElementById('locationNext').click();
   const input = doc.getElementById('locationSearch');
   input.value = 'ke SO 36';

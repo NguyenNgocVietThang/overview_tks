@@ -73,6 +73,9 @@ async function renderPage({ orders = [], kiot = { ok: true, stale: false, fetche
   window.HTMLAnchorElement.prototype.click = () => {};
   window.alert = () => {};
   if (hiddenColumns) window.localStorage.setItem('tks-lifecycle-hidden-columns', JSON.stringify(hiddenColumns));
+  window.HTMLDialogElement.prototype.showModal = function() { this.setAttribute('open', ''); };
+  window.HTMLDialogElement.prototype.close = function() { this.removeAttribute('open'); this.dispatchEvent(new window.Event('close')); };
+  window.eval(fs.readFileSync(path.join(__dirname, '../../public/shared/table-controls.js'), 'utf8'));
   [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]).forEach(script => window.eval(script));
   await settle();
   return { dom, window, document: window.document, calls, source };
@@ -244,96 +247,64 @@ const ALL_COLUMNS = ['orderCode', 'branch', 'orderDate', 'saleName', 'customerNa
 
 const DEFAULT_HIDDEN = ['branch', 'note', 'kiotStatus'];
 
-test('mặc định (chưa từng chọn) ẩn Cơ sở / Ghi chú / Trạng thái KiotViet; ô dữ liệu cùng thứ tự với tiêu đề', async () => {
+const hiddenKeys = document => Array.from(document.querySelectorAll('#bulkHeadRow th.tks-column-hidden'), th => th.dataset.col);
+function openPicker(page) { page.document.getElementById('bulkColumnsBtn').click(); return page.document.querySelector('.tks-columns-picker:not([hidden])'); }
+test('default lifecycle columns share fixed widths and order with data cells', async () => {
   const page = await renderPage({ orders: [kiotOnlyOrder('A')] });
   assert.deepEqual(columnKeys(page.document), ALL_COLUMNS);
   assert.deepEqual([...rowsOf(page.document)[0].cells].map(td => td.dataset.col), ALL_COLUMNS);
-  assert.equal(page.document.getElementById('bulkTable').dataset.hiddenCols, DEFAULT_HIDDEN.join(','));
-  const { window, document } = page;
-  for (const key of ALL_COLUMNS) {
-    const display = window.getComputedStyle(document.querySelector('#bulkTable th[data-col="' + key + '"]')).display;
-    assert.equal(display === 'none', DEFAULT_HIDDEN.includes(key), key);
-  }
-  assert.equal(document.getElementById('lcColumnsOverlay').hidden, true);
+  assert.deepEqual(hiddenKeys(page.document), DEFAULT_HIDDEN);
+  assert.equal(page.document.querySelectorAll('#bulkTable .tks-column-resizer').length, ALL_COLUMNS.length);
+  assert.equal(page.document.querySelectorAll('#bulkTable colgroup col').length, ALL_COLUMNS.length - DEFAULT_HIDDEN.length);
   page.dom.window.close();
 });
 
-test('đã lưu lựa chọn rỗng ("hiện hết") thì không bị ghi đè bởi mặc định', async () => {
-  const page = await renderPage({ orders: [kiotOnlyOrder('A')], hiddenColumns: [] });
-  assert.equal(page.document.getElementById('bulkTable').dataset.hiddenCols, '');
-  assert.equal(page.document.getElementById('bulkColumnStyle').textContent, '');
+test('old stored lifecycle choices are ignored on a fresh page', async () => {
+  const page = await renderPage({ orders: [kiotOnlyOrder('A')], hiddenColumns: ['at', 'orderCode', 'unknown'] });
+  assert.deepEqual(hiddenKeys(page.document), DEFAULT_HIDDEN);
   page.dom.window.close();
 });
 
-test('hộp "Cột hiển thị": mở bằng nút, mỗi cột 1 ô tick (mặc định bỏ tick Cơ sở / Ghi chú / KiotViet), "Mã đơn" luôn hiện (khóa)', async () => {
+test('shared picker reuses lifecycle button, locks order code and returns focus on close', async () => {
   const page = await renderPage({ orders: [kiotOnlyOrder('A')] });
-  const { document } = page;
-  document.getElementById('bulkColumnsBtn').click();
-  assert.equal(document.getElementById('lcColumnsOverlay').hidden, false);
-  const inputs = [...document.querySelectorAll('#lcColumnsList input[type="checkbox"]')];
-  assert.deepEqual(inputs.map(input => input.dataset.colKey), ALL_COLUMNS);
-  assert.deepEqual(inputs.filter(input => !input.checked).map(input => input.dataset.colKey), DEFAULT_HIDDEN);
-  assert.deepEqual(inputs.filter(input => input.disabled).map(input => input.dataset.colKey), ['orderCode']);
-  const labels = [...document.querySelectorAll('#lcColumnsList .lc-col-label')].map(el => el.textContent);
-  assert.ok(labels.includes('Ghi chú') && labels.includes('Trạng thái KiotViet'));
-
-  document.getElementById('lcColumnsClose').click();
-  assert.equal(document.getElementById('lcColumnsOverlay').hidden, true);
+  const picker = openPicker(page);
+  assert.ok(picker);
+  const inputs = Array.from(picker.querySelectorAll('input[data-column-key]'));
+  assert.deepEqual(inputs.map(input => input.dataset.columnKey), ALL_COLUMNS);
+  assert.deepEqual(inputs.filter(input => !input.checked).map(input => input.dataset.columnKey), DEFAULT_HIDDEN);
+  assert.deepEqual(inputs.filter(input => input.disabled).map(input => input.dataset.columnKey), ['orderCode']);
+  picker.querySelector('[data-action="close"]').click();
+  assert.equal(picker.hidden, true);
+  assert.equal(page.document.activeElement, page.document.getElementById('bulkColumnsBtn'));
   page.dom.window.close();
 });
 
-test('bỏ tick một cột: ẩn cả tiêu đề lẫn ô (kể cả dòng mới sau khi đổi trang), nhớ lựa chọn; tick lại thì hiện', async () => {
+test('shared visibility survives paging and refreshing without browser storage writes', async () => {
   const orders = Array.from({ length: 150 }, (_, i) => kiotOnlyOrder('DH' + String(i + 1).padStart(4, '0'), { note: 'ghi chu ' + i }));
-  const page = await renderPage({ orders, hiddenColumns: [] });
-  const { window, document } = page;
-  document.getElementById('bulkColumnsBtn').click();
-  const noteInput = document.querySelector('#lcColumnsList input[data-col-key="note"]');
-  noteInput.checked = false;
-  noteInput.dispatchEvent(new window.Event('change', { bubbles: true }));
-
-  const table = document.getElementById('bulkTable');
-  assert.equal(table.dataset.hiddenCols, 'note');
-  assert.match(document.getElementById('bulkColumnStyle').textContent, /#bulkTable \[data-col="note"\]\s*\{\s*display:\s*none/);
-  assert.equal(window.getComputedStyle(table.querySelector('th[data-col="note"]')).display, 'none');
-  assert.equal(window.getComputedStyle(cellOf(rowsOf(document)[0], 'note')).display, 'none');
-  assert.notEqual(window.getComputedStyle(cellOf(rowsOf(document)[0], 'orderCode')).display, 'none');
-  assert.equal(window.localStorage.getItem('tks-lifecycle-hidden-columns'), '["note"]');
-
-  document.getElementById('bulkNextPage').click(); // dong cua trang sau cung bi an cot nay
-  await settle();
-  assert.equal(window.getComputedStyle(cellOf(rowsOf(document)[0], 'note')).display, 'none');
-
-  noteInput.checked = true;
-  noteInput.dispatchEvent(new window.Event('change', { bubbles: true }));
-  assert.equal(table.dataset.hiddenCols, '');
-  assert.notEqual(window.getComputedStyle(table.querySelector('th[data-col="note"]')).display, 'none');
-  assert.equal(window.localStorage.getItem('tks-lifecycle-hidden-columns'), '[]');
+  const page = await renderPage({ orders });
+  const picker = openPicker(page);
+  picker.querySelector('[data-action="show-all"]').click();
+  const note = picker.querySelector('input[data-column-key="note"]');
+  note.checked = false;
+  note.dispatchEvent(new page.window.Event('change', { bubbles: true }));
+  assert.deepEqual(hiddenKeys(page.document), ['note']);
+  const next = page.document.getElementById('bulkNextPage');
+  next.click(); await settle();
+  assert.ok(cellOf(rowsOf(page.document)[0], 'note').classList.contains('tks-column-hidden'));
+  assert.equal(page.window.localStorage.getItem('tks-lifecycle-hidden-columns'), null);
+  note.checked = true;
+  note.dispatchEvent(new page.window.Event('change', { bubbles: true }));
+  assert.deepEqual(hiddenKeys(page.document), []);
   page.dom.window.close();
 });
 
-test('"Bỏ chọn" ẩn mọi cột trừ Mã đơn; "Chọn tất cả" hiện lại hết', async () => {
+test('show all and hide all retain the locked lifecycle identifier', async () => {
   const page = await renderPage({ orders: [kiotOnlyOrder('A')] });
-  const { document } = page;
-  document.getElementById('bulkColumnsBtn').click();
-  document.getElementById('lcColumnsHideAll').click();
-  assert.equal(document.getElementById('bulkTable').dataset.hiddenCols, ALL_COLUMNS.slice(1).join(','));
-  const inputs = [...document.querySelectorAll('#lcColumnsList input')];
-  assert.equal(inputs.filter(input => input.checked).length, 1);
-  assert.equal(inputs.find(input => input.checked).dataset.colKey, 'orderCode');
-
-  document.getElementById('lcColumnsShowAll').click();
-  assert.equal(document.getElementById('bulkTable').dataset.hiddenCols, '');
-  assert.ok([...document.querySelectorAll('#lcColumnsList input')].every(input => input.checked));
-  page.dom.window.close();
-});
-
-test('lựa chọn cột được nhớ trong trình duyệt: mở lại trang vẫn ẩn các cột đã bỏ; khóa lạ / cột Mã đơn trong dữ liệu cũ bị bỏ qua', async () => {
-  const page = await renderPage({ orders: [kiotOnlyOrder('A')], hiddenColumns: ['at', 'note', 'orderCode', 'khong-co-cot-nay'] });
-  assert.equal(page.document.getElementById('bulkTable').dataset.hiddenCols, 'note,at');
-  const { document } = page;
-  document.getElementById('bulkColumnsBtn').click();
-  const unchecked = [...document.querySelectorAll('#lcColumnsList input')].filter(input => !input.checked).map(input => input.dataset.colKey);
-  assert.deepEqual(unchecked, ['note', 'at']);
+  const picker = openPicker(page);
+  picker.querySelector('[data-action="hide-all"]').click();
+  assert.deepEqual(hiddenKeys(page.document), ALL_COLUMNS.slice(1));
+  picker.querySelector('[data-action="show-all"]').click();
+  assert.deepEqual(hiddenKeys(page.document), []);
   page.dom.window.close();
 });
 
