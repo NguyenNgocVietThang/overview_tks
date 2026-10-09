@@ -82,6 +82,7 @@ const FEATURES = Object.freeze([
   { key: 'hr.rules', groupKey: 'hr', label: 'Quy định công ty', roles: INTERNAL_ROLES },
   { key: 'hr.rules.manage', groupKey: 'hr', label: 'Tải lên / gỡ tài liệu quy định', roles: MANAGER_ONLY },
   { key: 'hr.employees', groupKey: 'hr', label: 'Danh sách nhân sự', roles: INTERNAL_ROLES },
+  { key: 'hr.employees.manage', groupKey: 'hr', label: 'Thêm / sửa nhân sự, đổi trạng thái làm việc (cần Danh sách nhân sự)', roles: MANAGER_ONLY, requires: 'hr.employees' },
   { key: 'hr.leave', groupKey: 'hr', label: 'Nghỉ phép (xem)', roles: INTERNAL_ROLES },
   { key: 'hr.leave.manage', groupKey: 'hr', label: 'Duyệt nghỉ phép', roles: MANAGER_ONLY },
 

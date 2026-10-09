@@ -360,6 +360,9 @@ router.post('/api/auth/login', async (req, res) => {
     if (updated) user = { ...user, ...updates, ...updated };
     user = await effectiveUserResolver.resolveUser(user);
     if (user.trangThai === LOCKED_STATUS || user.trangThai === 'Khóa') {
+      if (user.lockReason === 'hr_resigned') {
+        return res.status(403).json({ error: 'Tài khoản đã bị khóa do nhân sự đã nghỉ việc.', code: 'ACCOUNT_HR_RESIGNED' });
+      }
       return res.status(403).json({ error: 'Tài khoản đã bị khóa.', code: user.lockReason === 'hr_removed' ? 'ACCOUNT_HR_REMOVED' : 'ACCOUNT_LOCKED' });
     }
 

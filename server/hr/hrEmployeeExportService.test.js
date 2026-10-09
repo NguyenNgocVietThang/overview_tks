@@ -32,7 +32,7 @@ async function exportRows(filters, branch) {
 test('xuất danh sách nhân sự: nhiều cơ sở gộp chung, có cột Cơ sở, tiền tố TKS_', async () => {
   const { fileName, headers, rows } = await exportRows({}, [BRANCHES.HANOI, BRANCHES.SAIGON]);
   assert.match(fileName, /^TKS_danh-sach-nhan-su/);
-  assert.deepEqual(headers, ['Họ và tên', 'Chức vụ', 'Cơ sở', 'Số điện thoại', 'Email']);
+  assert.deepEqual(headers, ['Họ và tên', 'Chức vụ', 'Cơ sở', 'Số điện thoại', 'Email', 'Trạng thái']);
   assert.deepEqual(rows.map(r => r[2]).sort(), ['Hà Nội', 'Hà Nội', 'Sài Gòn']);
   assert.equal(rows.length, 3);
 });

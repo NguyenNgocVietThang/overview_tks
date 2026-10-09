@@ -22,7 +22,7 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap"
     />
-    <link rel="stylesheet" href="/shared/shared.css?v=20261006" />
+    <link rel="stylesheet" href="/shared/shared.css?v=20261009" />
     <style>
       /* Sổ quỹ dùng lại khuôn của tab Báo cáo tổng hợp (index.html): section-head có số
          bước, kpi-card eyebrow/value/sub, panel + panel-head, period-toggle, bảng
@@ -242,6 +242,21 @@
       }
       .table-search-input-wrap:focus-within {
         border-color: var(--blue);
+      }
+      .table-group-filter {
+        min-height: 34px;
+        max-width: 100%;
+        padding: 6px 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--panel-2);
+        color: var(--text);
+        font: 600 11.5px var(--font-body);
+        cursor: pointer;
+      }
+      .table-group-filter:focus-visible {
+        outline: 2px solid var(--blue);
+        outline-offset: 2px;
       }
       .cb-search-icon {
         flex: none;
@@ -1301,6 +1316,9 @@
                     <input class="table-search-input" id="balancesSearch" type="search" autocomplete="off" placeholder="Tìm số TK, chủ tài khoản hoặc mô tả…" aria-label="Tìm tài khoản" />
                     <button class="table-search-clear" type="button" data-search-clear="balancesSearch" aria-label="Xóa tìm kiếm" hidden>×</button>
                   </label>
+                  <select class="table-group-filter" id="balancesGroupFilter" aria-label="Lọc theo nhóm tài khoản">
+                    <option value="">Tất cả nhóm</option>
+                  </select>
                 </div>
               </div>
               <div class="cb-scroll" tabindex="0" aria-label="Bảng số dư tài khoản">
@@ -1423,7 +1441,9 @@
         // Độ rộng cột cố định (fixed-table) như các bảng ở tab Báo cáo.
         const WIDTHS = {
           balances: {
-            name: 320,
+            accountNo: 180,
+            name: 260,
+            accountGroup: 140,
             balanceHanoi: 170,
             balanceSaigon: 170,
             balance: 180,
@@ -1446,7 +1466,7 @@
           },
         };
         const COLUMNS = {
-          balances: ["name", "balanceHanoi", "balanceSaigon", "balance"],
+          balances: ["accountNo", "name", "accountGroup", "balanceHanoi", "balanceSaigon", "balance"],
           entries: [
             "code",
             "transDate",
@@ -1465,8 +1485,9 @@
           ],
         };
         const LABELS = {
-          name: "Tài khoản",
-          accountNo: "Số TK",
+          name: "Tên tài khoản",
+          accountNo: "STK",
+          accountGroup: "Nhóm",
           description: "Mô tả",
           balanceHanoi: "Tồn quỹ HN",
           balanceSaigon: "Tồn quỹ SG",
@@ -1526,7 +1547,7 @@
         let searchMode = "code";
         // Sắp xếp bảng số dư tại chỗ: bấm tiêu đề lần lượt tăng → giảm → bỏ.
         let balanceSort = { field: null, dir: null };
-        const SORT_FIELDS = new Set(["name", "balanceHanoi", "balanceSaigon", "balance"]);
+        const SORT_FIELDS = new Set(COLUMNS.balances);
 
         // Giữ chuỗi thập phân từ backend, không làm tròn.
         function money(value, empty = "—") {
@@ -1733,8 +1754,7 @@
             for (const field of COLUMNS[view]) {
               const cell = document.createElement("td");
               cell.dataset.field = field;
-              if (view === "balances" && field === "name") {
-                // Như KiotViet: số TK in đậm, dưới là chủ tài khoản và mô tả.
+              if (view === "balances" && field === "accountNo") {
                 const button = document.createElement("button");
                 button.type = "button";
                 button.className = "cb-fund-link";
@@ -1742,17 +1762,16 @@
                 button.textContent = data.accountNo || data.name;
                 button.title = "Lọc sổ chi tiết theo " + (data.accountNo || data.name);
                 cell.appendChild(button);
-                const group = document.createElement("div");
-                group.className = "cb-fund-group";
-                group.textContent = data.accountGroup || "Khác";
-                cell.appendChild(group);
-                for (const text of [data.accountNo ? data.name : "", data.description]) {
-                  if (!text) continue;
+              } else if (view === "balances" && field === "name") {
+                cell.append(document.createTextNode(data.name || ""));
+                if (data.description) {
                   const note = document.createElement("div");
                   note.className = "cb-fund-note";
-                  note.textContent = text;
+                  note.textContent = data.description;
                   cell.appendChild(note);
                 }
+              } else if (view === "balances" && field === "accountGroup") {
+                cell.textContent = data.accountGroup || "Khác";
               } else if (field === "runningBalance") {
                 cell.textContent = runningText(data);
                 if (cell.textContent && Number(data[field]) < 0)
@@ -1814,7 +1833,9 @@
               ? row[field] == null
                 ? null
                 : Number(row[field])
-              : String(row.accountNo || row[field] || "");
+              : String(field === "accountNo" ? row.accountNo || row.name || ""
+                : field === "accountGroup" ? row.accountGroup || "Khác"
+                : row[field] || "");
           const sign = dir === "asc" ? 1 : -1;
           return rows
             .map((row, index) => ({ row, index, v: value(row) }))
@@ -1834,16 +1855,28 @@
             })
             .map((entry) => entry.row);
         }
+        function syncBalanceGroups() {
+          const select = $("balancesGroupFilter"), selected = select.value;
+          const groups = [...new Set(loaded.balances.map(row => row.accountGroup || "Khác"))]
+            .sort((a, b) => a.localeCompare(b, "vi"));
+          select.replaceChildren(new Option("Tất cả nhóm", ""));
+          for (const group of groups) select.appendChild(new Option(group, group));
+          // Giữ bộ lọc khi dữ liệu cập nhật, kể cả nhóm tạm thời không có dòng.
+          if (selected && !groups.includes(selected)) select.appendChild(new Option(selected, selected));
+          select.value = selected;
+        }
         function renderBalances() {
           const needle = fold($("balancesSearch").value);
+          const group = $("balancesGroupFilter").value;
           tableRows(
             "balances",
             sortedBalances(
               loaded.balances.filter((row) =>
+                (!group || (row.accountGroup || "Khác") === group) &&
                 matches(row, ["name", "accountNo", "description", "accountGroup"], needle),
               ),
             ),
-            needle ? "Không có tài khoản khớp từ khóa." : undefined,
+            needle || group ? "Không có tài khoản khớp bộ lọc." : undefined,
           );
         }
         function syncSearch() {
@@ -2024,6 +2057,7 @@
               ? "Dữ liệu KiotViet đồng bộ lúc " + dateText(s.syncedAt)
               : "Dữ liệu KiotViet chưa có mốc đồng bộ.";
             loaded.balances = s.balances;
+            syncBalanceGroups();
             for (const node of document.querySelectorAll("[data-group-balance]")) {
               const group = s.groupBalances?.find(row => row.name === node.dataset.groupBalance);
               paintMoney(node, group?.balance ?? null);
@@ -2509,6 +2543,7 @@
               $("entriesSearch").focus();
             }),
           );
+          $("balancesGroupFilter").addEventListener("change", renderBalances);
           $("balancesSearch").addEventListener("input", () => {
             document.querySelector(
               '[data-search-clear="balancesSearch"]',

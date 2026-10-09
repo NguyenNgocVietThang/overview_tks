@@ -152,7 +152,7 @@ test('5 ô số dư theo nhóm đúng thứ tự, giữ số âm và tìm tài k
     ['Anh Quân', 'Chị Nguyệt', 'Anh Duy', 'Công ty', 'Khác']);
   assert.deepEqual(cards.map(card => card.querySelector('.value').textContent), ['-1.234,5', '0', '0', '0', '0']);
   assert.ok(cards[0].querySelector('.value').classList.contains('negative'));
-  assert.equal(doc.querySelector('#balancesBody .cb-fund-group').textContent, 'Anh Quân');
+  assert.equal(doc.querySelector('#balancesBody [data-field="accountGroup"]').textContent, 'Anh Quân');
   const count = calls.length;
   const search = doc.getElementById('balancesSearch');
   search.value = 'anh quan';
@@ -713,14 +713,15 @@ test("bảng số dư sắp xếp theo tiêu đề: tăng, giảm, bỏ; cột t
   sort("balanceSaigon");
   assert.deepEqual(order(), ["-1,7", "cash"]);
 });
-test("tài khoản hiện số TK, chủ TK và mô tả; không còn nút chốt số dư hay sửa ngân hàng", async (t) => {
+test("tài khoản tách STK, tên tài khoản và nhóm; giữ mô tả và chọn quỹ", async (t) => {
   const { init, doc, w } = await setup(t);
   await init();
   const name = doc.querySelector('#balancesBody tr[data-fund="-1,7"] [data-field="name"]');
-  assert.equal(name.querySelector("[data-select-fund]").textContent, "001");
+  assert.equal(doc.querySelector('#balancesBody tr[data-fund="-1,7"] [data-field="accountNo"] [data-select-fund]').textContent, "001");
+  assert.equal(name.firstChild.textContent, "Bank cũ");
   assert.deepEqual(
     [...name.querySelectorAll(".cb-fund-note")].map((n) => n.textContent),
-    ["Bank cũ", "TK chính"],
+    ["TK chính"],
   );
   assert.equal(
     doc.querySelector('#balancesBody tr[data-fund="cash"] [data-select-fund]').textContent,
@@ -728,7 +729,7 @@ test("tài khoản hiện số TK, chủ TK và mô tả; không còn nút chố
   );
   assert.deepEqual(
     [...doc.querySelectorAll("#balancesTable th")].map((th) => th.textContent.replace(/[↕▲▼]/g, "")),
-    ["Tài khoản", "Tồn quỹ HN", "Tồn quỹ SG", "Tổng tồn quỹ"],
+    ["STK", "Tên tài khoản", "Nhóm", "Tồn quỹ HN", "Tồn quỹ SG", "Tổng tồn quỹ"],
   );
   for (const selector of ["[data-checkpoint]", "[data-edit-bank]", "#checkpointDialog", "#bankDialog"])
     assert.equal(doc.querySelector(selector), null, selector);
@@ -739,6 +740,52 @@ test("tài khoản hiện số TK, chủ TK và mô tả; không còn nút chố
     [...doc.querySelectorAll("#balancesBody tr[data-fund]")].map((r) => r.dataset.fund),
     ["-1,7"],
   );
+});
+
+test("lọc nhóm số dư kết hợp tìm kiếm và sắp xếp, không tải lại dữ liệu", async (t) => {
+  const { init, doc, w, calls } = await setup(t);
+  await init();
+  const group = doc.getElementById("balancesGroupFilter");
+  assert.ok(group, "Có dropdown lọc nhóm");
+  assert.deepEqual([...group.options].map(option => option.textContent), ["Tất cả nhóm", "Anh Quân", "Khác"]);
+  const count = calls.length;
+  const order = () => [...doc.querySelectorAll("#balancesBody tr[data-fund]")].map(row => row.dataset.fund);
+  const choose = value => { group.value = value; group.dispatchEvent(new w.Event("change", { bubbles: true })); };
+  choose("Anh Quân");
+  assert.deepEqual(order(), ["-1,7"]);
+  doc.querySelector('#balancesTable [data-sort="accountNo"]').click();
+  assert.deepEqual(order(), ["-1,7"]);
+  const search = doc.getElementById("balancesSearch");
+  search.value = "tien mat";
+  search.dispatchEvent(new w.Event("input", { bubbles: true }));
+  assert.deepEqual(order(), []);
+  assert.match(doc.getElementById("balancesBody").textContent, /Không có tài khoản khớp/);
+  assert.equal(doc.querySelector("#balancesBody td").colSpan, 6);
+  choose("Khác");
+  assert.deepEqual(order(), ["cash"]);
+  doc.querySelector('[data-search-clear="balancesSearch"]').click();
+  assert.deepEqual(order(), ["cash"]);
+  choose("");
+  assert.deepEqual(order(), ["-1,7", "cash"]);
+  assert.equal(calls.length, count);
+  assert.match(doc.getElementById("balanceTotal").textContent, /-1\.234,5/);
+});
+
+test("sắp xếp tên và nhóm dùng đúng cột, không dùng STK", async (t) => {
+  const { init, doc } = await setup(t, { fetcher: async url => url.pathname.endsWith("summary") ? {
+    ok: true, json: async () => ({ ...summary, balances: [
+      { ...summary.balances[0], fund: "a", accountNo: "001", name: "Zebra", accountGroup: "Khác" },
+      { ...summary.balances[0], fund: "b", accountNo: "002", name: "Alpha", accountGroup: "Anh Quân" },
+    ] }),
+  } : null });
+  await init();
+  const order = () => [...doc.querySelectorAll("#balancesBody tr[data-fund]")].map(row => row.dataset.fund);
+  doc.querySelector('#balancesTable [data-sort="name"]').click();
+  assert.deepEqual(order(), ["b", "a"]);
+  doc.querySelector('#balancesTable [data-sort="accountGroup"]').click();
+  assert.deepEqual(order(), ["b", "a"]);
+  doc.querySelector('#balancesTable [data-sort="accountNo"]').click();
+  assert.deepEqual(order(), ["a", "b"]);
 });
 test("dropdown chọn nhiều có Chọn tất cả / Bỏ chọn, đếm số mục và ô tìm khi danh sách dài", async (t) => {
   const many = Array.from({ length: 8 }, (_, i) => ({ id: String(i + 1), label: "Nhân viên " + (i + 1) }));
@@ -807,6 +854,27 @@ async function fireRefresh(timers) {
   await next[1].fn();
   await tick();
 }
+
+test('lọc nhóm giữ nguyên khi tự làm mới, kể cả nhóm tạm thời không có tài khoản', async t => {
+  let revision = 'v1';
+  const x = await setup(t, { captureTimers: true, fetcher: async url => {
+    if (url.pathname.endsWith('sync-status')) return { ok: true, json: async () => ({ revision, enabled: true }) };
+    if (url.pathname.endsWith('summary')) return { ok: true, json: async () => ({ ...summary, revision,
+      balances: revision === 'v2' ? [summary.balances[1]] : summary.balances,
+    }) };
+  }});
+  await x.init();
+  const group = x.doc.getElementById('balancesGroupFilter');
+  group.value = 'Anh Quân';
+  group.dispatchEvent(new x.w.Event('change', { bubbles: true }));
+  revision = 'v2'; await fireRefresh(x.timers);
+  assert.equal(group.value, 'Anh Quân');
+  assert.equal(x.doc.querySelectorAll('#balancesBody tr[data-fund]').length, 0);
+  assert.match(x.doc.getElementById('balancesBody').textContent, /Không có tài khoản khớp/);
+  revision = 'v3'; await fireRefresh(x.timers);
+  assert.equal(group.value, 'Anh Quân');
+  assert.deepEqual([...x.doc.querySelectorAll('#balancesBody tr[data-fund]')].map(row => row.dataset.fund), ['-1,7']);
+});
 
 test('automatic checks skip unchanged data and refresh changed balances without losing filters or pagination', async t => {
   let revision = 'v1';

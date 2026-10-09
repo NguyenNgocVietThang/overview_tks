@@ -16,7 +16,9 @@ function rowToEmployee(row) {
     boPhan: row.bo_phan || '',
     soDienThoai: row.so_dien_thoai || '',
     email: row.email || '',
-    telegramId: row.telegram_id || ''
+    telegramId: row.telegram_id || '',
+    employmentStatus: row.employment_status === 'resigned' ? 'resigned' : 'active',
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : ''
   };
 }
 
@@ -31,14 +33,15 @@ async function selectAllActive() {
   return rows.map(rowToEmployee);
 }
 
-async function insertEmployee({ branch, hoTen, boPhan, soDienThoai, email, telegramId }) {
+async function insertEmployee({ branch, hoTen, boPhan, soDienThoai, email, telegramId, employmentStatus }) {
   const sql = `
-    INSERT INTO hr_employees (branch, ho_ten, bo_phan, so_dien_thoai, email, telegram_id)
-    VALUES ($1, $2, $3, $4, $5, $6)
+    INSERT INTO hr_employees (branch, ho_ten, bo_phan, so_dien_thoai, email, telegram_id, employment_status)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING *
   `;
   const { rows } = await getPool().query(sql, [
-    branch, hoTen || '', boPhan || '', soDienThoai || '', email || '', telegramId || ''
+    branch, hoTen || '', boPhan || '', soDienThoai || '', email || '', telegramId || '',
+    employmentStatus === 'resigned' ? 'resigned' : 'active'
   ]);
   return rowToEmployee(rows[0]);
 }
@@ -59,6 +62,21 @@ async function updateDepartmentById(id, boPhan) {
   return rows[0] ? rowToEmployee(rows[0]) : null;
 }
 
+/** Sua thong tin + trang thai lam viec trong 1 cau lenh (da duoc service kiem tra trung/quyen). */
+async function updateEmployeeById(id, { hoTen, boPhan, branch, soDienThoai, email, employmentStatus }) {
+  const sql = `
+    UPDATE hr_employees
+    SET ho_ten = $1, bo_phan = $2, branch = $3, so_dien_thoai = $4, email = $5,
+        employment_status = $6, updated_at = now()
+    WHERE id = $7 AND is_active
+    RETURNING *
+  `;
+  const { rows } = await getPool().query(sql, [
+    hoTen, boPhan, branch, soDienThoai, email, employmentStatus, id
+  ]);
+  return rows[0] ? rowToEmployee(rows[0]) : null;
+}
+
 async function deactivateById(id) {
   const sql = `UPDATE hr_employees SET is_active = false, updated_at = now() WHERE id = $1 RETURNING *`;
   const { rows } = await getPool().query(sql, [id]);
@@ -71,5 +89,6 @@ module.exports = {
   insertEmployee,
   updateContactById,
   updateDepartmentById,
+  updateEmployeeById,
   deactivateById
 };

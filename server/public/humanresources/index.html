@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Noto+Serif:wght@400;600;700&family=Roboto:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/shared/shared.css?v=20261006">
+<link rel="stylesheet" href="/shared/shared.css?v=20261009">
 <style>
   .hr-wrap{ width:100%; margin:0 auto; }
   .hr-header{ margin-bottom:20px; }
@@ -162,6 +162,10 @@
     font-size:10.5px; font-weight:700; background:var(--status-pending-bg); color:var(--amber); margin-left:6px;
   }
 
+  .employee-row-clickable{ cursor:pointer; }
+  .employee-row-clickable:hover td{ background:var(--surface-hover); }
+  .emp-status-active{ color:var(--green); font-weight:600; }
+  .emp-status-resigned{ color:var(--red); font-weight:600; }
   .leave-row-clickable{ cursor:pointer; }
   .leave-row-clickable:hover td{ background:var(--surface-hover); }
 
@@ -797,8 +801,14 @@
               <select id="employeeDepartmentFilter" class="filter-select" aria-label="Lọc theo phòng ban" onchange="renderEmployeeDirectoryTable()">
                 <option value="">Tất cả phòng ban</option>
               </select>
+              <select id="employeeStatusFilter" class="filter-select" aria-label="Lọc theo trạng thái làm việc" onchange="renderEmployeeDirectoryTable()">
+                <option value="active" selected>Đang làm việc</option>
+                <option value="resigned">Đã nghỉ việc</option>
+                <option value="">Tất cả trạng thái</option>
+              </select>
             </div>
             <div class="row-actions">
+              <button type="button" class="btn-primary" id="btnAddEmployee" hidden onclick="openEmployeeModal()">+ Thêm nhân sự</button>
               <button type="button" class="export-button" id="btnExportEmployeeDirectory" onclick="exportEmployeeDirectoryExcel()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                 Xuất Excel
@@ -816,10 +826,12 @@
                     <th style="width:120px">Cơ sở</th>
                     <th style="width:150px">Số điện thoại</th>
                     <th style="width:280px">Email</th>
+                    <th style="width:140px">Trạng thái</th>
+                    <th style="width:130px" id="employeeCreatedAtTh" hidden>Ngày thêm</th>
                   </tr>
                 </thead>
                 <tbody id="employeeDirectoryTableBody">
-                  <tr class="empty-row"><td colspan="5">Đang tải dữ liệu...</td></tr>
+                  <tr class="empty-row"><td colspan="7">Đang tải dữ liệu...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -849,6 +861,24 @@
         </div>
         <div class="modal-footer"><button type="button" class="btn-mini" onclick="closeSelfLeave()">Hủy</button><button type="submit" class="btn-primary" id="selfLeaveSubmit">Gửi đơn</button></div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal: them / sua nhan su (chi hien voi quyen hr.employees.manage) -->
+  <div class="modal-overlay" id="employeeModal" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="employeeModalHeading">
+      <div class="modal-header"><h3 id="employeeModalHeading">Thêm nhân sự</h3><button type="button" class="modal-close" aria-label="Đóng" onclick="closeModal('employeeModal')">✕</button></div>
+      <form id="employeeForm" onsubmit="saveEmployee(event)"><div class="modal-body">
+        <div class="form-group"><label for="empHoTen">Họ và tên *</label><input type="text" id="empHoTen" class="form-control" required maxlength="120"></div>
+        <div class="form-group"><label for="empBoPhan">Chức vụ *</label><input type="text" id="empBoPhan" class="form-control" required maxlength="80" list="empBoPhanList"><datalist id="empBoPhanList"></datalist></div>
+        <div class="form-group"><label for="empCoSo">Cơ sở *</label><select id="empCoSo" class="form-control" required></select></div>
+        <div class="form-group"><label for="empSdt">Số điện thoại</label><input type="tel" id="empSdt" class="form-control" maxlength="20"></div>
+        <div class="form-group"><label for="empEmail">Email</label><input type="email" id="empEmail" class="form-control" maxlength="160"></div>
+        <div class="form-group"><label for="empTrangThai">Trạng thái</label><select id="empTrangThai" class="form-control" onchange="updateEmployeeStatusHint()"><option value="active">Đang làm việc</option><option value="resigned">Đã nghỉ việc</option></select>
+          <small id="empStatusHint" class="alert-box alert-error" style="display:none;margin-top:6px;">Tài khoản đăng nhập liên kết với nhân sự này sẽ bị khóa.</small></div>
+        <div class="form-group" id="empCreatedAtGroup" hidden><label for="empCreatedAt">Ngày thêm</label><input type="text" id="empCreatedAt" class="form-control" readonly></div>
+        <div id="empError" class="alert-box alert-error" style="display:none;" role="alert"></div>
+      </div><div class="modal-footer"><button type="button" class="btn-mini" onclick="closeModal('employeeModal')">Hủy</button><button id="empSave" class="btn-primary" type="submit">Lưu</button></div></form>
     </div>
   </div>
 
@@ -995,6 +1025,8 @@
     let currentUser = null;
     let rawLeaveRequests = [];
     let rawEmployeeDirectory = [];
+    let employeeCanManage = false;
+    let editingEmployeeId = null;
     let urgentSummaryByUsername = {};
     let pendingDecision = null; // { selectEl, requestId, prevStatus } — don dang cho nhap ly do tu choi
     const state = { tableSorts: {} };
@@ -2175,16 +2207,31 @@
         const res = await fetch('/api/hr/employees', { credentials: 'same-origin' });
         const { ok, data } = await parseApiResponse(res);
         if(!ok){
-          tbody.innerHTML = `<tr class="empty-row"><td colspan="5">${escapeHtml(data.error || 'Không tải được danh sách nhân sự.')}</td></tr>`;
+          tbody.innerHTML = `<tr class="empty-row"><td colspan="7">${escapeHtml(data.error || 'Không tải được danh sách nhân sự.')}</td></tr>`;
           return;
         }
         rawEmployeeDirectory = data.employees || [];
+        employeeCanManage = !!data.canManage;
+        document.getElementById('btnAddEmployee').hidden = !employeeCanManage;
+        document.getElementById('employeeCreatedAtTh').hidden = !employeeCanManage;
         populateDepartmentFilter('departmentFilter', document.getElementById('branchFilter').value);
         populateDepartmentFilter('employeeDepartmentFilter', document.getElementById('employeeBranchFilter').value);
         renderEmployeeDirectoryTable();
       }catch(err){
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Lỗi kết nối máy chủ.</td></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Lỗi kết nối máy chủ.</td></tr>';
       }
+    }
+
+    const EMPLOYEE_STATUS_RESIGNED = 'Đã nghỉ việc';
+
+    function employeeStatusKey(e){
+      return e.trangThai === EMPLOYEE_STATUS_RESIGNED ? 'resigned' : 'active';
+    }
+
+    function formatEmployeeDate(iso){
+      const d = iso ? new Date(iso) : null;
+      if(!d || Number.isNaN(d.getTime())) return '—';
+      return d.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
     }
 
     function renderEmployeeDirectoryTable(){
@@ -2192,23 +2239,105 @@
       const keyword = (document.getElementById('employeeDirectorySearchInput').value || '').trim().toLowerCase();
       const branch = selectedBranch('employeeBranchFilter');
       const department = departmentKey(document.getElementById('employeeDepartmentFilter').value);
+      const status = document.getElementById('employeeStatusFilter').value;
       const filtered = rawEmployeeDirectory.filter(e => {
+        if(status && employeeStatusKey(e) !== status) return false;
         if(branch && e.coSo !== branch) return false;
         if(department && departmentKey(e.boPhan) !== department) return false;
         return !keyword || [e.hoTen, e.boPhan, e.soDienThoai, e.email].some(v => String(v || '').toLowerCase().includes(keyword));
       });
       if(!filtered.length){
-        tbody.innerHTML = `<tr class="empty-row"><td colspan="5">${rawEmployeeDirectory.length ? 'Không tìm thấy nhân sự phù hợp.' : 'Chưa có dữ liệu nhân sự.'}</td></tr>`;
+        tbody.innerHTML = `<tr class="empty-row"><td colspan="7">${rawEmployeeDirectory.length ? 'Không tìm thấy nhân sự phù hợp.' : 'Chưa có dữ liệu nhân sự.'}</td></tr>`;
         return;
       }
-      tbody.innerHTML = filtered.map(e => `<tr>
+      tbody.innerHTML = filtered.map(e => `<tr${employeeCanManage ? ` class="employee-row-clickable" data-employee-id="${escapeHtml(e.id)}"` : ''}>
         <td>${escapeHtml(e.hoTen) || '—'}</td>
         <td>${escapeHtml(e.boPhan) || '—'}</td>
         <td>${escapeHtml(e.coSo) || '—'}</td>
         <td>${escapeHtml(e.soDienThoai) || '—'}</td>
         <td>${escapeHtml(e.email) || '—'}</td>
+        <td class="emp-status-${employeeStatusKey(e)}">${escapeHtml(e.trangThai) || 'Đang làm việc'}</td>
+        <td${employeeCanManage ? ` data-sort-value="${new Date(e.ngayThem).getTime() || ''}"` : ' hidden'}>${employeeCanManage ? formatEmployeeDate(e.ngayThem) : ''}</td>
       </tr>`).join('');
       applyActiveTableSorts();
+    }
+
+    // Bam vao dong nhan su -> mo hop chi tiet (chi khi co quyen hr.employees.manage).
+    document.addEventListener('click', event => {
+      const row = event.target.closest && event.target.closest('#employeeDirectoryTableBody tr[data-employee-id]');
+      if(row) openEmployeeModal(row.getAttribute('data-employee-id'));
+    });
+
+    function updateEmployeeStatusHint(){
+      document.getElementById('empStatusHint').style.display =
+        document.getElementById('empTrangThai').value === 'resigned' ? 'block' : 'none';
+    }
+
+    function openEmployeeModal(id){
+      if(!employeeCanManage) return;
+      const employee = id ? rawEmployeeDirectory.find(e => String(e.id) === String(id)) : null;
+      editingEmployeeId = employee ? employee.id : null;
+      document.getElementById('employeeModalHeading').textContent = employee ? 'Thông tin nhân sự' : 'Thêm nhân sự';
+      document.getElementById('empHoTen').value = employee ? employee.hoTen : '';
+      document.getElementById('empBoPhan').value = employee ? employee.boPhan : '';
+      document.getElementById('empSdt').value = employee ? employee.soDienThoai : '';
+      document.getElementById('empEmail').value = employee ? employee.email : '';
+      document.getElementById('empTrangThai').value = employee ? employeeStatusKey(employee) : 'active';
+      const branches = ((currentUser && currentUser.branches) || []).filter(b => b !== BRANCH_BOTH_LABEL);
+      const coSo = document.getElementById('empCoSo');
+      coSo.innerHTML = branches.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
+      if(employee) coSo.value = employee.coSo;
+      const list = new Map();
+      rawEmployeeDirectory.forEach(e => { const k = departmentKey(e.boPhan); if(k && !list.has(k)) list.set(k, String(e.boPhan).trim()); });
+      document.getElementById('empBoPhanList').innerHTML = [...list.values()].sort((a, b) => a.localeCompare(b, 'vi'))
+        .map(l => `<option value="${escapeHtml(l)}"></option>`).join('');
+      document.getElementById('empCreatedAtGroup').hidden = !employee;
+      document.getElementById('empCreatedAt').value = employee ? formatEmployeeDate(employee.ngayThem) : '';
+      document.getElementById('empError').style.display = 'none';
+      updateEmployeeStatusHint();
+      openModal('employeeModal');
+    }
+
+    async function saveEmployee(event){
+      event.preventDefault();
+      const errEl = document.getElementById('empError');
+      const btn = document.getElementById('empSave');
+      errEl.style.display = 'none';
+      const payload = {
+        hoTen: document.getElementById('empHoTen').value,
+        boPhan: document.getElementById('empBoPhan').value,
+        coSo: document.getElementById('empCoSo').value,
+        soDienThoai: document.getElementById('empSdt').value,
+        email: document.getElementById('empEmail').value,
+        trangThai: document.getElementById('empTrangThai').value
+      };
+      btn.disabled = true;
+      try{
+        const url = editingEmployeeId ? '/api/hr/employees/' + encodeURIComponent(editingEmployeeId) : '/api/hr/employees';
+        const res = await fetch(url, {
+          method: editingEmployeeId ? 'PUT' : 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const { ok, data } = await parseApiResponse(res);
+        if(!ok){
+          errEl.textContent = data.error || 'Không lưu được nhân sự.';
+          errEl.style.display = 'block';
+          return;
+        }
+        closeModal('employeeModal');
+        const accounts = data.accounts || {};
+        let message = editingEmployeeId ? 'Đã cập nhật nhân sự.' : 'Đã thêm nhân sự.';
+        if((accounts.locked || []).length) message += ` Đã khóa tài khoản: ${accounts.locked.join(', ')}.`;
+        if((accounts.unlocked || []).length) message += ` Đã mở khóa tài khoản: ${accounts.unlocked.join(', ')}.`;
+        if((accounts.skipped || []).length) message += ` Không khóa được (được bảo vệ): ${accounts.skipped.join(', ')}.`;
+        showToast(message, 'success');
+        await loadEmployeeDirectory();
+      }catch(err){
+        errEl.textContent = 'Lỗi kết nối máy chủ.';
+        errEl.style.display = 'block';
+      }finally{ btn.disabled = false; }
     }
 
     // ---------- Sort bang (port tu server/public/index.html) ----------
@@ -2391,6 +2520,8 @@
       const department = document.getElementById('employeeDepartmentFilter').value;
       if(branch) params.set('branch', branch);
       if(department) params.set('department', department);
+      const status = document.getElementById('employeeStatusFilter').value;
+      if(status) params.set('status', status);
       if(btn){ btn.disabled = true; }
       try{
         const res = await fetch('/api/hr/employees/export?' + params.toString(), {

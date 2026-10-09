@@ -990,6 +990,42 @@ tbody tr:hover {
   background: var(--panel-2);
 }
 
+/* Chung cho bảng dữ liệu, kể cả bảng trong hộp chi tiết.
+   Bảng tài liệu giữ đường kẻ và định dạng in của tài liệu. */
+:root table:not(.doc-table) > :is(thead, tbody, tfoot) > tr > :is(th, td):not(:last-child) {
+  border-right: 1px solid var(--row-divider);
+}
+
+:root table:not(.doc-table) > tbody > tr > :is(th, td) {
+  border-bottom: 1px solid var(--row-divider);
+}
+
+:root table:not(.doc-table) > tbody > tr:last-child > :is(th, td) {
+  border-bottom: none;
+}
+
+/* Tô từng ô để nền riêng của ô không che phản hồi của dòng.
+   Dòng đang chọn vẫn giữ nền lựa chọn của trang. */
+@media (hover: hover) {
+  :root table:not(.doc-table) > tbody > tr:not(.is-selected):hover > :is(th, td) {
+    background-color: var(--panel-2);
+  }
+
+  :root table:not(.doc-table) > tbody > tr > :is(th, td):hover {
+    outline: 1px solid var(--border);
+    outline-offset: -1px;
+  }
+
+  :root table:not(.doc-table) > tbody > tr:not(.is-selected) > :is(th, td):hover {
+    background-color: var(--surface-hover);
+  }
+}
+
+:root table:not(.doc-table) > tbody > tr > :is(th, td):focus-within {
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+}
+
 /* ---------- Search Box ---------- */
 .search-input,
 .search-box input,

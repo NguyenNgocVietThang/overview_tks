@@ -189,7 +189,11 @@ test('GET /api/hr/employees trả về nhân sự mọi cơ sở được phép 
     assert.equal(resAll.statusCode, 200);
     assert.deepEqual(resAll.body.employees.map(e => e.hoTen), ['Nguyễn Văn A', 'Nguyễn Văn B', 'Trần Thị C']);
     assert.deepEqual(resAll.body.employees.map(e => e.coSo), ['Hà Nội', 'Hà Nội', 'Sài Gòn']);
-    assert.deepEqual(Object.keys(resAll.body.employees[0]).sort(), ['boPhan', 'coSo', 'email', 'hoTen', 'id', 'soDienThoai']);
+    assert.deepEqual(Object.keys(resAll.body.employees[0]).sort(), ['boPhan', 'coSo', 'email', 'hoTen', 'id', 'ngayThem', 'soDienThoai', 'trangThai'], 'Quản lý có quyền hr.employees.manage nên thấy cả ngayThem');
+    const resStaff = fakeRes();
+    await handler({ user: STAFF_HANOI, query: {} }, resStaff);
+    assert.deepEqual(Object.keys(resStaff.body.employees[0]).sort(), ['boPhan', 'coSo', 'email', 'hoTen', 'id', 'soDienThoai', 'trangThai'], 'người thường không nhận ngayThem');
+    assert.equal(resStaff.body.canManage, false);
 
     const resOne = fakeRes();
     await handler({ user: STAFF_HANOI, query: {} }, resOne);

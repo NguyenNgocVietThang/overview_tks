@@ -33,6 +33,7 @@ const { buildEmployeeDirectoryWorkbook } = require('./hrEmployeeExportService');
 const { BRANCHES, BRANCH_BOTH, allowedBranches, normalizeCoSo } = require('../branch/branches');
 const { leaveEvents, LEAVE_EVENT_TYPES, broadcastLeaveEvent } = require('./hrLeaveEvents');
 const { createHrLeaveDecisionService } = require('./hrLeaveDecisionService');
+const { createHrEmployeeAdminService, STATUS_LABELS } = require('./hrEmployeeAdminService');
 function createHrLeaveRoutes(options = {}) {
 const router = express.Router();
 const repo = options.repo || defaultRepo;
@@ -49,6 +50,8 @@ const decisions = options.decisions || createHrLeaveDecisionService({ repo, auth
 //   hr.leave.manage — tao / duyet nghi phep (mac dinh: chi Quan ly)
 const authInternal = [requireAuth, requireFeature('hr.leave')];
 const authEmployees = [requireAuth, requireFeature('hr.employees')];
+const authEmployeesManage = [requireAuth, requireFeature('hr.employees.manage')];
+const employeeAdmin = options.employeeAdmin || createHrEmployeeAdminService();
 const authManager = [requireAuth, requireFeature('hr.leave.manage')];
 const authAbsence = [requireAuth, requireFeature('hr.leave.absence.manage')];
 const authLeaveList = [requireAuth, requireFeature('hr.leave', 'hr.leave.submit')];
@@ -391,24 +394,54 @@ router.post('/api/hr/telegram/link-code/assign', ...authManager, (_req, res) => 
 // cua moi co so tai khoan duoc xem; trang loc theo co so/phong ban phia client.
 // ---------------------------------------------------------------------------
 
+// Dang cong khai 1 nhan su cho giao dien. `ngayThem` (ngay tao dong) chi gui cho
+// tai khoan co 'hr.employees.manage'; nguoi khac khong nhan truong nay.
+function publicEmployee(employee, canManage) {
+  const out = {
+    id: String(employee.rowIndex),
+    hoTen: employee.hoTen,
+    boPhan: employee.boPhan,
+    coSo: employee.sourceBranch,
+    soDienThoai: employee.soDienThoai,
+    email: employee.email,
+    trangThai: STATUS_LABELS[employee.employmentStatus] || STATUS_LABELS.active
+  };
+  if (canManage) out.ngayThem = employee.createdAt || '';
+  return out;
+}
+
 router.get('/api/hr/employees', ...authEmployees, async (req, res) => {
   try {
     const branches = allowedBranches(req.user);
+    const canManage = hasFeature(req.user, 'hr.employees.manage');
     const snapshot = await employeeDirectory.getSnapshot();
     const employees = snapshot.employees
       .filter(employee => branches.includes(employee.sourceBranch))
-      .map(employee => ({
-        id:String(employee.rowIndex),
-        hoTen: employee.hoTen,
-        boPhan: employee.boPhan,
-        coSo: employee.sourceBranch,
-        soDienThoai: employee.soDienThoai,
-        email: employee.email
-      }))
+      .map(employee => publicEmployee(employee, canManage))
       .sort((a, b) => a.hoTen.localeCompare(b.hoTen, 'vi'));
-    res.status(200).json({ employees, stale: !!snapshot.stale });
+    res.status(200).json({ employees, stale: !!snapshot.stale, canManage });
   } catch (err) {
     handleError(res, err, 'GET /api/hr/employees');
+  }
+});
+
+// Them / sua nhan su (kem trang thai lam viec). Response co `accounts` = tai khoan
+// da khoa / mo khoa / bo qua do doi trang thai.
+router.post('/api/hr/employees', ...authEmployeesManage, async (req, res) => {
+  try {
+    const { employee, accounts } = await employeeAdmin.createEmployee(req.user, req.body);
+    res.status(201).json({ employee: publicEmployee(employee, true), accounts });
+  } catch (err) {
+    handleError(res, err, 'POST /api/hr/employees');
+  }
+});
+
+router.put('/api/hr/employees/:id', ...authEmployeesManage, async (req, res) => {
+  try {
+    const { employee, accounts } = await employeeAdmin.updateEmployee(req.user, req.params.id, req.body);
+    res.status(200).json({ employee: publicEmployee(employee, true), accounts });
+  } catch (err) {
+    handleError(res, err, 'PUT /api/hr/employees/:id');
   }
 });
 
@@ -434,9 +467,9 @@ router.put('/api/hr/leave-work-schedules/:employeeId',...authManager,async(req,r
 
 router.get('/api/hr/employees/export', ...authEmployees, async (req, res) => {
   try {
-    const { keyword, department, branch } = req.query || {};
+    const { keyword, department, branch, status } = req.query || {};
     const { buffer, fileName, mime } = await buildEmployeeDirectoryWorkbook(
-      { keyword, department },
+      { keyword, department, status, includeCreatedAt: hasFeature(req.user, 'hr.employees.manage') },
       resolveBranchScope(req, branch)
     );
     res.setHeader('Content-Type', mime);

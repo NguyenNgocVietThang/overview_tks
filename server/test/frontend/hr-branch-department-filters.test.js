@@ -115,8 +115,8 @@ test('tab Danh sách nhân sự hiện cột Cơ sở và lọc theo cơ sở/ph
   const doc = window.document;
   const names = () => [...doc.querySelectorAll('#employeeDirectoryTableBody tr')].map(tr => tr.cells[0].textContent);
 
-  const headers = [...doc.querySelectorAll('#employeeDirectoryTable thead th')].map(th => th.textContent.replace(/[↕▲▼]/g, '').trim());
-  assert.deepEqual(headers, ['Họ và tên', 'Chức vụ', 'Cơ sở', 'Số điện thoại', 'Email']);
+  const headers = [...doc.querySelectorAll('#employeeDirectoryTable thead th')].filter(th => !th.hidden).map(th => th.textContent.replace(/[↕▲▼]/g, '').trim());
+  assert.deepEqual(headers, ['Họ và tên', 'Chức vụ', 'Cơ sở', 'Số điện thoại', 'Email', 'Trạng thái']);
   assert.equal(doc.getElementById('employeeBranchFilter').value, '');
   assert.equal(doc.getElementById('employeeDepartmentFilter').value, '');
   assert.deepEqual(names(), ['An Kho', 'Bình Sale', 'Cường Kho', 'Dũng Trợ Lý', 'Em Kho']);

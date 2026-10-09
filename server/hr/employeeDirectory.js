@@ -154,6 +154,8 @@ function mapEmployeeRow(row) {
     email: row.email,
     soDienThoai: row.soDienThoai,
     telegramId: row.telegramId,
+    employmentStatus: row.employmentStatus === 'resigned' ? 'resigned' : 'active',
+    createdAt: row.createdAt || '',
     sheetVaiTro: roleForDepartment(row.boPhan),
     sheetCoSo: BRANCH_BOTH
   };

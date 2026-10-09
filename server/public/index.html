@@ -46,7 +46,7 @@
       setTimeout(unhide, 1200);
     })();
   </script>
-  <link rel="stylesheet" href="/shared/shared.css?v=20261006">
+  <link rel="stylesheet" href="/shared/shared.css?v=20261009">
   <link rel="stylesheet" href="/marketing-report.css?v=20261013">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2543,6 +2543,11 @@
       border-bottom: none;
     }
 
+    #allProductRows td {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
     .mono {
       font-family: var(--font-data);
       font-weight: 500;
@@ -4480,7 +4485,7 @@
       // Bieu do "Gia tri ton kho theo ngay" (tab Tong quan, muc 1): tu tai qua
       // /api/inventory-value-history, bo loc Tu-Den rieng (mac dinh 7 ngay) nen KHONG nam trong
       // state.filters (khoa trong do di kem /api/dashboard va cache dashboard).
-      inventoryHistory: { filter: { mode: 'days', days: 7 }, rows: [], loaded: false, failed: false, requestId: 0 },
+      inventoryHistory: { filter: { mode: 'days', days: 30 }, rows: [], loaded: false, failed: false, requestId: 0 },
       debtFilters: {
         queue: 'needsAction',
         sale: '',
@@ -6653,7 +6658,7 @@
       });
     }
 
-    // Tải riêng (không qua loadData/SSE): bảng chụp 1 lần/ngày, bộ lọc Từ–Đến riêng (mặc định 7 ngày).
+    // Tải riêng (không qua loadData/SSE): bảng chụp 1 lần/ngày, bộ lọc Từ–Đến riêng (mặc định 30 ngày).
     function loadInventoryHistory() {
       const store = state.inventoryHistory;
       const requestId = ++store.requestId;
@@ -8298,7 +8303,7 @@
           filteredProducts,
           p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
             '<td class="mono muted">' + (p.location ? escapeHtml(p.location) : '—') + '</td>' +
-            '<td class="muted" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"' + (p.description ? ' title="' + escapeHtml(p.description) + '"' : '') + '>' + (p.description ? escapeHtml(p.description) : '—') + '</td>' +
+            '<td class="muted"' + (p.description ? ' title="' + escapeHtml(p.description) + '"' : '') + '>' + (p.description ? escapeHtml(p.description) : '—') + '</td>' +
             '<td class="mono" data-sort-value="' + p.stock + '">' + p.stock + '</td><td class="mono" data-sort-value="' + p.reserved + '">' + p.reserved + '</td>' +
             '<td class="mono" data-sort-value="' + p.pct + '">' + p.pct.toFixed(2) + '%</td>' +
             '<td>' + branchCellText(p) + '</td></tr>',

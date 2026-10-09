@@ -126,7 +126,7 @@ Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp
 
 ## 5.4. Bộ lọc thời gian
 
-- Mỗi bảng/biểu đồ có bộ lọc **Từ – Đến** riêng; xóa cả hai ô nghĩa là "Tất cả". Mặc định 30 ngày gần nhất (Top khách theo doanh thu: toàn thời gian; Giá trị tồn kho theo ngày: 7 ngày).
+- Mỗi bảng/biểu đồ có bộ lọc **Từ – Đến** riêng; xóa cả hai ô nghĩa là "Tất cả". Mặc định 30 ngày gần nhất (Top khách theo doanh thu: toàn thời gian). Giá trị tồn kho theo ngày chỉ hiển thị ngày có bản chụp, bắt đầu từ 30/09/2026.
 - Không còn bộ lọc chung 7/30/90 ngày và không còn thanh tìm kiếm chung đầu tab; mỗi bảng có ô tìm kiếm riêng.
 - Ranh giới "hôm nay", các ngày trong kỳ lọc và `updatedAt` theo **Asia/Ho_Chi_Minh (UTC+7)**.
 

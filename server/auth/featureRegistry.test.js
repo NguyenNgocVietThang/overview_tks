@@ -298,3 +298,11 @@ test('bao cao kinh doanh: xem theo vai tro xem bao cao, tinh lai thang chi Quan 
   assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_SALE }).includes('reports.business.refreeze'));
   assert.ok(registry.resolvePermissions({ vaiTro: ROLES.QUAN_LY }).includes('reports.business.refreeze'));
 });
+
+test('hr.employees.manage: mặc định chỉ Quản lý, cần hr.employees', () => {
+  assert.ok(registry.defaultsForRole('Quản lý').includes('hr.employees.manage'));
+  assert.ok(!registry.defaultsForRole('Kế toán').includes('hr.employees.manage'));
+  assert.ok(!registry.defaultsForRole('Nhân viên kho').includes('hr.employees.manage'));
+  const feature = registry.FEATURES.find(f => f.key === 'hr.employees.manage');
+  assert.equal(feature.requires, 'hr.employees');
+});

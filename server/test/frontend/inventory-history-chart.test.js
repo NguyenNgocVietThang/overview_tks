@@ -72,7 +72,7 @@ test('bộ lọc riêng không nằm trong state.filters/TAB_FILTER_PREFIXES (kh
   assert.doesNotMatch(html.match(/filters: \{\s*topSelling[\s\S]*?\n      \},/)[0], /inventoryHistory/);
 });
 
-test('khởi động: tải mặc định 7 ngày gần nhất (Từ = hôm nay − 6 ngày, Đến = hôm nay) và điền vào ô lọc', async () => {
+test('khởi động: tải mặc định 30 ngày gần nhất (Từ = hôm nay − 29 ngày, Đến = hôm nay) và điền vào ô lọc', async () => {
   const dom = createDashboard([]);
   await tick();
   const urls = inventoryFetches(dom);
@@ -80,7 +80,7 @@ test('khởi động: tải mặc định 7 ngày gần nhất (Từ = hôm nay 
   const params = new URLSearchParams(urls[0].split('?')[1]);
   const from = new Date(params.get('from') + 'T00:00:00');
   const to = new Date(params.get('to') + 'T00:00:00');
-  assert.equal(Math.round((to - from) / 86400000), 6);
+  assert.equal(Math.round((to - from) / 86400000), 29);
 
   const wrap = dom.window.document.querySelector('[data-date-filter-slot="inventoryHistory"] .table-date-filter');
   assert.ok(wrap, 'o loc Tu-Den phai duoc gan vao slot');
