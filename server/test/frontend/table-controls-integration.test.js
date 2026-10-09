@@ -40,7 +40,12 @@ test('table frames own export actions and each static table has exactly one work
       const doc=dom.window.document;
       for(const table of doc.querySelectorAll('table'))if(!table.tHead?.rows.length)table.createTHead().innerHTML='<tr><th>Mã</th><th>Tên</th></tr>';
       dom.window.eval(source);dom.window.TKSTables.refreshAll();dom.window.TKSTables.refreshAll();
-      assert.equal(doc.querySelectorAll('.tks-columns-button').length,doc.querySelectorAll('table').length,page+': duplicate or missing picker');
+      assert.equal(doc.querySelectorAll('.tks-columns-button').length,doc.querySelectorAll('table:not([data-table-controls=off])').length,page+': duplicate or missing picker');
+      for(const table of doc.querySelectorAll('#hrSubtab-quydinh table')){
+        assert.equal(table.dataset.tableControls,'off');
+        assert.equal(table.closest('.tks-table-frame'),null);
+        assert.equal(table.querySelector('.tks-column-resizer'),null);
+      }
       for(const button of doc.querySelectorAll('.tks-columns-button')){
         button.click();assert.equal(doc.querySelector('.tks-columns-picker').hidden,false,page+': button must work');
         doc.querySelector('.tks-columns-picker [data-action=close]').click();
