@@ -29,12 +29,13 @@ test('allowedBranches: ai cung xem duoc ca hai co so, khong phu thuoc coSo', () 
   assert.deepEqual(allowedBranches(null), both);
 });
 
-test('isBranchAllowed chi nhan co so vat ly; defaultBranch = coSo duoc gan, rong thi Ca hai', () => {
+test('isBranchAllowed chi nhan co so vat ly; defaultBranch luon la Ca hai', () => {
   assert.equal(isBranchAllowed({ coSo: 'Hà Nội' }, BRANCHES.SAIGON), true);
   assert.equal(isBranchAllowed({ coSo: 'Hà Nội' }, BRANCH_BOTH), false);
   assert.equal(defaultBranch({ coSo: 'Cả hai' }), BRANCH_BOTH);
-  assert.equal(defaultBranch({ coSo: 'Tân Phú' }), BRANCHES.SAIGON);
-  assert.equal(defaultBranch({ coSo: 'Hà Nội' }), BRANCHES.HANOI);
+  assert.equal(defaultBranch({ coSo: 'Tân Phú' }), BRANCH_BOTH);
+  assert.equal(defaultBranch({ coSo: 'Hà Nội' }), BRANCH_BOTH);
+  assert.equal(defaultBranch({ coSo: 'Sài Gòn' }), BRANCH_BOTH);
   assert.equal(defaultBranch({ coSo: '' }), BRANCH_BOTH);
   assert.equal(defaultBranch(null), BRANCH_BOTH);
 });

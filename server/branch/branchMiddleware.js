@@ -4,7 +4,7 @@
 //
 // Cookie tks_branch chi la GOI Y ve co so dang xem: gia tri luon duoc kiem tra
 // lai (chi nhan Hà Nội / Sài Gòn / Cả hai), sai thi rot ve co so mac dinh cua
-// tai khoan (coSo duoc gan, chua gan thi Cả hai).
+// tai khoan (luon la Cả hai).
 // ==========================================
 const { BRANCHES, isBranchSelectable, defaultBranch } = require('./branches');
 

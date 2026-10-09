@@ -316,12 +316,14 @@ test('password login returns the live role resolved from HR instead of the store
       id: 'u1', username: 'a@example.com', email: 'a@example.com', passwordHash,
       vaiTro: 'Khách', coSo: '', trangThai: 'Đang hoạt động'
     }),
-    resolveEffectiveUser: async user => ({ ...user, vaiTro: 'Kế toán', coSo: 'Cả hai' })
+    resolveEffectiveUser: async user => ({ ...user, vaiTro: 'Kế toán', coSo: 'Hà Nội' })
   });
   const res = fakeRes();
-  await getRouteHandler(router, 'post', '/api/auth/login')({ body: { username: 'a@example.com', password: 'Password123' } }, res);
+  await getRouteHandler(router, 'post', '/api/auth/login')({ body: { username: 'a@example.com', password: 'Password123' }, cookies: { tks_branch: 'Sài Gòn' } }, res);
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.vaiTro, 'Kế toán');
+  assert.equal(res.body.coSo, 'Hà Nội');
+  assert.equal(res.cookies.find(cookie => cookie.name === 'tks_branch').value, 'Cả hai');
 });
 
 test('password login can reactivate an HR-removed account after it reappears in the sheet', async () => {
@@ -602,7 +604,8 @@ test('POST /api/auth/google: email chua co -> tao Khach hoat dong va dang nhap n
   assert.equal(res.body.vaiTro, 'Khách');
   assert.equal(createdWith.email, 'nguoimoi@gmail.com');
   assert.equal(createdWith.hoTen, 'Người Mới');
-  assert.equal(res.cookies.length, 1);
+  assert.equal(res.cookies.length, 2);
+  assert.equal(res.cookies.find(cookie => cookie.name === 'tks_branch').value, 'Cả hai');
 });
 
 test('POST /api/auth/google: tai khoan dang "Chờ duyệt" -> kich hoat thanh Khach', async () => {
@@ -640,19 +643,20 @@ test('POST /api/auth/google: tai khoan dang hoat dong -> 200, set cookie tks_aut
   const router = freshAuthRoutes({
     verifyGoogleIdToken: async () => ({ email: 'quanly@gmail.com', emailVerified: true, name: 'Quản Lý A' }),
     findUserByEmail: async () => ({
-      id: '1', username: 'quanly@gmail.com', hoTen: 'Quản Lý A', vaiTro: 'Quản lý', coSo: 'Cả hai',
+      id: '1', username: 'quanly@gmail.com', hoTen: 'Quản Lý A', vaiTro: 'Quản lý', coSo: 'Sài Gòn',
       trangThai: 'Đang hoạt động', passwordHash: 'khong-duoc-lo-ra'
     }),
     createActiveGuest: NEVER_CALL
   });
   const handler = getRouteHandler(router, 'post', '/api/auth/google');
   const res = fakeRes();
-  await handler({ body: { credential: 'tok' } }, res);
+  await handler({ body: { credential: 'tok' }, cookies: { tks_branch: 'Hà Nội' } }, res);
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.username, 'quanly@gmail.com');
   assert.equal(res.body.vaiTro, 'Quản lý');
   assert.equal(res.body.passwordHash, undefined);
-  assert.equal(res.cookies.length, 1);
+  assert.equal(res.cookies.length, 2);
+  assert.equal(res.cookies.find(cookie => cookie.name === 'tks_branch').value, 'Cả hai');
   assert.equal(res.cookies[0].name, AUTH_COOKIE_NAME);
 });
 
@@ -1102,8 +1106,25 @@ test('khoa dang ky: Google van dang nhap duoc tai khoan DA CO', () => withRegist
   const res = fakeRes();
   await getRouteHandler(router, 'post', '/api/auth/google')({ body: { credential: 'tok' } }, res);
   assert.equal(res.statusCode, 200);
-  assert.equal(res.cookies.length, 1);
+  assert.equal(res.cookies.length, 2);
 }));
+
+test('GET /api/auth/me giu co so da chon khi lam moi token theo ho so', async () => {
+  const user = { id: 'u1', username: 'a@example.com', hoTen: 'A', vaiTro: 'Kế toán', coSo: 'Hà Nội', trangThai: 'Đang hoạt động' };
+  const router = freshAuthRoutes({
+    verifyGoogleIdToken: NEVER_CALL,
+    findUserByEmail: NEVER_CALL,
+    createActiveGuest: NEVER_CALL,
+    findUserById: async () => user
+  });
+  const res = fakeRes();
+  await getRouteHandler(router, 'get', '/api/auth/me')({
+    user: { ...user, hoTen: 'Tên cũ' }, cookies: { tks_branch: 'Sài Gòn' }
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.branch, 'Sài Gòn');
+  assert.deepEqual(res.cookies.map(cookie => cookie.name), [AUTH_COOKIE_NAME]);
+});
 
 test('GET /api/auth/google-config bao registrationOpen theo cau hinh (mac dinh khoa)', () => {
   const router = freshAuthRoutes({ verifyGoogleIdToken: NEVER_CALL, findUserByEmail: NEVER_CALL, createActiveGuest: NEVER_CALL });

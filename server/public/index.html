@@ -47,6 +47,7 @@
     })();
   </script>
   <link rel="stylesheet" href="/shared/shared.css?v=20261009">
+  <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
   <link rel="stylesheet" href="/marketing-report.css?v=20261013">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3685,18 +3686,17 @@
                   <table class="fixed-table">
                     <thead>
                       <tr>
-                        <th style="width:140px">Mã hàng</th>
+                        <th style="width:105px">Mã hàng</th>
                         <th style="width:300px">Tên sản phẩm</th>
-                        <th data-cost-col title="Giá vốn (Cả hai: bình quân theo tồn); giá trị tồn = giá vốn × tồn kho" style="width:135px">Đơn giá</th>
+                        <th data-cost-col title="Giá vốn (Cả hai: bình quân theo tồn); giá trị tồn = giá vốn × tồn kho" style="width:110px">Đơn giá</th>
                         <th data-inv-cols="one" title="Tồn thực tế trên KiotViet" style="width:105px">Tồn kho</th>
                         <th data-inv-cols="both" hidden title="Tồn thực tế tại Hà Nội" style="width:95px">Tồn HN</th>
+                        <th title="Số lượng trong phiếu Đặt hàng nhập trạng thái “Đã xác nhận NCC” của Kiot Sài Gòn (Mua hàng → Đặt hàng nhập), ghép theo mã hàng" style="width:125px">Vận chuyển SG</th>
                         <th data-inv-cols="both" hidden title="Tồn thực tế tại Sài Gòn" style="width:95px">Tồn SG</th>
                         <th data-inv-cols="one" title="Tồn có thể bán = Tồn kho − Khách đặt (phiếu tạm, chưa giao)" style="width:155px">Tồn có thể bán</th>
-                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Hà Nội = Tồn kho − Khách đặt (phiếu tạm)" style="width:150px">Tồn có bán HN</th>
-                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Sài Gòn = Tồn kho − Khách đặt (phiếu tạm)" style="width:150px">Tồn có bán SG</th>
-                        <th title="Số lượng trong phiếu Đặt hàng nhập trạng thái “Đã xác nhận NCC” của Kiot Sài Gòn (Mua hàng → Đặt hàng nhập), ghép theo mã hàng" style="width:125px">Vận chuyển</th>
+                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Hà Nội = Tồn kho − Khách đặt (phiếu tạm)" style="width:110px">Có bán HN</th>
+                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Sài Gòn = Tồn kho − Khách đặt (phiếu tạm)" style="width:110px">Có bán SG</th>
                         <th data-cost-col title="Giá trị tồn = giá vốn × tồn kho" style="width:140px">Giá trị tồn</th>
-                        <th style="width:130px">Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="inventoryValueRows">
@@ -4445,6 +4445,7 @@
   <script src="/vendor/chart.umd.min.js"></script>
   <script src="/js/pagination.js"></script>
   <script src="/js/table-explorer.js"></script>
+  <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261008"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
@@ -6933,13 +6934,13 @@
           '<td class="mono muted"' + (showCost ? '' : ' hidden') + ' data-sort-value="' + (p.cost || 0) + '">' + fmtMoney(p.cost) + '</td>' +
           cell(p.stock, isBoth, false) +
           optionalCell(p.stockHanoi, !isBoth) +
+          (p.inTransit ? cell(p.inTransit, false, false) : '<td class="mono muted" data-sort-value="0">—</td>') +
           optionalCell(p.stockSaigon, !isBoth) +
           cell(p.available, isBoth, false) +
           optionalCell(p.availableHanoi, !isBoth) +
           optionalCell(p.availableSaigon, !isBoth) +
-          (p.inTransit ? cell(p.inTransit, false, false) : '<td class="mono muted" data-sort-value="0">—</td>') +
           '<td class="mono"' + (showCost ? '' : ' hidden') + ' data-sort-value="' + (p.stockValue || 0) + '">' + fmtMoney(p.stockValue) + '</td>' +
-          '<td>' + branchCellText(p) + '</td></tr>',
+          '</tr>',
         12,
         'Không có dữ liệu'
       );

@@ -31,8 +31,8 @@ function normalizeCoSo(raw) {
 
 /**
  * Co so chi la BO LOC XEM: moi tai khoan deu duoc xem ca hai co so (giong quyen
- * "Cả hai" truoc day). Cot coSo cua tai khoan chi quyet dinh co so MAC DINH luc
- * dang nhap (xem defaultBranch), khong con la ranh gioi doc/ghi du lieu.
+ * "Cả hai" truoc day). Cot coSo cua tai khoan la thong tin phu trach,
+ * khong quyet dinh bo loc mac dinh hay ranh gioi doc/ghi du lieu.
  */
 function allowedBranches() {
   return [BRANCHES.HANOI, BRANCHES.SAIGON];
@@ -64,9 +64,9 @@ function resolveBranchScope(branch) {
   return [];
 }
 
-// Co so mac dinh luc dang nhap = co so duoc gan san; chua gan thi xem "Cả hai".
-function defaultBranch(user) {
-  return normalizeCoSo(user && user.coSo) || BRANCH_BOTH;
+// Moi tai khoan deu bat dau voi bo loc "Cả hai" khi dang nhap.
+function defaultBranch() {
+  return BRANCH_BOTH;
 }
 
 // Anh xa 2 chieu giua dinh danh noi bo cua Postgres ('hanoi'/'saigon' — xem

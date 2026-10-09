@@ -20,6 +20,7 @@ function page(customFetch) {
     const json = endpoint==='metadata' ? {currentMonth:10,months:{monthly:[9,10],check:[10],costs:[10]}} : endpoint==='detail' ? {title:'Chi tiết page',snapshotId:'snapshot-new',groups:[],kpis:[],computedAt:'2026-10-08T10:00:00Z'} : {snapshotId:'snapshot-1',computedAt:'2026-10-08T09:00:00Z',kpis:[],charts:[],warnings:[],filters:{pages:['Hữu Nghị']},summaryRows:[{key:'page:hn',label:'Hữu Nghị',employee:'Tâm MKT',count:101}],rows:Array.from({length:101},(_,i) => ({key:'phone:'+i,phone:'0'+i,page:'Hữu Nghị',sale:i===100?'Đặng An':'Sale '+i,revenue:101-i}))};
     return {ok:true,status:200,json:async()=>json};
   };
+  window.eval(fs.readFileSync(path.join(__dirname,'../../public/shared/search-clear.js'),'utf8'));
   window.eval(source);
   return {dom,window,doc:window.document,urls};
 }
@@ -41,6 +42,10 @@ test('Marketing tables search without accents, sort before 100-row pagination an
   const fileUrl=opened.source.file({...opened.payload,columns:{rows:['sale','revenue']},format:'html'},{});
   assert.match(fileUrl,/^\/api\/marketing-report\/export\?/);
   assert.equal(new URL(fileUrl,'https://example.test').searchParams.get('columns'),'sale,revenue');
+  await settle();
+  const clear=host.querySelector('.tks-search-clear'); assert.ok(clear); assert.equal(clear.hidden,false);
+  clear.click(); assert.equal(search.value,''); assert.equal(host.querySelectorAll('tbody tr').length,100);
+  assert.equal(clear.hidden,true); assert.equal(p.doc.activeElement,search);
   p.dom.window.close();
 });
 test('Keyboard detail pins snapshot, refresh repins and close returns focus',async()=>{

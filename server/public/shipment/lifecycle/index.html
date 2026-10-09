@@ -16,6 +16,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/shared/shared.css?v=20261009">
+  <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
 <style>
   .lookup-wrap{ width:100%; max-width:none; margin:0; }
   .lookup-hero{ margin-bottom:20px; }
@@ -401,7 +402,7 @@
         <form class="panel lookup-panel" id="lookupForm">
           <label for="orderCodeInput">Mã đơn hàng</label>
           <div class="lookup-row">
-            <input type="text" id="orderCodeInput" placeholder="Ví dụ: HD000005" autocomplete="off">
+            <input type="text" id="orderCodeInput" data-search-input placeholder="Ví dụ: HD000005" autocomplete="off">
             <button class="btn-primary lookup-submit" id="lookupSubmit" type="submit">Tra cứu</button>
           </div>
           <div class="lookup-message error" id="lookupError" role="alert"></div>
@@ -479,7 +480,7 @@
                 <button type="button" class="bulk-mode-btn" data-mode="sale">Theo tên sale</button>
                 <button type="button" class="bulk-mode-btn" data-mode="customer">Theo tên khách</button>
               </div>
-              <input type="text" id="bulkSearchInput" autocomplete="off">
+              <input type="text" id="bulkSearchInput" data-search-input data-search-submit-on-clear autocomplete="off">
               <button type="submit" class="btn-secondary bulk-search-submit">Tìm kiếm</button>
             </form>
             <div class="bulk-scroll bulk-scroll-y">
@@ -537,7 +538,7 @@
             </div>
             <p class="lc-history-hint">Chỉ ghi nhận các lần Kế toán/Quản lý <strong>ghi đè trạng thái thủ công</strong> — không bao gồm các mốc cập nhật tự động từ Bot Telegram (xem ở tab "Toàn bộ đơn hàng"). Bấm vào 1 dòng để xem chi tiết đơn hàng.</p>
             <form class="bulk-search" id="historySearchForm">
-              <input type="text" id="historySearchInput" placeholder="Nhập mã đơn hoặc tên người thực hiện, nhấn Enter để tìm..." autocomplete="off">
+              <input type="text" id="historySearchInput" data-search-input data-search-submit-on-clear placeholder="Nhập mã đơn hoặc tên người thực hiện, nhấn Enter để tìm..." autocomplete="off">
               <button type="submit" class="btn-secondary bulk-search-submit">Tìm kiếm</button>
             </form>
             <div class="bulk-scroll">
@@ -591,6 +592,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Dat o cuoi than <body> thay vi <head>: script chan phan tich cu phap trong <head> se lam dung viec xu ly toan bo tai lieu. Khong dung `defer` vi script inline ben duoi dung TKSNav o cap cao nhat, va script inline luon chay truoc script defer. -->
+  <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261008"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>

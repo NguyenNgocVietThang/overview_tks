@@ -24,8 +24,8 @@ const { formatDateVN } = require('./localUserStore');
 const { createActiveGuest, activatePendingGuest, updateUserFields, updateUserProfile } = require('./userWriteRepository');
 const { verifyGoogleIdToken } = require('./googleAuthService');
 const { AUTH_COOKIE_NAME, AUTH_COOKIE_MAX_AGE_MS, requireAuth } = require('./authMiddleware');
-const { selectableBranches } = require('../branch/branches');
-const { currentBranchFor } = require('../branch/branchMiddleware');
+const { selectableBranches, defaultBranch } = require('../branch/branches');
+const { currentBranchFor, BRANCH_COOKIE_NAME, branchCookieOptions } = require('../branch/branchMiddleware');
 const otpService = require('./otpService');
 const employeeRegistrationService = require('./employeeRegistrationService');
 const effectiveUserResolver = require('./effectiveUserResolver');
@@ -240,9 +240,12 @@ function publicProfile(user) {
   };
 }
 
-function signIn(res, user) {
+function signIn(res, user, resetBranch = false) {
   const safeUser = publicUser(user);
   res.cookie(AUTH_COOKIE_NAME, signToken(safeUser), cookieOptions());
+  if (resetBranch) {
+    res.cookie(BRANCH_COOKIE_NAME, defaultBranch(user), branchCookieOptions());
+  }
   return safeUser;
 }
 
@@ -366,7 +369,7 @@ router.post('/api/auth/login', async (req, res) => {
       return res.status(403).json({ error: 'Tài khoản đã bị khóa.', code: user.lockReason === 'hr_removed' ? 'ACCOUNT_HR_REMOVED' : 'ACCOUNT_LOCKED' });
     }
 
-    res.status(200).json(signIn(res, user));
+    res.status(200).json(signIn(res, user, true));
   } catch (err) {
     if (err && err.statusCode && err.statusCode < 500) {
       return res.status(err.statusCode).json({ error: err.message, code: err.code });
@@ -455,7 +458,7 @@ router.post('/api/auth/register', async (req, res) => {
       throw err;
     }
 
-    res.status(201).json(signIn(res, user));
+    res.status(201).json(signIn(res, user, true));
   } catch (err) {
     console.error('=== LOI /api/auth/register ===');
     console.error(err.stack);
@@ -701,7 +704,7 @@ router.post('/api/auth/google', async (req, res) => {
     }
 
     clearFailedLogins(email);
-    res.status(200).json(signIn(res, user));
+    res.status(200).json(signIn(res, user, true));
   } catch (err) {
     // Loi nghiep vu co status (vd linkVerifiedGoogleIdentity -> 409 HR_IDENTITY_CONFLICT).
     if (err && err.statusCode && err.statusCode < 500) {

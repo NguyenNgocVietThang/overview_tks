@@ -1,0 +1,29 @@
+/* A single clear control for static searches, dynamic tables and dropdowns. */
+.tks-search-container { position: relative; }
+.tks-search-wrap { display: block; width: 100%; min-width: 0; flex: 1; }
+.tks-search-wrap > input { width: 100%; box-sizing: border-box; }
+.bulk-search > .tks-search-wrap,
+.lookup-row > .tks-search-wrap { width: auto; min-width: 220px; flex-basis: 220px; }
+@media (max-width: 640px) {
+  .bulk-search > .tks-search-wrap,
+  .lookup-row > .tks-search-wrap { width: 100%; min-width: 0; flex-basis: auto; }
+}
+input.tks-search-input.tks-search-input { padding-right: 40px; }
+input.tks-search-input::-webkit-search-cancel-button,
+input.tks-search-input::-webkit-search-decoration { display: none; -webkit-appearance: none; }
+input.tks-search-input::-ms-clear { display: none; }
+.tks-search-clear.tks-search-clear {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; min-width: 28px; min-height: 28px;
+  margin: 0; padding: 0; border: 0; border-radius: 6px;
+  background: transparent; color: var(--muted); font: 22px/1 var(--font-body, sans-serif);
+  cursor: pointer;
+}
+.tks-search-clear.tks-search-clear[hidden] { display: none !important; }
+.tks-search-clear.tks-search-clear:hover { color: var(--text); background: var(--surface-hover, var(--panel-2)); }
+.tks-search-clear.tks-search-clear:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+@media (pointer: coarse) {
+  .tks-search-clear.tks-search-clear { width: 36px; height: 36px; }
+  input.tks-search-input.tks-search-input { min-height: 40px; padding-right: 44px; }
+}

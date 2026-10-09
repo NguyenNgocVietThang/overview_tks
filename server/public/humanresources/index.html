@@ -16,6 +16,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Noto+Serif:wght@400;600;700&family=Roboto:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/shared/shared.css?v=20261009">
+  <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
 <style>
   .hr-wrap{ width:100%; margin:0 auto; }
   .hr-header{ margin-bottom:20px; }
@@ -878,7 +879,7 @@
           <small id="empStatusHint" class="alert-box alert-error" style="display:none;margin-top:6px;">Tài khoản đăng nhập liên kết với nhân sự này sẽ bị khóa.</small></div>
         <div class="form-group" id="empCreatedAtGroup" hidden><label for="empCreatedAt">Ngày thêm</label><input type="text" id="empCreatedAt" class="form-control" readonly></div>
         <div id="empError" class="alert-box alert-error" style="display:none;" role="alert"></div>
-      </div><div class="modal-footer"><button type="button" class="btn-mini" onclick="closeModal('employeeModal')">Hủy</button><button id="empSave" class="btn-primary" type="submit">Lưu</button></div></form>
+      </div><div class="modal-footer"><button id="empSave" class="btn-primary" type="submit">Lưu</button></div></form>
     </div>
   </div>
 
@@ -1015,6 +1016,7 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
+  <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261008"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>

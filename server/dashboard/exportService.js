@@ -599,17 +599,17 @@ const INVENTORY_COLUMN_DEFS = {
   stockHanoi: ['Tồn kho Hà Nội', 'number', 'Tồn thực tế tại cơ sở Hà Nội; để trống nếu mã không có ở cơ sở này.'],
   stockSaigon: ['Tồn kho Sài Gòn', 'number', 'Tồn thực tế tại cơ sở Sài Gòn; để trống nếu mã không có ở cơ sở này.'],
   available: ['Tồn có thể bán', 'number', 'Tồn thực tế trừ số lượng khách đã đặt (phiếu tạm); âm nghĩa là đã giữ quá tồn.'],
-  availableHanoi: ['Tồn có thể bán Hà Nội', 'number', 'Tồn có thể bán tại cơ sở Hà Nội; để trống nếu mã không có ở cơ sở này.'],
-  availableSaigon: ['Tồn có thể bán Sài Gòn', 'number', 'Tồn có thể bán tại cơ sở Sài Gòn; để trống nếu mã không có ở cơ sở này.'],
-  inTransit: ['Hàng đang vận chuyển', 'number', 'Số lượng trong phiếu đặt hàng nhập ở trạng thái "Đã xác nhận nhà cung cấp" của Kiot Sài Gòn, ghép theo mã hàng.'],
+  availableHanoi: ['Có bán HN', 'number', 'Tồn có thể bán tại cơ sở Hà Nội; để trống nếu mã không có ở cơ sở này.'],
+  availableSaigon: ['Có bán SG', 'number', 'Tồn có thể bán tại cơ sở Sài Gòn; để trống nếu mã không có ở cơ sở này.'],
+  inTransit: ['Vận chuyển SG', 'number', 'Số lượng trong phiếu đặt hàng nhập ở trạng thái "Đã xác nhận nhà cung cấp" của Kiot Sài Gòn, ghép theo mã hàng.'],
   stockValue: ['Giá trị tồn', 'number', 'Giá vốn nhân tồn kho dương (VNĐ).'],
   branch: ['Cơ sở', 'text', 'Cơ sở (Hà Nội hoặc Sài Gòn) của dòng tồn kho; mã có ở cả hai cơ sở ghi "Hà Nội, Sài Gòn".']
 };
 
 // Thu tu cot giong bang tren man hinh: 1 co so -> Tồn kho / Tồn có thể bán; "Ca hai" -> tach Ha Noi / Sai Gon.
 const INVENTORY_COLUMN_ORDER = {
-  one: ['code', 'name', 'cost', 'stock', 'available', 'inTransit', 'stockValue', 'branch'],
-  both: ['code', 'name', 'cost', 'stockHanoi', 'stockSaigon', 'availableHanoi', 'availableSaigon', 'inTransit', 'stockValue', 'branch']
+  one: ['code', 'name', 'cost', 'stock', 'inTransit', 'available', 'stockValue'],
+  both: ['code', 'name', 'cost', 'stockHanoi', 'inTransit', 'stockSaigon', 'availableHanoi', 'availableSaigon', 'stockValue']
 };
 
 function inventoryColumns(aggregate) {
