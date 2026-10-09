@@ -27,7 +27,8 @@ function createHrLeaveWorkSchedulesRepository({pool=getPool()}={}) {
   if(typeof username!=='string' || !username.trim()) throw invalid('Vui lòng chọn nhân sự đã liên kết để cấu hình lịch nghỉ.');
   return (await pool.query(`SELECT e.id::text AS id,e.branch,e.bo_phan,e.ho_ten,u.id AS user_id,u.username FROM app_users u JOIN hr_employees e ON e.id=u.hr_employee_id WHERE lower(u.username)=lower($1) AND NOT u.is_deleted AND u.trang_thai='Đang hoạt động' AND e.is_active`,[username.trim()])).rows[0] || null;
  }
- return {getSchedule,setSchedule,getEmployee,resolveEmployee};
+ function defaultSchedule(date) {return withDefault('',date,null);}
+ return {getSchedule,defaultSchedule,setSchedule,getEmployee,resolveEmployee};
 }
 const repository=createHrLeaveWorkSchedulesRepository();
 module.exports={createHrLeaveWorkSchedulesRepository,...repository};

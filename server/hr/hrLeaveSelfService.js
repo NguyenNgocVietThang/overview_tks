@@ -7,7 +7,7 @@ const {normalizeCalendar,calculateTiming}=require('./hrLeaveTiming');
 const defaultSchedules=require('./hrLeaveWorkSchedulesRepository');
 
 // Never resolve by editable display name, email or username. The stable FK is the identity.
-// Quản lý chưa liên kết hồ sơ nhân sự vẫn được xin nghỉ: lấy họ tên/cơ sở từ chính tài khoản
+// Tài khoản nội bộ (trừ Khách) chưa liên kết hồ sơ nhân sự vẫn được xin nghỉ: lấy họ tên/cơ sở từ chính tài khoản
 // (cơ sở "Cả hai"/trống quy về Hà Nội vì đơn nghỉ bắt buộc thuộc một cơ sở).
 async function loadActiveProfile(userId, pool = getPool()) {
   const { rows } = await pool.query(`
@@ -17,7 +17,7 @@ async function loadActiveProfile(userId, pool = getPool()) {
            COALESCE(e.branch, CASE WHEN u.co_so IN ('hanoi', 'saigon') THEN u.co_so ELSE 'hanoi' END) AS branch
     FROM app_users u LEFT JOIN hr_employees e ON e.id = u.hr_employee_id
     WHERE u.id = $1 AND u.trang_thai = 'Đang hoạt động' AND NOT u.is_deleted AND u.vai_tro <> 'Khách'
-      AND (e.is_active OR (u.hr_employee_id IS NULL AND u.vai_tro = 'Quản lý'))
+      AND (e.is_active OR u.hr_employee_id IS NULL)
   `, [userId]);
   return rows[0] || null;
 }
@@ -37,9 +37,10 @@ function createHrLeaveSelfService({ loadProfile = loadActiveProfile, repo = leav
     if (body.nguoi_ban_giao != null && typeof body.nguoi_ban_giao !== 'string') throw new leaveRepo.HrError('Người bàn giao phải là chuỗi ký tự.', 400, 'INVALID_HANDOVER');
     if (body.end_date != null && typeof body.end_date !== 'string') throw new leaveRepo.HrError('Ngày kết thúc không hợp lệ.', 400, 'INVALID_LEAVE_RANGE');
     const calendar=normalizeCalendar(body);
-    if(ctx.profile.hrEmployeeId==null) throw new leaveRepo.HrError('Cần liên kết nhân sự đang hoạt động và cấu hình giờ bắt đầu buổi nghỉ.',409,'LEAVE_SCHEDULE_REQUIRED');
     const submittedAt = now();
-    const timing=calculateTiming(calendar,await schedules.getSchedule(ctx.profile.hrEmployeeId,calendar.start_date),submittedAt);
+    // Chưa gắn hồ sơ nhân sự: dùng giờ mặc định (không có lịch riêng để tra).
+    const schedule=ctx.profile.hrEmployeeId==null ? schedules.defaultSchedule(calendar.start_date) : await schedules.getSchedule(ctx.profile.hrEmployeeId,calendar.start_date);
+    const timing=calculateTiming(calendar,schedule,submittedAt);
     return {ctx,calendar,timing,submittedAt};
   }
   async function preview(user,body={}) {return (await prepare(user,body,false)).timing;}

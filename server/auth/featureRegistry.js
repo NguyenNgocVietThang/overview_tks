@@ -194,10 +194,15 @@ function resolvePermissions(user) {
   return FEATURE_KEYS.filter(key => granted.has(key) && !isFeatureForbiddenForRole(key, user.vaiTro));
 }
 
-// Moi tai khoan noi bo (tru Khach) da gan ho so nhan su dang hoat dong deu duoc tu gui don nghi;
+// Moi tai khoan noi bo (tru Khach) deu duoc tu gui don nghi (chua gan ho so thi dung gio mac dinh, xem migration 0042);
 // khong doi hrManaged (co dong bo vai tro tu danh sach nhan su) vi viec do khong lien quan quyen xin nghi.
 function canSubmitOwnLeave(user) {
-  return !!(user && user.vaiTro !== ROLES.KHACH && user.hrRowIndex && user.trangThai === 'Đang hoạt động' && !user.isDeleted && !user.hrVerificationRequired && user.hrEmployeeActive !== false);
+  return !!(user && user.vaiTro !== ROLES.KHACH && user.trangThai === 'Đang hoạt động' && !user.isDeleted && !user.hrVerificationRequired && user.hrEmployeeActive !== false);
+}
+
+/** Quyen tu dong theo tai khoan (dynamic): khong phai thu de cap cho nguoi khac, nen khong tinh vao luat chong nang quyen. */
+function isDynamicFeature(key) {
+  return !!FEATURE_BY_KEY.get(key)?.dynamic;
 }
 
 function isFeatureForbiddenForRole(key, role) {
@@ -256,6 +261,7 @@ module.exports = {
   permissionsHave,
   hasFeature,
   isFeatureForbiddenForRole,
+  isDynamicFeature,
   normalizePagePath,
   pageRuleFor,
   landingPathFor

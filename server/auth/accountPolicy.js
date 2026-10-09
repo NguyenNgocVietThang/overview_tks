@@ -89,7 +89,7 @@ function checkGrant(actor, currentTarget, nextTarget) {
   const before = new Set(currentTarget ? featureRegistry.resolvePermissions(currentTarget) : []);
   const own = new Set(actorPermissions(actor));
   const missing = featureRegistry.resolvePermissions(nextTarget)
-    .filter(key => !before.has(key) && !own.has(key));
+    .filter(key => !featureRegistry.isDynamicFeature(key) && !before.has(key) && !own.has(key));
   if (missing.length) {
     return `Bạn không có quyền ${labelsOf(missing)} nên không thể cấp quyền này cho tài khoản khác.`;
   }
@@ -115,7 +115,7 @@ function checkTakeover(actor, target, action) {
     return 'Chỉ Quản lý mới được thao tác trên tài khoản Quản lý.';
   }
   const own = new Set(actorPermissions(actor));
-  const missing = featureRegistry.resolvePermissions(target).filter(key => !own.has(key));
+  const missing = featureRegistry.resolvePermissions(target).filter(key => !featureRegistry.isDynamicFeature(key) && !own.has(key));
   if (missing.length) {
     return `Tài khoản này có quyền cao hơn bạn (${labelsOf(missing)}) nên bạn không thể ${action}.`;
   }

@@ -94,3 +94,15 @@ test('schedule repository round-trips nullable starts and database owns monotoni
  assert.deepEqual(await repo.getSchedule('1','2030-01-01'),next);
  }finally{if(db)await db.close();}
 });
+test('0042: tai khoan chua gan ho so nhan su van gui don web voi lich mac dinh; don Telegram/khong tai khoan van bi chan',async()=>{
+ let db;try {db=await fixture();
+ await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/0042_hr_leave_unlinked_accounts.sql'),'utf8'));
+ const U2='22222222-2222-2222-2222-222222222222';
+ await db.exec(`INSERT INTO app_users(id,username,vai_tro,trang_thai,hr_employee_id) VALUES('${U2}','b','Nhân viên sale','Đang hoạt động',NULL)`);
+ await db.exec(`INSERT INTO hr_leave_requests(request_id,user_id,source,branch,bo_phan,start_date,start_session,end_date,end_session,tong_buoi_nghi) VALUES('UNLINKED','${U2}','web','saigon','Nhân viên sale','2030-01-01','Sáng','2030-01-01','Chiều',2)`);
+ const row=(await db.query("SELECT hr_employee_id,branch,bo_phan,schedule_start::text AS start,schedule_version::text AS version FROM hr_leave_requests WHERE request_id='UNLINKED'")).rows[0];
+ assert.deepEqual(row,{hr_employee_id:null,branch:'saigon',bo_phan:'Nhân viên sale',start:'07:45:00',version:'0'});
+ assert.equal((await db.query("SELECT count(*)::int AS n FROM hr_leave_submissions WHERE request_id='UNLINKED' AND hr_employee_id IS NULL")).rows[0].n,1);
+ await assert.rejects(db.exec(`INSERT INTO hr_leave_requests(request_id,user_id,source,branch,start_date,start_session,end_date,end_session,tong_buoi_nghi) VALUES('BOT-UNLINKED','${U2}','telegram','saigon','2030-01-01','Sáng','2030-01-01','Chiều',2)`),/LEAVE_SCHEDULE_REQUIRED/);
+ }finally{if(db)await db.close();}
+});
