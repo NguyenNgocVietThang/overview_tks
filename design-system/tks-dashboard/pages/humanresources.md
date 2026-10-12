@@ -1,6 +1,8 @@
 # Page Design Notes — `humanresources/index.html` (Nhân Sự / Nghỉ Phép)
 
-> Kế thừa toàn bộ `MASTER.md`. Audit gần nhất: 2026-09-15.
+> Kế thừa toàn bộ `MASTER.md`. Audit gần nhất: 2026-09-15. **Cập nhật 2026-10-12:**
+> Bảng danh sách nhân sự, bảng chấm công, bảng nghỉ phép được bổ sung điều khiển phân trang chuẩn (`table-controls.js`).
+> Hộp xem chi tiết đơn nghỉ phép (`#leaveDetailModal`) áp dụng chuẩn dùng chung `detail-panel.css` (`.dp-*`) với hàng chỉ số tổng quan (`.dp-stats`), 1 khung cuộn thống nhất.
 
 ## Vai trò trang
 Quản lý đơn nghỉ phép (duyệt/từ chối), KPI nhân sự, tra cứu chính sách nghỉ phép dạng tài liệu in.
@@ -19,6 +21,7 @@ Quản lý đơn nghỉ phép (duyệt/từ chối), KPI nhân sự, tra cứu c
   mã/link ngắn dùng để chia sẻ.
 - `.doc-page` (trình xem văn bản chính sách dạng "trang giấy in") — **ngoại lệ có chủ đích**, xem
   MASTER §5.17. Không áp token theme (`--panel`/`--text`) lên khối này hay phần tử con của nó.
+- Hộp chi tiết nghỉ phép chuẩn hóa theo `.dp-*` (`public/shared/detail-panel.css`), dải thẻ `.dp-stats`.
 - Modal duyệt/từ chối nghỉ phép dùng chung khung `.modal-overlay/.modal-box` — cần sửa theo §12.1.
 
 ## Nợ thiết kế riêng của trang

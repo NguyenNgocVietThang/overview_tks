@@ -1,6 +1,7 @@
 # Page Design Notes — `account/index.html` (Tài Khoản & Quản Trị Người Dùng)
 
-> Kế thừa toàn bộ `MASTER.md`. Audit gần nhất: 2026-09-15.
+> Kế thừa toàn bộ `MASTER.md`. Audit gần nhất: 2026-09-15. **Cập nhật 2026-10-12:**
+> Bảng quản trị người dùng (`.users-table`) được tích hợp điều khiển phân trang chuẩn (`table-controls.js`), hỗ trợ chuyển trang mượt mà kết hợp bộ lọc vai trò, cơ sở và tìm kiếm.
 
 ## Vai trò trang
 Hồ sơ cá nhân + màn quản trị người dùng (admin): danh sách user, phân quyền vai trò, đặt lại mật
@@ -12,7 +13,7 @@ khẩu, duyệt yêu cầu đổi vai trò.
 - Grid thẻ hồ sơ 12 cột (`.profile-grid`, `.profile-card.col-6/col-12`).
 - Role badges (9 biến thể) + Status pills (4 biến thể) — bản triển khai gốc của MASTER §5.6; các
   token màu (`--role-*`, `--status-*`) đã ở `shared.css`, chỉ thiếu phần class component dùng chung.
-- Bảng quản trị user (`.users-table-panel`, `.users-table`) + avatar tròn (`.user-avatar`).
+- Bảng quản trị user (`.users-table-panel`, `.users-table`) có phân trang (`table-controls.js`) + avatar tròn (`.user-avatar`).
 - 4 modal (tạo user / sửa user / đổi mật khẩu / yêu cầu vai trò) dùng chung 1 khung
   `.modal-overlay/.modal-box` — bản triển khai gốc của MASTER §5.7, **cần sửa theo §12.1**.
 - Alert box + toast — dùng đúng token `--alert-*`/`--toast-*` đã có sẵn, không có vấn đề.

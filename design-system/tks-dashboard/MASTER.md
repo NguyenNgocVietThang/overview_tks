@@ -697,6 +697,19 @@ phép) mô phỏng một trang giấy in — dùng `font-family:'Noto Serif', Ge
 bất kể Dark/Light Mode của app, giống nguyên tắc "buộc sáng" ở mục 5.10. Không áp token theme lên
 `.doc-page` và các phần tử con của nó.
 
+### 5.18 Detail Panel (Khung "Xem Chi Tiết" Dùng Chung — `detail-panel.css`)
+
+Áp dụng đồng bộ cho các hộp xem chi tiết pop-up/slide-over trên toàn hệ thống (Báo cáo tổng hợp, Vòng đời đơn hàng, Nhân sự, Báo cáo Marketing, Báo cáo kinh doanh):
+- **Tiền tố lớp (Prefix):** `.dp-*`
+  - `.dp-head`: Đầu hộp gồm kicker, tiêu đề (`.dp-title`), phân loại (`.dp-title-kind`), phụ đề và nút đóng (`.dp-close`).
+  - `.dp-stats`: Dải thẻ **chỉ số tổng quan** ở đầu thân hộp (`.dp-stat`, `.dp-stat-label`, `.dp-stat-value`, `.dp-stat-sub`; hỗ trợ modifier màu `.is-green`, `.is-amber`, `.is-red`, `.is-blue`).
+  - `.dp-card` / `.dp-section`: Các khối thông tin, thuộc tính (`.dp-meta`), ghi chú (`.dp-note-text`).
+  - `.dp-table-wrap` / `.dp-table`: Bảng dữ liệu trong hộp.
+- **Quy tắc bắt buộc:**
+  1. **Một khung cuộn duy nhất:** Bảng bên trong hộp có tiêu đề dính (`position: sticky; top: 0`), không tạo hai thanh cuộn lồng nhau.
+  2. **Tắt nút Cột hiển thị:** Mọi bảng trong panel chi tiết bắt buộc đặt `data-table-controls="off"` — không hiển thị nút "Cột hiển thị" để giữ giao diện xem chi tiết tinh gọn và tập trung.
+  3. **Không dùng hiệu ứng 3D:** Sử dụng biến token màu và bo góc có sẵn của hệ thống (`shared.css`), tự động tương thích Dark/Light Mode.
+
 ---
 
 ## 6. Motion & Micro-Interactions (Chuyển Động & Hiệu Ứng)

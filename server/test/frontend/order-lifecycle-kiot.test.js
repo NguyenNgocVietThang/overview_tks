@@ -846,7 +846,8 @@ test('bộ lọc trạng thái của Toàn bộ đơn hàng có đủ mã như t
   const page = await renderPage({ orders: MIXED() });
   const { window, document } = page;
   const codes = id => [...document.getElementById(id).options].map(o => o.value);
-  assert.deepEqual(codes('bulkStatusFilter'), codes('historyStatusFilter'));
+  // Bộ lọc tổng quan ẩn DELIVERED (không còn tự suy ra); lịch sử vẫn giữ vì nhật ký ghi đè có thể chứa nó.
+  assert.deepEqual(codes('bulkStatusFilter'), codes('historyStatusFilter').filter(c => c !== 'DELIVERED'));
   assert.ok(ddOptionTexts(ddOf(document, 'bulkStatusFilter')).includes('Sự cố'));
   assert.ok(ddOptionTexts(ddOf(document, 'bulkStatusFilter')).includes('Đã hủy'));
 

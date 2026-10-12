@@ -2,7 +2,7 @@
 
 Dashboard nội bộ cho hai cơ sở Hà Nội và Sài Gòn.
 
-Mọi bảng trên web và trong file HTML xuất ra có nút **Cột hiển thị** để chọn cột, cùng tay kéo ở mép phải tiêu đề để chỉnh độ rộng. Nội dung dài xuống dòng; sort, lọc và phân trang giữ nguyên kích thước cột. Các lựa chọn chỉ được giữ trong lần xem hiện tại và trở về mặc định khi tải lại trang hoặc mở lại file HTML. File HTML sử dụng các điều khiển này ngay cả khi offline; Excel/PDF giữ định dạng xuất hiện có.
+Mọi bảng trên web và trong file HTML xuất ra có nút **Cột hiển thị** để chọn cột, cùng tay kéo ở mép phải tiêu đề để chỉnh độ rộng (ngoại trừ các bảng bên trong các hộp xem chi tiết dùng chung — xem `detail-panel.css` — không có nút Cột hiển thị để giữ 1 khung cuộn gọn gàng). Nội dung dài xuống dòng; sort, lọc và phân trang giữ nguyên kích thước cột. Các lựa chọn chỉ được giữ trong lần xem hiện tại và trở về mặc định khi tải lại trang hoặc mở lại file HTML. File HTML sử dụng các điều khiển này ngay cả khi offline; Excel/PDF giữ định dạng xuất hiện có.
 
 ## Kiến trúc hiện tại
 
@@ -14,9 +14,9 @@ Mọi bảng trên web và trong file HTML xuất ra có nút **Cột hiển th�
 - Engine `server/kiotvietSync/` đồng bộ KiotViet API vào Supabase bằng webhook/polling phía Node.js.
 - Dữ liệu **Trả NCC** không còn đọc từ Google Sheets: người dùng tự upload file Excel xuất trực tiếp từ KiotViet, server nạp vào Postgres `supplier_return_imports` (thay thế toàn bộ theo cơ sở mỗi lần import) và dùng chung pipeline với Hóa đơn/Nhập hàng/Khách trả cho tính năng kiểm tra đứt hàng.
 - CN1/CN3/CN7 (công nợ 1/3/7 ngày) được tính từ Supabase và lưu trong `customer_debt_activity_periods`.
-- Tài khoản ứng dụng và Telegram ID được lưu trong PostgreSQL `app_users`; không còn tab `Users` hay luồng liên kết Telegram qua Google Sheets.
-- Apps Script Kiot HN/SG và module vận chuyển cũ đã được nghỉ hưu hoàn toàn. Trang **Vòng đời đơn hàng** hiện lấy **mọi đơn đặt hàng KiotViet** (Postgres, ~60 nghìn đơn) làm danh sách chính và ghép với Google Sheet `ORDER_LIFECYCLE_SPREADSHEET_ID` để lấy trạng thái vòng đời/mốc thời gian; lọc, sắp xếp, phân trang chạy ở máy chủ. Các quyền Tra cứu theo mã, Lịch sử, Xuất Excel, Ghi đè trạng thái đều gắn vào quyền `shipment.lifecycle` (từ 2026-10-03).
-- Nhân sự và nghỉ phép lưu PostgreSQL. Nhân viên có hồ sơ hoạt động gửi đơn từ web hoặc bot xin nghỉ ngoài repo; người được cấp quyền xử lý theo phòng ban/cơ sở. Quyền ghi nhận Tự ý nghỉ tách riêng. Migration `0031` bổ sung phạm vi, snapshot phòng ban và card Telegram. Xem [chức năng nâng cấp](docs/hr-leave-upgrade.md) và [thiết lập bot](docs/telegram-manager-leave-setup.md).
+- Tài khoản ứng dụng và Telegram ID được lưu trong PostgreSQL `app_users`; không còn tab `Users` hay luồng liên kết Telegram qua Google Sheets. Bảng người dùng có phân trang chuẩn (`table-controls.js`).
+- Apps Script Kiot HN/SG và module vận chuyển cũ đã được nghỉ hưu hoàn toàn. Trang **Vòng đời đơn hàng** hiện lấy **mọi đơn đặt hàng KiotViet** (Postgres, ~60 nghìn đơn) làm danh sách chính và ghép với Google Sheet `ORDER_LIFECYCLE_SPREADSHEET_ID` để lấy trạng thái vòng đời/mốc thời gian; lọc, sắp xếp, phân trang chạy ở máy chủ. Hỗ trợ 5 luồng đơn (`DELIVERY`, `PICKUP`, `NORTH_SOUTH`), 6 loại cảnh báo có tên (Kế toán sót đơn, Lái xe chưa chụp đơn, Lái xe quên chụp, Chưa nhận đơn quá 6 giờ, Khách/Ship chưa lấy, Chưa chụp bill tàu; cảnh báo Kế toán sót đơn chỉ áp dụng khi ở trạng thái "Đơn đã gửi kế toán"), dải thẻ chỉ số tổng quát và lọc nhanh đầu trang (`kpis`: Chưa gửi KT chỉ tính Phiếu tạm, Đã gửi KT, Đang giao và số đơn theo từng loại cảnh báo). Các quyền Tra cứu theo mã, Lịch sử, Xuất Excel, Ghi đè trạng thái đều gắn vào quyền `shipment.lifecycle` (từ 2026-10-03).
+- Nhân sự và nghỉ phép lưu PostgreSQL. Bảng nhân sự, chấm công và nghỉ phép có phân trang chuẩn (`table-controls.js`). Nhân viên có hồ sơ hoạt động gửi đơn từ web hoặc bot xin nghỉ ngoài repo; người được cấp quyền xử lý theo phòng ban/cơ sở. Quyền ghi nhận Tự ý nghỉ tách riêng. Migration `0031` bổ sung phạm vi, snapshot phòng ban và card Telegram. Xem [chức năng nâng cấp](docs/hr-leave-upgrade.md) và [thiết lập bot](docs/telegram-manager-leave-setup.md).
 - **Tài khoản**: tự đăng ký tài khoản mới (form `/register`, đăng ký nhân sự qua OTP, Google tạo tài khoản lần đầu) **bị khóa từ 2026-10-03**; tài khoản mới do Quản lý tạo ở trang Quản lý người dùng. Đặt `ALLOW_SELF_REGISTRATION=true` để mở lại. ID Telegram chỉ **Quản lý** được thêm/sửa (hồ sơ cá nhân hiển thị chỉ đọc với vai trò khác).
 - Cơ sở chỉ là **bộ lọc xem**: mọi tài khoản đều xem được Hà Nội, Sài Gòn và **`Cả hai`** trên thanh điều hướng; cơ sở gán cho tài khoản (`co_so`, để trống = `Cả hai`) chỉ là cơ sở **mặc định** lúc đăng nhập. Mọi bảng dữ liệu có cột **Cơ sở**. Ở `Cả hai`: hàng hóa và giao dịch cùng mã ở hai cơ sở là hai dòng riêng `(cơ sở, mã)`, khách gộp theo **tên** (mã khách khác nhau giữa hai cơ sở, không còn cột mã khách). Chỉ hàng **Đang kinh doanh** được tính, không còn bộ lọc trạng thái kinh doanh; đầu tab không còn thanh tìm kiếm chung (chỉ còn bộ lọc thời gian và tìm kiếm trong từng bảng). `Cả hai` chỉ là phạm vi xem — cột `branch` trong database vẫn chỉ nhận `hanoi`/`saigon` (xem `server/branch/branches.js`).
 
@@ -85,7 +85,9 @@ server/
 ├── marketingReport/      # Báo cáo Marketing: đọc 3 workbook Google Sheets, đối chiếu doanh số KiotViet theo tên khách, cập nhật ngược Sheets, xuất Excel/HTML
 ├── notifications/        # Chuông thông báo, gửi email OTP và job báo ngày lễ/sinh nhật (specialDayNotifier.js)
 ├── public/               # Frontend HTML/CSS/JS
-│   └── cashbook/         # Trang Sổ quỹ: bộ lọc/hash, số dư, chốt và xuất chọn cột
+│   ├── cashbook/         # Trang Sổ quỹ: bộ lọc/hash, số dư, chốt và xuất chọn cột
+│   └── shared/
+│       └── detail-panel.css # Khung xem chi tiết dùng chung (.dp-): chỉ số tổng quan, bảng 1 khung cuộn, tắt nút chọn cột
 ├── scripts/              # Script thủ công (migrate dữ liệu, cài đặt ban đầu)
 ├── sheets/               # Google Sheets client (Công nợ, Vòng đời, Vị trí hàng, lưu ý `hrSheetsClient.js` là mã chết chờ xóa tay)
 ├── stockLocations/       # Đọc vị trí hàng HN/SG, ánh xạ cột và API chỉ đọc
@@ -104,6 +106,8 @@ Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để b
 ## Cập nhật gần nhất
 
 2026-10-12 — **Giao diện: thiết kế lại các hộp "xem chi tiết" (không migration)**: khung dùng chung `public/shared/detail-panel.css` (tiền tố `.dp-`: đầu hộp, hàng **chỉ số tổng quan**, khối thông tin, bảng 1 khung cuộn, trạng thái đang tải/lỗi) áp cho mọi hộp chi tiết — Báo cáo tổng hợp (Chi tiết giao dịch, Doanh số theo khách của mã hàng, Báo cáo kinh doanh Sale/Khách/Mã hàng), Vòng đời đơn hàng (chỉ số trạng thái/tiến trình/giá trị/dòng thiếu hàng + tiến trình theo mốc), Nghỉ phép (trạng thái/số ngày/loại/nhãn thời hạn) và hộp chi tiết Marketing. **Bảng trong các hộp này không còn nút "Cột hiển thị"** (`data-table-controls="off"`); bảng ngoài trang vẫn giữ. Biểu đồ tròn của hộp sản phẩm bỏ chú giải riêng, bảng khách tô màu từng lát. **Đổi quy tắc cảnh báo**: "Kế toán sót đơn" chỉ áp dụng khi trạng thái hiệu lực còn là "Đơn đã gửi kế toán" — đơn đã sang Đang giao / Đã nhận / Đã ký nhận (hoặc ghi đè thủ công) thì bỏ cảnh báo.
+
+2026-10-12 — **Phân trang bảng nhân sự & quản trị tài khoản (không migration)**: áp dụng điều khiển phân trang chuẩn (`table-controls.js`) cho bảng danh sách nhân sự, bảng chấm công, bảng nghỉ phép tại `/humanresources/` và bảng quản trị người dùng tại `/account/` (test `test/frontend/hr-account-pagination.test.js`). Giữ nguyên sắp xếp, lọc và responsive trên thiết bị di động.
 
 2026-10-12 — **Vòng đời đơn hàng: chỉ số tổng quát đầu trang (không migration)**: dải thẻ trên bảng "Toàn bộ đơn hàng" gồm Chưa gửi kế toán (chỉ đơn Phiếu tạm) / Đã gửi kế toán / Đang được giao và số đơn vi phạm theo từng loại cảnh báo; API `GET /api/shipment/lifecycle` thêm `kpis` (`orderLifecycleQuery.countSummary`, đếm theo bộ lọc hiện tại, tính trong RAM); bấm thẻ để lọc nhanh bảng. Test mới `test/frontend/order-lifecycle-kpis.test.js`.
 

@@ -1,11 +1,16 @@
 # Page Design Notes — `shipment/lifecycle/index.html` (Vòng Đời Đơn Hàng)
 
-> Kế thừa toàn bộ `MASTER.md`. Audit gần nhất: 2026-09-15 (khi trang còn là `shipment/index.html` dạng tra cứu theo mã). **Cập nhật 2026-10-05:** trang nay là bảng "Toàn bộ đơn hàng" lọc/sắp xếp/phân trang ở máy chủ (mọi đơn KiotViet ghép Google Sheet) cùng tab "Lịch sử cập nhật"; hộp "Cột hiển thị", hộp chi tiết đơn, nút xuất theo quyền. Các mục nợ bên dưới viết cho giao diện tra cứu cũ — kiểm tra lại selector trước khi sửa (`.lookup-message.error` vẫn còn hardcode màu đỏ).
+> Kế thừa toàn bộ `MASTER.md`. Audit gần nhất: 2026-09-15. **Cập nhật 2026-10-12:**
+> Trang gồm bảng "Toàn bộ đơn hàng" lọc/sắp xếp/phân trang ở máy chủ (mọi đơn KiotViet ghép Google Sheet) và tab "Lịch sử cập nhật".
+> Bổ sung dải thẻ chỉ số tổng quát đầu trang (Chưa gửi KT, Đã gửi KT, Đang giao và 6 loại cảnh báo) bấm để lọc nhanh.
+> Hộp xem chi tiết đơn `#lcDetailOverlay` áp dụng chuẩn dùng chung `detail-panel.css` (`.dp-*`) với dải chỉ số tổng quan, tiến trình mốc, bảng hàng hóa tắt nút "Cột hiển thị".
 
 ## Vai trò trang
 Xem toàn bộ đơn hàng và vòng đời (quyền `shipment.lifecycle`), tra cứu theo mã, xem lịch sử ghi đè, xuất Excel (quyền `shipment.export`). Đường dẫn: `/shipment/lifecycle/` (tab Lịch sử: `/shipment/lifecycle/#history`).
 
 ## Component đặc thù của trang
+- Dải thẻ KPI tổng quan & lọc nhanh đầu trang (`.lc-kpi-grid`, `.lc-kpi-card`, `.is-active`).
+- Hộp xem chi tiết đơn dùng khung `.dp-*` (`public/shared/detail-panel.css`), dải chỉ số `.dp-stats`, bảng hàng hóa `.dp-table-wrap` (1 khung cuộn, `data-table-controls="off"`).
 - `.lookup-hero` — khối tiêu đề, đã tích hợp đúng hệ thống `--canvas-text` (không phải pattern mới,
   chỉ là cách dùng đúng của mục "Chữ trực tiếp trên nền" trong `shared.css`).
 - `.lookup-panel textarea` — cần thay bằng `.form-textarea` chuẩn ở MASTER §5.12 thay vì tự định
