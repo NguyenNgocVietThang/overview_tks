@@ -2499,3 +2499,35 @@ test('cache Hoa don chi het han khi sync ghi hoa don roi rollup xong, khong theo
     Date.now = realNow;
   }
 });
+
+test('cache Hoa don: lan doc dang chay khi bi het han duoc luu o trang thai qua han (khong giu 15 phut du lieu cu)', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  const CONFIG = require('../config');
+  const { dashboardRollupEvents } = require('../kiotvietSync/dashboardRollupEvents');
+  const reads = [];
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const orig = ctx.dashboardPgReader.readCoreDashboardSheets;
+  ctx.dashboardPgReader.readCoreDashboardSheets = async (branch, names) => {
+    reads.push([...names]);
+    if (reads.length === 1) await gate; // lan doc dau con dang chay khi sync ghi hoa don
+    return orig(branch, names);
+  };
+  ctx.dashboardData.__test__.resetCaches();
+  const { dashboardData } = ctx;
+
+  const first = dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['invoices'] });
+  await new Promise(resolve => setImmediate(resolve));
+  dashboardRollupEvents.emit('invoicesChanged', { branch: 'hanoi', count: 1 });
+  dashboardRollupEvents.emit('updated', { at: Date.now() });
+  release();
+  await first;
+  assert.equal(reads.length, 1);
+
+  await dashboardData.getDashboardData({ ...BASE_FILTERS, invoices: { mode: 'days', days: 7 } },
+    undefined, VIEW_TEST_VIEWER, { views: ['invoices'] });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(reads.length, 2, 'ket qua doc truoc khi het han phai duoc lam moi o request ke tiep');
+  assert.deepEqual(reads[1], [CONFIG.SHEET_INVOICES]);
+});

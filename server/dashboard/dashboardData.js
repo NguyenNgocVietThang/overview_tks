@@ -50,13 +50,19 @@ const DASHBOARD_SHEETS_CACHE_TTL_MS = 90 * 1000;
 const ROLLUP_BOUND_SHEETS_FALLBACK_TTL_MS = 15 * 60 * 1000;
 const ROLLUP_BOUND_SHEET_NAMES = new Set([CONFIG.SHEET_INVOICES, CONFIG.SHEET_INVOICE_DETAILS]);
 
-function sheetCacheTtlMs(key) {
-  return ROLLUP_BOUND_SHEET_NAMES.has(key) ? ROLLUP_BOUND_SHEETS_FALLBACK_TTL_MS : DASHBOARD_SHEETS_CACHE_TTL_MS;
-}
-
 // Danh dau qua han (KHONG xoa du lieu) -> request ke tiep van tra du lieu cu ngay
 // va lam moi nen (stale-while-revalidate), giong het luc het TTL 90s truoc day.
+// Tang moi lan het han cache Hoa don. Lan doc dang chay tu TRUOC khi het han co the
+// mang dong hoa don cu (truoc COMMIT) -> luu ket qua do o trang thai da qua han.
+let invoiceCacheGeneration = 0;
+
+function rollupBoundExpiresAt(key, fetchedAt, generationAtStart) {
+  if (!ROLLUP_BOUND_SHEET_NAMES.has(key)) return fetchedAt + DASHBOARD_SHEETS_CACHE_TTL_MS;
+  return generationAtStart === invoiceCacheGeneration ? fetchedAt + ROLLUP_BOUND_SHEETS_FALLBACK_TTL_MS : fetchedAt;
+}
+
 function expireRollupBoundSheetCaches(now = Date.now()) {
+  invoiceCacheGeneration += 1;
   dashboardCoreSheetsCacheByBranch.forEach(entries => {
     entries.forEach((entry, key) => {
       if (ROLLUP_BOUND_SHEET_NAMES.has(key) && entry.expiresAt > now) entry.expiresAt = now;
@@ -549,6 +555,7 @@ function dashboardSheetsCacheFor(branch) {
 // chung cho ca duong "cho fetch xong" (cache rong/qua han qua lau) lan
 // duong "lam moi nen" (stale-while-revalidate, xem getCachedDashboardSheets).
 function fetchAndCacheDashboardSheets(branch, cache) {
+  const generationAtStart = invoiceCacheGeneration;
   return Promise.all([
     dashboardPgReader.readDashboardSheets(branch),
     customerDebtActivityRepository.readOperationalPeriods(branch)
@@ -557,7 +564,7 @@ function fetchAndCacheDashboardSheets(branch, cache) {
     cache.data = sheets;
     cache.version += 1;
     // Cache "full" gom Hoa don + Chi tiet hoa don -> het han theo su kien rollup.
-    cache.expiresAt = Date.now() + ROLLUP_BOUND_SHEETS_FALLBACK_TTL_MS;
+    cache.expiresAt = rollupBoundExpiresAt(CONFIG.SHEET_INVOICES, Date.now(), generationAtStart);
     return sheets;
   });
 }
@@ -642,13 +649,14 @@ function storeDashboardCoreEntry(branch, key, data, expiresAt) {
 function fetchDashboardCoreSources(branch, keys) {
   const sheetNames = keys.filter(key => key !== PERIODS_KEY);
   const wantPeriods = keys.includes(PERIODS_KEY);
+  const generationAtStart = invoiceCacheGeneration;
   const loading = Promise.all([
     sheetNames.length ? dashboardPgReader.readCoreDashboardSheets(branch, sheetNames) : null,
     wantPeriods ? customerDebtActivityRepository.readOperationalPeriods(branch) : null
   ]).then(([pgSheets, debtPeriods]) => {
     const fetchedAt = Date.now();
     sheetNames.forEach(name => {
-      storeDashboardCoreEntry(branch, name, (pgSheets && pgSheets[name]) || [], fetchedAt + sheetCacheTtlMs(name));
+      storeDashboardCoreEntry(branch, name, (pgSheets && pgSheets[name]) || [], rollupBoundExpiresAt(name, fetchedAt, generationAtStart));
     });
     if (wantPeriods) storeDashboardCoreEntry(branch, PERIODS_KEY, debtPeriods || {}, fetchedAt + DASHBOARD_SHEETS_CACHE_TTL_MS);
   }).finally(() => {
@@ -2765,6 +2773,7 @@ module.exports = {
       dashboardResultInflight = new Map();
       computeCallCountForTest = 0;
       invoicesChangedSinceExpiry = false;
+      invoiceCacheGeneration = 0;
     },
     // Cache "core" (7/9 tab) — dung cho getDashboardData() (kem xuat Excel qua exportService.js).
     expireSheetsCache(branch) {
