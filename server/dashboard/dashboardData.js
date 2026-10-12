@@ -24,11 +24,39 @@ const { PERIODS_KEY, ALL_CORE_KEYS, ALL_ROLLUPS, resolveViewPlan, pickPayload, p
 // Tang moi lan rollup refresh xong — nam trong khoa dashboardResultCache de
 // ket qua tinh tu rollup cu tu het hieu luc ngay khi co rollup moi.
 let rollupVersion = 0;
-dashboardRollupEvents.on('updated', () => { rollupVersion += 1; });
+dashboardRollupEvents.on('updated', () => {
+  rollupVersion += 1;
+  expireRollupBoundSheetCaches();
+});
 
 const OUT_OF_STOCK_LEVEL = 0;
 const TOP_SELLING_LIMIT = 15;
 const DASHBOARD_SHEETS_CACHE_TTL_MS = 90 * 1000;
+// Hoa don / Chi tiet hoa don (bang nang nhat: HN ~30K dong ~19 MB) chi doi khi
+// luot sync KiotViet ghi vao Postgres — va moi luot sync fast deu chay rollup
+// roi phat dashboardRollupEvents 'updated'. Vi vay 2 bang nay KHONG het han theo
+// 90s nua ma het han khi co su kien 'updated' (xem expireRollupBoundSheetCaches);
+// TTL duoi day chi la luoi an toan neu su kien khong den (rollup loi/tat sync).
+// Giam egress Supabase ~4-5 lan cho 2 bang nay (90s -> ~7 phut nhip sync).
+const ROLLUP_BOUND_SHEETS_FALLBACK_TTL_MS = 15 * 60 * 1000;
+const ROLLUP_BOUND_SHEET_NAMES = new Set([CONFIG.SHEET_INVOICES, CONFIG.SHEET_INVOICE_DETAILS]);
+
+function sheetCacheTtlMs(key) {
+  return ROLLUP_BOUND_SHEET_NAMES.has(key) ? ROLLUP_BOUND_SHEETS_FALLBACK_TTL_MS : DASHBOARD_SHEETS_CACHE_TTL_MS;
+}
+
+// Danh dau qua han (KHONG xoa du lieu) -> request ke tiep van tra du lieu cu ngay
+// va lam moi nen (stale-while-revalidate), giong het luc het TTL 90s truoc day.
+function expireRollupBoundSheetCaches(now = Date.now()) {
+  dashboardCoreSheetsCacheByBranch.forEach(entries => {
+    entries.forEach((entry, key) => {
+      if (ROLLUP_BOUND_SHEET_NAMES.has(key) && entry.expiresAt > now) entry.expiresAt = now;
+    });
+  });
+  dashboardSheetsCacheByBranch.forEach(cache => {
+    if (cache.expiresAt > now) cache.expiresAt = now;
+  });
+}
 const PRODUCT_REVENUE_SEARCH_LIVE_LIMIT = 200; // gioi han so dong render khi go tim truc tiep (khong ap dung cho xuat Excel)
 const DASHBOARD_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const DASHBOARD_UTC_OFFSET = '+07:00';
@@ -519,7 +547,8 @@ function fetchAndCacheDashboardSheets(branch, cache) {
     const sheets = { ...pgSheets, ...debtPeriods };
     cache.data = sheets;
     cache.version += 1;
-    cache.expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
+    // Cache "full" gom Hoa don + Chi tiet hoa don -> het han theo su kien rollup.
+    cache.expiresAt = Date.now() + ROLLUP_BOUND_SHEETS_FALLBACK_TTL_MS;
     return sheets;
   });
 }
@@ -608,11 +637,11 @@ function fetchDashboardCoreSources(branch, keys) {
     sheetNames.length ? dashboardPgReader.readCoreDashboardSheets(branch, sheetNames) : null,
     wantPeriods ? customerDebtActivityRepository.readOperationalPeriods(branch) : null
   ]).then(([pgSheets, debtPeriods]) => {
-    const expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
+    const fetchedAt = Date.now();
     sheetNames.forEach(name => {
-      storeDashboardCoreEntry(branch, name, (pgSheets && pgSheets[name]) || [], expiresAt);
+      storeDashboardCoreEntry(branch, name, (pgSheets && pgSheets[name]) || [], fetchedAt + sheetCacheTtlMs(name));
     });
-    if (wantPeriods) storeDashboardCoreEntry(branch, PERIODS_KEY, debtPeriods || {}, expiresAt);
+    if (wantPeriods) storeDashboardCoreEntry(branch, PERIODS_KEY, debtPeriods || {}, fetchedAt + DASHBOARD_SHEETS_CACHE_TTL_MS);
   }).finally(() => {
     keys.forEach(key => {
       const entry = dashboardCoreEntry(branch, key);

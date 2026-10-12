@@ -2136,14 +2136,19 @@ test('tung tab: tab khong dung rollup/cong no khong bi het hieu luc khi rollup d
   dashboardRollupEvents.emit('updated', { at: Date.now() });
 
   await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['debt'] });
+  assert.equal(compute(), 2, 'Cong no khong dung rollup/Hoa don nen rollup doi khong lam tinh lai');
   await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['customers'] });
-  assert.equal(compute(), 2, 'Cong no va Khach hang khong dung rollup nen rollup doi khong lam tinh lai');
+  await new Promise(resolve => setImmediate(resolve));
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['customers'] });
+  // Khach hang doc bang Hoa don — bang nay het han theo su kien rollup (sau moi luot sync)
+  // nen duoc lam moi nen va tinh lai DUNG 1 lan theo du lieu moi.
+  assert.equal(compute(), 3, 'Khach hang chi tinh lai 1 lan do bang Hoa don duoc lam moi sau rollup');
 
   await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
-  assert.equal(compute(), 3);
+  assert.equal(compute(), 4);
   dashboardRollupEvents.emit('updated', { at: Date.now() });
   await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
-  assert.equal(compute(), 4, 'Tong quan dung rollup nen phai tinh lai khi rollup doi');
+  assert.equal(compute(), 5, 'Tong quan dung rollup nen phai tinh lai khi rollup doi');
 });
 
 test('cache nguon theo tung bang: mo them tab chi doc bang con thieu, bang con han duoc dung lai', async () => {
@@ -2450,4 +2455,37 @@ test('hang ngung kinh doanh khong tinh o moi bang hang hoa; moi dong mang nhan c
   assert.equal(data.kpi.inactiveProducts, undefined, 'khong con thong ke hang ngung kinh doanh');
   assert.equal(data.filters.productStatus, undefined, 'khong con bo loc trang thai');
   assert.deepEqual(data.products.allSellingProducts.map(p => [p.code, p.branch, p.revenue]), [['SP-01', 'Sài Gòn', 100]]);
+});
+
+test('cache Hoa don het han theo su kien rollup, khong theo TTL 90s (giam egress)', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  const CONFIG = require('../config');
+  const { dashboardRollupEvents } = require('../kiotvietSync/dashboardRollupEvents');
+  const reads = [];
+  const orig = ctx.dashboardPgReader.readCoreDashboardSheets;
+  ctx.dashboardPgReader.readCoreDashboardSheets = async (branch, names) => { reads.push([...names]); return orig(branch, names); };
+  ctx.dashboardData.__test__.resetCaches();
+  const { dashboardData } = ctx;
+
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['invoices'] });
+  assert.deepEqual(reads, [[CONFIG.SHEET_INVOICES]]);
+
+  const realNow = Date.now;
+  Date.now = () => realNow() + 5 * 60 * 1000; // qua 90s cu nhung chua co rollup moi
+  try {
+    await dashboardData.getDashboardData({ ...BASE_FILTERS, invoices: { mode: 'days', days: 7 } },
+      undefined, VIEW_TEST_VIEWER, { views: ['invoices'] });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(reads.length, 1, 'Hoa don con han toi khi co su kien rollup');
+
+    dashboardRollupEvents.emit('updated', { at: Date.now() });
+    await dashboardData.getDashboardData({ ...BASE_FILTERS, invoices: { mode: 'days', days: 30 } },
+      undefined, VIEW_TEST_VIEWER, { views: ['invoices'] });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(reads.length, 2, 'rollup moi -> lam moi nen bang Hoa don');
+    assert.deepEqual(reads[1], [CONFIG.SHEET_INVOICES]);
+  } finally {
+    Date.now = realNow;
+  }
 });
