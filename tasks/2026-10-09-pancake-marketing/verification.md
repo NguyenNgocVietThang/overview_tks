@@ -31,3 +31,29 @@ Không khẳng định API thiếu dữ liệu; hiện chưa thể xác minh vì
 - Phân trang hội thoại Bắc Lãm: 19 lượt, 1.083 hội thoại, có đủ 435 hội thoại trong file; không trùng ID giữa các lượt. Đang đối soát toàn bộ 462 dòng và nhân viên.
 - Dữ liệu thật/API nằm trong .codex_tmp được Git bỏ qua. Tài liệu chỉ ghi số lượng/chênh lệch và số dòng nguồn, không nội dung khách hàng hoặc SĐT.
 - Người dùng xác nhận dữ liệu Marketing phải lưu trên DB PostgreSQL/Supabase.
+
+### Kết quả đối soát toàn bộ — T1 đạt
+
+| Trường kiểm tra | Khớp / tổng |
+| --- | --- |
+| Mã tin nhắn | 462 / 462 |
+| SĐT từ phone_info[].phone_number | 462 / 462 |
+| Tạo lúc, chuyển UTC sang Việt Nam | 462 / 462 |
+| Nhân viên từ current_assign_users | 462 / 462 |
+| Kiểu INBOX/COMMENT | 462 / 462 |
+| Người gửi là khách, có số điện thoại | 462 / 462 |
+
+- Đọc 435 hội thoại trong file; giữ cả 27 dòng không có nhân viên. Không có chênh lệch.
+- Thứ tự file nguồn tăng dần theo Tạo lúc. Tin nhắn API trả mới trước; cần đảo/sắp thứ tự trước khi xác định bản ghi đầu/cuối.
+- Phân trang hội thoại: 19 lượt, không lặp cursor/ID và không thiếu hội thoại nguồn.
+- Kiểm tra riêng phân trang tin nhắn hội thoại dài: lượt đầu 30, lượt tiếp 5, không trùng ID; lượt sau cũ hơn lượt trước.
+- 38 kiểm thử Marketing nền đều đạt: 30 service/parser/export/frontend đạt trong sandbox; 8 route cần chạy ngoài sandbox vì socket localhost bị EACCES, chạy lại đạt 8/8.
+- Chưa chuyển nguồn giao diện hoặc chạy migration vào DB tại thời điểm kết luận T1.
+## PostgreSQL — T2 đã áp dụng
+
+- Review độc lập đạt spec/quality; commit `33f35795c1e84821916b4560f93dc8316bf10c9c`.
+- Migration `0044_pancake_marketing.sql` áp trên Supabase ngày 09/10/2026; chỉ chạy riêng migration này, không thay dữ liệu KiotViet.
+- Query xác nhận 10 bảng `marketing_*` và đúng 6 page với platform `facebook`.
+- Implementer SQL suite 13/13, Marketing regression 41/41; review đọc diff và bằng chứng, không chạy lặp cùng suite.
+- Chưa nhập lịch sử/chạy sync ở thời điểm xác nhận migration này.
+
