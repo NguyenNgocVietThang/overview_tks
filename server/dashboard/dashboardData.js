@@ -24,9 +24,17 @@ const { PERIODS_KEY, ALL_CORE_KEYS, ALL_ROLLUPS, resolveViewPlan, pickPayload, p
 // Tang moi lan rollup refresh xong — nam trong khoa dashboardResultCache de
 // ket qua tinh tu rollup cu tu het hieu luc ngay khi co rollup moi.
 let rollupVersion = 0;
+// true khi luot sync da ghi >=1 hoa don (syncDriver phat 'invoicesChanged' sau
+// COMMIT) ma cache Hoa don chua duoc het han. Timer rollup 5 phut khong co hoa don
+// moi -> KHONG doc lai bang Hoa don (~29 MB/lan ca 2 co so).
+let invoicesChangedSinceExpiry = false;
+dashboardRollupEvents.on('invoicesChanged', () => { invoicesChangedSinceExpiry = true; });
 dashboardRollupEvents.on('updated', () => {
   rollupVersion += 1;
-  expireRollupBoundSheetCaches();
+  if (invoicesChangedSinceExpiry) {
+    invoicesChangedSinceExpiry = false;
+    expireRollupBoundSheetCaches();
+  }
 });
 
 const OUT_OF_STOCK_LEVEL = 0;
@@ -35,7 +43,8 @@ const DASHBOARD_SHEETS_CACHE_TTL_MS = 90 * 1000;
 // Hoa don / Chi tiet hoa don (bang nang nhat: HN ~30K dong ~19 MB) chi doi khi
 // luot sync KiotViet ghi vao Postgres — va moi luot sync fast deu chay rollup
 // roi phat dashboardRollupEvents 'updated'. Vi vay 2 bang nay KHONG het han theo
-// 90s nua ma het han khi co su kien 'updated' (xem expireRollupBoundSheetCaches);
+// 90s nua ma het han o rollup 'updated' DAU TIEN sau khi sync thuc su ghi hoa don
+// ('invoicesChanged', xem expireRollupBoundSheetCaches);
 // TTL duoi day chi la luoi an toan neu su kien khong den (rollup loi/tat sync).
 // Giam egress Supabase ~4-5 lan cho 2 bang nay (90s -> ~7 phut nhip sync).
 const ROLLUP_BOUND_SHEETS_FALLBACK_TTL_MS = 15 * 60 * 1000;
@@ -2755,6 +2764,7 @@ module.exports = {
       dashboardResultCache = new Map();
       dashboardResultInflight = new Map();
       computeCallCountForTest = 0;
+      invoicesChangedSinceExpiry = false;
     },
     // Cache "core" (7/9 tab) — dung cho getDashboardData() (kem xuat Excel qua exportService.js).
     expireSheetsCache(branch) {
