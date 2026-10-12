@@ -215,7 +215,8 @@ function workingMsBetween(startMs, endMs, enoughMs = Infinity) {
 
 /**
  * Danh sach MA canh bao dang dung cua 1 don (rong = khong canh bao). Quy tac theo _flow cua dong sheet:
- * - moi luong: Sale da gui KT, KT chua duyet, du 30' TRONG GIO 6h–18h -> ACCOUNTANT_LATE.
+ * - moi luong: Sale da gui KT, KT chua duyet, du 30' TRONG GIO 6h–18h -> ACCOUNTANT_LATE. CHI ap dung khi trang thai
+ *   hieu luc con la "Don da gui ke toan" (SENT_TO_ACCOUNTANT): don da sang Dang giao / Da nhan / Da ky nhan (hoac ghi de) thi bo.
  * - DELIVERY (DonHang_HN/SG): Sale gui >24h, chua Tai xe gui xac nhan, chua ky nhan -> DRIVER_NO_PHOTO;
  *   da ky nhan ma chua Tai xe gui xac nhan -> DRIVER_FORGOT_PHOTO; Tai xe gui >6h ma chua ky nhan -> NOT_SIGNED_6H.
  * - PICKUP (Khach_HN/SG): Sale gui >48h ma chua Ship nhan don -> PICKUP_PENDING.
@@ -237,8 +238,10 @@ function computeWarnings(record, summary, now = Date.now()) {
   const shipReceived = hasValue(record.shipReceivedAt) || reached(STATUS.SHIP_RECEIVED);
   const flow = record._flow || FLOW_DELIVERY;
 
+  const status = (summary && summary.code) || computeStatus(record).code;
+
   const warnings = [];
-  if (sentAt !== null && !approved && workingMsBetween(sentAt, now, ACCOUNTANT_LATE_WORK_MS) >= ACCOUNTANT_LATE_WORK_MS) {
+  if (status === STATUS.SENT_TO_ACCOUNTANT && sentAt !== null && !approved && workingMsBetween(sentAt, now, ACCOUNTANT_LATE_WORK_MS) >= ACCOUNTANT_LATE_WORK_MS) {
     warnings.push(WARNING.ACCOUNTANT_LATE);
   }
   if (flow === FLOW_DELIVERY) {
