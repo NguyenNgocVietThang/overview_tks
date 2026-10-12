@@ -7,24 +7,31 @@ const { broadcastLeaveEvent, LEAVE_EVENT_TYPES } = require('./hrLeaveEvents');
 // Compare committed snapshots rather than sequence cursors: transactions can
 // commit out of order. Notification-marker writes are not decision changes.
 function createLeaveDbRealtime({
-  load = () => repo.getLeaveRequests({}, [BRANCHES.HANOI, BRANCHES.SAIGON]),
+  loadVersions = () => repo.getLeaveVersions([BRANCHES.HANOI, BRANCHES.SAIGON]),
+  loadRecord = id => repo.getLeaveRequestById(id, [BRANCHES.HANOI, BRANCHES.SAIGON]),
   broadcast = broadcastLeaveEvent, intervalMs = 5000, logger = console
 } = {}) {
   let versions = null;
   let timer;
   let polling = false;
+  // Chỉ đọc (id, phiên bản); bản ghi đầy đủ chỉ tải cho đơn mới/đổi để phát sự kiện.
   async function poll() {
     if (polling) return;
     polling = true;
     try {
-      const records = await load();
+      const rows = await loadVersions();
       const next = new Map();
-      for (const record of records) {
-        const version = String(record.decision_version || '0');
-        next.set(record.request_id, version);
+      const changed = [];
+      for (const row of rows) {
+        const version = String(row.decision_version || '0');
+        next.set(row.request_id, version);
         if (!versions) continue;
-        if (!versions.has(record.request_id)) broadcast(LEAVE_EVENT_TYPES.CREATED, record, record.co_so);
-        else if (versions.get(record.request_id) !== version) broadcast(LEAVE_EVENT_TYPES.STATUS_CHANGED, record, record.co_so);
+        if (!versions.has(row.request_id)) changed.push([LEAVE_EVENT_TYPES.CREATED, row.request_id]);
+        else if (versions.get(row.request_id) !== version) changed.push([LEAVE_EVENT_TYPES.STATUS_CHANGED, row.request_id]);
+      }
+      for (const [type, id] of changed) {
+        const record = await loadRecord(id);
+        if (record) broadcast(type, record, record.co_so);
       }
       versions = next;
     } catch (err) {

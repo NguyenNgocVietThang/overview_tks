@@ -101,3 +101,23 @@ test('all active web approvers participate before Telegram linkage filtering',as
  const user={id:'staff',vaiTro:'Nhân viên kho',trangThai:'Đang hoạt động',featurePermissions:{'hr.leave.manage':true},assignedCoSo:'Hà Nội',leaveApprovalDepartments:['Kho']};
  const managers=await loadManagersFromDb({selectAll:async()=>[user]});assert.deepEqual(managers,[user]);
 });
+
+test('managers are not loaded on idle ticks and are cached for the TTL when work exists', async () => {
+  let loads = 0, clock = 0, pending = [];
+  const mgr = { id: 'm', telegramId: '1', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động', coSo: 'Hà Nội', assignedCoSo: 'Hà Nội', leaveApprovalDepartments: ['Kho'] };
+  const store = { activate: async () => new Date(0), claimUpdates: async () => [], requeueStaleCards: async () => {}, claimEvents: async () => [], claimDeliveries: async () => [], enqueueDelivery: async () => {} };
+  const record = { request_id: 'NP-1', co_so: 'Hà Nội', bo_phan: 'Kho', loai_yeu_cau: 'Xin nghỉ phép', decision_version: '0' };
+  const runtime = createManagerLeaveRuntime({ store, telegram: { call: async () => ({}) }, loadManagers: async () => { loads++; return [mgr]; },
+    leaveRepo: { getLeaveRequests: async () => pending }, now: () => clock, logger: { error() {} } });
+  await runtime.drain(); await runtime.drain();
+  assert.equal(loads, 0, 'idle ticks must not touch the accounts table');
+  pending = [record];
+  await runtime.drain(); await runtime.drain();
+  assert.equal(loads, 1, 'cached within TTL');
+  clock = 5 * 60 * 1000 + 1;
+  await runtime.drain();
+  assert.equal(loads, 2, 'reloaded after TTL');
+  runtime.invalidateManagers();
+  await runtime.drain();
+  assert.equal(loads, 3, 'reloaded after invalidation');
+});

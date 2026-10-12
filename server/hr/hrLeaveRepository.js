@@ -234,6 +234,15 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
     return items;
   }
 
+  // Truy vấn nhẹ cho realtime: chỉ id + phiên bản quyết định + cơ sở.
+  async function getLeaveVersions(branch) {
+    const { rows } = await pool.query(
+      `SELECT request_id, decision_version::text AS decision_version, branch FROM hr_leave_requests WHERE branch = ANY($1::text[])`,
+      [toBranchCodes(branch)]
+    );
+    return rows.map(row => ({ request_id: row.request_id, decision_version: String(row.decision_version == null ? '0' : row.decision_version), branch: row.branch }));
+  }
+
   async function getLeaveRequestById(id, branch) {
     const { rows } = await pool.query(
       `SELECT ${SELECT_COLUMNS} FROM hr_leave_requests WHERE request_id = $1 AND branch = ANY($2::text[])`,
@@ -382,7 +391,7 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
     }));
   }
 
-  return { getLeaveRequests, getLeaveRequestById, createLeaveRequest, resubmitLeaveRequest, getSubmissionHistory, updateLeaveRequestStatus, getUrgentFlagSummary };
+  return { getLeaveRequests, getLeaveVersions, getLeaveRequestById, createLeaveRequest, resubmitLeaveRequest, getSubmissionHistory, updateLeaveRequestStatus, getUrgentFlagSummary };
 }
 
 const repository = createHrLeaveRepository();
@@ -397,6 +406,7 @@ module.exports = {
   rowToRequest,
   createHrLeaveRepository,
   getLeaveRequests: (...args) => repository.getLeaveRequests(...args),
+  getLeaveVersions: (...args) => repository.getLeaveVersions(...args),
   getLeaveRequestById: (...args) => repository.getLeaveRequestById(...args),
   createLeaveRequest: (...args) => repository.createLeaveRequest(...args),
   resubmitLeaveRequest: (...args) => repository.resubmitLeaveRequest(...args),
