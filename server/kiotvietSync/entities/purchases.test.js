@@ -22,8 +22,8 @@ test('purchase reconciliation writes new or changed receipts, skips unchanged ra
   const pg = { query: async (sql, params) => {
     calls.push({ sql, params });
     if (sql.startsWith('SELECT')) return { rows: [
-      { id: '1', raw: { status: 3, code: 'PN1', id: 1, purchaseOrderDetails: [{ quantity: 5, productId: 3 }] } },
-      { id: '2', raw: { ...changed, status: 3 } }
+      { id: '1', raw_hash: entity.rawHash({ status: 3, code: 'PN1', id: 1, purchaseOrderDetails: [{ quantity: 5, productId: 3 }] }) },
+      { id: '2', raw_hash: entity.rawHash({ ...changed, status: 3 }) }
     ] };
     return { rows: [] };
   }};
@@ -31,6 +31,16 @@ test('purchase reconciliation writes new or changed receipts, skips unchanged ra
   assert.deepEqual(calls.filter(x => x.sql.startsWith('INSERT INTO purchases')).map(x => x.params[1]), [2, 3]);
   assert.deepEqual(calls.filter(x => x.sql.startsWith('DELETE FROM purchase_details')).map(x => x.params), [['hanoi', 2], ['hanoi', 3]]);
   assert.deepEqual(calls[0].params, ['hanoi', [1, 2, 3]]);
+  assert.doesNotMatch(calls[0].sql, /raw(?!_hash)/);
+  const hashUpdate = calls.find(x => x.sql.startsWith('UPDATE purchases'));
+  assert.deepEqual(hashUpdate.params, ['hanoi', [2, 3], [entity.rawHash(changed), entity.rawHash(added)]]);
+});
+
+test('purchase reconciliation does no writes when every hash matches', async () => {
+  const item = { id: 5, code: 'PN5' };
+  const calls = [];
+  await entity.reconcilePage({ query: async (sql) => { calls.push(sql); return { rows: [{ id: '5', raw_hash: entity.rawHash(item) }] }; } }, 'saigon', [item]);
+  assert.equal(calls.length, 1);
 });
 
 test('purchase reconciliation batches large receipt details without losing line order or raw data', async () => {
