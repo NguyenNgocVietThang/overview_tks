@@ -2,8 +2,17 @@
 
 const { getPool } = require('../db/pool');
 const checkpointRepository = require('./checkpointRepository');
+const { dashboardRollupEvents } = require('./dashboardRollupEvents');
 
-function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints = checkpointRepository, now = Date.now, logger = console } = {}) {
+// Bao cho cache Dashboard (dashboardData.js) biet bang invoices vua thuc su co
+// dong duoc ghi (SAU COMMIT) — cache Hoa don/Chi tiet hoa don chi het han khi
+// co tin hieu nay + rollup 'updated' ke tiep, khong het han theo nhip timer.
+function notifyInvoicesWritten(events, entityModule, branch, items) {
+  if (entityModule.entity !== 'invoices' || !items || !items.length) return;
+  events.emit('invoicesChanged', { branch, count: items.length });
+}
+
+function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints = checkpointRepository, now = Date.now, logger = console, events = dashboardRollupEvents } = {}) {
   async function inTransaction(work) {
     const client = await pool.connect();
     try {
@@ -125,6 +134,7 @@ function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints 
         await inTransaction(async (client) => {
           await (entityModule.reconcilePage || entityModule.upsertPage)(client, branch, items);
         });
+        notifyInvoicesWritten(events, entityModule, branch, items);
       });
       await inTransaction(client => checkpoints.advanceCheckpoint(branch, entityModule.entity, runEndIso, { client }));
       return;
@@ -137,6 +147,7 @@ function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints 
       await inTransaction(async (client) => {
         await entityModule.upsertPage(client, branch, items);
       });
+      notifyInvoicesWritten(events, entityModule, branch, items);
     });
     // A timestamp is a completed window, not a page cursor. If a later page
     // fails, replay the old window (upserts are idempotent) on the next poll.

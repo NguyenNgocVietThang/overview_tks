@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0043`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0044`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -37,7 +37,7 @@ Ba hệ định danh này khác nhau. Code sync phải nhận `branch` rõ ràng
 | `order_details` | Dòng hàng của đơn hàng | `(branch, order_id, line_no)` | `product_id`, `quantity`, `price`, `discount` |
 | `returns` | Phiếu trả hàng | `(branch, id)` | `code`, `return_date`, `invoice_id`, `customer_id`, `sold_by_id`, `total`, `status`, các ngày |
 | `return_details` | Dòng hàng của phiếu trả | `(branch, return_id, line_no)` | `product_id`, `quantity`, `price` |
-| `purchases` | Phiếu nhập hàng từ endpoint `/purchaseorders` | `(branch, id)` | `code`, `purchase_date`, `supplier_id`, `total`, `status`, các ngày |
+| `purchases` | Phiếu nhập hàng từ endpoint `/purchaseorders` | `(branch, id)` | `code`, `purchase_date`, `supplier_id`, `total`, `status`, các ngày , `raw_hash` (0044) |
 | `purchase_details` | Dòng hàng của phiếu nhập | `(branch, purchase_id, line_no)` | `product_id`, `quantity`, `price` |
 | `order_suppliers` | Phiếu **Đặt hàng nhập** (PDN…) từ endpoint `/ordersuppliers` (migration `0024`) — khác `purchases` (Nhập hàng) | `(branch, id)` | `code`, `order_date`, `supplier_id`, `total`, `status`, `created_date` (payload không có `modifiedDate`) |
 | `order_supplier_details` | Dòng hàng của phiếu đặt hàng nhập | `(branch, order_supplier_id, line_no)` | `product_id`, `quantity`, `price` (payload chỉ có `productId`, không có `productCode`) |
@@ -419,3 +419,6 @@ Migration `0044_pancake_marketing.sql` bổ sung nguồn PostgreSQL cho Marketin
 - Ghi page khóa run/page, commit nguyên page; lỗi SQL rollback toàn bộ nguồn page rồi ghi trạng thái lỗi riêng, giữ lần thành công cũ. Các page khác không bị rollback. Job phải bảo đảm một đợt hoạt động tại một thời điểm; số thứ tự các lần chạy do job quản lý.
 - Import workbook, raw, alias và BC tháng trong một giao dịch; batch/source identity cùng nội dung bỏ qua, nội dung khác xung đột 409 và rollback. Sửa BC tháng yêu cầu version, khóa dòng và ghi audit nguyên tử; không lưu doanh số làm sự thật (doanh số tính từ KiotViet). Số tiền gốc có thể nằm trong JSON provenance, không được dùng làm doanh số.
 - Snapshot dùng REPEATABLE READ READ ONLY để raw/alias/fact/BC tháng/trạng thái nhất quán. Trigger chặn UPDATE/DELETE lịch sử, observation, batch và audit. Thu hồi SELECT của `reporting_readonly` trên toàn bộ bảng Marketing do chứa SĐT/dữ liệu cá nhân.
+## Băm raw phiếu nhập — migration 0044
+
+Migration `0044_purchases_raw_hash.sql` thêm `purchases.raw_hash TEXT` (nullable). Đối soát phiếu nhập so băm thay vì tải lại cột `raw` (giảm egress Supabase). `NULL` = chưa có hash; lượt quét đầu sau migration ghi lại toàn bộ phiếu một lần rồi ổn định.

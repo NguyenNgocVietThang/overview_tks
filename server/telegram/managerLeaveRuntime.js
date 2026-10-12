@@ -55,8 +55,19 @@ function createManagerLeaveRuntime({
   telegram, getManager = resolveManagerFromDb, loadManagers = loadManagersFromDb,
   botFactory = createManagerLeaveBot, buildMessage = buildManagerLeaveMessage,
   notifyDecision, authorization = createHrLeaveAuthorization({loadUsers:loadManagers}),
-  webUrl = CONFIG.HR_MANAGER_TELEGRAM_WEB_URL, intervalMs = 5000, logger = console
+  webUrl = CONFIG.HR_MANAGER_TELEGRAM_WEB_URL, intervalMs = 5000, logger = console,
+  managersTtlMs = 5 * 60 * 1000, now = Date.now
 } = {}) {
+  // Danh sách quản lý chỉ dùng để định tuyến thẻ mới; cache 5 phút và chỉ nạp khi có việc.
+  // Quyền duyệt thật (authorization.canDecide) vẫn đọc tươi, không qua cache này.
+  let managersCache = null, managersAt = 0, managersLoading = null;
+  async function getCachedManagers() {
+    if (managersCache && now() - managersAt < managersTtlMs) return managersCache;
+    if (!managersLoading) managersLoading = Promise.resolve(loadManagers()).then(list => { managersCache = list; managersAt = now(); return list; }).finally(() => { managersLoading = null; });
+    return managersLoading;
+  }
+  function invalidateManagers() { managersCache = null; managersAt = 0; }
+  const lazyManagers = () => getCachedManagers();
   const decisionNotifications = createHrLeaveDecisionService({ logger, authorization });
   let timer;
   let inboxRunning = false, inboxRequested = false, deliveryRunning = false, deliveryRequested = false;
@@ -168,11 +179,11 @@ function createManagerLeaveRuntime({
     }
   }
 
-  async function seedBacklog(managers) {
+  async function seedBacklog(getManagers) {
     const pending=(await Promise.all(['Chưa duyệt','Vi phạm'].map(status=>leaveRepo.getLeaveRequests({status},BOTH_BRANCHES)))).flat();
     for (const record of pending) {
       if (record.loai_yeu_cau !== 'Xin nghỉ phép') continue;
-      for (const user of selectApprovers(managers,record).users.filter(user=>isEligibleManager(user))) {
+      for (const user of selectApprovers(await getManagers(),record).users.filter(user=>isEligibleManager(user))) {
         await store.enqueueDelivery({ requestId: record.request_id, userId: user.id, chatId: user.telegramId, version: record.decision_version });
       }
     }
@@ -192,7 +203,7 @@ function createManagerLeaveRuntime({
       await store.finishCard(card,record.decision_version);
     }
   }
-  async function processEvent(job, managers) {
+  async function processEvent(job, getManagers) {
     try {
       const record = await leaveRepo.getLeaveRequestById(job.request_id, BOTH_BRANCHES);
       if (record) {
@@ -200,7 +211,7 @@ function createManagerLeaveRuntime({
         await refreshCards(record);
         const isNewRequest = job.event_type === 'CREATE' && new Date(job.created_at).getTime() >= new Date(firstEnabledAt).getTime();
         if (record.loai_yeu_cau === 'Xin nghỉ phép' && (isNewRequest || !['Đã duyệt', 'Từ chối'].includes(record.trang_thai))) {
-          for (const user of selectApprovers(managers,record).users.filter(user=>isEligibleManager(user))) {
+          for (const user of selectApprovers(await getManagers(),record).users.filter(user=>isEligibleManager(user))) {
             await store.enqueueDelivery({ requestId: record.request_id, userId: user.id, chatId: user.telegramId, version: record.decision_version });
           }
         }
@@ -221,7 +232,7 @@ function createManagerLeaveRuntime({
   }
   async function drainDeliveries() {
     if(deliveryRunning){deliveryRequested=true;return;} deliveryRunning=true;
-    try {await activate();do {deliveryRequested=false;const managers=await loadManagers();await seedBacklog(managers);await store.requeueStaleCards();for(const job of await store.claimEvents())await processEvent(job,managers);for(let i=0;i<20;i++){const [job]=await store.claimDeliveries(1);if(!job)break;await processDelivery(job);}}while(deliveryRequested);}
+    try {await activate();do {deliveryRequested=false;await seedBacklog(lazyManagers);await store.requeueStaleCards();for(const job of await store.claimEvents())await processEvent(job,lazyManagers);for(let i=0;i<20;i++){const [job]=await store.claimDeliveries(1);if(!job)break;await processDelivery(job);}}while(deliveryRequested);}
     catch(error){logger.error('[Telegram manager] Delivery tạm dừng:',error.code || 'DB_UNAVAILABLE');}
     finally {deliveryRunning=false;}
   }
@@ -233,7 +244,7 @@ function createManagerLeaveRuntime({
     timer.unref();
   }
   function stop() { clearInterval(timer); timer = null; }
-  return { telegram, store, start, stop, drain, drainInbox, acknowledgeUpdate, getManager, processUpdate, processDelivery };
+  return { telegram, store, invalidateManagers, start, stop, drain, drainInbox, acknowledgeUpdate, getManager, processUpdate, processDelivery };
 }
 
 function createConfiguredManagerLeaveRuntime({ logger = console } = {}) {

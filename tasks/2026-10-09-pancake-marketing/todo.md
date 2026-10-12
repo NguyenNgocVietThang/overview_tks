@@ -4,7 +4,7 @@ Cập nhật 09/10/2026. Kế hoạch: [plan.md](plan.md).
 
 ## T1 — Xác minh kết nối và tính tương đương nguồn
 
-Trạng thái: đã cấu hình token sáu page; đang đối soát toàn bộ file sao lưu thật qua API.
+Trạng thái: T1–T2 đạt; migration 0044 đã áp trên PostgreSQL, đang triển khai nhập lịch sử T3.
 
 - [x] Đọc ba workbook Marketing, cấu trúc THÔ/CHUẨN/CHECK/BC tháng/ADS và bảng Tên.
 - [x] Đối chiếu sáu page và ID trực tiếp từ Pancake Dashboard.
@@ -13,16 +13,16 @@ Trạng thái: đã cấu hình token sáu page; đang đối soát toàn bộ f
 - [x] Kiểm tra Hữu Nghị: chưa có Public API token; không tạo/đổi token trong giai đoạn lập kế hoạch.
 - [x] Người dùng cho phép tạo token cả sáu page; đã lưu đủ sáu token trong server/.env (không theo dõi Git).
 - [x] Kiểm tra đọc API có xác thực cho sáu page; Dương Nội cần lọc riêng INBOX/COMMENT.
-- [ ] Đọc API có xác thực và xác minh endpoint, trường dữ liệu, thứ tự, phân trang, bộ lọc.
-- [ ] Đối chiếu một file sao lưu đã có; ghi bằng chứng đã che dữ liệu nhạy cảm.
-- [ ] Cổng nghiệm thu T1 đạt trước khi triển khai T2–T7.
+- [x] Đọc API có xác thực và xác minh endpoint, trường dữ liệu, thứ tự, phân trang, bộ lọc.
+- [x] Đối chiếu một file sao lưu đã có; ghi bằng chứng đã che dữ liệu nhạy cảm.
+- [x] Cổng nghiệm thu T1 đạt trước khi triển khai T2–T7.
 
 Xác minh: kiểm tra dữ liệu thật, không sử dụng fixture giả để thay kết quả đối soát. Không gửi tin nhắn, thay thẻ, đánh dấu đã đọc hoặc bật webhook. Nếu thiếu dữ liệu, dừng để sửa phương án kết nối theo yêu cầu kế hoạch.
 
 ## T2 — Lưu dữ liệu PostgreSQL (phụ thuộc T1)
 
-- [ ] Lưu sáu page, bản ghi nguồn, đợt đồng bộ, ngày ghi nhận, ánh xạ nhân viên, BC tháng và lịch sử sửa.
-- [ ] Kiểm thử nguồn gốc, thứ tự, ràng buộc chống trùng và phiên bản sửa.
+- [x] Lưu sáu page, bản ghi nguồn, đợt đồng bộ, ngày ghi nhận, ánh xạ nhân viên, BC tháng và lịch sử sửa.
+- [x] Kiểm thử nguồn gốc, thứ tự, ràng buộc chống trùng và phiên bản sửa (13 SQL tests; 41 Marketing tests, review độc lập đạt).
 
 ## T3 — Nhập lịch sử Sheets (phụ thuộc T2)
 
@@ -52,4 +52,4 @@ Xác minh: kiểm tra dữ liệu thật, không sử dụng fixture giả để
 - [ ] Công tắc quay nguồn cũ; ADS vẫn đọc Sheets gồm Quảng Châu.
 - [ ] Kiểm tra Excel/HTML, điện thoại, bộ kiểm thử dự án và cập nhật tài liệu thực sự bị ảnh hưởng.
 
-Chưa có migration, job đồng bộ hoặc thay đổi chức năng Marketing được triển khai trước cổng T1.
+Migration 0044 áp sau T1 và review T2. Job, nhập lịch sử và chuyển nguồn đang triển khai; nguồn chính thức giữ Sheets trong nghiệm thu.

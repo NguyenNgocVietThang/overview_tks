@@ -202,3 +202,21 @@ test('incomplete full cash flow pagination cannot mark missing cache or advance 
   await assert.rejects(driver.pollEntityOnce(api,'hanoi',entity),/Incomplete cash flow snapshot/);
   assert.equal(pruned,0);assert.equal(advanced,0);
 });
+
+test('sync hoa don chi phat invoicesChanged khi trang co dong va da COMMIT; entity khac/trang rong thi khong', async () => {
+  const { EventEmitter } = require('events');
+  const events = new EventEmitter();
+  const seen = [];
+  const pool = fakePool();
+  events.on('invoicesChanged', payload => seen.push({ ...payload, committed: pool.transactions.at(-1).includes('COMMIT') }));
+  const driver = createSyncDriver({ pool, events, now: () => Date.parse('2026-09-14T02:00:00Z'), checkpointRepository: {
+    getCheckpoint: async () => ({ last_synced_at: '2026-09-14T01:00:00Z' }),
+    advanceCheckpoint: async () => {}
+  }});
+  const api = { fetchAllPages: async (endpoint, query, onPage) => { await onPage([{ id: 1 }, { id: 2 }]); await onPage([]); } };
+  const base = { listQuery: {}, incrementalParam: 'lastModifiedFrom', backfillRangeParam: {}, upsertPage: pool.upsert };
+  await driver.pollEntityOnce(api, 'hanoi', { ...base, entity: 'invoices', endpoint: 'invoices' });
+  assert.deepEqual(seen, [{ branch: 'hanoi', count: 2, committed: true }]);
+  await driver.pollEntityOnce(api, 'hanoi', { ...base, entity: 'orders', endpoint: 'orders' });
+  assert.equal(seen.length, 1, 'entity khac khong lam het han cache Hoa don');
+});
