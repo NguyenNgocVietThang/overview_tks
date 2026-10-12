@@ -143,8 +143,8 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 
 ## 2.4. Giả định & phụ thuộc
 
-- Schema Postgres đã áp tới migration `0030` (các bảng/cột mới đọc fail-soft nếu thiếu: `inventory_value_snapshots`, `order_suppliers`; riêng `decision_version` (0029) và danh sách trạng thái nghỉ phép (0030) **bắt buộc** đã áp trước khi chạy bản web mới).
-- Service account Google: Viewer trên Bảng Công nợ và Vị trí hàng, Editor trên workbook Vòng đời đơn hàng.
+- Schema Postgres đã thiết kế đến migration `0044` (0001–0044; bao gồm `0036`–`0037` Báo cáo kinh doanh, `0038`–`0042` Nhân sự/Nghỉ phép/Audit log, `0043` thông báo ngày lễ/sinh nhật và `0044` `purchases.raw_hash` giảm egress Supabase).
+- Service account Google: Viewer trên Bảng Công nợ, Vị trí hàng và 3 workbook Marketing; Editor trên workbook Vòng đời đơn hàng.
 - Scheduler chạy liên tục (`KIOTVIET_SYNC_ENABLED=true`); webhook KiotViet trỏ về `/api/kiotviet/webhook/<secret>`.
 - Bot xin nghỉ của nhân viên chạy **ngoài repo** và ghi trực tiếp vào Postgres.
 
@@ -241,7 +241,7 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 | **Mã**  | **Mô tả**                                                                                                                | **Ưu tiên** | **Trạng thái** |
 |---------|--------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
 | FR-07.1 | Sidebar dùng chung (`shared-nav.js`) dựng từ danh sách quyền server trả về (`GET /api/auth/me`): nhóm Báo cáo tổng hợp, Quản lý đơn hàng, Vị trí hàng, Quản lý nhân sự, Quản lý tài khoản; mục không có quyền không hiện. | Cao | Hoàn thành |
-| FR-07.2 | Mỗi bảng có tìm kiếm trong bảng (không dấu), sắp xếp ba trạng thái trên mọi cột, phân trang 100 dòng/trang (`pagination.js`) trên toàn bộ dữ liệu đã lọc; độ rộng cột cố định. | Cao | Hoàn thành |
+| FR-07.2 | Mỗi bảng có tìm kiếm trong bảng (không dấu), sắp xếp trên mọi cột, phân trang chuẩn (`table-controls.js` / 100 dòng/trang trên toàn bộ dữ liệu đã lọc, áp dụng cho Báo cáo, Vòng đời đơn hàng, Sổ quỹ, Nhân sự, Tài khoản); cho phép tùy chỉnh độ rộng cột và hiển thị/ẩn cột (ngoại trừ các bảng tĩnh hoặc trong panel chi tiết). | Cao | Hoàn thành |
 | FR-07.3 | Thanh điều hướng có bộ chọn cơ sở Hà Nội / Sài Gòn / Cả hai (cookie `tks_branch`, xác thực lại ở server), đổi theme sáng/tối, chuông thông báo (hỏi số chưa đọc mỗi 30 giây), lịch nghỉ phép, hộp hồ sơ cá nhân. | Cao | Hoàn thành |
 | FR-07.4 | `/api/debug`: kiểm tra kết nối Postgres (đếm hóa đơn theo `branch = ANY($1)`), quyền như API báo cáo; `/health` trả `{"status":"ok"}` cho health check Render. | Thấp | Hoàn thành |
 | FR-07.5 | Mỗi bảng xuất được có nút `Xuất Excel` (tùy trang có thêm `Xuất HTML`): file giữ bộ lọc/sắp xếp hiện tại và bỏ giới hạn phân trang. Các bảng: Chi tiết giao dịch, Danh sách mã mới, Sản phẩm bán chạy, Tất cả mã hàng, Hàng mới nhập, Chi tiết tồn kho theo sản phẩm, Doanh thu theo khách, Chi tiết khách nợ, Bảng chi tiết sản phẩm theo khách, Báo cáo hàng hóa, Quản lý công nợ, Hàng đứt gần đây, Kiểm tra đứt hàng 90/30 ngày (`TABLE_TITLES` trong `exportService.js`). Quyền `reports.export` (mặc định Quản lý + Trợ lý). Ba bảng của Báo cáo kinh doanh xuất qua endpoint riêng `GET /api/business-report/export` (cột tháng động, xem FR-16.7). | Cao | Hoàn thành |
@@ -251,6 +251,7 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 | FR-07.9 | **Đã gỡ 2026-10-05:** `GET /api/search` (tìm chung / `mode=codes`), `GET /api/customer-product-top` và bảng xuất `search.results` — giao diện không còn thanh tìm kiếm chung nên không còn nơi gọi. | — | Đã gỡ |
 | FR-07.10 | Chart.js có animation gating (không animate lại khi chuyển tab, đổi theme hay cập nhật nền); bộ test chặn hiệu ứng 3D và `backdrop-filter` ở màn hình chờ toàn màn hình của dashboard (`no-3d-effects.test.js`). | Cao | Hoàn thành |
 | FR-07.11 | Giao diện hỗ trợ điện thoại/máy tính bảng; Light/Dark; `prefers-reduced-motion`. | Cao | Hoàn thành |
+| FR-07.12 | Khung xem chi tiết dùng chung (`detail-panel.css`, `.dp-*`): áp dụng cho các hộp Chi tiết giao dịch, Báo cáo hàng hóa theo khách, Báo cáo kinh doanh (Sale/Khách/Mã hàng), Chi tiết đơn Vòng đời, Chi tiết nghỉ phép và Chi tiết Marketing. Thiết kế gồm hàng chỉ số tổng quan (`.dp-stats`), 1 khung cuộn duy nhất, tiêu đề dính và **tắt hoàn toàn nút Cột hiển thị** (`data-table-controls="off"`). | Cao | Hoàn thành |
 
 ## 3.8. FR-08: Tài khoản, đăng nhập & phân quyền
 
@@ -643,3 +644,12 @@ Nhân viên HR hoạt động tự gửi đơn web bằng danh tính server, gi�
 ## Marketing Pancake — cập nhật yêu cầu 12/10/2026
 
 Nguồn DB sau công tắc: sáu Facebook page; ngày ghi nhận khác thời điểm tạo; tổng quy đổi lần đầu + chào lại/5; tỷ lệ chốt chia tổng quy đổi và mẫu số 0 hiển thị —. Quản lý tạo/sửa BC tháng bằng ID/version, chọn khách KiotViet; Marketing chỉ xem và không thể được cấp quyền ghi qua override. Sửa ánh xạ tính lại cả tháng cũ. ADS giữ Sheets; xuất/chi tiết giữ bộ lọc. Mã T3–T6 đã triển khai và qua kiểm thử; nguồn chính thức vẫn là Sheets. Ngày 12/10/2026 đã khôi phục ID tin nhắn từ sáu bản xuất đầy đủ (migration 0046): 18.304 dòng lịch sử thật đều có liên kết (18.294 duy nhất, 7 chỉ khác cách viết số +84/0 thừa đã kiểm cùng giây-cùng nhân viên, 3 dòng thuộc cặp tin tương đương = 6 liên kết); chỉ còn dòng tiêu đề lặp BL THÔ!1950 (không phải quan sát). 3.148 tin trong kỳ nằm ngoài nền Sheets được ghi sổ riêng, không tính. Đồng bộ thật đủ sáu page đạt (slot 12/10): 11.797 fact, 2.478 quan sát cùng ngày ghi nhận 12/10 (thay đổi nhân viên tích lũy từ lúc dán Sheets và 861 tin mới), 0 mục chưa giải quyết, 0 dòng lịch sử chưa liên kết; nền lịch sử khớp CHUẨN (11.942 nhóm SĐT); tổng khớp chi tiết 100/100 (T10) và 80/80 (T9). Công tắc job vẫn TẮT và nguồn vẫn Sheets: chưa có ba đợt hằng đêm đối soát, chưa cấu hình token trên Render. Lưu ý nghiệm thu: lần đồng bộ đầu dồn các thay đổi nhân viên cũ vào ngày 12/10 nên "chào lại" tháng 10 tăng mạnh (179 → 1.660); cần Quản lý xác nhận cách tính trước khi chuyển nguồn.
+
+## Bổ sung 12/10/2026 — Vòng đời đơn hàng, Detail panel & Giảm egress
+
+| Mã | Yêu cầu |
+|---|---|
+| FR-21.1 | **Khung xem chi tiết dùng chung (`detail-panel.css`):** Áp dụng đồng bộ cho các hộp Chi tiết giao dịch, Báo cáo hàng hóa theo khách, Báo cáo kinh doanh (Sale/Khách/Mã hàng), Chi tiết đơn Vòng đời, Chi tiết nghỉ phép và Chi tiết Marketing. Mỗi hộp có hàng chỉ số tổng quan (`.dp-stats`), 1 khung cuộn thống nhất, tiêu đề dính và tắt nút Cột hiển thị (`data-table-controls="off"`). |
+| FR-21.2 | **Cảnh báo Kế toán sót đơn:** Cảnh báo "Kế toán sót đơn" chỉ áp dụng khi trạng thái hiệu lực của đơn là "Đơn đã gửi kế toán" (`SENT_TO_ACCOUNTANT`); đơn đã chuyển sang Đang giao / Đã nhận / Đã ký nhận hoặc được ghi đè thủ công sẽ tự động gỡ bỏ cảnh báo này. |
+| FR-21.3 | **Phân trang Nhân sự & Tài khoản:** Bổ sung điều khiển phân trang chuẩn (`table-controls.js`) cho bảng nhân sự, chấm công, nghỉ phép (`/humanresources/`) và bảng người dùng (`/account/`). |
+| FR-21.4 | **Giảm egress Supabase (migration 0044):** Thêm `purchases.raw_hash` để đối soát phiếu nhập KiotViet bằng băm thay vì tải lại toàn bộ cột raw; cache Hóa đơn/Chi tiết hóa đơn hết hạn theo sự kiện `invoicesChanged` (dự phòng 15 phút); bot Telegram quản lý nạp lazy và cache 5 phút; realtime nghỉ phép HR chỉ poll `getLeaveVersions`. |

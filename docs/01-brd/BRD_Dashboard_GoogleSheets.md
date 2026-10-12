@@ -208,7 +208,7 @@ Dữ liệu chỉ đọc, giữ kết quả công thức, không gộp trùng S�
 
 ## 7.1. Giả định
 
-- Supabase PostgreSQL lưu toàn bộ dữ liệu nghiệp vụ với schema trong `server/db/SCHEMA.md`, đã áp migration tới `0030`.
+- Supabase PostgreSQL lưu toàn bộ dữ liệu nghiệp vụ với schema trong `server/db/SCHEMA.md`, đã thiết kế đến migration `0044`.
 - Service Account Google được cấp Viewer trên Bảng Công nợ, Vị trí hàng và ba workbook Marketing, Editor trên workbook Vòng đời đơn hàng.
 - Scheduler Node.js hoạt động liên tục (một instance) để dữ liệu được cập nhật gần thời gian thực.
 - Bot xin nghỉ của nhân viên vận hành ngoài repo và ghi trực tiếp vào Postgres.
@@ -237,7 +237,7 @@ Dữ liệu chỉ đọc, giữ kết quả công thức, không gộp trùng S�
 - Vị trí hàng đọc đúng 6 cột của hai sheet, Khách bị chặn.
 - Tự đăng ký trả `REGISTRATION_DISABLED` khi chưa bật; ID Telegram chỉ Quản lý sửa được và chống trùng.
 - Bot quản lý giao đơn đúng cơ sở, loại tài khoản không đủ điều kiện và bản ghi tự ý nghỉ; Phê duyệt/Từ chối đồng bộ với web và mọi bản tin; nút cũ/đồng thời không ghi đè; phiên lý do chỉ nhận reply đúng tin, giới hạn 500 ký tự, hết hạn 15 phút; webhook không secret hợp lệ bị từ chối.
-- Bộ kiểm thử tự động vượt qua: **1.704 test (1.701 đạt, 3 bỏ qua)** ghi nhận 05/10/2026; 3 test migration integration chỉ chạy khi có `SUPABASE_TEST_DB_URL`.
+- Bộ kiểm thử tự động vượt qua: **2.207 test đạt (2.207/2.214, 3 bỏ qua)** ghi nhận 12/10/2026; 4 test lỗi cũ ở xuất Excel tồn kho không thuộc phạm vi.
 - Hệ thống ổn định trên Render.com, uptime ≥ 99% trong giờ hành chính.
 
 # 9. Kế hoạch triển khai tổng quan
@@ -283,3 +283,10 @@ Nhu cầu: nhắc mọi người dùng nội bộ biết ngày lễ Việt Nam v
 ## Marketing Pancake — cập nhật 12/10/2026
 
 Mục tiêu giảm thao tác xuất/import SĐT hằng ngày bằng đồng bộ 23:55 Việt Nam, giữ lịch sử và doanh số KiotViet. Chỉ Quản lý nhập BC tháng trên web, ADS vẫn Sheets. Mã T3–T6 đã triển khai và qua kiểm thử; nguồn chính thức vẫn là Sheets. Ngày 12/10/2026 đã khôi phục ID tin nhắn từ sáu bản xuất đầy đủ (migration 0046): 18.304 dòng lịch sử thật đều có liên kết (18.294 duy nhất, 7 chỉ khác cách viết số +84/0 thừa đã kiểm cùng giây-cùng nhân viên, 3 dòng thuộc cặp tin tương đương = 6 liên kết); chỉ còn dòng tiêu đề lặp BL THÔ!1950 (không phải quan sát). 3.148 tin trong kỳ nằm ngoài nền Sheets được ghi sổ riêng, không tính. Đồng bộ thật đủ sáu page đạt (slot 12/10): 11.797 fact, 2.478 quan sát cùng ngày ghi nhận 12/10 (thay đổi nhân viên tích lũy từ lúc dán Sheets và 861 tin mới), 0 mục chưa giải quyết, 0 dòng lịch sử chưa liên kết; nền lịch sử khớp CHUẨN (11.942 nhóm SĐT); tổng khớp chi tiết 100/100 (T10) và 80/80 (T9). Công tắc job vẫn TẮT và nguồn vẫn Sheets: chưa có ba đợt hằng đêm đối soát, chưa cấu hình token trên Render. Lưu ý nghiệm thu: lần đồng bộ đầu dồn các thay đổi nhân viên cũ vào ngày 12/10 nên "chào lại" tháng 10 tăng mạnh (179 → 1.660); cần Quản lý xác nhận cách tính trước khi chuyển nguồn.
+
+## Bổ sung 12/10/2026 — Vòng đời đơn hàng, Detail panel & Giảm egress
+
+- **Khung chi tiết dùng chung (`detail-panel.css`):** Chuẩn hóa toàn bộ các hộp xem chi tiết trên dashboard (Chi tiết giao dịch, Báo cáo hàng hóa theo khách, Báo cáo kinh doanh Sale/Khách/Mã hàng, Chi tiết đơn Vòng đời, Chi tiết nghỉ phép, Chi tiết Marketing) thành thiết kế thống nhất: có hàng chỉ số tổng quan ở đầu hộp (`.dp-stats`), 1 khung cuộn mượt mà, tiêu đề dính và tắt nút Cột hiển thị trong hộp (`data-table-controls="off"`).
+- **Vòng đời đơn hàng:** Bổ sung dải thẻ chỉ số tổng quát và lọc nhanh đầu trang; hỗ trợ 5 luồng đơn (HN, SG, Bắc-Nam `DonHang_MienNam`, Khách/Ship lấy tại kho `Khách_HN`/`Khách_SG`) và 6 loại cảnh báo có tên (Kế toán sót đơn [chỉ khi ở trạng thái Đơn đã gửi kế toán], Lái xe chưa chụp đơn, Lái xe quên chụp, Chưa nhận đơn quá 6 giờ, Khách/Ship chưa lấy, Chưa chụp bill tàu).
+- **Phân trang Nhân sự & Tài khoản:** Bổ sung điều khiển phân trang chuẩn (`table-controls.js`) cho bảng nhân sự, chấm công, nghỉ phép và quản trị người dùng.
+- **Giảm egress Supabase (migration 0044):** Tối ưu hóa đối soát phiếu nhập bằng hash (`purchases.raw_hash`), cache hóa đơn theo sự kiện, nạp lazy bot Telegram và realtime nghỉ phép rút gọn.

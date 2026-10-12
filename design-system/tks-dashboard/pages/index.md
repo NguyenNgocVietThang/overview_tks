@@ -21,6 +21,7 @@ bảng chi tiết drill-down, xuất báo cáo.
 - Row reveal khi mở rộng chi tiết (`.debt-detail-row`, keyframe fade+slide nhẹ) và row flash khi cập
   nhật real-time (`rowPulseHighlight`, MASTER §5.16).
 - Sortable table header (`.sort-button`, `[aria-sort]`) — MASTER §5.13.
+- **Hộp xem chi tiết dùng chung (`detail-panel.css`, `.dp-*`):** Hộp Chi tiết giao dịch (`#docModalBackdrop`), Báo cáo hàng hóa theo khách, Báo cáo kinh doanh (Sale/Khách/Mã hàng) áp dụng chuẩn `.dp-*` với dải chỉ số tổng quan ở đầu hộp (`.dp-stats`), 1 khung cuộn mượt mà, tiêu đề dính và bảng con tắt nút Cột hiển thị (`data-table-controls="off"`).
 
 ## Báo cáo Marketing (`#marketing`)
 - Bốn phần đánh số dùng KPI `.kpi-card`, lưới 12 cột, panel và Chart.js của trang báo cáo.

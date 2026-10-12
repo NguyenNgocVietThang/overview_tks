@@ -1,7 +1,7 @@
 # MEMORY: BỘ NHỚ DÀI HẠN DỰ ÁN TOKOSI DASHBOARD
 
 > **Thời hạn giá trị:** Ít nhất 3 tháng (Q4/2026 – Q1/2027).  
-> **Cập nhật gần nhất:** 09/10/2026.  
+> **Cập nhật gần nhất:** 12/10/2026.  
 > **Quy tắc:** Chỉ lưu trữ các nguyên tắc cốt lõi, kiến trúc bất biến, quy ước chuẩn hóa và bài học kinh nghiệm dài hạn. Không ghi deadline ngắn hạn hay task vụn vặt vào file này.
 
 ---
@@ -31,7 +31,7 @@
 - **TUYỆT ĐỐI KHÔNG CÒN APPS SCRIPT:** Toàn bộ Google Apps Script cũ (`src-dashboard`, `.clasp.json`) đã bị xóa và nghỉ hưu hoàn toàn; không bao giờ tạo lại hay phụ thuộc vào Apps Script.
 
 ### 2.2. Tài khoản, Bảo mật & Phân quyền
-- **Khóa tự đăng ký tài khoản:** Tự đăng ký (`/register`, OTP nhân sự, tạo Khách tự động qua Google) bị khóa từ 2026-10-03 (`ALLOW_SELF_REGISTRATION=false`). Mọi tài khoản mới do Quản lý tạo tại `/account/#users`.
+- **Khóa tự đăng ký tài khoản:** Tự đăng ký (`/register`, OTP nhân sự, tạo Khách tự động qua Google) bị khóa từ 2026-10-03 (`ALLOW_SELF_REGISTRATION=false`). Mọi tài khoản mới do Quản lý tạo tại `/account/#users`. Bảng tài khoản có phân trang chuẩn (`table-controls.js`).
 - **Bảo vệ tài khoản Quản lý cấp cao:** Quản lý thường không được sửa thông tin, đặt lại mật khẩu, hạ vai trò hay xóa Quản lý khác. Chỉ Admin cứng (`HARDCODED_ADMINS`) mới có toàn quyền (`accountPolicy.checkProtectedManager`).
 - **Phân quyền theo tính năng (`featureRegistry.js`):** Quyền mặc định theo vai trò kết hợp cờ ghi đè từng tài khoản (`app_users.feature_permissions JSONB`). Mọi quyền con phụ thuộc quyền cha thông qua `requires`.
 - **Bảo mật hồ sơ cá nhân:** Người dùng thường không tự đổi email/SĐT qua form hồ sơ. Đổi email tài khoản thường phải xác minh qua OTP gửi tới email mới; tài khoản nhân sự chỉ Quản lý mới được đổi.
@@ -42,17 +42,26 @@
 - **Lịch làm việc & Hạn nộp đơn:** Giờ làm việc cố định toàn công ty là sáng **07:45** và chiều **12:30** (`hr_leave_work_schedules`, migration `0038`). Đơn tự động phân loại `timing_status` (`Đúng hạn`, `Xin muộn`, `Vi phạm`).
 - **Tài khoản nội bộ chưa gắn nhân sự gửi đơn:** Mọi tài khoản nội bộ hoạt động (trừ Khách) dù chưa liên kết `hr_employee_id` vẫn được phép gửi đơn nghỉ web (migration `0042`).
 - **Ngày đặc biệt:** danh mục ngày lễ + sinh nhật 27/10 ở `public/shared/special-days.js` (UMD, giờ VN); `notifications/specialDayNotifier.js` báo chuông cho tài khoản có `hr.leave` (bảng `special_day_notice_log` chống trùng, cờ `SPECIAL_DAYS_NOTIFY_ENABLED`); `shooting-star.js` đổi sang `fireworks.js` vào các ngày này (`?fireworks=1` để xem thử). Lịch nghỉ phép không đổi.
-- **Bot quản lý nghỉ phép:** Chạy webhook trong Express với secret header; gửi thông báo duyệt/từ chối kèm Mini App lý do; chống tranh chấp bằng `decision_version`.
+- **Bot quản lý nghỉ phép:** Chạy webhook trong Express với secret header; gửi thông báo duyệt/từ chối kèm Mini App lý do; chống tranh chấp bằng `decision_version`. Cache danh sách quản lý 5 phút, nạp lazy; realtime polling `getLeaveVersions` giảm egress Supabase.
+- **Phân trang bảng HR:** Bảng nhân sự, chấm công và nghỉ phép được trang bị phân trang chuẩn (`table-controls.js`).
 
-### 2.4. Sổ quỹ & Báo cáo
+### 2.4. Sổ quỹ, Báo cáo & Hàng hóa
 - **Sổ quỹ (`/cashbook/`):** Tồn quỹ = tổng phiếu thu trừ phiếu chi chưa hủy; gom quỹ ngân hàng HN + SG cùng số tài khoản; phân loại theo 5 nhóm tài khoản (`account_balance_groups`). Không dùng cache; kiểm tra revision tự động mỗi 15 giây khi tab đang xem.
 - **Báo cáo kinh doanh (`/reports/#business`):** Doanh số tháng = Hóa đơn Hoàn thành − Phiếu trả Đã trả (giờ VN). Tháng đã qua chốt cứng vào `business_monthly_*` (migration `0036`); tháng hiện tại tính live SQL; sale đi theo nhóm khách hàng hiện tại; team nạp từ `sale_teams` (migration `0037`).
 - **Báo cáo Marketing (`/reports/#marketing`):** Đọc 3 workbook Google Sheets, đối chiếu doanh số KiotViet theo tên khách hàng; hỗ trợ sửa trực tiếp Khách mới / Ghi chú ngược lại Sheets và xuất file XLSX/HTML.
 - **Hàng hóa & Tồn kho:** "Tồn có thể bán" = Tồn thực tế − Đặt hàng Phiếu tạm (không cộng hàng đang vận chuyển). Ẩn đơn giá và giá trị tồn đối với nhân viên không có quyền `reports.products.cost`.
 
+### 2.5. Vòng đời đơn hàng & Khung chi tiết dùng chung
+- **Khung chi tiết dùng chung (`public/shared/detail-panel.css` — `.dp-*`):** Áp dụng đồng bộ cho các hộp Chi tiết giao dịch, Báo cáo hàng hóa theo khách, Báo cáo kinh doanh (Sale/Khách/Mã hàng), Chi tiết đơn Vòng đời, Chi tiết nghỉ phép và Chi tiết Marketing. Thiết kế gồm hàng **chỉ số tổng quan** (`.dp-stats`), 1 khung cuộn thống nhất, tiêu đề dính, **tắt hoàn toàn nút Cột hiển thị** trong hộp (`data-table-controls="off"`), hỗ trợ Light/Dark mode.
+- **Vòng đời đơn hàng (`/shipment/lifecycle/`):**
+  - Hợp nhất ~60k đơn KiotViet với Google Sheets `ORDER_LIFECYCLE_SPREADSHEET_ID`.
+  - Hỗ trợ 5 luồng: Đơn HN, Đơn SG, Đơn Bắc-Nam (`DonHang_MienNam`, tính như HN, 4 mốc thời gian, không cảnh báo 24h), Khách/Ship lấy tại kho (`Khách_HN`, `Khách_SG`).
+  - 6 loại cảnh báo có tên: Kế toán sót đơn, Lái xe chưa chụp đơn, Lái xe quên chụp, Chưa nhận đơn quá 6 giờ, Khách/Ship chưa lấy, Chưa chụp bill tàu. Quy tắc: cảnh báo "Kế toán sót đơn" chỉ áp dụng khi trạng thái hiệu lực là "Đơn đã gửi kế toán" (đơn đã sang giao/nhận hoặc ghi đè thì bỏ).
+  - Dải thẻ chỉ số tổng quát và lọc nhanh đầu trang (`kpis`: Chưa gửi KT chỉ tính Phiếu tạm, Đã gửi KT, Đang giao và số đơn theo từng loại cảnh báo). Bấm thẻ để lọc nhanh bảng.
+
 ---
 
-## 3. Bản đồ Migration Cơ sở dữ liệu (0001 – 0043)
+## 3. Bản đồ Migration Cơ sở dữ liệu (0001 – 0044)
 
 | Dải Migration | Phân hệ & Nội dung chính |
 |---|---|
@@ -69,6 +78,7 @@
 | `0038–0040` | Lịch làm việc & hạn nộp nghỉ phép (`hr_leave_work_schedules`, `hr_leave_submissions`), tài liệu Phúc lợi `phuc-loi`, `account_audit_log`. |
 | `0041–0042` | Trạng thái nhân sự `employment_status` (`active`/`resigned`), đơn nghỉ phép cho tài khoản nội bộ chưa gắn nhân sự (`hr_employee_id` nullable). |
 | `0043` | `special_day_notice_log` — chống gửi trùng thông báo ngày lễ/sinh nhật. |
+| `0044` | `purchases.raw_hash` — băm raw phiếu nhập đối soát không cần tải lại cột `raw`, giảm egress Supabase. |
 
 ---
 
@@ -78,10 +88,14 @@
    - Nút **Cột hiển thị** mở menu chọn cột, lưu tùy chọn trong phiên.
    - Tay kéo chỉnh độ rộng cột ở mép phải tiêu đề, nội dung dài xuống dòng.
    - Ô tìm kiếm tích hợp nút xóa nhanh (`search-clear`).
-   - Phân trang chuẩn 100 dòng/trang, hỗ trợ chuyển trang mượt mà.
+   - Phân trang chuẩn 100 dòng/trang, hỗ trợ chuyển trang mượt mà (áp dụng cho Báo cáo, Vòng đời đơn hàng, Sổ quỹ, Nhân sự, Tài khoản).
    - Tắt điều khiển cột đối với các bảng quy định/chính sách tĩnh.
-2. **Không dùng framework nặng:** Giữ thuần JavaScript và CSS variables để tối đa tốc độ tải trang và phản hồi dưới 100ms.
-3. **Thẩm mỹ cao cấp:** Màu sắc hài hòa theo bảng màu định sẵn trong `shared.css`, hỗ trợ cả giao diện Sáng và Tối, responsive hoàn chỉnh trên thiết bị di động.
+2. **Khung xem chi tiết dùng chung (`public/shared/detail-panel.css`):**
+   - Tiền tố `.dp-*`: `.dp-head`, `.dp-stats`, `.dp-card`, `.dp-section`, `.dp-table-wrap`, `.dp-table`.
+   - Có dải thẻ **chỉ số tổng quan** (`.dp-stats`), 1 khung cuộn duy nhất, tiêu đề bảng dính trên.
+   - **Tắt nút Cột hiển thị** (`data-table-controls="off"`), không làm rối khung xem chi tiết.
+3. **Không dùng framework nặng:** Giữ thuần JavaScript và CSS variables để tối đa tốc độ tải trang và phản hồi dưới 100ms.
+4. **Thẩm mỹ cao cấp:** Màu sắc hài hòa theo bảng màu định sẵn trong `shared.css`, hỗ trợ cả giao diện Sáng và Tối, responsive hoàn chỉnh trên thiết bị di động.
 
 ## Marketing Pancake — bất biến 12/10/2026
 
