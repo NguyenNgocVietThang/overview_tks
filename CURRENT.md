@@ -12,13 +12,18 @@
 |---|---|---|
 | **Mã nguồn Backend** | Hoàn thành | Node.js Express, hỗ trợ 7 tab báo cáo, sổ quỹ, nhân sự, tài khoản, bot Telegram |
 | **Cơ sở dữ liệu** | 0001 → 0044 | Đầy đủ 44 migration từ dữ liệu lõi đến đánh dấu thông báo ngày đặc biệt (`0043`, chưa áp Production) và `purchases.raw_hash` (`0044`, chưa áp) |
-| **Kiểm thử tự động** | 2.171/2.175 xanh | Test mới của tính năng đều xanh. 4 test lỗi ở xuất Excel/HTML tồn kho (`dashboard/exportService.test.js`, `test/frontend/branch-column-tables.test.js`: cột "Vận chuyển SG"), không thuộc phạm vi phiên này, chưa xử lý |
+| **Kiểm thử tự động** | 2.195/2.199 xanh | Test mới của tính năng đều xanh. 4 test lỗi ở xuất Excel/HTML tồn kho (`dashboard/exportService.test.js`, `test/frontend/branch-column-tables.test.js`: cột "Vận chuyển SG"), không thuộc phạm vi phiên này, chưa xử lý |
 | **Knowledge Graph** | Đã cập nhật | Graphify updated ngày 09/10/2026 (6.389 nodes, 12.615 edges, 368 communities) |
 | **Tài liệu hệ thống** | Đồng bộ 100% | `README.md`, `server/README.md`, `SCHEMA.md`, `implementation_plan.md`, SRS, BRD, MEMORY.md |
 
 ---
 
 ## 2. Các đầu việc vừa hoàn thành (Recently Completed — Tháng 10/2026)
+
+0. **Vòng đời đơn hàng — chỉ số tổng quát đầu trang (12/10/2026, branch `main`, chưa commit/deploy, không migration):**
+   - Dải thẻ trên bảng "Toàn bộ đơn hàng": Chưa gửi kế toán (**chỉ đơn Phiếu tạm**), Đã gửi kế toán, Đang được giao; và Tổng đơn vi phạm + 6 thẻ theo từng loại cảnh báo. Bấm thẻ = lọc nhanh bảng (bấm lại để bỏ).
+   - API `GET /api/shipment/lifecycle` thêm `kpis: { status, warnings }` (`orderLifecycleQuery.countSummary`): đếm theo bộ lọc hiện tại, thẻ trạng thái bỏ lọc `status`, thẻ cảnh báo bỏ lọc `warning`. Tính trong RAM, 0 truy vấn mới. `warningCounts` (theo cơ sở) giữ nguyên.
+   - Test: `orderLifecycleQuery.test.js`, `orderLifecycleWarning.test.js`, `test/frontend/order-lifecycle-kpis.test.js` (mới), `lifecycleFakeServer.js` trả `kpis`.
 
 0. **Vòng đời đơn hàng — 5 luồng + 6 cảnh báo có tên (12/10/2026, branch `main`, chưa commit/deploy, không migration):**
    - Đọc thêm tab `Khách_HN`/`Khách_SG` (khách/ship lấy tại kho; chỉ Mã đơn / Sale gửi KT / KT duyệt / Ship nhận đơn; fail-soft). `DonHang_HN/SG` bỏ qua cột Ship nhận đơn.

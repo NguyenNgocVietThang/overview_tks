@@ -214,6 +214,11 @@ test('listAllOrders / queryOrders / exportOrders / overrideStatus trả kèm c�
 
     const page = await ctx.service.queryOrders({});
     assert.deepEqual(page.orders.map(o => [o.orderCode, o.warning]), [['HD001', true], ['HD002', false]]);
+    // Chi so tong quat dau trang: HD001 co canh bao (Ke toan sot don), don khong co dong Kiot nen khong tinh vao 'Chua gui KT'.
+    assert.equal(page.kpis.warnings.any, 1);
+    assert.equal(page.kpis.warnings.ACCOUNTANT_LATE, 1);
+    assert.equal(page.kpis.status.SENT_TO_ACCOUNTANT, 1);
+    assert.equal(page.kpis.status.NOT_SENT, 0);
 
     const exported = await ctx.service.exportOrders({ sort: 'orderCode', dir: 'desc' });
     assert.deepEqual(exported.map(o => [o.orderCode, o.warning]), [['HD002', false], ['HD001', true]]);

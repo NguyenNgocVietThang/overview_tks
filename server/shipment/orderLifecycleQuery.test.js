@@ -254,3 +254,48 @@ test('hiệu năng thô: 60.000 dòng — lọc + sắp xếp chữ và số tro
   q.selectRows(rows, q.parseParams({ sort: 'orderTotal' }));
   assert.ok(Date.now() - start < 8000, 'qua cham: ' + (Date.now() - start) + 'ms');
 });
+
+// ---------------------------------------------------------------------------
+// countSummary — chi so tong quat dau trang
+// ---------------------------------------------------------------------------
+
+function summaryRow(code, summaryCode, extra = {}) {
+  return row(code, { summary: { code: summaryCode, label: summaryCode, at: null }, ...extra });
+}
+
+test('countSummary: 3 trạng thái — "Chưa gửi KT" chỉ tính đơn Phiếu tạm; các mã cảnh báo đếm đủ, 0 nếu vắng; đơn nhiều cảnh báo đếm 1 lần ở "any"', () => {
+  const rows = [
+    summaryRow('A', 'NOT_SENT'),
+    summaryRow('B', 'NOT_SENT', { kiotStatus: 'Hoàn thành' }),
+    summaryRow('C', 'NOT_SENT', { kiotStatus: 'Đã hủy' }),
+    summaryRow('D', 'SENT_TO_ACCOUNTANT', { kiotStatus: 'Đã xác nhận', warnings: ['ACCOUNTANT_LATE'], warning: true }),
+    summaryRow('E', 'DELIVERING', { kiotStatus: 'Đang giao hàng', warnings: ['NOT_SIGNED_6H', 'DRIVER_NO_PHOTO'], warning: true }),
+    summaryRow('F', 'SIGNED', { kiotStatus: 'Hoàn thành' })
+  ];
+  assert.deepEqual(q.countSummary(rows, q.parseParams({})), {
+    status: { NOT_SENT: 1, SENT_TO_ACCOUNTANT: 1, DELIVERING: 1 },
+    warnings: {
+      any: 2, ACCOUNTANT_LATE: 1, DRIVER_NO_PHOTO: 1, DRIVER_FORGOT_PHOTO: 0, NOT_SIGNED_6H: 1, PICKUP_PENDING: 0, NO_TRAIN_BILL: 0
+    }
+  });
+});
+
+test('countSummary: tôn trọng bộ lọc cơ sở / ngày / tìm kiếm / trạng thái Kiot, nhưng thẻ trạng thái bỏ lọc status và thẻ cảnh báo bỏ lọc warning', () => {
+  const rows = [
+    summaryRow('HN1', 'NOT_SENT', { orderDate: '01/10/2026 10:00' }),
+    summaryRow('HN2', 'DELIVERING', { kiotStatus: 'Đang giao hàng', orderDate: '01/10/2026 11:00', warnings: ['NOT_SIGNED_6H'], warning: true }),
+    summaryRow('HN3', 'DELIVERING', { kiotStatus: 'Đang giao hàng', orderDate: '05/10/2026 11:00', warnings: ['NOT_SIGNED_6H'], warning: true }),
+    summaryRow('SG1', 'NOT_SENT', { branch: 'SG', orderDate: '01/10/2026 10:00' })
+  ];
+  // Dang loc "Dang giao": the "Chua gui" van dem don Phieu tam khac, khong ve 0.
+  const delivering = q.countSummary(rows, q.parseParams({ status: 'DELIVERING' }));
+  assert.deepEqual(delivering.status, { NOT_SENT: 2, SENT_TO_ACCOUNTANT: 0, DELIVERING: 2 });
+  // Dang loc 1 ma canh bao: cac the canh bao van thay cac ma khac / tong.
+  assert.equal(q.countSummary(rows, q.parseParams({ warning: 'PICKUP_PENDING' })).warnings.NOT_SIGNED_6H, 2);
+  // Co so + khoang ngay thu hep tap dem.
+  const narrowed = q.countSummary(rows, q.parseParams({ branch: 'HN', dateField: 'orderDate', from: '2026-10-01', to: '2026-10-01' }));
+  assert.deepEqual(narrowed.status, { NOT_SENT: 1, SENT_TO_ACCOUNTANT: 0, DELIVERING: 1 });
+  assert.equal(narrowed.warnings.any, 1);
+  // Loc Trang thai Kiot "Hoan thanh": khong con don Phieu tam nao -> 0.
+  assert.equal(q.countSummary(rows, q.parseParams({ kiotStatus: 'Hoàn thành' })).status.NOT_SENT, 0);
+});

@@ -459,7 +459,8 @@ async function loadMergedRows(kiot) {
  * dateField, from, to, mode, q, sort, dir, page, pageSize — xem orderLifecycleQuery.parseParams; tham so sai
  * -> loi 400). `kiot` (repository co readOrders(), khong bao gio throw) tuy chon: khong truyen thi chi co dong sheet.
  * Tra { orders (cac dong cua trang), page, pageSize, totalPages, total (don trong co so da chon, chua loc),
- * filteredTotal (sau loc), kiotStatuses (cho o loc), kiot (tom tat nguon Kiot | null) }.
+ * filteredTotal (sau loc), kiotStatuses (cho o loc), warningCounts (theo co so), kpis (chi so tong quat dau
+ * trang theo bo loc hien tai — xem orderLifecycleQuery.countSummary), kiot (tom tat nguon Kiot | null) }.
  */
 async function queryOrders(rawParams, { kiot } = {}) {
   const params = query.parseParams(rawParams);
@@ -476,6 +477,7 @@ async function queryOrders(rawParams, { kiot } = {}) {
     filteredTotal: selected.length,
     kiotStatuses: query.distinctKiotStatuses(scope),
     warningCounts: query.countWarnings(scope),
+    kpis: query.countSummary(rows, params),
     kiot: kiotMeta(kiotResult)
   };
 }

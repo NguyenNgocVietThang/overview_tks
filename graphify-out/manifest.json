@@ -558,9 +558,9 @@
     "semantic_hash": ""
   },
   "server/shipment/orderLifecycleService.js": {
-    "mtime": 1791779498.500239,
-    "seen": 1791779834.3735437,
-    "ast_hash": "952bf422f5274f5f151ae3548cb55df5",
+    "mtime": 1791784025.533656,
+    "seen": 1791784392.7588656,
+    "ast_hash": "eb31f39cb827aa94e034a334dc00cf30",
     "semantic_hash": ""
   },
   "server/shipment/orderLifecycleService.test.js": {
@@ -654,9 +654,9 @@
     "semantic_hash": "450247e9c887d43c3ef8e0aa563047de"
   },
   "README.md": {
-    "mtime": 1791779820.1398368,
-    "seen": 1791779834.3735437,
-    "ast_hash": "8adfee085fe2e2b2d7f92ac49744583c",
+    "mtime": 1791784290.8711743,
+    "seen": 1791784392.7588656,
+    "ast_hash": "6005b68cc2cf3e8c4805529101dc569d",
     "semantic_hash": ""
   },
   "design-system/tks-dashboard/MASTER.md": {
@@ -672,9 +672,9 @@
     "semantic_hash": ""
   },
   "docs/02-srs/SRS_Dashboard_GoogleSheets.md": {
-    "mtime": 1791779820.1398368,
-    "seen": 1791779834.3735437,
-    "ast_hash": "0f0f5692e1e0cf90b592ae9816db2d00",
+    "mtime": 1791784290.2861938,
+    "seen": 1791784392.7588656,
+    "ast_hash": "f9badd320a8d355f3fb0cbd6f6f6ac81",
     "semantic_hash": ""
   },
   "docs/03-process/BPMN_Dashboard_GoogleSheets.md": {
@@ -684,9 +684,9 @@
     "semantic_hash": ""
   },
   "docs/04-planning/implementation_plan.md": {
-    "mtime": 1791779820.1398368,
-    "seen": 1791779834.3735437,
-    "ast_hash": "7bfbfe33cb6ff16e4c974cf16a0027e4",
+    "mtime": 1791784300.7442532,
+    "seen": 1791784392.7588656,
+    "ast_hash": "0789853355c23246c7553352bf8acc80",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-08-13-dashboard-result-cache.md": {
@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1791779820.1398368,
-    "seen": 1791779834.3735437,
-    "ast_hash": "b3b8fa092baea7581f156dfe9eec5737",
+    "mtime": 1791784289.261361,
+    "seen": 1791784392.7588656,
+    "ast_hash": "7a876e4330d865668e493771b8542a71",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -834,9 +834,9 @@
     "semantic_hash": ""
   },
   "server/public/shipment/lifecycle/index.html": {
-    "mtime": 1791779654.8384893,
-    "seen": 1791779834.3735437,
-    "ast_hash": "e51e8130dcd40945bef5f7a01b5c3b11",
+    "mtime": 1791784353.764555,
+    "seen": 1791784392.7588656,
+    "ast_hash": "27a1559cbaa2f32f584fd5694acb1cc1",
     "semantic_hash": ""
   },
   "Logo.jpg": {
@@ -2808,21 +2808,21 @@
     "semantic_hash": ""
   },
   "server/shipment/orderLifecycleQuery.js": {
-    "mtime": 1791779498.500239,
-    "seen": 1791779834.3735437,
-    "ast_hash": "ae07962f9544eda1d1b1771f95154735",
+    "mtime": 1791784020.517921,
+    "seen": 1791784392.7588656,
+    "ast_hash": "89f922b1c8f0b67ecd68017d8c6f6654",
     "semantic_hash": ""
   },
   "server/shipment/orderLifecycleQuery.test.js": {
-    "mtime": 1791779619.5257323,
-    "seen": 1791779834.3735437,
-    "ast_hash": "5764b029a776239edc9cec8cc02f36ac",
+    "mtime": 1791784071.9575696,
+    "seen": 1791784392.7588656,
+    "ast_hash": "43d011ea589ff4390480871cca8ba492",
     "semantic_hash": ""
   },
   "server/shipment/orderLifecycleWarning.test.js": {
-    "mtime": 1791779562.9902952,
-    "seen": 1791779834.3735437,
-    "ast_hash": "a03ba27944340f7437b3423c315af1fe",
+    "mtime": 1791784204.2387776,
+    "seen": 1791784392.7588656,
+    "ast_hash": "7e11cc5885c0dffae16464c4454be6d5",
     "semantic_hash": ""
   },
   "server/stockLocations/stockLocationsRoutes.js": {
@@ -3048,9 +3048,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/lifecycleFakeServer.js": {
-    "mtime": 1790915222.4341083,
-    "seen": 1791527000.981157,
-    "ast_hash": "3c75d8376e89b4c2e468730a4507ffc5",
+    "mtime": 1791784060.3155205,
+    "seen": 1791784392.7588656,
+    "ast_hash": "eed7fa1dc7665c9e1264c17875ee1ea3",
     "semantic_hash": ""
   },
   "server/test/frontend/marketing-report.test.js": {
@@ -3378,9 +3378,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1791779820.1398368,
-    "seen": 1791779834.3735437,
-    "ast_hash": "819394240fff45d2e060ad83466c5437",
+    "mtime": 1791784378.255538,
+    "seen": 1791784392.7588656,
+    "ast_hash": "259a9fb45b4e7f3ebcada048d70725cf",
     "semantic_hash": ""
   },
   "MEMORY.md": {
@@ -3435,6 +3435,12 @@
     "mtime": 1791774514.8385992,
     "seen": 1791774652.8515284,
     "ast_hash": "25d46afc7cac270dccffe0f8c33dedb7",
+    "semantic_hash": ""
+  },
+  "server/test/frontend/order-lifecycle-kpis.test.js": {
+    "mtime": 1791784242.9530237,
+    "seen": 1791784392.7588656,
+    "ast_hash": "dab68ac552bcc10e180f825a4c128e9f",
     "semantic_hash": ""
   }
 }

@@ -28,7 +28,8 @@ const WARNING_FILTERS = Object.freeze([
 // Mac dinh (khi khong chon cot sap xep): don moi dat nhat truoc.
 const DEFAULT_SORT = Object.freeze({ key: 'orderDate', dir: -1 });
 // Thu tu hien thi cua bo loc "Trang thai KiotViet"; trang thai la xep sau theo ten.
-const KIOT_STATUS_ORDER = Object.freeze(['Phiếu tạm', 'Đã xác nhận', 'Đang giao hàng', 'Hoàn thành', 'Đã hủy']);
+const KIOT_PENDING = 'Phiếu tạm';
+const KIOT_STATUS_ORDER = Object.freeze([KIOT_PENDING, 'Đã xác nhận', 'Đang giao hàng', 'Hoàn thành', 'Đã hủy']);
 
 function makeError(message, code) {
   const error = new Error(message);
@@ -250,6 +251,26 @@ function filterRows(rows, params) {
   });
 }
 
+/**
+ * Chi so tong quat dau trang. Dem theo cac bo loc dang chon (co so, ngay, tim kiem, trang thai Kiot...) NHUNG
+ * bo chinh chieu dang thong ke: the trang thai bo loc `status`, the canh bao bo loc `warning` — de dang loc
+ * "Dang giao" thi the "Chua gui KT" van ra dung so. "Chua gui ke toan" chi tinh don Phieu tam (hon 99% don Kiot
+ * khong co dong sheet deu mang trang thai nay, ke ca Hoan thanh/Da huy). 1 lan duyet danh sach co san trong RAM.
+ */
+function countSummary(rows, params) {
+  const base = rowsInBranch(rows, params.branch);
+  const status = { NOT_SENT: 0, SENT_TO_ACCOUNTANT: 0, DELIVERING: 0 };
+  filterRows(base, Object.assign({}, params, { status: '' })).forEach(row => {
+    const code = row.summary && row.summary.code;
+    if (code === 'NOT_SENT') { if (row.kiotStatus === KIOT_PENDING) status.NOT_SENT += 1; }
+    else if (code in status) status[code] += 1;
+  });
+  const warnings = { any: 0 };
+  WARNING_FILTERS.forEach(code => { warnings[code] = 0; });
+  Object.assign(warnings, countWarnings(filterRows(base, Object.assign({}, params, { warning: '' }))));
+  return { status, warnings };
+}
+
 /** Danh sach TRANG THAI KIOT co mat trong cac don (cho o loc), theo thu tu quen thuoc roi theo ten. */
 function distinctKiotStatuses(rows) {
   const seen = new Set();
@@ -305,5 +326,5 @@ module.exports = {
   DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, SORT_KEYS, DATE_FIELDS, SEARCH_MODES, DEFAULT_SORT, WARNING_FILTERS,
   normalizeSearchText, parseDateTimeValue, parseSearchCodes,
   parseParams, rowsInBranch, filterRows, sortRows, selectRows, paginate, distinctKiotStatuses, countWarnings,
-  createSelectionCache
+  countSummary, createSelectionCache
 };
