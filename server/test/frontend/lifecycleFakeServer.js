@@ -20,6 +20,7 @@ function lifecycleResponse(url, orders, kiot) {
     total: scope.length,
     filteredTotal: selected.length,
     kiotStatuses: query.distinctKiotStatuses(scope),
+    kpis: query.countSummary(orders, params),
     kiot
   };
 }

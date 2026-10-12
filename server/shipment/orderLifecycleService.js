@@ -53,6 +53,12 @@ const STATUS_RANK = Object.freeze({
   [STATUS.SIGNED]: 5
 });
 
+// Phai khop orderLifecycleRepository.FLOW_* (test repository co kiem tra) — khai bao lai o day de test
+// service mock repository khong lam hong dieu kien canh bao.
+const FLOW_DELIVERY = 'DELIVERY';
+const FLOW_PICKUP = 'PICKUP';
+const FLOW_NORTH_SOUTH = 'NORTH_SOUTH';
+
 function hasValue(value) {
   return value !== undefined && value !== null && String(value).trim() !== '';
 }
@@ -134,11 +140,38 @@ function computeEffectiveStatus(record, overrideEntry) {
 }
 
 // ---------------------------------------------------------------------------
-// Canh bao qua 24h: tu luc Sale ra don (cot "Sale gui don cho ke toan") den luc
-// don dang van chuyen (cot "Tai xe gui xac nhan giao hang").
+// CANH BAO theo luong (2026-10-12) — moi don co the dinh NHIEU canh bao cung luc, tu mat khi buoc tuong ung
+// da lam. Chi phu thuoc cac o sheet + dong ho: tinh trong RAM, KHONG luu DB (khong ton egress Supabase).
+// API tra MA ngan (WARNING), giao dien/xuat Excel doi sang nhan (WARNING_LABEL).
 // ---------------------------------------------------------------------------
-const OVERDUE_MS = 24 * 60 * 60 * 1000;
-const VN_UTC_OFFSET_MS = 7 * 60 * 60 * 1000; // Asia/Ho_Chi_Minh, khong co gio mua he
+const HOUR_MS = 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
+const VN_UTC_OFFSET_MS = 7 * HOUR_MS; // Asia/Ho_Chi_Minh, khong co gio mua he
+const WORK_START_HOUR = 6;
+const WORK_END_HOUR = 18;
+const ACCOUNTANT_LATE_WORK_MS = 30 * MINUTE_MS;
+const DRIVER_NO_PHOTO_MS = 24 * HOUR_MS;
+const NOT_SIGNED_AFTER_DRIVER_MS = 6 * HOUR_MS;
+const PICKUP_PENDING_MS = 48 * HOUR_MS;
+const NORTH_SOUTH_NO_BILL_MS = 24 * HOUR_MS;
+
+const WARNING = Object.freeze({
+  ACCOUNTANT_LATE: 'ACCOUNTANT_LATE',
+  DRIVER_NO_PHOTO: 'DRIVER_NO_PHOTO',
+  DRIVER_FORGOT_PHOTO: 'DRIVER_FORGOT_PHOTO',
+  NOT_SIGNED_6H: 'NOT_SIGNED_6H',
+  PICKUP_PENDING: 'PICKUP_PENDING',
+  NO_TRAIN_BILL: 'NO_TRAIN_BILL'
+});
+
+const WARNING_LABEL = Object.freeze({
+  [WARNING.ACCOUNTANT_LATE]: 'Kế toán sót đơn',
+  [WARNING.DRIVER_NO_PHOTO]: 'Lái xe chưa chụp đơn',
+  [WARNING.DRIVER_FORGOT_PHOTO]: 'Lái xe quên chụp',
+  [WARNING.NOT_SIGNED_6H]: 'Chưa nhận đơn quá 6 giờ',
+  [WARNING.PICKUP_PENDING]: 'Khách/Ship chưa lấy',
+  [WARNING.NO_TRAIN_BILL]: 'Chưa chụp bill tàu'
+});
 
 /**
  * Doi 1 o thoi gian cua sheet ("dd/MM/yyyy HH:mm[:ss]", "dd/MM/yyyy", ma "15,35"
@@ -163,31 +196,67 @@ function parseSheetTimeMs(value) {
 }
 
 /**
- * true = phai hien "Canh bao" (qua 24h ke tu luc Sale ra don ma:
- *   - don da van chuyen nhung luc do da cach luc ra don > 24h, hoac
- *   - don CHUA van chuyen ma hien tai da cach luc ra don > 24h).
- * Khong bao gio canh bao khi chua co "Sale gui don cho ke toan" (du cac cot sau
- * da co gia tri: dang van chuyen, hoan thanh, su co...) hoac don da huy/su co
- * ma chua tung van chuyen (khong con cho giao).
+ * Thoi gian (ms) nam trong gio lam viec 6h–18h gio VN giua 2 moc UTC. Dung som khi da du `enoughMs`
+ * (don ton lau khong phai duyet het tung ngay).
  */
-function computeOverdueWarning(record, summary, now = Date.now()) {
-  const sentAt = parseSheetTimeMs(record && record.saleSentAt);
-  if (sentAt === null) return false;
-
-  // Moc "dang van chuyen": uu tien cot Tai xe, neu bot loi bo trong thi lay moc
-  // som nhat cua cac cot sau no (don chac chan da qua khau van chuyen).
-  let transitAt = null;
-  ['driverConfirmedDeliveryAt', 'deliveryConfirmedAt', 'shipReceivedAt', 'orderSignedAt'].some(key => {
-    transitAt = parseSheetTimeMs(record[key]);
-    return transitAt !== null;
-  });
-  if (transitAt === null && summary && summary.isOverride && STATUS_RANK[summary.code] >= STATUS_RANK[STATUS.DELIVERING]) {
-    transitAt = parseSheetTimeMs(summary.at);
+function workingMsBetween(startMs, endMs, enoughMs = Infinity) {
+  if (!(endMs > startMs)) return 0;
+  const DAY = 24 * HOUR_MS;
+  const startLocal = startMs + VN_UTC_OFFSET_MS;
+  const endLocal = endMs + VN_UTC_OFFSET_MS;
+  let total = 0;
+  for (let day = Math.floor(startLocal / DAY) * DAY; day < endLocal && total < enoughMs; day += DAY) {
+    const from = Math.max(startLocal, day + WORK_START_HOUR * HOUR_MS);
+    const to = Math.min(endLocal, day + WORK_END_HOUR * HOUR_MS);
+    if (to > from) total += to - from;
   }
+  return total;
+}
 
-  if (transitAt !== null) return transitAt - sentAt > OVERDUE_MS;
-  if (summary && (summary.code === STATUS.CANCELLED || summary.code === STATUS.EXCEPTION)) return false;
-  return now - sentAt > OVERDUE_MS;
+/**
+ * Danh sach MA canh bao dang dung cua 1 don (rong = khong canh bao). Quy tac theo _flow cua dong sheet:
+ * - moi luong: Sale da gui KT, KT chua duyet, du 30' TRONG GIO 6h–18h -> ACCOUNTANT_LATE.
+ * - DELIVERY (DonHang_HN/SG): Sale gui >24h, chua Tai xe gui xac nhan, chua ky nhan -> DRIVER_NO_PHOTO;
+ *   da ky nhan ma chua Tai xe gui xac nhan -> DRIVER_FORGOT_PHOTO; Tai xe gui >6h ma chua ky nhan -> NOT_SIGNED_6H.
+ * - PICKUP (Khach_HN/SG): Sale gui >48h ma chua Ship nhan don -> PICKUP_PENDING.
+ * - NORTH_SOUTH (DonHang_MienNam): Sale gui >24h ma chua ky nhan -> NO_TRAIN_BILL.
+ * Don da huy/su co (ghi de thu cong) khong canh bao. Ghi de len trang thai thuong coi nhu cac buoc truoc
+ * no da lam (vd ghi de "Da nhan (Di giao xong)" -> co ky nhan).
+ */
+function computeWarnings(record, summary, now = Date.now()) {
+  if (!record) return [];
+  if (summary && (summary.code === STATUS.CANCELLED || summary.code === STATUS.EXCEPTION)) return [];
+  const overrideRank = summary && summary.isOverride ? STATUS_RANK[summary.code] : undefined;
+  const reached = status => overrideRank !== undefined && overrideRank >= STATUS_RANK[status];
+
+  const sentAt = parseSheetTimeMs(record.saleSentAt);
+  const approved = hasValue(record.accountantApprovedOrderAt) || reached(STATUS.DELIVERING);
+  const driverAt = parseSheetTimeMs(record.driverConfirmedDeliveryAt);
+  const hasDriver = hasValue(record.driverConfirmedDeliveryAt) || reached(STATUS.DELIVERING);
+  const signed = hasValue(record.orderSignedAt) || reached(STATUS.SIGNED);
+  const shipReceived = hasValue(record.shipReceivedAt) || reached(STATUS.SHIP_RECEIVED);
+  const flow = record._flow || FLOW_DELIVERY;
+
+  const warnings = [];
+  if (sentAt !== null && !approved && workingMsBetween(sentAt, now, ACCOUNTANT_LATE_WORK_MS) >= ACCOUNTANT_LATE_WORK_MS) {
+    warnings.push(WARNING.ACCOUNTANT_LATE);
+  }
+  if (flow === FLOW_DELIVERY) {
+    if (sentAt !== null && !hasDriver && !signed && now - sentAt > DRIVER_NO_PHOTO_MS) warnings.push(WARNING.DRIVER_NO_PHOTO);
+    if (signed && !hasDriver) warnings.push(WARNING.DRIVER_FORGOT_PHOTO);
+    if (driverAt !== null && !signed && now - driverAt > NOT_SIGNED_AFTER_DRIVER_MS) warnings.push(WARNING.NOT_SIGNED_6H);
+  } else if (flow === FLOW_PICKUP) {
+    if (sentAt !== null && !shipReceived && now - sentAt > PICKUP_PENDING_MS) warnings.push(WARNING.PICKUP_PENDING);
+  } else if (flow === FLOW_NORTH_SOUTH) {
+    if (sentAt !== null && !signed && now - sentAt > NORTH_SOUTH_NO_BILL_MS) warnings.push(WARNING.NO_TRAIN_BILL);
+  }
+  return warnings;
+}
+
+/** Truong canh bao gan vao dong tra ve: `warnings` (ma) + `warning` (boolean, giu tuong thich). */
+function warningFields(record, summary, now) {
+  const warnings = computeWarnings(record, summary, now);
+  return { warnings, warning: warnings.length > 0 };
 }
 
 /**
@@ -229,9 +298,8 @@ function toOrderRow(record, overrideEntry) {
   const summary = computeEffectiveStatus(record, overrideEntry);
   return Object.assign(toDetail(record), {
     branch: record._branch,
-    summary,
-    warning: computeOverdueWarning(record, summary)
-  });
+    summary
+  }, warningFields(record, summary));
 }
 
 /**
@@ -299,6 +367,7 @@ function kiotOnlyRow(order) {
     customerName: order.customerName || '',
     saleSentAt: '',
     summary: { code: STATUS.NOT_SENT, label: STATUS_LABEL[STATUS.NOT_SENT], actor: null, at: order.orderDate || null },
+    warnings: [],
     warning: false,
     source: 'kiotviet',
     kiotStatus: order.kiotStatus || '',
@@ -390,7 +459,8 @@ async function loadMergedRows(kiot) {
  * dateField, from, to, mode, q, sort, dir, page, pageSize — xem orderLifecycleQuery.parseParams; tham so sai
  * -> loi 400). `kiot` (repository co readOrders(), khong bao gio throw) tuy chon: khong truyen thi chi co dong sheet.
  * Tra { orders (cac dong cua trang), page, pageSize, totalPages, total (don trong co so da chon, chua loc),
- * filteredTotal (sau loc), kiotStatuses (cho o loc), kiot (tom tat nguon Kiot | null) }.
+ * filteredTotal (sau loc), kiotStatuses (cho o loc), warningCounts (theo co so), kpis (chi so tong quat dau
+ * trang theo bo loc hien tai — xem orderLifecycleQuery.countSummary), kiot (tom tat nguon Kiot | null) }.
  */
 async function queryOrders(rawParams, { kiot } = {}) {
   const params = query.parseParams(rawParams);
@@ -406,6 +476,8 @@ async function queryOrders(rawParams, { kiot } = {}) {
     total: scope.length,
     filteredTotal: selected.length,
     kiotStatuses: query.distinctKiotStatuses(scope),
+    warningCounts: query.countWarnings(scope),
+    kpis: query.countSummary(rows, params),
     kiot: kiotMeta(kiotResult)
   };
 }
@@ -505,13 +577,13 @@ async function overrideStatus(orderCode, { code, changedBy, changedByRole, note 
     orderCode: record.orderCode,
     branch: record._branch,
     summary,
-    warning: computeOverdueWarning(record, summary)
+    ...warningFields(record, summary)
   };
 }
 
 module.exports = {
   STATUS, STATUS_LABEL, STATUS_RANK,
-  computeStatus, computeEffectiveStatus, computeOverdueWarning, parseSheetTimeMs, findOrder, listAllOrders, queryOrders,
+  computeStatus, computeEffectiveStatus, WARNING, WARNING_LABEL, computeWarnings, workingMsBetween, parseSheetTimeMs, findOrder, listAllOrders, queryOrders,
   exportOrders, overrideStatus, listHistory,
   mergeRows
 };

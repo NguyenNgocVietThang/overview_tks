@@ -87,7 +87,7 @@ Supabase PostgreSQL
 
 Google Sheets (service account)
     ├── Bảng Công nợ (DEBT_MANAGEMENT_SPREADSHEET_ID)         : chỉ đọc
-    ├── Vòng đời đơn hàng (ORDER_LIFECYCLE_SPREADSHEET_ID)    : đọc DonHang_HN/SG, GHI tab `Lịch sử cập nhật`
+    ├── Vòng đời đơn hàng (ORDER_LIFECYCLE_SPREADSHEET_ID)    : đọc DonHang_HN/SG/MienNam, GHI tab `Lịch sử cập nhật`
     ├── Vị trí hàng (STOCK_LOCATIONS_SPREADSHEET_ID)          : chỉ đọc `Vị trí HN`, `Vị trí SG`
     └── Marketing (TRỰC PAGE, SĐT, ADS; MARKETING_*_SPREADSHEET_ID): chỉ đọc
     (Workbook HR và tab `Trả NCC` không còn được đọc)
@@ -341,12 +341,14 @@ Lớp hiệu ứng 3D và giám sát hiệu năng thích ứng đã gỡ bỏ v�
 | **Mã** | **Mô tả** | **Ưu tiên** | **Trạng thái** |
 |---|---|---|---|
 | FR-14.1 | Trang `/shipment/lifecycle/` (quyền `shipment.lifecycle`) hiển thị **mọi đơn đặt hàng KiotViet** của HN + SG (Phiếu tạm, Đã xác nhận, Đang giao hàng, Hoàn thành, Đã hủy; ~60 nghìn đơn) ghép Google Sheet `DonHang_HN`/`DonHang_SG` theo (cơ sở, mã đơn). Đơn có trên sheet lấy trạng thái vòng đời của sheet; đơn chỉ có ở Kiot nhận "Đơn chưa gửi kế toán" (thấp nhất, chỉ đọc); dòng sheet không khớp đơn Kiot nào bị bỏ. Postgres lỗi → `kiot.ok = false`, trang vẫn trả đơn sheet kèm cảnh báo. | Cao | Hoàn thành |
-| FR-14.2 | `GET /api/shipment/lifecycle?branch&status&kiotStatus&dateField&from&to&mode&q&sort&dir&page&pageSize`: lọc, sắp xếp, phân trang ở máy chủ (`shipment/orderLifecycleQuery.js`), trả 1 trang (mặc định 100, tối đa 200 dòng); tham số sai → 400 kèm mã. Cache đơn Kiot 2 phút kiểu stale-while-revalidate (`kiotOrdersRepository.js`). | Cao | Hoàn thành |
+| FR-14.2 | `GET /api/shipment/lifecycle?branch&status&kiotStatus&dateField&from&to&mode&q&sort&dir&page&pageSize`: lọc, sắp xếp, phân trang ở máy chủ (`shipment/orderLifecycleQuery.js`), trả 1 trang (mặc định 100, tối đa 200 dòng); tham số sai → 400 kèm mã. Cache đơn Kiot 2 phút kiểu stale-while-revalidate (`kiotOrdersRepository.js`). Kèm `kpis` (chỉ số tổng quát đầu trang): số đơn Chưa gửi kế toán (chỉ Phiếu tạm) / Đã gửi kế toán / Đang giao và số đơn vi phạm theo từng loại cảnh báo, đếm theo bộ lọc hiện tại (thẻ trạng thái bỏ lọc `status`, thẻ cảnh báo bỏ lọc `warning`); bấm thẻ để lọc nhanh bảng. | Cao | Hoàn thành |
 | FR-14.3 | Cột **Trạng thái KiotViet** (+ bộ lọc), **Ghi chú** (mô tả đơn), **Giá trị đơn** (mọi đơn) và **Giá trị có bán** (chỉ đơn Phiếu tạm) = Σ từng mặt hàng `min(SL đặt, max(0, tồn kho cơ sở của đơn)) × đơn giá sau chiết khấu` (bỏ dòng mã `VAT*`; không cộng hàng đang vận chuyển). Nút "Cột hiển thị" ẩn/hiện cột (nhớ theo trình duyệt, "Mã đơn" luôn hiện). | Cao | Hoàn thành |
 | FR-14.4 | `GET /api/shipment/lifecycle/order-detail?code=&branch=HN\|SG`: chi tiết đơn + từng dòng hàng kèm tồn kho / **Điều chuyển SG** (hàng đang vận chuyển, chỉ tham khảo) / có bán (404 `ORDER_NOT_FOUND`, 400 `INVALID_CODE`/`INVALID_BRANCH`). | Cao | Hoàn thành |
 | FR-14.5 | Tra cứu theo mã `GET /:orderCode` (quyền `shipment.lookup`; tra nhiều mã `POST /lookup` đã gỡ 2026-10-05), Lịch sử `GET /history` (`shipment.history`), Ghi đè `POST /:orderCode/override` (`shipment.override`, mặc định chỉ Quản lý; ghi 1 dòng vào tab `Lịch sử cập nhật`). Từ 2026-10-03 cả bốn quyền `requires: 'shipment.lifecycle'`. Tám trạng thái: 6 tính từ mốc thời gian (Đơn chưa gửi kế toán → Đã gửi kế toán → Đang được giao → Đã giao thành công → Đã nhận (Tại kho) → Đã nhận (Đi giao xong)) + `Sự cố`, `Đã hủy` (chỉ qua ghi đè). Bộ lọc trạng thái của bảng "Toàn bộ đơn hàng" và "Lịch sử cập nhật" đều có đủ tám trạng thái (bảng "Toàn bộ đơn hàng" thêm "Sự cố", "Đã hủy" từ 2026-10-05). | Cao | Hoàn thành |
 | FR-14.6 | Xuất Excel `POST /api/shipment/lifecycle/export` (quyền `shipment.export`, mặc định chỉ Quản lý) nhận chính bộ lọc/sắp xếp của GET (không `page`), xuất mọi dòng khớp, tối đa 20.000 dòng (vượt → 400 `TOO_MANY_ROWS`), có cột Ghi chú và Trạng thái KiotViet. | Cao | Hoàn thành |
 | FR-14.7 | Mặc định vai trò có `shipment.lifecycle`: mọi vai trò nội bộ trừ Nhân viên kho, marketing, mua hàng; Khách không có. Mục sidebar "Vòng đời đơn hàng" chỉ hiện khi có quyền này. | Cao | Hoàn thành |
+| FR-14.8 | **Đơn Bắc-Nam** (12/10/2026): ngoài `DonHang_HN`/`DonHang_SG`, hệ thống đọc thêm tab `DonHang_MienNam` của cùng workbook. Đây là đơn của Kiot Hà Nội: cơ sở = Hà Nội, dùng chung bộ lọc, không thêm nhãn/luồng riêng. Chỉ đọc 4 mốc (Mã đơn hàng, Sale gửi đơn cho kế toán, Kế toán duyệt đơn, Đơn đã ký nhận); các cột lái xe/tài xế/kế toán duyệt giao hàng/ship nhận đơn bị bỏ qua. Trạng thái chỉ gồm: Đơn chưa gửi kế toán, Đơn đã gửi kế toán (kể cả khi đã có giờ Kế toán duyệt đơn, giờ này chỉ hiện trong chi tiết), Đã nhận (Đi giao xong); ghi đè thủ công vẫn áp dụng. Không cảnh báo quá 24h. Tab bị lỗi/đổi tên thì bỏ qua và ghi log, không làm hỏng trang. | Cao | Hoàn thành |
+| FR-14.9 | **5 luồng & cảnh báo** (12/10/2026): đọc thêm tab `Khách_HN`/`Khách_SG` (khách/ship lấy tại kho, mốc cuối Ship nhận đơn); `DonHang_HN/SG` không đọc cột Ship nhận đơn. Mỗi đơn hiện mọi cảnh báo đang đúng, tự mất khi điều kiện hết: Kế toán sót đơn (mọi tab: Sale gửi KT, KT chưa duyệt, đủ 30 phút tính trong giờ 6h–18h), Lái xe chưa chụp đơn (DonHang_HN/SG: Sale gửi >24h, chưa Tài xế gửi xác nhận, chưa ký nhận), Lái xe quên chụp (DonHang_HN/SG: đã ký nhận mà chưa Tài xế gửi xác nhận), Chưa nhận đơn quá 6 giờ (DonHang_HN/SG: Tài xế gửi xác nhận >6h chưa ký nhận), Khách/Ship chưa lấy (Khách_HN/SG: Sale gửi >2 ngày chưa Ship nhận đơn), Chưa chụp bill tàu (DonHang_MienNam: Sale gửi >24h chưa ký nhận). Đơn hủy/sự cố không cảnh báo. Bộ lọc "Cảnh báo" theo từng loại. |
 
 ## 3.15. FR-15: Sổ quỹ
 
@@ -581,7 +583,7 @@ Ngày hiển thị `dd/MM/yyyy HH:mm` hoặc `dd/MM/yyyy` theo Asia/Ho_Chi_Minh 
 ## 7.4. Google Sheets còn dùng
 
 - **Bảng Công nợ:** tab `Công nợ HN`/`Công nợ SG` (cột Khách hàng, Lịch thanh toán, Nợ đầu kỳ, Nợ hiện tại, Nợ quá hạn, các tỷ lệ…), nhận diện theo header/alias.
-- **Vòng đời đơn hàng:** `DonHang_HN`, `DonHang_SG` (mã đơn, các mốc gửi kế toán/giao/nhận/ký nhận…) và tab `Lịch sử cập nhật` do server ghi khi ghi đè.
+- **Vòng đời đơn hàng:** `DonHang_HN`, `DonHang_SG`, `DonHang_MienNam` (đơn Bắc-Nam, tính như đơn HN) (mã đơn, các mốc gửi kế toán/giao/nhận/ký nhận…) và tab `Lịch sử cập nhật` do server ghi khi ghi đè.
 - **Vị trí hàng:** `Vị trí HN`, `Vị trí SG` — bản đồ cột ở `docs/stock-locations-setup.md`.
 
 # 8. Ma trận truy vết yêu cầu (Traceability Matrix)

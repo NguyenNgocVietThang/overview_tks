@@ -15,6 +15,8 @@
 
 > **Ghi chú phiên bản 2.2 (05/10/2026):** rà soát lại toàn bộ theo code. Loại các nội dung đã lỗi thời: tab `Trả NCC` đọc từ Google Sheets (nay upload Excel vào Postgres), tab Nhà cung cấp và KPI nhà cung cấp/nhập hàng (đã gỡ), bộ lọc 7/30/90 ngày và tự làm mới 10 phút (nay bộ lọc Từ–Đến theo từng bảng và cập nhật bằng SSE), đăng nhập theo tab `Users`, Khách tự đăng ký (nay khóa), workbook HR (không còn đọc). Bổ sung Vị trí hàng, Vòng đời đơn hàng hợp nhất đơn KiotViet, quản lý ID Telegram và phân quyền theo tính năng.
 
+> **Bổ sung 12/10/2026:** Vòng đời đơn hàng theo 5 luồng (giao xe HN/SG, khách/ship lấy tại kho HN/SG, Bắc-Nam) với 6 cảnh báo có tên tự mất khi xử lý xong: Kế toán sót đơn, Lái xe chưa chụp đơn, Lái xe quên chụp, Chưa nhận đơn quá 6 giờ, Khách/Ship chưa lấy, Chưa chụp bill tàu.
+
 # 1. Giới thiệu
 
 ## 1.1. Mục đích tài liệu
@@ -43,7 +45,7 @@ Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (7 tab, gồm Báo c�
 - Ba kỳ công nợ **CN1 / CN3 / CN7** do `customerDebtReportRefresh.js` tính 5 phút/lần vào `customer_debt_activity_periods` để phục vụ cảnh báo "Chưa thu" trên màn hình Quản lý công nợ.
 - **Kiểm tra đứt hàng** dựa trên dữ liệu đã đồng bộ và dữ liệu Trả NCC do người dùng tự upload (Excel xuất từ KiotViet).
 - **Phân hệ nghỉ phép:** tự gửi trên web từ hồ sơ HR hoạt động hoặc bot nhân viên ngoài repo; người được cấp quyền duyệt theo phòng ban/cơ sở. Web có lịch nghỉ phép.
-- **Vòng đời đơn hàng:** xem mọi đơn đặt hàng KiotViet cùng trạng thái vòng đời từ Google Sheet; lọc, sắp xếp, phân trang ở máy chủ.
+- **Vòng đời đơn hàng:** xem mọi đơn đặt hàng KiotViet cùng trạng thái vòng đời từ Google Sheet (HN, SG và luồng đơn Bắc-Nam của Kiot Hà Nội, tính như đơn Hà Nội); lọc, sắp xếp, phân trang ở máy chủ.
 - **Vị trí hàng:** tra cứu vị trí hàng HN/SG từ workbook Google Sheets dùng chung.
 - **Sổ quỹ:** Quản lý xem số dư tài khoản ngân hàng và Tiền mặt, sổ phiếu thu chi gộp HN/SG, chốt số dư theo sao kê và xuất Excel/HTML. Code đã kiểm chứng cục bộ; cần migration `0033`, đồng bộ danh mục và chốt ban đầu trước khi dùng production.
 - **Tài khoản và phân quyền theo tính năng** theo vai trò, Quản lý ghi đè từng tài khoản; ID Telegram do Quản lý quản lý.

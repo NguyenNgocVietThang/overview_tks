@@ -21,10 +21,15 @@ const SORT_KEYS = Object.freeze([
 const DATE_FIELDS = Object.freeze(['saleSentAt', 'at', 'orderDate']);
 const SEARCH_MODES = Object.freeze(['code', 'sale', 'customer']);
 const BRANCHES = Object.freeze(['HN', 'SG']);
+// Bo loc canh bao: 'any' = co it nhat 1 canh bao, hoac 1 ma cu the (khop orderLifecycleService.WARNING).
+const WARNING_FILTERS = Object.freeze([
+  'any', 'ACCOUNTANT_LATE', 'DRIVER_NO_PHOTO', 'DRIVER_FORGOT_PHOTO', 'NOT_SIGNED_6H', 'PICKUP_PENDING', 'NO_TRAIN_BILL'
+]);
 // Mac dinh (khi khong chon cot sap xep): don moi dat nhat truoc.
 const DEFAULT_SORT = Object.freeze({ key: 'orderDate', dir: -1 });
 // Thu tu hien thi cua bo loc "Trang thai KiotViet"; trang thai la xep sau theo ten.
-const KIOT_STATUS_ORDER = Object.freeze(['Phiếu tạm', 'Đã xác nhận', 'Đang giao hàng', 'Hoàn thành', 'Đã hủy']);
+const KIOT_PENDING = 'Phiếu tạm';
+const KIOT_STATUS_ORDER = Object.freeze([KIOT_PENDING, 'Đã xác nhận', 'Đang giao hàng', 'Hoàn thành', 'Đã hủy']);
 
 function makeError(message, code) {
   const error = new Error(message);
@@ -119,12 +124,17 @@ function parseParams(input) {
   if (dir && dir !== 'asc' && dir !== 'desc') {
     throw makeError('Chiều sắp xếp phải là "asc" hoặc "desc".', 'INVALID_SORT');
   }
+  const warning = pickString(raw.warning);
+  if (warning && !WARNING_FILTERS.includes(warning)) {
+    throw makeError('Loại cảnh báo không hợp lệ.', 'INVALID_WARNING');
+  }
   const page = Math.floor(Number(raw.page));
   const pageSize = Math.floor(Number(raw.pageSize));
   return {
     branch,
     status: pickString(raw.status),
     kiotStatus: pickString(raw.kiotStatus),
+    warning,
     dateField,
     from,
     to,
@@ -169,7 +179,8 @@ const SORT_VALUE = {
   kiotStatus: row => memoKey(row, 'kiotStatus', r => normalizeSearchText(r.kiotStatus) || null),
   status: row => memoKey(row, 'status', r => normalizeSearchText(r.summary && r.summary.label)),
   at: row => memoKey(row, 'at', r => parseDateTimeValue(r.summary && r.summary.at)),
-  warning: row => (row.warning ? 1 : 0)
+  // Nhieu canh bao xep truoc it canh bao.
+  warning: row => (Array.isArray(row.warnings) ? row.warnings.length : (row.warning ? 1 : 0))
 };
 
 function compareValues(a, b, dir) {
@@ -194,8 +205,24 @@ function rowsInBranch(rows, branch) {
   return branch ? rows.filter(row => row.branch === branch) : rows;
 }
 
+function rowHasWarning(row, warning) {
+  const list = Array.isArray(row.warnings) ? row.warnings : [];
+  return warning === 'any' ? list.length > 0 : list.includes(warning);
+}
+
+/** So don theo tung ma canh bao (cho o loc) — 1 lan duyet danh sach da co trong RAM, khong them truy van. */
+function countWarnings(rows) {
+  const counts = { any: 0 };
+  rows.forEach(row => {
+    if (!Array.isArray(row.warnings) || !row.warnings.length) return;
+    counts.any += 1;
+    row.warnings.forEach(code => { counts[code] = (counts[code] || 0) + 1; });
+  });
+  return counts;
+}
+
 function filterRows(rows, params) {
-  const { status, kiotStatus, from, to, dateField, mode, q } = params;
+  const { status, kiotStatus, warning, from, to, dateField, mode, q } = params;
   const codes = mode === 'code' ? parseSearchCodes(q) : [];
   const text = mode === 'code' ? '' : normalizeSearchText(q);
   const textKey = mode === 'sale' ? SORT_VALUE.saleName : SORT_VALUE.customerName;
@@ -203,7 +230,7 @@ function filterRows(rows, params) {
   // Ngay "den" tinh het ngay (23:59:59) de bao gom don trong ngay do.
   const toMs = to ? parseDateTimeValue(to) + DAY_MS - 1 : null;
   const dateValue = SORT_VALUE[dateField];
-  const needsFilter = codes.length || text || status || kiotStatus || fromMs !== null || toMs !== null;
+  const needsFilter = codes.length || text || status || kiotStatus || warning || fromMs !== null || toMs !== null;
   if (!needsFilter) return rows;
   return rows.filter(row => {
     if (codes.length) {
@@ -213,6 +240,7 @@ function filterRows(rows, params) {
     if (text && !String(textKey(row)).includes(text)) return false;
     if (status && !(row.summary && row.summary.code === status)) return false;
     if (kiotStatus && row.kiotStatus !== kiotStatus) return false;
+    if (warning && !rowHasWarning(row, warning)) return false;
     if (fromMs !== null || toMs !== null) {
       const time = dateValue(row);
       if (time === null) return false; // chua co moc thoi gian nay thi khong nam trong khoang da chon
@@ -221,6 +249,26 @@ function filterRows(rows, params) {
     }
     return true;
   });
+}
+
+/**
+ * Chi so tong quat dau trang. Dem theo cac bo loc dang chon (co so, ngay, tim kiem, trang thai Kiot...) NHUNG
+ * bo chinh chieu dang thong ke: the trang thai bo loc `status`, the canh bao bo loc `warning` — de dang loc
+ * "Dang giao" thi the "Chua gui KT" van ra dung so. "Chua gui ke toan" chi tinh don Phieu tam (hon 99% don Kiot
+ * khong co dong sheet deu mang trang thai nay, ke ca Hoan thanh/Da huy). 1 lan duyet danh sach co san trong RAM.
+ */
+function countSummary(rows, params) {
+  const base = rowsInBranch(rows, params.branch);
+  const status = { NOT_SENT: 0, SENT_TO_ACCOUNTANT: 0, DELIVERING: 0 };
+  filterRows(base, Object.assign({}, params, { status: '' })).forEach(row => {
+    const code = row.summary && row.summary.code;
+    if (code === 'NOT_SENT') { if (row.kiotStatus === KIOT_PENDING) status.NOT_SENT += 1; }
+    else if (code in status) status[code] += 1;
+  });
+  const warnings = { any: 0 };
+  WARNING_FILTERS.forEach(code => { warnings[code] = 0; });
+  Object.assign(warnings, countWarnings(filterRows(base, Object.assign({}, params, { warning: '' }))));
+  return { status, warnings };
 }
 
 /** Danh sach TRANG THAI KIOT co mat trong cac don (cho o loc), theo thu tu quen thuoc roi theo ten. */
@@ -257,7 +305,7 @@ function createSelectionCache(limit = 6) {
     select(rows, params) {
       if (rows !== source) { source = rows; entries.clear(); }
       const key = JSON.stringify([
-        params.branch, params.status, params.kiotStatus, params.dateField, params.from, params.to,
+        params.branch, params.status, params.kiotStatus, params.warning, params.dateField, params.from, params.to,
         params.mode, params.q, params.sort, params.dir
       ]);
       if (entries.has(key)) {
@@ -275,8 +323,8 @@ function createSelectionCache(limit = 6) {
 }
 
 module.exports = {
-  DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, SORT_KEYS, DATE_FIELDS, SEARCH_MODES, DEFAULT_SORT,
+  DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, SORT_KEYS, DATE_FIELDS, SEARCH_MODES, DEFAULT_SORT, WARNING_FILTERS,
   normalizeSearchText, parseDateTimeValue, parseSearchCodes,
-  parseParams, rowsInBranch, filterRows, sortRows, selectRows, paginate, distinctKiotStatuses,
-  createSelectionCache
+  parseParams, rowsInBranch, filterRows, sortRows, selectRows, paginate, distinctKiotStatuses, countWarnings,
+  countSummary, createSelectionCache
 };

@@ -121,26 +121,72 @@ function generateId(prefix) {
   return `${prefix}-${Date.now()}-${hex}`;
 }
 
-async function readTab(sheetName, branch) {
+// Don Bac-Nam (tab DonHang_MienNam, 2026-10-12): la don cua Kiot Ha Noi nen mang _branch 'HN', chi doc 4 moc
+// (Ma don, Sale gui ke toan, Ke toan duyet don, Don da ky nhan) + Sale/Khach; cac cot Lai xe/Tai xe/Ke toan
+// duyet giao hang/Ship nhan don cua tab nay BO QUA (ep '') de trang thai chi ra 3 muc: chua gui KT / da gui KT
+// / da ky nhan. _flow quyet dinh bo canh bao ap cho don (xem computeWarnings cua service).
+//
+// 2026-10-12: 5 luong / 5 tab — moi dong deu mang _flow:
+//   DELIVERY    DonHang_HN/SG: giao bang xe; cot "Ship nhan don" BO QUA (luong ship/khach da tach ra tab rieng).
+//   PICKUP      Khach_HN/SG: khach/ship lay tai kho; chi doc Ma don, Sale gui KT, KT duyet don, Ship nhan don.
+//   NORTH_SOUTH DonHang_MienNam.
+const FLOW_DELIVERY = 'DELIVERY';
+const FLOW_PICKUP = 'PICKUP';
+const FLOW_NORTH_SOUTH = 'NORTH_SOUTH';
+const DELIVERY_FIELD_KEYS = SCHEMA.fieldKeys.filter(key => key !== 'shipReceivedAt');
+const NORTH_SOUTH_FIELD_KEYS = [
+  'orderCode', 'saleName', 'customerName', 'saleSentAt', 'accountantApprovedOrderAt', 'orderSignedAt'
+];
+const PICKUP_FIELD_KEYS = [
+  'orderCode', 'saleName', 'customerName', 'saleSentAt', 'accountantApprovedOrderAt', 'shipReceivedAt'
+];
+
+async function readTab(sheetName, branch, { fieldKeys = DELIVERY_FIELD_KEYS, flow = FLOW_DELIVERY } = {}) {
   const values = await client.getValues(sheetName);
   if (!values || values.length === 0) return [];
   const columnIndex = buildColumnIndex(values[0]);
   const dataRows = values.slice(1);
   return dataRows
     .filter(row => row.some(cell => cell !== '' && cell !== undefined))
-    .map(row => Object.assign(readRowByHeader(row, columnIndex, SCHEMA.fieldKeys), { _branch: branch }));
+    .map(row => {
+      const record = {};
+      SCHEMA.fieldKeys.forEach(key => { record[key] = ''; });
+      Object.assign(record, readRowByHeader(row, columnIndex, fieldKeys), { _branch: branch });
+      if (flow) record._flow = flow;
+      return record;
+    });
 }
 
 /**
- * Doc ca 2 tab (HN + SG), gop thanh 1 danh sach duy nhat. Moi ma don chi ton
- * tai o 1 tab nen khong can doan chi nhanh theo cookie dang nhap.
+ * Tab phu (Bac-Nam, Khach_HN/SG) FAIL-SOFT: tab moi them, bi doi ten/xoa khong duoc lam sap ca man hinh tra cuu
+ * (2 tab DonHang_HN/SG van throw nhu cu) — ghi log ro ten tab roi coi nhu rong.
+ */
+async function readOptionalTab(sheetName, branch, options, label) {
+  try {
+    return await readTab(sheetName, branch, options);
+  } catch (err) {
+    console.error(`=== CANH BAO: Khong doc duoc tab "${sheetName}" (${label}, bo qua) ===`);
+    console.error(err.message);
+    console.error('==========================================================================');
+    return [];
+  }
+}
+
+/**
+ * Doc ca 5 tab, gop thanh 1 danh sach theo thu tu HN -> Bac-Nam -> Khach_HN -> SG -> Khach_SG. Don Bac-Nam
+ * tinh nhu don HN. Ma don khong bao gio trung giua cac tab (neu trung, dong gap truoc thang — xem mergeRows).
  */
 async function readAll() {
-  const [hnRows, sgRows] = await Promise.all([
+  const northSouth = { fieldKeys: NORTH_SOUTH_FIELD_KEYS, flow: FLOW_NORTH_SOUTH };
+  const pickup = { fieldKeys: PICKUP_FIELD_KEYS, flow: FLOW_PICKUP };
+  const [hnRows, northSouthRows, pickupHnRows, sgRows, pickupSgRows] = await Promise.all([
     readTab(CONFIG.ORDER_LIFECYCLE_SHEET_HN, LIFECYCLE_BRANCH.HN),
-    readTab(CONFIG.ORDER_LIFECYCLE_SHEET_SG, LIFECYCLE_BRANCH.SG)
+    readOptionalTab(CONFIG.ORDER_LIFECYCLE_SHEET_NORTH_SOUTH, LIFECYCLE_BRANCH.HN, northSouth, 'don Bac-Nam'),
+    readOptionalTab(CONFIG.ORDER_LIFECYCLE_SHEET_PICKUP_HN, LIFECYCLE_BRANCH.HN, pickup, 'khach/ship lay HN'),
+    readTab(CONFIG.ORDER_LIFECYCLE_SHEET_SG, LIFECYCLE_BRANCH.SG),
+    readOptionalTab(CONFIG.ORDER_LIFECYCLE_SHEET_PICKUP_SG, LIFECYCLE_BRANCH.SG, pickup, 'khach/ship lay SG')
   ]);
-  return [...hnRows, ...sgRows];
+  return [...hnRows, ...northSouthRows, ...pickupHnRows, ...sgRows, ...pickupSgRows];
 }
 
 /**
@@ -196,6 +242,9 @@ async function appendOverride(entry) {
 
 module.exports = {
   LIFECYCLE_BRANCH,
+  FLOW_DELIVERY,
+  FLOW_PICKUP,
+  FLOW_NORTH_SOUTH,
   SCHEMA_HEADERS: SCHEMA.headers,
   SCHEMA_FIELD_KEYS: SCHEMA.fieldKeys,
   HISTORY_SCHEMA_HEADERS: HISTORY_SCHEMA.headers,

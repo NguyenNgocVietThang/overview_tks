@@ -506,14 +506,14 @@ test('queryOrders: tham số không hợp lệ -> lỗi 400 kèm mã, trước k
   }
 });
 
-test('queryOrders: danh sách đã gộp được dùng lại khi dữ liệu nguồn không đổi; dựng lại khi danh sách Kiot mới hoặc qua phút khác (cảnh báo 24h phụ thuộc đồng hồ)', async () => {
+test('queryOrders: danh sách đã gộp được dùng lại khi dữ liệu nguồn không đổi; dựng lại khi danh sách Kiot mới hoặc qua phút khác (cảnh báo phụ thuộc đồng hồ)', async () => {
   const realNow = Date.now;
   const ctx = freshService([record({ orderCode: 'DH000001', _branch: 'HN', saleSentAt: '01/10/2026 08:00' })]);
   try {
     const orders = [kiotOrder({ code: 'DH000001' }), kiotOrder({ code: 'DH000002' })];
     const result = { ok: true, orders };
-    // 01/10/2026 09:00 gio VN = 02:00Z: moi 1 gio ke tu luc Sale ra don -> chua canh bao
-    Date.now = () => Date.UTC(2026, 9, 1, 2, 0, 0);
+    // 01/10/2026 08:20 gio VN = 01:20Z: moi 20 phut ke tu luc Sale ra don -> chua canh bao
+    Date.now = () => Date.UTC(2026, 9, 1, 1, 20, 0);
     const first = await ctx.service.queryOrders({}, { kiot: fakeKiot(result) });
     const second = await ctx.service.queryOrders({ page: '1' }, { kiot: fakeKiot(result) });
     assert.equal(second.orders[0], first.orders[0], 'cung du lieu + cung phut: dung lai dung doi tuong dong');

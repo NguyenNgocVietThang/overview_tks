@@ -74,14 +74,19 @@ const CONFIG = {
   DEBT_MANAGEMENT_SHEET_SG: 'Công nợ SG',
 
   // ==========================================
-  // VONG DOI DON HANG — spreadsheet RIENG (2 tab DonHang_HN/DonHang_SG trong
-  // CUNG 1 spreadsheet). Server CHI DOC 2 tab do.
+  // VONG DOI DON HANG — spreadsheet RIENG (5 tab DonHang_HN/DonHang_SG/
+  // DonHang_MienNam/Khách_HN/Khách_SG trong CUNG 1 spreadsheet). Server CHI DOC 5 tab do.
+  // DonHang_MienNam = don Bac-Nam (don cua Kiot Ha Noi, tinh nhu don HN).
   // Tab "Lich su cap nhat" (ORDER_LIFECYCLE_SHEET_HISTORY) la NGOAI LE: do
   // server tu tao/ghi (ghi de trang thai thu cong cua Quan ly/Ke toan).
   // ==========================================
   ORDER_LIFECYCLE_SPREADSHEET_ID: process.env.ORDER_LIFECYCLE_SPREADSHEET_ID || null,
   ORDER_LIFECYCLE_SHEET_HN: 'DonHang_HN',
   ORDER_LIFECYCLE_SHEET_SG: 'DonHang_SG',
+  ORDER_LIFECYCLE_SHEET_NORTH_SOUTH: 'DonHang_MienNam',
+  // Khach/Ship lay hang tai kho (2026-10-12): tach khoi DonHang_HN/SG.
+  ORDER_LIFECYCLE_SHEET_PICKUP_HN: 'Khách_HN',
+  ORDER_LIFECYCLE_SHEET_PICKUP_SG: 'Khách_SG',
   ORDER_LIFECYCLE_SHEET_HISTORY: 'Lịch sử cập nhật',
 
   // ==========================================

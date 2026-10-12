@@ -10,6 +10,7 @@
 
 const ExcelJS = require('exceljs');
 const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
+const { WARNING_LABEL } = require('./orderLifecycleService');
 
 const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -53,7 +54,10 @@ function neutralizeFormulaText(value) {
 function columnValue(order, key) {
   if (key === 'branchLabel') return BRANCH_LABEL[order.branch] || order.branch || '';
   if (key === 'statusLabel') return (order.summary && order.summary.label) || '';
-  if (key === 'warningLabel') return order.warning ? 'Cảnh báo' : '';
+  if (key === 'warningLabel') {
+    if (Array.isArray(order.warnings)) return order.warnings.map(code => WARNING_LABEL[code] || code).join(', ');
+    return order.warning ? 'Cảnh báo' : '';
+  }
   // Gia tri don co voi MOI don Kiot; gia tri co ban chi voi don Phieu tam (sellableValue != null); con lai de
   // trong (giong "—" tren bang).
   if (key === 'orderTotal') {
