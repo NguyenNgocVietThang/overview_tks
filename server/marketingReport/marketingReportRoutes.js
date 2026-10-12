@@ -1,6 +1,6 @@
 'use strict';
 const express = require('express');
-const { requireAuth, requireFeature } = require('../auth/authMiddleware');
+const { requireAuth, requireFeature, requireRole } = require('../auth/authMiddleware');
 const { createMarketingReportService } = require('./marketingReportService');
 const { createExportFile, tableRows, exportFieldsFor, resolveColumnKeys } = require('./marketingReportExport');
 
@@ -10,15 +10,25 @@ function createMarketingReportRouter({service=createMarketingReportService()}={}
   router.use(requireAuth,requireFeature('reports.marketing'));
   const handle=fn=>async(req,res)=>{
     try{res.json(await fn(req));}catch(error){
-      if(error.statusCode && error.code?.startsWith('MARKETING_'))return res.status(error.statusCode).json({error:error.message,code:error.code});
+      if(error.statusCode && (error.code?.startsWith('MARKETING_')||error.code==='INVALID_MARKETING_INPUT'))return res.status(error.statusCode).json({error:error.message,code:error.code});
       console.error('[MarketingReport] Request failed:',error.code||'UNKNOWN');
       res.status(500).json({error:'Không tải được báo cáo Marketing. Vui lòng thử lại.',code:'MARKETING_REPORT_ERROR'});
     }
   };
-  router.get('/metadata',handle(()=>service.metadata()));
+  router.get('/metadata',handle(async req=>({...await service.metadata(),canEdit:req.user.vaiTro==='Quản lý'&&require('../auth/featureRegistry').hasFeature(req.user,'reports.marketing.edit')})));
+  const actor=req=>({userId:String(req.user.id||req.user.username),username:req.user.username||'',name:req.user.hoTen||''});
+  const manager=requireRole('Quản lý');
+  const dbMethod=method=>{if(typeof service[method]!=='function')throw Object.assign(new Error('Nguồn PostgreSQL chưa được bật.'),{statusCode:409,code:'MARKETING_DATABASE_DISABLED'});return service[method];};
+  router.get('/customers',handle(req=>dbMethod('customers')(req.query)));
+  router.get('/sync-status',handle(()=>dbMethod('syncStatus')()));
+  router.get('/aliases',handle(()=>dbMethod('aliases')()));
+  router.put('/aliases',manager,requireFeature('reports.marketing.edit'),express.json({limit:'8kb'}),handle(req=>dbMethod('upsertAlias')(req.body,actor(req))));
+  router.post('/monthly/rows',manager,requireFeature('reports.marketing.edit'),express.json({limit:'16kb'}),handle(req=>dbMethod('createRow')(req.body,actor(req))));
+  router.put('/monthly/rows/:id',manager,requireFeature('reports.marketing.edit'),express.json({limit:'16kb'}),handle(req=>dbMethod('updateMonthlyRow')(req.params.id,req.body,actor(req))));
+  router.get('/monthly/rows/:id/audit',manager,handle(req=>dbMethod('audit')(req.params.id)));
   for(const kind of ['monthly','receipt-check','phones','costs'])router.get('/'+kind,handle(req=>service.report(kind,req.query)));
   // Ghi ngược Khách mới / Ghi chú vào Google Sheets: cần thêm quyền reports.marketing.edit.
-  router.put('/monthly/row',requireFeature('reports.marketing.edit'),express.json({limit:'8kb'}),handle(req=>service.updateRow(req.body)));
+  router.put('/monthly/row',manager,requireFeature('reports.marketing.edit'),express.json({limit:'8kb'}),handle(req=>service.updateRow(req.body)));
   router.get('/detail',handle(req=>service.detail(req.query)));
   // Xuất bảng ra Excel/HTML: cần đồng thời reports.marketing (router.use ở trên) và reports.export.
   const exportContext=async req=>{
@@ -43,7 +53,7 @@ function createMarketingReportRouter({service=createMarketingReportService()}={}
       res.set('Content-Disposition',`attachment; filename="${file.fileName}"`);
       res.send(file.buffer);
     }catch(error){
-      if(error.statusCode&&error.code?.startsWith('MARKETING_'))return res.status(error.statusCode).json({error:error.message,code:error.code});
+      if(error.statusCode&&(error.code?.startsWith('MARKETING_')||error.code==='INVALID_MARKETING_INPUT'))return res.status(error.statusCode).json({error:error.message,code:error.code});
       console.error('[MarketingReport] Export failed:',error.code||'UNKNOWN');
       res.status(500).json({error:'Không xuất được báo cáo Marketing. Vui lòng thử lại.',code:'MARKETING_REPORT_ERROR'});
     }
@@ -51,3 +61,4 @@ function createMarketingReportRouter({service=createMarketingReportService()}={}
   return router;
 }
 module.exports={createMarketingReportRouter};
+

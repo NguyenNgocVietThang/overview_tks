@@ -5,12 +5,12 @@ const express = require('express');
 const { createMarketingReportRouter } = require('./marketingReportRoutes');
 
 // Authentication and permission middleware run unchanged; only source reads are mocked.
-async function request(path, { permissions = ['reports.marketing'], authenticated = true, method = 'GET', service = {}, body } = {}) {
+async function request(path, { permissions = ['reports.marketing'], authenticated = true, role = 'Quản lý', method = 'GET', service = {}, body } = {}) {
   const calls = [];
   const app = express();
   app.use((req, res, next) => {
     if (authenticated) {
-      req.user = { username: 'tester', vaiTro: 'Quản lý', permissions };
+      req.user = { username: 'tester', vaiTro: role, permissions };
       req.effectiveUserResolved = true;
     }
     next();
@@ -118,3 +118,5 @@ test('writing Khách mới/Ghi chú needs reports.marketing.edit and only that r
   assert.equal(ok.status, 200);
   assert.deepEqual(ok.calls, [['updateRow', body]]);
 });
+
+test('Marketing cannot write even with edit feature enabled',async()=>{for(const path of ['/monthly/row','/monthly/rows/1','/aliases']){const r=await request(path,{role:'Marketing',permissions:['reports.marketing','reports.marketing.edit'],method:'PUT',body:{version:'1'}});assert.equal(r.status,403);assert.equal(r.calls.length,0);}const r=await request('/monthly/rows',{role:'Marketing',permissions:['reports.marketing','reports.marketing.edit'],method:'POST',body:{}});assert.equal(r.status,403);});

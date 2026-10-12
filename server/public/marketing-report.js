@@ -7,6 +7,7 @@
     phones: { title: 'Sao lưu SĐT', note: 'số điện thoại đã nhận theo page và nhân viên', filters: ['page', 'employee'], columns: [['phone','SĐT'],['page','Page'],['firstEmployee','Nhân viên lần đầu'],['currentEmployee','Nhân viên hiện tại'],['repeatEmployee','Nhân viên chào lại'],['firstAt','Ngày lần đầu'],['currentAt','Ngày hiện tại'],['repeatAt','Ngày chào lại']] },
     costs: { title: 'Báo cáo chi phí', note: 'chi phí quảng cáo, mess và SĐT theo ngày', monthKey: 'costs', beside: true, filters: ['page'], columns: [['page','Page'],['date','Ngày'],['adCost','Chi phí ADS','money'],['totalCost','Chi phí gồm phí thuê/VAT','money'],['totalLabel','Nhãn chi phí nguồn'],['messages','Mess','number'],['costPerMessage','Chi phí/mess','money'],['phones','SĐT','number'],['costPerPhone','Chi phí/SĐT','money']] }
   };
+  const detailDefinitions = {'phone-source': {columns:[['phone','SĐT'],['page','Page'],['employeeRaw','Tên nhân viên nguồn'],['sourceCreatedAt','Tạo lúc','datetime'],['sourceCreatedText','Ngày tạo nguyên bản'],['creditedDate','Ngày ghi nhận','date'],['origin','Nguồn'],['sourceOrder','Thứ tự nguồn','number'],['workbookId','Tệp nguồn'],['tab','Tab'],['rowNumber','Dòng nguồn','number'],['factId','Mã bản ghi'],['runId','Đợt đồng bộ'],['sourceKey','Tham chiếu nguồn']]}};
   const filterLabels = { page:'Page', employee:'Nhân viên', status:'Tình trạng', dataSource:'Nguồn data' };
   const filterKeys = { page:'pages', employee:'employees', status:'statuses', dataSource:'dataSources' };
   const sections = {};
@@ -16,6 +17,8 @@
   const normalize = value => String(value == null ? '' : value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase();
   function format(value, type) {
     if (value === null || value === undefined || value === '' || (typeof value === 'string' && value.startsWith('#'))) return '—';
+    if (type === 'datetime') return time(value);
+    if (type === 'date') { const match=String(value).match(/^(\d{4})-(\d{2})-(\d{2})/); return match ? match[3]+'/'+match[2]+'/'+match[1] : String(value); }
     if (!type || !Number.isFinite(Number(value))) return String(value);
     return new Intl.NumberFormat('vi-VN', { maximumFractionDigits:type === 'money' ? 0 : 2 }).format(Number(value) * (type === 'percent' ? 100 : 1)) + (type === 'percent' ? '%' : type === 'money' ? ' ₫' : '');
   }
@@ -23,8 +26,10 @@
   const NAME_KEYS = new Set(['sale','employee','firstEmployee','currentEmployee','repeatEmployee']);
   const isMkt = value => /(^|\s)MKT$/i.test(String(value == null ? '' : value).trim());
   const canEdit = () => !!window.TKSNav?.can?.('reports.marketing.edit');
+  const database = () => metadata?.sourceMode === 'database';
+  const canManage = () => database() && metadata?.canEdit === true && canEdit();
   const EDIT_KEYS = new Set(['newCustomer','note']);
-  function time(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('vi-VN', {timeZone:'Asia/Saigon'}); }
+  function time(value) { if (value == null || value === '') return '—'; const date = new Date(value); return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh'}); }
   function kpis(items) {
     const cards = items || [], span = cards.length <= 2 ? 'col-6' : cards.length === 3 ? 'col-4' : 'col-3';
     return cards.map((k, i) => '<div class="kpi-card '+span+' accent-' + (i % 2 ? 'blue' : 'amber') + '"><div class="eyebrow">' + escape(k.label) + '</div><div class="value">' + escape(format(k.value,k.format || k.type)) + '</div></div>').join('');
@@ -62,11 +67,12 @@
   }
   function renderFilters(kind) {
     const section = sections[kind], def = definitions[kind], host = section.filtersEl;
-    const monthValues = metadata?.months?.[def.monthKey] || [];
+    const monthValues = database() && kind !== 'costs' && Array.isArray(metadata?.periods) ? metadata.periods.filter(period => Number(period.year) === Number(section.filters.year)).map(period => Number(period.month)) : metadata?.months?.[def.monthKey] || [];
     let html = def.monthKey ? '<div class="debt-filter-field"><label for="marketing-' + kind + '-month">Tháng</label><select id="marketing-' + kind + '-month" data-filter="month">' + [...new Set([Number(section.filters.month), ...monthValues.map(Number)])].filter(Boolean).sort((a,b) => a-b).map(month => '<option value="'+month+'"'+(Number(section.filters.month)===month?' selected':'')+'>Tháng '+month+(monthValues.map(Number).includes(month)?'':' · Chưa có dữ liệu')+'</option>').join('') + '</select></div>' : '';
+    if (database() && def.monthKey && kind !== 'costs') html += '<div class="debt-filter-field"><label for="marketing-'+kind+'-year">Năm</label><input id="marketing-'+kind+'-year" type="number" min="2000" max="2100" data-filter="year" value="'+escape(section.filters.year)+'"></div>';
     html += def.filters.map(name => '<div class="debt-filter-field"><label for="marketing-' + kind + '-filter-' + name + '">' + filterLabels[name] + '</label><select id="marketing-' + kind + '-filter-' + name + '" data-filter="' + name + '"><option value="">Tất cả</option>' + [...new Set([...(section.data?.filters?.[filterKeys[name]] || []), section.filters[name]])].filter(Boolean).map(value => '<option value="'+escape(value)+'"'+(section.filters[name]===value?' selected':'')+'>'+escape(value)+'</option>').join('')+'</select></div>').join('');
     host.innerHTML = html;
-    host.querySelectorAll('select').forEach(select => select.addEventListener('change', () => { section.filters[select.dataset.filter] = select.value; loadSection(kind, true); }));
+    host.querySelectorAll('select, input[data-filter]').forEach(select => select.addEventListener('change', () => { section.filters[select.dataset.filter] = select.value; loadSection(kind, true); }));
   }
   async function load(force) {
     if (!window.TKSNav?.can('reports.marketing')) return;
@@ -75,10 +81,10 @@
       if (!metadataRequest) metadataRequest = request('metadata',new URLSearchParams()).finally(() => { metadataRequest = null; });
       try { metadata = await metadataRequest; }
       catch(error) { document.getElementById('marketingSourceStatus').textContent = error.message; return; }
-      Object.entries(definitions).forEach(([kind,def]) => { if (def.monthKey) sections[kind].filters.month = metadata.currentMonth || Number(new Intl.DateTimeFormat('en',{month:'numeric',timeZone:'Asia/Saigon'}).format(new Date())); });
-      document.getElementById('marketingSourceStatus').textContent = (canEdit() ? 'Đọc và ghi Khách mới/Ghi chú vào Google Sheets' : 'Chỉ đọc Google Sheets') + ' · tự cập nhật mỗi 5 phút';
+      Object.entries(definitions).forEach(([kind,def]) => { if (database() && def.monthKey && kind !== 'costs') sections[kind].filters.year = metadata.currentYear || new Date().getFullYear(); if (def.monthKey) sections[kind].filters.month = metadata.currentMonth || Number(new Intl.DateTimeFormat('en',{month:'numeric',timeZone:'Asia/Ho_Chi_Minh'}).format(new Date())); });
+      document.getElementById('marketingSourceStatus').textContent = database() ? 'Báo cáo từ dữ liệu đồng bộ · Chi phí ADS từ Google Sheets · Doanh số KiotViet' : (canEdit() ? 'Đọc và ghi Khách mới/Ghi chú vào Google Sheets' : 'Chỉ đọc Google Sheets') + ' · tự cập nhật mỗi 5 phút';
     }
-    await Promise.allSettled(Object.keys(definitions).map(kind => loadSection(kind,force)));
+    await Promise.allSettled([...Object.keys(definitions).map(kind => loadSection(kind,force)), ...(database() ? [loadOperations()] : [])]);
   }
   async function loadSection(kind, force) {
     const section = sections[kind];
@@ -87,7 +93,7 @@
     if (force) params.set('refresh','1');
     const status = document.getElementById('marketing-' + kind + '-status');
     section.pending = true;
-    status.textContent = section.data ? 'Đang làm mới · Dữ liệu đọc lúc ' + time(section.data.computedAt) : 'Đang đọc Google Sheets…';
+    status.textContent = section.data ? 'Đang làm mới · Dữ liệu đọc lúc ' + time(section.data.computedAt) : (database() && kind !== 'costs' ? 'Đang đọc dữ liệu đồng bộ…' : 'Đang đọc Google Sheets…');
     document.getElementById('marketing-' + kind).setAttribute('aria-busy','true');
     try {
       const data = await request(kind,params);
@@ -101,10 +107,11 @@
     const data = sections[kind].data;
     renderFilters(kind);
     document.getElementById('marketing-' + kind + '-status').textContent = 'Đọc nguồn lúc ' + time(data.computedAt) + '';
-    document.getElementById('marketing-' + kind + '-warnings').textContent = (data.warnings || []).join(' · ');
+    document.getElementById('marketing-' + kind + '-warnings').textContent = [...(data.warnings || []), ...(database() && kind !== 'costs' && definitions[kind].monthKey && Array.isArray(metadata?.periods) && !metadata.periods.some(period => Number(period.year) === Number(sections[kind].filters.year) && Number(period.month) === Number(sections[kind].filters.month)) ? ['Chưa có dữ liệu cho tháng/năm đã chọn.'] : [])].join(' · ');
     document.getElementById('marketing-' + kind + '-kpis').innerHTML = kpis(data.kpis);
     renderCharts(kind);
-    mountTable(document.getElementById('marketing-' + kind + '-rows'), 'marketing-' + kind + '-data-table', definitions[kind].title, data.rows || [], definitions[kind].columns, kind === 'phones' || kind === 'receipt-check' ? row => openDetail(kind,row.key,document.activeElement) : null, { kind, table:'rows' });
+    mountTable(document.getElementById('marketing-' + kind + '-rows'), 'marketing-' + kind + '-data-table', definitions[kind].title, data.rows || [], definitions[kind].columns, kind === 'monthly' && canManage() ? row => openMonthly(row) : kind === 'phones' || kind === 'receipt-check' ? row => openDetail(kind,row.key,document.activeElement) : null, { kind, table:'rows' });
+    if (kind === 'monthly' && canManage()) { const button = document.createElement('button'); button.type='button'; button.className='mini-filter-apply'; button.textContent='Thêm khách chốt'; button.addEventListener('click', () => openMonthly()); document.querySelector('#marketing-monthly-rows .panel-head-actions').prepend(button); }
     // Thanh lọc nằm cạnh tên bảng (mountTable dựng lại bảng nên phải gắn lại sau mỗi lần vẽ).
     document.querySelector('#marketing-' + kind + '-rows .panel-head')?.insertBefore(sections[kind].filtersEl, document.querySelector('#marketing-' + kind + '-rows .panel-head-actions'));
   }
@@ -153,7 +160,7 @@
     const saved = host._marketingState || { search:'', sort:null, direction:1, page:1 };
     host._marketingState = saved;
     host.innerHTML = '<div class="panel marketing-table"><div class="panel-head"><h2>'+escape(title)+'</h2><div class="panel-head-actions"><span class="drill-hint" data-count>—</span>'+(exportInfo?'<button class="export-button" type="button" id="'+id+'-export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>':'')+'</div><div class="table-search-tools"><div class="table-search-input-wrap"><input class="table-search-input" id="'+id+'-search" type="search" autocomplete="off" aria-label="Tìm trong '+escape(title)+'" placeholder="Tìm kiếm không dấu…" value="'+escape(saved.search)+'"></div>'+'</div></div><div class="table-wrap marketing-table-scroll"><table data-table-key="'+id+'" aria-label="'+escape(title)+'"><thead></thead><tbody></tbody></table></div><div class="pagination-controls marketing-pages" hidden><button type="button" id="'+id+'-first" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button><button type="button" id="'+id+'-prev" aria-label="Trang trước" title="Trang trước">&lt;</button><span data-page-label></span><button type="button" id="'+id+'-next" aria-label="Trang sau" title="Trang sau">&gt;</button><button type="button" id="'+id+'-last" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button></div></div>';
-    const editing = !!exportInfo && exportInfo.kind === 'monthly' && exportInfo.table === 'rows' && canEdit();
+    const editing = !!exportInfo && exportInfo.kind === 'monthly' && exportInfo.table === 'rows' && !database() && canEdit();
     function cellHtml(row, key, type, edit, index) {
       if (edit && EDIT_KEYS.has(key) && row.key) return '<td class="marketing-edit-cell"><textarea class="marketing-edit" rows="1" wrap="soft" maxlength="500" data-edit="'+key+'" data-edit-index="'+index+'" aria-label="'+escape(columns.find(c => c[0] === key)[1])+' của '+escape(row.customer || row.phone || 'dòng này')+'">'+escape(row[key] || '')+'</textarea></td>';
       const text = escape(format(row[key],type));
@@ -252,11 +259,59 @@
       document.getElementById('marketingDetailStatus').textContent='';
       body.innerHTML='<div class="marketing-warnings" role="status">'+escape((data.warnings||[]).join(' · '))+'</div>'+(data.formula?'<p class="marketing-status">Công thức quy đổi nguồn: '+escape(data.formula)+'</p>':'')+'<div class="kpi-grid section-kpis">'+kpis(data.kpis)+'</div>'+ (data.groups||[]).map((group,i)=>'<div id="marketing-detail-group-'+i+'"></div>').join('');
       (data.groups||[]).forEach((group,i) => {
-        const groupKind=definitions[group.kind]?group.kind:kind;
+        const groupKind=definitions[group.kind]||detailDefinitions[group.kind]?group.kind:kind;
         const navigatePhone=kind==='phones' && groupKind==='phones' && (group.rows || []).some(row=>row.key!==key) ? row=>openDetail('phones',row.key,null,false,true) : null;
-        mountTable(document.getElementById('marketing-detail-group-'+i),'marketing-detail-'+groupKind+'-'+i,group.title,group.rows||[],definitions[groupKind].columns,navigatePhone);
+        mountTable(document.getElementById('marketing-detail-group-'+i),'marketing-detail-'+groupKind+'-'+i,group.title,group.rows||[],(definitions[groupKind]||detailDefinitions[groupKind]).columns,navigatePhone);
       });
     } catch(error) { if(seq===detailSeq&&dialog.open) document.getElementById('marketingDetailStatus').textContent=error.message+(refresh?' · Giữ chi tiết trước lần cập nhật.':''); }
   }
+
+  async function write(path, method, body) {
+    const response = await fetch('/api/marketing-report/'+path, {method,credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) { const error = new Error(response.status===409 ? 'Dòng này đã được sửa bởi người khác. Đóng và mở lại để xem phiên bản mới; nội dung đang nhập được giữ để đối chiếu.' : payload.error || 'Không lưu được dữ liệu.'); error.status=response.status; throw error; }
+    return payload;
+  }
+  function editorDialog(title) {
+    let dialog=document.getElementById('marketingEditorDialog');
+    if (!dialog) { dialog=document.createElement('dialog'); dialog.id='marketingEditorDialog'; dialog.className='marketing-dialog'; document.body.append(dialog); }
+    dialog.innerHTML='<div class="marketing-dialog-head"><h2>'+escape(title)+'</h2><button type="button" data-close aria-label="Đóng">Đóng</button></div><div class="marketing-dialog-body"></div>';
+    dialog.querySelector('[data-close]').onclick=()=>dialog.close(); dialog.showModal(); return dialog;
+  }
+  async function openMonthly(row) {
+    if (!canManage()) return;
+    const dialog=editorDialog(row ? 'Sửa khách chốt' : 'Thêm khách chốt'), body=dialog.querySelector('.marketing-dialog-body');
+    const fields=[['sale','Sale'],['customer','Khách KiotViet'],['phone','SĐT'],['page','Page'],['status','Tình trạng'],['dataSource','Nguồn data'],['closedAt','Ngày chốt','date'],['newCustomer','Khách mới'],['note','Ghi chú'],['reportMonth','Tháng báo cáo','number'],['reportYear','Năm báo cáo','number']];
+    const initial={reportMonth:Number(sections.monthly.filters.month),reportYear:Number(sections.monthly.filters.year),...row};
+    body.innerHTML='<form class="marketing-entry-form"><div class="marketing-entry-grid">'+fields.map(([key,label,type])=>key==='page' ? '<label>Page<select name="page" '+(row&&!row.page&&!row.pageId?'':'required')+'><option value=""'+(!initial.page?' selected':'')+'>Chưa chọn page</option>'+ [...new Set([...(metadata.pages||[]).map(page=>page.name),initial.page])].filter(Boolean).map(name=>'<option value="'+escape(name)+'"'+(name===initial.page?' selected':'')+'>'+escape(name)+'</option>').join('')+'</select></label>' : '<label>'+escape(label)+'<input name="'+key+'" type="'+(type||'text')+'" maxlength="500" '+(['reportMonth','reportYear','sale','customer','phone','page','status','dataSource','closedAt'].includes(key)?'required ':'')+(key==='reportMonth'?'min="1" max="12" ':key==='reportYear'?'min="2000" max="2100" ':'')+'value="'+escape(initial[key] ?? '')+'"></label>').join('')+'</div><div class="marketing-customer-search"><label>Tìm khách KiotViet<input type="search" data-customer-search placeholder="Tên hoặc mã khách"></label><button type="button" data-find>Tìm khách</button><div data-customers></div></div><p class="marketing-status" role="status" data-message>Tháng báo cáo được lưu riêng với ngày chốt.</p><button class="mini-filter-apply" type="submit">Lưu khách chốt</button></form><div data-audit></div>';
+    const form=body.querySelector('form'), message=body.querySelector('[data-message]'); let selectedId=row?.customerDirectoryId || null, searchSeq=0;
+    const current = () => dialog.open && body.isConnected;
+    form.elements.customer.addEventListener('input',()=>{selectedId=null;});
+    body.querySelector('[data-find]').onclick=async()=>{
+      const seq=++searchSeq, host=body.querySelector('[data-customers]'); host.textContent='Đang tìm…';
+      try { const result=await request('customers',new URLSearchParams({q:body.querySelector('[data-customer-search]').value})); if(seq!==searchSeq||!current())return;
+        host.replaceChildren(); (result.customers||[]).forEach(customer=>{const button=document.createElement('button');button.type='button';button.textContent=customer.name+' · '+customer.code+' · '+customer.branch;button.onclick=()=>{selectedId=customer.id;form.elements.customer.value=customer.name;host.textContent='Đã chọn '+customer.name;};host.append(button);}); if(!host.children.length)host.textContent='Không tìm thấy khách.';
+      } catch(error){if(seq===searchSeq)host.textContent=error.message;}
+    };
+    form.onsubmit=async event=>{
+      event.preventDefault(); if(!canManage())return; if (!row && !selectedId) {message.textContent='Tìm và chọn khách KiotViet trước khi lưu.';return;} const values=Object.fromEntries(new FormData(form)); values.reportMonth=Number(values.reportMonth); values.reportYear=Number(values.reportYear); values.closedAt=values.closedAt||null;values.customerDirectoryId=selectedId;values.pageId=(metadata.pages||[]).find(page=>page.name===values.page)?.pageId || (row?.page===values.page ? row.pageId : null);if(row)values.version=row.version;
+      const submit=form.querySelector('[type="submit"]');submit.disabled=true;message.textContent='Đang lưu…';
+      try { await write(row?'monthly/rows/'+encodeURIComponent(row.id):'monthly/rows',row?'PUT':'POST',values);dialog.close();await loadSection('monthly',true);await loadSection('receipt-check',true); }
+      catch(error){message.textContent=error.message;if(error.status===409)submit.dataset.conflict='true';}
+      finally{submit.disabled=submit.dataset.conflict==='true';}
+    };
+    if(row) { const audit=body.querySelector('[data-audit]');audit.textContent='Đang đọc lịch sử…';try {const result=await request('monthly/rows/'+encodeURIComponent(row.id)+'/audit',new URLSearchParams());if(!current())return;audit.innerHTML='<h3>Lịch sử chỉnh sửa</h3>';for(const item of result.audit||[]){const line=document.createElement('p');line.textContent=time(item.createdAt||item.changedAt)+' · '+(item.actorName||item.actor?.name||item.actor?.username||'')+' · '+fields.filter(([key])=>item.before?.[key]!==item.after?.[key]).map(([key,label])=>label+': '+(item.before?.[key] ?? '—')+' → '+(item.after?.[key] ?? '—')).join(' · ');audit.append(line);} }catch(error){audit.textContent=error.message;} }
+  }
+  async function loadOperations() {
+    let host=document.getElementById('marketingOperations');if(!host){host=document.createElement('section');host.id='marketingOperations';host.className='panel marketing-operations';document.getElementById('marketingSections').prepend(host);}
+    try {const result=await request('sync-status',new URLSearchParams());host.innerHTML='<h2>Đồng bộ Fanpage</h2><div class="marketing-sync-grid">'+(result.pages||[]).map(page=>'<div><strong>'+escape(page.pageName||page.name||page.page)+'</strong><p>'+escape(({success:'Thành công',succeeded:'Thành công',failed:'Chưa thành công',running:'Đang đồng bộ',pending:'Chưa đồng bộ'})[page.status]||page.status||'Chưa đồng bộ')+'</p><p>Thành công gần nhất: '+escape(time(page.lastSuccessAt))+'</p>'+(page.lastError||page.errorCode?'<p class="marketing-warnings">'+escape(page.lastError || 'Lần đồng bộ gần nhất chưa thành công. Dữ liệu trước đó được giữ nguyên.')+'</p>':'')+'</div>').join('')+'</div>'+(canManage()?'<button type="button" data-aliases>Ánh xạ nhân viên</button>':'');host.querySelector('[data-aliases]')?.addEventListener('click',openAliases);}
+    catch(error){host.textContent=error.message;}
+  }
+  async function openAliases() {
+    if(!canManage())return;const dialog=editorDialog('Ánh xạ nhân viên'),body=dialog.querySelector('.marketing-dialog-body');body.textContent='Đang đọc…';
+    try {const result=await request('aliases',new URLSearchParams());if(!dialog.open||!body.isConnected)return;body.innerHTML='<p>Tên chưa ánh xạ vẫn được giữ trong báo cáo.</p><div data-alias-list></div><form class="marketing-entry-form"><label>Tên Pancake<input name="rawName" required maxlength="500" list="marketing-unmapped"></label><datalist id="marketing-unmapped">'+(result.unmapped||[]).map(item=>'<option value="'+escape(typeof item==='string'?item:item.rawName)+'"></option>').join('')+'</datalist><label>Tên nhân viên báo cáo<input name="reportEmployee" required maxlength="500"></label><button type="submit">Lưu ánh xạ</button><p role="status" data-message></p></form>';const list=body.querySelector('[data-alias-list]');[...(result.aliases||[]),...(result.unmapped||[]).map(item=>typeof item==='string'?{rawName:item}:item)].forEach(item=>{const line=document.createElement('p');line.textContent=item.rawName+' → '+(item.reportEmployee||'Chưa ánh xạ');list.append(line);});const form=body.querySelector('form');form.onsubmit=async event=>{event.preventDefault();if(!canManage())return;const button=form.querySelector('button');button.disabled=true;try{await write('aliases','PUT',Object.fromEntries(new FormData(form)));dialog.close();await load(true);}catch(error){body.querySelector('[data-message]').textContent=error.message;}finally{button.disabled=false;}};
+    }catch(error){body.textContent=error.message;}
+  }
+
   window.TKSMarketing={load};
 })();

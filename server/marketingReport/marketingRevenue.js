@@ -8,18 +8,18 @@
 const { nameKey } = require('../businessReport/businessMonths');
 
 // Tab BC thang chi co so thang: thang lon hon thang hien tai (VN) thuoc nam truoc.
-function resolveMonthKey(month, nowMs) {
+function resolveMonthKey(month, nowMs, explicitYear) {
   const [y, m] = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Saigon', year: 'numeric', month: '2-digit' })
     .format(new Date(nowMs)).split('-').map(Number);
-  const year = month > m ? y - 1 : y;
+  const year = explicitYear ?? (month > m ? y - 1 : y);
   return `${year}-${String(month).padStart(2, '0')}-01`;
 }
 
 function createRevenueProvider({ repository, now = Date.now } = {}) {
   repository ||= require('../businessReport/businessReportRepository').createRepository();
   // Tra ve { available, revenueOf(name) -> number|null }.
-  return async function revenue(month) {
-    const key = resolveMonthKey(month, now());
+  return async function revenue(month, year) {
+    const key = resolveMonthKey(month, now(), year);
     const snap = await repository.snapshot();
     if (!snap.months.includes(key)) return { available: false, month: key, revenueOf: () => null };
     const totals = new Map();
@@ -43,3 +43,4 @@ function createRevenueProvider({ repository, now = Date.now } = {}) {
 }
 
 module.exports = { createRevenueProvider, resolveMonthKey };
+

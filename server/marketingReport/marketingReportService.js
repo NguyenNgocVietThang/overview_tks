@@ -31,7 +31,7 @@ function sourceWarning(rows) {
 const EDIT_FIELDS = ['newCustomer', 'note'];
 const MAX_EDIT_LENGTH = 500;
 const digits = v => String(v ?? '').replace(/\D/g, '').replace(/^0+/, '');
-function createMarketingReportService({clients, now=Date.now, revenue, writer}={}) {
+function createMarketingReportService({clients, now=Date.now, revenue, writer, repository, businessRepository, source=CONFIG.MARKETING_REPORT_SOURCE}={}) {
   // Chạy thật (không inject clients): doanh số lấy từ KiotViet và được ghi ngược Sheets.
   // Test inject clients mà không truyền revenue/writer thì giữ doanh số của sheet và không ghi.
   if(!clients){ revenue ||= createRevenueProvider({now}); writer ||= createMarketingSheetsWriter(); }
@@ -67,22 +67,22 @@ function createMarketingReportService({clients, now=Date.now, revenue, writer}={
       try {titles[source]=await read(source);sources[source]={available:true};}
       catch(e){titles[source]=[];sources[source]={available:false,error:e.message,code:e.code};}
     }));
-    return { currentMonth:currentMonth(), months:{monthly:titles.report.filter(t=>/^bc tháng /i.test(t)).map(p.monthOfTitle).filter(Boolean).sort((a,b)=>b-a),check:titles.report.filter(t=>/^check tỷ lệ nhận số t/i.test(t)).map(p.monthOfTitle).filter(Boolean).sort((a,b)=>b-a),costs:Array.from({length:12},(_,i)=>i+1).reverse()}, sources };
+    return { sourceMode:'sheets', currentMonth:currentMonth(), months:{monthly:titles.report.filter(t=>/^bc tháng /i.test(t)).map(p.monthOfTitle).filter(Boolean).sort((a,b)=>b-a),check:titles.report.filter(t=>/^check tỷ lệ nhận số t/i.test(t)).map(p.monthOfTitle).filter(Boolean).sort((a,b)=>b-a),costs:Array.from({length:12},(_,i)=>i+1).reverse()}, sources };
   }
-  async function readMonthly(m) {
+  async function readMonthly(m, year) {
     const titles=await read('report');const title=titles.find(t=>/^bc tháng /i.test(t)&&p.monthOfTitle(t)===m);
     if(!title)return {rows:[],pages:[],sales:[],totalRevenue:null,missing:true};
     try {
       const [values,rank]=await Promise.all([read('report',title), titles.includes('BẢNG XẾP HẠNG')?read('report','BẢNG XẾP HẠNG'):[]]);
       const parsed=p.parseMonthly(values,title), revenueWarnings=[];
-      if(revenue) await applyKiotRevenue(parsed,m,revenueWarnings);
+      if(revenue) await applyKiotRevenue(parsed,m,revenueWarnings,year);
       return {...parsed,revenueWarnings,sales:p.parseRanking(rank,m),readAt:Math.min(sourceTime('report',title),titles.includes('BẢNG XẾP HẠNG')?sourceTime('report','BẢNG XẾP HẠNG'):now())};
     }catch(e){if(e.statusCode)throw e;throw fail(503,'MARKETING_HEADERS_MISSING','Nguồn BC tháng không có cấu trúc tiêu đề phù hợp.');}
   }
   // Doanh số lấy từ KiotViet theo tên khách (ghi đè giá trị công thức của sheet).
-  async function applyKiotRevenue(parsed, m, warnings) {
+  async function applyKiotRevenue(parsed, m, warnings, year) {
     let lookup;
-    try { lookup=await revenue(m); }
+    try { lookup=await revenue(m,year); }
     catch(e) { console.error('[MarketingReport] Kiot revenue failed:',e.code||e.message); lookup=null; warnings.push('Không đọc được doanh số KiotViet; cột Doanh số hiển thị —.'); }
     if(lookup && !lookup.available) warnings.push('Chưa có dữ liệu doanh số KiotViet cho tháng này; cột Doanh số hiển thị —.');
     let unmatched=0;
@@ -107,6 +107,8 @@ function createMarketingReportService({clients, now=Date.now, revenue, writer}={
   async function report(kind,query={}) {
     if(!['monthly','receipt-check','phones','costs'].includes(kind))throw fail(400,'MARKETING_INVALID_KIND','Loại báo cáo không hợp lệ.');
     const m=kind==='phones'?null:month(query), warnings=[];
+    const year=query.year===undefined||query.year===''?undefined:Number(query.year);
+    if(year!==undefined&&(!Number.isInteger(year)||year<1900||year>9999))throw fail(400,'MARKETING_INVALID_YEAR','Năm không hợp lệ.');
     if(query.refresh==='1'){
       const sourceNames=kind==='receipt-check'?['report','phones']:[kind==='monthly'?'report':kind==='phones'?'phones':'ads'];
       for(const cacheKey of cache.keys())if(sourceNames.some(s=>cacheKey.startsWith(s+':')))cache.delete(cacheKey);
@@ -114,7 +116,7 @@ function createMarketingReportService({clients, now=Date.now, revenue, writer}={
     let readAt=now();
     let rows=[],summaryRows=[],kpis=[],charts=[],dependencies={},totalRevenue=null;
     if(kind==='monthly') {
-      const data=await readMonthly(m);dependencies.monthly=data;rows=data.rows;
+      const data=await readMonthly(m,year);dependencies.monthly=data;rows=data.rows;
       readAt=data.readAt??now();
       summaryRows=[...data.pages,...data.sales].filter(r=>matches(r,{page:query.page,employee:query.employee}));
       warnings.push(...(data.revenueWarnings||[]));
@@ -130,7 +132,7 @@ function createMarketingReportService({clients, now=Date.now, revenue, writer}={
       else warnings.push(`Chưa có Check tỷ lệ nhận số tháng ${m} trong workbook.`);
       dependencies.check=data;
       if(title)readAt=sourceTime('report',title);
-      [dependencies.monthly,dependencies.phones]=await Promise.all([optional(()=>readMonthly(m),'Chi tiết BC tháng',warnings),optional(readPhones,'Chi tiết SĐT',warnings)]);
+      [dependencies.monthly,dependencies.phones]=await Promise.all([optional(()=>readMonthly(m,year),'Chi tiết BC tháng',warnings),optional(readPhones,'Chi tiết SĐT',warnings)]);
       rows=data.rows;summaryRows=(query.page?data.rows:data.employees.length?data.employees:data.rows).filter(r=>matches(r,query));
       kpis=[kpi('SĐT lần đầu',sum(summaryRows,'first')),kpi('SĐT chào lại',sum(summaryRows,'repeat')),kpi('Quy đổi (theo sheet)',sum(summaryRows,'equivalent')),kpi('Khách chốt (theo sheet)',sum(summaryRows,'closed'))];
     } else if(kind==='phones') {
@@ -162,7 +164,7 @@ function createMarketingReportService({clients, now=Date.now, revenue, writer}={
       charts.push({title:'Tổng chi phí theo ngày',labels:dates,values:dates.map(date=>sum(daily.filter(r=>r.date===date),'totalCost'))});
     }
     const allRows=rows;rows=rows.filter(r=>matches(r,query));warnings.push(...sourceWarning([...rows,...summaryRows]));
-    const result={kind,month:m,snapshotId:randomUUID(),computedAt:new Date(readAt).toISOString(),rows,summaryRows,kpis,charts,warnings:[...new Set(warnings)],filters:filters(allRows)};
+    const result={kind,month:m,...(year===undefined?{}:{year}),snapshotId:randomUUID(),computedAt:new Date(readAt).toISOString(),rows,summaryRows,kpis,charts,warnings:[...new Set(warnings)],filters:filters(allRows)};
     for(const [id,s]of snapshots)if(now()-s.at>SNAPSHOT_TTL)snapshots.delete(id);
     while(snapshots.size>=64)snapshots.delete(snapshots.keys().next().value);
     snapshots.set(result.snapshotId,{at:now(),result,dependencies,query:{...query,month:m}});
@@ -241,6 +243,10 @@ function createMarketingReportService({clients, now=Date.now, revenue, writer}={
     for(const cacheKey of cache.keys())if(cacheKey.startsWith('report:'))cache.delete(cacheKey);
     return {ok:true,field,value};
   }
-  return {metadata,report,detail,updateRow};
+  const legacy={metadata,report,detail,updateRow};
+  if(source==='postgres')return require('./marketingDatabaseReportService').createDatabaseMarketingReportService({repository,businessRepository,legacy,revenue,now});
+  return legacy;
 }
 module.exports={createMarketingReportService};
+
+
